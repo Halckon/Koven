@@ -614,6 +614,7 @@ impl DropPlanner<'_, '_> {
         is_continue: bool,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        self.no_carry_transfer_before(id, is_continue, state);
         let boundary = self.loop_boundaries.last().copied().unwrap_or(0);
         self.end_iteration_pending_loans(
             PlannerDropPoint::ControlTransfer(id),
@@ -627,6 +628,7 @@ impl DropPlanner<'_, '_> {
             state,
         );
         self.finish_jump_iteration(id, state)?;
+        self.no_carry_transfer_after(id, is_continue, state);
         self.finish_owner_loop_jump(id, is_continue, state);
         Ok(false)
     }
@@ -775,8 +777,10 @@ impl DropPlanner<'_, '_> {
                 None
             };
             self.advance_loop_invariant_observation(&mut loop_lineage, &body_state, 1, true);
+            self.no_carry_exit_begin(id, body, &body_state);
             self.loop_boundaries.push(self.scope_depth);
             let continued = self.statement(body, &mut body_state);
+            self.no_carry_body_cleaned(id, body, &body_state, matches!(continued, Ok(false)));
             self.advance_loop_invariant_observation(
                 &mut loop_lineage,
                 &body_state,
@@ -861,6 +865,7 @@ impl DropPlanner<'_, '_> {
             return Ok(false);
         }
         self.drop_root_loop_exit(id, condition, state);
+        self.no_carry_exit_cleaned(id, state);
         self.complete_loop_invariant_observation(loop_lineage, state);
         if collecting
             && self.owner_loop.as_ref().is_some_and(|t| t.normal.is_some())

@@ -12,12 +12,14 @@ pub(super) struct CompletedNoCarry {
     pub(super) loops: Vec<UnitLoopNoCarryFact>,
     pub(super) branches: Vec<UnitLoopBranchNoCarryFact>,
     pub(super) counter_branches: Vec<UnitLoopCounterBranchNoCarryFact>,
+    pub(super) break_branches: Vec<UnitLoopBreakBranchNoCarryFact>,
 }
 impl CompletedNoCarry {
     pub(super) fn extend(&mut self, other: Self) {
         self.loops.extend(other.loops);
         self.branches.extend(other.branches);
         self.counter_branches.extend(other.counter_branches);
+        self.break_branches.extend(other.break_branches);
     }
 }
 
@@ -253,6 +255,94 @@ impl CompilationUnitOwnership {
     pub fn owns_no_carry_counter_branch(&self, fact: &UnitLoopCounterBranchNoCarryFact) -> bool {
         self.no_carry
             .counter_branches
+            .iter()
+            .any(|owned| owned.same_identity(fact))
+    }
+}
+
+/// The only selected non-repeating completion in the no-carry break domain.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitLoopNoCarryExitKind {
+    /// Two closed arms followed by a real unconditional break.
+    Break,
+}
+/// Closed arms plus independently traversed transfer, scope cleanup and loop exit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoopBreakBranchNoCarryFact {
+    identity: Rc<()>,
+    pair: UnitLoopBranchNoCarryFact,
+    loop_body: UnitStatementId,
+    break_statement: UnitStatementId,
+    break_expression: UnitExpressionId,
+    exit_target: UnitStatementId,
+}
+impl UnitLoopBreakBranchNoCarryFact {
+    pub(super) fn new(
+        unit: SourceUnitId,
+        pair: UnitLoopBranchNoCarryFact,
+        plan: crate::ownership_checking::loop_no_carry::BreakPlan,
+    ) -> Option<Self> {
+        let target = UnitStatementId::new(unit, plan.loop_statement);
+        (pair.arms()[0].loop_statement() == target && pair.arms()[1].loop_statement() == target)
+            .then(|| Self {
+                identity: Rc::new(()),
+                pair,
+                loop_body: UnitStatementId::new(unit, plan.loop_body),
+                break_statement: UnitStatementId::new(unit, plan.break_statement),
+                break_expression: UnitExpressionId::new(unit, plan.break_expression),
+                exit_target: target,
+            })
+    }
+    /// Pair remains outside all legacy no-carry proof domains.
+    pub const fn pair(&self) -> &UnitLoopBranchNoCarryFact {
+        &self.pair
+    }
+    /// Exact while body whose scope cleanup completed.
+    pub const fn loop_body(&self) -> UnitStatementId {
+        self.loop_body
+    }
+    /// Actual tail break statement.
+    pub const fn break_statement(&self) -> UnitStatementId {
+        self.break_statement
+    }
+    /// Actual control-transfer expression, not a synthetic edge.
+    pub const fn break_expression(&self) -> UnitExpressionId {
+        self.break_expression
+    }
+    /// The traversed target while identity, not a next-statement guess.
+    pub const fn exit_target(&self) -> UnitStatementId {
+        self.exit_target
+    }
+    /// Alias naming the actual target while directly.
+    pub const fn target_loop(&self) -> UnitStatementId {
+        self.exit_target
+    }
+    /// Cleanup at the actual transfer, before its target loop exit.
+    pub const fn cleanup_point(&self) -> UnitDropPoint {
+        UnitDropPoint::ControlTransfer(self.break_expression)
+    }
+    /// Cleanup at the actual target loop exit.
+    pub const fn exit_cleanup_point(&self) -> UnitDropPoint {
+        UnitDropPoint::LoopExit(self.exit_target)
+    }
+    /// This domain never grants a normal backedge or Continue capability.
+    pub const fn exit_kind(&self) -> UnitLoopNoCarryExitKind {
+        UnitLoopNoCarryExitKind::Break
+    }
+    /// Identity from one validation event; equality alone is not authority.
+    pub fn same_identity(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.identity, &other.identity)
+    }
+}
+impl CompilationUnitOwnership {
+    /// Separately sealed terminal-break pairs, never listed in the other three domains.
+    pub fn no_carry_break_branches(&self) -> &[UnitLoopBreakBranchNoCarryFact] {
+        &self.no_carry.break_branches
+    }
+    /// Foreign structurally equal facts confer no authority.
+    pub fn owns_no_carry_break_branch(&self, fact: &UnitLoopBreakBranchNoCarryFact) -> bool {
+        self.no_carry
+            .break_branches
             .iter()
             .any(|owned| owned.same_identity(fact))
     }

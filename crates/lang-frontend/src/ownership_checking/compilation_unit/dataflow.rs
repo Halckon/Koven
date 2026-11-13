@@ -322,7 +322,7 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
-        no_carry.extend(checker.finish_no_carry_proofs(&drop_analysis.borrow_ends)?);
+        no_carry.extend(checker.finish_no_carry_proofs(&drop_analysis.no_carry)?);
         nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
         map_iteration_templates.extend(checker.map_iterations.into_values());
@@ -373,7 +373,7 @@ pub(super) fn analyze(
         borrow_results
             .forwarded
             .extend(checker.borrow_results.forwarded);
-        borrow_results.ends.extend(drop_analysis.borrow_ends);
+        borrow_results.ends.extend(drop_analysis.no_carry.ends);
     }
 
     let diagnostics: Vec<Diagnostic> =

@@ -29,6 +29,7 @@ mod loop_invariant_capture;
 mod map;
 mod model;
 mod nested_forward_scope;
+pub(super) mod no_carry_exit;
 mod nullable_comparison;
 mod owner_cleanup;
 mod owner_transport;
@@ -83,12 +84,7 @@ pub(super) struct Analysis {
         crate::ownership_checking::UnitIterationExitKind,
         crate::ownership_checking::UnitDropPoint,
     )>,
-    pub(super) borrow_ends: Vec<
-        crate::ownership_checking::BorrowBindingEndFact<
-            UnitSymbolId,
-            crate::ownership_checking::UnitDropPoint,
-        >,
-    >,
+    pub(super) no_carry: no_carry_exit::Receipts,
     pub(super) owner_observations: Vec<crate::ownership_checking::UnitOwnerObservation>,
     pub(super) receiver_call_prefix_ends:
         Vec<crate::ownership_checking::UnitReceiverCallPrefixEndFact>,
@@ -223,7 +219,7 @@ fn plan_with_observations(
         exclusive_call_prefix_ends,
         receiver_call_prefix_ends,
         receiver_call_return_ends,
-        borrow_ends,
+        no_carry: planner.no_carry_exit.finish(borrow_ends),
         iteration_conditional_scopes: planner.iteration_conditional_scopes,
         iteration_owner_scopes,
         iteration_loan_ends,
@@ -237,6 +233,7 @@ fn plan_with_observations(
 }
 
 struct DropPlanner<'a, 'checker> {
+    no_carry_exit: no_carry_exit::Tracker,
     #[cfg(test)]
     owner_hook_probe: Option<Vec<crate::ownership_checking::UnitOwnerTransportEvent>>,
     #[cfg(test)]
@@ -283,6 +280,7 @@ struct DropPlanner<'a, 'checker> {
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
+            no_carry_exit: no_carry_exit::Tracker::default(),
             #[cfg(test)]
             owner_hook_probe: None,
             #[cfg(test)]

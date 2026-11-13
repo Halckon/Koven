@@ -55,7 +55,9 @@ pub use cleanup_condition::{
     CleanupOwnerValue, CleanupOwnerValueId, CleanupSelection, CleanupSelector, CleanupSelectorCopy,
     CleanupSelectorId, CleanupSelectorSource,
 };
-pub use compilation_unit::loop_no_carry::UnitLoopCounterBranchNoCarryFact;
+pub use compilation_unit::loop_no_carry::{
+    UnitLoopBreakBranchNoCarryFact, UnitLoopCounterBranchNoCarryFact, UnitLoopNoCarryExitKind,
+};
 pub use compilation_unit::{
     CompilationUnitConstantOwnership, CompilationUnitOwnership, ConstEnabledOwnedUnit,
     UnitAuxiliarySourceState, UnitBindingUseReturn, UnitBorrowAuxiliaryBindingRegion,

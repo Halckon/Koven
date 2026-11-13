@@ -18,6 +18,8 @@ pub(super) struct Session {
     counter: Option<core::CounterPlan<UnitSymbolId>>,
     update_entered: bool,
     update_completed: bool,
+    exit: Option<core::BreakPlan>,
+    broke: bool,
     valid: bool,
     entry: State,
     bindings: usize,
@@ -171,6 +173,8 @@ impl Checker<'_> {
             counter: selection.counter,
             update_entered: false,
             update_completed: false,
+            exit: selection.exit,
+            broke: false,
             valid: true,
             entry,
             bindings: self.borrow_results.bindings.len(),
@@ -484,6 +488,28 @@ impl Checker<'_> {
         }
         Ok(())
     }
+    pub(super) fn no_carry_break(&mut self, id: ExpressionId, state: &State) {
+        let Some(s) = self.no_carry.as_ref() else {
+            return;
+        };
+        if s.exit
+            .as_ref()
+            .is_none_or(|exit| exit.break_expression != id)
+        {
+            return;
+        }
+        let actual = self.resource_snapshot(state);
+        let exact = s.valid
+            && !s.broke
+            && s.first_closed.is_some()
+            && s.second.is_none()
+            && s.frame.is_closed()
+            && actual == s.entry
+            && self.no_carry_facts(s);
+        let s = self.no_carry.as_mut().unwrap();
+        s.valid &= exact;
+        s.broke = exact;
+    }
     pub(super) fn no_carry_finish(
         &mut self,
         session: Option<Session>,
@@ -495,17 +521,28 @@ impl Checker<'_> {
         let marker = s.frame.plan().marker;
         let exact =
             s.valid && (s.counter.is_none() || s.update_completed) && self.no_carry_facts(&s);
-        let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
-        if let Some(plan) = s.frame.finish(
-            actual.as_ref(),
-            flows.breaks.is_none() && flows.continues.is_none(),
-            exact,
-        ) {
+        let exit_flow = if s.exit.is_some() {
+            &flows.breaks
+        } else {
+            &flows.next
+        };
+        let actual = exit_flow
+            .as_ref()
+            .map(|state| self.resource_snapshot(state));
+        let expected_edge = if s.exit.is_some() {
+            s.broke && flows.next.is_none() && flows.breaks.is_some() && flows.continues.is_none()
+        } else {
+            flows.breaks.is_none() && flows.continues.is_none()
+        };
+        if let Some(plan) = s.frame.finish(actual.as_ref(), expected_edge, exact) {
             match (s.branch, s.first_closed, s.second) {
                 (None, None, None) => self.no_carry_proofs.push(core::Proof::Straight(plan)),
                 (Some(branch), Some(first), None) => self.no_carry_proofs.push(match s.counter {
                     Some(counter) => core::Proof::CounterBranch(branch, [first, plan], counter),
-                    None => core::Proof::Branch(branch, [first, plan]),
+                    None => match s.exit {
+                        Some(exit) => core::Proof::BreakBranch(branch, [first, plan], exit),
+                        None => core::Proof::Branch(branch, [first, plan]),
+                    },
                 }),
                 _ => self.emit_borrow_binding_diagnostic(
                     crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
@@ -527,9 +564,10 @@ impl Checker<'_> {
 impl Checker<'_> {
     pub(super) fn finish_no_carry_proofs(
         &mut self,
-        ends: &[crate::ownership_checking::BorrowBindingEndFact<UnitSymbolId, UnitDropPoint>],
+        receipts: &super::drop_planner::no_carry_exit::Receipts,
     ) -> Result<super::super::loop_no_carry::CompletedNoCarry, super::OwnershipCheckingError> {
         let mut result = super::super::loop_no_carry::CompletedNoCarry::default();
+        let ends = &receipts.ends;
         let valid_end = |fact: &super::super::UnitLoopNoCarryFact| {
             ends.iter()
                 .filter(|end| end.binding == fact.binding())
@@ -540,6 +578,10 @@ impl Checker<'_> {
                     .any(|end| end.binding == fact.binding() && end.point == fact.end())
         };
         for proof in std::mem::take(&mut self.no_carry_proofs) {
+            let exit = match &proof {
+                core::Proof::BreakBranch(_, _, exit) => Some(exit.clone()),
+                _ => None,
+            };
             let counter = match &proof {
                 core::Proof::CounterBranch(_, _, c) => Some(c.clone()),
                 _ => None,
@@ -554,7 +596,8 @@ impl Checker<'_> {
                     (marker, accepted)
                 }
                 core::Proof::Branch(branch, [left, right])
-                | core::Proof::CounterBranch(branch, [left, right], _) => {
+                | core::Proof::CounterBranch(branch, [left, right], _)
+                | core::Proof::BreakBranch(branch, [left, right], _) => {
                     let marker = left.marker;
                     let pair = super::super::UnitLoopNoCarryFact::new(self.source_unit, left)
                         .filter(&valid_end)
@@ -568,8 +611,26 @@ impl Checker<'_> {
                                 [left, right],
                             )
                         });
-                    let accepted = pair.is_some();
-                    if let Some(counter) = counter {
+                    let accepted = pair.is_some()
+                        && exit.as_ref().is_none_or(|exit| {
+                            receipts
+                                .exits
+                                .iter()
+                                .filter(|actual| *actual == exit)
+                                .count()
+                                == 1
+                        });
+                    if let Some(exit) = exit {
+                        if accepted {
+                            result.break_branches.extend(pair.and_then(|pair| {
+                                super::super::loop_no_carry::UnitLoopBreakBranchNoCarryFact::new(
+                                    self.source_unit,
+                                    pair,
+                                    exit,
+                                )
+                            }));
+                        }
+                    } else if let Some(counter) = counter {
                         result.counter_branches.extend(pair.map(|pair| {
                             super::super::loop_no_carry::UnitLoopCounterBranchNoCarryFact::new(
                                 self.source_unit,

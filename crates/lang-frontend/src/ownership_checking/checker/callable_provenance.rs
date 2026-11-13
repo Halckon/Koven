@@ -147,6 +147,7 @@ impl Checker<'_> {
         mut state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        self.no_carry_break(id, &state);
         let counter_update = self.no_carry_counter_before(id, &state);
         self.check_borrow_call_use(id, usage == ExpressionUse::Consume)?;
         state.origins.attach(&self.callable_sources.arena);

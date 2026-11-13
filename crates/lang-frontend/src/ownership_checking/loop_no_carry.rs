@@ -15,6 +15,15 @@ pub(crate) enum Proof<B> {
     Straight(Plan<B>),
     Branch(ExpressionId, [Plan<B>; 2]),
     CounterBranch(ExpressionId, [Plan<B>; 2], CounterPlan<B>),
+    BreakBranch(ExpressionId, [Plan<B>; 2], BreakPlan),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BreakPlan {
+    pub(crate) loop_statement: StatementId,
+    pub(crate) loop_body: StatementId,
+    pub(crate) break_statement: StatementId,
+    pub(crate) break_expression: ExpressionId,
 }
 
 #[derive(Clone)]

@@ -531,10 +531,13 @@ impl Checker<'_> {
                 flows.next = None;
                 Ok(flows)
             }
-            Expression::Break { .. } => Ok(Flows {
-                breaks: Some(state),
-                ..Flows::default()
-            }),
+            Expression::Break { .. } => {
+                self.no_carry_break(id, &state);
+                Ok(Flows {
+                    breaks: Some(state),
+                    ..Flows::default()
+                })
+            }
             Expression::Continue { .. } => Ok(Flows {
                 continues: Some(state),
                 ..Flows::default()

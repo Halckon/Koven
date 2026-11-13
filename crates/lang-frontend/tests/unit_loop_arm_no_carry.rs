@@ -162,11 +162,11 @@ fn ordinary_loop_arm_borrows_reject_unsealed_boundaries() {
 #[test]
 fn ordinary_loop_arm_finite_exit_candidates_remain_outside_selected_shape() {
     // Ordinary source changes, not producer/receipt fault injection. The current
-    // stable Boolean-parameter loop has no finite positive normal-return path.
+    // mutable/conditional exit candidates remain outside the approved tail-break domain.
     for body in [
         "var again=flag;while(again){if(choose){borrow val left=view(source);observe(left)}else{borrow val right=view(source);observe(right)};again=false}",
         "var rounds=2;while(rounds>0){if(choose){borrow val left=view(source);observe(left)}else{borrow val right=view(source);observe(right)};rounds=rounds-1}",
-        "while(flag){if(choose){borrow val left=view(source);observe(left)}else{borrow val right=view(source);observe(right)};break}",
+        "while(flag){if(choose){borrow val left=view(source);observe(left)}else{borrow val right=view(source);observe(right)};if(choose){break}}",
     ] {
         check(body, false);
     }

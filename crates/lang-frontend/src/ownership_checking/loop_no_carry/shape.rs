@@ -14,6 +14,7 @@ pub(crate) struct Selection<B> {
     pub(crate) second: Option<Plan<B>>,
     pub(crate) branch: Option<ExpressionId>,
     pub(crate) counter: Option<CounterPlan<B>>,
+    pub(crate) exit: Option<super::BreakPlan>,
 }
 pub(crate) fn selection<B: Copy + Eq>(
     parsed: &ParsedFile,
@@ -41,6 +42,7 @@ pub(crate) fn selection<B: Copy + Eq>(
             second: None,
             branch: None,
             counter: None,
+            exit: None,
         });
     }
     let (Statement::Block { elements } | Statement::ControlBody { elements }) =
@@ -48,8 +50,26 @@ pub(crate) fn selection<B: Copy + Eq>(
     else {
         return None;
     };
-    let (statement, counter) = match elements.as_slice() {
-        [statement] => (*statement, None),
+    let tail_break = elements.last().and_then(|id| {
+        let Statement::Expression { expression } =
+            parsed.ast().statements().get(*id).ok()?.payload()
+        else {
+            return None;
+        };
+        matches!(
+            parsed.ast().expressions().get(*expression).ok()?.payload(),
+            Expression::Break { .. }
+        )
+        .then_some(super::BreakPlan {
+            loop_statement,
+            loop_body: body,
+            break_statement: *id,
+            break_expression: *expression,
+        })
+    });
+    let (statement, counter, exit) = match elements.as_slice() {
+        [statement] => (*statement, None, None),
+        [statement, _] if tail_break.is_some() => (*statement, None, tail_break),
         [statement, update] => (
             *statement,
             Some(super::counter_shape::select(
@@ -60,6 +80,7 @@ pub(crate) fn selection<B: Copy + Eq>(
                 &resolve,
                 counter_checks,
             )?),
+            None,
         ),
         _ => return None,
     };
@@ -113,6 +134,7 @@ pub(crate) fn selection<B: Copy + Eq>(
         second: Some(second),
         branch: Some(*expression),
         counter,
+        exit,
     })
 }
 fn plan<B: Copy + Eq>(

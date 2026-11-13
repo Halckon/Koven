@@ -17013,3 +17013,25 @@ receipt 核实际 arm→merge→exit 与 false→exit 的边、前驱、参数�
 伪回边或 fresh loan 入出口，whole-unit verifier 仍独立。普通 Single/Unit、rooted/
 memory、observer on/off 与 native 0/1×两臂、返回后 source 可用提供具体证据。
 CI-only 变异仅定义/编译列举，禁止本地执行。未实现/未验证不得标完成，不推送。
+
+### E2 单一 tail-break 前端事实（2026-11-13）
+
+独立选择精确 stable Boolean `while { if/else; break }`，新域不与 counter、旧 Boolean
+回边或 straight facts 混合。Single/Unit 真正访问选中 break 时核两臂均已关闭、实际
+资源恢复；body 返回只允许 break 流，经过 scope cleanup 后再核目标退出状态。
+
+Unit final planner 以独立 tracker 捕获实际 while/body/break：break 入口、真实
+ControlTransfer cleanup 后、body scope cleanup 后与目标 LoopExit cleanup 后四段
+全部匹配，才与两个独立最后使用 End 一起发布 `UnitLoopBreakBranchNoCarryFact`。
+旧三域不列其 pair。失败撤销整域，观察器关闭不影响此证据。首轮普通矩阵 2/2 通过，
+涵盖不等长消费者、清理/目标身份、Single/Unit rooted/memory、真实 observer on/off、
+额外跳转/嵌套/混用counter拒绝，以及前/后失败全局撤销。
+
+旧“tail-break候选拒绝”精确源码已迁入新域正例；原拒绝矩阵该项改为未授权的条件
+break，其余覆盖不删除。尺寸门禁与 docs923 通过，无新增豁免；后端/native独立验收
+仍待后续步骤，不据前端通过声明端到端完成。本地未执行故障注入，未推送。
+
+追加验证：frontend observer-support all-target strict Clippy 通过；四份 ordinary
+集成目标共 11/11 通过（旧 Boolean 双臂3、新tail-break2、counter4、旧边界2），
+包括实际 observer on/off。fmt、docs923、diff与尺寸门禁通过。planner借用End集合
+仅重组为同职责收据容器，并同步一个编译期测试访问路径；未执行本地CI故障。

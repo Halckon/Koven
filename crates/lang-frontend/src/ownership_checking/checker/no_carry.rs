@@ -21,6 +21,8 @@ pub(super) struct Session {
     next_arm: Option<core::Plan<SymbolId>>,
     first_closed: Option<core::Plan<SymbolId>>,
     branch: bool,
+    exit: Option<core::BreakPlan>,
+    broke: bool,
     valid: bool,
     counter: Option<core::CounterPlan<SymbolId>>,
     counter_updated: bool,
@@ -168,6 +170,8 @@ impl Checker<'_> {
             next_arm: selection.second,
             first_closed: None,
             branch: selection.branch.is_some(),
+            exit: selection.exit,
+            broke: false,
             valid: true,
             counter: selection.counter,
             counter_updated: false,
@@ -476,6 +480,28 @@ impl Checker<'_> {
         s.valid &= exact;
         s.counter_updated = exact;
     }
+    pub(super) fn no_carry_break(&mut self, id: ExpressionId, state: &State) {
+        let Some(s) = self.no_carry.as_ref() else {
+            return;
+        };
+        if s.exit
+            .as_ref()
+            .is_none_or(|exit| exit.break_expression != id)
+        {
+            return;
+        }
+        let actual = self.resource_snapshot(state);
+        let exact = s.valid
+            && !s.broke
+            && s.first_closed.is_some()
+            && s.next_arm.is_none()
+            && s.frame.is_closed()
+            && actual == s.entry
+            && self.no_carry_facts(s);
+        let s = self.no_carry.as_mut().unwrap();
+        s.valid &= exact;
+        s.broke = exact;
+    }
     pub(super) fn no_carry_finish(&mut self, flows: &Flows) -> Result<(), OwnershipCheckingError> {
         let Some(s) = self.no_carry.take() else {
             return Ok(());
@@ -484,13 +510,21 @@ impl Checker<'_> {
             && s.valid
             && (s.counter.is_none() || s.counter_updated)
             && (!s.branch || (s.first_closed.is_some() && s.next_arm.is_none()));
-        let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
+        let exit_flow = if s.exit.is_some() {
+            &flows.breaks
+        } else {
+            &flows.next
+        };
+        let actual = exit_flow
+            .as_ref()
+            .map(|state| self.resource_snapshot(state));
+        let expected_edge = if s.exit.is_some() {
+            s.broke && flows.next.is_none() && flows.breaks.is_some() && flows.continues.is_none()
+        } else {
+            flows.breaks.is_none() && flows.continues.is_none()
+        };
         if s.frame
-            .finish(
-                actual.as_ref(),
-                flows.breaks.is_none() && flows.continues.is_none(),
-                exact,
-            )
+            .finish(actual.as_ref(), expected_edge, exact)
             .is_none()
         {
             self.emit_borrow_binding_diagnostic(

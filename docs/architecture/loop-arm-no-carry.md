@@ -80,3 +80,16 @@ Alias 与旧 counter 回边替换、checked 失败边极性、独立 counter 选
 普通基线验证完整 publication/replay；所有变异默认 ignored 且 GITHUB_ACTIONS 门控，
 登记既有 borrowing runner，沿用 macOS/Linux 矩阵。本地只编译/列举，动态拒绝结论
 须等远端实际执行，不能把旧 Boolean 矩阵或普通正例算作新故障验收。
+
+## 单一 tail break 的独立前端事实
+
+稳定 Boolean while 的 body 可另选精确 `if/else; break`，不与 counter/update 混合。
+真正处理该 break 时，两臂 Frame 必须均已 closed 并恢复入口资源；body 完成必须只有
+break 流，没有 fallthrough/continue。scope cleanup 后再次核该退出状态，不将 break
+当作正常回边。新 `no_carry_break_branches()` 与其它三域隔离。
+
+Unit 最终 planner 独立跟随真实 while/body，先核 break 入口资源，再在实际
+ControlTransfer 清理、body scope 清理和目标 LoopExit 清理后核同一目标与空本轮
+loan/稳定外部资源。唯有整段完成 witness 与两臂 End 均匹配才发布退出能力；collector
+不依赖可关闭的观察器。公共事实给出 break statement/expression、body、目标 while、
+两种 cleanup point 和固定 Break exit-kind。native 与后端独立 receipt 仍另行验收。
