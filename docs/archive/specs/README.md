@@ -535,3 +535,4 @@
 - [SPEC-0429](0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md)：`map_iteration`、`closure`、`verify_ownership/borrow_result`、`map_source/formation` 及 `unit_lower` 壳子模块退役。
 - [SPEC-0430](0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md)：`outer_borrowed_while`、`verify/closure_escape`、`verify_operation` 及 `lower_frontend` 壳子模块退役。
 - [SPEC-0431](0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md)：`map_source_unit_contract`、`range`、`map_iteration/local/identity`、`nullable_when`、`nominal`、`loop_control/nullable_while`、`borrow_result` 及 `borrow_argument` 壳子模块退役。
+- [SPEC-0432](0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md)：`source_owner`、`local_storage`、`string_clone`、`checkpoint`、`carrier`、`closure/runtime_tests`、`nullable_numeric_cleanup/tests` 及 `orchestrate/registration_tests` 壳子模块退役。

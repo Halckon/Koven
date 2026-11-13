@@ -1,15 +1,15 @@
 # SPEC-0432: `source_owner`、`local_storage`、`string_clone`、`checkpoint`、`carrier`、`closure/runtime_tests`、`nullable_numeric_cleanup/tests` 及 `orchestrate/registration_tests` 壳子模块退役
 
-> **性质**：正式开发规范（Spec） · **状态**：in-progress · **读取时机**：收敛 `crates/lang-codegen/src/ssa` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/ssa/`
+> **性质**：正式开发规范（Spec） · **状态**：done · **读取时机**：收敛 `crates/lang-codegen/src/ssa` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/ssa/`
 
 | 字段 | 值 |
 |---|---|
 | 编号 | 0432 |
 | 标题 | `source_owner`、`local_storage`、`string_clone`、`checkpoint`、`carrier`、`closure/runtime_tests`、`nullable_numeric_cleanup/tests` 及 `orchestrate/registration_tests` 壳子模块退役 |
 | 版本目标 | v0.46 |
-| 状态 | in-progress |
+| 状态 | done |
 | 创建日期 | 2026-04-17 |
-| 完成日期 | - |
+| 完成日期 | 2026-11-13 |
 | 关联里程碑 | M2（借用系统）、M3（单线程完备） |
 | 关联迭代 | E3（单下降管道收敛） |
 | 关联 ADR | ADR-0006, ADR-0008, ADR-0032, ADR-0033 |
@@ -75,3 +75,19 @@
 2. `python3 scripts/check_rust_sizes.py --base main` 通过，修改文件均小于 1000 行，手写 Rust 文件数净减 8。
 3. `python3 scripts/gen_spec_dag.py` 与 `python3 scripts/check_docs.py` 通过。
 4. `cargo test -p lang-codegen --lib` 编译与单测通过。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
+| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 6/8 个目标路径在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 ``cargo test -p lang-codegen --lib -- borrow_memory unit_lower_test_support types closure_runtime` = `30 passed / 0 failed`` |
+
+宿主核对说明：
+
+- `crates/lang-codegen/src/ssa/refine/build/owner_consumer_test_support.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/boxed_signature_storage_tests.rs`（`342` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/loop_control/iteration.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_type_origin_tests.rs`（`483` 行）

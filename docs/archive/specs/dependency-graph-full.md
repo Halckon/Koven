@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，346 份）"]
+subgraph Garchive["已完成（archive，347 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -355,6 +355,7 @@ subgraph Garchive["已完成（archive，346 份）"]
   S0429["S0429<br/>map_iteration、closure、verify_ownership/borrow_result、map_source/formation 及 unit_lower 壳子模块退役"]
   S0430["S0430<br/>outer_borrowed_while、verify/closure_escape、verify_operation 及 lower_frontend 壳子模块退役"]
   S0431["S0431<br/>map_source_unit_contract、range、map_iteration/local/identity、nullable_when、nominal、loop_control/nullable_while、borrow_result 及 borrow_argument 壳子模块退役"]
+  S0432["S0432<br/>source_owner、local_storage、string_clone、checkpoint、carrier、closure/runtime_tests、nullable_numeric_cleanup/tests 及 orchestrate/registration_tests 壳子模块退役"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -420,7 +421,6 @@ subgraph Gactive["现行 active"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
   S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
-  S0432["S0432<br/>source_owner、local_storage、string_clone、checkpoint、carrier、closure/runtime_tests、nullable_numeric_cleanup/tests 及 orchestrate/registration_tests 壳子模块退役"]
   S0433["S0433<br/>refine 五类借用凭证 ci_tests、verify/closure_escape/types/graph_tests 及 verify_operation/map 壳子模块退役"]
   S0434["S0434<br/>verify_operation/map/tests、verify_ownership 字段与生命周期测试及 unit_lower 闭包/类型原点测试壳子模块退役"]
   S0435["S0435<br/>unit_lower/control/result_tests、item_operand_ssa_test_support 及 lower_frontend 守卫与实例测试壳子模块退役"]
@@ -1867,6 +1867,7 @@ S0366 --> S0367
 | SPEC-0429 | archive | [0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md](0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md) |
 | SPEC-0430 | archive | [0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md](0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md) |
 | SPEC-0431 | archive | [0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md](0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md) |
+| SPEC-0432 | archive | [0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md](0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -1930,7 +1931,6 @@ S0366 --> S0367
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](../../specs/active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
 | SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](../../specs/active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](../../specs/active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
-| SPEC-0432 | active | [0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md](../../specs/active/0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) |
 | SPEC-0433 | active | [0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md](../../specs/active/0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md) |
 | SPEC-0434 | active | [0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md](../../specs/active/0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md) |
 | SPEC-0435 | active | [0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md](../../specs/active/0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) |

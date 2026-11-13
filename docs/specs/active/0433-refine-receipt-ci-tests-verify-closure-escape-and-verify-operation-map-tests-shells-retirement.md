@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0432](0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) 完成 `source_owner`、`local_storage`、`string_clone`、`checkpoint`、`carrier`、`closure/runtime_tests`、`nullable_numeric_cleanup/tests` 及 `orchestrate/registration_tests` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批 `refine` 借用凭证、`verify/closure_escape` 及 `verify_operation/map` 的孤立单文件测试壳模块：
+在 [SPEC-0432](../../archive/specs/0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) 完成 `source_owner`、`local_storage`、`string_clone`、`checkpoint`、`carrier`、`closure/runtime_tests`、`nullable_numeric_cleanup/tests` 及 `orchestrate/registration_tests` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批 `refine` 借用凭证、`verify/closure_escape` 及 `verify_operation/map` 的孤立单文件测试壳模块：
 
 1. `ssa/refine/binding_receipt/emitted/ci_tests.rs`（163 行）：仅包含局部借用绑定凭证的 CI 篡改负控测试，可收敛入宿主 `ssa/refine/binding_receipt.rs`。
 2. `ssa/refine/loan_receipt/emitted/ci_tests.rs`（181 行）：仅包含通用借用凭证的 CI 篡改负控测试，可收敛入宿主 `ssa/refine/loan_receipt.rs`。
