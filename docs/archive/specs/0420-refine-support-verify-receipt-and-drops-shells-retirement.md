@@ -45,15 +45,14 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 2 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：1/2 个路径不存在 |
-| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 0/2 个目标路径在当前树存在 |
+| 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
+| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 7/8 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
-| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
-| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 ``cargo test -p lang-codegen --lib -- lower_frontend refine verify_ownership map_`（0411–0427 合并运行）` |
-| 退役提交已在基线中 | 通过 | 7d1c1b49 refactor(codegen): retire map_iteration, nullable_borrowed_cleanup, refine and lower_frontend shells (SPEC-0427)（其余 0 个删除提交同批） |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+| 退役提交已在基线 `f78c8c20` 中 | 通过 | e640c0eb refactor(codegen): retire callable_instances, integer, reborrow, refine receipt/receiver and drops shells (SPEC-0420)（同批共 8 个删除提交） |
 
 宿主核对说明：
 
-- `lowering_support/callable_instances.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `integer.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `verify_ownership/map.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership/aliases.rs`（`625` 行）

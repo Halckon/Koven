@@ -46,15 +46,17 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 3 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：2/3 个路径不存在 |
-| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 1/3 个目标路径在当前树存在 |
+| 9 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：9/9 个路径不存在 |
+| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 5/9 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
-| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
-| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 ``cargo test -p lang-codegen --lib -- lower_frontend refine verify_ownership map_`（0411–0427 合并运行）` |
-| 退役提交已在基线中 | 通过 | 7d1c1b49 refactor(codegen): retire map_iteration, nullable_borrowed_cleanup, refine and lower_frontend shells (SPEC-0427)（其余 1 个删除提交同批） |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+| 退役提交已在基线 `f78c8c20` 中 | 通过 | 8977b378 refactor(codegen): retire refine receipt/subset and lower_frontend guard/container/closure shells (SPEC-0418)（同批共 9 个删除提交） |
 
 宿主核对说明：
 
-- `refine/named_receipt/emitted.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `refine/receiver_receipt/emitted.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `refine/subset/when.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/refine/subset/named_route.rs`（`484` 行）
+- `lower_frontend/orchestrate/nullable_map_guard_support.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/nullable_map_consume_lowering_tests/resource/unit.rs`（`402` 行）
+- `lower_frontend/source_closure.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/owned_map_borrow_boundary_tests.rs`（`221` 行）
+- `lower_frontend/outer_borrowed_while/source.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_memory_test_support.rs`（`33` 行）

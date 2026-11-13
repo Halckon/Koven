@@ -45,16 +45,20 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 3 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：2/3 个路径不存在 |
-| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 0/3 个目标路径在当前树存在 |
+| 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
+| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 1/8 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
-| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
-| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 ``cargo test -p lang-codegen --lib -- lower_frontend refine verify_ownership map_`（0411–0427 合并运行）` |
-| 退役提交已在基线中 | 通过 | 7d1c1b49 refactor(codegen): retire map_iteration, nullable_borrowed_cleanup, refine and lower_frontend shells (SPEC-0427)（其余 2 个删除提交同批） |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+| 退役提交已在基线 `f78c8c20` 中 | 通过 | 2e003c05 refactor(codegen): retire lower_frontend binding, assertion, map_result, deinit and map_iteration shells (SPEC-0419)（同批共 8 个删除提交） |
 
 宿主核对说明：
 
-- `binding.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
-- `crates/lang-codegen/src/ssa/lower_frontend/declarations.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_unit_consumer_test_support.rs`（`644` 行）
-- `crates/lang-codegen/src/ssa/lower_frontend/string_clone.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_unit_consumer_test_support.rs`（`278` 行）
+- `lower_frontend/declarations.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_lower.rs`（`703` 行）
+- `lower_frontend/nullable_comparison.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/integer_range_pending_tests.rs`（`517` 行）
+- `lower_frontend/string_clone.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_unit_consumer_test_support.rs`（`278` 行）
+- `lower_frontend/aggregate.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/owned_map_borrow_boundary_tests.rs`（`221` 行）
+- `lower_frontend/map_iteration/checked.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/nested_exits/query_cleanup.rs`（`518` 行）
+- `lower_frontend/map_iteration/source_owner/delivery.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_promotion_contract_tests.rs`（`529` 行）
+- `lower_frontend/map_iteration/local_runtime.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native.rs`（`478` 行）

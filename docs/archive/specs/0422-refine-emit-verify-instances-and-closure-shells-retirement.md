@@ -50,16 +50,16 @@
 | 验收项 | 结果 | 证据 |
 |---|---|---|
 | 9 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：9/9 个路径不存在 |
-| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 5/9 个目标路径在当前树存在 |
+| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 5/9 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
-| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
-| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 ``cargo test -p lang-codegen --lib -- lower_frontend refine verify_ownership map_`（0411–0427 合并运行）` |
-| 退役提交已在基线中 | 通过 | e9f73142 refactor(codegen): retire refine/emit/statements, verify_operation, provider_lifetime, closure/layout and lower_frontend shells (SPEC-0422)（其余 7 个删除提交同批） |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+| 退役提交已在基线 `f78c8c20` 中 | 通过 | e9f73142 refactor(codegen): retire refine/emit/statements, verify_operation, provider_lifetime, closure/layout and lower_frontend shells (SPEC-0422)（同批共 8 个删除提交） |
 
 宿主核对说明：
 
-- `crates/lang-codegen/src/ssa/verify_operation/integer.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership/root_exchange.rs`（`623` 行）
-- `crates/lang-codegen/src/ssa/verify_operation/range.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_result_support.rs`（`696` 行）
-- `crates/lang-codegen/src/ssa/lower_frontend/instances.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_plan_tests/callable_identity.rs`（`186` 行）
-- `crates/lang-codegen/src/ssa/lower_frontend/instances.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/multi_temporary_loan_tests/instances.rs`（`551` 行）
+- `verify_operation/integer.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership/root_exchange.rs`（`623` 行）
+- `verify_operation/range.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_result_support.rs`（`696` 行）
+- `lower_frontend/instances.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_llvm_tests.rs`（`267` 行）
+- `lower_frontend/instances.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/multi_temporary_loan_tests/instances.rs`（`551` 行）
