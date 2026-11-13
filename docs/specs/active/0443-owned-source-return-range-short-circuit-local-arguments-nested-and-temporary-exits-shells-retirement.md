@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0442](0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) 完成 `range_lowering_tests`、`unit_lower_container_tests`、`unit_plan_tests`、`borrowed_generate_tests` 及 `source_forms` 子壳模块收敛后，`crates/lang-codegen/src/ssa/` 的测试子目录下仍残留一批可直接内联回直接父模块的薄壳文件：
+在 [SPEC-0442](../../archive/specs/0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) 完成 `range_lowering_tests`、`unit_lower_container_tests`、`unit_plan_tests`、`borrowed_generate_tests` 及 `source_forms` 子壳模块收敛后，`crates/lang-codegen/src/ssa/` 的测试子目录下仍残留一批可直接内联回直接父模块的薄壳文件：
 
 1. `ssa/lower_frontend_owned_source_return_structure_tests.rs`（338 行）：直接内联回 `ssa/lower_frontend_owned_source_return_tests.rs`。
 2. `ssa/lower_frontend_owned_source_return_boundary_tests.rs`（264 行）：直接内联回 `ssa/lower_frontend_owned_source_return_tests.rs`。
