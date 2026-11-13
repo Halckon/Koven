@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0427](../../specs/active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) 完成 `map_iteration`、`nullable_borrowed_cleanup`、`refine` 及 `lower_frontend` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批仅向父模块或同层模块暴露私有实现的薄壳文件：
+在 [SPEC-0427](0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) 完成 `map_iteration`、`nullable_borrowed_cleanup`、`refine` 及 `lower_frontend` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批仅向父模块或同层模块暴露私有实现的薄壳文件：
 
 1. `ssa/model/constant.rs`（11 行）：仅包含 `ScalarConstant` 枚举定义，完全可并入 `ssa/model/operation.rs`。
 2. `ssa/render/types.rs`（222 行）：仅向 `ssa/render.rs` 暴露 SSA 类型渲染辅助，完全可收敛入 `ssa/verify_types.rs` 的内联 `render_types` 子模块。

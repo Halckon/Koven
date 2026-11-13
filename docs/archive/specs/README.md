@@ -554,3 +554,4 @@
 - [SPEC-0448](0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md)：`map_provider_exits_pipeline_tests` 测试域叶子薄壳子模块批量退役（132 个）。
 - [SPEC-0449](0449-remaining-test-domains-leaf-shells-batch-retirement.md)：其余测试域叶子薄壳子模块批量退役（42 个）。
 - [SPEC-0450](0450-next-layer-leaf-and-sibling-shells-batch-retirement.md)：下一层叶子薄壳与同级测试小文件批量收敛（62 个）。
+- [SPEC-0427](0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md)：`map_iteration`、`nullable_borrowed_cleanup`、`refine` 及 `lower_frontend` 壳子模块退役。

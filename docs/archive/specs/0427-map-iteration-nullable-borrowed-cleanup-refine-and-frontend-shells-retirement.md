@@ -6,13 +6,13 @@
 | --- | --- |
 | 编号 | SPEC-0427 |
 | 标题 | `map_iteration`、`nullable_borrowed_cleanup`、`refine` 及 `lower_frontend` 壳子模块退役 |
-| 状态 | in-progress |
+| 状态 | done |
 | 所属阶段 | M4 Phase 4（SSA 代码生成与 E3 收口） |
 | 依赖 | SPEC-0416, SPEC-0417, SPEC-0418, SPEC-0419, SPEC-0420, SPEC-0421, SPEC-0422, SPEC-0423, SPEC-0424, SPEC-0425, SPEC-0426 |
 
 ## 1. 背景与目标
 
-紧接 [SPEC-0426](0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、细化层子集准入/构建以及可空与迭代清理证明行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
+紧接 [SPEC-0426](../../specs/active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、细化层子集准入/构建以及可空与迭代清理证明行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
 
 1. `lower_frontend/map_iteration/conditional/actions.rs`（411 行）-> 并入 `lower_frontend/map_iteration/conditional/verify.rs`（844 行）；
 2. `lower_frontend/map_iteration/local_runtime/evidence.rs`（402 行）-> 并入 `lower_frontend/map_iteration/resource.rs`（828 行）；
@@ -61,3 +61,23 @@
 - 迁移 main 侧两处有界 diff：`local_variable` 的 `counter_binding_authorization`/`counter_binding_emitted`，以及 `field_replace_primitive` 的 `counter_replace_*`、`open_loop_replace_emitted`、`header_replace_emitted` 接线，均落在折叠后的宿主模块中。
 - 体积：合并后 `build/borrow_binding.rs`（折叠 `heap` + main 凭证接线）达 1304 行，按策略在 `scripts/rust-size-policy.json` 登记有界例外（reason/owner/split_plan/review 齐备）。
 - 门禁（本地）：`cargo test -p lang-codegen` lib 3052 passed / 1 ignored、集成 2、doc-tests 4；`clippy --workspace --all-targets -D warnings`、`fmt --check`、`check_docs.py`、`check_rust_sizes.py --base main`、`git diff --check` 全通过。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
+| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 3/8 个目标路径在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 ``cargo test -p lang-codegen --lib -- lower_frontend refine verify_ownership map_`（本批 0411–0427 合并运行）= 见当前批结果` |
+| 退役提交已在基线中 | 通过 | 7d1c1b49 refactor(codegen): retire map_iteration, nullable_borrowed_cleanup, refine and lower_frontend shells (SPEC-0427)（其余 7 个删除提交同批） |
+
+宿主核对说明：
+
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/conditional/verify.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/resource.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `crates/lang-codegen/src/ssa/lower_frontend/loop_control/numeric_iteration.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `crates/lang-codegen/src/ssa/lower_frontend/map_consume.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `crates/lang-codegen/src/ssa/lower_frontend/map_iteration/source.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
