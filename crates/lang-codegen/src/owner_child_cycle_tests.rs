@@ -33,6 +33,7 @@ fn child_cycle_receipt_connects_actual_current_and_next_root_vectors() {
             "nested-body-retirement-ssa-complete",
             "child-cycle-ssa-complete",
             "child-parent-entry-ssa-complete",
+            "parent-initial-owner-base-ssa-complete",
         ] {
             assert_eq!(
                 actions
@@ -47,16 +48,20 @@ fn child_cycle_receipt_connects_actual_current_and_next_root_vectors() {
 }
 
 fn fault_source() -> UnitSource {
+    source_with_initial("var a=seed;")
+}
+fn source_with_initial(initial: &str) -> UnitSource {
     UnitSource::analyze(
         "child-cycle-fault.ko",
-        r#"fun run(outer:Int,inner:Int,own seed:String) {
+        &r#"fun run(outer:Int,inner:Int,own seed:String) {
         var a=seed; var b="b"; var n0=outer; var g0=n0>0;
         while(g0) { var n1=inner; var g1=n1>0;
             while(g1) { val x=replace(&a,"next-a"); val y=replace(&b,"next-b"); n1=n1-1; g1=n1>0 };
             val old=replace(&b,"outer-b"); n0=n0-1; g0=n0>0
         }; println(a); println(b)
     }
-    fun entry() { run(1,2,"seed") }"#,
+    fun entry() { run(1,2,"seed") }"#
+            .replace("var a=seed;", initial),
     )
     .unwrap()
 }
@@ -86,6 +91,9 @@ fn assert_cycle_faults(faults: &[crate::ssa::OwnerFault]) {
 fn ci_only_child_cycle_rejects_missing_evidence_and_transport_corruption() {
     use crate::ssa::OwnerFault::*;
     assert_cycle_faults(&[
+        ChildCycleInitialMissingPlan,
+        ChildCycleInitialSwap,
+        ChildCycleInitialConsumer,
         ChildCycleParentTrueSwap,
         ChildCycleParentEntryPredecessor,
         ChildCycleParentEntryConsumer,
@@ -112,4 +120,21 @@ fn ci_only_child_cycle_rejects_abort_topology_and_new_owner_corruption() {
         ChildCycleNewConsumer,
         ChildCycleDuplicateAbortRoot,
     ]);
+}
+
+#[test]
+fn initial_base_does_not_claim_used_roots_or_other_producers() {
+    for initial in ["var a=seed; println(a);", "var a=seed+\"extra\";"] {
+        let source = source_with_initial(initial);
+        source.assert_frontend_clean();
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert!(
+            !actions
+                .iter()
+                .any(|(name, _)| *name == "parent-initial-owner-base-ssa-complete")
+        );
+    }
 }

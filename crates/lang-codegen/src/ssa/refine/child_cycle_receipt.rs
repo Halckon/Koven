@@ -1,6 +1,7 @@
-//! Independent child-cycle transport, not a parent induction/base proof.
+//! Independent child cycle and bounded initial base, not a full parent induction.
 #[cfg(test)]
 mod faults;
+mod initial_base;
 mod parent_entry;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
@@ -19,6 +20,7 @@ fn invalid(span: Span) -> LoweringError {
 pub(super) struct Plan {
     pub control: UnitStatementId,
     pub parent_header: BlockRef,
+    pub initial_base: Option<BlockRef>,
     pub entry: BlockRef,
     pub header: BlockRef,
     pub body: BlockRef,
@@ -31,8 +33,8 @@ pub(super) struct Plan {
     pub checked_operator: CheckedArithmeticOperator,
 }
 impl Plan {
-    fn roles(&self) -> [BlockRef; 7] {
-        [
+    fn roles(&self) -> Vec<BlockRef> {
+        let mut roles = vec![
             self.parent_header,
             self.entry,
             self.header,
@@ -40,10 +42,12 @@ impl Plan {
             self.backedge,
             self.exit,
             self.abort,
-        ]
+        ];
+        roles.extend(self.initial_base);
+        roles
     }
     fn valid(&self) -> bool {
-        self.roles().into_iter().collect::<BTreeSet<_>>().len() == 7
+        self.roles().into_iter().collect::<BTreeSet<_>>().len() == self.roles().len()
             && !self.roots.is_empty()
             && self.roots.iter().collect::<BTreeSet<_>>().len() == self.roots.len()
     }
@@ -77,6 +81,9 @@ impl Plans {
                 if *role == successor {
                     *role = block;
                 }
+            }
+            if p.initial_base == Some(successor) {
+                p.initial_base = Some(block);
             }
             if !p.valid() {
                 return Err(invalid(span));
@@ -116,6 +123,16 @@ impl Emitted {
             .as_ref()
             .is_some_and(|plan| plan.cycle_required)
             != body.child_cycle_plans.0.is_some()
+            || body
+                .nested_body_plans
+                .0
+                .as_ref()
+                .is_some_and(|plan| plan.initial_base_required)
+                != body
+                    .child_cycle_plans
+                    .0
+                    .as_ref()
+                    .is_some_and(|plan| plan.initial_base.is_some())
         {
             #[cfg(test)]
             super::build::owner_consumer_test_support::record_action(
@@ -186,7 +203,11 @@ impl Emitted {
             {
                 return Err(fail());
             }
-            if role != p.entry && role != p.abort && p.roots.iter().any(|r| !ss.contains(r)) {
+            if role != p.entry
+                && role != p.abort
+                && Some(role) != p.initial_base
+                && p.roots.iter().any(|r| !ss.contains(r))
+            {
                 return Err(fail());
             }
             self.blocks.insert(role, id);
@@ -318,7 +339,7 @@ impl Emitted {
             || actual.checked_instruction != p.checked_instruction
             || actual.checked_span != p.checked_span
             || actual.checked_operator != p.checked_operator
-            || self.seen.len() != 7
+            || self.seen.len() != p.roles().len()
             || generations.len() != p.roots.len()
             || generations.iter().map(|g| g.0).collect::<BTreeSet<_>>()
                 != p.roots.iter().copied().collect()
@@ -449,6 +470,7 @@ impl Emitted {
             return Err(fail());
         }
         self.parent_entry(body, function, span)?;
+        self.initial_base(function, span)?;
         let entry = self.seen.get(&p.entry).ok_or_else(fail)?;
         let entry_roots = p
             .roots

@@ -11,6 +11,12 @@ impl Builder<'_, '_> {
         let Some(plan) = &mut self.nested_owner_body else {
             return Ok(());
         };
+        if control == plan.evidence.parent() {
+            if plan.parent_initial.is_some() {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            plan.parent_initial = self.block;
+        }
         let Some(parent) = plan.evidence.parent_boundary_v1() else {
             return Ok(());
         };

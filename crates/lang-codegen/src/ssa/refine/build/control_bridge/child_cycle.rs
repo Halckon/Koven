@@ -38,6 +38,7 @@ impl Builder<'_, '_> {
         Ok(Some(CyclePlan {
             control: rule.control(),
             parent_header: nested.parent_header.ok_or_else(fail)?,
+            initial_base: self.initial_base(nested, roots),
             entry,
             header: blocks[0],
             body,
@@ -49,5 +50,49 @@ impl Builder<'_, '_> {
             checked_operator: checked.operator,
             checked_span: statement.span,
         }))
+    }
+}
+
+impl Builder<'_, '_> {
+    // Select only direct entry roots sourced by an own parameter or literal.
+    // Other initial producers retain existing lowering, without a base claim.
+    fn initial_base(&self, nested: &NestedBody<'_>, roots: &[Slot]) -> Option<BlockRef> {
+        let entry = nested.parent_initial.filter(|b| *b == BlockRef(0))?;
+        let block = self.body.blocks.get(entry.0)?;
+        let mut known = self
+            .body
+            .parameters
+            .iter()
+            .map(|s| (*s, *s))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let mut used = std::collections::BTreeSet::new();
+        for statement in &block.statements {
+            let source = match statement.op {
+                ROp::StringLiteral { .. } if statement.results.len() == 1 => {
+                    Some(statement.results[0])
+                }
+                ROp::Alias { source } => known.get(&source).copied(),
+                _ => {
+                    used.extend(
+                        statement
+                            .op
+                            .operands()
+                            .iter()
+                            .filter_map(|s| known.get(s).copied()),
+                    );
+                    None
+                }
+            };
+            for result in &statement.results {
+                known.remove(result);
+                if let Some(source) = source {
+                    known.insert(*result, source);
+                }
+            }
+        }
+        roots
+            .iter()
+            .all(|r| known.get(r).is_some_and(|s| !used.contains(s)))
+            .then_some(entry)
     }
 }

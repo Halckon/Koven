@@ -9,6 +9,8 @@ impl Emitted {
         retirement: &super::super::nested_body_receipt::Emitted,
     ) {
         let faults = [
+            OwnerFault::ChildCycleInitialSwap,
+            OwnerFault::ChildCycleInitialConsumer,
             OwnerFault::ChildCycleParentTrueSwap,
             OwnerFault::ChildCycleParentEntryPredecessor,
             OwnerFault::ChildCycleParentEntryConsumer,
@@ -52,6 +54,45 @@ impl Emitted {
         let first = root_index(p.header, p.roots[0]);
         let second = root_index(p.header, p.roots[1]);
         match fault {
+            OwnerFault::ChildCycleInitialSwap => {
+                let initial = p.initial_base.expect("selected base");
+                let a = root_index(p.parent_header, p.roots[0]);
+                let b = root_index(p.parent_header, p.roots[1]);
+                let block = function
+                    .blocks
+                    .iter_mut()
+                    .find(|b| b.id == self.blocks[&initial])
+                    .unwrap();
+                let TerminatorKind::Branch(edge) = &mut block.terminator.as_mut().unwrap().kind
+                else {
+                    panic!("initial");
+                };
+                assert_ne!(edge.arguments[a], edge.arguments[b]);
+                edge.arguments.swap(a, b);
+            }
+            OwnerFault::ChildCycleInitialConsumer => {
+                let initial = p.initial_base.expect("selected base");
+                let owner = self.seen[&initial][&p.roots[1]];
+                let EntityId::Value(owner) = owner else {
+                    panic!("initial owner");
+                };
+                let instruction = function
+                    .instructions
+                    .iter_mut()
+                    .find(|i| {
+                        i.block == self.blocks[&initial]
+                            && matches!(i.operation, Operation::Compare { .. })
+                    })
+                    .expect("scalar parent guard after initial literal");
+                assert!(
+                    !instruction
+                        .operation
+                        .entities()
+                        .contains(&EntityId::Value(owner))
+                );
+                instruction.operation = Operation::Drop { owner };
+            }
+
             OwnerFault::ChildCycleParentTrueSwap => {
                 let a = root_index(p.entry, p.roots[0]);
                 let b = root_index(p.entry, p.roots[1]);

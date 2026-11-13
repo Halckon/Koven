@@ -16649,3 +16649,29 @@ parent resume、false partition 的局部收据不能据此合称完整跨父轮
 （none executed）；codegen all-target strict Clippy、docs922、修改文件 rustfmt、
 diff check 与尺寸门禁（base `f62b312b`）通过。任何 CI-only 变异均未在本地执行，
 远端结果仍待验证；未推送。
+
+
+### D10 直线函数入口的受限初始 owner 基例（2026-11-13）
+
+真实 parent while lowering 另捕获初始 block。仅当它是函数直线入口，且完整根向量
+沿 Alias 来源追踪到 own 参数或 String literal、来源在入口未被其它指令使用时，
+选择可选 initial-base 合同；其它 producer/已使用来源不发布基例，不扩大或收紧旧
+lowering 权限。独立 required 保存在 retirement 计划，已选基例丢失必须拒绝。
+
+emitted 终检核真实 function entry、参数定义或入口单结果 StringLiteral 定义、每根
+Value 唯一、无指令读取/借用/消费、无重复定义/其它块参数冒用/旁路 terminator
+使用，以及完整向量唯一边进入 parent header。接上上一片 parent→child 链后，
+此受限来源已具有本次 child 调用基例；父回边 resume 组合、任意父轮保持和更一般
+初始来源仍未由此证明，不能称完整 D10 归纳。
+
+新增 CI-only 初始计划丢失、初始向量交换、literal 源被消费三例，共 21 类；仍由原
+两个双宿主精确入口承载，禁止本地执行。
+
+本地主正例 1/1、既有 nested counter 普通/native 基线 1/1 与已使用根/其它 producer
+的普通兼容性回归 1/1 通过；后者只断言
+既有 lowering/通用 SSA 合法且不发布 base，不能冒称独立 selector 单测。初版错误
+要求这些源码仍发 child-cycle marker，实际 FE 可不选该规则，已据真实范围修正。
+codegen all-target strict Clippy、docs922、修改文件格式/diff 与尺寸门禁通过；
+CI-only 两个精确目标仅编译列举，none executed。独审发现最初消费反例先破坏
+literal 来源，已改为保留 literal、破坏后续 scalar 指令，避免把来源拒绝冒称消费
+拒绝；该修正仍只编译列举，远端破坏验证待推送后进行。

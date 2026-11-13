@@ -165,3 +165,13 @@ child-cycle 的 CI-only 负例独立放在 `child_cycle_receipt/faults.rs`，分
 观察和 SSA 边/消费。两个 ignored 测试通过专用脚本接入现有双宿主 test job；本地
 `--list-only` 只编译列举，不能作为破坏矩阵运行通过的证据。新增父 true 根交换、preheader 额外前驱及根消费三例，共 18 类；仍只本地编译列举。
 父初始入口与组合归纳仍待推进。
+
+
+### 受限父初始来源
+
+child-cycle 可再保留真实函数入口为第八角色：仅选择沿 Alias 追踪到 own 参数或
+String literal、且进入 parent 前未被其它指令使用的完整根向量。终检核实际 entry
+与每根定义、无先行使用/重复定义/旁路及唯一完整边进入 parent header；已选计划
+的 required 标志独立保存，缺失拒绝。其它来源不发布此基例，仍走既有 lowering。
+这补上受限来源的初始身份，并不把既有 parent resume/carry 收据升级成跨父轮
+组合归纳。CI-only 又增加初始计划缺失、向量交换和源消费，共 21 类，远端待验证。

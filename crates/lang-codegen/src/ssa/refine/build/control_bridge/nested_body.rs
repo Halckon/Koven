@@ -10,6 +10,7 @@ pub(in super::super) struct NestedBody<'a> {
     pub(super) lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     pub(super) entry: Option<BlockRef>,
     pub(super) parent_header: Option<BlockRef>,
+    pub(super) parent_initial: Option<BlockRef>,
     pub(super) parent_lowered: Option<([BlockRef; 4], Vec<Slot>)>,
     pub(super) resume_stage: consumption::Stage,
 }
@@ -47,6 +48,7 @@ impl<'a> NestedBody<'a> {
             lowered: None,
             entry: None,
             parent_header: None,
+            parent_initial: None,
             parent_lowered: None,
             resume_stage: consumption::Stage::Ready,
         }))
@@ -341,6 +343,22 @@ impl Builder<'_, '_> {
             self.child_cycle_plan(plan, blocks, roots)?,
         );
         retirement.cycle_required = self.body.child_cycle_plans.0.is_some();
+        retirement.initial_base_required = self
+            .body
+            .child_cycle_plans
+            .0
+            .as_ref()
+            .is_some_and(|p| p.initial_base.is_some());
+        #[cfg(test)]
+        if retirement.initial_base_required
+            && owner_consumer_test_support::take_fault(
+                owner_consumer_test_support::OwnerFault::ChildCycleInitialMissingPlan,
+            )
+        {
+            assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+            self.body.child_cycle_plans.0.as_mut().unwrap().initial_base = None;
+            owner_consumer_test_support::record_action("child-cycle-fault-hit", 1);
+        }
         #[cfg(test)]
         if retirement.cycle_required
             && owner_consumer_test_support::take_fault(
@@ -509,6 +527,7 @@ impl Builder<'_, '_> {
         );
         Ok(super::super::super::nested_body_receipt::Plan {
             cycle_required: false,
+            initial_base_required: false,
             control: rule.statement(),
             body,
             steps,

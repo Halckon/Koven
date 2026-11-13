@@ -22,6 +22,7 @@ pub(super) struct Step {
 #[derive(Clone, Debug)]
 pub(super) struct Plan {
     pub cycle_required: bool,
+    pub initial_base_required: bool,
     pub control: UnitStatementId,
     pub body: BlockRef,
     pub steps: Vec<Step>,
