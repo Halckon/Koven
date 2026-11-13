@@ -95,10 +95,7 @@ impl Plans {
     pub(in crate::ssa::refine) fn required_counter_breaks(
         inputs: &RefineInputs<'_>,
     ) -> Vec<UnitLoopCounterBreakBranchNoCarryFact> {
-        inputs
-            .owned
-            .no_carry_counter_break_branches()
-            .iter()
+        crate::ssa::borrow_result_support::branch_no_carry::counter_breaks(inputs.owned)
             .filter(|b| {
                 Some(b.counter().pair().arms()[0].callable().item()) == inputs.function_item
                     && b.counter().pair().branch().source_unit() == inputs.source_unit
@@ -110,17 +107,18 @@ impl Plans {
         inputs: &RefineInputs<'_>,
         pair: &UnitLoopBranchNoCarryFact,
     ) -> Result<Option<CounterBreak>, LoweringError> {
-        let mut matches = inputs
-            .owned
-            .no_carry_counter_break_branches()
-            .iter()
-            .filter(|b| b.counter().pair().same_identity(pair));
+        let mut matches =
+            crate::ssa::borrow_result_support::branch_no_carry::counter_breaks(inputs.owned)
+                .filter(|b| b.counter().pair().same_identity(pair));
         let Some(fact) = matches.next() else {
             return Ok(None);
         };
         let fail = || invalid(inputs.span);
         if matches.next().is_some()
-            || !inputs.owned.owns_no_carry_counter_break_branch(fact)
+            || !crate::ssa::borrow_result_support::branch_no_carry::owns_counter_break(
+                inputs.owned,
+                fact,
+            )
             || fact.target_loop() != pair.arms()[0].loop_statement()
             || fact.cleanup_point() != UnitDropPoint::ControlTransfer(fact.break_expression())
             || fact.exit_cleanup_point() != UnitDropPoint::LoopExit(fact.target_loop())
@@ -198,7 +196,9 @@ impl Emitted {
                     && (p.counter.is_none()
                         || p.counter_fact.is_some()
                         || p.tail_break.is_some()
-                        || p.prefix.is_some())
+                        || p.prefix
+                            .as_ref()
+                            .is_some_and(|prefix| !prefix.is_counter_composition()))
             })
         {
             return Err(invalid(s));

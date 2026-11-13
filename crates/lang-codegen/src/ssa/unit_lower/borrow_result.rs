@@ -415,16 +415,27 @@ fn validate_binding(
                 .get_or_insert_with(Default::default)
                 .insert(prefix.prefix().expression().index());
         }
-        for cb in owned.no_carry_counter_break_branches().iter().filter(|b| {
-            owned.owns_no_carry_counter_break_branch(b)
-                && b.counter().pair().branch().expression() == control
-                && b.counter().pair().branch().source_unit() == fact.binding().source_unit()
-        }) {
+        for cb in
+            crate::ssa::borrow_result_support::branch_no_carry::counter_breaks(owned).filter(|b| {
+                crate::ssa::borrow_result_support::branch_no_carry::owns_counter_break(owned, b)
+                    && b.counter().pair().branch().expression() == control
+                    && b.counter().pair().branch().source_unit() == fact.binding().source_unit()
+            })
+        {
             let allowed = allowed_controls.get_or_insert_with(Default::default);
             allowed.insert(cb.break_control().expression().index());
             allowed.insert(cb.break_expression().expression().index());
             allowed.insert(cb.counter().condition().expression().index());
             allowed.insert(cb.counter().decrement().expression().index());
+        }
+        for prefix in owned.no_carry_prefix_counter_breaks().iter().filter(|p| {
+            owned.owns_no_carry_prefix_counter_break(p)
+                && p.counter_break().counter().pair().branch().expression() == control
+                && p.prefix().source_unit() == fact.binding().source_unit()
+        }) {
+            allowed_controls
+                .get_or_insert_with(Default::default)
+                .insert(prefix.prefix().expression().index());
         }
         // Only the separately owned bounded fact admits its exact guard/update.
         // Other binary expressions retain the ordinary borrow-binding frontier.

@@ -22,6 +22,7 @@ mod break_hooks;
 mod ci_tests;
 use break_hooks::BreakPlan;
 mod break_validation;
+mod composed_prefix;
 mod counter;
 mod counter_break;
 #[cfg(test)]
@@ -34,6 +35,7 @@ mod counter_validation;
 mod prefix;
 #[cfg(test)]
 mod prefix_ci;
+mod prefix_fact;
 #[cfg(test)]
 mod publication;
 mod validation;
@@ -412,6 +414,8 @@ pub(super) struct Emitted {
     counter_selected: Vec<UnitLoopCounterBranchNoCarryFact>,
     counter_break_selected: Vec<UnitLoopCounterBreakBranchNoCarryFact>,
     break_selected: Vec<UnitLoopBreakBranchNoCarryFact>,
+    composed_prefix_selected:
+        Vec<lang_frontend::ownership_checking::UnitLoopPrefixCounterBreakFact>,
     prefix_selected: Vec<lang_frontend::ownership_checking::UnitLoopBreakPrefixFact>,
     aliases: BTreeMap<(BlockRef, usize), (Slot, Slot, EntityId)>,
     blocks: BTreeMap<BlockRef, BlockId>,
@@ -442,6 +446,7 @@ impl Emitted {
         self.check_counter_break_required(body, span)?;
         self.check_break_required(body, span)?;
         self.check_prefix_required(body, span)?;
+        self.check_composed_prefix_required(body, span)?;
         if body.arm_loop_required.is_empty() {
             return Ok(());
         }
@@ -474,6 +479,7 @@ impl Emitted {
         self.counter_break_selected = body.arm_counter_break_required.clone();
         self.break_selected = body.arm_break_required.clone();
         self.prefix_selected = body.arm_prefix_required.clone();
+        self.composed_prefix_selected = body.arm_composed_prefix_required.clone();
         self.blocks = blocks.clone();
         self.parameters = parameters.clone();
         self.entities = entities.clone();
@@ -522,11 +528,21 @@ impl Emitted {
         self.check_counter_break_required(body, span)?;
         self.check_break_required(body, span)?;
         self.check_prefix_required(body, span)?;
+        self.check_composed_prefix_required(body, span)?;
         if self.counter_break_selected.len() != body.arm_counter_break_required.len()
             || self
                 .counter_break_selected
                 .iter()
                 .zip(&body.arm_counter_break_required)
+                .any(|(a, b)| !a.same_identity(b))
+        {
+            return Err(invalid(span));
+        }
+        if self.composed_prefix_selected.len() != body.arm_composed_prefix_required.len()
+            || self
+                .composed_prefix_selected
+                .iter()
+                .zip(&body.arm_composed_prefix_required)
                 .any(|(a, b)| !a.same_identity(b))
         {
             return Err(invalid(span));
@@ -631,12 +647,26 @@ impl Receipt {
             .prefix_selected
             .iter()
             .filter(|p| p.pair().pair().same_identity(&self.plan.fact));
-        match (prefixes.next(), &self.plan.prefix) {
-            (None, None) => {}
-            (Some(fact), Some(prefix)) if fact.same_identity(&prefix.fact) => {}
+        match (prefixes.next(), self.plan.prefix.as_ref().map(|p| &p.fact)) {
+            (None, None) | (None, Some(prefix_fact::PrefixFact::Counter(_))) => {}
+            (Some(a), Some(prefix_fact::PrefixFact::Tail(b))) if a.same_identity(b) => {}
             _ => return Err(invalid(self.span)),
         }
         if prefixes.next().is_some() {
+            return Err(invalid(self.span));
+        }
+        let mut composed = self.evidence.composed_prefix_selected.iter().filter(|p| {
+            p.counter_break()
+                .counter()
+                .pair()
+                .same_identity(&self.plan.fact)
+        });
+        match (composed.next(), self.plan.prefix.as_ref().map(|p| &p.fact)) {
+            (None, None) | (None, Some(prefix_fact::PrefixFact::Tail(_))) => {}
+            (Some(a), Some(prefix_fact::PrefixFact::Counter(b))) if a.same_identity(b) => {}
+            _ => return Err(invalid(self.span)),
+        }
+        if composed.next().is_some() {
             return Err(invalid(self.span));
         }
         self.evidence

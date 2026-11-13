@@ -156,6 +156,8 @@ pub(super) fn build(
             fresh_loop_plans: super::fresh_loop_receipt::Plans::new(inputs, types)?,
             arm_loop_plans: super::arm_loop_receipt::Plans::new(inputs)?,
             arm_loop_required: super::arm_loop_receipt::Plans::required(inputs),
+            arm_composed_prefix_required:
+                super::arm_loop_receipt::Plans::required_composed_prefixes(inputs),
             arm_prefix_required: super::arm_loop_receipt::Plans::required_prefixes(inputs),
             arm_break_required: super::arm_loop_receipt::Plans::required_breaks(inputs),
             arm_counter_break_required: super::arm_loop_receipt::Plans::required_counter_breaks(

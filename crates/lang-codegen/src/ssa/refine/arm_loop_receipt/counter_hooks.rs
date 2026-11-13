@@ -34,13 +34,12 @@ impl Plans {
     ) -> Result<counter::CounterSpec, LoweringError> {
         let fail = || invalid(inputs.span);
         if !inputs.owned.owns_no_carry_counter_branch(fact)
-            && !inputs
-                .owned
-                .no_carry_counter_break_branches()
-                .iter()
+            && !crate::ssa::borrow_result_support::branch_no_carry::counter_breaks(inputs.owned)
                 .any(|b| {
-                    inputs.owned.owns_no_carry_counter_break_branch(b)
-                        && b.counter().same_identity(fact)
+                    crate::ssa::borrow_result_support::branch_no_carry::owns_counter_break(
+                        inputs.owned,
+                        b,
+                    ) && b.counter().same_identity(fact)
                 })
         {
             return Err(fail());

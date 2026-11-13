@@ -24,7 +24,9 @@ impl Emitted {
             || cb.used.map(|u| u.0) != Some(gate)
             || checked[0] != continued
             || p.tail_break.is_some()
-            || p.prefix.is_some()
+            || p.prefix
+                .as_ref()
+                .is_some_and(|prefix| !prefix.is_counter_composition())
         {
             return Err(invalid(s));
         }
