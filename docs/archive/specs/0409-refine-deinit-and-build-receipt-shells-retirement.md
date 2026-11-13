@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0409` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户指示盘点剩余退休工作并继续推进下一批 |
 | 基线 | [SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)（`a7fc2986`，含 `main` `e659b66a`） |
 | 分支 | `feature/spec-0409-refine-deinit-and-build-receipt-shells-retirement` |
-| 前置 | [SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0404](../../archive/specs/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../archive/specs/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](../../archive/specs/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](../../archive/specs/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md) |
+| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0404](../../archive/specs/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../archive/specs/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](../../archive/specs/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](../../archive/specs/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -41,3 +41,20 @@
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [x] 修复合并后的编译缺口：`ssa/types.rs::valid_deinit_signature` 补回缺失闭合括号，`refine/build/owner_consumer/replacement.rs` 补 `ROp` 导入，删除 `scalar_text.rs` 与 `unit_lower.rs` 的未使用导入，并应用 pinned rustfmt。
 - [x] 本地 `cargo test -p lang-codegen`（`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）回归：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 6 个退役项已从版本库移除 | 通过 | 逐个确认：6/6 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并） | 4/6 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 完整默认配置 lib 套件 `3055 passed / 0 failed / 1 ignored`、feature 套件 `3117 passed / 0 failed / 1 ignored`（两次全量均已执行）；本 Spec 未另跑独立定向重跑 |
+
+核对说明：
+
+- 确认不存在：`ssa/deinit.rs`、`ssa/lower_frontend/deinit.rs`、`ssa/verify/module.rs`、`refine/build/named_argument.rs`、`refine/build/owner_call.rs`、`refine/build/owner_consumer/replacement.rs`
+- 宿主 `ssa/verify.rs`、`refine/build.rs`、`refine/build/scalar_text.rs` 存在（`content_flow` 现由 `verify.rs` 重导出）
+- 本 Spec 声明的文件级退役项在当前树均已不存在；历史已 squash，无法把删除单独归因到本 Spec 的提交，账本只声明“当前状态已达成”。

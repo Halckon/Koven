@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0400` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认合入 PR #408（`3fe1920a`）后继续推进下一批旧路径退役 |
-| 基线 | [SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md)（`3fe1920a`） |
+| 基线 | [SPEC-0399](../../specs/active/0399-refine-heap-nullable-if-and-compatibility-retirement.md)（`3fe1920a`） |
 | 分支 | `feature/spec-0400-refine-unit-lower-dead-carrier-retirement` |
-| 前置 | [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md)、[SPEC-0395](0395-refine-nullable-while-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)、[SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
+| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0382](../../archive/specs/0382-refine-map-ops-and-primitive-retirement.md)、[SPEC-0393](../../specs/active/0393-refine-range-borrow-result-rc-closure-retirement.md)、[SPEC-0395](../../specs/active/0395-refine-nullable-while-retirement.md)、[SPEC-0397](../../specs/active/0397-refine-nullable-map-and-closure-retirement.md)、[SPEC-0399](../../specs/active/0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -43,3 +43,20 @@
 - [x] 同步修正 `SPEC-0399` 文档以准确反映 PR #408（`01926c86` / `3fe1920a`）保留 `nullable when` 混合函数兼容层的实际边界。
 - [x] `scripts/check_rust_sizes.py --base main` 与 `scripts/check_docs.py` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 4 个退役项已从版本库移除 | 通过 | 逐个确认：4/4 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并） | 0/4 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 完整默认配置 lib 套件 `3055 passed / 0 failed / 1 ignored`、feature 套件 `3117 passed / 0 failed / 1 ignored`（两次全量均已执行）；本 Spec 未另跑独立定向重跑 |
+
+核对说明：
+
+- 确认不存在：`unit_lower/cfg/range.rs`、`unit_lower/nullable_proof/guard_tests.rs`、`unit_lower/nullable_proof/guard_tests/support.rs`、`unit_lower/control/result_tests.rs`
+- 这些宿主目录本身随后被 SPEC-0435/0436 再次收敛，故目标路径也不再存在
+- 本 Spec 声明的文件级退役项在当前树均已不存在；历史已 squash，无法把删除单独归因到本 Spec 的提交，账本只声明“当前状态已达成”。

@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0408` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户指示继续推进下一批 E3 收尾清理 |
 | 基线 | [SPEC-0407](../../archive/specs/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)（`cf0cf4ef`，含 `main` `e659b66a`） |
 | 分支 | `feature/spec-0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement` |
-| 前置 | [SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0404](../../archive/specs/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../archive/specs/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](../../archive/specs/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](../../archive/specs/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md) |
+| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0404](../../archive/specs/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../archive/specs/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](../../archive/specs/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](../../archive/specs/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -39,3 +39,20 @@
 - [x] 退役 `inline_nullable.rs`、`integer_range_type.rs`、`unit_source_query.rs` 与 `unit_source_query_tests.rs`，完成 `is_null_literal` 跨模块去重。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 4 个退役项已从版本库移除 | 通过 | 逐个确认：4/4 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过 | 4/4 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 完整默认配置 lib 套件 `3055 passed / 0 failed / 1 ignored`、feature 套件 `3117 passed / 0 failed / 1 ignored`（两次全量均已执行）；本 Spec 未另跑独立定向重跑 |
+
+核对说明：
+
+- 确认不存在：`unit_lower/control/nullable_if/inline_nullable.rs`、`integer_range_type.rs`、`unit_source_query.rs`、`unit_source_query_tests.rs`
+- 宿主 `ssa/types.rs`、`ssa/lowering_support.rs`、`carry.rs` 等仍存在
+- 本 Spec 声明的文件级退役项在当前树均已不存在；历史已 squash，无法把删除单独归因到本 Spec 的提交，账本只声明“当前状态已达成”。

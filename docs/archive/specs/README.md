@@ -579,3 +579,6 @@
 - [SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)：`unit_lower` 死字段、`provider` 死辅助入口与测试专用 `ssa` 支持项退役。
 - [SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)：`unit_lower` 遗留壳模块、单变体 `IterationState` 与死辅助入口退役。
 - [SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md)：`unit_lower` 可空 `Rc` `if` 证明入口、`validated_rc_operation` 与只写 `shared_field_roots` 退役。
+- [SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md)：`ssa/deinit`、`refine/build` 凭证壳模块收敛及冗余路由/作用域状态退役。
+- [SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)：`ssa` 类型与源查询壳模块收敛及 `null` 字面量判定辅助去重。
+- [SPEC-0400](0400-refine-unit-lower-dead-carrier-retirement.md)：`unit_lower` 区间/捕获/闭包来源死 Carrier、调用帧冗余槽与守卫测试支架退役。
