@@ -17403,3 +17403,15 @@ prefix/counter-break/counter各1），observer-support all-target严格Clippy通
 两位独立只读审查确认prefix裁剪保留共享stop，实际join→init→header链和资源
 身份没有确定遗漏；本地整合 `48d93615` 的crates逐文件与已验证生产提交相同。
 普通双receipt、CI-only反例编译列举与最终严格Clippy尚待完成；没有推送。
+
+
+最终本地组合验收：后端 `d9e9abf8` 增加普通独立双receipt fixture及8个显式
+ignored的CI-only反例；独立prefix/共享stop各两函数的普通发布与重放exact实际
+1/1通过。每函数selected身份数为1、unit发布总数为2，已由普通fixture验证。
+切换工作树曾命中旧target产物而得到exact匹配0及缺新清单项，这两次结果已
+丢弃、不计通过；强制当前源码重新编译后才取得上述实际1/1与完整清单结果。
+codegen observer-support all-target严格Clippy通过；79项借用故障清单仅编译
+列举通过，none executed。真实28模式SSA、504调用native和七项旧域exact证据
+保持，格式、docs925、尺寸与diff检查通过。本地整合 `d6327122` 的全部crates
+及清单逐文件等同后端已验证提交。8项新CI反例动态拒绝/恢复仍待远端，本轮
+未推送、未本地执行故障，不能借此前#420旧head的CI声称新组合已远端验收。
