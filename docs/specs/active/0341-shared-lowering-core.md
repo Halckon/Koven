@@ -17336,3 +17336,12 @@ memory与observer开关，真实native覆盖0/1/2轮与flag真假共24次调用�
 统一71项及child-cycle/parent/scalar-owner/legacy-bridge独立入口均仅编译列举
 通过，none executed。未启用本地CI环境或执行故障，未推送/合并远端。动态反例
 仍待远端双宿主验收，不以普通交互回归替代D10/E2整体完成。
+
+### D10 单 concat 与标量入口组合（已批准，实施中）
+
+允许既有直线入口唯一一次两原生 literal String concat，先完成两个输入临时值的
+独立清理，再经过既有无资源标量 if/else，将完整根 owner 向量逐臂带入父 header。
+必须同时保留 concat 实际来源/唯一使用/清理顺序与无逃逸、scalar entry 唯一前驱/
+无重入、child 归纳及 parent 组合收据，不能仅删除旧 selector 或复用有限运行结果。
+不允许第二个或嵌套 concat、一般调用 producer、借用输入、额外控制流或复杂退出。
+本批基于 `a95d095c` 独立开发，仅本地提交，故障反例只允许远端 CI 执行。
