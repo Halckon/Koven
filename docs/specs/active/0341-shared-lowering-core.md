@@ -17363,3 +17363,20 @@ D10 concat 独立来源/清理收据补强：原位置检查仅核 entry 内的�
 仅编译列举（none executed），重复挂载反例仍待远端。独审确认原独立证明缺口与
 修复闭合，不代表非法源码曾绕过通用verifier；未改变选择范围/降低过程。docs925
 文件、尺寸门禁2690文件/36处历史超限通过，本批仅本地提交，未推送。
+### 已批准的 scalar prefix + counter 条件 break 组合（2026-11-13）
+
+用户明确批准在既有有界counter双臂闭合与单一稳定Boolean条件break之前，组合
+既有无资源标量if/else前缀。仅接受现有前缀已证明的纯标量/空Unit函数形状，
+不放宽为I/O、未知callee、借用或资源操作；函数顺序为prefix、counter初始化、
+原循环，再接既有后继。其余counter/两臂/条件break限制全部保持，不授权嵌套、
+额外跳转或一般多循环组合。历史“不与prefix组合”记录描述当时边界，本节仅
+覆盖此新增明确批准组合。
+
+前端须证明prefix两路无资源副作用且汇合资源状态一致，再独立验证原counter
+继续/退出状态与清理。后端须实际捕获prefix join→counter init→header链及完整
+前驱，不能用布局猜测；prefix独立Boolean最后使用后可裁剪，但活跃counter、
+choose/stop、资源根与身份必须保留。两出口运输与后继无重入验证保持。组合
+必须拥有独立必需证据与选取/发布责任，不能用旧域事实绕过prefix或break证明。
+普通SSA/native覆盖独立与共享Boolean、Borrow/Own参数、两prefix路径、0/1/2轮、
+双臂和stop真假；越界源码继续拒绝。故障仅CI编译列举，不在本地执行。
+本轮基于 `a95d095c` 独立树复用已有成果，Spec先行、分步本地提交，不推送。
