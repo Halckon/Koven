@@ -12,7 +12,7 @@
 
 ## 1. 背景与目标
 
-紧接 [SPEC-0420](../../specs/active/0420-refine-support-verify-receipt-and-drops-shells-retirement.md)，`crates/lang-codegen/src/ssa` 下仍有一批薄壳子模块可内联收敛至宿主或相邻兄弟模块，且合并后全部文件均保持在 1000 行阈值以内：
+紧接 [SPEC-0420](0420-refine-support-verify-receipt-and-drops-shells-retirement.md)，`crates/lang-codegen/src/ssa` 下仍有一批薄壳子模块可内联收敛至宿主或相邻兄弟模块，且合并后全部文件均保持在 1000 行阈值以内：
 
 1. `unit_lower/control/nullable_if.rs`（239 行）-> 并入 `unit_lower/control/conditional.rs`（525 行）；
 2. `unit_lower/nullable_proof.rs`（278 行）-> 并入 `unit_lower/construction.rs`（568 行）；

@@ -561,3 +561,4 @@
 - [SPEC-0423](0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md)：`map_iteration`、`refine/build`、`unit_plan`、`unit_lower` 及可空清理壳子模块退役。
 - [SPEC-0422](0422-refine-emit-verify-instances-and-closure-shells-retirement.md)：`refine/emit/statements`、`verify_operation`、`verify_ownership/provider_lifetime`、`unit_lower/closure/layout` 及 `lower_frontend` 实例/接收者壳子模块退役。
 - [SPEC-0421](0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md)：`unit_lower` 可空证明/分支、`map_source` 交接、`verify/module` 及 `lower_frontend` 迭代/循环壳子模块退役。
+- [SPEC-0420](0420-refine-support-verify-receipt-and-drops-shells-retirement.md)：`lowering_support`、`integer`、`verify_ownership/reborrow`、`refine` 接收者/借用凭证及 `lower_frontend/drops` 壳子模块退役。
