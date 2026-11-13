@@ -16994,3 +16994,22 @@ on/off 共 32 次 lowering/verifier/独立 receipt replay，精确普通目标 1
 与两臂，核 consumer 次数、正常返回后 source 可读和最终 own 消费，1/1 通过。
 负数按既有 >0 guard 零轮退出，不新增控制形状。fmt、docs923、尺寸门禁、diff通过；
 本轮未新增生产修复，未运行任何本地故障注入，未推送。动态 CI 结论仍以远端为准。
+
+### 新批准切片：双臂闭合后的单一 tail break（2026-11-13）
+
+用户批准“两臂借用关闭后的单一无条件 tail break，并证明退出清理”。最小形状为
+稳定 Boolean 参数 `while(flag) { if(choose) {借用与非空消费} else {借用与非空消费}; break }`。
+source 仍为同一稳定 String Borrow 参数；choose 仍为稳定 Boolean 参数，两臂各自
+完整 acquire/consumer-return/End/scope-close 后恢复入口资源，方可沿唯一实际 break
+退出。flag=false 为零轮、true 为一轮，不能称多轮或跨轮证明。不混 counter/decrement，
+不允许嵌套、条件/带标签 break、额外跳转、return/continue、多根或跨臂/跨出口 loan。
+
+先独立发布 break exit-kind、确切 while/if/两臂/实际 break/目标出口身份与关闭事实；
+旧 straight/Boolean-backedge/counter 事实域不列此能力。检查器必须在真正处理 break
+时核关闭及目标，不可由语法尾部位置代替动态路径证据。全局失败仍撤销新旧事实。
+
+后端独立必需清单选择新能力，冻结真实 break、两臂 End、资源快照和出口目标；最终
+receipt 核实际 arm→merge→exit 与 false→exit 的边、前驱、参数运输和清理，不接受
+伪回边或 fresh loan 入出口，whole-unit verifier 仍独立。普通 Single/Unit、rooted/
+memory、observer on/off 与 native 0/1×两臂、返回后 source 可用提供具体证据。
+CI-only 变异仅定义/编译列举，禁止本地执行。未实现/未验证不得标完成，不推送。
