@@ -44,19 +44,24 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 6 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：6/6 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 0/6 个目标路径在当前树存在 |
+| 18 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：18/18 个路径不存在 |
+| 内容并入声明的合并目标 | 部分未定位 | 0/18 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
 | `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
-| 退役提交已在基线 `f78c8c20` 中 | 通过 | 98f2e975 refactor(codegen): retire lower_frontend map_iteration and field borrow shells (SPEC-0415)（同批共 6 个删除提交） |
+| 退役提交已在基线 `f78c8c20` 中 | 通过 | 98f2e975 refactor(codegen): retire lower_frontend map_iteration and field borrow shells (SPEC-0415)（同批共 9 个删除提交） |
 
 宿主核对说明：
 
+- `conditional/transport.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `lower_frontend/map_iteration/conditional.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/lowering_support_tests.rs`（`620` 行）
 - `lower_frontend/map_iteration/conditional/retained.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/checked_integer_conversion_tests.rs`（`767` 行）
-- `lower_frontend/map_iteration/formed_runtime.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_nullable_when_tests/support.rs`（`708` 行）
+- `lower_frontend/map_iteration/formed_runtime.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_tests/map_sibling_route_tests.rs`（`11` 行）
 - `lower_frontend/map_iteration/temporary.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/lower_frontend/non_null_proof.rs`（`766` 行）
 - `lower_frontend/map_iteration/formed/retained.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership/range.rs`（`142` 行）
 - `lower_frontend/map_iteration/local.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/deinit_tests.rs`（`218` 行）
 - `lower_frontend/borrow_argument/nullable_field.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/mod.rs`（`848` 行）
+- `borrow_argument/owned_field.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+
+其中 2 处未能按符号定位，需人工复核。

@@ -42,17 +42,22 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 4 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：4/4 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 0/4 个目标路径在当前树存在 |
+| 14 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：14/14 个路径不存在 |
+| 内容并入声明的合并目标 | 部分未定位 | 0/14 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
 | `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
-| 退役提交已在基线 `f78c8c20` 中 | 通过 | 0d3a5635 refactor(codegen): retire verify_operation, verify_ownership and content_flow shells (SPEC-0413)（同批共 4 个删除提交） |
+| 退役提交已在基线 `f78c8c20` 中 | 通过 | 0d3a5635 refactor(codegen): retire verify_operation, verify_ownership and content_flow shells (SPEC-0413)（同批共 8 个删除提交） |
 
 宿主核对说明：
 
+- `text.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `verify_operation/integer.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership/root_exchange.rs`（`465` 行）
 - `verify_operation/map.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership/root_exchange.rs`（`836` 行）
-- `verify_ownership/provider_lifetime.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/llvm/debug.rs`（`115` 行）
+- `verify_ownership/provider_lifetime.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_ordered_map_tests/runner.rs`（`25` 行）
 - `verify_ownership/range/pairs.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership/range.rs`（`110` 行）
 - `verify/module.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_types.rs`（`700` 行）
+- `verify_ownership/provider_entry_projection.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+
+其中 2 处未能按符号定位，需人工复核。

@@ -45,17 +45,22 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 7 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：7/7 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 3/7 个目标路径在当前树存在 |
+| 10 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：10/10 个路径不存在 |
+| 内容并入声明的合并目标 | 部分未定位 | 2/10 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
 | `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
-| 退役提交已在基线 `f78c8c20` 中 | 通过 | 43b117f8 refactor(codegen): retire lowering_support, map_source, borrow_result_support and lower_frontend shells (SPEC-0416)（同批共 7 个删除提交） |
+| 退役提交已在基线 `f78c8c20` 中 | 通过 | 43b117f8 refactor(codegen): retire lowering_support, map_source, borrow_result_support and lower_frontend shells (SPEC-0416)（同批共 9 个删除提交） |
 
 宿主核对说明：
 
-- `lower_frontend/map_iteration/source.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/multi_borrow_range_boundary_tests/map_iteration_source.rs`（`21` 行）
-- `lower_frontend/map_iteration/cleanup.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/checked_integer_conversion_tests.rs`（`704` 行）
-- `lower_frontend/map_iteration/temporary.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_type_origin_tests.rs`（`380` 行）
+- `map_source/transport.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `handoff::{Handoff, same_callable, find}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_nullable_when_tests/support.rs`（`708` 行）
+- `stable_map.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_result_support/local_if.rs`（`44` 行）
+- `borrowed::{Proof, prove}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/deinit_tests.rs`（`218` 行）
+- `exit_shape::{body_exit, point, terminal, cleanup}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/checked_integer_conversion_tests.rs`（`704` 行）
+- `guard::{Local, local}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_type_origin_tests.rs`（`380` 行）
 - `lower_frontend/drops.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/lower_frontend/non_null_proof.rs`（`78` 行）
+
+其中 1 处未能按符号定位，需人工复核。

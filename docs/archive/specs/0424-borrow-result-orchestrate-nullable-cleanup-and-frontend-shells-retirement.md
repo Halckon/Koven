@@ -47,7 +47,7 @@
 | 验收项 | 结果 | 证据 |
 |---|---|---|
 | 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 1/8 个目标路径在当前树存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并，见下） | 1/8 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
@@ -62,4 +62,4 @@
 - `lower_frontend/local_storage.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_nullable_when_tests/replacement_if.rs`（`863` 行）
 - `lower_frontend/string_clone.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/statement_core.rs`（`7` 行）
 - `lower_frontend/ownership_primitive.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/integer_range_pending_tests.rs`（`517` 行）
-- `lower_frontend/nullable_if_cleanup/constant_presence/source.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/multi_borrow_range_boundary_tests/map_iteration_source.rs`（`21` 行）
+- `lower_frontend/nullable_if_cleanup/constant_presence/source.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/deinit_tests.rs`（`218` 行）

@@ -47,11 +47,11 @@
 | 验收项 | 结果 | 证据 |
 |---|---|---|
 | 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 5/8 个目标路径在当前树存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并，见下） | 5/8 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
-| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- lower_frontend refine verify_ownership map_`（0411–0427 合并运行） |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
 | 退役提交已在基线 `f78c8c20` 中 | 通过 | 91a40d30 refactor(codegen): retire nullable_if_cleanup, map_iteration, outer_borrowed_while, unit_lower and refine shells (SPEC-0425)（同批共 8 个删除提交） |
 
 宿主核对说明：

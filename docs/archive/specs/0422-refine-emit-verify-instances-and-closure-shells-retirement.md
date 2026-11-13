@@ -50,7 +50,7 @@
 | 验收项 | 结果 | 证据 |
 |---|---|---|
 | 9 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：9/9 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 5/9 个目标路径在当前树存在 |
+| 内容并入声明的合并目标 | 部分未定位 | 5/9 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
@@ -61,5 +61,4 @@
 
 - `verify_operation/integer.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership/root_exchange.rs`（`623` 行）
 - `verify_operation/range.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_result_support.rs`（`696` 行）
-- `lower_frontend/instances.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_llvm_tests.rs`（`267` 行）
-- `lower_frontend/instances.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/multi_temporary_loan_tests/instances.rs`（`551` 行）
+- `lower_frontend/instances.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_plan_tests/callable_identity.rs`（`186` 行）

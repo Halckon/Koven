@@ -67,16 +67,16 @@
 | 验收项 | 结果 | 证据 |
 |---|---|---|
 | 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 3/8 个目标路径在当前树存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并，见下） | 3/8 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
-| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- lower_frontend refine verify_ownership map_`（0411–0427 合并运行） |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
 | 退役提交已在基线 `f78c8c20` 中 | 通过 | 7d1c1b49 refactor(codegen): retire map_iteration, nullable_borrowed_cleanup, refine and lower_frontend shells (SPEC-0427)（同批共 8 个删除提交） |
 
 宿主核对说明：
 
-- `lower_frontend/map_iteration/conditional/verify.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_result_boundary_tests.rs`（`170` 行）
+- `lower_frontend/map_iteration/conditional/verify.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/root_primitive_lower_tests.rs`（`563` 行）
 - `lower_frontend/map_iteration/resource.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_resource_map_loop_tests.rs`（`43` 行）
 - `lower_frontend/loop_control/numeric_iteration.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/llvm.rs`（`409` 行）
 - `lower_frontend/map_consume.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/owned_map_borrow_boundary_tests.rs`（`221` 行）

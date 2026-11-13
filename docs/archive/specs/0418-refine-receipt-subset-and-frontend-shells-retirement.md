@@ -46,8 +46,8 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 9 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：9/9 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 5/9 个目标路径在当前树存在 |
+| 10 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：10/10 个路径不存在 |
+| 内容并入声明的合并目标 | 部分未定位 | 2/10 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
@@ -56,7 +56,11 @@
 
 宿主核对说明：
 
+- `refine/receiver_receipt/emitted.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `emitted::{Receipt, Emitted}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_generated_owner_tests.rs`（`852` 行）
 - `refine/subset/when.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/refine/subset/named_route.rs`（`484` 行）
-- `lower_frontend/orchestrate/nullable_map_guard_support.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/nullable_map_consume_lowering_tests/resource/unit.rs`（`402` 行）
-- `lower_frontend/source_closure.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/owned_map_borrow_boundary_tests.rs`（`221` 行）
-- `lower_frontend/outer_borrowed_while/source.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_memory_test_support.rs`（`33` 行）
+- `identity::{map_type, plans}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/nullable_map_consume_lowering_tests/resource/unit.rs`（`402` 行）
+- `declare::{Inputs, declare}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/owned_map_borrow_boundary_tests.rs`（`221` 行）
+- `lower_frontend/outer_borrowed_while/source.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership_tests.rs`（`99` 行）
+
+其中 1 处未能按符号定位，需人工复核。

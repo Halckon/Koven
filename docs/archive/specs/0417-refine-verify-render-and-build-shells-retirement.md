@@ -46,8 +46,8 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 9 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：9/9 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 5/9 个目标路径在当前树存在 |
+| 10 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：10/10 个路径不存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并，见下） | 5/10 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
@@ -56,7 +56,10 @@
 
 宿主核对说明：
 
+- `verify_ownership/direct_fields.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
 - `verify_operation/range.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_result_support.rs`（`418` 行）
 - `verify_operation/integer.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/verify_ownership_tests.rs`（`99` 行）
-- `verify/closure_escape.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/llvm/debug.rs`（`115` 行）
+- `proof::{ValueProof, content_index, projected_places}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_ordered_map_tests/runner.rs`（`25` 行）
 - `render/types.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/render.rs`（`287` 行）
+
+其中 1 处未能按符号定位，需人工复核。

@@ -45,8 +45,8 @@
 
 | 验收项 | 结果 | 证据 |
 |---|---|---|
-| 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
-| 内容并入声明的合并目标 | 部分宿主被后续 Spec 再次合并 | 1/8 个目标路径在当前树存在 |
+| 14 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：14/14 个路径不存在 |
+| 内容并入声明的合并目标 | 部分未定位 | 0/14 个目标路径在当前树存在 |
 | 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
 | 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数；删除逐项已核实 |
 | `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
@@ -55,10 +55,15 @@
 
 宿主核对说明：
 
+- `non_null_assertion.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
 - `lower_frontend/declarations.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_lower.rs`（`703` 行）
 - `lower_frontend/nullable_comparison.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/integer_range_pending_tests.rs`（`517` 行）
 - `lower_frontend/string_clone.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_unit_consumer_test_support.rs`（`278` 行）
-- `lower_frontend/aggregate.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/owned_map_borrow_boundary_tests.rs`（`221` 行）
-- `lower_frontend/map_iteration/checked.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/nested_exits/query_cleanup.rs`（`518` 行）
-- `lower_frontend/map_iteration/source_owner/delivery.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_promotion_contract_tests.rs`（`529` 行）
-- `lower_frontend/map_iteration/local_runtime.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native.rs`（`478` 行）
+- `resource_deinit::{DeinitPlan, declare, validate_type, validate_map_value_type}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/owned_map_borrow_boundary_tests.rs`（`221` 行）
+- `constant_presence::{constant_drop, prove_graph}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/local_sources/deep/nullable_map_guard_support.rs`（`870` 行）
+- `nested::{Nesting, nesting, incoming, transport}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/nested_exits/query_cleanup.rs`（`518` 行）
+- `lower_frontend/map_iteration/source_owner/delivery.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/borrow_memory_test_support.rs`（`360` 行）
+- `conditions::{Expected, path, check}`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native.rs`（`478` 行）
+- `lower_frontend/map_iteration/nested.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+
+其中 2 处未能按符号定位，需人工复核。
