@@ -21,6 +21,7 @@ pub(super) struct Tracker {
 }
 struct Active {
     plan: BreakPlan,
+    conditional: bool,
     entry: Vec<OwnedValue>,
     boundary: usize,
     entered: bool,
@@ -83,16 +84,23 @@ impl DropPlanner<'_, '_> {
         body: StatementId,
         state: &ValueState,
     ) {
-        let Some(plan) = self
-            .checker
-            .no_carry_proofs
-            .iter()
-            .find_map(|proof| match proof {
-                Proof::BreakBranch(_, _, p) if p.loop_statement == id && p.loop_body == body => {
-                    Some(p.clone())
-                }
-                _ => None,
-            })
+        let Some((plan, conditional)) =
+            self.checker
+                .no_carry_proofs
+                .iter()
+                .find_map(|proof| match proof {
+                    Proof::BreakBranch(_, _, p)
+                        if p.loop_statement == id && p.loop_body == body =>
+                    {
+                        Some((p.clone(), false))
+                    }
+                    Proof::CounterBreakBranch(_, _, _, p)
+                        if p.exit.loop_statement == id && p.exit.loop_body == body =>
+                    {
+                        Some((p.exit.clone(), true))
+                    }
+                    _ => None,
+                })
         else {
             return;
         };
@@ -101,6 +109,7 @@ impl DropPlanner<'_, '_> {
         };
         self.no_carry_exit.active = Some(Active {
             plan,
+            conditional,
             entry: values.to_vec(),
             boundary: self.scope_depth,
             entered: false,
@@ -123,7 +132,7 @@ impl DropPlanner<'_, '_> {
                 && id == active.plan.break_expression
                 && !active.entered
                 && self.loop_boundaries.as_slice() == [active.boundary]
-                && self.scope_depth == active.boundary + 1
+                && self.scope_depth == active.boundary + if active.conditional { 2 } else { 1 }
                 && self.owner_controls.is_current(UnitStatementId::new(
                     self.checker.source_unit,
                     active.plan.loop_statement,
@@ -157,7 +166,7 @@ impl DropPlanner<'_, '_> {
         if let Some(active) = self.no_carry_exit.active.as_mut() {
             active.valid &= id == active.plan.loop_statement
                 && body == active.plan.loop_body
-                && stopped
+                && stopped != active.conditional
                 && active.transferred
                 && !active.body_cleaned
                 && self.scope_depth == active.boundary

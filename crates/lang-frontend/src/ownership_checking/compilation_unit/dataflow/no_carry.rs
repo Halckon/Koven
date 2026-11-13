@@ -19,6 +19,7 @@ pub(super) struct Session {
     update_entered: bool,
     update_completed: bool,
     exit: Option<core::BreakPlan>,
+    conditional: Option<core::CounterBreakPlan<UnitSymbolId>>,
     broke: bool,
     valid: bool,
     entry: State,
@@ -177,6 +178,7 @@ impl Checker<'_> {
             update_entered: false,
             update_completed: false,
             exit: selection.exit,
+            conditional: selection.conditional,
             broke: false,
             valid: true,
             entry,
@@ -532,7 +534,15 @@ impl Checker<'_> {
         let actual = exit_flow
             .as_ref()
             .map(|state| self.resource_snapshot(state));
-        let expected_edge = if s.exit.is_some() {
+        let expected_edge = if s.conditional.is_some() {
+            s.broke
+                && flows.continues.is_none()
+                && flows
+                    .next
+                    .as_ref()
+                    .is_some_and(|state| self.resource_snapshot(state) == s.entry)
+                && flows.breaks.is_some()
+        } else if s.exit.is_some() {
             s.broke && flows.next.is_none() && flows.breaks.is_some() && flows.continues.is_none()
         } else {
             flows.breaks.is_none() && flows.continues.is_none()
@@ -541,7 +551,15 @@ impl Checker<'_> {
             match (s.branch, s.first_closed, s.second) {
                 (None, None, None) => self.no_carry_proofs.push(core::Proof::Straight(plan)),
                 (Some(branch), Some(first), None) => self.no_carry_proofs.push(match s.counter {
-                    Some(counter) => core::Proof::CounterBranch(branch, [first, plan], counter),
+                    Some(counter) => match s.conditional {
+                        Some(conditional) => core::Proof::CounterBreakBranch(
+                            branch,
+                            [first, plan],
+                            counter,
+                            conditional,
+                        ),
+                        None => core::Proof::CounterBranch(branch, [first, plan], counter),
+                    },
                     None => match s.exit {
                         Some(exit) => core::Proof::BreakBranch(branch, [first, plan], exit),
                         None => core::Proof::Branch(branch, [first, plan]),
@@ -583,10 +601,16 @@ impl Checker<'_> {
         for proof in std::mem::take(&mut self.no_carry_proofs) {
             let exit = match &proof {
                 core::Proof::BreakBranch(_, _, exit) => Some(exit.clone()),
+                core::Proof::CounterBreakBranch(_, _, _, plan) => Some(plan.exit.clone()),
+                _ => None,
+            };
+            let conditional = match &proof {
+                core::Proof::CounterBreakBranch(_, _, _, p) => Some(p.clone()),
                 _ => None,
             };
             let counter = match &proof {
-                core::Proof::CounterBranch(_, _, c) => Some(c.clone()),
+                core::Proof::CounterBranch(_, _, c)
+                | core::Proof::CounterBreakBranch(_, _, c, _) => Some(c.clone()),
                 _ => None,
             };
             let (marker, accepted) = match proof {
@@ -600,7 +624,8 @@ impl Checker<'_> {
                 }
                 core::Proof::Branch(branch, [left, right])
                 | core::Proof::CounterBranch(branch, [left, right], _)
-                | core::Proof::BreakBranch(branch, [left, right], _) => {
+                | core::Proof::BreakBranch(branch, [left, right], _)
+                | core::Proof::CounterBreakBranch(branch, [left, right], _, _) => {
                     let marker = left.marker;
                     let pair = super::super::UnitLoopNoCarryFact::new(self.source_unit, left)
                         .filter(&valid_end)
@@ -623,7 +648,26 @@ impl Checker<'_> {
                                 .count()
                                 == 1
                         });
-                    if let Some(exit) = exit {
+                    if let Some(conditional) = conditional {
+                        if accepted && let (Some(pair), Some(counter)) = (pair, counter) {
+                            use super::super::loop_no_carry::{
+                                UnitLoopCounterBranchNoCarryFact,
+                                UnitLoopCounterBreakBranchNoCarryFact,
+                            };
+                            let counter = UnitLoopCounterBranchNoCarryFact::new(
+                                self.source_unit,
+                                pair,
+                                counter,
+                            );
+                            result.counter_break_branches.push(
+                                UnitLoopCounterBreakBranchNoCarryFact::new(
+                                    self.source_unit,
+                                    counter,
+                                    conditional,
+                                ),
+                            );
+                        }
+                    } else if let Some(exit) = exit {
                         if accepted {
                             result.break_branches.extend(pair.and_then(|pair| {
                                 super::super::loop_no_carry::UnitLoopBreakBranchNoCarryFact::new(
