@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0436](0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md) 完成 `unit_lower` 借用/编排/字段可空测试、`verify_ownership/root_exchange_tests` 及 `lower_frontend` 测试壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批测试专用与旧路径对比壳模块：
+在 [SPEC-0436](../../archive/specs/0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md) 完成 `unit_lower` 借用/编排/字段可空测试、`verify_ownership/root_exchange_tests` 及 `lower_frontend` 测试壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批测试专用与旧路径对比壳模块：
 
 1. `ssa/unit_lower/type_plan/lambda_preflight_tests.rs`（736 行）：仅承载 `unit_lower/type_plan` 闭包预检单测，可收敛入 `ssa/unit_type_origin_tests.rs`。
 2. `ssa/lower_frontend/outer_borrowed_while/runtime/guard_tests.rs`（914 行）：仅承载 `outer_borrowed_while/runtime` 守卫单测，可收敛入 `ssa/lower_frontend_map_continue_source_tests.rs`。
