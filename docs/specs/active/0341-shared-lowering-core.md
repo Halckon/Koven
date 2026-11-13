@@ -17320,3 +17320,23 @@ observer-support codegen all-target 严格 Clippy、fmt、docs924、相对main�
 门禁及diff检查通过；2678手写Rust文件、36项历史超限，无新增豁免。保存debug2/opt0
 原artifact、执行前source/binary SHA、完整FQN列表和原始日志。CI-only仅编译未执行，
 远端CI未验证；本日仅本地提交，未推送、发PR或外部消息。
+
+### D10 调用返回值初始来源的普通原样探测（2026-11-13）
+
+基于 `3b7a9a7a` 新隔离分支，仅观察零参数 String helper 的返回值绑定到父/子
+有限循环初始根。真实 Basic 与 Const 路线都通过四阶段、SSA verifier、LLVM
+和 native；一个精确普通目标通过，实际两程序各执行零轮、仅父轮、父子多轮三次
+调用。SSA 保留 callee literal Return、caller 单结果 call、该结果进入父 header 的
+实际边参数；false 出口仍按原顺序 print/end-borrow/Drop 两根。
+
+观察器只记录两处 checked-expression-edge-receipt，未发布 initial-base、
+child-cycle 或 parent-generation-composition 收据。此结果仅证明旧 lowering
+兼容，既不是新能力绿，也不是独立缺回执红；尤其不能假定仅补后端 producer 钩子
+即可完成。现有受限初始来源合同不包含调用返回值，扩大前端/后端接受范围需要先
+核实授权。本轮不改生产、Origin 方案、公共接口或现行能力合同，不推送。
+
+测试源码头 `662b3b8e`；执行前保存原 build artifact、完整前端/codegen 源码 SHA、
+二进制副本及 SHA，原样源码/SSA/LLVM/收据/native 结果保留在本地证据中。
+准备时模块注册定位失败导致首轮仅编译未注册文件，后因 Program 无 Debug 发生
+一次编译失败，改用既有 SSA renderer 后重编并执行唯一 exact；两次准备记录保留，
+均不计入测试通过。未执行任何故障注入、foreign handle 或其它 CI-only 测试。
