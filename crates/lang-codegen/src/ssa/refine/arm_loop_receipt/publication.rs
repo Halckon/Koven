@@ -5,6 +5,7 @@ use std::cell::RefCell;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Fault {
     ReceiptMissing,
+    CounterReceiptMissing,
     FinalVerifier,
 }
 #[derive(Default)]
@@ -86,6 +87,14 @@ pub(super) fn before_finish(evidence: &mut Emitted) {
             require_ci();
             s.fault = None;
             evidence.selected.clear();
+        }
+        if let Some(s) = s.borrow_mut().as_mut()
+            && !evidence.counter_selected.is_empty()
+            && s.fault == Some(Fault::CounterReceiptMissing)
+        {
+            require_ci();
+            s.fault = None;
+            evidence.counter_selected.clear();
         }
     });
 }

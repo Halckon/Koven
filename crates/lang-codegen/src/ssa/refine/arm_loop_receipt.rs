@@ -17,6 +17,8 @@ use std::collections::BTreeMap;
 #[cfg(test)]
 mod ci_tests;
 mod counter;
+#[cfg(test)]
+mod counter_ci;
 mod counter_hooks;
 mod counter_validation;
 #[cfg(test)]

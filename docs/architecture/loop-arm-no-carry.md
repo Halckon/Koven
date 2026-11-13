@@ -73,3 +73,10 @@ header 的零常量和 GreaterThan、合流后 CheckedArithmetic Subtract、成�
 重放。普通 native 真正运行 0/1/2 轮与 true/false 两臂，验证不同长度 consumer 输出，
 每次返回后 source 可读且最终可 own 消费。零轮与正轮分别有输出标记，不用超时、
 强制退出或修改 SSA 代替有限正轮。跳转、嵌套、多根及跨轮 loan 携带仍未纳入。
+
+counter 专属 CI-only 矩阵另列六个精确入口：guard 比较方向、递减常量、success
+Alias 与旧 counter 回边替换、checked 失败边极性、独立 counter 选中清单缺失及
+真实最终 verifier 失败撤销两份 pending 收据。fixture 使用两真实 counter caller，
+普通基线验证完整 publication/replay；所有变异默认 ignored 且 GITHUB_ACTIONS 门控，
+登记既有 borrowing runner，沿用 macOS/Linux 矩阵。本地只编译/列举，动态拒绝结论
+须等远端实际执行，不能把旧 Boolean 矩阵或普通正例算作新故障验收。

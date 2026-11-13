@@ -16917,3 +16917,17 @@ counter 专属故障矩阵尚待后续单独补齐，旧 Boolean CI 矩阵不能
 或局部 Var，Borrow/Own rounds 不能重绑定；Int 值复制不改变参数，不扩大为禁止
 无害参数读取。新增初始化前、初始化后和循环后 `rounds=2`，各核 Borrow/Own 模式
 及 Single/Unit rooted/memory、observer on/off，精确普通回归 1/1 通过。生产逻辑无变。
+
+### Counter 独立 CI-only 矩阵（2026-11-13）
+
+另增六个精确入口覆盖比较方向、减数 0/2、success Alias 与旧值回边替换、失败
+极性、counter 独立选中清单缺失、真实最终 verifier 失败撤销两收据。原有 Boolean
+故障不作为新 counter 验收证据。清单复用 borrowing runner 与双宿主，不另造重复
+workflow；默认 ignored、GITHUB_ACTIONS 门控。本地只跑无故障 ordinary 双 caller
+publication/replay，变异仅编译列举，实际拒绝/恢复证据待远端执行。
+
+本地验证：无故障双 counter publication/replay 1/1 通过；runner 精确清单 47 项
+编译列举通过，none executed；all-target strict Clippy、fmt、docs923、尺寸门禁通过。
+独立只读审查无确定阻断。四项属于真实 Function/alias 证据变异后的独立重放，
+两项定义于实际 finish/final-verifier 边界；以上六项动态均未在本地运行，尚无远端
+双宿主执行结果。另已集成 FE 参数重绑定前后拒绝普通回归，生产 mutability 不变。
