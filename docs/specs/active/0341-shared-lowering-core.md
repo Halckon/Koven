@@ -17617,3 +17617,26 @@ workspace all-target check、frontend/codegen observer-support all-target 严格
 Clippy、fmt、docs925、相对 main 尺寸门禁及 diff 检查通过；2701 手写 Rust 文件、
 36 项历史超限不变。最后仅追加本验收段落；未推送、开 PR 或合并远端，未把本批
 等同于所有本地分支的总整合，D10/E2 仍 in-progress。
+
+### bounded composition 与 shell 迁移专门集成验收（2026-11-13）
+
+隔离代码头 `5c39e2d2` 保留双亲 `d06eb394`、`235b0c20`。八处冲突逐项迁移，
+没有选择一侧覆盖另一侧：保全新增 receipt/LoanReceipts、终结与 abort 路径、
+native 普通回归、fault 枚举和 checkpoint。独立复核确认 folding 与原代码逐字节
+一致，其余重点冲突仅做模块路径、可见性和格式调整；该复核不代表整个 shell
+退役栈的全量语义证明。为保持实质模块边界，751 行 borrow-result 与 949 行
+owner-consumer 支持体保留为路径模块，详见 SPEC-0452 §4.1，不计作纯内联退役。
+
+当前代码重新编译的 codegen 测试二进制与原整合头均有 3310 个测试，测试叶名
+多重集无增减，74 个 ignored 叶名库存一致；这是库存证据，不是语义等价证明。
+按迁移后的唯一完整 FQN exact 执行原 48 项普通回归及 9 项 grouped/negated/
+leaf-not 普通 owner 回归，57/57 通过，每项预列举确认实际匹配 1；默认 debug2/
+opt0，记录源码与二进制 SHA，执行后源码无漂移。新二进制中 66 项统一 codegen
+故障清单及额外 child/scalar/parent 7 项仅 exact 列举，none executed。
+frontend 源码与 `d06eb394` 无差异，其 31 项普通回归及 13 项故障库存沿用此前
+证据，不冒充本轮重新执行；远端 CI 动态拒绝/恢复仍待验证。
+
+workspace observer-support all-target check、frontend/codegen all-target 严格
+Clippy、格式、文档结构、相对 main 尺寸门禁及 diff 检查通过；2159 个手写 Rust
+文件、36 项历史超限，无新增豁免。保留所有源工作树与分支，未推送、未开 PR、
+未决定 Origin 语义；D10/E2 与 shell 退役栈均不因本次局部集成标记整体完成。
