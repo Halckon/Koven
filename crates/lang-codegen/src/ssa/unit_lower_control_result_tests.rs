@@ -189,8 +189,10 @@ pub(in crate::ssa) mod map_iteration_formed {
     //! General ordinary local formation uses original Expression ownership, not a lexical carrier.
     pub(in crate::ssa) use crate::ssa::lower_frontend::map_iteration::local::retained;
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
-    use crate::ssa::map_source::{BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation};
+
+    use crate::ssa::map_source::{
+        BindingDeclaration, Birth, Formation, OwnerUpdate, named_formation,
+    };
     use lang_frontend::{
         name_resolution::ReferenceTarget,
         ownership_checking::{
@@ -244,7 +246,8 @@ pub(in crate::ssa) mod map_iteration_formed {
             |root| {
                 let symbol = names.symbols().get(root.index()).ok_or_else(missing)?;
                 if symbol.kind() == SymbolKind::ValueParameter {
-                    let marker = owned_parameter((parsed, names, typed, owned), root, storage, span)?;
+                    let marker =
+                        owned_parameter((parsed, names, typed, owned), root, storage, span)?;
                     return Ok(BindingDeclaration::EntryParameter { marker });
                 }
                 if symbol.kind() != SymbolKind::Variable {
@@ -257,21 +260,17 @@ pub(in crate::ssa) mod map_iteration_formed {
                     return Err(missing());
                 }
                 let item =
-                    unique(
-                        parsed
-                            .ast()
-                            .items()
-                            .iter()
-                            .filter_map(|(_, node)| match node.payload() {
-                                Item::Variable {
-                                    kind,
-                                    name: NameMarker::Present(marker),
-                                    initializer,
-                                    ..
-                                } if *marker == symbol.span() => Some((*kind, *marker, *initializer)),
-                                _ => None,
-                            }),
-                    )
+                    unique(parsed.ast().items().iter().filter_map(
+                        |(_, node)| match node.payload() {
+                            Item::Variable {
+                                kind,
+                                name: NameMarker::Present(marker),
+                                initializer,
+                                ..
+                            } if *marker == symbol.span() => Some((*kind, *marker, *initializer)),
+                            _ => None,
+                        },
+                    ))
                     .ok_or_else(missing)?;
                 if !matches!(item.0, VariableKind::Val | VariableKind::Var) {
                     return Err(unsupported());
@@ -386,7 +385,8 @@ pub(in crate::ssa) mod map_iteration_formed {
         };
         let root = place.root();
         if !place.is_root()
-            || plan.source_kind() != &IterationSource::BorrowedSource(LoanTarget::Place(place.clone()))
+            || plan.source_kind()
+                != &IterationSource::BorrowedSource(LoanTarget::Place(place.clone()))
             || plan.source_access() != MapIterationSourceAccess::Owned
             || typed.copyability(d.source_type()) != Some(Copyability::MoveOnly)
             || typed.expression_category(d.source()) != Some(ExpressionCategory::Place)
@@ -424,7 +424,8 @@ pub(in crate::ssa) mod map_iteration_formed {
                 || loan.source() != d.source()
                 || Some(loan.origin()) != plan.source()
                 || loan.kind() != lang_frontend::ownership_checking::LoanKind::Shared
-                || typed.symbol_type(binding.symbol()) != Some([d.key_type(), d.value_type()][index])
+                || typed.symbol_type(binding.symbol())
+                    != Some([d.key_type(), d.value_type()][index])
             {
                 return Err(missing());
             }
@@ -473,7 +474,8 @@ pub(in crate::ssa) mod map_iteration_formed {
             symbol: root,
             birth: formation.birth,
         };
-        if let Some(shape) = conditional::shape(parsed, names, typed, *d, body, source_identity, span)?
+        if let Some(shape) =
+            conditional::shape(parsed, names, typed, *d, body, source_identity, span)?
         {
             let owner = conditional::qualify(parsed, names, typed, owned, plan, shape, span)?;
             return Ok(qualify::Qualified {
@@ -537,7 +539,10 @@ pub(in crate::ssa) mod map_iteration_formed {
 
     /// Finishing the next replacement RHS still cleans the current binding epoch.
     /// The enclosing assignment installs the new owner only after this exact event.
-    pub(in crate::ssa) fn replacement_point(formation: Option<&Formation<SymbolId>>, point: DropPoint) -> bool {
+    pub(in crate::ssa) fn replacement_point(
+        formation: Option<&Formation<SymbolId>>,
+        point: DropPoint,
+    ) -> bool {
         matches!((formation.and_then(|f|f.replacement),point),
             (Some(expected),DropPoint::AfterExpression(actual)) if expected==actual)
     }
@@ -580,11 +585,10 @@ pub(in crate::ssa) mod map_iteration_formed {
     ) -> Result<Vec<lang_frontend::ownership_checking::DropFact>, LoweringError> {
         use lang_frontend::ownership_checking::{CleanupCondition, CleanupOwnerValue};
         let mut facts = Vec::new();
-        for fact in owned
-            .drops()
-            .iter()
-            .copied()
-            .filter(|f| f.target() == lang_frontend::ownership_checking::DropTarget::Named(root))
+        for fact in
+            owned.drops().iter().copied().filter(|f| {
+                f.target() == lang_frontend::ownership_checking::DropTarget::Named(root)
+            })
         {
             let bad = || error(LoweringErrorKind::MissingFact, fact.value_origin());
             let point = crate::ssa::map_source::drop_event(parsed, fact.point())
@@ -622,9 +626,9 @@ pub(in crate::ssa) mod map_iteration_formed {
                         if fact.value_origin() != epoch.origin
                             || *expression != producer
                             || *origin != node.span()
-                            || fact
-                                .condition()
-                                .is_some_and(|c| conditions.get(c) != Some(&CleanupCondition::Always))
+                            || fact.condition().is_some_and(|c| {
+                                conditions.get(c) != Some(&CleanupCondition::Always)
+                            })
                         {
                             return Err(bad());
                         }
@@ -698,8 +702,8 @@ pub(in crate::ssa) mod map_iteration_formed {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
                 let bad = || error(LoweringErrorKind::MissingFact, fact.value_origin());
-                let event =
-                    crate::ssa::map_source::drop_event(self.parsed, fact.point()).ok_or_else(bad)?;
+                let event = crate::ssa::map_source::drop_event(self.parsed, fact.point())
+                    .ok_or_else(bad)?;
                 if !crate::ssa::map_source::in_formation(self.parsed, &formation, event)? {
                     // Qualification above checked this epoch's exact public owner/condition.
                     let epoch = crate::ssa::map_source::epoch_at(self.parsed, &formation, event)?;
@@ -824,7 +828,9 @@ pub(in crate::ssa) mod map_iteration_formed {
             let bad = || error(LoweringErrorKind::MissingFact, span);
             let anchor = match formation.birth {
                 Birth::Call(producer) => self.map_call_birth(producer, span)?,
-                Birth::Expression(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+                Birth::Expression(_) => {
+                    return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                }
                 Birth::EntryParameter {
                     root,
                     reference,

@@ -1,6 +1,6 @@
 //! Transparent source syntax does not change the validated type, category or owner.
-pub(in crate::ssa) use super::{LoweringError, LoweringErrorKind};
 pub(in crate::ssa) use super::lower_frontend::nullable_numeric_cleanup::formation;
+pub(in crate::ssa) use super::{LoweringError, LoweringErrorKind};
 pub(super) use formation::{
     BindingDeclaration, Birth, Formation, OwnerUpdate, continuation, named_formation,
 };

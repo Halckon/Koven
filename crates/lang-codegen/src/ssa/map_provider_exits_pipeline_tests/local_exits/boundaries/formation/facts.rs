@@ -4,7 +4,8 @@ mod calls {
     use super::*;
     use lang_frontend::ownership_checking::{LoanKind, UnitCallArgumentOwnershipKind};
     fn arguments(parsed: &ParsedFile, id: ExpressionId) -> &[lang_frontend::parser::CallArgument] {
-        let Expression::Call { arguments, .. } = parsed.ast().expressions().get(id).unwrap().payload()
+        let Expression::Call { arguments, .. } =
+            parsed.ast().expressions().get(id).unwrap().payload()
         else {
             unreachable!()
         };
@@ -115,7 +116,8 @@ mod calls {
                             .loans()
                             .iter()
                             .filter(|l| {
-                                l.call() == expression(id) && l.argument() == expression(argument.value)
+                                l.call() == expression(id)
+                                    && l.argument() == expression(argument.value)
                             })
                             .collect::<Vec<_>>();
                         need(
@@ -157,7 +159,9 @@ mod calls {
                                     ))
                             })
                             && typed.expression_category(expression(argument.value))
-                                == Some(lang_frontend::type_checking::ExpressionCategory::Temporary),
+                                == Some(
+                                    lang_frontend::type_checking::ExpressionCategory::Temporary,
+                                ),
                         "formation qualified original literal String/Temporary",
                         argument,
                     )?;
@@ -173,7 +177,8 @@ mod calls {
                             && borrow
                             && endpoint == Some((arg, at))
                             && loan.kind() == LoanKind::Shared
-                            && loan.target() == &UnitLoanTarget::Temporary(expression(argument.value))
+                            && loan.target()
+                                == &UnitLoanTarget::Temporary(expression(argument.value))
                             && loan.begin_span() == arg
                             && loan.end_span() == at,
                         "formation qualified literal exact Temporary expression and Shared loan",

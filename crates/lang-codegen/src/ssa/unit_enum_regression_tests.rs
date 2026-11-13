@@ -292,9 +292,9 @@ mod queries {
 
             // The expected variant originates in the same analysis's actual descriptor and
             // nominal declaration, not an SSA integer/type/arena-order guess.
-            let descriptor = typed
-                .construction(expression)
-                .ok_or_else(|| format!("missing original condition construction: {expression:?}"))?;
+            let descriptor = typed.construction(expression).ok_or_else(|| {
+                format!("missing original condition construction: {expression:?}")
+            })?;
             let UnitConstructionTarget::EnumCase(symbol) = descriptor.target() else {
                 return Err(format!("condition is not an enum case: {descriptor:?}"));
             };

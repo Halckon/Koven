@@ -119,7 +119,9 @@ mod ast {
                             name: NameMarker::Present(name),
                             initializer,
                             ..
-                        } if inside(scan.span, n.span()) && *initializer == conditional => Some(*name),
+                        } if inside(scan.span, n.span()) && *initializer == conditional => {
+                            Some(*name)
+                        }
                         _ => None,
                     }),
                 "If actual named Map initializer",
@@ -226,7 +228,9 @@ mod ast {
                 .iter()
                 .filter_map(|(id, n)| match n.payload() {
                     Expression::Call { arguments, .. }
-                        if inside(node.span(), n.span()) && id != i.births[0] && id != i.births[1] =>
+                        if inside(node.span(), n.span())
+                            && id != i.births[0]
+                            && id != i.births[1] =>
                     {
                         Some((id, arguments))
                     }
@@ -255,8 +259,8 @@ mod facts {
         //! Full source-qualified component delivery and published provider cleanup.
         use super::*;
         use lang_frontend::ownership_checking::{
-            LoanKind, MapIterationComponent, OwnershipBindingKind, UnitIterationCleanupAction as Action,
-            UnitIterationExitKind,
+            LoanKind, MapIterationComponent, OwnershipBindingKind,
+            UnitIterationCleanupAction as Action, UnitIterationExitKind,
         };
         pub(super) fn check(
             p: &ParsedFile,
@@ -311,9 +315,9 @@ mod facts {
                 )?;
                 let published = &plan.loans()[index];
                 let loan = one(
-                    o.loans()
-                        .iter()
-                        .filter(|l| l.call() == e(site.read) && l.argument() == e(site.arguments[index])),
+                    o.loans().iter().filter(|l| {
+                        l.call() == e(site.read) && l.argument() == e(site.arguments[index])
+                    }),
                     "If exact component synchronous loan",
                 )?;
                 need(
@@ -426,7 +430,9 @@ mod facts {
                 .references()
                 .iter()
                 .filter_map(|r| match r.target() {
-                    UnitReferenceTarget::Symbol(s) if s.source_unit() == u && s.symbol() == symbol => {
+                    UnitReferenceTarget::Symbol(s)
+                        if s.source_unit() == u && s.symbol() == symbol =>
+                    {
                         Some(*s)
                     }
                     _ => None,
@@ -650,9 +656,9 @@ mod facts {
             if c.temporary {
                 need(
                     plan.source_kind()
-                        == &IterationSource::BorrowedSource(UnitLoanTarget::Temporary(
-                            e(i.conditional),
-                        ))
+                        == &IterationSource::BorrowedSource(UnitLoanTarget::Temporary(e(
+                            i.conditional
+                        )))
                         && plan.source_access() == UnitIterationSourceAccess::Temporary
                         && drops
                             .iter()

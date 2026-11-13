@@ -1,9 +1,9 @@
 //! Optional bounded protocol-2 verification. The existing producers alone emit effects.
 pub(in crate::ssa::refine) mod emitted {
     use super::*;
+    use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
     #[cfg(test)]
     use crate::ssa::refine::build::condition::receiver_ci_tests as ci_tests;
-    use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
     use std::collections::BTreeMap;
     #[derive(Clone, Debug)]
     pub(crate) struct Receipt {
@@ -16,7 +16,7 @@ pub(in crate::ssa::refine) mod emitted {
         pub(crate) entities: Vec<EntityId>,
     }
     pub(in crate::ssa::refine) struct Emitted {
-        receipts: Vec<Receipt>,
+        pub(in crate::ssa::refine) receipts: Vec<Receipt>,
         blocks: Vec<Option<BlockId>>,
     }
     impl Emitted {
@@ -201,26 +201,26 @@ pub(in crate::ssa::refine) struct Tag {
 
 #[derive(Clone, Debug, Default)]
 pub(in crate::ssa::refine) struct Plans {
-    entries: Vec<Plan>,
+    pub(in crate::ssa::refine) entries: Vec<Plan>,
 }
 
 #[derive(Clone, Debug)]
-struct Plan {
-    ids: Vec<UnitLoanActionId>,
-    callable: UnitItemId,
-    caller: FunctionId,
-    call: UnitExpressionId,
-    callee: FunctionId,
-    fact: UnitReceiverOwnershipFact,
-    root: UnitSymbolId,
-    drop_index: usize,
-    returns_value: bool,
-    owner: Option<Slot>,
-    place: Option<Slot>,
-    loan: Option<Slot>,
-    stage: u8,
-    drop_authorized: bool,
-    block: Option<BlockRef>,
+pub(in crate::ssa::refine) struct Plan {
+    pub(in crate::ssa::refine) ids: Vec<UnitLoanActionId>,
+    pub(in crate::ssa::refine) callable: UnitItemId,
+    pub(in crate::ssa::refine) caller: FunctionId,
+    pub(in crate::ssa::refine) call: UnitExpressionId,
+    pub(in crate::ssa::refine) callee: FunctionId,
+    pub(in crate::ssa::refine) fact: UnitReceiverOwnershipFact,
+    pub(in crate::ssa::refine) root: UnitSymbolId,
+    pub(in crate::ssa::refine) drop_index: usize,
+    pub(in crate::ssa::refine) returns_value: bool,
+    pub(in crate::ssa::refine) owner: Option<Slot>,
+    pub(in crate::ssa::refine) place: Option<Slot>,
+    pub(in crate::ssa::refine) loan: Option<Slot>,
+    pub(in crate::ssa::refine) stage: u8,
+    pub(in crate::ssa::refine) drop_authorized: bool,
+    pub(in crate::ssa::refine) block: Option<BlockRef>,
 }
 
 impl Plans {

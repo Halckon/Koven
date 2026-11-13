@@ -14,7 +14,7 @@ use lang_frontend::{
 use crate::ssa::{LoweringError, model::Origin, verify::VerifyErrors};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Exit {
+pub(in crate::ssa) enum Exit {
     Continue,
     Break,
     Return,
@@ -109,7 +109,7 @@ pub(super) fn verify_failure(sources: &SourceMap, errors: VerifyErrors) -> Failu
     failure("SSA verifier", (errors, locations))
 }
 
-pub(super) struct Fixture {
+pub(in crate::ssa) struct Fixture {
     pub sources: SourceMap,
     pub parsed: ParsedFile,
     pub path: &'static str,
@@ -149,7 +149,7 @@ impl Fixture {
 }
 
 #[derive(Debug)]
-pub(super) struct LoopSite {
+pub(in crate::ssa) struct LoopSite {
     pub statement: StatementId,
     pub body: StatementId,
     pub span: Span,

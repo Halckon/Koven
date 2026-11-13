@@ -59,10 +59,9 @@ mod deep {
             &drops,
         )?;
         let last = one(
-            drops
-                .iter()
-                .copied()
-                .filter(|d| d.point() == UnitDropPoint::CallReturn(e(i.observes.last().unwrap().0))),
+            drops.iter().copied().filter(|d| {
+                d.point() == UnitDropPoint::CallReturn(e(i.observes.last().unwrap().0))
+            }),
             "update Unit exact last observe CallReturn source Drop",
         )?;
         need(
@@ -133,8 +132,9 @@ mod provider_contract {
     //! Actual typed reader delivery and both complete ordinary provider cleanup exits.
     use super::*;
     use lang_frontend::ownership_checking::{
-        CompilationUnitOwnership, LoanKind, MapIterationComponent, OwnershipBindingKind, UnitDropPoint,
-        UnitIterationCleanupAction as UA, UnitIterationExitKind as UK, UnitLoanTarget,
+        CompilationUnitOwnership, LoanKind, MapIterationComponent, OwnershipBindingKind,
+        UnitDropPoint, UnitIterationCleanupAction as UA, UnitIterationExitKind as UK,
+        UnitLoanTarget,
     };
     use lang_frontend::{
         name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
@@ -208,9 +208,9 @@ mod provider_contract {
             )?;
             let published = &plan.loans()[index];
             let loan = one(
-                o.loans()
-                    .iter()
-                    .filter(|l| l.call() == e(site.read) && l.argument() == e(site.arguments[index])),
+                o.loans().iter().filter(|l| {
+                    l.call() == e(site.read) && l.argument() == e(site.arguments[index])
+                }),
                 "update qualified actual K/V call loan",
             )?;
             need(
@@ -456,7 +456,8 @@ mod unit {
                     && call.arguments().is_empty()
                     && call.receiver().is_none()
                     && t.expression_type(e(b.expression)) == Some(ty)
-                    && t.expression_category(e(b.expression)) == Some(ExpressionCategory::Temporary),
+                    && t.expression_category(e(b.expression))
+                        == Some(ExpressionCategory::Temporary),
                 "update actual qualified distinct Owned factory instances",
                 call,
             )?;

@@ -16,7 +16,7 @@ use lang_frontend::{
     source::Span,
 };
 
-struct Carrier {
+pub(in crate::ssa) struct Carrier {
     plan: OwnerPlan,
     preheader: BlockId,
     header_block: BlockId,
@@ -39,18 +39,18 @@ struct Carrier {
 }
 
 #[derive(Default)]
-pub(in super::super) struct Carriers {
-    parameter_seeds: BTreeMap<SymbolId, ValueId>,
-    loops: Vec<Carrier>,
-    active_return: Option<ExpressionId>,
+pub(in crate::ssa) struct Carriers {
+    pub(in crate::ssa) parameter_seeds: BTreeMap<SymbolId, ValueId>,
+    pub(in crate::ssa) loops: Vec<Carrier>,
+    pub(in crate::ssa) active_return: Option<ExpressionId>,
 }
 
 impl Carriers {
-    pub(in super::super) fn has_loop_carriers(&self) -> bool {
+    pub(in crate::ssa) fn has_loop_carriers(&self) -> bool {
         !self.loops.is_empty() || self.active_return.is_some()
     }
 
-    pub(in super::super) fn new(bindings: &BTreeMap<SymbolId, LoweredValue>) -> Self {
+    pub(in crate::ssa) fn new(bindings: &BTreeMap<SymbolId, LoweredValue>) -> Self {
         Self {
             parameter_seeds: bindings
                 .iter()
@@ -66,7 +66,7 @@ impl Carriers {
 }
 
 impl ExpressionLowerer<'_> {
-    pub(in super::super) fn record_map_loop_carriers(
+    pub(in crate::ssa) fn record_map_loop_carriers(
         &mut self,
         statement: StatementId,
         blocks: [BlockId; 4],
@@ -150,7 +150,7 @@ impl ExpressionLowerer<'_> {
 
     // Called after ordered cleanup and argument assembly, while bindings still
     // identify the actual current owner in this exact predecessor block.
-    pub(in super::super) fn record_map_loop_backedge(
+    pub(in crate::ssa) fn record_map_loop_backedge(
         &mut self,
         statement: StatementId,
         kind: IterationPhiIncomingKind,
@@ -194,7 +194,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(in super::super) fn finish_map_loop_carriers(
+    pub(in crate::ssa) fn finish_map_loop_carriers(
         &mut self,
         statement: StatementId,
         span: Span,
@@ -235,7 +235,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(in super::super) fn finish_map_loop_break(
+    pub(in crate::ssa) fn finish_map_loop_break(
         &mut self,
         statement: StatementId,
         expression: ExpressionId,
@@ -283,7 +283,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(in super::super) fn finish_map_loop_merge(
+    pub(in crate::ssa) fn finish_map_loop_merge(
         &mut self,
         statement: StatementId,
         span: Span,
@@ -444,7 +444,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    pub(in super::super) fn record_map_loop_drop(
+    pub(in crate::ssa) fn record_map_loop_drop(
         &mut self,
         fact: DropFact,
         value: ValueId,

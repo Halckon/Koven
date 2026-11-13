@@ -60,7 +60,9 @@ mod ast {
                         name: NameMarker::Present(name),
                         parameters,
                         ..
-                    } if sources.slice(*name) == Ok("readInt") => Some((n.span(), *name, parameters)),
+                    } if sources.slice(*name) == Ok("readInt") => {
+                        Some((n.span(), *name, parameters))
+                    }
                     _ => None,
                 }),
             "Int actual reader declaration",
@@ -124,7 +126,8 @@ mod ast {
         let consume = member("consume")?;
         let returned = one(
             p.ast().expressions().iter().filter_map(|(id, n)| {
-                matches!(n.payload(),Expression::Return{value:Some(v),..}if *v==consume).then_some(id)
+                matches!(n.payload(),Expression::Return{value:Some(v),..}if *v==consume)
+                    .then_some(id)
             }),
             "Int actual owned consume Return",
         )?;
@@ -163,7 +166,8 @@ mod ast {
                 return Err(failure("Int actual K/V markers", names));
             };
             let read = call(n.span(), "readInt")?;
-            let Expression::Call { arguments, .. } = p.ast().expressions().get(read).unwrap().payload()
+            let Expression::Call { arguments, .. } =
+                p.ast().expressions().get(read).unwrap().payload()
             else {
                 unreachable!()
             };
@@ -580,10 +584,12 @@ mod facts {
         p: &ParsedFile,
         id: lang_frontend::ast::ExpressionId,
     ) -> lang_frontend::ast::ExpressionId {
-        let Expression::Call { callee, .. } = p.ast().expressions().get(id).unwrap().payload() else {
+        let Expression::Call { callee, .. } = p.ast().expressions().get(id).unwrap().payload()
+        else {
             unreachable!()
         };
-        let Expression::Member { receiver, .. } = p.ast().expressions().get(*callee).unwrap().payload()
+        let Expression::Member { receiver, .. } =
+            p.ast().expressions().get(*callee).unwrap().payload()
         else {
             unreachable!()
         };
@@ -604,22 +610,26 @@ mod sources {
             Case {
                 label: "P06-for",
                 provider: true,
-                source: include_str!(
-                    "../../../../../tests/fixtures/map-provider-scope-0331/P06-for.ko"
-                ),
-                golden: include_str!(
-                    "../../../../../tests/fixtures/map-provider-scope-0331/P06-for.stdout"
-                ),
+                source: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P06-for.ko"
+                )),
+                golden: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P06-for.stdout"
+                )),
             },
             Case {
                 label: "P06-control",
                 provider: false,
-                source: include_str!(
-                    "../../../../../tests/fixtures/map-provider-scope-0331/P06-control.ko"
-                ),
-                golden: include_str!(
-                    "../../../../../tests/fixtures/map-provider-scope-0331/P06-control.stdout"
-                ),
+                source: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P06-control.ko"
+                )),
+                golden: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P06-control.stdout"
+                )),
             },
         ]
     }

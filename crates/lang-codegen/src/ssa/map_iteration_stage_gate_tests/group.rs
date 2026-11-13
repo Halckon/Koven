@@ -21,7 +21,11 @@ mod ast {
         pub name_span: Span,
     }
 
-    pub(super) fn source(fixture: &Fixture, file: &File, site: &LoopSite) -> Result<Source, Stopped> {
+    pub(super) fn source(
+        fixture: &Fixture,
+        file: &File,
+        site: &LoopSite,
+    ) -> Result<Source, Stopped> {
         let expressions = file.parsed.ast().expressions();
         let outer = expressions
             .get(site.source)
@@ -89,8 +93,9 @@ mod cleanup {
     use super::Report;
     use lang_frontend::{
         ownership_checking::{
-            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
-            UnitIterationExitKind, UnitLoanTarget, UnitMapIterationOwnershipPlan,
+            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget,
+            UnitIterationCleanupAction as UA, UnitIterationExitKind, UnitLoanTarget,
+            UnitMapIterationOwnershipPlan,
         },
         parser::Statement,
         type_checking::UnitStatementId,
@@ -651,9 +656,14 @@ mod unit {
                     true,
                     "original raw consumed",
                 );
-                let owned =
-                    check_compilation_unit_ownership(sources, &inputs, &names, &environment, &typed)
-                        .map_err(|error| stopped("unit basic ownership infrastructure", error))?;
+                let owned = check_compilation_unit_ownership(
+                    sources,
+                    &inputs,
+                    &names,
+                    &environment,
+                    &typed,
+                )
+                .map_err(|error| stopped("unit basic ownership infrastructure", error))?;
                 clean(
                     sources,
                     "unit basic ownership diagnostics",
@@ -673,9 +683,15 @@ mod unit {
                     .validate()
                     .map_err(|error| stopped("unit basic full ownership validator", error))?;
                 report.check("unit basic full ownership validator", true, "validate: Ok");
-                let view =
-                    owned_compilation_unit_view(sources, &inputs, &names, &environment, &typed, &owned)
-                        .map_err(|error| stopped("unit basic owned view identity", error))?;
+                let view = owned_compilation_unit_view(
+                    sources,
+                    &inputs,
+                    &names,
+                    &environment,
+                    &typed,
+                    &owned,
+                )
+                .map_err(|error| stopped("unit basic owned view identity", error))?;
                 report.check(
                     "unit basic view preserves original inputs",
                     std::ptr::eq(view.sources(), sources)
@@ -692,7 +708,8 @@ mod unit {
                     entry.id(),
                     report,
                     |root, report| {
-                        let lowered = crate::ssa::unit_lower::lower_owned_unit_with_entry(&view, root);
+                        let lowered =
+                            crate::ssa::unit_lower::lower_owned_unit_with_entry(&view, root);
                         if let Ok((program, entry)) = &lowered {
                             ssa::collect(
                                 ssa::Frontend {
@@ -746,7 +763,8 @@ mod unit {
                     owned.is_compatible_with(&typed),
                     owned.ownership().deferred(),
                 );
-                let expected = facts::unit(fixture, &names, typed.types(), owned.ownership(), report);
+                let expected =
+                    facts::unit(fixture, &names, typed.types(), owned.ownership(), report);
                 let owned = owned
                     .validate()
                     .map_err(|error| stopped("unit const full ownership validator", error))?;

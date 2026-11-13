@@ -12,9 +12,9 @@ mod fe {
         name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
         ownership_checking::{
             CompilationUnitOwnership, DropPoint, LoanKind as FLoanKind, MapIterationComponent,
-            OwnershipBindingKind, UnitCallArgumentOwnershipKind as UK, UnitDropPoint, UnitDropTarget,
-            UnitIterationCleanupAction as UA, UnitIterationExitKind as UE, UnitIterationSourceAccess,
-            UnitLoanTarget, UnitValueDeliveryKind,
+            OwnershipBindingKind, UnitCallArgumentOwnershipKind as UK, UnitDropPoint,
+            UnitDropTarget, UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
+            UnitIterationSourceAccess, UnitLoanTarget, UnitValueDeliveryKind,
         },
         parser::{Expression, Item, NameMarker, ParsedFile},
         source::Span,
@@ -288,7 +288,8 @@ mod fe {
                 drops.len() == if returning { 2 } else { 1 }
                     && drops.iter().all(|d| d.value_origin() == input.parameter)
                     && drops.iter().filter(|d| d.point() == normal).count() == 1
-                    && (!returning || drops.iter().filter(|d| d.point() == transfer_point).count() == 1)
+                    && (!returning
+                        || drops.iter().filter(|d| d.point() == transfer_point).count() == 1)
             } else {
                 drops.is_empty()
             },

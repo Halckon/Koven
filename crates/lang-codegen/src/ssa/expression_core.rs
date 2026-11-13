@@ -19,7 +19,7 @@ pub(in crate::ssa) mod pending_call {
     use crate::ssa::lower_frontend::non_null_proof::ProofOrigin;
     use crate::ssa::lower_frontend::*;
 
-    type Key = (usize, usize);
+    pub(in crate::ssa) type Key = (usize, usize);
 
     /// This identity is minted only at a validated SharedHeapFieldLoan instruction.
     /// In particular, it does not contain a child LoanId from its birth block.
@@ -27,21 +27,21 @@ pub(in crate::ssa) mod pending_call {
     pub(in crate::ssa) struct PendingFieldChild {
         call: ExpressionId,
         argument: ExpressionId,
-        root: SymbolId,
-        parent: ProofOrigin,
-        field: usize,
+        pub(in crate::ssa) root: SymbolId,
+        pub(in crate::ssa) parent: ProofOrigin,
+        pub(in crate::ssa) field: usize,
         target: SsaTypeId,
     }
 
     #[derive(Clone, Copy)]
-    struct PendingCallLoan {
-        loan: Option<LoanId>,
-        child: Option<PendingFieldChild>,
+    pub(in crate::ssa) struct PendingCallLoan {
+        pub(in crate::ssa) loan: Option<LoanId>,
+        pub(in crate::ssa) child: Option<PendingFieldChild>,
     }
 
     /// Snapshotting the existing pending carrier also snapshots its provenance.
     #[derive(Clone, Default)]
-    pub(in crate::ssa) struct PendingCallLoans(BTreeMap<Key, PendingCallLoan>);
+    pub(in crate::ssa) struct PendingCallLoans(pub(in crate::ssa) BTreeMap<Key, PendingCallLoan>);
 
     impl PendingCallLoans {
         pub(in crate::ssa) fn is_empty(&self) -> bool {
@@ -604,7 +604,6 @@ pub(in crate::ssa) mod pending_call {
             Ok(())
         }
     }
-
 }
 
 #[cfg(test)]
@@ -627,7 +626,11 @@ mod non_null_proof_guard_tests {
         assert_eq!(failure.span, Some(span));
     }
 
-    fn proof_at(function: &Function, block: crate::ssa::model::BlockId, seed: NonNullProof) -> NonNullProof {
+    fn proof_at(
+        function: &Function,
+        block: crate::ssa::model::BlockId,
+        seed: NonNullProof,
+    ) -> NonNullProof {
         let parameters = &function.block(block).unwrap().parameters;
         let owner_type = function.entity(EntityId::Value(seed.owner)).unwrap().ty;
         let loan_type = function.entity(EntityId::Loan(seed.loan)).unwrap().ty;
@@ -703,7 +706,8 @@ mod non_null_proof_guard_tests {
         else {
             unreachable!()
         };
-        let EntityType::Loan { target: inner, .. } = baseline.entity(EntityId::Loan(*view)).unwrap().ty
+        let EntityType::Loan { target: inner, .. } =
+            baseline.entity(EntityId::Loan(*view)).unwrap().ty
         else {
             unreachable!()
         };

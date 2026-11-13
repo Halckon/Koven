@@ -161,22 +161,15 @@ pub(in crate::ssa) mod map_iteration_local {
     //! The bounded, ordinary named-local Map proof consumes only published FE facts.
     //! Formation history is an anchor; entry Expression owners and every incoming
     //! establish current liveness. Runtime still checks birth, transport and absence.
-    pub(in crate::ssa) use crate::ssa::lower_frontend::map_iteration::local_runtime::conditions;
     pub(in crate::ssa) use crate::ssa::constant_materialization::map_local_identity as identity;
-    pub(in crate::ssa) use identity::{lambda_body, producer};
+    pub(in crate::ssa) use crate::ssa::lower_frontend::map_iteration::local_runtime::conditions;
     use crate::ssa::lower_frontend::map_iteration::source::topology;
+    pub(in crate::ssa) use identity::{lambda_body, producer};
 
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
-    use lang_frontend::{
-        name_resolution::{Namespace, ReferenceTarget},
-        ownership_checking::{
-            CleanupOwnerValueId, CleanupSelectorId, DropFact, DropTarget, LoanEndPoint, LoanKind,
-        },
-        parser::NameMarker,
-        type_checking::{
-            CallableResultSource, CallableTarget, ExpressionCategory, MapIterationDescriptor,
-        },
+
+    use lang_frontend::ownership_checking::{
+        CleanupOwnerValueId, CleanupSelectorId, DropFact, DropTarget,
     };
 
     pub(in crate::ssa) use self::consumer_prove as consumer;
@@ -346,7 +339,12 @@ pub(in crate::ssa) mod map_iteration_local {
 
     pub(in crate::ssa) mod consumer_prove {
         use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
+        use lang_frontend::{
+            name_resolution::{Namespace, ReferenceTarget},
+            ownership_checking::LoanEndPoint,
+            type_checking::{CallableResultSource, ExpressionCategory, MapIterationDescriptor},
+        };
 
         pub(in crate::ssa) fn prove(
             parsed: &ParsedFile,
@@ -390,9 +388,9 @@ pub(in crate::ssa) mod map_iteration_local {
             };
             if arguments.len() != 2
                 || !type_arguments.is_empty()
-                || arguments
-                    .iter()
-                    .any(|argument| argument.named_prefix.is_some() || argument.mode_marker.is_some())
+                || arguments.iter().any(|argument| {
+                    argument.named_prefix.is_some() || argument.mode_marker.is_some()
+                })
             {
                 return Err(unsupported());
             }
@@ -502,7 +500,7 @@ pub(in crate::ssa) mod map_iteration_local {
                     || mapping.category() != ExpressionCategory::Place
                     || typed.expression_type(argument.value) != Some(ty)
                     || typed.expression_category(argument.value) != Some(ExpressionCategory::Place)
-                    || loan.kind() != LoanKind::Shared
+                    || loan.kind() != lang_frontend::ownership_checking::LoanKind::Shared
                     || loan.begin_span() != argument_node.span()
                     || loan.end_span() != node.span()
                     || loan.is_receiver_reservation()
@@ -523,8 +521,13 @@ pub(in crate::ssa) mod map_iteration_local {
             drops, formation, owned_parameter, raw_formation, replacement_point,
         };
         use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
         use crate::ssa::map_source::{Birth, Formation};
+        use lang_frontend::{
+            name_resolution::ReferenceTarget,
+            ownership_checking::{DropFact, DropTarget},
+            type_checking::ExpressionCategory,
+        };
         use lang_frontend::{
             ownership_checking::IterationPhiBoundary, type_checking::IntrinsicTypeConstructor,
         };
@@ -644,7 +647,8 @@ pub(in crate::ssa) mod map_iteration_local {
             if !matches!(
                 typed.types().get(storage),
                 Some(lang_frontend::type_checking::TypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                    constructor: IntrinsicTypeConstructor::Map
+                        | IntrinsicTypeConstructor::MutableMap,
                     ..
                 })
             ) {
@@ -711,7 +715,8 @@ pub(in crate::ssa) mod map_iteration_local {
                     (r.target() == &ReferenceTarget::Symbol(root)).then_some(r.span())
                 }),
             );
-            if !future && !ancestor_fact((parsed, names, typed, owned), flow, fact, storage, span)? {
+            if !future && !ancestor_fact((parsed, names, typed, owned), flow, fact, storage, span)?
+            {
                 let resource = typed.is_resource_type(storage).ok_or_else(missing)?;
                 let scope = resource::scope(parsed, plan.descriptor().statement(), origin, span)?;
                 if !resource
@@ -741,7 +746,9 @@ pub(in crate::ssa) mod map_iteration_local {
             let (parsed, names, typed, owned) = frontend;
             let missing = || error(LoweringErrorKind::MissingFact, span);
             let root = match flow.source {
-                SourceIdentity::Parameter(root) | SourceIdentity::Formed { symbol: root, .. } => root,
+                SourceIdentity::Parameter(root) | SourceIdentity::Formed { symbol: root, .. } => {
+                    root
+                }
                 _ => return Err(missing()),
             };
             for ancestor in owned.map_iterations() {

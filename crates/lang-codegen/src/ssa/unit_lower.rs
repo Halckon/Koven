@@ -1,5 +1,5 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
-mod orchestrate;
+pub(in crate::ssa) mod orchestrate;
 use orchestrate::lower_unit_from_facts;
 #[cfg(all(test, feature = "loan-observation-test-support"))]
 pub(in crate::ssa) use orchestrate::observe_final_verifier;
@@ -9,9 +9,9 @@ mod borrow;
 pub(in crate::ssa) use super::provider::borrow_result;
 mod call;
 mod call_lifetimes;
-use call_lifetimes::callable_abi;
+pub(in crate::ssa) use call_lifetimes::callable_abi;
 mod cfg;
-mod closure;
+pub(in crate::ssa) mod closure;
 pub(crate) mod constant;
 mod construction;
 mod container;
@@ -24,7 +24,7 @@ mod ownership;
 mod receiver;
 use control::scalar;
 pub(in crate::ssa) mod type_lower;
-mod type_plan;
+pub(in crate::ssa) mod type_plan;
 
 #[cfg(test)]
 pub(crate) use borrow_result::validate_bindings;
@@ -97,25 +97,25 @@ pub(super) fn enclosing_lambda(parsed: &ParsedFile, span: Span) -> Option<Expres
         .map(|(id, _)| id)
 }
 
-enum FunctionPlanBody {
+pub(in crate::ssa) enum FunctionPlanBody {
     Expression(ExpressionId),
     Block(StatementId),
 }
 
-struct FunctionPlan {
-    id: FunctionId,
-    instance: UnitPlannedInstance,
-    function_item: ItemId,
-    body: FunctionPlanBody,
-    receiver: Option<ReceiverPlan>,
-    parameter_symbols: Vec<UnitSymbolId>,
+pub(in crate::ssa) struct FunctionPlan {
+    pub(in crate::ssa) id: FunctionId,
+    pub(in crate::ssa) instance: UnitPlannedInstance,
+    pub(in crate::ssa) function_item: ItemId,
+    pub(in crate::ssa) body: FunctionPlanBody,
+    pub(in crate::ssa) receiver: Option<ReceiverPlan>,
+    pub(in crate::ssa) parameter_symbols: Vec<UnitSymbolId>,
     /// The first Inout parameter's declaration; only the refinement layer lowers it.
-    inout_parameter: Option<Span>,
-    return_type: UnitTypeId,
+    pub(in crate::ssa) inout_parameter: Option<Span>,
+    pub(in crate::ssa) return_type: UnitTypeId,
 }
 
 #[derive(Clone, Copy)]
-struct ReceiverPlan {
+pub(in crate::ssa) struct ReceiverPlan {
     owner: DeclarationId,
     mode: ParameterMode,
     template_ty: UnitTypeId,
@@ -591,19 +591,6 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let lowered = match lowered {
             LoweredValue::Value(value) => {
-                // Inline scalar local wraps use the refinement body recipe.
-                if self.migrated_family_compatibility
-                    && let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(declared)
-                    && builtin_type(self.typed, *inner).is_some_and(|ty| ty != BuiltinType::String)
-                    && type_lower::is_inline_nullable_inner(self.typed, *inner)
-                    && self
-                        .typed
-                        .expression_type(UnitExpressionId::new(self.source_unit, initializer))
-                        == Some(*inner)
-                    && !self.type_ids.contains_key(&declared)
-                {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
                 let (value, transferred) =
                     self.adapt_owned_value_to_expected(initializer, value, declared, span)?;
                 if !transferred {
@@ -821,7 +808,7 @@ fn builtin_type(typed: &CompilationUnitTypes, ty: UnitTypeId) -> Option<BuiltinT
     }
 }
 
-fn instance_function_name(
+pub(in crate::ssa) fn instance_function_name(
     names: &ValidatedCompilationUnitNames,
     instance: &UnitPlannedInstance,
 ) -> Result<String, LoweringError> {
@@ -895,4 +882,5 @@ fn require_value(entity: EntityId, span: Span) -> Result<ValueId, LoweringError>
 }
 
 #[cfg(test)]
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_future::graph::continuation::deinit_tests as deinit_tests;
+#[path = "unit_lower_deinit_tests.rs"]
+mod deinit_tests;

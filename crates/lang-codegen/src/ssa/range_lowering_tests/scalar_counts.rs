@@ -463,7 +463,9 @@ fn assert_memory_source_rejected(text: &str, fragment: &str) {
 
 pub(in crate::ssa) mod local_control_assertions {
     //! Identity-based checks over valid, source-produced SSA only.
-    use crate::ssa::range_lowering_tests::local_control::*;
+    use crate::ssa::model::*;
+    use crate::ssa::range_lowering_tests::local_control::Position;
+
     use lang_frontend::source::Span;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -515,7 +517,8 @@ pub(in crate::ssa) mod local_control_assertions {
         let descriptors = calls
             .iter()
             .map(|call| {
-                let [EntityId::Value(view), EntityId::Loan(source)] = call.results.as_slice() else {
+                let [EntityId::Value(view), EntityId::Loan(source)] = call.results.as_slice()
+                else {
                     panic!("a range call must return a descriptor and its root continuation")
                 };
                 (*view, *source)
@@ -588,10 +591,12 @@ pub(in crate::ssa) mod local_control_assertions {
     }
 
     fn carried(function: &Function, edge: &Edge, state: &Carriers) -> Carriers {
-        let EntityId::Value(root) = carried_entity(function, edge, EntityId::Value(state.root)) else {
+        let EntityId::Value(root) = carried_entity(function, edge, EntityId::Value(state.root))
+        else {
             panic!("root remains an owned value")
         };
-        let EntityId::Loan(root_loan) = carried_entity(function, edge, EntityId::Loan(state.root_loan))
+        let EntityId::Loan(root_loan) =
+            carried_entity(function, edge, EntityId::Loan(state.root_loan))
         else {
             panic!("source remains a loan")
         };
@@ -603,7 +608,8 @@ pub(in crate::ssa) mod local_control_assertions {
                 else {
                     panic!("descriptor remains a value")
                 };
-                let EntityId::Loan(source) = carried_entity(function, edge, EntityId::Loan(*source))
+                let EntityId::Loan(source) =
+                    carried_entity(function, edge, EntityId::Loan(*source))
                 else {
                     panic!("continuation remains a loan")
                 };
@@ -658,7 +664,9 @@ pub(in crate::ssa) mod local_control_assertions {
                 "each descriptor must be read once in {block:?}"
             );
             let (call, loan) = calls[0];
-            assert!(instruction_position(function, call) < read_end_position(function, block, loan));
+            assert!(
+                instruction_position(function, call) < read_end_position(function, block, loan)
+            );
         }
     }
 
@@ -765,7 +773,8 @@ pub(in crate::ssa) mod local_control_assertions {
                     matches!(instruction.operation, Operation::BorrowEnd { loan } if loan == state.root_loan)
                 }).unwrap();
                 assert!(
-                    instruction_position(function, end) < instruction_position(function, source_end)
+                    instruction_position(function, end)
+                        < instruction_position(function, source_end)
                 );
                 assert!(instruction_position(function, source_end) < compared);
             }

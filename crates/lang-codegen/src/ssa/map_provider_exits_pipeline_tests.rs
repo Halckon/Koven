@@ -69,16 +69,20 @@ mod ci_baseline {
         }
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use local_future::ci_contracts;
+#[allow(unused_imports)]
+pub(in crate::ssa) use local_future::ci_contracts;
 mod conditional;
 mod control_flow;
 mod d10_temporary_carry;
 mod facts;
 mod fixture;
-#[allow(unused_imports)] pub(in crate::ssa) use scope_value_births::formation_runtime;
+#[allow(unused_imports)]
+pub(in crate::ssa) use scope_value_births::formation_runtime;
 mod future_use;
-#[allow(unused_imports)] pub(in crate::ssa) use local_future::history;
-#[allow(unused_imports)] pub(in crate::ssa) use resource::identity;
+#[allow(unused_imports)]
+pub(in crate::ssa) use local_future::history;
+#[allow(unused_imports)]
+pub(in crate::ssa) use resource::pipeline_identity as identity;
 mod local_arguments;
 pub(crate) use local_arguments::{
     generic_prerequisite_sources as local_generic_argument_prerequisite_sources,
@@ -88,12 +92,16 @@ pub(crate) use local_arguments::{
 pub(in crate::ssa) mod local_sources;
 mod nested;
 pub(in crate::ssa) mod nested_exits;
-#[allow(unused_imports)] pub(in crate::ssa) use resource_forms::pipeline;
-#[allow(unused_imports)] pub(in crate::ssa) use scope_value_births::query_cleanup;
-#[allow(unused_imports)] pub(in crate::ssa) use scope_lowering::query_graph;
-pub(in crate::ssa) use scope_lowering::query_graph::Graph as OrdinaryGraph;
+#[allow(unused_imports)]
+pub(in crate::ssa) use borrowed::query_inputs;
 pub(in crate::ssa) use borrowed::query_inputs::one as one_query;
-#[allow(unused_imports)] pub(in crate::ssa) use borrowed::query_inputs;
+#[allow(unused_imports)]
+pub(in crate::ssa) use resource_forms::pipeline;
+#[allow(unused_imports)]
+pub(in crate::ssa) use scope_lowering::query_graph;
+pub(in crate::ssa) use scope_lowering::query_graph::Graph as OrdinaryGraph;
+#[allow(unused_imports)]
+pub(in crate::ssa) use scope_value_births::query_cleanup;
 mod query_inventory {
     //! 完整定义库存只排除额外能力；expected 必须来自调用方的真实 birth 与逐边身份证明。
     use super::{
@@ -215,10 +223,13 @@ mod query_inventory {
         )
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use scope_value_births::query_map_normal_body;
-#[allow(unused_imports)] pub(in crate::ssa) use borrowed::query_owner;
+#[allow(unused_imports)]
+pub(in crate::ssa) use borrowed::query_owner;
+#[allow(unused_imports)]
+pub(in crate::ssa) use scope_value_births::query_map_normal_body;
 mod query_ssa;
-#[allow(unused_imports)] pub(in crate::ssa) use scope_value_births::query_temporary_cleanup;
+#[allow(unused_imports)]
+pub(in crate::ssa) use scope_value_births::query_temporary_cleanup;
 mod query_test {
     //! 独立 ordinary exact：原六源码 × MemoryDocument/rooted Unit 全采后断，不变异、不执行 native。
     use super::{
@@ -341,7 +352,7 @@ mod query_test {
 }
 pub(in crate::ssa) mod resource;
 pub(in crate::ssa) mod resource_forms;
-pub(crate) mod scope_future_observer;
+mod scope_future_observer;
 pub(crate) use scope_future_observer::cases as scope_future_sources;
 mod sequential;
 mod source_forms;
@@ -478,7 +489,9 @@ mod temporary_argument_cfg_runtime {
                     let branch = if flag { "one" } else { "two" };
                     let middle = if control { "control\n" } else { "" };
                     cases.push(Case {
-                        label: format!("temporary-argument-CFG-{kind}-flag-{flag}-control-{control}"),
+                        label: format!(
+                            "temporary-argument-CFG-{kind}-flag-{flag}-control-{control}"
+                        ),
                         source,
                         golden: format!("begin\n{branch}\n{middle}after\n"),
                     });
@@ -561,7 +574,7 @@ mod temporary_argument_cfg_runtime {
     }
 }
 mod temporary_arguments;
-pub(crate) mod temporary_delivery;
+mod temporary_delivery;
 mod temporary_delivery_boundaries {
     //! Ordinary invalid aliasing stays separate from the supported local Borrow-result continuation.
     use super::{
@@ -706,7 +719,7 @@ mod temporary_delivery_boundaries {
     }
 }
 pub(in crate::ssa) mod temporary_exits;
-pub(in crate::ssa) mod temporary_forms;
+mod temporary_forms;
 
 pub(crate) use borrowed::sources as borrowed_exit_sources;
 pub(crate) use conditional::sources as conditional_sources;
@@ -715,9 +728,10 @@ pub(crate) use control_flow::neighbor_sources as ordinary_control_flow_neighbor_
 pub(crate) use control_flow::populated_future_transfer_sources;
 pub(crate) use control_flow::return_sources as ordinary_return_sources;
 pub(crate) use control_flow::sources as ordinary_control_flow_sources;
-pub(crate) use scope_value_births::formation_runtime::sources as formation_runtime_sources;
 pub(crate) use future_use::sources as future_use_sources;
-pub(crate) use local_future::history::{sanitizer_ir as history_sanitizer_ir, sources as history_sources};
+pub(crate) use local_future::history::{
+    sanitizer_ir as history_sanitizer_ir, sources as history_sources,
+};
 pub(crate) use local_sources::native_sources as local_native_sources;
 pub(crate) use nested::sources as nested_sources;
 pub(crate) use nested_exits::native_sources as nested_exit_sources;
@@ -728,6 +742,7 @@ pub(crate) use resource::sources as resource_sources;
 pub(crate) use resource::terminated::returning::sources as resource_return_sources;
 pub(crate) use resource::terminated::sources as resource_break_sources;
 pub(crate) use resource_forms::sources as resource_form_sources;
+pub(crate) use scope_value_births::formation_runtime::sources as formation_runtime_sources;
 pub(crate) use sequential::sources as sequential_sources;
 pub(crate) use source_forms::sources as source_form_sources;
 pub(crate) use stack::{
@@ -783,7 +798,7 @@ pub(crate) fn sources() -> [(&'static str, &'static str, &'static str); 6] {
 }
 
 #[derive(Debug, Default)]
-struct Report {
+pub(in crate::ssa) struct Report {
     checks: Vec<(&'static str, bool, String)>,
     identity_requested: bool,
     fe_identity: Option<Result<query_inputs::Inputs, Failure>>,
@@ -902,11 +917,11 @@ fn map_and_mutable_map_unconditional_exits_reach_verified_llvm() {
     );
 }
 
-pub(in crate::ssa) mod local_exits;
+mod local_exits;
 
 pub(crate) use local_exits::sources as local_exits_sources;
 
-pub(in crate::ssa) mod local_resources;
+mod local_resources;
 pub(crate) use local_resources::sources as local_resource_sources;
 
 pub(in crate::ssa) mod local_future;
@@ -931,16 +946,16 @@ pub(crate) use local_reassignment::completed_epoch_sources as local_completed_ep
 pub(crate) use local_exits::alias_rebound_source as local_alias_rebound_source;
 pub(crate) use local_exits::alternate_sources as alternate_local_sources;
 
-pub(in crate::ssa) mod births;
+mod births;
 pub(crate) use births::{Kind as MapBirthKind, sources as map_birth_sources};
 
 pub(in crate::ssa) mod scope_lowering;
 pub(crate) use scope_lowering::sources as scope_a1_sources;
 
-pub(in crate::ssa) mod scope_lambda_body;
+mod scope_lambda_body;
 pub(crate) use scope_lambda_body::sources as scope_a2_sources;
 
-pub(in crate::ssa) mod scope_member_parameter;
+mod scope_member_parameter;
 pub(in crate::ssa) mod scope_value_births;
 pub(crate) use scope_member_parameter::sources as scope_member_parameter_sources;
 pub(crate) use scope_value_births::int_storage_sources as scope_int_storage_sources;

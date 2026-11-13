@@ -25,7 +25,8 @@ mod conditional {
                 continue;
             }
             let condition_node = parsed.ast().expressions().get(*condition).unwrap();
-            let Expression::Literal(LiteralKind::Boolean(expected)) = condition_node.payload() else {
+            let Expression::Literal(LiteralKind::Boolean(expected)) = condition_node.payload()
+            else {
                 return Err(failure(
                     "formation original conditional literal Boolean",
                     condition_node,
@@ -332,7 +333,10 @@ mod uses {
     }
     // AST expression IDs are preserved in Inputs; use the corresponding selected
     // source Call span, never a same-typed arbitrary producer.
-    fn span_of_birth(input: &Inputs, id: lang_frontend::ast::ExpressionId) -> Result<Span, Failure> {
+    fn span_of_birth(
+        input: &Inputs,
+        id: lang_frontend::ast::ExpressionId,
+    ) -> Result<Span, Failure> {
         one(
             input
                 .births
@@ -455,9 +459,9 @@ mod uses {
                 )?;
                 uses.permit(EntityId::Value(owner), root);
             }
-            let endpoint = argument
-                .endpoint
-                .ok_or_else(|| failure("formation same-analysis original Borrow endpoint", argument))?;
+            let endpoint = argument.endpoint.ok_or_else(|| {
+                failure("formation same-analysis original Borrow endpoint", argument)
+            })?;
             need(
                 begin.origin == Origin::Source(endpoint.0),
                 "formation actual Borrow starts at original argument",

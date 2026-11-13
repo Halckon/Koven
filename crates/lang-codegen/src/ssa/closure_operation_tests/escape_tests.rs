@@ -2,7 +2,7 @@ use super::*;
 
 #[path = "delivery_tests.rs"]
 mod delivery_tests;
-#[allow(unused_imports)] pub(crate) use crate::native_tests::ordered_map_tests::fixtures::packed_projected_content_tests_4 as projected_content_tests;
+mod projected_content_tests;
 mod root_content_tests;
 mod shared_retain_tests {
     use super::*;
@@ -38,7 +38,9 @@ mod shared_retain_tests {
         let function = module.function_mut(id).expect("function must exist");
         let parameters = match source {
             RetainSource::KnownEmpty | RetainSource::KnownEmptyCfg => vec![],
-            RetainSource::ClearedRoot | RetainSource::TaintedRoot => vec![EntityType::Value(shared)],
+            RetainSource::ClearedRoot | RetainSource::TaintedRoot => {
+                vec![EntityType::Value(shared)]
+            }
             RetainSource::UnknownEntryLoan => vec![EntityType::Loan {
                 kind: LoanKind::Shared,
                 target: shared,
@@ -128,7 +130,8 @@ mod shared_retain_tests {
                 (loan, Some(owner))
             }
             RetainSource::UnknownEntryLoan => {
-                let EntityId::Loan(loan) = function.block(entry).expect("entry").parameters[0] else {
+                let EntityId::Loan(loan) = function.block(entry).expect("entry").parameters[0]
+                else {
                     panic!("entry parameter must remain a shared loan");
                 };
                 (loan, None)
@@ -153,7 +156,9 @@ mod shared_retain_tests {
                     TerminatorKind::Branch(Edge {
                         target,
                         arguments: vec![
-                            EntityId::Value(local_owner.expect("CFG source owns the empty payload")),
+                            EntityId::Value(
+                                local_owner.expect("CFG source owns the empty payload"),
+                            ),
                             EntityId::Loan(loan),
                         ],
                     }),
@@ -217,8 +222,9 @@ mod shared_retain_tests {
     #[test]
     fn borrowed_closure_shared_retain_loan_allows_known_empty_payload_after_cfg_transport() {
         // The edge moves the owner and loan together without changing the payload contents.
-        verify_program(&shared_retain_loan_return(RetainSource::KnownEmptyCfg).0)
-            .expect("CFG transport must preserve the known-empty payload proof through Loan retain");
+        verify_program(&shared_retain_loan_return(RetainSource::KnownEmptyCfg).0).expect(
+            "CFG transport must preserve the known-empty payload proof through Loan retain",
+        );
     }
 
     #[test]
@@ -230,8 +236,9 @@ mod shared_retain_tests {
     #[test]
     fn borrowed_closure_shared_retain_loan_allows_root_cleared_before_borrow() {
         // The unknown entry owner is replaced with an empty payload before the loan exists.
-        verify_program(&shared_retain_loan_return(RetainSource::ClearedRoot).0)
-            .expect("Loan retain must use the proven clean current root contents after replacement");
+        verify_program(&shared_retain_loan_return(RetainSource::ClearedRoot).0).expect(
+            "Loan retain must use the proven clean current root contents after replacement",
+        );
     }
 
     #[test]

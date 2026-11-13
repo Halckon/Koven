@@ -47,8 +47,8 @@ pub(in crate::ssa) mod map_nullable_operand_unit {
         source::Span,
         type_checking::{
             BuiltinType, Copyability, ExpressionCategory, IterationProvider, ParameterMode,
-            SequentialContainerKind, UnitCallTarget, UnitExpressionId, UnitSequentialIterationBinding,
-            UnitStatementId, UnitTypeKind,
+            SequentialContainerKind, UnitCallTarget, UnitExpressionId,
+            UnitSequentialIterationBinding, UnitStatementId, UnitTypeKind,
         },
     };
 
@@ -111,7 +111,8 @@ pub(in crate::ssa) mod map_nullable_operand_unit {
             .iter()
             .filter(|reference| reference.source_unit() == source(unit) && reference.span() == span)
             .collect::<Vec<_>>();
-        let UnitReferenceTarget::Symbol(symbol) = one(&references, "exact source reference").target()
+        let UnitReferenceTarget::Symbol(symbol) =
+            one(&references, "exact source reference").target()
         else {
             panic!("the original local reference must resolve to its real symbol");
         };
@@ -198,13 +199,13 @@ pub(in crate::ssa) mod map_nullable_operand_unit {
     }
 
     pub(in crate::ssa) struct LoopIdentity {
-        statement: UnitStatementId,
-        body: UnitStatementId,
-        provider: UnitExpressionId,
-        item: UnitSymbolId,
-        returned: UnitExpressionId,
-        operand: UnitExpressionId,
-        scope: Span,
+        pub(in crate::ssa) statement: UnitStatementId,
+        pub(in crate::ssa) body: UnitStatementId,
+        pub(in crate::ssa) provider: UnitExpressionId,
+        pub(in crate::ssa) item: UnitSymbolId,
+        pub(in crate::ssa) returned: UnitExpressionId,
+        pub(in crate::ssa) operand: UnitExpressionId,
+        pub(in crate::ssa) scope: Span,
     }
 
     fn iteration(unit: &UnitSource) -> LoopIdentity {
@@ -326,7 +327,8 @@ pub(in crate::ssa) mod map_nullable_operand_unit {
         else {
             panic!("the original Return has its actual operand");
         };
-        let scope = unit.declaration_span(unit.declaration("updatingOperand", SymbolKind::Function));
+        let scope =
+            unit.declaration_span(unit.declaration("updatingOperand", SymbolKind::Function));
         assert!(within(node.span(), scope));
         LoopIdentity {
             statement,
@@ -731,7 +733,8 @@ pub(in crate::ssa) mod map_nullable_operand_unit {
         for declaration in roots {
             // Each root consumes these same admitted products; a negative root never supplies SSA.
             let result = unit.lower_entry(declaration);
-            if !supported && declaration == unit.declaration("nullableValue", SymbolKind::Function) {
+            if !supported && declaration == unit.declaration("nullableValue", SymbolKind::Function)
+            {
                 let (program, entry) = result.expect("String? value-if now lowers");
                 let functions = program
                     .modules
@@ -807,7 +810,8 @@ pub(in crate::ssa) mod map_nullable_operand_unit {
                 assert_eq!(unit.sources().slice(span).unwrap(), boundary);
                 continue;
             }
-            let (program, entry) = result.unwrap_or_else(|error| panic!("{name}: lower: {error:?}"));
+            let (program, entry) =
+                result.unwrap_or_else(|error| panic!("{name}: lower: {error:?}"));
             let functions = program
                 .modules
                 .iter()
@@ -823,7 +827,7 @@ pub(in crate::ssa) mod map_nullable_operand_unit {
                 Origin::Source(unit.declaration_span(declaration))
             );
             assert_eq!(
-                super::super::operand_structure::assert_source(&program, unit.parsed()),
+                crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::operand_structure::assert_source(&program, unit.parsed()),
                 usize::from(name.starts_with("remove") || name.starts_with("contains"))
             );
             if name.starts_with("item-") {

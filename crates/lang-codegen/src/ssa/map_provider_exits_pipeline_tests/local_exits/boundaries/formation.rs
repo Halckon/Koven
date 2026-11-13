@@ -101,7 +101,8 @@ mod representation {
                 && deinit.receiver_type() == ty
                 && deinit.receiver_mode() == ParameterMode::Borrow
                 && d.fields().iter().all(|field| {
-                    typed.types().get(field.ty()) == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    typed.types().get(field.ty())
+                        == Some(&UnitTypeKind::Builtin(BuiltinType::String))
                 })
                 && typed.is_resource_type(ty) == Some(true),
             "formation exact qualified Resource nominal and String fields",
@@ -112,7 +113,10 @@ mod representation {
             strings: d.fields().len(),
         }))
     }
-    fn guard_site(parsed: &ParsedFile, site: &Site) -> Result<Option<(Span, ExpressionId)>, Failure> {
+    fn guard_site(
+        parsed: &ParsedFile,
+        site: &Site,
+    ) -> Result<Option<(Span, ExpressionId)>, Failure> {
         let declarations = parsed
             .ast()
             .items()

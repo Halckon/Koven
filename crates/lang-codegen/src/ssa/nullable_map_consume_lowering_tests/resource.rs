@@ -365,7 +365,7 @@ mod memory {
         }
     }
 }
-#[allow(unused_imports)] pub(crate) use crate::native::unit_tests::map_loop_owner_tests::conditional_return::packed_runtime_7 as runtime;
+mod runtime;
 mod sources {
     //! Frozen four-source Resource baseline; source order is not mapper registration order.
 
@@ -405,15 +405,15 @@ mod sources {
     }
     "#,
             consumer: r#"package q
-    fun entry(): Unit { p.main() }
-    "#,
+fun entry(): Unit { p.main() }
+"#,
             counts: [2, 2, 1, 1, 0, 1],
             has_ordinary: false,
         },
         Case {
             id: "R1",
             path: "r1_ordinary_source_before_remove.ko",
-            single: r#"class Resource { deinit() {} }
+            single: r#"    class Resource { deinit() {} }
     fun main(): Unit {
       val ordinary: MutableMap<Int, Resource>? = null
       var inner = mutableMapOf<Int, Resource>()
@@ -437,8 +437,8 @@ mod sources {
     }
     "#,
             consumer: r#"package q
-    fun entry(): Unit { p.main() }
-    "#,
+fun entry(): Unit { p.main() }
+"#,
             counts: [2, 2, 1, 1, 0, 1],
             has_ordinary: true,
         },
@@ -469,8 +469,8 @@ mod sources {
     }
     "#,
             consumer: r#"package q
-    fun entry(): Unit { p.main() }
-    "#,
+fun entry(): Unit { p.main() }
+"#,
             counts: [2, 2, 1, 1, 0, 1],
             has_ordinary: true,
         },
@@ -489,8 +489,8 @@ mod sources {
     }
     "#,
             consumer: r#"package q
-    fun entry(): Unit { p.main() }
-    "#,
+fun entry(): Unit { p.main() }
+"#,
             counts: [0, 0, 0, 0, 0, 0],
             has_ordinary: true,
         },

@@ -77,7 +77,9 @@ pub(in crate::ssa) mod map_same_guard_unit {
         ssa::model::{Origin, SsaTypeKind},
     };
     use lang_frontend::{
-        name_resolution::{SourceUnitId, SourceUnitKey, SymbolKind, UnitReferenceTarget, UnitSymbolId},
+        name_resolution::{
+            SourceUnitId, SourceUnitKey, SymbolKind, UnitReferenceTarget, UnitSymbolId,
+        },
         ownership_checking::{
             IterationSource, OwnershipBindingKind, UnitCallArgumentOwnershipKind, UnitDropPoint,
             UnitDropTarget, UnitIterationCleanupAction as Action, UnitIterationExitKind as Exit,
@@ -90,13 +92,13 @@ pub(in crate::ssa) mod map_same_guard_unit {
         },
         source::Span,
         type_checking::{
-            BuiltinType, ExpressionCategory, IterationProvider, ParameterMode, SequentialContainerKind,
-            UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId, UnitSequentialIterationBinding,
-            UnitStatementId, UnitTypeKind,
+            BuiltinType, ExpressionCategory, IterationProvider, ParameterMode,
+            SequentialContainerKind, UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId,
+            UnitSequentialIterationBinding, UnitStatementId, UnitTypeKind,
         },
     };
 
-    pub(in crate::ssa) use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_continue::map_same_guard_ssa as ssa;
+    pub(in crate::ssa) use crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_continue::map_same_guard_ssa as ssa;
 
     pub(in crate::ssa) fn one<T>(values: &[T]) -> &T {
         let [value] = values else {
@@ -159,22 +161,22 @@ pub(in crate::ssa) mod map_same_guard_unit {
     }
 
     pub(in crate::ssa) struct Source {
-        construction: UnitExpressionId,
-        cache: UnitSymbolId,
-        provider: UnitExpressionId,
-        loop_span: Span,
-        conditional: UnitExpressionId,
-        condition: UnitExpressionId,
-        left: UnitExpressionId,
-        right: UnitExpressionId,
-        returned: UnitExpressionId,
-        operand: UnitExpressionId,
-        last_return: UnitExpressionId,
-        last_operand: UnitExpressionId,
-        head: UnitExpressionId,
-        tail: UnitExpressionId,
-        query: UnitExpressionId,
-        tail_query: UnitExpressionId,
+        pub(in crate::ssa) construction: UnitExpressionId,
+        pub(in crate::ssa) cache: UnitSymbolId,
+        pub(in crate::ssa) provider: UnitExpressionId,
+        pub(in crate::ssa) loop_span: Span,
+        pub(in crate::ssa) conditional: UnitExpressionId,
+        pub(in crate::ssa) condition: UnitExpressionId,
+        pub(in crate::ssa) left: UnitExpressionId,
+        pub(in crate::ssa) right: UnitExpressionId,
+        pub(in crate::ssa) returned: UnitExpressionId,
+        pub(in crate::ssa) operand: UnitExpressionId,
+        pub(in crate::ssa) last_return: UnitExpressionId,
+        pub(in crate::ssa) last_operand: UnitExpressionId,
+        pub(in crate::ssa) head: UnitExpressionId,
+        pub(in crate::ssa) tail: UnitExpressionId,
+        pub(in crate::ssa) query: UnitExpressionId,
+        pub(in crate::ssa) tail_query: UnitExpressionId,
     }
 
     fn receiver(
@@ -518,7 +520,8 @@ pub(in crate::ssa) mod map_same_guard_unit {
                     .drops()
                     .iter()
                     .filter(|drop| {
-                        drop.point() == point && drop.target() == UnitDropTarget::Temporary(provider)
+                        drop.point() == point
+                            && drop.target() == UnitDropTarget::Temporary(provider)
                     })
                     .collect::<Vec<_>>();
                 let drop = **one(&source_drops);
@@ -642,10 +645,10 @@ pub(in crate::ssa) mod map_same_guard_unit {
         };
         use lang_frontend::name_resolution::UnitSymbolId;
 
-        use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_return::structure::{
+        use crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::structure::{
             before, branch, definition, edges, forwards, only, reaches, slot, source_function, transport,
         };
-        use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_return::operand_last_use::nullable_operand::{LoopIdentity, expression_span, one, symbol_span};
+        use crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::operand_last_use::nullable_operand::{LoopIdentity, expression_span, one, symbol_span};
 
         fn all_paths_return(
             function: &Function,
@@ -689,10 +692,13 @@ pub(in crate::ssa) mod map_same_guard_unit {
             let returns = function
                 .blocks
                 .iter()
-                .filter(|block| block.terminator.as_ref().unwrap().origin == Origin::Source(return_span))
+                .filter(|block| {
+                    block.terminator.as_ref().unwrap().origin == Origin::Source(return_span)
+                })
                 .collect::<Vec<_>>();
             let returned = *one(&returns, "actual item Return terminator");
-            let TerminatorKind::Return { values } = &returned.terminator.as_ref().unwrap().kind else {
+            let TerminatorKind::Return { values } = &returned.terminator.as_ref().unwrap().kind
+            else {
                 panic!("the source Return must terminate rather than feed a successor");
             };
             assert_eq!(values.len(), 1);
@@ -747,7 +753,8 @@ pub(in crate::ssa) mod map_same_guard_unit {
             let loan_slot = slot(&enter.arguments, source_loan);
             let length_slot = slot(&enter.arguments, length.results[0]);
             let [header_map, header_source, header_loan, header_length] =
-                [map_slot, source_slot, loan_slot, length_slot].map(|index| header.parameters[index]);
+                [map_slot, source_slot, loan_slot, length_slot]
+                    .map(|index| header.parameters[index]);
             let TerminatorKind::Conditional {
                 when_true,
                 when_false,

@@ -170,7 +170,8 @@ mod capture_transport_tests {
             ambiguous_write(module, closure, thunk, source_ty, &at);
             return (program, None);
         }
-        let (main, block, sources) = add_function(module, "main", &[source_ty, source_ty], vec![], &at);
+        let (main, block, sources) =
+            add_function(module, "main", &[source_ty, source_ty], vec![], &at);
         let function = module.function_mut(main).expect("main");
         let mut capture = |source| {
             let place = root_place(function, block, source, source_ty, &at);
@@ -363,7 +364,8 @@ mod capture_transport_tests {
         let errors = verify_program(&program).expect_err("take cannot revive a capture loan");
         assert!(
             errors.errors.iter().any(|error| {
-                matches!(error.kind, VerifyErrorKind::LoanInactive { .. }) && error.location == location
+                matches!(error.kind, VerifyErrorKind::LoanInactive { .. })
+                    && error.location == location
             }),
             "{errors:?}"
         );
@@ -373,10 +375,12 @@ mod capture_transport_tests {
     fn root_capture_transport_rejects_a_stored_capture_claimed_by_another_owner() {
         let (program, expected) = verify_transport(Transport::ReusedStored, false);
         let (value, location) = expected.expect("other holder and take location");
-        let errors = verify_program(&program).expect_err("take cannot duplicate a live capture holder");
+        let errors =
+            verify_program(&program).expect_err("take cannot duplicate a live capture holder");
         assert!(
             errors.errors.iter().any(|error| {
-                error.kind == VerifyErrorKind::OwnerLoanConflict { value } && error.location == location
+                error.kind == VerifyErrorKind::OwnerLoanConflict { value }
+                    && error.location == location
             }),
             "{errors:?}"
         );

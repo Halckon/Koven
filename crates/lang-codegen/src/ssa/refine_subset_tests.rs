@@ -42,7 +42,8 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
     (result.map(|(program, _)| program), f)
 }
 
-#[allow(unused_imports)] pub(in crate::ssa) use temporary_sequential_for::control_completion;
+#[allow(unused_imports)]
+pub(in crate::ssa) use temporary_sequential_for::control_completion;
 
 #[test]
 fn nullable_functions_inside_the_subset_are_routed() {

@@ -786,7 +786,7 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             let subject = match (is_null(left_leaf), is_null(right_leaf)) {
                 (true, false) => right,
                 (false, true) => left,
-                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                _ => return Err(lowering_error(LoweringErrorKind::MissingFact, span)),
             };
             if !self.heap_if_root_operand(subject, root, false, span)? {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
@@ -867,13 +867,19 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                     .iter()
                     .filter(|mapping| mapping.argument_index() == index);
                 let Some(mapping) = mappings.next() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        argument.span,
+                    ));
                 };
                 if mappings.next().is_some()
                     || mapping.category() != ExpressionCategory::Place
                     || mapping.parameter_type() != root.narrowed
                 {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        argument.span,
+                    ));
                 }
                 let argument_id = UnitExpressionId::new(self.source_unit, argument.value);
                 let argument_span = nodes
@@ -885,7 +891,10 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                     .call_argument_contracts_for(call)
                     .filter(|contract| contract.argument() == argument_id);
                 let Some(contract) = contracts.next() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        argument.span,
+                    ));
                 };
                 let mut loans = self
                     .owned
@@ -893,7 +902,10 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                     .iter()
                     .filter(|loan| loan.call() == call && loan.argument() == argument_id);
                 let Some(loan) = loans.next() else {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        argument.span,
+                    ));
                 };
                 if contracts.next().is_some()
                     || loans.next().is_some()
@@ -913,7 +925,10 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                     || !matches!(loan.target(), UnitLoanTarget::Place(place)
                         if place.is_root() && place.root() == root.symbol)
                 {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, argument.span));
+                    return Err(lowering_error(
+                        LoweringErrorKind::MissingFact,
+                        argument.span,
+                    ));
                 }
             }
             Ok(true)

@@ -373,14 +373,25 @@ mod nullable_temporary_tests {
                 .authorize_range_extension_source(&sources, standard)
                 .expect("只授权标准库 extension 来源");
             let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
-            let complete =
-                complete_compilation_unit_types(&sources, &inputs, &names, &environment, typed.types())
-                    .expect("完整类型接纳");
+            let complete = complete_compilation_unit_types(
+                &sources,
+                &inputs,
+                &names,
+                &environment,
+                typed.types(),
+            )
+            .expect("完整类型接纳");
             assert!(complete.is_same_analysis(typed.types()));
             assert!(owned.ownership().deferred().is_empty());
-            let view =
-                owned_compilation_unit_view(&sources, &inputs, &names, &environment, &typed, &owned)
-                    .expect("同轮 sealed owned view");
+            let view = owned_compilation_unit_view(
+                &sources,
+                &inputs,
+                &names,
+                &environment,
+                &typed,
+                &owned,
+            )
+            .expect("同轮 sealed owned view");
             assert!(std::ptr::eq(view.types(), typed.types()));
             assert!(std::ptr::eq(view.ownership(), owned.ownership()));
             let source_units = names
@@ -422,7 +433,8 @@ mod nullable_temporary_tests {
                 panic!("show 保持一个 Borrow 参数")
             };
             assert_eq!(parameter.mode(), ParameterMode::Borrow);
-            let Some(UnitTypeKind::Nullable(inner)) = view.types().types().get(parameter.ty()) else {
+            let Some(UnitTypeKind::Nullable(inner)) = view.types().types().get(parameter.ty())
+            else {
                 panic!("声明参数确为 Node?，不是 Node")
             };
             assert_eq!(view.types().copyability(*inner), Copyability::MoveOnly);
@@ -577,7 +589,9 @@ mod nullable_temporary_tests {
             "旧 inner 只被 wrap 消费，绝不能再 Drop"
         );
         assert_owner_uses(main, wrapped, root, drop);
-        assert!(matches!(null.operation, Operation::NullableNull { nullable: ty } if ty == nullable));
+        assert!(
+            matches!(null.operation, Operation::NullableNull { nullable: ty } if ty == nullable)
+        );
         let null_owner = value_result(main, null, nullable);
         assert_ne!(null_owner, wrapped);
         assert_eq!(
@@ -628,7 +642,9 @@ mod nullable_temporary_tests {
         instructions: [&Instruction; 5],
     ) -> FunctionId {
         let [root, begin, call, end, drop] = instructions;
-        assert!(matches!(root.operation, Operation::RootPlace { owner: actual } if actual == owner));
+        assert!(
+            matches!(root.operation, Operation::RootPlace { owner: actual } if actual == owner)
+        );
         let EntityId::Place(place) = one_result(function, root) else {
             panic!("RootPlace 必须产生 place")
         };
@@ -697,7 +713,12 @@ mod nullable_temporary_tests {
         value
     }
 
-    fn assert_owner_uses(function: &Function, owner: ValueId, root: &Instruction, drop: &Instruction) {
+    fn assert_owner_uses(
+        function: &Function,
+        owner: ValueId,
+        root: &Instruction,
+        drop: &Instruction,
+    ) {
         let uses = function
             .instructions
             .iter()

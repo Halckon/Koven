@@ -17,12 +17,14 @@ mod unit_identity {
     use lang_frontend::{
         name_resolution::{SourceUnitKey, SymbolKind, UnitReferenceTarget},
         ownership_checking::{
-            UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget, UnitReceiverOwnershipKind,
-            UnitReceiverOwnershipTarget,
+            UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget,
+            UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
         },
         parser::{Expression, Item, NameMarker, VariableKind},
         source::Span,
-        type_checking::{ExpressionCategory, UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId},
+        type_checking::{
+            ExpressionCategory, UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId,
+        },
     };
 
     struct Anchors {
@@ -143,7 +145,8 @@ mod unit_identity {
                 reference.source_unit() == source.id() && reference.span() == receiver_node.span()
             })
             .collect::<Vec<_>>();
-        let UnitReferenceTarget::Symbol(root) = one(&references, "exact receiver reference").target()
+        let UnitReferenceTarget::Symbol(root) =
+            one(&references, "exact receiver reference").target()
         else {
             panic!("receiver must resolve to its original local root")
         };
@@ -513,7 +516,8 @@ mod unit_identity {
             .collect::<Vec<_>>();
         let construction = one(&constructions, "exactly one original MapConstruct");
         assert_eq!(construction.origin, Origin::Source(anchors.construction));
-        let EntityId::Value(birth) = *one(&construction.results, "MapConstruct owner result") else {
+        let EntityId::Value(birth) = *one(&construction.results, "MapConstruct owner result")
+        else {
             panic!("original MapConstruct must produce its owned Value")
         };
         assert!(

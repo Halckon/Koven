@@ -31,7 +31,9 @@ mod layout {
     }
 
     impl Layout {
-        pub(in crate::ssa::nullable_map_consume_lowering_tests) fn entry_name(self) -> &'static str {
+        pub(in crate::ssa::nullable_map_consume_lowering_tests) fn entry_name(
+            self,
+        ) -> &'static str {
             match self {
                 Self::Memory => "main",
                 Self::Rooted => "entry",

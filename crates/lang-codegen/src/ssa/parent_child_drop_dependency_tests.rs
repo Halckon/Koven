@@ -1,11 +1,15 @@
 //! Partial dependency to a real Drop; no coverage or absence claim.
+#[cfg(feature = "loan-observation-test-support")]
 use super::parent_child_causal::{SOURCE, verify_parent_child_ssa};
+#[cfg(feature = "loan-observation-test-support")]
 use super::*;
+#[cfg(feature = "loan-observation-test-support")]
 use lang_frontend::ownership_checking::{
     UnitDropTarget, UnitIterationCleanupAction, UnitLoanTarget, check_compilation_unit_ownership,
     legacy_ownership_eq, with_loan_observation,
 };
 
+#[cfg(feature = "loan-observation-test-support")]
 #[test]
 fn parent_child_requires_actual_partial_drop_dependency_with_true_off() {
     let mut sources = SourceMap::new();
@@ -175,6 +179,7 @@ fn parent_child_requires_actual_partial_drop_dependency_with_true_off() {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 #[test]
 fn later_parent_or_owner_use_preserves_old_products_without_drop_dependency() {
     let cases = [
@@ -251,9 +256,12 @@ fn later_parent_or_owner_use_preserves_old_products_without_drop_dependency() {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 pub(in crate::ssa) mod products {
     //! Real reanalysis and actual producer identities, with no synthetic inputs.
-    use crate::ssa::loan_region_ssa_tests::multi_temporary::*;
+    // The two-literal source belongs to this product family; `loan_region_ssa_tests::SOURCE`
+    // is the borrow-return fixture and must not be substituted here.
+    use crate::ssa::loan_region_ssa_tests::multi_temporary::SOURCE;
     use crate::ssa::loan_region_ssa_tests::*;
     use lang_frontend::ownership_checking::{
         check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
@@ -284,7 +292,8 @@ pub(in crate::ssa) mod products {
     ) {
         for &(text, bytes, result_count) in cases {
             let mut sources = SourceMap::new();
-            let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two-off.ko", text);
+            let (source, parsed) =
+                unit_lower_test_support::parsed(&mut sources, "two-off.ko", text);
             let (environment, types) = standard_environments();
             for input in [
                 SourceUnitInput::new("root", "two-off.ko", source, &parsed),
@@ -340,7 +349,8 @@ pub(in crate::ssa) mod products {
                     .collect::<Vec<_>>();
                 for (i, begin) in begins.iter().enumerate() {
                     assert!(begins[..i].iter().all(|previous| {
-                        previous.argument() != begin.argument() && previous.target() != begin.target()
+                        previous.argument() != begin.argument()
+                            && previous.target() != begin.target()
                     }));
                     let parameter = expected_mapping[i].1;
                     assert_eq!(
@@ -361,7 +371,9 @@ pub(in crate::ssa) mod products {
 
                     let UnitLoanAction::Cleanup {
                         action:
-                            lang_frontend::ownership_checking::UnitIterationCleanupAction::EndCallLoan(end),
+                            lang_frontend::ownership_checking::UnitIterationCleanupAction::EndCallLoan(
+                                end,
+                            ),
                         ..
                     } = actions[2 * N - 1 - i]
                     else {
@@ -378,7 +390,9 @@ pub(in crate::ssa) mod products {
                     };
                     assert_eq!(
                         drop.target(),
-                        lang_frontend::ownership_checking::UnitDropTarget::Temporary(begin.argument())
+                        lang_frontend::ownership_checking::UnitDropTarget::Temporary(
+                            begin.argument()
+                        )
                     );
                 }
                 let run = names
@@ -456,9 +470,11 @@ pub(in crate::ssa) mod products {
                         owners.push(*owner);
                     }
                     assert!(
-                        entities
+                        entities.iter().all(|e| entities
                             .iter()
-                            .all(|e| entities.iter().filter(|other| *other == e).count() == 1)
+                            .filter(|other| *other == e)
+                            .count()
+                            == 1)
                     );
                     let call = &caller.instructions[3 * N];
                     let Operation::DirectCall {
@@ -570,19 +586,20 @@ pub(in crate::ssa) mod products {
                 .iter()
                 .find(|d| d.name() == "run")
                 .unwrap();
-            let ((lowered, routes), receipts) = crate::ssa::refine::temporary_receipt::observe(|| {
-                crate::ssa::refine::observe_routing(|| {
-                    crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                        &sources,
-                        &inputs,
-                        &names,
-                        &types,
-                        &typed,
-                        &owned,
-                        run.id(),
-                    )
-                })
-            });
+            let ((lowered, routes), receipts) =
+                crate::ssa::refine::temporary_receipt::observe(|| {
+                    crate::ssa::refine::observe_routing(|| {
+                        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                            &sources,
+                            &inputs,
+                            &names,
+                            &types,
+                            &typed,
+                            &owned,
+                            run.id(),
+                        )
+                    })
+                });
             let (program, entry) = lowered.unwrap();
             verify_program(&program).unwrap();
             crate::llvm::render_verified_program(&program).unwrap();
@@ -595,7 +612,9 @@ pub(in crate::ssa) mod products {
 
 pub(in crate::ssa) mod range_view_source {
     //! View-source descriptors inherit the collection root, independently of parent metadata.
+    use crate::ssa::model::{Definition, EntityId, EntityType, Operation};
     use crate::ssa::range_lowering_tests::*;
+    use crate::ssa::verify::verify_program;
     use crate::test_support::diagnostics::assert_diagnostic;
 
     #[test]
@@ -645,7 +664,9 @@ pub(in crate::ssa) mod range_view_source {
 
     #[test]
     fn range_view_source_native_single_and_unit_preserve_collection_and_element_identities() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         for (declaration, element, values, read, drops) in [
             (
                 "",
@@ -678,7 +699,8 @@ pub(in crate::ssa) mod range_view_source {
                     "package app\nimport koven.algorithms.take\n{consumer}"
                 )),
             ] {
-                let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                let llvm =
+                    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
                 // Only the two elements and List allocate; metadata creation and forwarding allocate nothing.
                 let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2]);
                 assert_success(
@@ -691,7 +713,9 @@ pub(in crate::ssa) mod range_view_source {
 
     #[test]
     fn range_view_source_offsets_and_forwarded_return_preserve_absolute_root_coordinates() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         let trusted = "fun <T> window(source:List<T>):View<T> from source=rangeView(source,1,2)\nfun <T> forward(source:View<T>,count:Int):View<T> from source=take(source,count)";
         for count in [0, 1, 2147483647] {
             let consumer = format!(
@@ -706,7 +730,8 @@ pub(in crate::ssa) mod range_view_source {
                     trusted,
                 ),
             ] {
-                let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                let llvm =
+                    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
                 let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2]);
                 let visits = if count == 0 { "" } else { "second\n" };
                 assert_success(&run, format!("{visits}after\nsecond\nfirst\n").as_bytes());
@@ -717,7 +742,9 @@ pub(in crate::ssa) mod range_view_source {
     #[test]
     fn range_view_source_parent_child_and_elements_coexist_until_their_own_last_uses() {
         let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun consume(own source:List<Item>):Unit{}\nfun main():Unit{val source=listOf(Item(\"first\"),Item(\"second\"));{borrow val parent=take(source,2);borrow val child=take(parent,1);for(item in parent){read(child);println(item.text)};read(child)};consume(source)}";
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         for (program, entry) in [
             memory_unit_with_entry(consumer),
             unit_with_entry(&format!(
@@ -797,7 +824,7 @@ pub(in crate::ssa) mod range_view_source {
             caller.instructions.iter_mut().find(|instruction| matches!(instruction.operation, Operation::RangeEnd { view, .. } if view == parent)).unwrap().operation = Operation::Drop { owner };
             let errors = verify_program(&program)
                 .expect_err("the child's independent root loan must still protect the collection");
-            assert_diagnostic!(errors.errors.iter().any(|error| matches!(error.kind, super::super::verify::VerifyErrorKind::OwnerLoanConflict { value } if value == owner)), "{errors:?}");
+            assert_diagnostic!(errors.errors.iter().any(|error| matches!(error.kind, crate::ssa::verify::VerifyErrorKind::OwnerLoanConflict { value } if value == owner)), "{errors:?}");
             // The rejected Program is never emitted or executed.
         }
     }
@@ -821,14 +848,16 @@ pub(in crate::ssa) mod range_view_source {
             *source = sibling;
             arguments[0] = EntityId::Loan(sibling);
             let errors = verify_program(&program).expect_err("the declared source must be the actual returned root");
-            assert_diagnostic!(errors.errors.iter().any(|error| matches!(error.kind, super::super::verify::VerifyErrorKind::ReturnType { .. })), "{errors:?}");
+            assert_diagnostic!(errors.errors.iter().any(|error| matches!(error.kind, crate::ssa::verify::VerifyErrorKind::ReturnType { .. })), "{errors:?}");
             // Signature-valid sibling substitution stays inside the pure verifier.
         }
     }
 
     #[test]
     fn range_view_source_nested_temporary_native_releases_each_original_collection_once() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         for (declaration, element, values, read, drops) in [
             (
                 "",
@@ -885,8 +914,10 @@ pub(in crate::ssa) mod range_view_source {
                     let done = if exit == "return" { "" } else { "done\n" };
                     assert_success(
                         &run,
-                        format!("source\n{visits}read-end\n{drops}source\n{for_visits}{drops}{done}")
-                            .as_bytes(),
+                        format!(
+                            "source\n{visits}read-end\n{drops}source\n{for_visits}{drops}{done}"
+                        )
+                        .as_bytes(),
                     );
                 }
             }

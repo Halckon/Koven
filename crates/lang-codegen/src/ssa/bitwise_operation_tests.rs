@@ -181,11 +181,17 @@ pub(in crate::ssa) mod nullable_numeric_carrier {
     use crate::ssa::lower_frontend::nullable_numeric_cleanup::*;
     use crate::ssa::lower_frontend::*;
     use crate::ssa::model::Definition;
+    use crate::ssa::model::SsaTypeKind;
+    use lang_frontend::ownership_checking::IterationExitKind;
     use std::collections::BTreeSet;
 
     impl ExpressionLowerer<'_> {
         /// Locate the active outer branch and its real root slot, not a similarly typed loan.
-        pub(in crate::ssa) fn numeric_while_birth(&self, root: SymbolId, proof: NonNullProof) -> Option<Pair> {
+        pub(in crate::ssa) fn numeric_while_birth(
+            &self,
+            root: SymbolId,
+            proof: NonNullProof,
+        ) -> Option<Pair> {
             let (statement, birth) = proof.while_origin()?;
             let [outer, rest @ ..] = self.loops.as_slice() else {
                 return None;
@@ -259,13 +265,17 @@ pub(in crate::ssa) mod nullable_numeric_carrier {
         pub(in crate::ssa) loan: LoanId,
     }
 
-    fn parameter(function: &Function, entity: EntityId) -> Option<(BlockId, usize)> {
-        let Definition::BlockParameter { block, index } = function.entity(entity)?.definition else {
+    pub(in crate::ssa) fn parameter(
+        function: &Function,
+        entity: EntityId,
+    ) -> Option<(BlockId, usize)> {
+        let Definition::BlockParameter { block, index } = function.entity(entity)?.definition
+        else {
             return None;
         };
         (function.block(block)?.parameters.get(index) == Some(&entity)).then_some((block, index))
     }
-    fn pair_columns(
+    pub(in crate::ssa) fn pair_columns(
         function: &Function,
         pair: Pair,
         inner: SsaTypeId,
@@ -287,7 +297,7 @@ pub(in crate::ssa) mod nullable_numeric_carrier {
                 }))
         .then_some((owner, loan))
     }
-    fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)> {
+    pub(in crate::ssa) fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)> {
         function
             .blocks
             .iter()
@@ -537,8 +547,9 @@ pub(in crate::ssa) mod nullable_numeric_carrier {
 
     pub(in crate::ssa) mod source {
         //! Bounded AST and typed-use qualification, independent of runtime SSA transport.
-        use crate::ssa::lower_frontend::nullable_numeric_cleanup::*;
+
         use crate::ssa::lower_frontend::*;
+
         use lang_frontend::{
             name_resolution::ReferenceTarget,
             parser::{FunctionBody, FunctionForm, VariableKind},
@@ -827,10 +838,7 @@ pub(in crate::ssa) mod nullable_numeric_carrier {
                 Some(BuiltinType::Int | BuiltinType::Long | BuiltinType::Boolean)
             )
         }
-        pub(in crate::ssa) fn expr(
-            parsed: &ParsedFile,
-            id: ExpressionId,
-        ) -> Option<&Expression> {
+        pub(in crate::ssa) fn expr(parsed: &ParsedFile, id: ExpressionId) -> Option<&Expression> {
             Some(parsed.ast().expressions().get(id).ok()?.payload())
         }
         fn ungroup(parsed: &ParsedFile, mut id: ExpressionId) -> Option<ExpressionId> {
@@ -851,7 +859,9 @@ pub(in crate::ssa) mod nullable_numeric_carrier {
                 .references()
                 .iter()
                 .find_map(|reference| match reference.target() {
-                    ReferenceTarget::Symbol(symbol) if reference.span() == node.span() => Some(*symbol),
+                    ReferenceTarget::Symbol(symbol) if reference.span() == node.span() => {
+                        Some(*symbol)
+                    }
                     _ => None,
                 })
         }
@@ -869,5 +879,4 @@ pub(in crate::ssa) mod nullable_numeric_carrier {
                 && inner.end() <= outer.end()
         }
     }
-
 }

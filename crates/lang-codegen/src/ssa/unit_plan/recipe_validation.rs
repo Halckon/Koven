@@ -651,7 +651,11 @@ fn resolve_closed_recipe_type(
 #[cfg(test)]
 mod direct_field_tests {
     //! Projection proof tests supplement full verifier field-exchange fixtures.
+    use crate::ssa::model::*;
+    use crate::ssa::verify::{VerifyErrorKind, verify_program};
+    use crate::ssa::verify_ownership::AliasRoots;
     use crate::ssa::verify_ownership::field_exchange_tests::*;
+    use crate::ssa::verify_ownership::field_exchange_tests::{loan, place, value};
 
     #[test]
     fn sibling_proof_rejects_mixed_cfg_paths_and_unseeded_cycles() {
@@ -806,7 +810,8 @@ mod direct_field_tests {
                 let errors = result.unwrap_err().errors;
                 assert!(errors.iter().any(|e| matches!(
                     e.kind,
-                    VerifyErrorKind::OwnerLoanConflict { .. } | VerifyErrorKind::BorrowConflict { .. }
+                    VerifyErrorKind::OwnerLoanConflict { .. }
+                        | VerifyErrorKind::BorrowConflict { .. }
                 )));
             }
         }

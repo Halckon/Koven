@@ -135,11 +135,10 @@ pub(super) mod graph {
                     .map_err(|e| failure("temporary Entry original outer source", e))?;
                 let mut leaf = outer;
                 while let Expression::Group { expression } = leaf.payload() {
-                    leaf = parsed
-                        .ast()
-                        .expressions()
-                        .get(*expression)
-                        .map_err(|e| failure("temporary Entry complete original Group chain", e))?;
+                    leaf =
+                        parsed.ast().expressions().get(*expression).map_err(|e| {
+                            failure("temporary Entry complete original Group chain", e)
+                        })?;
                 }
                 if !matches!(leaf.payload(), Expression::Call { .. }) {
                     continue;
@@ -200,11 +199,17 @@ pub(super) mod graph {
                             kind: LoanKind::Shared,
                         } = begin.operation
                         else {
-                            return Err(failure("temporary Entry actual Shared source lease", begin));
+                            return Err(failure(
+                                "temporary Entry actual Shared source lease",
+                                begin,
+                            ));
                         };
                         let root = graph.definition(EntityId::Place(place))?;
                         let Operation::RootPlace { owner } = root.operation else {
-                            return Err(failure("temporary Entry actual original owner root", root));
+                            return Err(failure(
+                                "temporary Entry actual original owner root",
+                                root,
+                            ));
                         };
                         graph.anchored(EntityId::Value(owner), &[result(producer)?])?;
                         need(

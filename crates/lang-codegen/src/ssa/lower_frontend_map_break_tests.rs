@@ -1,4 +1,5 @@
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::temporary_forms::graph::structure as structure;
+#[path = "lower_frontend_map_break_structure_tests.rs"]
+mod structure;
 // Original conditional break source, admitted through the same Unit analysis.
 use super::unit_iteration::{Control, assert_facts};
 
@@ -194,7 +195,8 @@ fn unit_map_break_original_full_fixture_has_separate_owner_drops() {
 pub(in crate::ssa) mod loop_control {
     //! `while` / `loop` 的 backedge、jump 与 loop-carried binding lowering。
 
-    #[path = "lower_frontend/loop_control/iteration.rs"]
+    // Resolved under `ssa/loop_control/`: this inline module owns that directory.
+    #[path = "iteration.rs"]
     pub(in crate::ssa) mod iteration;
     pub(in crate::ssa) use crate::ssa::carry::columns::nullable_while;
     pub(in crate::ssa) use crate::ssa::lowering_support_tests::numeric_iteration;
@@ -249,8 +251,10 @@ pub(in crate::ssa) mod loop_control {
     }
 
     pub(in crate::ssa) struct LoopContext {
-        pub(in crate::ssa) entry_views: BTreeMap<SymbolId, crate::ssa::lower_frontend::NonNullProof>,
-        pub(in crate::ssa) outer_borrowed_while: Option<crate::ssa::lower_frontend::outer_borrowed_while::Relation>,
+        pub(in crate::ssa) entry_views:
+            BTreeMap<SymbolId, crate::ssa::lower_frontend::NonNullProof>,
+        pub(in crate::ssa) outer_borrowed_while:
+            Option<crate::ssa::lower_frontend::outer_borrowed_while::Relation>,
         pub(in crate::ssa) header: BlockId,
         pub(in crate::ssa) carried: LinearBindings,
         pub(in crate::ssa) continues: Vec<LoopJump>,
@@ -283,7 +287,9 @@ pub(in crate::ssa) mod loop_control {
                 self.direct_nullable_while_condition(condition, span)?
             {
                 match self.qualify_nullable_while_entry(statement, descriptor, subject, span)? {
-                    nullable_while::NullableWhileEntry::Readonly(root, proof) => Some((root, proof)),
+                    nullable_while::NullableWhileEntry::Readonly(root, proof) => {
+                        Some((root, proof))
+                    }
                     nullable_while::NullableWhileEntry::Direct(entry) => {
                         return self
                             .lower_direct_nullable_while(statement, condition, body, entry, span);
@@ -343,7 +349,8 @@ pub(in crate::ssa) mod loop_control {
             }
             let mut exits = context.breaks;
             exits.push(false_exit);
-            let result = self.finish_loop_exits(statement, exits, &baseline, inherited, None, span)?;
+            let result =
+                self.finish_loop_exits(statement, exits, &baseline, inherited, None, span)?;
             if let Some((root, proof)) = inherited {
                 self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
             }
@@ -415,7 +422,10 @@ pub(in crate::ssa) mod loop_control {
             self.branch_exit(LoweredValue::Unit)
         }
 
-        pub(in crate::ssa) fn lower_break(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
+        pub(in crate::ssa) fn lower_break(
+            &mut self,
+            span: Span,
+        ) -> Result<LoweredValue, LoweringError> {
             if !self.retire_outer_borrowed_break(span)? {
                 self.retire_while_proofs(false, span)?;
             }
@@ -428,7 +438,10 @@ pub(in crate::ssa) mod loop_control {
             Ok(LoweredValue::Diverged)
         }
 
-        pub(in crate::ssa) fn lower_continue(&mut self, span: Span) -> Result<LoweredValue, LoweringError> {
+        pub(in crate::ssa) fn lower_continue(
+            &mut self,
+            span: Span,
+        ) -> Result<LoweredValue, LoweringError> {
             self.record_continue(span)?;
             Ok(LoweredValue::Diverged)
         }
@@ -447,7 +460,10 @@ pub(in crate::ssa) mod loop_control {
             Ok(())
         }
 
-        pub(in crate::ssa) fn finish_loop_continues(&mut self, context: &LoopContext) -> Result<(), LoweringError> {
+        pub(in crate::ssa) fn finish_loop_continues(
+            &mut self,
+            context: &LoopContext,
+        ) -> Result<(), LoweringError> {
             for jump in &context.continues {
                 let arguments = context
                     .carried
@@ -455,7 +471,12 @@ pub(in crate::ssa) mod loop_control {
                     .iter()
                     .map(|slot| loop_slot_entity(self, slot, &jump.exit, jump.span))
                     .collect::<Result<Vec<_>, _>>()?;
-                self.validate_pending_field_edge(&context.carried, &jump.exit, &arguments, jump.span)?;
+                self.validate_pending_field_edge(
+                    &context.carried,
+                    &jump.exit,
+                    &arguments,
+                    jump.span,
+                )?;
                 self.function
                     .set_terminator(
                         jump.exit.block,
@@ -750,7 +771,8 @@ pub(in crate::ssa) mod loop_control {
                                 _ => return Ok(()),
                             }
                         }
-                        DropTarget::Temporary(expr) => match self.temporaries.remove(&expr.index()) {
+                        DropTarget::Temporary(expr) => match self.temporaries.remove(&expr.index())
+                        {
                             Some(value) => {
                                 self.temporaries.retain(|_, candidate| *candidate != value);
                                 value
@@ -765,8 +787,9 @@ pub(in crate::ssa) mod loop_control {
                 }
                 Action::EndBinding { symbol, statement } => {
                     if let Some(plan) = self.owned.iteration(*statement)
-                        && let lang_frontend::type_checking::IterationProvider::NumericRange(endpoint) =
-                            plan.descriptor().provider()
+                        && let lang_frontend::type_checking::IterationProvider::NumericRange(
+                            endpoint,
+                        ) = plan.descriptor().provider()
                     {
                         if plan.source_kind()
                             != &lang_frontend::ownership_checking::IterationSource::OwnedSnapshot(

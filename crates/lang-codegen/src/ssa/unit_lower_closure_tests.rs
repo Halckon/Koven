@@ -15,9 +15,11 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
-#[allow(unused_imports)] pub(in crate::ssa) use direct_prefix::borrow_storage;
+#[allow(unused_imports)]
+pub(in crate::ssa) use direct_prefix::borrow_storage;
 pub(in crate::ssa) mod direct_prefix;
-#[allow(unused_imports)] pub(in crate::ssa) use direct_prefix::shared_capture;
+#[allow(unused_imports)]
+pub(in crate::ssa) use direct_prefix::shared_capture;
 
 #[test]
 fn lowers_no_capture_lambdas_as_deterministic_function_pointers() {

@@ -3,7 +3,6 @@
 #[cfg(test)]
 pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_sources::deep::nullable_map_guard_support;
 
-
 use std::collections::BTreeMap;
 
 use lang_frontend::{
@@ -96,12 +95,12 @@ pub(crate) fn lower_scalar_file_with_entry(
     Ok((lowered.program, entry))
 }
 
-struct LoweredFile {
-    program: Program,
-    function_ids: BTreeMap<FunctionInstanceKey, FunctionId>,
+pub(in crate::ssa) struct LoweredFile {
+    pub(in crate::ssa) program: Program,
+    pub(in crate::ssa) function_ids: BTreeMap<FunctionInstanceKey, FunctionId>,
 }
 
-fn lower_scalar_file_product(
+pub(in crate::ssa) fn lower_scalar_file_product(
     sources: &SourceMap,
     parsed: &ParsedFile,
     names: &NameResolution,

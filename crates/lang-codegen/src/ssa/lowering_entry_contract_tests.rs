@@ -29,8 +29,8 @@ mod products {
         Unit,
     }
 
-    pub(super) type Observer<'a> =
-        dyn Fn(&SourceMap, &ParsedFile, &Program, FunctionId, EntryKind, Option<&[ParameterMode]>) + 'a;
+    pub(super) type Observer<'a> = dyn Fn(&SourceMap, &ParsedFile, &Program, FunctionId, EntryKind, Option<&[ParameterMode]>)
+        + 'a;
 
     pub(super) fn paired(text: &str, constants: bool) -> Vec<Event> {
         let first = paired_in_order_observed(text, constants, false, |_, _, _| {});
@@ -210,8 +210,9 @@ mod products {
             .expect("real Unit types");
         assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
         {
-            let complete = complete_compilation_unit_types(sources, inputs, &names, &environment, &raw)
-                .expect("complete Unit type admission");
+            let complete =
+                complete_compilation_unit_types(sources, inputs, &names, &environment, &raw)
+                    .expect("complete Unit type admission");
             assert!(complete.is_same_analysis(&raw) && std::ptr::eq(complete.types(), &raw));
         }
         let modes = raw
@@ -266,8 +267,9 @@ mod products {
                 .expect("specialized constant Unit lowering")
         } else {
             let typed = raw.validate().expect("basic Unit type capability");
-            let owned = check_compilation_unit_ownership(sources, inputs, &names, &environment, &typed)
-                .expect("real Unit ownership");
+            let owned =
+                check_compilation_unit_ownership(sources, inputs, &names, &environment, &typed)
+                    .expect("real Unit ownership");
             assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
             assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
             assert!(owned.is_compatible_with(&typed));
@@ -285,8 +287,9 @@ mod products {
         (program, entry, modes)
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use carry_join::receiver;
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::refine_subset_tests::temporary_sequential_for::temporary_alias as temporary_alias;
+#[allow(unused_imports)]
+pub(in crate::ssa) use carry_join::receiver;
+mod temporary_alias;
 
 use lang_frontend::{
     parser::ParsedFile,

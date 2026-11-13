@@ -261,7 +261,8 @@ mod unit_bridge {
                 binding_at(names, binding, site.bindings[i], SymbolKind::ForBinding)?;
                 need(
                     binding.source_unit() == unit
-                        && binding == symbol(names, unit, site.bindings[i], SymbolKind::ForBinding)?
+                        && binding
+                            == symbol(names, unit, site.bindings[i], SymbolKind::ForBinding)?
                         && typed.symbol_type(binding) == Some([d.key_type(), d.value_type()][i])
                         && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
                         && p.bindings()[i].symbol() == binding
@@ -331,7 +332,8 @@ mod unit_bridge {
                     && owned.formed_owned_locals().contains(&local)
                     && typed.symbol_type(local) == Some(ty)
                     && Some(ty) == typed.expression_type(expression(a.sites[0].source))
-                    && typed.expression_category(initializer) == Some(ExpressionCategory::Temporary),
+                    && typed.expression_category(initializer)
+                        == Some(ExpressionCategory::Temporary),
                 "nested FE qualified caller owned formation and source type",
                 (local, initializer, ty),
             )?;
@@ -369,7 +371,8 @@ mod unit_bridge {
                     && reference(f, names, size.receiver)? == expected_root
                     && descriptor.expression() == expression(size.expression)
                     && descriptor.receiver() == expression(size.receiver)
-                    && Some(descriptor.map_type()) == typed.expression_type(expression(size.receiver))
+                    && Some(descriptor.map_type())
+                        == typed.expression_type(expression(size.receiver))
                     && typed.symbol_type(expected_root) == Some(descriptor.map_type())
                     && Some(descriptor.map_type())
                         == typed.expression_type(expression(a.sites[0].source))
@@ -460,7 +463,8 @@ mod unit_bridge {
                     && actual.mode() == ParameterMode::Borrow
                     && parameter.mode() == ParameterMode::Borrow
                     && actual.parameter_type() == parameter.ty()
-                    && typed.expression_type(expression(*argument)) == Some(actual.parameter_type())
+                    && typed.expression_type(expression(*argument))
+                        == Some(actual.parameter_type())
                     && typed.symbol_type(*root) == Some(actual.parameter_type())
                     && reference(f, names, *argument)? == *root,
                 "nested FE qualified argument parameter index and Borrow root exact",
@@ -651,15 +655,15 @@ pub(super) struct CallerInput {
 }
 
 #[derive(Debug)]
-pub(super) struct Inputs {
+pub(in crate::ssa) struct Inputs {
     pub entry: Span,
     pub scan: Span,
     pub read: Span,
     pub factory: Span,
     pub parameter: Span,
-    pub sites: [SiteInput; 2],
-    pub reads: [ReadInput; 4],
-    pub callers: [CallerInput; 2],
+    pub(in crate::ssa::map_provider_exits_pipeline_tests::nested) sites: [SiteInput; 2],
+    pub(in crate::ssa::map_provider_exits_pipeline_tests::nested) reads: [ReadInput; 4],
+    pub(in crate::ssa::map_provider_exits_pipeline_tests::nested) callers: [CallerInput; 2],
     pub sizes: [Span; 2],
 }
 

@@ -32,7 +32,10 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast {
         pub birth_span: Span,
         pub loops: Vec<Loop>,
     }
-    pub(in crate::ssa::map_provider_exits_pipeline_tests) fn within(outer: Span, inner: Span) -> bool {
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) fn within(
+        outer: Span,
+        inner: Span,
+    ) -> bool {
         outer.source_id() == inner.source_id()
             && outer.start() <= inner.start()
             && inner.end() <= outer.end()
@@ -137,18 +140,17 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast {
                         .take(1),
                     "local future first actual For",
                 )?;
-                let locals = elements
-                    .iter()
-                    .copied()
-                    .take_while(|id| *id != first)
-                    .filter(|id| {
-                        parsed
-                            .ast()
-                            .statements()
-                            .get(*id)
-                            .is_ok_and(|n| matches!(n.payload(), Statement::LocalVariable { .. }))
-                    })
-                    .collect::<Vec<_>>();
+                let locals =
+                    elements
+                        .iter()
+                        .copied()
+                        .take_while(|id| *id != first)
+                        .filter(|id| {
+                            parsed.ast().statements().get(*id).is_ok_and(|n| {
+                                matches!(n.payload(), Statement::LocalVariable { .. })
+                            })
+                        })
+                        .collect::<Vec<_>>();
                 need(
                     locals.len() == if binding == 2 { 2 } else { 1 },
                     "local future actual binding chain",
@@ -461,7 +463,9 @@ mod loans {
         let root_loans = owned
             .loans()
             .iter()
-            .filter(|l| matches!(l.target(),UnitLoanTarget::Place(p) if p.is_root() && p.root()==root))
+            .filter(
+                |l| matches!(l.target(),UnitLoanTarget::Place(p) if p.is_root() && p.root()==root),
+            )
             .collect::<Vec<_>>();
         need(
             root_loans.len() == uses.len(),

@@ -200,7 +200,9 @@ mod ast {
                         puts.push(id);
                     }
                 }
-                Expression::Assignment { target, value, .. } => assignments.push((id, *target, *value)),
+                Expression::Assignment { target, value, .. } => {
+                    assignments.push((id, *target, *value))
+                }
                 Expression::If {
                     condition,
                     else_branch: None,

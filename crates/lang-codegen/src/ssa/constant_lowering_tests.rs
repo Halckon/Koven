@@ -151,12 +151,15 @@ pub(in crate::ssa) mod map_operand_unit_identity {
         ssa::model::{EntityId, FunctionId, LoanKind, Operation, Origin, Program},
     };
     use lang_frontend::{
-        name_resolution::{SourceUnitId, SourceUnitKey, SymbolKind, UnitReferenceTarget, UnitSymbolId},
+        name_resolution::{
+            SourceUnitId, SourceUnitKey, SymbolKind, UnitReferenceTarget, UnitSymbolId,
+        },
         ownership_checking::{
-            IterationSource, OwnershipBindingKind, UnitCallArgumentOwnershipKind, UnitCallableOrigin,
-            UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as Action,
-            UnitIterationExitKind as Exit, UnitIterationSourceAccess, UnitLoanTarget,
-            UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+            IterationSource, OwnershipBindingKind, UnitCallArgumentOwnershipKind,
+            UnitCallableOrigin, UnitDropPoint, UnitDropTarget,
+            UnitIterationCleanupAction as Action, UnitIterationExitKind as Exit,
+            UnitIterationSourceAccess, UnitLoanTarget, UnitReceiverOwnershipKind,
+            UnitReceiverOwnershipTarget,
         },
         parser::{Expression, ForBinding, Item, NameMarker, Statement, VariableKind},
         source::Span,
@@ -167,7 +170,7 @@ pub(in crate::ssa) mod map_operand_unit_identity {
         },
     };
 
-    use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_return::structure::{before, definition, only, source_function};
+    use crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::structure::{before, definition, only, source_function};
 
     fn one<'a, T>(values: &'a [T], label: &str) -> &'a T {
         let [value] = values else {
@@ -234,7 +237,8 @@ pub(in crate::ssa) mod map_operand_unit_identity {
                 reference.source_unit() == receiver.source_unit() && reference.span() == span
             })
             .collect::<Vec<_>>();
-        let UnitReferenceTarget::Symbol(symbol) = one(&references, "exact cache reference").target()
+        let UnitReferenceTarget::Symbol(symbol) =
+            one(&references, "exact cache reference").target()
         else {
             panic!("the Map receiver must resolve to its actual local binding");
         };
@@ -277,7 +281,9 @@ pub(in crate::ssa) mod map_operand_unit_identity {
             .unwrap()
             .payload()
         {
-            Expression::Binary { left, .. } => (UnitExpressionId::new(source, *left), Some(condition)),
+            Expression::Binary { left, .. } => {
+                (UnitExpressionId::new(source, *left), Some(condition))
+            }
             Expression::Call { .. } => (condition, None),
             _ => panic!("original remove presence or contains condition"),
         };
@@ -473,7 +479,8 @@ pub(in crate::ssa) mod map_operand_unit_identity {
                 .iter()
                 .map(|root| parsed.ast().items().get(*root).unwrap())
                 .filter(|item| {
-                    matches!(item.payload(), Item::Function { .. }) && within(node.span(), item.span())
+                    matches!(item.payload(), Item::Function { .. })
+                        && within(node.span(), item.span())
                 })
                 .collect::<Vec<_>>();
             let operand = assert_operand(
@@ -870,7 +877,7 @@ pub(in crate::ssa) mod map_operand_unit_identity {
                 .collect::<BTreeSet<_>>()
         );
         assert_eq!(
-            crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_return::operand_structure::assert_source(&program, unit.parsed()),
+            crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::operand_structure::assert_source(&program, unit.parsed()),
             expected
         );
         crate::ssa::verify::verify_program(&program).unwrap();

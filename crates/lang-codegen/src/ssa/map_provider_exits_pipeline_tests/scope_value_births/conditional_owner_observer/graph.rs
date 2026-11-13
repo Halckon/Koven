@@ -45,10 +45,9 @@ mod provider {
             .ok_or_else(|| failure("If provider actual Map storage", map))?;
         let at = |predicate: fn(&Operation) -> bool| {
             one(
-                g.instructions
-                    .iter()
-                    .copied()
-                    .filter(|op| op.origin == Origin::Source(site.span) && predicate(&op.operation)),
+                g.instructions.iter().copied().filter(|op| {
+                    op.origin == Origin::Source(site.span) && predicate(&op.operation)
+                }),
                 "If exact original provider operation",
             )
         };

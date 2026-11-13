@@ -673,26 +673,27 @@ mod map_require_tests {
                 );
                 for function in &module.functions {
                     for (index, instruction) in function.instructions.iter().enumerate() {
-                        let Operation::MapRequireValue { source, key } = instruction.operation else {
+                        let Operation::MapRequireValue { source, key } = instruction.operation
+                        else {
                             continue;
                         };
                         let [EntityId::Loan(result)] = instruction.results.as_slice() else {
                             unreachable!()
                         };
                         let result_type = function.entity(EntityId::Loan(*result)).unwrap().ty;
-                        assert!(super::verify_map_operation(
+                        assert!(crate::ssa::verify_ownership::root_exchange::integer::map::verify_map_operation(
                             module,
                             function,
                             &instruction.operation,
                             &[result_type]
                         ));
-                        assert!(!super::verify_map_operation(
+                        assert!(!crate::ssa::verify_ownership::root_exchange::integer::map::verify_map_operation(
                             module,
                             function,
                             &instruction.operation,
                             &[EntityType::Value(result_type.semantic_type())]
                         ));
-                        assert!(!super::verify_map_operation(
+                        assert!(!crate::ssa::verify_ownership::root_exchange::integer::map::verify_map_operation(
                             module,
                             function,
                             &Operation::MapRequireValue {

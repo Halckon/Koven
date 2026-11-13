@@ -146,9 +146,10 @@ fn stable_place_root_unit_lowering_preserves_real_storage() {
 
 pub(in crate::ssa) mod conditional_facts {
     //! Complete plan exits and owner incoming provenance; no fixed arm or payload syntax.
+    use crate::ssa::lower_frontend::map_iteration::conditional::verify::actions;
     use crate::ssa::lower_frontend::map_iteration::conditional::*;
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
     use lang_frontend::ownership_checking::{
         CleanupConditionId, CleanupSelection, CleanupSelectorSource, DropFact, DropTarget,
         IterationPhiBoundary, IterationPhiIncomingKind, IterationPhiPresenceSource,
@@ -334,7 +335,8 @@ pub(in crate::ssa) mod conditional_facts {
                 return Err(missing());
             }
             for root in &symbols {
-                let phi = source_owner::phi(owned.cleanup_conditions(), plan, *root, boundary, span)?;
+                let phi =
+                    source_owner::phi(owned.cleanup_conditions(), plan, *root, boundary, span)?;
                 let binding = unique(
                     incoming
                         .bindings()
@@ -477,7 +479,8 @@ pub(in crate::ssa) mod conditional_facts {
         for fact in &outside {
             // Inspect every fact, preserving malformed ancestor evidence as Missing
             // even if a different fact describes an unsupported future lifetime.
-            let retained = retained::ancestor_fact((parsed, names, typed, owned), flow, *fact, span)?;
+            let retained =
+                retained::ancestor_fact((parsed, names, typed, owned), flow, *fact, span)?;
             if retained {
                 validate_source_fact(parsed, names, owned, flow, *fact, span)?;
             }
@@ -526,7 +529,9 @@ pub(in crate::ssa) mod conditional_facts {
                             event.span,
                             names.references().iter().filter_map(|reference| {
                                 (reference.target()
-                                    == &lang_frontend::name_resolution::ReferenceTarget::Symbol(root))
+                                    == &lang_frontend::name_resolution::ReferenceTarget::Symbol(
+                                        root,
+                                    ))
                                     .then_some(reference.span())
                             }),
                         ) {
@@ -540,8 +545,14 @@ pub(in crate::ssa) mod conditional_facts {
                         IterationPhiBoundary::Exit,
                         span,
                     )?;
-                    let live =
-                        source_owner::flow_condition(parsed, names, owned, flow, exit.owner(), span)?;
+                    let live = source_owner::flow_condition(
+                        parsed,
+                        names,
+                        owned,
+                        flow,
+                        exit.owner(),
+                        span,
+                    )?;
                     if resource
                         && (fact.owner() != Some(exit.owner()) || fact.condition() != Some(live))
                         && !crate::ssa::lower_frontend::map_iteration::conditional::successor::terminal(
@@ -726,9 +737,12 @@ pub(in crate::ssa) mod conditional_facts {
         )
         .map(|exit| exit.condition());
         let condition_matches = match (fact.condition(), context) {
-            (Some(actual), Some(path)) => {
-                source_owner::provenance::equal_on_path(owned.cleanup_conditions(), actual, live, path)
-            }
+            (Some(actual), Some(path)) => source_owner::provenance::equal_on_path(
+                owned.cleanup_conditions(),
+                actual,
+                live,
+                path,
+            ),
             (Some(actual), None) => actual == live,
             (None, _) => owned.cleanup_conditions().get(live) == Some(&CleanupCondition::Always),
         };

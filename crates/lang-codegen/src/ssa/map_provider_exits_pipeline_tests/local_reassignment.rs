@@ -41,7 +41,12 @@ mod boundaries {
         }).collect()
     }
 
-    fn observe(label: &str, source: &str, grouped: Option<&Case>, unit: bool) -> Result<(), Failure> {
+    fn observe(
+        label: &str,
+        source: &str,
+        grouped: Option<&Case>,
+        unit: bool,
+    ) -> Result<(), Failure> {
         let golden = grouped.map(|case| case.golden.as_str());
         diagnostic!(
             "LOCAL REASSIGN NEIGHBOR INPUT case={label} unit={unit} source={source:?} golden={golden:?}"
@@ -201,8 +206,8 @@ mod facts {
         use lang_frontend::{
             ast::{ExpressionId, StatementId},
             parser::{
-                AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, NameMarker, Statement,
-                VariableKind,
+                AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, NameMarker,
+                Statement, VariableKind,
             },
             source::Span,
         };
@@ -279,7 +284,10 @@ mod facts {
         }
 
         // Keep every real Group ID; only the final actual Call may grant producer identity.
-        pub(in super::super) fn rhs_chain(parsed: &ParsedFile, outer: ExpressionId) -> Vec<ExpressionId> {
+        pub(in super::super) fn rhs_chain(
+            parsed: &ParsedFile,
+            outer: ExpressionId,
+        ) -> Vec<ExpressionId> {
             let mut chain = vec![outer];
             while let Expression::Group { expression } = parsed
                 .ast()
@@ -301,8 +309,9 @@ mod facts {
     use lang_frontend::{
         name_resolution::{UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames},
         ownership_checking::{
-            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
-            UnitIterationExitKind as UE, UnitIterationSourceAccess,
+            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget,
+            UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
+            UnitIterationSourceAccess,
         },
         parser::ParsedFile,
         source::SourceMap,

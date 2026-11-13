@@ -121,10 +121,19 @@ fn single_nullable_factory_planning_boundary_precedes_any_comparison() {
 }
 
 mod nullable_borrowed_cleanup_runtime_tests {
-    //! Inner borrowed provider guard negatives from the ordinary original/Group source.
     //! This module is a child of runtime solely to reach its private consumer method.
+    //! Inner borrowed provider guard negatives from the ordinary original/Group source.
     use crate::ssa::lower_frontend::cleanup_guard_harness::{self as harness, Fixture};
-    use crate::ssa::lower_frontend::nullable_borrowed_cleanup::{carrier, provider, runtime::*, *};
+    use crate::ssa::lower_frontend::loop_control::numeric_iteration::provider;
+    use crate::ssa::lower_frontend::nullable_borrowed_cleanup::carrier::{
+        Birth, Columns, transport,
+    };
+    use crate::ssa::lower_frontend::nullable_borrowed_cleanup::{carrier, *};
+    use lang_frontend::ownership_checking::DropFact;
+    use lang_frontend::ownership_checking::{
+        CleanupOwnerValue, CleanupSelectorSource, IterationPhiBoundary,
+    };
+
     use crate::ssa::lower_frontend::*;
     use crate::ssa::model::{BinaryOperator, InstructionId};
 
@@ -181,7 +190,9 @@ mod nullable_borrowed_cleanup_runtime_tests {
                 let ops = carrier::instructions(lowerer.function, block).unwrap();
                 let end = ops
                     .iter()
-                    .find(|instruction| matches!(instruction.operation, Operation::BorrowEnd { .. }))
+                    .find(|instruction| {
+                        matches!(instruction.operation, Operation::BorrowEnd { .. })
+                    })
                     .unwrap();
                 let Operation::BorrowEnd { loan } = end.operation else {
                     unreachable!()
@@ -362,7 +373,10 @@ mod nullable_borrowed_cleanup_runtime_tests {
                     .entry()
                     .instructions
                     .iter()
-                    .all(|instruction| !matches!(instruction.operation, Operation::DirectCall { .. }))
+                    .all(|instruction| !matches!(
+                        instruction.operation,
+                        Operation::DirectCall { .. }
+                    ))
             );
             assert_eq!(
                 fixture.entry().return_types,
@@ -403,7 +417,8 @@ mod nullable_borrowed_cleanup_runtime_tests {
                         assert_eq!(states.len(), 2, "real continue and fallthrough backedges");
                         let (mut state, _, _) = states[edge_index].clone();
                         let element = provider::loan(state.entities[4]).unwrap();
-                        state.entities[role] = wrong_same_type(lowerer.function, state.entities[role]);
+                        state.entities[role] =
+                            wrong_same_type(lowerer.function, state.entities[role]);
                         assert!(
                             !transport(
                                 lowerer.function,
@@ -418,8 +433,11 @@ mod nullable_borrowed_cleanup_runtime_tests {
                         let wrong = state.entities[role];
                         let block = states[edge_index].0.block;
                         if role < 4 {
-                            let column =
-                                harness::parameter(lowerer.function, provider.header.entities[role]).1;
+                            let column = harness::parameter(
+                                lowerer.function,
+                                provider.header.entities[role],
+                            )
+                            .1;
                             let TerminatorKind::Branch(edge) = &mut lowerer.function.blocks
                                 [block.index()]
                             .terminator
@@ -528,18 +546,20 @@ mod nullable_borrowed_cleanup_runtime_tests {
                             ops.swap(a, b);
                         }
                         5 => {
-                            lowerer.function.instructions[add.index()].operation = Operation::Binary {
-                                operator: BinaryOperator::Add,
-                                left: provider.body_cursor,
-                                right: provider.length,
-                            }
+                            lowerer.function.instructions[add.index()].operation =
+                                Operation::Binary {
+                                    operator: BinaryOperator::Add,
+                                    left: provider.body_cursor,
+                                    right: provider.length,
+                                }
                         }
                         6 => {
-                            lowerer.function.instructions[add.index()].operation = Operation::Binary {
-                                operator: BinaryOperator::Add,
-                                left: provider.cursor,
-                                right: provider.step,
-                            }
+                            lowerer.function.instructions[add.index()].operation =
+                                Operation::Binary {
+                                    operator: BinaryOperator::Add,
+                                    left: provider.cursor,
+                                    right: provider.step,
+                                }
                         }
                         7 => lowerer.function.blocks[birth.pair.block.index()].terminator = None,
                         8 => {
@@ -620,9 +640,10 @@ mod nullable_borrowed_cleanup_runtime_tests {
                                 }
                         }
                         4 => {
-                            lowerer.function.instructions[drop.index()].operation = Operation::Drop {
-                                owner: birth.source_owner,
-                            }
+                            lowerer.function.instructions[drop.index()].operation =
+                                Operation::Drop {
+                                    owner: birth.source_owner,
+                                }
                         }
                         5 => {
                             lowerer

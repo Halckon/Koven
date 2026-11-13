@@ -191,8 +191,8 @@ pub(in crate::ssa) mod source_closure {
     use crate::ssa::{
         lowering_support::callable_instances::{CallableKey, CallableToken, SourceToken},
         model::{
-            ClosureCaptureMode as SsaCaptureMode, ClosureCaptureType, EntityId, EntityType, FunctionId,
-            LoanKind, Module, Operation, Origin, SsaTypeId,
+            ClosureCaptureMode as SsaCaptureMode, ClosureCaptureType, EntityId, EntityType,
+            FunctionId, LoanKind, Module, Operation, Origin, SsaTypeId,
         },
     };
     use lang_frontend::{
@@ -214,7 +214,8 @@ pub(in crate::ssa) mod source_closure {
         pub(in crate::ssa) typed: &'a TypedFile,
         pub(in crate::ssa) owned: &'a OwnershipCheckedFile,
         pub(in crate::ssa) instances: &'a FunctionInstancePlan,
-        pub(in crate::ssa) templates: &'a [crate::ssa::lower_frontend::instances::FunctionTemplate],
+        pub(in crate::ssa) templates:
+            &'a [crate::ssa::lower_frontend::instances::FunctionTemplate],
     }
 
     pub(in crate::ssa) fn declare(
@@ -240,9 +241,9 @@ pub(in crate::ssa) mod source_closure {
                 .filter_map(|(expression, node)| {
                     (contains(owner_span, node.span())
                         && matches!(node.payload(), Expression::Lambda { .. })
-                        && owned
-                            .callable_origin(expression)
-                            .is_some_and(|fact| fact.origin() == CallableOrigin::Lambda(expression)))
+                        && owned.callable_origin(expression).is_some_and(|fact| {
+                            fact.origin() == CallableOrigin::Lambda(expression)
+                        }))
                     .then_some((expression, node.span()))
                 })
                 .collect::<Vec<_>>();
@@ -305,7 +306,8 @@ pub(in crate::ssa) mod source_closure {
                         .map(|symbol| symbol.id())
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, parameter_span))?;
                     symbols.push(symbol);
-                    let target = mapper.intern(module, names, typed, parameter.ty, parameter_span)?;
+                    let target =
+                        mapper.intern(module, names, typed, parameter.ty, parameter_span)?;
                     parameter_types.push(match parameter.mode {
                         ParameterMode::Value => EntityType::Value(target),
                         ParameterMode::Borrow => EntityType::Loan {
@@ -680,7 +682,8 @@ pub(in crate::ssa) mod source_closure {
                                     capture.span,
                                 )?;
                                 value(results[0])
-                            } else if let Some(&source) = self.borrow_bindings.get(&capture.symbol) {
+                            } else if let Some(&source) = self.borrow_bindings.get(&capture.symbol)
+                            {
                                 let (_, results) = self.append(
                                     Operation::Read {
                                         source: crate::ssa::model::PlaceAccess::Loan(source),
@@ -718,7 +721,8 @@ pub(in crate::ssa) mod source_closure {
                     captures,
                 }
             };
-            let (_, results) = self.append(operation, vec![EntityType::Value(plan.callable)], span)?;
+            let (_, results) =
+                self.append(operation, vec![EntityType::Value(plan.callable)], span)?;
             Ok(LoweredValue::Value(value(results[0])))
         }
 
@@ -744,7 +748,9 @@ pub(in crate::ssa) mod source_closure {
                     return Ok(result);
                 }
             }
-            self.emit_drops(lang_frontend::ownership_checking::DropPoint::AfterStatement(plan.body))?;
+            self.emit_drops(
+                lang_frontend::ownership_checking::DropPoint::AfterStatement(plan.body),
+            )?;
             if builtin_type(self.typed, plan.return_type) == Some(BuiltinType::Unit) {
                 Ok(LoweredValue::Unit)
             } else if plan.result_expression.is_some() {
@@ -877,7 +883,8 @@ pub(in crate::ssa) mod source_closure {
                 .iter()
                 .enumerate()
                 .filter_map(|(field, capture)| {
-                    (capture.mode == SsaCaptureMode::Shared).then_some((plan.expression.index(), field))
+                    (capture.mode == SsaCaptureMode::Shared)
+                        .then_some((plan.expression.index(), field))
                 })
                 .collect::<Vec<_>>();
             for key in keys.into_iter().rev() {
@@ -889,11 +896,13 @@ pub(in crate::ssa) mod source_closure {
         }
     }
 
-    fn require_loan(entity: EntityId, span: Span) -> Result<crate::ssa::model::LoanId, LoweringError> {
+    fn require_loan(
+        entity: EntityId,
+        span: Span,
+    ) -> Result<crate::ssa::model::LoanId, LoweringError> {
         match entity {
             EntityId::Loan(loan) => Ok(loan),
             _ => Err(error(LoweringErrorKind::InvalidModel, span)),
         }
     }
-
 }

@@ -1,7 +1,7 @@
 //! `if` 与短路 Boolean 表达式的 CFG 和 block-parameter lowering。
 
 mod carried;
-pub(super) mod map_frames;
+pub(in crate::ssa) mod map_frames;
 
 use std::collections::BTreeMap;
 
@@ -24,19 +24,19 @@ use crate::ssa::model::{
     TerminatorKind, ValueId,
 };
 
-pub(super) struct BranchExit {
-    pub(super) block: BlockId,
-    pub(super) result: LoweredValue,
-    pub(super) bindings: BTreeMap<SymbolId, LoweredValue>,
-    pub(super) temporaries: BTreeMap<usize, ValueId>,
-    pub(super) loans: super::PendingCallLoans,
-    pub(super) capture_loans: BTreeMap<(usize, usize), super::LoanId>,
-    pub(super) views: BTreeMap<SymbolId, NonNullProof>,
-    pub(super) borrow_bindings: BTreeMap<SymbolId, super::LoanId>,
-    pub(super) result_source_loans: BTreeMap<SymbolId, Vec<super::LoanId>>,
-    pub(super) for_sources: BTreeMap<usize, super::LoanId>,
-    pub(super) for_elements: BTreeMap<usize, super::LoanId>,
-    pub(super) map_paths: map_frames::Paths,
+pub(in crate::ssa) struct BranchExit {
+    pub(in crate::ssa) block: BlockId,
+    pub(in crate::ssa) result: LoweredValue,
+    pub(in crate::ssa) bindings: BTreeMap<SymbolId, LoweredValue>,
+    pub(in crate::ssa) temporaries: BTreeMap<usize, ValueId>,
+    pub(in crate::ssa) loans: super::PendingCallLoans,
+    pub(in crate::ssa) capture_loans: BTreeMap<(usize, usize), super::LoanId>,
+    pub(in crate::ssa) views: BTreeMap<SymbolId, NonNullProof>,
+    pub(in crate::ssa) borrow_bindings: BTreeMap<SymbolId, super::LoanId>,
+    pub(in crate::ssa) result_source_loans: BTreeMap<SymbolId, Vec<super::LoanId>>,
+    pub(in crate::ssa) for_sources: BTreeMap<usize, super::LoanId>,
+    pub(in crate::ssa) for_elements: BTreeMap<usize, super::LoanId>,
+    pub(in crate::ssa) map_paths: map_frames::Paths,
 }
 
 #[derive(Clone, Copy)]
@@ -91,36 +91,36 @@ impl IncomingRole<BranchExit> for MergeProjection {
 }
 
 #[derive(Clone)]
-pub(super) struct LinearBindings {
-    pub(super) slots: Vec<LinearBindingSlot>,
+pub(in crate::ssa) struct LinearBindings {
+    pub(in crate::ssa) slots: Vec<LinearBindingSlot>,
     forwarded_loans: Vec<(usize, usize)>,
-    pub(super) map_paths: map_frames::Paths,
+    pub(in crate::ssa) map_paths: map_frames::Paths,
 }
 
 #[derive(Clone)]
-pub(super) struct LinearBindingSlot {
-    pub(super) symbol: Option<SymbolId>,
-    pub(super) source: EntityId,
-    pub(super) temporaries: Vec<usize>,
-    pub(super) loans: Vec<(usize, usize)>,
-    pub(super) field_child: Option<super::pending_call::PendingFieldCarry>,
-    pub(super) captures: Vec<(usize, usize)>,
-    pub(super) views: Vec<(SymbolId, NonNullProof)>,
-    pub(super) borrow_symbols: Vec<SymbolId>,
-    pub(super) result_sources: Vec<(SymbolId, usize)>,
-    pub(super) for_sources: Vec<usize>,
-    pub(super) for_elements: Vec<usize>,
+pub(in crate::ssa) struct LinearBindingSlot {
+    pub(in crate::ssa) symbol: Option<SymbolId>,
+    pub(in crate::ssa) source: EntityId,
+    pub(in crate::ssa) temporaries: Vec<usize>,
+    pub(in crate::ssa) loans: Vec<(usize, usize)>,
+    pub(in crate::ssa) field_child: Option<super::pending_call::PendingFieldCarry>,
+    pub(in crate::ssa) captures: Vec<(usize, usize)>,
+    pub(in crate::ssa) views: Vec<(SymbolId, NonNullProof)>,
+    pub(in crate::ssa) borrow_symbols: Vec<SymbolId>,
+    pub(in crate::ssa) result_sources: Vec<(SymbolId, usize)>,
+    pub(in crate::ssa) for_sources: Vec<usize>,
+    pub(in crate::ssa) for_elements: Vec<usize>,
     map_sources: Vec<usize>,
     map_cursors: Vec<usize>,
-    pub(super) ty: EntityType,
+    pub(in crate::ssa) ty: EntityType,
 }
 
 impl LinearBindingSlot {
-    pub(super) fn has_map_role(&self) -> bool {
+    pub(in crate::ssa) fn has_map_role(&self) -> bool {
         !self.map_sources.is_empty() || !self.map_cursors.is_empty()
     }
 
-    pub(super) fn new(symbol: Option<SymbolId>, source: EntityId, ty: EntityType) -> Self {
+    pub(in crate::ssa) fn new(symbol: Option<SymbolId>, source: EntityId, ty: EntityType) -> Self {
         Self {
             symbol,
             source,
@@ -158,11 +158,11 @@ impl ExpressionLowerer<'_> {
             .unwrap_or_default()
     }
 
-    pub(super) fn is_entry_loan(&self, loan: super::LoanId) -> bool {
+    pub(in crate::ssa) fn is_entry_loan(&self, loan: super::LoanId) -> bool {
         self.entry_loans().contains(&loan)
     }
 
-    pub(super) fn branch_exit(&self, result: LoweredValue) -> BranchExit {
+    pub(in crate::ssa) fn branch_exit(&self, result: LoweredValue) -> BranchExit {
         BranchExit {
             block: self.block,
             result,
@@ -849,7 +849,7 @@ impl ExpressionLowerer<'_> {
         Ok(value(results[0]))
     }
 
-    pub(super) fn ssa_builtin(
+    pub(in crate::ssa) fn ssa_builtin(
         &self,
         builtin: lang_frontend::type_checking::BuiltinType,
         span: Span,
@@ -877,7 +877,7 @@ impl ExpressionLowerer<'_> {
         Ok(Some(self.branch_exit(result)))
     }
 
-    pub(super) fn lower_control_body(
+    pub(in crate::ssa) fn lower_control_body(
         &mut self,
         statement: StatementId,
     ) -> Result<LoweredValue, LoweringError> {
@@ -896,7 +896,7 @@ impl ExpressionLowerer<'_> {
         crate::ssa::statement_core::lower_tail_sequence(self, statement, elements)
     }
 
-    pub(super) fn merge_exits(
+    pub(in crate::ssa) fn merge_exits(
         &mut self,
         exits: Vec<BranchExit>,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
@@ -1257,7 +1257,10 @@ impl ExpressionLowerer<'_> {
         ty.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
 
-    pub(super) fn expression_span(&self, expression: ExpressionId) -> Result<Span, LoweringError> {
+    pub(in crate::ssa) fn expression_span(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Span, LoweringError> {
         self.parsed
             .ast()
             .expressions()
@@ -1281,7 +1284,7 @@ impl ExpressionLowerer<'_> {
             })
     }
 
-    pub(super) fn expression_is_unit(
+    pub(in crate::ssa) fn expression_is_unit(
         &self,
         expression: ExpressionId,
         span: Span,

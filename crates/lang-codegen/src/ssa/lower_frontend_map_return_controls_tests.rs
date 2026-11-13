@@ -243,8 +243,9 @@ fn ordinary_source_controls_active_source_and_element_diagnostics() {
 
 pub(in crate::ssa) mod range_receiver_count_break {
     //! Exact source-backed SSA roles and CFG cleanup for the count-break regression.
-    use crate::ssa::range_lowering_tests::receiver::*;
-    use crate::ssa::range_lowering_tests::*;
+    use crate::ssa::model::*;
+
+    use lang_frontend::source::SourceMap;
 
     fn count_break_edges(function: &Function) -> Vec<(BlockId, &Edge)> {
         function
@@ -350,7 +351,7 @@ pub(in crate::ssa) mod range_receiver_count_break {
         instruction
     }
 
-    pub(super) fn assert_count_break_structure(
+    pub(in crate::ssa) fn assert_count_break_structure(
         sources: &SourceMap,
         program: &Program,
         receiver_begin_span: lang_frontend::source::Span,
@@ -757,7 +758,8 @@ pub(in crate::ssa) mod range_receiver_count_break {
                 "dead owner is not transported after cleanup"
             );
         }
-        let TerminatorKind::Branch(break_exit) = &break_block.terminator.as_ref().unwrap().kind else {
+        let TerminatorKind::Branch(break_exit) = &break_block.terminator.as_ref().unwrap().kind
+        else {
             unreachable!()
         };
         let TerminatorKind::Branch(exhaustion_exit) = &exhausted.terminator.as_ref().unwrap().kind

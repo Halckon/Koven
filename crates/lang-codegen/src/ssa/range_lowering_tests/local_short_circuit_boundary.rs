@@ -268,8 +268,8 @@ fn range_short_circuit_boundary_outer_call_effects_and_new_metadata_prefix() {
 
 pub(in crate::ssa) mod local_control_support {
     //! Source-only setup and execution for the bounded local-control cases.
-    use crate::ssa::range_lowering_tests::*;
     use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use crate::ssa::range_lowering_tests::*;
     use crate::ssa::{LoweringError, LoweringErrorKind};
     use crate::test_support::diagnostics::{assert_eq_diagnostic, diagnostic};
     use lang_frontend::{
@@ -654,7 +654,9 @@ pub(in crate::ssa) mod local_control_support {
                     .unwrap_or_else(|error| panic!("{label}: stage=SSA: {error:?}"));
                 diagnostic!("{label}: stage=LLVM/native; entry={entry:?}");
                 run_unmodified(&program, entry, &label, stdout);
-                diagnostic!("{label}: outcome=native-success; exit=0; stderr=empty; stdout={stdout:?}");
+                diagnostic!(
+                    "{label}: outcome=native-success; exit=0; stderr=empty; stdout={stdout:?}"
+                );
             }
         }
     }
@@ -706,7 +708,11 @@ pub(in crate::ssa) mod local_control_support {
 
     // Retain the Result and SourceMap: the initial positive-test failure must identify
     // the exact rejected expression, rather than panic inside an unwrap-only harness.
-    pub(in crate::ssa) fn lower(consumer: &str, fragment: &str, pipeline: Pipeline) -> SourceLowering {
+    pub(in crate::ssa) fn lower(
+        consumer: &str,
+        fragment: &str,
+        pipeline: Pipeline,
+    ) -> SourceLowering {
         let mut sources = SourceMap::new();
         let provider = include_str!("../../../../lang-std/koven/algorithms/ranges.ko");
         let (expected_span, result) = match pipeline {
@@ -717,8 +723,11 @@ pub(in crate::ssa) mod local_control_support {
             | Pipeline::UnitReversed
             | Pipeline::UnitConstant
             | Pipeline::UnitConstantReversed => {
-                let (provider_source, provider) =
-                    crate::ssa::unit_lower_test_support::parsed(&mut sources, "ranges.ko", provider);
+                let (provider_source, provider) = crate::ssa::unit_lower_test_support::parsed(
+                    &mut sources,
+                    "ranges.ko",
+                    provider,
+                );
                 let text = format!("package app\nimport koven.algorithms.take\n{consumer}");
                 let (source, parsed) = crate::ssa::unit_lower_test_support::parsed(
                     &mut sources,
@@ -758,10 +767,11 @@ pub(in crate::ssa) mod local_control_support {
                         type_checking::check_compilation_unit_types,
                     };
                     let index = index_compilation_unit(&sources, &inputs).unwrap();
-                    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-                        .unwrap()
-                        .validate()
-                        .unwrap();
+                    let names =
+                        resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                            .unwrap()
+                            .validate()
+                            .unwrap();
                     let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
                         .unwrap()
                         .validate_constants()
@@ -772,7 +782,8 @@ pub(in crate::ssa) mod local_control_support {
                     .unwrap()
                     .validate()
                     .unwrap();
-                    let entry = crate::ssa::unit_lower_test_support::declaration(&names, "app", "main");
+                    let entry =
+                        crate::ssa::unit_lower_test_support::declaration(&names, "app", "main");
                     crate::ssa::unit_lower::constant::lower_constant_unit_with_entry(
                         &sources, &inputs, &names, &types, &typed, &owned, entry,
                     )
@@ -783,7 +794,8 @@ pub(in crate::ssa) mod local_control_support {
                         &environment,
                         &types,
                     );
-                    let entry = crate::ssa::unit_lower_test_support::declaration(&names, "app", "main");
+                    let entry =
+                        crate::ssa::unit_lower_test_support::declaration(&names, "app", "main");
                     crate::ssa::unit_lower::lower_scalar_unit_with_entry(
                         &sources, &inputs, &names, &types, &typed, &owned, entry,
                     )
@@ -798,7 +810,12 @@ pub(in crate::ssa) mod local_control_support {
         }
     }
 
-    fn fragment_span(sources: &SourceMap, source: SourceId, consumer: &str, fragment: &str) -> Span {
+    fn fragment_span(
+        sources: &SourceMap,
+        source: SourceId,
+        consumer: &str,
+        fragment: &str,
+    ) -> Span {
         let text = sources.source_text(source).unwrap();
         assert!(text.ends_with(consumer));
         let consumer_start = text.len() - consumer.len();
@@ -844,7 +861,12 @@ pub(in crate::ssa) mod local_control_support {
         }
     }
 
-    pub(in crate::ssa) fn run_unmodified(program: &Program, entry: FunctionId, label: &str, expected: &[u8]) {
+    pub(in crate::ssa) fn run_unmodified(
+        program: &Program,
+        entry: FunctionId,
+        label: &str,
+        expected: &[u8],
+    ) {
         use std::{fs, process::Command};
         let directory = std::env::temp_dir().join(format!(
             "koven-range-local-control-{}-{label}",

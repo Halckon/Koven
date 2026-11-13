@@ -66,6 +66,7 @@ fn check(receipt: bool) {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 #[test]
 fn named_literal_mapping_preserves_source_order_and_true_off() {
     super::multi_temporary::products::check_cases(
@@ -286,7 +287,8 @@ pub(in crate::ssa) mod rc_nullable_while_presence_identity {
     fn returned(block: &Block, value: ValueId, span: Span) -> Query<()> {
         require(
             matches!(term(block)?, TerminatorKind::Return { values } if values == &[value])
-                && block.terminator.as_ref().map(|term| &term.origin) == Some(&Origin::Source(span)),
+                && block.terminator.as_ref().map(|term| &term.origin)
+                    == Some(&Origin::Source(span)),
             "source Return transfers the exact expected owner/result",
         )
     }
@@ -540,7 +542,11 @@ pub(in crate::ssa) mod rc_nullable_while_presence_identity {
         Ok((instruction, result(function, instruction, result_type)?))
     }
 
-    fn sole_instruction_use(function: &Function, owner: ValueId, consumer: InstructionId) -> Query<()> {
+    fn sole_instruction_use(
+        function: &Function,
+        owner: ValueId,
+        consumer: InstructionId,
+    ) -> Query<()> {
         let users = function
             .instructions
             .iter()
@@ -859,7 +865,11 @@ pub(in crate::ssa) mod rc_nullable_while_presence_identity {
         let mut observations = Vec::new();
         for (case, source, _) in crate::ssa::rc_nullable_while_bounded_tests::presence_cases() {
             for unit in [false, true] {
-                observations.push(crate::ssa::rc_nullable_while_bounded_tests::observe_with_identity(case, source, unit, true));
+                observations.push(
+                    crate::ssa::rc_nullable_while_bounded_tests::observe_with_identity(
+                        case, source, unit, true,
+                    ),
+                );
             }
         }
         for (observation, identity) in &observations {

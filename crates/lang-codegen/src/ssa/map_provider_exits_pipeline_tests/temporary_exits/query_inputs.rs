@@ -1,6 +1,6 @@
 //! 同次公开 FE facts 的独立身份桥；不调用生产 qualification/proof。
 #[path = "query_cleanup.rs"]
-mod query_cleanup;
+pub(in crate::ssa) mod query_cleanup;
 mod query_guards {
     //! 两个独立 Resource local 共用真实 Guard 类型与析构；形成不冒充当前 owner。
     use super::super::ast::{Anchors, Input};
@@ -65,9 +65,9 @@ mod query_guards {
                     guard,
                 )
             })?;
-            let deinit = nominal
-                .deinit()
-                .ok_or_else(|| failure("temporary exits FE actual qualified Guard deinit", nominal))?;
+            let deinit = nominal.deinit().ok_or_else(|| {
+                failure("temporary exits FE actual qualified Guard deinit", nominal)
+            })?;
             need(
                 nominal.declaration() == class
                     && nominal.kind() == NominalKind::Class
@@ -397,7 +397,8 @@ mod unit_bridge {
                 let loan = p.loan(component);
                 need(
                     binding.source_unit() == unit
-                        && binding == symbol(names, unit, site.bindings[i], SymbolKind::ForBinding)?
+                        && binding
+                            == symbol(names, unit, site.bindings[i], SymbolKind::ForBinding)?
                         && typed.symbol_type(binding) == Some([d.key_type(), d.value_type()][i])
                         && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
                         && p.bindings()[i].symbol() == binding
@@ -528,7 +529,8 @@ mod unit_bridge {
                     && actual.mode() == ParameterMode::Borrow
                     && parameter.mode() == ParameterMode::Borrow
                     && actual.parameter_type() == parameter.ty()
-                    && typed.expression_type(expression(*argument)) == Some(actual.parameter_type())
+                    && typed.expression_type(expression(*argument))
+                        == Some(actual.parameter_type())
                     && typed.expression_category(expression(*argument))
                         == Some(ExpressionCategory::Place)
                     && typed.symbol_type(*root) == Some(actual.parameter_type())
@@ -669,7 +671,8 @@ mod unit_bridge {
                     && call.result_source() == CallableResultSource::Owned
                     && typed.types().get(call.return_type())
                         == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
-                    && typed.expression_type(expression(scan.expression)) == Some(call.return_type())
+                    && typed.expression_type(expression(scan.expression))
+                        == Some(call.return_type())
                     && !owned
                         .loans()
                         .iter()
@@ -693,7 +696,8 @@ mod unit_bridge {
                     && reference(f, names, check.reference)? == local
                     && owned.formed_owned_locals().contains(&local)
                     && typed.symbol_type(local) == Some(call.return_type())
-                    && typed.expression_type(expression(check.reference)) == Some(call.return_type()),
+                    && typed.expression_type(expression(check.reference))
+                        == Some(call.return_type()),
                 "temporary exits FE caller formed marker and exact scan-return reference",
                 (check, local, call),
             )?;
@@ -734,7 +738,7 @@ pub(super) struct GuardInput {
     pub class_marker: Span,
 }
 #[derive(Clone, Copy, Debug)]
-pub(super) struct SiteInput {
+pub(in crate::ssa) struct SiteInput {
     pub function: Span,
     pub span: Span,
     pub source: Span,
@@ -745,7 +749,7 @@ pub(super) struct SiteInput {
     pub arguments: [Span; 2],
     pub transfer: Span,
     pub drop: Span,
-    pub guard: GuardInput,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests::temporary_exits) guard: GuardInput,
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) struct OperandInput {

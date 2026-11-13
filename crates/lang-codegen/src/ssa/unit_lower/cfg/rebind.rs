@@ -643,10 +643,13 @@ pub(in crate::ssa::unit_lower) mod nullable {
 
 #[cfg(test)]
 mod provider_lifetime_tests {
-    use crate::ssa::verify_ownership::aliases::provider_lifetime::*;
     use crate::ssa::model::{
-        Edge, EntityType, LoanKind, Origin, Program, SequentialContainerKind, SsaTypeId, SsaTypeKind,
+        Edge, EntityType, LoanKind, Origin, Program, SequentialContainerKind, SsaTypeId,
+        SsaTypeKind,
     };
+    use crate::ssa::model::{EntityId, Function, LoanId, Operation, TerminatorKind};
+    use crate::ssa::verify::VerifyErrorKind;
+    use crate::ssa::verify_ownership::aliases::provider_lifetime::*;
     use crate::test_support::diagnostics::assert_diagnostic;
     use lang_frontend::source::SourceMap;
 

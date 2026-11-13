@@ -981,4 +981,5 @@ pub(in crate::ssa) mod abort_owner_assertions;
 mod container_tests;
 mod control_flow_tests;
 mod map_condition_tests;
-#[allow(unused_imports)] pub(in crate::ssa) use abort_owner_assertions::operand_exit_tests;
+#[allow(unused_imports)]
+pub(in crate::ssa) use abort_owner_assertions::operand_exit_tests;

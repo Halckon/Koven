@@ -726,13 +726,13 @@ mod map_with_tests {
                         };
                         queries += 1;
                         let result = function.entity(i.results[0]).unwrap().ty;
-                        assert!(super::verify_map_operation(
+                        assert!(crate::ssa::verify_ownership::root_exchange::integer::map::verify_map_operation(
                             module,
                             function,
                             &i.operation,
                             &[result]
                         ));
-                        assert!(!super::verify_map_operation(
+                        assert!(!crate::ssa::verify_ownership::root_exchange::integer::map::verify_map_operation(
                             module,
                             function,
                             &Operation::MapWithValue {
@@ -742,7 +742,7 @@ mod map_with_tests {
                             },
                             &[result]
                         ));
-                        assert!(!super::verify_map_operation(
+                        assert!(!crate::ssa::verify_ownership::root_exchange::integer::map::verify_map_operation(
                             module,
                             function,
                             &Operation::MapWithValue {
@@ -752,7 +752,7 @@ mod map_with_tests {
                             },
                             &[result]
                         ));
-                        assert!(!super::verify_map_operation(
+                        assert!(!crate::ssa::verify_ownership::root_exchange::integer::map::verify_map_operation(
                             module,
                             function,
                             &i.operation,
@@ -795,17 +795,18 @@ mod map_with_tests {
                         }
                         // A real temporary key/callback must be dropped after its loan has ended.
                         for (loan, ended) in [(key_loan, key_end), (action, action_end)] {
-                            let place = function
-                                .instructions
-                                .iter()
-                                .find_map(|j| match j.operation {
-                                    Operation::BorrowBegin { place, .. }
-                                        if j.results == [EntityId::Loan(loan)] =>
-                                    {
-                                        Some(place)
-                                    }
-                                    _ => None,
-                                });
+                            let place =
+                                function
+                                    .instructions
+                                    .iter()
+                                    .find_map(|j| match j.operation {
+                                        Operation::BorrowBegin { place, .. }
+                                            if j.results == [EntityId::Loan(loan)] =>
+                                        {
+                                            Some(place)
+                                        }
+                                        _ => None,
+                                    });
                             let owner = place.and_then(|place| {
                                 function
                                     .instructions

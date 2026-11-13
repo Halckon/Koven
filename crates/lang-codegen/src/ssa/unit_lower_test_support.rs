@@ -109,7 +109,8 @@ pub(in crate::ssa) mod local_storage {
             &mut self,
             function: ItemId,
         ) -> Result<(), LoweringError> {
-            let (item, function_span) = crate::ssa::lower_frontend::orchestrate::unwrap_modified(self.parsed, function)?;
+            let (item, function_span) =
+                crate::ssa::lower_frontend::orchestrate::unwrap_modified(self.parsed, function)?;
             if !matches!(item, Item::Function { .. }) {
                 return Err(error(LoweringErrorKind::MissingFact, function_span));
             }
@@ -150,7 +151,8 @@ pub(in crate::ssa) mod local_storage {
                 ) {
                     continue;
                 }
-                let declared = resolve_concrete_type(self.typed, declared, self.substitutions, span)?;
+                let declared =
+                    resolve_concrete_type(self.typed, declared, self.substitutions, span)?;
                 // Keep the complete Resource/deinit/K/V checks before canonical cache lookup.
                 self.mapper
                     .intern(self.module, self.names, self.typed, declared, span)?;
@@ -158,7 +160,10 @@ pub(in crate::ssa) mod local_storage {
             Ok(())
         }
 
-        pub(in crate::ssa) fn intern_body(&mut self, body: FunctionPlanBody) -> Result<(), LoweringError> {
+        pub(in crate::ssa) fn intern_body(
+            &mut self,
+            body: FunctionPlanBody,
+        ) -> Result<(), LoweringError> {
             match body {
                 FunctionPlanBody::Expression(expression) => self.expression(expression),
                 FunctionPlanBody::Block(block) => self.statement(block),
@@ -309,13 +314,16 @@ pub(in crate::ssa) mod local_storage {
                 | Expression::Break { .. }
                 | Expression::Continue { .. }
                 | Expression::SuperMember { .. } => {}
-                Expression::Error => return Err(error(LoweringErrorKind::MissingFact, node.span())),
+                Expression::Error => {
+                    return Err(error(LoweringErrorKind::MissingFact, node.span()));
+                }
             }
             Ok(())
         }
 
         fn local_variable(&mut self, declaration: ItemId, span: Span) -> Result<(), LoweringError> {
-            let (item, _) = crate::ssa::lower_frontend::orchestrate::unwrap_modified(self.parsed, declaration)?;
+            let (item, _) =
+                crate::ssa::lower_frontend::orchestrate::unwrap_modified(self.parsed, declaration)?;
             let Item::Variable {
                 name, initializer, ..
             } = item
@@ -358,7 +366,8 @@ pub(in crate::ssa) mod local_storage {
             if plan.terminating_operand().is_some() {
                 return Ok(());
             }
-            let name = present_name(name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let name =
+                present_name(name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             let symbol = self
                 .names
                 .symbols()
@@ -403,7 +412,10 @@ pub(in crate::ssa) mod local_storage {
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, function_span))?;
             match scope.kind() {
                 ScopeKind::Function => return Ok(scope.span() == Some(function_span)),
-                ScopeKind::Lambda | ScopeKind::File | ScopeKind::Classifier | ScopeKind::Companion => {
+                ScopeKind::Lambda
+                | ScopeKind::File
+                | ScopeKind::Classifier
+                | ScopeKind::Companion => {
                     return Ok(false);
                 }
                 _ => {
@@ -418,12 +430,14 @@ pub(in crate::ssa) mod local_storage {
 
     pub(in crate::ssa) mod integer {
         //! Local facts and submission adapt into the shared integer, checked, and range algorithms.
-        use crate::ssa::lower_frontend::{
-            BlockId, BuiltinType, CheckedArithmeticOperator, EntityId, EntityType, ExpressionLowerer,
-            Function, LoweredValue, LoweringError, LoweringErrorKind, Operation, Span, SsaTypeId,
-            SymbolId, ValueId, builtin_type, error, value,
+        use crate::ssa::expression_core::checked::{
+            self, CarryColumn, CheckedCarry, CheckedLowering,
         };
-        use crate::ssa::expression_core::checked::{self, CarryColumn, CheckedCarry, CheckedLowering};
+        use crate::ssa::lower_frontend::{
+            BlockId, BuiltinType, CheckedArithmeticOperator, EntityId, EntityType,
+            ExpressionLowerer, Function, LoweredValue, LoweringError, LoweringErrorKind, Operation,
+            Span, SsaTypeId, SymbolId, ValueId, builtin_type, error, value,
+        };
         use lang_frontend::{
             ast::ExpressionId,
             type_checking::{IntegerOperationKind, TypeId, TypeKind},
@@ -469,7 +483,8 @@ pub(in crate::ssa) mod local_storage {
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                 if descriptor.expression() != id
                     || self.typed.expression_type(descriptor.left()) != Some(descriptor.left_type())
-                    || self.typed.expression_type(descriptor.right()) != Some(descriptor.right_type())
+                    || self.typed.expression_type(descriptor.right())
+                        != Some(descriptor.right_type())
                     || self.typed.expression_type(id) != Some(descriptor.result_type())
                 {
                     return Err(error(LoweringErrorKind::MissingFact, span));
@@ -540,7 +555,8 @@ pub(in crate::ssa) mod local_storage {
 
             fn boolean_type(&self) -> Option<SsaTypeId> {
                 self.type_ids.iter().find_map(|(frontend, ssa)| {
-                    (builtin_type(self.typed, *frontend) == Some(BuiltinType::Boolean)).then_some(*ssa)
+                    (builtin_type(self.typed, *frontend) == Some(BuiltinType::Boolean))
+                        .then_some(*ssa)
                 })
             }
 
@@ -548,7 +564,10 @@ pub(in crate::ssa) mod local_storage {
                 (&mut *self.function, &mut self.block)
             }
 
-            fn capture_roles(&self, span: Span) -> Result<CheckedCarry<Self::Roles>, LoweringError> {
+            fn capture_roles(
+                &self,
+                span: Span,
+            ) -> Result<CheckedCarry<Self::Roles>, LoweringError> {
                 let baseline = self.bindings.clone();
                 let carried = self.linear_binding_slots(&baseline, span)?;
                 self.carry_checked_map(&carried, span)?;
@@ -610,11 +629,18 @@ pub(in crate::ssa) mod local_storage {
                 }
             }
 
-            fn receiver_matches_ast(&self, expression: ExpressionId, receiver: ExpressionId) -> bool {
+            fn receiver_matches_ast(
+                &self,
+                expression: ExpressionId,
+                receiver: ExpressionId,
+            ) -> bool {
                 crate::ssa::integer::intrinsic_receiver_matches(self.parsed, expression, receiver)
             }
 
-            fn lower_operand(&mut self, receiver: ExpressionId) -> Result<LoweredValue, LoweringError> {
+            fn lower_operand(
+                &mut self,
+                receiver: ExpressionId,
+            ) -> Result<LoweredValue, LoweringError> {
                 self.lower(receiver)
             }
 
@@ -665,7 +691,10 @@ pub(in crate::ssa) mod local_storage {
             fn expression_type(&self, expression: Self::Expr) -> Option<Self::Type>;
             fn builtin_type(&self, ty: Self::Type) -> Option<BuiltinType>;
             fn receiver_matches_ast(&self, expression: Self::Expr, receiver: Self::Expr) -> bool;
-            fn lower_operand(&mut self, receiver: Self::Expr) -> Result<LoweredValue, LoweringError>;
+            fn lower_operand(
+                &mut self,
+                receiver: Self::Expr,
+            ) -> Result<LoweredValue, LoweringError>;
             fn result_ssa_type(
                 &self,
                 expression: Self::Expr,
@@ -722,7 +751,9 @@ pub(in crate::ssa) mod local_storage {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
             match descriptor.kind {
-                IntegerOperationKind::Invert if descriptor.receiver_type != descriptor.result_type => {
+                IntegerOperationKind::Invert
+                    if descriptor.receiver_type != descriptor.result_type =>
+                {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
                 IntegerOperationKind::Invert | IntegerOperationKind::CheckedConvert => {}

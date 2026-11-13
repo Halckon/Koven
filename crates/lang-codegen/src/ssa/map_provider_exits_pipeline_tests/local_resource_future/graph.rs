@@ -84,7 +84,8 @@ mod anchors {
         if case.binding == 2 {
             let alias = parsed.ast().expressions().get(initializer).unwrap();
             need(
-                alias.payload() == &Expression::Name && sources.slice(alias.span()) == Ok("original"),
+                alias.payload() == &Expression::Name
+                    && sources.slice(alias.span()) == Ok("original"),
                 "original moved alias Name",
                 alias,
             )?;
@@ -124,7 +125,9 @@ mod anchors {
         loop {
             let before = members.len();
             for (_, edge) in &g.edges {
-                for (&arg, &parameter) in edge.arguments.iter().zip(&g.block(edge.target)?.parameters) {
+                for (&arg, &parameter) in
+                    edge.arguments.iter().zip(&g.block(edge.target)?.parameters)
+                {
                     if members.contains(&arg) {
                         members.insert(parameter);
                     }
@@ -311,7 +314,8 @@ mod anchors {
         )
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use provider::continuation;
+#[allow(unused_imports)]
+pub(in crate::ssa) use provider::continuation;
 pub(in crate::ssa) mod provider;
 use super::super::local_resources::graph::storage;
 use super::Case;

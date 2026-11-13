@@ -94,7 +94,8 @@ pub(in crate::ssa) mod frontend_borrow_result {
                 .range_uses()
                 .iter()
                 .filter_map(|use_fact| {
-                    let lang_frontend::ownership_checking::RangeUseSite::Call(call) = use_fact.site()
+                    let lang_frontend::ownership_checking::RangeUseSite::Call(call) =
+                        use_fact.site()
                     else {
                         return None;
                     };
@@ -158,7 +159,9 @@ pub(in crate::ssa) mod frontend_borrow_result {
                             mode == ParameterMode::Borrow
                                 || (mode == ParameterMode::Value
                                     && typed.copyability(ty)
-                                        == Some(lang_frontend::type_checking::Copyability::Copyable))
+                                        == Some(
+                                            lang_frontend::type_checking::Copyability::Copyable,
+                                        ))
                         };
                         call.result_source()
                             == lang_frontend::type_checking::CallableResultSource::Owned
@@ -167,7 +170,10 @@ pub(in crate::ssa) mod frontend_borrow_result {
                                     && !matches!(call.target(), CallableTarget::FunctionValue)
                                     && call.arguments().iter().all(|argument| {
                                         !argument.crosses_thread()
-                                            && mode_allowed(argument.mode(), argument.parameter_type())
+                                            && mode_allowed(
+                                                argument.mode(),
+                                                argument.parameter_type(),
+                                            )
                                     })
                                     && call.receiver().is_none_or(|receiver| {
                                         mode_allowed(receiver.mode(), receiver.ty())
@@ -236,11 +242,10 @@ pub(in crate::ssa) mod frontend_borrow_result {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
             }
-            let mut ends = self
-                .owned
-                .loan_ends()
-                .iter()
-                .filter(|end| end.call() == source.call() && end.argument() == source.argument());
+            let mut ends =
+                self.owned.loan_ends().iter().filter(|end| {
+                    end.call() == source.call() && end.argument() == source.argument()
+                });
             if !ends.next().is_some_and(|end| {
                 end.point() == lang_frontend::ownership_checking::LoanEndPoint::CallReturn(call)
             }) || ends.next().is_some()
@@ -285,7 +290,8 @@ pub(in crate::ssa) mod frontend_borrow_result {
             if fact.storage()
                 == lang_frontend::ownership_checking::BorrowBindingStorage::BorrowedCarrierMetadata
                 && fact.source_loan().is_none()
-                && let Some(loan) = self.lower_range_metadata_alias(initializer, fact.parent(), span)?
+                && let Some(loan) =
+                    self.lower_range_metadata_alias(initializer, fact.parent(), span)?
             {
                 self.borrow_bindings.insert(symbol, loan);
                 return Ok(LoweredValue::Unit);
@@ -358,7 +364,8 @@ pub(in crate::ssa) mod frontend_borrow_result {
                 created.pop();
                 source
             } else {
-                let (_, results) = self.append(Operation::SharedReborrow { source }, vec![ty], span)?;
+                let (_, results) =
+                    self.append(Operation::SharedReborrow { source }, vec![ty], span)?;
                 let EntityId::Loan(loan) = results[0] else {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 };
@@ -384,7 +391,8 @@ pub(in crate::ssa) mod frontend_borrow_result {
                 return self.validate_initializer_root(*expression, root, span);
             }
             if let Some(projection) = self.typed.aggregate_projection(expression) {
-                let AggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+                let AggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+                else {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 };
                 return self.validate_initializer_root(receiver, root, span);
@@ -426,7 +434,8 @@ pub(in crate::ssa) mod frontend_borrow_result {
             }
             let return_expression = expression;
             // The return-origin fact belongs to the outer expression; forwarding belongs to its call.
-            let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
+            let expression =
+                crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
             let node = self
                 .parsed
                 .ast()
@@ -485,7 +494,8 @@ pub(in crate::ssa) mod frontend_borrow_result {
                     .typed
                     .aggregate_projection(expression)
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                let AggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+                let AggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+                else {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 };
                 if projection.field() != *last {
@@ -494,7 +504,10 @@ pub(in crate::ssa) mod frontend_borrow_result {
                 return self.validate_return_place(receiver, root, prefix, span);
             }
             if !matches!(node.payload(), Expression::Name)
-                || self.references.get(&crate::ssa::lower_frontend::span_key(node.span())) != Some(&root)
+                || self
+                    .references
+                    .get(&crate::ssa::lower_frontend::span_key(node.span()))
+                    != Some(&root)
             {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
@@ -507,7 +520,8 @@ pub(in crate::ssa) mod frontend_borrow_result {
             source: BorrowSourceLoan<ExpressionId>,
             span: Span,
         ) -> Result<(LoanId, Vec<LoanId>), LoweringError> {
-            let expression = crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
+            let expression =
+                crate::ssa::borrow_result_support::ungroup(self.parsed, expression, span)?;
             if source.call() != expression {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
@@ -667,7 +681,10 @@ pub(in crate::ssa) mod frontend_borrow_result {
             Ok((result, continued))
         }
 
-        pub(in crate::ssa) fn end_result_bindings(&mut self, point: DropPoint) -> Result<(), LoweringError> {
+        pub(in crate::ssa) fn end_result_bindings(
+            &mut self,
+            point: DropPoint,
+        ) -> Result<(), LoweringError> {
             let ends = self
                 .owned
                 .borrow_results()
@@ -683,15 +700,18 @@ pub(in crate::ssa) mod frontend_borrow_result {
                 let span = self
                     .function
                     .entity(EntityId::Loan(loan))
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, self.function.origin.span()))?
+                    .ok_or_else(|| {
+                        error(LoweringErrorKind::MissingFact, self.function.origin.span())
+                    })?
                     .origin
                     .span();
-                let operation =
-                    if let Some(LoweredValue::Value(view)) = self.bindings.remove(&fact.binding()) {
-                        Operation::RangeEnd { view, source: loan }
-                    } else {
-                        Operation::BorrowEnd { loan }
-                    };
+                let operation = if let Some(LoweredValue::Value(view)) =
+                    self.bindings.remove(&fact.binding())
+                {
+                    Operation::RangeEnd { view, source: loan }
+                } else {
+                    Operation::BorrowEnd { loan }
+                };
                 self.append(operation, Vec::new(), span)?;
                 if let Some(sources) = self.result_source_loans.remove(&fact.binding()) {
                     for loan in sources.into_iter().rev() {

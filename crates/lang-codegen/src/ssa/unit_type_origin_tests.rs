@@ -240,7 +240,10 @@ mod lambda_preflight_tests {
         },
     };
 
+    use crate::ssa::unit_lower::type_lower::UnitTypeLowering;
     use crate::ssa::unit_lower::type_plan::*;
+    use crate::ssa::unit_lower::*;
+    use crate::ssa::unit_plan::UnitPlannedInstance;
     use crate::ssa::{
         model::{EntityType, MapContainerKind, Operation, Origin, Ownership, Program, SsaTypeKind},
         unit_lower::{
@@ -249,6 +252,8 @@ mod lambda_preflight_tests {
         },
         unit_plan::{UnitCallablePlan, UnitFunctionInstanceKey, plan_unit_instances},
     };
+    use lang_frontend::name_resolution::{NameResolution, ScopeId};
+    use lang_frontend::type_checking::IntrinsicTypeConstructor;
 
     const PATH: &str = "lambda_formed_preflight.ko";
 
@@ -306,9 +311,15 @@ mod lambda_preflight_tests {
         assert!(owned.diagnostics().is_empty());
         assert!(owned.deferred().is_empty());
         let owned = owned.validate().expect("validate ownership");
-        let view =
-            owned_compilation_unit_view(&sources, &inputs, &names, &type_environment, &typed, &owned)
-                .expect("same-object sealed view");
+        let view = owned_compilation_unit_view(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+        )
+        .expect("same-object sealed view");
         assert!(std::ptr::eq(view.sources(), &sources));
         assert!(std::ptr::eq(view.inputs(), inputs.as_slice()));
         assert!(std::ptr::eq(view.names(), &names));
@@ -563,7 +574,8 @@ mod lambda_preflight_tests {
                 &mut mapper,
             )
             .expect("main must not absorb a lambda-owned unsupported demand");
-            let callables = closure::declare(module, &[plan], layouts).expect("real declared thunks");
+            let callables =
+                closure::declare(module, &[plan], layouts).expect("real declared thunks");
             Checkpoint {
                 program,
                 mapper,
@@ -682,7 +694,8 @@ mod lambda_preflight_tests {
                     formed_in_function(facts.resolution(), outer.scope, facts.main_span()).unwrap()
                 );
                 assert!(
-                    !formed_in_function(facts.resolution(), inner.scope, facts.main_span()).unwrap()
+                    !formed_in_function(facts.resolution(), inner.scope, facts.main_span())
+                        .unwrap()
                 );
                 assert!(formed_in_lambda(facts.resolution(), inner.scope, action.origin).unwrap());
                 assert!(!formed_in_lambda(facts.resolution(), outer.scope, action.origin).unwrap());
@@ -745,7 +758,9 @@ mod lambda_preflight_tests {
                     })
                     .collect::<Vec<_>>();
                 let [null] = nulls.as_slice() else {
-                    panic!("the real inner initializer produces one existing nullable Map identity");
+                    panic!(
+                        "the real inner initializer produces one existing nullable Map identity"
+                    );
                 };
                 assert_eq!(null.results.len(), 1);
                 assert_eq!(
@@ -879,11 +894,16 @@ mod lambda_preflight_tests {
                         .formed_owned_locals()
                         .contains(&rejected.symbol)
                 );
-                assert!(formed_in_lambda(facts.resolution(), supported.scope, good.origin).unwrap());
-                assert!(!formed_in_lambda(facts.resolution(), rejected.scope, good.origin).unwrap());
+                assert!(
+                    formed_in_lambda(facts.resolution(), supported.scope, good.origin).unwrap()
+                );
+                assert!(
+                    !formed_in_lambda(facts.resolution(), rejected.scope, good.origin).unwrap()
+                );
                 assert!(formed_in_lambda(facts.resolution(), rejected.scope, bad.origin).unwrap());
                 assert!(
-                    !formed_in_function(facts.resolution(), rejected.scope, facts.main_span()).unwrap()
+                    !formed_in_function(facts.resolution(), rejected.scope, facts.main_span())
+                        .unwrap()
                 );
                 let mut checkpoint = facts.checkpoint();
                 assert_eq!(checkpoint.callables.len(), 2);
@@ -927,10 +947,18 @@ mod lambda_preflight_tests {
                         .formed_owned_locals()
                         .contains(&inner_map.symbol)
                 );
-                assert!(formed_in_lambda(facts.resolution(), inner_map.scope, inner.origin).unwrap());
-                assert!(!formed_in_lambda(facts.resolution(), inner_map.scope, outer.origin).unwrap());
-                assert!(!formed_in_lambda(facts.resolution(), outer_map.scope, inner.origin).unwrap());
-                assert!(formed_in_lambda(facts.resolution(), outer_map.scope, outer.origin).unwrap());
+                assert!(
+                    formed_in_lambda(facts.resolution(), inner_map.scope, inner.origin).unwrap()
+                );
+                assert!(
+                    !formed_in_lambda(facts.resolution(), inner_map.scope, outer.origin).unwrap()
+                );
+                assert!(
+                    !formed_in_lambda(facts.resolution(), outer_map.scope, inner.origin).unwrap()
+                );
+                assert!(
+                    formed_in_lambda(facts.resolution(), outer_map.scope, outer.origin).unwrap()
+                );
                 assert!(
                     !formed_in_function(facts.resolution(), inner_map.scope, facts.main_span())
                         .unwrap()
@@ -948,7 +976,7 @@ mod lambda_preflight_tests {
                 facts.rejected(
                     error,
                     inner.origin,
-                    "{\n      val innerMap: MutableMap<Int, Int?>? = null\n    }",
+                    "{\n          val innerMap: MutableMap<Int, Int?>? = null\n        }",
                 );
             },
         );

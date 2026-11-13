@@ -1,11 +1,15 @@
 //! Independent complete parent-child interval, after actual dependency and unchanged lowering.
+#[cfg(feature = "loan-observation-test-support")]
 use super::parent_child_causal::{SOURCE, verify_parent_child_ssa};
+#[cfg(feature = "loan-observation-test-support")]
 use super::*;
+#[cfg(feature = "loan-observation-test-support")]
 use lang_frontend::ownership_checking::{
     UnitDropTarget, UnitIterationCleanupAction, UnitLoanTarget, check_compilation_unit_ownership,
     legacy_ownership_eq, with_loan_observation,
 };
 
+#[cfg(feature = "loan-observation-test-support")]
 #[test]
 fn parent_child_requires_independent_complete_region_with_true_off() {
     let mut sources = SourceMap::new();
@@ -274,6 +278,7 @@ fn parent_child_requires_independent_complete_region_with_true_off() {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 #[test]
 fn extra_plain_statement_keeps_partial_dependency_without_complete_region() {
     const EXTRA: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun ping(): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val parent = view(owner); borrow val child = parent; consume(child); ping() }";
@@ -351,7 +356,8 @@ mod temporary_route {
     }
 
     fn check(require_receipt: bool) {
-        let text = "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }";
+        let text =
+            "fun inspect(value: String): Int = 1\nfun run(): Unit { inspect(\"temporary\") }";
         let mut sources = SourceMap::new();
         let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "temporary.ko", text);
         let (environment, types) = standard_environments();
@@ -477,6 +483,7 @@ mod temporary_route {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 mod temporary_receipts {
     //! Bounded ordinary temporary literal results; real off products are never edited before lowering.
     use crate::ssa::loan_region_ssa_tests::*;
@@ -528,7 +535,8 @@ mod temporary_receipts {
                     .iter()
                     .flat_map(|o| o.regions())
                     .filter(|r| {
-                        r.protocol_version() == 1 && r.coverage() == UnitLoanActionCoverage::Complete
+                        r.protocol_version() == 1
+                            && r.coverage() == UnitLoanActionCoverage::Complete
                     })
                     .collect::<Vec<_>>();
                 let [region] = regions.as_slice() else {
@@ -566,7 +574,8 @@ mod temporary_receipts {
                     let module = &program.modules[0];
                     let caller = module.function(entry).unwrap();
                     assert_eq!(routing.as_slice(), std::slice::from_ref(&caller.name));
-                    let [literal, root, begin, call, end, drop] = caller.instructions.as_slice() else {
+                    let [literal, root, begin, call, end, drop] = caller.instructions.as_slice()
+                    else {
                         panic!("six actual operations");
                     };
                     let [EntityId::Value(owner)] = literal.results.as_slice() else {
@@ -670,12 +679,13 @@ mod temporary_receipts {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 pub(in crate::ssa) mod binding_causal_links {
     //! Same-analysis actual binding links; normal products are never rewritten.
     use crate::ssa::loan_region_ssa_tests::*;
     use lang_frontend::ownership_checking::{
-        UnitDropTarget, UnitIterationCleanupAction, UnitLoanTarget, check_compilation_unit_ownership,
-        legacy_ownership_eq, with_loan_observation,
+        UnitDropTarget, UnitIterationCleanupAction, UnitLoanTarget,
+        check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
     };
     pub(in crate::ssa) const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; borrow val item = view(owner); consume(item) }";
     #[test]
@@ -787,7 +797,11 @@ pub(in crate::ssa) mod binding_causal_links {
             assert_eq!(drop.target(), UnitDropTarget::Named(place.root()));
         }
     }
-    pub(in crate::ssa) fn verify_binding_ssa(program: &Program, entry: FunctionId, routes: &[String]) {
+    pub(in crate::ssa) fn verify_binding_ssa(
+        program: &Program,
+        entry: FunctionId,
+        routes: &[String],
+    ) {
         let module = &program.modules[0];
         let caller = module.function(entry).unwrap();
         let [
@@ -871,7 +885,8 @@ pub(in crate::ssa) mod binding_causal_links {
     fn binding_metadata_preserves_frontend_merge_and_true_off() {
         let text = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = view(owner); if(flag) { consume(item) } else { consume(item) }; consume(item) }";
         let mut sources = SourceMap::new();
-        let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "binding-merge.ko", text);
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "binding-merge.ko", text);
         let (environment, types) = standard_environments();
         for input in [
             SourceUnitInput::new("root", "binding-merge.ko", source, &parsed),

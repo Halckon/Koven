@@ -103,7 +103,9 @@ mod guards {
             let drops = owned
                 .drops()
                 .iter()
-                .filter(|drop| matches!(drop.target(), UnitDropTarget::Named(id) if Some(id) == local))
+                .filter(
+                    |drop| matches!(drop.target(), UnitDropTarget::Named(id) if Some(id) == local),
+                )
                 .collect::<Vec<_>>();
             report.check(
                 "unit temporary exits Guard qualified formation history and actual Drop origins",
@@ -246,7 +248,10 @@ mod unit {
             .filter(|s| s.source_unit() == id.source_unit())
             .any(|source| {
                 source.resolution().symbols().iter().any(|s| {
-                    s.id() == id.symbol() && s.span() == span && s.kind() == kind && !s.is_synthetic()
+                    s.id() == id.symbol()
+                        && s.span() == span
+                        && s.kind() == kind
+                        && !s.is_synthetic()
                 })
             })
     }
@@ -335,7 +340,9 @@ mod unit {
             let drops = owned
                 .drops()
                 .iter()
-                .filter(|drop| matches!(drop.target(), UnitDropTarget::Temporary(id) if id == source))
+                .filter(
+                    |drop| matches!(drop.target(), UnitDropTarget::Temporary(id) if id == source),
+                )
                 .collect::<Vec<_>>();
             diagnostic!(
                 "SPEC0331 TEMPORARY EXITS UNIT SOURCE statement={statement:?} source={source:?} transfer={:?} drops={drops:#?}",
@@ -644,9 +651,10 @@ pub(crate) fn native_sources() -> [(&'static str, &'static str, &'static str); 6
 }
 
 // Independent deep identity query; the original collector never enters this path.
-#[allow(unused_imports)] pub(in crate::ssa) use calls_unit::query_body;
+#[allow(unused_imports)]
+pub(in crate::ssa) use calls_unit::query_body;
 mod query_callers;
-mod query_inputs;
+pub(in crate::ssa) mod query_inputs;
 mod query_ssa;
 mod query_test {
     //! New exact: collect all twelve fresh pipelines before asserting; query Err still verifies LLVM.

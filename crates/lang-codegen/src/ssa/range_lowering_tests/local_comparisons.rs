@@ -330,11 +330,12 @@ mod selection {
     );
 }
 
-use super::short_circuit::comparison_boundary as boundary;
-
 // Single cases use same-source Unit admission; real constants select its constant
 // capability. Existing Unit constant cases retain their dedicated constant path.
-pub(in crate::ssa) fn expression(pipeline: Pipeline, operator: ComparisonOperator) -> (&'static str, String) {
+pub(in crate::ssa) fn expression(
+    pipeline: Pipeline,
+    operator: ComparisonOperator,
+) -> (&'static str, String) {
     let spelling = match operator {
         ComparisonOperator::NotEqual => "!=",
         ComparisonOperator::LessThanOrEqual => "<=",
@@ -364,9 +365,14 @@ pub(in crate::ssa) fn outcomes(operator: ComparisonOperator) -> [bool; 5] {
     }
 }
 
-pub(in crate::ssa) const CALLS: &str = "scan(-2147483647-1);scan(-1);scan(0);scan(1);scan(2147483647)";
+pub(in crate::ssa) const CALLS: &str =
+    "scan(-2147483647-1);scan(-1);scan(0);scan(1);scan(2147483647)";
 
-pub(in crate::ssa) fn assert_comparison(program: &Program, span: Span, expected: ComparisonOperator) {
+pub(in crate::ssa) fn assert_comparison(
+    program: &Program,
+    span: Span,
+    expected: ComparisonOperator,
+) {
     let module = &program.modules[0];
     let comparisons = module
         .functions
@@ -426,7 +432,11 @@ pub(in crate::ssa) fn assert_comparison(program: &Program, span: Span, expected:
     );
 }
 
-pub(in crate::ssa) fn comparison_case(pipeline: Pipeline, position: Position, operator: ComparisonOperator) {
+pub(in crate::ssa) fn comparison_case(
+    pipeline: Pipeline,
+    position: Position,
+    operator: ComparisonOperator,
+) {
     comparison_with_use(pipeline, position, operator, false);
 }
 

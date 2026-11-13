@@ -81,6 +81,7 @@ fn grouped_temporary_has_one_owner_at_argument_merge() {
 mod pending_call_guard_tests {
     //! CI-only carrier corruption after the real frontend and field producer succeed.
     use crate::ssa::expression_core::pending_call::*;
+    use crate::ssa::lower_frontend::pending_call::Key;
     use crate::ssa::lower_frontend::*;
     use crate::ssa::{
         lower_frontend::{
@@ -325,7 +326,9 @@ mod pending_call_guard_tests {
                 .ast()
                 .expressions()
                 .iter()
-                .find_map(|(id, node)| (Origin::Source(node.span()) == projection.origin).then_some(id))
+                .find_map(|(id, node)| {
+                    (Origin::Source(node.span()) == projection.origin).then_some(id)
+                })
                 .unwrap();
             let fact = fixture.owned.loan_begin(argument).unwrap();
             let span = projection.origin.span();
@@ -349,7 +352,11 @@ mod pending_call_guard_tests {
             }
         }
 
-        fn seed(&self, fixture: &Fixture, lowerer: &mut ExpressionLowerer<'_>) -> PendingFieldChild {
+        fn seed(
+            &self,
+            fixture: &Fixture,
+            lowerer: &mut ExpressionLowerer<'_>,
+        ) -> PendingFieldChild {
             lowerer
                 .bindings
                 .insert(self.root, LoweredValue::Value(self.birth.owner));
@@ -530,7 +537,12 @@ mod pending_call_guard_tests {
                 );
                 let bindings = lowerer.bindings.clone();
                 rejected(
-                    lowerer.restore_pending_field_columns(&bindings, &carried.slots, &arguments, span),
+                    lowerer.restore_pending_field_columns(
+                        &bindings,
+                        &carried.slots,
+                        &arguments,
+                        span,
+                    ),
                     missing,
                     span,
                 );

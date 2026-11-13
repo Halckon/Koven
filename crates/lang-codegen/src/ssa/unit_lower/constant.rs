@@ -773,7 +773,8 @@ mod type_origin_cache_tests {
                 None,
                 "no new wrapper-origin contract"
             );
-            let Some(SsaTypeKind::MapContainer { kind, value, .. }) = module.type_kind(inner) else {
+            let Some(SsaTypeKind::MapContainer { kind, value, .. }) = module.type_kind(inner)
+            else {
                 panic!("real nullable annotation must map to MapContainer");
             };
             assert_eq!(*kind, expected_kind);

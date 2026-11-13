@@ -51,7 +51,12 @@ mod ast {
                 if s.slice(*marker) == Ok(name) && parameters.len() == arity).then_some(n.span())
         }), "P24 original top-level callable AST/arity")
     }
-    fn call(s: &SourceMap, p: &ParsedFile, scope: Span, name: &str) -> Result<ExpressionId, Failure> {
+    fn call(
+        s: &SourceMap,
+        p: &ParsedFile,
+        scope: Span,
+        name: &str,
+    ) -> Result<ExpressionId, Failure> {
         one(
             p.ast().expressions().iter().filter_map(|(id, n)| {
                 let Expression::Call { callee, .. } = n.payload() else {
@@ -185,7 +190,8 @@ mod ast {
                 return Err(failure("P24 original K/V markers", names));
             };
             let read = call(s, p, n.span(), "read")?;
-            let Expression::Call { arguments, .. } = p.ast().expressions().get(read).unwrap().payload()
+            let Expression::Call { arguments, .. } =
+                p.ast().expressions().get(read).unwrap().payload()
             else {
                 unreachable!()
             };
@@ -268,9 +274,10 @@ mod facts {
         parser::ParsedFile,
         source::Span,
         type_checking::{
-            BuiltinType, CallableResultSource, CompilationUnitTypes, Copyability, ExpressionCategory,
-            IntrinsicTypeConstructor, ParameterMode, UnitCallReceiverOrigin, UnitCallTarget,
-            UnitCallableTarget, UnitExpressionId, UnitStatementId, UnitTypeId, UnitTypeKind,
+            BuiltinType, CallableResultSource, CompilationUnitTypes, Copyability,
+            ExpressionCategory, IntrinsicTypeConstructor, ParameterMode, UnitCallReceiverOrigin,
+            UnitCallTarget, UnitCallableTarget, UnitExpressionId, UnitStatementId, UnitTypeId,
+            UnitTypeKind,
         },
     };
     #[derive(Debug)]
@@ -475,7 +482,8 @@ mod facts {
                 && receiver.declaration_span() == i.method_name
                 && sig.type_parameters().is_empty()
                 && sig.has_body()
-                && t.types().get(sig.return_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+                && t.types().get(sig.return_type())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
                 && o.binding_kind(root) == Some(OwnershipBindingKind::Shared),
             "P24 actual method/receiver/source Borrow parameter identity",
             sig,
@@ -490,9 +498,9 @@ mod facts {
         };
         need(
             arguments.len() == 2
-                && arguments
-                    .iter()
-                    .all(|v| t.types().get(*v) == Some(&UnitTypeKind::Builtin(BuiltinType::String)))
+                && arguments.iter().all(|v| {
+                    t.types().get(*v) == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                })
                 && t.copyability(ty) == Copyability::MoveOnly,
             "P24 represented String/String Map",
             ty,
@@ -571,13 +579,15 @@ mod facts {
                 && factory.arguments().is_empty()
                 && factory.return_type() == ty
                 && factory.result_source() == CallableResultSource::Owned
-                && t.expression_category(f.e(i.source_birth)) == Some(ExpressionCategory::Temporary),
+                && t.expression_category(f.e(i.source_birth))
+                    == Some(ExpressionCategory::Temporary),
             "P24 actual caller Map birth",
             factory,
         )?;
         need(
             !o.drops().iter().any(|d| {
-                d.target() == UnitDropTarget::Named(root) || d.target() == UnitDropTarget::This(class)
+                d.target() == UnitDropTarget::Named(root)
+                    || d.target() == UnitDropTarget::This(class)
             }) && t.map_iterations().len() == usize::from(c.provider)
                 && o.map_iterations().len() == usize::from(c.provider),
             "P24 Borrow method never owns/drops caller source or receiver",
@@ -696,7 +706,7 @@ mod facts {
         })
     }
 }
-pub(in crate::ssa) mod graph;
+mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure, need},

@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 
 /// Preserve source identity without exposing the Map qualification implementation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in super::super) enum OwnerRoot {
+pub(in crate::ssa) enum OwnerRoot {
     Parameter(SymbolId),
     Local {
         symbol: SymbolId,
@@ -37,20 +37,20 @@ impl OwnerRoot {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(in super::super) struct Snapshot {
-    pub(in super::super) statement: StatementId,
-    pub(in super::super) source: Option<LoanId>,
-    pub(in super::super) components: [(SymbolId, Option<LoanId>); 2],
-    pub(in super::super) finished: bool,
-    pub(in super::super) owner: Option<(OwnerRoot, ValueId)>,
-    pub(in super::super) body: BlockId,
-    pub(in super::super) cursor: ValueId,
-    pub(in super::super) cursor_type: SsaTypeId,
-    pub(in super::super) kind: IterationExitKind,
-    pub(in super::super) cleaned: bool,
-    pub(in super::super) next: Option<ValueId>,
-    pub(in super::super) returned: Option<ValueId>,
-    pub(in super::super) cleanup_start: Option<usize>,
+pub(in crate::ssa) struct Snapshot {
+    pub(in crate::ssa) statement: StatementId,
+    pub(in crate::ssa) source: Option<LoanId>,
+    pub(in crate::ssa) components: [(SymbolId, Option<LoanId>); 2],
+    pub(in crate::ssa) finished: bool,
+    pub(in crate::ssa) owner: Option<(OwnerRoot, ValueId)>,
+    pub(in crate::ssa) body: BlockId,
+    pub(in crate::ssa) cursor: ValueId,
+    pub(in crate::ssa) cursor_type: SsaTypeId,
+    pub(in crate::ssa) kind: IterationExitKind,
+    pub(in crate::ssa) cleaned: bool,
+    pub(in crate::ssa) next: Option<ValueId>,
+    pub(in crate::ssa) returned: Option<ValueId>,
+    pub(in crate::ssa) cleanup_start: Option<usize>,
 }
 pub(super) type Paths = BTreeMap<usize, Snapshot>;
 
@@ -119,7 +119,7 @@ impl ExpressionLowerer<'_> {
             .collect()
     }
 
-    pub(in super::super) fn map_current_private_slot(
+    pub(in crate::ssa) fn map_current_private_slot(
         &self,
         slot: &LinearBindingSlot,
         span: Span,
@@ -961,7 +961,10 @@ pub(in crate::ssa) mod carrier {
         }
     }
 
-    pub(in crate::ssa) fn definition(function: &Function, entity: EntityId) -> Option<&Instruction> {
+    pub(in crate::ssa) fn definition(
+        function: &Function,
+        entity: EntityId,
+    ) -> Option<&Instruction> {
         let Definition::InstructionResult {
             instruction,
             index: 0,
@@ -972,14 +975,20 @@ pub(in crate::ssa) mod carrier {
         let instruction = function.instruction(instruction)?;
         (instruction.results.as_slice() == [entity]).then_some(instruction)
     }
-    pub(in crate::ssa) fn terminator(function: &Function, block: BlockId) -> Option<&TerminatorKind> {
+    pub(in crate::ssa) fn terminator(
+        function: &Function,
+        block: BlockId,
+    ) -> Option<&TerminatorKind> {
         function
             .block(block)?
             .terminator
             .as_ref()
             .map(|terminator| &terminator.kind)
     }
-    pub(in crate::ssa) fn instructions(function: &Function, block: BlockId) -> Option<Vec<&Instruction>> {
+    pub(in crate::ssa) fn instructions(
+        function: &Function,
+        block: BlockId,
+    ) -> Option<Vec<&Instruction>> {
         function
             .block(block)?
             .instructions

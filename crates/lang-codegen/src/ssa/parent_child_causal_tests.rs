@@ -327,7 +327,7 @@ mod binding_coverage {
         let (source, parsed) = unit_lower_test_support::parsed(
             &mut sources,
             "binding-coverage.ko",
-            crate::ssa::loan_region_ssa_tests::binding_causal_links::SOURCE,
+            crate::ssa::loan_region_ssa_tests::parent_child_coverage::binding_causal_links::SOURCE,
         );
         let (environment, types) = standard_environments();
         for input in [
@@ -367,7 +367,7 @@ mod binding_coverage {
                 });
                 let (program, entry) = lowered.unwrap();
                 verify_program(&program).unwrap();
-                crate::ssa::loan_region_ssa_tests::binding_causal_links::verify_binding_ssa(&program, entry, &routes);
+                crate::ssa::loan_region_ssa_tests::parent_child_coverage::binding_causal_links::verify_binding_ssa(&program, entry, &routes);
                 outputs.push((
                     crate::ssa::render_program(&program),
                     crate::llvm::render_verified_program(&program).unwrap(),
@@ -417,7 +417,8 @@ mod binding_coverage {
             );
             assert_eq!(region.source_call(), source_loan.call());
             assert_eq!(region.consumer_call(), used.loan().call());
-            let lang_frontend::ownership_checking::UnitLoanTarget::Place(place) = source_loan.target()
+            let lang_frontend::ownership_checking::UnitLoanTarget::Place(place) =
+                source_loan.target()
             else {
                 panic!("local owner root")
             };
@@ -543,7 +544,7 @@ mod binding_receipts {
         let (source, parsed) = unit_lower_test_support::parsed(
             &mut sources,
             "binding-coverage.ko",
-            crate::ssa::loan_region_ssa_tests::binding_causal_links::SOURCE,
+            crate::ssa::loan_region_ssa_tests::parent_child_coverage::binding_causal_links::SOURCE,
         );
         let (environment, types) = standard_environments();
         for input in [
@@ -588,7 +589,7 @@ mod binding_receipts {
                     });
                 let (program, entry) = lowered.unwrap();
                 verify_program(&program).unwrap();
-                crate::ssa::loan_region_ssa_tests::binding_causal_links::verify_binding_ssa(&program, entry, &routes);
+                crate::ssa::loan_region_ssa_tests::parent_child_coverage::binding_causal_links::verify_binding_ssa(&program, entry, &routes);
                 let caller = program.modules[0].function(entry).unwrap();
                 actual.push((
                     entry,
@@ -655,7 +656,8 @@ mod binding_receipts {
             );
             assert_eq!(region.source_call(), source_loan.call());
             assert_eq!(region.consumer_call(), used.loan().call());
-            let lang_frontend::ownership_checking::UnitLoanTarget::Place(place) = source_loan.target()
+            let lang_frontend::ownership_checking::UnitLoanTarget::Place(place) =
+                source_loan.target()
             else {
                 panic!("local owner root")
             };

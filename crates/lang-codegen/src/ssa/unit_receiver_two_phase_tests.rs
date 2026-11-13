@@ -239,9 +239,14 @@ fn receiver_two_phase_nested_borrow_this_ends_before_exclusive_delivery() {
 
 pub(in crate::ssa) mod range_receiver {
     //! Trusted source receivers use the same checked descriptor ABI as free producers.
+    use crate::ssa::model::{Operation, Origin};
     use crate::ssa::range_lowering_tests::*;
+    use crate::ssa::verify::verify_program;
+    use lang_frontend::{
+        name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
+    };
 
-    use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_return::ordinary_controls::range_receiver_count_break as count_break;
+    use crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::ordinary_controls::range_receiver_count_break as count_break;
 
     pub(in crate::ssa) const EXTENSIONS: &str = "borrow fun <T> List<T>.prefix(count:Int):View<T> from this=rangeView(this,0,count)\nborrow fun <T> View<T>.prefix(count:Int):View<T> from this=rangeView(this,0,count)";
 
@@ -278,8 +283,11 @@ pub(in crate::ssa) mod range_receiver {
     }
 
     #[test]
-    pub(in crate::ssa) fn range_receiver_source_native_single_and_reversed_unit_clean_exactly_once() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+    pub(in crate::ssa) fn range_receiver_source_native_single_and_reversed_unit_clean_exactly_once()
+    {
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         for (declaration, element, values, read, drops) in [
             (
                 "",
@@ -319,7 +327,8 @@ pub(in crate::ssa) mod range_receiver {
                     true,
                 ),
             ] {
-                let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                let llvm =
+                    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
                 let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2]);
                 assert_success(
                     &run,
@@ -330,7 +339,8 @@ pub(in crate::ssa) mod range_receiver {
     }
 
     #[test]
-    pub(in crate::ssa) fn range_receiver_source_count_control_flow_ends_receiver_before_early_return() {
+    pub(in crate::ssa) fn range_receiver_source_count_control_flow_ends_receiver_before_early_return()
+     {
         let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun scan(stop:Boolean):Unit{val source=listOf(Item(\"first\"),Item(\"second\"));read(source.prefix(if(stop){return}else{1}))}\nfun main():Unit{scan(false);scan(true)}";
         for (program, entry) in [
             memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
@@ -353,7 +363,8 @@ pub(in crate::ssa) mod range_receiver {
     }
 
     #[test]
-    pub(in crate::ssa) fn range_receiver_source_this_size_and_group_size_preserve_actual_view_extent() {
+    pub(in crate::ssa) fn range_receiver_source_this_size_and_group_size_preserve_actual_view_extent()
+     {
         let trusted = "borrow fun <T> List<T>.all():View<T> from this=rangeView(this,0,this.size)\nborrow fun <T> View<T>.all():View<T> from this=rangeView(this,0,(this).size)";
         let consumer = "fun read(view:View<String>):Unit{if(view.size!=2){error(\"size\")}}\nfun main():Unit{val source=listOf(\"first\",\"second\");borrow val parent=source.all();borrow val child=parent.all();read(child)}";
         for (program, entry) in [
@@ -365,15 +376,19 @@ pub(in crate::ssa) mod range_receiver {
             ),
         ] {
             let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-            let run =
-                crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
+            let run = crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(
+                &llvm,
+                &[0],
+            );
             crate::native_tests::boxed_enum_tests::assert_success(&run, b"");
         }
     }
 
     #[test]
     pub(in crate::ssa) fn range_receiver_source_temporary_chain_cleans_the_root_once() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun source():List<Item>{println(\"source\");return listOf(Item(\"first\"),Item(\"second\"))}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun main():Unit{read(source().prefix(2).prefix(1));println(\"done\")}";
         for (program, entry) in [
             memory_unit_with_entry(&format!("{EXTENSIONS}\n{consumer}")),
@@ -390,8 +405,11 @@ pub(in crate::ssa) mod range_receiver {
     }
 
     #[test]
-    pub(in crate::ssa) fn range_receiver_source_forwarded_nonzero_view_preserves_absolute_offsets() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+    pub(in crate::ssa) fn range_receiver_source_forwarded_nonzero_view_preserves_absolute_offsets()
+    {
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         let trusted = format!(
             "{EXTENSIONS}\nborrow fun <T> List<T>.window():View<T> from this=rangeView(this,1,2)\nborrow fun <T> View<T>.forward(count:Int):View<T> from this=this.prefix(count)"
         );
@@ -419,7 +437,8 @@ pub(in crate::ssa) mod range_receiver {
     }
 
     #[test]
-    pub(in crate::ssa) fn range_receiver_source_borrow_parameter_rebinds_across_nonreturn_count_branch() {
+    pub(in crate::ssa) fn range_receiver_source_borrow_parameter_rebinds_across_nonreturn_count_branch()
+     {
         let trusted = EXTENSIONS;
         let consumer = "fun read(view:View<String>):Unit{println(\"read\")}\nfun scan(source:List<String>,flag:Boolean):Unit{read((source).prefix(if(flag){1}else{0}))}\nfun scan_view(source:View<String>,flag:Boolean):Unit{read((source).prefix(if(flag){1}else{0}))}\nfun main():Unit{val root=listOf(\"first\");scan(root,true);scan(root,false);borrow val parent=root.prefix(1);scan_view(parent,true);scan_view(parent,false)}";
         for (program, entry) in [
@@ -431,9 +450,14 @@ pub(in crate::ssa) mod range_receiver {
             ),
         ] {
             let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-            let run =
-                crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
-            crate::native_tests::boxed_enum_tests::assert_success(&run, b"read\nread\nread\nread\n");
+            let run = crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(
+                &llvm,
+                &[0],
+            );
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &run,
+                b"read\nread\nread\nread\n",
+            );
         }
     }
 
@@ -445,7 +469,7 @@ pub(in crate::ssa) mod range_receiver {
         );
     }
 
-    enum UnitCfgFrontier<'a> {
+    pub(in crate::ssa) enum UnitCfgFrontier<'a> {
         Reject(&'a str),
         CountBreak,
     }
@@ -469,8 +493,12 @@ pub(in crate::ssa) mod range_receiver {
                 source,
                 &parsed,
             )];
-            let (names, typed, owned) =
-                crate::ssa::unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let (names, typed, owned) = crate::ssa::unit_lower_test_support::analyze(
+                &sources,
+                &inputs,
+                &environment,
+                &types,
+            );
             let lowered = crate::ssa::unit_lower::lower_scalar_unit_with_entry(
                 &sources,
                 &inputs,
@@ -501,7 +529,11 @@ pub(in crate::ssa) mod range_receiver {
                         source_unit.id(),
                         owned.ownership(),
                     );
-                    count_break::assert_count_break_structure(&sources, &program, receiver_begin_span);
+                    count_break::assert_count_break_structure(
+                        &sources,
+                        &program,
+                        receiver_begin_span,
+                    );
                     verify_program(&program).unwrap();
                     crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
                 }
@@ -647,8 +679,10 @@ pub(in crate::ssa) mod range_receiver {
     }
 
     #[test]
-    pub(in crate::ssa) fn real_std_receiver_take_preserves_nonzero_view_offsets_and_top_level_compatibility() {
-        let trusted = "fun window(source:List<String>):View<String> from source=rangeView(source,1,2)";
+    pub(in crate::ssa) fn real_std_receiver_take_preserves_nonzero_view_offsets_and_top_level_compatibility()
+     {
+        let trusted =
+            "fun window(source:List<String>):View<String> from source=rangeView(source,1,2)";
         let consumer = "fun read(view:View<String>):Unit{for(item in view){println(item)}}\nfun main():Unit{val root=listOf(\"first\".clone(),\"second\".clone());borrow val parent=window(root);borrow val child=parent.take(2147483647);read(child);read(take(child,1));read(child.take(0))}";
         for (program, entry) in [
             memory_unit_with_entry(&format!("{trusted}\n{consumer}")),
@@ -670,8 +704,11 @@ pub(in crate::ssa) mod range_receiver {
     }
 
     #[test]
-    pub(in crate::ssa) fn range_receiver_named_root_short_borrow_cleans_after_consumer_and_return() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+    pub(in crate::ssa) fn range_receiver_named_root_short_borrow_cleans_after_consumer_and_return()
+    {
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         for (declaration, element, values, read, drops) in [
             (
                 "",
@@ -709,8 +746,8 @@ pub(in crate::ssa) mod range_receiver {
                             true,
                         ),
                     ] {
-                        let llvm =
-                            crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
+                            .unwrap();
                         let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2, 4, 3, 5]);
                         let prefix = if reader.starts_with("for") {
                             "first\n"
@@ -737,15 +774,18 @@ pub(in crate::ssa) mod range_receiver {
         };
 
         let mut authorized_source = None;
-        let analysis =
-            UnitSource::analyze_with_type_environment("frontier.ko", text, |sources, source, types| {
+        let analysis = UnitSource::analyze_with_type_environment(
+            "frontier.ko",
+            text,
+            |sources, source, types| {
                 types.authorize_range_source(sources, source).unwrap();
                 types
                     .authorize_range_extension_source(sources, source)
                     .unwrap();
                 authorized_source = Some(source);
-            })
-            .unwrap_or_else(|error| panic!("original frontier MemoryDocument admission: {error:?}"));
+            },
+        )
+        .unwrap_or_else(|error| panic!("original frontier MemoryDocument admission: {error:?}"));
         analysis.assert_frontend_clean();
         assert!(analysis.ownership().deferred().is_empty());
         let parsed = analysis.parsed();
@@ -852,8 +892,9 @@ pub(in crate::ssa) mod range_receiver {
             }
             UnitCfgFrontier::CountBreak => None,
         };
-        let receiver_begin_span = matches!(frontier, UnitCfgFrontier::CountBreak)
-            .then(|| assert_count_break_products(sources, parsed, source.id(), analysis.ownership()));
+        let receiver_begin_span = matches!(frontier, UnitCfgFrontier::CountBreak).then(|| {
+            assert_count_break_products(sources, parsed, source.id(), analysis.ownership())
+        });
         let mut programs = Vec::new();
         for root in concrete {
             let lowered = analysis.lower_entry(root.id());

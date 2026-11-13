@@ -301,20 +301,12 @@ impl UnitExpressionLowerer<'_> {
 
 pub(in crate::ssa::unit_lower) mod nullable_if {
     //! Bounded nullable entries: root Borrow and heap Ifs.
-    pub(in crate::ssa::unit_lower) use crate::ssa::unit_lower::loop_control::heap_nullable_if::NamedNullableIfRoot;
 
-    use super::super::super::unwrap_modified;
-    use super::super::super::{
-        ExpressionCategory, Statement, nullable_proof::NullableProofScope, span_key,
-    };
+    use super::super::super::{Statement, nullable_proof::NullableProofScope};
     use super::super::*;
-    use crate::ssa::model::{LoanId, SsaTypeKind};
-    use lang_frontend::{
-        ownership_checking::{LoanKind as FrontendLoanKind, UnitLoanTarget},
-        parser::{BinaryOperator, Item},
-        type_checking::{
-            UnitCallableTarget, UnitExpressionId, UnitNullComparisonDescriptor, UnitTypeKind,
-        },
+    use crate::ssa::model::LoanId;
+    use lang_frontend::type_checking::{
+        UnitExpressionId, UnitNullComparisonDescriptor, UnitTypeKind,
     };
 
     #[derive(Clone, Copy)]
@@ -553,9 +545,9 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
 #[cfg(test)]
 mod result_tests {
     //! Contextual null delivery must not lend another control's result identity.
+    use crate::ssa::model::{Module, SsaTypeKind};
     use crate::ssa::unit_lower::control::*;
     use crate::ssa::unit_lower::*;
-    use crate::ssa::model::{Module, SsaTypeKind};
     use crate::ssa::unit_lower_test_support::{declaration, parsed};
     use lang_frontend::{
         name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
@@ -587,20 +579,26 @@ mod result_tests {
             let inputs = [SourceUnitInput::new("root", "p/guard.ko", source, &parsed)];
             let (names_environment, types_environment) = standard_environments();
             let index = index_compilation_unit(&sources, &inputs).unwrap();
-            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &names_environment)
-                .unwrap()
-                .validate()
-                .unwrap();
-            let typed =
-                check_compilation_unit_types(&sources, &inputs, &names, &types_environment).unwrap();
-            complete_compilation_unit_types(&sources, &inputs, &names, &types_environment, &typed)
-                .expect("ordinary source completes before any guard mutation");
-            let typed = typed.validate().unwrap();
-            let owned =
-                check_compilation_unit_ownership(&sources, &inputs, &names, &types_environment, &typed)
+            let names =
+                resolve_compilation_unit_names(&sources, &inputs, &index, &names_environment)
                     .unwrap()
                     .validate()
                     .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types_environment)
+                .unwrap();
+            complete_compilation_unit_types(&sources, &inputs, &names, &types_environment, &typed)
+                .expect("ordinary source completes before any guard mutation");
+            let typed = typed.validate().unwrap();
+            let owned = check_compilation_unit_ownership(
+                &sources,
+                &inputs,
+                &names,
+                &types_environment,
+                &typed,
+            )
+            .unwrap()
+            .validate()
+            .unwrap();
             let (program, entry) = crate::ssa::refine::with_per_family_lowering(|| {
                 lower_scalar_unit_with_entry(
                     &sources,
@@ -899,7 +897,10 @@ mod result_tests {
                     .find(|(expression, _)| {
                         let ty = lowerer
                             .typed
-                            .expression_type(UnitExpressionId::new(lowerer.source_unit, *expression))
+                            .expression_type(UnitExpressionId::new(
+                                lowerer.source_unit,
+                                *expression,
+                            ))
                             .unwrap();
                         matches!(lowerer.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
                     if builtin_type(lowerer.typed, *inner) == Some(builtin))

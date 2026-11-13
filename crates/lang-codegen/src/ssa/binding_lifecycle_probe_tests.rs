@@ -54,7 +54,6 @@ fn original_binding_lifecycle_records_real_actions_and_ssa() {
 
 pub(in crate::ssa) mod map_consume {
     //! The checked owned-local consume path; ordinary Map borrowing stays separate.
-    pub(in crate::ssa) use crate::ssa::rc_nullable_while_bounded_tests::memory_document::map_consume_nullable as nullable;
 
     use crate::ssa::lower_frontend::{nominal::NominalTypeMapper, *};
     use crate::ssa::model::{Definition, LoanKind, MapContainerKind, Module, SsaTypeKind};
@@ -79,7 +78,8 @@ pub(in crate::ssa) mod map_consume {
                 .source()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if descriptor.expression() != expression
-                || self.typed.expression_type(descriptor.receiver()) != Some(descriptor.receiver_type())
+                || self.typed.expression_type(descriptor.receiver())
+                    != Some(descriptor.receiver_type())
                 || self.typed.expression_type(expression) != Some(descriptor.result_type())
                 || self.typed.symbol_type(root) != Some(storage)
             {
@@ -160,9 +160,15 @@ pub(in crate::ssa) mod map_consume {
             Ok(LoweredValue::Value(value(results[0])))
         }
 
-        fn ensure_map_consume_delivery(&self, root: SymbolId, span: Span) -> Result<(), LoweringError> {
+        fn ensure_map_consume_delivery(
+            &self,
+            root: SymbolId,
+            span: Span,
+        ) -> Result<(), LoweringError> {
             self.reject_live_while_proof(root, span)?;
-            if self.non_null_bindings.contains_key(&root) || self.borrow_bindings.contains_key(&root) {
+            if self.non_null_bindings.contains_key(&root)
+                || self.borrow_bindings.contains_key(&root)
+            {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
             // Preserve the original gate, including its Boolean-entry compatibility.
@@ -355,7 +361,9 @@ pub(in crate::ssa) mod map_consume {
                     .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
                 match node.payload() {
                     Expression::Group { expression: inner } => expression = *inner,
-                    Expression::Name if self.references.get(&span_key(node.span())) == Some(&root) => {
+                    Expression::Name
+                        if self.references.get(&span_key(node.span())) == Some(&root) =>
+                    {
                         return Ok(());
                     }
                     _ => return Err(error(LoweringErrorKind::MissingFact, span)),
@@ -498,12 +506,14 @@ pub(in crate::ssa) mod map_consume {
             parser::{Expression, ParsedFile},
             source::Span,
             type_checking::{
-                BuiltinType, DeinitDescriptor, IntrinsicTypeConstructor, NominalKind, ParameterMode,
-                TypeId, TypeKind, TypedFile,
+                BuiltinType, DeinitDescriptor, IntrinsicTypeConstructor, NominalKind,
+                ParameterMode, TypeId, TypeKind, TypedFile,
             },
         };
 
-        use crate::ssa::lower_frontend::{LoweringError, LoweringErrorKind, error, nominal::NominalTypeMapper};
+        use crate::ssa::lower_frontend::{
+            LoweringError, LoweringErrorKind, error, nominal::NominalTypeMapper,
+        };
         use crate::ssa::model::{EntityType, FunctionId, LoanKind, Module, Origin};
 
         pub(in crate::ssa) struct DeinitPlan {
@@ -552,7 +562,8 @@ pub(in crate::ssa) mod map_consume {
                 }) {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 }
-                let owner = mapper.intern(module, names, typed, descriptor.receiver_type(), span)?;
+                let owner =
+                    mapper.intern(module, names, typed, descriptor.receiver_type(), span)?;
                 let receiver = EntityType::Loan {
                     kind: LoanKind::Shared,
                     target: owner,
@@ -724,7 +735,8 @@ pub(in crate::ssa) mod map_consume {
                 }
                 return Ok(LoweredValue::Value(value(results[0])));
             }
-            let AggregateProjectionReceiver::Expression(receiver_expression) = projection.receiver()
+            let AggregateProjectionReceiver::Expression(receiver_expression) =
+                projection.receiver()
             else {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             };
@@ -732,7 +744,10 @@ pub(in crate::ssa) mod map_consume {
                 .field_replace_ungroup(receiver_expression, span)
                 .ok()
                 .and_then(|receiver| self.parsed.ast().expressions().get(receiver).ok())
-                .and_then(|node| self.references.get(&crate::ssa::lower_frontend::span_key(node.span())));
+                .and_then(|node| {
+                    self.references
+                        .get(&crate::ssa::lower_frontend::span_key(node.span()))
+                });
             if receiver_root.is_some_and(|root| self.owned.loans().iter().any(|active| {
                 self.pending_call_loans.contains_key(&(active.call().index(), active.argument().index()))
                     && active.kind() == lang_frontend::ownership_checking::LoanKind::Exclusive

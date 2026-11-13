@@ -10,8 +10,8 @@ mod ast {
     use lang_frontend::{
         ast::{ExpressionId, StatementId},
         parser::{
-            Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker, ParameterModeMarker,
-            ParsedFile, Statement,
+            Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker,
+            ParameterModeMarker, ParsedFile, Statement,
         },
         source::{SourceMap, Span},
         type_checking::ParameterMode,
@@ -130,8 +130,9 @@ mod ast {
                 let Expression::Call { callee, .. } = n.payload() else {
                     return None;
                 };
-                (inside(n.span(), scope) && sources.slice(expression(parsed, *callee)) == Ok(wanted))
-                    .then_some(id)
+                (inside(n.span(), scope)
+                    && sources.slice(expression(parsed, *callee)) == Ok(wanted))
+                .then_some(id)
             }),
             "delivery actual source Call",
         )
@@ -334,15 +335,16 @@ mod facts {
         name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
         ownership_checking::{
             CompilationUnitOwnership, LoanKind, MapIterationComponent, OwnershipBindingKind,
-            UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget, UnitIterationSourceAccess,
-            UnitLoanTarget, UnitValueDeliveryKind, UnitValueDeliverySource,
+            UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget,
+            UnitIterationSourceAccess, UnitLoanTarget, UnitValueDeliveryKind,
+            UnitValueDeliverySource,
         },
         parser::{Expression, ParsedFile},
         source::SourceMap,
         type_checking::{
             BuiltinType, CallableResultSource, CompilationUnitTypes, ExpressionCategory,
-            IntrinsicTypeConstructor, ParameterMode, UnitCallTarget, UnitExpressionId, UnitStatementId,
-            UnitTypeKind,
+            IntrinsicTypeConstructor, ParameterMode, UnitCallTarget, UnitExpressionId,
+            UnitStatementId, UnitTypeKind,
         },
     };
 
@@ -481,7 +483,9 @@ mod facts {
             let drops = owned
                 .drops()
                 .iter()
-                .filter(|d| d.target() == UnitDropTarget::Temporary(expression(argument.expression)))
+                .filter(|d| {
+                    d.target() == UnitDropTarget::Temporary(expression(argument.expression))
+                })
                 .collect::<Vec<_>>();
             let deliveries = owned
                 .value_deliveries()
@@ -610,9 +614,9 @@ mod facts {
                 "delivery qualified actual control root",
             )?;
             let size_id = input.size.unwrap();
-            let size = typed
-                .map_size(expression(size_id))
-                .ok_or_else(|| failure("delivery qualified actual control size descriptor", size_id))?;
+            let size = typed.map_size(expression(size_id)).ok_or_else(|| {
+                failure("delivery qualified actual control size descriptor", size_id)
+            })?;
             let Expression::Member { receiver, .. } =
                 parsed.ast().expressions().get(size_id).unwrap().payload()
             else {
@@ -645,7 +649,10 @@ mod facts {
                 drop.value_origin() == input.control_root.unwrap()
                     && drop.point()
                         == if resource {
-                            UnitDropPoint::AfterStatement(UnitStatementId::new(unit, input.entry.body))
+                            UnitDropPoint::AfterStatement(UnitStatementId::new(
+                                unit,
+                                input.entry.body,
+                            ))
                         } else {
                             UnitDropPoint::CallReturn(size.expression())
                         },
@@ -656,7 +663,7 @@ mod facts {
         Ok(())
     }
 }
-pub(crate) mod graph;
+mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},

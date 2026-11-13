@@ -55,7 +55,8 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod factory {
             .slice(root_marker)
             .map_err(|e| failure("argument factory actual root", e))?;
         let receiver = |id| -> Result<(), Failure> {
-            let Expression::Call { callee, .. } = parsed.ast().expressions().get(id).unwrap().payload()
+            let Expression::Call { callee, .. } =
+                parsed.ast().expressions().get(id).unwrap().payload()
             else {
                 return Err(failure("argument factory source member Call", id));
             };
@@ -422,7 +423,8 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod provider {
                 &[EntityId::Value(initial.cursor), result(next)?],
             )?;
             need(
-                g.function.entity(EntityId::Value(frame.owner)).unwrap().ty == EntityType::Value(map)
+                g.function.entity(EntityId::Value(frame.owner)).unwrap().ty
+                    == EntityType::Value(map)
                     && g.function.entity(EntityId::Loan(frame.source)).unwrap().ty
                         == EntityType::Loan {
                             kind: LoanKind::Shared,

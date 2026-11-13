@@ -1,7 +1,7 @@
 //! Real local formation and Move sources; red observations precede capability changes.
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 // The input flag selects rooted Unit or MemoryDocument Unit, never Legacy lowering.
-pub(in crate::ssa) mod boundaries;
+mod boundaries;
 pub(super) use boundaries::formation;
 pub(crate) use boundaries::{alias_rebound_source, sources as alternate_sources};
 pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts;
@@ -169,7 +169,9 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod owner_flow {
                         continue;
                     }
                     let live = match operand {
-                        EntityId::Value(_) => state.current.values().any(|&current| current == operand),
+                        EntityId::Value(_) => {
+                            state.current.values().any(|&current| current == operand)
+                        }
                         EntityId::Loan(_) => state.loans.contains_key(&operand),
                         EntityId::Place(_) => state
                             .places
@@ -206,10 +208,10 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod owner_flow {
                     Operation::BorrowBegin { place, .. }
                         if map_entity(module, graph, EntityId::Place(*place)) =>
                     {
-                        let (seed, _) = *state
-                            .places
-                            .get(&EntityId::Place(*place))
-                            .ok_or_else(|| failure("Unit owner flow real Map borrow root", place))?;
+                        let (seed, _) =
+                            *state.places.get(&EntityId::Place(*place)).ok_or_else(|| {
+                                failure("Unit owner flow real Map borrow root", place)
+                            })?;
                         let loan = result(instruction)?;
                         need(
                             matches!(loan, EntityId::Loan(_))
@@ -223,10 +225,9 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod owner_flow {
                     Operation::SharedReborrow { source }
                         if map_entity(module, graph, EntityId::Loan(*source)) =>
                     {
-                        let seed = *state
-                            .loans
-                            .get(&EntityId::Loan(*source))
-                            .ok_or_else(|| failure("Unit owner flow reborrow live parent", source))?;
+                        let seed = *state.loans.get(&EntityId::Loan(*source)).ok_or_else(|| {
+                            failure("Unit owner flow reborrow live parent", source)
+                        })?;
                         let loan = result(instruction)?;
                         need(
                             matches!(loan, EntityId::Loan(_))
@@ -258,17 +259,18 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod owner_flow {
                         receiver,
                         arguments,
                     } => {
-                        let target = module
-                            .function(*callee)
-                            .ok_or_else(|| failure("Unit owner flow actual selected callee", callee))?;
-                        let parameters = &target
-                            .block(
-                                target
-                                    .entry_block()
-                                    .ok_or_else(|| failure("Unit owner flow callee entry", callee))?,
-                            )
-                            .ok_or_else(|| failure("Unit owner flow real callee entry block", callee))?
-                            .parameters;
+                        let target = module.function(*callee).ok_or_else(|| {
+                            failure("Unit owner flow actual selected callee", callee)
+                        })?;
+                        let parameters =
+                            &target
+                                .block(target.entry_block().ok_or_else(|| {
+                                    failure("Unit owner flow callee entry", callee)
+                                })?)
+                                .ok_or_else(|| {
+                                    failure("Unit owner flow real callee entry block", callee)
+                                })?
+                                .parameters;
                         let actual = receiver
                             .iter()
                             .copied()

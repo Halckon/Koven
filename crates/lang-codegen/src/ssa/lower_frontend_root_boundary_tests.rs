@@ -96,7 +96,7 @@ pub(in crate::ssa) mod map_iteration_resource {
     //! An owned Resource Map retains its real parameter or formed birth through lexical cleanup.
     //! Presence is proved from Parameter -> Header -> Exit incoming values, never a bit alone.
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
     use lang_frontend::{
         ownership_checking::{
             CleanupCondition, CleanupOwnerValue, DropFact, DropTarget, IterationPhiBoundary,
@@ -185,7 +185,8 @@ pub(in crate::ssa) mod map_iteration_resource {
         if drops.len() != 1 + usize::from(returning.is_some()) {
             return Err(unsupported());
         }
-        let drop = unique(drops.iter().copied().filter(|d| Some(*d) != transfer)).ok_or_else(bad)?;
+        let drop =
+            unique(drops.iter().copied().filter(|d| Some(*d) != transfer)).ok_or_else(bad)?;
         if !normal_point(parsed, scope, span, drop.point())
             && !formed::replacement_point(birth, drop.point())
         {
@@ -252,7 +253,9 @@ pub(in crate::ssa) mod map_iteration_resource {
                     IterationExitKind::Continue(expression) => {
                         IterationPhiIncomingKind::Continue(expression)
                     }
-                    IterationExitKind::Break(expression) => IterationPhiIncomingKind::Break(expression),
+                    IterationExitKind::Break(expression) => {
+                        IterationPhiIncomingKind::Break(expression)
+                    }
                     _ => IterationPhiIncomingKind::Fallthrough,
                 },
                 backedge.point(),
@@ -271,10 +274,13 @@ pub(in crate::ssa) mod map_iteration_resource {
             }
         }
         if let Some(fact) = transfer {
-            if fact.owner() != Some(h.owner()) || fact.condition() != Some(h.availability_condition()) {
+            if fact.owner() != Some(h.owner())
+                || fact.condition() != Some(h.availability_condition())
+            {
                 return Err(bad());
             }
-            let exit = unique(plan.exits().iter().filter(|e| e.kind() == body_exit)).ok_or_else(bad)?;
+            let exit =
+                unique(plan.exits().iter().filter(|e| e.kind() == body_exit)).ok_or_else(bad)?;
             let suffix = [
                 IterationCleanupAction::EndBinding {
                     statement: d.statement(),
@@ -523,7 +529,6 @@ pub(in crate::ssa) mod map_iteration_resource {
         //! Finite all-incoming transport and the real size-result/control continuation.
         use crate::ssa::lower_frontend::map_iteration::local_runtime::*;
         use crate::ssa::lower_frontend::map_iteration::*;
-        use crate::ssa::lower_frontend::*;
 
         pub(in crate::ssa) fn edges(
             evidence: carrier::Evidence<'_>,
@@ -642,7 +647,8 @@ pub(in crate::ssa) mod map_iteration_resource {
                 .get(&FunctionInstanceKey::new(callee, Vec::new()))
                 .ok_or_else(missing)?;
             let body = evidence.blocks[2];
-            let instructions = carrier::instructions(evidence.function, body).ok_or_else(missing)?;
+            let instructions =
+                carrier::instructions(evidence.function, body).ok_or_else(missing)?;
             let (call_position, actual) =
                 unique(instructions.iter().enumerate().filter(|(_, instruction)| {
                     matches!(instruction.operation, Operation::DirectCall { .. })
@@ -653,7 +659,10 @@ pub(in crate::ssa) mod map_iteration_resource {
                     != (Operation::DirectCall {
                         callee,
                         receiver: None,
-                        arguments: vec![EntityId::Loan(evidence.key), EntityId::Loan(evidence.value)],
+                        arguments: vec![
+                            EntityId::Loan(evidence.key),
+                            EntityId::Loan(evidence.value),
+                        ],
                     })
             {
                 return Err(missing());
@@ -674,7 +683,8 @@ pub(in crate::ssa) mod map_iteration_resource {
                 .block(body)
                 .ok_or_else(missing)?
                 .parameters;
-            let (source, cursor) = roles(parameters, evidence.source_slot, evidence.cursor_slot, span)?;
+            let (source, cursor) =
+                roles(parameters, evidence.source_slot, evidence.cursor_slot, span)?;
             let mut counts = [0; 3];
             for instruction in &instructions {
                 match instruction.operation {
@@ -692,18 +702,16 @@ pub(in crate::ssa) mod map_iteration_resource {
             let value_end = position(Operation::BorrowEnd {
                 loan: evidence.value,
             })?;
-            let key_end = position(Operation::BorrowEnd {
-                loan: evidence.key,
-            })?;
+            let key_end = position(Operation::BorrowEnd { loan: evidence.key })?;
             let next = position(Operation::MapIterationNext { source, cursor })?;
             if key >= call_position
                 || value >= call_position
                 || call_position >= value_end
                 || value_end >= key_end
                 || key_end >= next
-                || instructions
-                    .iter()
-                    .any(|instruction| instruction.operation == Operation::BorrowEnd { loan: source })
+                || instructions.iter().any(|instruction| {
+                    instruction.operation == Operation::BorrowEnd { loan: source }
+                })
                 || lowerer
                     .borrow_bindings
                     .values()
@@ -726,7 +734,8 @@ pub(in crate::ssa) mod map_iteration_resource {
             .ok_or_else(missing)?;
             validate_consumption(lowerer.function, previous, span)?;
             let size = previous.size.ok_or_else(missing)?;
-            let (control, condition, success, failure) = size_control(lowerer, path.size, size, span)?;
+            let (control, condition, success, failure) =
+                size_control(lowerer, path.size, size, span)?;
             if control != path.control
                 || condition != path.condition
                 || success != path.success
@@ -746,7 +755,8 @@ pub(in crate::ssa) mod map_iteration_resource {
                 return Err(missing());
             }
             let incoming = nested::incoming(lowerer.function, lowerer.block);
-            if !matches!(incoming.as_slice(), [(from, edge)] if *from == block && *edge == when_true) {
+            if !matches!(incoming.as_slice(), [(from, edge)] if *from == block && *edge == when_true)
+            {
                 return Err(missing());
             }
             Ok(())
@@ -901,8 +911,8 @@ pub(in crate::ssa) mod map_iteration_resource {
             {
                 return Err(missing());
             }
-            let comparison =
-                carrier::definition(lowerer.function, EntityId::Value(*result)).ok_or_else(missing)?;
+            let comparison = carrier::definition(lowerer.function, EntityId::Value(*result))
+                .ok_or_else(missing)?;
             let condition_node = lowerer
                 .parsed
                 .ast()

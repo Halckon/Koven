@@ -1,5 +1,6 @@
 //! Read-only proof for the empty-Map factory's ordinary argument CFG and hidden owner.
-#[allow(unused_imports)] pub(in crate::ssa) use provider::argument;
+#[allow(unused_imports)]
+pub(in crate::ssa) use provider::argument;
 mod ast {
     //! Exact ordinary source Call and argument If; independent of expression arena slots.
     use super::*;
@@ -50,7 +51,8 @@ mod ast {
         let scan = one(
             parsed.roots().iter().filter_map(|id| {
                 let n = parsed.ast().items().get(*id).ok()?;
-                (inside(call, n.span()) && matches!(n.payload(), Item::Function { .. })).then_some(n)
+                (inside(call, n.span()) && matches!(n.payload(), Item::Function { .. }))
+                    .then_some(n)
             }),
             "actual containing scanner declaration",
         )?;
@@ -103,7 +105,8 @@ mod ast {
         need(
             p.mode_marker.is_none()
                 && sources.slice(factory_parameter) == Ok("input")
-                && sources.slice(parsed.ast().type_refs().get(p.type_ref).unwrap().span()) == Ok("Int"),
+                && sources.slice(parsed.ast().type_refs().get(p.type_ref).unwrap().span())
+                    == Ok("Int"),
             "factory original Borrow Int syntax",
             p,
         )?;
@@ -333,7 +336,8 @@ mod wrapper {
                 else {
                     return None;
                 };
-                (sources.slice(*name) == Ok("entry") && parameters.is_empty()).then_some(node.span())
+                (sources.slice(*name) == Ok("entry") && parameters.is_empty())
+                    .then_some(node.span())
             }),
             "runtime wrapper actual zeroarg entry declaration",
         )?;

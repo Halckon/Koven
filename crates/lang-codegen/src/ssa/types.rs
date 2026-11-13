@@ -507,10 +507,10 @@ mod closure_runtime_tests {
                 .find(|function| function.name.contains(".thunk"))
                 .expect("the selected constructor initializer has a concrete thunk");
             assert!(
-                thunk
-                    .instructions
-                    .iter()
-                    .any(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. })),
+                thunk.instructions.iter().any(|instruction| matches!(
+                    instruction.operation,
+                    Operation::HeapAllocate { .. }
+                )),
                 "each logical callback returns a fresh complete Resource owner"
             );
             assert!(
@@ -577,7 +577,9 @@ mod closure_runtime_tests {
         let formations = entry
             .instructions
             .iter()
-            .filter(|instruction| matches!(instruction.operation, Operation::ClosureConstruct { .. }))
+            .filter(|instruction| {
+                matches!(instruction.operation, Operation::ClosureConstruct { .. })
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             formations.len(),
@@ -672,7 +674,9 @@ mod closure_runtime_tests {
         let checked = function
             .instructions
             .iter()
-            .filter(|instruction| matches!(instruction.operation, Operation::CheckedArithmetic { .. }))
+            .filter(|instruction| {
+                matches!(instruction.operation, Operation::CheckedArithmetic { .. })
+            })
             .collect::<Vec<_>>();
         assert_eq!(checked.len(), 1);
         let checked = checked[0];
@@ -821,7 +825,8 @@ mod closure_runtime_tests {
             &file,
         )];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let construction = &typed.types().container_constructions()[0];
         let Expression::Call { arguments, .. } = file
             .ast()
@@ -892,7 +897,8 @@ mod closure_runtime_tests {
             &file,
         )];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let arena = typed.types().types().len();
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
@@ -910,13 +916,14 @@ mod closure_runtime_tests {
             .find(|function| function.name.contains("test.verify"))
             .expect("selected verifier body");
         assert!(
-            verify
-                .instructions
-                .iter()
-                .any(|instruction| matches!(instruction.operation, Operation::HeapFieldRead { .. })),
+            verify.instructions.iter().any(|instruction| matches!(
+                instruction.operation,
+                Operation::HeapFieldRead { .. }
+            )),
             "reading a Copyable field must retain the complete Resource receiver loan"
         );
-        crate::llvm::render_verified_program(&program).expect("borrowed resource field reaches LLVM");
+        crate::llvm::render_verified_program(&program)
+            .expect("borrowed resource field reaches LLVM");
         assert_eq!(typed.types().types().len(), arena);
     }
 
@@ -970,7 +977,8 @@ mod closure_runtime_tests {
                     .instructions
                     .iter()
                     .any(|instruction| instruction.results.iter().any(|&result| {
-                        let Some(EntityType::Value(ty)) = thunk.entity(result).map(|entity| entity.ty)
+                        let Some(EntityType::Value(ty)) =
+                            thunk.entity(result).map(|entity| entity.ty)
                         else {
                             return false;
                         };
@@ -981,7 +989,8 @@ mod closure_runtime_tests {
                     })),
                 "each callback preserves the captured Resource and String owners"
             );
-            crate::llvm::render_verified_program(&program).expect("capture field loan reaches LLVM");
+            crate::llvm::render_verified_program(&program)
+                .expect("capture field loan reaches LLVM");
             assert_eq!(typed.types().types().len(), arena);
         }
     }

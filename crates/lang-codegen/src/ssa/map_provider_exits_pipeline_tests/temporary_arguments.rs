@@ -49,7 +49,10 @@ pub(super) mod ast {
         parsed.ast().expressions().get(id).unwrap().span()
     }
 
-    pub(in crate::ssa::map_provider_exits_pipeline_tests) fn inside(inner: Span, outer: Span) -> bool {
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) fn inside(
+        inner: Span,
+        outer: Span,
+    ) -> bool {
         inner.source_id() == outer.source_id()
             && inner.start() > outer.start()
             && inner.end() < outer.end()
@@ -79,7 +82,8 @@ pub(super) mod ast {
                     (None, []) => None,
                     (Some(wanted), [p])
                         if p.mode_marker.is_none()
-                            && sources.slice(parsed.ast().type_refs().get(p.type_ref).ok()?.span())
+                            && sources
+                                .slice(parsed.ast().type_refs().get(p.type_ref).ok()?.span())
                                 == Ok(wanted) =>
                     {
                         let NameMarker::Present(name) = p.name else {
@@ -253,16 +257,16 @@ pub(super) mod facts {
     use lang_frontend::{
         name_resolution::{UnitReferenceTarget, ValidatedCompilationUnitNames},
         ownership_checking::{
-            CompilationUnitOwnership, LoanKind, OwnershipBindingKind, UnitDropPoint, UnitDropTarget,
-            UnitIterationCleanupAction as UA, UnitIterationExitKind as UE, UnitIterationSourceAccess,
-            UnitLoanTarget,
+            CompilationUnitOwnership, LoanKind, OwnershipBindingKind, UnitDropPoint,
+            UnitDropTarget, UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
+            UnitIterationSourceAccess, UnitLoanTarget,
         },
         parser::ParsedFile,
         source::{SourceMap, Span},
         type_checking::{
             BuiltinType, CallableResultSource, CompilationUnitTypes, ExpressionCategory,
-            IntrinsicTypeConstructor, ParameterMode, UnitCallTarget, UnitExpressionId, UnitStatementId,
-            UnitTypeKind,
+            IntrinsicTypeConstructor, ParameterMode, UnitCallTarget, UnitExpressionId,
+            UnitStatementId, UnitTypeKind,
         },
     };
 
@@ -442,10 +446,9 @@ pub(super) mod facts {
         // query proves the original Call birth, every directed current-role edge,
         // exact retirement and complete owner/lease/place definition inventory.
         let drop = one(
-            owned
-                .drops()
-                .iter()
-                .filter(|drop| drop.target() == UnitDropTarget::Temporary(expression(input.produce))),
+            owned.drops().iter().filter(|drop| {
+                drop.target() == UnitDropTarget::Temporary(expression(input.produce))
+            }),
             "argument qualified unique hidden owner Drop",
         )?;
         need(

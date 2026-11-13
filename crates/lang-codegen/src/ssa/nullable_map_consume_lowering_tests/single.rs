@@ -15,7 +15,7 @@ pub(super) fn observe_consume_identity(case: &Case, trace: &mut Trace) -> Outcom
 
 pub(in crate::ssa) mod map_loop_unit_contract {
     //! Exact Named cleanup and latest Map generation across the original for CFG.
-    use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::unit_identity::*;
+    use crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::unit_identity::*;
     use crate::ssa::model::{EntityType, LoanKind, SsaTypeKind};
     use lang_frontend::ownership_checking::{
         UnitDropPoint, UnitIterationCleanupAction as Action, UnitIterationExitKind,
@@ -196,7 +196,10 @@ pub(in crate::ssa) mod map_loop_unit_contract {
         };
         assert_eq!(
             one(&fallthrough, "one real body fallthrough").point(),
-            UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), *loop_body))
+            UnitDropPoint::AfterStatement(UnitStatementId::new(
+                statement.source_unit(),
+                *loop_body
+            ))
         );
         assert_eq!(
             exits
@@ -283,7 +286,9 @@ pub(in crate::ssa) mod map_loop_unit_contract {
         let continue_spans = exits
             .iter()
             .filter_map(|exit| match exit.kind() {
-                UnitIterationExitKind::Continue(expression) => Some(expression_span(unit, expression)),
+                UnitIterationExitKind::Continue(expression) => {
+                    Some(expression_span(unit, expression))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -384,12 +389,12 @@ pub(in crate::ssa) mod map_loop_unit_contract {
         }).count(), 1);
     }
 
-    pub(in super::super) fn check_original(text: &str) {
+    pub(in crate::ssa) fn check_original(text: &str) {
         let (unit, program, _) = lower(text, &["main"]);
         map_protocol(&unit, &program, "main", Cleanup::Dead, false);
     }
 
-    pub(in super::super) fn check_normal(text: &str) {
+    pub(in crate::ssa) fn check_normal(text: &str) {
         let (unit, program, _) = lower(
             text,
             &["main", "removeDead", "removeLive", "putDead", "putLive"],
@@ -413,7 +418,7 @@ pub(in crate::ssa) mod map_loop_unit_contract {
         );
     }
 
-    pub(in super::super) fn check_resource(text: &str) {
+    pub(in crate::ssa) fn check_resource(text: &str) {
         let (unit, program, _) = lower(text, &["main"]);
         map_protocol(&unit, &program, "main", Cleanup::Resource, false);
         let scope = declaration_span(&unit, "main");
@@ -484,7 +489,7 @@ pub(in crate::ssa) mod map_loop_unit_contract {
 
     pub(in crate::ssa) mod source_contract {
         //! Owned source presence is checked at each actual provider edge and cleanup.
-        use super::super::*;
+        use super::*;
         use crate::ssa::model::{BinaryOperator, ComparisonOperator, ScalarConstant};
         use lang_frontend::ownership_checking::{
             UnitDropPoint, UnitIterationCleanupAction as Action, UnitIterationExitKind,
@@ -492,14 +497,20 @@ pub(in crate::ssa) mod map_loop_unit_contract {
         };
 
         #[derive(Clone, Copy)]
-        pub(in super::super::super) enum SourceScenario {
+        pub(in crate::ssa) enum SourceScenario {
             NamedAfterUse,
             NamedLoopExit,
             Temporary,
             Providers,
         }
 
-        fn source_protocol(unit: &UnitSource, program: &Program, name: &str, after_use: bool, named: bool) {
+        fn source_protocol(
+            unit: &UnitSource,
+            program: &Program,
+            name: &str,
+            after_use: bool,
+            named: bool,
+        ) {
             let scope = declaration_span(unit, name);
             let function = function_at(program, scope);
             let plan = iteration(unit, scope);
@@ -627,7 +638,8 @@ pub(in crate::ssa) mod map_loop_unit_contract {
                         .iter()
                         .enumerate()
                         .filter_map(|(index, action)| {
-                            matches!(action, Action::Drop(fact) if fact.target() == target).then_some(index)
+                            matches!(action, Action::Drop(fact) if fact.target() == target)
+                                .then_some(index)
                         })
                         .collect::<Vec<_>>();
                     if after_use {
@@ -636,7 +648,8 @@ pub(in crate::ssa) mod map_loop_unit_contract {
                         assert!(end < *one(&dropping, "EndSource precedes exact source Drop"));
                     }
                 } else {
-                    fallthrough_seen += usize::from(exit.kind() == UnitIterationExitKind::Fallthrough);
+                    fallthrough_seen +=
+                        usize::from(exit.kind() == UnitIterationExitKind::Fallthrough);
                     assert!(exit.actions().contains(&Action::EndElement(statement)));
                     assert!(exit.actions().iter().all(|action| {
                         !matches!(action, Action::EndSource(id) | Action::FinishProvider(id) if *id == statement)
@@ -758,8 +771,9 @@ pub(in crate::ssa) mod map_loop_unit_contract {
             let continue_span = expression_span(unit, continue_expression);
             let mut continue_edges = 0;
             for (block, edge) in &cfg.backedges {
-                continue_edges +=
-                    usize::from(block.terminator.as_ref().unwrap().origin == Origin::Source(continue_span));
+                continue_edges += usize::from(
+                    block.terminator.as_ref().unwrap().origin == Origin::Source(continue_span),
+                );
                 transported(function, edge.arguments[owner_slot], header_owner);
                 transported(function, edge.arguments[loan_slot], header_loan);
                 transported(function, edge.arguments[length_slot], header_length);
@@ -883,7 +897,8 @@ pub(in crate::ssa) mod map_loop_unit_contract {
                 for edge in edges(exhausted) {
                     assert!(
                         edge.arguments.iter().all(|entity| {
-                            transport_roots(function, *entity, &BTreeSet::from([exhausted_owner])).is_none()
+                            transport_roots(function, *entity, &BTreeSet::from([exhausted_owner]))
+                                .is_none()
                         }),
                         "cleaned source does not reappear after loop exit"
                     );
@@ -891,7 +906,7 @@ pub(in crate::ssa) mod map_loop_unit_contract {
             }
         }
 
-        pub(in super::super::super) fn check_source(text: &str, scenario: SourceScenario) {
+        pub(in crate::ssa) fn check_source(text: &str, scenario: SourceScenario) {
             let providers = [
                 "main",
                 "namedArray",
@@ -907,7 +922,8 @@ pub(in crate::ssa) mod map_loop_unit_contract {
                 &["main"]
             };
             let text = &crate::test_support::per_family_source(text);
-            let (unit, program, _) = crate::ssa::with_per_family_lowering(|| lower(text, functions));
+            let (unit, program, _) =
+                crate::ssa::with_per_family_lowering(|| lower(text, functions));
             let cases: &[(&str, bool, bool, bool)] = match scenario {
                 SourceScenario::NamedAfterUse => &[("main", true, false, true)],
                 SourceScenario::NamedLoopExit => &[("main", false, true, true)],
@@ -924,7 +940,13 @@ pub(in crate::ssa) mod map_loop_unit_contract {
             for (name, after_use, has_map, named) in cases {
                 source_protocol(&unit, &program, name, *after_use, *named);
                 if *has_map {
-                    map_contract::map_protocol(&unit, &program, name, map_contract::Cleanup::Live, true);
+                    map_contract::map_protocol(
+                        &unit,
+                        &program,
+                        name,
+                        map_contract::Cleanup::Live,
+                        true,
+                    );
                 }
             }
             if matches!(scenario, SourceScenario::Providers) {

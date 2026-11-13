@@ -116,8 +116,8 @@ mod capture_proof_tests {
         verify_program(&valid)
             .expect("dropping a reborrowed capture leaves the original proof for take");
         let (invalid, value, take) = nullable_capture(false);
-        let errors =
-            verify_program(&invalid).expect_err("take cannot consume an active environment's proof");
+        let errors = verify_program(&invalid)
+            .expect_err("take cannot consume an active environment's proof");
         assert!(
             errors.errors.iter().any(|error| {
                 error.kind == VerifyErrorKind::OwnerLoanConflict { value }
@@ -218,7 +218,8 @@ mod capture_proof_tests {
 
     #[test]
     fn copyable_nullable_take_rejects_a_live_proof_descendant() {
-        verify_program(&copyable_proof(true).0).expect("take may end the proof after its child ends");
+        verify_program(&copyable_proof(true).0)
+            .expect("take may end the proof after its child ends");
         let (invalid, parent, dependent) = copyable_proof(false);
         let errors = verify_program(&invalid).expect_err("take must keep the live child dependent");
         assert!(
@@ -229,7 +230,7 @@ mod capture_proof_tests {
         );
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::sequential_for_lowering_tests::cleanup_tests::transport as transport;
+mod transport;
 
 use lang_frontend::source::SourceMap;
 

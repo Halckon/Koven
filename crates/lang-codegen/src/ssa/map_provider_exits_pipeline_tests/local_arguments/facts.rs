@@ -10,7 +10,10 @@ mod route {
         pub begin: Span,
         pub end: Span,
     }
-    fn symbol_span(names: &ValidatedCompilationUnitNames, id: UnitSymbolId) -> Result<Span, Failure> {
+    fn symbol_span(
+        names: &ValidatedCompilationUnitNames,
+        id: UnitSymbolId,
+    ) -> Result<Span, Failure> {
         names
             .names()
             .source_units()

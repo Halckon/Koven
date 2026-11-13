@@ -162,12 +162,12 @@ pub(in crate::ssa) mod callable_plan_tests {
     use std::collections::BTreeSet;
 
     pub(in crate::ssa) struct Fixture {
-        sources: SourceMap,
-        parsed: ParsedFile,
-        names: NameResolution,
-        typed: TypedFile,
-        owned: OwnershipCheckedFile,
-        templates: Vec<FunctionTemplate>,
+        pub(in crate::ssa) sources: SourceMap,
+        pub(in crate::ssa) parsed: ParsedFile,
+        pub(in crate::ssa) names: NameResolution,
+        pub(in crate::ssa) typed: TypedFile,
+        pub(in crate::ssa) owned: OwnershipCheckedFile,
+        pub(in crate::ssa) templates: Vec<FunctionTemplate>,
     }
 
     impl Fixture {
@@ -268,7 +268,12 @@ pub(in crate::ssa) mod callable_plan_tests {
             plan_instances(&self.parsed, &self.typed, &self.owned, &self.templates, &[])
         }
 
-        pub(in crate::ssa) fn assert_count(&self, plan: &FunctionInstancePlan, name: &str, count: usize) {
+        pub(in crate::ssa) fn assert_count(
+            &self,
+            plan: &FunctionInstancePlan,
+            name: &str,
+            count: usize,
+        ) {
             let symbol = self.symbol(name);
             let keys = plan
                 .instances()
@@ -684,5 +689,4 @@ pub(in crate::ssa) mod callable_plan_tests {
             .expect("1025 uses of one full key only occupy one source budget slot");
         fixture.assert_count(&plan, "helper", 1);
     }
-
 }

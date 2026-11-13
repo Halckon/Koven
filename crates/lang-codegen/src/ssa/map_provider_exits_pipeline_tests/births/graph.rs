@@ -129,7 +129,8 @@ mod callable {
     ) -> Result<(), Failure> {
         let actual_factory =
             temporary_arguments::ast::function(sources, parsed, "produce", Some("Int"))?;
-        let actual_argument = temporary_arguments::ast::function(sources, parsed, "argument", None)?;
+        let actual_argument =
+            temporary_arguments::ast::function(sources, parsed, "argument", None)?;
         let factory = function(module, actual_factory.span)?;
         let argument = function(module, actual_argument.span)?;
         let g = Graph::new(thunk)?;
@@ -690,7 +691,8 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod provider {
                 &[result(first)?, result(next)?],
             )?;
             need(
-                g.function.entity(EntityId::Value(roles.owner)).unwrap().ty == EntityType::Value(map)
+                g.function.entity(EntityId::Value(roles.owner)).unwrap().ty
+                    == EntityType::Value(map)
                     && g.function.entity(EntityId::Loan(roles.source)).unwrap().ty
                         == EntityType::Loan {
                             kind: LoanKind::Shared,

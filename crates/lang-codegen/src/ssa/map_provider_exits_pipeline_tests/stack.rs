@@ -6,7 +6,8 @@ mod runtime {
     //! Nonempty and independently empty execution paths, without relying on entry destruction order.
     use super::Case;
 
-    pub(super) const OUTER: [(&str, &str); 2] = [("outer-a", "outer-first"), ("outer-b", "outer-last")];
+    pub(super) const OUTER: [(&str, &str); 2] =
+        [("outer-a", "outer-first"), ("outer-b", "outer-last")];
     const INNER: [(&str, &str); 2] = [("inner-a", "inner-first"), ("inner-stop", "inner-last")];
 
     pub(super) fn maker(name: &str, kind: &str, resource: bool, pairs: &[(&str, &str)]) -> String {

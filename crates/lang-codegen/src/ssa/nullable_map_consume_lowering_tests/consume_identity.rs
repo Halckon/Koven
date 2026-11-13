@@ -296,7 +296,10 @@ mod llvm {
                 .map_err(|error| missing("LLVM source field index", error))?;
             gate(
                 "consume identity: exact unchanged source field, including buffer",
-                scalar_ty == fields[field] && base_ty == source_ty && base == source && index == field,
+                scalar_ty == fields[field]
+                    && base_ty == source_ty
+                    && base == source
+                    && index == field,
                 (aggregate, field, rhs),
             )
         }
@@ -413,7 +416,7 @@ mod llvm {
         )
     }
 }
-pub(in crate::ssa) mod source;
+mod source;
 mod unit;
 
 pub(super) use unit::facts as unit_facts;

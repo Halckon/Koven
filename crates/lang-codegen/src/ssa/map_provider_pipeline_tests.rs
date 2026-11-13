@@ -19,7 +19,7 @@ mod fixture {
     pub(super) const FOR_TEXT: &str = "for ((key, value) in source) {\n    read(key, value)\n  }";
 
     #[derive(Debug)]
-    pub(super) struct Failure {
+    pub(in crate::ssa) struct Failure {
         pub stage: &'static str,
         pub original: String,
     }
@@ -97,7 +97,7 @@ mod fixture {
         failure("SSA verifier", (errors, locations))
     }
 
-    pub(super) struct Fixture {
+    pub(in crate::ssa) struct Fixture {
         pub sources: SourceMap,
         pub parsed: ParsedFile,
         pub path: &'static str,
@@ -111,10 +111,11 @@ mod fixture {
             let source = sources
                 .add_source(path, text)
                 .map_err(|error| failure("source infrastructure", error))?;
-            let lexed = lex(&sources, source).map_err(|error| failure("lex infrastructure", error))?;
+            let lexed =
+                lex(&sources, source).map_err(|error| failure("lex infrastructure", error))?;
             clean(&sources, "lex diagnostics", lexed.diagnostics())?;
-            let parsed =
-                parse_file(&sources, &lexed).map_err(|error| failure("parse infrastructure", error))?;
+            let parsed = parse_file(&sources, &lexed)
+                .map_err(|error| failure("parse infrastructure", error))?;
             clean(&sources, "parse diagnostics", parsed.diagnostics())?;
             let map = match label {
                 "map" => true,
@@ -198,7 +199,9 @@ mod identity {
         source::{SourceMap, Span},
     };
 
-    pub(super) fn source_functions(fixture: &Fixture) -> Result<Vec<(&'static str, Span)>, Failure> {
+    pub(super) fn source_functions(
+        fixture: &Fixture,
+    ) -> Result<Vec<(&'static str, Span)>, Failure> {
         let parsed = &fixture.parsed;
         if parsed.roots().len() != 4 {
             return Err(failure(
@@ -262,7 +265,9 @@ mod identity {
             let matches = module
                 .functions
                 .iter()
-                .filter(|function| matches!(&function.origin, Origin::Source(actual) if actual == span))
+                .filter(
+                    |function| matches!(&function.origin, Origin::Source(actual) if actual == span),
+                )
                 .collect::<Vec<_>>();
             let [function] = matches.as_slice() else {
                 return Err(failure(
@@ -301,9 +306,9 @@ mod identity {
                 )
             })?;
             reached.push(id);
-            let entry_block = function
-                .entry_block()
-                .ok_or_else(|| failure("SSA entry call graph query", ("missing entry block", id)))?;
+            let entry_block = function.entry_block().ok_or_else(|| {
+                failure("SSA entry call graph query", ("missing entry block", id))
+            })?;
             let mut blocks = vec![entry_block];
             let mut reached_blocks = Vec::new();
             while let Some(block_id) = blocks.pop() {
@@ -494,8 +499,9 @@ mod pipeline {
             true,
             "validate: Ok",
         );
-        let owned = check_compilation_unit_ownership(sources, &inputs, &names, &environment, &typed)
-            .map_err(|error| failure("unit ownership infrastructure", error))?;
+        let owned =
+            check_compilation_unit_ownership(sources, &inputs, &names, &environment, &typed)
+                .map_err(|error| failure("unit ownership infrastructure", error))?;
         clean(sources, "unit ownership diagnostics", owned.diagnostics())?;
         if !owned.deferred().is_empty() {
             return Err(failure(
@@ -539,8 +545,9 @@ mod pipeline {
             .validate()
             .map_err(|error| failure("unit full ownership validator", error))?;
         report.check("unit full ownership validator", true, "validate: Ok");
-        let view = owned_compilation_unit_view(sources, &inputs, &names, &environment, &typed, &owned)
-            .map_err(|error| failure("unit owned view qualification", error))?;
+        let view =
+            owned_compilation_unit_view(sources, &inputs, &names, &environment, &typed, &owned)
+                .map_err(|error| failure("unit owned view qualification", error))?;
         let same = std::ptr::eq(view.sources(), sources)
             && std::ptr::eq(view.inputs(), inputs.as_slice())
             && std::ptr::eq(view.names(), &names)
@@ -558,12 +565,15 @@ mod pipeline {
             ));
         }
         report.check("unit lower actually attempted", true, entry.id());
-        lower_owned_unit_with_entry(&view, entry.id()).map_err(|error| lower_failure(sources, error))
+        lower_owned_unit_with_entry(&view, entry.id())
+            .map_err(|error| lower_failure(sources, error))
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use facts::query_inputs;
+#[allow(unused_imports)]
+pub(in crate::ssa) use facts::query_inputs;
 mod query_llvm;
-#[allow(unused_imports)] pub(in crate::ssa) use facts::query_owner;
+#[allow(unused_imports)]
+pub(in crate::ssa) use facts::query_owner;
 mod query_ssa;
 mod query_test {
     //! 两源 × MemoryDocument/logical-path Unit 的独立 ordinary query；不变异、不额外创建源。

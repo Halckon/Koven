@@ -115,9 +115,9 @@ fn rejects_non_boolean_failure_result() {
 }
 
 pub(in crate::ssa) mod outer_borrowed_while {
+    use crate::ssa::lower_frontend::container::access::outer_borrowed_source as source;
     use crate::ssa::lower_frontend::control::BranchExit;
     use crate::ssa::lower_frontend::non_null_proof::outer_borrowed_provider as provider;
-    use crate::ssa::lower_frontend::container::access::outer_borrowed_source as source;
     pub(in crate::ssa) use crate::ssa::lower_frontend::*;
     use crate::ssa::model::SsaTypeKind;
     use carrier::{Columns, instructions, transport};
@@ -248,10 +248,9 @@ pub(in crate::ssa) mod outer_borrowed_while {
             let header = unique(plan.closure_phis().iter().filter(|phi| {
                 phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header
             }))?;
-            let exit =
-                unique(plan.closure_phis().iter().filter(|phi| {
-                    phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Exit
-                }))?;
+            let exit = unique(plan.closure_phis().iter().filter(|phi| {
+                phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Exit
+            }))?;
             if drop.target() != DropTarget::Named(symbol)
                 || drop.owner() != Some(header.owner())
                 || drop.condition() != Some(header.availability_condition())
@@ -343,7 +342,8 @@ pub(in crate::ssa) mod outer_borrowed_while {
                     return None;
                 }
                 if kind == IterationPhiIncomingKind::Exhaustion {
-                    if !binding.values().is_empty() || !never(conditions, binding.available_when()) {
+                    if !binding.values().is_empty() || !never(conditions, binding.available_when())
+                    {
                         return None;
                     }
                 } else {
@@ -554,7 +554,7 @@ pub(in crate::ssa) mod outer_borrowed_while {
             Ok(())
         }
 
-        fn validate_outer_borrowed_state(
+        pub(in crate::ssa) fn validate_outer_borrowed_state(
             &self,
             relation: &Relation,
             state: &BranchExit,
@@ -576,10 +576,10 @@ pub(in crate::ssa) mod outer_borrowed_while {
                 Some(LoweredValue::Value(value)) => Some(*value),
                 _ => None,
             };
-            let current =
-                owner(relation.root).ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-            let items =
-                owner(relation.items).ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+            let current = owner(relation.root)
+                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
+            let items = owner(relation.items)
+                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
             let mut columns = Columns {
                 block: state.block,
                 entities: vec![
@@ -746,7 +746,7 @@ pub(in crate::ssa) mod outer_borrowed_while {
             Ok(())
         }
 
-        fn checked_outer_borrowed_exhaustion(
+        pub(in crate::ssa) fn checked_outer_borrowed_exhaustion(
             &self,
             relation: &Relation,
             span: Span,
@@ -826,5 +826,4 @@ pub(in crate::ssa) mod outer_borrowed_while {
             Ok(true)
         }
     }
-
 }

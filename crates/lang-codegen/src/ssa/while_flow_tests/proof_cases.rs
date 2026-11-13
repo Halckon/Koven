@@ -5,7 +5,8 @@ use crate::test_support::diagnostics::{assert_diagnostic, diagnostic, expect};
 pub(in crate::ssa) mod borrowed_proof_cases;
 #[path = "if_cleanup_observation.rs"]
 mod if_cleanup_observation;
-#[allow(unused_imports)] pub(in crate::ssa) use borrowed_proof_cases::rejection_diagnostics;
+#[allow(unused_imports)]
+pub(in crate::ssa) use borrowed_proof_cases::rejection_diagnostics;
 use borrowed_proof_cases::rejection_diagnostics::assert_rejection;
 
 use super::super::{
@@ -250,7 +251,8 @@ fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>
         .collect::<Vec<_>>()
 }
 
-#[allow(unused_imports)] pub(in crate::ssa) use nullable_field_contract::direct_contract;
+#[allow(unused_imports)]
+pub(in crate::ssa) use nullable_field_contract::direct_contract;
 
 fn owner_return_source() -> String {
     r#"class Holder(val value: Int)
@@ -344,7 +346,8 @@ fn readonly_same_root_nested_while_preserves_the_outer_proof() {
     }
 }
 
-#[allow(unused_imports)] pub(in crate::ssa) use borrowed_proof_cases::readonly_nested_contract;
+#[allow(unused_imports)]
+pub(in crate::ssa) use borrowed_proof_cases::readonly_nested_contract;
 
 fn written_nested_source() -> String {
     holder(
@@ -395,7 +398,8 @@ fn written_same_root_nested_while_retires_outer_and_rebirths_inner_proof() {
     }
 }
 
-#[allow(unused_imports)] pub(in crate::ssa) use distinct_nested_contract::written_nested_contract;
+#[allow(unused_imports)]
+pub(in crate::ssa) use distinct_nested_contract::written_nested_contract;
 
 pub(in crate::ssa) fn different_root_source() -> String {
     r#"class Holder(val value: Int)
@@ -532,7 +536,8 @@ return number + 1
     }
 }
 
-#[allow(unused_imports)] pub(in crate::ssa) use borrowed_proof_cases::assignment_contract;
+#[allow(unused_imports)]
+pub(in crate::ssa) use borrowed_proof_cases::assignment_contract;
 
 fn resource_break_source() -> String {
     r#"class Holder(val value: Int)
@@ -591,7 +596,8 @@ println(outer.text)
     }
 }
 
-#[allow(unused_imports)] pub(in crate::ssa) use borrowed_proof_cases::owned_field_contract;
+#[allow(unused_imports)]
+pub(in crate::ssa) use borrowed_proof_cases::owned_field_contract;
 
 #[test]
 fn owned_local_field_borrow_distinguishes_siblings_from_unclosed_projections() {
@@ -788,7 +794,8 @@ fun entry(own initial: Holder?): Int {
     }
 }
 
-#[allow(unused_imports)] pub(in crate::ssa) use nullable_field_contract::value_argument_contract;
+#[allow(unused_imports)]
+pub(in crate::ssa) use nullable_field_contract::value_argument_contract;
 
 pub(in crate::ssa) fn pending_child_source() -> String {
     r#"class Holder(val text: String, val value: Int)

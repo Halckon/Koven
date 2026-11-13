@@ -523,10 +523,13 @@ impl UnitExpressionLowerer<'_> {
 #[cfg(test)]
 mod provider_entry_projection_tests {
     //! Synthetic entry-state guards, not end-to-end verifier rejection tests.
-    use crate::ssa::verify_ownership::aliases::provider_lifetime::{EntryProjection, Reference, State};
     use crate::ssa::model::{
-        BlockId, Definition, Edge, EntityId, EntityType, Function, LoanId, LoanKind, Operation, Origin,
-        PlaceId, Program, SequentialContainerKind, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
+        BlockId, Definition, Edge, EntityId, EntityType, Function, LoanId, LoanKind, Operation,
+        Origin, PlaceId, Program, SequentialContainerKind, SsaTypeId, SsaTypeKind, TerminatorKind,
+        ValueId,
+    };
+    use crate::ssa::verify_ownership::aliases::provider_lifetime::{
+        EntryProjection, Reference, State,
     };
     use lang_frontend::source::SourceMap;
 

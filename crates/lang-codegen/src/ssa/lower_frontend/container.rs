@@ -1,6 +1,6 @@
 //! 已完成 typed container descriptor 到顺序容器 SSA 的窄化 lowering。
 
-pub(in crate::ssa::lower_frontend) mod access;
+pub(in crate::ssa) mod access;
 
 use lang_frontend::{
     ast::ExpressionId,
@@ -25,7 +25,7 @@ use crate::ssa::model::{
 
 impl NominalTypeMapper {
     /// 将 frontend 的封闭顺序容器 identity 递归映射为保留元素类型的 SSA identity。
-    pub(super) fn intern_container(
+    pub(in crate::ssa) fn intern_container(
         &mut self,
         module: &mut Module,
         names: &NameResolution,
@@ -52,7 +52,7 @@ impl NominalTypeMapper {
 
 impl ExpressionLowerer<'_> {
     /// Lower a typed element-place used only as a shared Borrow call argument.
-    pub(super) fn lower_borrowed_container_element(
+    pub(in crate::ssa) fn lower_borrowed_container_element(
         &mut self,
         expression: ExpressionId,
         target: &OwnershipPlace,
@@ -310,7 +310,7 @@ impl ExpressionLowerer<'_> {
         Ok(LoweredValue::Value(value(results[0])))
     }
 
-    pub(in crate::ssa::lower_frontend) fn runtime_operand_exits(
+    pub(in crate::ssa) fn runtime_operand_exits(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -430,7 +430,7 @@ impl ExpressionLowerer<'_> {
 }
 
 #[cfg(test)]
-pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
+pub(in crate::ssa) mod cleanup_guard_harness {
     //! Private guard tests start with ordinary, complete source and verified lowering.
     //! Recovered checkpoints use actual SSA identities; no frontend fact is synthesized.
     use crate::ssa::lower_frontend::*;
@@ -446,18 +446,18 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
         },
     };
 
-    pub(in crate::ssa::lower_frontend) struct Fixture {
-        pub(in crate::ssa::lower_frontend) sources: SourceMap,
-        pub(in crate::ssa::lower_frontend) parsed: ParsedFile,
-        pub(in crate::ssa::lower_frontend) names: NameResolution,
-        pub(in crate::ssa::lower_frontend) typed: TypedFile,
-        pub(in crate::ssa::lower_frontend) owned: OwnershipCheckedFile,
-        pub(in crate::ssa::lower_frontend) program: Program,
-        pub(in crate::ssa::lower_frontend) type_ids: BTreeMap<TypeId, SsaTypeId>,
+    pub(in crate::ssa) struct Fixture {
+        pub(in crate::ssa) sources: SourceMap,
+        pub(in crate::ssa) parsed: ParsedFile,
+        pub(in crate::ssa) names: NameResolution,
+        pub(in crate::ssa) typed: TypedFile,
+        pub(in crate::ssa) owned: OwnershipCheckedFile,
+        pub(in crate::ssa) program: Program,
+        pub(in crate::ssa) type_ids: BTreeMap<TypeId, SsaTypeId>,
     }
 
     impl Fixture {
-        pub(in crate::ssa::lower_frontend) fn analyze(text: &str) -> Self {
+        pub(in crate::ssa) fn analyze(text: &str) -> Self {
             let mut sources = SourceMap::new();
             let source = sources
                 .add_source("private-cleanup-guard.ko", text)
@@ -503,7 +503,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
             }
         }
 
-        pub(in crate::ssa::lower_frontend) fn entry(&self) -> &Function {
+        pub(in crate::ssa) fn entry(&self) -> &Function {
             self.program.modules[0]
                 .functions
                 .iter()
@@ -511,7 +511,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
                 .unwrap()
         }
 
-        pub(in crate::ssa::lower_frontend) fn symbol(&self, name: &str) -> SymbolId {
+        pub(in crate::ssa) fn symbol(&self, name: &str) -> SymbolId {
             let mut matches = self
                 .names
                 .symbols()
@@ -526,7 +526,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
         }
 
         /// Empty runtime state is intentional. Each test installs its observed checkpoint.
-        pub(in crate::ssa::lower_frontend) fn with_lowerer<T>(
+        pub(in crate::ssa) fn with_lowerer<T>(
             &self,
             function: &mut Function,
             check: impl FnOnce(&mut ExpressionLowerer<'_>) -> T,
@@ -687,10 +687,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
         Some(id)
     }
 
-    pub(in crate::ssa::lower_frontend) fn parameter(
-        function: &Function,
-        entity: EntityId,
-    ) -> (BlockId, usize) {
+    pub(in crate::ssa) fn parameter(function: &Function, entity: EntityId) -> (BlockId, usize) {
         let Definition::BlockParameter { block, index } =
             function.entity(entity).unwrap().definition
         else {
@@ -700,7 +697,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
         (block, index)
     }
 
-    pub(in crate::ssa::lower_frontend) fn edges(kind: &TerminatorKind) -> Vec<&Edge> {
+    pub(in crate::ssa) fn edges(kind: &TerminatorKind) -> Vec<&Edge> {
         match kind {
             TerminatorKind::Branch(edge) => vec![edge],
             TerminatorKind::Conditional {
@@ -717,7 +714,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
         }
     }
 
-    pub(in crate::ssa::lower_frontend) fn edges_mut(kind: &mut TerminatorKind) -> Vec<&mut Edge> {
+    pub(in crate::ssa) fn edges_mut(kind: &mut TerminatorKind) -> Vec<&mut Edge> {
         match kind {
             TerminatorKind::Branch(edge) => vec![edge],
             TerminatorKind::Conditional {
@@ -734,10 +731,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
         }
     }
 
-    pub(in crate::ssa::lower_frontend) fn incoming(
-        function: &Function,
-        target: BlockId,
-    ) -> Vec<(BlockId, Edge)> {
+    pub(in crate::ssa) fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, Edge)> {
         function
             .blocks
             .iter()
@@ -752,7 +746,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
             .collect()
     }
 
-    pub(in crate::ssa::lower_frontend) fn unsupported<T: std::fmt::Debug>(
+    pub(in crate::ssa) fn unsupported<T: std::fmt::Debug>(
         result: Result<T, LoweringError>,
         span: Span,
     ) {
@@ -763,7 +757,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
 
     /// Recover only the active outer context queried by these cleanup guards. Every slot
     /// is the actual preheader operand; current/items/total are the fixture's live locals.
-    pub(in crate::ssa::lower_frontend) fn outer_context(
+    pub(in crate::ssa) fn outer_context(
         lowerer: &mut ExpressionLowerer<'_>,
         root: SymbolId,
         statement: StatementId,
@@ -880,7 +874,7 @@ pub(in crate::ssa::lower_frontend) mod cleanup_guard_harness {
 
     /// Stop immediately before the real adjacent end/drop pair, retaining the complete
     /// earlier instruction prefix and every other block/edge. No predecessor is removed.
-    pub(in crate::ssa::lower_frontend) fn before_cleanup(
+    pub(in crate::ssa) fn before_cleanup(
         lowerer: &mut ExpressionLowerer<'_>,
         block: BlockId,
         root: SymbolId,

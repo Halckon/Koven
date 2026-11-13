@@ -251,7 +251,13 @@ mod source_closure_tests {
 
     fn analyze<T>(
         text: &str,
-        check: impl FnOnce(&SourceMap, &ParsedFile, &NameResolution, &TypedFile, &OwnershipCheckedFile) -> T,
+        check: impl FnOnce(
+            &SourceMap,
+            &ParsedFile,
+            &NameResolution,
+            &TypedFile,
+            &OwnershipCheckedFile,
+        ) -> T,
     ) -> T {
         let mut sources = SourceMap::new();
         let source = sources
@@ -297,7 +303,8 @@ mod source_closure_tests {
                 arena,
                 "backend only queries canonical types"
             );
-            crate::llvm::render_verified_program(&program).expect("source must reach verified LLVM");
+            crate::llvm::render_verified_program(&program)
+                .expect("source must reach verified LLVM");
             program
         })
     }
@@ -343,7 +350,10 @@ mod source_closure_tests {
                                     .iter()
                                     .flat_map(|function| &function.blocks)
                                     .any(|block| block.terminator.as_ref().is_some_and(
-                                        |terminator| matches!(terminator.kind, TerminatorKind::Abort)
+                                        |terminator| matches!(
+                                            terminator.kind,
+                                            TerminatorKind::Abort
+                                        )
                                     ))
                             );
                             crate::llvm::render_verified_program(&program)
@@ -543,7 +553,8 @@ mod source_closure_tests {
         let Operation::ClosureConstruct { captures, .. } = &formation.operation else {
             unreachable!()
         };
-        let [crate::ssa::model::ClosureCaptureOperand::Shared(capture)] = captures.as_slice() else {
+        let [crate::ssa::model::ClosureCaptureOperand::Shared(capture)] = captures.as_slice()
+        else {
             panic!("one real shared element capture")
         };
         let crate::ssa::model::EntityId::Value(callback) = formation.results[0] else {
@@ -672,7 +683,9 @@ mod source_closure_tests {
                             crate::llvm::render_verified_program(&program)
                                 .expect("nominal generic helper must reach verified LLVM");
                         }
-                        Err(error) => failures.push(format!("{container}/{environment}: {error:?}")),
+                        Err(error) => {
+                            failures.push(format!("{container}/{environment}: {error:?}"))
+                        }
                     }
                     assert_eq!(
                         typed.types().len(),

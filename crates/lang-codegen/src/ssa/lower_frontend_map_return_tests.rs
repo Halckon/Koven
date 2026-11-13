@@ -104,12 +104,14 @@ fn unit_map_return_constant_dead_source_red() {
 #[path = "lower_frontend_map_return_controls_tests.rs"]
 pub(in crate::ssa) mod ordinary_controls;
 
-#[allow(unused_imports)] pub(in crate::ssa) use operand_last_use::source_matrix;
+#[allow(unused_imports)]
+pub(in crate::ssa) use operand_last_use::source_matrix;
 
 #[path = "lower_frontend_map_operand_last_use_tests.rs"]
 pub(in crate::ssa) mod operand_last_use;
 
-#[allow(unused_imports)] pub(in crate::ssa) use operand_last_use::operand_structure;
+#[allow(unused_imports)]
+pub(in crate::ssa) use operand_last_use::operand_structure;
 
 pub(in crate::ssa) mod rc_nullable_while_identity_queries {
     //! Read-only identities for the exact original SPEC-0332 source, never synthetic SSA.
@@ -117,8 +119,8 @@ pub(in crate::ssa) mod rc_nullable_while_identity_queries {
     use lang_frontend::{
         ast::{ExpressionId, ItemId},
         name_resolution::{
-            DeclarationId, NameResolution, ReferenceTarget, SymbolId, SymbolKind, UnitReferenceTarget,
-            ValidatedCompilationUnitNames,
+            DeclarationId, NameResolution, ReferenceTarget, SymbolId, SymbolKind,
+            UnitReferenceTarget, ValidatedCompilationUnitNames,
         },
         ownership_checking::{
             CompilationUnitOwnership, DropTarget, OwnershipBindingKind, OwnershipCheckedFile,
@@ -127,8 +129,8 @@ pub(in crate::ssa) mod rc_nullable_while_identity_queries {
         parser::{Expression, Item, NameMarker, ParsedFile, Statement},
         source::Span,
         type_checking::{
-            BuiltinType, CompilationUnitTypes, Copyability, IntrinsicTypeConstructor, ParameterMode,
-            TypeKind, TypedFile, UnitExpressionId, UnitTypeKind,
+            BuiltinType, CompilationUnitTypes, Copyability, IntrinsicTypeConstructor,
+            ParameterMode, TypeKind, TypedFile, UnitExpressionId, UnitTypeKind,
         },
     };
 
@@ -391,7 +393,8 @@ pub(in crate::ssa) mod rc_nullable_while_identity_queries {
                     .all(|drop| drop.target() != UnitDropTarget::Named(root)),
             "unit return moves original owned parameter without a parameter drop",
         )?;
-        let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(comparison.nullable_type()) else {
+        let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(comparison.nullable_type())
+        else {
             return Err("unit input is not a real nullable type".into());
         };
         let Some(UnitTypeKind::Intrinsic {
@@ -527,7 +530,11 @@ pub(in crate::ssa) mod rc_nullable_while_identity_queries {
         Ok(())
     }
 
-    pub(in crate::ssa) fn inspect(program: &Program, entry: FunctionId, source: SourceIdentity) -> Query<()> {
+    pub(in crate::ssa) fn inspect(
+        program: &Program,
+        entry: FunctionId,
+        source: SourceIdentity,
+    ) -> Query<()> {
         let module = program
             .module(entry.module())
             .ok_or("original module absent")?;

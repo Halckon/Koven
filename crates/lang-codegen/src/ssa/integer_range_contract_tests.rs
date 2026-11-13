@@ -185,8 +185,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
     //! One readonly nullable owner across one independently owned List provider.
     //! Published presence and actual owner/view/provider columns are separate proofs.
     pub(in crate::ssa) use crate::ssa::borrow_memory_test_support::borrowed_cleanup_carrier as carrier;
-    use carrier::source;
     use crate::ssa::lower_frontend::loop_control::numeric_iteration::provider;
+    use carrier::source;
 
     use crate::ssa::lower_frontend::*;
     use lang_frontend::{
@@ -201,11 +201,11 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
     };
 
     pub(in crate::ssa) struct Plan {
-        fact: DropFact,
-        root: SymbolId,
-        storage: TypeId,
+        pub(in crate::ssa) fact: DropFact,
+        pub(in crate::ssa) root: SymbolId,
+        pub(in crate::ssa) storage: TypeId,
         pub(in crate::ssa) statement: StatementId,
-        outer: StatementId,
+        pub(in crate::ssa) outer: StatementId,
         pub(in crate::ssa) source_root: SymbolId,
         pub(in crate::ssa) element: SymbolId,
         pub(in crate::ssa) source_drop: DropFact,
@@ -441,7 +441,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                 if incoming.kind() == IterationPhiIncomingKind::Exhaustion
                     && target.symbol() == source_root
                 {
-                    if !binding.values().is_empty() || !never(conditions, binding.available_when()) {
+                    if !binding.values().is_empty() || !never(conditions, binding.available_when())
+                    {
                         return None;
                     }
                     continue;
@@ -542,7 +543,13 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
         if source_drop.point() != DropPoint::LoopExit(statement)
             || source_drop.condition() != Some(source_header.availability_condition())
             || source_drop.value_origin() != names.symbols().get(source_root.index())?.span()
-            || !crate::ssa::lower_frontend::constant_presence::constant_drop(parsed, names, typed, owned, source_drop)
+            || !crate::ssa::lower_frontend::constant_presence::constant_drop(
+                parsed,
+                names,
+                typed,
+                owned,
+                source_drop,
+            )
         {
             return None;
         }
@@ -578,7 +585,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
             element,
             *source_seed_expression,
         )?;
-        for (symbol, seed, final_drop) in [(root, seed, fact), (source_root, source_seed, source_drop)]
+        for (symbol, seed, final_drop) in
+            [(root, seed, fact), (source_root, source_seed, source_drop)]
         {
             let drops = owned
                 .drops()
@@ -646,7 +654,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
     pub(in crate::ssa) mod runtime {
         //! Local provider admission; final cleanup rechecks the fully emitted CFG.
         use super::carrier::{Birth, Columns, birth, parameter, transport};
-        use crate::ssa::lower_frontend::*;
+        use super::*;
+
         use crate::ssa::model::SsaTypeKind;
         use lang_frontend::ownership_checking::IterationExitPlan;
 
@@ -687,7 +696,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                 let (proof, birth) = self.borrowed_while_pair(&plan, span)?;
                 if self.loops.len() != 1
                     || self.block != birth.pair.block
-                    || birth.pair.entities != [EntityId::Value(proof.owner), EntityId::Loan(proof.loan)]
+                    || birth.pair.entities
+                        != [EntityId::Value(proof.owner), EntityId::Loan(proof.loan)]
                     || self.bindings.get(&plan.source_root)
                         != Some(&LoweredValue::Value(birth.source_owner))
                 {
@@ -730,7 +740,10 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                         self.function,
                         Columns {
                             block: self.block,
-                            entities: vec![EntityId::Value(proof.owner), EntityId::Loan(proof.loan)],
+                            entities: vec![
+                                EntityId::Value(proof.owner),
+                                EntityId::Loan(proof.loan),
+                            ],
                         },
                         &birth.pair,
                         None,
@@ -771,7 +784,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                     .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
                 let header_source = provider::loan(provider.header.entities[3])
                     .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-                let header_column = |entity| parameter(self.function, entity).map(|(_, index)| index);
+                let header_column =
+                    |entity| parameter(self.function, entity).map(|(_, index)| index);
                 if self.loops.len() != 2
                     || !context.breaks.is_empty()
                     || !context.continues.is_empty()
@@ -798,7 +812,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                     || data.guarded_element.cursor() != provider.body_cursor
                     || data.guarded_element.body() != provider.body.block
                     || data.guarded_element.header() != provider.header.block
-                    || Some(data.guarded_element.source()) != provider::loan(provider.body.entities[3])
+                    || Some(data.guarded_element.source())
+                        != provider::loan(provider.body.entities[3])
                     || data.guarded_element.step() != provider.step
                 {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
@@ -817,7 +832,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                         return Err(error(LoweringErrorKind::UnsupportedNode, span));
                     }
                 }
-                let Some(LoweredValue::Value(owner)) = self.bindings.get(&plan.source_root).copied()
+                let Some(LoweredValue::Value(owner)) =
+                    self.bindings.get(&plan.source_root).copied()
                 else {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 };
@@ -870,7 +886,8 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                 facts: &[DropFact],
             ) -> Result<(), LoweringError> {
                 for &fact in facts {
-                    if let Some(plan) = candidate(self.parsed, self.names, self.typed, self.owned, fact)
+                    if let Some(plan) =
+                        candidate(self.parsed, self.names, self.typed, self.owned, fact)
                     {
                         self.checked_nullable_borrowed_owner(&plan)?;
                     }
@@ -896,7 +913,10 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                 Ok(true)
             }
 
-            pub(in crate::ssa) fn checked_nullable_borrowed_owner(&self, plan: &Plan) -> Result<ValueId, LoweringError> {
+            pub(in crate::ssa) fn checked_nullable_borrowed_owner(
+                &self,
+                plan: &Plan,
+            ) -> Result<ValueId, LoweringError> {
                 let span = plan.fact.value_origin();
                 self.ensure_no_unresolved_while_proof_carriers(span)?;
                 let (proof, birth) = self.borrowed_while_pair(plan, span)?;
@@ -912,6 +932,5 @@ pub(in crate::ssa) mod nullable_borrowed_cleanup {
                 Ok(proof.owner)
             }
         }
-
     }
 }

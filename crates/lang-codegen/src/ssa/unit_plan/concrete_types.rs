@@ -636,8 +636,9 @@ pub(in crate::ssa::unit_plan) mod deinit {
 #[cfg(test)]
 mod verify_map_tests {
     //! 普通静态 verifier 正负例；不生成或执行故障程序。
-    use crate::ssa::verify_ownership::root_exchange::integer::map::*;
+    use crate::ssa::model::*;
     use crate::ssa::model::{Origin, Program, SequentialContainerKind};
+    use crate::ssa::verify_ownership::root_exchange::integer::map::*;
 
     fn origin() -> Origin {
         let mut sources = lang_frontend::source::SourceMap::new();
@@ -842,8 +843,9 @@ mod verify_map_tests {
             }
             let errors = crate::ssa::verify::verify_program(&program).unwrap_err();
             assert!(
-                format!("{errors:?}")
-                    .contains("Map result requires Boolean presence and matching payload ownership")
+                format!("{errors:?}").contains(
+                    "Map result requires Boolean presence and matching payload ownership"
+                )
             );
         }
     }

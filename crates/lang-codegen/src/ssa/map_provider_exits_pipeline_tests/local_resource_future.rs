@@ -75,8 +75,10 @@ mod facts {
             )?;
             let mut uses = Vec::new();
             for call in calls {
-                let arg =
-                    UnitExpressionId::new(unit, ast::argument(parsed, call.expression().expression())?);
+                let arg = UnitExpressionId::new(
+                    unit,
+                    ast::argument(parsed, call.expression().expression())?,
+                );
                 let contracts = owned
                     .call_argument_contracts_for(call.expression())
                     .collect::<Vec<_>>();
@@ -146,9 +148,9 @@ mod facts {
         },
         ownership_checking::{
             CompilationUnitOwnership, DropPoint, IterationExitKind as E, IterationSource, LoanKind,
-            MapIterationComponent, OwnershipBindingKind, UnitCallArgumentOwnershipKind, UnitDropPoint,
-            UnitDropTarget, UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
-            UnitIterationSourceAccess, UnitLoanTarget,
+            MapIterationComponent, OwnershipBindingKind, UnitCallArgumentOwnershipKind,
+            UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
+            UnitIterationExitKind as UE, UnitIterationSourceAccess, UnitLoanTarget,
         },
         parser::{Expression, ParsedFile},
         source::{SourceMap, Span},
@@ -187,15 +189,19 @@ mod facts {
         names.names().source_units().iter().any(|u| {
             u.source_unit() == id.source_unit()
                 && u.resolution().symbols().iter().any(|s| {
-                    s.id() == id.symbol() && s.span() == span && s.kind() == kind && !s.is_synthetic()
+                    s.id() == id.symbol()
+                        && s.span() == span
+                        && s.kind() == kind
+                        && !s.is_synthetic()
                 })
         })
     }
     fn lexical(site: &Scanner, parsed: &ParsedFile) -> Result<ExpressionId, Failure> {
         one(
             parsed.ast().expressions().iter().filter_map(|(id, n)| {
-                (ast::within(site.span, n.span()) && matches!(n.payload(), Expression::Return { .. }))
-                    .then_some(id)
+                (ast::within(site.span, n.span())
+                    && matches!(n.payload(), Expression::Return { .. }))
+                .then_some(id)
             }),
             "Resource future real scanner lexical Return",
         )

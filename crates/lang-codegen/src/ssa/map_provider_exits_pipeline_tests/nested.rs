@@ -2,8 +2,10 @@
 //! Map Borrow 独立记账；golden 是预测，复杂 owner/exit/cleanup 先完整观察，不预填拓扑。
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod ast;
-#[allow(unused_imports)] pub(in crate::ssa) use query_ssa::query_body;
-#[allow(unused_imports)] pub(in crate::ssa) use query_ssa::query_callers;
+#[allow(unused_imports)]
+pub(in crate::ssa) use query_ssa::query_body;
+#[allow(unused_imports)]
+pub(in crate::ssa) use query_ssa::query_callers;
 mod query_cleanup {
     //! 独立核完整 normal actions 与 caller owner；unit 只消费自己的公开事实。
     use super::{
@@ -16,8 +18,8 @@ mod query_cleanup {
     use lang_frontend::{
         name_resolution::UnitSymbolId,
         ownership_checking::{
-            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
-            UnitIterationExitKind as UE,
+            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget,
+            UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
         },
         source::Span,
         type_checking::{UnitExpressionId, UnitStatementId},
@@ -36,7 +38,10 @@ mod query_cleanup {
         let expected = [
             (
                 UE::Fallthrough,
-                UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), site.body)),
+                UnitDropPoint::AfterStatement(UnitStatementId::new(
+                    statement.source_unit(),
+                    site.body,
+                )),
                 vec![
                     UA::EndBinding {
                         statement,
@@ -117,7 +122,7 @@ mod query_graph {
     use std::collections::{BTreeMap, BTreeSet};
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    pub(super) enum Role {
+    pub(in crate::ssa) enum Role {
         Caller,
         OuterSource,
         OuterCursor,
@@ -511,7 +516,13 @@ mod query_test {
     };
     use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
-    fn observe(label: &'static str, map: bool, hash: &str, text: &str, rooted: bool) -> Observation {
+    fn observe(
+        label: &'static str,
+        map: bool,
+        hash: &str,
+        text: &str,
+        rooted: bool,
+    ) -> Observation {
         let mut report = Report::default();
         diagnostic!(
             "SPEC0331 NESTED IDENTITY INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={hash} text={text:?}"

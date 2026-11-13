@@ -1,5 +1,5 @@
 //! Actual Call anchors, full incoming identities and final Pure-owner lifetime.
-pub(in crate::ssa) mod continuation;
+mod continuation;
 mod provider {
     //! One provider's actual columns, current owner, component loans and Guard cleanup.
     use super::*;

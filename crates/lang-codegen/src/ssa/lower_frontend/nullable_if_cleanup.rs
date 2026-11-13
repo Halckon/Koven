@@ -223,18 +223,18 @@ use lang_frontend::ownership_checking::{
 use super::*;
 
 pub(in crate::ssa) struct GroupPlan {
-    members: [DropFact; 2],
-    root: SymbolId,
-    storage: TypeId,
-    first_if: ExpressionId,
-    second_if: ExpressionId,
-    arm: usize,
-    replacement: ExpressionId,
-    old_drop: DropFact,
-    while_statement: StatementId,
-    function_span: Span,
-    seed_parameter: usize,
-    parameter_count: usize,
+    pub(in crate::ssa) members: [DropFact; 2],
+    pub(in crate::ssa) root: SymbolId,
+    pub(in crate::ssa) storage: TypeId,
+    pub(in crate::ssa) first_if: ExpressionId,
+    pub(in crate::ssa) second_if: ExpressionId,
+    pub(in crate::ssa) arm: usize,
+    pub(in crate::ssa) replacement: ExpressionId,
+    pub(in crate::ssa) old_drop: DropFact,
+    pub(in crate::ssa) while_statement: StatementId,
+    pub(in crate::ssa) function_span: Span,
+    pub(in crate::ssa) seed_parameter: usize,
+    pub(in crate::ssa) parameter_count: usize,
 }
 
 pub(in crate::ssa) fn candidate(
@@ -311,7 +311,7 @@ pub(in crate::ssa) fn candidate(
     )
 }
 
-fn coverage(
+pub(in crate::ssa) fn coverage(
     parsed: &ParsedFile,
     conditions: &CleanupConditions,
     members: [DropFact; 2],
@@ -397,7 +397,7 @@ impl ExpressionLowerer<'_> {
         Ok(())
     }
 
-    fn checked_nullable_if_cleanup_owner(
+    pub(in crate::ssa) fn checked_nullable_if_cleanup_owner(
         &self,
         plan: &GroupPlan,
         remaining: &[DropFact],
@@ -435,14 +435,13 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-
 pub(in crate::ssa) mod local_runtime {
     use crate::ssa::lower_frontend::map_iteration::resource::evidence;
     use crate::ssa::lower_frontend::map_iteration::*;
     use crate::ssa::model::InstructionId;
     use lang_frontend::ownership_checking::{DropFact, DropTarget};
 
-    pub(in crate::ssa::lower_frontend::map_iteration) mod conditions {
+    pub(in crate::ssa) mod conditions {
         use crate::ssa::lower_frontend::map_iteration::local::{Path, Proof, identity};
         use crate::ssa::lower_frontend::map_iteration::*;
         use lang_frontend::ownership_checking::{
@@ -451,13 +450,13 @@ pub(in crate::ssa) mod local_runtime {
         };
 
         #[derive(Clone, Copy)]
-        pub(in crate::ssa::lower_frontend::map_iteration) enum Expected {
+        pub(in crate::ssa) enum Expected {
             Path,
             Presence,
             Conjunction,
         }
 
-        pub(in crate::ssa::lower_frontend::map_iteration) fn path(
+        pub(in crate::ssa) fn path(
             parsed: &ParsedFile,
             conditions: &CleanupConditions,
             condition: CleanupConditionId,
@@ -511,7 +510,7 @@ pub(in crate::ssa) mod local_runtime {
             }))
         }
 
-        pub(in crate::ssa::lower_frontend::map_iteration) fn check(
+        pub(in crate::ssa) fn check(
             conditions: &CleanupConditions,
             condition: CleanupConditionId,
             path: Option<Path>,
@@ -652,32 +651,32 @@ pub(in crate::ssa) mod local_runtime {
     }
 
     #[derive(Clone, Copy)]
-    pub(in crate::ssa::lower_frontend::map_iteration) struct Consumption {
-        pub(in crate::ssa::lower_frontend::map_iteration) block: BlockId,
-        pub(in crate::ssa::lower_frontend::map_iteration) owner: ValueId,
-        pub(in crate::ssa::lower_frontend::map_iteration) instruction: InstructionId,
+    pub(in crate::ssa) struct Consumption {
+        pub(in crate::ssa) block: BlockId,
+        pub(in crate::ssa) owner: ValueId,
+        pub(in crate::ssa) instruction: InstructionId,
     }
 
     #[derive(Clone)]
-    pub(in crate::ssa::lower_frontend::map_iteration) struct Carrier {
-        pub(in crate::ssa::lower_frontend::map_iteration) proof: local::Proof,
-        pub(in crate::ssa::lower_frontend::map_iteration) statement: StatementId,
-        pub(in crate::ssa::lower_frontend::map_iteration) birth: ValueId,
-        pub(in crate::ssa::lower_frontend::map_iteration) current: ValueId,
-        pub(in crate::ssa::lower_frontend::map_iteration) continuation: BlockId,
-        pub(in crate::ssa::lower_frontend::map_iteration) source: LoanId,
-        pub(in crate::ssa::lower_frontend::map_iteration) consumed: Option<Consumption>,
-        pub(in crate::ssa::lower_frontend::map_iteration) size: Option<ValueId>,
+    pub(in crate::ssa) struct Carrier {
+        pub(in crate::ssa) proof: local::Proof,
+        pub(in crate::ssa) statement: StatementId,
+        pub(in crate::ssa) birth: ValueId,
+        pub(in crate::ssa) current: ValueId,
+        pub(in crate::ssa) continuation: BlockId,
+        pub(in crate::ssa) source: LoanId,
+        pub(in crate::ssa) consumed: Option<Consumption>,
+        pub(in crate::ssa) size: Option<ValueId>,
     }
 
     impl Carrier {
-        pub(in crate::ssa::lower_frontend::map_iteration) fn root(&self) -> SymbolId {
+        pub(in crate::ssa) fn root(&self) -> SymbolId {
             self.proof.root
         }
     }
 
     impl ExpressionLowerer<'_> {
-        pub(in crate::ssa::lower_frontend::map_iteration) fn local_map_seed(
+        pub(in crate::ssa) fn local_map_seed(
             &self,
             symbol: SymbolId,
             initializer: ExpressionId,
@@ -710,7 +709,7 @@ pub(in crate::ssa) mod local_runtime {
             Ok(seed)
         }
 
-        pub(in crate::ssa::lower_frontend::map_iteration) fn validate_local_map_entry(
+        pub(in crate::ssa) fn validate_local_map_entry(
             &self,
             proof: &local::Proof,
             span: Span,
@@ -751,7 +750,7 @@ pub(in crate::ssa) mod local_runtime {
             validate_consumption(self.function, previous, span)
         }
 
-        pub(in crate::ssa::lower_frontend::map_iteration) fn local_map_completion(
+        pub(in crate::ssa) fn local_map_completion(
             &self,
             proof: local::Proof,
             evidence: carrier::Evidence<'_>,
@@ -936,9 +935,7 @@ pub(in crate::ssa) mod local_runtime {
             Ok(true)
         }
 
-        pub(in crate::ssa) fn validate_local_map_carriers(
-            &self,
-        ) -> Result<(), LoweringError> {
+        pub(in crate::ssa) fn validate_local_map_carriers(&self) -> Result<(), LoweringError> {
             for state in self.map_iteration_state.locals.values() {
                 let span = state.proof.drop.value_origin();
                 let missing = || error(LoweringErrorKind::MissingFact, span);
@@ -957,7 +954,7 @@ pub(in crate::ssa) mod local_runtime {
         }
     }
 
-    pub(in crate::ssa::lower_frontend::map_iteration) fn validate_consumption(
+    pub(in crate::ssa) fn validate_consumption(
         function: &Function,
         state: &Carrier,
         span: Span,

@@ -508,7 +508,8 @@ mod boundary {
 
     #[test]
     fn range_local_control_rejects_old_call_prefix_exit_inside_a_new_if() {
-        let expression = "if(flag){readCount(take(part,1),if(flag){return}else{0})}else{read(part)}";
+        let expression =
+            "if(flag){readCount(take(part,1),if(flag){return}else{0})}else{read(part)}";
         let consumer = format!(
             "fun readCount(view:View<String>,n:Int):Unit{{}}\n{}",
             scoped(expression)
@@ -544,7 +545,8 @@ mod selection {
     "#;
 
     fn selection_case(pipeline: Pipeline) {
-        let branch = "if(mark(flag)){println(\"then\");read(part)}else{println(\"else\");read(part)}";
+        let branch =
+            "if(mark(flag)){println(\"then\");read(part)}else{println(\"else\");read(part)}";
         run_selection(pipeline, SOURCE, branch, None);
     }
 
@@ -747,13 +749,17 @@ mod selection {
 pub(in crate::ssa) mod comparisons;
 
 #[derive(Clone, Copy, Debug)]
-enum Position {
+pub(in crate::ssa) enum Position {
     BeforeBinding,
     WhileLive,
     AfterEnds,
 }
 
-pub(in crate::ssa) fn comparison_case(pipeline: Pipeline, position: Position, operator: ComparisonOperator) {
+pub(in crate::ssa) fn comparison_case(
+    pipeline: Pipeline,
+    position: Position,
+    operator: ComparisonOperator,
+) {
     let expression = match operator {
         ComparisonOperator::Equal => "n==2",
         ComparisonOperator::LessThan => "n<3",

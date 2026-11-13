@@ -158,7 +158,7 @@ pub(in crate::ssa) mod map_same_guard_ssa {
     };
     use lang_frontend::type_checking::UnitExpressionId;
 
-    use crate::ssa::lower_frontend_tests::map_result_tests::map_loop::map_return::structure::{before, branch, definition, edges, only, slot};
+    use crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::structure::{before, branch, definition, edges, only, slot};
     use crate::ssa::unit_constant_tests::receiver_two_phase_control::map_same_guard_unit::{Source, one, span, symbol_span};
 
     // Follow only this directed edge and its unique source slot. Updates are new owners,

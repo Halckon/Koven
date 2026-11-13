@@ -499,7 +499,7 @@ fn formed_local_initializer(
     Ok((initializer, origin))
 }
 
-fn formed_in_lambda(
+pub(in crate::ssa) fn formed_in_lambda(
     names: &NameResolution,
     mut id: ScopeId,
     lambda_span: Span,
@@ -527,7 +527,7 @@ fn formed_in_lambda(
     Err(lowering_error(LoweringErrorKind::MissingFact, lambda_span))
 }
 
-fn formed_in_function(
+pub(in crate::ssa) fn formed_in_function(
     names: &NameResolution,
     mut id: ScopeId,
     function_span: Span,

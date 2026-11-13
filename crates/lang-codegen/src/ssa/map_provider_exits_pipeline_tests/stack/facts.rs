@@ -82,7 +82,10 @@ mod representation {
             strings: descriptor.fields().len(),
         })
     }
-    fn locals(parsed: &ParsedFile, sites: &[AstSite]) -> Vec<(Span, lang_frontend::ast::ExpressionId)> {
+    fn locals(
+        parsed: &ParsedFile,
+        sites: &[AstSite],
+    ) -> Vec<(Span, lang_frontend::ast::ExpressionId)> {
         parsed
             .ast()
             .items()

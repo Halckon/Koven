@@ -36,7 +36,12 @@ fn map_continue_source_original_owned_fixture_now_lowers() {
 mod outer_borrowed_while_runtime_guard_tests {
     //! CI-only guards recover consumer checkpoints from a successful ordinary-source graph.
     //! This is a graph-derived checkpoint, not a captured production lowering stack.
-    use crate::ssa::lower_frontend::outer_borrowed_while::{runtime::*, *};
+
+    use crate::ssa::lower_frontend::non_null_proof::outer_borrowed_provider as provider;
+    use crate::ssa::lower_frontend::outer_borrowed_while::carrier::{
+        Columns, instructions, transport,
+    };
+    use crate::ssa::lower_frontend::outer_borrowed_while::*;
     use crate::ssa::lower_frontend::*;
     use crate::ssa::{
         lower_frontend::{
@@ -49,6 +54,7 @@ mod outer_borrowed_while_runtime_guard_tests {
         provider::{GuardedElement, ProviderHeader, guard_and_begin},
         while_flow_tests::proof_cases::borrowed_proof_cases::while_inside_borrowed_for_sources,
     };
+    use lang_frontend::ownership_checking::{IterationExitKind, IterationPhiBoundary};
 
     struct Shape {
         relation: Relation,
@@ -103,11 +109,10 @@ mod outer_borrowed_while_runtime_guard_tests {
             }))
             .unwrap();
             let items = provider::value(construct.results[0]).unwrap();
-            let root =
-                unique(function.instructions.iter().filter(|instruction| {
-                    instruction.operation == Operation::RootPlace { owner: items }
-                }))
-                .unwrap();
+            let root = unique(function.instructions.iter().filter(|instruction| {
+                instruction.operation == Operation::RootPlace { owner: items }
+            }))
+            .unwrap();
             let EntityId::Place(place) = root.results[0] else {
                 unreachable!()
             };
@@ -141,7 +146,11 @@ mod outer_borrowed_while_runtime_guard_tests {
             else {
                 unreachable!()
             };
-            let compare = crate::ssa::lower_frontend::outer_borrowed_while::carrier::result(function, EntityId::Value(*condition)).unwrap();
+            let compare = crate::ssa::lower_frontend::outer_borrowed_while::carrier::result(
+                function,
+                EntityId::Value(*condition),
+            )
+            .unwrap();
             let Operation::Compare {
                 operator: ComparisonOperator::LessThan,
                 left: cursor,
@@ -252,7 +261,8 @@ mod outer_borrowed_while_runtime_guard_tests {
                 .position(|entity| *entity == EntityId::Loan(self.source))
                 .unwrap();
             let source =
-                provider::loan(function.block(self.header).unwrap().parameters[source_slot]).unwrap();
+                provider::loan(function.block(self.header).unwrap().parameters[source_slot])
+                    .unwrap();
             ProviderHeader {
                 block: self.header,
                 source,
@@ -355,7 +365,8 @@ mod outer_borrowed_while_runtime_guard_tests {
                 .iteration(self.relation.outer)
                 .unwrap()
                 .clone();
-            let int_type = fixture.type_ids[&fixture.typed.types().builtin(BuiltinType::Int).unwrap()];
+            let int_type =
+                fixture.type_ids[&fixture.typed.types().builtin(BuiltinType::Int).unwrap()];
             lowerer.loops.push(LoopContext {
                 entry_views: BTreeMap::new(),
                 outer_borrowed_while: None,
@@ -421,22 +432,21 @@ mod outer_borrowed_while_runtime_guard_tests {
             let end = lowerer.function.instruction(self.breaking).unwrap().clone();
             let span = end.origin.span();
             let block = &lowerer.function.blocks[end.block.index()];
-            let columns =
-                Columns {
-                    block: end.block,
-                    entities: guard
-                        .non_null
-                        .entities
-                        .iter()
-                        .map(|entity| {
-                            let ty = lowerer.function.entity(*entity).unwrap().ty;
-                            unique(block.parameters.iter().copied().filter(|parameter| {
-                                lowerer.function.entity(*parameter).unwrap().ty == ty
-                            }))
-                            .unwrap()
-                        })
-                        .collect(),
-                };
+            let columns = Columns {
+                block: end.block,
+                entities: guard
+                    .non_null
+                    .entities
+                    .iter()
+                    .map(|entity| {
+                        let ty = lowerer.function.entity(*entity).unwrap().ty;
+                        unique(block.parameters.iter().copied().filter(|parameter| {
+                            lowerer.function.entity(*parameter).unwrap().ty == ty
+                        }))
+                        .unwrap()
+                    })
+                    .collect(),
+            };
             let Operation::BorrowEnd { loan } = end.operation else {
                 unreachable!()
             };
@@ -620,7 +630,11 @@ mod outer_borrowed_while_runtime_guard_tests {
                                     fixture
                                         .entry()
                                         .block(
-                                            fixture.entry().instruction(shape.breaking).unwrap().block,
+                                            fixture
+                                                .entry()
+                                                .instruction(shape.breaking)
+                                                .unwrap()
+                                                .block,
                                         )
                                         .unwrap()
                                         .parameters

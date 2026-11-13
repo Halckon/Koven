@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，342 份）"]
+subgraph Garchive["已完成（archive，418 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -349,17 +349,6 @@ subgraph Garchive["已完成（archive，342 份）"]
   S0365["S0365<br/>带捕获闭包返回的来源事实"]
   S0366["S0366<br/>文本与同步 IO 规范启用"]
   S0367["S0367<br/>String 创建入口的 Int 字节长度不变量"]
-  S0382["S0382<br/>Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休"]
-  S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
-end
-subgraph Gactive["现行 active"]
-  S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
-  S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
-  S0341["S0341<br/>D10 统一 compilation-unit 检查与代码生成管线"]
-  S0357["S0357<br/>String subject when 的 Unit 清理事实"]
-  S0360["S0360<br/>String when 清理事实的 refinement 消费"]
-  S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
-  S0369["S0369<br/>CLI 最终调试产物与源码断点"]
   S0370["S0370<br/>lambda 体（thunk）与局部 callable 绑定迁入所有权细化层"]
   S0371["S0371<br/>整数内建、整数区间、String.clone() 与文本原语迁入所有权细化层"]
   S0372["S0372<br/>泛型 class 与泛型 Copyable enum class 迁入所有权细化层"]
@@ -372,15 +361,14 @@ subgraph Gactive["现行 active"]
   S0379["S0379<br/>MoveOnly 局部可变重赋值与 MoveOnly 枚举 when 迁入所有权细化层"]
   S0380["S0380<br/>deinit 析构体、多层字段借用、接口委托、无状态 object 与 Map.withValue 迁入所有权细化层"]
   S0381["S0381<br/>默认分流边界修复与旧路径退休"]
+  S0382["S0382<br/>Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休"]
   S0383["S0383<br/>最终默认路由收敛与旧路径退休收尾"]
   S0384["S0384<br/>枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐"]
   S0385["S0385<br/>deinit 字段借用、独立堆对象可空 if 与字符串字段接收者旧路径退役"]
   S0386["S0386<br/>Inout 接收者、接口委托、无状态 object 与局部解构旧路径退役"]
   S0387["S0387<br/>String.clone()、装箱构造、value class 字段借用与通用 when 旧路径退役"]
   S0388["S0388<br/>数值区间 for、运行时长度容器构造、Map.get、非可空 Map.consume 与 $map.result 旧路径退役"]
-  S0390["S0390<br/>预置 Linux CI 工具链镜像"]
-  S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
-  S0392["S0392<br/>编译器分层复审与前端合同修复"]
+  S0389["S0389<br/>具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役"]
   S0393["S0393<br/>RangeView、借用结果函数与绑定、Rc 操作及带捕获闭包旧路径退役"]
   S0394["S0394<br/>直接 String.clone() 旧路径退役"]
   S0395["S0395<br/>可空 while 证明视图与借用子项旧路径退役"]
@@ -439,9 +427,18 @@ subgraph Gactive["现行 active"]
   S0448["S0448<br/>map_provider_exits_pipeline_tests 测试域叶子薄壳子模块批量退役（132 个）"]
   S0449["S0449<br/>其余测试域叶子薄壳子模块批量退役（42 个）"]
   S0450["S0450<br/>下一层叶子薄壳与同级测试小文件批量收敛（62 个）"]
-  S0451["S0451<br/>跨父模块测试薄壳批量打包收敛（22 个）"]
-  S0452["S0452<br/>lang-codegen 非 ssa 子树叶子薄壳与同级测试小文件批量收敛（129 个）"]
-  S0453["S0453<br/>lang-codegen 剩余同目录 include_str! 薄壳、llvm 子树同级模块与跨父测试小文件批量收敛（37 个）"]
+end
+subgraph Gactive["现行 active"]
+  S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
+  S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
+  S0341["S0341<br/>D10 统一 compilation-unit 检查与代码生成管线"]
+  S0357["S0357<br/>String subject when 的 Unit 清理事实"]
+  S0360["S0360<br/>String when 清理事实的 refinement 消费"]
+  S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
+  S0369["S0369<br/>CLI 最终调试产物与源码断点"]
+  S0390["S0390<br/>预置 Linux CI 工具链镜像"]
+  S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
+  S0392["S0392<br/>编译器分层复审与前端合同修复"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1864,8 +1861,84 @@ S0366 --> S0367
 | SPEC-0365 | archive | [0365-closure-return-facts.md](0365-closure-return-facts.md) |
 | SPEC-0366 | archive | [0366-text-io-guide.md](0366-text-io-guide.md) |
 | SPEC-0367 | archive | [0367-string-length-invariant.md](0367-string-length-invariant.md) |
+| SPEC-0370 | archive | [0370-refine-lambda-bodies.md](0370-refine-lambda-bodies.md) |
+| SPEC-0371 | archive | [0371-refine-integer-range-text.md](0371-refine-integer-range-text.md) |
+| SPEC-0372 | archive | [0372-refine-generic-class-enum.md](0372-refine-generic-class-enum.md) |
+| SPEC-0373 | archive | [0373-refine-destructuring-range-for.md](0373-refine-destructuring-range-for.md) |
+| SPEC-0374 | archive | [0374-refine-ownership-primitives-const.md](0374-refine-ownership-primitives-const.md) |
+| SPEC-0375 | archive | [0375-refine-sequential-containers.md](0375-refine-sequential-containers.md) |
+| SPEC-0376 | archive | [0376-refine-container-for-generate.md](0376-refine-container-for-generate.md) |
+| SPEC-0377 | archive | [0377-refine-box-map.md](0377-refine-box-map.md) |
+| SPEC-0378 | archive | [0378-refine-class-fields-rc-and-null-views.md](0378-refine-class-fields-rc-and-null-views.md) |
+| SPEC-0379 | archive | [0379-refine-reassignment-and-move-enum-when.md](0379-refine-reassignment-and-move-enum-when.md) |
+| SPEC-0380 | archive | [0380-refine-deinit-nested-fields-and-box-payloads.md](0380-refine-deinit-nested-fields-and-box-payloads.md) |
+| SPEC-0381 | archive | [0381-refine-default-routing-and-legacy-retirement.md](0381-refine-default-routing-and-legacy-retirement.md) |
 | SPEC-0382 | archive | [0382-refine-map-ops-and-primitive-retirement.md](0382-refine-map-ops-and-primitive-retirement.md) |
+| SPEC-0383 | archive | [0383-refine-final-legacy-retirement.md](0383-refine-final-legacy-retirement.md) |
+| SPEC-0384 | archive | [0384-refine-legacy-module-retirement.md](0384-refine-legacy-module-retirement.md) |
+| SPEC-0385 | archive | [0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
+| SPEC-0386 | archive | [0386-refine-inout-delegation-object-destructuring-retirement.md](0386-refine-inout-delegation-object-destructuring-retirement.md) |
+| SPEC-0387 | archive | [0387-refine-string-clone-box-value-field-when-retirement.md](0387-refine-string-clone-box-value-field-when-retirement.md) |
+| SPEC-0388 | archive | [0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
 | SPEC-0389 | archive | [0389-refine-known-function-shared-capture-container-element-retirement.md](0389-refine-known-function-shared-capture-container-element-retirement.md) |
+| SPEC-0393 | archive | [0393-refine-range-borrow-result-rc-closure-retirement.md](0393-refine-range-borrow-result-rc-closure-retirement.md) |
+| SPEC-0394 | archive | [0394-refine-string-clone-retirement.md](0394-refine-string-clone-retirement.md) |
+| SPEC-0395 | archive | [0395-refine-nullable-while-retirement.md](0395-refine-nullable-while-retirement.md) |
+| SPEC-0396 | archive | [0396-refine-map-iteration-retirement.md](0396-refine-map-iteration-retirement.md) |
+| SPEC-0397 | archive | [0397-refine-nullable-map-and-closure-retirement.md](0397-refine-nullable-map-and-closure-retirement.md) |
+| SPEC-0398 | archive | [0398-refine-nullable-string-and-field-if-retirement.md](0398-refine-nullable-string-and-field-if-retirement.md) |
+| SPEC-0399 | archive | [0399-refine-heap-nullable-if-and-compatibility-retirement.md](0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
+| SPEC-0400 | archive | [0400-refine-unit-lower-dead-carrier-retirement.md](0400-refine-unit-lower-dead-carrier-retirement.md) |
+| SPEC-0401 | archive | [0401-refine-unit-lower-rc-if-and-field-root-retirement.md](0401-refine-unit-lower-rc-if-and-field-root-retirement.md) |
+| SPEC-0402 | archive | [0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
+| SPEC-0403 | archive | [0403-refine-unit-lower-dead-fields-and-provider-retirement.md](0403-refine-unit-lower-dead-fields-and-provider-retirement.md) |
+| SPEC-0404 | archive | [0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
+| SPEC-0405 | archive | [0405-refine-dead-helpers-and-test-entry-gates-retirement.md](0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
+| SPEC-0406 | archive | [0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md) |
+| SPEC-0407 | archive | [0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md) |
+| SPEC-0408 | archive | [0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md) |
+| SPEC-0409 | archive | [0409-refine-deinit-and-build-receipt-shells-retirement.md](0409-refine-deinit-and-build-receipt-shells-retirement.md) |
+| SPEC-0410 | archive | [0410-refine-delegated-receiver-and-build-subset-shells-retirement.md](0410-refine-delegated-receiver-and-build-subset-shells-retirement.md) |
+| SPEC-0411 | archive | [0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md](0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md) |
+| SPEC-0412 | archive | [0412-refine-render-verify-and-map-frontend-shells-retirement.md](0412-refine-render-verify-and-map-frontend-shells-retirement.md) |
+| SPEC-0413 | archive | [0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md](0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md) |
+| SPEC-0414 | archive | [0414-refine-model-constant-and-lower-frontend-shells-retirement.md](0414-refine-model-constant-and-lower-frontend-shells-retirement.md) |
+| SPEC-0415 | archive | [0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md](0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md) |
+| SPEC-0416 | archive | [0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md](0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md) |
+| SPEC-0417 | archive | [0417-refine-verify-render-and-build-shells-retirement.md](0417-refine-verify-render-and-build-shells-retirement.md) |
+| SPEC-0418 | archive | [0418-refine-receipt-subset-and-frontend-shells-retirement.md](0418-refine-receipt-subset-and-frontend-shells-retirement.md) |
+| SPEC-0419 | archive | [0419-refine-lower-frontend-and-map-iteration-shells-retirement.md](0419-refine-lower-frontend-and-map-iteration-shells-retirement.md) |
+| SPEC-0420 | archive | [0420-refine-support-verify-receipt-and-drops-shells-retirement.md](0420-refine-support-verify-receipt-and-drops-shells-retirement.md) |
+| SPEC-0421 | archive | [0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md](0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md) |
+| SPEC-0422 | archive | [0422-refine-emit-verify-instances-and-closure-shells-retirement.md](0422-refine-emit-verify-instances-and-closure-shells-retirement.md) |
+| SPEC-0423 | archive | [0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md](0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md) |
+| SPEC-0424 | archive | [0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md](0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md) |
+| SPEC-0425 | archive | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
+| SPEC-0426 | archive | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
+| SPEC-0427 | archive | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
+| SPEC-0428 | archive | [0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md](0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md) |
+| SPEC-0429 | archive | [0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md](0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md) |
+| SPEC-0430 | archive | [0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md](0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md) |
+| SPEC-0431 | archive | [0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md](0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md) |
+| SPEC-0432 | archive | [0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md](0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) |
+| SPEC-0433 | archive | [0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md](0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md) |
+| SPEC-0434 | archive | [0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md](0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md) |
+| SPEC-0435 | archive | [0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md](0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) |
+| SPEC-0436 | archive | [0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md](0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md) |
+| SPEC-0437 | archive | [0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md](0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) |
+| SPEC-0438 | archive | [0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md](0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md) |
+| SPEC-0439 | archive | [0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md](0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md) |
+| SPEC-0440 | archive | [0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md](0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) |
+| SPEC-0441 | archive | [0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md](0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md) |
+| SPEC-0442 | archive | [0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md](0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) |
+| SPEC-0443 | archive | [0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md](0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) |
+| SPEC-0444 | archive | [0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md](0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md) |
+| SPEC-0445 | archive | [0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md](0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md) |
+| SPEC-0446 | archive | [0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md](0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md) |
+| SPEC-0447 | archive | [0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md](0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md) |
+| SPEC-0448 | archive | [0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md](0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) |
+| SPEC-0449 | archive | [0449-remaining-test-domains-leaf-shells-batch-retirement.md](0449-remaining-test-domains-leaf-shells-batch-retirement.md) |
+| SPEC-0450 | archive | [0450-next-layer-leaf-and-sibling-shells-batch-retirement.md](0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -1873,88 +1946,9 @@ S0366 --> S0367
 | SPEC-0360 | active | [0360-string-when-refinement.md](../../specs/active/0360-string-when-refinement.md) |
 | SPEC-0368 | active | [0368-text-byte-foundation.md](../../specs/active/0368-text-byte-foundation.md) |
 | SPEC-0369 | active | [0369-final-debug-artifacts.md](../../specs/active/0369-final-debug-artifacts.md) |
-| SPEC-0370 | active | [0370-refine-lambda-bodies.md](../../specs/active/0370-refine-lambda-bodies.md) |
-| SPEC-0371 | active | [0371-refine-integer-range-text.md](../../specs/active/0371-refine-integer-range-text.md) |
-| SPEC-0372 | active | [0372-refine-generic-class-enum.md](../../specs/active/0372-refine-generic-class-enum.md) |
-| SPEC-0373 | active | [0373-refine-destructuring-range-for.md](../../specs/active/0373-refine-destructuring-range-for.md) |
-| SPEC-0374 | active | [0374-refine-ownership-primitives-const.md](../../specs/active/0374-refine-ownership-primitives-const.md) |
-| SPEC-0375 | active | [0375-refine-sequential-containers.md](../../specs/active/0375-refine-sequential-containers.md) |
-| SPEC-0376 | active | [0376-refine-container-for-generate.md](../../specs/active/0376-refine-container-for-generate.md) |
-| SPEC-0377 | active | [0377-refine-box-map.md](../../specs/active/0377-refine-box-map.md) |
-| SPEC-0378 | active | [0378-refine-class-fields-rc-and-null-views.md](../../specs/active/0378-refine-class-fields-rc-and-null-views.md) |
-| SPEC-0379 | active | [0379-refine-reassignment-and-move-enum-when.md](../../specs/active/0379-refine-reassignment-and-move-enum-when.md) |
-| SPEC-0380 | active | [0380-refine-deinit-nested-fields-and-box-payloads.md](../../specs/active/0380-refine-deinit-nested-fields-and-box-payloads.md) |
-| SPEC-0381 | active | [0381-refine-default-routing-and-legacy-retirement.md](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md) |
-| SPEC-0383 | active | [0383-refine-final-legacy-retirement.md](../../specs/active/0383-refine-final-legacy-retirement.md) |
-| SPEC-0384 | active | [0384-refine-legacy-module-retirement.md](../../specs/active/0384-refine-legacy-module-retirement.md) |
-| SPEC-0385 | active | [0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md](../../specs/active/0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md) |
-| SPEC-0386 | active | [0386-refine-inout-delegation-object-destructuring-retirement.md](../../specs/active/0386-refine-inout-delegation-object-destructuring-retirement.md) |
-| SPEC-0387 | active | [0387-refine-string-clone-box-value-field-when-retirement.md](../../specs/active/0387-refine-string-clone-box-value-field-when-retirement.md) |
-| SPEC-0388 | active | [0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md](../../specs/active/0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |
-| SPEC-0393 | active | [0393-refine-range-borrow-result-rc-closure-retirement.md](../../specs/active/0393-refine-range-borrow-result-rc-closure-retirement.md) |
-| SPEC-0394 | active | [0394-refine-string-clone-retirement.md](../../specs/active/0394-refine-string-clone-retirement.md) |
-| SPEC-0395 | active | [0395-refine-nullable-while-retirement.md](../../specs/active/0395-refine-nullable-while-retirement.md) |
-| SPEC-0396 | active | [0396-refine-map-iteration-retirement.md](../../specs/active/0396-refine-map-iteration-retirement.md) |
-| SPEC-0397 | active | [0397-refine-nullable-map-and-closure-retirement.md](../../specs/active/0397-refine-nullable-map-and-closure-retirement.md) |
-| SPEC-0398 | active | [0398-refine-nullable-string-and-field-if-retirement.md](../../specs/active/0398-refine-nullable-string-and-field-if-retirement.md) |
-| SPEC-0399 | active | [0399-refine-heap-nullable-if-and-compatibility-retirement.md](../../specs/active/0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
-| SPEC-0400 | active | [0400-refine-unit-lower-dead-carrier-retirement.md](../../specs/active/0400-refine-unit-lower-dead-carrier-retirement.md) |
-| SPEC-0401 | active | [0401-refine-unit-lower-rc-if-and-field-root-retirement.md](../../specs/active/0401-refine-unit-lower-rc-if-and-field-root-retirement.md) |
-| SPEC-0402 | active | [0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md](../../specs/active/0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
-| SPEC-0403 | active | [0403-refine-unit-lower-dead-fields-and-provider-retirement.md](../../specs/active/0403-refine-unit-lower-dead-fields-and-provider-retirement.md) |
-| SPEC-0404 | active | [0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md](../../specs/active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
-| SPEC-0405 | active | [0405-refine-dead-helpers-and-test-entry-gates-retirement.md](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
-| SPEC-0406 | active | [0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md](../../specs/active/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md) |
-| SPEC-0407 | active | [0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md](../../specs/active/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md) |
-| SPEC-0408 | active | [0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md](../../specs/active/0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md) |
-| SPEC-0409 | active | [0409-refine-deinit-and-build-receipt-shells-retirement.md](../../specs/active/0409-refine-deinit-and-build-receipt-shells-retirement.md) |
-| SPEC-0410 | active | [0410-refine-delegated-receiver-and-build-subset-shells-retirement.md](../../specs/active/0410-refine-delegated-receiver-and-build-subset-shells-retirement.md) |
-| SPEC-0411 | active | [0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md](../../specs/active/0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md) |
-| SPEC-0412 | active | [0412-refine-render-verify-and-map-frontend-shells-retirement.md](../../specs/active/0412-refine-render-verify-and-map-frontend-shells-retirement.md) |
-| SPEC-0413 | active | [0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md](../../specs/active/0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md) |
-| SPEC-0414 | active | [0414-refine-model-constant-and-lower-frontend-shells-retirement.md](../../specs/active/0414-refine-model-constant-and-lower-frontend-shells-retirement.md) |
-| SPEC-0415 | active | [0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md](../../specs/active/0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md) |
-| SPEC-0416 | active | [0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md](../../specs/active/0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md) |
-| SPEC-0417 | active | [0417-refine-verify-render-and-build-shells-retirement.md](../../specs/active/0417-refine-verify-render-and-build-shells-retirement.md) |
-| SPEC-0418 | active | [0418-refine-receipt-subset-and-frontend-shells-retirement.md](../../specs/active/0418-refine-receipt-subset-and-frontend-shells-retirement.md) |
-| SPEC-0419 | active | [0419-refine-lower-frontend-and-map-iteration-shells-retirement.md](../../specs/active/0419-refine-lower-frontend-and-map-iteration-shells-retirement.md) |
-| SPEC-0420 | active | [0420-refine-support-verify-receipt-and-drops-shells-retirement.md](../../specs/active/0420-refine-support-verify-receipt-and-drops-shells-retirement.md) |
-| SPEC-0421 | active | [0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md](../../specs/active/0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md) |
-| SPEC-0422 | active | [0422-refine-emit-verify-instances-and-closure-shells-retirement.md](../../specs/active/0422-refine-emit-verify-instances-and-closure-shells-retirement.md) |
-| SPEC-0423 | active | [0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md](../../specs/active/0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md) |
-| SPEC-0424 | active | [0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md](../../specs/active/0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md) |
-| SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](../../specs/active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
-| SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](../../specs/active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
-| SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](../../specs/active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
-| SPEC-0428 | active | [0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md](../../specs/active/0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md) |
-| SPEC-0429 | active | [0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md](../../specs/active/0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md) |
-| SPEC-0430 | active | [0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md](../../specs/active/0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md) |
-| SPEC-0431 | active | [0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md](../../specs/active/0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md) |
-| SPEC-0432 | active | [0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md](../../specs/active/0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md) |
-| SPEC-0433 | active | [0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md](../../specs/active/0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md) |
-| SPEC-0434 | active | [0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md](../../specs/active/0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md) |
-| SPEC-0435 | active | [0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md](../../specs/active/0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) |
-| SPEC-0436 | active | [0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md](../../specs/active/0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md) |
-| SPEC-0437 | active | [0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md](../../specs/active/0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) |
-| SPEC-0438 | active | [0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md](../../specs/active/0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md) |
-| SPEC-0439 | active | [0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md](../../specs/active/0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md) |
-| SPEC-0440 | active | [0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md](../../specs/active/0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md) |
-| SPEC-0441 | active | [0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md](../../specs/active/0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md) |
-| SPEC-0442 | active | [0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md](../../specs/active/0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md) |
-| SPEC-0443 | active | [0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md](../../specs/active/0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) |
-| SPEC-0444 | active | [0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md](../../specs/active/0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md) |
-| SPEC-0445 | active | [0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md](../../specs/active/0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md) |
-| SPEC-0446 | active | [0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md](../../specs/active/0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md) |
-| SPEC-0447 | active | [0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md](../../specs/active/0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md) |
-| SPEC-0448 | active | [0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md](../../specs/active/0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) |
-| SPEC-0449 | active | [0449-remaining-test-domains-leaf-shells-batch-retirement.md](../../specs/active/0449-remaining-test-domains-leaf-shells-batch-retirement.md) |
-| SPEC-0450 | active | [0450-next-layer-leaf-and-sibling-shells-batch-retirement.md](../../specs/active/0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) |
-| SPEC-0451 | active | [0451-cross-parent-leaf-test-shells-batch-retirement.md](../../specs/active/0451-cross-parent-leaf-test-shells-batch-retirement.md) |
-| SPEC-0452 | active | [0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md](../../specs/active/0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md) |
-| SPEC-0453 | active | [0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md](../../specs/active/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

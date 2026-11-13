@@ -539,8 +539,10 @@ mod nullable_if_cleanup_tests {
     //! Direct private guards; mutations never use the final verifier as an oracle.
     use crate::ssa::lower_frontend::cleanup_guard_harness::{self as harness, Fixture};
     use crate::ssa::lower_frontend::non_null_proof::ProofScope;
+    use crate::ssa::lower_frontend::nullable_if_cleanup::coverage;
     use crate::ssa::lower_frontend::nullable_if_cleanup::*;
     use crate::ssa::lower_frontend::*;
+    use lang_frontend::ownership_checking::DropFact;
 
     fn checkpoint<T>(
         fixture: &Fixture,
@@ -649,7 +651,10 @@ mod nullable_if_cleanup_tests {
                     .entry()
                     .instructions
                     .iter()
-                    .all(|instruction| !matches!(instruction.operation, Operation::DirectCall { .. }))
+                    .all(|instruction| !matches!(
+                        instruction.operation,
+                        Operation::DirectCall { .. }
+                    ))
             );
             assert_eq!(
                 fixture.entry().return_types,
@@ -760,7 +765,8 @@ mod nullable_if_cleanup_tests {
                                     harness::incoming(lowerer.function, block).pop().unwrap();
                                 let EntityId::Value(current) = lowerer.function.block(block).unwrap().parameters.iter().copied().find(|entity| matches!(entity, EntityId::Value(value) if lowerer.bindings[&plan.root] == LoweredValue::Value(*value))).unwrap() else { unreachable!() };
                                 let column =
-                                    harness::parameter(lowerer.function, EntityId::Value(current)).1;
+                                    harness::parameter(lowerer.function, EntityId::Value(current))
+                                        .1;
                                 let seed = lowerer
                                     .function
                                     .block(lowerer.function.entry_block().unwrap())

@@ -170,7 +170,8 @@ fn reachable_body_only_string_type_preserves_owner_drop() {
 }
 
 // Stage A only: legacy whole-file/shared-instance witnesses remain unchanged.
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::resource::continuation::legacy_instance_witnesses as legacy_instance_witnesses;
+#[path = "unit_legacy_instance_witness_tests.rs"]
+mod legacy_instance_witnesses;
 
 mod registration_tests {
     //! CI-only mapper contract after the complete unit planner; Resource never bypasses admission.
@@ -188,12 +189,12 @@ mod registration_tests {
         },
     };
 
-    use crate::ssa::unit_lower::orchestrate::*;
     use crate::ssa::unit_lower::*;
     use crate::ssa::{
         model::{MapContainerKind, Module, Ownership, SsaTypeKind},
         unit_plan::plan_unit_instances,
     };
+    use std::collections::BTreeMap;
 
     use crate::ssa::nullable_map_consume_lowering_tests::registration_r1_source;
 
@@ -282,7 +283,9 @@ mod registration_tests {
                     signed: true
                 })
             )),
-            BuiltinType::String => assert_eq!(module.type_kind(id), Some(&SsaTypeKind::StringOwner)),
+            BuiltinType::String => {
+                assert_eq!(module.type_kind(id), Some(&SsaTypeKind::StringOwner))
+            }
             _ => panic!("fixture contains only Int/String builtins"),
         }
         format!("{expected:?}")
@@ -472,12 +475,12 @@ mod registration_tests {
                 .body_symbol_types()
                 .keys()
                 .copied()
-                .chain(names.names().references().iter().filter_map(
-                    |reference| match reference.target() {
+                .chain(names.names().references().iter().filter_map(|reference| {
+                    match reference.target() {
                         UnitReferenceTarget::Symbol(root) => Some(*root),
                         _ => None,
-                    },
-                ))
+                    }
+                }))
                 .filter(|root| root.source_unit() == p && root.symbol() == symbols[0].id())
                 .collect::<BTreeSet<_>>();
             assert_eq!(roots.len(), 1, "unique source-qualified symbol {name}");
@@ -563,8 +566,8 @@ mod registration_tests {
 
         let mut mapper_creations = 0;
         // The full production planner, including layout/deinit admission, precedes all mapper creation.
-        let result =
-            plan_unit_instances(&sources, &inputs, &names, &types, &typed, &owned, entry).map(|plan| {
+        let result = plan_unit_instances(&sources, &inputs, &names, &types, &typed, &owned, entry)
+            .map(|plan| {
                 assert!(plan.iter().any(|instance| instance.source_unit() == p
                     && instance.key() == &UnitFunctionInstanceKey::for_entry(main)));
                 assert!(plan.iter().any(|instance| instance.source_unit() == q

@@ -31,7 +31,9 @@ mod factory_return_queries {
         let returned = plan
             .callable_plan()
             .callable_return(factory.source_token())
-            .expect("a reachable factory needs its return ABI even without a source helper Fn slot");
+            .expect(
+                "a reachable factory needs its return ABI even without a source helper Fn slot",
+            );
         assert_eq!(returned.function_type(), summary.function_type());
         assert!(matches!(
             plan.callable_plan().callable(returned.callable()),

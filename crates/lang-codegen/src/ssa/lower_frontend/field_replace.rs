@@ -8,7 +8,7 @@ use lang_frontend::{
 use super::*;
 
 impl ExpressionLowerer<'_> {
-    pub(super) fn lower_field_replace(
+    pub(in crate::ssa) fn lower_field_replace(
         &mut self,
         call: ExpressionId,
         first: &CallArgument,
@@ -258,7 +258,7 @@ impl ExpressionLowerer<'_> {
         Ok((symbol, field, owner_type))
     }
 
-    pub(super) fn field_replace_ungroup(
+    pub(in crate::ssa) fn field_replace_ungroup(
         &self,
         mut expression: ExpressionId,
         span: Span,
@@ -278,7 +278,7 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-pub(in crate::ssa::lower_frontend) mod readonly_receiver {
+pub(in crate::ssa) mod readonly_receiver {
     //! Narrow single-file Borrow receiver admission and the shared readonly entry view.
     use super::super::{
         EntityId, EntityType, LoanId, LoanKind, LoweringError, LoweringErrorKind, error,
@@ -295,7 +295,7 @@ pub(in crate::ssa::lower_frontend) mod readonly_receiver {
         },
     };
 
-    pub(in crate::ssa::lower_frontend) fn admitted(
+    pub(in crate::ssa) fn admitted(
         typed: &TypedFile,
         callable: &CallableDescriptor,
     ) -> Option<(NominalId, TypeId)> {
@@ -465,7 +465,7 @@ pub(in crate::ssa::lower_frontend) mod readonly_receiver {
 
         /// Resolve only the validated readonly entry receiver and projections rooted in it.
         /// Created loans are returned in outer-to-inner order for reverse cleanup.
-        pub(in crate::ssa::lower_frontend) fn readonly_view(
+        pub(in crate::ssa) fn readonly_view(
             &mut self,
             expression: lang_frontend::ast::ExpressionId,
         ) -> Result<Option<(super::super::LoanId, Vec<super::super::LoanId>)>, LoweringError>
@@ -575,11 +575,11 @@ pub(in crate::ssa::lower_frontend) mod readonly_receiver {
 #[cfg(test)]
 mod map_consume_nullable_guard_tests {
     //! CI-only qualification/live/branch checkpoints from the unchanged C1/C2/C3 sources.
-    use crate::ssa::lower_frontend::map_consume::nullable::*;
-    use crate::ssa::lower_frontend::*;
+
     use crate::ssa::lower_frontend::orchestrate::nullable_map_guard_support::{
         Fixture, Point, Snapshot,
     };
+    use crate::ssa::lower_frontend::*;
     use lang_frontend::ownership_checking::{IterationCleanupAction, LoanEndPoint};
 
     #[derive(Clone, Copy, Debug)]
@@ -655,7 +655,9 @@ mod map_consume_nullable_guard_tests {
         let source = lowerer.nullable_consume_source(descriptor, point.proof.inner, point.span)?;
         match target {
             Target::Qualification => Ok(()),
-            Target::Live => lowerer.validate_nullable_consume_live(&source, point.proof, point.span),
+            Target::Live => {
+                lowerer.validate_nullable_consume_live(&source, point.proof, point.span)
+            }
             Target::Branch => {
                 lowerer.validate_nullable_consume_branch(&source, point.proof, point.span)
             }
@@ -686,7 +688,9 @@ mod map_consume_nullable_guard_tests {
                         .expect("C3 has another actual planned callable"),
                 )
             }
-            Mutation::MissingFunction => state.function_ids.retain(|_, id| *id != state.function.id),
+            Mutation::MissingFunction => {
+                state.function_ids.retain(|_, id| *id != state.function.id)
+            }
             Mutation::MissingType => {
                 state.type_ids.remove(&point.storage);
             }
@@ -786,12 +790,12 @@ mod map_consume_nullable_guard_tests {
                     when_non_null.target = point.null_block;
                 }
                 Mutation::WrongNullArgument => {
-                    let TerminatorKind::NullableBranch { when_null, .. } = &mut lowerer.function.blocks
-                        [point.header.index()]
-                    .terminator
-                    .as_mut()
-                    .unwrap()
-                    .kind
+                    let TerminatorKind::NullableBranch { when_null, .. } =
+                        &mut lowerer.function.blocks[point.header.index()]
+                            .terminator
+                            .as_mut()
+                            .unwrap()
+                            .kind
                     else {
                         unreachable!()
                     };
@@ -901,11 +905,9 @@ mod map_consume_nullable_guard_tests {
                         .any(|fact| fact.point() == at)
                 );
             }
-            assert!(
-                !lowerer.owned.loans().iter().any(
-                    |loan| loan.call() == source.call || source.operands.contains(&loan.argument())
-                )
-            );
+            assert!(!lowerer.owned.loans().iter().any(
+                |loan| loan.call() == source.call || source.operands.contains(&loan.argument())
+            ));
             assert!(
                 !lowerer
                     .owned

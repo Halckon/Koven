@@ -394,12 +394,12 @@ pub(in crate::ssa) mod source_owner {
     //! Exact source-owner proof for the observed normal and direct-tail Map shapes.
     //! A source facts were first collected by the ordinary 12-path run on 9244391b.
     //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
-    pub(in crate::ssa) use crate::ssa::ordered_map_storage_tests::source_owner_handoff as handoff;
-    pub(in crate::ssa) use handoff::delivery;
-    use delivery::future;
-    pub(in crate::ssa) use delivery::Delivery;
-    pub(in crate::ssa) use crate::ssa::lower_frontend::orchestrate::nullable_map_guard_support::provenance;
     pub(in crate::ssa) use crate::ssa::lower_frontend::map_iteration::*;
+    pub(in crate::ssa) use crate::ssa::lower_frontend::orchestrate::nullable_map_guard_support::provenance;
+    pub(in crate::ssa) use crate::ssa::ordered_map_storage_tests::source_owner_handoff as handoff;
+    pub(in crate::ssa) use delivery::Delivery;
+    use delivery::future;
+    pub(in crate::ssa) use handoff::delivery;
     pub(in crate::ssa) use lang_frontend::ownership_checking::{
         CleanupConditions, CleanupOwnerValue, CleanupSelection, CleanupSelectorSource, DropFact,
         DropTarget, IterationClosurePhiBinding, IterationPhiBoundary, IterationPhiIncomingBinding,
@@ -569,9 +569,9 @@ pub(in crate::ssa) mod source_owner {
         }
         // A later source lifetime is legal frontend output, but is not this proof.
         if source_drops.len() != 1 + usize::from(transfer_point.is_some())
-            || source_drops
-                .iter()
-                .any(|fact| fact.point() != exhaustion_point && Some(fact.point()) != transfer_point)
+            || source_drops.iter().any(|fact| {
+                fact.point() != exhaustion_point && Some(fact.point()) != transfer_point
+            })
         {
             return future::qualify(parsed, names, owned, plan, root, body_exit, span);
         }
@@ -710,8 +710,8 @@ pub(in crate::ssa) mod source_owner {
             (body_exit, transfer),
             (IterationExitKind::Exhaustion, Some(drop)),
         ] {
-            let exit =
-                unique(plan.exits().iter().filter(|exit| exit.kind() == kind)).ok_or_else(missing)?;
+            let exit = unique(plan.exits().iter().filter(|exit| exit.kind() == kind))
+                .ok_or_else(missing)?;
             let actual = exit
                 .actions()
                 .iter()
@@ -978,7 +978,8 @@ pub(in crate::ssa) mod source_owner {
                         .filter(|incoming| incoming.kind() == IterationPhiIncomingKind::Entry),
                 )
                 .ok_or_else(bad)?;
-                if owned.cleanup_conditions().get(entry.condition()) != Some(&CleanupCondition::Always)
+                if owned.cleanup_conditions().get(entry.condition())
+                    != Some(&CleanupCondition::Always)
                 {
                     return Err(bad());
                 }

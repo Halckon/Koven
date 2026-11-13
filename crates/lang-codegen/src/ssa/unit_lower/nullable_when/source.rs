@@ -559,6 +559,13 @@ impl UnitExpressionLowerer<'_> {
 #[cfg(test)]
 mod frontend_registration_tests {
     //! CI-only mapper contract: real FE identities, no descriptor pre-scan or SSA/native claim.
+    use crate::ssa::lower_frontend::{
+        declarations::collect_functions,
+        instances::{FunctionTemplate, plan_instances},
+        nominal::NominalTypeMapper,
+    };
+    use crate::ssa::model::Program;
+    use lang_frontend::source::SourceMap;
 
     use std::collections::BTreeSet;
 
@@ -568,7 +575,8 @@ mod frontend_registration_tests {
         ownership_checking::check_ownership,
         parser::parse_file,
         type_checking::{
-            IntrinsicTypeConstructor, TypeKind, check_types, complete_file_types, standard_environments,
+            IntrinsicTypeConstructor, TypeKind, check_types, complete_file_types,
+            standard_environments,
         },
     };
 
@@ -663,7 +671,9 @@ mod frontend_registration_tests {
                     signed: true
                 })
             )),
-            BuiltinType::String => assert_eq!(module.type_kind(id), Some(&SsaTypeKind::StringOwner)),
+            BuiltinType::String => {
+                assert_eq!(module.type_kind(id), Some(&SsaTypeKind::StringOwner))
+            }
             _ => panic!("fixture contains only Int/String builtins"),
         }
         format!("{expected:?}")
@@ -747,7 +757,8 @@ mod frontend_registration_tests {
         assert!(complete.is_same_analysis(&typed));
         assert!(std::ptr::eq(complete.types(), &typed));
         assert!(complete.types().diagnostics().is_empty());
-        let owned = check_ownership(&sources, &parsed, &names, complete.types()).expect("ownership");
+        let owned =
+            check_ownership(&sources, &parsed, &names, complete.types()).expect("ownership");
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
         validate_inputs(&sources, &parsed, &names, &typed, &owned).expect("ordinary input gate");

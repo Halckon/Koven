@@ -1,5 +1,4 @@
 //! SSA construction: slot liveness decides block parameters; operands map mechanically.
-mod statements;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -311,14 +310,18 @@ fn place(entity: EntityId, span: Span) -> Result<PlaceId, LoweringError> {
     }
 }
 
-struct Emitter<'f> {
-    function: &'f mut Function,
-    current: BTreeMap<Slot, EntityId>,
-    defined: BTreeMap<Slot, EntityId>,
+pub(in crate::ssa::refine) struct Emitter<'f> {
+    pub(in crate::ssa::refine) function: &'f mut Function,
+    pub(in crate::ssa::refine) current: BTreeMap<Slot, EntityId>,
+    pub(in crate::ssa::refine) defined: BTreeMap<Slot, EntityId>,
 }
 
 impl Emitter<'_> {
-    fn get(&self, slot: Slot, span: Span) -> Result<EntityId, LoweringError> {
+    pub(in crate::ssa::refine) fn get(
+        &self,
+        slot: Slot,
+        span: Span,
+    ) -> Result<EntityId, LoweringError> {
         self.current
             .get(&slot)
             .copied()
@@ -347,7 +350,11 @@ impl Emitter<'_> {
         value(entity, span)
     }
 
-    fn operation(&self, op: &ROp, span: Span) -> Result<Operation, LoweringError> {
+    pub(in crate::ssa::refine) fn operation(
+        &self,
+        op: &ROp,
+        span: Span,
+    ) -> Result<Operation, LoweringError> {
         Ok(match op {
             ROp::Alias { .. } => return Err(error(LoweringErrorKind::InvalidModel, span)),
             ROp::Constant(constant) => Operation::Constant(constant.clone()),
@@ -876,7 +883,7 @@ pub(super) fn emit(
         parameters.insert(*block, slots);
         blocks.insert(*block, id);
     }
-    let mut receipts = statements::LoanReceipts::new(body, function, span)?;
+    let mut receipts = super::statements::LoanReceipts::new(body, function, span)?;
     receipts.layout(body, function, &blocks, &parameters, &entities, span)?;
     let mut emitter = Emitter {
         function,

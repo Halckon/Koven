@@ -93,7 +93,7 @@ use lang_frontend::{
     type_checking::{IntrinsicTypeConstructor, IterationProvider, TypeKind, TypedFile},
 };
 
-pub(super) use carrier::Carriers;
+pub(in crate::ssa) use carrier::Carriers;
 
 pub(super) fn validate_drops(
     parsed: &lang_frontend::parser::ParsedFile,
@@ -129,7 +129,7 @@ struct OwnerPlan {
     return_call: Option<ExpressionId>,
 }
 
-pub(super) fn supported_drop(
+pub(in crate::ssa) fn supported_drop(
     parsed: &lang_frontend::parser::ParsedFile,
     names: &lang_frontend::name_resolution::NameResolution,
     typed: &TypedFile,

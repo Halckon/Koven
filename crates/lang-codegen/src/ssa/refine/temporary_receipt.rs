@@ -1,5 +1,5 @@
 //! Optional bounded protocol-1 verification. Existing producers alone emit effects.
-mod admission {
+pub(in crate::ssa::refine) mod admission {
     use super::*;
     use lang_frontend::{
         ownership_checking::{
@@ -259,9 +259,9 @@ mod admission {
 }
 pub(in crate::ssa::refine) mod emitted {
     use super::*;
+    use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
     #[cfg(test)]
     use crate::ssa::refine::temporary_ci_tests as ci_tests;
-    use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
     use std::collections::BTreeMap;
     #[derive(Clone, Debug)]
     pub(crate) struct Receipt {
@@ -274,7 +274,7 @@ pub(in crate::ssa::refine) mod emitted {
         pub(crate) entities: Vec<EntityId>,
     }
     pub(in crate::ssa::refine) struct Emitted {
-        receipts: Vec<Receipt>,
+        pub(in crate::ssa::refine) receipts: Vec<Receipt>,
         blocks: Vec<Option<BlockId>>,
     }
     impl Emitted {
@@ -473,31 +473,31 @@ pub(in crate::ssa::refine) struct Tag {
 }
 #[derive(Clone, Debug, Default)]
 pub(in crate::ssa::refine) struct Plans {
-    entries: Vec<Plan>,
+    pub(in crate::ssa::refine) entries: Vec<Plan>,
 }
 #[derive(Clone, Debug)]
-struct Plan {
-    ids: Vec<UnitLoanActionId>,
-    callable: UnitItemId,
-    caller: FunctionId,
-    call: UnitExpressionId,
-    callee: FunctionId,
-    returns_value: bool,
-    operands: Vec<Operand>,
-    stage: usize,
-    block: Option<BlockRef>,
+pub(in crate::ssa::refine) struct Plan {
+    pub(in crate::ssa::refine) ids: Vec<UnitLoanActionId>,
+    pub(in crate::ssa::refine) callable: UnitItemId,
+    pub(in crate::ssa::refine) caller: FunctionId,
+    pub(in crate::ssa::refine) call: UnitExpressionId,
+    pub(in crate::ssa::refine) callee: FunctionId,
+    pub(in crate::ssa::refine) returns_value: bool,
+    pub(in crate::ssa::refine) operands: Vec<Operand>,
+    pub(in crate::ssa::refine) stage: usize,
+    pub(in crate::ssa::refine) block: Option<BlockRef>,
 }
 #[derive(Clone, Debug)]
-struct Operand {
-    fact: UnitLoanFact,
-    parameter_index: usize,
-    literal: Option<Vec<u8>>,
-    borrowed: bool,
-    drop_index: usize,
-    owner: Option<Slot>,
-    place: Option<Slot>,
-    loan: Option<Slot>,
-    drop_authorized: bool,
+pub(in crate::ssa::refine) struct Operand {
+    pub(in crate::ssa::refine) fact: UnitLoanFact,
+    pub(in crate::ssa::refine) parameter_index: usize,
+    pub(in crate::ssa::refine) literal: Option<Vec<u8>>,
+    pub(in crate::ssa::refine) borrowed: bool,
+    pub(in crate::ssa::refine) drop_index: usize,
+    pub(in crate::ssa::refine) owner: Option<Slot>,
+    pub(in crate::ssa::refine) place: Option<Slot>,
+    pub(in crate::ssa::refine) loan: Option<Slot>,
+    pub(in crate::ssa::refine) drop_authorized: bool,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Step {
@@ -510,7 +510,7 @@ enum Step {
 }
 // This single budget also bounds every 2N/3N/4N and 3i+2 index below.
 // It is an internal representation check, not a caller routing condition.
-fn instruction_count(n: usize) -> Option<usize> {
+pub(in crate::ssa::refine) fn instruction_count(n: usize) -> Option<usize> {
     if n == 0 {
         return None;
     }
@@ -537,7 +537,7 @@ impl Plan {
             None
         }
     }
-    fn slots(&self) -> impl Iterator<Item = Option<Slot>> + '_ {
+    pub(in crate::ssa::refine) fn slots(&self) -> impl Iterator<Item = Option<Slot>> + '_ {
         self.operands
             .iter()
             .flat_map(|a| [a.owner, a.place, a.loan])

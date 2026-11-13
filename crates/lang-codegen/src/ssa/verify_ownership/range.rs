@@ -876,3 +876,5 @@ pub(in crate::ssa::verify_ownership) mod borrow_result {
         }
     }
 }
+
+pub(in crate::ssa::verify_ownership) mod borrow_result;

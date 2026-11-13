@@ -270,7 +270,8 @@ pub(in crate::ssa) mod string_clone {
 
     use crate::ssa::lower_frontend::{
         ComparisonOperator, EntityId, EntityType, ExpressionLowerer, LoanKind, LoweredValue,
-        LoweringError, LoweringErrorKind, Operation, ScalarConstant, SsaTypeId, ValueId, error, value,
+        LoweringError, LoweringErrorKind, Operation, ScalarConstant, SsaTypeId, ValueId, error,
+        value,
     };
 
     impl ExpressionLowerer<'_> {
@@ -472,8 +473,10 @@ pub(in crate::ssa) mod string_clone {
         fn clone_field_projection(
             &self,
             expression: ExpressionId,
-        ) -> Result<Option<lang_frontend::type_checking::AggregateProjectionDescriptor>, LoweringError>
-        {
+        ) -> Result<
+            Option<lang_frontend::type_checking::AggregateProjectionDescriptor>,
+            LoweringError,
+        > {
             let node = self
                 .parsed
                 .ast()
@@ -494,7 +497,9 @@ pub(in crate::ssa) mod string_clone {
             expression: ExpressionId,
             created: &mut Vec<crate::ssa::lower_frontend::LoanId>,
         ) -> Result<crate::ssa::lower_frontend::LoanId, LoweringError> {
-            use lang_frontend::type_checking::{AggregateProjectionReceiver, NominalKind, TypeKind};
+            use lang_frontend::type_checking::{
+                AggregateProjectionReceiver, NominalKind, TypeKind,
+            };
             let span = self.expression_span(expression)?;
             let target = self.expression_ssa_type(expression, span)?;
             if let Some((loan, loans)) = self.readonly_view(expression)? {
@@ -503,7 +508,8 @@ pub(in crate::ssa) mod string_clone {
             }
 
             if let Some(projection) = self.clone_field_projection(expression)? {
-                let AggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+                let AggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+                else {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 };
                 let receiver_type = self
@@ -557,7 +563,9 @@ pub(in crate::ssa) mod string_clone {
                 return self.clone_field_loan(*expression, created);
             }
             if matches!(node.payload(), lang_frontend::parser::Expression::Name)
-                && let Some(symbol) = self.references.get(&crate::ssa::lower_frontend::span_key(node.span()))
+                && let Some(symbol) = self
+                    .references
+                    .get(&crate::ssa::lower_frontend::span_key(node.span()))
                 && let Some(loan) = self.borrow_bindings.get(symbol).copied()
             {
                 return Ok(loan);
@@ -616,11 +624,17 @@ pub(in crate::ssa) mod string_clone {
         };
 
         impl StatementLowering for ExpressionLowerer<'_> {
-            fn lower_inner(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
+            fn lower_inner(
+                &mut self,
+                statement: StatementId,
+            ) -> Result<LoweredValue, LoweringError> {
                 self.lower_statement_inner(statement)
             }
 
-            fn emit_after_statement(&mut self, statement: StatementId) -> Result<(), LoweringError> {
+            fn emit_after_statement(
+                &mut self,
+                statement: StatementId,
+            ) -> Result<(), LoweringError> {
                 self.emit_drops(DropPoint::AfterStatement(statement))
             }
         }
@@ -706,7 +720,8 @@ pub(in crate::ssa) mod string_clone {
                 let Some(expected) = qualified else {
                     return Ok(owner);
                 };
-                let wrapped = self.adapt_owned_value_to_expected(expression, owner, expected, span)?;
+                let wrapped =
+                    self.adapt_owned_value_to_expected(expression, owner, expected, span)?;
                 self.temporaries.insert(expression.index(), wrapped);
                 Ok(wrapped)
             }
@@ -736,8 +751,8 @@ pub(in crate::ssa) mod string_clone {
                 if matches!(lowered, LoweredValue::Diverged) {
                     return Ok(lowered);
                 }
-                let name_span =
-                    present_name(name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let name_span = present_name(name)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                 if self.source_slice(name_span)? == "_" {
                     return Ok(LoweredValue::Unit);
                 }
@@ -873,12 +888,14 @@ pub(in crate::ssa) mod string_clone {
                     }
                     _ => return Err(error(LoweringErrorKind::UnsupportedNode, node.span())),
                 };
-                let name_span =
-                    present_name(*name).ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let name_span = present_name(*name)
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                 let symbol = names
                     .symbols()
                     .iter()
-                    .find(|symbol| symbol.span() == name_span && symbol.kind() == SymbolKind::Function)
+                    .find(|symbol| {
+                        symbol.span() == name_span && symbol.kind() == SymbolKind::Function
+                    })
                     .map(|symbol| symbol.id())
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, name_span))?;
                 let callable = typed
@@ -899,13 +916,14 @@ pub(in crate::ssa) mod string_clone {
                 if readonly_receiver::admitted(typed, callable).is_none() {
                     continue;
                 }
-                let symbol = names
-                    .symbols()
-                    .get(callable.symbol().index())
-                    .ok_or(LoweringError {
-                        kind: LoweringErrorKind::MissingFact,
-                        span: None,
-                    })?;
+                let symbol =
+                    names
+                        .symbols()
+                        .get(callable.symbol().index())
+                        .ok_or(LoweringError {
+                            kind: LoweringErrorKind::MissingFact,
+                            span: None,
+                        })?;
                 let (item_id, node) = parsed
                     .ast()
                     .items()

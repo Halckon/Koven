@@ -242,7 +242,8 @@ mod identity {
                         let callee = p.ast().expressions().get(*callee).ok()?;
                         (node.span().start() >= span.start()
                             && node.span().end() <= span.end()
-                            && s.slice(callee.span()) == Ok(if builtin { "println" } else { "read" }))
+                            && s.slice(callee.span())
+                                == Ok(if builtin { "println" } else { "read" }))
                         .then_some(node.span())
                     }),
                     "original component read call",
@@ -364,7 +365,8 @@ mod identity {
                         "original Guard cleanup",
                     )?;
                     need(
-                        g.position(read)? < g.position(drop)? && g.position(drop)? < g.position(ve)?,
+                        g.position(read)? < g.position(drop)?
+                            && g.position(drop)? < g.position(ve)?,
                         "body-local owner before component End",
                         drop,
                     )?;

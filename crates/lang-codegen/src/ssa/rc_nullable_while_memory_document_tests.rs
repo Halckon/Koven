@@ -120,8 +120,8 @@ pub(in crate::ssa) mod map_consume_nullable {
 
     use std::collections::BTreeSet;
 
-    use crate::ssa::lower_frontend::*;
     use crate::ssa::borrow_result_support::ungroup;
+    use crate::ssa::lower_frontend::*;
     use crate::ssa::lowering_support::callable_instances::SourceToken;
     use crate::ssa::model::Definition;
     use lang_frontend::{
@@ -131,17 +131,17 @@ pub(in crate::ssa) mod map_consume_nullable {
         type_checking::{ExpressionCategory, MapConsumeDescriptor},
     };
 
-    struct NullableConsumeSource {
-        source: SourceToken,
-        control: ExpressionId,
-        call: ExpressionId,
-        root: SymbolId,
-        storage: TypeId,
-        nullable: SsaTypeId,
-        inner: SsaTypeId,
-        non_null_when_true: bool,
+    pub(in crate::ssa) struct NullableConsumeSource {
+        pub(in crate::ssa) source: SourceToken,
+        pub(in crate::ssa) control: ExpressionId,
+        pub(in crate::ssa) call: ExpressionId,
+        pub(in crate::ssa) root: SymbolId,
+        pub(in crate::ssa) storage: TypeId,
+        pub(in crate::ssa) nullable: SsaTypeId,
+        pub(in crate::ssa) inner: SsaTypeId,
+        pub(in crate::ssa) non_null_when_true: bool,
         // Original receiver boundaries, from the leaf Name out to the outer Group.
-        operands: Vec<ExpressionId>,
+        pub(in crate::ssa) operands: Vec<ExpressionId>,
     }
 
     impl ExpressionLowerer<'_> {
@@ -196,7 +196,7 @@ pub(in crate::ssa) mod map_consume_nullable {
             Ok(LoweredValue::Value(result))
         }
 
-        fn preflight_nullable_consume_cleanup(
+        pub(in crate::ssa) fn preflight_nullable_consume_cleanup(
             &self,
             source: &NullableConsumeSource,
             owner: ValueId,
@@ -204,16 +204,13 @@ pub(in crate::ssa) mod map_consume_nullable {
         ) -> Result<(), LoweringError> {
             // The carrier gate established no borrow state. A fact requiring that state
             // must fail here, rather than being swallowed by an absent-binding fallback.
-            if self
+            if self.owned.loans().iter().any(|loan| {
+                loan.call() == source.call || source.operands.contains(&loan.argument())
+            }) || self
                 .owned
-                .loans()
+                .loan_ends()
                 .iter()
-                .any(|loan| loan.call() == source.call || source.operands.contains(&loan.argument()))
-                || self
-                    .owned
-                    .loan_ends()
-                    .iter()
-                    .any(|fact| fact.point() == LoanEndPoint::CallReturn(source.call))
+                .any(|fact| fact.point() == LoanEndPoint::CallReturn(source.call))
             {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
@@ -274,21 +271,20 @@ pub(in crate::ssa) mod map_consume_nullable {
                         // result is not registered until the enclosing lower() returns.
                         return Err(error(LoweringErrorKind::MissingFact, fact.value_origin()));
                     };
-                    let Some(LoweredValue::Value(value)) = self.bindings.get(&symbol).copied() else {
+                    let Some(LoweredValue::Value(value)) = self.bindings.get(&symbol).copied()
+                    else {
                         return Err(error(LoweringErrorKind::MissingFact, fact.value_origin()));
                     };
                     if !removed_symbols.insert(symbol) || !removed_owners.insert(value) {
                         return Err(error(LoweringErrorKind::MissingFact, fact.value_origin()));
                     }
-                    let template = self
-                        .typed
-                        .symbol_type(symbol)
-                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, fact.value_origin()))?;
+                    let template = self.typed.symbol_type(symbol).ok_or_else(|| {
+                        error(LoweringErrorKind::MissingFact, fact.value_origin())
+                    })?;
                     let concrete = self.resolve_type(template, fact.value_origin())?;
-                    let ty =
-                        self.type_ids.get(&concrete).copied().ok_or_else(|| {
-                            error(LoweringErrorKind::MissingFact, fact.value_origin())
-                        })?;
+                    let ty = self.type_ids.get(&concrete).copied().ok_or_else(|| {
+                        error(LoweringErrorKind::MissingFact, fact.value_origin())
+                    })?;
                     if self.typed.copyability(concrete) != Some(Copyability::MoveOnly)
                         || self
                             .function
@@ -303,7 +299,7 @@ pub(in crate::ssa) mod map_consume_nullable {
             Ok(())
         }
 
-        fn validate_nullable_consume_live(
+        pub(in crate::ssa) fn validate_nullable_consume_live(
             &self,
             source: &NullableConsumeSource,
             proof: NonNullProof,
@@ -351,7 +347,7 @@ pub(in crate::ssa) mod map_consume_nullable {
             Ok(())
         }
 
-        fn validate_nullable_consume_branch(
+        pub(in crate::ssa) fn validate_nullable_consume_branch(
             &self,
             source: &NullableConsumeSource,
             proof: NonNullProof,
@@ -580,7 +576,9 @@ pub(in crate::ssa) mod map_consume_nullable {
                 operands.push(operand);
                 match node.payload() {
                     Expression::Group { expression } => operand = *expression,
-                    Expression::Name if self.references.get(&span_key(node.span())) == Some(&root) => {
+                    Expression::Name
+                        if self.references.get(&span_key(node.span())) == Some(&root) =>
+                    {
                         break;
                     }
                     _ => return Err(error(LoweringErrorKind::MissingFact, span)),

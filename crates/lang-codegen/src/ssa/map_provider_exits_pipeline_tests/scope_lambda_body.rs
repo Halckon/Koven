@@ -90,7 +90,11 @@ mod ast {
             "lambda actual original Call",
         )
     }
-    pub(super) fn input(c: &Case, sources: &SourceMap, parsed: &ParsedFile) -> Result<Input, Failure> {
+    pub(super) fn input(
+        c: &Case,
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+    ) -> Result<Input, Failure> {
         let entry = function(sources, parsed, "entry", None)?;
         let scan = function(sources, parsed, "scan", None)?;
         let make = function(sources, parsed, "make", None)?;
@@ -102,7 +106,8 @@ mod ast {
         let observe = named("observe")?;
         let scan_call = call(sources, parsed, entry.span, "scan")?;
         let (callback, lambda) = local(sources, parsed, scan.span, "callback")?;
-        let Expression::Lambda { body, .. } = parsed.ast().expressions().get(lambda).unwrap().payload()
+        let Expression::Lambda { body, .. } =
+            parsed.ast().expressions().get(lambda).unwrap().payload()
         else {
             return Err(failure("lambda callback actual Lambda initializer", lambda));
         };
@@ -214,7 +219,10 @@ pub(super) mod facts {
     mod unit {
         //! Source-qualified counterpart; no independent Unit owner table is invented.
         use super::*;
-        fn root(names: &ValidatedCompilationUnitNames, marker: Span) -> Result<UnitSymbolId, Failure> {
+        fn root(
+            names: &ValidatedCompilationUnitNames,
+            marker: Span,
+        ) -> Result<UnitSymbolId, Failure> {
             let (unit, symbol) = one(
                 names.names().source_units().iter().flat_map(|u| {
                     u.resolution()
@@ -425,10 +433,9 @@ pub(super) mod facts {
                         "A2 qualified actual component reference",
                     )?;
                     let loan = one(
-                        owned
-                            .loans()
-                            .iter()
-                            .filter(|l| l.call() == e(site.read) && l.argument() == e(site.arguments[n])),
+                        owned.loans().iter().filter(|l| {
+                            l.call() == e(site.read) && l.argument() == e(site.arguments[n])
+                        }),
                         "A2 qualified actual reader component loan",
                     )?;
                     need(
@@ -559,7 +566,7 @@ pub(super) mod facts {
 
     pub(super) use unit::check as unit;
 }
-pub(in crate::ssa) mod graph;
+pub(super) mod graph;
 mod sources {
     //! P15 keeps the original no-capture Unit callback and its internal Map local.
     pub(crate) struct Case {
@@ -573,20 +580,26 @@ mod sources {
             Case {
                 label: "P15-for",
                 provider: true,
-                source: include_str!("../../../tests/fixtures/map-provider-scope-0331/P15-for.ko"),
-                golden: include_str!(
-                    "../../../../tests/fixtures/map-provider-scope-0331/P15-for.stdout"
-                ),
+                source: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P15-for.ko"
+                )),
+                golden: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P15-for.stdout"
+                )),
             },
             Case {
                 label: "P15-control",
                 provider: false,
-                source: include_str!(
-                    "../../../../tests/fixtures/map-provider-scope-0331/P15-control.ko"
-                ),
-                golden: include_str!(
-                    "../../../../tests/fixtures/map-provider-scope-0331/P15-control.stdout"
-                ),
+                source: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P15-control.ko"
+                )),
+                golden: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P15-control.stdout"
+                )),
             },
         ]
     }

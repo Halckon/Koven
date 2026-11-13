@@ -91,7 +91,8 @@ mod inputs {
             .source_units()
             .iter()
             .filter(|source| {
-                source.source_unit() == file.0 && source.resolution().source_id() == file.1.source_id()
+                source.source_unit() == file.0
+                    && source.resolution().source_id() == file.1.source_id()
             })
             .collect();
         trace.check(
@@ -117,7 +118,9 @@ mod inputs {
                     .body_symbol_types()
                     .keys()
                     .copied()
-                    .filter(|symbol| symbol.source_unit() == file.0 && symbol.symbol() == local.symbol)
+                    .filter(|symbol| {
+                        symbol.source_unit() == file.0 && symbol.symbol() == local.symbol
+                    })
                     .collect();
                 trace.check(
                     "same source-qualified body symbol identity",
@@ -244,15 +247,14 @@ mod inputs {
             rooted,
             trace,
         );
-        let symbols: Vec<_> =
-            locals
-                .iter()
-                .map(|local| {
-                    typed.body_symbol_types().keys().copied().find(|symbol| {
-                        symbol.source_unit() == file.0 && symbol.symbol() == local.symbol
-                    })
+        let symbols: Vec<_> = locals
+            .iter()
+            .map(|local| {
+                typed.body_symbol_types().keys().copied().find(|symbol| {
+                    symbol.source_unit() == file.0 && symbol.symbol() == local.symbol
                 })
-                .collect();
+            })
+            .collect();
         inspect_formed(case, &symbols, owned.formed_owned_locals(), trace);
     }
 
@@ -389,8 +391,8 @@ mod query {
             lower: ExpectedLower::Rejected {
                 kind: LoweringErrorKind::UnsupportedNode,
                 path: "formed_k3_constant_false_unsupported.ko",
-                start: 42,
-                end: 48,
+                start: 50,
+                end: 56,
                 text: "branch",
             },
         },
@@ -401,8 +403,8 @@ mod query {
             lower: ExpectedLower::Rejected {
                 kind: LoweringErrorKind::UnsupportedNode,
                 path: "p/provider.ko",
-                start: 52,
-                end: 58,
+                start: 64,
+                end: 70,
                 text: "branch",
             },
         },
@@ -413,8 +415,8 @@ mod query {
             lower: ExpectedLower::Rejected {
                 kind: LoweringErrorKind::UnsupportedNode,
                 path: "formed_k4_lambda_scope.ko",
-                start: 88,
-                end: 92,
+                start: 96,
+                end: 100,
                 text: "null",
             },
         },
@@ -425,8 +427,8 @@ mod query {
             lower: ExpectedLower::Rejected {
                 kind: LoweringErrorKind::UnsupportedNode,
                 path: "p/provider.ko",
-                start: 98,
-                end: 102,
+                start: 110,
+                end: 114,
                 text: "null",
             },
         },
@@ -846,7 +848,7 @@ mod sources {
         },
     ];
 }
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::births::facts::syntax as syntax;
+mod syntax;
 
 fn collect(with_formed_queries: bool) -> Vec<Observation> {
     let mut observations = Vec::new();

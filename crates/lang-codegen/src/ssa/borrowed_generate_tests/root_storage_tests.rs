@@ -53,7 +53,8 @@ mod helper_calls {
             .iter()
             .map(|entity| caller.entity(*entity).expect("argument").ty)
             .collect();
-        let EntityType::Value(result_type) = caller.entity(instruction.results[0]).expect("result").ty
+        let EntityType::Value(result_type) =
+            caller.entity(instruction.results[0]).expect("result").ty
         else {
             panic!("container result");
         };

@@ -122,10 +122,10 @@ fn assert_verified_llvm(program: &super::model::Program) {
 
 pub(in crate::ssa) mod map_iteration_exits {
     //! The Map context participates in ordinary CFG and real jump/return dispatch.
-    //! Path-local roles restore independently of cumulative exit evidence; ordinary
     //! BranchExit retains the actual break/continue collections.
+    //! Path-local roles restore independently of cumulative exit evidence; ordinary
+    use crate::ssa::lower_frontend::map_iteration::Frame;
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
 
     pub(in crate::ssa) struct Context {
         pub(in crate::ssa) plan: MapIterationOwnershipPlan,
@@ -467,7 +467,9 @@ pub(in crate::ssa) mod map_iteration_exits {
                 let value = match result {
                     LoweredValue::Value(value) => Some(value),
                     LoweredValue::Unit => None,
-                    LoweredValue::Diverged => return Err(error(LoweringErrorKind::MissingFact, span)),
+                    LoweredValue::Diverged => {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    }
                 };
                 if self
                     .loops
@@ -696,7 +698,7 @@ pub(in crate::ssa) mod map_iteration_exits {
         //! Bound the Map body to normal straight-line execution or one direct tail transfer.
         //! This describes capability only; the exit/action/owner facts still come from Phase 3.
         use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
         use lang_frontend::type_checking::MapIterationDescriptor;
 
         pub(in crate::ssa) fn body_exit(
@@ -841,7 +843,8 @@ pub(in crate::ssa) mod map_iteration_exits {
                 if exit.actions()[..start]
                     .iter()
                     .any(|action| !matches!(action, IterationCleanupAction::Drop(_)))
-                    || exit.actions().get(start..start + expected.len()) != Some(expected.as_slice())
+                    || exit.actions().get(start..start + expected.len())
+                        != Some(expected.as_slice())
                 {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 }

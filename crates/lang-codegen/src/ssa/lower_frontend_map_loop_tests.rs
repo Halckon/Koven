@@ -2,7 +2,7 @@
 use super::lower_map_unit;
 use crate::ssa::map_unit_consumer_test_support::{assert_source, assert_trusted_range};
 #[path = "lower_frontend_map_loop_unit_identity.rs"]
-pub(super) mod unit_identity;
+pub(in crate::ssa) mod unit_identity;
 mod unit_iteration {
     //! Same-analysis Unit facts for the seven original conditional-exit consumers.
     //! The private Legacy phi graph is replaced by exact SSA incoming-column checks,
@@ -11,8 +11,9 @@ mod unit_iteration {
     use lang_frontend::{
         name_resolution::{SourceUnitKey, SymbolKind, UnitReferenceTarget, UnitSymbolId},
         ownership_checking::{
-            OwnershipBindingKind, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as Action,
-            UnitIterationExitKind as Exit, UnitIterationSourceAccess, UnitLoanTarget,
+            OwnershipBindingKind, UnitDropPoint, UnitDropTarget,
+            UnitIterationCleanupAction as Action, UnitIterationExitKind as Exit,
+            UnitIterationSourceAccess, UnitLoanTarget,
         },
         parser::{Expression, Statement},
         source::Span,
@@ -158,7 +159,9 @@ mod unit_iteration {
             Control::Return => Exit::Return(*expression),
         };
         let control_span = expression_span(unit, *expression);
-        assert!(node.span().start() < control_span.start() && control_span.end() < node.span().end());
+        assert!(
+            node.span().start() < control_span.start() && control_span.end() < node.span().end()
+        );
         assert_eq!(plan.exits().len(), 3);
         let body = UnitStatementId::new(input.id(), *body);
         for (kind, point) in [
@@ -179,7 +182,8 @@ mod unit_iteration {
                 unit.ownership().iteration_cleanup_at(point),
                 Some(exit.actions())
             );
-            let finishes = kind == Exit::Exhaustion || matches!(kind, Exit::Break(_) | Exit::Return(_));
+            let finishes =
+                kind == Exit::Exhaustion || matches!(kind, Exit::Break(_) | Exit::Return(_));
             let mut expected = Vec::new();
             if kind != Exit::Exhaustion {
                 expected.extend(
@@ -523,10 +527,10 @@ fn assert_unit_map_drop_counts(
 }
 
 #[path = "lower_frontend_map_break_tests.rs"]
-mod conditional_break;
+pub(in crate::ssa) mod conditional_break;
 
 #[path = "lower_frontend_map_continue_tests.rs"]
-mod conditional_continue;
+pub(in crate::ssa) mod conditional_continue;
 
 #[path = "lower_frontend_map_return_tests.rs"]
-mod conditional_return;
+pub(in crate::ssa) mod conditional_return;

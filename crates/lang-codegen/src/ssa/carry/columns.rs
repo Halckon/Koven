@@ -120,10 +120,11 @@ pub(in crate::ssa) fn record_type(
 #[cfg(test)]
 pub(in crate::ssa) mod nullable_while {
     //! Direct owned nullable guards create one real proof on each body entry.
+    use crate::ssa::lower_frontend::control::BranchExit;
 
-    use crate::ssa::lower_frontend::{NonNullProof, non_null_proof::ProofScope, span_key};
     use crate::ssa::lower_frontend::loop_control::*;
     use crate::ssa::lower_frontend::*;
+    use crate::ssa::lower_frontend::{NonNullProof, non_null_proof::ProofScope, span_key};
     use crate::ssa::model::SsaTypeKind;
     use entry::DirectNullableWhileEntry;
     pub(in crate::ssa) use entry::NullableWhileEntry;
@@ -169,7 +170,9 @@ pub(in crate::ssa) mod nullable_while {
                     .ast()
                     .expressions()
                     .get(operand)
-                    .is_ok_and(|node| matches!(node.payload(), Expression::Literal(LiteralKind::Null)))
+                    .is_ok_and(|node| {
+                        matches!(node.payload(), Expression::Literal(LiteralKind::Null))
+                    })
             };
             let subject = match (is_null(left), is_null(right)) {
                 (true, false) => right,
@@ -322,7 +325,9 @@ pub(in crate::ssa) mod nullable_while {
             let owner_slot = carried
                 .slots
                 .iter()
-                .position(|slot| slot.symbol == Some(symbol) && slot.source == EntityId::Value(owner))
+                .position(|slot| {
+                    slot.symbol == Some(symbol) && slot.source == EntityId::Value(owner)
+                })
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             let mut body_types = carried.slots.iter().map(|slot| slot.ty).collect::<Vec<_>>();
             let false_block = self
@@ -363,8 +368,12 @@ pub(in crate::ssa) mod nullable_while {
 
             self.restore_direct_while_condition(&condition_state, provider.as_ref(), span)?;
             self.block = false_block;
-            self.bindings =
-                self.rebind_linear_bindings(&condition_state.bindings, false_block, &carried, span)?;
+            self.bindings = self.rebind_linear_bindings(
+                &condition_state.bindings,
+                false_block,
+                &carried,
+                span,
+            )?;
             if let Some((root, proof)) = inherited {
                 self.validate_readonly_while_exit(root, proof, &self.loop_exit(), span)?;
             }
@@ -385,7 +394,8 @@ pub(in crate::ssa) mod nullable_while {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
             }
-            let proof = NonNullProof::introduced(view, body_owner, inner, ProofScope::While(statement));
+            let proof =
+                NonNullProof::introduced(view, body_owner, inner, ProofScope::While(statement));
             self.validate_non_null_proof(symbol, proof, &self.bindings, span)?;
             self.non_null_bindings.insert(symbol, proof);
             self.loops.push(context);
@@ -471,8 +481,9 @@ pub(in crate::ssa) mod nullable_while {
 
     mod entry {
         //! Qualification is the only way to retain an outer proof across a new direct guard.
-        use crate::ssa::lower_frontend::loop_control::*;
-    use crate::ssa::lower_frontend::*;
+        use super::*;
+
+        use crate::ssa::lower_frontend::*;
 
         pub(in crate::ssa) enum NullableWhileEntry {
             Readonly(SymbolId, NonNullProof),
@@ -576,7 +587,8 @@ pub(in crate::ssa) mod nullable_while {
                         .get(operand)
                         .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
                     if self.typed.expression_type(operand) != Some(operand_type)
-                        || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
+                        || self.typed.expression_category(operand)
+                            != Some(ExpressionCategory::Place)
                     {
                         return Err(error(LoweringErrorKind::MissingFact, span));
                     }
@@ -735,7 +747,8 @@ pub(in crate::ssa) mod nullable_while {
                         .get(operand)
                         .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
                     if self.typed.expression_type(operand) != Some(storage)
-                        || self.typed.expression_category(operand) != Some(ExpressionCategory::Place)
+                        || self.typed.expression_category(operand)
+                            != Some(ExpressionCategory::Place)
                         || self.typed.non_null_use(operand).is_some()
                     {
                         return Err(error(LoweringErrorKind::MissingFact, span));

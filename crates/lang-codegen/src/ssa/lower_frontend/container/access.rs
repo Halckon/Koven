@@ -412,33 +412,34 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
+pub(in crate::ssa) mod outer_borrowed_source {
     //! Exact nesting and readonly uses, plus simultaneous provider columns across the nullable guard.
     use crate::ssa::lower_frontend::outer_borrowed_while::*;
+    use lang_frontend::type_checking::SequentialContainerKind;
     use lang_frontend::{
         name_resolution::ReferenceTarget,
         parser::{FunctionBody, FunctionForm, VariableKind},
         type_checking::ContainerConstructionKind,
     };
 
-    pub(in crate::ssa::lower_frontend) mod carrier {
+    pub(in crate::ssa) mod carrier {
         use crate::ssa::lower_frontend::outer_borrowed_while::*;
         use crate::ssa::model::{Definition, Instruction};
         use std::collections::BTreeSet;
         #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub(in crate::ssa::lower_frontend) struct Columns {
-            pub(in crate::ssa::lower_frontend) block: BlockId,
-            pub(in crate::ssa::lower_frontend) entities: Vec<EntityId>,
+        pub(in crate::ssa) struct Columns {
+            pub(in crate::ssa) block: BlockId,
+            pub(in crate::ssa) entities: Vec<EntityId>,
         }
-        pub(in crate::ssa::lower_frontend) struct Guard {
-            pub(in crate::ssa::lower_frontend) header: BlockId,
-            pub(in crate::ssa::lower_frontend) owner: ValueId,
-            pub(in crate::ssa::lower_frontend) view: LoanId,
-            pub(in crate::ssa::lower_frontend) when_null: BlockId,
-            pub(in crate::ssa::lower_frontend) when_non_null: BlockId,
-            pub(in crate::ssa::lower_frontend) non_null: Columns,
+        pub(in crate::ssa) struct Guard {
+            pub(in crate::ssa) header: BlockId,
+            pub(in crate::ssa) owner: ValueId,
+            pub(in crate::ssa) view: LoanId,
+            pub(in crate::ssa) when_null: BlockId,
+            pub(in crate::ssa) when_non_null: BlockId,
+            pub(in crate::ssa) non_null: Columns,
         }
-        pub(in crate::ssa::lower_frontend) fn parameter(
+        pub(in crate::ssa) fn parameter(
             function: &Function,
             entity: EntityId,
         ) -> Option<(BlockId, usize)> {
@@ -446,10 +447,11 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
             else {
                 return None;
             };
-            (function.block(block)?.parameters.get(index) == Some(&entity)).then_some((block, index))
+            (function.block(block)?.parameters.get(index) == Some(&entity))
+                .then_some((block, index))
         }
 
-        pub(in crate::ssa::lower_frontend) fn result(
+        pub(in crate::ssa) fn result(
             function: &Function,
             entity: EntityId,
         ) -> Option<&Instruction> {
@@ -462,7 +464,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
             (instruction.results.get(index) == Some(&entity)).then_some(instruction)
         }
 
-        pub(in crate::ssa::lower_frontend) fn instructions(
+        pub(in crate::ssa) fn instructions(
             function: &Function,
             block: BlockId,
         ) -> Option<Vec<&Instruction>> {
@@ -474,7 +476,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
                 .collect()
         }
 
-        pub(in crate::ssa::lower_frontend) fn incoming(
+        pub(in crate::ssa) fn incoming(
             function: &Function,
             target: BlockId,
         ) -> Vec<(BlockId, &Edge)> {
@@ -504,7 +506,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
                 .collect()
         }
 
-        pub(in crate::ssa::lower_frontend) fn forward(
+        pub(in crate::ssa) fn forward(
             function: &Function,
             edge: &Edge,
             entities: &[EntityId],
@@ -529,7 +531,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
             })
         }
 
-        pub(in crate::ssa::lower_frontend) fn transport(
+        pub(in crate::ssa) fn transport(
             function: &Function,
             current: Columns,
             anchor: &Columns,
@@ -539,7 +541,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
             transport_states(function, current, anchor, allowed_end, guard).is_some()
         }
 
-        pub(in crate::ssa::lower_frontend) fn transport_states(
+        pub(in crate::ssa) fn transport_states(
             function: &Function,
             current: Columns,
             anchor: &Columns,
@@ -653,7 +655,7 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
         }
     }
 
-    pub(in crate::ssa::lower_frontend) fn qualify(
+    pub(in crate::ssa) fn qualify(
         parsed: &ParsedFile,
         names: &NameResolution,
         typed: &TypedFile,
@@ -662,7 +664,8 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
         initializer: ExpressionId,
     ) -> Option<(StatementId, ExpressionId, usize)> {
         let [root, items, item, parameter] = symbols;
-        let Statement::For { source, body, .. } = parsed.ast().statements().get(outer).ok()?.payload()
+        let Statement::For { source, body, .. } =
+            parsed.ast().statements().get(outer).ok()?.payload()
         else {
             return None;
         };
@@ -860,12 +863,14 @@ pub(in crate::ssa::lower_frontend) mod outer_borrowed_source {
                         || fact.expression() != id
                         || fact.symbol() != root
                         || fact.declared_type() != storage
-                        || typed.types().get(storage) != Some(&TypeKind::Nullable(fact.narrowed_type()))
+                        || typed.types().get(storage)
+                            != Some(&TypeKind::Nullable(fact.narrowed_type()))
                         || typed.expression_type(id) != Some(fact.narrowed_type())
                     {
                         return None;
                     }
-                } else if builtin_type(typed, typed.expression_type(id)?) != Some(BuiltinType::Int) {
+                } else if builtin_type(typed, typed.expression_type(id)?) != Some(BuiltinType::Int)
+                {
                     return None;
                 }
             }

@@ -13,14 +13,14 @@ mod facts {
         name_resolution::{SymbolKind, UnitReferenceTarget, ValidatedCompilationUnitNames},
         ownership_checking::{
             CompilationUnitOwnership, DropPoint, IterationExitKind as E, LoanKind,
-            MapIterationComponent, OwnershipBindingKind, UnitCallArgumentOwnershipKind, UnitDropFact,
-            UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
+            MapIterationComponent, OwnershipBindingKind, UnitCallArgumentOwnershipKind,
+            UnitDropFact, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
             UnitIterationExitKind as UE, UnitIterationSourceAccess, UnitLoanTarget,
             UnitMapIterationOwnershipPlan, UnitValueDeliveryKind,
         },
         parser::{
-            Expression, FunctionBody, FunctionForm, Item, NameMarker, ParameterModeMarker, ParsedFile,
-            Statement,
+            Expression, FunctionBody, FunctionForm, Item, NameMarker, ParameterModeMarker,
+            ParsedFile, Statement,
         },
         source::{SourceMap, Span},
         type_checking::{
@@ -429,7 +429,8 @@ mod facts {
             .references()
             .iter()
             .filter(|r| {
-                r.target() == &UnitReferenceTarget::Symbol(root) && contains(original.scan, r.span())
+                r.target() == &UnitReferenceTarget::Symbol(root)
+                    && contains(original.scan, r.span())
             })
             .map(|r| r.span())
             .max_by_key(|s| (s.start(), s.end()))

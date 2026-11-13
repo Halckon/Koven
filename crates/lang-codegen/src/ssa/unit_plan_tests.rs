@@ -208,7 +208,9 @@ mod body_type_budget {
         for target in targets {
             let instances = complete
                 .iter()
-                .filter(|instance| instance.key().target() == UnitCallableTarget::Declaration(target))
+                .filter(|instance| {
+                    instance.key().target() == UnitCallableTarget::Declaration(target)
+                })
                 .collect::<Vec<_>>();
             let [instance] = instances.as_slice() else {
                 panic!("one instance for {target:?}")
@@ -504,7 +506,8 @@ mod entry_identity {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
 
         let error = plan_unit_instances(
             &sources,
@@ -553,7 +556,8 @@ mod entry_identity {
         )];
         let (mut name_environment, type_environment) = standard_environments();
         name_environment.declare_type("Opaque").unwrap();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         assert!(typed.types().runtime_field_layouts().is_empty());
         let error = super::unit_lower::lower_scalar_unit_with_entry(
             &sources,
@@ -569,7 +573,8 @@ mod entry_identity {
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use generic_containers::error_order;
+#[allow(unused_imports)]
+pub(in crate::ssa) use generic_containers::error_order;
 pub(in crate::ssa) mod generic_containers;
 mod instances {
     use super::*;
@@ -595,7 +600,8 @@ mod instances {
             SourceUnitInput::new("root", "q/consumer.ko", consumer_source, &consumer),
         ];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
 
         let instances = plan(
             &sources,
@@ -621,7 +627,8 @@ mod instances {
             instance.key().type_arguments().is_empty()
                 && instance.substitutions().is_empty()
                 && instance.span().source_id()
-                    == names.names().index().source_units()[instance.source_unit().index()].source_id()
+                    == names.names().index().source_units()[instance.source_unit().index()]
+                        .source_id()
                 && matches!(instance.key().target(), UnitCallableTarget::Declaration(declaration)
                     if instance.item().index()
                         == names.names().index().declarations()[declaration.index()].root().index())
@@ -655,7 +662,8 @@ mod instances {
         ];
         let reversed_inputs = [inputs[1], inputs[0]];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let entry = declaration(&names, "entry");
 
         let forward = plan(
@@ -720,7 +728,8 @@ mod instances {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
 
         let instances = plan(
             &sources,
@@ -763,7 +772,8 @@ mod instances {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
 
         let instances = plan(
             &sources,
@@ -815,4 +825,5 @@ mod instances {
 }
 pub(in crate::ssa) mod layout_demand;
 mod owner_recipes;
-#[allow(unused_imports)] pub(in crate::ssa) use layout_demand::recipe_cycles;
+#[allow(unused_imports)]
+pub(in crate::ssa) use layout_demand::recipe_cycles;

@@ -58,7 +58,9 @@ mod conditional {
         )?;
         for &block in &g.blocks {
             for &parameter in &g.block(block)?.parameters {
-                if g.function.entity(parameter).unwrap().ty == g.function.entity(original).unwrap().ty {
+                if g.function.entity(parameter).unwrap().ty
+                    == g.function.entity(original).unwrap().ty
+                {
                     g.anchored(parameter, &[original])?;
                     uses.protect(parameter);
                 }
@@ -189,10 +191,9 @@ mod provider {
         let site = super::super::ast::site(p, i)?;
         let at = |predicate: fn(&Operation) -> bool| {
             one(
-                g.instructions
-                    .iter()
-                    .copied()
-                    .filter(|op| op.origin == Origin::Source(site.span) && predicate(&op.operation)),
+                g.instructions.iter().copied().filter(|op| {
+                    op.origin == Origin::Source(site.span) && predicate(&op.operation)
+                }),
                 "update exact original provider instruction",
             )
         };
@@ -332,8 +333,9 @@ mod provider {
             has,
         )?;
         let current = via(g, when_true, &header)?;
-        let flag_index = (flag_in_provider && initial.len() > 3 + usize::from(extra_index.is_some()))
-            .then(|| initial.len() - 1);
+        let flag_index = (flag_in_provider
+            && initial.len() > 3 + usize::from(extra_index.is_some()))
+        .then(|| initial.len() - 1);
         let optional = std::iter::once(2).chain(flag_index).collect::<Vec<_>>();
         let exhausted = via_exhausted(g, when_false, &header, &optional)?;
         let mandatory = |index: usize| exhausted[index].expect("mandatory exhaustion role");

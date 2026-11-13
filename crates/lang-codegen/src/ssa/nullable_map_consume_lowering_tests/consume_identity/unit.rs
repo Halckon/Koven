@@ -83,7 +83,8 @@ mod owner {
                 && signature.declaration() == declaration.id()
                 && signature.package() == declaration.package()
                 && signature.symbol().source_unit() == root.source_unit()
-                && fe.names.names().declaration_symbol(declaration.id()) == Some(signature.symbol())
+                && fe.names.names().declaration_symbol(declaration.id())
+                    == Some(signature.symbol())
                 && function.kind() == SymbolKind::Function
                 && !function.is_synthetic()
                 && function.span() == callable_name

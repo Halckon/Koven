@@ -749,11 +749,17 @@ impl Builder<'_, '_> {
 pub(in crate::ssa::refine) mod receiver_ci_tests {
     //! CI-only synthetic corruption. Local validation compiles these tests but never runs them.
     use crate::ssa::refine::receiver_receipt::{emitted::*, *};
+    use crate::ssa::{
+        LoweringError,
+        model::{Function, Operation},
+    };
     use crate::ssa::{model::Origin, unit_lower_test_support};
+    use lang_frontend::source::Span;
     use lang_frontend::{
         name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
     };
     use std::cell::RefCell;
+    use std::collections::BTreeMap;
 
     #[derive(Clone)]
     struct Snapshot {

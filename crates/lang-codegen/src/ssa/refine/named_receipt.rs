@@ -7,7 +7,8 @@ mod emitted {
         use super::*;
         use crate::ssa::{model::Origin, unit_lower_test_support};
         use lang_frontend::{
-            name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
+            name_resolution::SourceUnitInput, source::SourceMap,
+            type_checking::standard_environments,
         };
         use std::cell::RefCell;
 
@@ -41,7 +42,8 @@ mod emitted {
         fn capture() -> Snapshot {
             let text = "fun inspect(value: String): Int = 1\nfun run(own source: String): Unit { inspect(source) }";
             let mut sources = SourceMap::new();
-            let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "ci-receipt.ko", text);
+            let (source, parsed) =
+                unit_lower_test_support::parsed(&mut sources, "ci-receipt.ko", text);
             let inputs = [SourceUnitInput::memory_document(source, &parsed)];
             let (environment, types) = standard_environments();
             let (names, typed, owned) =

@@ -50,9 +50,9 @@ mod structure {
                 .filter(|(_, edge)| edge.target == block)
                 .collect::<Vec<_>>();
             !incoming.is_empty()
-                && incoming
-                    .iter()
-                    .all(|(_, edge)| check(function, edge.arguments[index], expected, visited, found))
+                && incoming.iter().all(|(_, edge)| {
+                    check(function, edge.arguments[index], expected, visited, found)
+                })
         }
         let mut visited = std::collections::BTreeSet::new();
         let mut found = false;
@@ -121,7 +121,9 @@ mod structure {
         let source = source_begin.results[0];
         let snapshots = lengths
             .iter()
-            .filter(|i| matches!(i.operation, Operation::ContainerLength { owner } if owner == source))
+            .filter(
+                |i| matches!(i.operation, Operation::ContainerLength { owner } if owner == source),
+            )
             .collect::<Vec<_>>();
         assert_eq!(
             snapshots.len(),
@@ -702,7 +704,7 @@ fn owned_source_return_unit_mutable_list_own_live_constant() {
 }
 
 #[path = "lower_frontend_owned_source_return_native_tests.rs"]
-pub(crate) mod native;
+mod native;
 
 mod boundaries {
     //! Ordinary-source boundaries kept separate from the core acceptance matrix.
@@ -765,8 +767,8 @@ mod boundaries {
             parser::Statement,
         };
 
-        let unit =
-            UnitSource::analyze("lowering.ko", text).expect("strict unchanged return-boundary source");
+        let unit = UnitSource::analyze("lowering.ko", text)
+            .expect("strict unchanged return-boundary source");
         unit.assert_frontend_clean();
         assert!(unit.ownership().deferred().is_empty());
         let [document] = unit.names().names().index().source_units() else {
@@ -804,7 +806,9 @@ mod boundaries {
                 .get(statement.statement())
                 .unwrap();
             assert_eq!(node.span().source_id(), source);
-            assert!(main_span.start() <= node.span().start() && node.span().end() <= main_span.end());
+            assert!(
+                main_span.start() <= node.span().start() && node.span().end() <= main_span.end()
+            );
             let Statement::For { source, .. } = node.payload() else {
                 panic!("a real original For, not a substitute provider");
             };

@@ -109,8 +109,9 @@ pub(in crate::ssa) mod conditional_verify {
     //! Validate every actual body exit, cleanup suffix and current role provenance.
     use crate::ssa::lower_frontend::map_iteration::carrier::{Evidence, instructions, terminator};
     use crate::ssa::lower_frontend::map_iteration::conditional::*;
+    use crate::ssa::lower_frontend::map_iteration::conditional::{State, local};
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
     use crate::ssa::model::Definition;
     use std::collections::BTreeSet;
 
@@ -122,8 +123,12 @@ pub(in crate::ssa) mod conditional_verify {
             .map_iteration(state.shape.statement)
             .ok_or_else(missing)?;
         let body_parameters = &e.function.block(body).ok_or_else(missing)?.parameters;
-        let (source, cursor) =
-            crate::ssa::lower_frontend::map_iteration::roles(body_parameters, e.source_slot, e.cursor_slot, e.span)?;
+        let (source, cursor) = crate::ssa::lower_frontend::map_iteration::roles(
+            body_parameters,
+            e.source_slot,
+            e.cursor_slot,
+            e.span,
+        )?;
         let expected = plan
             .exits()
             .iter()
@@ -252,7 +257,12 @@ pub(in crate::ssa) mod conditional_verify {
         )
         .ok_or_else(missing)?;
         let parameters = &e.function.block(exhausted).ok_or_else(missing)?.parameters;
-        let (source, _) = crate::ssa::lower_frontend::map_iteration::roles(parameters, e.source_slot, e.cursor_slot, e.span)?;
+        let (source, _) = crate::ssa::lower_frontend::map_iteration::roles(
+            parameters,
+            e.source_slot,
+            e.cursor_slot,
+            e.span,
+        )?;
         let body = instructions(e.function, exhausted).ok_or_else(missing)?;
         let mut expected = vec![Operation::BorrowEnd { loan: source }];
         if let Some((proof, identity, owner)) = e.owner {
@@ -266,7 +276,8 @@ pub(in crate::ssa) mod conditional_verify {
         } else if !matches!(e.seed, EntityId::Loan(_)) {
             return Err(missing());
         }
-        if body.len() != expected.len() || body.iter().zip(&expected).any(|(i, op)| &i.operation != op)
+        if body.len() != expected.len()
+            || body.iter().zip(&expected).any(|(i, op)| &i.operation != op)
         {
             return Err(missing());
         }
@@ -408,7 +419,8 @@ pub(in crate::ssa) mod conditional_verify {
                         if let Some(Definition::InstructionResult { instruction, index }) =
                             e.function.entity(entity).map(|data| data.definition)
                         {
-                            let producer = e.function.instruction(instruction).ok_or_else(missing)?;
+                            let producer =
+                                e.function.instruction(instruction).ok_or_else(missing)?;
                             if producer.results.get(index) != Some(&entity)
                                 || (producer.block == exit.block
                                     && body[..exit.cleanup_start]
@@ -543,8 +555,9 @@ pub(in crate::ssa) mod conditional_verify {
     pub(in crate::ssa) mod actions {
         //! Attribute one complete public cleanup sequence to its actual provider statements.
         use crate::ssa::lower_frontend::map_iteration::conditional::*;
+
         use crate::ssa::lower_frontend::map_iteration::*;
-        use crate::ssa::lower_frontend::*;
+
         use lang_frontend::ownership_checking::{DropFact, DropTarget};
 
         pub(in crate::ssa) fn source_drop(
@@ -835,17 +848,22 @@ pub(in crate::ssa) mod conditional_verify {
             if symbol.kind() != SymbolKind::Variable {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
-            let expression = unique(parsed.ast().items().iter().filter_map(
-                |(_, node)| match node.payload() {
-                    Item::Variable {
-                        name: lang_frontend::parser::NameMarker::Present(marker),
-                        initializer,
-                        ..
-                    } if *marker == symbol.span() => Some(*initializer),
-                    _ => None,
-                },
-            ))
-            .ok_or_else(missing)?;
+            let expression =
+                unique(
+                    parsed
+                        .ast()
+                        .items()
+                        .iter()
+                        .filter_map(|(_, node)| match node.payload() {
+                            Item::Variable {
+                                name: lang_frontend::parser::NameMarker::Present(marker),
+                                initializer,
+                                ..
+                            } if *marker == symbol.span() => Some(*initializer),
+                            _ => None,
+                        }),
+                )
+                .ok_or_else(missing)?;
             let origin = parsed
                 .ast()
                 .expressions()

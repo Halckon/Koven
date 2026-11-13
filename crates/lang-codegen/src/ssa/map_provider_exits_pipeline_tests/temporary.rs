@@ -1,8 +1,9 @@
 //! 两份原字节 temporary source × MemoryDocument/rooted Unit；四次完整观察后统一硬成功断言。
 //! 每份 entry 有两个真实 For；golden 仅留给后续独立准入的 native，不是执行结果。
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-#[allow(unused_imports)] pub(in crate::ssa) use query_ssa::ast;
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::scope_value_births::borrow_alias_observer::facts::unit_9 as unit;
+#[allow(unused_imports)]
+pub(in crate::ssa) use query_ssa::ast;
+mod unit;
 
 use super::{
     Report,
@@ -238,7 +239,8 @@ mod query_body {
             let mut calls = 0;
             for i in &ops {
                 match &i.operation {
-                    Operation::MapIterationKeyLoan { .. } | Operation::MapIterationValueLoan { .. } => {
+                    Operation::MapIterationKeyLoan { .. }
+                    | Operation::MapIterationValueLoan { .. } => {
                         let l = loan(i)?;
                         let index = if l == k { 0 } else { 1 };
                         need(
@@ -248,16 +250,17 @@ mod query_body {
                             "temporary SSA actual component birth",
                             i,
                         )?;
-                        for operand in [EntityId::Loan(roles.source), EntityId::Value(roles.cursor)] {
+                        for operand in [EntityId::Loan(roles.source), EntityId::Value(roles.cursor)]
+                        {
                             uses.permit(operand, i);
                         }
                         uses.protect(EntityId::Loan(l));
                         protected.insert(EntityId::Loan(l));
                     }
                     Operation::SharedReborrow { source } => {
-                        let (index, _) = *roots
-                            .get(source)
-                            .ok_or_else(|| failure("temporary SSA derived Borrow actual parent", i))?;
+                        let (index, _) = *roots.get(source).ok_or_else(|| {
+                            failure("temporary SSA derived Borrow actual parent", i)
+                        })?;
                         let l = loan(i)?;
                         need(
                             live.contains(source)
@@ -383,8 +386,8 @@ mod query_cleanup {
     };
     use lang_frontend::{
         ownership_checking::{
-            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
-            UnitIterationExitKind as UE,
+            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget,
+            UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
         },
         source::Span,
         type_checking::{UnitExpressionId, UnitStatementId},
@@ -416,7 +419,10 @@ mod query_cleanup {
         let expected = [
             (
                 UE::Fallthrough,
-                UnitDropPoint::AfterStatement(UnitStatementId::new(statement.source_unit(), site.body)),
+                UnitDropPoint::AfterStatement(UnitStatementId::new(
+                    statement.source_unit(),
+                    site.body,
+                )),
                 vec![
                     UA::EndBinding {
                         statement,
@@ -664,8 +670,10 @@ mod query_inputs {
                 let loan = p.loan(component);
                 need(
                     binding.source_unit() == unit
-                        && binding.symbol() == symbol(source_names.resolution(), site.bindings[index])?
-                        && typed.symbol_type(binding) == Some([d.key_type(), d.value_type()][index])
+                        && binding.symbol()
+                            == symbol(source_names.resolution(), site.bindings[index])?
+                        && typed.symbol_type(binding)
+                            == Some([d.key_type(), d.value_type()][index])
                         && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
                         && p.bindings()[index].symbol() == binding
                         && p.bindings()[index].kind() == OwnershipBindingKind::Shared
@@ -745,7 +753,13 @@ mod query_test {
     };
     use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
-    fn observe(label: &'static str, map: bool, hash: &str, text: &str, rooted: bool) -> Observation {
+    fn observe(
+        label: &'static str,
+        map: bool,
+        hash: &str,
+        text: &str,
+        rooted: bool,
+    ) -> Observation {
         let mut report = Report::default();
         diagnostic!(
             "SPEC0331 TEMPORARY IDENTITY INPUT case={label} rooted={rooted} path=provider.ko frozen_sha256={hash} text={text:?}"

@@ -11,8 +11,8 @@ mod ast {
     use lang_frontend::{
         ast::{ExpressionId, StatementId},
         parser::{
-            Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker, ParameterModeMarker,
-            ParsedFile, Statement,
+            Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker,
+            ParameterModeMarker, ParsedFile, Statement,
         },
         source::{SourceMap, Span},
         type_checking::ParameterMode,
@@ -166,7 +166,9 @@ mod ast {
                             name: NameMarker::Present(name),
                             initializer,
                             ..
-                        } if within(scope.span, n.span()) && sources.slice(*name) == Ok("source") => {
+                        } if within(scope.span, n.span())
+                            && sources.slice(*name) == Ok("source") =>
+                        {
                             Some((*name, *initializer))
                         }
                         _ => None,
@@ -282,8 +284,9 @@ mod ast {
             .expressions()
             .iter()
             .filter_map(|(_, n)| {
-                (within(scope.span, n.span()) && sources.slice(n.span()) == Ok("println(\"after\")"))
-                    .then_some(n.span())
+                (within(scope.span, n.span())
+                    && sources.slice(n.span()) == Ok("println(\"after\")"))
+                .then_some(n.span())
             })
             .next();
         Ok(Input {

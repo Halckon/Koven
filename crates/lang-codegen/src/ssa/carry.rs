@@ -133,8 +133,8 @@ pub(in crate::ssa) mod frontend_nominal {
         name_resolution::{EnumCaseId, NameResolution, SymbolId},
         source::Span,
         type_checking::{
-            BuiltinType, ConstructionTarget, IntrinsicTypeConstructor, NominalId, NominalKind, TypeId,
-            TypeKind, TypedFile,
+            BuiltinType, ConstructionTarget, IntrinsicTypeConstructor, NominalId, NominalKind,
+            TypeId, TypeKind, TypedFile,
         },
     };
 
@@ -177,7 +177,8 @@ pub(in crate::ssa) mod frontend_nominal {
             if matches!(
                 typed.types().get(*inner),
                 Some(TypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
+                    constructor: IntrinsicTypeConstructor::Map
+                        | IntrinsicTypeConstructor::MutableMap,
                     ..
                 })
             ) {
@@ -293,7 +294,9 @@ pub(in crate::ssa) mod frontend_nominal {
             })
         }
 
-        pub(in crate::ssa) fn into_parts(self) -> (FrontendTypeMap, HeapPayloadMap, EnumPayloadMap) {
+        pub(in crate::ssa) fn into_parts(
+            self,
+        ) -> (FrontendTypeMap, HeapPayloadMap, EnumPayloadMap) {
             (self.type_ids, self.heap_payloads, self.enum_payloads)
         }
 
@@ -396,7 +399,8 @@ pub(in crate::ssa) mod frontend_nominal {
                 }) => self.intern_container(module, names, typed, *constructor, arguments, span)?,
                 Some(TypeKind::Intrinsic {
                     constructor:
-                        constructor @ (IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap),
+                        constructor @ (IntrinsicTypeConstructor::Map
+                        | IntrinsicTypeConstructor::MutableMap),
                     arguments,
                 }) => self.intern_map(module, names, typed, *constructor, arguments, span)?,
                 Some(TypeKind::Intrinsic {
@@ -425,7 +429,12 @@ pub(in crate::ssa) mod frontend_nominal {
                         owner,
                         TypeOrigin {
                             primary: span,
-                            declaration: declaration_span_for_type(names, typed, payload_type, span),
+                            declaration: declaration_span_for_type(
+                                names,
+                                typed,
+                                payload_type,
+                                span,
+                            ),
                         },
                     );
                     owner
@@ -451,7 +460,12 @@ pub(in crate::ssa) mod frontend_nominal {
                         owner,
                         TypeOrigin {
                             primary: span,
-                            declaration: declaration_span_for_type(names, typed, payload_type, span),
+                            declaration: declaration_span_for_type(
+                                names,
+                                typed,
+                                payload_type,
+                                span,
+                            ),
                         },
                     );
                     owner

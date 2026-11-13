@@ -75,12 +75,12 @@ mod factory {
         for (index, data) in f.values.iter().enumerate() {
             if module.map_container(data.ty.semantic_type()).is_some() {
                 need(
-                    [result(construct)?, result(put)?, result(consume)?].contains(&EntityId::Value(
-                        ValueId {
+                    [result(construct)?, result(put)?, result(consume)?].contains(
+                        &EntityId::Value(ValueId {
                             function: f.id,
                             index,
-                        },
-                    )),
+                        }),
+                    ),
                     "Int all makeInt Map Values are this actual owner evolution",
                     (index, data),
                 )?;
@@ -221,7 +221,8 @@ mod provider {
         )?;
         let back = g.branch(next.block)?;
         need(
-            back.target == has.block && via([current[0], current[1], result(next)?], back)? == header,
+            back.target == has.block
+                && via([current[0], current[1], result(next)?], back)? == header,
             "Int exact current Next/source/owner backedge",
             back,
         )?;
@@ -407,7 +408,8 @@ mod reader {
                             .iter()
                             .position(|v| op.results.as_slice() == [EntityId::Value(*v)])
                         {
-                            booleans.insert(conditions[index], if index == 0 { key } else { value });
+                            booleans
+                                .insert(conditions[index], if index == 0 { key } else { value });
                         } else {
                             match op.operation {
                                 Operation::Constant(ScalarConstant::Boolean(v)) => {

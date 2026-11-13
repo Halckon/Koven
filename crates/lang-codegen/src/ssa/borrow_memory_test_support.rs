@@ -34,17 +34,16 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
         function: &Function,
         entity: EntityId,
     ) -> Option<(BlockId, usize)> {
-        let Definition::BlockParameter { block, index } = function.entity(entity)?.definition else {
+        let Definition::BlockParameter { block, index } = function.entity(entity)?.definition
+        else {
             return None;
         };
         (function.block(block)?.parameters.get(index) == Some(&entity)).then_some((block, index))
     }
 
-    pub(in crate::ssa) fn result(
-        function: &Function,
-        entity: EntityId,
-    ) -> Option<&Instruction> {
-        let Definition::InstructionResult { instruction, index } = function.entity(entity)?.definition
+    pub(in crate::ssa) fn result(function: &Function, entity: EntityId) -> Option<&Instruction> {
+        let Definition::InstructionResult { instruction, index } =
+            function.entity(entity)?.definition
         else {
             return None;
         };
@@ -64,10 +63,7 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
             .collect()
     }
 
-    pub(in crate::ssa) fn incoming(
-        function: &Function,
-        target: BlockId,
-    ) -> Vec<(BlockId, &Edge)> {
+    pub(in crate::ssa) fn incoming(function: &Function, target: BlockId) -> Vec<(BlockId, &Edge)> {
         function
             .blocks
             .iter()
@@ -169,7 +165,9 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
                 .slots
                 .iter()
                 .enumerate()
-                .filter_map(|(index, slot)| (slot.symbol == Some(plan.source_root)).then_some(index)),
+                .filter_map(|(index, slot)| {
+                    (slot.symbol == Some(plan.source_root)).then_some(index)
+                }),
         )?;
         let slot = outer.carried.slots.get(owner_column)?;
         if *actual_view != view
@@ -272,7 +270,9 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
                     {
                         return false;
                     }
-                    Operation::Drop { owner } if state.entities.contains(&EntityId::Value(owner)) => {
+                    Operation::Drop { owner }
+                        if state.entities.contains(&EntityId::Value(owner)) =>
+                    {
                         return false;
                     }
                     _ => {}
@@ -349,7 +349,7 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
 
     pub(in crate::ssa) mod source {
         //! Bounded AST and typed-use qualification, independent of runtime SSA transport.
-        use super::super::*;
+        use super::*;
         use lang_frontend::{
             name_resolution::ReferenceTarget,
             parser::{FunctionBody, FunctionForm, VariableKind},
@@ -644,10 +644,7 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
                 Some(BuiltinType::Int | BuiltinType::Long | BuiltinType::Boolean)
             )
         }
-        pub(in crate::ssa) fn expr(
-            parsed: &ParsedFile,
-            id: ExpressionId,
-        ) -> Option<&Expression> {
+        pub(in crate::ssa) fn expr(parsed: &ParsedFile, id: ExpressionId) -> Option<&Expression> {
             Some(parsed.ast().expressions().get(id).ok()?.payload())
         }
         fn ungroup(parsed: &ParsedFile, mut id: ExpressionId) -> Option<ExpressionId> {
@@ -668,7 +665,9 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
                 .references()
                 .iter()
                 .find_map(|reference| match reference.target() {
-                    ReferenceTarget::Symbol(symbol) if reference.span() == node.span() => Some(*symbol),
+                    ReferenceTarget::Symbol(symbol) if reference.span() == node.span() => {
+                        Some(*symbol)
+                    }
                     _ => None,
                 })
         }

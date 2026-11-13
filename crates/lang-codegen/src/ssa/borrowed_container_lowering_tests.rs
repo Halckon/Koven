@@ -189,9 +189,9 @@ fn verifier_accepts_active_shared_container_loan_and_rejects_wrong_or_ended_loan
 
 pub(in crate::ssa) mod map_iteration_temporary {
     //! Temporary source exits retain the real Expression owner without parameter closure phis.
-    use crate::ssa::refine::build::rc::map_temporary_cleanup as cleanup;
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
+    use crate::ssa::refine::build::rc::map_temporary_cleanup as cleanup;
     use lang_frontend::{
         name_resolution::ReferenceTarget,
         ownership_checking::{
@@ -203,7 +203,7 @@ pub(in crate::ssa) mod map_iteration_temporary {
     pub(in crate::ssa) mod guard {
         //! Original lexical Resource sentinel proof, shared by temporary direct exits.
         use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
         use lang_frontend::{
             name_resolution::ReferenceTarget,
             parser::{NameMarker, VariableKind},
@@ -250,13 +250,13 @@ pub(in crate::ssa) mod map_iteration_temporary {
             else {
                 return Err(unsupported());
             };
-            let symbol =
-                unique(names.symbols().iter().filter(|symbol| {
-                    symbol.span() == *origin && symbol.kind() == SymbolKind::Variable
-                }))
-                .ok_or_else(missing)?;
+            let symbol = unique(names.symbols().iter().filter(|symbol| {
+                symbol.span() == *origin && symbol.kind() == SymbolKind::Variable
+            }))
+            .ok_or_else(missing)?;
             let ty = typed.symbol_type(symbol.id()).ok_or_else(missing)?;
-            let TypeKind::Nominal { nominal, arguments } = typed.types().get(ty).ok_or_else(missing)?
+            let TypeKind::Nominal { nominal, arguments } =
+                typed.types().get(ty).ok_or_else(missing)?
             else {
                 return Err(unsupported());
             };
@@ -357,7 +357,8 @@ pub(in crate::ssa) mod map_iteration_temporary {
                         .iter()
                         .filter_map(|(_, item)| match item.payload() {
                             Item::Classifier(declaration)
-                                if declaration.name == NameMarker::Present(nominal_symbol.span()) =>
+                                if declaration.name
+                                    == NameMarker::Present(nominal_symbol.span()) =>
                             {
                                 Some(declaration)
                             }
@@ -574,7 +575,7 @@ pub(in crate::ssa) mod map_iteration_temporary {
     pub(in crate::ssa) mod qualify {
         //! Pure frontend qualification, before instance planning or SSA type allocation.
         use crate::ssa::lower_frontend::map_iteration::*;
-        use crate::ssa::lower_frontend::*;
+
         use lang_frontend::{
             name_resolution::ReferenceTarget,
             ownership_checking::{IterationSource, MapIterationComponent, OwnershipBindingKind},
@@ -661,9 +662,10 @@ pub(in crate::ssa) mod map_iteration_temporary {
             {
                 return Err(missing());
             }
-            let canonical = crate::ssa::map_source::transparent_expression(parsed, *source, |id| {
-                typed.expression_type(id).zip(typed.expression_category(id))
-            })?;
+            let canonical =
+                crate::ssa::map_source::transparent_expression(parsed, *source, |id| {
+                    typed.expression_type(id).zip(typed.expression_category(id))
+                })?;
             let source_node = parsed
                 .ast()
                 .expressions()
@@ -724,7 +726,9 @@ pub(in crate::ssa) mod map_iteration_temporary {
             let binding = owned.binding_kind(symbol).ok_or_else(missing)?;
             let access = plan.source_access();
             let expected_access = match mode {
-                ParameterMode::Value => (OwnershipBindingKind::Owned, MapIterationSourceAccess::Owned),
+                ParameterMode::Value => {
+                    (OwnershipBindingKind::Owned, MapIterationSourceAccess::Owned)
+                }
                 ParameterMode::Borrow => (
                     OwnershipBindingKind::Shared,
                     MapIterationSourceAccess::Shared,
@@ -811,7 +815,15 @@ pub(in crate::ssa) mod map_iteration_temporary {
             let owner = if access == MapIterationSourceAccess::Owned {
                 Some(
                     if typed.is_resource_type(descriptor.source_type()) == Some(true) {
-                        resource::qualify(parsed, names, typed, owned, plan, (symbol, None), body_exit)?
+                        resource::qualify(
+                            parsed,
+                            names,
+                            typed,
+                            owned,
+                            plan,
+                            (symbol, None),
+                            body_exit,
+                        )?
                     } else {
                         source_owner::qualify(parsed, names, owned, plan, symbol, *body, body_exit)?
                     },
@@ -835,10 +847,7 @@ pub(in crate::ssa) mod map_iteration_temporary {
             })
         }
 
-        pub(in crate::ssa) fn has_enclosing_control(
-            parsed: &ParsedFile,
-            span: Span,
-        ) -> bool {
+        pub(in crate::ssa) fn has_enclosing_control(parsed: &ParsedFile, span: Span) -> bool {
             let contains = |outer: Span| {
                 outer != span
                     && outer.source_id() == span.source_id()

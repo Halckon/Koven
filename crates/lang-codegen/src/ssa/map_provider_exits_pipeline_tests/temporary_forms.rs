@@ -9,7 +9,8 @@ mod ast {
     use lang_frontend::{
         ast::{ExpressionId, ItemId, StatementId},
         parser::{
-            Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile, Statement,
+            Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile,
+            Statement,
         },
         source::{SourceMap, Span},
     };
@@ -215,7 +216,8 @@ mod ast {
     pub(super) fn input(sources: &SourceMap, parsed: &ParsedFile) -> Result<Input, Failure> {
         let entry = function(sources, parsed, "entry")?;
         let reader = function(sources, parsed, "read")?;
-        let [nonempty, first, after_first, empty, second, after_second] = elements(parsed, entry.body)?
+        let [nonempty, first, after_first, empty, second, after_second] =
+            elements(parsed, entry.body)?
         else {
             return Err(failure(
                 "temporary forms six same-scope entry statements",
@@ -501,7 +503,8 @@ mod facts {
                     binding.source_unit() == unit
                         && binding.symbol()
                             == single_symbol(resolution.resolution(), site.bindings[index])?
-                        && typed.symbol_type(binding) == Some([d.key_type(), d.value_type()][index])
+                        && typed.symbol_type(binding)
+                            == Some([d.key_type(), d.value_type()][index])
                         && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
                         && p.bindings()[index].symbol() == binding
                         && p.bindings()[index].kind() == OwnershipBindingKind::Shared
@@ -542,7 +545,7 @@ mod facts {
         )
     }
 }
-pub(in crate::ssa) mod graph;
+mod graph;
 use super::{
     Report,
     fixture::{Failure, clean, failure},

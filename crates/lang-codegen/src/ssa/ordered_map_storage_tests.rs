@@ -117,13 +117,13 @@ fn ordered_map_headers_preserve_shared_six_field_storage() {
 
 pub(in crate::ssa) mod source_owner_handoff {
     //! Ordinary Return/local Move terminal identities retain this provider's actual current owner.
-    use crate::ssa::tests::source_owner::*;
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
     use crate::ssa::map_source::{
         handoff::{self, Handoff},
         handoff_runtime::{self, Terminal},
     };
+    use crate::ssa::tests::source_owner::*;
     use lang_frontend::{parser::NameMarker, type_checking::CallableResultSource};
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -197,9 +197,10 @@ pub(in crate::ssa) mod source_owner_handoff {
             .map(|s| s.id())
             .ok_or_else(bad)
         };
-        let Some(terminal) = handoff::find(parsed, span, root, storage, resolve, declaration, |id| {
-            typed.expression_type(id).zip(typed.expression_category(id))
-        })?
+        let Some(terminal) =
+            handoff::find(parsed, span, root, storage, resolve, declaration, |id| {
+                typed.expression_type(id).zip(typed.expression_category(id))
+            })?
         else {
             return Ok(None);
         };
@@ -210,7 +211,14 @@ pub(in crate::ssa) mod source_owner_handoff {
             IterationPhiBoundary::Exit,
             span,
         )?;
-        let live = crate::ssa::tests::source_owner::flow_condition(parsed, names, owned, flow, exit.owner(), span)?;
+        let live = crate::ssa::tests::source_owner::flow_condition(
+            parsed,
+            names,
+            owned,
+            flow,
+            exit.owner(),
+            span,
+        )?;
         if live != exit.availability_condition()
             || typed.copyability(storage) != Some(Copyability::MoveOnly)
         {
@@ -486,18 +494,18 @@ pub(in crate::ssa) mod source_owner_handoff {
 
     pub(in crate::ssa) mod delivery {
         //! Selected Value delivery and future ASAP Drop qualification for retained Map sources.
-        use crate::ssa::tests::source_owner::*;
         use crate::ssa::lower_frontend::map_iteration::*;
-        use crate::ssa::lower_frontend::*;
+
+        use crate::ssa::tests::source_owner::*;
         use lang_frontend::{
             name_resolution::ReferenceTarget,
             type_checking::{CallableTarget, ExpressionCategory},
         };
 
         pub(in crate::ssa) mod future {
-            use crate::ssa::tests::source_owner::*;
             use crate::ssa::lower_frontend::map_iteration::*;
-            use crate::ssa::lower_frontend::*;
+
+            use crate::ssa::tests::source_owner::*;
             use lang_frontend::name_resolution::ReferenceTarget;
 
             pub(in crate::ssa) fn qualify(
@@ -570,12 +578,14 @@ pub(in crate::ssa) mod source_owner_handoff {
                         owner,
                         span,
                     ),
-                    None => {
-                        crate::ssa::tests::source_owner::provenance::parameter(owned, symbol, origin, owner, span)
-                    }
+                    None => crate::ssa::tests::source_owner::provenance::parameter(
+                        owned, symbol, origin, owner, span,
+                    ),
                 };
                 for boundary in [IterationPhiBoundary::Header, IterationPhiBoundary::Exit] {
-                    let phi = crate::ssa::tests::source_owner::phi(conditions, plan, symbol, boundary, span)?;
+                    let phi = crate::ssa::tests::source_owner::phi(
+                        conditions, plan, symbol, boundary, span,
+                    )?;
                     live(phi.owner())?;
                 }
                 let condition = live(drop.owner().ok_or_else(bad)?)?;
@@ -623,8 +633,7 @@ pub(in crate::ssa) mod source_owner_handoff {
             pub(in crate::ssa) call: ExpressionId,
             pub(in crate::ssa) argument: ExpressionId,
             pub(in crate::ssa) parameter: usize,
-            pub(in crate::ssa) owner:
-                lang_frontend::ownership_checking::CleanupOwnerValueId,
+            pub(in crate::ssa) owner: lang_frontend::ownership_checking::CleanupOwnerValueId,
             pub(in crate::ssa) origin: Span,
         }
 
@@ -675,7 +684,14 @@ pub(in crate::ssa) mod source_owner_handoff {
                 IterationPhiBoundary::Exit,
                 span,
             )?;
-            let live = crate::ssa::tests::source_owner::flow_condition(parsed, names, owned, flow, exit.owner(), span)?;
+            let live = crate::ssa::tests::source_owner::flow_condition(
+                parsed,
+                names,
+                owned,
+                flow,
+                exit.owner(),
+                span,
+            )?;
             if live != exit.availability_condition()
                 || owned.cleanup_conditions().get(live) == Some(&CleanupCondition::Never)
             {
@@ -703,10 +719,11 @@ pub(in crate::ssa) mod source_owner_handoff {
                 };
                 for mapping in call.arguments() {
                     let argument = arguments.get(mapping.argument_index()).ok_or_else(bad)?;
-                    let canonical =
-                        crate::ssa::map_source::transparent_expression(parsed, argument.value, |id| {
-                            typed.expression_type(id).zip(typed.expression_category(id))
-                        })?;
+                    let canonical = crate::ssa::map_source::transparent_expression(
+                        parsed,
+                        argument.value,
+                        |id| typed.expression_type(id).zip(typed.expression_category(id)),
+                    )?;
                     let operand = parsed
                         .ast()
                         .expressions()

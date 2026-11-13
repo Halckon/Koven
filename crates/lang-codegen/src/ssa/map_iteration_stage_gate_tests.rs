@@ -114,7 +114,8 @@ mod facts {
                     "unit complete AST For/path/source",
                     fixture.sources.slice(site.span) == Ok(FOR_TEXT)
                         && fixture.sources.slice(site.source_span) == Ok("source")
-                        && fixture.sources.source_name(site.span.source_id()) == Ok(file.path.as_str()),
+                        && fixture.sources.source_name(site.span.source_id())
+                            == Ok(file.path.as_str()),
                     &site,
                 );
                 let (Some(descriptor), Some(plan)) = (descriptor, plan) else {
@@ -125,7 +126,8 @@ mod facts {
                     "unit descriptor identity",
                     descriptor.statement() == statement
                         && descriptor.source() == source_expression
-                        && Some(descriptor.source_type()) == typed.expression_type(source_expression)
+                        && Some(descriptor.source_type())
+                            == typed.expression_type(source_expression)
                         && plan.descriptor() == descriptor
                         && typed.sequential_iteration(statement).is_none()
                         && owned.iteration(statement).is_none(),
@@ -264,7 +266,7 @@ mod facts {
         }
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::sequential_for_lowering_tests::source_cfg_tests::fixture_6 as fixture;
+mod fixture;
 mod group;
 mod roots {
     //! 同一 sealed view 逐真实声明 lower；结果逐根验证，不拼接 Program 或重跑 frontend。
@@ -277,7 +279,9 @@ mod roots {
         model::{FunctionId, Origin, Program},
     };
     use lang_frontend::{
-        name_resolution::{DeclarationId, SymbolKind, UnitDeclaration, ValidatedCompilationUnitNames},
+        name_resolution::{
+            DeclarationId, SymbolKind, UnitDeclaration, ValidatedCompilationUnitNames,
+        },
         parser::{Item, NameMarker},
         source::Span,
         type_checking::{CompilationUnitTypes, UnitCallTarget},
@@ -289,7 +293,10 @@ mod roots {
         typed: &CompilationUnitTypes,
         selected: DeclarationId,
         report: &mut Report,
-        mut lower: impl FnMut(DeclarationId, &mut Report) -> Result<(Program, FunctionId), LoweringError>,
+        mut lower: impl FnMut(
+            DeclarationId,
+            &mut Report,
+        ) -> Result<(Program, FunctionId), LoweringError>,
     ) -> Result<LowerOutcome, Stopped> {
         let declarations = names
             .names()
@@ -574,9 +581,14 @@ mod unit {
                     true,
                     "original raw consumed",
                 );
-                let owned =
-                    check_compilation_unit_ownership(sources, &inputs, &names, &environment, &typed)
-                        .map_err(|error| stopped("unit basic ownership infrastructure", error))?;
+                let owned = check_compilation_unit_ownership(
+                    sources,
+                    &inputs,
+                    &names,
+                    &environment,
+                    &typed,
+                )
+                .map_err(|error| stopped("unit basic ownership infrastructure", error))?;
                 clean(
                     sources,
                     "unit basic ownership diagnostics",
@@ -596,9 +608,15 @@ mod unit {
                     .validate()
                     .map_err(|error| stopped("unit basic full ownership validator", error))?;
                 report.check("unit basic full ownership validator", true, "validate: Ok");
-                let view =
-                    owned_compilation_unit_view(sources, &inputs, &names, &environment, &typed, &owned)
-                        .map_err(|error| stopped("unit basic owned view identity", error))?;
+                let view = owned_compilation_unit_view(
+                    sources,
+                    &inputs,
+                    &names,
+                    &environment,
+                    &typed,
+                    &owned,
+                )
+                .map_err(|error| stopped("unit basic owned view identity", error))?;
                 report.check(
                     "unit basic view preserves original inputs",
                     std::ptr::eq(view.sources(), sources)
@@ -693,7 +711,9 @@ mod unit {
                     entry.id(),
                     report,
                     |root, _| {
-                        crate::ssa::unit_lower::constant::lower_const_owned_unit_with_entry(&view, root)
+                        crate::ssa::unit_lower::constant::lower_const_owned_unit_with_entry(
+                            &view, root,
+                        )
                     },
                 )
             }

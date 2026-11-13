@@ -7,12 +7,12 @@ use crate::ssa::{
 };
 
 pub(in crate::ssa) struct Fixture {
-    program: Program,
-    module: ModuleId,
-    function: FunctionId,
-    entry: BlockId,
-    owner_ty: SsaTypeId,
-    payload_ty: SsaTypeId,
+    pub(in crate::ssa) program: Program,
+    pub(in crate::ssa) module: ModuleId,
+    pub(in crate::ssa) function: FunctionId,
+    pub(in crate::ssa) entry: BlockId,
+    pub(in crate::ssa) owner_ty: SsaTypeId,
+    pub(in crate::ssa) payload_ty: SsaTypeId,
     pub(in crate::ssa) field_ty: SsaTypeId,
     pub(in crate::ssa) origin: Origin,
 }
@@ -122,7 +122,12 @@ impl Fixture {
             )[0],
         )
     }
-    pub(in crate::ssa) fn field_loan(&mut self, owner: ValueId, field: usize, kind: LoanKind) -> LoanId {
+    pub(in crate::ssa) fn field_loan(
+        &mut self,
+        owner: ValueId,
+        field: usize,
+        kind: LoanKind,
+    ) -> LoanId {
         let place = self.field_place(owner, field);
         self.borrow(place, kind)
     }
@@ -163,19 +168,19 @@ impl Fixture {
         );
     }
 }
-fn value(entity: EntityId) -> ValueId {
+pub(in crate::ssa) fn value(entity: EntityId) -> ValueId {
     let EntityId::Value(id) = entity else {
         panic!("value")
     };
     id
 }
-fn place(entity: EntityId) -> PlaceId {
+pub(in crate::ssa) fn place(entity: EntityId) -> PlaceId {
     let EntityId::Place(id) = entity else {
         panic!("place")
     };
     id
 }
-fn loan(entity: EntityId) -> LoanId {
+pub(in crate::ssa) fn loan(entity: EntityId) -> LoanId {
     let EntityId::Loan(id) = entity else {
         panic!("loan")
     };
@@ -833,4 +838,3 @@ fn field_exchange_cfg_rejects_same_typed_other_field_on_one_incoming_edge() {
         }
     }
 }
-

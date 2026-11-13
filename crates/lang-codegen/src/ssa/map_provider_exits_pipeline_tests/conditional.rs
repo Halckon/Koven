@@ -16,8 +16,8 @@ mod query_conditions {
     use lang_frontend::{
         name_resolution::UnitSymbolId,
         ownership_checking::{
-            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as UA,
-            UnitIterationExitKind as UE,
+            CompilationUnitOwnership, UnitDropPoint, UnitDropTarget,
+            UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
         },
         source::Span,
         type_checking::{UnitExpressionId, UnitStatementId},
@@ -155,8 +155,8 @@ mod query_inputs {
             ValidatedCompilationUnitNames,
         },
         ownership_checking::{
-            CompilationUnitOwnership, IterationSource, OwnershipBindingKind, UnitIterationSourceAccess,
-            UnitLoanTarget,
+            CompilationUnitOwnership, IterationSource, OwnershipBindingKind,
+            UnitIterationSourceAccess, UnitLoanTarget,
         },
         parser::{Item, NameMarker, ValueParameter},
         source::Span,
@@ -173,7 +173,11 @@ mod query_inputs {
         pub source_drop: Option<Span>,
     }
 
-    fn parameters<'a>(f: &'a Input, a: &Anchors, name: &str) -> Result<&'a [ValueParameter], Failure> {
+    fn parameters<'a>(
+        f: &'a Input,
+        a: &Anchors,
+        name: &str,
+    ) -> Result<&'a [ValueParameter], Failure> {
         let anchor = one(
             a.functions.iter().filter(|v| v.name == name),
             "conditional FE AST function",
@@ -502,7 +506,8 @@ mod query_inputs {
                     && matches!(call.arguments(), [arg] if arg.argument_index() == 0 && arg.parameter_index() == parameter_slot
                     && arg.mode() == mode && arg.parameter_type() == d.source_type())
                     && argument.source_unit() == unit
-                    && argument.symbol() == symbol(source_names.resolution(), entry.source_binding)?
+                    && argument.symbol()
+                        == symbol(source_names.resolution(), entry.source_binding)?
                     && result.source_unit() == unit
                     && result.symbol() == symbol(source_names.resolution(), entry.result_binding)?
                     && typed.expression_type(expression(entry.source_initializer))
@@ -542,15 +547,16 @@ mod query_test {
         }
         assert_diagnostic!(
             observations.len() == 4
-                && observations
-                    .iter()
-                    .all(|observation| { observation.report.passed() && observation.outcome.is_ok() }),
+                && observations.iter().all(|observation| {
+                    observation.report.passed() && observation.outcome.is_ok()
+                }),
             "原两源×MemoryDocument/rooted Unit四fresh必须完成同次FE、完整validator、独立全edge身份query、SSA和LLVM；\
              查询失败不隐藏原流水线阶段错误，未运行不作通过。\n{observations:#?}"
         );
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use query_cleanup::unit;
+#[allow(unused_imports)]
+pub(in crate::ssa) use query_cleanup::unit;
 
 use super::{
     Report,

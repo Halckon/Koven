@@ -1,17 +1,19 @@
 //! Unit 原始退出表；旧 owner/condition/phi 行为由同轮 SSA 全列和完整库存证明。
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_exits::boundaries::inlined_unit_cleanup_1 as unit_cleanup;
+#[path = "query_cleanup_unit.rs"]
+mod unit_cleanup;
 use super::{Failure, failure, need, one};
 pub(super) use unit_cleanup::{caller as unit_caller, check as unit};
 
 pub(in crate::ssa) mod map_iteration_conditional {
     //! Ordinary body CFG uses a plan-bound source identity and append-only exit evidence.
-    use verify::actions;
+
     pub(in crate::ssa) use crate::ssa::borrow_result_boundary_tests::conditional_facts as facts;
-    pub(in crate::ssa) use retained as successor;
     pub(in crate::ssa) use crate::ssa::lower_frontend_tests::root_primitive_tests::conditional_verify as verify;
+    pub(in crate::ssa) use retained as successor;
+    use verify::actions;
 
     use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+
     use lang_frontend::{
         ownership_checking::{DropFact, DropTarget},
         type_checking::MapIterationDescriptor,
@@ -81,16 +83,22 @@ pub(in crate::ssa) mod map_iteration_conditional {
         fact: DropFact,
     ) -> bool {
         typed.map_iterations().iter().any(|descriptor| {
-            super::qualify::qualify(parsed, names, typed, owned, *descriptor)
-                .ok()
-                .is_some_and(|qualified| {
-                    qualified.conditional.is_some()
-                        && qualified
-                            .plan
-                            .exits()
-                            .iter()
-                            .any(|exit| exit.actions().contains(&IterationCleanupAction::Drop(fact)))
-                })
+            crate::ssa::lower_frontend::map_iteration::qualify::qualify(
+                parsed,
+                names,
+                typed,
+                owned,
+                *descriptor,
+            )
+            .ok()
+            .is_some_and(|qualified| {
+                qualified.conditional.is_some()
+                    && qualified
+                        .plan
+                        .exits()
+                        .iter()
+                        .any(|exit| exit.actions().contains(&IterationCleanupAction::Drop(fact)))
+            })
         })
     }
 
@@ -124,10 +132,9 @@ pub(in crate::ssa) mod map_iteration_conditional {
     }
 
     pub(in crate::ssa) mod transport_roles {
-        use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+        use super::*;
 
-        pub(in super::super) fn roles(
+        pub(in crate::ssa) fn roles(
             lowerer: &ExpressionLowerer<'_>,
             state: &Context,
             span: Span,
@@ -140,7 +147,8 @@ pub(in crate::ssa) mod map_iteration_conditional {
             {
                 return Err(missing());
             }
-            let [(key_symbol, Some(key)), (value_symbol, Some(value))] = state.frame.components else {
+            let [(key_symbol, Some(key)), (value_symbol, Some(value))] = state.frame.components
+            else {
                 return Err(missing());
             };
             if lowerer.borrow_bindings.get(&key_symbol) != Some(&key)
@@ -162,10 +170,9 @@ pub(in crate::ssa) mod map_iteration_conditional {
     }
 
     pub(in crate::ssa) mod local_validate {
-        use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+        use super::*;
 
-        pub(in super::super) fn validate(
+        pub(in crate::ssa) fn validate(
             frontend: (
                 &ParsedFile,
                 &NameResolution,
@@ -227,14 +234,13 @@ pub(in crate::ssa) mod map_iteration_conditional {
 
     pub(in crate::ssa) mod retained {
         //! A nested source may retain the exact owner whose lifetime belongs to an acquired ancestor.
-        use crate::ssa::lower_frontend::map_iteration::*;
-    use crate::ssa::lower_frontend::*;
+        use super::*;
         use crate::ssa::map_source::Formation;
         use lang_frontend::ownership_checking::{
             CleanupOwnerValue, DropFact, DropTarget, IterationPhiBoundary,
         };
 
-        pub(in super::super) fn ancestor_fact(
+        pub(in crate::ssa) fn ancestor_fact(
             frontend: (
                 &ParsedFile,
                 &NameResolution,
@@ -381,7 +387,7 @@ pub(in crate::ssa) mod map_iteration_conditional {
 
         /// Both full birth graphs are validated by the caller. Additionally require every
         /// later incoming path to pass the current Exit, rather than only share a birth.
-        pub(in super::super) fn terminal(
+        pub(in crate::ssa) fn terminal(
             frontend: (
                 &ParsedFile,
                 &NameResolution,
@@ -467,7 +473,8 @@ pub(in crate::ssa) mod map_iteration_conditional {
                     return Err(missing());
                 }
             }
-            let exit = source_owner::phi(conditions, current, root, IterationPhiBoundary::Exit, span)?;
+            let exit =
+                source_owner::phi(conditions, current, root, IterationPhiBoundary::Exit, span)?;
             let terminal =
                 source_owner::phi(conditions, later, root, IterationPhiBoundary::Exit, *origin)?;
             let live = source_owner::provenance::from_exit(owned, root, owner, exit.owner(), span)?;
@@ -497,11 +504,11 @@ pub(in crate::ssa) mod map_iteration_conditional {
 
     pub(in crate::ssa) mod checked {
         //! Checked success Map transport and lexical Map ancestry / CFG column transport.
-        use super::super::*;
-        use control::map_frames::Snapshot;
+        use super::*;
+        use crate::ssa::lower_frontend::control::map_frames::Snapshot;
 
         pub(in crate::ssa) mod nested {
-            use super::super::super::*;
+            use super::super::*;
 
             #[derive(Clone, Copy, Debug, PartialEq, Eq)]
             pub(in crate::ssa) struct Nesting {
@@ -614,7 +621,11 @@ pub(in crate::ssa) mod map_iteration_conditional {
                     Ok(())
                 }
 
-                pub(in crate::ssa) fn active_map_temporary(&self, key: usize, value: ValueId) -> bool {
+                pub(in crate::ssa) fn active_map_temporary(
+                    &self,
+                    key: usize,
+                    value: ValueId,
+                ) -> bool {
                     self.loops
                         .iter()
                         .filter_map(|context| context.map_loop.as_ref())
@@ -747,7 +758,7 @@ pub(in crate::ssa) mod map_iteration_conditional {
         }
 
         impl ExpressionLowerer<'_> {
-            pub(in crate::ssa::lower_frontend) fn carry_checked_map(
+            pub(in crate::ssa) fn carry_checked_map(
                 &self,
                 carried: &LinearBindings,
                 span: Span,
@@ -794,8 +805,9 @@ pub(in crate::ssa) mod map_iteration_conditional {
                         before.owner.map(|(_, owner)| EntityId::Value(owner)),
                     ];
                     for entity in entities.into_iter().flatten() {
-                        let slot = unique(carried.slots.iter().filter(|slot| slot.source == entity))
-                            .ok_or_else(missing)?;
+                        let slot =
+                            unique(carried.slots.iter().filter(|slot| slot.source == entity))
+                                .ok_or_else(missing)?;
                         if self.function.entity(entity).map(|data| data.ty) != Some(slot.ty) {
                             return Err(missing());
                         }
@@ -808,7 +820,7 @@ pub(in crate::ssa) mod map_iteration_conditional {
                 Ok(())
             }
 
-            pub(in crate::ssa::lower_frontend) fn resume_checked_map(
+            pub(in crate::ssa) fn resume_checked_map(
                 &mut self,
                 from: BlockId,
                 carried: &LinearBindings,
@@ -873,7 +885,8 @@ pub(in crate::ssa) mod map_iteration_conditional {
                 if incoming != 1 {
                     return Err(missing());
                 }
-                for (index, (slot, &parameter)) in carried.slots.iter().zip(parameters).enumerate() {
+                for (index, (slot, &parameter)) in carried.slots.iter().zip(parameters).enumerate()
+                {
                     let data = self.function.entity(parameter).ok_or_else(missing)?;
                     if self.function.entity(slot.source).map(|source| source.ty) != Some(slot.ty)
                         || data.ty != slot.ty
@@ -915,7 +928,9 @@ pub(in crate::ssa) mod map_iteration_conditional {
                         .map_paths
                         .get(&actual.statement.index())
                         .ok_or_else(missing)?;
-                    if before.body != from || before.statement != state.plan.descriptor().statement() {
+                    if before.body != from
+                        || before.statement != state.plan.descriptor().statement()
+                    {
                         return Err(missing());
                     }
                     let mut expected = before;

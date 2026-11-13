@@ -208,7 +208,9 @@ mod graph {
                         matches!(i.operation, Operation::DirectCall { .. })
                             && i.results.iter().any(|entity| {
                                 module
-                                    .map_container(entry.entity(*entity).unwrap().ty.semantic_type())
+                                    .map_container(
+                                        entry.entity(*entity).unwrap().ty.semantic_type(),
+                                    )
                                     .is_some()
                             })
                     })
@@ -519,7 +521,8 @@ pub(super) mod wrapper {
                             && lineage.contains(&parent)
                             && !ended.contains(&parent)
                             && op.origin == Origin::Source(ast::span(parsed, i.argument))
-                            && wrapper.entity(parent).unwrap().ty == wrapper.entity(child).unwrap().ty,
+                            && wrapper.entity(parent).unwrap().ty
+                                == wrapper.entity(child).unwrap().ty,
                         "generic wrapper exact live source-parameter reborrow",
                         op,
                     )?;

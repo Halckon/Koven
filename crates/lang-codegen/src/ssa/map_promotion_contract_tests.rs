@@ -144,7 +144,10 @@ pub(in crate::ssa) mod nullable_if_carrier {
     use crate::ssa::model::{Definition, SsaTypeKind};
 
     impl ExpressionLowerer<'_> {
-        pub(in crate::ssa) fn nullable_if_cleanup_owner(&self, plan: &GroupPlan) -> Option<ValueId> {
+        pub(in crate::ssa) fn nullable_if_cleanup_owner(
+            &self,
+            plan: &GroupPlan,
+        ) -> Option<ValueId> {
             let function = &*self.function;
             if self.thunk_expression.is_some()
                 || function.origin != Origin::Source(plan.function_span)
@@ -163,7 +166,8 @@ pub(in crate::ssa) mod nullable_if_carrier {
                 return None;
             }
             let nullable = *self.type_ids.get(&plan.storage)?;
-            let SsaTypeKind::NullableHandle { inner } = self.ssa_types.get(nullable.index())? else {
+            let SsaTypeKind::NullableHandle { inner } = self.ssa_types.get(nullable.index())?
+            else {
                 return None;
             };
             let inner = *inner;
@@ -281,7 +285,8 @@ pub(in crate::ssa) mod nullable_if_carrier {
                     .get(owner_column)?,
             )?;
             if when_true.arguments.get(owner_column) != Some(&EntityId::Value(body_owner))
-                || parameter(function, EntityId::Value(old_owner))? != (when_true.target, owner_column)
+                || parameter(function, EntityId::Value(old_owner))?
+                    != (when_true.target, owner_column)
                 || ![replacement, inherited, body_owner, old_owner]
                     .into_iter()
                     .all(|value| value_type(function, value, nullable))
@@ -327,7 +332,8 @@ pub(in crate::ssa) mod nullable_if_carrier {
             {
                 return None;
             }
-            let (header_block, header_column) = parameter(function, EntityId::Value(*header_owner))?;
+            let (header_block, header_column) =
+                parameter(function, EntityId::Value(*header_owner))?;
             let slot = context.carried.slots.get(header_column)?;
             if header_block != context.header
                 || slot.symbol != Some(plan.root)
@@ -432,7 +438,8 @@ pub(in crate::ssa) mod nullable_if_carrier {
     }
 
     fn parameter(function: &Function, entity: EntityId) -> Option<(BlockId, usize)> {
-        let Definition::BlockParameter { block, index } = function.entity(entity)?.definition else {
+        let Definition::BlockParameter { block, index } = function.entity(entity)?.definition
+        else {
             return None;
         };
         (function.block(block)?.parameters.get(index) == Some(&entity)).then_some((block, index))
@@ -479,7 +486,12 @@ pub(in crate::ssa) mod nullable_if_carrier {
         terms.next().is_none().then_some(term)
     }
 
-    fn branch_to(function: &Function, block: BlockId, target: BlockId, span: Span) -> Option<&Edge> {
+    fn branch_to(
+        function: &Function,
+        block: BlockId,
+        target: BlockId,
+        span: Span,
+    ) -> Option<&Edge> {
         let term = function.block(block)?.terminator.as_ref()?;
         let TerminatorKind::Branch(edge) = &term.kind else {
             return None;
@@ -507,6 +519,7 @@ pub(in crate::ssa) mod nullable_if_carrier {
         //! Bounded source/fact qualification, without evaluating or rebuilding a condition.
         use crate::ssa::lower_frontend::nullable_if_cleanup::*;
         use crate::ssa::lower_frontend::*;
+        use lang_frontend::ownership_checking::{DropFact, DropTarget};
         use lang_frontend::{
             name_resolution::ReferenceTarget,
             parser::{FunctionBody, FunctionForm, VariableKind},
@@ -577,7 +590,8 @@ pub(in crate::ssa) mod nullable_if_carrier {
                     Expression::Literal(LiteralKind::Null)
                 )
                 || members[0].value_origin() != names.symbols().get(root.index())?.span()
-                || members[1].value_origin() != parsed.ast().expressions().get(assignment).ok()?.span()
+                || members[1].value_origin()
+                    != parsed.ast().expressions().get(assignment).ok()?.span()
             {
                 return None;
             }
@@ -830,7 +844,9 @@ pub(in crate::ssa) mod nullable_if_carrier {
                 .references()
                 .iter()
                 .find_map(|reference| match reference.target() {
-                    ReferenceTarget::Symbol(symbol) if reference.span() == node.span() => Some(*symbol),
+                    ReferenceTarget::Symbol(symbol) if reference.span() == node.span() => {
+                        Some(*symbol)
+                    }
                     _ => None,
                 })
         }
@@ -858,7 +874,10 @@ pub(in crate::ssa) mod nullable_if_carrier {
             }
         }
 
-        fn statement_expression(parsed: &ParsedFile, statement: StatementId) -> Option<ExpressionId> {
+        fn statement_expression(
+            parsed: &ParsedFile,
+            statement: StatementId,
+        ) -> Option<ExpressionId> {
             match parsed.ast().statements().get(statement).ok()?.payload() {
                 Statement::Expression { expression } => Some(*expression),
                 _ => None,

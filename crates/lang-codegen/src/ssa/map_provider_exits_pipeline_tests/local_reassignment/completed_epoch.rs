@@ -145,7 +145,9 @@ mod facts {
         ownership_checking::{CompilationUnitOwnership, UnitDropPoint, UnitDropTarget},
         parser::{Expression, ParsedFile},
         source::SourceMap,
-        type_checking::{CompilationUnitTypes, ExpressionCategory, UnitExpressionId, UnitStatementId},
+        type_checking::{
+            CompilationUnitTypes, ExpressionCategory, UnitExpressionId, UnitStatementId,
+        },
     };
 
     pub(super) fn unit(
@@ -202,7 +204,8 @@ mod facts {
                 .collect::<Vec<_>>();
             let new = one(
                 drops.iter().copied().filter(|d| {
-                    d.point() == UnitDropPoint::AfterExpression(UnitExpressionId::new(u, s.assignment))
+                    d.point()
+                        == UnitDropPoint::AfterExpression(UnitExpressionId::new(u, s.assignment))
                 }),
                 "qualified new installation ASAP Drop",
             )?;
@@ -381,7 +384,8 @@ mod graph {
             )?;
             let g = Graph::new(f)?;
             need(
-                g.block(f.entry_block().unwrap())?.parameters.is_empty() && f.return_types.is_empty(),
+                g.block(f.entry_block().unwrap())?.parameters.is_empty()
+                    && f.return_types.is_empty(),
                 "actual completed scanner Unit ABI",
                 f.id,
             )?;

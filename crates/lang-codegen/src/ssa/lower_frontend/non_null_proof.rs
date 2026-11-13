@@ -25,8 +25,8 @@ pub(in crate::ssa) enum ProofScope {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::ssa) struct ProofOrigin {
-    birth: LoanId,
-    introduced_by: ProofScope,
+    pub(in crate::ssa) birth: LoanId,
+    pub(in crate::ssa) introduced_by: ProofScope,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -457,7 +457,6 @@ impl ExpressionLowerer<'_> {
     }
 }
 
-
 pub(in crate::ssa) mod outer_borrowed_provider {
     //! Actual provider and nullable-branch births; no loan is identified by type alone.
     use super::super::outer_borrowed_while::carrier::{
@@ -599,7 +598,8 @@ pub(in crate::ssa) mod outer_borrowed_provider {
             return None;
         }
         let ops = instructions(function, preheader)?;
-        let position = |instruction: &Instruction| ops.iter().position(|op| op.id == instruction.id);
+        let position =
+            |instruction: &Instruction| ops.iter().position(|op| op.id == instruction.id);
         if position(root)? >= position(begin)? {
             return None;
         }
@@ -684,11 +684,10 @@ pub(in crate::ssa) mod outer_borrowed_provider {
         let EntityId::Place(place) = only_result(element_place)? else {
             return None;
         };
-        let begin = unique(
-            ops.iter()
-                .copied()
-                .filter(|instruction| matches!(instruction.operation, Operation::BorrowBegin { .. })),
-        )?;
+        let begin =
+            unique(ops.iter().copied().filter(|instruction| {
+                matches!(instruction.operation, Operation::BorrowBegin { .. })
+            }))?;
         if element_place.operation
             != (Operation::ContainerElementPlace {
                 owner: EntityId::Loan(body_source),

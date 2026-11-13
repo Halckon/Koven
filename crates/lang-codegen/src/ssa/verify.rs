@@ -8,7 +8,7 @@ use super::model::{
 pub(in crate::ssa) use super::closure::closure_content;
 pub(in crate::ssa) use super::verify_ownership::field_exchange::closure_escape;
 use super::verify_types::module;
-pub(in crate::ssa::verify) use module as content_flow;
+pub(in crate::ssa) use super::verify_types::module as content_flow;
 
 pub(in crate::ssa) use closure_escape::TypeCaptures;
 

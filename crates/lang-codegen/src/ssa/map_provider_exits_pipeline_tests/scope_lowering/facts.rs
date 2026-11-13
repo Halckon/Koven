@@ -158,7 +158,11 @@ mod body {
                 )?;
                 need(
                     reference.target()
-                        == &UnitReferenceTarget::Symbol(unit_symbol(names, typed, site.bindings[0])?),
+                        == &UnitReferenceTarget::Symbol(unit_symbol(
+                            names,
+                            typed,
+                            site.bindings[0],
+                        )?),
                     "scope qualified clone borrows original map key",
                     reference,
                 )?;

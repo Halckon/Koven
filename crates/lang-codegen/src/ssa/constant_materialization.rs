@@ -208,22 +208,17 @@ pub(in crate::ssa) mod map_local_identity {
     ) -> Result<Vec<Site<'a>>, LoweringError> {
         let missing = || error(LoweringErrorKind::MissingFact, span);
         let unsupported = || error(LoweringErrorKind::UnsupportedNode, span);
-        let (block, elements) =
-            unique(
-                parsed
-                    .ast()
-                    .statements()
-                    .iter()
-                    .filter_map(|(id, node)| match node.payload() {
-                        Statement::Block { elements } | Statement::LambdaBody { elements }
-                            if elements.contains(&current.descriptor().statement()) =>
-                        {
-                            Some((id, elements))
-                        }
-                        _ => None,
-                    }),
-            )
-            .ok_or_else(missing)?;
+        let (block, elements) = unique(parsed.ast().statements().iter().filter_map(
+            |(id, node)| match node.payload() {
+                Statement::Block { elements } | Statement::LambdaBody { elements }
+                    if elements.contains(&current.descriptor().statement()) =>
+                {
+                    Some((id, elements))
+                }
+                _ => None,
+            },
+        ))
+        .ok_or_else(missing)?;
         if qualify::has_enclosing_control(parsed, span) {
             lambda_body(parsed, typed, owned, block, span)?;
         }
@@ -326,7 +321,8 @@ pub(in crate::ssa) mod map_local_identity {
         // No hidden join/reassignment/extra loop between formation, provider and use.
         // The one recognized size guard is independently justified below and at SSA.
         for statement in elements {
-            if !covered.contains(statement) && !qualify::straight_statement(parsed, typed, *statement)?
+            if !covered.contains(statement)
+                && !qualify::straight_statement(parsed, typed, *statement)?
             {
                 return Err(unsupported());
             }
@@ -440,9 +436,11 @@ pub(in crate::ssa) mod map_local_identity {
             || reference(
                 parsed,
                 names,
-                crate::ssa::map_source::transparent_expression(parsed, descriptor.source(), |id| {
-                    typed.expression_type(id).zip(typed.expression_category(id))
-                })?,
+                crate::ssa::map_source::transparent_expression(
+                    parsed,
+                    descriptor.source(),
+                    |id| typed.expression_type(id).zip(typed.expression_category(id)),
+                )?,
                 span,
             )? != root
             || plan.source_kind() != &IterationSource::BorrowedSource(source.clone())

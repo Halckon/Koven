@@ -1,5 +1,5 @@
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-pub(crate) mod cleanup_tests;
+mod cleanup_tests;
 pub(in crate::ssa) mod determinism_tests;
 mod provider_lifetime_tests {
     use super::super::{
@@ -130,7 +130,7 @@ mod provider_lifetime_tests {
         );
     }
 }
-pub(in crate::ssa) mod source_cfg_tests;
+mod source_cfg_tests;
 mod unit_storage_boundary_tests {
     //! Unit storage never erases the SSA operation's concrete type contract.
 
@@ -139,8 +139,8 @@ mod unit_storage_boundary_tests {
 
     use super::super::{
         model::{
-            EntityId, EntityType, Operation, Origin, Program, ScalarConstant, SequentialContainerKind,
-            SsaTypeKind, TerminatorKind,
+            EntityId, EntityType, Operation, Origin, Program, ScalarConstant,
+            SequentialContainerKind, SsaTypeKind, TerminatorKind,
         },
         verify::{VerifyErrorKind, VerifyLocation, verify_program},
     };
@@ -250,7 +250,8 @@ mod unit_storage_boundary_tests {
         );
     }
 }
-#[allow(unused_imports)] pub(in crate::ssa) use determinism_tests::unit_storage_tests;
+#[allow(unused_imports)]
+pub(in crate::ssa) use determinism_tests::unit_storage_tests;
 
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,

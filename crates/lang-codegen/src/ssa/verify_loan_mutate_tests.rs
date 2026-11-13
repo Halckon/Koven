@@ -95,9 +95,10 @@ fn loan_mutate_rejects_shared_loans_mismatched_and_move_only_targets() {
 }
 
 mod root_exchange_tests {
+    use crate::ssa::model::*;
+    use crate::ssa::verify::{VerifyError, VerifyErrorKind};
     use lang_frontend::source::SourceMap;
 
-    use crate::ssa::verify_ownership::*;
     use crate::ssa::{
         model::{FunctionId, ModuleId, Origin, Program, SsaTypeKind},
         verify::verify_program,
@@ -360,11 +361,9 @@ mod root_exchange_tests {
                 }],
             );
             f.finish(f.entry);
-            assert!(
-                f.errors().iter().any(
-                    |e| matches!(e.kind, VerifyErrorKind::PlaceUnavailable { place } if place == p)
-                )
-            );
+            assert!(f.errors().iter().any(
+                |e| matches!(e.kind, VerifyErrorKind::PlaceUnavailable { place } if place == p)
+            ));
         }
     }
 

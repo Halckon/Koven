@@ -11,7 +11,9 @@ mod temporary {
 
     #[test]
     fn range_temporary_native_single_and_unit_release_string_move_only_and_resource_identities() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         for (declaration, element, values, read, drops) in [
             (
                 "",
@@ -68,7 +70,8 @@ mod temporary {
                     "package app\nimport koven.algorithms.take\n{consumer}"
                 )),
             ] {
-                let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+                let llvm =
+                    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
                 let run = run_counted_allocations_in_order(&llvm, &[1, 0, 2]);
                 assert_success(
                     &run,
@@ -132,8 +135,6 @@ mod temporary {
         }
     }
 }
-
-use crate::ssa::loan_region_ssa_tests::parent_child_drop_dependency::range_view_source as view_source;
 
 mod call_prefix {
     //! Ordinary legal argument return cleans only the already evaluated call prefix.
@@ -248,7 +249,9 @@ mod call_prefix {
 
     #[test]
     fn range_call_prefix_native_restores_roots_and_releases_each_identity_on_both_branches() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         for (declaration, element, values, read, drops) in [
             (
                 "",
@@ -299,7 +302,9 @@ mod call_prefix {
 
     #[test]
     fn range_call_prefix_owned_arguments_transfer_only_after_the_later_argument_completes() {
-        use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+        use crate::native_tests::boxed_enum_tests::{
+            assert_success, run_counted_allocations_in_order,
+        };
         for (declaration, element, values, sent, later, read, root_drops, sent_drop, later_drop) in [
             (
                 "",
@@ -363,8 +368,6 @@ mod call_prefix {
         }
     }
 }
-
-pub(in crate::ssa) use crate::ssa::unit_receiver_two_phase_tests::range_receiver as receiver;
 
 #[path = "range_lowering_tests/scalar_counts.rs"]
 pub(in crate::ssa) mod scalar_counts;
@@ -439,11 +442,18 @@ pub(in crate::ssa) fn unit_with_entry(consumer: &str) -> (Program, FunctionId) {
     unit_with_provider_entry(consumer, "")
 }
 
-pub(in crate::ssa) fn unit_with_provider_entry(consumer: &str, trusted: &str) -> (Program, FunctionId) {
+pub(in crate::ssa) fn unit_with_provider_entry(
+    consumer: &str,
+    trusted: &str,
+) -> (Program, FunctionId) {
     unit_with_provider_order(consumer, trusted, false)
 }
 
-pub(in crate::ssa) fn unit_with_provider_order(consumer: &str, trusted: &str, reverse: bool) -> (Program, FunctionId) {
+pub(in crate::ssa) fn unit_with_provider_order(
+    consumer: &str,
+    trusted: &str,
+    reverse: bool,
+) -> (Program, FunctionId) {
     let mut sources = SourceMap::new();
     let (p, provider) = super::unit_lower_test_support::parsed(
         &mut sources,
@@ -881,7 +891,8 @@ pub(in crate::ssa) fn range_metadata_borrow_is_separate_from_constructing_a_new_
 }
 
 #[test]
-pub(in crate::ssa) fn range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir() {
+pub(in crate::ssa) fn range_verifier_rejects_erasure_and_premature_source_end_without_emitting_ir()
+{
     use super::verify::VerifyErrorKind;
     let consumer = "package app\nimport koven.algorithms.take\nfun check(source:View<String>):Unit{}\nfun main():Unit{val source=listOf(\"kept\");borrow val part=take(source,1);check(part)}";
     for variant in 0..5 {

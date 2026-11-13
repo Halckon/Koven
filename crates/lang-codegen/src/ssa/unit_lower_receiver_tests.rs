@@ -34,7 +34,8 @@ mod borrowing {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -57,10 +58,10 @@ mod borrowing {
         ));
         assert!(matches!(member.blocks[0].parameters[0], EntityId::Loan(_)));
         assert!(
-            member
-                .instructions
-                .iter()
-                .any(|instruction| matches!(instruction.operation, Operation::SharedFieldLoan { .. }))
+            member.instructions.iter().any(|instruction| matches!(
+                instruction.operation,
+                Operation::SharedFieldLoan { .. }
+            ))
         );
 
         let entry = function(module.functions.iter(), ".entry.d");
@@ -129,7 +130,8 @@ mod borrowing {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -164,7 +166,10 @@ mod borrowing {
             entry
                 .instructions
                 .iter()
-                .filter(|instruction| matches!(instruction.operation, Operation::BorrowBegin { .. }))
+                .filter(|instruction| matches!(
+                    instruction.operation,
+                    Operation::BorrowBegin { .. }
+                ))
                 .count(),
             1
         );
@@ -176,7 +181,8 @@ mod borrowing {
                 .count(),
             1
         );
-        let llvm = render_verified_program(&program).expect("forwarded this loan must lower to LLVM");
+        let llvm =
+            render_verified_program(&program).expect("forwarded this loan must lower to LLVM");
         assert_diagnostic!(llvm.contains("Counter.relay"), "{llvm}");
         assert_diagnostic!(llvm.contains("Counter.answer"), "{llvm}");
     }
@@ -197,7 +203,8 @@ mod borrowing {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -242,7 +249,8 @@ mod borrowing {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -274,7 +282,8 @@ mod borrowing {
                 .iter()
                 .any(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
         );
-        render_verified_program(&program).expect("Value-to-Borrow receiver loan must lower to LLVM");
+        render_verified_program(&program)
+            .expect("Value-to-Borrow receiver loan must lower to LLVM");
     }
 
     #[test]
@@ -295,7 +304,8 @@ mod borrowing {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -309,10 +319,10 @@ mod borrowing {
 
         let relay = function(program.modules[0].functions.iter(), ".Resource.relay.s");
         assert!(
-            relay
-                .instructions
-                .iter()
-                .any(|instruction| matches!(instruction.operation, Operation::SharedReborrow { .. }))
+            relay.instructions.iter().any(|instruction| matches!(
+                instruction.operation,
+                Operation::SharedReborrow { .. }
+            ))
         );
         assert!(
             relay
@@ -340,7 +350,8 @@ mod borrowing {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -369,7 +380,8 @@ mod borrowing {
             .position(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
             .expect("class owner drop");
         assert!(call < borrow_end && borrow_end < drop);
-        let llvm = render_verified_program(&program).expect("Borrow class receiver must lower to LLVM");
+        let llvm =
+            render_verified_program(&program).expect("Borrow class receiver must lower to LLVM");
         assert_diagnostic!(llvm.contains("Resource.answer"), "{llvm}");
         assert_diagnostic!(llvm.contains("call void @free"), "{llvm}");
     }
@@ -391,7 +403,8 @@ mod borrowing {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -465,7 +478,8 @@ mod delegation {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -565,7 +579,10 @@ mod delegation {
             entry
                 .instructions
                 .iter()
-                .filter(|instruction| matches!(instruction.operation, Operation::HeapFieldRead { .. }))
+                .filter(|instruction| matches!(
+                    instruction.operation,
+                    Operation::HeapFieldRead { .. }
+                ))
                 .count(),
             0,
             "delegation must forward the field place, not read/copy the delegate owner"
@@ -574,14 +591,19 @@ mod delegation {
             entry
                 .instructions
                 .iter()
-                .filter(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. }))
+                .filter(|instruction| matches!(
+                    instruction.operation,
+                    Operation::HeapAllocate { .. }
+                ))
                 .count(),
             2,
             "only the source Reader and Host constructions may allocate"
         );
         assert!(entry.instructions.iter().all(|instruction| !matches!(
             instruction.operation,
-            Operation::Copy { .. } | Operation::SharedAllocate { .. } | Operation::SharedRetain { .. }
+            Operation::Copy { .. }
+                | Operation::SharedAllocate { .. }
+                | Operation::SharedRetain { .. }
         )));
         render_verified_program(&program).expect("delegation route must lower to LLVM");
     }
@@ -601,7 +623,8 @@ mod delegation {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -685,7 +708,10 @@ mod delegation {
             entry
                 .instructions
                 .iter()
-                .filter(|instruction| matches!(instruction.operation, Operation::HeapFieldRead { .. }))
+                .filter(|instruction| matches!(
+                    instruction.operation,
+                    Operation::HeapFieldRead { .. }
+                ))
                 .count(),
             0,
             "each hop must forward a field place instead of reading its owner value"
@@ -694,19 +720,24 @@ mod delegation {
             entry
                 .instructions
                 .iter()
-                .filter(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. }))
+                .filter(|instruction| matches!(
+                    instruction.operation,
+                    Operation::HeapAllocate { .. }
+                ))
                 .count(),
             3,
             "only Reader, Middle and Host source constructions may allocate"
         );
         assert!(entry.instructions.iter().all(|instruction| !matches!(
             instruction.operation,
-            Operation::Copy { .. } | Operation::SharedAllocate { .. } | Operation::SharedRetain { .. }
+            Operation::Copy { .. }
+                | Operation::SharedAllocate { .. }
+                | Operation::SharedRetain { .. }
         )));
         render_verified_program(&program).expect("delegation loan chain must lower to LLVM");
     }
 }
-pub(in crate::ssa) mod inout_fields;
+mod inout_fields;
 mod inout_inline;
 mod interface;
 mod representation {
@@ -725,7 +756,8 @@ mod representation {
         );
         let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         assert!(
             owned.ownership().drops().is_empty(),
             "stateless object receiver has no runtime drop: {:?}",
@@ -786,7 +818,8 @@ mod representation {
                 | Operation::Drop { .. }
         )));
 
-        let llvm = render_verified_program(&program).expect("object ZST receiver must lower to LLVM");
+        let llvm =
+            render_verified_program(&program).expect("object ZST receiver must lower to LLVM");
         assert_diagnostic!(llvm.contains("alloca"), "{llvm}");
         assert_diagnostic!(!llvm.contains("@malloc"), "{llvm}");
         assert_diagnostic!(!llvm.contains(" global "), "{llvm}");
@@ -821,7 +854,8 @@ mod representation {
             &parsed,
         )];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let (program, _) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -838,7 +872,9 @@ mod representation {
             .types
             .iter()
             .enumerate()
-            .filter_map(|(index, ty)| matches!(ty, SsaTypeKind::TaggedUnion { .. }).then_some(index))
+            .filter_map(|(index, ty)| {
+                matches!(ty, SsaTypeKind::TaggedUnion { .. }).then_some(index)
+            })
             .collect::<Vec<_>>();
         assert_eq!(tagged.len(), 2, "Signal and Owned tagged identities");
         let entry = function(module.functions.iter(), ".entry");

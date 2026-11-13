@@ -217,7 +217,8 @@ mod cfg {
             flag: super::ast::span(parsed, *condition),
             arms: [arm(*then_branch)?, arm(*no)?],
         };
-        let (call, end) = argument::check_unit(sources, parsed, &original, module, g, factory, uses)?;
+        let (call, end) =
+            argument::check_unit(sources, parsed, &original, module, g, factory, uses)?;
         Ok(arguments::Delivery {
             call,
             cleanup: vec![end],
@@ -322,7 +323,8 @@ mod provider {
                 && g.position(root)? < g.position(begin)?
                 && g.position(begin)? < g.position(first)?
                 && delivered.cleanup.iter().all(|drop| {
-                    drop.block == root.block && g.position(drop).unwrap() < g.position(root).unwrap()
+                    drop.block == root.block
+                        && g.position(drop).unwrap() < g.position(root).unwrap()
                 }),
             "delivery all argument cleanup precedes output provider Root/Begin/First",
             (root, begin, first),
@@ -463,11 +465,13 @@ mod provider {
                 && ops.first().map(|i| i.id) == Some(end.id)
                 && g.position(end)? < g.position(drop)?
                 && (if case.resource && !case.direct {
-                    after.is_some_and(|after| g.position(after).unwrap() < g.position(drop).unwrap())
+                    after
+                        .is_some_and(|after| g.position(after).unwrap() < g.position(drop).unwrap())
                 } else {
                     ops.get(1).map(|i| i.id) == Some(drop.id)
-                        && after
-                            .is_none_or(|after| g.position(drop).unwrap() < g.position(after).unwrap())
+                        && after.is_none_or(|after| {
+                            g.position(drop).unwrap() < g.position(after).unwrap()
+                        })
                 })
                 && matches!(&g.term(end.block)?.kind,TerminatorKind::Return {values} if values.is_empty())
                 && g.blocks

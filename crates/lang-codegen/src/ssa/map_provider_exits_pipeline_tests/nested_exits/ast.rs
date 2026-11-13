@@ -19,15 +19,19 @@ pub(super) enum Exit {
     Return,
 }
 
-pub(super) struct Input {
+pub(in crate::ssa) struct Input {
     pub sources: SourceMap,
     pub parsed: ParsedFile,
     pub map: bool,
-    pub exit: Exit,
+    pub(in crate::ssa::map_provider_exits_pipeline_tests::nested_exits) exit: Exit,
 }
 
 impl Input {
-    pub fn new(text: &str, map: bool, exit: Exit) -> Result<Self, Failure> {
+    pub(in crate::ssa::map_provider_exits_pipeline_tests::nested_exits) fn new(
+        text: &str,
+        map: bool,
+        exit: Exit,
+    ) -> Result<Self, Failure> {
         let mut sources = SourceMap::new();
         let id = sources
             .add_source("provider.ko", text)

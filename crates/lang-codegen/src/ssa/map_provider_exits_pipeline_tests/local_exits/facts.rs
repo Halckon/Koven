@@ -38,7 +38,10 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast {
         pub(in crate::ssa::map_provider_exits_pipeline_tests) kind: E,
         pub(in crate::ssa::map_provider_exits_pipeline_tests) point: DropPoint,
     }
-    pub(in crate::ssa::map_provider_exits_pipeline_tests) fn within(outer: Span, inner: Span) -> bool {
+    pub(in crate::ssa::map_provider_exits_pipeline_tests) fn within(
+        outer: Span,
+        inner: Span,
+    ) -> bool {
         outer.source_id() == inner.source_id()
             && outer.start() <= inner.start()
             && inner.end() <= outer.end()
@@ -120,7 +123,9 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast {
                         name: NameMarker::Present(name),
                         parameters,
                         ..
-                    } if sources.slice(*name) == Ok("result") && parameters.len() == 2 => Some(*name),
+                    } if sources.slice(*name) == Ok("result") && parameters.len() == 2 => {
+                        Some(*name)
+                    }
                     _ => None,
                 }
             }),
@@ -136,7 +141,8 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast {
             .map(|empty| {
                 let (scan, name, form) =
                     function(sources, parsed, if empty { "scanEmpty" } else { "scan" })?;
-                let factory = function(sources, parsed, if empty { "makeEmpty" } else { "make" })?.1;
+                let factory =
+                    function(sources, parsed, if empty { "makeEmpty" } else { "make" })?.1;
                 let scope = match form {
                     FunctionForm::ImplicitUnitBlock(b)
                     | FunctionForm::Explicit {
@@ -178,21 +184,21 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast {
                 else {
                     return Err(failure("G2 original destructured For", node));
                 };
-                let [NameMarker::Present(key), NameMarker::Present(value)] = names.as_slice() else {
+                let [NameMarker::Present(key), NameMarker::Present(value)] = names.as_slice()
+                else {
                     return Err(failure("G2 actual K/V markers", names));
                 };
-                let declarations = elements
-                    .iter()
-                    .copied()
-                    .take_while(|id| *id != statement)
-                    .filter(|id| {
-                        parsed
-                            .ast()
-                            .statements()
-                            .get(*id)
-                            .is_ok_and(|n| matches!(n.payload(), Statement::LocalVariable { .. }))
-                    })
-                    .collect::<Vec<_>>();
+                let declarations =
+                    elements
+                        .iter()
+                        .copied()
+                        .take_while(|id| *id != statement)
+                        .filter(|id| {
+                            parsed.ast().statements().get(*id).is_ok_and(|n| {
+                                matches!(n.payload(), Statement::LocalVariable { .. })
+                            })
+                        })
+                        .collect::<Vec<_>>();
                 need(
                     declarations.len() == if formation == 2 { 2 } else { 1 },
                     "G2 actual local formation chain",
@@ -292,7 +298,8 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod ast {
                 need(
                     guard.kind == VariableKind::Val
                         && sources.slice(guard.marker) == Ok("local")
-                        && sources.slice(expression_span(parsed, guard.initializer)?) == Ok("Guard()"),
+                        && sources.slice(expression_span(parsed, guard.initializer)?)
+                            == Ok("Guard()"),
                     "G2 original Guard declaration",
                     &guard,
                 )?;

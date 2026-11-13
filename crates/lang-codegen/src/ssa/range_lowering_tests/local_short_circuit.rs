@@ -50,7 +50,9 @@ mod receiver {
                     let (program, entry) = lowered.require_success(&label);
                     assertions::short_circuit_branch(&program, span);
                     let mut expected = String::new();
-                    for (left, right) in [(true, true), (true, false), (false, true), (false, false)] {
+                    for (left, right) in
+                        [(true, true), (true, false), (false, true), (false, false)]
+                    {
                         expected.push_str("lhs\n");
                         if left == and {
                             expected.push_str("rhs\n");
@@ -585,9 +587,9 @@ fn range_short_circuit_pending_prefix_reversed_constant() {
 pub(in crate::ssa) mod comparison_boundary {
     //! Ordinary source keeps the non-Int, concat and alias gates closed.
     use super::super::support::{UnitExpectation, observe_original_unit};
-    use crate::ssa::range_lowering_tests::local_control::comparisons::*;
-    use crate::ssa::range_lowering_tests::local_control::*;
     use crate::ssa::LoweringErrorKind;
+
+    use crate::ssa::range_lowering_tests::local_control::*;
     use crate::test_support::diagnostics::assert_eq_diagnostic;
 
     fn reject(statement: &str, fragment: &str) {

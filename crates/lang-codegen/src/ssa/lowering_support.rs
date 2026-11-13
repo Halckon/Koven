@@ -677,10 +677,9 @@ pub(in crate::ssa) mod frontend_range {
                 .source_loan()
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             if fact.storage() != BorrowBindingStorage::NewRangeDescriptor
-                || self
-                    .owned
-                    .loan_begin(source.argument())
-                    .is_none_or(|loan| loan.call() != source.call() || loan.target() != fact.origin())
+                || self.owned.loan_begin(source.argument()).is_none_or(|loan| {
+                    loan.call() != source.call() || loan.target() != fact.origin()
+                })
             {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
@@ -729,7 +728,8 @@ pub(in crate::ssa) mod frontend_range {
                 }
             };
             let view = self.expression_ssa_type(expression, span)?;
-            let Some(SsaTypeKind::RangeView { source: source_ty }) = self.ssa_types.get(view.index())
+            let Some(SsaTypeKind::RangeView { source: source_ty }) =
+                self.ssa_types.get(view.index())
             else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };

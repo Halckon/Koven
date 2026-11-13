@@ -181,12 +181,42 @@ fn boxed_enum_signature_only_unit_roots_accept_box_or_enum_first() {
     }
 }
 
-pub(in crate::ssa) mod owner_consumer_test_support {
+pub(crate) mod owner_consumer_test_support {
     //! Private CI-only mutations and ordinary observation of actual production transitions.
     use std::cell::{Cell, RefCell};
 
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(crate) enum OwnerFault {
+        MissingCounterEntryPermit,
+        CounterEntryWrongSource,
+        CounterEntryDuplicateCommit,
+        MissingCounterExitBindingPermit,
+        MissingCounterExitDropPermit,
+        CounterExitWrongSource,
+        CounterExitDuplicateDrop,
+        MissingCounterBindingPermit,
+        MissingCounterDropPermit,
+        CounterBindingWrongSource,
+        CounterDropDuplicateCommit,
+        MissingCounterReplacePermit,
+        CounterReplaceWrongRoot,
+        CounterReplaceDuplicateCommit,
+        CounterLateAbortToHeader,
+        CounterBoundaryWrongEntry,
+        CounterBoundaryMissingSuffix,
+        CounterTailLateInitialization,
+        CounterTailWrongBackedge,
+        CounterTailWrongCounterWrite,
+        CounterTailWrongGuardWrite,
+        CounterTailStaleComparison,
+        MissingCheckedExpressionEdge,
+        WrongCheckedExpressionEdgeOperand,
+        ReversedCheckedExpressionEdges,
+        ConflictingMultiRootAuthority,
+        MissingMultiRootGeometry,
+        MissingMultiRootGuard,
+        WrongMultiRootRoot,
+        MissingMultiRootDropReceipt,
         MissingReturnReplaceReceipt,
         DuplicateReturnReplaceReceipt,
         ReturnReplaceOldIsRoot,
@@ -208,6 +238,26 @@ pub(in crate::ssa) mod owner_consumer_test_support {
         DuplicateOwnerReturn,
         WrongReturnPayload,
         MissingOwnerReturn,
+        ExtraHeaderAlias,
+        MissingHeaderBindDrop,
+        DuplicateHeaderBindDrop,
+        ForgedHeaderParameterLiteral,
+        MissingConditionalReturn,
+        DuplicateConditionalReturn,
+        WrongConditionalReturnSlot,
+        MissingConditionalNormal,
+        DuplicateConditionalNormal,
+        WrongConditionalNormalTarget,
+        MissingMixedJump,
+        DuplicateMixedJump,
+        WrongMixedJumpTarget,
+        WrongMixedJumpIdentity,
+        MissingHeaderContinue,
+        DuplicateHeaderContinue,
+        WrongHeaderContinueIdentity,
+        MissingHeaderContinueDrop,
+        WrongHeaderContinueTarget,
+        WrongHeaderContinueSource,
     }
     thread_local! {
         static FAULT: Cell<Option<OwnerFault>> = const { Cell::new(None) };
@@ -240,7 +290,9 @@ pub(in crate::ssa) mod owner_consumer_test_support {
             }
         });
     }
-    pub(crate) fn observe_owner_actions<T>(run: impl FnOnce() -> T) -> (T, Vec<(&'static str, usize)>) {
+    pub(crate) fn observe_owner_actions<T>(
+        run: impl FnOnce() -> T,
+    ) -> (T, Vec<(&'static str, usize)>) {
         ACTIONS.with(|events| *events.borrow_mut() = Some(Vec::new()));
         let result = run();
         let events = ACTIONS.with(|events| events.borrow_mut().take().unwrap_or_default());
@@ -251,7 +303,11 @@ pub(in crate::ssa) mod owner_consumer_test_support {
     pub(in crate::ssa) mod checkpoint {
         //! Exact call sites: before MapSize/NullableTake, before CallReturn cleanup, or If retirement.
         use crate::ssa::lower_frontend::orchestrate::nullable_map_guard_support::*;
+        use crate::ssa::lower_frontend::orchestrate::unwrap_modified;
         use crate::ssa::lower_frontend::*;
+        use crate::ssa::lowering_support::callable_instances::SourceToken;
+        use crate::ssa::model::{Definition, InstructionId};
+        use lang_frontend::ownership_checking::DropTarget;
         use std::collections::BTreeSet;
 
         #[derive(Clone, Copy)]
@@ -395,7 +451,8 @@ pub(in crate::ssa) mod owner_consumer_test_support {
                 assert_eq!(when_null.arguments, vec![EntityId::Value(*owner)]);
                 assert_eq!(when_non_null.arguments, when_null.arguments);
                 let body = baseline.block(when_non_null.target).unwrap();
-                let [EntityId::Value(body_owner), EntityId::Loan(body_view)] = body.parameters.as_slice()
+                let [EntityId::Value(body_owner), EntityId::Loan(body_view)] =
+                    body.parameters.as_slice()
                 else {
                     panic!("exact owner column and branch-born view")
                 };
@@ -594,7 +651,10 @@ pub(in crate::ssa) mod owner_consumer_test_support {
                 expression
             }
 
-            pub(in crate::ssa) fn declaration(&self, declaration: ItemId) -> (SymbolId, ExpressionId) {
+            pub(in crate::ssa) fn declaration(
+                &self,
+                declaration: ItemId,
+            ) -> (SymbolId, ExpressionId) {
                 let (item, _) = unwrap_modified(&self.parsed, declaration).unwrap();
                 let Item::Variable {
                     name: NameMarker::Present(name),
@@ -648,14 +708,16 @@ pub(in crate::ssa) mod owner_consumer_test_support {
                             );
                             assert!(self.owned.formed_owned_locals().contains(&symbol));
                             let mut owner = if self.typed.map_construction(initializer).is_some() {
-                                let instruction =
-                                    one_instruction(function, self.span(initializer), |operation| {
-                                        matches!(operation, Operation::MapConstruct { .. })
-                                    });
+                                let instruction = one_instruction(
+                                    function,
+                                    self.span(initializer),
+                                    |operation| matches!(operation, Operation::MapConstruct { .. }),
+                                );
                                 result(instruction)
                             } else {
                                 // C2 source <- seed and C3 source <- input use the actual old binding.
-                                let LoweredValue::Value(value) = bindings[&self.reference(initializer)]
+                                let LoweredValue::Value(value) =
+                                    bindings[&self.reference(initializer)]
                                 else {
                                     panic!("existing owned initializer")
                                 };
@@ -664,10 +726,14 @@ pub(in crate::ssa) mod owner_consumer_test_support {
                             // binding.rs retires every old alias before optional NullableWrap.
                             bindings.retain(|_, binding| *binding != LoweredValue::Value(owner));
                             if self.typed.expression_type(initializer) != Some(declared) {
-                                let instruction = one_instruction(function, node.span(), |operation| {
-                                    matches!(operation, Operation::NullableWrap { owner: actual, nullable }
+                                let instruction = one_instruction(
+                                    function,
+                                    node.span(),
+                                    |operation| {
+                                        matches!(operation, Operation::NullableWrap { owner: actual, nullable }
                                         if *actual == owner && *nullable == self.type_ids[&declared])
-                                });
+                                    },
+                                );
                                 owner = result(instruction);
                             }
                             assert_eq!(
@@ -737,7 +803,8 @@ pub(in crate::ssa) mod owner_consumer_test_support {
                 let mut places = BTreeMap::new();
                 let mut loans = BTreeMap::new();
                 let header = function.block(function.entry_block().unwrap()).unwrap();
-                let string = self.type_ids[&self.typed.types().builtin(BuiltinType::String).unwrap()];
+                let string =
+                    self.type_ids[&self.typed.types().builtin(BuiltinType::String).unwrap()];
                 // This is the actual header instruction order, never arena ordinal order.
                 for &id in &header.instructions {
                     let instruction = function.instruction(id).unwrap();
@@ -869,7 +936,11 @@ pub(in crate::ssa) mod owner_consumer_test_support {
             *value
         }
 
-        fn retire_owner(live: &mut BTreeSet<ValueId>, loans: &BTreeMap<LoanId, ValueId>, owner: ValueId) {
+        fn retire_owner(
+            live: &mut BTreeSet<ValueId>,
+            loans: &BTreeMap<LoanId, ValueId>,
+            owner: ValueId,
+        ) {
             assert!(
                 loans.values().all(|&target| target != owner),
                 "owner delivery follows all loan ends"

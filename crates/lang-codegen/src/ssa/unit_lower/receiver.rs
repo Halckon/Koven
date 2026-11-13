@@ -710,7 +710,9 @@ mod runtime_slots_tests {
         ownership_checking::{UnitCallableOrigin, UnitLoanTarget},
         parser::Expression,
         source::SourceMap,
-        type_checking::{UnitCallableTarget, UnitExpressionId, UnitTypeKind, standard_environments},
+        type_checking::{
+            UnitCallableTarget, UnitExpressionId, UnitTypeKind, standard_environments,
+        },
     };
 
     fn check_existing_frontend_loan_survives_inner_loop(control: &str) {
@@ -726,7 +728,8 @@ mod runtime_slots_tests {
             &file,
         )];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         let identities = file
             .ast()
             .expressions()

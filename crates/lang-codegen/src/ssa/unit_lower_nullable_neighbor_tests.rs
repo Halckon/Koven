@@ -111,8 +111,8 @@ mod nullable_if_field_tests {
 
     use crate::ssa::{
         model::{
-            Definition, EntityId, EntityType, FunctionId, LoanKind, Operation, Program, SsaTypeKind,
-            TerminatorKind,
+            Definition, EntityId, EntityType, FunctionId, LoanKind, Operation, Program,
+            SsaTypeKind, TerminatorKind,
         },
         unit_lower::lower_owned_unit_with_entry,
         verify::verify_program,
@@ -189,7 +189,9 @@ mod nullable_if_field_tests {
             let wraps = function
                 .instructions
                 .iter()
-                .filter(|instruction| matches!(instruction.operation, Operation::NullableWrap { .. }))
+                .filter(|instruction| {
+                    matches!(instruction.operation, Operation::NullableWrap { .. })
+                })
                 .map(|instruction| only(instruction.results.iter().copied()))
                 .collect::<Vec<_>>();
             assert_eq!(wraps.len(), 2);
@@ -227,26 +229,23 @@ mod nullable_if_field_tests {
                 .unwrap()
                 .function(entry)
                 .unwrap();
-            let (owner, null_edge, non_null_edge, loan) = only(function.blocks.iter().filter_map(
-                |block| match &block.terminator.as_ref()?.kind {
-                    TerminatorKind::NullableBranch {
-                        owner,
-                        when_null,
-                        when_non_null,
-                        view,
-                    } => Some((*owner, when_null, when_non_null, *view)),
-                    _ => None,
-                },
-            ));
+            let (owner, null_edge, non_null_edge, loan) =
+                only(function.blocks.iter().filter_map(|block| {
+                    match &block.terminator.as_ref()?.kind {
+                        TerminatorKind::NullableBranch {
+                            owner,
+                            when_null,
+                            when_non_null,
+                            view,
+                        } => Some((*owner, when_null, when_non_null, *view)),
+                        _ => None,
+                    }
+                }));
             let body = function.block(non_null_edge.target).unwrap();
             let null = function.block(null_edge.target).unwrap();
-            let column = only(
-                non_null_edge
-                    .arguments
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, entity)| (*entity == EntityId::Value(owner)).then_some(index)),
-            );
+            let column = only(non_null_edge.arguments.iter().enumerate().filter_map(
+                |(index, entity)| (*entity == EntityId::Value(owner)).then_some(index),
+            ));
             assert_eq!(body.parameters.last(), Some(&EntityId::Loan(loan)));
             let users = function
                 .instructions
@@ -291,12 +290,10 @@ mod nullable_if_field_tests {
                 })
                 .unwrap();
             assert!(position(end.id) < position(drop));
-            assert!(
-                function.instructions.iter().all(|instruction| !matches!(
-                    instruction.operation,
-                    Operation::HeapFieldRead { .. }
-                ))
-            );
+            assert!(function.instructions.iter().all(|instruction| !matches!(
+                instruction.operation,
+                Operation::HeapFieldRead { .. }
+            )));
         }
     }
 
@@ -441,14 +438,16 @@ mod nullable_if_field_tests {
             complete_compilation_unit_types(sources, &inputs, names, &environment, &raw).unwrap();
         assert!(complete.is_same_analysis(&raw));
         assert!(std::ptr::eq(complete.types(), &raw));
-        let outcome = analyze_basic_unit_ownership(sources, &inputs, names, &environment, raw).unwrap();
+        let outcome =
+            analyze_basic_unit_ownership(sources, &inputs, names, &environment, raw).unwrap();
         let (typed, owned) = outcome.into_result().unwrap();
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
         assert!(owned.is_compatible_with(&typed));
         let owned = owned.validate().unwrap();
         let view =
-            owned_compilation_unit_view(sources, &inputs, names, &environment, &typed, &owned).unwrap();
+            owned_compilation_unit_view(sources, &inputs, names, &environment, &typed, &owned)
+                .unwrap();
         assert!(std::ptr::eq(view.types(), typed.types()));
         assert!(std::ptr::eq(view.ownership(), owned.ownership()));
         let declaration = only(
@@ -508,7 +507,8 @@ mod nullable_if_field_tests {
             )
             .id();
             let nodes = input.parsed().ast().expressions();
-            let (control_id, _) = only(nodes.iter().filter(|(_, node)| node.span() == control_span));
+            let (control_id, _) =
+                only(nodes.iter().filter(|(_, node)| node.span() == control_span));
             let body = function.block(non_null_edge.target).unwrap();
             let null = function.block(null_edge.target).unwrap();
             // SPEC-0350: a function inside the refinement subset attributes the proof
@@ -517,13 +517,9 @@ mod nullable_if_field_tests {
                 .types()
                 .null_comparison(UnitExpressionId::new(source, control_id))
                 .expect("proof originates at a null comparison");
-            let column = only(
-                non_null_edge
-                    .arguments
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, entity)| (*entity == EntityId::Value(owner)).then_some(index)),
-            );
+            let column = only(non_null_edge.arguments.iter().enumerate().filter_map(
+                |(index, entity)| (*entity == EntityId::Value(owner)).then_some(index),
+            ));
             assert_eq!(null_edge.arguments[column], EntityId::Value(owner));
             let EntityId::Value(body_owner) = body.parameters[column] else {
                 panic!("same nullable owner column")
@@ -627,7 +623,8 @@ mod nullable_if_field_tests {
                 .types()
                 .aggregate_projection(UnitExpressionId::new(source, expression))
                 .unwrap();
-            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            else {
                 panic!("real field receiver")
             };
             let non_null_use = view.types().non_null_use(receiver).unwrap();

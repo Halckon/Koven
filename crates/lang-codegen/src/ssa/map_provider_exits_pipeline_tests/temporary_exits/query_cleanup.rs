@@ -1,5 +1,6 @@
 //! Unit 原始退出表；旧 owner/condition/phi 行为由同轮 SSA 全列和完整库存证明。
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_exits::boundaries::unit_cleanup as unit_cleanup;
+#[path = "query_cleanup_unit.rs"]
+mod unit_cleanup;
 use super::{Failure, failure, need, one};
 pub(super) use unit_cleanup::check as unit;
 
@@ -22,11 +23,11 @@ pub(in crate::ssa) mod nullable_numeric_cleanup {
     };
 
     pub(in crate::ssa) struct Plan {
-        fact: DropFact,
-        root: SymbolId,
-        storage: TypeId,
-        statement: StatementId,
-        outer: StatementId,
+        pub(in crate::ssa) fact: DropFact,
+        pub(in crate::ssa) root: SymbolId,
+        pub(in crate::ssa) storage: TypeId,
+        pub(in crate::ssa) statement: StatementId,
+        pub(in crate::ssa) outer: StatementId,
     }
 
     /// This admits no SSA and does not change the generic condition implication gate.
@@ -438,7 +439,8 @@ pub(in crate::ssa) mod nullable_numeric_cleanup {
             facts: &[DropFact],
         ) -> Result<(), LoweringError> {
             for &fact in facts {
-                if let Some(plan) = candidate(self.parsed, self.names, self.typed, self.owned, fact) {
+                if let Some(plan) = candidate(self.parsed, self.names, self.typed, self.owned, fact)
+                {
                     self.checked_nullable_numeric_owner(&plan)?;
                 }
             }
@@ -449,7 +451,8 @@ pub(in crate::ssa) mod nullable_numeric_cleanup {
             &mut self,
             fact: DropFact,
         ) -> Result<bool, LoweringError> {
-            let Some(plan) = candidate(self.parsed, self.names, self.typed, self.owned, fact) else {
+            let Some(plan) = candidate(self.parsed, self.names, self.typed, self.owned, fact)
+            else {
                 return Ok(false);
             };
             let owner = self.checked_nullable_numeric_owner(&plan)?;
@@ -462,7 +465,10 @@ pub(in crate::ssa) mod nullable_numeric_cleanup {
             Ok(true)
         }
 
-        fn checked_nullable_numeric_owner(&self, plan: &Plan) -> Result<ValueId, LoweringError> {
+        pub(in crate::ssa) fn checked_nullable_numeric_owner(
+            &self,
+            plan: &Plan,
+        ) -> Result<ValueId, LoweringError> {
             let span = plan.fact.value_origin();
             let proof = self
                 .non_null_bindings
@@ -500,7 +506,10 @@ pub(in crate::ssa) mod nullable_numeric_cleanup {
         use crate::ssa::map_source::*;
         use lang_frontend::{
             ast::ExpressionId,
-            parser::{AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
+            parser::{
+                AssignmentOperator, Expression, FunctionBody, FunctionForm, Item, ParsedFile,
+                Statement,
+            },
             source::Span,
         };
 
@@ -732,13 +741,15 @@ pub(in crate::ssa) mod nullable_numeric_cleanup {
                     {
                         continue;
                     }
-                    let target = transparent_expression(parsed, write.target, &mut expression_type)?;
+                    let target =
+                        transparent_expression(parsed, write.target, &mut expression_type)?;
                     let target = parsed
                         .ast()
                         .expressions()
                         .get(target)
                         .map_err(|_| missing())?;
-                    if target.payload() != &Expression::Name || reference(target.span())? != current {
+                    if target.payload() != &Expression::Name || reference(target.span())? != current
+                    {
                         continue;
                     }
                     if write.operator != AssignmentOperator::Assign
@@ -813,7 +824,8 @@ pub(in crate::ssa) mod nullable_numeric_cleanup {
                     &mut expression_type,
                     &mut reference,
                 )?;
-                let initializer = transparent_expression(parsed, initializer, &mut expression_type)?;
+                let initializer =
+                    transparent_expression(parsed, initializer, &mut expression_type)?;
                 let node = parsed
                     .ast()
                     .expressions()

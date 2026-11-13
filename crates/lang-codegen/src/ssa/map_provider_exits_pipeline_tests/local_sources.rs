@@ -67,7 +67,9 @@ mod unit {
             .references()
             .iter()
             .filter(|r| {
-                r.source_unit() == unit && r.span() == span && r.namespace() == Some(Namespace::Value)
+                r.source_unit() == unit
+                    && r.span() == span
+                    && r.namespace() == Some(Namespace::Value)
             })
             .collect::<Vec<_>>();
         match found.as_slice() {
@@ -111,7 +113,9 @@ mod unit {
             .references()
             .iter()
             .filter(|r| {
-                r.source_unit() == unit && r.span() == span && r.namespace() == Some(Namespace::Value)
+                r.source_unit() == unit
+                    && r.span() == span
+                    && r.namespace() == Some(Namespace::Value)
             })
             .collect::<Vec<_>>();
         matches!(found.as_slice(), [r] if match r.target() {
@@ -178,8 +182,9 @@ mod unit {
                 site.span.source_id() == f.parsed.source_id()
                     && site.source_span.source_id() == f.parsed.source_id()
                     && f.sources.source_name(site.span.source_id()) == Ok("provider.ko")
-                    && a.function(site.scanner)
-                        .is_some_and(|f| f.span == site.scanner_span && f.body == site.scanner_body),
+                    && a.function(site.scanner).is_some_and(|f| {
+                        f.span == site.scanner_span && f.body == site.scanner_body
+                    }),
                 (
                     site.scanner,
                     site.scanner_span,
@@ -350,11 +355,13 @@ mod unit {
                                 && s.receiver() == expression(size.receiver)
                                 && s.map_type() == d.source_type()
                         })
-                        && typed.expression_type(expression(size.receiver)) == Some(d.source_type())
+                        && typed.expression_type(expression(size.receiver))
+                            == Some(d.source_type())
                         && typed
                             .expression_type(expression(size.expression))
                             .is_some_and(|t| {
-                                typed.types().get(t) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                                typed.types().get(t)
+                                    == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
                             })
                         && typed
                             .expression_type(expression(size.comparison))

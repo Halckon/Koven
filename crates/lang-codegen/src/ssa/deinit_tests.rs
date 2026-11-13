@@ -281,10 +281,9 @@ pub(in crate::ssa) mod constant_presence_source {
             return None;
         }
 
-        let header =
-            unique(plan.closure_phis().iter().filter(|phi| {
-                phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header
-            }))?;
+        let header = unique(plan.closure_phis().iter().filter(|phi| {
+            phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header
+        }))?;
         let target = unique(
             plan.closure_phis()
                 .iter()
@@ -333,7 +332,8 @@ pub(in crate::ssa) mod constant_presence_source {
         }
         let entry_binding = incoming(entry, header)?;
         let seed = unique(entry_binding.values().iter())?;
-        if !always(conditions, entry_binding.available_when()) || !always(conditions, seed.condition())
+        if !always(conditions, entry_binding.available_when())
+            || !always(conditions, seed.condition())
         {
             return None;
         }
@@ -418,15 +418,9 @@ pub(in crate::ssa) mod constant_presence_source {
                 if fact.point() != exhaustion.point() {
                     return None;
                 }
-                let finish = unique(
-                    exhaustion
-                        .actions()
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, action)| {
-                            **action == IterationCleanupAction::FinishProvider(*statement)
-                        }),
-                )?
+                let finish = unique(exhaustion.actions().iter().enumerate().filter(
+                    |(_, action)| **action == IterationCleanupAction::FinishProvider(*statement),
+                ))?
                 .0;
                 let end = unique(
                     exhaustion
@@ -478,7 +472,9 @@ pub(in crate::ssa) mod constant_presence_source {
         plan: &IterationOwnershipPlan,
         phi: &IterationClosurePhiBinding,
     ) -> Option<()> {
-        if !phi.root_nodes().is_empty() || !phi.capture_layout().is_empty() || !phi.origins().is_empty()
+        if !phi.root_nodes().is_empty()
+            || !phi.capture_layout().is_empty()
+            || !phi.origins().is_empty()
         {
             return None;
         }
@@ -636,8 +632,8 @@ pub(in crate::ssa) mod constant_presence_source {
             ownership_checking::{
                 CleanupCondition, CleanupConditionId, CleanupConditions, CleanupOwnerValue,
                 CleanupSelection, DropFact, DropPoint, DropTarget, IterationCleanupAction,
-                IterationExitKind, IterationExitPlan, IterationPhiBoundary, IterationPhiIncomingKind,
-                LoanTarget, OwnershipBindingKind, OwnershipCheckedFile,
+                IterationExitKind, IterationExitPlan, IterationPhiBoundary,
+                IterationPhiIncomingKind, LoanTarget, OwnershipBindingKind, OwnershipCheckedFile,
             },
             type_checking::{IterationProvider, ParameterMode, TypedFile},
         };
@@ -708,10 +704,9 @@ pub(in crate::ssa) mod constant_presence_source {
                 return None;
             }
 
-            let header =
-                unique(plan.closure_phis().iter().filter(|phi| {
-                    phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header
-                }))?;
+            let header = unique(plan.closure_phis().iter().filter(|phi| {
+                phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Header
+            }))?;
             let target = unique(
                 plan.closure_phis()
                     .iter()
@@ -722,10 +717,9 @@ pub(in crate::ssa) mod constant_presence_source {
             }
             canonical_phi(conditions, plan, header)?;
             canonical_phi(conditions, plan, target)?;
-            let exit =
-                unique(plan.closure_phis().iter().filter(|phi| {
-                    phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Exit
-                }))?;
+            let exit = unique(plan.closure_phis().iter().filter(|phi| {
+                phi.symbol() == symbol && phi.boundary() == IterationPhiBoundary::Exit
+            }))?;
             canonical_phi(conditions, plan, exit)?;
             if header.owner() == exit.owner()
                 || header.availability_selector() == exit.availability_selector()
@@ -776,21 +770,26 @@ pub(in crate::ssa) mod constant_presence_source {
             }
             match conditions.owner_value(seed.source())? {
                 CleanupOwnerValue::Expression { expression, .. } if local => {
-                    let initializer = unique(parsed.ast().items().iter().filter_map(|(_, item)| {
-                        let lang_frontend::parser::Item::Variable {
-                            name, initializer, ..
-                        } = item.payload()
-                        else {
-                            return None;
-                        };
-                        (crate::ssa::lowering_support::present_name(*name) == Some(named.span()))
+                    let initializer =
+                        unique(parsed.ast().items().iter().filter_map(|(_, item)| {
+                            let lang_frontend::parser::Item::Variable {
+                                name, initializer, ..
+                            } = item.payload()
+                            else {
+                                return None;
+                            };
+                            (crate::ssa::lowering_support::present_name(*name)
+                                == Some(named.span()))
                             .then_some(*initializer)
-                    }))?;
+                        }))?;
                     // Only the existing transparent Group normalization is used. An assignment
                     // or alias seed cannot pretend to be this declaration's initializer.
-                    let initializer =
-                        crate::ssa::borrow_result_support::ungroup(parsed, initializer, named.span())
-                            .ok()?;
+                    let initializer = crate::ssa::borrow_result_support::ungroup(
+                        parsed,
+                        initializer,
+                        named.span(),
+                    )
+                    .ok()?;
                     if initializer != *expression {
                         return None;
                     }
@@ -826,19 +825,16 @@ pub(in crate::ssa) mod constant_presence_source {
             }
 
             // Return is independently closed over its published full cleanup sequence.
-            let return_drop = unique(
-                returning
-                    .actions()
-                    .iter()
-                    .filter_map(|action| match action {
-                        IterationCleanupAction::Drop(drop)
-                            if drop.target() == DropTarget::Named(symbol) =>
-                        {
-                            Some(*drop)
-                        }
-                        _ => None,
-                    }),
-            )?;
+            let return_drop = unique(returning.actions().iter().filter_map(
+                |action| match action {
+                    IterationCleanupAction::Drop(drop)
+                        if drop.target() == DropTarget::Named(symbol) =>
+                    {
+                        Some(*drop)
+                    }
+                    _ => None,
+                },
+            ))?;
             let Some(CleanupCondition::Choice { selector, branches }) =
                 conditions.get(return_drop.condition()?)
             else {
@@ -864,16 +860,19 @@ pub(in crate::ssa) mod constant_presence_source {
                 && never(conditions, exhausted_binding.available_when());
             if dead {
                 let exhausted_drop =
-                    unique(exhaustion.actions().iter().filter_map(
-                        |action| match action {
-                            IterationCleanupAction::Drop(drop)
-                                if drop.target() == DropTarget::Named(symbol) =>
-                            {
-                                Some(*drop)
-                            }
-                            _ => None,
-                        },
-                    ))?;
+                    unique(
+                        exhaustion
+                            .actions()
+                            .iter()
+                            .filter_map(|action| match action {
+                                IterationCleanupAction::Drop(drop)
+                                    if drop.target() == DropTarget::Named(symbol) =>
+                                {
+                                    Some(*drop)
+                                }
+                                _ => None,
+                            }),
+                    )?;
                 if exhausted_drop.owner() != Some(header.owner())
                     || exhausted_drop.point() != exhaustion.point()
                     || exhausted_drop.condition() != Some(header.availability_condition())

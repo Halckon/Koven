@@ -57,7 +57,7 @@ impl AliasSlot<ResultSourceLoan, (SymbolId, usize)> for LinearBindingSlot {
 }
 
 impl ExpressionLowerer<'_> {
-    pub(in super::super) fn linear_binding_slots(
+    pub(in crate::ssa) fn linear_binding_slots(
         &self,
         bindings: &BTreeMap<SymbolId, LoweredValue>,
         span: Span,
@@ -192,7 +192,7 @@ impl ExpressionLowerer<'_> {
         })
     }
 
-    pub(in super::super) fn add_linear_binding_block(
+    pub(in crate::ssa) fn add_linear_binding_block(
         &mut self,
         carried: &LinearBindings,
         span: Span,
@@ -205,7 +205,7 @@ impl ExpressionLowerer<'_> {
             .map_err(|_| error(LoweringErrorKind::InvalidModel, span))
     }
 
-    pub(in super::super) fn rebind_linear_bindings(
+    pub(in crate::ssa) fn rebind_linear_bindings(
         &mut self,
         baseline: &BTreeMap<SymbolId, LoweredValue>,
         block: BlockId,
@@ -758,6 +758,10 @@ mod callable_route_tests {
 
     use crate::ssa::lower_frontend::instances::{callable_plan_tests::*, *};
     use crate::ssa::lower_frontend::*;
+    use crate::ssa::lowering_support::callable_instances::{
+        CallableKey, CallableToken, SourceToken,
+    };
+    use lang_frontend::ownership_checking::ClosureCaptureMode;
     use std::collections::BTreeSet;
 
     fn source(plan: &FunctionInstancePlan, fixture: &Fixture, name: &str) -> SourceToken {

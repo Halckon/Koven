@@ -210,6 +210,7 @@ fn canonical_lookup_preserves_borrowed_identity_first_match_and_missing_error() 
 
 pub(in crate::ssa) mod numeric_iteration {
     //! Owned Copyable cursor state, independent of the shared container provider.
+    use crate::ssa::lower_frontend::control::LinearBindingSlot;
     use crate::ssa::lower_frontend::loop_control::*;
     use crate::ssa::lower_frontend::*;
     use crate::ssa::model::{BinaryOperator, ComparisonOperator, ScalarConstant};
@@ -433,7 +434,9 @@ pub(in crate::ssa) mod numeric_iteration {
             let exit = plan
                 .exits()
                 .iter()
-                .find(|exit| matches!(exit.kind(), IterationExitKind::Break(id) if id == expression))
+                .find(
+                    |exit| matches!(exit.kind(), IterationExitKind::Break(id) if id == expression),
+                )
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             self.emit_iteration_exit_plan(exit, span)?;
             self.lower_break(span)
@@ -571,7 +574,8 @@ pub(in crate::ssa) mod numeric_iteration {
                 nullable_borrowed_cleanup::{
                     Plan,
                     carrier::{
-                        Birth, Columns, forward, incoming, instructions, parameter, result, transport,
+                        Birth, Columns, forward, incoming, instructions, parameter, result,
+                        transport,
                     },
                     unique,
                 },
@@ -647,11 +651,9 @@ pub(in crate::ssa) mod numeric_iteration {
             let EntityId::Place(place) = only_result(root)? else {
                 return None;
             };
-            let begin = unique(
-                ops.iter()
-                    .copied()
-                    .filter(|instruction| matches!(instruction.operation, Operation::BorrowBegin { .. })),
-            )?;
+            let begin = unique(ops.iter().copied().filter(|instruction| {
+                matches!(instruction.operation, Operation::BorrowBegin { .. })
+            }))?;
             if begin.operation
                 != (Operation::BorrowBegin {
                     place,
@@ -757,11 +759,9 @@ pub(in crate::ssa) mod numeric_iteration {
             let EntityId::Place(place) = only_result(element_place)? else {
                 return None;
             };
-            let begin = unique(
-                ops.iter()
-                    .copied()
-                    .filter(|instruction| matches!(instruction.operation, Operation::BorrowBegin { .. })),
-            )?;
+            let begin = unique(ops.iter().copied().filter(|instruction| {
+                matches!(instruction.operation, Operation::BorrowBegin { .. })
+            }))?;
             if element_place.operation
                 != (Operation::ContainerElementPlace {
                     owner: EntityId::Loan(body_source),
@@ -880,10 +880,9 @@ pub(in crate::ssa) mod numeric_iteration {
                 let index = expected.iter().position(|span| *span == origin)?;
                 expected.remove(index);
                 let ops = instructions(function, block)?;
-                let end =
-                    unique(ops.iter().copied().filter(|instruction| {
-                        matches!(instruction.operation, Operation::BorrowEnd { .. })
-                    }))?;
+                let end = unique(ops.iter().copied().filter(|instruction| {
+                    matches!(instruction.operation, Operation::BorrowEnd { .. })
+                }))?;
                 let Operation::BorrowEnd { loan: element } = end.operation else {
                     return None;
                 };
@@ -953,15 +952,12 @@ pub(in crate::ssa) mod numeric_iteration {
             let source = loan(provider.exhausted.entities[3])?;
             let owner = value(provider.exhausted.entities[2])?;
             let ops = instructions(function, provider.exhausted.block)?;
-            let end =
-                unique(ops.iter().enumerate().filter(|(_, instruction)| {
-                    matches!(instruction.operation, Operation::BorrowEnd { .. })
-                }))?;
-            let drop = unique(
-                ops.iter()
-                    .enumerate()
-                    .filter(|(_, instruction)| matches!(instruction.operation, Operation::Drop { .. })),
-            )?;
+            let end = unique(ops.iter().enumerate().filter(|(_, instruction)| {
+                matches!(instruction.operation, Operation::BorrowEnd { .. })
+            }))?;
+            let drop = unique(ops.iter().enumerate().filter(|(_, instruction)| {
+                matches!(instruction.operation, Operation::Drop { .. })
+            }))?;
             if end.0 >= drop.0
                 || end.1.operation != (Operation::BorrowEnd { loan: source })
                 || end.1.origin != Origin::Source(span)

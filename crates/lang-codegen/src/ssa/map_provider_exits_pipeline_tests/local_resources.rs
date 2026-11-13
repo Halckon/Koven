@@ -248,7 +248,8 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts {
                 arguments.is_empty()
                     && nominal.kind() == NominalKind::Class
                     && field.span() == class.field
-                    && typed.types().get(field.ty()) == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    && typed.types().get(field.ty())
+                        == Some(&UnitTypeKind::Builtin(BuiltinType::String))
                     && deinit.owner() == *declaration
                     && deinit.item() == UnitItemId::new(unit, class.item)
                     && deinit.body() == UnitStatementId::new(unit, class.body)
@@ -290,15 +291,15 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts {
         ownership_checking::{
             CompilationUnitOwnership, DropPoint, IterationExitKind as E, IterationSource, LoanKind,
             MapIterationComponent, OwnershipBindingKind, UnitDropPoint, UnitDropTarget,
-            UnitIterationCleanupAction as UA, UnitIterationExitKind as UE, UnitIterationSourceAccess,
-            UnitLoanTarget,
+            UnitIterationCleanupAction as UA, UnitIterationExitKind as UE,
+            UnitIterationSourceAccess, UnitLoanTarget,
         },
         parser::{Expression, ParsedFile},
         source::{SourceMap, Span},
         type_checking::{
             BuiltinType, CallableResultSource, CompilationUnitTypes, ExpressionCategory,
-            IntrinsicTypeConstructor, ParameterMode, UnitCallTarget, UnitExpressionId, UnitStatementId,
-            UnitTypeKind,
+            IntrinsicTypeConstructor, ParameterMode, UnitCallTarget, UnitExpressionId,
+            UnitStatementId, UnitTypeKind,
         },
     };
 
@@ -330,7 +331,10 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts {
         names.names().source_units().iter().any(|u| {
             u.source_unit() == id.source_unit()
                 && u.resolution().symbols().iter().any(|s| {
-                    s.id() == id.symbol() && s.span() == span && s.kind() == kind && !s.is_synthetic()
+                    s.id() == id.symbol()
+                        && s.span() == span
+                        && s.kind() == kind
+                        && !s.is_synthetic()
                 })
         })
     }
@@ -427,7 +431,8 @@ pub(in crate::ssa::map_provider_exits_pipeline_tests) mod facts {
                 && typed.expression_category(expression(site.birth.initializer))
                     == Some(ExpressionCategory::Temporary)
                 && matches!(typed.types().get(ty),Some(UnitTypeKind::Intrinsic{constructor:c,arguments}) if *c==constructor && arguments.as_slice()==[d.key_type(),d.value_type()])
-                && typed.types().get(d.key_type()) == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                && typed.types().get(d.key_type())
+                    == Some(&UnitTypeKind::Builtin(BuiltinType::String))
                 && p.source_access() == UnitIterationSourceAccess::Owned
                 && matches!(p.source_kind(),IterationSource::BorrowedSource(UnitLoanTarget::Place(path)) if path.is_root() && path.root()==root),
             "Resource qualified original type/category/Owned source",

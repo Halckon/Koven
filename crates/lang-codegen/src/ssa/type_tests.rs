@@ -292,304 +292,304 @@ fn named_types_can_be_used_in_function_signatures_after_definition() {
 }
 
 pub(in crate::ssa) mod shared_owner_operation_tests {
-use lang_frontend::source::SourceMap;
+    use lang_frontend::source::SourceMap;
 
-use super::super::{
-    model::{
-        BlockId, EntityId, EntityType, Function, InstructionId, Operation, Origin, Ownership,
-        Program, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
-    },
-    render::render_program,
-    verify::{VerifyErrorKind, VerifyLocation, verify_program},
-};
-
-fn origin() -> Origin {
-    let mut sources = SourceMap::default();
-    let source = sources
-        .add_source("shared-owner.ko", "Rc(value)")
-        .expect("source");
-    Origin::Source(sources.span(source, 0, 2).expect("span"))
-}
-
-fn value(entity: EntityId) -> ValueId {
-    let EntityId::Value(value) = entity else {
-        panic!("expected value");
-    };
-    value
-}
-
-fn append(
-    function: &mut Function,
-    block: BlockId,
-    operation: Operation,
-    results: Vec<EntityType>,
-    origin: &Origin,
-) -> (InstructionId, Vec<EntityId>) {
-    function
-        .append_instruction(block, operation, results, origin.clone())
-        .expect("instruction")
-}
-
-fn add_function(
-    program: &mut Program,
-    payload_move_only: bool,
-) -> (
-    super::super::model::ModuleId,
-    SsaTypeId,
-    SsaTypeId,
-    super::super::model::FunctionId,
-    BlockId,
-    ValueId,
-) {
-    let origin = origin();
-    let module_id = program.add_module("shared");
-    let module = program.module_mut(module_id).expect("module");
-    let payload = if payload_move_only {
-        module.intern_type(SsaTypeKind::Opaque {
-            name: "Payload".to_owned(),
-            ownership: Ownership::MoveOnly,
-        })
-    } else {
-        module.intern_type(SsaTypeKind::Integer {
-            bits: 64,
-            signed: true,
-        })
-    };
-    let owner = module.declare_shared_owner("Rc").expect("declare");
-    module.define_shared_owner(owner, payload).expect("define");
-    let function_id = module
-        .add_function("shared", Vec::new(), origin.clone())
-        .expect("function");
-    let function = module.function_mut(function_id).expect("function");
-    let entry = function
-        .add_block(vec![EntityType::Value(payload)], origin)
-        .expect("entry");
-    let parameter = value(function.block(entry).expect("block").parameters[0]);
-    (module_id, payload, owner, function_id, entry, parameter)
-}
-
-#[test]
-fn shared_allocate_retain_payload_place_and_drop_verify_and_render() {
-    let origin = origin();
-    let mut program = Program::default();
-    let (module_id, payload, owner_ty, function_id, entry, payload_value) =
-        add_function(&mut program, false);
-    let function = program
-        .module_mut(module_id)
-        .unwrap()
-        .function_mut(function_id)
-        .unwrap();
-    let owner = value(
-        append(
-            function,
-            entry,
-            Operation::SharedAllocate {
-                owner: owner_ty,
-                payload: payload_value,
-            },
-            vec![EntityType::Value(owner_ty)],
-            &origin,
-        )
-        .1[0],
-    );
-    let retained = value(
-        append(
-            function,
-            entry,
-            Operation::SharedRetain {
-                owner: EntityId::Value(owner),
-            },
-            vec![EntityType::Value(owner_ty)],
-            &origin,
-        )
-        .1[0],
-    );
-    append(
-        function,
-        entry,
-        Operation::SharedPayloadPlace {
-            owner: EntityId::Value(owner),
+    use super::super::{
+        model::{
+            BlockId, EntityId, EntityType, Function, InstructionId, Operation, Origin, Ownership,
+            Program, SsaTypeId, SsaTypeKind, TerminatorKind, ValueId,
         },
-        vec![EntityType::Place(payload)],
-        &origin,
-    );
-    append(
-        function,
-        entry,
-        Operation::Drop { owner: retained },
-        Vec::new(),
-        &origin,
-    );
-    append(
-        function,
-        entry,
-        Operation::Drop { owner },
-        Vec::new(),
-        &origin,
-    );
-    function
-        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
-        .unwrap();
+        render::render_program,
+        verify::{VerifyErrorKind, VerifyLocation, verify_program},
+    };
 
-    verify_program(&program).expect("shared owner operations must verify");
-    let rendered = render_program(&program);
-    assert!(rendered.contains("shared.allocate"));
-    assert!(rendered.contains("shared.retain"));
-    assert!(rendered.contains("shared.payload_place"));
-}
+    fn origin() -> Origin {
+        let mut sources = SourceMap::default();
+        let source = sources
+            .add_source("shared-owner.ko", "Rc(value)")
+            .expect("source");
+        Origin::Source(sources.span(source, 0, 2).expect("span"))
+    }
 
-#[test]
-fn shared_operation_type_contracts_reject_non_shared_owners() {
-    let origin = origin();
-    let mut program = Program::default();
-    let (module_id, payload, owner_ty, function_id, entry, payload_value) =
-        add_function(&mut program, false);
-    let function = program
-        .module_mut(module_id)
-        .unwrap()
-        .function_mut(function_id)
-        .unwrap();
-    let invalid = [
-        append(
-            function,
-            entry,
-            Operation::SharedAllocate {
-                owner: payload,
-                payload: payload_value,
-            },
-            vec![EntityType::Value(owner_ty)],
-            &origin,
-        )
-        .0,
-        append(
-            function,
-            entry,
-            Operation::SharedRetain {
-                owner: EntityId::Value(payload_value),
-            },
-            vec![EntityType::Value(owner_ty)],
-            &origin,
-        )
-        .0,
+    fn value(entity: EntityId) -> ValueId {
+        let EntityId::Value(value) = entity else {
+            panic!("expected value");
+        };
+        value
+    }
+
+    fn append(
+        function: &mut Function,
+        block: BlockId,
+        operation: Operation,
+        results: Vec<EntityType>,
+        origin: &Origin,
+    ) -> (InstructionId, Vec<EntityId>) {
+        function
+            .append_instruction(block, operation, results, origin.clone())
+            .expect("instruction")
+    }
+
+    fn add_function(
+        program: &mut Program,
+        payload_move_only: bool,
+    ) -> (
+        super::super::model::ModuleId,
+        SsaTypeId,
+        SsaTypeId,
+        super::super::model::FunctionId,
+        BlockId,
+        ValueId,
+    ) {
+        let origin = origin();
+        let module_id = program.add_module("shared");
+        let module = program.module_mut(module_id).expect("module");
+        let payload = if payload_move_only {
+            module.intern_type(SsaTypeKind::Opaque {
+                name: "Payload".to_owned(),
+                ownership: Ownership::MoveOnly,
+            })
+        } else {
+            module.intern_type(SsaTypeKind::Integer {
+                bits: 64,
+                signed: true,
+            })
+        };
+        let owner = module.declare_shared_owner("Rc").expect("declare");
+        module.define_shared_owner(owner, payload).expect("define");
+        let function_id = module
+            .add_function("shared", Vec::new(), origin.clone())
+            .expect("function");
+        let function = module.function_mut(function_id).expect("function");
+        let entry = function
+            .add_block(vec![EntityType::Value(payload)], origin)
+            .expect("entry");
+        let parameter = value(function.block(entry).expect("block").parameters[0]);
+        (module_id, payload, owner, function_id, entry, parameter)
+    }
+
+    #[test]
+    fn shared_allocate_retain_payload_place_and_drop_verify_and_render() {
+        let origin = origin();
+        let mut program = Program::default();
+        let (module_id, payload, owner_ty, function_id, entry, payload_value) =
+            add_function(&mut program, false);
+        let function = program
+            .module_mut(module_id)
+            .unwrap()
+            .function_mut(function_id)
+            .unwrap();
+        let owner = value(
+            append(
+                function,
+                entry,
+                Operation::SharedAllocate {
+                    owner: owner_ty,
+                    payload: payload_value,
+                },
+                vec![EntityType::Value(owner_ty)],
+                &origin,
+            )
+            .1[0],
+        );
+        let retained = value(
+            append(
+                function,
+                entry,
+                Operation::SharedRetain {
+                    owner: EntityId::Value(owner),
+                },
+                vec![EntityType::Value(owner_ty)],
+                &origin,
+            )
+            .1[0],
+        );
         append(
             function,
             entry,
             Operation::SharedPayloadPlace {
-                owner: EntityId::Value(payload_value),
+                owner: EntityId::Value(owner),
             },
             vec![EntityType::Place(payload)],
             &origin,
+        );
+        append(
+            function,
+            entry,
+            Operation::Drop { owner: retained },
+            Vec::new(),
+            &origin,
+        );
+        append(
+            function,
+            entry,
+            Operation::Drop { owner },
+            Vec::new(),
+            &origin,
+        );
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+            .unwrap();
+
+        verify_program(&program).expect("shared owner operations must verify");
+        let rendered = render_program(&program);
+        assert!(rendered.contains("shared.allocate"));
+        assert!(rendered.contains("shared.retain"));
+        assert!(rendered.contains("shared.payload_place"));
+    }
+
+    #[test]
+    fn shared_operation_type_contracts_reject_non_shared_owners() {
+        let origin = origin();
+        let mut program = Program::default();
+        let (module_id, payload, owner_ty, function_id, entry, payload_value) =
+            add_function(&mut program, false);
+        let function = program
+            .module_mut(module_id)
+            .unwrap()
+            .function_mut(function_id)
+            .unwrap();
+        let invalid = [
+            append(
+                function,
+                entry,
+                Operation::SharedAllocate {
+                    owner: payload,
+                    payload: payload_value,
+                },
+                vec![EntityType::Value(owner_ty)],
+                &origin,
+            )
+            .0,
+            append(
+                function,
+                entry,
+                Operation::SharedRetain {
+                    owner: EntityId::Value(payload_value),
+                },
+                vec![EntityType::Value(owner_ty)],
+                &origin,
+            )
+            .0,
+            append(
+                function,
+                entry,
+                Operation::SharedPayloadPlace {
+                    owner: EntityId::Value(payload_value),
+                },
+                vec![EntityType::Place(payload)],
+                &origin,
+            )
+            .0,
+        ];
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+            .unwrap();
+        let errors = verify_program(&program)
+            .expect_err("invalid operations")
+            .errors;
+        for instruction in invalid {
+            assert!(errors.iter().any(|error| {
+                error.location == VerifyLocation::Instruction(instruction)
+                    && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+            }));
+        }
+    }
+
+    #[test]
+    fn shared_allocate_consumes_move_only_payload_but_retain_preserves_source_owner() {
+        let origin = origin();
+        let mut program = Program::default();
+        let (module_id, _payload, owner_ty, function_id, entry, payload_value) =
+            add_function(&mut program, true);
+        let function = program
+            .module_mut(module_id)
+            .unwrap()
+            .function_mut(function_id)
+            .unwrap();
+        let owner = value(
+            append(
+                function,
+                entry,
+                Operation::SharedAllocate {
+                    owner: owner_ty,
+                    payload: payload_value,
+                },
+                vec![EntityType::Value(owner_ty)],
+                &origin,
+            )
+            .1[0],
+        );
+        let retained = value(
+            append(
+                function,
+                entry,
+                Operation::SharedRetain {
+                    owner: EntityId::Value(owner),
+                },
+                vec![EntityType::Value(owner_ty)],
+                &origin,
+            )
+            .1[0],
+        );
+        let invalid = append(
+            function,
+            entry,
+            Operation::Drop {
+                owner: payload_value,
+            },
+            Vec::new(),
+            &origin,
         )
-        .0,
-    ];
-    function
-        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
-        .unwrap();
-    let errors = verify_program(&program)
-        .expect_err("invalid operations")
-        .errors;
-    for instruction in invalid {
+        .0;
+        append(
+            function,
+            entry,
+            Operation::Drop { owner: retained },
+            Vec::new(),
+            &origin,
+        );
+        append(
+            function,
+            entry,
+            Operation::Drop { owner },
+            Vec::new(),
+            &origin,
+        );
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+            .unwrap();
+
+        let errors = verify_program(&program)
+            .expect_err("payload must be unavailable after allocation")
+            .errors;
         assert!(errors.iter().any(|error| {
-            error.location == VerifyLocation::Instruction(instruction)
-                && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+            error.location == VerifyLocation::Instruction(invalid)
+                && matches!(
+                    error.kind,
+                    VerifyErrorKind::ValueUnavailable { value } if value == payload_value
+                )
         }));
     }
 }
 
-#[test]
-fn shared_allocate_consumes_move_only_payload_but_retain_preserves_source_owner() {
-    let origin = origin();
-    let mut program = Program::default();
-    let (module_id, _payload, owner_ty, function_id, entry, payload_value) =
-        add_function(&mut program, true);
-    let function = program
-        .module_mut(module_id)
-        .unwrap()
-        .function_mut(function_id)
-        .unwrap();
-    let owner = value(
-        append(
-            function,
-            entry,
-            Operation::SharedAllocate {
-                owner: owner_ty,
-                payload: payload_value,
-            },
-            vec![EntityType::Value(owner_ty)],
-            &origin,
-        )
-        .1[0],
-    );
-    let retained = value(
-        append(
-            function,
-            entry,
-            Operation::SharedRetain {
-                owner: EntityId::Value(owner),
-            },
-            vec![EntityType::Value(owner_ty)],
-            &origin,
-        )
-        .1[0],
-    );
-    let invalid = append(
-        function,
-        entry,
-        Operation::Drop {
-            owner: payload_value,
-        },
-        Vec::new(),
-        &origin,
-    )
-    .0;
-    append(
-        function,
-        entry,
-        Operation::Drop { owner: retained },
-        Vec::new(),
-        &origin,
-    );
-    append(
-        function,
-        entry,
-        Operation::Drop { owner },
-        Vec::new(),
-        &origin,
-    );
-    function
-        .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
-        .unwrap();
-
-    let errors = verify_program(&program)
-        .expect_err("payload must be unavailable after allocation")
-        .errors;
-    assert!(errors.iter().any(|error| {
-        error.location == VerifyLocation::Instruction(invalid)
-            && matches!(
-                error.kind,
-                VerifyErrorKind::ValueUnavailable { value } if value == payload_value
-            )
-    }));
-}
-}
-
 pub(in crate::ssa) mod unit_lower_container_size_tests {
-//! SPEC-0274: source length reads preserve container ownership and borrow identity.
-use super::super::{
-    model::{Definition, EntityId, EntityType, Function, LoanKind, Operation, Program},
-    render::render_program,
-    unit_lower::lower_scalar_unit_with_entry,
-    unit_lower_test_support::{analyze, declaration, parsed},
-};
-use crate::test_support::diagnostics::assert_text_eq;
-use lang_frontend::{
-    name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
-};
+    //! SPEC-0274: source length reads preserve container ownership and borrow identity.
+    use super::super::{
+        model::{Definition, EntityId, EntityType, Function, LoanKind, Operation, Program},
+        render::render_program,
+        unit_lower::lower_scalar_unit_with_entry,
+        unit_lower_test_support::{analyze, declaration, parsed},
+    };
+    use crate::test_support::diagnostics::assert_text_eq;
+    use lang_frontend::{
+        name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
+    };
 
-#[test]
-fn unit_container_size_reads_all_three_kinds_without_consuming_parameters() {
-    let program = fixture(
-        r#"package p
+    #[test]
+    fn unit_container_size_reads_all_three_kinds_without_consuming_parameters() {
+        let program = fixture(
+            r#"package p
         fun arraySize(items: Array<Int>): Int = ((items)).size
         fun listSize(items: List<Int>): Int = ((items)).size
         fun mutableSize(items: MutableList<Int>): Int = ((items)).size
@@ -608,7 +608,7 @@ fn unit_container_size_reads_all_three_kinds_without_consuming_parameters() {
             val second = ((items)).size
             return first + second
         }"#,
-        r#"package q
+            r#"package q
         fun entry(): Int {
             val a: Array<Int> = arrayOf()
             val a2 = arrayOf(1, 2)
@@ -625,66 +625,66 @@ fn unit_container_size_reads_all_three_kinds_without_consuming_parameters() {
             val mutableLength0 = p.takeMutable(c0)
             return length + arrayLength + arrayLength2 + listLength + listLength0 + mutableLength + mutableLength0
         }"#,
-    );
-    for name in ["p.arraySize", "p.listSize", "p.mutableSize"] {
-        let function = function(&program, name);
-        let parameter = function.blocks[0].parameters[0];
-        assert!(matches!(parameter, EntityId::Loan(_)));
-        let lengths: Vec<_> = function
-            .instructions
-            .iter()
-            .filter_map(|instruction| {
-                if let Operation::ContainerLength { owner } = instruction.operation {
-                    Some(owner)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        assert_eq!(lengths, [parameter], "length reads the active source loan");
-        assert!(
-            !function.instructions.iter().any(|instruction| matches!(
-                instruction.operation,
-                Operation::Drop { .. } | Operation::BorrowEnd { .. }
-            )),
-            "the callee must preserve its caller's container"
         );
-    }
-    for name in ["p.takeArray", "p.takeList", "p.takeMutable"] {
-        let take = function(&program, name);
-        assert_eq!(
-            take.instructions
+        for name in ["p.arraySize", "p.listSize", "p.mutableSize"] {
+            let function = function(&program, name);
+            let parameter = function.blocks[0].parameters[0];
+            assert!(matches!(parameter, EntityId::Loan(_)));
+            let lengths: Vec<_> = function
+                .instructions
                 .iter()
-                .filter(|instruction| matches!(
+                .filter_map(|instruction| {
+                    if let Operation::ContainerLength { owner } = instruction.operation {
+                        Some(owner)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            assert_eq!(lengths, [parameter], "length reads the active source loan");
+            assert!(
+                !function.instructions.iter().any(|instruction| matches!(
                     instruction.operation,
-                    Operation::ContainerLength { .. }
-                ))
-                .count(),
-            2,
-            "both source reads precede the unique owner cleanup"
-        );
-        assert_eq!(
-            take.instructions
-                .iter()
-                .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
-                .count(),
-            1,
-            "Value parameter still has exactly one cleanup obligation"
-        );
+                    Operation::Drop { .. } | Operation::BorrowEnd { .. }
+                )),
+                "the callee must preserve its caller's container"
+            );
+        }
+        for name in ["p.takeArray", "p.takeList", "p.takeMutable"] {
+            let take = function(&program, name);
+            assert_eq!(
+                take.instructions
+                    .iter()
+                    .filter(|instruction| matches!(
+                        instruction.operation,
+                        Operation::ContainerLength { .. }
+                    ))
+                    .count(),
+                2,
+                "both source reads precede the unique owner cleanup"
+            );
+            assert_eq!(
+                take.instructions
+                    .iter()
+                    .filter(|instruction| matches!(instruction.operation, Operation::Drop { .. }))
+                    .count(),
+                1,
+                "Value parameter still has exactly one cleanup obligation"
+            );
+        }
     }
-}
 
-#[test]
-fn unit_container_size_temporary_receiver_is_evaluated_once_and_cleanup_is_after_read() {
-    let program = fixture(
-        r#"package p
+    #[test]
+    fn unit_container_size_temporary_receiver_is_evaluated_once_and_cleanup_is_after_read() {
+        let program = fixture(
+            r#"package p
         fun sourceArray(): Array<Int> = arrayOf(1, 2)
         fun sourceList(): List<Int> = listOf(1, 2)
         fun sourceMutable(): MutableList<Int> = mutableListOf(1, 2)
         fun emptyArray(): Array<Int> = arrayOf()
         fun emptyList(): List<Int> = listOf()
         fun emptyMutable(): MutableList<Int> = mutableListOf()"#,
-        r#"package q
+            r#"package q
         fun entry(): Int {
             val a = ((p.sourceArray())).size
             val b = ((p.sourceList())).size
@@ -694,58 +694,60 @@ fn unit_container_size_temporary_receiver_is_evaluated_once_and_cleanup_is_after
             val f = ((p.emptyMutable())).size
             return a + b + c + d + e + f
         }"#,
-    );
-    let entry = function(&program, "q.entry");
-    let calls: Vec<_> = entry
-        .instructions
-        .iter()
-        .enumerate()
-        .filter(|(_, instruction)| matches!(instruction.operation, Operation::DirectCall { .. }))
-        .collect();
-    assert_eq!(
-        calls.len(),
-        6,
-        "grouped receivers cannot duplicate source evaluation"
-    );
-    let lengths: Vec<_> = entry
-        .instructions
-        .iter()
-        .enumerate()
-        .filter(|(_, instruction)| {
-            matches!(instruction.operation, Operation::ContainerLength { .. })
-        })
-        .collect();
-    let drops: Vec<_> = entry
-        .instructions
-        .iter()
-        .enumerate()
-        .filter(|(_, instruction)| matches!(instruction.operation, Operation::Drop { .. }))
-        .collect();
-    assert_eq!(lengths.len(), 6);
-    assert_eq!(
-        drops.len(),
-        6,
-        "each temporary backing owner must be cleaned up"
-    );
-    for ((call, length), drop) in calls.iter().zip(&lengths).zip(&drops) {
-        assert!(
-            call.0 < length.0 && length.0 < drop.0,
-            "each read completes before its receiver cleanup"
         );
-        let EntityId::Value(owner) = call.1.results[0] else {
-            panic!("source returns an owner")
-        };
-        assert!(
-            matches!(drop.1.operation, Operation::Drop { owner: dropped } if dropped == owner),
-            "cleanup consumes exactly the owner produced by this source call"
+        let entry = function(&program, "q.entry");
+        let calls: Vec<_> = entry
+            .instructions
+            .iter()
+            .enumerate()
+            .filter(|(_, instruction)| {
+                matches!(instruction.operation, Operation::DirectCall { .. })
+            })
+            .collect();
+        assert_eq!(
+            calls.len(),
+            6,
+            "grouped receivers cannot duplicate source evaluation"
         );
+        let lengths: Vec<_> = entry
+            .instructions
+            .iter()
+            .enumerate()
+            .filter(|(_, instruction)| {
+                matches!(instruction.operation, Operation::ContainerLength { .. })
+            })
+            .collect();
+        let drops: Vec<_> = entry
+            .instructions
+            .iter()
+            .enumerate()
+            .filter(|(_, instruction)| matches!(instruction.operation, Operation::Drop { .. }))
+            .collect();
+        assert_eq!(lengths.len(), 6);
+        assert_eq!(
+            drops.len(),
+            6,
+            "each temporary backing owner must be cleaned up"
+        );
+        for ((call, length), drop) in calls.iter().zip(&lengths).zip(&drops) {
+            assert!(
+                call.0 < length.0 && length.0 < drop.0,
+                "each read completes before its receiver cleanup"
+            );
+            let EntityId::Value(owner) = call.1.results[0] else {
+                panic!("source returns an owner")
+            };
+            assert!(
+                matches!(drop.1.operation, Operation::Drop { owner: dropped } if dropped == owner),
+                "cleanup consumes exactly the owner produced by this source call"
+            );
+        }
     }
-}
 
-#[test]
-fn unit_container_size_borrow_uses_current_loan_after_cfg() {
-    let program = fixture(
-        r#"package p
+    #[test]
+    fn unit_container_size_borrow_uses_current_loan_after_cfg() {
+        let program = fixture(
+            r#"package p
         fun arraySize(items: Array<Int>, own flag: Boolean): Int {
             if (flag) { println("true") } else { println("false") }
             return ((items)).size
@@ -758,7 +760,7 @@ fn unit_container_size_borrow_uses_current_loan_after_cfg() {
             if (flag) { println("true") } else { println("false") }
             return ((items)).size
         }"#,
-        r#"package q
+            r#"package q
         fun entry(): Int {
             val a = arrayOf(1, 2)
             val b = listOf(1, 2)
@@ -768,98 +770,98 @@ fn unit_container_size_borrow_uses_current_loan_after_cfg() {
             val third = p.mutableSize(c, true) + p.mutableSize(c, false)
             return first + second + third + a[0] + b[0] + c[0]
         }"#,
-    );
-    for name in ["p.arraySize", "p.listSize", "p.mutableSize"] {
-        let function = function(&program, name);
-        let owner = function
-            .instructions
-            .iter()
-            .find_map(|instruction| match instruction.operation {
-                Operation::ContainerLength { owner } => Some(owner),
-                _ => None,
-            })
-            .expect("size emits a header read");
-        assert_ne!(
-            owner, function.blocks[0].parameters[0],
-            "size must use the loan transported through the conditional"
         );
-        let EntityId::Loan(loan) = owner else {
-            panic!("size uses Borrow loan")
-        };
-        let entity = function.entity(owner).unwrap();
-        assert_eq!(
-            entity.ty,
-            function
-                .entity(function.blocks[0].parameters[0])
-                .unwrap()
-                .ty,
-            "CFG preserves the concrete container target"
-        );
-        assert!(matches!(
-            entity.ty,
-            EntityType::Loan {
-                kind: LoanKind::Shared,
-                ..
-            }
-        ));
-        assert!(
-            matches!(entity.definition, Definition::BlockParameter { block, .. }
+        for name in ["p.arraySize", "p.listSize", "p.mutableSize"] {
+            let function = function(&program, name);
+            let owner = function
+                .instructions
+                .iter()
+                .find_map(|instruction| match instruction.operation {
+                    Operation::ContainerLength { owner } => Some(owner),
+                    _ => None,
+                })
+                .expect("size emits a header read");
+            assert_ne!(
+                owner, function.blocks[0].parameters[0],
+                "size must use the loan transported through the conditional"
+            );
+            let EntityId::Loan(loan) = owner else {
+                panic!("size uses Borrow loan")
+            };
+            let entity = function.entity(owner).unwrap();
+            assert_eq!(
+                entity.ty,
+                function
+                    .entity(function.blocks[0].parameters[0])
+                    .unwrap()
+                    .ty,
+                "CFG preserves the concrete container target"
+            );
+            assert!(matches!(
+                entity.ty,
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    ..
+                }
+            ));
+            assert!(
+                matches!(entity.definition, Definition::BlockParameter { block, .. }
             if block != function.blocks[0].id)
-        );
-        assert!(
-            !function.instructions.iter().any(|instruction| matches!(
-                instruction.operation, Operation::BorrowEnd { loan: ended } if ended == loan
-            )),
-            "header read does not end the incoming container loan"
-        );
+            );
+            assert!(
+                !function.instructions.iter().any(|instruction| matches!(
+                    instruction.operation, Operation::BorrowEnd { loan: ended } if ended == loan
+                )),
+                "header read does not end the incoming container loan"
+            );
+        }
     }
-}
 
-fn function<'a>(program: &'a Program, name: &str) -> &'a Function {
-    program.modules[0]
-        .functions
-        .iter()
-        .find(|function| function.name.contains(name))
-        .unwrap_or_else(|| panic!("reachable function {name}"))
-}
+    fn function<'a>(program: &'a Program, name: &str) -> &'a Function {
+        program.modules[0]
+            .functions
+            .iter()
+            .find(|function| function.name.contains(name))
+            .unwrap_or_else(|| panic!("reachable function {name}"))
+    }
 
-fn fixture(provider: &str, consumer: &str) -> Program {
-    let mut sources = SourceMap::new();
-    let (p_source, p) = parsed(&mut sources, "p/provider.ko", provider);
-    let (q_source, q) = parsed(&mut sources, "q/consumer.ko", consumer);
-    let inputs = [
-        SourceUnitInput::new("root", "p/provider.ko", p_source, &p),
-        SourceUnitInput::new("root", "q/consumer.ko", q_source, &q),
-    ];
-    let reversed = [inputs[1], inputs[0]];
-    let (name_environment, environment) = standard_environments();
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
-    let entry = declaration(&names, "q", "entry");
-    let (program, _) = lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &environment,
-        &typed,
-        &owned,
-        entry,
-    )
-    .expect("source size is a checked read of an existing container");
-    let (permuted, _) = lower_scalar_unit_with_entry(
-        &sources,
-        &reversed,
-        &names,
-        &environment,
-        &typed,
-        &owned,
-        entry,
-    )
-    .expect("source identity must survive input permutation");
-    assert_text_eq!(render_program(&program), render_program(&permuted));
-    assert_text_eq!(
-        crate::llvm::render_verified_program(&program).unwrap(),
-        crate::llvm::render_verified_program(&permuted).unwrap()
-    );
-    program
-}
+    fn fixture(provider: &str, consumer: &str) -> Program {
+        let mut sources = SourceMap::new();
+        let (p_source, p) = parsed(&mut sources, "p/provider.ko", provider);
+        let (q_source, q) = parsed(&mut sources, "q/consumer.ko", consumer);
+        let inputs = [
+            SourceUnitInput::new("root", "p/provider.ko", p_source, &p),
+            SourceUnitInput::new("root", "q/consumer.ko", q_source, &q),
+        ];
+        let reversed = [inputs[1], inputs[0]];
+        let (name_environment, environment) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+        let entry = declaration(&names, "q", "entry");
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("source size is a checked read of an existing container");
+        let (permuted, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &reversed,
+            &names,
+            &environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .expect("source identity must survive input permutation");
+        assert_text_eq!(render_program(&program), render_program(&permuted));
+        assert_text_eq!(
+            crate::llvm::render_verified_program(&program).unwrap(),
+            crate::llvm::render_verified_program(&permuted).unwrap()
+        );
+        program
+    }
 }

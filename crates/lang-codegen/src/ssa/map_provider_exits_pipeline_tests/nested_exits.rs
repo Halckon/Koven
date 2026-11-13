@@ -11,8 +11,8 @@ mod guards {
         name_resolution::{SymbolKind, ValidatedCompilationUnitNames},
         ownership_checking::{CompilationUnitOwnership, UnitDropTarget},
         type_checking::{
-            CompilationUnitTypes, NominalKind, ParameterMode, UnitConstructionTarget, UnitExpressionId,
-            UnitItemId, UnitStatementId, UnitTypeKind,
+            CompilationUnitTypes, NominalKind, ParameterMode, UnitConstructionTarget,
+            UnitExpressionId, UnitItemId, UnitStatementId, UnitTypeKind,
         },
     };
 
@@ -96,7 +96,9 @@ mod guards {
             let drops = owned
                 .drops()
                 .iter()
-                .filter(|drop| matches!(drop.target(), UnitDropTarget::Named(id) if Some(id) == local))
+                .filter(
+                    |drop| matches!(drop.target(), UnitDropTarget::Named(id) if Some(id) == local),
+                )
                 .collect::<Vec<_>>();
             report.check(
                 "unit nested exits Guard qualified formation history and actual Drop origins",
@@ -116,7 +118,7 @@ mod guards {
     }
 }
 pub(in crate::ssa) mod query_body;
-#[allow(unused_imports)] pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::scope_lambda_body::graph::query_callers as query_callers;
+mod query_callers;
 mod query_graph {
     //! Nested-only role witness, beside the unchanged generic read-only graph helper.
     use super::super::{
@@ -127,7 +129,7 @@ mod query_graph {
     use std::collections::{BTreeMap, BTreeSet};
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-    pub(super) enum Role {
+    pub(in crate::ssa) enum Role {
         Caller,
         OuterSource,
         OuterCursor,
@@ -382,8 +384,10 @@ mod query_graph {
     }
 }
 pub(in crate::ssa) mod query_inputs;
-#[allow(unused_imports)] pub(in crate::ssa) use query_inputs::query_resources;
-#[allow(unused_imports)] pub(in crate::ssa) use query_body::query_ssa;
+#[allow(unused_imports)]
+pub(in crate::ssa) use query_body::query_ssa;
+#[allow(unused_imports)]
+pub(in crate::ssa) use query_inputs::query_resources;
 mod query_tail {
     //! The actual post-loop/caller size Ifs, including both incoming join edges.
     use super::super::{
@@ -483,7 +487,9 @@ mod query_tail {
                 && graph.position(size)? < graph.position(cmp)?
                 && graph.position(constant)? < graph.position(cmp)?
                 && f.sources.slice(constant.origin.span()).is_ok_and(|s| {
-                    s == "0" || s == "2" || checked_reference.is_some_and(|(_, n)| s == n.to_string())
+                    s == "0"
+                        || s == "2"
+                        || checked_reference.is_some_and(|(_, n)| s == n.to_string())
                 }),
             "nested exits SSA size actual comparison result drives its source If",
             (size, cmp, constant, term),

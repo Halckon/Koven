@@ -1,6 +1,4 @@
 //! Independent cross-statement binding verification; existing producers own every effect.
-#[cfg(test)]
-pub(super) use super::receiver_receipt::admission::catalog_actions;
 mod emitted {
     use super::*;
     #[cfg(test)]
@@ -66,7 +64,11 @@ mod emitted {
                 owned.ownership().loan_action_observations()[0].clone(),
             )
         }
-        fn replay(snapshot: &Snapshot, count: usize, rebind: bool) -> Result<Emitted, LoweringError> {
+        fn replay(
+            snapshot: &Snapshot,
+            count: usize,
+            rebind: bool,
+        ) -> Result<Emitted, LoweringError> {
             let mut emitted = Emitted::new(&snapshot.plans, &snapshot.function, snapshot.span)?;
             let p = &snapshot.plans.entries[0];
             let mut current: BTreeMap<_, _> = [p.owner, p.place, p.source, p.result]
@@ -98,16 +100,35 @@ mod emitted {
             let (_, foreign) = capture();
             let region = &first.binding_regions()[0];
             let ids = region.action_ids().collect::<Vec<_>>();
-            assert!(super::super::admission::catalog_actions(&first, region, &ids, snapshot.span).is_ok());
             assert!(
-                super::super::admission::catalog_actions(&foreign, region, &ids, snapshot.span).is_err()
+                crate::ssa::refine::receiver_receipt::admission::catalog_actions(
+                    &first,
+                    region,
+                    &ids,
+                    snapshot.span
+                )
+                .is_ok()
+            );
+            assert!(
+                crate::ssa::refine::receiver_receipt::admission::catalog_actions(
+                    &foreign,
+                    region,
+                    &ids,
+                    snapshot.span
+                )
+                .is_err()
             );
             let foreign_ids = foreign.binding_regions()[0]
                 .action_ids()
                 .collect::<Vec<_>>();
             assert!(
-                super::super::admission::catalog_actions(&first, region, &foreign_ids, snapshot.span)
-                    .is_err()
+                crate::ssa::refine::receiver_receipt::admission::catalog_actions(
+                    &first,
+                    region,
+                    &foreign_ids,
+                    snapshot.span
+                )
+                .is_err()
             );
         }
         #[test]

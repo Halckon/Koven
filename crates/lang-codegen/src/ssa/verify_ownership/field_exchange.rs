@@ -603,7 +603,7 @@ pub(in crate::ssa) mod closure_escape {
         }
 
         /// A mixed root/projected CFG join is a possible storage write, never a proven local root.
-        pub(in crate::ssa::verify) fn projected_places(
+        pub(in crate::ssa) fn projected_places(
             function: &Function,
             aliases: &AliasRoots,
         ) -> Vec<bool> {
@@ -649,8 +649,7 @@ pub(in crate::ssa) mod closure_escape {
             loop {
                 let mut changed = false;
                 for block in &function.blocks {
-                    for edge in
-                        edges(&block.terminator.as_ref().expect("verified terminator").kind)
+                    for edge in edges(&block.terminator.as_ref().expect("verified terminator").kind)
                     {
                         for (argument, parameter) in edge.arguments.iter().zip(
                             &function

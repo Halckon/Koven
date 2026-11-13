@@ -204,7 +204,8 @@ pub(in crate::ssa) mod ownership_primitive {
                 .type_ids
                 .get(&ty)
                 .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-            let first_root = self.lower_primitive_root(expression, first.value, target, first.span)?;
+            let first_root =
+                self.lower_primitive_root(expression, first.value, target, first.span)?;
             let second_root;
             let replacement;
             match descriptor.kind() {
@@ -333,8 +334,10 @@ pub(in crate::ssa) mod ownership_primitive {
                     {
                         return Err(error(LoweringErrorKind::MissingFact, span));
                     }
-                    let second_owner = self.primitive_root_value(second_root, second.value, span)?;
-                    let second_loan = self.primitive_pending_loan(expression, second.value, span)?;
+                    let second_owner =
+                        self.primitive_root_value(second_root, second.value, span)?;
+                    let second_loan =
+                        self.primitive_pending_loan(expression, second.value, span)?;
                     let (_, results) = self.append(
                         Operation::RootSwap {
                             owners: [first_owner, second_owner],
@@ -366,7 +369,11 @@ pub(in crate::ssa) mod ownership_primitive {
             Ok(result)
         }
 
-        pub(in crate::ssa) fn release_primitive_unit_operand(&mut self, call: usize, operand: usize) {
+        pub(in crate::ssa) fn release_primitive_unit_operand(
+            &mut self,
+            call: usize,
+            operand: usize,
+        ) {
             if self.typed.ownership_primitives().iter().any(|primitive| {
                 primitive.expression().index() == call
                     && builtin_type(self.typed, primitive.value_type()) == Some(BuiltinType::Unit)
@@ -530,7 +537,8 @@ pub(in crate::ssa) mod ownership_primitive {
                 && plan.non_null_transfer() == NonNullAssertionTransferKind::Copy
             {
                 if plan.non_null_transfer() != NonNullAssertionTransferKind::Copy
-                    || descriptor.copyability() != lang_frontend::type_checking::Copyability::Copyable
+                    || descriptor.copyability()
+                        != lang_frontend::type_checking::Copyability::Copyable
                 {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
@@ -643,7 +651,8 @@ pub(in crate::ssa) mod ownership_primitive {
                 .bindings
                 .iter()
                 .filter_map(|(&symbol, binding)| {
-                    matches!(binding, LoweredValue::Value(value) if *value == owner).then_some(symbol)
+                    matches!(binding, LoweredValue::Value(value) if *value == owner)
+                        .then_some(symbol)
                 })
                 .collect::<Vec<_>>();
             for &symbol in &consumed_symbols {
@@ -691,7 +700,8 @@ pub(in crate::ssa) mod ownership_primitive {
                     return Ok(None);
                 }
                 Operation::NullableLoanIsNull { source }
-            } else if let Some(LoweredValue::Value(owner)) = self.bindings.get(&d.symbol()).copied() {
+            } else if let Some(LoweredValue::Value(owner)) = self.bindings.get(&d.symbol()).copied()
+            {
                 if aggregate_presence {
                     Operation::AggregateProject {
                         aggregate: owner,

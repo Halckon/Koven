@@ -739,12 +739,13 @@ pub(in crate::ssa) mod verify_range {
             {
                 return false;
             }
-            let receiver_matches = receiver
-                .zip(callee.receiver)
-                .is_none_or(|(receiver, expected)| {
-                    !matches!(receiver, EntityId::Place(_))
-                        && function.entity(receiver).map(|entity| entity.ty) == Some(expected)
-                });
+            let receiver_matches =
+                receiver
+                    .zip(callee.receiver)
+                    .is_none_or(|(receiver, expected)| {
+                        !matches!(receiver, EntityId::Place(_))
+                            && function.entity(receiver).map(|entity| entity.ty) == Some(expected)
+                    });
             let arguments_match = arguments
                 .iter()
                 .zip(parameter_types.into_iter().skip(receiver_count))
@@ -830,12 +831,13 @@ pub(in crate::ssa) mod verify_range {
                 return false;
             };
             arguments.len() == signature.parameters.len()
-                && arguments.iter().zip(&signature.parameters).all(
-                    |(argument, expected)| {
+                && arguments
+                    .iter()
+                    .zip(&signature.parameters)
+                    .all(|(argument, expected)| {
                         !matches!(argument, EntityId::Place(_))
                             && function.entity(*argument).map(|entity| entity.ty) == Some(*expected)
-                    },
-                )
+                    })
                 && results
                     == signature
                         .returns
@@ -886,12 +888,13 @@ pub(in crate::ssa) mod verify_range {
                 return false;
             };
             arguments.len() == signature.parameters.len()
-                && arguments.iter().zip(&signature.parameters).all(
-                    |(argument, expected)| {
+                && arguments
+                    .iter()
+                    .zip(&signature.parameters)
+                    .all(|(argument, expected)| {
                         !matches!(argument, EntityId::Place(_))
                             && function.entity(*argument).map(|entity| entity.ty) == Some(*expected)
-                    },
-                )
+                    })
                 && results
                     == signature
                         .returns
@@ -943,8 +946,10 @@ pub(in crate::ssa) mod verify_range {
                 Operation::CallableInvoke { callable, .. } => value_type(function, callable)
                     .and_then(|ty| module.callable_signature(ty))
                     .is_some_and(|signature| signature.never_returns),
-                Operation::CallableInvokeView { view, .. } => view_signature(module, function, view)
-                    .is_some_and(|signature| signature.never_returns),
+                Operation::CallableInvokeView { view, .. } => {
+                    view_signature(module, function, view)
+                        .is_some_and(|signature| signature.never_returns)
+                }
                 _ => false,
             }
         }

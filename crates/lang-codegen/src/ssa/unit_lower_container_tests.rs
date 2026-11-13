@@ -271,7 +271,8 @@ mod runtime_helpers {
             SourceUnitInput::new("root", "a/use.ko", source, &file),
         ];
         let (name_environment, type_environment) = standard_environments();
-        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
         lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -309,7 +310,8 @@ mod runtime_matrix {
                                 )
                             );
                             let mut sources = SourceMap::new();
-                            let (source, file) = parsed(&mut sources, "test/runtime-matrix.ko", &text);
+                            let (source, file) =
+                                parsed(&mut sources, "test/runtime-matrix.ko", &text);
                             let inputs = [SourceUnitInput::new(
                                 "root",
                                 "test/runtime-matrix.ko",

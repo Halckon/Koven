@@ -347,10 +347,9 @@ mod transfer {
                 .iter()
                 .filter(|block| block.id != header.id)
                 .all(|block| {
-                    block
-                        .terminator
-                        .as_ref()
-                        .is_none_or(|term| !term.kind.entities().contains(&EntityId::Value(carried)))
+                    block.terminator.as_ref().is_none_or(|term| {
+                        !term.kind.entities().contains(&EntityId::Value(carried))
+                    })
                 }),
             carried,
         )?;

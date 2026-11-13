@@ -90,7 +90,7 @@ fun entry(): Unit { receiver(Node()); loan(); owner_call(false); owner_drop(fals
 pub(in crate::ssa) mod map_iteration {
     //! Bounded two-component Map provider; independent from Sequential snapshots.
     pub(in crate::ssa) use crate::ssa::lower_frontend::control::map_frames::carrier;
-    pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::nested_exits::query_cleanup::map_iteration_conditional as conditional;
+    pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::nested_exits::query_inputs::query_cleanup::map_iteration_conditional as conditional;
     pub(in crate::ssa) use conditional::checked;
     pub(in crate::ssa) use checked::nested;
     pub(in crate::ssa) use crate::ssa::checked_integer_conversion_tests::map_iteration_exits as exits;
@@ -150,10 +150,10 @@ pub(in crate::ssa) mod map_iteration {
 
     #[derive(Default)]
     pub(in crate::ssa) struct State {
-        entries: BTreeMap<SymbolId, EntityId>,
-        locals: BTreeMap<SymbolId, local_runtime::Carrier>,
-        resources: BTreeMap<SymbolId, resource::Carrier>,
-        storage: Storage,
+        pub(in crate::ssa) entries: BTreeMap<SymbolId, EntityId>,
+        pub(in crate::ssa) locals: BTreeMap<SymbolId, local_runtime::Carrier>,
+        pub(in crate::ssa) resources: BTreeMap<SymbolId, resource::Carrier>,
+        pub(in crate::ssa) storage: Storage,
     }
     impl State {
         pub(in crate::ssa) fn new(
@@ -188,11 +188,11 @@ pub(in crate::ssa) mod map_iteration {
 
     /// One path-local provider frame; false is rebuilt from its independent snapshot.
     #[derive(Clone, Copy)]
-    struct Frame {
-        statement: StatementId,
-        source: Option<LoanId>,
-        components: [(SymbolId, Option<LoanId>); 2],
-        finished: bool,
+    pub(in crate::ssa) struct Frame {
+        pub(in crate::ssa) statement: StatementId,
+        pub(in crate::ssa) source: Option<LoanId>,
+        pub(in crate::ssa) components: [(SymbolId, Option<LoanId>); 2],
+        pub(in crate::ssa) finished: bool,
     }
 
     /// Reuse complete provider qualification for this exact stable binding's For.
@@ -409,7 +409,9 @@ pub(in crate::ssa) mod map_iteration {
             }
             // An entry Borrow source has a real caller column too. Reuse ordinary
             // bindings so all later providers see the transported current root loan.
-            if let (SourceIdentity::Parameter(symbol), EntityId::Loan(loan)) = (source_identity, seed) {
+            if let (SourceIdentity::Parameter(symbol), EntityId::Loan(loan)) =
+                (source_identity, seed)
+            {
                 let entity = EntityId::Loan(loan);
                 let choice = crate::ssa::carry::associate_source(
                     self.function,
@@ -497,7 +499,8 @@ pub(in crate::ssa) mod map_iteration {
             self.block = body_block;
             self.bindings = self.rebind_linear_bindings(&baseline, body_block, &carried, span)?;
             let body_parameters = self.map_iteration_parameters(body_block, span)?;
-            let (body_source, body_cursor) = roles(&body_parameters, source_slot, cursor_slot, span)?;
+            let (body_source, body_cursor) =
+                roles(&body_parameters, source_slot, cursor_slot, span)?;
             let key = self.map_iteration_loan(
                 Operation::MapIterationKeyLoan {
                     source: body_source,
@@ -616,7 +619,8 @@ pub(in crate::ssa) mod map_iteration {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
             let exhausted_parameters = self.map_iteration_parameters(exhausted, span)?;
-            let (exhausted_source, _) = roles(&exhausted_parameters, source_slot, cursor_slot, span)?;
+            let (exhausted_source, _) =
+                roles(&exhausted_parameters, source_slot, cursor_slot, span)?;
             let mut frame = Frame {
                 statement,
                 source: Some(exhausted_source),
@@ -765,7 +769,7 @@ pub(in crate::ssa) mod map_iteration {
                 .transpose()
         }
 
-        fn map_iteration_value(
+        pub(in crate::ssa) fn map_iteration_value(
             &mut self,
             operation: Operation,
             ty: SsaTypeId,
@@ -806,7 +810,7 @@ pub(in crate::ssa) mod map_iteration {
                 .map(|block| block.parameters.clone())
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
         }
-        fn map_iteration_carried_arguments(
+        pub(in crate::ssa) fn map_iteration_carried_arguments(
             &self,
             carried: &LinearBindings,
             span: Span,
@@ -848,7 +852,7 @@ pub(in crate::ssa) mod map_iteration {
                 .collect()
         }
 
-        fn emit_map_iteration_cleanup(
+        pub(in crate::ssa) fn emit_map_iteration_cleanup(
             &mut self,
             exit: &IterationExitPlan,
             frame: &mut Frame,
@@ -862,7 +866,7 @@ pub(in crate::ssa) mod map_iteration {
             Ok(())
         }
 
-        fn emit_map_cleanup_action(
+        pub(in crate::ssa) fn emit_map_cleanup_action(
             &mut self,
             action: &IterationCleanupAction,
             point: DropPoint,
@@ -896,7 +900,9 @@ pub(in crate::ssa) mod map_iteration {
                     }
                     self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
                 }
-                IterationCleanupAction::FinishProvider(statement) if *statement == frame.statement => {
+                IterationCleanupAction::FinishProvider(statement)
+                    if *statement == frame.statement =>
+                {
                     if frame.finished
                         || frame.source.is_none()
                         || frame.components.iter().any(|(_, loan)| loan.is_some())

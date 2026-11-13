@@ -284,7 +284,9 @@ mod nullable_when {
                             view,
                             branch_owner,
                             inner,
-                            crate::ssa::lower_frontend::non_null_proof::ProofScope::When(expression),
+                            crate::ssa::lower_frontend::non_null_proof::ProofScope::When(
+                                expression,
+                            ),
                         );
                         self.validate_non_null_proof(symbol, proof, &self.bindings, span)?;
                         self.non_null_bindings.insert(symbol, proof);
@@ -300,7 +302,8 @@ mod nullable_when {
                     self.emit_drops(DropPoint::AfterExpression(*subject))?;
                 }
                 let mut reached = false;
-                for (index, (entry, typed_entry)) in entries.iter().zip(plan.entries()).enumerate() {
+                for (index, (entry, typed_entry)) in entries.iter().zip(plan.entries()).enumerate()
+                {
                     let mut matched = entry.else_span.is_some();
                     if !matched {
                         for (alternative, (condition, typed_alt)) in entry
@@ -328,15 +331,18 @@ mod nullable_when {
                                 }
                             }
                             let mut accepts = domain_contains(typed_alt.match_domain(), proven);
-                            let mut misses = domain_contains(typed_alt.fallthrough_domain(), proven);
+                            let mut misses =
+                                domain_contains(typed_alt.fallthrough_domain(), proven);
                             if let WhenCondition::TypeTest {
                                 type_ref, negated, ..
                             } = condition
                             {
-                                let target = self.typed.type_ref_type(*type_ref).ok_or_else(|| {
-                                    error(LoweringErrorKind::MissingFact, typed_alt.span())
-                                })?;
-                                if self.type_ids.get(&self.resolve_type(target, span)?) == Some(&inner)
+                                let target =
+                                    self.typed.type_ref_type(*type_ref).ok_or_else(|| {
+                                        error(LoweringErrorKind::MissingFact, typed_alt.span())
+                                    })?;
+                                if self.type_ids.get(&self.resolve_type(target, span)?)
+                                    == Some(&inner)
                                 {
                                     accepts = proven != *negated;
                                     misses = !accepts;
@@ -507,7 +513,8 @@ mod nullable_when {
                     Some(SsaTypeKind::HeapOwner { .. })
                 )
                 || self.non_null_bindings.iter().any(|(&other, candidate)| {
-                    other != root && (candidate.loan == proof.loan || candidate.owner == proof.owner)
+                    other != root
+                        && (candidate.loan == proof.loan || candidate.owner == proof.owner)
                 })
             {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
@@ -649,7 +656,8 @@ mod nullable_when {
             let Some(proof) = self.non_null_proof_for_expression(receiver, span)? else {
                 return Ok(None);
             };
-            if !proof.is_while_origin() && !self.is_proven_nullable_if_field_read(expression, proof) {
+            if !proof.is_while_origin() && !self.is_proven_nullable_if_field_read(expression, proof)
+            {
                 return Ok(None);
             }
             let use_fact = self
@@ -701,7 +709,8 @@ mod nullable_when {
             {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             }
-            let Some(TypeKind::Nominal { nominal, arguments }) = self.typed.types().get(receiver_type)
+            let Some(TypeKind::Nominal { nominal, arguments }) =
+                self.typed.types().get(receiver_type)
             else {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             };

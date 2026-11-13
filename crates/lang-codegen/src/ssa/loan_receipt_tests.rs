@@ -153,6 +153,7 @@ fn check(text: &str, entry_name: &str, expected: usize, neighbors: bool) {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 mod observer_off {
     //! Genuine frontend observation scopes. Off products are never edited before lowering.
     use crate::ssa::loan_region_ssa_tests::*;
@@ -165,7 +166,8 @@ mod observer_off {
     #[test]
     fn real_frontend_observer_off_preserves_products_ssa_and_owner_receipts() {
         let mut sources = SourceMap::new();
-        let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "observer-off.ko", BOTH);
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "observer-off.ko", BOTH);
         let (environment, types) = standard_environments();
         for input in [
             SourceUnitInput::new("root", "observer-off.ko", source, &parsed),
@@ -239,7 +241,8 @@ mod observer_off {
         let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "scope.ko", SOURCE);
         let inputs = [SourceUnitInput::memory_document(source, &parsed)];
         let (environment, types) = standard_environments();
-        let (_, _, owned) = unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let (_, _, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
         !owned.ownership().loan_action_observations().is_empty()
     }
 
@@ -280,7 +283,8 @@ mod receiver_route {
             check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
         };
         let mut sources = SourceMap::new();
-        let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "receiver.ko", RECEIVER);
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "receiver.ko", RECEIVER);
         let (environment, types) = standard_environments();
         for input in [
             SourceUnitInput::new("root", "receiver.ko", source, &parsed),
@@ -364,7 +368,8 @@ mod receiver_route {
             "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1) }",
         ] {
             let mut sources = SourceMap::new();
-            let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "boundary.ko", text);
+            let (source, parsed) =
+                unit_lower_test_support::parsed(&mut sources, "boundary.ko", text);
             let (environment, types) = standard_environments();
             for input in [
                 SourceUnitInput::new("root", "boundary.ko", source, &parsed),
@@ -404,6 +409,7 @@ mod receiver_route {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 mod receiver_receipts {
     //! Bounded ordinary receiver results; real off products are never edited before lowering.
     use crate::ssa::loan_region_ssa_tests::*;
@@ -416,7 +422,8 @@ mod receiver_receipts {
         let text =
             "class Node { fun touch(): Unit {} }\nfun run(own node: Node): Unit { node.touch() }";
         let mut sources = SourceMap::new();
-        let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "unit-receiver.ko", text);
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "unit-receiver.ko", text);
         let (environment, types) = standard_environments();
         for input in [
             SourceUnitInput::new("root", "unit-receiver.ko", source, &parsed),
@@ -664,6 +671,7 @@ mod named_route {
     }
 }
 
+#[cfg(feature = "loan-observation-test-support")]
 mod named_receipts {
     //! Bounded ordinary named argument results; real off products are never edited before lowering.
     use crate::ssa::loan_region_ssa_tests::*;
@@ -708,7 +716,8 @@ mod named_receipts {
                     .iter()
                     .flat_map(|o| o.regions())
                     .filter(|r| {
-                        r.protocol_version() == 3 && r.coverage() == UnitLoanActionCoverage::Complete
+                        r.protocol_version() == 3
+                            && r.coverage() == UnitLoanActionCoverage::Complete
                     })
                     .collect::<Vec<_>>();
                 let [region] = regions.as_slice() else {
@@ -858,7 +867,8 @@ mod named_siblings {
                                 crate::ssa::observe_owner_drops(|| {
                                     crate::ssa::observe_owner_calls(|| {
                                         crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                                            &sources, &inputs, &names, &types, &typed, &owned, entry,
+                                            &sources, &inputs, &names, &types, &typed, &owned,
+                                            entry,
                                         )
                                     })
                                 })
