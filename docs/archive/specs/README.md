@@ -546,3 +546,4 @@
 - [SPEC-0440](0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md)：`rc_nullable_while_identity_queries`、`same_guard`、`map_loop/operand_unit_identity`、`owner_consumer_test_support` 及 `loop_control`/`instances` 壳子模块退役。
 - [SPEC-0441](0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md)：`container_lowering_tests` 三子壳及剩余 `lower_frontend` 支撑/清理壳子模块退役。
 - [SPEC-0442](0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md)：`range_lowering_tests`、`unit_lower_container_tests`、`unit_plan_tests`、`borrowed_generate_tests` 及 `source_forms` 子壳模块退役。
+- [SPEC-0443](0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md)：`owned_source_return`、`range_lowering_tests`、`local_arguments`、`nested` 及 `temporary_exits` 子壳模块退役。

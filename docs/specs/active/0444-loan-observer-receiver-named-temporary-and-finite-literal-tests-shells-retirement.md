@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0443](0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) 完成 `owned_source_return`、`range_lowering_tests`、`local_arguments`、`nested` 及 `temporary_exits` 子壳模块收敛后，`crates/lang-codegen/src/ssa/loan_region_ssa_tests.rs` 下仍挂载一批 90–150 行的薄壳测试文件：
+在 [SPEC-0443](../../archive/specs/0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md) 完成 `owned_source_return`、`range_lowering_tests`、`local_arguments`、`nested` 及 `temporary_exits` 子壳模块收敛后，`crates/lang-codegen/src/ssa/loan_region_ssa_tests.rs` 下仍挂载一批 90–150 行的薄壳测试文件：
 
 1. `ssa/loan_observer_off_tests.rs`（109 行）：收敛入同域宿主 `ssa/loan_receipt_tests.rs`。
 2. `ssa/receiver_route_tests.rs`（136 行）：收敛入同域宿主 `ssa/loan_receipt_tests.rs`。
