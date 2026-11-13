@@ -17282,3 +17282,25 @@ none executed；这些反例实际拒绝/恢复仍待远端，不能称已通过
 
 本地后续动态测试仅用已检查为普通的完整 FQN + `--exact`，不使用宽过滤；
 CI-only 只允许编译列举，CI/GITHUB_ACTIONS 未启用。
+
+### D10标量入口与counter条件break整合验收（2026-11-13）
+
+以 `afabb0b1` 为基底复用D10 `ac4447f8`、E2 `ac3f864c`；双方Spec、导出及
+CI入口保全。核实main已前进至 `fbfb5a3a` 后，在隔离分支无冲突合入其五文件
+nullable/Map修复；独立复审确认合并补丁与main完全一致，无D10/E2遗漏。
+
+含新main的整合头通过workspace all-target check及frontend/codegen observer-support
+all-target严格Clippy。普通codegen完整FQN exact31/31、前端普通24/24通过，包含
+D10标量入口SSA/native36组合、条件break两路径及native、旧域回归和main四项
+nullable/Map定向检查；前端两个标量入口lib目标只用完整FQN exact，未宽过滤故障。
+格式、docs925、相对新main尺寸门禁及diff检查通过。
+
+首次CI-only列举发现旧bridge scalar被隔离为ignored后落入统一前端scope却未登记。
+修复为71项清单唯一登记，独立bridge工作流步骤保留但仅list-only，实际执行归统一
+borrow gate，避免每宿主重复。两项新增纯Python清单/工作流回归及原门禁测试共12/12
+通过；其FakeRunner输出不是Rust故障执行。独立复核确认无漏跑或双跑。
+
+修复后71项统一清单、child-cycle三目标、父receipt两目标、scalar-owner目标与旧
+bridge目标均仅编译列举通过，none executed；旧bridge属于71项，不另计新增故障。
+未启用本地CI环境或执行故障注入，未推送/合并远端。D10新标量入口六类、E2条件
+break八项及尚未推送旧批次反例仍待双宿主动态验收，D10/E2整体不标完成。
