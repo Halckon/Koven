@@ -423,20 +423,36 @@ mod source_closure_tests {
 
     #[test]
     fn single_runtime_guard_keeps_size_loan_live_before_initializer_factory() {
-        let program = lower(
-            "fun factory(): (Int)->Int { println(\"factory\")\nreturn ({ index -> index }) }\nfun entry(size: Int): Int { val items = List<Int>(size, factory())\nreturn items[0] }",
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+        use crate::ssa::model::Origin;
+        use lang_frontend::name_resolution::SymbolKind;
+
+        let text = "fun factory(): (Int)->Int { println(\"factory\")\nreturn ({ index -> index }) }\nfun entry(size: Int): Int { val items = List<Int>(size, factory())\nreturn items[0] }";
+        let unit = UnitSource::analyze("single-runtime-intent.ko", text).unwrap();
+        unit.assert_frontend_clean();
+        let entry_declaration = unit.declaration("entry", SymbolKind::Function);
+        let factory_declaration = unit.declaration("factory", SymbolKind::Function);
+        let arena = unit.types().types().len();
+        let (program, root) = unit.lower_entry(entry_declaration).unwrap();
+        assert_eq!(
+            unit.types().types().len(),
+            arena,
+            "backend only queries canonical types"
         );
-        let module = &program.modules[0];
+        crate::llvm::render_verified_program(&program).unwrap();
+        let module = program.module(root.module()).unwrap();
         let factory = module
             .functions
             .iter()
-            .find(|function| function.name == "factory")
-            .unwrap();
-        let entry = module
-            .functions
-            .iter()
-            .find(|function| function.name == "entry")
-            .unwrap();
+            .find(|function| {
+                function.origin == Origin::Source(unit.declaration_span(factory_declaration))
+            })
+            .expect("original factory identity is selected");
+        let entry = module.function(root).unwrap();
+        assert_eq!(
+            entry.origin,
+            Origin::Source(unit.declaration_span(entry_declaration))
+        );
         let guard = entry.block(entry.entry_block().unwrap()).unwrap();
         let TerminatorKind::Conditional {
             when_true,

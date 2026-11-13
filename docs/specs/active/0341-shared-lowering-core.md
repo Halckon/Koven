@@ -17820,3 +17820,18 @@ ConcreteClosure 类型及闭包构造/调用指令，随后通过 SSA 与 LLVM v
 未改生产代码或 Origin，未执行故障注入和全量测试，远程 CI 尚未覆盖本地新增提交。
 带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
 及 diff 检查通过；仅新增独立对照，不更改既有验收的状态。
+
+### initializer guard 普通源码见证迁至 Unit（2026-11-14）
+
+基于 `54f38548`，保留
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_guard_keeps_size_loan_live_before_initializer_factory`
+原测试身份和完整源码，将旧 Single admission/lowering 替换为严格 Unit。entry 使用
+返回 root 与声明 Span 定位，factory 按原声明身份定位，不依赖生成名称。原 guard
+条件分支、负值分支 Abort、guard 内不得调用 factory/生成容器、success 中 factory
+调用早于生成容器，以及类型 arena 不增长、LLVM verifier 检查均保留。该顺序检查
+不额外宣称 factory 调用精确次数；其余旧身份见证未删改。
+
+完整 FQN exact 1/1 通过，测试编译和独立只读复核通过。仅迁移此普通源码见证，
+不改生产语义、Origin 或故障分类；未运行故障测试、全量测试或远程 CI。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过。
