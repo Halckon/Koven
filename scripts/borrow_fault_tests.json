@@ -63,6 +63,14 @@
     "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_actual_edge_same_type_roles_cannot_swap",
     "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_consumer_and_cleanup_require_actual_result_role",
     "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_entry_seeds_cannot_bypass_body_parameters",
-    "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_provenance_metadata_and_foreign_function_rejected"
+    "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_provenance_metadata_and_foreign_function_rejected",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_wrong_exit_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_stop_polarity_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_continue_backedge_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_each_arm_end_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_source_identity_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_capture_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_receipt_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_final_verifier_revokes_and_recovers"
   ]
 }
