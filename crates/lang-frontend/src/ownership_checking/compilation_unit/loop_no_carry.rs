@@ -11,11 +11,13 @@ use std::rc::Rc;
 pub(super) struct CompletedNoCarry {
     pub(super) loops: Vec<UnitLoopNoCarryFact>,
     pub(super) branches: Vec<UnitLoopBranchNoCarryFact>,
+    pub(super) counter_branches: Vec<UnitLoopCounterBranchNoCarryFact>,
 }
 impl CompletedNoCarry {
     pub(super) fn extend(&mut self, other: Self) {
         self.loops.extend(other.loops);
         self.branches.extend(other.branches);
+        self.counter_branches.extend(other.counter_branches);
     }
 }
 
@@ -162,6 +164,95 @@ impl CompilationUnitOwnership {
     pub fn owns_no_carry_branch(&self, fact: &UnitLoopBranchNoCarryFact) -> bool {
         self.no_carry
             .branches
+            .iter()
+            .any(|owned| owned.same_identity(fact))
+    }
+}
+
+/// Independently closed arms with one exact bounded scalar counter update.
+/// Not a carried-loan proof or an SSA/native receipt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoopCounterBranchNoCarryFact {
+    identity: Rc<()>,
+    pair: UnitLoopBranchNoCarryFact,
+    counter: UnitSymbolId,
+    rounds: UnitSymbolId,
+    initializer: UnitExpressionId,
+    initial_statement: UnitStatementId,
+    condition: UnitExpressionId,
+    update: UnitStatementId,
+    decrement: UnitExpressionId,
+    decrement_operand: UnitExpressionId,
+}
+impl UnitLoopCounterBranchNoCarryFact {
+    pub(super) fn new(
+        unit: SourceUnitId,
+        pair: UnitLoopBranchNoCarryFact,
+        plan: crate::ownership_checking::loop_no_carry::CounterPlan<UnitSymbolId>,
+    ) -> Self {
+        Self {
+            identity: Rc::new(()),
+            pair,
+            counter: plan.counter,
+            rounds: plan.rounds,
+            initializer: UnitExpressionId::new(unit, plan.initializer),
+            initial_statement: UnitStatementId::new(unit, plan.initial_statement),
+            condition: UnitExpressionId::new(unit, plan.condition),
+            update: UnitStatementId::new(unit, plan.update),
+            decrement: UnitExpressionId::new(unit, plan.decrement),
+            decrement_operand: UnitExpressionId::new(unit, plan.decrement_operand),
+        }
+    }
+    /// The separately closed arm pair, not owned by the legacy branch domain.
+    pub const fn pair(&self) -> &UnitLoopBranchNoCarryFact {
+        &self.pair
+    }
+    /// Exact local mutable counter symbol.
+    pub const fn counter(&self) -> UnitSymbolId {
+        self.counter
+    }
+    /// Stable Int input parameter.
+    pub const fn rounds(&self) -> UnitSymbolId {
+        self.rounds
+    }
+    /// Exact rounds reference initializing the counter.
+    pub const fn initializer(&self) -> UnitExpressionId {
+        self.initializer
+    }
+    /// Adjacent local counter declaration statement.
+    pub const fn initial_statement(&self) -> UnitStatementId {
+        self.initial_statement
+    }
+    /// Exact builtin greater-than-zero loop condition.
+    pub const fn condition(&self) -> UnitExpressionId {
+        self.condition
+    }
+    /// Actual sole decrement assignment statement, after both arms close.
+    pub const fn update(&self) -> UnitStatementId {
+        self.update
+    }
+    /// Exact subtract-one RHS.
+    pub const fn decrement(&self) -> UnitExpressionId {
+        self.decrement
+    }
+    /// Counter reference read by the decrement.
+    pub const fn decrement_operand(&self) -> UnitExpressionId {
+        self.decrement_operand
+    }
+    /// Identity from the same validation event, not structural equivalence.
+    pub fn same_identity(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.identity, &other.identity)
+    }
+}
+impl CompilationUnitOwnership {
+    /// Separate bounded-counter proof domain; legacy Boolean-loop APIs remain unchanged.
+    pub fn no_carry_counter_branches(&self) -> &[UnitLoopCounterBranchNoCarryFact] {
+        &self.no_carry.counter_branches
+    }
+    /// Equal-looking facts from a foreign check cannot grant authority.
+    pub fn owns_no_carry_counter_branch(&self, fact: &UnitLoopCounterBranchNoCarryFact) -> bool {
+        self.no_carry
+            .counter_branches
             .iter()
             .any(|owned| owned.same_identity(fact))
     }

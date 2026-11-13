@@ -22,6 +22,8 @@ pub(super) struct Session {
     first_closed: Option<core::Plan<SymbolId>>,
     branch: bool,
     valid: bool,
+    counter: Option<core::CounterPlan<SymbolId>>,
+    counter_updated: bool,
 }
 impl Checker<'_> {
     fn no_carry_call(&self, id: ExpressionId, initializer: bool) -> bool {
@@ -110,6 +112,39 @@ impl Checker<'_> {
                         }))
             },
             |id, init| self.no_carry_call(id, init),
+            (
+                |id| {
+                    self.typed
+                        .expression_type(id)
+                        .and_then(|t| self.typed.types().get(t))
+                        == Some(&TypeKind::Builtin(BuiltinType::Int))
+                },
+                |id| {
+                    self.parsed
+                        .ast()
+                        .expressions()
+                        .get(id)
+                        .ok()
+                        .and_then(|n| self.reference_symbol(n.span()))
+                        .is_some_and(|symbol| {
+                            matches!(
+                                self.typed.parameter_mode(symbol),
+                                Some(ParameterMode::Borrow | ParameterMode::Value)
+                            ) && self.names.symbols().get(symbol.index()).is_some_and(|s| {
+                                s.kind() == crate::name_resolution::SymbolKind::ValueParameter
+                            })
+                        })
+                },
+                |id, literal| {
+                    self.parsed
+                        .ast()
+                        .expressions()
+                        .get(id)
+                        .ok()
+                        .and_then(|n| self.sources.slice(n.span()).ok())
+                        == Some(literal)
+                },
+            ),
         ) else {
             return;
         };
@@ -134,6 +169,8 @@ impl Checker<'_> {
             first_closed: None,
             branch: selection.branch.is_some(),
             valid: true,
+            counter: selection.counter,
+            counter_updated: false,
         });
     }
     /// Only a selected arm may use statement-by-statement last-use closure.
@@ -396,12 +433,56 @@ impl Checker<'_> {
             }
         }
     }
+    /// This ticket comes from the actual assignment visit after both arm scopes closed.
+    pub(super) fn no_carry_counter_before(&mut self, id: ExpressionId, state: &State) -> bool {
+        let Some(s) = self.no_carry.as_ref() else {
+            return false;
+        };
+        let Some(counter) = s.counter.as_ref() else {
+            return false;
+        };
+        if !matches!(self.parsed.ast().statements().get(counter.update).ok().map(|n| n.payload()),
+            Some(crate::parser::Statement::Expression { expression }) if *expression == id)
+        {
+            return false;
+        }
+        let exact = s.valid
+            && s.first_closed.is_some()
+            && s.frame.is_closed()
+            && s.next_arm.is_none()
+            && !s.counter_updated
+            && self.no_carry_facts(s)
+            && self.resource_snapshot(state) == s.entry;
+        self.no_carry.as_mut().unwrap().valid &= exact;
+        exact
+    }
+    pub(super) fn no_carry_counter_after(&mut self, ticket: bool, flows: &Flows) {
+        if !ticket {
+            return;
+        }
+        let actual = flows
+            .next
+            .as_ref()
+            .map(|state| self.resource_snapshot(state));
+        let Some(s) = self.no_carry.as_ref() else {
+            return;
+        };
+        let exact = s.valid
+            && self.no_carry_facts(s)
+            && actual.as_ref() == Some(&s.entry)
+            && flows.breaks.is_none()
+            && flows.continues.is_none();
+        let s = self.no_carry.as_mut().unwrap();
+        s.valid &= exact;
+        s.counter_updated = exact;
+    }
     pub(super) fn no_carry_finish(&mut self, flows: &Flows) -> Result<(), OwnershipCheckingError> {
         let Some(s) = self.no_carry.take() else {
             return Ok(());
         };
         let exact = self.no_carry_facts(&s)
             && s.valid
+            && (s.counter.is_none() || s.counter_updated)
             && (!s.branch || (s.first_closed.is_some() && s.next_arm.is_none()));
         let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
         if s.frame

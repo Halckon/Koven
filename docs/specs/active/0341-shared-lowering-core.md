@@ -16874,3 +16874,21 @@ Single/Unit、rooted/memory、observer on/off 保持一致。native 分别执行
 
 先合同后代码，独立工作树分步本地提交；不推送，不本地执行故障注入。CI-only
 扩展若需要则只定义/编译/列举，动态结果留远端，未验证不标完成。
+
+### 有界 counter 前端独立事实实施（2026-11-13）
+
+精确 selector 已复用双臂真实闭合 Frame，但 counter 域独立：相邻 Var 初始化、同函数
+Borrow/Own Int rounds、builtin >0/-1、三处 counter 引用白名单全部匹配才可选中。
+实际 update 入口要求两臂已关闭且资源恢复；真正执行更新后的正常流再次核资源，
+完成后才可发布 `UnitLoopCounterBranchNoCarryFact`。独立身份记录 counter/rounds、
+init statement/reference、condition、update、decrement/operand 与完整 pair；旧双臂 API
+不列 counter pair，全局失败一并撤销。Scalar 最小界不替代这些实际生命周期检查。
+
+首轮普通 observer-support 矩阵 2/2、旧 Boolean 双臂 3/3、旧边界 2/2 通过；严格
+Clippy 与前端 check 通过。独立静审要求显式排除 Inout rounds，已补模式门禁与普通
+拒绝回归；最终追加验证结果另记。Rust 尺寸门禁、docs923、diff 通过，历史超限
+聚合文件不增长。后端与 native 0/1/2 轮验收仍由独立后端步骤验证，不据此标完成。
+
+最终追加验证：显式 Borrow/Own 模式门禁与 Inout 拒绝回归落地，observer-support
+普通 counter 矩阵 3/3 通过（真实 observation on/off）；all-target strict Clippy 复核
+通过。Unit 模式使用函数参数 ownership descriptor，而非仅供 lambda 的 body-mode表。

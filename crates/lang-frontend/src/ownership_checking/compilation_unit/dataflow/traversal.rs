@@ -243,6 +243,7 @@ impl Checker<'_> {
         id: StatementId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        self.no_carry_update_before(id, &state);
         let statement = self.parsed.ast().statements().get(id)?.payload().clone();
         let loop_exit = matches!(
             statement,
@@ -352,6 +353,7 @@ impl Checker<'_> {
             }
         };
         let mut flows = checked?;
+        self.no_carry_update_after(id, &flows);
         if loop_exit && let Some(state) = &mut flows.next {
             self.release_dead_exclusive_captures(&self.statement_live_after[id.index()], state);
         }

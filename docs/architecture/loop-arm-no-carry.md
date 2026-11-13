@@ -50,3 +50,13 @@ if/else，每臂仅借用声明和 String Borrow 同步 consumer。赋值、局�
 普通边界回归 `ordinary_loop_arm_finite_exit_candidates_remain_outside_selected_shape`
 核可变局部 flag、递减计数器、合流后 break 均拒绝且不发布双臂事实；沿用 Single/Unit、
 rooted/memory、真实 observer on/off 对照。有限正轮需要另行批准更宽的退出形状。
+
+## 有界 counter 的独立前端事实
+
+counter 选择器另核紧邻的 `var remaining=rounds`、`remaining>0` 与唯一
+`remaining=remaining-1`，并对白名单之外的 counter 引用 fail-closed。两臂仍先各自
+沿实际生命周期关闭；实际 update 入口核完整闭合及入口资源恢复，执行返回后再核
+资源状态不变，回边发布要求 update 确已完成。不用语法匹配替代动态 checker 路径。
+`no_carry_counter_branches()` 独立保存 counter/init/condition/update 身份及双臂事实，
+旧 `no_carry_branches()` 不列出该 pair；全局失败同时清空新旧领域。此为前端资源
+闭合，不等于后端条件/递减/checked-abort/回边 receipt 或真实 native 0/1/2 轮验收。

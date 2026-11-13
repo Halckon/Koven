@@ -1,5 +1,5 @@
 //! SPEC-0198 compilation-unit 所有权产物、身份门禁与 body-local call 数据流。
-mod loop_no_carry;
+pub(super) mod loop_no_carry;
 pub use loop_no_carry::{UnitLoopBranchNoCarryFact, UnitLoopNoCarryFact};
 mod loan_bounded_forward_regions;
 pub use loan_bounded_forward_regions::{

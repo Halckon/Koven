@@ -6,6 +6,7 @@ use crate::{
 };
 use std::rc::Rc;
 
+mod counter_shape;
 pub(crate) mod shape;
 #[cfg(test)]
 mod tests;
@@ -13,6 +14,19 @@ mod tests;
 pub(crate) enum Proof<B> {
     Straight(Plan<B>),
     Branch(ExpressionId, [Plan<B>; 2]),
+    CounterBranch(ExpressionId, [Plan<B>; 2], CounterPlan<B>),
+}
+
+#[derive(Clone)]
+pub(crate) struct CounterPlan<B> {
+    pub(crate) counter: B,
+    pub(crate) rounds: B,
+    pub(crate) initializer: ExpressionId,
+    pub(crate) initial_statement: StatementId,
+    pub(crate) condition: ExpressionId,
+    pub(crate) update: StatementId,
+    pub(crate) decrement: ExpressionId,
+    pub(crate) decrement_operand: ExpressionId,
 }
 
 #[derive(Clone)]
@@ -95,6 +109,10 @@ impl<S: Clone + PartialEq, B: Copy + Eq> Frame<S, B> {
             phase: Phase::Unclaimed,
             valid,
         }
+    }
+
+    pub(crate) fn is_closed(&self) -> bool {
+        self.valid && self.phase == Phase::Closed
     }
 
     pub(crate) fn plan(&self) -> &Plan<B> {

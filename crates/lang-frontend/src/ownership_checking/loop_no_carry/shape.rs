@@ -1,5 +1,5 @@
 //! Shared finite straight-line syntax selection; typed and actual-state authority stays in adapters.
-use super::Plan;
+use super::{CounterPlan, Plan};
 use crate::{
     ast::{ExpressionId, StatementId},
     parser::{Expression, Item, NameMarker, ParsedFile, Statement, VariableKind},
@@ -13,6 +13,7 @@ pub(crate) struct Selection<B> {
     pub(crate) first: Plan<B>,
     pub(crate) second: Option<Plan<B>>,
     pub(crate) branch: Option<ExpressionId>,
+    pub(crate) counter: Option<CounterPlan<B>>,
 }
 pub(crate) fn selection<B: Copy + Eq>(
     parsed: &ParsedFile,
@@ -21,12 +22,16 @@ pub(crate) fn selection<B: Copy + Eq>(
     resolve: impl Fn(Name) -> Option<B>,
     parameter: impl Fn(ExpressionId, bool) -> bool,
     call: impl Fn(ExpressionId, bool) -> bool,
+    counter_checks: (
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId, &str) -> bool,
+    ),
 ) -> Option<Selection<B>> {
     if let Some(first) = plan(
         parsed,
-        loop_statement,
-        body,
-        body,
+        (loop_statement, body, body),
+        None,
         &resolve,
         &parameter,
         &call,
@@ -35,6 +40,7 @@ pub(crate) fn selection<B: Copy + Eq>(
             first,
             second: None,
             branch: None,
+            counter: None,
         });
     }
     let (Statement::Block { elements } | Statement::ControlBody { elements }) =
@@ -42,11 +48,23 @@ pub(crate) fn selection<B: Copy + Eq>(
     else {
         return None;
     };
-    let [statement] = elements.as_slice() else {
-        return None;
+    let (statement, counter) = match elements.as_slice() {
+        [statement] => (*statement, None),
+        [statement, update] => (
+            *statement,
+            Some(super::counter_shape::select(
+                parsed,
+                loop_statement,
+                body,
+                *update,
+                &resolve,
+                counter_checks,
+            )?),
+        ),
+        _ => return None,
     };
     let Statement::Expression { expression } =
-        parsed.ast().statements().get(*statement).ok()?.payload()
+        parsed.ast().statements().get(statement).ok()?.payload()
     else {
         return None;
     };
@@ -70,18 +88,16 @@ pub(crate) fn selection<B: Copy + Eq>(
     }
     let first = plan(
         parsed,
-        loop_statement,
-        body,
-        *then_branch,
+        (loop_statement, body, *then_branch),
+        counter.as_ref().map(|_| *condition),
         &resolve,
         &parameter,
         &call,
     )?;
     let second = plan(
         parsed,
-        loop_statement,
-        body,
-        *else_branch,
+        (loop_statement, body, *else_branch),
+        counter.as_ref().map(|_| *condition),
         &resolve,
         &parameter,
         &call,
@@ -96,13 +112,13 @@ pub(crate) fn selection<B: Copy + Eq>(
         first,
         second: Some(second),
         branch: Some(*expression),
+        counter,
     })
 }
 fn plan<B: Copy + Eq>(
     parsed: &ParsedFile,
-    loop_statement: StatementId,
-    loop_body: StatementId,
-    body: StatementId,
+    (loop_statement, loop_body, body): (StatementId, StatementId, StatementId),
+    checked_counter_condition: Option<ExpressionId>,
     resolve: impl Fn(Name) -> Option<B>,
     parameter: impl Fn(ExpressionId, bool) -> bool,
     call: impl Fn(ExpressionId, bool) -> bool,
@@ -116,10 +132,11 @@ fn plan<B: Copy + Eq>(
     else {
         return None;
     };
+    let condition = checked_counter_condition.unwrap_or(*condition);
     if *actual != loop_body
-        || !parameter(*condition, true)
+        || !parameter(condition, true)
         || !matches!(
-            parsed.ast().expressions().get(*condition).ok()?.payload(),
+            parsed.ast().expressions().get(condition).ok()?.payload(),
             Expression::Name
         )
     {
@@ -209,7 +226,7 @@ fn plan<B: Copy + Eq>(
         parsed.ast().expressions().get(source_argument).ok()?.span(),
     ))?;
     let condition_symbol = resolve(Name::Reference(
-        parsed.ast().expressions().get(*condition).ok()?.span(),
+        parsed.ast().expressions().get(condition).ok()?.span(),
     ))?;
     if !parameters
         .iter()

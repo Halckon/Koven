@@ -15,6 +15,9 @@ pub(super) struct Session {
     second: Option<core::Plan<UnitSymbolId>>,
     first_closed: Option<core::Plan<UnitSymbolId>>,
     branch: Option<ExpressionId>,
+    counter: Option<core::CounterPlan<UnitSymbolId>>,
+    update_entered: bool,
+    update_completed: bool,
     valid: bool,
     entry: State,
     bindings: usize,
@@ -104,6 +107,45 @@ impl Checker<'_> {
             },
             |id, b| self.no_carry_parameter(id, b),
             |id, b| self.no_carry_call(id, b),
+            (
+                |id| {
+                    self.typed
+                        .expression_type(self.unit_expression(id))
+                        .and_then(|t| self.typed.types().get(t))
+                        == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+                },
+                |id| {
+                    self.parsed
+                        .ast()
+                        .expressions()
+                        .get(id)
+                        .ok()
+                        .and_then(|n| self.reference_symbol(n.span()))
+                        .is_some_and(|symbol| {
+                            matches!(
+                                self.bindings.get(&symbol).map(|binding| binding.kind()),
+                                Some(OwnershipBindingKind::Shared | OwnershipBindingKind::Owned)
+                            ) && self
+                                .names
+                                .source_units()
+                                .iter()
+                                .find(|u| u.source_unit() == symbol.source_unit())
+                                .and_then(|u| u.resolution().symbols().get(symbol.symbol().index()))
+                                .is_some_and(|s| {
+                                    s.kind() == crate::name_resolution::SymbolKind::ValueParameter
+                                })
+                        })
+                },
+                |id, expected| {
+                    self.parsed
+                        .ast()
+                        .expressions()
+                        .get(id)
+                        .ok()
+                        .and_then(|n| self.sources.slice(n.span()).ok())
+                        == Some(expected)
+                },
+            ),
         )?;
         let plan = selection.first;
         if selection.second.as_ref().is_some_and(|p| {
@@ -126,6 +168,9 @@ impl Checker<'_> {
             second: selection.second,
             first_closed: None,
             branch: selection.branch,
+            counter: selection.counter,
+            update_entered: false,
+            update_completed: false,
             valid: true,
             entry,
             bindings: self.borrow_results.bindings.len(),
@@ -133,6 +178,38 @@ impl Checker<'_> {
             loans: self.loans.len(),
             diagnostics: self.diagnostics.len(),
         })
+    }
+    pub(super) fn no_carry_update_before(&mut self, id: StatementId, state: &State) {
+        let actual = self.resource_snapshot(state);
+        if let Some(s) = self.no_carry.as_mut()
+            && s.counter.as_ref().is_some_and(|c| c.update == id)
+        {
+            s.valid &= !s.update_entered
+                && !s.update_completed
+                && s.first_closed.is_some()
+                && s.second.is_none()
+                && s.frame.is_closed()
+                && actual == s.entry
+                && self.diagnostics.len() == s.diagnostics;
+            s.update_entered = s.valid;
+        }
+    }
+    pub(super) fn no_carry_update_after(&mut self, id: StatementId, flows: &Flows) {
+        let actual = flows
+            .next
+            .as_ref()
+            .map(|state| self.resource_snapshot(state));
+        if let Some(s) = self.no_carry.as_mut()
+            && s.counter.as_ref().is_some_and(|c| c.update == id)
+        {
+            s.valid &= s.update_entered
+                && !s.update_completed
+                && actual.as_ref() == Some(&s.entry)
+                && flows.breaks.is_none()
+                && flows.continues.is_none()
+                && self.diagnostics.len() == s.diagnostics;
+            s.update_completed = s.valid;
+        }
     }
     pub(super) fn no_carry_arm_scope(&self, scope: StatementId) -> bool {
         self.no_carry
@@ -416,7 +493,8 @@ impl Checker<'_> {
             return Ok(());
         };
         let marker = s.frame.plan().marker;
-        let exact = s.valid && self.no_carry_facts(&s);
+        let exact =
+            s.valid && (s.counter.is_none() || s.update_completed) && self.no_carry_facts(&s);
         let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
         if let Some(plan) = s.frame.finish(
             actual.as_ref(),
@@ -425,9 +503,10 @@ impl Checker<'_> {
         ) {
             match (s.branch, s.first_closed, s.second) {
                 (None, None, None) => self.no_carry_proofs.push(core::Proof::Straight(plan)),
-                (Some(branch), Some(first), None) => self
-                    .no_carry_proofs
-                    .push(core::Proof::Branch(branch, [first, plan])),
+                (Some(branch), Some(first), None) => self.no_carry_proofs.push(match s.counter {
+                    Some(counter) => core::Proof::CounterBranch(branch, [first, plan], counter),
+                    None => core::Proof::Branch(branch, [first, plan]),
+                }),
                 _ => self.emit_borrow_binding_diagnostic(
                     crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
                     "both loop branch arms must independently close",
@@ -461,6 +540,10 @@ impl Checker<'_> {
                     .any(|end| end.binding == fact.binding() && end.point == fact.end())
         };
         for proof in std::mem::take(&mut self.no_carry_proofs) {
+            let counter = match &proof {
+                core::Proof::CounterBranch(_, _, c) => Some(c.clone()),
+                _ => None,
+            };
             let (marker, accepted) = match proof {
                 core::Proof::Straight(plan) => {
                     let marker = plan.marker;
@@ -470,7 +553,8 @@ impl Checker<'_> {
                     result.loops.extend(fact);
                     (marker, accepted)
                 }
-                core::Proof::Branch(branch, [left, right]) => {
+                core::Proof::Branch(branch, [left, right])
+                | core::Proof::CounterBranch(branch, [left, right], _) => {
                     let marker = left.marker;
                     let pair = super::super::UnitLoopNoCarryFact::new(self.source_unit, left)
                         .filter(&valid_end)
@@ -485,7 +569,17 @@ impl Checker<'_> {
                             )
                         });
                     let accepted = pair.is_some();
-                    result.branches.extend(pair);
+                    if let Some(counter) = counter {
+                        result.counter_branches.extend(pair.map(|pair| {
+                            super::super::loop_no_carry::UnitLoopCounterBranchNoCarryFact::new(
+                                self.source_unit,
+                                pair,
+                                counter,
+                            )
+                        }));
+                    } else {
+                        result.branches.extend(pair);
+                    }
                     (marker, accepted)
                 }
             };
