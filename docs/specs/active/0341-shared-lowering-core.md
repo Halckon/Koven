@@ -17433,3 +17433,10 @@ child-cycle三目标、父receipt两目标、scalar-owner两目标及旧bridge�
 编译列举通过，none executed；bridge为统一清单内同一目标，不重复动态执行。
 本轮未启用本地CI环境、未运行故障、未推送/合并。新组合和指令唯一挂载反例仍待
 远端双宿主实际拒绝/恢复证据，普通组合通过不代表D10/E2整体完成。
+
+D10 三根普通组合回归（基于 `d28ca8a2`）：先核实际 admission 要求 roots>=2、
+child 每根一个 Replace、parent resume 单根修改且其他根逐根保留，不扩“child内
+未修改根”能力。新增 concat/literal/own 参数三根来源，child全改而parent只改b，
+a/c保留child当前代；真实FE三根/三step/三recurrence与SSA来源/入口/父组合收据
+完整FQN exact 1/1通过，双臂×outer/inner0/1/2共18次native exact 1/1通过。
+仅测试及文档，未改生产、未运行故障、未推送；本轮未单独重跑Clippy。

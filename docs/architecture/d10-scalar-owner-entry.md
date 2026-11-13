@@ -33,3 +33,7 @@ concat 的 literal、producer 与输入 Drop 指令均须在全函数块指令�
 且该唯一挂载属于 entry。该独立约束补足通用 SSA verifier 之外的来源/清理证据，
 防止同一 Drop 指令被后续块再次挂载而仅因指令表唯一性误判为单次清理。
 重复挂载反例仅 CI 执行，测试直接断言 concat receipt 拒绝，不借用通用 verifier。
+
+三根普通回归覆盖 concat/literal/own 参数来源的完整向量：child 对三根各 Replace，
+parent resume 仅修改一根，另两根保持 child 当前代。当前 child 正常合同仍要求
+每根都有对应 Replace；不得据此声称支持 child 内任意未修改根。

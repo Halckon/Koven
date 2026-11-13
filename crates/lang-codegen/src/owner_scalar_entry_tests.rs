@@ -277,3 +277,79 @@ fn ci_only_concat_scalar_entry_rejects_cleanup_and_diamond_corruption() {
         }
     }
 }
+
+fn three_root_source(calls: &str) -> String {
+    source("var a=\"left\"+\"right\";", calls)
+        .replace("var b=\"b\";", "var b=\"b\"; var c=seed;")
+        .replace(
+            "val y=replace(&b,\"inner-b\");",
+            "val y=replace(&b,\"inner-b\"); val z=replace(&c,\"inner-c\");",
+        )
+        .replace(
+            "println(a); println(b)",
+            "println(a); println(b); println(c)",
+        )
+}
+
+#[test]
+fn three_root_concat_scalar_entry_preserves_two_parent_resume_roots() {
+    let text = three_root_source("run(true,1,2,\"seed\"); run(false,0,0,\"seed\");");
+    let source = UnitSource::analyze("three-root-scalar.ko", &text).unwrap();
+    source.assert_frontend_clean();
+    let nested = source
+        .ownership()
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.nested_normal_body_v1())
+        .expect("nested evidence");
+    assert_eq!(nested.normal().header_roots().len(), 3);
+    assert_eq!(nested.normal().steps().len(), 3);
+    assert_eq!(
+        nested
+            .child_generation_rule_v1()
+            .unwrap()
+            .recurrences()
+            .len(),
+        3
+    );
+    assert_eq!(nested.scalar_entry_v1().unwrap().owners().len(), 3);
+    let (result, actions) =
+        crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+    let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
+    crate::ssa::verify::verify_program(&program).unwrap();
+    for (marker, expected) in [
+        ("parent-initial-concat-source-ssa-complete", 1),
+        ("parent-scalar-entry-ssa-complete", 3),
+        ("parent-initial-owner-base-ssa-complete", 3),
+        ("parent-generation-composition-ssa-complete", 3),
+    ] {
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|(name, _)| *name == marker)
+                .map(|(_, count)| *count)
+                .collect::<Vec<_>>(),
+            [expected],
+            "{marker}: {actions:?}"
+        );
+    }
+}
+
+#[test]
+fn three_root_concat_scalar_native_keeps_parent_unmodified_current_generations() {
+    let mut calls = String::new();
+    let mut expected = String::new();
+    for flag in [false, true] {
+        for outer in [0, 1, 2] {
+            for inner in [0, 1, 2] {
+                calls.push_str(&format!("run({flag},{outer},{inner},\"seed\");"));
+                let changed = outer > 0 && inner > 0;
+                let a = if changed { "inner-a" } else { "leftright" };
+                let b = if outer > 0 { "outer-b" } else { "b" };
+                let c = if changed { "inner-c" } else { "seed" };
+                expected.push_str(&format!("{a}\n{b}\n{c}\n"));
+            }
+        }
+    }
+    super::assert_general_counter_baseline(&three_root_source(&calls), expected.as_bytes(), false);
+}
