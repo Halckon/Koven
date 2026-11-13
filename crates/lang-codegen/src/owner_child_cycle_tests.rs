@@ -46,6 +46,7 @@ fn child_cycle_receipt_connects_actual_current_and_next_root_vectors() {
                 [2]
             );
         }
+        super::super::super::assert_native_output(&source, b"seed\nb\nnext-a\nouter-b\n");
     }
 }
 
