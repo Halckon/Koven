@@ -541,3 +541,4 @@
 - [SPEC-0435](0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md)：`unit_lower/control/result_tests`、`item_operand_ssa_test_support` 及 `lower_frontend` 守卫与实例测试壳子模块退役。
 - [SPEC-0436](0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md)：`unit_lower` 借用/编排/字段可空测试、`verify_ownership/root_exchange_tests` 及 `lower_frontend` 实例/闭包/待定调用/借用清理测试壳子模块退役。
 - [SPEC-0437](0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md)：`lambda_preflight_tests`、`outer_borrowed_while` 守卫、`key_return` 身份及 `lower_frontend` 条件事实/所有权原语/局部迭代/可空载体/源闭包壳子模块退役。
+- [SPEC-0438](0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md)：`outer_borrowed_while`、`source_owner/handoff`、`map_iteration` 退出/成形/临时项及可空清理载体与源证明壳子模块退役。

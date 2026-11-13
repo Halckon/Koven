@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0438](0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md) 完成 `outer_borrowed_while`、`source_owner/handoff`、`map_iteration` 退出/成形/临时项及可空清理壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批测试专用与旧路径对比壳模块：
+在 [SPEC-0438](../../archive/specs/0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md) 完成 `outer_borrowed_while`、`source_owner/handoff`、`map_iteration` 退出/成形/临时项及可空清理壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批测试专用与旧路径对比壳模块：
 
 1. `ssa/lower_frontend/loop_control/numeric_iteration.rs`（781 行）：仅承载测试对比用数值 `for` 循环与提供者证明，可收敛入 `ssa/lowering_support_tests.rs`。
 2. `ssa/lower_frontend/map_consume/nullable.rs`（794 行）：仅承载测试对比用可空 Map 消费降低，可收敛入 `ssa/rc_nullable_while_memory_document_tests.rs`。
