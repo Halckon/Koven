@@ -1,18 +1,18 @@
 //! Typed SSA operation 的局部类型契约。
 
-use super::verify_ownership::root_exchange::integer;
+mod integer;
 pub(in crate::ssa) use integer::verify_borrow_result;
-use super::borrow_result_support::verify_range as range;
-use range::nullable;
-pub(super) use range::{
-    callable, parameter as range_parameter, return_contract as range_return_contract,
-    verify_signature as range_verify_signature,
-};
+mod range;
 use callable::{
     callable_invoke_contract, closure_construct_contract, direct_call_contract,
     function_address_contract,
 };
 use integer::{constant_contract, map};
+use range::nullable;
+pub(super) use range::{
+    callable, parameter as range_parameter, return_contract as range_return_contract,
+    verify_signature as range_verify_signature,
+};
 
 use super::{
     model::{
@@ -681,7 +681,7 @@ fn aggregate_project_contract(
         && single_value_result(results) == Some(field)
 }
 
-pub(in crate::ssa) fn aggregate_explode_contract(
+pub(in crate::ssa::verify_operation) fn aggregate_explode_contract(
     module: &Module,
     function: &Function,
     aggregate: ValueId,
@@ -1103,7 +1103,7 @@ fn comparison_contract(
     }
 }
 
-pub(in crate::ssa) fn integer_fits(value: i128, bits: u16, signed: bool) -> bool {
+fn integer_fits(value: i128, bits: u16, signed: bool) -> bool {
     if !(1..=128).contains(&bits) {
         return false;
     }
@@ -1150,7 +1150,7 @@ pub(super) fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
     )
 }
 
-pub(in crate::ssa) fn is_koven_int(module: &Module, ty: SsaTypeId) -> bool {
+fn is_koven_int(module: &Module, ty: SsaTypeId) -> bool {
     matches!(
         module.type_kind(ty),
         Some(SsaTypeKind::Integer {
@@ -1167,7 +1167,7 @@ fn is_scalar(module: &Module, ty: SsaTypeId) -> bool {
     )
 }
 
-pub(in crate::ssa) fn is_bitwise_integer(module: &Module, ty: Option<SsaTypeId>) -> bool {
+fn is_bitwise_integer(module: &Module, ty: Option<SsaTypeId>) -> bool {
     ty.is_some_and(|ty| {
         matches!(
             module.type_kind(ty),
@@ -1192,7 +1192,7 @@ fn is_equality_type(module: &Module, ty: Option<SsaTypeId>) -> bool {
     })
 }
 
-pub(in crate::ssa) fn is_boolean(module: &Module, ty: SsaTypeId) -> bool {
+fn is_boolean(module: &Module, ty: SsaTypeId) -> bool {
     matches!(module.type_kind(ty), Some(SsaTypeKind::Boolean))
 }
 
@@ -1200,14 +1200,14 @@ fn is_string_owner(module: &Module, ty: SsaTypeId) -> bool {
     matches!(module.type_kind(ty), Some(SsaTypeKind::StringOwner))
 }
 
-pub(in crate::ssa) fn single_value_result(types: &[EntityType]) -> Option<SsaTypeId> {
+fn single_value_result(types: &[EntityType]) -> Option<SsaTypeId> {
     match types {
         [EntityType::Value(ty)] => Some(*ty),
         _ => None,
     }
 }
 
-pub(in crate::ssa) fn value_type(function: &Function, value: ValueId) -> Option<SsaTypeId> {
+fn value_type(function: &Function, value: ValueId) -> Option<SsaTypeId> {
     match entity_type(function, EntityId::Value(value)) {
         EntityType::Value(ty) => Some(ty),
         EntityType::Place(_) | EntityType::Loan { .. } => None,
@@ -1228,7 +1228,7 @@ fn place_type(function: &Function, place: super::model::PlaceId) -> Option<SsaTy
     }
 }
 
-pub(in crate::ssa) fn entity_type(function: &Function, entity: EntityId) -> EntityType {
+fn entity_type(function: &Function, entity: EntityId) -> EntityType {
     function
         .entity(entity)
         .expect("structure phase proved entity existence")

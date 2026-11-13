@@ -5046,3 +5046,88 @@ lexical 和最终汇总通过。PR 专用 Evidence 按范围跳过。
 §198–200 三个功能提交与该主干合流。双方共用的历史账本逐字
 保留，主干新增 §197 在本批追加内容之前。合流只增加 §197 和
 本节证据，crate 内容与 §201 的 3063 项本机验证树逐字一致。
+
+## 203. R4 兼容路由内联 nullable 局部初始化的诊断
+
+§200 的红测在 `89428235` 将 MissingFact 定位到先执行的
+`var x: Int? = 7`。含 Elvis 的 callable 超出 Refine 子集，
+Compatibility 随后尝试包装已成功降低的局部值，但这条路由
+没有默认登记该内联标量局部类型。单独的 `left ?: 0` 已在
+Elvis Span 返回 UnsupportedNode。
+
+先复用既有 inline nullable 表示判定，再将分类限制为真实
+Compatibility 路由下的具名局部初始化。只有 initializer 已降低为
+Value、其前端类型精确匹配 Boolean 或整数的 nullable 内层，且
+目标类型映射不存在时，才在绑定 Span 返回 UnsupportedNode。
+已登记的映射继续走原适配，String、名义类型、Map 和 Range
+保持各自的专用登记与判定。独立复核核对了实际路由、已登记
+映射及其他适配位置，未发现阻断。
+
+后端两组共 15 项通过，覆盖正常 CFG 与 SSA/LLVM 见证及 9 项
+原生泛型/资源用例。既有泛型 nullable null 映射负控仍通过。
+严格 codegen Clippy 和 CLI 构建通过。两种提前退出形态及单独
+Elvis 值经本机单文件和项目入口检查通过，构建均返回
+UnsupportedNode 且未发布文件。显式 if 对照两入口均原生运行，
+输出 `bypass` 和 `return`。Elvis native 能力继续按 Guide 15 分期。
+
+
+
+## 204. R2 Boolean flow 批次合入与 R4 合流
+
+[PR #406](https://github.com/Halckon/Koven/pull/406) 的 head `c76fbbfe`
+经[实际 PR CI](https://github.com/Halckon/Koven/actions/runs/42727705752)
+通过。双宿主严格 Check/Clippy、定向和最终门禁通过，两端日志
+均逐名确认六项新增回归。Editor lexical 按范围跳过，macOS
+既有 LLDB 用例因权限忽略。六份预览归档独立下载，两端各 12
+项消费命令、哨兵和清理通过，生产及消费清单与实算哈希一致。
+无未决审阅线程。
+
+基线 `144793e1`，合成 `dbb1c85a`，实际合入 `cc1e5b41`，
+合成和合入树均为 `aa23d91496ca0374fcbf65581304be99c12653a7`。
+[合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42732776388)
+已启动。[#405 合入后的主干 CI](https://github.com/Halckon/Koven/actions/runs/42727311444)
+已通过双宿主定向、预览、Editor lexical 和最终汇总，PR 专用
+Evidence 按范围跳过。
+
+§203 的 R4 代码与 `cc1e5b41` 合流，编译器源码及测试与
+`aaddfcae` 的本机验证树逐字一致。合流保留主干插入的 §197
+及追加的 §201–202，并保留两边原始记录。
+
+## 205. R0 借用结果的阶段拒绝消费者
+
+迁移 `borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa`
+到 strict MemoryDocument Unit。保留原 provider 和调用源码，直接
+核对 parse/names/types 零诊断、ownership 唯一 L0135，且主位置
+是 `consume(source)` 的实参字节。相同源码的公开单文件和项目
+均拒绝且只有 L0135，项目诊断另保原文件身份。
+
+独立复核确认本用例检查的是语义准入。旧 lowering 入口的 ownership
+拒绝由原专用负控覆盖。调用方 CFG 与块返回的 Legacy UnsupportedNode、
+全文件发射未选 Map wrapper 和 nullable factory 边界仍使用原
+辅助入口，属于各自的路径见证。
+
+本地 codegen 借用结果合同 12 项通过，2806 项过滤。frontend
+借用 continuation 和结果套件分别 14、12 项通过，无过滤。
+三组均零失败、忽略。
+
+## 206. R0 Map slot 返回消费者与直接调用清点
+
+只读 Map 包装保留原始两条声明和空 `entry`。在 strict MemoryDocument
+Unit 中显式选择原 `view`，按声明 Span 确认实际函数，核对
+`MapRequireValue` 的 slot loan 直接进入 BorrowReturn，且无 Copy
+或 SharedRetain。只选择空 entry 时按同一声明 Span 确认 view
+未发射。独立复核另核对旧 whole-file 发射见证仍单独通过。这样
+分别验证普通借用返回合同和两条路径的实际实例规划边界。
+
+按 §151 的调用形状在 `cc1e5b41` 重跑清点。较 §177 的
+`fae780dc`，frontend tests 的 `resolve_names` 由 67 文件 /
+135 行增至 68 / 138，`check_types` 由 56 / 89 增至 57 / 92。
+新增三处来自 Inout 的三入口对照及 Map 的两处 Single 见证。
+其他计数一致，含 codegen src 的 `check_types` 15 / 18、
+`check_ownership` 14 / 17、`lower_scalar_file_with_entry` 4 / 8。
+§205–206 的迁移保留共享旧入口给独立负控，因此直接调用计数
+本身无法度量迁移完成度。此口径仍不覆盖间接调用或仓外 API。
+
+最终候选直接复跑 `require_tests`，三项通过、零失败或忽略。
+空入口对照按独立复核意见检查实际函数 origin，不靠缺少借用
+元数据推断未发射。

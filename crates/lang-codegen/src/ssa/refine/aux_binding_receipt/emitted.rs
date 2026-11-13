@@ -1,0 +1,285 @@
+//! Freeze the ten producer roles at append_instruction, never by a later origin scan.
+use super::*;
+#[cfg(test)]
+#[path = "ci_tests.rs"]
+mod ci_tests;
+use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
+
+#[derive(Clone, Debug)]
+pub(crate) struct Receipt {
+    pub(crate) ids: Vec<UnitLoanActionId>,
+    pub(crate) callable: UnitItemId,
+    pub(crate) caller: FunctionId,
+    pub(crate) binding: UnitSymbolId,
+    pub(crate) root: UnitSymbolId,
+    pub(crate) source_call: UnitExpressionId,
+    pub(crate) auxiliary_argument: UnitExpressionId,
+    pub(crate) consumer_call: UnitExpressionId,
+    pub(crate) entry_statement: UnitStatementId,
+    pub(crate) completion_statement: UnitStatementId,
+    pub(crate) instructions: Vec<InstructionId>,
+    /// Owner, source place/loan, auxiliary place/loan, borrowed result. No consumer loan.
+    pub(crate) entities: Vec<EntityId>,
+}
+pub(in crate::ssa::refine) struct Emitted {
+    receipts: Vec<Receipt>,
+    blocks: Vec<Option<BlockId>>,
+}
+impl Emitted {
+    pub(in crate::ssa::refine) fn new(
+        plans: &Plans,
+        function: &Function,
+        span: Span,
+    ) -> Result<Self, LoweringError> {
+        let mut receipts = Vec::new();
+        for p in &plans.entries {
+            if p.source_index > 1
+                || p.stage != 10
+                || !p.completed
+                || !p.retired
+                || !p.committed
+                || !p.consumer_authorized
+                || !p.drop_authorized
+                || !p.activated
+                || !p.source_authorized
+                || !p.auxiliary_authorized
+                || p.caller != function.id()
+            {
+                return Err(invalid(span));
+            }
+            receipts.push(Receipt {
+                ids: p.ids.clone(),
+                callable: p.callable,
+                caller: p.caller,
+                binding: p.binding,
+                root: p.root,
+                source_call: p.source_call,
+                auxiliary_argument: p.auxiliary_argument,
+                consumer_call: p.consumer_call,
+                entry_statement: p.entry_statement,
+                completion_statement: p.completion_statement,
+                instructions: Vec::new(),
+                entities: Vec::new(),
+            });
+        }
+        Ok(Self {
+            blocks: vec![None; receipts.len()],
+            receipts,
+        })
+    }
+    fn frozen(
+        p: &Plan,
+        r: &Receipt,
+        current: &BTreeMap<Slot, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        // Before the fourth producer finishes, partial entities follow actual chronology.
+        // Thereafter expose the stable semantic owner/source/aux/result identity order.
+        let slots = if p.source_index == 1 && r.instructions.len() < 4 {
+            [
+                p.owner,
+                p.auxiliary_place,
+                p.auxiliary,
+                p.place,
+                p.source,
+                p.result,
+            ]
+        } else {
+            [
+                p.owner,
+                p.place,
+                p.source,
+                p.auxiliary_place,
+                p.auxiliary,
+                p.result,
+            ]
+        };
+        for (slot, frozen) in slots.into_iter().zip(&r.entities) {
+            if slot.and_then(|s| current.get(&s)) != Some(frozen) {
+                return Err(invalid(span));
+            }
+        }
+        Ok(())
+    }
+    /// Alias creates no instruction, but must never replace an already witnessed entity.
+    pub(in crate::ssa::refine) fn alias(
+        &self,
+        plans: &Plans,
+        current: &BTreeMap<Slot, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for (p, r) in plans.entries.iter().zip(&self.receipts) {
+            Self::frozen(p, r, current, span)?;
+        }
+        Ok(())
+    }
+    pub(in crate::ssa::refine) fn statement(
+        &mut self,
+        plans: &Plans,
+        tag: Tag,
+        function: &Function,
+        instruction: InstructionId,
+        current: &BTreeMap<Slot, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let p = plans.entries.get(tag.plan).ok_or_else(|| invalid(span))?;
+        let r = self
+            .receipts
+            .get_mut(tag.plan)
+            .ok_or_else(|| invalid(span))?;
+        let data = function
+            .instruction(instruction)
+            .ok_or_else(|| invalid(span))?;
+        if r.caller != function.id()
+            || r.instructions.len() != usize::from(tag.role)
+            || self.blocks[tag.plan].is_some_and(|b| b != data.block)
+        {
+            return Err(invalid(span));
+        }
+        Self::frozen(p, r, current, span)?;
+        let entity = |slot: Option<Slot>| {
+            slot.and_then(|s| current.get(&s).copied())
+                .ok_or_else(|| invalid(span))
+        };
+        match (tag.role, &data.operation) {
+            (role @ (0 | 2), Operation::RootPlace { owner })
+                if EntityId::Value(*owner) == entity(p.owner)? =>
+            {
+                let [place @ EntityId::Place(_)] = data.results.as_slice() else {
+                    return Err(invalid(span));
+                };
+                if *place != entity(p.ordered_places()[usize::from(role / 2)])?
+                    || owner.function() != function.id()
+                {
+                    return Err(invalid(span));
+                }
+                if role == 0 {
+                    r.entities.push(EntityId::Value(*owner));
+                } else if r.entities.get(1) == Some(place) {
+                    return Err(invalid(span));
+                }
+                r.entities.push(*place);
+            }
+            (
+                role @ (1 | 3),
+                Operation::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                },
+            ) => {
+                let index = usize::from(role / 2);
+                if EntityId::Place(*place) != entity(p.ordered_places()[index])? {
+                    return Err(invalid(span));
+                }
+                let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
+                    return Err(invalid(span));
+                };
+                if *loan != entity(p.ordered_loans()[index])?
+                    || id.function() != function.id()
+                    || (role == 3 && r.entities.get(2) == Some(loan))
+                {
+                    return Err(invalid(span));
+                }
+                r.entities.push(*loan);
+                if role == 3 && p.source_index == 1 {
+                    r.entities.swap(1, 3);
+                    r.entities.swap(2, 4);
+                }
+            }
+            (
+                4,
+                Operation::BorrowCall {
+                    callee,
+                    arguments,
+                    source,
+                },
+            ) if *callee == p.source_callee
+                && EntityId::Loan(*source) == entity(p.source)?
+                && arguments.as_slice()
+                    == [entity(p.ordered_loans()[0])?, entity(p.ordered_loans()[1])?] =>
+            {
+                let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
+                    return Err(invalid(span));
+                };
+                if *loan != entity(p.result)?
+                    || *loan == entity(p.source)?
+                    || *loan == entity(p.auxiliary)?
+                    || id.function() != function.id()
+                {
+                    return Err(invalid(span));
+                }
+                r.entities.push(*loan);
+            }
+            (5, Operation::BorrowEnd { loan })
+                if EntityId::Loan(*loan) == entity(p.auxiliary)? && data.results.is_empty() => {}
+            (
+                6,
+                Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    arguments,
+                },
+            ) if *callee == p.consumer_callee
+                && arguments.as_slice() == [entity(p.result)?]
+                && data.results.is_empty() => {}
+            (7, Operation::BorrowEnd { loan })
+                if EntityId::Loan(*loan) == entity(p.result)? && data.results.is_empty() => {}
+            (8, Operation::BorrowEnd { loan })
+                if EntityId::Loan(*loan) == entity(p.source)? && data.results.is_empty() => {}
+            (9, Operation::Drop { owner })
+                if EntityId::Value(*owner) == entity(p.owner)? && data.results.is_empty() => {}
+            _ => return Err(invalid(span)),
+        }
+        self.blocks[tag.plan] = Some(data.block);
+        r.instructions.push(instruction);
+        Ok(())
+    }
+    pub(in crate::ssa::refine) fn finish(
+        self,
+        plans: &Plans,
+        function: &Function,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if self.receipts.len() != plans.entries.len() || self.blocks.len() != plans.entries.len() {
+            return Err(invalid(span));
+        }
+        for ((r, b), p) in self.receipts.iter().zip(&self.blocks).zip(&plans.entries) {
+            if !p.completed
+                || p.stage != 10
+                || r.ids != p.ids
+                || r.callable != p.callable
+                || r.caller != function.id()
+                || r.binding != p.binding
+                || r.root != p.root
+                || r.source_call != p.source_call
+                || r.auxiliary_argument != p.auxiliary_argument
+                || r.consumer_call != p.consumer_call
+                || r.entry_statement != p.entry_statement
+                || r.completion_statement != p.completion_statement
+                || r.instructions.len() != 10
+                || r.entities.len() != 6
+            {
+                return Err(invalid(span));
+            }
+            let block = b
+                .and_then(|b| function.block(b))
+                .ok_or_else(|| invalid(span))?;
+            if !block
+                .instructions
+                .windows(10)
+                .any(|ids| ids == r.instructions.as_slice())
+            {
+                return Err(invalid(span));
+            }
+        }
+        #[cfg(test)]
+        ci_tests::record(plans, function, &self.receipts, span);
+        #[cfg(test)]
+        RECEIPTS.with(|output| {
+            if let Some(output) = output.borrow_mut().as_mut() {
+                output.pending.extend(self.receipts);
+            }
+        });
+        Ok(())
+    }
+}

@@ -313,16 +313,19 @@ fn extra_plain_statement_keeps_partial_dependency_without_complete_region() {
             .unwrap();
         let mut outputs = Vec::new();
         for owned in [&on, &off] {
-            let (program, _) = crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                &sources,
-                &inputs,
-                &names,
-                &types,
-                &typed,
-                owned,
-                run.id(),
-            )
-            .unwrap();
+            let (lowered, receipts) = crate::ssa::refine::child_receipt::observe(|| {
+                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    owned,
+                    run.id(),
+                )
+            });
+            assert!(receipts.is_empty());
+            let (program, _) = lowered.unwrap();
             verify_program(&program).unwrap();
             outputs.push((
                 crate::ssa::render_program(&program),

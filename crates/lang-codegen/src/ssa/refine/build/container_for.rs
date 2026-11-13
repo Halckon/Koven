@@ -63,6 +63,20 @@ impl Builder<'_, '_> {
         let body_block = self.body.block();
         let finished = self.body.block();
         let exit = self.body.block();
+        self.header_while(
+            statement,
+            self.unit(condition),
+            UnitStatementId::new(self.inputs.source_unit, loop_body),
+            [header, body_block, finished, exit],
+            span,
+        )?;
+        self.open_loop_while(
+            statement,
+            self.unit(condition),
+            UnitStatementId::new(self.inputs.source_unit, loop_body),
+            [header, body_block, finished, exit],
+            span,
+        )?;
         self.owner_while(
             statement,
             self.unit(condition),
@@ -90,7 +104,11 @@ impl Builder<'_, '_> {
             self.loops.pop();
             self.leave(mark, span)?;
             if reached {
+                let cb = self.cb_backedge(statement, header, span)?;
+                let cr = self.cr_backedge(statement, header, span)?;
                 self.goto(header, span)?;
+                self.cb_backedge_emitted(cb, span)?;
+                self.cr_backedge_emitted(cr, span)?;
             }
         } else {
             let span = self.statement_span(loop_body)?;
@@ -250,7 +268,40 @@ impl Builder<'_, '_> {
             (frame.continue_target, span)
         };
         self.owner_break_edge(self.unit(expression), target, jump_span)?;
+        let continued = self.header_continue_edge(
+            self.unit(expression),
+            is_break,
+            (
+                frame.statement,
+                target,
+                frame.seq_for.is_none() && frame.map_for.is_none(),
+            ),
+            jump_span,
+        )?;
+        let mixed = self.mixed_header_jump(
+            self.unit(expression),
+            is_break,
+            (
+                frame.statement,
+                target,
+                frame.seq_for.is_none() && frame.map_for.is_none(),
+            ),
+            jump_span,
+        )?;
+        let cb = self.cb_break(
+            self.unit(expression),
+            is_break,
+            (
+                frame.statement,
+                target,
+                frame.seq_for.is_none() && frame.map_for.is_none(),
+            ),
+            jump_span,
+        )?;
         self.terminate(RTerm::Goto(target), jump_span)?;
+        self.cb_break_emitted(cb, jump_span)?;
+        self.header_continue_emitted(continued, jump_span)?;
+        self.mixed_header_jump_emitted(mixed, jump_span)?;
         Ok(Lowered::Diverged)
     }
 

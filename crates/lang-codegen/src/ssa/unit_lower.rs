@@ -1,6 +1,8 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
 mod orchestrate;
 use orchestrate::lower_unit_from_facts;
+#[cfg(all(test, feature = "loan-observation-test-support"))]
+pub(in crate::ssa) use orchestrate::observe_final_verifier;
 
 mod aggregate;
 mod borrow;
@@ -589,6 +591,19 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let lowered = match lowered {
             LoweredValue::Value(value) => {
+                // Inline scalar local wraps use the refinement body recipe.
+                if self.migrated_family_compatibility
+                    && let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(declared)
+                    && builtin_type(self.typed, *inner).is_some_and(|ty| ty != BuiltinType::String)
+                    && type_lower::is_inline_nullable_inner(self.typed, *inner)
+                    && self
+                        .typed
+                        .expression_type(UnitExpressionId::new(self.source_unit, initializer))
+                        == Some(*inner)
+                    && !self.type_ids.contains_key(&declared)
+                {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                }
                 let (value, transferred) =
                     self.adapt_owned_value_to_expected(initializer, value, declared, span)?;
                 if !transferred {

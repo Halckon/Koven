@@ -9,187 +9,62 @@ mod comma_when_cleanup_tests;
 #[path = "native_direct_call_prefix_tests.rs"]
 mod direct_call_prefix_tests;
 #[cfg(test)]
-#[allow(unused_imports)] pub(crate) use crate::ssa::lower_frontend_tests::owned_source_return_tests::native::packed_local_object_constant_qualifier_tests_2 as local_object_constant_qualifier_tests;
-#[allow(unused_imports)] pub(crate) use pending_construction_tests::nullable_rc_proof_tests;
+#[path = "native_local_object_constant_qualifier_tests.rs"]
+mod local_object_constant_qualifier_tests;
+#[path = "native_nullable_rc_proof_tests.rs"]
+mod nullable_rc_proof_tests;
 #[path = "native_nullable_when_tests.rs"]
 mod nullable_when_tests;
-#[allow(unused_imports)] pub(crate) use owner_return_tests::owner_alias_return_tests;
-#[allow(unused_imports)] pub(crate) use owner_replace_break_downstream_tests::owner_boolean_comparison_tests;
-mod owner_group_condition_tests {
-//! Ordinary finite sources only. No injected facts, Abort, or counters.
-use super::{OwnedProducts, UnitSource};
-const SOURCE: &str = "fun run(flag: Boolean): String { var held = \"outer\"; while(((flag))) { val previous = replace(&held, \"next\"); break }; return held }\nfun entry(): Unit { val first = run(false); val second = run(true) }";
-#[test]
-fn grouped_condition_actual_return_requires_owner_receipt() {
-    let source = UnitSource::analyze("grouped-owner.ko", SOURCE).unwrap();
-    source.assert_frontend_clean();
-    let (lowered, events) =
-        crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
-    let (program, entry) = lowered.unwrap();
-    crate::ssa::verify::verify_program(&program).unwrap();
-    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-    let [event] = events.as_slice() else {
-        panic!("one real Return")
-    };
-    assert!(event.1.is_some());
-    assert_eq!(
-        event.2, event.1,
-        "actual grouped Return needs P/Q authorization"
-    );
-}
-#[test]
-fn grouped_condition_preserves_both_units_real_edges_and_cleanup() {
-    for condition in ["(flag)", "(((flag)))"] {
-        let text = SOURCE.replace("((flag))", condition);
-        super::owner_return_tests::assert_return_transport(&text);
-    }
-}
-#[test]
-fn grouped_condition_native_preserves_selected_value() {
-    for constant in [false, true] {
-        let text = SOURCE.replace(
-            "val first = run(false); val second = run(true)",
-            "val first = run(false); println(first); val second = run(true); println(second)",
-        );
-        let text = if constant {
-            format!(
-                "const val ON: Boolean = true\n{}",
-                text.replace("run(true)", "run(ON)")
-            )
-        } else {
-            text
-        };
-        let source = UnitSource::analyze("grouped-owner-native.ko", &text).unwrap();
-        source.assert_frontend_clean();
-        assert_eq!(
-            matches!(source.products, OwnedProducts::Constant(..)),
-            constant
-        );
-        super::assert_native_output(&source, b"outer\nnext\n");
-    }
-}
-}
-mod owner_negated_condition_tests {
-//! Finite legal sources only; Not parity changes runtime condition, never P/Q edge roles.
-use super::{OwnedProducts, UnitSource};
-const SOURCE: &str = "fun run(flag: Boolean): String { var held = \"outer\"; while(!flag) { val previous = replace(&held, \"next\"); break }; return held }\nfun entry(): Unit { val first = run(false); val second = run(true) }";
-#[test]
-fn negated_condition_actual_return_requires_owner_receipt() {
-    let source = UnitSource::analyze("negated-owner.ko", SOURCE).unwrap();
-    source.assert_frontend_clean();
-    let (lowered, events) =
-        crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
-    let (program, entry) = lowered.unwrap();
-    crate::ssa::verify::verify_program(&program).unwrap();
-    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-    let [event] = events.as_slice() else {
-        panic!("one actual Return")
-    };
-    assert!(event.1.is_some());
-    assert_eq!(
-        event.2, event.1,
-        "actual negated Return needs P/Q authorization"
-    );
-}
-#[test]
-fn negated_condition_keeps_actual_false_and_break_roles_in_both_units() {
-    for condition in ["!flag", "!(!flag)", "!((!(!flag)))"] {
-        super::owner_return_tests::assert_return_transport(&SOURCE.replace("!flag", condition));
-    }
-}
-#[test]
-fn negated_condition_native_follows_actual_boolean_result() {
-    for (condition, output) in [
-        ("!flag", b"next\nouter\n".as_slice()),
-        ("!(!flag)", b"outer\nnext\n".as_slice()),
-        ("!((!(!flag)))", b"next\nouter\n".as_slice()),
-    ] {
-        for constant in [false, true] {
-            let text = SOURCE.replace("!flag", condition).replace(
-                "val first = run(false); val second = run(true)",
-                "val first = run(false); println(first); val second = run(true); println(second)",
-            );
-            let text = if constant {
-                format!(
-                    "const val ON: Boolean = true\n{}",
-                    text.replace("run(true)", "run(ON)")
-                )
-            } else {
-                text
-            };
-            let source = UnitSource::analyze("negated-owner-native.ko", &text).unwrap();
-            source.assert_frontend_clean();
-            assert_eq!(
-                matches!(source.products, OwnedProducts::Constant(..)),
-                constant
-            );
-            super::assert_native_output(&source, output);
-        }
-    }
-}
-}
+#[path = "owner_alias_return_tests.rs"]
+mod owner_alias_return_tests;
+#[path = "owner_boolean_comparison_tests.rs"]
+mod owner_boolean_comparison_tests;
+#[path = "owner_conditional_break_tests.rs"]
+mod owner_conditional_break_tests;
+#[path = "owner_conditional_return_tests.rs"]
+mod owner_conditional_return_tests;
+#[path = "owner_continue_header_tests.rs"]
+mod owner_continue_header_tests;
+#[path = "owner_group_condition_tests.rs"]
+mod owner_group_condition_tests;
+#[path = "owner_header_bind_tests.rs"]
+mod owner_header_bind_tests;
+#[path = "owner_loop_return_tests.rs"]
+mod owner_loop_return_tests;
+#[path = "owner_mixed_loop_edge_tests.rs"]
+mod owner_mixed_loop_edge_tests;
+#[path = "owner_multi_root_header_tests.rs"]
+mod owner_multi_root_header_tests;
+#[path = "owner_negated_condition_tests.rs"]
+mod owner_negated_condition_tests;
+#[path = "owner_normal_backedge_tests.rs"]
+mod owner_normal_backedge_tests;
 #[path = "owner_own_call_tests.rs"]
-pub(crate) mod owner_own_call_tests;
-#[allow(unused_imports)] pub(crate) use owner_replace_break_downstream_tests::owner_pair_call_tests;
-#[allow(unused_imports)] pub(crate) use owner_return_tests::owner_replace_break_ci_tests;
+mod owner_own_call_tests;
+#[path = "owner_pair_call_tests.rs"]
+mod owner_pair_call_tests;
+#[path = "owner_parameter_header_tests.rs"]
+mod owner_parameter_header_tests;
+#[path = "owner_parameter_loop_tests.rs"]
+mod owner_parameter_loop_tests;
+#[path = "owner_parameter_mixed_tests.rs"]
+mod owner_parameter_mixed_tests;
+#[path = "owner_replace_break_ci_tests.rs"]
+mod owner_replace_break_ci_tests;
 #[path = "owner_replace_break_downstream_tests.rs"]
-pub(crate) mod owner_replace_break_downstream_tests;
-#[allow(unused_imports)] pub(crate) use owner_own_call_tests::owner_replace_return_tests;
+mod owner_replace_break_downstream_tests;
+#[path = "owner_replace_return_tests.rs"]
+mod owner_replace_return_tests;
 #[path = "native_owner_replacement_success_tests.rs"]
 mod owner_replacement_success_tests;
 #[path = "owner_return_tests.rs"]
-pub(crate) mod owner_return_tests;
-mod owner_short_circuit_leaf_not_tests {
-//! Ordinary pure Boolean leaf negation; actual products and original finite CFG only.
-use super::{
-    UnitSource,
-    owner_short_circuit_tests::{SOURCE, check_cfg, check_native},
-};
-#[test]
-fn leaf_not_actual_return_requires_owner_receipt() {
-    let text = SOURCE.replace("flag && flag", "!flag && !flag");
-    let source = UnitSource::analyze("leaf-not-owner.ko", &text).unwrap();
-    source.assert_frontend_clean();
-    let (lowered, events) =
-        crate::ssa::observe_owner_returns(|| source.lower_entry(source.entry()));
-    let (program, entry) = lowered.unwrap();
-    crate::ssa::verify::verify_program(&program).unwrap();
-    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-    let [event] = events.as_slice() else {
-        panic!("one actual Return")
-    };
-    assert!(event.1.is_some());
-    assert_eq!(
-        event.2, event.1,
-        "actual leaf-Not Return needs P/Q authorization"
-    );
-}
-#[test]
-fn leaf_not_real_cfg_preserves_p_and_exit_roles() {
-    check_cfg(&[
-        "!flag && !flag",
-        "!flag || !flag",
-        "!((!flag) && (!flag))",
-        "(!(!flag)) || flag",
-        "!flag && flag",
-        "flag || !flag",
-    ]);
-}
-#[test]
-fn leaf_not_native_preserves_short_circuit_truth_tables() {
-    check_native(&[
-        ("!flag && !flag", b"next\nouter\n"),
-        ("!flag || !flag", b"next\nouter\n"),
-        ("!((!flag) && (!flag))", b"outer\nnext\n"),
-        ("(!(!flag)) || flag", b"outer\nnext\n"),
-        ("!flag && flag", b"outer\nouter\n"),
-        ("flag || !flag", b"next\nnext\n"),
-    ]);
-}
-}
-#[allow(unused_imports)] pub(crate) use owner_own_call_tests::owner_short_circuit_tests;
+mod owner_return_tests;
+#[path = "owner_short_circuit_leaf_not_tests.rs"]
+mod owner_short_circuit_leaf_not_tests;
+#[path = "owner_short_circuit_tests.rs"]
+mod owner_short_circuit_tests;
 #[path = "native_pending_construction_tests.rs"]
-pub(crate) mod pending_construction_tests;
+mod pending_construction_tests;
 #[path = "native_resource_map_loop_tests.rs"]
 mod resource_map_loop_tests;
 

@@ -1,5 +1,33 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
+mod counter_batch;
+pub use counter_batch::UnitOwnerCounterBatchEvidenceV1;
+mod counter_tail;
+pub use counter_tail::UnitOwnerCounterTailEvidenceV1;
+mod multi_root_header;
+pub use multi_root_header::UnitOwnerRootExitPartitionV1;
+mod multi_root_normal;
+pub use multi_root_normal::{UnitOwnerMultiRootNormalTransportV1, UnitOwnerRootReplaceStepV1};
+mod multi_root_boundary;
+pub use multi_root_boundary::{UnitOwnerMultiRootBoundaryV1, UnitOwnerRootBoundarySlotV1};
+mod closed_batch;
+pub use closed_batch::UnitOwnerClosedLoopBatchV1;
 mod invariant;
+mod normal_backedge;
+mod qualified_edge;
+pub use qualified_edge::UnitOwnerRootEdgeV1;
+mod open;
+pub(in crate::ownership_checking::compilation_unit) use normal_backedge::{
+    HeaderCompletion, HeaderCore, HeaderEquation, MixedParameterThreshold,
+};
+pub use normal_backedge::{
+    UnitOwnerConditionalBreakBackedgeV1, UnitOwnerConditionalReturnBackedgeV1,
+    UnitOwnerContinueBackedgeV1, UnitOwnerHeaderSourceV1, UnitOwnerMixedBackedgeV1,
+    UnitOwnerNormalBackedgeV1, UnitOwnerNormalBindDropV1,
+};
+pub use open::{
+    UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,
+    UnitOwnerReturnActionV1, UnitOwnerReturnEndpointV1,
+};
 mod replace_break;
 use super::{UnitOwnerCallable, UnitOwnerObservation, UnitOwnerValueObservationV1};
 use crate::ownership_checking::UnitDropPoint;
@@ -90,6 +118,18 @@ pub(in crate::ownership_checking::compilation_unit) enum LoopBodyCompletion {
     Fallthrough,
     Continue(UnitExpressionId),
     Break(UnitExpressionId),
+    ConditionalBreak {
+        control: UnitExpressionId,
+        condition: UnitExpressionId,
+        body: UnitStatementId,
+        jump: UnitExpressionId,
+    },
+    ConditionalReturn {
+        control: UnitExpressionId,
+        condition: UnitExpressionId,
+        body: UnitStatementId,
+        expression: UnitExpressionId,
+    },
     Conditional {
         control: UnitExpressionId,
         condition: UnitExpressionId,
@@ -99,7 +139,9 @@ pub(in crate::ownership_checking::compilation_unit) enum LoopBodyCompletion {
 impl LoopBodyCompletion {
     pub(in crate::ownership_checking::compilation_unit) fn continues(self) -> bool {
         match self {
-            Self::Fallthrough => true,
+            Self::Fallthrough | Self::ConditionalBreak { .. } | Self::ConditionalReturn { .. } => {
+                true
+            }
             Self::Continue(_) | Self::Break(_) => false,
             Self::Conditional { branches, .. } => branches.iter().any(|branch| branch.continues()),
         }
@@ -124,6 +166,31 @@ impl LoopBodyCompletion {
                 UnitDropPoint::ControlTransfer(jump),
                 UnitDropPoint::LoopExit(statement),
             )),
+            Self::ConditionalBreak {
+                control,
+                condition: branch_condition,
+                body: arm,
+                jump,
+            } => {
+                edges.push(UnitOwnerLoopEdgeV1::IfBranch {
+                    control,
+                    condition: branch_condition,
+                    branch: 0,
+                    body: arm,
+                });
+                edges.push(UnitOwnerLoopEdgeV1::BreakExit(
+                    UnitDropPoint::ControlTransfer(jump),
+                    UnitDropPoint::LoopExit(statement),
+                ));
+                edges.push(UnitOwnerLoopEdgeV1::Backedge(
+                    UnitDropPoint::AfterStatement(body),
+                    condition,
+                ));
+            }
+            // This variant never projects into the legacy closed-loop edge model.
+            Self::ConditionalReturn { .. } => {
+                return Vec::new();
+            }
             Self::Conditional {
                 control,
                 condition: branch_condition,
@@ -213,6 +280,8 @@ impl UnitOwnerLoopObservationV1 {
         };
         let source = function.source_unit();
         let completion_valid = match self.completion {
+            LoopBodyCompletion::ConditionalBreak { .. }
+            | LoopBodyCompletion::ConditionalReturn { .. } => false,
             LoopBodyCompletion::Fallthrough => true,
             LoopBodyCompletion::Continue(jump) | LoopBodyCompletion::Break(jump) => {
                 jump.source_unit() == source
@@ -263,7 +332,7 @@ impl UnitOwnerObservation {
     /// Separate sealed loop capability; legacy status/events and Choice remain unchanged.
     pub fn loop_observation_v1(&self) -> Option<&UnitOwnerLoopObservationV1> {
         self.loop_value.as_deref().filter(|value| {
-            self.replace_break_value.is_none() && self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
+            self.multi_root_boundary.is_none() && self.closed_loop_batch.is_none() && self.counter_batch.is_none() && self.open_loop_value.is_none() && self.invariant_loop_value.is_none() && matches!(self.status, super::UnitOwnerObservationStatus::Unsupported {
                 point: UnitDropPoint::AfterStatement(statement), reason: super::UnitOwnerUnsupportedReason::Syntax
             } if statement == value.statement)
                 && value.callable == self.callable
@@ -284,7 +353,11 @@ pub(in crate::ownership_checking::compilation_unit) fn publish_observations(
     }
     if !complete {
         for observation in &mut observations {
-            observation.replace_break_value = None;
+            observation.closed_loop_batch = None;
+            observation.counter_tail = None;
+            observation.counter_batch = None;
+            observation.multi_root_boundary = None;
+            observation.open_loop_value = None;
             observation.loop_value = None;
             observation.invariant_loop_value = None;
         }

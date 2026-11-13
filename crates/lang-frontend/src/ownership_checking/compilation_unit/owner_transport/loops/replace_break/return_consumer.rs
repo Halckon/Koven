@@ -154,11 +154,7 @@ impl UnitOwnerReplaceBreakReturnConsumerV1 {
         });
         (target.replacement.is_some() == self.replacement_producers.is_some())
             && self.target == *target
-            && self.incoming
-                == [
-                    boundary.condition_false.clone(),
-                    boundary.post_break.clone(),
-                ]
+            && self.incoming == [boundary.condition_false.clone(), boundary.installed.clone()]
             && self.return_expression().source_unit() == source
             && self.payload().source_unit() == source
             && target.statement.source_unit() == source

@@ -9,9 +9,9 @@ mod map;
 pub(super) mod named_route;
 mod range_borrow;
 mod scalar_text;
-use scalar_text::control;
 use control::LoopRoute;
 pub(super) use control::accepts;
+use scalar_text::control;
 mod tagged;
 use tagged::receiver;
 

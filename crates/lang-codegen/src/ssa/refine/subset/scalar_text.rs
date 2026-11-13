@@ -643,10 +643,10 @@ pub(in crate::ssa::refine) mod control {
                     .iter()
                     .all(|&element| self.statement_may_continue(element)),
                 Statement::Loop { .. } | Statement::While { .. } => {
-                    self.inputs
-                        .typed
-                        .loop_falls_through(UnitStatementId::new(self.inputs.source_unit, statement))
-                        != Some(false)
+                    self.inputs.typed.loop_falls_through(UnitStatementId::new(
+                        self.inputs.source_unit,
+                        statement,
+                    )) != Some(false)
                 }
                 Statement::LocalVariable { declaration } => {
                     let Ok(item) = self.inputs.parsed.ast().items().get(*declaration) else {

@@ -303,6 +303,13 @@
       "owner": "lang-codegen SSA verifier",
       "split_plan": "后续把 verify_function_structure/verify_cfg_types/verify_dominance 按 CFG、类型与支配树职责拆到 verify/ 子模块，恢复单文件 <1000。",
       "review": "SPEC-0421 本地构建修复时逐 diff 核对：仅 5 处可见性提升与 2 处未使用导入删除，不改变校验逻辑；再次增长前重新审阅。"
+    },
+    "crates/lang-codegen/src/ssa/refine/build/borrow_binding.rs": {
+      "max_lines": 1304,
+      "reason": "SPEC-0425 把 build/{heap,assignment}.rs 折叠进 borrow_binding/value，叠加 main PR #412 新增凭证协议后宿主达 1304 行；无新增算法，只是搬迁后事实上的宿主体积。",
+      "owner": "lang-codegen refine builder",
+      "split_plan": "后续把 box/construction/projection 与 non_null_assertion 从 borrow_binding 拆回独立模块，恢复 <1000。",
+      "review": "SPEC-0427 冲突合并时逐 hunk 核对：仅折叠搬迁与 main 凭证接线，无逻辑改动；再次增长前重新审阅。"
     }
   },
   "generated": {}

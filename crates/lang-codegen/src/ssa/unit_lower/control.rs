@@ -1,6 +1,8 @@
 //! compilation-unit `if` 的 owner-aware CFG 与 branch-state 合流。
 
-pub(in crate::ssa::unit_lower) mod conditional;
+mod conditional;
+#[cfg(test)]
+mod result_tests;
 
 use std::collections::BTreeMap;
 
@@ -29,16 +31,16 @@ use crate::ssa::{
 
 /// The published control identity and its result representation travel together.
 #[derive(Clone, Copy)]
-pub(in crate::ssa::unit_lower) struct ControlResult {
-    control: UnitExpressionId,
-    pub(in crate::ssa::unit_lower) required: bool,
-    string: Option<(UnitTypeId, SsaTypeId)>,
+pub(super) struct ControlResult {
+    pub(super) control: UnitExpressionId,
+    pub(super) required: bool,
+    pub(super) string: Option<(UnitTypeId, SsaTypeId)>,
 }
 
 type BooleanWhenArms = ((StatementId, usize), (StatementId, usize));
 
 impl UnitExpressionLowerer<'_> {
-    pub(in crate::ssa::unit_lower) fn lower_short_circuit(
+    pub(super) fn lower_short_circuit(
         &mut self,
         left: ExpressionId,
         operator: lang_frontend::parser::BinaryOperator,
@@ -245,7 +247,7 @@ impl UnitExpressionLowerer<'_> {
         self.merge_unit_exits(exits, span)
     }
 
-    pub(in crate::ssa::unit_lower) fn lower_optional_condition_value(
+    pub(super) fn lower_optional_condition_value(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -266,7 +268,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    pub(in crate::ssa::unit_lower) fn lower_if(
+    pub(super) fn lower_if(
         &mut self,
         expression: ExpressionId,
         condition: ExpressionId,
@@ -287,7 +289,7 @@ impl UnitExpressionLowerer<'_> {
         )
     }
 
-    pub(in crate::ssa::unit_lower) fn lower_boolean_when(
+    pub(super) fn lower_boolean_when(
         &mut self,
         expression: ExpressionId,
         subject: Option<ExpressionId>,
@@ -410,7 +412,7 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
-    pub(in crate::ssa::unit_lower) fn ssa_builtin(
+    pub(super) fn ssa_builtin(
         &self,
         builtin: BuiltinType,
         span: Span,
@@ -444,7 +446,7 @@ impl UnitExpressionLowerer<'_> {
         })
     }
 
-    pub(in crate::ssa::unit_lower) fn control_result(
+    pub(super) fn control_result(
         &self,
         expression: ExpressionId,
         expected_string: Option<(UnitTypeId, SsaTypeId)>,

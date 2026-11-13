@@ -50,7 +50,12 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | Source、Span、Lexer、Parser、AST | [Source 与语法前端](source-and-syntax.md) |
 | 名称解析、类型签名和 typed facts | [名称与类型](names-and-types.md) |
 | loan、move、capture、drop facts | [所有权](ownership.md)、[Unit owner transport 观察](unit-owner-transport.md)、[受限 Choice value](unit-choice-transport.md)、[While body 与输入边界](unit-loop-owner-transport.md)、[不变输入循环边界](unit-invariant-loop-owner.md) |
+| 多根写入、私有 token 与清理证据 | [多根私有证据](unit-loop-root-evidence.md) |
+| 多根 false 出口后的实际消费 | [受限消费前缀](unit-loop-root-suffix.md) |
+| 计数控制的非授权实际审计 | [counter 尾部](unit-loop-counter-audit.md) |
 | 普通 loan acquisition、cleanup 投影与覆盖边界 | [Loan 实际动作源](unit-loan-action-source.md) |
+| 单 wrapper 正常 live 出口覆盖 | [Forward 出口区域](unit-loan-forward-exit.md) |
+| wrapper真实live-source交付、Partial因果引用与旧事实投影 | [Wrapper来源交付](unit-loan-forward-source.md) |
 | receiver 预留、激活、this 身份与直接 SSA/native 消费 | [Receiver 两阶段借用](receiver-borrows.md) |
 | 同轮 Complete2 的有界生产身份核验与真实 on/off | [Receiver production receipts](receiver-production-receipts.md) |
 | 普通 Borrow 参数的精确 caller 路由与 Complete3 生产核验 | [Named loan production receipts](named-loan-production-receipts.md) |
@@ -79,6 +84,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | CLI、project、LSP、formatter、编辑器 grammar | [工具链](tooling.md) |
 
 - [Unit 根替换后 Break](unit-replace-break-owner.md)、[共同出口 Replace 返回](unit-replace-return-owner.md)：真实替换的双 catalog、独立出口与严格 B 尾句 carrier，不提供一般 phi
+- [开放 loop owner 终止端](unit-open-loop-owner.md)：统一 Break/live 与 Return/delivered 产品，独立 P/Q Return 与旧接口投影
 - [Unit 不变循环输入后缀](unit-invariant-loop-suffix.md)：正常或裸 Break While 退出路径的真实输入 Move/Bind/Drop
 - [Owned root 原子所有权置换](root-ownership-primitives.md)：replace / swap 的正常 commit、SSA 与 native 边界
 - [Owned local 一级字段 replace](direct-field-replace.md)：独立 field facts、显式字段交换与有界直接验证
@@ -97,3 +103,5 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 
 本地 [Kovenlings 首片](../tutorials/kovenlings/README.md)提供可变 place 与默认 Borrow 两题，
 复用教程执行器校验失败起点、答案和学习者副本；已接入 bounded composition 门禁。
+
+- [受限正常回边当前 owner](unit-normal-header-owner.md)：有限 H 方程、Boolean/Int 控制与真实 Return 消费。

@@ -635,7 +635,9 @@ pub(in crate::ssa::refine::build) mod field {
                     self.receiver
                 }
                 OwnerRef::Expression(mut expression) => {
-                    while let (Expression::Group { expression: inner }, _) = self.node(expression)? {
+                    while let (Expression::Group { expression: inner }, _) =
+                        self.node(expression)?
+                    {
                         expression = inner;
                     }
                     let (payload, expression_span) = self.node(expression)?;
@@ -655,9 +657,13 @@ pub(in crate::ssa::refine::build) mod field {
                                 match self.borrowed.get(&symbol).copied() {
                                     Some(loan) => Some(loan),
                                     None => {
-                                        let owner = *self.bindings.get(&symbol).ok_or_else(|| {
-                                            error(LoweringErrorKind::MissingFact, expression_span)
-                                        })?;
+                                        let owner =
+                                            *self.bindings.get(&symbol).ok_or_else(|| {
+                                                error(
+                                                    LoweringErrorKind::MissingFact,
+                                                    expression_span,
+                                                )
+                                            })?;
                                         return self.lend(owner, kind, span);
                                     }
                                 }
@@ -892,7 +898,14 @@ pub(in crate::ssa::refine::build) mod field {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             };
             self.owner_binding_authorization(self.unit(initializer), symbol, value, span)?;
-            let binding = self.value(ROp::Alias { source: value }, EntityType::Value(ty), span)?;
+            let counter =
+                self.counter_binding_authorization(self.unit(initializer), symbol, value, span)?;
+            let binding = self.value(
+                ROp::Alias { source: value },
+                crate::ssa::model::EntityType::Value(ty),
+                span,
+            )?;
+            self.counter_binding_emitted(counter, binding, span)?;
             self.bindings.insert(symbol, binding);
             self.owner_binding_emitted(symbol, binding);
             #[cfg(test)]

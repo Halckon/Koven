@@ -7,9 +7,9 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{AssignmentOperator, Expression, Item, NameMarker, VariableKind},
     type_checking::{
-        CallableResultSource, Copyability, NominalKind, ParameterMode,
-        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitCallTarget,
-        UnitConstructionTarget, UnitExpressionId, UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        CallableResultSource, Copyability, NominalKind, ParameterMode, UnitAggregateProjectionKind,
+        UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget, UnitExpressionId,
+        UnitNominalSignature, UnitTypeId, UnitTypeKind,
     },
 };
 

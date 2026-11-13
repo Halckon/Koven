@@ -1,4 +1,5 @@
 //! Independent cross-statement binding verification; existing producers own every effect.
+#[cfg(test)]
 pub(super) use super::receiver_receipt::admission::catalog_actions;
 mod emitted {
     use super::*;

@@ -1,5 +1,8 @@
 //! Local borrow binding initialization, statement loan-tag dispatch, and receipt retirement.
-use super::{field::{OwnerLoan, OwnerRef}, *};
+use super::{
+    field::{OwnerLoan, OwnerRef},
+    *,
+};
 use crate::ssa::{
     borrow_result_support::ordinary_local,
     model::LoanKind,
@@ -36,13 +39,126 @@ impl Builder<'_, '_> {
             .body
             .binding_plans
             .statement(&op, &results, block, span)?;
-        let loan_tag = match (consumer, receiver, named, temporary, binding) {
-            (Some(tag), None, None, None, None) => Some(LoanTag::Consumer(tag)),
-            (None, Some(tag), None, None, None) => Some(LoanTag::Receiver(tag)),
-            (None, None, Some(tag), None, None) => Some(LoanTag::Named(tag)),
-            (None, None, None, Some(tag), None) => Some(LoanTag::Temporary(tag)),
-            (None, None, None, None, Some(tag)) => Some(LoanTag::Binding(tag)),
-            (None, None, None, None, None) => None,
+        let child = self
+            .body
+            .child_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (consumer, receiver, named, temporary, binding, child) {
+            (Some(tag), None, None, None, None, None) => Some(LoanTag::Consumer(tag)),
+            (None, Some(tag), None, None, None, None) => Some(LoanTag::Receiver(tag)),
+            (None, None, Some(tag), None, None, None) => Some(LoanTag::Named(tag)),
+            (None, None, None, Some(tag), None, None) => Some(LoanTag::Temporary(tag)),
+            (None, None, None, None, Some(tag), None) => Some(LoanTag::Binding(tag)),
+            (None, None, None, None, None, Some(tag)) => Some(LoanTag::Child(tag)),
+            (None, None, None, None, None, None) => None,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let forward = self
+            .body
+            .forward_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, forward) {
+            (None, Some(tag)) => Some(LoanTag::Forward(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let branch = self
+            .body
+            .branch_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, branch) {
+            (None, Some(tag)) => Some(LoanTag::Branch(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let nested = self
+            .body
+            .nested_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, nested) {
+            (None, Some(tag)) => Some(LoanTag::Nested(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let bounded = self
+            .body
+            .bounded_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, bounded) {
+            (None, Some(tag)) => Some(LoanTag::Bounded(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let single = self
+            .body
+            .single_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, single) {
+            (None, Some(tag)) => Some(LoanTag::Single(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let multi = self
+            .body
+            .multi_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, multi) {
+            (None, Some(tag)) => Some(LoanTag::Multi(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let auxiliary = self
+            .body
+            .aux_binding_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, auxiliary) {
+            (None, Some(tag)) => Some(LoanTag::AuxBinding(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let distinct_aux = self
+            .body
+            .distinct_aux_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, distinct_aux) {
+            (None, Some(tag)) => Some(LoanTag::DistinctAux(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let later_aux = self
+            .body
+            .later_aux_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, later_aux) {
+            (None, Some(tag)) => Some(LoanTag::LaterAux(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let auxiliary_sequence = self
+            .body
+            .auxiliary_sequence_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, auxiliary_sequence) {
+            (None, Some(tag)) => Some(LoanTag::AuxiliarySequence(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let interleaved_aux = self
+            .body
+            .interleaved_aux_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, interleaved_aux) {
+            (None, Some(tag)) => Some(LoanTag::InterleavedAux(tag)),
+            (tag, None) => tag,
+            _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
+        };
+        let multi_binding = self
+            .body
+            .multi_binding_plans
+            .statement(&op, &results, block, span)?;
+        let loan_tag = match (loan_tag, multi_binding) {
+            (None, Some(tag)) => Some(LoanTag::MultiBinding(tag)),
+            (tag, None) => tag,
             _ => return Err(error(LoweringErrorKind::InvalidModel, span)),
         };
         self.body.blocks[block.0].statements.push(RStmt {
@@ -68,6 +184,30 @@ impl Builder<'_, '_> {
 
     pub(super) fn finish_loan_receipts(&self) -> Result<(), LoweringError> {
         self.body
+            .aux_binding_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .distinct_aux_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .later_aux_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .auxiliary_sequence_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .interleaved_aux_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .multi_binding_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body.forward_plans.finish(self.inputs.span)?;
+        self.body.branch_plans.finish(self.inputs.span)?;
+        self.body.nested_plans.finish(self.inputs.span)?;
+        self.body.bounded_plans.finish(self.inputs.span)?;
+        self.body.single_plans.finish(self.inputs.span)?;
+        self.body.multi_plans.finish(self.inputs.span)?;
+        self.body
             .loan_plans
             .finish(&self.consumed_drops, self.inputs.span)?;
         self.body
@@ -81,6 +221,9 @@ impl Builder<'_, '_> {
             .finish(&self.consumed_drops, self.inputs.span)?;
         self.body
             .binding_plans
+            .finish(&self.consumed_drops, self.inputs.span)?;
+        self.body
+            .child_plans
             .finish(&self.consumed_drops, self.inputs.span)
     }
 
@@ -91,6 +234,24 @@ impl Builder<'_, '_> {
         slot: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.body
+            .aux_binding_plans
+            .drop_fact(index, target, slot, span)?;
+        self.body
+            .distinct_aux_plans
+            .drop_fact(index, target, slot, span)?;
+        self.body
+            .later_aux_plans
+            .drop_fact(index, target, slot, span)?;
+        self.body
+            .auxiliary_sequence_plans
+            .drop_fact(index, target, slot, span)?;
+        self.body
+            .interleaved_aux_plans
+            .drop_fact(index, target, slot, span)?;
+        self.body
+            .multi_binding_plans
+            .drop_fact(index, target, slot, span)?;
         self.body.loan_plans.drop_fact(index, target, slot, span)?;
         self.body
             .receiver_plans
@@ -99,7 +260,10 @@ impl Builder<'_, '_> {
         self.body
             .temporary_plans
             .drop_fact(index, target, slot, span)?;
-        self.body.binding_plans.drop_fact(index, target, slot, span)
+        self.body
+            .binding_plans
+            .drop_fact(index, target, slot, span)?;
+        self.body.child_plans.drop_fact(index, target, slot, span)
     }
 
     pub(super) fn local_borrow_binding(
@@ -157,14 +321,40 @@ impl Builder<'_, '_> {
             return Ok(Lowered::Unit);
         }
         let Some(source) = fact.source_loan() else {
+            self.child_initializer(symbol, initializer, fact.parent(), span)?;
             let Some((loan, created)) = self.lower_result_place(initializer, span)? else {
                 return Ok(Lowered::Diverged);
             };
             self.borrowed.insert(symbol, loan);
             self.result_source_loans.insert(symbol, created);
+            self.body.child_plans.child_commit(
+                symbol,
+                &self.borrowed,
+                &self.result_source_loans,
+                span,
+            )?;
             return Ok(Lowered::Unit);
         };
         self.body.binding_plans.activate(symbol, id, source, span)?;
+        self.body
+            .aux_binding_plans
+            .activate(symbol, id, source, span)?;
+        self.body
+            .distinct_aux_plans
+            .activate(symbol, id, source, span)?;
+        self.body
+            .later_aux_plans
+            .activate(symbol, id, source, span)?;
+        self.body
+            .auxiliary_sequence_plans
+            .activate(symbol, id, source, span)?;
+        self.body
+            .interleaved_aux_plans
+            .activate(symbol, id, source, span)?;
+        self.body
+            .multi_binding_plans
+            .activate(symbol, id, source, span)?;
+        self.body.child_plans.activate(symbol, id, source, span)?;
         let local_policy = ordinary_local::policy(
             self.inputs.parsed,
             self.inputs.typed,
@@ -180,6 +370,45 @@ impl Builder<'_, '_> {
         self.result_source_loans.insert(symbol, created);
         self.body
             .binding_plans
+            .commit(symbol, &self.borrowed, &self.result_source_loans, span)?;
+        self.body.aux_binding_plans.commit(
+            symbol,
+            &self.borrowed,
+            &self.result_source_loans,
+            span,
+        )?;
+        self.body.distinct_aux_plans.commit(
+            symbol,
+            &self.borrowed,
+            &self.result_source_loans,
+            span,
+        )?;
+        self.body.later_aux_plans.commit(
+            symbol,
+            &self.borrowed,
+            &self.result_source_loans,
+            span,
+        )?;
+        self.body.auxiliary_sequence_plans.commit(
+            symbol,
+            &self.borrowed,
+            &self.result_source_loans,
+            span,
+        )?;
+        self.body.interleaved_aux_plans.commit(
+            symbol,
+            &self.borrowed,
+            &self.result_source_loans,
+            span,
+        )?;
+        self.body.multi_binding_plans.commit(
+            symbol,
+            &self.borrowed,
+            &self.result_source_loans,
+            span,
+        )?;
+        self.body
+            .child_plans
             .commit(symbol, &self.borrowed, &self.result_source_loans, span)?;
         Ok(Lowered::Unit)
     }
@@ -207,6 +436,69 @@ impl Builder<'_, '_> {
                 self.borrowed.remove(&fact.binding())
             };
             self.body.binding_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
+            self.body.aux_binding_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
+            self.body.distinct_aux_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
+            self.body.later_aux_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
+            self.body.auxiliary_sequence_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
+            self.body.interleaved_aux_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
+            self.body.multi_binding_plans.retire(
+                fact.binding(),
+                point,
+                loan,
+                self.result_source_loans
+                    .get(&fact.binding())
+                    .map(Vec::as_slice),
+                self.inputs.span,
+            )?;
+            self.body.child_plans.retire(
                 fact.binding(),
                 point,
                 loan,
@@ -260,6 +552,36 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Slot, LoweringError> {
         let value = self.adapt_borrowed(value, value_expression, parameter_type)?;
+        self.body.later_aux_plans.later_operand(
+            call,
+            self.unit(value_expression),
+            value,
+            &self.bindings,
+            span,
+        )?;
+        self.body.auxiliary_sequence_plans.sequence_operand(
+            call,
+            self.unit(value_expression),
+            value,
+            &self.bindings,
+            span,
+        )?;
+        self.body.interleaved_aux_plans.sequence_operand(
+            call,
+            self.unit(value_expression),
+            value,
+            &self.bindings,
+            (&self.borrowed, &self.result_source_loans),
+            span,
+        )?;
+        self.body.multi_binding_plans.sequence_operand(
+            call,
+            self.unit(value_expression),
+            value,
+            &self.bindings,
+            (&self.borrowed, &self.result_source_loans),
+            span,
+        )?;
         self.body.named_plans.enter(
             call,
             self.unit(value_expression),
@@ -301,6 +623,7 @@ impl Builder<'_, '_> {
 
     pub(super) fn statement(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
         let id = UnitStatementId::new(self.inputs.source_unit, statement);
+        self.child_entry(id)?;
         if self.body.binding_plans.has_entry(id) {
             self.binding_quiescent(self.inputs.span)?;
             if !self.dead.is_empty()
@@ -318,6 +641,123 @@ impl Builder<'_, '_> {
             let block = self.current(self.inputs.span)?;
             self.body
                 .binding_plans
+                .enter(id, &self.bindings, block, self.inputs.span)?;
+        }
+        if self.body.aux_binding_plans.has_entry(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if !self.dead.is_empty()
+                || self.this_dead
+                || self.bindings.values().any(|slot| {
+                    let Some(EntityType::Value(ty)) = self.body.slots.get(slot.0) else {
+                        return true;
+                    };
+                    self.types.ssa_types.get(ty.index())
+                        != Some(&crate::ssa::model::SsaTypeKind::StringOwner)
+                })
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body
+                .aux_binding_plans
+                .enter(id, &self.bindings, block, self.inputs.span)?;
+        }
+        if self.body.distinct_aux_plans.has_entry(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if !self.dead.is_empty()
+                || self.this_dead
+                || self.bindings.values().any(|slot| {
+                    let Some(EntityType::Value(ty)) = self.body.slots.get(slot.0) else {
+                        return true;
+                    };
+                    self.types.ssa_types.get(ty.index())
+                        != Some(&crate::ssa::model::SsaTypeKind::StringOwner)
+                })
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body
+                .distinct_aux_plans
+                .enter(id, &self.bindings, block, self.inputs.span)?;
+        }
+        if self.body.later_aux_plans.has_entry(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if !self.dead.is_empty()
+                || self.this_dead
+                || self.bindings.values().any(|slot| {
+                    let Some(EntityType::Value(ty)) = self.body.slots.get(slot.0) else {
+                        return true;
+                    };
+                    self.types.ssa_types.get(ty.index())
+                        != Some(&crate::ssa::model::SsaTypeKind::StringOwner)
+                })
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body
+                .later_aux_plans
+                .enter(id, &self.bindings, block, self.inputs.span)?;
+        }
+        if self.body.auxiliary_sequence_plans.has_entry(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if !self.dead.is_empty()
+                || self.this_dead
+                || self.bindings.values().any(|slot| {
+                    let Some(EntityType::Value(ty)) = self.body.slots.get(slot.0) else {
+                        return true;
+                    };
+                    self.types.ssa_types.get(ty.index())
+                        != Some(&crate::ssa::model::SsaTypeKind::StringOwner)
+                })
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.auxiliary_sequence_plans.enter(
+                id,
+                &self.bindings,
+                block,
+                self.inputs.span,
+            )?;
+        }
+        if self.body.interleaved_aux_plans.has_entry(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if !self.dead.is_empty()
+                || self.this_dead
+                || self.bindings.values().any(|slot| {
+                    let Some(EntityType::Value(ty)) = self.body.slots.get(slot.0) else {
+                        return true;
+                    };
+                    self.types.ssa_types.get(ty.index())
+                        != Some(&crate::ssa::model::SsaTypeKind::StringOwner)
+                })
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body
+                .interleaved_aux_plans
+                .enter(id, &self.bindings, block, self.inputs.span)?;
+        }
+        if self.body.multi_binding_plans.has_entry(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if !self.dead.is_empty()
+                || self.this_dead
+                || self.bindings.values().any(|slot| {
+                    let Some(EntityType::Value(ty)) = self.body.slots.get(slot.0) else {
+                        return true;
+                    };
+                    self.types.ssa_types.get(ty.index())
+                        != Some(&crate::ssa::model::SsaTypeKind::StringOwner)
+                })
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body
+                .multi_binding_plans
                 .enter(id, &self.bindings, block, self.inputs.span)?;
         }
         let result = self.statement_inner(statement)?;
@@ -342,10 +782,100 @@ impl Builder<'_, '_> {
                 self.inputs.span,
             )?;
         }
+        if self.body.aux_binding_plans.has_completion(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if result == Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.aux_binding_plans.complete(
+                id,
+                &self.bindings,
+                &self.dead,
+                &self.consumed_drops,
+                block,
+                self.inputs.span,
+            )?;
+        }
+        if self.body.distinct_aux_plans.has_completion(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if result == Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.distinct_aux_plans.complete(
+                id,
+                &self.bindings,
+                &self.dead,
+                &self.consumed_drops,
+                block,
+                self.inputs.span,
+            )?;
+        }
+        if self.body.later_aux_plans.has_completion(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if result == Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.later_aux_plans.complete(
+                id,
+                &self.bindings,
+                &self.dead,
+                &self.consumed_drops,
+                block,
+                self.inputs.span,
+            )?;
+        }
+        if self.body.auxiliary_sequence_plans.has_completion(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if result == Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.auxiliary_sequence_plans.complete(
+                id,
+                &self.bindings,
+                &self.dead,
+                &self.consumed_drops,
+                block,
+                self.inputs.span,
+            )?;
+        }
+        if self.body.interleaved_aux_plans.has_completion(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if result == Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.interleaved_aux_plans.complete(
+                id,
+                &self.bindings,
+                &self.dead,
+                &self.consumed_drops,
+                block,
+                self.inputs.span,
+            )?;
+        }
+        if self.body.multi_binding_plans.has_completion(id) {
+            self.binding_quiescent(self.inputs.span)?;
+            if result == Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            let block = self.current(self.inputs.span)?;
+            self.body.multi_binding_plans.complete(
+                id,
+                &self.bindings,
+                &self.dead,
+                &self.consumed_drops,
+                block,
+                self.inputs.span,
+            )?;
+        }
+        self.child_completion(id, result)?;
         Ok(result)
     }
-
-    fn binding_quiescent(&self, span: Span) -> Result<(), LoweringError> {
+    pub(super) fn binding_quiescent(&self, span: Span) -> Result<(), LoweringError> {
         if !self.borrowed.is_empty()
             || !self.result_source_loans.is_empty()
             || !self.pending_call_loans.is_empty()
@@ -371,7 +901,14 @@ impl Builder<'_, '_> {
         loan: Slot,
         span: Span,
     ) -> Result<(), LoweringError> {
-        if !self.body.binding_plans.has_consumer(call) {
+        if !self.body.binding_plans.has_consumer(call)
+            && !self.body.aux_binding_plans.has_consumer(call)
+            && !self.body.distinct_aux_plans.has_consumer(call)
+            && !self.body.later_aux_plans.has_consumer(call)
+            && !self.body.auxiliary_sequence_plans.has_consumer(call)
+            && !self.body.interleaved_aux_plans.has_consumer(call)
+            && !self.body.multi_binding_plans.has_consumer(call)
+        {
             return Ok(());
         }
         let (Expression::Name, name_span) = self.node(argument)? else {
@@ -382,9 +919,55 @@ impl Builder<'_, '_> {
         if self.borrowed.get(&binding).copied() != Some(loan) {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
-        self.body
-            .binding_plans
-            .consumer_argument(call, self.unit(argument), binding, loan, span)
+        self.body.binding_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )?;
+        self.body.aux_binding_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )?;
+        self.body.distinct_aux_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )?;
+        self.body.later_aux_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )?;
+        self.body.auxiliary_sequence_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )?;
+        self.body.interleaved_aux_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )?;
+        self.body.multi_binding_plans.consumer_argument(
+            call,
+            self.unit(argument),
+            binding,
+            loan,
+            span,
+        )
     }
 
     /// `Box(payload)` allocates a fresh heap box owner for the single payload argument.

@@ -102,6 +102,13 @@ pub(super) fn admit_split(
 impl LoopTransaction {
     pub(super) fn expected_jump(&self) -> Option<LoopBodyCompletion> {
         match self.expected {
+            LoopBodyCompletion::ConditionalBreak { jump, .. }
+                if self.split_entered
+                    && self.active_branch == Some(0)
+                    && !self.branch_completed[0] =>
+            {
+                Some(LoopBodyCompletion::Break(jump))
+            }
             LoopBodyCompletion::Continue(_) | LoopBodyCompletion::Break(_)
                 if self.active_branch.is_none() =>
             {
@@ -122,7 +129,7 @@ impl DropPlanner<'_, '_> {
     // Permit only Not nodes of the already admitted If condition in its live body sink.
     // This is a syntax gate, not fabricated condition evaluation or owner evidence.
     pub(in super::super) fn owner_loop_condition_supported(&self, id: ExpressionId) -> bool {
-        let Some(transaction) = &self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_ref() else {
             return false;
         };
         let LoopBodyCompletion::Conditional { condition, .. } = transaction.expected else {
@@ -182,7 +189,7 @@ impl DropPlanner<'_, '_> {
         if outcomes != (true, true) || self.owner_branch_depth != 0 {
             return;
         }
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::Conditional {
@@ -207,7 +214,12 @@ impl DropPlanner<'_, '_> {
         }
         if self.owner_observation.as_ref().is_some_and(|observation| {
             std::sync::Arc::ptr_eq(&observation.identity, identity)
-                && observation.value_observation_v1().is_some()
+                && (observation.value_observation_v1().is_some()
+                    || (transaction
+                        .normal
+                        .as_ref()
+                        .is_some_and(|n| n.mixed_active())
+                        && observation.status == UnitOwnerObservationStatus::Complete))
         }) && transaction.split_input_boundary(state)
         {
             transaction.split_entered = true;
@@ -224,7 +236,7 @@ impl DropPlanner<'_, '_> {
         if self.owner_branch_depth != 1 {
             return;
         }
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::Conditional {
@@ -263,7 +275,7 @@ impl DropPlanner<'_, '_> {
         result: &EvaluatedOwner,
         state: &ValueState,
     ) {
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return;
         };
         let LoopBodyCompletion::Conditional {
@@ -322,7 +334,7 @@ impl DropPlanner<'_, '_> {
         if !then_events.is_empty() || !else_events.is_empty() {
             return false;
         }
-        let Some(transaction) = &mut self.owner_loop else {
+        let Some(transaction) = self.owner_loop.as_mut() else {
             return false;
         };
         let LoopBodyCompletion::Conditional {

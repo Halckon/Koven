@@ -707,7 +707,8 @@ mod when {
                 Some(lang_frontend::type_checking::UnitTypeKind::Builtin(
                     lang_frontend::type_checking::BuiltinType::Boolean
                 ))
-            ) && (closed_after.is_some() || self.boolean_two_arms(entries));
+            ) && (closed_after.is_some()
+                || self.boolean_two_arms(entries));
             if !subject_ok || !(self.unit(ty) || has_else || tagged || boolean_exhaustive) {
                 return false;
             }
@@ -805,10 +806,9 @@ mod when {
                 return false;
             }
             let snapshot_tag = operands.iter().any(|&operand| {
-                let point =
-                    lang_frontend::ownership_checking::UnitDropPoint::AfterExpression(
-                        self.id(operand),
-                    );
+                let point = lang_frontend::ownership_checking::UnitDropPoint::AfterExpression(
+                    self.id(operand),
+                );
                 self.inputs.owned.drops().iter().any(|fact| {
                     fact.point() == point
                         && fact.target()

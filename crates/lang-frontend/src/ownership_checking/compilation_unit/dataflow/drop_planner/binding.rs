@@ -73,6 +73,7 @@ impl DropPlanner<'_, '_> {
                 scope_depth: self.scope_depth,
             });
             self.bind_replace_consumer(result.replace_consumer, initializer, symbol, state);
+            self.bind_normal_header(initializer, symbol, state);
             self.inserted_owner(symbol, initializer);
             if let Some(closure) = closure {
                 state.closures.insert(symbol, closure);
@@ -84,6 +85,7 @@ impl DropPlanner<'_, '_> {
                 self.drop_named_asap(PlannerDropPoint::AfterStatement(id), symbol, state);
             }
         }
+        self.finish_root_suffix_statement(id, state);
         Ok(true)
     }
 }
