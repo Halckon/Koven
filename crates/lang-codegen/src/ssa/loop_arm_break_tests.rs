@@ -6,10 +6,24 @@ use lang_frontend::ownership_checking::{
 };
 #[test]
 fn ordinary_loop_arm_tail_break_closes_before_actual_exit() {
+    check_break(false);
+}
+
+#[test]
+fn ordinary_loop_arm_tail_break_rejects_unapproved_prefix_cfg() {
+    check_break(true);
+}
+
+fn check_break(prefix: bool) {
     for own in [false, true] {
         let mode = if own { "own " } else { "" };
+        let before = if prefix {
+            "if(choose){tick(1)}else{tick(2)};"
+        } else {
+            ""
+        };
         let text = format!(
-            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run({mode}choose:Boolean,source:String,{mode}flag:Boolean):Unit {{while(flag){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}};break}};consume(source)}}"
+            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun tick(own value:Int):Unit {{}}\nfun run({mode}choose:Boolean,source:String,{mode}flag:Boolean):Unit {{{before}while(flag){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}};break}};consume(source)}}"
         );
         let mut sources = SourceMap::new();
         let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "arm-break.ko", &text);
@@ -54,6 +68,21 @@ fn ordinary_loop_arm_tail_break_closes_before_actual_exit() {
                             &sources, &inputs, &names, &types, &typed, owned, entry,
                         )
                     });
+                if prefix {
+                    let error = result
+                        .err()
+                        .expect("prefix if remains outside String binding frontier");
+                    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+                    let span = error.span.expect("rejected prefix origin");
+                    assert_eq!(
+                        &text[span.start()..span.end()],
+                        "if(choose){tick(1)}else{tick(2)}"
+                    );
+                    assert!(receipts.is_empty());
+                    assert_eq!(trace.before_verifier, 0);
+                    assert_eq!(trace.pending_after, 0);
+                    continue;
+                }
                 let (program, _) = result.expect("actual closed-arm break");
                 verify_program(&program).unwrap();
                 assert_eq!(receipts.len(), 1);

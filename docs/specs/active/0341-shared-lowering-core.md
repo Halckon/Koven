@@ -17088,3 +17088,24 @@ CI-only borrowing 清单54项、child-cycle三个精确目标、父receipt两个
 concat/唯一 producer 与 tail-break 反例仍待远端双宿主动态验收，不能引用旧头CI。
 不扩大为一般入口、任意 producer、复杂退出、多根循环组合或跨轮借用；D10/E2整体
 仍未完成。普通正例和列举不能替代独立反例的实际拒绝/恢复证据。
+
+### tail-break 前置普通 CFG 的当前边界（2026-11-13）
+
+基于本地整合 `bf3a38ce` 核验循环前的顶层
+`if(choose){tick(1)}else{tick(2)}`，两臂仅调用接收 Int 的 Unit 函数，
+不创建或消费 String 资源。前端仍生成一个独立 tail-break fact；但
+`borrow_result_support::binding` 对整个函数执行 String 借用的 CFG frontier
+检查，前置 if 不属于获批双臂节点，实际 lowering 在该 if 的精确 span 返回
+`UnsupportedNode`。这不是 receipt 重放失败，也不能据前端 fact 宣称端到端支持。
+
+普通源码回归 `ordinary_loop_arm_tail_break_rejects_unapproved_prefix_cfg`
+覆盖 Own/Borrow 布尔参数、rooted/memory 输入及 observer on/off，检查错误种类、
+精确源码范围、未发布 receipt、未进入最终 verifier 且无 pending receipt。
+原无前置 CFG 的双臂闭合 tail-break 正例继续保留。本轮没有调整生产授权；
+前置 CFG 的 native 两臂执行仍未实现/验收，不能计入已有 native 覆盖。
+receipt 验证器允许 preheader 有前驱的结构设计，不等同于源码 frontier 已放开。
+
+本地验收：上述普通源码正/拒绝回归 2/2、原无前置 CFG 的 native 两臂
+零/一轮回归 1/1 通过；codegen observer-support all-target 严格 Clippy、
+格式、docs924、相对 `bf3a38ce` 的尺寸门禁及 diff 检查通过。
+没有执行故障注入，没有新增前置 CFG 的 native 通过证据，未推送。
