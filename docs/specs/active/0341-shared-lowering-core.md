@@ -17211,3 +17211,19 @@ D10 现有父 false-partition 普通测试新增 concat 入口组合：own seed�
 分别配部分清理与全部清理，共四组合。原根数 2、实际 false 清理数 1／2 断言保持，
 并核 concat 收据仅在 concat 路径恰好发布一次。定向普通测试通过；这补充此前
 concat 两根均保留的矩阵，不扩大生产范围，不改变 witness，不执行故障注入。
+
+### 独立 prefix 输入与模式交互本地整合（2026-11-13）
+
+基于已推送 `4158dcae` 隔离整合 E2 `fa508b39`、`81b83238` 与 D10
+`b951d605`。独立输入的真实后继资源运输修复、混合模式/共享Boolean普通矩阵、
+concat入口与父false部分/全部清理组合均保留。唯一冲突为Spec追加记录，双方完整
+保留；独立只读审查未发现确定遗漏，62项借用故障清单与旧runner入口保全。
+
+整合后 workspace all-target check、frontend/codegen observer-support all-target
+严格Clippy通过；codegen普通精确21/21、前端普通20/20通过，包含独立prefix输入、
+混合Borrow/Own与共享Boolean native、D10新组合及既有普通回归。格式、docs924、
+相对 `4158dcae` 的尺寸门禁与diff检查通过，未扩大语言形状或生产权限。
+
+CI-only借用清单62项、child-cycle三个目标、父receipt两个目标仅编译列举通过，
+none executed。未启用本地CI环境或执行故障注入，本批仅本地提交，未推送/合并；
+新增独立prefix三项反例仍待远端双宿主实际拒绝/恢复验收，完整D10/E2仍未完成。
