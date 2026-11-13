@@ -34,7 +34,6 @@ fn narrow_target_checks_physical_buffer_and_logical_length_bridge() {
         size_type,
         max_buffer_bytes: (1_u64 << (index_bits - 1)) - 1,
         malloc: Some(malloc),
-        abort: Some(abort),
         abort_helpers: Some(abort_helpers),
         abort_location: std::cell::RefCell::new(None),
         write: Some(write),

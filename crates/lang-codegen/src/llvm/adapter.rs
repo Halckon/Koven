@@ -64,9 +64,11 @@ use super::{
     type_map::TypeMap,
 };
 
+pub(super) use module_lowering::emit_verified_object;
+#[cfg(test)]
+pub(super) use module_lowering::render_verified_program;
 #[cfg(test)]
 pub(super) use module_lowering::render_verified_program_with_debug;
-pub(super) use module_lowering::{emit_verified_object, render_verified_program};
 
 struct ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
     context: &'ctx Context,

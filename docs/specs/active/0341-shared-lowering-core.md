@@ -17662,3 +17662,16 @@ initial-base。保留 SSA verifier、LLVM rendering 和六次有限 native 调�
 不再打印完整源码/SSA/LLVM，断言失败仍带 observer actions。当前头重新编译的
 完整 FQN exact 1/1、codegen all-target 严格 Clippy、fmt 与文档门禁通过；仅加强
 既有范围的回归证据，不是新增 producer 实现，未执行故障注入或推送。
+
+### LLVM 历史 dead-code 豁免收窄（2026-11-13）
+
+基于 `858cf230` 移除 LLVM 整模块 `allow(dead_code)`，将仅测试消费的
+render/smoke 入口及对应重导出限制为 `cfg(test)`；生产 object lowering 保留。
+移除无读取者的 `RuntimeAbi.abort` 缓存字段，保留 abort 声明、noreturn、
+AbortHelpers 构建与调用；窄目标测试同步去掉冗余字段初始化。SSA 的广域豁免
+仍待独立审计，本片不宣称完整退役或新增语言能力。
+
+最终代码 codegen observer-support all-target 严格 Clippy、fmt、diff 和
+文档门禁通过；四项普通完整 FQN exact（narrow target buffer/length、
+deterministic scalar render、debug IR mapping、call-initial native probe）4/4 通过。
+独立只读审查未发现阻断；故障注入未执行，未推送，远端双宿主 CI 待验证。

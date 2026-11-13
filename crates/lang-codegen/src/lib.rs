@@ -671,11 +671,9 @@ pub use native::{
     emit_native_constant_unit_object, emit_native_owned_unit_object, emit_native_unit_object,
 };
 
-// SPEC-0034 完成 SSA→LLVM adapter 后移除该暂时的未使用门禁。
-#[allow(dead_code)]
 mod llvm;
 
-// SPEC-0033 只建立 crate 内部 SSA；SPEC-0034 接入 lowering 后移除该暂时的未使用门禁。
+// Remaining SSA-only diagnostics/model witnesses still require a separate audit.
 #[allow(dead_code)]
 pub(crate) mod ssa;
 

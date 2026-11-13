@@ -13,6 +13,7 @@ use super::super::entry::NativeEntryPlan;
 use super::super::{LlvmAdapterError, configure_module, debug, entry, native_target_machine};
 use super::ModuleLowerer;
 
+#[cfg(test)]
 pub(crate) fn render_verified_program(
     program: &Program,
     native_entry: Option<NativeEntryPlan>,
@@ -30,6 +31,7 @@ pub(crate) fn render_verified_program(
     Ok(llvm_module.print_to_string().to_string())
 }
 
+#[cfg(test)]
 pub(crate) fn render_verified_program_with_debug(
     program: &Program,
     sources: &SourceMap,

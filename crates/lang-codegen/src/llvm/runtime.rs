@@ -46,7 +46,6 @@ pub(super) struct RuntimeAbi<'ctx> {
     size_type: IntType<'ctx>,
     max_buffer_bytes: u64,
     malloc: Option<FunctionValue<'ctx>>,
-    abort: Option<FunctionValue<'ctx>>,
     abort_helpers: Option<abort::AbortHelpers<'ctx>>,
     /// `  at path:line:column\n` for aborts emitted by the instruction being lowered.
     abort_location: RefCell<Option<String>>,
@@ -180,7 +179,6 @@ impl<'ctx> RuntimeAbi<'ctx> {
             size_type,
             max_buffer_bytes,
             malloc,
-            abort,
             abort_helpers,
             abort_location: RefCell::new(None),
             write,
