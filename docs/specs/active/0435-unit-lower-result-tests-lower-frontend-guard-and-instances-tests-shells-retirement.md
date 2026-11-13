@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0434](0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md) 完成 `verify_operation/map/tests`、`verify_ownership` 字段与生命周期测试及 `unit_lower` 闭包/类型原点测试壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批 `unit_lower/control` 及 `lower_frontend` 的孤立单文件测试与守卫壳模块：
+在 [SPEC-0434](../../archive/specs/0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md) 完成 `verify_operation/map/tests`、`verify_ownership` 字段与生命周期测试及 `unit_lower` 闭包/类型原点测试壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批 `unit_lower/control` 及 `lower_frontend` 的孤立单文件测试与守卫壳模块：
 
 1. `ssa/unit_lower/control/result_tests.rs`（428 行）：仅包含控制流上下文空值结果交付测试，可收敛入同目录 `ssa/unit_lower/control/conditional.rs`。
 2. `ssa/lower_frontend_map_item_operand_ssa_test_support.rs`（305 行）：仅包含 Map 条目返回操作数 SSA 结构断言辅助，可收敛入同父测试支撑 `ssa/lower_frontend_map_same_guard_unit_test_support.rs`。

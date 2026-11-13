@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 348 份"))
+ARCH(("已完成<br/>archive 349 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -73,7 +73,6 @@ subgraph Gactive["现行 active"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
   S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
-  S0434["S0434<br/>verify_operation/map/tests、verify_ownership 字段与生命周期测试及 unit_lower 闭包/类型原点测试壳子模块退役"]
   S0435["S0435<br/>unit_lower/control/result_tests、item_operand_ssa_test_support 及 lower_frontend 守卫与实例测试壳子模块退役"]
   S0436["S0436<br/>unit_lower 借用/编排/字段可空测试、verify_ownership/root_exchange_tests 及 lower_frontend 实例/闭包/待定调用/借用清理测试壳子模块退役"]
   S0437["S0437<br/>lambda_preflight_tests、outer_borrowed_while 守卫、key_return 身份及 lower_frontend 条件事实/所有权原语/局部迭代/可空载体/源闭包壳子模块退役"]
@@ -182,7 +181,6 @@ ARCH --> S0341
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
 | SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
-| SPEC-0434 | active | [0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md](active/0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md) |
 | SPEC-0435 | active | [0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md](active/0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) |
 | SPEC-0436 | active | [0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md](active/0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md) |
 | SPEC-0437 | active | [0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md](active/0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) |
@@ -207,4 +205,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（348 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（349 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
