@@ -17207,3 +17207,7 @@ native 新普通目标以全部八种模式、每种八组 prefix/choose/零一�
 未推送，未执行本地故障注入。
 本轮全部普通 tail-break SSA 5/5 与新 native 1/1、observer-support all-target
 严格 Clippy、格式、docs924、相对 `fa508b39` 的尺寸门禁及 diff 检查通过。
+D10 现有父 false-partition 普通测试新增 concat 入口组合：own seed／两 literal concat
+分别配部分清理与全部清理，共四组合。原根数 2、实际 false 清理数 1／2 断言保持，
+并核 concat 收据仅在 concat 路径恰好发布一次。定向普通测试通过；这补充此前
+concat 两根均保留的矩阵，不扩大生产范围，不改变 witness，不执行故障注入。

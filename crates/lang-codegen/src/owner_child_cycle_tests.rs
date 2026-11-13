@@ -162,26 +162,36 @@ fn initial_base_does_not_claim_used_roots_or_other_producers() {
 
 #[test]
 fn parent_composition_reuses_current_generation_false_partitions() {
-    for suffix in ["println(a)", ""] {
-        let source = source_with_initial_and_suffix("var a=seed;", suffix);
-        source.assert_frontend_clean();
-        let (result, actions) =
-            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
-        let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
-        crate::ssa::verify::verify_program(&program).unwrap();
-        assert!(
-            actions.iter().any(|(name, count)| *name
-                == "parent-generation-composition-ssa-complete"
-                && *count == 2),
-            "{actions:?}"
-        );
-        assert!(
-            actions
-                .iter()
-                .any(|(name, count)| *name == "nested-parent-false-ssa-complete"
-                    && *count == if suffix.is_empty() { 2 } else { 1 }),
-            "{actions:?}"
-        );
+    for initial in ["var a=seed;", "var a=\"left\"+\"right\";"] {
+        for suffix in ["println(a)", ""] {
+            let source = source_with_initial_and_suffix(initial, suffix);
+            source.assert_frontend_clean();
+            let (result, actions) =
+                crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+            let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
+            crate::ssa::verify::verify_program(&program).unwrap();
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(name, _)| *name == "parent-initial-concat-source-ssa-complete")
+                    .count(),
+                usize::from(initial.contains('+')),
+                "{actions:?}"
+            );
+            assert!(
+                actions.iter().any(|(name, count)| *name
+                    == "parent-generation-composition-ssa-complete"
+                    && *count == 2),
+                "{actions:?}"
+            );
+            assert!(
+                actions
+                    .iter()
+                    .any(|(name, count)| *name == "nested-parent-false-ssa-complete"
+                        && *count == if suffix.is_empty() { 2 } else { 1 }),
+                "{actions:?}"
+            );
+        }
     }
 }
 
