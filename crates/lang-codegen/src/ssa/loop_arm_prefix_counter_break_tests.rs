@@ -6,22 +6,40 @@ use lang_frontend::ownership_checking::{
 };
 #[test]
 fn ordinary_prefix_counter_break_transports_all_live_roles() {
-    for scenario in 0..3 {
-        for mask in 0..[16, 8, 4][scenario] {
+    check_prefix_counter_roles(0..3);
+}
+
+#[test]
+fn ordinary_prefix_counter_break_pairwise_roles() {
+    check_prefix_counter_roles(3..5);
+}
+
+fn check_prefix_counter_roles(scenarios: std::ops::Range<usize>) {
+    for scenario in scenarios {
+        for mask in 0..[16, 8, 4, 8, 8][scenario] {
             let mode = |bit| if mask & bit != 0 { "own " } else { "" };
-            let (rounds, choose, stop, before) = (mode(1), mode(2), mode(4), mode(8));
-            let prefix_parameter = if scenario == 0 {
+            let (rounds, choose, stop, before) = (
+                mode(1),
+                mode(2),
+                mode(4),
+                mode(if scenario == 4 { 4 } else { 8 }),
+            );
+            let prefix_parameter = if matches!(scenario, 0 | 4) {
                 format!("{before}before:Boolean,")
             } else {
                 String::new()
             };
-            let stop_parameter = if scenario < 2 {
+            let stop_parameter = if matches!(scenario, 0 | 1 | 3) {
                 format!("{stop}stop:Boolean,")
             } else {
                 String::new()
             };
-            let prefix_condition = ["before", "stop", "choose"][scenario];
-            let stop_condition = if scenario == 2 { "choose" } else { "stop" };
+            let prefix_condition = ["before", "stop", "choose", "choose", "before"][scenario];
+            let stop_condition = if matches!(scenario, 2 | 4) {
+                "choose"
+            } else {
+                "stop"
+            };
             let text = format!(
                 "fun tick(own n:Int):Unit {{}}\nfun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run({prefix_parameter}{rounds}rounds:Int,{stop_parameter}source:String,{choose}choose:Boolean):Unit {{if({prefix_condition}){{tick(1)}}else{{tick(2)}};var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}};if({stop_condition}){{break}};remaining=remaining-1}};consume(source)}}"
             );

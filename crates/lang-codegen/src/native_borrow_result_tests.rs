@@ -648,6 +648,15 @@ fun take(own source:String):Unit {println(source)}
 
 #[test]
 fn native_prefix_counter_break_preserves_paths_and_dead_flags() {
+    run_prefix_counter_roles(0..3, 504, "prefix-counter-break-paths-and-flags");
+}
+
+#[test]
+fn native_prefix_counter_break_pairwise_roles() {
+    run_prefix_counter_roles(3..5, 192, "prefix-counter-break-pairwise-roles");
+}
+
+fn run_prefix_counter_roles(scenarios: std::ops::Range<usize>, expected_calls: usize, label: &str) {
     let mut text = String::from(
         "fun tick(own n:Int):Unit {}\nfun view(source:String):borrow String from source=source\nfun left(item:String):Unit {println(\"L\");println(item)}\nfun right(item:String):Unit {println(\"R\");println(item)}\nfun take(own source:String):Unit {println(source)}\n",
     );
@@ -655,22 +664,31 @@ fn native_prefix_counter_break_preserves_paths_and_dead_flags() {
         String::from("fun entry(){val source=\"kept\".clone();val yes=true;val no=false;\n");
     let mut expected = String::new();
     let mut calls = 0;
-    for scenario in 0..3 {
-        for mask in 0..[16, 8, 4][scenario] {
+    for scenario in scenarios {
+        for mask in 0..[16, 8, 4, 8, 8][scenario] {
             let mode = |bit| if mask & bit != 0 { "own " } else { "" };
-            let (rounds, choose, stop, before) = (mode(1), mode(2), mode(4), mode(8));
-            let prefix_parameter = if scenario == 0 {
+            let (rounds, choose, stop, before) = (
+                mode(1),
+                mode(2),
+                mode(4),
+                mode(if scenario == 4 { 4 } else { 8 }),
+            );
+            let prefix_parameter = if matches!(scenario, 0 | 4) {
                 format!("{before}before:Boolean,")
             } else {
                 String::new()
             };
-            let stop_parameter = if scenario < 2 {
+            let stop_parameter = if matches!(scenario, 0 | 1 | 3) {
                 format!("{stop}stop:Boolean,")
             } else {
                 String::new()
             };
-            let prefix_condition = ["before", "stop", "choose"][scenario];
-            let stop_condition = if scenario == 2 { "choose" } else { "stop" };
+            let prefix_condition = ["before", "stop", "choose", "choose", "before"][scenario];
+            let stop_condition = if matches!(scenario, 2 | 4) {
+                "choose"
+            } else {
+                "stop"
+            };
             let function = format!("run{scenario}_{mask}");
             text.push_str(&format!(r#"fun {function}({prefix_parameter}{rounds}rounds:Int,{stop_parameter}source:String,{choose}choose:Boolean):Unit {{
  if({prefix_condition}){{tick(1)}}else{{tick(2)}}
@@ -685,16 +703,18 @@ fn native_prefix_counter_break_preserves_paths_and_dead_flags() {
                         for stop in [false, true] {
                             if (scenario == 1 && before != stop)
                                 || (scenario == 2 && (before != choose || stop != choose))
+                                || (scenario == 3 && before != choose)
+                                || (scenario == 4 && stop != choose)
                             {
                                 continue;
                             }
                             let name = |b| if b { "yes" } else { "no" };
-                            let prefix_argument = if scenario == 0 {
+                            let prefix_argument = if matches!(scenario, 0 | 4) {
                                 format!("{},", name(before))
                             } else {
                                 String::new()
                             };
-                            let stop_argument = if scenario < 2 {
+                            let stop_argument = if matches!(scenario, 0 | 1 | 3) {
                                 format!("{},", name(stop))
                             } else {
                                 String::new()
@@ -718,10 +738,10 @@ fn native_prefix_counter_break_preserves_paths_and_dead_flags() {
             }
         }
     }
-    assert_eq!(calls, 504);
+    assert_eq!(calls, expected_calls);
     entry.push_str("take(source)}");
     expected.push_str("kept\n");
     text.push_str(&entry);
-    let run = emit_link_and_run("prefix-counter-break-paths-and-flags", &text, "entry");
+    let run = emit_link_and_run(label, &text, "entry");
     super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
 }
