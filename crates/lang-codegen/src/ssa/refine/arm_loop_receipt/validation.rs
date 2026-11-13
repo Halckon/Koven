@@ -114,17 +114,14 @@ impl Emitted {
     }
     fn condition(
         &self,
-        body: &RefinedBody,
+        parameters: &[Slot],
         f: &Function,
         p: &Plan,
         i: usize,
         s: Span,
     ) -> Result<(), LoweringError> {
         let (b, slot) = p.used[i].ok_or_else(|| invalid(s))?;
-        let param = *body
-            .parameters
-            .get(p.roles[i + 1])
-            .ok_or_else(|| invalid(s))?;
+        let param = *parameters.get(p.roles[i + 1]).ok_or_else(|| invalid(s))?;
         let original = self.entity(b, param, s)?;
         let ids = self.ids(f, b, s)?;
         let actual = self
@@ -173,7 +170,7 @@ impl Emitted {
     }
     pub(super) fn validate(
         &self,
-        body: &RefinedBody,
+        parameters: &[Slot],
         f: &Function,
         p: &Plan,
         s: Span,
@@ -199,10 +196,7 @@ impl Emitted {
         let [actual_split, then_block, else_block] = p.split.ok_or_else(|| invalid(s))?;
         let join = p.join.ok_or_else(|| invalid(s))?;
         let source = p.source.ok_or_else(|| invalid(s))?;
-        if split != actual_split
-            || source != body.parameters[p.roles[0]]
-            || then_block == else_block
-        {
+        if split != actual_split || source != parameters[p.roles[0]] || then_block == else_block {
             return Err(invalid(s));
         }
         self.links(f, entry, &[header], s)?;
@@ -228,13 +222,13 @@ impl Emitted {
                 .get(&b)
                 .ok_or_else(|| invalid(s))?
                 .iter()
-                .any(|slot| !body.parameters.contains(slot))
+                .any(|slot| !parameters.contains(slot))
             {
                 return Err(invalid(s));
             }
         }
-        self.condition(body, f, p, 0, s)?;
-        self.condition(body, f, p, 1, s)?;
+        self.condition(parameters, f, p, 0, s)?;
+        self.condition(parameters, f, p, 1, s)?;
         if !self.ids(f, join, s)?.is_empty() || !self.ids(f, finished, s)?.is_empty() {
             return Err(invalid(s));
         }

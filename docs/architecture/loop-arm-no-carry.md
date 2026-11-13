@@ -32,3 +32,9 @@ API。builder 在真实 arm lowering 与 drop 后比较入口资源快照；缺�
 覆盖两种 choose 参数并确认返回后 source 可消费，不把零轮运行当作跨轮执行证明。
 跨臂借用、借用 phi、条件副作用、跳转、嵌套、多根及跨轮携带仍拒绝；不改变上述
 直线后端合同，也不以新事实代替旧 SSA verifier 或独立见证。
+
+
+独立收据保存 caller、参数身份和 emit 证据，可在不持有 builder/RefinedBody 时重放
+最终 Function。测试发布观察接入 whole-unit guard：最终 verifier 前只 pending，
+成功才发布，失败清空本轮 pending。CI-only 五项精确入口复用 borrowing fault runner
+与 macOS/Linux 矩阵；默认 ignored、GITHUB_ACTIONS 门控，本地只编译列举。

@@ -16799,3 +16799,20 @@ Clippy 通过。SSA 对照比较真实 observation 关闭后的产物，不编�
 接纳漏项；其 condition origin/块归属建议已补齐后重跑测试。docs923、fmt、diff
 与相对 3af4dcb4 的尺寸门禁通过，历史超限文件未增长。新增双臂 receipt 的专门
 CI 故障矩阵仍待后续建设/远端验证；本轮未本地运行故障注入，未推送或合入。
+
+### 双臂独立重放与 CI-only 故障入口（2026-11-13）
+
+收据现保存 caller、已捕获参数身份、arm 计划和实际 emit 证据，可脱离 builder 与
+RefinedBody 对最终 Function 重放；发布观察使用 whole-unit 原子 guard，最终 verifier
+成功前仅 pending。失败路径记录实际 pending 清空数量，不仅检查 published 为空。
+
+新增五项默认 ignored 且 GITHUB_ACTIONS 门控：三项对真实收据/最终 Function 的
+结构故障重放，涵盖两臂 End 缺失/交换、错误合流前驱、loan 携入 merge/backedge；
+另外两项在实际 finish 和最终 verifier 边界注入收据缺失及 MissingTerminator，
+核撤销、真实 verifier 结果分区与正常恢复。复用现有 borrowing fault exact 清单
+和 macOS/Linux 作业，不建立第二套重复 runner。本地仅编译/列举，不执行故障；
+本节尚不表示远端矩阵通过，前节普通运行证据对应先前实现提交。
+
+本地 exact `--list-only` 已编译并核对全部 41 项（新增 5 项），none executed；
+codegen all-target observer-support strict Clippy 通过。新增普通重放测试本轮同样
+只编译未运行。动态故障结果仍待双宿主 CI，不将列举成功计为故障验收通过。

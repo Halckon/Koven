@@ -12,7 +12,15 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallTarget, UnitExpressionId},
 };
 use std::collections::BTreeMap;
+#[cfg(test)]
+mod ci_tests;
+#[cfg(test)]
+mod publication;
 mod validation;
+#[cfg(test)]
+pub(crate) use publication::observe;
+#[cfg(test)]
+pub(in crate::ssa) use publication::{UnitPublication, before_final_verifier};
 fn invalid(s: Span) -> LoweringError {
     error(LoweringErrorKind::InvalidModel, s)
 }
@@ -286,7 +294,7 @@ impl Plans {
         }
     }
 }
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub(super) struct Emitted {
     selected: Vec<UnitLoopBranchNoCarryFact>,
     blocks: BTreeMap<BlockRef, BlockId>,
@@ -370,12 +378,15 @@ impl Emitted {
         }
         Ok(())
     }
+    #[allow(unused_mut)] // CI-only one-shot receipt-loss hook.
     pub(super) fn finish(
-        self,
+        mut self,
         body: &RefinedBody,
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
+        #[cfg(test)]
+        publication::before_finish(&mut self);
         if self.selected.len() != body.arm_loop_plans.loops.len()
             || self
                 .selected
@@ -386,8 +397,36 @@ impl Emitted {
             return Err(invalid(span));
         }
         for p in &body.arm_loop_plans.loops {
-            self.validate(body, function, p, span)?;
+            let receipt = Receipt {
+                caller: function.id,
+                evidence: self.clone(),
+                parameters: body.parameters.clone(),
+                plan: p.clone(),
+                span,
+            };
+            receipt.validate(function)?;
+            #[cfg(test)]
+            publication::record(receipt);
         }
         Ok(())
+    }
+}
+
+/// Replayable evidence: no builder state or live RefinedBody is needed.
+#[derive(Clone, Debug)]
+pub(crate) struct Receipt {
+    pub(crate) caller: FunctionId,
+    evidence: Emitted,
+    parameters: Vec<Slot>,
+    plan: Plan,
+    span: Span,
+}
+impl Receipt {
+    pub(crate) fn validate(&self, function: &Function) -> Result<(), LoweringError> {
+        if function.id != self.caller {
+            return Err(invalid(self.span));
+        }
+        self.evidence
+            .validate(&self.parameters, function, &self.plan, self.span)
     }
 }
