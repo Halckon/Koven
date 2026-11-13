@@ -16485,3 +16485,19 @@ CG all-target strict Clippy、workspace all-target check、fmt、docs915、diff 
 
 本地只编译及 `--list --ignored`：两个精确测试存在，未运行任何故障。普通父
 false native 精确回归 1/1 通过；CI 实际故障验收仍待推送后的两宿主运行，不标绿。
+
+### 父边界与借用故障覆盖次日合流（2026-11-13）
+
+以已发布0031abcc为基线，整合owner93382198至c9c2c090及借用710e73f0。
+保留双方追加验收记录；folding职责拆分位置接入nested body relocation，
+terminator同时保留loop/fresh-loop及parent-header核验，FE导出和双宿主CI入口取并集。
+未覆盖原借用事实、未恢复已拆出的旧函数，也未改变Preview或通用verifier。
+
+合流实测：workspace all-target check、FE/CG all-target strict Clippy通过；
+五项普通精确native（父false分区、nested root、child false、parent resume、
+retired-symbol新生命周期）5/5，父边界普通FE正反例2/2通过。
+36项借用故障及2项父receipt故障仅编译列举，未在本地执行；CI结果待推送后确认。
+清单脚本模拟runner单测10/10通过，不属于真实Rust故障验收。
+fmt、docs922、diff及以0031abcc为基线的尺寸门禁通过；2635手写Rust文件、
+37项历史超限继续报告，无新增豁免。独立合流只读审查无确定阻断。
+本批只证明受限父边界运输/消费，不宣称完整跨轮代际归纳。
