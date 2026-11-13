@@ -9,6 +9,9 @@ impl Emitted {
         retirement: &super::super::nested_body_receipt::Emitted,
     ) {
         let faults = [
+            OwnerFault::InitialConcatDuplicateInput,
+            OwnerFault::InitialConcatMissingDrop,
+            OwnerFault::InitialConcatEarlyDrop,
             OwnerFault::ChildCycleInitialSwap,
             OwnerFault::ChildCycleInitialConsumer,
             OwnerFault::ChildCycleParentTrueSwap,
@@ -54,6 +57,63 @@ impl Emitted {
         let first = root_index(p.header, p.roots[0]);
         let second = root_index(p.header, p.roots[1]);
         match fault {
+            OwnerFault::InitialConcatDuplicateInput
+            | OwnerFault::InitialConcatMissingDrop
+            | OwnerFault::InitialConcatEarlyDrop => {
+                let block_id = self.blocks[&p.initial_base.unwrap()];
+                let (producer, left) = function
+                    .instructions
+                    .iter()
+                    .find_map(|i| {
+                        if i.block != block_id {
+                            return None;
+                        }
+                        if let Operation::StringConcat { left, .. } = i.operation {
+                            Some((i.id, left))
+                        } else {
+                            None
+                        }
+                    })
+                    .expect("actual initial concat");
+                if fault == OwnerFault::InitialConcatDuplicateInput {
+                    let i = function
+                        .instructions
+                        .iter_mut()
+                        .find(|i| i.id == producer)
+                        .unwrap();
+                    i.operation = Operation::StringConcat { left, right: left };
+                } else {
+                    let drop = function.instructions.iter().find(|i|
+                        matches!(i.operation, Operation::Drop { owner } if EntityId::Value(owner) == left)
+                    ).unwrap().id;
+                    if fault == OwnerFault::InitialConcatMissingDrop {
+                        function
+                            .instructions
+                            .iter_mut()
+                            .find(|i| i.id == drop)
+                            .unwrap()
+                            .operation = Operation::PrintLiteral { bytes: vec![b'\n'] };
+                    } else {
+                        let block = function
+                            .blocks
+                            .iter_mut()
+                            .find(|b| b.id == block_id)
+                            .unwrap();
+                        let at = block
+                            .instructions
+                            .iter()
+                            .position(|id| *id == drop)
+                            .unwrap();
+                        block.instructions.remove(at);
+                        let before = block
+                            .instructions
+                            .iter()
+                            .position(|id| *id == producer)
+                            .unwrap();
+                        block.instructions.insert(before, drop);
+                    }
+                }
+            }
             OwnerFault::ChildCycleInitialSwap => {
                 let initial = p.initial_base.expect("selected base");
                 let a = root_index(p.parent_header, p.roots[0]);

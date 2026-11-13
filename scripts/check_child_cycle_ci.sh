@@ -10,7 +10,8 @@ cd "$(dirname "$0")/.."
 prefix=native_tests::boxed_enum_tests::unit_source::owner_multi_root_header_tests::counter_boundary::child_cycle
 for name in \
   ci_only_child_cycle_rejects_missing_evidence_and_transport_corruption \
-  ci_only_child_cycle_rejects_abort_topology_and_new_owner_corruption; do
+  ci_only_child_cycle_rejects_abort_topology_and_new_owner_corruption \
+  ci_only_initial_concat_rejects_source_cleanup_and_transport_corruption; do
   target="$prefix::$name"
   listing=$(cargo test --locked -j1 -p lang-codegen --lib "$target" -- --exact --ignored --list)
   [[ $(grep -Fxc "$target: test" <<< "$listing") == 1 ]]
@@ -19,5 +20,5 @@ for name in \
   fi
  done
 if [[ "$mode" == --list-only ]]; then
-  echo 'child cycle CI-only tests: 2 exact targets compiled/listed; none executed'
+  echo 'child cycle CI-only tests: 3 exact targets compiled/listed; none executed'
 fi

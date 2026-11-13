@@ -16974,3 +16974,14 @@ StringConcat，结果经既有 Alias 进入一个父循环根。必须独立核�
 父 header。输入清理完成后才成立入口无活动资源前提；运行 0/1/2 轮不替代该证明。
 不涵盖一般调用、clone、借用输入、具名输入或嵌套 concat，不扩大嵌套和复杂退出。
 若现有 FE owner/闭合事实不能承载，应保留不发布基例，而非仅放宽后端选择器。
+
+实施证据：FE 使用独立 `StringConcat` origin，planner 在真实 operand 正常完成和
+临时 Drop fact 存在后发布；replay 依赖这份发布事实，不自行重读清理指令。
+后端封存实际入口 producer，独立终检真实两输入唯一来源、唯一有序 Drop 和无逃逸。
+范围锁为入口总计一次 concat，不是每根无限增加 producer。
+普通 SSA 来源/父组合正例与 native 0/1/2 × 0/1/2 九组合均已通过；后者只作回归。
+CI-only 总计 37 类（concat fixture 另复用两类运输变异），三个精确目标仅本地列举，
+未执行故障。DuplicateInput 由原 producer 快照拒绝来源身份漂移，不宣称命中 distinct
+检查分支；MissingDrop/EarlyDrop 核实际清理链，待远端双宿主执行验收。
+后端普通 child-cycle 域最终 5/5 通过、3 ignored，codegen all-target 严格 Clippy 通过；
+文档 923 页与 Rust 尺寸门禁通过。未推送，新负例仍待远端验收。

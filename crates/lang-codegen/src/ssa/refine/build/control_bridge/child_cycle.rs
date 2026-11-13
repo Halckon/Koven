@@ -54,7 +54,7 @@ impl Builder<'_, '_> {
 }
 
 impl Builder<'_, '_> {
-    // Select only direct entry roots sourced by an own parameter or literal.
+    // Select direct entry own/literal roots or one concat of two literal temporaries.
     // Other initial producers retain existing lowering, without a base claim.
     fn initial_base(&self, nested: &NestedBody<'_>, roots: &[Slot]) -> Option<BlockRef> {
         let entry = nested.parent_initial.filter(|b| *b == BlockRef(0))?;
@@ -66,12 +66,25 @@ impl Builder<'_, '_> {
             .map(|s| (*s, *s))
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut used = std::collections::BTreeSet::new();
+        let mut literals = std::collections::BTreeSet::new();
+        let mut concat_count = 0;
         for statement in &block.statements {
+            concat_count += usize::from(matches!(statement.op, ROp::StringConcat { .. }));
             let source = match statement.op {
                 ROp::StringLiteral { .. } if statement.results.len() == 1 => {
+                    literals.insert(statement.results[0]);
                     Some(statement.results[0])
                 }
                 ROp::Alias { source } => known.get(&source).copied(),
+                ROp::StringConcat { left, right }
+                    if statement.results.len() == 1
+                        && left != right
+                        && literals.contains(&left)
+                        && literals.contains(&right) =>
+                {
+                    used.extend([left, right]);
+                    Some(statement.results[0])
+                }
                 _ => {
                     used.extend(
                         statement
@@ -90,9 +103,10 @@ impl Builder<'_, '_> {
                 }
             }
         }
-        roots
-            .iter()
-            .all(|r| known.get(r).is_some_and(|s| !used.contains(s)))
-            .then_some(entry)
+        (concat_count <= 1
+            && roots
+                .iter()
+                .all(|r| known.get(r).is_some_and(|s| !used.contains(s))))
+        .then_some(entry)
     }
 }

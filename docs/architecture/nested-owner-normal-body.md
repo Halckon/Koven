@@ -195,3 +195,6 @@ Exclusive 借用结束链；链检查与 parent 复用。组合选择另在 buil
 父组合另核实际 literal producer 在 resume 指令列表中恰好出现一次，避免仅首次位置
 检查漏掉重复成员。新增 CI-only 真实重复 producer ID 变异，由组合收据直接拒绝；
 不扩大语言形状，不替代 generic verifier，破坏性验收仅在远端 CI 执行。
+
+受限入口总计一次 concat 的来源、临时清理与运输合同，见
+[入口 concat 基例](nested-owner-initial-concat.md)。

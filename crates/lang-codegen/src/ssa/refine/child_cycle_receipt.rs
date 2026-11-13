@@ -2,6 +2,7 @@
 #[cfg(test)]
 mod faults;
 mod initial_base;
+mod initial_concat;
 mod parent_entry;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
@@ -106,6 +107,7 @@ pub(super) struct Emitted {
     entities: BTreeMap<BlockRef, Vec<EntityId>>,
     seen: BTreeMap<BlockRef, BTreeMap<Slot, EntityId>>,
     checked: Option<Checked>,
+    initial_sources: BTreeMap<EntityId, (InstructionId, Operation)>,
 }
 impl Emitted {
     pub(super) fn layout(
@@ -240,6 +242,27 @@ impl Emitted {
         if self.function != Some(function.id()) || self.seen.insert(role, current.clone()).is_some()
         {
             return Err(fail());
+        }
+        if Some(role) == p.initial_base {
+            for root in &p.roots {
+                let owner = *current.get(root).ok_or_else(fail)?;
+                if let crate::ssa::model::Definition::InstructionResult { instruction, .. } =
+                    function.entity(owner).ok_or_else(fail)?.definition
+                {
+                    let operation = function
+                        .instruction(instruction)
+                        .ok_or_else(fail)?
+                        .operation
+                        .clone();
+                    if self
+                        .initial_sources
+                        .insert(owner, (instruction, operation))
+                        .is_some()
+                    {
+                        return Err(fail());
+                    }
+                }
+            }
         }
         if role == p.body {
             let raw = body

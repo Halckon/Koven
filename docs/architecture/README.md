@@ -52,7 +52,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | loan、move、capture、drop facts | [所有权](ownership.md)、[Unit owner transport 观察](unit-owner-transport.md)、[受限 Choice value](unit-choice-transport.md)、[While body 与输入边界](unit-loop-owner-transport.md)、[不变输入循环边界](unit-invariant-loop-owner.md) |
 | 多根写入、私有 token 与清理证据 | [多根私有证据](unit-loop-root-evidence.md) |
 | 多根 false 出口后的实际消费 | [受限消费前缀](unit-loop-root-suffix.md) |
-| 计数控制的实际审计与桥接body | [counter 尾部](unit-loop-counter-audit.md)、[独立body消费](control-bridge-body.md)、[成员SSA receipt](control-chain-ssa-members.md)、[嵌套内层body](nested-owner-normal-body.md) |
+| 计数控制的实际审计与桥接body | [counter 尾部](unit-loop-counter-audit.md)、[独立body消费](control-bridge-body.md)、[成员SSA receipt](control-chain-ssa-members.md)、[嵌套内层body](nested-owner-normal-body.md)、[入口concat](nested-owner-initial-concat.md) |
 | 普通 loan acquisition、cleanup 投影与覆盖边界 | [Loan 实际动作源](unit-loan-action-source.md) |
 | 循环内有限 no-carry 借用及真实关闭 | [循环内 no-carry](loop-no-carry.md) |
 | 循环内双臂分别闭合与后端收据 | [双臂 no-carry](loop-arm-no-carry.md) |

@@ -38,10 +38,14 @@ impl Emitted {
                 }
                 Definition::InstructionResult { instruction, index } => {
                     let i = function.instruction(instruction).ok_or_else(fail)?;
-                    if index != 0
+                    if self.initial_sources.get(&owner) != Some(&(instruction, i.operation.clone()))
+                        || index != 0
                         || i.block != entry.id
                         || i.results != [owner]
-                        || !matches!(i.operation, Operation::StringLiteral { .. })
+                        || !matches!(
+                            i.operation,
+                            Operation::StringLiteral { .. } | Operation::StringConcat { .. }
+                        )
                         || entry
                             .instructions
                             .iter()
@@ -50,6 +54,15 @@ impl Emitted {
                             != 1
                     {
                         return Err(fail());
+                    }
+                    if matches!(i.operation, Operation::StringConcat { .. }) {
+                        super::initial_concat::verify(
+                            function,
+                            entry.id,
+                            instruction,
+                            owner,
+                            span,
+                        )?;
                     }
                 }
             }
