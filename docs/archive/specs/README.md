@@ -553,3 +553,4 @@
 - [SPEC-0447](0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md)：`unit_lower_receiver_tests`、`sequential_for_lowering_tests`、`nullable_operation_tests`、`unit_enum_regression_tests` 及 `lowering_entry_contract_tests` 子壳模块退役。
 - [SPEC-0448](0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md)：`map_provider_exits_pipeline_tests` 测试域叶子薄壳子模块批量退役（132 个）。
 - [SPEC-0449](0449-remaining-test-domains-leaf-shells-batch-retirement.md)：其余测试域叶子薄壳子模块批量退役（42 个）。
+- [SPEC-0450](0450-next-layer-leaf-and-sibling-shells-batch-retirement.md)：下一层叶子薄壳与同级测试小文件批量收敛（62 个）。

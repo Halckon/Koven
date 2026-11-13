@@ -1,15 +1,15 @@
 # SPEC-0450: 下一层叶子薄壳与同级测试小文件批量收敛（62 个）
 
-> **性质**：正式开发规范（Spec） · **状态**：in-progress · **读取时机**：收敛 `crates/lang-codegen/src/ssa` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/ssa/`
+> **性质**：正式开发规范（Spec） · **状态**：done · **读取时机**：收敛 `crates/lang-codegen/src/ssa` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/ssa/`
 
 | 字段 | 值 |
 |---|---|
 | 编号 | 0450 |
 | 标题 | 下一层叶子薄壳与同级测试小文件批量收敛（62 个） |
 | 版本目标 | v0.46 |
-| 状态 | in-progress |
+| 状态 | done |
 | 创建日期 | 2026-04-17 |
-| 完成日期 | - |
+| 完成日期 | 2026-11-13 |
 | 关联里程碑 | M2（借用系统）、M3（单线程完备） |
 | 关联迭代 | E3（单下降管道收敛） |
 | 关联 ADR | ADR-0006, ADR-0008, ADR-0032, ADR-0033 |
@@ -167,3 +167,16 @@
 
 1. 上述 62 个薄壳文件从物理树移除，全部非例外修改后 Rust 文件严格小于 1000 行。
 2. `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py` 与 `python3 scripts/check_rust_sizes.py --base main` 通过，手写 Rust 文件数从 `1895` 降至 `1833`。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 62 个纯叶子测试薄壳文件物理删除 | 通过 | 按 §2.2 清单逐个确认：62/62 个路径在当前树不存在 |
+| 收敛后父模块与同级宿主仍然存在且小于 1000 行 | 通过 | §2.1 表内 66 个宿主路径全部存在，实测最大 989 行，无超 1000 行项 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 62 | 受限通过 | 62 个文件删除已逐项核实；23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 完整默认配置 `3055 passed / 0 failed / 1 ignored`；feature 配置 `3117 passed / 0 failed / 1 ignored`；本批 62 个模块的测试包含在这两次全量执行中，未另跑独立定向重跑 |
+
+未覆盖项：未对 62 个模块逐个单点重跑（全量已覆盖），未跑 native/CLI/LSP 独立门禁，交由 CI 双平台 `Targeted Tests`。
