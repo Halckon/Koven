@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0444](0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md) 完成 `loan_region_ssa_tests` 首批 8 个薄壳文件收敛后，同域及 `range_lowering_tests` 下仍残留一批 138–338 行的薄壳测试文件：
+在 [SPEC-0444](../../archive/specs/0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md) 完成 `loan_region_ssa_tests` 首批 8 个薄壳文件收敛后，同域及 `range_lowering_tests` 下仍残留一批 138–338 行的薄壳测试文件：
 
 1. `ssa/temporary_loan_route_tests.rs`（138 行）：收敛入同域宿主 `ssa/parent_child_coverage_tests.rs`。
 2. `ssa/temporary_loan_receipt_tests.rs`（190 行）：收敛入同域宿主 `ssa/parent_child_coverage_tests.rs`。

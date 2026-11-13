@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 358 份"))
+ARCH(("已完成<br/>archive 359 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -73,7 +73,6 @@ subgraph Gactive["现行 active"]
   S0425["S0425<br/>nullable_if_cleanup、map_iteration、outer_borrowed_while、unit_lower 及 refine 壳子模块退役"]
   S0426["S0426<br/>unit_lower、map_iteration、map_consume 及 unit_plan 壳子模块退役"]
   S0427["S0427<br/>map_iteration、nullable_borrowed_cleanup、refine 及 lower_frontend 壳子模块退役"]
-  S0444["S0444<br/>loan_region_ssa_tests 下观察器、接收者、具名借用、临时借用兄弟及有限字面量测试壳子模块退役"]
   S0445["S0445<br/>loan_region_ssa_tests 下临时借用、绑定凭证、父子探针、多临时乘积及 range_lowering_tests/view_source 壳子模块退役"]
   S0446["S0446<br/>range_lowering_tests 下局部控制流、断言、支撑、比较边界及接收者测试壳子模块退役"]
   S0447["S0447<br/>unit_lower_receiver_tests、sequential_for_lowering_tests、nullable_operation_tests、unit_enum_regression_tests 及 lowering_entry_contract_tests 子壳模块退役"]
@@ -172,7 +171,6 @@ ARCH --> S0341
 | SPEC-0425 | active | [0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md](active/0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md) |
 | SPEC-0426 | active | [0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md](active/0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md) |
 | SPEC-0427 | active | [0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md](active/0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md) |
-| SPEC-0444 | active | [0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md](active/0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md) |
 | SPEC-0445 | active | [0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md](active/0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md) |
 | SPEC-0446 | active | [0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md](active/0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md) |
 | SPEC-0447 | active | [0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md](active/0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md) |
@@ -187,4 +185,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（358 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（359 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
