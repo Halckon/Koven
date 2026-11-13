@@ -6,13 +6,13 @@
 | --- | --- |
 | 编号 | SPEC-0424 |
 | 标题 | `borrow_result_support`、`orchestrate`、可空清理及 `lower_frontend` 壳子模块退役 |
-| 状态 | in-progress |
+| 状态 | done |
 | 所属阶段 | M4 Phase 4（SSA 代码生成与 E3 收口） |
 | 依赖 | SPEC-0416, SPEC-0417, SPEC-0418, SPEC-0419, SPEC-0420, SPEC-0421, SPEC-0422, SPEC-0423 |
 
 ## 1. 背景与目标
 
-紧接 [SPEC-0423](0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低辅助目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、可空清理证明与借用结果校验行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
+紧接 [SPEC-0423](../../specs/active/0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低辅助目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、可空清理证明与借用结果校验行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
 
 1. `borrow_result_support/ordinary_local.rs`（321 行）-> 并入 `borrow_result_support/local_if.rs`（702 行）；
 2. `lower_frontend/orchestrate/nullable_map_guard_support/prelude.rs`（323 行）-> 并入 `lower_frontend/orchestrate/nullable_map_guard_support/checkpoint.rs`（669 行）；
@@ -41,3 +41,25 @@
 1. 上述 8 个壳文件已从版本库移除，合并后的宿主文件均严格小于 1000 行（通过 `python3 scripts/check_rust_sizes.py --base main`）。
 2. `crates/lang-codegen/src/ssa/lowering_dependency_tests.rs` 中的所有存在性与依赖边界断言保持原样通过。
 3. `python3 scripts/gen_spec_dag.py` 与 `python3 scripts/check_docs.py` 检查通过。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 8 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：8/8 个路径不存在 |
+| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 1/8 个目标路径在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 ``cargo test -p lang-codegen --lib -- lower_frontend refine verify_ownership map_`（0411–0427 合并运行）` |
+| 退役提交已在基线中 | 通过 | b7c8b283 refactor(codegen): retire borrow_result_support, orchestrate, nullable cleanup and lower_frontend shells (SPEC-0424)（其余 7 个删除提交同批） |
+
+宿主核对说明：
+
+- `crates/lang-codegen/src/ssa/lower_frontend/orchestrate/nullable_map_guard_support/checkpoint.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/unit_receiver_two_phase_control_tests.rs`（`137` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/nullable_numeric_cleanup/carrier.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/lower_frontend_root_boundary_tests.rs`（`108` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/borrow_argument.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/mod.rs`（`677` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/local_storage.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/native_nullable_when_tests/replacement_if.rs`（`863` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/string_clone.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/statement_core.rs`（`7` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/ownership_primitive.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/integer_range_pending_tests.rs`（`517` 行）
+- `crates/lang-codegen/src/ssa/lower_frontend/nullable_if_cleanup/constant_presence/source.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/deinit_tests.rs`（`218` 行）
