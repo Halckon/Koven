@@ -17320,3 +17320,19 @@ memory与observer开关，真实native覆盖0/1/2轮与flag真假共24次调用�
 各1/1通过，原native96次也保持通过；不是新的跨轮借用或一般别名推导能力。
 后端observer-support all-target严格Clippy、格式、docs925、相对451cea25尺寸门禁
 与diff检查通过。仅本地提交，无推送，无CI环境启用或本地故障执行。
+
+### 标量入口false清理与共享break条件本地合批（2026-11-13）
+
+隔离分支基于 `451cea25` 复用D10 `1db5f5c5`、E2 `082ab500`/`888b7b4a`。
+核main仍为 `fbfb5a3a`、#420仍为 `4158dcae`；本批仅普通回归与证据，无生产
+扩展。双方Spec追加记录完整保留，独立只读复核无遗漏；71项CI清单及bridge唯一
+执行/独立列举策略未变。
+
+整合后workspace all-target check、frontend/codegen observer-support all-target
+严格Clippy通过；codegen普通完整FQN exact34/34、前端普通24/24通过，覆盖新增
+标量入口部分/全部false清理、共享Boolean条件SSA/native及全部先前精选普通回归。
+格式、docs925、相对 `451cea25` 的尺寸门禁、diff通过。
+
+统一71项及child-cycle/parent/scalar-owner/legacy-bridge独立入口均仅编译列举
+通过，none executed。未启用本地CI环境或执行故障，未推送/合并远端。动态反例
+仍待远端双宿主验收，不以普通交互回归替代D10/E2整体完成。
