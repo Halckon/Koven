@@ -3,11 +3,14 @@ use super::{UnitSource, assert_general_counter_baseline};
 
 #[test]
 fn parent_false_receipt_partitions_live_and_retired_roots() {
-    for (suffix, live, retired) in [
-        ("println(a); println(b)", 2, 0),
-        ("println(b)", 1, 1),
-        ("", 0, 2),
+    for (suffix, keep_a, keep_b) in [
+        ("println(a); println(b)", true, true),
+        ("println(b)", false, true),
+        ("println(a)", true, false),
+        ("", false, false),
     ] {
+        let live = usize::from(keep_a) + usize::from(keep_b);
+        let retired = 2 - live;
         let text = format!(
             r#"fun run(outer: Int, inner: Int, own seed: String) {{
             var a=seed; var b="b"; var n0=outer; var g0=n0>0;
@@ -35,6 +38,22 @@ fn parent_false_receipt_partitions_live_and_retired_roots() {
             ),
             (live, retired)
         );
+        if keep_a && !keep_b {
+            // This is the reverse partial partition: retire the root actually
+            // replaced by parent resume, not merely any one of two String roots.
+            let resumed = product.parent_resume_write().expect("parent resume").root();
+            let (survivors, drops) = p.false_exit_partition();
+            assert!(!survivors.contains(&resumed));
+            assert_eq!(drops.len(), 1);
+            assert_eq!(
+                drops[0].target(),
+                lang_frontend::ownership_checking::UnitDropTarget::Named(resumed)
+            );
+            assert_eq!(
+                drops[0].point(),
+                lang_frontend::ownership_checking::UnitDropPoint::LoopExit(p.control())
+            );
+        }
         let (lowered, actions) =
             crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
         let (program, _) = lowered.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
@@ -62,10 +81,10 @@ fn parent_false_receipt_partitions_live_and_retired_roots() {
             ("inner-a", "outer-b"),
             ("seed", "outer-b"),
         ] {
-            if live == 2 {
+            if keep_a {
                 expected.push_str(&format!("{a}\n"));
             }
-            if live > 0 {
+            if keep_b {
                 expected.push_str(&format!("{b}\n"));
             }
         }
