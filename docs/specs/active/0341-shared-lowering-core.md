@@ -16965,3 +16965,12 @@ CI-only 仅编译与精确列举：既有 borrowing manifest 47 项、child-cycl
 父组合另核实际 literal producer 在 resume 指令列表中恰好出现一次，避免仅首次位置
 检查漏掉重复成员。新增 CI-only 真实重复 producer ID 变异，由组合收据直接拒绝；
 不扩大语言形状，不替代 generic verifier，破坏性验收仅在远端 CI 执行。
+
+### D10 直线入口受限 concat 基例（实施中）
+
+本轮仅选择直接函数入口、两个不同 String literal 临时 owner 的单次
+StringConcat，结果经既有 Alias 进入一个父循环根。必须独立核实际 producer、
+两个输入的来源和只读使用、concat 后各自唯一 Drop、结果不逃逸且完整送入
+父 header。输入清理完成后才成立入口无活动资源前提；运行 0/1/2 轮不替代该证明。
+不涵盖一般调用、clone、借用输入、具名输入或嵌套 concat，不扩大嵌套和复杂退出。
+若现有 FE owner/闭合事实不能承载，应保留不发布基例，而非仅放宽后端选择器。
