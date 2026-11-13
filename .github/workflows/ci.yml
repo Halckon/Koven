@@ -366,6 +366,8 @@ jobs:
         run: bash scripts/check_parent_receipt_ci.sh
       - name: Independent child cycle receipt faults (CI only)
         run: bash scripts/check_child_cycle_ci.sh
+      - name: Verify legacy scalar entry observation ordering (CI only)
+        run: bash scripts/check_bridge_scalar_entry_ci.sh
       - name: Verify scalar owner entry corruption fails independently
         run: bash scripts/check_scalar_owner_entry_ci.sh
       - name: Observe final Linux composition disk usage

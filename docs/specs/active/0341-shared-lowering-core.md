@@ -17243,3 +17243,8 @@ own/literal 根 × Boolean 默认/own 模式，native 覆盖两种根来源 × �
 0/1/2，共 36 组。原 child recurrence、concat native、父 false 清理三个普通 exact
 回归通过，frontend/codegen all-target 严格 Clippy 通过。新六类故障仅编译列举，待远端双宿主
 exact 实跑；有限执行不替代逐边身份与无重入证明。未扩 concat/一般producer/复杂退出。
+
+旧 `ci_only_bridge_scalar_entry_requires_actual_ordered_completion` 已补默认 ignored 与
+GitHub Actions 环境门控，并由双宿主 exact runner 保留实际覆盖；本地修复验证仅
+编译列举（none executed）。此前宽过滤误执行已记录并报告，后续普通验证只用完整
+FQN `--exact`，不能用“CI-only”名称替代执行隔离。
