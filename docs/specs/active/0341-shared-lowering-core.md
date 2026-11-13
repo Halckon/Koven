@@ -17227,3 +17227,16 @@ concat入口与父false部分/全部清理组合均保留。唯一冲突为Spec�
 CI-only借用清单62项、child-cycle三个目标、父receipt两个目标仅编译列举通过，
 none executed。未启用本地CI环境或执行故障注入，本批仅本地提交，未推送/合并；
 新增独立prefix三项反例仍待远端双宿主实际拒绝/恢复验收，完整D10/E2仍未完成。
+
+### 最小prefix修复批次对齐新main（2026-11-13）
+
+为先合入一批，隔离复用 `afabb0b1`（独立prefix输入修复及已验证普通回归），
+无冲突合入main `fbfb5a3a`。独立复核确认相对 `4158dcae` 只增加既定修复/回归
+和main五文件变更，未夹带后续标量owner入口、counter条件break或其他新功能。
+
+最新共同基线下workspace all-target check、frontend/codegen observer-support
+all-target严格Clippy、普通codegen完整FQN exact25/25、前端普通20/20通过；
+包含新main四项nullable/Map定向检查。格式、docs924、相对新main尺寸门禁与diff
+通过。62项借用故障清单、child-cycle三目标与父receipt两目标仅编译列举通过，
+none executed；未启用本地CI环境或执行故障。推送后必须核对新head对应PR事件
+双宿主CI，旧head结果不替代本批动态验收；当前不宣称已合并或D10/E2整体完成。
