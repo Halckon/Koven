@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0428](0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md) 完成 `model/constant`、`render/types`、`verify_ownership/map`、`provider`、`refine` 及 `lower_frontend` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批仅向父模块或同层模块暴露私有实现的薄壳文件：
+在 [SPEC-0428](../../archive/specs/0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md) 完成 `model/constant`、`render/types`、`verify_ownership/map`、`provider`、`refine` 及 `lower_frontend` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批仅向父模块或同层模块暴露私有实现的薄壳文件：
 
 1. `ssa/lower_frontend/map_iteration/carrier.rs`（473 行）：仅向 `map_iteration` 暴露 Map 迭代载体与证据校验，可收敛入 `ssa/lower_frontend/control/map_frames.rs`。
 2. `ssa/lower_frontend/map_iteration/checked.rs`（474 行）：仅向 `map_iteration` 与 `lower_frontend` 暴露受检 Map 运输与嵌套祖先校验，可收敛入 `ssa/lower_frontend/map_iteration/conditional.rs`。
