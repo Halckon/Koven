@@ -17359,3 +17359,240 @@ parent/child generation，含 42 次有限 native 源函数调用。故障注入
 fmt、文档结构（924 Markdown）、相对 main 尺寸门禁和 diff 检查通过；2680 手写
 Rust 文件，36 项历史超限不变。最后仅追加本段验收记录，D10/E2 仍 in-progress；
 本批保持本地提交，不推送、不发 PR，也不以普通结果替代 CI-only 动态拒绝证据。
+
+### D10 标量分支入口基例（已批准，实施中）
+
+父 while 前仅一个无资源副作用的标量 if/else；两臂沿用可证明为空体的 Int→Unit
+调用，禁止 owner 参数传递、借用、重新赋值及额外 producer。初始根只允许 own
+参数或 literal，不叠加 concat。分别封存真实 entry/split/双臂/join 与父 header
+身份，逐边证明完整 owner 向量保持，唯一前驱集合且退出不可重入入口区域。
+该入口证明接续原 child/parent recurrence，不更改其正常回边、false 或 abort 合同。
+不得以 raw 块形状猜测、有限轮执行或 E2 的其他合同代替 D10 所需独立证据。
+不涵盖一般 producer、更深嵌套、额外前缀控制流及复杂退出；CI 故障仅远端执行。
+
+D10 标量入口实现已完成：FE 两个完整 FQN 普通正/负例通过；后端普通 SSA 覆盖
+own/literal 根 × Boolean 默认/own 模式，native 覆盖两种根来源 × 两臂 × outer/inner
+0/1/2，共 36 组。原 child recurrence、concat native、父 false 清理三个普通 exact
+回归通过，frontend/codegen all-target 严格 Clippy 通过。新六类故障仅编译列举，待远端双宿主
+exact 实跑；有限执行不替代逐边身份与无重入证明。未扩 concat/一般producer/复杂退出。
+
+旧 `ci_only_bridge_scalar_entry_requires_actual_ordered_completion` 已补默认 ignored 与
+GitHub Actions 环境门控，并由双宿主 exact runner 保留实际覆盖；本地修复验证仅
+编译列举（none executed）。此前宽过滤误执行已记录并报告，后续普通验证只用完整
+FQN `--exact`，不能用“CI-only”名称替代执行隔离。
+### 已批准的 counter 双臂闭合后条件 break（2026-11-13）
+
+本次仅在既有同源 bounded counter 两臂借用各自关闭之后加入一个稳定 Boolean
+参数控制的 `if(stop){break}`，随后非 break 路径执行原 `remaining=remaining-1`
+与回边。循环前仍是 `var remaining=rounds`，条件仍是 `remaining>0`；原单次
+取得/关闭、计数下降及 checked arithmetic 合同不变。该 if 无 else、标签、return、
+continue、额外借用或嵌套，不与 prefix、任意跳转或多根循环组合授权混同。
+
+前端须独立封存条件 break 的真实控制、清理与目标及两臂闭合事实；后端须记录
+真实 stop 分支/退出、非 break 递减/回边以及完整前驱与根身份，独立 receipt
+证明两条路径，缺失证据失败封闭。普通真实 SSA/native 覆盖0/1/2轮×双臂×stop
+真假，确认结束后源仍可读并最终消费；反例故障只编译列举，禁止本地执行。
+先核对并复用 main 与 `afabb0b1`/各现有分支，分步本地提交，不推送、不外发。
+
+前端本地提交 `23ee3ceb` 已建立独立新域；实际记录 break 前后状态/清理和
+非 break 路径的递减完成，再核两出口资源状态。DropPlanner 单独核 transfer、
+条件体深度、继续路径 body cleanup 与 LoopExit，旧 counter/pair/tail-break 的
+owned 查询不能接收新域嵌入事实。前端新旧普通11项与严格 all-target Clippy通过，
+独立只读复核暂未发现确定误授予或漏清理。普通后端验收在 `486977d6`，
+生产实现 `58949c74` 已接通独立双出口 receipt；新普通 SSA 完整 FQN 精确执行
+通过（8种参数模式 × rooted/memory × observer），真实 native 96组合通过，
+涵盖0/1/2轮、两臂、stop真假及源的最终消费。源码拒绝测试的正例专用分析
+helper 已由 `d6f655cd` 修正为显式接受前端失败封闭，不放宽生产授权。拒绝
+普通测试、两函数独立 receipt 发布/重放普通测试各1/1，既有5项普通精确回归
+均通过。后端 all-target 严格 Clippy、格式、docs924、尺寸及 diff 门禁通过。
+
+CI-only 提交 `6b0a56b0` 新增8个显式 ignored 故障入口，包含真实 stop极性、
+错误退出、继续回边、两臂End，以及实际BorrowCall替换另一活跃同类型String根；
+缺capture/receipt和最终verifier失败要求撤销后恢复。清单70项仅编译列举通过，
+none executed；这些反例实际拒绝/恢复仍待远端，不能称已通过。所有成果仅本地
+提交，未推送。本树整合后的 crates 与清单逐文件等同后端通过验证的提交。
+
+本地后续动态测试仅用已检查为普通的完整 FQN + `--exact`，不使用宽过滤；
+CI-only 只允许编译列举，CI/GITHUB_ACTIONS 未启用。
+
+### D10标量入口与counter条件break整合验收（2026-11-13）
+
+以 `afabb0b1` 为基底复用D10 `ac4447f8`、E2 `ac3f864c`；双方Spec、导出及
+CI入口保全。核实main已前进至 `fbfb5a3a` 后，在隔离分支无冲突合入其五文件
+nullable/Map修复；独立复审确认合并补丁与main完全一致，无D10/E2遗漏。
+
+含新main的整合头通过workspace all-target check及frontend/codegen observer-support
+all-target严格Clippy。普通codegen完整FQN exact31/31、前端普通24/24通过，包含
+D10标量入口SSA/native36组合、条件break两路径及native、旧域回归和main四项
+nullable/Map定向检查；前端两个标量入口lib目标只用完整FQN exact，未宽过滤故障。
+格式、docs925、相对新main尺寸门禁及diff检查通过。
+
+首次CI-only列举发现旧bridge scalar被隔离为ignored后落入统一前端scope却未登记。
+修复为71项清单唯一登记，独立bridge工作流步骤保留但仅list-only，实际执行归统一
+borrow gate，避免每宿主重复。两项新增纯Python清单/工作流回归及原门禁测试共12/12
+通过；其FakeRunner输出不是Rust故障执行。独立复核确认无漏跑或双跑。
+
+修复后71项统一清单、child-cycle三目标、父receipt两目标、scalar-owner目标与旧
+bridge目标均仅编译列举通过，none executed；旧bridge属于71项，不另计新增故障。
+未启用本地CI环境或执行故障注入，未推送/合并远端。D10新标量入口六类、E2条件
+break八项及尚未推送旧批次反例仍待双宿主动态验收，D10/E2整体不标完成。
+
+D10 后续普通组合验证（基线 `451cea25`）：scalar prefix × own/literal 根 ×
+单根保留/全根 false 清理四组合，通过完整 FQN `--exact` 测试 1/1；同轮核验
+入口、初始基例、父组合及对应 false 清理数量收据。仅增加普通回归，无生产选择
+扩展，无本地故障注入；docs 925 文件通过，改动测试文件 154 行，未推送。
+### 条件 break 与双臂共用稳定 Boolean 的普通交互（2026-11-13）
+
+在本地整合 `451cea25` 上补 `082ab500`：已批准 counter+条件break 形状的
+双臂条件与stop条件可引用同一稳定Boolean参数，而不是两个独立参数。未改变
+生产实现、授权或语法，不引入prefix/嵌套/额外跳转。原独立参数8模式普通矩阵
+保留并复用测试helper；新增共享参数4种Borrow/Own模式，真实SSA覆盖rooted/
+memory与observer开关，真实native覆盖0/1/2轮与flag真假共24次调用，核验break
+与继续路径、循环后读取及最终消费。两新普通完整FQN与两旧普通完整FQN精确执行
+各1/1通过，原native96次也保持通过；不是新的跨轮借用或一般别名推导能力。
+后端observer-support all-target严格Clippy、格式、docs925、相对451cea25尺寸门禁
+与diff检查通过。仅本地提交，无推送，无CI环境启用或本地故障执行。
+
+### 标量入口false清理与共享break条件本地合批（2026-11-13）
+
+隔离分支基于 `451cea25` 复用D10 `1db5f5c5`、E2 `082ab500`/`888b7b4a`。
+核main仍为 `fbfb5a3a`、#420仍为 `4158dcae`；本批仅普通回归与证据，无生产
+扩展。双方Spec追加记录完整保留，独立只读复核无遗漏；71项CI清单及bridge唯一
+执行/独立列举策略未变。
+
+整合后workspace all-target check、frontend/codegen observer-support all-target
+严格Clippy通过；codegen普通完整FQN exact34/34、前端普通24/24通过，覆盖新增
+标量入口部分/全部false清理、共享Boolean条件SSA/native及全部先前精选普通回归。
+格式、docs925、相对 `451cea25` 的尺寸门禁、diff通过。
+
+统一71项及child-cycle/parent/scalar-owner/legacy-bridge独立入口均仅编译列举
+通过，none executed。未启用本地CI环境或执行故障，未推送/合并远端。动态反例
+仍待远端双宿主验收，不以普通交互回归替代D10/E2整体完成。
+
+### D10 单 concat 与标量入口组合（已批准，实施中）
+
+允许既有直线入口唯一一次两原生 literal String concat，先完成两个输入临时值的
+独立清理，再经过既有无资源标量 if/else，将完整根 owner 向量逐臂带入父 header。
+必须同时保留 concat 实际来源/唯一使用/清理顺序与无逃逸、scalar entry 唯一前驱/
+无重入、child 归纳及 parent 组合收据，不能仅删除旧 selector 或复用有限运行结果。
+不允许第二个或嵌套 concat、一般调用 producer、借用输入、额外控制流或复杂退出。
+本批基于 `a95d095c` 独立开发，仅本地提交，故障反例只允许远端 CI 执行。
+
+组合实现本地证据：FE 两项新普通正负例及两项旧入口回归完整 FQN exact 4/4 通过；
+后端新增普通SSA覆盖concat位于任一根×两根保留/部分清理/全部清理六组合，四类
+来源及组合收据全部命中；18次双臂×outer/inner 0/1/2 native执行通过，两项旧scalar
+exact回归通过。此前普通红例显示旧路径不发布组合收据。新增九类CI-only反例
+仅准备远端验收，不以本地有限执行代替静态归纳。frontend/codegen all-target 严格Clippy通过；两个CI-only exact目标仅编译列举、none executed，旧direct concat native回归也通过。尺寸门禁2690个Rust文件、36处旧欠账通过，docs925文件通过。远端九类组合故障仍待实跑，本批未推送。
+
+D10 concat 独立来源/清理收据补强：原位置检查仅核 entry 内的唯一出现，未自行
+排除同一 InstructionId 被另一 block 再次挂载。通用 SSA verifier 已检查该结构，
+但不能代替独立 concat 证据；将对 literal/concat/Drop 各指令核全函数唯一挂载且
+位于真实 entry。新增 CI-only 重复 Drop 挂载反例，直接要求 concat receipt 拒绝；
+本地仅编译列举并跑完整 FQN 普通回归，不执行故障。选择范围和生产 lowering 不变。
+
+该挂载补强已完成本地验证：组合六情况SSA及直线concat普通完整FQN exact各1/1
+通过；codegen all-target严格Clippy通过。两份CI runner共五个ignored exact目标
+仅编译列举（none executed），重复挂载反例仍待远端。独审确认原独立证明缺口与
+修复闭合，不代表非法源码曾绕过通用verifier；未改变选择范围/降低过程。docs925
+文件、尺寸门禁2690文件/36处历史超限通过，本批仅本地提交，未推送。
+### 已批准的 scalar prefix + counter 条件 break 组合（2026-11-13）
+
+用户明确批准在既有有界counter双臂闭合与单一稳定Boolean条件break之前，组合
+既有无资源标量if/else前缀。仅接受现有前缀已证明的纯标量/空Unit函数形状，
+不放宽为I/O、未知callee、借用或资源操作；函数顺序为prefix、counter初始化、
+原循环，再接既有后继。其余counter/两臂/条件break限制全部保持，不授权嵌套、
+额外跳转或一般多循环组合。历史“不与prefix组合”记录描述当时边界，本节仅
+覆盖此新增明确批准组合。
+
+前端须证明prefix两路无资源副作用且汇合资源状态一致，再独立验证原counter
+继续/退出状态与清理。后端须实际捕获prefix join→counter init→header链及完整
+前驱，不能用布局猜测；prefix独立Boolean最后使用后可裁剪，但活跃counter、
+choose/stop、资源根与身份必须保留。两出口运输与后继无重入验证保持。组合
+必须拥有独立必需证据与选取/发布责任，不能用旧域事实绕过prefix或break证明。
+普通SSA/native覆盖独立与共享Boolean、Borrow/Own参数、两prefix路径、0/1/2轮、
+双臂和stop真假；越界源码继续拒绝。故障仅CI编译列举，不在本地执行。
+本轮基于 `a95d095c` 独立树复用已有成果，Spec先行、分步本地提交，不推送。
+
+实施前普通源码红证据：新前端 `prefix_counter_break_seals_independent_composition`
+完整FQN精确执行，Single checker在两处borrow marker报告L0164（未证loop
+continuation），0 passed/1 failed。这不是故障注入；普通后端验收先行提交
+`96159f1b`，其中504个native调用仍为待执行计划，不是通过记录。
+
+前端组合API在 `063dd6d8` 独立发布 `UnitLoopPrefixCounterBreakFact`，嵌入旧域
+见证不获得旧域owns授权。独立静态复审发现prefix后scalar初始化可能误扩旧
+tail-break前缀域，已以expected initializer精确匹配和旧域发布限定None修正，
+并新增普通拒绝回归；Single/Unit初始化事件另加单调失效保护，后者不是已证
+合法源码漏洞。最终复审未发现其他确定遗漏。此前核心普通正/拒绝各1/1通过，
+最终修复已重新精确执行6个普通测试全通过（新组合2、旧域init扩张拒绝1、旧
+prefix/counter-break/counter各1），observer-support all-target严格Clippy通过。
+`7bdab837` 将statement调度机械拆出以保持尺寸预算；独审确认调用顺序与分支
+不变，尺寸门禁通过。后端组合实际receipt与新native仍待接通验证。
+
+
+后端生产 `ba684b2b` 独立组合required/selected/receipt已接通；新普通SSA 28种
+参数/共享角色组合（rooted/memory、observer开关）完整FQN精确执行1/1通过，
+真实native 504调用1/1通过，七项旧prefix/counter/条件break普通exact均通过。
+两位独立只读审查确认prefix裁剪保留共享stop，实际join→init→header链和资源
+身份没有确定遗漏；本地整合 `48d93615` 的crates逐文件与已验证生产提交相同。
+普通双receipt、CI-only反例编译列举与最终严格Clippy尚待完成；没有推送。
+
+
+最终本地组合验收：后端 `d9e9abf8` 增加普通独立双receipt fixture及8个显式
+ignored的CI-only反例；独立prefix/共享stop各两函数的普通发布与重放exact实际
+1/1通过。每函数selected身份数为1、unit发布总数为2，已由普通fixture验证。
+切换工作树曾命中旧target产物而得到exact匹配0及缺新清单项，这两次结果已
+丢弃、不计通过；强制当前源码重新编译后才取得上述实际1/1与完整清单结果。
+codegen observer-support all-target严格Clippy通过；79项借用故障清单仅编译
+列举通过，none executed。真实28模式SSA、504调用native和七项旧域exact证据
+保持，格式、docs925、尺寸与diff检查通过。本地整合 `d6327122` 的全部crates
+及清单逐文件等同后端已验证提交。8项新CI反例动态拒绝/恢复仍待远端，本轮
+未推送、未本地执行故障，不能借此前#420旧head的CI声称新组合已远端验收。
+
+### concat标量入口与prefix-counter组合本地整合（2026-11-13）
+
+隔离树复用 `a95d095c`、D10 `ed02988c` 与E2 `97772be6`；main `fbfb5a3a`
+已为祖先，原PR工作树与远端 `0a13dd7f` 不变。仅Spec追加冲突，双方合同/证据
+完整保留；独立复核未见代码、清单或独立runner遗漏，bridge去重策略保持。
+
+workspace all-target check、frontend/codegen observer-support all-target严格Clippy
+通过；codegen普通完整FQN exact39/39、前端普通29/29通过，覆盖新concat入口
+组合及唯一挂载正例、prefix-counter独立事实/SSA/native/收据重放、旧域和main
+定向回归。验证脚本曾按旧tail-break前缀suite预期3项停止，实际新增第四项普通
+回归已4/4通过；更新仓库外计数后完成剩余检查，未删减测试或运行故障。
+
+格式、docs925、相对 `a95d095c` 尺寸门禁与diff通过。统一79项故障清单、
+child-cycle三目标、父receipt两目标、scalar-owner两目标及旧bridge目标均仅
+编译列举通过，none executed；bridge为统一清单内同一目标，不重复动态执行。
+本轮未启用本地CI环境、未运行故障、未推送/合并。新组合和指令唯一挂载反例仍待
+远端双宿主实际拒绝/恢复证据，普通组合通过不代表D10/E2整体完成。
+
+D10 三根普通组合回归（基于 `d28ca8a2`）：先核实际 admission 要求 roots>=2、
+child 每根一个 Replace、parent resume 单根修改且其他根逐根保留，不扩“child内
+未修改根”能力。新增 concat/literal/own 参数三根来源，child全改而parent只改b，
+a/c保留child当前代；真实FE三根/三step/三recurrence与SSA来源/入口/父组合收据
+完整FQN exact 1/1通过，双臂×outer/inner0/1/2共18次native exact 1/1通过。
+仅测试及文档，未改生产、未运行故障、未推送；本轮未单独重跑Clippy。
+
+### 前缀与循环控制的两种剩余身份分区（2026-11-13）
+
+基于 `d28ca8a2` 静态核查未发现必须修生产的确定缺陷；普通测试 `8a4739c9`
+补齐prefix=choose且stop独立、choose=stop且prefix独立两种参数身份组合。前者
+独立检查choose活性保留，不能靠共享stop规则兜底；后者同时检验独立prefix
+裁剪和循环双角色共享。保持已有单源、两臂闭合、counter与条件break形状，
+不是一般别名推导、跳转嵌套或新资源根授权。
+新增16种Borrow/Own模式的真实SSA(rooted/memory、observer开关)与192次native
+调用分别完整FQN exact实际1/1通过；原28模式SSA与504次native也分别实际1/1
+通过，共四项普通测试。切树后强制当前源码重编并检查实际匹配1，不接受零
+匹配结果。仅测试和Spec改动，未推送、未启用CI或执行本地故障。
+
+后端observer-support all-target严格Clippy、格式、docs925、相对d28ca8a2尺寸
+门禁与diff检查通过。
+
+### 三根与两两Boolean身份普通合批验收（2026-11-13）
+
+隔离基线 `d28ca8a2` 整合D10 `1fb3cfb0` 与E2 `8a4739c9`/`f178ec60`，
+仅Spec追加冲突，双方记录完整；独立复审无遗漏，79清单与runner去重策略不变。
+workspace all-target check、frontend/codegen observer-support all-target严格Clippy、
+codegen普通完整FQN exact43/43、前端普通29/29通过。格式、docs925、相对基线
+尺寸门禁与diff通过。79统一清单及所有独立目标仅编译列举通过，none executed。
+本批无生产扩展，未本地运行故障、未推送，不改变#420最小批次；动态反例仍待CI。

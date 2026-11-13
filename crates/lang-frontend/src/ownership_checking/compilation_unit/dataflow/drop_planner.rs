@@ -233,6 +233,7 @@ fn plan_with_observations(
 }
 
 struct DropPlanner<'a, 'checker> {
+    scalar_entry: Option<owner_transport::loops::scalar_entry::Tracker>,
     no_carry_exit: no_carry_exit::Tracker,
     #[cfg(test)]
     owner_hook_probe: Option<Vec<crate::ownership_checking::UnitOwnerTransportEvent>>,
@@ -280,6 +281,7 @@ struct DropPlanner<'a, 'checker> {
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
+            scalar_entry: None,
             no_carry_exit: no_carry_exit::Tracker::default(),
             #[cfg(test)]
             owner_hook_probe: None,

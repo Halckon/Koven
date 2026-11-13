@@ -6,6 +6,7 @@ use crate::{
 };
 use std::rc::Rc;
 
+mod counter_break_shape;
 mod counter_shape;
 pub(crate) mod shape;
 #[cfg(test)]
@@ -15,6 +16,12 @@ pub(crate) enum Proof<B> {
     Straight(Plan<B>),
     Branch(ExpressionId, [Plan<B>; 2]),
     CounterBranch(ExpressionId, [Plan<B>; 2], CounterPlan<B>),
+    CounterBreakBranch(
+        ExpressionId,
+        [Plan<B>; 2],
+        CounterPlan<B>,
+        CounterBreakPlan<B>,
+    ),
     BreakBranch(ExpressionId, [Plan<B>; 2], BreakPlan),
 }
 
@@ -24,6 +31,16 @@ pub(crate) struct BreakPlan {
     pub(crate) loop_body: StatementId,
     pub(crate) break_statement: StatementId,
     pub(crate) break_expression: ExpressionId,
+}
+
+#[derive(Clone)]
+pub(crate) struct CounterBreakPlan<B> {
+    pub(crate) prefix: Option<ExpressionId>,
+    pub(crate) control: ExpressionId,
+    pub(crate) condition: ExpressionId,
+    pub(crate) flag: B,
+    pub(crate) body: StatementId,
+    pub(crate) exit: BreakPlan,
 }
 
 #[derive(Clone)]

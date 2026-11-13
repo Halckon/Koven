@@ -35,14 +35,18 @@ pub(super) fn verify(
         return Err(fail());
     }
     let position = |id| {
-        let indexes = block
-            .instructions
+        let placements = function
+            .blocks
             .iter()
-            .enumerate()
-            .filter_map(|(index, actual)| (*actual == id).then_some(index))
+            .flat_map(|b| {
+                b.instructions
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, actual)| (*actual == id).then_some((b.id, index)))
+            })
             .collect::<Vec<_>>();
-        match indexes.as_slice() {
-            [index] => Ok(*index),
+        match placements.as_slice() {
+            [(owner, index)] if *owner == entry => Ok(*index),
             _ => Err(fail()),
         }
     };

@@ -15,6 +15,7 @@ pub(crate) struct Selection<B> {
     pub(crate) branch: Option<ExpressionId>,
     pub(crate) counter: Option<CounterPlan<B>>,
     pub(crate) exit: Option<super::BreakPlan>,
+    pub(crate) conditional: Option<super::CounterBreakPlan<B>>,
 }
 pub(crate) fn selection<B: Copy + Eq>(
     parsed: &ParsedFile,
@@ -43,6 +44,7 @@ pub(crate) fn selection<B: Copy + Eq>(
             branch: None,
             counter: None,
             exit: None,
+            conditional: None,
         });
     }
     let (Statement::Block { elements } | Statement::ControlBody { elements }) =
@@ -67,6 +69,7 @@ pub(crate) fn selection<B: Copy + Eq>(
             break_expression: *expression,
         })
     });
+    let mut conditional = None;
     let (statement, counter, exit) = match elements.as_slice() {
         [statement] => (*statement, None, None),
         [statement, _] if tail_break.is_some() => (*statement, None, tail_break),
@@ -82,6 +85,30 @@ pub(crate) fn selection<B: Copy + Eq>(
             )?),
             None,
         ),
+        [statement, transfer, update] => {
+            let selected = super::counter_break_shape::select(
+                parsed,
+                loop_statement,
+                body,
+                *transfer,
+                &resolve,
+                &parameter,
+            )?;
+            let exit = selected.exit.clone();
+            conditional = Some(selected);
+            (
+                *statement,
+                Some(super::counter_shape::select(
+                    parsed,
+                    loop_statement,
+                    body,
+                    *update,
+                    &resolve,
+                    counter_checks,
+                )?),
+                Some(exit),
+            )
+        }
         _ => return None,
     };
     let Statement::Expression { expression } =
@@ -135,6 +162,7 @@ pub(crate) fn selection<B: Copy + Eq>(
         branch: Some(*expression),
         counter,
         exit,
+        conditional,
     })
 }
 fn plan<B: Copy + Eq>(
