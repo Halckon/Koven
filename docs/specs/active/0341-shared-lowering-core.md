@@ -16786,3 +16786,16 @@ statement dispatch 按职责从接近尺寸门禁的 build 模块移出，未增
 两臂不同 Loan、不同块以及各自实际 End。observer feature 对照、native 与完整
 Clippy 尚待本轮后续验证；CI-only 故障注入未在本地执行。此为局部闭合能力，
 不代表一般分支/跳转、多根/嵌套或 D10/E2 整体完成。未推送。
+
+### 双臂后端普通验证补齐（2026-11-13）
+
+补齐 condition Read 的真实块与源码 span 核验；新增 Own/Borrow Boolean 矩阵和
+native 零轮测试。默认 SSA/native 2/2、真实 observer-support on/off SSA/native
+2/2、旧直线/sibling 普通回归 5/5、codegen all-target observer-support strict
+Clippy 通过。SSA 对照比较真实 observation 关闭后的产物，不编辑观察结果伪造关闭；
+普通测试核两臂独立 Loan/块以及每臂唯一实际 End。native 返回后消费原 source。
+
+独立只读复审检查 required 清单、实际 arm 链、条件与 CFG/参数运输，未发现确定
+接纳漏项；其 condition origin/块归属建议已补齐后重跑测试。docs923、fmt、diff
+与相对 3af4dcb4 的尺寸门禁通过，历史超限文件未增长。新增双臂 receipt 的专门
+CI 故障矩阵仍待后续建设/远端验证；本轮未本地运行故障注入，未推送或合入。

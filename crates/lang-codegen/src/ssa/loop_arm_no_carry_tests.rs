@@ -6,7 +6,10 @@ use lang_frontend::ownership_checking::{
 };
 #[test]
 fn ordinary_loop_arm_no_carry_closes_each_arm_before_join() {
-    for reversed in [false, true] {
+    for (reversed, own_flags) in [false, true]
+        .into_iter()
+        .flat_map(|r| [false, true].map(move |o| (r, o)))
+    {
         let params = if reversed {
             "choose:Boolean,flag:Boolean,source:String"
         } else {
@@ -15,6 +18,12 @@ fn ordinary_loop_arm_no_carry_closes_each_arm_before_join() {
         let text = format!(
             "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run({params}):Unit {{while(flag){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}}}}}}"
         );
+        let text = if own_flags {
+            text.replace("choose:Boolean", "own choose:Boolean")
+                .replace("flag:Boolean", "own flag:Boolean")
+        } else {
+            text
+        };
         let mut sources = SourceMap::new();
         let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "loop-arm.ko", &text);
         let (environment, types) = standard_environments();

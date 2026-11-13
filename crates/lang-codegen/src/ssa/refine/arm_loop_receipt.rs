@@ -27,6 +27,7 @@ pub(super) struct Plan {
     pub(super) fact: UnitLoopBranchNoCarryFact,
     arms: [Arm; 2],
     conditions: [UnitExpressionId; 2],
+    condition_spans: [Span; 2],
     roles: [usize; 3],
     pub(super) source: Option<Slot>,
     pub(super) blocks: Option<[BlockRef; 5]>,
@@ -177,6 +178,22 @@ impl Plans {
                 conditions: [
                     UnitExpressionId::new(inputs.source_unit, *outer),
                     UnitExpressionId::new(inputs.source_unit, *condition),
+                ],
+                condition_spans: [
+                    inputs
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(*outer)
+                        .map_err(|_| fail())?
+                        .span(),
+                    inputs
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(*condition)
+                        .map_err(|_| fail())?
+                        .span(),
                 ],
                 roles: [role[0], role[1], role[2]],
                 source: None,

@@ -196,4 +196,4 @@ Return、最终捕获边及每个 fold，并分别重复每个 fold。每次只�
 
 ## 受限双臂前端闭合事实
 
-见[双臂 no-carry](loop-arm-no-carry.md)，只记录前端闭合事实，不代替上述直线后端合同。
+见[双臂 no-carry](loop-arm-no-carry.md)，记录独立前端成对事实与后端收据，不代替上述直线后端合同。

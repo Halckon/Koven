@@ -139,6 +139,11 @@ impl Emitted {
                     return Err(invalid(s));
                 }
                 let inst = f.instruction(ids[0]).ok_or_else(|| invalid(s))?;
+                if inst.block != self.block(b, s)?
+                    || inst.origin != Origin::Source(p.condition_spans[i])
+                {
+                    return Err(invalid(s));
+                }
                 if inst.operation
                     != (Operation::Read {
                         source: PlaceAccess::Loan(loan),

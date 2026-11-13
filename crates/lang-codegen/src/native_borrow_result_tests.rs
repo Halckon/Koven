@@ -366,3 +366,18 @@ fun entry() {
     let run = emit_link_and_run("no-carry-source-segments-false", text, "entry");
     super::boxed_enum_tests::assert_success(&run, b"pre\nkept\nmid\nkept\ntail\nkept\nkept\n");
 }
+
+#[test]
+fn native_loop_arm_no_carry_zero_iteration_preserves_source() {
+    let text = r#"fun view(source:String):borrow String from source=source
+fun consume(item:String):Unit { println("unexpected") }
+fun run(source:String,flag:Boolean,choose:Boolean):Unit {
+ while(flag) { if(choose) { borrow val a=view(source); consume(a) }
+ else { borrow val b=view(source); consume(b); consume(b) } }
+}
+fun take(own source:String):Unit { println(source) }
+fun entry() { val source="kept".clone(); run(source,false,true); run(source,false,false); take(source) }
+"#;
+    let run = emit_link_and_run("loop-arm-zero", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
