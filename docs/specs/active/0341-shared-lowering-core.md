@@ -17261,3 +17261,17 @@ continue、额外借用或嵌套，不与 prefix、任意跳转或多根循环�
 证明两条路径，缺失证据失败封闭。普通真实 SSA/native 覆盖0/1/2轮×双臂×stop
 真假，确认结束后源仍可读并最终消费；反例故障只编译列举，禁止本地执行。
 先核对并复用 main 与 `afabb0b1`/各现有分支，分步本地提交，不推送、不外发。
+
+前端本地提交 `23ee3ceb` 已建立独立新域；实际记录 break 前后状态/清理和
+非 break 路径的递减完成，再核两出口资源状态。DropPlanner 单独核 transfer、
+条件体深度、继续路径 body cleanup 与 LoopExit，旧 counter/pair/tail-break 的
+owned 查询不能接收新域嵌入事实。前端新旧普通11项与严格 all-target Clippy通过，
+独立只读复核暂未发现确定误授予或漏清理。普通后端验收在 `486977d6`，
+生产实现 `58949c74` 已接通独立双出口 receipt；新普通 SSA 完整 FQN 精确执行
+通过（8种参数模式 × rooted/memory × observer），真实 native 96组合通过，
+涵盖0/1/2轮、两臂、stop真假及源的最终消费。源码拒绝测试的正例专用分析
+helper 已由 `d6f655cd` 修正为显式接受前端失败封闭，不放宽生产授权；该拒绝
+重验及最后CI-only编译列举/门禁仍待完成，不将这些项目记为已验收。
+
+本地后续动态测试仅用已检查为普通的完整 FQN + `--exact`，不使用宽过滤；
+CI-only 只允许编译列举，CI/GITHUB_ACTIONS 未启用。
