@@ -17440,3 +17440,18 @@ child 每根一个 Replace、parent resume 单根修改且其他根逐根保留�
 a/c保留child当前代；真实FE三根/三step/三recurrence与SSA来源/入口/父组合收据
 完整FQN exact 1/1通过，双臂×outer/inner0/1/2共18次native exact 1/1通过。
 仅测试及文档，未改生产、未运行故障、未推送；本轮未单独重跑Clippy。
+
+### 前缀与循环控制的两种剩余身份分区（2026-11-13）
+
+基于 `d28ca8a2` 静态核查未发现必须修生产的确定缺陷；普通测试 `8a4739c9`
+补齐prefix=choose且stop独立、choose=stop且prefix独立两种参数身份组合。前者
+独立检查choose活性保留，不能靠共享stop规则兜底；后者同时检验独立prefix
+裁剪和循环双角色共享。保持已有单源、两臂闭合、counter与条件break形状，
+不是一般别名推导、跳转嵌套或新资源根授权。
+新增16种Borrow/Own模式的真实SSA(rooted/memory、observer开关)与192次native
+调用分别完整FQN exact实际1/1通过；原28模式SSA与504次native也分别实际1/1
+通过，共四项普通测试。切树后强制当前源码重编并检查实际匹配1，不接受零
+匹配结果。仅测试和Spec改动，未推送、未启用CI或执行本地故障。
+
+后端observer-support all-target严格Clippy、格式、docs925、相对d28ca8a2尺寸
+门禁与diff检查通过。
