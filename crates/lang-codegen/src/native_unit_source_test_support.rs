@@ -37,6 +37,8 @@ mod owner_mixed_loop_edge_tests;
 mod owner_multi_root_header_tests;
 #[path = "owner_negated_condition_tests.rs"]
 mod owner_negated_condition_tests;
+#[path = "owner_string_bytes_tests.rs"]
+mod owner_string_bytes_tests;
 #[path = "owner_normal_backedge_tests.rs"]
 mod owner_normal_backedge_tests;
 #[path = "owner_own_call_tests.rs"]
