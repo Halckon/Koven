@@ -17719,3 +17719,11 @@ normal-header-return 同期恢复局部 dead-code 门禁：`DropReceipt.index` �
 现有 owner_header_bind 三项普通 exact（Basic/Constant finite native、实际
 drop authority、current-H drop）3/3 通过，严格 Clippy、fmt、docs 与 diff
 通过；独立审查无阻断。未执行 CI-only 故障、未推送，非整个 SSA 豁免退役。
+
+在上述逐项收窄后，`refine`、`unit_lower`、`unit_plan` 整个子树恢复
+`deny(dead_code)`，不再继承 SSA 顶层历史豁免；三个子树无反向 allow。
+此步只恢复生产编译门禁，未删改模型、诊断、算法或见证，剩余模型及诊断
+豁免仍需独立审计。默认生产 check、observer-support all-target 严格 Clippy
+与完整测试编译通过；pending-value carry、checked-abort owner transport、
+current-H drop 三项既有普通 exact 3/3 通过，fmt/docs/diff 与独立审查通过。
+未新增测试、未改 Origin、未运行 CI-only 故障、未推送。

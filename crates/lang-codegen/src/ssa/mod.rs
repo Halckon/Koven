@@ -8,6 +8,7 @@ mod expression_core;
 mod lower_frontend;
 #[cfg(test)]
 mod map_source;
+#[deny(dead_code)]
 mod refine;
 #[cfg(test)]
 #[allow(unused_imports)]
@@ -63,7 +64,9 @@ pub(in crate::ssa) mod nullable_map_consume_lowering_tests;
 #[cfg(test)]
 pub(crate) use nullable_map_consume_lowering_tests::ordinary_nullable_consume_sources;
 mod types;
+#[deny(dead_code)]
 pub(crate) mod unit_lower;
+#[deny(dead_code)]
 pub(crate) mod unit_plan;
 pub(crate) mod verify;
 mod verify_operation;
