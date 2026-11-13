@@ -550,3 +550,4 @@
 - [SPEC-0444](0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md)：`loan_region_ssa_tests` 下观察器、接收者、具名借用、临时借用兄弟及有限字面量测试壳子模块退役。
 - [SPEC-0445](0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md)：`loan_region_ssa_tests` 下临时借用、绑定凭证、父子探针、多临时乘积及 `range_lowering_tests/view_source` 壳子模块退役。
 - [SPEC-0446](0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md)：`range_lowering_tests` 下局部控制流、断言、支撑、比较边界及接收者测试壳子模块退役。
+- [SPEC-0447](0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md)：`unit_lower_receiver_tests`、`sequential_for_lowering_tests`、`nullable_operation_tests`、`unit_enum_regression_tests` 及 `lowering_entry_contract_tests` 子壳模块退役。

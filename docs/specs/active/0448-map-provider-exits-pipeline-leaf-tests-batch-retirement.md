@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0447](0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md) 完成跨目录测试子壳收敛后，`crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/` 域内仍存在 132 个可直接内联回直接父模块的叶子薄壳文件（各宿主合并后均严格低于 985 行）。本 Spec 一次性将该域可合并叶子全部收敛回各自父模块。
+在 [SPEC-0447](../../archive/specs/0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md) 完成跨目录测试子壳收敛后，`crates/lang-codegen/src/ssa/map_provider_exits_pipeline_tests/` 域内仍存在 132 个可直接内联回直接父模块的叶子薄壳文件（各宿主合并后均严格低于 985 行）。本 Spec 一次性将该域可合并叶子全部收敛回各自父模块。
 
 ---
 
