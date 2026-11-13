@@ -16730,7 +16730,7 @@ required；layout 再保存 expected。layout/终检核资格一致性，已选�
 清空、raw literal 资格漂移不再降级为 Ok；真正从未选中的形状继续保留旧 lowering。
 
 新增八项 CI-only 真实变异：child producer 种类、Shared 借用、额外 loan 使用，以及组合
-选后 carry/checked/producer 证据丢失、selected/required 各自单边清除，共 33 类。使用既有两个双宿主精确目标，本地
+选后 carry/checked/producer 证据丢失、selected/required 各自单边清除，共 34 类。使用既有两个双宿主精确目标，本地
 禁止执行注入。本片普通模块 3/3 通过（两个 ignored 明确跳过），既有普通/native 基线
 1/1 通过；all-target strict Clippy、docs922、格式/diff 与尺寸门禁通过。两个 CI-only
 目标精确编译列举通过，none executed；新增八例的实际触发与拒绝仍待远端运行。
@@ -16961,3 +16961,7 @@ CI-only 仅编译与精确列举：既有 borrowing manifest 47 项、child-cycl
 （33 类变异）、父 receipt 两目标均存在；`none executed`。没有设置 CI 环境或
 执行本地故障注入；新增整合头仍待远端双宿主动态验收，不能引用旧 #420 CI 代替。
 受限归纳不覆盖一般 producer、复杂退出、任意嵌套或跨轮借用；完整 D10/E2 不标完成。
+
+父组合另核实际 literal producer 在 resume 指令列表中恰好出现一次，避免仅首次位置
+检查漏掉重复成员。新增 CI-only 真实重复 producer ID 变异，由组合收据直接拒绝；
+不扩大语言形状，不替代 generic verifier，破坏性验收仅在远端 CI 执行。

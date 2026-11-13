@@ -69,6 +69,12 @@ impl Emitted {
         let resume = function.block(self.blocks[&p.resume]).ok_or_else(fail)?;
         if producer_op.block != resume.id
             || producer_op.results != [rhs]
+            || resume
+                .instructions
+                .iter()
+                .filter(|id| **id == producer)
+                .count()
+                != 1
             || !matches!(producer_op.operation, Operation::StringLiteral { .. })
             || resume
                 .instructions

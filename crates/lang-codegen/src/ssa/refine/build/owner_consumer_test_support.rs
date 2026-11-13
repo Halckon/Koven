@@ -15,6 +15,7 @@ pub(crate) enum OwnerFault {
     ParentCompositionUnchangedConsume,
     ParentCompositionSharedLoan,
     ParentCompositionNewConsume,
+    ParentCompositionDuplicateProducer,
     ChildCycleInitialMissingPlan,
     ChildCycleInitialSwap,
     ChildCycleInitialConsumer,

@@ -190,4 +190,8 @@ checked tail；不是一般父循环证明或终止证明，也不以有限 nati
 InstructionId 与 operation，终检锁同块 fresh literal 的唯一交付、输入身份及完整
 Exclusive 借用结束链；链检查与 parent 复用。组合选择另在 builder 封存 selected 与
 独立 required，layout 保存预期，选后证据丢失必须报错而不是跳过证明。此补强不改变
-原形状权限；CI-only 矩阵扩为 33 类，尚未本地执行或取得远端验证。
+原形状权限；CI-only 矩阵扩为 34 类，尚未本地执行或取得远端验证。
+
+父组合另核实际 literal producer 在 resume 指令列表中恰好出现一次，避免仅首次位置
+检查漏掉重复成员。新增 CI-only 真实重复 producer ID 变异，由组合收据直接拒绝；
+不扩大语言形状，不替代 generic verifier，破坏性验收仅在远端 CI 执行。

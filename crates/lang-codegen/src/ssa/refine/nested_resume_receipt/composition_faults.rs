@@ -9,6 +9,7 @@ impl Emitted {
             OwnerFault::ParentCompositionUnchangedConsume,
             OwnerFault::ParentCompositionSharedLoan,
             OwnerFault::ParentCompositionNewConsume,
+            OwnerFault::ParentCompositionDuplicateProducer,
         ];
         let Some(fault) = faults.into_iter().find(|f| take_fault(*f)) else {
             return;
@@ -22,6 +23,35 @@ impl Emitted {
             .expect("baseline composition");
         let (replace, _, _, new, _) = self.replace.unwrap();
         match fault {
+            OwnerFault::ParentCompositionDuplicateProducer => {
+                let (_, _, rhs, _, _) = self.replace.unwrap();
+                let Definition::InstructionResult {
+                    instruction,
+                    index: 0,
+                } = function.entity(rhs).unwrap().definition
+                else {
+                    panic!("literal producer");
+                };
+                let block = function
+                    .blocks
+                    .iter_mut()
+                    .find(|b| b.id == self.blocks[&p.resume])
+                    .unwrap();
+                assert_eq!(
+                    block
+                        .instructions
+                        .iter()
+                        .filter(|id| **id == instruction)
+                        .count(),
+                    1
+                );
+                let at = block
+                    .instructions
+                    .iter()
+                    .position(|id| *id == instruction)
+                    .unwrap();
+                block.instructions.insert(at, instruction);
+            }
             OwnerFault::ParentCompositionCarrySwap => {
                 let c = p.carry.as_ref().unwrap();
                 let (from, to) = c.edges[0];
