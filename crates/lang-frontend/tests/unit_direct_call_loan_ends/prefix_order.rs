@@ -141,3 +141,56 @@ fn completed_nested_call_is_not_replayed_when_later_named_operands_unwind() {
         assert!(unit.borrow_call_handoffs().is_empty());
     }
 }
+
+#[test]
+fn sibling_return_ranks_count_only_their_own_established_auxiliary_loans() {
+    let observed = observe(
+        "fun select(source: String, tail: Unit): borrow String from source = source\nfun one(value: String, stop: Unit): Unit {}\nfun two(first: String, second: String, stop: Unit): Unit {}\nfun run(flag: Boolean): Unit { val owner = \"kept\"; borrow val item = select(owner, if (flag) { one(\"left\", return) } else { two(\"right-first\", \"right-second\", return) }) }",
+    );
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let sources = unit.borrow_call_prefix_ends();
+        assert_eq!(sources.len(), 2, "one source unwind per Return edge");
+        assert_ne!(sources[0].point(), sources[1].point());
+        assert_eq!(
+            sources[0].loan(),
+            sources[1].loan(),
+            "same pending outer token"
+        );
+        assert_eq!(unit.direct_call_loan_ends().len(), 3);
+        let mut paths = Vec::new();
+        for source in sources {
+            assert!(unit.loans().contains(source.loan()));
+            let auxiliary: Vec<_> = unit
+                .direct_call_loan_ends()
+                .iter()
+                .filter(|end| end.point() == source.point())
+                .collect();
+            let texts: Vec<_> = auxiliary
+                .iter()
+                .map(|end| observed.sources.slice(end.loan().begin_span()).unwrap())
+                .collect();
+            let expected = match texts.as_slice() {
+                ["\"left\""] => 1,
+                ["\"right-second\"", "\"right-first\""] => 2,
+                other => panic!("unexpected branch unwind: {other:?}"),
+            };
+            for (rank, end) in auxiliary.iter().enumerate() {
+                assert!(unit.loans().contains(end.loan()));
+                assert_eq!(end.preceding_call_loan_ends(), rank);
+                assert_eq!(end.preceding_drops(), 0);
+                assert_eq!(
+                    end.loan().call().source_unit(),
+                    source.loan().call().source_unit()
+                );
+            }
+            assert_eq!(source.preceding_call_loan_ends(), expected);
+            assert_eq!(source.preceding_drops(), 0);
+            paths.push(expected);
+        }
+        paths.sort();
+        assert_eq!(paths, [1, 2]);
+        assert!(unit.borrow_results().bindings().is_empty());
+        assert!(unit.borrow_results().ends().is_empty());
+    }
+}
