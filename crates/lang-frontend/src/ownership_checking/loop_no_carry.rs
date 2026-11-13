@@ -10,6 +10,11 @@ pub(crate) mod shape;
 #[cfg(test)]
 mod tests;
 
+pub(crate) enum Proof<B> {
+    Straight(Plan<B>),
+    Branch(ExpressionId, [Plan<B>; 2]),
+}
+
 #[derive(Clone)]
 pub(crate) struct Plan<B> {
     pub(crate) source: SourceId,

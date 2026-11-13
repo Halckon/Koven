@@ -123,6 +123,11 @@ impl Checker<'_> {
             }
             _ => return self.check_statement(statement, state),
         };
+        if !escaping && usage == ExpressionUse::Read && self.no_carry_arm_scope(statement) {
+            // Selected Unit-valued arms close their last consumer as a real statement,
+            // then check the arm frame before restoring its outer scope.
+            return self.check_borrow_scope(statement, &elements, state);
+        }
         let parents = state
             .borrow_bindings
             .keys()

@@ -86,7 +86,7 @@ pub use compilation_unit::{
     UnitLoanDistinctAuxiliaryRetirement, UnitLoanFact, UnitLoanForwardBranch,
     UnitLoanForwardHandoff, UnitLoanInterleavedAuxiliaryUse, UnitLoanLoopInvariantLineage,
     UnitLoanNestedForwardEdge, UnitLoanNestedForwardLineage, UnitLoanRegionFamily, UnitLoanTarget,
-    UnitLoopNoCarryFact, UnitMapIterationLoan, UnitMapIterationOwnershipPlan,
+    UnitLoopBranchNoCarryFact, UnitLoopNoCarryFact, UnitMapIterationLoan, UnitMapIterationOwnershipPlan,
     UnitMultiBindingAuxiliaryUse, UnitMultiBindingSourceState, UnitNonNullAssertionOwnershipPlan,
     UnitNullableWhenEntryOwnershipFact, UnitNullableWhenOwnershipPlan, UnitNullableWhenUseFact,
     UnitNullableWhenUseKind, UnitOwnerBridgeCounterEntryV1, UnitOwnerBridgeCounterTailV1,

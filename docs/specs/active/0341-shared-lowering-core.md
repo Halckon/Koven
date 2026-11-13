@@ -16757,3 +16757,19 @@ strict Clippy、fmt、docs922、diff 检查通过。本片仅本地提交，未�
 循环、多根借用、跨轮携带和任一未闭合状态。保留 Single/Unit、observer-off 一致，
 整体失败撤销所有能力。新双臂事实不能冒充既有直线 loop fact，codegen 独立收据
 尚未落地前不得声称端到端完成。本地仅执行普通测试；真实故障注入仅 CI。
+
+### 受限循环双臂前端闭合落地（2026-11-13）
+
+共享 selector 只选择获批的双臂有限形状；Single 与 Unit 每臂独立领取 scope ticket，
+匹配真实 acquire/同步返回/最后使用 End/scope close，再核恢复同一入口状态和回边。
+Unit 最终 planner 重新匹配两项 End，成对发布 `UnitLoopBranchNoCarryFact`；
+`no_carry_branches` 与旧 `no_carry_loops` 分域，arm 不冒充直线 loop capability。
+任一诊断、未闭合臂或后续不合法循环经整体 publication gate 撤销全部事实。
+
+普通双臂测试覆盖不等长消费者序列、独立身份、跨检查身份隔离以及 11 类拒绝形状；
+默认构建 2/2、旧直线精确回归 1/1、旧边界回归 2/2 通过。frontend all-target strict
+Clippy、fmt、docs923、diff 和以 fbdaea63 为基线的 Rust 尺寸门禁通过；两处历史超限
+聚合文件保持原行数，无新增豁免。真实故障注入未在本地执行。
+
+本批仅前端闭合事实；后端 branch admission、双臂消费与独立 receipt/native 验证
+尚未实施，不把 FE 通过等同 E2 完成。相关 PR/CI 未由本地修改触发，未推送。

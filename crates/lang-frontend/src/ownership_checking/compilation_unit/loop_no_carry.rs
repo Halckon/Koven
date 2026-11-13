@@ -6,6 +6,19 @@ use crate::{
 };
 use std::rc::Rc;
 
+/// One publication gate for both independent no-carry proof domains.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct CompletedNoCarry {
+    pub(super) loops: Vec<UnitLoopNoCarryFact>,
+    pub(super) branches: Vec<UnitLoopBranchNoCarryFact>,
+}
+impl CompletedNoCarry {
+    pub(super) fn extend(&mut self, other: Self) {
+        self.loops.extend(other.loops);
+        self.branches.extend(other.branches);
+    }
+}
+
 /// A real body frame closed its one local borrow before cleanup and restored its normal edge.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitLoopNoCarryFact {
@@ -93,12 +106,63 @@ impl UnitLoopNoCarryFact {
 impl CompilationUnitOwnership {
     /// Core-validated finite straight-line loop-body no-carry facts, independent of observation.
     pub fn no_carry_loops(&self) -> &[UnitLoopNoCarryFact] {
-        &self.no_carry_loops
+        &self.no_carry.loops
     }
     /// Identity ownership; equal-looking facts from another check are not interchangeable.
     pub fn owns_no_carry_loop(&self, fact: &UnitLoopNoCarryFact) -> bool {
-        self.no_carry_loops
+        self.no_carry
+            .loops
             .iter()
             .any(|owned| Rc::ptr_eq(&owned.identity, &fact.identity))
+    }
+}
+
+/// Two distinct arm frames, each closed before joining the same empty-loan backedge.
+/// Not an SSA receipt, a borrow phi or a carried-loan capability.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnitLoopBranchNoCarryFact {
+    identity: Rc<()>,
+    branch: UnitExpressionId,
+    arms: [UnitLoopNoCarryFact; 2],
+}
+impl UnitLoopBranchNoCarryFact {
+    pub(super) fn new(branch: UnitExpressionId, arms: [UnitLoopNoCarryFact; 2]) -> Option<Self> {
+        (arms[0].loop_statement == arms[1].loop_statement
+            && arms[0].callable == arms[1].callable
+            && arms[0].source == arms[1].source
+            && arms[0].body != arms[1].body
+            && arms[0].binding != arms[1].binding
+            && arms[0].end != arms[1].end
+            && !arms[0].same_identity(&arms[1]))
+        .then(|| Self {
+            identity: Rc::new(()),
+            branch,
+            arms,
+        })
+    }
+    /// Exact selected if/else, not an arbitrary conditional with similar branches.
+    pub const fn branch(&self) -> UnitExpressionId {
+        self.branch
+    }
+    /// Ordered then/else identities and actual End facts.
+    pub fn arms(&self) -> &[UnitLoopNoCarryFact; 2] {
+        &self.arms
+    }
+    /// Both values must originate in this same validation event.
+    pub fn same_identity(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.identity, &other.identity)
+    }
+}
+impl CompilationUnitOwnership {
+    /// Independently closed if/else arm pairs, separate from straight-body facts.
+    pub fn no_carry_branches(&self) -> &[UnitLoopBranchNoCarryFact] {
+        &self.no_carry.branches
+    }
+    /// Foreign equivalent-looking facts cannot confer this check's authority.
+    pub fn owns_no_carry_branch(&self, fact: &UnitLoopBranchNoCarryFact) -> bool {
+        self.no_carry
+            .branches
+            .iter()
+            .any(|owned| owned.same_identity(fact))
     }
 }

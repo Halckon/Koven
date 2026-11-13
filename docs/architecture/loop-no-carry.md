@@ -2,7 +2,7 @@
 
 > **性质**：当前实现事实 · **状态**：current · **读取时机**：修改循环内借用准入或关闭时 · **唯一真源**：`ownership_checking/loop_no_carry.rs`、两 checker 的 `no_carry.rs` 与 `ssa/refine/build/no_carry.rs`
 
-## 有限生产合同
+## 直线生产合同
 
 函数 body 直接 while，条件为 Boolean 值参数的直接 Name；source 为稳定外部 Borrow
 String 参数。body 为一条直接借用声明，随后非空的直线同步 Unit consumer 调用序列。
@@ -193,3 +193,7 @@ CI 清单另登记真实最终 verifier 失败的原子性用例：仅测试专�
 Return、最终捕获边及每个 fold，并分别重复每个 fold。每次只改独立克隆的 receipt，
 原 SSA 保持不变，原样本先通过验证；这是冻结证据完整性测试，不冒称真实 producer
 漏回调注入。沿用原精确 FQN，清单仍为 36 项，本地仅编译列举，远端行为待验证。
+
+## 受限双臂前端闭合事实
+
+见[双臂 no-carry](loop-arm-no-carry.md)，只记录前端闭合事实，不代替上述直线后端合同。

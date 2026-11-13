@@ -12,6 +12,10 @@ use crate::{
 };
 pub(super) struct Session {
     frame: core::Frame<State, UnitSymbolId>,
+    second: Option<core::Plan<UnitSymbolId>>,
+    first_closed: Option<core::Plan<UnitSymbolId>>,
+    branch: Option<ExpressionId>,
+    valid: bool,
     entry: State,
     bindings: usize,
     ends: usize,
@@ -90,7 +94,7 @@ impl Checker<'_> {
         if !self.simple_resources(&entry) {
             return None;
         }
-        let plan = core::shape::plan(
+        let selection = core::shape::selection(
             self.parsed,
             repeated,
             body,
@@ -101,6 +105,14 @@ impl Checker<'_> {
             |id, b| self.no_carry_parameter(id, b),
             |id, b| self.no_carry_call(id, b),
         )?;
+        let plan = selection.first;
+        if selection.second.as_ref().is_some_and(|p| {
+            self.borrowed_call_source(p.source_call) != Some(p.source_argument)
+                || p.binding.source_unit() != self.source_unit
+                || p.root.source_unit() != self.source_unit
+        }) {
+            return None;
+        }
         if self.borrowed_call_source(plan.source_call) != Some(plan.source_argument) {
             return None;
         }
@@ -111,6 +123,10 @@ impl Checker<'_> {
         }
         Some(Session {
             frame: core::Frame::new(plan, entry.clone()),
+            second: selection.second,
+            first_closed: None,
+            branch: selection.branch,
+            valid: true,
             entry,
             bindings: self.borrow_results.bindings.len(),
             ends: self.borrow_results.ends.len(),
@@ -118,12 +134,17 @@ impl Checker<'_> {
             diagnostics: self.diagnostics.len(),
         })
     }
+    pub(super) fn no_carry_arm_scope(&self, scope: StatementId) -> bool {
+        self.no_carry
+            .as_ref()
+            .is_some_and(|s| s.valid && s.branch.is_some() && s.frame.plan().body == scope)
+    }
     pub(super) fn no_carry_claim(
         &mut self,
         body: StatementId,
         state: &State,
     ) -> Option<core::ScopeTicket> {
-        if self.no_carry.as_ref()?.frame.plan().body != body {
+        if !self.no_carry.as_ref()?.valid || self.no_carry.as_ref()?.frame.plan().body != body {
             return None;
         }
         let actual = self.resource_snapshot(state);
@@ -137,7 +158,8 @@ impl Checker<'_> {
     ) -> bool {
         self.marker_symbol(name).is_some_and(|binding| {
             self.no_carry.as_ref().is_some_and(|s| {
-                s.frame.plan().source == self.parsed.source_id()
+                s.valid
+                    && s.frame.plan().source == self.parsed.source_id()
                     && s.frame.allows(*binding, initializer, marker)
             })
         })
@@ -370,6 +392,18 @@ impl Checker<'_> {
                 "loop-local borrow does not close before body cleanup",
                 marker,
             )?;
+        } else if let Some(next) = self.no_carry.as_mut().and_then(|s| s.second.take()) {
+            let s = self.no_carry.as_mut().unwrap();
+            let previous = std::mem::replace(&mut s.frame, core::Frame::new(next, s.entry.clone()));
+            s.first_closed = previous.finish(
+                actual.as_ref(),
+                flows.breaks.is_none() && flows.continues.is_none(),
+                exact,
+            );
+            s.valid = s.first_closed.is_some();
+            s.bindings = self.borrow_results.bindings.len();
+            s.ends = self.borrow_results.ends.len();
+            s.loans = self.loans.len();
         }
         Ok(())
     }
@@ -382,14 +416,24 @@ impl Checker<'_> {
             return Ok(());
         };
         let marker = s.frame.plan().marker;
-        let exact = self.no_carry_facts(&s);
+        let exact = s.valid && self.no_carry_facts(&s);
         let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
         if let Some(plan) = s.frame.finish(
             actual.as_ref(),
             flows.breaks.is_none() && flows.continues.is_none(),
             exact,
         ) {
-            self.no_carry_proofs.push(plan);
+            match (s.branch, s.first_closed, s.second) {
+                (None, None, None) => self.no_carry_proofs.push(core::Proof::Straight(plan)),
+                (Some(branch), Some(first), None) => self
+                    .no_carry_proofs
+                    .push(core::Proof::Branch(branch, [first, plan])),
+                _ => self.emit_borrow_binding_diagnostic(
+                    crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                    "both loop branch arms must independently close",
+                    marker,
+                )?,
+            }
         } else {
             self.emit_borrow_binding_diagnostic(
                 crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
@@ -405,29 +449,54 @@ impl Checker<'_> {
     pub(super) fn finish_no_carry_proofs(
         &mut self,
         ends: &[crate::ownership_checking::BorrowBindingEndFact<UnitSymbolId, UnitDropPoint>],
-    ) -> Result<Vec<super::super::UnitLoopNoCarryFact>, super::OwnershipCheckingError> {
-        let mut facts = Vec::new();
-        for plan in std::mem::take(&mut self.no_carry_proofs) {
-            let marker = plan.marker;
-            if let Some(fact) = super::super::UnitLoopNoCarryFact::new(self.source_unit, plan)
-                && ends
-                    .iter()
-                    .filter(|end| end.binding == fact.binding())
-                    .count()
-                    == 1
+    ) -> Result<super::super::loop_no_carry::CompletedNoCarry, super::OwnershipCheckingError> {
+        let mut result = super::super::loop_no_carry::CompletedNoCarry::default();
+        let valid_end = |fact: &super::super::UnitLoopNoCarryFact| {
+            ends.iter()
+                .filter(|end| end.binding == fact.binding())
+                .count()
+                == 1
                 && ends
                     .iter()
                     .any(|end| end.binding == fact.binding() && end.point == fact.end())
-            {
-                facts.push(fact);
-            } else {
+        };
+        for proof in std::mem::take(&mut self.no_carry_proofs) {
+            let (marker, accepted) = match proof {
+                core::Proof::Straight(plan) => {
+                    let marker = plan.marker;
+                    let fact = super::super::UnitLoopNoCarryFact::new(self.source_unit, plan)
+                        .filter(&valid_end);
+                    let accepted = fact.is_some();
+                    result.loops.extend(fact);
+                    (marker, accepted)
+                }
+                core::Proof::Branch(branch, [left, right]) => {
+                    let marker = left.marker;
+                    let pair = super::super::UnitLoopNoCarryFact::new(self.source_unit, left)
+                        .filter(&valid_end)
+                        .zip(
+                            super::super::UnitLoopNoCarryFact::new(self.source_unit, right)
+                                .filter(&valid_end),
+                        )
+                        .and_then(|(left, right)| {
+                            super::super::UnitLoopBranchNoCarryFact::new(
+                                self.unit_expression(branch),
+                                [left, right],
+                            )
+                        });
+                    let accepted = pair.is_some();
+                    result.branches.extend(pair);
+                    (marker, accepted)
+                }
+            };
+            if !accepted {
                 self.emit_borrow_binding_diagnostic(
                     crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
-                    "loop-local borrow final End does not match its closed core frame",
+                    "loop-local borrow final End does not match independently closed core frames",
                     marker,
                 )?;
             }
         }
-        Ok(facts)
+        Ok(result)
     }
 }

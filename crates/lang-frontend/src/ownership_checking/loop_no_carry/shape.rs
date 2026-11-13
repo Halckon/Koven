@@ -9,9 +9,99 @@ pub(crate) enum Name {
     Declaration(NameMarker),
     Reference(Span),
 }
-pub(crate) fn plan<B: Copy + Eq>(
+pub(crate) struct Selection<B> {
+    pub(crate) first: Plan<B>,
+    pub(crate) second: Option<Plan<B>>,
+    pub(crate) branch: Option<ExpressionId>,
+}
+pub(crate) fn selection<B: Copy + Eq>(
     parsed: &ParsedFile,
     loop_statement: StatementId,
+    body: StatementId,
+    resolve: impl Fn(Name) -> Option<B>,
+    parameter: impl Fn(ExpressionId, bool) -> bool,
+    call: impl Fn(ExpressionId, bool) -> bool,
+) -> Option<Selection<B>> {
+    if let Some(first) = plan(
+        parsed,
+        loop_statement,
+        body,
+        body,
+        &resolve,
+        &parameter,
+        &call,
+    ) {
+        return Some(Selection {
+            first,
+            second: None,
+            branch: None,
+        });
+    }
+    let (Statement::Block { elements } | Statement::ControlBody { elements }) =
+        parsed.ast().statements().get(body).ok()?.payload()
+    else {
+        return None;
+    };
+    let [statement] = elements.as_slice() else {
+        return None;
+    };
+    let Statement::Expression { expression } =
+        parsed.ast().statements().get(*statement).ok()?.payload()
+    else {
+        return None;
+    };
+    let Expression::If {
+        condition,
+        then_branch,
+        else_branch: Some(else_branch),
+        ..
+    } = parsed.ast().expressions().get(*expression).ok()?.payload()
+    else {
+        return None;
+    };
+    if !parameter(*condition, true)
+        || !matches!(
+            parsed.ast().expressions().get(*condition).ok()?.payload(),
+            Expression::Name
+        )
+        || then_branch == else_branch
+    {
+        return None;
+    }
+    let first = plan(
+        parsed,
+        loop_statement,
+        body,
+        *then_branch,
+        &resolve,
+        &parameter,
+        &call,
+    )?;
+    let second = plan(
+        parsed,
+        loop_statement,
+        body,
+        *else_branch,
+        &resolve,
+        &parameter,
+        &call,
+    )?;
+    if first.root != second.root
+        || first.binding == second.binding
+        || first.initializer == second.initializer
+    {
+        return None;
+    }
+    Some(Selection {
+        first,
+        second: Some(second),
+        branch: Some(*expression),
+    })
+}
+fn plan<B: Copy + Eq>(
+    parsed: &ParsedFile,
+    loop_statement: StatementId,
+    loop_body: StatementId,
     body: StatementId,
     resolve: impl Fn(Name) -> Option<B>,
     parameter: impl Fn(ExpressionId, bool) -> bool,
@@ -26,7 +116,7 @@ pub(crate) fn plan<B: Copy + Eq>(
     else {
         return None;
     };
-    if *actual != body
+    if *actual != loop_body
         || !parameter(*condition, true)
         || !matches!(
             parsed.ast().expressions().get(*condition).ok()?.payload(),

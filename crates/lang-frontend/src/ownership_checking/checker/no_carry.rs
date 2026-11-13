@@ -18,6 +18,10 @@ pub(super) struct Session {
     loans: usize,
     diagnostics: usize,
     cursor: usize,
+    next_arm: Option<core::Plan<SymbolId>>,
+    first_closed: Option<core::Plan<SymbolId>>,
+    branch: bool,
+    valid: bool,
 }
 impl Checker<'_> {
     fn no_carry_call(&self, id: ExpressionId, initializer: bool) -> bool {
@@ -73,7 +77,7 @@ impl Checker<'_> {
             return;
         }
         let Some(statement) = statement else { return };
-        let Some(plan) = core::shape::plan(
+        let Some(selection) = core::shape::selection(
             self.parsed,
             statement,
             body,
@@ -109,9 +113,14 @@ impl Checker<'_> {
         ) else {
             return;
         };
-        if self.borrowed_call_source(plan.source_call) != Some(plan.source_argument) {
+        if std::iter::once(&selection.first)
+            .chain(selection.second.iter())
+            .any(|plan| self.borrowed_call_source(plan.source_call) != Some(plan.source_argument))
+            || selection.branch.is_some() != selection.second.is_some()
+        {
             return;
         }
+        let plan = selection.first;
         self.no_carry = Some(Session {
             frame: core::Frame::new(plan.clone(), entry.clone()),
             plan,
@@ -121,14 +130,25 @@ impl Checker<'_> {
             loans: self.loans.len(),
             diagnostics: self.diagnostics.len(),
             cursor: self.loans.len(),
+            next_arm: selection.second,
+            first_closed: None,
+            branch: selection.branch.is_some(),
+            valid: true,
         });
     }
+    /// Only a selected arm may use statement-by-statement last-use closure.
+    pub(super) fn no_carry_arm_scope(&self, scope: StatementId) -> bool {
+        self.no_carry
+            .as_ref()
+            .is_some_and(|s| s.branch && s.valid && s.plan.body == scope)
+    }
+
     pub(super) fn no_carry_claim(
         &mut self,
         scope: StatementId,
         state: &State,
     ) -> Option<core::ScopeTicket> {
-        if self.no_carry.as_ref()?.plan.body != scope {
+        if !self.no_carry.as_ref()?.valid || self.no_carry.as_ref()?.plan.body != scope {
             return None;
         }
         let state = self.resource_snapshot(state);
@@ -142,7 +162,7 @@ impl Checker<'_> {
     ) -> bool {
         self.no_carry
             .as_ref()
-            .is_some_and(|s| s.frame.allows(binding, initializer, marker))
+            .is_some_and(|s| s.valid && s.frame.allows(binding, initializer, marker))
     }
     pub(super) fn no_carry_acquired(&mut self, binding: SymbolId, state: &State) {
         if self.no_carry.is_none() {
@@ -351,19 +371,38 @@ impl Checker<'_> {
             .as_ref()
             .is_some_and(|s| self.no_carry_facts(s));
         if let Some(s) = self.no_carry.as_mut() {
-            s.frame.close(
-                ticket,
-                actual.as_ref(),
-                flows.breaks.is_none() && flows.continues.is_none(),
-                exact,
-            );
+            let normal = flows.breaks.is_none() && flows.continues.is_none();
+            let closed = s.frame.close(ticket, actual.as_ref(), normal, exact);
+            s.valid &= closed;
+            if closed && s.next_arm.is_some() {
+                // A second arm starts only after the first actual frame is independently
+                // finished. It must later claim its own scope at the original entry state.
+                let first = std::mem::replace(
+                    &mut s.frame,
+                    core::Frame::new(s.plan.clone(), s.entry.clone()),
+                )
+                .finish(actual.as_ref(), normal, exact);
+                if let (Some(first), Some(next)) = (first, s.next_arm.take()) {
+                    s.frame = core::Frame::new(next.clone(), s.entry.clone());
+                    s.plan = next;
+                    s.first_closed = Some(first);
+                    s.bindings = self.borrow_results.bindings.len();
+                    s.ends = self.borrow_results.ends.len();
+                    s.loans = self.loans.len();
+                    s.cursor = self.loans.len();
+                } else {
+                    s.valid = false;
+                }
+            }
         }
     }
     pub(super) fn no_carry_finish(&mut self, flows: &Flows) -> Result<(), OwnershipCheckingError> {
         let Some(s) = self.no_carry.take() else {
             return Ok(());
         };
-        let exact = self.no_carry_facts(&s);
+        let exact = self.no_carry_facts(&s)
+            && s.valid
+            && (!s.branch || (s.first_closed.is_some() && s.next_arm.is_none()));
         let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
         if s.frame
             .finish(

@@ -78,7 +78,7 @@ use flow::{
 };
 
 pub(super) struct Analysis {
-    pub(super) no_carry_loops: Vec<super::UnitLoopNoCarryFact>,
+    pub(super) no_carry: super::loop_no_carry::CompletedNoCarry,
     pub(super) borrow_return_origins:
         Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
     pub(super) callable_provenance:
@@ -255,7 +255,7 @@ pub(super) fn analyze(
     let mut ownership_primitives = Vec::new();
     let mut field_replacements = Vec::new();
     let mut borrow_return_origins = Vec::new();
-    let mut no_carry_loops = Vec::new();
+    let mut no_carry = super::loop_no_carry::CompletedNoCarry::default();
     let mut borrow_results = crate::ownership_checking::borrow_result::UnitBorrowResults::default();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
@@ -322,7 +322,7 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
-        no_carry_loops.extend(checker.finish_no_carry_proofs(&drop_analysis.borrow_ends)?);
+        no_carry.extend(checker.finish_no_carry_proofs(&drop_analysis.borrow_ends)?);
         nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
         map_iteration_templates.extend(checker.map_iterations.into_values());
@@ -419,7 +419,7 @@ pub(super) fn analyze(
         borrow_call_transports.clear();
         borrow_binding_transports.clear();
         borrow_results = Default::default();
-        no_carry_loops.clear();
+        no_carry = Default::default();
     }
     // Raw consumers share the public gate. Deferred keeps the legacy diagnostic
     // projection, but no sealed loop/B capability may survive global rejection.
@@ -435,7 +435,7 @@ pub(super) fn analyze(
         .range_uses
         .sort_by_key(|fact| fact.expression());
     Ok(Analysis {
-        no_carry_loops,
+        no_carry,
         borrow_results,
         borrow_return_origins,
         callable_provenance,
@@ -560,7 +560,7 @@ struct Checker<'a> {
     checking_borrow_return: bool,
     allowed_borrow_call: Option<ExpressionId>,
     no_carry: Option<no_carry::Session>,
-    no_carry_proofs: Vec<crate::ownership_checking::loop_no_carry::Plan<UnitSymbolId>>,
+    no_carry_proofs: Vec<crate::ownership_checking::loop_no_carry::Proof<UnitSymbolId>>,
     borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
     range_producers: Vec<Span>,
     current_borrow_return:
