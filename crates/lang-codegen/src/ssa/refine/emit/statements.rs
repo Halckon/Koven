@@ -276,6 +276,7 @@ impl LoanReceipts {
         )?;
         self.nested_exit.finish(body, function, span)?;
         self.nested_resume.finish(body, function, span)?;
+        self.nested_resume.compose(body, function, span)?;
         self.loop_receipt.finish(&body.loop_plans, function, span)?;
         self.fresh_loop
             .finish(&body.fresh_loop_plans, function, span)?;
@@ -666,6 +667,7 @@ pub(super) fn inject_owner_final(
     receipts
         .child_cycle
         .inject(body, function, &receipts.nested_body);
+    receipts.nested_resume.inject_composition(body, function);
     receipts.nested_resume.inject_header(function);
     receipts.nested_exit.inject_parent(body, function);
     crate::ssa::refine::nested_exit_receipt::inject_final(&body.nested_exit_plans, function);

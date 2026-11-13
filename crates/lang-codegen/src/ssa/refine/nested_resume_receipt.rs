@@ -8,6 +8,10 @@ use crate::ssa::{
 use lang_frontend::{source::Span, type_checking::UnitStatementId};
 use std::collections::BTreeMap;
 mod carry;
+mod composition;
+#[cfg(test)]
+mod composition_faults;
+mod composition_loan;
 mod header;
 pub(super) use carry::{Carry, CarryChecked};
 fn invalid(span: Span) -> LoweringError {
@@ -64,6 +68,7 @@ impl Plans {
 #[derive(Default)]
 pub(super) struct Emitted {
     header_receipt: Option<header::Header>,
+    current: BTreeMap<BlockRef, BTreeMap<Slot, EntityId>>,
     checked: BTreeMap<BlockRef, (InstructionId, Operation)>,
     function: Option<FunctionId>,
     blocks: BTreeMap<BlockRef, BlockId>,
@@ -238,6 +243,14 @@ impl Emitted {
     ) -> Result<(), LoweringError> {
         if let Some(header) = &mut self.header_receipt {
             header.observe(function, from, current, span)?;
+        }
+        if let Some(raw) = self
+            .blocks
+            .iter()
+            .find_map(|(raw, id)| (*id == from).then_some(*raw))
+            && self.current.insert(raw, current.clone()).is_some()
+        {
+            return Err(invalid(span));
         }
         Ok(())
     }

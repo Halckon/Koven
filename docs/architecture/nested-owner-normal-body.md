@@ -175,3 +175,13 @@ String literal、且进入 parent 前未被其它指令使用的完整根向量�
 的 required 标志独立保存，缺失拒绝。其它来源不发布此基例，仍走既有 lowering。
 这补上受限来源的初始身份，并不把既有 parent resume/carry 收据升级成跨父轮
 组合归纳。CI-only 又增加初始计划缺失、向量交换和源消费，共 21 类，远端待验证。
+
+### 受限父轮组合核验
+
+`nested_resume_receipt/composition` 在 child/false/resume 收据终检后配对身份，核完整
+根向量沿 child false、父单次 literal Replace 和 checked-success 回到同根父 header。
+未改根无消费，改根的新代无直接使用或旁路；父初始/回边前驱闭合，父 header 拒绝
+Place/新建 loan/String 根 loan，只允许原槽既有 Shared Int 输入借用。独立 preparation 子模块核父 RootPlace、Exclusive BorrowBegin、Replace
+唯一定义/使用和结束链，复用 old 的既有 Drop 收据。abort 保持独立终止并核 metadata。
+此部分正确性仅适用于已选择的初始 own 参数/literal、直接父子 while、单次父写入与
+checked tail；不是一般父循环证明或终止证明，也不以有限 native 轮数作归纳依据。

@@ -16675,3 +16675,40 @@ codegen all-target strict Clippy、docs922、修改文件格式/diff 与尺寸�
 CI-only 两个精确目标仅编译列举，none executed。独审发现最初消费反例先破坏
 literal 来源，已改为保留 literal、破坏后续 scalar 指令，避免把来源拒绝冒称消费
 拒绝；该修正仍只编译列举，远端破坏验证待推送后进行。
+
+### D10 受限父轮符号组合（2026-11-13）
+
+在 child-cycle（含受限初始基例）、parent false partition、parent resume retirement
+全部完成终检之后，额外核跨收据 control/header/root 向量身份。限定单次父 String
+literal Replace 与一段 checked tail；对子 false→resume→checked-success→parent
+header 的完整向量逐槽核真实边参数。未改根始终是本块参数且无指令消费；改根在
+resume 是真实新 owner，回边成为同根父 header 参数。正常路径唯一前驱、父 header
+仅初始/回边两前驱；父 header 禁止 Place、新建 loan 和 String 根 loan。既有 Shared
+Int 函数参数（如每轮初始化 inner 的输入）可按原参数槽保持：类型须匹配实际 checked
+整数类型，不是活动 owner-root loan。中间已选 Replace preparation 另核唯一结束链。
+
+父替换输入独立核唯一同块 RootPlace→Exclusive BorrowBegin→RootReplace 实体链、
+定义/使用及顺序，Replace 结束 loan，无 place/loan 参数或终结器逃逸；复用原 old
+唯一 Drop 收据。replacement 必须是本次 resume 的唯一 StringLiteral 定义与唯一
+Replace 使用，新 owner 不得被任何其它指令直接消费或从非 resume 边逃逸。
+checked abort 单独核原 operator/divisor、空指令终止块、唯一前驱及根向量；不是回边。
+
+归纳陈述是部分正确性：给定父 header 第 k 轮独占根向量，child 的零轮或任意正常
+轮次闭合给出当前向量；父单次替换消费目标旧代并安装本次激活的新代，保留其它根；
+checked success 完整映射回同根 header，得到第 k+1 轮不变量。初始基例由前片提供，
+false 边按当前代既有互斥消费/保留分区退出；abort 不产生正常归纳后继。不证明终止，
+不涵盖更一般 producer、Break/Return、多重嵌套或任意父写入序列。
+
+新增四项 CI-only 真实破坏：父 carry 根交换、未改根额外消费、父借用变 Shared、
+新代在其它块被消费，共 25 类；禁止本地执行。
+
+最终普通主正例 1/1（根 Replace 正/逆序）及父 false 部分保留/全消费组合正例 1/1
+通过；非发布兼容性和既有普通/native 基线本轮亦各 1/1 通过。最终 codegen all-target
+strict Clippy、两 CI-only 精确目标编译列举（none executed）、文档、格式及尺寸门禁
+通过。未推送，破坏矩阵仍待远端双宿主验证。
+
+本轮先修复模块可见性和 Clippy 问题；加强后的普通正例曾被“禁止所有 header loan”
+错误拒绝。核对真实 SSA 发现是已有 Shared Int 输入，不是 owner-root loan；现只允许
+原参数槽、实际 checked 整数类型、raw 全体无重新定义且观察 current 等于同槽参数的
+外部只读输入，保留正常读取，不放行新借用。独立审查另外补齐新代全局消费、输入
+唯一身份与完整 exclusive loan 链，临时调试输出已移除。

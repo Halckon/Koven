@@ -34,6 +34,7 @@ fn child_cycle_receipt_connects_actual_current_and_next_root_vectors() {
             "child-cycle-ssa-complete",
             "child-parent-entry-ssa-complete",
             "parent-initial-owner-base-ssa-complete",
+            "parent-generation-composition-ssa-complete",
         ] {
             assert_eq!(
                 actions
@@ -51,6 +52,9 @@ fn fault_source() -> UnitSource {
     source_with_initial("var a=seed;")
 }
 fn source_with_initial(initial: &str) -> UnitSource {
+    source_with_initial_and_suffix(initial, "println(a); println(b)")
+}
+fn source_with_initial_and_suffix(initial: &str, suffix: &str) -> UnitSource {
     UnitSource::analyze(
         "child-cycle-fault.ko",
         &r#"fun run(outer:Int,inner:Int,own seed:String) {
@@ -61,7 +65,8 @@ fn source_with_initial(initial: &str) -> UnitSource {
         }; println(a); println(b)
     }
     fun entry() { run(1,2,"seed") }"#
-            .replace("var a=seed;", initial),
+            .replace("var a=seed;", initial)
+            .replace("println(a); println(b)", suffix),
     )
     .unwrap()
 }
@@ -91,6 +96,10 @@ fn assert_cycle_faults(faults: &[crate::ssa::OwnerFault]) {
 fn ci_only_child_cycle_rejects_missing_evidence_and_transport_corruption() {
     use crate::ssa::OwnerFault::*;
     assert_cycle_faults(&[
+        ParentCompositionCarrySwap,
+        ParentCompositionUnchangedConsume,
+        ParentCompositionSharedLoan,
+        ParentCompositionNewConsume,
         ChildCycleInitialMissingPlan,
         ChildCycleInitialSwap,
         ChildCycleInitialConsumer,
@@ -135,6 +144,31 @@ fn initial_base_does_not_claim_used_roots_or_other_producers() {
             !actions
                 .iter()
                 .any(|(name, _)| *name == "parent-initial-owner-base-ssa-complete")
+        );
+    }
+}
+
+#[test]
+fn parent_composition_reuses_current_generation_false_partitions() {
+    for suffix in ["println(a)", ""] {
+        let source = source_with_initial_and_suffix("var a=seed;", suffix);
+        source.assert_frontend_clean();
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
+        crate::ssa::verify::verify_program(&program).unwrap();
+        assert!(
+            actions.iter().any(|(name, count)| *name
+                == "parent-generation-composition-ssa-complete"
+                && *count == 2),
+            "{actions:?}"
+        );
+        assert!(
+            actions
+                .iter()
+                .any(|(name, count)| *name == "nested-parent-false-ssa-complete"
+                    && *count == if suffix.is_empty() { 2 } else { 1 }),
+            "{actions:?}"
         );
     }
 }
