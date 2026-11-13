@@ -6,8 +6,7 @@ use super::model::{
     Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId, TerminatorKind,
 };
 
-mod types;
-use types::{map, write_type_kind};
+use super::verify_types::render_types::{map, write_type_kind};
 
 const fn binary_name(operator: BinaryOperator) -> &'static str {
     match operator {
@@ -96,7 +95,10 @@ fn write_module(output: &mut String, module: &Module) -> fmt::Result {
     writeln!(output, "}}")
 }
 
-fn write_callable_signature(output: &mut String, signature: &CallableSignature) -> fmt::Result {
+pub(in crate::ssa) fn write_callable_signature(
+    output: &mut String,
+    signature: &CallableSignature,
+) -> fmt::Result {
     output.push('(');
     for (index, parameter) in signature.parameters.iter().enumerate() {
         if index != 0 {
@@ -236,7 +238,7 @@ fn write_entity_ids(output: &mut String, entities: &[EntityId]) -> fmt::Result {
     Ok(())
 }
 
-fn write_entity_id(output: &mut String, entity: EntityId) -> fmt::Result {
+pub(in crate::ssa) fn write_entity_id(output: &mut String, entity: EntityId) -> fmt::Result {
     match entity {
         EntityId::Value(id) => write!(output, "%v{}", id.index()),
         EntityId::Place(id) => write!(output, "%p{}", id.index()),
@@ -268,7 +270,7 @@ fn write_entity_type(output: &mut String, ty: EntityType) -> fmt::Result {
     }
 }
 
-fn write_type_ids(output: &mut String, types: &[SsaTypeId]) -> fmt::Result {
+pub(in crate::ssa) fn write_type_ids(output: &mut String, types: &[SsaTypeId]) -> fmt::Result {
     for (index, ty) in types.iter().enumerate() {
         if index != 0 {
             output.write_str(", ")?;
@@ -278,7 +280,7 @@ fn write_type_ids(output: &mut String, types: &[SsaTypeId]) -> fmt::Result {
     Ok(())
 }
 
-fn write_type_id(output: &mut String, ty: SsaTypeId) -> fmt::Result {
+pub(in crate::ssa) fn write_type_id(output: &mut String, ty: SsaTypeId) -> fmt::Result {
     write!(output, "!t{}", ty.index())
 }
 

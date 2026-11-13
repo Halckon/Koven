@@ -10,7 +10,7 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
-pub(super) struct Input {
+pub(in crate::ssa) struct Input {
     pub sources: SourceMap,
     pub parsed: ParsedFile,
     pub map: bool,

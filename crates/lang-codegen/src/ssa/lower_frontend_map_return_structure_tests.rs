@@ -5,7 +5,7 @@ use crate::ssa::model::{
 };
 use lang_frontend::source::Span;
 
-pub(super) fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
+pub(in crate::ssa) fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
     function
         .blocks
         .iter()
@@ -30,7 +30,7 @@ pub(super) fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
 }
 
 // Only block parameters forward identity; even an older update of this Map fails.
-pub(super) fn forwards(function: &Function, actual: EntityId, expected: EntityId) -> bool {
+pub(in crate::ssa) fn forwards(function: &Function, actual: EntityId, expected: EntityId) -> bool {
     fn visit(function: &Function, actual: EntityId, expected: EntityId, depth: usize) -> bool {
         if actual == expected {
             return true;
@@ -55,7 +55,10 @@ pub(super) fn forwards(function: &Function, actual: EntityId, expected: EntityId
     visit(function, actual, expected, 0)
 }
 
-pub(super) fn only(function: &Function, predicate: impl Fn(&Instruction) -> bool) -> &Instruction {
+pub(in crate::ssa) fn only(
+    function: &Function,
+    predicate: impl Fn(&Instruction) -> bool,
+) -> &Instruction {
     let found = function
         .instructions
         .iter()
@@ -65,7 +68,7 @@ pub(super) fn only(function: &Function, predicate: impl Fn(&Instruction) -> bool
     found[0]
 }
 
-pub(super) fn definition(function: &Function, entity: EntityId) -> &Instruction {
+pub(in crate::ssa) fn definition(function: &Function, entity: EntityId) -> &Instruction {
     // The refinement layer threads a value through join parameters; a parameter whose every
     // incoming argument has one defining operation is that operation's value.
     fn resolve(
@@ -99,7 +102,7 @@ pub(super) fn definition(function: &Function, entity: EntityId) -> &Instruction 
     function.instruction(instruction).unwrap()
 }
 
-pub(super) fn slot(arguments: &[EntityId], entity: EntityId) -> usize {
+pub(in crate::ssa) fn slot(arguments: &[EntityId], entity: EntityId) -> usize {
     let found = arguments
         .iter()
         .enumerate()
@@ -109,18 +112,18 @@ pub(super) fn slot(arguments: &[EntityId], entity: EntityId) -> usize {
     found[0]
 }
 
-pub(super) fn transport(function: &Function, edge: &Edge, entity: EntityId) -> EntityId {
+pub(in crate::ssa) fn transport(function: &Function, edge: &Edge, entity: EntityId) -> EntityId {
     function.block(edge.target).unwrap().parameters[slot(&edge.arguments, entity)]
 }
 
-pub(super) fn branch(block: &Block) -> &Edge {
+pub(in crate::ssa) fn branch(block: &Block) -> &Edge {
     let TerminatorKind::Branch(edge) = &block.terminator.as_ref().unwrap().kind else {
         panic!("expected unconditional branch from {:?}", block.id)
     };
     edge
 }
 
-pub(super) fn before(function: &Function, first: &Instruction, second: &Instruction) {
+pub(in crate::ssa) fn before(function: &Function, first: &Instruction, second: &Instruction) {
     assert_eq!(
         first.block, second.block,
         "this fixture has straight-line cleanup"
@@ -135,7 +138,7 @@ pub(super) fn before(function: &Function, first: &Instruction, second: &Instruct
     assert!(index(first) < index(second));
 }
 
-pub(super) fn reaches(
+pub(in crate::ssa) fn reaches(
     function: &Function,
     from: BlockId,
     target: BlockId,
@@ -499,7 +502,7 @@ pub(super) fn assert_return_structure(
 
 // Declaration spans bind fixture labels to actual functions without depending
 // on single-file names or reproducing the Unit generated-name convention.
-pub(super) fn source_function(
+pub(in crate::ssa) fn source_function(
     program: &Program,
     source: Span,
 ) -> (&crate::ssa::model::Module, &Function) {

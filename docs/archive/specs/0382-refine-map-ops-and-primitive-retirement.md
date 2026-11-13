@@ -11,7 +11,7 @@
 | 批准依据 | 用户确认基于最新 main 继续推进 E3 后续开发与旧路径退休 |
 | 基线 | `main` `e89c3630` |
 | 分支 | `feature/spec-0382-refine-map-ops-and-primitive-retirement` |
-| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)、[SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md) |
+| 前置 | [ADR-0032](../../adr/accepted/0032-ownership-refinement-layer.md)、[ADR-0033](../../adr/accepted/0033-inline-nullable-representation.md)、[SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

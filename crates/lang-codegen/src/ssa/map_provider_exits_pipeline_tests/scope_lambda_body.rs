@@ -1,9 +1,609 @@
 //! A2 preserves the two original P15 programs and their real lambda/body identities.
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-mod ast;
-pub(super) mod facts;
+mod ast {
+    //! The thunk is selected by the real lambda initializer and LambdaBody identity.
+    use super::super::{
+        births::ast::Site,
+        fixture::{Failure, failure, need},
+        query_inputs::one,
+        temporary_arguments::ast::{Function, function},
+    };
+    use super::Case;
+    use lang_frontend::{
+        ast::{ExpressionId, StatementId},
+        parser::{Expression, ForBinding, Item, NameMarker, ParsedFile, Statement},
+        source::{SourceMap, Span},
+    };
+    #[derive(Debug)]
+    pub(super) struct Input {
+        pub entry: Function,
+        pub scan: Function,
+        pub make: Function,
+        pub produce: Function,
+        pub reader: Span,
+        pub observe: Span,
+        pub scan_call: ExpressionId,
+        pub callback: Span,
+        pub lambda: ExpressionId,
+        pub body: StatementId,
+        pub invoke: ExpressionId,
+        pub callee: ExpressionId,
+        pub source: Span,
+        pub birth: ExpressionId,
+        pub birth_span: Span,
+        pub site: Option<Site>,
+        pub observe_call: Option<ExpressionId>,
+        pub done: ExpressionId,
+    }
+    pub(super) fn span(parsed: &ParsedFile, id: ExpressionId) -> Span {
+        parsed.ast().expressions().get(id).unwrap().span()
+    }
+    pub(super) fn inside(outer: Span, inner: Span) -> bool {
+        outer.source_id() == inner.source_id()
+            && outer.start() < inner.start()
+            && inner.end() < outer.end()
+    }
+    fn local(
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+        scope: Span,
+        wanted: &str,
+    ) -> Result<(Span, ExpressionId), Failure> {
+        one(
+            parsed
+                .ast()
+                .items()
+                .iter()
+                .filter_map(|(_, n)| match n.payload() {
+                    Item::Variable {
+                        name: NameMarker::Present(name),
+                        initializer,
+                        ..
+                    } if inside(scope, n.span()) && sources.slice(*name) == Ok(wanted) => {
+                        Some((*name, *initializer))
+                    }
+                    _ => None,
+                }),
+            "lambda actual local declaration/initializer",
+        )
+    }
+    fn call(
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+        scope: Span,
+        wanted: &str,
+    ) -> Result<ExpressionId, Failure> {
+        one(
+            parsed
+                .ast()
+                .expressions()
+                .iter()
+                .filter_map(|(id, n)| match n.payload() {
+                    Expression::Call { callee, .. }
+                        if inside(scope, n.span())
+                            && sources.slice(span(parsed, *callee)) == Ok(wanted) =>
+                    {
+                        Some(id)
+                    }
+                    _ => None,
+                }),
+            "lambda actual original Call",
+        )
+    }
+    pub(super) fn input(
+        c: &Case,
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+    ) -> Result<Input, Failure> {
+        let entry = function(sources, parsed, "entry", None)?;
+        let scan = function(sources, parsed, "scan", None)?;
+        let make = function(sources, parsed, "make", None)?;
+        let produce = function(sources, parsed, "produce", Some("Int"))?;
+        let named = |wanted| {
+            one(parsed.roots().iter().filter_map(|id|parsed.ast().items().get(*id).ok()).filter(|n|matches!(n.payload(),Item::Function{name:NameMarker::Present(name),..}if sources.slice(*name)==Ok(wanted))).map(|n|n.span()),"lambda actual top-level consumer")
+        };
+        let reader = named("read")?;
+        let observe = named("observe")?;
+        let scan_call = call(sources, parsed, entry.span, "scan")?;
+        let (callback, lambda) = local(sources, parsed, scan.span, "callback")?;
+        let Expression::Lambda { body, .. } =
+            parsed.ast().expressions().get(lambda).unwrap().payload()
+        else {
+            return Err(failure("lambda callback actual Lambda initializer", lambda));
+        };
+        let body = *body;
+        let node = parsed.ast().statements().get(body).unwrap();
+        need(
+            matches!(node.payload(), Statement::LambdaBody { .. }),
+            "lambda actual LambdaBody, not outer function",
+            node,
+        )?;
+        let (source, birth) = local(sources, parsed, node.span(), "source")?;
+        need(
+            birth == call(sources, parsed, node.span(), "make")?,
+            "lambda named Map initializer exact actual make()",
+            birth,
+        )?;
+        let invoke = call(sources, parsed, scan.span, "callback")?;
+        let Expression::Call {
+            callee, arguments, ..
+        } = parsed.ast().expressions().get(invoke).unwrap().payload()
+        else {
+            unreachable!()
+        };
+        need(
+            arguments.is_empty() && !inside(span(parsed, lambda), span(parsed, invoke)),
+            "lambda callback invoked outside its own body with no arguments",
+            invoke,
+        )?;
+        let callee = *callee;
+        let site = if c.provider {
+            let (statement, n, names, source_expr, loop_body) = one(
+                parsed
+                    .ast()
+                    .statements()
+                    .iter()
+                    .filter_map(|(id, n)| match n.payload() {
+                        Statement::For {
+                            binding: ForBinding::Destructuring { names, .. },
+                            source,
+                            body,
+                            ..
+                        } if inside(span(parsed, lambda), n.span()) => {
+                            Some((id, n, names, *source, *body))
+                        }
+                        _ => None,
+                    }),
+                "lambda actual internal For",
+            )?;
+            let [NameMarker::Present(key), NameMarker::Present(value)] = names.as_slice() else {
+                return Err(failure("lambda actual K/V declarations", names));
+            };
+            let read = call(sources, parsed, n.span(), "read")?;
+            let Expression::Call { arguments, .. } =
+                parsed.ast().expressions().get(read).unwrap().payload()
+            else {
+                unreachable!()
+            };
+            let [key_arg, value_arg] = arguments.as_slice() else {
+                return Err(failure("lambda actual ordered read arguments", arguments));
+            };
+            Some(Site {
+                statement,
+                span: n.span(),
+                source: source_expr,
+                body: loop_body,
+                bindings: [*key, *value],
+                read,
+                arguments: [key_arg.value, value_arg.value],
+            })
+        } else {
+            None
+        };
+        let observe_call = if c.provider {
+            None
+        } else {
+            Some(call(sources, parsed, span(parsed, lambda), "observe")?)
+        };
+        let done = call(sources, parsed, span(parsed, lambda), "println")?;
+        need(
+            span(parsed, birth).end() < span(parsed, done).start()
+                && span(parsed, done).end() < span(parsed, lambda).end(),
+            "lambda Map birth and done belong to actual thunk body",
+            (birth, done, lambda),
+        )?;
+        Ok(Input {
+            entry,
+            scan,
+            make,
+            produce,
+            reader,
+            observe,
+            scan_call,
+            callback,
+            lambda,
+            body,
+            invoke,
+            callee,
+            source,
+            birth,
+            birth_span: span(parsed, birth),
+            site,
+            observe_call,
+            done,
+        })
+    }
+}
+pub(super) mod facts {
+    //! Same raw analysis: actual Fn0 Unit callback and the Map born inside its LambdaBody.
+    mod unit {
+        //! Source-qualified counterpart; no independent Unit owner table is invented.
+        use super::*;
+        fn root(
+            names: &ValidatedCompilationUnitNames,
+            marker: Span,
+        ) -> Result<UnitSymbolId, Failure> {
+            let (unit, symbol) = one(
+                names.names().source_units().iter().flat_map(|u| {
+                    u.resolution()
+                        .symbols()
+                        .iter()
+                        .filter(move |s| s.span() == marker && !s.is_synthetic())
+                        .map(move |s| (u.source_unit(), s.id()))
+                }),
+                "A2 actual qualified original local",
+            )?;
+            one(
+                names
+                    .names()
+                    .references()
+                    .iter()
+                    .filter_map(|r| match r.target() {
+                        UnitReferenceTarget::Symbol(id)
+                            if id.source_unit() == unit && id.symbol() == symbol =>
+                        {
+                            Some(*id)
+                        }
+                        _ => None,
+                    })
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter(),
+                "A2 actual qualified referenced local",
+            )
+        }
+        pub(in crate::ssa::map_provider_exits_pipeline_tests::scope_lambda_body) fn check(
+            input: Input<'_>,
+            names: &ValidatedCompilationUnitNames,
+            typed: &CompilationUnitTypes,
+            owned: &CompilationUnitOwnership,
+        ) -> Result<Proof, Failure> {
+            let (c, _, parsed, i) = input;
+            let unit = one(
+                names.names().source_units().iter(),
+                "A2 actual original source unit",
+            )?
+            .source_unit();
+            let e = |id| UnitExpressionId::new(unit, id);
+            let declaration = |scope| {
+                one(
+                    names
+                        .names()
+                        .index()
+                        .declarations()
+                        .iter()
+                        .filter(|d| d.source_unit() == unit && ast::inside(scope, d.name_span()))
+                        .map(|d| d.id()),
+                    "A2 actual qualified original callable declaration",
+                )
+            };
+            let callback = root(names, i.callback)?;
+            let source = root(names, i.source)?;
+            let descriptor = owned
+                .closure(e(i.lambda))
+                .ok_or_else(|| failure("A2 actual qualified closure", i.lambda))?;
+            let origin = owned
+                .callable_origin(e(i.callee))
+                .ok_or_else(|| failure("A2 actual qualified callback provenance", i.callee))?;
+            let invoke = typed
+                .call(e(i.invoke))
+                .ok_or_else(|| failure("A2 actual qualified FunctionValue Call", i.invoke))?;
+            let function = typed
+                .expression_type(e(i.lambda))
+                .ok_or_else(|| failure("A2 qualified actual lambda Fn0 type", i.lambda))?;
+            let reference = one(
+                names
+                    .names()
+                    .references()
+                    .iter()
+                    .filter(|r| r.span() == ast::span(parsed, i.callee)),
+                "A2 qualified actual callback reference",
+            )?;
+            need(
+                descriptor.expression() == e(i.lambda)
+                    && !descriptor.move_owned()
+                    && owned.captures_of(e(i.lambda)).next().is_none()
+                    && origin.expression() == e(i.callee)
+                    && origin.origin() == UnitCallableOrigin::Lambda(e(i.lambda))
+                    && origin.span() == ast::span(parsed, i.callee)
+                    && reference.target() == &UnitReferenceTarget::Symbol(callback)
+                    && typed.expression_type(e(i.callee)) == Some(function)
+                    && typed.symbol_type(callback) == Some(function)
+                    && owned.formed_owned_locals().contains(&callback)
+                    && matches!(typed.types().get(function),Some(UnitTypeKind::Function{move_only:false,parameters,return_type})if parameters.is_empty()&&*return_type==invoke.return_type()&&typed.types().get(*return_type)==Some(&UnitTypeKind::Builtin(BuiltinType::Unit)))
+                    && invoke.target() == UnitCallTarget::FunctionValue
+                    && invoke.receiver().is_none()
+                    && invoke.arguments().is_empty()
+                    && invoke.instance().type_arguments().is_empty()
+                    && invoke.borrow_return().is_none(),
+                "A2 qualified actual no-capture Fn0 Unit callback ABI/provenance",
+                (invoke, descriptor, origin),
+            )?;
+            let callback_drop = one(
+                owned
+                    .drops()
+                    .iter()
+                    .filter(|d| d.target() == UnitDropTarget::Named(callback)),
+                "A2 qualified unique original callback cleanup",
+            )?;
+            need(
+                callback_drop.point() == UnitDropPoint::CallReturn(e(i.invoke))
+                    && callback_drop.value_origin() == i.callback
+                    && !owned
+                        .drops()
+                        .iter()
+                        .any(|d| d.target() == UnitDropTarget::Temporary(e(i.lambda))),
+                "A2 qualified actual callable last-use cleanup",
+                callback_drop,
+            )?;
+            let scan = typed
+                .call(e(i.scan_call))
+                .ok_or_else(|| failure("A2 qualified actual scanner call", i.scan_call))?;
+            need(
+                scan.target() == UnitCallTarget::Declaration(declaration(i.scan.span)?)
+                    && scan.arguments().is_empty(),
+                "A2 qualified actual entry selects scanner",
+                scan,
+            )?;
+            let birth = typed
+                .call(e(i.birth))
+                .ok_or_else(|| failure("A2 qualified internal actual make", i.birth))?;
+            let ty = birth.return_type();
+            need(
+                birth.target() == UnitCallTarget::Declaration(declaration(i.make.span)?)
+                    && birth.arguments().is_empty()
+                    && birth.result_source() == CallableResultSource::Owned
+                    && birth.borrow_return().is_none()
+                    && typed.expression_type(e(i.birth)) == Some(ty)
+                    && typed.symbol_type(source) == Some(ty)
+                    && owned.formed_owned_locals().contains(&source)
+                    && matches!(typed.types().get(ty),Some(UnitTypeKind::Intrinsic{constructor:IntrinsicTypeConstructor::Map,arguments})if arguments.len()==2&&arguments.iter().all(|t|typed.types().get(*t)==Some(&UnitTypeKind::Builtin(BuiltinType::String))))
+                    && !owned
+                        .drops()
+                        .iter()
+                        .any(|d| d.target() == UnitDropTarget::Temporary(e(i.birth))),
+                "A2 qualified actual named Map owner born in true lambda body",
+                birth,
+            )?;
+            let source_drop = one(
+                owned
+                    .drops()
+                    .iter()
+                    .filter(|d| d.target() == UnitDropTarget::Named(source)),
+                "A2 qualified sole internal Map cleanup",
+            )?;
+            need(
+                source_drop.value_origin() == i.source
+                    && source_drop.point()
+                        == if let Some(site) = &i.site {
+                            UnitDropPoint::LoopExit(UnitStatementId::new(unit, site.statement))
+                        } else {
+                            UnitDropPoint::CallReturn(e(i.observe_call.unwrap()))
+                        },
+                "A2 qualified exact current internal Map endpoint",
+                source_drop,
+            )?;
+            need(
+                typed.map_iterations().len() == usize::from(c.provider)
+                    && owned.map_iterations().len() == usize::from(c.provider),
+                "A2 qualified exact acquired provider/control set",
+                owned.map_iterations(),
+            )?;
+            if let Some(site) = &i.site {
+                let statement = UnitStatementId::new(unit, site.statement);
+                let p = owned
+                    .map_iteration(statement)
+                    .ok_or_else(|| failure("A2 qualified actual internal Map plan", site))?;
+                let d = p.descriptor();
+                let reference = one(
+                    names
+                        .names()
+                        .references()
+                        .iter()
+                        .filter(|r| r.span() == ast::span(parsed, site.source)),
+                    "A2 qualified actual internal source reference",
+                )?;
+                need(
+                    typed.map_iteration(statement) == Some(d)
+                        && d.source() == e(site.source)
+                        && d.source_type() == ty
+                        && reference.target() == &UnitReferenceTarget::Symbol(source)
+                        && p.source_access() == UnitIterationSourceAccess::Owned
+                        && matches!(p.source(),Some(UnitLoanTarget::Place(path))if path.is_root()&&path.root()==source),
+                    "A2 qualified actual internal For uses original named owner",
+                    p,
+                )?;
+                let read = typed
+                    .call(e(site.read))
+                    .ok_or_else(|| failure("A2 qualified actual reader Call", site.read))?;
+                need(
+                    read.target() == UnitCallTarget::Declaration(declaration(i.reader)?)
+                        && read.arguments().len() == 2,
+                    "A2 qualified selected original read",
+                    read,
+                )?;
+                for n in 0..2 {
+                    let binding = root(names, site.bindings[n])?;
+                    let l = &p.loans()[n];
+                    let reference = one(
+                        names
+                            .names()
+                            .references()
+                            .iter()
+                            .filter(|r| r.span() == ast::span(parsed, site.arguments[n])),
+                        "A2 qualified actual component reference",
+                    )?;
+                    let loan = one(
+                        owned.loans().iter().filter(|l| {
+                            l.call() == e(site.read) && l.argument() == e(site.arguments[n])
+                        }),
+                        "A2 qualified actual reader component loan",
+                    )?;
+                    need(
+                        d.bindings()[n] == binding
+                            && reference.target() == &UnitReferenceTarget::Symbol(binding)
+                            && owned.binding_kind(binding) == Some(OwnershipBindingKind::Shared)
+                            && l.statement() == statement
+                            && l.source() == e(site.source)
+                            && l.binding() == binding
+                            && Some(l.origin()) == p.source()
+                            && l.kind() == LoanKind::Shared
+                            && read.arguments()[n].argument_index() == n
+                            && read.arguments()[n].parameter_index() == n
+                            && read.arguments()[n].mode() == ParameterMode::Borrow
+                            && loan.kind() == LoanKind::Shared
+                            && matches!(loan.target(),UnitLoanTarget::Place(path)if path.is_root()&&path.root()==binding)
+                            && loan.end_span() == ast::span(parsed, site.read),
+                        "A2 qualified original K/V Shared/Borrow lineage and actual call bounds",
+                        (l, loan),
+                    )?;
+                }
+                for (kind, point, mut actions) in [
+                    (
+                        UnitIterationExitKind::Fallthrough,
+                        UnitDropPoint::AfterStatement(UnitStatementId::new(unit, site.body)),
+                        vec![
+                            UnitIterationCleanupAction::EndBinding {
+                                statement,
+                                symbol: d.value_binding(),
+                            },
+                            UnitIterationCleanupAction::EndBinding {
+                                statement,
+                                symbol: d.key_binding(),
+                            },
+                        ],
+                    ),
+                    (
+                        UnitIterationExitKind::Exhaustion,
+                        UnitDropPoint::LoopExit(statement),
+                        vec![
+                            UnitIterationCleanupAction::FinishProvider(statement),
+                            UnitIterationCleanupAction::EndSource(statement),
+                        ],
+                    ),
+                ] {
+                    actions.extend(
+                        owned
+                            .drops()
+                            .iter()
+                            .filter(|d| d.point() == point)
+                            .copied()
+                            .map(UnitIterationCleanupAction::Drop),
+                    );
+                    let exit = one(
+                        p.exits().iter().filter(|e| e.kind() == kind),
+                        "A2 qualified actual normal exit",
+                    )?;
+                    need(
+                        p.exits().len() == 2
+                            && exit.point() == point
+                            && exit.actions() == actions
+                            && owned.iteration_cleanup_at(point) == Some(actions.as_slice()),
+                        "A2 qualified complete ordered provider normal cleanup",
+                        exit,
+                    )?;
+                }
+            } else {
+                let observe = i.observe_call.unwrap();
+                let call = typed
+                    .call(e(observe))
+                    .ok_or_else(|| failure("A2 qualified actual control observe", observe))?;
+                let Expression::Call { arguments, .. } =
+                    parsed.ast().expressions().get(observe).unwrap().payload()
+                else {
+                    unreachable!()
+                };
+                let arg = arguments[0].value;
+                let loan = one(
+                    owned
+                        .loans()
+                        .iter()
+                        .filter(|l| l.call() == e(observe) && l.argument() == e(arg)),
+                    "A2 qualified actual control borrow",
+                )?;
+                let contract = one(
+                    owned
+                        .call_argument_contracts_for(e(observe))
+                        .filter(|a| a.argument() == e(arg)),
+                    "A2 qualified actual control Borrow contract",
+                )?;
+                need(
+                    call.target() == UnitCallTarget::Declaration(declaration(i.observe)?)
+                        && matches!(call.arguments(),[a]if a.argument_index()==0&&a.parameter_index()==0&&a.mode()==ParameterMode::Borrow&&a.parameter_type()==ty)
+                        && loan.kind() == LoanKind::Shared
+                        && matches!(loan.target(),UnitLoanTarget::Place(path)if path.is_root()&&path.root()==source)
+                        && loan.end_span() == ast::span(parsed, observe)
+                        && contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+                        && contract.parameter_index() == 0
+                        && contract.parameter_type() == ty,
+                    "A2 qualified control borrows exact original current Map",
+                    (call, loan, contract),
+                )?;
+            }
+            Ok(Proof {
+                callback_drop: callback_drop.value_origin(),
+                source_drop: source_drop.value_origin(),
+            })
+        }
+    }
+    use super::super::{
+        fixture::{Failure, failure, need},
+        query_inputs::one,
+    };
+    use super::{Case, ast};
+    use lang_frontend::{
+        name_resolution::{UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames},
+        ownership_checking::*,
+        parser::{Expression, ParsedFile},
+        source::{SourceMap, Span},
+        type_checking::*,
+    };
+    #[derive(Debug)]
+    pub(super) struct Proof {
+        pub callback_drop: Span,
+        pub source_drop: Span,
+    }
+    type Input<'a> = (&'a Case, &'a SourceMap, &'a ParsedFile, &'a ast::Input);
+
+    pub(super) use unit::check as unit;
+}
 pub(super) mod graph;
-mod sources;
+mod sources {
+    //! P15 keeps the original no-capture Unit callback and its internal Map local.
+    pub(crate) struct Case {
+        pub label: &'static str,
+        pub provider: bool,
+        pub source: &'static str,
+        pub golden: &'static str,
+    }
+    pub(crate) fn sources() -> [Case; 2] {
+        [
+            Case {
+                label: "P15-for",
+                provider: true,
+                source: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P15-for.ko"
+                )),
+                golden: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P15-for.stdout"
+                )),
+            },
+            Case {
+                label: "P15-control",
+                provider: false,
+                source: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P15-control.ko"
+                )),
+                golden: include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/fixtures/map-provider-scope-0331/P15-control.stdout"
+                )),
+            },
+        ]
+    }
+}
 use super::{
     Report,
     fixture::{Failure, clean, failure},

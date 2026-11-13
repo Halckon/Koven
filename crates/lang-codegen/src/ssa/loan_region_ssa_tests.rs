@@ -8,10 +8,10 @@ use lang_frontend::{
     type_checking::standard_environments,
 };
 
-const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; consume(view(owner)) }";
+pub(in crate::ssa) const SOURCE: &str = "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {}\nfun run(): Unit { val owner = \"kept\"; consume(view(owner)) }";
 
 #[test]
-fn certified_consumer_region_has_real_unit_ssa_lifecycle() {
+pub(in crate::ssa) fn certified_consumer_region_has_real_unit_ssa_lifecycle() {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "consumer.ko", SOURCE);
     let (environment, types) = standard_environments();
@@ -194,12 +194,12 @@ fn certified_consumer_region_has_real_unit_ssa_lifecycle() {
     }
 }
 
-fn assert_span(span: Span, source: SourceId, expected: (usize, usize)) {
+pub(in crate::ssa) fn assert_span(span: Span, source: SourceId, expected: (usize, usize)) {
     assert_eq!(span.source_id(), source);
     assert_eq!((span.start(), span.end()), expected);
 }
 
-fn assert_lifecycle(
+pub(in crate::ssa) fn assert_lifecycle(
     program: &Program,
     entry: FunctionId,
     source_file: SourceId,
@@ -363,7 +363,7 @@ fn assert_lifecycle(
 }
 
 #[test]
-fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
+pub(in crate::ssa) fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
     use lang_frontend::ownership_checking::{
         UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanRegionFamily,
         UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
@@ -556,7 +556,7 @@ fn certified_receiver_region_has_real_unit_ssa_lifecycle() {
     }
 }
 
-fn assert_receiver_lifecycle(
+pub(in crate::ssa) fn assert_receiver_lifecycle(
     program: &Program,
     entry: FunctionId,
     source: SourceId,
@@ -694,83 +694,34 @@ fn assert_receiver_lifecycle(
 #[path = "loan_receipt_tests.rs"]
 mod receipts;
 
-#[cfg(feature = "loan-observation-test-support")]
-#[path = "loan_observer_off_tests.rs"]
-mod observer_off;
-
-#[path = "receiver_route_tests.rs"]
-mod receiver_route;
-
-#[cfg(feature = "loan-observation-test-support")]
-#[path = "receiver_receipt_tests.rs"]
-mod receiver_receipts;
-
 #[path = "receiver_receipt_sibling_tests.rs"]
-mod receiver_receipt_siblings;
+pub(in crate::ssa) mod receiver_receipt_siblings;
 
-#[path = "named_loan_route_tests.rs"]
-mod named_route;
-
-#[cfg(feature = "loan-observation-test-support")]
-#[path = "named_loan_receipt_tests.rs"]
-mod named_receipts;
-
-#[path = "named_loan_sibling_tests.rs"]
-mod named_siblings;
-
-#[path = "temporary_loan_route_tests.rs"]
-mod temporary_route;
-
-#[cfg(feature = "loan-observation-test-support")]
-#[path = "temporary_loan_receipt_tests.rs"]
-mod temporary_receipts;
-
-#[path = "temporary_loan_sibling_tests.rs"]
 mod temporary_siblings;
 
-#[cfg(feature = "loan-observation-test-support")]
 #[path = "multi_temporary_loan_tests.rs"]
-mod multi_temporary;
+pub(in crate::ssa) mod multi_temporary;
 
-#[cfg(feature = "loan-observation-test-support")]
 #[path = "named_literal_mapping_tests.rs"]
-mod named_literal_mapping;
+pub(in crate::ssa) mod named_literal_mapping;
 
-#[path = "finite_literal_tests.rs"]
 mod finite_literal;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "aux_handoff_probe_tests.rs"]
 mod aux_handoff_probe;
 #[path = "binding_lifecycle_probe_tests.rs"]
-mod binding_lifecycle_probe;
-
-#[cfg(feature = "loan-observation-test-support")]
-#[path = "binding_causal_links_tests.rs"]
-mod binding_causal_links;
-
-#[cfg(feature = "loan-observation-test-support")]
-#[path = "binding_coverage_tests.rs"]
-mod binding_coverage;
-
-#[cfg(feature = "loan-observation-test-support")]
-#[path = "binding_receipt_tests.rs"]
-mod binding_receipts;
-
-#[path = "parent_child_lifecycle_probe_tests.rs"]
-mod parent_child_lifecycle_probe;
+pub(in crate::ssa) mod binding_lifecycle_probe;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_causal_tests.rs"]
 mod parent_child_causal;
 
-#[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_drop_dependency_tests.rs"]
-mod parent_child_drop_dependency;
+pub(in crate::ssa) mod parent_child_drop_dependency;
 
-#[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_coverage_tests.rs"]
-mod parent_child_coverage;
+pub(in crate::ssa) mod parent_child_coverage;
 
 #[cfg(feature = "loan-observation-test-support")]
 #[path = "parent_child_receipt_tests.rs"]

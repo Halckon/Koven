@@ -1,6 +1,6 @@
 //! Original P05 canonical Borrow alias facts and complete ordinary runtime identities.
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
-mod facts;
+pub(in crate::ssa) mod facts;
 mod graph;
 use super::super::{
     Report,

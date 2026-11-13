@@ -1,10 +1,257 @@
 use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 mod cleanup_tests;
-mod determinism_tests;
-mod provider_lifetime_tests;
+pub(in crate::ssa) mod determinism_tests;
+mod provider_lifetime_tests {
+    use super::super::{
+        model::{EntityId, Operation},
+        verify::verify_program,
+    };
+    use crate::test_support::diagnostics::assert_diagnostic;
+
+    fn fixture() -> super::SourceProgram {
+        super::analyze(
+            "fun scan(xs: Array<Int>): Int { var total = 0; for (item in xs) { total = total + item }; return total }",
+            "scan",
+        )
+    }
+
+    #[test]
+    fn provider_stale_place_is_rejected_after_source_end() {
+        let mut analysis = fixture();
+        let function = analysis.entry_mut();
+        let element = function
+            .instructions
+            .iter()
+            .find(|instruction| {
+                matches!(
+                    instruction.operation,
+                    Operation::ContainerElementPlace { .. }
+                )
+            })
+            .unwrap()
+            .clone();
+        let Operation::ContainerElementPlace {
+            owner: EntityId::Loan(source),
+            ..
+        } = element.operation
+        else {
+            panic!("source loan")
+        };
+        let terminator = function.blocks[element.block.index()].terminator.take();
+        let (end, _) = function
+            .append_instruction(
+                element.block,
+                Operation::BorrowEnd { loan: source },
+                vec![],
+                element.origin.clone(),
+            )
+            .unwrap();
+        let block = &mut function.blocks[element.block.index()];
+        block.instructions.retain(|id| *id != end);
+        let position = block
+            .instructions
+            .iter()
+            .position(|id| *id == element.id)
+            .unwrap();
+        block.instructions.insert(position + 1, end);
+        block.terminator = terminator;
+        let error =
+            verify_program(&analysis.program).expect_err("place cannot outlive provider source");
+        assert_diagnostic!(
+            error.errors.iter().any(|error| matches!(
+                error.kind,
+                super::super::verify::VerifyErrorKind::PlaceUnavailable { .. }
+            )),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn entry_reborrow_cannot_revive_a_finished_provider_source() {
+        let mut analysis = fixture();
+        let function = analysis.entry_mut();
+        let element = function
+            .instructions
+            .iter()
+            .find(|instruction| {
+                matches!(
+                    instruction.operation,
+                    Operation::ContainerElementPlace { .. }
+                )
+            })
+            .unwrap()
+            .clone();
+        let Operation::ContainerElementPlace {
+            owner: EntityId::Loan(source),
+            ..
+        } = element.operation
+        else {
+            panic!("source loan")
+        };
+        let target = function.entity(EntityId::Loan(source)).unwrap().ty;
+        let terminator = function.blocks[element.block.index()].terminator.take();
+        let (end, _) = function
+            .append_instruction(
+                element.block,
+                Operation::BorrowEnd { loan: source },
+                vec![],
+                element.origin.clone(),
+            )
+            .unwrap();
+        let (reborrow, _) = function
+            .append_instruction(
+                element.block,
+                Operation::SharedReborrow { source },
+                vec![target],
+                element.origin.clone(),
+            )
+            .unwrap();
+        let block = &mut function.blocks[element.block.index()];
+        block
+            .instructions
+            .retain(|id| *id != end && *id != reborrow);
+        let position = block
+            .instructions
+            .iter()
+            .position(|id| *id == element.id)
+            .unwrap();
+        block
+            .instructions
+            .splice(position..position, [end, reborrow]);
+        block.terminator = terminator;
+        let error =
+            verify_program(&analysis.program).expect_err("finished source cannot be reborrowed");
+        assert_diagnostic!(
+            error.errors.iter().any(|error| matches!(
+                error.kind,
+                super::super::verify::VerifyErrorKind::LoanInactive { .. }
+            )),
+            "{error:?}"
+        );
+    }
+}
 mod source_cfg_tests;
-mod unit_storage_boundary_tests;
-mod unit_storage_tests;
+mod unit_storage_boundary_tests {
+    //! Unit storage never erases the SSA operation's concrete type contract.
+
+    use crate::test_support::diagnostics::assert_diagnostic;
+    use lang_frontend::source::SourceMap;
+
+    use super::super::{
+        model::{
+            EntityId, EntityType, Operation, Origin, Program, ScalarConstant,
+            SequentialContainerKind, SsaTypeKind, TerminatorKind,
+        },
+        verify::{VerifyErrorKind, VerifyLocation, verify_program},
+    };
+
+    #[test]
+    fn unit_constant_with_integer_result_fails_operation_contract() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source("unit_constant_invalid.ko", "unit")
+            .unwrap();
+        let origin = Origin::Source(sources.span(source, 0, 4).unwrap());
+        let mut program = Program::default();
+        let module_id = program.add_module("unit_constant_invalid");
+        let module = program.module_mut(module_id).unwrap();
+        let integer = module.intern_type(SsaTypeKind::Integer {
+            bits: 32,
+            signed: true,
+        });
+        let function_id = module.add_function("main", vec![], origin.clone()).unwrap();
+        let function = module.function_mut(function_id).unwrap();
+        let entry = function.add_block(vec![], origin.clone()).unwrap();
+        let (instruction, _) = function
+            .append_instruction(
+                entry,
+                Operation::Constant(ScalarConstant::Unit),
+                vec![EntityType::Value(integer)],
+                origin.clone(),
+            )
+            .unwrap();
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: vec![] }, origin)
+            .unwrap();
+        let errors = verify_program(&program).expect_err("Unit constant cannot masquerade as Int");
+        assert_diagnostic!(
+            errors.errors.iter().any(|error| {
+                error.location == VerifyLocation::Instruction(instruction)
+                    && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+            }),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn unit_operand_for_integer_array_fails_operation_contract() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source("unit_operand_invalid.ko", "arrayOf")
+            .unwrap();
+        let origin = Origin::Source(sources.span(source, 0, 7).unwrap());
+        let mut program = Program::default();
+        let module_id = program.add_module("unit_operand_invalid");
+        let module = program.module_mut(module_id).unwrap();
+        let unit = module.intern_type(SsaTypeKind::Unit);
+        let integer = module.intern_type(SsaTypeKind::Integer {
+            bits: 32,
+            signed: true,
+        });
+        let array = module
+            .add_sequential_container_type(SequentialContainerKind::Array, integer)
+            .unwrap();
+        let function_id = module
+            .add_function("source", vec![array], origin.clone())
+            .unwrap();
+        let function = module.function_mut(function_id).unwrap();
+        let entry = function.add_block(vec![], origin.clone()).unwrap();
+        let (_, operand) = function
+            .append_instruction(
+                entry,
+                Operation::Constant(ScalarConstant::Unit),
+                vec![EntityType::Value(unit)],
+                origin.clone(),
+            )
+            .unwrap();
+        let EntityId::Value(operand) = operand[0] else {
+            panic!("Unit value")
+        };
+        let (instruction, container) = function
+            .append_instruction(
+                entry,
+                Operation::ContainerConstruct {
+                    container: array,
+                    elements: vec![operand],
+                },
+                vec![EntityType::Value(array)],
+                origin.clone(),
+            )
+            .unwrap();
+        let EntityId::Value(container) = container[0] else {
+            panic!("container value")
+        };
+        function
+            .set_terminator(
+                entry,
+                TerminatorKind::Return {
+                    values: vec![container],
+                },
+                origin,
+            )
+            .unwrap();
+        let errors = verify_program(&program).expect_err("Unit operand cannot inhabit Array<Int>");
+        assert_diagnostic!(
+            errors.errors.iter().any(|error| {
+                error.location == VerifyLocation::Instruction(instruction)
+                    && matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+            }),
+            "{errors:?}"
+        );
+    }
+}
+#[allow(unused_imports)]
+pub(in crate::ssa) use determinism_tests::unit_storage_tests;
 
 use lang_frontend::{
     analysis::analyze_basic_unit_ownership,

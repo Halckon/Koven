@@ -1,5 +1,5 @@
 //! 普通源码的借用结果 ABI，不做故障或 IR 注入。
-use super::*;
+use super::super::*;
 
 #[test]
 fn native_borrow_last_use_single_preserves_permissions_and_owner_cleanup() {
@@ -37,7 +37,7 @@ fun entry(): Unit {
 }
 "#;
     let run = emit_link_and_run(path, source, "entry");
-    super::boxed_enum_tests::assert_success(
+    super::super::boxed_enum_tests::assert_success(
         &run,
         b"absent\nequal\npresent\ndifferent\npresent\ndifferent\n",
     );
@@ -58,12 +58,12 @@ fun entry(): Unit {
 }
 "#;
     let run = emit_link_and_run(path, source, "entry");
-    super::boxed_enum_tests::assert_success(&run, b"absent\npresent\n");
+    super::super::boxed_enum_tests::assert_success(&run, b"absent\npresent\n");
     assert_presence_field_reads(path, source, "i1", 1);
 }
 
 fn assert_presence_field_reads(path: &str, source: &str, ty: &str, reads: usize) {
-    let ir = super::boxed_enum_tests::lower_to_llvm(path, source);
+    let ir = super::super::boxed_enum_tests::lower_to_llvm(path, source);
     let signature = ir
         .lines()
         .find(|line| line.starts_with("define ") && line.contains(".inspect."))
@@ -108,10 +108,11 @@ fn assert_presence_field_reads(path: &str, source: &str, ty: &str, reads: usize)
 fn check_normal_cases(cases: impl IntoIterator<Item = crate::native_borrow_last_use_cases::Case>) {
     for case in cases {
         let run = emit_link_and_run(case.name, case.source, "entry");
-        super::boxed_enum_tests::assert_success(&run, case.stdout);
-        let llvm = super::boxed_enum_tests::lower_to_llvm(case.name, case.source);
-        let counted = super::boxed_enum_tests::run_counted_allocations(&llvm, case.allocations);
-        super::boxed_enum_tests::assert_success(&counted, case.stdout);
+        super::super::boxed_enum_tests::assert_success(&run, case.stdout);
+        let llvm = super::super::boxed_enum_tests::lower_to_llvm(case.name, case.source);
+        let counted =
+            super::super::boxed_enum_tests::run_counted_allocations(&llvm, case.allocations);
+        super::super::boxed_enum_tests::assert_success(&counted, case.stdout);
     }
 }
 
@@ -186,8 +187,8 @@ fn native_map_with_single_key_and_capture_owners_release_exactly_once() {
     {
         // capture: buffer + 7 String owners; resource: buffer + 3 keys + 2 Resource owners.
         let count = if name == "capture" { 8 } else { 6 };
-        let llvm = super::boxed_enum_tests::lower_to_llvm(name, &text);
-        let run = super::boxed_enum_tests::run_counted_allocations(&llvm, count);
+        let llvm = super::super::boxed_enum_tests::lower_to_llvm(name, &text);
+        let run = super::super::boxed_enum_tests::run_counted_allocations(&llvm, count);
         assert!(run.status.success(), "{name}: {run:?}");
         assert_eq!(run.stdout, expected, "{name}");
     }
@@ -220,10 +221,10 @@ fn borrow_call_lowering_single_groups_and_field_forwarding_run_without_owner_lea
     ] {
         let text = format!("{provider}\nfun entry() {{ {body} }}");
         let run = emit_link_and_run(name, &text, "entry");
-        super::boxed_enum_tests::assert_success(&run, expected);
-        let llvm = super::boxed_enum_tests::lower_to_llvm(name, &text);
-        let counted = super::boxed_enum_tests::run_counted_allocations(&llvm, allocations);
-        super::boxed_enum_tests::assert_success(&counted, expected);
+        super::super::boxed_enum_tests::assert_success(&run, expected);
+        let llvm = super::super::boxed_enum_tests::lower_to_llvm(name, &text);
+        let counted = super::super::boxed_enum_tests::run_counted_allocations(&llvm, allocations);
+        super::super::boxed_enum_tests::assert_success(&counted, expected);
     }
 }
 
@@ -284,7 +285,7 @@ fun entry() {
  take(source)
 }"#;
     let run = emit_link_and_run("loop-local-false", text, "entry");
-    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+    super::super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
 
 #[test]
@@ -302,7 +303,7 @@ fun entry() {
  take(source)
 }"#;
     let run = emit_link_and_run("no-carry-sibling-false", text, "entry");
-    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+    super::super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
 
 #[test]
@@ -321,7 +322,7 @@ fun entry() {
  take(source)
 }"#;
     let run = emit_link_and_run("no-carry-distinct-flags-false", text, "entry");
-    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+    super::super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
 
 #[test]
@@ -340,7 +341,7 @@ fun entry() {
  take(source)
 }"#;
     let run = emit_link_and_run("no-carry-mixed-own-flags-false", text, "entry");
-    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+    super::super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
 
 #[test]
@@ -364,7 +365,10 @@ fun entry() {
  take(source)
 }"#;
     let run = emit_link_and_run("no-carry-source-segments-false", text, "entry");
-    super::boxed_enum_tests::assert_success(&run, b"pre\nkept\nmid\nkept\ntail\nkept\nkept\n");
+    super::super::boxed_enum_tests::assert_success(
+        &run,
+        b"pre\nkept\nmid\nkept\ntail\nkept\nkept\n",
+    );
 }
 
 #[test]
@@ -381,7 +385,7 @@ fun take(own source:String):Unit { println(source) }
 fun entry() { val source="kept".clone(); run(source,false,true); run(source,false,false); take(source) }
 "#;
     let run = emit_link_and_run("loop-arm-zero", text, "entry");
-    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+    super::super::boxed_enum_tests::assert_success(&run, b"kept\n");
 }
 
 #[test]
@@ -409,7 +413,7 @@ fun entry() {
  take(source)
 }"#;
     let run = emit_link_and_run("counter-loop-arms-finite", text, "entry");
-    super::boxed_enum_tests::assert_success(&run,b"returned-0-left\nkept\nreturned-0-right\nkept\nleft\nkept\nreturned-1-left\nkept\nright\nkept\nright\nkept\nreturned-1-right\nkept\nleft\nkept\nleft\nkept\nreturned-2-left\nkept\nright\nkept\nright\nkept\nright\nkept\nright\nkept\nreturned-2-right\nkept\nkept\n");
+    super::super::boxed_enum_tests::assert_success(&run,b"returned-0-left\nkept\nreturned-0-right\nkept\nleft\nkept\nreturned-1-left\nkept\nright\nkept\nright\nkept\nreturned-1-right\nkept\nleft\nkept\nleft\nkept\nreturned-2-left\nkept\nright\nkept\nright\nkept\nright\nkept\nright\nkept\nreturned-2-right\nkept\nkept\n");
 }
 
 #[test]
@@ -435,7 +439,7 @@ fun entry() {
  take(source)
 }"#;
     let run = emit_link_and_run("counter-loop-own-reordered", text, "entry");
-    super::boxed_enum_tests::assert_success(&run,b"negative-returned\nkept\nzero-returned\nkept\nL\nkept\nR\nkept\nR\nkept\none-returned\nkept\nL\nkept\nL\nkept\nR\nkept\nR\nkept\nR\nkept\nR\nkept\ntwo-returned\nkept\nkept\n");
+    super::super::boxed_enum_tests::assert_success(&run,b"negative-returned\nkept\nzero-returned\nkept\nL\nkept\nR\nkept\nR\nkept\none-returned\nkept\nL\nkept\nL\nkept\nR\nkept\nR\nkept\nR\nkept\nR\nkept\ntwo-returned\nkept\nkept\n");
 }
 
 #[test]
@@ -450,7 +454,7 @@ fun run(own choose:Boolean,source:String,own flag:Boolean):Unit {
 fun take(own source:String):Unit {println(source)}
 fun entry(){val source="kept".clone();run(true,source,false);run(false,source,false);println("zero");println(source);run(true,source,true);println("left-exited");println(source);run(false,source,true);println("right-exited");println(source);take(source)}"#;
     let run = emit_link_and_run("arm-tail-break", text, "entry");
-    super::boxed_enum_tests::assert_success(
+    super::super::boxed_enum_tests::assert_success(
         &run,
         b"after-loop\nkept\nafter-loop\nkept\nzero\nkept\nL\nkept\nafter-loop\nkept\nleft-exited\nkept\nR\nkept\nR\nkept\nafter-loop\nkept\nright-exited\nkept\nkept\n",
     );
@@ -470,7 +474,7 @@ fun run(own choose:Boolean,source:String,own flag:Boolean):Unit {
 fun take(own source:String):Unit {println(source)}
 fun entry(){val source="kept".clone();run(true,source,false);run(false,source,false);println("zero");println(source);run(true,source,true);println("left-exited");println(source);run(false,source,true);println("right-exited");println(source);take(source)}"#;
     let run = emit_link_and_run("arm-tail-break-prefix", text, "entry");
-    super::boxed_enum_tests::assert_success(
+    super::super::boxed_enum_tests::assert_success(
         &run,
         b"after-loop\nkept\nafter-loop\nkept\nzero\nkept\nL\nkept\nafter-loop\nkept\nleft-exited\nkept\nR\nkept\nR\nkept\nafter-loop\nkept\nright-exited\nkept\nkept\n",
     );
@@ -511,7 +515,7 @@ fun entry(){val source="kept".clone();
     text.push_str("take(source)}");
     expected.push_str("kept\n");
     let run = emit_link_and_run("arm-tail-break-independent-prefix", &text, "entry");
-    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+    super::super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
 }
 
 #[test]
@@ -564,7 +568,7 @@ fun take(own source:String):Unit {println(source)}
     expected.push_str("kept\n");
     text.push_str(&entry);
     let run = emit_link_and_run("arm-tail-break-mixed-control-aliases", &text, "entry");
-    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+    super::super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
 }
 
 #[test]
@@ -643,7 +647,7 @@ fun take(own source:String):Unit {println(source)}
         "counter-arm-conditional-break"
     };
     let run = emit_link_and_run(label, &text, "entry");
-    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+    super::super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
 }
 
 #[test]
@@ -743,5 +747,5 @@ fn run_prefix_counter_roles(scenarios: std::ops::Range<usize>, expected_calls: u
     expected.push_str("kept\n");
     text.push_str(&entry);
     let run = emit_link_and_run(label, &text, "entry");
-    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+    super::super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
 }

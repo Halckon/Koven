@@ -512,3 +512,5 @@ pub(super) fn verify_return(
         origin,
     ));
 }
+
+pub(in crate::ssa::verify_ownership) mod borrow_result;

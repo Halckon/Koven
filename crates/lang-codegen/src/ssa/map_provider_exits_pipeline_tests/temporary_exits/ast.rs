@@ -14,7 +14,7 @@ use lang_frontend::{
 mod checks;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Exit {
+pub(in crate::ssa) enum Exit {
     Continue,
     Break,
     Return,

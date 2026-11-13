@@ -8,7 +8,7 @@ use crate::test_support::diagnostics::diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug)]
-pub(super) struct Shape {
+pub(in crate::ssa) struct Shape {
     pub scan: FunctionId,
     pub read: FunctionId,
     pub blocks: [BlockId; 4],

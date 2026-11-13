@@ -6,18 +6,19 @@
 //! a failure is an error; there is no fallback to the per-family lowering.
 pub(crate) mod arm_loop_receipt;
 mod body;
-mod build;
+pub(in crate::ssa) mod build;
 mod child_cycle_receipt;
 mod control_bridge_receipt;
 mod nested_body_receipt;
 mod nested_exit_receipt;
 mod nested_resume_receipt;
 #[cfg(test)]
-pub(crate) use build::owner_consumer_test_support::{
+pub(crate) use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
 pub(crate) mod bounded_receipt;
 pub(crate) mod branch_receipt;
+pub(crate) mod child_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
@@ -504,4 +505,7 @@ pub(crate) mod interleaved_aux_receipt;
 pub(crate) mod later_aux_receipt;
 pub(crate) mod multi_binding_receipt;
 
-pub(crate) mod child_receipt;
+mod statements;
+
+#[cfg(test)]
+pub(in crate::ssa::refine) mod temporary_ci_tests;

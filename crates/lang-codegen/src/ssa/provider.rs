@@ -1,6 +1,6 @@
 //! 借用式顺序 provider 的固定 SSA 算法；owner/loan 的边运输由调用方显式提供。
 
-use super::model::{
+use crate::ssa::model::{
     BinaryOperator, BlockId, ComparisonOperator, Edge, EntityId, EntityType, Function, LoanId,
     LoanKind, ModelError, Operation, Origin, PlaceId, ScalarConstant, SsaTypeId, TerminatorKind,
     ValueId,
@@ -17,7 +17,6 @@ impl ProviderSnapshot {
     pub(crate) const fn length(&self) -> ValueId {
         self.length
     }
-
     pub(crate) const fn cursor(&self) -> ValueId {
         self.cursor
     }
@@ -448,3 +447,11 @@ fn append_place(
     };
     Ok(place)
 }
+
+mod bounded_declaration;
+mod branch_declaration;
+mod multi_continuation_declaration;
+mod nested_declaration;
+mod single_continuation_declaration;
+
+pub(in crate::ssa) mod borrow_result;

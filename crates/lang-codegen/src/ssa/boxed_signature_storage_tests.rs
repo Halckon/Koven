@@ -180,3 +180,6 @@ fn boxed_enum_signature_only_unit_roots_accept_box_or_enum_first() {
         }
     }
 }
+
+#[path = "owner_consumer_test_support.rs"]
+pub(crate) mod owner_consumer_test_support;
