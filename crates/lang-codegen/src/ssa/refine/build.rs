@@ -25,6 +25,7 @@ mod invariant_while;
 mod map;
 mod multi_root_receipt;
 mod no_carry;
+#[deny(dead_code)]
 mod normal_header_return;
 mod open_loop_return;
 mod owner_consumer;

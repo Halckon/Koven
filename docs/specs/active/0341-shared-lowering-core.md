@@ -17712,3 +17712,10 @@ single 的 tail_mapping_matches 与 nested 的 cascade 校验仍由生产消费�
 普通完整 FQN exact 3/3 通过；observer-support codegen all-target 严格 Clippy、
 fmt、diff、文档检查通过。独立只读审查无阻断。未新增测试、未改变 Origin
 或收据语义，故障注入未执行，未推送，远端双宿主验收仍待进行。
+
+normal-header-return 同期恢复局部 dead-code 门禁：`DropReceipt.index` 仅供
+测试 witness，故字段与缓存初始化限于 `cfg(test)`；生产的 index 参数、drop fact
+身份/消费检查、实际 Drop 指令位置和完成状态校验全部保留。基于 `103aad3a`，
+现有 owner_header_bind 三项普通 exact（Basic/Constant finite native、实际
+drop authority、current-H drop）3/3 通过，严格 Clippy、fmt、docs 与 diff
+通过；独立审查无阻断。未执行 CI-only 故障、未推送，非整个 SSA 豁免退役。
