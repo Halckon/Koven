@@ -59,7 +59,9 @@ impl UnitOwnerProducerCatalogV1 {
                 let source = match definition.origin {
                     UnitOwnerOrigin::String(expression) => expression.source_unit(),
                     UnitOwnerOrigin::Parameter(symbol) => symbol.source_unit(),
-                    UnitOwnerOrigin::Closure(_) | UnitOwnerOrigin::StringConcat { .. } => return false,
+                    UnitOwnerOrigin::Closure(_) | UnitOwnerOrigin::StringConcat { .. } => {
+                        return false;
+                    }
                 };
                 Arc::ptr_eq(&definition.id.identity, &self.identity)
                     && definition.id.callable == self.callable

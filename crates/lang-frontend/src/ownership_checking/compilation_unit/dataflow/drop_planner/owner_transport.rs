@@ -1,8 +1,8 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
 mod branch;
-mod entry_concat;
 mod capture;
 pub(super) mod choice;
+mod entry_concat;
 pub(super) mod loops;
 pub(super) mod replace_call_consumer;
 pub(super) mod replace_consumer;
