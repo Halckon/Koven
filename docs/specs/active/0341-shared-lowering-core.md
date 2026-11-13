@@ -17640,3 +17640,18 @@ workspace observer-support all-target check、frontend/codegen all-target 严格
 Clippy、格式、文档结构、相对 main 尺寸门禁及 diff 检查通过；2159 个手写 Rust
 文件、36 项历史超限，无新增豁免。保留所有源工作树与分支，未推送、未开 PR、
 未决定 Origin 语义；D10/E2 与 shell 退役栈均不因本次局部集成标记整体完成。
+
+### String replace 返回旧值的普通字节回归（2026-11-13）
+
+基于 `66a897fc`，`owner_string_bytes_tests` 增加一项完整 FQN ordinary exact：
+`replaced_string_values_preserve_old_bytes_without_expanding_receipts`。Basic/Constant
+各覆盖两组空串、内嵌 NUL 与 UTF-8 输入；外/内循环采用 `(0,2)/(1,0)/(1,1)/(2,2)`，
+共 16 次有限源函数调用。独立模拟每轮 child/parent replace 返回的旧值并按原始字节
+核对 stdout、最终根值、空 stderr 与成功退出，避免仅验证最终根值而漏掉旧值运输。
+新增程序显式检查没有 child-generation receipt；打印旧 owner 不属于当前受限产品形状，
+这里只证明现有普通路径兼容，不扩大 receipt 授权，不据此退役一般 lowering。
+
+当前源码重新编译的默认 debug2/opt0 二进制中，新测试及原 String 字节权限/native
+回归各 exact 匹配 1，3/3 通过；独立只读审查未见阻断。codegen observer-support
+all-target 严格 Clippy、fmt 与 diff 检查通过。没有生产实现或 Origin 变更，未运行
+故障注入、未推送；远端 CI 仍待验证，D10/E2 仍在进行。

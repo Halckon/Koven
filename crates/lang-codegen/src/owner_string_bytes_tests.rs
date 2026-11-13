@@ -9,6 +9,7 @@ struct BytesCase {
     child_a: &'static str,
     child_a_bytes: &'static str,
     child_b: &'static str,
+    child_b_bytes: &'static str,
     parent: &'static str,
     parent_bytes: &'static str,
 }
@@ -22,6 +23,7 @@ fn cases() -> [BytesCase; 2] {
             child_a: r#""子\0甲""#,
             child_a_bytes: "子\0甲",
             child_b: r#""🙂\0乙""#,
+            child_b_bytes: "🙂\0乙",
             parent: r#""\0末""#,
             parent_bytes: "\0末",
         },
@@ -33,6 +35,7 @@ fn cases() -> [BytesCase; 2] {
             child_a: r#""""#,
             child_a_bytes: "",
             child_b: r#""\0中""#,
+            child_b_bytes: "\0中",
             parent: r#""终🙂\0""#,
             parent_bytes: "终🙂\0",
         },
@@ -131,6 +134,73 @@ fn string_byte_boundaries_survive_native_owner_transport() {
         for constant in [false, true] {
             let (source, expected) = fixture(&case, constant);
             assert_existing_receipts(&source);
+            super::assert_native_output(&source, &expected);
+        }
+    }
+}
+
+#[test]
+fn replaced_string_values_preserve_old_bytes_without_expanding_receipts() {
+    for case in cases() {
+        for constant in [false, true] {
+            let mut calls = String::new();
+            let mut expected = Vec::new();
+            let mut line = |value: &str| {
+                expected.extend_from_slice(value.as_bytes());
+                expected.push(b'\n');
+            };
+            for (outer, inner) in [(0, 2), (1, 0), (1, 1), (2, 2)] {
+                let count = if constant && outer == 2 {
+                    "TWO".into()
+                } else {
+                    outer.to_string()
+                };
+                calls.push_str(&format!("run({count},{inner},{});", case.seed));
+                let mut a = case.seed_bytes;
+                let mut b = case.initial_bytes;
+                for _ in 0..outer {
+                    for _ in 0..inner {
+                        line(a);
+                        line(b);
+                        a = case.child_a_bytes;
+                        b = case.child_b_bytes;
+                    }
+                    line(b);
+                    b = case.parent_bytes;
+                }
+                line(a);
+                line(b);
+            }
+            let text = format!(
+                r#"{}
+                fun run(outer:Int,inner:Int,own seed:String) {{
+                    var a=seed; var b={}; var n0=outer; var g0=n0>0;
+                    while(g0) {{ var n1=inner; var g1=n1>0;
+                        while(g1) {{ val x=replace(&a,{}); val y=replace(&b,{});
+                            println(x); println(y); n1=n1-1; g1=n1>0 }};
+                        val old=replace(&b,{}); println(old); n0=n0-1; g0=n0>0
+                    }}; println(a); println(b)
+                }}
+                fun entry() {{ {calls} }}"#,
+                if constant { "const val TWO:Int=2" } else { "" },
+                case.initial,
+                case.child_a,
+                case.child_b,
+                case.parent
+            );
+            let source = UnitSource::analyze("replaced-string-bytes.ko", &text).unwrap();
+            source.assert_frontend_clean();
+            assert_eq!(
+                matches!(source.products, OwnedProducts::Constant(..)),
+                constant
+            );
+            // Printing the returned old owner is outside the restricted child-cycle
+            // receipt shape. This is ordinary compatibility evidence, not authority
+            // to widen that shape or retire its existing general lowering path.
+            assert!(source.ownership().owner_observations().iter().all(|o| {
+                o.nested_normal_body_v1()
+                    .is_none_or(|p| p.child_generation_rule_v1().is_none())
+            }));
             super::assert_native_output(&source, &expected);
         }
     }
