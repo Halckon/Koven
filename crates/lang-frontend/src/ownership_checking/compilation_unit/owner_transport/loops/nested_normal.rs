@@ -18,6 +18,7 @@ pub struct UnitOwnerNestedNormalBodyV1 {
     exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
     resume_roots: Option<Vec<UnitSymbolId>>,
     resume_write: Option<UnitOwnerNestedResumeWriteV1>,
+    parent_boundary: Option<UnitOwnerNestedParentBoundaryV1>,
 }
 impl UnitOwnerNestedNormalBodyV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
@@ -32,8 +33,12 @@ impl UnitOwnerNestedNormalBodyV1 {
         normal: UnitOwnerMultiRootNormalTransportV1,
         exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
         resume_roots: Option<Vec<UnitSymbolId>>,
-        resume_write: Option<UnitOwnerNestedResumeWriteV1>,
+        parent_facts: (
+            Option<UnitOwnerNestedResumeWriteV1>,
+            Option<UnitOwnerNestedParentBoundaryV1>,
+        ),
     ) -> Option<Self> {
+        let (resume_write, parent_boundary) = parent_facts;
         let value = Self {
             identity,
             callable,
@@ -42,6 +47,7 @@ impl UnitOwnerNestedNormalBodyV1 {
             exit_partition,
             resume_roots,
             resume_write,
+            parent_boundary,
         };
         value.is_consistent().then_some(value)
     }
@@ -81,6 +87,10 @@ impl UnitOwnerNestedNormalBodyV1 {
     /// Completed single-statement facts; no backend resume permission is implied.
     pub fn parent_resume_write(&self) -> Option<&UnitOwnerNestedResumeWriteV1> {
         self.resume_write.as_ref()
+    }
+    /// Actual parent boundary observations only, not a generational invariant or backend authority.
+    pub fn parent_boundary_v1(&self) -> Option<&UnitOwnerNestedParentBoundaryV1> {
+        self.parent_boundary.as_ref()
     }
     fn resume_is_consistent(&self) -> bool {
         if self.resume_write.as_ref().is_some_and(|w| {
@@ -131,6 +141,11 @@ impl UnitOwnerNestedNormalBodyV1 {
             && self.parent().source_unit() == self.control().source_unit()
             && self.condition().source_unit() == self.control().source_unit()
             && self.body().source_unit() == self.control().source_unit()
+            && self.parent_boundary.as_ref().is_none_or(|p| {
+                p.control() == self.parent()
+                    && p.is_consistent()
+                    && p.roots() == self.normal.header_roots()
+            })
             && self.resume_is_consistent()
             && self.exit_is_consistent()
             && self.normal.is_consistent()

@@ -101,7 +101,7 @@ pub use compilation_unit::{
     UnitOwnerInvariantSplitContinueObservationV1, UnitOwnerInvariantSplitExitObservationV1,
     UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
     UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1, UnitOwnerMixedBackedgeV1,
-    UnitOwnerMultiRootBoundaryV1, UnitOwnerMultiRootNormalTransportV1, UnitOwnerNestedNormalBodyV1,
+    UnitOwnerMultiRootBoundaryV1, UnitOwnerMultiRootNormalTransportV1, UnitOwnerNestedNormalBodyV1, UnitOwnerNestedParentBoundaryV1,
     UnitOwnerNestedResumeWriteV1, UnitOwnerNormalArmBoundaryV1, UnitOwnerNormalBackedgeV1,
     UnitOwnerNormalBindDropV1, UnitOwnerObservation, UnitOwnerObservationStatus,
     UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,

@@ -16444,3 +16444,15 @@ header 的整组入口／正常回边，以及父 false 出口资源消费的独
 
 新增 fault injection 仅在 CI 执行；本地只报告编译和普通定向测试，不把待运行项
 记成通过。实现与验收按小步本地提交，本批不推送。
+
+### 父循环边界 FE 事实切片（2026-11-13）
+
+`parent_boundary_v1` 只封存实际父入口、条件、body-entry、正常回边完整有序根组，
+及父 false 出口新生成的清理事实/live 根分区。必须与既有直接子循环和 parent resume
+根组一致；不改变原清理或 lowering 许可，不宣称父代际不变量或后端资源消费完成。
+普通精确正例覆盖父出口全 live、部分退休、全退休；普通负例覆盖 Break、Return、
+条件 Break 和额外 while；原 nested normal 合同精确回归保持。三项精确测试各 1/1
+通过，lang-frontend all-target strict Clippy 通过。此前模块过滤误执行 CI-only 故障
+测试的偏差不作为合规 CI 验收证据；本轮只执行明确的普通精确测试。
+workspace all-target check 在恢复连接后重核通过；fmt、docs915 和 diff 检查通过。
+公开 API 仅增加只读父边界事实，原 child/carry 与 generic verifier 均保留。

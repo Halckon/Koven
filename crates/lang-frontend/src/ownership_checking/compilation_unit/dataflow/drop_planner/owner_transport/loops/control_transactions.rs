@@ -3,6 +3,7 @@ use super::*;
 #[derive(Default)]
 pub(in super::super::super) struct ControlTransactions {
     pub(super) nested: Option<super::nested::Nested>,
+    pub(super) nested_parent: Option<super::nested::parent::Parent>,
     pub(super) nested_invalid: bool,
     pub(super) leading_entry: Option<super::counter_segment::leading_entry::LeadingEntry>,
     pub(super) counter_batch: Option<super::counter_batch::Batch>,
@@ -63,6 +64,7 @@ impl ControlTransactions {
             counter_segments: Vec::new(),
             leading_entry: None,
             nested: None,
+            nested_parent: None,
             nested_invalid: false,
             counter_batch: None,
             root_entries: Vec::new(),
@@ -122,6 +124,7 @@ impl ControlTransactions {
             counter_segments: Vec::new(),
             leading_entry: None,
             nested: None,
+            nested_parent: None,
             nested_invalid: false,
             counter_batch: None,
             root_entries: Vec::new(),

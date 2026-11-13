@@ -179,3 +179,9 @@ SharedCaptureEnd、环境与来源 Drop 身份，按 AST alias 的 AfterStatemen
 两 replay 各有独立的损坏产物负控，防止组合校验互相遮蔽。事件校验不重判 typed AST，
 不凭清理序列推断原源码必然终止；Return 身份和完整性由 producer 与源码合同约束。
 V1、动态条件 owner/phi、循环实例及 native 能力不变。
+
+直接父子 while 的 `UnitOwnerNestedParentBoundaryV1` 独立记录实际父 entry、condition、
+body-entry、normal-backedge 的完整有序根组，以及父自身新生成 LoopExit 清理事实
+与 live 根的互斥完整分区；父/子 control、condition、body 身份保持区分。仅在既有
+nested/resume 事实一致且事件完整时发布。该只读事实不授予新 lowering 能力，不等同
+父根代际不变量、后端排他消费证明或完整跨轮归纳。

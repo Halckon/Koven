@@ -144,6 +144,7 @@ impl ControlTransactions {
         condition: UnitExpressionId,
         state: &ValueState,
     ) {
+        self.parent_condition(control, condition, state);
         self.nested_condition(control, condition, state);
         self.record_bridge_condition(control, condition, state);
         let independent_preserved = self.segment_condition(control, condition, state);
@@ -181,6 +182,7 @@ impl ControlTransactions {
         if root_tokens::skip_body_entry() {
             return;
         }
+        self.parent_body_entry(control, condition, body, state);
         self.nested_body_entry(control, condition, body, state);
         self.record_bridge_body_entry(control, condition, body, state);
         if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
@@ -198,6 +200,7 @@ impl ControlTransactions {
         state: &ValueState,
         normal: bool,
     ) {
+        self.parent_backedge(control, state, normal);
         if let Some((_, evidence)) = self
             .root_entries
             .iter_mut()

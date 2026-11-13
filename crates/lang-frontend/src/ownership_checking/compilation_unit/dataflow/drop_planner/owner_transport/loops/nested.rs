@@ -1,4 +1,5 @@
 //! One actually entered nested normal body. No entry owner or loop-exit authority.
+pub(super) mod parent;
 mod resume;
 use super::*;
 use crate::ownership_checking::UnitOwnerNestedNormalBodyV1;
@@ -59,6 +60,9 @@ impl ControlTransactions {
         observation: Option<&UnitOwnerObservation>,
     ) {
         let Some(parent) = parent else {
+            self.nested_parent = (depth == 1)
+                .then(|| parent::Parent::new(sites, state))
+                .flatten();
             return;
         };
         if self.nested_invalid
@@ -267,6 +271,7 @@ impl ControlTransactions {
         if !n.valid || !n.left || !n.body_entered {
             return None;
         }
+        let parent = self.nested_parent.take().and_then(|p| p.finish(&n));
         UnitOwnerNestedNormalBodyV1::seal(
             n.identity,
             n.callable,
@@ -274,7 +279,7 @@ impl ControlTransactions {
             n.sink?.result()?,
             n.exit_partition,
             n.resume_roots,
-            n.resume.as_ref().and_then(|r| r.result()),
+            (n.resume.as_ref().and_then(|r| r.result()), parent),
         )
     }
 }
@@ -291,11 +296,13 @@ fn fault(control: UnitStatementId, phase: u8) -> bool {
     }
 }
 #[cfg(test)]
+mod parent_tests;
+#[cfg(test)]
 mod tests {
     use super::resume;
     use super::{FAULT, HITS};
     use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
-    const SOURCE: &str = r#"fun run(outer: Int, inner: Int, own seed: String) {
+    pub(super) const SOURCE: &str = r#"fun run(outer: Int, inner: Int, own seed: String) {
         var a=seed; var b="b"; var n0=outer; var g0=n0>0;
         while(g0) {
             var n1=inner; var g1=n1>0;
