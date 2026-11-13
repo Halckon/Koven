@@ -120,3 +120,18 @@ carry 的实际父 header 有入口与回边两个前驱时选中，捕获全部
 普通 native 与 CI 待验边界见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md)。
 已实现的是受限直接父子 while 的边界运输与消费核验；完整父根跨轮代际不变量及
 任意动态代际归纳仍未实现，不能把这些局部收据合称为完整循环证明。
+
+## 条件式 child 符号代际规则
+
+`child_generation_rule_v1()` 在完整 child normal 规则、实际 checked-counter 完成、
+child false 全根存活及 parent resume 同序向量俱全时，返回按 header 根排序的递推
+schema。对任意激活次数 k，每根 current(0) 是该根入口 owner；current(k+1) 是本次
+String producer 激活的新实例，原 binding Drop 消费 current(k)。静态 producer ID
+不是跨轮复用的运行时实例。线性 normal 规则建立保持步骤，false 边对当前向量恒等，
+零轮也不激活 body producer。fresh 的激活身份包含本次 child invocation，不能把
+不同父轮次中的 child 第 k 次激活当作同一实例。无 checked counter 或仅 false-reset
+不发布该规则。
+
+这是以入口根独占且无活 loan 为前提的 FE 条件规则，不是入口实例证明，也未独立
+核实 SSA 是否实现了递推；父组合、实际 checked-abort CFG 和具体入口条件仍需后续
+配对验证。没有新增 lowering 权限，旧 witness 和通用 verifier 均保留。

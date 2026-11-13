@@ -1,4 +1,6 @@
 //! A closed body is a repeatable template, never a carried owner or a termination proof.
+mod child_generation;
+pub use child_generation::{UnitOwnerChildGenerationRuleV1, UnitOwnerRootGenerationRuleV1};
 mod nested_parent;
 pub use nested_parent::UnitOwnerNestedParentBoundaryV1;
 mod nested_resume;

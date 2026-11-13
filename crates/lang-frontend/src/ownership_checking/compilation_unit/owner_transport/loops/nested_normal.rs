@@ -3,6 +3,12 @@ use super::super::{UnitOwnerObservationStatus, UnitOwnerUnsupportedReason};
 use super::*;
 use crate::ownership_checking::compilation_unit::UnitSymbolId;
 use crate::ownership_checking::{UnitDropFact, UnitDropTarget};
+type CounterTail = (UnitSymbolId, UnitSymbolId, [UnitExpressionId; 4]);
+type NestedCompletion = (
+    Option<UnitOwnerNestedResumeWriteV1>,
+    Option<UnitOwnerNestedParentBoundaryV1>,
+    Option<CounterTail>,
+);
 /// A completed inner normal-body rule, without entry, exit, or outer-loop authority.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerNestedNormalBodyV1 {
@@ -19,6 +25,7 @@ pub struct UnitOwnerNestedNormalBodyV1 {
     resume_roots: Option<Vec<UnitSymbolId>>,
     resume_write: Option<UnitOwnerNestedResumeWriteV1>,
     parent_boundary: Option<UnitOwnerNestedParentBoundaryV1>,
+    counter_tail: Option<CounterTail>,
 }
 impl UnitOwnerNestedNormalBodyV1 {
     pub(in crate::ownership_checking::compilation_unit) fn seal(
@@ -33,12 +40,9 @@ impl UnitOwnerNestedNormalBodyV1 {
         normal: UnitOwnerMultiRootNormalTransportV1,
         exit_partition: Option<(Vec<UnitSymbolId>, Vec<UnitDropFact>)>,
         resume_roots: Option<Vec<UnitSymbolId>>,
-        parent_facts: (
-            Option<UnitOwnerNestedResumeWriteV1>,
-            Option<UnitOwnerNestedParentBoundaryV1>,
-        ),
+        parent_facts: NestedCompletion,
     ) -> Option<Self> {
-        let (resume_write, parent_boundary) = parent_facts;
+        let (resume_write, parent_boundary, counter_tail) = parent_facts;
         let value = Self {
             identity,
             callable,
@@ -48,6 +52,7 @@ impl UnitOwnerNestedNormalBodyV1 {
             resume_roots,
             resume_write,
             parent_boundary,
+            counter_tail,
         };
         value.is_consistent().then_some(value)
     }
@@ -91,6 +96,13 @@ impl UnitOwnerNestedNormalBodyV1 {
     /// Actual parent boundary observations only, not a generational invariant or backend authority.
     pub fn parent_boundary_v1(&self) -> Option<&UnitOwnerNestedParentBoundaryV1> {
         self.parent_boundary.as_ref()
+    }
+    pub(super) fn generation_counter_tail(&self) -> Option<CounterTail> {
+        self.counter_tail
+    }
+    /// Conditional source-level child recurrence; no new lowering authority is granted.
+    pub fn child_generation_rule_v1(&self) -> Option<UnitOwnerChildGenerationRuleV1> {
+        UnitOwnerChildGenerationRuleV1::from_nested(self)
     }
     fn resume_is_consistent(&self) -> bool {
         if self.resume_write.as_ref().is_some_and(|w| {

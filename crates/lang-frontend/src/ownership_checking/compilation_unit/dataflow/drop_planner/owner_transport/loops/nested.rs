@@ -272,14 +272,19 @@ impl ControlTransactions {
             return None;
         }
         let parent = self.nested_parent.take().and_then(|p| p.finish(&n));
+        let sink = n.sink?;
         UnitOwnerNestedNormalBodyV1::seal(
             n.identity,
             n.callable,
             (n.parent, n.control, n.condition, n.body),
-            n.sink?.result()?,
+            sink.result()?,
             n.exit_partition,
             n.resume_roots,
-            (n.resume.as_ref().and_then(|r| r.result()), parent),
+            (
+                n.resume.as_ref().and_then(|r| r.result()),
+                parent,
+                sink.counter_tail(),
+            ),
         )
     }
 }
@@ -295,6 +300,8 @@ fn fault(control: UnitStatementId, phase: u8) -> bool {
         false
     }
 }
+#[cfg(test)]
+mod generation_tests;
 #[cfg(test)]
 mod parent_tests;
 #[cfg(test)]

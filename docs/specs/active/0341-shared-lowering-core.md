@@ -16533,3 +16533,23 @@ checked abort 是独立终止路径，不参与正常回边归纳，也不声称
 不得替代任意激活的参数化论证。分步交付首先建立 child 的符号规则；完成 FE
 规则不等于验证了入口的具体 owner、SSA 运输或父组合，旧 witness 和通用 verifier
 继续保留。此记录为批准范围，不是完成验收。
+
+### child 条件式符号递推首片验收（2026-11-13）
+
+在原 normal 线性规则上增加 `child_generation_rule_v1()`：按完整 header 根身份
+给出 current(0)=entry、current(k+1)=fresh(site, invocation, k) 以及消费 current(k)
+的原 binding Drop。要求实际 checked-counter 完成事实，child false 和 parent resume
+均为同序全根存活向量；不同父激活中的同一个 child k 不共享 fresh 实例。
+这仍是条件式 FE 规则，不证明具体入口实例、SSA 实现或父组合，没有新增 lowering
+权限；不以测试有限轮数冒充跨轮归纳，旧 witness／通用 verifier 全部保留。
+
+| 验收项 | 目标／过滤器 | 实际结果 |
+|---|---|---|
+| 完整根／producer／Drop 身份及交换源码执行顺序；重复根、非正常退出、无 counter／false-reset 拒绝 | FE lib `child_generation_rule`（两个普通测试） | 2/2 通过 |
+| 原 nested 消费者未改变 | FE lib `nested_normal_body_uses_real_child_events_without_exit_authority` | 1/1 通过 |
+| FE 静态检查 | `cargo clippy -j1 -p lang-frontend --all-targets -- -D warnings` | 通过；首轮 type_complexity 已修复后重跑 |
+| 公共产物下游兼容 | `cargo check -j1 --workspace --all-targets` | 通过，26m16s |
+| 文档／格式／差异 | docs922、修改文件 rustfmt、diff check | 通过；全仓 fmt 耗时后停止，未将其计为通过 |
+
+未运行任何 CI-only 故障注入。独立审查先发现缺实际 counter 门控，已修复并补普通
+负例，复审无确定阻断。剩余真实入口、独立 SSA 代际消费和父组合继续 active。
