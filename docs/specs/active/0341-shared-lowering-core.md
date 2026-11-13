@@ -17270,8 +17270,15 @@ owned 查询不能接收新域嵌入事实。前端新旧普通11项与严格 al
 生产实现 `58949c74` 已接通独立双出口 receipt；新普通 SSA 完整 FQN 精确执行
 通过（8种参数模式 × rooted/memory × observer），真实 native 96组合通过，
 涵盖0/1/2轮、两臂、stop真假及源的最终消费。源码拒绝测试的正例专用分析
-helper 已由 `d6f655cd` 修正为显式接受前端失败封闭，不放宽生产授权；该拒绝
-重验及最后CI-only编译列举/门禁仍待完成，不将这些项目记为已验收。
+helper 已由 `d6f655cd` 修正为显式接受前端失败封闭，不放宽生产授权。拒绝
+普通测试、两函数独立 receipt 发布/重放普通测试各1/1，既有5项普通精确回归
+均通过。后端 all-target 严格 Clippy、格式、docs924、尺寸及 diff 门禁通过。
+
+CI-only 提交 `6b0a56b0` 新增8个显式 ignored 故障入口，包含真实 stop极性、
+错误退出、继续回边、两臂End，以及实际BorrowCall替换另一活跃同类型String根；
+缺capture/receipt和最终verifier失败要求撤销后恢复。清单70项仅编译列举通过，
+none executed；这些反例实际拒绝/恢复仍待远端，不能称已通过。所有成果仅本地
+提交，未推送。本树整合后的 crates 与清单逐文件等同后端通过验证的提交。
 
 本地后续动态测试仅用已检查为普通的完整 FQN + `--exact`，不使用宽过滤；
 CI-only 只允许编译列举，CI/GITHUB_ACTIONS 未启用。
