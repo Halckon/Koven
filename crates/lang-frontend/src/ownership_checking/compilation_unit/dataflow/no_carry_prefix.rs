@@ -30,6 +30,42 @@ impl Checker<'_> {
             .and_then(|ty| self.typed.types().get(ty))
             == Some(&UnitTypeKind::Builtin(kind))
     }
+    // A signature is not an effect proof. Only a known, local, empty body is
+    // admitted; even scalar println or a hidden String allocation remains out.
+    fn prefix_empty_callee(&self, target: UnitCallTarget) -> bool {
+        let UnitCallTarget::Declaration(id) = target else {
+            return false;
+        };
+        let Some(declaration) = self
+            .names
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.id() == id)
+        else {
+            return false;
+        };
+        if declaration.source_unit() != self.source_unit {
+            return false;
+        }
+        let Ok(item) = self.parsed.ast().items().get(declaration.root()) else {
+            return false;
+        };
+        let Item::Function { form, .. } = item.payload() else {
+            return false;
+        };
+        let body = match form {
+            FunctionForm::ImplicitUnitBlock(body)
+            | FunctionForm::Explicit {
+                body: FunctionBody::Block(body),
+                ..
+            } => *body,
+            _ => return false,
+        };
+        self.parsed.ast().statements().get(body).is_ok_and(
+            |node| matches!(node.payload(),Statement::Block { elements } if elements.is_empty()),
+        )
+    }
     fn prefix_call(&self, body: StatementId) -> Option<ExpressionId> {
         let Statement::ControlBody { elements } =
             self.parsed.ast().statements().get(body).ok()?.payload()
@@ -83,7 +119,7 @@ impl Checker<'_> {
         (call.receiver().is_none()
             && !call.aborts()
             && call.borrow_return().is_none()
-            && matches!(call.target(), UnitCallTarget::Declaration(_))
+            && self.prefix_empty_callee(call.target())
             && self.typed.types().get(call.return_type())
                 == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
             && call.arguments().len() == 1

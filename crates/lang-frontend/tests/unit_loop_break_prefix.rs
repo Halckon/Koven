@@ -8,10 +8,13 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, standard_environments},
 };
 fn check(prefix: &str, accepted: bool) {
+    check_callee(prefix, accepted, "");
+}
+fn check_callee(prefix: &str, accepted: bool, body: &str) {
     for mode in ["", "own "] {
         let mut sources = SourceMap::new();
         let text = format!(
-            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun tick(own value:Int):Unit {{}}\nfun read(value:Int):Unit {{}}\nfun run({mode}choose:Boolean,source:String,{mode}flag:Boolean):Unit {{{prefix}while(flag){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b)}};break}};consume(source)}}"
+            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun tick(own value:Int):Unit {{{body}}}\nfun read(value:Int):Unit {{}}\nfun run({mode}choose:Boolean,source:String,{mode}flag:Boolean):Unit {{{prefix}while(flag){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b)}};break}};consume(source)}}"
         );
         let source = sources.add_source("prefix.ko", &text).unwrap();
         let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -85,5 +88,17 @@ fn scalar_prefix_capability_remains_narrow() {
         "if(choose){tick(1)}else{tick(2)};if(flag){tick(3)}else{tick(4)};",
     ] {
         check(prefix, false);
+    }
+}
+
+#[test]
+fn scalar_signature_does_not_authorize_hidden_callee_effects() {
+    for body in [
+        "val hidden=\"hidden\".clone()",
+        "println(\"side effect\")",
+        "tick(value)",
+        "val scalar=1",
+    ] {
+        check_callee("if(choose){tick(1)}else{tick(2)};", false, body);
     }
 }
