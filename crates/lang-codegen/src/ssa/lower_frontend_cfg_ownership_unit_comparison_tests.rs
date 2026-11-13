@@ -664,3 +664,34 @@ fn lowers_while_loop_break_continue_and_nested_loop_targets_unit_comparison() {
         "spin is an actual self-loop with no return"
     );
 }
+
+#[test]
+fn unit_elvis_keeps_known_native_boundaries_out_of_missing_facts() {
+    for (source, fragment) in [
+        (
+            "fun choose(left: Boolean?): Int {
+                var x: Int? = 7
+                if (x != null && (left ?: return 0)) { return x }
+                return 0
+            }",
+            "var x: Int? = 7",
+        ),
+        ("fun choose(left: Int?): Int = left ?: 0", "left ?: 0"),
+    ] {
+        let unit = analyze(source);
+        let declaration = unit.declaration("choose", SymbolKind::Function);
+        let error = unit
+            .lower_entry(declaration)
+            .err()
+            .expect("known native boundary");
+        assert_eq!(
+            error.kind,
+            super::LoweringErrorKind::UnsupportedNode,
+            "{error:?}"
+        );
+        assert_eq!(
+            error.span.and_then(|span| unit.sources().slice(span).ok()),
+            Some(fragment)
+        );
+    }
+}
