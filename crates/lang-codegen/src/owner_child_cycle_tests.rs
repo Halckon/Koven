@@ -233,29 +233,64 @@ fn ci_only_initial_concat_rejects_source_cleanup_and_transport_corruption() {
 #[test]
 fn initial_concat_native_preserves_zero_and_repeated_generations() {
     // Execution is a regression check only, not the symbolic induction proof.
-    let mut calls = String::new();
-    let mut expected = String::new();
-    for outer in [0, 1, 2] {
-        for inner in [0, 1, 2] {
-            calls.push_str(&format!("run({outer},{inner});"));
-            let a = if outer > 0 && inner > 0 {
-                "next-a"
-            } else {
-                "leftright"
-            };
-            let b = if outer > 0 { "outer-b" } else { "b" };
-            expected.push_str(&format!("{a}\n{b}\n"));
+    // Both an unchanged parent root and the parent-resumed root receive concat.
+    for resumed_root in [false, true] {
+        let mut calls = String::new();
+        let mut expected = String::new();
+        for outer in [0, 1, 2] {
+            for inner in [0, 1, 2] {
+                calls.push_str(&format!("run({outer},{inner});"));
+                let a = if outer > 0 && inner > 0 {
+                    "next-a"
+                } else if resumed_root {
+                    "a"
+                } else {
+                    "leftright"
+                };
+                let b = if outer > 0 {
+                    "outer-b"
+                } else if resumed_root {
+                    "leftright"
+                } else {
+                    "b"
+                };
+                expected.push_str(&format!("{a}\n{b}\n"));
+            }
         }
+        let initial = if resumed_root {
+            r#"var a="a"; var b="left"+"right";"#
+        } else {
+            r#"var a="left"+"right"; var b="b";"#
+        };
+        let text = format!(
+            r#"fun run(outer:Int,inner:Int) {{
+            {initial} var n0=outer; var g0=n0>0;
+            while(g0) {{ var n1=inner; var g1=n1>0;
+                while(g1) {{ val x=replace(&a,"next-a"); val y=replace(&b,"next-b"); n1=n1-1; g1=n1>0 }};
+                val old=replace(&b,"outer-b"); n0=n0-1; g0=n0>0
+            }}; println(a); println(b)
+        }}
+        fun entry() {{ {calls} }}"#
+        );
+        let source = UnitSource::analyze("concat-root-position.ko", &text).unwrap();
+        source.assert_frontend_clean();
+        let (result, actions) =
+            crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
+        let (program, _) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
+        crate::ssa::verify::verify_program(&program).unwrap();
+        for (marker, count) in [
+            ("parent-initial-concat-source-ssa-complete", 1),
+            ("parent-generation-composition-ssa-complete", 2),
+        ] {
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(name, _)| *name == marker)
+                    .map(|(_, count)| *count)
+                    .collect::<Vec<_>>(),
+                [count]
+            );
+        }
+        super::assert_general_counter_baseline(&text, expected.as_bytes(), false);
     }
-    let text = format!(
-        r#"fun run(outer:Int,inner:Int) {{
-        var a="left"+"right"; var b="b"; var n0=outer; var g0=n0>0;
-        while(g0) {{ var n1=inner; var g1=n1>0;
-            while(g1) {{ val x=replace(&a,"next-a"); val y=replace(&b,"next-b"); n1=n1-1; g1=n1>0 }};
-            val old=replace(&b,"outer-b"); n0=n0-1; g0=n0>0
-        }}; println(a); println(b)
-    }}
-    fun entry() {{ {calls} }}"#
-    );
-    super::assert_general_counter_baseline(&text, expected.as_bytes(), false);
 }

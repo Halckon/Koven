@@ -17144,3 +17144,10 @@ println、String 分配、递归乃至非空标量局部均拒绝，未授权一
 门禁：frontend/codegen observer-support all-target 严格 Clippy、格式、docs924、
 相对 `4e774262` 的尺寸门禁及 diff 检查通过。CI-only borrowing 清单现59项，
 仅编译列举，none executed；不将清单存在等同远端失败/恢复动态通过。
+
+普通 concat native 矩阵补充父恢复根位置：分别初始化 a（父内不替换）和 b（父内
+Replace），每个位置覆盖 outer/inner 0、1、2 九组合，并核独立concat基例与父组合
+收据实际发布。验证零轮保留初始concat、child当前代以及parent覆盖后的输出；
+不改生产代码，不扩大单concat范围，也不将有限执行冒充归纳证明。
+该普通测试已通过：两种根位置合计 18 组实际 native 输出及 SSA receipt 发布断言；
+文档与尺寸门禁通过，未运行故障注入，未更改生产权限或退休旧 witness。
