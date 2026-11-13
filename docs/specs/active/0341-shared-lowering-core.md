@@ -17805,3 +17805,18 @@ MapRequireValue 返回 slot loan、BorrowReturn 返回同一 loan，且无 Copy/
 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）和
 diff 检查通过，独立只读审查无阻断。未运行故障注入或全量测试，远程 CI 不在本地
 结果覆盖范围。
+
+### 不可达闭包的严格 Unit 产物对照（2026-11-14）
+
+基于 `cd7abc2b`，为原 `single_runtime_unreachable_lambdas_do_not_register_storage_or_nested_layouts`
+两段源码补独立 Unit 对照：return 后的 nullable/assert lambda 与含 nested lambda 的
+lambda 均经严格 Unit admission，核唯一 entry 原始声明身份、无 thunk、无
+ConcreteClosure 类型及闭包构造/调用指令，随后通过 SSA 与 LLVM verifier。
+旧 Single 静态 capture、callable_origin 和类型 arena 不增长检查保留；Unit 的事实
+模型并非同形 API，本轮不据结果相同删除旧见证，不宣称 legacy 已退役。
+
+新增 `ssa::refine_closure_tests::unit_unreachable_lambdas_do_not_register_storage_or_nested_layouts`
+完整 FQN exact 1/1 通过（含两段源码），测试编译通过；独立只读审查无阻断。
+未改生产代码或 Origin，未执行故障注入和全量测试，远程 CI 尚未覆盖本地新增提交。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过；仅新增独立对照，不更改既有验收的状态。

@@ -807,3 +807,47 @@ mod source_closure_tests {
         });
     }
 }
+
+// Keep the legacy static-capture/callable-origin witness above: Unit has a different
+// fact model. This ordinary-source control checks only the production Unit outcome.
+#[test]
+fn unit_unreachable_lambdas_do_not_register_storage_or_nested_layouts() {
+    use super::model::{Origin, SsaTypeKind};
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    for body in [
+        "val unused: ()->Int = { val value: Int? = 1\nvalue!! }",
+        "val unused: ()->Unit = { val nested: ()->Unit = {} }",
+    ] {
+        let text = format!("fun entry(): Int {{ return 0\n{body} }}");
+        let unit = UnitSource::analyze("single-runtime-intent.ko", &text)
+            .expect("original unreachable lambda source passes strict Unit admission");
+        unit.assert_frontend_clean();
+        let declaration = unit.declaration("entry", SymbolKind::Function);
+        let (program, root) = unit.lower_entry(declaration).unwrap();
+        super::verify::verify_program(&program).unwrap();
+        let module = program.module(root.module()).unwrap();
+        assert_eq!(module.functions.len(), 1, "no unreachable lambda thunk");
+        let entry = module.function(root).unwrap();
+        assert_eq!(
+            entry.origin,
+            Origin::Source(unit.declaration_span(declaration))
+        );
+        assert!(
+            !module
+                .types
+                .iter()
+                .any(|ty| matches!(ty, SsaTypeKind::ConcreteClosure { .. }))
+        );
+        assert!(!entry.instructions.iter().any(|instruction| matches!(
+            instruction.operation,
+            Operation::ClosureConstruct { .. }
+                | Operation::CallableInvoke { .. }
+                | Operation::CallableInvokeView { .. }
+                | Operation::CallableViewOf { .. }
+        )));
+        crate::llvm::render_verified_program(&program)
+            .expect("reachable Unit entry verifies through LLVM");
+    }
+}
