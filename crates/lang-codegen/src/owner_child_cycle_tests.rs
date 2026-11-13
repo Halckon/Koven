@@ -44,3 +44,68 @@ fn child_cycle_receipt_connects_actual_current_and_next_root_vectors() {
         }
     }
 }
+
+fn fault_source() -> UnitSource {
+    UnitSource::analyze(
+        "child-cycle-fault.ko",
+        r#"fun run(outer:Int,inner:Int,own seed:String) {
+        var a=seed; var b="b"; var n0=outer; var g0=n0>0;
+        while(g0) { var n1=inner; var g1=n1>0;
+            while(g1) { val x=replace(&a,"next-a"); val y=replace(&b,"next-b"); n1=n1-1; g1=n1>0 };
+            val old=replace(&b,"outer-b"); n0=n0-1; g0=n0>0
+        }; println(a); println(b)
+    }
+    fun entry() { run(1,2,"seed") }"#,
+    )
+    .unwrap()
+}
+fn assert_cycle_faults(faults: &[crate::ssa::OwnerFault]) {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    let source = fault_source();
+    source.assert_frontend_clean();
+    source
+        .lower_entry(source.entry())
+        .expect("uncorrupted baseline");
+    for &fault in faults {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
+        });
+        assert!(result.is_err(), "real corruption must reject: {actions:?}");
+        for marker in ["child-cycle-fault-hit", "child-cycle-independent-rejection"] {
+            assert_eq!(
+                actions.iter().filter(|(name, _)| *name == marker).count(),
+                1,
+                "{marker}: {actions:?}"
+            );
+        }
+    }
+}
+#[test]
+#[ignore = "CI-only fault injection; explicit child cycle dual-host CI step"]
+fn ci_only_child_cycle_rejects_missing_evidence_and_transport_corruption() {
+    use crate::ssa::OwnerFault::*;
+    assert_cycle_faults(&[
+        ChildCycleMissingPlan,
+        ChildCycleMissingReceipt,
+        ChildCycleMissingObservation,
+        ChildCycleEntrySwap,
+        ChildCycleTrueSwap,
+        ChildCycleBackedgeSwap,
+        ChildCycleHeaderGuard,
+        ChildCycleStaleSuccess,
+        ChildCycleMissingSuccessRoot,
+        ChildCycleFalseSwap,
+    ]);
+}
+#[test]
+#[ignore = "CI-only fault injection; explicit child cycle dual-host CI step"]
+fn ci_only_child_cycle_rejects_abort_topology_and_new_owner_corruption() {
+    use crate::ssa::OwnerFault::*;
+    assert_cycle_faults(&[
+        ChildCycleCheckedPolarity,
+        ChildCycleAbortBackedge,
+        ChildCycleExtraPredecessor,
+        ChildCycleNewConsumer,
+        ChildCycleDuplicateAbortRoot,
+    ]);
+}

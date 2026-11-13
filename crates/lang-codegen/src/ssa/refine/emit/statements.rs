@@ -663,6 +663,9 @@ pub(super) fn inject_owner_final(
     function: &mut Function,
     receipts: &mut LoanReceipts,
 ) {
+    receipts
+        .child_cycle
+        .inject(body, function, &receipts.nested_body);
     receipts.nested_resume.inject_header(function);
     receipts.nested_exit.inject_parent(body, function);
     crate::ssa::refine::nested_exit_receipt::inject_final(&body.nested_exit_plans, function);

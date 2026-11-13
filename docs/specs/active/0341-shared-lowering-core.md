@@ -16603,3 +16603,28 @@ terminator hook，以及 abort sibling 活跃槽传播使互斥两边各携新�
 未运行任何本地故障注入，新增收据的破坏性负例矩阵与远端 CI 尚未验证；本轮未重跑
 全 workspace/all-target 门禁。父入口链、父组合及完整跨父轮次归纳仍 active，不以有限
 native 轮数或本片普通正例代替它们。仅本地提交，不推送。
+
+### D10 child-cycle CI-only 破坏矩阵（2026-11-13，待远端验证）
+
+在扩展父归纳之前补充独立收据的破坏覆盖：15 类真实状态变异由两个 ignored 测试
+承载，包括 required plan/receipt/观察丢失、entry/true/false/backedge 根向量错配、
+错误 header guard、成功边旧代/漏根、checked 极性、abort 回跳/同边重复根、额外前驱
+及新代被直接消费。late faults 先验证未变异的退休与 cycle 基线，再修改真实 SSA/观察，
+直接断言独立 cycle 终检拒绝并核 hit/rejection；不以通用 verifier 的后续拒绝计通过。
+MissingPlan 保留退休计划的 required 标志，在独立 layout 门拒绝。
+
+`scripts/check_child_cycle_ci.sh` 在现有 macOS/Linux test matrix 显式执行两个精确
+ignored 测试。默认执行要求 `GITHUB_ACTIONS=true`，测试与注入入口也有环境保护；
+本地只允许 `--list-only` 编译并精确列举，不执行任何变异。新增目录单独承担 CI-only
+破坏职责，不改变生产 child-cycle 形状，也不宣称父入口链或父归纳完成。
+
+| 本地允许的验收 | 实际结果 |
+|---|---|
+| `bash scripts/check_child_cycle_ci.sh --list-only` | 两个精确 ignored 目标编译/列举通过；none executed |
+| `child_cycle_receipt_connects_actual_current_and_next_root_vectors` | 普通正例 1/1 通过 |
+| `cargo clippy -j1 -p lang-codegen --all-targets -- -D warnings` | 通过，只静态检查 |
+| 脚本 bash 语法、docs922、修改文件 rustfmt、diff、尺寸门禁 | 通过 |
+
+独立只读复审确认 1 项缺计划、14 项 late faults 与测试清单一致，双宿主入口无单平台
+条件。没有本地执行任何故障注入，也未推送或取得远端运行结果。此轮是 child-cycle
+证明的负例覆盖建设，不增加父入口链/父组合实现完成度。

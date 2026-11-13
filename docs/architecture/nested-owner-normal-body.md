@@ -158,3 +158,7 @@ Abort 由独立 emission hook 观察，核 checked 指令和 flag 极性、对�
 各携带一次；按根槽逐边核验，不把两边合计当重复消费，也不把 Abort 算正常回边。
 这只是 child 的局部传递证明；父 header 到 child preheader 的基例链、父归纳与更广
 嵌套仍未由此证明。当前本地验证结果与未验项以 SPEC-0341 账本为准。
+
+child-cycle 的 CI-only 负例独立放在 `child_cycle_receipt/faults.rs`，分别破坏真实角色
+观察和 SSA 边/消费。两个 ignored 测试通过专用脚本接入现有双宿主 test job；本地
+`--list-only` 只编译列举，不能作为破坏矩阵运行通过的证据。父入口与组合证明仍待推进。

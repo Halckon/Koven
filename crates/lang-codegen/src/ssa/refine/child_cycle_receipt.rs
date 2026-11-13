@@ -1,4 +1,6 @@
 //! Independent child-cycle transport, not a parent induction/base proof.
+#[cfg(test)]
+mod faults;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -111,6 +113,11 @@ impl Emitted {
             .is_some_and(|plan| plan.cycle_required)
             != body.child_cycle_plans.0.is_some()
         {
+            #[cfg(test)]
+            super::build::owner_consumer_test_support::record_action(
+                "child-cycle-independent-rejection",
+                1,
+            );
             return Err(invalid(span));
         }
         let Some(p) = &body.child_cycle_plans.0 else {
