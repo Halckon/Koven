@@ -28,16 +28,17 @@ fun entry() {{ run(0,2); run({one},0); run(2,2) }}"#
             crate::ssa::observe_owner_actions(|| source.lower_entry(source.entry()));
         let (program, entry) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
         crate::ssa::verify::verify_program(&program).unwrap();
-        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-        let ssa = crate::ssa::render_program(&program);
-        println!(
-            "ROUTE constant={constant}\nSOURCE\n{text}\nACTIONS {actions:?}\nSSA {ssa}\nLLVM\n{llvm}"
-        );
-        assert!(
-            !actions
-                .iter()
-                .any(|(name, _)| *name == "parent-initial-owner-base-ssa-complete")
-        );
+        crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        for marker in [
+            "parent-initial-owner-base-ssa-complete",
+            "child-cycle-ssa-complete",
+            "parent-generation-composition-ssa-complete",
+        ] {
+            assert!(
+                !actions.iter().any(|(name, _)| *name == marker),
+                "ordinary call-initial lowering must not publish {marker}; {actions:?}"
+            );
+        }
         super::assert_native_output(&source, b"seed\nb\nseed\nparent-b\nchild-a\nparent-b\n");
     }
 }

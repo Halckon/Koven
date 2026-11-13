@@ -17655,3 +17655,10 @@ Clippy、格式、文档结构、相对 main 尺寸门禁及 diff 检查通过�
 回归各 exact 匹配 1，3/3 通过；独立只读审查未见阻断。codegen observer-support
 all-target 严格 Clippy、fmt 与 diff 检查通过。没有生产实现或 Origin 变更，未运行
 故障注入、未推送；远端 CI 仍待验证，D10/E2 仍在进行。
+
+call-initial probe 的结论同期补齐为可执行断言：普通零参 String 返回调用初始化
+不得发布 initial-base、child-cycle 或 parent-composition 三项完成标记，而不只检查
+initial-base。保留 SSA verifier、LLVM rendering 和六次有限 native 调用；成功时
+不再打印完整源码/SSA/LLVM，断言失败仍带 observer actions。当前头重新编译的
+完整 FQN exact 1/1、codegen all-target 严格 Clippy、fmt 与文档门禁通过；仅加强
+既有范围的回归证据，不是新增 producer 实现，未执行故障注入或推送。
