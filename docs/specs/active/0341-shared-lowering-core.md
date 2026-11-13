@@ -16931,3 +16931,9 @@ publication/replay，变异仅编译列举，实际拒绝/恢复证据待远端�
 独立只读审查无确定阻断。四项属于真实 Function/alias 证据变异后的独立重放，
 两项定义于实际 finish/final-verifier 边界；以上六项动态均未在本地运行，尚无远端
 双宿主执行结果。另已集成 FE 参数重绑定前后拒绝普通回归，生产 mutability 不变。
+### 父 false 反向部分退休的 FE 身份回归（2026-11-13）
+
+普通源码测试 `parent_boundary_retires_resumed_root_and_preserves_other_root` 补充只保留
+未恢复写的 a、退休 parent resume 写过的 b 的分区；直接比对 resumed root 的原父
+LoopExit Drop 身份及另一 live root，不以数量替代身份。精确测试 1/1 通过；不改变
+生产许可，不宣称代际归纳，也不替代 native 或 CI 故障证据。

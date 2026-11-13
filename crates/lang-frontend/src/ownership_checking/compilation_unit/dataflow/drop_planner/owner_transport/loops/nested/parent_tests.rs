@@ -57,3 +57,30 @@ fn parent_boundary_rejects_non_normal_parent_paths() {
         );
     }
 }
+
+#[test]
+fn parent_boundary_retires_resumed_root_and_preserves_other_root() {
+    let source = SOURCE.replace("println(a); println(b)", "println(a)");
+    let fixture = Fixture::new(&[("parent-retire-resumed.ko", &source)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    let nested = owned
+        .owner_observations()
+        .iter()
+        .find_map(|o| o.nested_normal_body_v1())
+        .unwrap();
+    let resumed = nested.parent_resume_write().unwrap().root();
+    let parent = nested.parent_boundary_v1().unwrap();
+    let (live, drops) = parent.false_exit_partition();
+    let other = parent
+        .roots()
+        .iter()
+        .copied()
+        .filter(|root| *root != resumed)
+        .collect::<Vec<_>>();
+    assert_eq!(other.len(), 1);
+    assert_eq!(live, other);
+    assert_eq!(drops.len(), 1);
+    assert_eq!(drops[0].target(), UnitDropTarget::Named(resumed));
+    assert_eq!(drops[0].point(), UnitDropPoint::LoopExit(parent.control()));
+}
