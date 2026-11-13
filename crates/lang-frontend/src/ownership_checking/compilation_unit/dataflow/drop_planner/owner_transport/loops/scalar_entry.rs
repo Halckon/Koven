@@ -7,6 +7,7 @@ struct Plan {
     condition: ExpressionId,
     calls: [ExpressionId; 2],
     parent: StatementId,
+    concat: Option<ExpressionId>,
 }
 pub(in super::super::super) struct Tracker {
     plan: Plan,
@@ -30,6 +31,7 @@ fn discover(checker: &Checker<'_>, item: ItemId) -> Option<Plan> {
     let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
         return None;
     };
+    let mut concat = None;
     for (i, statement) in elements.iter().enumerate() {
         match ast.statements().get(*statement).ok()?.payload() {
             Statement::LocalVariable { declaration } => {
@@ -47,6 +49,22 @@ fn discover(checker: &Checker<'_>, item: ItemId) -> Option<Plan> {
                     Expression::String { parts } => parts
                         .iter()
                         .all(|p| !matches!(p, StringPart::Interpolation { .. })),
+                    Expression::Binary {
+                        operator: BinaryOperator::Add,
+                        ..
+                    } => {
+                        if concat.is_some()
+                            || super::super::entry_concat::literal_concat_operands(
+                                checker,
+                                *initializer,
+                            )
+                            .is_none()
+                        {
+                            return None;
+                        }
+                        concat = Some(*initializer);
+                        true
+                    }
                     Expression::Binary {
                         left,
                         operator: BinaryOperator::Greater,
@@ -81,6 +99,7 @@ fn discover(checker: &Checker<'_>, item: ItemId) -> Option<Plan> {
                     condition,
                     calls,
                     parent,
+                    concat,
                 });
             }
             _ => return None,
@@ -166,28 +185,55 @@ impl DropPlanner<'_, '_> {
             return;
         }
         let snapshot = self.scalar_entry_snapshot(t.plan.parent, state);
+        let initial_valid =
+            stage != 0 || self.scalar_entry_initial_owners(t.plan.concat, snapshot.as_deref());
         let t = self.scalar_entry.as_mut().unwrap();
         if stage == 0 {
             t.owners = snapshot.clone();
-            t.valid &= self.owner_observation.as_ref().is_some_and(|o| {
-                o.status == UnitOwnerObservationStatus::Complete
-                    && snapshot.as_ref().is_some_and(|roots| {
-                        roots.len() >= 2
-                            && roots.iter().all(|(_, owner)| {
-                                o.definitions.iter().any(|d| {
-                                    &d.id == owner
-                                        && matches!(
-                                            d.origin,
-                                            UnitOwnerOrigin::Parameter(_)
-                                                | UnitOwnerOrigin::String(_)
-                                        )
-                                })
-                            })
-                    })
-            });
+            t.valid &= initial_valid;
         }
         t.valid &= continues && t.stage == stage && snapshot.is_some() && snapshot == t.owners;
         t.stage = stage + 1;
+    }
+    fn scalar_entry_initial_owners(
+        &self,
+        concat: Option<ExpressionId>,
+        roots: Option<&[(UnitSymbolId, UnitOwnerId)]>,
+    ) -> bool {
+        let (Some(o), Some(roots)) = (self.owner_observation.as_ref(), roots) else {
+            return false;
+        };
+        if o.status != UnitOwnerObservationStatus::Complete || !o.is_consistent() || roots.len() < 2
+        {
+            return false;
+        }
+        let concat_definitions = o
+            .definitions
+            .iter()
+            .filter(|d| matches!(d.origin, UnitOwnerOrigin::StringConcat { .. }))
+            .collect::<Vec<_>>();
+        if concat_definitions.len() != usize::from(concat.is_some()) {
+            return false;
+        }
+        if let Some(site) = concat {
+            let d = concat_definitions[0];
+            if !matches!(d.origin,UnitOwnerOrigin::StringConcat { expression, .. } if expression == self.checker.unit_expression(site))
+                || roots.iter().filter(|(_, owner)| owner == &d.id).count() != 1
+                || !self.completed_concat_origin(d.origin)
+            {
+                return false;
+            }
+        }
+        roots.iter().all(|(_, owner)| {
+            o.definitions.iter().any(|d| {
+                &d.id == owner
+                    && (matches!(
+                        d.origin,
+                        UnitOwnerOrigin::Parameter(_) | UnitOwnerOrigin::String(_)
+                    ) || (matches!(d.origin, UnitOwnerOrigin::StringConcat { .. })
+                        && self.completed_concat_origin(d.origin)))
+            })
+        })
     }
     pub(in super::super::super) fn scalar_entry_call_completed(
         &mut self,
@@ -267,7 +313,7 @@ mod tests {
                 "fun touch(own value:Int) {}",
                 "fun touch(own value:Int) { val unused=1 }",
             ),
-            SOURCE.replace("var a=seed", "var a=\"left\"+\"right\""),
+            SOURCE.replace("var a=seed", "var a=\"left\"+\"middle\"+\"right\""),
             SOURCE.replace("touch(1)", "println(a)"),
             SOURCE.replace("touch(2)", "val old=replace(&a,\"new\")"),
             SOURCE.replace("touch(2)", "return"),
@@ -278,6 +324,54 @@ mod tests {
         ] {
             let fixture = Fixture::new(&[("scalar-entry-rejected.ko", &source)]);
             let owned = fixture.shared();
+            assert!(owned.owner_observations().iter().all(|o| {
+                o.nested_normal_body_v1()
+                    .and_then(|n| n.scalar_entry_v1())
+                    .is_none()
+            }));
+        }
+    }
+    #[test]
+    fn scalar_entry_composes_one_completed_concat_on_either_root() {
+        for initial in [
+            r#"var a="left"+"right"; var b="b";"#,
+            r#"var a=seed; var b="left"+"right";"#,
+        ] {
+            let source = SOURCE.replace(r#"var a=seed; var b="b";"#, initial);
+            let fixture = Fixture::new(&[("concat-scalar-entry.ko", &source)]);
+            let owned = fixture.shared();
+            assert!(owned.diagnostics().is_empty());
+            let nested = owned
+                .owner_observations()
+                .iter()
+                .find_map(|o| o.nested_normal_body_v1())
+                .expect("nested evidence");
+            let fact = nested
+                .scalar_entry_v1()
+                .expect("concat plus scalar receipt");
+            assert!(fact.is_consistent());
+            assert!(nested.is_consistent());
+            assert_eq!(
+                fact.owners(),
+                nested.child_generation_rule_v1().unwrap().entry_owners()
+            );
+            assert_eq!(fact.owners().len(), 2);
+        }
+    }
+    #[test]
+    fn scalar_entry_rejects_two_or_unretained_or_nonliteral_concats() {
+        for source in [
+            SOURCE.replace(
+                r#"var a=seed; var b="b";"#,
+                r#"var a="left"+"right"; var b="other"+"pair";"#,
+            ),
+            SOURCE.replace("var a=seed", r#"var a=seed+"right""#),
+            SOURCE.replace("var a=seed", r#"val unused="left"+"right"; var a=seed"#),
+            SOURCE.replace("var a=seed", r#"var a="${outer}"+"right""#),
+        ] {
+            let fixture = Fixture::new(&[("concat-scalar-rejected.ko", &source)]);
+            let owned = fixture.shared();
+            assert!(owned.diagnostics().is_empty());
             assert!(owned.owner_observations().iter().all(|o| {
                 o.nested_normal_body_v1()
                     .and_then(|n| n.scalar_entry_v1())
