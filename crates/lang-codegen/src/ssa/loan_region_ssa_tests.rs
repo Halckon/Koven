@@ -946,3 +946,6 @@ mod loop_arm_break_tests;
 
 #[path = "loop_arm_counter_break_tests.rs"]
 mod loop_arm_counter_break_tests;
+
+#[path = "loop_arm_prefix_counter_break_tests.rs"]
+mod loop_arm_prefix_counter_break_tests;
