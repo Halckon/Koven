@@ -17191,3 +17191,19 @@ observer on/off；native 执行 prefix真假 × choose真假 × 零/一轮八组
 CI-only borrowing 清单62项已编译列举，none executed；新增三个反例的远端动态
 拒绝/恢复仍待后续推送。本地格式、docs924、相对 `4158dcae` 的尺寸门禁和 diff
 检查均通过；本轮不推送。
+
+### 前缀控制参数混合模式与共享实参回归（2026-11-13）
+
+基于本地 `fa508b39`，与 main `f78c8c20`、已推送整合 `4158dcae` 核对后，
+补此前未覆盖的参数交互：prefix/guard/arm 三个 Boolean 形参的六种混合
+Borrow/Own 模式，继续复用 rooted/memory、observer on/off、真实 receipt 与
+三处 Conditional 的既有断言。新 SSA 普通目标通过，实际覆盖24次 lowering。
+
+native 新普通目标以全部八种模式、每种八组 prefix/choose/零一轮输入执行64次
+调用；实际传入同一 `yes`/`no` 局部以覆盖重复共享 Borrow 与 Copyable Value
+实参，循环后原 String 源仍可读且最终消费。空体 scalar tick 不引入 I/O 或资源。
+新 native 目标通过，未发现新的确定生产缺陷，因此本轮只补测试、不改授权或实现。
+这是每个独立函数内一个既有循环的参数组合，不是多根循环组合或跳转嵌套能力。
+未推送，未执行本地故障注入。
+本轮全部普通 tail-break SSA 5/5 与新 native 1/1、observer-support all-target
+严格 Clippy、格式、docs924、相对 `fa508b39` 的尺寸门禁及 diff 检查通过。

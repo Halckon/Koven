@@ -19,13 +19,29 @@ fn ordinary_loop_arm_tail_break_accepts_independent_prefix_parameter() {
     check_break(true, true);
 }
 
+#[test]
+fn ordinary_loop_arm_tail_break_mixed_control_modes() {
+    let modes = (1..7)
+        .map(|mask| [mask & 1 != 0, mask & 2 != 0, mask & 4 != 0])
+        .collect::<Vec<_>>();
+    check_break_modes(true, true, &modes);
+}
+
 fn check_break(prefix: bool, independent: bool) {
-    for own in [false, true] {
-        let mode = if own { "own " } else { "" };
+    check_break_modes(prefix, independent, &[[false; 3], [true; 3]]);
+}
+
+fn check_break_modes(prefix: bool, independent: bool, modes: &[[bool; 3]]) {
+    for &[prefix_own, guard_own, arm_own] in modes {
+        let prefix_mode = if prefix_own { "own " } else { "" };
+        let guard_mode = if guard_own { "own " } else { "" };
+        let arm_mode = if arm_own { "own " } else { "" };
         let parameters = if independent {
-            format!("{mode}flag:Boolean,{mode}before:Boolean,source:String,{mode}choose:Boolean")
+            format!(
+                "{guard_mode}flag:Boolean,{prefix_mode}before:Boolean,source:String,{arm_mode}choose:Boolean"
+            )
         } else {
-            format!("{mode}choose:Boolean,source:String,{mode}flag:Boolean")
+            format!("{arm_mode}choose:Boolean,source:String,{guard_mode}flag:Boolean")
         };
         let before = if independent {
             "if(before){tick(1)}else{tick(2)};"
