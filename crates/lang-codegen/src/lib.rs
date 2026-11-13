@@ -673,8 +673,10 @@ pub use native::{
 
 mod llvm;
 
-// Remaining SSA-only diagnostics/model witnesses still require a separate audit.
-#[allow(dead_code)]
+// Production exceptions are scoped to model witnesses and diagnostic payloads.
+// Legacy test fixtures still require a separate unused-field/helper audit.
+#[cfg_attr(not(test), deny(dead_code))]
+#[cfg_attr(test, allow(dead_code))]
 pub(crate) mod ssa;
 
 #[cfg(test)]

@@ -102,7 +102,11 @@ impl SsaTypeId {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Origin {
     Source(Span),
-    Synthetic { anchor: Span, reason: String },
+    #[allow(dead_code, reason = "retained typed SSA verifier and fixture contract")]
+    Synthetic {
+        anchor: Span,
+        reason: String,
+    },
 }
 
 impl Origin {
@@ -167,10 +171,12 @@ pub(crate) enum SsaTypeKind {
         bits: u16,
         signed: bool,
     },
+    #[allow(dead_code, reason = "retained typed SSA verifier and fixture contract")]
     Opaque {
         name: String,
         ownership: Ownership,
     },
+    #[allow(dead_code, reason = "retained typed SSA verifier and fixture contract")]
     ZeroSized {
         name: String,
         ownership: Ownership,
@@ -296,9 +302,13 @@ pub(crate) struct EntityData {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BinaryOperator {
     Add,
+    #[allow(dead_code, reason = "retained typed SSA verifier and fixture contract")]
     Subtract,
+    #[allow(dead_code, reason = "retained typed SSA verifier and fixture contract")]
     Multiply,
+    #[allow(dead_code, reason = "retained typed SSA verifier and fixture contract")]
     Equal,
+    #[allow(dead_code, reason = "retained typed SSA verifier and fixture contract")]
     LessThan,
 }
 
@@ -507,6 +517,7 @@ impl Function {
         self.id
     }
 
+    #[cfg(test)]
     pub(crate) const fn receiver(&self) -> Option<EntityType> {
         self.receiver
     }
@@ -758,6 +769,7 @@ pub(crate) struct Module {
 }
 
 impl Module {
+    #[cfg(test)]
     pub(crate) const fn id(&self) -> ModuleId {
         self.id
     }

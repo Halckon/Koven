@@ -17727,3 +17727,15 @@ drop authority、current-H drop）3/3 通过，严格 Clippy、fmt、docs 与 di
 与完整测试编译通过；pending-value carry、checked-abort owner transport、
 current-H drop 三项既有普通 exact 3/3 通过，fmt/docs/diff 与独立审查通过。
 未新增测试、未改 Origin、未运行 CI-only 故障、未推送。
+
+### 生产 SSA 豁免显式化（2026-11-13）
+
+生产 SSA 顶层恢复 dead-code 门禁；现存 verifier 模型变体、旧测试诊断到 native
+的映射及 Provider 结构化失败载荷保留为具体带原因的例外，不删除合同。两个
+只由测试读取的 Function.receiver / Module.id getter 限制到测试构建，实际数据
+和生产直接字段访问不变。测试配置另发现 21 项历史 fixture/helper 未使用项，
+保留原测试顶层豁免待逐项审计，已有子树 deny 继续有效；不声称全配置清零。
+默认生产 check、observer-support all-target 严格 Clippy、完整测试编译通过；
+aggregate type/render、aggregate heap flow、pending-value carry 三项普通 exact
+3/3 通过，fmt/docs/diff 与独立审查通过。未新增测试、未改 Origin、未执行
+CI-only 故障，未推送；测试全域豁免剩余项留给后续独立切片。

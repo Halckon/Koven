@@ -290,7 +290,15 @@ pub(in crate::ssa) mod string_literal {
 pub(crate) enum LoweringErrorKind {
     MismatchedSource,
     MismatchedAnalysis,
+    #[allow(
+        dead_code,
+        reason = "legacy lowering test diagnostics retain native error mapping"
+    )]
     FrontendDiagnostics,
+    #[allow(
+        dead_code,
+        reason = "legacy lowering test diagnostics retain native error mapping"
+    )]
     BlockingDeferred,
     InstanceLimitExceeded,
     UnsupportedNode,
@@ -298,6 +306,10 @@ pub(crate) enum LoweringErrorKind {
     MissingFact,
     InvalidLiteral,
     InvalidModel,
+    #[allow(
+        dead_code,
+        reason = "legacy lowering test diagnostics retain native error mapping"
+    )]
     InvalidSsa,
 }
 
