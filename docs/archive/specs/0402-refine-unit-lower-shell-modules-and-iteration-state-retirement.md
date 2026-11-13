@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0402` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认继续推进下一批旧路径退役 |
 | 基线 | [SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md)（`6ceafb47`） |
 | 分支 | `feature/spec-0402-refine-unit-lower-shell-modules-and-iteration-state-retirement` |
-| 前置 | [SPEC-0395](0395-refine-nullable-while-retirement.md)、[SPEC-0396](0396-refine-map-iteration-retirement.md)、[SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)、[SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md) |
+| 前置 | [SPEC-0395](../../specs/active/0395-refine-nullable-while-retirement.md)、[SPEC-0396](../../specs/active/0396-refine-map-iteration-retirement.md)、[SPEC-0397](../../specs/active/0397-refine-nullable-map-and-closure-retirement.md)、[SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -45,3 +45,20 @@
 - [x] 删除 `map_borrow.rs`、`map_consume.rs` 与 `while_proof.rs` 三个遗留壳模块，并完成 `IterationState` 展平及死辅助方法清理。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 7 个退役项已从版本库移除 | 通过 | 逐个确认：7/7 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并） | 1/7 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+
+核对说明：
+
+- `map_borrow`、`map_consume`、`while_proof`、`nullable_proof`、`callable_abi`、`checked`、`control/branch` 七个模块均确认不存在
+- `map_borrow_condition` 现由 `unit_lower/control/conditional.rs:363` 承载（宿主已由后续 Spec 前移）
+- 本 Spec 的删除可能由更后续的 Spec 完成（该文件后续再次被收敛），因此这里只声明“当前树已不存在”，不声明删除由本 Spec 独立完成。

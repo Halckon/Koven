@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0405` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认 E3 进入收尾阶段并继续推进 SPEC-0405 清理 |
 | 基线 | [SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)（`d3537535`，含 [SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md) `06dc4e80`） |
 | 分支 | `feature/spec-0405-refine-dead-helpers-and-test-entry-gates-retirement` |
-| 前置 | [SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
+| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -47,3 +47,20 @@
 - [x] 为 `lower_scalar_unit_with_entry`、`lower_constant_unit_with_entry` 与 `UnitCallablePlan::borrowed_argument` 补充 `#[cfg(test)]` 门控，移除 `unit_lower.rs` 的 `unused_imports` 抑制，并完成跨模块 `span_contains` / `strictly_contains` 去重。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [x] 本地 `cargo test -p lang-codegen`（`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）回归：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 5 个退役项已从版本库移除 | 通过 | 逐个确认：5/5 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过 | 5/5 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+
+核对说明：
+
+- 文件级：`unit_lower/handoff.rs` 当前不存在（该文件随后由 SPEC-0406 正式退役）
+- 符号级逐个 grep 确认不存在：`is_borrow_result_binding`、`argument_has_loop_jump`、`unit_requires_refine`、`is_first_class_value`（均 0 处命中）
+- 本 Spec 的删除可能由更后续的 Spec 完成（该文件后续再次被收敛），因此这里只声明“当前树已不存在”，不声明删除由本 Spec 独立完成。

@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 385 份"))
+ARCH(("已完成<br/>archive 390 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -46,11 +46,6 @@ subgraph Gactive["现行 active"]
   S0398["S0398<br/>可空 String if 与同根可空堆对象字段 if 旧路径退役"]
   S0399["S0399<br/>同根堆对象可空 if、接口委托与混合兼容回退旧路径退役"]
   S0400["S0400<br/>unit_lower 区间/捕获/闭包来源死 Carrier、调用帧冗余槽与守卫测试支架退役"]
-  S0401["S0401<br/>unit_lower 可空 Rc if 证明入口、validated_rc_operation 与只写 shared_field_roots 退役"]
-  S0402["S0402<br/>unit_lower 遗留壳模块、单变体 IterationState 与死辅助入口退役"]
-  S0403["S0403<br/>unit_lower 死字段、provider 死辅助入口与测试专用 ssa 支持项退役"]
-  S0404["S0404<br/>unit_lower 剩余单入口壳模块、重复辅助函数与测试专用 unit_plan 接口退役"]
-  S0405["S0405<br/>ssa 死辅助入口、测试专用入口门控与跨模块 Span 辅助去重"]
   S0408["S0408<br/>ssa 类型与源查询壳模块收敛及 null 字面量判定辅助去重"]
   S0409["S0409<br/>ssa/deinit、refine/build 凭证壳模块收敛及冗余路由/作用域状态退役"]
 end
@@ -118,11 +113,6 @@ ARCH --> S0341
 | SPEC-0398 | active | [0398-refine-nullable-string-and-field-if-retirement.md](active/0398-refine-nullable-string-and-field-if-retirement.md) |
 | SPEC-0399 | active | [0399-refine-heap-nullable-if-and-compatibility-retirement.md](active/0399-refine-heap-nullable-if-and-compatibility-retirement.md) |
 | SPEC-0400 | active | [0400-refine-unit-lower-dead-carrier-retirement.md](active/0400-refine-unit-lower-dead-carrier-retirement.md) |
-| SPEC-0401 | active | [0401-refine-unit-lower-rc-if-and-field-root-retirement.md](active/0401-refine-unit-lower-rc-if-and-field-root-retirement.md) |
-| SPEC-0402 | active | [0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md](active/0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
-| SPEC-0403 | active | [0403-refine-unit-lower-dead-fields-and-provider-retirement.md](active/0403-refine-unit-lower-dead-fields-and-provider-retirement.md) |
-| SPEC-0404 | active | [0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md](active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md) |
-| SPEC-0405 | active | [0405-refine-dead-helpers-and-test-entry-gates-retirement.md](active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
 | SPEC-0408 | active | [0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md](active/0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md) |
 | SPEC-0409 | active | [0409-refine-deinit-and-build-receipt-shells-retirement.md](active/0409-refine-deinit-and-build-receipt-shells-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
@@ -133,4 +123,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（385 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（390 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

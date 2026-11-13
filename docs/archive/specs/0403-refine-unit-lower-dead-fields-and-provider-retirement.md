@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0403` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认继续推进下一批旧路径退役 |
 | 基线 | [SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)（`ebde99f4`） |
 | 分支 | `feature/spec-0403-refine-unit-lower-dead-fields-and-provider-retirement` |
-| 前置 | [SPEC-0384](0384-refine-legacy-module-retirement.md)、[SPEC-0396](0396-refine-map-iteration-retirement.md)、[SPEC-0398](0398-refine-nullable-string-and-field-if-retirement.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
+| 前置 | [SPEC-0384](../../specs/active/0384-refine-legacy-module-retirement.md)、[SPEC-0396](../../specs/active/0396-refine-map-iteration-retirement.md)、[SPEC-0398](../../specs/active/0398-refine-nullable-string-and-field-if-retirement.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -49,3 +49,20 @@
 - [x] 移除 `UnitExpressionLowerer` 死字段、`provider` 死辅助函数与 `#[allow(dead_code)]`、`map_source::unit_drop_event`，并完成测试专用支持项的 `#[cfg(test)]` 门控；provider CFG fixture 仍使用的 `ProviderNext` / `ProviderHeader::backedge` / `finish_element_and_advance` 改为 `#[cfg(test)]` 保留。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [x] 本地 `cargo test -p lang-codegen`（`LLVM_SYS_211_PREFIX=/opt/homebrew/opt/llvm@21`，与 CI 同一 Clang 21.1 前提）回归：lib 2914 passed / 1 ignored、集成 2 passed、doc-tests 4 passed；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 2 个退役项已从版本库移除 | 通过 | 逐个确认：2/2 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过 | 2/2 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+
+核对说明：
+
+- 文件级：`unit_lower/control/nullable_if/field_tests.rs` 不存在（后续由 SPEC-0436 继续收敛）
+- 符号级：`finish_element_and_advance_in_block` 0 处命中；`ProviderHeader`/`GuardedElement` 的测试专用访问器已加 `#[cfg(test)]`（见 `ssa/provider.rs`）
+- 本 Spec 的删除可能由更后续的 Spec 完成（该文件后续再次被收敛），因此这里只声明“当前树已不存在”，不声明删除由本 Spec 独立完成。

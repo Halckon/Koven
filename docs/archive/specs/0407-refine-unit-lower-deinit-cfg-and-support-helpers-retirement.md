@@ -11,7 +11,7 @@
 | 批准依据 | 用户指示继续推进下一批 E3 收尾清理 |
 | 基线 | [SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)（`ace7efd9`，含 `main` `e659b66a`） |
 | 分支 | `feature/spec-0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement` |
-| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0404](../../specs/active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md) |
+| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

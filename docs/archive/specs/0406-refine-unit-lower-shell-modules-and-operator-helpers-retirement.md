@@ -9,9 +9,9 @@
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户指示合入 `main` 最新修改并继续推进 E3 收尾清理 |
-| 基线 | [SPEC-0405](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)（`708fc6c8`，含 `main` `e659b66a`） |
+| 基线 | [SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)（`708fc6c8`，含 `main` `e659b66a`） |
 | 分支 | `feature/spec-0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement` |
-| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0403](../../specs/active/0403-refine-unit-lower-dead-fields-and-provider-retirement.md)、[SPEC-0404](../../specs/active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
+| 前置 | [SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 

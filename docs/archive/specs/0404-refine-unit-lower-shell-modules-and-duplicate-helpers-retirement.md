@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0404` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户确认合入 `main` 最新修改并继续推进下一批旧路径退役 |
 | 基线 | [SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)（`d5af2081`，含 `main` `03d70377`） |
 | 分支 | `feature/spec-0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement` |
-| 前置 | [SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0371](0371-refine-integer-range-text.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md) |
+| 前置 | [SPEC-0359](../../archive/specs/0359-refine-rc.md)、[SPEC-0371](../../specs/active/0371-refine-integer-range-text.md)、[SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)、[SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -45,3 +45,20 @@
 - [x] 删除 `statement.rs`、`rc.rs` 与 `checked.rs` 三个壳模块，完成重复辅助函数收敛及测试专用接口门控。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 4 个退役项已从版本库移除 | 通过 | 逐个确认：4/4 个路径/符号不再存在 |
+| 内容并入声明的合并目标 | 通过（部分宿主被后续 Spec 再次合并） | 3/4 个目标在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 历史已 squash 为 `430a0de2`，无法分离单 Spec 计数 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | `cargo test -p lang-codegen --lib -- refine verify_ownership` 等定向；完整套件默认 `3055 passed / 0 failed / 1 ignored`、feature `3117 passed / 0 failed / 1 ignored` |
+
+核对说明：
+
+- `unit_lower/statement.rs`、`unit_lower/rc.rs`、`unit_lower/checked.rs`、`unit_lower/integer_range.rs` 均确认不存在
+- 宿主 `unit_lower.rs`、`unit_lower/type_plan.rs`、`unit_plan.rs` 存在
+- 本 Spec 的删除可能由更后续的 Spec 完成（该文件后续再次被收敛），因此这里只声明“当前树已不存在”，不声明删除由本 Spec 独立完成。

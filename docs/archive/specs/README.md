@@ -574,3 +574,8 @@
 - [SPEC-0410](0410-refine-delegated-receiver-and-build-subset-shells-retirement.md)：`unit_lower` 接口委托兼容死分支退役、`refine` 构建/准入/凭证壳模块收敛与 `nullable_when` 保留边界核定。
 - [SPEC-0407](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)：`unit_lower` 析构/CFG 壳模块收敛、`expression_core` 测试遗留迁移与 `lowering_support` 辅助去重。
 - [SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)：`unit_lower` 入口交接与可空 `when` 清理壳模块收敛及整数算子映射去重。
+- [SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)：`ssa` 死辅助入口、测试专用入口门控与跨模块 `Span` 辅助去重。
+- [SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)：`unit_lower` 剩余单入口壳模块、重复辅助函数与测试专用 `unit_plan` 接口退役。
+- [SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)：`unit_lower` 死字段、`provider` 死辅助入口与测试专用 `ssa` 支持项退役。
+- [SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)：`unit_lower` 遗留壳模块、单变体 `IterationState` 与死辅助入口退役。
+- [SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md)：`unit_lower` 可空 `Rc` `if` 证明入口、`validated_rc_operation` 与只写 `shared_field_roots` 退役。
