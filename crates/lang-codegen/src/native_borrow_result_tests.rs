@@ -566,3 +566,55 @@ fun take(own source:String):Unit {println(source)}
     let run = emit_link_and_run("arm-tail-break-mixed-control-aliases", &text, "entry");
     super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
 }
+
+#[test]
+fn native_counter_arm_conditional_break_runs_zero_one_two_rounds() {
+    let mut text = String::from(
+        r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun take(own source:String):Unit {println(source)}
+"#,
+    );
+    let mut entry =
+        String::from("fun entry(){val source=\"kept\".clone();val yes=true;val no=false;\n");
+    let mut expected = String::new();
+    for mask in 0..8 {
+        let mode = |bit| if mask & bit != 0 { "own " } else { "" };
+        let (rounds, choose, stop) = (mode(1), mode(2), mode(4));
+        text.push_str(&format!(r#"fun run{mask}({rounds}rounds:Int,{stop}stop:Boolean,source:String,{choose}choose:Boolean):Unit {{
+ var remaining=rounds
+ while(remaining>0){{if(choose){{borrow val a=view(source);left(a)}}else{{borrow val b=view(source);right(b);right(b)}};if(stop){{break}};remaining=remaining-1}}
+ println("after-loop");println(source)
+}}
+"#));
+        entry.push_str(&format!("println(\"mode-{mask}\");\n"));
+        expected.push_str(&format!("mode-{mask}\n"));
+        for rounds in 0..=2 {
+            for choose in [false, true] {
+                for stop in [false, true] {
+                    let name = |value| if value { "yes" } else { "no" };
+                    entry.push_str(&format!(
+                        "run{mask}({rounds},{},source,{});\n",
+                        name(stop),
+                        name(choose)
+                    ));
+                    let iterations = if stop { rounds.min(1) } else { rounds };
+                    for _ in 0..iterations {
+                        expected.push_str(if choose {
+                            "L\nkept\n"
+                        } else {
+                            "R\nkept\nR\nkept\n"
+                        });
+                    }
+                    expected.push_str("after-loop\nkept\n");
+                }
+            }
+        }
+    }
+    entry.push_str("take(source)}");
+    expected.push_str("kept\n");
+    text.push_str(&entry);
+    let run = emit_link_and_run("counter-arm-conditional-break", &text, "entry");
+    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+}
