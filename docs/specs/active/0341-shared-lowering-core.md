@@ -17380,3 +17380,8 @@ choose/stop、资源根与身份必须保留。两出口运输与后继无重入
 普通SSA/native覆盖独立与共享Boolean、Borrow/Own参数、两prefix路径、0/1/2轮、
 双臂和stop真假；越界源码继续拒绝。故障仅CI编译列举，不在本地执行。
 本轮基于 `a95d095c` 独立树复用已有成果，Spec先行、分步本地提交，不推送。
+
+实施前普通源码红证据：新前端 `prefix_counter_break_seals_independent_composition`
+完整FQN精确执行，Single checker在两处borrow marker报告L0164（未证loop
+continuation），0 passed/1 failed。这不是故障注入；普通后端验收先行提交
+`96159f1b`，其中504个native调用仍为待执行计划，不是通过记录。
