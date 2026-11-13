@@ -2,7 +2,7 @@
 use super::*;
 impl Emitted {
     pub(in super::super) fn inject_parent(
-        &self,
+        &mut self,
         body: &super::super::body::RefinedBody,
         function: &mut Function,
     ) {
@@ -110,6 +110,31 @@ impl Emitted {
                 };
                 changed = true;
             }
+        }
+        // Lose real recorded state after layout/observation, leaving valid SSA intact.
+        // The independent pair receipt must reject without help from the verifier.
+        let lost_receipt = take_fault(OwnerFault::ParentFalseMissingReceipt);
+        let lost_observation = take_fault(OwnerFault::ParentFalseMissingObservation);
+        if lost_receipt || lost_observation {
+            if lost_receipt {
+                self.parent = Receipt::default();
+            } else {
+                assert!(!self.parent.observed.is_empty());
+                self.parent.observed.pop_first();
+            }
+            record_action("parent-false-receipt-fault-hit", 1);
+            let span = function
+                .block(header)
+                .unwrap()
+                .terminator
+                .as_ref()
+                .unwrap()
+                .origin
+                .span();
+            assert!(
+                self.finish(body, function, span).is_err(),
+                "missing parent receipt event must fail with valid SSA"
+            );
         }
         if changed {
             record_action("parent-false-ssa-fault-hit", 1);

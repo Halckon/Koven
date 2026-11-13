@@ -11,6 +11,8 @@ pub(crate) enum OwnerFault {
     NestedBodyEscapedPreparation,
     NestedFalseMissingDrop,
     ParentFalseMissingPlan,
+    ParentFalseMissingReceipt,
+    ParentFalseMissingObservation,
     ParentFalseIncompletePartition,
     ParentFalseSwapArguments,
     ParentFalseMissingDrop,

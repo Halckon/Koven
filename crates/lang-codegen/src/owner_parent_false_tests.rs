@@ -145,6 +145,8 @@ fn ci_only_parent_false_receipt_rejects_actual_partition_and_consumption_corrupt
     source.assert_frontend_clean();
     for fault in [
         OwnerFault::ParentFalseMissingPlan,
+        OwnerFault::ParentFalseMissingReceipt,
+        OwnerFault::ParentFalseMissingObservation,
         OwnerFault::ParentFalseIncompletePartition,
         OwnerFault::ParentFalseSwapArguments,
         OwnerFault::ParentFalseMissingDrop,
@@ -161,6 +163,11 @@ fn ci_only_parent_false_receipt_rejects_actual_partition_and_consumption_corrupt
             OwnerFault::ParentFalseMissingPlan | OwnerFault::ParentFalseIncompletePartition
         ) {
             "parent-false-plan-fault-hit"
+        } else if matches!(
+            fault,
+            OwnerFault::ParentFalseMissingReceipt | OwnerFault::ParentFalseMissingObservation
+        ) {
+            "parent-false-receipt-fault-hit"
         } else {
             "parent-false-ssa-fault-hit"
         };

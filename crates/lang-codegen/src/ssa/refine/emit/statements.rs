@@ -638,7 +638,7 @@ impl Emitter<'_> {
 pub(super) fn inject_owner_final(
     body: &RefinedBody,
     function: &mut Function,
-    receipts: &LoanReceipts,
+    receipts: &mut LoanReceipts,
 ) {
     receipts.nested_resume.inject_header(function);
     receipts.nested_exit.inject_parent(body, function);
