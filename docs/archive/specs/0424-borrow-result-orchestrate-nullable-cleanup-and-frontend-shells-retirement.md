@@ -12,7 +12,7 @@
 
 ## 1. 背景与目标
 
-紧接 [SPEC-0423](../../specs/active/0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低辅助目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、可空清理证明与借用结果校验行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
+紧接 [SPEC-0423](0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md)，继续推进 `crates/lang-codegen/src/ssa` 下 E3 细化层及遗留降低辅助目录的壳模块收敛，将以下 8 个小规模子模块并入同域宿主模块并删除原壳文件，在保持编译单元与单文件 SSA lowering、可空清理证明与借用结果校验行为不变的前提下进一步压缩碎片文件数量，同时确保合并后各文件严格低于 1000 行上限：
 
 1. `borrow_result_support/ordinary_local.rs`（321 行）-> 并入 `borrow_result_support/local_if.rs`（702 行）；
 2. `lower_frontend/orchestrate/nullable_map_guard_support/prelude.rs`（323 行）-> 并入 `lower_frontend/orchestrate/nullable_map_guard_support/checkpoint.rs`（669 行）；
