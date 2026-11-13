@@ -4,14 +4,14 @@
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P4-0412` |
 | 所属 Phase | Phase 4（typed SSA lowering）；只消费 Phase 2/3 已验证事实 |
 | 语言规范 | [Guide v0.47 空安全与错误值](../../guide/09-nullability-errors.md)、[Guide v0.47 所有权与借用](../../guide/10-ownership-borrowing-drop.md) |
 | 批准依据 | 用户指示继续推进下一步实施 |
 | 基线 | [SPEC-0411](../../archive/specs/0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md)（`3b7ddf29`） |
 | 分支 | `feature/spec-0412-refine-render-verify-and-map-frontend-shells-retirement` |
-| 前置 | [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](0383-refine-final-legacy-retirement.md)、[SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)、[SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md)、[SPEC-0410](0410-refine-delegated-receiver-and-build-subset-shells-retirement.md)、[SPEC-0411](../../archive/specs/0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md) |
+| 前置 | [SPEC-0381](../../specs/active/0381-refine-default-routing-and-legacy-retirement.md)、[SPEC-0383](../../specs/active/0383-refine-final-legacy-retirement.md)、[SPEC-0404](../../specs/active/0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)、[SPEC-0405](../../specs/active/0405-refine-dead-helpers-and-test-entry-gates-retirement.md)、[SPEC-0406](../../specs/active/0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)、[SPEC-0407](../../specs/active/0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)、[SPEC-0408](../../specs/active/0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)、[SPEC-0409](../../specs/active/0409-refine-deinit-and-build-receipt-shells-retirement.md)、[SPEC-0410](../../specs/active/0410-refine-delegated-receiver-and-build-subset-shells-retirement.md)、[SPEC-0411](../../archive/specs/0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md) |
 | 阻塞项 | 无 |
 | 语言语义变更 | 否 |
 
@@ -39,3 +39,21 @@
 - [x] 退役 `ssa/render/scalar_names.rs`、`ssa/verify/closure_escape/types.rs`、`ssa/verify/callable_view.rs` 及 `ssa/lower_frontend/{map_with.rs, map_require.rs}` 共 5 个壳模块文件。
 - [x] `scripts/gen_spec_dag.py`、`scripts/check_docs.py` 与 `scripts/check_rust_sizes.py --base main` 通过。
 - [ ] 本地 `cargo test -p lang-codegen` 回归验证通过；CI 以 PR 为准。
+
+## 5. 验收记录账本
+
+| 验收项 | 结果 | 证据 |
+|---|---|---|
+| 3 个壳子模块文件物理删除 | 通过 | 提交 `430a0de2` 上逐个确认：3/3 个路径不存在 |
+| 内容并入声明的合并目标 | 部分目标已被后续 Spec 再次合并 | 0/3 个目标路径在当前树存在 |
+| 修改文件均小于 1000 行 | 通过 | `python3 scripts/check_rust_sizes.py --base f78c8c20` 退出 0 |
+| 手写 Rust 文件数净减 | 受限通过 | 23 个 Spec 已 squash 为 `430a0de2`，无法从历史分离本 Spec 的计数，不虚报该数字；删除逐项已核实 |
+| `scripts/gen_spec_dag.py` / `scripts/check_docs.py` 通过 | 通过 | 归档后重跑生成物稳定；`documentation check passed` |
+| `cargo test -p lang-codegen --lib` | 通过 | 引用全量结果（默认 3055 / feature 3117），本 Spec 定向 `占位` |
+| 退役提交已在基线中 | 通过 | 15d39035 refactor(codegen): retire verify, render, refine/build and map_result shells (SPEC-0417)（其余 2 个删除提交同批） |
+
+宿主核对说明：
+
+- `scalar_names.rs`：宿主不再存在，且未按符号定位到等价实现，需人工复核
+- `map_require.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/binding_lifecycle_probe_tests.rs`（`374` 行）
+- `ssa/verify/closure_escape/types.rs`：该宿主随后被再次合并，按符号核实当前位于 `crates/lang-codegen/src/ssa/render.rs`（`11` 行）
