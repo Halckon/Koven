@@ -29,8 +29,9 @@ fun entry() {{ run(0,2); run({one},0); run(2,2) }}"#
         let (program, entry) = result.unwrap_or_else(|e| panic!("{e:?}; {actions:?}"));
         crate::ssa::verify::verify_program(&program).unwrap();
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let ssa = crate::ssa::render_program(&program);
         println!(
-            "ROUTE constant={constant}\nSOURCE\n{text}\nACTIONS {actions:?}\nSSA {program:#?}\nLLVM\n{llvm}"
+            "ROUTE constant={constant}\nSOURCE\n{text}\nACTIONS {actions:?}\nSSA {ssa}\nLLVM\n{llvm}"
         );
         assert!(
             !actions
