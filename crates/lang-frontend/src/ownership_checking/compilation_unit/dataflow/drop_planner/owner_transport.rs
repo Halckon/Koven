@@ -1,5 +1,6 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
 mod branch;
+mod entry_concat;
 mod capture;
 pub(super) mod choice;
 pub(super) mod loops;
@@ -425,7 +426,8 @@ impl DropPlanner<'_, '_> {
             }
             Expression::Assignment { .. } => self.normal_assignment_supported(id),
             Expression::Binary { .. } => {
-                self.normal_control_expression_supported(id)
+                self.entry_concat_operands(id).is_some()
+                    || self.normal_control_expression_supported(id)
                     || self
                         .owner_loop
                         .private_counter_initializer(self.checker.unit_expression(id))

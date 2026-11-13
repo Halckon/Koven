@@ -73,3 +73,75 @@ fn child_generation_rule_does_not_admit_repeated_roots_or_non_normal_paths() {
         }));
     }
 }
+
+#[test]
+fn child_generation_observes_entry_concat_without_literal_origin() {
+    let source = SOURCE
+        .replace(", own seed: String", "")
+        .replace("var a=seed", "var a=\"left\"+\"right\"");
+    let fixture = Fixture::new(&[("entry-concat.ko", &source)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    let observation = owned
+        .owner_observations()
+        .iter()
+        .find(|o| o.nested_normal_body_v1().is_some())
+        .unwrap_or_else(|| panic!("child observation: {:?}", owned.owner_observations()));
+    assert!(observation.is_consistent());
+    let rule = observation
+        .nested_normal_body_v1()
+        .unwrap()
+        .child_generation_rule_v1()
+        .expect("actual concat entry owner");
+    assert!(rule.is_consistent());
+}
+
+#[test]
+fn entry_concat_does_not_admit_named_chained_or_control_producers() {
+    for source in [
+        SOURCE.replace("var a=seed", "var a=seed+\"right\""),
+        SOURCE.replace("var a=seed", "var a=\"left\"+\"middle\"+\"right\""),
+        SOURCE.replace("var a=seed", "var a=if(true){\"left\"+\"right\"}else{seed}"),
+    ] {
+        let fixture = Fixture::new(&[("entry-concat-rejected.ko", &source)]);
+        let owned = fixture.shared();
+        assert!(owned.owner_observations().iter().all(|o| {
+            o.nested_normal_body_v1()
+                .and_then(|n| n.child_generation_rule_v1())
+                .is_none()
+        }));
+    }
+}
+
+#[test]
+fn entry_concat_publishes_distinct_completed_origin_and_closes_literal_inputs() {
+    use crate::ownership_checking::UnitOwnerOrigin;
+    let fixture = Fixture::new(&[("concat-origin.ko", r#"fun run() { val a="left"+"right" }"#)]);
+    let owned = fixture.shared();
+    assert!(owned.diagnostics().is_empty());
+    let observation = &owned.owner_observations()[0];
+    assert!(observation.is_consistent());
+    assert_eq!(observation.definitions().len(), 3);
+    let UnitOwnerOrigin::StringConcat {
+        expression,
+        left,
+        right,
+    } = observation.definitions()[2].origin()
+    else {
+        panic!("independent concat origin");
+    };
+    assert_ne!(expression, left);
+    assert_ne!(expression, right);
+    assert_ne!(left, right);
+    assert_eq!(
+        observation.definitions()[0].origin(),
+        UnitOwnerOrigin::String(left)
+    );
+    assert_eq!(
+        observation.definitions()[1].origin(),
+        UnitOwnerOrigin::String(right)
+    );
+    assert!(
+        crate::ownership_checking::UnitOwnerProducerCatalogV1::from_legacy(observation).is_none()
+    );
+}

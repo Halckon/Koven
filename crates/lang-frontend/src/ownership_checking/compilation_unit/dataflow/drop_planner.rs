@@ -899,7 +899,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 right,
                 ..
             } if self.uses_string_binary_operands(left, operator, right) => {
-                self.string_binary(left, right, id, state)
+                let continues = self.string_binary(left, right, id, state)?;
+                if continues {
+                    *owner_result = self.completed_entry_concat(id);
+                }
+                Ok(continues)
             }
             Expression::Binary {
                 left,

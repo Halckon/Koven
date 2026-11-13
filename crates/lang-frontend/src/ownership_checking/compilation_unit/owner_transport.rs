@@ -90,6 +90,15 @@ pub enum UnitOwnerOrigin {
     Parameter(UnitSymbolId),
     /// Completed non-interpolated String construction.
     String(UnitExpressionId),
+    /// Completed entry-only concatenation; both literal temporaries were cleaned.
+    StringConcat {
+        /// Actual completed Add expression.
+        expression: UnitExpressionId,
+        /// Actual left literal, cleaned after both operands completed.
+        left: UnitExpressionId,
+        /// Actual right literal, cleaned after both operands completed.
+        right: UnitExpressionId,
+    },
     /// Completed leaf move-closure environment with owned String captures.
     Closure(UnitExpressionId),
 }

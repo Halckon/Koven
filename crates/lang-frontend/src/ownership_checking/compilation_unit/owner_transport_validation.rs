@@ -92,7 +92,9 @@ impl UnitOwnerObservation {
                 UnitOwnerOrigin::Parameter(symbol) if symbol.source_unit() == source => {
                     Location::Named(symbol)
                 }
-                UnitOwnerOrigin::String(expression) | UnitOwnerOrigin::Closure(expression)
+                UnitOwnerOrigin::String(expression)
+                | UnitOwnerOrigin::Closure(expression)
+                | UnitOwnerOrigin::StringConcat { expression, .. }
                     if expression.source_unit() == source =>
                 {
                     Location::Uncreated
@@ -376,6 +378,29 @@ impl UnitOwnerObservation {
                 UnitOwnerTransportEvent::Result { expression, owner } => {
                     if !valid_owner(owner) || expression.source_unit() != source {
                         return None;
+                    }
+                    if let UnitOwnerOrigin::StringConcat {
+                        expression: site,
+                        left,
+                        right,
+                    } = self.definitions[owner.index].origin
+                        && locations[owner.index] == Location::Uncreated
+                    {
+                        if site != *expression || left == right || created[owner.index] {
+                            return None;
+                        }
+                        for operand in [left, right] {
+                            let index = self
+                                .definitions
+                                .iter()
+                                .position(|d| d.origin == UnitOwnerOrigin::String(operand))?;
+                            if !created[index] || locations[index] != Location::Result(operand) {
+                                return None;
+                            }
+                            locations[index] = Location::Dropped;
+                        }
+                        created[owner.index] = true;
+                        locations[owner.index] = Location::Result(*expression);
                     }
                     match locations[owner.index] {
                         Location::Uncreated
