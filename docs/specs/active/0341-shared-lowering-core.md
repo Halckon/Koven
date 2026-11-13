@@ -16942,3 +16942,22 @@ publication/replay，变异仅编译列举，实际拒绝/恢复证据待远端�
 未恢复写的 a、退休 parent resume 写过的 b 的分区；直接比对 resumed root 的原父
 LoopExit Drop 身份及另一 live root，不以数量替代身份。精确测试 1/1 通过；不改变
 生产许可，不宣称代际归纳，也不替代 native 或 CI 故障证据。
+
+### 本地 D10 归纳与 E2 有界双臂整合（2026-11-13）
+
+隔离分支复用已推送 `447b1eb6`，整合 D10 `33cf3197`、E2 `85eaf30a`，
+以及独立父根身份回归 `bff33cfa`、前端验证记录 `d99c5134`。保留双方 Spec 验收
+记录、child-cycle 与 arm-loop 收据的事件/fold/终检接线及所有 CI 精确入口；独立
+只读整合复核未发现确定遗漏。原工作树不变，本批仅本地提交，未推送或合并。
+
+整合后的实际本地验证：`cargo check --locked --workspace --all-targets -j1` 通过；
+frontend/codegen observer-support 构建 all-target strict Clippy 通过。精选 codegen
+普通精确回归 7/7（child-cycle、父基例、父 false 组合、E2 SSA 双域、两项 native），
+其中有界 native 真实执行 0/1/2 轮 × 两分支并核返回后源可用。FE 双臂 3/3、counter
+4/4 以及 child 代际/拒绝/父反向退休身份三项精确回归 3/3 通过；包含真实 observer
+on/off 对照。格式、docs923、Rust 尺寸门禁（相对 `447b1eb6`）、diff 检查通过。
+
+CI-only 仅编译与精确列举：既有 borrowing manifest 47 项、child-cycle 两目标
+（33 类变异）、父 receipt 两目标均存在；`none executed`。没有设置 CI 环境或
+执行本地故障注入；新增整合头仍待远端双宿主动态验收，不能引用旧 #420 CI 代替。
+受限归纳不覆盖一般 producer、复杂退出、任意嵌套或跨轮借用；完整 D10/E2 不标完成。
