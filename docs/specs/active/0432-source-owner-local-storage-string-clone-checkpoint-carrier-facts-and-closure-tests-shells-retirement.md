@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0431](0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md) 完成 `map_source_unit_contract`、`range`、`map_iteration/local/identity`、`nullable_when`、`nominal`、`loop_control/nullable_while`、`borrow_result` 及 `borrow_argument` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批可并入现有测试支撑与宿主模块的薄壳文件：
+在 [SPEC-0431](../../archive/specs/0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md) 完成 `map_source_unit_contract`、`range`、`map_iteration/local/identity`、`nullable_when`、`nominal`、`loop_control/nullable_while`、`borrow_result` 及 `borrow_argument` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批可并入现有测试支撑与宿主模块的薄壳文件：
 
 1. `ssa/lower_frontend/map_iteration/source_owner.rs`（595 行）：仅向 `map_iteration` 暴露 Map 源 owner 证明，可收敛入 `ssa/tests.rs`。
 2. `ssa/lower_frontend/local_storage.rs`（667 行）：仅向 `lower_frontend` 暴露局部存储规划与整数辅助，可收敛入 `ssa/unit_lower_test_support.rs`。
