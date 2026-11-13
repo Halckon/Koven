@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0439](0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md) 完成 `numeric_iteration`、`map_consume`、`map_iteration` 根/资源/校验/源及 `rc_nullable_while_presence_identity` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批测试支撑与测试对比用壳子模块：
+在 [SPEC-0439](../../archive/specs/0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md) 完成 `numeric_iteration`、`map_consume`、`map_iteration` 根/资源/校验/源及 `rc_nullable_while_presence_identity` 壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批测试支撑与测试对比用壳子模块：
 
 1. `ssa/rc_nullable_while_identity_queries.rs`（609 行）：仅承载可空 `Rc` `while` 身份查询测试支撑，可收敛入 `ssa/lower_frontend_map_return_tests.rs`。
 2. `ssa/lower_frontend_map_same_guard_ssa_test_support.rs`（626 行）：仅承载同守卫 SSA 测试断言支撑，可收敛入 `ssa/lower_frontend_map_continue_tests.rs`。
