@@ -17240,3 +17240,22 @@ all-target严格Clippy、普通codegen完整FQN exact25/25、前端普通20/20�
 通过。62项借用故障清单、child-cycle三目标与父receipt两目标仅编译列举通过，
 none executed；未启用本地CI环境或执行故障。推送后必须核对新head对应PR事件
 双宿主CI，旧head结果不替代本批动态验收；当前不宣称已合并或D10/E2整体完成。
+
+### 同 Unit 合法兄弟函数的 owner 权限隔离回归（2026-11-13）
+
+从 main `3b7a9a7a` 独立建立测试分支，未合入其他当天待整合分支。已有普通邻形
+`seed+"extra"` 可正常编译，但不授予 parent initial-owner base；本轮将它与直接
+own seed 的完整函数放在同一 Unit，交错调用并交换声明顺序。先分别取得两种合法
+函数的普通 receipt 基线，再核混合 Unit 的 initial-base、parent composition 和
+child-cycle 三类收据集合等于独立基线之和，完整函数的资格不被抹去，邻形不误增
+initial-base。没有把一个 analysis 的 token/handle 传给另一个 analysis 查询。
+
+代码头 `64eb92b3` 的两个普通完整 FQN exact 均通过：SSA集合隔离与native实际
+各自结果，覆盖正反声明顺序、真实 Basic/Const、16次有限交错调用。该回归核收据
+集合及实际结果，不把聚合集合比较宣称为新增跨函数权限证明，也不改变 Origin-based
+待定设计、生产代码或现有能力准入。
+
+observer-support codegen all-target 严格 Clippy、fmt、docs924、相对main的尺寸
+门禁及diff检查通过；2678手写Rust文件、36项历史超限，无新增豁免。保存debug2/opt0
+原artifact、执行前source/binary SHA、完整FQN列表和原始日志。CI-only仅编译未执行，
+远端CI未验证；本日仅本地提交，未推送、发PR或外部消息。
