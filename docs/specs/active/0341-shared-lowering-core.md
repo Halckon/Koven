@@ -17069,3 +17069,22 @@ runner。无故障双 caller publication/replay 普通基线 1/1 已通过。未
 本地收尾：普通双收据基线 1/1、54 项精确清单仅编译列举（none executed）、
 all-target strict Clippy、fmt、docs923、尺寸门禁、diff 均通过。独立复审确认多跳
 确实新增 Function CFG 块而非伪别名；仍未执行七项动态反例，远端双宿主结果待验收。
+
+### 入口 concat 与 tail-break 本地整合验收（2026-11-13）
+
+以已推送 `773edc2d` 为基底，在隔离分支复用 D10 `30dddb05`、E2 `cfc4a285`，
+包含父 producer 唯一成员修复 `5307aaa4` 和 counter ABI 回归 `cefb7763`。
+双方 Spec、concat 完成事实与 break exit tracker、全部 CI runner 均保留；独立
+只读复核未发现确定遗漏。原工作树不变，本轮未推送、未合并。
+
+整合后 workspace all-target check、frontend/codegen observer-support all-target
+严格 Clippy 均通过。精选 codegen 普通精确目标 13/13（含 concat 九组合 native、
+tail-break SSA/native 与无故障双收据基线、counter ABI/native 和旧域回归）通过；
+前端普通 17/17（双臂3、counter4、tail-break2、concat与代际身份精确8）通过，包含
+真实 observer on/off。格式、docs924、相对 `773edc2d` 的尺寸门禁与 diff 检查通过。
+
+CI-only borrowing 清单54项、child-cycle三个精确目标、父receipt两个精确目标仅
+编译列举，全部存在，none executed。未启用 CI 环境、未执行本地故障注入；本批新
+concat/唯一 producer 与 tail-break 反例仍待远端双宿主动态验收，不能引用旧头CI。
+不扩大为一般入口、任意 producer、复杂退出、多根循环组合或跨轮借用；D10/E2整体
+仍未完成。普通正例和列举不能替代独立反例的实际拒绝/恢复证据。
