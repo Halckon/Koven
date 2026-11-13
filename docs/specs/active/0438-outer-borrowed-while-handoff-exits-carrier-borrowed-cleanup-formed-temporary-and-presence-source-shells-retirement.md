@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0437](0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) 完成 `lambda_preflight_tests`、`outer_borrowed_while` 守卫、`key_return` 身份及 `lower_frontend` 壳子模块收敛后，`crates/lang-codegen/src/ssa/lower_frontend/` 下仍残留一批仅服务于测试对比的叶子壳模块：
+在 [SPEC-0437](../../archive/specs/0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md) 完成 `lambda_preflight_tests`、`outer_borrowed_while` 守卫、`key_return` 身份及 `lower_frontend` 壳子模块收敛后，`crates/lang-codegen/src/ssa/lower_frontend/` 下仍残留一批仅服务于测试对比的叶子壳模块：
 
 1. `ssa/lower_frontend/outer_borrowed_while.rs`（712 行）：仅承载测试对比用外层借用 `for` 与内层可空 `while` 降低，可收敛入 `ssa/checked_integer_conversion_contract_tests.rs`。
 2. `ssa/lower_frontend/map_iteration/source_owner/handoff.rs`（724 行）：仅承载测试对比用 Map 源所有者交接与交付证明，可收敛入 `ssa/ordered_map_storage_tests.rs`。
