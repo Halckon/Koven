@@ -26,5 +26,10 @@ concat 组合在 FE 静态计划中记录唯一 site，入口必须找到该 sit
 其 owner 恰在完整根向量一次，双操作数清理事实仍需存在。后端在真实 split head
 重用独立 concat receipt 核两 literal 来源、唯一后置 Drop 和无逃逸，再独立核
 两臂、join 和 parent header。初始父前驱仍为 join，不把 head 冒充 parent 入口。
-组合 CI-only 目标包括三 concat 来源/清理变异及六 diamond 变异；DuplicateInput
+组合 CI-only 目标包括四 concat 来源/清理/挂载变异及六 diamond 变异；DuplicateInput
 可能首先由来源快照拒绝，MissingDrop/EarlyDrop 直接验证清理要求，均待远端执行。
+
+concat 的 literal、producer 与输入 Drop 指令均须在全函数块指令表中恰好出现一次，
+且该唯一挂载属于 entry。该独立约束补足通用 SSA verifier 之外的来源/清理证据，
+防止同一 Drop 指令被后续块再次挂载而仅因指令表唯一性误判为单次清理。
+重复挂载反例仅 CI 执行，测试直接断言 concat receipt 拒绝，不借用通用 verifier。

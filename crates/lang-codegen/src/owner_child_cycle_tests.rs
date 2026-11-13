@@ -234,6 +234,7 @@ fn ci_only_initial_concat_rejects_source_cleanup_and_transport_corruption() {
             InitialConcatDuplicateInput,
             InitialConcatMissingDrop,
             InitialConcatEarlyDrop,
+            InitialConcatDuplicateDropPlacement,
             ChildCycleInitialSwap,
             ChildCycleInitialConsumer,
         ],

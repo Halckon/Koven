@@ -19,6 +19,7 @@ pub(crate) enum OwnerFault {
     InitialConcatDuplicateInput,
     InitialConcatMissingDrop,
     InitialConcatEarlyDrop,
+    InitialConcatDuplicateDropPlacement,
     ScalarEntryArmConsume,
     ScalarEntryJoinEscape,
     ScalarEntryArmDefinition,

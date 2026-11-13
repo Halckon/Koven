@@ -246,6 +246,7 @@ fn ci_only_concat_scalar_entry_rejects_cleanup_and_diamond_corruption() {
         (InitialConcatDuplicateInput, "child-cycle"),
         (InitialConcatMissingDrop, "child-cycle"),
         (InitialConcatEarlyDrop, "child-cycle"),
+        (InitialConcatDuplicateDropPlacement, "child-cycle"),
         (ScalarEntryArmConsume, "scalar-entry"),
         (ScalarEntryJoinEscape, "scalar-entry"),
         (ScalarEntryArmDefinition, "scalar-entry"),
@@ -257,6 +258,15 @@ fn ci_only_concat_scalar_entry_rejects_cleanup_and_diamond_corruption() {
             crate::ssa::with_owner_fault(fault, || source.lower_entry(source.entry()))
         });
         assert!(result.is_err());
+        if fault == InitialConcatDuplicateDropPlacement {
+            assert_eq!(
+                actions
+                    .iter()
+                    .filter(|(name, _)| *name == "concat-placement-independent-rejection")
+                    .count(),
+                1
+            );
+        }
         for suffix in ["fault-hit", "independent-rejection"] {
             let expected = format!("{marker}-{suffix}");
             assert_eq!(

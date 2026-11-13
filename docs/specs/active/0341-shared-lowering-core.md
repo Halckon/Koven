@@ -17357,3 +17357,9 @@ D10 concat 独立来源/清理收据补强：原位置检查仅核 entry 内的�
 但不能代替独立 concat 证据；将对 literal/concat/Drop 各指令核全函数唯一挂载且
 位于真实 entry。新增 CI-only 重复 Drop 挂载反例，直接要求 concat receipt 拒绝；
 本地仅编译列举并跑完整 FQN 普通回归，不执行故障。选择范围和生产 lowering 不变。
+
+该挂载补强已完成本地验证：组合六情况SSA及直线concat普通完整FQN exact各1/1
+通过；codegen all-target严格Clippy通过。两份CI runner共五个ignored exact目标
+仅编译列举（none executed），重复挂载反例仍待远端。独审确认原独立证明缺口与
+修复闭合，不代表非法源码曾绕过通用verifier；未改变选择范围/降低过程。docs925
+文件、尺寸门禁2690文件/36处历史超限通过，本批仅本地提交，未推送。
