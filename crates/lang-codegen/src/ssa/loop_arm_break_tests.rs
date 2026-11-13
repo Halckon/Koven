@@ -6,24 +6,36 @@ use lang_frontend::ownership_checking::{
 };
 #[test]
 fn ordinary_loop_arm_tail_break_closes_before_actual_exit() {
-    check_break(false);
+    check_break(false, false);
 }
 
 #[test]
 fn ordinary_loop_arm_tail_break_accepts_scalar_prefix_cfg() {
-    check_break(true);
+    check_break(true, false);
 }
 
-fn check_break(prefix: bool) {
+#[test]
+fn ordinary_loop_arm_tail_break_accepts_independent_prefix_parameter() {
+    check_break(true, true);
+}
+
+fn check_break(prefix: bool, independent: bool) {
     for own in [false, true] {
         let mode = if own { "own " } else { "" };
-        let before = if prefix {
+        let parameters = if independent {
+            format!("{mode}flag:Boolean,{mode}before:Boolean,source:String,{mode}choose:Boolean")
+        } else {
+            format!("{mode}choose:Boolean,source:String,{mode}flag:Boolean")
+        };
+        let before = if independent {
+            "if(before){tick(1)}else{tick(2)};"
+        } else if prefix {
             "if(choose){tick(1)}else{tick(2)};"
         } else {
             ""
         };
         let text = format!(
-            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun tick(own value:Int):Unit {{}}\nfun run({mode}choose:Boolean,source:String,{mode}flag:Boolean):Unit {{{before}while(flag){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}};break}};consume(source)}}"
+            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun tick(own value:Int):Unit {{}}\nfun run({parameters}):Unit {{{before}while(flag){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=view(source);consume(b);consume(b)}};break}};consume(source)}}"
         );
         let mut sources = SourceMap::new();
         let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "arm-break.ko", &text);

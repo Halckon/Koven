@@ -17168,3 +17168,26 @@ CI-only borrowing清单59项、child-cycle三个目标、父receipt两个目标�
 列举成功，none executed。未在本地启用CI环境或执行故障注入；未推送、未合并。
 新前置标量路径五项反例及此前concat/tail-break反例仍待远端双宿主动态验收；
 普通测试与清单存在不替代动态拒绝/恢复证据，D10/E2整体仍未完成。
+
+### 独立前缀条件的标量活跃性修正（2026-11-13）
+
+在 `4158dcae` 隔离复核发现既有普通覆盖将 prefix 条件与循环臂 `choose` 复用，
+没有独立条件参数。新增 `flag,before,source,choose` 布局后，前端正常授予事实，但
+普通 SSA/native 均先实际失败 `InvalidModel`：prefix receipt 误要求前缀各块运输
+函数全部参数，独立 `before:Boolean` 在读取后不再活跃，正常 liveness 会裁剪此槽。
+
+最小修正只允许裁剪已获批 prefix.condition 对应的那一个 Boolean 参数，且它不能
+同时是 source/guard/arm 的循环角色；其余全部输入仍须按原序运输，完整前驱、实际
+条件读取和调用后的资源 identity 检查保持。未放宽资源槽或任意标量槽裁剪，更未
+扩展 prefix/callee 语法或权限。独立参数 SSA 保留 Own/Borrow、rooted/memory 和
+observer on/off；native 执行 prefix真假 × choose真假 × 零/一轮八组合。
+新增普通 SSA/native 2/2 已由先失败转为通过；未运行本地故障，未推送。
+
+独立只读复核确认只删除该已知标量槽，不允许根槽删除、额外槽、重排或 identity
+替换；真实 head 仍要求条件源存在。新增独立 fixture 的三个 CI-only 目标覆盖根槽
+丢失、同型 Boolean 入边身份交换、额外前驱，每项保留拒绝后恢复基线。本地普通
+源码4/4、receipt重放2/2、native3/3与严格 codegen all-target Clippy通过；未执行
+任何故障注入。本修复维持已批准语义，仅解除 receipt 对合法标量裁剪的误拒绝。
+CI-only borrowing 清单62项已编译列举，none executed；新增三个反例的远端动态
+拒绝/恢复仍待后续推送。本地格式、docs924、相对 `4158dcae` 的尺寸门禁和 diff
+检查均通过；本轮不推送。

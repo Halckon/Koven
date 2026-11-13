@@ -475,3 +475,41 @@ fun entry(){val source="kept".clone();run(true,source,false);run(false,source,fa
         b"after-loop\nkept\nafter-loop\nkept\nzero\nkept\nL\nkept\nafter-loop\nkept\nleft-exited\nkept\nR\nkept\nR\nkept\nafter-loop\nkept\nright-exited\nkept\nkept\n",
     );
 }
+
+#[test]
+fn native_loop_arm_tail_break_independent_prefix_parameter() {
+    let mut text = String::from(
+        r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun tick(own value:Int):Unit {}
+fun run(own flag:Boolean,own before:Boolean,source:String,own choose:Boolean):Unit {
+ if(before){tick(1)}else{tick(2)}
+ while(flag){if(choose){borrow val a=view(source);left(a)}else{borrow val b=view(source);right(b);right(b)};break}
+ println("after-loop");println(source)
+}
+fun take(own source:String):Unit {println(source)}
+fun entry(){val source="kept".clone();
+"#,
+    );
+    let mut expected = String::new();
+    for flag in [false, true] {
+        for before in [false, true] {
+            for choose in [false, true] {
+                text.push_str(&format!("run({flag},{before},source,{choose});\n"));
+                if flag {
+                    expected.push_str(if choose {
+                        "L\nkept\n"
+                    } else {
+                        "R\nkept\nR\nkept\n"
+                    });
+                }
+                expected.push_str("after-loop\nkept\n");
+            }
+        }
+    }
+    text.push_str("take(source)}");
+    expected.push_str("kept\n");
+    let run = emit_link_and_run("arm-tail-break-independent-prefix", &text, "entry");
+    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+}

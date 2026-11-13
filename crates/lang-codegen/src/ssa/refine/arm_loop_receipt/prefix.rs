@@ -231,8 +231,20 @@ impl Emitted {
         self.links(f, a, &[join], s)?;
         self.links(f, b, &[join], s)?;
         self.incoming(f, join, &[a, b], s)?;
+        // An independent Boolean prefix parameter can die after its Read. Only
+        // that scalar slot may be trimmed; every other input (including all
+        // loop roles and resource parameters) must still be transported.
+        let scalar = *parameters.get(prefix.role).ok_or_else(|| invalid(s))?;
         for block in [head, a, b, join] {
-            if self.parameters.get(&block).ok_or_else(|| invalid(s))? != parameters {
+            let actual = self.parameters.get(&block).ok_or_else(|| invalid(s))?;
+            let expected = parameters
+                .iter()
+                .copied()
+                .filter(|slot| {
+                    *slot != scalar || p.roles.contains(&prefix.role) || actual.contains(slot)
+                })
+                .collect::<Vec<_>>();
+            if *actual != expected {
                 return Err(invalid(s));
             }
         }
@@ -302,7 +314,7 @@ impl Emitted {
                 return Err(invalid(s));
             }
             // The entire resource state is forwarded unchanged; no slot substitution is allowed.
-            for param in parameters {
+            for param in self.parameters.get(&block).ok_or_else(|| invalid(s))? {
                 if self
                     .ends
                     .get(&self.block(block, s)?)

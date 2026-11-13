@@ -9,9 +9,24 @@ use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
 fn lower(fault: Option<Fault>) -> (Result<Program, LoweringError>, Vec<Receipt>, Trace) {
+    lower_shape(fault, false)
+}
+fn lower_shape(
+    fault: Option<Fault>,
+    independent: bool,
+) -> (Result<Program, LoweringError>, Vec<Receipt>, Trace) {
     let text = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun tick(own value:Int):Unit {}\nfun run(choose:Boolean,source:String,own flag:Boolean):Unit {if(choose){tick(1)}else{tick(2)};while(flag){if(choose){borrow val a=view(source);consume(a)}else{borrow val b=view(source);consume(b);consume(b)};break};consume(source)}";
+    let text = if independent {
+        text.replace(
+            "choose:Boolean,source:String,own flag:Boolean",
+            "flag:Boolean,before:Boolean,source:String,choose:Boolean",
+        )
+        .replacen("if(choose){tick", "if(before){tick", 1)
+    } else {
+        text.to_owned()
+    };
     let mut sources = SourceMap::new();
-    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "prefix-ci.ko", text);
+    let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "prefix-ci.ko", &text);
     let inputs = [SourceUnitInput::memory_document(source, &parsed)];
     let (environment, types) = standard_environments();
     let (names, typed, owned) =
@@ -37,7 +52,10 @@ fn lower(fault: Option<Fault>) -> (Result<Program, LoweringError>, Vec<Receipt>,
     }
 }
 fn capture() -> (Function, Receipt) {
-    let (program, receipts, trace) = lower(None);
+    capture_shape(false)
+}
+fn capture_shape(independent: bool) -> (Function, Receipt) {
+    let (program, receipts, trace) = lower_shape(None, independent);
     let program = program.unwrap();
     assert_eq!(receipts.len(), 1);
     assert_eq!(trace.before_verifier, 1);
@@ -125,4 +143,80 @@ fn prefix_capture_missing_rolls_back() {
     assert_eq!(trace.pending_after, 0);
     assert!(trace.rolled_back);
     let _ = capture();
+}
+
+#[test]
+fn ordinary_independent_prefix_receipt_replays() {
+    let _ = capture_shape(true);
+}
+#[test]
+#[ignore = "CI-only independent prefix source-slot deletion; local compile/list only"]
+fn independent_prefix_root_slot_loss_rejects() {
+    require_ci();
+    let (mut f, mut r) = capture_shape(true);
+    let [head, a, _] = r.plan.prefix.as_ref().unwrap().split.unwrap();
+    let slot = r.parameters[r.plan.roles[0]];
+    let pos = r.evidence.parameters[&a]
+        .iter()
+        .position(|x| *x == slot)
+        .unwrap();
+    r.evidence.parameters.get_mut(&a).unwrap().remove(pos);
+    r.evidence.entities.get_mut(&a).unwrap().remove(pos);
+    let block = r.evidence.blocks[&a];
+    f.blocks[block.index()].parameters.remove(pos);
+    let h = r.evidence.blocks[&head];
+    let TerminatorKind::Conditional { when_true, .. } =
+        &mut f.blocks[h.index()].terminator.as_mut().unwrap().kind
+    else {
+        panic!("prefix split")
+    };
+    when_true.arguments.remove(pos);
+    assert!(r.validate(&f).is_err());
+    let _ = capture_shape(true);
+}
+#[test]
+#[ignore = "CI-only independent prefix Boolean identity exchange; local compile/list only"]
+fn independent_prefix_bool_identity_swap_rejects() {
+    require_ci();
+    let (mut f, r) = capture_shape(true);
+    let [head, a, _] = r.plan.prefix.as_ref().unwrap().split.unwrap();
+    let slots = &r.evidence.parameters[&a];
+    let guard = slots
+        .iter()
+        .position(|x| *x == r.parameters[r.plan.roles[1]])
+        .unwrap();
+    let arm = slots
+        .iter()
+        .position(|x| *x == r.parameters[r.plan.roles[2]])
+        .unwrap();
+    let h = r.evidence.blocks[&head];
+    let TerminatorKind::Conditional { when_true, .. } =
+        &mut f.blocks[h.index()].terminator.as_mut().unwrap().kind
+    else {
+        panic!("prefix split")
+    };
+    let ids = [when_true.arguments[guard], when_true.arguments[arm]];
+    when_true.arguments.swap(guard, arm);
+    assert_ne!(ids[0], ids[1]);
+    assert_eq!(f.entity(ids[0]).unwrap().ty, f.entity(ids[1]).unwrap().ty);
+    assert!(r.validate(&f).is_err());
+    let _ = capture_shape(true);
+}
+#[test]
+#[ignore = "CI-only independent prefix extra predecessor; local compile/list only"]
+fn independent_prefix_extra_predecessor_rejects() {
+    require_ci();
+    let (mut f, r) = capture_shape(true);
+    let [head, _, _] = r.plan.prefix.as_ref().unwrap().split.unwrap();
+    let h = r.evidence.blocks[&head];
+    let TerminatorKind::Conditional { when_true, .. } =
+        &f.blocks[h.index()].terminator.as_ref().unwrap().kind
+    else {
+        panic!("prefix split")
+    };
+    let edge = when_true.clone();
+    let exit = r.evidence.blocks[&r.plan.blocks.unwrap()[4]];
+    f.blocks[exit.index()].terminator.as_mut().unwrap().kind = TerminatorKind::Branch(edge);
+    assert!(r.validate(&f).is_err());
+    let _ = capture_shape(true);
 }
