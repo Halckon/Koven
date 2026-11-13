@@ -19,11 +19,21 @@ mod iteration;
 mod loan;
 mod map;
 mod map_iteration;
+mod no_carry;
 mod nullable_when;
 mod ownership_primitive;
 mod range_construction;
 mod rc;
 mod receiver;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_body;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_consumer;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_zero;
+mod resource_state;
 mod string;
 
 use crate::{
@@ -139,6 +149,7 @@ struct Checker<'a> {
     current_receiver_mode: Option<ParameterMode>,
     checking_borrow_return: bool,
     allowed_borrow_call: Option<ExpressionId>,
+    no_carry: Option<no_carry::Session>,
     borrow_results: super::borrow_result::FileBorrowResults,
     range_producers: Vec<Span>,
     current_borrow_return: Option<super::borrow_result::ReturnSource<SymbolId>>,
@@ -251,6 +262,7 @@ impl<'a> Checker<'a> {
             current_receiver_mode: None,
             checking_borrow_return: false,
             allowed_borrow_call: None,
+            no_carry: None,
             borrow_results: Default::default(),
             range_producers: super::range_producer::collect_single(sources, parsed, names, typed)?,
             current_borrow_return: None,
@@ -598,7 +610,7 @@ impl<'a> Checker<'a> {
             Statement::Error => Ok(Flows::next(state)),
             Statement::Block { elements }
             | Statement::LambdaBody { elements }
-            | Statement::ControlBody { elements } => self.check_borrow_scope(&elements, state),
+            | Statement::ControlBody { elements } => self.check_borrow_scope(id, &elements, state),
             Statement::LocalVariable { declaration } => {
                 let Item::Variable {
                     kind,
@@ -644,10 +656,17 @@ impl<'a> Checker<'a> {
                 let errors = self.diagnostics.len();
                 let mut state = state;
                 state.origins.attach(&self.callable_sources.arena);
+                #[cfg(any(test, feature = "loan-observation-test-support"))]
+                let _zero = self.research_zero_header(id, body, &state);
                 let headers = state.origins.begin_loop();
                 let condition = self.check_expression(condition, state, ExpressionUse::Read)?;
-                let mut flows =
-                    self.check_maybe_loop_with_headers(condition, body, errors, &headers)?;
+                let mut flows = self.check_maybe_loop_with_headers(
+                    condition,
+                    body,
+                    errors,
+                    &headers,
+                    Some(id),
+                )?;
                 self.release_dead_loop_closures(id, &mut flows);
                 Ok(flows)
             }
@@ -704,39 +723,6 @@ impl<'a> Checker<'a> {
             flows.merge(checked);
         }
         Ok(flows)
-    }
-
-    fn check_maybe_loop_with_headers(
-        &mut self,
-        mut prefix: Flows,
-        body: StatementId,
-        errors: usize,
-        headers: &[(SymbolId, super::callable_provenance::graph::NodeId)],
-    ) -> Result<Flows, OwnershipCheckingError> {
-        let Some(base) = prefix.next.take() else {
-            return Ok(prefix);
-        };
-        let body_id = body;
-        let body = self.check_statement(body, base.clone())?;
-        if self.diagnostics.len() == errors {
-            self.check_loop_backedge(body_id, &body)?;
-        }
-        let origins = base.origins.loop_exit(
-            headers,
-            body.next.as_ref().map(|state| &state.origins),
-            body.continues.as_ref().map(|state| &state.origins),
-            body.breaks.as_ref().map(|state| &state.origins),
-        );
-        let mut next = base;
-        for state in [body.next, body.breaks, body.continues]
-            .into_iter()
-            .flatten()
-        {
-            merge_state(&mut next, state);
-        }
-        next.origins = origins;
-        prefix.next = Some(next);
-        Ok(prefix)
     }
 
     fn check_expression_inner(

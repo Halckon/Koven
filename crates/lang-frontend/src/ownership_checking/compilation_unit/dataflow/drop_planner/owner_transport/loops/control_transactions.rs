@@ -2,6 +2,10 @@
 use super::*;
 #[derive(Default)]
 pub(in super::super::super) struct ControlTransactions {
+    pub(super) nested: Option<super::nested::Nested>,
+    pub(super) nested_parent: Option<super::nested::parent::Parent>,
+    pub(super) nested_invalid: bool,
+    pub(super) leading_entry: Option<super::counter_segment::leading_entry::LeadingEntry>,
     pub(super) counter_batch: Option<super::counter_batch::Batch>,
     pub(super) counter_segments: Vec<super::counter_segment::Segment>,
     pub(super) root_branches_invalid: bool,
@@ -26,6 +30,9 @@ impl ControlTransactions {
         let Some(transaction) = LoopTransaction::begin(checker, item, identity.clone()) else {
             return Self::closed_sequence(checker, item, identity.clone()).unwrap_or_else(|| {
                 let mut collection = Self {
+                    leading_entry: super::counter_segment::leading_entry::LeadingEntry::discover(
+                        checker, item,
+                    ),
                     counter_segments: super::counter_segment::discover(checker, item),
                     counter_candidates: root_incoming::counter_prefixes(checker, item)
                         .into_iter()
@@ -33,14 +40,17 @@ impl ControlTransactions {
                         .collect(),
                     ..Self::default()
                 };
-                if let ([(first, _, _), (second, _, _)], Some(second_identity)) = (
-                    collection.counter_candidates.as_slice(),
-                    collection.counter_batch_identity(),
-                ) {
+                if let Some(identities) =
+                    collection.counter_batch_identities(collection.counter_candidates.len())
+                {
                     collection.counter_batch = Some(super::counter_batch::Batch::new(
                         identity,
-                        [*first, *second],
-                        second_identity,
+                        collection
+                            .counter_candidates
+                            .iter()
+                            .map(|(control, _, _)| *control)
+                            .collect(),
+                        identities,
                     ));
                 }
                 collection
@@ -52,6 +62,10 @@ impl ControlTransactions {
             selected: Some(control),
             counter_candidates: Vec::new(),
             counter_segments: Vec::new(),
+            leading_entry: None,
+            nested: None,
+            nested_parent: None,
+            nested_invalid: false,
             counter_batch: None,
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),
@@ -108,6 +122,10 @@ impl ControlTransactions {
             selected: None,
             counter_candidates: Vec::new(),
             counter_segments: Vec::new(),
+            leading_entry: None,
+            nested: None,
+            nested_parent: None,
+            nested_invalid: false,
             counter_batch: None,
             root_entries: Vec::new(),
             root_branch_arms: Vec::new(),

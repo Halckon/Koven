@@ -246,7 +246,7 @@ fn is_local_range_binding(
 
 fn validate_binding(
     file: &lang_frontend::parser::ParsedFile,
-    _names: &ValidatedCompilationUnitNames,
+    names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
@@ -374,6 +374,64 @@ fn validate_binding(
             allowed,
         );
     }
+    let invariant = crate::ssa::borrow_result_support::invariant_while::admitted(
+        file, names, typed, owned, fact,
+    );
+    if let Some(statement) = invariant
+        && let Some(tail) =
+            crate::ssa::borrow_result_support::invariant_while::conditional_jump(file, statement)
+        && let Some(allowed) = &mut allowed_controls
+    {
+        allowed.insert(tail.control.index());
+    }
+    if let Some(statement) = invariant
+        && let Some(returned) =
+            crate::ssa::borrow_result_support::invariant_while::tail_return(file, statement)
+        && let Some(allowed) = &mut allowed_controls
+    {
+        allowed.insert(returned.index());
+    }
+    let branch_no_carry =
+        crate::ssa::borrow_result_support::branch_no_carry::admitted(file, owned, fact);
+    if let Some((_, control)) = branch_no_carry {
+        allowed_controls
+            .get_or_insert_with(Default::default)
+            .insert(control.index());
+        for tail in owned.no_carry_break_branches().iter().filter(|b| {
+            owned.owns_no_carry_break_branch(b)
+                && b.pair().branch().expression() == control
+                && b.pair().branch().source_unit() == fact.binding().source_unit()
+        }) {
+            allowed_controls
+                .get_or_insert_with(Default::default)
+                .insert(tail.break_expression().expression().index());
+        }
+        for prefix in owned.no_carry_break_prefixes().iter().filter(|p| {
+            owned.owns_no_carry_break_prefix(p)
+                && p.pair().pair().branch().expression() == control
+                && p.prefix().source_unit() == fact.binding().source_unit()
+        }) {
+            allowed_controls
+                .get_or_insert_with(Default::default)
+                .insert(prefix.prefix().expression().index());
+        }
+        // Only the separately owned bounded fact admits its exact guard/update.
+        // Other binary expressions retain the ordinary borrow-binding frontier.
+        for counter in owned.no_carry_counter_branches().iter().filter(|c| {
+            owned.owns_no_carry_counter_branch(c)
+                && c.pair().branch().expression() == control
+                && c.pair().branch().source_unit() == fact.binding().source_unit()
+        }) {
+            let allowed = allowed_controls.get_or_insert_with(Default::default);
+            allowed.insert(counter.condition().expression().index());
+            allowed.insert(counter.decrement().expression().index());
+        }
+    }
+    let no_carry = crate::ssa::borrow_result_support::no_carry::admitted(file, owned, fact);
+    let no_carry_siblings =
+        crate::ssa::borrow_result_support::no_carry::siblings(file, owned, fact);
+    let closed_whiles =
+        crate::ssa::borrow_result_support::closed_while::following(file, typed, owned, fact);
     crate::ssa::borrow_result_support::binding(
         file,
         fact.marker_span(),
@@ -385,6 +443,14 @@ fn validate_binding(
         builtin,
         call_allowed,
         |statement| {
+            if closed_whiles.contains(&statement)
+                || invariant == Some(statement)
+                || no_carry == Some(statement)
+                || branch_no_carry.is_some_and(|(s, _)| s == statement)
+                || no_carry_siblings.contains(&statement)
+            {
+                return true;
+            }
             let statement = UnitStatementId::new(fact.binding().source_unit(), statement);
             owned.map_iterations().iter().any(|plan| {
                 plan.descriptor().statement() == statement && plan.source() == Some(fact.origin())

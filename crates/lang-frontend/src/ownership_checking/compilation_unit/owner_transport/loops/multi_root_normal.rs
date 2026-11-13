@@ -57,7 +57,7 @@ struct NormalManifest {
     definitions: Vec<crate::ownership_checking::UnitOwnerDefinition>,
 }
 impl UnitOwnerMultiRootNormalTransportV1 {
-    // Only the actual completed RootTokenTransaction supplies these typed steps.
+    // Only completed actual body-event collectors supply these typed steps.
     pub(in crate::ownership_checking::compilation_unit) fn seal(
         control: UnitStatementId,
         roots: Vec<UnitSymbolId>,
@@ -95,6 +95,10 @@ impl UnitOwnerMultiRootNormalTransportV1 {
     /// Static output definitions in entry-root order, not persistent runtime instances.
     pub fn normal_outputs(&self) -> &[(UnitSymbolId, UnitOwnerId)] {
         &self.outputs
+    }
+    /// Actual body String definitions, separate from all header inputs.
+    pub fn body_catalog(&self) -> &UnitOwnerProducerCatalogV1 {
+        &self.catalog
     }
     /// Recheck symbolic input consumption and output conservation, independently of old P IDs.
     pub fn is_consistent(&self) -> bool {

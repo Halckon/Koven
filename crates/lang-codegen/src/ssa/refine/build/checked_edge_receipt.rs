@@ -30,6 +30,9 @@ impl Builder<'_, '_> {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         };
         let operator = *operator;
+        self.body
+            .arm_loop_plans
+            .checked_counter(expression, blocks, values, span)?;
         self.checked_expression_edges += 1;
         self.checked_expression_edge_emitted(expression, operator, blocks, values, span)?;
         self.header_increment_emitted(expression, blocks, values, span)

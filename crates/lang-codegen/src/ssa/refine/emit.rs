@@ -1,4 +1,5 @@
 //! SSA construction: slot liveness decides block parameters; operands map mechanically.
+mod folding;
 mod statements;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
@@ -8,6 +9,7 @@ use crate::ssa::{
         TerminatorKind, ValueId,
     },
 };
+use folding::merge_straight_lines;
 use lang_frontend::source::Span;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -127,56 +129,6 @@ fn checked_arithmetic_siblings(
         }
     }
     map
-}
-
-/// Folds a block into its `Goto` predecessor when that predecessor is its only one, so
-/// no SSA block merely forwards its parameters.
-fn merge_straight_lines(body: &RefinedBody, span: Span) -> Result<RefinedBody, LoweringError> {
-    let mut body = body.clone();
-    loop {
-        let reachable = reachable(&body, span)?;
-        let mut predecessors: BTreeMap<BlockRef, usize> = BTreeMap::new();
-        for block in &reachable {
-            let (terminator, _) = body.blocks[block.0].terminator.as_ref().expect("reachable");
-            for successor in terminator.successors() {
-                *predecessors.entry(successor).or_default() += 1;
-            }
-        }
-        let candidate = reachable.iter().find_map(|block| {
-            match body.blocks[block.0].terminator.as_ref().expect("reachable") {
-                (RTerm::Goto(successor), _)
-                    if successor != block
-                        && successor.0 != 0
-                        && predecessors.get(successor) == Some(&1)
-                        && body.blocks[successor.0].view.is_none()
-                        && !body.blocks[successor.0].preserve_header =>
-                {
-                    Some((*block, *successor))
-                }
-                _ => None,
-            }
-        });
-        let Some((block, successor)) = candidate else {
-            return Ok(body);
-        };
-        let folded = std::mem::take(&mut body.blocks[successor.0]);
-        let target = &mut body.blocks[block.0];
-        if target.origin.is_none() {
-            target.origin = folded.origin;
-        }
-        for slot in folded.pinned {
-            if !target.pinned.contains(&slot) {
-                target.pinned.push(slot);
-            }
-        }
-        target.statements.extend(folded.statements);
-        target.terminator = folded.terminator;
-        body.branch_plans.fold(block, successor, span)?;
-        body.nested_plans.fold(block, successor, span)?;
-        body.bounded_plans.fold(block, successor, span)?;
-        body.single_plans.fold(block, successor, span)?;
-        body.multi_plans.fold(block, successor, span)?;
-    }
 }
 
 fn excluded_abort_slots(body: &RefinedBody, pred: BlockRef, abort: BlockRef) -> BTreeSet<Slot> {
@@ -930,6 +882,14 @@ pub(super) fn emit(
                 .function
                 .set_abort_terminator(target, reason, origin)
                 .map_err(model_error)?;
+            emitter.owner_terminator(body, *block, &mut receipts, *term_span)?;
+            receipts.child_cycle_abort(
+                body,
+                emitter.function,
+                target,
+                &emitter.current,
+                *term_span,
+            )?;
             continue;
         }
         let kind = match terminator {
@@ -980,8 +940,11 @@ pub(super) fn emit(
             .function
             .set_terminator(target, kind, origin)
             .map_err(model_error)?;
+        emitter.owner_terminator(body, *block, &mut receipts, *term_span)?;
         receipts.terminator(body, emitter.function, target, &emitter.current, *term_span)?;
     }
+    #[cfg(test)]
+    statements::inject_owner_final(body, emitter.function, &mut receipts);
     receipts.finish(body, emitter.function, span)?;
     Ok(())
 }

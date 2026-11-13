@@ -2,6 +2,14 @@
 use super::*;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(super) struct LoanReceipts {
+    child_cycle: crate::ssa::refine::child_cycle_receipt::Emitted,
+    arm_loop: crate::ssa::refine::arm_loop_receipt::Emitted,
+    nested_body: crate::ssa::refine::nested_body_receipt::Emitted,
+    nested_resume: crate::ssa::refine::nested_resume_receipt::Emitted,
+    nested_exit: crate::ssa::refine::nested_exit_receipt::Emitted,
+    pub(super) owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted,
+    fresh_loop: crate::ssa::refine::fresh_loop_receipt::Emitted,
+    loop_receipt: crate::ssa::refine::loop_receipt::Emitted,
     pub(super) nested: crate::ssa::refine::nested_receipt::Emitted,
     pub(super) bounded: crate::ssa::refine::bounded_receipt::Emitted,
     pub(super) single: crate::ssa::refine::single_receipt::Emitted,
@@ -28,6 +36,22 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            child_cycle: Default::default(),
+            arm_loop: Default::default(),
+            nested_body: Default::default(),
+            nested_resume: Default::default(),
+            nested_exit: Default::default(),
+            owner_bridge: crate::ssa::refine::control_bridge_receipt::Emitted::new(),
+            fresh_loop: crate::ssa::refine::fresh_loop_receipt::Emitted::new(
+                &body.fresh_loop_plans,
+                function,
+                span,
+            )?,
+            loop_receipt: crate::ssa::refine::loop_receipt::Emitted::new(
+                &body.loop_plans,
+                function,
+                span,
+            )?,
             nested: crate::ssa::refine::nested_receipt::Emitted::new(
                 &body.nested_plans,
                 function,
@@ -130,6 +154,26 @@ impl LoanReceipts {
         entities: &BTreeMap<BlockRef, Vec<EntityId>>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.arm_loop
+            .layout(body, blocks, parameters, entities, span)?;
+        self.owner_bridge
+            .layout(body, function, blocks, parameters, entities, span)?;
+        self.fresh_loop.layout(
+            &body.fresh_loop_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
+        self.loop_receipt.layout(
+            &body.loop_plans,
+            function,
+            blocks,
+            parameters,
+            entities,
+            span,
+        )?;
         self.branch.layout(
             &body.branch_plans,
             function,
@@ -138,6 +182,14 @@ impl LoanReceipts {
             entities,
             span,
         )?;
+        self.child_cycle
+            .layout(body, function, blocks, parameters, entities, span)?;
+        self.nested_body
+            .layout(body, function, blocks, parameters, entities, span)?;
+        self.nested_resume
+            .layout(body, function, blocks, parameters, entities, span)?;
+        self.nested_exit
+            .layout(body, function, blocks, parameters, entities, span)?;
         self.nested.layout(
             &body.nested_plans,
             function,
@@ -172,6 +224,17 @@ impl LoanReceipts {
         )?;
         Ok(())
     }
+    pub(super) fn child_cycle_abort(
+        &mut self,
+        body: &RefinedBody,
+        function: &Function,
+        target: BlockId,
+        current: &BTreeMap<Slot, EntityId>,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        self.child_cycle
+            .terminator(body, function, target, current, span)
+    }
     pub(super) fn terminator(
         &mut self,
         body: &RefinedBody,
@@ -180,6 +243,15 @@ impl LoanReceipts {
         current: &BTreeMap<Slot, EntityId>,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.loop_receipt
+            .terminator(&body.loop_plans, function, target, current, span)?;
+        self.fresh_loop
+            .terminator(&body.fresh_loop_plans, function, target, current, span)?;
+        self.child_cycle
+            .terminator(body, function, target, current, span)?;
+        self.arm_loop.terminator(body, target, current, span)?;
+        self.nested_resume
+            .terminator(function, target, current, span)?;
         self.nested
             .terminator(&body.nested_plans, function, target, current, span)?;
         self.bounded
@@ -199,6 +271,21 @@ impl LoanReceipts {
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.arm_loop.finish(body, function, span)?;
+        self.owner_bridge.finish(body, function, span)?;
+        self.nested_body.finish(body, function, span)?;
+        self.child_cycle.finish(
+            body,
+            function,
+            &self.nested_body.generations(body, span)?,
+            span,
+        )?;
+        self.nested_exit.finish(body, function, span)?;
+        self.nested_resume.finish(body, function, span)?;
+        self.nested_resume.compose(body, function, span)?;
+        self.loop_receipt.finish(&body.loop_plans, function, span)?;
+        self.fresh_loop
+            .finish(&body.fresh_loop_plans, function, span)?;
         self.forward.finish(&body.forward_plans, function, span)?;
         self.consumer.finish(&body.loan_plans, function, span)?;
         self.receiver.finish(&body.receiver_plans, function, span)?;
@@ -228,6 +315,24 @@ impl LoanReceipts {
 }
 
 impl Emitter<'_> {
+    /// Both ordinary and abort terminators complete the independently selected owner protocol.
+    pub(super) fn owner_terminator(
+        &mut self,
+        body: &RefinedBody,
+        block: BlockRef,
+        receipts: &mut LoanReceipts,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        receipts.owner_bridge.terminator(
+            &body.owner_bridge_plans,
+            body,
+            self.function,
+            block,
+            &self.current,
+            span,
+        )
+    }
+
     pub(super) fn statements(
         &mut self,
         body: &RefinedBody,
@@ -235,15 +340,57 @@ impl Emitter<'_> {
         target: BlockId,
         receipts: &mut LoanReceipts,
     ) -> Result<(), LoweringError> {
-        for statement in &body.blocks[block.0].statements {
+        for (index, statement) in body.blocks[block.0].statements.iter().enumerate() {
             if let (ROp::Alias { source }, [result]) = (&statement.op, statement.results.as_slice())
             {
-                if statement.loan_tag.is_some() {
+                if statement.loan_tag.is_some()
+                    || statement.loop_tag.is_some()
+                    || !body.fresh_loop_plans.loops.is_empty()
+                {
                     return Err(error(LoweringErrorKind::InvalidModel, statement.span));
                 }
                 let entity = self.get(*source, statement.span)?;
                 self.current.insert(*result, entity);
                 self.defined.insert(*result, entity);
+                receipts.arm_loop.alias(
+                    body,
+                    (block, index),
+                    (*source, *result),
+                    entity,
+                    statement.span,
+                )?;
+                receipts.nested_body.statement(
+                    body,
+                    self.function,
+                    (block, index),
+                    None,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.nested_resume.statement(
+                    body,
+                    self.function,
+                    (block, index),
+                    None,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.owner_bridge.statement(
+                    body,
+                    self.function,
+                    (block, index),
+                    None,
+                    &self.current,
+                    statement.span,
+                )?;
+                receipts.loop_receipt.alias(
+                    &body.loop_plans,
+                    *source,
+                    *result,
+                    target,
+                    &self.current,
+                    statement.span,
+                )?;
                 receipts
                     .binding
                     .alias(&body.binding_plans, &self.current, statement.span)?;
@@ -293,6 +440,61 @@ impl Emitter<'_> {
             for (slot, entity) in statement.results.iter().zip(results) {
                 self.current.insert(*slot, entity);
                 self.defined.insert(*slot, entity);
+            }
+            receipts.owner_bridge.statement(
+                body,
+                self.function,
+                (block, index),
+                Some(instruction),
+                &self.current,
+                statement.span,
+            )?;
+            receipts.nested_body.statement(
+                body,
+                self.function,
+                (block, index),
+                Some(instruction),
+                &self.current,
+                statement.span,
+            )?;
+            receipts.nested_resume.statement(
+                body,
+                self.function,
+                (block, index),
+                Some(instruction),
+                &self.current,
+                statement.span,
+            )?;
+            receipts.nested_exit.statement(
+                body,
+                self.function,
+                (block, index),
+                instruction,
+                &self.current,
+                statement.span,
+            )?;
+            receipts
+                .arm_loop
+                .statement(body, (block, index), instruction, statement.span)?;
+            if let Some(tag) = statement.fresh_loop_tag {
+                receipts.fresh_loop.statement(
+                    &body.fresh_loop_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?;
+            }
+            if let Some(tag) = statement.loop_tag {
+                receipts.loop_receipt.statement(
+                    &body.loop_plans,
+                    tag,
+                    self.function,
+                    instruction,
+                    &self.current,
+                    statement.span,
+                )?;
             }
             match statement.loan_tag {
                 Some(crate::ssa::refine::body::LoanTag::Consumer(tag)) => {
@@ -470,4 +672,22 @@ impl Emitter<'_> {
         }
         Ok(())
     }
+}
+
+#[cfg(test)]
+pub(super) fn inject_owner_final(
+    body: &RefinedBody,
+    function: &mut Function,
+    receipts: &mut LoanReceipts,
+) {
+    receipts.nested_body.inject_generation(body, function);
+    receipts
+        .child_cycle
+        .inject(body, function, &receipts.nested_body);
+    receipts.nested_resume.inject_composition(body, function);
+    receipts.nested_resume.inject_header(function);
+    receipts.nested_exit.inject_parent(body, function);
+    crate::ssa::refine::nested_exit_receipt::inject_final(&body.nested_exit_plans, function);
+    crate::ssa::refine::nested_resume_receipt::inject_final(&body.nested_resume_plans, function);
+    crate::ssa::refine::nested_body_receipt::inject_final(&body.nested_body_plans, function);
 }
