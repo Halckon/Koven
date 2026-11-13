@@ -538,3 +538,4 @@
 - [SPEC-0432](0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md)：`source_owner`、`local_storage`、`string_clone`、`checkpoint`、`carrier`、`closure/runtime_tests`、`nullable_numeric_cleanup/tests` 及 `orchestrate/registration_tests` 壳子模块退役。
 - [SPEC-0433](0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md)：`refine` 五类借用凭证 `ci_tests`、`verify/closure_escape/types/graph_tests` 及 `verify_operation/map` 壳子模块退役。
 - [SPEC-0434](0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md)：`verify_operation/map/tests`、`verify_ownership` 字段与生命周期测试及 `unit_lower` 闭包/类型原点测试壳子模块退役。
+- [SPEC-0435](0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md)：`unit_lower/control/result_tests`、`item_operand_ssa_test_support` 及 `lower_frontend` 守卫与实例测试壳子模块退役。

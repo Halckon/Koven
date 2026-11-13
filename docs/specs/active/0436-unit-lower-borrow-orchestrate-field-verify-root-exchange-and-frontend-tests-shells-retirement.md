@@ -19,7 +19,7 @@
 
 ## 1. 背景与动机
 
-在 [SPEC-0435](0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) 完成 `unit_lower/control/result_tests`、`item_operand_ssa_test_support` 及 `lower_frontend` 守卫与实例测试壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批仅向父模块暴露私有测试套件的薄壳文件：
+在 [SPEC-0435](../../archive/specs/0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md) 完成 `unit_lower/control/result_tests`、`item_operand_ssa_test_support` 及 `lower_frontend` 守卫与实例测试壳子模块收敛后，`crates/lang-codegen/src/ssa/` 下仍残留一批仅向父模块暴露私有测试套件的薄壳文件：
 
 1. `ssa/unit_lower/borrow/nullable_temporary_tests.rs`（474 行）：仅承载 `unit_lower/borrow` 可空临时借用单测，可收敛入 `ssa/unit_lower_borrow_tests.rs`。
 2. `ssa/unit_lower/orchestrate/registration_tests.rs`（536 行）：仅承载 `unit_lower/orchestrate` 实例注册契约单测，可收敛入 `ssa/unit_lower_type_plan_tests.rs`。
