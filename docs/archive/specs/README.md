@@ -566,3 +566,4 @@
 - [SPEC-0418](0418-refine-receipt-subset-and-frontend-shells-retirement.md)：`refine` 借用凭证/准入壳模块及 `lower_frontend` 守卫/容器/闭包壳子模块退役。
 - [SPEC-0417](0417-refine-verify-render-and-build-shells-retirement.md)：`verify`、`render`、`verify_operation`、`verify_ownership` 及 `refine/build` 壳子模块退役。
 - [SPEC-0416](0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md)：`lowering_support`、`map_source`、`borrow_result_support` 及 `lower_frontend` 控制/清理壳子模块退役。
+- [SPEC-0415](0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md)：`lower_frontend` 下 `map_iteration` 与 `borrow_argument` 壳子模块退役。
