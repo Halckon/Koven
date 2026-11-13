@@ -148,3 +148,24 @@
 | 独立只读审查 | 核对 17 组 packed 正文恢复、挂载、fixture 与 #407 保留；未发现本轮尚未解决的具体问题，不替代全量与 CI 验收 |
 
 剩余：完整回归及双宿主 CI、原退役数量与宿主职责重新对账。不得仅凭编译通过归档。
+
+### 4.1 续接 #421 后的 37 项物理清单核对
+
+输入检查点 `0cf1d025` 已包含 #421 冲突修复 `4e201f4b` 及 SPEC-0452 三个 owner
+模块的同父内联。§2.2 的 37 个路径中 30 个不存在、7 个仍保留；不存在只表示路径删除，
+不证明正文、fixture 与测试全部迁移。以下尺寸是该输入的实际物理行数；两者之和仅用于
+排除直接内联，不作为某种压行或跨域打包方案的许可。
+
+| 保留文件（相对 `crates/lang-codegen/src/`） | 子文件行数 | 原父模块行数 | 当前决定 |
+|---|---:|---:|---|
+| `llvm/container_tests/provider_cfg.rs` | 369 | 940 | 保留；直接内联超限 |
+| `llvm/runtime/narrow_tests.rs` | 141 | 1014 | 保留；不扩大原父历史尺寸欠账 |
+| `native/unit_const_handoff_test_support.rs` | 275 | 853 | 保留；继续服务原 const handoff 测试域 |
+| `native_local_object_constant_qualifier_tests.rs` | 333 | 955 | 保留；不迁入无关 SSA 宿主 |
+| `ssa/closure_operation_tests/escape_tests/projected_content_tests.rs` | 489 | 787 | 保留；继续使用原 closure 私有 helper |
+| `ssa/field_replace_lower_tests.rs` | 494 | 983 | 保留；继续使用原 lowering 测试域 helper |
+| `ssa/nullable_map_consume_lowering_tests/resource/runtime.rs` | 495 | 784 | 保留；Resource fixture 与 native oracle 不拆散 |
+
+物理进度为 **30/37**，这 7 项不能简单并回原父模块，也不应为满足文件数量再次放入无关宿主。
+本轮仅形成清单与阻塞记录，没有追加退役、改变 §3 验收标准或将本 Spec 标记完成。
+后续先明确职责边界与尺寸目标的取舍，再实施新的布局；整批语义完整性、全量与 CI 验收继续待办。
