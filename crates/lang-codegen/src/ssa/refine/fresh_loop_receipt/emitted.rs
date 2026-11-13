@@ -64,11 +64,11 @@ pub(super) struct Proof {
     pub(super) end_span: Span,
 }
 impl Receipt {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn recorded_fold_count(&self) -> usize {
         self.folds.len()
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn sequential_exit_links(&self) -> bool {
         self.loops.windows(2).all(|pair| {
             let from = pair[0].proof.blocks.exit;

@@ -17777,3 +17777,16 @@ D10 temporary carry 消费者不变。本步不新增覆盖、不宣称已迁移
 严格 observer-support all-target Clippy、测试编译、temporary forms 与 D10
 W09 temporary carry 既有普通 exact 2/2、fmt/docs/diff 和独立审查通过。
 未改 Origin、未恢复 legacy single 执行、未运行故障注入，未推送。
+
+### 交付前默认观察配置校准（2026-11-13）
+
+对整合头 `19c66730` 运行默认 workspace all-target check 时，发现新增
+refine dead-code 门禁暴露十组仅由 `loan-observation-test-support` 测试消费的
+观察接口；此前带 feature 的验收不能代替默认测试配置。按真实消费者把这些
+getters/observe 限制到同一测试 feature；普通 fresh-loop observer 仍保留 trace
+构造/传递，仅默认配置不读取的 PublicationEvent 字段保留具名局部例外。
+生产 single tail-mapping 与所有发布/验证逻辑不变。修正后默认及观察 feature
+两种 workspace all-target 严格 Clippy 均通过；观察测试编译和 branch receipt、
+no-carry sibling、single-continuation neighbors 三项普通完整 FQN exact 3/3
+通过，fmt/docs/diff 与独立审查通过。未执行故障注入；交付仍待远端双宿主 CI，
+本次不纳入后续 Unit 诊断迁移 `e37124e4`，不标整体 D10/E2 完成。
