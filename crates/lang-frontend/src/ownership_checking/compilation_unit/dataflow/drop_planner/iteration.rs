@@ -272,6 +272,12 @@ impl DropPlanner<'_, '_> {
                 && loan.argument() == self.checker.unit_expression(argument)
         }) {
             let acquisition = self.iteration_actions.begin(loan.clone());
+            #[cfg(test)]
+            if let Some(probe) = &mut self.origin_probe {
+                probe.push(
+                    super::owner_transport::origin_probe::Event::BorrowRegistered(loan.clone()),
+                );
+            }
             state.pending_loans.push(super::model::PendingLoan(
                 Action::EndCallLoan(loan.clone()),
                 self.loop_boundaries.len(),

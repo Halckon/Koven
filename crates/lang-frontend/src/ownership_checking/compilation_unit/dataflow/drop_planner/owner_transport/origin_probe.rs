@@ -5,6 +5,11 @@ use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in super::super) enum Event {
     Literal(UnitExpressionId),
+    BorrowRegistered(crate::ownership_checking::UnitLoanFact),
+    DirectBorrowEnded {
+        loan: crate::ownership_checking::UnitLoanFact,
+        point: crate::ownership_checking::UnitDropPoint,
+    },
     WhileTraversal {
         control: UnitStatementId,
         role: WhileRole,
@@ -181,7 +186,11 @@ pub(in super::super) fn partition_if(events: &[Event]) -> Option<IfPartition<'_>
                     position += 1;
                     break;
                 }
-                Event::Branch { .. } | Event::UncoveredCall(_) | Event::WhileTraversal { .. } => {
+                Event::Branch { .. }
+                | Event::UncoveredCall(_)
+                | Event::WhileTraversal { .. }
+                | Event::BorrowRegistered(_)
+                | Event::DirectBorrowEnded { .. } => {
                     return None;
                 }
                 _ => position += 1,

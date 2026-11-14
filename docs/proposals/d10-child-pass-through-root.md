@@ -326,3 +326,18 @@ continues 与 JoinInputs 数量，并返回各 arm 内的原事件切片。普�
 `partition_if` 遇到任一 while 边界即拒绝，不能将循环体事件混入普通线性臂。
 这只补全一种明确的未支持控制边界；Borrow/End、when 及完整源事件覆盖仍未闭合，
 UncoveredCall 仍拒绝，未生成 CFG、receipt 或 Carry 权限，生产行为不变。
+
+### 实际参数借用登记与直接调用退休的测试域观察
+
+`BorrowRegistered` 在 planner 完成实参求值、将同轮 `UnitLoanFact` 登记到 pending
+loan 时记录；`DirectBorrowEnded` 在普通直接调用正常返回、从 pending 队列实际移除
+对应 loan 的路径记录，同时保留真实 `CallReturn`。不从最终 loan 表推导曾经执行，
+也不凭 source span 配对。当前仅观察普通直接调用的正常退休，不声称 receiver、
+forwarding、提前退出或循环合流均已覆盖。
+
+这仍是静态 planner 事件，不是动态 borrow trace。平坦 if 分区仍拒绝借用事件及
+UncoveredCall，不能用新增 Begin/End 对替代完整调用合同；未放宽生产或 Carry。
+
+普通源码见证另行区分 `observe(String)` 与 builtin `println`：前者验证同一个真实
+loan 的登记/正常退休各一次且顺序正确；后者仅有登记、没有本片 direct-end。
+此缺口保持显式，不以登记事件宣称 builtin 借用生命周期已完整观测。

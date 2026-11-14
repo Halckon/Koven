@@ -67,7 +67,11 @@ println(b)
                 .iter()
                 .filter(|event| !matches!(
                     event,
-                    Event::Dropped(_) | Event::UncoveredCall(_) | Event::WhileTraversal { .. }
+                    Event::Dropped(_)
+                        | Event::UncoveredCall(_)
+                        | Event::WhileTraversal { .. }
+                        | Event::BorrowRegistered(_)
+                        | Event::DirectBorrowEnded { .. }
                 ))
                 .cloned()
                 .collect::<Vec<_>>(),
@@ -272,6 +276,21 @@ fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
                         .unwrap()
                         .contains(&Event::UncoveredCall(call))
                 );
+                let events = observed.origin_probe.as_ref().unwrap();
+                let loan = owned
+                    .loans()
+                    .iter()
+                    .find(|loan| loan.call() == call)
+                    .unwrap();
+                assert_eq!(
+                    events
+                        .iter()
+                        .filter(|event| *event == &Event::BorrowRegistered(loan.clone()))
+                        .count(),
+                    1
+                );
+                // Builtin output is not the ordinary direct-call retirement slice.
+                assert!(!events.iter().any(|event| matches!(event, Event::DirectBorrowEnded { loan: ended, .. } if ended == loan)));
             }
             assert!(
                 super::super::origin_probe::partition_if(observed.origin_probe.as_ref().unwrap())
@@ -279,4 +298,41 @@ fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
             );
         });
     }
+}
+
+#[test]
+fn ordinary_direct_borrow_registration_and_retirement_are_actual_events() {
+    let fixture = Fixture::new(&[(
+        "direct.ko",
+        "fun observe(value: String): Unit {}\nfun run(): Unit { val a = \"read\"; observe(a) }",
+    )]);
+    let owned = fixture.shared();
+    let call = crate::type_checking::UnitExpressionId::new(
+        fixture.source(0),
+        fixture.expression(0, "observe(a)"),
+    );
+    let loan = owned
+        .loans()
+        .iter()
+        .find(|loan| loan.call() == call)
+        .unwrap();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.origin_probe = Some(Vec::new());
+        let observed = planner.run().unwrap();
+        let events = observed.origin_probe.as_ref().unwrap();
+        let begins = events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| *event == &Event::BorrowRegistered(loan.clone()))
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        let ends = events.iter().enumerate().filter(|(_, event)| matches!(event, Event::DirectBorrowEnded { loan: ended, point } if ended == loan && *point == crate::ownership_checking::UnitDropPoint::CallReturn(call))).map(|(index, _)| index).collect::<Vec<_>>();
+        assert_eq!(begins.len(), 1);
+        assert_eq!(ends.len(), 1);
+        assert!(begins[0] < ends[0]);
+    });
 }
