@@ -52,6 +52,9 @@ pub(in super::super) enum BranchRole {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in super::super) enum WhileRole {
     Enter,
+    ConditionEvaluated,
+    BodyEnter,
+    BodyExit(Option<bool>),
     Exit(Option<bool>),
 }
 
@@ -304,4 +307,62 @@ pub(in super::super) fn attribute_observed_if(events: &[Event]) -> Option<Observ
         suffix,
         continuing_arms,
     })
+}
+
+/// One static, normally completing body traversal, not a dynamic backedge.
+pub(in super::super) fn observed_normal_loop(events: &[Event]) -> Option<&[Event]> {
+    let start = events
+        .iter()
+        .position(|event| matches!(event, Event::WhileTraversal { .. }))?;
+    if events[..start]
+        .iter()
+        .any(|event| matches!(event, Event::Branch { .. }))
+    {
+        return None;
+    }
+    let Event::WhileTraversal {
+        control,
+        role: WhileRole::Enter,
+    } = events.get(start)?
+    else {
+        return None;
+    };
+    let marker = |role| Event::WhileTraversal {
+        control: *control,
+        role,
+    };
+    if events.get(start + 1) != Some(&marker(WhileRole::ConditionEvaluated))
+        || events.get(start + 2) != Some(&marker(WhileRole::BodyEnter))
+    {
+        return None;
+    }
+    let begin = start + 3;
+    let mut end = begin;
+    while let Some(event) = events.get(end) {
+        match event {
+            Event::WhileTraversal { .. } => break,
+            Event::Branch { .. } => return None,
+            _ => end += 1,
+        }
+    }
+    if events.get(end) != Some(&marker(WhileRole::BodyExit(Some(true)))) {
+        return None;
+    }
+    // Cleanup may follow body completion; it is not part of the body slice.
+    let mut exit = end + 1;
+    while let Some(event) = events.get(exit) {
+        match event {
+            Event::WhileTraversal { .. } => break,
+            Event::Dropped(_) => exit += 1,
+            _ => return None,
+        }
+    }
+    if events.get(exit) != Some(&marker(WhileRole::Exit(Some(true))))
+        || events[exit + 1..]
+            .iter()
+            .any(|event| matches!(event, Event::WhileTraversal { .. } | Event::Branch { .. }))
+    {
+        return None;
+    }
+    Some(&events[begin..end])
 }

@@ -396,3 +396,17 @@ prefix、两臂、suffix。它核对同一 control 的 Enter/Exit 次序与实�
 
 这里的控制拒绝仅针对已观察到的 WhileTraversal/Branch；不能泛称 For/Loop 等
 全部源码控制形式已覆盖。未记录的语义仍属覆盖缺口，此归属器不作为准入判定。
+
+### 实际 loop body 边界与仍缺失的代际证明
+
+从 `owner_while_statement_scoped` 实际条件成功求值、body statement 调用前后记录
+ConditionEvaluated、BodyEnter、BodyExit；不从 AST 重建这些边界。
+`observed_normal_loop` 只在同 control 且正常 body/loop 返回、无已观察分支或嵌套
+loop 时提取原 body 事件切片。普通 replace 循环验证 Applied 属于该切片；break
+形态拒绝。边界间允许原实际 cleanup，不能把退出清理混作 body 更新。
+
+这把真实 producer 更新定位到真实静态 body，却仍不足以传递动态代际：旧 owner
+观察已 Unsupported 时不提供当前 token；正常 body 完成布尔值不是 SSA backedge
+或 header equation。现有 root normal-write/retirement 生成也受原授权合同约束，
+不能把日志中的 Applied 填进既有全 Replace receipt。故此片不提供 generation
+replay 或 Carry，缺少有效当前代、header/predecessor 与退出分区时必须继续拒绝。

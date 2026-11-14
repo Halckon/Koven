@@ -37,6 +37,18 @@ println(b)
         planner.origin_probe = Some(Vec::new());
         let observed = planner.run().unwrap();
         assert_eq!(baseline.facts, observed.facts);
+        let body = super::super::origin_probe::observed_normal_loop(
+            observed.origin_probe.as_ref().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            body.iter()
+                .filter(
+                    |event| matches!(event, Event::Applied { call: actual, .. } if *actual == call)
+                )
+                .count(),
+            1
+        );
         assert_eq!(
             baseline.conditional_receiver_facts,
             observed.conditional_receiver_facts
@@ -266,8 +278,8 @@ fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
                         }
                     })
                     .collect::<Vec<_>>();
-                assert_eq!(loops.len(), 2);
-                assert_eq!(loops[0].0, loops[1].0);
+                assert_eq!(loops.len(), 5);
+                assert!(loops.iter().all(|(control, _)| *control == loops[0].0));
                 let whiles = fixture.parsed[0]
                     .ast()
                     .statements()
@@ -281,7 +293,8 @@ fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
                     .collect::<Vec<_>>();
                 assert_eq!(whiles, vec![loops[0].0]);
                 assert_eq!(loops[0].1, WhileRole::Enter);
-                assert!(matches!(loops[1].1, WhileRole::Exit(Some(_))));
+                assert!(matches!(loops[4].1, WhileRole::Exit(Some(_))));
+                assert!(super::super::origin_probe::observed_normal_loop(events).is_none());
             }
             if body.contains("println") {
                 let call = crate::type_checking::UnitExpressionId::new(
@@ -457,5 +470,36 @@ fn ordinary_receiver_records_actual_registration_and_pending_removal() {
         assert_eq!(removals.len(), 1);
         assert!(begins[0] < removals[0]);
         assert!(super::super::origin_probe::partition_if(events).is_none());
+    });
+}
+
+#[test]
+fn ordinary_break_loop_has_no_normal_body_slice() {
+    let fixture = Fixture::new(&[(
+        "break.ko",
+        "fun run(flag: Boolean): Unit { while (flag) { break } }",
+    )]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.origin_probe = Some(Vec::new());
+        let observed = planner.run().unwrap();
+        let events = observed.origin_probe.as_ref().unwrap();
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, Event::Branch { .. }))
+        );
+        assert!(events.iter().any(|event| matches!(
+            event,
+            Event::WhileTraversal {
+                role: super::super::origin_probe::WhileRole::BodyExit(Some(false)),
+                ..
+            }
+        )));
+        assert!(super::super::origin_probe::observed_normal_loop(events).is_none());
     });
 }
