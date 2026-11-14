@@ -473,7 +473,7 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
 }
 
 #[test]
-fn e2_real_source_entry_emits_and_replays_without_synthetic_driver() {
+fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
     for (rounds, choose) in [(0, false), (3, false), (3, true)] {
         let source = format!(
             "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(left);consume(a)}}else{{borrow val b=view(right);consume(b)}};remaining=remaining-1}}}}\nfun main():Unit {{val rounds={rounds};val choose={choose};run(\"left\",\"right\",rounds,choose)}}"
@@ -510,11 +510,42 @@ fn e2_real_source_entry_emits_and_replays_without_synthetic_driver() {
         assert!(
             super::e2_entry_replay::replay(&emitted, &other, &other.facts()[0], &typed).is_none()
         );
-        let llvm = crate::llvm::render_verified_program_with_entry(
-            &emitted.function.fragments.leaves.program,
-            emitted.entry,
-        )
-        .unwrap();
-        assert!(!llvm.is_empty());
+        use super::e2_entry_publication::{Error, publish};
+        assert!(matches!(
+            publish(&experiment, entry, fact, &[], &typed),
+            Err(Error::Selection)
+        ));
+        assert!(matches!(
+            publish(&experiment, entry, fact, &[fact, fact], &typed),
+            Err(Error::Selection)
+        ));
+        assert!(matches!(
+            publish(
+                &other,
+                entry,
+                &other.facts()[0],
+                &[&other.facts()[0]],
+                &typed
+            ),
+            Err(Error::Required)
+        ));
+        assert!(matches!(
+            publish(&experiment, entry, fact, &[&other.facts()[0]], &typed),
+            Err(Error::Selection)
+        ));
+        let retyped = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        assert!(matches!(
+            publish(&experiment, entry, fact, &[fact], &retyped),
+            Err(Error::Required)
+        ));
+        let published = publish(&experiment, entry, fact, &[fact], &typed).unwrap();
+        assert_eq!(published.declaration(), entry.entry());
+        let llvm =
+            crate::llvm::render_verified_program_with_entry(published.program(), published.entry())
+                .unwrap();
+        super::e2_native_tests::execute_llvm(&llvm, b"");
     }
 }

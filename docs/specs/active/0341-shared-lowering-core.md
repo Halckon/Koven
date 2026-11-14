@@ -18533,3 +18533,18 @@ synthetic driver native回归仍单独存在，不替代本片运行证据。
 
 仍需将完整 entry 范围纳入不可变 publication，再评估普通 driver 接线；当前仅
 test+feature 的可变产物与独立检查。未推送或运行故障注入。
+
+### 完整实验 entry 发布包与真实 native 验证
+
+新增独立 PublishedEntry，范围是一个原源码 entry 及其完整受限 caller/helper/leaf
+闭包，不是整个 Unit，也不是普通 owned/native driver capability。Required 核对
+原 typed、entry/fact 身份与完整 shell；selected 必须恰好一次覆盖所需 fact。
+emit、独立 entry replay、最终 Program verifier 全部通过后才构造封包，只提供
+只读 Program/entry/declaration，不提供可变或消费式逃逸。旧 Published 不扩围。
+
+封包后的 Program 原样生成 LLVM，经 clang -O0 编译并执行；复用10秒超时、失败
+kill+wait 的 native harness，不追加 synthetic driver，不改 IR。真实源码用例为
+rounds=0/choose=false、rounds=3/choose=false、rounds=3/choose=true，要求退出成功、
+stdout/stderr 均空。空 consumer 的观察只证明正常返回，不证明动态迭代次数或
+分支覆盖；静态完整 CFG/cleanup 由独立 replay 检查。未做 ASan、泄漏计数或 abort
+故障注入。缺选/重复选择、foreign fact/entry、retyped 均测试拒绝。生产接入未开放。

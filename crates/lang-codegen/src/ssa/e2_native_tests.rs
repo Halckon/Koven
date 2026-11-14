@@ -223,35 +223,40 @@ fn e2_two_source_native_complete_caller_returns_and_preserves_shared_inputs() {
             driver,
         )
         .unwrap();
-        let directory = crate::native_tests::TestDirectory::create();
-        let ir = directory.join("e2.ll");
-        let executable = directory.join("e2");
-        fs::write(&ir, llvm).unwrap();
-        let compiled = Command::new(crate::test_support::clang())
-            .arg("-O0")
-            .arg(&ir)
-            .arg("-o")
-            .arg(&executable)
-            .output()
-            .expect("clang must launch");
-        assert!(compiled.status.success(), "{compiled:?}");
-        let mut child = Command::new(&executable)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("native E2 must launch");
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while child.try_wait().unwrap().is_none() {
-            if Instant::now() >= deadline {
-                child.kill().unwrap();
-                let output = child.wait_with_output().unwrap();
-                panic!("bounded E2 execution exceeded deadline: {output:?}");
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        let output = child.wait_with_output().unwrap();
-        assert!(output.status.success(), "{output:?}");
-        assert_eq!(output.stdout, expected.as_bytes());
-        assert!(output.stderr.is_empty(), "{output:?}");
+        execute_llvm(&llvm, expected.as_bytes());
     }
+}
+
+/// Execute the exact rendered module without modifying IR or appending a driver.
+pub(super) fn execute_llvm(llvm: &str, expected: &[u8]) {
+    let directory = crate::native_tests::TestDirectory::create();
+    let ir = directory.join("e2.ll");
+    let executable = directory.join("e2");
+    fs::write(&ir, llvm).unwrap();
+    let compiled = Command::new(crate::test_support::clang())
+        .arg("-O0")
+        .arg(&ir)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("clang must launch");
+    assert!(compiled.status.success(), "{compiled:?}");
+    let mut child = Command::new(&executable)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("native E2 must launch");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while child.try_wait().unwrap().is_none() {
+        if Instant::now() >= deadline {
+            child.kill().unwrap();
+            let output = child.wait_with_output().unwrap();
+            panic!("bounded E2 execution exceeded deadline: {output:?}");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, expected);
+    assert!(output.stderr.is_empty(), "{output:?}");
 }
