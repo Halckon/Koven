@@ -1,6 +1,8 @@
 #[deny(dead_code)]
 mod carry;
 mod closure;
+#[cfg(test)]
+mod d10_loop_replay_tests;
 use closure::integer;
 mod constant_materialization;
 mod expression_core;

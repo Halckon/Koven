@@ -180,3 +180,25 @@ capability。负例采用 implicit Unit 形态，避免只被返回形式门槛�
 Replace 发射。因此这里可复用的是 CFG 构件，不是已经可用的 Replace/Carry
 完整 emitter。先对已支持、无 Replace 的普通 loop 产物独立 replay，再选择受限
 primitive/route 适配或实验 emitter。不能删除此拒绝来“完成”本候选。
+
+## 无 Replace 的真实 SSA 独立 replay 首片
+
+测试直接调用现有普通 Unit lowering，读取最终函数而非自建 CFG 或前端事件日志。
+首片只验 `fun run(flag: Boolean) { while(flag) {} }`：header 前驱恰为实际 entry
+和 body，body 的真实 terminator 回到 header；所有 edge 参数数量/类型与目标参数
+一致；追踪同一个 flag 的 entry→header→body→backedge 对应；false edge 沿实际
+边达到正常 Return，不能重入 body/header。Rooted/MemoryDocument 同时验收。
+
+`while(flag){break}` 与常量 false 是合法源码，但不满足该 normal-backedge replay
+形态，须拒绝，不为它们补假回边。只编译/验证图，不原生执行无限循环。
+该首片不包含 owner、Replace、Drop 或 Carry，不得作为其已支持证据。
+
+受限 primitive 路由仍需独立 capability：必须把私有 catalog 的成功结果与同次
+分析/源 callable 绑定，在实验入口确认 exact shape 后才能选独立 primitive emitter；
+普通 `ownership_primitive → UnsupportedNode` gate 不删除、不放宽。新入口不能仅凭
+SSA形状或测试 Closed 复用生产权限，失败不得发布部分结果或伪造旧 receipt。
+
+实际首轮图显示 Boolean 参数以 loan 进入，header 的 Read 产生条件值。replay 因而
+沿 Read 的真实 source loan 核参数传递，不错误要求条件值本身是 header 参数。
+同时核唯一 Read/其结果、其他块无指令、全块集合被消费、空值 Return，以及真实
+源码 while/condition 的 Origin。这里不另行宣称验证 Shared ABI 模式或 owner 语义。
