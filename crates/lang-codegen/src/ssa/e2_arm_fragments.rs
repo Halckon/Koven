@@ -360,12 +360,36 @@ impl PublishedEntrySet<'_> {
         Some(*id)
     }
 }
+/// Closed joint-publication faults, never executed by normal local regression.
+pub(super) enum JointCiFault {
+    WrongSecondCaller,
+    DuplicateEntryLocator,
+    PartialEntrySelection,
+}
 impl<'a> EmittedCallerSet<'a> {
     /// Exactly one original entry per selected fact; rejected inputs consume unpublished state.
     pub(super) fn publish_entries(
+        self,
+        descriptors: &[&'a lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor],
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<PublishedEntrySet<'a>> {
+        self.publish_entries_inner(descriptors, typed, None)
+    }
+    pub(super) fn publish_entries_ci(
+        self,
+        descriptors: &[&'a lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor],
+        typed: &ValidatedCompilationUnitTypes,
+        fault: JointCiFault,
+    ) -> Option<PublishedEntrySet<'a>> {
+        assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
+        assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+        self.publish_entries_inner(descriptors, typed, Some(fault))
+    }
+    fn publish_entries_inner(
         mut self,
         descriptors: &[&'a lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor],
         typed: &ValidatedCompilationUnitTypes,
+        fault: Option<JointCiFault>,
     ) -> Option<PublishedEntrySet<'a>> {
         let experiment = self.arms.experiment;
         if !experiment.matches_types(typed) || descriptors.len() != self.callers.len() {
@@ -415,6 +439,36 @@ impl<'a> EmittedCallerSet<'a> {
                 descriptor,
             )?;
             entries.push((*descriptor, id));
+        }
+        if let Some(fault) = fault {
+            // Both original entries must have been emitted before exercising late failure.
+            assert_eq!(entries.len(), 2);
+            assert_eq!(selected.len(), 2);
+            assert_ne!(selected[0], selected[1]);
+            assert_ne!(entries[0].1, entries[1].1);
+            match fault {
+                JointCiFault::WrongSecondCaller => {
+                    let function = self.arms.leaves.program.modules[0]
+                        .function_mut(entries[1].1)
+                        .expect("second original entry emitted");
+                    let call = function
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.operation, Operation::DirectCall { .. }))
+                        .expect("original entry DirectCall");
+                    let Operation::DirectCall { callee, .. } = &mut call.operation else {
+                        unreachable!("selected DirectCall");
+                    };
+                    assert_eq!(*callee, selected[1]);
+                    *callee = selected[0];
+                }
+                JointCiFault::DuplicateEntryLocator => entries[1].1 = entries[0].1,
+                JointCiFault::PartialEntrySelection => {
+                    entries.pop().expect("second entry locator present");
+                }
+            }
+            // These cases preserve well-formed SSA; rejection must come from semantic/coverage gates.
+            assert!(super::verify::verify_program(&self.arms.leaves.program).is_ok());
         }
         super::verify::verify_program(&self.arms.leaves.program).ok()?;
         let [module] = self.arms.leaves.program.modules.as_slice() else {

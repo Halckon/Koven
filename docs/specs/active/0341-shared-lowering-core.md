@@ -18817,3 +18817,17 @@ ABI 与 abort 元数据门已自包含。
 原源码入口；另验证 foreign/retyped 查询和无效集合拒绝。这是有界实验整体封包，
 不是普通 OwnedCompilationUnitView 或 native 对象发布权限。生产 driver/对象事务
 接线与新增共同封包 CI-only 故障验收仍另行推进；本地未执行故障或推送合并。
+
+
+### 2026-11-14：共同封包 CI-only 身份与部分失败验收
+
+新增封闭 `JointCiFault` 三类晚期失败：第二 entry 指向另一同 ABI caller、重复 entry
+locator、两个 entry 已完整发射后丢弃末项 locator。CI 专用入口双环境 guard，正常
+入口始终传 None；两者共用完整 descriptor/typed 校验与最终 replay/coverage 路径。
+故障先断言恰有两个不同 caller 且两个真实 entry 已发射，变更后结构 verifier 仍成功，
+避免把无效 fixture 或早期结构拒绝当成语义覆盖证据。
+
+ignored 目标要求每次故障不返回任何封包，再由原 source/fact 重建完整 CallerSet 并
+正常发布，逐个查询全部 entry。已有普通缺选/foreign/retyped 输入拒绝不重复包装为
+故障测试。CI 脚本更新为 6 个精确目标 × 2 配置；本地仅 compile/list 与非 ignored
+正常回归，故障实际执行及结果仍待真实 CI，不宣称本地已验证故障效果。

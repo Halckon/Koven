@@ -12,10 +12,22 @@ use lang_frontend::{
 fn entry_semantic_and_final_gate_failures_publish_nothing() {
     assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
     assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-    fixture(false);
+    fixture(false, false);
 }
-fn fixture(checked: bool) {
+fn fixture(checked: bool, joint: bool) {
     let source = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {var remaining=rounds;while(remaining>0){if(choose){borrow val a=view(left);consume(a)}else{borrow val b=view(right);consume(b)};remaining=remaining-1}}\nfun main():Unit {val rounds=3;val choose=true;run(\"left\",\"right\",rounds,choose)}";
+    let source = if joint {
+        let second = source
+            .lines()
+            .skip(2)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .replace("run", "run_second")
+            .replace("main", "main_second");
+        format!("{source}\n{second}")
+    } else {
+        source.to_owned()
+    };
     let mut sources = SourceMap::new();
     let id = sources.add_source("entry-ci.ko", source).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
@@ -33,6 +45,40 @@ fn fixture(checked: bool) {
     let experiment = analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
         .unwrap()
         .unwrap();
+    if joint {
+        use super::e2_arm_fragments::{JointCiFault, emit_for_facts};
+        let handoff = experiment
+            .handoff(&sources, &inputs, &names, &types, &typed)
+            .unwrap();
+        let facts: Vec<_> = experiment.facts().iter().collect();
+        let entries: Vec<_> = experiment.entries(&typed).unwrap().iter().collect();
+        assert_eq!(facts.len(), 2);
+        assert_eq!(entries.len(), 2);
+        let rebuild = || {
+            emit_for_facts(&handoff, &experiment, &facts)
+                .unwrap()
+                .append_callers(&typed)
+                .unwrap()
+        };
+        assert!(rebuild().publish_entries(&entries, &typed).is_some());
+        for fault in [
+            JointCiFault::WrongSecondCaller,
+            JointCiFault::DuplicateEntryLocator,
+            JointCiFault::PartialEntrySelection,
+        ] {
+            assert!(
+                rebuild()
+                    .publish_entries_ci(&entries, &typed, fault)
+                    .is_none()
+            );
+            let retry = rebuild().publish_entries(&entries, &typed).unwrap();
+            super::verify::verify_program(retry.program()).unwrap();
+            for entry in &entries {
+                assert!(retry.entry(entry, &typed).is_some());
+            }
+        }
+        return;
+    }
     let [entry] = experiment.entries(&typed).unwrap() else {
         panic!("real complete entry")
     };
@@ -81,5 +127,13 @@ fn fixture(checked: bool) {
 fn checked_entry_failures_publish_nothing() {
     assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
     assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-    fixture(true);
+    fixture(true, false);
+}
+
+#[test]
+#[ignore = "CI-only joint entry identity/coverage failures; local compile/list only"]
+fn joint_entry_mapping_and_partial_failures_publish_nothing() {
+    assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    fixture(false, true);
 }
