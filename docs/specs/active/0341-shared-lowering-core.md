@@ -17907,3 +17907,14 @@ Function 声明、原 source Span 与 AST root，避免首个同名匹配掩盖�
 observer-support codegen all-target 严格 Clippy 通过；现有跨文件可达实例与
 递归去重普通完整 FQN exact 1/1、fmt/docs951/diff 与独立只读审查通过。
 故障注入未执行，未推送；未以本地检查代替远端双宿主 CI。
+
+### Container size 双入口资源见证（2026-11-14）
+
+基于 `043b8987`，`type_tests::unit_lower_container_size_tests` 三个原 FQN
+同时运行 legacy 与 sealed strict Unit 入口，复用全部既有断言：三类容器的共享
+参数不被消费、owned 参数唯一 cleanup、六个临时 receiver 单次求值及读后释放、
+CFG 后使用实际运输的 loan。两入口各自检查跨文件输入排列的 SSA 与 LLVM
+确定性；不要求不同入口具有相同内部编号。保留所有旧见证，不扩张生产或 Origin 语义。
+
+定向普通测试 3/3 通过（每项覆盖两入口）；未运行故障注入、全量 native 或远程 CI。
+observer-support codegen all-target 严格 Clippy、fmt、docs951、diff 和独立只读审查\n通过；未推送。架构事实落入已有容器专页，入口尺寸上限保持。
