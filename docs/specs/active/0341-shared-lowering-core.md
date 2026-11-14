@@ -18117,3 +18117,15 @@ receipt 或故障注入。仅证明非循环、无 BorrowCall 的运输基线；
 docs951、diff及独立复审通过。最初默认配置codegen lib-test编译被10项既有
 receipt观察helper的dead_code阻断；未抑制lint或删除helper，不能宣称默认配置
 编译通过。本轮未运行native与远端CI；现有ssa/mod.rs尺寸为1008行（原1005）。
+
+
+### E2 基线发布门禁修复复用（2026-11-14）
+
+`bc63736b` 后按发布要求逐字复用 #422 的 `4e246716` receipt observer feature
+门控，以及 `7d7bfeb9` 的 borrow_argument 模块提取；不删除见证、不降 dead_code
+要求。mod.rs 在保留 E2 测试注册后为343行，提取文件659行；候选测试源码及已知
+UnsupportedNode边界完全不变。只复用代码补丁，历史验收不冒充本轮验证。
+
+与新 main `51a3aad3` 存在两个 merge-base，现有尺寸脚本按设计拒绝 `--base main`；
+本片不修改政策或脚本，明确基线检查采用旧 main `3b7a9a7a` 与本片父提交。
+发布集成线合并新 main 后仍须重跑真正的 main 尺寸门禁。
