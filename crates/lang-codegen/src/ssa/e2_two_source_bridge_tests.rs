@@ -495,6 +495,7 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
         (3, true, false, false, false, false),
         (3, true, true, false, false, false),
         (3, false, false, true, false, false),
+        (3, true, false, true, false, false),
         (3, false, false, true, true, false),
         (3, false, false, false, false, true),
     ] {
@@ -515,6 +516,17 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                 .replace("consume", "consume_second")
                 .replace("run", "run_second")
                 .replace("main", "main_second");
+            let second = if choose {
+                second
+                    .lines()
+                    .skip(2)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .replace("view_second", "view")
+                    .replace("consume_second", "consume")
+            } else {
+                second
+            };
             let second = if unsupported {
                 second.replace(
                     "fun consume_second(item:String):Unit {}",
@@ -660,6 +672,44 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
         assert!(super::e2_entry::emit(&other, &other.facts()[0], entry, &typed).is_none());
         assert!(!handoff.owns(&other.facts()[0]));
         assert!(handoff.for_fact(&other.facts()[0]).is_none());
+        assert!(handoff.for_facts(&[]).is_none());
+        assert!(handoff.for_facts(&[fact, fact]).is_none());
+        assert!(handoff.for_facts(&[fact, &other.facts()[0]]).is_none());
+        let all_facts: Vec<_> = experiment.facts().iter().collect();
+        let set = handoff.for_facts(&all_facts);
+        if unsupported {
+            assert!(
+                set.is_none(),
+                "incomplete sibling cannot be silently omitted"
+            );
+        } else {
+            let set = set.unwrap();
+            let result = super::unit_lower::preflight::validate(
+                &parsed_sources,
+                set.names(),
+                set.types().types(),
+                &set,
+            );
+            assert_eq!(
+                result.is_ok(),
+                !ordinary,
+                "one full Unit gate for explicit set"
+            );
+            // Selection replaces rather than accumulates: removing a sibling restores rejection.
+            if multiple {
+                let one = set.for_fact(fact).unwrap();
+                assert!(
+                    super::unit_lower::preflight::validate(
+                        &parsed_sources,
+                        one.names(),
+                        one.types().types(),
+                        &one,
+                    )
+                    .is_err()
+                );
+            }
+        }
+
         assert!(
             super::e2_entry_replay::replay(&emitted, &other, &other.facts()[0], &typed).is_none()
         );
@@ -800,13 +850,19 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             let second_package =
                 publish(&experiment, second, second_fact, &[second_fact], &typed).unwrap();
             assert_eq!(second_package.coverage().called().len(), 3);
-            assert!(second_package.coverage().called().iter().all(|(key, _)| {
-                !published
-                    .coverage()
-                    .called()
-                    .iter()
-                    .any(|(first, _)| first == key)
-            }));
+            let shared = second_package
+                .coverage()
+                .called()
+                .iter()
+                .filter(|(key, _)| {
+                    published
+                        .coverage()
+                        .called()
+                        .iter()
+                        .any(|(first, _)| first == key)
+                })
+                .count();
+            assert_eq!(shared, if choose { 2 } else { 0 });
             let llvm = crate::llvm::render_verified_program_with_entry(
                 second_package.program(),
                 second_package.entry(),

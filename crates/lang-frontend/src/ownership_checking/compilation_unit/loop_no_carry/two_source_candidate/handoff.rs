@@ -21,7 +21,7 @@ use crate::{
 /// ```
 pub struct ExperimentalUnitHandoff<'view, 'parsed: 'view> {
     experiment: &'view TwoSourceExperiment,
-    selected: Option<&'view TwoSourceCounterFact>,
+    selected: Vec<&'view TwoSourceCounterFact>,
     sources: &'view SourceMap,
     inputs: &'view [SourceUnitInput<'parsed>],
     names: &'view ValidatedCompilationUnitNames,
@@ -31,14 +31,33 @@ pub struct ExperimentalUnitHandoff<'view, 'parsed: 'view> {
 impl<'view, 'parsed: 'view> ExperimentalUnitHandoff<'view, 'parsed> {
     /// Select exactly one original complete fact; other Unit bindings remain unselected.
     pub fn for_fact(&self, fact: &'view TwoSourceCounterFact) -> Option<Self> {
-        if !self.owns(fact) {
+        self.for_facts(&[fact])
+    }
+    /// Explicit complete selection, never automatic discovery or accumulated authorization.
+    /// Empty, duplicate, foreign, incomplete and overlapping facts reject the whole selection.
+    pub fn for_facts(&self, facts: &[&'view TwoSourceCounterFact]) -> Option<Self> {
+        if facts.is_empty() {
             return None;
         }
-        self.experiment.function_shell(fact, self.typed)?;
-        self.experiment.callee_leaves_for(fact, self.typed)?;
+        for (index, fact) in facts.iter().enumerate() {
+            if !self.owns(fact) {
+                return None;
+            }
+            let shell = self.experiment.function_shell(fact, self.typed)?;
+            self.experiment.callee_leaves_for(fact, self.typed)?;
+            if facts[..index].iter().any(|previous| {
+                self.experiment.callable(previous) == Some(shell.callable())
+                    || previous
+                        .arms()
+                        .iter()
+                        .any(|old| fact.arms().iter().any(|arm| old.binding() == arm.binding()))
+            }) {
+                return None;
+            }
+        }
         Some(Self {
             experiment: self.experiment,
-            selected: Some(fact),
+            selected: facts.to_vec(),
             sources: self.sources,
             inputs: self.inputs,
             names: self.names,
@@ -90,7 +109,7 @@ impl TwoSourceExperiment {
         }
         Ok(ExperimentalUnitHandoff {
             experiment: self,
-            selected: None,
+            selected: Vec::new(),
             sources,
             inputs,
             names,
@@ -108,7 +127,15 @@ impl UnitPreflightFacts for ExperimentalUnitHandoff<'_, '_> {
         &self,
         binding: UnitSymbolId,
     ) -> Option<ExperimentalBinding<'_>> {
-        let fact = self.selected?;
+        let mut matches = self
+            .selected
+            .iter()
+            .copied()
+            .filter(|fact| fact.arms().iter().any(|arm| arm.binding() == binding));
+        let fact = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
         if !self.owns(fact)
             || fact
                 .arms()

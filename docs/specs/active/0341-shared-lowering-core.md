@@ -18728,3 +18728,17 @@ binding、未选 sibling，以及同 key 角色冲突。成功选择但发射失
 正常 LLVM 执行尚不能替代这条 authority 与对象事务链；CI-only 故障用例也仍待实际
 远端执行。生产接入需独立明确受支持范围及合法 capability，不使用 unsafe 转型或
 测试 feature 作为发布权限。本节仅记录代码审计与候选次序，未变更接受集。
+
+
+### 2026-11-14：显式实验多 fact preflight 选择
+
+`ExperimentalUnitHandoff::for_facts` 现在接收显式非空原始引用集合，保留同次 retained
+身份并逐项检查完整 shell/scoped leaves；重复 callable（含重复 fact）和 binding 归属
+交叉均整次拒绝。查询只按当前 binding 的唯一所属事实投影原有控制证据，不合并白名单。
+`for_fact` 是单元素替换，不累积之前选择；默认 handoff 仍为空选择。
+
+真实 fixture 以一次共享全 Unit gate 验证独立两事实和共享 producer/consumer leaf 的
+两事实，另验证空/重复/foreign/不完整 leaf 集合拒绝、普通不支持 binding 不豁免、重新
+单选恢复未选 sibling 拒绝。此为明确的实验 preflight 接受范围扩展，不是共同 Program
+或多 entry 发布。checked publisher 仍重新单选目标，因此不因传入集合 handoff 自动
+发布其他事实。普通所有权入口与普通 native 接受集不变；故障测试继续 ignored/CI-only。
