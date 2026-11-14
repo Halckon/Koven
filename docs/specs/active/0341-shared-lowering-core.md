@@ -17895,3 +17895,15 @@ Function 声明、原 source Span 与 AST root，避免首个同名匹配掩盖�
 或故障分类，未运行故障注入、全量测试或远程 CI，未推送。
 带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
 和 diff 检查通过。
+
+### Unit planner 测试域门禁恢复（2026-11-14）
+
+基于 `166c0dcb`，对 `unit_plan_tests` 整个测试子树启用 `deny(dead_code)`，
+覆盖 callable identity、delegation routes、generic containers、layout demand
+与 owner recipes。该子树没有反向 allow；保留全部源码、FQN、模型身份、
+字段和断言，不借 lint 删除独有见证，也不新增测试或语言能力。
+其余 SSA 测试顶层豁免仍待独立审计，本片不代表旧 checker/lowering 退役。
+
+observer-support codegen all-target 严格 Clippy 通过；现有跨文件可达实例与
+递归去重普通完整 FQN exact 1/1、fmt/docs951/diff 与独立只读审查通过。
+故障注入未执行，未推送；未以本地检查代替远端双宿主 CI。
