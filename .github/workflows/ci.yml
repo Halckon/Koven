@@ -392,6 +392,8 @@ jobs:
         run: cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment ownership_checking::compilation_unit::d10_catalog_experiment::source_ledger::tests::closure_ledger_seals_final_filter_not_unvisited_exclusive_candidates -- --exact
       - name: D10 original root and lambda Drop traversal ledger
         run: cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment ownership_checking::compilation_unit::d10_catalog_experiment::source_ledger::tests::drop_traversals_preserve_roots_then_visited_lambdas_including_empty -- --exact
+      - name: D10 conditional receiver source batches
+        run: cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment ownership_checking::compilation_unit::d10_catalog_experiment::source_ledger::conditional_tests::conditional_batches_keep_full_fields_source_order_and_failed_publication -- --exact
       - name: D10 real full-project closure audit
         run: cargo test --locked -j1 -p lang-cli --bin kovenc --features d10-catalog-experiment unit_build::d10_project_scope_tests::real_project_keeps_standard_facts_outside_the_split_envelope -- --exact
       - name: Explicit D10 split CLI normal contract

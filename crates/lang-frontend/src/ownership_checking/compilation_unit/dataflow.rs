@@ -331,6 +331,7 @@ pub(super) fn analyze(
             receiver_facts.len(),
             construction_plans.len(),
             drops.len(),
+            conditional_receiver_drops.len(),
         );
         let mut checker = Checker::new(
             sources,
@@ -453,6 +454,7 @@ pub(super) fn analyze(
                 &construction_plans[source_start.2..],
                 &drops[source_start.3..],
                 drop_analysis.drop_traversals,
+                &conditional_receiver_drops[source_start.4..],
             ),
         );
     }

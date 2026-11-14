@@ -153,6 +153,14 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
                 .any(|batch| batch.drops().is_empty())
         );
 
+        assert!(
+            ledger
+                .records()
+                .iter()
+                .flat_map(|record| record.conditional_receiver_drops())
+                .eq(facts.conditional_receiver_drops())
+        );
+
         assert!(facts.diagnostics().is_empty());
         assert!(facts.deferred().is_empty());
         for source in checked.names.names().index().source_units() {
