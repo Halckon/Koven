@@ -1,5 +1,6 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
 mod branch_boundaries;
+mod carry_probe;
 mod choice_admission;
 mod choice_alias_chain;
 mod choice_boundaries;
@@ -20,6 +21,8 @@ mod closed_while_conditional;
 mod closed_while_fallthrough;
 mod combination;
 mod control_tail;
+#[cfg(feature = "d10-catalog-experiment")]
+mod dual_parent_after_child;
 mod invariant_break;
 mod invariant_break_suffix;
 mod invariant_continue;
@@ -30,7 +33,9 @@ mod invariant_split_exits;
 mod invariant_suffix;
 mod invariant_while;
 mod loop_boundaries;
+mod loop_generation;
 mod open_loop_return;
+mod origin_probe;
 mod parameter_open_loop;
 
 use super::super::super::*;
@@ -149,6 +154,39 @@ fn compare_and_inspect_control_mode(
     observed.loan_action_observations.clear();
     disabled.loan_action_observations.clear();
     observed.owner_observations.clear();
+    #[cfg(feature = "d10-catalog-experiment")]
+    {
+        // Independent planner runs intentionally have different opaque producer nonces.
+        // Compare the complete source/cleanup projection separately, then all legacy fields.
+        let on = observed.catalog.take();
+        let off = disabled.catalog.take();
+        assert_eq!(on.is_some(), off.is_some());
+        if let (Some(on), Some(off)) = (on, off) {
+            assert_eq!(on.callable, off.callable);
+            assert_eq!(on.replacement.root(), off.replacement.root());
+            assert_eq!(on.replacement.call(), off.replacement.call());
+            let relation = |pending: &crate::ownership_checking::compilation_unit::d10_catalog_experiment::Pending| {
+                [pending.replacement.previous(), pending.replacement.incoming()].map(|identity| {
+                    let matches = pending.producers.iter().enumerate().filter(|(_, p)| p.identity() == identity).map(|(index, _)| index).collect::<Vec<_>>();
+                    assert_eq!(matches.len(), 1);
+                    matches[0]
+                })
+            };
+            assert_eq!(relation(&on), relation(&off));
+
+            assert_eq!(
+                on.producers
+                    .iter()
+                    .map(|p| (p.expression(), p.cleanup()))
+                    .collect::<Vec<_>>(),
+                off.producers
+                    .iter()
+                    .map(|p| (p.expression(), p.cleanup()))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
     assert_eq!(
         observed, disabled,
         "all legacy cleanup fields, their identities and order must be identical"
@@ -620,3 +658,9 @@ mod sequential_closed_transactions;
 mod multi_root_stages;
 
 mod root_write_receipts;
+
+#[cfg(feature = "d10-catalog-experiment")]
+mod named_wrapper_boundaries;
+
+#[cfg(feature = "d10-catalog-experiment")]
+mod split_named_wrapper_observations;

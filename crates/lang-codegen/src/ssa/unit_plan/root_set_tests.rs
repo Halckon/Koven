@@ -1,11 +1,14 @@
 //! Ordinary sources only: experimental common-plan roots, not whole Program lowering.
 use super::*;
 use lang_frontend::{
+    analysis::analyze_basic_unit_ownership,
     lexer::lex,
     name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
-    ownership_checking::check_compilation_unit_ownership,
+    ownership_checking::{check_compilation_unit_ownership, owned_compilation_unit_view},
     parser::parse_file,
-    type_checking::{check_compilation_unit_types, standard_environments},
+    type_checking::{
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+    },
 };
 const GENERICS: &str = "fun <T> identity(own input: T): T = input\n\
          fun <T> relay(own input: T): T = identity(input)\n\
@@ -20,27 +23,54 @@ const OVERLOADS: &str = "fun <T> choose(own input: T): T = input\n\
          fun one(input: Int): Int = choose(input)\n\
          fun two(input: Int): Int = choose(input, true)";
 
-fn check(source: &str, root_names: &[&str], expected: usize) {
+fn with_unreachable_member() -> String {
+    format!(
+        "{GENERICS}\nvalue class Counter(val item: Int) {{\n    fun answer(own delta: Int): Int = item + delta\n}}"
+    )
+}
+
+fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool) {
+    for memory in [false, true] {
+        check_layout(source, root_names, expected, reject_roots, memory);
+    }
+}
+
+fn check_layout(
+    source: &str,
+    root_names: &[&str],
+    expected: usize,
+    reject_roots: bool,
+    memory: bool,
+) {
     let mut sources = SourceMap::new();
     let source_id = sources.add_source("test/roots.ko", source).unwrap();
     let lexed = lex(&sources, source_id).unwrap();
     let parsed = parse_file(&sources, &lexed).unwrap();
     assert!(parsed.diagnostics().is_empty());
-    let inputs = [SourceUnitInput::new("test", "roots.ko", source_id, &parsed)];
+    let inputs = [if memory {
+        SourceUnitInput::memory_document(source_id, &parsed)
+    } else {
+        SourceUnitInput::new("test", "roots.ko", source_id, &parsed)
+    }];
     let (name_env, type_env) = standard_environments();
     let index = index_compilation_unit(&sources, &inputs).unwrap();
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_env)
         .unwrap()
         .validate()
         .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_env)
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &type_env).unwrap();
+    assert!(raw.diagnostics().is_empty());
+    let complete =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_env, &raw).unwrap();
+    assert!(complete.is_same_analysis(&raw));
+    let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &type_env, raw)
         .unwrap()
-        .validate()
+        .into_result()
         .unwrap();
-    let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &type_env, &typed)
-        .unwrap()
-        .validate()
-        .unwrap();
+    assert!(owned.deferred().is_empty());
+    let owned = owned.validate().unwrap();
+    let view =
+        owned_compilation_unit_view(&sources, &inputs, &names, &type_env, &typed, &owned).unwrap();
     let entries = root_names
         .iter()
         .map(|name| {
@@ -58,19 +88,97 @@ fn check(source: &str, root_names: &[&str], expected: usize) {
             *id
         })
         .collect::<Vec<_>>();
-    let run = |roots: &[DeclarationId]| {
+    let plan_roots = |roots: &[DeclarationId]| {
         plan_unit_root_set_from_facts(
             &[&parsed],
-            &names,
-            typed.types(),
-            owned.ownership(),
+            view.names(),
+            view.types(),
+            view.ownership(),
             roots,
             MAX_UNIT_GENERIC_INSTANCES,
             true,
         )
-        .unwrap()
     };
+    let run = |roots: &[DeclarationId]| plan_roots(roots).unwrap();
     let plan = run(&entries);
+    let nominal = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.name() == "Counter");
+    if let Some(declaration) = nominal {
+        let signature = typed
+            .types()
+            .signatures()
+            .declaration(declaration.id())
+            .unwrap();
+        let nominal = signature.nominal().unwrap();
+        let [member] = nominal.members() else {
+            panic!("one real receiver member")
+        };
+        assert!(matches!(member.target(), UnitCallableTarget::Symbol(_)));
+        assert!(
+            !plan
+                .instances
+                .iter()
+                .any(|instance| instance.key.target() == member.target())
+        );
+    }
+    if reject_roots {
+        assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+        let arena = typed.types().types().len();
+        let generic = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "identity")
+            .unwrap();
+        let generic_span = parsed.ast().items().get(generic.root()).unwrap().span();
+        let mut mixed = entries.clone();
+        mixed.push(generic.id());
+        let mut reverse = mixed.clone();
+        reverse.reverse();
+        let mut rejected = vec![
+            (vec![], LoweringErrorKind::InvalidModel, None),
+            (
+                vec![entries[0], entries[0]],
+                LoweringErrorKind::InvalidModel,
+                None,
+            ),
+            (
+                mixed,
+                LoweringErrorKind::UnsupportedNode,
+                Some(generic_span),
+            ),
+            (
+                reverse,
+                LoweringErrorKind::UnsupportedNode,
+                Some(generic_span),
+            ),
+        ];
+        if let Some(nominal) = nominal {
+            let mut mixed = entries.clone();
+            mixed.push(nominal.id());
+            let mut reverse = mixed.clone();
+            reverse.reverse();
+            for roots in [vec![nominal.id()], mixed, reverse] {
+                rejected.push((
+                    roots,
+                    LoweringErrorKind::MissingFact,
+                    Some(nominal.name_span()),
+                ));
+            }
+        }
+        for (roots, kind, span) in rejected {
+            let error = plan_roots(&roots).unwrap_err();
+            assert_eq!(error.kind, kind);
+            assert_eq!(error.span, span);
+            assert_eq!(typed.types().types().len(), arena);
+            assert_eq!(run(&entries), plan, "same facts recover the complete plan");
+        }
+    }
     assert_eq!(plan.instances.len(), expected);
     assert_eq!(
         plan.instances
@@ -123,12 +231,19 @@ fn ordinary_generic_roots_share_one_instance_plan() {
         GENERICS,
         &["useInt", "useIntAgain", "useLong", "recursive"],
         9,
+        false,
+    );
+    check(
+        &with_unreachable_member(),
+        &["useInt", "useIntAgain", "useLong", "recursive"],
+        9,
+        false,
     );
 }
 
 #[test]
 fn ordinary_overload_roots_keep_distinct_plan_targets() {
-    check(OVERLOADS, &["one", "two"], 4);
+    check(OVERLOADS, &["one", "two"], 4, false);
 }
 
 // The reduced budget is an internal negative-control input, never run locally.
@@ -211,4 +326,23 @@ fn ci_only_common_roots_share_budget_and_recover() {
     );
     assert_eq!(plan(&reversed, 5).unwrap(), full);
     assert_eq!(typed.types().types().len(), arena_len);
+}
+
+// Invalid internal root sets are negative controls, not ordinary source programs.
+#[test]
+#[ignore = "CI-only root selection negative controls; local compile/list only"]
+fn ci_only_root_selection_rejects_empty_duplicate_and_generic() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    check(
+        GENERICS,
+        &["useInt", "useIntAgain", "useLong", "recursive"],
+        9,
+        true,
+    );
+    check(
+        &with_unreachable_member(),
+        &["useInt", "useIntAgain", "useLong", "recursive"],
+        9,
+        true,
+    );
 }

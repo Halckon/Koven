@@ -360,10 +360,49 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
+      - name: Experimental Unit root-set budget and rollback (CI only)
+        run: bash scripts/check_unit_root_set_ci.sh
       - name: Run exact borrowing fault contracts
         run: python3 scripts/check_borrow_faults.py
       - name: Independent parent receipt CI-only fault contracts
         run: bash scripts/check_parent_receipt_ci.sh
+      - name: Independent D10 catalog identity controls (CI only)
+        run: bash scripts/check_d10_catalog_identity_ci.sh
+      - name: Experimental D10 catalog RootReplace emitter
+        run: cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support ssa::d10_catalog_emitter_tests::original_owned_catalog_emits_and_replays_actual_replace_and_cleanup -- --exact
+      - name: Independent D10 public preparation and create-only objects
+        run: |
+          test -x /usr/bin/nm
+          cargo test --locked -j1 --no-default-features -p lang-frontend --features d10-catalog-experiment --test d10_prepare_named_entry
+          cargo test --locked -j1 --no-default-features -p lang-codegen --features d10-catalog-experiment --test d10_prepared_named_entry
+          cargo test --locked -j1 --no-default-features -p lang-cli --features d10-catalog-experiment --test d10_object_cli
+          cargo test --locked -j1 --no-default-features -p lang-cli --test d10_object_cli
+      - name: Ordinary D10 split-source and full project evidence
+        run: |
+          cargo test --locked -j1 --no-default-features -p lang-frontend --lib --features d10-catalog-experiment ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::split_named_wrapper_observations::split_sources_preserve_actual_planner_traces_and_canonical_owned_order -- --exact
+          cargo test --locked -j1 --no-default-features -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support ssa::d10_split_source_tests::split_sources_preserve_real_unit_call_graph_and_sealed_publication -- --exact
+          cargo test --locked -j1 --no-default-features -p lang-cli --test d10_project_cli ordinary_project_build_keeps_full_sources_for_nested_d10_shapes -- --exact
+      - name: Same-run D10 split-source sealed ownership
+        run: cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_split_named_entry --test d10_prepare_split_named_entry
+      - name: Independent D10 split-source checked library objects
+        run: cargo test --locked -j1 --no-default-features -p lang-codegen --features d10-catalog-experiment --test d10_prepared_split_entry
+      - name: D10 real full-project closure audit
+        run: cargo test --locked -j1 -p lang-cli --bin kovenc --features d10-catalog-experiment unit_build::d10_project_scope_tests::real_project_keeps_standard_facts_outside_the_split_envelope -- --exact
+      - name: Explicit D10 split CLI normal contract
+        timeout-minutes: 5
+        run: |
+          cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_objects_preserve_sources_selectors_and_existing_targets -- --exact
+          cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_language_errors_precede_selector_and_publish_nothing -- --exact
+          cargo test --locked -j1 -p lang-cli --test d10_split_object_cli
+      - name: Explicit D10 split CLI native behavior
+        timeout-minutes: 5
+        run: cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_native_zero_and_multiple_rounds -- --exact --test-threads=1
+      - name: Ordinary D10 split-source native behavior
+        timeout-minutes: 5
+        run: cargo test --locked -j1 --no-default-features -p lang-cli --test d10_project_cli ordinary_split_project_executes_parent_child_zero_and_multiple_rounds -- --exact --test-threads=1
+      - name: Independent D10 concurrent create-only publication (CI only)
+        timeout-minutes: 5
+        run: bash scripts/check_d10_publication_ci.sh
       - name: Independent child cycle receipt faults (CI only)
         run: bash scripts/check_child_cycle_ci.sh
       - name: Experimental E2 replay faults (CI only)

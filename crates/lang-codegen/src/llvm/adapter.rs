@@ -65,10 +65,12 @@ use super::{
 };
 
 pub(super) use module_lowering::emit_verified_object;
-#[cfg(test)]
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
 pub(super) use module_lowering::render_verified_program;
 #[cfg(test)]
 pub(super) use module_lowering::render_verified_program_with_debug;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(super) use module_lowering::verified_library_object_bytes;
 
 struct ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
     context: &'ctx Context,

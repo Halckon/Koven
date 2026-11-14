@@ -13,7 +13,7 @@ use super::super::entry::NativeEntryPlan;
 use super::super::{LlvmAdapterError, configure_module, debug, entry, native_target_machine};
 use super::ModuleLowerer;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
 pub(crate) fn render_verified_program(
     program: &Program,
     native_entry: Option<NativeEntryPlan>,
@@ -48,6 +48,21 @@ pub(crate) fn render_verified_program_with_debug(
         &target_machine,
     )?;
     Ok(llvm_module.print_to_string().to_string())
+}
+
+/// Default-off library object bytes: no native entry, debug plan, or filesystem effects.
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) fn verified_library_object_bytes(
+    program: &Program,
+) -> Result<Vec<u8>, LlvmAdapterError> {
+    let (triple, target_machine) = native_target_machine()?;
+    let context = Context::create();
+    let llvm_module =
+        lower_verified_module(&context, program, None, None, &triple, &target_machine)?;
+    let object = target_machine
+        .write_to_memory_buffer(&llvm_module, FileType::Object)
+        .map_err(|error| LlvmAdapterError::Object(error.to_string()))?;
+    Ok(object.as_slice().to_vec())
 }
 
 pub(crate) fn emit_verified_object(

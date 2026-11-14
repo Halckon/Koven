@@ -819,4 +819,5 @@ impl Builder<'_, '_> {
 }
 
 #[cfg(test)]
+#[path = "condition_receiver_ci_tests.rs"]
 pub(in crate::ssa::refine) mod receiver_ci_tests;

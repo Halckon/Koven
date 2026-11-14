@@ -1,9 +1,17 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
 mod branch;
 mod capture;
+#[cfg(test)]
+pub(super) mod carry_probe;
 pub(super) mod choice;
 mod entry_concat;
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
+mod loop_generation;
 pub(super) mod loops;
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
+pub(super) mod origin_probe;
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
+pub(super) mod producer_catalog;
 pub(super) mod replace_call_consumer;
 pub(super) mod replace_consumer;
 pub(super) mod replace_return_consumer;
@@ -264,6 +272,8 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        self.origin_literal(expression);
         self.owner_loop
             .segment_literal(self.checker.unit_expression(expression));
         self.record_root_literal(expression);
@@ -280,6 +290,10 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        if let Some(value) = &value {
+            self.origin_moved(expression, value.symbol);
+        }
         if self.is_string_expression(expression) {
             self.owner_loop
                 .segment_move(self.checker.unit_expression(expression), value.as_ref());
@@ -330,6 +344,8 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn inserted_owner(&mut self, symbol: UnitSymbolId, initializer: ExpressionId) {
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        self.origin_bound(symbol, initializer);
         if let Some(choice) = &mut self.owner_choice {
             choice.bound(symbol, self.checker.unit_expression(initializer));
         }
@@ -493,6 +509,13 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
         self.check_owner_expression(id)?;
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        if matches!(
+            self.checker.parsed.ast().expressions().get(id)?.payload(),
+            Expression::Call { .. }
+        ) {
+            self.origin_call_gap(id);
+        }
         let mut owner = None;
         let mut replace_consumer = None;
         let continues =
@@ -565,6 +588,11 @@ impl DropPlanner<'_, '_> {
         call: ExpressionId,
         state: &mut ValueState,
     ) -> Option<UnitOwnerId> {
+        #[cfg(test)]
+        self.carry_probe(
+            carry_probe::Point::Primitive(self.checker.unit_expression(call)),
+            state,
+        );
         self.record_root_primitive_write(call, state);
         if !self.owner_observation_active() {
             return None;

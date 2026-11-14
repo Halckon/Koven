@@ -19263,3 +19263,65 @@ SSA/LLVM 回归也通过。默认 workspace 全目标编译、两配置严格 Cl
 continuation、type checking、type constants 定向套件通过。所有权限 compile-fail 继续成立；
 CI 故障项目只编译列举。该验证针对 main `32240166`，不包含尚未合入的 #431 `43f6ad2d`，
 不据此宣称其资源替换后 return 析构语义已兼容，也不声称远端 CI 已运行。
+### canonical callable 普通具体化见证迁至 Unit（2026-11-14）
+
+基于 `166c0dcb`，保留
+`ssa::map_source::canonical_callable_tests::canonical_callable_single_specialization_keeps_modes_move_and_container_return`
+原 FQN 与三组无 package 源码，以 MemoryDocument basic validated Unit 产物调用
+Unit concrete-type 查询。保留 borrow/inout/move 及 Array 返回的具体类型相等、
+Function 类型类别和 arena 不增长断言；helper/entry 改按唯一原声明、source/root
+定位。已有 package Unit 对照不动，旧 MissingFact 负控及分析 helper 完整保留。
+此为 basic validated 阶段，不宣称 final complete 或 native 验收。
+
+普通完整 FQN exact 1/1（三组源码）、测试编译和独立只读审查通过；没有生产、
+Origin 或故障分类变化，未执行负控/故障注入、全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过。
+
+### legacy 消费者退出审计（2026-11-14）
+
+基于 `99d72095` 完成[定向退出审计](../../reviews/2026-11-14-d10-legacy-consumer-audit.md)：
+分离已迁普通见证与仍独有的 whole-file、身份、ABI、拒绝、条件清理及 CI mapper
+合同，列明每类最小安全步骤。没有修改生产/测试，也没有执行测试；此记录不宣称
+旧 API 可删或 D10/E2 完成。远端状态不在本轮只读核验范围。
+独立只读复核通过，docs（952 Markdown）及 diff 检查通过；未把文档结构门禁
+当作语义等价证明。
+
+### 隔离 D10 组合树复用借用模块提取（2026-11-14）
+
+基于 `7236232e`（已组合 main `cc83d9ec`），复用既有 `7d7bfeb9` 的完整
+`ssa::borrow_argument` 职责提取，不整颗 cherry-pick 旧提交或带入其验收账本。
+当前 inline body 去模块缩进、经同一 rustfmt 后与旧提取文件逐字节相同，才使用
+该文件；父模块仅替换为同级声明。`cfg(test)`、模块层级、可见性、六方法及尾部
+D10 注册均不变。父文件从 1021 降至 356 行，提取文件 659 行，不改尺寸政策。
+独立只读三方字节审查通过；这是 legacy 测试域组织修复，不是旧 lowering 退役，
+也不改变生产借用权限或 D10 实验准入。
+
+本轮重新运行 D10 普通 SSA 十一项通过／一项 CI-only ignored；借用结果的
+MemoryDocument、rooted Unit 与 legacy caller/block-return 拒绝三项 exact 通过。
+实验配置 codegen tests 严格 Clippy、默认 codegen check、fmt 与独审通过。
+未运行 native、故障控制或远端 CI，未推送；这些结果不代表生产能力扩展。
+
+全仓尺寸按当前 main `cc83d9ec` 重新检查，`ssa/mod.rs` 超限已消除，仍明确失败
+一项：owner_transport `loops.rs` 1003 行（main 基底 987、门槛 1000），属于此
+组合链既有欠账，本片未修改。不能把本次借用模块修复宣称全仓门禁已绿。
+文档结构检查 957 文件通过。
+
+### Replace 退出消费者完成职责归并（2026-11-14）
+
+基于 `32983e79`，将 `LoopTransaction` 的 `complete_replace_consumer`、
+`complete_replace_call_consumer`、`complete_replace_return_consumer` 三方法整体
+从 `loops.rs` 移至已有 `loops/replace_break.rs`，归并到实际 Replace 退出职责，
+不新增碎片模块。仅相对可见性路径增加一层 `super`，仍精确限制在原 drop_planner
+域；guard 短路次序、字段赋值、`is_consistent` 失败回滚逐字保留。独立搬移审查
+核旧尾部与新追加内容（仅可见路径归一）一致，调用者和父私有字段访问合法。
+
+`loops.rs` 从 1003 降至 952 行，既有子模块为 620 行。按当前 main `cc83d9ec`
+重新跑全仓 Rust 尺寸门禁通过；政策、baseline 和例外均未修改，其他已登记历史
+欠账仍如实列出。这只消除组合链的结构门禁问题，不代表 D10 功能或生产准入完成。
+三消费者的真实普通源码、跨 source／callable 身份与合法邻界七项 exact 已通过；
+没有运行故障注入、native 或远端 CI。
+
+最终下游 D10 普通 SSA 十一项通过／一项 CI-only ignored；实验配置前后端 tests
+严格 Clippy、默认前后端 check、格式、文档 957 和 diff 检查通过。本次本地提交
+仍未推送，不以这些定向结果代替全套远端验收。

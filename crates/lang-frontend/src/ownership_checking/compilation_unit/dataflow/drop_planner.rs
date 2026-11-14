@@ -1,3 +1,5 @@
+mod analysis;
+use analysis::plan_with_observations;
 mod action_source;
 mod assignment;
 mod binding;
@@ -36,6 +38,7 @@ mod owner_transport;
 mod pending_call;
 mod receiver_loan_end;
 mod resource;
+mod root_traversal;
 mod short_circuit;
 mod string;
 mod string_when;
@@ -66,6 +69,34 @@ use model::{
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub(super) struct Analysis {
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) split_source_catalog: Option<super::super::d10_catalog_experiment::SplitSourcePending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) catalog:
+        Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::Pending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) loop_catalog:
+        Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::LoopPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) nested_catalog:
+        Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::NestedPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) dual_nested_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::DualNestedPending,
+    >,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) after_child_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::AfterChildPending,
+    >,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_dual_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::WrappedDualPending,
+    >,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_after_child_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::WrappedAfterChildPending,
+    >,
+
     pub(super) iteration_conditional_scopes:
         Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     pub(super) iteration_owner_scopes: Vec<(
@@ -117,122 +148,22 @@ fn plan_with_owner_observation(
 ) -> Result<Analysis, OwnershipCheckingError> {
     #[cfg(feature = "loan-observation-test-support")]
     let loan_enabled = super::super::loan_observation_test_support::enabled();
+
     #[cfg(not(feature = "loan-observation-test-support"))]
     let loan_enabled = true;
     plan_with_observations(checker, enabled, loan_enabled)
 }
 
-fn plan_with_observations(
-    checker: &Checker<'_>,
-    enabled: bool,
-    loan_actions_enabled: bool,
-) -> Result<Analysis, OwnershipCheckingError> {
-    let liveness = liveness::build(checker, true)?;
-    let mut deferred: Vec<_> = liveness
-        .deferred
-        .iter()
-        .copied()
-        .map(|expression| {
-            UnitOwnershipDeferredFact::new(expression, OwnershipDeferredReason::IndexPlace)
-        })
-        .collect();
-    let mut planner = DropPlanner::new(checker, liveness);
-    planner.owner_observation_enabled = enabled;
-    planner.iteration_actions.enabled = loan_actions_enabled;
-    let planner = planner.run()?;
-    let iterations = planner.iteration_plans()?;
-    let map_iterations = planner.map_iteration_plans()?;
-    let mut iteration_owner_scopes: Vec<_> = planner
-        .iteration_scope_depths
-        .iter()
-        .flat_map(|(statement, depth)| {
-            planner
-                .binding_depths
-                .iter()
-                .map(move |(symbol, binding_depth)| {
-                    (
-                        *statement,
-                        crate::ownership_checking::UnitDropTarget::Named(*symbol),
-                        binding_depth > depth,
-                    )
-                })
-        })
-        .collect();
-    iteration_owner_scopes.extend(planner.iteration_temporary_scopes.iter().copied());
-    let iteration_required_exits = planner
-        .iteration_exits
-        .iter()
-        .map(|(owner, kind, point)| (*owner, *kind, point.into_unit(checker.source_unit)))
-        .collect();
-    let iteration_loan_ends = planner
-        .iteration_actions
-        .iter()
-        .filter(|(_, action)| {
-            matches!(
-                action,
-                crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(_)
-                    | crate::ownership_checking::UnitIterationCleanupAction::EndReceiverLoan(_)
-                    | crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan { .. }
-            )
-        })
-        .map(|(point, action)| (point.into_unit(checker.source_unit), action.clone()))
-        .collect();
-    deferred.extend(planner.resource_deferred.iter().copied());
-    if !planner.resource_deferred.is_empty() {
-        return Ok(Analysis {
-            owner_observations: planner.owner_observations,
-            deferred,
-            ..Analysis::default()
-        });
-    }
-    let direct_call_loan_ends = planner.direct_call_loan_ends();
-    let borrow_call_prefix_ends = planner.borrow_call_prefix_ends();
-    let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
-    let receiver_call_prefix_ends = planner.receiver_call_prefix_ends();
-    let receiver_call_return_ends = planner.iteration_actions.receiver_return_ends();
-    let borrow_call_handoffs = planner.iteration_actions.borrow_handoffs();
-    let borrow_ends = planner.iteration_actions.borrow_binding_ends();
-    let borrow_call_transports = planner.iteration_actions.consumer_transports();
-    let borrow_forward_transports = planner.iteration_actions.forward_transports();
-    let drops = planner
-        .facts
-        .into_iter()
-        .map(|fact| fact.into_unit(checker.source_unit))
-        .collect();
-    let conditional_receiver_drops = planner
-        .conditional_receiver_facts
-        .into_iter()
-        .map(|fact| fact.into_unit(checker.source_unit))
-        .collect();
-    Ok(Analysis {
-        owner_observations: planner.owner_observations,
-        loan_action_observations: planner
-            .iteration_actions
-            .finish(checker.source_unit, checker.parsed.source_id()),
-        direct_call_loan_ends,
-        string_clone_loan_ends: planner.string_clone_loan_ends,
-        borrow_call_prefix_ends,
-        borrow_call_handoffs,
-        borrow_call_transports,
-        borrow_binding_transports: planner.borrow_binding_transports,
-        borrow_forward_transports,
-        exclusive_call_prefix_ends,
-        receiver_call_prefix_ends,
-        receiver_call_return_ends,
-        no_carry: planner.no_carry_exit.finish(borrow_ends),
-        iteration_conditional_scopes: planner.iteration_conditional_scopes,
-        iteration_owner_scopes,
-        iteration_loan_ends,
-        iterations,
-        map_iterations,
-        iteration_required_exits,
-        drops,
-        conditional_receiver_drops,
-        deferred,
-    })
-}
-
 struct DropPlanner<'a, 'checker> {
+    #[cfg(test)]
+    carry_probe: Option<Vec<owner_transport::carry_probe::Visit>>,
+    // Opt-in contiguous source-root boundaries; not a callable capability or filtered trace.
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
+    root_trace_ranges: Option<Vec<(crate::type_checking::UnitItemId, std::ops::Range<usize>)>>,
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
+    origin_probe: Option<Vec<owner_transport::origin_probe::Event>>,
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
+    producer_catalog: Option<owner_transport::producer_catalog::Catalog>,
     scalar_entry: Option<owner_transport::loops::scalar_entry::Tracker>,
     no_carry_exit: no_carry_exit::Tracker,
     #[cfg(test)]
@@ -281,6 +212,14 @@ struct DropPlanner<'a, 'checker> {
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
+            #[cfg(test)]
+            carry_probe: None,
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            root_trace_ranges: None,
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            origin_probe: None,
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            producer_catalog: None,
             scalar_entry: None,
             no_carry_exit: no_carry_exit::Tracker::default(),
             #[cfg(test)]
@@ -317,40 +256,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             scope_depth: 0,
             binding_depths: BTreeMap::new(),
         }
-    }
-
-    fn run(mut self) -> Result<Self, OwnershipCheckingError> {
-        for &root in self.checker.parsed.roots() {
-            self.item(root)?;
-        }
-        for (lambda, node) in self.checker.parsed.ast().expressions().iter() {
-            let Expression::Lambda {
-                opener_span,
-                parameters,
-                arrow_span,
-                body,
-                ..
-            } = node.payload()
-            else {
-                continue;
-            };
-            if !self
-                .checker
-                .visited_lambdas
-                .contains(&self.checker.unit_expression(lambda))
-            {
-                continue;
-            }
-            let mut effective_parameters = parameters.clone();
-            if arrow_span.is_none()
-                && let Some(symbol) = self.checker.symbols_by_span.get(&span_key(*opener_span))
-                && self.checker.typed.body_parameter_mode(*symbol).is_some()
-            {
-                effective_parameters.push(*opener_span);
-            }
-            self.plan_lambda_body(lambda, &effective_parameters, *body)?;
-        }
-        Ok(self)
     }
 
     fn item(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
@@ -1168,6 +1073,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     for place in plan.places() {
                         if let Some(index) = state.position(place.root()) {
                             state.values[index].origin = node.span();
+                            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+                            self.origin_applied(id, place.root());
                         }
                     }
                     self.commit_choice_primitive(id, state);

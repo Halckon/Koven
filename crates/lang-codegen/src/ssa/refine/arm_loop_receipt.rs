@@ -42,9 +42,9 @@ mod prefix_fact;
 mod publication;
 mod validation;
 #[cfg(test)]
-pub(crate) use publication::observe;
-#[cfg(test)]
 pub(in crate::ssa) use publication::{UnitPublication, before_final_verifier};
+#[cfg(test)]
+pub(crate) use publication::{observe, observe_final_verifier_failure};
 #[cfg(test)]
 pub(in crate::ssa::refine) use publication::{skip_break_capture, skip_counter_break_capture};
 fn invalid(s: Span) -> LoweringError {

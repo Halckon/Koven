@@ -1,6 +1,16 @@
 #[deny(dead_code)]
 mod carry;
 mod closure;
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_catalog_emitter_tests;
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_loop_handoff_tests;
+#[cfg(test)]
+mod d10_loop_replay_tests;
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_loop_retained_tests;
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_nested_loop_tests;
 use closure::integer;
 mod constant_materialization;
 mod expression_core;
@@ -421,13 +431,47 @@ pub(crate) mod two_source_unit;
 
 #[cfg(all(
     test,
-    any(feature = "two-source-unit", feature = "e2-two-source-test-support")
+    any(
+        feature = "two-source-unit",
+        feature = "e2-two-source-test-support",
+        feature = "d10-catalog-experiment"
+    )
 ))]
 mod native_bounded;
 
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+pub(crate) mod d10_dual_nested_loop_tests;
 #[cfg(any(
     feature = "two-source-unit",
     all(test, feature = "e2-two-source-test-support")
 ))]
 #[path = "borrow_result_support/experimental_two_source.rs"]
 mod two_source_binding;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_main428_boundary_tests;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod d10_after_child_graph;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod d10_before_child_graph;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_entry_wrapper_tests;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod d10_named_wrapper_graph;
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_named_wrapper_tests;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_named_after_child_tests;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_named_process_object_tests;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_named_entry_tests;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_split_source_tests;
