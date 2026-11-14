@@ -1,6 +1,6 @@
 # Evolution 系列评审：语言设计与架构的组合闭合性
 
-> **性质**：设计评审，非规范 · **状态**：评审完成，建议待裁决 · **日期**：2026-11-13 · **读取时机**：修订 evolution 系列、冻结借用与动态分发内核、安排失败与挂起路线之前 · **唯一真源**：本页记录本轮发现与建议，不修改 Guide、批准 Spec 或授权实现
+> **性质**：设计评审，非规范 · **状态**：评审完成；各项处置见 §7（2026-11-14） · **日期**：2026-11-13 · **读取时机**：修订 evolution 系列、冻结借用与动态分发内核、安排失败与挂起路线之前 · **唯一真源**：本页记录本轮发现与建议，不修改 Guide、批准 Spec 或授权实现
 
 ## 1. 范围、输入与方法
 
@@ -282,3 +282,24 @@ J48 允许监督者接住线程失败、进程继续运行，改变的是失败�
 - 未运行 Rust 门禁、候选语言反例、形式化演算或性能测试；未逐项重新核验跨语言文献。
 - 本轮记录八项发现、三项架构建议与后续验证方向，不修改候选设计来替用户采纳建议。
 - 本页与相关候选文档的提交，不代表上述问题已修复，也不代表相关 Guide、Spec 或路线已获批准。
+
+## 7. 处置记录（2026-11-14）
+
+用户逐项裁决后的状态。“已写入”指候选文档的文字已按建议修订，不代表建议中的验证已经完成：本节所列的反例与原型**一项都没有运行**，候选仍未启用。
+
+| 项 | 裁决 | 写入位置 | 仍然未做的 |
+|---|---|---|---|
+| R1 | 采纳 | [之二](../proposals/evolution-02-route-loan-kernel.md) §2、R3.4、R4.4、R4.5 | 四个验证用例；类型之外的函数如何书写“转发”的拼写 |
+| R2 | 采纳 | [之三](../proposals/evolution-03-route-existential.md) §2.4、R2.4、R3.5 | 经泛型与辅助函数转发的替换路径用例 |
+| R3 | 采纳 | [U0 提纲](../proposals/unsafe-aliasing-contract-outline.md) FS3；[之四](../proposals/evolution-04-route-capability-unsafe-suspend.md) C1 | `DropPolicy` 拆成独立维度的设计；失败注入用例 |
+| R4 资源保活 | 采纳 | [IO 资源借用、责任交接与清理](../proposals/io-resource-handoff-cleanup.md)；[之七](../proposals/evolution-07-concurrency-async-io-ffi.md) §2.7 | 各后端的证明 |
+| R4 失败域 | 采纳，与 R7 合并 | [之十一](../proposals/evolution-11-failure-interfaces-units.md) J48、§1.4 | 任务子树作为边界时共享状态的规则未证明；行为草案未按新边界逐条重写 |
+| R5 | 采纳 | 之四 C4 的 `Arc` 行 | 以“可共享读取但不可跨线程析构”的类型作反例 |
+| R6 | 采纳 | 之十一 J44、`Iterator` 行、§2.4；之二 L5 的进入条件 | 四种迭代的原型；`Step` 的命名 |
+| R7 | 采纳评审的第一种做法：失败与致命错误分为两个概念；监督边界是显式构造，v1 的 Guide 不改 | 之十一 J48；[v1 冻结约束](../proposals/v1-freeze-decisions.md) Z1 | 监督者继续执行这一可观察结果的验收 |
+| R8 | 采纳 | [之十二](../proposals/evolution-12-stdlib-platform.md) §4 规则 3；v1 冻结约束 Z11 | 核对 v1 是否已含目录枚举；`Path` 的 API |
+| A1 | 采纳 | [之一](../proposals/evolution-01-kernel-and-decisions.md) §3.2 | — |
+| A2 | 采纳 | [之九](../proposals/evolution-09-architecture.md) §3 | 各阶段不变量的具体定义（属于之八的规格工作） |
+| A3 | 待裁决 | [析构时机：两个方案的对比](../proposals/drop-timing-comparison.md) | 用户裁决；内存峰值测量 |
+
+§5 的五组组合验证仍是冻结内核与安排版本的前提。

@@ -47,6 +47,20 @@ Origins(v)= 值 v 持有的 Loan 集合；owned 值的 Origins 为空
 
 五条可验证不变量沿用评估文档 §10.2。
 
+**2026-11-14 修订（采纳[evolution 系列评审](../reviews/2026-11-13-evolution-language-architecture-review.md) R1）。** 上面的模型把三种不同的依赖都记成“结果的 Origins 来自某个参数”，覆盖不了它自己承诺的组合。修订如下，R3.4、R4.4、R4.5 已相应改写：
+
+```text
+Loan           增加字段 parent: Loan?        —— 由重借产生的子 loan 指向它所派生自的 loan
+OriginContract 对每个来源参数 p，取下列两种关系之一：
+  DependsOn(p) : 结果依赖持有者 p 本身。在 p 这个绑定上建立子 loan，结果不能比 p 活得久
+  Forwards(p.f): 结果沿用 p 的字段 f 已经携带的来源，与 p 这个绑定活多久无关
+暂停           : Holder h 的 loan l 有存活的子 loan c 时，经 h 对 c.place 的访问按 c.kind 判冲突
+```
+
+评审区分的三种关系在这里的归属：指向持有者自己存储的借用（视图自身的字段）与访问授权（guard 交付的引用不得越过 guard）都是 `DependsOn`；
+只有“转发参数已携带的借用”是 `Forwards`。内核有三种含义，表面只需两种写法，且默认取保守的一种。
+“没有生命周期变量”这一条不变；“一次前向传播”要多带一棵派生树。
+
 ## 3. 步骤
 
 ### L0 归一（无语言变化）
@@ -140,27 +154,33 @@ Phase 4 的 loan end 事实位置随之变化，verifier 不需改动（它只�
   声明与推导不一致时报错（决断 D12）。
 - R3.2 构造：实例的 Origins = 各 `borrow` 字段实参上新建的 Shared loan ∪ 各不可逃逸字段实参的 Origins。
 - R3.3 只读视图在全部字段 `Copyable` 时满足 `Copyable`；复制得到的值持有相同的 Origins。
-- R3.4 **传递规则**：`from p` 中的 `p` 若本身是不可逃逸值，结果继承 `Origins(p)`，而不是对 `p` 这个绑定建立新 loan。
-  因此视图的方法写 `from this` 时，结果依赖的是视图所指向的数据，与这个视图变量活多久无关。
+- R3.4 **来源的两种写法**（2026-11-14 改写）：
+  - `from p`：结果依赖 `p` 本身（`DependsOn`）。`p` 是视图时，结果不能比这个视图值活得久。这是默认，对任何持有者都健全。
+  - `from p.f`（成员内可只写字段名 `from f`）：结果沿用借用字段 `f` 携带的来源（`Forwards`），视图可以先死。只对只读视图的 `borrow` 字段成立。
+  函数体按所声明的关系检查：声明 `from f` 而实际返回了视图自身字段的借用，报错。
 - R3.5 返回不可逃逸类型的函数必须写 `from`（决断 D3）。
 - R3.6 不可逃逸值可以被非逃逸闭包捕获，捕获后闭包的 Origins 包含它的 Origins。
 - R3.7 泛型参数带隐式上界 `Escapable`；`view class` 自身可以有类型参数，其实参仍须 `Escapable`（L5 才放开）。
 
-R3.4 是这一步最需要仔细评审的规则。它等价于 Rust 中区分 `&'a self` 与 `self.field: &'a T` 的效果，
-但因为只读视图是 `Copyable` 的，Koven 不需要用户写出这一区分。
+初稿的 R3.4 对不可逃逸的 `p` 一律按转发处理。评审的反例是：同一个视图上，`element()` 返回底层数组的元素，`metadata()` 返回视图自己的字段，
+初稿给两者相同的合同，后者因此可以在视图消失后继续使用。改写后两者的签名不同：
 
 ```kotlin
 // 候选伪代码
 view class Slice<T>(borrow val source: Array<T>, val start: Int, val length: Int) {
-    fun get(index: Int): borrow T from this = source[start + index]      // 依赖 source 的 loan
-    fun drop(n: Int): Slice<T> from this = Slice(source, start + n, length - n)
+    fun get(index: Int): borrow T from source = source[start + index]    // 转发：依赖 source 上的 loan
+    fun drop(n: Int): Slice<T> from source = Slice(source, start + n, length - n)
+    fun startRef(): borrow Int from this = start                         // 依赖这个视图值本身
 }
 
 fun first(xs: Array<Int>): borrow Int from xs {
     val s = xs.slice(0, 4)      // s 是局部视图
-    return s.get(0)             // 合法：结果的 Origins 是 xs 上的 loan，s 可以先死
+    return s.get(0)             // 合法：get 声明为转发，结果的 Origins 是 xs 上的 loan，s 可以先死
+    // return s.startRef()      // 拒绝：结果依赖局部视图 s
 }
 ```
+
+应用层代码仍不出现 `from`；写 `from source` 的是库作者。
 
 工作分解：
 
@@ -189,10 +209,11 @@ fun first(xs: Array<Int>): borrow Int from xs {
 - R4.1 `inout T` 作为类型：持有一个 Exclusive loan 的 Holder，恒 `MoveOnly`、不可逃逸。允许的位置同 R2.2。
 - R4.2 `fun at(i: Int): inout T from this` 要求 `this` 的 mode 为 `inout`；调用期间及结果存活期间，来源上保持 Exclusive loan。
 - R4.3 经由独占 Holder 的访问是该 loan 授予的能力，不算对来源的再次访问（与现行 `Inout` 参数规则一致）。
-- R4.4 重借：把独占 Holder 交给 `Borrow` 或 `Inout` 参数时，在其 loan 之下建立子 loan，调用返回即结束；
-  Holder 在子 loan 存活期间不可用。
-- R4.5 含 `inout` 字段的 `view class` 为独占视图，恒 `MoveOnly`；R3.4 的传递规则对它**不成立**：
-  方法以 `inout this` 调用时，结果对视图绑定本身建立 Exclusive loan（否则同一独占视图可派生出两个并存的可写结果）。
+- R4.4 重借（2026-11-14 改写）：把独占 Holder 交给 `Borrow` 或 `Inout` 参数时，在其 loan 之下建立子 loan。
+  被调方的合同没有让该参数流入结果或其他存活 Holder 时，子 loan 在调用返回时结束；流入时，子 loan 随结果继续存活，直到结果最后一次使用。
+  子 loan 存活期间，父 Holder 被暂停：不得经它做与子 loan 冲突的访问。子 loan 结束后父 Holder 恢复（R4.7）。
+- R4.5 含 `inout` 字段的 `view class` 为独占视图，恒 `MoveOnly`；它的方法以 `inout this` 调用时，结果只能写 `from this`，即对视图绑定本身建立 Exclusive 子 loan
+  （否则同一独占视图可派生出两个并存的可写结果）。R3.4 改写后这不再是例外：`from this` 本来就是默认，独占视图只是不提供转发写法。
 - R4.6 两阶段借用不穿透访问器：`list.at(i).push(list.size)` 中 `list.at(i)` 已是 Active 的独占访问，实参里读 `list` 报 L0135。
   需要时用户先取值。是否放宽留待用例积累。
 - R4.7 来源恢复：独占 Holder 死亡后，来源恢复到建立 loan 之前的权限；同一来源上的嵌套独占 Holder 按后进先出恢复。
@@ -226,7 +247,9 @@ fun first(xs: Array<Int>): borrow Int from xs {
 - 函数类型需要能表达 `OriginContract`（闭包返回借用其参数的结果）；在此之前这类高阶 API 用具体化或作用域 lambda 表达；
 - owned existential 的载荷可否为视图（路线 X）也在此步一并回答。
 
-进入条件：L3/L4 的试金石程序集上至少出现三个不同的、无法用现有手段合理改写的用例。没有用例就不启动。
+进入条件（2026-11-14 修订，采纳评审 R6）：迭代器、局部的视图容器、以借用为参数或结果的高阶函数已经是主路线承诺的消费者，不再等“出现三个用例”。
+其中迭代器所需的部分——不可逃逸类型作泛型实参、interface 方法与函数类型的来源合同——提前为 L3 的必经子步骤；其余部分仍按用例启动。
+定形之前先用小型语义原型验证四种迭代：按值；借用外部存储；可同时保留多个独占元素；下一次调用使上一次结果失效（出借式）。不要求它们属于同一个接口，但要说明哪些算法可以统一、哪些不能。
 
 ## 4. 贯穿全路线的验证设施
 
@@ -255,7 +278,8 @@ fun first(xs: Array<Int>): borrow Int from xs {
 ## 6. 开放问题
 
 - R2.4 的保守性是否会在实际代码中造成可感知的拒绝；若是，是否值得让判空细化 Origins。
-- R3.4 的传递规则与 R4.5 的不对称是否能被用户直观理解；诊断文字需要专门设计。
+- R3.4 改写后与 R4.5 不再不对称。新的问题是转发的拼写：成员内可以写字段名，但类型之外的函数无法指名私有字段，需要一种“转发 `p` 携带的全部来源”的写法，拼写待定。
+- R1 的验证用例（评审给出，尚未运行）：`q = project(p)` 之后修改 `p.field` 再使用 `q` 须拒绝；`q` 最后一次使用之后再用 `p` 须接受；视图自身字段的借用不得超过视图；guard 交付的引用不得超过 guard。
 - 视图的 `Transferable`/`Shareable`：只读视图在其指向类型 `Shareable` 时理应可进入作用域线程，规则归路线 C 的 C3。
 - 视图是否允许声明 `deinit` 之外的资源语义（例如必须显式消费），与决断 D11 一并考虑。
 - 多来源结果的调用方冻结粒度：是否需要让调用方知道“实际只来自其中之一”（会引入路径敏感，倾向不做）。

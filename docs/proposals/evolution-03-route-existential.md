@@ -68,6 +68,14 @@ Witness(C, I) = {
 推论：参数位置的 `shape: Shape` 在语义上只承诺“接受任何满足 `Shape` 的值”。实现可以选择传见证表，
 也可以在实参静态类型已知时特化为直接调用。这是优化自由度，不是语言规则。
 
+**对可变访问的限制（2026-11-14，采纳[evolution 系列评审](../reviews/2026-11-13-evolution-language-architecture-review.md) R2）。** 可变访问有两种权限，类型检查、泛型匹配与调用约定都须区分：
+
+- **载荷可变访问**：只能经它调用被擦除类型的方法，不能更换具体类型。`inout s: Shape` 一律是这一种；实参可以是具体类型的 place，也可以是存在类型的槽位。
+- **槽位可变访问**：可以替换 owner 与见证表。只在两处出现：对拥有存在类型值的变量直接赋值；泛型 `inout T` 且 `T` 实例化为存在类型，此时实参必须是真正的存在类型槽位。
+
+载荷可变访问**不能**匹配 `inout T`（`T` = 存在类型）。否则 `fun <T : Shape> overwrite(inout dst: T, own value: T)` 以 `T = Shape` 实例化后，
+可以经一个只是“载荷指针加见证表”的参数，把任意 `Shape` 写进静态类型为 `Circle` 的位置。两种权限可以共用 pack/open 机制，但不共用类型。
+
 ## 3. 步骤
 
 ### X0 callable 重建（无语言变化）
@@ -140,8 +148,8 @@ ADR 0036（独占闭包捕获存储，proposed）与 ADR 0025（递归闭包环�
 - R2.1 `fun f(s: Shape)`、`fun f(inout s: Shape)`：实参为具体类型的 place 或临时值时，执行 `pack_borrow` / `pack_inout`。
 - R2.2 `value class` 实参以指向其现有存储的指针打包，不装箱。
 - R2.3 loan 的建立、存活、冲突完全按路线 L 的调用期规则；`from` 可以出现在返回 `borrow Shape` 的签名上。
-- R2.4 `inout s: Shape` 在 X2 只允许经 `s` 调用方法，**不允许整体替换**为另一个具体类型的值：
-  此时被借用的 place 的静态类型是具体类型，替换会破坏调用方的类型。整体替换只对 owned existential 的 place 成立（X3）。
+- R2.4 `inout s: Shape` 是载荷可变访问（§2.4）：只允许经 `s` 调用方法，**不允许整体替换**，也不能转交给 `inout T`（`T = Shape`）的泛型参数。
+  这条对任何实参都成立，包括实参本身是存在类型槽位的情形；限制直接赋值的语法不够，必须连同经泛型与辅助函数转发的路径一并拒绝。
 
 R2.4 是对既有候选 §4.1 的一处细化，应在 Guide 文字中显式区分这两种 `inout`。
 
@@ -169,7 +177,7 @@ owned existential 离开构造它的编译单元之后行为不确定。扩展�
 - R3.2 源为普通 `class` 实例时接管其 owner，原绑定不可用；源为 `Copyable` 的间接 owner 时按 Value delivery 复制。
 - R3.3 源为 `value class` 时需要间接 owner：内核要求显式 `Box`；X4 的转换糖可省去书写。
 - R3.4 析构经见证表；`DropPolicy` 依 §2.3。
-- R3.5 owned existential 的 place 可被 `inout` 借用并整体替换（先求值新值，再析构旧值，再提交），与现行 `Inout` 规则一致。
+- R3.5 owned existential 的 place 可以整体替换（先求值新值，再析构旧值，再提交）：对拥有它的变量直接赋值，或作为槽位传给泛型 `inout T`（§2.4）。经 `inout s: Shape` 参数不能替换。
 - R3.6 `List<Shape>` 的元素是定长的 owned existential；`List<Circle>` 与 `List<Shape>` 之间没有隐式转换。
 - R3.7 nullable 的 `Shape?` 利用指针 niche，不增加标志位（与 ADR 0033 核对）。
 
