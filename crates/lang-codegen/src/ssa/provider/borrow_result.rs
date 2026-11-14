@@ -444,6 +444,15 @@ fn validate_binding(
             allowed.insert(counter.decrement().expression().index());
         }
     }
+    #[cfg(all(test, feature = "e2-two-source-test-support"))]
+    let experimental =
+        crate::ssa::borrow_result_support::experimental_two_source::admitted(file, owned, fact);
+    #[cfg(all(test, feature = "e2-two-source-test-support"))]
+    if let Some((controls, _)) = experimental {
+        allowed_controls
+            .get_or_insert_with(Default::default)
+            .extend(controls.map(|id| id.index()));
+    }
     let no_carry = crate::ssa::borrow_result_support::no_carry::admitted(file, owned, fact);
     let no_carry_siblings =
         crate::ssa::borrow_result_support::no_carry::siblings(file, owned, fact);
@@ -460,6 +469,10 @@ fn validate_binding(
         builtin,
         call_allowed,
         |statement| {
+            #[cfg(all(test, feature = "e2-two-source-test-support"))]
+            if experimental.is_some_and(|(_, approved)| approved == statement) {
+                return true;
+            }
             if closed_whiles.contains(&statement)
                 || invariant == Some(statement)
                 || no_carry == Some(statement)

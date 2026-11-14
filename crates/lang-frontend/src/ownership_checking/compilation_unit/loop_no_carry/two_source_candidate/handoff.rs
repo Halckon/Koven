@@ -21,6 +21,7 @@ use crate::{
 /// ```
 pub struct ExperimentalUnitHandoff<'view, 'parsed: 'view> {
     experiment: &'view TwoSourceExperiment,
+    selected: Option<&'view TwoSourceCounterFact>,
     sources: &'view SourceMap,
     inputs: &'view [SourceUnitInput<'parsed>],
     names: &'view ValidatedCompilationUnitNames,
@@ -28,6 +29,23 @@ pub struct ExperimentalUnitHandoff<'view, 'parsed: 'view> {
     typed: &'view ValidatedCompilationUnitTypes,
 }
 impl<'view, 'parsed: 'view> ExperimentalUnitHandoff<'view, 'parsed> {
+    /// Select exactly one original complete fact; other Unit bindings remain unselected.
+    pub fn for_fact(&self, fact: &'view TwoSourceCounterFact) -> Option<Self> {
+        if !self.owns(fact) {
+            return None;
+        }
+        self.experiment.function_shell(fact, self.typed)?;
+        self.experiment.callee_leaves_for(fact, self.typed)?;
+        Some(Self {
+            experiment: self.experiment,
+            selected: Some(fact),
+            sources: self.sources,
+            inputs: self.inputs,
+            names: self.names,
+            _environment: self._environment,
+            typed: self.typed,
+        })
+    }
     /// Original checked source collection.
     pub fn sources(&self) -> &'view SourceMap {
         self.sources
@@ -72,6 +90,7 @@ impl TwoSourceExperiment {
         }
         Ok(ExperimentalUnitHandoff {
             experiment: self,
+            selected: None,
             sources,
             inputs,
             names,
@@ -85,6 +104,26 @@ use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::*;
 impl crate::ownership_checking::preflight::sealed::Sealed for ExperimentalUnitHandoff<'_, '_> {}
 impl UnitPreflightFacts for ExperimentalUnitHandoff<'_, '_> {
+    fn experimental_two_source_binding(
+        &self,
+        binding: UnitSymbolId,
+    ) -> Option<ExperimentalBinding<'_>> {
+        let fact = self.selected?;
+        if !self.owns(fact)
+            || fact
+                .arms()
+                .iter()
+                .filter(|arm| arm.binding() == binding)
+                .count()
+                != 1
+        {
+            return None;
+        }
+        self.experiment.callee_leaves_for(fact, self.typed)?;
+        let shell = self.experiment.function_shell(fact, self.typed)?;
+        Some(ExperimentalBinding { fact, shell })
+    }
+
     fn binding_kind(&self, symbol: UnitSymbolId) -> Option<OwnershipBindingKind> {
         self.experiment.retained.binding_kind(symbol)
     }
@@ -165,5 +204,21 @@ impl UnitPreflightFacts for ExperimentalUnitHandoff<'_, '_> {
         self.experiment
             .retained
             .owns_no_carry_prefix_counter_break(fact)
+    }
+}
+
+/// Same-analysis selected-fact projection, never an ordinary pair or completed preflight.
+pub struct ExperimentalBinding<'a> {
+    fact: &'a TwoSourceCounterFact,
+    shell: &'a super::FunctionShell,
+}
+impl ExperimentalBinding<'_> {
+    /// Original selected fact, with its separate experimental identity.
+    pub fn fact(&self) -> &TwoSourceCounterFact {
+        self.fact
+    }
+    /// Immutable complete source shell issued for that fact.
+    pub fn shell(&self) -> &super::FunctionShell {
+        self.shell
     }
 }

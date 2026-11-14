@@ -144,4 +144,4 @@ pub use entry::EntryDescriptor;
 #[cfg(feature = "e2-two-source-test-support")]
 mod handoff;
 #[cfg(feature = "e2-two-source-test-support")]
-pub use handoff::ExperimentalUnitHandoff;
+pub use handoff::{ExperimentalBinding, ExperimentalUnitHandoff};

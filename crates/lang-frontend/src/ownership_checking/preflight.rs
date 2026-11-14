@@ -17,6 +17,15 @@ pub(crate) mod sealed {
 /// impl UnitPreflightFacts for Forged {}
 /// ```
 pub trait UnitPreflightFacts: sealed::Sealed {
+    /// Test-only-domain selection; ordinary facts never grant this experimental admission.
+    #[cfg(feature = "e2-two-source-test-support")]
+    fn experimental_two_source_binding(
+        &self,
+        _binding: UnitSymbolId,
+    ) -> Option<two_source_experiment::ExperimentalBinding<'_>> {
+        None
+    }
+
     /// Original binding kind query; no fact reconstruction.
     fn binding_kind(&self, symbol: UnitSymbolId) -> Option<OwnershipBindingKind>;
     /// Original borrow call prefix ends query; no fact reconstruction.

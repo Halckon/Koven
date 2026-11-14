@@ -314,6 +314,13 @@ fn unsupported_actual_leaf_bodies_do_not_become_placeholders() {
             .err(),
             Some(super::e2_publication::Error::Emission)
         );
+        assert!(
+            experiment
+                .handoff(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .for_fact(&experiment.facts()[0])
+                .is_none()
+        );
         assert!(experiment.callee_leaves().is_none());
         assert!(super::e2_callee_leaves::emit(&experiment, &typed).is_none());
         assert!(
@@ -415,6 +422,14 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
         }
         let shell = experiment.function_shell(fact, &typed);
         assert_eq!(shell.map(|s| s.roles()), expected, "{source}");
+        let handoff = experiment
+            .handoff(&sources, &inputs, &names, &types, &typed)
+            .unwrap();
+        assert_eq!(
+            handoff.for_fact(fact).is_some(),
+            expected.is_some(),
+            "only complete source shells can select binding controls"
+        );
         if let Some(shell) = shell {
             assert_eq!(shell.callable(), experiment.callable(fact).unwrap());
             let signature = typed
@@ -474,13 +489,14 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
 
 #[test]
 fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
-    for (rounds, choose, distinct, multiple, unsupported) in [
-        (0, false, false, false, false),
-        (3, false, false, false, false),
-        (3, true, false, false, false),
-        (3, true, true, false, false),
-        (3, false, false, true, false),
-        (3, false, false, true, true),
+    for (rounds, choose, distinct, multiple, unsupported, ordinary) in [
+        (0, false, false, false, false, false),
+        (3, false, false, false, false, false),
+        (3, true, false, false, false, false),
+        (3, true, true, false, false, false),
+        (3, false, false, true, false, false),
+        (3, false, false, true, true, false),
+        (3, false, false, false, false, true),
     ] {
         let source = format!(
             "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(left);consume(a)}}else{{borrow val b=view(right);consume(b)}};remaining=remaining-1}}}}\nfun main():Unit {{val rounds={rounds};val choose={choose};run(\"left\",\"right\",rounds,choose)}}"
@@ -508,6 +524,13 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                 second
             };
             format!("{source}\n{second}")
+        } else {
+            source
+        };
+        let source = if ordinary {
+            format!(
+                "{source}\nfun ordinary(source:String):Unit {{borrow val b=view(source);val number=1+1;consume(b)}}"
+            )
         } else {
             source
         };
@@ -546,6 +569,15 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             handoff.types().types(),
             &handoff,
         );
+        assert_eq!(
+            preflight.as_ref().unwrap_err().span,
+            Some(
+                experiment
+                    .function_shell(fact, &typed)
+                    .unwrap()
+                    .control_spans()[1]
+            )
+        );
         assert!(
             matches!(
                 preflight,
@@ -556,6 +588,46 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             ),
             "existing binding gate must not gain a two-source exemption: {preflight:?}"
         );
+        let selected = handoff.for_fact(fact).unwrap();
+        let selected_preflight = super::unit_lower::preflight::validate(
+            &parsed_sources,
+            selected.names(),
+            selected.types().types(),
+            &selected,
+        );
+        if multiple || ordinary {
+            let rejected = selected_preflight.unwrap_err();
+            assert_eq!(rejected.kind, super::LoweringErrorKind::UnsupportedNode);
+            let expected_span = if multiple {
+                experiment
+                    .function_shell(&experiment.facts()[1], &typed)
+                    .unwrap()
+                    .control_spans()[1]
+            } else {
+                parsed
+                    .ast()
+                    .expressions()
+                    .iter()
+                    .find_map(|(_, node)| {
+                        matches!(
+                            node.payload(),
+                            lang_frontend::parser::Expression::Binary {
+                                operator: lang_frontend::parser::BinaryOperator::Add,
+                                ..
+                            }
+                        )
+                        .then_some(node.span())
+                    })
+                    .unwrap()
+            };
+            assert_eq!(
+                rejected.span,
+                Some(expected_span),
+                "unselected or ordinary unsupported binding retains its exact frontier"
+            );
+        } else {
+            selected_preflight.unwrap();
+        }
         assert!(std::ptr::eq(handoff.sources(), &sources));
         assert!(std::ptr::eq(handoff.inputs(), inputs.as_slice()));
         assert!(std::ptr::eq(handoff.names(), &names));
@@ -587,6 +659,7 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             .unwrap();
         assert!(super::e2_entry::emit(&other, &other.facts()[0], entry, &typed).is_none());
         assert!(!handoff.owns(&other.facts()[0]));
+        assert!(handoff.for_fact(&other.facts()[0]).is_none());
         assert!(
             super::e2_entry_replay::replay(&emitted, &other, &other.facts()[0], &typed).is_none()
         );
@@ -678,6 +751,7 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             if unsupported {
                 assert!(experiment.callee_leaves().is_none());
                 assert!(experiment.callee_leaves_for(second_fact, &typed).is_none());
+                assert!(handoff.for_fact(second_fact).is_none());
                 assert!(super::e2_entry::emit(&experiment, second_fact, second, &typed).is_none());
                 assert!(publish(&experiment, second, second_fact, &[second_fact], &typed).is_err());
                 continue;

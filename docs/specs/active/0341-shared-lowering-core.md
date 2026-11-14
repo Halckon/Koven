@@ -18652,3 +18652,23 @@ root 的 runtime global 检查，仍早于实例规划/可达性裁剪。legacy 
 gate 与普通 lowering，后者已被 frontend L0167 拒绝，不造能力绕过更早门禁。后续若为两源增加专用 binding
 检查，须先明确其完整事实覆盖和拒绝情况，不能跳过其他 declarations/bindings
 或 global initializer，也不能把当前实验封包当普通 Unit 发布能力。
+
+### 显式单 fact 的实验 binding 控制准入
+
+真实未选择 handoff 的 UnsupportedNode 精确落在 FunctionShell 原 while 条件
+比较 span；旧普通 pair 列表不拥有两源事实，整函数 binding walker 因此拒绝其
+Binary/If/While。保留这一默认行为，不将两源 arms 转换为旧单源或 pair 权限。
+
+实验 handoff 新增显式 for_fact 单选，要求同次 retained 身份、完整 shell 和
+完整 scoped leaf closure；不自动选择同 Unit 的其他事实。仅在 codegen 的
+all(test, e2-two-source-test-support) 下，专用查询投影核对两臂各自唯一真实
+binding、source loan/root、initializer、End、source-unit 与实际 if 分支 body。
+只把该证明的 condition/branch/decrement 与 while 原 AST ID 加到既有 walker
+允许集合，其余校验继续执行；不整段跳过 binding，更不绕过声明或 global 门。
+
+真实单 fact 完整 entry 可通过实验选择后的共享 preflight；未选择 handoff 仍
+在原条件处拒绝。同 Unit 未选择的第二个两源 callable、额外普通不支持 binding
+仍阻断全 Unit preflight。foreign fact、无完整 shell（含额外前后缀/ABI）或
+不支持 leaf 不可选择；已有 retyped 身份门不变。选定范围不累积，不提供全事实
+默认放行。实验 entry publisher 仍只证明自身闭包，并未自动接入这一 gate；
+普通 native/生产 driver 未开放两源准入，后续发布组合合同仍单独处理。
