@@ -42,3 +42,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'nested replay identity CI-only test compiled/listed; not executed'
 fi
+
+after_bridge=ci_only_after_child_rejects_other_ownership
+listing=$(cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_after_child_handoff "$after_bridge" -- --exact --ignored --list)
+[[ $(grep -Fxc "$after_bridge: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_after_child_handoff "$after_bridge" -- --exact --ignored
+else
+  echo 'child-then-parent ownership identity CI-only test compiled/listed; not executed'
+fi

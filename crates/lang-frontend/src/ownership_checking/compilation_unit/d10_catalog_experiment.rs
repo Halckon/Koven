@@ -149,7 +149,7 @@ pub fn analyze(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundCatalog>, OwnershipCheckingError> {
-    let (owned, mut pending, _, _, _) = analysis::analyze_with_catalog(
+    let (owned, mut pending, _, _, _, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),
@@ -174,3 +174,9 @@ pub use nested_handoff::{BoundNestedLoop, analyze_nested_loop};
 mod dual_nested_handoff;
 pub(crate) use dual_nested_handoff::DualNestedPending;
 pub use dual_nested_handoff::{BoundDualNestedLoop, analyze_dual_nested_loop};
+
+mod after_child_handoff;
+pub(crate) use after_child_handoff::AfterChildPending;
+pub use after_child_handoff::{
+    BoundAfterChildNestedLoop, ReplacementOrder, analyze_after_child_nested_loop,
+};

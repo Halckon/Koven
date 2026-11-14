@@ -155,7 +155,7 @@ pub fn analyze_loop(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundLoop>, OwnershipCheckingError> {
-    let (owned, _, mut loops, _, _) = analysis::analyze_with_catalog(
+    let (owned, _, mut loops, _, _, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

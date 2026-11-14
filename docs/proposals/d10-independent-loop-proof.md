@@ -875,3 +875,44 @@ Clippy、格式、文档及独审作为提交门禁；未执行 native 或本地
 `loops.rs` 1003 行仍超 1000 门槛；本片把新测试注册放在已有 D10 测试模块，
 不再增长根 `ssa/mod.rs`，没有修改尺寸政策。该全仓门禁不能记为通过，需在后续
 整合中另行处理；上述功能测试结果不代表尺寸问题已解决。
+
+### AfterChild 独立封闭交付候选
+
+在 main `cc83d9ec` 的隔离组合基线上，新增独立 `AfterChildPending` →
+`BoundAfterChildNestedLoop`，显式 `ReplacementOrder::ChildThenParent`。
+controls/counters/conditions 保父子角色顺序；replacements、incoming producers、
+Exclusive loans 和旧值 cleanup 则始终保留真实静态访问的子→父次序，不把真实
+事件或最终 owned 数组重排成旧候选的输入。旧 nested/dual API 不放宽。
+
+候选只收双独立默认 Shared Int 参数、两根 literal 初始化、child 后 parent 各
+一次 Replace、父子各减一、末尾 a/b 两个真实 prints_line 后用。完整 AST 7/15/30
+节点覆盖与原始 34 事件直接匹配同时成立才产生私有 pending。独立第六通道从实际
+planner 传至 analysis；诊断/类型失败清空，最后精确核原 owned 的两 primitive、
+四 loans、四 drops 的原序及 typed 身份，validate 成功后才交付，不开放 retrofit。
+
+跨 crate 测试从新 bound 的原始 owned 形成 Unit view，按真实 callable 选择入口。
+在已有实际 11-block/32-instruction 图上补齐每条操作、全部块成员/边/terminator
+来源、Shared Int32 参数运输、literal 实际解码、条件/更新、Replace 第二结果的
+清理及最终 Shared 使用链。所有检查都针对实际原图，不修改 SSA 或替换原普通门。
+源码能力权威来自前端新封闭 matcher；此后端层按它的真实 ID 反查源节点、与 SSA
+对账，**未独立重做上一 parent-before-child 版本的完整 source-role 发现**。
+
+因此这仍是 default-off 实验交付和同源图验证，不是生产 selector 准入、通用
+Carry、外部任意 Program 的 provenance 能力、原生对象零/多轮执行或实际堆释放证明。
+原 native 窗口与尺寸门禁遗留问题仍分别跟踪；新跨分析身份负控只布置 CI，不在
+本地运行。
+
+
+在完成新 bound 与全部真实 SSA/CFG 对账后，复用既有 2048 步封闭路径模型，
+不改变它支持的操作或失败拒绝规则。九组父/子零轮、多轮和负 counter 输入核验
+最终根：父未进入取真实 initial literal，父进入后总取其真实 parent incoming
+literal；retained 输出与全部逻辑 owner 的清理顺序也由实际执行到的指令验证。
+预期字节来自该次 source producer 的实际解码，含改名及不同文字的源码变体。
+这是对原图的有界逻辑路径见证，不是原生程序或 allocator 的动态验收。
+
+本片验证：新旧四组前端 handoff 共七项普通测试通过、五项 CI-only ignored；
+D10 SSA 十一项通过、一项身份负控 ignored。新能力的三种正源码 × 两类输入 ×
+九组 counter 合计 54 条有界逻辑路径通过，最终 exact 复验通过。新身份负控已
+精确编译列举一项且接入现有 CI 脚本，未本地执行。默认前端编译、严格前后端
+Clippy、格式、文档 957 和独审通过。继承的两项 Rust 尺寸超限仍未解决；没有
+运行 native、故障注入或推送。

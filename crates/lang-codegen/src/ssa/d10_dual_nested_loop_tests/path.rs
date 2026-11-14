@@ -52,6 +52,42 @@ pub(super) fn check_program(program: &Program, entry: FunctionId) {
     ));
 }
 
+/// Called only after the independent AfterChild bound/source/complete SSA replay.
+/// This is the same bounded logical model, not a native or allocator witness.
+pub(super) fn check_after_child(
+    program: &Program,
+    entry: FunctionId,
+    initial: &[u8],
+    parent_value: &[u8],
+    retained: &[u8],
+) {
+    for (parent, child, generations) in [
+        (0, 0, 2),
+        (0, 2, 2),
+        (1, 0, 3),
+        (2, 0, 4),
+        (1, 2, 5),
+        (2, 2, 8),
+        (3, 4, 17),
+        (-1, 2, 2),
+        (2, -1, 4),
+    ] {
+        let run = execute(program, entry, [parent, child], 2048)
+            .expect("closed child-then-parent actual SSA path");
+        let final_value = if parent > 0 { parent_value } else { initial };
+        assert_eq!(run.printed, [final_value.to_vec(), retained.to_vec()]);
+        assert_eq!(run.created, generations);
+        let expected = std::iter::once(0)
+            .chain(2..generations)
+            .chain(std::iter::once(1))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            run.dropped, expected,
+            "AfterChild logical Drops ({parent},{child})"
+        );
+    }
+}
+
 fn execute(program: &Program, entry: FunctionId, inputs: [i32; 2], mut fuel: usize) -> Result<Run> {
     crate::ssa::verify::verify_program(program).map_err(|_| "invalid SSA")?;
     let [module] = program.modules.as_slice() else {

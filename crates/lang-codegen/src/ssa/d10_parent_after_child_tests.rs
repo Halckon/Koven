@@ -1,5 +1,8 @@
 //! Observation of the distinct child-then-parent shape; not a sealed candidate admission.
 use super::*;
+#[path = "d10_after_child_bound_tests.rs"]
+mod bound;
+const AFTER_SOURCE: &str = "fun run(count: Int, childCount: Int) { var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) { var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; val parentOld = replace(&a, \"parent\"); outer -= 1 }; println(a); println(b) }";
 #[test]
 fn actual_child_then_parent_edges_preserve_old_generation() {
     use lang_frontend::{
@@ -8,7 +11,7 @@ fn actual_child_then_parent_edges_preserve_old_generation() {
         source::SourceMap,
         type_checking::standard_environments,
     };
-    let text = "fun run(count: Int, childCount: Int) { var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) { var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; val parentOld = replace(&a, \"parent\"); outer -= 1 }; println(a); println(b) }";
+    let text = AFTER_SOURCE;
     let mut sources = SourceMap::new();
     let (source, ast) = unit_lower_test_support::parsed(&mut sources, "after.ko", text);
     let (environment, types) = standard_environments();
@@ -165,9 +168,7 @@ fn verify_generation_edges(
     assert_eq!(plans.len(), 2);
     let drops = unit.ownership().drops();
     assert_eq!(drops.len(), 4);
-    for (replace, literal, drop, block, fact, text) in
-        [(21, 20, 22, 5, 0, "next"), (28, 27, 29, 6, 1, "parent")]
-    {
+    for (replace, literal, drop, block, fact) in [(21, 20, 22, 5, 0), (28, 27, 29, 6, 1)] {
         let Operation::RootReplace {
             owner,
             loan,
@@ -188,8 +189,9 @@ fn verify_generation_edges(
         assert_eq!(ins[replace - 2].results, vec![EntityId::Loan(loan)]);
         assert_eq!(ins[replace - 3].operation, Operation::RootPlace { owner });
         assert_eq!(ins[replace - 3].results, vec![EntityId::Place(place)]);
+        let expected = literal_bytes(unit, plans[fact].descriptor().operands()[1]);
         assert!(
-            matches!(&ins[literal].operation,Operation::StringLiteral{bytes,..} if bytes==text.as_bytes())
+            matches!(&ins[literal].operation,Operation::StringLiteral{bytes,..} if *bytes==expected)
         );
         assert_eq!(
             ins[drop].operation,
@@ -249,4 +251,24 @@ fn verify_generation_edges(
         );
         assert_eq!(ins[drop].origin, Origin::Source(drops[fact].value_origin()));
     }
+}
+
+fn literal_bytes(
+    unit: &lang_frontend::ownership_checking::OwnedCompilationUnitView<'_, '_>,
+    expression: lang_frontend::type_checking::UnitExpressionId,
+) -> Vec<u8> {
+    let [input] = unit.inputs() else {
+        panic!("one source")
+    };
+    let [names] = unit.names().names().source_units() else {
+        panic!("one source identity")
+    };
+    assert_eq!(expression.source_unit(), names.source_unit());
+    crate::ssa::lowering_support::string_literal::decode_plain(
+        input.parsed(),
+        unit.sources().source_text(input.source_id()).unwrap(),
+        expression.expression(),
+    )
+    .unwrap()
+    .expect("actual literal producer")
 }

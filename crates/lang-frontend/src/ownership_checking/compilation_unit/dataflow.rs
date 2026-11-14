@@ -87,6 +87,8 @@ pub(super) struct Analysis {
     pub(super) nested_catalogs: Vec<super::d10_catalog_experiment::NestedPending>,
     #[cfg(feature = "d10-catalog-experiment")]
     pub(super) dual_nested_catalogs: Vec<super::d10_catalog_experiment::DualNestedPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) after_child_catalogs: Vec<super::d10_catalog_experiment::AfterChildPending>,
     pub(super) no_carry: super::loop_no_carry::CompletedNoCarry,
     pub(super) borrow_return_origins:
         Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
@@ -274,6 +276,8 @@ pub(super) fn analyze(
     let mut nested_catalogs = Vec::new();
     #[cfg(feature = "d10-catalog-experiment")]
     let mut dual_nested_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut after_child_catalogs = Vec::new();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
     let mut map_iterations = Vec::new();
@@ -347,6 +351,8 @@ pub(super) fn analyze(
         nested_catalogs.extend(drop_analysis.nested_catalog);
         #[cfg(feature = "d10-catalog-experiment")]
         dual_nested_catalogs.extend(drop_analysis.dual_nested_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        after_child_catalogs.extend(drop_analysis.after_child_catalog);
         no_carry.extend(checker.finish_no_carry_proofs(&drop_analysis.no_carry)?);
         nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
@@ -468,6 +474,8 @@ pub(super) fn analyze(
         nested_catalogs,
         #[cfg(feature = "d10-catalog-experiment")]
         dual_nested_catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        after_child_catalogs,
         no_carry,
         borrow_results,
         borrow_return_origins,

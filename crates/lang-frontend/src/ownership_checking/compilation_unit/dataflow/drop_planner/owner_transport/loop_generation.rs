@@ -339,3 +339,8 @@ impl DropPlanner<'_, '_> {
         })
     }
 }
+
+#[cfg(feature = "d10-catalog-experiment")]
+mod after_child;
+#[cfg(feature = "d10-catalog-experiment")]
+mod after_child_coverage;
