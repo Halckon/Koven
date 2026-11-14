@@ -269,3 +269,300 @@ fn borrow_value_field_single_native_matrix() {
         assert!(run.stderr.is_empty(), "{name}: {run:?}");
     }
 }
+
+#[test]
+fn native_loop_local_no_carry_false_edge_keeps_external_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(source: String, flag: Boolean): Unit {
+ while(flag) { borrow val item = view(source); observe(item) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("loop-local-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_no_carry_sibling_false_edges_keep_the_same_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(source: String, flag: Boolean): Unit {
+ while(flag) { borrow val first = view(source); observe(first) }
+ while(flag) { borrow val second = view(source); observe(second); observe(second) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-sibling-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_no_carry_distinct_flags_false_edges_keep_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(flag1: Boolean, source: String, flag0: Boolean): Unit {
+ while(flag0) { borrow val first = view(source); observe(first) }
+ while(flag1) { borrow val second = view(source); observe(second); observe(second) }
+ while(flag0) { borrow val third = view(source); observe(third) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(false, source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-distinct-flags-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_no_carry_mixed_own_flags_false_edges_keep_source() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun run(flag1: Boolean, source: String, own flag0: Boolean): Unit {
+ while(flag0) { borrow val first = view(source); observe(first) }
+ while(flag1) { borrow val second = view(source); observe(second); observe(second) }
+ while(flag0) { borrow val third = view(source); observe(third) }
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(false, source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-mixed-own-flags-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_no_carry_source_segments_survive_false_edges() {
+    let text = r#"fun view(source: String): borrow String from source = source
+fun observe(item: String): Unit { println("unexpected-body") }
+fun before(source: String): Unit { println("pre"); println(source) }
+fun between(source: String): Unit { println("mid"); println(source) }
+fun after(source: String): Unit { println("tail"); println(source) }
+fun run(flag1: Boolean, source: String, own flag0: Boolean): Unit {
+ before(source)
+ while(flag0) { borrow val first = view(source); observe(first) }
+ between(source)
+ while(flag1) { borrow val second = view(source); observe(second) }
+ after(source)
+}
+fun take(own source: String): Unit { println(source) }
+fun entry() {
+ val source = "kept".clone()
+ run(false, source, false)
+ take(source)
+}"#;
+    let run = emit_link_and_run("no-carry-source-segments-false", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"pre\nkept\nmid\nkept\ntail\nkept\nkept\n");
+}
+
+#[test]
+fn native_loop_arm_no_carry_zero_iteration_preserves_source() {
+    // Selected while condition is a stable Boolean parameter. Passing true would
+    // not return normally; do not disguise timeout/abort as finite positive coverage.
+    let text = r#"fun view(source:String):borrow String from source=source
+fun consume(item:String):Unit { println("unexpected") }
+fun run(source:String,flag:Boolean,choose:Boolean):Unit {
+ while(flag) { if(choose) { borrow val a=view(source); consume(a) }
+ else { borrow val b=view(source); consume(b); consume(b) } }
+}
+fun take(own source:String):Unit { println(source) }
+fun entry() { val source="kept".clone(); run(source,false,true); run(source,false,false); take(source) }
+"#;
+    let run = emit_link_and_run("loop-arm-zero", text, "entry");
+    super::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
+fn native_counter_loop_arms_run_zero_one_two_then_return_source() {
+    let text = r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("left");println(item)}
+fun right(item:String):Unit {println("right");println(item)}
+fun run(source:String,rounds:Int,choose:Boolean):Unit {
+ var remaining=rounds
+ while(remaining>0) {
+  if(choose){borrow val a=view(source);left(a)}
+  else {borrow val b=view(source);right(b);right(b)}
+  remaining=remaining-1
+ }
+}
+fun take(own source:String):Unit {println(source)}
+fun entry() {
+ val source="kept".clone()
+ run(source,0,true);println("returned-0-left");println(source)
+ run(source,0,false);println("returned-0-right");println(source)
+ run(source,1,true);println("returned-1-left");println(source)
+ run(source,1,false);println("returned-1-right");println(source)
+ run(source,2,true);println("returned-2-left");println(source)
+ run(source,2,false);println("returned-2-right");println(source)
+ take(source)
+}"#;
+    let run = emit_link_and_run("counter-loop-arms-finite", text, "entry");
+    super::boxed_enum_tests::assert_success(&run,b"returned-0-left\nkept\nreturned-0-right\nkept\nleft\nkept\nreturned-1-left\nkept\nright\nkept\nright\nkept\nreturned-1-right\nkept\nleft\nkept\nleft\nkept\nreturned-2-left\nkept\nright\nkept\nright\nkept\nright\nkept\nright\nkept\nreturned-2-right\nkept\nkept\n");
+}
+
+#[test]
+fn native_counter_loop_reordered_own_parameters_preserve_source() {
+    let text = r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun run(own choose:Boolean,own rounds:Int,source:String):Unit {
+ var remaining=rounds
+ while(remaining>0) {
+  if(choose){borrow val a=view(source);left(a)}
+  else {borrow val b=view(source);right(b);right(b)}
+  remaining=remaining-1
+ }
+}
+fun take(own source:String):Unit {println(source)}
+fun entry() {
+ val source="kept".clone()
+ run(true,-1,source);run(false,-1,source);println("negative-returned");println(source)
+ run(true,0,source);run(false,0,source);println("zero-returned");println(source)
+ run(true,1,source);run(false,1,source);println("one-returned");println(source)
+ run(true,2,source);run(false,2,source);println("two-returned");println(source)
+ take(source)
+}"#;
+    let run = emit_link_and_run("counter-loop-own-reordered", text, "entry");
+    super::boxed_enum_tests::assert_success(&run,b"negative-returned\nkept\nzero-returned\nkept\nL\nkept\nR\nkept\nR\nkept\none-returned\nkept\nL\nkept\nL\nkept\nR\nkept\nR\nkept\nR\nkept\nR\nkept\ntwo-returned\nkept\nkept\n");
+}
+
+#[test]
+fn native_loop_arm_tail_break_runs_at_most_once_and_preserves_source() {
+    let text = r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun run(own choose:Boolean,source:String,own flag:Boolean):Unit {
+ while(flag){if(choose){borrow val a=view(source);left(a)}else{borrow val b=view(source);right(b);right(b)};break}
+ println("after-loop");println(source)
+}
+fun take(own source:String):Unit {println(source)}
+fun entry(){val source="kept".clone();run(true,source,false);run(false,source,false);println("zero");println(source);run(true,source,true);println("left-exited");println(source);run(false,source,true);println("right-exited");println(source);take(source)}"#;
+    let run = emit_link_and_run("arm-tail-break", text, "entry");
+    super::boxed_enum_tests::assert_success(
+        &run,
+        b"after-loop\nkept\nafter-loop\nkept\nzero\nkept\nL\nkept\nafter-loop\nkept\nleft-exited\nkept\nR\nkept\nR\nkept\nafter-loop\nkept\nright-exited\nkept\nkept\n",
+    );
+}
+
+#[test]
+fn native_loop_arm_tail_break_after_scalar_prefix_cfg() {
+    let text = r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun tick(own value:Int):Unit {}
+fun run(own choose:Boolean,source:String,own flag:Boolean):Unit {
+ if(choose){tick(1)}else{tick(2)}
+ while(flag){if(choose){borrow val a=view(source);left(a)}else{borrow val b=view(source);right(b);right(b)};break}
+ println("after-loop");println(source)
+}
+fun take(own source:String):Unit {println(source)}
+fun entry(){val source="kept".clone();run(true,source,false);run(false,source,false);println("zero");println(source);run(true,source,true);println("left-exited");println(source);run(false,source,true);println("right-exited");println(source);take(source)}"#;
+    let run = emit_link_and_run("arm-tail-break-prefix", text, "entry");
+    super::boxed_enum_tests::assert_success(
+        &run,
+        b"after-loop\nkept\nafter-loop\nkept\nzero\nkept\nL\nkept\nafter-loop\nkept\nleft-exited\nkept\nR\nkept\nR\nkept\nafter-loop\nkept\nright-exited\nkept\nkept\n",
+    );
+}
+
+#[test]
+fn native_loop_arm_tail_break_independent_prefix_parameter() {
+    let mut text = String::from(
+        r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun tick(own value:Int):Unit {}
+fun run(own flag:Boolean,own before:Boolean,source:String,own choose:Boolean):Unit {
+ if(before){tick(1)}else{tick(2)}
+ while(flag){if(choose){borrow val a=view(source);left(a)}else{borrow val b=view(source);right(b);right(b)};break}
+ println("after-loop");println(source)
+}
+fun take(own source:String):Unit {println(source)}
+fun entry(){val source="kept".clone();
+"#,
+    );
+    let mut expected = String::new();
+    for flag in [false, true] {
+        for before in [false, true] {
+            for choose in [false, true] {
+                text.push_str(&format!("run({flag},{before},source,{choose});\n"));
+                if flag {
+                    expected.push_str(if choose {
+                        "L\nkept\n"
+                    } else {
+                        "R\nkept\nR\nkept\n"
+                    });
+                }
+                expected.push_str("after-loop\nkept\n");
+            }
+        }
+    }
+    text.push_str("take(source)}");
+    expected.push_str("kept\n");
+    let run = emit_link_and_run("arm-tail-break-independent-prefix", &text, "entry");
+    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+}
+
+#[test]
+fn native_loop_arm_tail_break_mixed_modes_with_shared_bool_arguments() {
+    let mut text = String::from(
+        r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun tick(own value:Int):Unit {}
+fun take(own source:String):Unit {println(source)}
+"#,
+    );
+    let mut entry =
+        String::from("fun entry(){val source=\"kept\".clone();val yes=true;val no=false;\n");
+    let mut expected = String::new();
+    for mask in 0..8 {
+        let mode = |bit| if mask & bit != 0 { "own " } else { "" };
+        let (prefix, guard, arm) = (mode(1), mode(2), mode(4));
+        text.push_str(&format!(r#"fun run{mask}({guard}flag:Boolean,{prefix}before:Boolean,source:String,{arm}choose:Boolean):Unit {{
+ if(before){{tick(1)}}else{{tick(2)}}
+ while(flag){{if(choose){{borrow val a=view(source);left(a)}}else{{borrow val b=view(source);right(b);right(b)}};break}}
+ println("after-loop");println(source)
+}}
+"#));
+        entry.push_str(&format!("println(\"mode-{mask}\");\n"));
+        expected.push_str(&format!("mode-{mask}\n"));
+        for flag in [false, true] {
+            for before in [false, true] {
+                for choose in [false, true] {
+                    let name = |value| if value { "yes" } else { "no" };
+                    entry.push_str(&format!(
+                        "run{mask}({},{},source,{});\n",
+                        name(flag),
+                        name(before),
+                        name(choose)
+                    ));
+                    if flag {
+                        expected.push_str(if choose {
+                            "L\nkept\n"
+                        } else {
+                            "R\nkept\nR\nkept\n"
+                        });
+                    }
+                    expected.push_str("after-loop\nkept\n");
+                }
+            }
+        }
+    }
+    entry.push_str("take(source)}");
+    expected.push_str("kept\n");
+    text.push_str(&entry);
+    let run = emit_link_and_run("arm-tail-break-mixed-control-aliases", &text, "entry");
+    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+}

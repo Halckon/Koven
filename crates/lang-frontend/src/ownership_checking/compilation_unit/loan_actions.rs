@@ -109,6 +109,7 @@ pub struct UnitLoanActionObservation {
     pub(super) auxiliary_retirements: Vec<super::UnitLoanAuxiliaryRetirement>,
     pub(super) binding_use_set_retirements: Vec<super::UnitLoanBindingUseSetRetirement>,
     pub(super) multi_binding_regions: Vec<super::UnitBorrowMultiBindingRegion>,
+    pub(super) loop_invariant_lineages: Vec<super::UnitLoanLoopInvariantLineage>,
     pub(super) binding_use_sets: Vec<super::UnitLoanBindingUseSet>,
     pub(super) interleaved_auxiliary_regions: Vec<super::UnitBorrowInterleavedAuxiliaryRegion>,
     pub(super) auxiliary_sequence_regions: Vec<super::UnitBorrowAuxiliarySequenceRegion>,
@@ -251,6 +252,17 @@ impl UnitLoanActionObservation {
         r: &super::UnitLoanBindingUseSetRetirement,
     ) -> bool {
         Arc::ptr_eq(&self.identity, &r.use_set.identity)
+    }
+    /// Actual normal-loop boundary lineage; always Partial.
+    pub fn loop_invariant_lineages(&self) -> &[super::UnitLoanLoopInvariantLineage] {
+        &self.loop_invariant_lineages
+    }
+    /// Whether this product belongs to this exact catalog.
+    pub fn owns_loop_invariant_lineage(
+        &self,
+        lineage: &super::UnitLoanLoopInvariantLineage,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &lineage.identity)
     }
     /// Independent actual binding-use collections, with Partial coverage only.
     pub fn binding_use_sets(&self) -> &[super::UnitLoanBindingUseSet] {

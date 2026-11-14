@@ -14,6 +14,7 @@ pub(super) enum Domain {
     Entry,
 }
 pub(in super::super) struct Permit {
+    pub(super) key: Key,
     pub(super) index: usize,
     pub(super) block: BlockRef,
     pub(super) instruction: usize,
@@ -29,14 +30,18 @@ impl Builder<'_, '_> {
         value: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.counter_tail_plan else {
+        let Some(key) = self
+            .counter_tail_plan
+            .select(|p| p.binding_matches(initializer, symbol), span)?
+        else {
             return Ok(None);
         };
+        let plan = self.counter_tail_plan.get(key, span)?;
         let Some(index) = plan.evidence.steps().iter().position(|s| {
             s.call() == initializer
                 || s.returned_value_drop().target() == UnitDropTarget::Named(symbol)
         }) else {
-            return self.counter_entry_binding(initializer, symbol, value, span);
+            return self.counter_entry_binding(key, initializer, symbol, value, span);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         let step = &plan.evidence.steps()[index];
@@ -52,21 +57,24 @@ impl Builder<'_, '_> {
         ) {
             return Ok(None);
         }
-        self.counter_retirement_permit(index, value, span).map(Some)
+        self.counter_retirement_permit(key, index, value, span)
+            .map(Some)
     }
     fn counter_retirement_permit(
         &self,
+        key: Key,
         index: usize,
         source: Slot,
         span: Span,
     ) -> Result<Permit, LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        let plan = self.counter_tail_plan.as_ref().ok_or_else(fail)?;
+        let plan = self.counter_tail_plan.get(key, span)?;
         let block = self.block.ok_or_else(fail)?;
         if plan.geometry.map(|g| g[2]) != Some(block) {
             return Err(fail());
         }
         Ok(Permit {
+            key,
             domain: Domain::Body,
             index,
             source,
@@ -108,7 +116,7 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
-        let plan = self.counter_tail_plan.as_mut().ok_or_else(fail)?;
+        let plan = self.counter_tail_plan.get_mut(permit.key, span)?;
         if plan.chain[permit.index] != Stage::Replaced(permit.source) {
             return Err(fail());
         }
@@ -124,16 +132,20 @@ impl Builder<'_, '_> {
         slot: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.counter_tail_plan else {
+        let Some(key) = self
+            .counter_tail_plan
+            .select(|p| p.drop_matches(target), span)?
+        else {
             return Ok(None);
         };
+        let plan = self.counter_tail_plan.get(key, span)?;
         let Some(index) = plan
             .evidence
             .steps()
             .iter()
             .position(|s| s.returned_value_drop().target() == target)
         else {
-            return self.counter_exit_drop(fact_index, target, slot, span);
+            return self.counter_exit_drop(key, fact_index, target, slot, span);
         };
         let fail = || error(LoweringErrorKind::InvalidModel, span);
         if self.inputs.owned.drops().get(fact_index)
@@ -148,7 +160,8 @@ impl Builder<'_, '_> {
         ) {
             return Ok(None);
         }
-        self.counter_retirement_permit(index, slot, span).map(Some)
+        self.counter_retirement_permit(key, index, slot, span)
+            .map(Some)
     }
     pub(in super::super) fn counter_drop_emitted(
         &mut self,
@@ -168,7 +181,7 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
-        let plan = self.counter_tail_plan.as_mut().ok_or_else(fail)?;
+        let plan = self.counter_tail_plan.get_mut(permit.key, span)?;
         #[cfg(test)]
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::CounterDropDuplicateCommit,

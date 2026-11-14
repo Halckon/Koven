@@ -119,3 +119,61 @@ ownership，却在CG为UnsupportedNode、原verifier未运行。循环内临时b
 逆序清理、owner事件及一次性cause验证，随后规范化、去重并有序发布Drop事实。
 退出点选择、scope/branch/loop策略、receiver清理及liveness仍在原planner，模块
 拆分不改变任何执行或观察次序，也不扩大证书边界。
+
+后续普通while已支持一个窄合同：同父直线借用块的最后简单调用拥有唯一真实
+BindingEnd，且所有binding分别准入；while入口复核实际result/source义务已移除。
+Borrow参数原loan继续存活，owned source的新loan则在resultEnd后结束；不支持
+活loan跨循环或循环内借用，L0164保留。见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#闭合借用词法块之后的普通while实施中)。
+
+最小外层不变量while另允许：一次直接String借用返回acquire，body仅一次直接
+同步借用消费；唯一真实End在包围[binding,while]块。实际entry/header/回边/false/
+exit维持同一lease，SSA按边参数位置核source/result/owner来源；结束仅在出口，
+own source为resultEnd→sourceEnd→ownerDrop，Borrow参数不伪End。仍拒循环内
+acquire、jump、嵌套和多consumer，不新增通用循环receipt。见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#外层不变量借用while合同实施中)。
+
+上述不变量while现推广为非空动态直线consumer序列：每个调用独立满足原身份与
+同步Borrow合同，actual SSA逐call保持同一result loan并核callee顺序。无固定n
+枚举、无每call acquire；混root、空body、嵌套及jump仍拒，其他循环边界不变。
+
+不变量consumer序列尾现可接无条件continue：独立精确tail/while/frame检查包围
+原jump清理与Goto，核回到原header且lease不变；SSA证明确为continue而非额外
+normal回边。条件/嵌套continue、空consumer、break/return仍不在本合同内。
+
+尾部无条件break亦按独立JumpKind核frame.exit而非header，原ControlTransfer与
+LoopExit清理不绕过。实际无回边CFG中entry/header可折叠，break和false边携同一
+lease到共同exit，随后才End/Drop；条件break及return仍未纳入合同。
+
+尾部条件break现支持精确无else的`if(BooleanName){break}`，then仅break；true
+实际退出、false正常回边，分别核原清理后lease并在共同exit结束。内外条件可同
+symbol，独立资格只授予该binding的尾If，不泛放其他控制流。
+
+尾裸Unit return另用真实双End合同：精确Return的CT End和外围Block End，return
+实际清理完整区间与终结点由局部checkpoint核验；false仍依原sync_dead独立入口
+恢复活lease。两路径分别正确End/Drop，不把Diverged当作跳过检查的许可。
+
+尾条件continue复用精确ConditionalJump的显式kind，true实际Continue与false
+正常回边都到原header。最终SSA实测保留entry加两回边三前驱，逐source/result
+与条件参数身份核验；没有伪造折叠前边或新增独立循环receipt。
+
+独立FE `loop_invariant_lineages()`首片仅为本地字面量String owner、无jump普通
+while发布Partial关系：实际入口/被遍历body回交/正常退出/原BindingEnd及每consumer
+真实pending移除回交。Borrow/own参数旧记录没有Handoff，不伪造身份；常量、jump
+等新资格为空且旧行为保留。它不是循环每轮完整证明，也不是CG receipt；local
+三语句形状的后端资格仍需另接，不能以该关系自动放行。
+
+对应局部三语句的CG执行准入不依赖observer；独立loop receipt另限单Borrow Boolean
+参数及普通直接callee。实际producer记录literal→binding唯一Alias、source/result槽、
+条件和consumer、正常回边/false出口、最终End/Drop；实际fold仅合并false→exit。
+emitter固定真实定义与各block参数，逐边按slot身份核SSA运输，原verifier成功后才发布。
+owner模式条件或额外参数仍走原执行但无新receipt；此处仍引用FE Partial，不证明
+循环内新借用、任意迭代完整性、跳转、多根循环或终止性，也不退休旧见证。
+
+loop receipt另提供不依赖Plans/Slot/current的有限图复核：保留真实原边、fold和
+Alias证据，核完整Function块/指令/定义元数据与可达集合；从真实entry建立点传播
+owner/source/result/flag角色至固定点，并逐incoming及每块实际实体核保持关系。
+它封闭CG运输证书的漏覆盖边界，不重新验证FE catalog，不替代原SSA verifier，也
+不将一次planner遍历升级为完整FE循环生命周期。循环内新借用的独立准入见下文。
+
+
+循环内有限 no-carry 的生产合同、实际每轮关闭及研究边界，见
+[循环内 no-carry](loop-no-carry.md)。它不依赖上述 carried-loop receipt，也不退休旧见证。

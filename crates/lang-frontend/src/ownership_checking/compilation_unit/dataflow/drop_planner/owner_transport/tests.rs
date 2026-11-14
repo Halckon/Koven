@@ -545,7 +545,7 @@ fn result_action_observer_preserves_nonempty_handoff_and_end_products() {
         let mut observed = super::super::plan_with_observations(checker, true, true).unwrap();
         let disabled = super::super::plan_with_observations(checker, true, false).unwrap();
         assert_eq!(observed.borrow_call_handoffs.len(), 1);
-        assert_eq!(observed.borrow_ends.len(), 2);
+        assert_eq!(observed.no_carry.ends.len(), 2);
         assert!(
             observed.loan_action_observations[0]
                 .actions()

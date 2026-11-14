@@ -8,16 +8,22 @@ pub(super) use loops::{
     InvariantLoopBoundaries, InvariantLoopValueV1, LoopBodyCompletion, LoopBranchCompletion,
     LoopBranchExit, publish_observations,
 };
+pub(in crate::ownership_checking::compilation_unit) use loops::{
+    PrivateChainMember, PrivateControlChain,
+};
 pub use loops::{
+    UnitOwnerBridgeCounterEntryV1, UnitOwnerBridgeCounterTailV1, UnitOwnerChildGenerationRuleV1,
     UnitOwnerClosedLoopBatchV1, UnitOwnerConditionalBreakBackedgeV1,
     UnitOwnerConditionalReturnBackedgeV1, UnitOwnerContinueArmBoundaryV1,
-    UnitOwnerContinueBackedgeV1, UnitOwnerCounterBatchEvidenceV1, UnitOwnerCounterTailEvidenceV1,
-    UnitOwnerHeaderSourceV1, UnitOwnerInvariantBreakObservationV1,
+    UnitOwnerContinueBackedgeV1, UnitOwnerControlBridgeEvidenceV1, UnitOwnerControlChainBodiesV1,
+    UnitOwnerControlChainBodyV1, UnitOwnerControlChainLeadingV1, UnitOwnerCounterBatchEvidenceV1,
+    UnitOwnerCounterTailEvidenceV1, UnitOwnerHeaderSourceV1, UnitOwnerInvariantBreakObservationV1,
     UnitOwnerInvariantLoopObservationV1, UnitOwnerInvariantMixedJoinObservationV1,
     UnitOwnerInvariantNormalJoinObservationV1, UnitOwnerInvariantSplitContinueObservationV1,
     UnitOwnerInvariantSplitExitObservationV1, UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1,
     UnitOwnerLoopEdgeV1, UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1,
     UnitOwnerMixedBackedgeV1, UnitOwnerMultiRootBoundaryV1, UnitOwnerMultiRootNormalTransportV1,
+    UnitOwnerNestedNormalBodyV1, UnitOwnerNestedParentBoundaryV1, UnitOwnerNestedResumeWriteV1,
     UnitOwnerNormalArmBoundaryV1, UnitOwnerNormalBackedgeV1, UnitOwnerNormalBindDropV1,
     UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1,
     UnitOwnerReplaceBreakCallActionV1, UnitOwnerReplaceBreakCallConsumerV1,
@@ -25,7 +31,7 @@ pub use loops::{
     UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakReturnActionV1,
     UnitOwnerReplaceBreakReturnConsumerV1, UnitOwnerReplaceBreakStateV1, UnitOwnerReturnActionV1,
     UnitOwnerReturnEndpointV1, UnitOwnerRootBoundarySlotV1, UnitOwnerRootEdgeV1,
-    UnitOwnerRootExitPartitionV1, UnitOwnerRootReplaceStepV1,
+    UnitOwnerRootExitPartitionV1, UnitOwnerRootGenerationRuleV1, UnitOwnerRootReplaceStepV1,
 };
 pub(super) mod values;
 pub use values::{
@@ -84,6 +90,15 @@ pub enum UnitOwnerOrigin {
     Parameter(UnitSymbolId),
     /// Completed non-interpolated String construction.
     String(UnitExpressionId),
+    /// Completed entry-only concatenation; both literal temporaries were cleaned.
+    StringConcat {
+        /// Actual completed Add expression.
+        expression: UnitExpressionId,
+        /// Actual left literal, cleaned after both operands completed.
+        left: UnitExpressionId,
+        /// Actual right literal, cleaned after both operands completed.
+        right: UnitExpressionId,
+    },
     /// Completed leaf move-closure environment with owned String captures.
     Closure(UnitExpressionId),
 }
@@ -275,6 +290,9 @@ pub struct UnitOwnerObservation {
     pub(super) definitions: Vec<UnitOwnerDefinition>,
     pub(super) events: Vec<UnitOwnerTransportEvent>,
     pub(super) choice_value: Option<Box<UnitOwnerValueObservationV1>>,
+    pub(super) control_bridge: Option<Box<UnitOwnerControlBridgeEvidenceV1>>,
+    pub(super) nested_normal: Option<Box<UnitOwnerNestedNormalBodyV1>>,
+    pub(super) private_control_chain: Option<Box<PrivateControlChain>>,
     pub(super) counter_batch: Option<Box<UnitOwnerCounterBatchEvidenceV1>>,
     pub(super) counter_tail: Option<Box<UnitOwnerCounterTailEvidenceV1>>,
     pub(super) multi_root_boundary: Option<Box<UnitOwnerMultiRootBoundaryV1>>,

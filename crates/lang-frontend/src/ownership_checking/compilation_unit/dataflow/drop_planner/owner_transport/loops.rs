@@ -4,6 +4,7 @@ mod control_scope;
 mod control_transactions;
 mod counter_batch;
 mod counter_segment;
+mod nested;
 pub(in super::super) use control_scope::ControlStack;
 #[cfg(test)]
 pub(in super::super) use control_scope::ControlVisit;
@@ -613,6 +614,7 @@ impl DropPlanner<'_, '_> {
         is_continue: bool,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        self.no_carry_transfer_before(id, is_continue, state);
         let boundary = self.loop_boundaries.last().copied().unwrap_or(0);
         self.end_iteration_pending_loans(
             PlannerDropPoint::ControlTransfer(id),
@@ -626,6 +628,7 @@ impl DropPlanner<'_, '_> {
             state,
         );
         self.finish_jump_iteration(id, state)?;
+        self.no_carry_transfer_after(id, is_continue, state);
         self.finish_owner_loop_jump(id, is_continue, state);
         Ok(false)
     }
@@ -700,6 +703,7 @@ impl DropPlanner<'_, '_> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
+        let mut loop_lineage = self.begin_loop_invariant_observation(id, condition, body, state);
         self.owner_loop.record_root_condition(
             UnitStatementId::new(self.checker.source_unit, id),
             self.checker.unit_expression(condition),
@@ -729,6 +733,10 @@ impl DropPlanner<'_, '_> {
                 UnitStatementId::new(self.checker.source_unit, body),
                 state,
             );
+            self.owner_loop.begin_bridge_normal(
+                self.checker,
+                UnitStatementId::new(self.checker.source_unit, id),
+            );
             let mut body_state = state.clone();
             // The private body sink has a fresh catalog, never aliases the callable catalog,
             // and is not pushed as an extra callable observation.
@@ -756,6 +764,9 @@ impl DropPlanner<'_, '_> {
                         closed_loop_batch: None,
                         counter_tail: None,
                         counter_batch: None,
+                        control_bridge: None,
+                        private_control_chain: None,
+                        nested_normal: None,
                         multi_root_boundary: None,
                         open_loop_value: None,
                     }),
@@ -765,8 +776,17 @@ impl DropPlanner<'_, '_> {
             } else {
                 None
             };
+            self.advance_loop_invariant_observation(&mut loop_lineage, &body_state, 1, true);
+            self.no_carry_exit_begin(id, body, &body_state);
             self.loop_boundaries.push(self.scope_depth);
             let continued = self.statement(body, &mut body_state);
+            self.no_carry_body_cleaned(id, body, &body_state, matches!(continued, Ok(false)));
+            self.advance_loop_invariant_observation(
+                &mut loop_lineage,
+                &body_state,
+                2,
+                matches!(continued, Ok(true)),
+            );
             self.owner_loop.record_root_fallthrough(
                 UnitStatementId::new(self.checker.source_unit, id),
                 &body_state,
@@ -845,6 +865,8 @@ impl DropPlanner<'_, '_> {
             return Ok(false);
         }
         self.drop_root_loop_exit(id, condition, state);
+        self.no_carry_exit_cleaned(id, state);
+        self.complete_loop_invariant_observation(loop_lineage, state);
         if collecting
             && self.owner_loop.as_ref().is_some_and(|t| t.normal.is_some())
             && let Some((collected, _)) = replacement_body.take()

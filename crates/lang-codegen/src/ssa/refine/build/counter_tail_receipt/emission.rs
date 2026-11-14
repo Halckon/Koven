@@ -2,6 +2,7 @@
 use super::*;
 
 pub(in super::super) struct ReplacePermit {
+    key: Key,
     index: usize,
     call: UnitExpressionId,
     root: Slot,
@@ -17,9 +18,14 @@ impl Builder<'_, '_> {
         replacement: Slot,
         span: Span,
     ) -> Result<Option<ReplacePermit>, LoweringError> {
-        let Some(plan) = &self.counter_tail_plan else {
+        let Some(key) = self.counter_tail_plan.select(
+            |p| p.evidence.steps().iter().any(|s| s.call() == call),
+            span,
+        )?
+        else {
             return Ok(None);
         };
+        let plan = self.counter_tail_plan.get(key, span)?;
         let Some(index) = plan.evidence.steps().iter().position(|s| s.call() == call) else {
             return Ok(None);
         };
@@ -51,6 +57,7 @@ impl Builder<'_, '_> {
             return Ok(None);
         }
         Ok(Some(ReplacePermit {
+            key,
             index,
             call,
             root,
@@ -72,6 +79,7 @@ impl Builder<'_, '_> {
         #[cfg(test)]
         let permit = {
             let mut permit = permit;
+            self.counter_tail_plan.corrupt_key(&mut permit.key);
             if owner_consumer_test_support::take_fault(
                 owner_consumer_test_support::OwnerFault::CounterReplaceWrongRoot,
             ) {
@@ -90,15 +98,19 @@ impl Builder<'_, '_> {
         {
             return Err(fail());
         }
-        let plan = self.counter_tail_plan.as_mut().ok_or_else(fail)?;
+        let plan = self.counter_tail_plan.get_mut(permit.key, span)?;
         #[cfg(test)]
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::CounterReplaceDuplicateCommit,
         ) {
             plan.chain[permit.index] = retirement::Stage::Dropped;
         }
-        if plan.chain[permit.index] != retirement::Stage::Ready
-            || plan.evidence.steps()[permit.index].call() != permit.call
+        if plan.chain.get(permit.index) != Some(&retirement::Stage::Ready)
+            || plan
+                .evidence
+                .steps()
+                .get(permit.index)
+                .is_none_or(|step| step.call() != permit.call)
         {
             return Err(fail());
         }

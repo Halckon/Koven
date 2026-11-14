@@ -47,6 +47,17 @@ impl PartialEq for PendingBindingTransport {
 }
 impl Eq for PendingBindingTransport {}
 impl PendingBindingTransport {
+    pub(super) fn loop_obligation(
+        &self,
+        binding: UnitSymbolId,
+    ) -> Option<(&UnitLoanFact, &ActionHandle, &ActionHandle)> {
+        (self.binding == binding).then_some(())?;
+        Some((
+            &self.source,
+            self.source_begin.as_ref()?,
+            self.handoff.as_ref()?,
+        ))
+    }
     pub(super) fn activate_use_set(&mut self, actions: &mut super::action_source::ActionSource) {
         self.use_set = actions.activate_binding_use_set(
             self.binding,

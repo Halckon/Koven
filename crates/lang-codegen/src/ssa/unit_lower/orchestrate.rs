@@ -47,6 +47,12 @@ fn lower_unit_impl(
     #[cfg(test)]
     let bounded_publication = crate::ssa::refine::bounded_receipt::UnitPublication::begin();
     #[cfg(test)]
+    let loop_publication = crate::ssa::refine::loop_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let fresh_loop_publication = crate::ssa::refine::fresh_loop_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let arm_loop_publication = crate::ssa::refine::arm_loop_receipt::UnitPublication::begin();
+    #[cfg(test)]
     let single_publication = crate::ssa::refine::single_receipt::UnitPublication::begin();
     #[cfg(test)]
     let multi_publication = crate::ssa::refine::multi_receipt::UnitPublication::begin();
@@ -867,6 +873,10 @@ fn lower_unit_impl(
         crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
     }
 
+    #[cfg(test)]
+    crate::ssa::refine::fresh_loop_receipt::before_final_verifier(&mut program);
+    #[cfg(test)]
+    crate::ssa::refine::arm_loop_receipt::before_final_verifier(&mut program);
     let verification = verify_program(&program);
     #[cfg(test)]
     pr120_verifier_diagnostics::record_final_probe(&program, &verification);
@@ -891,6 +901,12 @@ fn lower_unit_impl(
     nested_publication.commit();
     #[cfg(test)]
     bounded_publication.commit();
+    #[cfg(test)]
+    loop_publication.commit();
+    #[cfg(test)]
+    fresh_loop_publication.commit();
+    #[cfg(test)]
+    arm_loop_publication.commit();
     #[cfg(test)]
     single_publication.commit();
     #[cfg(test)]

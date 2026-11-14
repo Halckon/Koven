@@ -10,33 +10,62 @@ use lang_frontend::type_checking::check_compilation_unit_types;
 fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
     for (name, body) in [
         (
-            "outer-binding",
-            "borrow val item = view(source); while (flag) { consume(item); break }",
+            "outer-binding-conditional-break",
+            "borrow val item = view(source); while (flag) { consume(item); if (flag) { break } else {} }",
         ),
         (
-            "outer-binding-continue",
-            "borrow val item = view(source); while (flag) { consume(item); continue }",
+            "outer-binding-conditional-continue",
+            "borrow val item = view(source); while (flag) { consume(item); if (flag) { continue } else {} }",
         ),
         (
             "outer-binding-return",
-            "borrow val item = view(source); while (flag) { consume(item); return }",
+            "borrow val item = view(source); while (flag) { consume(item); if (flag) { return } }",
         ),
         (
             "outer-binding-zero",
-            "borrow val item = view(source); while (false) { consume(item) }",
+            "borrow val item = view(source); while (false) { consume(item); consume(source) }",
         ),
         (
             "lexical-end-before-loop",
             "{ borrow val item = view(source); consume(item) }; while (flag) { consume(source); break }",
         ),
         (
+            "lexical-end-before-loop-continue",
+            "{ borrow val item = view(source); consume(item) }; while (flag) { consume(source); continue }",
+        ),
+        (
+            "lexical-end-before-loop-zero",
+            "{ borrow val item = view(source); consume(item) }; while (false) { consume(source); break }",
+        ),
+        (
+            "lexical-end-before-loop-owned",
+            "{ borrow val item = view(source); consume(item) }; while (flag) { consume(source); break }",
+        ),
+        (
             "temporary-in-loop",
             "while (flag) { consume(view(source)); break }",
         ),
+        (
+            "same-scope-end",
+            "borrow val item = view(source); consume(item); while (flag) { consume(source); break }",
+        ),
+        (
+            "different-parent",
+            "{{ borrow val item = view(source); consume(item) }}; while (flag) { consume(source); break }",
+        ),
+        (
+            "active-sibling",
+            "borrow val live = view(source); { borrow val item = view(source); consume(item) }; while (flag) { consume(live); break }",
+        ),
+        (
+            "non-last-end",
+            "{ borrow val item = view(source); consume(item); consume(source) }; while (flag) { consume(source); break }",
+        ),
         ("plain-call-loop", "while (flag) { consume(source); break }"),
     ] {
+        let source_mode = if name.ends_with("-owned") { "own " } else { "" };
         let text = format!(
-            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun run(source: String, flag: Boolean): Unit {{ {body} }}"
+            "fun view(source: String): borrow String from source = source\nfun consume(item: String): Unit {{}}\nfun run({source_mode}source: String, flag: Boolean): Unit {{ {body} }}"
         );
         let mut sources = SourceMap::new();
         let (source, parsed) =
@@ -93,7 +122,9 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
                         &sources, &inputs, &names, &types, &typed, owned, entry,
                     )
                 });
-                let summary = if name == "plain-call-loop" {
+                let summary = if name == "plain-call-loop"
+                    || name.starts_with("lexical-end-before-loop")
+                {
                     let (program, _) = result
                         .unwrap_or_else(|error| panic!("{name}/{layout}/{setting}: {error:?}"));
                     assert_eq!(verified.len(), 1);
@@ -111,7 +142,7 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
                                 Operation::BorrowCall { .. }
                             ))
                             .count(),
-                        0
+                        usize::from(name.starts_with("lexical-end-before-loop"))
                     );
                     assert_eq!(
                         run.instructions
@@ -121,9 +152,97 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
                                 Operation::DirectCall { .. }
                             ))
                             .count(),
-                        1
+                        1 + usize::from(name.starts_with("lexical-end-before-loop"))
                     );
-                    assert!(run.blocks.len() > 1);
+                    if name.starts_with("lexical-end-before-loop") {
+                        let borrowed = run
+                            .instructions
+                            .iter()
+                            .find(|instruction| {
+                                matches!(instruction.operation, Operation::BorrowCall { .. })
+                            })
+                            .unwrap();
+                        let [EntityId::Loan(result)] = borrowed.results.as_slice() else {
+                            panic!("one returned result loan");
+                        };
+                        let ends = run.instructions.iter().filter(|instruction| matches!(instruction.operation, Operation::BorrowEnd { loan } if loan == *result)).collect::<Vec<_>>();
+                        let [end] = ends.as_slice() else {
+                            panic!("one actual result end");
+                        };
+                        let Operation::BorrowCall {
+                            source: source_loan,
+                            ..
+                        } = borrowed.operation
+                        else {
+                            unreachable!()
+                        };
+                        let source_ends = run.instructions.iter().filter(|instruction| matches!(instruction.operation, Operation::BorrowEnd { loan } if loan == source_loan)).collect::<Vec<_>>();
+                        if name.ends_with("-owned") {
+                            let [source_end] = source_ends.as_slice() else {
+                                panic!("owned source call loan ends once");
+                            };
+                            assert_eq!(source_end.block, end.block);
+                            let block = run
+                                .blocks
+                                .iter()
+                                .find(|block| block.id == end.block)
+                                .unwrap();
+                            assert!(
+                                block
+                                    .instructions
+                                    .iter()
+                                    .position(|id| *id == end.id)
+                                    .unwrap()
+                                    < block
+                                        .instructions
+                                        .iter()
+                                        .position(|id| *id == source_end.id)
+                                        .unwrap()
+                            );
+                        } else {
+                            assert!(
+                                source_ends.is_empty(),
+                                "caller parameter loan is not owned by the local result"
+                            );
+                            assert!(matches!(
+                                run.entity(EntityId::Loan(source_loan)).unwrap().definition,
+                                Definition::BlockParameter { .. }
+                            ));
+                        }
+                        assert_eq!(end.block, borrowed.block);
+                        let block = run
+                            .blocks
+                            .iter()
+                            .find(|block| block.id == end.block)
+                            .unwrap();
+                        assert!(
+                            block
+                                .instructions
+                                .iter()
+                                .position(|id| *id == borrowed.id)
+                                .unwrap()
+                                < block
+                                    .instructions
+                                    .iter()
+                                    .position(|id| *id == end.id)
+                                    .unwrap()
+                        );
+                        for call in run
+                            .instructions
+                            .iter()
+                            .filter(|instruction| instruction.block != end.block)
+                        {
+                            if let Operation::DirectCall { arguments, .. } = &call.operation {
+                                assert!(
+                                    !arguments.contains(&EntityId::Loan(*result)),
+                                    "closed result never crosses into loop"
+                                );
+                            }
+                        }
+                    }
+                    if !name.ends_with("-zero") {
+                        assert!(run.blocks.len() > 1);
+                    }
                     format!(
                         "{verified:?}\n{}",
                         crate::llvm::render_verified_program(&program).unwrap()
@@ -139,6 +258,10 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
                     assert_eq!(span.source_id(), source);
                     let expected = if name == "outer-binding-return" {
                         "return"
+                    } else if name == "outer-binding-conditional-break" {
+                        "if (flag) { break } else {}"
+                    } else if name == "outer-binding-conditional-continue" {
+                        "if (flag) { continue } else {}"
                     } else {
                         &body[body.find("while").unwrap()..]
                     };

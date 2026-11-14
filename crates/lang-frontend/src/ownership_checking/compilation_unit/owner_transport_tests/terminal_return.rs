@@ -128,7 +128,7 @@ fn terminal_if_paths_retire_each_actual_owner_and_capture_once() {
                 let owner = definition.id();
                 let formed = match definition.origin() {
                     UnitOwnerOrigin::Parameter(_) => true,
-                    UnitOwnerOrigin::String(origin) => path.iter().any(|event| matches!(event,
+                    UnitOwnerOrigin::String(origin) | UnitOwnerOrigin::StringConcat { expression: origin, .. } => path.iter().any(|event| matches!(event,
                         UnitOwnerTransportEvent::Result { expression, owner: actual }
                         if *expression == origin && *actual == owner)),
                     UnitOwnerOrigin::Closure(_) => path.iter().any(|event| matches!(event,
