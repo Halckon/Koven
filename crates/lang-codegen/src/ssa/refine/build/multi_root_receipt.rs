@@ -113,6 +113,7 @@ impl Builder<'_, '_> {
         blocks: [BlockRef; 4],
         span: Span,
     ) -> Result<(), LoweringError> {
+        self.control_bridge_while(statement, condition, body, blocks)?;
         self.counter_tail_while(statement, condition, body, blocks)?;
         let Some(plan) = &mut self.multi_root_plan else {
             return Ok(());

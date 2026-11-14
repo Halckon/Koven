@@ -14,7 +14,7 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
 - ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop、control-flow 合并及[borrowed closure owned escape](borrowed-closure-escape.md)。闭包形成与实际析构检查同一 capture loan 的唯一活跃持有者。外部派生 loan 存活时拒绝释放父捕获或经父 loan 写入。
 
-未经验证的 SSA 不进入 LLVM adapter。renderer 只用于确定性调试和测试，不是稳定序列化协议。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
+未经验证的 SSA 不进入 LLVM adapter。SPEC-0341 的[空体标量前缀](../specs/active/0341-shared-lowering-core.md#已批准的-tail-break-独立标量前缀扩展2026-11-13)以独立事实和实际 CFG/资源参数运输证据接入有界 tail-break，不授权一般前缀。renderer 只用于确定性调试和测试，不是稳定序列化协议。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
 
 顺序容器的 `ContainerLength` 接受 Value 或 active shared Loan；verifier 拒绝 exclusive、失效和错误 target 的 loan。source `.size`与unit String读取见[接入边界](unit-container-storage.md#source-size与unit-string读取)。
 结果是 signed i32 Koven `Int`，LLVM header 用 target `size_t`；借用读取按创建不变量转为 i32。list-form 与 runtime-length 创建共用目标位宽的 logical length 上限。

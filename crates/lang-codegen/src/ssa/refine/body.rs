@@ -827,6 +827,8 @@ pub(super) enum LoanTag {
 
 #[derive(Clone, Debug)]
 pub(super) struct RStmt {
+    pub(super) loop_tag: Option<super::loop_receipt::Tag>,
+    pub(super) fresh_loop_tag: Option<(usize, super::fresh_loop_receipt::Tag)>,
     pub(super) loan_tag: Option<LoanTag>,
     pub(super) op: ROp,
     pub(super) results: Vec<Slot>,
@@ -939,6 +941,20 @@ pub(super) struct RBlock {
 /// Block 0 is the function entry; `parameters` are defined there.
 #[derive(Clone, Debug, Default)]
 pub(super) struct RefinedBody {
+    pub(super) child_cycle_plans: super::child_cycle_receipt::Plans,
+    pub(super) nested_body_plans: super::nested_body_receipt::Plans,
+    pub(super) nested_resume_plans: super::nested_resume_receipt::Plans,
+    pub(super) nested_exit_plans: super::nested_exit_receipt::Plans,
+    pub(super) owner_bridge_plans: super::control_bridge_receipt::Plans,
+    pub(super) loop_plans: super::loop_receipt::Plans,
+    pub(super) fresh_loop_plans: super::fresh_loop_receipt::Plans,
+    pub(super) arm_loop_plans: super::arm_loop_receipt::Plans,
+    pub(super) arm_loop_required: Vec<lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact>,
+    pub(super) arm_prefix_required: Vec<lang_frontend::ownership_checking::UnitLoopBreakPrefixFact>,
+    pub(super) arm_break_required:
+        Vec<lang_frontend::ownership_checking::UnitLoopBreakBranchNoCarryFact>,
+    pub(super) arm_counter_required:
+        Vec<lang_frontend::ownership_checking::UnitLoopCounterBranchNoCarryFact>,
     pub(super) loan_plans: super::loan_receipt::Plans,
     pub(super) receiver_plans: super::receiver_receipt::Plans,
     pub(super) named_plans: super::named_receipt::Plans,

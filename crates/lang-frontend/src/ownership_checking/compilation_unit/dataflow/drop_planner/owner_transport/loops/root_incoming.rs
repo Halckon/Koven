@@ -3,9 +3,10 @@ use super::*;
 use crate::ownership_checking::UnitOwnerProducerCatalogV1;
 #[cfg(test)]
 pub(in super::super) use root_tokens::StaticRootPredecessor;
+pub(super) mod body_plan;
 mod guard_reset;
-mod root_exit;
-mod root_suffix;
+pub(super) mod root_exit;
+pub(super) mod root_suffix;
 pub(super) mod root_tokens;
 pub(super) type RootRetirements = Vec<(
     UnitSymbolId,
@@ -35,6 +36,11 @@ pub(super) struct RootEvidence {
     pub(super) entered_body: Option<(UnitExpressionId, UnitStatementId)>,
     normal_backedge: bool,
     tainted: bool,
+}
+impl RootEvidence {
+    pub(super) fn suffix_mut(&mut self) -> Option<&mut root_suffix::RootSuffix> {
+        self.suffix.as_mut()
+    }
 }
 #[cfg(test)]
 impl RootEvidence {
@@ -138,6 +144,9 @@ impl ControlTransactions {
         condition: UnitExpressionId,
         state: &ValueState,
     ) {
+        self.parent_condition(control, condition, state);
+        self.nested_condition(control, condition, state);
+        self.record_bridge_condition(control, condition, state);
         let independent_preserved = self.segment_condition(control, condition, state);
         if let Some((_, evidence)) = self
             .root_entries
@@ -173,6 +182,9 @@ impl ControlTransactions {
         if root_tokens::skip_body_entry() {
             return;
         }
+        self.parent_body_entry(control, condition, body, state);
+        self.nested_body_entry(control, condition, body, state);
+        self.record_bridge_body_entry(control, condition, body, state);
         if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
             evidence.entered_body = (evidence.after_condition
                 && !evidence.tainted
@@ -188,6 +200,7 @@ impl ControlTransactions {
         state: &ValueState,
         normal: bool,
     ) {
+        self.parent_backedge(control, state, normal);
         if let Some((_, evidence)) = self
             .root_entries
             .iter_mut()
@@ -214,6 +227,13 @@ impl ControlTransactions {
         normal: bool,
         facts: &[PlannerDropFact],
     ) {
+        #[cfg(test)]
+        let skip_nested_finish = self.nested_skip_finish(control);
+        #[cfg(not(test))]
+        let skip_nested_finish = false;
+        if !skip_nested_finish && let Some(body) = self.bridge_body_mut(control) {
+            body.finish(state, normal);
+        }
         if let Some((_, evidence)) = self.root_entries.iter_mut().find(|(id, _)| *id == control) {
             if !normal
                 || !evidence
@@ -249,6 +269,9 @@ impl ControlTransactions {
         state: &ValueState,
         observation: Option<&UnitOwnerObservation>,
     ) {
+        if let Some(leading) = &mut self.leading_entry {
+            leading.enter(control);
+        }
         // Never retain a stale partial capture if this control cannot be recaptured.
         self.root_entries.retain(|(key, _)| *key != control);
         if self.root_branches_invalid {

@@ -4,10 +4,16 @@
 //! During migration `lower_owned_unit_with_entry` routes a function instance here only
 //! when [`accepts`] proves its whole body lies inside the migrated subset. Once routed,
 //! a failure is an error; there is no fallback to the per-family lowering.
+pub(crate) mod arm_loop_receipt;
 mod body;
 pub(in crate::ssa) mod build;
+mod child_cycle_receipt;
+mod control_bridge_receipt;
+mod nested_body_receipt;
+mod nested_exit_receipt;
+mod nested_resume_receipt;
 #[cfg(test)]
-pub(crate) use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::owner_consumer_test_support::{
+pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
 pub(crate) mod bounded_receipt;
@@ -15,7 +21,9 @@ pub(crate) mod branch_receipt;
 pub(crate) mod child_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
+pub(crate) mod fresh_loop_receipt;
 pub(crate) mod loan_receipt;
+pub(crate) mod loop_receipt;
 pub(crate) mod multi_receipt;
 pub(crate) mod nested_receipt;
 pub(crate) mod receiver_receipt;

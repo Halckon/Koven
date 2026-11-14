@@ -233,6 +233,34 @@
 | fmt、Rust 尺寸门禁 | 均退出码 0；内联宿主 955 行 |
 | 独立只读审查 | 核对三个旧文件、完整 diff、挂载、private helper 来源、fixture、cfg 与位置敏感风险，未发现本候选的具体问题 |
 
-当前原清单物理删除进度为 **128/129**，剩余 nullable Rc 文件继续待办。
+`0cf1d025` 检查点的原清单物理删除进度为 **128/129**，当时剩余 nullable Rc 文件待办。
 125 项既有迁移的完整性、原总文件数目标、完整回归与双宿主 CI 仍须验收；本 Spec 保持
 `in-progress`，不以本轮三个模块的有界通过替代整批验收。
+
+### 4.2 同步 PR421 与新 owner/borrow 主干后的职责文件恢复
+
+以 `4855b620` 为集成输入，同步 PR421 `9526753c`（含 main `3b7a9a7a`）。唯一
+modify/delete 冲突是 `native_borrow_result_tests.rs`：此前的 18 个测试已内联到
+`native_boxed_enum_tests.rs::borrow_result_tests`；新主干在原职责文件追加 12 个真实
+native loop 用例，源文件从 271 行增为 568 行。继续内联会让当时 868 行父文件增长到
+约 1165 行，违反尺寸护栏。因此恢复 canonical 文件，正文与 PR421 输入逐字节相同；
+删除旧内联副本，把 `native_tests::borrow_result_tests` 从 re-export 改回直接模块声明。
+没有复制测试、删掉新增矩阵或塞到无关宿主。
+
+原有 helper 接口仍在 `native_tests::borrow_result_tests`；实际 libtest 路径回到 main
+的 `native_tests::borrow_result_tests::*`。全清单发现 3269 项 feature 测试，末尾名称的
+多重集与新 PR421 完全一致，但清单不证明执行通过。独立只读审查核对 18 旧 + 12 新测试、
+两个内部 helper、fixture 入口、`super` 作用域及精确 FQN 引用，未发现本轮具体问题。
+
+| 验证 | 实际结果 |
+|---|---|
+| feature all-targets check | 退出码 0 |
+| 原 borrow native 全模块、三组 owner 与 local reassignment 合选 | 300 秒超时，45 项中观察到 42 项 passed，无观察到失败；缺少汇总，不计整组通过 |
+| 收窄至新增 12 项 borrow native、原三组 owner 9 项、local reassignment 6 项 | 默认与 feature 均 27 passed / 0 failed / 0 ignored，退出码均 0 |
+| 默认与 feature 的 all-targets Clippy（`-D warnings`） | 均退出码 0 |
+| fmt、文档、Rust 尺寸门禁 | 均退出码 0；恢复文件 568 行、原 boxed 宿主降为 590 行，不提高上限 |
+
+当前物理进度回调为 **127/129**，保留 `native_nullable_rc_proof_tests.rs` 与
+`native_borrow_result_tests.rs` 两个职责文件。0451 的 21 项及 0453 的 7 项保留决定不变，
+三个 Spec 合计保留 30 个原目标路径；该数量不是语义验收。本 Spec 继续 `in-progress`，
+完整回归、既有迁移审计与双宿主 CI 尚未完成，不归档。

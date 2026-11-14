@@ -317,6 +317,7 @@ impl Builder<'_, '_> {
         self.sync_dead();
         self.dead.remove(&symbol);
         self.push(ROp::Alias { source: slot }, vec![binding], span)?;
+        self.arm_counter_alias(symbol, value, slot, binding, false, span)?;
         self.narrowed.remove(&symbol);
         Ok(Lowered::Unit)
     }
@@ -549,6 +550,7 @@ impl Builder<'_, '_> {
             let value = value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
             return self.lower_carrier_return(expression, value, span);
         }
+        let invariant = self.invariant_return_entry(expression, value, span)?;
         let result = match value {
             Some(value) => {
                 let saved_expected = self.expected_nullable;
@@ -583,6 +585,7 @@ impl Builder<'_, '_> {
         self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
         let unit_return = self.is_unit(self.inputs.return_type);
         self.owner_return(expression, result, unit_return, span)?;
+        self.invariant_return_emitted(invariant.as_ref(), span)?;
         Ok(Lowered::Diverged)
     }
 }
@@ -900,12 +903,26 @@ pub(in crate::ssa::refine::build) mod field {
             self.owner_binding_authorization(self.unit(initializer), symbol, value, span)?;
             let counter =
                 self.counter_binding_authorization(self.unit(initializer), symbol, value, span)?;
+            let bridge =
+                self.bridge_binding_authorization(self.unit(initializer), symbol, value, span)?;
+            let suffix = self.bridge_suffix_binding(self.unit(initializer), symbol, value, span)?;
+            let entry = self.bridge_entry_binding(self.unit(initializer), symbol, value, span)?;
+            if (entry.is_some() && (suffix.is_some() || bridge.is_some() || counter.is_some()))
+                || (suffix.is_some() && (bridge.is_some() || counter.is_some()))
+                || (bridge.is_some() && counter.is_some())
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
             let binding = self.value(
                 ROp::Alias { source: value },
                 crate::ssa::model::EntityType::Value(ty),
                 span,
             )?;
+            self.arm_counter_alias(symbol, initializer, value, binding, true, span)?;
             self.counter_binding_emitted(counter, binding, span)?;
+            self.bridge_emitted(bridge, Some(binding), span)?;
+            self.bridge_suffix_emitted(suffix, Some(binding), span)?;
+            self.bridge_entry_emitted(entry, binding, span)?;
             self.bindings.insert(symbol, binding);
             self.owner_binding_emitted(symbol, binding);
             #[cfg(test)]

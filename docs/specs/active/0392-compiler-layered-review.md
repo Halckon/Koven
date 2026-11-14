@@ -5131,3 +5131,32 @@ Unit 中显式选择原 `view`，按声明 Span 确认实际函数，核对
 最终候选直接复跑 `require_tests`，三项通过、零失败或忽略。
 空入口对照按独立复核意见检查实际函数 origin，不靠缺少借用
 元数据推断未发射。
+
+## 207. PR421 续接 owner/borrow 主干批次的冲突修复
+
+输入为 PR421 `4e201f4b` 与已合入 #420 的 main `3b7a9a7a`。六处 refinement
+冲突按实际模块归属解决：保留根级 statements 与既有 emitter operation 分派，同时接入
+新主干 receipt 的初始化、alias/statement、layout、terminator、fold 与 finish hooks。
+新增 folding 子模块与 main 正文一致；owner 故障枚举及线程局部状态恢复到 main 的
+canonical build helper，仅保留一份。旧宿主下独立 checkpoint 正文不变，消费者指回
+其实际宿主；未用复制 fault 状态或删除故障分支解决编译问题。新主干增长后恢复的职责文件
+不算作原薄壳退役数量的再次验收，也不表示 E3 完成。
+
+前一轮 head 的 [CI run 43456413689](https://github.com/Halckon/Koven/actions/runs/43456413689)
+双平台 Targeted Tests、Check/Clippy 均成功，但 macOS Preview Consumer 被取消，汇总
+记录 abandoned；该 job 的 runner 名为空、无步骤且无可取日志。只据这些数据不能确认
+取消根因，更不能把未执行记为通过；新 main 输入亦不能复用旧 head 全绿结论。
+
+| 本轮验证 | 实际结果 |
+|---|---|
+| `cargo check -p lang-codegen --all-targets --features loan-observation-test-support` | 退出码 0 |
+| 新增测试名称有界选择（feature） | 98 passed / 0 failed / 55 ignored，退出码 0；ignored 为 CI-only，未伪造 CI 环境本机执行 |
+| 原有 receipt 协议及 BorrowReturn/branch-forward/nullable 分类定向回归（feature） | 78 passed / 0 failed / 0 ignored，退出码 0 |
+| 默认配置 Map require、nullable 分类与 owner return 定向回归 | 10 passed / 0 failed / 0 ignored，退出码 0，含 single/Unit native require 入口 |
+| `check_borrow_faults.py --list-only`（指定 LLVM 与既有 target） | 62 项库存验证通过；只编译并列出，没有执行。首次未指定 target 的尝试超时，不计通过 |
+| 默认及 feature 的 all-targets Clippy（`-D warnings`） | 均退出码 0 |
+| fmt、文档与 Rust 尺寸门禁 | 均退出码 0；emitter 957、statements 702、canonical fault helper 252 行 |
+| 独立只读审查 | 核对冲突边界、receipt hooks、单份故障状态与 checkpoint 保全，未发现本轮具体问题；不替代新主干全部实现及 CI-only 行为验收 |
+
+待新 head 的双宿主与 Preview CI 真实验收；本轮不归档 Spec，不把清单核对、编译或忽略项
+当作完整回归通过。

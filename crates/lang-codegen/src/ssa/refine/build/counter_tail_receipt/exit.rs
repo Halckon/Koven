@@ -8,6 +8,14 @@ pub(super) struct Item {
     suffix: bool,
     pub(super) stage: Stage,
 }
+impl Item {
+    pub(super) fn binding_matches(&self, symbol: UnitSymbolId) -> bool {
+        self.suffix && self.fact.target() == UnitDropTarget::Named(symbol)
+    }
+    pub(super) fn target(&self) -> UnitDropTarget {
+        self.fact.target()
+    }
+}
 pub(super) fn items(evidence: &UnitOwnerCounterTailEvidenceV1) -> Option<Vec<Item>> {
     let (live, drops) = evidence.false_exit_partition()?;
     let suffix = evidence.false_exit_suffix().unwrap_or(&[]);
@@ -39,12 +47,13 @@ pub(super) fn items(evidence: &UnitOwnerCounterTailEvidenceV1) -> Option<Vec<Ite
 impl Builder<'_, '_> {
     fn counter_exit_permit(
         &self,
+        key: Key,
         index: usize,
         source: Slot,
         span: Span,
     ) -> Result<Permit, LoweringError> {
         let fail = || error(LoweringErrorKind::InvalidModel, span);
-        let plan = self.counter_tail_plan.as_ref().ok_or_else(fail)?;
+        let plan = self.counter_tail_plan.get(key, span)?;
         let items = plan.exits.as_ref().ok_or_else(fail)?;
         let block = self.block.ok_or_else(fail)?;
         let expected = plan.geometry.ok_or_else(fail)?[if items[index].suffix { 4 } else { 3 }];
@@ -55,6 +64,7 @@ impl Builder<'_, '_> {
             return Err(fail());
         }
         Ok(Permit {
+            key,
             index,
             block,
             source,
@@ -65,14 +75,13 @@ impl Builder<'_, '_> {
     }
     pub(super) fn counter_exit_binding(
         &self,
+        key: Key,
         initializer: UnitExpressionId,
         symbol: UnitSymbolId,
         value: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.counter_tail_plan else {
-            return Ok(None);
-        };
+        let plan = self.counter_tail_plan.get(key, span)?;
         let Some(items) = &plan.exits else {
             return Ok(None);
         };
@@ -96,7 +105,7 @@ impl Builder<'_, '_> {
         ) {
             return Ok(None);
         }
-        self.counter_exit_permit(index, value, span).map(Some)
+        self.counter_exit_permit(key, index, value, span).map(Some)
     }
     pub(super) fn counter_exit_binding_emitted(
         &mut self,
@@ -124,8 +133,7 @@ impl Builder<'_, '_> {
         }
         let item = &mut self
             .counter_tail_plan
-            .as_mut()
-            .ok_or_else(fail)?
+            .get_mut(permit.key, span)?
             .exits
             .as_mut()
             .ok_or_else(fail)?[permit.index];
@@ -142,14 +150,13 @@ impl Builder<'_, '_> {
     }
     pub(super) fn counter_exit_drop(
         &self,
+        key: Key,
         fact_index: usize,
         target: UnitDropTarget,
         slot: Slot,
         span: Span,
     ) -> Result<Option<Permit>, LoweringError> {
-        let Some(plan) = &self.counter_tail_plan else {
-            return Ok(None);
-        };
+        let plan = self.counter_tail_plan.get(key, span)?;
         let Some(items) = &plan.exits else {
             return Ok(None);
         };
@@ -176,7 +183,7 @@ impl Builder<'_, '_> {
         ) {
             return Ok(None);
         }
-        self.counter_exit_permit(index, slot, span).map(Some)
+        self.counter_exit_permit(key, index, slot, span).map(Some)
     }
     pub(super) fn counter_exit_drop_emitted(
         &mut self,
@@ -192,8 +199,7 @@ impl Builder<'_, '_> {
         }
         let item = &mut self
             .counter_tail_plan
-            .as_mut()
-            .ok_or_else(fail)?
+            .get_mut(permit.key, span)?
             .exits
             .as_mut()
             .ok_or_else(fail)?[permit.index];

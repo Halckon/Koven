@@ -1,0 +1,200 @@
+# 受限嵌套内层 normal-body
+
+> **性质**：实现事实 · **状态**：current · **读取时机**：修改嵌套 owner body 事件或消费者时 · **唯一真源**：本文及所列代码
+
+## 范围
+
+SPEC-0341 经明确批准的切片接纳一个直接父/子 while 对的内层线性 body，
+及完整 false 出口事实之后紧邻的一笔受限父恢复写入。两者分别使用独立的
+Replace→返回 binding→实际 Drop 单次发射许可，不能互相复用。
+不是入口 owner 动态 token、一般嵌套或任意轮次归纳；有限 native 输入不能代替
+这些尚缺合同。普通测试另核最终 SSA 运输，事实 receipt 与消费许可仍分开。
+
+## 前端事件
+
+`dataflow/drop_planner/owner_transport/loops/nested.rs` 在实际 ControlStack 进入
+深度 2 时冻结 parent/child、condition/body、analysis/callable 和干净的根 symbol 帧。
+实际条件完成及 body-entry 再核相同边界，随后共享 `counter_segment::Body` 收集
+真实 literal、Replace、返回 binding、Drop 与尾部完成事件。AST BodyPlan 仅决定
+精确形状，不替代成功事件。额外 child、更深嵌套、错误分支资源或不完整事件不发布。
+
+`UnitOwnerNestedNormalBodyV1` 绑定同一 analysis/callable，producer catalog 独立，
+与旧 Complete、bridge、counter 和 chain 产品互斥。Unsupported 观察仍只记录旧路径
+不支持的外层点；新 normal-body 不将旧观察复活为 Complete。deferred 发布清除产品。
+
+## 后端消费
+
+`build/control_bridge/nested_body.rs` 从公开产品选择唯一 plan。实际 while lowering
+必须处于产品指定的直接 parent frame，捕获同一 roots slots 和 child blocks，
+且不存在活动 view、调用/结果 loan 或短期 range。共享 normal-body selector 与
+bridge/group 互斥；原 Replace、Alias、Drop 发射消费同一非 Clone permit，依次从
+Ready→Replaced→Bound→Dropped，每一步绑定 block、指令位置、span 和真实 slot。
+
+结束检查全部阶段完成、原 body Replace 数量、header→body/false 分支，以及每根
+唯一且有序的 RootPlace→Exclusive BorrowBegin→对应 Replace 准备链；检查整个 body
+中 owner 的定义与使用位置，拒绝额外读取、消费或重复定义。临时 place/loan 另按
+全函数精确位置核唯一产生/消费，并禁止 terminator 逃逸，不限制 owner 的旧路径跨块运输。
+结束时再按原 FE step 及实际 call/producer 核 Replace 第二结果→唯一 Alias binding→
+原事实 Drop，整函数检查 old/binding 唯一定义和消费且不从 terminator 逃逸；不只依赖
+已推进的 stage。普通测试核最终 typed-SSA 旧值恰一次同块后置 Drop，Alias 会被消除。
+没有另发一次 Drop，也没有向 whole-loop 或 late-SSA group 授予新权限。
+内层退出和 checked abort 继续由原通用 lowering 和 SSA verifier 负责；
+父恢复仅下述明确限定的单笔写入有独立许可，其他形状保持旧路径。
+
+## 验证位置
+
+前端 `nested.rs::tests`：真实输入、未覆盖形状、跨 analysis/混合产品与完成事件负控。
+后端 `owner_counter_boundary_tests.rs`：外/内零、一、二轮组合与新权限完成标记；
+`owner_nested_body_tests.rs`：缺 permit、重复提交和实际 parent frame 损坏负控。
+故障注入名称含 `ci_only`，只在 CI 执行；本地编译不等于负控已通过。
+验收实际结果记入 SPEC-0341，不以此页测试位置清单宣称测试已运行。
+
+## 可选内层 false 清理事实（不授权恢复）
+
+批准的事实采集在实际 `drop_loop_exit` 完成之后读取清理后 state 与新追加 facts，
+仅为同一 child/condition、已完成 normal 事件记录 `false_exit_partition()`。
+返回 live 根和精确 LoopExit drops，完整覆盖且互斥；干净资源检查复用 boundary_values。
+重复或缺事件不给可选事实，但不撤销原 normal-body 权限。
+这是 planner false 清理点的静态分区，不是入口/回边 token 的实际代际合流证明；
+false分区本身不授权parent消费，不得据此额外发射Drop；退休根late-SSA事实见下段。
+后端在既有几何仍有效的RefinedBody阶段只读核原false块实际Drop：精确root槽、
+LoopExit fact、原consumed记录、span及清理顺序；不限制live根的后续旧路径操作。
+
+生产 `refine/nested_exit_receipt.rs` 现在独立跟踪已核对退休根的实际false入口Entity
+到原Drop，随straight-line fold同步块/指令偏移，终检真实边参数、指令表与块清单。
+这不是owner退出消费许可。现已核完整live+retired根的false边参数映射，空drops也核全根；
+live根的后续消费须由独立受限恢复产品或原路径负责，不证明动态代际。
+
+## 父恢复边界与受限单笔消费
+
+实际child控制栈弹出后，以当前parent身份、正常返回结果及干净live根向量记录
+`parent_resume_roots()`；依赖完整false分区，缺事件/重复/错parent不给事实。
+边界事实本身不是消费许可；下述独立单笔产品负责已批准的Replace→binding→Drop，
+不能复用child已经消费的normal permit。
+
+受限恢复已进一步接入独立单笔collector和non-Clone发射许可：仅child紧邻的
+val/direct String Replace，真实四事件及声明clean完成后封存。后端在实际parent
+frame的join块[3]消费独立阶段，[2]false清理→[3]运输须唯一且根透明；按symbol匹配。
+重新核准备loan及old→binding→Drop，不复活child许可、不重复发射。其他父恢复形状
+仍走旧路径；受限编译期许可不是一般循环归纳。
+
+独立 `refine/nested_resume_receipt.rs` 随实际 straight-line fold 维护恢复块与三阶段
+位置，观察实际 SSA Replace 第二结果、Alias 消除后的同一 Entity 和原 Drop。
+终检 false 根参数运输及唯一旧值消费后才给出 receipt 完成；它不新增消费权限，
+且发生在整个 Program 的最终 verifier 之前，不能代替 verifier 或跨轮代际归纳。
+
+可选 `nested_resume_receipt/carry.rs` 只跟踪恢复新 Value 沿已核 checked-success/Goto
+到实际 parent header 的运输。支持范围外的合法 suffix 不选中该事实，已选中的
+缺项或错误运输则失败封闭；到 header 即停止，不将 abort 当回边，也不推导下一轮。
+
+## 同合同退休审计
+
+`refine/nested_body_receipt.rs` 现为已批准 child normal 的旧值退休增加独立生产
+late-SSA 核验。它与 parent-resume receipt 分开，逐根观察原 Replace 第二结果、
+Alias 映射及原 Drop，随 fold 追踪位置，所有根终检成功后才记录组完成。
+
+- 原 Builder/一次性许可保留：核源事实、真实发射与准备 loan，不由 late receipt 替代。
+- `assert_nested_ssa_retirement` 保留独立最终 SSA 抽查；测试不是生产权限 witness。
+- `assert_existing_false_exit_resume` 不整段退休：还核 header 入边及准备链锚点。
+- `assert_final_false_cleanup_transport` 保留独立抽查：从原 inner Replace/true 边锚点重建运输，不能仅用生产完成 marker 替代。
+- generic verifier 与 FE 能力互斥全部保留，不能从这些局部 receipt 推出等价替代。
+
+既有 false receipt 现补全具体退休出口参数 Value 的排他性：仅该参数定义、仅原
+Drop 使用一次、无指令重定义或 terminator 逃逸。live 根和同源码 symbol 的后续
+新 Value 不受限制，普通再赋值用例覆盖此区分；该规则仅用于当前受限 String 清理。
+
+
+父 header 的第一片独立检查位于 `nested_resume_receipt/header.rs`：仅当既有可选
+carry 的实际父 header 有入口与回边两个前驱时选中，捕获全部 header 槽和实际参数。
+每个前驱发射终止符时从当前槽映射逐项核对真实边实参，函数终检重查参数、完整前驱
+集合及每条边的完整向量；同类型换位也不能用类型相等放行。选中后缺项或额外前驱
+失败，不修改原 carry 或 generic verifier。这只是已捕获 CFG 的运输完整性，本身
+不证明前端父根不变量、父 false 资源消费或任意动态代际归纳。
+
+后续 `UnitOwnerNestedParentBoundaryV1` 已独立封存父入口、条件、body-entry、正常
+回边根组及父自身 false 出口的 live／retired 完整分区。`control_bridge/parent_exit.rs`
+消费该只读事实，`nested_exit_receipt.rs` 与其 `pair.rs` 为父、子分别保存实际 SSA
+观察状态；父 receipt 核 header 到 false 出口的逐根实参、唯一前驱、原 Drop 顺序
+及对退休出口 Value 的排他消费，选中后计划或观察状态缺失失败。它不生成新清理，
+不扩大 lowering 许可，也不替代上述独立测试、child/carry receipt 或 generic verifier。
+普通 native 与 CI 待验边界见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md)。
+已实现的是受限直接父子 while 的边界运输与消费核验；完整父根跨轮代际不变量及
+任意动态代际归纳仍未实现，不能把这些局部收据合称为完整循环证明。
+
+## 条件式 child 符号代际规则
+
+`child_generation_rule_v1()` 在完整 child normal 规则、实际 checked-counter 完成、
+child false 全根存活及 parent resume 同序向量俱全时，返回按 header 根排序的递推
+schema。对任意激活次数 k，每根 current(0) 是该根入口 owner；current(k+1) 是本次
+String producer 激活的新实例，原 binding Drop 消费 current(k)。静态 producer ID
+不是跨轮复用的运行时实例。线性 normal 规则建立保持步骤，false 边对当前向量恒等，
+零轮也不激活 body producer。fresh 的激活身份包含本次 child invocation，不能把
+不同父轮次中的 child 第 k 次激活当作同一实例。无 checked counter 或仅 false-reset
+不发布该规则。
+
+这是以入口根独占且无活 loan 为前提的 FE 条件规则，不是入口实例证明，也未独立
+核实 SSA 是否实现了递推；父组合、实际 checked-abort CFG 和具体入口条件仍需后续
+配对验证。没有新增 lowering 权限，旧 witness 和通用 verifier 均保留。
+
+### 实际 planner 入口快照
+
+child enter 从真实 `ValueState` 的封闭资源边界捕获完整 `(root, owner)` 向量，
+要求每根有确定 owner 且 owner 不重复；condition 与 body-entry 再观察同一向量，
+变化即撤销此快照，不能从 normal outputs 反推入口。`entry_owners()` 发布此静态
+身份快照；任何活动 loan、pending resource 或缺失 owner 都不发布代际规则。
+这不是 SSA Value 的基例：重复 parent 激活的动态 owner 仍不能用首次 planner ID
+代替。现有 body receipt 已独立核实 Replace 返回旧值的唯一 Drop，后续应复用它，
+另外捕获 child preheader/header/true-edge 和 checked-success backedge 的逐根身份链；
+只核对父 header 或从最终 CFG 猜出 child 回边都不能补足该缺口。
+
+### 独立 child cycle 的边界接线
+
+checked-counter 符号规则对应的七角色收据在真实 preheader 跳转前及已观察的
+checked expression 处捕获角色，经 folding 重定位后按实际 emitted 参数/current
+映射检查完整根向量。复用先通过终检的 body retirement 所保存 input/new 身份，
+核 child header true/false 条件和前驱、成功回边的新代，以及新代无旁路直接消费。
+Abort 由独立 emission hook 观察，核 checked 指令和 flag 极性、对应 operator/divisor
+及无指令终止块。既有 abort sibling 活跃槽传播允许新代在 success/abort 互斥边
+各携带一次；按根槽逐边核验，不把两边合计当重复消费，也不把 Abort 算正常回边。
+此收据还从真实 loop frame 捕获 parent header，核实际 true 边到 child preheader
+的完整参数向量、唯一前驱及 guard 身份；两端每根保持自身参数，无读取/借用/消费。
+它与 entry→child header 接成条件式入口链：给定父 header 当前向量，即供给 child
+本次调用的入口。父 header 初始来源和跨父轮归纳、更广嵌套仍未由此证明。当前本地验证结果与未验项以 SPEC-0341 账本为准。
+
+child-cycle 的 CI-only 负例独立放在 `child_cycle_receipt/faults.rs`，分别破坏真实角色
+观察和 SSA 边/消费。两个 ignored 测试通过专用脚本接入现有双宿主 test job；本地
+`--list-only` 只编译列举，不能作为破坏矩阵运行通过的证据。新增父 true 根交换、preheader 额外前驱及根消费三例，共 18 类；仍只本地编译列举。
+父初始入口与组合归纳仍待推进。
+
+
+### 受限父初始来源
+
+child-cycle 可再保留真实函数入口为第八角色：仅选择沿 Alias 追踪到 own 参数或
+String literal、且进入 parent 前未被其它指令使用的完整根向量。终检核实际 entry
+与每根定义、无先行使用/重复定义/旁路及唯一完整边进入 parent header；已选计划
+的 required 标志独立保存，缺失拒绝。其它来源不发布此基例，仍走既有 lowering。
+这补上受限来源的初始身份，并不把既有 parent resume/carry 收据升级成跨父轮
+组合归纳。CI-only 又增加初始计划缺失、向量交换和源消费，共 21 类，远端待验证。
+
+### 受限父轮组合核验
+
+`nested_resume_receipt/composition` 在 child/false/resume 收据终检后配对身份，核完整
+根向量沿 child false、父单次 literal Replace 和 checked-success 回到同根父 header。
+未改根无消费，改根的新代无直接使用或旁路；父初始/回边前驱闭合，父 header 拒绝
+Place/新建 loan/String 根 loan，只允许原槽既有 Shared Int 输入借用。独立 preparation 子模块核父 RootPlace、Exclusive BorrowBegin、Replace
+唯一定义/使用和结束链，复用 old 的既有 Drop 收据。abort 保持独立终止并核 metadata。
+此部分正确性仅适用于已选择的初始 own 参数/literal、直接父子 while、单次父写入与
+checked tail；不是一般父循环证明或终止证明，也不以有限 native 轮数作归纳依据。
+
+独立审计补强了 child generation 的最终证据：每步捕获 literal/preparation/borrow 的真实
+InstructionId 与 operation，终检锁同块 fresh literal 的唯一交付、输入身份及完整
+Exclusive 借用结束链；链检查与 parent 复用。组合选择另在 builder 封存 selected 与
+独立 required，layout 保存预期，选后证据丢失必须报错而不是跳过证明。此补强不改变
+原形状权限；CI-only 矩阵扩为 34 类，尚未本地执行或取得远端验证。
+
+父组合另核实际 literal producer 在 resume 指令列表中恰好出现一次，避免仅首次位置
+检查漏掉重复成员。新增 CI-only 真实重复 producer ID 变异，由组合收据直接拒绝；
+不扩大语言形状，不替代 generic verifier，破坏性验收仅在远端 CI 执行。
+
+受限入口总计一次 concat 的来源、临时清理与运输合同，见
+[入口 concat 基例](nested-owner-initial-concat.md)。

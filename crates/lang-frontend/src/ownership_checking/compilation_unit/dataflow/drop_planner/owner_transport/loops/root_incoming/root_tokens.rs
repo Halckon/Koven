@@ -371,95 +371,32 @@ impl RootTokenTransaction {
         {
             return None;
         }
-        let ast = checker.parsed.ast();
-        let Statement::While {
-            condition, body, ..
-        } = ast.statements().get(control.statement()).ok()?.payload()
-        else {
-            return None;
-        };
-        if entered_body
-            != Some((
-                checker.unit_expression(*condition),
-                UnitStatementId::new(control.source_unit(), *body),
-            ))
-        {
-            return None;
-        }
-        if !matches!(
-            ast.expressions().get(*condition).ok()?.payload(),
-            Expression::Name
-        ) || !exact_type(checker, *condition, BuiltinType::Boolean)
-        {
-            return None;
-        }
-        let condition_binding =
-            checker.reference_symbol(ast.expressions().get(*condition).ok()?.span())?;
-        if condition_binding.source_unit() != control.source_unit()
-            || roots.iter().any(|(root, _)| *root == condition_binding)
-            || checker
-                .typed
-                .symbol_type(condition_binding)
-                .and_then(|ty| checker.typed.types().get(ty))
-                != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
-        {
-            return None;
-        }
-        let Statement::Block { elements } = ast.statements().get(*body).ok()?.payload() else {
-            return None;
-        };
-        let (elements, tail) =
-            super::guard_reset::body_parts(checker, elements, roots.len(), condition_binding)?;
-        let mut planned = Vec::new();
-        let mut bindings = Vec::new();
-        for statement in elements {
-            let (binding, call) = replace_break::variable(checker, *statement, VariableKind::Val)?;
-            bindings.push((
-                binding,
-                UnitStatementId::new(control.source_unit(), *statement),
-            ));
-            let call = checker.unit_expression(call);
-            let plan = checker
-                .ownership_primitives
-                .iter()
-                .find(|plan| plan.descriptor().expression() == call)?;
-            if plan.descriptor().kind() != OwnershipPrimitiveKind::Replace
-                || plan.places().len() != 1
-                || !plan.places()[0].is_root()
-                || plan.descriptor().operands().len() != 2
-            {
-                return None;
-            }
-            let root = plan.places()[0].root();
-            let producer = plan.descriptor().operands()[1];
-            if !replace_break::literal(checker, producer.expression())
-                || !roots.iter().any(|(known, _)| *known == root)
-                || planned.iter().any(|(_, known, _)| *known == root)
-            {
-                return None;
-            }
-            planned.push((call, root, producer));
-        }
+        let plan = super::body_plan::BodyPlan::admit(
+            checker,
+            control,
+            &roots.iter().map(|(r, _)| *r).collect::<Vec<_>>(),
+            entered_body,
+        )?;
         let callable = roots.first()?.1.callable;
         if roots.iter().any(|(_, owner)| owner.callable != callable) {
             return None;
         }
         let transaction = Self {
             control,
-            condition: checker.unit_expression(*condition),
-            body: UnitStatementId::new(control.source_unit(), *body),
-            condition_binding,
-            guard_reset: tail.reset,
-            guard_reset_completed: tail.reset.is_none(),
-            counter: tail.counter,
+            condition: plan.condition,
+            body: plan.body,
+            condition_binding: plan.condition_binding,
+            guard_reset: plan.tail.reset,
+            guard_reset_completed: plan.tail.reset.is_none(),
+            counter: plan.tail.counter,
             identity: std::sync::Arc::new(()),
             callable,
             roots: roots.clone(),
             initial_roots: roots.clone(),
             input_catalog: input_catalog.clone(),
-            planned,
+            planned: plan.planned,
             definitions: Vec::new(),
-            bindings,
+            bindings: plan.bindings,
             pending: None,
             bound: None,
             retired: 0,

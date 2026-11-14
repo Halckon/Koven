@@ -31,7 +31,7 @@ impl Checker<'_> {
         } else {
             Vec::new()
         };
-        self.check_maybe_loop_with_headers(prefix, body, errors, &headers)
+        self.check_maybe_loop_with_headers(prefix, body, errors, &headers, None)
     }
     fn callable_type(&self, expression: ExpressionId) -> Option<TypeId> {
         self.typed
@@ -147,6 +147,8 @@ impl Checker<'_> {
         mut state: State,
         usage: ExpressionUse,
     ) -> Result<Flows, OwnershipCheckingError> {
+        self.no_carry_break(id, &state);
+        let counter_update = self.no_carry_counter_before(id, &state);
         self.check_borrow_call_use(id, usage == ExpressionUse::Consume)?;
         state.origins.attach(&self.callable_sources.arena);
         let ast = self.parsed.ast().expressions().get(id)?;
@@ -214,6 +216,7 @@ impl Checker<'_> {
                 self.callable_sources.record(id.index(), id, value, span);
             }
         }
+        self.no_carry_counter_after(counter_update, &flows);
         Ok(flows)
     }
 

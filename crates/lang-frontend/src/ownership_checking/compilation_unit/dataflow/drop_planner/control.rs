@@ -299,6 +299,24 @@ impl DropPlanner<'_, '_> {
         usage: DropExpressionUse,
         state: &mut ValueState,
     ) -> Result<(Option<ExpressionId>, EvaluatedOwner), OwnershipCheckingError> {
+        // A sealed branch arm returns Unit and closes its loan at a statement,
+        // not at an implicit value-producing tail. Run actual statement End hooks;
+        // the final independent planner End is checked before publishing the pair.
+        if self
+            .checker
+            .no_carry_proofs
+            .iter()
+            .any(|proof| matches!(proof, crate::ownership_checking::loop_no_carry::Proof::Branch(_, arms) | crate::ownership_checking::loop_no_carry::Proof::CounterBranch(_, arms, _) | crate::ownership_checking::loop_no_carry::Proof::BreakBranch(_, arms, _) if arms.iter().any(|arm| arm.body == id)))
+        {
+            return Ok((
+                None,
+                EvaluatedOwner {
+                    replace_consumer: None,
+                    continues: self.statement(id, state)?,
+                    owner: None,
+                },
+            ));
+        }
         let payload = self
             .checker
             .parsed

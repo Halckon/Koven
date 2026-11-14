@@ -47,8 +47,8 @@ pub(crate) use numeric_literal_tests::map_sibling_route_tests;
 #[path = "native_ordered_map_tests.rs"]
 pub(crate) mod ordered_map_tests;
 
-#[allow(unused_imports)]
-pub(crate) use boxed_enum_tests::borrow_result_tests;
+#[path = "native_borrow_result_tests.rs"]
+pub(crate) mod borrow_result_tests;
 
 use std::{
     fs,
