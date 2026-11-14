@@ -726,12 +726,19 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                     .append_callers(&typed)
                     .unwrap()
             };
+            let plan = |entries: &[_]| {
+                super::e2_joint_plan::JointPlan::build(&handoff, &experiment, &all_facts, entries)
+            };
+            assert!(plan(&[]).is_none());
             assert!(rebuild().publish_entries(&[], &typed).is_none());
             let duplicates = vec![entry; entries.len() + 1];
+            assert!(plan(&duplicates).is_none());
             assert!(rebuild().publish_entries(&duplicates, &typed).is_none());
             let foreign: Vec<_> = other.entries(&typed).unwrap().iter().collect();
+            assert!(plan(&foreign).is_none());
             assert!(rebuild().publish_entries(&foreign, &typed).is_none());
             if entries.len() > 1 {
+                assert!(plan(&vec![entry; entries.len()]).is_none());
                 assert!(
                     rebuild()
                         .publish_entries(&vec![entry; entries.len()], &typed)
@@ -744,7 +751,7 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                     .publish_entries(&required, &unrelated_types)
                     .is_none()
             );
-            let package = callers.publish_entries(&required, &typed).unwrap();
+            let package = plan(&required).unwrap().publish().unwrap();
             assert!(
                 package
                     .entry(&other.entries(&typed).unwrap()[0], &typed)

@@ -127,7 +127,7 @@ pub(super) fn emit_for_facts(
     }
     Some(emitted)
 }
-fn emit_selected(
+pub(super) fn emit_selected(
     experiment: &TwoSourceExperiment,
     typed: &ValidatedCompilationUnitTypes,
     leaves: Vec<&CalleeLeaf>,

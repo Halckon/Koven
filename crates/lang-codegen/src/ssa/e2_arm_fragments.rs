@@ -182,7 +182,21 @@ pub(super) fn emit_for_facts<'a>(
     facts: &[&'a TwoSourceCounterFact],
 ) -> Option<EmittedArmSet<'a>> {
     let typed = handoff.types();
-    let mut leaves = e2_callee_leaves::emit_for_facts(handoff, experiment, facts)?;
+    let leaves = e2_callee_leaves::emit_for_facts(handoff, experiment, facts)?;
+    emit_from_leaves(experiment, facts, typed, leaves)
+}
+pub(super) fn emit_from_plan<'a>(
+    plan: &super::e2_joint_plan::JointPlan<'a>,
+    leaves: e2_callee_leaves::EmittedLeaves,
+) -> Option<EmittedArmSet<'a>> {
+    emit_from_leaves(plan.experiment(), &plan.facts(), plan.typed(), leaves)
+}
+fn emit_from_leaves<'a>(
+    experiment: &'a TwoSourceExperiment,
+    facts: &[&'a TwoSourceCounterFact],
+    typed: &ValidatedCompilationUnitTypes,
+    mut leaves: e2_callee_leaves::EmittedLeaves,
+) -> Option<EmittedArmSet<'a>> {
     let mut locators = Vec::new();
     for fact in facts {
         let emitted = append(experiment, fact, typed, leaves)?;

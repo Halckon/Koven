@@ -354,6 +354,8 @@ mod e2_callee_leaves;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_arm_fragments;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_joint_plan;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(crate) use e2_arm_fragments::PublishedEntrySet as ExperimentalPublishedEntrySet;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]

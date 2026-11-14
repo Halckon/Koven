@@ -18897,3 +18897,25 @@ raw ownership 给任意调用者，不增加跳过全声明/binding/global initi
 但扩大普通 Unit 接受集、错误口径和公开能力仍需单独确认。mutable/carry/guard 等
 未确定语义不在本次接入批中。现有本地分支引用 main/origin-main 为 51a3aad3，
 仅是本地基线，不代表刚核实远端状态；后续集成由发布任务重新核对。
+
+
+### 2026-11-14：封闭共同计划先于 SSA 分配
+
+新增实验 `JointPlan`，显式输入同源 handoff、fact 集合与原 entry 集合。构造先执行
+完整 Unit preflight、原 descriptor 身份和一对一 entry→caller 覆盖；从真实 typed
+callsite 重核完整 instance key，唯一归属 `E2Caller` 或 `RestrictedSourceLeaf`。
+共享叶按完整 key 合并并核原 body/span，跨角色冲突拒绝。计划没有 FunctionId，
+不暴露 retained ownership，也不提供普通 Unit capability。
+
+首片普通源码范围仅既有单 Borrow String 的 SharedIdentity/EmptyUnit 叶；不是通用
+ordinary callable 支持。原 fact/shell/leaf/entry 描述符继续持有完整 ABI、源身份与
+有序调用证据。消费计划才分配 Program，按封闭 routes 发射叶、helpers/callers/entry；
+不重新自动选择其他函数。新增发射入口必须持有私有字段 JointPlan，原底层拼装函数
+维持模块私有；旧入口仍保留其完整 preflight，不能绕过封包签发门。
+最终旧独立 publisher 仍从原 typed/fact/descriptor 重算
+required 与完整映射/replay，而非计划与自身副本互证。
+
+真实源 entry/native object/link/run 矩阵改走该计划；保留旧发布负例，另检查计划在
+分配前拒绝空、重复及 foreign entry。这是有界“先规划再共同发射”的可运行闭环，
+尚未复用 ordinary Unit 的任意类型/closure/ABI 规划，也未扩大生产接受集。后继新增
+ordinary body 路由须延续统一实例归属及全门，不能因已有计划而跳过 unsupported。
