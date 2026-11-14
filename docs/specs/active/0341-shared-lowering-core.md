@@ -17910,3 +17910,12 @@ Function 类型类别和 arena 不增长断言；helper/entry 改按唯一原声
 Origin 或故障分类变化，未执行负控/故障注入、全量测试或远程 CI，未推送。
 带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
 及 diff 检查通过。
+
+### legacy 消费者退出审计（2026-11-14）
+
+基于 `99d72095` 完成[定向退出审计](../../reviews/2026-11-14-d10-legacy-consumer-audit.md)：
+分离已迁普通见证与仍独有的 whole-file、身份、ABI、拒绝、条件清理及 CI mapper
+合同，列明每类最小安全步骤。没有修改生产/测试，也没有执行测试；此记录不宣称
+旧 API 可删或 D10/E2 完成。远端状态不在本轮只读核验范围。
+独立只读复核通过，docs（952 Markdown）及 diff 检查通过；未把文档结构门禁
+当作语义等价证明。
