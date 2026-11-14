@@ -3,6 +3,8 @@ mod carry;
 mod closure;
 #[cfg(all(test, feature = "d10-catalog-experiment"))]
 mod d10_catalog_emitter_tests;
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_loop_handoff_tests;
 #[cfg(test)]
 mod d10_loop_replay_tests;
 use closure::integer;

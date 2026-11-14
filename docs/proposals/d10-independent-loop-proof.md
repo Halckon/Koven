@@ -468,3 +468,30 @@ site、Replace call 与 detached-old/LoopExit 清理。site 不被改称每轮�
 本片尚不提供真实 loop CFG、checked arithmetic abort 事实或 codegen 准入。
 后续必须让实际 SSA predecessor/参数及 counter checked-step 路径独立 replay；
 不能因同次 owned 绑定完成，就绕过 ordinary primitive gate 或声称 Carry 成立。
+
+### 同次 sidecar 到既有单根 Refine SSA 的独立 replay
+
+后续实测修正了一个重要边界：上述封闭单根倒计时 Replace 源码，普通 Unit 总入口
+可以经现有 Refine selector 产生真实 SSA；普通 compatibility primitive gate 仍保留。
+因此本片复用正常路由，不新造 loop emitter，也不把 gate 拒绝作为实现结果。
+
+测试域 replay 先核 BoundLoop 与本次 owned view 身份，实际调用普通入口并验证 SSA，
+随后核六个互异 block 的完整 successor/predecessor 结构、全部十二条指令归属：
+初始 owner/counter 入 header，condition 两臂分别携带 body 根与 false-exit 根；
+RootReplace 产出新根及 detached old，old 当轮清理，新根经 checked-step 的正常
+continuation 回传 header，false-exit 清理当前根。单根值不是固定绑定到某一次
+literal 对象；header/block parameters 表示实际 loop SSA 环境。
+
+同源 literal bytes、Replace/condition/step origin、Exclusive loan begin、两项
+DropFact 的 target/point/声明关系，以及 Shared Int32 入口均与真实分析交叉核对。
+checked subtraction 保留真实失败臂、AbortReason 与 operand，不因 counter 条件
+推断消除 abort；完整图拒绝额外 predecessor、指令或未知出口。测试使用两种合法
+命名/字面量及错误步进、不同减量、break 邻接源码，覆盖 Rooted/MemoryDocument：
+四个正例通过 SSA replay，六个邻接例在 BoundLoop 入口拒绝；不称执行过损坏 SSA
+负控。旧根 Symbol 身份沿用可信 BoundLoop 校验，本片独立补清理点与 initializer 关系。
+
+这只是**已有单根 Replace 路由**与新同次观察的独立结构验收。没有更改生产 gate、
+扩张 selector、构造旧 receipt 或提供 Carry 许可，也没有动态执行或本地故障注入。
+后续 Replace/Carry 双根、child 未修改根及更一般父子代际仍需各自权威事实与 replay，
+不能从此单根正例外推。`replay` 为私有测试检查器，正常路由产物在当前调用内生成；
+不能把带相同 source span 的外部 Program 当作携带 frontend provenance 的能力。
