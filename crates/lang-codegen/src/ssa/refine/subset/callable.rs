@@ -882,6 +882,9 @@ impl Checker<'_, '_> {
             let Some(value) = index.map_or(extension_rec, |i| values.get(i).copied()) else {
                 return false;
             };
+            if let Some(admitted) = self.nullable_when_argument(call, value, mode, parameter) {
+                return admitted;
+            }
             if mode == ParameterMode::Inout {
                 return self.inout_argument(call, value);
             }

@@ -1,5 +1,7 @@
 //! SPEC-0350 routing: which functions the refinement layer lowers, and that the choice
 //! and its output are independent of input order.
+mod nullable_when;
+
 use lang_frontend::{
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     source::SourceMap,
@@ -15,32 +17,8 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
-/// Lowers `source` (package `p`) from entry `f`; returns the lowering result and whether
-/// `f` itself went through the refinement layer.
-fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
-    let mut sources = SourceMap::new();
-    let text = format!("package p\n{source}");
-    let (id, file) = parsed(&mut sources, "p/main.ko", &text);
-    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
-    let (name_environment, mut type_environment) = standard_environments();
-    let _ = type_environment.authorize_range_source(&sources, id);
-    let _ = type_environment.authorize_range_extension_source(&sources, id);
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let entry = declaration(&names, "p", "f");
-    let (result, routed) = observe_routing(|| {
-        lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &typed,
-            &owned,
-            entry,
-        )
-    });
-    let f = routed.iter().any(|name| name.starts_with("koven.p.f.d"));
-    (result.map(|(program, _)| program), f)
-}
+mod routing;
+use routing::route;
 
 #[allow(unused_imports)]
 pub(in crate::ssa) use temporary_sequential_for::control_completion;

@@ -50,4 +50,6 @@ pub(super) struct View {
     pub(super) symbol: UnitSymbolId,
     pub(super) slot: Slot,
     pub(super) target: BlockRef,
+    /// A nullable When proof retains its actual control and owner, never just a name.
+    pub(super) when_scope: Option<(UnitExpressionId, Slot)>,
 }

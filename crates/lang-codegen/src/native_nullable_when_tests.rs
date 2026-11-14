@@ -912,3 +912,27 @@ fn nullable_when_out_of_slice_sources_keep_exact_boundaries() {
         }
     }
 }
+
+#[test]
+fn nullable_when_keeps_the_enclosing_borrow_return_rejection() {
+    let text = r#"class Node {}
+fun view(source: String): borrow String from source {
+val subject: Node? = Node()
+when (subject) { null -> {}; else -> {} }
+return source
+}
+fun entry(): Unit { val source = "kept".clone(); { borrow val result = view(source); println(result) } }
+"#;
+    let source =
+        UnitSource::analyze("when-borrow-return.ko", text).expect("real frontend products");
+    source.assert_frontend_clean();
+    let entry = source.declaration("entry", SymbolKind::Function);
+    let error = source
+        .lower_entry(entry)
+        .err()
+        .expect("enclosing callable remains rejected");
+    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+    let span = error.span.expect("original signature origin");
+    assert_eq!((span.start(), span.end()), (40, 46));
+    assert_eq!(source.sources().slice(span), Ok("borrow"));
+}

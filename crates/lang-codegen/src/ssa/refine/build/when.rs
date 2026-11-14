@@ -1,6 +1,7 @@
 //! `when`: alternatives tested in source order; the first match enters its body. A scalar
 //! subject is evaluated once and compared by value or by integer Range membership; a
 //! Copyable enum subject is tested by case.
+mod nullable;
 use std::collections::BTreeSet;
 
 use lang_frontend::{
@@ -33,6 +34,11 @@ pub(super) struct PredecessorBranch {
 enum WhenSubject {
     Value(Slot),
     Tag(Slot),
+    Nullable {
+        control: UnitExpressionId,
+        owner: Slot,
+        proof: Slot,
+    },
 }
 
 impl Builder<'_, '_> {
@@ -98,12 +104,19 @@ impl Builder<'_, '_> {
                 }
             })
             .transpose()?;
-        let subject = match subject_expression {
-            Some(subject) => match self.when_subject(subject, string, root)? {
+        let subject = if self.inputs.typed.nullable_when(control).is_some() {
+            match self.nullable_when_subject(control)? {
                 Some(subject) => Some(subject),
                 None => return Ok(Lowered::Diverged),
-            },
-            None => None,
+            }
+        } else {
+            match subject_expression {
+                Some(subject) => match self.when_subject(subject, string, root)? {
+                    Some(subject) => Some(subject),
+                    None => return Ok(Lowered::Diverged),
+                },
+                None => None,
+            }
         };
         if let Some(WhenSubject::Value(subject)) = subject {
             if let Some((true_arm, false_arm)) = self.boolean_two_arms(entries) {
@@ -121,6 +134,7 @@ impl Builder<'_, '_> {
             let id = self.unit(expression);
             self.temporaries.get(&id).copied().map(|slot| (id, slot))
         });
+        let nullable_drops = self.nullable_when_operand_drops(subject)?;
         let join = self.body.block();
         self.body.blocks[join.0].origin = Some(span);
         let outer_views = self.active_views.clone();
@@ -230,6 +244,10 @@ impl Builder<'_, '_> {
             }
             self.active_views = outer_views.clone();
             let mark = self.enter(body);
+            if matches!(subject, Some(WhenSubject::Nullable { .. })) {
+                self.enter_nullable_when_arm(subject, index, body, span)?;
+                self.emit_drops(&nullable_drops)?;
+            }
             let saved_expected = self.expected_nullable;
             if let Some(res) = result
                 && matches!(
@@ -266,6 +284,7 @@ impl Builder<'_, '_> {
             }
             self.block = unmatched;
         }
+        self.finish_drops(&nullable_drops);
         if falls_through
             && (closed_after.is_some()
                 || root.is_some()
@@ -441,6 +460,21 @@ impl Builder<'_, '_> {
         let [first, second] = entries else {
             return None;
         };
+        // `true -> ...; else -> ...` is the same closed Boolean decision as
+        // true/false arms. Keep its source control identity, not a literal's span.
+        if first.else_span.is_none()
+            && second.else_span.is_some()
+            && second.conditions.is_empty()
+            && let [WhenCondition::Expression(condition)] = first.conditions.as_slice()
+            && let Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(value)), _)) =
+                self.node(*condition)
+        {
+            return Some(if value {
+                ((0, first.body), (1, second.body))
+            } else {
+                ((1, second.body), (0, first.body))
+            });
+        }
         if first.else_span.is_some() || second.else_span.is_some() {
             return None;
         }
@@ -561,6 +595,32 @@ impl Builder<'_, '_> {
     ) -> Result<(), LoweringError> {
         let (matched, next) = edges;
         let (subject, condition) = match (subject, condition) {
+            (
+                Some(WhenSubject::Nullable {
+                    control,
+                    owner,
+                    proof,
+                }),
+                WhenCondition::Expression(condition),
+            ) => {
+                if !matches!(
+                    self.node(*condition)?.0,
+                    Expression::Literal(lang_frontend::parser::LiteralKind::Null)
+                ) {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                self.body.blocks[next.0].view = Some(proof);
+                self.body.blocks[next.0].carry_sibling = Some(matched);
+                self.body.blocks[matched.0].carry_sibling = Some(next);
+                return self.terminate(
+                    RTerm::NullBranch {
+                        owner,
+                        when_null: matched,
+                        when_non_null: next,
+                    },
+                    self.span(control.expression()),
+                );
+            }
             (None, WhenCondition::Expression(condition)) => {
                 return self.condition_with_views(*condition, matched, next, false);
             }
@@ -589,6 +649,9 @@ impl Builder<'_, '_> {
                 let matches = match subject {
                     WhenSubject::Value(owner) => {
                         self.type_test(owner, root, *type_ref, *negated, span)?
+                    }
+                    WhenSubject::Nullable { .. } => {
+                        return Err(error(LoweringErrorKind::UnsupportedNode, span));
                     }
                     WhenSubject::Tag(tag) => {
                         let variant = self.type_test_variant(root, *type_ref, span)?;

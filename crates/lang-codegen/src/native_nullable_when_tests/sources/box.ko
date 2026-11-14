@@ -1,0 +1,115 @@
+value class Cell(val value: Int)
+class Prefix { deinit() { println("prefix-drop") } }
+class Outer { deinit() { println("outer-drop") } }
+fun touch(value: Box<Cell>): Unit {}
+fun touchNullable(value: Box<Cell>?): Unit {}
+fun observe(value: Box<Cell>): Unit { println("read") }
+fun consume(own value: Box<Cell>): Unit { println("consume"); touch(value) }
+fun accept(prefix: Prefix, own result: Int): Int {
+    println("inner-call")
+    return result
+}
+fun enclose(prefix: Outer, own result: Int): Int {
+    println("outer-call")
+    return result
+}
+fun repeated(own subject: Box<Cell>?): Unit {
+    when (subject) {
+        null -> { println("null") };
+        else -> { observe(subject); observe((subject)) }
+    }
+    var onceMore = true
+    var again = true
+    while (again) {
+        again = onceMore
+        onceMore = false
+        when (subject) { null -> {}; else -> { observe(subject) } }
+    }
+    when (subject) { null -> {}; else -> { consume((subject)) } }
+}
+fun later(own subject: Box<Cell>?): Unit {
+    when (subject) {
+        null -> { println("later-null") };
+        else -> { println("later-present") }
+    }
+    println("later-use")
+    touchNullable(subject)
+}
+fun earlyReturn(own subject: Box<Cell>?): Unit {
+    val result = enclose(Outer(), accept(Prefix(), when (subject) {
+        null -> 7;
+        else -> { println("return-present"); return }
+    }))
+    println("return-after")
+}
+fun earlyBreak(own present: Boolean): Unit {
+    var once = true
+    while (once) {
+        once = false
+        val subject = make(present)
+        val result = enclose(Outer(), accept(Prefix(), when (subject) {
+            null -> 7;
+            else -> { println("break-present"); break }
+        }))
+        println("break-after")
+    }
+    println("break-tail")
+}
+fun earlyContinue(own present: Boolean): Unit {
+    var once = true
+    while (once) {
+        once = false
+        val subject = make(present)
+        val result = enclose(Outer(), accept(Prefix(), when (subject) {
+            null -> 7;
+            else -> { println("continue-present"); continue }
+        }))
+        println("continue-after")
+    }
+    println("continue-tail")
+}
+fun make(own present: Boolean): Box<Cell>? {
+    println("make")
+    if (present) {
+        val result: Box<Cell>? = Box(Cell(7))
+        return result
+    }
+    return null
+}
+fun temporary(own present: Boolean): Unit {
+    val result = enclose(Outer(), when (make(present)) {
+        null -> { println("temporary-null"); 7 };
+        else -> { println("temporary-present"); 8 }
+    })
+    println("temporary-after")
+}
+fun entry(): Unit {
+    println("repeat-present")
+    val repeatedPresent: Box<Cell>? = Box(Cell(7))
+    repeated(repeatedPresent)
+    println("repeat-null")
+    repeated(null)
+    println("later-present-start")
+    val laterPresent: Box<Cell>? = Box(Cell(7))
+    later(laterPresent)
+    println("later-null-start")
+    later(null)
+    println("return-present-start")
+    val returnedPresent: Box<Cell>? = Box(Cell(7))
+    earlyReturn(returnedPresent)
+    println("return-null-start")
+    earlyReturn(null)
+    println("break-present-start")
+    earlyBreak(true)
+    println("break-null-start")
+    earlyBreak(false)
+    println("continue-present-start")
+    earlyContinue(true)
+    println("continue-null-start")
+    earlyContinue(false)
+    println("temporary-present-start")
+    temporary(true)
+    println("temporary-null-start")
+    temporary(false)
+    println("done")
+}

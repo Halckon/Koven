@@ -50,7 +50,7 @@ Box 的既有完整普通文档为 `Box<Cell>?`，Rc 为 `Rc<Int>?`，不把例�
 | temporary subject + 普通合流 | 三族 `temporary` | factory 精确一次；临时 owner 到完整表达式边界；无源码 symbol 不伪造 root |
 | temporary subject + return/break/continue | Node 三个 `temporary*` 退出函数 | pending operand、call frame、temporary 各按原退出清理 |
 | 两臂均离开 | Node `doubleReturn` / `temporaryDoubleReturn` | 不造虚假 merge，不遗漏任一臂的清理 |
-| take 参数后续 operand 提前离开 | Node `takenReturn` | 不提前提交 take；无到达的调用不取得 inner owner |
+| take 参数后续 operand 提前离开 | Node `takenReturn` | 按原参数顺序先 take；已提取 inner 作为 pending Value，后续退出精确清理，仅成功调用提交时解除 obligation |
 
 同片保留原 generation/replacement 正例：顺序两个 When 与可变 root 新 generation、替换后
 真实 if reproof、当前 owner 的正确 cleanup。它们不是给旧 when proof 续期的权限。
@@ -81,13 +81,13 @@ Box 的既有完整普通文档为 `Box<Cell>?`，Rc 为 `Rc<Int>?`，不把例�
 ## 5. 验收标准
 
 - [x] R1：生产未改时，原成功能力与正常入口路由分开取证；新增目标路由期望真实 RED。
-- [ ] R2：冻结函数正常入口进入 refine；完整 typed SSA / ownership / LLVM 验证通过。
-- [ ] R3：原 view/take、单次 subject、generation、pending call、ASAP 与所有退出检查保持；
+- [x] R2：冻结函数正常入口进入 refine；完整 typed SSA / ownership / LLVM 验证通过。
+- [x] R3：原 view/take、单次 subject、generation、pending call、ASAP 与所有退出检查保持；
   三个完整普通文档实际 emit/link/run，完整 stdout 与原 golden 相同，保留真实 linker 输出合同。
-- [ ] R4：原负例精确 stage/kind/code/span；nullable-if/Map/borrow/receiver 邻居和 forced 控制不扩张。
-- [ ] R5：single/project、正逆输入、同源 SSA/LLVM 确定性及无关 sibling 路由/执行隔离；
+- [x] R4：原负例精确 stage/kind/code/span；nullable-if/Map/borrow/receiver 邻居和 forced 控制不扩张。
+- [x] R5：single/project、正逆输入、同源 SSA/LLVM 确定性及无关 sibling 路由/执行隔离；
   默认与 feature 的直接行为、共享 CFG/nullable/proof/receipt 消费者通过，CI-only 不本地伪造。
-- [ ] R6：fmt、适用 workspace check、双 all-target Clippy -D warnings、docs/依赖/尺寸/空白；
+- [x] R6：fmt、适用 workspace check、双 all-target Clippy -D warnings、docs/依赖/尺寸/空白；
   独立上下文审查具体问题，修复后重审；Architecture 与真实账本同步。
 - [ ] R7：独立 Draft PR 的精确 head/base 必需双宿主、producer/consumer 与真实 CI-only 验收；
   合法过滤/复用单独归因，不自动合并或归档，不把 timeout/ignored/list 当作执行通过。
@@ -101,14 +101,15 @@ NullableTake、view retirement、一般 predecessor/merge、call operand 与退�
 When-specific control/generation provenance 留 nullable-control 职责；class/Box/Rc 共用同一
 流程，不建类型×CFG 组合模块。以当前 view/normal-if 产品与 when-use 产品的真实区别设计
 内部接线，不用假 if descriptor 或事后改写 SSA 补证。缺失事实 fail loud，不 fallback 掩盖。
-新代码保持单一职责与 1000 行软上限；原测试 source/support 不搬家打包，不清理无关欠账。
+新代码保持单一职责与 1000 行软上限；三份原 source 逐字节抽为共用 fixture，
+source/support 的语义、stdout、负例与 helper 职责不变，不作薄壳打包或清理无关欠账。
 
 ## 7. 顺序实施与检查点
 
 1. [x] 冻结本合同/索引与原能力输入 → R1 基线、正反例与实际数量。
-2. [ ] 新增正常入口路由 RED，再最小接线 → R1–R2；先基础 view/take，再按矩阵验证退出。
-3. [ ] 完成 generation/cleanup/call 交接与同源/模式一致性 → R3–R5；失败先归因，不继续堆功能。
-4. [ ] 独立审查、最小充分门禁与事实文档 → R6；源字节与诊断不弱化。
+2. [x] 新增正常入口路由 RED，再最小接线 → R1–R2；先基础 view/take，再按矩阵验证退出。
+3. [x] 完成 generation/cleanup/call 交接与同源/模式一致性 → R3–R5；失败先归因，不继续堆功能。
+4. [x] 独立审查、最小充分门禁与事实文档 → R6；源字节与诊断不弱化。
 5. [ ] 普通推送独立 Draft，精确头 CI 及验收账本 → R7；Spec 保持 in-progress 到用户批准后续状态。
 
 ## 8. 提交计划
@@ -121,19 +122,29 @@ When-specific control/generation provenance 留 nullable-control 职责；class/
 
 ## 9. 未决问题
 
-无已确认语言或 ABI 缺口；完整矩阵实现尚未证明。任何需新能力或未合依赖的发现按 Goal
-阻塞规则报告，不以本合同的 in-progress 提前声称当前实现已具备。
+无已确认语言、ABI 或未合代码依赖。冻结矩阵已完成本地验证；R6 门禁已闭合，R7 精确
+候选官方 CI 尚须闭合。carrier-return 普通 producer 实验先被前端来源权限拒绝，不将其
+计为 Phase 4 guard 执行覆盖，也不伪造标准来源补验。Spec 保持 in-progress，不自动归档。
 
 ## 10. 单一验收账本
 
 本地 Cargo 顺序复用 `/tmp/koven-0453-target`；Rust 1.96.0 / LLVM21 / macOS AArch64。
-原始日志留仓库外；输入为未修改生产的 main `51a3aad3`。默认不跑 frontend 全量。
+原始日志留仓库外；基线为 main `51a3aad3`，最终本地输入的 codegen tree 为
+`9b672292885f310a9d07841590e127c802fa0b71`；后续仅文档变化不冒称重跑 Rust。
+默认不跑 frontend 全量。
 
 | 验收 / 目标 | 实际结果 | 边界 |
 |---|---|---|
 | 原 nullable When 家族 12 项基线选择 | 首次 240s 编译超时，未开始测试；第二次 600s 总期限，编译 9m48s 后只观察到 9 passed，退出 124 | 两次均不是 suite pass；保留超时，未清 target/改 profile |
 | 同输入剩余 3 项精确目标 | **3 passed / 0 failed / 0 ignored**，退出 0 | 包含三完整文档实际 native 及两个 sibling 契约；与中断前 9 项不合并冒称完整套件通过 |
 | R1 正常 Unit 路由 RED | **0 passed / 1 failed / 0 ignored**，退出 101 | `ssa::refine_subset_tests::nullable_when::owned_pointer_nullable_when_views_and_takes_refine_through_the_normal_unit_entry`；class view 原成功 lowering、SSA/ownership/LLVM 均已通过，精确失败为必须 refine；fail-fast 后另五个 case 未执行；生产未改 |
-| R2–R5 两配置/原契约与新模式矩阵 | 待执行 | 完整 suite 与 feature 尚未接受 |
-| R6 审查与门禁 | 冻结合同 docs（948 Markdown）/空白通过；其余待执行 | 结构检查不代替语义；R1 测试阶段 fmt 通过，尚无生产实现或审查结论 |
+| 初期原契约接线 | 原 12 项先 7/5，再 10/2；修复 control origin、receiver/loop 拒绝边界、携带列和 While 退出源位置 | 失败不覆盖；原断言与源码不削弱 |
+| 首轮扩大默认消费者 | **782 passed / 1 failed / 0 ignored**，退出 101 | 原 exiting-call-prefix native 失败：take 全局删 binding，null 续行的 scope cleanup 找不到 owner；不是缺前端事实 |
+| 路径局部 take 修复 | **21/0/0**，退出 0 | 保留 binding，复用 dead；原失败 native 完整 stdout `drop\\nafter\\nok\\n` 保持；不与历史 782 项拼为一次 suite pass |
+| R2–R5 最终默认 / feature | **676/0/0** / **694/0/0**，均退出 0 | 最终同一 codegen tree；nullable、refine、lower_frontend、parent/child、prefix、loan/receiver receipt 直接消费者；非无关全量 |
+| 正常入口及模式矩阵 | 三族九个 view/take/take-then-return case；完整原 entry 的 24 函数；三文档两布局；输入正逆与 String/Long sibling 精确 SSA/LLVM/routes | SSA/ownership/LLVM 及原三文档 native 保持，不复制原 source 或扩大 observation 可见性 |
+| CI-only 库存 | **62 listed only，none executed**，退出 0 | 本地只 compile/list；实际 fault 执行留 R7 官方 CI |
+| R6 独立审查 | core 首审及 guard、path-local take 两次复核；最终无具体剩余发现 | 首次“borrow 见证可越权”静态判断被实测否定并撤回：实际早在 signature `borrow` span 40..46 拒绝；恢复 guard 是防御保留旧合同 |
+| 审查负例与实验边界 | 新正常 Unit borrow-return 负例保持 UnsupportedNode / 40..46；原 17 负例字节不变 | 初次误期望 When span 及 carrier L0164 实验均非产品 RED；后者未到 Phase 4，已移除无效 fixture |
+| R6 Cargo 与静态门禁 | fmt、workspace check、默认/feature workspace all-target Clippy `-D warnings` 通过；依赖、尺寸、空白通过 | 2300 手写 Rust、36 个既有超限，无新增；docs 948 Markdown、尺寸 policy 47 测试通过 |
 | R7 精确候选 CI | 待执行 | 无 PR，无合并/归档授权 |
