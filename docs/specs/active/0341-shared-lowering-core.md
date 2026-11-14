@@ -17790,3 +17790,16 @@ getters/observe 限制到同一测试 feature；普通 fresh-loop observer 仍�
 no-carry sibling、single-continuation neighbors 三项普通完整 FQN exact 3/3
 通过，fmt/docs/diff 与独立审查通过。未执行故障注入；交付仍待远端双宿主 CI，
 本次不纳入后续 Unit 诊断迁移 `e37124e4`，不标整体 D10/E2 完成。
+
+### PR #422 行数门禁本地结构修复（2026-11-14）
+
+PR 精确头 `4e246716` 的 PR-event 与 push-event 均在 Rust Physical Line Guard
+失败：`ssa/mod.rs` 为 1005 行，超过 1000 行限制。本地按同一 main 基线复现。
+将内联 `borrow_argument` 原样移至同目录独立文件，保留 `cfg(test)`、模块身份和
+全部可见性；仅 rustfmt 调整换行，不改变借用语义，不提高门槛或增加例外。
+父模块降至 340 行，新文件 659 行。默认与观察 feature 全 workspace strict Clippy、
+行数门禁及非作者只读结构审查通过。本修复尚未推送，远端 CI 仍对应原发布头，
+不以本地检查替代远端验收。
+普通 `borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move`
+exact 回归 1/1 通过；故障注入未在本地执行。fmt、951 份 Markdown 文档结构检查及
+diff 检查通过。
