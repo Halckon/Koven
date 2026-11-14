@@ -1,6 +1,7 @@
 //! Ordinary source probe for the isolated Carry candidate; no new authority.
 use super::*;
 mod counter;
+mod model;
 mod shape;
 use crate::parser::Statement;
 

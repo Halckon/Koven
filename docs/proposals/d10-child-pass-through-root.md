@@ -159,3 +159,18 @@ old-result 清理配对由下节独立 shape 层检查，实际 CFG 代际边证
 `prints_line` effect，且非 abort、无 receiver、返回 Unit；不把 `println` 拼写当
 可信目标。普通递归调用不具该 effect，不能成为后缀输出候选。
 这些约束未产生实际 CFG、运行时终止性证明或 Carry 权限，生产仍未启用。
+
+### 独立正常边拓扑 oracle（测试域）
+
+`child_carry_candidate::model` 绑定前述真实源码的两根、父/child loop、两次
+Replace 和 suffix 身份，但拓扑是独立手写 oracle，不是生产 CFG 的提取结果。
+ParentHeader、ChildHeader、ChildBody、Resume、Exit 的显式正常边分别模拟
+零轮退出、child backedge、parent backedge 和最终清理分区。模型中的 generation
+整数仅作逻辑代计数，不是 SSA EntityId，也不替代 edge argument/parameter 对应。
+
+普通测试覆盖 outer/inner 各 0、1、2 的九种组合：每次 Replace 退休原 a 代，b
+保持原根/逻辑代，正常出口仅当前 a 与原 b 留给最终分区，suffix 恰一次。
+这不是运行时输出或析构顺序证据；最终分区仍是实际 emitter 必须验证的义务。
+checked-abort、真实 predecessor 完整性、块参数身份、隐式清理、终检失败原子性
+未由此模型覆盖；故障负控仍只允许 CI。没有新增 abort-drop 承诺，也没有产生
+Carry 权限、生产 observation 或 receipt。
