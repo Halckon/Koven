@@ -95,6 +95,143 @@ fn a_group_recovery_does_not_jump_past_a_file_declaration_or_else() {
 }
 
 #[test]
+fn a_poisoned_group_leaves_the_callers_else() {
+    for (poison, code) in [("β", "L0001"), ("async", "L0002")] {
+        let text = format!("if (flag) (value {poison} else fallback)");
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("poisoned-group-else.ko", &text).unwrap();
+        let parsed = parse_expression_twice(&sources, source, &text);
+        assert_group_diagnostics(
+            &sources,
+            parsed.diagnostics(),
+            &[(code, poison), ("L0010", ""), ("L0013", ")")],
+        );
+        assert_eq!(
+            parsed.diagnostics()[1].primary_span().start(),
+            text.find("else").unwrap()
+        );
+        let branch = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find_map(|(_, node)| match node.payload() {
+                Expression::If { else_branch, .. } => *else_branch,
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("else must remain reachable: {text}"));
+        let branch = parsed.ast().statements().get(branch).unwrap();
+        assert_eq!(sources.slice(branch.span()), Ok("fallback"));
+    }
+}
+
+#[test]
+fn a_poisoned_then_keeps_inner_and_outer_else_owners() {
+    let text = "if (outer) (if (inner) value β else innerFallback) else outerFallback";
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("nested-group-else.ko", text).unwrap();
+    let parsed = parse_expression_twice(&sources, source, text);
+    assert_group_diagnostics(&sources, parsed.diagnostics(), &[("L0001", "β")]);
+    let ast = parsed.ast();
+    let expression = |id| ast.expressions().get(id).unwrap().payload();
+    let statement = |id| ast.statements().get(id).unwrap();
+    let Expression::If {
+        then_branch,
+        else_branch: Some(outer_else),
+        ..
+    } = expression(parsed.root())
+    else {
+        panic!("outer if");
+    };
+    assert_eq!(
+        sources.slice(statement(*outer_else).span()),
+        Ok("outerFallback")
+    );
+    let Statement::Expression { expression: group } = statement(*then_branch).payload() else {
+        panic!("outer then has a group");
+    };
+    let Expression::Group { expression: inner } = expression(*group) else {
+        panic!("group contains the inner if");
+    };
+    let Expression::If {
+        then_branch: inner_then,
+        else_branch: Some(inner_else),
+        ..
+    } = expression(*inner)
+    else {
+        panic!("inner if");
+    };
+    assert_eq!(
+        sources.slice(statement(*inner_else).span()),
+        Ok("innerFallback")
+    );
+    let damaged = statement(*inner_then);
+    assert!(matches!(damaged.payload(), Statement::Error));
+    assert_eq!(sources.slice(damaged.span()), Ok("value β"));
+}
+
+#[test]
+fn a_poisoned_block_tail_keeps_its_body_and_else() {
+    for (gap, tail) in [(" ", "β"), ("\n", "β"), (" /*\n*/ ", "β\nasync")] {
+        let text = format!(
+            "if (outer) (if (inner) {{ value }}{gap}{tail} else innerFallback) else outerFallback"
+        );
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("nested-block-else.ko", &text).unwrap();
+        let parsed = parse_expression_twice(&sources, source, &text);
+        let mut expected = vec![("L0001", "β")];
+        if tail.ends_with("async") {
+            expected.push(("L0002", "async"));
+        }
+        assert_group_diagnostics(&sources, parsed.diagnostics(), &expected);
+        let ast = parsed.ast();
+        let Expression::If {
+            else_branch: Some(outer_else),
+            ..
+        } = ast.expressions().get(parsed.root()).unwrap().payload()
+        else {
+            panic!("outer if");
+        };
+        assert_eq!(
+            sources.slice(ast.statements().get(*outer_else).unwrap().span()),
+            Ok("outerFallback")
+        );
+        let (body, fallback) = ast
+            .expressions()
+            .iter()
+            .find_map(|(_, node)| {
+                let Expression::If {
+                    then_branch,
+                    else_branch: Some(else_branch),
+                    ..
+                } = node.payload()
+                else {
+                    return None;
+                };
+                (*else_branch != *outer_else).then_some((*then_branch, *else_branch))
+            })
+            .expect("inner if");
+        assert_eq!(
+            sources.slice(ast.statements().get(fallback).unwrap().span()),
+            Ok("innerFallback")
+        );
+        let Statement::ControlBody { elements } = ast.statements().get(body).unwrap().payload()
+        else {
+            panic!("original then block");
+        };
+        let [value, error] = elements.as_slice() else {
+            panic!("original expression and recovered tail");
+        };
+        assert_eq!(
+            sources.slice(ast.statements().get(*value).unwrap().span()),
+            Ok("value")
+        );
+        let error = ast.statements().get(*error).unwrap();
+        assert!(matches!(error.payload(), Statement::Error));
+        assert_eq!(sources.slice(error.span()), Ok(tail));
+    }
+}
+
+#[test]
 fn ambiguous_group_closer_leaves_the_caller_separator() {
     let text = "f((value, next)";
     let mut sources = SourceMap::new();
