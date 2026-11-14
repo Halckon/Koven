@@ -82,7 +82,7 @@ pub fn analyze_named_entry(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundNamedEntry>, OwnershipCheckingError> {
-    let (owned, _, _, _, _, _, mut before, mut after) = analysis::analyze_with_catalog(
+    let (owned, _, _, _, _, _, before, after) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),
@@ -93,7 +93,17 @@ pub fn analyze_named_entry(
     if inputs.len() != 1 {
         return Ok(None);
     }
+    Ok(select(owned, before, after).ok())
+}
+
+pub(super) fn select(
+    owned: CompilationUnitOwnership,
+    mut before: Vec<WrappedDualPending>,
+    mut after: Vec<WrappedAfterChildPending>,
+) -> Result<BoundNamedEntry, super::prepare::PrepareNamedEntryError> {
+    use super::prepare::PrepareNamedEntryError;
     let inner = match (before.len(), after.len()) {
+        (0, 0) => return Err(PrepareNamedEntryError::Unsupported),
         (1, 0) => before
             .pop()
             .and_then(|pending| pending.bind(owned))
@@ -102,7 +112,9 @@ pub fn analyze_named_entry(
             .pop()
             .and_then(|pending| pending.bind_after(owned))
             .map(Inner::AfterChild),
-        _ => None,
+        _ => return Err(PrepareNamedEntryError::Ambiguous),
     };
-    Ok(inner.map(|inner| BoundNamedEntry { inner }))
+    inner
+        .map(|inner| BoundNamedEntry { inner })
+        .ok_or(PrepareNamedEntryError::Unproved)
 }

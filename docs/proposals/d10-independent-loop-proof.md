@@ -1262,3 +1262,28 @@ CLI仍使用complete type admission及Basic/Constant capability；实验feature�
 实验all-targets严格Clippy、默认codegen及workspace all-targets编译通过。
 本批未新增native执行或本地故障注入，未将此前两独立入口native结果称为统一
 入口的新native验收；复用原对象事务不是新的失败原子性负控结果。
+
+### 显式 final-admitted prepare 与非测试库边界
+
+`ValidatedCompilationUnitTypes` 的Basic验证不代替CLI采用的最终类型准入；
+ownership有诊断时会清除catalog候选，因此旧Option返回值不能独自区分非法
+源码和超出封闭形态。本批新增显式prepare先执行完整final admission，再做
+一次实际catalog分析，先保留ownership诊断/deferred，再判唯一候选及原binder。
+不支持形态、歧义、证据绑定失败和真实前端错误分别处理，不转试其他路径。
+准备产物持有自己的typed与bound，后端从它们构造同次view并复用原完整图检查。
+
+D10特性不再隐式开启loan-observation-test-support；默认planner本就记录真实
+loan事实，该测试特性仅使其可由测试hook控制。外部integration只用公开API，
+使前端及后端库均在非cfg(test)下编译，验证prepare至真实process对象；不链接
+或执行对象。既有Refine单元观察helper只在启用测试support时有全部消费者，
+独立D10的lib-test组合仍触发其历史dead-code边界，未以allow或删见证消除。
+CI-only单元脚本现在显式声明测试support，生产/外部integration不依赖它。
+这不是CLI默认选择或正式功能启用，默认features与普通Basic/Constant门不变。
+
+本批非test库外部integration四个真实对象（两顺序×两输入布局）通过；前端十二
+组合通过，包含合法Unsupported、真实use-after-move原ownership诊断，以及
+Basic验证成功后final admission拒绝的L0080及fooBar精确span。旧Option回归
+通过。独立D10的库/integration严格Clippy、显式测试support下十八项D10普通
+单元及all-targets严格Clippy通过，五项CI-only保持ignored；CI脚本仅列举通过。
+默认codegen编译通过。deferred-only场景、真实故障、跨宿主及普通CLI选择仍
+未由本批验证；本批无native执行，独立lib-test组合的旧helper限制如上保留。

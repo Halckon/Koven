@@ -35,10 +35,10 @@ else
 fi
 
 replay_bridge=ssa::d10_dual_nested_loop_tests::ci_only_dual_replay_rejects_foreign_owned_identity
-listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$replay_bridge" -- --exact --ignored --list)
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$replay_bridge" -- --exact --ignored --list)
 [[ $(grep -Fxc "$replay_bridge: test" <<< "$listing") == 1 ]]
 if [[ "$mode" != --list-only ]]; then
-  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$replay_bridge" -- --exact --ignored
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$replay_bridge" -- --exact --ignored
 else
   echo 'nested replay identity CI-only test compiled/listed; not executed'
 fi
@@ -53,37 +53,37 @@ else
 fi
 
 after_publication=ssa::d10_dual_nested_loop_tests::parent_after_child::bound::ci_only_after_child_publication_rejects_identity_and_graph_mismatch
-listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$after_publication" -- --exact --ignored --list)
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$after_publication" -- --exact --ignored --list)
 [[ $(grep -Fxc "$after_publication: test" <<< "$listing") == 1 ]]
 if [[ "$mode" != --list-only ]]; then
-  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$after_publication" -- --exact --ignored
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$after_publication" -- --exact --ignored
 else
   echo 'AfterChild publication identity/graph controls compiled/listed; not executed'
 fi
 
 before_publication=ssa::d10_dual_nested_loop_tests::ci_only_before_child_graph_rejects_locally_valid_source_mismatch
-listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$before_publication" -- --exact --ignored --list)
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$before_publication" -- --exact --ignored --list)
 [[ $(grep -Fxc "$before_publication: test" <<< "$listing") == 1 ]]
 if [[ "$mode" != --list-only ]]; then
-  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$before_publication" -- --exact --ignored
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$before_publication" -- --exact --ignored
 else
   echo 'BeforeChild source/graph controls compiled/listed; not executed'
 fi
 
 process_object=ssa::d10_named_wrapper_tests::process_object::ci_only_process_object_failure_preserves_target
-listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$process_object" -- --exact --ignored --list)
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$process_object" -- --exact --ignored --list)
 [[ $(grep -Fxc "$process_object: test" <<< "$listing") == 1 ]]
 if [[ "$mode" != --list-only ]]; then
-  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$process_object" -- --exact --ignored
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$process_object" -- --exact --ignored
 else
   echo 'named process object atomicity control compiled/listed; not executed'
 fi
 
 process_after=ssa::d10_named_after_child_tests::process_object::ci_only_process_object_failure_preserves_target
-listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$process_after" -- --exact --ignored --list)
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$process_after" -- --exact --ignored --list)
 [[ $(grep -Fxc "$process_after: test" <<< "$listing") == 1 ]]
 if [[ "$mode" != --list-only ]]; then
-  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$process_after" -- --exact --ignored
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$process_after" -- --exact --ignored
 else
   echo 'AfterChild named process object atomicity control compiled/listed; not executed'
 fi

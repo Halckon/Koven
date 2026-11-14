@@ -359,4 +359,4 @@ pub use named_after_child::{NamedAfterChildProgram, lower_named_after_child_wrap
 
 #[path = "d10_experiment_named_entry.rs"]
 mod named_entry;
-pub use named_entry::{NamedEntryProgram, lower_named_entry};
+pub use named_entry::{NamedEntryProgram, lower_named_entry, lower_prepared_named_entry};

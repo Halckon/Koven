@@ -76,3 +76,24 @@ pub fn lower_named_entry<'view, 'parsed: 'view>(
     };
     Ok(NamedEntryProgram { publication })
 }
+
+/// Lower a final-admitted explicit preparation without reconstructing or replacing its analyses.
+/// This opt-in bridge is not selected by the CLI and never falls back to another capability.
+pub fn lower_prepared_named_entry<'view, 'parsed: 'view>(
+    sources: &'view lang_frontend::source::SourceMap,
+    inputs: &'view [lang_frontend::name_resolution::SourceUnitInput<'parsed>],
+    names: &'view lang_frontend::name_resolution::ValidatedCompilationUnitNames,
+    environment: &'view lang_frontend::type_checking::TypeEnvironment,
+    prepared: &'view lang_frontend::ownership_checking::d10_catalog_experiment::PreparedNamedEntry,
+) -> Result<NamedEntryProgram<'view, 'parsed>, Error> {
+    let unit = lang_frontend::ownership_checking::owned_compilation_unit_view(
+        sources,
+        inputs,
+        names,
+        environment,
+        prepared.typed(),
+        prepared.bound().ownership(),
+    )
+    .map_err(|error| Error::new(Stage::Identity, format!("{error:?}")))?;
+    lower_named_entry(unit, prepared.bound())
+}

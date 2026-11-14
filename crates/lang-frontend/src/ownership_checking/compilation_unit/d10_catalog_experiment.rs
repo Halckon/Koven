@@ -193,3 +193,6 @@ pub use named_after_child::{
 
 mod named_entry;
 pub use named_entry::{BoundNamedEntry, NamedEntryOrder, NamedEntryView, analyze_named_entry};
+
+mod prepare;
+pub use prepare::{PrepareNamedEntryError, PreparedNamedEntry, prepare_named_entry};
