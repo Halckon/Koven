@@ -13,11 +13,22 @@ pub struct TwoSourceExperiment {
     facts: Vec<TwoSourceCounterFact>,
     typed_owner: std::sync::Arc<()>,
     callables: Vec<DeclarationId>,
+    leaves: Option<Vec<super::CalleeLeaf>>,
 }
 impl TwoSourceExperiment {
     /// Returns only facts retained after the complete validation gate.
     pub fn facts(&self) -> &[TwoSourceCounterFact] {
         &self.facts
+    }
+    /// Returns the complete admitted callee leaf closure; unsupported bodies return None.
+    pub fn callee_leaves(&self) -> Option<&[super::CalleeLeaf]> {
+        self.leaves.as_deref()
+    }
+    /// Checks this experiment issued the leaf, not merely an equal signature/body.
+    pub fn owns_leaf(&self, leaf: &super::CalleeLeaf) -> bool {
+        self.leaves
+            .as_ref()
+            .is_some_and(|leaves| leaves.iter().any(|candidate| candidate.same_identity(leaf)))
     }
     /// Checks the issuing typed analysis, including across structurally equal reanalysis.
     pub fn matches_types(&self, typed: &ValidatedCompilationUnitTypes) -> bool {
@@ -84,9 +95,11 @@ pub fn analyze_two_source_experiment(
     let Some(callables) = callables else {
         return Ok(None);
     };
+    let leaves = super::leaves::collect(&facts, inputs, names, typed);
     Ok((!facts.is_empty()).then_some(TwoSourceExperiment {
         facts,
         typed_owner: typed.types().analysis_owner().clone(),
         callables,
+        leaves,
     }))
 }

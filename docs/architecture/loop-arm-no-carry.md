@@ -167,3 +167,11 @@ callsite/key混用。backend测试专用独立输入Plan要求issuing fact与原
 该Plan仅确定源角色，不是SSA块布局、callee FunctionId重定位或emitted receipt。
 Plan另核实验桥记录的原names中source-unit/root声明ID与typed签名相同，不仅在
 fixture中比较callable；普通分析入口、旧域和生产lowering仍不消费此计划。
+
+实验callee闭包首片只接受原AST证实的两种真实叶函数：单Borrow String参数的
+直接Name借用返回（解析到该参数且origin=Parameter(0)），或确实为空的Unit block。
+完整key去重定义但不改fact的调用顺序；泛型、receiver、额外参数、复杂或未知body
+均不提供此闭包。body描述为私有构造并绑定实验身份，不暴露普通ownership。
+测试态专用emitter在同module生成真实Shared参数及BorrowReturn/Return，保留body
+Span，通过整个Program verifier与LLVM render。非空consumer/分组producer仍可有
+合法实验fact，但不能被当作空/identity占位体。此片没有caller接线、循环或receipt。

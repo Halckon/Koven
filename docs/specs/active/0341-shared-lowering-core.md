@@ -18243,3 +18243,25 @@ Plan引用原fact而不借用旧单source Plan、不给旧arm域权限；仍只�
 最终实验/组合配置E2测试各4/4、两配置codegen all-target严格Clippy及frontend组合
 all-target严格Clippy通过；默认/仅observation的codegen cargo check、fmt/docs951/
 diff与独立复审通过。未运行native或远端CI，不把输入计划称为SSA收据。
+
+### E2 受限真实callee叶闭包与同module lowering（实验，生产未启用）
+
+前一输入Plan不足以调用普通orchestrate：其FunctionId来自真实实例图与body填充，
+不能从key猜ID或用占位body补表。本片只覆盖原AST明确的单Borrow String参数叶函数：
+producer为直接参数Name的借用返回（真实symbol及Parameter(0)合同），consumer为
+真实空Unit block。所有引用instance完整匹配才产生闭包，未知/泛型/receiver/额外
+参数及其他body拒绝该闭包；不影响原合法fact，也不暴露ordinary owned/通用回调。
+
+opaque叶描述保留完整instance key、实际body Span和独立身份；重复调用只共享定义，
+fact中的callsite序列不去重。专用test+feature emitter在同module分配真实FunctionId
+和String类型，生成Shared入口参数、producer原参数BorrowReturn或consumer空Return；
+无虚假body、无输入BorrowEnd、无新父权限。全Program verifier失败不返回部分module。
+
+真实验收包含参数反序、不同声明同签名（独立FunctionId）、重复consumer复用定义、
+原typed身份/外来叶拒绝和LLVM render；非空consumer与分组producer保持合法实验fact，
+但闭包及emitter明确返回None，不丢掉原语句。分组identity虽语义简单仍超出首片范围。
+这只是两类真实源码叶函数的lowering，不是通用callee闭包：尚无caller调用接线、
+循环CFG、counter异常边、两源receipt或native执行；生产入口与接受集保持不变。
+最终实验/组合E2定向测试各5/5（含真实SSA verifier及LLVM render）、两配置codegen
+all-target严格Clippy、frontend组合all-target严格Clippy、默认/观察cargo check及
+fmt/docs951/diff和独立复审通过。未运行native或远端CI。
