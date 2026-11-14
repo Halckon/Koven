@@ -283,3 +283,28 @@ native loop 用例，源文件从 271 行增为 568 行。继续内联会让当�
 首次完整本机运行另因 BSD `sha256sum` 不支持 `--strict` 而失败；使用已安装 GNU
 coreutils 后重验通过，未修改无关工具链测试。`check_docs.py`、diff whitespace 均通过。
 本轮仅修正 Python 路径消费者，不重跑 Cargo；新 head 的远端 CI 仍须独立确认。
+
+### 4.4 CI 修复确认及 sanitizer exporter 实际迁移验收
+
+修复检查点 `72b93319` 的 [push CI 43543710735](https://github.com/Halckon/Koven/actions/runs/43543710735)
+已成功结束：6 项成功、8 项按本次 Python/文档改动过滤跳过，原 Docs & Spec Structural
+Gate 通过。被过滤的 Rust tests/Clippy/Preview 不计为已执行；本结果不补齐整批双宿主验收。
+
+随后继续核对该 exporter 的实际迁移。原始文件基线为 `90f05cd1`（原 0452 提交
+`2b3d624b` 的直接父提交）：退役文件全部 884 个代码/字面量 token 与当前内联正文
+一致，仅排除代码空白及注释，没有裁掉 helper 或改动 source/golden。
+
+默认与 `loan-observation-test-support` 分别精确执行
+`native_sanitizer_tests::map_provider::map_provider_resource_histories_export_real_ir`，
+各为 1 passed / 0 failed / 0 ignored，退出码 0；另外在两配置各保留一轮真实 exporter
+产物并复跑通过。每配置 manifest 恰为 12 个唯一标签，来自六个原 Resource history
+用例乘 MemoryDocument Unit/rooted Unit 两条实际入口；历史标签 single/unit 未改名。
+保留产物的 24 个 cell 均实际链接并执行，退出状态为 0，完整 stdout 等于独立 golden，
+运行 stderr 为空。两配置逐标签源码、golden 和原始 LLVM IR 字节一致，两入口对应的
+六组 source/golden 也一致。ASan 属性模块仍经 LLVM verifier；本轮没有实际运行 Linux
+ASan/LSan consumer，不把 exporter 成功等同 sanitizer 检出验收。
+
+Clang 链接均成功，但保留了 macOS `-Woverride-module` target-triple 警告；没有关闭
+警告、修改目标 IR 或把链接 stderr 误记为空。临时产物、身份摘要和日志留仓库外，本节
+保留输入提交、精确入口与结论。原物理进度仍为 127/129；完整既有迁移与双宿主 CI
+验收继续待办，不改变本 Spec 状态。
