@@ -970,3 +970,29 @@ CI-only ignored，含经新封包交付后的 72 条有界路径。新负控精�
 未执行；实验 tests 严格 Clippy、默认 codegen check、格式、文档 957、全仓尺寸
 （基底 main `cc83d9ec`）及独立源码/生命周期/全图审查通过。没有运行 native、
 本地故障注入或推送；远端 CI 及动态故障拒绝仍待实际执行。
+
+### BeforeChild 独立顺序闭环
+
+新增 `lower_before_child` 和独立 `BeforeChildProgram`，只收现有 Dual bound 中
+双独立 counter 且 a/b 均真实后用的子集；同参数或仅 retained 后用即使已有普通
+bound 也明确拒绝。它不借用 AfterChild 权限，默认 selector 和原普通 Unit gate
+均未修改。共用的只是顺序无关图查询、操作组和 edge→parameter 角色映射；原
+AfterChild inspect 拓扑核验保持不变，并以独立搬移比对复核。
+
+BeforeChild checker 按真实来源发现父 Replace 与 child counter Read 同块的
+前序结构；父新 owner 进入 child header。child 假边进入仅父步进的块，父回边
+保留该假边运输的实际当前 a，不把它回填为静态父 producer。因此 child 零轮
+使用父新代，多轮使用 child 最后代；所有块/指令/loan/Drop/checked-abort 仍须
+完整匹配。该证明来自真实边与实体，不从有限执行样本或 producer site 外推。
+
+已有独立源码/owned 与固定图 oracle 在新封包成功后继续交叉核验。前序四种
+正源码（原文、改名、空白、Unicode）× Rooted/Memory × 九组 counter 的 72 条
+逻辑路径检查最终输出与清理；同样数量的后序路径保持回归。它们依然不是 native
+或 allocator 验收。前序身份/保 IR 有效的来源与常量损坏仅安排 CI-only 控制，
+本地编译列举，不执行。普通合法但未获该窄封包支持的形态走实际拒绝路径。
+
+本片最终 D10 普通 SSA 十一项通过／三项 CI-only ignored，新前序负控精确编译
+列举一项而未执行。默认与实验 feature 的非 test codegen check、实验 tests
+严格 Clippy、格式、文档 957、全仓尺寸（main `cc83d9ec`）及顺序/生命周期/CI
+隔离独审通过。native 窗口仍有其他实际测试进程，本片未启动 native，未本地
+注入故障或推送；完整动态与远端 CI 验收不继承这些定向结果。

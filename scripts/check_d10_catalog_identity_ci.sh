@@ -60,3 +60,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'AfterChild publication identity/graph controls compiled/listed; not executed'
 fi
+
+before_publication=ssa::d10_dual_nested_loop_tests::ci_only_before_child_graph_rejects_locally_valid_source_mismatch
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$before_publication" -- --exact --ignored --list)
+[[ $(grep -Fxc "$before_publication: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$before_publication" -- --exact --ignored
+else
+  echo 'BeforeChild source/graph controls compiled/listed; not executed'
+fi

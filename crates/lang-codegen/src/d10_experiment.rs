@@ -1,4 +1,4 @@
-//! Default-off, same-analysis AfterChild publication. Not an ordinary entry/Carry capability.
+//! Default-off, same-analysis ordered loop publications. Not ordinary entry/Carry capabilities.
 //!
 //! This route uses ordinary Unit lowering unchanged and publishes only after a separate graph
 //! check. It does not select source programs for the normal driver or create native entry glue.
@@ -14,7 +14,7 @@ use crate::ssa::{
     unit_lower,
 };
 
-/// The stage that refused a restricted experimental publication.
+/// The stage that refused a restricted ordered-loop experimental publication.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
     /// The view does not borrow the bound's exact final ownership analysis.
@@ -50,7 +50,7 @@ impl Error {
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "AfterChild {:?}: {}", self.stage, self.detail)
+        write!(f, "D10 ordered-loop {:?}: {}", self.stage, self.detail)
     }
 }
 impl std::error::Error for Error {}
@@ -128,6 +128,89 @@ pub fn lower_after_child<'view, 'parsed: 'view>(
     crate::ssa::d10_after_child_graph::check(&unit, bound, &program, function)
         .map_err(|_| Error::new(Stage::Graph, "unproved graph or source relation"))?;
     Ok(AfterChildProgram {
+        unit,
+        bound,
+        program,
+        entry: function,
+    })
+}
+
+/// Separate parent-before-child publication. It does not inherit AfterChild authority.
+/// Only two independent counters and real final uses of both roots are accepted.
+pub struct BeforeChildProgram<'view, 'parsed: 'view> {
+    unit: OwnedCompilationUnitView<'view, 'parsed>,
+    bound: &'view lang_frontend::ownership_checking::d10_catalog_experiment::BoundDualNestedLoop,
+    program: Program,
+    entry: FunctionId,
+}
+impl BeforeChildProgram<'_, '_> {
+    /// Original source-qualified callable identity.
+    #[must_use]
+    pub fn callable(&self) -> UnitItemId {
+        self.bound.controls().0
+    }
+
+    /// Verify and render only; no native entry glue, file publication or execution.
+    pub fn verified_llvm_ir(&self) -> Result<String, Error> {
+        crate::llvm::render_verified_program(&self.program)
+            .map_err(|e| Error::new(Stage::Backend, format!("{e:?}")))
+    }
+
+    /// Number of source inputs held alive by this publication.
+    #[must_use]
+    pub fn source_count(&self) -> usize {
+        self.unit.inputs().len()
+    }
+
+    /// Original callable name from this immutable graph.
+    #[must_use]
+    pub fn function_name(&self) -> Option<&str> {
+        self.program
+            .module(self.entry.module())?
+            .function(self.entry)
+            .map(|f| f.name.as_str())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replay_input(&self) -> (&Program, FunctionId) {
+        (&self.program, self.entry)
+    }
+}
+
+/// Preserve ordinary lowering; require the independent parent-before-child graph proof.
+pub fn lower_before_child<'view, 'parsed: 'view>(
+    unit: OwnedCompilationUnitView<'view, 'parsed>,
+    bound: &'view lang_frontend::ownership_checking::d10_catalog_experiment::BoundDualNestedLoop,
+) -> Result<BeforeChildProgram<'view, 'parsed>, Error> {
+    if !bound.matches(&unit) {
+        return Err(Error::new(Stage::Identity, "final owned analysis differs"));
+    }
+    let [parent, child] = bound.counter_parameters();
+    if parent == child || bound.final_root_use().is_none() {
+        return Err(Error::new(
+            Stage::Graph,
+            "two independent counters and two final uses required",
+        ));
+    }
+    let callable = bound.controls().0;
+    let mut entries = unit
+        .names()
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .filter(|d| d.source_unit() == callable.source_unit() && d.root() == callable.item());
+    let entry = entries
+        .next()
+        .ok_or_else(|| Error::new(Stage::Entry, "missing callable"))?;
+    if entries.next().is_some() {
+        return Err(Error::new(Stage::Entry, "ambiguous callable"));
+    }
+    let (program, function) = unit_lower::lower_owned_unit_with_entry(&unit, entry.id())
+        .map_err(|e| Error::new(Stage::Lowering, format!("{e:?}")))?;
+    crate::ssa::d10_before_child_graph::check(&unit, bound, &program, function)
+        .map_err(|_| Error::new(Stage::Graph, "unproved graph or source relation"))?;
+    Ok(BeforeChildProgram {
         unit,
         bound,
         program,

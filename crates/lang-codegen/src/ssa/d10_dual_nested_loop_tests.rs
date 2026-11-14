@@ -50,6 +50,15 @@ fn run_cases(native: Option<fn(&Program, FunctionId)>, foreign_owned: bool) -> u
         .replace("var inner = count", "var inner = childCount")
         .replace("println(b)", "println(a); println(b)");
     for (text, accepted) in [
+        (native_fixture.replace("; ", ";\n  "), true),
+        (
+            native_fixture
+                .replace("first", "初始")
+                .replace("kept", "保留")
+                .replace("parent\"", "父\"")
+                .replace("next", "子"),
+            true,
+        ),
         (SOURCE.to_owned(), true),
         (SOURCE.replace("fun run", "fun renamed"), true),
         (renamed_source(SOURCE), true),
@@ -179,6 +188,34 @@ fn run_cases(native: Option<fn(&Program, FunctionId)>, foreign_owned: bool) -> u
                 unit_lower::lower_owned_unit_with_entry(&unit, entry).unwrap();
             replay::replay(&unit, &bound, &program, function)
                 .expect("actual dual Replace CFG and cleanup replay");
+            let publication_view = owned_compilation_unit_view(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                bound.ownership(),
+            )
+            .unwrap();
+            let publication = crate::d10_experiment::lower_before_child(publication_view, &bound);
+            let [parent_parameter, child_parameter] = bound.counter_parameters();
+            if parent_parameter != child_parameter && bound.final_root_use().is_some() {
+                let publication = publication.expect("complete before-child publication");
+                assert_eq!(publication.callable(), bound.controls().0);
+                assert_eq!(publication.source_count(), 1);
+                assert!(publication.function_name().is_some());
+                let (actual, actual_entry) = publication.replay_input();
+                replay::replay(&unit, &bound, actual, actual_entry)
+                    .expect("independent old source/graph oracle after publication");
+                path::check_before_child(actual, actual_entry, &evidence.literals);
+                publication.verified_llvm_ir().unwrap();
+            } else {
+                let error = match publication {
+                    Ok(_) => panic!("narrow publication must reject unproved source scope"),
+                    Err(error) => error,
+                };
+                assert_eq!(error.stage(), crate::d10_experiment::Stage::Graph);
+            }
             if foreign_owned {
                 // An independent real planner run, not a forged or edited fact collection.
                 let other =
@@ -196,6 +233,12 @@ fn run_cases(native: Option<fn(&Program, FunctionId)>, foreign_owned: bool) -> u
                 .unwrap();
                 assert!(!bound.matches(&foreign));
                 assert!(replay::replay(&foreign, &bound, &program, function).is_none());
+                let publication = crate::d10_experiment::lower_before_child(foreign, &bound);
+                let error = match publication {
+                    Ok(_) => panic!("foreign final-owned analysis must not publish"),
+                    Err(error) => error,
+                };
+                assert_eq!(error.stage(), crate::d10_experiment::Stage::Identity);
                 assert!(replay::replay(&unit, &other, &program, function).is_none());
             }
             if bound.final_root_use().is_some() {
@@ -226,4 +269,67 @@ fn renamed_source(source: &str) -> String {
         .replace("println(a)", "println(primary)")
         .replace("var b ", "var retained ")
         .replace("println(b)", "println(retained)")
+}
+
+#[test]
+#[ignore = "CI-only before-child source/graph negative controls"]
+fn ci_only_before_child_graph_rejects_locally_valid_source_mismatch() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    use lang_frontend::{
+        name_resolution::SourceUnitInput,
+        ownership_checking::{d10_catalog_experiment as experiment, owned_compilation_unit_view},
+        source::SourceMap,
+        type_checking::standard_environments,
+    };
+    let text = SOURCE
+        .replace("count: Int", "count: Int, childCount: Int")
+        .replace("var inner = count", "var inner = childCount")
+        .replace("println(b)", "println(a); println(b)");
+    let mut sources = SourceMap::new();
+    let (source_id, parsed) = unit_lower_test_support::parsed(&mut sources, "before-ci.ko", &text);
+    let inputs = [SourceUnitInput::memory_document(source_id, &parsed)];
+    let (environment, types) = standard_environments();
+    let (names, typed, _) =
+        unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+    let bound = experiment::analyze_dual_nested_loop(&sources, &inputs, &names, &types, &typed)
+        .unwrap()
+        .unwrap();
+    let unit =
+        owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, bound.ownership())
+            .unwrap();
+    let callable = bound.controls().0;
+    let entry = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.source_unit() == callable.source_unit() && d.root() == callable.item())
+        .unwrap()
+        .id();
+    for fault in 0..3 {
+        let (mut program, function) =
+            unit_lower::lower_owned_unit_with_entry(&unit, entry).unwrap();
+        let f = program
+            .module_mut(function.module())
+            .unwrap()
+            .function_mut(function)
+            .unwrap();
+        let instruction = f
+            .instructions
+            .iter_mut()
+            .find(|i| match fault {
+                0 => matches!(i.operation, Operation::StringLiteral { .. }),
+                1 => matches!(i.operation, Operation::Constant(ScalarConstant::Integer(1))),
+                _ => matches!(i.operation, Operation::Read { .. }),
+            })
+            .unwrap();
+        match (&mut instruction.operation, fault) {
+            (Operation::StringLiteral { bytes, .. }, 0) => bytes.push(b'!'),
+            (Operation::Constant(ScalarConstant::Integer(value)), 1) => *value = 2,
+            (_, 2) => instruction.origin = f.origin.clone(),
+            _ => unreachable!("selected CI-only fault"),
+        }
+        verify::verify_program(&program).unwrap();
+        assert!(d10_before_child_graph::check(&unit, &bound, &program, function).is_err());
+    }
 }

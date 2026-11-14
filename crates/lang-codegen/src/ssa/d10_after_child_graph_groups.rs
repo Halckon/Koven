@@ -5,7 +5,7 @@ use lang_frontend::{
     ownership_checking::{UnitDropFact, UnitLoanFact, d10_catalog_experiment::RetainedLoopRoot},
     parser::{Expression, SyntaxAst},
 };
-pub(super) fn constant_origin(
+pub(in crate::ssa) fn constant_origin(
     ast: &SyntaxAst,
     id: UnitExpressionId,
     condition: bool,
@@ -24,7 +24,7 @@ pub(super) fn constant_origin(
     };
     Some(Origin::Source(ast.expressions().get(operand).ok()?.span()))
 }
-pub(super) fn condition<'a>(
+pub(in crate::ssa) fn condition<'a>(
     g: &Graph<'a>,
     cmp: &Instruction,
     env: &Env,
@@ -53,7 +53,7 @@ pub(super) fn condition<'a>(
     value(cmp)?;
     Some(zero)
 }
-pub(super) fn step<'a>(
+pub(in crate::ssa) fn step<'a>(
     g: &Graph<'a>,
     step: &Instruction,
     env: &Env,
@@ -85,7 +85,7 @@ pub(super) fn step<'a>(
     g.integer(right)?;
     Some(one)
 }
-pub(super) fn replacement<'a>(
+pub(in crate::ssa) fn replacement<'a>(
     g: &Graph<'a>,
     replace: &'a Instruction,
     literal: &'a Instruction,
@@ -138,7 +138,7 @@ pub(super) fn replacement<'a>(
     }
     Some(group)
 }
-pub(super) fn suffix<'a>(
+pub(in crate::ssa) fn suffix<'a>(
     g: &Graph<'a>,
     source: &RetainedLoopRoot,
     current: ValueId,
@@ -182,7 +182,7 @@ pub(super) fn suffix<'a>(
     }
     Some(group)
 }
-pub(super) fn step_edges(
+pub(in crate::ssa) fn step_edges(
     g: &Graph<'_>,
     step: &Instruction,
     one: &Instruction,

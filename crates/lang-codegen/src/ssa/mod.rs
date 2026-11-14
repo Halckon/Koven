@@ -357,3 +357,5 @@ mod d10_main428_boundary_tests;
 
 #[cfg(feature = "d10-catalog-experiment")]
 pub(crate) mod d10_after_child_graph;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod d10_before_child_graph;

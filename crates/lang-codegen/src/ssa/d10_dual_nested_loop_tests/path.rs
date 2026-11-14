@@ -88,6 +88,46 @@ pub(super) fn check_after_child(
     }
 }
 
+/// Source-derived expected bytes for the sealed two-counter before-child graph.
+/// Still only the bounded logical SSA witness, never native or allocator verification.
+pub(super) fn check_before_child(
+    program: &Program,
+    entry: FunctionId,
+    literals: &[(Origin, Vec<u8>); 4],
+) {
+    for (parent, child, generations) in [
+        (0, 0, 2),
+        (0, 2, 2),
+        (1, 0, 3),
+        (2, 0, 4),
+        (1, 2, 5),
+        (2, 2, 8),
+        (3, 4, 17),
+        (-1, 2, 2),
+        (2, -1, 4),
+    ] {
+        let run = execute(program, entry, [parent, child], 2048)
+            .expect("closed parent-then-child actual SSA path");
+        let final_value = if parent <= 0 {
+            &literals[0].1
+        } else if child <= 0 {
+            &literals[2].1
+        } else {
+            &literals[3].1
+        };
+        assert_eq!(run.printed, [final_value.clone(), literals[1].1.clone()]);
+        assert_eq!(run.created, generations);
+        let expected = std::iter::once(0)
+            .chain(2..generations)
+            .chain(std::iter::once(1))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            run.dropped, expected,
+            "BeforeChild logical Drops ({parent},{child})"
+        );
+    }
+}
+
 fn execute(program: &Program, entry: FunctionId, inputs: [i32; 2], mut fuel: usize) -> Result<Run> {
     crate::ssa::verify::verify_program(program).map_err(|_| "invalid SSA")?;
     let [module] = program.modules.as_slice() else {
