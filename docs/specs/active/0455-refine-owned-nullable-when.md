@@ -89,7 +89,7 @@ Box 的既有完整普通文档为 `Box<Cell>?`，Rc 为 `Rc<Int>?`，不把例�
   默认与 feature 的直接行为、共享 CFG/nullable/proof/receipt 消费者通过，CI-only 不本地伪造。
 - [x] R6：fmt、适用 workspace check、双 all-target Clippy -D warnings、docs/依赖/尺寸/空白；
   独立上下文审查具体问题，修复后重审；Architecture 与真实账本同步。
-- [ ] R7：独立 Draft PR 的精确 head/base 必需双宿主、producer/consumer 与真实 CI-only 验收；
+- [x] R7：独立 Draft PR 的精确 head/base 必需双宿主、producer/consumer 与真实 CI-only 验收；
   合法过滤/复用单独归因，不自动合并或归档，不把 timeout/ignored/list 当作执行通过。
 
 ## 6. 技术方案与职责
@@ -110,7 +110,7 @@ source/support 的语义、stdout、负例与 helper 职责不变，不作薄壳
 2. [x] 新增正常入口路由 RED，再最小接线 → R1–R2；先基础 view/take，再按矩阵验证退出。
 3. [x] 完成 generation/cleanup/call 交接与同源/模式一致性 → R3–R5；失败先归因，不继续堆功能。
 4. [x] 独立审查、最小充分门禁与事实文档 → R6；源字节与诊断不弱化。
-5. [ ] 普通推送独立 Draft，精确头 CI 及验收账本 → R7；Spec 保持 in-progress 到用户批准后续状态。
+5. [x] 普通推送独立 Draft，精确头 CI 及验收账本 → R7；Spec 保持 in-progress 到用户批准后续状态。
 
 ## 8. 提交计划
 
@@ -122,8 +122,8 @@ source/support 的语义、stdout、负例与 helper 职责不变，不作薄壳
 
 ## 9. 未决问题
 
-无已确认语言、ABI 或未合代码依赖。冻结矩阵已完成本地验证；R6 门禁已闭合，R7 精确
-候选官方 CI 尚须闭合。carrier-return 普通 producer 实验先被前端来源权限拒绝，不将其
+无已确认语言、ABI 或未合代码依赖。冻结矩阵已完成本地验证；R6 门禁及 R7 精确
+代码候选官方 CI 已闭合。carrier-return 普通 producer 实验先被前端来源权限拒绝，不将其
 计为 Phase 4 guard 执行覆盖，也不伪造标准来源补验。Spec 保持 in-progress，不自动归档。
 
 ## 10. 单一验收账本
@@ -147,4 +147,11 @@ source/support 的语义、stdout、负例与 helper 职责不变，不作薄壳
 | R6 独立审查 | core 首审及 guard、path-local take 两次复核；最终无具体剩余发现 | 首次“borrow 见证可越权”静态判断被实测否定并撤回：实际早在 signature `borrow` span 40..46 拒绝；恢复 guard 是防御保留旧合同 |
 | 审查负例与实验边界 | 新正常 Unit borrow-return 负例保持 UnsupportedNode / 40..46；原 17 负例字节不变 | 初次误期望 When span 及 carrier L0164 实验均非产品 RED；后者未到 Phase 4，已移除无效 fixture |
 | R6 Cargo 与静态门禁 | fmt、workspace check、默认/feature workspace all-target Clippy `-D warnings` 通过；依赖、尺寸、空白通过 | 2300 手写 Rust、36 个既有超限，无新增；docs 948 Markdown、尺寸 policy 47 测试通过 |
-| R7 精确候选 CI | 待执行 | 无 PR，无合并/归档授权 |
+| R7 精确代码候选 | [Draft PR #427](https://github.com/Halckon/Koven/pull/427)，head `29ba77f3bc7d57e590421da7fac7c71bcda5c815`，base `28a3c29029ac7d2a29b1cad7a0473cbf17648461` | 分支创建后 main 经 #425 推进；未混入未合候选，未擅自合并 main 到本分支 |
+| 官方合并候选身份 | `b57e99207e7cacb5c599ee8e7678b62331ee31f4`，父提交依次为上述 base/head | 合并候选 codegen tree 与本地 `9b672292885f310a9d07841590e127c802fa0b71` 完全相同；CI 包含新 main frontend 修复 |
+| R7 PR workflow | [43595895147](https://github.com/Halckon/Koven/actions/runs/43595895147) **completed success** | 双宿主 Check/Clippy/Targeted Tests、两个 Preview producer 及独立 consumer 实际成功；Editor lexical 按过滤 skipped，不计执行 |
+| 官方 Rust 执行 | frontend lib 两宿主各 **848/0/12 ignored**；codegen Linux **3221/0/55 ignored**、macOS **3218/0/56 ignored** | ignored 不计通过；CI 实际覆盖与本地定向选择分开归因 |
+| 官方 CI-only 与其他协议 | 两宿主各 **62 fault 全部且恰好执行一次**；独立 parent/child receipt、generated resource 步骤成功 | conformance gate 无 regression，137/154 cap probes，23 known-unimplemented、programs 0/6，不宣称全语言符合；Linux sanitizer 12 模式分类验证成功 |
+| 独立 package 消费者 | 对应 producer artifact ID 的安装/运行与管理验证成功 | 损坏 checksum 拒绝、current 保持是预期负控；不将 mismatch 文本误报为安装失败 |
+| Push 与观察器 | [43595887819](https://github.com/Halckon/Koven/actions/runs/43595887819) success；Rust/Preview skipped | 不代替 PR 运行；两次有限低频观察器 deadline 124 只代表观察停止，随后权威 run JSON 为 completed success |
+| 文档跟进与状态 | 本次仅更新账本，不改变已验收 codegen tree；最新检查见 PR | Rust/Preview 执行归因于上述代码候选，文档过滤/合法复用不得冒称重跑；保持 Draft、in-progress，不合并或归档 |
