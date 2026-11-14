@@ -81,6 +81,8 @@ use flow::{
 
 pub(super) struct Analysis {
     #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) source_collection_ledger: super::d10_catalog_experiment::SourceCollectionLedger,
+    #[cfg(feature = "d10-catalog-experiment")]
     pub(super) split_source_catalogs: Vec<super::d10_catalog_experiment::SplitSourcePending>,
     #[cfg(feature = "d10-catalog-experiment")]
     pub(super) analysis_owner: std::sync::Arc<()>,
@@ -307,6 +309,8 @@ pub(super) fn analyze(
     let mut deferred = Vec::new();
     #[cfg(feature = "d10-catalog-experiment")]
     let analysis_owner = std::sync::Arc::new(());
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut source_records = Vec::new();
     let capture_index = closure::capture_index(closure_inputs.captures, typed);
     let empty_construction_descriptors = BTreeMap::new();
     let field_kinds = traversal::collect_field_mutability(inputs, names)?;
@@ -321,6 +325,13 @@ pub(super) fn analyze(
             .ok_or(OwnershipCheckingError::InvalidUnitSource {
                 source_unit: source.id().index(),
             })?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        let source_start = (
+            loans.len(),
+            receiver_facts.len(),
+            construction_plans.len(),
+            drops.len(),
+        );
         let mut checker = Checker::new(
             sources,
             input.parsed(),
@@ -433,6 +444,16 @@ pub(super) fn analyze(
             .forwarded
             .extend(checker.borrow_results.forwarded);
         borrow_results.ends.extend(drop_analysis.no_carry.ends);
+        #[cfg(feature = "d10-catalog-experiment")]
+        source_records.push(
+            super::d10_catalog_experiment::SourceCollectionRecord::capture(
+                source.id(),
+                &loans[source_start.0..],
+                &receiver_facts[source_start.1..],
+                &construction_plans[source_start.2..],
+                &drops[source_start.3..],
+            ),
+        );
     }
 
     let diagnostics: Vec<Diagnostic> =
@@ -494,6 +515,13 @@ pub(super) fn analyze(
         .range_uses
         .sort_by_key(|fact| fact.expression());
     Ok(Analysis {
+        #[cfg(feature = "d10-catalog-experiment")]
+        source_collection_ledger: super::d10_catalog_experiment::SourceCollectionLedger::new(
+            analysis_owner.clone(),
+            source_records,
+            call_inputs.arguments,
+            call_inputs.receivers,
+        ),
         #[cfg(feature = "d10-catalog-experiment")]
         split_source_catalogs,
         #[cfg(feature = "d10-catalog-experiment")]

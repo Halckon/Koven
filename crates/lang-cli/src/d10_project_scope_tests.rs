@@ -52,6 +52,65 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
             panic!("record real admission mode; no const coercion")
         };
         let facts = owned.ownership();
+        let ledger =
+            lang_frontend::ownership_checking::d10_catalog_experiment::source_collection_ledger(
+                owned,
+            )
+            .unwrap();
+        assert!(ledger.matches(owned));
+        assert_eq!(ledger.argument_contracts(), facts.call_argument_contracts());
+        assert_eq!(ledger.receiver_contracts(), facts.call_receiver_contracts());
+        assert_eq!(ledger.argument_contracts().len(), 67);
+        let (captures, closures) = ledger.closure_facts().unwrap();
+        assert_eq!(captures, facts.captures());
+        assert_eq!(closures, facts.closures());
+        assert_eq!(closures.len(), 1);
+
+        assert!(ledger.matches(&owned.clone()));
+        assert_eq!(
+            ledger
+                .records()
+                .iter()
+                .map(|record| record.source())
+                .collect::<Vec<_>>(),
+            checked
+                .names
+                .names()
+                .index()
+                .source_units()
+                .iter()
+                .map(|source| source.id())
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            ledger
+                .records()
+                .iter()
+                .flat_map(|record| record.loans())
+                .eq(facts.loans())
+        );
+        assert!(
+            ledger
+                .records()
+                .iter()
+                .flat_map(|record| record.receivers())
+                .eq(facts.receiver_facts())
+        );
+        assert!(
+            ledger
+                .records()
+                .iter()
+                .flat_map(|record| record.constructions())
+                .eq(facts.construction_plans())
+        );
+        assert!(
+            ledger
+                .records()
+                .iter()
+                .flat_map(|record| record.drops())
+                .eq(facts.drops())
+        );
+
         assert!(facts.diagnostics().is_empty());
         assert!(facts.deferred().is_empty());
         for source in checked.names.names().index().source_units() {

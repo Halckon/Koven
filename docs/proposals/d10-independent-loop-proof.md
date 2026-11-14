@@ -1661,3 +1661,62 @@ prepare 对完整项目返回 Unsupported，不把其 nonce/facts 与普通产�
 all-tests Clippy `-D warnings`、默认 CLI check、fmt/diff/YAML 检查通过；Rust
 尺寸门禁通过（2275 文件、37 项历史债），文档检查通过（957 文件）。仅发射并
 检查真实对象，未链接或执行生成程序；未运行任何故障注入。独立审阅无阻断。
+
+### 同 run source 遍历批次账本前置（非 callable/项目权限）
+
+在原完整 dataflow source 遍历前保存四通道起点，实际 Checker 与 Drop planner
+汇集完成后捕获保序切片，包括零事实源；不在每次 push 时记录，避免把局部 trial
+回滚的临时事实当成最终发布。`SourceCollectionLedger` 保留原 analysis Arc，最终
+owned 仅在成功且无 deferred 时保留；公开读取必须使用 validated owned，并重新
+逐项核 loans、receiver facts、construction plans、drops 四个完整通道及原 run 身份。
+不存在重新分析、筛选标准源、替换 nonce 或将该账本转为准入能力的 API。
+
+这只是实际 **source 遍历上下文**，不表示事实引用的 target 必须属于本源，更不
+证明 callable、Drop 控制点或可达闭包。contracts/captures 等其他通道尚未覆盖。
+真实完整项目用原 canonical 源序和四通道全量拼接核验，保留标准库 closure 的事实，
+没有将其错误算作外层函数独占事实。默认 feature 不新增此状态，现行 gates 不变。
+
+本批验收：真实五源完整项目 exact 1 passed；正常 String、use-after-move 诊断及
+真实 IndexPlace deferred 三样本的发布边界 exact 1 passed，后两者不保留 ledger 且
+不能 validate；原 basic_unit_ownership 全事实/身份回归 25 passed。前端 lib/tests
+与 CLI tests feature Clippy `-D warnings`、默认 CLI check、fmt/diff/YAML、尺寸
+（2276 文件/37 历史项）及文档（957 文件）检查通过。独审无阻断；未执行 native、
+故障注入或跨 run 人工组合。尚未完成 callable 与剩余通道账本，不能用于项目准入。
+
+### 同次静态调用合同全量对账（仍非完整项目准入）
+
+在上述四个实际 source 遍历批次之外，ledger 新增两个独立全 Unit 数组，直接取自
+原 dataflow 接收的 `CallInputs.arguments/receivers`。它们是本次原 collector 的完整
+静态合同，不是 source 遍历时新增的事实；保留 collector 已确定的原顺序，不再
+分组、排序、去重或按入口筛选。读取同时核最终 owned 两数组逐项相等，以及每条
+call 的 SourceUnitId 存在于原实际 source 记录；未知源拒绝。
+
+静态合同可以描述未被 dataflow 访问的调用，不能用合同存在证明已执行、可达或某
+callable 的独占归属。现在覆盖的是“四个遍历批次通道＋两个静态合同通道”，并非
+六个执行观察通道。capturing/callable、Drop 控制点与剩余通道的账本和真实可达
+闭包仍待完成；不签发新项目能力，不改变普通/旧 split gate 或默认 feature。
+
+本批验收：五源完整项目 67 条 argument 合同全序对账 exact 1 passed；发布边界
+exact 1 passed（普通 println、现行 Worker 成员 receiver、真实语言错误、真实
+IndexPlace deferred），原全事实回归 25 passed。前端 lib/tests feature Clippy
+`-D warnings`、默认 CLI check、fmt/diff、尺寸及文档检查通过，独审无阻断。
+试探 String extension 曾被既有 L0164 trusted Borrow 门拒绝，未放宽该门；最终
+非空 receiver 正例使用已有成员调用语义。未运行 native、故障注入或跨 run 拼接。
+
+### 最终 capture/closure 发布通道对账
+
+closure 输入不能直接沿用 dataflow 开始时的候选表：最终 owned 构造首先执行原
+`filter_unvisited`。新账本只在该过滤完成、成功且无 deferred 后，消耗原 ledger
+并封闭复制最终 captures/closures 原数组；读取需同时核完整数组、原 run 及 lambda
+源身份。未封闭的内部 ledger 没有该部分，读取拒绝。无公开补绑定入口。
+
+非 constant-control 模式的原过滤不代表“所有未访问 lambda 都删除”，主要排除未
+访问的 exclusive-assignment capture；本片保留原规则，不另行推断执行可达性。
+四个遍历通道、两个静态调用合同通道与这两个最终发布通道仍是不同阶段的观察。
+transferability、其余通道及 callable/Drop 控制点/完整可达图仍不在该账本证明范围，
+没有因此开放完整项目准入。
+
+本地验收：五源 project 精确审计 1 passed，最终 closure 过滤与原发布边界 2 passed；
+前端 lib/tests feature 严格 Clippy、默认 CLI check、fmt/diff、尺寸（2276 Rust 文件，
+37 项既有超限）与文档结构（957 页）通过，独立静审无阻断。未执行 native、
+故障注入或跨 run 混配；本片不授予完整项目准入。

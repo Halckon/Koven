@@ -386,6 +386,10 @@ jobs:
         run: cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_split_named_entry --test d10_prepare_split_named_entry
       - name: Independent D10 split-source checked library objects
         run: cargo test --locked -j1 --no-default-features -p lang-codegen --features d10-catalog-experiment --test d10_prepared_split_entry
+      - name: D10 source ledger publication boundaries
+        run: cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment ownership_checking::compilation_unit::d10_catalog_experiment::source_ledger::tests::original_success_and_language_failure_have_distinct_ledger_publication -- --exact
+      - name: D10 final closure ledger filtering
+        run: cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment ownership_checking::compilation_unit::d10_catalog_experiment::source_ledger::tests::closure_ledger_seals_final_filter_not_unvisited_exclusive_candidates -- --exact
       - name: D10 real full-project closure audit
         run: cargo test --locked -j1 -p lang-cli --bin kovenc --features d10-catalog-experiment unit_build::d10_project_scope_tests::real_project_keeps_standard_facts_outside_the_split_envelope -- --exact
       - name: Explicit D10 split CLI normal contract
