@@ -10,6 +10,8 @@ impl Emitted {
             OwnerFault::ParentCompositionSharedLoan,
             OwnerFault::ParentCompositionNewConsume,
             OwnerFault::ParentCompositionDuplicateProducer,
+            OwnerFault::ParentCompositionCrossBlockProducer,
+            OwnerFault::ParentResumeDuplicateDropPlacement,
         ];
         let Some(fault) = faults.into_iter().find(|f| take_fault(*f)) else {
             return;
@@ -23,6 +25,27 @@ impl Emitted {
             .expect("baseline composition");
         let (replace, _, _, new, _) = self.replace.unwrap();
         match fault {
+            OwnerFault::ParentCompositionCrossBlockProducer
+            | OwnerFault::ParentResumeDuplicateDropPlacement => {
+                let duplicate = if fault == OwnerFault::ParentResumeDuplicateDropPlacement {
+                    self.drop.unwrap()
+                } else {
+                    let (_, _, rhs, _, _) = self.replace.unwrap();
+                    let Definition::InstructionResult {
+                        instruction,
+                        index: 0,
+                    } = function.entity(rhs).unwrap().definition
+                    else {
+                        panic!("literal producer")
+                    };
+                    instruction
+                };
+                let entry = function.entry_block().unwrap();
+                assert_ne!(entry, function.instruction(duplicate).unwrap().block);
+                let block = function.blocks.iter_mut().find(|b| b.id == entry).unwrap();
+                assert!(!block.instructions.contains(&duplicate));
+                block.instructions.push(duplicate);
+            }
             OwnerFault::ParentCompositionDuplicateProducer => {
                 let (_, _, rhs, _, _) = self.replace.unwrap();
                 let Definition::InstructionResult {
@@ -129,10 +152,12 @@ impl Emitted {
             _ => unreachable!(),
         }
         record_action("child-cycle-fault-hit", 1);
-        assert!(
-            self.compose(body, function, span).is_err(),
-            "composition must independently reject"
-        );
+        let rejected = if fault == OwnerFault::ParentResumeDuplicateDropPlacement {
+            self.finish(body, function, span).is_err()
+        } else {
+            self.compose(body, function, span).is_err()
+        };
+        assert!(rejected, "the selected independent receipt must reject");
         record_action("child-cycle-independent-rejection", 1);
     }
 }

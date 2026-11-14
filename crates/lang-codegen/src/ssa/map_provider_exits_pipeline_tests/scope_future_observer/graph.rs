@@ -1,6 +1,6 @@
 //! Actual straight-line controls prove Value delivery/Return rather than absence of Drop.
 use crate::test_support::diagnostics::diagnostic;
-mod provider;
+pub(in crate::ssa) mod provider;
 use super::super::{
     fixture::{Failure, failure, need},
     query_graph::{Graph, function, result, value},

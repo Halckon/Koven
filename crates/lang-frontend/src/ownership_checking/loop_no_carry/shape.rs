@@ -15,8 +15,33 @@ pub(crate) struct Selection<B> {
     pub(crate) branch: Option<ExpressionId>,
     pub(crate) counter: Option<CounterPlan<B>>,
     pub(crate) exit: Option<super::BreakPlan>,
+    pub(crate) conditional: Option<super::CounterBreakPlan<B>>,
 }
 pub(crate) fn selection<B: Copy + Eq>(
+    parsed: &ParsedFile,
+    loop_statement: StatementId,
+    body: StatementId,
+    resolve: impl Fn(Name) -> Option<B>,
+    parameter: impl Fn(ExpressionId, bool) -> bool,
+    call: impl Fn(ExpressionId, bool) -> bool,
+    counter_checks: (
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId, &str) -> bool,
+    ),
+) -> Option<Selection<B>> {
+    select::<B, false>(
+        parsed,
+        loop_statement,
+        body,
+        resolve,
+        parameter,
+        call,
+        counter_checks,
+    )
+}
+
+fn select<B: Copy + Eq, const TWO_SOURCES: bool>(
     parsed: &ParsedFile,
     loop_statement: StatementId,
     body: StatementId,
@@ -37,12 +62,16 @@ pub(crate) fn selection<B: Copy + Eq>(
         &parameter,
         &call,
     ) {
+        if TWO_SOURCES {
+            return None;
+        }
         return Some(Selection {
             first,
             second: None,
             branch: None,
             counter: None,
             exit: None,
+            conditional: None,
         });
     }
     let (Statement::Block { elements } | Statement::ControlBody { elements }) =
@@ -67,6 +96,7 @@ pub(crate) fn selection<B: Copy + Eq>(
             break_expression: *expression,
         })
     });
+    let mut conditional = None;
     let (statement, counter, exit) = match elements.as_slice() {
         [statement] => (*statement, None, None),
         [statement, _] if tail_break.is_some() => (*statement, None, tail_break),
@@ -82,6 +112,30 @@ pub(crate) fn selection<B: Copy + Eq>(
             )?),
             None,
         ),
+        [statement, transfer, update] => {
+            let selected = super::counter_break_shape::select(
+                parsed,
+                loop_statement,
+                body,
+                *transfer,
+                &resolve,
+                &parameter,
+            )?;
+            let exit = selected.exit.clone();
+            conditional = Some(selected);
+            (
+                *statement,
+                Some(super::counter_shape::select(
+                    parsed,
+                    loop_statement,
+                    body,
+                    *update,
+                    &resolve,
+                    counter_checks,
+                )?),
+                Some(exit),
+            )
+        }
         _ => return None,
     };
     let Statement::Expression { expression } =
@@ -123,7 +177,11 @@ pub(crate) fn selection<B: Copy + Eq>(
         &parameter,
         &call,
     )?;
-    if first.root != second.root
+    if (if TWO_SOURCES {
+        first.root == second.root
+    } else {
+        first.root != second.root
+    }) || (TWO_SOURCES && (counter.is_none() || exit.is_some() || conditional.is_some()))
         || first.binding == second.binding
         || first.initializer == second.initializer
     {
@@ -135,6 +193,7 @@ pub(crate) fn selection<B: Copy + Eq>(
         branch: Some(*expression),
         counter,
         exit,
+        conditional,
     })
 }
 fn plan<B: Copy + Eq>(
@@ -321,4 +380,49 @@ fn one_argument(parsed: &ParsedFile, id: ExpressionId) -> Option<ExpressionId> {
         Expression::Name
     )
     .then_some(argument.value)
+}
+
+#[cfg(test)]
+mod two_source_candidate;
+
+#[cfg(test)]
+pub(crate) mod unit_candidate_events;
+
+#[cfg(test)]
+pub(crate) fn unit_selection<B: Copy + Eq>(
+    parsed: &ParsedFile,
+    loop_statement: StatementId,
+    body: StatementId,
+    resolve: impl Fn(Name) -> Option<B>,
+    parameter: impl Fn(ExpressionId, bool) -> bool,
+    call: impl Fn(ExpressionId, bool) -> bool,
+    counter_checks: (
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId, &str) -> bool,
+    ),
+) -> Option<Selection<B>> {
+    if unit_candidate_events::enabled() {
+        let candidate = select::<B, true>(
+            parsed,
+            loop_statement,
+            body,
+            &resolve,
+            &parameter,
+            &call,
+            (&counter_checks.0, &counter_checks.1, &counter_checks.2),
+        );
+        if candidate.is_some() {
+            return candidate;
+        }
+    }
+    selection(
+        parsed,
+        loop_statement,
+        body,
+        resolve,
+        parameter,
+        call,
+        counter_checks,
+    )
 }

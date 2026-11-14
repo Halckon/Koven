@@ -360,12 +360,18 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
+      - name: Experimental Unit root-set shared budget (CI only)
+        run: bash scripts/check_unit_root_set_ci.sh
       - name: Run exact borrowing fault contracts
         run: python3 scripts/check_borrow_faults.py
       - name: Independent parent receipt CI-only fault contracts
         run: bash scripts/check_parent_receipt_ci.sh
       - name: Independent child cycle receipt faults (CI only)
         run: bash scripts/check_child_cycle_ci.sh
+      - name: List legacy scalar entry ordering target (execution owned by borrow gate)
+        run: bash scripts/check_bridge_scalar_entry_ci.sh --list-only
+      - name: Verify scalar owner entry corruption fails independently
+        run: bash scripts/check_scalar_owner_entry_ci.sh
       - name: Observe final Linux composition disk usage
         if: always() && runner.os == 'Linux'
         run: python3 scripts/ci_disk_usage.py after-composition || true

@@ -115,3 +115,28 @@ capture 丢失、选中收据在 finish 丢失、最终 verifier 失败撤销两
 反例具体删除实际 BorrowEnd，不把空清理代码跳过说成资源泄漏。所有反例默认
 ignored、GITHUB_ACTIONS 门控；已有双宿主 borrowing runner 精确发现，不重复造
 workflow。本地仅编译列举，动态拒绝与恢复结果须以远端执行为准。
+
+## 两源候选语法探索（未授权执行）
+
+`loop_no_carry/shape.rs` 的生产 `selection` 固定实例化同源分支，保持原检查。
+仅测试子模块调用两源候选分支，解析真实 AST 并筛选不同 root、有限 counter、
+无 exit/conditional 的分臂骨架；不构造 session、End、公开 fact 或 receipt。
+其 fixture 回调使用唯一名字，仅服务语法探索，不证明 Shared 权限、callee 效果、
+符号解析身份或完整候选合同。真实 Single 检查仍拒绝两源（含 L0164），同源邻居
+仍成功。候选分支是当前调用点隔离，不是编译期禁止未来生产调用的机制。
+真实 Unit 的 rooted/memory 输入及 observation 开关验收也保持两源拒绝：没有
+borrow binding、同源 branch 或 counter fact，validated ownership factory 不发布。
+同源 counter 邻居仍发布独立 counter 域身份，旧 branch owns 查询不授予权限。
+这不是两源真实 Acquire/End 事件或新 receipt 的实现证据。
+
+后续 Unit-only 测试入口可暂选候选并运行真实 core Frame；仅在两个临时 arm fact
+各通过真实最终 End 的唯一 receipt 匹配后现场断言，不保存 payload，只计到达。
+原同源 pair 构造守卫不变，公共分析仍诊断失败并撤销观察与借用产物；无新 pair、
+validated ownership 或 backend receipt 发布。默认关闭的线程局部 RAII 恢复嵌套/
+异常状态，Single selector 不经过此入口；非测试编译直接使用旧 selector。
+
+
+非循环双 Shared 参数的普通 SSA 基线已独立核验：实际条件来源、两臂与 join 的
+有序参数运输，以及 caller 不同 owner/同 owner 与形参反序；输入覆盖 memory 和
+rooted 跨源 Unit。基线仅直接使用根，不含 BorrowCall；两臂分别产生借用结果的
+邻居仍在整个 if 处 UnsupportedNode，不能把此运输证据当作两源循环 receipt。

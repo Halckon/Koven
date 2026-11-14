@@ -1,5 +1,6 @@
 {
   "lang-frontend": [
+    "ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::loops::counter_segment::entry::tests::ci_only_bridge_scalar_entry_requires_actual_ordered_completion",
     "ownership_checking::loop_no_carry::tests::foreign_end_missing_precleanup_or_normal_edge_revokes_capability",
     "ownership_checking::loop_no_carry::tests::missing_actual_acquire_release_return_never_grants_core_authority",
     "ownership_checking::research_borrow_consumer_body::tests::body_consumer_requires_every_actual_acquisition_and_ordered_operand",
@@ -63,6 +64,22 @@
     "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_actual_edge_same_type_roles_cannot_swap",
     "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_consumer_and_cleanup_require_actual_result_role",
     "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_entry_seeds_cannot_bypass_body_parameters",
-    "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_provenance_metadata_and_foreign_function_rejected"
+    "ssa::refine::loop_receipt::emitted::ci_tests::selfcontained_ci::selfcontained_provenance_metadata_and_foreign_function_rejected",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_wrong_exit_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_stop_polarity_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_continue_backedge_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_each_arm_end_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_source_identity_rejects",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_capture_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_receipt_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::counter_break_ci::counter_break_final_verifier_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_capture_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_selection_loss_revokes_and_recovers",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_join_bypass_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_initializer_missing_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_stop_identity_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_resource_transport_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_dual_exit_rejects",
+    "ssa::refine::arm_loop_receipt::composed_prefix_ci::composed_prefix_final_verifier_revokes_and_recovers"
   ]
 }

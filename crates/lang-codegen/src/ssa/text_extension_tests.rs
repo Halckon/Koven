@@ -632,12 +632,13 @@ pub(in crate::ssa) mod unit_generic_container_tests {
             SequentialContainerKind, SsaTypeKind, TerminatorKind,
         },
         render::render_program,
-        unit_lower::lower_scalar_unit_with_entry,
+        unit_lower::lower_owned_unit_with_entry,
         unit_lower_test_support::{analyze, declaration, parsed},
     };
     use crate::test_support::diagnostics::assert_text_eq;
     use lang_frontend::{
         name_resolution::SourceUnitInput,
+        ownership_checking::owned_compilation_unit_view,
         source::SourceMap,
         type_checking::{
             BuiltinType, IntrinsicTypeConstructor, UnitTypeKind, standard_environments,
@@ -898,26 +899,16 @@ pub(in crate::ssa) mod unit_generic_container_tests {
         }
         let arena_len = typed.types().types().len();
         let entry = declaration(&names, "q", "entry");
-        let forward = lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &environment,
-            &typed,
-            &owned,
-            entry,
-        );
+        let unit =
+            owned_compilation_unit_view(&sources, &inputs, &names, &environment, &typed, &owned)
+                .expect("sealed Unit view");
+        let forward = lower_owned_unit_with_entry(&unit, entry);
         assert_eq!(typed.types().types().len(), arena_len);
         let (program, _) = forward.expect("direct generic signatures use existing concrete types");
-        let backward = lower_scalar_unit_with_entry(
-            &sources,
-            &reversed,
-            &names,
-            &environment,
-            &typed,
-            &owned,
-            entry,
-        );
+        let unit =
+            owned_compilation_unit_view(&sources, &reversed, &names, &environment, &typed, &owned)
+                .expect("sealed Unit view");
+        let backward = lower_owned_unit_with_entry(&unit, entry);
         assert_eq!(typed.types().types().len(), arena_len);
         let (permuted, _) = backward.expect("source identity survives input permutation");
         assert_text_eq!(render_program(&program), render_program(&permuted));

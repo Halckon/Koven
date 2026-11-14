@@ -1,5 +1,9 @@
 //! Production no-carry frame authority; independent of optional observation.
 use super::{ActiveLoanOwner, ActiveLoanTarget, Checker, Flows, State, UnitSymbolId};
+#[cfg(not(test))]
+use crate::ownership_checking::loop_no_carry::shape::selection as select_shape;
+#[cfg(test)]
+use crate::ownership_checking::loop_no_carry::shape::unit_selection as select_shape;
 use crate::{
     ast::{ExpressionId, StatementId},
     ownership_checking::{
@@ -19,6 +23,7 @@ pub(super) struct Session {
     update_entered: bool,
     update_completed: bool,
     exit: Option<core::BreakPlan>,
+    conditional: Option<core::CounterBreakPlan<UnitSymbolId>>,
     broke: bool,
     valid: bool,
     entry: State,
@@ -99,7 +104,7 @@ impl Checker<'_> {
         if !self.simple_resources(&entry) {
             return None;
         }
-        let selection = core::shape::selection(
+        let selection = select_shape(
             self.parsed,
             repeated,
             body,
@@ -149,6 +154,14 @@ impl Checker<'_> {
                 },
             ),
         )?;
+        if let Some(prefix) = selection.conditional.as_ref().and_then(|c| c.prefix)
+            && selection
+                .counter
+                .as_ref()
+                .is_none_or(|c| !self.prefix_ready(repeated, prefix, c.initial_statement, &entry))
+        {
+            return None;
+        }
         let plan = selection.first;
         if selection.second.as_ref().is_some_and(|p| {
             self.borrowed_call_source(p.source_call) != Some(p.source_argument)
@@ -166,7 +179,12 @@ impl Checker<'_> {
             return None;
         }
         if selection.exit.is_some() {
-            self.prefix_enter(repeated, &entry);
+            let initial = selection
+                .conditional
+                .as_ref()
+                .and_then(|p| p.prefix)
+                .and_then(|_| selection.counter.as_ref().map(|c| c.initial_statement));
+            self.prefix_enter(repeated, &entry, initial);
         }
         Some(Session {
             frame: core::Frame::new(plan, entry.clone()),
@@ -177,6 +195,7 @@ impl Checker<'_> {
             update_entered: false,
             update_completed: false,
             exit: selection.exit,
+            conditional: selection.conditional,
             broke: false,
             valid: true,
             entry,
@@ -532,7 +551,15 @@ impl Checker<'_> {
         let actual = exit_flow
             .as_ref()
             .map(|state| self.resource_snapshot(state));
-        let expected_edge = if s.exit.is_some() {
+        let expected_edge = if s.conditional.is_some() {
+            s.broke
+                && flows.continues.is_none()
+                && flows
+                    .next
+                    .as_ref()
+                    .is_some_and(|state| self.resource_snapshot(state) == s.entry)
+                && flows.breaks.is_some()
+        } else if s.exit.is_some() {
             s.broke && flows.next.is_none() && flows.breaks.is_some() && flows.continues.is_none()
         } else {
             flows.breaks.is_none() && flows.continues.is_none()
@@ -541,7 +568,15 @@ impl Checker<'_> {
             match (s.branch, s.first_closed, s.second) {
                 (None, None, None) => self.no_carry_proofs.push(core::Proof::Straight(plan)),
                 (Some(branch), Some(first), None) => self.no_carry_proofs.push(match s.counter {
-                    Some(counter) => core::Proof::CounterBranch(branch, [first, plan], counter),
+                    Some(counter) => match s.conditional {
+                        Some(conditional) => core::Proof::CounterBreakBranch(
+                            branch,
+                            [first, plan],
+                            counter,
+                            conditional,
+                        ),
+                        None => core::Proof::CounterBranch(branch, [first, plan], counter),
+                    },
                     None => match s.exit {
                         Some(exit) => core::Proof::BreakBranch(branch, [first, plan], exit),
                         None => core::Proof::Branch(branch, [first, plan]),
@@ -581,12 +616,20 @@ impl Checker<'_> {
                     .any(|end| end.binding == fact.binding() && end.point == fact.end())
         };
         for proof in std::mem::take(&mut self.no_carry_proofs) {
+            #[cfg(test)]
+            let candidate_counter = matches!(&proof, core::Proof::CounterBranch(..));
             let exit = match &proof {
                 core::Proof::BreakBranch(_, _, exit) => Some(exit.clone()),
+                core::Proof::CounterBreakBranch(_, _, _, plan) => Some(plan.exit.clone()),
+                _ => None,
+            };
+            let conditional = match &proof {
+                core::Proof::CounterBreakBranch(_, _, _, p) => Some(p.clone()),
                 _ => None,
             };
             let counter = match &proof {
-                core::Proof::CounterBranch(_, _, c) => Some(c.clone()),
+                core::Proof::CounterBranch(_, _, c)
+                | core::Proof::CounterBreakBranch(_, _, c, _) => Some(c.clone()),
                 _ => None,
             };
             let (marker, accepted) = match proof {
@@ -600,7 +643,8 @@ impl Checker<'_> {
                 }
                 core::Proof::Branch(branch, [left, right])
                 | core::Proof::CounterBranch(branch, [left, right], _)
-                | core::Proof::BreakBranch(branch, [left, right], _) => {
+                | core::Proof::BreakBranch(branch, [left, right], _)
+                | core::Proof::CounterBreakBranch(branch, [left, right], _, _) => {
                     let marker = left.marker;
                     let pair = super::super::UnitLoopNoCarryFact::new(self.source_unit, left)
                         .filter(&valid_end)
@@ -609,6 +653,10 @@ impl Checker<'_> {
                                 .filter(&valid_end),
                         )
                         .and_then(|(left, right)| {
+                            #[cfg(test)]
+                            if candidate_counter {
+                                core::shape::unit_candidate_events::checked_ends(&left, &right);
+                            }
                             super::super::UnitLoopBranchNoCarryFact::new(
                                 self.unit_expression(branch),
                                 [left, right],
@@ -623,7 +671,46 @@ impl Checker<'_> {
                                 .count()
                                 == 1
                         });
-                    if let Some(exit) = exit {
+                    if let Some(conditional) = conditional {
+                        if accepted && let (Some(pair), Some(counter)) = (pair, counter) {
+                            use super::super::loop_no_carry::{
+                                UnitLoopCounterBranchNoCarryFact,
+                                UnitLoopCounterBreakBranchNoCarryFact,
+                            };
+                            let counter = UnitLoopCounterBranchNoCarryFact::new(
+                                self.source_unit,
+                                pair,
+                                counter,
+                            );
+                            let prefix = conditional.prefix;
+                            let fact = UnitLoopCounterBreakBranchNoCarryFact::new(
+                                self.source_unit,
+                                counter,
+                                conditional,
+                            );
+                            if let Some(prefix) = prefix {
+                                let mut plans = self.no_carry_prefix.entered.iter().filter(|p| {
+                                    p.prefix == prefix
+                                        && p.target == fact.target_loop().statement()
+                                        && p.initial
+                                            == Some(fact.counter().initial_statement().statement())
+                                });
+                                if let Some(plan) = plans.next()
+                                    && plans.next().is_none()
+                                {
+                                    result.prefix_counter_breaks.push(super::super::loop_no_carry::UnitLoopPrefixCounterBreakFact::new(fact,self.unit_expression(plan.prefix),self.unit_expression(plan.condition),plan.calls.map(|id|self.unit_expression(id))));
+                                } else {
+                                    self.emit_borrow_binding_diagnostic(
+                                        crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                                        "counter prefix completion is missing",
+                                        marker,
+                                    )?;
+                                }
+                            } else {
+                                result.counter_break_branches.push(fact);
+                            }
+                        }
+                    } else if let Some(exit) = exit {
                         if accepted {
                             result.break_branches.extend(pair.and_then(|pair| {
                                 super::super::loop_no_carry::UnitLoopBreakBranchNoCarryFact::new(
@@ -660,7 +747,7 @@ impl Checker<'_> {
                 .no_carry_prefix
                 .entered
                 .iter()
-                .filter(|p| p.target == fact.target_loop().statement());
+                .filter(|p| p.target == fact.target_loop().statement() && p.initial.is_none());
             if let Some(plan) = selected.next()
                 && selected.next().is_none()
             {

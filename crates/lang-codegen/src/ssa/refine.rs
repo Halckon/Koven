@@ -24,9 +24,12 @@ pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
+#[deny(dead_code)]
 pub(crate) mod multi_receipt;
+#[deny(dead_code)]
 pub(crate) mod nested_receipt;
 pub(crate) mod receiver_receipt;
+#[deny(dead_code)]
 pub(crate) mod single_receipt;
 mod subset;
 

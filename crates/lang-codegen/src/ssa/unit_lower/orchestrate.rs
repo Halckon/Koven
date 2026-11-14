@@ -31,15 +31,20 @@ pub(in crate::ssa) fn lower_unit_from_facts(
     )
 }
 
-fn lower_unit_impl(
+mod root_set;
+use root_set::lower_unit_impl;
+
+// One assembly transaction for all roots; production still calls the singleton adapter.
+fn lower_unit_roots_impl(
     source_inputs: (&SourceMap, &[SourceUnitInput<'_>]),
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &CompilationUnitOwnership,
     constant_owned: Option<&ConstEnabledOwnedUnit>,
-    entry: DeclarationId,
+    roots: (&[DeclarationId], bool),
     #[cfg(test)] capture: Option<&mut pr120_verifier_diagnostics::Capture>,
-) -> Result<(Program, FunctionId), LoweringError> {
+) -> Result<(Program, BTreeMap<DeclarationId, FunctionId>), LoweringError> {
+    let (entries, top_level_only) = roots;
     #[cfg(test)]
     let branch_publication = crate::ssa::refine::branch_receipt::UnitPublication::begin();
     #[cfg(test)]
@@ -108,14 +113,32 @@ fn lower_unit_impl(
             }
         }
     }
-    let instance_plan = plan_unit_instances_from_facts(
-        &parsed_by_source,
-        names,
-        typed,
-        owned,
-        entry,
-        MAX_UNIT_GENERIC_INSTANCES,
-    )?;
+    let instance_plan = if top_level_only {
+        super::super::unit_plan::plan_unit_root_set_from_facts(
+            &parsed_by_source,
+            names,
+            typed,
+            owned,
+            entries,
+            MAX_UNIT_GENERIC_INSTANCES,
+            true,
+        )?
+    } else {
+        let [entry] = entries else {
+            return Err(LoweringError {
+                kind: LoweringErrorKind::InvalidModel,
+                span: None,
+            });
+        };
+        plan_unit_instances_from_facts(
+            &parsed_by_source,
+            names,
+            typed,
+            owned,
+            *entry,
+            MAX_UNIT_GENERIC_INSTANCES,
+        )?
+    };
     let (instances, runtime_type_demands, source_plan) = instance_plan.into_parts();
     let mut program = Program::default();
     let module_id = program.add_module("main");
@@ -495,13 +518,19 @@ fn lower_unit_impl(
         }
     }
 
-    let entry_id = function_ids
-        .get(&UnitFunctionInstanceKey::for_entry(entry))
-        .copied()
-        .ok_or(LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: None,
-        })?;
+    let entry_ids = entries
+        .iter()
+        .map(|entry| {
+            let id = function_ids
+                .get(&UnitFunctionInstanceKey::for_entry(*entry))
+                .copied()
+                .ok_or(LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })?;
+            Ok((*entry, id))
+        })
+        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
     let known_functions = callable_abi.known_functions(&function_ids, &source_plan);
 
     for plan in plans {
@@ -923,5 +952,5 @@ fn lower_unit_impl(
     interleaved_aux_publication.commit();
     #[cfg(test)]
     multi_binding_publication.commit();
-    Ok((program, entry_id))
+    Ok((program, entry_ids))
 }

@@ -465,6 +465,13 @@ impl Builder<'_, '_> {
         self.body
             .arm_loop_plans
             .condition(condition_id, condition_block, condition, span)?;
+        if let Some(prefix) = self
+            .nested_owner_body
+            .as_mut()
+            .and_then(|p| p.scalar_entry.as_mut())
+        {
+            prefix.condition(condition_id, condition_block, condition, span)?;
+        }
         self.terminate(
             RTerm::Branch {
                 condition,
@@ -535,6 +542,13 @@ impl Builder<'_, '_> {
         self.body
             .arm_loop_plans
             .split(control, [entry, when_true, when_false], span)?;
+        if let Some(prefix) = self
+            .nested_owner_body
+            .as_mut()
+            .and_then(|p| p.scalar_entry.as_mut())
+        {
+            prefix.split(control, [entry, when_true, when_false], span)?;
+        }
         self.body.branch_plans.split(
             control,
             branch_condition,
@@ -704,6 +718,13 @@ impl Builder<'_, '_> {
         self.body
             .arm_loop_plans
             .join(control, join, &branch_predecessors, span)?;
+        if let Some(prefix) = self
+            .nested_owner_body
+            .as_mut()
+            .and_then(|p| p.scalar_entry.as_mut())
+        {
+            prefix.join(control, join, &branch_predecessors, span)?;
+        }
         self.body
             .branch_plans
             .join(control, join, &branch_predecessors, span)?;

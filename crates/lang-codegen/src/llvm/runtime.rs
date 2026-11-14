@@ -1,13 +1,16 @@
 //! Koven heap owner 的系统分配 ABI 与类型定向 drop glue。
-mod abort;
-mod inline_nullable;
+pub(crate) mod abort;
 pub(in crate::llvm) use abort::AbortMessage;
-mod map_result;
+#[allow(unused_imports)]
+pub(crate) use abort::inline_nullable;
+#[allow(unused_imports)]
+pub(crate) use abort::map_result;
 mod requirements;
 use requirements::RuntimeRequirements;
 #[cfg(test)]
 mod narrow_tests;
-mod string;
+#[allow(unused_imports)]
+pub(crate) use abort::string;
 
 use std::{
     cell::RefCell,
@@ -43,7 +46,6 @@ pub(super) struct RuntimeAbi<'ctx> {
     size_type: IntType<'ctx>,
     max_buffer_bytes: u64,
     malloc: Option<FunctionValue<'ctx>>,
-    abort: Option<FunctionValue<'ctx>>,
     abort_helpers: Option<abort::AbortHelpers<'ctx>>,
     /// `  at path:line:column\n` for aborts emitted by the instruction being lowered.
     abort_location: RefCell<Option<String>>,
@@ -177,7 +179,6 @@ impl<'ctx> RuntimeAbi<'ctx> {
             size_type,
             max_buffer_bytes,
             malloc,
-            abort,
             abort_helpers,
             abort_location: RefCell::new(None),
             write,

@@ -5,6 +5,7 @@ use super::*;
 pub(crate) enum Operation {
     Constant(ScalarConstant),
     /// 编译器封闭的 UTF-8 stdout 行输出；bytes 必须以 `\n` 结尾。
+    #[allow(dead_code, reason = "retained verifier operation and fixture contract")]
     PrintLiteral {
         bytes: Vec<u8>,
     },
@@ -253,6 +254,7 @@ pub(crate) enum Operation {
         container: SsaTypeId,
         elements: Vec<ValueId>,
     },
+    #[allow(dead_code, reason = "retained verifier operation and fixture contract")]
     ContainerGenerate {
         container: SsaTypeId,
         length: ValueId,
@@ -387,6 +389,7 @@ pub(crate) enum Operation {
     Copy {
         source: ValueId,
     },
+    #[allow(dead_code, reason = "retained verifier operation and fixture contract")]
     Consume {
         owner: ValueId,
     },
@@ -421,6 +424,7 @@ pub(crate) enum Operation {
     Read {
         source: PlaceAccess,
     },
+    #[allow(dead_code, reason = "retained verifier operation and fixture contract")]
     Mutate {
         place: PlaceId,
         value: ValueId,

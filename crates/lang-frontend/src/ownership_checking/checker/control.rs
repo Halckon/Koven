@@ -247,22 +247,38 @@ impl Checker<'_> {
         state: State,
         escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
+        let candidate = self.prefix_plan(id);
+        let original = candidate.as_ref().map(|_| self.resource_snapshot(&state));
+        let mut unchanged = true;
         let mut prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
+        if let Some(entry) = &original {
+            unchanged &= self.prefix_unchanged(entry, &prefix);
+        }
         let Some(base) = prefix.next.take() else {
             return Ok(prefix);
         };
         let usage = self.control_result_usage(id);
         let mut branches = self.check_control_body(then_branch, base.clone(), usage, escaping)?;
         self.record_control_closures(id, then_branch, &mut branches)?;
-        branches.merge(if let Some(else_branch) = else_branch {
+        if let Some(entry) = &original {
+            unchanged &= self.prefix_unchanged(entry, &branches);
+        }
+        let other = if let Some(else_branch) = else_branch {
             let mut flows = self.check_control_body(else_branch, base, usage, escaping)?;
             self.record_control_closures(id, else_branch, &mut flows)?;
             flows
         } else {
             Flows::next(base)
-        });
+        };
+        if let Some(entry) = &original {
+            unchanged &= self.prefix_unchanged(entry, &other);
+        }
+        branches.merge(other);
         prefix.merge(branches);
         self.release_dead_control_closures(id, &mut prefix);
+        if unchanged && let (Some(plan), Some(entry)) = (candidate, original) {
+            self.prefix_complete(plan, entry);
+        }
         Ok(prefix)
     }
 
