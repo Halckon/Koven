@@ -383,3 +383,27 @@ owned 绑定，再到独立 emitter/replay；任一步缺失不给发射能力�
 `origin_while` 只记录静态访问且拒绝 catalog，`ValueState` 克隆也不是完成的
 回边证明；此次不改变它们，不把已有 all-Replace receipt 改名使用，不放开普通
 primitive gate。单循环 catalog/Replace emitter/Carry 验收仍未实现。
+
+### 独立符号根环境候选首片（仅测试）
+
+`owner_transport/loop_generation.rs` 从已运行的实际 DropPlanner 自身读取完整 probe
+序列和发布的 DropFact，不接收调用方构造的事件。首片仅接受一个根、一次静态
+Replace、正常 body 完成及 LoopExit 清理的精确事件序列；新增调用、第二次 Replace、
+break 等普通邻接源码不产生候选。核实际 primitive 的单根关系、borrow 注册与 pending
+移除的同一 fact、同 source 的 root/call/control、精确最终清理序列及 typed analysis 身份。
+
+候选显式区分 EntrySite、Header(control,root)、IterationSite 和 Detached(call)：
+Replace 输入是 header 变量，old-result 清理的是 Detached，正常回边拟传入当前
+iteration site；出口保留 Header 变量，绝不采用一次静态遍历后的 incoming site。
+候选同时保存 entry/header/backedge/exit 环境及实际两项清理来源，供下一步真实 CFG
+映射核验。它不是每轮对象 token，不复用旧 owner token 或无循环 BoundCatalog。
+
+这里的 `backedge`/`exit` 是**待证的符号方程位置**，不是已经观察到的 SSA edge。
+虽然输入完整遍历序列被核对，probe 未记录每个 scalar expression，所以仍不证明
+完整源码覆盖、终止性或每条动态路径；PendingBorrowRemoved 亦不单独证明 loan End。
+当前类型没有公开构造/导出，也没有消费者能把它用作 lowering 能力。最终 owned
+sidecar 绑定、封闭源码范围、条件/计数器及真实 CFG predecessor/参数 replay 仍须补齐。
+
+普通验收核实际 initial/incoming/call/root 身份、出口 Header 不等于本轮 site、
+old-result 单独清理及全部真实 DropFact，并用 break、额外 println、二次 Replace
+源码核拒绝边界。不构造坏事实，不运行故障注入或 native loop；不改默认生产行为。

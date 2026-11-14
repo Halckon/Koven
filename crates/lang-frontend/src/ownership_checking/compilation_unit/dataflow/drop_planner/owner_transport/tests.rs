@@ -31,6 +31,7 @@ mod invariant_split_exits;
 mod invariant_suffix;
 mod invariant_while;
 mod loop_boundaries;
+mod loop_generation;
 mod open_loop_return;
 mod origin_probe;
 mod parameter_open_loop;
