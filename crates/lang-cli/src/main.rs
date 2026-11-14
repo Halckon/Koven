@@ -8,6 +8,8 @@ mod build_artifacts;
 mod check_command;
 mod diagnostic_renderer;
 mod doc;
+#[cfg(feature = "d10-catalog-experiment")]
+mod experimental_d10_object;
 mod format;
 mod linker;
 mod machine_diagnostic_renderer;
@@ -65,7 +67,18 @@ fn run(arguments: &[OsString], stdout: &mut dyn Write, stderr: &mut dyn Write) -
     };
     let output = match arguments.split_first() {
         Some((command, _)) if command == "help" || command == "--help" || command == "-h" => {
-            CommandOutput::success(HELP.as_bytes().to_vec())
+            let help = HELP.as_bytes().to_vec();
+            #[cfg(feature = "d10-catalog-experiment")]
+            let help = {
+                let mut help = help;
+                help.extend_from_slice(b"\nExperimental (builtin-only, object emission only):\n  kovenc experimental-d10-object <source.ko> --entry <name> -o <object>\n");
+                help
+            };
+            CommandOutput::success(help)
+        }
+        #[cfg(feature = "d10-catalog-experiment")]
+        Some((command, rest)) if command == "experimental-d10-object" => {
+            experimental_d10_object::execute(rest, message_format)
         }
         Some((command, rest)) if command == "source-set" => source_set::execute(rest),
         Some((command, rest)) if command == "doc" => doc::execute(rest, message_format),

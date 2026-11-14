@@ -1287,3 +1287,27 @@ Basic验证成功后final admission拒绝的L0080及fooBar精确span。旧Option
 单元及all-targets严格Clippy通过，五项CI-only保持ignored；CI脚本仅列举通过。
 默认codegen编译通过。deferred-only场景、真实故障、跨宿主及普通CLI选择仍
 未由本批验证；本批无native执行，独立lib-test组合的旧helper限制如上保留。
+
+### 显式实验 CLI 对象命令
+
+仅CLI编译开启 `d10-catalog-experiment` 时注册
+`experimental-d10-object <source.ko> --entry <name> -o <object>`。这是builtin-only
+单文件实验loader，不是普通build/run/project；不追加或裁剪标准源码snapshot。
+复用原package/path规则、完整名称前缀与human/JSON renderer，随后basic typed、
+final-admitted prepare、精确source-qualified entry核对、原完整图与对象事务。
+不猜main、不接常量/普通fallback，不链接或执行生成程序。语言诊断exit1，
+usage/IO/Unsupported/证据拒绝等操作错误exit2，stdout空；默认CLI没有该命令。
+
+CLI最窄路径策略拒绝一切已存在输出（含symlink、dangling symlink、hardlink），
+要求父目录已存在且是目录，规范化父目录和单一文件名并排除输入重合；发射前
+再次核验，所有gate之前不reserve/mkdir/truncate。成功复用SiblingObject原子
+rename，失败沿原清理；双检查不等同对恶意并发创建/路径替换的no-clobber保证，
+本实验未新增该并发保证。普通build/run代码与默认help不改变。
+
+CLI批次验收：实验对象集成三项通过，包含两顺序成功及错误entry、parse/name/
+type/final/ownership、合法Unsupported无产物；已存在和各类别名/缺父目录拒绝，
+保留原字节，JSON实核L0080原source路径及fooBar精确span。默认关闭命令及help
+验证通过，旧check集成六项、main分派/help/global-options三个精确回归通过。
+默认与实验CLI all-targets严格Clippy、默认build、格式、2253文件尺寸和957文档
+门禁通过，独审无阻断。本批只运行编译器并检查对象，不链接/执行生成程序；
+未运行native集成套件或故障注入，不宣称覆盖并发恶意路径替换。

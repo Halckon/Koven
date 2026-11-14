@@ -195,7 +195,7 @@ pub(crate) fn prepare_single_source(
     })
 }
 
-fn single_logical_path(
+pub(crate) fn single_logical_path(
     sources: &SourceMap,
     parsed: &ParsedFile,
     source: &Path,
@@ -268,7 +268,10 @@ fn package_path_error(
     Ok(source_diagnostics(sources, &diagnostics))
 }
 
-fn source_diagnostics(sources: &SourceMap, diagnostics: &[Diagnostic]) -> BootstrapError {
+pub(crate) fn source_diagnostics(
+    sources: &SourceMap,
+    diagnostics: &[Diagnostic],
+) -> BootstrapError {
     let human = match render_diagnostics(sources, diagnostics) {
         Ok(human) => human,
         Err(error) => return UnitBuildError::DiagnosticRendering(error.to_string()).into(),
