@@ -72,6 +72,7 @@ println(b)
                         | Event::WhileTraversal { .. }
                         | Event::BorrowRegistered(_)
                         | Event::DirectBorrowEnded { .. }
+                        | Event::PendingBorrowRemoved { .. }
                 ))
                 .cloned()
                 .collect::<Vec<_>>(),
@@ -289,6 +290,13 @@ fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
                         .count(),
                     1
                 );
+                let removed = events.iter().enumerate().filter(|(_, event)| matches!(event, Event::PendingBorrowRemoved { loan: actual, call: target } if actual == loan && *target == call)).map(|(index, _)| index).collect::<Vec<_>>();
+                assert_eq!(removed.len(), 1);
+                let begin = events
+                    .iter()
+                    .position(|event| event == &Event::BorrowRegistered(loan.clone()))
+                    .unwrap();
+                assert!(begin < removed[0]);
                 // Builtin output is not the ordinary direct-call retirement slice.
                 assert!(!events.iter().any(|event| matches!(event, Event::DirectBorrowEnded { loan: ended, .. } if ended == loan)));
             }
@@ -334,5 +342,6 @@ fn ordinary_direct_borrow_registration_and_retirement_are_actual_events() {
         assert_eq!(begins.len(), 1);
         assert_eq!(ends.len(), 1);
         assert!(begins[0] < ends[0]);
+        assert!(!events.iter().any(|event| matches!(event, Event::PendingBorrowRemoved { loan: actual, .. } if actual == loan)));
     });
 }

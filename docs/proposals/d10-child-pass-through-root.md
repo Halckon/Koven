@@ -341,3 +341,16 @@ UncoveredCall，不能用新增 Begin/End 对替代完整调用合同；未放�
 普通源码见证另行区分 `observe(String)` 与 builtin `println`：前者验证同一个真实
 loan 的登记/正常退休各一次且顺序正确；后者仅有登记、没有本片 direct-end。
 此缺口保持显式，不以登记事件宣称 builtin 借用生命周期已完整观测。
+
+### builtin 的真实 pending 移除，不补造 direct-end
+
+后续定位到 `finish_call_pending_loans` 的实际 `extract_if` 路径：普通正常返回
+会移除当前 call 剩余的 pending loan。测试域在其 `EndCallLoan` 分支记录
+`PendingBorrowRemoved { loan, call }`，保留同轮完整 loan 和实际调用身份。
+这不是从最终 loan 表或 builtin 名字猜出 End，也不是 `DirectBorrowEnded` 或
+新增公开 action；forwarding/child-use 的后续处理仍由原 planner 执行。
+
+真实 `println(a)` 验证登记后恰有一次此移除，且仍无 direct-end；普通
+`observe(a)` 则由既有 direct-end 消费 token，没有第二次 pending 移除。
+这些事件仍是静态遍历观察，不证明所有 receiver/forwarding/控制转移生命周期，
+分区仍拒绝，循环合流、CFG 和 Carry 未获新增权限。

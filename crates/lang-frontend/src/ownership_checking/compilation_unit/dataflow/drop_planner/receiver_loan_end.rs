@@ -166,6 +166,15 @@ impl DropPlanner<'_, '_> {
                         .end_receiver(UnitReceiverCallReturnEndFact { receiver });
                 }
                 Action::EndCallLoan(loan) => {
+                    #[cfg(test)]
+                    if let Some(probe) = &mut self.origin_probe {
+                        probe.push(
+                            super::owner_transport::origin_probe::Event::PendingBorrowRemoved {
+                                loan: loan.clone(),
+                                call,
+                            },
+                        );
+                    }
                     self.iteration_actions
                         .capture_loop_return(&loan, acquisition.as_ref());
                     for pending in &mut state.borrow_binding_transports {
