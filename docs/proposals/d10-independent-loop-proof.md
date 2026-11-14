@@ -256,3 +256,43 @@ catalog 现在保存创建时真实 typed product 的 `analysis_owner`，覆盖�
 许可，不可由 codegen 调用；也尚无单循环 catalog 覆盖、动态代际方程或实验 Replace
 SSA 发射。不能把授权函数名称理解为已批准生产 lowering，后续跨 crate 桥还须借用
 经校验的 owned view，并将实际发射结果作独立 replay。
+
+### 跨 crate 发布必须晚于最终 ownership 构造
+
+进一步核查发现：上节 typed 身份只封闭 catalog 查询，**不能**单独成为跨 crate
+交付资格。同一 typed 可重新运行 ownership；`CompilationUnitOwnership` 另持独立
+`analysis_owner`，`is_same_analysis` 按此身份比较。现有 owned-view factory 允许
+同 typed 的重新检查结果，因此“可与 view 兼容”不等于“由该次 owned 生成”。
+当前测试通过单独重跑 planner 得到 catalog，也尚未证明它是某个最终 owned 的
+原始分析过程产物；不可直接借该测试路径发行 codegen 权限。
+
+实际发布顺序及必须保留的失败边界：
+
+- `dataflow/drop_planner.rs::plan_with_observations` 中，`planner.run()?` 后还要完成
+  `iteration_plans()?` 与 `map_iteration_plans()?`。resource deferred 分支可返回
+  默认清空的 Analysis。此处最多产生内部 Pending 候选，不能对外取走。
+- `dataflow::analyze` 在 `checker.run()?` 后仍进行 no-carry/nullable 收尾及后续
+  source 分析；任一失败必须丢弃全部 Pending，不允许第一个 source 先发布。
+- `analysis::analyze` 在诊断存在或类型事实无效时会清空 drops、primitives 等。
+  候选也必须清空；不能保留先前快照绕过这些清空。
+- 最终 `CompilationUnitOwnership::new` 才创建该次 owned 的独立身份。专用入口
+  必须在完整产物验证成功、无 deferred 且精确覆盖满足后，私有提交 Pending，
+  将其与这个 owned 身份及同源 callable 绑定，再返回配对结果。
+
+推荐实现为显式 sidecar 随内部返回值传递，而非 TLS drain：
+
+`真实 planner → PendingCatalog → dataflow 暂存 → 最终 validated owned + BoundCatalog`
+
+默认入口继续原返回类型；专用实验入口才接收 sidecar，产出不可拆换的配对包。
+不能给普通 `CompilationUnitOwnership` 的相等性无意加入每次 catalog nonce，
+也不能提供接受任意已存在 owned 和旧 catalog 的“补绑定”公开函数。未来 consumer
+须核配对包所持 owned 与 view 的 `is_same_analysis`，不只核 typed。
+
+如果采用作用域 TLS，必须另外证明重入拒绝、panic/错误自动清空、无公开 drain、
+多次分析不混包以及最终成功才 commit；为减少这种隐式状态，此候选不优先采用它。
+所有异分析/错配/中途失败负控仅 CI 执行，本地只编译列举。
+
+该发布 sidecar **尚未实现**，因此本轮仍拒绝导出当前 `authorize` 给 codegen，
+不新增 Replace emitter 入口，也不删除 ordinary primitive gate。无循环 sidecar
+闭环完成后，才扩展单循环 catalog 与真实 SSA/Drop replay；不能跳过 owned 身份
+缺口，或用 AST 重建替代真实观察以赶上发射进度。
