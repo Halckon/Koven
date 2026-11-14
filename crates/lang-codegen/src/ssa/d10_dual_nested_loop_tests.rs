@@ -42,9 +42,31 @@ fn run_cases(native: Option<fn(&Program, FunctionId)>, foreign_owned: bool) -> u
         source::SourceMap,
         type_checking::{check_compilation_unit_types, standard_environments},
     };
+    // Callback delivery remains pinned to the original native matrix fixture, not identifier spelling.
+    let native_fixture = SOURCE
+        .replace("count: Int", "count: Int, childCount: Int")
+        .replace("var inner = count", "var inner = childCount")
+        .replace("println(b)", "println(a); println(b)");
     for (text, accepted) in [
         (SOURCE.to_owned(), true),
         (SOURCE.replace("fun run", "fun renamed"), true),
+        (renamed_source(SOURCE), true),
+        (
+            renamed_source(
+                &SOURCE
+                    .replace("count: Int", "count: Int, childCount: Int")
+                    .replace("var inner = count", "var inner = childCount")
+                    .replace("println(b)", "println(a); println(b)"),
+            ),
+            true,
+        ),
+        (
+            SOURCE
+                .replace("; ", ";\n  ")
+                .replace("while(", "while (")
+                .replace(" > ", " >  "),
+            true,
+        ),
         (SOURCE.replace("println(b)", "println(a); println(b)"), true),
         (
             SOURCE
@@ -83,9 +105,7 @@ fn run_cases(native: Option<fn(&Program, FunctionId)>, foreign_owned: bool) -> u
         (SOURCE.replace("inner -= 1", "inner -= 2"), false),
         (SOURCE.replace("println(b)", "println(a)"), false),
     ] {
-        if native.is_some()
-            && !(accepted && text.contains("childCount") && text.contains("println(a)"))
-        {
+        if native.is_some() && !(accepted && text == native_fixture) {
             continue;
         }
         let mut sources = SourceMap::new();
@@ -187,4 +207,21 @@ fn run_cases(native: Option<fn(&Program, FunctionId)>, foreign_owned: bool) -> u
         }
     }
     deliveries
+}
+
+// Alpha-renaming changes source spelling only; all roles must still be recovered from AST/IDs.
+fn renamed_source(source: &str) -> String {
+    source
+        .replace("fun run", "fun inspect")
+        .replace("parentOld", "detachedParent")
+        .replace("val old", "val detachedChild")
+        .replace("childCount", "innerLimit")
+        .replace("count", "outerLimit")
+        .replace("outer", "major")
+        .replace("inner", "minor")
+        .replace("var a ", "var primary ")
+        .replace("&a", "&primary")
+        .replace("println(a)", "println(primary)")
+        .replace("var b ", "var retained ")
+        .replace("println(b)", "println(retained)")
 }

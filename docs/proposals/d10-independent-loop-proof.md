@@ -825,3 +825,24 @@ provenance token，因此不宣称任意外部 Program 的不可伪造授权。�
 本片正常 D10 SSA 九项通过（含真实函数改名后的入口映射），一项新身份负控
 ignored；精确列举确认该项存在但未本地执行。严格 Clippy、格式、文档 956 与
 独审通过。现有 native 占用期间未启动对象动态矩阵，未修改生产代码或门禁。
+
+### 名称无关的封闭源码角色发现
+
+后端独立 source evidence 不再按 `a/b/count/outer/inner` 或条件、调用的源码文本
+选取节点。新增只读角色发现，从唯一函数体、固定父子语句层级中识别声明、两次
+Replace、counter 初始化/更新及真实后用；声明 span 查唯一实际 Symbol，Name
+表达式通过实际 reference 指向该 Symbol。类型、默认 Shared 参数、0/1 规范
+字面量及 builtin call descriptor 仍逐项验证，不从 bound 复制角色或事实。
+
+所有 item/statement/expression 必须在封闭角色覆盖中恰好出现一次，再与真实
+owned 的 primitive、DropFact、LoanFact 以及 sealed sidecar 全量对账。贷款的
+实际 argument ID、开始标记和调用结束也交叉核对；未知结构仍拒绝。保持同样的
+11-block/28或32-instruction CFG replay，不扩大前端准入、控制流或 Carry 语义。
+
+普通 SSA 源码见证新增全量变量/参数/函数改名和空白换行变体；native callback
+只选择原精确矩阵 fixture，不再用名字子串猜测，仍要求 Rooted/Memory 两次交付。
+动态对象矩阵与通用 Program provenance 问题没有因此解决。
+
+本片前端 handoff 一项通过／一项 CI-only ignored，普通 D10 SSA 九项通过／一项
+CI-only ignored；改名与空白正例均经过真实 owned、SSA replay 与适用的 LLVM
+核验。严格 Clippy、格式、文档 956 和独审通过。本地未执行 native 或身份故障。

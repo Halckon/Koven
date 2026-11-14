@@ -1,6 +1,8 @@
 //! Read-only fixture evidence from the exact validated unit used by ordinary lowering.
 //! Not admission: BoundLoop still rejects nesting; the caller binds a separate BoundDualNestedLoop.
 use super::*;
+#[path = "source_roles.rs"]
+mod roles;
 use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget},
     parser::{Expression, Item, NameMarker, Statement},
@@ -58,95 +60,35 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
         return None;
     };
     let source = names.source_unit();
-    let expression = |text: &str| {
-        let matches = ast
-            .expressions()
-            .iter()
-            .filter(|(_, n)| unit.sources().slice(n.span()).ok() == Some(text))
-            .collect::<Vec<_>>();
-        let [(id, node)] = matches.as_slice() else {
-            return None;
-        };
+    let roles = roles::discover(unit)?;
+    let expression = |id| {
         Some((
-            UnitExpressionId::new(source, *id),
-            Origin::Source(node.span()),
+            UnitExpressionId::new(source, id),
+            Origin::Source(ast.expressions().get(id).ok()?.span()),
         ))
     };
-    let symbol =
-        |name: &str| {
-            let matches = names
-                .resolution()
-                .symbols()
-                .iter()
-                .filter(|s| s.name() == name)
-                .collect::<Vec<_>>();
-            let [s] = matches.as_slice() else {
-                return None;
-            };
-            let actual =
-                unit.types()
-                    .body_symbol_types()
-                    .keys()
-                    .copied()
-                    .chain(unit.names().names().references().iter().filter_map(
-                        |r| match r.target() {
-                            lang_frontend::name_resolution::UnitReferenceTarget::Symbol(id) => {
-                                Some(*id)
-                            }
-                            _ => None,
-                        },
-                    ))
-                    .find(|id| id.source_unit() == source && id.symbol() == s.id())?;
-            Some((actual, s.span()))
-        };
-    let variable = |name: &str| {
-        let matches = ast
-            .items()
-            .iter()
-            .filter_map(|(id, n)| match n.payload() {
-                Item::Variable {
-                    name: NameMarker::Present(span),
-                    initializer,
-                    ..
-                } if unit.sources().slice(*span).ok() == Some(name) => {
-                    Some((id, *initializer, *span))
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let [v] = matches.as_slice() else {
-            return None;
-        };
-        Some(*v)
-    };
-    let (a, a_span) = symbol("a")?;
-    let (b, b_span) = symbol("b")?;
-    let (parent_old, parent_old_span) = symbol("parentOld")?;
-    let (old, old_span) = symbol("old")?;
-    for name in ["a", "b", "parentOld", "old", "outer", "inner", "count"] {
-        let (s, _) = symbol(name)?;
-        let expected = if ["a", "b", "parentOld", "old"].contains(&name) {
-            BuiltinType::String
-        } else {
-            BuiltinType::Int
-        };
-        if unit.types().types().get(unit.types().symbol_type(s)?)
-            != Some(&UnitTypeKind::Builtin(expected))
-        {
-            return None;
-        }
-    }
-    let outer = expression("outer > 0")?;
-    let inner = expression("inner > 0")?;
-    let control = |condition: UnitExpressionId| {
-        let candidates=ast.statements().iter().filter(|(_,n)|matches!(n.payload(),Statement::While {condition:c,..} if *c==condition.expression())).collect::<Vec<_>>();
-        let [(id, n)] = candidates.as_slice() else {
-            return None;
-        };
-        Some((UnitStatementId::new(source, *id), Origin::Source(n.span())))
-    };
-    let parent = control(outer.0)?;
-    let child = control(inner.0)?;
+    let [
+        root_binding,
+        kept_binding,
+        outer_binding,
+        parent_old_binding,
+        inner_binding,
+        old_binding,
+    ] = roles.bindings;
+    let (a, a_span) = (root_binding.symbol, root_binding.span);
+    let (b, b_span) = (kept_binding.symbol, kept_binding.span);
+    let (parent_old, parent_old_span) = (parent_old_binding.symbol, parent_old_binding.span);
+    let (old, old_span) = (old_binding.symbol, old_binding.span);
+    let outer = expression(roles.conditions[0])?;
+    let inner = expression(roles.conditions[1])?;
+    let parent = (
+        UnitStatementId::new(source, roles.controls[0]),
+        Origin::Source(ast.statements().get(roles.controls[0]).ok()?.span()),
+    );
+    let child = (
+        UnitStatementId::new(source, roles.controls[1]),
+        Origin::Source(ast.statements().get(roles.controls[1]).ok()?.span()),
+    );
     if parent.0 == child.0 {
         return None;
     }
@@ -164,10 +106,17 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
     }
     let parent_call = parent_replace.descriptor().expression();
     let call = replace.descriptor().expression();
-    if parent_call == call {
+    if parent_call != UnitExpressionId::new(source, parent_old_binding.initializer)
+        || call != UnitExpressionId::new(source, old_binding.initializer)
+        || parent_replace.descriptor().operands().get(1)
+            != Some(&UnitExpressionId::new(source, roles.incoming[0]))
+        || replace.descriptor().operands().get(1)
+            != Some(&UnitExpressionId::new(source, roles.incoming[1]))
+        || parent_call == call
+    {
         return None;
     }
-    let suffix = expression("println(b)")?;
+    let suffix = expression(roles.suffix)?;
     let typed_suffix = unit.types().call(suffix.0)?;
     if !typed_suffix.prints_line() || typed_suffix.aborts() || typed_suffix.receiver().is_some() {
         return None;
@@ -175,15 +124,15 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
     let [parent_old_drop, old_drop, root_drop, kept_drop] = unit.ownership().drops() else {
         return None;
     };
-    for (drop, name, symbol, span, call) in [
+    for (drop, binding, symbol, span, call) in [
         (
             parent_old_drop,
-            "parentOld",
+            parent_old_binding,
             parent_old,
             parent_old_span,
             parent_call,
         ),
-        (old_drop, "old", old, old_span, call),
+        (old_drop, old_binding, old, old_span, call),
     ] {
         let UnitDropPoint::AfterStatement(stmt) = drop.point() else {
             return None;
@@ -193,20 +142,21 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
         else {
             return None;
         };
-        let var = variable(name)?;
-        if *declaration != var.0
-            || var.1 != call.expression()
+        if *declaration != binding.item
+            || binding.initializer != call.expression()
             || drop.target() != UnitDropTarget::Named(symbol)
             || drop.value_origin() != span
         {
             return None;
         }
     }
-    let final_call = if postuse {
-        Some(expression("println(a)")?)
-    } else {
-        None
+    let final_call = match roles.final_use {
+        Some(id) => Some(expression(id)?),
+        None => None,
     };
+    if postuse != final_call.is_some() {
+        return None;
+    }
     if let Some((call, _)) = final_call {
         let descriptor = unit.types().call(call)?;
         if !descriptor.prints_line() || descriptor.aborts() || descriptor.receiver().is_some() {
@@ -266,7 +216,43 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
             b,
             lang_frontend::ownership_checking::LoanKind::Shared,
         ),
-    ] {
+    ]
+    .into_iter()
+    .chain(
+        final_loan
+            .zip(final_call.as_ref())
+            .map(|(loan, (call, _))| {
+                (
+                    loan,
+                    *call,
+                    a,
+                    lang_frontend::ownership_checking::LoanKind::Shared,
+                )
+            }),
+    ) {
+        let Expression::Call { arguments, .. } = ast
+            .expressions()
+            .get(expected_call.expression())
+            .ok()?
+            .payload()
+        else {
+            return None;
+        };
+        let arg = arguments.first()?;
+        let begin = match (kind, arg.mode_marker) {
+            (
+                lang_frontend::ownership_checking::LoanKind::Exclusive,
+                Some(lang_frontend::parser::ParameterModeMarker::Inout(span)),
+            ) => span,
+            (lang_frontend::ownership_checking::LoanKind::Shared, None) => {
+                ast.expressions().get(arg.value).ok()?.span()
+            }
+            _ => return None,
+        };
+        if loan.argument() != UnitExpressionId::new(source, arg.value) || loan.begin_span() != begin
+        {
+            return None;
+        }
         if loan.call() != expected_call
             || loan.kind() != kind
             || !matches!(loan.target(),UnitLoanTarget::Place(p) if p.is_root() && p.root()==root)
@@ -280,34 +266,14 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
             return None;
         }
     }
-    let reads = [variable("outer")?.1, variable("inner")?.1];
-    let (parameter, _) = symbol("count")?;
-    let child_parameter = symbol("childCount").map(|s| s.0).unwrap_or(parameter);
+    let reads = [outer_binding.initializer, inner_binding.initializer];
+    let [parameter, child_parameter] = roles.parameters;
     let independent_counters = child_parameter != parameter;
-    for (id, parameter) in reads.into_iter().zip([parameter, child_parameter]) {
-        let node = ast.expressions().get(id).ok()?;
-        if !matches!(node.payload(), Expression::Name) {
-            return None;
-        }
-        let refs = names
-            .resolution()
-            .references()
-            .iter()
-            .filter(|r| r.span() == node.span())
-            .collect::<Vec<_>>();
-        let [r] = refs.as_slice() else {
-            return None;
-        };
-        if !matches!(r.target(),lang_frontend::name_resolution::ReferenceTarget::Symbol(s) if *s==parameter.symbol())
-        {
-            return None;
-        }
-    }
     let sites = [
-        variable("a")?.1,
-        variable("b")?.1,
-        parent_replace.descriptor().operands()[1].expression(),
-        replace.descriptor().operands()[1].expression(),
+        root_binding.initializer,
+        kept_binding.initializer,
+        roles.incoming[0],
+        roles.incoming[1],
     ];
     let mut literals = Vec::new();
     for site in sites {
@@ -321,16 +287,14 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
             .ok()??,
         ));
     }
-    let [function] = input.parsed().roots() else {
-        return None;
-    };
+    let function = &roles.function;
     Some(Facts {
         identities: Identities {
             callable: lang_frontend::type_checking::UnitItemId::new(source, *function),
             controls: [parent.0, child.0],
-            roots: [a, symbol("outer")?.0, symbol("inner")?.0],
+            roots: [a, outer_binding.symbol, inner_binding.symbol],
             conditions: [outer.0, inner.0],
-            steps: [expression("outer -= 1")?.0, expression("inner -= 1")?.0],
+            steps: [expression(roles.steps[0])?.0, expression(roles.steps[1])?.0],
             sites: sites.map(|id| UnitExpressionId::new(source, id)),
             calls: [parent_call, call, suffix.0],
             drops: [*parent_old_drop, *old_drop, *root_drop, *kept_drop],
@@ -351,7 +315,7 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
         callable: Origin::Source(ast.items().get(*function).ok()?.span()),
         controls: [parent.1, child.1],
         conditions: [outer.1, inner.1],
-        steps: [expression("outer -= 1")?.1, expression("inner -= 1")?.1],
+        steps: [expression(roles.steps[0])?.1, expression(roles.steps[1])?.1],
         reads: reads.map(|id| Origin::Source(ast.expressions().get(id).unwrap().span())),
         literals: literals.try_into().ok()?,
         drops: [
