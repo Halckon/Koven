@@ -183,7 +183,7 @@ pub use after_child_handoff::{
 
 mod named_wrapper;
 pub use named_wrapper::{BoundNamedWrapper, NamedWrapperCallee, analyze_named_wrapper};
-pub(crate) use named_wrapper::{WrappedAfterChildPending, WrappedDualPending};
+pub(crate) use named_wrapper::{NamedRootOrder, WrappedAfterChildPending, WrappedDualPending};
 
 mod named_after_child;
 mod named_validation;

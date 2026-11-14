@@ -40,7 +40,7 @@ fn named_after_child_wrapper_keeps_actual_order_and_final_owned() {
         ),
         (
             format!("fun entry() {{ val p = 1; val c = 2; run(p, c) }}\n{CALLEE}"),
-            false,
+            true,
         ),
         (source.replace("run(p, c)", "run(1, 2)"), false),
         (source.replace("run(p, c)", "run(p, p)"), false),
@@ -110,6 +110,36 @@ fn named_after_child_wrapper_keeps_actual_order_and_final_owned() {
                 )
                 .unwrap();
                 assert!(bound.matches(&unit));
+                // Declaration order is not role identity: resolve both actual source roots.
+                let callable = bound.callee().controls().0;
+                let entry_node = parsed.ast().items().get(bound.entry().item()).unwrap();
+                let callee_node = parsed.ast().items().get(callable.item()).unwrap();
+                let entry_decl = names
+                    .names()
+                    .index()
+                    .declarations()
+                    .iter()
+                    .find(|d| {
+                        d.source_unit() == bound.entry().source_unit()
+                            && d.root() == bound.entry().item()
+                    })
+                    .unwrap();
+                let callee_decl = names
+                    .names()
+                    .index()
+                    .declarations()
+                    .iter()
+                    .find(|d| {
+                        d.source_unit() == callable.source_unit() && d.root() == callable.item()
+                    })
+                    .unwrap();
+                assert_ne!(entry_decl.id(), callee_decl.id());
+                assert_eq!(callee_decl.name(), "run");
+                assert_eq!(
+                    entry_node.span().start() < callee_node.span().start(),
+                    text.starts_with("fun entry()")
+                );
+
                 let callee = bound.callee();
                 assert_eq!(
                     unit.ownership()
@@ -144,17 +174,27 @@ fn named_after_child_wrapper_keeps_actual_order_and_final_owned() {
                         callee.retained().cleanup()
                     ]
                 );
-                assert_eq!(
-                    unit.ownership().loans(),
-                    [
-                        callee.loans()[0].clone(),
-                        callee.loans()[1].clone(),
-                        callee.final_root_use().loan().clone(),
-                        callee.retained().loan().clone(),
-                        bound.loans()[0].clone(),
-                        bound.loans()[1].clone()
-                    ]
-                );
+                let callee_loans = [
+                    callee.loans()[0].clone(),
+                    callee.loans()[1].clone(),
+                    callee.final_root_use().loan().clone(),
+                    callee.retained().loan().clone(),
+                ];
+                let expected_loans = if entry_node.span().start() < callee_node.span().start() {
+                    bound
+                        .loans()
+                        .iter()
+                        .chain(callee_loans.iter())
+                        .cloned()
+                        .collect::<Vec<_>>()
+                } else {
+                    callee_loans
+                        .iter()
+                        .chain(bound.loans().iter())
+                        .cloned()
+                        .collect::<Vec<_>>()
+                };
+                assert_eq!(unit.ownership().loans(), expected_loans);
                 assert_eq!(unit.ownership().direct_call_loan_ends(), bound.ends());
                 assert_eq!(bound.loans()[0], *bound.ends()[1].loan());
                 assert_eq!(bound.loans()[1], *bound.ends()[0].loan());

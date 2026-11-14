@@ -24,12 +24,22 @@ impl DropPlanner<'_, '_> {
     pub(in super::super) fn named_wrapper_coverage(&self) -> Option<NamedCoverage> {
         let c = self.checker;
         let ast = c.parsed.ast();
-        let [callee, entry] = c.parsed.roots() else {
+        let [first_root, second_root] = c.parsed.roots() else {
             return None;
         };
         if !c.parsed.diagnostics().is_empty() {
             return None;
         }
+        // Locate roles without changing source traversal order. The typed direct call below
+        // must target the other original root; two zero-parameter roots are not a selection.
+        let zero_parameters = |root| {
+            matches!(ast.items().get(root).ok()?.payload(), Item::Function { parameters, .. } if parameters.is_empty()).then_some(())
+        };
+        let (callee, entry) = match (zero_parameters(*first_root), zero_parameters(*second_root)) {
+            (None, Some(())) => (first_root, second_root),
+            (Some(()), None) => (second_root, first_root),
+            _ => return None,
+        };
         let Item::Function {
             extension_receiver: None,
             type_parameters,

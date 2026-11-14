@@ -1372,3 +1372,29 @@ create-only发布与失败清理边界均不变；没有接入普通项目/std-s
 默认CLI拒绝、默认build/check、前端/公开对象/CLI严格Clippy、2254文件尺寸及
 957文档门禁通过。新增跨分析同值ID和克隆声明负控有原声明成功正控，已接既有
 CI脚本；本地只精确编译列举，未执行，实际拒绝验收仍待CI。未运行新native。
+
+### 两个真实源码根的声明顺序
+
+本节更新前文wrapper-first仍拒绝的历史范围，保留其他未授权形态拒绝。
+封闭两函数入口现在允许wrapper出现在callee之前。该范围扩展不改变父/子
+Replace顺序，也不开放第三根、递归或额外调用。角色由唯一零参数函数与其真实
+typed direct-call目标确定，另一个根必须确为callee；原完整AST访问集合和预算
+保持不变。source root、FunctionId、generation顺序是三个不同概念。
+
+planner保留源码遍历次序，要求两个原root ranges与parsed roots逐项对应、首0/
+连续/末尾覆盖全部事件；仅借用各角色的原连续切片，不过滤、排序或拼接事件。
+私有 `NamedRootOrder` 从通过核验的实际range产生，最终binder据其构造完整期望
+loan序列与原owned数组逐项比较，不修改owned。Drop、primitive、End与其他通道
+继续原完整检查，不能因为wrapper先执行源码遍历就重排实际callee事实。
+
+后端仍由完整source origin和原typed callable核验实际图，未新增普通Unit准入、
+普通build/run选择或自动fallback。反向声明只扩大此default-off封闭源码合同。
+
+本批实测：BeforeChild真实planner全39事件测试覆盖两种源码root顺序，原
+34+5和新5+34均逐项保留原事件/owned loan顺序；AfterChild由完整handoff与
+后端图、对象矩阵验证，不冒充同一细粒度trace测试。公开非test库两种Replace
+顺序×两种声明顺序×两种输入布局共八组合生成真实对象成功；CLI四种成功
+形态及literal/第三root/错误entry等拒绝通过。旧D10 SSA十八通过、五CI-only
+ignored；四个前端handoff套件通过。最初AfterChild测试保留的固定loan预期
+在新增反向源码上失败，已按实际源码root次序修正expected并复验通过，实际
+owned数组从未重排。未执行新native、故障控制或跨宿主验收。

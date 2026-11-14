@@ -2,7 +2,9 @@
 use super::*;
 use crate::ownership_checking::{
     UnitDropPoint, UnitLoanTarget,
-    compilation_unit::d10_catalog_experiment::{WrappedAfterChildPending, WrappedDualPending},
+    compilation_unit::d10_catalog_experiment::{
+        NamedRootOrder, WrappedAfterChildPending, WrappedDualPending,
+    },
 };
 impl DropPlanner<'_, '_> {
     pub(in super::super::super) fn enable_named_wrapper_probe(&mut self) {
@@ -32,6 +34,7 @@ impl DropPlanner<'_, '_> {
         ])?;
         Some(WrappedDualPending {
             fields,
+            root_order: trace.root_order,
             contracts,
             entry: trace.wrapper.entry,
             roots: trace.wrapper.roots,
@@ -57,6 +60,7 @@ impl DropPlanner<'_, '_> {
         ])?;
         Some(WrappedAfterChildPending {
             fields,
+            root_order: trace.root_order,
             contracts,
             entry: trace.wrapper.entry,
             roots: trace.wrapper.roots,
@@ -70,17 +74,35 @@ impl DropPlanner<'_, '_> {
     fn named_trace(&self) -> Option<NamedTrace<'_>> {
         let wrapper = self.named_wrapper_coverage()?;
         let events = self.origin_probe.as_ref()?;
-        let [(callee, first), (entry, second)] = self.root_trace_ranges.as_ref()?.as_slice() else {
+        let [(first_root, first), (second_root, second)] =
+            self.root_trace_ranges.as_ref()?.as_slice()
+        else {
             return None;
         };
-        if *callee != wrapper.callee
-            || *entry != wrapper.entry
+        let [first_source, second_source] = self.checker.parsed.roots() else {
+            return None;
+        };
+        if *first_root
+            != crate::type_checking::UnitItemId::new(self.checker.source_unit, *first_source)
+            || *second_root
+                != crate::type_checking::UnitItemId::new(self.checker.source_unit, *second_source)
             || first.start != 0
             || first.end != second.start
             || second.end != events.len()
-            || first.len() != 34
-            || second.len() != 5
         {
+            return None;
+        }
+        // Borrow the original contiguous ranges by their real root identity. Never reorder or
+        // reconstruct the trace, and never confuse source order with nested generation order.
+        let (callee_range, entry_range, root_order) =
+            if *first_root == wrapper.callee && *second_root == wrapper.entry {
+                (first, second, NamedRootOrder::CalleeFirst)
+            } else if *first_root == wrapper.entry && *second_root == wrapper.callee {
+                (second, first, NamedRootOrder::EntryFirst)
+            } else {
+                return None;
+            };
+        if callee_range.len() != 34 || entry_range.len() != 5 {
             return None;
         }
         let [
@@ -95,7 +117,7 @@ impl DropPlanner<'_, '_> {
                 loan: p_end,
                 point: p_point,
             },
-        ] = events.get(second.clone())?
+        ] = events.get(entry_range.clone())?
         else {
             return None;
         };
@@ -158,7 +180,8 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         Some(NamedTrace {
-            callee: events.get(first.clone())?,
+            callee: events.get(callee_range.clone())?,
+            root_order,
             wrapper,
             loans: [p.clone(), q.clone()],
             ends: [q_actual.clone(), p_actual.clone()],
@@ -224,6 +247,7 @@ impl DropPlanner<'_, '_> {
     }
 }
 struct NamedTrace<'a> {
+    root_order: NamedRootOrder,
     callee: &'a [Event],
     wrapper: super::named_coverage::NamedCoverage,
     loans: [crate::ownership_checking::UnitLoanFact; 2],

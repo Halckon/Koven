@@ -82,12 +82,19 @@ impl DropPlanner<'_, '_> {
         let retained = Some(retained);
         let function_id = match (c.parsed.roots(), wrapper) {
             ([function], None) => function,
-            ([function, entry], Some(wrapper))
-                if wrapper.callee.item() == *function
-                    && wrapper.entry.item() == *entry
+            ([first, second], Some(wrapper))
+                if wrapper.callee.source_unit() == c.source_unit
+                    && wrapper.entry.source_unit() == c.source_unit
+                    && wrapper.callee != wrapper.entry
+                    && [*first, *second].contains(&wrapper.callee.item())
+                    && [*first, *second].contains(&wrapper.entry.item())
                     && final_root_use.is_some() =>
             {
-                function
+                if *first == wrapper.callee.item() {
+                    first
+                } else {
+                    second
+                }
             }
             _ => return None,
         };

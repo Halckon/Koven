@@ -82,50 +82,68 @@ fun entry() { val p = 1; val c = 2; run(p, c) }"#;
                 "}; val parentOld = replace(&a, \"parent\"); outer -= 1",
             );
         for text in [BEFORE, after.as_str()] {
-            let d = Directory::new();
-            let source = d.0.join("source.ko");
-            fs::write(&source, text).unwrap();
-            let object = d.0.join("result.o");
-            for wrong in ["run", "missing"] {
+            let (callee, wrapper) = text.split_once("fun entry()").unwrap();
+            let reversed = format!("fun entry(){wrapper}\n{callee}");
+            for text in [text, reversed.as_str()] {
+                let d = Directory::new();
+                let source = d.0.join("source.ko");
+                fs::write(&source, text).unwrap();
+                let object = d.0.join("result.o");
+                for wrong in ["run", "missing"] {
+                    let before = d.entries();
+                    let out = command(&source, &object, wrong, false);
+                    assert_eq!(out.status.code(), Some(2), "{out:?}");
+                    assert_eq!(d.entries(), before);
+                }
+                // Legal neighboring source shapes remain outside the sealed two-root contract.
+                for rejected in [
+                    text.replace("run(p, c)", "run(1, 2)"),
+                    format!("{text}\nfun third() {{}}"),
+                ] {
+                    fs::write(&source, &rejected).unwrap();
+                    let before = d.entries();
+                    let out = command(&source, &object, "entry", false);
+                    assert_eq!(out.status.code(), Some(2), "{out:?}");
+                    assert!(out.stdout.is_empty());
+                    assert_eq!(d.entries(), before);
+                    assert_eq!(fs::read_to_string(&source).unwrap(), rejected);
+                }
+                fs::write(&source, text).unwrap();
+                let out = command(&source, &object, "entry", false);
+                assert!(out.status.success(), "{out:?}");
+                assert!(out.stdout.is_empty());
+                assert!(out.stderr.is_empty());
+                let bytes = fs::read(&object).unwrap();
+                assert!(!bytes.is_empty());
+                let nm = Command::new("/usr/bin/nm")
+                    .args(if cfg!(target_os = "macos") {
+                        ["-j", "-U"]
+                    } else {
+                        ["-j", "--defined-only"]
+                    })
+                    .arg(&object)
+                    .output()
+                    .unwrap();
+                assert!(nm.status.success());
+                assert_eq!(
+                    String::from_utf8(nm.stdout)
+                        .unwrap()
+                        .lines()
+                        .filter(|s| *s
+                            == if cfg!(target_os = "macos") {
+                                "_main"
+                            } else {
+                                "main"
+                            })
+                        .count(),
+                    1
+                );
                 let before = d.entries();
-                let out = command(&source, &object, wrong, false);
-                assert_eq!(out.status.code(), Some(2), "{out:?}");
+                let out = command(&source, &object, "entry", false);
+                assert_eq!(out.status.code(), Some(2));
+                assert_eq!(fs::read(&object).unwrap(), bytes);
                 assert_eq!(d.entries(), before);
             }
-            let out = command(&source, &object, "entry", false);
-            assert!(out.status.success(), "{out:?}");
-            assert!(out.stdout.is_empty());
-            assert!(out.stderr.is_empty());
-            let bytes = fs::read(&object).unwrap();
-            assert!(!bytes.is_empty());
-            let nm = Command::new("/usr/bin/nm")
-                .args(if cfg!(target_os = "macos") {
-                    ["-j", "-U"]
-                } else {
-                    ["-j", "--defined-only"]
-                })
-                .arg(&object)
-                .output()
-                .unwrap();
-            assert!(nm.status.success());
-            assert_eq!(
-                String::from_utf8(nm.stdout)
-                    .unwrap()
-                    .lines()
-                    .filter(|s| *s
-                        == if cfg!(target_os = "macos") {
-                            "_main"
-                        } else {
-                            "main"
-                        })
-                    .count(),
-                1
-            );
-            let before = d.entries();
-            let out = command(&source, &object, "entry", false);
-            assert_eq!(out.status.code(), Some(2));
-            assert_eq!(fs::read(&object).unwrap(), bytes);
-            assert_eq!(d.entries(), before);
         }
     }
     #[test]

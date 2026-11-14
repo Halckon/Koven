@@ -2,9 +2,17 @@
 use super::*;
 use crate::ownership_checking::{UnitDirectCallLoanEndFact, UnitLoanFact};
 
+/// Source traversal order, distinct from parent/child replacement order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NamedRootOrder {
+    CalleeFirst,
+    EntryFirst,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct WrappedPending<F> {
     pub(crate) fields: F,
+    pub(crate) root_order: NamedRootOrder,
     pub(crate) contracts: Vec<super::super::UnitCallArgumentOwnershipContract>,
     pub(crate) entry: UnitItemId,
     pub(crate) roots: [UnitSymbolId; 2],

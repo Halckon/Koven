@@ -42,11 +42,18 @@ impl DropPlanner<'_, '_> {
         }
         let function = match (c.parsed.roots(), wrapper) {
             ([function], None) => function,
-            ([function, entry], Some(w))
-                if w.callee == crate::type_checking::UnitItemId::new(source, *function)
-                    && w.entry == crate::type_checking::UnitItemId::new(source, *entry) =>
+            ([first, second], Some(w))
+                if w.callee.source_unit() == source
+                    && w.entry.source_unit() == source
+                    && w.callee != w.entry
+                    && [*first, *second].contains(&w.callee.item())
+                    && [*first, *second].contains(&w.entry.item()) =>
             {
-                function
+                if *first == w.callee.item() {
+                    first
+                } else {
+                    second
+                }
             }
             _ => return None,
         };

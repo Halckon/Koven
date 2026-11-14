@@ -17,8 +17,11 @@ fn explicit_final_admitted_entry_emits_real_object_without_test_observation_hook
         "var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; val parentOld = replace(&a, \"parent\"); outer -= 1",
     ].into_iter().enumerate() {
         let text = format!("fun run(count: Int, childCount: Int) {{ var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) {{ {body} }}; println(a); println(b) }}\nfun entry() {{ val p = 1; val c = 2; run(p, c) }}");
+        let (callee, wrapper) = text.split_once("fun entry()").unwrap();
+        let reversed = format!("fun entry(){wrapper}\n{callee}");
+        for (declaration_order, text) in [text.as_str(), reversed.as_str()].into_iter().enumerate() {
         let mut sources = SourceMap::new();
-        let id = sources.add_source("prepared.ko", &text).unwrap();
+        let id = sources.add_source("prepared.ko", text).unwrap();
         let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
         assert!(parsed.diagnostics().is_empty());
         let (env, types) = standard_environments();
@@ -33,7 +36,7 @@ fn explicit_final_admitted_entry_emits_real_object_without_test_observation_hook
             assert_eq!(publication.callable(), prepared.bound().entry());
             assert_eq!(publication.order(), prepared.bound().order());
             assert!(!publication.verified_llvm_ir().unwrap().is_empty());
-            let directory = std::env::temp_dir().join(format!("koven-d10-public-{}-{sequence}-{layout}", std::process::id()));
+            let directory = std::env::temp_dir().join(format!("koven-d10-public-{}-{sequence}-{declaration_order}-{layout}", std::process::id()));
             fs::create_dir(&directory).unwrap();
             let object = directory.join("entry.o");
             publication.emit_process_object(&object).unwrap();
@@ -74,5 +77,6 @@ fn explicit_final_admitted_entry_emits_real_object_without_test_observation_hook
             assert!(fs::read_dir(&directory).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().starts_with(".koven-unit-object-")));
             fs::remove_dir_all(directory).unwrap();
         }
+    }
     }
 }

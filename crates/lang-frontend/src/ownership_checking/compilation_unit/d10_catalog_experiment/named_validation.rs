@@ -51,14 +51,18 @@ impl<F> WrappedPending<F> {
     ) -> Option<ValidatedCompilationUnitOwnership> {
         let final_use = f.final_use;
         let drops = [f.cleanup[0], f.cleanup[1], f.cleanup[2], f.retained.cleanup];
-        let loans = [
+        let callee_loans = [
             f.loans[0].clone(),
             f.loans[1].clone(),
             final_use.loan.clone(),
             f.retained.loan.clone(),
-            self.loans[0].clone(),
-            self.loans[1].clone(),
         ];
+        let loans: Vec<_> = match self.root_order {
+            NamedRootOrder::CalleeFirst => callee_loans.iter().chain(self.loans.iter()),
+            NamedRootOrder::EntryFirst => self.loans.iter().chain(callee_loans.iter()),
+        }
+        .cloned()
+        .collect();
         if !Arc::ptr_eq(f.typed, &owned.provenance.typed_analysis_owner)
             || !owned.diagnostics().is_empty()
             || !owned.deferred().is_empty()

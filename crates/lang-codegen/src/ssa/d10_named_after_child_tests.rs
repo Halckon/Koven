@@ -50,7 +50,7 @@ fn named_after_child_publishes_one_complete_program_and_library_object() {
                 let (callee, wrapper) = SOURCE.split_once("\nfun entry").unwrap();
                 format!("fun entry{wrapper}\n{callee}")
             },
-            false,
+            true,
         ),
         (SOURCE.replace("run(p, c)", "run(1, 2)"), false),
         (SOURCE.replace("run(p, c)", "run(c, p)"), false),
@@ -101,6 +101,53 @@ fn named_after_child_publishes_one_complete_program_and_library_object() {
             let functions = &program.modules[0].functions;
             assert_eq!(functions.len(), 2);
             assert!(functions.iter().any(|f| f.id() == entry));
+            // Find roles from original source spans, never function array positions.
+            let callable = bound.callee().controls().0;
+            let callee_span = parsed.ast().items().get(callable.item()).unwrap().span();
+            let entry_span = parsed
+                .ast()
+                .items()
+                .get(bound.entry().item())
+                .unwrap()
+                .span();
+            let mut callees = functions
+                .iter()
+                .filter(|f| f.origin == model::Origin::Source(callee_span));
+            let callee = callees.next().unwrap();
+            assert!(callees.next().is_none());
+            let wrapper = functions.iter().find(|f| f.id() == entry).unwrap();
+            assert_eq!(wrapper.origin, model::Origin::Source(entry_span));
+            assert_ne!(callee.id(), wrapper.id());
+            let call_span = parsed
+                .ast()
+                .expressions()
+                .get(bound.call().expression())
+                .unwrap()
+                .span();
+            let calls = wrapper
+                .instructions
+                .iter()
+                .filter(|i| matches!(i.operation, model::Operation::DirectCall { .. }))
+                .collect::<Vec<_>>();
+            let [call] = calls.as_slice() else {
+                panic!("one actual wrapper direct call")
+            };
+            assert_eq!(call.origin, model::Origin::Source(call_span));
+            let model::Operation::DirectCall {
+                callee: target,
+                receiver: None,
+                arguments,
+            } = &call.operation
+            else {
+                panic!("ordinary direct call")
+            };
+            assert_eq!(*target, callee.id());
+            assert_eq!(arguments.len(), 2);
+            assert_eq!(
+                entry_span.start() < callee_span.start(),
+                text.starts_with("fun entry()")
+            );
+
             if text == SOURCE {
                 let bytes = artifact.verified_library_object_bytes().unwrap();
                 for f in functions {
