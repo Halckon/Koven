@@ -268,6 +268,15 @@ pub(super) fn replay(
     fact: &TwoSourceCounterFact,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Option<()> {
+    replay_closure(emitted, experiment, fact, typed, None)
+}
+pub(super) fn replay_closure(
+    emitted: &EmittedFunction,
+    experiment: &TwoSourceExperiment,
+    fact: &TwoSourceCounterFact,
+    typed: &ValidatedCompilationUnitTypes,
+    additional_entry: Option<FunctionId>,
+) -> Option<()> {
     require!(emitted.issued_for(experiment, fact, typed));
     let shell = experiment.function_shell(fact, typed)?;
     let program = &emitted.fragments.leaves.program;
@@ -291,8 +300,16 @@ pub(super) fn replay(
     }
     let leaves = experiment.callee_leaves()?;
     same!(leaves.len(), emitted.fragments.leaves.functions.len());
-    same!(module.functions.len(), leaves.len() + 3);
+    same!(
+        module.functions.len(),
+        leaves.len() + 3 + usize::from(additional_entry.is_some())
+    );
     let mut used = vec![emitted.caller];
+    if let Some(id) = additional_entry {
+        module.function(id)?;
+        require!(!used.contains(&id));
+        used.push(id);
+    }
     for (leaf, (key, id)) in leaves.iter().zip(&emitted.fragments.leaves.functions) {
         require!(experiment.owns_leaf(leaf));
         same!(key, leaf.instance());

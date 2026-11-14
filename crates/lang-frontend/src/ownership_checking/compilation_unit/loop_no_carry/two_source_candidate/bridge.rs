@@ -144,7 +144,7 @@ pub fn analyze_two_source_experiment(
             super::function_shell::collect(fact, *callable, inputs, names, typed)
         })
         .collect();
-    let entries = super::entry::collect(&shells, inputs, names, typed, &owned);
+    let entries = super::entry::collect(sources, &shells, inputs, names, typed, &owned);
     let leaves = super::leaves::collect(&facts, inputs, names, typed);
     let Some(arm_spans) = facts
         .iter()

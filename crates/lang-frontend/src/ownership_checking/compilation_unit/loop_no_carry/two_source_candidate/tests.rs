@@ -270,6 +270,8 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
         (true, 2),
         (true, 3),
         (true, 4),
+        (true, 5),
+        (true, 6),
     ] {
         let mut sources = SourceMap::new();
         let entry = if named {
@@ -286,6 +288,8 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
                 "run(\"left\",\"right\",rounds,choose)",
                 "run(choose,\"right\",rounds,\"left\")",
             ),
+            5 => entry.replace("left", "left\\n"),
+            6 => entry.replace("rounds=3", "rounds=0x3"),
             _ => entry.to_owned(),
         };
         let bounded = if extra == 4 {

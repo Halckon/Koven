@@ -471,3 +471,50 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
         );
     }
 }
+
+#[test]
+fn e2_real_source_entry_emits_and_replays_without_synthetic_driver() {
+    for (rounds, choose) in [(0, false), (3, false), (3, true)] {
+        let source = format!(
+            "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(left);consume(a)}}else{{borrow val b=view(right);consume(b)}};remaining=remaining-1}}}}\nfun main():Unit {{val rounds={rounds};val choose={choose};run(\"left\",\"right\",rounds,choose)}}"
+        );
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("entry.ko", source).unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::new("root", "entry.ko", id, &parsed)];
+        let (env, types) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let experiment = analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
+            .unwrap()
+            .unwrap();
+        let fact = &experiment.facts()[0];
+        let [entry] = experiment.entries(&typed).unwrap() else {
+            panic!("complete source entry")
+        };
+        let emitted = super::e2_entry::emit(&experiment, fact, entry, &typed).unwrap();
+        super::e2_entry_replay::replay(&emitted, &experiment, fact, &typed).unwrap();
+        // Ordinary single-callable publication/replay does not silently widen its coverage.
+        assert!(super::e2_replay::replay(&emitted.function, &experiment, fact, &typed).is_none());
+        let other = analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
+            .unwrap()
+            .unwrap();
+        assert!(super::e2_entry::emit(&other, &other.facts()[0], entry, &typed).is_none());
+        assert!(
+            super::e2_entry_replay::replay(&emitted, &other, &other.facts()[0], &typed).is_none()
+        );
+        let llvm = crate::llvm::render_verified_program_with_entry(
+            &emitted.function.fragments.leaves.program,
+            emitted.entry,
+        )
+        .unwrap();
+        assert!(!llvm.is_empty());
+    }
+}

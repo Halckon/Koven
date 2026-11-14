@@ -18514,3 +18514,22 @@ owns_entry 区分同 typed 下重新 ownership 分析，即使结构相等也不
 只读投影不返回普通 owned capability。前后缀额外语句、标量改回 literal、
 非标准四参数 roles 均只拒绝 descriptor，保留合法两源 fact。没有生成 entry SSA、
 扩大 Published 范围或生产接受集；后继仍须依据该证据完整 lowering/replay。
+
+### 真实源码 entry SSA 与独立 replay（实验，未封包/生产）
+
+entry descriptor 进一步捕获原 SourceMap 的受限字面量快照：无转义/插值 String、
+非负十进制 i32 与 Boolean；不支持形式保守不给 descriptor。后端不重新接收可替换
+AST 或 SourceMap 来决定值。实际 entry SSA 完整覆盖两个标量 val、两个 String
+临时 owner、四个 Shared 实参、对真实 loop caller 的调用，以及 descriptor 顺序的
+四个实际 End 和两个实际 Drop，最后正常返回。无参数 entry 具有原源码 Origin，
+不是测试合成 driver。字面量读取不依赖未定 Origin 合同。
+
+独立 replay 先核对原 caller/helper/leaf 闭包，再逐条核 entry 的19条指令、
+实体类型、完整无参 ABI、来源、调用实参、End/Drop 与返回；不重跑 emitter 比较。
+旧单 callable replay/Published 仍拒绝多出的 entry，不暗中扩大发布范围。
+真实0/3轮与choose两值 fixture 已通过SSA/replay与LLVM生成，跨ownership分析的
+descriptor和产物均拒绝。此片没有执行这些新 entry 的native可执行文件；既有
+synthetic driver native回归仍单独存在，不替代本片运行证据。
+
+仍需将完整 entry 范围纳入不可变 publication，再评估普通 driver 接线；当前仅
+test+feature 的可变产物与独立检查。未推送或运行故障注入。

@@ -24,8 +24,29 @@ pub struct EntryDescriptor {
     contracts: [UnitCallArgumentOwnershipContract; 4],
     ends: [UnitDirectCallLoanEndFact; 4],
     drops: [UnitDropFact; 2],
+    strings: [Vec<u8>; 2],
+    rounds: i32,
+    choose: bool,
+    initializer_spans: [Span; 2],
 }
 impl EntryDescriptor {
+    /// Original analyzed plain String payloads, excluding escapes/interpolation.
+    pub fn strings(&self) -> &[Vec<u8>; 2] {
+        &self.strings
+    }
+    /// Original analyzed nonnegative decimal Int.
+    pub fn rounds(&self) -> i32 {
+        self.rounds
+    }
+    /// Original analyzed Boolean.
+    pub fn choose(&self) -> bool {
+        self.choose
+    }
+    /// Original initializer spans.
+    pub fn initializer_spans(&self) -> [Span; 2] {
+        self.initializer_spans
+    }
+
     pub(super) fn same_identity(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.identity, &other.identity)
     }
@@ -59,6 +80,7 @@ impl EntryDescriptor {
     }
 }
 pub(super) fn collect(
+    sources: &crate::source::SourceMap,
     shells: &[Option<FunctionShell>],
     inputs: &[SourceUnitInput<'_>],
     names: &ValidatedCompilationUnitNames,
@@ -279,8 +301,68 @@ pub(super) fn collect(
                     return None;
                 }
             }
+            let initializer_spans = [
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(locals[0].1.expression())
+                    .ok()?
+                    .span(),
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(locals[1].1.expression())
+                    .ok()?
+                    .span(),
+            ];
+            let text = sources.slice(initializer_spans[0]).ok()?;
+            if text.is_empty() || !text.bytes().all(|c| c.is_ascii_digit()) {
+                return None;
+            }
+            let rounds = text.parse::<i32>().ok()?;
+            let Expression::Literal(LiteralKind::Boolean(choose)) = parsed
+                .ast()
+                .expressions()
+                .get(locals[1].1.expression())
+                .ok()?
+                .payload()
+            else {
+                return None;
+            };
+            let strings: [Vec<u8>; 2] = contracts[..2]
+                .iter()
+                .map(|c| {
+                    let Expression::String { parts } = parsed
+                        .ast()
+                        .expressions()
+                        .get(c.argument().expression())
+                        .ok()?
+                        .payload()
+                    else {
+                        return None;
+                    };
+                    let mut bytes = Vec::new();
+                    for part in parts {
+                        let StringPart::Text(span) = part else {
+                            return None;
+                        };
+                        let text = sources.slice(*span).ok()?;
+                        if text.contains('\\') {
+                            return None;
+                        }
+                        bytes.extend_from_slice(text.as_bytes());
+                    }
+                    Some(bytes)
+                })
+                .collect::<Option<Vec<_>>>()?
+                .try_into()
+                .ok()?;
             Some(EntryDescriptor {
                 identity: Rc::new(()),
+                strings,
+                rounds,
+                choose: *choose,
+                initializer_spans,
                 entry: declaration.id(),
                 body: body_node.span(),
                 instance: call.instance().clone(),
