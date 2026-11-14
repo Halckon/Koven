@@ -1013,3 +1013,6 @@ mod borrow_argument {
         }
     }
 }
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_dual_nested_loop_tests;

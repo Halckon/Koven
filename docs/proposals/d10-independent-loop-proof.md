@@ -639,3 +639,46 @@ Borrow/Print/BorrowEnd/Drop。四个计数常量也与实际条件/更新 RHS �
 六测全通过；前端 all-targets 双实验 feature 与 codegen lib/tests 严格 Clippy、
 格式、文档 956 和独审通过。三项 CI-only 身份测试保持 ignored，未跑 native、
 LLVM 或本地故障注入；本地基线仍为 main `28a3c290`，未自行并入后续退出写回变更。
+
+### 父子各一次 Replace 的独立双操作观察
+
+此批从 `ed389f22` 建立独立树，原树保留；实时只读核对 main 仍 `28a3c290`，
+PR #428 在检查时 open、head `5400321f`，未借讨论内容合并该变更。
+
+双操作使用新的 `DualNestedPending` / `BoundDualNestedLoop`，不是取消旧 binder
+的单操作限制。封闭源码为父先 `parentOld = replace(&a, parentLiteral)`，然后
+`inner = count` 和 child；child 内 `old = replace(&a, childLiteral)` 后递减
+inner，父再递减 outer；b 保持两层后真实 suffix 读取。完整七 item、十四 statement、
+二十七 expression 各归属一次，真实原 planner 三十一事件严格整体匹配。
+
+两次 Replace 的 call、incoming site、Exclusive loan 和 detached old declaration
+分别核对，不能用第一个 plan 替代第二个，也不能按字符串内容把 producer site
+合并。父 old 在 child 之前实际 AfterStatement 清理；child old 在 child body 中
+清理；当前 a 在父 LoopExit，b 在 suffix CallReturn。独立第五路观察在后续错误时
+清空，构造最终 owned 后核全量四 Drop／三 loan／两 primitive 与同 typed 身份，
+然后 validate 才能交付；没有公开构造或补绑入口，旧单操作 API 继续拒绝此形态。
+
+实际普通 Unit/Refine 路线的双操作图独立 replay 逐条核验：父新根进入 child header；
+child 零轮退出保留父新根，child 每次 Replace 新根走自身回边；完成 child 后的当前
+根通过父回边，下一父轮 Replace 的 old 为该 header 当前根，非某固定 literal。
+两层 counter、Shared count loan 与 b 独立运输。四个真实 Drop、两个 checked-abort、
+suffix BorrowEnd 及全图块／参数／前驱来源均需满足，不能以静态观察替代 CFG。
+
+该能力仍为默认关闭的来源观察和固定 SSA 见证；不是一般多写／任意嵌套／Carry
+许可，不接普通生产 selector。不同根写入、错误 counter 来源／步长、额外节点或
+break、缺真实 b 后用均拒绝；后续主线退出写回必须另作组合测试。
+
+普通正例验证纠正了一个来源角色误判：Exclusive loan 的 begin 来自实际 Inout `&`
+marker，不是其 Name 表达式范围。候选现严格按既有 call contract 核 marker，同时
+保留 argument ID 与 call-end 校验；未删约束、未移动/重造 loan 的 span。真实源码
+包含同字面量内容但不同 parent/child producer site 的正例，防止按内容混淆身份。
+
+这里的 child 零轮保证指实际 CFG 的 false edge 参数核验，并非 native 路径覆盖：
+当前封闭形态两个 counter 共用 count，父可进入时 child 的初值也为正。要让父进入
+而 child 初始为零，需要独立 counter 来源等新合同，不能据本片声称已测该运行场景。
+
+本片验证通过：新 dual 外部矩阵六正／十八拒绝；合计外部普通六测试、planner
+五测试、D10 codegen 七测试，新双操作包含六个实际 SSA replay 与十个来源端拒绝。
+四项身份错配测试仍 ignored。前端/后端严格 Clippy、默认前端编译、格式、文档956
+和独审通过。未执行 native、LLVM 或本地故障注入。收尾期间获知 #428 已合入
+`467f88b5`；本片提交仍保留旧基线，下一隔离组合单独验收该主线。
