@@ -1,0 +1,9 @@
+// 切片的 get 声明为转发；局部切片先死，结果仍可返回
+class Arr(len: Int)
+view class Slice(borrow source: Arr, start: Int)
+fun slice(borrow a: Arr): Slice from a { return Slice(a, 0) }
+fun get(borrow this: Slice): borrow Int from this.source { return &this.source.len }
+fun first(borrow xs: Arr): borrow Int from xs {
+  val s = slice(xs)
+  return get(&s)
+}

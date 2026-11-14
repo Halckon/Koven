@@ -1,0 +1,19 @@
+// 切片存活期间移动或析构底层数组
+class Arr(len: Int)
+view class Slice(borrow source: Arr, start: Int)
+fun slice(borrow a: Arr): Slice from a { return Slice(a, 0) }
+fun moved(): Unit {
+  val arr = Arr(1)
+  val s = slice(&arr)
+  val gone = move arr  // ERR K1
+  use(s.start)
+}
+fun dropped(): Unit {
+  val keep = Arr(1)
+  val s = slice(&keep)
+  {
+    val inner = Arr(2)
+    s = slice(&inner)
+  }  // ERR K9
+  use(s.start)
+}

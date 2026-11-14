@@ -1,0 +1,19 @@
+// 声明依赖视图本身，实际返回底层元素：更保守，成立；调用方据此保住来源
+class Arr(len: Int)
+view class Slice(borrow source: Arr, start: Int)
+fun slice(borrow a: Arr): Slice from a { return Slice(a, 0) }
+fun get(borrow this: Slice): borrow Int from this { return &this.source.len }
+fun ok(): Unit {
+  val arr = Arr(1)
+  val s = slice(&arr)
+  val e = get(&s)
+  use(e)
+  arr.len = 2
+}
+fun stillBorrowed(): Unit {
+  val arr = Arr(1)
+  val s = slice(&arr)
+  val e = get(&s)
+  arr.len = 2  // ERR K1
+  use(e)
+}

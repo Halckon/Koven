@@ -1,0 +1,10 @@
+// 循环体内借用并在同一次迭代内用完，之后写来源
+class Arr(len: Int)
+fun f(): Unit {
+  val arr = Arr(1)
+  while (*) {
+    val r = &arr.len
+    use(r)
+    arr.len = 2
+  }
+}

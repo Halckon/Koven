@@ -1,0 +1,10 @@
+// 切片最后一次使用之后写底层数组
+class Arr(len: Int)
+view class Slice(borrow source: Arr, start: Int)
+fun slice(borrow a: Arr): Slice from a { return Slice(a, 0) }
+fun f(): Unit {
+  val arr = Arr(1)
+  val s = slice(&arr)
+  use(s.start)
+  arr.len = 2
+}
