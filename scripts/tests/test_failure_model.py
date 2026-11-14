@@ -47,6 +47,8 @@ class IoModel(unittest.TestCase):
         "终止进程但窗口内继续展开": ({MODEL.WRITE_AFTER_FREE}, set(), set()),
         "保留优先，不能保留则终止": (set(), set(), {MODEL.LEAK}),
         "保留优先，不能保留则终止（帧在父存储里）": (set(), set(), set()),
+        "操作持有缓冲区，随帧销毁其余内容": (set(), set(), {MODEL.LEAK}),
+        "操作持有缓冲区，且有后继回收": (set(), set(), set()),
     }
 
     def test_each_policy_has_the_expected_outcome(self):
