@@ -17919,3 +17919,23 @@ Origin 或故障分类变化，未执行负控/故障注入、全量测试或远
 旧 API 可删或 D10/E2 完成。远端状态不在本轮只读核验范围。
 独立只读复核通过，docs（952 Markdown）及 diff 检查通过；未把文档结构门禁
 当作语义等价证明。
+
+### 隔离 D10 组合树复用借用模块提取（2026-11-14）
+
+基于 `7236232e`（已组合 main `cc83d9ec`），复用既有 `7d7bfeb9` 的完整
+`ssa::borrow_argument` 职责提取，不整颗 cherry-pick 旧提交或带入其验收账本。
+当前 inline body 去模块缩进、经同一 rustfmt 后与旧提取文件逐字节相同，才使用
+该文件；父模块仅替换为同级声明。`cfg(test)`、模块层级、可见性、六方法及尾部
+D10 注册均不变。父文件从 1021 降至 356 行，提取文件 659 行，不改尺寸政策。
+独立只读三方字节审查通过；这是 legacy 测试域组织修复，不是旧 lowering 退役，
+也不改变生产借用权限或 D10 实验准入。
+
+本轮重新运行 D10 普通 SSA 十一项通过／一项 CI-only ignored；借用结果的
+MemoryDocument、rooted Unit 与 legacy caller/block-return 拒绝三项 exact 通过。
+实验配置 codegen tests 严格 Clippy、默认 codegen check、fmt 与独审通过。
+未运行 native、故障控制或远端 CI，未推送；这些结果不代表生产能力扩展。
+
+全仓尺寸按当前 main `cc83d9ec` 重新检查，`ssa/mod.rs` 超限已消除，仍明确失败
+一项：owner_transport `loops.rs` 1003 行（main 基底 987、门槛 1000），属于此
+组合链既有欠账，本片未修改。不能把本次借用模块修复宣称全仓门禁已绿。
+文档结构检查 957 文件通过。
