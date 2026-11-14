@@ -4,10 +4,10 @@
 
 ## 输入与结论边界
 
-代码输入：`89b57bb81556d0a52e6e02a43469830dba29dfd1`，已包含 main
+首轮代码输入：`89b57bb81556d0a52e6e02a43469830dba29dfd1`，已包含 main
 `51a3aad36bd754c268a05c26c8dd0b80940286cb`；对应 Draft PR #423 的初始候选。
 本页是第一轮路由与代表性源码审计，不是全部合法程序的穷尽证明，也不代替后续 head 验收。
-本轮不改生产代码、准入、诊断、ignore 或 Spec 验收条件。
+初始审计未改生产代码、准入、诊断、ignore 或 Spec 验收条件；后继主干集成见 §7。
 
 结论：refine 的两段式主体与大量家族迁移已落地，但**仍有实际生产兼容 lowering，
 不只是物理薄壳**。按 [ADR-0032](../adr/accepted/0032-ownership-refinement-layer.md)
@@ -18,7 +18,7 @@
 - `ssa/refine.rs::route` 在 `accepts` 不通过时返回 `Compatibility`；接受后才选 Refine。
   `ForcedPerFamily` 和 `with_per_family_lowering` 仅在 `cfg(test)` 存在。
 - `ssa/refine/subset.rs::accepts_with_loop_route` 同时检查 signature、body、drop 支持、循环条件，
-  最后仍要求 nullable/migrated 或有界 receiver/named/temporary call 触发条件。
+  最后仍要求 nullable/migrated、有界 receiver/named/temporary call 或已批准的直线标量触发条件。
   因此“不触发迁移”与“构造本身不受支持”是不同原因。
 - `ssa/unit_lower/orchestrate.rs::lower_unit_impl` 的 route/continue 后仍构造
   `UnitExpressionLowerer`；`unit_lower.rs::lower_expression` 实际分派 literal、name、call、
@@ -37,12 +37,13 @@
 
 | ID | 精确见证与当前行为 | 生产落点 / 分类依据 |
 |---|---|---|
-| A1 | `refine_tests::container_tests::map_cross_function_routing_is_isolated`：简单标量 `unmigrated_scalar` 与已迁 Map/Inout sibling 共存，完整 Unit lowering 成功，只有该标量 helper 不在 refine 观察集合 | subset 最后的迁移触发门；这是实际旧函数体依赖，不是语义能力不存在。终态统一路由仍需处理 |
+| A1 | `refine_tests::container_tests::map_cross_function_routing_is_isolated`：初始仅简单标量 helper 不在 refine 集合；合入 SPEC-0454 后，该 helper 也进入 refine，保留 Map/Inout sibling 隔离 | 原有界缺口已由主干 `cc83d9ec` 闭合；仅限已批准的直线标量，不代表取消全部迁移门或完成统一路由 |
 | A2 | `loan_region_ssa_tests::receipts::receiver_route::neighboring_receiver_shapes_keep_existing_routes`：Boolean 结果、Borrow 参数、两次调用、非零实参四份固定源的 caller 无 refine 路由，SSA/LLVM 均成功 | `subset/named_route.rs::bounded_receiver_candidate` 只新增受限 trigger；这里指没有其他迁移原因的固定 caller，不声称这些 receiver 构造在任何上下文都不能 refine |
 | A3 | `unit_lower_string_tests::lower_frontend_nullable_unit_comparison_tests::nullable_when_read_views_preserve_owned_subject_for_reuse_unit_comparison` 与 `nullable_when_consumes_inner_without_duplicate_owner_unit_comparison`：owned `Node?`、`Box<Token>?`、`Rc<Int>?` 保留 view 或唯一 take，SSA/LLVM 验证成功 | refine `subject_when` 尚不接受 nullable subject；旧 `control.rs` 分派至 `nullable_when.rs`。这是已支持 pointer-like owned nullable 的迁移，不要求新增 loan/place branch ABI |
 | A4 | `refine_tests::map_condition_tests::retired_ownership_primitive_boundary_tests` 第一例：nullable `Int?` subject when 与 replace 组合自然进入兼容路径，在真实 replace span 报 UnsupportedNode | 已确认组合拒绝，不把它写成“原来已能成功的程序退化”。inline nullable when 的阶段/ABI与允许范围须先核合同；不能直接扩大为所有 nullable、删除负控或重启旧 replace 实现 |
 
-A1–A3 是 ADR-0032 终态尚未收口的具体证据，不等于已批准无限扩展 caller/控制流组合。
+A1 是初始差距及已落地主干的有界修复，A2–A3 仍是 ADR-0032 终态尚未收口的具体证据；
+它们不等于已批准无限扩展 caller/控制流组合。
 每个实施切片仍须独立 Spec、失败测试及现有能力/清理负控；A4 尤其需要先明确能力范围。
 本轮只识别这些差距，不据总合同自动开放任何新前端事实或后端准入。
 
@@ -77,7 +78,7 @@ A1–A3 是 ADR-0032 终态尚未收口的具体证据，不等于已批准无�
   及分配/清理测试。active Spec 的历史“官方 CI 待核”和旧测试文件路径需要逐项归因核验；
   不能直接说“没有实现”，也不能把某次整个 CI 绿自动填成所有验收已完成。
 - SPEC-0392 的层间审查、0341 的 Unit 管线及产品交接仍有各自边界；不合并成一个 E3 完成率。
-- 0451–0453 当前 31 个保留路径是独立的尺寸/职责库存，既不穷尽上述生产差距，也不能证明迁移完整。
+- 0451–0453 当前 34 个保留路径是独立的尺寸/职责库存，既不穷尽上述生产差距，也不能证明迁移完整。
 - 初始代码头 `89b57bb8` 的 [PR #423 CI 43554274292](https://github.com/Halckon/Koven/actions/runs/43554274292)
   已成功结束；它不消除上述有测试锁定的兼容路径，也不自动完成各历史 Spec 的逐项归因。
   本次文档追加后的检查/复用须按新 head 独立核验。完整回归与既有迁移审查以实际选择范围为准，
@@ -99,3 +100,17 @@ A1–A3 是 ADR-0032 终态尚未收口的具体证据，不等于已批准无�
 实际命令为 `cargo test --locked -p lang-codegen --lib [--features loan-observation-test-support] --`
 后附以上九项的现有完整 libtest 名字。没有运行 CI-only 故障注入、0360 新增动态计数/原生测试、
 frontend 全量或完整 codegen lib；这些九项不证明无限源码空间或全部 SSA 算法已正确。
+
+## 7. 已合主干集成后的有界更新
+
+#423 在 `28747ded` 上普通合并已合 main `cc83d9ec`，保留两侧实现；该主干包含
+#424 的直线标量及此前已合的前端修复，不包含未合 #427。A1 只按 SPEC-0454 的
+直线 Boolean/整数边界闭合，A2/A3/A4 与其他终态合同不随之关闭。
+
+集成后上列九个普通见证加
+`refined_linear_and_legacy_branch_helpers_coexist_in_the_native_program`，默认/feature
+各 **10 passed / 0 failed / 0 ignored**，退出 0；额外见证验证 refine main/linear
+与 Compatibility branching 的实际 native 调用、完整 stdout/空 stderr。
+双配置 codegen all-target Clippy 通过。未重跑完整 LLVM/feature、frontend 全量或
+CI-only fault；[SPEC-0453 §4.5](../specs/active/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#45-runtime-abort-的-map-result--string-职责恢复)
+的 feature 基线观察期限仍不是通过，最新合并候选 CI 另验。

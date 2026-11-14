@@ -281,3 +281,16 @@ abort 仅保留终止报告职责，没有新增 wrapper、状态、公开 API �
 重新枚举原 37 路径：**26 不存在、11 保留**；本轮比 §4.4 恢复两个原路径，三批共
 34 个原路径保留。Scope 仍是原合同内的职责恢复，不扩大语言能力，也不改写 §3 的
 未完成验收条件。其余打包/保留路径审计与新候选官方 CI 继续待验，Spec 保持 in-progress。
+
+### 4.6 与已合 main 的普通集成
+
+在职责修复 `28747ded` 上普通合并 main `cc83d9ec`（#424 已合，包含其此前已合的
+前端修复，不导入未合 #427）。三个冲突均为文档：分流说明保留已合直线标量事实与
+本分支差距入口，两个 SVG 从合并后的 Spec 真源重建；没有手工修改任何 Rust 冲突。
+同步 A1 已由0454有界闭合、A2/A3/A4仍开放的事实；0451–0453仍 in-progress。
+
+集成后的原九个差距/负控加 mixed refine→Compatibility native 见证，两配置各
+**10/0/0**、退出0；双配置 codegen all-target Clippy 通过。运行选择不与 §4.5 的19项
+拼接成完整 suite；本地 CI-only 仍未执行，最终 merge commit 的 PR CI 必须独立验收。
+workspace check、fmt、docs（952 Markdown）、尺寸及空白通过；runtime 子树与本轮提交
+`28747ded` 字节一致，frontend 与 main 字节一致，没有在冲突解决中手改 Rust。

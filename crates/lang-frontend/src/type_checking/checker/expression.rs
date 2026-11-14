@@ -114,16 +114,8 @@ impl Checker<'_> {
                 keyword_span,
                 value,
             } => self.check_return(keyword_span, value)?,
-            Expression::Break { keyword_span } => self.check_jump(
-                keyword_span,
-                "break is not inside an enclosing loop in this callable",
-                true,
-            )?,
-            Expression::Continue { keyword_span } => self.check_jump(
-                keyword_span,
-                "continue is not inside an enclosing loop in this callable",
-                false,
-            )?,
+            Expression::Break { keyword_span } => self.check_jump(id, keyword_span, true)?,
+            Expression::Continue { keyword_span } => self.check_jump(id, keyword_span, false)?,
             Expression::SuperMember { interface, .. } => {
                 self.resolve_static_type_ref(interface)?;
                 ExprCheck {
@@ -768,8 +760,8 @@ impl Checker<'_> {
 
     fn check_jump(
         &mut self,
+        expression: ExpressionId,
         keyword_span: Span,
-        message: &'static str,
         breaks: bool,
     ) -> Result<ExprCheck, TypeCheckingError> {
         let loop_base = self
@@ -777,9 +769,14 @@ impl Checker<'_> {
             .last()
             .map_or(0, |callable| callable.loop_base);
         let ty = if self.loop_depth > loop_base {
-            self.note_pending_loop_jump(breaks);
+            self.note_pending_loop_jump(expression, breaks);
             self.builtin(BuiltinType::Nothing)
         } else {
+            let message = if breaks {
+                "break is not inside an enclosing loop in this callable"
+            } else {
+                "continue is not inside an enclosing loop in this callable"
+            };
             self.emit(self.jump_outside_loop_code, message, keyword_span)?;
             self.error_type()
         };
