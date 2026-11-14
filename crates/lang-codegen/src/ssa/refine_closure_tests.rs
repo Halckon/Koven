@@ -295,6 +295,8 @@ mod source_closure_tests {
 
     #[test]
     fn single_runtime_nothing_operand_stops_before_borrow_and_initializer() {
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+        use lang_frontend::name_resolution::SymbolKind;
         let mut failures = Vec::new();
         for container in ["Array", "List"] {
             for (operands, size_loans) in [
@@ -304,20 +306,34 @@ mod source_closure_tests {
                 let text = format!(
                     "fun entry(): Int {{ val unused = {container}<Int>({operands})\nreturn 0 }}"
                 );
-                analyze(&text, |sources, parsed, names, typed, owned| {
-                    let constructors = typed.container_constructions();
+                {
+                    let unit = UnitSource::analyze("single-runtime-intent.ko", &text).unwrap();
+                    unit.assert_frontend_clean();
+                    let constructors = unit.types().container_constructions();
                     assert_eq!(constructors.len(), 1);
                     assert_eq!(
-                        owned
+                        unit.ownership()
                             .loans()
                             .iter()
                             .filter(|loan| loan.call() == constructors[0].expression())
                             .count(),
                         size_loans
                     );
-                    let arena = typed.types().len();
-                    match lower_scalar_file(sources, parsed, names, typed, owned) {
-                        Ok(program) => {
+                    let arena = unit.types().types().len();
+                    let declaration = unit.declaration("entry", SymbolKind::Function);
+                    match unit.lower_entry(declaration) {
+                        Ok((program, root)) => {
+                            assert_eq!(
+                                program
+                                    .module(root.module())
+                                    .unwrap()
+                                    .function(root)
+                                    .unwrap()
+                                    .origin,
+                                crate::ssa::model::Origin::Source(
+                                    unit.declaration_span(declaration)
+                                )
+                            );
                             assert!(
                                 program.modules[0]
                                     .functions
@@ -345,8 +361,8 @@ mod source_closure_tests {
                         }
                         Err(error) => failures.push(format!("{container}/{operands}: {error:?}")),
                     }
-                    assert_eq!(typed.types().len(), arena);
-                });
+                    assert_eq!(unit.types().types().len(), arena);
+                }
             }
         }
         assert_diagnostic!(

@@ -17865,3 +17865,18 @@ owner、无重复 BorrowEnd、Drop 晚于构造。结论限于这些既有 SSA �
 Origin 或故障分类变更，未执行故障注入、全量测试或推送。
 带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
 及 diff 检查通过；远程 CI 仍须对应最终发布头另行验收。
+
+### Nothing 操作数原源码见证迁至 Unit（2026-11-14）
+
+基于 `fd64906a`，将
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_nothing_operand_stops_before_borrow_and_initializer`
+原四组无 package 源码改用严格 Unit admission/lowering，保留 FQN、构造事实数量、
+同一 constructor expression 的 loan 计数、无 ContainerGenerateBorrowed、存在 Abort、
+类型 arena 不增长及 LLVM verifier，新增返回 root 的声明身份校验。既有 package
+Unit 控制和其他 legacy 身份/ABI 见证均不改动。源码 error 调用为原普通语义，
+不是故障注入；不改变生产或 Origin。
+
+完整 FQN exact 1/1（四组源码）、测试编译和独立只读审查通过；未运行故障注入、
+全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+与 diff 检查通过。
