@@ -347,7 +347,7 @@ impl Emitted {
     }
 }
 impl Receipt {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn folded_distinct_blocks(&self) -> bool {
         self.fold.is_some_and(|(from, to)| from != to)
     }

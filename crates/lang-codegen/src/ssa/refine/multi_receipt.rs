@@ -170,12 +170,15 @@ fn invalid(span: Span) -> LoweringError {
 }
 
 impl Receipt {
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn continuation_goto_count(&self) -> usize {
         self.original_gotos.len()
     }
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn continuation_fold_count(&self) -> usize {
         self.folds.len()
     }
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn tail_mapping_matches(&self, block: BlockId) -> bool {
         let mut original = self.original_tail;
         for (from, to) in &self.folds {
@@ -189,7 +192,7 @@ impl Receipt {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "loan-observation-test-support"))]
 impl Receipt {
     /// Observe a real fold whose surviving predecessor was already a multi-source join.
     pub(crate) fn folded_multi_predecessor_successor(&self) -> bool {

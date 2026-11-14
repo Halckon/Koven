@@ -14,7 +14,7 @@ function、block、entity、type 和 operation；控制流通过 block parameter
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
 - ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop、control-flow 合并及[borrowed closure owned escape](borrowed-closure-escape.md)。闭包形成与实际析构检查同一 capture loan 的唯一活跃持有者。外部派生 loan 存活时拒绝释放父捕获或经父 loan 写入。
 
-未经验证的 SSA 不进入 LLVM adapter。SPEC-0341 的[空体标量前缀](../specs/active/0341-shared-lowering-core.md#已批准的-tail-break-独立标量前缀扩展2026-11-13)以独立事实和实际 CFG/资源参数运输证据接入有界 tail-break，不授权一般前缀。renderer 只用于确定性调试和测试，不是稳定序列化协议。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
+未经验证的 SSA 不进入 LLVM adapter。SPEC-0341 的[空体标量前缀](../specs/active/0341-shared-lowering-core.md#已批准的-tail-break-独立标量前缀扩展2026-11-13)以独立事实和实际 CFG/资源参数运输证据接入有界 tail-break；另有[已批准的前缀与 counter 条件 break 组合](../specs/active/0341-shared-lowering-core.md#已批准的-scalar-prefix--counter-条件-break-组合2026-11-13)，独立证明 prefix join、实际计数初始化、header 与双出口，独立 Boolean 可按活性裁剪但共享 stop 与资源根必须保留。两者不授权一般前缀。renderer 只用于确定性调试和测试，不是稳定序列化协议。LLVM 模块已移除整模块 dead-code 豁免；仅测试消费的 IR render/smoke 入口限于测试构建，生产 object lowering 保留。SSA carry 以及整个 refine、unit_lower、unit_plan 子树恢复 dead-code 门禁，render 与仅旧路径测试消费的查询接口限制为测试构建；生产 SSA 顶层恢复 dead-code 门禁，仅保留具名模型变体及诊断载荷例外；Unit planner 测试及其五个子模块恢复 dead-code 门禁，未删减原断言或夹具；仅测试构建的 `lower_frontend` 实际子树也恢复 dead-code 门禁，别名目标不在其继承范围；其他历史测试夹具广域豁免仍待独立审计。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
 
 顺序容器的 `ContainerLength` 接受 Value 或 active shared Loan；verifier 拒绝 exclusive、失效和错误 target 的 loan。source `.size`与unit String读取见[接入边界](unit-container-storage.md#source-size与unit-string读取)。
 结果是 signed i32 Koven `Int`，LLVM header 用 target `size_t`；借用读取按创建不变量转为 i32。list-form 与 runtime-length 创建共用目标位宽的 logical length 上限。
@@ -187,7 +187,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 ## Native object 与发布
 
-`NativeUnitEntry` 的普通出口为 `emit_native_unit_object` / `emit_native_owned_unit_object`，常量出口为 `emit_native_constant_unit_object` / `emit_native_const_owned_unit_object`；两种 capability 不互换。
+`NativeUnitEntry` 的普通出口为 `emit_native_unit_object` / `emit_native_owned_unit_object`，常量出口为 `emit_native_constant_unit_object` / `emit_native_const_owned_unit_object`；两种 capability 不互换。 默认关闭的 [E2 显式能力](../specs/active/0341-shared-lowering-core.md#e2-默认关闭的显式完整-unit-能力)另行签发，并支持[同次分析多入口](../specs/active/0341-shared-lowering-core.md#e2-同次分析的显式多入口能力)的单 Program，以及[具名同 owner 窄入口](../specs/active/0341-shared-lowering-core.md#e2-具名同-owner-的封闭入口)；不转换普通 owned、接受实验封包或自动接入 CLI。
 旧 `NativeEntry`、`emit_native_object` 及专属私有转接已删除；私有 `lower_frontend` 和旧 checker 仍有真实测试消费者，未随门面机械删除。 普通整数越界、未解析名和非法break拒绝，以及原for-loop/String泛型成功消费者已改走strict Unit；其余真实旧入口见证保留。
 普通与常量八参入口先执行用户 Into，再各经 factory 进入对应封闭 view；校验、reserve 与 emission 顺序见[交接流水线](pipeline-and-workspace.md#普通-owned-unit-交接)。
 

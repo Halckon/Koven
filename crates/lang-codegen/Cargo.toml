@@ -14,3 +14,5 @@ workspace = true
 
 [features]
 loan-observation-test-support = ["lang-frontend/loan-observation-test-support"]
+e2-two-source-test-support = ["lang-frontend/e2-two-source-test-support"]
+two-source-unit = ["lang-frontend/two-source-unit"]

@@ -57,7 +57,7 @@ pub use cleanup_condition::{
 };
 pub use compilation_unit::loop_no_carry::{
     UnitLoopBreakBranchNoCarryFact, UnitLoopBreakPrefixFact, UnitLoopCounterBranchNoCarryFact,
-    UnitLoopNoCarryExitKind,
+    UnitLoopCounterBreakBranchNoCarryFact, UnitLoopNoCarryExitKind, UnitLoopPrefixCounterBreakFact,
 };
 pub use compilation_unit::{
     CompilationUnitConstantOwnership, CompilationUnitOwnership, ConstEnabledOwnedUnit,
@@ -117,14 +117,14 @@ pub use compilation_unit::{
     UnitOwnerReplaceBreakReturnConsumerV1, UnitOwnerReplaceBreakStateV1, UnitOwnerReturnActionV1,
     UnitOwnerReturnEndpointV1, UnitOwnerRootBoundarySlotV1, UnitOwnerRootEdgeV1,
     UnitOwnerRootExitPartitionV1, UnitOwnerRootGenerationRuleV1, UnitOwnerRootReplaceStepV1,
-    UnitOwnerTransportEvent, UnitOwnerUnsupportedReason, UnitOwnerValueEventV1,
-    UnitOwnerValueObservationV1, UnitOwnerValueV1, UnitOwnershipBindingDescriptor,
-    UnitOwnershipDeferredFact, UnitOwnershipPlace, UnitRcOwnershipEffect,
-    UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact, UnitReceiverOwnershipFact,
-    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitShortCircuitPlan,
-    UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
-    ValidatedCompilationUnitOwnership, check_compilation_unit_constant_ownership,
-    check_compilation_unit_ownership,
+    UnitOwnerScalarEntryV1, UnitOwnerTransportEvent, UnitOwnerUnsupportedReason,
+    UnitOwnerValueEventV1, UnitOwnerValueObservationV1, UnitOwnerValueV1,
+    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
+    UnitRcOwnershipEffect, UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact,
+    UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+    UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind,
+    UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
+    check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
 };
 pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
 pub use constant::{
@@ -225,3 +225,19 @@ mod research_borrow_consumer_body;
 pub use research_borrow_consumer_body::{
     BorrowBodyConsumerReturn, BorrowConsumerBodyObservation, capture_borrow_consumer_bodies,
 };
+
+/// Opt-in experimental products, not normal lowering authority.
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
+pub mod two_source_experiment {
+    pub use super::compilation_unit::loop_no_carry::two_source_candidate::{
+        ArmSourceSpans, CalleeLeaf, CalleeLeafBody, EntryDescriptor, ExperimentalBinding,
+        ExperimentalUnitHandoff, FunctionShell, OwnershipValidationFailure,
+        TwoSourceAnalysisOutcome, TwoSourceCounterFact, TwoSourceExperiment,
+        analyze_two_source_experiment, analyze_two_source_outcome,
+    };
+}
+
+mod lowering_facts;
+pub use lowering_facts::UnitLoweringFacts;
+mod preflight;
+pub use preflight::UnitPreflightFacts;

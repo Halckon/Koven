@@ -2,6 +2,7 @@
 //! 其余旧 Single 差分合同仅由显式 legacy_only 测试入口消费；插值合同保留原测试身份。
 
 pub(in crate::ssa) mod carry_join;
+mod unit_diagnostic_gates;
 mod products {
     //! Real source-qualified Unit products, shared by one-source and reordered inputs.
     use super::*;
@@ -749,12 +750,9 @@ mod legacy_only {
         unit_lower_test_support::{analyze, declaration, parsed},
     };
     use lang_frontend::{
-        name_resolution::{
-            SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-            resolve_names,
-        },
+        name_resolution::{SourceUnitInput, SymbolKind, resolve_names},
         ownership_checking::check_ownership,
-        type_checking::{check_compilation_unit_types, check_types, standard_environments},
+        type_checking::{check_types, standard_environments},
     };
 
     fn error_key(
@@ -922,39 +920,8 @@ mod legacy_only {
                 error_key(&sources, error),
                 (LoweringErrorKind::MismatchedSource, None)
             );
-            let inputs = [SourceUnitInput::new("root", "pair/entry.ko", source, &file)];
-            let index = index_compilation_unit(&sources, &inputs).unwrap();
-            let names =
-                resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
-                    .unwrap();
-            if body == "missing" {
-                assert_eq!(names.diagnostics()[0].code().to_string(), code);
-                assert_eq!(
-                    source_key(&sources, names.diagnostics()[0].primary_span()),
-                    expected_span
-                );
-                assert!(
-                    names.validate().is_err(),
-                    "unit cannot create names capability"
-                );
-            } else {
-                let names = names.validate().unwrap();
-                let typed =
-                    check_compilation_unit_types(&sources, &inputs, &names, &environment).unwrap();
-                assert_eq!(typed.diagnostics()[0].code().to_string(), code);
-                assert_eq!(
-                    source_key(&sources, typed.diagnostics()[0].primary_span()),
-                    expected_span
-                );
-                assert!(
-                    typed.clone().validate().is_err(),
-                    "basic cannot create typed capability"
-                );
-                assert!(
-                    typed.validate_constants().is_err(),
-                    "const cannot create typed capability"
-                );
-            }
+            // Unit diagnostic gates are independently exercised without foreign products
+            // in unit_diagnostic_gates; retain the legacy precedence witness here.
         }
     }
 

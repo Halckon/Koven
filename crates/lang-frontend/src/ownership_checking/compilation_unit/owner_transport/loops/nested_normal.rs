@@ -13,6 +13,8 @@ type NestedCompletion = (
 /// A completed inner normal-body rule, without entry, exit, or outer-loop authority.
 #[derive(Clone, Debug)]
 pub struct UnitOwnerNestedNormalBodyV1 {
+    pub(in crate::ownership_checking::compilation_unit) scalar_entry:
+        Option<super::super::UnitOwnerScalarEntryV1>,
     identity: std::sync::Arc<()>,
     callable: UnitOwnerCallable,
     sites: (
@@ -46,6 +48,7 @@ impl UnitOwnerNestedNormalBodyV1 {
     ) -> Option<Self> {
         let (resume_write, parent_boundary, counter_tail, entry_owners) = parent_facts;
         let value = Self {
+            scalar_entry: None,
             identity,
             callable,
             sites,
@@ -58,6 +61,10 @@ impl UnitOwnerNestedNormalBodyV1 {
             entry_owners,
         };
         value.is_consistent().then_some(value)
+    }
+    /// Independently observed resource-free scalar entry, when selected.
+    pub fn scalar_entry_v1(&self) -> Option<&super::super::UnitOwnerScalarEntryV1> {
+        self.scalar_entry.as_ref()
     }
     /// Actual enclosing While recorded by the traversal control stack.
     pub fn parent(&self) -> UnitStatementId {
@@ -156,6 +163,14 @@ impl UnitOwnerNestedNormalBodyV1 {
     }
     /// Check local identity and formal-rule consistency, not whole-loop induction.
     pub fn is_consistent(&self) -> bool {
+        if self.scalar_entry.as_ref().is_some_and(|fact| {
+            !fact.is_consistent()
+                || fact.parent() != self.parent()
+                || self.entry_owners.as_deref() != Some(fact.owners())
+        }) {
+            return false;
+        }
+
         self.parent() != self.control()
             && self.control() != self.body()
             && self.parent().source_unit() == self.control().source_unit()

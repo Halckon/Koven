@@ -1,0 +1,385 @@
+//! Ordinary non-loop transport only, not an E2 loop fact or receipt.
+use super::{
+    borrow_memory_test_support::single, borrow_storage_contract_tests::unit, model::*,
+    verify::verify_program,
+};
+
+fn producer(f: &Function, entity: EntityId) -> &Operation {
+    let Definition::InstructionResult { instruction, index } = f.entity(entity).unwrap().definition
+    else {
+        panic!("real instruction result")
+    };
+    let inst = f.instruction(instruction).unwrap();
+    assert_eq!(inst.results[index], entity);
+    &inst.operation
+}
+fn owner(f: &Function, entity: EntityId) -> ValueId {
+    let Operation::BorrowBegin {
+        place,
+        kind: LoanKind::Shared,
+    } = producer(f, entity)
+    else {
+        panic!("shared call argument")
+    };
+    let Operation::RootPlace { owner } = producer(f, EntityId::Place(*place)) else {
+        panic!("actual root owner")
+    };
+    *owner
+}
+fn prints(f: &Function, b: &Block) -> Vec<EntityId> {
+    b.instructions
+        .iter()
+        .map(|id| {
+            let Operation::PrintString { value } = f.instruction(*id).unwrap().operation else {
+                panic!("only direct root prints")
+            };
+            EntityId::Loan(value)
+        })
+        .collect()
+}
+
+// This fixture has one caller block: instruction positions are actual execution order.
+// Do not generalize this check to arbitrary CFGs or abnormal returns.
+fn caller_cleanup(f: &Function, callee: FunctionId) {
+    assert_eq!(f.blocks.len(), 1);
+    let block = &f.blocks[0];
+    assert!(matches!(
+        block.terminator.as_ref().unwrap().kind,
+        TerminatorKind::Return { .. }
+    ));
+    let instructions = block
+        .instructions
+        .iter()
+        .map(|id| f.instruction(*id).unwrap())
+        .collect::<Vec<_>>();
+    let mut ended = std::collections::BTreeSet::new();
+    for (position, call) in instructions.iter().enumerate() {
+        let Operation::DirectCall {
+            callee: actual,
+            arguments,
+            ..
+        } = &call.operation
+        else {
+            continue;
+        };
+        assert_eq!(*actual, callee);
+        assert_eq!(arguments.len(), 3);
+        assert!(call.results.is_empty());
+        for argument in arguments {
+            let EntityId::Loan(loan) = argument else {
+                panic!("shared parameter")
+            };
+            assert!(
+                ended.insert(*loan),
+                "each invocation has fresh caller capabilities"
+            );
+            let ends = instructions.iter().enumerate().filter(|(_, inst)| matches!(inst.operation, Operation::BorrowEnd { loan: actual } if actual == *loan)).map(|(i, _)| i).collect::<Vec<_>>();
+            assert_eq!(ends.len(), 1);
+            assert!(ends[0] > position, "end follows normal call return");
+            if let Some(next) = instructions
+                .iter()
+                .enumerate()
+                .skip(position + 1)
+                .find(|(_, inst)| matches!(inst.operation, Operation::DirectCall { .. }))
+                .map(|(i, _)| i)
+            {
+                assert!(ends[0] < next, "prior invocation ends before the next call");
+            }
+            let root = owner(f, *argument);
+            let drops = instructions.iter().enumerate().filter(|(_, inst)| matches!(inst.operation, Operation::Drop { owner } if owner == root)).map(|(i, _)| i).collect::<Vec<_>>();
+            // The Boolean temporary is Copy; only String owners have explicit Drop.
+            if matches!(
+                producer(f, EntityId::Value(root)),
+                Operation::StringLiteral { .. }
+            ) {
+                assert_eq!(drops.len(), 1);
+                assert!(
+                    drops[0] > ends[0],
+                    "same-owner roots survive both capability ends"
+                );
+            }
+        }
+    }
+    assert_eq!(ended.len(), 6);
+    assert_eq!(
+        instructions
+            .iter()
+            .filter(|i| matches!(i.operation, Operation::BorrowEnd { .. }))
+            .count(),
+        ended.len()
+    );
+}
+
+#[test]
+fn shared_branch_transport_baseline() {
+    for reversed in [false, true] {
+        let parameters = if reversed {
+            "right:String,left:String"
+        } else {
+            "left:String,right:String"
+        };
+        let args = if reversed { "b,a" } else { "a,b" };
+        let source = format!(
+            "fun probe({parameters},flag:Boolean):Unit {{if(flag){{println(left)}}else{{println(right)}};println(left);println(right)}}\nfun entry(){{val a=\"a\";val b=\"b\";probe({args},true);probe(a,a,false)}}"
+        );
+        for lower in [single, unit] {
+            let program = lower(&source).unwrap();
+            verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            let m = &program.modules[0];
+            let f = m
+                .functions
+                .iter()
+                .find(|f| f.name.contains("probe"))
+                .unwrap();
+            assert_eq!(f.blocks.len(), 4);
+            let entry = &f.blocks[0];
+            let TerminatorKind::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } = &entry.terminator.as_ref().unwrap().kind
+            else {
+                panic!("real branch")
+            };
+            assert_ne!(when_true.target, when_false.target);
+            assert!(
+                matches!(producer(f, EntityId::Value(*condition)), Operation::Read { source: PlaceAccess::Loan(loan) } if EntityId::Loan(*loan) == entry.parameters[2])
+            );
+            let left = usize::from(reversed);
+            let right = 1 - left;
+            let mut join_id = None;
+            for (edge, role) in [(when_true, left), (when_false, right)] {
+                assert_eq!(edge.arguments, entry.parameters, "ordered input transport");
+                let arm = f.block(edge.target).unwrap();
+                assert_eq!(arm.parameters.len(), 3);
+                assert_eq!(prints(f, arm), vec![arm.parameters[role]]);
+                let TerminatorKind::Branch(next) = &arm.terminator.as_ref().unwrap().kind else {
+                    panic!("real join edge")
+                };
+                assert_eq!(
+                    next.arguments, arm.parameters,
+                    "both roots survive each arm"
+                );
+                if let Some(id) = join_id {
+                    assert_eq!(id, next.target);
+                }
+                join_id = Some(next.target);
+            }
+            let join = f.block(join_id.unwrap()).unwrap();
+            assert_eq!(join.parameters.len(), 3);
+            assert_eq!(
+                prints(f, join),
+                vec![join.parameters[left], join.parameters[right]]
+            );
+            assert!(matches!(
+                join.terminator.as_ref().unwrap().kind,
+                TerminatorKind::Return { .. }
+            ));
+            assert!(!f.instructions.iter().any(|i| matches!(
+                i.operation,
+                Operation::BorrowEnd { .. } | Operation::BorrowCall { .. }
+            )));
+            let caller = m
+                .functions
+                .iter()
+                .find(|f| f.name.contains("entry"))
+                .unwrap();
+            let calls = caller
+                .instructions
+                .iter()
+                .filter_map(|i| match &i.operation {
+                    Operation::DirectCall {
+                        callee, arguments, ..
+                    } if *callee == f.id => Some(arguments),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(calls.len(), 2);
+            for (arg, bytes) in [
+                (calls[0][left], b"a"),
+                (calls[0][right], b"b"),
+                (calls[1][left], b"a"),
+                (calls[1][right], b"a"),
+            ] {
+                assert!(
+                    matches!(producer(caller, EntityId::Value(owner(caller, arg))), Operation::StringLiteral { bytes: actual, .. } if actual == bytes)
+                );
+            }
+            assert_ne!(
+                owner(caller, calls[0][left]),
+                owner(caller, calls[0][right])
+            );
+            assert_eq!(
+                owner(caller, calls[1][left]),
+                owner(caller, calls[1][right])
+            );
+            // Equal owner is compatible with distinct shared loan capabilities.
+            assert_ne!(calls[1][left], calls[1][right]);
+            caller_cleanup(caller, f.id);
+        }
+    }
+}
+
+#[test]
+fn child_borrow_branch_remains_unsupported() {
+    let source = "fun view(source:String):borrow String from source=source\nfun probe(left:String,right:String,flag:Boolean):Unit {if(flag){borrow val a=view(left);println(a)}else{borrow val b=view(right);println(b)};println(left);println(right)}\nfun entry(){val a=\"a\";val b=\"b\";probe(a,b,true);probe(a,a,false)}";
+    for (lower, offset) in [
+        (
+            single as fn(&str) -> Result<Program, super::LoweringError>,
+            0,
+        ),
+        (
+            unit as fn(&str) -> Result<Program, super::LoweringError>,
+            "package p\n".len(),
+        ),
+    ] {
+        let error = lower(source).err().expect("unsupported child branch");
+        assert!(matches!(
+            error.kind,
+            super::LoweringErrorKind::UnsupportedNode
+        ));
+        // Both wrappers complete strict frontend analysis before returning this error.
+        let span = error.span.unwrap();
+        let target =
+            "if(flag){borrow val a=view(left);println(a)}else{borrow val b=view(right);println(b)}";
+        let start = source.find(target).unwrap() + offset;
+        assert_eq!((span.start(), span.end()), (start, start + target.len()));
+    }
+}
+
+#[test]
+fn shared_child_straight_line_transport_baseline() {
+    for reversed in [false, true] {
+        let parameters = if reversed {
+            "right:String,left:String"
+        } else {
+            "left:String,right:String"
+        };
+        let args = if reversed { "b,a" } else { "a,b" };
+        let source = format!(
+            "fun view(source:String):borrow String from source=source\nfun probe({parameters},flag:Boolean):Unit {{borrow val x=view(left);println(x);borrow val y=view(right);println(y);println(left);println(right)}}\nfun entry(){{val a=\"a\";val b=\"b\";probe({args},true);probe(a,a,false)}}"
+        );
+        for lower in [single, unit] {
+            let program = lower(&source).unwrap();
+            verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            let module = &program.modules[0];
+            let view = module
+                .functions
+                .iter()
+                .find(|f| f.name.contains("view"))
+                .unwrap();
+            let f = module
+                .functions
+                .iter()
+                .find(|f| f.name.contains("probe"))
+                .unwrap();
+            assert_eq!(f.blocks.len(), 1);
+            let block = &f.blocks[0];
+            assert!(matches!(
+                &block.terminator.as_ref().unwrap().kind,
+                TerminatorKind::Return { values } if values.is_empty()
+            ));
+            let instructions = block
+                .instructions
+                .iter()
+                .map(|id| f.instruction(*id).unwrap())
+                .collect::<Vec<_>>();
+            let calls = instructions
+                .iter()
+                .enumerate()
+                .filter(|(_, i)| matches!(i.operation, Operation::BorrowCall { .. }))
+                .collect::<Vec<_>>();
+            assert_eq!(calls.len(), 2);
+            assert_ne!(calls[0].1.results, calls[1].1.results);
+            let left = usize::from(reversed);
+            for ((position, call), role) in calls.iter().zip([left, 1 - left]) {
+                let Operation::BorrowCall {
+                    callee,
+                    arguments,
+                    source,
+                } = &call.operation
+                else {
+                    unreachable!()
+                };
+                assert_eq!(*callee, view.id);
+                assert_eq!(EntityId::Loan(*source), block.parameters[role]);
+                assert_eq!(arguments, &vec![block.parameters[role]]);
+                let [EntityId::Loan(child)] = call.results.as_slice() else {
+                    panic!("one shared result")
+                };
+                assert!(!block.parameters.contains(&EntityId::Loan(*child)));
+                assert!(matches!(
+                    f.entity(EntityId::Loan(*child)).unwrap().ty,
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        ..
+                    }
+                ));
+                let uses = instructions.iter().enumerate().filter_map(|(i, inst)| matches!(inst.operation, Operation::PrintString { value } if value == *child).then_some(i)).collect::<Vec<_>>();
+                let ends = instructions
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, inst)| {
+                        matches!(inst.operation, Operation::BorrowEnd { loan } if loan == *child)
+                            .then_some(i)
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(uses.len(), 1);
+                assert_eq!(ends.len(), 1);
+                assert!(*position < uses[0] && uses[0] < ends[0]);
+                let root_uses = instructions.iter().enumerate().filter_map(|(i, inst)| matches!(inst.operation, Operation::PrintString { value } if value == *source).then_some(i)).collect::<Vec<_>>();
+                assert_eq!(root_uses.len(), 1);
+                assert!(
+                    ends[0] < root_uses[0],
+                    "root remains usable after child ends"
+                );
+                assert!(!instructions.iter().any(|inst| matches!(inst.operation, Operation::BorrowEnd { loan } if loan == *source)), "callee cannot end caller-owned parameter");
+            }
+            assert_eq!(
+                instructions
+                    .iter()
+                    .filter(|i| matches!(i.operation, Operation::BorrowEnd { .. }))
+                    .count(),
+                2
+            );
+            let caller = module
+                .functions
+                .iter()
+                .find(|f| f.name.contains("entry"))
+                .unwrap();
+            caller_cleanup(caller, f.id);
+            let inputs = caller
+                .instructions
+                .iter()
+                .filter_map(|i| match &i.operation {
+                    Operation::DirectCall {
+                        callee, arguments, ..
+                    } if *callee == f.id => Some(arguments),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(inputs.len(), 2);
+            assert_ne!(
+                owner(caller, inputs[0][left]),
+                owner(caller, inputs[0][1 - left])
+            );
+            assert_eq!(
+                owner(caller, inputs[1][left]),
+                owner(caller, inputs[1][1 - left])
+            );
+            assert_ne!(inputs[1][left], inputs[1][1 - left]);
+            for (argument, expected) in [
+                (inputs[0][left], b"a"),
+                (inputs[0][1 - left], b"b"),
+                (inputs[1][left], b"a"),
+                (inputs[1][1 - left], b"a"),
+            ] {
+                assert!(
+                    matches!(producer(caller, EntityId::Value(owner(caller, argument))), Operation::StringLiteral { bytes, .. } if bytes == expected)
+                );
+            }
+        }
+    }
+}

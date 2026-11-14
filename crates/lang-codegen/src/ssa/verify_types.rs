@@ -761,6 +761,7 @@ pub(in crate::ssa) mod module {
     }
 }
 
+#[cfg(test)]
 pub(in crate::ssa) mod render_types {
     //! SSA type and Map operation rendering for the deterministic debug renderer.
     use std::fmt::{self, Write};

@@ -92,18 +92,20 @@ impl Snapshot {
                 return Err(fail());
             }
         }
-        let block = function.block(r.block).ok_or_else(fail)?;
         let at = |id| {
-            let positions = block
-                .instructions
-                .iter()
-                .enumerate()
-                .filter_map(|(i, x)| (*x == id).then_some(i))
-                .collect::<Vec<_>>();
-            if positions.len() == 1 {
-                Ok(positions[0])
-            } else {
-                Err(fail())
+            let placements =
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|candidate| {
+                        candidate.instructions.iter().enumerate().filter_map(
+                            move |(index, actual)| (*actual == id).then_some((candidate.id, index)),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+            match placements.as_slice() {
+                [(owner, index)] if *owner == r.block => Ok(*index),
+                _ => Err(fail()),
             }
         };
         if at(self.literal.0)? >= at(replace)?

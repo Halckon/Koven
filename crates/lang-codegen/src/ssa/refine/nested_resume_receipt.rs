@@ -329,14 +329,18 @@ impl Emitted {
             .block(self.blocks[&p.resume])
             .ok_or_else(|| invalid(span))?;
         let unique = |id| {
-            let indexes = block
-                .instructions
-                .iter()
-                .enumerate()
-                .filter_map(|(i, x)| (*x == id).then_some(i))
-                .collect::<Vec<_>>();
-            match indexes.as_slice() {
-                [i] => Ok(*i),
+            let placements =
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|candidate| {
+                        candidate.instructions.iter().enumerate().filter_map(
+                            move |(index, actual)| (*actual == id).then_some((candidate.id, index)),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+            match placements.as_slice() {
+                [(owner, index)] if *owner == block.id => Ok(*index),
                 _ => Err(invalid(span)),
             }
         };

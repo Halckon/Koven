@@ -4,9 +4,7 @@
 use lang_frontend::{
     ast::StatementId,
     name_resolution::UnitSymbolId,
-    ownership_checking::{
-        BorrowBindingFact, CompilationUnitOwnership, UnitDropPoint, UnitLoanTarget,
-    },
+    ownership_checking::{BorrowBindingFact, UnitDropPoint, UnitLoanTarget, UnitPreflightFacts},
     parser::{Expression, ParsedFile, Statement},
     type_checking::{CompilationUnitTypes, UnitExpressionId},
 };
@@ -18,7 +16,7 @@ type Binding = BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>
 pub(in crate::ssa) fn following(
     file: &ParsedFile,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     fact: &Binding,
 ) -> Vec<StatementId> {
     let mut allowed = Vec::new();

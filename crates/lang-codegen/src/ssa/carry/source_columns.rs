@@ -11,6 +11,7 @@ pub(in crate::ssa) trait SourceSlot {
 
     fn source(&self) -> Self::Source;
     fn entity(source: Self::Source) -> EntityId;
+    #[cfg(test)]
     fn ty(&self) -> EntityType;
     fn empty(source: Self::Source, ty: EntityType) -> Self;
 }

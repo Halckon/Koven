@@ -221,6 +221,7 @@ impl SourceSlot for CarriedBinding {
         EntityId::Value(source)
     }
 
+    #[cfg(test)]
     fn ty(&self) -> EntityType {
         self.ty
     }
@@ -248,6 +249,7 @@ impl SourceSlot for CarriedAccess {
         source
     }
 
+    #[cfg(test)]
     fn ty(&self) -> EntityType {
         self.ty
     }

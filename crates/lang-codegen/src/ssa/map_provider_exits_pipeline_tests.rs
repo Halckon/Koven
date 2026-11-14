@@ -719,6 +719,7 @@ mod temporary_delivery_boundaries {
     }
 }
 pub(in crate::ssa) mod temporary_exits;
+#[deny(dead_code)]
 mod temporary_forms;
 
 pub(crate) use borrowed::sources as borrowed_exit_sources;

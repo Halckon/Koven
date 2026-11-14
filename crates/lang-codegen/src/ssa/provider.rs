@@ -99,9 +99,25 @@ pub(crate) struct GuardedElement {
 #[derive(Debug)]
 pub(crate) enum ProviderBuildError {
     UnsupportedValueProvider,
+    #[allow(
+        dead_code,
+        reason = "preserve structured provider failure payload for diagnostics"
+    )]
     Model(ModelError),
-    MissingBodyTransport { block: BlockId },
-    InvalidHeaderTransport { block: BlockId },
+    #[allow(
+        dead_code,
+        reason = "preserve structured provider failure payload for diagnostics"
+    )]
+    MissingBodyTransport {
+        block: BlockId,
+    },
+    #[allow(
+        dead_code,
+        reason = "preserve structured provider failure payload for diagnostics"
+    )]
+    InvalidHeaderTransport {
+        block: BlockId,
+    },
 }
 
 impl From<ModelError> for ProviderBuildError {

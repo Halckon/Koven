@@ -13,10 +13,14 @@ pub(super) struct Plan {
     pub(super) condition: ExpressionId,
     pub(super) calls: [ExpressionId; 2],
     pub(super) target: StatementId,
+    pub(super) initial: Option<StatementId>,
 }
 pub(super) struct Completion {
     plan: Plan,
     state: State,
+    valid: bool,
+    init_entered: bool,
+    init_completed: bool,
 }
 #[derive(Default)]
 pub(super) struct Evidence {
@@ -131,7 +135,10 @@ impl Checker<'_> {
             }))
         .then_some(*expression)
     }
-    pub(super) fn prefix_plan(&self, control: ExpressionId) -> Option<Plan> {
+    pub(super) fn scalar_prefix_parts(
+        &self,
+        control: ExpressionId,
+    ) -> Option<(ExpressionId, [ExpressionId; 2])> {
         let Expression::If {
             condition,
             then_branch,
@@ -157,7 +164,13 @@ impl Checker<'_> {
         {
             return None;
         }
-        let calls = [self.prefix_call(*then_branch)?, self.prefix_call(*other)?];
+        Some((
+            *condition,
+            [self.prefix_call(*then_branch)?, self.prefix_call(*other)?],
+        ))
+    }
+    pub(super) fn prefix_plan(&self, control: ExpressionId) -> Option<Plan> {
+        let (condition, calls) = self.scalar_prefix_parts(control)?;
         for (_, node) in self.parsed.ast().items().iter() {
             let Item::Function { form, .. } = node.payload() else {
                 continue;
@@ -175,18 +188,30 @@ impl Checker<'_> {
             else {
                 continue;
             };
-            if let [first, target, ..] = elements.as_slice()
-                && matches!(self.parsed.ast().statements().get(*first).ok()?.payload(), Statement::Expression { expression } if *expression==control)
+            let (first, initial, target) = match elements.as_slice() {
+                [first, initial, target, ..]
+                    if matches!(
+                        self.parsed.ast().statements().get(*initial).ok()?.payload(),
+                        Statement::LocalVariable { .. }
+                    ) =>
+                {
+                    (*first, Some(*initial), *target)
+                }
+                [first, target, ..] => (*first, None, *target),
+                _ => continue,
+            };
+            if matches!(self.parsed.ast().statements().get(first).ok()?.payload(), Statement::Expression { expression } if *expression==control)
                 && matches!(
-                    self.parsed.ast().statements().get(*target).ok()?.payload(),
+                    self.parsed.ast().statements().get(target).ok()?.payload(),
                     Statement::While { .. }
                 )
             {
                 return Some(Plan {
                     prefix: control,
-                    condition: *condition,
+                    condition,
                     calls,
-                    target: *target,
+                    target,
+                    initial,
                 });
             }
         }
@@ -202,17 +227,71 @@ impl Checker<'_> {
     }
     pub(super) fn prefix_complete(&mut self, plan: Plan, state: State) {
         if self.diagnostics.is_empty() && self.simple_resources(&state) {
-            self.no_carry_prefix
-                .completed
-                .push(Completion { plan, state });
+            self.no_carry_prefix.completed.push(Completion {
+                plan,
+                state,
+                valid: true,
+                init_entered: false,
+                init_completed: false,
+            });
         }
     }
-    pub(super) fn prefix_enter(&mut self, target: StatementId, entry: &State) {
-        let mut matches = self
-            .no_carry_prefix
+    pub(super) fn prefix_init_before(&mut self, id: StatementId, state: &State) {
+        let actual = self.resource_snapshot(state);
+        for c in &mut self.no_carry_prefix.completed {
+            if c.plan.initial == Some(id) {
+                c.valid &= !c.init_entered && !c.init_completed && c.state == actual;
+                c.init_entered = c.valid;
+            }
+        }
+    }
+    pub(super) fn prefix_init_after(&mut self, id: StatementId, flows: &Flows) {
+        let actual = flows.next.as_ref().map(|s| self.resource_snapshot(s));
+        for c in &mut self.no_carry_prefix.completed {
+            if c.plan.initial == Some(id) {
+                c.valid &= c.init_entered
+                    && !c.init_completed
+                    && actual.as_ref() == Some(&c.state)
+                    && flows.breaks.is_none()
+                    && flows.continues.is_none();
+                c.init_completed = c.valid;
+            }
+        }
+    }
+    pub(super) fn prefix_ready(
+        &self,
+        target: StatementId,
+        prefix: ExpressionId,
+        initial: StatementId,
+        entry: &State,
+    ) -> bool {
+        self.no_carry_prefix
             .completed
             .iter()
-            .filter(|c| c.plan.target == target && c.state == *entry);
+            .filter(|c| {
+                c.valid
+                    && c.plan.target == target
+                    && c.plan.prefix == prefix
+                    && c.plan.initial == Some(initial)
+                    && c.init_completed
+                    && c.state == *entry
+            })
+            .count()
+            == 1
+    }
+    pub(super) fn prefix_enter(
+        &mut self,
+        target: StatementId,
+        entry: &State,
+        initial: Option<StatementId>,
+    ) {
+        let mut matches = self.no_carry_prefix.completed.iter().filter(|c| {
+            c.valid
+                && c.plan.target == target
+                && c.plan.initial == initial
+                && c.state == *entry
+                && (c.plan.initial.is_none() || c.init_completed)
+        });
         if let Some(completed) = matches.next()
             && matches.next().is_none()
         {

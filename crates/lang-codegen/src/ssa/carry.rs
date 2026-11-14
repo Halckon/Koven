@@ -12,16 +12,17 @@ pub(in crate::ssa) use source_columns::{SourceSlot, TypeAtMiss, associate_source
 use std::collections::BTreeMap;
 
 #[cfg(test)]
-use super::model::LoanId;
+use super::model::{EntityId, LoanId};
 use super::{
     lowering_support::LoweringError,
-    model::{EntityId, Function, ValueId},
+    model::{Function, ValueId},
 };
 
 /// Fixed storage roles only; callers retain validation and role scheduling.
 pub(in crate::ssa) trait AliasRole {
     type Id: Copy;
 
+    #[cfg(test)]
     fn entity(id: Self::Id) -> EntityId;
 }
 
@@ -34,6 +35,7 @@ pub(in crate::ssa) struct ResultSourceLoan;
 impl AliasRole for Temporary {
     type Id = ValueId;
 
+    #[cfg(test)]
     fn entity(id: ValueId) -> EntityId {
         EntityId::Value(id)
     }

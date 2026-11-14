@@ -5,6 +5,7 @@ mod control_transactions;
 mod counter_batch;
 mod counter_segment;
 mod nested;
+pub(in super::super) mod scalar_entry;
 pub(in super::super) use control_scope::ControlStack;
 #[cfg(test)]
 pub(in super::super) use control_scope::ControlVisit;

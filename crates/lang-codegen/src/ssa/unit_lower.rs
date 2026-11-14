@@ -1,4 +1,5 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 pub(in crate::ssa) mod orchestrate;
 use orchestrate::lower_unit_from_facts;
 #[cfg(all(test, feature = "loan-observation-test-support"))]
@@ -6,6 +7,7 @@ pub(in crate::ssa) use orchestrate::observe_final_verifier;
 
 mod aggregate;
 mod borrow;
+pub(in crate::ssa) mod preflight;
 pub(in crate::ssa) use super::provider::borrow_result;
 mod call;
 mod call_lifetimes;
@@ -19,8 +21,15 @@ mod control;
 mod loop_control;
 mod map;
 use construction::nullable_proof;
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
+pub(in crate::ssa) mod e2_common;
 mod nullable_when;
 mod ownership;
+mod planned_body;
+mod planned_declarations;
 mod receiver;
 use control::scalar;
 pub(in crate::ssa) mod type_lower;
@@ -41,7 +50,7 @@ pub(in crate::ssa) use lang_frontend::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint},
+    ownership_checking::{ConstEnabledOwnedUnit, UnitDropPoint},
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, ParsedFile,
         Statement,
@@ -162,7 +171,7 @@ pub(in crate::ssa) struct UnitExpressionLowerer<'a> {
     pub(in crate::ssa) source_unit: SourceUnitId,
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
-    pub(in crate::ssa) owned: &'a CompilationUnitOwnership,
+    pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
     constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     source_plan: &'a super::unit_plan::UnitCallablePlan,

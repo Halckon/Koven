@@ -1,7 +1,7 @@
 //! 已完成 frontend analysis 到首个本机 object 的 workspace 公共边界。
 
 #[cfg(test)]
-mod unit_tests;
+pub(crate) mod unit_tests;
 
 use std::{
     fmt, fs,
@@ -182,6 +182,84 @@ pub fn emit_native_owned_unit_object(
     temporary.commit(output)
 }
 
+/// Test-only experimental adapter. Never converts to or replaces ordinary owned authority.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+pub(crate) fn emit_experimental_e2_object(
+    package: &crate::ssa::ExperimentalPublishedEntrySet<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    emit_experimental_e2_package(
+        ExperimentalE2Package::Legacy(package),
+        handoff,
+        descriptor,
+        output,
+    )
+}
+/// Separate experimental entry point: common source allocator package cannot impersonate ordinary owned.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+pub(crate) fn emit_experimental_e2_common_object(
+    package: &crate::ssa::ExperimentalPublishedCommon<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    emit_experimental_e2_package(
+        ExperimentalE2Package::Common(package),
+        handoff,
+        descriptor,
+        output,
+    )
+}
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+enum ExperimentalE2Package<'view, 'facts> {
+    Legacy(&'view crate::ssa::ExperimentalPublishedEntrySet<'facts>),
+    Common(&'view crate::ssa::ExperimentalPublishedCommon<'facts>),
+}
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+fn emit_experimental_e2_package(
+    package: ExperimentalE2Package<'_, '_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let (matches, function, program) = match package {
+        ExperimentalE2Package::Legacy(p) => (
+            p.matches_handoff(handoff),
+            p.entry(descriptor, handoff.types()),
+            p.program(),
+        ),
+        ExperimentalE2Package::Common(p) => (
+            p.matches_handoff(handoff),
+            p.entry(descriptor, handoff.types()),
+            p.program(),
+        ),
+    };
+    if !matches {
+        return Err(invalid_entry(None));
+    }
+    let function = function.ok_or_else(|| invalid_entry(None))?;
+    let entry = NativeUnitEntry::NoArguments(descriptor.entry());
+    validate_unit_entry(handoff.names(), handoff.types().types(), entry)?;
+    crate::ssa::verify::verify_program(program).map_err(|_| invalid_entry(None))?;
+    let plan = native_unit_entry_plan(program, entry, function)?;
+    // Exactly the existing object transaction: every identity/entry check precedes reserve.
+    let temporary = SiblingObject::reserve(output)?;
+    llvm::emit_verified_object(program, handoff.sources(), plan, temporary.path())
+        .map_err(|error| map_backend_error(handoff.sources(), program, error))?;
+    temporary.commit(output)
+}
+
 /// 从同一次常量 typed/owned capability 生成原子发布的 compilation-unit object。
 /// 身份校验及 SSA lowering 在创建临时输出前完成；入口与发布流程复用基础 native 契约。
 ///
@@ -249,7 +327,7 @@ pub fn emit_native_const_owned_unit_object(
     temporary.commit(output)
 }
 
-fn validate_unit_entry(
+pub(crate) fn validate_unit_entry(
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     entry: NativeUnitEntry,
@@ -358,7 +436,7 @@ impl From<OwnedCompilationUnitViewError> for NativeObjectError {
     }
 }
 
-fn map_lowering_error(error: LoweringError) -> NativeObjectError {
+pub(crate) fn map_lowering_error(error: LoweringError) -> NativeObjectError {
     let kind = match error.kind {
         LoweringErrorKind::MismatchedSource | LoweringErrorKind::MismatchedAnalysis => {
             NativeObjectErrorKind::MismatchedAnalysis
@@ -502,4 +580,44 @@ fn backend_io_error(operation: &str, error: std::io::Error) -> NativeObjectError
         detail: format!("{operation}: {error}"),
         diagnostic: None,
     }
+}
+
+/// Publish only a fully prepared bounded two-source unit through the existing atomic transaction.
+/// No entry substitution, experimental-package conversion, or ordinary-unit fallback is available.
+#[cfg(feature = "two-source-unit")]
+pub fn emit_native_two_source_unit_object(
+    unit: &crate::ValidatedTwoSourceUnit<'_>,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let (sources, program, declaration, function) = unit.parts();
+    emit_two_source_parts(sources, program, declaration, function, output)
+}
+
+/// Select only an entry already proven inside this complete same-analysis capability.
+/// Each call publishes one object atomically; multiple calls are not a batch transaction.
+#[cfg(feature = "two-source-unit")]
+pub fn emit_native_two_source_units_object(
+    units: &crate::ValidatedTwoSourceUnits<'_>,
+    entry: DeclarationId,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let (sources, program, function) = units.parts(entry).ok_or_else(|| invalid_entry(None))?;
+    emit_two_source_parts(sources, program, entry, function, output)
+}
+
+#[cfg(feature = "two-source-unit")]
+fn emit_two_source_parts(
+    sources: &SourceMap,
+    program: &crate::ssa::model::Program,
+    declaration: DeclarationId,
+    function: crate::ssa::model::FunctionId,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    crate::ssa::verify::verify_program(program).map_err(|_| invalid_entry(None))?;
+    let plan =
+        native_unit_entry_plan(program, NativeUnitEntry::NoArguments(declaration), function)?;
+    let temporary = SiblingObject::reserve(output)?;
+    llvm::emit_verified_object(program, sources, plan, temporary.path())
+        .map_err(|error| map_backend_error(sources, program, error))?;
+    temporary.commit(output)
 }

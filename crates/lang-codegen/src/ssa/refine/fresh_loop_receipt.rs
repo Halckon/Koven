@@ -106,6 +106,13 @@ pub(crate) enum PublicationStage {
 }
 #[cfg(test)]
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    not(feature = "loan-observation-test-support"),
+    allow(
+        dead_code,
+        reason = "Default receipt observers discard the trace; loan-observation-test-support tests inspect every event field"
+    )
+)]
 pub(crate) struct PublicationEvent {
     pub(crate) stage: PublicationStage,
     pub(crate) pending: Vec<FunctionId>,

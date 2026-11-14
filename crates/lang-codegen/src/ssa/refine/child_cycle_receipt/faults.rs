@@ -8,10 +8,14 @@ impl Emitted {
         function: &mut Function,
         retirement: &super::super::nested_body_receipt::Emitted,
     ) {
+        if self.inject_scalar_entry(function) {
+            return;
+        }
         let faults = [
             OwnerFault::InitialConcatDuplicateInput,
             OwnerFault::InitialConcatMissingDrop,
             OwnerFault::InitialConcatEarlyDrop,
+            OwnerFault::InitialConcatDuplicateDropPlacement,
             OwnerFault::ChildCycleInitialSwap,
             OwnerFault::ChildCycleInitialConsumer,
             OwnerFault::ChildCycleParentTrueSwap,
@@ -59,8 +63,15 @@ impl Emitted {
         match fault {
             OwnerFault::InitialConcatDuplicateInput
             | OwnerFault::InitialConcatMissingDrop
-            | OwnerFault::InitialConcatEarlyDrop => {
-                let block_id = self.blocks[&p.initial_base.unwrap()];
+            | OwnerFault::InitialConcatEarlyDrop
+            | OwnerFault::InitialConcatDuplicateDropPlacement => {
+                let source_role = p
+                    .scalar_entry
+                    .as_ref()
+                    .and_then(|s| s.split.map(|roles| roles[0]))
+                    .or(p.initial_base)
+                    .expect("actual source entry");
+                let block_id = self.blocks[&source_role];
                 let (producer, left) = function
                     .instructions
                     .iter()
@@ -86,7 +97,33 @@ impl Emitted {
                     let drop = function.instructions.iter().find(|i|
                         matches!(i.operation, Operation::Drop { owner } if EntityId::Value(owner) == left)
                     ).unwrap().id;
-                    if fault == OwnerFault::InitialConcatMissingDrop {
+                    if fault == OwnerFault::InitialConcatDuplicateDropPlacement {
+                        let result = function.instruction(producer).unwrap().results[0];
+                        super::initial_concat::verify(function, block_id, producer, result, span)
+                            .expect("baseline concat placement");
+                        let duplicate_role = p
+                            .scalar_entry
+                            .as_ref()
+                            .and_then(|s| s.join)
+                            .unwrap_or(p.parent_header);
+                        let duplicate_block = self.blocks[&duplicate_role];
+                        assert_ne!(duplicate_block, block_id);
+                        function
+                            .blocks
+                            .iter_mut()
+                            .find(|b| b.id == duplicate_block)
+                            .unwrap()
+                            .instructions
+                            .push(drop);
+                        assert!(
+                            super::initial_concat::verify(
+                                function, block_id, producer, result, span
+                            )
+                            .is_err(),
+                            "concat receipt itself must reject duplicate placement"
+                        );
+                        record_action("concat-placement-independent-rejection", 1);
+                    } else if fault == OwnerFault::InitialConcatMissingDrop {
                         function
                             .instructions
                             .iter_mut()

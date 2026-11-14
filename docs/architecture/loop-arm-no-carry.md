@@ -115,3 +115,86 @@ capture 丢失、选中收据在 finish 丢失、最终 verifier 失败撤销两
 反例具体删除实际 BorrowEnd，不把空清理代码跳过说成资源泄漏。所有反例默认
 ignored、GITHUB_ACTIONS 门控；已有双宿主 borrowing runner 精确发现，不重复造
 workflow。本地仅编译列举，动态拒绝与恢复结果须以远端执行为准。
+
+## 两源候选语法探索（未授权执行）
+
+`loop_no_carry/shape.rs` 的生产 `selection` 固定实例化同源分支，保持原检查。
+仅测试子模块调用两源候选分支，解析真实 AST 并筛选不同 root、有限 counter、
+无 exit/conditional 的分臂骨架；不构造 session、End、公开 fact 或 receipt。
+其 fixture 回调使用唯一名字，仅服务语法探索，不证明 Shared 权限、callee 效果、
+符号解析身份或完整候选合同。真实 Single 检查仍拒绝两源（含 L0164），同源邻居
+仍成功。候选分支是当前调用点隔离，不是编译期禁止未来生产调用的机制。
+真实 Unit 的 rooted/memory 输入及 observation 开关验收也保持两源拒绝：没有
+borrow binding、同源 branch 或 counter fact，validated ownership factory 不发布。
+同源 counter 邻居仍发布独立 counter 域身份，旧 branch owns 查询不授予权限。
+
+原同源 pair 构造守卫不变；仅观察入口不发布新事实。独立实验域见下文，
+默认关闭的 RAII 恢复嵌套/异常状态，Single selector 不经过该实验入口。
+
+非循环双 Shared 参数的普通 SSA 基线已独立核验：实际条件来源、两臂与 join 的
+有序参数运输，以及 caller 不同 owner/同 owner 与形参反序；输入覆盖 memory 和
+rooted 跨源 Unit。基线仅直接使用根，不含 BorrowCall；两臂分别产生借用结果的
+邻居仍在整个 if 处 UnsupportedNode，不能把此运输证据当作两源循环 receipt。
+同一基线的单块正常返回caller另核六个共享loan各唯一结束、调用间不残留，以及
+String owner在其全部关联loan结束后才唯一Drop；不覆盖异常退出或循环收据。
+
+仅测试构建另有独立两源counter事实域：默认关闭的RAII开关启用真实Unit检查，
+CounterBranch及两臂最终唯一End成功后构造独立身份；旧pair与生产selector不变。
+rooted跨源晚失败可观察先构造后经Unit总gate撤销；没有保留失败观察payload。
+测试态事实还按闭合arm顺序保存每次实际callsite与完整callable instance key；
+producer和重复consumer调用不去重，缺失typed映射不生成新事实。这不是SSA receipt。
+
+另一非循环直线基线覆盖真实双根BorrowCall：两次producer分别依赖对应Shared参数，
+child经Print后唯一End，随后父根仍可使用；调用方同owner不等同同loan身份。
+此项没有分支、循环、counter或新域receipt，不解除分支BorrowCall的UnsupportedNode。
+
+两源域另提供独立`e2-two-source-test-support` feature的跨crate实验入口；它不随
+observation启用，也不公开通用激活scope。专用分析函数在内部运行真实checker与
+完整validate，之后仅提取facts到独立`TwoSourceExperiment`，不返回普通ownership
+或validated产品。普通分析在调用前后仍拒绝两源；实验失败返回None，不携带事实。
+feature显式启用时依赖构建包含实验能力，不能再概称“任何非test构建均无此域”；
+默认构建不含该API。backend实验消费opaque事实/owns和实际typed callee身份，仍未生产启用。
+实验包装还保留签发typed分析的轻量身份；同源码重新type-check不可凭数值相等
+callsite/key混用。backend测试专用独立输入Plan要求issuing fact与原typed身份，
+从真实签名唯一定位两Shared String来源参数列并重核完整callee序列，覆盖形参反序。
+该Plan仅确定源角色，不是SSA块布局、callee FunctionId重定位或emitted receipt。
+Plan另核实验桥记录的原names中source-unit/root声明ID与typed签名相同，不仅在
+fixture中比较callable；普通分析入口、旧域和生产lowering仍不消费此计划。
+
+实验callee闭包首片只接受原AST证实的两种真实叶函数：单Borrow String参数的
+直接Name借用返回（解析到该参数且origin=Parameter(0)），或确实为空的Unit block。
+完整key去重定义但不改fact的调用顺序；泛型、receiver、额外参数、复杂或未知body
+均不提供此闭包。body描述为私有构造并绑定实验身份，不暴露普通ownership。
+测试态专用emitter在同module生成真实Shared参数及BorrowReturn/Return，保留body
+Span，通过整个Program verifier与LLVM render。非空consumer/分组producer仍可有
+合法实验fact，但不能被当作空/identity占位体。此叶闭包本身不是caller、循环或receipt。
+
+后续实验还能把一个已闭合fact的两臂lower为两个detached内部helper：只投影两根
+原签名相对顺序，实际BorrowCall接同module真实leaf、按原callsite序列DirectCall，
+最后child唯一End；不End输入根。桥保留原call/末consumer statement Span，helper
+本身/entry/Return标Synthetic，不冒充原run函数。全module verifier及LLVM通过。
+这些helper的两参数ABI不等于原函数完整ABI，也不是两源循环收据。
+
+实验桥现另可返回完整原函数的窄 shell 描述：仅四 Borrow 参数（两 String、Int
+rounds、Boolean choose）、Unit 返回，原 body 恰为初始化与该闭合 loop。绝对
+参数列通过真实 resolved symbol 唯一匹配，保留原 callable/body Span/control IDs。
+额外前后缀、参数或未支持 ABI 不生成 shell，但局部 fact 和已支持 helper 保留。
+查询同时要求 issuing fact 与原 typed 身份；shell 是覆盖元数据，不是可独立使用
+的权限 token。此片没有原函数 SSA/循环 CFG 发射，也不保证 callee 叶闭包可支持。
+
+在 shell 和真实 leaf/helper 闭包均成功时，测试专用 emitter 现可生成该受限原函数
+完整 SSA：保留原四 Borrow 参数绝对 ABI，另运输局部 counter；九块覆盖 entry、
+header、split、两臂、join、success、exit、abort。臂通过显式 outline 调用对应真实
+helper；全部正常边重绑定四输入和 counter。join 发射真实 checked subtract，失败
+标志为真进入带原原因的 abort，成功结果替换 counter 经 success 回 header。
+initializer/条件/常量/decrement 保留原 Source Span，辅助块及 outline 明确 Synthetic。
+整个 Program verifier 和 LLVM render 已通过；此实现没有额外输入 End，不假定
+两 Shared 来源必定属于不同 owner。现另有 Synthetic native测试驱动，用未改写LLVM
+调用此原函数，覆盖MIN/0/3、双choose、同一Place/不同owner及参数反序；返回后
+输入仍可打印。空consumer不提供动态臂/次数证据，仍由精确CFG断言支持。
+实验单函数publication另从issuing fact/typed建立required并精确核selected，独立
+replay真实caller/helper/leaf闭包、完整ABI/来源/运输/End后再作整个Program验证，
+成功才生成私有字段、仅共享引用的Published；复制Program不复制封闭包权限。
+原始测试builder仍可变，但不携带该发布包。失败不返回部分包，无普通owned转换。
+实验共同封包经 test-only 对象事务直接链接执行；受限打印及有限无环 helper 闭包已核真实输出与目标身份（八层共享闭包见证，非无界栈保证）。
+没有生产driver或生产收据；正常分析仍拒绝原两源循环。

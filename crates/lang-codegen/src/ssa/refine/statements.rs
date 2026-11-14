@@ -684,7 +684,7 @@ impl Emitter<'_> {
 }
 
 #[cfg(test)]
-pub(super) fn inject_owner_final(
+pub(in crate::ssa::refine) fn inject_owner_final(
     body: &RefinedBody,
     function: &mut Function,
     receipts: &mut LoanReceipts,

@@ -293,24 +293,10 @@ mod source_closure_tests {
         check(&sources, &parsed, &names, &typed, &owned)
     }
 
-    fn lower(text: &str) -> Program {
-        analyze(text, |sources, parsed, names, typed, owned| {
-            let arena = typed.types().len();
-            let program = lower_scalar_file(sources, parsed, names, typed, owned)
-                .expect("source must reach verified SSA");
-            assert_eq!(
-                typed.types().len(),
-                arena,
-                "backend only queries canonical types"
-            );
-            crate::llvm::render_verified_program(&program)
-                .expect("source must reach verified LLVM");
-            program
-        })
-    }
-
     #[test]
     fn single_runtime_nothing_operand_stops_before_borrow_and_initializer() {
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+        use lang_frontend::name_resolution::SymbolKind;
         let mut failures = Vec::new();
         for container in ["Array", "List"] {
             for (operands, size_loans) in [
@@ -320,20 +306,34 @@ mod source_closure_tests {
                 let text = format!(
                     "fun entry(): Int {{ val unused = {container}<Int>({operands})\nreturn 0 }}"
                 );
-                analyze(&text, |sources, parsed, names, typed, owned| {
-                    let constructors = typed.container_constructions();
+                {
+                    let unit = UnitSource::analyze("single-runtime-intent.ko", &text).unwrap();
+                    unit.assert_frontend_clean();
+                    let constructors = unit.types().container_constructions();
                     assert_eq!(constructors.len(), 1);
                     assert_eq!(
-                        owned
+                        unit.ownership()
                             .loans()
                             .iter()
                             .filter(|loan| loan.call() == constructors[0].expression())
                             .count(),
                         size_loans
                     );
-                    let arena = typed.types().len();
-                    match lower_scalar_file(sources, parsed, names, typed, owned) {
-                        Ok(program) => {
+                    let arena = unit.types().types().len();
+                    let declaration = unit.declaration("entry", SymbolKind::Function);
+                    match unit.lower_entry(declaration) {
+                        Ok((program, root)) => {
+                            assert_eq!(
+                                program
+                                    .module(root.module())
+                                    .unwrap()
+                                    .function(root)
+                                    .unwrap()
+                                    .origin,
+                                crate::ssa::model::Origin::Source(
+                                    unit.declaration_span(declaration)
+                                )
+                            );
                             assert!(
                                 program.modules[0]
                                     .functions
@@ -361,8 +361,8 @@ mod source_closure_tests {
                         }
                         Err(error) => failures.push(format!("{container}/{operands}: {error:?}")),
                     }
-                    assert_eq!(typed.types().len(), arena);
-                });
+                    assert_eq!(unit.types().types().len(), arena);
+                }
             }
         }
         assert_diagnostic!(
@@ -423,20 +423,36 @@ mod source_closure_tests {
 
     #[test]
     fn single_runtime_guard_keeps_size_loan_live_before_initializer_factory() {
-        let program = lower(
-            "fun factory(): (Int)->Int { println(\"factory\")\nreturn ({ index -> index }) }\nfun entry(size: Int): Int { val items = List<Int>(size, factory())\nreturn items[0] }",
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+        use crate::ssa::model::Origin;
+        use lang_frontend::name_resolution::SymbolKind;
+
+        let text = "fun factory(): (Int)->Int { println(\"factory\")\nreturn ({ index -> index }) }\nfun entry(size: Int): Int { val items = List<Int>(size, factory())\nreturn items[0] }";
+        let unit = UnitSource::analyze("single-runtime-intent.ko", text).unwrap();
+        unit.assert_frontend_clean();
+        let entry_declaration = unit.declaration("entry", SymbolKind::Function);
+        let factory_declaration = unit.declaration("factory", SymbolKind::Function);
+        let arena = unit.types().types().len();
+        let (program, root) = unit.lower_entry(entry_declaration).unwrap();
+        assert_eq!(
+            unit.types().types().len(),
+            arena,
+            "backend only queries canonical types"
         );
-        let module = &program.modules[0];
+        crate::llvm::render_verified_program(&program).unwrap();
+        let module = program.module(root.module()).unwrap();
         let factory = module
             .functions
             .iter()
-            .find(|function| function.name == "factory")
-            .unwrap();
-        let entry = module
-            .functions
-            .iter()
-            .find(|function| function.name == "entry")
-            .unwrap();
+            .find(|function| {
+                function.origin == Origin::Source(unit.declaration_span(factory_declaration))
+            })
+            .expect("original factory identity is selected");
+        let entry = module.function(root).unwrap();
+        assert_eq!(
+            entry.origin,
+            Origin::Source(unit.declaration_span(entry_declaration))
+        );
         let guard = entry.block(entry.entry_block().unwrap()).unwrap();
         let TerminatorKind::Conditional {
             when_true,
@@ -478,17 +494,40 @@ mod source_closure_tests {
         );
     }
 
+    fn lower_unit_entry(text: &str) -> (Program, crate::ssa::model::FunctionId) {
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+        use lang_frontend::name_resolution::SymbolKind;
+
+        let unit = UnitSource::analyze("single-runtime-intent.ko", text).unwrap();
+        unit.assert_frontend_clean();
+        let declaration = unit.declaration("entry", SymbolKind::Function);
+        let arena = unit.types().types().len();
+        let (program, root) = unit.lower_entry(declaration).unwrap();
+        assert_eq!(
+            unit.types().types().len(),
+            arena,
+            "backend only queries canonical types"
+        );
+        assert_eq!(
+            program
+                .module(root.module())
+                .unwrap()
+                .function(root)
+                .unwrap()
+                .origin,
+            crate::ssa::model::Origin::Source(unit.declaration_span(declaration))
+        );
+        crate::llvm::render_verified_program(&program).unwrap();
+        (program, root)
+    }
+
     #[test]
     fn single_runtime_named_shared_callback_survives_constructor_and_arithmetic_cfg() {
-        let program = lower(
+        let (program, root) = lower_unit_entry(
             "fun entry(): Int { val scale = 7\nval callback: (Int)->Int = { index -> index + scale }\nval first = Array<Int>(1, callback)\nval length = first.size + 2\nval second = List<Int>(length, callback)\nreturn second[2] }",
         );
-        let module = &program.modules[0];
-        let entry = module
-            .functions
-            .iter()
-            .find(|function| function.name == "entry")
-            .unwrap();
+        let module = program.module(root.module()).unwrap();
+        let entry = module.function(root).unwrap();
         assert_eq!(
             entry
                 .instructions
@@ -526,13 +565,13 @@ mod source_closure_tests {
 
     #[test]
     fn single_runtime_temporary_shared_callback_ends_capture_before_iteration_element() {
-        let program = lower(
+        let (program, root) = lower_unit_entry(
             "fun entry(): Int { val source = arrayOf<Int>(7)\nvar result = 0\nfor (element in source) { val items = List<Int>(1, { index -> index + element })\nresult += items[0] }\nreturn result }",
         );
-        let entry = program.modules[0]
-            .functions
-            .iter()
-            .find(|function| function.name == "entry")
+        let entry = program
+            .module(root.module())
+            .unwrap()
+            .function(root)
             .unwrap();
         assert_eq!(
             entry
@@ -703,7 +742,6 @@ mod source_closure_tests {
 
     #[test]
     fn single_runtime_named_shared_callback_survives_when_sibling_edges() {
-        let mut failures = Vec::new();
         for branches in [
             "flag -> println(\"then\")\nelse -> println(\"else\")",
             "flag, other -> println(\"then\")\nelse -> println(\"else\")",
@@ -715,22 +753,9 @@ mod source_closure_tests {
                  val callback: (Int)->Int = {{ index -> index + scale }}\n\
                  when {{ {branches} }}\nval items = List<Int>(3, callback)\nreturn items[2] }}"
             );
-            analyze(&text, |sources, parsed, names, typed, owned| {
-                let before = typed.types().len();
-                match lower_scalar_file(sources, parsed, names, typed, owned) {
-                    Ok(program) => {
-                        crate::llvm::render_verified_program(&program)
-                            .expect("when siblings retain valid capture identities");
-                    }
-                    Err(error) => failures.push(format!("{branches}: {error:?}")),
-                }
-                assert_eq!(typed.types().len(), before);
-            });
+            // Strict Unit preserves the original frontend/arena/LLVM checks.
+            let _ = lower_unit_entry(&text);
         }
-        assert_diagnostic!(
-            failures.is_empty(),
-            "every when sibling must transport its own active Shared capture loan: {failures:?}"
-        );
     }
 
     #[test]
@@ -805,5 +830,49 @@ mod source_closure_tests {
                     .any(|(_, node)| Some(node.span()) == failure.span)
             );
         });
+    }
+}
+
+// Keep the legacy static-capture/callable-origin witness above: Unit has a different
+// fact model. This ordinary-source control checks only the production Unit outcome.
+#[test]
+fn unit_unreachable_lambdas_do_not_register_storage_or_nested_layouts() {
+    use super::model::{Origin, SsaTypeKind};
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    for body in [
+        "val unused: ()->Int = { val value: Int? = 1\nvalue!! }",
+        "val unused: ()->Unit = { val nested: ()->Unit = {} }",
+    ] {
+        let text = format!("fun entry(): Int {{ return 0\n{body} }}");
+        let unit = UnitSource::analyze("single-runtime-intent.ko", &text)
+            .expect("original unreachable lambda source passes strict Unit admission");
+        unit.assert_frontend_clean();
+        let declaration = unit.declaration("entry", SymbolKind::Function);
+        let (program, root) = unit.lower_entry(declaration).unwrap();
+        super::verify::verify_program(&program).unwrap();
+        let module = program.module(root.module()).unwrap();
+        assert_eq!(module.functions.len(), 1, "no unreachable lambda thunk");
+        let entry = module.function(root).unwrap();
+        assert_eq!(
+            entry.origin,
+            Origin::Source(unit.declaration_span(declaration))
+        );
+        assert!(
+            !module
+                .types
+                .iter()
+                .any(|ty| matches!(ty, SsaTypeKind::ConcreteClosure { .. }))
+        );
+        assert!(!entry.instructions.iter().any(|instruction| matches!(
+            instruction.operation,
+            Operation::ClosureConstruct { .. }
+                | Operation::CallableInvoke { .. }
+                | Operation::CallableInvokeView { .. }
+                | Operation::CallableViewOf { .. }
+        )));
+        crate::llvm::render_verified_program(&program)
+            .expect("reachable Unit entry verifies through LLVM");
     }
 }

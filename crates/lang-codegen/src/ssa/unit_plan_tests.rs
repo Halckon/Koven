@@ -1,3 +1,5 @@
+#![deny(dead_code)]
+
 use super::unit_lower;
 
 use std::collections::{BTreeMap, BTreeSet};

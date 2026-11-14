@@ -4,6 +4,7 @@
 //! During migration `lower_owned_unit_with_entry` routes a function instance here only
 //! when [`accepts`] proves its whole body lies inside the migrated subset. Once routed,
 //! a failure is an error; there is no fallback to the per-family lowering.
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 pub(crate) mod arm_loop_receipt;
 mod body;
 pub(in crate::ssa) mod build;
@@ -13,7 +14,7 @@ mod nested_body_receipt;
 mod nested_exit_receipt;
 mod nested_resume_receipt;
 #[cfg(test)]
-pub(crate) use build::owner_consumer_test_support::{
+pub(crate) use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
 pub(crate) mod bounded_receipt;
@@ -24,9 +25,12 @@ pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
+#[deny(dead_code)]
 pub(crate) mod multi_receipt;
+#[deny(dead_code)]
 pub(crate) mod nested_receipt;
 pub(crate) mod receiver_receipt;
+#[deny(dead_code)]
 pub(crate) mod single_receipt;
 mod subset;
 
@@ -36,8 +40,7 @@ use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId, ValidatedCompilationUnitNames},
     ownership_checking::{
-        CompilationUnitOwnership, ConstEnabledOwnedUnit, LoanKind, UnitDropPoint, UnitDropTarget,
-        UnitLoanTarget,
+        ConstEnabledOwnedUnit, LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
     },
     parser::{Expression, ParsedFile},
     source::{SourceMap, Span},
@@ -126,7 +129,7 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) source_unit: SourceUnitId,
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
-    pub(in crate::ssa) owned: &'a CompilationUnitOwnership,
+    pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
     /// Present for the constant capability; const uses stay on the existing path.
     pub(in crate::ssa) constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     pub(in crate::ssa) function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,

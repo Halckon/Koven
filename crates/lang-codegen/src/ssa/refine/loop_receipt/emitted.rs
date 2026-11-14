@@ -18,7 +18,7 @@ pub(crate) struct Receipt {
     pub(crate) entities: BTreeMap<BlockId, Vec<EntityId>>,
 }
 impl Receipt {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn parameter_count(&self, block: BlockId) -> Option<usize> {
         self.parameters.get(&block).map(Vec::len)
     }

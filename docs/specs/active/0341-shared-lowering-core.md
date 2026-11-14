@@ -17240,3 +17240,2026 @@ all-target严格Clippy、普通codegen完整FQN exact25/25、前端普通20/20�
 通过。62项借用故障清单、child-cycle三目标与父receipt两目标仅编译列举通过，
 none executed；未启用本地CI环境或执行故障。推送后必须核对新head对应PR事件
 双宿主CI，旧head结果不替代本批动态验收；当前不宣称已合并或D10/E2整体完成。
+
+### D10 Replace 借用准备链的全函数位置封印（2026-11-13）
+
+静态检查发现既有 `composition_loan::verify` 仅在声明块计数三条准备链指令，
+随后遍历 instruction arena 核定义/使用。若同一 BorrowBegin ID 被再次挂到其它
+块列表，arena 与原块均保持不变，独立 receipt 的旧检查不覆盖第二次挂载。
+这不是已证明的最终编译器接受漏洞：通用 verifier 原本就按全函数挂载计数并报告
+InstructionPlacement。生产调用先从 nested-body generation 或 parent composition
+进入独立 helper，Unit orchestrate 再运行完整 verify_program，原后备防线保留。
+
+`c442ebb3` 先加入既有 CI-only child-cycle 入口的新变异，只将同 BorrowBegin ID
+额外挂到真实函数入口，保 instruction arena、定义和原挂载；不在本地执行。
+`cc1ca09e` 将 helper 的 prepare/borrow/RootReplace 位置检查改为全函数恰一处，
+且所属块必须仍为实际 Replace 块，原三者顺序、独占模式和精确产生/消费检查不变。
+没有新 producer、语言形状、Origin、公共 API 或新发射器。
+
+复用既有普通 child-cycle exact，另核两种 Replace 顺序的真实 native stdout；
+一个 exact 通过，两个有限程序合计四次正常调用，原六种独立完成 marker 保持。
+故障入口已编译且 exact 列举为一项，none executed；本轮只有静态缺口推断与普通
+正控通过，没有故障反例的动态红/绿证据，远端独立拒绝仍待获准发布后的 CI。
+默认 debug2/opt0；执行前冻结完整 source SHA、原 build artifact 和 binary SHA。
+
+### D10 父子代际 literal 与旧值退休位置闭合（2026-11-13）
+
+在 `8abc2b3b` 独立只读审查确认无阻断、且核对现有分支无重复后，合批修正相邻
+四处已有唯一执行合同：child generation literal、child detached old Drop、parent
+composition literal、parent detached old Drop。此前仅原块列表唯一与 arena
+使用计数不足以独立排除相同指令 ID 的异块二次挂载；通用 verifier 的原防线仍在，
+不是已证最终接受畸形 SSA 的漏洞，也不扩大任何源形状或 producer。
+
+`643fbc35` 先增加四个 cfg(test) CI-only 真实 ID 异块挂载反例；`82007048`
+将四处改为全函数唯一挂载且在原块，保持原次序、定义、use 与身份检查。child 两项
+直接检验 nested-body finish（其中 literal 经 generation finish）；parent literal
+直接检验 compose，parent Drop 必须直接检验 resume finish，不能用不相关收据
+拒绝替代覆盖。四项只追加原 ID 到真实 entry，arena、原位置与观察快照不变。
+独立静态审查确认各反例准确抵达对应检查，未发现确定回归。
+
+本地复用完全不变的普通 child-cycle exact：1/1 通过（2.23s），两种 Replace 顺序
+各执行两次有限正常 native 调用，六类完成 marker 及 stdout 保持；没有堆叠新
+普通样例。默认 debug2/opt0，执行前冻结新的完整 source SHA、artifact 与 binary。
+四项新故障随现有 CI-only exact 编译、列举一项，none executed；没有故障动态
+红绿证据，仍待将来获准发布后的远端验收。本轮仅本地提交，不推送或外发。
+
+### 已有 owner 代际运输的 String 字节边界回归（2026-11-13）
+
+基于 main `3b7a9a7a` 的隔离测试分支，仅为既有两根 parent/child 运输增加数据边界
+回归，不改变生产、语言、ABI 或任何 Origin-based 待定设计。Guide 13 的 String
+长度化 UTF-8 合同允许空串与 U+0000；新 fixture 覆盖 own seed 的普通 concat、空根、
+child 替换与 parent 恢复后的空串、内嵌 NUL 和多字节文本，核实际原始 stdout 字节。
+
+测试代码头 `cdaaa0e3` 的两个普通完整 FQN exact 均通过：SSA 项复核现有 child cycle
+与 parent composition 收据确实发布；native 项沿实际 Basic/Const 两路运行两组数据，
+每组包含零轮、父迭代而子零轮、一次和重复激活，共16次有限调用。有限输出回归不替代
+归纳或资源无泄漏证明，不扩大计数控制、三根组合或 concat placement 能力。
+
+codegen observer-support all-target 严格 Clippy、fmt、docs 与相对 main 的尺寸门禁
+通过。测试只调用 fresh-helper 审计的普通源码链与 passive compiler receipt observer；
+未执行故障注入、foreign 查询或 runtime resource counter。二进制 debug2/opt0，精确
+选择、执行前源码与原始 artifact/binary SHA、逐项日志保存在本地证据目录。本日仅本地
+提交，未推送、未发 PR 或外部消息；远端 CI 未验证本轮回归。
+
+### 同 Unit 合法兄弟函数的 owner 权限隔离回归（2026-11-13）
+
+从 main `3b7a9a7a` 独立建立测试分支，未合入其他当天待整合分支。已有普通邻形
+`seed+"extra"` 可正常编译，但不授予 parent initial-owner base；本轮将它与直接
+own seed 的完整函数放在同一 Unit，交错调用并交换声明顺序。先分别取得两种合法
+函数的普通 receipt 基线，再核混合 Unit 的 initial-base、parent composition 和
+child-cycle 三类收据集合等于独立基线之和，没有额外增加或减少收据。独立基线明确
+完整函数有 initial-base、邻形没有；混合阶段不额外声称逐函数归属证明。没有把一个
+analysis 的 token/handle 传给另一个 analysis 查询。
+
+代码头 `64eb92b3` 的两个普通完整 FQN exact 均通过：SSA集合隔离与native实际
+各自结果，覆盖正反声明顺序、真实 Basic/Const、16次有限交错调用。该回归核收据
+集合及实际结果，不把聚合集合比较宣称为新增跨函数权限证明，也不改变 Origin-based
+待定设计、生产代码或现有能力准入。
+
+observer-support codegen all-target 严格 Clippy、fmt、docs924、相对main的尺寸
+门禁及diff检查通过；2678手写Rust文件、36项历史超限，无新增豁免。保存debug2/opt0
+原artifact、执行前source/binary SHA、完整FQN列表和原始日志。CI-only仅编译未执行，
+远端CI未验证；本日仅本地提交，未推送、发PR或外部消息。
+
+### D10 调用返回值初始来源的普通原样探测（2026-11-13）
+
+基于 `3b7a9a7a` 新隔离分支，仅观察零参数 String helper 的返回值绑定到父/子
+有限循环初始根。真实 Basic 与 Const 路线都通过四阶段、SSA verifier、LLVM
+和 native；一个精确普通目标通过，实际两程序各执行零轮、仅父轮、父子多轮三次
+调用。SSA 保留 callee literal Return、caller 单结果 call、该结果进入父 header 的
+实际边参数；false 出口仍按原顺序 print/end-borrow/Drop 两根。
+
+观察器只记录两处 checked-expression-edge-receipt，未发布 initial-base、
+child-cycle 或 parent-generation-composition 收据。此结果仅证明旧 lowering
+兼容，既不是新能力绿，也不是独立缺回执红；尤其不能假定仅补后端 producer 钩子
+即可完成。现有受限初始来源合同不包含调用返回值，扩大前端/后端接受范围需要先
+核实授权。本轮不改生产、Origin 方案、公共接口或现行能力合同，不推送。
+
+测试源码头 `662b3b8e`；执行前保存原 build artifact、完整前端/codegen 源码 SHA、
+二进制副本及 SHA，原样源码/SSA/LLVM/收据/native 结果保留在本地证据中。
+准备时模块注册定位失败导致首轮仅编译未注册文件，后因 Program 无 Debug 发生
+一次编译失败，改用既有 SSA renderer 后重编并执行唯一 exact；两次准备记录保留，
+均不计入测试通过。未执行任何故障注入、foreign handle 或其它 CI-only 测试。
+
+### 位置封印与已有普通回归的本地整合（2026-11-13）
+
+代码整合头 `7c92e9a2` 以 `cfb52a9f` 为基，保留并合入 `0f98fe25`、
+`18e443b3`、`b7c829ab`、`68885de9` 的原提交历史。只处理追加验收记录及
+普通测试模块注册冲突；独立只读审查确认五个来源均为祖先，生产与测试源文件
+逐字节保全，三个新增模块各注册一次，没有新增生产行为或 Origin 决策。
+本整合不包含 `a4b53282` 的另一批组合能力，不能据此声称全部本地工作已经汇总。
+
+在该整合源码上重新编译并只执行已有普通完整 FQN exact：codegen 六项及 frontend
+两项均通过，codegen 覆盖 String 字节、兄弟函数隔离、call-initial 既有路径与
+parent/child generation，含 42 次有限 native 源函数调用。故障注入仍只随测试目标
+编译，未在本地运行；远端 CI 尚未验证此头。默认 debug2/opt0，执行前保存源码与
+原始 artifact/binary SHA、精确清单及日志，执行后核对源码无漂移。
+
+两 crate all-target 严格 Clippy（codegen 启用 loan-observation-test-support）、
+fmt、文档结构（924 Markdown）、相对 main 尺寸门禁和 diff 检查通过；2680 手写
+Rust 文件，36 项历史超限不变。最后仅追加本段验收记录，D10/E2 仍 in-progress；
+本批保持本地提交，不推送、不发 PR，也不以普通结果替代 CI-only 动态拒绝证据。
+
+### D10 标量分支入口基例（已批准，实施中）
+
+父 while 前仅一个无资源副作用的标量 if/else；两臂沿用可证明为空体的 Int→Unit
+调用，禁止 owner 参数传递、借用、重新赋值及额外 producer。初始根只允许 own
+参数或 literal，不叠加 concat。分别封存真实 entry/split/双臂/join 与父 header
+身份，逐边证明完整 owner 向量保持，唯一前驱集合且退出不可重入入口区域。
+该入口证明接续原 child/parent recurrence，不更改其正常回边、false 或 abort 合同。
+不得以 raw 块形状猜测、有限轮执行或 E2 的其他合同代替 D10 所需独立证据。
+不涵盖一般 producer、更深嵌套、额外前缀控制流及复杂退出；CI 故障仅远端执行。
+
+D10 标量入口实现已完成：FE 两个完整 FQN 普通正/负例通过；后端普通 SSA 覆盖
+own/literal 根 × Boolean 默认/own 模式，native 覆盖两种根来源 × 两臂 × outer/inner
+0/1/2，共 36 组。原 child recurrence、concat native、父 false 清理三个普通 exact
+回归通过，frontend/codegen all-target 严格 Clippy 通过。新六类故障仅编译列举，待远端双宿主
+exact 实跑；有限执行不替代逐边身份与无重入证明。未扩 concat/一般producer/复杂退出。
+
+旧 `ci_only_bridge_scalar_entry_requires_actual_ordered_completion` 已补默认 ignored 与
+GitHub Actions 环境门控，并由双宿主 exact runner 保留实际覆盖；本地修复验证仅
+编译列举（none executed）。此前宽过滤误执行已记录并报告，后续普通验证只用完整
+FQN `--exact`，不能用“CI-only”名称替代执行隔离。
+### 已批准的 counter 双臂闭合后条件 break（2026-11-13）
+
+本次仅在既有同源 bounded counter 两臂借用各自关闭之后加入一个稳定 Boolean
+参数控制的 `if(stop){break}`，随后非 break 路径执行原 `remaining=remaining-1`
+与回边。循环前仍是 `var remaining=rounds`，条件仍是 `remaining>0`；原单次
+取得/关闭、计数下降及 checked arithmetic 合同不变。该 if 无 else、标签、return、
+continue、额外借用或嵌套，不与 prefix、任意跳转或多根循环组合授权混同。
+
+前端须独立封存条件 break 的真实控制、清理与目标及两臂闭合事实；后端须记录
+真实 stop 分支/退出、非 break 递减/回边以及完整前驱与根身份，独立 receipt
+证明两条路径，缺失证据失败封闭。普通真实 SSA/native 覆盖0/1/2轮×双臂×stop
+真假，确认结束后源仍可读并最终消费；反例故障只编译列举，禁止本地执行。
+先核对并复用 main 与 `afabb0b1`/各现有分支，分步本地提交，不推送、不外发。
+
+前端本地提交 `23ee3ceb` 已建立独立新域；实际记录 break 前后状态/清理和
+非 break 路径的递减完成，再核两出口资源状态。DropPlanner 单独核 transfer、
+条件体深度、继续路径 body cleanup 与 LoopExit，旧 counter/pair/tail-break 的
+owned 查询不能接收新域嵌入事实。前端新旧普通11项与严格 all-target Clippy通过，
+独立只读复核暂未发现确定误授予或漏清理。普通后端验收在 `486977d6`，
+生产实现 `58949c74` 已接通独立双出口 receipt；新普通 SSA 完整 FQN 精确执行
+通过（8种参数模式 × rooted/memory × observer），真实 native 96组合通过，
+涵盖0/1/2轮、两臂、stop真假及源的最终消费。源码拒绝测试的正例专用分析
+helper 已由 `d6f655cd` 修正为显式接受前端失败封闭，不放宽生产授权。拒绝
+普通测试、两函数独立 receipt 发布/重放普通测试各1/1，既有5项普通精确回归
+均通过。后端 all-target 严格 Clippy、格式、docs924、尺寸及 diff 门禁通过。
+
+CI-only 提交 `6b0a56b0` 新增8个显式 ignored 故障入口，包含真实 stop极性、
+错误退出、继续回边、两臂End，以及实际BorrowCall替换另一活跃同类型String根；
+缺capture/receipt和最终verifier失败要求撤销后恢复。清单70项仅编译列举通过，
+none executed；这些反例实际拒绝/恢复仍待远端，不能称已通过。所有成果仅本地
+提交，未推送。本树整合后的 crates 与清单逐文件等同后端通过验证的提交。
+
+本地后续动态测试仅用已检查为普通的完整 FQN + `--exact`，不使用宽过滤；
+CI-only 只允许编译列举，CI/GITHUB_ACTIONS 未启用。
+
+### D10标量入口与counter条件break整合验收（2026-11-13）
+
+以 `afabb0b1` 为基底复用D10 `ac4447f8`、E2 `ac3f864c`；双方Spec、导出及
+CI入口保全。核实main已前进至 `fbfb5a3a` 后，在隔离分支无冲突合入其五文件
+nullable/Map修复；独立复审确认合并补丁与main完全一致，无D10/E2遗漏。
+
+含新main的整合头通过workspace all-target check及frontend/codegen observer-support
+all-target严格Clippy。普通codegen完整FQN exact31/31、前端普通24/24通过，包含
+D10标量入口SSA/native36组合、条件break两路径及native、旧域回归和main四项
+nullable/Map定向检查；前端两个标量入口lib目标只用完整FQN exact，未宽过滤故障。
+格式、docs925、相对新main尺寸门禁及diff检查通过。
+
+首次CI-only列举发现旧bridge scalar被隔离为ignored后落入统一前端scope却未登记。
+修复为71项清单唯一登记，独立bridge工作流步骤保留但仅list-only，实际执行归统一
+borrow gate，避免每宿主重复。两项新增纯Python清单/工作流回归及原门禁测试共12/12
+通过；其FakeRunner输出不是Rust故障执行。独立复核确认无漏跑或双跑。
+
+修复后71项统一清单、child-cycle三目标、父receipt两目标、scalar-owner目标与旧
+bridge目标均仅编译列举通过，none executed；旧bridge属于71项，不另计新增故障。
+未启用本地CI环境或执行故障注入，未推送/合并远端。D10新标量入口六类、E2条件
+break八项及尚未推送旧批次反例仍待双宿主动态验收，D10/E2整体不标完成。
+
+D10 后续普通组合验证（基线 `451cea25`）：scalar prefix × own/literal 根 ×
+单根保留/全根 false 清理四组合，通过完整 FQN `--exact` 测试 1/1；同轮核验
+入口、初始基例、父组合及对应 false 清理数量收据。仅增加普通回归，无生产选择
+扩展，无本地故障注入；docs 925 文件通过，改动测试文件 154 行，未推送。
+### 条件 break 与双臂共用稳定 Boolean 的普通交互（2026-11-13）
+
+在本地整合 `451cea25` 上补 `082ab500`：已批准 counter+条件break 形状的
+双臂条件与stop条件可引用同一稳定Boolean参数，而不是两个独立参数。未改变
+生产实现、授权或语法，不引入prefix/嵌套/额外跳转。原独立参数8模式普通矩阵
+保留并复用测试helper；新增共享参数4种Borrow/Own模式，真实SSA覆盖rooted/
+memory与observer开关，真实native覆盖0/1/2轮与flag真假共24次调用，核验break
+与继续路径、循环后读取及最终消费。两新普通完整FQN与两旧普通完整FQN精确执行
+各1/1通过，原native96次也保持通过；不是新的跨轮借用或一般别名推导能力。
+后端observer-support all-target严格Clippy、格式、docs925、相对451cea25尺寸门禁
+与diff检查通过。仅本地提交，无推送，无CI环境启用或本地故障执行。
+
+### 标量入口false清理与共享break条件本地合批（2026-11-13）
+
+隔离分支基于 `451cea25` 复用D10 `1db5f5c5`、E2 `082ab500`/`888b7b4a`。
+核main仍为 `fbfb5a3a`、#420仍为 `4158dcae`；本批仅普通回归与证据，无生产
+扩展。双方Spec追加记录完整保留，独立只读复核无遗漏；71项CI清单及bridge唯一
+执行/独立列举策略未变。
+
+整合后workspace all-target check、frontend/codegen observer-support all-target
+严格Clippy通过；codegen普通完整FQN exact34/34、前端普通24/24通过，覆盖新增
+标量入口部分/全部false清理、共享Boolean条件SSA/native及全部先前精选普通回归。
+格式、docs925、相对 `451cea25` 的尺寸门禁、diff通过。
+
+统一71项及child-cycle/parent/scalar-owner/legacy-bridge独立入口均仅编译列举
+通过，none executed。未启用本地CI环境或执行故障，未推送/合并远端。动态反例
+仍待远端双宿主验收，不以普通交互回归替代D10/E2整体完成。
+
+### D10 单 concat 与标量入口组合（已批准，实施中）
+
+允许既有直线入口唯一一次两原生 literal String concat，先完成两个输入临时值的
+独立清理，再经过既有无资源标量 if/else，将完整根 owner 向量逐臂带入父 header。
+必须同时保留 concat 实际来源/唯一使用/清理顺序与无逃逸、scalar entry 唯一前驱/
+无重入、child 归纳及 parent 组合收据，不能仅删除旧 selector 或复用有限运行结果。
+不允许第二个或嵌套 concat、一般调用 producer、借用输入、额外控制流或复杂退出。
+本批基于 `a95d095c` 独立开发，仅本地提交，故障反例只允许远端 CI 执行。
+
+组合实现本地证据：FE 两项新普通正负例及两项旧入口回归完整 FQN exact 4/4 通过；
+后端新增普通SSA覆盖concat位于任一根×两根保留/部分清理/全部清理六组合，四类
+来源及组合收据全部命中；18次双臂×outer/inner 0/1/2 native执行通过，两项旧scalar
+exact回归通过。此前普通红例显示旧路径不发布组合收据。新增九类CI-only反例
+仅准备远端验收，不以本地有限执行代替静态归纳。frontend/codegen all-target 严格Clippy通过；两个CI-only exact目标仅编译列举、none executed，旧direct concat native回归也通过。尺寸门禁2690个Rust文件、36处旧欠账通过，docs925文件通过。远端九类组合故障仍待实跑，本批未推送。
+
+D10 concat 独立来源/清理收据补强：原位置检查仅核 entry 内的唯一出现，未自行
+排除同一 InstructionId 被另一 block 再次挂载。通用 SSA verifier 已检查该结构，
+但不能代替独立 concat 证据；将对 literal/concat/Drop 各指令核全函数唯一挂载且
+位于真实 entry。新增 CI-only 重复 Drop 挂载反例，直接要求 concat receipt 拒绝；
+本地仅编译列举并跑完整 FQN 普通回归，不执行故障。选择范围和生产 lowering 不变。
+
+该挂载补强已完成本地验证：组合六情况SSA及直线concat普通完整FQN exact各1/1
+通过；codegen all-target严格Clippy通过。两份CI runner共五个ignored exact目标
+仅编译列举（none executed），重复挂载反例仍待远端。独审确认原独立证明缺口与
+修复闭合，不代表非法源码曾绕过通用verifier；未改变选择范围/降低过程。docs925
+文件、尺寸门禁2690文件/36处历史超限通过，本批仅本地提交，未推送。
+### 已批准的 scalar prefix + counter 条件 break 组合（2026-11-13）
+
+用户明确批准在既有有界counter双臂闭合与单一稳定Boolean条件break之前，组合
+既有无资源标量if/else前缀。仅接受现有前缀已证明的纯标量/空Unit函数形状，
+不放宽为I/O、未知callee、借用或资源操作；函数顺序为prefix、counter初始化、
+原循环，再接既有后继。其余counter/两臂/条件break限制全部保持，不授权嵌套、
+额外跳转或一般多循环组合。历史“不与prefix组合”记录描述当时边界，本节仅
+覆盖此新增明确批准组合。
+
+前端须证明prefix两路无资源副作用且汇合资源状态一致，再独立验证原counter
+继续/退出状态与清理。后端须实际捕获prefix join→counter init→header链及完整
+前驱，不能用布局猜测；prefix独立Boolean最后使用后可裁剪，但活跃counter、
+choose/stop、资源根与身份必须保留。两出口运输与后继无重入验证保持。组合
+必须拥有独立必需证据与选取/发布责任，不能用旧域事实绕过prefix或break证明。
+普通SSA/native覆盖独立与共享Boolean、Borrow/Own参数、两prefix路径、0/1/2轮、
+双臂和stop真假；越界源码继续拒绝。故障仅CI编译列举，不在本地执行。
+本轮基于 `a95d095c` 独立树复用已有成果，Spec先行、分步本地提交，不推送。
+
+实施前普通源码红证据：新前端 `prefix_counter_break_seals_independent_composition`
+完整FQN精确执行，Single checker在两处borrow marker报告L0164（未证loop
+continuation），0 passed/1 failed。这不是故障注入；普通后端验收先行提交
+`96159f1b`，其中504个native调用仍为待执行计划，不是通过记录。
+
+前端组合API在 `063dd6d8` 独立发布 `UnitLoopPrefixCounterBreakFact`，嵌入旧域
+见证不获得旧域owns授权。独立静态复审发现prefix后scalar初始化可能误扩旧
+tail-break前缀域，已以expected initializer精确匹配和旧域发布限定None修正，
+并新增普通拒绝回归；Single/Unit初始化事件另加单调失效保护，后者不是已证
+合法源码漏洞。最终复审未发现其他确定遗漏。此前核心普通正/拒绝各1/1通过，
+最终修复已重新精确执行6个普通测试全通过（新组合2、旧域init扩张拒绝1、旧
+prefix/counter-break/counter各1），observer-support all-target严格Clippy通过。
+`7bdab837` 将statement调度机械拆出以保持尺寸预算；独审确认调用顺序与分支
+不变，尺寸门禁通过。后端组合实际receipt与新native仍待接通验证。
+
+
+后端生产 `ba684b2b` 独立组合required/selected/receipt已接通；新普通SSA 28种
+参数/共享角色组合（rooted/memory、observer开关）完整FQN精确执行1/1通过，
+真实native 504调用1/1通过，七项旧prefix/counter/条件break普通exact均通过。
+两位独立只读审查确认prefix裁剪保留共享stop，实际join→init→header链和资源
+身份没有确定遗漏；本地整合 `48d93615` 的crates逐文件与已验证生产提交相同。
+普通双receipt、CI-only反例编译列举与最终严格Clippy尚待完成；没有推送。
+
+
+最终本地组合验收：后端 `d9e9abf8` 增加普通独立双receipt fixture及8个显式
+ignored的CI-only反例；独立prefix/共享stop各两函数的普通发布与重放exact实际
+1/1通过。每函数selected身份数为1、unit发布总数为2，已由普通fixture验证。
+切换工作树曾命中旧target产物而得到exact匹配0及缺新清单项，这两次结果已
+丢弃、不计通过；强制当前源码重新编译后才取得上述实际1/1与完整清单结果。
+codegen observer-support all-target严格Clippy通过；79项借用故障清单仅编译
+列举通过，none executed。真实28模式SSA、504调用native和七项旧域exact证据
+保持，格式、docs925、尺寸与diff检查通过。本地整合 `d6327122` 的全部crates
+及清单逐文件等同后端已验证提交。8项新CI反例动态拒绝/恢复仍待远端，本轮
+未推送、未本地执行故障，不能借此前#420旧head的CI声称新组合已远端验收。
+
+### concat标量入口与prefix-counter组合本地整合（2026-11-13）
+
+隔离树复用 `a95d095c`、D10 `ed02988c` 与E2 `97772be6`；main `fbfb5a3a`
+已为祖先，原PR工作树与远端 `0a13dd7f` 不变。仅Spec追加冲突，双方合同/证据
+完整保留；独立复核未见代码、清单或独立runner遗漏，bridge去重策略保持。
+
+workspace all-target check、frontend/codegen observer-support all-target严格Clippy
+通过；codegen普通完整FQN exact39/39、前端普通29/29通过，覆盖新concat入口
+组合及唯一挂载正例、prefix-counter独立事实/SSA/native/收据重放、旧域和main
+定向回归。验证脚本曾按旧tail-break前缀suite预期3项停止，实际新增第四项普通
+回归已4/4通过；更新仓库外计数后完成剩余检查，未删减测试或运行故障。
+
+格式、docs925、相对 `a95d095c` 尺寸门禁与diff通过。统一79项故障清单、
+child-cycle三目标、父receipt两目标、scalar-owner两目标及旧bridge目标均仅
+编译列举通过，none executed；bridge为统一清单内同一目标，不重复动态执行。
+本轮未启用本地CI环境、未运行故障、未推送/合并。新组合和指令唯一挂载反例仍待
+远端双宿主实际拒绝/恢复证据，普通组合通过不代表D10/E2整体完成。
+
+D10 三根普通组合回归（基于 `d28ca8a2`）：先核实际 admission 要求 roots>=2、
+child 每根一个 Replace、parent resume 单根修改且其他根逐根保留，不扩“child内
+未修改根”能力。新增 concat/literal/own 参数三根来源，child全改而parent只改b，
+a/c保留child当前代；真实FE三根/三step/三recurrence与SSA来源/入口/父组合收据
+完整FQN exact 1/1通过，双臂×outer/inner0/1/2共18次native exact 1/1通过。
+仅测试及文档，未改生产、未运行故障、未推送；本轮未单独重跑Clippy。
+
+### 前缀与循环控制的两种剩余身份分区（2026-11-13）
+
+基于 `d28ca8a2` 静态核查未发现必须修生产的确定缺陷；普通测试 `8a4739c9`
+补齐prefix=choose且stop独立、choose=stop且prefix独立两种参数身份组合。前者
+独立检查choose活性保留，不能靠共享stop规则兜底；后者同时检验独立prefix
+裁剪和循环双角色共享。保持已有单源、两臂闭合、counter与条件break形状，
+不是一般别名推导、跳转嵌套或新资源根授权。
+新增16种Borrow/Own模式的真实SSA(rooted/memory、observer开关)与192次native
+调用分别完整FQN exact实际1/1通过；原28模式SSA与504次native也分别实际1/1
+通过，共四项普通测试。切树后强制当前源码重编并检查实际匹配1，不接受零
+匹配结果。仅测试和Spec改动，未推送、未启用CI或执行本地故障。
+
+后端observer-support all-target严格Clippy、格式、docs925、相对d28ca8a2尺寸
+门禁与diff检查通过。
+
+### 三根与两两Boolean身份普通合批验收（2026-11-13）
+
+隔离基线 `d28ca8a2` 整合D10 `1fb3cfb0` 与E2 `8a4739c9`/`f178ec60`，
+仅Spec追加冲突，双方记录完整；独立复审无遗漏，79清单与runner去重策略不变。
+workspace all-target check、frontend/codegen observer-support all-target严格Clippy、
+codegen普通完整FQN exact43/43、前端普通29/29通过。格式、docs925、相对基线
+尺寸门禁与diff通过。79统一清单及所有独立目标仅编译列举通过，none executed。
+本批无生产扩展，未本地运行故障、未推送，不改变#420最小批次；动态反例仍待CI。
+
+### bounded composition 与位置封印批次共同验收（2026-11-13）
+
+本地合成代码头 `644dcb59` 保留双亲 `64141d86` 与 `a4b53282`：将此前分散的
+三根 scalar-owner、prefix/counter conditional-break 组合能力与后续位置封印、普通
+回归放到同一基线。唯一人工冲突是本账本的末尾追加，双方记录完整保留；两个重叠
+CI-only 测试文件自动保留各自 fault 枚举和用例。独立只读审查核双方独有 13/71
+文件逐字节保全，且 scalar-entry 线路仍经过加强的 generation/composition 位置
+校验，prefix/counter identity 检查没有被覆盖。没有新增源形状或 Origin 决策。
+
+整合头重新编译后，沿原已审计的普通源码清单逐项完整 FQN exact 执行：codegen
+48/48、frontend 31/31 通过，包括两批交互后的三根、前缀/计数 break、位置封印与
+String 字节/兄弟隔离/call-initial 回归。执行前冻结实际源码、原始编译 artifact 和
+二进制 SHA，执行后源码无漂移；默认 debug2/opt0，不重用旧头通过结论。
+CI-only 借用库存 79 项及 child/scalar/parent 额外 7 个目标仅从新二进制精确列举，
+none executed；这不替代远端故障动态拒绝与恢复验收，也未执行本地 CI 环境模拟。
+
+workspace all-target check、frontend/codegen observer-support all-target 严格
+Clippy、fmt、docs925、相对 main 尺寸门禁及 diff 检查通过；2701 手写 Rust 文件、
+36 项历史超限不变。最后仅追加本验收段落；未推送、开 PR 或合并远端，未把本批
+等同于所有本地分支的总整合，D10/E2 仍 in-progress。
+
+### bounded composition 与 shell 迁移专门集成验收（2026-11-13）
+
+隔离代码头 `5c39e2d2` 保留双亲 `d06eb394`、`235b0c20`。八处冲突逐项迁移，
+没有选择一侧覆盖另一侧：保全新增 receipt/LoanReceipts、终结与 abort 路径、
+native 普通回归、fault 枚举和 checkpoint。独立复核确认 folding 与原代码逐字节
+一致，其余重点冲突仅做模块路径、可见性和格式调整；该复核不代表整个 shell
+退役栈的全量语义证明。为保持实质模块边界，751 行 borrow-result 与 949 行
+owner-consumer 支持体保留为路径模块，详见 SPEC-0452 §4.1，不计作纯内联退役。
+
+当前代码重新编译的 codegen 测试二进制与原整合头均有 3310 个测试，测试叶名
+多重集无增减，74 个 ignored 叶名库存一致；这是库存证据，不是语义等价证明。
+按迁移后的唯一完整 FQN exact 执行原 48 项普通回归及 9 项 grouped/negated/
+leaf-not 普通 owner 回归，57/57 通过，每项预列举确认实际匹配 1；默认 debug2/
+opt0，记录源码与二进制 SHA，执行后源码无漂移。新二进制中 66 项统一 codegen
+故障清单及额外 child/scalar/parent 7 项仅 exact 列举，none executed。
+frontend 源码与 `d06eb394` 无差异，其 31 项普通回归及 13 项故障库存沿用此前
+证据，不冒充本轮重新执行；远端 CI 动态拒绝/恢复仍待验证。
+
+workspace observer-support all-target check、frontend/codegen all-target 严格
+Clippy、格式、文档结构、相对 main 尺寸门禁及 diff 检查通过；2159 个手写 Rust
+文件、36 项历史超限，无新增豁免。保留所有源工作树与分支，未推送、未开 PR、
+未决定 Origin 语义；D10/E2 与 shell 退役栈均不因本次局部集成标记整体完成。
+
+### String replace 返回旧值的普通字节回归（2026-11-13）
+
+基于 `66a897fc`，`owner_string_bytes_tests` 增加一项完整 FQN ordinary exact：
+`replaced_string_values_preserve_old_bytes_without_expanding_receipts`。Basic/Constant
+各覆盖两组空串、内嵌 NUL 与 UTF-8 输入；外/内循环采用 `(0,2)/(1,0)/(1,1)/(2,2)`，
+共 16 次有限源函数调用。独立模拟每轮 child/parent replace 返回的旧值并按原始字节
+核对 stdout、最终根值、空 stderr 与成功退出，避免仅验证最终根值而漏掉旧值运输。
+新增程序显式检查没有 child-generation receipt；打印旧 owner 不属于当前受限产品形状，
+这里只证明现有普通路径兼容，不扩大 receipt 授权，不据此退役一般 lowering。
+
+当前源码重新编译的默认 debug2/opt0 二进制中，新测试及原 String 字节权限/native
+回归各 exact 匹配 1，3/3 通过；独立只读审查未见阻断。codegen observer-support
+all-target 严格 Clippy、fmt 与 diff 检查通过。没有生产实现或 Origin 变更，未运行
+故障注入、未推送；远端 CI 仍待验证，D10/E2 仍在进行。
+
+call-initial probe 的结论同期补齐为可执行断言：普通零参 String 返回调用初始化
+不得发布 initial-base、child-cycle 或 parent-composition 三项完成标记，而不只检查
+initial-base。保留 SSA verifier、LLVM rendering 和六次有限 native 调用；成功时
+不再打印完整源码/SSA/LLVM，断言失败仍带 observer actions。当前头重新编译的
+完整 FQN exact 1/1、codegen all-target 严格 Clippy、fmt 与文档门禁通过；仅加强
+既有范围的回归证据，不是新增 producer 实现，未执行故障注入或推送。
+
+### LLVM 历史 dead-code 豁免收窄（2026-11-13）
+
+基于 `858cf230` 移除 LLVM 整模块 `allow(dead_code)`，将仅测试消费的
+render/smoke 入口及对应重导出限制为 `cfg(test)`；生产 object lowering 保留。
+移除无读取者的 `RuntimeAbi.abort` 缓存字段，保留 abort 声明、noreturn、
+AbortHelpers 构建与调用；窄目标测试同步去掉冗余字段初始化。SSA 的广域豁免
+仍待独立审计，本片不宣称完整退役或新增语言能力。
+
+最终代码 codegen observer-support all-target 严格 Clippy、fmt、diff 和
+文档门禁通过；四项普通完整 FQN exact（narrow target buffer/length、
+deterministic scalar render、debug IR mapping、call-initial native probe）4/4 通过。
+独立只读审查未发现阻断；故障注入未执行，未推送，远端双宿主 CI 待验证。
+
+### SSA carry 与 renderer 测试边界（2026-11-13）
+
+基于 `f37bbee6` 审计 SSA 广域豁免；默认生产构建去除豁免产生 41 条警告，
+含模型/诊断保留见证，因此未一刀切删除。先对 carry 子模块启用 `deny(dead_code)`，
+将仅 retained Single 测试路径消费的 AliasRole entity、SourceSlot type 查询、
+IncomingColumns 原始列接口及对应实现限定为测试构建。生产查询、列构建与 alias
+重绑定不变；SSA renderer 及专用类型格式化模块同步限定为测试构建。其余 SSA
+豁免继续保留待逐项审计，不宣称整层完成退役。
+
+observer-support codegen all-target 严格 Clippy、fmt、diff 与文档门禁通过；
+现有四项 carry_join 和 aggregate/bitwise 两项 renderer 普通完整 FQN exact
+6/6 通过。独立只读审查无阻断，未新增测试或语义、未运行故障注入、未推送。
+
+### Checked scalar carry 冗余快照退役（2026-11-13）
+
+基于 `b6b2e100` 移除 `CheckedRoles` 未读取的 `baseline_borrows` 保存字段，
+恢复 scalar 子模块的 dead-code 门禁。capture 阶段仍先保存 borrow 快照并从它
+建立 carried loans；success 边仍按实际参数重绑，不改用旧快照恢复权限。
+Value prefix/access suffix 次序和 failure 边不变，独立审查未发现阻断。
+
+现有 arithmetic/comparison operator、checked compound assignment、checked
+arithmetic live-owner edge 三项普通完整 FQN exact 3/3 通过；codegen
+observer-support all-target 严格 Clippy、fmt、diff、文档门禁通过。没有新增
+测试、Origin 决策或推送；故障注入未执行，其余 SSA 豁免仍待逐项审计。
+
+### Refine 收据观察接口测试边界（2026-11-13）
+
+基于 `3d5d589c` 对 single/multi/nested receipt 三模块恢复 dead-code 门禁，
+六个仅测试消费的计数/形状观察接口限定为测试构建，方法体和测试见证不变。
+single 的 tail_mapping_matches 与 nested 的 cascade 校验仍由生产消费，
+未被门控或删除；不代表整个 refine/SSA 豁免清理完成。
+
+现有 bounded continuation、multiple-hole shared-tail、nested-then-tail 三项
+普通完整 FQN exact 3/3 通过；observer-support codegen all-target 严格 Clippy、
+fmt、diff、文档检查通过。独立只读审查无阻断。未新增测试、未改变 Origin
+或收据语义，故障注入未执行，未推送，远端双宿主验收仍待进行。
+
+normal-header-return 同期恢复局部 dead-code 门禁：`DropReceipt.index` 仅供
+测试 witness，故字段与缓存初始化限于 `cfg(test)`；生产的 index 参数、drop fact
+身份/消费检查、实际 Drop 指令位置和完成状态校验全部保留。基于 `103aad3a`，
+现有 owner_header_bind 三项普通 exact（Basic/Constant finite native、实际
+drop authority、current-H drop）3/3 通过，严格 Clippy、fmt、docs 与 diff
+通过；独立审查无阻断。未执行 CI-only 故障、未推送，非整个 SSA 豁免退役。
+
+在上述逐项收窄后，`refine`、`unit_lower`、`unit_plan` 整个子树恢复
+`deny(dead_code)`，不再继承 SSA 顶层历史豁免；三个子树无反向 allow。
+此步只恢复生产编译门禁，未删改模型、诊断、算法或见证，剩余模型及诊断
+豁免仍需独立审计。默认生产 check、observer-support all-target 严格 Clippy
+与完整测试编译通过；pending-value carry、checked-abort owner transport、
+current-H drop 三项既有普通 exact 3/3 通过，fmt/docs/diff 与独立审查通过。
+未新增测试、未改 Origin、未运行 CI-only 故障、未推送。
+
+### 生产 SSA 豁免显式化（2026-11-13）
+
+生产 SSA 顶层恢复 dead-code 门禁；现存 verifier 模型变体、旧测试诊断到 native
+的映射及 Provider 结构化失败载荷保留为具体带原因的例外，不删除合同。两个
+只由测试读取的 Function.receiver / Module.id getter 限制到测试构建，实际数据
+和生产直接字段访问不变。测试配置另发现 21 项历史 fixture/helper 未使用项，
+保留原测试顶层豁免待逐项审计，已有子树 deny 继续有效；不声称全配置清零。
+默认生产 check、observer-support all-target 严格 Clippy、完整测试编译通过；
+aggregate type/render、aggregate heap flow、pending-value carry 三项普通 exact
+3/3 通过，fmt/docs/diff 与独立审查通过。未新增测试、未改 Origin、未执行
+CI-only 故障，未推送；测试全域豁免剩余项留给后续独立切片。
+
+### 模型和 ownership 测试边界（2026-11-13）
+
+对测试配置 21 项历史诊断先处理两个明确无消费者项：退役 `Module.id()`
+getter（ModuleId 字段与生产读取保留），去除 ownership Harness 的 Boolean
+类型缓存（类型 intern、参数/返回类型 resolve 与所有断言保留）。model 与
+verify_ownership_tests 子树恢复 dead-code 门禁，不删除测试见证或局部合同例外。
+其余 map fixture 未用字段/帮助函数仍待逐项审计，尤其未连接的结构断言
+不能仅为 lint 删除；本步不等于测试广域豁免清零。
+observer-support all-target 严格 Clippy 和测试编译通过；Boolean 条件边所有权
+转移、遗漏分支拒绝、move-only 错误区分与 aggregate type/render 既有普通
+exact 4/4 通过，fmt/docs/diff 与独立审查通过。未新增测试、未改 Origin、
+未运行 CI-only 故障，未推送。
+
+### Map break 结构见证去重（2026-11-13）
+
+核对历史 `90f05cd1` 的 shell 迁移及 `5f0e88d2` 的主线合同协调后确认：
+`temporary_forms/graph.rs::structure` 是迁移残留副本，不是漏接的唯一见证。
+active `lower_frontend_map_break_structure_tests.rs` 保留全部断言，由原 break
+测试两个入口消费；两个版本仅可见性、格式与单表达式闭包花括号不同。
+先运行 active 普通 exact 7/7（live/dead、basic/constant、put/remove）通过，
+再退役无人调用的副本并恢复 temporary_forms 整个子树的 dead-code 门禁。
+active 源码与调用均未改动；这些 Unit 场景不是跨源文件覆盖，不扩大声明。
+变更后严格 all-target observer-support Clippy、测试编译、原七项加现有
+双 pipeline temporary representations 普通 exact 8/8 通过，fmt/docs/diff
+与独立审查通过。未新增测试、未改生产算法/Origin、未运行故障注入、未推送。
+
+### 临时 Map cleanup 见证边界审计（2026-11-13）
+
+追溯 `df48178f` 确认普通消费者主动迁往 rooted/MemoryDocument Unit，
+`query_temporary_cleanup::single` 因而不再调用，并非本轮证实的漏接。
+它还包含 legacy cleanup condition/phi 的独立检查，不与 Unit 版本完全等价；
+不为 lint 删除。恢复该模块 dead-code 门禁，仅在这个函数保留具名例外，
+明确等候 legacy 合同审计；Unit cleanup 的 births/temporary delivery/forms/
+D10 temporary carry 消费者不变。本步不新增覆盖、不宣称已迁移剩余合同。
+严格 observer-support all-target Clippy、测试编译、temporary forms 与 D10
+W09 temporary carry 既有普通 exact 2/2、fmt/docs/diff 和独立审查通过。
+未改 Origin、未恢复 legacy single 执行、未运行故障注入，未推送。
+
+
+### 普通 Unit 诊断门与旧身份见证分离（2026-11-13）
+
+基于 `19c66730`，将原 mixed recovery 目标中的 L0080/L0084、精确来源 Span、
+names/basic/const capability gate 断言迁至独立普通 Unit 目标；保留原输入字节及
+未选中的同文 foreign.ko，不混用产物。旧目标的原 FQN 和
+MismatchedSource → MismatchedAnalysis → FrontendDiagnostics 优先级见证完整保留，
+仅在 CI 执行；Unit 前置 capability 拒绝不能替代该旧入口独有合同。
+新普通完整 FQN exact 1/1 通过；旧 mixed 目标仅精确列举匹配 1、未执行。
+严格 observer-support all-target Clippy、测试编译、fmt/docs/diff 与独立审查通过。
+这是见证分层迁移，不是旧 checker/lowering 退休，不新增语言能力或改变 Origin；
+精确交付头双宿主及动态故障验收仍待 CI。
+
+### Map require wrapper 的根选择差异见证（2026-11-14）
+
+基于 `e37124e4` 保留 `verify_ownership::closure::map_require_tests` 的两个原有
+测试身份。普通同源 `READONLY_WRAPPER` 经 Unit selected entry 仅发射 entry，
+核唯一函数及其原始 declaration Span；旧 whole-file 则保留恰好 view、entry 两根。
+旧见证不再仅以任意函数具有 borrow return 为充分条件，而核唯一 view、唯一
+MapRequireValue 返回 slot loan、BorrowReturn 返回同一 loan，且无 Copy/SharedRetain。
+这是可执行的根选择差异记录，不构成两入口等价或 legacy 路径退役证据，不改生产
+行为、借用语义或 Origin 决策。
+
+两个普通真实源码测试各以完整 FQN exact 执行，均 1/1 通过；测试编译、带
+loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）和
+diff 检查通过，独立只读审查无阻断。未运行故障注入或全量测试，远程 CI 不在本地
+结果覆盖范围。
+
+### 不可达闭包的严格 Unit 产物对照（2026-11-14）
+
+基于 `cd7abc2b`，为原 `single_runtime_unreachable_lambdas_do_not_register_storage_or_nested_layouts`
+两段源码补独立 Unit 对照：return 后的 nullable/assert lambda 与含 nested lambda 的
+lambda 均经严格 Unit admission，核唯一 entry 原始声明身份、无 thunk、无
+ConcreteClosure 类型及闭包构造/调用指令，随后通过 SSA 与 LLVM verifier。
+旧 Single 静态 capture、callable_origin 和类型 arena 不增长检查保留；Unit 的事实
+模型并非同形 API，本轮不据结果相同删除旧见证，不宣称 legacy 已退役。
+
+新增 `ssa::refine_closure_tests::unit_unreachable_lambdas_do_not_register_storage_or_nested_layouts`
+完整 FQN exact 1/1 通过（含两段源码），测试编译通过；独立只读审查无阻断。
+未改生产代码或 Origin，未执行故障注入和全量测试，远程 CI 尚未覆盖本地新增提交。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过；仅新增独立对照，不更改既有验收的状态。
+
+### initializer guard 普通源码见证迁至 Unit（2026-11-14）
+
+基于 `54f38548`，保留
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_guard_keeps_size_loan_live_before_initializer_factory`
+原测试身份和完整源码，将旧 Single admission/lowering 替换为严格 Unit。entry 使用
+返回 root 与声明 Span 定位，factory 按原声明身份定位，不依赖生成名称。原 guard
+条件分支、负值分支 Abort、guard 内不得调用 factory/生成容器、success 中 factory
+调用早于生成容器，以及类型 arena 不增长、LLVM verifier 检查均保留。该顺序检查
+不额外宣称 factory 调用精确次数；其余旧身份见证未删改。
+
+完整 FQN exact 1/1 通过，测试编译和独立只读复核通过。仅迁移此普通源码见证，
+不改生产语义、Origin 或故障分类；未运行故障测试、全量测试或远程 CI。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过。
+
+### shared callback 清理见证迁至 Unit（2026-11-14）
+
+基于 `9bb34f40`，`refine_closure_tests::source_closure_tests` 中两个普通源码测试
+`single_runtime_named_shared_callback_survives_constructor_and_arithmetic_cfg` 与
+`single_runtime_temporary_shared_callback_ends_capture_before_iteration_element`
+保留原 FQN、源码及全部断言，改由严格 Unit admission 和原声明 root lowering。
+共享入口保留类型 arena 不增长与 LLVM verifier，新增 root 原始声明 Span 校验。
+named 仍核两次生成与一次闭包 Drop；temporary 仍核真实 Shared capture、callback
+owner、无重复 BorrowEnd、Drop 晚于构造。结论限于这些既有 SSA 断言，非完整
+运行时清理等价证明，也不据此删除其他旧内部身份见证。
+
+两个完整 FQN exact 各 1/1 通过，测试编译通过，独立只读审查无阻断。
+未改生产或 Origin，未执行故障注入/全量测试，未推送；远程 CI 不由此替代。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+和 diff 检查通过；测试文件 892 行，未超过手写 Rust 1000 行软上限。
+
+### when 兄弟边 callback 见证迁至 Unit（2026-11-14）
+
+基于 `6ec0163f`，保留
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_named_shared_callback_survives_when_sibling_edges`
+原 FQN 与四组分支源码，改为已验收的严格 Unit helper；前端 admission、类型 arena
+不增长及 LLVM verifier 条件保留，另核 root 声明身份。首次失败即停止代替失败汇总，
+不放宽成功条件。删除迁移后零调用的模块内旧 lower helper，顶层 Unit lower 与其
+调用方不动；不删除仍由 analyze 承载的旧内部身份见证。
+
+完整 FQN exact 1/1（四组源码）及测试编译通过，独立只读审查无阻断。没有生产、
+Origin 或故障分类变更，未执行故障注入、全量测试或推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过；远程 CI 仍须对应最终发布头另行验收。
+
+### Nothing 操作数原源码见证迁至 Unit（2026-11-14）
+
+基于 `fd64906a`，将
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_nothing_operand_stops_before_borrow_and_initializer`
+原四组无 package 源码改用严格 Unit admission/lowering，保留 FQN、构造事实数量、
+同一 constructor expression 的 loan 计数、无 ContainerGenerateBorrowed、存在 Abort、
+类型 arena 不增长及 LLVM verifier，新增返回 root 的声明身份校验。既有 package
+Unit 控制和其他 legacy 身份/ABI 见证均不改动。源码 error 调用为原普通语义，
+不是故障注入；不改变生产或 Origin。
+
+完整 FQN exact 1/1（四组源码）、测试编译和独立只读审查通过；未运行故障注入、
+全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+与 diff 检查通过。
+
+### 普通 nullable generic planner 见证迁至 Unit（2026-11-14）
+
+基于 `8709803d`，保留
+`ssa::unit_llvm_tests::callable_plan_tests::single_callable_plan_ordinary_nullable_generic_argument_keeps_existing_frontier`
+原 FQN 与源码，使用 MemoryDocument 的 basic validated Unit planner。保留 ignore、
+entry 各一个实例、全部 callable arguments 为空及类型 arena 不增长检查，并核唯一
+Function 声明、原 source Span 与 AST root，避免首个同名匹配掩盖身份问题。
+这是普通非 Fn nullable 参数的规划边界，不是最终类型完整性或 native 门禁；其余
+旧 callable ABI/来源身份见证不动。
+
+最终源码测试编译和完整 FQN exact 1/1 通过，独立只读复核通过。未改生产、Origin
+或故障分类，未运行故障注入、全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+和 diff 检查通过。
+
+### Unit planner 测试域门禁恢复（2026-11-14）
+
+基于 `166c0dcb`，对 `unit_plan_tests` 整个测试子树启用 `deny(dead_code)`，
+覆盖 callable identity、delegation routes、generic containers、layout demand
+与 owner recipes。该子树没有反向 allow；保留全部源码、FQN、模型身份、
+字段和断言，不借 lint 删除独有见证，也不新增测试或语言能力。
+其余 SSA 测试顶层豁免仍待独立审计，本片不代表旧 checker/lowering 退役。
+
+observer-support codegen all-target 严格 Clippy 通过；现有跨文件可达实例与
+递归去重普通完整 FQN exact 1/1、fmt/docs951/diff 与独立只读审查通过。
+故障注入未执行，未推送；未以本地检查代替远端双宿主 CI。
+
+### Container 测试直接消费 sealed Unit（2026-11-14）
+
+基于 `043b8987` 的普通 container size 三个见证，现直接构造 sealed Unit 并调用
+`lower_owned_unit_with_entry`；另迁移 `text_extension_tests::unit_generic_container_tests`
+的四个泛型容器签名见证。全部源码、FQN、owner/loan 身份、cleanup、输入排列
+SSA/LLVM 确定性及泛型 arena 不增长断言不变。生产和 Origin 不变。
+
+中间提交 `57e20c81` 曾将旧 scalar adapter 与 sealed Unit 分别执行；进一步核对
+`unit_lower/constant.rs` 发现该 adapter 已原样委托相同 factory 与 lowering，
+因此双跑没有新增独立路径覆盖，现取消重复执行并修正口径。本片仅减少测试对
+适配器的依赖，不计作 D10/E2 新能力，也不宣称旧实现退役。
+
+普通 size 3/3 与 generic 4/4 定向测试通过，独立只读审查确认全部原测试体与
+断言保留。fmt 检查通过；未运行故障注入、全量 native 或远程 CI，未推送。
+observer-support codegen all-target 严格 Clippy、docs951 与 diff 检查通过。
+
+### 旧文件 lowering 退出门禁核验（2026-11-14）
+
+基于 `f0c680d5`，仅测试构建的 `lower_frontend` 实际子树恢复
+`deny(dead_code)`，没有删除函数、字段、断言或别名。该作用域不存在反向
+allow；重新导出的其他模块不受它的 lint 继承，不能据此宣称全树已审计。
+严格编译未发现可直接删除的 dead code；旧 single-source 身份见证仍是退出
+前置，scalar Unit adapter 调用数不是独立旧 lowering 能力欠账。
+`lower_frontend.rs` 原 1321 行尺寸债保持，新增仅一行门禁，不机械压行拆文件。
+observer-support codegen all-target 严格 Clippy、原泛型递归身份 ordinary exact
+1/1、fmt、docs951、diff 和独立只读审查通过；未运行故障注入、全量测试或
+远程 CI。该结果不是代码退役或所有死代码清零的证明，未推送。
+
+### E2 两源分臂借用的最小候选合同（2026-11-14，未启用）
+
+本节是下一实施切片的设计准备，不是已批准能力；不修改 Guide、Origin 方案、
+旧同源事实构造器或 selected 范围。基线为 `5e245eb6`（main `3b7a9a7a`）。
+
+**已核实现障碍**：`compilation_unit/loop_no_carry.rs` 的
+`UnitLoopBranchNoCarryFact::new` 明确要求两臂 `source` 相等；
+`refine/arm_loop_receipt.rs` 的 `Plan` 只保存一个 `source`，角色首项取首臂参数；
+其 `validation.rs` 为两臂共同查找这个父 loan。这是跨前后端的现行合同，不能
+只删一个相等判断、把参数数组加长或复用旧事实身份就放开两源。
+
+**建议首片**：仅两只读 String 参数、一个稳定 Boolean 选择、一个已有形状的
+有限递减 counter；每臂在本臂内结束新借用，循环后仍可使用两参数。例如：
+
+```koven
+fun view(source: String): borrow String from source = source
+fun consume(item: String): Unit {}
+fun run(left: String, right: String, rounds: Int, choose: Boolean): Unit {
+    var remaining = rounds
+    while (remaining > 0) {
+        if (choose) { borrow val a = view(left); consume(a) }
+        else { borrow val b = view(right); consume(b); consume(b) }
+        remaining = remaining - 1
+    }
+    consume(left)
+    consume(right)
+}
+```
+
+两个 source 必须都是 Shared String loan。这里只要求两个不同参数符号，
+不要求底层存储不别名；调用者传入同一 owner 的
+两个共享借用应在独立验收中覆盖，不得从符号不同推导内存不重叠。该例尚未
+取得新合同下的编译/native 通过证据，不把静态代码审阅冒充红测试或诊断码。
+
+**事实与独立验收责任**：
+
+1. 新候选事实与原同源域分离（最终命名待实施），精确绑定 callable、loop、
+   branch、then/else 次序、各臂 source symbol/call/binding/唯一 End、counter
+   初始化/condition/update。旧 `owns_no_carry_branch` 不认可新事实；新域也
+   不以结构相似或嵌入旧事实获得授权。Single/Unit 与 observation 开关必须同义。
+2. 实际 CFG 必须捕获 entry 内 init→header→split、两臂→join/op_block、
+   checked subtract 的 op_block→abort/success、success 内 update→header，
+   以及 header→finished→exit（允许既有 finished==exit）的完整前驱/后继集合。
+   保留结果、失败标记、被减数、常量 1 的具体身份/运输和 abort 终结，不因
+   remaining>0 在逻辑上排除溢出便省略实际失败边。保留两个根在各节点的映射；每臂
+   BorrowCall 的 source 和参数只能取该臂的父 loan，不允许位置猜测或交换根。
+3. 每臂新 loan 只在该臂使用并唯一结束，不进入 join/header/exit 参数；两个
+   输入共享 loan 及其 CFG 重绑定均不能被结束、消费或 drop。producer/consumer
+   沿用既有受限 callable 形状和逐次具体 callee 身份核验（含 replay，不以名字或
+   签名匹配代替），不开放未知效果、额外实参或
+   外带借用结果。循环后对两根的
+   正常使用必须由真实后继证据证明，不能以有限执行次数替代静态闭合。
+4. required、selected、detached replay、最终发布分别持有新域身份；丢失任一
+   责任必须 fail loud，不能回退旧同源域或普通 no-carry 域。不能仅用
+   `Vec<source>` 或一个全局 Boolean 证明两根与两臂对应关系。
+
+**刻意不组合**：首片不含 scalar prefix、条件 break、early return/continue、
+嵌套循环、多循环、第三根、Inout、字段/元素投影、可变/替换根、跨轮活跃借用、
+新的 producer 形状。旧同源 counter/prefix/break 三域原边界全部保留。两个根
+并不自动授权一般多源分析，也不改变应用代码零生命周期参数的现行表面合同。
+
+**实施与验收顺序（均待执行）**：先普通前端红证据及完整拒绝身份，再单独发布
+新前端事实；接入 backend 捕获/重放；最后独立验证发布责任。普通矩阵覆盖
+0/1/2 轮、两选择、参数排列、同owner/不同owner调用、rooted/memory输入、
+observer开关及循环后两根继续使用。旧同源正例须保持；上述非目标须继续拒绝。
+CI-only 损坏矩阵至少覆盖臂源交换、遗漏第二根、错 End、fresh loan 进入回边、
+错误 counter 初值/更新、额外前驱、发布身份缺失，并有相邻恢复对照；仅 CI
+执行，不在本地启用故障环境。普通编译/native 不替代这些动态拒绝证据。
+
+### E2 两源候选语法准备片（2026-11-14，未启用）
+
+基于 `2d36fc8b`，先确认 core `loop_no_carry/shape.rs` 在实际事件检查前也
+要求两 root 相同，故不能直接构造可用新 fact/receipt。生产 `selection` 现固定
+委托 `select::<_, false>`，与原同源条件等价；true 实例只在测试子模块调用，
+要求不同 root、有 counter、无 exit/conditional，直身拒绝。未接入 core session、
+公开 fact、selected 或发布路径，不改 Origin，也不宣称事实实现完成。
+
+真实解析 AST 普通测试覆盖候选两源、旧同源、错误递减常量、break、非 counter
+及臂内 return；另用真实 Single name/type/ownership 链验证两源仍含 L0164，
+同源仍成功。语法回调依赖 fixture 唯一名字，不能代替生产 resolved symbol，
+也不证明 Shared 参数、callee 效果、同 owner 实参、完整诊断身份或全部候选
+合同限制。没有伪造已接受事实或执行故障注入；Unit 真实前端及 backend receipt
+尚待后续，未运行 native/远程 CI。
+
+最终源码 exact 1/1（含上述普通矩阵）、frontend all-target 严格 Clippy通过，
+独立只读审查确认生产 false 路径与原逻辑等价；true 只有当前测试调用隔离，
+不声称它在类型层禁止未来生产调用。本地提交、不推送。
+
+### E2 候选的真实 Unit 拒绝与发布边界（2026-11-14）
+
+基于 `b1eca8fb`，只增加 feature-gated 普通测试
+`shape::two_source_candidate::actual_unit_rejection_cannot_publish_candidate_authority`。
+真实 name/type/ownership Unit 链覆盖 rooted/memory 与 observation on/off，两源
+仍含 L0164，borrow binding、straight/branch/counter fact 均不发布，validate
+失败；同源邻居成功且仅 counter 域 owns 其事实，旧 branch 域不取得权限。
+observer 开关的完整非观察产物相等。所有结果来自真实 checker，不合成成功状态。
+
+候选与 Unit 边界两项普通测试 2/2 通过，未修改 selector 或生产代码。这里核验
+的是当前拒绝和发布隔离，不是两源实际 Acquire/End 事件、完整诊断身份、新
+fact/receipt 或 native 已实现；这些仍待合同启用后的独立实施。
+frontend observer-support all-target 严格 Clippy、fmt、docs951、diff及独立只读
+审查通过。未运行故障注入或远程 CI，未推送；“无事实”仅指本片列出的域。
+
+### E2 Unit-only 真实闭合现场实验（2026-11-14，未启用）
+
+基于 `9be51b28`，先独立审查隔离设计，再实现 `cfg(test)` Unit 专用选择入口。
+它使用真实参数/call回调、core Frame 的 claim/acquire/use-return/removal/close
+和 counter update，不以语法匹配直接发布权限。在两个现有临时 arm fact 分别
+通过最终 End 唯一 receipt 匹配后，只现场断言 callable/loop 一致、roots/body/
+binding/End 身份不同及有实际消费者；不保存 proof 或失败观察 payload，计数
+仅证明断言到达。旧 pair 同源守卫、accepted 计算、诊断及回滚原样保留。
+
+首次代码复审发现共享 selector hook 会扩大到 Single，已改为仅 Unit 的测试
+别名入口；生产与 Single 都调用固定同源 selector，且测试在启用作用域内再次
+实际检查 Single 仍拒绝两源。未引入可在非测试编译启用的开关。
+
+普通矩阵覆盖两源、同源、非counter、臂内return，rooted/memory及observer on/off。
+两源实验应到达现场一次但最终validate仍失败；同源/非目标不误计数。失败公共
+产品须无全部 no-carry 发布域、borrow bindings及loan observations；关闭hook后
+再分析仍拒绝。同源成功邻居保留。独立RAII测试验证嵌套及panic恢复；只测试
+Rust测试状态清理，不伪造Koven接受状态或执行CI故障注入。
+
+本片只能证明测试隔离下真实core/End现场被走到且列明产品被撤销，不证明完整
+两源合同、动态多轮、同owner实参、SSA运输/abort边或native能力；无新公开fact、
+receipt或Origin变更，未推送。
+最终修正源码4/4普通测试、frontend all-target Clippy默认及observer-support两配置、
+fmt/docs951/diff均通过；独立复审确认Unit-only隔离及七个no-carry域撤销断言。
+
+
+### E2 双根 receipt 接口审计（2026-11-14，未启用）
+
+在 `87cff88a` 后核对新 main `51a3aad3`（#421）；相对旧 main `3b7a9a7a`，
+该合并未改本片 `loop_no_carry`、`arm_loop_receipt` 或本 Spec。工作分支未重排，
+本次只审计接口，不把已通过的临时闭合实验升级为可发布事实。
+
+现有 `UnitLoopCounterBranchNoCarryFact` 内嵌旧同源 pair，而 pair 构造器要求
+两臂 source 相同。backend `arm_loop_receipt::Plan` 只保存一个 source slot，
+`roles[0]` 从首臂 source 映射；layout 再核该 slot 对应入口参数，最终 validation
+对两臂都执行 `entity(arm_block, source)`，再逐项比较 BorrowCall 的父 loan 与实参。
+因此仅删除前端等源条件或给 Plan 增加第二个 slot 均不足以形成新合同。
+
+`Emitted::links` 已按目标 slot 顺序，通过前驱 ends 映射验证真实 edge.arguments；
+这可作为运输核验基础，但不能单独证明臂与根的归属。新的有序对应关系必须贯穿
+source symbol → 入口参数角色 → 每个 CFG block 的参数实体 → 对应臂 BorrowCall。
+不同参数角色不得因调用方传入同一 owner 而折叠；也不得以不同符号/slot/SSA 参数
+身份推出底层存储互斥，或要求调用方的两个共享实参实体必须不同。
+
+独立审查建议下一片先用**当前合法、成功编译的非循环双 Shared 参数分支**取得
+真实 SSA，隔离现场核验上述运输关系，覆盖同 owner、不同 owner 与参数排列。
+这一步尚未执行；若当前合法形状不足，应报告拒绝，不借旧 Plan.fact 或失败分析
+payload 造收据。即使该基线通过，也只能称运输证据，不是循环闭合或新域发布。
+
+真实两源 receipt 仍依赖合法新域事实，以及独立 required/selected/replay/publication
+身份链；双根后继使用、fresh loan 唯一 End、callee 身份、完整 checked-counter
+abort/success 边必须共同闭合。当前不增加公开 API、不改变 selector、事实发布或
+生产权限。审计与独立复审完成；本片无 Rust 改动，不重复声明历史 Rust 测试为
+新验证，亦未运行 native、CI 故障注入或远端 CI。
+
+
+### E2 非循环双 Shared 运输基线（2026-11-14）
+
+`46fb61c4` 后的真实试验发现：strict Unit 前端通过的两臂 `view(left/right)`
+借用结果分支仍在 backend 对整个 if 返回 UnsupportedNode，不能据此生成新 receipt。
+普通拒绝测试绑定 if 的完整 Span（含 rooted provider 的 package 偏移），不放宽门禁。
+
+降阶为两臂直接打印各自 Shared 参数、join 后依次使用两根的现行合法程序。
+新增 `e2_two_source_transport_tests` 检查实际条件来自 flag、四块 CFG、两臂及 join
+逐位置参数运输、每臂根角色与后继两根使用。caller 的实际 BorrowBegin→RootPlace
+追到 StringLiteral，分别确认不同 owner 的 a/b 与同 owner 的 a/a，并覆盖形参顺序
+反转。不同共享 loan 可以指向同一 owner，不将 slot 身份误当内存互斥。
+
+输入为 MemoryDocument 严格 Unit 与 rooted 跨源 Unit，不是两个 lowering 引擎。
+程序经真实 frontend、lowering、SSA verifier 与 LLVM render verifier；无合成事实、
+receipt 或故障注入。仅证明非循环、无 BorrowCall 的运输基线；不证明 BorrowCall
+分支、循环闭合、native 执行或 E2 新域发布。独立复审提出的条件/owner/span 三处
+断言已补齐。ssa/mod.rs 增加3行测试注册，未借机重排现有尺寸债。
+
+最终修正源码普通测试2/2、observer-support codegen all-target严格Clippy、fmt、
+docs951、diff及独立复审通过。最初默认配置codegen lib-test编译被10项既有
+receipt观察helper的dead_code阻断；未抑制lint或删除helper，不能宣称默认配置
+编译通过。本轮未运行native与远端CI；现有ssa/mod.rs尺寸为1008行（原1005）。
+
+
+### E2 基线发布门禁修复复用（2026-11-14）
+
+`bc63736b` 后按发布要求逐字复用 #422 的 `4e246716` receipt observer feature
+门控，以及 `7d7bfeb9` 的 borrow_argument 模块提取；不删除见证、不降 dead_code
+要求。mod.rs 在保留 E2 测试注册后为343行，提取文件659行；候选测试源码及已知
+UnsupportedNode边界完全不变。只复用代码补丁，历史验收不冒充本轮验证。
+
+与新 main `51a3aad3` 存在两个 merge-base，现有尺寸脚本按设计拒绝 `--base main`；
+本片不修改政策或脚本，明确基线检查采用旧 main `3b7a9a7a` 与本片父提交。
+发布集成线合并新 main 后仍须重跑真正的 main 尺寸门禁。
+
+`c9c7dd5a` 修正树验收：codegen all-target严格Clippy默认/observer-support两配置
+均通过，E2两项普通测试两配置各2/2通过；fmt/docs951/diff通过。尺寸脚本在提交树
+对`bc63736b`及`3b7a9a7a`两明确基线均通过（2164个手写Rust文件，36个既有
+超限文件仍列账）。独立复审逐文件核对与两原修复一致，无新生产权限变更；未运行
+native或远端CI。此前默认配置阻断已解除，main多merge-base集成检查仍留发布线。
+
+### E2 非循环 caller 清理责任（2026-11-14）
+
+核对 #422 为 OPEN、head `3362dee8`；main 为 `51a3aad3`。基于本地 `87de06bf`
+继续独立测试，不改发布集成树。原运输基线增加真实 caller 的正常返回责任检查：
+显式限定一个block且终结为Return，按block.instructions顺序核两个调用的六个
+共享loan各自唯一End，发生在本次call之后、下次call之前；总End数不得有额外项。
+String owner经实际BorrowBegin→RootPlace追溯，唯一Drop必须晚于其每个loan的End，
+包括同owner的两份能力。Boolean Copy临时值不强加String的Drop合同。
+
+本片无新源码形状或生产改动，不把正常返回清理证据推广到异常退出、任意CFG、
+BorrowCall分支或E2循环receipt；原UnsupportedNode边界保留。独立只读复审通过。
+默认与observer-support两配置的2项普通测试各2/2、codegen all-target严格Clippy
+均通过，fmt/docs951/diff通过。未运行native、CI故障注入或远端CI；未推送。
+
+### E2 隔离测试态两源事实域（2026-11-14，生产未启用）
+
+在明确授权本地实现新域后，新增 `cfg(test)` 的 `TwoSourceCounterFact` 与独立
+CompletedNoCarry字段。此片从零发布观察实验推进为**测试构建中的前端授权域**，
+不可仍称“零权限实验”，但非测试依赖构建完全不包含该类型、字段、选择入口或
+发布分支，backend未接入。普通生产selector与旧pair等源守卫完全保持。
+
+独立RAII开关选择真实Unit形状回调，Shared String与resolved参数检查、callee
+签名/调用检查、core Frame闭合及counter更新均沿用真实检查器。仅不同源的真实
+CounterBranch且两臂最终唯一End都匹配后，才生成新私有identity与完整counter
+元数据，并由独立成功分支接受。不捕获或持久化失败观察，不以shape或计数授权。
+旧域不发布嵌套arm/pair；owns按Rc身份，克隆保留身份，另一分析不可借用权限。
+
+普通验收覆盖成功后两根继续使用、形参反序、同/异owner调用的前端合法性、
+rooted/memory、observer on/off；精确核AST来源与左右resolved参数。新域内Single
+仍拒绝；旧实验单独仍失败，两开关同时启用仅新域发布。新开关嵌套及panic恢复
+有独立RAII验收。同源邻居仍由旧counter域成功，错误递减与臂内return仍拒绝。
+
+跨源撤销用rooted程序先真实构造一个新fact，再在后一源触发use-after-move：
+构造计数为1但最终新域、七个旧域、borrow bindings与观察均不发布，validate失败。
+已核dataflow的整Unit失败/延后gate将CompletedNoCarry整体置Default。初次同源文件
+late-error试验在End匹配前已被撤销，未把它当“先发布后撤销”证据；MemoryDocument
+仅支持单源，不冒称通过跨源矩阵。
+
+本片不提供可被backend消费的生产新域、不运行同owner native、不形成SSA receipt
+或required/selected/replay/publication后端链。仍需独立启用与完整后端验收。
+最终源码候选/新域5项及旧实验2项普通测试通过，frontend all-target严格Clippy
+默认/observer-support两配置通过，fmt/docs951/diff及独立复审通过。新事实模块95行、
+测试214行，接线文件797行；未运行native、后端receipt或远端CI，未推送。
+
+### E2 隔离事实的实际 callee 绑定（2026-11-14）
+
+基于`001fb7da`，将未来receipt消费所需的producer/consumer具体callee身份锁入
+测试态事实。每臂仅沿已闭合arm的initializer与有序consumer序列，从同一Checker的
+typed产物取得`(UnitExpressionId, UnitCallableInstanceKey)`；保留完整类型实参顺序，
+不按名字/签名回填、不去重、不再次按AST遍历排序。缺失descriptor、非当前source
+或非Declaration目标均令新事实构造失败；identity与构造计数只在全部记录成功后创建。
+
+普通矩阵加入同签名`consume_other`声明，逐项核对实际typed key、producer与consumer
+声明及顺序；同callee的重复调用必须保留不同callsite，替换为另一声明后key必须不同。
+原独立owns、旧域隔离、晚错误撤销及默认拒绝矩阵继续运行。完整类型实参为直接
+保存既有规范化key，不代表本片另外验证了泛型实例矩阵。
+
+所有记录与构造仍仅在cfg(test)域；不增加producer/consumer允许形状，不接入backend
+计划或receipt，不证明SSA callee replay、实际执行或生产授权。
+最终源码观察配置候选/新域5项与旧实验2项、默认候选2项普通测试通过；frontend
+all-target严格Clippy两配置、fmt/docs951/diff与独立复审通过。未运行native/远端CI。
+
+### E2 非循环 child-loan 运输前置（本地）
+
+`shared_child_straight_line_transport_baseline` 使用严格memory/rooted Unit生成真实SSA，
+两共享根分别调用view并消费其child，检查确切callee、参数列、Shared结果、唯一End及
+后继父根使用；caller核不同/相同owner、独立loan和正常返回清理。覆盖形参反序。
+此项不提升两源测试域的生产可见性，不构造backend receipt；没有分支或循环，
+不证明两child同时存活、循环backedge、checked-counter异常边或native执行。
+最终默认与observation配置各3项定向测试通过（均含真实SSA verifier及LLVM render），
+两配置all-target严格Clippy、fmt/docs951/diff和独立复审通过；未运行native或远端CI。
+
+### E2 专用跨crate实验桥（生产未启用）
+
+独立`e2-two-source-test-support` feature令frontend依赖构建可承载真实实验域，
+默认与observation-only构建不含公开实验API。不能仍声称仅cfg(test)可存在新域。
+独审否决公开通用scope加普通validated产物方案：Cargo feature可传递合并，默认
+关闭的scope不等于技术隔离。改为专用分析入口，scope私有且不接受用户回调；
+总validate成功才提取新facts至私有字段`TwoSourceExperiment`，不提供普通产物
+转换，失败仅返回None/既有checking error。新包装不能交给现有lowering入口。
+
+codegen测试用真实rooted两源分析跨crate接收opaque事实，核issuing owns、克隆、
+另一真实分析身份、逐臂完整callee key及跨源晚失败无包装。普通分析调用前后均
+拒绝，启用feature本身不改变普通接受范围。没有伪造fact或借旧同源域授权。
+这是frontend→backend实验输入桥，不是backend receipt：尚无新SSA循环emission、
+双根rebind、checked-counter全边或required/selected/replay/publication后端身份链。
+最终新feature/组合feature的codegen定向测试各4/4，frontend组合候选5/5通过；
+codegen默认/observation/新feature/组合四配置all-target严格Clippy、frontend组合
+all-target严格Clippy、fmt/docs951/diff与独立复审通过。未运行native或远端CI。
+
+### E2 独立实验输入计划与typed身份（本地，未接入lowering）
+
+实验包装持有原typed analysis owner的Arc身份，而不是复制typed产品或只比较索引。
+独立codegen测试态Plan先核issuing owns与原typed身份，再由完整真实签名的唯一
+参数symbol匹配两Shared String来源列；receiver、非Borrow/String或不唯一匹配拒绝。
+逐臂producer/consumer的callsite顺序和完整instance key在原typed产品中重新核验。
+
+真实跨cratefixture覆盖形参反序；实际声明source-unit/root与fact.callable一致。
+同源文本重新type-check得到的新分析身份被拒绝，不能用结构相同冒充原typed产品。
+Plan引用原fact而不借用旧单source Plan、不给旧arm域权限；仍只在test+实验feature
+中编译。尚无SSA块布局/FunctionId重定位/两源CFG rebinding、counter全边、emission
+或required/selected/replay/publication收据链；不能宣称循环backend receipt已完成。
+独审要求把callable精确关联提升到构造条件：实验桥由原names索引按source-unit/root
+唯一记录声明ID，Plan必须与实际typed签名声明相同；外来实验实例也由Plan直接拒绝。
+最终实验/组合配置E2测试各4/4、两配置codegen all-target严格Clippy及frontend组合
+all-target严格Clippy通过；默认/仅observation的codegen cargo check、fmt/docs951/
+diff与独立复审通过。未运行native或远端CI，不把输入计划称为SSA收据。
+
+### E2 受限真实callee叶闭包与同module lowering（实验，生产未启用）
+
+前一输入Plan不足以调用普通orchestrate：其FunctionId来自真实实例图与body填充，
+不能从key猜ID或用占位body补表。本片只覆盖原AST明确的单Borrow String参数叶函数：
+producer为直接参数Name的借用返回（真实symbol及Parameter(0)合同），consumer为
+真实空Unit block。所有引用instance完整匹配才产生闭包，未知/泛型/receiver/额外
+参数及其他body拒绝该闭包；不影响原合法fact，也不暴露ordinary owned/通用回调。
+
+opaque叶描述保留完整instance key、实际body Span和独立身份；重复调用只共享定义，
+fact中的callsite序列不去重。专用test+feature emitter在同module分配真实FunctionId
+和String类型，生成Shared入口参数、producer原参数BorrowReturn或consumer空Return；
+无虚假body、无输入BorrowEnd、无新父权限。全Program verifier失败不返回部分module。
+
+真实验收包含参数反序、不同声明同签名（独立FunctionId）、重复consumer复用定义、
+原typed身份/外来叶拒绝和LLVM render；非空consumer与分组producer保持合法实验fact，
+但闭包及emitter明确返回None，不丢掉原语句。分组identity虽语义简单仍超出首片范围。
+这只是两类真实源码叶函数的lowering，不是通用callee闭包：尚无caller调用接线、
+循环CFG、counter异常边、两源receipt或native执行；生产入口与接受集保持不变。
+最终实验/组合E2定向测试各5/5（含真实SSA verifier及LLVM render）、两配置codegen
+all-target严格Clippy、frontend组合all-target严格Clippy、默认/观察cargo check及
+fmt/docs951/diff和独立复审通过。未运行native或远端CI。
+
+### E2 已闭合臂的detached helper SSA（实验，生产未启用）
+
+在真实leaf闭包基础上，专用emitter从同一issuing fact及原typed计划生成两个独立
+内部helper，而不是伪造原run函数。helper仅有两Shared String根，按原签名相对
+顺序投影；原完整ABI、条件、rounds等未由此实现。producer BorrowCall以对应根为
+父来源，随后实际consumer DirectCall按完整key与原callsite顺序调用同module叶函数，
+最后child唯一End并Return。无输入根End、无新父权限、无旧单源receipt身份复用。
+
+实验桥按原inputs解析投影arm/callsite/末consumer statement Span，只允许owned
+fact查询；AfterStatement必须等于最后consumer。source投影不是额外授权。helper/
+entry/Return使用明确Synthetic origin，call和End保持原Source origin。失败仅丢弃
+局部Program，不返回部分helper；整个Program verifier之后才交付实验产物。
+
+真实测试核两Shared String参数、columns反序、确切producer source/arguments、
+child身份、各consumer目标/顺序、唯一末End及所有source/synthetic origin；保留
+外来fact/retyped/不支持leaf拒绝，LLVM render也覆盖新增helper。没有helper调用方、
+循环CFG、checked-counter全边、原函数ABI或required/selected/replay/publication
+收据链，不能宣称原两臂已接入循环emitter或完成E2。
+最终实验/组合配置各5/5定向测试（含整个SSA verifier与LLVM render）、两配置
+codegen all-target严格Clippy、frontend组合all-target严格Clippy、默认/观察
+cargo check、fmt/docs951/diff及独立复审通过。未运行native或远端CI。
+
+
+### E2 原函数接线前置审计（未实现，不扩大实验接受集）
+
+`8ce0505b` 的 helper 只能说明两个已闭合臂可独立 lowering，不能改名充当原函数。
+现有真实 fixture 的循环后还包含 `consume(left); consume(right)`；
+`loop_no_carry/counter_shape.rs::select` 仅在原函数顶层定位目标循环及紧前初始化，
+不要求整个函数只有这两条语句。因此一个有效两源 fact 不代表完整函数已被覆盖。
+`e2_two_source_plan::Plan` 也仅定位两个 String 来源参数：没有验证完整参数列表、
+返回 ABI、rounds/choose 的参数角色或全部前后继语句。两列 helper 的相对排序
+不能直接替代原函数的绝对参数列，更不能把不同列当成不同运行时 owner。
+
+下一片最窄实施前置是独立 opaque 原函数描述（此处仅列未完成验收，不宣称已实现）：
+
+- 绑定原 callable、issuing typed 身份、完整参数顺序/mode/type 与 Unit 返回；
+  明确拒绝未覆盖 receiver、泛型及其他 ABI 形状，不从 helper 两列重建原签名。
+- 对原函数每条顶层语句作完整覆盖。首片可仅准入“counter 初始化 + 目标循环”，
+  有额外前缀或后缀就拒绝完整函数描述，但不撤销已成功的局部 fact/helper。
+  若后续支持后缀 consumer，须另收集其实际 callsite、完整 callee key 和真实 body；
+  当前仅覆盖臂内调用的叶闭包不够，不能直接跳过后缀。
+- 绑定 rounds、choose 与 counter 的真实 resolved symbol、各原表达式和 Span；
+  由前端描述明确范围，backend 不自行从 AST 猜测新的权限。
+- 之后才发射完整原 ABI 与 CFG：entry/header/split/两臂/join/checked-success/
+  abort/exit；逐边校验两根、标量及其他准入状态的有序运输与重绑定。
+  checked subtract 必须有实际失败标志、对应 abort 及成功回边，不能用计数条件
+  在构造阶段省掉失败边。旧 `arm_loop_receipt/counter_validation.rs` 是同源收据
+  的参考检查，不可当两源收据直接复用。
+
+若调用 detached helper，应明确这是一种 outline 变换，并核验实际调用参数到压缩
+列的映射、正常返回以及输入根不被消耗；仍需独立两源 required/selected/replay/
+publication 证据链。以上是工程接线缺口，不是等待 Origin 整体规则裁决的理由。
+本轮只读核对并独立复审了上述缺口；未修改 Rust、未新增 emitter 或声称新增运行
+证据，未执行 Cargo/native/远端 CI。生产接受集、旧同源守卫及实验 API 均未改变。
+
+
+### E2 完整原函数窄 shell 描述（实验，未接 CFG）
+
+前述接线审计的首片已实现：成功整体实验分析内部逐 fact 建立可选 opaque
+FunctionShell，原 body 必须恰为 counter 初始化与目标循环；完整四参数按原
+resolved symbol 验证为 Borrow String/String/Int/Boolean，返回 Unit，无 receiver、
+泛型或借用返回。保留原声明、body Span、绝对参数角色和控制表达式 ID；这些
+是覆盖描述，不能替代下一步完整 CFG/checked-abort/receipt 证据。
+
+不支持的前缀、后缀、额外参数与 own rounds 仅导致 shell=None，保留局部 fact
+及真实 leaf/helper 支持。getter 要求 issuing fact 和原 typed 身份；重分析及外来
+fact 不能混用。描述 clone 不是独立权限，未来 emitter 必须通过原实验查询并
+继续核身份，不得只接收任意 shell。叶闭包是否支持仍是独立 gate。
+
+真实 rooted Unit 测试覆盖原顺序和四角色反序、上述四种拒绝邻居、原符号到签名
+列/控制表达式范围核验、retyped/foreign 拒绝、局部 helper 保留及普通分析仍拒绝。
+独立只读复审通过；本片没有原函数调用接线或循环 emitter，生产接受集不变。
+最终两配置 E2 定向测试各6/6通过；codegen 两配置 all-target 严格Clippy、frontend
+组合 all-target 严格Clippy及默认/仅观察 cargo check、fmt/docs951/diff通过。
+尺寸门禁相对 c2dcad7e 通过：2174个手写Rust文件、36项历史超限未增加；新增
+shell191行、桥测试416行。未运行native、远端CI或推送。
+
+### E2 受限完整函数 CFG 与 checked-abort（实验，未发布 receipt）
+
+只有 issuing shell（完整 init+loop 源码覆盖）和实际 leaf/helper 闭包同时可用时，
+新 test+feature emitter 才返回原函数 SSA 及其真实 FunctionId。保留四 Borrow
+参数原顺序/类型，不把 helper 压缩 ABI 冒充原签名。entry 读 rounds 初始化 counter，
+header 比较零，split 每轮读取 choose，两个 arm block outline 调用对应 helper；
+join 发射 checked subtract。失败 flag 的 true 边到 abort，false 边以真实结果
+替换 counter 到 success，再回 header；条件 false 到正常 Unit exit。
+
+每条正常边按原 ABI 运输并重绑定四输入及 counter；abort 另运输真实常量 1 用于
+CheckedArithmetic 原因。没有额外结束输入 loan，不从来源符号不同推导 owner
+不别名。原表达式/零一常量的 Span 从前端 shell 投影，辅助 CFG/outline 标 Synthetic。
+整个 Program verifier 失败只丢弃局部产物；无普通 ownership 产品或旧 receipt 借用。
+
+真实测试在原顺序与参数反序下核九块的全部 terminator/逐列实参、原四参数精确
+类型、initializer/compare/choose 操作来源、helper 目标与列、checked 结果和失败
+flag 身份、success 回边更新、abort reason/divisor/source、无输入 End；LLVM render
+包含实际原函数。前后缀、额外参数、own rounds、未知叶体、foreign/retyped 均不
+获得此完整 emitter，局部事实支持仍保留。此处的 caller ID 不表示已实现外部调用
+该函数或 native 执行，也不等于独立两源收据或生产接入。
+最终两配置 E2 测试各6/6（含精确 CFG 断言、Program verifier、LLVM render），两配置
+codegen all-target 严格Clippy、frontend 组合 all-target 严格Clippy和默认/仅观察
+cargo check通过；fmt/docs951/diff及相对5d3cedff尺寸门禁通过（2176文件、36旧超限）。
+未运行native、损坏注入或远端CI，未推送；独立源码审查未发现权限/语义阻断。
+
+
+### E2 受限完整函数原生返回及输入保留验证（实验）
+
+测试在真实 rooted Unit 分析及完整函数 emitter 的产物中添加明确 Synthetic 驱动，
+不冒充源码调用方，也不改写 LLVM、插桩或注入故障。驱动实际分配两个 String
+owner，建立四 Shared 参数，按原 ABI 调用完整函数；返回后打印两个输入，随后
+结束四 loan，再各 Drop 两 owner。每个 owner 只创建一个 RootPlace；同根用例
+的两个不同 Shared LoanId 真正引用同一 Place，不以两个栈槽副本充当原生别名。
+
+使用现有 TestDirectory/clang harness，未改写的 verified LLVM 经 clang -O0 链接
+运行；两种参数顺序分别执行 MIN/0/3 rounds × 双 choose × 同/异 root 的12种调用，
+共24调用/2个可执行文件。断言正常退出、精确输出和空stderr；子进程10秒截止后
+kill+wait防止错误循环挂住测试。调用前复用完整CFG精确断言。
+
+此证据证明实际原生可执行、这些输入正常返回及根在返回后可读，不声称动态
+记录了分支/次数（consumer为空）或覆盖checked-abort的动态失败；MIN/0属于
+零次循环邻居。精确分支/checked边仍由SSA断言支持，运行时分配计数/泄漏检测、
+生产driver与独立receipt未由本片完成。
+最终实验/组合配置各7/7通过（各含2个真实native可执行文件、24次调用），双配置
+codegen all-target 严格Clippy、默认/仅观察check、fmt/docs951/diff及相对33d9608f
+尺寸门禁通过（2177文件、36旧超限）。独审修正同根Place复用后复审通过。
+未运行远端CI、故障注入、ASan或泄漏计数，未推送。
+
+### E2 receipt 与生产 driver 接线审计（未实现）
+
+`7c3c08b4` 的原生成功不改变授权边界。当前 `e2_function::EmittedFunction` 公开
+可变 fragments/Program 与 caller ID，native 测试会继续添加 Synthetic driver；
+故不能把一个独立 token 挂在该可变结果旁就宣称形成了不可失效的 receipt。
+`e2_function_tests::assert_caller` 是会 panic 的测试断言，输入仅 shell，不核完整
+issuing fact/typed、leaf/arm 来源链；它不是可以直接移动到生产的独立 replay。
+
+最小后续顺序（待实现，非当前能力）：
+
+1. 用选定原 callable 定义 required 范围，保存精确 issuing fact 身份；selected
+   必须与 required 一一匹配。不能因为 experiment 有其他函数的 fact 就无条件
+   要求或放行它们，也不能只比较 fact 数量或数值 ID。
+2. 在独立检查模块以可失败的结果重放实际 Program：结合原 experiment/fact/typed，
+   逐项核完整 caller CFG、所有实际 arm helper 的 producer/consumer/唯一 End，
+   以及完整 key→FunctionId→真实 leaf body 映射。保留源码 Span、ABI 列及 checked
+   所有边；只调用通用 SSA verifier 或比较 emitter 自己保存的 ID 表不够。
+3. 先验证独立 replay，再执行最终整个 Program verifier，成功才把 Program 与
+   receipt 封装为同一个不可变产物。不存在公开可变 Program 借用；若测试需追加
+   driver，应显式消耗并放弃此封印，不能继续持旧 receipt 声称覆盖新 Program。
+   任意失败不发布部分产物，且不提供普通 owned 能力转换或沿用旧同源收据身份。
+4. 后续损坏验证只能按既有 CI-only 边界安排；本地不加入或运行故障注入。
+
+普通 `native::emit_native_owned_unit_object` 当前要求真实 OwnedCompilationUnitView，
+并在 reserve 输出之前验证 entry 与 lowering。现有四参数 run 不是合法的无参或
+argv process entry；native 测试合成的驱动不能替代源码入口及实参来源。真正接
+生产须先有合法源入口/调用闭包和相同分析链，再保留现有 sibling temporary 原子
+发布。不能通过新增万能回调或暴露实验内部 ordinary ownership 绕过该门禁。
+
+这是工程身份/覆盖/发布链的缺口，不依赖未裁决的 Origin 扩展。本轮只读核对，
+没有添加 receipt、开放 driver 或修改接受集；未重复运行 Cargo/native。
+
+
+### E2 单函数独立 replay 与只读实验发布包
+
+本片把 required 明确定为用户选择的一个完整原 callable，而非整个 Unit。
+required 从原 experiment/fact/typed/shell 建立，selected 必须精确一次并保持原
+两臂签发身份；遗漏、重复、foreign 或 retyped 在 emission 前拒绝。builder产物
+另借用实际签发分析/fact，等价重分析不能用数值相同的IDs混入 replay。
+
+独立 replay 不调用 emitter 重建预期产物，也不调用会panic的测试断言。先作
+SSA结构验证，随后从FE重核完整callee key/真实leaf body、每个helper的原callsite
+及唯一child End、来源列，以及原caller九块的所有控制边/checked结果/运输/来源。
+所有函数明确无receiver、无carrier返回且非never-return；callee/columns从FE合同
+核验，不依靠builder的元数据彼此印证。builder的IDs只作最终Program的定位器。
+
+replay与最终整个Program verifier全成功后才交付Published：Program/caller/required
+均私有，仅允许共享引用和只读身份查询，不提供可变出口或ordinary owned转换。
+复制Program不携带发布包；现有native测试继续使用明确的原始可变builder产物，
+没有宣称Synthetic driver被此包覆盖。任何失败不产生部分包，无全局pending状态。
+
+真实用例验证正例封包及LLVM、遗漏/重复selection、foreign/retyped、等价重分析
+产物拒绝和不支持leaf导致Emission失败；不增加本地故障注入。replay损坏矩阵及
+最终gate故障撤销仍待CI-only验证，不能把源码审查当作那些拒绝路径已执行。
+该包只属于test+feature实验域，不是生产receipt、整Unit收据或生产driver接线。
+最终两配置各7/7通过（包含既有raw-builder native回归；不是封包后追加driver），
+双配置codegen all-target严格Clippy、默认/观察check、fmt/docs951/diff和增量
+尺寸门禁通过（2179文件、36旧超限）。独审补齐receiver等ABI元数据与zip长度
+守卫后复审通过。未运行CI-only损坏/撤销矩阵、远端CI或推送。
+
+### E2 独立 replay 的 CI-only 损坏矩阵准备（待 CI 执行）
+
+新增3个ignored测试，分别覆盖receiver/outline根列、成功counter/checked成败边、
+同签名consumer替换/child End改父，共6种真实已发射产物的变异。前5种另要求
+保持有效SSA，以区分源码replay与通用结构verifier；End变异允许先被结构gate拒绝。
+每项从真实Unit重新分析/发射并先确认正常replay，再验证变异拒绝和新候选正常
+publication恢复。这里不是把损坏候选送入publisher的整链原子性故障验收。
+
+测试与共享check均要求CI=true及GITHUB_ACTIONS=true，且默认ignored。独立脚本
+check_e2_replay_ci.sh在实验/组合两配置精确列举3个FQN并确认唯一命中，只有CI
+执行模式才运行；composition workflow增加对应步骤，不更改旧borrow fault库存。
+本地仅允许--list-only编译列举；未运行变异，不伪造CI环境。正常本地测试保持忽略。
+
+静态独审确认变异实际生效、guard及接线无阻断；本地列举不等于远端动态通过。
+最终verifier失败撤销、publisher整链故障及生产接入仍不在此片验收范围。
+本地两配置精确编译/列举各3项，故障执行数为0；普通回归各7 passed/3 ignored，
+双配置all-target严格Clippy、默认/观察check、fmt/docs951/diff和尺寸门禁通过
+（2180文件、36旧超限）。脚本bash语法、无CI环境执行拒绝及CI结果脚本44项单测
+通过；独审通过。远端尚未执行，未推送，不能记作6类损坏已动态拒绝。
+
+### E2 实验 publisher 全链失败验收准备（待 CI 执行）
+
+普通 publish 与 CI 验收复用同一私有流水线；CI 入口只接受封闭的两种故障枚举，
+不接受任意变异 callback、不替换 gate。真实 emission 后修改 caller receiver，
+要求从同一 publish 路径返回 Replay；真实 replay 成功后删除 entry terminator，
+要求最终 verifier 返回 Verify。只有所有 gate 成功才构造 Published，失败返回
+不含 Program/receipt 的 Error。每次失败后重新正常 publish 验证无残留状态。
+现有3项 ignored CI 测试共享该检查，本地仍只编译/列举，动态拒绝待远端执行。
+
+合法源码 process entry 尚未接入：native.rs 的 validate_unit_entry 只接受零参数
+Unit 或单 Borrow Array<String> 的 Unit；实验 run 有4个 Borrow 参数，不能冒充
+其中任何一种。下一步需从真实源码取得 entry 声明、其调用闭包、参数构造及清理，
+并把该完整范围纳入独立 replay/发布；既有 synthetic native driver 不充当此证据。
+本片仍只封装单个完整实验 callable，不触及生产入口或文件输出原子性。
+
+### 真实源码 entry 参数清理前置对账（未接 backend）
+
+真实 checker fixture 对比两种无参 Unit entry：直接向 run 传两个 String、Int、
+Boolean 字面量，及先建立 rounds/choose 两个具名标量局部再调用。两者均在同一次
+完整 ownership validate 后产生4个参数 loan 描述符；字面量版只有2个公开实际 End，
+具名标量版则有4个，每个实参唯一对应。两种的 String 临时值各有一个真实
+CallReturn Drop；所有公开 End 同在该 CallReturn 且 preceding_drops=0。具名标量
+End 指向真实根 Place，而非用 loan 描述符拼造事件。
+
+这排除了最窄具名标量方案的该项前置缺口，不证明整个 entry 已可发布。尚需在
+bridge 丢弃普通产品前，以同一分析身份私有封装 entry 完整 AST、精确实例 key、
+四实参及这些 cleanup 产品，再实现源码 entry lowering 与扩围后的独立 replay。
+现有 bridge/Published 仍只支持 loop callable；没有新增生产权限或合成入口替代。
+
+### 实验私有构造 EntryDescriptor（未接 backend）
+
+成功完整 ownership validate 后、丢弃普通产品之前，收集无参 Unit entry 的最窄
+完整源码：两个不可变 Int/Boolean 字面量初始化局部，随后唯一调用完整的标准
+四参数 loop callable。使用 formed_owned_locals 与原名称解析锁定局部 symbol，
+显式核验初始化表达式/局部类型；调用保留精确 instance key、实参/参数顺序及
+Shared 合同。仅无插值 String 实参和上述具名标量准入，四个真实 End 与两个
+String Temporary Drop 必须唯一闭合，End 先于同 CallReturn 的 Drop。
+
+descriptor 只能内部构造，拥有独立 Rc 身份；entries 查询要求原 typed 身份，
+owns_entry 区分同 typed 下重新 ownership 分析，即使结构相等也不混用。公开的
+只读投影不返回普通 owned capability。前后缀额外语句、标量改回 literal、
+非标准四参数 roles 均只拒绝 descriptor，保留合法两源 fact。没有生成 entry SSA、
+扩大 Published 范围或生产接受集；后继仍须依据该证据完整 lowering/replay。
+
+### 真实源码 entry SSA 与独立 replay（实验，未封包/生产）
+
+entry descriptor 进一步捕获原 SourceMap 的受限字面量快照：无转义/插值 String、
+非负十进制 i32 与 Boolean；不支持形式保守不给 descriptor。后端不重新接收可替换
+AST 或 SourceMap 来决定值。实际 entry SSA 完整覆盖两个标量 val、两个 String
+临时 owner、四个 Shared 实参、对真实 loop caller 的调用，以及 descriptor 顺序的
+四个实际 End 和两个实际 Drop，最后正常返回。无参数 entry 具有原源码 Origin，
+不是测试合成 driver。字面量读取不依赖未定 Origin 合同。
+
+独立 replay 先核对原 caller/helper/leaf 闭包，再逐条核 entry 的19条指令、
+实体类型、完整无参 ABI、来源、调用实参、End/Drop 与返回；不重跑 emitter 比较。
+旧单 callable replay/Published 仍拒绝多出的 entry，不暗中扩大发布范围。
+真实0/3轮与choose两值 fixture 已通过SSA/replay与LLVM生成，跨ownership分析的
+descriptor和产物均拒绝。此片没有执行这些新 entry 的native可执行文件；既有
+synthetic driver native回归仍单独存在，不替代本片运行证据。
+
+仍需将完整 entry 范围纳入不可变 publication，再评估普通 driver 接线；当前仅
+test+feature 的可变产物与独立检查。未推送或运行故障注入。
+
+### 完整实验 entry 发布包与真实 native 验证
+
+新增独立 PublishedEntry，范围是一个原源码 entry 及其完整受限 caller/helper/leaf
+闭包，不是整个 Unit，也不是普通 owned/native driver capability。Required 核对
+原 typed、entry/fact 身份与完整 shell；selected 必须恰好一次覆盖所需 fact。
+emit、独立 entry replay、最终 Program verifier 全部通过后才构造封包，只提供
+只读 Program/entry/declaration，不提供可变或消费式逃逸。旧 Published 不扩围。
+
+封包后的 Program 原样生成 LLVM，经 clang -O0 编译并执行；复用10秒超时、失败
+kill+wait 的 native harness，不追加 synthetic driver，不改 IR。真实源码用例为
+rounds=0/choose=false、rounds=3/choose=false、rounds=3/choose=true，要求退出成功、
+stdout/stderr 均空。空 consumer 的观察只证明正常返回，不证明动态迭代次数或
+分支覆盖；静态完整 CFG/cleanup 由独立 replay 检查。未做 ASan、泄漏计数或 abort
+故障注入。缺选/重复选择、foreign fact/entry、retyped 均测试拒绝。生产接入未开放。
+
+### 完整 entry 的 CI 故障验收准备与生产接入边界
+
+新增一个默认 ignored 的完整 entry publisher CI 测试，复用普通 publish 的同一
+私有流水线；仅双 CI 环境守卫允许封闭故障枚举。真实发射后交换两个 String
+实参或改 rounds 常量，先要求仍为有效 SSA，再要求独立 replay 返回 Replay；
+真实 replay 后删除 entry terminator，要求最终 gate 返回 Verify。每次错误均
+无 Program/receipt，随后全新正常 publish 应恢复。没有任意 mutation callback。
+这些动态断言待 CI 执行；本地只编译/列举，不伪造 CI 环境。
+
+check_e2_replay_ci.sh 扩为4个精确 FQN×2配置，复用现有 composition step；
+原3项故障不删除。完整 entry 尚未经过中途故障的远端执行，不能记成动态通过。
+
+最窄生产接入仍有具体合同缺口，不是要求整个 Origin 设计定稿：
+1. 普通 ownership 对两源循环仍拒绝，实验 with_domain 不产生可交付的普通
+   OwnedCompilationUnitView；不能把实验 envelope 转型或解除 test gate代替批准。
+2. 需明确独立生产 capability 的选择/覆盖范围及与既有 Unit planner/receipt 的
+   组合。当前完整单 entry 闭包并不证明整 Unit 或任意 entry 形状。
+3. native.rs 的正常 object入口使用 owned Unit lowering、合法 entry 校验与
+   SiblingObject 原子文件发布。实验封包的内存原子性不替代此输出文件合同。
+4. 将普通路径与实验路径保持隔离的编译/拒绝证据、远端故障结果及发布失败不覆盖
+   已有输出的验收接齐后，才可评估窄生产入口；本片未改变任何生产接受集。
+
+### 受限原源码调用闭包覆盖审计（实验）
+
+完整 entry publisher 增加独立 Coverage gate，并将只读映射保存在封包内。先经完整
+entry/caller/leaf replay 确认已覆盖所有准入源码 body，再从同次 typed 的 entry
+调用与两臂每个实际 callsite 导出 required instances；不从发射列表反推需求。
+将其与 run/真实 leaf 的精确 instance→FunctionId 映射逐一对账，拒绝遗漏、
+重复 key、复用 ID 或多余源码定义。原 entry 用已验证无参 declaration 单列，
+不凭空制造未发生调用的 instance。两个 synthetic helpers 单列且不得冒充源码
+函数；root、called instances、helpers 合计恰好覆盖最终 module。
+
+该审计只适用于已完整准入的最窄闭包，不是任意 AST 的通用 reachability 算法，
+也不证明未覆盖 Unit 声明可进入生产。在当前范围，单独每个类型检查调用与
+descriptor/fact记录须一致，普通 Unit capability 与 D10 root-set 的组合仍未开放。
+本片不复制 native object wrapper，也不改变既有 CI-only 故障执行规则。
+
+真实两臂改用不同但同签名 consumer 时，源码 called 实例数从3增至4并分别映射，
+不会按签名去重；对应封包仍进行真实 native 验证。当前 leaf 表取自整个实验，
+若其它 fact 带来额外 leaf，所选 entry 会保守拒绝，尚不支持任意多 fact Unit
+组合或自动裁剪其它 fact 的依赖。
+
+### 所选 fact 的精确 leaf 闭包（实验）
+
+修正上一片“其它合法 fact 带来额外 leaf 就拒绝”的有界限制：完整原始 leaf
+验证仍来自同一次成功实验；caller 发射仅选择该 owned fact 的真实调用 keys
+对应 leaf。独立 replay 另从同次 typed callsite 导出该 fact 所需 keys，再核对
+所选 leaf 数量、身份和映射，不复用 emitter 的选择结果作为需求来源。Coverage
+继续对账 entry/run/leaf/helpers 与最终 module，普通完整 leaf 测试入口保留。
+
+真实同 Unit 两个独立 loop caller 与各自 source entry、view/consumer 的 fixture，
+分别只发布各自3个 called instances，两个包源码key不交叉；entry配错另一fact
+拒绝。两份封包均原样 native 编译执行，不合并成多 entry Program。不支持的
+其它 fact 仍会使全局 leaf验证失败，不能裁掉失败事实以绕过完整验证。本片仅
+让“其它也合法”的事实不污染当前封包，不提供通用 Unit 混合后端组合或生产授权。
+
+### fact 级完整 leaf 准入隔离（实验接受范围变化）
+
+在明确授权的实验域中调整上一片的全局 leaf 限制：完整 Unit ownership 成功仍是
+总前提，真实前端错误仍撤销整个实验。仅后端受限 leaf 子集的适用性按 issuing
+fact 身份隔离；callee_leaves_for 同时核原 typed 身份和 fact 身份，只返回完整
+闭包，缺任一 leaf 不发布部分结果。完整 instance key 的角色冲突使所有依赖
+fact 拒绝，不按遍历顺序挑选赢家。旧全局 callee_leaves 保留全有或全无语义。
+
+emitter 与独立 replay 分别从所选 fact 的真实调用需求核查身份受检闭包。真实
+同 Unit fixture 包含一个受支持 entry 和一个 ownership 合法、consumer body
+非空而超出 leaf 子集的 entry：前者封包原样 native 执行，后者查询、发射、发布
+均拒绝；foreign fact 与 retyped 仍拒绝。并非裁掉 ownership 错误或放宽 leaf
+body 语义。不同包不合并 FunctionId；普通 Unit 的全声明、binding、global
+initializer gates 及生产 capability/混合 Unit 接入均未改动，故障仍仅在 CI 执行。
+
+### 实验完整来源交接基础（未执行 backend preflight）
+
+TwoSourceExperiment 私有保留同次成功验证的完整 ownership 产品，使用 Rc 共享而
+不在 clone 时复制整份事实。ExperimentalUnitHandoff 复用普通来源身份检查，核实
+sources/inputs/names/environment/typed 链及 retained typed owner；来源错误先于
+分析身份错误。借用生命周期覆盖所有输入，公开面仅有来源投影和针对 retained
+事实的 owns 查询。无普通 owned/view 转换、raw getter、Deref 或任意 callback。
+
+真实 entry fixture 验证原输入与合法 clone、foreign fact、retyped、空 SourceMap
+和空 inputs；编译负例证明不能代入普通 OwnedCompilationUnitView。此片不是
+“preflight 已通过”的证书，也未改变 entry publisher 或普通 native 接受范围。
+后续须为 validate_declarations/validate_bindings 的实际递归查询建立封闭投影
+接口，复用同一检查实现和错误顺序；不得用 callback 暴露可克隆的普通 ownership，
+不得因两源 binding 不通过便跳过全声明、其他 bindings 或 global initializer。
+
+### 同一 Unit preflight 的封闭事实接口（未增加两源豁免）
+
+枚举现有 validator 递归链的24项查询，建立 frontend 封闭 UnitPreflightFacts；
+普通 CompilationUnitOwnership 与受检 ExperimentalUnitHandoff 逐项委派原事实，
+包括 owns_* 原身份判断，不返回整体 ownership，不复制事实库。外部不能实现该
+接口；接口本身既不证明来源有效，也不表示 preflight 已通过。
+
+普通 driver 原 preflight 抽为唯一实现，顺序保持全声明→bindings→所有 source
+root 的 runtime global 检查，仍早于实例规划/可达性裁剪。legacy gate 条件与
+各递归谓词原样保留，只将输入改为封闭只读查询。真实实验 entry handoff 已能
+进入同一 gate，但旧 binding frontier 仍返回 UnsupportedNode；此结果是边界
+验证，不是放行。实验 publisher/native 接线未变，未新增两源特殊豁免。
+
+普通 fixture 以可达 main 对照不可达普通函数和不可达 global：前者通过共享
+gate 与普通 lowering，后者已被 frontend L0167 拒绝，不造能力绕过更早门禁。后续若为两源增加专用 binding
+检查，须先明确其完整事实覆盖和拒绝情况，不能跳过其他 declarations/bindings
+或 global initializer，也不能把当前实验封包当普通 Unit 发布能力。
+
+### 显式单 fact 的实验 binding 控制准入
+
+真实未选择 handoff 的 UnsupportedNode 精确落在 FunctionShell 原 while 条件
+比较 span；旧普通 pair 列表不拥有两源事实，整函数 binding walker 因此拒绝其
+Binary/If/While。保留这一默认行为，不将两源 arms 转换为旧单源或 pair 权限。
+
+实验 handoff 新增显式 for_fact 单选，要求同次 retained 身份、完整 shell 和
+完整 scoped leaf closure；不自动选择同 Unit 的其他事实。仅在 codegen 的
+all(test, e2-two-source-test-support) 下，专用查询投影核对两臂各自唯一真实
+binding、source loan/root、initializer、End、source-unit 与实际 if 分支 body。
+只把该证明的 condition/branch/decrement 与 while 原 AST ID 加到既有 walker
+允许集合，其余校验继续执行；不整段跳过 binding，更不绕过声明或 global 门。
+
+真实单 fact 完整 entry 可通过实验选择后的共享 preflight；未选择 handoff 仍
+在原条件处拒绝。同 Unit 未选择的第二个两源 callable、额外普通不支持 binding
+仍阻断全 Unit preflight。foreign fact、无完整 shell（含额外前后缀/ABI）或
+不支持 leaf 不可选择；已有 retyped 身份门不变。选定范围不累积，不提供全事实
+默认放行。实验 entry publisher 仍只证明自身闭包，并未自动接入这一 gate；
+普通 native/生产 driver 未开放两源准入，后续发布组合合同仍单独处理。
+
+
+### 2026-11-14：实验 entry 的全 Unit 受检发布
+
+新增独立 `CheckedPublishedEntry`，只由 `publish_checked` 在同次 handoff/fact/entry/typed
+身份核对、内部单 fact 选择、共享全 Unit preflight、原 emit/replay/verify/coverage 全部成功后
+构造。完整 inputs 按 source unit 排序，不缩为可达源码；声明、全部 binding 与 global 门槛
+及其顺序不变。旧 scoped 包不能转换为 checked 包，失败不返回包或降级 scoped 发布。
+
+真实 fixture 验证单 fact 成功、异次分析拒绝、未选两源 sibling 与普通不支持 binding 在
+原精确 UnsupportedNode span 拒绝；成功包可经现有 LLVM harness 执行。旧 scoped 路径
+仍用于对照局部闭包能力，不能声称通过全 Unit 门槛。新增路径仍仅测试实验域，未接普通
+native driver、对象发布事务或生产接受集；本地不运行故障注入，相关验收仍限 CI。
+
+
+### 2026-11-14：受检 entry 发布的 CI-only 故障验收
+
+`publish_checked_ci` 与正常受检发布共享同一内部路径，保留身份检查及全 Unit preflight，
+只在双 CI 环境 guard 后传入封闭故障枚举。新增 ignored 目标覆盖实参交换、rounds 篡改与
+最终缺失 terminator，要求返回对应 Replay/Verify 错误而非任何 checked 包；每次失败后
+正常重试必须重新走完整检查与发射。CI 脚本现在列举 5 个精确目标 × 2 个特性配置。
+本地仅编译/list 故障目标，正常回归仍排除 ignored；未声明故障执行结果或生产能力。
+
+
+### 2026-11-14：多 fact 与生产接入的下一片边界审计（未实现）
+
+当前 `ExperimentalUnitHandoff::for_fact` 只保存一个 selected fact；受检 entry publisher
+内部重新单选，故同 Unit 第二个两源 binding 仍在共享全 Unit preflight 拒绝。
+`e2_callee_leaves::emit_selected` 从新的 Program/Module 分配函数和类型 ID，现有各 entry
+包的数值 ID 不跨包唯一；把已发布 Program 拼接，或仅拼 coverage，不构成共同 Unit。
+
+后续最窄候选是显式 fact-set preflight，而非自动选择所有发现的事实：
+
+1. 输入非空且无重复的原始 fact 身份；所有项须由同次 retained 产品拥有，并有完整
+   FunctionShell 与 scoped leaf closure。不得把 foreign/retyped、缺失 leaf 或额外函数
+   前后缀作为“未选”静默丢弃；失败不产生选择 capability。
+2. 每个 binding 与 callable/loop 在集合中恰属一个事实，核对真实两臂 source/loan/End 后才投影其控制
+   节点。来源相同、key 相同不替代 fact 身份；重复选择与归属冲突保守拒绝。
+3. 一次运行全 Unit declarations/bindings/globals，错误顺序不变；未选两源项仍失败，
+   不能逐 fact 检查后相加成功结果。集合选择
+   只证明 preflight，不证明多个闭包已共同发射，更不能转换普通 owned/native view。
+4. 后续共同 Program 需单一 allocator 与完整 instance-key→FunctionId 表；共享 leaf
+   在同一来源/ABI/角色证明下去重，caller/helper 保持所属 fact，逐项真实 entry 的
+   required/selected 闭包独立 replay，最终整 Program verify 后一次封包。不得改造
+   已发布包的 ID 或用 synthetic entry 冒充原源码调用。此步尚未实现。
+
+候选验收须包括：两个受支持独立事实、共享 leaf、重复/foreign/缺项、普通 unsupported
+binding、未选 sibling，以及同 key 角色冲突。成功选择但发射失败不得留下部分发布。
+这些是新实验接受范围的合同准备，不宣称当前已支持；不需要先定整个 Origin 系统，
+但不可借此放宽未定义的 guard、可变独占或跨迭代 carry 语义。
+
+生产 `emit_native_owned_unit_object` 仍要求普通 OwnedCompilationUnitView，并在 reserve
+之前完成 entry/SSA/native plan 检查，再走 sibling object 原子提交。实验内存封包及
+正常 LLVM 执行尚不能替代这条 authority 与对象事务链；CI-only 故障用例也仍待实际
+远端执行。生产接入需独立明确受支持范围及合法 capability，不使用 unsafe 转型或
+测试 feature 作为发布权限。本节仅记录代码审计与候选次序，未变更接受集。
+
+
+### 2026-11-14：显式实验多 fact preflight 选择
+
+`ExperimentalUnitHandoff::for_facts` 现在接收显式非空原始引用集合，保留同次 retained
+身份并逐项检查完整 shell/scoped leaves；重复 callable（含重复 fact）和 binding 归属
+交叉均整次拒绝。查询只按当前 binding 的唯一所属事实投影原有控制证据，不合并白名单。
+`for_fact` 是单元素替换，不累积之前选择；默认 handoff 仍为空选择。
+
+真实 fixture 以一次共享全 Unit gate 验证独立两事实和共享 producer/consumer leaf 的
+两事实，另验证空/重复/foreign/不完整 leaf 集合拒绝、普通不支持 binding 不豁免、重新
+单选恢复未选 sibling 拒绝。此为明确的实验 preflight 接受范围扩展，不是共同 Program
+或多 entry 发布。checked publisher 仍重新单选目标，因此不因传入集合 handoff 自动
+发布其他事实。普通所有权入口与普通 native 接受集不变；故障测试继续 ignored/CI-only。
+
+
+### 2026-11-14：共同 leaf Program 的实验前置
+
+在显式 fact 集合与一次共享全 Unit preflight 后，`e2_callee_leaves::emit_for_facts`
+以单一 Program/Module allocator 发射真实 leaf 并集；按完整 instance key 去重，重复
+来源须保持相同 body/span，拒绝不一致。独立从每个真实 typed call 重建 required keys，
+核对唯一 FunctionId、完整 module 覆盖，以及每个使用该 key 的 fact 都有唯一原始
+leaf 见证；抽出的独立 body/ABI replay 同时复用于旧单闭包路径，检查条件未放宽。
+
+真实双事实 fixture 分别验证独立四 leaf、共享二 leaf，同次身份、重复集合与普通
+不支持 binding 的拒绝均保留。失败不返回部分 Program。此步仅发射共同 leaf 层，
+没有共同 caller/helpers/entry、没有多 entry receipt 或对象发布，不能称共同 Unit
+已完成；原有生产入口和单 entry publisher 不变。故障仍仅 CI，未在本地运行。
+
+
+### 2026-11-14：共同 Program 的两臂 helper 层
+
+`e2_arm_fragments::emit_for_facts` 从通过全 Unit preflight 的共同 leaf Program 开始，
+消费同一 Program 并逐 fact 追加两臂 helper，不复制或重编号另一 Program。各 helper
+保留原 fact 的调用、父 loan 列映射与真实 child End；名称使用当前 module 分配位置
+避免重复。精确函数数量、leaf/helper ID 不相交及全部 helper 唯一性在返回前核验。
+
+从原单闭包 replay 抽出 `replay_arms`，共同路径逐 fact 独立核对 typed call/key、
+真实源 span、shared parent/child 与 End，同时自包含 ABI/abort 限制；原单闭包继续
+复用该核验。真实双事实独立/共享 leaf fixture 验证共同 allocator 和完整 helper 数量，
+不支持集合仍无产物。此步尚无共同 caller/entry 或多 entry 封包，普通生产入口不变；
+本地只跑正常回归，故障仍限 CI。
+
+
+### 2026-11-14：共同 helper locator 的事实身份绑定
+
+共同 helper 集合现在私有保留原 experiment、原 fact 引用与 Program；locator 字段
+不公开构造或修改，Program 仅共享只读访问。查询先核同次 typed 与 retained fact，
+再以两臂真实 identity 唯一匹配，不按调用者给出的列表位置分配 helper 权限。构建时
+显式检查 locator 数量，按事实身份查找后逐项 replay，不以 zip 截断代替完整覆盖。
+
+真实双事实 fixture 反向查询仍得到各自唯一 helper，另一 ownership 分析与 retyped
+查询均拒绝。此为共同 caller 接线的身份前置，尚未追加共同 caller/entry 或发布能力；
+普通生产入口未变。本地仅正常测试，未执行故障注入或推送。
+
+
+### 2026-11-14：身份绑定共同 Program 的原 caller 接线
+
+`EmittedArmSet::append_callers` 消费实际持有的私有 Program，在同一 allocator 中为每个
+绑定事实追加原九块循环 caller；不接受外部 caller/helper ID，不能拼接另一个 Program。
+`EmittedCallerSet` 保持封闭，按原 fact/typed 身份查询 caller，原 helper 映射保持不变。
+
+单 caller 发射与独立 replay 抽成共用实现；共同路径验证 helper/source 关系、原完整
+caller CFG、checked subtract/abort 边和来源，最后核精确函数数量、caller 与所有
+leaf/helper 的 ID 互斥及整 Program verifier。失败消费局部未发布产品，不返回部分
+CallerSet。真实双事实独立/共享 leaf fixture 反向查询各 caller，foreign/retyped 拒绝。
+
+此步只完成共同 leaf/helper/caller 层；没有共同 process entry、整体 publication
+receipt 或生产 driver 接入。旧单闭包仍走原完整 replay/coverage/native 验证链；本地
+正常回归不执行 ignored 故障用例，未推送或合并。
+
+
+### 2026-11-14：共同 Program 真实 entry 与整体实验封包
+
+`EmittedCallerSet::publish_entries` 消费同一封闭 Program，要求显式原始 descriptor
+一对一覆盖全部已选事实；空/缺项/重复/foreign 描述符拒绝，按真实目标而非输入顺序
+绑定 caller。逐项追加原 19 指令 entry，包括真实 owner、CallEnd 与临时 String Drop。
+
+终检从原 typed entry/arm call 重建 required 实例，并核对唯一 source instance→ID
+映射及 leaf/helper/caller/entry 全函数覆盖；再复核每个 leaf、两臂、caller、entry
+的独立 replay 和整 Program verifier。全部成功才构造只读 `PublishedEntrySet`，
+没有部分返回或 scoped 降级路径。它继承构建链中同次 handoff 的完整 Unit preflight，
+不将预检与另一 Program 拼接。旧单 entry 发射/replay 复用抽取的真实 entry body，
+ABI 与 abort 元数据门已自包含。
+
+真实双事实独立/共享 leaf fixture 逆序传入 entry 并逐个渲染执行同一 Program 的
+原源码入口；另验证 foreign/retyped 查询和无效集合拒绝。这是有界实验整体封包，
+不是普通 OwnedCompilationUnitView 或 native 对象发布权限。生产 driver/对象事务
+接线与新增共同封包 CI-only 故障验收仍另行推进；本地未执行故障或推送合并。
+
+
+### 2026-11-14：共同封包 CI-only 身份与部分失败验收
+
+新增封闭 `JointCiFault` 三类晚期失败：第二 entry 指向另一同 ABI caller、重复 entry
+locator、两个 entry 已完整发射后丢弃末项 locator。CI 专用入口双环境 guard，正常
+入口始终传 None；两者共用完整 descriptor/typed 校验与最终 replay/coverage 路径。
+故障先断言恰有两个不同 caller 且两个真实 entry 已发射，变更后结构 verifier 仍成功，
+避免把无效 fixture 或早期结构拒绝当成语义覆盖证据。
+
+ignored 目标要求每次故障不返回任何封包，再由原 source/fact 重建完整 CallerSet 并
+正常发布，逐个查询全部 entry。已有普通缺选/foreign/retyped 输入拒绝不重复包装为
+故障测试。CI 脚本更新为 6 个精确目标 × 2 配置；本地仅 compile/list 与非 ignored
+正常回归，故障实际执行及结果仍待真实 CI，不宣称本地已验证故障效果。
+
+
+### 2026-11-14：实验整体包的 native 对象事务适配
+
+新增仅 `all(test, e2-two-source-test-support)` 的 crate 内适配器，输入封闭
+PublishedEntrySet、真实 ExperimentalUnitHandoff 与原 EntryDescriptor。首先核封包
+原 typed 身份及包内全部 fact 都由 handoff retained 产品拥有，再查原 entry；来源
+names/types/SourceMap 仅取 handoff，不能外接任意来源映射。普通 OwnedUnit API 和
+默认 feature 接受集未修改，也没有实验→普通 capability 转换。
+
+原 `validate_unit_entry`、整 Program verifier 与 native entry plan 均在 reserve 前；
+然后直接复用现有 SiblingObject 的 reserve→emit_verified_object→commit/Drop 路径。
+包只读，内部 Program/locator 不暴露可变引用。实际对象成功测试按每个选定原 entry
+生成本机对象并核格式、无残余 sibling 文件；foreign handoff/descriptor 的正常输入
+拒绝保持旧输出字节及目录快照不变。后者仅证明身份早拒绝无副作用，不宣称后端故障
+回滚或所有失败阶段已验收。没有本地故障注入，生产 native 发布权限仍未开放。
+
+
+### 2026-11-14：事务提交对象的直接链接执行
+
+实验真实 entry 验收现将 `emit_experimental_e2_object` 已提交的同一 `.o` 直接交给
+clang 链接并运行，不重新渲染 LLVM、不追加 synthetic driver。原 entry fixture 的
+零/正 rounds、双分支及多 fact 独立/共享 leaf 组合复用该检查；执行要求成功退出、
+空 stdout/stderr，并有 10 秒执行超时。临时文件清理在链接前独立核对。
+这证明实验对象可实际运行，不证明空 consumer 的动态执行次数、泄漏或 abort 路径；
+后端故障原子性仍需 CI-only 验收，普通生产能力保持未启用。
+
+
+### 2026-11-14：真实 native commit 失败的 CI-only 验收准备
+
+现有 SiblingObject 没有独立 failpoint；新增 ignored 目标复用普通 native 测试的
+真实目录目标，要求实验对象发射后在 `commit sibling object` 的 rename 阶段失败。
+双环境 guard 后，对共同封包的两个 entry 分别检查 Backend 分类、准确失败阶段、
+目标目录哨兵字节及条目不变、无 sibling 残留；移除测试阻挡后以同一只读包逐个重试，
+核对象格式与清理。不伪造事务或改 SSA/LLVM，正常生产与实验适配器均无代码改动。
+CI 脚本纳入第 7 个精确目标 × 2 配置；本地只编译/list，不执行该失败场景。
+这是待 CI 运行的提交失败证据，不证明 LLVM 写入中断、reserve 失败或已有文件覆盖
+失败的完整矩阵；实际 CI 结果出来前不记为已通过。
+
+
+### 2026-11-14：实验链到生产接入的差距审计
+
+当前实验已具备同次完整 ownership 检查、显式 fact 选择、全 Unit preflight、共同
+Program、独立 replay、封闭发布、真实 object/link/run。不能把这些解释为普通
+OwnedCompilationUnitView 已接受两源循环，也不应继续重复实现另一套 emitter。
+
+| 交界 | 当前代码证据 | 未闭合项 |
+|---|---|---|
+| 前端权限 | `two_source_candidate/bridge.rs` 私有 domain 中检查并保留结果；`handoff.rs` 不提供 ordinary owned 转换 | 生产入口的显式能力类型、选择边界和失败错误合同尚未启用 |
+| 共享规划 | `unit_plan.rs::plan_unit_instances_from_facts` 消费完整 ownership；实验只暴露封闭 preflight 查询 | 普通实例与 E2 闭包共同的只读规划接口、实例集合及声明顺序 |
+| 发射组合 | `unit_lower/orchestrate.rs` 自建 Program/ABI/类型计划；实验 set 也自建完整封闭 Program | 不能拼裸 ID 或两份 Program；须一个 allocator 和统一声明/类型/调用实例映射 |
+| 发布范围 | `e2_arm_fragments.rs` required 来自限定 entry/arm calls，要求每个 fact 一份 entry | 普通函数与 E2 混合闭包的全覆盖、单 process entry 与辅助 roots 的区别 |
+| native | test-only 适配器复用真实事务；ordinary native 只收普通 view | 不能删除 cfg 当启用；需经过正式 capability 与共同 lowering 路径 |
+| CI | 工作流调用 `check_e2_replay_ci.sh`，本地仅 7×2 compile/list | 真实 CI 故障执行结果、集成回归及生产负例未据此确认 |
+
+建议下一批完整做“封闭只读规划能力 → 共同实例计划与单 allocator 声明 → ordinary/E2
+body 分派 → 全闭包独立终检”，先仅在实验域完成混合源码组合。不得导出 retained
+raw ownership 给任意调用者，不增加跳过全声明/binding/global initializer 的例外。
+该批应以普通 helper、共享 leaf、一个真实 process entry 与两个 E2 facts 的混合程序
+为验收整体，而非先拼 Program 后补身份测试。需要先审定规划查询接口和 root/entry
+覆盖合同；本轮只记录缺口，不把受限 entry 的一对一合同默改成任意调用图。
+
+生产启用与 Origin 整体规则不是同一问题：这里已有限定两共享根合同可继续实验，
+但扩大普通 Unit 接受集、错误口径和公开能力仍需单独确认。mutable/carry/guard 等
+未确定语义不在本次接入批中。现有本地分支引用 main/origin-main 为 51a3aad3，
+仅是本地基线，不代表刚核实远端状态；后续集成由发布任务重新核对。
+
+
+### 2026-11-14：封闭共同计划先于 SSA 分配
+
+新增实验 `JointPlan`，显式输入同源 handoff、fact 集合与原 entry 集合。构造先执行
+完整 Unit preflight、原 descriptor 身份和一对一 entry→caller 覆盖；从真实 typed
+callsite 重核完整 instance key，唯一归属 `E2Caller` 或 `RestrictedSourceLeaf`。
+共享叶按完整 key 合并并核原 body/span，跨角色冲突拒绝。计划没有 FunctionId，
+不暴露 retained ownership，也不提供普通 Unit capability。
+
+首片普通源码范围仅既有单 Borrow String 的 SharedIdentity/EmptyUnit 叶；不是通用
+ordinary callable 支持。原 fact/shell/leaf/entry 描述符继续持有完整 ABI、源身份与
+有序调用证据。消费计划才分配 Program，按封闭 routes 发射叶、helpers/callers/entry；
+不重新自动选择其他函数。新增发射入口必须持有私有字段 JointPlan，原底层拼装函数
+维持模块私有；旧入口仍保留其完整 preflight，不能绕过封包签发门。
+最终旧独立 publisher 仍从原 typed/fact/descriptor 重算
+required 与完整映射/replay，而非计划与自身副本互证。
+
+真实源 entry/native object/link/run 矩阵改走该计划；保留旧发布负例，另检查计划在
+分配前拒绝空、重复及 foreign entry。这是有界“先规划再共同发射”的可运行闭环，
+尚未复用 ordinary Unit 的任意类型/closure/ABI 规划，也未扩大生产接受集。后继新增
+ordinary body 路由须延续统一实例归属及全门，不能因已有计划而跳过 unsupported。
+
+
+### 2026-11-14：受限真实打印 consumer 扩展
+
+实验 leaf 新增单 Borrow String 参数、Unit 返回且完整 body 恰为一个绑定 println
+intrinsic 的 consumer。准入不是检查函数名：必须有真实 typed `prints_line()`、
+唯一实参映射、直接参数 symbol、同次成功 ownership 的唯一 Shared root loan 和
+SharedLoan contract，以及 entered/completed 事实。临时 owner、投影、额外语句和
+相关真实 CallReturn 清理不进入此片；producer 身份返回合同保持不变。
+
+实际前端证据显示该 intrinsic 参数引用没有 direct-call End/CallReturn Drop；普通
+lower_borrow_argument 对已绑定参数也直接复用输入 Shared loan。因此描述符保存
+实际 loan，SSA 仅 PrintString(input)→Return，不伪造子借用或结束输入 capability。
+独立 replay 核唯一指令、原 call span、参数身份和无额外 End/Drop。上层 helper 的
+子 loan 仍按原真实合同在 consumer 返回后结束。typed intrinsic 不作为待发射源码
+function key，完整实例归属不引入外部占位函数。
+
+原共同计划/native 事务测试新增两个 fact 共享同一打印叶、逆序 entry、0/3 轮及
+双分支的真实对象执行，核 stdout 为对应来源的精确重复序列。这首次给该实验窄片
+提供非空 consumer 的动态分支/次数证据；不扩展任意 ordinary body 或生产接受集。
+合法相邻形状的拒绝与打印参数事实使用正常源码测试，不在本地执行故障注入。
+
+
+### 2026-11-14：一层 ordinary source helper 的传递闭包
+
+实验 consumer 可完整为 `helper(item)` 单语句，真实 typed 目标须为无 receiver/typeargs
+的声明，参数/结果 ABI 为 Borrow String→Unit。原 names/owned 校验参数引用、唯一
+Shared loan/contract、entered/completed 与清理；本窄参数路径的真实证据无 direct End，
+SSA 复用输入 loan，不结束它。helper 只可为已支持 EmptyUnit/PrintSharedParameter，
+再次转发即拒绝；递归、深链、literal 实参和额外语句不进入该域。
+
+描述符携带原 callsite 和完整 instance key，不存 SSA ID。叶收集包含实际 helper，
+同一个 allocator 先声明全部函数再发射 body，转发仅 DirectCall(input)→Return。
+计划、单/多 fact 选择、scoped replay、entry coverage 与共同发布全部从原 fact 和
+描述符的 callsite 经 typed 重建传递 required；不从发射结果倒推需要哪些函数。
+独立 replay 再核实际 DirectCall 的唯一 key→ID、输入、span 和无额外操作。
+
+真实 native 源码用同签名但不同声明的打印/静默 helper，双臂输出不同；同时通过
+scoped entry 发布，避免只修共同路径。前端保留旧同名 println 空函数源码作为普通
+转发正例，要求 `prints_line()==false`；带额外 val 的同名实现仍拒绝。这不将函数名
+视作 intrinsic 权限，也不开放任意 ordinary Unit body/closure/泛型或生产能力。
+
+### E2 实验无环 ordinary 消费闭包
+
+在单个 Borrow String 参数、Unit 返回、完整单条调用体的既有合同内，
+收集器迭代验证整条源码调用路径，不再人为限制一层 helper。待完成路径与已完成路径分开：
+当前路径重复完整 instance key 即拒绝递归，只有到达真实终端或已证明闭包才登记；
+共享已证明 helper 按完整 key 去重，producer/consumer 角色冲突仍拒绝。
+所有节点依然查询同次完整 ownership 的真实 argument contract、loan 和 typed call。
+无新参数模式、任意语句、generic、receiver 或普通生产能力。
+
+共同 planner、预声明单 allocator、源码要求集重建与逐 body 独立 replay 复用原有实现。
+真实源码验证保留旧一层用例，新增八层逆序声明、两原始 caller/entry 共享 helper 的
+同一 Program 对象链接执行；静默/打印同签名目标通过实际输出区分。
+前端补互递归和深层非法实参拒绝。未运行本地故障注入，未启用生产入口。
+
+验证与排障：前端四项、默认 all-target 编译、双 feature Clippy、文档与尺寸门禁通过。
+原生验证曾间歇性在启动前触发原 10 秒 deadline；旧版对照也复现。失败产物无 xattr、
+有效 linker ad-hoc 签名，系统启动日志含 AMFI/ASP 评估消息；但同次成功产物也有 AMFI
+消息，不能据此断言永久签名拒绝。未更改签名、属性、安全设置或 deadline。
+与并行任务协调错开 native 后，从当前源码重新编译，两个 feature 配置各 10 通过、
+7 个 CI-only 故障测试 ignored。八层共享闭包的真实对象链接执行已通过；此结果支持
+负载相关假设但不证明系统延迟根因。此批仍为实验能力，非生产接入或任意深度栈保证。
+
+### E2 混合 Unit 的普通 body 共享阶段前置
+
+普通 Unit orchestrator 的单个已计划函数发射收敛到内部 `PlannedBodyContext::emit`：
+仍由原 orchestrator 生成统一实例/类型/ABI/函数表，先走既有 refine 路由，再走兼容
+lowerer；参数绑定、receiver/inout 限制、入口 Drop、返回值转移和清理顺序不变。
+闭包 thunk、最终 verifier 和收据发布仍在原位置；函数间原顺序不变。
+这不是给实验 handoff 开放普通 ownership，也不把 preflight 误当完整 lowering capability。
+当前上下文仅在 unit_lower 内可构造；后续需封闭事实查询和同次分析混合计划授权，
+才能让普通 body 与 E2Caller 安全共用同一个完整 Unit。不得绕过原路由或拼接 Program。
+本地验证：普通 `unit_lower_` 回归 174 项通过（包含原有 native 子用例），
+实例计划回归 82 项通过；默认 all-target 编译及双 feature Clippy 通过。
+逐旧循环体独立审查确认只改调用封装及两处 continue 对应 return Ok，未改变准入。
+
+
+### E2 封闭 lowering 事实与普通实例计划对账
+
+`UnitLoweringFacts` 继承 sealed 的 preflight 查询面；ordinary product 与实验 handoff
+都直接委派同次原事实。Unit instance planner、refine、compatibility body、closure layout
+改收此只读接口，无 raw ownership getter、转换或 callback；普通公开 owned/native 入口不变。
+两个按 call/lambda 过滤的 iterator 仍沿原 slice 顺序、无额外分配，诊断 Debug 仍委派原产品。
+查询接口不是身份或发布凭据，不能替代 handoff、完整 Unit gates 和后端最终验证。
+
+joint 计划在已选择的 handoff 与全 Unit preflight 后，用真实 ordinary planner 为每个
+原 entry 建立完整 UnitInstancePlan。构建及发布前按原 entry/caller 唯一对应，比较 fact
+重建的 required 闭包和普通计划的完整 key 集合，并拒绝重复实例；static-self、deinit、
+callable arguments 或类型实参不因窄转换而从实际计划侧消失。完整类型需求与 callable
+arena 保留，不能只留声明编号或数量。
+
+这一批不合并各 entry 独有的 source token/callable arena，不把逐入口计划当同一共享
+body 上下文。共同 ordinary body 发射仍需单一规划、ABI、allocator 和整体 replay 接线；
+现有实验 emitter 继续以原受限源码证据发射，不据此放宽接受范围。故障仍限 CI。
+本地验证：前端四项与两个封闭接口 compile-fail 通过；两个 E2 feature 配置各十项通过、
+七个 CI-only 测试保持 ignored。普通 Unit body 回归 174 项、实例计划 82 项通过；
+前端严格 Clippy、后端双 feature all-target Clippy、默认 all-target 编译、格式、文档及
+尺寸门禁通过。独立审查分别核查查询迁移与 full-key/entry 对账，未发现阻断。
+
+### E2 单一多 root 计划与共享声明阶段
+
+复用 D10 `4e64a4e1` 树中的多 root worklist 及原测试；ordinary 单入口仍委派 singleton
+并保留原入口限制，实验多 root 在同一实例预算、callable arena 和运行时类型需求上构建。
+Joint 凭据不再保存逐 entry 独立计划，而保存一份完整共同计划，发布前将完整 key 集合
+与所有原 entry/fact 闭包并集对账；不拼接 source token，不删减未覆盖实例。
+
+普通 orchestrator 的 signature-first 声明、layout、CallableAbi、FunctionId 与 runtime-demand
+校验抽到内部 `planned_declarations` 阶段；完整前置 preflight、共享 body、closure 与最终
+发布顺序不变。独立逐代码审查确认抽取主体等价。
+这是共同实验发射的前置：本批实验尚未消费共同声明或 ordinary body。下一片必须将全部
+源码实例统一预声明，再按完整分区填 body；不能让旧追加式 E2 emitter 另分配源码函数 ID。
+本地验收：普通 Unit body 174 项通过；含复用 root-set 用例的实例计划 84 项通过、
+一个 CI-only budget 用例 ignored。E2 两配置各十项通过、七个 CI-only 故障用例 ignored；
+双 feature all-target 编译与严格 Clippy、文档、尺寸、格式检查通过，未推送或本地故障注入。
+
+### E2 既有源码声明的 body 填充前置
+
+caller 与 entry 的实验 emitter 拆为声明包装与内部填充：旧调用仍创建同样源码函数和
+入口块，随后复用填充；新填充只能消费已有 FunctionId，不追加源码函数、不改函数或
+入口块来源。完整参数类型、单个空入口块、无隐藏实体、无 receiver/返回或 carrier 合同
+均为填充前置。该结构检查不授予分析身份或发布权限，失败后的私有 Program 必须整包丢弃。
+
+此批尚未接通 joint 的普通 body，也不宣称已完成统一发布。后续须由单份完整实例计划
+统一预声明并对 source key 分区，用 shared body 发射 ordinary 路由，E2 路由填既有 ID；
+只为 synthetic helper 追加函数。独立 replay 必须绑定原计划身份和真实声明/终结来源，
+不能将旧专用 leaf 的 body-span 假设套在普通 lowering 上，也不能在未填完源码 body 时
+调用旧阶段全 Program verifier。生产路径与能力准入未变。
+
+本地验收：E2 两配置各十项通过、七项 CI-only ignored（含真实 native 执行，原十秒
+单程序标准不变）；双 feature all-target 编译及严格 Clippy、文档、尺寸、格式检查通过。
+独立静态审查确认原包装路径的操作、终结与来源等价；未推送或执行本地故障注入。
+
+### E2 单 arena 完整共同 body 构造核验
+
+新增仅实验测试域的 `check_common_bodies`，消费已封闭 joint 实例计划，并用传入 handoff
+重新选择原 fact 验证同次分析归属及完整 Unit preflight。所有源码函数先经共享
+`planned_declarations` 一次预声明；普通 leaf 使用原 `PlannedBodyContext`、callable arena、
+类型与 ABI，E2 caller/entry 只填既有 ID，只有 arm helper 追加新函数。每个完整实例 key
+恰好属于 ordinary/caller/entry 一路，未知及重叠路由拒绝，隐含 closure thunk 尚未开放。
+
+独立 replay 使用原计划保存的声明 span 核函数和入口块来源，不修改发射 IR 的来源，
+不从 emitter 输出倒推预期。ordinary leaf 的终结来源使用实际普通 lowering 的原声明
+来源；调用、借用、清理、checked-abort 等 body 来源及具体操作仍按真实源码 witness
+核验。源码 ID 与 helper ID 唯一且互斥，全体 body 完成后才运行完整 SSA verifier。
+
+当前此路径仅返回构造检查结果，不暴露 Program、对象或 native 发布能力；所有普通
+receipt 观察 guard 在成功和失败时均回滚，原 joint 发布路径及其正常 native 测试仍保留。
+共同 body 的 SSA/replay 证据与旧路径 native 执行证据必须区分；后续才可将共同结果接入
+受检不可变发布和对象事务。此批不增加生产接受集，也不解除全声明/global initializer gate。
+
+验收接入既有真实 entry、多 fact/共享 leaf、Print、Forward 和八层链 fixture；两配置
+各十项通过、七项 CI-only ignored。新共同路径验证完整 SSA 与独立 replay，旧路径 native
+回归保持原十秒标准；没有运行本地故障注入。独立只读复核确认身份、完整分区、来源和
+观察撤销边界，无遗留阻断。
+
+### E2 共同 Program 的独立受检封包与对象事务
+
+共同构造在全计划分区、真实来源 replay 和最终 SSA verifier 全部成功后，签发独立
+`PublishedCommon`：私有字段保存原 experiment/fact/entry 身份与不可变 Program，不提供
+普通 OwnedUnit 转换。签发器只接受不可伪造的封闭 `JointPlan`，不能由 SSA 内部调用者
+传入裸 plan/leaf/caller/entry 列表拼装权限；内部再次核 typed、完整 key、原 fact 所有权，
+重新选择同次 handoff 并执行完整 Unit preflight。任何失败均不返回封包，普通 receipt
+观察仍随 guard 回滚，不冒充普通生产 receipt。
+
+新增 test-only native adapter 使用封闭的新旧封包枚举复用原对象事务。身份、原入口、
+SSA 与 native entry plan 全在 reserve 前验证，随后使用原 LLVM→SiblingObject→commit
+流程。旧封包及 adapter 保留，生产接受集不变。真实对象测试覆盖原 entry、多 fact、
+共享 leaf、Print、Forward 和八层链，链接事务产出的同一个 object，不重发射 LLVM 或
+替换 driver；外来 handoff/entry 必须保持已有对象与整个目录快照不变。
+
+既有 CI-only commit 失败验收同时覆盖新旧封包，检查真实 commit 错误、原目录哨兵不变、
+无 sibling 遗留及随后完整重试。本地只编译该用例，不执行故障；正常 native 仍沿用
+原十秒单程序 deadline，无签名、属性或系统安全设置变更。
+
+最终本地验收（2026-11-14）：在已观察到的空闲窗口按原十秒单程序标准顺序执行，双
+feature 正常 E2 套件 10 passed / 7 CI-only ignored（73.02s），单 feature 同样
+10 passed / 7 ignored（72.08s）。新共同对象、旧对象与旧 LLVM 路径的真实源码执行均
+包含在正常套件内；没有修改签名、属性、安全策略或 deadline。最终逐 diff 独审确认
+封闭 JointPlan 签发、同源身份与 reserve 前检查保持，无新增阻断。
+
+此前超时仍是已记录的历史失败；本次通过不能单独证明资源竞争或系统策略是其根因。
+CI-only 失败原子性验收未在本地执行；生产入口仍未启用。本片在 a4a9c9f0 基线上验证，
+与后续主线的隔离非 native 组合证据另记，不冒充更新主线的完整 native 验收。
+
+### E2 实验共同计划的封闭选择错误
+
+`JointPlan::build_checked` 在原 test + feature 域内提供阶段化 Result；旧 `build` 仅委托
+`.ok()`，不增加 fallback 或改变生产 API。检查顺序保持分析身份、fact/entry 选择、来源
+映射、完整 Unit preflight、封闭 route/实例计划。来源映射与 preflight 原 `LoweringError`
+及 span 原样保留；其余未细分的闭包事实/一致性失败统称 `ClosedPlanRejected`，不能解读
+为源码在语言层必定非法或自动切换另一 lowering 路径。
+
+真实源码回归对照旧 Option 与新 Result：合法窄闭包、外来分析身份、重复 fact、入口数量
+不匹配、外来 entry，以及普通借用邻居触发的原 preflight 拒绝。此片只做计划选择，不
+发射 Program、对象或执行 native；不依赖尚待 native 最终验收的共同封包工作。
+
+本片单/双 feature 精确非 native 回归各一项通过，双 feature all-target 严格 Clippy、
+默认 all-target 编译通过；逐 diff 独审确认旧接受集及检查顺序不变。此证据不替代共同
+封包的 native/CI 验收，也不代表与更新主线的组合已经完成。
+
+### E2 与 main 21490e9c 的保留来源组合
+
+组合已提交封包 b58247a0、独立错误合同 d90a87d1 与 main 21490e9c，保留原分支。
+condition 冲突同时保留 scalar-entry 的 condition/split/join 观察和 main 的 Copyable
+proof、实际可达性及 literal 折叠。当前 scalar-entry 合同仅接受 Boolean 参数 Name，
+不命中新 literal 折叠分支；最终 receipt 仍核实际 Conditional、两臂及 join，不放宽准入。
+外置观察状态保持唯一；派生文档图按组合源重新生成，不丢 main 的 Spec 归档记录。
+
+实际条件冲突回归包括 main 真实 writeback/literal 源码的前端/SSA/LLVM 检查及原
+scalar-prefix 正例。完整 E2 正常套件在原十秒单程序标准顺序通过：双 feature
+12 passed / 7 CI-only ignored（84.39s），单 feature 12 passed / 7 ignored（64.71s）。
+没有改安全策略、签名、属性或超时。之后仅加强测试的零前端诊断断言，不改变生产实现；
+其精确回归单独复验。CI-only 故障仍未在本地运行，也不将本次组合称为生产已开放。
+
+组合尺寸门禁发现 condition.rs 达 1011 行；仅将原 cfg(test) receiver_ci_tests 模块
+等价提取至同名子模块，主文件降至 822 行，未增加例外额度。独审核正文逐 token 等价、
+生产前缀逐字不变、模块路径/可见域/唯一观察状态不变。仅编译和列举 CI 用例，不执行。
+
+### E2 默认关闭的显式完整 Unit 能力
+
+在 51e168b9 组合基线上新增独立 `two-source-unit` feature，两端均默认关闭且不启用
+`e2-two-source-test-support`。显式 `prepare_two_source_unit` 只接原 sources/inputs/names/
+types 与源码 entry，内部重新运行真实 ownership checker，再执行同源 handoff、完整
+Unit preflight、单实例计划/arena、所有 body、独立来源 replay 和最终 SSA verifier。
+只有成功才能签发私有字段的 `ValidatedTwoSourceUnit`；它拥有不可变 Program 和唯一
+源码入口，不接受外部实验包或普通 owned 转型，不提供可变 IR 或 retained ownership。
+原生入口只消费该能力及输出路径，不允许替换 entry。签发前保留原 validate_unit_entry
+校验，事务仍为既有 reserve/LLVM/commit；CLI 普通/常量路线与失败策略不变，无自动 fallback。
+
+此能力仅覆盖已证明的受限完整源码闭包，不开放任意 ordinary body。当前 source entry
+仍限定两 String literal 实参与两个具名标量，不支持具名 String owner 的 alias 实参；
+相同文本的两个 literal 不当作同一 owner 别名证据。caller 核心仍不假定两 Shared 参数
+互不别名，原实验同 owner 验收保留；不能由这项入口限制推导语言禁止共享别名。
+未选两源 binding 或普通不支持邻居仍经过完整 Unit gate 并拒绝。阶段化错误区分
+ownership、身份、source entry、来源映射、preflight 及未证明闭包，不把未支持等同非法语言。
+
+共享核心按需编译；旧实验构造包装、故障枚举/注入及观察设施继续保持测试边界。正常
+native helper 从原文件原样提取，单程序十秒、kill+wait 及输出断言未改变。正式入口
+commit 失败/哨兵保留/无 sibling/成功重试用例双 CI guard 且 ignored，仅限 CI 执行。
+本地验收：正式 feature 单独与三 feature 共存配置各 2 passed / 1 CI-only ignored，
+含真实事务对象的原十秒 native 执行。旧 E2 在正式关闭/三 feature 共存配置各
+12 passed / 7 ignored。外部 integration test 仅调用公开 API，被测 library 不带
+cfg(test)，单次真实对象执行 1 passed（1.03s），没有测试 observer；同一 target 已加入 CI。
+两项能力隔离 compile-fail、正式/三 feature all-target 严格 Clippy、默认 all-target 编译
+通过。CI 脚本两配置的三个单元目标及一个外部目标仅编译/列举，本地没有执行故障。
+独立静审核签发隔离、完整 gates、旧 cfg 边界及十秒 helper 原文等价，无阻断。
+该能力仍默认关闭；未推送、未远端执行故障 CI，也未接 CLI 自动选择或放宽一般 body。
+
+### E2 同次分析的显式多入口能力
+
+在 282a1620 上增加 `prepare_two_source_units` / `ValidatedTwoSourceUnits`，仍只在默认关闭
+`two-source-unit` 下可用。所有显式 entry 来自一次真实 ownership analysis，要求非空、
+无重复、每个 descriptor 唯一且分别归属不同 fact；两个入口指向同一 fact 暂拒绝。
+逐 entry 沿用原签名门禁，再复用既有完整 Unit preflight、共同实例计划/单 arena、全部
+body 与独立 replay；不分别编译 Program 后拼接，不减少 build/publish 的独立复核。
+只有全部成功才签发一个不可变 Program 与私有 entry→FunctionId 映射。原单入口函数
+委托单元素选择并验证返回身份，不隐式选择其他 fact，原拒绝域保留。
+
+`emit_native_two_source_units_object` 只允许在封包内选择入口，未知值在 reserve 前拒绝。
+DeclarationId 是此封包内部选择值，不是可识别数值碰撞的跨分析身份令牌。每次调用沿用
+既有原子对象事务；分别发射多个对象不是多文件批事务，不承诺跨调用回滚。能力没有
+公开 Program/ownership 转换，也不接 CLI fallback 或扩大一般 ordinary body。
+
+验收覆盖反序选择两个真实源码入口、共享 leaf、不同 stdout、原单入口拒绝、空/重复/
+同 fact 选择、不支持入口和普通邻居整体失败，以及未知入口保留旧输出且没有 sibling。
+公开库 integration 不带 cfg(test)；实际多入口 commit 失败与原输出保全/无临时产物/
+重试验收继续以 ignored + 双 CI guard 隔离，本地仅编译列举，不宣称远端 CI 已完成。
+
+本地普通验收：正式 feature 独立及三 feature 共存各 4 passed / 2 CI-only ignored；
+两个公开库 integration 在两配置各 2 passed，原对象执行仍用单程序十秒标准。
+最终共同模块/十函数去重断言单独通过，doc-tests 7 passed（含三个能力隔离负例），
+两配置 all-target 严格 Clippy、默认 all-target 编译、文档与 Rust 尺寸门禁通过。
+
+### E2 具名同 owner 的封闭入口
+
+在 28d20d2b 基础上增加精确四 statement 入口：先 `val text="plain"`，然后既有
+`val rounds=十进制非负Int`、`val choose=Boolean`，最后 `run(text,text,rounds,choose)`。
+这只是既有 shared alias 合同的受限真实源码入口，不启用一般局部绑定、可变 owner、
+第二 String root、混用临时 String、字段/分组/移动实参、额外前后缀或转义字符串。
+旧三 statement 的两个 temporary owner 入口不做相同文本去重。
+
+私有 descriptor 的 Temporary/Named storage 变体互斥。Named 变体只接受同次完整
+ownership 中实际 formed local、String 类型及四个调用契约；两个 String argument
+identity 不同，但实际 End 的 root 必须相同。四 End 必须在同一 CallReturn，真实
+preceding_drops=0、preceding_call_loan_ends=0..3，且同根唯一 Named Drop 亦在该
+CallReturn；不得从 liveness descriptor 合成事件。initializer 与 Drop origin 分别
+保留原 initializer 和 binding span，不能都替换为 call span。
+
+SSA 先按源码初始化唯一 String owner/root，再初始化两个 scalar；四个独立 loan 中
+两个 String loan 共用该 root，全部 End 后消费唯一 Named Drop。独立 replay 逐指令
+核同根/独立 loan/次序/类型/origin/唯一消费，而非仅放宽指令数量。全 Unit preflight、
+共同实例计划、完整发布与普通路径的拒绝门保持；单入口和多入口能力均默认关闭。
+
+具名入口本地最终验收使用独立全新 target 重建并核实精确测试注册，避免不同工作树共享缓存
+误用旧产物。两配置均通过具名入口 SSA、公开库原入口/多入口/具名四场景及原 unit 对象执行；
+具名四场景覆盖零轮/三轮和两个分支，仍使用原每程序 10 秒 deadline，无签名、属性或系统策略
+修改。CI 清单只编译列举，本地未运行故障注入；此结果不表示默认生产准入已开放或远端 CI 已完成。
+
+### E2 显式能力的真实 ownership 诊断
+
+默认关闭的两源准备入口必须区分分析异常、真实 validation 拒绝和已验证但不在封闭子集内的源码。
+`analyze_two_source_outcome` 在同一次真实分析后直接消费 `validate` 结果；拒绝时只保留完整、有序的
+`Diagnostic` 与 `UnitOwnershipDeferredFact`，不返回失败的 ownership、loan、fact 或任何 lowering 权限。
+即使两组列表为空，内部 validation 门拒绝仍是 `ValidationRejected`，不能推断为成功或 Unsupported。
+正式准备入口将其作为独立 `OwnershipValidation` 错误交付，不重跑普通 ownership 分析，也不凭第二次
+分析恢复身份。旧实验 Option API 委托同一次新入口并保留原有 None 兼容口径。未改变生产接受集。
+### E2 多入口复用同一已验证 caller
+
+在 28d20d2b 基础上独立推进默认关闭的正式共同 Program 路由，允许多个唯一源码
+entry 指向同一已签发 fact/full callable key，不改变借用、清理或 caller body 合同。
+prepare 仍逐 entry 验证原 descriptor 和签名，仅在内部对同身份 fact 去重；共同计划
+要求所选唯一 fact 集合恰等于全部入口引用的 fact 集合，不能附带不被入口引用的 fact
+来放行其他 binding。复用只限同身份 E2Caller route，不能合并不同 fact 或叶函数。
+
+源码 roots 各自保留，caller 及其两个 arm helpers 仅发射一次。原完整 Unit preflight、
+统一实例预算/allocator、每入口 cleanup 和独立 replay 均不减少；实际 entry→caller
+通过完整 key 查找，不按请求位置配对。单入口 API 不自动包含同 fact 的其他入口。
+每个对象事务仍原子，多个发射调用仍不是批事务。
+
+旧实验 `build_checked` 与 `publish()` 保留一 entry 对一 caller 的范围和基数拒绝；
+其旧 coverage/receipt 结论不能套用到共享 caller。具名入口未提交分支与本批独立，
+此处只使用已提交的 literal 入口，不改变普通路径或 CLI fallback。
+
+本地验收：正式 feature 与三 feature 组合均通过共享 caller 的精确 fact 集合/独立 entry
+SSA 正负例、原有准入回归和严格 Clippy；三项公开库真实对象测试及原有 unit 对象测试在两配置
+均通过，生成程序仍采用原每程序 10 秒 deadline，未改签名或系统策略。CI 清单仅本地编译列举，
+未在本地运行故障注入；本地通过不代表远端 CI 已运行，也不改变默认关闭和普通生产入口边界。
+
+### E2 三批与 main #430 的隔离组合
+
+组合基线为 main `32240166`；保留 `35b1c71a` 的具名入口历史，并合入 `92947b3b` 的诊断合同、
+`92d33c6a` 的共享 caller 精确计划。原独立分支不改写。合并附加测试与 CI 时保留各批全部目标，
+同时增加组合见证：两个各自具名 String owner 的入口共享同一 caller，反序选择，每入口仍有两条
+独立 Shared loan 与一次 Drop；追加真实 move 后使用的普通邻居时，整 Unit 只能返回原验证错误，
+不得签发部分能力。公开库执行矩阵另核 literal/named 混合入口及双 named 入口的独立文本/轮数。
+这仅组合已受限的默认关闭能力，不开放普通 project 分区、标准库裁剪或未经证明的 Origin 合同。
+
+组合验收已在专用 target 完成：两配置各八项非原生能力/拒绝回归，五项公开库真实执行与原
+unit 对象回归（共 30 次生成程序执行，仍是每程序 10 秒）；普通 Unit nullable 替换的四形状
+SSA/LLVM 回归也通过。默认 workspace 全目标编译、两配置严格 Clippy，以及主线 parser block
+continuation、type checking、type constants 定向套件通过。所有权限 compile-fail 继续成立；
+CI 故障项目只编译列举。该验证针对 main `32240166`，不包含尚未合入的 #431 `43f6ad2d`，
+不据此宣称其资源替换后 return 析构语义已兼容，也不声称远端 CI 已运行。

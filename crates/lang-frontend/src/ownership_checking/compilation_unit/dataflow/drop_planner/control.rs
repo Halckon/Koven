@@ -306,7 +306,7 @@ impl DropPlanner<'_, '_> {
             .checker
             .no_carry_proofs
             .iter()
-            .any(|proof| matches!(proof, crate::ownership_checking::loop_no_carry::Proof::Branch(_, arms) | crate::ownership_checking::loop_no_carry::Proof::CounterBranch(_, arms, _) | crate::ownership_checking::loop_no_carry::Proof::BreakBranch(_, arms, _) if arms.iter().any(|arm| arm.body == id)))
+            .any(|proof| matches!(proof, crate::ownership_checking::loop_no_carry::Proof::Branch(_, arms) | crate::ownership_checking::loop_no_carry::Proof::CounterBranch(_, arms, _) | crate::ownership_checking::loop_no_carry::Proof::BreakBranch(_, arms, _) | crate::ownership_checking::loop_no_carry::Proof::CounterBreakBranch(_, arms, _, _) if arms.iter().any(|arm| arm.body == id)))
         {
             return Ok((
                 None,

@@ -613,23 +613,62 @@ pub(in crate::ssa) mod callable_plan_tests {
 
     #[test]
     fn single_callable_plan_ordinary_nullable_generic_argument_keeps_existing_frontier() {
-        let fixture = Fixture::analyze(
-            "fun <T> ignore(value: T?): Unit {}\n\
-             fun entry(value: Int?): Unit { ignore<Int>(value) }",
-        );
-        let type_count = fixture.typed.types().len();
-        let plan = fixture.plan().expect(
-            "callback discovery must not add a concrete-layout gate to an ordinary non-Fn parameter",
-        );
-        fixture.assert_count(&plan, "ignore", 1);
-        fixture.assert_count(&plan, "entry", 1);
-        assert!(
-            plan.instances()
+        use crate::ssa::unit_lower_test_support::{analyze, parsed};
+        use lang_frontend::name_resolution::SourceUnitInput;
+        use lang_frontend::type_checking::UnitCallableTarget;
+
+        let text = "fun <T> ignore(value: T?): Unit {}\n\
+             fun entry(value: Int?): Unit { ignore<Int>(value) }";
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "single-callable-plan.ko", text);
+        let inputs = [SourceUnitInput::memory_document(source, &file)];
+        let (environment, types) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &environment, &types);
+        let declaration = |name| {
+            let matches = names
+                .names()
+                .index()
+                .declarations()
                 .iter()
-                .all(|instance| instance.key.callable_arguments().is_empty())
+                .filter(|declaration| declaration.name() == name)
+                .collect::<Vec<_>>();
+            let [declaration] = matches.as_slice() else {
+                panic!("one original source declaration per name");
+            };
+            assert_eq!(
+                declaration.kind(),
+                lang_frontend::name_resolution::SymbolKind::Function
+            );
+            assert_eq!(declaration.name_span().source_id(), source);
+            assert!(file.roots().contains(&declaration.root()));
+            declaration.id()
+        };
+        let type_count = typed.types().types().len();
+        let plan = crate::ssa::unit_plan::plan_unit_instances(
+            &sources,
+            &inputs,
+            &names,
+            &types,
+            &typed,
+            &owned,
+            declaration("entry"),
+        )
+        .expect("ordinary non-Fn nullable parameter must not add a concrete-layout gate");
+        for name in ["ignore", "entry"] {
+            assert_eq!(
+                plan.iter()
+                    .filter(|instance| instance.key().target()
+                        == UnitCallableTarget::Declaration(declaration(name)))
+                    .count(),
+                1
+            );
+        }
+        assert!(
+            plan.iter()
+                .all(|instance| instance.key().callable_arguments().is_empty())
         );
         assert_eq!(
-            fixture.typed.types().len(),
+            typed.types().types().len(),
             type_count,
             "ordinary planning remains readonly"
         );

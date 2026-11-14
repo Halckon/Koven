@@ -8,6 +8,8 @@ mod child_cycle;
 mod exit_partition;
 #[path = "owner_nested_body_tests.rs"]
 mod nested_body;
+#[path = "owner_scalar_entry_tests.rs"]
+mod scalar_entry;
 
 #[test]
 fn counter_tail_complete_boundary_consumes_live_suffix() {

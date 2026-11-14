@@ -3,14 +3,14 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     ownership_checking::{
-        BorrowBindingFact, BorrowBindingStorage, CompilationUnitOwnership, UnitLoanTarget,
+        BorrowBindingFact, BorrowBindingStorage, UnitLoanTarget, UnitPreflightFacts,
     },
     parser::{Expression, ParsedFile},
     type_checking::UnitExpressionId,
 };
 pub(in crate::ssa) fn admitted(
     file: &ParsedFile,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     binding: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
 ) -> Option<(StatementId, ExpressionId)> {
     let mut selected =
@@ -76,19 +76,22 @@ pub(in crate::ssa) fn admitted(
 
 /// Internal mechanical traversal; the frontend public capability domains stay separate.
 pub(in crate::ssa) fn pairs(
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
 ) -> impl Iterator<Item = &lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact> {
     owned
         .no_carry_branches()
         .iter()
         .chain(owned.no_carry_counter_branches().iter().map(|f| f.pair()))
         .chain(owned.no_carry_break_branches().iter().map(|f| f.pair()))
+        .chain(counter_breaks(owned).map(|f| f.counter().pair()))
 }
 pub(in crate::ssa) fn owns_pair(
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     pair: &lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact,
 ) -> bool {
-    owned.owns_no_carry_branch(pair)
+    counter_breaks(owned)
+        .any(|f| owns_counter_break(owned, f) && f.counter().pair().same_identity(pair))
+        || owned.owns_no_carry_branch(pair)
         || owned
             .no_carry_counter_branches()
             .iter()
@@ -97,4 +100,26 @@ pub(in crate::ssa) fn owns_pair(
             .no_carry_break_branches()
             .iter()
             .any(|f| owned.owns_no_carry_break_branch(f) && f.pair().same_identity(pair))
+}
+
+/// Mechanical traversal still requires the owning domain at every admission.
+pub(in crate::ssa) fn counter_breaks(
+    owned: &dyn UnitPreflightFacts,
+) -> impl Iterator<Item = &lang_frontend::ownership_checking::UnitLoopCounterBreakBranchNoCarryFact>
+{
+    owned.no_carry_counter_break_branches().iter().chain(
+        owned
+            .no_carry_prefix_counter_breaks()
+            .iter()
+            .map(|p| p.counter_break()),
+    )
+}
+pub(in crate::ssa) fn owns_counter_break(
+    owned: &dyn UnitPreflightFacts,
+    fact: &lang_frontend::ownership_checking::UnitLoopCounterBreakBranchNoCarryFact,
+) -> bool {
+    owned.owns_no_carry_counter_break_branch(fact)
+        || owned.no_carry_prefix_counter_breaks().iter().any(|p| {
+            owned.owns_no_carry_prefix_counter_break(p) && p.counter_break().same_identity(fact)
+        })
 }

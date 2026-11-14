@@ -1,10 +1,11 @@
 //! A separately owned scalar prefix, captured from actual CFG and replayed at the boundary.
+use super::prefix_fact::PrefixFact;
 use super::*;
 use crate::ssa::model::{Operation, Origin, PlaceAccess, ScalarConstant, TerminatorKind};
 use lang_frontend::{ownership_checking::UnitLoopBreakPrefixFact, parser::LiteralKind};
 #[derive(Clone, Debug)]
 pub(super) struct Prefix {
-    pub(super) fact: UnitLoopBreakPrefixFact,
+    pub(super) fact: PrefixFact,
     role: usize,
     span: Span,
     calls: [(FunctionId, Span, i128, Span); 2],
@@ -35,12 +36,22 @@ impl Plans {
             .owned
             .no_carry_break_prefixes()
             .iter()
-            .filter(|p| p.pair().pair().same_identity(pair));
+            .cloned()
+            .map(PrefixFact::Tail)
+            .chain(
+                inputs
+                    .owned
+                    .no_carry_prefix_counter_breaks()
+                    .iter()
+                    .cloned()
+                    .map(PrefixFact::Counter),
+            )
+            .filter(|p| p.pair().same_identity(pair));
         let Some(fact) = found.next() else {
             return Ok(None);
         };
         let fail = || invalid(inputs.span);
-        if found.next().is_some() || !inputs.owned.owns_no_carry_break_prefix(fact) {
+        if found.next().is_some() || !fact.owns(inputs) {
             return Err(fail());
         }
         let node = inputs
@@ -109,6 +120,9 @@ impl Plans {
     }
 }
 impl Prefix {
+    pub(super) fn is_counter_composition(&self) -> bool {
+        matches!(self.fact, PrefixFact::Counter(_))
+    }
     pub(super) fn split(
         &mut self,
         id: UnitExpressionId,
@@ -183,7 +197,12 @@ impl Emitted {
             .arm_loop_plans
             .loops
             .iter()
-            .filter_map(|p| p.prefix.as_ref().map(|p| &p.fact))
+            .filter_map(|p| {
+                p.prefix.as_ref().and_then(|p| match &p.fact {
+                    PrefixFact::Tail(f) => Some(f),
+                    _ => None,
+                })
+            })
             .collect();
         if actual.len() != body.arm_prefix_required.len()
             || actual
@@ -205,10 +224,7 @@ impl Emitted {
         let Some(prefix) = &p.prefix else {
             return Ok(());
         };
-        if p.tail_break
-            .as_ref()
-            .is_none_or(|b| !b.fact.same_identity(prefix.fact.pair()))
-        {
+        if !prefix.fact.matches_plan(p) {
             return Err(invalid(s));
         }
         let [head, a, b] = prefix.split.ok_or_else(|| invalid(s))?;
@@ -241,7 +257,12 @@ impl Emitted {
                 .iter()
                 .copied()
                 .filter(|slot| {
-                    *slot != scalar || p.roles.contains(&prefix.role) || actual.contains(slot)
+                    *slot != scalar
+                        || p.roles.contains(&prefix.role)
+                        || p.counter_break
+                            .as_ref()
+                            .is_some_and(|b| b.role == prefix.role)
+                        || actual.contains(slot)
                 })
                 .collect::<Vec<_>>();
             if *actual != expected {
