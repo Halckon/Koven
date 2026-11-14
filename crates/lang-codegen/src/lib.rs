@@ -2,6 +2,8 @@
 
 #[cfg(feature = "d10-catalog-experiment")]
 pub mod d10_experiment;
+#[cfg(feature = "d10-catalog-experiment")]
+pub use ssa::d10_project_audit;
 
 pub(crate) mod native;
 #[cfg(test)]

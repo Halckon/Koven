@@ -1846,3 +1846,27 @@ all-target check、fmt/diff/YAML/JSON、文档957页及尺寸2281文件/37历史
 all-target check、frontend/codegen/CLI all-target 严格 Clippy（D10、two-source、
 E2、loan observation 同时启用）通过。fmt、文档957页、尺寸2327文件/37历史项通过。
 各编译入口核磁盘至少8Gi；本轮未重跑native或人工故障，不扩大上述证明与准入边界。
+
+
+### 完整项目同次普通 Program 闭包观察（受限、非准入）
+
+在真实五源项目原 `emit_native_owned_unit_object` 外设置 feature-only scoped 只读观察；
+不另跑 planner、不混合另一次分析。原 lowering 的完整实例计划在消费前保存身份，最终
+verifier 成功后才核其原 `FunctionId` 映射与完整 Program 定义的双向一致性及数量。
+记录 canonical SourceUnitId/SourceId 全序快照；两个 Replace 顺序均核实际定义恰为
+原 names 的 app.entry/app.run，唯一直接调用边为 entry→run，入口固定点覆盖全计划。
+
+观察只接受非特化顶层声明实例和 scalar/String 类型域，deinit、Map、Range 描述表
+必须为空。未知操作、terminator、间接调用、closure/member/特化路线均报告 unsupported，
+不会从“未见 DirectCall”推断不存在其他边。StringLiteral、PrintString、Drop、受检算术
+和 Abort 单列运行时义务，不把它们忽略为无调用，也不声称已证明 LLVM/runtime 实现、
+动态执行或终止性。观察器仅保存只读结果并 RAII 清理；原发射成功仍须独立断言。
+
+本片强化普通完整项目的计划/Program证据，不新增项目 binder 或对象 capability；原
+完整五源 split prepare 仍 Unsupported。一般 callable 事实归属、Drop 控制点映射和
+D10 封闭项目准入仍待完成，不可用普通成功越过旧门禁。
+
+本地验证：最终真实项目 exact 1 passed（内部两个 Replace 顺序，未运行生成程序）；
+D10+two-source-unit 共存 CLI all-tests Clippy `-D warnings` 与默认 CLI check 通过。
+格式/diff、Rust 尺寸 2328 文件/37 历史债、957 Markdown 结构门禁通过；独立静审无阻断。
+未推送，远端 CI 与 native/runtime 执行不在本片验收范围。

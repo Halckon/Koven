@@ -251,7 +251,60 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
         )
         .unwrap();
         // Actual ordinary whole-project publication, keeping all inputs and owned facts.
-        emit_native_owned_unit_object(&unit, entry, &object).unwrap();
+        let (emission, audits) = lang_codegen::d10_project_audit::observe(|| {
+            emit_native_owned_unit_object(&unit, entry, &object)
+        });
+        emission.unwrap();
+        assert_eq!(audits.len(), 1, "one original lowering, no second planner");
+        let audit = &audits[0];
+        assert_eq!(audit.source_count, 5);
+        assert!(audit.unsupported.is_empty(), "{audit:?}");
+        assert_eq!(
+            audit.sources,
+            checked
+                .names
+                .names()
+                .index()
+                .source_units()
+                .iter()
+                .map(|s| (s.id(), s.source_id()))
+                .collect::<Vec<_>>()
+        );
+        let lang_codegen::NativeUnitEntry::NoArguments(entry_id) = entry else {
+            panic!("fixture entry changed")
+        };
+        let entry_package =
+            checked.names.names().index().declarations()[entry_id.index()].package();
+        let run_id = checked
+            .names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "run" && d.package() == entry_package)
+            .unwrap()
+            .id();
+        assert_eq!(audit.direct_edges.len(), 1);
+        assert_eq!(audit.direct_edges[0].0, entry_id);
+        assert_eq!(audit.direct_edges, vec![(entry_id, run_id)]);
+        let mut expected = vec![entry_id, run_id];
+        expected.sort();
+        assert_eq!(audit.declarations, expected);
+        for operation in [
+            "StringLiteral",
+            "PrintString",
+            "Drop",
+            "CheckedArithmetic",
+            "Abort",
+        ] {
+            assert!(
+                audit
+                    .runtime_operations
+                    .get(operation)
+                    .is_some_and(|count| *count > 0),
+                "{audit:?}"
+            );
+        }
         let nm = Command::new("/usr/bin/nm")
             .args(if cfg!(target_os = "macos") {
                 ["-j", "-U"]

@@ -110,6 +110,8 @@ fn lower_unit_roots_impl(
             MAX_UNIT_GENERIC_INSTANCES,
         )?
     };
+    #[cfg(feature = "d10-catalog-experiment")]
+    let project_audit = crate::d10_project_audit::Pending::capture(&instance_plan, names, entries);
     let mut program = Program::default();
     let module_id = program.add_module("main");
     let module = program
@@ -254,6 +256,10 @@ fn lower_unit_roots_impl(
         kind: LoweringErrorKind::InvalidModel,
         span: None,
     })?;
+    #[cfg(feature = "d10-catalog-experiment")]
+    if let Some(audit) = project_audit {
+        audit.finish(&program, &function_ids);
+    }
     #[cfg(test)]
     branch_publication.commit();
     #[cfg(test)]

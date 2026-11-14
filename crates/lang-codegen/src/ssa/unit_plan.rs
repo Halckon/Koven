@@ -133,6 +133,7 @@ type UnitRecipeRootFacts = BTreeMap<UnitSymbolId, BTreeSet<DeclarationId>>;
 impl UnitInstancePlan {
     #[cfg(any(
         feature = "two-source-unit",
+        feature = "d10-catalog-experiment",
         all(test, feature = "e2-two-source-test-support")
     ))]
     pub(crate) fn instances(&self) -> &[UnitPlannedInstance] {

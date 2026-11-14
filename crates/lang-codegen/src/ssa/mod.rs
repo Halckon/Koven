@@ -11,6 +11,8 @@ mod d10_loop_replay_tests;
 mod d10_loop_retained_tests;
 #[cfg(all(test, feature = "d10-catalog-experiment"))]
 mod d10_nested_loop_tests;
+#[cfg(feature = "d10-catalog-experiment")]
+pub mod d10_project_audit;
 use closure::integer;
 mod constant_materialization;
 mod expression_core;
