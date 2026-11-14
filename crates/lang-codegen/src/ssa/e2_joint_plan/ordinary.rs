@@ -1,15 +1,17 @@
-//! Same-analysis ordinary planner reconciliation, not a merged callable arena.
+//! Same-analysis common-root planner: one callable arena, never joined per-entry plans.
 use super::*;
 use crate::ssa::unit_plan::{
     MAX_UNIT_GENERIC_INSTANCES, UnitFunctionInstanceKey, UnitInstancePlan,
-    plan_unit_instances_from_facts,
+    plan_unit_root_set_from_facts,
 };
 use lang_frontend::name_resolution::DeclarationId;
 use std::collections::BTreeSet;
 
-/// Each entry retains its complete runtime demands and callable arena. Tokens from
-/// separate plans must never be joined or passed to a different body's context.
-pub(super) struct OrdinaryPlans(Vec<(DeclarationId, UnitInstancePlan)>);
+/// The original roots and all instances/runtime demands share one source-token arena.
+pub(super) struct OrdinaryPlans {
+    roots: BTreeSet<DeclarationId>,
+    plan: UnitInstancePlan,
+}
 impl OrdinaryPlans {
     pub(super) fn build(
         selected: &ExperimentalUnitHandoff<'_, '_>,
@@ -22,7 +24,8 @@ impl OrdinaryPlans {
             selected.names(),
         )
         .ok()?;
-        let mut plans = Vec::new();
+        let roots: Vec<_> = entries.iter().map(|(entry, _)| entry.entry()).collect();
+        let mut expected = BTreeSet::new();
         for (entry, key) in entries {
             let mut owners = facts.iter().copied().filter(|fact| {
                 experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())
@@ -31,31 +34,36 @@ impl OrdinaryPlans {
             if owners.next().is_some() {
                 return None;
             }
-            let plan = plan_unit_instances_from_facts(
-                &parsed,
-                selected.names(),
-                selected.types().types(),
-                selected,
-                entry.entry(),
-                MAX_UNIT_GENERIC_INSTANCES,
-            )
-            .ok()?;
-            let expected = required(experiment, fact, entry, key, selected.types())?;
-            check(&plan, &expected)?;
-            plans.push((entry.entry(), plan));
+            expected.extend(required(experiment, fact, entry, key, selected.types())?);
         }
-        Some(Self(plans))
+        // Reuse the D10 root-set worklist: a single callable planner and one global instance budget.
+        let plan = plan_unit_root_set_from_facts(
+            &parsed,
+            selected.names(),
+            selected.types().types(),
+            selected,
+            &roots,
+            MAX_UNIT_GENERIC_INSTANCES,
+            true,
+        )
+        .ok()?;
+        check(&plan, &expected)?;
+        Some(Self {
+            roots: roots.into_iter().collect(),
+            plan,
+        })
     }
     pub(super) fn verify(&self, joint: &JointPlan<'_>) -> Option<()> {
-        if self.0.len() != joint.entries.len() {
+        let roots: BTreeSet<_> = joint
+            .entries
+            .iter()
+            .map(|(entry, _)| entry.entry())
+            .collect();
+        if roots.len() != joint.entries.len() || roots != self.roots {
             return None;
         }
+        let mut expected = BTreeSet::new();
         for (entry, key) in &joint.entries {
-            let mut plans = self.0.iter().filter(|(id, _)| *id == entry.entry());
-            let (_, plan) = plans.next()?;
-            if plans.next().is_some() {
-                return None;
-            }
             let mut owners = joint
                 .routes
                 .iter()
@@ -67,12 +75,9 @@ impl OrdinaryPlans {
             if owners.next().is_some() {
                 return None;
             }
-            check(
-                plan,
-                &required(joint.experiment, fact, entry, key, joint.typed)?,
-            )?;
+            expected.extend(required(joint.experiment, fact, entry, key, joint.typed)?);
         }
-        Some(())
+        check(&self.plan, &expected)
     }
 }
 fn source_key(key: &UnitCallableInstanceKey) -> Option<UnitFunctionInstanceKey> {

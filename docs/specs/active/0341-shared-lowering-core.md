@@ -19018,3 +19018,19 @@ body 上下文。共同 ordinary body 发射仍需单一规划、ABI、allocator
 七个 CI-only 测试保持 ignored。普通 Unit body 回归 174 项、实例计划 82 项通过；
 前端严格 Clippy、后端双 feature all-target Clippy、默认 all-target 编译、格式、文档及
 尺寸门禁通过。独立审查分别核查查询迁移与 full-key/entry 对账，未发现阻断。
+
+### E2 单一多 root 计划与共享声明阶段
+
+复用 D10 `4e64a4e1` 树中的多 root worklist 及原测试；ordinary 单入口仍委派 singleton
+并保留原入口限制，实验多 root 在同一实例预算、callable arena 和运行时类型需求上构建。
+Joint 凭据不再保存逐 entry 独立计划，而保存一份完整共同计划，发布前将完整 key 集合
+与所有原 entry/fact 闭包并集对账；不拼接 source token，不删减未覆盖实例。
+
+普通 orchestrator 的 signature-first 声明、layout、CallableAbi、FunctionId 与 runtime-demand
+校验抽到内部 `planned_declarations` 阶段；完整前置 preflight、共享 body、closure 与最终
+发布顺序不变。独立逐代码审查确认抽取主体等价。
+这是共同实验发射的前置：本批实验尚未消费共同声明或 ordinary body。下一片必须将全部
+源码实例统一预声明，再按完整分区填 body；不能让旧追加式 E2 emitter 另分配源码函数 ID。
+本地验收：普通 Unit body 174 项通过；含复用 root-set 用例的实例计划 84 项通过、
+一个 CI-only budget 用例 ignored。E2 两配置各十项通过、七个 CI-only 故障用例 ignored；
+双 feature all-target 编译与严格 Clippy、文档、尺寸、格式检查通过，未推送或本地故障注入。

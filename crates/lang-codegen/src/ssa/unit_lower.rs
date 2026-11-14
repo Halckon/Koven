@@ -24,6 +24,7 @@ use construction::nullable_proof;
 mod nullable_when;
 mod ownership;
 mod planned_body;
+mod planned_declarations;
 mod receiver;
 use control::scalar;
 pub(in crate::ssa) mod type_lower;
