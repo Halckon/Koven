@@ -377,3 +377,22 @@ CallReturn direct-end：后两者属于替代路径，不能串联成运行时�
 普通 `Node.read()` 源码将记录身份与同轮真实 receiver-return fact 精确比对，
 登记与移除各一次且顺序正确。分区继续拒绝 receiver 事件；receiver 提前退出、
 复杂调用及静态替代路径的完整归属仍未证明，不生成动态生命周期或 Carry 权限。
+
+### 复用生命周期事件的受限分支归属
+
+测试域 `attribute_observed_if` 将同一次实际遍历中的单个平坦 If 分成原事件切片：
+prefix、两臂、suffix。它核对同一 control 的 Enter/Exit 次序与实际 continuation，
+要求 JoinInputs 与继续臂数量一致，并返回继续臂编号。while、嵌套分支及第二个
+分支明确拒绝。opaque call 仅被保留为未知事件，不因此获得语义准入；原严格
+`partition_if` 的调用/借用拒绝策略不变。
+
+真实条件 return 用例现在验证：loan 登记在 prefix，unwind 在不继续的 arm 0，
+正常 direct-end 在 suffix，仅 arm 1 进入该汇合。这个结果连接了已记录的真实
+生命周期事件和受限静态臂归属，而非把全部日志串成一条动态执行。
+
+继续臂编号不是 SSA block/predecessor，JoinInputs 仍是汇合输入记录而非完成证明；
+当前没有真实 SSA loop backedge、动态代际或完整调用覆盖证据。真实 while 仍只能
+证明 planner 遍历边界，不能复用为 Carry 的 loop 合流许可。生产权限保持不变。
+
+这里的控制拒绝仅针对已观察到的 WhileTraversal/Branch；不能泛称 For/Loop 等
+全部源码控制形式已覆盖。未记录的语义仍属覆盖缺口，此归属器不作为准入判定。

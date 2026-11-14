@@ -222,3 +222,86 @@ pub(in super::super) fn partition_if(events: &[Event]) -> Option<IfPartition<'_>
     }
     Some(IfPartition { arms, continues })
 }
+
+/// Structural attribution of one observed branch. Opaque calls remain opaque;
+/// this is not full semantic coverage, dynamic paths, or SSA predecessors.
+pub(in super::super) struct ObservedIf<'a> {
+    pub(in super::super) prefix: &'a [Event],
+    pub(in super::super) arms: [&'a [Event]; 2],
+    pub(in super::super) suffix: &'a [Event],
+    pub(in super::super) continuing_arms: Vec<usize>,
+}
+
+pub(in super::super) fn attribute_observed_if(events: &[Event]) -> Option<ObservedIf<'_>> {
+    if events
+        .iter()
+        .any(|event| matches!(event, Event::WhileTraversal { .. }))
+    {
+        return None;
+    }
+    let start = events
+        .iter()
+        .position(|event| matches!(event, Event::Branch { .. }))?;
+    let Event::Branch {
+        control,
+        role: BranchRole::Enter(0),
+    } = events.get(start)?
+    else {
+        return None;
+    };
+    let mut position = start + 1;
+    let mut arms = [&events[0..0]; 2];
+    let mut continuing_arms = Vec::new();
+    for (arm, contents) in arms.iter_mut().enumerate() {
+        if arm == 1 {
+            if events.get(position)
+                != Some(&Event::Branch {
+                    control: *control,
+                    role: BranchRole::Enter(1),
+                })
+            {
+                return None;
+            }
+            position += 1;
+        }
+        let begin = position;
+        loop {
+            match events.get(position)? {
+                Event::Branch {
+                    control: actual,
+                    role: BranchRole::Exit(index, normal),
+                } if actual == control && usize::from(*index) == arm => {
+                    *contents = &events[begin..position];
+                    if *normal {
+                        continuing_arms.push(arm);
+                    }
+                    position += 1;
+                    break;
+                }
+                Event::Branch { .. } => return None,
+                _ => position += 1,
+            }
+        }
+    }
+    if events.get(position)
+        != Some(&Event::Branch {
+            control: *control,
+            role: BranchRole::JoinInputs(continuing_arms.len()),
+        })
+    {
+        return None;
+    }
+    let suffix = &events[position + 1..];
+    if suffix
+        .iter()
+        .any(|event| matches!(event, Event::Branch { .. }))
+    {
+        return None;
+    }
+    Some(ObservedIf {
+        prefix: &events[..start],
+        arms,
+        suffix,
+        continuing_arms,
+    })
+}

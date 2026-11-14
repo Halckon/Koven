@@ -170,6 +170,16 @@ fn ordinary_branch_roles_keep_alternatives_separate_from_join_inputs() {
             let events = observed.origin_probe.unwrap();
             let partition = super::super::origin_probe::partition_if(&events).unwrap();
             assert_eq!(partition.continues, continues);
+            let attributed = super::super::origin_probe::attribute_observed_if(&events).unwrap();
+            assert_eq!(
+                attributed.continuing_arms,
+                continues
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(arm, normal)| normal.then_some(arm))
+                    .collect::<Vec<_>>()
+            );
+            assert!(attributed.prefix.is_empty() && attributed.suffix.is_empty());
             for arm in partition.arms {
                 for event in arm {
                     if let Event::Bound(root, _) = event {
@@ -235,6 +245,14 @@ fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
             );
             planner.origin_probe = Some(Vec::new());
             let observed = planner.run().unwrap();
+            if body.contains("while") || body.contains("if (flag) { if") {
+                assert!(
+                    super::super::origin_probe::attribute_observed_if(
+                        observed.origin_probe.as_ref().unwrap()
+                    )
+                    .is_none()
+                );
+            }
             if body.contains("while") {
                 use super::super::origin_probe::WhileRole;
                 let events = observed.origin_probe.as_ref().unwrap();
@@ -383,6 +401,22 @@ fn ordinary_conditional_return_records_alternative_retirements_not_dynamic_seque
         );
         assert_eq!(events.iter().filter(|event| matches!(event, Event::UnwindBorrowRemoved { loan: actual, point } if actual == loan && *point == crate::ownership_checking::UnitDropPoint::ControlTransfer(transfer))).count(), 1);
         assert_eq!(events.iter().filter(|event| matches!(event, Event::DirectBorrowEnded { loan: actual, point } if actual == loan && *point == crate::ownership_checking::UnitDropPoint::CallReturn(call))).count(), 1);
+        let paths = super::super::origin_probe::attribute_observed_if(events).unwrap();
+        assert_eq!(paths.continuing_arms, vec![1]);
+        assert_eq!(
+            paths
+                .prefix
+                .iter()
+                .filter(|event| *event == &Event::BorrowRegistered(loan.clone()))
+                .count(),
+            1
+        );
+        assert_eq!(paths.arms[0].iter().filter(|event| matches!(event, Event::UnwindBorrowRemoved { loan: actual, .. } if actual == loan)).count(), 1);
+        assert!(!paths.arms[1].iter().any(|event| matches!(
+            event,
+            Event::UnwindBorrowRemoved { .. } | Event::DirectBorrowEnded { .. }
+        )));
+        assert_eq!(paths.suffix.iter().filter(|event| matches!(event, Event::DirectBorrowEnded { loan: actual, .. } if actual == loan)).count(), 1);
         // Two static alternatives, not a loan dynamically ended twice.
         assert!(super::super::origin_probe::partition_if(events).is_none());
     });
