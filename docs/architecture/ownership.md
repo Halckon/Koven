@@ -3,7 +3,7 @@
 > **性质**：当前实现事实 · **状态**：current · **读取时机**：修改 move、loan、capture、drop 或 validated ownership gate 时 · **唯一真源**：`lang-frontend` 所有权代码与测试；普通返回 origin 与 loan 边界见[专题](map-native-execution.md#普通借用返回与-caller-continuation)
 
 ## 分析入口与产物
-D10 feature 的同次 source 账本保留原 planner root/visited-lambda 的规范化去重新增 Drop 批次（含空），逐源及最终全序核验；不含 conditional drop，不证明 callable/CFG/可达闭包，错误或 deferred 不发布。
+D10 feature 的同次 source 账本保留原 planner root/visited-lambda 的规范化去重新增 Drop 批次（含空），逐源及最终全序核验；另以 source 批次原样对账 conditional receiver 义务；两者不证明 callable/CFG/可达闭包或实例执行，错误或 deferred 不发布。
 单文件入口为 `ownership_checking::check_ownership`；`check_compilation_unit_ownership` 消费 validated typed unit，返回 source-qualified
 `CompilationUnitOwnership`。两条路径使用各自产物的 ID，不能混用；旧 Single 对非已证 Copyable 的 Value receiver 报 L0170，不发布成功所有权计划，完整 owning receiver 由 Unit 提供；范围见 [SPEC-0392](../specs/active/0392-compiler-layered-review.md)。[receiver 借用](receiver-borrows.md)记录预留/激活与 Shared Return 前缀结束的有界合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
 

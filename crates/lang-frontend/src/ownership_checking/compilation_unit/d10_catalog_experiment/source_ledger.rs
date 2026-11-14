@@ -44,7 +44,7 @@ impl DropTraversalRecord {
     }
 }
 
-/// One actual source traversal's ordered output in four dataflow channels.
+/// One actual source traversal's ordered output in five dataflow channels.
 /// The source denotes the traversal context, not a proof that every target is local.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceCollectionRecord {
@@ -54,6 +54,7 @@ pub struct SourceCollectionRecord {
     constructions: Vec<UnitConstructionOwnershipPlan>,
     drops: Vec<UnitDropFact>,
     drop_traversals: Vec<DropTraversalRecord>,
+    conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
 }
 impl SourceCollectionRecord {
     pub(crate) fn capture(
@@ -63,6 +64,7 @@ impl SourceCollectionRecord {
         constructions: &[UnitConstructionOwnershipPlan],
         drops: &[UnitDropFact],
         drop_traversals: Vec<DropTraversalRecord>,
+        conditional_receiver_drops: &[UnitConditionalReceiverDropFact],
     ) -> Self {
         Self {
             source,
@@ -71,6 +73,7 @@ impl SourceCollectionRecord {
             constructions: constructions.to_vec(),
             drops: drops.to_vec(),
             drop_traversals,
+            conditional_receiver_drops: conditional_receiver_drops.to_vec(),
         }
     }
     /// Actual canonical source traversed by the original checker/planner.
@@ -92,6 +95,12 @@ impl SourceCollectionRecord {
     #[must_use]
     pub fn constructions(&self) -> &[UnitConstructionOwnershipPlan] {
         &self.constructions
+    }
+    /// Complete original conditional receiver obligations, retaining the flat Drop ordinal.
+    /// Not executed cleanup: concrete specialization and iteration ordering remain downstream.
+    #[must_use]
+    pub fn conditional_receiver_drops(&self) -> &[UnitConditionalReceiverDropFact] {
+        &self.conditional_receiver_drops
     }
     /// Original planner root invocations followed by visited lambdas, including empty batches.
     /// Not callable attribution or proof of the complete reachable closure.
@@ -228,6 +237,17 @@ impl SourceCollectionLedger {
                     .eq(&record.drops)
             })
             && self.records.iter().flat_map(|r| &r.drops).eq(owned.drops())
+            && self.records.iter().all(|record| {
+                record.conditional_receiver_drops.iter().all(|fact| {
+                    super::super::owner_transport_validation::point_source(fact.point())
+                        == record.source
+                })
+            })
+            && self
+                .records
+                .iter()
+                .flat_map(|r| &r.conditional_receiver_drops)
+                .eq(owned.conditional_receiver_drops())
     }
 }
 /// Returns the original-run ledger only after final validation and full ordered matching.
@@ -473,3 +493,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod conditional_tests;

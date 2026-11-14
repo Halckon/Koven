@@ -1749,3 +1749,27 @@ docs、尺寸与 JSON/YAML/diff 检查通过。扩大检查 `cargo check --works
 forward/fresh-loop/loop/multi/single/binding receipt 测试辅助项；codegen 无本批改动。
 不放宽 lint、不将此失败算作通过，待与 E2/新 main 的联合树独立复验；该树的通过
 结果不能反证此旧基线已过。本切片没有运行 native、故障注入或跨 run 人工混配。
+
+
+### 条件 receiver 义务的独立 source 批账本
+
+仅在 D10 feature 下于原 dataflow 每源入口保存 conditional_receiver_drops 的长度，
+在该源原 planner 完整归并后截取原序增量。记录每条原 point、owner、receiver_type、
+value_origin、preceding_drops，不重新推导条件类型或 Drop 序号。同 run ledger 读取
+核 point 的遍历 source 以及全源拼接与最终原数组完全相等；owner/origin 不被强制
+限制在该 source。不改 planner、root/lambda DropTraversal、lowering 或现行准入。
+
+这些仍是 StaticSelf 模板义务，不是实际析构。具体实例的 MoveOnly/Copyable 判定
+及 provider 清理顺序由原下游负责；preceding_drops 只定位同 point 的普通 Drop，
+不证明 iteration 动作顺序，也不授予 callable/CFG/完整可达闭包能力。错误或 deferred
+仍由原最终闸门撤销账本。本片没有增加人工混配或故障注入的本地执行。
+
+正常验收：source_ledger 4 项通过，新条件通道用真实三源、正反输入序、非空/空批次、
+preceding_drops=2 与原样清理 origins、真实语言错误/deferred 不发布；五源 project
+exact 1 passed，iteration formation-scope 邻控 1 passed。独立静审无阻断，dataflow
+父文件仅 +2 接线，既有尺寸上限不变。上一 Drop 切片记录的 default-workspace-all-target 失败
+没有重跑或放宽 lint，联合基线的通过不代替此树验证。
+
+本片 feature frontend/CLI all-target strict Clippy、默认 frontend all-target check、
+fmt/diff/YAML、文档结构（957 页）与尺寸（2277 Rust 文件、37 历史超限）通过。
+未运行 native 或人工故障；conditional 独立提交尚未在联合树重建验证。
