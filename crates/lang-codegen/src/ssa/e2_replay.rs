@@ -37,9 +37,22 @@ macro_rules! loan {
         id
     }};
 }
-fn caller(emitted: &EmittedFunction, shell: &FunctionShell) -> Option<()> {
-    let module = &emitted.fragments.leaves.program.modules[0];
-    let f = module.function(emitted.caller)?;
+pub(super) fn replay_caller(
+    module: &Module,
+    id: FunctionId,
+    arms: [FunctionId; 2],
+    columns: [usize; 2],
+    shell: &FunctionShell,
+    spans: &[lang_frontend::ownership_checking::two_source_experiment::ArmSourceSpans; 2],
+) -> Option<()> {
+    let f = module.function(id)?;
+    require!(f.receiver.is_none() && f.carrier_return.is_none() && !f.never_returns);
+    for block in &f.blocks {
+        let term = block.terminator.as_ref()?;
+        if !matches!(term.kind, TerminatorKind::Abort) {
+            require!(term.abort.is_none());
+        }
+    }
     same!(f.origin, Origin::Source(shell.body()));
     require!(f.return_types.is_empty());
     same!(f.borrow_return, None);
@@ -184,14 +197,21 @@ fn caller(emitted: &EmittedFunction, shell: &FunctionShell) -> Option<()> {
     );
     for (index, arm) in [a, b].into_iter().enumerate() {
         let i = instructions(arm)?;
+        same!(
+            i.first()?.origin,
+            Origin::Synthetic {
+                anchor: spans[index].body(),
+                reason: "outline verified E2 arm".to_owned()
+            }
+        );
         same!(i.len(), 1);
         let mut args = vec![arm.parameters[roles[0]]; 2];
-        args[emitted.fragments.columns[0]] = arm.parameters[roles[0]];
-        args[emitted.fragments.columns[1]] = arm.parameters[roles[1]];
+        args[columns[0]] = arm.parameters[roles[0]];
+        args[columns[1]] = arm.parameters[roles[1]];
         same!(
             i[0].operation,
             Operation::DirectCall {
-                callee: emitted.fragments.arms[index],
+                callee: arms[index],
                 receiver: None,
                 arguments: args
             }
@@ -345,20 +365,14 @@ pub(super) fn replay_closure(
         fact,
         typed,
     )?;
-    let spans = experiment.arm_spans(fact)?;
-    let original = module.function(emitted.caller)?;
-    for (index, span) in spans.iter().enumerate() {
-        let block = original.blocks.get(3 + index)?;
-        let instruction = original.instruction(*block.instructions.first()?)?;
-        same!(
-            instruction.origin,
-            Origin::Synthetic {
-                anchor: span.body(),
-                reason: "outline verified E2 arm".to_owned()
-            }
-        );
-    }
-    caller(emitted, shell)
+    replay_caller(
+        module,
+        emitted.caller,
+        emitted.fragments.arms,
+        emitted.fragments.columns,
+        shell,
+        experiment.arm_spans(fact)?,
+    )
 }
 fn shared_string(module: &Module, f: &Function, entity: EntityId) -> Option<SsaTypeId> {
     let EntityType::Loan {

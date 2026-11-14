@@ -47,7 +47,29 @@ pub(super) fn emit<'a>(
 ) -> Option<EmittedFunction<'a>> {
     let shell = experiment.function_shell(fact, typed)?;
     let mut fragments = e2_arm_fragments::emit(experiment, fact, typed)?;
-    let module = fragments.leaves.program.modules.first_mut()?;
+    let caller = append_caller(
+        fragments.leaves.program.modules.first_mut()?,
+        shell,
+        fragments.arms,
+        fragments.columns,
+        experiment.arm_spans(fact)?,
+    )?;
+    super::verify::verify_program(&fragments.leaves.program).ok()?;
+    Some(EmittedFunction {
+        fragments,
+        caller,
+        experiment,
+        fact,
+    })
+}
+/// Internal emitter: caller supplies locators from the same owned Program, never another package.
+pub(super) fn append_caller(
+    module: &mut Module,
+    shell: &lang_frontend::ownership_checking::two_source_experiment::FunctionShell,
+    arms: [FunctionId; 2],
+    columns: [usize; 2],
+    spans: &[lang_frontend::ownership_checking::two_source_experiment::ArmSourceSpans; 2],
+) -> Option<FunctionId> {
     let string = module.intern_type(SsaTypeKind::StringOwner);
     let integer = module.intern_type(SsaTypeKind::Integer {
         bits: 32,
@@ -63,7 +85,11 @@ pub(super) fn emit<'a>(
     parameters[roles[2]] = shared(integer);
     parameters[roles[3]] = shared(boolean);
     let caller = module
-        .add_function("e2_original_caller", vec![], Origin::Source(shell.body()))
+        .add_function(
+            format!("e2_original_caller_{}", module.functions.len()),
+            vec![],
+            Origin::Source(shell.body()),
+        )
         .ok()?;
     let f = module.function_mut(caller)?;
     let synthetic = || Origin::Synthetic {
@@ -175,18 +201,18 @@ pub(super) fn emit<'a>(
     for (index, block) in [arm_a, arm_b].into_iter().enumerate() {
         let args = f.block(block)?.parameters.clone();
         let mut actual = vec![args[roles[0]]; 2];
-        actual[fragments.columns[0]] = args[roles[0]];
-        actual[fragments.columns[1]] = args[roles[1]];
+        actual[columns[0]] = args[roles[0]];
+        actual[columns[1]] = args[roles[1]];
         f.append_instruction(
             block,
             Operation::DirectCall {
-                callee: fragments.arms[index],
+                callee: arms[index],
                 receiver: None,
                 arguments: actual,
             },
             vec![],
             Origin::Synthetic {
-                anchor: experiment.arm_spans(fact)?[index].body(),
+                anchor: spans[index].body(),
                 reason: "outline verified E2 arm".to_owned(),
             },
         )
@@ -264,11 +290,5 @@ pub(super) fn emit<'a>(
     .ok()?;
     f.set_terminator(exit, TerminatorKind::Return { values: vec![] }, synthetic())
         .ok()?;
-    super::verify::verify_program(&fragments.leaves.program).ok()?;
-    Some(EmittedFunction {
-        fragments,
-        caller,
-        experiment,
-        fact,
-    })
+    Some(caller)
 }

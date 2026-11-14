@@ -696,11 +696,30 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                 .validate()
                 .unwrap();
             assert!(joint.locator(fact, &unrelated_types).is_none());
+
             assert_eq!(
                 joint.program().modules[0].functions.len(),
                 joint.leaf_count() + 2 * all_facts.len()
             );
             super::verify::verify_program(joint.program()).unwrap();
+            let callers = joint.append_callers(&typed).unwrap();
+            let mut ids = Vec::new();
+            for required in all_facts.iter().rev() {
+                let id = callers.caller(required, &typed).unwrap();
+                assert!(!ids.contains(&id));
+                ids.push(id);
+                assert_eq!(
+                    callers.program().modules[0]
+                        .function(id)
+                        .unwrap()
+                        .blocks
+                        .len(),
+                    9
+                );
+            }
+            assert!(callers.caller(&other.facts()[0], &typed).is_none());
+            assert!(callers.caller(fact, &unrelated_types).is_none());
+            super::verify::verify_program(callers.program()).unwrap();
         }
 
         let joint = super::e2_callee_leaves::emit_for_facts(&handoff, &experiment, &all_facts);

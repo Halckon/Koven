@@ -18782,3 +18782,19 @@ leaf 见证；抽出的独立 body/ABI replay 同时复用于旧单闭包路径�
 真实双事实 fixture 反向查询仍得到各自唯一 helper，另一 ownership 分析与 retyped
 查询均拒绝。此为共同 caller 接线的身份前置，尚未追加共同 caller/entry 或发布能力；
 普通生产入口未变。本地仅正常测试，未执行故障注入或推送。
+
+
+### 2026-11-14：身份绑定共同 Program 的原 caller 接线
+
+`EmittedArmSet::append_callers` 消费实际持有的私有 Program，在同一 allocator 中为每个
+绑定事实追加原九块循环 caller；不接受外部 caller/helper ID，不能拼接另一个 Program。
+`EmittedCallerSet` 保持封闭，按原 fact/typed 身份查询 caller，原 helper 映射保持不变。
+
+单 caller 发射与独立 replay 抽成共用实现；共同路径验证 helper/source 关系、原完整
+caller CFG、checked subtract/abort 边和来源，最后核精确函数数量、caller 与所有
+leaf/helper 的 ID 互斥及整 Program verifier。失败消费局部未发布产品，不返回部分
+CallerSet。真实双事实独立/共享 leaf fixture 反向查询各 caller，foreign/retyped 拒绝。
+
+此步只完成共同 leaf/helper/caller 层；没有共同 process entry、整体 publication
+receipt 或生产 driver 接入。旧单闭包仍走原完整 replay/coverage/native 验证链；本地
+正常回归不执行 ignored 故障用例，未推送或合并。

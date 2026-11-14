@@ -231,3 +231,98 @@ pub(super) fn emit_for_facts<'a>(
         locators,
     })
 }
+
+/// Owned common Program with original callers; no process entries or publication receipt.
+pub(super) struct EmittedCallerSet<'a> {
+    arms: EmittedArmSet<'a>,
+    callers: Vec<(&'a TwoSourceCounterFact, FunctionId)>,
+}
+impl EmittedCallerSet<'_> {
+    pub(super) fn program(&self) -> &Program {
+        self.arms.program()
+    }
+    pub(super) fn caller(
+        &self,
+        fact: &TwoSourceCounterFact,
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<FunctionId> {
+        self.arms.locator(fact, typed)?;
+        let mut matches = self.callers.iter().filter(|(original, _)| {
+            original
+                .arms()
+                .iter()
+                .zip(fact.arms())
+                .all(|(a, b)| a.same_identity(b))
+        });
+        let (_, id) = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(*id)
+    }
+}
+impl<'a> EmittedArmSet<'a> {
+    /// Consumes the actual Program. There is no input of caller-supplied function IDs.
+    pub(super) fn append_callers(
+        mut self,
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<EmittedCallerSet<'a>> {
+        if !self.experiment.matches_types(typed) {
+            return None;
+        }
+        let mut callers = Vec::new();
+        for locator in &self.locators {
+            let shell = self.experiment.function_shell(locator.fact, typed)?;
+            let spans = self.experiment.arm_spans(locator.fact)?;
+            let id = super::e2_function::append_caller(
+                self.leaves.program.modules.first_mut()?,
+                shell,
+                locator.arms,
+                locator.columns,
+                spans,
+            )?;
+            callers.push((locator.fact, id));
+        }
+        super::verify::verify_program(&self.leaves.program).ok()?;
+        let [module] = self.leaves.program.modules.as_slice() else {
+            return None;
+        };
+        if callers.len() != self.locators.len()
+            || module.functions.len() != self.leaves.functions.len() + 3 * self.locators.len()
+        {
+            return None;
+        }
+        let mut used: Vec<_> = self.leaves.functions.iter().map(|(_, id)| *id).collect();
+        for locator in &self.locators {
+            used.extend(locator.arms);
+        }
+        for (fact, id) in &callers {
+            if used.contains(id) {
+                return None;
+            }
+            used.push(*id);
+            let locator = self.locator(fact, typed)?;
+            super::e2_replay::replay_arms(
+                module,
+                &locator.arms,
+                locator.columns,
+                &self.leaves.functions,
+                self.experiment,
+                fact,
+                typed,
+            )?;
+            super::e2_replay::replay_caller(
+                module,
+                *id,
+                locator.arms,
+                locator.columns,
+                self.experiment.function_shell(fact, typed)?,
+                self.experiment.arm_spans(fact)?,
+            )?;
+        }
+        Some(EmittedCallerSet {
+            arms: self,
+            callers,
+        })
+    }
+}
