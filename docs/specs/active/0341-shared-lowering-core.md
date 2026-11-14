@@ -18982,3 +18982,16 @@ scoped entry 发布，避免只修共同路径。前端保留旧同名 println �
 与并行任务协调错开 native 后，从当前源码重新编译，两个 feature 配置各 10 通过、
 7 个 CI-only 故障测试 ignored。八层共享闭包的真实对象链接执行已通过；此结果支持
 负载相关假设但不证明系统延迟根因。此批仍为实验能力，非生产接入或任意深度栈保证。
+
+### E2 混合 Unit 的普通 body 共享阶段前置
+
+普通 Unit orchestrator 的单个已计划函数发射收敛到内部 `PlannedBodyContext::emit`：
+仍由原 orchestrator 生成统一实例/类型/ABI/函数表，先走既有 refine 路由，再走兼容
+lowerer；参数绑定、receiver/inout 限制、入口 Drop、返回值转移和清理顺序不变。
+闭包 thunk、最终 verifier 和收据发布仍在原位置；函数间原顺序不变。
+这不是给实验 handoff 开放普通 ownership，也不把 preflight 误当完整 lowering capability。
+当前上下文仅在 unit_lower 内可构造；后续需封闭事实查询和同次分析混合计划授权，
+才能让普通 body 与 E2Caller 安全共用同一个完整 Unit。不得绕过原路由或拼接 Program。
+本地验证：普通 `unit_lower_` 回归 174 项通过（包含原有 native 子用例），
+实例计划回归 82 项通过；默认 all-target 编译及双 feature Clippy 通过。
+逐旧循环体独立审查确认只改调用封装及两处 continue 对应 return Ok，未改变准入。
