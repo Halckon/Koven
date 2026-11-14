@@ -45,6 +45,18 @@ pub(super) fn replay_caller(
     shell: &FunctionShell,
     spans: &[lang_frontend::ownership_checking::two_source_experiment::ArmSourceSpans; 2],
 ) -> Option<()> {
+    replay_declared_caller(module, id, arms, columns, shell, spans, shell.body())
+}
+/// The complete-plan checker supplies the original instance declaration span, never an emitter span.
+pub(super) fn replay_declared_caller(
+    module: &Module,
+    id: FunctionId,
+    arms: [FunctionId; 2],
+    columns: [usize; 2],
+    shell: &FunctionShell,
+    spans: &[lang_frontend::ownership_checking::two_source_experiment::ArmSourceSpans; 2],
+    declaration: lang_frontend::source::Span,
+) -> Option<()> {
     let f = module.function(id)?;
     require!(f.receiver.is_none() && f.carrier_return.is_none() && !f.never_returns);
     for block in &f.blocks {
@@ -53,7 +65,7 @@ pub(super) fn replay_caller(
             require!(term.abort.is_none());
         }
     }
-    same!(f.origin, Origin::Source(shell.body()));
+    same!(f.origin, Origin::Source(declaration));
     require!(f.return_types.is_empty());
     same!(f.borrow_return, None);
     let [entry, header, split, a, b, join, success, exit, abort] = f.blocks.as_slice() else {
@@ -63,7 +75,7 @@ pub(super) fn replay_caller(
         anchor: shell.body(),
         reason: "bounded E2 caller CFG".to_owned(),
     };
-    same!(entry.origin, Origin::Source(shell.body()));
+    same!(entry.origin, Origin::Source(declaration));
     for block in [header, split, a, b, join, success, exit, abort] {
         same!(block.origin, synthetic);
     }
@@ -435,20 +447,32 @@ pub(super) fn replay_leaf(
         FunctionId,
     )],
 ) -> Option<()> {
+    replay_declared_leaf(module, id, leaf, functions, leaf.span())
+}
+pub(super) fn replay_declared_leaf(
+    module: &Module,
+    id: FunctionId,
+    leaf: &CalleeLeaf,
+    functions: &[(
+        lang_frontend::type_checking::UnitCallableInstanceKey,
+        FunctionId,
+    )],
+    declaration: lang_frontend::source::Span,
+) -> Option<()> {
     let f = module.function(id)?;
     require!(f.receiver.is_none() && f.carrier_return.is_none() && !f.never_returns);
-    same!(f.origin, Origin::Source(leaf.span()));
+    same!(f.origin, Origin::Source(declaration));
     let [block] = f.blocks.as_slice() else {
         return None;
     };
-    same!(block.origin, Origin::Source(leaf.span()));
+    same!(block.origin, Origin::Source(declaration));
     let [parameter] = block.parameters.as_slice() else {
         return None;
     };
     let ty = shared_string(module, f, *parameter)?;
     let term = block.terminator.as_ref()?;
     require!(term.abort.is_none());
-    same!(term.origin, Origin::Source(leaf.span()));
+    same!(term.origin, Origin::Source(declaration));
     match leaf.body() {
         CalleeLeafBody::SharedIdentity => {
             require!(f.instructions.is_empty() && leaf.input_call_loan().is_none());

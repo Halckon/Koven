@@ -118,6 +118,34 @@ impl<'a> JointPlan<'a> {
             })
             .collect()
     }
+    /// Exercise the unified source allocator and complete body construction without native authority.
+    pub(super) fn check_common_bodies(
+        self,
+        handoff: &ExperimentalUnitHandoff<'_, '_>,
+    ) -> Option<()> {
+        if !self.experiment.matches_types(handoff.types()) {
+            return None;
+        }
+        self.ordinary.verify(&self)?;
+        let facts = self.facts();
+        let selected = handoff.for_facts(&facts)?;
+        let mut leaves = Vec::new();
+        let mut callers = Vec::new();
+        for (key, route) in &self.routes {
+            match route {
+                Route::RestrictedSourceLeaf(leaf) => leaves.push(*leaf),
+                Route::E2Caller(fact) => callers.push((*fact, key.clone())),
+            }
+        }
+        super::unit_lower::e2_common::check(
+            &selected,
+            self.experiment,
+            self.ordinary.into_plan(),
+            &leaves,
+            &callers,
+            &self.entries,
+        )
+    }
     /// Dispatch only the sealed routes; final publication independently re-derives source coverage.
     pub(super) fn publish(self) -> Option<super::e2_arm_fragments::PublishedEntrySet<'a>> {
         self.ordinary.verify(&self)?;

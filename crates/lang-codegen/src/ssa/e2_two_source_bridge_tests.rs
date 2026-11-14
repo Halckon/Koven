@@ -752,6 +752,10 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                     .publish_entries(&required, &unrelated_types)
                     .is_none()
             );
+            plan(&required)
+                .unwrap()
+                .check_common_bodies(&handoff)
+                .expect("common source bodies");
             let package = plan(&required).unwrap().publish().unwrap();
             assert!(
                 package

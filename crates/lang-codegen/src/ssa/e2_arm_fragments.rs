@@ -21,6 +21,17 @@ fn append(
     experiment: &TwoSourceExperiment,
     fact: &TwoSourceCounterFact,
     typed: &ValidatedCompilationUnitTypes,
+    leaves: e2_callee_leaves::EmittedLeaves,
+) -> Option<EmittedArms> {
+    let emitted = append_unverified(experiment, fact, typed, leaves)?;
+    super::verify::verify_program(&emitted.leaves.program).ok()?;
+    Some(emitted)
+}
+/// Private construction stage; the complete caller owns final verification and publication.
+pub(super) fn append_unverified(
+    experiment: &TwoSourceExperiment,
+    fact: &TwoSourceCounterFact,
+    typed: &ValidatedCompilationUnitTypes,
     mut leaves: e2_callee_leaves::EmittedLeaves,
 ) -> Option<EmittedArms> {
     let plan = Plan::new(experiment, fact, typed)?;
@@ -111,7 +122,6 @@ fn append(
             .ok()?;
         arms.push(id);
     }
-    super::verify::verify_program(&leaves.program).ok()?;
     Some(EmittedArms {
         leaves,
         arms: arms.try_into().ok()?,

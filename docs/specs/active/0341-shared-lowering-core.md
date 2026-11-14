@@ -19051,3 +19051,26 @@ caller 与 entry 的实验 emitter 拆为声明包装与内部填充：旧调用
 本地验收：E2 两配置各十项通过、七项 CI-only ignored（含真实 native 执行，原十秒
 单程序标准不变）；双 feature all-target 编译及严格 Clippy、文档、尺寸、格式检查通过。
 独立静态审查确认原包装路径的操作、终结与来源等价；未推送或执行本地故障注入。
+
+### E2 单 arena 完整共同 body 构造核验
+
+新增仅实验测试域的 `check_common_bodies`，消费已封闭 joint 实例计划，并用传入 handoff
+重新选择原 fact 验证同次分析归属及完整 Unit preflight。所有源码函数先经共享
+`planned_declarations` 一次预声明；普通 leaf 使用原 `PlannedBodyContext`、callable arena、
+类型与 ABI，E2 caller/entry 只填既有 ID，只有 arm helper 追加新函数。每个完整实例 key
+恰好属于 ordinary/caller/entry 一路，未知及重叠路由拒绝，隐含 closure thunk 尚未开放。
+
+独立 replay 使用原计划保存的声明 span 核函数和入口块来源，不修改发射 IR 的来源，
+不从 emitter 输出倒推预期。ordinary leaf 的终结来源使用实际普通 lowering 的原声明
+来源；调用、借用、清理、checked-abort 等 body 来源及具体操作仍按真实源码 witness
+核验。源码 ID 与 helper ID 唯一且互斥，全体 body 完成后才运行完整 SSA verifier。
+
+当前此路径仅返回构造检查结果，不暴露 Program、对象或 native 发布能力；所有普通
+receipt 观察 guard 在成功和失败时均回滚，原 joint 发布路径及其正常 native 测试仍保留。
+共同 body 的 SSA/replay 证据与旧路径 native 执行证据必须区分；后续才可将共同结果接入
+受检不可变发布和对象事务。此批不增加生产接受集，也不解除全声明/global initializer gate。
+
+验收接入既有真实 entry、多 fact/共享 leaf、Print、Forward 和八层链 fixture；两配置
+各十项通过、七项 CI-only ignored。新共同路径验证完整 SSA 与独立 replay，旧路径 native
+回归保持原十秒标准；没有运行本地故障注入。独立只读复核确认身份、完整分区、来源和
+观察撤销边界，无遗留阻断。

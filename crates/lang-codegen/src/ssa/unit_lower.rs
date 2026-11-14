@@ -21,6 +21,8 @@ mod control;
 mod loop_control;
 mod map;
 use construction::nullable_proof;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+pub(in crate::ssa) mod e2_common;
 mod nullable_when;
 mod ownership;
 mod planned_body;

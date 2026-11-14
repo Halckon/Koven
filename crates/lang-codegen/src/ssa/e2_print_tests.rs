@@ -45,6 +45,10 @@ fn e2_printing_parameter_observes_original_branch_and_iteration_count() {
             let entries: Vec<_> = experiment.entries(&typed).unwrap().iter().rev().collect();
             assert_eq!(facts.len(), 2);
             assert_eq!(entries.len(), 2);
+            super::e2_joint_plan::JointPlan::build(&handoff, &experiment, &facts, &entries)
+                .unwrap()
+                .check_common_bodies(&handoff)
+                .expect("common ordinary bodies");
             let package =
                 super::e2_joint_plan::JointPlan::build(&handoff, &experiment, &facts, &entries)
                     .unwrap()
@@ -122,6 +126,10 @@ fn e2_ordinary_forward_call_closure_uses_real_helper_identity() {
             5 + depth,
             "view, two wrappers, distinct helpers and every forwarding body"
         );
+        super::e2_joint_plan::JointPlan::build(&handoff, &experiment, &facts, &entries)
+            .unwrap()
+            .check_common_bodies(&handoff)
+            .expect("common ordinary bodies");
         let package =
             super::e2_joint_plan::JointPlan::build(&handoff, &experiment, &facts, &entries)
                 .unwrap()

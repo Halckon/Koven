@@ -53,6 +53,9 @@ impl OrdinaryPlans {
             plan,
         })
     }
+    pub(super) fn into_plan(self) -> UnitInstancePlan {
+        self.plan
+    }
     pub(super) fn verify(&self, joint: &JointPlan<'_>) -> Option<()> {
         let roots: BTreeSet<_> = joint
             .entries

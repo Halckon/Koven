@@ -98,6 +98,15 @@ pub(super) fn replay_body(
     caller: FunctionId,
     d: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
 ) -> Option<()> {
+    replay_declared_body(module, entry, caller, d, d.body())
+}
+pub(super) fn replay_declared_body(
+    module: &Module,
+    entry: FunctionId,
+    caller: FunctionId,
+    d: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    declaration: lang_frontend::source::Span,
+) -> Option<()> {
     let find = |kind: &SsaTypeKind| {
         module
             .types
@@ -118,7 +127,7 @@ pub(super) fn replay_body(
     if f.receiver.is_some()
         || f.carrier_return.is_some()
         || f.never_returns
-        || f.origin != Origin::Source(d.body())
+        || f.origin != Origin::Source(declaration)
         || !f.return_types.is_empty()
         || f.borrow_return.is_some()
     {
@@ -128,7 +137,7 @@ pub(super) fn replay_body(
         return None;
     };
     if !block.parameters.is_empty()
-        || block.origin != Origin::Source(d.body())
+        || block.origin != Origin::Source(declaration)
         || block.instructions.len() != 19
         || f.instructions.len() != 19
     {
