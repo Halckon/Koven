@@ -17835,3 +17835,19 @@ ConcreteClosure 类型及闭包构造/调用指令，随后通过 SSA 与 LLVM v
 不改生产语义、Origin 或故障分类；未运行故障测试、全量测试或远程 CI。
 带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
 及 diff 检查通过。
+
+### shared callback 清理见证迁至 Unit（2026-11-14）
+
+基于 `9bb34f40`，`refine_closure_tests::source_closure_tests` 中两个普通源码测试
+`single_runtime_named_shared_callback_survives_constructor_and_arithmetic_cfg` 与
+`single_runtime_temporary_shared_callback_ends_capture_before_iteration_element`
+保留原 FQN、源码及全部断言，改由严格 Unit admission 和原声明 root lowering。
+共享入口保留类型 arena 不增长与 LLVM verifier，新增 root 原始声明 Span 校验。
+named 仍核两次生成与一次闭包 Drop；temporary 仍核真实 Shared capture、callback
+owner、无重复 BorrowEnd、Drop 晚于构造。结论限于这些既有 SSA 断言，非完整
+运行时清理等价证明，也不据此删除其他旧内部身份见证。
+
+两个完整 FQN exact 各 1/1 通过，测试编译通过，独立只读审查无阻断。
+未改生产或 Origin，未执行故障注入/全量测试，未推送；远程 CI 不由此替代。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+和 diff 检查通过；测试文件 892 行，未超过手写 Rust 1000 行软上限。

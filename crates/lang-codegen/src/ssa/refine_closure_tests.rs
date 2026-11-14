@@ -494,17 +494,40 @@ mod source_closure_tests {
         );
     }
 
+    fn lower_unit_entry(text: &str) -> (Program, crate::ssa::model::FunctionId) {
+        use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+        use lang_frontend::name_resolution::SymbolKind;
+
+        let unit = UnitSource::analyze("single-runtime-intent.ko", text).unwrap();
+        unit.assert_frontend_clean();
+        let declaration = unit.declaration("entry", SymbolKind::Function);
+        let arena = unit.types().types().len();
+        let (program, root) = unit.lower_entry(declaration).unwrap();
+        assert_eq!(
+            unit.types().types().len(),
+            arena,
+            "backend only queries canonical types"
+        );
+        assert_eq!(
+            program
+                .module(root.module())
+                .unwrap()
+                .function(root)
+                .unwrap()
+                .origin,
+            crate::ssa::model::Origin::Source(unit.declaration_span(declaration))
+        );
+        crate::llvm::render_verified_program(&program).unwrap();
+        (program, root)
+    }
+
     #[test]
     fn single_runtime_named_shared_callback_survives_constructor_and_arithmetic_cfg() {
-        let program = lower(
+        let (program, root) = lower_unit_entry(
             "fun entry(): Int { val scale = 7\nval callback: (Int)->Int = { index -> index + scale }\nval first = Array<Int>(1, callback)\nval length = first.size + 2\nval second = List<Int>(length, callback)\nreturn second[2] }",
         );
-        let module = &program.modules[0];
-        let entry = module
-            .functions
-            .iter()
-            .find(|function| function.name == "entry")
-            .unwrap();
+        let module = program.module(root.module()).unwrap();
+        let entry = module.function(root).unwrap();
         assert_eq!(
             entry
                 .instructions
@@ -542,13 +565,13 @@ mod source_closure_tests {
 
     #[test]
     fn single_runtime_temporary_shared_callback_ends_capture_before_iteration_element() {
-        let program = lower(
+        let (program, root) = lower_unit_entry(
             "fun entry(): Int { val source = arrayOf<Int>(7)\nvar result = 0\nfor (element in source) { val items = List<Int>(1, { index -> index + element })\nresult += items[0] }\nreturn result }",
         );
-        let entry = program.modules[0]
-            .functions
-            .iter()
-            .find(|function| function.name == "entry")
+        let entry = program
+            .module(root.module())
+            .unwrap()
+            .function(root)
             .unwrap();
         assert_eq!(
             entry
