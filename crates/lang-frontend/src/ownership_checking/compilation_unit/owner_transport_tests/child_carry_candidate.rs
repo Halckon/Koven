@@ -1,5 +1,6 @@
 //! Ordinary source probe for the isolated Carry candidate; no new authority.
 use super::*;
+mod shape;
 use crate::parser::Statement;
 
 const SOURCE: &str = r#"fun run(outerCount: Int, innerCount: Int): Unit {
@@ -325,5 +326,26 @@ fn ordinary_source_evidence_rejects_missing_premises() {
     ] {
         let rejected = Fixture::new(&[("reject.ko", &text)]);
         assert!(extract_source_evidence(&rejected, &rejected.shared()).is_none());
+    }
+}
+
+#[test]
+fn ordinary_closed_source_shape_pairs_old_results() {
+    let used = SOURCE.strip_suffix("}\n}").unwrap().to_owned() + "}\nprintln(b)\n}";
+    let fixture = Fixture::new(&[("shape.ko", &used)]);
+    let owned = fixture.shared();
+    let evidence = extract_source_evidence(&fixture, &owned).unwrap();
+    assert!(shape::matches(&fixture, &owned, &evidence).is_some());
+    for text in [
+        used.replace("var b =", "val b ="),
+        used.replace("val oldChild", "var oldChild"),
+        used.replace("inner = inner - 1", "println(oldChild)\ninner = inner - 1"),
+        used.replace("var b = \"initial b\"", "var b = \"initial b\" + \"extra\""),
+    ] {
+        let fixture = Fixture::new(&[("reject.ko", &text)]);
+        let owned = fixture.shared();
+        let accepted = extract_source_evidence(&fixture, &owned)
+            .and_then(|evidence| shape::matches(&fixture, &owned, &evidence));
+        assert!(accepted.is_none());
     }
 }

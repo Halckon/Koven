@@ -128,7 +128,21 @@ Replace，以及另一根在 parent 后的唯一 Shared loan 和同一调用的 
 没有后续读取、读取 Replace 根、parent 改写另一根、多个后续 loan
 均由普通源码回归拒绝；原无读取的 ASAP 证据保留。
 
-这不是完整候选准入器：尚未建立全函数 AST 白名单、所有额外操作/出口的排除、
-两根类型与初始化限制、old-result 清理配对和实际 CFG 代际边证据。
+这层必要事实本身不是完整候选准入器：AST 白名单、两根类型与初始化限制、
+old-result 清理配对由下节独立 shape 层检查，实际 CFG 代际边证据仍未建立。
 返回 `CarrySourceEvidence` 只表示这些必要事实存在，不能产生 Carry 权限、
 现行 nested-normal observation、selector 放宽或任何生产/SSA 输出。
+
+### 封闭源码形态与 old-result 清理（测试域）
+
+`child_carry_candidate::shape` 在必要事实之后，沿真实 AST body 边核对函数的
+五项顺序（Replace 根、Carry 候选根、outer、parent、suffix）、parent 四项和 child 两项结构，
+不再仅由 Span 推导语句归属。两根必须是同分析 `String` 的 `var`，初始化与
+两次 Replace 新值均为不含插值的字符串字面量。两次 old-result 必须分别是
+真实 `val String`，initializer 为对应 primitive，唯一 Named Drop 精确配对
+自己的 `AfterStatement`。counter 存储限于 `Int`，赋值和二元操作的两侧限于
+`Int`；表达式种类采用封闭白名单，调用仅允许这两个 primitive 与后缀调用。
+
+这些是隔离源码候选约束，不是 CFG 或代际许可：counter 的条件/更新对应关系、
+后缀调用目标合同、实际 CFG 边与 owner Entity 身份、cleanup lowering 和 native
+见证仍待建立。生产观察、selector 和 SSA 均未接入。
