@@ -137,6 +137,36 @@ fn paired_poisoned_expression_groups_keep_linear_significant_visits() {
 }
 
 #[test]
+fn poison_before_else_keeps_linear_significant_visits() {
+    let metrics = |count| {
+        let poison = "β /* trivia */ ".repeat(count);
+        let text = format!(
+            "val value = if (outer) (if (inner) {{ value }} {poison}else a) else b\nval sentinel = 1"
+        );
+        let visits = angle_separator_metrics(&text, 0).0;
+        assert!(visits >= count, "the metric must include the poison scan");
+        visits
+    };
+    let small = metrics(32);
+    let large = metrics(64);
+    assert!(large <= small * 2 + 64, "{small} -> {large}");
+}
+
+#[test]
+fn rejected_else_poison_runs_are_not_rescanned_from_each_statement() {
+    let metrics = |count| {
+        let text = format!(
+            "{{ if (outer) when {{ true -> value\n{} }} else fallback }}",
+            "β /* trivia */ \n".repeat(count)
+        );
+        super::tests::block_dispatch_metrics(text).2
+    };
+    let small = metrics(32);
+    let large = metrics(64);
+    assert!(large <= small * 2 + 64, "{small} -> {large}");
+}
+
+#[test]
 fn paired_malformed_expression_groups_keep_linear_significant_visits() {
     let metrics = |count| {
         let groups = "f((x, /* trivia */ other), next) + ".repeat(count);

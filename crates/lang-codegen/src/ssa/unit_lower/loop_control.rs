@@ -531,7 +531,7 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             let Expression::If {
                 condition: actual,
                 then_branch,
-                else_branch: Some(else_branch),
+                else_branch,
                 ..
             } = *node.payload()
             else {
@@ -578,14 +578,14 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                 declared: comparison.nullable_type(),
                 narrowed: *narrowed,
             };
-            let (non_null, null) = if comparison.non_null_when_true() {
-                (then_branch, else_branch)
+            let non_null = if comparison.non_null_when_true() {
+                Some(then_branch)
             } else {
-                (else_branch, then_branch)
+                else_branch
             };
-            if !self.map_if_body_is_empty(Some(null), span)? {
+            let Some(non_null) = non_null else {
                 return Ok(None);
-            }
+            };
             let Some(call) = self.heap_if_direct_borrow_call(non_null, span)? else {
                 return Ok(None);
             };

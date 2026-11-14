@@ -50,6 +50,13 @@ fun lookup(): Int {
         "if (other || (write(&x) && false)) { break }",
         "if ((!true)) { x = null; break }\n                    if (other) { break }\n                    write(&x)",
     );
+    let return_updated = source
+        .replace("target = null", "target = 9")
+        .replace(
+            "                    return 0",
+            "                    if (x != null) { return x }\n                    return 0",
+        )
+        .replace("run(null, true, false) == 0", "run(null, true, false) == 9");
     let reached_map = format!("{source}{MAP_LOOKUP}").replace(
         "fun main(): Unit {",
         "fun main(): Unit { if (lookup() == 42) { println(\"map-result\") }",
@@ -60,6 +67,7 @@ fun lookup(): Int {
         ("loop-writeback.ko", source, expected, false),
         ("with-sibling.ko", &with_sibling, expected, false),
         ("literal-guard.ko", &literal_guard, expected, false),
+        ("return-updated.ko", &return_updated, expected, false),
         ("with-reached-map.ko", &reached_map, &reached_expected, true),
     ] {
         use super::{SymbolKind, UnitSource};

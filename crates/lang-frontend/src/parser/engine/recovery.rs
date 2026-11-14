@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 mod adjacent_poison;
 mod ordinary_groups;
 
-use adjacent_poison::AdjacentPoisonTail;
+use adjacent_poison::{AdjacentPoisonTail, ElsePoisonTail};
 
 use ordinary_groups::{GroupClosers, OrdinaryGroups, group_delimiter};
 
@@ -20,6 +20,7 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     pub(super) terminal_error_at_eof: bool,
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
     adjacent_poison_tail: Cell<Option<AdjacentPoisonTail>>,
+    else_poison_tail: Cell<Option<ElsePoisonTail>>,
     group_closers: OnceCell<GroupClosers>,
     block_statement_after_separator: Cell<Option<(usize, bool)>>,
     angle_group_closers: OnceCell<Vec<Option<NonZeroUsize>>>,
@@ -358,6 +359,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
             terminal_error_at_eof,
             terminal_owner_events: verified_events,
             adjacent_poison_tail: Cell::new(None),
+            else_poison_tail: Cell::new(None),
             group_closers: OnceCell::new(),
             block_statement_after_separator: Cell::new(None),
             angle_group_closers: OnceCell::new(),
