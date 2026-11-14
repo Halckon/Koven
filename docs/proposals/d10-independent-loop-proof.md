@@ -1174,3 +1174,37 @@ concat／三根恢复普通 SSA 回归各通过。前端二十六组合在新主
 通过，文档 957 项及全仓 2234 Rust 文件尺寸门禁通过。独审确认新全图封包边界、
 旧 singleton 准入与 CI-only 模块字节等价；没有提高例外或把旧测试拒绝当作新
 功能实现。原工作树保留，本轮仅独立树本地提交，未推送。
+
+### named 源码零参 entry 与原子 process object
+
+在已有不可变 NamedWrapperProgram 上增加显式 `emit_process_object`。仅该封包
+能进入 feature-only native桥，不接受调用者提供任意 Program、FunctionId或
+替代 entry。先重新核同次 owned、bound 的唯一源码 declaration、零参 Unit，
+再核原共同 Program 完整图与实际 LLVM entry plan；全部在预留输出前完成。
+不重新 lowering，不生成测试 SSA main；由已有 LLVM process glue调用真实
+wrapper，wrapper再调用原 callee。旧无 main库对象方法与普通 driver gates未变。
+
+发射复用原 SiblingObject：同目录 create_new临时文件、既有LLVM验证/对象写出、
+成功后rename提交；失败沿原错误分类与Drop清理。普通对象测试以真实合法对象
+完成Rooted/Memory各新建和覆盖，核 main及两个原函数defined符号、无临时遗留。
+该成功测试不等于失败原子性验收。新增ignored且CI环境门控的失败控制，覆盖有/
+无既有目标、实际emission_failure hook、Backend分类、旧字节/目录不变；只接入
+既有CI-only脚本，本地仅编译列举，不执行。
+
+真实源码native验收单独注册在native测试域，不混入 `ssa::d10_` 静态过滤器。
+源码本身含零参entry及两具名Int实参；直接发射上述process对象后用既有Clang
+链接，不存在此前测试ABI trampoline。父零、子零和父子多轮四种配置各两输入
+布局，复用未改动的10秒/10毫秒执行helper，失败停止并保留源码、对象与输出。
+这只针对当前封闭BeforeChild形态，不推广AfterChild、通用Carry或Origin语义，
+也不以结果输出声称完成运行时分配/释放计数或sanitizer验收。
+
+本批 native精确测试一次通过：八个真实源码配置总耗时8.13秒，每个生成程序仍
+使用原10秒上限，未重试或调整安全策略。正常 D10 SSA回归十五通过／四项
+CI-only ignored；新原子失败控制及既有CI精确列表全部以 `--list-only`通过，
+从未本地执行负控。实验all-targets严格Clippy、默认codegen编译、格式与diff
+检查通过，全仓2237 Rust文件尺寸门禁通过。独审确认source入口、同图重核、
+事务和native证据边界；普通生产准入、其他顺序/形态推广与跨宿主CI仍分别待验。
+
+跨crate公开方法另以 `cargo check --workspace --all-targets --features
+lang-codegen/d10-catalog-experiment` 离线验证通过，包含CLI/LSP消费者与测试编译；
+文档957项检查通过。该check不执行任何native或ignored控制。

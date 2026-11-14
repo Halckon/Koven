@@ -503,3 +503,6 @@ fn backend_io_error(operation: &str, error: std::io::Error) -> NativeObjectError
         diagnostic: None,
     }
 }
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod d10_named_wrapper;

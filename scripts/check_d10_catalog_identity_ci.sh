@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cross-analysis negative controls are executed only by CI.
+# Cross-analysis and object-atomicity negative controls are executed only by CI.
 set -euo pipefail
 mode="${1:-}"
 [[ "$mode" == '' || "$mode" == --list-only ]] || { echo 'usage: check_d10_catalog_identity_ci.sh [--list-only]' >&2; exit 2; }
@@ -68,4 +68,13 @@ if [[ "$mode" != --list-only ]]; then
   cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$before_publication" -- --exact --ignored
 else
   echo 'BeforeChild source/graph controls compiled/listed; not executed'
+fi
+
+process_object=ssa::d10_named_wrapper_tests::process_object::ci_only_process_object_failure_preserves_target
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$process_object" -- --exact --ignored --list)
+[[ $(grep -Fxc "$process_object: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$process_object" -- --exact --ignored
+else
+  echo 'named process object atomicity control compiled/listed; not executed'
 fi

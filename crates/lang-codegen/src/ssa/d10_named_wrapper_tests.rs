@@ -101,3 +101,6 @@ fn named_wrapper_publishes_one_complete_program_and_library_object() {
         }
     }
 }
+
+#[path = "d10_named_process_object_tests.rs"]
+mod process_object;

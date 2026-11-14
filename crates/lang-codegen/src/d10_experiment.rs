@@ -1,7 +1,8 @@
 //! Default-off, same-analysis ordered loop publications. Not ordinary entry/Carry capabilities.
 //!
 //! This route uses ordinary Unit lowering unchanged and publishes only after a separate graph
-//! check. It does not select source programs for the normal driver or create native entry glue.
+//! check. It does not select source programs for the normal driver. Only the named-wrapper
+//! process-object method requests existing native entry glue after revalidating its source entry.
 use lang_frontend::{
     ownership_checking::{
         OwnedCompilationUnitView, d10_catalog_experiment::BoundAfterChildNestedLoop,
@@ -243,7 +244,8 @@ pub fn lower_before_child<'view, 'parsed: 'view>(
 pub(crate) mod object_tests;
 
 /// Immutable two-function publication, borrowing the same final named-wrapper analysis.
-/// This carries no native-entry authority and exposes no mutable or consuming Program escape.
+/// Its explicit process-object method revalidates the real zero-argument source entry.
+/// No mutable/consuming Program escape, linking, or execution is exposed.
 pub struct NamedWrapperProgram<'view, 'parsed: 'view> {
     unit: OwnedCompilationUnitView<'view, 'parsed>,
     bound: &'view lang_frontend::ownership_checking::d10_catalog_experiment::BoundNamedWrapper,
@@ -251,6 +253,32 @@ pub struct NamedWrapperProgram<'view, 'parsed: 'view> {
     entry: FunctionId,
 }
 impl NamedWrapperProgram<'_, '_> {
+    /// Atomically publish a relocatable process object with the existing LLVM main glue.
+    ///
+    /// Rechecks the same source declaration, zero-argument Unit signature and immutable graph
+    /// before reserving output. Emission uses a sibling temporary and commits only on success;
+    /// an existing target is not truncated in advance. This never links or executes native code.
+    /// The ordinary native entry gates and the library-object method remain unchanged.
+    pub fn emit_process_object(
+        &self,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        crate::native::d10_named_wrapper::emit(self, output)
+    }
+
+    pub(crate) fn process_source(
+        &self,
+    ) -> (
+        &OwnedCompilationUnitView<'_, '_>,
+        &lang_frontend::ownership_checking::d10_catalog_experiment::BoundNamedWrapper,
+    ) {
+        (&self.unit, self.bound)
+    }
+
+    pub(crate) fn process_graph(&self) -> (&Program, FunctionId) {
+        (&self.program, self.entry)
+    }
+
     /// Original wrapper declaration, not a synthesized process entry.
     #[must_use]
     pub fn callable(&self) -> UnitItemId {

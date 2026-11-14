@@ -169,3 +169,6 @@ fn execute_binary(executable: &std::path::Path, expected: &[u8], directory: &std
         directory.display()
     );
 }
+
+#[path = "native_d10_named_entry_tests.rs"]
+mod named_entry;
