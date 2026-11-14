@@ -127,3 +127,83 @@ fn distinct_source_counter_syntax_stays_outside_production_selection() {
         (false, false)
     );
 }
+
+#[cfg(feature = "loan-observation-test-support")]
+#[test]
+fn actual_unit_rejection_cannot_publish_candidate_authority() {
+    use crate::{
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        ownership_checking::{
+            check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
+        },
+        type_checking::{check_compilation_unit_types, standard_environments},
+    };
+    for (source, accepted) in [
+        (SOURCE.to_owned(), false),
+        (SOURCE.replace("view(right)", "view(left)"), true),
+    ] {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("unit-candidate.ko", source).unwrap();
+        let lexed = lex(&sources, id).unwrap();
+        let parsed = parse_file(&sources, &lexed).unwrap();
+        assert!(lexed.diagnostics().is_empty() && parsed.diagnostics().is_empty());
+        for input in [
+            SourceUnitInput::new("root", "unit-candidate.ko", id, &parsed),
+            SourceUnitInput::memory_document(id, &parsed),
+        ] {
+            let inputs = [input];
+            let (environment, types) = standard_environments();
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let analyze = |enabled| {
+                with_loan_observation(enabled, || {
+                    check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                        .unwrap()
+                })
+            };
+            let observed = analyze(true);
+            let unobserved = analyze(false);
+            assert!(legacy_ownership_eq(&observed, &unobserved));
+            for owned in [observed, unobserved] {
+                assert_eq!(owned.diagnostics().is_empty(), accepted);
+                assert!(owned.no_carry_loops().is_empty());
+                assert!(owned.no_carry_branches().is_empty());
+                assert_eq!(
+                    owned.no_carry_counter_branches().len(),
+                    usize::from(accepted)
+                );
+                if accepted {
+                    let fact = &owned.no_carry_counter_branches()[0];
+                    assert!(owned.owns_no_carry_counter_branch(fact));
+                    assert!(!owned.owns_no_carry_branch(fact.pair()));
+                    assert_eq!(
+                        fact.pair().arms()[0].source(),
+                        fact.pair().arms()[1].source()
+                    );
+                    assert_ne!(
+                        fact.pair().arms()[0].binding(),
+                        fact.pair().arms()[1].binding()
+                    );
+                } else {
+                    assert!(
+                        owned
+                            .diagnostics()
+                            .iter()
+                            .any(|d| d.code().to_string() == "L0164")
+                    );
+                    assert!(owned.borrow_results().bindings().is_empty());
+                }
+                assert_eq!(owned.validate().is_ok(), accepted);
+            }
+        }
+    }
+}

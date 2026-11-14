@@ -124,3 +124,7 @@ workflow。本地仅编译列举，动态拒绝与恢复结果须以远端执行
 其 fixture 回调使用唯一名字，仅服务语法探索，不证明 Shared 权限、callee 效果、
 符号解析身份或完整候选合同。真实 Single 检查仍拒绝两源（含 L0164），同源邻居
 仍成功。候选分支是当前调用点隔离，不是编译期禁止未来生产调用的机制。
+真实 Unit 的 rooted/memory 输入及 observation 开关验收也保持两源拒绝：没有
+borrow binding、同源 branch 或 counter fact，validated ownership factory 不发布。
+同源 counter 邻居仍发布独立 counter 域身份，旧 branch owns 查询不授予权限。
+这不是两源真实 Acquire/End 事件或新 receipt 的实现证据。

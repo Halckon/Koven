@@ -18023,3 +18023,18 @@ CI-only 损坏矩阵至少覆盖臂源交换、遗漏第二根、错 End、fresh
 最终源码 exact 1/1（含上述普通矩阵）、frontend all-target 严格 Clippy通过，
 独立只读审查确认生产 false 路径与原逻辑等价；true 只有当前测试调用隔离，
 不声称它在类型层禁止未来生产调用。本地提交、不推送。
+
+### E2 候选的真实 Unit 拒绝与发布边界（2026-11-14）
+
+基于 `b1eca8fb`，只增加 feature-gated 普通测试
+`shape::two_source_candidate::actual_unit_rejection_cannot_publish_candidate_authority`。
+真实 name/type/ownership Unit 链覆盖 rooted/memory 与 observation on/off，两源
+仍含 L0164，borrow binding、straight/branch/counter fact 均不发布，validate
+失败；同源邻居成功且仅 counter 域 owns 其事实，旧 branch 域不取得权限。
+observer 开关的完整非观察产物相等。所有结果来自真实 checker，不合成成功状态。
+
+候选与 Unit 边界两项普通测试 2/2 通过，未修改 selector 或生产代码。这里核验
+的是当前拒绝和发布隔离，不是两源实际 Acquire/End 事件、完整诊断身份、新
+fact/receipt 或 native 已实现；这些仍待合同启用后的独立实施。
+frontend observer-support all-target 严格 Clippy、fmt、docs951、diff及独立只读
+审查通过。未运行故障注入或远程 CI，未推送；“无事实”仅指本片列出的域。
