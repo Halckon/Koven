@@ -387,3 +387,41 @@ fn ordinary_conditional_return_records_alternative_retirements_not_dynamic_seque
         assert!(super::super::origin_probe::partition_if(events).is_none());
     });
 }
+
+#[test]
+fn ordinary_receiver_records_actual_registration_and_pending_removal() {
+    let fixture = Fixture::new(&[(
+        "receiver.ko",
+        "class Node { fun read(): Int = 1 }\nfun run(own node: Node): Unit { node.read() }",
+    )]);
+    let owned = fixture.shared();
+    let [end] = owned.receiver_call_return_ends() else {
+        panic!("one real bounded receiver return")
+    };
+    let receiver = end.receiver();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.origin_probe = Some(Vec::new());
+        let observed = planner.run().unwrap();
+        let events = observed.origin_probe.as_ref().unwrap();
+        let begins = events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| *event == &Event::ReceiverRegistered(receiver.clone()))
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        let removals = events
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| *event == &Event::ReceiverRemoved(receiver.clone()))
+            .map(|(i, _)| i)
+            .collect::<Vec<_>>();
+        assert_eq!(begins.len(), 1);
+        assert_eq!(removals.len(), 1);
+        assert!(begins[0] < removals[0]);
+        assert!(super::super::origin_probe::partition_if(events).is_none());
+    });
+}

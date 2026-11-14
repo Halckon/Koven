@@ -301,6 +301,12 @@ impl DropPlanner<'_, '_> {
                 )
         }) {
             self.iteration_actions.begin_receiver(fact.clone());
+            #[cfg(test)]
+            if let Some(probe) = &mut self.origin_probe {
+                probe.push(
+                    super::owner_transport::origin_probe::Event::ReceiverRegistered(fact.clone()),
+                );
+            }
             state.pending_loans.push(super::model::PendingLoan(
                 Action::EndReceiverLoan(fact.clone()),
                 self.loop_boundaries.len(),

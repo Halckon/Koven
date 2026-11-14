@@ -366,3 +366,14 @@ pending 移除路径产生，保留同轮 loan 以及实际 `UnitDropPoint`。�
 CallReturn direct-end：后两者属于替代路径，不能串联成运行时两次退休。
 当前记录器只展示这种差异，尚未给出完整路径归属证明；分区保持拒绝，不发布
 动态 CFG、完整借用状态机或 Carry。receiver 的观察仍是独立缺口。
+
+### receiver 的实际登记与 pending 移除
+
+测试域另记 `ReceiverRegistered`（实际 receiver 求值后登记路径）与
+`ReceiverRemoved`（正常返回的 pending `extract_if` 已移除路径），均携带原
+`UnitReceiverOwnershipFact`。后者覆盖的是实际 pending 移除，不能凭事件名称
+声称所有 receiver 都满足 bounded receiver-return 公开合同。
+
+普通 `Node.read()` 源码将记录身份与同轮真实 receiver-return fact 精确比对，
+登记与移除各一次且顺序正确。分区继续拒绝 receiver 事件；receiver 提前退出、
+复杂调用及静态替代路径的完整归属仍未证明，不生成动态生命周期或 Carry 权限。

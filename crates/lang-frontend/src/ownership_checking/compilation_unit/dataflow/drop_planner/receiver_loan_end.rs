@@ -160,6 +160,14 @@ impl DropPlanner<'_, '_> {
                     _ => false,
                 })
         {
+            #[cfg(test)]
+            if let Action::EndReceiverLoan(receiver) = &action
+                && let Some(probe) = &mut self.origin_probe
+            {
+                probe.push(
+                    super::owner_transport::origin_probe::Event::ReceiverRemoved(receiver.clone()),
+                );
+            }
             match action {
                 Action::EndReceiverLoan(receiver) if self.observes_bounded_receiver(&receiver) => {
                     self.iteration_actions
