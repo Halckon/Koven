@@ -60,7 +60,7 @@
 - [x] R4：single 与双文件 project 的标量结果、正逆输入顺序和无关 sibling 隔离验证；实际 native 成功与 checked Abort 保持。
 - [x] R5：最近 subset/Map sibling/验证门/owner receipt/LLVM 契约在默认与 feature 下通过；CI-only 不本地伪造。
 - [x] R6：fmt、双配置 all-target Clippy、适用 workspace check、docs、依赖、尺寸与空白门禁通过；独立审查具体范围。
-- [ ] R7：独立 PR 的精确 head/base 双宿主 CI 验收；未执行与过滤/复用分别记账，批准前不合并。
+- [x] R7：代码候选 `44de27fb` / base `51a3aad3` 的独立 PR 双宿主 CI 已验收；账本提交的过滤/复用另行核对，不冒充重跑，批准前不合并。
 
 ## 6. 技术方案
 
@@ -83,7 +83,7 @@ checked failure→Abort、正常继续、逐参数类型/arity 以及原实源/n
 1. [x] 建立本合同与库存/roadmap；添加路由正反例 → R1 有真实路由失败；实现前三项边界 3/3。
 2. [x] 最小触发实现、保留原实源并适配直接受影响的路由/表示断言，修正类型需求污染 → R2–R4。
 3. [x] 定向共享契约、双 Clippy 与结构门禁、独立审查 → R5–R6。
-4. [ ] 更新 Architecture 与本账本，普通推送独立 Draft PR → 验证 R7；保持 in-progress。
+4. [x] 更新 Architecture 与本账本，普通推送独立 Draft PR #424 → 代码候选 R7 通过；保持 Draft/in-progress，不自动合并或归档。
 
 ## 8. 提交边界
 
@@ -121,7 +121,10 @@ frontend/manifest/toolchain 无改动。
 | R5 CI 修复重验 | `b35042fe…`，完整 `ssa::lower_frontend_tests::` | 默认/feature 各 **287/287，无忽略**，退出 0；原源码、kind/span、身份与 native/确定性检查保留 |
 | R5 CI 修复直接消费者 | 同输入，`ssa::refine_subset_tests::scalar::`、`ssa::unit_lower_scalar_tests::`、`ssa::verify_scalar_tests::` | 两配置各 **24/24，无忽略**，含入口 Borrow 跨 CFG 不传 loan 参数的原 verifier 合同；不与其他选择合并计数 |
 | R6 CI 修复门禁 | 同输入，fmt、workspace all-target check、双 workspace all-target Clippy、尺寸/依赖/空白；两文件独立只读复审 | 门禁均退出 0，复审无具体发现；root boundary 文件 960 行，未增加尺寸欠账；docs 在账本更新后重验 |
-| R7 修复候选 | PR #424 后续实际 head 的官方 CI | 待推送/核验；不把本地两配置通过或旧 push 绿灯替代 PR，保持 in-progress |
+| R7 修复候选 | [PR #424 run 43573023199](https://github.com/Halckon/Koven/actions/runs/43573023199)，head `44de27fbdc5874599d0806d8f541376f74aab8a7` / base `51a3aad36bd754c268a05c26c8dd0b80940286cb`；push 43573019227 | PR 与 push 均 success。双宿主 Check/Clippy、Targeted Tests、Preview producer 与独立 consumer 均实际 success；Editor lexical 按改动过滤 skipped，不算执行 |
+| R7 普通与专用 CI | 同 run 两宿主 | frontend 各 **848 / 0 / 12**；codegen Linux **3225 / 0 / 55**，macOS **3222 / 0 / 56**（passed/failed/ignored）。各宿主 62 个 borrow fault **逐个实际执行一次**；独立 parent/child receipt、conformance、generated resource 均 success，Linux native sanitizer success；忽略项不当作执行 |
+| R7 Preview 来源 | 同 run/attempt 1 的 x86_64 Linux 与 AArch64 macOS | producer 包 14105774656 / 14107030417，独立 consumer 证据 14106592085 / 14107260389。安装/运行、中文路径管理、实际 source_commit=`44de27fb…` 匹配；损坏 checksum 被拒且 current 不变是预期负控，不是流水线失败 |
+| R7 账本后续 | 本行所在仅文档提交 | 不改 `b35042fe…` codegen tree；核对该提交的结构检查及官方过滤/复用，不把旧候选绿灯无条件推广到后续代码 |
 
 首轮扩大回归 filters：`ssa::refine_subset_tests::`、`ssa::refine_tests::`、`ssa::unit_lower`、
 `llvm::`、`receipt`、`borrow_return_transport`、`for_atomic`。默认选择 620、feature 选择 652，
