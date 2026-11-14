@@ -4,6 +4,9 @@ use super::{
     UnitOwnershipBindingDescriptor, capture, contracts, dataflow,
 };
 use crate::{
+    name_resolution::ValidatedCompilationUnitNames, type_checking::ValidatedCompilationUnitTypes,
+};
+use crate::{
     name_resolution::{CompilationUnitNames, SourceUnitInput, UnitSymbolId},
     source::{SourceMap, Span},
     type_checking::{CompilationUnitTypes, ParameterMode, TypeEnvironment, UnitCallableSignature},
@@ -300,4 +303,40 @@ const fn binding_kind(mode: ParameterMode) -> OwnershipBindingKind {
         ParameterMode::Borrow => OwnershipBindingKind::Shared,
         ParameterMode::Inout => OwnershipBindingKind::Exclusive,
     }
+}
+
+/// 建立 source-qualified compilation-unit ownership recovery product。
+///
+/// 当前发布 callable parameter bindings、call argument contracts、普通 call 与 intrinsic
+/// container 的 loan/value deliveries、receiver loan/delivery 与 `StaticSelf` conditional delivery、
+/// intrinsic Rc effects、constructor ordered delivery/root obligations、closure
+/// capture/formation/Transferability，以及完整 body-local ASAP drop facts。
+/// recovery product 可能携带诊断或显式 deferred drop 边界；调用 [`CompilationUnitOwnership::validate`]
+/// 后才获得 codegen 可消费的 view。
+pub fn check_compilation_unit_ownership(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &ValidatedCompilationUnitTypes,
+) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
+    analyze(
+        sources,
+        inputs,
+        names.names(),
+        environment,
+        typed.types(),
+        false,
+    )
+}
+
+/// 同一 producer 的诊断入口；上游资格在产物中继承，constant control 仍为普通保守遍历。
+pub(crate) fn check_compilation_unit_ownership_recovering(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &CompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &CompilationUnitTypes,
+) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
+    analyze(sources, inputs, names, environment, typed, false)
 }

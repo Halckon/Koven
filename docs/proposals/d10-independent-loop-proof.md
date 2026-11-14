@@ -1438,3 +1438,21 @@ D10能力。若继续构建独立封包，应新增真实wrapper单source Pendin
 不从实际 SSA 或运行输出倒填期望。此动态结果不等于 allocator/Drop 次数证明，
 也不生成跨 source sealed nonce 或放宽独立 D10 singleton admission。
 CI 将原编译证据和新增 native exact 分为两步；远端跨平台结果仍待推送后验证。
+
+### 跨 source 前置：原 planner 与最终 owned 的同次身份
+
+在新增 split 封包之前，先强化现有受限两种顺序的私有 pending。此前 pending
+只携 typed analysis Arc，而最终 ownership run Arc 在构造 final owned 时才产生；
+相同 typed 的两次 ownership 分析不能仅凭 typed 身份区分。
+
+仅 default-off feature 下，真实 dataflow 在遍历各 canonical source 前创建一次
+run Arc，每个实际 Checker 在运行前获得同一身份，planner 的 Dual/After pending
+保存它，最终 owned 原样保留该 Arc。两个 singleton binder 与 NamedValidation
+同时核 typed 与 run 的 `Arc::ptr_eq`。独立 fixture Checker 默认产生自己的身份，
+不得通过把最终 nonce 填回重跑观察来制造同源。所有原诊断、deferred、完整事实
+和 AST 拒绝保持；nonce 本身不证明成功或任何循环语义。
+
+无 feature 的默认构建仍按原 constructor 分配身份。此批不新增 split wrapper
+collector 或跨源能力；下一步必须把真实 wrapper pending 同样纳入本次身份并与
+callee/final owned 三方核验，完整 contracts 按原 source/call/argument 次序核对。
+同 typed 跨 ownership run 组合的负控制仅在 CI 执行，本地只编译/列举。

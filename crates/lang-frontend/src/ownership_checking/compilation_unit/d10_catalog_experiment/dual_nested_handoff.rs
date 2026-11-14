@@ -6,6 +6,7 @@ use crate::ownership_checking::UnitLoanFact;
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct DualNestedPending {
     pub(crate) typed: Arc<()>,
+    pub(crate) analysis_owner: Arc<()>,
     pub(crate) callable: UnitItemId,
     pub(crate) controls: [UnitStatementId; 2],
     pub(crate) root: UnitSymbolId,
@@ -110,7 +111,7 @@ impl BoundDualNestedLoop {
     }
 }
 impl DualNestedPending {
-    fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundDualNestedLoop> {
+    pub(super) fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundDualNestedLoop> {
         let mut drops = self.cleanup.to_vec();
         drops.push(self.retained.cleanup);
         let mut loans = self.loans.to_vec();
@@ -118,7 +119,8 @@ impl DualNestedPending {
             loans.push(root_use.loan.clone());
         }
         loans.push(self.retained.loan.clone());
-        if !Arc::ptr_eq(&self.typed, &owned.provenance.typed_analysis_owner)
+        if !Arc::ptr_eq(&self.analysis_owner, &owned.provenance.analysis_owner)
+            || !Arc::ptr_eq(&self.typed, &owned.provenance.typed_analysis_owner)
             || !owned.diagnostics().is_empty()
             || !owned.deferred().is_empty()
             || owned.drops() != drops

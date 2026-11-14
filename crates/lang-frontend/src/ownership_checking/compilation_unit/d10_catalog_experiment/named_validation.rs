@@ -3,6 +3,7 @@ use super::named_wrapper::WrappedPending;
 use super::*;
 pub(super) struct NamedValidation<'a> {
     typed: &'a Arc<()>,
+    analysis_owner: &'a Arc<()>,
     cleanup: &'a [UnitDropFact; 3],
     loans: &'a [UnitLoanFact; 2],
     retained: &'a RetainedLoopRoot,
@@ -17,6 +18,7 @@ impl<'a> NamedValidation<'a> {
     pub(super) fn before(f: &'a DualNestedPending) -> Option<Self> {
         Some(Self {
             typed: &f.typed,
+            analysis_owner: &f.analysis_owner,
             cleanup: &f.cleanup,
             loans: &f.loans,
             retained: &f.retained,
@@ -31,6 +33,7 @@ impl<'a> NamedValidation<'a> {
     pub(super) fn after(f: &'a AfterChildPending) -> Self {
         Self {
             typed: &f.typed,
+            analysis_owner: &f.analysis_owner,
             cleanup: &f.cleanup,
             loans: &f.loans,
             retained: &f.retained,
@@ -63,7 +66,8 @@ impl<F> WrappedPending<F> {
         }
         .cloned()
         .collect();
-        if !Arc::ptr_eq(f.typed, &owned.provenance.typed_analysis_owner)
+        if !Arc::ptr_eq(f.analysis_owner, &owned.provenance.analysis_owner)
+            || !Arc::ptr_eq(f.typed, &owned.provenance.typed_analysis_owner)
             || !owned.diagnostics().is_empty()
             || !owned.deferred().is_empty()
             || owned.drops() != drops

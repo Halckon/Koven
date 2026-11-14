@@ -96,3 +96,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'selected-entry foreign/cloned identity controls compiled/listed; not executed'
 fi
+
+planner_run=ownership_checking::compilation_unit::d10_catalog_experiment::run_identity_tests::ci_only_pending_rejects_same_typed_other_owned_run
+listing=$(cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment "$planner_run" -- --exact --ignored --list)
+[[ $(grep -Fxc "$planner_run: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment "$planner_run" -- --exact --ignored
+else
+  echo 'original planner run identity control compiled/listed; not executed'
+fi

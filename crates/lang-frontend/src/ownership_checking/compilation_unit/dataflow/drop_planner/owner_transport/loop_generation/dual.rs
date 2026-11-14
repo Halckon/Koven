@@ -318,6 +318,7 @@ impl DropPlanner<'_, '_> {
         )?;
         Some(DualNestedPending {
             typed: c.typed.analysis_owner().clone(),
+            analysis_owner: c.analysis_owner.clone(),
             callable: coverage.callable,
             controls: [*parent, *child],
             root: *root,

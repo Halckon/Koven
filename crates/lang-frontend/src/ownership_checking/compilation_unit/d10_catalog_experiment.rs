@@ -1,6 +1,11 @@
 //! Opt-in same-run observation handoffs. Not production primitive lowering capabilities.
 use super::*;
 use crate::type_checking::UnitItemId;
+use crate::{
+    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+    source::SourceMap,
+    type_checking::TypeEnvironment,
+};
 
 /// Opaque identity from the original planner observation, not an AST-derived token.
 #[derive(Clone, Debug)]
@@ -198,3 +203,6 @@ mod prepare;
 pub use prepare::{
     PrepareNamedEntryError, PreparedNamedEntry, prepare_named_entry, prepare_selected_named_entry,
 };
+
+#[cfg(test)]
+mod run_identity_tests;

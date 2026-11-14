@@ -230,6 +230,7 @@ impl DropPlanner<'_, '_> {
         }
         Some(AfterChildPending {
             typed: c.typed.analysis_owner().clone(),
+            analysis_owner: c.analysis_owner.clone(),
             callable: crate::type_checking::UnitItemId::new(source, roles.function),
             controls,
             root: a.symbol,
