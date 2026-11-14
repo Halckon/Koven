@@ -70,6 +70,24 @@ pub(super) fn append_caller(
     columns: [usize; 2],
     spans: &[lang_frontend::ownership_checking::two_source_experiment::ArmSourceSpans; 2],
 ) -> Option<FunctionId> {
+    let parameters = caller_parameters(module, shell);
+    let caller = module
+        .add_function(
+            format!("e2_original_caller_{}", module.functions.len()),
+            vec![],
+            Origin::Source(shell.body()),
+        )
+        .ok()?;
+    module
+        .function_mut(caller)?
+        .add_block(parameters, Origin::Source(shell.body()))
+        .ok()?;
+    fill_caller(module, caller, shell, arms, columns, spans)
+}
+fn caller_parameters(
+    module: &mut Module,
+    shell: &lang_frontend::ownership_checking::two_source_experiment::FunctionShell,
+) -> Vec<EntityType> {
     let string = module.intern_type(SsaTypeKind::StringOwner);
     let integer = module.intern_type(SsaTypeKind::Integer {
         bits: 32,
@@ -84,21 +102,31 @@ pub(super) fn append_caller(
     let mut parameters = vec![shared(string); 4];
     parameters[roles[2]] = shared(integer);
     parameters[roles[3]] = shared(boolean);
-    let caller = module
-        .add_function(
-            format!("e2_original_caller_{}", module.functions.len()),
-            vec![],
-            Origin::Source(shell.body()),
-        )
-        .ok()?;
+    parameters
+}
+/// Fill an existing same-Program declaration. This does not confer identity or publication authority.
+/// Declaration and entry origins remain unchanged; source body origins describe emitted operations.
+pub(super) fn fill_caller(
+    module: &mut Module,
+    caller: FunctionId,
+    shell: &lang_frontend::ownership_checking::two_source_experiment::FunctionShell,
+    arms: [FunctionId; 2],
+    columns: [usize; 2],
+    spans: &[lang_frontend::ownership_checking::two_source_experiment::ArmSourceSpans; 2],
+) -> Option<FunctionId> {
+    let mut parameters = caller_parameters(module, shell);
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let boolean = module.intern_type(SsaTypeKind::Boolean);
+    let roles = shell.roles();
     let f = module.function_mut(caller)?;
+    let entry = super::e2_entry::empty_declaration(f, &parameters)?;
     let synthetic = || Origin::Synthetic {
         anchor: shell.body(),
         reason: "bounded E2 caller CFG".to_owned(),
     };
-    let entry = f
-        .add_block(parameters.clone(), Origin::Source(shell.body()))
-        .ok()?;
     parameters.push(EntityType::Value(integer));
     // Every normal edge transports the full original ABI and the current counter.
     let header = f.add_block(parameters.clone(), synthetic()).ok()?;

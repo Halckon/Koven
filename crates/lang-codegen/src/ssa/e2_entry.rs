@@ -81,12 +81,6 @@ pub(super) fn append_entry(
     caller: FunctionId,
     descriptor: &EntryDescriptor,
 ) -> Option<FunctionId> {
-    let string = module.intern_type(SsaTypeKind::StringOwner);
-    let int = module.intern_type(SsaTypeKind::Integer {
-        bits: 32,
-        signed: true,
-    });
-    let boolean = module.intern_type(SsaTypeKind::Boolean);
     let entry = module
         .add_function(
             format!("e2_source_entry_{}", module.functions.len()),
@@ -94,10 +88,27 @@ pub(super) fn append_entry(
             Origin::Source(descriptor.body()),
         )
         .ok()?;
-    let f = module.function_mut(entry)?;
-    let block = f
+    module
+        .function_mut(entry)?
         .add_block(vec![], Origin::Source(descriptor.body()))
         .ok()?;
+    fill_entry(module, entry, caller, descriptor)
+}
+/// Preserve a predeclared source identity and its real declaration/entry origins.
+pub(super) fn fill_entry(
+    module: &mut Module,
+    entry: FunctionId,
+    caller: FunctionId,
+    descriptor: &EntryDescriptor,
+) -> Option<FunctionId> {
+    let string = module.intern_type(SsaTypeKind::StringOwner);
+    let int = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let boolean = module.intern_type(SsaTypeKind::Boolean);
+    let f = module.function_mut(entry)?;
+    let block = empty_declaration(f, &[])?;
     let mut scalar_places = Vec::new();
     for (i, (ty, constant)) in [
         (int, ScalarConstant::Integer(descriptor.rounds().into())),
@@ -210,4 +221,30 @@ pub(super) fn append_entry(
     )
     .ok()?;
     Some(entry)
+}
+
+/// ABI and empty-body check only; caller must separately prove same-analysis source ownership.
+pub(super) fn empty_declaration(f: &Function, parameters: &[EntityType]) -> Option<BlockId> {
+    let [block] = f.blocks.as_slice() else {
+        return None;
+    };
+    if !f.return_types.is_empty()
+        || f.never_returns
+        || f.borrow_return.is_some()
+        || f.carrier_return.is_some()
+        || f.receiver.is_some()
+        || !f.instructions.is_empty()
+        || !block.instructions.is_empty()
+        || block.terminator.is_some()
+        || block.parameters.len() != parameters.len()
+        || f.values.len() + f.places.len() + f.loans.len() != parameters.len()
+    {
+        return None;
+    }
+    for (entity, expected) in block.parameters.iter().zip(parameters) {
+        if f.entity(*entity)?.ty != *expected {
+            return None;
+        }
+    }
+    Some(block.id)
 }

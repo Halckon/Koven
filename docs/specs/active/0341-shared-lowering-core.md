@@ -19034,3 +19034,20 @@ Joint 凭据不再保存逐 entry 独立计划，而保存一份完整共同计�
 本地验收：普通 Unit body 174 项通过；含复用 root-set 用例的实例计划 84 项通过、
 一个 CI-only budget 用例 ignored。E2 两配置各十项通过、七个 CI-only 故障用例 ignored；
 双 feature all-target 编译与严格 Clippy、文档、尺寸、格式检查通过，未推送或本地故障注入。
+
+### E2 既有源码声明的 body 填充前置
+
+caller 与 entry 的实验 emitter 拆为声明包装与内部填充：旧调用仍创建同样源码函数和
+入口块，随后复用填充；新填充只能消费已有 FunctionId，不追加源码函数、不改函数或
+入口块来源。完整参数类型、单个空入口块、无隐藏实体、无 receiver/返回或 carrier 合同
+均为填充前置。该结构检查不授予分析身份或发布权限，失败后的私有 Program 必须整包丢弃。
+
+此批尚未接通 joint 的普通 body，也不宣称已完成统一发布。后续须由单份完整实例计划
+统一预声明并对 source key 分区，用 shared body 发射 ordinary 路由，E2 路由填既有 ID；
+只为 synthetic helper 追加函数。独立 replay 必须绑定原计划身份和真实声明/终结来源，
+不能将旧专用 leaf 的 body-span 假设套在普通 lowering 上，也不能在未填完源码 body 时
+调用旧阶段全 Program verifier。生产路径与能力准入未变。
+
+本地验收：E2 两配置各十项通过、七项 CI-only ignored（含真实 native 执行，原十秒
+单程序标准不变）；双 feature all-target 编译及严格 Clippy、文档、尺寸、格式检查通过。
+独立静态审查确认原包装路径的操作、终结与来源等价；未推送或执行本地故障注入。
