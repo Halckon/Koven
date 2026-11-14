@@ -241,3 +241,86 @@ pub fn lower_before_child<'view, 'parsed: 'view>(
 #[cfg(test)]
 #[path = "d10_experiment_object_tests.rs"]
 pub(crate) mod object_tests;
+
+/// Immutable two-function publication, borrowing the same final named-wrapper analysis.
+/// This carries no native-entry authority and exposes no mutable or consuming Program escape.
+pub struct NamedWrapperProgram<'view, 'parsed: 'view> {
+    unit: OwnedCompilationUnitView<'view, 'parsed>,
+    bound: &'view lang_frontend::ownership_checking::d10_catalog_experiment::BoundNamedWrapper,
+    program: Program,
+    entry: FunctionId,
+}
+impl NamedWrapperProgram<'_, '_> {
+    /// Original wrapper declaration, not a synthesized process entry.
+    #[must_use]
+    pub fn callable(&self) -> UnitItemId {
+        self.bound.entry()
+    }
+    /// Number of original source inputs kept alive by this publication.
+    #[must_use]
+    pub fn source_count(&self) -> usize {
+        self.unit.inputs().len()
+    }
+    /// Verify immutable SSA and LLVM; no entry glue, filesystem write, linking or execution.
+    pub fn verified_llvm_ir(&self) -> Result<String, Error> {
+        crate::llvm::render_verified_program(&self.program)
+            .map_err(|e| Error::new(Stage::Backend, format!("{e:?}")))
+    }
+    /// Emit a verified host relocatable library object in memory, with both original functions.
+    /// No main/debug glue or stable external ABI is promised. Failure returns no bytes.
+    pub fn verified_library_object_bytes(&self) -> Result<Vec<u8>, Error> {
+        crate::llvm::verified_library_object_bytes(&self.program)
+            .map_err(|e| Error::new(Stage::Backend, format!("{e:?}")))
+    }
+    /// Verified wrapper name in the immutable Program.
+    #[must_use]
+    pub fn function_name(&self) -> Option<&str> {
+        self.program
+            .module(self.entry.module())?
+            .function(self.entry)
+            .map(|f| f.name.as_str())
+    }
+    #[cfg(test)]
+    pub(crate) fn replay_input(&self) -> (&Program, FunctionId) {
+        (&self.program, self.entry)
+    }
+}
+
+/// Lower the actual named wrapper and its reachable callee once through ordinary Unit gates.
+/// The independent complete-Program graph check must succeed before any artifact is published.
+pub fn lower_named_wrapper<'view, 'parsed: 'view>(
+    unit: OwnedCompilationUnitView<'view, 'parsed>,
+    bound: &'view lang_frontend::ownership_checking::d10_catalog_experiment::BoundNamedWrapper,
+) -> Result<NamedWrapperProgram<'view, 'parsed>, Error> {
+    if !bound.matches(&unit) {
+        return Err(Error::new(Stage::Identity, "final owned analysis differs"));
+    }
+    let callable = bound.entry();
+    let mut entries = unit
+        .names()
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .filter(|d| d.source_unit() == callable.source_unit() && d.root() == callable.item());
+    let entry = entries
+        .next()
+        .ok_or_else(|| Error::new(Stage::Entry, "missing wrapper"))?;
+    if entries.next().is_some() {
+        return Err(Error::new(Stage::Entry, "ambiguous wrapper"));
+    }
+    let (program, function) = unit_lower::lower_owned_unit_with_entry(&unit, entry.id())
+        .map_err(|e| Error::new(Stage::Lowering, format!("{e:?}")))?;
+    crate::ssa::d10_named_wrapper_graph::check(&unit, bound, &program, function).map_err(|_| {
+        Error::new(
+            Stage::Graph,
+            "unproved wrapper/callee graph or source relation",
+        )
+    })?;
+    Ok(NamedWrapperProgram {
+        unit,
+        bound,
+        program,
+        entry: function,
+    })
+}

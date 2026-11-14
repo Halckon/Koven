@@ -27,7 +27,6 @@ fn inspect(
     if !bound.matches(unit) || bound.counter_parameters()[0] == bound.counter_parameters()[1] {
         return None;
     }
-    let final_use = bound.final_root_use()?;
     super::verify::verify_program(program).ok()?;
     let [module] = program.modules.as_slice() else {
         return None;
@@ -37,6 +36,26 @@ fn inspect(
     };
     if f.id() != entry
         || module.id != entry.module()
+        || f.receiver.is_some()
+        || f.never_returns
+        || !f.return_types.is_empty()
+        || f.borrow_return.is_some()
+        || f.carrier_return.is_some()
+    {
+        return None;
+    }
+    inspect_function(unit, &CalleeFacts::from_single(bound), module, f)
+}
+
+/// Function-local proof only. The caller separately owns whole-Program/analysis admission.
+pub(super) fn inspect_function(
+    unit: &OwnedCompilationUnitView<'_, '_>,
+    bound: &CalleeFacts<'_>,
+    module: &Module,
+    f: &Function,
+) -> Option<()> {
+    let final_use = bound.final_root_use?;
+    if bound.parameters[0] == bound.parameters[1]
         || f.receiver.is_some()
         || f.never_returns
         || !f.return_types.is_empty()
@@ -65,7 +84,7 @@ fn inspect(
             .flatten()
             .map(|n| Origin::Source(n.span()))
     };
-    let (callable, parent, child) = bound.controls();
+    let (callable, parent, child) = bound.controls;
     if callable.source_unit() != source {
         return None;
     }
@@ -78,7 +97,7 @@ fn inspect(
         module,
         used: BTreeSet::new(),
     };
-    let [(pc, ps), (cc, cs)] = bound.counter_expressions();
+    let [(pc, ps), (cc, cs)] = bound.expressions;
     let pc_o = expr_origin(pc)?;
     let cc_o = expr_origin(cc)?;
     let ps_o = expr_origin(ps)?;
@@ -107,7 +126,7 @@ fn inspect(
     };
     let pstep = graph.unique(&ps_o, checked)?;
     let cstep = graph.unique(&cs_o, checked)?;
-    let calls = bound.replacements();
+    let calls = bound.calls;
     let creplace = graph.unique(&expr_origin(calls[1])?, |o| {
         matches!(o, Operation::RootReplace { .. })
     })?;
@@ -117,7 +136,7 @@ fn inspect(
     if creplace.block != cstep.block {
         return None;
     }
-    let literals = bound.producer_sites();
+    let literals = bound.sites;
     let literal = |id| -> Option<&Instruction> {
         let ins = graph.unique(&expr_origin(id)?, |o| {
             matches!(o, Operation::StringLiteral { .. })
@@ -146,8 +165,8 @@ fn inspect(
     let initial = literal(literals[0])?;
     let child_literal = literal(literals[2])?;
     let parent_literal = literal(literals[1])?;
-    let retained = literal(bound.retained().source().1)?;
-    let [pi, ci] = bound.counter_initializers();
+    let retained = literal(bound.retained.source().1)?;
+    let [pi, ci] = bound.initializers;
     let pread = graph.unique(&expr_origin(pi)?, |o| matches!(o, Operation::Read { .. }))?;
     let cread = graph.unique(&expr_origin(ci)?, |o| matches!(o, Operation::Read { .. }))?;
     if preplace.block != cread.block {
@@ -231,16 +250,16 @@ fn inspect(
         creplace,
         child_literal,
         role_value(&cb, Role::A)?,
-        &bound.loans()[1],
-        bound.cleanup()[1],
+        &bound.loans[1],
+        bound.cleanup[1],
     )?;
     let pgroup = replacement(
         &graph,
         preplace,
         parent_literal,
         role_value(&parent_input, Role::A)?,
-        &bound.loans()[0],
-        bound.cleanup()[0],
+        &bound.loans[0],
+        bound.cleanup[0],
     )?;
     let cone = step(
         &graph,
@@ -290,10 +309,10 @@ fn inspect(
     )?;
     let bgroup = suffix(
         &graph,
-        bound.retained(),
+        bound.retained,
         role_value(&final_env, Role::B)?,
         exit,
-        expr_origin(bound.retained().call())?,
+        expr_origin(bound.retained.call())?,
     )?;
     if !matches!(&graph.term(exit)?.kind,TerminatorKind::Return{values} if values.is_empty()) {
         return None;
@@ -342,4 +361,56 @@ fn inspect(
         return None;
     }
     Some(())
+}
+
+use lang_frontend::{
+    name_resolution::UnitSymbolId,
+    ownership_checking::{
+        UnitDropFact, UnitLoanFact,
+        d10_catalog_experiment::{NamedWrapperCallee, RetainedLoopRoot},
+    },
+    type_checking::UnitItemId,
+};
+/// Private read-only projection; never a source-admission capability.
+pub(super) struct CalleeFacts<'a> {
+    controls: (UnitItemId, UnitStatementId, UnitStatementId),
+    parameters: [UnitSymbolId; 2],
+    expressions: [(UnitExpressionId, UnitExpressionId); 2],
+    calls: [UnitExpressionId; 2],
+    sites: [UnitExpressionId; 3],
+    initializers: [UnitExpressionId; 2],
+    loans: &'a [UnitLoanFact; 2],
+    cleanup: &'a [UnitDropFact; 3],
+    retained: &'a RetainedLoopRoot,
+    final_root_use: Option<&'a RetainedLoopRoot>,
+}
+impl<'a> CalleeFacts<'a> {
+    pub(super) fn from_single(bound: &'a BoundDualNestedLoop) -> Self {
+        Self {
+            controls: bound.controls(),
+            parameters: bound.counter_parameters(),
+            expressions: bound.counter_expressions(),
+            calls: bound.replacements(),
+            sites: bound.producer_sites(),
+            initializers: bound.counter_initializers(),
+            loans: bound.loans(),
+            cleanup: bound.cleanup(),
+            retained: bound.retained(),
+            final_root_use: bound.final_root_use(),
+        }
+    }
+    pub(super) fn from_named(bound: &'a NamedWrapperCallee<'_>) -> Self {
+        Self {
+            controls: bound.controls(),
+            parameters: bound.counter_parameters(),
+            expressions: bound.counter_expressions(),
+            calls: bound.replacements(),
+            sites: bound.producer_sites(),
+            initializers: bound.counter_initializers(),
+            loans: bound.loans(),
+            cleanup: bound.cleanup(),
+            retained: bound.retained(),
+            final_root_use: bound.final_root_use(),
+        }
+    }
 }

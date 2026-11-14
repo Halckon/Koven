@@ -1135,3 +1135,42 @@ root-trace/pending 普通测试通过。此片仅前端源码和最终 owned 交
 测试 codegen 实验编译、格式、文档 957、全仓尺寸和独审通过。AfterChild 替换
 顺序及 wrapper-first 声明顺序也作为合法源码明确拒绝。未执行生成程序、故障
 控制或推送；后续 #429 新主线组合、共同 Program与 native 验收仍分别待做。
+
+### #429 隔离组合与 named 共同 Program
+
+本轮在独立工作树组合 main `21490e9c`，保留原 `ac134d2b` 工作树。唯一冲突
+位于条件 lowering：先保留 scalar-entry 的实际条件记录，再执行主线 Copyable
+可达性与 literal 折叠，不能任取一侧。旧 scalar 条件是原参数而非 literal；
+完整 diamond verifier 未放宽。来自 #428 仓内源码的本地 explicit-if 变体现在
+要求普通 SSA 与 LLVM 验证通过；原 Elvis 仍要求 UnsupportedNode，不启用语义。
+
+新增 default-off named 后端路径从新 Bound 的真实 wrapper declaration 发起
+一次普通 Unit lowering，由真实直接调用可达性形成共同 Program，不启用测试
+root-set 接口、不合并两个独立 Program、不生成 main。全图检查要求一个 module
+和恰好两个原源码 callable；callee 的原 BeforeChild 函数内图证明复用私有只读
+投影，旧 singleton 入口仍独立要求同 owned 身份和唯一函数。
+
+wrapper 检查原 literal 初始化、参数位置与 Shared Int ABI、RootPlace/BorrowBegin、
+唯一实际 DirectCall 目标、两条逆序 BorrowEnd、完整单块指令与 Return，均关联
+同分析 bound 和原来源。全部图检查成功后才创建私有不可变 NamedWrapperProgram；
+其持有原 view/bound，不能提供可变或 consuming Program。LLVM 和对象发射复用
+现有验证适配器，返回 bytes 不写入磁盘、不链接执行、不授予稳定 ABI/进程入口。
+
+此闭环不等于普通 driver 的 D10 新准入，不扩张 Origin、泛化 Carry 或额外控制
+流。动态损坏/身份失败负控仍待 CI；本地只使用合法源码、静态图与对象检查。
+
+组合使 condition.rs 从两侧各 981／990 行合成 1011 行，尺寸门禁初次失败。
+仅将末尾既有 receiver_ci_tests 模块原样去缩进移到命名文件，保留 cfg(test)、
+原模块名、可见性及所有测试路径；反向缩进字节等价核验通过，未执行这些 CI-only
+控制。生产条件文件回到 823 行，未修改尺寸政策或提高例外。
+
+新后端普通验收覆盖九种合法源码各 Rooted/Memory：六接受、十二拒绝；原始两份
+实际库对象均核两个原函数的 defined symbol 和无 main。完整 D10 SSA 回归十四
+通过、三项 CI-only ignored，包含 #429 边界；四个实际 scalar 入口／部分清理／
+concat／三根恢复普通 SSA 回归各通过。前端二十六组合在新主线组合也通过。
+没有运行生成程序、图损坏或身份故障；共同 Program 对象证据不替代 native 验收。
+
+最终 feature all-targets 严格 Clippy、默认非实验 codegen 编译、格式与 diff 检查
+通过，文档 957 项及全仓 2234 Rust 文件尺寸门禁通过。独审确认新全图封包边界、
+旧 singleton 准入与 CI-only 模块字节等价；没有提高例外或把旧测试拒绝当作新
+功能实现。原工作树保留，本轮仅独立树本地提交，未推送。
