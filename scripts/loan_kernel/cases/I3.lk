@@ -1,0 +1,39 @@
+// 槽位访问：拥有存在类型的变量或字段可以整体替换，也可以交给泛型 inout T
+interface Shape
+class Circle(r: Int) is Shape
+class Square(s: Int) is Shape
+class Point(x: Int)
+fun area(borrow this: any Shape): Int trusted
+fun scale(inout this: any Shape): Unit trusted
+fun <T> overwrite(inout dst: T, own value: T): Unit { *dst = move value }
+class Canvas(shape: any Shape)
+fun slot(inout this: Canvas): inout any Shape from this { return &mut this.shape }
+fun ownerVariable(): Unit {
+  val s = pack Shape(Circle(1))
+  s = pack Shape(Square(2))
+  overwrite(&mut s, pack Shape(Circle(3)))
+  val r = &mut s
+  *r = pack Shape(Square(4))
+  val n = area(&s)
+  use(n)
+}
+fun ownerField(): Unit {
+  val cv = Canvas(pack Shape(Circle(1)))
+  cv.shape = pack Shape(Square(2))
+  overwrite(&mut cv.shape, pack Shape(Circle(3)))
+}
+fun concreteSlot(): Unit {
+  val c = Circle(1)
+  overwrite(&mut c, Circle(2))
+  c = Circle(3)
+}
+fun assignConcreteToOwner(): Unit {
+  val s = pack Shape(Circle(1))
+  s = Square(2)  // ERR X1
+}
+fun returnedAccess(): Unit {
+  val cv = Canvas(pack Shape(Circle(1)))
+  val r = slot(&mut cv)
+  scale(r)
+  *r = pack Shape(Square(2))  // ERR X1
+}

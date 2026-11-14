@@ -1,0 +1,28 @@
+// 载荷访问：按 inout 接收存在类型只能调用方法，不能整体替换
+interface Shape
+class Circle(r: Int) is Shape
+class Square(s: Int) is Shape
+class Point(x: Int)
+fun area(borrow this: any Shape): Int trusted
+fun scale(inout this: any Shape): Unit trusted
+fun <T> overwrite(inout dst: T, own value: T): Unit { *dst = move value }
+fun replace(inout s: any Shape, own v: any Shape): Unit {
+  *s = move v  // ERR X1
+}
+fun mutate(inout s: any Shape): Unit {
+  scale(s)
+  val n = area(s)
+  use(n)
+}
+fun caller(): Unit {
+  val c = Circle(1)
+  mutate(&mut c)
+  val s = pack Shape(Square(2))
+  mutate(&mut s)
+  use(c.r)
+}
+fun notAShape(): Unit {
+  val p = Point(1)
+  mutate(&mut p)  // ERR TYPE
+  val q = pack Shape(Point(2))  // ERR TYPE
+}

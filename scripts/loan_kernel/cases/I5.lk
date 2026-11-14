@@ -1,0 +1,18 @@
+// 视图里存放的存在类型借用是载荷访问；载荷访问交给任何泛型 inout 位置都被拒绝（保守）
+interface Shape
+class Circle(r: Int) is Shape
+class Square(s: Int) is Shape
+view class Editor(inout target: any Shape)
+fun scale(inout this: any Shape): Unit trusted
+fun <T> overwrite(inout dst: T, own value: T): Unit { *dst = move value }
+fun <T> same(inout x: T): inout T from x { return x }
+fun throughView(): Unit {
+  val c = Circle(1)
+  val e = Editor(&mut c)
+  scale(&mut e.target)
+  overwrite(&mut e.target, pack Shape(Square(2)))  // ERR X2
+  use(c.r)
+}
+fun harmless(inout s: any Shape): Unit {
+  val t = same(s)  // ERR X2
+}

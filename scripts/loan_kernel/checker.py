@@ -30,6 +30,7 @@ class ClassDecl:
     is_view: bool
     deinit: bool
     line: int
+    implements: list = field(default_factory=list)
 
     def field(self, name):
         return next((f for f in self.fields if f[1] == name), None)
@@ -64,7 +65,7 @@ class Place:
 
 @dataclass
 class Expr:
-    kind: str  # int | place | move | ref | new | call
+    kind: str  # int | place | move | ref | call | pack
     line: int
     site: int
     place: Place = None
@@ -75,7 +76,7 @@ class Expr:
 
 @dataclass
 class Stmt:
-    kind: str  # val | assign | use | call | block | if | while
+    kind: str  # val | assign | store | use | call | block | if | while
     line: int
     name: str = ""
     place: Place = None
@@ -141,9 +142,12 @@ class Parser:
 
     def program(self):
         classes, funs, sigs = {}, {}, {}
+        self.interfaces = set()
         while self.peek() is not None:
             line = self.line()
-            if self.peek() in ("fun", "sig"):
+            if self.accept("interface"):
+                self.interfaces.add(self.next())
+            elif self.peek() in ("fun", "sig"):
                 table = funs if self.peek() == "fun" else sigs
                 fun = self.fun(self.peek())
                 table[fun.name] = fun
@@ -157,10 +161,18 @@ class Parser:
                     kind = self.next() if self.peek() in ("borrow", "inout") else ""
                     fname = self.next()
                     self.expect(":")
-                    fields.append((kind, fname, self.next()))
+                    fields.append((kind, fname, self.type_name()))
                     self.accept(",")
-                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line)
+                implements = []
+                while self.accept("is"):
+                    implements.append(self.next())
+                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements)
         return classes, funs, sigs
+
+    def type_name(self):
+        """类型名；fn N 是函数类型，any I 是接口 I 的存在类型。"""
+        tok = self.next()
+        return f"{tok} {self.next()}" if tok in ("fn", "any") else tok
 
     def source(self):
         param = self.next()
@@ -182,12 +194,11 @@ class Parser:
             mode = self.next()
             pname = self.next()
             self.expect(":")
-            ty = self.next()
-            params.append((mode, pname, f"fn {self.next()}" if ty == "fn" else ty))
+            params.append((mode, pname, self.type_name()))
             self.accept(",")
         self.expect(":")
         kind = self.next() if self.peek() in ("borrow", "inout") else ""
-        result = (kind, self.next())
+        result = (kind, self.type_name())
         sources, flows = [], []
         if self.accept("from"):
             while True:
@@ -255,6 +266,11 @@ class Parser:
             self.star_condition()
             body, end = self.block()
             return Stmt("while", line, body=body, end_line=end)
+        if tok == "*":  # 经独占借用整体替换它所指的值
+            self.next()
+            name = self.next()
+            self.expect("=")
+            return Stmt("store", line, name=name, expr=self.expr())
         if self.peek(1) == "(":  # 只为副作用而调用
             return Stmt("call", line, expr=self.expr())
         place = self.place()
@@ -278,6 +294,13 @@ class Parser:
         if tok == "move":
             self.next()
             return Expr("move", line, site, place=self.place())
+        if tok == "pack":  # 把具体类型的值打包为存在类型
+            self.next()
+            name = self.next()
+            self.expect("(")
+            inner = self.expr()
+            self.expect(")")
+            return Expr("pack", line, site, name=name, args=[inner])
         if tok == "&":
             self.next()
             mut = self.accept("mut")
@@ -306,6 +329,8 @@ def stmt_uses(stmt):
     uses = expr_uses(stmt.expr) if stmt.expr else set()
     if stmt.kind == "use" or (stmt.kind == "assign" and stmt.place.fields):
         uses.add(stmt.place.root)
+    if stmt.kind == "store":
+        uses.add(stmt.name)
     return uses
 
 
@@ -354,12 +379,14 @@ class Var:
     ty: Type
     init: str  # A | M | MM
     loans: dict  # "" 为借用值自身持有的 loan；其余键为视图的借用字段
+    payload: bool = False  # 对存在类型的载荷访问：只能调用方法，不能整体替换
 
 
 @dataclass
 class Value:
     ty: Type
     loans: dict = field(default_factory=dict)
+    payload: bool = False
 
     def all_loans(self):
         return set().union(*self.loans.values()) if self.loans else set()
@@ -380,7 +407,7 @@ def copy_loans(loans):
 
 
 def copy_state(state):
-    return {name: Var(var.ty, var.init, copy_loans(var.loans)) for name, var in state.items()}
+    return {name: Var(var.ty, var.init, copy_loans(var.loans), var.payload) for name, var in state.items()}
 
 
 def prefix_related(a, b):
@@ -403,6 +430,8 @@ class Checker:
             return INT
         if name == "Unit":
             return UNIT
+        if name.startswith("any "):
+            return Type("any", name)
         decl = self.classes.get(name)
         if decl is None:
             raise SyntaxProblem(f"未声明的类型 {name}")
@@ -464,7 +493,9 @@ class Checker:
                     loans[fld] = {self.symbolic(name, fld, kind, fun.line)}
             elif ty.kind == "opaque":  # 类型参数的值携带一组未知的来源
                 loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}
-            state[name] = Var(ty if mode == "own" else Type(mode, ty_name), "A", loans)
+            # 按 inout / borrow 接收存在类型，得到的是载荷访问（之三 §2.4）
+            state[name] = Var(ty if mode == "own" else Type(mode, ty_name), "A", loans,
+                              mode != "own" and ty.kind == "any")
         declared = set(state)
         self.check_unique(fun.body, declared, fun)
         live_in(fun.body, expr_uses(fun.ret) if fun.ret else set())
@@ -664,16 +695,22 @@ class Checker:
             return self.borrow(expr, expr.place, expr.mut, state)
         if expr.kind == "call":
             return self.construct(expr, state) if expr.name in self.classes else self.call(expr, state)
+        if expr.kind == "pack":
+            inner = self.value(expr.args[0], state)
+            decl = self.classes.get(inner.ty.name)
+            if decl is None or expr.name not in decl.implements:
+                self.error("TYPE", expr.line, f"{inner.ty.name} 没有实现 {expr.name}")
+            return Value(Type("any", f"any {expr.name}"), inner.loans)
         place = expr.place
         res = self.resolve(state, place)
         if res.crossed:  # 读出视图的借用字段：复制这份借用
             if res.crossed == "inout":
                 self.error("K8", expr.line, "独占字段不能按值复制，须重借")
-            return Value(Type("borrow", res.ty.name), {"": set(res.via)})
+            return Value(Type("borrow", res.ty.name), {"": set(res.via)}, res.ty.kind == "any")
         self.access(state, res.targets, res.via, "read", expr.line)
         if res.ty.kind == "int":
             return Value(INT)
-        movable_only = res.ty.kind in ("cls", "inout", "opaque") or (
+        movable_only = res.ty.kind in ("cls", "inout", "opaque", "any") or (
             res.ty.kind == "view" and self.classes[res.ty.name].exclusive())
         if movable_only or place.fields:
             self.error("K8", expr.line, f"{place.root} 不可隐式复制，须写 move")
@@ -687,7 +724,7 @@ class Checker:
         res = self.resolve(state, place)
         self.access(state, res.targets, set(), "move", expr.line)
         var = state[place.root]
-        value = Value(var.ty, copy_loans(var.loans))
+        value = Value(var.ty, copy_loans(var.loans), var.payload)
         var.init, var.loans = "M", {}
         return value
 
@@ -702,7 +739,9 @@ class Checker:
         loans = {"": {loan}}
         if res.ty.kind in ("view", "opaque"):
             loans.update(copy_loans({k: v for k, v in (res.field_loans or {}).items() if k}))
-        return Value(Type("inout" if mut else "borrow", res.ty.name), loans)
+        # 视图里存放的存在类型借用是载荷访问，经它重借出来的仍是
+        payload = bool(res.crossed) and res.ty.kind == "any"
+        return Value(Type("inout" if mut else "borrow", res.ty.name), loans, payload)
 
     def argument(self, expr, mode, state, stored_kind=None):
         """按参数模式求实参：borrow 与 inout 位置上建立（或重借出）一个 loan。"""
@@ -732,7 +771,7 @@ class Checker:
             loan = self.new_loan(f"L{expr.site}", kind, targets, via, expr.line)
             loans = {"": {loan}}
             loans.update(copy_loans({k: v for k, v in var.loans.items() if k}))
-            return Value(Type(mode, var.ty.name), loans)
+            return Value(Type(mode, var.ty.name), loans, var.payload)
         res = self.resolve(state, expr.place)
         if not res.crossed:
             self.error("TYPE", expr.line, f"{mode} 位置需要 & 表达式或一个借用值")
@@ -758,6 +797,30 @@ class Checker:
             pushed += 1
         del self.pending[len(self.pending) - pushed:]
         return Value(self.type_of(expr.name), loans)
+
+    def bind_types(self, fun, values, line):
+        """X2：inout 位置对所指类型不变，载荷访问不能充当槽位。
+
+        形参写作 any I 时，实参所指可以是实现 I 的具体类型或 any I，得到的是载荷访问；
+        形参是具体类型或类型参数时，实参须是所指类型恰为该类型的槽位，类型参数在各处的实例须一致。
+        """
+        bound = {}
+        for mode, name, wanted in fun.params:
+            value = values[name]
+            if value.ty.kind == "fn":
+                continue
+            actual = value.ty.name
+            if wanted in fun.tparams:
+                if mode == "inout" and value.payload:
+                    self.error("X2", line, f"{name}：载荷访问不能交给泛型的 inout 位置")
+                elif bound.setdefault(wanted, actual) != actual:
+                    self.error("X2", line, f"类型参数 {wanted} 被同时实例化为 {bound[wanted]} 与 {actual}")
+            elif wanted.startswith("any "):
+                decl = self.classes.get(actual)
+                if actual != wanted and (decl is None or wanted[4:] not in decl.implements):
+                    self.error("TYPE", line, f"{name}：{actual} 不能当作 {wanted}")
+            elif mode == "inout" and value.payload:
+                self.error("X2", line, f"{name}：载荷访问不能充当 {wanted} 的槽位")
 
     def carried(self, value, mode, fld):
         """按来源的三种形式取出实参带来的 loan。"""
@@ -798,6 +861,7 @@ class Checker:
             self.pending.append(values[name].all_loans())
             pushed += 1
         del self.pending[len(self.pending) - pushed:]
+        self.bind_types(fun, values, expr.line)
         for (param, fld), target in fun.flows:  # 来源流入已有的持有者
             arg = expr.args[[name for _, name, _ in fun.params].index(target)]
             holder = arg.place.root if arg.kind in ("ref", "place") and not arg.place.fields else None
@@ -811,7 +875,7 @@ class Checker:
                 result |= self.carried(values[param], modes[param], fld)
         kind, ty_name = fun.result
         if kind:
-            return Value(Type(kind, ty_name), {"": result})
+            return Value(Type(kind, ty_name), {"": result}, ty_name.startswith("any "))
         ty = self.type_in(fun, ty_name)
         if ty.kind == "opaque":
             return Value(ty, {"*": result})
@@ -830,7 +894,9 @@ class Checker:
         self.live = (set(stmt.live_out) - stmt_defs(stmt)) | stmt_uses(stmt)
         if stmt.kind == "val":
             value = self.value(stmt.expr, state)
-            state[stmt.name] = Var(value.ty, "A", value.loans)
+            state[stmt.name] = Var(value.ty, "A", value.loans, value.payload)
+        elif stmt.kind == "store":
+            self.store(stmt, state)
         elif stmt.kind == "call":
             self.value(stmt.expr, state)
         elif stmt.kind == "use":
@@ -864,6 +930,20 @@ class Checker:
                 state = merged
         return state
 
+    def store(self, stmt, state):
+        """X1：经独占借用整体替换所指的值，要求槽位访问且新值的类型恰为所指类型。"""
+        value = self.value(stmt.expr, state)
+        var = state.get(stmt.name)
+        if var is None or var.ty.kind != "inout":
+            raise SyntaxProblem(f"第 {stmt.line} 行：*{stmt.name} 须是独占借用")
+        self.resolve(state, Place(stmt.name, [], stmt.line))
+        if var.payload:
+            self.error("X1", stmt.line, f"{stmt.name} 是载荷访问，不能整体替换")
+        elif value.ty.name != var.ty.name:
+            self.error("X1", stmt.line, f"不能把 {value.ty.name} 写入 {var.ty.name} 的槽位")
+        via = set(var.loans.get("", ()))
+        self.access(state, self.places(via), via, "write", stmt.line)
+
     def assign(self, stmt, state):
         value = self.value(stmt.expr, state)
         place = stmt.place
@@ -883,7 +963,9 @@ class Checker:
         self.access(state, {(place.root, ())}, set(), "write", stmt.line)
         if place.root in stmt.live_out:
             self.pending.pop()
-        var.init, var.loans = "A", value.loans
+        if var.ty.kind == "any" and value.ty.name != var.ty.name:  # X3：槽位里只能放同一存在类型的值
+            self.error("X1", stmt.line, f"不能把 {value.ty.name} 赋给 {var.ty.name}")
+        var.init, var.loans, var.payload = "A", value.loans, value.payload
 
     def scope(self, stmts, state, live_after, end_line):
         """K9：作用域结束时按声明逆序析构；析构与仍存活的 loan 冲突即拒绝。"""
@@ -906,7 +988,7 @@ class Checker:
             loans = copy_loans(x.loans)
             for key, held in y.loans.items():
                 loans.setdefault(key, set()).update(held)
-            merged[name] = Var(x.ty, x.init if x.init == y.init else "MM", loans)
+            merged[name] = Var(x.ty, x.init if x.init == y.init else "MM", loans, x.payload)
         return merged
 
 
