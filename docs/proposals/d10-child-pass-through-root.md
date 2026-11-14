@@ -174,3 +174,25 @@ ParentHeader、ChildHeader、ChildBody、Resume、Exit 的显式正常边分别�
 checked-abort、真实 predecessor 完整性、块参数身份、隐式清理、终检失败原子性
 未由此模型覆盖；故障负控仍只允许 CI。没有新增 abort-drop 承诺，也没有产生
 Carry 权限、生产 observation 或 receipt。
+
+### 真实清理事实与 CFG 复用缺口
+
+`ordinary_final_root_cleanup_uses_actual_parent_exit_and_suffix_return` 已在同次完整
+前端分析上核实：a 的唯一 Named Drop 是实际 parent statement 的 `LoopExit`；
+b 的唯一 Named Drop 是实际 suffix 的 `CallReturn`。因此模型中的正常出口分区
+现在有真实前端事实对照，但尚不证明 SSA 指令次序或 native 析构。
+
+现有真实 CFG/receipt 路径不能直接充当本候选映射：
+
+- `refine/build/control_bridge/nested_body.rs::NestedBody::new` 选择
+  `nested_normal_body_v1`；本候选源码的普通测试仍明确证明没有该 observation。
+- 前端 `owner_transport/loops/multi_root_normal.rs::transfer` 要求 root 与 step
+  数量相同并每根退休；两根中只有 a Replace 不满足现行全根更新合同。
+- `refine/build/control_bridge/child_cycle.rs::child_cycle_plan` 消费既有
+  `child_generation_rule_v1`；`refine/child_cycle_receipt.rs` 终检要求所有根完整的
+  旧/新代映射及新旧集合不相交。不能伪造 b 的 old==new Replace 来绕过它。
+
+本片因此停在可重复的真实 DropPoint 证据与复用缺口：没有实现真实
+predecessor/edge-argument/block-parameter 对应，没有生成实验 SSA 或发布收据。
+下一步需要独立 Carry-aware 实验 emitter/终检合同，不能删除现有全根规则或从
+手写拓扑倒填真实 CFG 身份。该工作仍需与模型/源码准入分别验收。

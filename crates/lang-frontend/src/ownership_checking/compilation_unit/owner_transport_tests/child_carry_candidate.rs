@@ -394,3 +394,39 @@ fn ordinary_recursive_suffix_is_not_the_bound_line_output_target() {
             .is_none()
     );
 }
+
+#[test]
+fn ordinary_final_root_cleanup_uses_actual_parent_exit_and_suffix_return() {
+    let text = SOURCE.strip_suffix("}\n}").unwrap().to_owned() + "}\nprintln(b)\n}";
+    let fixture = Fixture::new(&[("cleanup.ko", &text)]);
+    let owned = fixture.shared();
+    let evidence = extract_source_evidence(&fixture, &owned).unwrap();
+    assert!(shape::matches(&fixture, &owned, &evidence).is_some());
+    let ast = fixture.parsed[0].ast();
+    let mut whiles = ast
+        .statements()
+        .iter()
+        .filter(|(_, node)| matches!(node.payload(), Statement::While { .. }))
+        .collect::<Vec<_>>();
+    whiles.sort_by_key(|(_, node)| node.span().start());
+    assert_eq!(whiles.len(), 2);
+    let parent = UnitStatementId::new(fixture.source(0), whiles[0].0);
+    for (root, point) in [
+        (evidence.replaced, UnitDropPoint::LoopExit(parent)),
+        (evidence.carried, UnitDropPoint::CallReturn(evidence.suffix)),
+    ] {
+        let drops = owned
+            .drops()
+            .iter()
+            .filter(|drop| drop.target() == UnitDropTarget::Named(root))
+            .collect::<Vec<_>>();
+        assert_eq!(drops.len(), 1);
+        assert_eq!(drops[0].point(), point);
+    }
+    assert!(
+        owned
+            .owner_observations()
+            .iter()
+            .all(|observation| observation.nested_normal_body_v1().is_none())
+    );
+}
