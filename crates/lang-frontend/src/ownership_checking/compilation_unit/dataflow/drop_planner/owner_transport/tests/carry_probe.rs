@@ -82,6 +82,72 @@ fn ordinary_carry_probe_reads_actual_traversal_without_changing_cleanup() {
             );
             assert_eq!(visits[2].control, Some(controls[1]));
             assert_eq!(visits[4].control, Some(controls[0]));
+            for visit in visits {
+                assert_eq!(
+                    visit.status,
+                    Some(
+                        crate::ownership_checking::UnitOwnerObservationStatus::Unsupported {
+                            point: crate::ownership_checking::UnitDropPoint::AfterStatement(
+                                controls[0]
+                            ),
+                            reason: crate::ownership_checking::UnitOwnerUnsupportedReason::Syntax,
+                        }
+                    )
+                );
+                assert!(visit.current_owner(a).is_none());
+                assert!(visit.current_owner(b).is_none());
+            }
+            let initial_a = visits[0]
+                .roots
+                .iter()
+                .find(|(root, _)| *root == a)
+                .unwrap()
+                .1
+                .as_ref()
+                .unwrap();
+            // The replaced root still has the same residual token after a real
+            // dispatch: raw equality is NOT evidence that a root was preserved.
+            for visit in &visits[..5] {
+                assert_eq!(
+                    visit
+                        .roots
+                        .iter()
+                        .find(|(root, _)| *root == a)
+                        .unwrap()
+                        .1
+                        .as_ref(),
+                    Some(initial_a)
+                );
+            }
+            assert!(!visits[5].roots.iter().any(|(root, _)| *root == a));
         });
     }
+}
+
+#[test]
+fn ordinary_active_primitive_probe_retains_current_token() {
+    let fixture = Fixture::new(&[(
+        "active.ko",
+        "fun run() { var a = \"a\"; val old = replace(&a, \"b\"); println(a) }",
+    )]);
+    let owned = fixture.shared();
+    let a = fixture.local(0, "a");
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.carry_probe = Some(Vec::new());
+        let observed = planner.run().unwrap();
+        let [visit] = observed.carry_probe.as_ref().unwrap().as_slice() else {
+            panic!("one actual primitive dispatch")
+        };
+        assert!(matches!(visit.point, Point::Primitive(_)));
+        assert_eq!(visit.control, None);
+        assert_eq!(
+            visit.status,
+            Some(crate::ownership_checking::UnitOwnerObservationStatus::Complete)
+        );
+        assert!(visit.current_owner(a).is_some());
+    });
 }

@@ -244,3 +244,19 @@ child出、parent dispatch、父出），核实际 control/call身份和 b 的�
 同一 checker 上开关探针的 cleanup facts、conditional facts、旧 owner observations
 保持一致。现有 Unsupported、生产分析和旧 receipt 均不改变；所有钩子及存储都在
 cfg(test) 域，没有生产默认开销或新授权。
+
+### 停止跟踪后的残留 token 不是当前代
+
+实际探针已定位：本候选在 parent while 的 `AfterStatement`/`Syntax` 观察拒绝点
+停止旧 owner 跟踪。ValueState 中仍可存在原 a/b token；甚至 a 经实际 Replace
+入口后仍保留同一原 token。这是观察停用后未更新的残留值，不能由“前后相等”
+推出 Carry，也不能据此构造 Replace 的新代。
+
+探针保留真实 status/拒绝 point/reason，并增加 fail-closed `current_owner` 投影：
+仅当观察仍 Complete 且 active 才允许读取当前 token，停用后一律不可取得。
+普通直线 Replace dispatch 为有效对照；有/无 suffix 的循环源码验证残留 token
+不能取得当前代资格。此投影不恢复旧观察，不创造新身份。
+
+因此独立状态转移记录仍必须从 literal 实际产生、binding 安装、primitive 实际
+提交及控制分流/汇合点维护自己的测试域状态，不能复用已停用 token 的比较结果。
+本片未实现该独立状态机，不宣称 Replace/Carry 事件已完备。
