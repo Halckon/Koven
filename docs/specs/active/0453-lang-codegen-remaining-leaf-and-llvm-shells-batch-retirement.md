@@ -224,3 +224,28 @@ owner 职责域，同名模块层级及正文均未调整。
 也不改变既有 Spec 未决范围或状态。
 本轮 fmt、docs、尺寸、空白及默认/feature 的 lang-codegen all-target Clippy
 `-D warnings` 均通过；未运行无关全量，官方新候选 CI 不预填。
+
+### 4.4 runtime inline nullable 析构职责恢复（有界一步）
+
+输入为 `83191797d0c5dc42c632d9d0b9fb4c1ad2d9abb6`。发现 inline nullable 析构被内联在
+`llvm/runtime/abort.rs`，再由 runtime 根用带 unused-import 例外的重导出接线。
+恢复 `llvm/runtime/inline_nullable.rs` 为 runtime 直接子模块，删除这一重导出和例外；
+不新增兼容 wrapper，不改同轮其余 map-result/string 打包。
+
+机械审计确认去掉模块外壳/缩进及父路径导入调整后，函数正文、参数/返回与
+`pub(crate)` 可见性不变，abort 其余字节不变。唯一 drop 分派调用与原测试挂载不变；
+LLVM 条件分支、payload drop 顺序、符号与 void ABI 均未改变。独立只读复核无具体问题，
+审查本身未运行 Cargo。
+
+| 验证 | 实际结果及边界 |
+|---|---|
+| 迁移前 `inline_nullable` 定向基线 | 默认/feature 各 **12/0/0**，退出 0 |
+| 迁移后相同选择 | 默认/feature 各 **12/0/0**，退出 0；包含 String niche 精确一次分配释放、Int/Boolean/Char 双边实际 native、MoveOnly tag 的借用读取与既有拒绝边界 |
+| Clippy | 两配置 lang-codegen all-target `-D warnings` 通过 |
+| 其他门禁 | workspace check、fmt、docs（951 Markdown）、尺寸、空白通过；尺寸门禁报告 2137 手写 Rust、36 项历史超限，无新增欠账 |
+| 尺寸 | runtime 根 **1014→1013**、abort **674→627**、恢复模块 **44** 行；既有根超限欠账未扩大，不提高阈值 |
+
+重新枚举 §2.2 的 37 个冻结路径：**28 不存在、9 保留**，相对 §4.2 增加本次恢复文件；
+0451/0452 的既有 21/2 个保留路径不变，三批共 32 个原路径保留。数字仅是物理库存，
+不是语义完成比例。本轮修复职责归属，不以任意打包凑删除数，也不改变 §3 验收条件。
+全批合同与其余打包审计继续待办，Spec 保持 in-progress；新候选 CI 单独验收。

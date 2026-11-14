@@ -182,8 +182,8 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 - nullable handle 使用 null niche 和条件 drop；[inline nullable](ownership-refinement.md#inline-nullable-布局)不强制成 pointer。
 - 一个 compilation unit 生成一个 LLVM module，并保留多 source DWARF 行映射。
 
-[Unit 容器存储](unit-container-storage.md)记录单文件有界接入与 void ABI 隔离。实现位于 `crates/lang-codegen/src/llvm/`；runtime helper 集中在 `llvm/runtime.rs` 与
-`llvm/runtime/` 子模块。
+[Unit 容器存储](unit-container-storage.md)记录单文件有界接入与 void ABI 隔离；runtime helper 位于 `llvm/runtime.rs` 及其子模块。
+inline nullable 条件析构由 `llvm/runtime/inline_nullable.rs` 直接承载，经原 `RuntimeAbi` drop 分派，不归 abort，niche/tag ABI 不变。
 
 ## Native object 与发布
 

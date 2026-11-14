@@ -1,8 +1,7 @@
 //! Koven heap owner 的系统分配 ABI 与类型定向 drop glue。
 pub(crate) mod abort;
 pub(in crate::llvm) use abort::AbortMessage;
-#[allow(unused_imports)]
-pub(crate) use abort::inline_nullable;
+pub(crate) mod inline_nullable;
 #[allow(unused_imports)]
 pub(crate) use abort::map_result;
 mod requirements;
