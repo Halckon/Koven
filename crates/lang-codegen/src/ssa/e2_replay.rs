@@ -398,7 +398,6 @@ pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) ->
         return None;
     };
     same!(block.origin, Origin::Source(leaf.span()));
-    require!(f.instructions.is_empty());
     let [parameter] = block.parameters.as_slice() else {
         return None;
     };
@@ -408,6 +407,7 @@ pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) ->
     same!(term.origin, Origin::Source(leaf.span()));
     match leaf.body() {
         CalleeLeafBody::SharedIdentity => {
+            require!(f.instructions.is_empty() && leaf.print_loan().is_none());
             same!(f.borrow_return, Some(0));
             same!(f.return_types, vec![ty]);
             same!(
@@ -417,7 +417,26 @@ pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) ->
                 }
             );
         }
-        CalleeLeafBody::EmptyUnit => {
+        CalleeLeafBody::EmptyUnit | CalleeLeafBody::PrintSharedParameter => {
+            if leaf.body() == CalleeLeafBody::PrintSharedParameter {
+                let [instruction] = f.instructions.as_slice() else {
+                    return None;
+                };
+                same!(
+                    instruction.operation,
+                    Operation::PrintString {
+                        value: loan!(*parameter)
+                    }
+                );
+                same!(
+                    instruction.origin,
+                    Origin::Source(leaf.print_loan()?.end_span())
+                );
+                require!(instruction.results.is_empty());
+                same!(block.instructions, vec![instruction.id]);
+            } else {
+                require!(f.instructions.is_empty() && leaf.print_loan().is_none());
+            }
             same!(f.borrow_return, None);
             require!(f.return_types.is_empty());
             same!(term.kind, TerminatorKind::Return { values: vec![] });

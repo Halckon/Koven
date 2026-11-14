@@ -166,6 +166,18 @@ pub(super) fn emit_selected(
                 Origin::Source(leaf.span()),
             )
             .ok()?;
+        if leaf.body() == CalleeLeafBody::PrintSharedParameter {
+            let [EntityId::Loan(parameter)] = body.block(entry)?.parameters.as_slice() else {
+                return None;
+            };
+            body.append_instruction(
+                entry,
+                Operation::PrintString { value: *parameter },
+                vec![],
+                Origin::Source(leaf.print_loan()?.end_span()),
+            )
+            .ok()?;
+        }
         let terminator = if identity {
             let [EntityId::Loan(loan)] = body.block(entry)?.parameters.as_slice() else {
                 return None;

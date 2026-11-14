@@ -196,5 +196,5 @@ initializer/条件/常量/decrement 保留原 Source Span，辅助块及 outline
 replay真实caller/helper/leaf闭包、完整ABI/来源/运输/End后再作整个Program验证，
 成功才生成私有字段、仅共享引用的Published；复制Program不复制封闭包权限。
 原始测试builder仍可变，但不携带该发布包。失败不返回部分包，无普通owned转换。
-实验共同封包另经 test-only native 对象事务生成原源码 entry 的对象并直接链接执行。
+实验共同封包经 test-only 对象事务直接链接执行；受限 println 参数 consumer 已核双臂及 0/3 轮输出。
 没有生产driver或生产收据；正常分析仍拒绝原两源循环。

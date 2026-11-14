@@ -18919,3 +18919,24 @@ required 与完整映射/replay，而非计划与自身副本互证。
 分配前拒绝空、重复及 foreign entry。这是有界“先规划再共同发射”的可运行闭环，
 尚未复用 ordinary Unit 的任意类型/closure/ABI 规划，也未扩大生产接受集。后继新增
 ordinary body 路由须延续统一实例归属及全门，不能因已有计划而跳过 unsupported。
+
+
+### 2026-11-14：受限真实打印 consumer 扩展
+
+实验 leaf 新增单 Borrow String 参数、Unit 返回且完整 body 恰为一个绑定 println
+intrinsic 的 consumer。准入不是检查函数名：必须有真实 typed `prints_line()`、
+唯一实参映射、直接参数 symbol、同次成功 ownership 的唯一 Shared root loan 和
+SharedLoan contract，以及 entered/completed 事实。临时 owner、投影、额外语句和
+相关真实 CallReturn 清理不进入此片；producer 身份返回合同保持不变。
+
+实际前端证据显示该 intrinsic 参数引用没有 direct-call End/CallReturn Drop；普通
+lower_borrow_argument 对已绑定参数也直接复用输入 Shared loan。因此描述符保存
+实际 loan，SSA 仅 PrintString(input)→Return，不伪造子借用或结束输入 capability。
+独立 replay 核唯一指令、原 call span、参数身份和无额外 End/Drop。上层 helper 的
+子 loan 仍按原真实合同在 consumer 返回后结束。typed intrinsic 不作为待发射源码
+function key，完整实例归属不引入外部占位函数。
+
+原共同计划/native 事务测试新增两个 fact 共享同一打印叶、逆序 entry、0/3 轮及
+双分支的真实对象执行，核 stdout 为对应来源的精确重复序列。这首次给该实验窄片
+提供非空 consumer 的动态分支/次数证据；不扩展任意 ordinary body 或生产接受集。
+合法相邻形状的拒绝与打印参数事实使用正常源码测试，不在本地执行故障注入。

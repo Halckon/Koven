@@ -440,3 +440,102 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
         assert!(!enabled());
     }
 }
+
+#[test]
+fn parameter_print_retains_real_shared_argument_contract_without_ending_input() {
+    for (body, extra, accepted) in [
+        ("println(item)", "", true),
+        ("println(\"literal\")", "", false),
+        ("println(item);println(item)", "", false),
+        ("val unused=1;println(item)", "", false),
+        (
+            "println(item)",
+            "\nfun println(value:String):Unit {}",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "{}{}",
+            SOURCE.replace(
+                "consume(item:String):Unit {}",
+                &format!("consume(item:String):Unit {{{body}}}")
+            ),
+            extra
+        );
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("print-probe.ko", source).unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::memory_document(id, &parsed)];
+        let (env, types) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let experiment =
+            super::bridge::analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .unwrap();
+        assert_eq!(experiment.facts().len(), 1);
+        if !accepted {
+            assert!(experiment.callee_leaves().is_none(), "{body}{extra}");
+            assert!(
+                experiment
+                    .callee_leaves_for(&experiment.facts()[0], &typed)
+                    .is_none()
+            );
+            continue;
+        }
+        let call = typed
+            .types()
+            .calls()
+            .iter()
+            .find(|c| c.prints_line())
+            .unwrap();
+        let owned = &experiment.retained;
+        let loans: Vec<_> = owned
+            .loans()
+            .iter()
+            .filter(|l| l.call() == call.expression())
+            .collect();
+        assert_eq!(loans.len(), 1);
+        assert_eq!(loans[0].kind(), crate::ownership_checking::LoanKind::Shared);
+        assert!(matches!(
+            call.target(),
+            crate::type_checking::UnitCallTarget::External(_)
+        ));
+        let contracts: Vec<_> = owned
+            .call_argument_contracts_for(call.expression())
+            .collect();
+        assert_eq!(contracts.len(), 1);
+        assert_eq!(
+            contracts[0].kind(),
+            crate::ownership_checking::UnitCallArgumentOwnershipKind::SharedLoan
+        );
+        let parameter = typed.types().signatures().declarations().iter().filter_map(|d| d.callable()).flat_map(|s| s.parameters()).find(|p| p.symbol().is_some_and(|symbol| matches!(loans[0].target(), crate::ownership_checking::UnitLoanTarget::Place(place) if place.is_root() && place.root()==symbol))).unwrap();
+        assert_eq!(
+            parameter.mode(),
+            crate::type_checking::ParameterMode::Borrow
+        );
+        assert_eq!(contracts[0].parameter_type(), parameter.ty());
+        assert!(
+            !owned
+                .direct_call_loan_ends()
+                .iter()
+                .any(|e| e.loan().call() == call.expression())
+        );
+        assert!(!owned.drops().iter().any(|d| d.point()
+            == crate::ownership_checking::UnitDropPoint::CallReturn(call.expression())));
+        let leaves = experiment.callee_leaves().unwrap();
+        let printing: Vec<_> = leaves
+            .iter()
+            .filter(|l| l.body() == CalleeLeafBody::PrintSharedParameter)
+            .collect();
+        assert_eq!(printing.len(), 1);
+        assert_eq!(printing[0].print_loan(), Some(loans[0]));
+    }
+}

@@ -92,6 +92,7 @@ fn independent_two_source_bridge_does_not_enable_normal_analysis() {
                             assert_eq!(function.borrow_return, Some(0));
                             assert!(matches!(block.terminator.as_ref().unwrap().kind, super::model::TerminatorKind::BorrowReturn { loan } if loan == parameter));
                         }
+                        lang_frontend::ownership_checking::two_source_experiment::CalleeLeafBody::PrintSharedParameter => panic!("this fixture has no print consumer"),
                         lang_frontend::ownership_checking::two_source_experiment::CalleeLeafBody::EmptyUnit => assert!(matches!(&block.terminator.as_ref().unwrap().kind, super::model::TerminatorKind::Return { values } if values.is_empty())),
                     }
                 }
@@ -271,7 +272,7 @@ fn unsupported_actual_leaf_bodies_do_not_become_placeholders() {
     for source in [
         base.replace(
             "consume(item:String):Unit {}",
-            "consume(item:String):Unit {println(item)}",
+            "consume(item:String):Unit {println(item);println(item)}",
         ),
         base.replace("from source=source", "from source=(source)"),
     ] {

@@ -164,7 +164,7 @@ pub fn analyze_two_source_experiment(
         })
         .collect();
     let entries = super::entry::collect(sources, &shells, inputs, names, typed, &owned);
-    let leaves = super::leaves::collect(&facts, inputs, names, typed);
+    let leaves = super::leaves::collect(&facts, inputs, names, typed, &owned);
     // Keep the full ownership success gate above. Only backend-subset eligibility
     // is scoped; a shared key with inconsistent roles invalidates every dependent fact.
     let mut roles = Vec::new();
@@ -194,7 +194,7 @@ pub fn analyze_two_source_experiment(
             {
                 None
             } else {
-                super::leaves::collect(std::slice::from_ref(fact), inputs, names, typed)
+                super::leaves::collect(std::slice::from_ref(fact), inputs, names, typed, &owned)
             }
         })
         .collect();

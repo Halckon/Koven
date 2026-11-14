@@ -308,3 +308,29 @@ pub(super) fn check_published_object(
     assert!(linked.status.success(), "{linked:?}");
     execute_binary(&executable, b"");
 }
+
+/// Execute an object produced from the original printing entry, without IR rewriting.
+pub(super) fn execute_published(
+    package: &crate::ssa::ExperimentalPublishedEntrySet<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    entry: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    expected: &[u8],
+) {
+    let directory = crate::native_tests::TestDirectory::create();
+    let object = directory.join("print.o");
+    crate::native::emit_experimental_e2_object(package, handoff, entry, &object).unwrap();
+    crate::test_support::assert_native_object(&fs::read(&object).unwrap());
+    assert_eq!(directory.snapshot().len(), 1);
+    let executable = directory.join("print");
+    let linked = Command::new(crate::test_support::clang())
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .unwrap();
+    assert!(linked.status.success(), "{linked:?}");
+    execute_binary(&executable, expected);
+}
