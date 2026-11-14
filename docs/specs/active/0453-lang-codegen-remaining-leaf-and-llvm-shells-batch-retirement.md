@@ -207,3 +207,20 @@ owner 职责域，同名模块层级及正文均未调整。
 合计 31 个原目标路径保留。此次为恢复已要求的模块职责，不改 §3 原验收条件，不将
 文件数量变化当成语义完成；其余既有迁移审计、完整回归及集成分支双宿主 CI 仍待验收，
 本 Spec 保持 `in-progress`。
+
+### 4.3 PR #423 P2：删除未接入的 Map break 校验副本
+
+审阅输入为 `55a3a0fc24a8ac3df312822fb72515545a6ddf39`（base `51a3aad3`）。
+`temporary_forms/graph.rs::structure` 无实际调用，且复制原 Map owner/loan/Drop
+顺序断言；删除该 421 行模块，保留文件前 512 行的真实 `graph::check`。
+原 `lower_frontend_map_break_structure_tests.rs` 及其两个直接调用点不变。
+这是测试维护修复，不是已确认生产回归，不改变任何旧源码、golden 或断言。
+
+默认/feature 的实际接线路径
+`ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_break::`
+连同 temporary representations 原测试均 **12 passed / 0 failed / 0 ignored**。
+初次误用文件名作 libtest 过滤器，只执行了 temporary 一项，不将其冒称 Map break
+回归；随后核对清单并按真实路径重验。此记录不替代整个 #423 的候选 CI 验收，
+也不改变既有 Spec 未决范围或状态。
+本轮 fmt、docs、尺寸、空白及默认/feature 的 lang-codegen all-target Clippy
+`-D warnings` 均通过；未运行无关全量，官方新候选 CI 不预填。
