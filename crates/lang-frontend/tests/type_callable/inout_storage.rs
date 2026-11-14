@@ -478,6 +478,45 @@ fn conditional_scan_distinguishes_callable_exit_from_nested_loop_jumps() {
 }
 
 #[test]
+fn only_writes_from_the_selected_loop_exit_reach_the_join() {
+    for (fallback, expected) in [
+        ("if (flag) { write(&x); return 0 } else { break }", &[][..]),
+        ("if (flag) { break } else { write(&x); return 0 }", &[][..]),
+        ("if (flag) return write(&x) else break", &[][..]),
+        (
+            "when { flag -> { write(&x); return 0 }; else -> { break } }",
+            &[][..],
+        ),
+        (
+            "if (flag) { write(&x); break } else { return 0 }",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "take(write(&x), if (flag) { break } else { return 0 })",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "when { flag -> { write(&x); break }; else -> { return 0 } }",
+            &[("L0084", "x")][..],
+        ),
+    ] {
+        let text = format!(
+            "fun take(a: Int, b: Int): Boolean = true
+             fun write(inout target: Int?): Int {{ target = null; return 0 }}
+             fun run(left: Boolean?, flag: Boolean): Int {{
+                 var x: Int? = 7
+                 if (x != null && (if (flag) {{
+                     loop {{ left ?: {fallback}; break }}
+                     true
+                 }} else {{ true }})) {{ return x }}
+                 return 0
+             }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}
+
+#[test]
 fn unexecuted_lambda_still_checks_reachable_local_loop_jumps() {
     let text = "fun take(a: Int, b: Int): Boolean = true
         fun write(inout target: Int?): Int { target = null; return 0 }

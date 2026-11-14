@@ -278,6 +278,13 @@ impl BodyChecker<'_> {
                 Ok(self.operand_falls_through(source, rhs)
                     && !self.expression_has_pending_abrupt_exit(source, rhs)?)
             },
+            |branch| {
+                Ok(!self
+                    .pending_abrupt_sites
+                    .contains(&PendingControlSite::Statement(UnitStatementId::new(
+                        source, branch,
+                    ))))
+            },
             |jump| {
                 !self.body_path_reachable
                     || !self

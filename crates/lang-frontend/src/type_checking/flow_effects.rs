@@ -13,13 +13,18 @@ use crate::{
 enum Pending {
     Expression(ExpressionId),
     Statement(StatementId),
-    ConditionalRhs(ExpressionId),
+    Conditional(ConditionalSite),
     KeepWritesOnLoopJump {
         first_write: usize,
         previous_jumps: usize,
     },
     EnterLoop(StatementId),
     LeaveLoop,
+}
+
+enum ConditionalSite {
+    RightOperand(ExpressionId),
+    Branch(StatementId),
 }
 
 /// Recognize an unconditional RHS without running constant evaluation in flow checking.
@@ -127,6 +132,7 @@ pub(super) fn collect_expression_mutation_targets(
         Pending::Expression(expression),
         |_| true,
         |_| Ok(true),
+        |_| Ok(true),
         |_| true,
     )
 }
@@ -136,6 +142,7 @@ pub(super) fn collect_normal_expression_mutation_targets(
     expression: ExpressionId,
     includes_inout: impl Fn(ExpressionId) -> bool,
     expression_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    branch_completes: impl Fn(StatementId) -> Result<bool, AstError>,
     includes_loop_jump: impl Fn(ExpressionId) -> bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
     if !expression_completes(expression)? {
@@ -146,6 +153,7 @@ pub(super) fn collect_normal_expression_mutation_targets(
         Pending::Expression(expression),
         includes_inout,
         expression_completes,
+        branch_completes,
         includes_loop_jump,
     )
 }
@@ -159,6 +167,7 @@ pub(super) fn collect_statement_mutation_targets(
         Pending::Statement(statement),
         |_| true,
         |_| Ok(true),
+        |_| Ok(true),
         |_| true,
     )
 }
@@ -168,6 +177,7 @@ fn collect_mutation_targets(
     root: Pending,
     includes_inout: impl Fn(ExpressionId) -> bool,
     expression_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    branch_completes: impl Fn(StatementId) -> Result<bool, AstError>,
     includes_loop_jump: impl Fn(ExpressionId) -> bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
     let ast = outcomes.ast;
@@ -176,9 +186,17 @@ fn collect_mutation_targets(
     let mut loop_jumps = Vec::new();
     while let Some(node) = pending.pop() {
         match node {
-            Pending::ConditionalRhs(rhs) => {
-                if expression_completes(rhs)? {
-                    pending.push(Pending::Expression(rhs));
+            Pending::Conditional(site) => {
+                let (child, completes) = match site {
+                    ConditionalSite::RightOperand(rhs) => {
+                        (Pending::Expression(rhs), expression_completes(rhs)?)
+                    }
+                    ConditionalSite::Branch(branch) => {
+                        (Pending::Statement(branch), branch_completes(branch)?)
+                    }
+                };
+                if completes {
+                    pending.push(child);
                 } else if let Some(&previous_jumps) = loop_jumps.last() {
                     // Only a jump to a loop already in this scan can make
                     // writes on this otherwise abrupt path observable.
@@ -186,7 +204,7 @@ fn collect_mutation_targets(
                         first_write: targets.len(),
                         previous_jumps,
                     });
-                    pending.push(Pending::Expression(rhs));
+                    pending.push(child);
                 }
             }
             Pending::KeepWritesOnLoopJump {
@@ -248,16 +266,16 @@ fn collect_mutation_targets(
                     ..
                 } => {
                     if let Some(branch) = else_branch {
-                        pending.push(Pending::Statement(*branch));
+                        pending.push(Pending::Conditional(ConditionalSite::Branch(*branch)));
                     }
-                    pending.push(Pending::Statement(*then_branch));
+                    pending.push(Pending::Conditional(ConditionalSite::Branch(*then_branch)));
                     pending.push(Pending::Expression(*condition));
                 }
                 Expression::When {
                     subject, entries, ..
                 } => {
                     for entry in entries.iter().rev() {
-                        pending.push(Pending::Statement(entry.body));
+                        pending.push(Pending::Conditional(ConditionalSite::Branch(entry.body)));
                         for condition in entry.conditions.iter().rev() {
                             match condition {
                                 WhenCondition::Expression(expression)
@@ -289,7 +307,8 @@ fn collect_mutation_targets(
                         BinaryOperator::LogicalAnd
                         | BinaryOperator::LogicalOr
                         | BinaryOperator::Elvis => {
-                            pending.push(Pending::ConditionalRhs(*right));
+                            pending
+                                .push(Pending::Conditional(ConditionalSite::RightOperand(*right)));
                         }
                         _ => pending.push(Pending::Expression(*right)),
                     }

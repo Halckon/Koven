@@ -106,6 +106,26 @@ impl Checker<'_> {
             expression,
             |call| self.call_recoveries.get(&call.index()) != Some(&CallRecovery::Rejected),
             |rhs| Ok(self.pending_checked_exit(rhs)),
+            |branch| {
+                // Suppression can come from an unreachable lambda creation site.
+                // Its body still needs conservative checks of local loop exits.
+                if self.iteration_recovery.suppressed {
+                    return Ok(true);
+                }
+                if self
+                    .iteration_recovery
+                    .abrupt_statements
+                    .contains(&branch.index())
+                {
+                    return Ok(false);
+                }
+                match self.ast().statements().get(branch)?.payload() {
+                    Statement::Expression { expression } => {
+                        Ok(self.pending_checked_exit(*expression))
+                    }
+                    _ => Ok(true),
+                }
+            },
             |jump| {
                 self.iteration_recovery.suppressed
                     || !self
