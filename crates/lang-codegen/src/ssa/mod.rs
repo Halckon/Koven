@@ -353,3 +353,8 @@ mod e2_callee_leaves;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_arm_fragments;
+
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_function;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_function_tests;

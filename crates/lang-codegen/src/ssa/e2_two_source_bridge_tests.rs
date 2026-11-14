@@ -303,6 +303,7 @@ fn unsupported_actual_leaf_bodies_do_not_become_placeholders() {
                 .is_some(),
             "caller shell does not promise callee body support"
         );
+        assert!(super::e2_function::emit(&experiment, &experiment.facts()[0], &typed).is_none());
         assert!(experiment.callee_leaves().is_none());
         assert!(super::e2_callee_leaves::emit(&experiment, &typed).is_none());
         assert!(
@@ -370,6 +371,23 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
         let [fact] = experiment.facts() else {
             panic!("one local closed fact retained")
         };
+        let emitted = super::e2_function::emit(&experiment, fact, &typed);
+        assert_eq!(emitted.is_some(), expected.is_some(), "{source}");
+        if let Some(emitted) = emitted {
+            super::e2_function_tests::assert_caller(
+                &emitted,
+                experiment.function_shell(fact, &typed).unwrap(),
+            );
+            crate::llvm::render_verified_program(&emitted.fragments.leaves.program).unwrap();
+            assert_eq!(
+                emitted.fragments.leaves.program.modules[0]
+                    .function(emitted.caller)
+                    .unwrap()
+                    .blocks
+                    .len(),
+                9
+            );
+        }
         let shell = experiment.function_shell(fact, &typed);
         assert_eq!(shell.map(|s| s.roles()), expected, "{source}");
         if let Some(shell) = shell {
@@ -398,8 +416,10 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
                 assert!(span.start() >= shell.body().start() && span.end() <= shell.body().end());
             }
         }
+        assert!(super::e2_function::emit(&experiment, fact, &typecheck()).is_none());
         assert!(experiment.function_shell(fact, &typecheck()).is_none());
         let other = analyze();
+        assert!(super::e2_function::emit(&other, fact, &typed).is_none());
         assert!(other.function_shell(fact, &typed).is_none());
         assert!(experiment.owns(fact));
         assert!(

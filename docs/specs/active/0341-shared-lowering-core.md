@@ -18342,3 +18342,28 @@ fact 不能混用。描述 clone 不是独立权限，未来 emitter 必须通�
 组合 all-target 严格Clippy及默认/仅观察 cargo check、fmt/docs951/diff通过。
 尺寸门禁相对 c2dcad7e 通过：2174个手写Rust文件、36项历史超限未增加；新增
 shell191行、桥测试416行。未运行native、远端CI或推送。
+
+### E2 受限完整函数 CFG 与 checked-abort（实验，未发布 receipt）
+
+只有 issuing shell（完整 init+loop 源码覆盖）和实际 leaf/helper 闭包同时可用时，
+新 test+feature emitter 才返回原函数 SSA 及其真实 FunctionId。保留四 Borrow
+参数原顺序/类型，不把 helper 压缩 ABI 冒充原签名。entry 读 rounds 初始化 counter，
+header 比较零，split 每轮读取 choose，两个 arm block outline 调用对应 helper；
+join 发射 checked subtract。失败 flag 的 true 边到 abort，false 边以真实结果
+替换 counter 到 success，再回 header；条件 false 到正常 Unit exit。
+
+每条正常边按原 ABI 运输并重绑定四输入及 counter；abort 另运输真实常量 1 用于
+CheckedArithmetic 原因。没有额外结束输入 loan，不从来源符号不同推导 owner
+不别名。原表达式/零一常量的 Span 从前端 shell 投影，辅助 CFG/outline 标 Synthetic。
+整个 Program verifier 失败只丢弃局部产物；无普通 ownership 产品或旧 receipt 借用。
+
+真实测试在原顺序与参数反序下核九块的全部 terminator/逐列实参、原四参数精确
+类型、initializer/compare/choose 操作来源、helper 目标与列、checked 结果和失败
+flag 身份、success 回边更新、abort reason/divisor/source、无输入 End；LLVM render
+包含实际原函数。前后缀、额外参数、own rounds、未知叶体、foreign/retyped 均不
+获得此完整 emitter，局部事实支持仍保留。此处的 caller ID 不表示已实现外部调用
+该函数或 native 执行，也不等于独立两源收据或生产接入。
+最终两配置 E2 测试各6/6（含精确 CFG 断言、Program verifier、LLVM render），两配置
+codegen all-target 严格Clippy、frontend 组合 all-target 严格Clippy和默认/仅观察
+cargo check通过；fmt/docs951/diff及相对5d3cedff尺寸门禁通过（2176文件、36旧超限）。
+未运行native、损坏注入或远端CI，未推送；独立源码审查未发现权限/语义阻断。

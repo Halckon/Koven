@@ -19,6 +19,8 @@ pub struct FunctionShell {
     symbols: [UnitSymbolId; 4],
     controls: [UnitExpressionId; 4],
     counter: UnitSymbolId,
+    control_spans: [Span; 4],
+    literals: [Span; 2],
 }
 impl FunctionShell {
     /// Original declaration, not a synthetic helper declaration.
@@ -41,6 +43,14 @@ impl FunctionShell {
     /// Original initializer, while condition, branch condition and decrement.
     pub fn controls(&self) -> [UnitExpressionId; 4] {
         self.controls
+    }
+    /// Original initializer, while condition, branch condition and decrement spans.
+    pub fn control_spans(&self) -> [Span; 4] {
+        self.control_spans
+    }
+    /// Original zero and one literal spans, respectively.
+    pub fn literals(&self) -> [Span; 2] {
+        self.literals
     }
     /// Original local counter symbol.
     pub fn counter(&self) -> UnitSymbolId {
@@ -175,6 +185,22 @@ pub(super) fn collect(
         }
         roles[index] = position;
     }
+    let span = |id: UnitExpressionId| {
+        (id.source_unit() == unit).then_some(())?;
+        Some(parsed.ast().expressions().get(id.expression()).ok()?.span())
+    };
+    let literal = |id: UnitExpressionId| {
+        let Expression::Binary { right, .. } = parsed
+            .ast()
+            .expressions()
+            .get(id.expression())
+            .ok()?
+            .payload()
+        else {
+            return None;
+        };
+        Some(parsed.ast().expressions().get(*right).ok()?.span())
+    };
     Some(FunctionShell {
         callable,
         body: node.span(),
@@ -187,5 +213,12 @@ pub(super) fn collect(
             fact.decrement,
         ],
         counter: fact.counter,
+        control_spans: [
+            span(fact.initializer)?,
+            span(fact.condition)?,
+            condition_node.span(),
+            span(fact.decrement)?,
+        ],
+        literals: [literal(fact.condition)?, literal(fact.decrement)?],
     })
 }

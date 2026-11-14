@@ -145,8 +145,7 @@ String owner在其全部关联loan结束后才唯一Drop；不覆盖异常退出
 
 仅测试构建另有独立两源counter事实域：默认关闭的RAII开关启用真实Unit检查，
 CounterBranch及两臂最终唯一End成功后构造独立身份；旧pair与生产selector不变。
-该测试态域能成功validate，但不在非测试frontend依赖中暴露，因此不提供backend
-能力。rooted跨源晚失败可观察先构造后经Unit总gate撤销；没有保留失败观察payload。
+rooted跨源晚失败可观察先构造后经Unit总gate撤销；没有保留失败观察payload。
 测试态事实还按闭合arm顺序保存每次实际callsite与完整callable instance key；
 producer和重复consumer调用不去重，缺失typed映射不生成新事实。这不是SSA receipt。
 
@@ -159,8 +158,7 @@ observation启用，也不公开通用激活scope。专用分析函数在内部�
 完整validate，之后仅提取facts到独立`TwoSourceExperiment`，不返回普通ownership
 或validated产品。普通分析在调用前后仍拒绝两源；实验失败返回None，不携带事实。
 feature显式启用时依赖构建包含实验能力，不能再概称“任何非test构建均无此域”；
-默认构建不含该API。backend目前仅测试消费opaque事实/owns和实际typed callee身份，
-尚无SSA emission/receipt，也没有正常lowerer接线或生产启用。
+默认构建不含该API。backend实验消费opaque事实/owns和实际typed callee身份，仍未生产启用。
 实验包装还保留签发typed分析的轻量身份；同源码重新type-check不可凭数值相等
 callsite/key混用。backend测试专用独立输入Plan要求issuing fact与原typed身份，
 从真实签名唯一定位两Shared String来源参数列并重核完整callee序列，覆盖形参反序。
@@ -189,3 +187,13 @@ rounds、Boolean choose）、Unit 返回，原 body 恰为初始化与该闭合 
 额外前后缀、参数或未支持 ABI 不生成 shell，但局部 fact 和已支持 helper 保留。
 查询同时要求 issuing fact 与原 typed 身份；shell 是覆盖元数据，不是可独立使用
 的权限 token。此片没有原函数 SSA/循环 CFG 发射，也不保证 callee 叶闭包可支持。
+
+在 shell 和真实 leaf/helper 闭包均成功时，测试专用 emitter 现可生成该受限原函数
+完整 SSA：保留原四 Borrow 参数绝对 ABI，另运输局部 counter；九块覆盖 entry、
+header、split、两臂、join、success、exit、abort。臂通过显式 outline 调用对应真实
+helper；全部正常边重绑定四输入和 counter。join 发射真实 checked subtract，失败
+标志为真进入带原原因的 abort，成功结果替换 counter 经 success 回 header。
+initializer/条件/常量/decrement 保留原 Source Span，辅助块及 outline 明确 Synthetic。
+整个 Program verifier 和 LLVM render 已通过；此实现没有额外输入 End，不假定
+两 Shared 来源必定属于不同 owner。没有生产 driver 接入、native 调用方或两源
+required/selected/replay/publication 收据；feature 外的正常分析仍拒绝原两源循环。
