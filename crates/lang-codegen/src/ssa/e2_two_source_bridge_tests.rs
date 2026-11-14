@@ -533,6 +533,32 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
         let entries = experiment.entries(&typed).unwrap();
         assert_eq!(entries.len(), if multiple { 2 } else { 1 });
         let entry = &entries[0];
+        let handoff = experiment
+            .handoff(&sources, &inputs, &names, &types, &typed)
+            .unwrap();
+        assert!(handoff.owns(fact));
+        assert!(std::ptr::eq(handoff.sources(), &sources));
+        assert!(std::ptr::eq(handoff.inputs(), inputs.as_slice()));
+        assert!(std::ptr::eq(handoff.names(), &names));
+        assert!(std::ptr::eq(handoff.types(), &typed));
+        assert!(
+            experiment
+                .clone()
+                .handoff(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .owns(fact)
+        );
+        let empty_sources = SourceMap::new();
+        assert!(
+            experiment
+                .handoff(&empty_sources, &inputs, &names, &types, &typed)
+                .is_err()
+        );
+        assert!(
+            experiment
+                .handoff(&sources, &[], &names, &types, &typed)
+                .is_err()
+        );
         let emitted = super::e2_entry::emit(&experiment, fact, entry, &typed).unwrap();
         super::e2_entry_replay::replay(&emitted, &experiment, fact, &typed).unwrap();
         // Ordinary single-callable publication/replay does not silently widen its coverage.
@@ -541,6 +567,7 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             .unwrap()
             .unwrap();
         assert!(super::e2_entry::emit(&other, &other.facts()[0], entry, &typed).is_none());
+        assert!(!handoff.owns(&other.facts()[0]));
         assert!(
             super::e2_entry_replay::replay(&emitted, &other, &other.facts()[0], &typed).is_none()
         );
@@ -575,6 +602,11 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             publish(&experiment, entry, fact, &[fact], &retyped),
             Err(Error::Required)
         ));
+        assert!(
+            experiment
+                .handoff(&sources, &inputs, &names, &types, &retyped)
+                .is_err()
+        );
         let published = publish(&experiment, entry, fact, &[fact], &typed).unwrap();
         assert_eq!(published.declaration(), entry.entry());
         let coverage = published.coverage();

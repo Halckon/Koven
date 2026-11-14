@@ -10,6 +10,7 @@ use crate::{
 /// Successful experimental facts only; cannot be passed to normal lowering entry points.
 #[derive(Clone, Debug)]
 pub struct TwoSourceExperiment {
+    pub(super) retained: Rc<super::CompilationUnitOwnership>,
     facts: Vec<TwoSourceCounterFact>,
     typed_owner: std::sync::Arc<()>,
     callables: Vec<DeclarationId>,
@@ -206,6 +207,7 @@ pub fn analyze_two_source_experiment(
     };
     Ok((!facts.is_empty()).then_some(TwoSourceExperiment {
         facts,
+        retained: Rc::new(owned),
         typed_owner: typed.types().analysis_owner().clone(),
         callables,
         leaves,

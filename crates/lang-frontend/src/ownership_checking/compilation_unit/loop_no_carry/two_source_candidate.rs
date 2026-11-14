@@ -87,7 +87,10 @@ impl TwoSourceCounterFact {
     }
 }
 impl CompilationUnitOwnership {
-    #[cfg(all(test, feature = "loan-observation-test-support"))]
+    #[cfg(any(
+        feature = "e2-two-source-test-support",
+        all(test, feature = "loan-observation-test-support")
+    ))]
     fn owns_two_source_counter(&self, fact: &TwoSourceCounterFact) -> bool {
         self.no_carry
             .two_sources
@@ -137,3 +140,8 @@ pub use function_shell::FunctionShell;
 mod entry;
 #[cfg(feature = "e2-two-source-test-support")]
 pub use entry::EntryDescriptor;
+
+#[cfg(feature = "e2-two-source-test-support")]
+mod handoff;
+#[cfg(feature = "e2-two-source-test-support")]
+pub use handoff::ExperimentalUnitHandoff;

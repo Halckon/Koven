@@ -18619,3 +18619,18 @@ emitter 与独立 replay 分别从所选 fact 的真实调用需求核查身份�
 均拒绝；foreign fact 与 retyped 仍拒绝。并非裁掉 ownership 错误或放宽 leaf
 body 语义。不同包不合并 FunctionId；普通 Unit 的全声明、binding、global
 initializer gates 及生产 capability/混合 Unit 接入均未改动，故障仍仅在 CI 执行。
+
+### 实验完整来源交接基础（未执行 backend preflight）
+
+TwoSourceExperiment 私有保留同次成功验证的完整 ownership 产品，使用 Rc 共享而
+不在 clone 时复制整份事实。ExperimentalUnitHandoff 复用普通来源身份检查，核实
+sources/inputs/names/environment/typed 链及 retained typed owner；来源错误先于
+分析身份错误。借用生命周期覆盖所有输入，公开面仅有来源投影和针对 retained
+事实的 owns 查询。无普通 owned/view 转换、raw getter、Deref 或任意 callback。
+
+真实 entry fixture 验证原输入与合法 clone、foreign fact、retyped、空 SourceMap
+和空 inputs；编译负例证明不能代入普通 OwnedCompilationUnitView。此片不是
+“preflight 已通过”的证书，也未改变 entry publisher 或普通 native 接受范围。
+后续须为 validate_declarations/validate_bindings 的实际递归查询建立封闭投影
+接口，复用同一检查实现和错误顺序；不得用 callback 暴露可克隆的普通 ownership，
+不得因两源 binding 不通过便跳过全声明、其他 bindings 或 global initializer。
