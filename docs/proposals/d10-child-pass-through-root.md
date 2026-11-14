@@ -118,3 +118,17 @@ Carry 归纳/权限；后续提取器须以这些真实 use/cleanup 身份为输
 
 该用途变体与原无用途反例 ordinary exact 2/2 通过；frontend all-target 严格
 Clippy、fmt、docs955、diff及身份/清理独审通过。未运行 native、故障或全量测试。
+
+### 同次分析的必要证据提取（测试域）
+
+`child_carry_candidate::extract_source_evidence` 目前只返回真实源码的必要证据：
+同一 typed/ownership 分析、单函数且无 lambda、两根声明早于 parent、两个嵌套 while、child 内与 child 后且 parent 内各一次且同根的
+Replace，以及另一根在 parent 后的唯一 Shared loan 和同一调用的 CallReturn 清理。
+根身份从 primitive place 与 loan target 得到，不从 `a`/`b` 拼写或 symbol 下标构造。
+没有后续读取、读取 Replace 根、parent 改写另一根、多个后续 loan
+均由普通源码回归拒绝；原无读取的 ASAP 证据保留。
+
+这不是完整候选准入器：尚未建立全函数 AST 白名单、所有额外操作/出口的排除、
+两根类型与初始化限制、old-result 清理配对和实际 CFG 代际边证据。
+返回 `CarrySourceEvidence` 只表示这些必要事实存在，不能产生 Carry 权限、
+现行 nested-normal observation、selector 放宽或任何生产/SSA 输出。

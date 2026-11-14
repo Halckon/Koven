@@ -150,3 +150,180 @@ fn ordinary_real_suffix_use_keeps_candidate_root_past_parent() {
         "a real final use does not authorize the old all-root child rule"
     );
 }
+
+/// Necessary source evidence only: not a body whitelist or a Carry permission.
+/// All identities come from one compatible analysis, never root names or ordinals.
+#[derive(Debug, PartialEq, Eq)]
+struct CarrySourceEvidence {
+    replaced: UnitSymbolId,
+    carried: UnitSymbolId,
+    suffix: UnitExpressionId,
+}
+
+fn extract_source_evidence(
+    fixture: &Fixture,
+    owned: &CompilationUnitOwnership,
+) -> Option<CarrySourceEvidence> {
+    if fixture.parsed.len() != 1
+        || !owned.is_compatible_with(&fixture.typed)
+        || owned.clone().validate().is_err()
+        || !owned.deferred().is_empty()
+    {
+        return None;
+    }
+    let source = fixture.source(0);
+    let ast = fixture.parsed[0].ast();
+    // Reject additional callable scopes instead of inferring ownership from spans.
+    let functions = ast
+        .items()
+        .iter()
+        .filter(|(_, node)| matches!(node.payload(), crate::parser::Item::Function { .. }))
+        .collect::<Vec<_>>();
+    if functions.len() != 1
+        || ast
+            .expressions()
+            .iter()
+            .any(|(_, node)| matches!(node.payload(), crate::parser::Expression::Lambda { .. }))
+    {
+        return None;
+    }
+    let function = functions[0].1.span();
+    let mut loops = ast
+        .statements()
+        .iter()
+        .filter_map(|(_, node)| {
+            matches!(node.payload(), Statement::While { .. }).then_some(node.span())
+        })
+        .collect::<Vec<_>>();
+    loops.sort_by_key(|span| span.start());
+    let [parent, child] = loops.as_slice() else {
+        return None;
+    };
+    if !(function.start() < parent.start()
+        && parent.end() < function.end()
+        && parent.start() < child.start()
+        && child.end() < parent.end())
+    {
+        return None;
+    }
+    let primitives = owned.ownership_primitives();
+    if primitives.len() != 2 {
+        return None;
+    }
+    let mut replaced = None;
+    let mut in_child = 0;
+    let mut after_child = 0;
+    for primitive in primitives {
+        let expression = primitive.descriptor().expression();
+        if expression.source_unit() != source
+            || primitive.descriptor().kind()
+                != crate::type_checking::OwnershipPrimitiveKind::Replace
+        {
+            return None;
+        }
+        let [place] = primitive.places() else {
+            return None;
+        };
+        if !place.is_root() || place.root().source_unit() != source {
+            return None;
+        }
+        if replaced.is_some_and(|root| root != place.root()) {
+            return None;
+        }
+        replaced = Some(place.root());
+        let span = ast.expressions().get(expression.expression()).ok()?.span();
+        if child.start() < span.start() && span.end() < child.end() {
+            in_child += 1;
+        } else if child.end() < span.start() && span.end() < parent.end() {
+            after_child += 1;
+        } else {
+            return None;
+        }
+    }
+    if in_child != 1 || after_child != 1 {
+        return None;
+    }
+    let replaced = replaced?;
+    let suffix_loans = owned
+        .loans()
+        .iter()
+        .filter(|loan| {
+            loan.call().source_unit() == source
+                && ast
+                    .expressions()
+                    .get(loan.call().expression())
+                    .is_ok_and(|node| {
+                        parent.end() < node.span().start() && node.span().end() < function.end()
+                    })
+        })
+        .collect::<Vec<_>>();
+    let [loan] = suffix_loans.as_slice() else {
+        return None;
+    };
+    if loan.kind() != crate::ownership_checking::LoanKind::Shared
+        || loan.argument().source_unit() != source
+    {
+        return None;
+    }
+    let UnitLoanTarget::Place(place) = loan.target() else {
+        return None;
+    };
+    let carried = place.root();
+    if !place.is_root() || carried == replaced || carried.source_unit() != source {
+        return None;
+    }
+    let resolution = fixture.names.names().source_units()[source.index()].resolution();
+    for root in [replaced, carried] {
+        let span = resolution.symbols().get(root.symbol().index())?.span();
+        let declarations = ast.items().iter().filter(|(_, node)| matches!(node.payload(), crate::parser::Item::Variable { name: crate::parser::NameMarker::Present(marker), .. } if *marker == span)).collect::<Vec<_>>();
+        let [(_, declaration)] = declarations.as_slice() else {
+            return None;
+        };
+        if !(functions[0].1.span().start() < declaration.span().start()
+            && declaration.span().end() < parent.start())
+        {
+            return None;
+        }
+    }
+    let drops = owned
+        .drops()
+        .iter()
+        .filter(|drop| drop.target() == UnitDropTarget::Named(carried))
+        .collect::<Vec<_>>();
+    let [drop] = drops.as_slice() else {
+        return None;
+    };
+    if drop.point() != UnitDropPoint::CallReturn(loan.call()) {
+        return None;
+    }
+    Some(CarrySourceEvidence {
+        replaced,
+        carried,
+        suffix: loan.call(),
+    })
+}
+
+#[test]
+fn ordinary_source_evidence_rejects_missing_premises() {
+    let used = SOURCE.strip_suffix("}\n}").unwrap().to_owned() + "}\nprintln(b)\n}";
+    let fixture = Fixture::new(&[("carry.ko", &used)]);
+    let owned = fixture.shared();
+    let evidence = extract_source_evidence(&fixture, &owned).unwrap();
+    assert_eq!(evidence.replaced, fixture.local(0, "a"));
+    assert_eq!(evidence.carried, fixture.local(0, "b"));
+    assert_eq!(
+        evidence.suffix,
+        UnitExpressionId::new(fixture.source(0), fixture.expression(0, "println(b)"))
+    );
+    for text in [
+        SOURCE.to_owned(),
+        used.replace("println(b)", "println(a)"),
+        used.replace("replace(&a, \"parent\")", "replace(&b, \"parent\")"),
+        used.replace("println(b)", "println(b)\nprintln(b)"),
+        used.replace("var b = \"initial b\"\n", "")
+            .replace("println(b)", "var b = \"initial b\"\nprintln(b)"),
+    ] {
+        let rejected = Fixture::new(&[("reject.ko", &text)]);
+        assert!(extract_source_evidence(&rejected, &rejected.shared()).is_none());
+    }
+}
