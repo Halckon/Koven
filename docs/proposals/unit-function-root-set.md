@@ -90,3 +90,17 @@ verifier 原本已共享，因此不应拼接多个独立 Program 或重映射�
 本片最终两个 ordinary 完整 FQN exact 各 1/1，通过 SSA/LLVM verifier；最终源码
 no-run、带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs
 （953 Markdown）和 diff 检查通过。未运行故障注入、全量或 native，未推送。
+
+### 双来源与 callee 身份普通验收片
+
+基于 `53317df1`，同一 generic/overload 原源分别用 rooted 与 MemoryDocument
+建立 Unit；两者均先通过 final type completeness，再取得 basic ownership 的封闭
+view。共同 Program 的 relay、identity、recurse 和两个 choose 按唯一原声明全文
+定位并核原 Span、Int/Long 返回类型及无 receiver。既有根映射、共享/递归/overload
+真实调用 ID、singleton SSA 对照与多根逆序 SSA/LLVM 对照不删改。
+本片不覆盖全部 ABI 参数模式；低预算、非法根或事实变异不在本地执行，预算边界与
+失败原子性动态验收仍待 CI。旧 whole-file oracle 保留，不将来源双布局等同于退休。
+
+本片两个 ordinary exact 各 1/1（每项含两种来源）通过；最终 no-run、all-target
+feature 严格 Clippy、fmt、docs953、diff 与独审通过。无生产改动，未运行故障或
+native，未推送；这些通过不包含预算和失败原子性动态验收。

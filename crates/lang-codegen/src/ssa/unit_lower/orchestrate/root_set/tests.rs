@@ -2,14 +2,20 @@
 use super::*;
 use crate::{
     llvm::render_verified_program,
-    ssa::{model::Origin, render::render_program},
+    ssa::{
+        model::{Origin, SsaTypeKind},
+        render::render_program,
+    },
 };
 use lang_frontend::{
+    analysis::analyze_basic_unit_ownership,
     lexer::lex,
     name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
-    ownership_checking::{check_compilation_unit_ownership, owned_compilation_unit_view},
+    ownership_checking::owned_compilation_unit_view,
     parser::parse_file,
-    type_checking::{check_compilation_unit_types, standard_environments},
+    type_checking::{
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+    },
 };
 const GENERICS: &str = "fun <T> identity(own input: T): T = input\n\
          fun <T> relay(own input: T): T = identity(input)\n\
@@ -24,27 +30,34 @@ const OVERLOADS: &str = "fun <T> choose(own input: T): T = input\n\
          fun one(input: Int): Int = choose(input)\n\
          fun two(input: Int): Int = choose(input, true)";
 
-fn check(source: &str, root_names: &[&str], expected: usize) {
+fn check(source: &str, root_names: &[&str], expected: usize, memory: bool) {
     let mut sources = SourceMap::new();
     let source_id = sources.add_source("test/roots.ko", source).unwrap();
     let lexed = lex(&sources, source_id).unwrap();
     let parsed = parse_file(&sources, &lexed).unwrap();
     assert!(parsed.diagnostics().is_empty());
-    let inputs = [SourceUnitInput::new("test", "roots.ko", source_id, &parsed)];
+    let inputs = [if memory {
+        SourceUnitInput::memory_document(source_id, &parsed)
+    } else {
+        SourceUnitInput::new("test", "roots.ko", source_id, &parsed)
+    }];
     let (name_env, type_env) = standard_environments();
     let index = index_compilation_unit(&sources, &inputs).unwrap();
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_env)
         .unwrap()
         .validate()
         .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_env)
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &type_env).unwrap();
+    assert!(raw.diagnostics().is_empty());
+    let complete =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_env, &raw).unwrap();
+    assert!(complete.is_same_analysis(&raw));
+    let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &type_env, raw)
         .unwrap()
-        .validate()
+        .into_result()
         .unwrap();
-    let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &type_env, &typed)
-        .unwrap()
-        .validate()
-        .unwrap();
+    assert!(owned.deferred().is_empty());
+    let owned = owned.validate().unwrap();
     let entries = root_names
         .iter()
         .map(|name| {
@@ -125,18 +138,71 @@ fn check(source: &str, root_names: &[&str], expected: usize) {
             })
             .collect::<Vec<_>>()
     };
+    let original = |id: FunctionId, declaration: &str, bits: u16| {
+        let function = module.function(id).unwrap();
+        let matches = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|d| {
+                let span = parsed.ast().items().get(d.root()).unwrap().span();
+                sources.slice(span).unwrap() == declaration
+            })
+            .collect::<Vec<_>>();
+        let [decl] = matches.as_slice() else {
+            panic!("unique exact source declaration")
+        };
+        let span = parsed.ast().items().get(decl.root()).unwrap().span();
+        assert_eq!(function.origin, Origin::Source(span));
+        let [result] = function.return_types.as_slice() else {
+            panic!("one integer return")
+        };
+        assert_eq!(
+            module.type_kind(*result),
+            Some(&SsaTypeKind::Integer { bits, signed: true })
+        );
+        assert!(function.receiver.is_none());
+    };
     if root_names.len() == 4 {
         assert_eq!(targets(roots[&entries[0]]), targets(roots[&entries[1]]));
         assert_ne!(targets(roots[&entries[0]]), targets(roots[&entries[2]]));
+        for (index, bits) in [(0, 32), (1, 32), (2, 64)] {
+            let relay = targets(roots[&entries[index]]);
+            assert_eq!(relay.len(), 1);
+            original(
+                relay[0],
+                "fun <T> relay(own input: T): T = identity(input)",
+                bits,
+            );
+            let identity = targets(relay[0]);
+            assert_eq!(identity.len(), 1);
+            original(
+                identity[0],
+                "fun <T> identity(own input: T): T = input",
+                bits,
+            );
+        }
         let recursive = targets(roots[&entries[3]]);
         assert_eq!(recursive.len(), 1);
         assert_eq!(targets(recursive[0]), recursive);
+        original(
+            recursive[0],
+            "fun <T> recurse(own input: T): T = recurse(input)",
+            32,
+        );
     } else {
         let one = targets(roots[&entries[0]]);
         let two = targets(roots[&entries[1]]);
         assert_eq!(one.len(), 1);
         assert_eq!(two.len(), 1);
         assert_ne!(one, two);
+        original(one[0], "fun <T> choose(own input: T): T = input", 32);
+        original(
+            two[0],
+            "fun <T> choose(own input: T, fallback: Boolean): T = input",
+            32,
+        );
         assert_ne!(
             module.function(one[0]).unwrap().origin,
             module.function(two[0]).unwrap().origin
@@ -146,13 +212,18 @@ fn check(source: &str, root_names: &[&str], expected: usize) {
 
 #[test]
 fn ordinary_generic_roots_share_one_verified_program() {
-    check(
-        GENERICS,
-        &["useInt", "useIntAgain", "useLong", "recursive"],
-        9,
-    );
+    for memory in [false, true] {
+        check(
+            GENERICS,
+            &["useInt", "useIntAgain", "useLong", "recursive"],
+            9,
+            memory,
+        );
+    }
 }
 #[test]
 fn ordinary_overload_roots_keep_distinct_verified_targets() {
-    check(OVERLOADS, &["one", "two"], 4);
+    for memory in [false, true] {
+        check(OVERLOADS, &["one", "two"], 4, memory);
+    }
 }
