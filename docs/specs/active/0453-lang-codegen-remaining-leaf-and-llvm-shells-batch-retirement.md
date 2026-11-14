@@ -249,3 +249,35 @@ LLVM 条件分支、payload drop 顺序、符号与 void ABI 均未改变。独�
 0451/0452 的既有 21/2 个保留路径不变，三批共 32 个原路径保留。数字仅是物理库存，
 不是语义完成比例。本轮修复职责归属，不以任意打包凑删除数，也不改变 §3 验收条件。
 全批合同与其余打包审计继续待办，Spec 保持 in-progress；新候选 CI 单独验收。
+
+### 4.5 runtime abort 的 Map result / String 职责恢复
+
+输入为 `03d1f7f376f07cd6531567f0378adbad6a8c1427`，继续 §4.4 的同类职责修复。
+把 `abort.rs` 的 Map result 条件析构与 String 分配/stdout helper 恢复到 runtime
+直接子模块 `map_result.rs`、`string.rs`，移除两处带 unused-import 例外的重导出。
+abort 仅保留终止报告职责，没有新增 wrapper、状态、公开 API 或依赖。
+
+机械审计确认三方法正文（除父路径调整/去缩进）、参数、可见性及失败文案不变，
+其余 abort 正文不变。Map payload 仍仅在 present 边析构；String concat/clone/argv
+分配与 println 调用不变，OOM、stdout 短写和 error 仍走原 abort 合同。独立只读复核
+未发现具体问题；审查未运行 Cargo，不替代以下动态证据。
+
+| 检查 | 实际结果与边界 |
+|---|---|
+| 未改代码的默认 `llvm::` 基线 | **71 passed / 0 failed / 1 ignored**，退出 0；忽略项为原 debugserver 权限限制 |
+| 未改代码的 feature `llvm::` 基线 | **900 秒观察期限，未取得完整结果**，当时 synthetic-ZST native 未完成，不记通过；没有失败断言，也不据此声称已定位耗时原因 |
+| 迁移后直接消费者 | 默认/feature 各 **19/0/0**，退出 0；选择列于下文，无修改测试/source/assertion |
+| Clippy | 默认/feature lang-codegen all-target `-D warnings` 均通过 |
+| 其他门禁 | workspace check、fmt、docs（951 Markdown）、尺寸、空白均通过；2139 手写 Rust、36 项历史超限，无新增欠账 |
+| 尺寸 | runtime 根 **1013→1011**、abort **627→494**，恢复 Map result **35**、String **91** 行；阈值未提高，原根超限欠账减少但未清除 |
+
+直接选择为 `llvm::runtime_tests::`、`llvm::debug_tests::string_tests::`、
+`llvm::container_tests::entry_tests::`、`llvm::inline_nullable_tests::`，
+以及 `native_map_owned_remove_strings_and_inline_values_have_conditional_drops`、
+`native_nullable_map_promotion_single_transfers_and_drops_generic_payloads`。
+包括 checked 分配、argv bridge、String IR、niche 精确分配释放和实际 Map native 条件清理，
+不以这 19 项冒称完整 LLVM/feature suite，也未本地执行 CI-only fault。
+
+重新枚举原 37 路径：**26 不存在、11 保留**；本轮比 §4.4 恢复两个原路径，三批共
+34 个原路径保留。Scope 仍是原合同内的职责恢复，不扩大语言能力，也不改写 §3 的
+未完成验收条件。其余打包/保留路径审计与新候选官方 CI 继续待验，Spec 保持 in-progress。

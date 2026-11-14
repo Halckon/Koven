@@ -2,14 +2,12 @@
 pub(crate) mod abort;
 pub(in crate::llvm) use abort::AbortMessage;
 pub(crate) mod inline_nullable;
-#[allow(unused_imports)]
-pub(crate) use abort::map_result;
+pub(crate) mod map_result;
 mod requirements;
 use requirements::RuntimeRequirements;
 #[cfg(test)]
 mod narrow_tests;
-#[allow(unused_imports)]
-pub(crate) use abort::string;
+pub(crate) mod string;
 
 use std::{
     cell::RefCell,
