@@ -55,16 +55,39 @@ impl SourceCollectionRecord {
     }
 }
 
-/// Sealed original-run source batches. Only four channels are accounted for;
-/// contracts, captures and all other channels still require independent accounting.
+/// Sealed original-run source batches and complete static call contracts.
+/// Captures and all other channels still require independent accounting.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceCollectionLedger {
     analysis: Arc<()>,
     records: Vec<SourceCollectionRecord>,
+    arguments: Vec<UnitCallArgumentOwnershipContract>,
+    receivers: Vec<UnitCallReceiverOwnershipContract>,
 }
 impl SourceCollectionLedger {
-    pub(crate) fn new(analysis: Arc<()>, records: Vec<SourceCollectionRecord>) -> Self {
-        Self { analysis, records }
+    pub(crate) fn new(
+        analysis: Arc<()>,
+        records: Vec<SourceCollectionRecord>,
+        arguments: &[UnitCallArgumentOwnershipContract],
+        receivers: &[UnitCallReceiverOwnershipContract],
+    ) -> Self {
+        Self {
+            analysis,
+            records,
+            arguments: arguments.to_vec(),
+            receivers: receivers.to_vec(),
+        }
+    }
+    /// Complete original static argument contracts in collector order.
+    /// These may describe calls never visited by dataflow; not execution observations.
+    #[must_use]
+    pub fn argument_contracts(&self) -> &[UnitCallArgumentOwnershipContract] {
+        &self.arguments
+    }
+    /// Complete original static receiver contracts, not receiver execution facts.
+    #[must_use]
+    pub fn receiver_contracts(&self) -> &[UnitCallReceiverOwnershipContract] {
+        &self.receivers
     }
     /// Original source visitation order, including sources producing no facts.
     #[must_use]
@@ -76,6 +99,14 @@ impl SourceCollectionLedger {
     pub fn matches(&self, owned: &ValidatedCompilationUnitOwnership) -> bool {
         let owned = owned.ownership();
         Arc::ptr_eq(&self.analysis, &owned.provenance.analysis_owner)
+            && self.arguments == owned.call_argument_contracts()
+            && self.receivers == owned.call_receiver_contracts()
+            && self
+                .arguments
+                .iter()
+                .map(|c| c.call().source_unit())
+                .chain(self.receivers.iter().map(|c| c.call().source_unit()))
+                .all(|source| self.records.iter().any(|record| record.source == source))
             && self.records.iter().flat_map(|r| &r.loans).eq(owned.loans())
             && self
                 .records
@@ -111,17 +142,28 @@ mod tests {
     };
     #[test]
     fn original_success_and_language_failure_have_distinct_ledger_publication() {
-        for (text, success, error) in [
-            ("fun run() { val a = \"x\"; println(a) }", true, false),
+        for (text, success, error, arguments, receivers) in [
+            ("fun run() { val a = \"x\"; println(a) }", true, false, 1, 0),
             (
                 "fun run() { val a = \"x\"; val b = a; println(a); println(b) }",
                 false,
                 true,
+                0,
+                0,
             ),
             (
                 "class Resource {}\nclass Holder(var payload: Resource)\nfun run(holders: List<Holder>): Unit { val projected = holders[0].payload }",
                 false,
                 false,
+                0,
+                0,
+            ),
+            (
+                "class Worker(val count: Int) { fun read(): Int = count }\nfun run(own value: Worker): Unit { val n = value.read() }",
+                true,
+                false,
+                0,
+                1,
             ),
         ] {
             let mut sources = SourceMap::new();
@@ -154,7 +196,20 @@ mod tests {
                 let owned = owned.validate().unwrap();
                 let ledger = source_collection_ledger(&owned).unwrap();
                 assert_eq!(ledger.records().len(), 1);
-                assert_eq!(ledger.records()[0].loans().len(), 1);
+                assert_eq!(
+                    ledger.records()[0].loans().len(),
+                    usize::from(receivers == 0)
+                );
+                assert_eq!(ledger.argument_contracts().len(), arguments);
+                assert_eq!(ledger.receiver_contracts().len(), receivers);
+                assert_eq!(
+                    ledger.argument_contracts(),
+                    owned.ownership().call_argument_contracts()
+                );
+                assert_eq!(
+                    ledger.receiver_contracts(),
+                    owned.ownership().call_receiver_contracts()
+                );
                 assert!(!ledger.records()[0].drops().is_empty());
                 assert!(ledger.matches(&owned.clone()));
             } else {

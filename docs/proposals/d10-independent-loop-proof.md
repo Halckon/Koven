@@ -1682,3 +1682,23 @@ owned 仅在成功且无 deferred 时保留；公开读取必须使用 validated
 与 CLI tests feature Clippy `-D warnings`、默认 CLI check、fmt/diff/YAML、尺寸
 （2276 文件/37 历史项）及文档（957 文件）检查通过。独审无阻断；未执行 native、
 故障注入或跨 run 人工组合。尚未完成 callable 与剩余通道账本，不能用于项目准入。
+
+### 同次静态调用合同全量对账（仍非完整项目准入）
+
+在上述四个实际 source 遍历批次之外，ledger 新增两个独立全 Unit 数组，直接取自
+原 dataflow 接收的 `CallInputs.arguments/receivers`。它们是本次原 collector 的完整
+静态合同，不是 source 遍历时新增的事实；保留 collector 已确定的原顺序，不再
+分组、排序、去重或按入口筛选。读取同时核最终 owned 两数组逐项相等，以及每条
+call 的 SourceUnitId 存在于原实际 source 记录；未知源拒绝。
+
+静态合同可以描述未被 dataflow 访问的调用，不能用合同存在证明已执行、可达或某
+callable 的独占归属。现在覆盖的是“四个遍历批次通道＋两个静态合同通道”，并非
+六个执行观察通道。capturing/callable、Drop 控制点与剩余通道的账本和真实可达
+闭包仍待完成；不签发新项目能力，不改变普通/旧 split gate 或默认 feature。
+
+本批验收：五源完整项目 67 条 argument 合同全序对账 exact 1 passed；发布边界
+exact 1 passed（普通 println、现行 Worker 成员 receiver、真实语言错误、真实
+IndexPlace deferred），原全事实回归 25 passed。前端 lib/tests feature Clippy
+`-D warnings`、默认 CLI check、fmt/diff、尺寸及文档检查通过，独审无阻断。
+试探 String extension 曾被既有 L0164 trusted Borrow 门拒绝，未放宽该门；最终
+非空 receiver 正例使用已有成员调用语义。未运行 native、故障注入或跨 run 拼接。

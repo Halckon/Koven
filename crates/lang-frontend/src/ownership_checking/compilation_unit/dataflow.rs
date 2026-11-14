@@ -519,6 +519,8 @@ pub(super) fn analyze(
         source_collection_ledger: super::d10_catalog_experiment::SourceCollectionLedger::new(
             analysis_owner.clone(),
             source_records,
+            call_inputs.arguments,
+            call_inputs.receivers,
         ),
         #[cfg(feature = "d10-catalog-experiment")]
         split_source_catalogs,
