@@ -18485,3 +18485,17 @@ Unit 或单 Borrow Array<String> 的 Unit；实验 run 有4个 Borrow 参数，�
 其中任何一种。下一步需从真实源码取得 entry 声明、其调用闭包、参数构造及清理，
 并把该完整范围纳入独立 replay/发布；既有 synthetic native driver 不充当此证据。
 本片仍只封装单个完整实验 callable，不触及生产入口或文件输出原子性。
+
+### 真实源码 entry 参数清理前置对账（未接 backend）
+
+真实 checker fixture 对比两种无参 Unit entry：直接向 run 传两个 String、Int、
+Boolean 字面量，及先建立 rounds/choose 两个具名标量局部再调用。两者均在同一次
+完整 ownership validate 后产生4个参数 loan 描述符；字面量版只有2个公开实际 End，
+具名标量版则有4个，每个实参唯一对应。两种的 String 临时值各有一个真实
+CallReturn Drop；所有公开 End 同在该 CallReturn 且 preceding_drops=0。具名标量
+End 指向真实根 Place，而非用 loan 描述符拼造事件。
+
+这排除了最窄具名标量方案的该项前置缺口，不证明整个 entry 已可发布。尚需在
+bridge 丢弃普通产品前，以同一分析身份私有封装 entry 完整 AST、精确实例 key、
+四实参及这些 cleanup 产品，再实现源码 entry lowering 与扩围后的独立 replay。
+现有 bridge/Published 仍只支持 loop callable；没有新增生产权限或合成入口替代。

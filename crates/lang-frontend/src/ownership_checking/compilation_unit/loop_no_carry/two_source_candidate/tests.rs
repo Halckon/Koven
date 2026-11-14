@@ -260,3 +260,129 @@ fn independent_domain_preserves_old_neighbor_and_rejections() {
         }
     }
 }
+
+#[test]
+fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars() {
+    for named in [false, true] {
+        let mut sources = SourceMap::new();
+        let entry = if named {
+            "fun entry():Unit {val rounds=3;val choose=true;run(\"left\",\"right\",rounds,choose)}"
+        } else {
+            "fun entry():Unit {run(\"left\",\"right\",3,true)}"
+        };
+        let source = format!("{SOURCE}\n{entry}");
+        let id = sources.add_source("entry-evidence.ko", source).unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "entry-evidence.ko",
+            id,
+            &parsed,
+        )];
+        let (env, types) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let (checked, _) = with_domain(|| {
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap()
+        });
+        let owned = checked.validate().unwrap().into_ownership();
+        assert_eq!(owned.no_carry.two_sources.len(), 1);
+        let run = owned.no_carry.two_sources[0].arms()[0].callable();
+        let run_declaration = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.source_unit() == run.source_unit() && d.root() == run.item())
+            .unwrap()
+            .id();
+        let contracts: Vec<_> = owned
+            .call_argument_contracts()
+            .iter()
+            .filter(|c| {
+                typed.types().call(c.call()).is_some_and(|call| {
+                    call.target() == UnitCallTarget::Declaration(run_declaration)
+                })
+            })
+            .collect();
+        assert_eq!(contracts.len(), 4);
+        let call = contracts[0].call();
+        assert!(contracts.iter().all(|c| c.call() == call));
+        let descriptors: Vec<_> = owned.loans_ending_at(call).collect();
+        assert_eq!(
+            descriptors.len(),
+            4,
+            "descriptors are not observed End events"
+        );
+        let ends: Vec<_> = owned
+            .direct_call_loan_ends()
+            .iter()
+            .filter(|end| end.loan().call() == call)
+            .collect();
+        assert_eq!(
+            ends.len(),
+            if named { 4 } else { 2 },
+            "named scalar roots have observed Ends; literal scalars do not"
+        );
+        use crate::ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget};
+        for contract in contracts.iter().take(if named { 4 } else { 2 }) {
+            assert_eq!(
+                ends.iter()
+                    .filter(|end| end.loan().argument() == contract.argument())
+                    .count(),
+                1
+            );
+        }
+        let drops: Vec<_> = owned
+            .drops()
+            .iter()
+            .filter(|drop| drop.point() == UnitDropPoint::CallReturn(call))
+            .collect();
+        assert_eq!(drops.len(), 2);
+        for contract in &contracts[..2] {
+            assert_eq!(
+                drops
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Temporary(contract.argument()))
+                    .count(),
+                1
+            );
+        }
+        for end in ends {
+            assert_eq!(end.point(), UnitDropPoint::CallReturn(call));
+            assert_eq!(
+                end.preceding_drops(),
+                0,
+                "loans end before temporary owners drop"
+            );
+            if named
+                && contracts[2..]
+                    .iter()
+                    .any(|c| c.argument() == end.loan().argument())
+            {
+                assert!(
+                    matches!(end.loan().target(), UnitLoanTarget::Place(place) if place.is_root())
+                );
+                continue;
+            }
+            let loan = end.loan();
+            assert!(
+                contracts[..2]
+                    .iter()
+                    .any(|c| c.argument() == loan.argument())
+            );
+            assert!(
+                matches!(loan.target(), crate::ownership_checking::UnitLoanTarget::Temporary(owner)
+            if *owner == loan.argument())
+            );
+        }
+        assert!(!enabled());
+    }
+}
