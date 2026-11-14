@@ -780,3 +780,25 @@ LLVM 编译为 `.o` 再链接该对象；对象编译与动态执行是两个独
 原 D10 SSA 八项与严格 Clippy 通过，独审无阻断。首轮适配器错误假设函数名为
 `run`，实际 Unit 名为 `koven.run.d0`；已改为从真实 FunctionId/name 按 adapter
 规则生成符号，未修改原函数名。动态测试尚未执行，不能列为已通过。
+
+### 有界的实际 SSA 路径见证（非 native）
+
+在原生窗口占用期间，仅对已由上述真实源码 sidecar＋完整独立 replay 核验的
+双参数／双后用 Program 增加测试域路径执行器。它读取实际 block、instruction、
+terminator 和 edge 参数，循环回边先快照实参再绑定目标参数；不是拼接 planner
+静态日志，也不生成新的 SSA 或权限。支持操作集严格限于本片的 literal、Int32
+Read/比较/checked subtract、RootPlace/Borrow/Replace/Print/End/Drop 和显式
+branch/return；其他操作、未定义值、异常边或 2048 步预算耗尽立即拒绝。
+
+每次执行 StringLiteral 创建的是**测试模型里的逻辑 owner 代际**，不是堆分配。
+记录真实指令发生顺序，检查 Exclusive Replace 退休、Shared 借用打印与 End、
+Drop 时无活跃借用及每代只清理一次；结束要求逻辑 owner 和局部 loan 均已清理。
+九组正常输入含父零、子零、多轮、负 counter，核对最终 `first/parent/next`、
+`kept` 和逻辑 Drop 顺序；另以合法输入的一步预算验证有界拒绝，不破坏任何 facts。
+
+这只是封闭 SSA 子集的可执行路径见证，不能当作通用解释器、native 结果、实际
+内存释放证据或通用 Carry 完备证明。原对象动态矩阵仍待空闲窗口按既有标准执行。
+
+本片首轮及全 D10 九项普通 SSA 回归通过；Rooted/Memory 合计十八条正常路径、
+两条一步预算拒绝均已执行。严格 Clippy、格式、文档 956 及独审通过。收尾只读
+复核仍有既有 native 子进程在途，故本片没有启动原对象动态矩阵或终止其他任务。

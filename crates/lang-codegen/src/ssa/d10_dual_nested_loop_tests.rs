@@ -2,12 +2,18 @@
 use super::model::*;
 use super::*;
 use lang_frontend::ownership_checking::OwnedCompilationUnitView;
+mod path;
 mod replay;
 mod source;
 const SOURCE: &str = "fun run(count: Int) { var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) { val parentOld = replace(&a, \"parent\"); var inner = count; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; outer -= 1 }; println(b) }";
 #[test]
 fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
     run_cases(None);
+}
+
+#[test]
+fn actual_postuse_paths_preserve_logical_generations_and_cleanup() {
+    native_postuse_program(path::check_program);
 }
 
 /// Test adapter receives only the original, fully replayed dual-postuse program.
