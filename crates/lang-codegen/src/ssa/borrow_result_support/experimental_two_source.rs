@@ -1,4 +1,4 @@
-//! Test-only selected experimental controls, never ordinary no-carry pair authority.
+//! Selected bounded two-source controls; ordinary facts still provide no such authority.
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,

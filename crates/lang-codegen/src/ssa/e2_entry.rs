@@ -1,17 +1,20 @@
 //! Complete source entry emission in the experiment; no production entry capability.
-use super::{e2_function, model::*};
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+use super::e2_function;
+use super::model::*;
+use lang_frontend::ownership_checking::{UnitDropTarget, two_source_experiment::EntryDescriptor};
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 use lang_frontend::{
-    ownership_checking::{
-        UnitDropTarget,
-        two_source_experiment::{EntryDescriptor, TwoSourceCounterFact, TwoSourceExperiment},
-    },
+    ownership_checking::two_source_experiment::{TwoSourceCounterFact, TwoSourceExperiment},
     type_checking::{UnitCallTarget, ValidatedCompilationUnitTypes},
 };
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) struct EmittedEntry<'a> {
     pub(super) function: e2_function::EmittedFunction<'a>,
     pub(super) entry: FunctionId,
     descriptor: &'a EntryDescriptor,
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 impl EmittedEntry<'_> {
     pub(super) fn descriptor(&self) -> &EntryDescriptor {
         self.descriptor
@@ -48,6 +51,7 @@ fn loan(id: EntityId) -> Option<LoanId> {
         None
     }
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit<'a>(
     experiment: &'a TwoSourceExperiment,
     fact: &'a TwoSourceCounterFact,
@@ -76,6 +80,7 @@ pub(super) fn emit<'a>(
     })
 }
 /// Internal same-Program append; the caller owns descriptor/caller identity validation.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn append_entry(
     module: &mut Module,
     caller: FunctionId,

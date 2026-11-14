@@ -1,15 +1,20 @@
 //! Complete bounded original caller, test-only. No production receipt or activation.
-use super::{e2_arm_fragments, model::*};
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+use super::e2_arm_fragments;
+use super::model::*;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 use lang_frontend::{
     ownership_checking::two_source_experiment::{TwoSourceCounterFact, TwoSourceExperiment},
     type_checking::ValidatedCompilationUnitTypes,
 };
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) struct EmittedFunction<'a> {
     experiment: &'a TwoSourceExperiment,
     fact: &'a TwoSourceCounterFact,
     pub(super) fragments: e2_arm_fragments::EmittedArms,
     pub(super) caller: FunctionId,
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 impl EmittedFunction<'_> {
     pub(super) fn issued_for(
         &self,
@@ -40,6 +45,7 @@ fn value(entity: EntityId) -> Option<ValueId> {
         None
     }
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit<'a>(
     experiment: &'a TwoSourceExperiment,
     fact: &'a TwoSourceCounterFact,
@@ -63,6 +69,7 @@ pub(super) fn emit<'a>(
     })
 }
 /// Internal emitter: caller supplies locators from the same owned Program, never another package.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn append_caller(
     module: &mut Module,
     shell: &lang_frontend::ownership_checking::two_source_experiment::FunctionShell,

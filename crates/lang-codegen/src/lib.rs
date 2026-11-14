@@ -931,3 +931,10 @@ pub(crate) use test_support::native_nested_borrow_cases;
 
 #[cfg(test)]
 pub(crate) mod native_borrow_value_field_cases;
+
+#[cfg(feature = "two-source-unit")]
+pub use native::emit_native_two_source_unit_object;
+#[cfg(feature = "two-source-unit")]
+pub use ssa::two_source_unit::{
+    TwoSourceUnitError, ValidatedTwoSourceUnit, prepare_two_source_unit,
+};

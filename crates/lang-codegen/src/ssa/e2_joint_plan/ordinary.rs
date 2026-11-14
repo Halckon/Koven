@@ -110,7 +110,11 @@ fn required(
     Some(keys)
 }
 fn check(plan: &UnitInstancePlan, expected: &BTreeSet<UnitFunctionInstanceKey>) -> Option<()> {
-    let actual: BTreeSet<_> = plan.iter().map(|instance| instance.key().clone()).collect();
+    let actual: BTreeSet<_> = plan
+        .instances()
+        .iter()
+        .map(|instance| instance.key().clone())
+        .collect();
     // Equality includes static_self, deinit and callable arguments, not just declaration.
-    (actual.len() == plan.len() && &actual == expected).then_some(())
+    (actual.len() == plan.instances().len() && &actual == expected).then_some(())
 }

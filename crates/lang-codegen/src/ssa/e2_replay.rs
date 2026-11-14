@@ -1,5 +1,7 @@
 //! Independent experimental replay. No producer reconstruction and no production authority.
-use super::{e2_function::EmittedFunction, model::*};
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+use super::e2_function::EmittedFunction;
+use super::model::*;
 use lang_frontend::ownership_checking::two_source_experiment::{
     CalleeLeaf, CalleeLeafBody, FunctionShell, TwoSourceCounterFact, TwoSourceExperiment,
 };
@@ -37,6 +39,7 @@ macro_rules! loan {
         id
     }};
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn replay_caller(
     module: &Module,
     id: FunctionId,
@@ -294,6 +297,7 @@ pub(super) fn replay_declared_caller(
 }
 
 // IDs supplied by the builder are locators only: each located body is replayed against FE data.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn replay(
     emitted: &EmittedFunction,
     experiment: &TwoSourceExperiment,
@@ -302,6 +306,7 @@ pub(super) fn replay(
 ) -> Option<()> {
     replay_closure(emitted, experiment, fact, typed, None)
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn replay_closure(
     emitted: &EmittedFunction,
     experiment: &TwoSourceExperiment,
@@ -438,6 +443,7 @@ pub(super) fn required_keys(
 }
 
 /// Independent body/ABI replay shared by single-closure and joint-leaf experiments.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn replay_leaf(
     module: &Module,
     id: FunctionId,

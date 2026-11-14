@@ -345,15 +345,27 @@ mod e2_two_source_transport_tests;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_two_source_bridge_tests;
 
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
 mod e2_two_source_plan;
 
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
 mod e2_callee_leaves;
 
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
 mod e2_arm_fragments;
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
 mod e2_joint_plan;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_print_tests;
@@ -362,7 +374,10 @@ pub(crate) use e2_arm_fragments::PublishedEntrySet as ExperimentalPublishedEntry
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(crate) use unit_lower::e2_common::PublishedCommon as ExperimentalPublishedCommon;
 
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
 mod e2_function;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_function_tests;
@@ -370,14 +385,23 @@ mod e2_function_tests;
 mod e2_native_tests;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_publication;
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
 mod e2_replay;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_replay_ci;
 
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
 mod e2_entry;
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
 mod e2_entry_replay;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
@@ -391,3 +415,19 @@ mod e2_entry_coverage;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_main429_combination_tests;
+
+#[cfg(feature = "two-source-unit")]
+pub(crate) mod two_source_unit;
+
+#[cfg(all(
+    test,
+    any(feature = "two-source-unit", feature = "e2-two-source-test-support")
+))]
+mod native_bounded;
+
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
+#[path = "borrow_result_support/experimental_two_source.rs"]
+mod two_source_binding;

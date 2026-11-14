@@ -327,7 +327,7 @@ pub fn emit_native_const_owned_unit_object(
     temporary.commit(output)
 }
 
-fn validate_unit_entry(
+pub(crate) fn validate_unit_entry(
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     entry: NativeUnitEntry,
@@ -436,7 +436,7 @@ impl From<OwnedCompilationUnitViewError> for NativeObjectError {
     }
 }
 
-fn map_lowering_error(error: LoweringError) -> NativeObjectError {
+pub(crate) fn map_lowering_error(error: LoweringError) -> NativeObjectError {
     let kind = match error.kind {
         LoweringErrorKind::MismatchedSource | LoweringErrorKind::MismatchedAnalysis => {
             NativeObjectErrorKind::MismatchedAnalysis
@@ -580,4 +580,21 @@ fn backend_io_error(operation: &str, error: std::io::Error) -> NativeObjectError
         detail: format!("{operation}: {error}"),
         diagnostic: None,
     }
+}
+
+/// Publish only a fully prepared bounded two-source unit through the existing atomic transaction.
+/// No entry substitution, experimental-package conversion, or ordinary-unit fallback is available.
+#[cfg(feature = "two-source-unit")]
+pub fn emit_native_two_source_unit_object(
+    unit: &crate::ValidatedTwoSourceUnit<'_>,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let (sources, program, declaration, function) = unit.parts();
+    crate::ssa::verify::verify_program(program).map_err(|_| invalid_entry(None))?;
+    let plan =
+        native_unit_entry_plan(program, NativeUnitEntry::NoArguments(declaration), function)?;
+    let temporary = SiblingObject::reserve(output)?;
+    llvm::emit_verified_object(program, sources, plan, temporary.path())
+        .map_err(|error| map_backend_error(sources, program, error))?;
+    temporary.commit(output)
 }

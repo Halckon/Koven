@@ -1,5 +1,6 @@
 //! Execute experimental LLVM fixtures and exact objects from checked source entry packages.
 use super::model::*;
+use super::native_bounded::execute_binary;
 use lang_frontend::{
     lexer::lex,
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
@@ -8,11 +9,7 @@ use lang_frontend::{
     source::SourceMap,
     type_checking::{check_compilation_unit_types, standard_environments},
 };
-use std::{
-    fs,
-    process::{Command, Stdio},
-    time::{Duration, Instant},
-};
+use std::{fs, process::Command};
 fn value(entity: EntityId) -> ValueId {
     let EntityId::Value(id) = entity else {
         panic!("value")
@@ -242,27 +239,6 @@ pub(super) fn execute_llvm(llvm: &str, expected: &[u8]) {
         .expect("clang must launch");
     assert!(compiled.status.success(), "{compiled:?}");
     execute_binary(&executable, expected);
-}
-
-fn execute_binary(executable: &std::path::Path, expected: &[u8]) {
-    let mut child = Command::new(executable)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("native E2 must launch");
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while child.try_wait().unwrap().is_none() {
-        if Instant::now() >= deadline {
-            child.kill().unwrap();
-            let output = child.wait_with_output().unwrap();
-            panic!("bounded E2 execution exceeded deadline: {output:?}");
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    let output = child.wait_with_output().unwrap();
-    assert!(output.status.success(), "{output:?}");
-    assert_eq!(output.stdout, expected);
-    assert!(output.stderr.is_empty(), "{output:?}");
 }
 
 /// Reject foreign identity before side effects, then link and execute the exact committed object.

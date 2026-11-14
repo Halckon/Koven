@@ -444,10 +444,15 @@ fn validate_binding(
             allowed.insert(counter.decrement().expression().index());
         }
     }
-    #[cfg(all(test, feature = "e2-two-source-test-support"))]
-    let experimental =
-        crate::ssa::borrow_result_support::experimental_two_source::admitted(file, owned, fact);
-    #[cfg(all(test, feature = "e2-two-source-test-support"))]
+    #[cfg(any(
+        feature = "two-source-unit",
+        all(test, feature = "e2-two-source-test-support")
+    ))]
+    let experimental = crate::ssa::two_source_binding::admitted(file, owned, fact);
+    #[cfg(any(
+        feature = "two-source-unit",
+        all(test, feature = "e2-two-source-test-support")
+    ))]
     if let Some((controls, _)) = experimental {
         allowed_controls
             .get_or_insert_with(Default::default)
@@ -469,7 +474,10 @@ fn validate_binding(
         builtin,
         call_allowed,
         |statement| {
-            #[cfg(all(test, feature = "e2-two-source-test-support"))]
+            #[cfg(any(
+                feature = "two-source-unit",
+                all(test, feature = "e2-two-source-test-support")
+            ))]
             if experimental.is_some_and(|(_, approved)| approved == statement) {
                 return true;
             }

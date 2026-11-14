@@ -1,4 +1,5 @@
 //! Closed pre-emission selection for the restricted experiment, not ordinary Unit authority.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod error_tests;
 mod ordinary;
 
@@ -44,6 +45,7 @@ pub(super) struct JointPlan<'a> {
     ordinary: ordinary::OrdinaryPlans,
 }
 impl<'a> JointPlan<'a> {
+    #[cfg(all(test, feature = "e2-two-source-test-support"))]
     pub(super) fn build(
         handoff: &ExperimentalUnitHandoff<'a, '_>,
         experiment: &'a TwoSourceExperiment,
@@ -141,9 +143,11 @@ impl<'a> JointPlan<'a> {
         .ok_or(PlanRejection::ClosedPlanRejected)
     }
 
+    #[cfg(all(test, feature = "e2-two-source-test-support"))]
     pub(super) fn experiment(&self) -> &'a TwoSourceExperiment {
         self.experiment
     }
+    #[cfg(all(test, feature = "e2-two-source-test-support"))]
     pub(super) fn typed(&self) -> &'a ValidatedCompilationUnitTypes {
         self.typed
     }
@@ -190,6 +194,7 @@ impl<'a> JointPlan<'a> {
         ))
     }
     /// Dispatch only the sealed routes; final publication independently re-derives source coverage.
+    #[cfg(all(test, feature = "e2-two-source-test-support"))]
     pub(super) fn publish(self) -> Option<super::e2_arm_fragments::PublishedEntrySet<'a>> {
         self.ordinary.verify(&self)?;
         let mut leaves = Vec::new();

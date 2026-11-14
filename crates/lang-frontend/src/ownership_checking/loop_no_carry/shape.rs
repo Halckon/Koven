@@ -388,7 +388,10 @@ mod two_source_candidate;
 #[cfg(test)]
 pub(crate) mod unit_candidate_events;
 
-#[cfg(any(test, feature = "e2-two-source-test-support"))]
+#[cfg(any(
+    test,
+    any(feature = "e2-two-source-test-support", feature = "two-source-unit")
+))]
 pub(crate) fn unit_selection<B: Copy + Eq>(
     parsed: &ParsedFile,
     loop_statement: StatementId,

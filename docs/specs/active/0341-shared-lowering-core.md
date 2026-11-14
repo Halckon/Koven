@@ -19137,3 +19137,33 @@ scalar-prefix 正例。完整 E2 正常套件在原十秒单程序标准顺序�
 组合尺寸门禁发现 condition.rs 达 1011 行；仅将原 cfg(test) receiver_ci_tests 模块
 等价提取至同名子模块，主文件降至 822 行，未增加例外额度。独审核正文逐 token 等价、
 生产前缀逐字不变、模块路径/可见域/唯一观察状态不变。仅编译和列举 CI 用例，不执行。
+
+### E2 默认关闭的显式完整 Unit 能力
+
+在 51e168b9 组合基线上新增独立 `two-source-unit` feature，两端均默认关闭且不启用
+`e2-two-source-test-support`。显式 `prepare_two_source_unit` 只接原 sources/inputs/names/
+types 与源码 entry，内部重新运行真实 ownership checker，再执行同源 handoff、完整
+Unit preflight、单实例计划/arena、所有 body、独立来源 replay 和最终 SSA verifier。
+只有成功才能签发私有字段的 `ValidatedTwoSourceUnit`；它拥有不可变 Program 和唯一
+源码入口，不接受外部实验包或普通 owned 转型，不提供可变 IR 或 retained ownership。
+原生入口只消费该能力及输出路径，不允许替换 entry。签发前保留原 validate_unit_entry
+校验，事务仍为既有 reserve/LLVM/commit；CLI 普通/常量路线与失败策略不变，无自动 fallback。
+
+此能力仅覆盖已证明的受限完整源码闭包，不开放任意 ordinary body。当前 source entry
+仍限定两 String literal 实参与两个具名标量，不支持具名 String owner 的 alias 实参；
+相同文本的两个 literal 不当作同一 owner 别名证据。caller 核心仍不假定两 Shared 参数
+互不别名，原实验同 owner 验收保留；不能由这项入口限制推导语言禁止共享别名。
+未选两源 binding 或普通不支持邻居仍经过完整 Unit gate 并拒绝。阶段化错误区分
+ownership、身份、source entry、来源映射、preflight 及未证明闭包，不把未支持等同非法语言。
+
+共享核心按需编译；旧实验构造包装、故障枚举/注入及观察设施继续保持测试边界。正常
+native helper 从原文件原样提取，单程序十秒、kill+wait 及输出断言未改变。正式入口
+commit 失败/哨兵保留/无 sibling/成功重试用例双 CI guard 且 ignored，仅限 CI 执行。
+本地验收：正式 feature 单独与三 feature 共存配置各 2 passed / 1 CI-only ignored，
+含真实事务对象的原十秒 native 执行。旧 E2 在正式关闭/三 feature 共存配置各
+12 passed / 7 ignored。外部 integration test 仅调用公开 API，被测 library 不带
+cfg(test)，单次真实对象执行 1 passed（1.03s），没有测试 observer；同一 target 已加入 CI。
+两项能力隔离 compile-fail、正式/三 feature all-target 严格 Clippy、默认 all-target 编译
+通过。CI 脚本两配置的三个单元目标及一个外部目标仅编译/列举，本地没有执行故障。
+独立静审核签发隔离、完整 gates、旧 cfg 边界及十秒 helper 原文等价，无阻断。
+该能力仍默认关闭；未推送、未远端执行故障 CI，也未接 CLI 自动选择或放宽一般 body。

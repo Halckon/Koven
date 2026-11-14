@@ -1,10 +1,11 @@
 //! Independent source entry replay. Reads actual instruction results; does not rerun emission.
-use super::{e2_entry::EmittedEntry, model::*};
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+use super::e2_entry::EmittedEntry;
+use super::model::*;
+use lang_frontend::ownership_checking::UnitDropTarget;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 use lang_frontend::{
-    ownership_checking::{
-        UnitDropTarget,
-        two_source_experiment::{TwoSourceCounterFact, TwoSourceExperiment},
-    },
+    ownership_checking::two_source_experiment::{TwoSourceCounterFact, TwoSourceExperiment},
     type_checking::{UnitCallTarget, ValidatedCompilationUnitTypes},
 };
 struct Cursor<'a> {
@@ -64,6 +65,7 @@ fn loan(e: Option<EntityId>) -> Option<LoanId> {
         None
     }
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn replay(
     emitted: &EmittedEntry<'_>,
     experiment: &TwoSourceExperiment,
@@ -92,6 +94,7 @@ pub(super) fn replay(
     )
 }
 /// Independent real entry instruction/cleanup replay; no emitter reconstruction.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn replay_body(
     module: &Module,
     entry: FunctionId,

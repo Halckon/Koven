@@ -131,6 +131,13 @@ struct UnitRecipeFailure {
 type UnitRecipeRootFacts = BTreeMap<UnitSymbolId, BTreeSet<DeclarationId>>;
 
 impl UnitInstancePlan {
+    #[cfg(any(
+        feature = "two-source-unit",
+        all(test, feature = "e2-two-source-test-support")
+    ))]
+    pub(crate) fn instances(&self) -> &[UnitPlannedInstance] {
+        &self.instances
+    }
     #[cfg(test)]
     pub(crate) fn runtime_type_demand(&self, ty: UnitTypeId) -> Option<UnitRuntimeTypeDemand> {
         self.runtime_type_demands.get(&ty).copied()

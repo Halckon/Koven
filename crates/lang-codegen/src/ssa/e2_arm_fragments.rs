@@ -9,6 +9,7 @@ pub(super) struct EmittedArms {
     pub(super) arms: [FunctionId; 2],
     pub(super) columns: [usize; 2],
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit(
     experiment: &TwoSourceExperiment,
     fact: &TwoSourceCounterFact,
@@ -17,6 +18,7 @@ pub(super) fn emit(
     let leaves = e2_callee_leaves::emit_for_fact(experiment, fact, typed)?;
     append(experiment, fact, typed, leaves)
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 fn append(
     experiment: &TwoSourceExperiment,
     fact: &TwoSourceCounterFact,
@@ -35,6 +37,10 @@ pub(super) fn append_unverified(
     mut leaves: e2_callee_leaves::EmittedLeaves,
 ) -> Option<EmittedArms> {
     let plan = Plan::new(experiment, fact, typed)?;
+    let fact = plan.fact();
+    if experiment.callable(fact)? != plan.callable() {
+        return None;
+    }
     let spans = experiment.arm_spans(fact)?;
     // The helper has only the two root parameters, ordered by their original signature roles.
     let columns = if plan.source_roles()[0] < plan.source_roles()[1] {
@@ -130,16 +136,19 @@ pub(super) fn append_unverified(
 }
 
 /// One common leaf/helper Program, not a caller/entry publication.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) struct EmittedArmSet<'a> {
     leaves: e2_callee_leaves::EmittedLeaves,
     experiment: &'a TwoSourceExperiment,
     locators: Vec<ArmLocator<'a>>,
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) struct ArmLocator<'a> {
     fact: &'a TwoSourceCounterFact,
     arms: [FunctionId; 2],
     columns: [usize; 2],
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 impl ArmLocator<'_> {
     pub(super) fn arms(&self) -> [FunctionId; 2] {
         self.arms
@@ -155,6 +164,7 @@ impl ArmLocator<'_> {
             .all(|(a, b)| a.same_identity(b))
     }
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 impl EmittedArmSet<'_> {
     pub(super) fn program(&self) -> &Program {
         &self.leaves.program
@@ -183,6 +193,7 @@ impl EmittedArmSet<'_> {
         Some(locator)
     }
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit_for_facts<'a>(
     handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
         '_,
@@ -195,12 +206,14 @@ pub(super) fn emit_for_facts<'a>(
     let leaves = e2_callee_leaves::emit_for_facts(handoff, experiment, facts)?;
     emit_from_leaves(experiment, facts, typed, leaves)
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit_from_plan<'a>(
     plan: &super::e2_joint_plan::JointPlan<'a>,
     leaves: e2_callee_leaves::EmittedLeaves,
 ) -> Option<EmittedArmSet<'a>> {
     emit_from_leaves(plan.experiment(), &plan.facts(), plan.typed(), leaves)
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 fn emit_from_leaves<'a>(
     experiment: &'a TwoSourceExperiment,
     facts: &[&'a TwoSourceCounterFact],
@@ -257,10 +270,12 @@ fn emit_from_leaves<'a>(
 }
 
 /// Owned common Program with original callers; no process entries or publication receipt.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) struct EmittedCallerSet<'a> {
     arms: EmittedArmSet<'a>,
     callers: Vec<(&'a TwoSourceCounterFact, FunctionId)>,
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 impl EmittedCallerSet<'_> {
     pub(super) fn program(&self) -> &Program {
         self.arms.program()
@@ -285,6 +300,7 @@ impl EmittedCallerSet<'_> {
         Some(*id)
     }
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 impl<'a> EmittedArmSet<'a> {
     /// Consumes the actual Program. There is no input of caller-supplied function IDs.
     pub(super) fn append_callers(
@@ -352,6 +368,7 @@ impl<'a> EmittedArmSet<'a> {
 }
 
 /// Final immutable bounded experiment package. Not a production/native capability.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(crate) struct PublishedEntrySet<'a> {
     callers: EmittedCallerSet<'a>,
     entries: Vec<(
@@ -359,6 +376,7 @@ pub(crate) struct PublishedEntrySet<'a> {
         FunctionId,
     )>,
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 impl PublishedEntrySet<'_> {
     pub(crate) fn matches_handoff(
         &self,
@@ -401,11 +419,13 @@ impl PublishedEntrySet<'_> {
     }
 }
 /// Closed joint-publication faults, never executed by normal local regression.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) enum JointCiFault {
     WrongSecondCaller,
     DuplicateEntryLocator,
     PartialEntrySelection,
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 impl<'a> EmittedCallerSet<'a> {
     /// Exactly one original entry per selected fact; rejected inputs consume unpublished state.
     pub(super) fn publish_entries(

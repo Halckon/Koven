@@ -88,7 +88,7 @@ impl TwoSourceCounterFact {
 }
 impl CompilationUnitOwnership {
     #[cfg(any(
-        feature = "e2-two-source-test-support",
+        any(feature = "e2-two-source-test-support", feature = "two-source-unit"),
         all(test, feature = "loan-observation-test-support")
     ))]
     fn owns_two_source_counter(&self, fact: &TwoSourceCounterFact) -> bool {
@@ -116,32 +116,32 @@ fn domain_scope_restores() {
     assert!(!enabled());
 }
 
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 mod bridge;
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 pub use bridge::{TwoSourceExperiment, analyze_two_source_experiment};
 
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 mod leaves;
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 pub use leaves::{CalleeLeaf, CalleeLeafBody};
 
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 mod arm_spans;
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 pub use arm_spans::ArmSourceSpans;
 
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 mod function_shell;
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 pub use function_shell::FunctionShell;
 
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 mod entry;
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 pub use entry::EntryDescriptor;
 
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 mod handoff;
-#[cfg(feature = "e2-two-source-test-support")]
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 pub use handoff::{ExperimentalBinding, ExperimentalUnitHandoff};

@@ -993,6 +993,3 @@ pub(in crate::ssa) mod verify_range {
         }
     }
 }
-
-#[cfg(all(test, feature = "e2-two-source-test-support"))]
-pub(super) mod experimental_two_source;

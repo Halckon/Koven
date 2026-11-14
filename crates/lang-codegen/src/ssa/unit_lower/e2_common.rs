@@ -26,6 +26,10 @@ pub(crate) struct PublishedCommon<'a> {
     entries: Vec<(&'a EntryDescriptor, FunctionId)>,
 }
 impl PublishedCommon<'_> {
+    #[cfg(feature = "two-source-unit")]
+    pub(in crate::ssa) fn into_program(self) -> Program {
+        self.program
+    }
     pub(crate) fn matches_handoff(&self, handoff: &ExperimentalUnitHandoff<'_, '_>) -> bool {
         self.experiment.matches_types(handoff.types()) && handoff.for_facts(&self.facts).is_some()
     }
@@ -97,8 +101,12 @@ pub(in crate::ssa) fn publish<'a>(
             .ok()?;
     let typed = handoff.types().types();
     super::preflight::validate(&parsed, handoff.names(), typed, handoff).ok()?;
-    let expected: BTreeMap<_, _> = plan.iter().map(|p| (p.key().clone(), p.span())).collect();
-    if expected.len() != plan.len() {
+    let expected: BTreeMap<_, _> = plan
+        .instances()
+        .iter()
+        .map(|p| (p.key().clone(), p.span()))
+        .collect();
+    if expected.len() != plan.instances().len() {
         return None;
     }
     let mut program = Program::default();

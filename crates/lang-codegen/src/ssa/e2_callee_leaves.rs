@@ -1,18 +1,22 @@
 //! Real lowering of the restricted source leaf closure; no loop body or receipt publication.
 use super::model::*;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 use lang_frontend::{
     ownership_checking::two_source_experiment::{
         CalleeLeaf, CalleeLeafBody, ExperimentalUnitHandoff, TwoSourceCounterFact,
         TwoSourceExperiment,
     },
-    type_checking::{UnitCallableInstanceKey, ValidatedCompilationUnitTypes},
+    type_checking::ValidatedCompilationUnitTypes,
 };
+
+use lang_frontend::type_checking::UnitCallableInstanceKey;
 
 pub(super) struct EmittedLeaves {
     pub(super) program: Program,
     pub(super) functions: Vec<(UnitCallableInstanceKey, FunctionId)>,
 }
 
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit(
     experiment: &TwoSourceExperiment,
     typed: &ValidatedCompilationUnitTypes,
@@ -24,6 +28,7 @@ pub(super) fn emit(
     )
 }
 /// Emit only the exact source-leaf closure of this owned fact.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit_for_fact(
     experiment: &TwoSourceExperiment,
     fact: &TwoSourceCounterFact,
@@ -47,6 +52,7 @@ pub(super) fn emit_for_fact(
     emit_selected(experiment, typed, leaves)
 }
 /// One allocator for the explicit set's exact leaf union. No callers, helpers or entry yet.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit_for_facts(
     handoff: &ExperimentalUnitHandoff<'_, '_>,
     experiment: &TwoSourceExperiment,
@@ -118,6 +124,7 @@ pub(super) fn emit_for_facts(
     }
     Some(emitted)
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn emit_selected(
     experiment: &TwoSourceExperiment,
     typed: &ValidatedCompilationUnitTypes,

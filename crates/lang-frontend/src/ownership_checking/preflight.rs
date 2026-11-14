@@ -18,7 +18,7 @@ pub(crate) mod sealed {
 /// ```
 pub trait UnitPreflightFacts: sealed::Sealed {
     /// Test-only-domain selection; ordinary facts never grant this experimental admission.
-    #[cfg(feature = "e2-two-source-test-support")]
+    #[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
     fn experimental_two_source_binding(
         &self,
         _binding: UnitSymbolId,
