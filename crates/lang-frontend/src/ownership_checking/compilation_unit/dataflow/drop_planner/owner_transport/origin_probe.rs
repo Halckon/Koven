@@ -5,6 +5,10 @@ use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in super::super) enum Event {
     Literal(UnitExpressionId),
+    WhileTraversal {
+        control: UnitStatementId,
+        role: WhileRole,
+    },
     UncoveredCall(UnitExpressionId),
     Branch {
         control: UnitExpressionId,
@@ -30,7 +34,19 @@ pub(in super::super) enum BranchRole {
     JoinInputs(usize),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in super::super) enum WhileRole {
+    Enter,
+    Exit(Option<bool>),
+}
+
 impl DropPlanner<'_, '_> {
+    pub(in super::super) fn origin_while(&mut self, control: UnitStatementId, role: WhileRole) {
+        if let Some(probe) = &mut self.origin_probe {
+            probe.push(Event::WhileTraversal { control, role });
+        }
+    }
+
     pub(in super::super) fn origin_call_gap(&mut self, expression: ExpressionId) {
         let call = self.checker.unit_expression(expression);
         if self.checker.ownership_primitives.iter().any(|plan| {
@@ -165,7 +181,9 @@ pub(in super::super) fn partition_if(events: &[Event]) -> Option<IfPartition<'_>
                     position += 1;
                     break;
                 }
-                Event::Branch { .. } | Event::UncoveredCall(_) => return None,
+                Event::Branch { .. } | Event::UncoveredCall(_) | Event::WhileTraversal { .. } => {
+                    return None;
+                }
                 _ => position += 1,
             }
         }

@@ -313,3 +313,16 @@ continues 与 JoinInputs 数量，并返回各 arm 内的原事件切片。普�
 已覆盖 borrower 转移；nested If 普通源码也保留拒绝。没有从缺失日志推断无借用。
 该分区不是源码完整性证明、动态路径、状态机或 CFG 资格，循环合流与 borrow
 开始/结束实际角色仍待实现。
+
+### 实际 while 遍历边界，不是 backedge 或合流证明
+
+测试域 `origin_probe` 现在在 `owner_while_statement_scoped` 的真实调用前后记录
+同源 `UnitStatementId` 的 `WhileTraversal::Enter/Exit`。Exit 中的值仅保存 planner
+返回的 `Result<bool>` 的成功 continuation（错误为 None）；不表示运行时迭代次数、
+动态 loop exit、backedge predecessor 或根代际合流。即便循环体静态只遍历一次，
+也不能把其中的 Literal/Applied 事件视为仅执行一次。
+
+普通真实源码 `if` 臂内嵌 `while` 的见证验证这对边界来自实际遍历。平坦
+`partition_if` 遇到任一 while 边界即拒绝，不能将循环体事件混入普通线性臂。
+这只补全一种明确的未支持控制边界；Borrow/End、when 及完整源事件覆盖仍未闭合，
+UncoveredCall 仍拒绝，未生成 CFG、receipt 或 Carry 权限，生产行为不变。

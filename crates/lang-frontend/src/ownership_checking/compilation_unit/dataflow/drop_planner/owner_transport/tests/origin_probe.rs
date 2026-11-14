@@ -65,7 +65,10 @@ println(b)
                 .as_ref()
                 .unwrap()
                 .iter()
-                .filter(|event| !matches!(event, Event::Dropped(_) | Event::UncoveredCall(_)))
+                .filter(|event| !matches!(
+                    event,
+                    Event::Dropped(_) | Event::UncoveredCall(_) | Event::WhileTraversal { .. }
+                ))
                 .cloned()
                 .collect::<Vec<_>>(),
             vec![
@@ -205,6 +208,7 @@ fn ordinary_branch_roles_keep_alternatives_separate_from_join_inputs() {
 #[test]
 fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
     for body in [
+        "if (flag) { while (flag) { val x = \"loop\"; break } } else { val y = \"y\" }",
         r#"if (flag) { val a = "read"; println(a) } else { val b = "other"; println(b) }"#,
         "if (flag) { if (flag) { val x = \"x\" } } else { val y = \"y\" }",
     ] {
@@ -226,6 +230,36 @@ fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
             );
             planner.origin_probe = Some(Vec::new());
             let observed = planner.run().unwrap();
+            if body.contains("while") {
+                use super::super::origin_probe::WhileRole;
+                let events = observed.origin_probe.as_ref().unwrap();
+                let loops = events
+                    .iter()
+                    .filter_map(|event| {
+                        if let Event::WhileTraversal { control, role } = event {
+                            Some((*control, *role))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(loops.len(), 2);
+                assert_eq!(loops[0].0, loops[1].0);
+                let whiles = fixture.parsed[0]
+                    .ast()
+                    .statements()
+                    .iter()
+                    .filter(|(_, node)| {
+                        matches!(node.payload(), crate::parser::Statement::While { .. })
+                    })
+                    .map(|(id, _)| {
+                        crate::type_checking::UnitStatementId::new(fixture.source(0), id)
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(whiles, vec![loops[0].0]);
+                assert_eq!(loops[0].1, WhileRole::Enter);
+                assert!(matches!(loops[1].1, WhileRole::Exit(Some(_))));
+            }
             if body.contains("println") {
                 let call = crate::type_checking::UnitExpressionId::new(
                     fixture.source(0),

@@ -155,7 +155,14 @@ impl DropPlanner<'_, '_> {
         self.record_control_visit(control, parent, true, None);
         #[cfg(test)]
         self.carry_probe(super::super::carry_probe::Point::Enter(control), state);
+        #[cfg(test)]
+        self.origin_while(control, super::super::origin_probe::WhileRole::Enter);
         let result = self.owner_while_statement_scoped(id, condition, body, state);
+        #[cfg(test)]
+        self.origin_while(
+            control,
+            super::super::origin_probe::WhileRole::Exit(result.as_ref().ok().copied()),
+        );
         #[cfg(test)]
         self.carry_probe(super::super::carry_probe::Point::Leave(control), state);
         self.owner_loop.complete_counter_member(
