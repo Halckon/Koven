@@ -417,7 +417,7 @@ fn map_cross_function_routing_is_isolated() {
             entry,
         )
     });
-    result.expect("inout and map functions succeed alongside unmigrated scalar function");
+    result.expect("inout, map and straight-line scalar functions all lower successfully");
     for function in [
         "koven.p.main.d",
         "koven.p.bump_with_map.d",
@@ -429,10 +429,10 @@ fn map_cross_function_routing_is_isolated() {
         );
     }
     assert!(
-        !routed
+        routed
             .iter()
             .any(|name| name.starts_with("koven.p.unmigrated_scalar.d")),
-        "unmigrated_scalar should stay on unit_lower: {routed:?}"
+        "the linear scalar helper now refines independently of its Map siblings (SPEC-0454): {routed:?}"
     );
 }
 

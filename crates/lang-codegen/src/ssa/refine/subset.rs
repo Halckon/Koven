@@ -229,7 +229,8 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
             || checker.migrated
             || checker.bounded_receiver_route()
             || checker.bounded_named_call().is_some()
-            || checker.bounded_temporary_call().is_some());
+            || checker.bounded_temporary_call().is_some()
+            || checker.linear_scalar_body());
     (accepted, signature && checker.loop_route_retry)
 }
 
@@ -326,11 +327,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
             }
         }
     }
-    demands.extend(typed.body_symbol_types().keys().filter_map(|symbol| {
-        (symbol.source_unit() == inputs.source_unit)
-            .then(|| checker.symbol_type(*symbol))
-            .flatten()
-    }));
+    demands.extend(checker.local_type_demands(item));
     demands.extend(typed.types().builtin(BuiltinType::Boolean));
     // Case tests compare the `Int` discriminant; numeric range `for` loops and container
     // operations use `Int` lengths/indices.

@@ -398,8 +398,24 @@ fn assert_checked_failure_edges(function: &Function) -> usize {
             panic!("checked instruction must end in a conditional");
         };
         assert_eq!(condition, failure, "the failure result is the condition");
-        assert!(when_true.arguments.is_empty());
-        assert!(when_false.arguments.is_empty());
+        // Refine may carry live scalar values through explicit block parameters.
+        // Preserve the failure dispatch contract and check every transported entity's type.
+        for edge in [when_true, when_false] {
+            let target = function
+                .block(edge.target)
+                .expect("checked edge target exists");
+            assert_eq!(edge.arguments.len(), target.parameters.len());
+            for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                assert_eq!(
+                    function.entity(*argument).expect("edge argument exists").ty,
+                    function
+                        .entity(*parameter)
+                        .expect("target parameter exists")
+                        .ty,
+                    "checked failure dispatch must preserve each carried scalar type"
+                );
+            }
+        }
         assert!(
             function
                 .block(when_true.target)
