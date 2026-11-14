@@ -18207,3 +18207,21 @@ all-target严格Clippy两配置、fmt/docs951/diff与独立复审通过。未运
 不证明两child同时存活、循环backedge、checked-counter异常边或native执行。
 最终默认与observation配置各3项定向测试通过（均含真实SSA verifier及LLVM render），
 两配置all-target严格Clippy、fmt/docs951/diff和独立复审通过；未运行native或远端CI。
+
+### E2 专用跨crate实验桥（生产未启用）
+
+独立`e2-two-source-test-support` feature令frontend依赖构建可承载真实实验域，
+默认与observation-only构建不含公开实验API。不能仍声称仅cfg(test)可存在新域。
+独审否决公开通用scope加普通validated产物方案：Cargo feature可传递合并，默认
+关闭的scope不等于技术隔离。改为专用分析入口，scope私有且不接受用户回调；
+总validate成功才提取新facts至私有字段`TwoSourceExperiment`，不提供普通产物
+转换，失败仅返回None/既有checking error。新包装不能交给现有lowering入口。
+
+codegen测试用真实rooted两源分析跨crate接收opaque事实，核issuing owns、克隆、
+另一真实分析身份、逐臂完整callee key及跨源晚失败无包装。普通分析调用前后均
+拒绝，启用feature本身不改变普通接受范围。没有伪造fact或借旧同源域授权。
+这是frontend→backend实验输入桥，不是backend receipt：尚无新SSA循环emission、
+双根rebind、checked-counter全边或required/selected/replay/publication后端身份链。
+最终新feature/组合feature的codegen定向测试各4/4，frontend组合候选5/5通过；
+codegen默认/observation/新feature/组合四配置all-target严格Clippy、frontend组合
+all-target严格Clippy、fmt/docs951/diff与独立复审通过。未运行native或远端CI。

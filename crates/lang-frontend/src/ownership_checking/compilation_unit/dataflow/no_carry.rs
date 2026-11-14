@@ -1,8 +1,8 @@
 //! Production no-carry frame authority; independent of optional observation.
 use super::{ActiveLoanOwner, ActiveLoanTarget, Checker, Flows, State, UnitSymbolId};
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "e2-two-source-test-support")))]
 use crate::ownership_checking::loop_no_carry::shape::selection as select_shape;
-#[cfg(test)]
+#[cfg(any(test, feature = "e2-two-source-test-support"))]
 use crate::ownership_checking::loop_no_carry::shape::unit_selection as select_shape;
 use crate::{
     ast::{ExpressionId, StatementId},
@@ -618,7 +618,7 @@ impl Checker<'_> {
         for proof in std::mem::take(&mut self.no_carry_proofs) {
             #[cfg(test)]
             let candidate_counter = matches!(&proof, core::Proof::CounterBranch(..));
-            #[cfg(test)]
+            #[cfg(any(test, feature = "e2-two-source-test-support"))]
             if super::super::loop_no_carry::two_source_candidate::enabled()
                 && let core::Proof::CounterBranch(branch, [left, right], counter) = &proof
                 && left.root != right.root

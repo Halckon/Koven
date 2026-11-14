@@ -1,7 +1,7 @@
 //! Sealed core-checker no-carry facts. Not a runtime iteration trace or an SSA receipt.
 mod counter_break;
 mod prefix_counter_break;
-#[cfg(test)]
+#[cfg(any(test, feature = "e2-two-source-test-support"))]
 pub(crate) mod two_source_candidate;
 use super::{CompilationUnitOwnership, UnitDropPoint};
 use crate::{
@@ -15,7 +15,7 @@ use std::rc::Rc;
 /// One publication gate for both independent no-carry proof domains.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct CompletedNoCarry {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "e2-two-source-test-support"))]
     pub(super) two_sources: Vec<two_source_candidate::TwoSourceCounterFact>,
     pub(super) prefix_counter_breaks: Vec<UnitLoopPrefixCounterBreakFact>,
     pub(super) loops: Vec<UnitLoopNoCarryFact>,
@@ -27,7 +27,7 @@ pub(super) struct CompletedNoCarry {
 }
 impl CompletedNoCarry {
     pub(super) fn extend(&mut self, other: Self) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "e2-two-source-test-support"))]
         self.two_sources.extend(other.two_sources);
         self.prefix_counter_breaks
             .extend(other.prefix_counter_breaks);

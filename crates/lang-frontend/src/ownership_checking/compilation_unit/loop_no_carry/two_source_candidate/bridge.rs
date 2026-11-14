@@ -1,0 +1,61 @@
+//! A narrow cross-crate test bridge: no public activation callback or ordinary product escape.
+use super::*;
+use crate::{
+    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+    ownership_checking::{OwnershipCheckingError, check_compilation_unit_ownership},
+    source::SourceMap,
+    type_checking::{TypeEnvironment, ValidatedCompilationUnitTypes},
+};
+
+/// Successful experimental facts only; cannot be passed to normal lowering entry points.
+#[derive(Clone, Debug)]
+pub struct TwoSourceExperiment {
+    facts: Vec<TwoSourceCounterFact>,
+}
+impl TwoSourceExperiment {
+    /// Returns only facts retained after the complete validation gate.
+    pub fn facts(&self) -> &[TwoSourceCounterFact] {
+        &self.facts
+    }
+    /// Checks analysis-local identity, not structural equality.
+    pub fn owns(&self, fact: &TwoSourceCounterFact) -> bool {
+        self.facts
+            .iter()
+            .any(|candidate| Rc::ptr_eq(&candidate.identity, &fact.identity))
+    }
+}
+impl TwoSourceCounterFact {
+    /// Returns ordered closed arm metadata, not independent arm authority.
+    pub fn arms(&self) -> &[UnitLoopNoCarryFact; 2] {
+        &self.arms
+    }
+    /// Returns the exact ordered callsites and normalized instance keys.
+    pub fn calls(&self) -> &[Vec<(UnitExpressionId, UnitCallableInstanceKey)>; 2] {
+        &self.calls
+    }
+    /// Returns the source-qualified branch expression.
+    pub fn branch(&self) -> UnitExpressionId {
+        self.branch
+    }
+}
+
+/// Analyze with the real checker, keeping all activation and ordinary products private.
+/// `None` means the full validation gate failed or no two-source fact was produced.
+/// The feature alone does not change normal analysis; this function never returns its
+/// internal ordinary validated product, including on failure.
+pub fn analyze_two_source_experiment(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &ValidatedCompilationUnitTypes,
+) -> Result<Option<TwoSourceExperiment>, OwnershipCheckingError> {
+    let (analyzed, _) = with_domain(|| {
+        check_compilation_unit_ownership(sources, inputs, names, environment, typed)
+    });
+    let Ok(validated) = analyzed?.validate() else {
+        return Ok(None);
+    };
+    let facts = validated.into_ownership().no_carry.two_sources;
+    Ok((!facts.is_empty()).then_some(TwoSourceExperiment { facts }))
+}

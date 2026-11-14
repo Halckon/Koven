@@ -225,3 +225,11 @@ mod research_borrow_consumer_body;
 pub use research_borrow_consumer_body::{
     BorrowBodyConsumerReturn, BorrowConsumerBodyObservation, capture_borrow_consumer_bodies,
 };
+
+/// Opt-in experimental products, not normal lowering authority.
+#[cfg(feature = "e2-two-source-test-support")]
+pub mod two_source_experiment {
+    pub use super::compilation_unit::loop_no_carry::two_source_candidate::{
+        TwoSourceCounterFact, TwoSourceExperiment, analyze_two_source_experiment,
+    };
+}

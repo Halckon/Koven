@@ -1,4 +1,4 @@
-//! Test-build authorization domain; absent from production dependencies and backend inputs.
+//! Experimental authorization domain; never exported as ordinary validated ownership.
 use super::*;
 use crate::type_checking::{CompilationUnitTypes, UnitCallTarget, UnitCallableInstanceKey};
 use crate::{ast::ExpressionId, ownership_checking::loop_no_carry::CounterPlan};
@@ -19,8 +19,9 @@ fn with_domain<T>(analyze: impl FnOnce() -> T) -> (T, usize) {
     (result, DOMAIN.get().1)
 }
 
+/// Opaque experimental two-source fact, never ordinary lowering authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct TwoSourceCounterFact {
+pub struct TwoSourceCounterFact {
     identity: Rc<()>,
     branch: UnitExpressionId,
     arms: [UnitLoopNoCarryFact; 2],
@@ -86,7 +87,7 @@ impl TwoSourceCounterFact {
     }
 }
 impl CompilationUnitOwnership {
-    #[cfg(feature = "loan-observation-test-support")]
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     fn owns_two_source_counter(&self, fact: &TwoSourceCounterFact) -> bool {
         self.no_carry
             .two_sources
@@ -95,7 +96,7 @@ impl CompilationUnitOwnership {
     }
 }
 
-#[cfg(feature = "loan-observation-test-support")]
+#[cfg(all(test, feature = "loan-observation-test-support"))]
 mod tests;
 
 #[test]
@@ -111,3 +112,8 @@ fn domain_scope_restores() {
     assert_eq!(hits, 7);
     assert!(!enabled());
 }
+
+#[cfg(feature = "e2-two-source-test-support")]
+mod bridge;
+#[cfg(feature = "e2-two-source-test-support")]
+pub use bridge::{TwoSourceExperiment, analyze_two_source_experiment};

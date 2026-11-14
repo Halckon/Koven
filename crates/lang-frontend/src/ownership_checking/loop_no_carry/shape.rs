@@ -388,7 +388,7 @@ mod two_source_candidate;
 #[cfg(test)]
 pub(crate) mod unit_candidate_events;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "e2-two-source-test-support"))]
 pub(crate) fn unit_selection<B: Copy + Eq>(
     parsed: &ParsedFile,
     loop_statement: StatementId,
@@ -402,7 +402,11 @@ pub(crate) fn unit_selection<B: Copy + Eq>(
         impl Fn(ExpressionId, &str) -> bool,
     ),
 ) -> Option<Selection<B>> {
-    if unit_candidate_events::enabled()
+    #[cfg(test)]
+    let old_experiment = unit_candidate_events::enabled();
+    #[cfg(not(test))]
+    let old_experiment = false;
+    if old_experiment
         || crate::ownership_checking::compilation_unit::loop_no_carry::two_source_candidate::enabled(
         )
     {

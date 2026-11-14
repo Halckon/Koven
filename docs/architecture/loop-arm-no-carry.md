@@ -153,3 +153,11 @@ producer和重复consumer调用不去重，缺失typed映射不生成新事实�
 另一非循环直线基线覆盖真实双根BorrowCall：两次producer分别依赖对应Shared参数，
 child经Print后唯一End，随后父根仍可使用；调用方同owner不等同同loan身份。
 此项没有分支、循环、counter或新域receipt，不解除分支BorrowCall的UnsupportedNode。
+
+两源域另提供独立`e2-two-source-test-support` feature的跨crate实验入口；它不随
+observation启用，也不公开通用激活scope。专用分析函数在内部运行真实checker与
+完整validate，之后仅提取facts到独立`TwoSourceExperiment`，不返回普通ownership
+或validated产品。普通分析在调用前后仍拒绝两源；实验失败返回None，不携带事实。
+feature显式启用时依赖构建包含实验能力，不能再概称“任何非test构建均无此域”；
+默认构建不含该API。backend目前仅测试消费opaque事实/owns和实际typed callee身份，
+尚无SSA emission/receipt，也没有正常lowerer接线或生产启用。
