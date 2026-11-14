@@ -104,3 +104,20 @@ view。共同 Program 的 relay、identity、recurse 和两个 choose 按唯一�
 本片两个 ordinary exact 各 1/1（每项含两种来源）通过；最终 no-run、all-target
 feature 严格 Clippy、fmt、docs953、diff 与独审通过。无生产改动，未运行故障或
 native，未推送；这些通过不包含预算和失败原子性动态验收。
+
+### 共享预算 CI-only 验收布置
+
+基于 `2d1a53bf` 增加 ignored 的
+`ssa::unit_plan::root_set_tests::ci_only_common_roots_share_budget_and_recover`。
+目标区分“每根独立都可通过”与“共同预算”：四根各自预算 2 可规划，合并后唯一
+特化数为 5，预算 4 必须 InstanceLimitExceeded，预算 5 恢复九实例；同时核逆序
+错误位置一致、失败后重试完整计划一致和类型 arena 不增长。Rust 入口与脚本执行
+路径都要求 GITHUB_ACTIONS；本地只允许编译/列举。
+
+脚本 `scripts/check_unit_root_set_ci.sh` 接入现有双宿主 composition CI job，精确
+发现一个 ignored 目标并要求实际结果 1 passed/0 failed/0 ignored。尚未推送或执行
+该负控，不将编译/列举说成预算验收通过。此片也不是后端收据失败原子性证明；
+后者仍需有非空实际收据的失败/回滚/恢复见证，不能以 scalar 空观察代替。
+
+本片本地精确 `--list-only` 编译列举 1 项，none executed；严格 all-target feature
+Clippy、fmt、bash 语法、docs953、diff 与独审通过。没有新动态预算通过结论。
