@@ -229,7 +229,11 @@ fn scalar_checked_arithmetic_still_aborts_instead_of_wrapping_or_dividing_by_zer
 fn refined_linear_and_legacy_branch_helpers_coexist_in_the_native_program() {
     let source = "fun linear(x: Int): Int = x + 1\n\
                   fun branching(c: Boolean): Int = if (c) 1 else 0\n\
-                  fun main(): Unit { if (linear(40) == 41 && branching(true) == 1) { println(\"mixed-linear-ok\") } }";
+                  fun main(): Unit {\n\
+                      var marker: Int = 0\n\
+                      val previous = replace(&marker, 1)\n\
+                      if (previous == 0 && marker == 1 && linear(40) == 41 && branching(true) == 1) { println(\"mixed-linear-ok\") }\n\
+                  }";
     let (run, routed) = observe_routing(|| {
         crate::native_tests::emit_link_and_run("mixed_linear.ko", source, "main")
     });
@@ -240,6 +244,10 @@ fn refined_linear_and_legacy_branch_helpers_coexist_in_the_native_program() {
     assert!(
         !routed.iter().any(|name| name.contains(".branching.d")),
         "{routed:?}"
+    );
+    assert!(
+        routed.iter().any(|name| name.contains(".main.d")),
+        "main must refine to cover refined-to-compatibility calls: {routed:?}"
     );
     assert!(run.status.success(), "{run:?}");
     assert_eq!(run.stdout, b"mixed-linear-ok\n");

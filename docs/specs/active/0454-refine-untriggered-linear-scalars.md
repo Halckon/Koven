@@ -144,3 +144,18 @@ CI 两失败为 `declarative_type_roots_do_not_enter_the_scalar_instance_graph` 
 零减输入的数据流、精确 checked value 运输以及原 failure→Abort/continue、arity/type 和来源。
 适配阶段基线比较初版误用 `ty.kind` 曾编译失败，修正为实际 `Vec<SsaTypeKind>` 完整比较后才记通过。
 不为旧表示断言回退路由、改参数模式、篡改 fixture 或修改生产 lowering。
+
+### PR #424 P2：恢复 refine 调用 Compatibility 的 native 覆盖
+
+审阅后的修复输入为 `ed632b8e0e6a548a93c9e34f8024580e4f5550c4`。
+原 mixed witness 的 main 仍走 Compatibility，只覆盖该方向调用 linear。
+先增加 main 必须 refine 的断言：真实 **0 passed / 1 failed，exit 101**，
+观测列表仅 `koven.linear.d0`，没有把覆盖缺口称为生产代码缺陷。
+
+随后在原 main 中加入整型根 `replace`，检查其旧值/新值，保持调用 linear 与
+branching。现在明确断言 main/linear 进入 refine、branching 保持 Compatibility，
+保留实际 native 状态、完整 stdout `mixed-linear-ok\\n` 和空 stderr 断言。
+标量组默认/feature 均 **9 passed / 0 failed / 0 ignored，exit 0**，无生产代码改动。
+以上只验收本次覆盖修复；新 head 官方 CI 与旧已验收候选分别归因，不无条件沿用旧绿灯。
+本轮 fmt、docs、尺寸、空白及默认/feature 的 lang-codegen all-target Clippy
+`-D warnings` 均通过；未运行无关全量，官方新候选 CI 不预填。
