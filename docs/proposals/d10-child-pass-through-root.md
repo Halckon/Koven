@@ -196,3 +196,34 @@ b 的唯一 Named Drop 是实际 suffix 的 `CallReturn`。因此模型中的正
 predecessor/edge-argument/block-parameter 对应，没有生成实验 SSA 或发布收据。
 下一步需要独立 Carry-aware 实验 emitter/终检合同，不能删除现有全根规则或从
 手写拓扑倒填真实 CFG 身份。该工作仍需与模型/源码准入分别验收。
+
+### 独立 Replace/Carry 观察与 CFG 证明接口草案
+
+以下是测试域下一阶段的接口设计，不是已有产品或已批准生产合同。
+禁止把 `CarrySourceEvidence` 改名包装成完成资格。需要分离四个产物：
+
+1. **SourceCandidate**：现有 AST、typed call、loan、DropPoint 核验，只定位可研究
+   的源码和两根角色，不含 owner generation 权威或 CFG 权限。
+2. **ObservedTransitions**：从实际 ownership planner 的进入、借用、替换提交、
+   退休及离开转移记录取得，绑定同一分析/callable/parent/child 身份。动作应为
+   `Replace(root, call, producer, retired_result)` 与
+   `Preserve(root, observed_input, observed_output)` 的互斥总映射；Preserve 必须
+   有实际状态持久性及全路径无消费记录，不能由 AST 没找到 replace 推断。
+3. **EmittedGraph**：隔离 emitter 产生真实 Program/Function/block/entity 句柄与
+   来源映射，记录每条正常边的源实参→目标形参，并显式保留 checked-abort。
+   不复用旧全 Replace receipt，不生成假的 old==new replacement。
+4. **VerifiedGraph**：独立终检完整函数、精确前驱集合、root-slot 全覆盖、Carry
+   每边对应及全区域无隐藏消费，Replace 新代与其它活动根不别名。parent false
+   的 a cleanup、suffix Shared loan及b CallReturn必须落到真实指令与出口路径。
+   终检成功后才允许测试域共同发布，失败不得留下部分收据。
+
+当前缺的是第2层的权威状态转移记录，而不只是某个 SSA helper：
+`UnitOwnerObservation` 的 Unsupported 合同会清空 definitions/events；本候选
+可通过 SourceCandidate，并不因此获得可供第3层消费的 owner tokens。
+现有根/调用/drop事实足以定位来源，不足以重建被清空的跨循环 owner 状态。
+
+安全实施顺序应为：先在 planner 的实际转移点增设独立实验记录、普通源码对照其
+状态和清理，再让隔离 emitter 消费该记录；不要先造图然后从图倒填观察事实。
+第2层还需单独设计循环状态的有限表示与分析身份绑定。未实现该记录以前，本分支
+只保留源码/清理/模型证据，不声称已经形成 Replace/Carry observation 或 CFG 证明。
+所有破坏记录、外来身份、缺边、重复清理和终检回滚负控仍只在 CI 执行。

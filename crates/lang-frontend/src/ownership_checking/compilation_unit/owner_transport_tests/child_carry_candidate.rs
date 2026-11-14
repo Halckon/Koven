@@ -430,3 +430,22 @@ fn ordinary_final_root_cleanup_uses_actual_parent_exit_and_suffix_return() {
             .all(|observation| observation.nested_normal_body_v1().is_none())
     );
 }
+
+#[test]
+fn ordinary_source_candidate_does_not_supply_owner_transition_authority() {
+    let text = SOURCE.strip_suffix("}\n}").unwrap().to_owned() + "}\nprintln(b)\n}";
+    let fixture = Fixture::new(&[("authority.ko", &text)]);
+    let owned = fixture.shared();
+    let evidence = extract_source_evidence(&fixture, &owned).unwrap();
+    assert!(shape::matches(&fixture, &owned, &evidence).is_some());
+    let [observation] = owned.owner_observations() else {
+        panic!("one actual callable observation")
+    };
+    assert!(matches!(
+        observation.status(),
+        UnitOwnerObservationStatus::Unsupported { .. }
+    ));
+    assert!(observation.definitions().is_empty());
+    assert!(observation.events().is_empty());
+    assert!(observation.nested_normal_body_v1().is_none());
+}
