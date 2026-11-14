@@ -18367,3 +18367,26 @@ flag 身份、success 回边更新、abort reason/divisor/source、无输入 End
 codegen all-target 严格Clippy、frontend 组合 all-target 严格Clippy和默认/仅观察
 cargo check通过；fmt/docs951/diff及相对5d3cedff尺寸门禁通过（2176文件、36旧超限）。
 未运行native、损坏注入或远端CI，未推送；独立源码审查未发现权限/语义阻断。
+
+
+### E2 受限完整函数原生返回及输入保留验证（实验）
+
+测试在真实 rooted Unit 分析及完整函数 emitter 的产物中添加明确 Synthetic 驱动，
+不冒充源码调用方，也不改写 LLVM、插桩或注入故障。驱动实际分配两个 String
+owner，建立四 Shared 参数，按原 ABI 调用完整函数；返回后打印两个输入，随后
+结束四 loan，再各 Drop 两 owner。每个 owner 只创建一个 RootPlace；同根用例
+的两个不同 Shared LoanId 真正引用同一 Place，不以两个栈槽副本充当原生别名。
+
+使用现有 TestDirectory/clang harness，未改写的 verified LLVM 经 clang -O0 链接
+运行；两种参数顺序分别执行 MIN/0/3 rounds × 双 choose × 同/异 root 的12种调用，
+共24调用/2个可执行文件。断言正常退出、精确输出和空stderr；子进程10秒截止后
+kill+wait防止错误循环挂住测试。调用前复用完整CFG精确断言。
+
+此证据证明实际原生可执行、这些输入正常返回及根在返回后可读，不声称动态
+记录了分支/次数（consumer为空）或覆盖checked-abort的动态失败；MIN/0属于
+零次循环邻居。精确分支/checked边仍由SSA断言支持，运行时分配计数/泄漏检测、
+生产driver与独立receipt未由本片完成。
+最终实验/组合配置各7/7通过（各含2个真实native可执行文件、24次调用），双配置
+codegen all-target 严格Clippy、默认/仅观察check、fmt/docs951/diff及相对33d9608f
+尺寸门禁通过（2177文件、36旧超限）。独审修正同根Place复用后复审通过。
+未运行远端CI、故障注入、ASan或泄漏计数，未推送。

@@ -127,7 +127,6 @@ workflow。本地仅编译列举，动态拒绝与恢复结果须以远端执行
 真实 Unit 的 rooted/memory 输入及 observation 开关验收也保持两源拒绝：没有
 borrow binding、同源 branch 或 counter fact，validated ownership factory 不发布。
 同源 counter 邻居仍发布独立 counter 域身份，旧 branch owns 查询不授予权限。
-这不是两源真实 Acquire/End 事件或新 receipt 的实现证据。
 
 后续 Unit-only 测试入口可暂选候选并运行真实 core Frame；仅在两个临时 arm fact
 各通过真实最终 End 的唯一 receipt 匹配后现场断言，不保存 payload，只计到达。
@@ -172,13 +171,13 @@ fixture中比较callable；普通分析入口、旧域和生产lowering仍不消
 均不提供此闭包。body描述为私有构造并绑定实验身份，不暴露普通ownership。
 测试态专用emitter在同module生成真实Shared参数及BorrowReturn/Return，保留body
 Span，通过整个Program verifier与LLVM render。非空consumer/分组producer仍可有
-合法实验fact，但不能被当作空/identity占位体。此片没有caller接线、循环或receipt。
+合法实验fact，但不能被当作空/identity占位体。此叶闭包本身不是caller、循环或receipt。
 
 后续实验还能把一个已闭合fact的两臂lower为两个detached内部helper：只投影两根
 原签名相对顺序，实际BorrowCall接同module真实leaf、按原callsite序列DirectCall，
 最后child唯一End；不End输入根。桥保留原call/末consumer statement Span，helper
 本身/entry/Return标Synthetic，不冒充原run函数。全module verifier及LLVM通过。
-这些helper尚未被调用方或循环CFG调用，不是两源循环收据或原函数完整ABI。
+这些helper的两参数ABI不等于原函数完整ABI，也不是两源循环收据。
 
 
 实验桥现另可返回完整原函数的窄 shell 描述：仅四 Borrow 参数（两 String、Int
@@ -195,5 +194,7 @@ helper；全部正常边重绑定四输入和 counter。join 发射真实 checke
 标志为真进入带原原因的 abort，成功结果替换 counter 经 success 回 header。
 initializer/条件/常量/decrement 保留原 Source Span，辅助块及 outline 明确 Synthetic。
 整个 Program verifier 和 LLVM render 已通过；此实现没有额外输入 End，不假定
-两 Shared 来源必定属于不同 owner。没有生产 driver 接入、native 调用方或两源
-required/selected/replay/publication 收据；feature 外的正常分析仍拒绝原两源循环。
+两 Shared 来源必定属于不同 owner。现另有 Synthetic native测试驱动，用未改写LLVM
+调用此原函数，覆盖MIN/0/3、双choose、同一Place/不同owner及参数反序；返回后
+输入仍可打印。空consumer不提供动态臂/次数证据，仍由精确CFG断言支持。
+没有生产driver或两源publication收据；正常分析仍拒绝原两源循环。

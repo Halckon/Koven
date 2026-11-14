@@ -358,3 +358,5 @@ mod e2_arm_fragments;
 mod e2_function;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_function_tests;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_native_tests;
