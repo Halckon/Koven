@@ -575,3 +575,35 @@ sidecar 直接升级成通用 Carry/嵌套权限。本片无 LLVM/native 或本�
 本批验证：前端 loop-generation 三个普通测试通过，D10 codegen 六个普通测试通过；
 严格前端 all-targets（两实验 feature）和 codegen lib/tests Clippy、格式与文档门禁
 通过，独审与最终增量复审无阻断。未执行损坏 IR/故障注入或远端推送。
+
+### 独立嵌套 envelope 与同次最终 owned sidecar
+
+后续片补齐上述固定见证之外的独立准入观察：`nested_generation_coverage` 不以变量名
+或整段文本作判定，沿真实 AST/名称/类型身份覆盖全部六个 item、十三个 statement、
+二十三个 expression，每个节点恰归属一次。仅允许前述两层单 child Replace，两个
+counter 均从同一个 Shared Int 参数读取并各自 `> 0` / `-= 1`；a/b 初始化和 incoming
+为纯字符串，old 为 val，b 有真实 suffix builtin 读取。额外节点、错误根或 counter
+关系、其他更新/出口均拒绝。计数只是采集预算，不是准入证明。
+
+原 planner（不是另起的对照遍历）记录完整二十五事件；独立 `nested_pending` 精确
+匹配父子控制、Replace、old 绑定、全部 Drop 与 suffix loan。无事件过滤、残留 token
+回填或 AST 伪造轨迹。`NestedPending` 独立穿过 dataflow，在诊断或无效类型事实时
+清空；最终比对同 typed owner、完整三 Drop/两 loan/唯一 Replace 后才 validate owned。
+`analyze_nested_loop` 只返回封闭 `BoundNestedLoop`，无公共构造/补绑入口。内部复用
+单环的**私有最终事实 binder**，但不调用单环 candidate、不对外透出 BoundLoop，
+`analyze_loop` 仍拒绝嵌套。
+
+外部真实源码矩阵为两正例（含整体 counter/parameter 重命名与 Unicode）和十二种
+邻接拒绝，各覆盖 Rooted/MemoryDocument，计四正、二十四拒绝。同 typed 下另次
+owned 身份拒绝单列为 ignored CI-only 测试，本地只编译、不执行。
+
+已有实际十一块二十三指令 replay 现在使用 `BoundNestedLoop` 自己的 final owned
+构造正常 lowering view，四正例进入实际 SSA，六邻接例在独立源码观察端拒绝。
+codegen 的 fixture 取证仍是固定见证适配，并未宣称任意嵌套 SSA 已获认证；前端
+静态控制观察也不是动态 CFG 权限。生产入口、选择器、旧 oracle 和 Carry 合同未改；
+一般父写入、多次 Replace、更多层嵌套或复杂退出仍不在本片范围。
+
+本片验证：nested 外部普通矩阵一测试、既有 catalog 四测试、planner 三测试及
+codegen D10 六测试通过；三个 CI-only 身份测试均 ignored。前端默认配置编译、
+前端 all-targets（catalog/loan-observation）及 codegen lib/tests 严格 Clippy 通过；
+格式、956 篇文档结构门禁、独审和增量复审通过。未执行 native、LLVM 验证或故障注入。

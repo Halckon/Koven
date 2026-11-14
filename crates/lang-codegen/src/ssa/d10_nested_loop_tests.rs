@@ -7,7 +7,7 @@ fn actual_nested_replace_preserves_both_roots_and_parameter_loan() {
         name_resolution::{
             SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
         },
-        ownership_checking::{check_compilation_unit_ownership, owned_compilation_unit_view},
+        ownership_checking::{d10_catalog_experiment, owned_compilation_unit_view},
         source::SourceMap,
         type_checking::{check_compilation_unit_types, standard_environments},
     };
@@ -44,17 +44,28 @@ fn actual_nested_replace_preserves_both_roots_and_parameter_loan() {
                 .unwrap()
                 .validate()
                 .unwrap();
-            let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
-                .unwrap()
-                .validate()
-                .unwrap();
-            let unit =
-                owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &owned)
-                    .unwrap();
-            assert_eq!(source::facts(&unit).is_some(), accepted, "{text}");
-            if !accepted {
+            let bound = d10_catalog_experiment::analyze_nested_loop(
+                &sources, &inputs, &names, &types, &typed,
+            )
+            .unwrap();
+            assert_eq!(bound.is_some(), accepted, "{text}");
+            let Some(bound) = bound else {
                 continue;
-            }
+            };
+            let unit = owned_compilation_unit_view(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                bound.ownership(),
+            )
+            .unwrap();
+            assert!(bound.matches(&unit));
+            assert!(
+                source::facts(&unit).is_some(),
+                "fixture evidence must agree with independently closed source"
+            );
             let entry = names
                 .names()
                 .index()
