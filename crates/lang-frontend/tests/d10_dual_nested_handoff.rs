@@ -22,8 +22,52 @@ fn ci_only_dual_nested_rejects_other_ownership() {
     run_cases(true);
 }
 fn run_cases(mismatch: bool) {
+    let separate = SOURCE
+        .replace("count: Int", "count: Int, childCount: Int")
+        .replace("var inner = count", "var inner = childCount");
     for (text, expected) in [
         (SOURCE.to_owned(), true),
+        (separate.clone(), true),
+        (
+            separate
+                .replace("count", "outerLimit")
+                .replace("childCount", "innerLimit"),
+            true,
+        ),
+        (
+            separate
+                .replace("var outer = count", "var outer = childCount")
+                .replace("var inner = childCount", "var inner = count"),
+            false,
+        ),
+        (
+            separate.replace("var inner = childCount", "var inner = count"),
+            false,
+        ),
+        (
+            separate.replace("var outer = count", "var outer = childCount"),
+            false,
+        ),
+        (
+            separate.replace("childCount: Int", "own childCount: Int"),
+            false,
+        ),
+        (
+            separate.replace("childCount: Int", "inout childCount: Int"),
+            false,
+        ),
+        (separate.replace("count: Int,", "own count: Int,"), false),
+        (
+            separate
+                .replace("childCount: Int", "childCount: Long")
+                .replace("inner > 0", "inner > 0L")
+                .replace("inner -= 1", "inner -= 1L"),
+            false,
+        ),
+        (
+            separate.replace("childCount: Int", "childCount: Int, unused: Int"),
+            false,
+        ),
         (
             SOURCE
                 .replace("count", "limit")
@@ -97,6 +141,51 @@ fn run_cases(mismatch: bool) {
             )
             .unwrap();
             assert!(bound.matches(&view));
+            let parameters = bound.counter_parameters();
+            assert_eq!(parameters[0], bound.roots().3);
+            // Match actual declarations and initializer references, never names or ordinals alone.
+            let source_names = &names.names().source_units()[0];
+            let declared_parameters = source_names
+                .resolution()
+                .symbols()
+                .iter()
+                .filter(|symbol| {
+                    symbol.kind() == lang_frontend::name_resolution::SymbolKind::ValueParameter
+                })
+                .map(|symbol| symbol.id())
+                .collect::<Vec<_>>();
+            assert!(matches!(declared_parameters.len(), 1 | 2));
+            assert_eq!(parameters[0].symbol(), declared_parameters[0]);
+            assert_eq!(parameters[1].symbol(), *declared_parameters.last().unwrap());
+            assert_eq!(
+                parameters[0] == parameters[1],
+                declared_parameters.len() == 1
+            );
+            for ((counter, parameter), actual_initializer) in [bound.roots().1, bound.roots().2]
+                .into_iter()
+                .zip(parameters)
+                .zip(bound.counter_initializers())
+            {
+                let symbol = &source_names.resolution().symbols()[counter.symbol().index()];
+                let (_, declaration) = parsed.ast().items().iter().find(|(_,node)| matches!(node.payload(), lang_frontend::parser::Item::Variable { name: lang_frontend::parser::NameMarker::Present(span), .. } if *span == symbol.span())).unwrap();
+                let lang_frontend::parser::Item::Variable { initializer, .. } =
+                    declaration.payload()
+                else {
+                    unreachable!()
+                };
+                assert_eq!(actual_initializer.expression(), *initializer);
+                assert_eq!(actual_initializer.source_unit(), parameter.source_unit());
+                let span = parsed.ast().expressions().get(*initializer).unwrap().span();
+                let actual = names
+                    .names()
+                    .references()
+                    .iter()
+                    .find(|r| r.span() == span)
+                    .unwrap();
+                assert!(
+                    matches!(actual.target(), lang_frontend::name_resolution::UnitReferenceTarget::Symbol(id) if *id == parameter)
+                );
+            }
             let (_, parent, child) = bound.controls();
             assert_ne!(parent, child);
             let cleanup = bound.cleanup();

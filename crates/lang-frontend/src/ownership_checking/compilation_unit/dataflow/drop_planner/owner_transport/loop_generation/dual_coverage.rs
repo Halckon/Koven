@@ -9,7 +9,8 @@ pub(super) struct DualCoverage {
     pub(super) callable: crate::type_checking::UnitItemId,
     pub(super) parent_counter: UnitSymbolId,
     pub(super) child_counter: UnitSymbolId,
-    pub(super) parameter: UnitSymbolId,
+    pub(super) counter_parameters: [UnitSymbolId; 2],
+    pub(super) counter_initializers: [UnitExpressionId; 2],
     pub(super) parent_condition: UnitExpressionId,
     pub(super) child_condition: UnitExpressionId,
     pub(super) parent_step: UnitExpressionId,
@@ -90,16 +91,28 @@ impl DropPlanner<'_, '_> {
         else {
             return None;
         };
-        let [parameter] = parameters.as_slice() else {
-            return None;
-        };
-        if !type_parameters.is_empty() || parameter.mode_marker.is_some() {
+        if !type_parameters.is_empty() {
             return None;
         }
-        let NameMarker::Present(parameter_span) = parameter.name else {
-            return None;
+        let parameter_symbols = parameters
+            .iter()
+            .map(|parameter| {
+                if parameter.mode_marker.is_some() {
+                    return None;
+                }
+                let NameMarker::Present(span) = parameter.name else {
+                    return None;
+                };
+                c.symbols_by_span.get(&span_key(span)).copied()
+            })
+            .collect::<Option<Vec<_>>>()?;
+        // The closed two-parameter form is ordered: first initializes outer, second inner.
+        // A one-parameter source deliberately shares the same identity for both counters.
+        let counter_parameters = match parameter_symbols.as_slice() {
+            [parameter] => [*parameter, *parameter],
+            [parent, child] if parent != child => [*parent, *child],
+            _ => return None,
         };
-        let parameter = *c.symbols_by_span.get(&span_key(parameter_span))?;
         let symbol_type = |symbol, expected| {
             c.typed
                 .symbol_type(symbol)
@@ -112,7 +125,10 @@ impl DropPlanner<'_, '_> {
                 .and_then(|t| c.typed.types().get(t))
                 == Some(&UnitTypeKind::Builtin(expected))
         };
-        if !symbol_type(parameter, BuiltinType::Int) {
+        if counter_parameters
+            .iter()
+            .any(|p| !symbol_type(*p, BuiltinType::Int))
+        {
             return None;
         }
         let block_elements = |id| match ast.statements().get(id).ok()?.payload() {
@@ -217,7 +233,7 @@ impl DropPlanner<'_, '_> {
             }
             c.reference_symbol(node.span())
         };
-        if name(n.2)? != parameter || name(outer.2)? != parameter {
+        if name(n.2)? != counter_parameters[1] || name(outer.2)? != counter_parameters[0] {
             return None;
         }
         let integer = |id, text| {
@@ -300,13 +316,12 @@ impl DropPlanner<'_, '_> {
             old_root,
             n.1,
             outer.1,
-            parameter,
             retained?.root,
         ];
         if roots
             .iter()
             .enumerate()
-            .any(|(i, r)| roots[..i].contains(r))
+            .any(|(i, r)| roots[..i].contains(r) || counter_parameters.contains(r))
         {
             return None;
         }
@@ -418,7 +433,8 @@ impl DropPlanner<'_, '_> {
             if b.1 != kept.root
                 || c.unit_expression(b.2) != kept.initial
                 || !symbol_type(b.1, BuiltinType::String)
-                || [root, old_root, n.1, parameter].contains(&b.1)
+                || [root, old_root, n.1].contains(&b.1)
+                || counter_parameters.contains(&b.1)
             {
                 return None;
             }
@@ -505,7 +521,8 @@ impl DropPlanner<'_, '_> {
             callable: crate::type_checking::UnitItemId::new(c.source_unit, *function_id),
             parent_counter: outer.1,
             child_counter: n.1,
-            parameter,
+            counter_parameters,
+            counter_initializers: [c.unit_expression(outer.2), c.unit_expression(n.2)],
             parent_condition: c.unit_expression(*parent_condition),
             child_condition: c.unit_expression(*condition),
             parent_step: c.unit_expression(*parent_step),

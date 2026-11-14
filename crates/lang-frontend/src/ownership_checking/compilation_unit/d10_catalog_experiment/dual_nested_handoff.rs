@@ -10,7 +10,8 @@ pub(crate) struct DualNestedPending {
     pub(crate) controls: [UnitStatementId; 2],
     pub(crate) root: UnitSymbolId,
     pub(crate) counters: [UnitSymbolId; 2],
-    pub(crate) parameter: UnitSymbolId,
+    pub(crate) counter_parameters: [UnitSymbolId; 2],
+    pub(crate) counter_initializers: [UnitExpressionId; 2],
     pub(crate) conditions: [UnitExpressionId; 2],
     pub(crate) steps: [UnitExpressionId; 2],
     pub(crate) sites: [UnitExpressionId; 3],
@@ -44,15 +45,26 @@ impl BoundDualNestedLoop {
             self.pending.controls[1],
         )
     }
-    /// Replaced root, parent counter, child counter, Shared parameter.
+    /// Replaced root, parent counter, child counter, and parent Shared parameter.
+    /// Use `counter_parameters` for the child parameter identity.
     #[must_use]
     pub const fn roots(&self) -> (UnitSymbolId, UnitSymbolId, UnitSymbolId, UnitSymbolId) {
         (
             self.pending.root,
             self.pending.counters[0],
             self.pending.counters[1],
-            self.pending.parameter,
+            self.pending.counter_parameters[0],
         )
+    }
+    /// Actual parent/child initializer parameters. Equal only in the one-parameter form.
+    #[must_use]
+    pub const fn counter_parameters(&self) -> [UnitSymbolId; 2] {
+        self.pending.counter_parameters
+    }
+    /// Actual parent/child counter initializer expressions, resolved to `counter_parameters`.
+    #[must_use]
+    pub const fn counter_initializers(&self) -> [UnitExpressionId; 2] {
+        self.pending.counter_initializers
     }
     /// Parent then child condition/step. No CFG edge permission.
     #[must_use]
