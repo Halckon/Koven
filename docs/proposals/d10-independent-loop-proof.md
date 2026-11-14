@@ -935,3 +935,38 @@ Clippy、格式、文档 957 和独审通过。继承的两项 Rust 尺寸超限
 本片 D10 普通 SSA 回归十一项通过、一项 CI-only ignored；包含上述 72 条有界
 路径。严格 codegen Clippy、格式、文档 957 与独立只读审查通过。未运行 native
 或身份故障控制；尺寸只检查新增文件均低于 1000，未重跑或宣称全仓尺寸通过。
+
+### Default-off AfterChild 实际图校验与只读交付
+
+新增 `d10_experiment::lower_after_child`，仅在原有 default-off 实验 feature 下编译。
+接收完整普通 owned view 与同次 sealed bound，核最终 ownership 身份后由原始
+source/root 唯一选入口，仍调用现有普通 Unit lowering，任何既有拒绝原样保留。
+随后必须通过独立可失败图 checker，才构造私有字段的 `AfterChildProgram`。
+它保留 view 和 bound 借用，不允许可变或 consuming Program 逃逸；只提供来源
+元数据及通过现有 LLVM adapter 校验的 IR 文本，不生成 native entry glue 或对象。
+失败只返回阶段错误，未构造的局部 Program 丢弃，不发布部分产物。
+
+checker 不使用测试 fixture 的块号、指令号或参数槽号，也不把旧 assert oracle
+转为准入许可。它按同次 bound 的实际 source Origin、opcode 和依赖唯一定位
+条件、读参数、literal、Replace 和步进，再沿实际 Branch/Conditional 边发现
+父子 header/body/exit、checked-abort 与 resume。每条边按 argument 对实际目标
+parameter 建立角色双射，核 child 零轮出口当前 owner、两类更新回边和最终双根
+后用。所有块、指令、顺序、终结符/边、loan/Drop 和 checked-abort metadata
+必须完整匹配；遗漏、歧义和未知布局均拒绝。前端 sealed 观察仍是源码/owned
+事实权威，checker 证明的是实际图与该受限合同的一致性，不自行扩展语言规则。
+
+原测试源码 oracle 保持独立：正例改走新封包成功后，再用原 AST/owned 对账和
+固定图 oracle，以及 72 条有界逻辑路径复核。CI-only 另登记 foreign-owned
+封包拒绝与保 IR-local 有效的 literal、步进常量和来源损坏；本地只编译列举，
+未执行这些故障控制，失败原子性尚不能据此宣称已经动态故障验收。
+
+E2 现有不可变发布类型绑定其专用事实及 test feature，不能当作 D10 capability
+复用；本片复用的是已有普通 Unit gate、SSA verifier 和 LLVM adapter，不新造
+lowering 或绕开真实前端产物。默认 driver/selector 未接入，通用 Carry、更广
+嵌套或复杂退出、native 动态矩阵及堆清理验收仍不在本片完成范围。
+
+本片最终验收：非 test 的实验 feature 编译通过，普通 D10 SSA 十一项通过／两项
+CI-only ignored，含经新封包交付后的 72 条有界路径。新负控精确编译列举一项，
+未执行；实验 tests 严格 Clippy、默认 codegen check、格式、文档 957、全仓尺寸
+（基底 main `cc83d9ec`）及独立源码/生命周期/全图审查通过。没有运行 native、
+本地故障注入或推送；远端 CI 及动态故障拒绝仍待实际执行。

@@ -624,7 +624,7 @@ impl From<BuilderError> for LlvmAdapterError {
 }
 
 /// 把已验证的 target-independent SSA 映射为当前受支持宿主的 LLVM IR 文本。
-#[cfg(test)]
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
 pub(crate) fn render_verified_program(program: &Program) -> Result<String, LlvmAdapterError> {
     adapter::render_verified_program(program, None)
 }

@@ -51,3 +51,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'child-then-parent ownership identity CI-only test compiled/listed; not executed'
 fi
+
+after_publication=ssa::d10_dual_nested_loop_tests::parent_after_child::bound::ci_only_after_child_publication_rejects_identity_and_graph_mismatch
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$after_publication" -- --exact --ignored --list)
+[[ $(grep -Fxc "$after_publication: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$after_publication" -- --exact --ignored
+else
+  echo 'AfterChild publication identity/graph controls compiled/listed; not executed'
+fi

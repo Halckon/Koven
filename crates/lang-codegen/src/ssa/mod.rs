@@ -354,3 +354,6 @@ pub(crate) mod d10_dual_nested_loop_tests;
 
 #[cfg(all(test, feature = "d10-catalog-experiment"))]
 mod d10_main428_boundary_tests;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod d10_after_child_graph;

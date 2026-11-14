@@ -1,5 +1,8 @@
 //! Koven SSA 与本机代码生成的公共 crate 边界。
 
+#[cfg(feature = "d10-catalog-experiment")]
+pub mod d10_experiment;
+
 pub(crate) mod native;
 #[cfg(test)]
 mod native_borrow_last_use_cases {

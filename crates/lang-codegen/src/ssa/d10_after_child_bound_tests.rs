@@ -115,17 +115,31 @@ fn sealed_after_child_handoff_replays_actual_operations_and_edges() {
             let [entry] = entries.as_slice() else {
                 panic!("one bound entry")
             };
-            let (program, function) =
-                unit_lower::lower_owned_unit_with_entry(&unit, entry.id()).unwrap();
-            replay(&unit, &bound, &program, function);
+            let artifact_unit = owned_compilation_unit_view(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                bound.ownership(),
+            )
+            .unwrap();
+            let artifact = crate::d10_experiment::lower_after_child(artifact_unit, &bound)
+                .expect("ordinary lowering plus independent actual graph check");
+            assert_eq!(artifact.callable(), callable);
+            assert_eq!(artifact.source_count(), 1);
+            assert!(artifact.function_name().is_some());
+            let (program, function) = artifact.replay_input();
+            assert_eq!(entry.root(), callable.item());
+            replay(&unit, &bound, program, function);
             super::super::path::check_after_child(
-                &program,
+                program,
                 function,
                 &literal_bytes(&unit, bound.producer_sites()[0]),
                 &literal_bytes(&unit, bound.producer_sites()[2]),
                 &literal_bytes(&unit, bound.retained().source().1),
             );
-            crate::llvm::render_verified_program(&program).unwrap();
+            artifact.verified_llvm_ir().unwrap();
         }
     }
 }
@@ -354,6 +368,72 @@ fn replay(
                 operator: CheckedArithmeticOperator::Subtract,
                 divisor: v(one, 0)
             })
+        );
+    }
+}
+
+#[test]
+#[ignore = "CI-only AfterChild publication identity and graph negative controls"]
+fn ci_only_after_child_publication_rejects_identity_and_graph_mismatch() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    let mut sources = SourceMap::new();
+    let (source_id, parsed) =
+        unit_lower_test_support::parsed(&mut sources, "after-negative.ko", AFTER_SOURCE);
+    let inputs = [SourceUnitInput::memory_document(source_id, &parsed)];
+    let (environment, types) = standard_environments();
+    let (names, typed, ordinary_owned) =
+        unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+    let bound =
+        experiment::analyze_after_child_nested_loop(&sources, &inputs, &names, &types, &typed)
+            .unwrap()
+            .unwrap();
+    let foreign =
+        owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, &ordinary_owned)
+            .unwrap();
+    let error = match crate::d10_experiment::lower_after_child(foreign, &bound) {
+        Ok(_) => panic!("foreign final-owned identity must not publish"),
+        Err(error) => error,
+    };
+    assert_eq!(error.stage(), crate::d10_experiment::Stage::Identity);
+    let unit =
+        owned_compilation_unit_view(&sources, &inputs, &names, &types, &typed, bound.ownership())
+            .unwrap();
+    let callable = bound.controls().0;
+    let entry = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.source_unit() == callable.source_unit() && d.root() == callable.item())
+        .unwrap()
+        .id();
+    // These faults preserve IR-local validity. Only the source/graph relation must refuse them.
+    for fault in 0..3 {
+        let (mut program, function) =
+            unit_lower::lower_owned_unit_with_entry(&unit, entry).unwrap();
+        let f = program
+            .module_mut(function.module())
+            .unwrap()
+            .function_mut(function)
+            .unwrap();
+        let instruction = f
+            .instructions
+            .iter_mut()
+            .find(|i| match fault {
+                0 => matches!(i.operation, Operation::StringLiteral { .. }),
+                1 => matches!(i.operation, Operation::Constant(ScalarConstant::Integer(1))),
+                _ => matches!(i.operation, Operation::Read { .. }),
+            })
+            .unwrap();
+        match (&mut instruction.operation, fault) {
+            (Operation::StringLiteral { bytes, .. }, 0) => bytes.push(b'!'),
+            (Operation::Constant(ScalarConstant::Integer(value)), 1) => *value = 2,
+            (_, 2) => instruction.origin = f.origin.clone(),
+            _ => unreachable!("selected controlled fault"),
+        }
+        verify::verify_program(&program).unwrap();
+        assert!(
+            crate::ssa::d10_after_child_graph::check(&unit, &bound, &program, function).is_err()
         );
     }
 }
