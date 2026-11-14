@@ -353,6 +353,28 @@ pub(super) fn plan_unit_instances_from_facts(
     entry: DeclarationId,
     max_generic_instances: usize,
 ) -> Result<UnitInstancePlan, LoweringError> {
+    plan_unit_root_set_from_facts(
+        parsed_by_source,
+        names,
+        typed,
+        owned,
+        &[entry],
+        max_generic_instances,
+        false,
+    )
+}
+
+// Experimental root-set assembly shares the existing worklist, never separate plans.
+// Production uses only the singleton wrapper above and retains its admission rules.
+fn plan_unit_root_set_from_facts(
+    parsed_by_source: &[&ParsedFile],
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &CompilationUnitOwnership,
+    entries: &[DeclarationId],
+    max_generic_instances: usize,
+    top_level_only: bool,
+) -> Result<UnitInstancePlan, LoweringError> {
     let templates = collect_templates(names, typed, parsed_by_source)?;
     let template_by_target = templates
         .iter()
@@ -365,27 +387,43 @@ pub(super) fn plan_unit_instances_from_facts(
             span: None,
         });
     }
-    let entry_template = template_by_target
-        .get(&UnitCallableTarget::Declaration(entry))
-        .copied()
-        .ok_or(LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: names
-                .names()
-                .index()
-                .declarations()
-                .get(entry.index())
-                .map(|declaration| declaration.name_span()),
-        })?;
-    if templates[entry_template].deinit || !templates[entry_template].type_parameters.is_empty() {
-        return Err(lowering_error(
-            LoweringErrorKind::UnsupportedNode,
-            templates[entry_template].span,
-        ));
+    let roots = entries.iter().copied().collect::<BTreeSet<_>>();
+    if roots.is_empty() || roots.len() != entries.len() {
+        return Err(LoweringError {
+            kind: LoweringErrorKind::InvalidModel,
+            span: None,
+        });
+    }
+    for entry in &roots {
+        let entry_template = template_by_target
+            .get(&UnitCallableTarget::Declaration(*entry))
+            .copied()
+            .ok_or(LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: names
+                    .names()
+                    .index()
+                    .declarations()
+                    .get(entry.index())
+                    .map(|declaration| declaration.name_span()),
+            })?;
+        let template = &templates[entry_template];
+        if template.deinit
+            || !template.type_parameters.is_empty()
+            || (top_level_only && template.owner.is_some())
+        {
+            return Err(lowering_error(
+                LoweringErrorKind::UnsupportedNode,
+                template.span,
+            ));
+        }
     }
 
     let calls_by_template = index_calls(typed, owned, parsed_by_source, &templates)?;
-    let mut pending = BTreeSet::from([UnitFunctionInstanceKey::new(entry, Vec::new())]);
+    let mut pending = roots
+        .into_iter()
+        .map(UnitFunctionInstanceKey::for_entry)
+        .collect::<BTreeSet<_>>();
     let mut planned = BTreeMap::new();
     let mut runtime_type_demands = BTreeMap::new();
     let mut generic_instance_count = 0;
@@ -814,3 +852,6 @@ fn unit_callable_owner(
             .map(|nominal| (nominal.declaration(), nominal.type_parameters().len())),
     }
 }
+
+#[cfg(test)]
+mod root_set_tests;

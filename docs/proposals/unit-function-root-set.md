@@ -1,6 +1,6 @@
 # Unit 函数根集合候选：保留 whole-file 身份见证
 
-> **性质**：非规范工程合同候选 · **状态**：未启用、未实现 · **唯一真源**：本候选；现行规则仍以 Guide/accepted ADR 为准 · **基线**：`3ce91326` · **读取时机**：评审 D10 旧 whole-file 测试退出路径时
+> **性质**：非规范工程合同候选 · **状态**：未启用；planner 隔离原型已通过两项普通测试 · **唯一真源**：本候选；现行规则仍以 Guide/accepted ADR 为准 · **基线**：`3ce91326` · **读取时机**：评审 D10 旧 whole-file 测试退出路径时
 
 ## 问题与范围
 
@@ -60,4 +60,15 @@ verifier 原本已共享，因此不应拼接多个独立 Program 或重映射�
 拆出新的候选而非调整断言求通过。此方案不解决 legacy MissingFact、mapper 身份、
 旧拒绝边界或条件清理 oracle；即使两项迁移完成，也不能宣称旧 frontend 可全部删除。
 
-本稿仅由源码静态核对得出；尚无 root-set 实现、测试通过或 CI 验收。
+## 隔离原型进度（不启用完整候选）
+
+在 `e925eea2` 上推进第一片：共享 planner 内部根集合 worklist，生产入口仍仅传
+单根并保留原校验；多根调用仅存在私有测试模块，不提供 driver/lowering 入口。
+普通原源核共同计划的九/四实例、根映射、与各单根可达 key 的精确并集关系及逆序根
+输入的完整计划相等。该证据不是共同 SSA Program、LLVM 符号或 native 验收。
+尚未实现多根 orchestrate/返回 FunctionId 映射；共享预算拒绝、内部非法身份及
+失败原子性也未完成动态验收。旧 whole-file 测试全部保留，Origin 与语言合同不变。
+
+当前实跑：rooted/basic validated 来源的两个完整 FQN ordinary exact 各 1/1，
+最终源码 no-run 编译通过。独立审查未发现 singleton 校验顺序回归；未执行故障、
+全量或 native 测试，未推送。MemoryDocument、共同 SSA/LLVM 和预算边界仍待验收。
