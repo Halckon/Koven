@@ -41,6 +41,8 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [集合算法所有权原候选](collection-algorithm-ownership.md)：保留原稿供对照，不作为独立启用依据
 - [集合算法所有权受审修订（r3.1）](collection-algorithm-ownership-r3.md)
 
+- [Origin / IO 讨论审计与候选基线](origin-io-candidate-baseline.md)：安全不变量、六项验收矩阵与未决实施门槛，非完整定稿
+
 ## 候选依赖与推进顺序
 
 2026-10-08 的 collection r3.1 小修保留核心规划方向；候选正文不启用新能力。
