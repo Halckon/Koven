@@ -160,7 +160,7 @@ impl DropPlanner<'_, '_> {
                     _ => false,
                 })
         {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
             if let Action::EndReceiverLoan(receiver) = &action
                 && let Some(probe) = &mut self.origin_probe
             {
@@ -174,7 +174,7 @@ impl DropPlanner<'_, '_> {
                         .end_receiver(UnitReceiverCallReturnEndFact { receiver });
                 }
                 Action::EndCallLoan(loan) => {
-                    #[cfg(test)]
+                    #[cfg(any(test, feature = "d10-catalog-experiment"))]
                     if let Some(probe) = &mut self.origin_probe {
                         probe.push(
                             super::owner_transport::origin_probe::Event::PendingBorrowRemoved {

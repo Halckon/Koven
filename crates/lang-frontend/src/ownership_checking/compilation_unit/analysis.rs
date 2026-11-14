@@ -19,6 +19,35 @@ pub(super) fn analyze(
     typed: &CompilationUnitTypes,
     constant_control: bool,
 ) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
+    #[cfg(feature = "d10-catalog-experiment")]
+    {
+        analyze_inner(sources, inputs, names, environment, typed, constant_control)
+            .map(|(owned, _)| owned)
+    }
+    #[cfg(not(feature = "d10-catalog-experiment"))]
+    {
+        analyze_inner(sources, inputs, names, environment, typed, constant_control)
+    }
+}
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(super) use analyze_inner as analyze_with_catalog;
+#[cfg(feature = "d10-catalog-experiment")]
+type AnalysisOutput = (
+    CompilationUnitOwnership,
+    Vec<super::d10_catalog_experiment::Pending>,
+);
+#[cfg(not(feature = "d10-catalog-experiment"))]
+type AnalysisOutput = CompilationUnitOwnership;
+
+pub(super) fn analyze_inner(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &CompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &CompilationUnitTypes,
+    constant_control: bool,
+) -> Result<AnalysisOutput, OwnershipCheckingError> {
     if !typed.is_compatible_with_raw(sources, inputs, names, environment) {
         return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes);
     }
@@ -114,6 +143,8 @@ pub(super) fn analyze(
         ),
     )?;
     if !dataflow.diagnostics.is_empty() || !typed.has_valid_type_facts() {
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.catalogs.clear();
         dataflow.formed_owned_locals.clear();
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
@@ -140,6 +171,8 @@ pub(super) fn analyze(
         dataflow.conditional_receiver_drops.clear();
     }
 
+    #[cfg(feature = "d10-catalog-experiment")]
+    let catalogs = std::mem::take(&mut dataflow.catalogs);
     let owned = CompilationUnitOwnership::new(
         typed,
         bindings.into_values().collect(),
@@ -148,7 +181,14 @@ pub(super) fn analyze(
         capture,
         dataflow,
     );
-    Ok(owned)
+    #[cfg(feature = "d10-catalog-experiment")]
+    {
+        Ok((owned, catalogs))
+    }
+    #[cfg(not(feature = "d10-catalog-experiment"))]
+    {
+        Ok(owned)
+    }
 }
 
 fn collect_callable_bindings(

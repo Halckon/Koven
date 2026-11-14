@@ -10,3 +10,4 @@ workspace = true
 
 [features]
 loan-observation-test-support = []
+d10-catalog-experiment = []

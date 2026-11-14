@@ -6,9 +6,9 @@ pub(super) mod carry_probe;
 pub(super) mod choice;
 mod entry_concat;
 pub(super) mod loops;
-#[cfg(test)]
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
 pub(super) mod origin_probe;
-#[cfg(test)]
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
 pub(super) mod producer_catalog;
 pub(super) mod replace_call_consumer;
 pub(super) mod replace_consumer;
@@ -270,7 +270,7 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
         self.origin_literal(expression);
         self.owner_loop
             .segment_literal(self.checker.unit_expression(expression));
@@ -288,7 +288,7 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
         if let Some(value) = &value {
             self.origin_moved(expression, value.symbol);
         }
@@ -342,7 +342,7 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn inserted_owner(&mut self, symbol: UnitSymbolId, initializer: ExpressionId) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
         self.origin_bound(symbol, initializer);
         if let Some(choice) = &mut self.owner_choice {
             choice.bound(symbol, self.checker.unit_expression(initializer));
@@ -507,7 +507,7 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
         self.check_owner_expression(id)?;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
         if matches!(
             self.checker.parsed.ast().expressions().get(id)?.payload(),
             Expression::Call { .. }

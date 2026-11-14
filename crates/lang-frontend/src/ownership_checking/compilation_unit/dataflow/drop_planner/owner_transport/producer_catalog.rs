@@ -1,6 +1,7 @@
 //! Independent per-planner construction. No legacy owner tokens, no certificates.
 use super::*;
 use std::sync::Arc;
+#[cfg(test)]
 mod authorization;
 mod coverage;
 
@@ -34,20 +35,25 @@ pub(in super::super) struct Closed {
 }
 
 impl Catalog {
+    #[cfg(test)]
     pub(in super::super) fn definitions(&self) -> &[(UnitExpressionId, Token)] {
         &self.definitions
     }
+    #[cfg(test)]
     pub(in super::super) fn roots(&self) -> &[(UnitSymbolId, Token)] {
         &self.roots
     }
+    #[cfg(test)]
     pub(in super::super) fn retirements(
         &self,
     ) -> &[(Token, crate::ownership_checking::UnitDropFact)] {
         &self.retirements
     }
+    #[cfg(test)]
     pub(in super::super) fn replacements(&self) -> &[(UnitSymbolId, Token, Token)] {
         &self.replacements
     }
+    #[cfg(test)]
     pub(in super::super) fn failed(&self) -> bool {
         self.failed
     }
@@ -115,6 +121,7 @@ impl Catalog {
         })
     }
 
+    #[cfg(test)]
     pub(in super::super) fn pending_is_empty(&self) -> bool {
         self.pending.is_empty()
     }
@@ -217,5 +224,49 @@ impl DropPlanner<'_, '_> {
         catalog.coverage = self.catalog_coverage();
         catalog.failed = catalog.coverage.is_none();
         self.producer_catalog = Some(catalog);
+    }
+}
+
+#[cfg(feature = "d10-catalog-experiment")]
+impl Catalog {
+    pub(in super::super) fn into_pending(
+        self,
+    ) -> Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::Pending> {
+        use crate::ownership_checking::compilation_unit::d10_catalog_experiment::{
+            Producer, ProducerIdentity, Replacement,
+        };
+        self.close()?;
+        let coverage = self.coverage.as_ref()?;
+        let producers = self
+            .definitions
+            .iter()
+            .map(|(expression, token)| {
+                let (_, fact) = self.retirements.iter().find(|(t, _)| t == token)?;
+                Some(Producer {
+                    identity: ProducerIdentity::new(token.identity.clone(), token.index),
+                    expression: *expression,
+                    cleanup: *fact,
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(
+            crate::ownership_checking::compilation_unit::d10_catalog_experiment::Pending {
+                typed: self.analysis,
+                callable: coverage.callable,
+                producers,
+                replacement: Replacement {
+                    root: self.replacements[0].0,
+                    call: coverage.call,
+                    previous: ProducerIdentity::new(
+                        self.replacements[0].1.identity.clone(),
+                        self.replacements[0].1.index,
+                    ),
+                    incoming: ProducerIdentity::new(
+                        self.replacements[0].2.identity.clone(),
+                        self.replacements[0].2.index,
+                    ),
+                },
+            },
+        )
     }
 }

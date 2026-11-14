@@ -186,11 +186,13 @@ impl DropPlanner<'_, '_> {
 }
 
 /// A partition of observed events, not proof of complete source semantics or CFG.
+#[cfg(test)]
 pub(in super::super) struct IfPartition<'a> {
     pub(in super::super) arms: [&'a [Event]; 2],
     pub(in super::super) continues: [bool; 2],
 }
 
+#[cfg(test)]
 pub(in super::super) fn partition_if(events: &[Event]) -> Option<IfPartition<'_>> {
     let Event::Branch {
         control,
@@ -256,6 +258,7 @@ pub(in super::super) fn partition_if(events: &[Event]) -> Option<IfPartition<'_>
 
 /// Structural attribution of one observed branch. Opaque calls remain opaque;
 /// this is not full semantic coverage, dynamic paths, or SSA predecessors.
+#[cfg(test)]
 pub(in super::super) struct ObservedIf<'a> {
     pub(in super::super) prefix: &'a [Event],
     pub(in super::super) arms: [&'a [Event]; 2],
@@ -263,6 +266,7 @@ pub(in super::super) struct ObservedIf<'a> {
     pub(in super::super) continuing_arms: Vec<usize>,
 }
 
+#[cfg(test)]
 pub(in super::super) fn attribute_observed_if(events: &[Event]) -> Option<ObservedIf<'_>> {
     if events
         .iter()
@@ -338,6 +342,7 @@ pub(in super::super) fn attribute_observed_if(events: &[Event]) -> Option<Observ
 }
 
 /// One static, normally completing body traversal, not a dynamic backedge.
+#[cfg(test)]
 pub(in super::super) fn observed_normal_loop(events: &[Event]) -> Option<&[Event]> {
     let start = events
         .iter()

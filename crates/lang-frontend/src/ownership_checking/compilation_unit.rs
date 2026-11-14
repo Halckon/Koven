@@ -1150,3 +1150,6 @@ pub(crate) fn check_compilation_unit_ownership_recovering(
 
 #[cfg(feature = "loan-observation-test-support")]
 pub(super) mod loan_observation_test_support;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub mod d10_catalog_experiment;

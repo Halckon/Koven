@@ -225,3 +225,6 @@ mod research_borrow_consumer_body;
 pub use research_borrow_consumer_body::{
     BorrowBodyConsumerReturn, BorrowConsumerBodyObservation, capture_borrow_consumer_bodies,
 };
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub use compilation_unit::d10_catalog_experiment;

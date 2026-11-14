@@ -292,7 +292,34 @@ SSA 发射。不能把授权函数名称理解为已批准生产 lowering，后�
 多次分析不混包以及最终成功才 commit；为减少这种隐式状态，此候选不优先采用它。
 所有异分析/错配/中途失败负控仅 CI 执行，本地只编译列举。
 
-该发布 sidecar **尚未实现**，因此本轮仍拒绝导出当前 `authorize` 给 codegen，
-不新增 Replace emitter 入口，也不删除 ordinary primitive gate。无循环 sidecar
-闭环完成后，才扩展单循环 catalog 与真实 SSA/Drop replay；不能跳过 owned 身份
+该发布 sidecar 在上一设计阶段尚未实现；下节落实无循环首片，但仍不导出
+旧 typed-only `authorize` 给 codegen，不新增 Replace emitter 入口，也不删除
+ordinary primitive gate。后续才扩展单循环 catalog 与真实 SSA/Drop replay；不能跳过 owned 身份
 缺口，或用 AST 重建替代真实观察以赶上发射进度。
+
+### 显式 sidecar 无循环首片实现
+
+新增默认关闭的 `d10-catalog-experiment` feature。启用时，实际 planner hook 收集
+catalog，完整 planner 收尾后才 close 成 Pending；随 dataflow 返回值汇总，失败
+自动丢弃，诊断清空时亦清空候选。最终 ownership 构造后，专用实验入口检查完整
+无 deferred/diagnostic、真实 DropFact 精确配对及 validate，才返回私有构造的
+BoundCatalog。包持有这次实际最终 owned，`matches(view)` 核 ownership 独立身份。
+不使用 TLS，也不提供把旧 catalog 补绑定已有 owned 的公开 API。
+
+导出数据保留原 planner 的 opaque producer nonce/index，以及真实 Replace 的根、
+call、old/new producer 关系和每个 producer 对应的精确 DropFact；只读 getter，
+不接受外部构造 token。feature 开启时普通 analyze 也采集后丢弃 sidecar；默认
+feature 关闭时这些字段、hook 与桥均不进入依赖图。原 ownership product 未增加
+实验字段，不改其 clone/相等性或普通 primitive gate。
+
+外部集成测试覆盖 Rooted/MemoryDocument 的现有无循环正例、普通 loop 与带额外
+suffix 的未覆盖合法源码拒绝。另一 ownership run/producer 身份错配验收仅 CI，
+本地只编译列举。仍未实现单循环 catalog、Replace SSA 发射、跨 crate codegen
+消费或 cleanup replay；这个只读配对包不是生产 lowering 资格。
+
+中途失败不发布目前依据显式返回值和清空路径的独审，尚无已执行的专门故障负控；
+此次新增 CI 目标仅验最终 owned/producer 身份错配，不能代替失败原子性验收。
+
+组合 feature 回归中，独立 planner 的 nonce 不应相等。比较器现先比较实验快照的
+source/cleanup 完整投影及 old/new 各自唯一 producer 索引，再取出实验 sidecar，
+原样比较全部 legacy 字段。未改 producer nonce 或 ownership product 的相等性。

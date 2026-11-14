@@ -66,6 +66,9 @@ use model::{
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub(super) struct Analysis {
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) catalog:
+        Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::Pending>,
     pub(super) iteration_conditional_scopes:
         Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     pub(super) iteration_owner_scopes: Vec<(
@@ -137,6 +140,8 @@ fn plan_with_observations(
         })
         .collect();
     let mut planner = DropPlanner::new(checker, liveness);
+    #[cfg(feature = "d10-catalog-experiment")]
+    planner.enable_producer_catalog();
     planner.owner_observation_enabled = enabled;
     planner.iteration_actions.enabled = loan_actions_enabled;
     let planner = planner.run()?;
@@ -205,6 +210,8 @@ fn plan_with_observations(
         .map(|fact| fact.into_unit(checker.source_unit))
         .collect();
     Ok(Analysis {
+        #[cfg(feature = "d10-catalog-experiment")]
+        catalog: planner.producer_catalog.and_then(|c| c.into_pending()),
         owner_observations: planner.owner_observations,
         loan_action_observations: planner
             .iteration_actions
@@ -235,9 +242,9 @@ fn plan_with_observations(
 struct DropPlanner<'a, 'checker> {
     #[cfg(test)]
     carry_probe: Option<Vec<owner_transport::carry_probe::Visit>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
     origin_probe: Option<Vec<owner_transport::origin_probe::Event>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
     producer_catalog: Option<owner_transport::producer_catalog::Catalog>,
     scalar_entry: Option<owner_transport::loops::scalar_entry::Tracker>,
     no_carry_exit: no_carry_exit::Tracker,
@@ -289,9 +296,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Self {
             #[cfg(test)]
             carry_probe: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
             origin_probe: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
             producer_catalog: None,
             scalar_entry: None,
             no_carry_exit: no_carry_exit::Tracker::default(),
@@ -1180,7 +1187,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     for place in plan.places() {
                         if let Some(index) = state.position(place.root()) {
                             state.values[index].origin = node.span();
-                            #[cfg(test)]
+                            #[cfg(any(test, feature = "d10-catalog-experiment"))]
                             self.origin_applied(id, place.root());
                         }
                     }

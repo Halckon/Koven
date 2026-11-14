@@ -112,7 +112,7 @@ impl DropPlanner<'_, '_> {
             let super::model::PendingLoan(action, _, acquisition) =
                 state.pending_loans.remove(index);
             if let Action::EndCallLoan(loan) = &action {
-                #[cfg(test)]
+                #[cfg(any(test, feature = "d10-catalog-experiment"))]
                 if let Some(probe) = &mut self.origin_probe {
                     probe.push(
                         super::owner_transport::origin_probe::Event::DirectBorrowEnded {

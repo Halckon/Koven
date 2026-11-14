@@ -79,6 +79,8 @@ use flow::{
 };
 
 pub(super) struct Analysis {
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) catalogs: Vec<super::d10_catalog_experiment::Pending>,
     pub(super) no_carry: super::loop_no_carry::CompletedNoCarry,
     pub(super) borrow_return_origins:
         Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
@@ -258,6 +260,8 @@ pub(super) fn analyze(
     let mut borrow_return_origins = Vec::new();
     let mut no_carry = super::loop_no_carry::CompletedNoCarry::default();
     let mut borrow_results = crate::ownership_checking::borrow_result::UnitBorrowResults::default();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut catalogs = Vec::new();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
     let mut map_iterations = Vec::new();
@@ -323,6 +327,8 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        catalogs.extend(drop_analysis.catalog);
         no_carry.extend(checker.finish_no_carry_proofs(&drop_analysis.no_carry)?);
         nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
@@ -436,6 +442,8 @@ pub(super) fn analyze(
         .range_uses
         .sort_by_key(|fact| fact.expression());
     Ok(Analysis {
+        #[cfg(feature = "d10-catalog-experiment")]
+        catalogs,
         no_carry,
         borrow_results,
         borrow_return_origins,

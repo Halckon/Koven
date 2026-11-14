@@ -151,6 +151,39 @@ fn compare_and_inspect_control_mode(
     observed.loan_action_observations.clear();
     disabled.loan_action_observations.clear();
     observed.owner_observations.clear();
+    #[cfg(feature = "d10-catalog-experiment")]
+    {
+        // Independent planner runs intentionally have different opaque producer nonces.
+        // Compare the complete source/cleanup projection separately, then all legacy fields.
+        let on = observed.catalog.take();
+        let off = disabled.catalog.take();
+        assert_eq!(on.is_some(), off.is_some());
+        if let (Some(on), Some(off)) = (on, off) {
+            assert_eq!(on.callable, off.callable);
+            assert_eq!(on.replacement.root(), off.replacement.root());
+            assert_eq!(on.replacement.call(), off.replacement.call());
+            let relation = |pending: &crate::ownership_checking::compilation_unit::d10_catalog_experiment::Pending| {
+                [pending.replacement.previous(), pending.replacement.incoming()].map(|identity| {
+                    let matches = pending.producers.iter().enumerate().filter(|(_, p)| p.identity() == identity).map(|(index, _)| index).collect::<Vec<_>>();
+                    assert_eq!(matches.len(), 1);
+                    matches[0]
+                })
+            };
+            assert_eq!(relation(&on), relation(&off));
+
+            assert_eq!(
+                on.producers
+                    .iter()
+                    .map(|p| (p.expression(), p.cleanup()))
+                    .collect::<Vec<_>>(),
+                off.producers
+                    .iter()
+                    .map(|p| (p.expression(), p.cleanup()))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
     assert_eq!(
         observed, disabled,
         "all legacy cleanup fields, their identities and order must be identical"

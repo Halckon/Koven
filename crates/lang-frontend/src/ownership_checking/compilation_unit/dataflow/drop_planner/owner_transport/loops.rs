@@ -704,7 +704,7 @@ impl DropPlanner<'_, '_> {
         if !self.expression(condition, DropExpressionUse::Read, state)? {
             return Ok(false);
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
         self.origin_while(
             UnitStatementId::new(self.checker.source_unit, id),
             super::origin_probe::WhileRole::ConditionEvaluated,
@@ -785,13 +785,13 @@ impl DropPlanner<'_, '_> {
             self.advance_loop_invariant_observation(&mut loop_lineage, &body_state, 1, true);
             self.no_carry_exit_begin(id, body, &body_state);
             self.loop_boundaries.push(self.scope_depth);
-            #[cfg(test)]
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
             self.origin_while(
                 UnitStatementId::new(self.checker.source_unit, id),
                 super::origin_probe::WhileRole::BodyEnter,
             );
             let continued = self.statement(body, &mut body_state);
-            #[cfg(test)]
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
             self.origin_while(
                 UnitStatementId::new(self.checker.source_unit, id),
                 super::origin_probe::WhileRole::BodyExit(continued.as_ref().ok().copied()),
