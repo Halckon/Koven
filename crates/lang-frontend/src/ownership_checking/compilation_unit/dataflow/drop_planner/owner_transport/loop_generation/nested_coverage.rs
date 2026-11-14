@@ -18,13 +18,14 @@ pub(super) struct NestedCoverage {
 impl DropPlanner<'_, '_> {
     pub(super) fn nested_generation_coverage(
         &self,
-        parent: UnitStatementId,
-        child: UnitStatementId,
+        controls: (UnitStatementId, UnitStatementId),
         root: UnitSymbolId,
         old_root: UnitSymbolId,
         sites: (UnitExpressionId, UnitExpressionId, UnitExpressionId),
         retained: &Retained,
+        parent_replace: bool,
     ) -> Option<NestedCoverage> {
+        let (parent, child) = controls;
         let (initial, incoming, call) = sites;
         let c = self.checker;
         let ast = c.parsed.ast();
@@ -128,10 +129,14 @@ impl DropPlanner<'_, '_> {
         else {
             return None;
         };
-        let [counter_statement, actual_loop, parent_step_statement] = block_elements(*parent_body)?
-        else {
-            return None;
-        };
+        // The selected mode fixes the exact Replace declaration position. Neither
+        // mode permits both loops to replace, or a parent Replace after the child.
+        let (parent_old_statement, counter_statement, actual_loop, parent_step_statement) =
+            match (parent_replace, block_elements(*parent_body)?) {
+                (false, [counter, child_loop, step]) => (None, counter, child_loop, step),
+                (true, [old, counter, child_loop, step]) => (Some(old), counter, child_loop, step),
+                _ => return None,
+            };
         if UnitStatementId::new(c.source_unit, *actual_loop) != child {
             return None;
         }
@@ -141,8 +146,10 @@ impl DropPlanner<'_, '_> {
         else {
             return None;
         };
-        let [old_statement, step_statement] = block_elements(*body)? else {
-            return None;
+        let (old_statement, step_statement) = match (parent_old_statement, block_elements(*body)?) {
+            (None, [old, step]) => (old, step),
+            (Some(old), [step]) => (old, step),
+            _ => return None,
         };
         let binding = |statement, expected| {
             let Statement::LocalVariable { declaration } =

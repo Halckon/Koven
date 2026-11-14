@@ -20,6 +20,17 @@ const SOURCE: &str = r#"fun run(count: Int) {
  println(b)
 }"#;
 
+const PARENT: &str = r#"fun run(count: Int) {
+ var a = "first"; var b = "kept"; var outer = count
+ while(outer > 0) {
+   val old = replace(&a, "next")
+   var inner = count
+   while(inner > 0) { inner -= 1 }
+   outer -= 1
+ }
+ println(b)
+}"#;
+
 #[test]
 fn nested_handoff_closes_real_source_and_preserves_final_identity() {
     run_cases(false);
@@ -34,6 +45,29 @@ fn ci_only_nested_rejects_another_ownership_run() {
 
 fn run_cases(check_mismatch: bool) {
     let cases = [
+        (PARENT.to_owned(), true),
+        (
+            PARENT
+                .replace("count", "limit")
+                .replace("outer", "major")
+                .replace("inner", "minor")
+                .replace("kept", "留"),
+            true,
+        ),
+        (PARENT.replace("inner -= 1", "inner -= 1; break"), false),
+        (
+            PARENT.replace("var inner = count", "var inner = outer"),
+            false,
+        ),
+        (PARENT.replace("outer -= 1", "outer -= 2"), false),
+        (PARENT.replace("println(b)", "println(a)"), false),
+        (
+            PARENT.replace(
+                "inner -= 1",
+                "val more = replace(&a, \"another\"); inner -= 1",
+            ),
+            false,
+        ),
         (SOURCE.to_string(), true),
         (
             SOURCE
@@ -123,6 +157,15 @@ fn run_cases(check_mismatch: bool) {
                 }
                 let (_, parent, child) = bound.controls();
                 assert_ne!(parent, child);
+                let parent_replace = text.find("val old").unwrap()
+                    < text
+                        .find("var inner")
+                        .or_else(|| text.find("var minor"))
+                        .unwrap();
+                assert_eq!(
+                    bound.replacement_control(),
+                    if parent_replace { parent } else { child }
+                );
                 let (root, outer, inner, parameter) = bound.roots();
                 let kept = bound.retained().unwrap();
                 let ids = [root, outer, inner, parameter, kept.source().0];

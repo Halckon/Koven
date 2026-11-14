@@ -67,7 +67,7 @@ impl DropPlanner<'_, '_> {
                 },
             )
         };
-        let [
+        let ([
             Event::WhileTraversal {
                 control,
                 role: WhileRole::Enter,
@@ -122,7 +122,63 @@ impl DropPlanner<'_, '_> {
                 control: exit_control,
                 role: WhileRole::Exit(Some(true)),
             },
-        ] = loop_events
+        ]
+        | [
+            Event::WhileTraversal {
+                control,
+                role: WhileRole::Enter,
+            },
+            Event::WhileTraversal {
+                control: condition_control,
+                role: WhileRole::ConditionEvaluated,
+            },
+            Event::WhileTraversal {
+                control: body_control,
+                role: WhileRole::BodyEnter,
+            },
+            Event::BorrowRegistered(loan),
+            Event::Literal(incoming),
+            Event::Applied {
+                call,
+                root: replaced,
+                incoming: applied_incoming,
+            },
+            Event::PendingBorrowRemoved {
+                loan: removed,
+                call: removal_call,
+            },
+            Event::Bound(old_root, old_call),
+            Event::Dropped(old_drop),
+            Event::WhileTraversal {
+                control: child,
+                role: WhileRole::Enter,
+            },
+            Event::WhileTraversal {
+                control: child_condition,
+                role: WhileRole::ConditionEvaluated,
+            },
+            Event::WhileTraversal {
+                control: child_body,
+                role: WhileRole::BodyEnter,
+            },
+            Event::WhileTraversal {
+                control: child_back,
+                role: WhileRole::BodyExit(Some(true)),
+            },
+            Event::WhileTraversal {
+                control: child_exit,
+                role: WhileRole::Exit(Some(true)),
+            },
+            Event::WhileTraversal {
+                control: back_control,
+                role: WhileRole::BodyExit(Some(true)),
+            },
+            Event::Dropped(exit_drop),
+            Event::WhileTraversal {
+                control: exit_control,
+                role: WhileRole::Exit(Some(true)),
+            },
+        ]) = loop_events
         else {
             return None;
         };
@@ -222,15 +278,17 @@ impl DropPlanner<'_, '_> {
         if !place.is_root() || place.root() != *root {
             return None;
         }
+        let parent_replace = matches!(loop_events.get(3), Some(Event::BorrowRegistered(_)));
         let coverage = self.nested_generation_coverage(
-            *control,
-            *child,
+            (*control, *child),
             *root,
             *old_root,
             (*initial, *incoming, *call),
             &retained,
+            parent_replace,
         )?;
         Some(NestedPending {
+            replacement_control: if parent_replace { *control } else { *child },
             child: *child,
             child_counter: coverage.child_counter,
             child_condition: coverage.child_condition,

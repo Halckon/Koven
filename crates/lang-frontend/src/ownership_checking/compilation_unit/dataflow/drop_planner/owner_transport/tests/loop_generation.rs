@@ -289,3 +289,39 @@ fn ordinary_nested_trace_preserves_parent_exit_cleanup_without_single_loop_admis
         );
     });
 }
+
+#[cfg(feature = "d10-catalog-experiment")]
+#[test]
+fn parent_replace_child_counter_preserves_original_nested_observation() {
+    let text = "fun run(count: Int) { var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) { val old = replace(&a, \"next\"); var inner = count; while(inner > 0) { inner -= 1 }; outer -= 1 }; println(b) }";
+    let fixture = Fixture::new(&[("parent-generation.ko", text)]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.origin_probe = Some(Vec::new());
+        let observed = planner.run().unwrap();
+        let pending = observed
+            .nested_pending()
+            .expect("closed parent Replace observation");
+        assert_eq!(pending.replacement_control, pending.facts.control);
+        assert_ne!(pending.child, pending.facts.control);
+        assert_eq!(pending.facts.root, fixture.local(0, "a"));
+        assert_eq!(
+            pending.facts.cleanup[1].point(),
+            crate::ownership_checking::UnitDropPoint::LoopExit(pending.facts.control)
+        );
+        let retained = pending.facts.retained.unwrap();
+        assert_eq!(
+            owned.drops(),
+            &[
+                pending.facts.cleanup[0],
+                pending.facts.cleanup[1],
+                retained.cleanup()
+            ]
+        );
+        assert!(observed.loop_generation_candidate().is_none());
+    });
+}

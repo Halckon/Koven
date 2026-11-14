@@ -5,6 +5,7 @@ use super::*;
 pub(crate) struct NestedPending {
     // Reuse only the exact final fact/identity binder, not singleton admission.
     pub(crate) facts: LoopPending,
+    pub(crate) replacement_control: UnitStatementId,
     pub(crate) child: UnitStatementId,
     pub(crate) child_counter: UnitSymbolId,
     pub(crate) child_condition: UnitExpressionId,
@@ -13,6 +14,7 @@ pub(crate) struct NestedPending {
 /// Independent sealed nested sidecar. Ordinary lowering accepts no such capability.
 pub struct BoundNestedLoop {
     facts: BoundLoop,
+    replacement_control: UnitStatementId,
     child: UnitStatementId,
     child_counter: UnitSymbolId,
     child_condition: UnitExpressionId,
@@ -49,10 +51,15 @@ impl BoundNestedLoop {
             (self.child_condition, self.child_step),
         ]
     }
-    /// Initial and child-body incoming sites, not dynamic object tokens.
+    /// Initial and Replace-body incoming sites, not dynamic object tokens.
     #[must_use]
     pub const fn producer_sites(&self) -> (UnitExpressionId, UnitExpressionId) {
         self.facts.producer_sites()
+    }
+    /// Actual loop whose body contains the one Replace, distinct from cleanup control.
+    #[must_use]
+    pub const fn replacement_control(&self) -> UnitStatementId {
+        self.replacement_control
     }
     /// Actual Replace expression.
     #[must_use]
@@ -77,7 +84,8 @@ impl BoundNestedLoop {
 }
 impl NestedPending {
     fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundNestedLoop> {
-        if self.facts.retained.is_none()
+        if ![self.child, self.facts.control].contains(&self.replacement_control)
+            || self.facts.retained.is_none()
             || self.child == self.facts.control
             || [self.facts.root, self.facts.counter, self.facts.parameter]
                 .contains(&self.child_counter)
@@ -85,6 +93,7 @@ impl NestedPending {
             return None;
         }
         Some(BoundNestedLoop {
+            replacement_control: self.replacement_control,
             facts: self.facts.bind(owned)?,
             child: self.child,
             child_counter: self.child_counter,
