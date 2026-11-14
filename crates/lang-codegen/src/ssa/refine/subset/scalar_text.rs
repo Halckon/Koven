@@ -1,17 +1,108 @@
 //! Subset rules for integer intrinsics (`inv`, checked conversions), prefix `+`/`-`,
 //! `IntRange`/`LongRange` value operations, and `String.clone()` (SPEC-0371).
 use lang_frontend::{
-    ast::ExpressionId,
-    parser::{Expression, LiteralKind, PrefixOperator},
+    ast::{ExpressionId, StatementId},
+    parser::{
+        AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, PrefixOperator,
+        Statement, VariableKind,
+    },
     type_checking::{
         BuiltinType, Copyability, IntegerOperationKind, ParameterMode, StringOperationKind,
         UnitTypeId, UnitTypeKind,
     },
 };
 
-use super::Checker;
+use super::{Checker, RefineBody};
 
 impl Checker<'_, '_> {
+    /// SPEC-0454 only supplies a trigger; the enclosing signature/body/drop checks still apply.
+    pub(super) fn linear_scalar_body(&self) -> bool {
+        self.inputs.function_item.is_some()
+            && self.inputs.receiver.is_none()
+            && self.inputs.static_self.is_none()
+            && self.inputs.substitutions.is_empty()
+            && self.inputs.borrow_return.is_none()
+            && self.inputs.carrier_return.is_none()
+            && self
+                .inputs
+                .parameters
+                .iter()
+                .zip(&self.inputs.modes)
+                .all(|(symbol, mode)| {
+                    matches!(mode, ParameterMode::Value | ParameterMode::Borrow)
+                        && self.symbol_type(*symbol).is_some_and(|ty| self.scalar(ty))
+                })
+            && (self.scalar(self.inputs.return_type) || self.unit(self.inputs.return_type))
+            && match self.inputs.body {
+                RefineBody::Expression(expression) => self.linear_scalar_expression(expression),
+                RefineBody::Block(statement) => self.linear_scalar_statement(statement),
+                RefineBody::Lambda(_) => false,
+            }
+    }
+
+    /// Restrict shape, not semantics: typed facts and the normal Checker validate each node.
+    fn linear_scalar_expression(&self, expression: ExpressionId) -> bool {
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
+            return false;
+        };
+        let scalar = self
+            .expression_type(expression)
+            .is_some_and(|ty| self.scalar(ty));
+        match node.payload() {
+            Expression::Literal(_) | Expression::Name => scalar,
+            Expression::Group { expression } => self.linear_scalar_expression(*expression),
+            Expression::Prefix { operand, .. } => scalar && self.linear_scalar_expression(*operand),
+            Expression::Binary {
+                left,
+                operator,
+                right,
+                ..
+            } => {
+                scalar
+                    && !matches!(
+                        operator,
+                        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+                    )
+                    && self.linear_scalar_expression(*left)
+                    && self.linear_scalar_expression(*right)
+            }
+            Expression::Assignment {
+                target,
+                operator: AssignmentOperator::Assign,
+                value,
+                ..
+            } => self.linear_scalar_expression(*target) && self.linear_scalar_expression(*value),
+            Expression::Return { value, .. } => {
+                value.is_none_or(|value| self.linear_scalar_expression(value))
+            }
+            _ => false,
+        }
+    }
+
+    fn linear_scalar_statement(&self, statement: StatementId) -> bool {
+        let Ok(node) = self.inputs.parsed.ast().statements().get(statement) else {
+            return false;
+        };
+        match node.payload() {
+            Statement::Block { elements } => elements
+                .iter()
+                .all(|element| self.linear_scalar_statement(*element)),
+            Statement::Expression { expression } => self.linear_scalar_expression(*expression),
+            Statement::LocalVariable { declaration } => self
+                .inputs
+                .parsed
+                .ast()
+                .items()
+                .get(*declaration)
+                .is_ok_and(|item| {
+                    matches!(item.payload(),
+                    Item::Variable { kind: VariableKind::Val | VariableKind::Var, initializer, .. }
+                        if self.linear_scalar_expression(*initializer))
+                }),
+            _ => false,
+        }
+    }
+
     pub(super) fn range_type(&self, ty: UnitTypeId) -> bool {
         matches!(
             self.kind(ty),

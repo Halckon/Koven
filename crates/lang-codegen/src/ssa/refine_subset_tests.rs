@@ -15,6 +15,8 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
+mod scalar;
+
 /// Lowers `source` (package `p`) from entry `f`; returns the lowering result and whether
 /// `f` itself went through the refinement layer.
 fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
@@ -123,8 +125,8 @@ fn nullable_functions_inside_the_subset_are_routed() {
     }
 }
 
-/// Each source differs from the subset in one construct (or touches no nullable); the
-/// function keeps the per-family path whatever that path then does with it.
+/// These sources remain outside current refinement admission; the test constrains
+/// routing, not whether the selected per-family path succeeds.
 #[test]
 fn functions_outside_the_subset_keep_the_per_family_path() {
     for (reason, source) in [
@@ -133,7 +135,6 @@ fn functions_outside_the_subset_keep_the_per_family_path() {
             "fun view(s: String): borrow String from s = s\n\
              fun f(): Int { val owner = \"a\"; borrow val s = view(owner); return when (s) { \"a\" -> 1; else -> 0 } }",
         ),
-        ("no nullable", "fun f(own x: Int): Int = x + 1"),
         (
             "when with a nullable subject",
             "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",

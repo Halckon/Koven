@@ -473,10 +473,28 @@ mod temporary_route {
                             )
                         })
                     });
-                let (program, _) = lowered.unwrap();
+                let (program, entry) = lowered.unwrap();
                 verify_program(&program).unwrap();
                 crate::llvm::render_verified_program(&program).unwrap();
-                assert!(routing.is_empty());
+                let caller = program.modules[0].function(entry).unwrap();
+                assert!(
+                    !routing.contains(&caller.name),
+                    "temporary caller must not gain admission"
+                );
+                if case == 0 {
+                    // SPEC-0454 migrates only the no-argument scalar callee, not this caller.
+                    let callees = program.modules[0]
+                        .functions
+                        .iter()
+                        .filter(|function| function.id() != entry)
+                        .collect::<Vec<_>>();
+                    let [callee] = callees.as_slice() else {
+                        panic!("one scalar callee")
+                    };
+                    assert_eq!(routing.as_slice(), std::slice::from_ref(&callee.name));
+                } else {
+                    assert!(routing.is_empty());
+                }
                 assert!(receipts.is_empty());
             }
         }
