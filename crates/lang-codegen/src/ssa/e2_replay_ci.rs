@@ -49,6 +49,16 @@ fn check(mutate: impl Fn(&mut super::e2_function::EmittedFunction<'_>), structur
             .expect("semantic mutation must remain valid SSA");
     }
     assert!(super::e2_replay::replay(&emitted, &experiment, fact, &typed).is_none());
+    // Exercise the real publisher path, not a separately rejected raw candidate.
+    use super::e2_publication::{CiFault, Error, publish_ci};
+    for (fault, expected) in [
+        (CiFault::AfterEmission, Error::Replay),
+        (CiFault::AfterReplay, Error::Verify),
+    ] {
+        let result = publish_ci(&experiment, fact, &typed, fault);
+        assert!(matches!(result, Err(ref error) if *error == expected));
+        assert!(super::e2_publication::publish(&experiment, fact, &[fact], &typed).is_ok());
+    }
     // A fresh ordinary experimental publication still succeeds after this discarded candidate.
     assert!(super::e2_publication::publish(&experiment, fact, &[fact], &typed).is_ok());
 }

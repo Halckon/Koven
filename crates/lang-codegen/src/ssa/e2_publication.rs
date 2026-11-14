@@ -44,6 +44,30 @@ pub(super) fn publish<'a>(
     selected: &[&TwoSourceCounterFact],
     typed: &'a ValidatedCompilationUnitTypes,
 ) -> Result<Published<'a>, Error> {
+    publish_inner(experiment, required, selected, typed, None)
+}
+/// Closed fault vocabulary: no caller-provided mutation or gate replacement.
+pub(super) enum CiFault {
+    AfterEmission,
+    AfterReplay,
+}
+pub(super) fn publish_ci<'a>(
+    experiment: &'a TwoSourceExperiment,
+    required: &'a TwoSourceCounterFact,
+    typed: &'a ValidatedCompilationUnitTypes,
+    fault: CiFault,
+) -> Result<Published<'a>, Error> {
+    assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    publish_inner(experiment, required, &[required], typed, Some(fault))
+}
+fn publish_inner<'a>(
+    experiment: &'a TwoSourceExperiment,
+    required: &'a TwoSourceCounterFact,
+    selected: &[&TwoSourceCounterFact],
+    typed: &'a ValidatedCompilationUnitTypes,
+    fault: Option<CiFault>,
+) -> Result<Published<'a>, Error> {
     let shell = experiment
         .function_shell(required, typed)
         .ok_or(Error::Required)?;
@@ -66,10 +90,28 @@ pub(super) fn publish<'a>(
     {
         return Err(Error::Selection);
     }
-    let emitted =
+    let mut emitted =
         e2_function::emit(required.experiment, selected, required.typed).ok_or(Error::Emission)?;
+    if matches!(fault, Some(CiFault::AfterEmission)) {
+        let caller = emitted.fragments.leaves.program.modules[0]
+            .function_mut(emitted.caller)
+            .ok_or(Error::Emission)?;
+        caller.receiver = Some(
+            caller
+                .entity(caller.blocks[0].parameters[0])
+                .ok_or(Error::Emission)?
+                .ty,
+        );
+    }
     e2_replay::replay(&emitted, required.experiment, required.fact, required.typed)
         .ok_or(Error::Replay)?;
+    if matches!(fault, Some(CiFault::AfterReplay)) {
+        emitted.fragments.leaves.program.modules[0]
+            .function_mut(emitted.caller)
+            .ok_or(Error::Emission)?
+            .blocks[0]
+            .terminator = None;
+    }
     super::verify::verify_program(&emitted.fragments.leaves.program).map_err(|_| Error::Verify)?;
     Ok(Published {
         program: emitted.fragments.leaves.program,

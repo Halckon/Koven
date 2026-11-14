@@ -18470,3 +18470,18 @@ check_e2_replay_ci.sh在实验/组合两配置精确列举3个FQN并确认唯一
 双配置all-target严格Clippy、默认/观察check、fmt/docs951/diff和尺寸门禁通过
 （2180文件、36旧超限）。脚本bash语法、无CI环境执行拒绝及CI结果脚本44项单测
 通过；独审通过。远端尚未执行，未推送，不能记作6类损坏已动态拒绝。
+
+### E2 实验 publisher 全链失败验收准备（待 CI 执行）
+
+普通 publish 与 CI 验收复用同一私有流水线；CI 入口只接受封闭的两种故障枚举，
+不接受任意变异 callback、不替换 gate。真实 emission 后修改 caller receiver，
+要求从同一 publish 路径返回 Replay；真实 replay 成功后删除 entry terminator，
+要求最终 verifier 返回 Verify。只有所有 gate 成功才构造 Published，失败返回
+不含 Program/receipt 的 Error。每次失败后重新正常 publish 验证无残留状态。
+现有3项 ignored CI 测试共享该检查，本地仍只编译/列举，动态拒绝待远端执行。
+
+合法源码 process entry 尚未接入：native.rs 的 validate_unit_entry 只接受零参数
+Unit 或单 Borrow Array<String> 的 Unit；实验 run 有4个 Borrow 参数，不能冒充
+其中任何一种。下一步需从真实源码取得 entry 声明、其调用闭包、参数构造及清理，
+并把该完整范围纳入独立 replay/发布；既有 synthetic native driver 不充当此证据。
+本片仍只封装单个完整实验 callable，不触及生产入口或文件输出原子性。
