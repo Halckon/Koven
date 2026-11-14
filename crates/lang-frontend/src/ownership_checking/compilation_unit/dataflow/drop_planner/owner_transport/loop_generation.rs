@@ -19,7 +19,16 @@ pub(super) enum Generation {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Retained {
+    pub(super) root: UnitSymbolId,
+    pub(super) initial: UnitExpressionId,
+    pub(super) call: UnitExpressionId,
+    pub(super) loan: crate::ownership_checking::UnitLoanFact,
+    pub(super) cleanup: crate::ownership_checking::UnitDropFact,
+}
 pub(super) struct Candidate {
+    pub(super) retained: Option<Retained>,
     typed: Arc<()>,
     pub(super) coverage: coverage::Coverage,
     pub(super) control: UnitStatementId,
@@ -47,6 +56,65 @@ impl DropPlanner<'_, '_> {
         let [
             Event::Literal(initial),
             Event::Bound(root, bound_initial),
+            rest @ ..,
+        ] = events.as_slice()
+        else {
+            return None;
+        };
+        let (loop_events, retained) = if rest.len() == 12 {
+            (rest, None)
+        } else {
+            let [
+                Event::Literal(kept),
+                Event::Bound(kept_root, bound_kept),
+                tail @ ..,
+            ] = rest
+            else {
+                return None;
+            };
+            let loop_events = tail.get(..12)?;
+            let [
+                Event::UncoveredCall(suffix),
+                Event::BorrowRegistered(shared),
+                Event::PendingBorrowRemoved {
+                    loan: removed_shared,
+                    call: end_call,
+                },
+                Event::Dropped(kept_drop),
+            ] = tail.get(12..)?
+            else {
+                return None;
+            };
+            if kept != bound_kept
+                || [*initial, *bound_initial].contains(kept)
+                || root == kept_root
+                || shared != removed_shared
+                || end_call != suffix
+                || shared.call() != *suffix
+                || shared.kind() != crate::ownership_checking::LoanKind::Shared
+                || kept_drop.point() != UnitDropPoint::CallReturn(*suffix)
+                || kept_drop.target() != UnitDropTarget::Named(*kept_root)
+            {
+                return None;
+            }
+            let crate::ownership_checking::UnitLoanTarget::Place(place) = shared.target() else {
+                return None;
+            };
+            if !place.is_root() || place.root() != *kept_root {
+                return None;
+            }
+            (
+                loop_events,
+                Some(Retained {
+                    root: *kept_root,
+                    initial: *kept,
+                    call: *suffix,
+                    loan: shared.clone(),
+                    cleanup: *kept_drop,
+                }),
+            )
+        };
+        let [
             Event::WhileTraversal {
                 control,
                 role: WhileRole::Enter,
@@ -81,7 +149,7 @@ impl DropPlanner<'_, '_> {
                 control: exit_control,
                 role: WhileRole::Exit(Some(true)),
             },
-        ] = events.as_slice()
+        ] = loop_events
         else {
             return None;
         };
@@ -151,7 +219,11 @@ impl DropPlanner<'_, '_> {
             .iter()
             .map(|fact| fact.into_unit(source))
             .collect::<Vec<_>>();
-        if observed_drops != [*old_drop, *exit_drop] {
+        let mut expected_drops = vec![*old_drop, *exit_drop];
+        if let Some(kept) = &retained {
+            expected_drops.push(kept.cleanup);
+        }
+        if observed_drops != expected_drops {
             return None;
         }
         // Confirm the actual applied operation, never infer Replace from syntax alone.
@@ -174,8 +246,13 @@ impl DropPlanner<'_, '_> {
         if !place.is_root() || place.root() != *root {
             return None;
         }
-        let coverage =
-            self.loop_generation_coverage(*control, *root, *old_root, *initial, *incoming, *call)?;
+        let coverage = self.loop_generation_coverage(
+            *control,
+            *root,
+            *old_root,
+            (*initial, *incoming, *call),
+            retained.as_ref(),
+        )?;
         let header = Generation::Header {
             control: *control,
             root: *root,
@@ -183,6 +260,7 @@ impl DropPlanner<'_, '_> {
         let incoming = Generation::IterationSite(*incoming);
         let detached = Generation::Detached { call: *call };
         Some(Candidate {
+            retained,
             typed: self.checker.typed.analysis_owner().clone(),
             coverage,
             control: *control,
@@ -201,11 +279,15 @@ impl DropPlanner<'_, '_> {
 impl DropPlanner<'_, '_> {
     pub(in super::super) fn enable_loop_generation_probe(&mut self) {
         let ast = self.checker.parsed.ast();
-        if ast.items().iter().count() == 4
-            && ast.statements().iter().count() == 7
-            && ast.expressions().iter().count() == 12
-        {
-            self.origin_probe = Some(Vec::with_capacity(14));
+        if matches!(
+            (
+                ast.items().iter().count(),
+                ast.statements().iter().count(),
+                ast.expressions().iter().count()
+            ),
+            (4, 7, 12) | (5, 9, 16)
+        ) {
+            self.origin_probe = Some(Vec::with_capacity(20));
         }
     }
     pub(in super::super) fn loop_pending(
@@ -232,6 +314,7 @@ impl DropPlanner<'_, '_> {
             _ => None,
         })?;
         Some(LoopPending {
+            retained: c.retained.map(|r| crate::ownership_checking::compilation_unit::d10_catalog_experiment::RetainedLoopRoot { root: r.root, initial: r.initial, call: r.call, loan: r.loan, cleanup: r.cleanup }),
             typed: c.typed,
             callable: c.coverage.callable,
             control: c.control,

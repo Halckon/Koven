@@ -340,3 +340,97 @@ fn run_loop_cases(check_mismatch: bool) {
         }
     }
 }
+
+#[test]
+fn public_two_root_loop_binds_real_suffix_and_rejects_neighbors() {
+    let base = "fun run(count: Int) { var a = \"first\"; var b = \"kept\"; var n = count; while(n > 0) { val old = replace(&a, \"next\"); n -= 1 }; println(b) }";
+    for (text, covered) in [
+        (base.to_owned(), true),
+        (base.replace("println(b)", ""), false),
+        (base.replace("println(b)", "println(a)"), false),
+        (base.replace("n -= 1", "n += 1"), false),
+        (base.replace("n -= 1", "n -= 1; break"), false),
+        (base.replace("println(b)", "println(b); println(b)"), false),
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("loop-sidecar.ko", &text).unwrap();
+        let lexed = lex(&sources, source).unwrap();
+        let parsed = parse_file(&sources, &lexed).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "loop-sidecar.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let bound =
+                d10_catalog_experiment::analyze_loop(&sources, &inputs, &names, &types, &typed)
+                    .unwrap();
+            assert_eq!(bound.is_some(), covered);
+            if let Some(bound) = bound {
+                let view = owned_compilation_unit_view(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    bound.ownership(),
+                )
+                .unwrap();
+                assert!(bound.matches(&view));
+                let kept = bound.retained().expect("suffix-used second root");
+                assert_ne!(kept.source().0, bound.roots().0);
+                assert_eq!(
+                    view.ownership().drops(),
+                    &[bound.cleanup()[0], bound.cleanup()[1], kept.cleanup()]
+                );
+                assert_eq!(
+                    view.ownership().loans(),
+                    [bound.loan().clone(), kept.loan().clone()]
+                );
+                assert_eq!(
+                    kept.cleanup().point(),
+                    lang_frontend::ownership_checking::UnitDropPoint::CallReturn(kept.call())
+                );
+                let (callable, control) = bound.control();
+                let (root, counter, parameter) = bound.roots();
+                assert_eq!(callable.source_unit(), root.source_unit());
+                assert_ne!(root, counter);
+                assert_ne!(counter, parameter);
+                let source_text = |id: lang_frontend::type_checking::UnitExpressionId| {
+                    assert_eq!(id.source_unit(), root.source_unit());
+                    sources
+                        .slice(
+                            parsed
+                                .ast()
+                                .expressions()
+                                .get(id.expression())
+                                .unwrap()
+                                .span(),
+                        )
+                        .unwrap()
+                };
+                let (initial, incoming) = bound.producer_sites();
+                assert_eq!(source_text(initial), "\"first\"");
+                assert_eq!(source_text(incoming), "\"next\"");
+                assert_eq!(source_text(bound.replacement()), "replace(&a, \"next\")");
+                let (condition, step) = bound.counter_expressions();
+                assert_eq!(source_text(condition), "n > 0");
+                assert_eq!(source_text(step), "n -= 1");
+                assert_eq!(
+                    bound.cleanup()[1].point(),
+                    lang_frontend::ownership_checking::UnitDropPoint::LoopExit(control)
+                );
+            }
+        }
+    }
+}

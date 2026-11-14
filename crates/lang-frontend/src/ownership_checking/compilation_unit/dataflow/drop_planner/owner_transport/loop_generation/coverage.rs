@@ -18,10 +18,10 @@ impl DropPlanner<'_, '_> {
         control: UnitStatementId,
         root: UnitSymbolId,
         old_root: UnitSymbolId,
-        initial: UnitExpressionId,
-        incoming: UnitExpressionId,
-        call: UnitExpressionId,
+        sites: (UnitExpressionId, UnitExpressionId, UnitExpressionId),
+        retained: Option<&Retained>,
     ) -> Option<Coverage> {
+        let (initial, incoming, call) = sites;
         let c = self.checker;
         let ast = c.parsed.ast();
         let [function_id] = c.parsed.roots() else {
@@ -68,9 +68,13 @@ impl DropPlanner<'_, '_> {
             }
             _ => None,
         };
-        let [root_statement, counter_statement, actual_loop] = block_elements(*block)? else {
-            return None;
-        };
+        let elements = block_elements(*block)?;
+        let (root_statement, retained_statement, counter_statement, actual_loop, suffix_statement) =
+            match (retained, elements) {
+                (None, [a, n, l]) => (a, None, n, l, None),
+                (Some(_), [a, b, n, l, s]) => (a, Some(b), n, l, Some(s)),
+                _ => return None,
+            };
         if UnitStatementId::new(c.source_unit, *actual_loop) != control {
             return None;
         }
@@ -202,8 +206,8 @@ impl DropPlanner<'_, '_> {
             }
         }
         // Every source arena node participates exactly once in the closed envelope.
-        let items = [*function_id, a.0, n.0, old.0];
-        let statements = [
+        let mut items = vec![*function_id, a.0, n.0, old.0];
+        let mut statements = vec![
             *block,
             *root_statement,
             *counter_statement,
@@ -212,7 +216,7 @@ impl DropPlanner<'_, '_> {
             *old_statement,
             *step_statement,
         ];
-        let expressions = [
+        let mut expressions = vec![
             initial.expression(),
             n.2,
             *condition,
@@ -226,6 +230,74 @@ impl DropPlanner<'_, '_> {
             *target,
             *value,
         ];
+        if let (Some(kept), Some(binding_statement), Some(suffix_statement)) =
+            (retained, retained_statement, suffix_statement)
+        {
+            let b = binding(*binding_statement, VariableKind::Var)?;
+            if b.1 != kept.root
+                || c.unit_expression(b.2) != kept.initial
+                || !symbol_type(b.1, BuiltinType::String)
+                || [root, old_root, n.1, parameter].contains(&b.1)
+            {
+                return None;
+            }
+            if !matches!(ast.expressions().get(b.2).ok()?.payload(), Expression::String { parts } if parts.iter().all(|p| matches!(p, StringPart::Text(_))))
+            {
+                return None;
+            }
+            let Statement::Expression { expression: suffix } =
+                ast.statements().get(*suffix_statement).ok()?.payload()
+            else {
+                return None;
+            };
+            if c.unit_expression(*suffix) != kept.call {
+                return None;
+            }
+            let Expression::Call {
+                callee,
+                arguments,
+                type_arguments,
+                ..
+            } = ast.expressions().get(*suffix).ok()?.payload()
+            else {
+                return None;
+            };
+            let [arg] = arguments.as_slice() else {
+                return None;
+            };
+            let Item::Variable {
+                name: NameMarker::Present(kept_span),
+                ..
+            } = ast.items().get(b.0).ok()?.payload()
+            else {
+                return None;
+            };
+            if kept.cleanup.value_origin() != *kept_span
+                || kept.loan.begin_span() != ast.expressions().get(arg.value).ok()?.span()
+                || kept.loan.end_span() != ast.expressions().get(*suffix).ok()?.span()
+            {
+                return None;
+            }
+            let typed_call = c.typed.call(kept.call)?;
+            if !type_arguments.is_empty()
+                || name(arg.value)? != kept.root
+                || !matches!(
+                    ast.expressions().get(*callee).ok()?.payload(),
+                    Expression::Name
+                )
+                || !typed_call.prints_line()
+                || typed_call.aborts()
+                || typed_call.receiver().is_some()
+                || c.typed.types().get(typed_call.return_type())
+                    != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+                || kept.loan.argument() != c.unit_expression(arg.value)
+            {
+                return None;
+            }
+            items.push(b.0);
+            statements.extend([*binding_statement, *suffix_statement]);
+            expressions.extend([b.2, *suffix, *callee, arg.value]);
+        }
         if ast.items().iter().count() != items.len()
             || ast.statements().iter().count() != statements.len()
             || ast.expressions().iter().count() != expressions.len()

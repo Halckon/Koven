@@ -3,6 +3,7 @@ use super::*;
 use crate::ownership_checking::UnitLoanFact;
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct LoopPending {
+    pub(crate) retained: Option<RetainedLoopRoot>,
     pub(crate) typed: Arc<()>,
     pub(crate) callable: UnitItemId,
     pub(crate) control: UnitStatementId,
@@ -17,6 +18,37 @@ pub(crate) struct LoopPending {
     pub(crate) cleanup: [UnitDropFact; 2],
     pub(crate) loan: UnitLoanFact,
 }
+/// Same-run suffix-used root observation, not a Carry permission or CFG certificate.
+#[derive(Debug, PartialEq, Eq)]
+pub struct RetainedLoopRoot {
+    pub(crate) root: UnitSymbolId,
+    pub(crate) initial: UnitExpressionId,
+    pub(crate) call: UnitExpressionId,
+    pub(crate) loan: UnitLoanFact,
+    pub(crate) cleanup: UnitDropFact,
+}
+impl RetainedLoopRoot {
+    /// Actual root and its source construction site.
+    #[must_use]
+    pub const fn source(&self) -> (UnitSymbolId, UnitExpressionId) {
+        (self.root, self.initial)
+    }
+    /// Actual suffix read call.
+    #[must_use]
+    pub const fn call(&self) -> UnitExpressionId {
+        self.call
+    }
+    /// Registered suffix Shared loan; does not independently prove BorrowEnd.
+    #[must_use]
+    pub const fn loan(&self) -> &UnitLoanFact {
+        &self.loan
+    }
+    /// Final owned CallReturn cleanup for this root.
+    #[must_use]
+    pub const fn cleanup(&self) -> UnitDropFact {
+        self.cleanup
+    }
+}
 /// Closed-source loop facts tied to their actual final ownership analysis.
 /// This observation has no ordinary codegen admission or public constructor.
 pub struct BoundLoop {
@@ -24,6 +56,12 @@ pub struct BoundLoop {
     pending: LoopPending,
 }
 impl BoundLoop {
+    /// Optional second root with a real suffix use; no generation permission.
+    #[must_use]
+    pub const fn retained(&self) -> Option<&RetainedLoopRoot> {
+        self.pending.retained.as_ref()
+    }
+
     /// Exact final validated ownership instance.
     #[must_use]
     pub const fn ownership(&self) -> &ValidatedCompilationUnitOwnership {
@@ -76,11 +114,17 @@ impl BoundLoop {
 }
 impl LoopPending {
     fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundLoop> {
+        let mut drops = self.cleanup.to_vec();
+        let mut loans = vec![self.loan.clone()];
+        if let Some(retained) = &self.retained {
+            drops.push(retained.cleanup);
+            loans.push(retained.loan.clone());
+        }
         if !Arc::ptr_eq(&self.typed, &owned.provenance.typed_analysis_owner)
             || !owned.diagnostics().is_empty()
             || !owned.deferred().is_empty()
-            || owned.drops() != self.cleanup
-            || owned.loans() != [self.loan.clone()]
+            || owned.drops() != drops
+            || owned.loans() != loans
         {
             return None;
         }

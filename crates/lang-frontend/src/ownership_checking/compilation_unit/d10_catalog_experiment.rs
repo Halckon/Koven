@@ -165,4 +165,4 @@ pub fn analyze(
 
 mod loop_handoff;
 pub(crate) use loop_handoff::LoopPending;
-pub use loop_handoff::{BoundLoop, analyze_loop};
+pub use loop_handoff::{BoundLoop, RetainedLoopRoot, analyze_loop};

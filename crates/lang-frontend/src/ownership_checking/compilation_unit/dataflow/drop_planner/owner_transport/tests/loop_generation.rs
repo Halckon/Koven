@@ -105,3 +105,45 @@ fn ordinary_loop_generation_uses_symbolic_header_not_last_static_producer() {
         });
     }
 }
+
+#[test]
+fn ordinary_two_root_loop_binds_real_retained_suffix_facts() {
+    let text = "fun run(count: Int) { var a = \"first\"; var b = \"kept\"; var n = count; while(n > 0) { val old = replace(&a, \"next\"); n -= 1 }; println(b) }";
+    let fixture = Fixture::new(&[("generation-two.ko", text)]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.origin_probe = Some(Vec::new());
+        let observed = planner.run().unwrap();
+        let candidate = observed
+            .loop_generation_candidate()
+            .expect("closed two-root observation");
+        assert!(candidate.matches(checker.typed));
+        let kept = candidate.retained.expect("actual retained root");
+        assert_eq!(kept.root, fixture.local(0, "b"));
+        assert_eq!(
+            kept.initial,
+            checker.unit_expression(fixture.expression(0, "\"kept\""))
+        );
+        assert_eq!(
+            kept.call,
+            checker.unit_expression(fixture.expression(0, "println(b)"))
+        );
+        assert_eq!(
+            kept.cleanup.target(),
+            crate::ownership_checking::UnitDropTarget::Named(kept.root)
+        );
+        assert_eq!(
+            kept.cleanup.point(),
+            crate::ownership_checking::UnitDropPoint::CallReturn(kept.call)
+        );
+        assert_eq!(
+            owned.drops(),
+            &[candidate.cleanup[0].1, candidate.cleanup[1].1, kept.cleanup]
+        );
+        assert_eq!(owned.loans().last(), Some(&kept.loan));
+    });
+}
