@@ -102,7 +102,7 @@ pub(super) fn matches(
         }
         literal(initializer)?;
     }
-    // Counter storage is scalar; its exact update/condition relationship remains unproved.
+    // Source-qualified names, not spelling, bind each condition and update.
     for statement in [*outer, *inner] {
         let (symbol, kind, initializer) = binding(statement)?;
         if kind != VariableKind::Var
@@ -115,6 +115,15 @@ pub(super) fn matches(
             return None;
         }
     }
+    let (outer_symbol, _, outer_init) = binding(*outer)?;
+    let (inner_symbol, _, inner_init) = binding(*inner)?;
+    let outer_parameter =
+        counter::matches(fixture, outer_symbol, outer_init, *parent, *outer_step)?;
+    let inner_parameter = counter::matches(fixture, inner_symbol, inner_init, *child, *inner_step)?;
+    if outer_symbol == inner_symbol || outer_parameter == inner_parameter {
+        return None;
+    }
+    suffix_target(fixture, evidence.suffix)?;
     let mut primitive_calls = Vec::new();
     for statement in [*child_old, *parent_old] {
         let (symbol, kind, initializer) = binding(statement)?;
@@ -180,6 +189,19 @@ pub(super) fn matches(
                 if is_int_expression(*target) && is_int_expression(*value) => {}
             _ => return None,
         }
+    }
+    Some(())
+}
+
+pub(super) fn suffix_target(fixture: &Fixture, suffix: UnitExpressionId) -> Option<()> {
+    let typed = fixture.typed.types();
+    let call = typed.call(suffix)?;
+    if !call.prints_line()
+        || call.aborts()
+        || call.receiver().is_some()
+        || typed.types().get(call.return_type()) != Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+    {
+        return None;
     }
     Some(())
 }

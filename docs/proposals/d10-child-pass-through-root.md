@@ -143,6 +143,19 @@ old-result 清理配对由下节独立 shape 层检查，实际 CFG 代际边证
 自己的 `AfterStatement`。counter 存储限于 `Int`，赋值和二元操作的两侧限于
 `Int`；表达式种类采用封闭白名单，调用仅允许这两个 primitive 与后缀调用。
 
-这些是隔离源码候选约束，不是 CFG 或代际许可：counter 的条件/更新对应关系、
-后缀调用目标合同、实际 CFG 边与 owner Entity 身份、cleanup lowering 和 native
+这些是隔离源码候选约束，不是 CFG 或代际许可：下节源码关系以外的实际 CFG 边与 owner Entity 身份、cleanup lowering 和 native
 见证仍待建立。生产观察、selector 和 SSA 均未接入。
+
+
+### Counter 与后缀目标的源码约束（测试域）
+
+`counter` 按同一分析的 reference→Symbol 配对条件左值、赋值目标及减法左值，
+不按变量拼写猜测。两 counter 必须从不同真实 ValueParameter 初始化，分别采用
+`counter > 0` 和 `counter = counter - 1`；0/1 仅接受无后缀十进制写法。
+改名正例及条件错根、更新错根、右侧错根、>=、加法、步长2、共享输入参数的
+普通源码反例覆盖该窄范围。
+
+后缀读取除既有 Shared loan/CallReturn 配对外，必须具有 typed call 的编译器绑定
+`prints_line` effect，且非 abort、无 receiver、返回 Unit；不把 `println` 拼写当
+可信目标。普通递归调用不具该 effect，不能成为后缀输出候选。
+这些约束未产生实际 CFG、运行时终止性证明或 Carry 权限，生产仍未启用。

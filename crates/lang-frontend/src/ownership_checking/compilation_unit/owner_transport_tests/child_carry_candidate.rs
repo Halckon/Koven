@@ -1,5 +1,6 @@
 //! Ordinary source probe for the isolated Carry candidate; no new authority.
 use super::*;
+mod counter;
 mod shape;
 use crate::parser::Statement;
 
@@ -348,4 +349,47 @@ fn ordinary_closed_source_shape_pairs_old_results() {
             .and_then(|evidence| shape::matches(&fixture, &owned, &evidence));
         assert!(accepted.is_none());
     }
+}
+
+#[test]
+fn ordinary_counter_relationships_are_not_name_or_scalar_shape_guesses() {
+    let used = SOURCE.strip_suffix("}\n}").unwrap().to_owned() + "}\nprintln(b)\n}";
+    let renamed = used
+        .replace("outer", "remaining")
+        .replace("inner", "nested");
+    let fixture = Fixture::new(&[("rename.ko", &renamed)]);
+    let owned = fixture.shared();
+    let evidence = extract_source_evidence(&fixture, &owned).unwrap();
+    assert!(shape::matches(&fixture, &owned, &evidence).is_some());
+    for text in [
+        used.replace("inner > 0", "outer > 0"),
+        used.replace("inner = inner - 1", "outer = outer - 1"),
+        used.replace("inner = inner - 1", "inner = outer - 1"),
+        used.replace("inner > 0", "inner >= 0"),
+        used.replace("inner - 1", "inner + 1"),
+        used.replace("inner - 1", "inner - 2"),
+        used.replace("var inner = innerCount", "var inner = outerCount"),
+    ] {
+        let fixture = Fixture::new(&[("counter-reject.ko", &text)]);
+        let owned = fixture.shared();
+        let evidence = extract_source_evidence(&fixture, &owned)
+            .expect("counter variant retains necessary owner evidence");
+        assert!(shape::matches(&fixture, &owned, &evidence).is_none());
+    }
+}
+
+#[test]
+fn ordinary_recursive_suffix_is_not_the_bound_line_output_target() {
+    let text = SOURCE.strip_suffix("}\n}").unwrap().to_owned() + "}\nrun(0, 0, b)\n}";
+    let text = text.replace("innerCount: Int)", "innerCount: Int, input: String)");
+    let fixture = Fixture::new(&[("target-reject.ko", &text)]);
+    let owned = fixture.shared();
+    let call = UnitExpressionId::new(fixture.source(0), fixture.expression(0, "run(0, 0, b)"));
+    assert!(!fixture.typed.types().call(call).unwrap().prints_line());
+    assert!(shape::suffix_target(&fixture, call).is_none());
+    assert!(
+        extract_source_evidence(&fixture, &owned)
+            .and_then(|evidence| shape::matches(&fixture, &owned, &evidence))
+            .is_none()
+    );
 }
