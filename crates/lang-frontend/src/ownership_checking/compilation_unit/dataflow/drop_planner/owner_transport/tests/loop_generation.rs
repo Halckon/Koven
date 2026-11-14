@@ -6,6 +6,12 @@ fn ordinary_loop_generation_uses_symbolic_header_not_last_static_producer() {
     for (body, accepted) in [
         ("val old = replace(&a, \"next\"); n -= 1", true),
         ("val old = replace(&a, \"next\"); break", false),
+        ("val old = replace(&a, \"next\"); n += 1", false),
+        ("val old = replace(&a, \"next\"); n -= 2", false),
+        (
+            "val old = replace(&a, \"next\"); val extra = n; n -= 1",
+            false,
+        ),
         (
             "val old = replace(&a, \"next\"); println(old); n -= 1",
             false,
@@ -31,6 +37,32 @@ fn ordinary_loop_generation_uses_symbolic_header_not_last_static_producer() {
             assert_eq!(candidate.is_some(), accepted);
             if let Some(candidate) = candidate {
                 assert!(candidate.matches(checker.typed));
+                assert_eq!(candidate.coverage.counter, fixture.local(0, "n"));
+                assert_eq!(
+                    candidate.coverage.parameter,
+                    checker
+                        .reference_symbol(
+                            fixture.parsed[0]
+                                .ast()
+                                .expressions()
+                                .get(fixture.expression(0, "count"))
+                                .unwrap()
+                                .span()
+                        )
+                        .unwrap()
+                );
+                assert_eq!(
+                    candidate.coverage.callable.source_unit(),
+                    checker.source_unit
+                );
+                assert_eq!(
+                    candidate.coverage.condition,
+                    checker.unit_expression(fixture.expression(0, "n > 0"))
+                );
+                assert_eq!(
+                    candidate.coverage.step,
+                    checker.unit_expression(fixture.expression(0, "n -= 1"))
+                );
                 assert_eq!(candidate.root, fixture.local(0, "a"));
                 assert_eq!(
                     candidate.header,

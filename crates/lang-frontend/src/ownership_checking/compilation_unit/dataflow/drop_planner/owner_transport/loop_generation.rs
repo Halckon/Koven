@@ -1,8 +1,9 @@
 //! Private symbolic environment candidate from one actual planner traversal.
-//! Not source-completeness, CFG, final-owned or lowering authority.
+//! Closed source envelope; still not CFG, final-owned or lowering authority.
 use super::origin_probe::{Event, WhileRole};
 use super::*;
 use std::sync::Arc;
+mod coverage;
 
 /// A site denotes construction in the current iteration, not a runtime object ID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,6 +21,7 @@ pub(super) enum Generation {
 
 pub(super) struct Candidate {
     typed: Arc<()>,
+    pub(super) coverage: coverage::Coverage,
     pub(super) control: UnitStatementId,
     pub(super) root: UnitSymbolId,
     pub(super) entry: Generation,
@@ -171,6 +173,8 @@ impl DropPlanner<'_, '_> {
         if !place.is_root() || place.root() != *root {
             return None;
         }
+        let coverage =
+            self.loop_generation_coverage(*control, *root, *old_root, *initial, *incoming, *call)?;
         let header = Generation::Header {
             control: *control,
             root: *root,
@@ -179,6 +183,7 @@ impl DropPlanner<'_, '_> {
         let detached = Generation::Detached { call: *call };
         Some(Candidate {
             typed: self.checker.typed.analysis_owner().clone(),
+            coverage,
             control: *control,
             root: *root,
             entry: Generation::EntrySite(*initial),

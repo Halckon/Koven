@@ -424,3 +424,20 @@ old-result 单独清理及全部真实 DropFact，并用 break、额外 println�
 61 项普通回归亦通过，其中包含既有 D10-W09 native 用例。未运行 CI-only 故障。
 格式、文档与 diff 门禁通过。此项是新主线兼容验证，不新增 loop catalog 的
 source-completeness、最终 owned 能力或 Replace/Carry emitter。
+
+### 封闭源码 envelope 与 counter 身份（测试域）
+
+在 `56df1e86` 主线组合上，先用普通 `n += 1` 邻接源码复现旧候选会接受未记录
+scalar 变化的缺口；这不是故障注入，也不是生产安全漏洞。新增私有 coverage 现
+仅接受：单函数、一个缺省共享 Int 参数、一个纯 String 根、由该参数初始化的
+Int counter、`counter > 0` 的单 while，以及 body 内一次 Replace 和 `counter -= 1`。
+
+所有 item/statement/expression arena 节点必须与封闭形状恰一次对应。counter 的
+初始化、条件与更新从真实名称解析 Symbol 对齐，类型用本次 typed 结果核对；
+String producer、old-result 声明和实际 Replace/Exclusive loan 仍由原真实事件及
+primitive 校验交叉核对。保存同源 callable、参数、counter、condition、step 身份，
+不依赖变量拼写或以 span 顺序重建执行路径。错误步进与额外 scalar 声明明确拒绝。
+
+这是对**受限源码范围**的封闭，不是通用准入或完整 loop 证明。真实 SSA
+predecessor/参数、checked-abort 路径与最终 owned sidecar 绑定仍未实现；Header /
+backedge 方程仍不能作为发射能力，普通 gate 与旧 witness 均未改变。
