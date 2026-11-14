@@ -184,8 +184,9 @@ fun loadUser(id: Int): Result<User, Error> {
 | P0 | `Hashable` | `Any.hashCode` | `hash(hasher: inout Hasher)` | `Map` / `Set` 的键 | 已有。**偏离**：不返回 `Int`。组合多个字段时，写入哈希器比各自算整数再混合更不易出错，哈希算法也可以整体替换 |
 | P0 | `Comparable` | `Comparable<T>.compareTo` | 推导；库类型可声明 `compareTo(other): Int` | `<`、`<=`、`>`、`>=`、排序 | 已有，目前不带类型参数。排序需要全序，而浮点的 `Comparable` 是 IEEE 语义；须另给浮点一个全序比较函数，不改 `<` |
 | P0 | `Display` | `Any.toString` | `toString(): String` | 字符串模板 | 已有。后续增加“写入 `Appendable`”的形态以避免中间分配，`toString` 由它派生 |
-| P0 | `Iterable<T>` | `Iterable<T>` | `iterator(): Iterator<T>` | `for` | 新增。按值迭代的签名成立；借用与独占借用两种来源的签名尚无可行设计，见 §2.4 |
-| P0 | `Iterator<T>` | `Iterator<T>` | `next(): Step<T>`（暂名），`Step<T>` 是 `Yield(T)` 与 `Done` 的和类型 | `for` | 新增。**偏离**：不用 `hasNext()` + `next()`。两个方法之间有必须按序调用的隐含协议，且“先问后取”在消费型迭代里要缓存一个元素。也不用 `T?`：可空类型是扁平的，`Iterator<Int?>` 遍历 `[1, null, 2]` 时无法区分“下一个元素是 null”与“迭代结束”（评审 R6）。用户主要经 `for` 使用，很少直接见到 `Step` |
+| P0 | `Iterable<T>` | `Iterable<T>` | `iterator(): Iterator<T>` | — | 新增。产生元素互相独立的迭代器 |
+| P0 | `Iterator<T>` | `Iterator<T>` | `next(): Step<T>`，结果转发迭代器携带的来源 | `for` | 新增。元素互相独立：可以同时持有、收集、比迭代器活得久，语义与 Kotlin 的迭代器一致。按值、借用外部存储、多个独占元素并存这三种迭代器实现它。**偏离**：不用 `hasNext()` + `next()`（两个方法之间有必须按序调用的隐含协议，消费型迭代里要缓存一个元素）；也不用 `T?`（可空类型是扁平的，无法区分“元素是 null”与“迭代结束”，评审 R6）。`Step<T>` 是 `Yield(T)` 与 `Done` 的和类型，暂名 |
+| P0 | `LendingIterator<T>`（暂名） | 无 | `next(): Step<T>`，结果依赖迭代器本身 | `for` | 新增（2026-11-14，按原型）。下一次 `next` 使上一次的结果失效，一次只能持有一个元素。每个 `Iterator` 都满足它的合同，所以逐个处理的算法（遍历、折叠、计数）按它写一次即对全部迭代器可用，`for` 绑定这一个。名字与“是两个接口还是一个接口加标记”待定 |
 | P1 | `Closeable` | `AutoCloseable` + `use {}` | `own fun close(): Result<Unit, E>` | `use { }`（库函数） | 新增。**偏离**：关闭返回 `Result`（之七 J23）。不关闭时由 `deinit` 尽力关闭 |
 | P1 | `Source` / `Sink` | kotlinx-io 的 `Source` / `Sink` | `read(into: inout …): Result<Int, IoError>`；`write(…)`、`flush()` | 无 | 新增。字节流的读与写；缓冲、文本解码都是包在它外面的库类型 |
 | P1 | `Appendable` | `Appendable` | `append(text)` | 字符串模板的输出目标 | 新增。文本的写入端；`String` 的构建器与文本 `Sink` 都实现它 |
@@ -215,7 +216,7 @@ P2（库，按需）：
   （b）`for` 不绑定单一接口，而是绑定“有一个返回可空值的 `next` 方法”这一结构性约定，按值、借用、独占借用三种迭代器是三个各自独立的类型。
   （b）更早可用，但泛型算法无法对“任意迭代器”编写一次。**在此裁决之前，J43 中的 `Iterable` / `Iterator` 只对按值迭代成立**；借用迭代先由标准库的具体视图类型提供。
 - **裁决（2026-11-14）取（a）**：迭代器所需的泛型能力提前为 L3 的必经子步骤（之二 L5 的进入条件已相应修订）。定形之前先用原型验证四种迭代，并覆盖“空序列”“仅含 null”“null 之后仍有元素”三个用例。
-- **原型结论（2026-11-14）**：四种迭代不能归到一个接口。泛型算法能依据的合同只有出借式与转发式两种，J43 的单一 `Iterator<T>` 须拆成两个接口或加标记；另需“转发全部来源”的写法与“流向”子句。见[借用内核演算](loan-kernel-calculus.md) §9.3。J43 尚未据此改写。
+- **原型结论（2026-11-14）**：四种迭代不能归到一个接口；泛型算法能依据的合同只有出借式与转发式两种，§2.3 的清单已据此拆为 `Iterator` 与 `LendingIterator`。另需“转发全部来源”的写法与“流向”子句。见[借用内核演算](loan-kernel-calculus.md) §9.3。
 - 独占借用的迭代另有一个问题：泛型代码同时持有多个元素的独占借用时如何保持健全，须与 L4 的访问器规则一并回答。
 - `for` 从“编译器绑定的几种来源”改为“任何 `Iterable`”，现有的专用路径应保留为优化，而不是第二套语义。
 
