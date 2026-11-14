@@ -345,3 +345,41 @@ CallReturn(call) 先清理根、再按 AfterStatement 清理旧结果，不按 s
 普通验收为两个实际源码（含中文与转义）× Rooted/MemoryDocument；另外进行 LLVM
 IR lowering/verifier。没有原生执行、故障注入或 loop predecessor 验收。本首片仍
 只在 test+feature 路径使用，不是默认生产入口；循环根环境/回边/Carry 仍未实现。
+
+### 单循环的 generation 缺口：不能沿用无循环 producer→单 DropFact
+
+对真实源码 `var n=2; var a="first"; while(n>0) {
+val old=replace(&a,"next"); n-=1 }; println(a)`，无循环首片的 `Producer { identity, expression, cleanup }` 不能直接
+推广。在支持零次迭代和至少一次迭代的一般循环合同中，`first` 的动态值分别由 suffix 或第一次 `old`
+清理；同一个 `next` 源表达式每次迭代产生不同动态值，既可能在下一轮成为 `old`，
+也可能由 suffix 清理。因此不能用某个固定 literal token 配一个固定 DropFact，
+也不能把 loop body 静态遍历所得最后 token 当作 false edge 的当前根。
+
+新增普通真实源码验收 `loop_replace_cleanup_is_root_relative_and_not_a_closed_producer_catalog`
+覆盖 Rooted/MemoryDocument 以及有/无第二个后用根 `b`。它核实际最终 owned 的精确
+Named root、同分析 Symbol/来源 span、`old` 的 AfterStatement 和 `a`/`b` 的实际
+suffix CallReturn；专用无循环 catalog 仍拒绝这些合法 loop 源码。该测试不执行
+循环，不模拟运行次数，也不把现有 DropFact 当作循环 generation 权限。
+
+下一版独立实验能力需区分三类身份，不能复用 `ProducerIdentity` 的含义硬塞循环：
+
+1. 源 producer site：同次 planner 的实际构造事件及源表达式身份；不是每轮动态值。
+2. 根环境位置：同次 callable/control 的 entry、header、body、normal backedge、
+   false exit；必须包含根 Symbol 和真实控制边来源，不能仅存 span 或遍历序号。
+3. generation 方程：header 根参数来自 entry 的初值，或 backedge 的本轮结果。
+   Replace 消费 body incoming 根参数，产生独立的 old-result 和 backedge 新根；false exit
+   从 header 参数接收当前代。规则描述任意轮，不展开、枚举或猜测迭代次数。
+
+受限一根候选应要求 entry→header、header→body、body→header、header→exit 四条
+实际边全部完成，并对应到最终 SSA predecessor 与参数。清理义务绑定消费位置，
+不是绑定一个 literal：body detached-old Drop 消费 Replace 返回的 old-result，而非再次消费原 header SSA 值，
+并与实际 AfterStatement 配对；exit
+当前根 Drop 与实际 suffix CallReturn 配对。零轮路径不可读取 body 定义。第二根
+`b` 若保持不变，也需每条实际边传递参数和 exit 清理证明，不能因 AST 没有写入
+就发布 Carry。借用条件的 loan 参数及其允许存续同样不得遗漏。
+
+实现顺序应为私有 loop sidecar 的上述受限方程、实际 planner 控制完成证据、最终
+owned 绑定，再到独立 emitter/replay；任一步缺失不给发射能力。现有
+`origin_while` 只记录静态访问且拒绝 catalog，`ValueState` 克隆也不是完成的
+回边证明；此次不改变它们，不把已有 all-Replace receipt 改名使用，不放开普通
+primitive gate。单循环 catalog/Replace emitter/Carry 验收仍未实现。

@@ -119,3 +119,115 @@ fn run_cases(check_mismatch: bool) {
         }
     }
 }
+
+/// Static DropFacts describe root slots, not one fixed literal generation per loop.
+#[test]
+fn loop_replace_cleanup_is_root_relative_and_not_a_closed_producer_catalog() {
+    use lang_frontend::ownership_checking::{
+        UnitDropPoint, UnitDropTarget, check_compilation_unit_ownership,
+    };
+    for carry in [false, true] {
+        let text = if carry {
+            "fun run() { var n = 2; var a = \"first\"; val b = \"kept\"; while(n > 0) { val old = replace(&a, \"next\"); n -= 1 }; println(a); println(b) }"
+        } else {
+            "fun run() { var n = 2; var a = \"first\"; while(n > 0) { val old = replace(&a, \"next\"); n -= 1 }; println(a) }"
+        };
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("loop-catalog.ko", text).unwrap();
+        let lexed = lex(&sources, source).unwrap();
+        let parsed = parse_file(&sources, &lexed).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "loop-catalog.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .unwrap();
+            assert!(owned.ownership().deferred().is_empty());
+            let drops = owned.ownership().drops();
+            assert_eq!(drops.len(), if carry { 3 } else { 2 });
+            let mut actual = Vec::new();
+            for fact in drops {
+                let UnitDropTarget::Named(root) = fact.target() else {
+                    panic!("exact named cleanup");
+                };
+                let unit = names
+                    .names()
+                    .source_units()
+                    .iter()
+                    .find(|unit| unit.source_unit() == root.source_unit())
+                    .unwrap();
+                let symbol = unit
+                    .resolution()
+                    .symbols()
+                    .iter()
+                    .find(|symbol| symbol.id() == root.symbol())
+                    .unwrap();
+                assert_eq!(symbol.span(), fact.value_origin());
+                let point = match fact.point() {
+                    UnitDropPoint::AfterStatement(statement) => {
+                        assert_eq!(statement.source_unit(), root.source_unit());
+                        sources
+                            .slice(
+                                parsed
+                                    .ast()
+                                    .statements()
+                                    .get(statement.statement())
+                                    .unwrap()
+                                    .span(),
+                            )
+                            .unwrap()
+                    }
+                    UnitDropPoint::CallReturn(call) => {
+                        assert_eq!(call.source_unit(), root.source_unit());
+                        sources
+                            .slice(
+                                parsed
+                                    .ast()
+                                    .expressions()
+                                    .get(call.expression())
+                                    .unwrap()
+                                    .span(),
+                            )
+                            .unwrap()
+                    }
+                    _ => panic!("unexpected cleanup position"),
+                };
+                actual.push((
+                    symbol.name(),
+                    matches!(fact.point(), UnitDropPoint::AfterStatement(_)),
+                    point,
+                ));
+            }
+            actual.sort();
+            let mut expected = vec![
+                ("a", false, "println(a)"),
+                ("old", true, "val old = replace(&a, \"next\")"),
+            ];
+            if carry {
+                expected.push(("b", false, "println(b)"));
+            }
+            expected.sort();
+            assert_eq!(actual, expected);
+            // A real, valid loop is deliberately not coerced into the no-loop identity model.
+            assert!(
+                d10_catalog_experiment::analyze(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+    }
+}
