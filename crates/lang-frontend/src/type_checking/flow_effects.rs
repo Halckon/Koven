@@ -1,6 +1,9 @@
 //! 收集可能影响流事实的写入；循环预扫描只用语法，已检查条件可排除仅退出路径。
 
-use std::{cell::OnceCell, collections::BTreeMap};
+use std::{
+    cell::OnceCell,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use crate::{
     ast::{AstError, ExpressionId, StatementId},
@@ -18,6 +21,7 @@ enum Pending {
     DiscardNormalWrites(usize),
     SaveBranchWrites(usize),
     JoinBranchWrites(usize),
+    JoinIfWrites(usize),
     LogicalRight {
         left: ExpressionId,
         right: ExpressionId,
@@ -28,6 +32,17 @@ enum Pending {
         right_start: usize,
         first_write: usize,
         left_writes: Vec<ExpressionId>,
+    },
+    FinishIfCondition {
+        condition: ExpressionId,
+        then_branch: StatementId,
+        else_branch: Option<StatementId>,
+        first_write: usize,
+    },
+    IfBranch {
+        branch: Option<StatementId>,
+        first_write: usize,
+        writes: Vec<ExpressionId>,
     },
     BeginWhen,
     WhenSelector(ExpressionId, StatementId),
@@ -253,6 +268,7 @@ fn collect_mutation_targets(
     let mut loops: Vec<LoopWrites> = Vec::new();
     let mut branch_writes = Vec::new();
     let mut when_normal_prefixes = Vec::new();
+    let mut checked_boolean_results = BTreeMap::new();
     while let Some(node) = pending.pop() {
         match node {
             Pending::Write(target) => targets.push(target),
@@ -288,6 +304,15 @@ fn collect_mutation_targets(
             Pending::JoinBranchWrites(first_branch) => {
                 targets.extend(branch_writes.drain(first_branch..));
             }
+            Pending::JoinIfWrites(first_branch) => {
+                // Both normal arms can contain the same condition write.
+                let mut seen = BTreeSet::new();
+                targets.extend(
+                    branch_writes
+                        .drain(first_branch..)
+                        .filter(|target| seen.insert(target.index())),
+                );
+            }
             Pending::LogicalRight {
                 left,
                 right,
@@ -300,6 +325,7 @@ fn collect_mutation_targets(
                     left,
                     left_result,
                     &left_writes,
+                    |id| Ok(outcomes.possible_results(id)),
                 )?);
                 if let Some(frame) = loops.last_mut() {
                     frame.captured_through = frame.captured_through.min(first_write);
@@ -321,6 +347,63 @@ fn collect_mutation_targets(
                     frame.captured_through = frame.captured_through.min(first_write);
                 }
             }
+            Pending::FinishIfCondition {
+                condition,
+                then_branch,
+                else_branch,
+                first_write,
+            } => {
+                let writes = targets.split_off(first_write);
+                let mut results = |id| {
+                    checked_boolean_outcomes(
+                        ast,
+                        id,
+                        &expression_completes,
+                        &mut checked_boolean_results,
+                    )
+                };
+                let (yes, no) = results(condition)?;
+                for (reachable, result, branch) in
+                    [(no, false, else_branch), (yes, true, Some(then_branch))]
+                {
+                    if reachable {
+                        pending.push(Pending::IfBranch {
+                            branch,
+                            first_write,
+                            writes: writes_on_boolean_edge(
+                                outcomes,
+                                condition,
+                                result,
+                                &writes,
+                                &mut results,
+                            )?,
+                        });
+                    }
+                }
+            }
+            Pending::IfBranch {
+                branch,
+                first_write,
+                writes,
+            } => {
+                if let Some(frame) = loops.last_mut() {
+                    frame.captured_through = frame.captured_through.min(first_write);
+                }
+                match branch {
+                    Some(branch) => {
+                        targets.extend(writes);
+                        // A jump from the branch includes its own condition effects.
+                        // Remove those effects before visiting the sibling.
+                        pending.push(if branch_completes(branch)? {
+                            Pending::SaveBranchWrites(first_write)
+                        } else {
+                            Pending::DiscardNormalWrites(first_write)
+                        });
+                        pending.push(Pending::Statement(branch));
+                    }
+                    None => branch_writes.extend(writes),
+                }
+            }
             Pending::BeginWhen => when_normal_prefixes.push(targets.len()),
             Pending::WhenSelector(operand, branch) => {
                 pending.push(Pending::FinishWhenSelector {
@@ -336,8 +419,9 @@ fn collect_mutation_targets(
                 first_write,
             } => {
                 let writes = &targets[first_write..];
-                let matched = writes_on_boolean_edge(outcomes, operand, true, writes)?;
-                let missed = writes_on_boolean_edge(outcomes, operand, false, writes)?;
+                let results = |id| Ok(outcomes.possible_results(id));
+                let matched = writes_on_boolean_edge(outcomes, operand, true, writes, results)?;
+                let missed = writes_on_boolean_edge(outcomes, operand, false, writes, results)?;
                 if branch_completes(branch)? {
                     *when_normal_prefixes
                         .last_mut()
@@ -452,11 +536,23 @@ fn collect_mutation_targets(
                     else_branch,
                     ..
                 } => {
-                    pending.push(Pending::JoinBranchWrites(branch_writes.len()));
-                    if let Some(branch) = else_branch {
-                        pending.push(Pending::Conditional(ConditionalSite::Branch(*branch)));
+                    if loops.is_empty() {
+                        pending.push(Pending::JoinBranchWrites(branch_writes.len()));
+                        if let Some(branch) = else_branch {
+                            pending.push(Pending::Conditional(ConditionalSite::Branch(*branch)));
+                        }
+                        pending.push(Pending::Conditional(ConditionalSite::Branch(*then_branch)));
+                    } else if expression_completes(*condition)? {
+                        pending.push(Pending::JoinIfWrites(branch_writes.len()));
+                        pending.push(Pending::FinishIfCondition {
+                            condition: *condition,
+                            then_branch: *then_branch,
+                            else_branch: *else_branch,
+                            first_write: targets.len(),
+                        });
+                    } else {
+                        pending.push(Pending::DiscardNormalWrites(targets.len()));
                     }
-                    pending.push(Pending::Conditional(ConditionalSite::Branch(*then_branch)));
                     pending.push(Pending::Expression(*condition));
                 }
                 Expression::When {
@@ -644,12 +740,62 @@ fn collect_mutation_targets(
     Ok(targets)
 }
 
+/// Compute normal Boolean outcomes from the checked operands needed by this scan.
+fn checked_boolean_outcomes(
+    ast: &SyntaxAst,
+    root: ExpressionId,
+    completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    results: &mut BTreeMap<usize, (bool, bool)>,
+) -> Result<(bool, bool), AstError> {
+    let mut pending = vec![(root, false)];
+    while let Some((id, operands_ready)) = pending.pop() {
+        if results.contains_key(&id.index()) {
+            continue;
+        }
+        if !completes(id)? {
+            results.insert(id.index(), (false, false));
+            continue;
+        }
+        let expression = ast.expressions().get(id)?.payload();
+        if !operands_ready {
+            match expression {
+                Expression::Group { expression }
+                | Expression::Prefix {
+                    operator: PrefixOperator::Not,
+                    operand: expression,
+                    ..
+                } => {
+                    pending.extend([(id, true), (*expression, false)]);
+                    continue;
+                }
+                Expression::Binary {
+                    left,
+                    operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
+                    right,
+                    ..
+                } => {
+                    pending.extend([(id, true), (*right, false), (*left, false)]);
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        let outcome = match expression {
+            Expression::Literal(LiteralKind::Boolean(value)) => (*value, !*value),
+            expression => structural_outcomes(expression, |child| results[&child.index()]),
+        };
+        results.insert(id.index(), outcome);
+    }
+    Ok(results[&root.index()])
+}
+
 /// Exclude writes in short-circuit operands that cannot execute on this result edge.
 fn writes_on_boolean_edge(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     operand: ExpressionId,
     matched: bool,
     writes: &[ExpressionId],
+    mut results: impl FnMut(ExpressionId) -> Result<(bool, bool), AstError>,
 ) -> Result<Vec<ExpressionId>, AstError> {
     if writes.is_empty() {
         return Ok(Vec::new());
@@ -677,8 +823,8 @@ fn writes_on_boolean_edge(
                 right,
                 ..
             } => {
-                let (left_true, _) = outcomes.possible_results(*left);
-                let (right_true, right_false) = outcomes.possible_results(*right);
+                let (left_true, _) = results(*left)?;
+                let (right_true, right_false) = results(*right)?;
                 pending.push((
                     *right,
                     left_true && want_true && right_true,
@@ -696,8 +842,8 @@ fn writes_on_boolean_edge(
                 right,
                 ..
             } => {
-                let (_, left_false) = outcomes.possible_results(*left);
-                let (right_true, right_false) = outcomes.possible_results(*right);
+                let (_, left_false) = results(*left)?;
+                let (right_true, right_false) = results(*right)?;
                 pending.push((
                     *right,
                     left_false && want_true && right_true,

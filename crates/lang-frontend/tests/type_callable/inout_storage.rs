@@ -610,6 +610,50 @@ fn when_short_circuit_writes_follow_the_matching_edge() {
 }
 
 #[test]
+fn if_condition_writes_only_reach_their_own_branch_exit() {
+    assert_nested_loop_flow([
+        (
+            "if (other || (write(&x) && false)) { break }; return 0",
+            &[][..],
+        ),
+        (
+            "if (other || (write(&x) && false)) { break } else { return 0 }",
+            &[][..],
+        ),
+        (
+            "if (other || (write(&x) && take(false, return 0))) { break }; return 0",
+            &[][..],
+        ),
+        (
+            "if (other || (write(&x) && take(false, break))) { break }; return 0",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "if (other || (write(&x) && false)) { return 0 }; break",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "if (other || (write(&x) && true)) { break }; return 0",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "if (other && (write(&x) || true)) { return 0 }; break",
+            &[][..],
+        ),
+    ]);
+}
+
+#[test]
+fn nested_if_joins_do_not_duplicate_condition_writes() {
+    let mut condition = String::from("write(&x)");
+    for _ in 0..28 {
+        condition = format!("if ({condition}) {{ other }} else {{ other }}");
+    }
+    let body = format!("if ({condition}) {{ break }}; return 0");
+    assert_nested_loop_flow([(body.as_str(), &[("L0084", "x")][..])]);
+}
+
+#[test]
 fn exhausted_when_domain_does_not_supply_a_normal_exit() {
     assert_nested_loop_flow([(
         "when (other) { true -> 0; write(&x), false -> { return 0 }; else -> 0 }; break",
@@ -623,6 +667,7 @@ fn assert_nested_loop_flow<'a>(
     for (body, expected) in cases {
         let text = format!(
             "fun write(inout target: Int?): Boolean {{ target = null; return true }}
+             fun take(first: Boolean, second: Int): Boolean {{ return first }}
              fun run(left: Boolean?, flag: Boolean, other: Boolean): Int {{
                  var x: Int? = 7
                  if (x != null && (if (flag) {{
