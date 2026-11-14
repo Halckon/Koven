@@ -31,7 +31,7 @@
 
 | 包 | 内容 | 层 | 平台相关性 | 先后 |
 |---|---|---|---|---|
-| `koven.core` | `Result`、可空类型的组合函数、通用接口（[之十一](evolution-11-failure-interfaces-units.md) §2） | 核心 | 无 | v1 已有 `Result`；接口随之十一 |
+| `koven.core` | `Result`、可空类型的组合函数、通用接口（[之十一](evolution-11-failure-interfaces-units.md) §2）；作用域守卫（之四 C1，暂名 `DropGuard`） | 核心 | 无 | v1 已有 `Result`；接口随之十一 |
 | `koven.math` | 取整、绝对值、最值、幂与开方、三角与指数对数、常量；整数的环绕与饱和算术（之十 §7.6） | 核心 | 超越函数在不同平台的 C 数学库上末位可能不同；合同应只承诺 IEEE 规定必须精确的那几个（加减乘除、开方） | v1（基础部分） |
 | `koven.text` | 文本解析、切分、构建 | 分配 | 无。只做与区域无关的操作 | v1；视图化见[之六](evolution-06-text-globals-extensions-metadata.md) TX |
 | `koven.collections` | `List`、`Map`、`Set`、双端队列、堆等 | 分配 | 无 | 内建；迁为库见 U2 |
