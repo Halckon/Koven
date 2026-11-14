@@ -148,3 +148,35 @@ loop/header phi、Carry 或一般函数准入。新增参数拷贝与额外局�
 完成检查进一步限定真实清理点：新根为该 Replace 的 CallReturn，旧结果为第二个
 声明的 AfterStatement。Closed 是可重复检查的测试域成功标记，不是消费式 emitter
 capability。负例采用 implicit Unit 形态，避免只被返回形式门槛遮蔽。
+
+## 真实 Unit loop CFG 复用审计
+
+在 `ed86eb04` 后核对现有 codegen，实验 emitter 不应先另造一套普通循环 lowering：
+
+- `ssa/unit_lower/loop_control.rs::create_loop_context` 已从真实 bindings/loans/
+  pending operands 建立 carried slots 和 header block。
+- `lower_while` 在实际 condition_state 上建立 body/false successor，分别 rebind；
+  正常 body 完成经 `record_natural_continue` 捕获实际 BranchExit。
+- `finish_continues` 使用该跳转快照，调用 `cfg.rs::carried_edge_from` 并实际安装
+  指向 header 的 terminator。该方法核 entity type、pending/temporary alias 一致性，
+  缺失事实返回错误，而不是从静态日志补值。
+
+所以优先复用这一真实发射路径，再独立读取最终 SSA 做实验 replay；“独立”要求
+验证责任独立，不要求复制 emitter。是否能接收目标候选必须用普通源码实际验证，
+不能从上述通用代码存在推断候选已经通过。
+
+尤其不能硬编码四个 block：常量 false 只做退出清理，不产生 body/backedge；
+常量 true 没有 false successor。首个实验形态应显式限定真实双向条件，或在模型中
+分别表示这三种已生成图，不能给缺失边补假 predecessor。
+
+仍缺的接合面是：当前无循环 catalog 的私有 token 与实际 emitted entity/根 slot
+关联、单 loop 的 header entry/backedge 根方程、退出 DropFact 消费以及检查失败时的
+结果封闭。这些需独立实验适配器，不能把测试 Closed 当生产资格，也不能重用旧
+全 Replace receipt 冒充 Carry。此审计未放宽 catalog 源码形态，未实现 loop 闭环。
+
+复用审计发现明确路由阻塞：`ssa/unit_lower/call.rs::lower_call` 对
+`typed.ownership_primitive(call).is_some()` 直接返回 UnsupportedNode；
+`orchestrate.rs` 先选择 refine 路由，而缺少相应观察时不能因此自动允许普通
+Replace 发射。因此这里可复用的是 CFG 构件，不是已经可用的 Replace/Carry
+完整 emitter。先对已支持、无 Replace 的普通 loop 产物独立 replay，再选择受限
+primitive/route 适配或实验 emitter。不能删除此拒绝来“完成”本候选。
