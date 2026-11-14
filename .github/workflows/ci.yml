@@ -360,7 +360,7 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
-      - name: Experimental Unit root-set shared budget (CI only)
+      - name: Experimental Unit root-set budget and rollback (CI only)
         run: bash scripts/check_unit_root_set_ci.sh
       - name: Run exact borrowing fault contracts
         run: python3 scripts/check_borrow_faults.py

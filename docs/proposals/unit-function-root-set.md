@@ -137,3 +137,23 @@ receipt 的 caller 集合恰为两根、recorded/before-verifier 均为 2、pend
 本片 ordinary 完整 FQN exact 1/1（两来源×两根顺序共四次成功组装）通过；最终
 no-run、严格 all-target feature Clippy、fmt、docs953、diff 和独审通过。
 未运行 CI-only fault、native 或全量测试，未推送。
+
+### 非空共同发布的 CI-only 失败回滚布置
+
+基于 `4e64a4e1`，复用已有 arm receipt 的 FinalVerifier 注入：先确认两条实际
+pending receipt，再移除其中真实函数 entry terminator，令最终 verifier 拒绝。
+新增窄 test-only 桥调用既有 CI 门禁，不新增生产故障入口。
+
+ignored 目标
+`ssa::unit_lower::orchestrate::root_set::publication_tests::ci_only_common_roots_final_verifier_failure_rolls_back_and_recovers`
+复用成功基线的双来源与正逆根顺序，核返回 InvalidModel、recorded/before-verifier
+均为 2、rolled_back、pending 为 0、published 为空、arena 不增长；随后在同一
+已验证 view 上无故障重试，必须重新得到两根的两条可重放 receipt 与 verified LLVM。
+这覆盖最终 verifier 失败处的共同发布，不声称任意阶段或其他 receipt 家族的原子性。
+
+既有 `check_unit_root_set_ci.sh` 现在精确发现并执行预算与回滚两项目标，执行仍仅
+限 GitHub Actions；本地只能 `--list-only`。未推送或执行此故障，不宣称负控通过。
+
+本片本地两个 ignored 目标精确编译/列举成功，none executed；普通无注入基线
+exact 1/1 重跑通过。严格 all-target feature Clippy、fmt、bash 语法、docs953、diff
+与独审通过。完整候选仍未启用，旧 whole-file oracle 未删除。

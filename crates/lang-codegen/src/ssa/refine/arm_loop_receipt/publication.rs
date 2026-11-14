@@ -46,6 +46,13 @@ pub(super) fn with_fault<T>(fault: Fault, lower: impl FnOnce() -> T) -> (T, Vec<
     require_ci();
     capture(Some(fault), lower)
 }
+// Narrow test-only bridge: reuse the existing real final-verifier corruption.
+// The underlying with_fault guard rejects local execution before lowering starts.
+pub(crate) fn observe_final_verifier_failure<T>(
+    lower: impl FnOnce() -> T,
+) -> (T, Vec<Receipt>, Trace) {
+    with_fault(Fault::FinalVerifier, lower)
+}
 fn capture<T>(fault: Option<Fault>, lower: impl FnOnce() -> T) -> (T, Vec<Receipt>, Trace) {
     struct Reset;
     impl Drop for Reset {
