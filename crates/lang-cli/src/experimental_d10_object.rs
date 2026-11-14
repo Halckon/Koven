@@ -221,11 +221,13 @@ fn emit(path: &Path, entry: &str, output: &Path) -> Result<(), Failure> {
     .map_err(operational)?;
     // Repeat the absence check immediately before the existing atomic emission transaction.
     let output = output_path(path, &output)?;
-    publication.emit_process_object(&output).map_err(|error| {
-        if let Some(diagnostic) = error.diagnostic() {
-            diagnostics(sources, std::slice::from_ref(diagnostic))
-        } else {
-            operational(error)
-        }
-    })
+    publication
+        .emit_new_process_object(&output)
+        .map_err(|error| {
+            if let Some(diagnostic) = error.diagnostic() {
+                diagnostics(sources, std::slice::from_ref(diagnostic))
+            } else {
+                operational(error)
+            }
+        })
 }

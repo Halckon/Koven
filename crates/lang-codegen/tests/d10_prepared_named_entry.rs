@@ -43,6 +43,33 @@ fn explicit_final_admitted_entry_emits_real_object_without_test_observation_hook
             let symbols = String::from_utf8(output.stdout).unwrap();
             assert_eq!(symbols.lines().filter(|s| *s == if cfg!(target_os="macos") {"_main"} else {"main"}).count(), 1);
             assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+            // Public create-only publication bypasses CLI preflight, proving the actual commit
+            // refuses existing directory entries without a rename fallback.
+            let fresh = directory.join("fresh.o");
+            publication.emit_new_process_object(&fresh).unwrap();
+            let fresh_bytes = fs::read(&fresh).unwrap();
+            publication.emit_new_process_object(&fresh).expect_err("existing object is never replaced");
+            assert_eq!(fs::read(&fresh).unwrap(), fresh_bytes);
+            assert_eq!(fs::read(&object).unwrap(), bytes);
+            let folder = directory.join("folder");
+            fs::create_dir(&folder).unwrap();
+            publication.emit_new_process_object(&folder).expect_err("directory is never replaced");
+            assert!(folder.is_dir());
+            #[cfg(unix)] {
+                use std::os::unix::fs::symlink;
+                let link = directory.join("link.o");
+                symlink(&fresh, &link).unwrap();
+                let absent = directory.join("absent.o");
+                let dangling = directory.join("dangling.o");
+                symlink(&absent, &dangling).unwrap();
+                for path in [&link, &dangling] {
+                    publication.emit_new_process_object(path).expect_err("symlink directory entry is never replaced");
+                    assert!(fs::symlink_metadata(path).unwrap().file_type().is_symlink());
+                }
+                assert!(!absent.exists());
+                assert_eq!(fs::read(&fresh).unwrap(), fresh_bytes);
+            }
+            assert!(fs::read_dir(&directory).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().starts_with(".koven-unit-object-")));
             fs::remove_dir_all(directory).unwrap();
         }
     }

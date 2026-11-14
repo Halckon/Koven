@@ -6,6 +6,21 @@ pub(crate) fn emit(
     publication: &NamedAfterChildProgram<'_, '_>,
     output: &Path,
 ) -> Result<(), NativeObjectError> {
+    emit_impl(publication, output, false)
+}
+
+pub(crate) fn emit_new(
+    publication: &NamedAfterChildProgram<'_, '_>,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    emit_impl(publication, output, true)
+}
+
+fn emit_impl(
+    publication: &NamedAfterChildProgram<'_, '_>,
+    output: &Path,
+    create_new: bool,
+) -> Result<(), NativeObjectError> {
     let (unit, bound) = publication.process_source();
     let (program, function) = publication.process_graph();
     if !bound.matches(unit) {
@@ -49,5 +64,9 @@ pub(crate) fn emit(
     let temporary = SiblingObject::reserve(output)?;
     llvm::emit_verified_object(program, unit.sources(), plan, temporary.path())
         .map_err(|error| map_backend_error(unit.sources(), program, error))?;
-    temporary.commit(output)
+    if create_new {
+        temporary.commit_new(output)
+    } else {
+        temporary.commit(output)
+    }
 }

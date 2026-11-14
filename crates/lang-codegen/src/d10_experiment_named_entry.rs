@@ -44,6 +44,22 @@ impl NamedEntryProgram<'_, '_> {
             Publication::After(p) => p.replay_input(),
         }
     }
+    /// Publish only if the destination directory entry is absent at atomic hard-link creation.
+    ///
+    /// Existing files, symlinks and directories are never replaced. Requires filesystem hard-link
+    /// support; unsupported operations fail without a rename/copy fallback. Publication commits
+    /// at link success; sibling cleanup is best-effort thereafter. Does not promise durability
+    /// across power loss or defend against hostile replacement of containing directories.
+    pub fn emit_new_process_object(
+        &self,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        match &self.publication {
+            Publication::Before(p) => crate::native::d10_named_wrapper::emit_new(p, output),
+            Publication::After(p) => crate::native::d10_named_after_child::emit_new(p, output),
+        }
+    }
+
     /// Publish a real process object through the existing order-specific atomic transaction.
     /// No default driver selection, linking, execution or retry with another order is performed.
     pub fn emit_process_object(
