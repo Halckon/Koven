@@ -1,0 +1,31 @@
+// 高阶借用函数：函数类型带来源合同；实参函数的合同须被它覆盖
+class Rec(field: Int, other: Int)
+sig Sel(borrow r: Rec): borrow Int from r
+sig Pick(borrow a: Rec, borrow b: Rec): borrow Int from a
+fun fieldOf(borrow r: Rec): borrow Int from r { return &r.field }
+fun firstOf(borrow a: Rec, borrow b: Rec): borrow Int from a { return &a.field }
+fun secondOf(borrow a: Rec, borrow b: Rec): borrow Int from b { return &b.field }
+fun apply(borrow r: Rec, own f: fn Sel): borrow Int from r { return f(r) }
+fun choose(borrow a: Rec, borrow b: Rec, own f: fn Pick): borrow Int from a { return f(a, b) }
+fun unsound(borrow a: Rec, borrow b: Rec, own f: fn Pick): borrow Int from b {
+  return f(a, b)  // ERR K6
+}
+fun resultBorrowsArgument(): Unit {
+  val rec = Rec(1, 2)
+  val x = apply(&rec, fieldOf)
+  rec.field = 3  // ERR K1
+  use(x)
+}
+fun otherArgumentIsFree(): Unit {
+  val r1 = Rec(1, 2)
+  val r2 = Rec(3, 4)
+  val x = choose(&r1, &r2, firstOf)
+  r2.field = 9
+  use(x)
+}
+fun contractMismatch(): Unit {
+  val r1 = Rec(1, 2)
+  val r2 = Rec(3, 4)
+  val x = choose(&r1, &r2, secondOf)  // ERR K12
+  use(x)
+}

@@ -1,0 +1,43 @@
+// 按转发式合同写的泛型算法：可以同时持有并返回元素；出借式迭代器不能交给它
+class Arr(len: Int)
+view class SliceIter(borrow source: Arr, pos: Int)
+view class MutIter(inout data: Arr, pos: Int)
+fun iter(borrow a: Arr): SliceIter from a trusted
+fun iterMut(inout a: Arr): MutIter from a trusted
+fun nextRef(inout it: SliceIter): borrow Int from it.source { return &it.source.len }
+fun nextMut(inout it: MutIter): inout Arr from it.data trusted
+fun nextLend(inout it: MutIter): inout Arr from it { return it.data }
+sig <I, T> NextL(inout it: I): T from it
+sig <I, T> NextF(inout it: I): T from it.*
+fun <I, T> firstTwo(inout it: I, own next: fn NextF): T from it.* {
+  val a = next(it)
+  val b = next(it)
+  use(a)
+  return move b
+}
+fun shared(): Unit {
+  val arr = Arr(1)
+  val it = iter(&arr)
+  val x = firstTwo(&mut it, nextRef)
+  use(x)
+  arr.len = 2
+}
+fun resultProtectsSource(): Unit {
+  val arr = Arr(1)
+  val it = iter(&arr)
+  val x = firstTwo(&mut it, nextRef)
+  arr.len = 2  // ERR K1
+  use(x)
+}
+fun exclusiveForwarding(): Unit {
+  val arr = Arr(1)
+  val it = iterMut(&mut arr)
+  val x = firstTwo(&mut it, nextMut)
+  use(x)
+}
+fun lendingRejected(): Unit {
+  val arr = Arr(1)
+  val it = iterMut(&mut arr)
+  val x = firstTwo(&mut it, nextLend)  // ERR K12
+  use(x)
+}

@@ -1,0 +1,49 @@
+// 收集：元素的来源流入已有的容器，须在签名里声明；容器存活即来源受保护
+class Arr(len: Int)
+view class SliceIter(borrow source: Arr, pos: Int)
+view class MutIter(inout data: Arr, pos: Int)
+fun iter(borrow a: Arr): SliceIter from a trusted
+fun iterMut(inout a: Arr): MutIter from a trusted
+fun nextRef(inout it: SliceIter): borrow Int from it.source { return &it.source.len }
+fun nextMut(inout it: MutIter): inout Arr from it.data trusted
+fun nextLend(inout it: MutIter): inout Arr from it { return it.data }
+sig <I, T> NextL(inout it: I): T from it
+sig <I, T> NextF(inout it: I): T from it.*
+class Bag(n: Int)
+sig <B, T> Push(inout bag: B, own x: T): Unit flows x into bag
+fun <T> put(inout bag: Bag, own x: T): Unit flows x into bag trusted
+fun <I, T, B> collectTwo(inout it: I, own next: fn NextF, inout out: B, own push: fn Push): Unit flows it.* into out {
+  val a = next(it)
+  push(out, move a)
+  val b = next(it)
+  push(out, move b)
+}
+fun <I, T, B> undeclared(inout it: I, own next: fn NextF, inout out: B, own push: fn Push): Unit {  // ERR K6
+  val a = next(it)
+  push(out, move a)
+}
+fun bagProtectsSource(): Unit {
+  val arr = Arr(1)
+  val bag = Bag(0)
+  val it = iter(&arr)
+  collectTwo(&mut it, nextRef, &mut bag, put)
+  arr.len = 2  // ERR K1
+  use(bag.n)
+}
+fun afterBag(): Unit {
+  val arr = Arr(1)
+  val bag = Bag(0)
+  val it = iter(&arr)
+  collectTwo(&mut it, nextRef, &mut bag, put)
+  use(bag.n)
+  arr.len = 2
+}
+fun bagOutlivesSource(): Unit {
+  val bag = Bag(0)
+  {
+    val arr = Arr(1)
+    val it = iter(&arr)
+    collectTwo(&mut it, nextRef, &mut bag, put)
+  }  // ERR K9
+  use(bag.n)
+}
