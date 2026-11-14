@@ -107,6 +107,8 @@ pub(super) fn plan_with_observations(
         .collect();
     Ok(Analysis {
         #[cfg(feature = "d10-catalog-experiment")]
+        drop_traversals: planner.drop_traversals,
+        #[cfg(feature = "d10-catalog-experiment")]
         split_source_catalog,
         #[cfg(feature = "d10-catalog-experiment")]
         loop_catalog,

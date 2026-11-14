@@ -111,6 +111,48 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
                 .eq(facts.drops())
         );
 
+        for record in ledger.records() {
+            let batches = record.drop_traversals();
+            assert!(
+                batches
+                    .iter()
+                    .flat_map(|batch| batch.drops())
+                    .eq(record.drops())
+            );
+            let source = checked
+                .names
+                .names()
+                .index()
+                .source_units()
+                .iter()
+                .find(|source| source.id() == record.source())
+                .unwrap();
+            let input = inputs
+                .iter()
+                .find(|input| input.source_id() == source.source_id())
+                .unwrap();
+            use lang_frontend::ownership_checking::d10_catalog_experiment::DropTraversal;
+            assert_eq!(
+                batches
+                    .iter()
+                    .filter(|batch| matches!(batch.traversal(), DropTraversal::SourceRoot(_)))
+                    .count(),
+                input.parsed().roots().len()
+            );
+            assert!(
+                batches
+                    .iter()
+                    .all(|batch| batch.traversal().source() == record.source())
+            );
+        }
+        assert!(
+            ledger
+                .records()
+                .iter()
+                .flat_map(|record| record.drop_traversals())
+                .any(|batch| batch.drops().is_empty())
+        );
+
         assert!(facts.diagnostics().is_empty());
         assert!(facts.deferred().is_empty());
         for source in checked.names.names().index().source_units() {

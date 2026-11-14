@@ -1720,3 +1720,32 @@ transferability、其余通道及 callable/Drop 控制点/完整可达图仍不�
 前端 lib/tests feature 严格 Clippy、默认 CLI check、fmt/diff、尺寸（2276 Rust 文件，
 37 项既有超限）与文档结构（957 页）通过，独立静审无阻断。未执行 native、
 故障注入或跨 run 混配；本片不授予完整项目准入。
+
+
+### 原 planner 的 source-root / visited-lambda Drop 批次
+
+feature-only 观察沿 `root_traversal::run` 的真实调用边界采集：每次 `item(root)?`
+成功后记录 `SourceRoot(UnitItemId)`，原第二 pass 的每次 visited lambda 成功后记录
+`Lambda(UnitExpressionId)`。保留空记录及原顺序；classifier/companion 的 root 可含
+多个成员，绝不冒称 callable。不是从 Drop target、Span 或最终闭包表重建归属。
+
+原 `push_fact_with_binding_drop` 先规范化 constant temporary/真实 value-origin，再
+对整个 planner facts 去重，最后 append。批次只记这次 traversal **新增**的规范化
+flat Drop，不包含被去重的提案，不声称每个 root 独立拥有全套 cleanup，也不包含
+另行发布的 conditional receiver drops。完整每源拼接须等于原 source drops，且
+这些源批次全序等于最终 owned.drops；同时检查原 run Arc、traversal/point source。
+所有权错误或 deferred 沿原最终闸门拒绝发布，未新增 rebind 或 lowering 能力。
+
+正常源码验收：source_ledger 三项 3 passed，覆盖多 root 的两种源码顺序、空 root、
+包含成员的 classifier root、visited 非空/空 lambda、不可达 exclusive lambda 及
+原语言错误/IndexPlace deferred 不发布；真实五源 project exact 1 passed，全事实
+basic_unit_ownership 25 passed。独立静审及补充复审无阻断；历史超限父文件仅
+字段/传递增长 +6/+1，既有尺寸上限和拆分计划不变。不本地运行人工混配、故障注入
+或 native。不证明一般 callable 归属、全部控制边或完整可达闭包。
+
+本切片 feature frontend/CLI all-target strict Clippy、默认生产 workspace 及 frontend all-target check、fmt、
+docs、尺寸与 JSON/YAML/diff 检查通过。扩大检查 `cargo check --workspace --all-targets`
+在本 D10 树失败：codegen lib-test 的 10 项 `deny(dead_code)`，涉及 branch/child/
+forward/fresh-loop/loop/multi/single/binding receipt 测试辅助项；codegen 无本批改动。
+不放宽 lint、不将此失败算作通过，待与 E2/新 main 的联合树独立复验；该树的通过
+结果不能反证此旧基线已过。本切片没有运行 native、故障注入或跨 run 人工混配。
