@@ -614,8 +614,11 @@ impl CompilationUnitOwnership {
         };
         Self {
             #[cfg(feature = "d10-catalog-experiment")]
-            source_collection_ledger: (successful && dataflow.deferred.is_empty())
-                .then_some(dataflow.source_collection_ledger),
+            source_collection_ledger: (successful && dataflow.deferred.is_empty()).then(|| {
+                dataflow
+                    .source_collection_ledger
+                    .with_final_closures(&captures, &capture.closures)
+            }),
             iteration_conditional_scopes: dataflow.iteration_conditional_scopes,
             iteration_owner_scopes: dataflow.iteration_owner_scopes,
             iteration_loan_ends: dataflow.iteration_loan_ends,

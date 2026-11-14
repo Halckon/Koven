@@ -1702,3 +1702,21 @@ IndexPlace deferred），原全事实回归 25 passed。前端 lib/tests feature
 `-D warnings`、默认 CLI check、fmt/diff、尺寸及文档检查通过，独审无阻断。
 试探 String extension 曾被既有 L0164 trusted Borrow 门拒绝，未放宽该门；最终
 非空 receiver 正例使用已有成员调用语义。未运行 native、故障注入或跨 run 拼接。
+
+### 最终 capture/closure 发布通道对账
+
+closure 输入不能直接沿用 dataflow 开始时的候选表：最终 owned 构造首先执行原
+`filter_unvisited`。新账本只在该过滤完成、成功且无 deferred 后，消耗原 ledger
+并封闭复制最终 captures/closures 原数组；读取需同时核完整数组、原 run 及 lambda
+源身份。未封闭的内部 ledger 没有该部分，读取拒绝。无公开补绑定入口。
+
+非 constant-control 模式的原过滤不代表“所有未访问 lambda 都删除”，主要排除未
+访问的 exclusive-assignment capture；本片保留原规则，不另行推断执行可达性。
+四个遍历通道、两个静态调用合同通道与这两个最终发布通道仍是不同阶段的观察。
+transferability、其余通道及 callable/Drop 控制点/完整可达图仍不在该账本证明范围，
+没有因此开放完整项目准入。
+
+本地验收：五源 project 精确审计 1 passed，最终 closure 过滤与原发布边界 2 passed；
+前端 lib/tests feature 严格 Clippy、默认 CLI check、fmt/diff、尺寸（2276 Rust 文件，
+37 项既有超限）与文档结构（957 页）通过，独立静审无阻断。未执行 native、
+故障注入或跨 run 混配；本片不授予完整项目准入。

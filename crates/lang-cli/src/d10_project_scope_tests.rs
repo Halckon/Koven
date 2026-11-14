@@ -61,6 +61,10 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
         assert_eq!(ledger.argument_contracts(), facts.call_argument_contracts());
         assert_eq!(ledger.receiver_contracts(), facts.call_receiver_contracts());
         assert_eq!(ledger.argument_contracts().len(), 67);
+        let (captures, closures) = ledger.closure_facts().unwrap();
+        assert_eq!(captures, facts.captures());
+        assert_eq!(closures, facts.closures());
+        assert_eq!(closures.len(), 1);
 
         assert!(ledger.matches(&owned.clone()));
         assert_eq!(

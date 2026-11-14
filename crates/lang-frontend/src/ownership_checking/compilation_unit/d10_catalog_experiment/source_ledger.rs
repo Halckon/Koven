@@ -56,13 +56,20 @@ impl SourceCollectionRecord {
 }
 
 /// Sealed original-run source batches and complete static call contracts.
-/// Captures and all other channels still require independent accounting.
+/// Final filtered closure facts are sealed only at final ownership construction.
+/// Remaining channels still require independent accounting.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceCollectionLedger {
     analysis: Arc<()>,
     records: Vec<SourceCollectionRecord>,
     arguments: Vec<UnitCallArgumentOwnershipContract>,
     receivers: Vec<UnitCallReceiverOwnershipContract>,
+    final_closures: Option<FinalClosures>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FinalClosures {
+    captures: Vec<UnitClosureCaptureDescriptor>,
+    closures: Vec<UnitClosureDescriptor>,
 }
 impl SourceCollectionLedger {
     pub(crate) fn new(
@@ -76,7 +83,29 @@ impl SourceCollectionLedger {
             records,
             arguments: arguments.to_vec(),
             receivers: receivers.to_vec(),
+            final_closures: None,
         }
+    }
+    pub(in crate::ownership_checking::compilation_unit) fn with_final_closures(
+        mut self,
+        captures: &[UnitClosureCaptureDescriptor],
+        closures: &[UnitClosureDescriptor],
+    ) -> Self {
+        self.final_closures = Some(FinalClosures {
+            captures: captures.to_vec(),
+            closures: closures.to_vec(),
+        });
+        self
+    }
+    /// Exact final filtered capture/closure arrays, never the pre-filter candidate table.
+    /// None denotes an unsealed internal observation; public validated retrieval rejects it.
+    #[must_use]
+    pub fn closure_facts(
+        &self,
+    ) -> Option<(&[UnitClosureCaptureDescriptor], &[UnitClosureDescriptor])> {
+        self.final_closures
+            .as_ref()
+            .map(|facts| (facts.captures.as_slice(), facts.closures.as_slice()))
     }
     /// Complete original static argument contracts in collector order.
     /// These may describe calls never visited by dataflow; not execution observations.
@@ -98,7 +127,23 @@ impl SourceCollectionLedger {
     #[must_use]
     pub fn matches(&self, owned: &ValidatedCompilationUnitOwnership) -> bool {
         let owned = owned.ownership();
+        let Some(closures) = &self.final_closures else {
+            return false;
+        };
         Arc::ptr_eq(&self.analysis, &owned.provenance.analysis_owner)
+            && closures.captures == owned.captures()
+            && closures.closures == owned.closures()
+            && closures
+                .captures
+                .iter()
+                .map(|c| c.lambda().source_unit())
+                .chain(
+                    closures
+                        .closures
+                        .iter()
+                        .map(|c| c.expression().source_unit()),
+                )
+                .all(|source| self.records.iter().any(|record| record.source == source))
             && self.arguments == owned.call_argument_contracts()
             && self.receivers == owned.call_receiver_contracts()
             && self
@@ -215,6 +260,57 @@ mod tests {
             } else {
                 assert!(owned.validate().is_err());
             }
+        }
+    }
+    #[test]
+    fn closure_ledger_seals_final_filter_not_unvisited_exclusive_candidates() {
+        for (text, count) in [
+            (
+                "fun run(): Unit { var number = 1; val write: () -> Unit = { number = 2 }; write() }",
+                1,
+            ),
+            (
+                "fun run(): Unit { var number = 1; return; val write: () -> Unit = { number = 2 } }",
+                0,
+            ),
+        ] {
+            let mut sources = SourceMap::new();
+            let source = sources.add_source("closure-ledger.ko", text).unwrap();
+            let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+            let inputs = [SourceUnitInput::new(
+                "root",
+                "closure-ledger.ko",
+                source,
+                &parsed,
+            )];
+            let (environment, types) = standard_environments();
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let owned = analysis::analyze(
+                &sources,
+                &inputs,
+                names.names(),
+                &types,
+                typed.types(),
+                false,
+            )
+            .unwrap()
+            .validate()
+            .unwrap();
+            let ledger = source_collection_ledger(&owned).unwrap();
+            let (captures, closures) = ledger.closure_facts().unwrap();
+            assert_eq!(captures, owned.ownership().captures());
+            assert_eq!(closures, owned.ownership().closures());
+            assert_eq!(captures.len(), count);
+            assert_eq!(closures.len(), count);
+            assert!(ledger.matches(&owned));
         }
     }
 }
