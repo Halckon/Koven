@@ -13,7 +13,7 @@ use crate::{
     source::Span,
     type_checking::{BuiltinType, UnitTypeKind, ValidatedCompilationUnitTypes},
 };
-/// Opaque same-analysis evidence for exactly two scalar vals and one direct call.
+/// Opaque evidence for two scalar vals and one call, optionally preceded by one shared String owner.
 #[derive(Clone, Debug)]
 pub struct EntryDescriptor {
     identity: Rc<()>,
@@ -23,16 +23,45 @@ pub struct EntryDescriptor {
     initializers: [UnitExpressionId; 2],
     contracts: [UnitCallArgumentOwnershipContract; 4],
     ends: [UnitDirectCallLoanEndFact; 4],
-    drops: [UnitDropFact; 2],
-    strings: [Vec<u8>; 2],
+    storage: StringStorage,
     rounds: i32,
     choose: bool,
     initializer_spans: [Span; 2],
 }
+#[derive(Clone, Debug)]
+enum StringStorage {
+    Temporary {
+        strings: [Vec<u8>; 2],
+        drops: [UnitDropFact; 2],
+    },
+    Named {
+        root: UnitSymbolId,
+        initializer: UnitExpressionId,
+        span: Span,
+        bytes: Vec<u8>,
+        drop: UnitDropFact,
+    },
+}
 impl EntryDescriptor {
-    /// Original analyzed plain String payloads, excluding escapes/interpolation.
-    pub fn strings(&self) -> &[Vec<u8>; 2] {
-        &self.strings
+    /// Temporary-only original String payloads; named-owner entries return None.
+    pub fn strings(&self) -> Option<&[Vec<u8>; 2]> {
+        match &self.storage {
+            StringStorage::Temporary { strings, .. } => Some(strings),
+            _ => None,
+        }
+    }
+    /// A single real named owner shared by the two distinct String argument loans.
+    pub fn named_string(&self) -> Option<(UnitSymbolId, UnitExpressionId, Span, &[u8])> {
+        match &self.storage {
+            StringStorage::Named {
+                root,
+                initializer,
+                span,
+                bytes,
+                ..
+            } => Some((*root, *initializer, *span, bytes)),
+            _ => None,
+        }
     }
     /// Original analyzed nonnegative decimal Int.
     pub fn rounds(&self) -> i32 {
@@ -74,9 +103,12 @@ impl EntryDescriptor {
     pub fn ends(&self) -> &[UnitDirectCallLoanEndFact; 4] {
         &self.ends
     }
-    /// Actual temporary owner drops in traversal order.
-    pub fn drops(&self) -> &[UnitDropFact; 2] {
-        &self.drops
+    /// Actual owner drops in traversal order (two temporaries or one named owner).
+    pub fn drops(&self) -> &[UnitDropFact] {
+        match &self.storage {
+            StringStorage::Temporary { drops, .. } => drops,
+            StringStorage::Named { drop, .. } => std::slice::from_ref(drop),
+        }
     }
 }
 pub(super) fn collect(
@@ -138,8 +170,63 @@ pub(super) fn collect(
             let Statement::Block { elements } = body_node.payload() else {
                 return None;
             };
-            let [first, second, last] = elements.as_slice() else {
-                return None;
+            let (named_statement, first, second, last) = match elements.as_slice() {
+                [first, second, last] => (None, first, second, last),
+                [named, first, second, last] => (Some(named), first, second, last),
+                _ => return None,
+            };
+            let formed_local = |span: Span| {
+                let mut bindings = owned.formed_owned_locals().iter().filter(|symbol| {
+                    symbol.source_unit() == unit
+                        && names
+                            .names()
+                            .source_units()
+                            .get(unit.index())
+                            .and_then(|s| s.resolution().symbols().get(symbol.symbol().index()))
+                            .is_some_and(|resolved| resolved.span() == span)
+                });
+                let binding = *bindings.next()?;
+                bindings.next().is_none().then_some(binding)
+            };
+            let named = if let Some(statement) = named_statement {
+                let Statement::LocalVariable { declaration } =
+                    parsed.ast().statements().get(*statement).ok()?.payload()
+                else {
+                    return None;
+                };
+                let Item::Variable {
+                    kind: VariableKind::Val,
+                    name: NameMarker::Present(name),
+                    initializer,
+                    ..
+                } = parsed.ast().items().get(*declaration).ok()?.payload()
+                else {
+                    return None;
+                };
+                let root = formed_local(*name)?;
+                let initializer = UnitExpressionId::new(unit, *initializer);
+                if typed
+                    .types()
+                    .symbol_type(root)
+                    .and_then(|t| typed.types().types().get(t))
+                    != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    || typed
+                        .types()
+                        .expression_type(initializer)
+                        .and_then(|t| typed.types().types().get(t))
+                        != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                {
+                    return None;
+                }
+                let node = parsed
+                    .ast()
+                    .expressions()
+                    .get(initializer.expression())
+                    .ok()?;
+                let bytes = plain_string(sources, node.payload())?;
+                Some((root, initializer, node.span(), bytes))
+            } else {
+                None
             };
             let mut locals = Vec::new();
             for (position, statement) in [first, second].into_iter().enumerate() {
@@ -165,21 +252,7 @@ pub(super) fn collect(
                 ) {
                     return None;
                 }
-                let mut bindings = owned.formed_owned_locals().iter().filter(|symbol| {
-                    symbol.source_unit() == unit
-                        && names
-                            .names()
-                            .source_units()
-                            .get(unit.index())
-                            .and_then(|source| {
-                                source.resolution().symbols().get(symbol.symbol().index())
-                            })
-                            .is_some_and(|resolved| resolved.span() == *span)
-                });
-                let binding = *bindings.next()?;
-                if bindings.next().is_some() {
-                    return None;
-                }
+                let binding = formed_local(*span)?;
                 let initializer = UnitExpressionId::new(unit, *initializer);
                 let expected = UnitTypeKind::Builtin(if position == 0 {
                     BuiltinType::Int
@@ -232,6 +305,11 @@ pub(super) fn collect(
             }
             for (i, c) in contracts.iter().enumerate() {
                 if c.parameter_index() != i
+                    || contracts
+                        .iter()
+                        .filter(|other| other.argument() == c.argument())
+                        .count()
+                        != 1
                     || c.kind() != UnitCallArgumentOwnershipKind::SharedLoan
                     || c.crosses_thread()
                     || call.arguments()[i].argument_index() != i
@@ -245,7 +323,11 @@ pub(super) fn collect(
                     .expressions()
                     .get(c.argument().expression())
                     .ok()?;
-                if i < 2 {
+                if i < 2 && named.is_some() {
+                    if !matches!(node.payload(), Expression::Name) {
+                        return None;
+                    }
+                } else if i < 2 {
                     let Expression::String { parts } = node.payload() else {
                         return None;
                     };
@@ -273,34 +355,84 @@ pub(super) fn collect(
                 if matching.next().is_some()
                     || end.point() != UnitDropPoint::CallReturn(call_id)
                     || end.preceding_drops() != 0
+                    || end.loan().kind() != crate::ownership_checking::LoanKind::Shared
                 {
                     return None;
                 }
                 match (i, end.loan().target()) {
-                    (0 | 1, UnitLoanTarget::Temporary(owner)) if *owner == c.argument() => {}
+                    (0 | 1, UnitLoanTarget::Temporary(owner))
+                        if named.is_none() && *owner == c.argument() => {}
+                    (0 | 1, UnitLoanTarget::Place(place))
+                        if named
+                            .as_ref()
+                            .is_some_and(|n| place.is_root() && place.root() == n.0) => {}
                     (2 | 3, UnitLoanTarget::Place(place))
                         if place.is_root() && place.root() == locals[i - 2].0 => {}
                     _ => return None,
                 }
             }
-            let drops: [UnitDropFact; 2] = owned
+            for (position, end) in ends.iter().enumerate() {
+                if end.preceding_call_loan_ends() != position {
+                    return None;
+                }
+            }
+            let drops: Vec<_> = owned
                 .drops()
                 .iter()
                 .filter(|d| d.point() == UnitDropPoint::CallReturn(call_id))
                 .copied()
-                .collect::<Vec<_>>()
-                .try_into()
-                .ok()?;
-            for c in &contracts[..2] {
-                if drops
-                    .iter()
-                    .filter(|d| d.target() == UnitDropTarget::Temporary(c.argument()))
-                    .count()
-                    != 1
+                .collect();
+            let storage = if let Some((root, initializer, span, bytes)) = named {
+                let [drop] = drops.as_slice() else {
+                    return None;
+                };
+                if drop.target() != UnitDropTarget::Named(root)
+                    || owned
+                        .drops()
+                        .iter()
+                        .filter(|d| d.target() == UnitDropTarget::Named(root))
+                        .count()
+                        != 1
                 {
                     return None;
                 }
-            }
+                StringStorage::Named {
+                    root,
+                    initializer,
+                    span,
+                    bytes,
+                    drop: *drop,
+                }
+            } else {
+                let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
+                for c in &contracts[..2] {
+                    if drops
+                        .iter()
+                        .filter(|d| d.target() == UnitDropTarget::Temporary(c.argument()))
+                        .count()
+                        != 1
+                    {
+                        return None;
+                    }
+                }
+                let strings: [Vec<u8>; 2] = contracts[..2]
+                    .iter()
+                    .map(|c| {
+                        plain_string(
+                            sources,
+                            parsed
+                                .ast()
+                                .expressions()
+                                .get(c.argument().expression())
+                                .ok()?
+                                .payload(),
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>()?
+                    .try_into()
+                    .ok()?;
+                StringStorage::Temporary { strings, drops }
+            };
             let initializer_spans = [
                 parsed
                     .ast()
@@ -329,37 +461,9 @@ pub(super) fn collect(
             else {
                 return None;
             };
-            let strings: [Vec<u8>; 2] = contracts[..2]
-                .iter()
-                .map(|c| {
-                    let Expression::String { parts } = parsed
-                        .ast()
-                        .expressions()
-                        .get(c.argument().expression())
-                        .ok()?
-                        .payload()
-                    else {
-                        return None;
-                    };
-                    let mut bytes = Vec::new();
-                    for part in parts {
-                        let StringPart::Text(span) = part else {
-                            return None;
-                        };
-                        let text = sources.slice(*span).ok()?;
-                        if text.contains('\\') {
-                            return None;
-                        }
-                        bytes.extend_from_slice(text.as_bytes());
-                    }
-                    Some(bytes)
-                })
-                .collect::<Option<Vec<_>>>()?
-                .try_into()
-                .ok()?;
             Some(EntryDescriptor {
                 identity: Rc::new(()),
-                strings,
+                storage,
                 rounds,
                 choose: *choose,
                 initializer_spans,
@@ -369,8 +473,25 @@ pub(super) fn collect(
                 initializers: [locals[0].1, locals[1].1],
                 contracts,
                 ends,
-                drops,
             })
         })
         .collect()
+}
+
+fn plain_string(sources: &crate::source::SourceMap, expression: &Expression) -> Option<Vec<u8>> {
+    let Expression::String { parts } = expression else {
+        return None;
+    };
+    let mut bytes = Vec::new();
+    for part in parts {
+        let StringPart::Text(span) = part else {
+            return None;
+        };
+        let text = sources.slice(*span).ok()?;
+        if text.contains('\\') {
+            return None;
+        }
+        bytes.extend_from_slice(text.as_bytes());
+    }
+    Some(bytes)
 }

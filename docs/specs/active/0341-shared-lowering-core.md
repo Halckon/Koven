@@ -19192,3 +19192,28 @@ DeclarationId 是此封包内部选择值，不是可识别数值碰撞的跨分
 两个公开库 integration 在两配置各 2 passed，原对象执行仍用单程序十秒标准。
 最终共同模块/十函数去重断言单独通过，doc-tests 7 passed（含三个能力隔离负例），
 两配置 all-target 严格 Clippy、默认 all-target 编译、文档与 Rust 尺寸门禁通过。
+
+### E2 具名同 owner 的封闭入口
+
+在 28d20d2b 基础上增加精确四 statement 入口：先 `val text="plain"`，然后既有
+`val rounds=十进制非负Int`、`val choose=Boolean`，最后 `run(text,text,rounds,choose)`。
+这只是既有 shared alias 合同的受限真实源码入口，不启用一般局部绑定、可变 owner、
+第二 String root、混用临时 String、字段/分组/移动实参、额外前后缀或转义字符串。
+旧三 statement 的两个 temporary owner 入口不做相同文本去重。
+
+私有 descriptor 的 Temporary/Named storage 变体互斥。Named 变体只接受同次完整
+ownership 中实际 formed local、String 类型及四个调用契约；两个 String argument
+identity 不同，但实际 End 的 root 必须相同。四 End 必须在同一 CallReturn，真实
+preceding_drops=0、preceding_call_loan_ends=0..3，且同根唯一 Named Drop 亦在该
+CallReturn；不得从 liveness descriptor 合成事件。initializer 与 Drop origin 分别
+保留原 initializer 和 binding span，不能都替换为 call span。
+
+SSA 先按源码初始化唯一 String owner/root，再初始化两个 scalar；四个独立 loan 中
+两个 String loan 共用该 root，全部 End 后消费唯一 Named Drop。独立 replay 逐指令
+核同根/独立 loan/次序/类型/origin/唯一消费，而非仅放宽指令数量。全 Unit preflight、
+共同实例计划、完整发布与普通路径的拒绝门保持；单入口和多入口能力均默认关闭。
+
+具名入口本地最终验收使用独立全新 target 重建并核实精确测试注册，避免不同工作树共享缓存
+误用旧产物。两配置均通过具名入口 SSA、公开库原入口/多入口/具名四场景及原 unit 对象执行；
+具名四场景覆盖零轮/三轮和两个分支，仍使用原每程序 10 秒 deadline，无签名、属性或系统策略
+修改。CI 清单只编译列举，本地未运行故障注入；此结果不表示默认生产准入已开放或远端 CI 已完成。

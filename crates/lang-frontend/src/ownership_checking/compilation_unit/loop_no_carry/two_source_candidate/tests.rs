@@ -608,3 +608,94 @@ fn parameter_print_retains_real_shared_argument_contract_without_ending_input() 
         }
     }
 }
+
+#[test]
+fn named_shared_string_entry_cleanup_evidence() {
+    let mut sources = SourceMap::new();
+    let source = format!(
+        "{}\nfun entry():Unit {{val text=\"same\";val rounds=3;val choose=true;run(text,text,rounds,choose)}}",
+        SOURCE.replace(";consume(left);consume(right)", "")
+    );
+    let id = sources.add_source("named-entry.ko", source).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+    let inputs = [SourceUnitInput::new("root", "named-entry.ko", id, &parsed)];
+    let (env, types) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let experiment = analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
+        .unwrap()
+        .unwrap();
+    let entries = experiment.entries(&typed).unwrap();
+    assert_eq!(entries.len(), 1);
+    let descriptor = &entries[0];
+    assert!(descriptor.strings().is_none());
+    let (named_root, _, initializer_span, bytes) = descriptor.named_string().unwrap();
+    assert_eq!(sources.slice(initializer_span).unwrap(), "\"same\"");
+    assert_eq!(bytes, b"same");
+    assert_eq!(descriptor.drops().len(), 1);
+    let run = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.name() == "run")
+        .unwrap()
+        .id();
+    let contracts: Vec<_> = experiment
+        .retained
+        .call_argument_contracts()
+        .iter()
+        .filter(|c| {
+            typed
+                .types()
+                .call(c.call())
+                .is_some_and(|call| call.target() == UnitCallTarget::Declaration(run))
+        })
+        .collect();
+    assert_eq!(contracts.len(), 4);
+    let call = contracts[0].call();
+    let ends: Vec<_> = experiment
+        .retained
+        .direct_call_loan_ends()
+        .iter()
+        .filter(|e| e.loan().call() == call)
+        .collect();
+    use crate::ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget};
+    for (index, end) in ends.iter().enumerate() {
+        assert_eq!(end.point(), UnitDropPoint::CallReturn(call));
+        assert_eq!(end.preceding_drops(), 0);
+        assert_eq!(end.preceding_call_loan_ends(), index);
+    }
+    assert_ne!(contracts[0].argument(), contracts[1].argument());
+    for contract in &contracts[..2] {
+        let matches: Vec<_> = ends
+            .iter()
+            .filter(|e| e.loan().argument() == contract.argument())
+            .collect();
+        assert_eq!(matches.len(), 1);
+        assert!(
+            matches!(matches[0].loan().target(),UnitLoanTarget::Place(place) if place.is_root() && place.root()==named_root)
+        );
+    }
+    let drop = descriptor.drops()[0];
+    assert_eq!(drop.point(), UnitDropPoint::CallReturn(call));
+    assert_eq!(drop.target(), UnitDropTarget::Named(named_root));
+    assert_eq!(sources.slice(drop.value_origin()).unwrap(), "text");
+    assert_eq!(
+        experiment
+            .retained
+            .drops()
+            .iter()
+            .filter(|d| d.target() == UnitDropTarget::Named(named_root))
+            .count(),
+        1
+    );
+    assert_eq!(ends.len(), 4);
+}

@@ -187,7 +187,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 ## Native object 与发布
 
-`NativeUnitEntry` 的普通出口为 `emit_native_unit_object` / `emit_native_owned_unit_object`，常量出口为 `emit_native_constant_unit_object` / `emit_native_const_owned_unit_object`；两种 capability 不互换。 默认关闭的 [E2 显式能力](../specs/active/0341-shared-lowering-core.md#e2-默认关闭的显式完整-unit-能力)另行签发，并支持[同次分析多入口](../specs/active/0341-shared-lowering-core.md#e2-同次分析的显式多入口能力)的单 Program；不转换普通 owned、接受实验封包或自动接入 CLI。
+`NativeUnitEntry` 的普通出口为 `emit_native_unit_object` / `emit_native_owned_unit_object`，常量出口为 `emit_native_constant_unit_object` / `emit_native_const_owned_unit_object`；两种 capability 不互换。 默认关闭的 [E2 显式能力](../specs/active/0341-shared-lowering-core.md#e2-默认关闭的显式完整-unit-能力)另行签发，并支持[同次分析多入口](../specs/active/0341-shared-lowering-core.md#e2-同次分析的显式多入口能力)的单 Program，以及[具名同 owner 窄入口](../specs/active/0341-shared-lowering-core.md#e2-具名同-owner-的封闭入口)；不转换普通 owned、接受实验封包或自动接入 CLI。
 旧 `NativeEntry`、`emit_native_object` 及专属私有转接已删除；私有 `lower_frontend` 和旧 checker 仍有真实测试消费者，未随门面机械删除。 普通整数越界、未解析名和非法break拒绝，以及原for-loop/String泛型成功消费者已改走strict Unit；其余真实旧入口见证保留。
 普通与常量八参入口先执行用户 Into，再各经 factory 进入对应封闭 view；校验、reserve 与 emission 顺序见[交接流水线](pipeline-and-workspace.md#普通-owned-unit-交接)。
 

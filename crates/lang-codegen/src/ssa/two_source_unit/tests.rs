@@ -308,3 +308,110 @@ fn multiple_entries_reject_same_fact_and_unsupported_entry() {
         ));
     }
 }
+
+#[test]
+fn named_shared_owner_entry_is_closed_and_unique() {
+    let original = source(false, "");
+    let literal = "val rounds=3;val choose=false;run(\"left\",\"right\",rounds,choose)";
+    let named = "val text=\"same\";val rounds=3;val choose=false;run(text,text,rounds,choose)";
+    for (body, accepted) in [
+        (named.to_owned(), true),
+        (named.replace("run(text,text", "run(text,\"other\""), false),
+        (
+            named
+                .replace("val rounds", "val other=\"other\";val rounds")
+                .replace("run(text,text", "run(text,other"),
+            false,
+        ),
+        (named.replace("val text", "var text"), false),
+        (format!("{named};consume(text)"), false),
+        (named.replace("same", "same\\n"), false),
+    ] {
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("named.ko", original.replace(literal, &body))
+            .unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::new("root", "named.ko", id, &parsed)];
+        let (env, types) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "main")
+            .unwrap()
+            .id();
+        let result = prepare_two_source_unit(&sources, &inputs, &names, &types, &typed, entry);
+        if !accepted {
+            assert!(matches!(
+                result,
+                Err(TwoSourceUnitError::UnsupportedSelection)
+            ));
+            continue;
+        }
+        let unit = result.unwrap();
+        assert!(
+            lang_frontend::ownership_checking::check_compilation_unit_ownership(
+                &sources, &inputs, &names, &types, &typed
+            )
+            .unwrap()
+            .validate()
+            .is_err(),
+            "ordinary ownership domain remains closed"
+        );
+        use super::super::model::Operation;
+        let function = unit.program.modules[0].function(unit.function).unwrap();
+        let count = |predicate: fn(&Operation) -> bool| {
+            function
+                .instructions
+                .iter()
+                .filter(|i| predicate(&i.operation))
+                .count()
+        };
+        assert_eq!(count(|op| matches!(op, Operation::StringLiteral { .. })), 1);
+        assert_eq!(count(|op| matches!(op, Operation::BorrowBegin { .. })), 4);
+        assert_eq!(count(|op| matches!(op, Operation::BorrowEnd { .. })), 4);
+        assert_eq!(count(|op| matches!(op, Operation::Drop { .. })), 1);
+        use super::super::model::EntityId;
+        let literal = function
+            .instructions
+            .iter()
+            .find(|i| matches!(i.operation, Operation::StringLiteral { .. }))
+            .unwrap();
+        let [EntityId::Value(owner)] = literal.results.as_slice() else {
+            panic!("one string owner")
+        };
+        let root = function
+            .instructions
+            .iter()
+            .find(|i| matches!(i.operation,Operation::RootPlace{owner:o} if o==*owner))
+            .unwrap();
+        let [EntityId::Place(place)] = root.results.as_slice() else {
+            panic!("one string root")
+        };
+        let loans: Vec<_> = function
+            .instructions
+            .iter()
+            .filter(|i| matches!(i.operation,Operation::BorrowBegin{place:p,..} if p==*place))
+            .collect();
+        assert_eq!(loans.len(), 2);
+        assert_ne!(loans[0].results, loans[1].results);
+        let actual_drop = function
+            .instructions
+            .iter()
+            .find(|i| matches!(i.operation, Operation::Drop { .. }))
+            .unwrap();
+        assert_eq!(actual_drop.operation, Operation::Drop { owner: *owner });
+        super::super::verify::verify_program(&unit.program).unwrap();
+    }
+}

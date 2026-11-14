@@ -141,8 +141,8 @@ pub(super) fn replay_declared_body(
     };
     if !block.parameters.is_empty()
         || block.origin != Origin::Source(declaration)
-        || block.instructions.len() != 19
-        || f.instructions.len() != 19
+        || block.instructions.len() != if d.named_string().is_some() { 16 } else { 19 }
+        || f.instructions.len() != block.instructions.len()
     {
         return None;
     }
@@ -157,6 +157,26 @@ pub(super) fn replay_declared_body(
         f,
         ids: &block.instructions,
         index: 0,
+    };
+    let mut owners = Vec::new();
+    let named_root = if let Some((_, _, span, bytes)) = d.named_string() {
+        let origin = Origin::Source(span);
+        let owner = value(cursor.step(
+            Operation::StringLiteral {
+                string,
+                bytes: bytes.to_vec(),
+            },
+            origin.clone(),
+            Some(EntityType::Value(string)),
+        )?)?;
+        owners.push(owner);
+        Some(place(cursor.step(
+            Operation::RootPlace { owner },
+            origin,
+            Some(EntityType::Place(string)),
+        )?)?)
+    } else {
+        None
     };
     let mut roots = Vec::new();
     for (i, (ty, c)) in [
@@ -178,16 +198,17 @@ pub(super) fn replay_declared_body(
             Some(EntityType::Place(ty)),
         )?)?);
     }
-    let mut owners = Vec::new();
     let mut loans = Vec::new();
     for (i, c) in d.contracts().iter().enumerate() {
         let origin = Origin::Source(c.argument_span());
         let ty = [string, string, int, boolean][i];
-        let root = if i < 2 {
+        let root = if i < 2 && named_root.is_some() {
+            named_root?
+        } else if i < 2 {
             let owner = value(cursor.step(
                 Operation::StringLiteral {
                     string,
-                    bytes: d.strings()[i].clone(),
+                    bytes: d.strings()?[i].clone(),
                 },
                 origin.clone(),
                 Some(EntityType::Value(string)),
@@ -235,13 +256,20 @@ pub(super) fn replay_declared_body(
         )?;
     }
     for drop in d.drops() {
-        let UnitDropTarget::Temporary(argument) = drop.target() else {
-            return None;
+        let (owner, drop_origin) = match drop.target() {
+            UnitDropTarget::Temporary(argument) => {
+                let i = d.contracts()[..2]
+                    .iter()
+                    .position(|c| c.argument() == argument)?;
+                (owners[i], origin.clone())
+            }
+            UnitDropTarget::Named(root) if d.named_string().is_some_and(|n| n.0 == root) => {
+                (*owners.first()?, Origin::Source(drop.value_origin()))
+            }
+            _ => return None,
         };
-        let i = d.contracts()[..2]
-            .iter()
-            .position(|c| c.argument() == argument)?;
-        cursor.step(Operation::Drop { owner: owners[i] }, origin.clone(), None)?;
+        cursor.step(Operation::Drop { owner }, drop_origin, None)?;
     }
+
     (cursor.index == block.instructions.len()).then_some(())
 }
