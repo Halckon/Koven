@@ -1417,8 +1417,24 @@ owned数组从未重排。未执行新native、故障控制或跨宿主验收。
   argument contracts此层仅计数，不能替代新binder的逐项合同验证。
 
 因此，对上述确切形态，“普通多source/project编译接入”不能继续列作待实现。
-尚待的是新split形态native行为验收、独立D10跨source封闭证明、以及未获准的
+此 checkpoint 时尚待的是新 split 形态 native 行为验收（后续结果见下一节）、
+独立 D10 跨 source 封闭证明、以及未获准的
 更广producer/代际形态；不得由本批成功推断一般多source/标准库函数均已获得
 D10能力。若继续构建独立封包，应新增真实wrapper单source Pending，并在同次
 完整final-owned后与callee Pending唯一组合，严格绑定canonical source顺序；
 图checker按每个source-qualified角色定位AST，不能通过裁剪Unit复用singleton。
+
+### 普通 split project 原生行为验收
+
+随后新增独立 native exact 测试，仍使用默认无 feature 的普通 project/std loader、
+真实两源码 `app.entry` 和 CLI 编译链接产物，没有测试 trampoline 或替换 SSA。
+两 Replace 顺序 × 两 canonical 文件角色顺序 × `(parent, child)` 为
+`(0,0)/(0,2)/(2,0)/(2,3)` 共 16 个真实程序，一次顺序执行全部通过；每个程序
+保留原 10 秒期限、首失败即停止、不重试，只终止并回收自身 child。失败保留
+临时项目用于诊断，成功清理。本次 macOS 实测总 21.85 秒。
+
+独立源码语义期望：父零轮为 `first`；BeforeChild 父正且子正为 `next`；其他
+父正为 `parent`，最后未修改根均输出 `kept`。核 stdout、stderr 与退出状态，
+不从实际 SSA 或运行输出倒填期望。此动态结果不等于 allocator/Drop 次数证明，
+也不生成跨 source sealed nonce 或放宽独立 D10 singleton admission。
+CI 将原编译证据和新增 native exact 分为两步；远端跨平台结果仍待推送后验证。

@@ -381,7 +381,10 @@ jobs:
         run: |
           cargo test --locked -j1 --no-default-features -p lang-frontend --lib --features d10-catalog-experiment ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::split_named_wrapper_observations::split_sources_preserve_actual_planner_traces_and_canonical_owned_order -- --exact
           cargo test --locked -j1 --no-default-features -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support ssa::d10_split_source_tests::split_sources_preserve_real_unit_call_graph_without_named_admission -- --exact
-          cargo test --locked -j1 --no-default-features -p lang-cli --test d10_project_cli
+          cargo test --locked -j1 --no-default-features -p lang-cli --test d10_project_cli ordinary_project_build_keeps_full_sources_for_nested_d10_shapes -- --exact
+      - name: Ordinary D10 split-source native behavior
+        timeout-minutes: 5
+        run: cargo test --locked -j1 --no-default-features -p lang-cli --test d10_project_cli ordinary_split_project_executes_parent_child_zero_and_multiple_rounds -- --exact --test-threads=1
       - name: Independent D10 concurrent create-only publication (CI only)
         timeout-minutes: 5
         run: bash scripts/check_d10_publication_ci.sh
