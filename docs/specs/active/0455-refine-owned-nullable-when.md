@@ -80,7 +80,7 @@ Box 的既有完整普通文档为 `Box<Cell>?`，Rc 为 `Rc<Int>?`，不把例�
 
 ## 5. 验收标准
 
-- [ ] R1：生产未改时，原成功能力与正常入口路由分开取证；新增目标路由期望真实 RED。
+- [x] R1：生产未改时，原成功能力与正常入口路由分开取证；新增目标路由期望真实 RED。
 - [ ] R2：冻结函数正常入口进入 refine；完整 typed SSA / ownership / LLVM 验证通过。
 - [ ] R3：原 view/take、单次 subject、generation、pending call、ASAP 与所有退出检查保持；
   三个完整普通文档实际 emit/link/run，完整 stdout 与原 golden 相同，保留真实 linker 输出合同。
@@ -105,7 +105,7 @@ When-specific control/generation provenance 留 nullable-control 职责；class/
 
 ## 7. 顺序实施与检查点
 
-1. [ ] 冻结本合同/索引与原能力输入 → R1 基线、正反例与实际数量。
+1. [x] 冻结本合同/索引与原能力输入 → R1 基线、正反例与实际数量。
 2. [ ] 新增正常入口路由 RED，再最小接线 → R1–R2；先基础 view/take，再按矩阵验证退出。
 3. [ ] 完成 generation/cleanup/call 交接与同源/模式一致性 → R3–R5；失败先归因，不继续堆功能。
 4. [ ] 独立审查、最小充分门禁与事实文档 → R6；源字节与诊断不弱化。
@@ -133,7 +133,7 @@ When-specific control/generation provenance 留 nullable-control 职责；class/
 |---|---|---|
 | 原 nullable When 家族 12 项基线选择 | 首次 240s 编译超时，未开始测试；第二次 600s 总期限，编译 9m48s 后只观察到 9 passed，退出 124 | 两次均不是 suite pass；保留超时，未清 target/改 profile |
 | 同输入剩余 3 项精确目标 | **3 passed / 0 failed / 0 ignored**，退出 0 | 包含三完整文档实际 native 及两个 sibling 契约；与中断前 9 项不合并冒称完整套件通过 |
-| R1 路由 RED | 待执行 | 不把已有成功 lowering 当作已迁入 refine |
+| R1 正常 Unit 路由 RED | **0 passed / 1 failed / 0 ignored**，退出 101 | `ssa::refine_subset_tests::nullable_when::owned_pointer_nullable_when_views_and_takes_refine_through_the_normal_unit_entry`；class view 原成功 lowering、SSA/ownership/LLVM 均已通过，精确失败为必须 refine；fail-fast 后另五个 case 未执行；生产未改 |
 | R2–R5 两配置/原契约与新模式矩阵 | 待执行 | 完整 suite 与 feature 尚未接受 |
-| R6 审查与门禁 | 待执行 | 结构检查不代替语义 |
+| R6 审查与门禁 | 冻结合同 docs（948 Markdown）/空白通过；其余待执行 | 结构检查不代替语义；R1 测试阶段 fmt 通过，尚无生产实现或审查结论 |
 | R7 精确候选 CI | 待执行 | 无 PR，无合并/归档授权 |
