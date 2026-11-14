@@ -20,7 +20,7 @@ const OVERLOADS: &str = "fun <T> choose(own input: T): T = input\n\
          fun one(input: Int): Int = choose(input)\n\
          fun two(input: Int): Int = choose(input, true)";
 
-fn check(source: &str, root_names: &[&str], expected: usize) {
+fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool) {
     let mut sources = SourceMap::new();
     let source_id = sources.add_source("test/roots.ko", source).unwrap();
     let lexed = lex(&sources, source_id).unwrap();
@@ -58,7 +58,7 @@ fn check(source: &str, root_names: &[&str], expected: usize) {
             *id
         })
         .collect::<Vec<_>>();
-    let run = |roots: &[DeclarationId]| {
+    let plan_roots = |roots: &[DeclarationId]| {
         plan_unit_root_set_from_facts(
             &[&parsed],
             &names,
@@ -68,9 +68,49 @@ fn check(source: &str, root_names: &[&str], expected: usize) {
             MAX_UNIT_GENERIC_INSTANCES,
             true,
         )
-        .unwrap()
     };
+    let run = |roots: &[DeclarationId]| plan_roots(roots).unwrap();
     let plan = run(&entries);
+    if reject_roots {
+        assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+        let arena = typed.types().types().len();
+        let generic = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "identity")
+            .unwrap();
+        let generic_span = parsed.ast().items().get(generic.root()).unwrap().span();
+        let mut mixed = entries.clone();
+        mixed.push(generic.id());
+        let mut reverse = mixed.clone();
+        reverse.reverse();
+        for (roots, kind, span) in [
+            (vec![], LoweringErrorKind::InvalidModel, None),
+            (
+                vec![entries[0], entries[0]],
+                LoweringErrorKind::InvalidModel,
+                None,
+            ),
+            (
+                mixed,
+                LoweringErrorKind::UnsupportedNode,
+                Some(generic_span),
+            ),
+            (
+                reverse,
+                LoweringErrorKind::UnsupportedNode,
+                Some(generic_span),
+            ),
+        ] {
+            let error = plan_roots(&roots).unwrap_err();
+            assert_eq!(error.kind, kind);
+            assert_eq!(error.span, span);
+            assert_eq!(typed.types().types().len(), arena);
+            assert_eq!(run(&entries), plan, "same facts recover the complete plan");
+        }
+    }
     assert_eq!(plan.instances.len(), expected);
     assert_eq!(
         plan.instances
@@ -123,12 +163,13 @@ fn ordinary_generic_roots_share_one_instance_plan() {
         GENERICS,
         &["useInt", "useIntAgain", "useLong", "recursive"],
         9,
+        false,
     );
 }
 
 #[test]
 fn ordinary_overload_roots_keep_distinct_plan_targets() {
-    check(OVERLOADS, &["one", "two"], 4);
+    check(OVERLOADS, &["one", "two"], 4, false);
 }
 
 // The reduced budget is an internal negative-control input, never run locally.
@@ -211,4 +252,17 @@ fn ci_only_common_roots_share_budget_and_recover() {
     );
     assert_eq!(plan(&reversed, 5).unwrap(), full);
     assert_eq!(typed.types().types().len(), arena_len);
+}
+
+// Invalid internal root sets are negative controls, not ordinary source programs.
+#[test]
+#[ignore = "CI-only root selection negative controls; local compile/list only"]
+fn ci_only_root_selection_rejects_empty_duplicate_and_generic() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    check(
+        GENERICS,
+        &["useInt", "useIntAgain", "useLong", "recursive"],
+        9,
+        true,
+    );
 }

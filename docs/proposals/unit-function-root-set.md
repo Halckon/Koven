@@ -173,3 +173,19 @@ ABI 的全部等价，也不启用生产多根或删除旧 oracle。故障目标
 本片修正草稿对默认参数的错误 Value 假设后，两个 ordinary exact 均通过；
 no-run、严格 all-target feature Clippy、fmt、docs953、diff 和独审通过。
 未运行 CI-only fault、native 或全量测试，未推送。
+
+### 根集合准入的 CI-only 负控布置
+
+复用原 generic 源和已验证事实，新增一个 ignored 精确目标
+`ssa::unit_plan::root_set_tests::ci_only_root_selection_rejects_empty_duplicate_and_generic`：
+空根与重复根核 InvalidModel/无 span；普通四根混入需泛型实参的 identity 根，
+正逆序均核 UnsupportedNode/原声明完整 span。每次拒绝后核 arena 不增长，并
+在同一事实重试得到与原基线相等的完整九实例计划。原两个 ordinary 目标只走
+正常集合，未调用负控；新目标及其分支均要求 GitHub Actions。
+
+此片仅布置上述三类准入边界，不代表非函数、receiver、跨 Unit 身份或后端发布
+失败全覆盖。脚本增加该精确目标，本地仅编译/列举，动态结果待 CI；生产单根、
+旧 oracle 和 Origin 决定不变。
+
+本片脚本精确编译/列举三项目标，none executed；两个普通 planner exact 2/2、
+严格 all-target feature Clippy、fmt、bash、docs953、diff 与独审通过。未推送。
