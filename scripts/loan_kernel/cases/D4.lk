@@ -1,0 +1,6 @@
+// 非受信任的函数体不能把同一来源分给两个独占结果
+class Arr(len: Int)
+view class Halves(inout a: Arr, inout b: Arr)
+fun bad(inout this: Arr): Halves from this {
+  return Halves(this, this)  // ERR K4
+}

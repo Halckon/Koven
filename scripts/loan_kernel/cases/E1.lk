@@ -1,0 +1,12 @@
+// 出借式可变迭代器：上一个结果存活时再次 next
+class Arr(len: Int)
+view class Iter(inout data: Arr, pos: Int)
+fun iter(inout a: Arr): Iter from a trusted
+fun next(inout it: Iter): inout Int from it trusted
+fun f(): Unit {
+  val arr = Arr(1)
+  val it = iter(&mut arr)
+  val x = next(&mut it)
+  val y = next(&mut it)  // ERR K1
+  use(x)
+}

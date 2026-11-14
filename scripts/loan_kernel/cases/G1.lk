@@ -1,0 +1,22 @@
+// 独占视图：结果只能依赖视图本身；并存的两个可写结果被拒绝
+class Arr(len: Int)
+view class MutSlice(inout data: Arr, start: Int)
+fun at(inout this: MutSlice): inout Int from this { return &mut this.data.len }
+fun peek(borrow this: MutSlice): borrow Int from this { return &this.data.len }
+fun leak(borrow this: MutSlice): borrow Int from this.data {
+  return &this.data.len  // ERR K6
+}
+fun f(): Unit {
+  val arr = Arr(1)
+  val s = MutSlice(&mut arr, 0)
+  val e1 = &mut s.data.len
+  val e2 = &mut s.data.len  // ERR K4
+  use(e1)
+}
+fun g(): Unit {
+  val arr = Arr(1)
+  val s = MutSlice(&mut arr, 0)
+  val e1 = at(&mut s)
+  use(s.data.len)  // ERR K1
+  use(e1)
+}

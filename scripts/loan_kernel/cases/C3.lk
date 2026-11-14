@@ -1,0 +1,10 @@
+// 同一个父持有者派生两个并存的独占结果
+class Rec(field: Int, other: Int)
+fun project(inout r: Rec): inout Int from r { return &mut r.field }
+fun f(): Unit {
+  val rec = Rec(1, 2)
+  val p = &mut rec
+  val q1 = project(p)
+  val q2 = project(p)  // ERR K4
+  use(q1)
+}

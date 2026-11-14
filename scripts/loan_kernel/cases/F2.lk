@@ -1,0 +1,9 @@
+// 只有一个分支移动；合流后使用
+class Arr(len: Int)
+fun f(): Unit {
+  val arr = Arr(1)
+  if (*) {
+    val gone = move arr
+  }
+  use(arr.len)  // ERR K8
+}

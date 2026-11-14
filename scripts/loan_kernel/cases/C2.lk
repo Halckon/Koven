@@ -1,0 +1,10 @@
+// 子借用最后一次使用之后，父持有者恢复
+class Rec(field: Int, other: Int)
+fun project(inout r: Rec): inout Int from r { return &mut r.field }
+fun f(): Unit {
+  val rec = Rec(1, 2)
+  val p = &mut rec
+  val q = project(p)
+  use(q)
+  p.field = 3
+}

@@ -1,0 +1,8 @@
+// guard 交付的引用在 guard 的作用域内使用
+class Guard(n: Int) deinit
+fun value(borrow g: Guard): borrow Int from g { return &g.n }
+fun f(): Unit {
+  val g = Guard(1)
+  val r = value(&g)
+  use(r)
+}

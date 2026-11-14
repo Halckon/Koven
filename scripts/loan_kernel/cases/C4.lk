@@ -1,0 +1,20 @@
+// 两层重借：孙借用存活时子持有者被暂停，死后恢复
+class Rec(field: Int, other: Int)
+fun same(inout r: Rec): inout Rec from r { return r }
+fun bad(): Unit {
+  val rec = Rec(1, 2)
+  val p = &mut rec
+  val q = same(p)
+  val r = same(q)
+  q.field = 3  // ERR K4
+  use(r.field)
+}
+fun ok(): Unit {
+  val rec = Rec(1, 2)
+  val p = &mut rec
+  val q = same(p)
+  val r = same(q)
+  use(r.field)
+  q.field = 3
+  p.field = 4
+}

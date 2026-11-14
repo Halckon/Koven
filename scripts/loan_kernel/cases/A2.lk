@@ -1,0 +1,9 @@
+// startRef 依赖视图本身；返回它等于返回局部的借用
+class Arr(len: Int)
+view class Slice(borrow source: Arr, start: Int)
+fun slice(borrow a: Arr): Slice from a { return Slice(a, 0) }
+fun startRef(borrow this: Slice): borrow Int from this { return &this.start }
+fun first(borrow xs: Arr): borrow Int from xs {
+  val s = slice(xs)
+  return startRef(&s)  // ERR K6
+}

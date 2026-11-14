@@ -1,0 +1,28 @@
+// 从独占持有者重借出共享借用：其存活期间不得经父持有者写；函数体内的参数同理
+class Rec(field: Int, other: Int)
+fun local(): Unit {
+  val rec = Rec(1, 2)
+  val p = &mut rec
+  val s = &p.field
+  p.field = 3  // ERR K4
+  use(s)
+}
+fun param(inout r: Rec): Unit {
+  val a = &mut r.field
+  r.field = 1  // ERR K4
+  use(a)
+}
+fun ownerStillProtected(): Unit {
+  val rec = Rec(1, 2)
+  val p = &mut rec
+  val s = &p.field
+  rec.field = 4  // ERR K1
+  use(s)
+}
+fun disjointFieldIsFree(): Unit {
+  val rec = Rec(1, 2)
+  val p = &mut rec
+  val s = &p.field
+  rec.other = 4
+  use(s)
+}

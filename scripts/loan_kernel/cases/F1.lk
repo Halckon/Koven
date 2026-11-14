@@ -1,0 +1,13 @@
+// 只有一个分支建立 loan；合流后做与之冲突的访问
+class Arr(len: Int)
+fun f(): Unit {
+  val z = 0
+  val arr = Arr(1)
+  val r = &z
+  if (*) {
+    r = &arr.len
+  } else {
+  }
+  arr.len = 2  // ERR K1
+  use(r)
+}

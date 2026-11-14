@@ -1,0 +1,13 @@
+// 循环：上一次迭代的借用在回边上仍存活时再写来源
+class Arr(len: Int)
+fun f(): Unit {
+  val z = 0
+  val arr = Arr(1)
+  val r = &z
+  while (*) {
+    arr.len = 2  // ERR K1
+    use(r)
+    r = &arr.len
+  }
+  use(r)
+}

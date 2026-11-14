@@ -1,0 +1,7 @@
+// 声明为转发，函数体却返回视图自身字段的借用
+class Arr(len: Int)
+view class Slice(borrow source: Arr, start: Int)
+fun slice(borrow a: Arr): Slice from a { return Slice(a, 0) }
+fun bad(borrow this: Slice): borrow Int from this.source {
+  return &this.start  // ERR K6
+}

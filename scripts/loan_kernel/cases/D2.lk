@@ -1,0 +1,10 @@
+// 两个结果仍存活时写原数组
+class Arr(len: Int)
+view class Halves(inout a: Arr, inout b: Arr)
+fun splitAt(inout this: Arr): Halves from this trusted
+fun f(): Unit {
+  val arr = Arr(1)
+  val h = splitAt(&mut arr)
+  arr.len = 9  // ERR K1
+  h.a.len = 2
+}
