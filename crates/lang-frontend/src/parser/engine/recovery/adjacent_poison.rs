@@ -6,7 +6,70 @@ pub(super) struct AdjacentPoisonTail {
     boundary: Option<(usize, usize)>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct ElsePoisonTail {
+    start: usize,
+    boundary: usize,
+}
+
+fn is_ordinary_poison(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Invalid(
+            InvalidKind::UnexpectedCharacter
+                | InvalidKind::InvalidCharLiteral
+                | InvalidKind::InvalidNumericLiteral
+        ) | LexemeKind::Token(TokenKind::ReservedWord(_))
+    )
+}
+
 impl Parser<'_> {
+    /// Else is an explicit caller delimiter, including across trivia and newlines.
+    pub(in crate::parser::engine) fn recover_poison_before_else(
+        &mut self,
+        stops: Stops,
+    ) -> Result<Option<usize>, ParserInternalError> {
+        if stops.delimiters & Stops::ELSE == 0 || !self.is_poison() {
+            return Ok(None);
+        }
+        let cache = &self.lexical_recoveries.else_poison_tail;
+        if cache
+            .get()
+            .is_some_and(|tail| (tail.start..=tail.boundary).contains(&self.index))
+        {
+            return Ok(None);
+        }
+
+        let mut end = None;
+        for (offset, lexeme) in self.lexed.lexemes()[self.index..].iter().enumerate() {
+            #[cfg(test)]
+            self.significant_raw_visits
+                .set(self.significant_raw_visits.get() + 1);
+            let kind = lexeme.kind();
+            if matches!(kind, LexemeKind::Trivia(_)) {
+                continue;
+            }
+            if is_ordinary_poison(kind) {
+                end = Some(lexeme.span().end());
+                continue;
+            }
+            let boundary = self.index + offset;
+            if let Some(end) = end
+                && kind == LexemeKind::Token(TokenKind::Keyword(Keyword::Else))
+            {
+                self.index = boundary;
+                return Ok(Some(end));
+            }
+            // A rejected run cannot reach Else from any cursor within the same run.
+            cache.set(Some(ElsePoisonTail {
+                start: self.index,
+                boundary,
+            }));
+            return Ok(None);
+        }
+        Err(ParserInternalError::InvalidLexemeStream)
+    }
+
     pub(in crate::parser::engine) fn adjacent_poison_tail_boundary(
         &self,
     ) -> Result<Option<(usize, usize)>, ParserInternalError> {
@@ -28,14 +91,8 @@ impl Parser<'_> {
             if matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
                 continue;
             }
-            if !matches!(
-                lexeme.kind(),
-                LexemeKind::Invalid(
-                    InvalidKind::UnexpectedCharacter
-                        | InvalidKind::InvalidCharLiteral
-                        | InvalidKind::InvalidNumericLiteral
-                ) | LexemeKind::Token(TokenKind::ReservedWord(_))
-            ) || self.gap_has_line_break(end, lexeme.span().start())?
+            if !is_ordinary_poison(lexeme.kind())
+                || self.gap_has_line_break(end, lexeme.span().start())?
             {
                 // A same-line brace can become a trailing lambda if handed to Pratt.
                 let trailing_lambda = end > start

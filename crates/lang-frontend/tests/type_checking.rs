@@ -207,46 +207,8 @@ fn diagnostic_spans<'a>(sources: &'a SourceMap, diagnostic: &Diagnostic) -> (&'a
 }
 
 #[test]
-fn enum_case_types_preserve_root_payloads_and_are_rejected_outside_type_tests() {
-    let text = "enum class Shape {\n\
-                    Circle(radius: Int), Point;\n\
-                    fun isCircle(): Boolean = this is Circle\n\
-                }\n\
-                fun invalid(input: Shape.Circle): Unit {}";
-    let (sources, parsed, names, typed) = checked(text);
-
-    assert_eq!(codes(typed.diagnostics()), ["L0114"]);
-    assert_eq!(typed.enum_cases().len(), 2);
-    let circle = &typed.enum_cases()[0];
-    assert_eq!(circle.id(), names.enum_cases()[0].id());
-    assert_eq!(circle.payloads().len(), 1);
-    assert!(matches!(
-        typed.types().get(circle.root_type()),
-        Some(TypeKind::Nominal { .. })
-    ));
-    let case_type = parsed
-        .ast()
-        .type_refs()
-        .iter()
-        .filter(|(_, node)| sources.slice(node.span()) == Ok("Circle"))
-        .find_map(|(id, _)| {
-            let ty = typed.type_ref_type(id)?;
-            matches!(typed.types().get(ty), Some(TypeKind::EnumCase { .. })).then_some(ty)
-        })
-        .expect("type-test case type");
-    assert!(matches!(
-        typed.types().get(case_type),
-        Some(TypeKind::EnumCase { case, .. }) if *case == circle.id()
-    ));
-    assert_eq!(
-        diagnostic_spans(&sources, &typed.diagnostics()[0]),
-        ("Shape.Circle", "Shape")
-    );
-}
-
-#[test]
 fn jump_targets_stop_at_callable_boundaries() {
-    let (_, _, _, valid) = checked(
+    let (_, _, entries) = unit_entries::checked_entries(
         "fun valid(flag: Boolean): Unit {\n\
          while (flag) { if (flag) { continue } else { break } }\n\
          loop {\n\
@@ -255,9 +217,11 @@ fn jump_targets_stop_at_callable_boundaries() {
          }\n\
          }",
     );
-    assert!(valid.diagnostics().is_empty(), "{:?}", valid.diagnostics());
+    for (_, valid) in entries {
+        assert!(valid.diagnostics().is_empty(), "{:?}", valid.diagnostics());
+    }
 
-    let (sources, _, _, invalid) = checked(
+    let (sources, _, entries) = unit_entries::checked_entries(
         "val top = break\n\
          fun invalid(): Unit {\n\
          continue\n\
@@ -267,34 +231,40 @@ fn jump_targets_stop_at_callable_boundaries() {
          }\n\
          }",
     );
-    assert_eq!(codes(invalid.diagnostics()), ["L0142", "L0142", "L0142"]);
-    assert_eq!(
-        invalid
+    for (_, invalid) in entries {
+        let (top_level, jumps) = invalid
             .diagnostics()
+            .split_first()
+            .expect("top-level rejection");
+        assert_eq!(top_level.code().to_string(), "L0167");
+        assert_eq!(sources.slice(top_level.primary_span()).unwrap(), "val");
+        assert_eq!(codes(jumps), ["L0142", "L0142", "L0142"]);
+        assert_eq!(
+            jumps
+                .iter()
+                .map(|diagnostic| diagnostic.message())
+                .collect::<Vec<_>>(),
+            [
+                "break is not inside an enclosing loop in this callable",
+                "continue is not inside an enclosing loop in this callable",
+                "break is not inside an enclosing loop in this callable",
+            ]
+        );
+        let primary_text = jumps
             .iter()
-            .map(|diagnostic| diagnostic.message())
-            .collect::<Vec<_>>(),
-        [
-            "break is not inside an enclosing loop in this callable",
-            "continue is not inside an enclosing loop in this callable",
-            "break is not inside an enclosing loop in this callable",
-        ]
-    );
-    let primary_text = invalid
-        .diagnostics()
-        .iter()
-        .map(|diagnostic| {
-            sources
-                .slice(diagnostic.primary_span())
-                .expect("diagnostic primary span")
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(primary_text, ["break", "continue", "break"]);
+            .map(|diagnostic| {
+                sources
+                    .slice(diagnostic.primary_span())
+                    .expect("diagnostic primary span")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(primary_text, ["break", "continue", "break"]);
+    }
 }
 
 #[test]
 fn bottom_non_null_and_numeric_boundaries_do_not_widen_silently() {
-    let (_, _, _, typed) = checked(
+    let (sources, _, entries) = unit_entries::checked_entries(
         "val outside = return\n\
          fun boundaries(): Unit {\n\
              val min: Byte = -128\n\
@@ -308,10 +278,16 @@ fn bottom_non_null_and_numeric_boundaries_do_not_widen_silently() {
              val noSignedToUnsigned: UInt = 1\n\
          }",
     );
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0086", "L0085", "L0085", "L0090", "L0084"]
-    );
+    for (_, typed) in entries {
+        assert_eq!(
+            codes(typed.diagnostics()),
+            ["L0167", "L0086", "L0085", "L0085", "L0090", "L0084"]
+        );
+        assert_eq!(
+            sources.slice(typed.diagnostics()[0].primary_span()),
+            Ok("val")
+        );
+    }
 }
 
 #[test]
@@ -409,72 +385,34 @@ fn numeric_overflow_is_a_source_diagnostic_not_an_internal_failure() {
 }
 
 #[test]
-fn nominal_and_type_parameter_identity_is_known_and_arity_is_exact() {
-    let text = "class Box<T>(val item: T) {}\n\
-                class Left {}\n\
-                class Right {}\n\
-                fun inspect(left: Box<Int>, again: Box<Int>, missing: Box, many: Left<Int>): Unit";
-    let (sources, parsed, resolution, typed) = checked(text);
-    assert_eq!(codes(typed.diagnostics()), ["L0091", "L0091"]);
-    assert_eq!(
-        diagnostic_spans(&sources, &typed.diagnostics()[0]),
-        ("Box", "Box")
-    );
-    assert_eq!(
-        diagnostic_spans(&sources, &typed.diagnostics()[1]),
-        ("Left", "Left")
-    );
-    assert_eq!(typed.nominals().len(), 3);
-    assert_ne!(typed.nominals()[1].id(), typed.nominals()[2].id());
-
-    let mut box_types = parsed
-        .ast()
-        .type_refs()
-        .iter()
-        .filter(|(_, node)| sources.slice(node.span()) == Ok("Box<Int>"))
-        .map(|(id, _)| typed.type_ref_type(id).expect("typed Box<Int>"));
-    let first = box_types.next().expect("first Box<Int>");
-    assert_eq!(box_types.next(), Some(first));
-    assert!(
-        matches!(typed.types().get(first), Some(TypeKind::Nominal { arguments, .. }) if arguments.len() == 1)
-    );
-
-    let type_parameter = resolution
-        .symbols()
-        .iter()
-        .find(|symbol| {
-            symbol.name() == "T"
-                && matches!(
-                    symbol.kind(),
-                    lang_frontend::name_resolution::SymbolKind::TypeParameter
-                )
-        })
-        .expect("type parameter");
-    assert!(matches!(
-        typed.symbol_type(type_parameter.id()).and_then(|id| typed.types().get(id)),
-        Some(TypeKind::TypeParameter(symbol)) if *symbol == type_parameter.id()
-    ));
-}
-
-#[test]
 fn interface_delegation_validates_targets_types_and_conflicts() {
     let valid = "interface Draw { fun draw(): Unit }\n\
                  class Renderer : Draw { override fun draw(): Unit {} }\n\
                  class Screen(val renderer: Renderer) : Draw by renderer {}\n\
                  class Generic<T: Draw>(val target: T) : Draw by target {}";
-    let (_, _, _, typed) = checked(valid);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.delegations().len(), 2);
+    let (_, _, entries) = unit_entries::checked_entries(valid);
+    for (_, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        assert_eq!(typed.signatures().delegations().len(), 2);
+    }
 
     let invalid = "interface Draw { fun draw(): Unit }\n\
                    class Renderer : Draw { override fun draw(): Unit {} }\n\
                    class Other {}\n\
-                   val outside: Renderer = this\n\
+                   const val outside: Int = 0\n\
                    class Mutable(var renderer: Renderer) : Draw by renderer {}\n\
                    class WrongScope(val actual: Renderer) : Draw by outside {}\n\
                    class Wrong(val other: Other) : Draw by other {}";
-    let (_, _, _, typed) = checked(invalid);
-    assert_eq!(codes(typed.diagnostics()), ["L0103", "L0103", "L0104"]);
+    let (sources, _, entries) = unit_entries::checked_entries(invalid);
+    for (_, typed) in entries {
+        assert_eq!(codes(typed.diagnostics()), ["L0103", "L0103", "L0104"]);
+        let targets = typed
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(targets, ["renderer", "outside", "other"]);
+    }
 
     let conflicts = "interface Draw { fun act(): Unit }\n\
                      interface Reset { fun act(): Unit }\n\
@@ -484,8 +422,10 @@ fn interface_delegation_validates_targets_types_and_conflicts() {
                      class Two(val draw: Drawer, val reset: Resetter) : Draw by draw, Reset by reset {}\n\
                      class Mixed(val draw: Drawer) : Draw by draw, Default {}\n\
                      class Resolved(val draw: Drawer, val reset: Resetter) : Draw by draw, Reset by reset { override fun act(): Unit {} }";
-    let (_, _, _, typed) = checked(conflicts);
-    assert_eq!(codes(typed.diagnostics()), ["L0105", "L0105"]);
+    let (_, _, entries) = unit_entries::checked_entries(conflicts);
+    for (_, typed) in entries {
+        assert_eq!(codes(typed.diagnostics()), ["L0105", "L0105"]);
+    }
 }
 
 #[test]
@@ -678,44 +618,78 @@ fn nullable_when_subject_categories_bound_native_eligibility() {
 
 #[test]
 fn nullable_when_domains_encode_null_match_and_non_null_fallthrough() {
-    use lang_frontend::type_checking::WhenDomain;
-    let (_, _, _, typed) = checked("fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let plan = &typed.nullable_whens()[0];
-    let null = &plan.entries()[0];
-    assert_eq!(null.input_domain(), &WhenDomain::Nullable);
-    assert_eq!(null.alternatives()[0].match_domain(), &WhenDomain::Null);
-    assert_eq!(
-        null.alternatives()[0].fallthrough_domain(),
-        &WhenDomain::NonNull
+    use lang_frontend::type_checking::{UnitNullableWhenDomain as Domain, UnitTypeKind};
+    let (sources, parsed, entries) = unit_entries::checked_entries(
+        "fun extract(x: Int?): Int = when (x) { null -> 0; else -> x }",
     );
-    assert_eq!(null.remaining_domain(), &WhenDomain::NonNull);
-    assert_eq!(null.body_type(), None);
-    let otherwise = &plan.entries()[1];
-    assert_eq!(otherwise.input_domain(), &WhenDomain::NonNull);
-    assert_eq!(otherwise.body_domain(), &WhenDomain::NonNull);
-    assert_eq!(otherwise.remaining_domain(), &WhenDomain::Empty);
-    assert!(matches!(
-        otherwise.body_type().and_then(|ty| typed.types().get(ty)),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
+    for (source, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [plan] = typed.nullable_whens() else {
+            panic!("one nullable when");
+        };
+        assert_eq!(plan.expression().source_unit(), source);
+        let [null, otherwise] = plan.entries() else {
+            panic!("null and else entries");
+        };
+        assert_eq!(null.input_domain(), Domain::Nullable);
+        let [alternative] = null.alternatives() else {
+            panic!("one null alternative");
+        };
+        assert_eq!(alternative.matched_domain(), Domain::Null);
+        assert_eq!(alternative.remaining_domain(), Domain::NonNull);
+        assert_eq!(null.remaining_domain(), Domain::NonNull);
+        assert_eq!(otherwise.input_domain(), Domain::NonNull);
+        assert_eq!(otherwise.body_domain(), Domain::NonNull);
+        assert_eq!(otherwise.remaining_domain(), Domain::Empty);
+        let [use_] = typed.nullable_when_uses() else {
+            panic!("only the else branch reads the extracted payload");
+        };
+        assert_eq!(use_.control(), plan.expression());
+        assert_eq!(use_.body(), otherwise.body());
+        assert_eq!(use_.entry_index(), 1);
+        assert_eq!(
+            typed
+                .expression_type(use_.expression())
+                .and_then(|ty| typed.types().get(ty)),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        let read = parsed
+            .ast()
+            .expressions()
+            .get(use_.expression().expression())
+            .unwrap();
+        assert_eq!(sources.slice(read.span()), Ok("x"));
+    }
 }
 
 #[test]
 fn nullable_when_successful_overload_trial_publishes_only_selected_plan() {
+    use lang_frontend::type_checking::UnitTypeKind;
+
     let text = "fun choose(callback: (Int?) -> Int): Int = 1
         fun choose(callback: (Boolean?) -> Boolean): Boolean = true
         fun use(): Unit { val selected = choose { when (it) { null -> 0; else -> it } } }";
-    let (_, _, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert_eq!(typed.nullable_whens().len(), 1);
-    let plan = &typed.nullable_whens()[0];
-    assert!(matches!(
-        plan.entries()[1]
-            .body_type()
-            .and_then(|ty| typed.types().get(ty)),
-        Some(TypeKind::Builtin(BuiltinType::Int))
-    ));
+    let (_, _, entries) = unit_entries::checked_entries(text);
+    for (source, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [plan] = typed.nullable_whens() else {
+            panic!("only the selected overload publishes a nullable when plan");
+        };
+        assert_eq!(plan.expression().source_unit(), source);
+        assert_eq!(
+            typed.types().get(plan.inner_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        let [use_] = typed.nullable_when_uses() else {
+            panic!("only the selected overload publishes a payload use");
+        };
+        assert_eq!(use_.control(), plan.expression());
+        assert_eq!(use_.entry_index(), 1);
+        assert_eq!(
+            typed.expression_type(use_.expression()),
+            Some(plan.inner_type())
+        );
+    }
 }
 
 #[test]

@@ -302,7 +302,7 @@ impl UnitExpressionLowerer<'_> {
 pub(in crate::ssa::unit_lower) mod nullable_if {
     //! Bounded nullable entries: root Borrow and heap Ifs.
 
-    use super::super::super::{Statement, nullable_proof::NullableProofScope};
+    use super::super::super::nullable_proof::NullableProofScope;
     use super::super::*;
     use crate::ssa::model::LoanId;
     use lang_frontend::type_checking::{
@@ -388,21 +388,6 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
                     _ => return Ok(expression),
                 }
             }
-        }
-
-        pub(in crate::ssa::unit_lower) fn map_if_body_is_empty(
-            &self,
-            body: Option<StatementId>,
-            span: Span,
-        ) -> Result<bool, LoweringError> {
-            let Some(body) = body else { return Ok(true) };
-            let node = self
-                .parsed
-                .ast()
-                .statements()
-                .get(body)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            Ok(matches!(node.payload(), Statement::ControlBody { elements } if elements.is_empty()))
         }
 
         #[allow(clippy::too_many_arguments)]

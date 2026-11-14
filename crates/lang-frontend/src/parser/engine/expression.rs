@@ -322,6 +322,9 @@ impl Parser<'_> {
         if self.can_start_expression(current) {
             let expression = self.parse_expression_bp(0, outer_stops)?;
             let span = self.expression_span(expression)?;
+            if let Some(end) = self.recover_poison_before_else(outer_stops)? {
+                return self.add_statement(self.span(span.start(), end)?, Statement::Error);
+            }
             return self.add_statement(span, Statement::Expression { expression });
         }
         let span = self.boundary_span(current, outer_stops)?;
@@ -372,6 +375,13 @@ impl Parser<'_> {
                 self.emit_closing(self.empty_at(current.span().start())?, opener)?;
             }
             self.previous_significant_end().max(opener.end())
+        };
+        let tail_start = self.current()?.span().start();
+        let end = if let Some(tail_end) = self.recover_poison_before_else(outer_stops)? {
+            elements.push(self.add_statement(self.span(tail_start, tail_end)?, Statement::Error)?);
+            tail_end
+        } else {
+            end
         };
         self.add_statement(
             self.span(opener.start(), end)?,
@@ -686,19 +696,25 @@ impl Parser<'_> {
         let skipped = if poisoned {
             let preserve_block_separator =
                 outer_stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0;
-            let skipped = self.skip_to_group_closer(opener_raw, preserve_block_separator)?;
-            if skipped.is_none()
-                && preserve_block_separator
-                && self.is_poison()
-                && let Some((separator, end)) = self.adjacent_poison_tail_boundary()?
-                && self
-                    .lexical_recoveries
-                    .block_statement_follows(self.lexed, separator)
-            {
-                self.index = separator;
+            if outer_stops.delimiters & Stops::ELSE != 0 && self.current_is_keyword(Keyword::Else) {
+                None
+            } else if let Some(end) = self.recover_poison_before_else(outer_stops)? {
                 Some(end)
             } else {
-                skipped
+                let skipped = self.skip_to_group_closer(opener_raw, preserve_block_separator)?;
+                if skipped.is_none()
+                    && preserve_block_separator
+                    && self.is_poison()
+                    && let Some((separator, end)) = self.adjacent_poison_tail_boundary()?
+                    && self
+                        .lexical_recoveries
+                        .block_statement_follows(self.lexed, separator)
+                {
+                    self.index = separator;
+                    Some(end)
+                } else {
+                    skipped
+                }
             }
         } else if !at_right_paren
             && !declaration_tail

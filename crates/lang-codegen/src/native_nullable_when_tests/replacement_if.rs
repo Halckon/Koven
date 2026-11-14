@@ -1,4 +1,7 @@
 //! Complete ordinary replacement + fresh If proofs, never a reused When generation.
+#[path = "replacement_if/implicit_null.rs"]
+mod implicit_null;
+
 use super::*;
 use lang_frontend::{
     ownership_checking::{
@@ -187,6 +190,7 @@ const NATIVE_STDOUT: &[u8] = concat!(
 struct Shape {
     non_null_when_true: bool,
     reversed: bool,
+    implicit_null: bool,
     argument: &'static str,
 }
 
@@ -194,21 +198,25 @@ const SHAPES: [Shape; 4] = [
     Shape {
         non_null_when_true: false,
         reversed: false,
+        implicit_null: false,
         argument: "x",
     },
     Shape {
         non_null_when_true: true,
         reversed: false,
+        implicit_null: false,
         argument: "(x)",
     },
     Shape {
         non_null_when_true: false,
         reversed: true,
+        implicit_null: false,
         argument: "(x)",
     },
     Shape {
         non_null_when_true: true,
         reversed: true,
+        implicit_null: false,
         argument: "((x))",
     },
 ];
@@ -267,11 +275,11 @@ fn actual_if(source: &UnitSource, outer: &Control, shape: Shape) -> IfSource {
     let Expression::If {
         condition,
         then_branch,
-        else_branch: Some(else_branch),
+        else_branch,
         ..
     } = *node.payload()
     else {
-        panic!("the exact ordinary statement If has two actual arms")
+        panic!("the exact ordinary statement If")
     };
     let unit = outer.id.source_unit();
     let condition = UnitExpressionId::new(unit, condition);
@@ -318,11 +326,20 @@ fn actual_if(source: &UnitSource, outer: &Control, shape: Shape) -> IfSource {
     let (present, null) = if shape.non_null_when_true {
         (then_branch, else_branch)
     } else {
-        (else_branch, then_branch)
+        (
+            else_branch.expect("explicit non-null arm"),
+            Some(then_branch),
+        )
     };
     let present = source.parsed.ast().statements().get(present).unwrap();
-    let null = source.parsed.ast().statements().get(null).unwrap();
-    assert!(matches!(null.payload(), Statement::ControlBody { elements } if elements.is_empty()));
+    assert_eq!(null.is_none(), shape.implicit_null);
+    let null = null.map_or(node.span(), |null| {
+        let null = source.parsed.ast().statements().get(null).unwrap();
+        assert!(
+            matches!(null.payload(), Statement::ControlBody { elements } if elements.is_empty())
+        );
+        null.span()
+    });
     let Statement::ControlBody { elements } = present.payload() else {
         panic!("one actual control body")
     };
@@ -359,7 +376,7 @@ fn actual_if(source: &UnitSource, outer: &Control, shape: Shape) -> IfSource {
         comparison,
         subject,
         present: present.span(),
-        null: null.span(),
+        null,
         call,
         argument,
         null_index: usize::from(shape.non_null_when_true),
