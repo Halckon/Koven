@@ -16,8 +16,24 @@ pub struct TwoSourceExperiment {
     leaves: Option<Vec<super::CalleeLeaf>>,
     arm_spans: Vec<[super::ArmSourceSpans; 2]>,
     shells: Vec<Option<super::FunctionShell>>,
+    entries: Vec<super::EntryDescriptor>,
 }
 impl TwoSourceExperiment {
+    /// Checks the original descriptor identity, including when cloned.
+    pub fn owns_entry(&self, entry: &super::EntryDescriptor) -> bool {
+        self.entries
+            .iter()
+            .any(|candidate| candidate.same_identity(entry))
+    }
+
+    /// Same-analysis entry evidence only; not a normal ownership capability.
+    pub fn entries(
+        &self,
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<&[super::EntryDescriptor]> {
+        self.matches_types(typed).then_some(self.entries.as_slice())
+    }
+
     /// Complete bounded function coverage for an issuing fact and typed analysis only.
     /// Unsupported prefixes, suffixes or ABI return None without revoking the local fact.
     pub fn function_shell(
@@ -105,7 +121,8 @@ pub fn analyze_two_source_experiment(
     let Ok(validated) = analyzed?.validate() else {
         return Ok(None);
     };
-    let facts = validated.into_ownership().no_carry.two_sources;
+    let owned = validated.into_ownership();
+    let facts = owned.no_carry.two_sources.clone();
     let callables = facts
         .iter()
         .map(|fact| {
@@ -120,13 +137,14 @@ pub fn analyze_two_source_experiment(
     let Some(callables) = callables else {
         return Ok(None);
     };
-    let shells = facts
+    let shells: Vec<_> = facts
         .iter()
         .zip(&callables)
         .map(|(fact, callable)| {
             super::function_shell::collect(fact, *callable, inputs, names, typed)
         })
         .collect();
+    let entries = super::entry::collect(&shells, inputs, names, typed, &owned);
     let leaves = super::leaves::collect(&facts, inputs, names, typed);
     let Some(arm_spans) = facts
         .iter()
@@ -142,5 +160,6 @@ pub fn analyze_two_source_experiment(
         leaves,
         arm_spans,
         shells,
+        entries,
     }))
 }

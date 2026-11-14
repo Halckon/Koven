@@ -230,7 +230,7 @@ pub use research_borrow_consumer_body::{
 #[cfg(feature = "e2-two-source-test-support")]
 pub mod two_source_experiment {
     pub use super::compilation_unit::loop_no_carry::two_source_candidate::{
-        ArmSourceSpans, CalleeLeaf, CalleeLeafBody, FunctionShell, TwoSourceCounterFact,
-        TwoSourceExperiment, analyze_two_source_experiment,
+        ArmSourceSpans, CalleeLeaf, CalleeLeafBody, EntryDescriptor, FunctionShell,
+        TwoSourceCounterFact, TwoSourceExperiment, analyze_two_source_experiment,
     };
 }

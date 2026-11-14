@@ -132,3 +132,8 @@ pub use arm_spans::ArmSourceSpans;
 mod function_shell;
 #[cfg(feature = "e2-two-source-test-support")]
 pub use function_shell::FunctionShell;
+
+#[cfg(feature = "e2-two-source-test-support")]
+mod entry;
+#[cfg(feature = "e2-two-source-test-support")]
+pub use entry::EntryDescriptor;

@@ -263,14 +263,40 @@ fn independent_domain_preserves_old_neighbor_and_rejections() {
 
 #[test]
 fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars() {
-    for named in [false, true] {
+    for (named, extra) in [
+        (false, 0),
+        (true, 0),
+        (true, 1),
+        (true, 2),
+        (true, 3),
+        (true, 4),
+    ] {
         let mut sources = SourceMap::new();
         let entry = if named {
             "fun entry():Unit {val rounds=3;val choose=true;run(\"left\",\"right\",rounds,choose)}"
         } else {
             "fun entry():Unit {run(\"left\",\"right\",3,true)}"
         };
-        let source = format!("{SOURCE}\n{entry}");
+        let bounded = SOURCE.replace(";consume(left);consume(right)", "");
+        let entry = match extra {
+            1 => entry.replace("val rounds=3;", "consume(\"extra\");val rounds=3;"),
+            2 => entry.replace("rounds,choose)}", "rounds,choose);consume(\"extra\")}"),
+            3 => entry.replace("rounds,choose)", "3,choose)"),
+            4 => entry.replace(
+                "run(\"left\",\"right\",rounds,choose)",
+                "run(choose,\"right\",rounds,\"left\")",
+            ),
+            _ => entry.to_owned(),
+        };
+        let bounded = if extra == 4 {
+            bounded.replace(
+                "left:String,right:String,rounds:Int,choose:Boolean",
+                "choose:Boolean,right:String,rounds:Int,left:String",
+            )
+        } else {
+            bounded
+        };
+        let source = format!("{bounded}\n{entry}");
         let id = sources.add_source("entry-evidence.ko", source).unwrap();
         let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
         let inputs = [SourceUnitInput::new(
@@ -289,6 +315,30 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
             .unwrap()
             .validate()
             .unwrap();
+        let experiment = analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
+            .unwrap()
+            .unwrap();
+        let entries = experiment.entries(&typed).unwrap();
+        assert_eq!(entries.len(), usize::from(named && extra == 0));
+        if named && extra == 0 {
+            assert!(experiment.owns_entry(&entries[0].clone()));
+            let other = analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .unwrap();
+            assert!(!other.owns_entry(&entries[0]));
+            assert_eq!(entries[0].contracts().len(), 4);
+            assert_eq!(entries[0].ends().len(), 4);
+            assert_eq!(entries[0].drops().len(), 2);
+            let retyped = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            assert!(experiment.entries(&retyped).is_none());
+        }
+        assert_eq!(experiment.facts().len(), 1);
+        if extra != 0 {
+            continue;
+        }
         let (checked, _) = with_domain(|| {
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap()
         });

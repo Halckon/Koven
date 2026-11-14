@@ -18499,3 +18499,18 @@ End 指向真实根 Place，而非用 loan 描述符拼造事件。
 bridge 丢弃普通产品前，以同一分析身份私有封装 entry 完整 AST、精确实例 key、
 四实参及这些 cleanup 产品，再实现源码 entry lowering 与扩围后的独立 replay。
 现有 bridge/Published 仍只支持 loop callable；没有新增生产权限或合成入口替代。
+
+### 实验私有构造 EntryDescriptor（未接 backend）
+
+成功完整 ownership validate 后、丢弃普通产品之前，收集无参 Unit entry 的最窄
+完整源码：两个不可变 Int/Boolean 字面量初始化局部，随后唯一调用完整的标准
+四参数 loop callable。使用 formed_owned_locals 与原名称解析锁定局部 symbol，
+显式核验初始化表达式/局部类型；调用保留精确 instance key、实参/参数顺序及
+Shared 合同。仅无插值 String 实参和上述具名标量准入，四个真实 End 与两个
+String Temporary Drop 必须唯一闭合，End 先于同 CallReturn 的 Drop。
+
+descriptor 只能内部构造，拥有独立 Rc 身份；entries 查询要求原 typed 身份，
+owns_entry 区分同 typed 下重新 ownership 分析，即使结构相等也不混用。公开的
+只读投影不返回普通 owned capability。前后缀额外语句、标量改回 literal、
+非标准四参数 roles 均只拒绝 descriptor，保留合法两源 fact。没有生成 entry SSA、
+扩大 Published 范围或生产接受集；后继仍须依据该证据完整 lowering/replay。
