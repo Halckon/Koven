@@ -1398,3 +1398,27 @@ loan序列与原owned数组逐项比较，不修改owned。Drop、primitive、En
 ignored；四个前端handoff套件通过。最初AfterChild测试保留的固定loan预期
 在新增反向源码上失败，已按实际源码root次序修正expected并复验通过，实际
 owned数组从未重排。未执行新native、故障控制或跨宿主验收。
+
+### 普通多源码 project 与独立 D10 封包的差距校准
+
+必须区分两个问题：独立D10 named封包当前只接受单source，不等于普通Unit/driver
+无法编译相同受限程序。本批没有新增生产许可，而是以真实普通路径核实已有能力：
+
+- 两个合法rooted source分别放wrapper与callee，保持完整names/types/owned；
+  两Replace顺序×canonical source角色顺序×inputs反序共八组合，ordinary Unit
+  生成完整两函数Program、SSA/LLVM验证与真实跨源DirectCall FunctionId通过。
+  原D10 named入口对这两个inputs仍拒绝，未裁Unit调用单source图checker。
+- 默认无feature的 `kovenc build --project ... --entry app.entry`，通过真实
+  project与标准源码loader，四种顺序组合均编译链接成功；没有选择实验命令、
+  自定义prelude或删除标准source。只检查成功产物，不执行生成程序。
+- 前端同typed下逐source重跑真实Checker/Planner观察，与完整shared owned核
+  规范source次序的6loans、4drops、2Ends及2primitives，八组合通过；完整34/5
+  事件保留。该测试是独立事实对应，不声称捕获shared分析的同一nonce；8个
+  argument contracts此层仅计数，不能替代新binder的逐项合同验证。
+
+因此，对上述确切形态，“普通多source/project编译接入”不能继续列作待实现。
+尚待的是新split形态native行为验收、独立D10跨source封闭证明、以及未获准的
+更广producer/代际形态；不得由本批成功推断一般多source/标准库函数均已获得
+D10能力。若继续构建独立封包，应新增真实wrapper单source Pending，并在同次
+完整final-owned后与callee Pending唯一组合，严格绑定canonical source顺序；
+图checker按每个source-qualified角色定位AST，不能通过裁剪Unit复用singleton。

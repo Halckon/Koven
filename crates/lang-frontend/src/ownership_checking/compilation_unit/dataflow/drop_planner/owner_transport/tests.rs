@@ -661,3 +661,6 @@ mod root_write_receipts;
 
 #[cfg(feature = "d10-catalog-experiment")]
 mod named_wrapper_boundaries;
+
+#[cfg(feature = "d10-catalog-experiment")]
+mod split_named_wrapper_observations;

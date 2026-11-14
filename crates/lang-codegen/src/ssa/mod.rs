@@ -376,3 +376,6 @@ mod d10_named_process_object_tests;
 
 #[cfg(all(test, feature = "d10-catalog-experiment"))]
 mod d10_named_entry_tests;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_split_source_tests;
