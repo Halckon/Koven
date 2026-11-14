@@ -682,3 +682,24 @@ marker，不是其 Name 表达式范围。候选现严格按既有 call contract
 四项身份错配测试仍 ignored。前端/后端严格 Clippy、默认前端编译、格式、文档956
 和独审通过。未执行 native、LLVM 或本地故障注入。收尾期间获知 #428 已合入
 `467f88b5`；本片提交仍保留旧基线，下一隔离组合单独验收该主线。
+
+### 与 #428 新主线的隔离组合
+
+双操作批次在 `a20bc343` 留存，原 `ed389f22` 树也未修改。另树自动合入
+`467f88b5`，组合头为 `5da38ba2`；无冲突且 merge 相对双操作父提交的 diff
+与主线原始 diff 一致，未在冲突处理中覆盖 D10 代码。
+
+组合除 D10 普通回归外，验证 #428 仓内 `type_callable/inout_storage.rs` 的
+Elvis／短路／循环退出写回用例。后端额外对照严格区分出处：Elvis 源复用
+`assert_nested_loop_flow` 的 wrapper 和 `if (other || (write(&x) && false))
+{ break }; return 0`；另一份 explicit-if 是本次明确改写的本地对照。
+后者不是 SPEC §227 未收录完整文本的原始 CLI 探针，不能据相似错误码冒称复现
+了同一输入。两者均非 D10 封闭候选，必须保持 sidecar 拒绝。
+
+组合已验证前端普通 53 测试（其中 #428 所在 type_callable 47 项）、真实
+planner 5 项、D10 实际 SSA 8 项。新边界回归对 Rooted/MemoryDocument 均断言：
+Elvis 为 UnsupportedNode 且 span 文本等于完整 control；本地 explicit-if 为
+MissingFact 且 span 文本为 `x`。后者不声称已定位多个 `x` 中某一特定节点。
+两者正常前端分析成功，但不属于双操作 sidecar 的封闭范围；这项回归保留普通
+后端拒绝，不能把 #428 的前端修复或本次组合解读为后端已支持这些控制表达式。
+独立复审无阻断；未运行 native 或本地故障注入，原四项 CI-only 身份用例仍 ignored。
