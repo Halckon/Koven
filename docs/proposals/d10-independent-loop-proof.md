@@ -1026,3 +1026,47 @@ CI-only 负控仍待实际执行。有限 SSA 路径与 LLVM/object 验证均不
 检查；默认/实验 feature 非 test 编译、实验 tests 严格 Clippy、格式、文档 957、
 全仓尺寸及独立生命周期/权限/失败不交付审查通过。未执行生成程序、CI-only
 故障控制或推送。已有对象动态矩阵仍因共享 native 窗口被占用而未运行。
+
+### 两函数入口候选的独立封闭合同
+
+下一候选不能扩大旧 singleton bound。拟限定同一 source 的两个普通非泛型、
+无 receiver 函数：零参数 Unit wrapper 正常返回，仅一次调用已解析的双 Int
+callee；callee 保留指定前/后顺序、双独立 counter、双根真实最终使用。先用
+实际普通源码验证实参运输，不预设 Int 必有或必无 loan，literal 与局部变量
+实参也不擅自视为同一种权限。
+
+需独立的完整两函数 coverage，对三个 AST arena 无遗漏、无重叠；callee 局部
+角色不是全源码许可。新的 pending 必须来自实际 planner，记录真实 wrapper
+Call、来源与实际生命周期；binder 对全部 owned facts 建立保序且无遗漏的职责
+分区，不能过滤 wrapper facts 再塞入旧 bound。diagnostics/invalid-types 清空、
+typed/owned 同次身份和全部事实对账必须全部成功，才交付独立 bound。
+
+后端必须在原普通 reachable-closure lowering 的同一个 Program 中检查 entry
+与 callee 的真实 FunctionId 和 Call 关系，核 wrapper 全部操作/运输/结束与
+callee 全图；不复制、裁剪或重编号 Program 后冒充旧 singleton 检查。共同检查
+完成前不发布封包或产物。此段是未启用候选，不允许通过删除旧单函数拒绝或
+使用测试 trampoline 来替代实现；原入口、ABI 与默认 gates 保持不变。
+
+先行普通源码对照采用 literal 实参 `run(0, 0)`、`run(1, 0)`、`run(1, 2)`，
+两替换顺序 × Rooted/Memory 共十二组合。它走真正普通 owned/entry reachable
+closure，不手工插入 main 或修改 SSA；旧两种 singleton sidecar 仍必须返回 None。
+对实际 wrapper 单块核六条 constant/place/borrow 构造、DirectCall、逆序两条
+BorrowEnd 及 Return，依真实源码实参位置对账 owned 原序 Shared temporary loan。
+增强验收发现 integer literal 不在 `observes_call_loan` 白名单，公开
+`direct_call_loan_ends` 为零；不能声称同次前端独立结束权威已经具备，也不能
+用实际 SSA BorrowEnd 或描述符 end_span 倒填它。literal 形态因此仍不能作为
+新 wrapper bound 的准入。
+callee 的真实身份及 Shared Int 参数匹配，并通过完整 Program SSA/LLVM verifier。
+这些是可重复的普通调用组合见证，尚非两函数新 bound 或 callee 独立全图授权。
+
+具名局部补充探针 `val p = 1; val c = 2; run(p, c)` 实测在两顺序与两输入布局
+四组合都产生两个真实 Shared 根 loan，每条恰有一条同 fact 的 direct-call 结束
+记录且 point 为该调用 CallReturn，普通 SSA/LLVM 同样通过。这与 literal 的零
+记录形成明确差异；下一新 bound 候选可仅研究具名 Int 局部实参，但仍须完整
+两函数 AST、原序全 owned 分区和独立共同图证明，不能仅凭此四例签发权限。
+本批没有实现新的 WrapperPending/Bound，也未使现有 singleton 接受额外函数。
+
+具名探针尚未独立核两 root 的互异及逐实参绑定，也未完成其全指令 replay；这些
+仍是新合同实现前置，不由上述 End 事实存在性结果外推。本片最终 D10 普通回归
+十三项通过／三项 CI-only ignored，严格 tests Clippy、格式、文档、尺寸与独审
+通过。未修改生产代码、执行生成程序、运行故障控制或推送。
