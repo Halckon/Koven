@@ -380,7 +380,7 @@ pub(super) fn analyze(
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
         #[cfg(feature = "d10-catalog-experiment")]
-        let iteration_collection = source_collection::capture_iteration(&drop_analysis);
+        let iteration_collection = source_collection::capture_iteration(&checker, &drop_analysis);
         #[cfg(feature = "d10-catalog-experiment")]
         catalogs.extend(drop_analysis.catalog);
         #[cfg(feature = "d10-catalog-experiment")]

@@ -1809,3 +1809,23 @@ feature-only `dataflow/source_collection.rs` 在原 checker.run 返回后、任�
 本拆分正常 source ledger 5 项、真实五源 project 1 项、feature frontend/CLI all-target
 strict Clippy、默认 frontend all-target check、fmt/diff、文档957页及尺寸2280文件/37历史项
 通过。未运行native、人工故障、旧default-workspace-all-target失败项或联合复验。
+
+
+### 原 iteration 验证输入五通道
+
+source 分组追加原 owner_scopes、loan_ends、required_exits 与 sequential/Map templates，
+保留完整字段和原序。采集 helper 同借本轮 Checker 与真实 Drop Analysis，模板按原
+BTreeMap values 顺序复制，对应生产 into_values；最终同 run 原数组逐通道完整 Eq。
+不从退出计划反推见证，不把遍历 source 强制作为 owner/template 引用的声明源。
+
+owner scopes 保留 named 比较和追加 temporary scopes；loan ends 仅原 Cleanup 投影中的
+EndCallLoan/EndReceiverLoan/EndCaptureLoan，不包含 EndBinding 或完整 ActionSource 历史。
+嵌套共享 actions 不 flatten 去重；原 validator、lowering、错误/deferred门禁不变，
+不扩大 callable、CFG、可达闭包或项目准入。dataflow 保持1237行、既有上限不变。
+
+正常 source ledger 6项通过，六源新增样本实际覆盖三种 loan end 与五通道非空、Map
+Continue+Drop、空源、反序及错误/deferred不发布；初次fixture包路径不匹配已修正并重跑。
+真实五源project exact 1、feature frontend/CLI all-target strict Clippy、默认frontend
+all-target check、fmt/diff/YAML/JSON、文档957页及尺寸2281文件/37历史项通过。
+全diff独立静审无阻断；未运行native、人工故障/混配、旧default-workspace-all-target失败项
+或联合复验。各编译入口核磁盘至少8Gi，复用原target串行执行，未清理未知归属缓存。
