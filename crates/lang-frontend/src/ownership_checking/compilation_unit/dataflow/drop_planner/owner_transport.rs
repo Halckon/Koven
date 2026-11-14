@@ -286,6 +286,10 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
+        #[cfg(test)]
+        if let Some(value) = &value {
+            self.origin_moved(expression, value.symbol);
+        }
         if self.is_string_expression(expression) {
             self.owner_loop
                 .segment_move(self.checker.unit_expression(expression), value.as_ref());

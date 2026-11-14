@@ -5,6 +5,11 @@ use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in super::super) enum Event {
     Literal(UnitExpressionId),
+    Moved {
+        expression: UnitExpressionId,
+        source: UnitSymbolId,
+    },
+    Dropped(crate::ownership_checking::UnitDropFact),
     Bound(UnitSymbolId, UnitExpressionId),
     Applied {
         call: UnitExpressionId,
@@ -14,6 +19,24 @@ pub(in super::super) enum Event {
 }
 
 impl DropPlanner<'_, '_> {
+    pub(in super::super) fn origin_moved(
+        &mut self,
+        expression: ExpressionId,
+        source: UnitSymbolId,
+    ) {
+        if let Some(probe) = &mut self.origin_probe {
+            probe.push(Event::Moved {
+                expression: self.checker.unit_expression(expression),
+                source,
+            });
+        }
+    }
+    pub(in super::super) fn origin_dropped(&mut self, fact: PlannerDropFact) {
+        if let Some(probe) = &mut self.origin_probe {
+            probe.push(Event::Dropped(fact.into_unit(self.checker.source_unit)));
+        }
+    }
+
     pub(in super::super) fn origin_literal(&mut self, expression: ExpressionId) {
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Literal(self.checker.unit_expression(expression)));

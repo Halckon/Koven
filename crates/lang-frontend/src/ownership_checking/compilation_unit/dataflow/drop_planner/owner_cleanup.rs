@@ -193,6 +193,8 @@ impl DropPlanner<'_, '_> {
         }
         if !self.facts.contains(&fact) {
             self.facts.push(fact);
+            #[cfg(test)]
+            self.origin_dropped(fact);
             self.drop_root_old_token(fact);
             self.iteration_actions.push_with_binding_drop(
                 (

@@ -274,3 +274,16 @@ root 更新、old-result binding；探针开关的既有清理与观察产物相
 一次静态遍历，不代表动态循环迭代，尚未记录完整 Drop/Move/borrow/分流汇合，
 也尚未形成有限循环状态表示、完整事件覆盖证据或 Carry 权限。未创建新 owner
 资格、既有 receipt 或真实 SSA。
+
+### 实际 Move 与 Drop 事件
+
+`origin_probe` 进一步在 `moved_owner` 收到实际移出的 OwnedValue 时记录源 symbol
+与读取 expression，不取其中的旧 owner token。Drop 在
+`push_fact_with_binding_drop` 完成来源归一化、去重并实际加入 facts 后记录，
+直接保存该真实 UnitDropFact，而非从最终源码或模型重建清理事件。
+
+普通直线 `literal → a → move → b → drop b` 核验精确事件次序；既有循环测试
+将 Drop 子序列与同 checker 关闭探针的完整 facts 对照。该记录仍是 planner 遍历
+与事实发布的顺序，不等于运行时执行顺序；特别是分支替代路径的事实不能拼成
+单一路径。尚未记录分支角色/分流汇合和 borrow，故不能据这个线性日志构造完整
+loop/branch 状态机或 Carry 证明；遇到此类需求必须维持未完成/不准入。
