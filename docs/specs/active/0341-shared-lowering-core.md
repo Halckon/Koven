@@ -18265,3 +18265,25 @@ fact中的callsite序列不去重。专用test+feature emitter在同module分配
 最终实验/组合E2定向测试各5/5（含真实SSA verifier及LLVM render）、两配置codegen
 all-target严格Clippy、frontend组合all-target严格Clippy、默认/观察cargo check及
 fmt/docs951/diff和独立复审通过。未运行native或远端CI。
+
+### E2 已闭合臂的detached helper SSA（实验，生产未启用）
+
+在真实leaf闭包基础上，专用emitter从同一issuing fact及原typed计划生成两个独立
+内部helper，而不是伪造原run函数。helper仅有两Shared String根，按原签名相对
+顺序投影；原完整ABI、条件、rounds等未由此实现。producer BorrowCall以对应根为
+父来源，随后实际consumer DirectCall按完整key与原callsite顺序调用同module叶函数，
+最后child唯一End并Return。无输入根End、无新父权限、无旧单源receipt身份复用。
+
+实验桥按原inputs解析投影arm/callsite/末consumer statement Span，只允许owned
+fact查询；AfterStatement必须等于最后consumer。source投影不是额外授权。helper/
+entry/Return使用明确Synthetic origin，call和End保持原Source origin。失败仅丢弃
+局部Program，不返回部分helper；整个Program verifier之后才交付实验产物。
+
+真实测试核两Shared String参数、columns反序、确切producer source/arguments、
+child身份、各consumer目标/顺序、唯一末End及所有source/synthetic origin；保留
+外来fact/retyped/不支持leaf拒绝，LLVM render也覆盖新增helper。没有helper调用方、
+循环CFG、checked-counter全边、原函数ABI或required/selected/replay/publication
+收据链，不能宣称原两臂已接入循环emitter或完成E2。
+最终实验/组合配置各5/5定向测试（含整个SSA verifier与LLVM render）、两配置
+codegen all-target严格Clippy、frontend组合all-target严格Clippy、默认/观察
+cargo check、fmt/docs951/diff及独立复审通过。未运行native或远端CI。

@@ -95,6 +95,110 @@ fn independent_two_source_bridge_does_not_enable_normal_analysis() {
                         lang_frontend::ownership_checking::two_source_experiment::CalleeLeafBody::EmptyUnit => assert!(matches!(&block.terminator.as_ref().unwrap().kind, super::model::TerminatorKind::Return { values } if values.is_empty())),
                     }
                 }
+                let fragments = super::e2_arm_fragments::emit(&experiment, fact, &typed).unwrap();
+                crate::llvm::render_verified_program(&fragments.leaves.program).unwrap();
+                assert_eq!(fragments.columns, if reversed { [1, 0] } else { [0, 1] });
+                assert_ne!(fragments.arms[0], fragments.arms[1]);
+                for (arm_index, id) in fragments.arms.iter().enumerate() {
+                    use super::model::{EntityId, Operation, Origin, TerminatorKind};
+                    let function = fragments.leaves.program.modules[0].function(*id).unwrap();
+                    assert_eq!(function.blocks.len(), 1);
+                    let block = &function.blocks[0];
+                    assert_eq!(block.parameters.len(), 2);
+                    for parameter in &block.parameters {
+                        let super::model::EntityType::Loan {
+                            kind: super::model::LoanKind::Shared,
+                            target,
+                        } = function.entity(*parameter).unwrap().ty
+                        else {
+                            panic!("Shared parameter")
+                        };
+                        assert!(matches!(
+                            fragments.leaves.program.modules[0]
+                                .types
+                                .get(target.index()),
+                            Some(super::model::SsaTypeKind::StringOwner)
+                        ));
+                    }
+                    let expected_origin = Origin::Synthetic {
+                        anchor: parsed
+                            .ast()
+                            .statements()
+                            .get(fact.arms()[arm_index].body().statement())
+                            .unwrap()
+                            .span(),
+                        reason: "detached verified E2 arm".to_owned(),
+                    };
+                    assert_eq!(function.origin, expected_origin);
+                    assert_eq!(block.origin, expected_origin);
+                    assert_eq!(block.terminator.as_ref().unwrap().origin, expected_origin);
+                    let EntityId::Loan(parent) = block.parameters[fragments.columns[arm_index]]
+                    else {
+                        panic!("shared root")
+                    };
+                    let instructions = block
+                        .instructions
+                        .iter()
+                        .map(|id| function.instruction(*id).unwrap())
+                        .collect::<Vec<_>>();
+                    let calls = &fact.calls()[arm_index];
+                    assert_eq!(instructions.len(), calls.len() + 1);
+                    let [EntityId::Loan(child)] = instructions[0].results.as_slice() else {
+                        panic!("child")
+                    };
+                    assert!(!block.parameters.contains(&EntityId::Loan(*child)));
+                    for (position, ((expression, key), instruction)) in
+                        calls.iter().zip(&instructions).enumerate()
+                    {
+                        let target = fragments
+                            .leaves
+                            .functions
+                            .iter()
+                            .find(|(instance, _)| instance == key)
+                            .unwrap()
+                            .1;
+                        assert_eq!(
+                            instruction.origin,
+                            Origin::Source(
+                                parsed
+                                    .ast()
+                                    .expressions()
+                                    .get(expression.expression())
+                                    .unwrap()
+                                    .span()
+                            )
+                        );
+                        if position == 0 {
+                            assert!(
+                                matches!(&instruction.operation, Operation::BorrowCall { callee, arguments, source } if *callee==target && *source==parent && arguments==&vec![EntityId::Loan(parent)])
+                            );
+                        } else {
+                            assert!(instruction.results.is_empty());
+                            assert!(
+                                matches!(&instruction.operation, Operation::DirectCall { callee, arguments, receiver: None } if *callee==target && arguments==&vec![EntityId::Loan(*child)])
+                            );
+                        }
+                    }
+                    let end = instructions.last().unwrap();
+                    assert!(
+                        matches!(end.operation, Operation::BorrowEnd { loan } if loan == *child)
+                    );
+                    let last = fact.arms()[arm_index].consumers().last().unwrap().0;
+                    assert_eq!(
+                        end.origin,
+                        Origin::Source(
+                            parsed
+                                .ast()
+                                .statements()
+                                .get(last.statement())
+                                .unwrap()
+                                .span()
+                        )
+                    );
+                    assert!(
+                        matches!(&block.terminator.as_ref().unwrap().kind, TerminatorKind::Return { values } if values.is_empty())
+                    );
+                }
                 let plan = super::e2_two_source_plan::Plan::new(&experiment, fact, &typed).unwrap();
                 assert!(experiment.owns(plan.fact()));
                 assert_eq!(plan.source_roles(), if reversed { [1, 0] } else { [0, 1] });
@@ -116,6 +220,7 @@ fn independent_two_source_bridge_does_not_enable_normal_analysis() {
                     .unwrap();
                 assert!(!experiment.matches_types(&retyped));
                 assert!(super::e2_callee_leaves::emit(&experiment, &retyped).is_none());
+                assert!(super::e2_arm_fragments::emit(&experiment, fact, &retyped).is_none());
                 assert!(
                     super::e2_two_source_plan::Plan::new(&experiment, fact, &retyped).is_none()
                 );
@@ -129,6 +234,7 @@ fn independent_two_source_bridge_does_not_enable_normal_analysis() {
                     "another real analysis is not the issuing domain"
                 );
                 assert!(super::e2_two_source_plan::Plan::new(&other, fact, &typed).is_none());
+                assert!(super::e2_arm_fragments::emit(&other, fact, &typed).is_none());
                 assert!(!other.owns_leaf(&experiment.callee_leaves().unwrap()[0]));
                 assert_ne!(fact.arms()[0].source(), fact.arms()[1].source());
                 assert_eq!(
@@ -193,6 +299,9 @@ fn unsupported_actual_leaf_bodies_do_not_become_placeholders() {
         );
         assert!(experiment.callee_leaves().is_none());
         assert!(super::e2_callee_leaves::emit(&experiment, &typed).is_none());
+        assert!(
+            super::e2_arm_fragments::emit(&experiment, &experiment.facts()[0], &typed).is_none()
+        );
         assert!(
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
                 .unwrap()

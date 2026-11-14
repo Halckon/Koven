@@ -14,6 +14,7 @@ pub struct TwoSourceExperiment {
     typed_owner: std::sync::Arc<()>,
     callables: Vec<DeclarationId>,
     leaves: Option<Vec<super::CalleeLeaf>>,
+    arm_spans: Vec<[super::ArmSourceSpans; 2]>,
 }
 impl TwoSourceExperiment {
     /// Returns only facts retained after the complete validation gate.
@@ -29,6 +30,13 @@ impl TwoSourceExperiment {
         self.leaves
             .as_ref()
             .is_some_and(|leaves| leaves.iter().any(|candidate| candidate.same_identity(leaf)))
+    }
+    /// Returns original source projections only for an owned closed fact.
+    pub fn arm_spans(&self, fact: &TwoSourceCounterFact) -> Option<&[super::ArmSourceSpans; 2]> {
+        self.facts
+            .iter()
+            .position(|candidate| Rc::ptr_eq(&candidate.identity, &fact.identity))
+            .and_then(|index| self.arm_spans.get(index))
     }
     /// Checks the issuing typed analysis, including across structurally equal reanalysis.
     pub fn matches_types(&self, typed: &ValidatedCompilationUnitTypes) -> bool {
@@ -96,10 +104,18 @@ pub fn analyze_two_source_experiment(
         return Ok(None);
     };
     let leaves = super::leaves::collect(&facts, inputs, names, typed);
+    let Some(arm_spans) = facts
+        .iter()
+        .map(|fact| super::arm_spans::collect(fact, inputs, names))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Ok(None);
+    };
     Ok((!facts.is_empty()).then_some(TwoSourceExperiment {
         facts,
         typed_owner: typed.types().analysis_owner().clone(),
         callables,
         leaves,
+        arm_spans,
     }))
 }

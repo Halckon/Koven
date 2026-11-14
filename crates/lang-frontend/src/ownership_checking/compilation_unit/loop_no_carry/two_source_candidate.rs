@@ -122,3 +122,8 @@ pub use bridge::{TwoSourceExperiment, analyze_two_source_experiment};
 mod leaves;
 #[cfg(feature = "e2-two-source-test-support")]
 pub use leaves::{CalleeLeaf, CalleeLeafBody};
+
+#[cfg(feature = "e2-two-source-test-support")]
+mod arm_spans;
+#[cfg(feature = "e2-two-source-test-support")]
+pub use arm_spans::ArmSourceSpans;

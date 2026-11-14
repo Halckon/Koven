@@ -175,3 +175,9 @@ fixture中比较callable；普通分析入口、旧域和生产lowering仍不消
 测试态专用emitter在同module生成真实Shared参数及BorrowReturn/Return，保留body
 Span，通过整个Program verifier与LLVM render。非空consumer/分组producer仍可有
 合法实验fact，但不能被当作空/identity占位体。此片没有caller接线、循环或receipt。
+
+后续实验还能把一个已闭合fact的两臂lower为两个detached内部helper：只投影两根
+原签名相对顺序，实际BorrowCall接同module真实leaf、按原callsite序列DirectCall，
+最后child唯一End；不End输入根。桥保留原call/末consumer statement Span，helper
+本身/entry/Return标Synthetic，不冒充原run函数。全module verifier及LLVM通过。
+这些helper尚未被调用方或循环CFG调用，不是两源循环收据或原函数完整ABI。
