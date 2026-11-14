@@ -410,3 +410,7 @@ loop 时提取原 body 事件切片。普通 replace 循环验证 Applied 属于
 或 header equation。现有 root normal-write/retirement 生成也受原授权合同约束，
 不能把日志中的 Applied 填进既有全 Replace receipt。故此片不提供 generation
 replay 或 Carry，缺少有效当前代、header/predecessor 与退出分区时必须继续拒绝。
+
+后续不再用新增静态日志替代权威事实。必要的独立 catalog、显式结构边、symbolic
+root 环境与真实 SSA replay 方案见 [独立 loop 证明候选](d10-independent-loop-proof.md)。
+该方案尚未实现，不改变本候选的拒绝边界。
