@@ -398,8 +398,24 @@ fn assert_checked_failure_edges(function: &Function) -> usize {
             panic!("checked instruction must end in a conditional");
         };
         assert_eq!(condition, failure, "the failure result is the condition");
-        assert!(when_true.arguments.is_empty());
-        assert!(when_false.arguments.is_empty());
+        // Refine may carry live scalar values through explicit block parameters.
+        // Preserve the failure dispatch contract and check every transported entity's type.
+        for edge in [when_true, when_false] {
+            let target = function
+                .block(edge.target)
+                .expect("checked edge target exists");
+            assert_eq!(edge.arguments.len(), target.parameters.len());
+            for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                assert_eq!(
+                    function.entity(*argument).expect("edge argument exists").ty,
+                    function
+                        .entity(*parameter)
+                        .expect("target parameter exists")
+                        .ty,
+                    "checked failure dispatch must preserve each carried scalar type"
+                );
+            }
+        }
         assert!(
             function
                 .block(when_true.target)
@@ -448,23 +464,73 @@ fn assert_borrowed_root_checked_failure_edges(function: &Function) -> usize {
             panic!("checked instruction must end in a conditional");
         };
         assert_eq!(condition, failure, "the failure result is the condition");
-        // The unchanged source uses default Borrow parameters. Unlike the existing
-        // explicit-own fixtures, Unit must carry these exact entry loans on both edges.
+        // ADR-0016: entry loans dominate the callable and end implicitly on return.
+        // These unchanged leaf roots read each shared loan before the checked split;
+        // refine transports the computed Copyable value, not redundant loan parameters.
         let parameters = &function.blocks[0].parameters;
-        assert!(
-            parameters
-                .iter()
-                .all(|parameter| matches!(parameter, EntityId::Loan(_)))
-        );
-        assert_eq!(when_true.arguments, when_false.arguments);
-        let mut expected_loans = parameters.clone();
-        expected_loans.sort();
-        let mut actual_loans = when_true.arguments.clone();
-        actual_loans.sort();
+        for parameter in parameters {
+            assert!(matches!(
+                function
+                    .entity(*parameter)
+                    .expect("entry parameter exists")
+                    .ty,
+                super::model::EntityType::Loan {
+                    kind: super::model::LoanKind::Shared,
+                    ..
+                }
+            ));
+        }
+        let reads = block
+            .instructions
+            .iter()
+            .filter_map(|id| {
+                let read = function.instruction(*id).expect("block instruction exists");
+                match read.operation {
+                    Operation::Read {
+                        source: super::model::PlaceAccess::Loan(loan),
+                    } => {
+                        let [EntityId::Value(value)] = read.results.as_slice() else {
+                            panic!("entry loan read produces one Copyable value")
+                        };
+                        Some((EntityId::Loan(loan), *value))
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
         assert_eq!(
-            actual_loans, expected_loans,
-            "carry each original loan exactly once"
+            reads.iter().map(|(loan, _)| *loan).collect::<Vec<_>>(),
+            *parameters,
+            "read each original entry loan exactly once, in source operand order"
         );
+        let Operation::CheckedArithmetic { left, right, .. } = instruction.operation else {
+            unreachable!("checked instruction selected above")
+        };
+        match reads.as_slice() {
+            [(_, value)] => {
+                assert_eq!(right, *value, "negation subtracts the borrowed input");
+                assert!(
+                    function.instructions.iter().any(|constant| constant.results
+                        == [EntityId::Value(left)]
+                        && constant.operation == Operation::Constant(ScalarConstant::Integer(0))),
+                    "negation subtracts from zero"
+                );
+            }
+            [(_, first), (_, second)] => {
+                assert_eq!(
+                    (left, right),
+                    (*first, *second),
+                    "add uses both borrowed inputs"
+                );
+            }
+            _ => panic!("original checked roots have one or two borrowed inputs"),
+        }
+        assert_eq!(
+            when_true.arguments,
+            vec![instruction.results[0]],
+            "failure edge carries the exact checked value"
+        );
+        assert_eq!(when_false.arguments, when_true.arguments);
         assert_ne!(when_true.target, when_false.target);
         for edge in [when_true, when_false] {
             let target = function
@@ -472,21 +538,15 @@ fn assert_borrowed_root_checked_failure_edges(function: &Function) -> usize {
                 .expect("checked edge target exists");
             assert_eq!(edge.arguments.len(), target.parameters.len());
             for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
-                let argument_type = function.entity(*argument).expect("original loan exists").ty;
+                let argument_type = function.entity(*argument).expect("checked value exists").ty;
                 let parameter_type = function
                     .entity(*parameter)
                     .expect("target parameter exists")
                     .ty;
-                assert!(matches!(
-                    argument_type,
-                    super::model::EntityType::Loan {
-                        kind: super::model::LoanKind::Shared,
-                        ..
-                    }
-                ));
+                assert!(matches!(argument_type, super::model::EntityType::Value(_)));
                 assert_eq!(
                     argument_type, parameter_type,
-                    "edge preserves the loan type"
+                    "edge preserves the checked value type"
                 );
             }
         }

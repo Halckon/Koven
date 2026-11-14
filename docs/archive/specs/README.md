@@ -2,7 +2,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 342 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 419 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -224,6 +224,8 @@
 - [SPEC-0243](./0243-receiver-two-phase-borrows.md)：方法 receiver 两阶段借用与 unit SSA/native 有界验收
 
 ## Phase 4
+
+- [SPEC-0454](0454-refine-untriggered-linear-scalars.md)：无家族触发的直线 Boolean/整数默认路由；最终候选 `81864b03` 双宿主与 Preview 独立消费 CI 已验收，归档 head 与合并交付另验。
 
 - [SPEC-0264](./0264-unit-direct-field-borrow.md)：unit owned local class 一级字段直接 Borrow，PR41首轮双宿主验收
 
