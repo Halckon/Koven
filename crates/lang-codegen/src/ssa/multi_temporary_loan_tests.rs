@@ -1,16 +1,16 @@
 //! Ordinary two-literal source: route and receipt are separate capabilities.
 use super::*;
-const SOURCE: &str =
+pub(in crate::ssa) const SOURCE: &str =
     "fun inspect(a: String, b: String): Int = 1\nfun run(): Unit { inspect(\"left\", \"right\") }";
 #[test]
-fn two_literal_caller_requires_real_refine_route() {
+pub(in crate::ssa) fn two_literal_caller_requires_real_refine_route() {
     check(false);
 }
 #[test]
-fn two_literal_call_requires_real_production_receipt() {
+pub(in crate::ssa) fn two_literal_call_requires_real_production_receipt() {
     check(true);
 }
-fn check(receipt: bool) {
+pub(in crate::ssa) fn check(receipt: bool) {
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two-literal.ko", SOURCE);
     let (environment, types) = standard_environments();
@@ -67,5 +67,8 @@ fn check(receipt: bool) {
     }
 }
 
-#[path = "multi_temporary_loan_products_tests.rs"]
-pub(super) mod products;
+#[cfg(feature = "loan-observation-test-support")]
+pub(in crate::ssa) use crate::ssa::loan_region_ssa_tests::parent_child_drop_dependency::products;
+
+#[path = "multi_temporary_loan_tests/instances.rs"]
+pub(in crate::ssa) mod instances;

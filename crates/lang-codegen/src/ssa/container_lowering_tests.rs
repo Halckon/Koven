@@ -35,14 +35,257 @@ struct Analysis {
     entry: DeclarationId,
 }
 
-#[path = "container_lowering_tests/runtime_helpers.rs"]
-mod runtime_helpers;
+mod runtime_helpers {
+    use super::*;
+    use crate::test_support::diagnostics::assert_diagnostic;
 
-#[path = "container_lowering_tests/runtime_matrix.rs"]
-mod runtime_matrix;
+    #[test]
+    fn runtime_generator_single_generic_helper_preserves_three_callable_environments() {
+        let mut failures = Vec::new();
+        for container in ["Array", "List"] {
+            for (environment, initializer) in [
+                ("pointer", "{ index -> index }"),
+                ("shared", "{ index -> index + scale }"),
+                ("owned", "move { index -> index + scale }"),
+            ] {
+                let text = format!(
+                    "fun <T> generate(size: Int, initializer: (Int) -> T): {container}<T> = \
+                     {container}<T>(size, initializer)\n\
+                     fun entry(): Int {{ val scale = 7\n\
+                     val callback: (Int) -> Int = {initializer}\n\
+                     val items = generate<Int>(3, callback)\nreturn items[2] }}"
+                );
+                let analysis = analyze(&text, "entry");
+                assert!(analysis.parsed.diagnostics().is_empty(), "{text}");
+                assert!(analysis.names.names().diagnostics().is_empty(), "{text}");
+                assert!(
+                    analysis.typed.types().diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    analysis.typed.types().diagnostics()
+                );
+                assert!(
+                    analysis.owned.ownership().diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    analysis.owned.ownership().diagnostics()
+                );
+                let arena = analysis.typed.types().types().len();
+                match lower_unit(&analysis) {
+                    Ok(program) => {
+                        assert!(render_program(&program).contains("container.generate_borrowed"))
+                    }
+                    Err(error) => failures.push(format!("{container}/{environment}: {error:?}")),
+                }
+                assert_eq!(
+                    analysis.typed.types().types().len(),
+                    arena,
+                    "backend only reads canonical types"
+                );
+            }
+        }
+        assert_diagnostic!(
+            failures.is_empty(),
+            "generic Borrow Fn helper must retain each actual environment: {failures:?}"
+        );
+    }
 
-#[path = "container_lowering_tests/runtime_matrix_support.rs"]
-pub(super) mod runtime_matrix_support;
+    #[test]
+    fn runtime_generator_single_pointer_factory_keeps_return_identity() {
+        let analysis = analyze(
+            "fun factory(): (Int) -> Int { println(\"factory\")\nreturn ({ index -> index }) }\n\
+             fun entry(): Int { val items = List<Int>(3, factory())\nreturn items[2] }",
+            "entry",
+        );
+        assert!(analysis.parsed.diagnostics().is_empty());
+        assert!(analysis.names.names().diagnostics().is_empty());
+        assert!(
+            analysis.typed.types().diagnostics().is_empty(),
+            "{:?}",
+            analysis.typed.types().diagnostics()
+        );
+        assert!(
+            analysis.owned.ownership().diagnostics().is_empty(),
+            "{:?}",
+            analysis.owned.ownership().diagnostics()
+        );
+        lower_unit(&analysis).expect("factory result must reach a verified borrowed generator");
+    }
+}
+
+mod runtime_matrix {
+    use super::{analyze, lower_unit, render_program, runtime_matrix_support};
+    use crate::test_support::diagnostics::assert_diagnostic;
+
+    #[test]
+    fn runtime_generator_single_matrix_preserves_element_capture_and_storage_contracts() {
+        let mut failures = Vec::new();
+        for case in &runtime_matrix_support::CASES {
+            for container in ["Array", "List"] {
+                for environment in 0..3 {
+                    for named in [false, true] {
+                        for length in [0, 1, 3] {
+                            let text = runtime_matrix_support::source(
+                                case,
+                                container,
+                                environment,
+                                named,
+                                length,
+                            );
+                            let analysis = analyze(&text, "entry");
+                            assert!(analysis.parsed.diagnostics().is_empty(), "{text}");
+                            assert!(analysis.names.names().diagnostics().is_empty(), "{text}");
+                            assert!(
+                                analysis.typed.types().diagnostics().is_empty(),
+                                "{text}: {:?}",
+                                analysis.typed.types().diagnostics()
+                            );
+                            assert!(
+                                analysis.owned.ownership().diagnostics().is_empty(),
+                                "{text}: {:?}",
+                                analysis.owned.ownership().diagnostics()
+                            );
+                            let arena = analysis.typed.types().types().len();
+                            match lower_unit(&analysis) {
+                                Ok(program) => {
+                                    runtime_matrix_support::assert_layout(&program, environment);
+                                    assert!(
+                                        render_program(&program).contains("container.generate_borrowed"),
+                                        "source runtime construction must borrow its initializer"
+                                    );
+                                    crate::llvm::render_verified_program(&program)
+                                        .expect("the source matrix must reach verified LLVM");
+                                }
+                                Err(error) => failures.push(format!(
+                                    "{}/{container}/env{environment}/named{named}/length{length}: {error:?}",
+                                    case.element
+                                )),
+                            }
+                            assert_eq!(analysis.typed.types().types().len(), arena);
+                        }
+                    }
+                }
+            }
+        }
+        assert_diagnostic!(
+            failures.is_empty(),
+            "all 144 selected source cases must reach their concrete ABI: {failures:?}"
+        );
+    }
+}
+
+pub(super) mod runtime_matrix_support {
+    //! Shared source cases describe the selected element/capture surfaces, not lowering behavior.
+
+    pub(in crate::ssa) struct Case {
+        pub element: &'static str,
+        pub declarations: &'static str,
+        pub source: &'static str,
+        pub initializers: [&'static str; 3],
+    }
+
+    pub(in crate::ssa) const CASES: [Case; 4] = [
+        Case {
+            element: "Int",
+            declarations: "",
+            source: "val scale = 7",
+            initializers: [
+                "{ index -> index }",
+                "{ index -> index + scale }",
+                "move { index -> index + scale }",
+            ],
+        },
+        Case {
+            element: "String",
+            declarations: "",
+            source: "val scale = \"suffix\"",
+            initializers: [
+                "{ index -> \"value\" }",
+                "{ index -> \"value\" + scale }",
+                "move { index -> \"value\" + scale }",
+            ],
+        },
+        Case {
+            element: "Leaf",
+            declarations: "class Leaf(val number: Int) { deinit() { println(\"leaf\") } }",
+            source: "val scale = Leaf(7)",
+            initializers: [
+                "{ index -> Leaf(index) }",
+                "{ index -> Leaf(index + scale.number) }",
+                "move { index -> Leaf(index + scale.number) }",
+            ],
+        },
+        Case {
+            element: "Unit",
+            declarations: "fun touch(index: Int): Unit {}",
+            source: "val scale = 7",
+            initializers: [
+                "{ index -> touch(index) }",
+                "{ index -> touch(index + scale) }",
+                "move { index -> touch(index + scale) }",
+            ],
+        },
+    ];
+
+    pub(in crate::ssa) fn source(
+        case: &Case,
+        container: &str,
+        environment: usize,
+        named: bool,
+        length: i32,
+    ) -> String {
+        let literal = case.initializers[environment];
+        let callback = if named {
+            format!("val callback: (Int) -> {} = {literal}\n", case.element)
+        } else {
+            String::new()
+        };
+        let initializer = if named { "callback" } else { literal };
+        format!(
+            "{}\nfun entry(): Int {{ {}\n{callback}\
+             val items = {container}<{}>({length}, {initializer})\nreturn items.size }}",
+            case.declarations, case.source, case.element,
+        )
+    }
+
+    pub(in crate::ssa) fn assert_layout(program: &crate::ssa::model::Program, environment: usize) {
+        use crate::ssa::model::{ClosureCaptureMode, SsaTypeKind};
+        let captures = program.modules[0]
+            .types
+            .iter()
+            .filter_map(|kind| match kind {
+                SsaTypeKind::ConcreteClosure { captures, .. } => Some(captures),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if environment == 0 {
+            assert!(
+                captures.is_empty(),
+                "capture-free source uses a pointer ABI"
+            );
+            assert!(
+                program.modules[0]
+                    .types
+                    .iter()
+                    .any(|kind| matches!(kind, SsaTypeKind::FunctionPointer { .. }))
+            );
+        } else {
+            assert_eq!(
+                captures.len(),
+                1,
+                "one actual lambda has one concrete layout"
+            );
+            assert_eq!(captures[0].len(), 1, "the actual source has one capture");
+            assert_eq!(
+                captures[0][0].mode,
+                if environment == 1 {
+                    ClosureCaptureMode::Shared
+                } else {
+                    ClosureCaptureMode::Owned
+                },
+                "ordinary expected Fn must preserve actual capture mode"
+            );
+        }
+    }
+}
 
 #[test]
 fn runtime_generator_single_source_accepts_pointer_and_shared_initializers() {

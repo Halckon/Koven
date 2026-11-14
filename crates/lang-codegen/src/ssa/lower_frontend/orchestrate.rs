@@ -1,10 +1,7 @@
 //! frontend 产物门禁、函数预声明与文件级 lowering 编排。
 
 #[cfg(test)]
-pub(in crate::ssa::lower_frontend) mod nullable_map_guard_support;
-
-#[cfg(test)]
-mod registration_tests;
+pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_sources::deep::nullable_map_guard_support;
 
 use std::collections::BTreeMap;
 
@@ -63,7 +60,7 @@ struct FunctionPlan {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum FunctionPlanBody {
+pub(in crate::ssa) enum FunctionPlanBody {
     Expression(ExpressionId),
     Block(StatementId),
 }
@@ -98,12 +95,12 @@ pub(crate) fn lower_scalar_file_with_entry(
     Ok((lowered.program, entry))
 }
 
-struct LoweredFile {
-    program: Program,
-    function_ids: BTreeMap<FunctionInstanceKey, FunctionId>,
+pub(in crate::ssa) struct LoweredFile {
+    pub(in crate::ssa) program: Program,
+    pub(in crate::ssa) function_ids: BTreeMap<FunctionInstanceKey, FunctionId>,
 }
 
-fn lower_scalar_file_product(
+pub(in crate::ssa) fn lower_scalar_file_product(
     sources: &SourceMap,
     parsed: &ParsedFile,
     names: &NameResolution,
@@ -930,7 +927,7 @@ pub(crate) fn validate_inputs(
     Ok(())
 }
 
-pub(super) fn unwrap_modified(
+pub(in crate::ssa) fn unwrap_modified(
     parsed: &ParsedFile,
     mut item: ItemId,
 ) -> Result<(Item, Span), LoweringError> {

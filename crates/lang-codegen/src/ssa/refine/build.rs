@@ -5,7 +5,7 @@ mod borrow_binding;
 mod callable;
 mod checked_edge_receipt;
 mod child_receipt;
-mod condition;
+pub(in crate::ssa::refine) mod condition;
 mod container;
 mod container_for;
 mod control_bridge;
@@ -31,7 +31,7 @@ mod owner_consumer;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
 mod range_borrow;
-mod rc;
+pub(in crate::ssa) mod rc;
 mod while_loop;
 use rc::receiver;
 mod scalar_text;

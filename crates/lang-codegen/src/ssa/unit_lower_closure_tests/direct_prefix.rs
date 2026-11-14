@@ -246,3 +246,178 @@ fn assert_single_break_tail(
     };
     assert!(values.is_empty());
 }
+
+pub(in crate::ssa) mod borrow_storage {
+    //! 通用 Borrow storage 参数取代旧 String-only closure 布局限制。
+    use super::super::*;
+    use crate::ssa::verify::verify_program;
+
+    #[test]
+    fn move_only_borrow_parameter_uses_shared_storage_without_payload_owner() {
+        // Preserve the exact former unsupported fixture as a positive ABI contract.
+        let source = "package test\n\
+        class Host {}\n\
+        fun entry(): Unit {\n\
+            val action: move (borrow Host) -> Unit = move { item -> }\n\
+        }";
+        let mut sources = SourceMap::new();
+        let (source_id, file) = parsed(&mut sources, "test/move-only-borrow-parameter.ko", source);
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "test/move-only-borrow-parameter.ko",
+            source_id,
+            &file,
+        )];
+        let (environment, types) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &environment, &types);
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &types,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        )
+        .unwrap();
+        verify_program(&program).unwrap();
+        let module = &program.modules[0];
+        let thunk = module
+            .functions
+            .iter()
+            .find(|f| f.name.contains("lambda"))
+            .unwrap();
+        let [EntityId::Loan(parameter)] = thunk
+            .block(thunk.entry_block().unwrap())
+            .unwrap()
+            .parameters
+            .as_slice()
+        else {
+            panic!("one shared storage parameter")
+        };
+        let EntityType::Loan {
+            kind: LoanKind::Shared,
+            target,
+        } = thunk.entity(EntityId::Loan(*parameter)).unwrap().ty
+        else {
+            panic!("borrow ABI")
+        };
+        assert!(matches!(
+            module.type_kind(target),
+            Some(SsaTypeKind::HeapOwner { .. })
+        ));
+        assert!(!thunk.instructions.iter().any(|i| matches!(
+            i.operation,
+            Operation::Drop { .. } | Operation::Copy { .. } | Operation::SharedRetain { .. }
+        )));
+        // Entry Borrow is a call-scoped parameter; Return ends this callee view.
+        // The caller remains responsible for its actual source loan continuation.
+        assert_eq!(
+            operation_count(thunk, |i| matches!(i, Operation::BorrowEnd { .. })),
+            0
+        );
+        let llvm = crate::llvm::render_verified_program(&program).unwrap();
+        let header = llvm
+            .lines()
+            .find(|line| line.starts_with("define internal void") && line.contains("lambda"))
+            .unwrap();
+        assert!(header.contains("ptr %l"));
+    }
+}
+
+pub(in crate::ssa) mod shared_capture {
+    //! A nonescaping borrowed closure now consumes the published shared-capture contract.
+    use super::super::*;
+    use lang_frontend::{
+        ownership_checking::{ClosureCaptureEffect, ClosureCaptureMode as FrontendCaptureMode},
+        parser::Expression,
+        type_checking::UnitExpressionId,
+    };
+
+    #[test]
+    fn borrowed_closure_keeps_its_source_owner_until_the_closure_drop() {
+        let mut sources = SourceMap::new();
+        let (source, parsed) = parsed(
+            &mut sources,
+            "test/borrowed.ko",
+            "package test\n\
+         fun inspect(message: String): Unit {}\n\
+         fun entry(): Unit {\n\
+             val message = \"borrowed\"\n\
+             val action: () -> Unit = { -> val read = inspect(message) }\n\
+             val invoked = action()\n\
+         }",
+        );
+        let inputs = [SourceUnitInput::new(
+            "root",
+            "test/borrowed.ko",
+            source,
+            &parsed,
+        )];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let lambda = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find(|(_, node)| matches!(node.payload(), Expression::Lambda { .. }))
+            .expect("real source lambda")
+            .0;
+        let lambda = UnitExpressionId::new(names.names().source_units()[0].source_unit(), lambda);
+        let captures = owned.ownership().captures_of(lambda).collect::<Vec<_>>();
+        assert_eq!(captures.len(), 1);
+        assert_eq!(captures[0].mode(), FrontendCaptureMode::Shared);
+        assert_eq!(captures[0].effect(), ClosureCaptureEffect::Borrow);
+        let arena = typed.types().types().len();
+        let (program, _) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        )
+        .expect("guide permits a borrowed closure's synchronous call in its defining callable");
+        let module = &program.modules[0];
+        let entry = function(module, "test.entry");
+        let owner = entry
+            .instructions
+            .iter()
+            .find(|instruction| matches!(instruction.operation, Operation::StringLiteral { .. }))
+            .expect("captured source owner")
+            .results[0];
+        let closure = entry
+            .instructions
+            .iter()
+            .find(|instruction| matches!(instruction.operation, Operation::ClosureConstruct { .. }))
+            .expect("shared capture environment")
+            .results[0];
+        let drop_index = |entity| {
+            entry
+                .instructions
+                .iter()
+                .position(|instruction| {
+                    matches!(instruction.operation, Operation::Drop { owner }
+                if EntityId::Value(owner) == entity)
+                })
+                .expect("one real owner drop")
+        };
+        assert_eq!(operation_count(entry, is_callable_invoke), 1);
+        assert_eq!(operation_count(entry, is_drop), 2);
+        assert!(drop_index(closure) < drop_index(owner));
+        let thunk = module
+            .functions
+            .iter()
+            .find(|function| function.name.contains(".thunk"))
+            .expect("borrowed closure thunk");
+        assert!(thunk.instructions.iter().any(|instruction| matches!(
+            instruction.operation,
+            Operation::SharedReferenceFollow { .. }
+        )));
+        crate::llvm::render_verified_program(&program)
+            .expect("shared capture lifetime reaches verified LLVM without consuming the source");
+        assert_eq!(typed.types().types().len(), arena);
+    }
+}

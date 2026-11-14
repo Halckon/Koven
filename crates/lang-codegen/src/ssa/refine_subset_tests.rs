@@ -42,7 +42,8 @@ fn route(source: &str) -> (Result<Program, LoweringError>, bool) {
     (result.map(|(program, _)| program), f)
 }
 
-mod control_completion;
+#[allow(unused_imports)]
+pub(in crate::ssa) use temporary_sequential_for::control_completion;
 
 #[test]
 fn nullable_functions_inside_the_subset_are_routed() {
@@ -329,7 +330,7 @@ fn sequential_for_temporary_container_scope_has_field_replace_routing_pairs() {
 }
 
 #[path = "refine_subset_tests/temporary_sequential_for.rs"]
-mod temporary_sequential_for;
+pub(in crate::ssa) mod temporary_sequential_for;
 
 #[test]
 fn call_has_field_replace_admission_pairs() {

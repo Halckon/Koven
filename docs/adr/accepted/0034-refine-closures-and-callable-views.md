@@ -193,7 +193,7 @@ project 模式下跨文件的同一 callee 也会让实例数膨胀。而且 Bor
 
 ## 关联
 
-- 相关 Spec：[SPEC-0363](../../archive/specs/0363-closure-scope-escape.md)（frontend scope 逃逸）；[SPEC-0364](../../archive/specs/0364-refine-closures.md)（E3 闭包家族，步 1–3 已交付）；[SPEC-0365](../../archive/specs/0365-closure-return-facts.md)（闭包返回来源事实）；[SPEC-0370](../../specs/active/0370-refine-lambda-bodies.md)（lambda 体与局部 callable 迁入细化层）；q03 的 frontend overload Spec（待开）
+- 相关 Spec：[SPEC-0363](../../archive/specs/0363-closure-scope-escape.md)（frontend scope 逃逸）；[SPEC-0364](../../archive/specs/0364-refine-closures.md)（E3 闭包家族，步 1–3 已交付）；[SPEC-0365](../../archive/specs/0365-closure-return-facts.md)（闭包返回来源事实）；[SPEC-0370](../../archive/specs/0370-refine-lambda-bodies.md)（lambda 体与局部 callable 迁入细化层）；q03 的 frontend overload Spec（待开）
 - 相关 ADR：[ADR-0009](0009-concrete-closure-internal-abi.md)（局部扩展：借用边界的 view）、[ADR-0025](../proposed/0025-recursive-closure-environment-handles.md)、[ADR-0032](0032-ownership-refinement-layer.md)
 - 取代的 ADR：无
 - 被以下 ADR 取代：无

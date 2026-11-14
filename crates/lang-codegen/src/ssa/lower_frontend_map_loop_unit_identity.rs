@@ -1,24 +1,22 @@
 //! Read-only identities shared by the seven original loop/source Unit consumers.
 //! No Legacy facts, fabricated phase products, or type-based alias equivalence.
 
-#[path = "lower_frontend_map_loop_unit_contract.rs"]
-mod map_contract;
-#[path = "lower_frontend_map_source_unit_contract.rs"]
-mod source_contract;
+pub(in crate::ssa) use crate::ssa::nullable_map_consume_lowering_tests::single::map_loop_unit_contract as map_contract;
+pub(in crate::ssa) use map_contract::source_contract;
 
-pub(super) use map_contract::{check_normal, check_original, check_resource};
-pub(super) use source_contract::{SourceScenario, check_source};
+pub(in crate::ssa) use map_contract::{check_normal, check_original, check_resource};
+pub(in crate::ssa) use source_contract::{SourceScenario, check_source};
 
-use std::collections::{BTreeMap, BTreeSet};
+pub(in crate::ssa) use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{
+pub(in crate::ssa) use crate::{
     native_tests::boxed_enum_tests::unit_source::UnitSource,
     ssa::model::{
         Block, BlockId, Definition, Edge, EntityId, Function, FunctionId, Instruction, Operation,
         Origin, Program, TerminatorKind,
     },
 };
-use lang_frontend::{
+pub(in crate::ssa) use lang_frontend::{
     name_resolution::{SourceUnitKey, SymbolKind, UnitReferenceTarget, UnitSymbolId},
     ownership_checking::{UnitDropFact, UnitDropTarget, UnitIterationOwnershipPlan},
     parser::{Expression, FunctionBody, FunctionForm, Item, NameMarker, Statement},
@@ -26,18 +24,18 @@ use lang_frontend::{
     type_checking::{UnitExpressionId, UnitStatementId},
 };
 
-fn one<'a, T>(values: &'a [T], label: &str) -> &'a T {
+pub(in crate::ssa) fn one<'a, T>(values: &'a [T], label: &str) -> &'a T {
     assert_eq!(values.len(), 1, "{label}");
     &values[0]
 }
 
-fn within(inner: Span, outer: Span) -> bool {
+pub(in crate::ssa) fn within(inner: Span, outer: Span) -> bool {
     inner.source_id() == outer.source_id()
         && outer.start() <= inner.start()
         && inner.end() <= outer.end()
 }
 
-fn expression_span(unit: &UnitSource, expression: UnitExpressionId) -> Span {
+pub(in crate::ssa) fn expression_span(unit: &UnitSource, expression: UnitExpressionId) -> Span {
     let source = one(unit.names().names().index().source_units(), "one source");
     assert_eq!(expression.source_unit(), source.id());
     unit.parsed()
@@ -48,7 +46,7 @@ fn expression_span(unit: &UnitSource, expression: UnitExpressionId) -> Span {
         .span()
 }
 
-fn statement_span(unit: &UnitSource, statement: UnitStatementId) -> Span {
+pub(in crate::ssa) fn statement_span(unit: &UnitSource, statement: UnitStatementId) -> Span {
     let source = one(unit.names().names().index().source_units(), "one source");
     assert_eq!(statement.source_unit(), source.id());
     unit.parsed()
@@ -59,11 +57,11 @@ fn statement_span(unit: &UnitSource, statement: UnitStatementId) -> Span {
         .span()
 }
 
-fn declaration_span(unit: &UnitSource, name: &str) -> Span {
+pub(in crate::ssa) fn declaration_span(unit: &UnitSource, name: &str) -> Span {
     unit.declaration_span(unit.declaration(name, SymbolKind::Function))
 }
 
-fn function_at(program: &Program, span: Span) -> &Function {
+pub(in crate::ssa) fn function_at(program: &Program, span: Span) -> &Function {
     let matches = program
         .modules
         .iter()
@@ -73,7 +71,7 @@ fn function_at(program: &Program, span: Span) -> &Function {
     one::<&Function>(&matches, "one function at the original declaration")
 }
 
-fn lower(text: &str, functions: &[&str]) -> (UnitSource, Program, FunctionId) {
+pub(in crate::ssa) fn lower(text: &str, functions: &[&str]) -> (UnitSource, Program, FunctionId) {
     let unit = UnitSource::analyze("lowering.ko", text)
         .unwrap_or_else(|error| panic!("{text}\n{error:?}"));
     unit.assert_frontend_clean();
@@ -121,7 +119,7 @@ fn lower(text: &str, functions: &[&str]) -> (UnitSource, Program, FunctionId) {
     (unit, program, entry)
 }
 
-fn body(unit: &UnitSource, span: Span) -> UnitStatementId {
+pub(in crate::ssa) fn body(unit: &UnitSource, span: Span) -> UnitStatementId {
     let bodies = unit
         .parsed()
         .ast()
@@ -152,7 +150,7 @@ fn body(unit: &UnitSource, span: Span) -> UnitStatementId {
     UnitStatementId::new(source.id(), *one(&bodies, "original function block"))
 }
 
-fn iteration(unit: &UnitSource, function: Span) -> &UnitIterationOwnershipPlan {
+pub(in crate::ssa) fn iteration(unit: &UnitSource, function: Span) -> &UnitIterationOwnershipPlan {
     let plans = unit
         .ownership()
         .iterations()
@@ -187,7 +185,7 @@ fn iteration(unit: &UnitSource, function: Span) -> &UnitIterationOwnershipPlan {
     plan
 }
 
-fn symbol_span(unit: &UnitSource, root: UnitSymbolId, function: Span) -> Span {
+pub(in crate::ssa) fn symbol_span(unit: &UnitSource, root: UnitSymbolId, function: Span) -> Span {
     let resolutions = unit
         .names()
         .names()
@@ -207,7 +205,10 @@ fn symbol_span(unit: &UnitSource, root: UnitSymbolId, function: Span) -> Span {
     symbol.span()
 }
 
-fn reference_root(unit: &UnitSource, expression: UnitExpressionId) -> UnitSymbolId {
+pub(in crate::ssa) fn reference_root(
+    unit: &UnitSource,
+    expression: UnitExpressionId,
+) -> UnitSymbolId {
     let span = expression_span(unit, expression);
     assert!(matches!(
         unit.parsed()
@@ -234,7 +235,11 @@ fn reference_root(unit: &UnitSource, expression: UnitExpressionId) -> UnitSymbol
     *root
 }
 
-fn named_drop(unit: &UnitSource, root: UnitSymbolId, function: Span) -> UnitDropFact {
+pub(in crate::ssa) fn named_drop(
+    unit: &UnitSource,
+    root: UnitSymbolId,
+    function: Span,
+) -> UnitDropFact {
     let drops = unit
         .ownership()
         .drops()
@@ -246,7 +251,7 @@ fn named_drop(unit: &UnitSource, root: UnitSymbolId, function: Span) -> UnitDrop
     fact
 }
 
-fn initializer(unit: &UnitSource, name: Span) -> UnitExpressionId {
+pub(in crate::ssa) fn initializer(unit: &UnitSource, name: Span) -> UnitExpressionId {
     let expressions = unit
         .parsed()
         .ast()
@@ -268,7 +273,7 @@ fn initializer(unit: &UnitSource, name: Span) -> UnitExpressionId {
     )
 }
 
-fn edges(block: &Block) -> Vec<&Edge> {
+pub(in crate::ssa) fn edges(block: &Block) -> Vec<&Edge> {
     match &block.terminator.as_ref().unwrap().kind {
         TerminatorKind::Branch(edge) => vec![edge],
         TerminatorKind::Conditional {
@@ -288,7 +293,7 @@ fn edges(block: &Block) -> Vec<&Edge> {
 // Follow definitions backwards, never union an undirected alias family. Every
 // incoming column is visited; every component must be grounded at a requested
 // exact entity. A foreign leaf or a rootless side cycle makes the proof fail.
-fn transport_roots(
+pub(in crate::ssa) fn transport_roots(
     function: &Function,
     current: EntityId,
     stops: &BTreeSet<EntityId>,
@@ -366,12 +371,12 @@ fn transport_roots(
         .then_some(roots)
 }
 
-fn transported(function: &Function, current: EntityId, expected: EntityId) {
+pub(in crate::ssa) fn transported(function: &Function, current: EntityId, expected: EntityId) {
     let roots = BTreeSet::from([expected]);
     assert_eq!(transport_roots(function, current, &roots), Some(roots));
 }
 
-fn instruction_at(
+pub(in crate::ssa) fn instruction_at(
     function: &Function,
     span: Span,
     accepts: fn(&Operation) -> bool,
@@ -386,23 +391,27 @@ fn instruction_at(
     one::<&Instruction>(&instructions, "one exact operation at its original source")
 }
 
-fn result(instruction: &Instruction, index: usize) -> EntityId {
+pub(in crate::ssa) fn result(instruction: &Instruction, index: usize) -> EntityId {
     *instruction
         .results
         .get(index)
         .expect("actual operation result")
 }
 
-struct LoopEdges<'a> {
-    preheader: &'a Block,
-    header: &'a Block,
-    entry: &'a Edge,
-    body: &'a Edge,
-    exhaustion: &'a Edge,
-    backedges: Vec<(&'a Block, &'a Edge)>,
+pub(in crate::ssa) struct LoopEdges<'a> {
+    pub(in crate::ssa) preheader: &'a Block,
+    pub(in crate::ssa) header: &'a Block,
+    pub(in crate::ssa) entry: &'a Edge,
+    pub(in crate::ssa) body: &'a Edge,
+    pub(in crate::ssa) exhaustion: &'a Edge,
+    pub(in crate::ssa) backedges: Vec<(&'a Block, &'a Edge)>,
 }
 
-fn loop_edges(function: &Function, span: Span, backedges: usize) -> LoopEdges<'_> {
+pub(in crate::ssa) fn loop_edges(
+    function: &Function,
+    span: Span,
+    backedges: usize,
+) -> LoopEdges<'_> {
     let snapshots = function
         .instructions
         .iter()
@@ -455,7 +464,7 @@ fn loop_edges(function: &Function, span: Span, backedges: usize) -> LoopEdges<'_
     }
 }
 
-fn column(function: &Function, edge: &Edge, original: EntityId) -> usize {
+pub(in crate::ssa) fn column(function: &Function, edge: &Edge, original: EntityId) -> usize {
     let columns = edge
         .arguments
         .iter()
@@ -470,7 +479,7 @@ fn column(function: &Function, edge: &Edge, original: EntityId) -> usize {
     *one(&columns, "one exact transported identity column")
 }
 
-fn position(function: &Function, instruction: &Instruction) -> usize {
+pub(in crate::ssa) fn position(function: &Function, instruction: &Instruction) -> usize {
     function
         .block(instruction.block)
         .unwrap()
@@ -480,7 +489,7 @@ fn position(function: &Function, instruction: &Instruction) -> usize {
         .unwrap()
 }
 
-fn reachable(function: &Function, start: BlockId, target: BlockId) -> bool {
+pub(in crate::ssa) fn reachable(function: &Function, start: BlockId, target: BlockId) -> bool {
     let mut pending = vec![start];
     let mut seen = BTreeSet::new();
     while let Some(block) = pending.pop() {
@@ -498,7 +507,7 @@ fn reachable(function: &Function, start: BlockId, target: BlockId) -> bool {
     false
 }
 
-fn precedes(function: &Function, first: &Instruction, second: &Instruction) {
+pub(in crate::ssa) fn precedes(function: &Function, first: &Instruction, second: &Instruction) {
     if first.block == second.block {
         assert!(position(function, first) < position(function, second));
     } else {
@@ -510,7 +519,7 @@ fn precedes(function: &Function, first: &Instruction, second: &Instruction) {
 /// The original guarded-owner observation, on one real admitted Unit analysis.
 /// Unit publishes exact drops and transports the current owner in SSA; it does
 /// not expose the legacy condition/IterationPhi graph for tests to reconstruct.
-pub(in super::super) fn check_guarded_original(text: &str) {
+pub(in crate::ssa) fn check_guarded_original(text: &str) {
     use lang_frontend::{
         ownership_checking::{
             UnitDropPoint, UnitIterationCleanupAction as Action, UnitIterationExitKind,
