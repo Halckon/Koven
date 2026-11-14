@@ -2,6 +2,8 @@
 use super::model::*;
 use super::*;
 use lang_frontend::ownership_checking::OwnedCompilationUnitView;
+#[path = "d10_parent_after_child_tests.rs"]
+mod parent_after_child;
 mod path;
 mod replay;
 mod source;

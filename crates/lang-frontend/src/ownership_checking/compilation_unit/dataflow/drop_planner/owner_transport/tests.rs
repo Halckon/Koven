@@ -21,6 +21,8 @@ mod closed_while_conditional;
 mod closed_while_fallthrough;
 mod combination;
 mod control_tail;
+#[cfg(feature = "d10-catalog-experiment")]
+mod dual_parent_after_child;
 mod invariant_break;
 mod invariant_break_suffix;
 mod invariant_continue;

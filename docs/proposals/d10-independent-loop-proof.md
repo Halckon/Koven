@@ -846,3 +846,32 @@ owned 的 primitive、DropFact、LoanFact 以及 sealed sidecar 全量对账。�
 本片前端 handoff 一项通过／一项 CI-only ignored，普通 D10 SSA 九项通过／一项
 CI-only ignored；改名与空白正例均经过真实 owned、SSA replay 与适用的 LLVM
 核验。严格 Clippy、格式、文档 956 和独审通过。本地未执行 native 或身份故障。
+
+### child 结束之后再执行 parent Replace：独立前置证据
+
+下一候选将 parent Replace 移至 child while 之后，保持两独立 Int counter、同一
+被更新根和 retained 根的真实后用。它不等于现有 parent-before-child 形态：
+child 零轮时 parent 接到的是进入 child 的旧代；child 多轮时接到的是 child
+最后一次更新的代。不能从 producer site 或 planner 静态日志推出二者相同。
+
+真实普通 ownership 和 Unit lowering 已能形成该 fixture 的 11 块／32 指令图。
+新独立结构见证核实际 block 指令完整成员/顺序、header/body/exit/backedge 参数
+运输，以及 child 假边的当前 owner 进入 parent Replace 所在块。child 更新值
+经实际回边回到 child header，parent 更新值再经父回边回父 header；各次 detached
+old 必须是相应真实 Replace 的第二个结果，Drop 与该次实际 owned fact 对账。
+最终两个根核 Shared Borrow/Print/End/Drop 链。原始图不重排、不改写，LLVM
+render/verify 另行核验；checked-abort 边保留。
+
+这只是新候选的实际控制边、操作和清理前置证据，不是新的完整源码封闭 replay，
+没有新增最终 owned sidecar，也没有动态执行零轮或多轮。现有 nested/dual sealed
+候选继续拒绝该顺序。后续仍需完整 AST envelope、将已观察的 34 事件纳入候选收束及独立延迟绑定，
+再把抽象 header/backedge 代际与原图对账；不得将本 fixture 的成功当生产准入。
+
+本片真实前端完整轨迹 exact 一项通过，D10 普通 SSA 十项通过／一项 CI-only
+ignored；新边见证含 Rooted/Memory 两类输入，最终精确复验通过。严格前后端
+Clippy、格式、文档及独审作为提交门禁；未执行 native 或本地故障注入。
+
+另跑全仓 Rust 尺寸检查发现继承的 `ssa/mod.rs` 1021 行与 owner_transport 的
+`loops.rs` 1003 行仍超 1000 门槛；本片把新测试注册放在已有 D10 测试模块，
+不再增长根 `ssa/mod.rs`，没有修改尺寸政策。该全仓门禁不能记为通过，需在后续
+整合中另行处理；上述功能测试结果不代表尺寸问题已解决。
