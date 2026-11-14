@@ -12,6 +12,9 @@ use lang_frontend::{
 fn entry_semantic_and_final_gate_failures_publish_nothing() {
     assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
     assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    fixture(false);
+}
+fn fixture(checked: bool) {
     let source = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {var remaining=rounds;while(remaining>0){if(choose){borrow val a=view(left);consume(a)}else{borrow val b=view(right);consume(b)};remaining=remaining-1}}\nfun main():Unit {val rounds=3;val choose=true;run(\"left\",\"right\",rounds,choose)}";
     let mut sources = SourceMap::new();
     let id = sources.add_source("entry-ci.ko", source).unwrap();
@@ -36,7 +39,29 @@ fn entry_semantic_and_final_gate_failures_publish_nothing() {
     let [fact] = experiment.facts() else {
         panic!("one complete fact")
     };
-    use super::e2_entry_publication::{CiFault, Error, publish, publish_ci};
+    use super::e2_entry_publication::{
+        CheckedError, CiFault, Error, publish, publish_checked, publish_checked_ci, publish_ci,
+    };
+    if checked {
+        let handoff = experiment
+            .handoff(&sources, &inputs, &names, &types, &typed)
+            .unwrap();
+        assert!(publish_checked(&handoff, &experiment, entry, fact).is_ok());
+        for (fault, error) in [
+            (CiFault::WrongStringArguments, Error::Replay),
+            (CiFault::WrongRounds, Error::Replay),
+            (CiFault::MissingTerminator, Error::Verify),
+        ] {
+            assert!(matches!(
+                publish_checked_ci(&handoff, &experiment, entry, fact, fault),
+                Err(CheckedError::Publication(actual)) if actual == error
+            ));
+            // No checked package escaped; retry traverses preflight and fresh emission again.
+            let retry = publish_checked(&handoff, &experiment, entry, fact).unwrap();
+            super::verify::verify_program(retry.publication().program()).unwrap();
+        }
+        return;
+    }
     assert!(publish(&experiment, entry, fact, &[fact], &typed).is_ok());
     for (fault, error) in [
         (CiFault::WrongStringArguments, Error::Replay),
@@ -49,4 +74,12 @@ fn entry_semantic_and_final_gate_failures_publish_nothing() {
         );
         assert!(publish(&experiment, entry, fact, &[fact], &typed).is_ok());
     }
+}
+
+#[test]
+#[ignore = "CI-only checked entry publication faults; local compile/list only"]
+fn checked_entry_failures_publish_nothing() {
+    assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    fixture(true);
 }

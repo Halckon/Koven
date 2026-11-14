@@ -3,7 +3,7 @@ use super::{e2_entry, e2_entry_replay, model::*};
 use lang_frontend::{
     name_resolution::DeclarationId,
     ownership_checking::two_source_experiment::{
-        EntryDescriptor, TwoSourceCounterFact, TwoSourceExperiment,
+        EntryDescriptor, ExperimentalUnitHandoff, TwoSourceCounterFact, TwoSourceExperiment,
     },
     type_checking::ValidatedCompilationUnitTypes,
 };
@@ -65,13 +65,31 @@ pub(super) enum CheckedError {
 }
 /// Re-select the exact required fact internally; never trust a caller's preflight result.
 pub(super) fn publish_checked<'a>(
-    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
-        'a,
-        '_,
-    >,
+    handoff: &ExperimentalUnitHandoff<'a, '_>,
     experiment: &'a TwoSourceExperiment,
     required: &'a EntryDescriptor,
     fact: &'a TwoSourceCounterFact,
+) -> Result<CheckedPublishedEntry<'a>, CheckedError> {
+    publish_checked_inner(handoff, experiment, required, fact, None)
+}
+/// Compile/list locally; the closed fault path is executable only in CI.
+pub(super) fn publish_checked_ci<'a>(
+    handoff: &ExperimentalUnitHandoff<'a, '_>,
+    experiment: &'a TwoSourceExperiment,
+    required: &'a EntryDescriptor,
+    fact: &'a TwoSourceCounterFact,
+    fault: CiFault,
+) -> Result<CheckedPublishedEntry<'a>, CheckedError> {
+    assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    publish_checked_inner(handoff, experiment, required, fact, Some(fault))
+}
+fn publish_checked_inner<'a>(
+    handoff: &ExperimentalUnitHandoff<'a, '_>,
+    experiment: &'a TwoSourceExperiment,
+    required: &'a EntryDescriptor,
+    fact: &'a TwoSourceCounterFact,
+    fault: Option<CiFault>,
 ) -> Result<CheckedPublishedEntry<'a>, CheckedError> {
     let typed = handoff.types();
     if !handoff.owns(fact)
@@ -91,7 +109,7 @@ pub(super) fn publish_checked<'a>(
             .map_err(CheckedError::Preflight)?;
     super::unit_lower::preflight::validate(&parsed, selected.names(), typed.types(), &selected)
         .map_err(CheckedError::Preflight)?;
-    publish(experiment, required, fact, &[fact], typed)
+    publish_inner(experiment, required, fact, &[fact], typed, fault)
         .map(CheckedPublishedEntry)
         .map_err(CheckedError::Publication)
 }

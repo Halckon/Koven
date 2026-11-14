@@ -18685,3 +18685,12 @@ binding、source loan/root、initializer、End、source-unit 与实际 if 分支
 原精确 UnsupportedNode span 拒绝；成功包可经现有 LLVM harness 执行。旧 scoped 路径
 仍用于对照局部闭包能力，不能声称通过全 Unit 门槛。新增路径仍仅测试实验域，未接普通
 native driver、对象发布事务或生产接受集；本地不运行故障注入，相关验收仍限 CI。
+
+
+### 2026-11-14：受检 entry 发布的 CI-only 故障验收
+
+`publish_checked_ci` 与正常受检发布共享同一内部路径，保留身份检查及全 Unit preflight，
+只在双 CI 环境 guard 后传入封闭故障枚举。新增 ignored 目标覆盖实参交换、rounds 篡改与
+最终缺失 terminator，要求返回对应 Replay/Verify 错误而非任何 checked 包；每次失败后
+正常重试必须重新走完整检查与发射。CI 脚本现在列举 5 个精确目标 × 2 个特性配置。
+本地仅编译/list 故障目标，正常回归仍排除 ignored；未声明故障执行结果或生产能力。
