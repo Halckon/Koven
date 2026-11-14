@@ -133,13 +133,15 @@ class IoPolicy:
     on_executor_failure: str  # destroy_all | leak_frame | partial | terminate | partial_or_terminate
     abort_freezes: bool  # 请求终止之后、终止生效之前，不再释放任何资源
     frame_storage: str = "heap"  # heap：帧独立分配 | parent：帧位于父的存储里，父展开即释放
+    buffer_owner: str = "frame"  # frame：缓冲区始终属于帧 | operation：提交时移交给操作，终结后交还
+    successor: bool = False  # 执行器失败后，是否有后继凭终结证据回收被保留的缓冲区
 
 
 def io_model(policy):
     """状态：(任务, 缓冲区, 守卫, 请求, 执行器, 进程)。
 
     任务：run | susp | resumed（请求之后再次运行）| done | destroyed | leaked
-    缓冲区：task 在帧内 | retained 帧已销毁但保留 | freed
+    缓冲区：task 在帧内 | retained 不在帧内但保留（帧已销毁，或由操作持有）| freed
     守卫：held | released（帧内另一项清理义务，例如释放锁）
     请求：none | inflight（外部可能访问缓冲区）| terminal（已有终结证据）
     """
@@ -151,7 +153,7 @@ def io_model(policy):
         if action == "partial_or_terminate":
             action = "partial" if policy.frame_storage == "heap" else "terminate"
         if action == "destroy_all":
-            return ("destroyed", "freed", "released", req, "failed", proc)
+            return ("destroyed", buf if buf == "retained" else "freed", "released", req, "failed", proc)
         if action == "leak_frame":
             return ("leaked", buf, guard, req, "failed", proc)
         if action == "partial":
@@ -173,19 +175,20 @@ def io_model(policy):
         if proc != "alive":
             return
         if task == "run":
-            yield "任务:提交请求并挂起", ("susp", buf, guard, "inflight", executor, proc)
+            held = "retained" if policy.buffer_owner == "operation" else buf
+            yield "任务:提交请求并挂起", ("susp", held, guard, "inflight", executor, proc)
         if task == "resumed":
             yield "任务:结束并析构帧", ("done", "freed", "released", req, executor, proc)
         if task == "susp" and executor == "alive":
             if req == "terminal":
-                yield "执行器:凭终结证据恢复任务", ("resumed", buf, guard, req, executor, proc)
+                yield "执行器:凭终结证据恢复任务", ("resumed", "task", guard, req, executor, proc)
             elif policy.cancel == "early":
                 yield "取消:任务提前返回", ("resumed", buf, guard, req, executor, proc)
             yield "执行器:失败", on_failure(state)
-        if buf == "retained":
-            if req == "terminal" and executor == "alive":
+        if buf == "retained" and task in ("destroyed", "leaked"):
+            if req == "terminal" and (executor == "alive" or policy.successor):
                 yield "回收保留的缓冲区", (task, "freed", guard, req, executor, proc)
-            if policy.frame_storage == "parent":
+            if policy.frame_storage == "parent" and policy.buffer_owner == "frame":
                 yield "父:展开并释放帧所在的存储", (task, "freed", guard, req, executor, proc)
 
     def violations(state):
@@ -220,6 +223,8 @@ IO_POLICIES = {
     "终止进程但窗口内继续展开": IoPolicy("wait", "terminate", False),
     "保留优先，不能保留则终止": IoPolicy("wait", "partial_or_terminate", True),
     "保留优先，不能保留则终止（帧在父存储里）": IoPolicy("wait", "partial_or_terminate", True, "parent"),
+    "操作持有缓冲区，随帧销毁其余内容": IoPolicy("wait", "destroy_all", True, "parent", "operation"),
+    "操作持有缓冲区，且有后继回收": IoPolicy("wait", "destroy_all", True, "parent", "operation", True),
 }
 
 

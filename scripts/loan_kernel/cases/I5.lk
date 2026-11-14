@@ -1,4 +1,4 @@
-// 视图里存放的存在类型借用是载荷访问；载荷访问交给任何泛型 inout 位置都被拒绝（保守）
+// 视图里存放的存在类型借用是载荷访问；载荷访问交给泛型 inout T 时打开存在类型
 interface Shape
 class Circle(r: Int) is Shape
 class Square(s: Int) is Shape
@@ -13,6 +13,20 @@ fun throughView(): Unit {
   overwrite(&mut e.target, pack Shape(Square(2)))  // ERR X2
   use(c.r)
 }
+fun <T> swap(inout a: T, inout b: T): Unit trusted
 fun harmless(inout s: any Shape): Unit {
-  val t = same(s)  // ERR X2
+  val t = same(s)
+  scale(t)
+}
+fun stillPayload(inout s: any Shape, own v: any Shape): Unit {
+  val t = same(s)
+  *t = move v  // ERR X1
+}
+fun twoOpened(inout a: any Shape, inout b: any Shape): Unit {
+  swap(a, b)  // ERR X2
+}
+fun twoSlots(): Unit {
+  val a = pack Shape(Circle(1))
+  val b = pack Shape(Square(2))
+  swap(&mut a, &mut b)
 }

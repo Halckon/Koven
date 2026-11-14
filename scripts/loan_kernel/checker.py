@@ -31,6 +31,7 @@ class ClassDecl:
     deinit: bool
     line: int
     implements: list = field(default_factory=list)
+    private: set = field(default_factory=set)  # 只有声明为该类型成员的函数可以访问的字段
 
     def field(self, name):
         return next((f for f in self.fields if f[1] == name), None)
@@ -54,6 +55,7 @@ class Fun:
     line: int
     tparams: list = field(default_factory=list)
     flows: list = field(default_factory=list)  # ((param, None | "*" | field), 目标参数)
+    owner: str = ""  # in C：该函数是类型 C 的成员，可以访问 C 的私有字段
 
 
 @dataclass
@@ -156,17 +158,20 @@ class Parser:
                 self.expect("class")
                 name = self.next()
                 self.expect("(")
-                fields = []
+                fields, private = [], set()
                 while not self.accept(")"):
+                    hidden = self.accept("private")
                     kind = self.next() if self.peek() in ("borrow", "inout") else ""
                     fname = self.next()
+                    if hidden:
+                        private.add(fname)
                     self.expect(":")
                     fields.append((kind, fname, self.type_name()))
                     self.accept(",")
                 implements = []
                 while self.accept("is"):
                     implements.append(self.next())
-                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements)
+                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements, private)
         return classes, funs, sigs
 
     def type_name(self):
@@ -212,6 +217,7 @@ class Parser:
                 flows.append((src, self.next()))
                 if not self.accept(","):
                     break
+        owner = self.next() if self.accept("in") else ""
         trusted = self.accept("trusted") or keyword == "sig"
         body, ret = [], None
         if not trusted:
@@ -221,7 +227,7 @@ class Parser:
             if self.accept("return"):
                 ret = self.expr()
             self.expect("}")
-        return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows)
+        return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows, owner)
 
     def block(self):
         self.expect("{")
@@ -667,6 +673,8 @@ class Checker:
             fld = decl.field(name) if decl else None
             if fld is None:
                 raise SyntaxProblem(f"第 {place.line} 行：{ty.name} 没有字段 {name}")
+            if name in decl.private and self.fun.owner != decl.name:
+                self.error("K15", place.line, f"{decl.name}.{name} 是私有字段，只有 {decl.name} 的成员函数可以访问")
             kind, _, fty = fld
             crossed = kind
             if not kind:
@@ -803,6 +811,8 @@ class Checker:
 
         形参写作 any I 时，实参所指可以是实现 I 的具体类型或 any I，得到的是载荷访问；
         形参是具体类型或类型参数时，实参须是所指类型恰为该类型的槽位，类型参数在各处的实例须一致。
+        载荷访问交给 inout T 时打开存在类型（X4）：T 绑定为这一处独有的未知具体类型，
+        所以别处拿不出类型恰为 T 的值，替换无从发生。返回各类型参数的绑定。
         """
         bound = {}
         for mode, name, wanted in fun.params:
@@ -812,15 +822,18 @@ class Checker:
             actual = value.ty.name
             if wanted in fun.tparams:
                 if mode == "inout" and value.payload:
-                    self.error("X2", line, f"{name}：载荷访问不能交给泛型的 inout 位置")
-                elif bound.setdefault(wanted, actual) != actual:
-                    self.error("X2", line, f"类型参数 {wanted} 被同时实例化为 {bound[wanted]} 与 {actual}")
+                    actual = ("opened", actual, name)
+                if bound.setdefault(wanted, actual) != actual:
+                    shown = [b[1] + "（经 " + b[2] + " 打开的未知类型）" if isinstance(b, tuple) else b
+                             for b in (bound[wanted], actual)]
+                    self.error("X2", line, f"类型参数 {wanted} 被同时实例化为 {shown[0]} 与 {shown[1]}")
             elif wanted.startswith("any "):
                 decl = self.classes.get(actual)
                 if actual != wanted and (decl is None or wanted[4:] not in decl.implements):
                     self.error("TYPE", line, f"{name}：{actual} 不能当作 {wanted}")
             elif mode == "inout" and value.payload:
                 self.error("X2", line, f"{name}：载荷访问不能充当 {wanted} 的槽位")
+        return bound
 
     def carried(self, value, mode, fld):
         """按来源的三种形式取出实参带来的 loan。"""
@@ -861,7 +874,7 @@ class Checker:
             self.pending.append(values[name].all_loans())
             pushed += 1
         del self.pending[len(self.pending) - pushed:]
-        self.bind_types(fun, values, expr.line)
+        bound = self.bind_types(fun, values, expr.line)
         for (param, fld), target in fun.flows:  # 来源流入已有的持有者
             arg = expr.args[[name for _, name, _ in fun.params].index(target)]
             holder = arg.place.root if arg.kind in ("ref", "place") and not arg.place.fields else None
@@ -875,7 +888,10 @@ class Checker:
                 result |= self.carried(values[param], modes[param], fld)
         kind, ty_name = fun.result
         if kind:
-            return Value(Type(kind, ty_name), {"": result}, ty_name.startswith("any "))
+            actual = bound.get(ty_name, ty_name)  # 类型参数换成本次调用的实例
+            if isinstance(actual, tuple):  # 打开得到的未知类型：结果仍是载荷访问
+                return Value(Type(kind, actual[1]), {"": result}, True)
+            return Value(Type(kind, actual), {"": result}, actual.startswith("any "))
         ty = self.type_in(fun, ty_name)
         if ty.kind == "opaque":
             return Value(ty, {"*": result})
