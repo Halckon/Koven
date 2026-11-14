@@ -79,7 +79,7 @@ use lang_frontend::ownership_checking::{
 };
 
 // Reads only actual ordinary-route SSA. No receipt, new admission, or dynamic token synthesis.
-fn replay(
+pub(super) fn replay(
     bound: &BoundLoop,
     unit: &OwnedCompilationUnitView<'_, '_>,
     program: &Program,
@@ -94,8 +94,9 @@ fn replay(
         return None;
     }
     let f = module.function(id)?;
+    let retained = bound.retained();
     if f.blocks.len() != 6
-        || f.instructions.len() != 12
+        || f.instructions.len() != if retained.is_some() { 18 } else { 12 }
         || !f.return_types.is_empty()
         || f.receiver.is_some()
         || f.never_returns
@@ -154,7 +155,10 @@ fn replay(
     if *initializer != bound.replacement().expression() {
         return None;
     }
-    let i = &f.instructions;
+    // Role references into the original Program, never a filtered/rebuilt SSA graph.
+    let i = (0..12)
+        .map(|n| &f.instructions[n + usize::from(retained.is_some() && n > 0)])
+        .collect::<Vec<_>>();
     let value = |n: usize, r: usize| match i.get(n)?.results.get(r)? {
         EntityId::Value(v) => Some(*v),
         _ => None,
@@ -181,17 +185,27 @@ fn replay(
     {
         return None;
     }
-    let [EntityId::Value(hr), EntityId::Value(hc)] = header.parameters.as_slice() else {
-        return None;
+    let roots_counter = |block: &Block| match (retained.is_some(), block.parameters.as_slice()) {
+        (false, [EntityId::Value(root), EntityId::Value(counter)]) => Some((*root, None, *counter)),
+        (
+            true,
+            [
+                EntityId::Value(root),
+                EntityId::Value(kept),
+                EntityId::Value(counter),
+            ],
+        ) => Some((*root, Some(*kept), *counter)),
+        _ => None,
     };
-    let [EntityId::Value(br), EntityId::Value(bc)] = body.parameters.as_slice() else {
-        return None;
+    let (hr, hk, hc) = roots_counter(header)?;
+    let (br, bk, bc) = roots_counter(body)?;
+    let (fr, fk) = match (retained.is_some(), finished.parameters.as_slice()) {
+        (false, [EntityId::Value(root)]) => (*root, None),
+        (true, [EntityId::Value(root), EntityId::Value(kept)]) => (*root, Some(*kept)),
+        _ => return None,
     };
-    let [EntityId::Value(fr)] = finished.parameters.as_slice() else {
-        return None;
-    };
-    if f.entity(EntityId::Value(*hc))?.ty != EntityType::Value(int)
-        || f.entity(EntityId::Value(*bc))?.ty != EntityType::Value(int)
+    if f.entity(EntityId::Value(hc))?.ty != EntityType::Value(int)
+        || f.entity(EntityId::Value(bc))?.ty != EntityType::Value(int)
     {
         return None;
     }
@@ -235,11 +249,11 @@ fn replay(
             3,
             Operation::Compare {
                 operator: ComparisonOperator::GreaterThan,
-                left: *hc,
+                left: hc,
                 right: value(2, 0)?,
             },
         ),
-        (4, Operation::RootPlace { owner: *br }),
+        (4, Operation::RootPlace { owner: br }),
         (
             5,
             Operation::BorrowBegin {
@@ -250,7 +264,7 @@ fn replay(
         (
             7,
             Operation::RootReplace {
-                owner: *br,
+                owner: br,
                 loan: *loan,
                 replacement: value(6, 0)?,
             },
@@ -266,11 +280,11 @@ fn replay(
             10,
             Operation::CheckedArithmetic {
                 operator: CheckedArithmeticOperator::Subtract,
-                left: *bc,
+                left: bc,
                 right: value(9, 0)?,
             },
         ),
-        (11, Operation::Drop { owner: *fr }),
+        (11, Operation::Drop { owner: fr }),
     ];
     if expected.iter().any(|(n, op)| i[*n].operation != *op) {
         return None;
@@ -288,6 +302,20 @@ fn replay(
             return None;
         }
     }
+    let entry_kept = if let Some(kept) = retained {
+        Some(super::d10_loop_retained_tests::replay_suffix(
+            kept, unit, module, f, entry, finished, fk?,
+        )?)
+    } else {
+        None
+    };
+    let vector = |root, kept: Option<ValueId>, counter: Option<ValueId>| {
+        std::iter::once(root)
+            .chain(kept)
+            .chain(counter)
+            .map(EntityId::Value)
+            .collect::<Vec<_>>()
+    };
     let edge = |target, arguments| Edge { target, arguments };
     fn term(b: &Block) -> Option<&TerminatorKind> {
         b.terminator.as_ref().map(|t| &t.kind)
@@ -295,13 +323,13 @@ fn replay(
     if term(entry)?
         != &TerminatorKind::Branch(edge(
             header.id,
-            vec![EntityId::Value(value(0, 0)?), EntityId::Value(value(1, 0)?)],
+            vector(value(0, 0)?, entry_kept, Some(value(1, 0)?)),
         ))
         || term(header)?
             != &(TerminatorKind::Conditional {
                 condition: value(3, 0)?,
-                when_true: edge(body.id, vec![EntityId::Value(*hr), EntityId::Value(*hc)]),
-                when_false: edge(finished.id, vec![EntityId::Value(*hr)]),
+                when_true: edge(body.id, vector(hr, hk, Some(hc))),
+                when_false: edge(finished.id, vector(hr, hk, None)),
             })
         || term(finished)? != &(TerminatorKind::Return { values: vec![] })
     {
@@ -316,11 +344,7 @@ fn replay(
         return None;
     };
     if *failure != value(10, 1)?
-        || when_true.arguments
-            != vec![
-                EntityId::Value(value(7, 0)?),
-                EntityId::Value(value(10, 0)?),
-            ]
+        || when_true.arguments != vector(value(7, 0)?, bk, Some(value(10, 0)?))
         || when_false.arguments != when_true.arguments
     {
         return None;
@@ -362,16 +386,21 @@ fn replay(
     {
         return None;
     }
+    let shift = usize::from(retained.is_some());
     for (block, indices) in [
-        (entry, vec![0, 1]),
-        (header, vec![2, 3]),
-        (body, (4..11).collect()),
-        (finished, vec![11]),
+        (entry, (0..2 + shift).collect::<Vec<_>>()),
+        (header, vec![2 + shift, 3 + shift]),
+        (body, (4 + shift..11 + shift).collect()),
+        (finished, (11 + shift..f.instructions.len()).collect()),
         (abort, vec![]),
         (resume, vec![]),
     ] {
-        if block.instructions != indices.iter().map(|n| i[*n].id).collect::<Vec<_>>()
-            || indices.iter().any(|n| i[*n].block != block.id)
+        if block.instructions
+            != indices
+                .iter()
+                .map(|n| f.instructions[*n].id)
+                .collect::<Vec<_>>()
+            || indices.iter().any(|n| f.instructions[*n].block != block.id)
         {
             return None;
         }

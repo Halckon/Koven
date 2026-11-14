@@ -495,3 +495,49 @@ checked subtraction 保留真实失败臂、AbortReason 与 operand，不因 cou
 后续 Replace/Carry 双根、child 未修改根及更一般父子代际仍需各自权威事实与 replay，
 不能从此单根正例外推。`replay` 为私有测试检查器，正常路由产物在当前调用内生成；
 不能把带相同 source span 的外部 Program 当作携带 frontend provenance 的能力。
+
+### 双根同次观察：真实 suffix 保活（尚非 Carry 准入）
+
+在已验证单根基础上，新增且仅新增封闭形态：loop 前第二个纯 String 根，loop 中
+仍只 Replace 第一根，loop 后实际 `println` 读取第二根。开启观察的容量门同时允许
+5 items / 9 statements / 16 expressions；完整 arena 与实际事件均须通过，容量本身
+不构成准入。没有 suffix 或改为读取第一根时，第二根可能提前退休，明确拒绝。
+
+真实 trace 必须保留第二根 Literal/Bound，原 loop 十二事件，以及 suffix 四事件：
+已知调用、实际 Shared loan 注册、对应 pending 移除、该根 CallReturn Drop。
+不删除未知事件再匹配。suffix 还须由 typed call 证明 prints_line、非 abort、无
+receiver、Unit 返回，唯一实参真实引用第二根；声明和 begin/end span 精确对应。
+
+最终 LoopPending 与既有延迟交付共享生命周期，bind 精确要求三项 DropFact 和两项
+loan，并保持同次最终 owned 身份。RetainedLoopRoot 只读提供实际 source site、root、
+suffix、loan 与 DropFact；不增加 producer 动态 token，不发布 Carry/CFG 权限。
+普通候选测试及跨 crate Rooted/Memory 验收通过，后者两正例与十个入口拒绝案例。
+独审未见生命周期或单根/default-feature 隔离退化。跨轮错配及中途失败故障未在本地执行。
+
+真实双根 SSA 上 root/参数各条边的保留、suffix BorrowEnd 与清理、checked-abort
+运输仍须独立 replay；pending 移除不能替代 BorrowEnd，单根测试也不能替代双根证明。
+
+### 双根实际 CFG 与 suffix 生命周期 replay（测试域）
+
+该封闭双根形态也已通过现有普通入口的 Refine 路由产生真实 SSA，而非实验手写图。
+共六块、十八指令：入口实际构造 a/b；header/body 以 `[a, b, counter]` 对应，
+Replace 后两个 checked-step 分支实际运输 `[new_a, body_b, new_counter]`；正常
+continuation 原序回 header；false-exit 运输 `[header_a, header_b]`。replay 逐边核
+参数关系，不要求不同 block 的 EntityId 相等，不从静态日志假造运行时迭代次数。
+
+实现共享单根 replay 的十二个核心角色，但仅引用原 Program 对应指令，不重建或
+过滤图；第二个实际 literal 与 suffix 五指令单独精确检查。完整 block 指令列表、
+节点互异、终结器与参数均覆盖原始十八条指令和全部边。suffix 必须依次对同一 b
+执行 RootPlace、Shared BorrowBegin、PrintString、真实 BorrowEnd、Drop；此时才有
+codegen 层 End 证据，而不再依靠前端 pending 移除推断。false-exit 先清理 a，b
+在真实 suffix 调用后清理；abort 保持现有进程失败路径及 checked arithmetic 元数据。
+
+这是封闭单 loop、单 Replace、第二根仅 suffix-use 的**既有路线结构闭环**，不是
+生产 Carry selector、通用 generation receipt 或任何嵌套父子代际证明。未知源码
+入口拒绝，任意损坏 IR 负控与运行时 native 验收不在本轮本地执行。旧 oracle 与普通
+primitive gate 均未改动，后续不得以本片取消未等价的旧见证。
+
+本批实际验证：双根两种命名/Unicode 字面量 × 两入口，四个真实 SSA replay 正例；
+`ssa::d10_` 五个普通测试全部通过。前端外部 handoff 四个普通测试通过、两个 CI-only
+身份负控保持 ignored；严格前端 all-targets Clippy、codegen lib/tests Clippy 与默认 feature-off check 通过。
+本地没有执行 native、损坏 IR 或故障注入；语义范围仍以上述封闭源码合同为限。
