@@ -1783,8 +1783,8 @@ frontend/codegen/CLI all-target 严格 Clippy（D10、two-source、E2 与 loan o
 
 ### 条件形成 scopes 与最终 iteration 计划三通道
 
-D10 source record 新增独立分组，只从原 source 汇集入口/出口截取
-iteration_conditional_scopes、iterations、map_iterations 三个原增量。未封闭的内部
+D10 source record 新增独立分组，从原 source 的成功 planner 返回值采集
+iteration_conditional_scopes、iterations、map_iterations 三个完整批次。未封闭的内部
 record 不通过读取；同一 run 全源拼接与最终三数组完整 Eq，不重建 action 顺序，
 不从 AST 或 Drop ordinal 推断 scopes，不要求 owner/template 与遍历 source 同源。
 
@@ -1809,3 +1809,40 @@ iteration 联合复验：`dc22b651` 与 `439f0920` 组合后，source ledger 5 �
 all-target 严格 Clippy（D10、two-source、E2、loan observation 同时启用）通过。
 fmt、文档957页、尺寸2325文件/37历史项通过；不重复运行native或人工故障。
 各编译入口均核可用磁盘不少于8Gi。此验收不把未采集的五类验证输入算作已覆盖。
+
+### iteration 三通道采集职责拆分
+
+feature-only `dataflow/source_collection.rs` 在原 checker.run 返回后、任何字段 move 前
+复制上述三批，实际生产 extend 顺序和内容不变；最终仍完整对账原聚合结果。删除父文件
+入口快照与尾部切片拼装，dataflow 从1245降至1237行，max1248不变。独立静审确认
+无筛选、改写、去重或失败/deferred发布变化。未扩展五个剩余见证通道或任何准入。
+
+本拆分正常 source ledger 5 项、真实五源 project 1 项、feature frontend/CLI all-target
+strict Clippy、默认 frontend all-target check、fmt/diff、文档957页及尺寸2280文件/37历史项
+通过。未运行native、人工故障、旧default-workspace-all-target失败项或联合复验。
+
+
+### 原 iteration 验证输入五通道
+
+source 分组追加原 owner_scopes、loan_ends、required_exits 与 sequential/Map templates，
+保留完整字段和原序。采集 helper 同借本轮 Checker 与真实 Drop Analysis，模板按原
+BTreeMap values 顺序复制，对应生产 into_values；最终同 run 原数组逐通道完整 Eq。
+不从退出计划反推见证，不把遍历 source 强制作为 owner/template 引用的声明源。
+
+owner scopes 保留 named 比较和追加 temporary scopes；loan ends 仅原 Cleanup 投影中的
+EndCallLoan/EndReceiverLoan/EndCaptureLoan，不包含 EndBinding 或完整 ActionSource 历史。
+嵌套共享 actions 不 flatten 去重；原 validator、lowering、错误/deferred门禁不变，
+不扩大 callable、CFG、可达闭包或项目准入。dataflow 保持1237行、既有上限不变。
+
+正常 source ledger 6项通过，六源新增样本实际覆盖三种 loan end 与五通道非空、Map
+Continue+Drop、空源、反序及错误/deferred不发布；初次fixture包路径不匹配已修正并重跑。
+真实五源project exact 1、feature frontend/CLI all-target strict Clippy、默认frontend
+all-target check、fmt/diff/YAML/JSON、文档957页及尺寸2281文件/37历史项通过。
+全diff独立静审无阻断；未运行native、人工故障/混配、旧default-workspace-all-target失败项
+或联合复验。各编译入口核磁盘至少8Gi，复用原target串行执行，未清理未知归属缓存。
+
+五通道联合复验：在 `1dbcc7d3` 上组合 `a2bd5d94`（包含独立等价拆分
+`67cdc67e`）后，source ledger 6 项、真实五源 project 1 项、默认 workspace
+all-target check、frontend/codegen/CLI all-target 严格 Clippy（D10、two-source、
+E2、loan observation 同时启用）通过。fmt、文档957页、尺寸2327文件/37历史项通过。
+各编译入口核磁盘至少8Gi；本轮未重跑native或人工故障，不扩大上述证明与准入边界。

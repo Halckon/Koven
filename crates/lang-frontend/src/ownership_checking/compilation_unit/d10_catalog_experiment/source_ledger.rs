@@ -3,6 +3,7 @@ use super::*;
 use crate::name_resolution::SourceUnitId;
 mod iteration_collection;
 pub use iteration_collection::IterationSourceCollection;
+pub(crate) use iteration_collection::IterationValidationInputs;
 
 /// One real planner invocation boundary, not a callable or CFG certificate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,7 +88,7 @@ impl SourceCollectionRecord {
         self.iteration_collection = Some(collection);
         self
     }
-    /// Original three-channel iteration collection, including empty source batches.
+    /// Original iteration plans and validation-input collection, including empty source batches.
     /// An unsealed internal source record has none and cannot pass validated ledger retrieval.
     #[must_use]
     pub const fn iteration_collection(&self) -> Option<&IterationSourceCollection> {
@@ -517,3 +518,6 @@ mod conditional_tests;
 
 #[cfg(test)]
 mod iteration_tests;
+
+#[cfg(test)]
+mod iteration_witness_tests;
