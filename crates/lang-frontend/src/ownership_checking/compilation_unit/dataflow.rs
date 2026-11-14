@@ -44,6 +44,8 @@ mod scope_escape;
 use receiver::ReceiverContext;
 mod loop_control;
 mod short_circuit;
+#[cfg(feature = "d10-catalog-experiment")]
+mod source_collection;
 mod string;
 mod traversal;
 
@@ -333,12 +335,6 @@ pub(super) fn analyze(
             drops.len(),
             conditional_receiver_drops.len(),
         );
-        #[cfg(feature = "d10-catalog-experiment")]
-        let iteration_start = (
-            iteration_conditional_scopes.len(),
-            iterations.len(),
-            map_iterations.len(),
-        );
         let mut checker = Checker::new(
             sources,
             input.parsed(),
@@ -383,6 +379,8 @@ pub(super) fn analyze(
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        let iteration_collection = source_collection::capture_iteration(&drop_analysis);
         #[cfg(feature = "d10-catalog-experiment")]
         catalogs.extend(drop_analysis.catalog);
         #[cfg(feature = "d10-catalog-experiment")]
@@ -462,13 +460,7 @@ pub(super) fn analyze(
                 drop_analysis.drop_traversals,
                 &conditional_receiver_drops[source_start.4..],
             )
-            .with_iteration_collection(
-                super::d10_catalog_experiment::IterationSourceCollection::capture(
-                    &iteration_conditional_scopes[iteration_start.0..],
-                    &iterations[iteration_start.1..],
-                    &map_iterations[iteration_start.2..],
-                ),
-            ),
+            .with_iteration_collection(iteration_collection),
         );
     }
 

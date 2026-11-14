@@ -1777,8 +1777,8 @@ fmt/diff/YAML、文档结构（957 页）与尺寸（2277 Rust 文件、37 历�
 
 ### 条件形成 scopes 与最终 iteration 计划三通道
 
-D10 source record 新增独立分组，只从原 source 汇集入口/出口截取
-iteration_conditional_scopes、iterations、map_iterations 三个原增量。未封闭的内部
+D10 source record 新增独立分组，从原 source 的成功 planner 返回值采集
+iteration_conditional_scopes、iterations、map_iterations 三个完整批次。未封闭的内部
 record 不通过读取；同一 run 全源拼接与最终三数组完整 Eq，不重建 action 顺序，
 不从 AST 或 Drop ordinal 推断 scopes，不要求 owner/template 与遍历 source 同源。
 
@@ -1797,3 +1797,15 @@ planner、validator、lowering 及原失败/deferred发布门。
 默认 frontend all-target check、fmt/diff/YAML、文档（957页）及尺寸（2279文件/37历史项）
 通过。未运行native、人工故障/混配或旧default-workspace-all-target失败项；未在联合树
 复验。旧target串行复用，各编译入口核磁盘≥8Gi，未新建target或扩大准入。
+
+
+### iteration 三通道采集职责拆分
+
+feature-only `dataflow/source_collection.rs` 在原 checker.run 返回后、任何字段 move 前
+复制上述三批，实际生产 extend 顺序和内容不变；最终仍完整对账原聚合结果。删除父文件
+入口快照与尾部切片拼装，dataflow 从1245降至1237行，max1248不变。独立静审确认
+无筛选、改写、去重或失败/deferred发布变化。未扩展五个剩余见证通道或任何准入。
+
+本拆分正常 source ledger 5 项、真实五源 project 1 项、feature frontend/CLI all-target
+strict Clippy、默认 frontend all-target check、fmt/diff、文档957页及尺寸2280文件/37历史项
+通过。未运行native、人工故障、旧default-workspace-all-target失败项或联合复验。
