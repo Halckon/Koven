@@ -9,6 +9,8 @@ mod d10_loop_handoff_tests;
 mod d10_loop_replay_tests;
 #[cfg(all(test, feature = "d10-catalog-experiment"))]
 mod d10_loop_retained_tests;
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_nested_loop_tests;
 use closure::integer;
 mod constant_materialization;
 mod expression_core;

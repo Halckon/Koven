@@ -541,3 +541,37 @@ primitive gate 均未改动，后续不得以本片取消未等价的旧见证�
 `ssa::d10_` 五个普通测试全部通过。前端外部 handoff 四个普通测试通过、两个 CI-only
 身份负控保持 ignored；严格前端 all-targets Clippy、codegen lib/tests Clippy 与默认 feature-off check 通过。
 本地没有执行 native、损坏 IR 或故障注入；语义范围仍以上述封闭源码合同为限。
+
+### 两层 child-only Replace：实际普通路径见证，不扩展单环 sidecar
+
+下一批限定源码见证为：一个 Shared Int `count` 参数初始化 outer；父 body 每轮
+重新读取 count 初始化 inner；child 仅 Replace a 与递减 inner，父只递减 outer；
+b 在两层结束后实际 `println(b)`。不加入父 Replace、条件退出或更深嵌套。
+
+前端独立观察完整二十五事件，核对实际 final owned 的三处 Drop/两项 loan：
+child detached old 在对应语句结束清理，当前 a 在**父 LoopExit** 清理，b 在 suffix
+CallReturn 清理。child Exit 无 a Drop；不能仅凭词法嵌套推断此位置。这个测试中的
+观察来自显式重新运行的 planner，虽事实与原 owned 一致，仍不是同次最终 NestedPending。
+
+codegen 从同次 validated owned view 经正常 Unit/Refine 入口获得真实十一块、二十三
+指令，不手写或过滤 SSA。独立 replay 核全部边：count 始终是 Shared loan，不等同于
+outer/inner 值；父 body 真实 Read count；child header 分别接父当前根与 child 新根；
+child false 路径含零轮情形，保留当前 a/b、outer 和 count；child 回边只更新 a/inner，
+父回边只更新 outer。两个 checked decrement 分别核 Subtract operand、失败 flag、
+AbortReason 与当时活根运输；不承诺失败路径额外析构。
+
+全图三处清理为 child old Drop、父 false-exit 当前 a Drop、suffix b Drop，并非父
+出口清理三次。suffix 是同一 b 的真实 Shared Borrow、Print、BorrowEnd、Drop。
+普通源码矩阵含 ASCII/Unicode 两个正例与 inner 错接 outer、不同减量、后用改读 a
+三个邻接拒绝，分别覆盖 Rooted/MemoryDocument；四个正例进入实际 SSA replay，六个
+邻接例只在 fixture facts 检查拒绝。
+
+**未完成边界：**本片 `source::facts` 按固定 fixture 的名字/文本与实际身份取证，
+不是完整 AST 白名单或任意输入准入器。没有 NestedPending，没有将另一轮观察补绑
+原 owned；原 `analyze_loop` 对嵌套仍拒绝。若下一步需要封闭嵌套能力，须新增独立
+完整源码/控制观察合同并接原 planner 的延迟最终 owned 交付，不能把这些见证或单环
+sidecar 直接升级成通用 Carry/嵌套权限。本片无 LLVM/native 或本地故障执行。
+
+本批验证：前端 loop-generation 三个普通测试通过，D10 codegen 六个普通测试通过；
+严格前端 all-targets（两实验 feature）和 codegen lib/tests Clippy、格式与文档门禁
+通过，独审与最终增量复审无阻断。未执行损坏 IR/故障注入或远端推送。
