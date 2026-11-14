@@ -916,3 +916,22 @@ D10 SSA 十一项通过、一项身份负控 ignored。新能力的三种正源�
 精确编译列举一项且接入现有 CI 脚本，未本地执行。默认前端编译、严格前后端
 Clippy、格式、文档 957 和独审通过。继承的两项 Rust 尺寸超限仍未解决；没有
 运行 native、故障注入或推送。
+
+### AfterChild 后端独立源码对账
+
+补上上一片明确保留的缺口：独立测试 oracle 只从真实 AST 的 child→parent
+顺序发现角色，不读取 sealed bound 来生成预期。两参数、声明、控制、条件/更新、
+调用和后用必须覆盖全部 item/statement/expression 各一次；Symbol/Reference、
+类型及实际 builtin descriptor 均来自该次 Unit。再核原 owned 的两 primitive、
+四 loan 和四 Drop 的真实顺序及作用点，最后逐项对账 bound 的全部公开身份字段。
+原 SSA/CFG replay 与有界路径模型不变，不能以源码形状检查代替授权。
+
+普通合法邻界在独立 ordinary owned 上先检查角色拒绝，再检查 sidecar 是否交付，
+避免负例仅因前端拒绝而跳过独立 oracle。新增父→子顺序拒绝及空白正例，保留
+完整改名和 Unicode literal 见证。四正源码 × 两类输入 × 九 counter 组合仍只是
+受限 SSA 逻辑路径，不是 native 或 heap 清理验收。生产入口、默认 feature 和
+普通拒绝门均未改变；原生对象矩阵与两个继承尺寸失败仍未解决。
+
+本片 D10 普通 SSA 回归十一项通过、一项 CI-only ignored；包含上述 72 条有界
+路径。严格 codegen Clippy、格式、文档 957 与独立只读审查通过。未运行 native
+或身份故障控制；尺寸只检查新增文件均低于 1000，未重跑或宣称全仓尺寸通过。

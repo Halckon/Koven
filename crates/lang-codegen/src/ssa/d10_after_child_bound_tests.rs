@@ -1,5 +1,7 @@
 //! Separate sealed child-then-parent source/fact handoff to actual ordinary Unit SSA.
 use super::*;
+#[path = "d10_after_child_source.rs"]
+mod source;
 use lang_frontend::{
     name_resolution::SourceUnitInput,
     ownership_checking::{
@@ -12,6 +14,19 @@ use lang_frontend::{
 fn sealed_after_child_handoff_replays_actual_operations_and_edges() {
     for (text, accepted) in [
         (AFTER_SOURCE.to_owned(), true),
+        (
+            AFTER_SOURCE.replace(";", ";\n").replace(" > ", "  >  "),
+            true,
+        ),
+        (
+            AFTER_SOURCE
+                .replace("val parentOld = replace(&a, \"parent\"); ", "")
+                .replace(
+                    "var inner = childCount",
+                    "val parentOld = replace(&a, \"parent\"); var inner = childCount",
+                ),
+            false,
+        ),
         (super::super::renamed_source(AFTER_SOURCE), true),
         (
             AFTER_SOURCE
@@ -51,8 +66,22 @@ fn sealed_after_child_handoff_replays_actual_operations_and_edges() {
             SourceUnitInput::memory_document(source, &ast),
         ] {
             let inputs = [input];
-            let (names, typed, _) =
+            let (names, typed, ordinary_owned) =
                 unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let ordinary_unit = owned_compilation_unit_view(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                &ordinary_owned,
+            )
+            .unwrap();
+            assert_eq!(
+                source::has_closed_roles(&ordinary_unit),
+                accepted,
+                "independent source roles: {text}"
+            );
             let bound = experiment::analyze_after_child_nested_loop(
                 &sources, &inputs, &names, &types, &typed,
             )
@@ -107,6 +136,8 @@ fn replay(
     program: &Program,
     function: FunctionId,
 ) {
+    source::matches_bound(unit, bound)
+        .expect("independent child-before-parent source/final-owned identity reconciliation");
     assert!(bound.matches(unit));
     assert_eq!(bound.order(), experiment::ReplacementOrder::ChildThenParent);
     verify_generation_edges(unit, program, function);
