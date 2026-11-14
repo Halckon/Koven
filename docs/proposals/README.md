@@ -24,6 +24,8 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [集合算法所有权原候选](collection-algorithm-ownership.md)：保留原稿供对照，不作为独立启用依据
 - [集合算法所有权受审修订（r3.1）](collection-algorithm-ownership-r3.md)
 
+- [Unit 函数根集合工程候选](unit-function-root-set.md)：D10 whole-file 身份见证退出路径，未启用
+
 ## 候选依赖与推进顺序
 
 2026-10-08 的 collection r3.1 小修保留核心规划方向；候选正文不启用新能力。

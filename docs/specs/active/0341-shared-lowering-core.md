@@ -17803,3 +17803,144 @@ PR 精确头 `4e246716` 的 PR-event 与 push-event 均在 Rust Physical Line Gu
 普通 `borrowed_result_single_ssa_uses_returned_loan_and_orders_end_before_move`
 exact 回归 1/1 通过；故障注入未在本地执行。fmt、951 份 Markdown 文档结构检查及
 diff 检查通过。
+
+### 普通 Unit 诊断门与旧身份见证分离（2026-11-13）
+
+基于 `19c66730`，将原 mixed recovery 目标中的 L0080/L0084、精确来源 Span、
+names/basic/const capability gate 断言迁至独立普通 Unit 目标；保留原输入字节及
+未选中的同文 foreign.ko，不混用产物。旧目标的原 FQN 和
+MismatchedSource → MismatchedAnalysis → FrontendDiagnostics 优先级见证完整保留，
+仅在 CI 执行；Unit 前置 capability 拒绝不能替代该旧入口独有合同。
+新普通完整 FQN exact 1/1 通过；旧 mixed 目标仅精确列举匹配 1、未执行。
+严格 observer-support all-target Clippy、测试编译、fmt/docs/diff 与独立审查通过。
+这是见证分层迁移，不是旧 checker/lowering 退休，不新增语言能力或改变 Origin；
+精确交付头双宿主及动态故障验收仍待 CI。
+
+### Map require wrapper 的根选择差异见证（2026-11-14）
+
+基于 `e37124e4` 保留 `verify_ownership::closure::map_require_tests` 的两个原有
+测试身份。普通同源 `READONLY_WRAPPER` 经 Unit selected entry 仅发射 entry，
+核唯一函数及其原始 declaration Span；旧 whole-file 则保留恰好 view、entry 两根。
+旧见证不再仅以任意函数具有 borrow return 为充分条件，而核唯一 view、唯一
+MapRequireValue 返回 slot loan、BorrowReturn 返回同一 loan，且无 Copy/SharedRetain。
+这是可执行的根选择差异记录，不构成两入口等价或 legacy 路径退役证据，不改生产
+行为、借用语义或 Origin 决策。
+
+两个普通真实源码测试各以完整 FQN exact 执行，均 1/1 通过；测试编译、带
+loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）和
+diff 检查通过，独立只读审查无阻断。未运行故障注入或全量测试，远程 CI 不在本地
+结果覆盖范围。
+
+### 不可达闭包的严格 Unit 产物对照（2026-11-14）
+
+基于 `cd7abc2b`，为原 `single_runtime_unreachable_lambdas_do_not_register_storage_or_nested_layouts`
+两段源码补独立 Unit 对照：return 后的 nullable/assert lambda 与含 nested lambda 的
+lambda 均经严格 Unit admission，核唯一 entry 原始声明身份、无 thunk、无
+ConcreteClosure 类型及闭包构造/调用指令，随后通过 SSA 与 LLVM verifier。
+旧 Single 静态 capture、callable_origin 和类型 arena 不增长检查保留；Unit 的事实
+模型并非同形 API，本轮不据结果相同删除旧见证，不宣称 legacy 已退役。
+
+新增 `ssa::refine_closure_tests::unit_unreachable_lambdas_do_not_register_storage_or_nested_layouts`
+完整 FQN exact 1/1 通过（含两段源码），测试编译通过；独立只读审查无阻断。
+未改生产代码或 Origin，未执行故障注入和全量测试，远程 CI 尚未覆盖本地新增提交。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过；仅新增独立对照，不更改既有验收的状态。
+
+### initializer guard 普通源码见证迁至 Unit（2026-11-14）
+
+基于 `54f38548`，保留
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_guard_keeps_size_loan_live_before_initializer_factory`
+原测试身份和完整源码，将旧 Single admission/lowering 替换为严格 Unit。entry 使用
+返回 root 与声明 Span 定位，factory 按原声明身份定位，不依赖生成名称。原 guard
+条件分支、负值分支 Abort、guard 内不得调用 factory/生成容器、success 中 factory
+调用早于生成容器，以及类型 arena 不增长、LLVM verifier 检查均保留。该顺序检查
+不额外宣称 factory 调用精确次数；其余旧身份见证未删改。
+
+完整 FQN exact 1/1 通过，测试编译和独立只读复核通过。仅迁移此普通源码见证，
+不改生产语义、Origin 或故障分类；未运行故障测试、全量测试或远程 CI。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过。
+
+### shared callback 清理见证迁至 Unit（2026-11-14）
+
+基于 `9bb34f40`，`refine_closure_tests::source_closure_tests` 中两个普通源码测试
+`single_runtime_named_shared_callback_survives_constructor_and_arithmetic_cfg` 与
+`single_runtime_temporary_shared_callback_ends_capture_before_iteration_element`
+保留原 FQN、源码及全部断言，改由严格 Unit admission 和原声明 root lowering。
+共享入口保留类型 arena 不增长与 LLVM verifier，新增 root 原始声明 Span 校验。
+named 仍核两次生成与一次闭包 Drop；temporary 仍核真实 Shared capture、callback
+owner、无重复 BorrowEnd、Drop 晚于构造。结论限于这些既有 SSA 断言，非完整
+运行时清理等价证明，也不据此删除其他旧内部身份见证。
+
+两个完整 FQN exact 各 1/1 通过，测试编译通过，独立只读审查无阻断。
+未改生产或 Origin，未执行故障注入/全量测试，未推送；远程 CI 不由此替代。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+和 diff 检查通过；测试文件 892 行，未超过手写 Rust 1000 行软上限。
+
+### when 兄弟边 callback 见证迁至 Unit（2026-11-14）
+
+基于 `6ec0163f`，保留
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_named_shared_callback_survives_when_sibling_edges`
+原 FQN 与四组分支源码，改为已验收的严格 Unit helper；前端 admission、类型 arena
+不增长及 LLVM verifier 条件保留，另核 root 声明身份。首次失败即停止代替失败汇总，
+不放宽成功条件。删除迁移后零调用的模块内旧 lower helper，顶层 Unit lower 与其
+调用方不动；不删除仍由 analyze 承载的旧内部身份见证。
+
+完整 FQN exact 1/1（四组源码）及测试编译通过，独立只读审查无阻断。没有生产、
+Origin 或故障分类变更，未执行故障注入、全量测试或推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过；远程 CI 仍须对应最终发布头另行验收。
+
+### Nothing 操作数原源码见证迁至 Unit（2026-11-14）
+
+基于 `fd64906a`，将
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_nothing_operand_stops_before_borrow_and_initializer`
+原四组无 package 源码改用严格 Unit admission/lowering，保留 FQN、构造事实数量、
+同一 constructor expression 的 loan 计数、无 ContainerGenerateBorrowed、存在 Abort、
+类型 arena 不增长及 LLVM verifier，新增返回 root 的声明身份校验。既有 package
+Unit 控制和其他 legacy 身份/ABI 见证均不改动。源码 error 调用为原普通语义，
+不是故障注入；不改变生产或 Origin。
+
+完整 FQN exact 1/1（四组源码）、测试编译和独立只读审查通过；未运行故障注入、
+全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+与 diff 检查通过。
+
+### 普通 nullable generic planner 见证迁至 Unit（2026-11-14）
+
+基于 `8709803d`，保留
+`ssa::unit_llvm_tests::callable_plan_tests::single_callable_plan_ordinary_nullable_generic_argument_keeps_existing_frontier`
+原 FQN 与源码，使用 MemoryDocument 的 basic validated Unit planner。保留 ignore、
+entry 各一个实例、全部 callable arguments 为空及类型 arena 不增长检查，并核唯一
+Function 声明、原 source Span 与 AST root，避免首个同名匹配掩盖身份问题。
+这是普通非 Fn nullable 参数的规划边界，不是最终类型完整性或 native 门禁；其余
+旧 callable ABI/来源身份见证不动。
+
+最终源码测试编译和完整 FQN exact 1/1 通过，独立只读复核通过。未改生产、Origin
+或故障分类，未运行故障注入、全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+和 diff 检查通过。
+
+### canonical callable 普通具体化见证迁至 Unit（2026-11-14）
+
+基于 `166c0dcb`，保留
+`ssa::map_source::canonical_callable_tests::canonical_callable_single_specialization_keeps_modes_move_and_container_return`
+原 FQN 与三组无 package 源码，以 MemoryDocument basic validated Unit 产物调用
+Unit concrete-type 查询。保留 borrow/inout/move 及 Array 返回的具体类型相等、
+Function 类型类别和 arena 不增长断言；helper/entry 改按唯一原声明、source/root
+定位。已有 package Unit 对照不动，旧 MissingFact 负控及分析 helper 完整保留。
+此为 basic validated 阶段，不宣称 final complete 或 native 验收。
+
+普通完整 FQN exact 1/1（三组源码）、测试编译和独立只读审查通过；没有生产、
+Origin 或故障分类变化，未执行负控/故障注入、全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过。
+
+### legacy 消费者退出审计（2026-11-14）
+
+基于 `99d72095` 完成[定向退出审计](../../reviews/2026-11-14-d10-legacy-consumer-audit.md)：
+分离已迁普通见证与仍独有的 whole-file、身份、ABI、拒绝、条件清理及 CI mapper
+合同，列明每类最小安全步骤。没有修改生产/测试，也没有执行测试；此记录不宣称
+旧 API 可删或 D10/E2 完成。远端状态不在本轮只读核验范围。
+独立只读复核通过，docs（952 Markdown）及 diff 检查通过；未把文档结构门禁
+当作语义等价证明。
