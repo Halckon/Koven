@@ -4,6 +4,10 @@ use super::origin_probe::{Event, WhileRole};
 use super::*;
 use std::sync::Arc;
 mod coverage;
+#[cfg(feature = "d10-catalog-experiment")]
+mod nested;
+#[cfg(feature = "d10-catalog-experiment")]
+mod nested_coverage;
 
 /// A site denotes construction in the current iteration, not a runtime object ID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -285,9 +289,9 @@ impl DropPlanner<'_, '_> {
                 ast.statements().iter().count(),
                 ast.expressions().iter().count()
             ),
-            (4, 7, 12) | (5, 9, 16)
+            (4, 7, 12) | (5, 9, 16) | (6, 13, 23)
         ) {
-            self.origin_probe = Some(Vec::with_capacity(20));
+            self.origin_probe = Some(Vec::with_capacity(25));
         }
     }
     pub(in super::super) fn loop_pending(

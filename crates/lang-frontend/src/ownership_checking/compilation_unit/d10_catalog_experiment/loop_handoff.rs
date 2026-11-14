@@ -113,7 +113,7 @@ impl BoundLoop {
     }
 }
 impl LoopPending {
-    fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundLoop> {
+    pub(super) fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundLoop> {
         let mut drops = self.cleanup.to_vec();
         let mut loans = vec![self.loan.clone()];
         if let Some(retained) = &self.retained {
@@ -155,7 +155,7 @@ pub fn analyze_loop(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundLoop>, OwnershipCheckingError> {
-    let (owned, _, mut loops) = analysis::analyze_with_catalog(
+    let (owned, _, mut loops, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),
