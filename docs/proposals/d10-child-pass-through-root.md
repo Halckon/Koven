@@ -102,3 +102,19 @@ ownership primitive 的 place 均为 a。不是两个声明就有两个活跃循
 child 仍更新所有根，不能据此取得 Carry 权限。若采用真实输出作为后续用途，
 须另列变体并核对应最终 use/cleanup，不以无意义临时绑定或人为 keepalive 求绿。
 本片普通精确目标 1/1 通过，独审确认前提失败证据有效；不代表提取器完成。
+
+## 隔离用途变体：循环后真实输出 b
+
+另立 ordinary 变体，仅在原两层循环之后增加实际 `println(b)`。这改变初稿的
+“出口只清理、不打印 owner”限制，不能覆盖或删除此前未使用 b 的反例，也不是
+加入人为 keepalive。输出是源码的实际用途，当前阶段只核 frontend 事实，不宣称
+已执行输出或原循环的实验 SSA 已生成。
+
+实测 b 的唯一 Named Drop 变为该真实 println 的 CallReturn；同次 Shared loan
+绑定原 b 的 root place，调用源码位置晚于两个 While。原全根更新
+nested_normal_body 仍不存在。因此“根确有循环后用途”的前提可成立，但尚无
+Carry 归纳/权限；后续提取器须以这些真实 use/cleanup 身份为输入，不能仅检查
+语法后缀含 println。新变体仍未扩大生产 selector，不发布 receipt。
+
+该用途变体与原无用途反例 ordinary exact 2/2 通过；frontend all-target 严格
+Clippy、fmt、docs955、diff及身份/清理独审通过。未运行 native、故障或全量测试。
