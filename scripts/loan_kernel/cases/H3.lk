@@ -8,7 +8,7 @@ fun nextRef(inout it: SliceIter): borrow Int from it.source { return &it.source.
 fun nextMut(inout it: MutIter): inout Arr from it.data trusted
 fun nextLend(inout it: MutIter): inout Arr from it { return it.data }
 sig <I, T> NextL(inout it: I): T from it
-sig <I, T> NextF(inout it: I): T from it.*
+sig <I, T> NextF(inout it: I): T from it.origins
 fun <I, T> drain(inout it: I, own next: fn NextL): Unit {
   while (*) {
     val x = next(it)
