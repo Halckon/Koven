@@ -441,3 +441,30 @@ primitive 校验交叉核对。保存同源 callable、参数、counter、condit
 这是对**受限源码范围**的封闭，不是通用准入或完整 loop 证明。真实 SSA
 predecessor/参数、checked-abort 路径与最终 owned sidecar 绑定仍未实现；Header /
 backedge 方程仍不能作为发射能力，普通 gate 与旧 witness 均未改变。
+
+### 同次最终 owned 的 loop sidecar（实验 feature）
+
+在同一个默认关闭的 `d10-catalog-experiment` 下，实际 planner 仅对 4 items /
+7 statements / 12 expressions 的小规模输入启用 loop 观察，再由封闭 coverage
+及完整已捕获事件序列筛选。完成 iteration/map 收尾且无 resource-deferred 早退后，
+才生成独立 LoopPending；不是拿另一轮 planner 的候选补绑定原 owned。
+
+LoopPending 随 dataflow 返回值传递；后续 source 失败自然丢弃，analysis 的诊断或
+无效类型清空路径同时清空它。最终 owned 构造后，专用 `analyze_loop` 要求恰一个
+source/一个候选、同 typed analysis 身份、无诊断/无 deferred、精确两项 DropFact、
+精确实际 loan 及单根 Replace 计划，再 validate 并返回 BoundLoop。没有公开构造器
+或接受任意旧 owned 的补绑定入口；`matches` 检查最终 ownership 身份，不只检查 typed。
+
+BoundLoop 只读投影 callable/control、参数/counter/root、condition/step、两个构造
+site、Replace call 与 detached-old/LoopExit 清理。site 不被改称每轮动态对象 ID，
+记录的 pending loan 移除不被升级为独立 End 证明。普通入口仍返回原 ownership 并
+丢弃实验 sidecar；无循环入口与循环入口分别筛选自己的 sidecar，不互相兜底。
+
+外部 crate 普通验收使用 Rooted/MemoryDocument 的合法形状、错误步进、额外 scalar
+声明；最终 owned/DropFact/loan 与源码角色均实核。另一 ownership run 的错配负控
+加入既有 CI-only 脚本，本地仅编译列举、不执行。中途失败原子性仍是返回值与清空
+路径独审，不能称已执行故障验收。
+
+本片尚不提供真实 loop CFG、checked arithmetic abort 事实或 codegen 准入。
+后续必须让实际 SSA predecessor/参数及 counter checked-step 路径独立 replay；
+不能因同次 owned 绑定完成，就绕过 ordinary primitive gate 或声称 Carry 成立。

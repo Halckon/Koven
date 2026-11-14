@@ -69,6 +69,9 @@ pub(super) struct Analysis {
     #[cfg(feature = "d10-catalog-experiment")]
     pub(super) catalog:
         Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::Pending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) loop_catalog:
+        Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::LoopPending>,
     pub(super) iteration_conditional_scopes:
         Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     pub(super) iteration_owner_scopes: Vec<(
@@ -142,6 +145,8 @@ fn plan_with_observations(
     let mut planner = DropPlanner::new(checker, liveness);
     #[cfg(feature = "d10-catalog-experiment")]
     planner.enable_producer_catalog();
+    #[cfg(feature = "d10-catalog-experiment")]
+    planner.enable_loop_generation_probe();
     planner.owner_observation_enabled = enabled;
     planner.iteration_actions.enabled = loan_actions_enabled;
     let planner = planner.run()?;
@@ -199,6 +204,8 @@ fn plan_with_observations(
     let borrow_ends = planner.iteration_actions.borrow_binding_ends();
     let borrow_call_transports = planner.iteration_actions.consumer_transports();
     let borrow_forward_transports = planner.iteration_actions.forward_transports();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let loop_catalog = planner.loop_pending();
     let drops = planner
         .facts
         .into_iter()
@@ -210,6 +217,8 @@ fn plan_with_observations(
         .map(|fact| fact.into_unit(checker.source_unit))
         .collect();
     Ok(Analysis {
+        #[cfg(feature = "d10-catalog-experiment")]
+        loop_catalog,
         #[cfg(feature = "d10-catalog-experiment")]
         catalog: planner.producer_catalog.and_then(|c| c.into_pending()),
         owner_observations: planner.owner_observations,

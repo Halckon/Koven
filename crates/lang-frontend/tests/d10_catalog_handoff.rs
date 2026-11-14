@@ -231,3 +231,112 @@ fn loop_replace_cleanup_is_root_relative_and_not_a_closed_producer_catalog() {
         }
     }
 }
+
+#[test]
+fn public_loop_sidecar_preserves_final_owned_and_symbolic_roles() {
+    run_loop_cases(false);
+}
+
+#[test]
+#[ignore = "CI-only loop sidecar final-owned identity mismatch"]
+fn ci_only_loop_sidecar_rejects_another_ownership_run() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    run_loop_cases(true);
+}
+
+fn run_loop_cases(check_mismatch: bool) {
+    for (tail, covered) in [
+        ("n -= 1", true),
+        ("n += 1", false),
+        ("val extra = n; n -= 1", false),
+    ] {
+        let text = format!(
+            "fun run(count: Int) {{ var a = \"first\"; var n = count; while(n > 0) {{ val old = replace(&a, \"next\"); {tail} }} }}"
+        );
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("loop-sidecar.ko", &text).unwrap();
+        let lexed = lex(&sources, source).unwrap();
+        let parsed = parse_file(&sources, &lexed).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "loop-sidecar.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let bound =
+                d10_catalog_experiment::analyze_loop(&sources, &inputs, &names, &types, &typed)
+                    .unwrap();
+            assert_eq!(bound.is_some(), covered);
+            if let Some(bound) = bound {
+                let view = owned_compilation_unit_view(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    bound.ownership(),
+                )
+                .unwrap();
+                assert!(bound.matches(&view));
+                assert_eq!(bound.cleanup().as_slice(), view.ownership().drops());
+                assert_eq!(view.ownership().loans(), [bound.loan().clone()]);
+                let (callable, control) = bound.control();
+                let (root, counter, parameter) = bound.roots();
+                assert_eq!(callable.source_unit(), root.source_unit());
+                assert_ne!(root, counter);
+                assert_ne!(counter, parameter);
+                let source_text = |id: lang_frontend::type_checking::UnitExpressionId| {
+                    assert_eq!(id.source_unit(), root.source_unit());
+                    sources
+                        .slice(
+                            parsed
+                                .ast()
+                                .expressions()
+                                .get(id.expression())
+                                .unwrap()
+                                .span(),
+                        )
+                        .unwrap()
+                };
+                let (initial, incoming) = bound.producer_sites();
+                assert_eq!(source_text(initial), "\"first\"");
+                assert_eq!(source_text(incoming), "\"next\"");
+                assert_eq!(source_text(bound.replacement()), "replace(&a, \"next\")");
+                let (condition, step) = bound.counter_expressions();
+                assert_eq!(source_text(condition), "n > 0");
+                assert_eq!(source_text(step), "n -= 1");
+                assert_eq!(
+                    bound.cleanup()[1].point(),
+                    lang_frontend::ownership_checking::UnitDropPoint::LoopExit(control)
+                );
+                if check_mismatch {
+                    let other = d10_catalog_experiment::analyze_loop(
+                        &sources, &inputs, &names, &types, &typed,
+                    )
+                    .unwrap()
+                    .unwrap();
+                    let other_view = owned_compilation_unit_view(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        &typed,
+                        other.ownership(),
+                    )
+                    .unwrap();
+                    assert!(!bound.matches(&other_view));
+                }
+            }
+        }
+    }
+}

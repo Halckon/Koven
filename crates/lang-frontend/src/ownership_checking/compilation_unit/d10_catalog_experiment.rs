@@ -1,4 +1,4 @@
-//! Opt-in no-loop catalog handoff. Not a production primitive lowering capability.
+//! Opt-in same-run observation handoffs. Not production primitive lowering capabilities.
 use super::*;
 use crate::type_checking::UnitItemId;
 
@@ -149,7 +149,7 @@ pub fn analyze(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundCatalog>, OwnershipCheckingError> {
-    let (owned, mut pending) = analysis::analyze_with_catalog(
+    let (owned, mut pending, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),
@@ -162,3 +162,7 @@ pub fn analyze(
     }
     Ok(pending.pop().and_then(|p| p.bind(owned)))
 }
+
+mod loop_handoff;
+pub(crate) use loop_handoff::LoopPending;
+pub use loop_handoff::{BoundLoop, analyze_loop};

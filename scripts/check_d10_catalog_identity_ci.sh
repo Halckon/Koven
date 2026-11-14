@@ -24,3 +24,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'final-owned sidecar identity CI-only test compiled/listed; not executed'
 fi
+
+loop_bridge=ci_only_loop_sidecar_rejects_another_ownership_run
+listing=$(cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_catalog_handoff "$loop_bridge" -- --exact --ignored --list)
+[[ $(grep -Fxc "$loop_bridge: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_catalog_handoff "$loop_bridge" -- --exact --ignored
+else
+  echo 'loop final-owned identity CI-only test compiled/listed; not executed'
+fi

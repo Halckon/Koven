@@ -5,7 +5,7 @@ mod capture;
 pub(super) mod carry_probe;
 pub(super) mod choice;
 mod entry_concat;
-#[cfg(test)]
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
 mod loop_generation;
 pub(super) mod loops;
 #[cfg(any(test, feature = "d10-catalog-experiment"))]

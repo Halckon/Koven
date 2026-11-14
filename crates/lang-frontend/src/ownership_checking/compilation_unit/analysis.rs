@@ -22,7 +22,7 @@ pub(super) fn analyze(
     #[cfg(feature = "d10-catalog-experiment")]
     {
         analyze_inner(sources, inputs, names, environment, typed, constant_control)
-            .map(|(owned, _)| owned)
+            .map(|(owned, _, _)| owned)
     }
     #[cfg(not(feature = "d10-catalog-experiment"))]
     {
@@ -36,6 +36,7 @@ pub(super) use analyze_inner as analyze_with_catalog;
 type AnalysisOutput = (
     CompilationUnitOwnership,
     Vec<super::d10_catalog_experiment::Pending>,
+    Vec<super::d10_catalog_experiment::LoopPending>,
 );
 #[cfg(not(feature = "d10-catalog-experiment"))]
 type AnalysisOutput = CompilationUnitOwnership;
@@ -145,6 +146,8 @@ pub(super) fn analyze_inner(
     if !dataflow.diagnostics.is_empty() || !typed.has_valid_type_facts() {
         #[cfg(feature = "d10-catalog-experiment")]
         dataflow.catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.loop_catalogs.clear();
         dataflow.formed_owned_locals.clear();
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
@@ -173,6 +176,8 @@ pub(super) fn analyze_inner(
 
     #[cfg(feature = "d10-catalog-experiment")]
     let catalogs = std::mem::take(&mut dataflow.catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let loop_catalogs = std::mem::take(&mut dataflow.loop_catalogs);
     let owned = CompilationUnitOwnership::new(
         typed,
         bindings.into_values().collect(),
@@ -183,7 +188,7 @@ pub(super) fn analyze_inner(
     );
     #[cfg(feature = "d10-catalog-experiment")]
     {
-        Ok((owned, catalogs))
+        Ok((owned, catalogs, loop_catalogs))
     }
     #[cfg(not(feature = "d10-catalog-experiment"))]
     {

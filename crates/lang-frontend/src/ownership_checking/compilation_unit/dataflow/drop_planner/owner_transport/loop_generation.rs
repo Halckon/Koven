@@ -32,6 +32,7 @@ pub(super) struct Candidate {
     pub(super) cleanup: [(Generation, crate::ownership_checking::UnitDropFact); 2],
 }
 impl Candidate {
+    #[cfg(test)]
     pub(super) fn matches(&self, typed: &crate::type_checking::CompilationUnitTypes) -> bool {
         Arc::ptr_eq(&self.typed, typed.analysis_owner())
     }
@@ -192,6 +193,58 @@ impl DropPlanner<'_, '_> {
             exit: header,
             replacement: (*call, header, incoming, detached),
             cleanup: [(detached, *old_drop), (header, *exit_drop)],
+        })
+    }
+}
+
+#[cfg(feature = "d10-catalog-experiment")]
+impl DropPlanner<'_, '_> {
+    pub(in super::super) fn enable_loop_generation_probe(&mut self) {
+        let ast = self.checker.parsed.ast();
+        if ast.items().iter().count() == 4
+            && ast.statements().iter().count() == 7
+            && ast.expressions().iter().count() == 12
+        {
+            self.origin_probe = Some(Vec::with_capacity(14));
+        }
+    }
+    pub(in super::super) fn loop_pending(
+        &self,
+    ) -> Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::LoopPending>
+    {
+        use crate::ownership_checking::compilation_unit::d10_catalog_experiment::LoopPending;
+        let c = self.loop_generation_candidate()?;
+        let (Generation::EntrySite(initial), Generation::IterationSite(incoming)) =
+            (c.entry, c.backedge)
+        else {
+            return None;
+        };
+        if c.exit != c.header
+            || c.replacement.1 != c.header
+            || c.replacement.2 != c.backedge
+            || c.cleanup[0].0 != c.replacement.3
+            || c.cleanup[1].0 != c.header
+        {
+            return None;
+        }
+        let loan = self.origin_probe.as_ref()?.iter().find_map(|e| match e {
+            Event::BorrowRegistered(loan) => Some(loan.clone()),
+            _ => None,
+        })?;
+        Some(LoopPending {
+            typed: c.typed,
+            callable: c.coverage.callable,
+            control: c.control,
+            root: c.root,
+            counter: c.coverage.counter,
+            parameter: c.coverage.parameter,
+            condition: c.coverage.condition,
+            step: c.coverage.step,
+            initial,
+            incoming,
+            call: c.replacement.0,
+            cleanup: [c.cleanup[0].1, c.cleanup[1].1],
+            loan,
         })
     }
 }
