@@ -4,15 +4,13 @@
 mod pr120_range_source_contract_tests;
 #[cfg(test)]
 mod pr120_verifier_diagnostics;
-#[cfg(all(test, feature = "loan-observation-test-support"))]
-pub(in crate::ssa) use pr120_verifier_diagnostics::observe_final_verifier;
-#[cfg(test)]
-mod registration_tests;
 use super::*;
 use crate::ssa::refine::CallableRoute;
+#[cfg(all(test, feature = "loan-observation-test-support"))]
+pub(in crate::ssa) use pr120_verifier_diagnostics::observe_final_verifier;
 
 /// 共享 lowering 只读取本轮事实；调用方必须先验证完整分析身份链。
-pub(super) fn lower_unit_from_facts(
+pub(in crate::ssa) fn lower_unit_from_facts(
     sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
     names: &ValidatedCompilationUnitNames,
@@ -48,6 +46,12 @@ fn lower_unit_impl(
     let nested_publication = crate::ssa::refine::nested_receipt::UnitPublication::begin();
     #[cfg(test)]
     let bounded_publication = crate::ssa::refine::bounded_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let loop_publication = crate::ssa::refine::loop_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let fresh_loop_publication = crate::ssa::refine::fresh_loop_receipt::UnitPublication::begin();
+    #[cfg(test)]
+    let arm_loop_publication = crate::ssa::refine::arm_loop_receipt::UnitPublication::begin();
     #[cfg(test)]
     let single_publication = crate::ssa::refine::single_receipt::UnitPublication::begin();
     #[cfg(test)]
@@ -869,6 +873,10 @@ fn lower_unit_impl(
         crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
     }
 
+    #[cfg(test)]
+    crate::ssa::refine::fresh_loop_receipt::before_final_verifier(&mut program);
+    #[cfg(test)]
+    crate::ssa::refine::arm_loop_receipt::before_final_verifier(&mut program);
     let verification = verify_program(&program);
     #[cfg(test)]
     pr120_verifier_diagnostics::record_final_probe(&program, &verification);
@@ -893,6 +901,12 @@ fn lower_unit_impl(
     nested_publication.commit();
     #[cfg(test)]
     bounded_publication.commit();
+    #[cfg(test)]
+    loop_publication.commit();
+    #[cfg(test)]
+    fresh_loop_publication.commit();
+    #[cfg(test)]
+    arm_loop_publication.commit();
     #[cfg(test)]
     single_publication.commit();
     #[cfg(test)]

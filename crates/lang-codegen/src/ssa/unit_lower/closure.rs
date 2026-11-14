@@ -28,13 +28,6 @@ use crate::ssa::{
     },
 };
 
-#[cfg(test)]
-mod generic_runtime_tests;
-#[cfg(test)]
-mod runtime_slots_tests;
-#[cfg(test)]
-mod runtime_tests;
-
 pub(super) type CallableLayouts = BTreeMap<
     (
         crate::ssa::lowering_support::callable_instances::SourceToken,
@@ -43,10 +36,10 @@ pub(super) type CallableLayouts = BTreeMap<
     CallableLayout,
 >;
 
-pub(super) type CallablePlanKey = (FunctionId, UnitExpressionId);
+pub(in crate::ssa) type CallablePlanKey = (FunctionId, UnitExpressionId);
 
 #[derive(Clone, Copy)]
-pub(super) struct CapturePlan {
+pub(in crate::ssa) struct CapturePlan {
     symbol: UnitSymbolId,
     unit_ty: UnitTypeId,
     ty: SsaTypeId,
@@ -56,7 +49,7 @@ pub(super) struct CapturePlan {
     span: Span,
 }
 
-pub(super) struct CallableLayout {
+pub(in crate::ssa) struct CallableLayout {
     identity: String,
     parameters: Vec<EntityType>,
     returns: Vec<SsaTypeId>,
@@ -75,23 +68,23 @@ pub(super) struct CallableLayout {
 }
 
 #[derive(Clone)]
-pub(super) struct CallablePlan {
-    pub(super) scope: FunctionId,
-    pub(super) source_token: crate::ssa::lowering_support::callable_instances::SourceToken,
-    pub(super) source_unit: SourceUnitId,
-    pub(super) expression: UnitExpressionId,
-    pub(super) callable: SsaTypeId,
-    pub(super) environment: Option<SsaTypeId>,
-    pub(super) thunk: FunctionId,
-    pub(super) body: StatementId,
-    pub(super) span: Span,
-    pub(super) parameter_symbols: Vec<UnitSymbolId>,
-    pub(super) parameter_modes: Vec<ParameterMode>,
-    pub(super) return_type: UnitTypeId,
-    pub(super) result_expression: Option<ExpressionId>,
-    pub(super) captures: Vec<CapturePlan>,
-    pub(super) substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
-    pub(super) static_self: Option<UnitTypeId>,
+pub(in crate::ssa) struct CallablePlan {
+    pub(in crate::ssa) scope: FunctionId,
+    pub(in crate::ssa) source_token: crate::ssa::lowering_support::callable_instances::SourceToken,
+    pub(in crate::ssa) source_unit: SourceUnitId,
+    pub(in crate::ssa) expression: UnitExpressionId,
+    pub(in crate::ssa) callable: SsaTypeId,
+    pub(in crate::ssa) environment: Option<SsaTypeId>,
+    pub(in crate::ssa) thunk: FunctionId,
+    pub(in crate::ssa) body: StatementId,
+    pub(in crate::ssa) span: Span,
+    pub(in crate::ssa) parameter_symbols: Vec<UnitSymbolId>,
+    pub(in crate::ssa) parameter_modes: Vec<ParameterMode>,
+    pub(in crate::ssa) return_type: UnitTypeId,
+    pub(in crate::ssa) result_expression: Option<ExpressionId>,
+    pub(in crate::ssa) captures: Vec<CapturePlan>,
+    pub(in crate::ssa) substitutions: BTreeMap<UnitSymbolId, UnitTypeId>,
+    pub(in crate::ssa) static_self: Option<UnitTypeId>,
 }
 
 /// The lambdas lowered inside `scope`, as the refinement layer sees them (ADR-0034).
@@ -145,7 +138,7 @@ pub(super) fn refine_thunk(plan: &CallablePlan) -> crate::ssa::refine::RefineThu
     }
 }
 
-pub(super) fn declare(
+pub(in crate::ssa) fn declare(
     module: &mut Module,
     plans: &[FunctionPlan],
     layouts: CallableLayouts,
@@ -260,14 +253,11 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
-pub(super) mod layout {
+pub(in crate::ssa) mod layout {
     //! Callable layouts precede source signatures; thunk declarations follow them.
 
     use super::*;
     use lang_frontend::parser::Statement;
-
-    #[cfg(test)]
-    mod tests;
 
     fn shared_capture_storage(
         module: &mut Module,
@@ -279,7 +269,7 @@ pub(super) mod layout {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
     }
 
-    pub(in crate::ssa::unit_lower) fn declare(
+    pub(in crate::ssa) fn declare(
         module: &mut Module,
         parsed_by_source: &[&lang_frontend::parser::ParsedFile],
         instances: &[crate::ssa::unit_plan::UnitPlannedInstance],
@@ -661,6 +651,79 @@ pub(super) mod layout {
                 direct_reference_symbol(parsed, *expression, references)
             }
             _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        //! Synthetic invalid SSA identities only run in official CI; old witnesses remain.
+        use super::shared_capture_storage;
+        use crate::ssa::{
+            LoweringError, LoweringErrorKind,
+            model::{Program, SsaTypeId, SsaTypeKind},
+        };
+        use lang_frontend::source::SourceMap;
+
+        #[test]
+        fn checked_shared_capture_storage_preserves_local_type_and_interning() {
+            let mut sources = SourceMap::new();
+            let source = sources.add_source("capture.ko", "{ owner }").unwrap();
+            let span = sources.span(source, 0, 9).unwrap();
+            let mut program = Program::default();
+            let module_id = program.add_module("capture");
+            let module = program.module_mut(module_id).unwrap();
+            let target = module.intern_type(SsaTypeKind::Boolean);
+            let storage = shared_capture_storage(module, target, span).unwrap();
+            assert_eq!(
+                module.type_kind(storage),
+                Some(&SsaTypeKind::SharedReference { target })
+            );
+            assert_eq!(storage.module(), module_id);
+            assert_eq!(
+                shared_capture_storage(module, target, span).unwrap(),
+                storage
+            );
+            assert_eq!(module.types.len(), 2);
+        }
+
+        #[test]
+        fn invalid_shared_capture_identity_maps_to_exact_lowering_error_without_mutation() {
+            let mut sources = SourceMap::new();
+            let source = sources
+                .add_source("capture.ko", "prefix { owner }")
+                .unwrap();
+            let span = sources.span(source, 7, 16).unwrap();
+            let mut program = Program::default();
+            let module_id = program.add_module("capture");
+            let foreign_module_id = program.add_module("foreign");
+            let foreign_module = program
+                .module_mut(foreign_module_id)
+                .unwrap()
+                .intern_type(SsaTypeKind::Boolean);
+            let mut foreign_program = Program::default();
+            let foreign_owner_id = foreign_program.add_module("capture");
+            let foreign_owner = foreign_program
+                .module_mut(foreign_owner_id)
+                .unwrap()
+                .intern_type(SsaTypeKind::Boolean);
+            assert_eq!(module_id.index(), foreign_owner_id.index());
+            let module = program.module_mut(module_id).unwrap();
+            module.intern_type(SsaTypeKind::Boolean);
+            let unknown = SsaTypeId {
+                module: module_id,
+                index: module.types.len(),
+            };
+            for invalid in [foreign_module, foreign_owner, unknown] {
+                let before = module.types.clone();
+                assert_eq!(
+                    shared_capture_storage(module, invalid, span),
+                    Err(LoweringError {
+                        kind: LoweringErrorKind::InvalidModel,
+                        span: Some(span),
+                    })
+                );
+                assert_eq!(module.types, before);
+            }
         }
     }
 }

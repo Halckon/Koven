@@ -4,11 +4,11 @@
 
 use crate::test_support::diagnostics::assert_text_eq;
 #[path = "lower_frontend_resource_deinit_tests/direct_closure.rs"]
-mod direct_closure;
-#[path = "lower_frontend_resource_deinit_tests/field_chain.rs"]
-mod field_chain;
+pub(in crate::ssa) mod direct_closure;
+#[allow(unused_imports)]
+pub(in crate::ssa) use direct_closure::field_chain;
 
-use field_chain::assert_nested_this_field_chain;
+use direct_closure::field_chain::assert_nested_this_field_chain;
 use lang_frontend::name_resolution::SymbolKind;
 
 use super::{

@@ -1,12 +1,14 @@
 //! AST + typed + ownership facts → slot CFG. Ownership decisions come only from facts:
 //! drops at their published points, loans per Borrow argument, moves per Value delivery.
+mod aggregate_value;
 mod borrow_binding;
 mod callable;
 mod checked_edge_receipt;
 mod child_receipt;
-mod condition;
+pub(in crate::ssa::refine) mod condition;
 mod container;
 mod container_for;
+mod control_bridge;
 mod counter_tail_receipt;
 mod expression;
 
@@ -15,18 +17,25 @@ mod expression;
 pub(in crate::ssa::refine::build) use tagged::inout;
 pub(in crate::ssa::refine::build) use value::field;
 mod frames;
+pub(super) use frames::Lowered;
 use frames::{LoopFrame, MapForFrame, SeqForFrame, View};
+mod arm_break;
+mod branch_no_carry;
+mod invariant_while;
 mod map;
 mod multi_root_receipt;
+mod no_carry;
 mod normal_header_return;
 mod open_loop_return;
 mod owner_consumer;
 #[cfg(test)]
 pub(crate) mod owner_consumer_test_support;
 mod range_borrow;
-mod rc;
+pub(in crate::ssa) mod rc;
+mod while_loop;
 use rc::receiver;
 mod scalar_text;
+mod statements;
 mod tagged;
 mod value;
 mod when;
@@ -54,19 +63,15 @@ use crate::ssa::{
     model::{EntityType, SsaTypeId},
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Lowered {
-    Value(Slot),
-    Unit,
-    Diverged,
-}
-
 pub(super) struct Builder<'i, 'a> {
     inputs: &'i RefineInputs<'a>,
     owner_plan: Option<owner_consumer::OwnerPlan<'a>>,
     open_return_plan: Option<open_loop_return::Plan<'a>>,
     header_return_plan: Option<normal_header_return::Plan<'a>>,
-    counter_tail_plan: Option<counter_tail_receipt::Plan<'a>>,
+    control_bridge_plan: Option<control_bridge::Plan<'a>>,
+    control_chain_bodies: Option<control_bridge::BodyGroup<'a>>,
+    nested_owner_body: Option<control_bridge::NestedBody<'a>>,
+    counter_tail_plan: counter_tail_receipt::Plans<'a>,
     multi_root_plan: Option<multi_root_receipt::Plan<'a>>,
     checked_expression_edges: usize,
     checked_edge_receipts: Vec<checked_edge_receipt::Receipt>,
@@ -123,7 +128,10 @@ pub(super) fn build(
         owner_plan: owner_consumer::OwnerPlan::new(inputs)?,
         open_return_plan: open_loop_return::Plan::new(inputs)?,
         header_return_plan: normal_header_return::Plan::new(inputs)?,
-        counter_tail_plan: counter_tail_receipt::Plan::new(inputs)?,
+        control_bridge_plan: control_bridge::Plan::new(inputs)?,
+        control_chain_bodies: control_bridge::BodyGroup::new(inputs)?,
+        nested_owner_body: control_bridge::NestedBody::new(inputs)?,
+        counter_tail_plan: counter_tail_receipt::Plans::new(inputs)?,
         multi_root_plan: multi_root_receipt::Plan::new(inputs)?,
         checked_expression_edges: 0,
         checked_edge_receipts: Vec::new(),
@@ -144,6 +152,13 @@ pub(super) fn build(
             branch_plans: super::branch_receipt::Plans::new(inputs)?,
             nested_plans: super::nested_receipt::Plans::new(inputs)?,
             bounded_plans: super::bounded_receipt::Plans::new(inputs)?,
+            loop_plans: super::loop_receipt::Plans::new(inputs)?,
+            fresh_loop_plans: super::fresh_loop_receipt::Plans::new(inputs, types)?,
+            arm_loop_plans: super::arm_loop_receipt::Plans::new(inputs)?,
+            arm_loop_required: super::arm_loop_receipt::Plans::required(inputs),
+            arm_prefix_required: super::arm_loop_receipt::Plans::required_prefixes(inputs),
+            arm_break_required: super::arm_loop_receipt::Plans::required_breaks(inputs),
+            arm_counter_required: super::arm_loop_receipt::Plans::required_counters(inputs),
             single_plans: super::single_receipt::Plans::new(inputs)?,
             multi_plans: super::multi_receipt::Plans::new(inputs)?,
             child_plans: super::child_receipt::Plans::new(inputs)?,
@@ -184,6 +199,7 @@ pub(super) fn build(
         builder.finish_owner_plan()?;
         builder.finish_checked_edge_receipts()?;
         builder.finish_counter_tail_receipt()?;
+        builder.finish_control_bridge()?;
         return Ok(builder.body);
     }
     let receivers = usize::from(inputs.receiver.is_some());
@@ -206,6 +222,7 @@ pub(super) fn build(
         builder.receiver = Some(slot);
     }
     builder.bind_parameters(entities)?;
+    builder.fresh_loop_parameters(inputs.span)?;
     let function_item = inputs
         .function_item
         .ok_or_else(|| error(LoweringErrorKind::MissingFact, inputs.span))?;
@@ -248,6 +265,7 @@ pub(super) fn build(
     builder.finish_loan_receipts()?;
     builder.finish_checked_edge_receipts()?;
     builder.finish_counter_tail_receipt()?;
+    builder.finish_control_bridge()?;
     Ok(builder.body)
 }
 
@@ -392,6 +410,10 @@ impl Builder<'_, '_> {
     fn terminate(&mut self, terminator: RTerm, span: Span) -> Result<(), LoweringError> {
         self.sync_dead();
         let block = self.current(span)?;
+        self.body.loop_plans.terminate(&terminator, block, span)?;
+        self.body
+            .fresh_loop_plans
+            .terminate(&terminator, block, span)?;
         self.body.branch_plans.terminate(&terminator, block, span)?;
         self.body.nested_plans.terminate(&terminator, block, span)?;
         self.body
@@ -589,13 +611,32 @@ impl Builder<'_, '_> {
             let receipt = self.owner_drop_authorization(*index, *target, slot, *span)?;
             let header = self.header_bind_drop(*index, *target, slot, *span)?;
             let counter = self.counter_drop_authorization(*index, *target, slot, *span)?;
-            if (receipt.is_some() && header.is_some())
+            let bridge = self.bridge_drop_authorization(*index, *target, slot, *span)?;
+            let bridge_exit = self.bridge_exit_drop_authorization(*index, *target, slot, *span)?;
+            let suffix = self.bridge_suffix_drop(*index, *target, slot, *span)?;
+            if (suffix.is_some()
+                && (bridge_exit.is_some()
+                    || bridge.is_some()
+                    || counter.is_some()
+                    || receipt.is_some()
+                    || header.is_some()))
+                || (bridge_exit.is_some()
+                    && (bridge.is_some()
+                        || counter.is_some()
+                        || receipt.is_some()
+                        || header.is_some()))
+                || (bridge.is_some()
+                    && (counter.is_some() || receipt.is_some() || header.is_some()))
+                || (receipt.is_some() && header.is_some())
                 || (counter.is_some() && (receipt.is_some() || header.is_some()))
             {
                 return Err(error(LoweringErrorKind::InvalidModel, *span));
             }
             self.push(ROp::Drop { owner: slot }, Vec::new(), *span)?;
             self.counter_drop_emitted(counter, *span)?;
+            self.bridge_emitted(bridge, None, *span)?;
+            self.bridge_exit_drop_emitted(bridge_exit, *span)?;
+            self.bridge_suffix_emitted(suffix, None, *span)?;
             self.owner_drop_emitted(receipt, *span)?;
             self.header_bind_drop_emitted(header, *span)?;
             #[cfg(test)]
@@ -945,47 +986,4 @@ impl Builder<'_, '_> {
 
 impl Builder<'_, '_> {
     // ---- statements ----
-
-    fn statement_inner(&mut self, statement: StatementId) -> Result<Lowered, LoweringError> {
-        let node = self
-            .inputs
-            .parsed
-            .ast()
-            .statements()
-            .get(statement)
-            .map_err(|_| error(LoweringErrorKind::MissingFact, self.inputs.span))?;
-        let span = node.span();
-        match node.payload().clone() {
-            Statement::Block { elements }
-            | Statement::ControlBody { elements }
-            | Statement::LambdaBody { elements } => {
-                let mut last = Lowered::Unit;
-                let mut elements = elements.into_iter();
-                while let Some(element) = elements.next() {
-                    last = self.statement(element)?;
-                    if last == Lowered::Diverged {
-                        for skipped in elements {
-                            let span = self.statement_span(skipped)?;
-                            self.unreachable_drop_scopes.push(span);
-                        }
-                        return Ok(Lowered::Diverged);
-                    }
-                }
-                Ok(last)
-            }
-            Statement::Expression { expression } => self.expression(expression),
-            Statement::LocalVariable { declaration } => self.local_variable(declaration, span),
-            Statement::While {
-                condition, body, ..
-            } => self.while_loop(statement, condition, body, span),
-            Statement::Loop { body, .. } => self.loop_statement(statement, body, span),
-            Statement::For { source, body, .. } => {
-                self.for_statement(statement, source, body, span)
-            }
-            Statement::LocalDestructuring { initializer, .. } => {
-                self.local_destructuring(statement, initializer, span)
-            }
-            _ => Err(error(LoweringErrorKind::UnsupportedNode, span)),
-        }
-    }
 }

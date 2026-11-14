@@ -233,6 +233,12 @@ fn prefix_segment(
                                 Expression::String { parts } => !parts.iter().any(|part| {
                                     matches!(part, crate::parser::StringPart::Interpolation { .. })
                                 }),
+                                // Purity only: owner admission remains separately entry-only.
+                                Expression::Binary { left, operator: BinaryOperator::Add, right, .. } =>
+                                    [*left, *right].into_iter().all(|operand|
+                                        ast.expressions().get(operand).ok().is_some_and(|node|
+                                            matches!(node.payload(), Expression::String { parts }
+                                                if !parts.iter().any(|part| matches!(part, crate::parser::StringPart::Interpolation { .. }))))),
                                 _ => false,
                             })
                     }

@@ -1,20 +1,20 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-mod aliases;
-use aliases::{direct_fields, provider_lifetime};
-mod borrow_result;
+pub(in crate::ssa) mod aliases;
+use aliases::{
+    direct_fields,
+    map::{self, reborrow},
+    provider_lifetime,
+};
+mod closure;
+pub(in crate::ssa) mod field_exchange;
+#[cfg(test)]
+pub(in crate::ssa) mod field_exchange_tests;
+mod range;
+use range::borrow_result;
 #[cfg(test)]
 mod borrow_return_transport_tests;
-mod closure;
-mod field_exchange;
-#[cfg(test)]
-mod field_exchange_tests;
-mod map;
-use map::reborrow;
-mod range;
-pub(super) mod root_exchange;
-#[cfg(test)]
-mod root_exchange_tests;
+pub(in crate::ssa) mod root_exchange;
 
 use super::{
     model::{
@@ -33,7 +33,7 @@ struct BlockState {
 
 pub(super) struct AliasRoots {
     roots: BTreeMap<EntityId, BTreeSet<EntityId>>,
-    direct_fields: direct_fields::DirectFields,
+    pub(in crate::ssa) direct_fields: direct_fields::DirectFields,
 }
 
 struct ReborrowDependencies {

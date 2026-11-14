@@ -17,6 +17,7 @@ mod error;
 mod handoff;
 mod iteration;
 mod iteration_source;
+mod loop_no_carry;
 mod map_iteration;
 mod map_iteration_validation;
 pub use iteration_source::IterationSource;
@@ -54,6 +55,10 @@ pub use cleanup_condition::{
     CleanupOwnerValue, CleanupOwnerValueId, CleanupSelection, CleanupSelector, CleanupSelectorCopy,
     CleanupSelectorId, CleanupSelectorSource,
 };
+pub use compilation_unit::loop_no_carry::{
+    UnitLoopBreakBranchNoCarryFact, UnitLoopBreakPrefixFact, UnitLoopCounterBranchNoCarryFact,
+    UnitLoopNoCarryExitKind,
+};
 pub use compilation_unit::{
     CompilationUnitConstantOwnership, CompilationUnitOwnership, ConstEnabledOwnedUnit,
     UnitAuxiliarySourceState, UnitBindingUseReturn, UnitBorrowAuxiliaryBindingRegion,
@@ -83,39 +88,43 @@ pub use compilation_unit::{
     UnitLoanBindingSourceRetirement, UnitLoanBindingUseReturn, UnitLoanBindingUseSet,
     UnitLoanBindingUseSetRetirement, UnitLoanConsumerRetirement,
     UnitLoanDistinctAuxiliaryRetirement, UnitLoanFact, UnitLoanForwardBranch,
-    UnitLoanForwardHandoff, UnitLoanInterleavedAuxiliaryUse, UnitLoanNestedForwardEdge,
-    UnitLoanNestedForwardLineage, UnitLoanRegionFamily, UnitLoanTarget, UnitMapIterationLoan,
+    UnitLoanForwardHandoff, UnitLoanInterleavedAuxiliaryUse, UnitLoanLoopInvariantLineage,
+    UnitLoanNestedForwardEdge, UnitLoanNestedForwardLineage, UnitLoanRegionFamily, UnitLoanTarget,
+    UnitLoopBranchNoCarryFact, UnitLoopNoCarryFact, UnitMapIterationLoan,
     UnitMapIterationOwnershipPlan, UnitMultiBindingAuxiliaryUse, UnitMultiBindingSourceState,
     UnitNonNullAssertionOwnershipPlan, UnitNullableWhenEntryOwnershipFact,
     UnitNullableWhenOwnershipPlan, UnitNullableWhenUseFact, UnitNullableWhenUseKind,
-    UnitOwnerCallable, UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1,
+    UnitOwnerBridgeCounterEntryV1, UnitOwnerBridgeCounterTailV1, UnitOwnerCallable,
+    UnitOwnerChildGenerationRuleV1, UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1,
     UnitOwnerClosedLoopBatchV1, UnitOwnerConditionalBreakBackedgeV1,
     UnitOwnerConditionalReturnBackedgeV1, UnitOwnerContinueArmBoundaryV1,
-    UnitOwnerContinueBackedgeV1, UnitOwnerCounterBatchEvidenceV1, UnitOwnerCounterTailEvidenceV1,
-    UnitOwnerDefinition, UnitOwnerHeaderSourceV1, UnitOwnerId,
+    UnitOwnerContinueBackedgeV1, UnitOwnerControlBridgeEvidenceV1, UnitOwnerControlChainBodiesV1,
+    UnitOwnerControlChainBodyV1, UnitOwnerControlChainLeadingV1, UnitOwnerCounterBatchEvidenceV1,
+    UnitOwnerCounterTailEvidenceV1, UnitOwnerDefinition, UnitOwnerHeaderSourceV1, UnitOwnerId,
     UnitOwnerInvariantBreakObservationV1, UnitOwnerInvariantLoopObservationV1,
     UnitOwnerInvariantMixedJoinObservationV1, UnitOwnerInvariantNormalJoinObservationV1,
     UnitOwnerInvariantSplitContinueObservationV1, UnitOwnerInvariantSplitExitObservationV1,
     UnitOwnerJumpArmBoundaryV1, UnitOwnerLoopBindingV1, UnitOwnerLoopEdgeV1,
     UnitOwnerLoopObservationV1, UnitOwnerMixedArmBoundaryV1, UnitOwnerMixedBackedgeV1,
-    UnitOwnerMultiRootBoundaryV1, UnitOwnerMultiRootNormalTransportV1,
-    UnitOwnerNormalArmBoundaryV1, UnitOwnerNormalBackedgeV1, UnitOwnerNormalBindDropV1,
-    UnitOwnerObservation, UnitOwnerObservationStatus, UnitOwnerOpenLoopObservationV1,
-    UnitOwnerOpenLoopPrefixV1, UnitOwnerOpenLoopReturnV1, UnitOwnerOrigin,
-    UnitOwnerProducerCatalogV1, UnitOwnerReplaceBreakCallActionV1,
-    UnitOwnerReplaceBreakCallConsumerV1, UnitOwnerReplaceBreakConsumerActionV1,
-    UnitOwnerReplaceBreakConsumerV1, UnitOwnerReplaceBreakObservationV1,
-    UnitOwnerReplaceBreakReturnActionV1, UnitOwnerReplaceBreakReturnConsumerV1,
-    UnitOwnerReplaceBreakStateV1, UnitOwnerReturnActionV1, UnitOwnerReturnEndpointV1,
-    UnitOwnerRootBoundarySlotV1, UnitOwnerRootEdgeV1, UnitOwnerRootExitPartitionV1,
-    UnitOwnerRootReplaceStepV1, UnitOwnerTransportEvent, UnitOwnerUnsupportedReason,
-    UnitOwnerValueEventV1, UnitOwnerValueObservationV1, UnitOwnerValueV1,
-    UnitOwnershipBindingDescriptor, UnitOwnershipDeferredFact, UnitOwnershipPlace,
-    UnitRcOwnershipEffect, UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact,
-    UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
-    UnitShortCircuitPlan, UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind,
-    UnitValueDeliverySource, ValidatedCompilationUnitOwnership,
-    check_compilation_unit_constant_ownership, check_compilation_unit_ownership,
+    UnitOwnerMultiRootBoundaryV1, UnitOwnerMultiRootNormalTransportV1, UnitOwnerNestedNormalBodyV1,
+    UnitOwnerNestedParentBoundaryV1, UnitOwnerNestedResumeWriteV1, UnitOwnerNormalArmBoundaryV1,
+    UnitOwnerNormalBackedgeV1, UnitOwnerNormalBindDropV1, UnitOwnerObservation,
+    UnitOwnerObservationStatus, UnitOwnerOpenLoopObservationV1, UnitOwnerOpenLoopPrefixV1,
+    UnitOwnerOpenLoopReturnV1, UnitOwnerOrigin, UnitOwnerProducerCatalogV1,
+    UnitOwnerReplaceBreakCallActionV1, UnitOwnerReplaceBreakCallConsumerV1,
+    UnitOwnerReplaceBreakConsumerActionV1, UnitOwnerReplaceBreakConsumerV1,
+    UnitOwnerReplaceBreakObservationV1, UnitOwnerReplaceBreakReturnActionV1,
+    UnitOwnerReplaceBreakReturnConsumerV1, UnitOwnerReplaceBreakStateV1, UnitOwnerReturnActionV1,
+    UnitOwnerReturnEndpointV1, UnitOwnerRootBoundarySlotV1, UnitOwnerRootEdgeV1,
+    UnitOwnerRootExitPartitionV1, UnitOwnerRootGenerationRuleV1, UnitOwnerRootReplaceStepV1,
+    UnitOwnerTransportEvent, UnitOwnerUnsupportedReason, UnitOwnerValueEventV1,
+    UnitOwnerValueObservationV1, UnitOwnerValueV1, UnitOwnershipBindingDescriptor,
+    UnitOwnershipDeferredFact, UnitOwnershipPlace, UnitRcOwnershipEffect,
+    UnitReceiverCallPrefixEndFact, UnitReceiverCallReturnEndFact, UnitReceiverOwnershipFact,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget, UnitShortCircuitPlan,
+    UnitShortCircuitRhs, UnitValueDeliveryFact, UnitValueDeliveryKind, UnitValueDeliverySource,
+    ValidatedCompilationUnitOwnership, check_compilation_unit_constant_ownership,
+    check_compilation_unit_ownership,
 };
 pub use const_handoff::{ConstOwnedCompilationUnitView, const_owned_compilation_unit_view};
 pub use constant::{
@@ -185,4 +194,34 @@ pub use ownership_primitive::{
 #[doc(hidden)]
 pub use compilation_unit::loan_observation_test_support::{
     legacy_ownership_eq, with_loan_observation,
+};
+
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_borrow_frame;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_borrow_zero_loop;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+#[doc(hidden)]
+pub use research_borrow_frame::{
+    BorrowFrameChecker, BorrowFrameConsumerReturn, BorrowFrameObservation, capture_borrow_frames,
+};
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+pub use research_borrow_zero_loop::{
+    BorrowZeroBodyFrame, BorrowZeroLoopObservation, capture_borrow_zero_loops,
+};
+
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_borrow_loop;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+#[doc(hidden)]
+pub use research_borrow_loop::{
+    BorrowLoopBinding, BorrowLoopConsumerReturn, BorrowLoopEdgeKind, BorrowLoopEdgeObservation,
+    BorrowLoopExpression, capture_borrow_loop_edges,
+};
+
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+mod research_borrow_consumer_body;
+#[cfg(any(test, feature = "loan-observation-test-support"))]
+pub use research_borrow_consumer_body::{
+    BorrowBodyConsumerReturn, BorrowConsumerBodyObservation, capture_borrow_consumer_bodies,
 };

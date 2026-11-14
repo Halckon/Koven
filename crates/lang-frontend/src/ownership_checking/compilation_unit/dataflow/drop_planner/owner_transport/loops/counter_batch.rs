@@ -5,15 +5,19 @@ use std::sync::Arc;
 
 pub(super) struct Batch {
     identity: Arc<()>,
-    controls: [UnitStatementId; 2],
-    inputs: [Arc<()>; 2],
+    controls: Vec<UnitStatementId>,
+    inputs: Vec<Arc<()>>,
     members: Vec<UnitOwnerCounterTailEvidenceV1>,
     failed: bool,
 }
 impl Batch {
-    pub(super) fn new(identity: Arc<()>, controls: [UnitStatementId; 2], second: Arc<()>) -> Self {
+    pub(super) fn new(
+        identity: Arc<()>,
+        controls: Vec<UnitStatementId>,
+        later: Vec<Arc<()>>,
+    ) -> Self {
         Self {
-            inputs: [identity.clone(), second],
+            inputs: std::iter::once(identity.clone()).chain(later).collect(),
             identity,
             controls,
             members: Vec::new(),
@@ -32,7 +36,10 @@ impl Batch {
             && evidence.as_ref().is_some_and(|e| {
                 e.statement() == control
                     && e.is_consistent()
-                    && Arc::ptr_eq(&e.analysis, &self.inputs[self.members.len()])
+                    && self
+                        .inputs
+                        .get(self.members.len())
+                        .is_some_and(|expected| Arc::ptr_eq(&e.analysis, expected))
                     && e.false_exit_partition().is_some_and(|(live, drops)| {
                         live.is_empty() && drops.len() == e.root_slots().len()
                     })
@@ -104,16 +111,20 @@ mod tests {
             .unwrap()
             .members();
         let controls = [members[0].statement(), members[1].statement()];
-        for mode in 0..3 {
+        for mode in 0..4 {
             let mut batch = Batch::new(
                 members[0].analysis.clone(),
-                controls,
-                members[1].analysis.clone(),
+                controls.to_vec(),
+                vec![members[1].analysis.clone()],
             );
+            if mode == 3 {
+                batch.inputs.clear();
+            }
             batch.complete(controls[0], Some(members[0].clone()));
             match mode {
                 0 => batch.complete(controls[0], Some(members[0].clone())),
                 1 => batch.complete(controls[1], None),
+                3 => {}
                 _ => {
                     assert!(batch.seal().is_none());
                     continue;

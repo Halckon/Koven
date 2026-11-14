@@ -531,3 +531,79 @@
 - [SPEC-0367](0367-string-length-invariant.md)：String 字面量、常量、concat 与 argv 的 Int 字节长度边界，双宿主 native 与 preview 验收；公开文本 API 另验。
 - [SPEC-0382](0382-refine-map-ops-and-primitive-retirement.md)：Map 剩余单步操作、通用值类型与 Unit 根原语迁入细化层及旧路径退休；完成 E3 收尾与 unit_lower/ownership_primitive.rs 删除。
 - [SPEC-0389](0389-refine-known-function-shared-capture-container-element-retirement.md)：具名函数引用、共享闭包捕获、可调用视图借用与顺序容器元素操作旧路径退役；收尾修复元素目标复合赋值的槽位定位与边界检查顺序。
+- [SPEC-0428](0428-model-render-verify-provider-refine-and-frontend-shells-retirement.md)：`model/constant`、`render/types`、`verify_ownership/map`、`provider`、`refine` 及 `lower_frontend` 壳子模块退役。
+- [SPEC-0429](0429-map-iteration-closure-verify-map-source-and-unit-lower-shells-retirement.md)：`map_iteration`、`closure`、`verify_ownership/borrow_result`、`map_source/formation` 及 `unit_lower` 壳子模块退役。
+- [SPEC-0430](0430-outer-borrowed-unit-lower-verify-operation-and-frontend-shells-retirement.md)：`outer_borrowed_while`、`verify/closure_escape`、`verify_operation` 及 `lower_frontend` 壳子模块退役。
+- [SPEC-0431](0431-loop-control-field-replace-range-identity-nullable-nominal-and-borrow-shells-retirement.md)：`map_source_unit_contract`、`range`、`map_iteration/local/identity`、`nullable_when`、`nominal`、`loop_control/nullable_while`、`borrow_result` 及 `borrow_argument` 壳子模块退役。
+- [SPEC-0432](0432-source-owner-local-storage-string-clone-checkpoint-carrier-facts-and-closure-tests-shells-retirement.md)：`source_owner`、`local_storage`、`string_clone`、`checkpoint`、`carrier`、`closure/runtime_tests`、`nullable_numeric_cleanup/tests` 及 `orchestrate/registration_tests` 壳子模块退役。
+- [SPEC-0433](0433-refine-receipt-ci-tests-verify-closure-escape-and-verify-operation-map-tests-shells-retirement.md)：`refine` 五类借用凭证 `ci_tests`、`verify/closure_escape/types/graph_tests` 及 `verify_operation/map` 壳子模块退役。
+- [SPEC-0434](0434-verify-operation-verify-ownership-and-unit-lower-closure-tests-shells-retirement.md)：`verify_operation/map/tests`、`verify_ownership` 字段与生命周期测试及 `unit_lower` 闭包/类型原点测试壳子模块退役。
+- [SPEC-0435](0435-unit-lower-result-tests-lower-frontend-guard-and-instances-tests-shells-retirement.md)：`unit_lower/control/result_tests`、`item_operand_ssa_test_support` 及 `lower_frontend` 守卫与实例测试壳子模块退役。
+- [SPEC-0436](0436-unit-lower-borrow-orchestrate-field-verify-root-exchange-and-frontend-tests-shells-retirement.md)：`unit_lower` 借用/编排/字段可空测试、`verify_ownership/root_exchange_tests` 及 `lower_frontend` 实例/闭包/待定调用/借用清理测试壳子模块退役。
+- [SPEC-0437](0437-lambda-preflight-outer-while-guard-key-return-conditional-facts-ownership-primitive-local-carrier-and-source-closure-shells-retirement.md)：`lambda_preflight_tests`、`outer_borrowed_while` 守卫、`key_return` 身份及 `lower_frontend` 条件事实/所有权原语/局部迭代/可空载体/源闭包壳子模块退役。
+- [SPEC-0438](0438-outer-borrowed-while-handoff-exits-carrier-borrowed-cleanup-formed-temporary-and-presence-source-shells-retirement.md)：`outer_borrowed_while`、`source_owner/handoff`、`map_iteration` 退出/成形/临时项及可空清理载体与源证明壳子模块退役。
+- [SPEC-0439](0439-numeric-iteration-map-consume-map-iteration-resource-verify-source-and-presence-identity-shells-retirement.md)：`numeric_iteration`、`map_consume`、`map_iteration` 根/资源/校验/源及 `rc_nullable_while_presence_identity` 壳子模块退役。
+- [SPEC-0440](0440-rc-nullable-while-queries-same-guard-loop-control-and-instances-shells-retirement.md)：`rc_nullable_while_identity_queries`、`same_guard`、`map_loop/operand_unit_identity`、`owner_consumer_test_support` 及 `loop_control`/`instances` 壳子模块退役。
+- [SPEC-0441](0441-container-lowering-and-remaining-lower-frontend-shells-retirement.md)：`container_lowering_tests` 三子壳及剩余 `lower_frontend` 支撑/清理壳子模块退役。
+- [SPEC-0442](0442-range-container-unit-plan-borrowed-generate-and-source-forms-shells-retirement.md)：`range_lowering_tests`、`unit_lower_container_tests`、`unit_plan_tests`、`borrowed_generate_tests` 及 `source_forms` 子壳模块退役。
+- [SPEC-0443](0443-owned-source-return-range-short-circuit-local-arguments-nested-and-temporary-exits-shells-retirement.md)：`owned_source_return`、`range_lowering_tests`、`local_arguments`、`nested` 及 `temporary_exits` 子壳模块退役。
+- [SPEC-0444](0444-loan-observer-receiver-named-temporary-and-finite-literal-tests-shells-retirement.md)：`loan_region_ssa_tests` 下观察器、接收者、具名借用、临时借用兄弟及有限字面量测试壳子模块退役。
+- [SPEC-0445](0445-temporary-loan-binding-parent-child-products-and-range-view-source-tests-shells-retirement.md)：`loan_region_ssa_tests` 下临时借用、绑定凭证、父子探针、多临时乘积及 `range_lowering_tests/view_source` 壳子模块退役。
+- [SPEC-0446](0446-range-local-control-assertions-support-comparison-boundary-and-receiver-shells-retirement.md)：`range_lowering_tests` 下局部控制流、断言、支撑、比较边界及接收者测试壳子模块退役。
+- [SPEC-0447](0447-unit-lower-receiver-sequential-for-nullable-unit-enum-and-entry-contract-tests-shells-retirement.md)：`unit_lower_receiver_tests`、`sequential_for_lowering_tests`、`nullable_operation_tests`、`unit_enum_regression_tests` 及 `lowering_entry_contract_tests` 子壳模块退役。
+- [SPEC-0448](0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md)：`map_provider_exits_pipeline_tests` 测试域叶子薄壳子模块批量退役（132 个）。
+- [SPEC-0449](0449-remaining-test-domains-leaf-shells-batch-retirement.md)：其余测试域叶子薄壳子模块批量退役（42 个）。
+- [SPEC-0450](0450-next-layer-leaf-and-sibling-shells-batch-retirement.md)：下一层叶子薄壳与同级测试小文件批量收敛（62 个）。
+- [SPEC-0427](0427-map-iteration-nullable-borrowed-cleanup-refine-and-frontend-shells-retirement.md)：`map_iteration`、`nullable_borrowed_cleanup`、`refine` 及 `lower_frontend` 壳子模块退役。
+- [SPEC-0426](0426-unit-lower-map-iteration-map-consume-container-and-unit-plan-shells-retirement.md)：`unit_lower`、`map_iteration`、`map_consume` 及 `unit_plan` 壳子模块退役。
+- [SPEC-0425](0425-nullable-if-map-iteration-outer-while-unit-lower-and-refine-shells-retirement.md)：`nullable_if_cleanup`、`map_iteration`、`outer_borrowed_while`、`unit_lower` 及 `refine` 壳子模块退役。
+- [SPEC-0424](0424-borrow-result-orchestrate-nullable-cleanup-and-frontend-shells-retirement.md)：`borrow_result_support`、`orchestrate`、可空清理及 `lower_frontend` 壳子模块退役。
+- [SPEC-0423](0423-map-iteration-refine-build-unit-plan-and-nullable-shells-retirement.md)：`map_iteration`、`refine/build`、`unit_plan`、`unit_lower` 及可空清理壳子模块退役。
+- [SPEC-0422](0422-refine-emit-verify-instances-and-closure-shells-retirement.md)：`refine/emit/statements`、`verify_operation`、`verify_ownership/provider_lifetime`、`unit_lower/closure/layout` 及 `lower_frontend` 实例/接收者壳子模块退役。
+- [SPEC-0421](0421-refine-unit-lower-map-source-and-iteration-shells-retirement.md)：`unit_lower` 可空证明/分支、`map_source` 交接、`verify/module` 及 `lower_frontend` 迭代/循环壳子模块退役。
+- [SPEC-0420](0420-refine-support-verify-receipt-and-drops-shells-retirement.md)：`lowering_support`、`integer`、`verify_ownership/reborrow`、`refine` 接收者/借用凭证及 `lower_frontend/drops` 壳子模块退役。
+- [SPEC-0419](0419-refine-lower-frontend-and-map-iteration-shells-retirement.md)：`lower_frontend` 绑定、非空断言、Map 结果/资源析构与 `map_iteration` 壳子模块退役。
+- [SPEC-0418](0418-refine-receipt-subset-and-frontend-shells-retirement.md)：`refine` 借用凭证/准入壳模块及 `lower_frontend` 守卫/容器/闭包壳子模块退役。
+- [SPEC-0417](0417-refine-verify-render-and-build-shells-retirement.md)：`verify`、`render`、`verify_operation`、`verify_ownership` 及 `refine/build` 壳子模块退役。
+- [SPEC-0416](0416-refine-lowering-support-map-source-and-iteration-shells-retirement.md)：`lowering_support`、`map_source`、`borrow_result_support` 及 `lower_frontend` 控制/清理壳子模块退役。
+- [SPEC-0415](0415-refine-lower-frontend-map-iteration-and-field-borrow-shells-retirement.md)：`lower_frontend` 下 `map_iteration` 与 `borrow_argument` 壳子模块退役。
+- [SPEC-0414](0414-refine-model-constant-and-lower-frontend-shells-retirement.md)：`lower_frontend` 标量、枚举、闭包 ABI 与 Map 消费/守卫壳模块退役。
+- [SPEC-0413](0413-refine-verify-operation-ownership-and-content-flow-shells-retirement.md)：`verify_operation`、`verify_ownership` 及 `verify/content_flow` 壳模块退役。
+- [SPEC-0411](0411-refine-ssa-integer-range-unit-lower-and-bounded-route-shells-retirement.md)：`ssa/integer_range`、`unit_lower` 迭代清理与空值比较壳模块及 `refine` 有界路由壳模块退役。
+- [SPEC-0412](0412-refine-render-verify-and-map-frontend-shells-retirement.md)：`render`、`verify` 及 `lower_frontend` Map 壳模块退役。
+- [SPEC-0410](0410-refine-delegated-receiver-and-build-subset-shells-retirement.md)：`unit_lower` 接口委托兼容死分支退役、`refine` 构建/准入/凭证壳模块收敛与 `nullable_when` 保留边界核定。
+- [SPEC-0407](0407-refine-unit-lower-deinit-cfg-and-support-helpers-retirement.md)：`unit_lower` 析构/CFG 壳模块收敛、`expression_core` 测试遗留迁移与 `lowering_support` 辅助去重。
+- [SPEC-0406](0406-refine-unit-lower-shell-modules-and-operator-helpers-retirement.md)：`unit_lower` 入口交接与可空 `when` 清理壳模块收敛及整数算子映射去重。
+- [SPEC-0405](0405-refine-dead-helpers-and-test-entry-gates-retirement.md)：`ssa` 死辅助入口、测试专用入口门控与跨模块 `Span` 辅助去重。
+- [SPEC-0404](0404-refine-unit-lower-shell-modules-and-duplicate-helpers-retirement.md)：`unit_lower` 剩余单入口壳模块、重复辅助函数与测试专用 `unit_plan` 接口退役。
+- [SPEC-0403](0403-refine-unit-lower-dead-fields-and-provider-retirement.md)：`unit_lower` 死字段、`provider` 死辅助入口与测试专用 `ssa` 支持项退役。
+- [SPEC-0402](0402-refine-unit-lower-shell-modules-and-iteration-state-retirement.md)：`unit_lower` 遗留壳模块、单变体 `IterationState` 与死辅助入口退役。
+- [SPEC-0401](0401-refine-unit-lower-rc-if-and-field-root-retirement.md)：`unit_lower` 可空 `Rc` `if` 证明入口、`validated_rc_operation` 与只写 `shared_field_roots` 退役。
+- [SPEC-0409](0409-refine-deinit-and-build-receipt-shells-retirement.md)：`ssa/deinit`、`refine/build` 凭证壳模块收敛及冗余路由/作用域状态退役。
+- [SPEC-0408](0408-refine-ssa-type-query-shells-and-null-literal-helpers-retirement.md)：`ssa` 类型与源查询壳模块收敛及 `null` 字面量判定辅助去重。
+- [SPEC-0400](0400-refine-unit-lower-dead-carrier-retirement.md)：`unit_lower` 区间/捕获/闭包来源死 Carrier、调用帧冗余槽与守卫测试支架退役。
+- [SPEC-0395](0395-refine-nullable-while-retirement.md)：可空 `while` 证明视图与借用子项旧路径退役。
+- [SPEC-0396](0396-refine-map-iteration-retirement.md)：`Map` / `MutableMap` 迭代与关联延续旧路径退役。
+- [SPEC-0397](0397-refine-nullable-map-and-closure-retirement.md)：可空 `Map` 分支/消费、`Map.remove` 借用与闭包回退旧路径退役。
+- [SPEC-0398](0398-refine-nullable-string-and-field-if-retirement.md)：可空 `String` `if` 与同根可空堆对象字段 `if` 旧路径退役。
+- [SPEC-0399](0399-refine-heap-nullable-if-and-compatibility-retirement.md)：同根堆对象可空 `if`、接口委托与混合兼容回退旧路径退役。
+- [SPEC-0383](0383-refine-final-legacy-retirement.md)：最终默认路由收敛与旧路径退休收尾。
+- [SPEC-0384](0384-refine-legacy-module-retirement.md)：枚举、非空断言与可变列表变更旧路径退役及细化层准入补齐。
+- [SPEC-0385](0385-refine-deinit-borrow-heap-nullable-if-string-field-retirement.md)：`deinit` 字段借用、独立堆对象可空 `if` 与字符串字段接收者旧路径退役。
+- [SPEC-0386](0386-refine-inout-delegation-object-destructuring-retirement.md)：`Inout` 接收者、接口委托、无状态 `object` 与局部解构旧路径退役。
+- [SPEC-0387](0387-refine-string-clone-box-value-field-when-retirement.md)：`String.clone()`、装箱构造、`value class` 字段借用与通用 `when` 旧路径退役。
+- [SPEC-0388](0388-refine-numeric-for-runtime-container-map-get-consume-retirement.md)：数值区间 `for`、运行时长度容器构造、`Map.get`、非可空 `Map.consume` 与 `$map.result` 旧路径退役。
+- [SPEC-0393](0393-refine-range-borrow-result-rc-closure-retirement.md)：`RangeView`、借用结果函数与绑定、`Rc` 操作及带捕获闭包旧路径退役。
+- [SPEC-0394](0394-refine-string-clone-retirement.md)：直接 `String.clone()` 旧路径退役。
+- [SPEC-0370](0370-refine-lambda-bodies.md)：lambda 体（thunk）与局部 callable 绑定迁入所有权细化层。
+- [SPEC-0371](0371-refine-integer-range-text.md)：整数内建、整数区间、`String.clone()` 与文本原语迁入所有权细化层。
+- [SPEC-0372](0372-refine-generic-class-enum.md)：泛型 `class` 与泛型 Copyable `enum class` 迁入所有权细化层。
+- [SPEC-0373](0373-refine-destructuring-range-for.md)：局部解构与整数区间 `for` 循环迁入所有权细化层。
+- [SPEC-0374](0374-refine-ownership-primitives-const.md)：所有权原语与 `const val` 物化迁入所有权细化层。
+- [SPEC-0375](0375-refine-sequential-containers.md)：顺序容器（Array/List/MutableList）迁入所有权细化层。
+- [SPEC-0376](0376-refine-container-for-generate.md)：顺序容器 for 遍历与运行时长度构造迁入所有权细化层。
+- [SPEC-0377](0377-refine-box-map.md)：Box、递归装箱枚举与 Map 核心操作迁入所有权细化层。
+- [SPEC-0378](0378-refine-class-fields-rc-and-null-views.md)：复合 class 字段、通用 Rc 负载与智能窄化接收者迁入所有权细化层。
+- [SPEC-0379](0379-refine-reassignment-and-move-enum-when.md)：MoveOnly 局部可变重赋值与 MoveOnly 枚举 `when` 迁入所有权细化层。
+- [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)：`deinit` 析构体、多层字段借用、接口委托、无状态 `object` 与 `Map.withValue` 迁入所有权细化层。
+- [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)：默认分流边界修复与旧路径退休。

@@ -1,5 +1,12 @@
-//! Loop and view frames shared by structured control-flow lowering.
+//! Shared control-flow frames and outcomes used by structured lowering.
 use super::*;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in super::super) enum Lowered {
+    Value(Slot),
+    Unit,
+    Diverged,
+}
 
 /// Jump targets of one loop; views above `views` belong to its iteration.
 #[derive(Clone, Copy, Debug)]

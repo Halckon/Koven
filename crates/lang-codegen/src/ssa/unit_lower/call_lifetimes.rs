@@ -378,7 +378,7 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
-pub(in crate::ssa::unit_lower) mod callable_abi {
+pub(in crate::ssa) mod callable_abi {
     //! Concrete callable types are queried by sealed source provenance, never semantic Fn TypeId.
 
     use super::super::*;
@@ -387,7 +387,7 @@ pub(in crate::ssa::unit_lower) mod callable_abi {
     };
     use lang_frontend::ownership_checking::UnitCallableOrigin;
 
-    pub(in crate::ssa::unit_lower) struct CallableAbi {
+    pub(in crate::ssa) struct CallableAbi {
         lambdas: BTreeMap<(SourceToken, UnitExpressionId), SsaTypeId>,
         named: BTreeMap<SourceToken, SsaTypeId>,
         sources: BTreeMap<UnitFunctionInstanceKey, SourceToken>,
@@ -396,7 +396,7 @@ pub(in crate::ssa::unit_lower) mod callable_abi {
     }
 
     impl CallableAbi {
-        pub(in crate::ssa::unit_lower) fn declare(
+        pub(in crate::ssa) fn declare(
             module: &mut crate::ssa::model::Module,
             instances: &[UnitPlannedInstance],
             plan: &crate::ssa::unit_plan::UnitCallablePlan,
@@ -680,7 +680,7 @@ pub(in crate::ssa::unit_lower) mod callable_abi {
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))
     }
 
-    pub(in crate::ssa::unit_lower) fn declare_deinit(
+    pub(in crate::ssa) fn declare_deinit(
         module: &mut crate::ssa::model::Module,
         parsed_by_source: &[&lang_frontend::parser::ParsedFile],
         names: &ValidatedCompilationUnitNames,

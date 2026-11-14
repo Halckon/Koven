@@ -1,4 +1,4 @@
-//! Research boundary: iteration-local borrow bindings are typed, but not yet ownership-proven.
+//! Core straight-line no-carry is supported; other iteration-local shapes remain closed.
 #![cfg(feature = "loan-observation-test-support")]
 use lang_frontend::{
     lexer::lex,
@@ -88,6 +88,15 @@ fn ordinary_loop_local_borrow_requires_iteration_instance_proof() {
             assert_eq!(on.diagnostics(), off.diagnostics());
             assert_eq!(on.owner_observations(), off.owner_observations());
             assert!(off.loan_action_observations().is_empty());
+            if name == "normal-backedge" {
+                assert!(on.diagnostics().is_empty());
+                assert_eq!(on.no_carry_loops().len(), 1);
+                assert_eq!(off.no_carry_loops(), on.no_carry_loops());
+                assert_eq!(on.borrow_results().bindings().len(), 1);
+                assert_eq!(on.borrow_results().ends().len(), 1);
+                assert!(on.clone().validate().is_ok());
+                continue;
+            }
             let diagnostics = on.diagnostics();
             let rejected = diagnostics
                 .iter()

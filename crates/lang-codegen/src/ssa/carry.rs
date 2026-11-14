@@ -1,6 +1,6 @@
 //! Ordered aliases share a physical carry column and its current typed entity.
-mod columns;
-mod source_columns;
+pub(in crate::ssa) mod columns;
+pub(in crate::ssa) mod source_columns;
 
 #[cfg(test)]
 pub(in crate::ssa) use columns::record_type;
@@ -120,5 +120,642 @@ pub(in crate::ssa) fn apply_indexed_alias_column<K: Copy + Ord, Id: Copy>(
             values.resize(index + 1, current);
         }
         values[index] = current;
+    }
+}
+
+#[cfg(test)]
+pub(in crate::ssa) mod frontend_nominal {
+    //! Frontend concrete nominal instances to target-independent SSA storage types.
+
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use lang_frontend::{
+        name_resolution::{EnumCaseId, NameResolution, SymbolId},
+        source::Span,
+        type_checking::{
+            BuiltinType, ConstructionTarget, IntrinsicTypeConstructor, NominalId, NominalKind,
+            TypeId, TypeKind, TypedFile,
+        },
+    };
+
+    use crate::ssa::lower_frontend::{LoweringError, LoweringErrorKind, error};
+    use crate::ssa::model::{Module, SsaTypeId, SsaTypeKind, TypeOrigin};
+
+    type FrontendTypeMap = BTreeMap<TypeId, SsaTypeId>;
+    type HeapPayloadMap = BTreeMap<SsaTypeId, SsaTypeId>;
+    type EnumPayloadMap = BTreeMap<(SsaTypeId, EnumCaseId), (usize, SsaTypeId)>;
+
+    pub(in crate::ssa) struct NominalTypeMapper {
+        type_ids: FrontendTypeMap,
+        map_result_types: BTreeSet<TypeId>,
+        heap_payloads: HeapPayloadMap,
+        construction_fields: BTreeMap<TypeId, Vec<TypeId>>,
+        enum_construction_fields: BTreeMap<(TypeId, EnumCaseId), Vec<TypeId>>,
+        enum_payloads: EnumPayloadMap,
+        active: BTreeSet<TypeId>,
+        pending_boxes: BTreeMap<TypeId, PendingBoxDefinition>,
+    }
+
+    struct PendingBoxDefinition {
+        owner: SsaTypeId,
+        payload: TypeId,
+        span: Span,
+    }
+
+    impl NominalTypeMapper {
+        pub(in crate::ssa) fn intern_map_result(
+            &mut self,
+            module: &mut Module,
+            names: &NameResolution,
+            typed: &TypedFile,
+            ty: TypeId,
+            span: Span,
+        ) -> Result<SsaTypeId, LoweringError> {
+            let Some(TypeKind::Nullable(inner)) = typed.types().get(ty) else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            if matches!(
+                typed.types().get(*inner),
+                Some(TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Map
+                        | IntrinsicTypeConstructor::MutableMap,
+                    ..
+                })
+            ) {
+                return self.intern(module, names, typed, ty, span);
+            }
+            let inner = self.intern(module, names, typed, *inner, span)?;
+            let result = if matches!(
+                module.type_kind(inner),
+                Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. })
+            ) {
+                module.add_nullable_handle_type(inner)
+            } else {
+                module.add_map_result_type(inner)
+            }
+            .map_err(|_| error(LoweringErrorKind::UnsupportedNode, span))?;
+            self.record_type_identity(ty, result, span)?;
+            self.map_result_types.insert(ty);
+            Ok(result)
+        }
+
+        fn record_type_identity(
+            &mut self,
+            ty: TypeId,
+            mapped: SsaTypeId,
+            span: Span,
+        ) -> Result<SsaTypeId, LoweringError> {
+            if let Some(existing) = self.type_ids.get(&ty) {
+                if *existing != mapped {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                }
+            } else {
+                self.type_ids.insert(ty, mapped);
+            }
+            Ok(mapped)
+        }
+
+        fn intern_nullable_map_storage(
+            &mut self,
+            module: &mut Module,
+            names: &NameResolution,
+            typed: &TypedFile,
+            nullable_type: TypeId,
+            inner_type: TypeId,
+            span: Span,
+        ) -> Result<SsaTypeId, LoweringError> {
+            // Preserve the full inner Map Resource/K/V permission before any cache return.
+            // Resource deinit declarations still come from the existing declaration pass.
+            crate::ssa::lower_frontend::resource_deinit::validate_type(typed, inner_type, span)?;
+            let Some(TypeKind::Intrinsic {
+                constructor,
+                arguments,
+            }) = typed.types().get(inner_type)
+            else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            let inner = self.intern_map(module, names, typed, *constructor, arguments, span)?;
+            self.record_type_identity(inner_type, inner, span)?;
+            let nullable = module
+                .add_nullable_map_type(inner)
+                .map_err(|_| error(LoweringErrorKind::UnsupportedNode, span))?;
+            self.record_type_identity(nullable_type, nullable, span)
+        }
+
+        /// Naming may reference only canonical identities already accepted as concrete storage.
+        pub(in crate::ssa) fn contains_type(&self, ty: TypeId) -> bool {
+            self.type_ids.contains_key(&ty)
+        }
+
+        pub(in crate::ssa) fn new(typed: &TypedFile) -> Result<Self, LoweringError> {
+            let mut construction_fields = BTreeMap::new();
+            let mut enum_construction_fields = BTreeMap::new();
+            for construction in typed.constructions() {
+                let fields = construction
+                    .arguments()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, argument)| {
+                        (argument.parameter_index() == index).then_some(argument.parameter_type())
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or(LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?;
+                let inserted = match construction.target() {
+                    ConstructionTarget::EnumCase(case) => insert_fields(
+                        &mut enum_construction_fields,
+                        (construction.result_type(), case),
+                        fields,
+                    ),
+                    ConstructionTarget::Nominal(_)
+                    | ConstructionTarget::IntrinsicBox
+                    | ConstructionTarget::IntrinsicRc => {
+                        insert_fields(&mut construction_fields, construction.result_type(), fields)
+                    }
+                };
+                if !inserted {
+                    return Err(LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    });
+                }
+            }
+            Ok(Self {
+                type_ids: BTreeMap::new(),
+                map_result_types: BTreeSet::new(),
+                heap_payloads: BTreeMap::new(),
+                construction_fields,
+                enum_construction_fields,
+                enum_payloads: BTreeMap::new(),
+                active: BTreeSet::new(),
+                pending_boxes: BTreeMap::new(),
+            })
+        }
+
+        pub(in crate::ssa) fn into_parts(
+            self,
+        ) -> (FrontendTypeMap, HeapPayloadMap, EnumPayloadMap) {
+            (self.type_ids, self.heap_payloads, self.enum_payloads)
+        }
+
+        pub(in crate::ssa) fn intern(
+            &mut self,
+            module: &mut Module,
+            names: &NameResolution,
+            typed: &TypedFile,
+            ty: TypeId,
+            span: Span,
+        ) -> Result<SsaTypeId, LoweringError> {
+            let mapped = self.intern_inner(module, names, typed, ty, span)?;
+            while let Some(ty) = self.pending_boxes.keys().next().copied() {
+                self.define_pending_box(module, names, typed, ty)?;
+            }
+            Ok(mapped)
+        }
+
+        fn define_pending_box(
+            &mut self,
+            module: &mut Module,
+            names: &NameResolution,
+            typed: &TypedFile,
+            ty: TypeId,
+        ) -> Result<(), LoweringError> {
+            let Some(PendingBoxDefinition {
+                owner,
+                payload,
+                span,
+            }) = self.pending_boxes.remove(&ty)
+            else {
+                return Ok(());
+            };
+            let payload = self.intern_inner(module, names, typed, payload, span)?;
+            module
+                .define_heap_owner(owner, payload)
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+            self.heap_payloads.insert(owner, payload);
+            Ok(())
+        }
+
+        pub(in crate::ssa) fn intern_inner(
+            &mut self,
+            module: &mut Module,
+            names: &NameResolution,
+            typed: &TypedFile,
+            ty: TypeId,
+            span: Span,
+        ) -> Result<SsaTypeId, LoweringError> {
+            if let Some(TypeKind::Nullable(inner)) = typed.types().get(ty)
+                && matches!(
+                    typed.types().get(*inner),
+                    Some(TypeKind::Intrinsic {
+                        constructor: IntrinsicTypeConstructor::Map
+                            | IntrinsicTypeConstructor::MutableMap,
+                        ..
+                    })
+                )
+            {
+                return self.intern_nullable_map_storage(module, names, typed, ty, *inner, span);
+            }
+            // Only results explicitly planned from Map descriptors may bypass the generic
+            // resource-wrapper rejection; Map payloads above use independent storage.
+            if self.map_result_types.contains(&ty) {
+                return self
+                    .type_ids
+                    .get(&ty)
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span));
+            }
+            crate::ssa::lower_frontend::resource_deinit::validate_type(typed, ty, span)?;
+            if let Some(mapped) = self.type_ids.get(&ty).copied() {
+                return Ok(mapped);
+            }
+            let mapped = match typed.types().get(ty) {
+                Some(TypeKind::Builtin(builtin)) => intern_builtin(module, *builtin, span)?,
+                Some(TypeKind::Nominal { nominal, .. }) => {
+                    self.intern_nominal(module, names, typed, ty, *nominal, span)?
+                }
+                Some(TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::View,
+                    arguments,
+                }) => {
+                    let source = self.intern_container(
+                        module,
+                        names,
+                        typed,
+                        IntrinsicTypeConstructor::List,
+                        arguments,
+                        span,
+                    )?;
+                    module.intern_type(SsaTypeKind::RangeView { source })
+                }
+                Some(TypeKind::Intrinsic {
+                    constructor:
+                        constructor @ (IntrinsicTypeConstructor::Array
+                        | IntrinsicTypeConstructor::List
+                        | IntrinsicTypeConstructor::MutableList),
+                    arguments,
+                }) => self.intern_container(module, names, typed, *constructor, arguments, span)?,
+                Some(TypeKind::Intrinsic {
+                    constructor:
+                        constructor @ (IntrinsicTypeConstructor::Map
+                        | IntrinsicTypeConstructor::MutableMap),
+                    arguments,
+                }) => self.intern_map(module, names, typed, *constructor, arguments, span)?,
+                Some(TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Box,
+                    arguments,
+                }) => {
+                    let [payload] = arguments.as_slice() else {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    };
+                    let payload_type = *payload;
+                    let owner = module
+                        .declare_heap_owner(format!("Box#t{}", ty.index()))
+                        .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                    self.type_ids.insert(ty, owner);
+                    // The pointer identity is sufficient while its containing inline enum is built.
+                    // Define the payload after the outer inline type has acquired its SSA identity.
+                    self.pending_boxes.insert(
+                        ty,
+                        PendingBoxDefinition {
+                            owner,
+                            payload: payload_type,
+                            span,
+                        },
+                    );
+                    module.set_type_origin(
+                        owner,
+                        TypeOrigin {
+                            primary: span,
+                            declaration: declaration_span_for_type(
+                                names,
+                                typed,
+                                payload_type,
+                                span,
+                            ),
+                        },
+                    );
+                    owner
+                }
+                Some(TypeKind::Intrinsic {
+                    constructor: IntrinsicTypeConstructor::Rc,
+                    arguments,
+                }) => {
+                    let [payload] = arguments.as_slice() else {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    };
+                    let payload_type = *payload;
+                    let owner = module
+                        .declare_shared_owner(format!("Rc#t{}", ty.index()))
+                        .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                    self.type_ids.insert(ty, owner);
+                    let payload = self.intern_inner(module, names, typed, payload_type, span)?;
+                    self.define_pending_box(module, names, typed, payload_type)?;
+                    module
+                        .define_shared_owner(owner, payload)
+                        .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                    module.set_type_origin(
+                        owner,
+                        TypeOrigin {
+                            primary: span,
+                            declaration: declaration_span_for_type(
+                                names,
+                                typed,
+                                payload_type,
+                                span,
+                            ),
+                        },
+                    );
+                    owner
+                }
+                Some(TypeKind::Nullable(inner)) => {
+                    let inner_type = *inner;
+                    let inner = self.intern_inner(module, names, typed, inner_type, span)?;
+                    self.define_pending_box(module, names, typed, inner_type)?;
+                    module
+                        .add_nullable_handle_type(inner)
+                        .map_err(|_| error(LoweringErrorKind::UnsupportedNode, span))?
+                }
+                Some(_) => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+                None => return Err(error(LoweringErrorKind::MissingFact, span)),
+            };
+            self.type_ids.insert(ty, mapped);
+            Ok(mapped)
+        }
+
+        fn intern_nominal(
+            &mut self,
+            module: &mut Module,
+            names: &NameResolution,
+            typed: &TypedFile,
+            ty: TypeId,
+            nominal: NominalId,
+            span: Span,
+        ) -> Result<SsaTypeId, LoweringError> {
+            let descriptor = typed
+                .nominals()
+                .iter()
+                .find(|descriptor| descriptor.id() == nominal)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            let base_name = symbol_name(names, nominal.symbol(), span)?;
+            let declaration = symbol_span(names, nominal.symbol()).unwrap_or(span);
+            if descriptor.kind() == NominalKind::Class {
+                let owner = module
+                    .declare_heap_owner(format!("{base_name}#t{}", ty.index()))
+                    .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                self.type_ids.insert(ty, owner);
+                let fields = self.field_types(typed, ty, descriptor.fields(), span)?;
+                let fields = fields
+                    .into_iter()
+                    .map(|field| self.intern_inner(module, names, typed, field, span))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let payload = module
+                    .add_aggregate_type(format!("{base_name}#t{}.payload", ty.index()), fields)
+                    .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                module
+                    .define_heap_owner(owner, payload)
+                    .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                self.heap_payloads.insert(owner, payload);
+                let origin = TypeOrigin {
+                    primary: span,
+                    declaration,
+                };
+                module.set_type_origin(payload, origin);
+                module.set_type_origin(owner, origin);
+                return Ok(owner);
+            }
+            if descriptor.kind() == NominalKind::EnumClass {
+                return self.intern_enum(module, names, typed, ty, nominal, base_name, span);
+            }
+            if descriptor.kind() != NominalKind::ValueClass || !self.active.insert(ty) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let fields = self.field_types(typed, ty, descriptor.fields(), span)?;
+            let fields = fields
+                .into_iter()
+                .map(|field| self.intern_inner(module, names, typed, field, span))
+                .collect::<Result<Vec<_>, _>>()?;
+            self.active.remove(&ty);
+            let aggregate = module
+                .add_aggregate_type(format!("{base_name}#t{}", ty.index()), fields)
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+            module.set_type_origin(
+                aggregate,
+                TypeOrigin {
+                    primary: span,
+                    declaration,
+                },
+            );
+            Ok(aggregate)
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn intern_enum(
+            &mut self,
+            module: &mut Module,
+            names: &NameResolution,
+            typed: &TypedFile,
+            ty: TypeId,
+            nominal: NominalId,
+            base_name: &str,
+            span: Span,
+        ) -> Result<SsaTypeId, LoweringError> {
+            if !self.active.insert(ty) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let cases = typed
+                .enum_cases()
+                .iter()
+                .filter(|case| case.root() == nominal)
+                .collect::<Vec<_>>();
+            if cases.is_empty() {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            let mut payloads = Vec::with_capacity(cases.len());
+            for (index, case) in cases.iter().enumerate() {
+                let fields = self
+                    .enum_construction_fields
+                    .get(&(ty, case.id()))
+                    .cloned()
+                    .unwrap_or_else(|| case.payloads().iter().map(|(_, ty)| *ty).collect());
+                let fields = fields
+                    .into_iter()
+                    .map(|field| self.intern_inner(module, names, typed, field, span))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let payload = module
+                    .add_aggregate_type(
+                        format!("{base_name}#t{}.case{index}.payload", ty.index()),
+                        fields,
+                    )
+                    .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+                module.set_type_origin(
+                    payload,
+                    TypeOrigin {
+                        primary: span,
+                        declaration: symbol_span(names, case.type_symbol()).unwrap_or(span),
+                    },
+                );
+                payloads.push((case.id(), payload));
+            }
+            self.active.remove(&ty);
+            let tagged = module
+                .add_tagged_union_type(
+                    format!("{base_name}#t{}", ty.index()),
+                    payloads.iter().map(|(_, payload)| *payload).collect(),
+                )
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))?;
+            module.set_type_origin(
+                tagged,
+                TypeOrigin {
+                    primary: span,
+                    declaration: symbol_span(names, nominal.symbol()).unwrap_or(span),
+                },
+            );
+            self.type_ids.insert(ty, tagged);
+            for (index, (case, payload)) in payloads.into_iter().enumerate() {
+                self.enum_payloads.insert((tagged, case), (index, payload));
+            }
+            Ok(tagged)
+        }
+
+        fn field_types(
+            &self,
+            typed: &TypedFile,
+            instance: TypeId,
+            fields: &[SymbolId],
+            span: Span,
+        ) -> Result<Vec<TypeId>, LoweringError> {
+            if let Some(fields) = self.construction_fields.get(&instance) {
+                return Ok(fields.clone());
+            }
+            fields
+                .iter()
+                .map(|field| {
+                    let ty = typed
+                        .symbol_type(*field)
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                    if matches!(typed.types().get(ty), Some(TypeKind::TypeParameter(_))) {
+                        return Err(error(LoweringErrorKind::UnsupportedNode, span));
+                    }
+                    Ok(ty)
+                })
+                .collect()
+        }
+    }
+
+    fn insert_fields<K: Ord>(
+        layouts: &mut BTreeMap<K, Vec<TypeId>>,
+        key: K,
+        fields: Vec<TypeId>,
+    ) -> bool {
+        match layouts.entry(key) {
+            std::collections::btree_map::Entry::Occupied(existing) => existing.get() == &fields,
+            std::collections::btree_map::Entry::Vacant(slot) => {
+                slot.insert(fields);
+                true
+            }
+        }
+    }
+
+    fn symbol_span(names: &NameResolution, symbol: SymbolId) -> Option<Span> {
+        names
+            .symbols()
+            .get(symbol.index())
+            .map(|symbol| symbol.span())
+    }
+
+    fn declaration_span_for_type(
+        names: &NameResolution,
+        typed: &TypedFile,
+        ty: TypeId,
+        fallback: Span,
+    ) -> Span {
+        match typed.types().get(ty) {
+            Some(TypeKind::Nominal { nominal, .. }) => {
+                symbol_span(names, nominal.symbol()).unwrap_or(fallback)
+            }
+            Some(TypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Box,
+                arguments,
+            }) => arguments
+                .first()
+                .map(|payload| declaration_span_for_type(names, typed, *payload, fallback))
+                .unwrap_or(fallback),
+            _ => fallback,
+        }
+    }
+
+    fn symbol_name(
+        names: &NameResolution,
+        symbol: SymbolId,
+        span: Span,
+    ) -> Result<&str, LoweringError> {
+        names
+            .symbols()
+            .get(symbol.index())
+            .map(|symbol| symbol.name())
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
+    }
+
+    fn intern_builtin(
+        module: &mut Module,
+        builtin: BuiltinType,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        let kind = match builtin {
+            BuiltinType::Boolean => SsaTypeKind::Boolean,
+            BuiltinType::Char => SsaTypeKind::Char,
+            BuiltinType::Byte => SsaTypeKind::Integer {
+                bits: 8,
+                signed: true,
+            },
+            BuiltinType::UByte => SsaTypeKind::Integer {
+                bits: 8,
+                signed: false,
+            },
+            BuiltinType::Short => SsaTypeKind::Integer {
+                bits: 16,
+                signed: true,
+            },
+            BuiltinType::UShort => SsaTypeKind::Integer {
+                bits: 16,
+                signed: false,
+            },
+            BuiltinType::Int => SsaTypeKind::Integer {
+                bits: 32,
+                signed: true,
+            },
+            BuiltinType::UInt => SsaTypeKind::Integer {
+                bits: 32,
+                signed: false,
+            },
+            BuiltinType::Long => SsaTypeKind::Integer {
+                bits: 64,
+                signed: true,
+            },
+            BuiltinType::ULong => SsaTypeKind::Integer {
+                bits: 64,
+                signed: false,
+            },
+            BuiltinType::IntRange | BuiltinType::LongRange => {
+                let endpoint = module.intern_type(SsaTypeKind::Integer {
+                    bits: if builtin == BuiltinType::IntRange {
+                        32
+                    } else {
+                        64
+                    },
+                    signed: true,
+                });
+                return module
+                    .add_integer_range_type(endpoint)
+                    .map_err(|_| error(LoweringErrorKind::InvalidModel, span));
+            }
+            BuiltinType::String => return Ok(module.add_string_owner_type()),
+            BuiltinType::Unit => SsaTypeKind::Unit,
+            _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+        };
+        Ok(module.intern_type(kind))
     }
 }

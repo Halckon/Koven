@@ -45,7 +45,7 @@ fun main(): Unit {
 
 - [single lower](../../../crates/lang-codegen/src/ssa/lower_frontend.rs)按Temporary+MoveOnly登记`temporaries`；Group可为相同ValueId保留多个表达式key。
 - [single append](../../../crates/lang-codegen/src/ssa/lower_frontend/container/access.rs)仅取receiver/element、发`ContainerAppend`、更新list binding及消费drop；没有移除已交付element的binding/temporary。
-- [verifier](../../../crates/lang-codegen/src/ssa/verify_ownership.rs)的`ContainerAppend`消费元素；[carried slots](../../../crates/lang-codegen/src/ssa/lower_frontend/control/carried.rs)却遍历所有MoveOnly binding及temporary，[for入口](../../../crates/lang-codegen/src/ssa/lower_frontend/loop_control/iteration.rs)据此构造header实参。
+- [verifier](../../../crates/lang-codegen/src/ssa/verify_ownership.rs)的`ContainerAppend`消费元素；[carried slots](../../../crates/lang-codegen/src/ssa/lower_frontend/control/carried.rs)却遍历所有MoveOnly binding及temporary，[for入口](../../../crates/lang-codegen/src/ssa/loop_control/iteration.rs)据此构造header实参。
 - 因而已消费元素仍可能跨for边运输；这是源码支持的强根因候选，不能代替真实baseline。
 - [unit append](../../../crates/lang-codegen/src/ssa/unit_lower/container.rs)已有`consume_container_delivery`：核唯一call/argument、category/copyability及真实root/Temporary source，再移除owner记录；本片以此事实合同对齐single，不能照抄source-qualified ID或删除整个temporary表。
 - single没有unit式公开`ValueDeliveryFact`表；须核typed append/operand身份、类别与已验证ownership，不能假称已有该表。已有`lower_value_argument`/`take_pending_value_argument`与`forget_delivered_owners`分别管理调用期交付及真实ValueId别名；是否复用须独审，不按语法猜所有权。

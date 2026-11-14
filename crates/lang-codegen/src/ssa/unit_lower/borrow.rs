@@ -1,6 +1,4 @@
 //! 同步 shared 实参的 frontend loan 验证与 place 准备。
-#[cfg(test)]
-mod nullable_temporary_tests;
 
 use super::*;
 use crate::ssa::model::PlaceId;
@@ -567,7 +565,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(self.typed.copyability(ty) == Copyability::Copyable)
     }
 
-    pub(super) fn direct_name_symbol(
+    pub(in crate::ssa) fn direct_name_symbol(
         &self,
         expression: ExpressionId,
         span: Span,

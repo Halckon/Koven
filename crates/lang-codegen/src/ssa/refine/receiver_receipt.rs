@@ -1,10 +1,9 @@
 //! Optional bounded protocol-2 verification. The existing producers alone emit effects.
-mod emitted {
+pub(in crate::ssa::refine) mod emitted {
     use super::*;
-    #[cfg(test)]
-    #[path = "ci_tests.rs"]
-    mod ci_tests;
     use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
+    #[cfg(test)]
+    use crate::ssa::refine::build::condition::receiver_ci_tests as ci_tests;
     use std::collections::BTreeMap;
     #[derive(Clone, Debug)]
     pub(crate) struct Receipt {
@@ -17,7 +16,7 @@ mod emitted {
         pub(crate) entities: Vec<EntityId>,
     }
     pub(in crate::ssa::refine) struct Emitted {
-        receipts: Vec<Receipt>,
+        pub(in crate::ssa::refine) receipts: Vec<Receipt>,
         blocks: Vec<Option<BlockId>>,
     }
     impl Emitted {
@@ -182,7 +181,7 @@ use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{FunctionId, LoanKind},
 };
-pub(super) use emitted::Emitted;
+pub(in crate::ssa::refine) use emitted::Emitted;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::{
@@ -195,33 +194,33 @@ use lang_frontend::{
 };
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Tag {
-    pub(super) plan: usize,
-    pub(super) role: u8,
+pub(in crate::ssa::refine) struct Tag {
+    pub(in crate::ssa::refine) plan: usize,
+    pub(in crate::ssa::refine) role: u8,
 }
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct Plans {
-    entries: Vec<Plan>,
+pub(in crate::ssa::refine) struct Plans {
+    pub(in crate::ssa::refine) entries: Vec<Plan>,
 }
 
 #[derive(Clone, Debug)]
-struct Plan {
-    ids: Vec<UnitLoanActionId>,
-    callable: UnitItemId,
-    caller: FunctionId,
-    call: UnitExpressionId,
-    callee: FunctionId,
-    fact: UnitReceiverOwnershipFact,
-    root: UnitSymbolId,
-    drop_index: usize,
-    returns_value: bool,
-    owner: Option<Slot>,
-    place: Option<Slot>,
-    loan: Option<Slot>,
-    stage: u8,
-    drop_authorized: bool,
-    block: Option<BlockRef>,
+pub(in crate::ssa::refine) struct Plan {
+    pub(in crate::ssa::refine) ids: Vec<UnitLoanActionId>,
+    pub(in crate::ssa::refine) callable: UnitItemId,
+    pub(in crate::ssa::refine) caller: FunctionId,
+    pub(in crate::ssa::refine) call: UnitExpressionId,
+    pub(in crate::ssa::refine) callee: FunctionId,
+    pub(in crate::ssa::refine) fact: UnitReceiverOwnershipFact,
+    pub(in crate::ssa::refine) root: UnitSymbolId,
+    pub(in crate::ssa::refine) drop_index: usize,
+    pub(in crate::ssa::refine) returns_value: bool,
+    pub(in crate::ssa::refine) owner: Option<Slot>,
+    pub(in crate::ssa::refine) place: Option<Slot>,
+    pub(in crate::ssa::refine) loan: Option<Slot>,
+    pub(in crate::ssa::refine) stage: u8,
+    pub(in crate::ssa::refine) drop_authorized: bool,
+    pub(in crate::ssa::refine) block: Option<BlockRef>,
 }
 
 impl Plans {
@@ -354,7 +353,7 @@ impl Plans {
         Ok(result)
     }
 
-    pub(super) fn enter(
+    pub(in crate::ssa::refine) fn enter(
         &mut self,
         call: UnitExpressionId,
         fact: Option<&UnitReceiverOwnershipFact>,
@@ -371,7 +370,7 @@ impl Plans {
         Ok(())
     }
 
-    pub(super) fn drop_fact(
+    pub(in crate::ssa::refine) fn drop_fact(
         &mut self,
         index: usize,
         target: UnitDropTarget,
@@ -393,7 +392,7 @@ impl Plans {
         Ok(())
     }
 
-    pub(super) fn statement(
+    pub(in crate::ssa::refine) fn statement(
         &mut self,
         op: &ROp,
         results: &[Slot],
@@ -456,7 +455,7 @@ impl Plans {
         Ok(tag)
     }
 
-    pub(super) fn finish(
+    pub(in crate::ssa::refine) fn finish(
         &self,
         consumed: &std::collections::BTreeSet<usize>,
         span: Span,

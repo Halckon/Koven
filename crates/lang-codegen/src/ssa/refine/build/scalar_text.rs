@@ -534,3 +534,5 @@ impl Builder<'_, '_> {
             .map(Some)
     }
 }
+
+pub(in crate::ssa::refine::build) mod replacement;

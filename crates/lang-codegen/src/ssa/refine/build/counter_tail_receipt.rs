@@ -4,11 +4,14 @@ mod boundary;
 mod emission;
 mod entry;
 mod exit;
+mod plans;
 mod retirement;
 use crate::ssa::model::{CheckedArithmeticOperator, ComparisonOperator, ScalarConstant};
 use lang_frontend::ownership_checking::{
     UnitDropTarget, UnitOwnerCallable, UnitOwnerCounterTailEvidenceV1,
 };
+use plans::Key;
+pub(super) use plans::Plans;
 
 pub(super) struct Plan<'a> {
     evidence: &'a UnitOwnerCounterTailEvidenceV1,
@@ -21,24 +24,8 @@ pub(super) struct Plan<'a> {
     exits: Option<Vec<exit::Item>>,
 }
 impl<'a> Plan<'a> {
-    pub(super) fn new(inputs: &RefineInputs<'a>) -> Result<Option<Self>, LoweringError> {
-        let Some(item) = inputs.function_item else {
-            return Ok(None);
-        };
-        let callable = UnitOwnerCallable::Function(UnitItemId::new(inputs.source_unit, item));
-        let mut candidates = inputs
-            .owned
-            .owner_observations()
-            .iter()
-            .filter(|o| o.callable() == callable)
-            .filter_map(|o| o.counter_tail_evidence_v1());
-        let Some(evidence) = candidates.next() else {
-            return Ok(None);
-        };
-        if candidates.next().is_some() {
-            return Err(error(LoweringErrorKind::InvalidModel, inputs.span));
-        }
-        Ok(Some(Self {
+    fn from_evidence(evidence: &'a UnitOwnerCounterTailEvidenceV1) -> Self {
+        Self {
             evidence,
             geometry: None,
             counter: None,
@@ -47,10 +34,10 @@ impl<'a> Plan<'a> {
             chain: vec![retirement::Stage::Ready; evidence.steps().len()],
             initial: vec![None; evidence.root_slots().len()],
             exits: exit::items(evidence),
-        }))
+        }
     }
 }
-impl Builder<'_, '_> {
+impl<'a> Builder<'_, 'a> {
     pub(super) fn counter_tail_while(
         &mut self,
         statement: UnitStatementId,
@@ -58,12 +45,13 @@ impl Builder<'_, '_> {
         body: UnitStatementId,
         blocks: [BlockRef; 4],
     ) -> Result<(), LoweringError> {
-        let Some(plan) = &mut self.counter_tail_plan else {
+        let Some(key) = self
+            .counter_tail_plan
+            .select(|p| p.evidence.statement() == statement, self.inputs.span)?
+        else {
             return Ok(());
         };
-        if statement != plan.evidence.statement() {
-            return Ok(());
-        }
+        let plan = self.counter_tail_plan.get_mut(key, self.inputs.span)?;
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         if condition != plan.evidence.condition()
             || body != plan.evidence.body()
@@ -105,9 +93,60 @@ impl Builder<'_, '_> {
         Ok(())
     }
     pub(super) fn finish_counter_tail_receipt(&mut self) -> Result<(), LoweringError> {
-        let Some(plan) = &self.counter_tail_plan else {
-            return Ok(());
-        };
+        self.counter_tail_plan
+            .validate_batch_layout(self.inputs.span)?;
+        let keys = self.counter_tail_plan.keys();
+        let mut pending = Vec::new();
+        for key in keys {
+            let complete = self.check_counter_tail_plan(key)?;
+            if self.counter_tail_plan.is_batch() && complete.is_none() {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+            pending.push((key, complete));
+        }
+        // Validate every identity and checked edge again before any final receipt commits.
+        for (key, complete) in &pending {
+            let plan = self.counter_tail_plan.get(*key, self.inputs.span)?;
+            if let Some(complete) = complete {
+                complete.validate(plan, self.inputs.span)?;
+            }
+            let arithmetic = plan.evidence.assignments()[1];
+            let receipts: Vec<_> = self
+                .checked_edge_receipts
+                .iter()
+                .filter(|r| r.expression == arithmetic)
+                .collect();
+            if receipts.len() != 1
+                || !receipts[0].matches(&self.body, self.span(arithmetic.expression()))
+            {
+                return Err(error(LoweringErrorKind::InvalidModel, self.inputs.span));
+            }
+        }
+        for (key, complete) in pending {
+            let plan = self.counter_tail_plan.get(key, self.inputs.span)?;
+            if let Some(complete) = complete {
+                complete.commit(plan, self.inputs.span)?;
+            }
+            #[cfg(test)]
+            owner_consumer_test_support::record_action(
+                "counter-tail-owner-audit",
+                plan.roots.len(),
+            );
+        }
+        #[cfg(test)]
+        if self.counter_tail_plan.is_batch() {
+            owner_consumer_test_support::record_action(
+                "counter-batch-complete-audit",
+                self.counter_tail_plan.keys().len(),
+            );
+        }
+        Ok(())
+    }
+    fn check_counter_tail_plan(
+        &mut self,
+        key: Key,
+    ) -> Result<Option<boundary::Complete<'a>>, LoweringError> {
+        let plan = self.counter_tail_plan.get(key, self.inputs.span)?;
         let fail = || error(LoweringErrorKind::InvalidModel, self.inputs.span);
         if plan
             .chain
@@ -177,6 +216,17 @@ impl Builder<'_, '_> {
         #[cfg(test)]
         {
             use owner_consumer_test_support::{OwnerFault, take_fault};
+            if take_fault(OwnerFault::CounterParameterLateRootUse) {
+                let root = plan.roots[0];
+                let statements = &mut self.body.blocks[entry.0].statements;
+                let mut late = statements
+                    .iter()
+                    .find(|s| s.results == [root])
+                    .ok_or_else(fail)?
+                    .clone();
+                late.op = ROp::Alias { source: root };
+                statements.push(late);
+            }
             if take_fault(OwnerFault::CounterTailLateInitialization) {
                 let statements = &mut self.body.blocks[entry.0].statements;
                 let initial = statements
@@ -337,20 +387,21 @@ impl Builder<'_, '_> {
         #[cfg(test)]
         if owner_consumer_test_support::take_fault(
             owner_consumer_test_support::OwnerFault::CounterLateAbortToHeader,
-        ) {
+        ) || (self.counter_tail_plan.is_batch()
+            && key.ordinal() == 1
+            && owner_consumer_test_support::take_fault(
+                owner_consumer_test_support::OwnerFault::CounterBatchSecondLateAbort,
+            ))
+        {
             self.body.blocks[_abort.0].terminator = Some((RTerm::Goto(header), self.inputs.span));
         }
         if !edge.matches(&self.body, self.span(arithmetic.expression())) {
             return Err(fail());
         }
-        if let Some(complete) = complete {
-            complete.commit(plan, self.inputs.span)?;
-        }
-        #[cfg(test)]
-        owner_consumer_test_support::record_action("counter-tail-owner-audit", plan.roots.len());
-        Ok(())
+        Ok(complete)
     }
-    fn counter_alias(
+
+    pub(super) fn counter_alias(
         &self,
         block: BlockRef,
         target: Slot,
@@ -374,10 +425,16 @@ impl Builder<'_, '_> {
         }
         Ok(*index)
     }
-    fn counter_integer(&self, block: BlockRef, before: usize, slot: Slot, value: i128) -> bool {
+    pub(super) fn counter_integer(
+        &self,
+        block: BlockRef,
+        before: usize,
+        slot: Slot,
+        value: i128,
+    ) -> bool {
         self.multi_root_definitions(slot) == 1 && self.body.blocks[block.0].statements[..before].iter().any(|s| s.results == [slot] && matches!(s.op, ROp::Constant(ScalarConstant::Integer(actual)) if actual == value))
     }
-    fn counter_guard_comparison(
+    pub(super) fn counter_guard_comparison(
         &self,
         block: BlockRef,
         counter: Slot,
