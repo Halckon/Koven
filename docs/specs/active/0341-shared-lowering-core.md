@@ -17939,3 +17939,22 @@ MemoryDocument、rooted Unit 与 legacy caller/block-return 拒绝三项 exact �
 一项：owner_transport `loops.rs` 1003 行（main 基底 987、门槛 1000），属于此
 组合链既有欠账，本片未修改。不能把本次借用模块修复宣称全仓门禁已绿。
 文档结构检查 957 文件通过。
+
+### Replace 退出消费者完成职责归并（2026-11-14）
+
+基于 `32983e79`，将 `LoopTransaction` 的 `complete_replace_consumer`、
+`complete_replace_call_consumer`、`complete_replace_return_consumer` 三方法整体
+从 `loops.rs` 移至已有 `loops/replace_break.rs`，归并到实际 Replace 退出职责，
+不新增碎片模块。仅相对可见性路径增加一层 `super`，仍精确限制在原 drop_planner
+域；guard 短路次序、字段赋值、`is_consistent` 失败回滚逐字保留。独立搬移审查
+核旧尾部与新追加内容（仅可见路径归一）一致，调用者和父私有字段访问合法。
+
+`loops.rs` 从 1003 降至 952 行，既有子模块为 620 行。按当前 main `cc83d9ec`
+重新跑全仓 Rust 尺寸门禁通过；政策、baseline 和例外均未修改，其他已登记历史
+欠账仍如实列出。这只消除组合链的结构门禁问题，不代表 D10 功能或生产准入完成。
+三消费者的真实普通源码、跨 source／callable 身份与合法邻界七项 exact 已通过；
+没有运行故障注入、native 或远端 CI。
+
+最终下游 D10 普通 SSA 十一项通过／一项 CI-only ignored；实验配置前后端 tests
+严格 Clippy、默认前后端 check、格式、文档 957 和 diff 检查通过。本次本地提交
+仍未推送，不以这些定向结果代替全套远端验收。
