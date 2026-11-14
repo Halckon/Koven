@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     llvm::render_verified_program,
     ssa::{
-        model::{Origin, SsaTypeKind},
+        model::{EntityType, Function, LoanKind, Module, Origin, Ownership, SsaTypeKind},
         render::render_program,
     },
 };
@@ -29,6 +29,48 @@ const OVERLOADS: &str = "fun <T> choose(own input: T): T = input\n\
          fun <T> choose(own input: T, fallback: Boolean): T = input\n\
          fun one(input: Int): Int = choose(input)\n\
          fun two(input: Int): Int = choose(input, true)";
+
+// Pin the source fixture ABI independently of the planner's generated signatures.
+// Only scalar fixtures are covered here; receiver/borrow/carrier ABIs keep their oracles.
+fn scalar_signature(
+    module: &Module,
+    function: &Function,
+    bits: u16,
+    borrowed: bool,
+    fallback: bool,
+) {
+    let integer = SsaTypeKind::Integer { bits, signed: true };
+    let mut expected = vec![(integer.clone(), borrowed)];
+    if fallback {
+        expected.push((SsaTypeKind::Boolean, true));
+    }
+    let entry = function.block(function.entry_block().unwrap()).unwrap();
+    assert_eq!(entry.parameters.len(), expected.len());
+    for (parameter, (expected, borrowed)) in entry.parameters.iter().zip(expected) {
+        let parameter_type = function.entity(*parameter).unwrap().ty;
+        let ty = parameter_type.semantic_type();
+        let expected_mode = if borrowed {
+            EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: ty,
+            }
+        } else {
+            EntityType::Value(ty)
+        };
+        assert_eq!(parameter_type, expected_mode);
+        assert_eq!(module.type_kind(ty), Some(&expected));
+        assert_eq!(module.type_ownership(ty), Some(Ownership::Copyable));
+    }
+    let [result] = function.return_types.as_slice() else {
+        panic!("one integer return")
+    };
+    assert_eq!(module.type_kind(*result), Some(&integer));
+    assert_eq!(module.type_ownership(*result), Some(Ownership::Copyable));
+    assert!(!function.never_returns);
+    assert!(function.receiver.is_none());
+    assert!(function.borrow_return.is_none());
+    assert!(function.carrier_return.is_none());
+}
 
 fn check(source: &str, root_names: &[&str], expected: usize, memory: bool) {
     let mut sources = SourceMap::new();
@@ -85,9 +127,11 @@ fn check(source: &str, root_names: &[&str], expected: usize, memory: bool) {
     assert_eq!(module.functions.len(), expected);
     let llvm = render_verified_program(&program).unwrap();
     assert_eq!(llvm.matches("define internal ").count(), expected);
-    for declaration in &entries {
+    for (declaration, name) in entries.iter().zip(root_names) {
         let id = roots[declaration];
         let function = module.function(id).unwrap();
+        let bits = if *name == "useLong" { 64 } else { 32 };
+        scalar_signature(module, function, bits, true, false);
         let source_decl = &names.names().index().declarations()[declaration.index()];
         assert_eq!(
             function.origin,
@@ -155,14 +199,13 @@ fn check(source: &str, root_names: &[&str], expected: usize, memory: bool) {
         };
         let span = parsed.ast().items().get(decl.root()).unwrap().span();
         assert_eq!(function.origin, Origin::Source(span));
-        let [result] = function.return_types.as_slice() else {
-            panic!("one integer return")
-        };
-        assert_eq!(
-            module.type_kind(*result),
-            Some(&SsaTypeKind::Integer { bits, signed: true })
+        scalar_signature(
+            module,
+            function,
+            bits,
+            false,
+            declaration.contains("fallback: Boolean"),
         );
-        assert!(function.receiver.is_none());
     };
     if root_names.len() == 4 {
         assert_eq!(targets(roots[&entries[0]]), targets(roots[&entries[1]]));

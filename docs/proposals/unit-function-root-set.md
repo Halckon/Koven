@@ -157,3 +157,19 @@ ignored 目标
 本片本地两个 ignored 目标精确编译/列举成功，none executed；普通无注入基线
 exact 1/1 重跑通过。严格 all-target feature Clippy、fmt、bash 语法、docs953、diff
 与独审通过。完整候选仍未启用，旧 whole-file oracle 未删除。
+
+### 共同 Program 的原始标量参数合同
+
+在原 generic/overload 两个普通见证上补齐参数侧检查，而非另造 fixture：各 root
+的默认参数仍为 Shared Loan；generic 的 own 参数为 Value；双参数 choose 的
+fallback: Boolean 仍为 Shared Loan。逐位置核 Int/Long/Boolean 类型与底层
+Copyable，并核单一标量返回、非 Nothing、无 receiver/borrow-return/carrier-return。
+Copyable 不意味着按值传参，原源参数模式不变。Rooted/MemoryDocument 与原有
+共同 Program 的身份、共享实例及逆序确定性检查一起执行。
+
+仅补这些标量 fixture 的证据缺口，不代表 receiver、聚合、closure 或公开 FFI
+ABI 的全部等价，也不启用生产多根或删除旧 oracle。故障目标继续只限 CI。
+
+本片修正草稿对默认参数的错误 Value 假设后，两个 ordinary exact 均通过；
+no-run、严格 all-target feature Clippy、fmt、docs953、diff 和独审通过。
+未运行 CI-only fault、native 或全量测试，未推送。
