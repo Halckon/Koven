@@ -19074,3 +19074,19 @@ receipt 观察 guard 在成功和失败时均回滚，原 joint 发布路径及�
 各十项通过、七项 CI-only ignored。新共同路径验证完整 SSA 与独立 replay，旧路径 native
 回归保持原十秒标准；没有运行本地故障注入。独立只读复核确认身份、完整分区、来源和
 观察撤销边界，无遗留阻断。
+
+### E2 实验共同计划的封闭选择错误
+
+`JointPlan::build_checked` 在原 test + feature 域内提供阶段化 Result；旧 `build` 仅委托
+`.ok()`，不增加 fallback 或改变生产 API。检查顺序保持分析身份、fact/entry 选择、来源
+映射、完整 Unit preflight、封闭 route/实例计划。来源映射与 preflight 原 `LoweringError`
+及 span 原样保留；其余未细分的闭包事实/一致性失败统称 `ClosedPlanRejected`，不能解读
+为源码在语言层必定非法或自动切换另一 lowering 路径。
+
+真实源码回归对照旧 Option 与新 Result：合法窄闭包、外来分析身份、重复 fact、入口数量
+不匹配、外来 entry，以及普通借用邻居触发的原 preflight 拒绝。此片只做计划选择，不
+发射 Program、对象或执行 native；不依赖尚待 native 最终验收的共同封包工作。
+
+本片单/双 feature 精确非 native 回归各一项通过，双 feature all-target 严格 Clippy、
+默认 all-target 编译通过；逐 diff 独审确认旧接受集及检查顺序不变。此证据不替代共同
+封包的 native/CI 验收，也不代表与更新主线的组合已经完成。

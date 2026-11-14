@@ -1,5 +1,17 @@
 //! Closed pre-emission selection for the restricted experiment, not ordinary Unit authority.
+mod error_tests;
 mod ordinary;
+
+/// Experimental selection diagnostics only; no public capability or fallback.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum PlanRejection {
+    AnalysisIdentityMismatch,
+    SelectionRejected,
+    SourceMappingRejected(super::lowering_support::LoweringError),
+    UnitPreflightRejected(super::lowering_support::LoweringError),
+    /// Includes unclassified closed-fact/route consistency failures, not a language verdict.
+    ClosedPlanRejected,
+}
 
 use lang_frontend::{
     ownership_checking::two_source_experiment::{
@@ -29,78 +41,95 @@ impl<'a> JointPlan<'a> {
         facts: &[&'a TwoSourceCounterFact],
         entries: &[&'a EntryDescriptor],
     ) -> Option<Self> {
+        Self::build_checked(handoff, experiment, facts, entries).ok()
+    }
+
+    pub(super) fn build_checked(
+        handoff: &ExperimentalUnitHandoff<'a, '_>,
+        experiment: &'a TwoSourceExperiment,
+        facts: &[&'a TwoSourceCounterFact],
+        entries: &[&'a EntryDescriptor],
+    ) -> Result<Self, PlanRejection> {
         let typed = handoff.types();
-        if !experiment.matches_types(typed) || entries.len() != facts.len() {
-            return None;
+        if !experiment.matches_types(typed) {
+            return Err(PlanRejection::AnalysisIdentityMismatch);
         }
-        let selection = handoff.for_facts(facts)?;
+        if entries.len() != facts.len() {
+            return Err(PlanRejection::SelectionRejected);
+        }
+        let selection = handoff
+            .for_facts(facts)
+            .ok_or(PlanRejection::SelectionRejected)?;
         let parsed =
             super::lowering_support::parsed_by_source_unit(selection.inputs(), selection.names())
-                .ok()?;
+                .map_err(PlanRejection::SourceMappingRejected)?;
         super::unit_lower::preflight::validate(
             &parsed,
             selection.names(),
             typed.types(),
             &selection,
         )
-        .ok()?;
-        let mut routes: Vec<(UnitCallableInstanceKey, Route<'a>)> = Vec::new();
-        let mut planned_entries: Vec<(&EntryDescriptor, UnitCallableInstanceKey)> = Vec::new();
-        for entry in entries {
-            if !experiment.owns_entry(entry)
-                || planned_entries
-                    .iter()
-                    .any(|(old, _)| old.entry() == entry.entry())
-            {
-                return None;
-            }
-            let key = typed.types().call(entry.contracts()[0].call())?.instance();
-            if key != entry.instance() || routes.iter().any(|(old, _)| old == key) {
-                return None;
-            }
-            let mut owners = facts.iter().copied().filter(|fact| {
-                experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())
-            });
-            let fact = owners.next()?;
-            if owners.next().is_some() || !experiment.owns(fact) {
-                return None;
-            }
-            experiment.function_shell(fact, typed)?;
-            routes.push((key.clone(), Route::E2Caller(fact)));
-            planned_entries.push((entry, key.clone()));
-        }
-        // Actual entered calls and opaque leaf witnesses determine every remaining route.
-        for fact in facts {
-            for key in super::e2_replay::required_keys(experiment, fact, typed)? {
-                let mut witnesses = experiment
-                    .callee_leaves_for(fact, typed)?
-                    .iter()
-                    .filter(|leaf| leaf.instance() == &key);
-                let leaf = witnesses.next()?;
-                if witnesses.next().is_some() || !experiment.owns_leaf(leaf) {
+        .map_err(PlanRejection::UnitPreflightRejected)?;
+        (|| {
+            let mut routes: Vec<(UnitCallableInstanceKey, Route<'a>)> = Vec::new();
+            let mut planned_entries: Vec<(&EntryDescriptor, UnitCallableInstanceKey)> = Vec::new();
+            for entry in entries {
+                if !experiment.owns_entry(entry)
+                    || planned_entries
+                        .iter()
+                        .any(|(old, _)| old.entry() == entry.entry())
+                {
                     return None;
                 }
-                if let Some((_, route)) = routes.iter().find(|(old, _)| old == &key) {
-                    let Route::RestrictedSourceLeaf(old) = route else {
-                        return None;
-                    };
-                    if old.body() != leaf.body() || old.span() != leaf.span() {
+                let key = typed.types().call(entry.contracts()[0].call())?.instance();
+                if key != entry.instance() || routes.iter().any(|(old, _)| old == key) {
+                    return None;
+                }
+                let mut owners = facts.iter().copied().filter(|fact| {
+                    experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())
+                });
+                let fact = owners.next()?;
+                if owners.next().is_some() || !experiment.owns(fact) {
+                    return None;
+                }
+                experiment.function_shell(fact, typed)?;
+                routes.push((key.clone(), Route::E2Caller(fact)));
+                planned_entries.push((entry, key.clone()));
+            }
+            // Actual entered calls and opaque leaf witnesses determine every remaining route.
+            for fact in facts {
+                for key in super::e2_replay::required_keys(experiment, fact, typed)? {
+                    let mut witnesses = experiment
+                        .callee_leaves_for(fact, typed)?
+                        .iter()
+                        .filter(|leaf| leaf.instance() == &key);
+                    let leaf = witnesses.next()?;
+                    if witnesses.next().is_some() || !experiment.owns_leaf(leaf) {
                         return None;
                     }
-                } else {
-                    routes.push((key.clone(), Route::RestrictedSourceLeaf(leaf)));
+                    if let Some((_, route)) = routes.iter().find(|(old, _)| old == &key) {
+                        let Route::RestrictedSourceLeaf(old) = route else {
+                            return None;
+                        };
+                        if old.body() != leaf.body() || old.span() != leaf.span() {
+                            return None;
+                        }
+                    } else {
+                        routes.push((key.clone(), Route::RestrictedSourceLeaf(leaf)));
+                    }
                 }
             }
-        }
-        let ordinary =
-            ordinary::OrdinaryPlans::build(&selection, experiment, &planned_entries, facts)?;
-        Some(Self {
-            experiment,
-            typed,
-            routes,
-            entries: planned_entries,
-            ordinary,
-        })
+            let ordinary =
+                ordinary::OrdinaryPlans::build(&selection, experiment, &planned_entries, facts)?;
+            Some(Self {
+                experiment,
+                typed,
+                routes,
+                entries: planned_entries,
+                ordinary,
+            })
+        })()
+        .ok_or(PlanRejection::ClosedPlanRejected)
     }
 
     pub(super) fn experiment(&self) -> &'a TwoSourceExperiment {
