@@ -530,6 +530,29 @@ fn ordinary_independent_catalog_tracks_literal_replace_without_legacy_tokens() {
         assert_eq!(catalog.replacements.len(), 1);
         assert!(catalog.roots.is_empty());
         assert!(catalog.pending_is_empty());
+        assert_eq!(catalog.retirements.len(), catalog.definitions.len());
+        for (_, token) in &catalog.definitions {
+            assert_eq!(
+                catalog
+                    .retirements
+                    .iter()
+                    .filter(|(actual, _)| actual == token)
+                    .count(),
+                1
+            );
+        }
+        assert_eq!(
+            catalog
+                .retirements
+                .iter()
+                .map(|(_, fact)| *fact)
+                .collect::<Vec<_>>(),
+            baseline
+                .facts
+                .iter()
+                .map(|fact| fact.into_unit(fixture.source(0)))
+                .collect::<Vec<_>>()
+        );
         let (_, old, new) = &catalog.replacements[0];
         assert_eq!(old, &catalog.definitions[0].1);
         assert_eq!(new, &catalog.definitions[1].1);
@@ -547,6 +570,8 @@ fn ordinary_catalog_rejects_call_move_and_loop_observations() {
         "fun run(): Unit { val a = \"a\"; println(a) }",
         "fun run(): Unit { val a = \"a\"; val b = a }",
         "fun run(flag: Boolean): Unit { while (flag) { break } }",
+        "fun run(): Unit { val a = \"a\"; val number = 1 }",
+        "fun run(): Unit { val a = \"a\"; loop { break } }",
     ] {
         let fixture = Fixture::new(&[("rejected.ko", source)]);
         let owned = fixture.shared();

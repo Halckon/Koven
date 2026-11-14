@@ -110,3 +110,20 @@ branch、while 均置失败，普通源码拒绝测试不做损坏注入。
 
 当前诊断字段仍可由测试域修改，不是不可伪造资格；Named Drop 暂只更新根环境，
 尚未保存 token→具体 DropFact 退休映射，不能宣称完整 old-result 清理证明。
+
+## 第二批实现：覆盖预筛与实际退休配对
+
+catalog 启用前增加保守 AST 变体预筛：单个 Function，仅 Function/Variable item、
+Block/LocalVariable statement、纯文本 String/Name 与已检查的单根 Replace 调用。
+其他表达式或控制变体立即失败；普通整数 literal initializer 和独立 loop 源码被拒绝。
+这只是当前窄形态预筛，不替代动态 hook 消费或语义完成检查。
+
+每次实际 Named Drop 现在保存被移出根环境的 token 与原始完整 UnitDropFact。
+正例验收每个 literal token 恰一次退休、pending 与 roots 均耗尽，退休事实顺序
+与未启用 catalog 的真实 facts 完全一致。未用跨度猜清理点，也不合成 DropFact。
+
+这些仍是测试诊断和验收断言；没有导出成功证书。尤其 AST 变体白名单不等于
+全函数已完成验证，后续须核函数/body 可达覆盖、类型/根角色以及私有闭合接口。
+
+预筛当前允许 Name，不代表已排除 scalar 参数拷贝；Function/Variable 的参数、
+泛型、返回形式和声明类型尚待进一步收紧，不能扩大为“所有 scalar 都拒绝”。

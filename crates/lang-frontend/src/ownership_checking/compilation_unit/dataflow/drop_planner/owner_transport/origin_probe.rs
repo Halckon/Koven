@@ -116,7 +116,9 @@ impl DropPlanner<'_, '_> {
     pub(in super::super) fn origin_dropped(&mut self, fact: PlannerDropFact) {
         if let Some(catalog) = &mut self.producer_catalog {
             match fact.into_unit(self.checker.source_unit).target() {
-                crate::ownership_checking::UnitDropTarget::Named(root) => catalog.drop_root(root),
+                crate::ownership_checking::UnitDropTarget::Named(root) => {
+                    catalog.drop_root(root, fact.into_unit(self.checker.source_unit))
+                }
                 _ => catalog.failed = true,
             }
         }
