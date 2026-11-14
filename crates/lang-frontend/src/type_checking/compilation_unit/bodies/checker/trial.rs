@@ -40,6 +40,7 @@ pub(super) struct UnitTrialState {
     pending_loop_exits: Vec<super::while_flow::PendingLoopExits>,
     pending_boolean_edges: BTreeMap<UnitExpressionId, super::while_flow::PendingBooleanEdges>,
     pending_abrupt_sites: BTreeSet<super::while_flow::PendingControlSite>,
+    unreachable_loop_jumps: BTreeSet<UnitExpressionId>,
     pending_callable_returns: Option<super::call_writeback::PendingCallableReturns>,
     closure_effects: super::closure_writeback::ClosureEffects,
     closure_origins: super::closure_writeback::ClosureOrigins,
@@ -117,6 +118,7 @@ impl BodyChecker<'_> {
             pending_loop_exits: self.pending_loop_exits.clone(),
             pending_boolean_edges: self.pending_boolean_edges.clone(),
             pending_abrupt_sites: self.pending_abrupt_sites.clone(),
+            unreachable_loop_jumps: self.unreachable_loop_jumps.clone(),
             pending_callable_returns: self.pending_callable_returns.clone(),
             closure_effects: self.closure_effects.clone(),
             closure_origins: self.closure_origins.clone(),
@@ -138,6 +140,7 @@ impl BodyChecker<'_> {
         self.pending_loop_exits = state.pending_loop_exits;
         self.pending_boolean_edges = state.pending_boolean_edges;
         self.pending_abrupt_sites = state.pending_abrupt_sites;
+        self.unreachable_loop_jumps = state.unreachable_loop_jumps;
         self.pending_callable_returns = state.pending_callable_returns;
         self.closure_effects = state.closure_effects;
         self.closure_origins = state.closure_origins;

@@ -74,10 +74,17 @@ impl Checker<'_> {
         result
     }
 
-    pub(super) fn note_pending_loop_jump(&mut self, breaks: bool) {
-        if !self.iteration_recovery.suppressed
-            && let Some(exits) = self.iteration_recovery.loop_exits.last_mut()
-        {
+    pub(super) fn note_pending_loop_jump(&mut self, expression: ExpressionId, breaks: bool) {
+        if self.iteration_recovery.suppressed {
+            self.iteration_recovery
+                .unreachable_loop_jumps
+                .insert(expression.index());
+            return;
+        }
+        self.iteration_recovery
+            .unreachable_loop_jumps
+            .remove(&expression.index());
+        if let Some(exits) = self.iteration_recovery.loop_exits.last_mut() {
             let pending = &self.iteration_recovery.bindings;
             if breaks {
                 exits
@@ -99,6 +106,13 @@ impl Checker<'_> {
             expression,
             |call| self.call_recoveries.get(&call.index()) != Some(&CallRecovery::Rejected),
             |rhs| Ok(self.pending_checked_exit(rhs)),
+            |jump| {
+                self.iteration_recovery.suppressed
+                    || !self
+                        .iteration_recovery
+                        .unreachable_loop_jumps
+                        .contains(&jump.index())
+            },
         )?
         .into_iter()
         .filter_map(|target| self.stable_flow_key(target))
