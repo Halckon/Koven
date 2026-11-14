@@ -18183,3 +18183,20 @@ UnsupportedNode边界完全不变。只复用代码补丁，历史验收不冒�
 对`bc63736b`及`3b7a9a7a`两明确基线均通过（2164个手写Rust文件，36个既有
 超限文件仍列账）。独立复审逐文件核对与两原修复一致，无新生产权限变更；未运行
 native或远端CI。此前默认配置阻断已解除，main多merge-base集成检查仍留发布线。
+
+### 最近 D10/E2 批次联合发布验证（2026-11-14）
+
+独立整合分支从 #422 的 `7d7bfeb9` 接入 main `51a3aad3`、D10 `4e64a4e1`
+和 E2 `87de06bf`。main 冲突保留已抽出的 observer、checkpoint 和 folding 模块，
+不恢复退役包装或复制 thread-local 状态；D10/E2 追加文档及 E2 测试注册均保留。
+未纳入其后的在途修改。生产多根入口仍为 singleton，E2 双源候选仍关闭，
+不把测试候选视为 Origin-based 决策或新借用权限。
+
+整合代码默认与观察 feature 两配置全 workspace/all-target 严格 Clippy 通过；
+以真实 main `51a3aad3` 为基线的尺寸门禁通过，恢复唯一 merge-base。
+fmt、953 Markdown 文档结构检查、diff、预算脚本 bash 语法及独立只读审查通过。
+CI-only 预算及故障见证不在本地执行；远端验收须对应最终提交的 PR-event，
+不能沿用先前仅静态检查通过且代码任务跳过的 push-event 结论。
+整合测试编译通过；四项普通 root-set planner/Program、非空 receipt 发布和两项
+E2 非循环运输/拒绝邻域 exact 共 7/7 通过。CI-only 预算目标精确列举 1 项，
+未执行。没有本地 native 或故障注入验收结论。
