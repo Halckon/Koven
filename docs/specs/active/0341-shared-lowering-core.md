@@ -18197,3 +18197,13 @@ typed产物取得`(UnitExpressionId, UnitCallableInstanceKey)`；保留完整类
 计划或receipt，不证明SSA callee replay、实际执行或生产授权。
 最终源码观察配置候选/新域5项与旧实验2项、默认候选2项普通测试通过；frontend
 all-target严格Clippy两配置、fmt/docs951/diff与独立复审通过。未运行native/远端CI。
+
+### E2 非循环 child-loan 运输前置（本地）
+
+`shared_child_straight_line_transport_baseline` 使用严格memory/rooted Unit生成真实SSA，
+两共享根分别调用view并消费其child，检查确切callee、参数列、Shared结果、唯一End及
+后继父根使用；caller核不同/相同owner、独立loan和正常返回清理。覆盖形参反序。
+此项不提升两源测试域的生产可见性，不构造backend receipt；没有分支或循环，
+不证明两child同时存活、循环backedge、checked-counter异常边或native执行。
+最终默认与observation配置各3项定向测试通过（均含真实SSA verifier及LLVM render），
+两配置all-target严格Clippy、fmt/docs951/diff和独立复审通过；未运行native或远端CI。

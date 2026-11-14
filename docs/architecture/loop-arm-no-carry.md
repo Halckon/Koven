@@ -149,3 +149,7 @@ CounterBranch及两臂最终唯一End成功后构造独立身份；旧pair与生
 能力。rooted跨源晚失败可观察先构造后经Unit总gate撤销；没有保留失败观察payload。
 测试态事实还按闭合arm顺序保存每次实际callsite与完整callable instance key；
 producer和重复consumer调用不去重，缺失typed映射不生成新事实。这不是SSA receipt。
+
+另一非循环直线基线覆盖真实双根BorrowCall：两次producer分别依赖对应Shared参数，
+child经Print后唯一End，随后父根仍可使用；调用方同owner不等同同loan身份。
+此项没有分支、循环、counter或新域receipt，不解除分支BorrowCall的UnsupportedNode。

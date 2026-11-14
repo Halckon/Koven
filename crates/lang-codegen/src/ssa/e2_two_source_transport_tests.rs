@@ -247,3 +247,139 @@ fn child_borrow_branch_remains_unsupported() {
         assert_eq!((span.start(), span.end()), (start, start + target.len()));
     }
 }
+
+#[test]
+fn shared_child_straight_line_transport_baseline() {
+    for reversed in [false, true] {
+        let parameters = if reversed {
+            "right:String,left:String"
+        } else {
+            "left:String,right:String"
+        };
+        let args = if reversed { "b,a" } else { "a,b" };
+        let source = format!(
+            "fun view(source:String):borrow String from source=source\nfun probe({parameters},flag:Boolean):Unit {{borrow val x=view(left);println(x);borrow val y=view(right);println(y);println(left);println(right)}}\nfun entry(){{val a=\"a\";val b=\"b\";probe({args},true);probe(a,a,false)}}"
+        );
+        for lower in [single, unit] {
+            let program = lower(&source).unwrap();
+            verify_program(&program).unwrap();
+            crate::llvm::render_verified_program(&program).unwrap();
+            let module = &program.modules[0];
+            let view = module
+                .functions
+                .iter()
+                .find(|f| f.name.contains("view"))
+                .unwrap();
+            let f = module
+                .functions
+                .iter()
+                .find(|f| f.name.contains("probe"))
+                .unwrap();
+            assert_eq!(f.blocks.len(), 1);
+            let block = &f.blocks[0];
+            assert!(matches!(
+                &block.terminator.as_ref().unwrap().kind,
+                TerminatorKind::Return { values } if values.is_empty()
+            ));
+            let instructions = block
+                .instructions
+                .iter()
+                .map(|id| f.instruction(*id).unwrap())
+                .collect::<Vec<_>>();
+            let calls = instructions
+                .iter()
+                .enumerate()
+                .filter(|(_, i)| matches!(i.operation, Operation::BorrowCall { .. }))
+                .collect::<Vec<_>>();
+            assert_eq!(calls.len(), 2);
+            assert_ne!(calls[0].1.results, calls[1].1.results);
+            let left = usize::from(reversed);
+            for ((position, call), role) in calls.iter().zip([left, 1 - left]) {
+                let Operation::BorrowCall {
+                    callee,
+                    arguments,
+                    source,
+                } = &call.operation
+                else {
+                    unreachable!()
+                };
+                assert_eq!(*callee, view.id);
+                assert_eq!(EntityId::Loan(*source), block.parameters[role]);
+                assert_eq!(arguments, &vec![block.parameters[role]]);
+                let [EntityId::Loan(child)] = call.results.as_slice() else {
+                    panic!("one shared result")
+                };
+                assert!(!block.parameters.contains(&EntityId::Loan(*child)));
+                assert!(matches!(
+                    f.entity(EntityId::Loan(*child)).unwrap().ty,
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        ..
+                    }
+                ));
+                let uses = instructions.iter().enumerate().filter_map(|(i, inst)| matches!(inst.operation, Operation::PrintString { value } if value == *child).then_some(i)).collect::<Vec<_>>();
+                let ends = instructions
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, inst)| {
+                        matches!(inst.operation, Operation::BorrowEnd { loan } if loan == *child)
+                            .then_some(i)
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(uses.len(), 1);
+                assert_eq!(ends.len(), 1);
+                assert!(*position < uses[0] && uses[0] < ends[0]);
+                let root_uses = instructions.iter().enumerate().filter_map(|(i, inst)| matches!(inst.operation, Operation::PrintString { value } if value == *source).then_some(i)).collect::<Vec<_>>();
+                assert_eq!(root_uses.len(), 1);
+                assert!(
+                    ends[0] < root_uses[0],
+                    "root remains usable after child ends"
+                );
+                assert!(!instructions.iter().any(|inst| matches!(inst.operation, Operation::BorrowEnd { loan } if loan == *source)), "callee cannot end caller-owned parameter");
+            }
+            assert_eq!(
+                instructions
+                    .iter()
+                    .filter(|i| matches!(i.operation, Operation::BorrowEnd { .. }))
+                    .count(),
+                2
+            );
+            let caller = module
+                .functions
+                .iter()
+                .find(|f| f.name.contains("entry"))
+                .unwrap();
+            caller_cleanup(caller, f.id);
+            let inputs = caller
+                .instructions
+                .iter()
+                .filter_map(|i| match &i.operation {
+                    Operation::DirectCall {
+                        callee, arguments, ..
+                    } if *callee == f.id => Some(arguments),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(inputs.len(), 2);
+            assert_ne!(
+                owner(caller, inputs[0][left]),
+                owner(caller, inputs[0][1 - left])
+            );
+            assert_eq!(
+                owner(caller, inputs[1][left]),
+                owner(caller, inputs[1][1 - left])
+            );
+            assert_ne!(inputs[1][left], inputs[1][1 - left]);
+            for (argument, expected) in [
+                (inputs[0][left], b"a"),
+                (inputs[0][1 - left], b"b"),
+                (inputs[1][left], b"a"),
+                (inputs[1][1 - left], b"a"),
+            ] {
+                assert!(
+                    matches!(producer(caller, EntityId::Value(owner(caller, argument))), Operation::StringLiteral { bytes, .. } if bytes == expected)
+                );
+            }
+        }
+    }
+}
