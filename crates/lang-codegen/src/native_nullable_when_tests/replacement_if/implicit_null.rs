@@ -116,3 +116,48 @@ fn nullable_when_replacement_if_aborts_without_dropping_the_live_guard() {
         b"abort: nullable-stop\n  at replacement-if-null-abort.ko:14:49\n"
     );
 }
+
+#[test]
+fn nullable_when_replaces_a_lexical_resource_before_inner_return() {
+    let text = r#"class Resource(val label: String) { deinit() { println(label) } }
+class Guard { deinit() { println("drop-guard") } }
+fun make(value: Resource): Resource { println("rhs"); println(value.label); println("rhs-finished"); return Resource("drop-new") }
+fun observe(value: Resource): Unit { println("observe") }
+fun run(own input: Resource?, flag: Boolean): Unit {
+    var x = input
+    val guard = Guard()
+    when (x) {
+        null -> { println("old-null") }
+        else -> {
+            if (flag) {
+                x = make(x)
+                if (x != null) { observe(x) }
+                println("returning")
+                return
+            }
+        }
+    }
+    println("normal")
+}
+fun entry(): Unit {
+    run(Resource("drop-old"), true)
+    println("caller")
+    run(Resource("drop-kept"), false)
+    run(null, true)
+}
+"#;
+    const PATH: &str = "resource-replacement-return.ko";
+    let source = checked(PATH, text);
+    let entry = source.declaration("entry", SymbolKind::Function);
+    let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
+    let (program, _) = result.expect("replacement retires the old proof and owner");
+    assert!(!routed.contains(&function(&source, &program, "run").name));
+    verify_program(&program).expect("actual Unit SSA verifies");
+
+    let output = crate::native_tests::emit_link_and_run(PATH, text, "entry");
+    let expected = concat!(
+        "rhs\ndrop-old\nrhs-finished\ndrop-old\nobserve\nreturning\ndrop-guard\ndrop-new\ncaller\n",
+        "normal\ndrop-guard\ndrop-kept\nold-null\nnormal\ndrop-guard\n",
+    );
+    crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+}
