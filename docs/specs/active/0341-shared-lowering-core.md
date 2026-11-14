@@ -17895,3 +17895,18 @@ Function 声明、原 source Span 与 AST root，避免首个同名匹配掩盖�
 或故障分类，未运行故障注入、全量测试或远程 CI，未推送。
 带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
 和 diff 检查通过。
+
+### canonical callable 普通具体化见证迁至 Unit（2026-11-14）
+
+基于 `166c0dcb`，保留
+`ssa::map_source::canonical_callable_tests::canonical_callable_single_specialization_keeps_modes_move_and_container_return`
+原 FQN 与三组无 package 源码，以 MemoryDocument basic validated Unit 产物调用
+Unit concrete-type 查询。保留 borrow/inout/move 及 Array 返回的具体类型相等、
+Function 类型类别和 arena 不增长断言；helper/entry 改按唯一原声明、source/root
+定位。已有 package Unit 对照不动，旧 MissingFact 负控及分析 helper 完整保留。
+此为 basic validated 阶段，不宣称 final complete 或 native 验收。
+
+普通完整 FQN exact 1/1（三组源码）、测试编译和独立只读审查通过；没有生产、
+Origin 或故障分类变化，未执行负控/故障注入、全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过。
