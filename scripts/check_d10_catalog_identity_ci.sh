@@ -105,3 +105,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'original planner run identity control compiled/listed; not executed'
 fi
+
+split_run=ownership_checking::compilation_unit::d10_catalog_experiment::split_source::tests::ci_only_split_rejects_same_typed_foreign_run
+listing=$(cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment "$split_run" -- --exact --ignored --list)
+[[ $(grep -Fxc "$split_run: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-frontend --lib --features d10-catalog-experiment "$split_run" -- --exact --ignored
+else
+  echo 'split-source same-typed foreign-run controls compiled/listed; not executed'
+fi

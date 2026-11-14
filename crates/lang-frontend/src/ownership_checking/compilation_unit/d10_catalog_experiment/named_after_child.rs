@@ -170,7 +170,7 @@ pub fn analyze_named_after_child_wrapper(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundNamedAfterChildWrapper>, OwnershipCheckingError> {
-    let (owned, _, _, _, _, _, _, mut candidates) = analysis::analyze_with_catalog(
+    let (owned, _, _, _, _, _, _, mut candidates, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

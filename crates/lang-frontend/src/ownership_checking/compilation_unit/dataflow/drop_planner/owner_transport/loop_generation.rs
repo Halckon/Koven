@@ -16,6 +16,12 @@ mod named_coverage;
 mod nested;
 #[cfg(feature = "d10-catalog-experiment")]
 mod nested_coverage;
+#[cfg(feature = "d10-catalog-experiment")]
+mod source_contracts;
+#[cfg(feature = "d10-catalog-experiment")]
+mod split_wrapper;
+#[cfg(feature = "d10-catalog-experiment")]
+mod wrapper_roles;
 
 /// A site denotes construction in the current iteration, not a runtime object ID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

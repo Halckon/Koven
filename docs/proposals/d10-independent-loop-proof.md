@@ -1456,3 +1456,28 @@ run Arc，每个实际 Checker 在运行前获得同一身份，planner 的 Dual
 collector 或跨源能力；下一步必须把真实 wrapper pending 同样纳入本次身份并与
 callee/final owned 三方核验，完整 contracts 按原 source/call/argument 次序核对。
 同 typed 跨 ownership run 组合的负控制仅在 CI 执行，本地只编译/列举。
+
+### 独立 split-source 同次完整 ownership 观察能力
+
+新增 default-off `analyze_split_named_entry` / `BoundSplitNamedEntry`，仅两实际
+source、各一个完整 root：一个既定双计数 callee（BeforeChild 或 AfterChild），
+一个具名 Int 局部参数 wrapper。原单 source named gate 完全保留，不将旧 bound
+作为拼装材料，也不重跑 Checker 观察来替代实际分析 nonce。
+
+真实 planner 在原遍历完成后收集 callee 完整 34-event pending，或 wrapper
+完整五事件及唯一连续 root range；wrapper 的两 loans 与实际 DirectEnd/precedence
+逐项核验。局部 contracts 分别完整消费四 calls/六 contracts 与一 call/两 contracts，
+核真实 AST 参数、typed descriptor、类别、mode、类型、span 与 cross-thread。
+同次 dataflow 按 canonical source 原序汇集，经最终 owned 后才唯一组合。
+
+聚合核实际 declaration target、异 source 角色、wrapper/callee/final owned 三方
+run 身份及 typed 身份；contracts 仅整理独立预期，按原 producer 的 source/call/
+argument 排序键逐项比较完整最终数组。实际 owned loans、drops、Ends、primitives
+和 contracts 不排序、裁剪或改写；旧完整事实与未知通道拒绝仍由共用只读 checker
+执行。这个 checker 输入不是旧 source capability，不产生旧 bound。
+
+正常验收包含两 Replace 顺序、两 canonical source 角色顺序、两 inputs 顺序共八
+组合，以及合法但越界的 wrapper/callee/第三 source。跨 run 全包和混合一侧的
+身份负控只注册 CI、仅本地编译列举。该结果仅为前端同次完整 ownership 观察，
+尚未新增 final-admission prepare、跨 source 独立 CFG replay 或对象发布权限；
+普通项目此前的编译/native 验收不自动补齐这些独立许可。

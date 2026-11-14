@@ -187,7 +187,7 @@ pub fn analyze_named_wrapper(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundNamedWrapper>, OwnershipCheckingError> {
-    let (owned, _, _, _, _, _, mut candidates, _) = analysis::analyze_with_catalog(
+    let (owned, _, _, _, _, _, mut candidates, _, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

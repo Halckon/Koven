@@ -46,7 +46,35 @@ impl<'a> NamedValidation<'a> {
         }
     }
 }
+/// Borrowed complete wrapper facts. This is a checker input, never a source capability.
+pub(super) struct WrapperValidation<'a> {
+    pub(super) root_order: NamedRootOrder,
+    pub(super) contracts: &'a [super::super::UnitCallArgumentOwnershipContract],
+    pub(super) roots: [UnitSymbolId; 2],
+    pub(super) call: UnitExpressionId,
+    pub(super) arguments: [UnitExpressionId; 2],
+    pub(super) loans: &'a [UnitLoanFact; 2],
+    pub(super) ends: &'a [crate::ownership_checking::UnitDirectCallLoanEndFact; 2],
+}
 impl<F> WrappedPending<F> {
+    pub(super) fn validate(
+        &self,
+        owned: CompilationUnitOwnership,
+        fields: NamedValidation<'_>,
+    ) -> Option<ValidatedCompilationUnitOwnership> {
+        WrapperValidation {
+            root_order: self.root_order,
+            contracts: &self.contracts,
+            roots: self.roots,
+            call: self.call,
+            arguments: self.arguments,
+            loans: &self.loans,
+            ends: &self.ends,
+        }
+        .validate(owned, fields)
+    }
+}
+impl WrapperValidation<'_> {
     pub(super) fn validate(
         &self,
         owned: CompilationUnitOwnership,
@@ -72,7 +100,7 @@ impl<F> WrappedPending<F> {
             || !owned.deferred().is_empty()
             || owned.drops() != drops
             || owned.loans() != loans
-            || owned.direct_call_loan_ends() != self.ends
+            || owned.direct_call_loan_ends() != self.ends.as_slice()
             || f.counter_parameters[0] == f.counter_parameters[1]
             || self.roots[0] == self.roots[1]
             || !owned.call_receiver_contracts().is_empty()

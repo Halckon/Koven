@@ -154,7 +154,7 @@ pub fn analyze(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundCatalog>, OwnershipCheckingError> {
-    let (owned, mut pending, _, _, _, _, _, _) = analysis::analyze_with_catalog(
+    let (owned, mut pending, _, _, _, _, _, _, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),
@@ -206,3 +206,7 @@ pub use prepare::{
 
 #[cfg(test)]
 mod run_identity_tests;
+
+mod split_source;
+pub use split_source::{BoundSplitNamedEntry, analyze_split_named_entry};
+pub(crate) use split_source::{SplitSourcePending, SplitWrapperPending};

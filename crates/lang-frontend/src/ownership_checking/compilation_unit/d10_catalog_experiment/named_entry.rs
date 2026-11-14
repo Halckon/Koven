@@ -82,7 +82,7 @@ pub fn analyze_named_entry(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundNamedEntry>, OwnershipCheckingError> {
-    let (owned, _, _, _, _, _, before, after) = analysis::analyze_with_catalog(
+    let (owned, _, _, _, _, _, before, after, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

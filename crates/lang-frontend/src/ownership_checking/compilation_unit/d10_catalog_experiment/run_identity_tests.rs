@@ -56,8 +56,17 @@ fn exercise(cross_run: bool) {
                 )
                 .unwrap()
             };
-            let (original, _, _, _, mut before, mut after, mut wrapped_before, mut wrapped_after) =
-                analyze();
+            let (
+                original,
+                _,
+                _,
+                _,
+                mut before,
+                mut after,
+                mut wrapped_before,
+                mut wrapped_after,
+                _,
+            ) = analyze();
             let owned = if cross_run {
                 analyze().0
             } else {

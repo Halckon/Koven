@@ -81,6 +81,8 @@ use flow::{
 
 pub(super) struct Analysis {
     #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) split_source_catalogs: Vec<super::d10_catalog_experiment::SplitSourcePending>,
+    #[cfg(feature = "d10-catalog-experiment")]
     pub(super) analysis_owner: std::sync::Arc<()>,
     #[cfg(feature = "d10-catalog-experiment")]
     pub(super) catalogs: Vec<super::d10_catalog_experiment::Pending>,
@@ -289,6 +291,8 @@ pub(super) fn analyze(
     #[cfg(feature = "d10-catalog-experiment")]
     let mut wrapped_dual_catalogs = Vec::new();
     #[cfg(feature = "d10-catalog-experiment")]
+    let mut split_source_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
     let mut wrapped_after_child_catalogs = Vec::new();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
@@ -373,6 +377,8 @@ pub(super) fn analyze(
         after_child_catalogs.extend(drop_analysis.after_child_catalog);
         #[cfg(feature = "d10-catalog-experiment")]
         wrapped_dual_catalogs.extend(drop_analysis.wrapped_dual_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        split_source_catalogs.extend(drop_analysis.split_source_catalog);
         #[cfg(feature = "d10-catalog-experiment")]
         wrapped_after_child_catalogs.extend(drop_analysis.wrapped_after_child_catalog);
         no_carry.extend(checker.finish_no_carry_proofs(&drop_analysis.no_carry)?);
@@ -488,6 +494,8 @@ pub(super) fn analyze(
         .range_uses
         .sort_by_key(|fact| fact.expression());
     Ok(Analysis {
+        #[cfg(feature = "d10-catalog-experiment")]
+        split_source_catalogs,
         #[cfg(feature = "d10-catalog-experiment")]
         analysis_owner,
         #[cfg(feature = "d10-catalog-experiment")]

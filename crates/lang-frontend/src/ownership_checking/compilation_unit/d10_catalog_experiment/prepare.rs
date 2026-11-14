@@ -61,7 +61,7 @@ pub fn prepare_named_entry(
 ) -> Result<PreparedNamedEntry, PrepareNamedEntryError> {
     complete_compilation_unit_types(sources, inputs, names, environment, typed.types())
         .map_err(PrepareNamedEntryError::FinalTypeAdmission)?;
-    let (owned, _, _, _, _, _, before, after) = analysis::analyze_with_catalog(
+    let (owned, _, _, _, _, _, before, after, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

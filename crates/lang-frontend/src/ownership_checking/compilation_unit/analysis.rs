@@ -25,7 +25,7 @@ pub(super) fn analyze(
     #[cfg(feature = "d10-catalog-experiment")]
     {
         analyze_inner(sources, inputs, names, environment, typed, constant_control)
-            .map(|(owned, _, _, _, _, _, _, _)| owned)
+            .map(|(owned, _, _, _, _, _, _, _, _)| owned)
     }
     #[cfg(not(feature = "d10-catalog-experiment"))]
     {
@@ -45,6 +45,7 @@ type AnalysisOutput = (
     Vec<super::d10_catalog_experiment::AfterChildPending>,
     Vec<super::d10_catalog_experiment::WrappedDualPending>,
     Vec<super::d10_catalog_experiment::WrappedAfterChildPending>,
+    Vec<super::d10_catalog_experiment::SplitSourcePending>,
 );
 #[cfg(not(feature = "d10-catalog-experiment"))]
 type AnalysisOutput = CompilationUnitOwnership;
@@ -166,6 +167,8 @@ pub(super) fn analyze_inner(
         dataflow.wrapped_dual_catalogs.clear();
         #[cfg(feature = "d10-catalog-experiment")]
         dataflow.wrapped_after_child_catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.split_source_catalogs.clear();
         dataflow.formed_owned_locals.clear();
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
@@ -206,6 +209,8 @@ pub(super) fn analyze_inner(
     let wrapped_dual_catalogs = std::mem::take(&mut dataflow.wrapped_dual_catalogs);
     #[cfg(feature = "d10-catalog-experiment")]
     let wrapped_after_child_catalogs = std::mem::take(&mut dataflow.wrapped_after_child_catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let split_source_catalogs = std::mem::take(&mut dataflow.split_source_catalogs);
     let owned = CompilationUnitOwnership::new(
         typed,
         bindings.into_values().collect(),
@@ -225,6 +230,7 @@ pub(super) fn analyze_inner(
             after_child_catalogs,
             wrapped_dual_catalogs,
             wrapped_after_child_catalogs,
+            split_source_catalogs,
         ))
     }
     #[cfg(not(feature = "d10-catalog-experiment"))]
