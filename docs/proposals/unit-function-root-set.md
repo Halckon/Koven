@@ -221,3 +221,6 @@ OwnedCompilationUnitView；共同 planner 直接从该 view 取 names/types/owne
 本片 ordinary planner exact 2/2（原 generic、成员变体、overload 均双布局）通过，
 三项 CI-only 目标仅编译/列举，none executed。严格 Clippy、fmt、docs953、diff、
 独审通过；未运行 native/全量测试，未推送。
+
+符号退出差异已按原源实测落在[局部映射审计](../reviews/2026-11-14-unit-root-symbol-retirement.md)。
+旧拼写与 Unit 身份映射不是同一合同；审计没有退休旧入口或其 oracle。
