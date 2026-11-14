@@ -799,3 +799,81 @@ fn non_returning_calls_and_functions_require_an_explicit_dead_end() {
             .any(|error| matches!(error.kind, VerifyErrorKind::ReturnType { .. }))
     );
 }
+
+#[test]
+fn nullable_join_rejects_another_arms_payload_on_its_incoming_edge() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let source = UnitSource::analyze(
+        "nullable-join.ko",
+        r#"fun f(x: Int?, flag: Boolean): Int {
+    if (flag) {
+        if (x == null) { return 0 }
+    } else {
+        if (x == null) { return 1 }
+    }
+    return x
+}"#,
+    )
+    .expect("strict Unit admission");
+    let entry = source.declaration("f", SymbolKind::Function);
+    let (mut program, entry) = source.lower_entry(entry).expect("default lowering");
+    verify_program(&program).expect("the original predecessor operands verify");
+
+    let function = program
+        .module_mut(entry.module())
+        .unwrap()
+        .function_mut(entry)
+        .unwrap();
+    let join = function
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .terminator
+                .as_ref()
+                .is_some_and(|term| source.sources().slice(term.origin.span()) == Ok("return x"))
+        })
+        .expect("the source return of the narrowed value");
+    let join_id = join.id;
+    assert_eq!(join.parameters.len(), 1);
+    let incoming: Vec<_> = function
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator.as_ref()?.kind {
+            TerminatorKind::Branch(edge) if edge.target == join_id => {
+                Some((block.id, edge.arguments[0]))
+            }
+            _ => None,
+        })
+        .collect();
+    let [(_, sibling_value), (changed, original)] = incoming.as_slice() else {
+        panic!("the join has two independent predecessors");
+    };
+    assert_ne!(sibling_value, original);
+    assert_eq!(
+        function.entity(*sibling_value).unwrap().ty,
+        function.entity(*original).unwrap().ty
+    );
+    let term = function.blocks[changed.index()]
+        .terminator
+        .as_mut()
+        .unwrap();
+    let TerminatorKind::Branch(edge) = &mut term.kind else {
+        unreachable!("the selected edge belongs to an unconditional branch");
+    };
+    let origin = term.origin.clone();
+    edge.arguments[0] = *sibling_value;
+
+    assert_eq!(
+        errors(&program),
+        vec![VerifyError {
+            kind: VerifyErrorKind::NonDominatingUse {
+                entity: *sibling_value,
+            },
+            location: VerifyLocation::Terminator(*changed),
+            origin: Some(origin),
+        }]
+    );
+}

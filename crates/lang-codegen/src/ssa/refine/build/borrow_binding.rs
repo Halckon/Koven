@@ -890,7 +890,10 @@ impl Builder<'_, '_> {
             || !self.active_views.is_empty()
             || !self.loops.is_empty()
             || !self.temporaries.is_empty()
-            || !self.narrowed.is_empty()
+            || self
+                .block
+                .and_then(|block| self.narrowed.get(&block))
+                .is_some_and(|entries| !entries.is_empty())
             || self.receiver.is_some()
         {
             return Err(error(LoweringErrorKind::InvalidModel, span));
