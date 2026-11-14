@@ -13,7 +13,7 @@ body、drop 支持及循环条件，再要求 nullable/已迁家族、有界 rec
 的函数若未进入细化层，仍以 UnsupportedNode 拒绝，不在兼容路径伪造 exclusive-loan lowering。
 精确准入以当前 `refine/subset` 代码与测试为准，历史试点清单不是今日完整准入表。
 
-[SPEC-0454](../specs/active/0454-refine-untriggered-linear-scalars.md) 的直线标量触发只纳入
+[SPEC-0454](../archive/specs/0454-refine-untriggered-linear-scalars.md) 的直线标量触发只纳入
 非泛型、无 receiver/StaticSelf/借用或carrier返回的普通具名函数：Boolean/整数参数按原
 Value/Copyable Borrow 合同读取，返回标量或 Unit；body 限原 subset 已验证的直线值计算、
 val/var、简单赋值与 return。它不新触发调用、源码分支/短路、循环、nullable 或非标量签名；
