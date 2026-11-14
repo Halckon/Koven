@@ -197,4 +197,4 @@ Array/List/MutableList/Map/MutableMap 的 Unit storage 身份同样保留首次�
 View 的合成 List source 复用同一 helper：View-first 时记录 View 类型需求位置，List-first 时保留已有来源；
 这只是布局诊断来源，不替代 collection owner/loan 来源合同。RangeView 自身仍不新增 origin，元素名义声明来源不变。
 
-容器 size 的 `type_tests::unit_lower_container_size_tests` 同时覆盖 legacy 与 strict Unit：三种容器的共享参数、唯一 owner 清理、临时接收者单次求值及 CFG 后 loan 身份均复用原断言，两入口分别核跨文件输入排列的 SSA/LLVM 确定性。旧入口及其独有见证没有删除。
+容器 size 与泛型容器签名测试直接构造 sealed Unit 并调用 lowering，保留原 owner/loan、cleanup、具体类型、arena 不增长和输入排列检查。旧 scalar 测试 adapter 本来就委托该入口；这是测试依赖清理，不是新增 lowering 能力，也不重复执行相同后端冒充双路径覆盖。
