@@ -1,7 +1,7 @@
 //! A narrow cross-crate test bridge: no public activation callback or ordinary product escape.
 use super::*;
 use crate::{
-    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+    name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{OwnershipCheckingError, check_compilation_unit_ownership},
     source::SourceMap,
     type_checking::{TypeEnvironment, ValidatedCompilationUnitTypes},
@@ -11,11 +11,24 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct TwoSourceExperiment {
     facts: Vec<TwoSourceCounterFact>,
+    typed_owner: std::sync::Arc<()>,
+    callables: Vec<DeclarationId>,
 }
 impl TwoSourceExperiment {
     /// Returns only facts retained after the complete validation gate.
     pub fn facts(&self) -> &[TwoSourceCounterFact] {
         &self.facts
+    }
+    /// Checks the issuing typed analysis, including across structurally equal reanalysis.
+    pub fn matches_types(&self, typed: &ValidatedCompilationUnitTypes) -> bool {
+        std::sync::Arc::ptr_eq(&self.typed_owner, typed.types().analysis_owner())
+    }
+    /// Returns the exact issuing source-unit/item declaration for an owned fact.
+    pub fn callable(&self, fact: &TwoSourceCounterFact) -> Option<DeclarationId> {
+        self.facts
+            .iter()
+            .position(|candidate| Rc::ptr_eq(&candidate.identity, &fact.identity))
+            .and_then(|index| self.callables.get(index).copied())
     }
     /// Checks analysis-local identity, not structural equality.
     pub fn owns(&self, fact: &TwoSourceCounterFact) -> bool {
@@ -57,5 +70,23 @@ pub fn analyze_two_source_experiment(
         return Ok(None);
     };
     let facts = validated.into_ownership().no_carry.two_sources;
-    Ok((!facts.is_empty()).then_some(TwoSourceExperiment { facts }))
+    let callables = facts
+        .iter()
+        .map(|fact| {
+            let callable = fact.arms[0].callable();
+            let mut declarations = names.names().index().declarations().iter().filter(|d| {
+                d.source_unit() == callable.source_unit() && d.root() == callable.item()
+            });
+            let declaration = declarations.next()?;
+            declarations.next().is_none().then_some(declaration.id())
+        })
+        .collect::<Option<Vec<_>>>();
+    let Some(callables) = callables else {
+        return Ok(None);
+    };
+    Ok((!facts.is_empty()).then_some(TwoSourceExperiment {
+        facts,
+        typed_owner: typed.types().analysis_owner().clone(),
+        callables,
+    }))
 }

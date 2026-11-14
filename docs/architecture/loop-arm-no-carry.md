@@ -161,3 +161,9 @@ observation启用，也不公开通用激活scope。专用分析函数在内部�
 feature显式启用时依赖构建包含实验能力，不能再概称“任何非test构建均无此域”；
 默认构建不含该API。backend目前仅测试消费opaque事实/owns和实际typed callee身份，
 尚无SSA emission/receipt，也没有正常lowerer接线或生产启用。
+实验包装还保留签发typed分析的轻量身份；同源码重新type-check不可凭数值相等
+callsite/key混用。backend测试专用独立输入Plan要求issuing fact与原typed身份，
+从真实签名唯一定位两Shared String来源参数列并重核完整callee序列，覆盖形参反序。
+该Plan仅确定源角色，不是SSA块布局、callee FunctionId重定位或emitted receipt。
+Plan另核实验桥记录的原names中source-unit/root声明ID与typed签名相同，不仅在
+fixture中比较callable；普通分析入口、旧域和生产lowering仍不消费此计划。

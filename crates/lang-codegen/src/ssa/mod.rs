@@ -344,3 +344,6 @@ mod e2_two_source_transport_tests;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_two_source_bridge_tests;
+
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_two_source_plan;

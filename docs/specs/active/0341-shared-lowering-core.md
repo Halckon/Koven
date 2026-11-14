@@ -18225,3 +18225,21 @@ codegen测试用真实rooted两源分析跨crate接收opaque事实，核issuing 
 最终新feature/组合feature的codegen定向测试各4/4，frontend组合候选5/5通过；
 codegen默认/observation/新feature/组合四配置all-target严格Clippy、frontend组合
 all-target严格Clippy、fmt/docs951/diff与独立复审通过。未运行native或远端CI。
+
+### E2 独立实验输入计划与typed身份（本地，未接入lowering）
+
+实验包装持有原typed analysis owner的Arc身份，而不是复制typed产品或只比较索引。
+独立codegen测试态Plan先核issuing owns与原typed身份，再由完整真实签名的唯一
+参数symbol匹配两Shared String来源列；receiver、非Borrow/String或不唯一匹配拒绝。
+逐臂producer/consumer的callsite顺序和完整instance key在原typed产品中重新核验。
+
+真实跨cratefixture覆盖形参反序；实际声明source-unit/root与fact.callable一致。
+同源文本重新type-check得到的新分析身份被拒绝，不能用结构相同冒充原typed产品。
+Plan引用原fact而不借用旧单source Plan、不给旧arm域权限；仍只在test+实验feature
+中编译。尚无SSA块布局/FunctionId重定位/两源CFG rebinding、counter全边、emission
+或required/selected/replay/publication收据链；不能宣称循环backend receipt已完成。
+独审要求把callable精确关联提升到构造条件：实验桥由原names索引按source-unit/root
+唯一记录声明ID，Plan必须与实际typed签名声明相同；外来实验实例也由Plan直接拒绝。
+最终实验/组合配置E2测试各4/4、两配置codegen all-target严格Clippy及frontend组合
+all-target严格Clippy通过；默认/仅observation的codegen cargo check、fmt/docs951/
+diff与独立复审通过。未运行native或远端CI，不把输入计划称为SSA收据。
