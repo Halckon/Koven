@@ -18742,3 +18742,17 @@ binding、未选 sibling，以及同 key 角色冲突。成功选择但发射失
 单选恢复未选 sibling 拒绝。此为明确的实验 preflight 接受范围扩展，不是共同 Program
 或多 entry 发布。checked publisher 仍重新单选目标，因此不因传入集合 handoff 自动
 发布其他事实。普通所有权入口与普通 native 接受集不变；故障测试继续 ignored/CI-only。
+
+
+### 2026-11-14：共同 leaf Program 的实验前置
+
+在显式 fact 集合与一次共享全 Unit preflight 后，`e2_callee_leaves::emit_for_facts`
+以单一 Program/Module allocator 发射真实 leaf 并集；按完整 instance key 去重，重复
+来源须保持相同 body/span，拒绝不一致。独立从每个真实 typed call 重建 required keys，
+核对唯一 FunctionId、完整 module 覆盖，以及每个使用该 key 的 fact 都有唯一原始
+leaf 见证；抽出的独立 body/ABI replay 同时复用于旧单闭包路径，检查条件未放宽。
+
+真实双事实 fixture 分别验证独立四 leaf、共享二 leaf，同次身份、重复集合与普通
+不支持 binding 的拒绝均保留。失败不返回部分 Program。此步仅发射共同 leaf 层，
+没有共同 caller/helpers/entry、没有多 entry receipt 或对象发布，不能称共同 Unit
+已完成；原有生产入口和单 entry publisher 不变。故障仍仅 CI，未在本地运行。

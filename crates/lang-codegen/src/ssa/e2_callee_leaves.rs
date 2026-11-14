@@ -2,7 +2,8 @@
 use super::model::*;
 use lang_frontend::{
     ownership_checking::two_source_experiment::{
-        CalleeLeaf, CalleeLeafBody, TwoSourceCounterFact, TwoSourceExperiment,
+        CalleeLeaf, CalleeLeafBody, ExperimentalUnitHandoff, TwoSourceCounterFact,
+        TwoSourceExperiment,
     },
     type_checking::{UnitCallableInstanceKey, ValidatedCompilationUnitTypes},
 };
@@ -44,6 +45,87 @@ pub(super) fn emit_for_fact(
         return None;
     }
     emit_selected(experiment, typed, leaves)
+}
+/// One allocator for the explicit set's exact leaf union. No callers, helpers or entry yet.
+pub(super) fn emit_for_facts(
+    handoff: &ExperimentalUnitHandoff<'_, '_>,
+    experiment: &TwoSourceExperiment,
+    facts: &[&TwoSourceCounterFact],
+) -> Option<EmittedLeaves> {
+    let typed = handoff.types();
+    if !experiment.matches_types(typed) || facts.iter().any(|f| !experiment.owns(f)) {
+        return None;
+    }
+    let selection = handoff.for_facts(facts)?;
+    let parsed =
+        super::lowering_support::parsed_by_source_unit(selection.inputs(), selection.names())
+            .ok()?;
+    super::unit_lower::preflight::validate(&parsed, selection.names(), typed.types(), &selection)
+        .ok()?;
+    let mut leaves: Vec<&CalleeLeaf> = Vec::new();
+    for fact in facts {
+        for leaf in experiment.callee_leaves_for(fact, typed)? {
+            if let Some(previous) = leaves.iter().find(|old| old.instance() == leaf.instance()) {
+                if previous.body() != leaf.body() || previous.span() != leaf.span() {
+                    return None;
+                }
+            } else {
+                leaves.push(leaf);
+            }
+        }
+    }
+    let emitted = emit_selected(experiment, typed, leaves)?;
+    // Re-derive required keys from actual typed calls, not the emitter's selected definitions.
+    let mut required = Vec::new();
+    for fact in facts {
+        for (call, recorded) in fact.calls().iter().flatten() {
+            let actual = typed.types().call(*call)?.instance();
+            if actual != recorded {
+                return None;
+            }
+            if !required.contains(actual) {
+                required.push(actual.clone());
+            }
+        }
+    }
+    let [module] = emitted.program.modules.as_slice() else {
+        return None;
+    };
+    if emitted.functions.len() != required.len() || module.functions.len() != required.len() {
+        return None;
+    }
+    let mut ids = Vec::new();
+    for key in required {
+        let mut selected = emitted
+            .functions
+            .iter()
+            .filter(|(candidate, _)| *candidate == key);
+        let (_, id) = selected.next()?;
+        if selected.next().is_some() || ids.contains(id) {
+            return None;
+        }
+        ids.push(*id);
+        for fact in facts {
+            if !fact
+                .calls()
+                .iter()
+                .flatten()
+                .any(|(_, needed)| *needed == key)
+            {
+                continue;
+            }
+            let mut witnesses = experiment
+                .callee_leaves_for(fact, typed)?
+                .iter()
+                .filter(|leaf| *leaf.instance() == key);
+            let leaf = witnesses.next()?;
+            if witnesses.next().is_some() || !experiment.owns_leaf(leaf) {
+                return None;
+            }
+            super::e2_replay::replay_leaf(module, *id, leaf)?;
+        }
+    }
+    Some(emitted)
 }
 fn emit_selected(
     experiment: &TwoSourceExperiment,

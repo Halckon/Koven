@@ -1,7 +1,7 @@
 //! Independent experimental replay. No producer reconstruction and no production authority.
 use super::{e2_function::EmittedFunction, model::*};
 use lang_frontend::ownership_checking::two_source_experiment::{
-    CalleeLeafBody, FunctionShell, TwoSourceCounterFact, TwoSourceExperiment,
+    CalleeLeaf, CalleeLeafBody, FunctionShell, TwoSourceCounterFact, TwoSourceExperiment,
 };
 use lang_frontend::type_checking::ValidatedCompilationUnitTypes;
 macro_rules! require {
@@ -330,36 +330,7 @@ pub(super) fn replay_closure(
         same!(key, leaf.instance());
         require!(!used.contains(id));
         used.push(*id);
-        let f = module.function(*id)?;
-        same!(f.origin, Origin::Source(leaf.span()));
-        let [block] = f.blocks.as_slice() else {
-            return None;
-        };
-        same!(block.origin, Origin::Source(leaf.span()));
-        require!(f.instructions.is_empty());
-        let [parameter] = block.parameters.as_slice() else {
-            return None;
-        };
-        let ty = shared_string(module, f, *parameter)?;
-        let term = block.terminator.as_ref()?;
-        same!(term.origin, Origin::Source(leaf.span()));
-        match leaf.body() {
-            CalleeLeafBody::SharedIdentity => {
-                same!(f.borrow_return, Some(0));
-                same!(f.return_types, vec![ty]);
-                same!(
-                    term.kind,
-                    TerminatorKind::BorrowReturn {
-                        loan: loan!(*parameter)
-                    }
-                );
-            }
-            CalleeLeafBody::EmptyUnit => {
-                same!(f.borrow_return, None);
-                require!(f.return_types.is_empty());
-                same!(term.kind, TerminatorKind::Return { values: vec![] });
-            }
-        }
+        replay_leaf(module, *id, leaf)?;
     }
     let roles = shell.roles();
     let columns = if roles[0] < roles[1] { [0, 1] } else { [1, 0] };
@@ -464,4 +435,41 @@ fn shared_string(module: &Module, f: &Function, entity: EntityId) -> Option<SsaT
         Some(&SsaTypeKind::StringOwner)
     );
     Some(target)
+}
+
+/// Independent body/ABI replay shared by single-closure and joint-leaf experiments.
+pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) -> Option<()> {
+    let f = module.function(id)?;
+    require!(f.receiver.is_none() && f.carrier_return.is_none() && !f.never_returns);
+    same!(f.origin, Origin::Source(leaf.span()));
+    let [block] = f.blocks.as_slice() else {
+        return None;
+    };
+    same!(block.origin, Origin::Source(leaf.span()));
+    require!(f.instructions.is_empty());
+    let [parameter] = block.parameters.as_slice() else {
+        return None;
+    };
+    let ty = shared_string(module, f, *parameter)?;
+    let term = block.terminator.as_ref()?;
+    require!(term.abort.is_none());
+    same!(term.origin, Origin::Source(leaf.span()));
+    match leaf.body() {
+        CalleeLeafBody::SharedIdentity => {
+            same!(f.borrow_return, Some(0));
+            same!(f.return_types, vec![ty]);
+            same!(
+                term.kind,
+                TerminatorKind::BorrowReturn {
+                    loan: loan!(*parameter)
+                }
+            );
+        }
+        CalleeLeafBody::EmptyUnit => {
+            same!(f.borrow_return, None);
+            require!(f.return_types.is_empty());
+            same!(term.kind, TerminatorKind::Return { values: vec![] });
+        }
+    }
+    Some(())
 }
