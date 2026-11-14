@@ -374,3 +374,6 @@ mod e2_entry_replay;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_entry_publication;
+
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_entry_ci;

@@ -18548,3 +18548,25 @@ rounds=0/choose=false、rounds=3/choose=false、rounds=3/choose=true，要求退
 stdout/stderr 均空。空 consumer 的观察只证明正常返回，不证明动态迭代次数或
 分支覆盖；静态完整 CFG/cleanup 由独立 replay 检查。未做 ASan、泄漏计数或 abort
 故障注入。缺选/重复选择、foreign fact/entry、retyped 均测试拒绝。生产接入未开放。
+
+### 完整 entry 的 CI 故障验收准备与生产接入边界
+
+新增一个默认 ignored 的完整 entry publisher CI 测试，复用普通 publish 的同一
+私有流水线；仅双 CI 环境守卫允许封闭故障枚举。真实发射后交换两个 String
+实参或改 rounds 常量，先要求仍为有效 SSA，再要求独立 replay 返回 Replay；
+真实 replay 后删除 entry terminator，要求最终 gate 返回 Verify。每次错误均
+无 Program/receipt，随后全新正常 publish 应恢复。没有任意 mutation callback。
+这些动态断言待 CI 执行；本地只编译/列举，不伪造 CI 环境。
+
+check_e2_replay_ci.sh 扩为4个精确 FQN×2配置，复用现有 composition step；
+原3项故障不删除。完整 entry 尚未经过中途故障的远端执行，不能记成动态通过。
+
+最窄生产接入仍有具体合同缺口，不是要求整个 Origin 设计定稿：
+1. 普通 ownership 对两源循环仍拒绝，实验 with_domain 不产生可交付的普通
+   OwnedCompilationUnitView；不能把实验 envelope 转型或解除 test gate代替批准。
+2. 需明确独立生产 capability 的选择/覆盖范围及与既有 Unit planner/receipt 的
+   组合。当前完整单 entry 闭包并不证明整 Unit 或任意 entry 形状。
+3. native.rs 的正常 object入口使用 owned Unit lowering、合法 entry 校验与
+   SiblingObject 原子文件发布。实验封包的内存原子性不替代此输出文件合同。
+4. 将普通路径与实验路径保持隔离的编译/拒绝证据、远端故障结果及发布失败不覆盖
+   已有输出的验收接齐后，才可评估窄生产入口；本片未改变任何生产接受集。
