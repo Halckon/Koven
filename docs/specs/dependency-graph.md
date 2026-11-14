@@ -20,6 +20,9 @@ subgraph Gactive["现行 active"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
+  S0451["S0451<br/>跨父模块测试薄壳批量打包收敛（22 个）"]
+  S0452["S0452<br/>lang-codegen 非 ssa 子树叶子薄壳与同级测试小文件批量收敛（129 个）"]
+  S0453["S0453<br/>lang-codegen 剩余同目录 include_str! 薄壳、llvm 子树同级模块与跨父测试小文件批量收敛（37 个）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -59,6 +62,9 @@ ARCH --> S0341
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
+| SPEC-0451 | active | [0451-cross-parent-leaf-test-shells-batch-retirement.md](active/0451-cross-parent-leaf-test-shells-batch-retirement.md) |
+| SPEC-0452 | active | [0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md](active/0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md) |
+| SPEC-0453 | active | [0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md](active/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

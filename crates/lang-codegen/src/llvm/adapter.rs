@@ -1,24 +1,37 @@
 //! verified typed SSA 到 LLVM IR 的 first-class value 适配器。
 
-mod abort;
-mod borrowed_generate;
-mod call;
-mod callable;
-mod constant;
-mod integer;
-mod integer_conversion;
-mod integer_range;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::abort;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::borrowed_generate;
+pub(crate) mod call;
+#[allow(unused_imports)]
+pub(crate) use call::integer_range;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::constant;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::integer;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::integer_conversion;
+#[allow(unused_imports)]
+pub(crate) use range::callable;
 mod map;
-mod map_iteration;
-mod module_lowering;
-mod nullable;
-mod range;
-mod root_exchange;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::map_iteration;
+pub(crate) mod module_lowering;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::nullable;
+pub(crate) mod range;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::root_exchange;
 #[cfg(test)]
 mod root_exchange_tests;
-mod storage;
-mod text;
-mod text_copy;
+#[allow(unused_imports)]
+pub(crate) use call::text;
+#[allow(unused_imports)]
+pub(crate) use call::text_copy;
+#[allow(unused_imports)]
+pub(crate) use module_lowering::storage;
 
 use std::collections::BTreeMap;
 

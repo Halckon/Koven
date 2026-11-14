@@ -1,13 +1,13 @@
 //! Koven heap owner 的系统分配 ABI 与类型定向 drop glue。
-mod abort;
-mod inline_nullable;
+pub(crate) mod abort;
 pub(in crate::llvm) use abort::AbortMessage;
-mod map_result;
+pub(crate) mod inline_nullable;
+pub(crate) mod map_result;
 mod requirements;
 use requirements::RuntimeRequirements;
 #[cfg(test)]
 mod narrow_tests;
-mod string;
+pub(crate) mod string;
 
 use std::{
     cell::RefCell,

@@ -436,8 +436,8 @@ class StaticProviderSelectionContracts(unittest.TestCase):
         # Read-only wiring check; no exporter, sanitizer, mutation or stub execution.
         gate = (ROOT / "scripts/check_native_sanitizers.py").read_text()
         bridge = (ROOT / "crates/lang-codegen/src/native_sanitizer_tests.rs").read_text()
-        exporter = (ROOT / "crates/lang-codegen/src/native_sanitizer_tests/map_provider.rs").read_text()
-        self.assertIn("mod map_provider;", bridge)
+        self.assertIn("mod map_provider {\n", bridge)
+        exporter = bridge.split("mod map_provider {\n", 1)[1].split("\n}\n", 1)[0]
         self.assertIn("fn map_provider_resource_histories_export_real_ir()", exporter)
         self.assertIn('for unit in [false, true]', exporter)
         self.assertIn('history_sanitizer_ir(&case, unit)', exporter)

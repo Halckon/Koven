@@ -7,7 +7,7 @@ use inkwell::{
 };
 
 impl<'ctx> RuntimeAbi<'ctx> {
-    pub(super) fn define_inline_nullable_drop(
+    pub(crate) fn define_inline_nullable_drop(
         &self,
         inner: SsaTypeId,
         niche: bool,

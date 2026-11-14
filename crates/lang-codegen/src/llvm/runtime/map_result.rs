@@ -7,7 +7,7 @@ use inkwell::{
 };
 
 impl<'ctx> RuntimeAbi<'ctx> {
-    pub(super) fn define_map_result_drop(
+    pub(crate) fn define_map_result_drop(
         &self,
         module: &Module,
         ty: SsaTypeId,
