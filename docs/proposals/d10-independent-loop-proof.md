@@ -1070,3 +1070,28 @@ callee 的真实身份及 Shared Int 参数匹配，并通过完整 Program SSA/
 仍是新合同实现前置，不由上述 End 事实存在性结果外推。本片最终 D10 普通回归
 十三项通过／三项 CI-only ignored，严格 tests Clippy、格式、文档、尺寸与独审
 通过。未修改生产代码、执行生成程序、运行故障控制或推送。
+
+### 新 bound 前置：真实 source-root 事件边界
+
+实际 `DropPlanner` 是每 source 一个实例，先顺序遍历全部 roots，再处理需要
+访问的 lambda，并非每 callable 一个实例。旧自动 probe 只对既有完整 AST 预算
+采样，named 两函数不在其范围。不能过滤全 trace 后宣称得到旧 callee 权限。
+
+本 checkpoint 在测试域显式启用独立 root-range 记录：每次真实 `item(root)`
+调用前记起点，成功后才记录 source-qualified root 与结束点；错误传播不交付
+部分 planner。普通生产遍历未变，旧自动采样预算未扩大。为避免历史大文件增长，
+完整 run 方法移到子模块，除测试采样和父模块所需可见性外，正文逐字等价。
+
+具名真实源码实测得到 callee 的 34 条原始事件和 wrapper 的 5 条事件，全部
+连续且未过滤；wrapper 的实际 call、两条 Shared root loan 与最终 owned 六条
+loan 的原序身份核验，两条逆序 DirectBorrowEnded 对应真实 End/CallReturn，
+callee 四个 Drop 与全 owned Drop 保持相等。显式无 lambda 才要求这两段覆盖
+全部事件，不外推其他源码。开启采样前后的原事实/观测相等，旧 pending 仍拒绝。
+
+这只是新通道所需的实测前置，不发布 WrapperPending/BoundNamedWrapper。下一片
+仍需把局部 callee coverage 与完整两函数覆盖区分、将实际两段观察送到同分析
+最终 owned binder，并检查所有事实类别无剩余；共同 Program 图证明仍未接入。
+
+本 checkpoint 精确前端普通测试通过，下游 D10 十三项通过／三项 ignored；前端
+实验 tests 严格 Clippy、默认编译、格式、文档 957、全仓尺寸及独审通过。没有
+运行生成程序或故障控制，没有推送；不能据此宣布新两函数 bound 已完成。

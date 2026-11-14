@@ -36,6 +36,7 @@ mod owner_transport;
 mod pending_call;
 mod receiver_loan_end;
 mod resource;
+mod root_traversal;
 mod short_circuit;
 mod string;
 mod string_when;
@@ -274,6 +275,9 @@ fn plan_with_observations(
 struct DropPlanner<'a, 'checker> {
     #[cfg(test)]
     carry_probe: Option<Vec<owner_transport::carry_probe::Visit>>,
+    // Test-only contiguous source-root boundaries; not a callable capability or filtered trace.
+    #[cfg(test)]
+    root_trace_ranges: Option<Vec<(crate::type_checking::UnitItemId, std::ops::Range<usize>)>>,
     #[cfg(any(test, feature = "d10-catalog-experiment"))]
     origin_probe: Option<Vec<owner_transport::origin_probe::Event>>,
     #[cfg(any(test, feature = "d10-catalog-experiment"))]
@@ -328,6 +332,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Self {
             #[cfg(test)]
             carry_probe: None,
+            #[cfg(test)]
+            root_trace_ranges: None,
             #[cfg(any(test, feature = "d10-catalog-experiment"))]
             origin_probe: None,
             #[cfg(any(test, feature = "d10-catalog-experiment"))]
@@ -368,40 +374,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             scope_depth: 0,
             binding_depths: BTreeMap::new(),
         }
-    }
-
-    fn run(mut self) -> Result<Self, OwnershipCheckingError> {
-        for &root in self.checker.parsed.roots() {
-            self.item(root)?;
-        }
-        for (lambda, node) in self.checker.parsed.ast().expressions().iter() {
-            let Expression::Lambda {
-                opener_span,
-                parameters,
-                arrow_span,
-                body,
-                ..
-            } = node.payload()
-            else {
-                continue;
-            };
-            if !self
-                .checker
-                .visited_lambdas
-                .contains(&self.checker.unit_expression(lambda))
-            {
-                continue;
-            }
-            let mut effective_parameters = parameters.clone();
-            if arrow_span.is_none()
-                && let Some(symbol) = self.checker.symbols_by_span.get(&span_key(*opener_span))
-                && self.checker.typed.body_parameter_mode(*symbol).is_some()
-            {
-                effective_parameters.push(*opener_span);
-            }
-            self.plan_lambda_body(lambda, &effective_parameters, *body)?;
-        }
-        Ok(self)
     }
 
     fn item(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
