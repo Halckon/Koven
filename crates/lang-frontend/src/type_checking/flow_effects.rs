@@ -1,6 +1,9 @@
 //! 收集可能影响流事实的写入；循环预扫描只用语法，已检查条件可排除仅退出路径。
 
-use std::{cell::OnceCell, collections::BTreeMap};
+use std::{
+    cell::OnceCell,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use crate::{
     ast::{AstError, ExpressionId, StatementId},
@@ -13,10 +16,47 @@ use crate::{
 enum Pending {
     Expression(ExpressionId),
     Statement(StatementId),
+    Write(ExpressionId),
     Conditional(ConditionalSite),
     DiscardNormalWrites(usize),
     SaveBranchWrites(usize),
     JoinBranchWrites(usize),
+    JoinIfWrites(usize),
+    LogicalRight {
+        left: ExpressionId,
+        right: ExpressionId,
+        left_result: bool,
+        first_write: usize,
+    },
+    FinishLogicalRight {
+        right_start: usize,
+        first_write: usize,
+        left_writes: Vec<ExpressionId>,
+    },
+    FinishIfCondition {
+        condition: ExpressionId,
+        then_branch: StatementId,
+        else_branch: Option<StatementId>,
+        first_write: usize,
+    },
+    IfBranch {
+        branch: Option<StatementId>,
+        first_write: usize,
+        writes: Vec<ExpressionId>,
+    },
+    BeginWhen,
+    WhenSelector(ExpressionId, StatementId),
+    FinishWhenSelector {
+        operand: ExpressionId,
+        branch: StatementId,
+        first_write: usize,
+    },
+    ResumeWhenMiss {
+        first_write: usize,
+        writes: Vec<ExpressionId>,
+    },
+    WhenBranch(StatementId),
+    FinishWhen,
     EnterLoop(StatementId),
     LeaveLoop,
 }
@@ -62,6 +102,7 @@ pub(super) fn logical_rhs_is_required(
 pub(super) struct SyntacticBooleanOutcomes<'a> {
     ast: &'a SyntaxAst,
     outcomes: OnceCell<Vec<(bool, bool)>>,
+    loop_jump_offsets: OnceCell<Vec<usize>>,
 }
 
 impl<'a> SyntacticBooleanOutcomes<'a> {
@@ -69,10 +110,11 @@ impl<'a> SyntacticBooleanOutcomes<'a> {
         Self {
             ast,
             outcomes: OnceCell::new(),
+            loop_jump_offsets: OnceCell::new(),
         }
     }
 
-    pub(super) fn rhs_is_bypassed(&self, left: ExpressionId, operator: BinaryOperator) -> bool {
+    fn possible_results(&self, expression: ExpressionId) -> (bool, bool) {
         let values = self.outcomes.get_or_init(|| {
             // Parser expression IDs are in child-before-parent order.
             let mut values = Vec::with_capacity(self.ast.expressions().len());
@@ -87,7 +129,38 @@ impl<'a> SyntacticBooleanOutcomes<'a> {
             }
             values
         });
-        let (yes, no) = values.get(left.index()).copied().unwrap_or((true, true));
+        values
+            .get(expression.index())
+            .copied()
+            .unwrap_or((true, true))
+    }
+
+    fn may_contain_loop_jump(&self, expression: ExpressionId) -> Result<bool, AstError> {
+        let span = self.ast.expressions().get(expression)?.span();
+        let offsets = self.loop_jump_offsets.get_or_init(|| {
+            let mut offsets: Vec<_> = self
+                .ast
+                .expressions()
+                .iter()
+                .filter_map(|(_, node)| {
+                    matches!(
+                        node.payload(),
+                        Expression::Break { .. } | Expression::Continue { .. }
+                    )
+                    .then_some(node.span().start())
+                })
+                .collect();
+            offsets.sort_unstable();
+            offsets
+        });
+        let index = offsets.partition_point(|&offset| offset < span.start());
+        Ok(offsets
+            .get(index)
+            .is_some_and(|&offset| offset < span.end()))
+    }
+
+    pub(super) fn rhs_is_bypassed(&self, left: ExpressionId, operator: BinaryOperator) -> bool {
+        let (yes, no) = self.possible_results(left);
         match operator {
             BinaryOperator::LogicalAnd => !yes,
             BinaryOperator::LogicalOr => !no,
@@ -194,8 +267,11 @@ fn collect_mutation_targets(
     let mut targets: Vec<ExpressionId> = Vec::new();
     let mut loops: Vec<LoopWrites> = Vec::new();
     let mut branch_writes = Vec::new();
+    let mut when_normal_prefixes = Vec::new();
+    let mut checked_boolean_results = BTreeMap::new();
     while let Some(node) = pending.pop() {
         match node {
+            Pending::Write(target) => targets.push(target),
             Pending::Conditional(site) => {
                 let (child, completes) = match site {
                     ConditionalSite::RightOperand(rhs) => {
@@ -228,6 +304,168 @@ fn collect_mutation_targets(
             Pending::JoinBranchWrites(first_branch) => {
                 targets.extend(branch_writes.drain(first_branch..));
             }
+            Pending::JoinIfWrites(first_branch) => {
+                // Both normal arms can contain the same condition write.
+                let mut seen = BTreeSet::new();
+                targets.extend(
+                    branch_writes
+                        .drain(first_branch..)
+                        .filter(|target| seen.insert(target.index())),
+                );
+            }
+            Pending::LogicalRight {
+                left,
+                right,
+                left_result,
+                first_write,
+            } => {
+                let left_writes = targets.split_off(first_write);
+                targets.extend(writes_on_boolean_edge(
+                    outcomes,
+                    left,
+                    left_result,
+                    &left_writes,
+                    |id| Ok(outcomes.possible_results(id)),
+                )?);
+                if let Some(frame) = loops.last_mut() {
+                    frame.captured_through = frame.captured_through.min(first_write);
+                }
+                pending.push(Pending::FinishLogicalRight {
+                    right_start: targets.len(),
+                    first_write,
+                    left_writes,
+                });
+                pending.push(Pending::Conditional(ConditionalSite::RightOperand(right)));
+            }
+            Pending::FinishLogicalRight {
+                right_start,
+                first_write,
+                left_writes,
+            } => {
+                targets.splice(first_write..right_start, left_writes);
+                if let Some(frame) = loops.last_mut() {
+                    frame.captured_through = frame.captured_through.min(first_write);
+                }
+            }
+            Pending::FinishIfCondition {
+                condition,
+                then_branch,
+                else_branch,
+                first_write,
+            } => {
+                let writes = targets.split_off(first_write);
+                let mut results = |id| {
+                    checked_boolean_outcomes(
+                        ast,
+                        id,
+                        &expression_completes,
+                        &mut checked_boolean_results,
+                    )
+                };
+                let (yes, no) = results(condition)?;
+                for (reachable, result, branch) in
+                    [(no, false, else_branch), (yes, true, Some(then_branch))]
+                {
+                    if reachable {
+                        pending.push(Pending::IfBranch {
+                            branch,
+                            first_write,
+                            writes: writes_on_boolean_edge(
+                                outcomes,
+                                condition,
+                                result,
+                                &writes,
+                                &mut results,
+                            )?,
+                        });
+                    }
+                }
+            }
+            Pending::IfBranch {
+                branch,
+                first_write,
+                writes,
+            } => {
+                if let Some(frame) = loops.last_mut() {
+                    frame.captured_through = frame.captured_through.min(first_write);
+                }
+                match branch {
+                    Some(branch) => {
+                        targets.extend(writes);
+                        // A jump from the branch includes its own condition effects.
+                        // Remove those effects before visiting the sibling.
+                        pending.push(if branch_completes(branch)? {
+                            Pending::SaveBranchWrites(first_write)
+                        } else {
+                            Pending::DiscardNormalWrites(first_write)
+                        });
+                        pending.push(Pending::Statement(branch));
+                    }
+                    None => branch_writes.extend(writes),
+                }
+            }
+            Pending::BeginWhen => when_normal_prefixes.push(targets.len()),
+            Pending::WhenSelector(operand, branch) => {
+                pending.push(Pending::FinishWhenSelector {
+                    operand,
+                    branch,
+                    first_write: targets.len(),
+                });
+                pending.push(Pending::Expression(operand));
+            }
+            Pending::FinishWhenSelector {
+                operand,
+                branch,
+                first_write,
+            } => {
+                let writes = &targets[first_write..];
+                let results = |id| Ok(outcomes.possible_results(id));
+                let matched = writes_on_boolean_edge(outcomes, operand, true, writes, results)?;
+                let missed = writes_on_boolean_edge(outcomes, operand, false, writes, results)?;
+                if branch_completes(branch)? {
+                    *when_normal_prefixes
+                        .last_mut()
+                        .expect("matching when frame") = first_write;
+                    branch_writes.extend(&matched);
+                }
+                // Selector jump effects are recorded separately.
+                // The branch sees matched effects; the next selector sees missed effects.
+                targets.truncate(first_write);
+                targets.extend(matched);
+                if let Some(frame) = loops.last_mut() {
+                    frame.captured_through = frame.captured_through.min(first_write);
+                }
+                pending.push(Pending::ResumeWhenMiss {
+                    first_write,
+                    writes: missed,
+                });
+                pending.push(Pending::Conditional(ConditionalSite::Branch(branch)));
+            }
+            Pending::ResumeWhenMiss {
+                first_write,
+                writes,
+            } => {
+                targets.truncate(first_write);
+                targets.extend(writes);
+                if let Some(frame) = loops.last_mut() {
+                    frame.captured_through = frame.captured_through.min(first_write);
+                }
+            }
+            Pending::WhenBranch(branch) => {
+                if branch_completes(branch)? {
+                    *when_normal_prefixes
+                        .last_mut()
+                        .expect("matching when frame") = targets.len();
+                }
+                pending.push(Pending::Conditional(ConditionalSite::Branch(branch)));
+            }
+            Pending::FinishWhen => {
+                let prefix = when_normal_prefixes.pop().expect("matching when frame");
+                targets.truncate(prefix);
+                if let Some(frame) = loops.last_mut() {
+                    frame.captured_through = frame.captured_through.min(prefix);
+                }
+            }
             Pending::EnterLoop(body) => {
                 if track_loop_writes {
                     loops.push(LoopWrites {
@@ -236,6 +474,10 @@ fn collect_mutation_targets(
                         on_jump: BTreeMap::new(),
                     });
                     pending.push(Pending::LeaveLoop);
+                    if !branch_completes(body)? {
+                        // Keep only effects captured by this loop's break or continue.
+                        pending.push(Pending::DiscardNormalWrites(targets.len()));
+                    }
                 }
                 pending.push(Pending::Statement(body));
             }
@@ -294,28 +536,68 @@ fn collect_mutation_targets(
                     else_branch,
                     ..
                 } => {
-                    pending.push(Pending::JoinBranchWrites(branch_writes.len()));
-                    if let Some(branch) = else_branch {
-                        pending.push(Pending::Conditional(ConditionalSite::Branch(*branch)));
+                    if loops.is_empty() {
+                        pending.push(Pending::JoinBranchWrites(branch_writes.len()));
+                        if let Some(branch) = else_branch {
+                            pending.push(Pending::Conditional(ConditionalSite::Branch(*branch)));
+                        }
+                        pending.push(Pending::Conditional(ConditionalSite::Branch(*then_branch)));
+                    } else if expression_completes(*condition)? {
+                        pending.push(Pending::JoinIfWrites(branch_writes.len()));
+                        pending.push(Pending::FinishIfCondition {
+                            condition: *condition,
+                            then_branch: *then_branch,
+                            else_branch: *else_branch,
+                            first_write: targets.len(),
+                        });
+                    } else {
+                        pending.push(Pending::DiscardNormalWrites(targets.len()));
                     }
-                    pending.push(Pending::Conditional(ConditionalSite::Branch(*then_branch)));
                     pending.push(Pending::Expression(*condition));
                 }
                 Expression::When {
                     subject, entries, ..
                 } => {
                     pending.push(Pending::JoinBranchWrites(branch_writes.len()));
-                    for entry in entries.iter().rev() {
-                        pending.push(Pending::Conditional(ConditionalSite::Branch(entry.body)));
-                        for condition in entry.conditions.iter().rev() {
-                            match condition {
-                                WhenCondition::Expression(expression)
-                                | WhenCondition::Contains { expression, .. } => {
-                                    pending.push(Pending::Expression(*expression));
-                                }
-                                WhenCondition::TypeTest { .. } => {}
+                    let mut track_prefix = !loops.is_empty()
+                        && entries
+                            .last()
+                            .is_some_and(|entry| entry.else_span.is_some());
+                    if track_prefix {
+                        // An unmatched path may reach any later selector. Only trim
+                        // selector effects when each selector can complete.
+                        for condition in entries.iter().flat_map(|entry| &entry.conditions) {
+                            if let Some(operand) = when_operand(condition)
+                                && !expression_completes(operand)?
+                            {
+                                track_prefix = false;
+                                break;
                             }
                         }
+                    }
+                    if track_prefix {
+                        pending.push(Pending::FinishWhen);
+                    }
+                    for entry in entries.iter().rev() {
+                        if track_prefix
+                            && subject.is_none()
+                            && let [WhenCondition::Expression(operand)] =
+                                entry.conditions.as_slice()
+                        {
+                            pending.push(Pending::WhenSelector(*operand, entry.body));
+                            continue;
+                        }
+                        pending.push(if track_prefix {
+                            Pending::WhenBranch(entry.body)
+                        } else {
+                            Pending::Conditional(ConditionalSite::Branch(entry.body))
+                        });
+                        for operand in entry.conditions.iter().rev().filter_map(when_operand) {
+                            pending.push(Pending::Expression(operand));
+                        }
+                    }
+                    if track_prefix {
+                        pending.push(Pending::BeginWhen);
                     }
                     if let Some(subject) = subject {
                         pending.push(Pending::Expression(*subject));
@@ -335,6 +617,16 @@ fn collect_mutation_targets(
                     match operator {
                         BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
                             if outcomes.rhs_is_bypassed(*left, *operator) => {}
+                        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+                            if !loops.is_empty() && outcomes.may_contain_loop_jump(*right)? =>
+                        {
+                            pending.push(Pending::LogicalRight {
+                                left: *left,
+                                right: *right,
+                                left_result: *operator == BinaryOperator::LogicalAnd,
+                                first_write: targets.len(),
+                            });
+                        }
                         BinaryOperator::LogicalAnd
                         | BinaryOperator::LogicalOr
                         | BinaryOperator::Elvis => {
@@ -346,8 +638,21 @@ fn collect_mutation_targets(
                     pending.push(Pending::Expression(*left));
                 }
                 Expression::Assignment { target, value, .. } => {
-                    targets.push(*target);
-                    pending.push(Pending::Expression(*value));
+                    let target_completes = expression_completes(*target)?
+                        && match ast.expressions().get(*target)?.payload() {
+                            // Container writes check the receiver and index without a read.
+                            Expression::Index { receiver, index } => {
+                                expression_completes(*receiver)? && expression_completes(*index)?
+                            }
+                            _ => true,
+                        };
+                    if target_completes {
+                        if expression_completes(*value)? {
+                            // A jump during operand evaluation precedes the store.
+                            pending.push(Pending::Write(*target));
+                        }
+                        pending.push(Pending::Expression(*value));
+                    }
                     pending.push(Pending::Expression(*target));
                 }
                 Expression::Member { receiver, .. } => {
@@ -374,7 +679,9 @@ fn collect_mutation_targets(
                     pending[first_operand..].reverse();
                 }
                 Expression::Index { receiver, index } => {
-                    pending.push(Pending::Expression(*index));
+                    if expression_completes(*receiver)? {
+                        pending.push(Pending::Expression(*index));
+                    }
                     pending.push(Pending::Expression(*receiver));
                 }
                 Expression::CallableReference { receiver, .. } => {
@@ -412,7 +719,9 @@ fn collect_mutation_targets(
                 Statement::While {
                     condition, body, ..
                 } => {
-                    pending.push(Pending::EnterLoop(*body));
+                    if !track_loop_writes || outcomes.possible_results(*condition).0 {
+                        pending.push(Pending::EnterLoop(*body));
+                    }
                     pending.push(Pending::Expression(*condition));
                 }
                 Statement::For { source, body, .. } => {
@@ -429,6 +738,145 @@ fn collect_mutation_targets(
         }
     }
     Ok(targets)
+}
+
+/// Compute normal Boolean outcomes from the checked operands needed by this scan.
+fn checked_boolean_outcomes(
+    ast: &SyntaxAst,
+    root: ExpressionId,
+    completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    results: &mut BTreeMap<usize, (bool, bool)>,
+) -> Result<(bool, bool), AstError> {
+    let mut pending = vec![(root, false)];
+    while let Some((id, operands_ready)) = pending.pop() {
+        if results.contains_key(&id.index()) {
+            continue;
+        }
+        if !completes(id)? {
+            results.insert(id.index(), (false, false));
+            continue;
+        }
+        let expression = ast.expressions().get(id)?.payload();
+        if !operands_ready {
+            match expression {
+                Expression::Group { expression }
+                | Expression::Prefix {
+                    operator: PrefixOperator::Not,
+                    operand: expression,
+                    ..
+                } => {
+                    pending.extend([(id, true), (*expression, false)]);
+                    continue;
+                }
+                Expression::Binary {
+                    left,
+                    operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
+                    right,
+                    ..
+                } => {
+                    pending.extend([(id, true), (*right, false), (*left, false)]);
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        let outcome = match expression {
+            Expression::Literal(LiteralKind::Boolean(value)) => (*value, !*value),
+            expression => structural_outcomes(expression, |child| results[&child.index()]),
+        };
+        results.insert(id.index(), outcome);
+    }
+    Ok(results[&root.index()])
+}
+
+/// Exclude writes in short-circuit operands that cannot execute on this result edge.
+fn writes_on_boolean_edge(
+    outcomes: &SyntacticBooleanOutcomes<'_>,
+    operand: ExpressionId,
+    matched: bool,
+    writes: &[ExpressionId],
+    mut results: impl FnMut(ExpressionId) -> Result<(bool, bool), AstError>,
+) -> Result<Vec<ExpressionId>, AstError> {
+    if writes.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut excluded = Vec::new();
+    let mut pending = vec![(operand, matched, !matched)];
+    while let Some((operand, want_true, want_false)) = pending.pop() {
+        let node = outcomes.ast.expressions().get(operand)?;
+        if !want_true && !want_false {
+            excluded.push(node.span());
+            continue;
+        }
+        match node.payload() {
+            Expression::Group { expression } => pending.push((*expression, want_true, want_false)),
+            Expression::Prefix {
+                operator: PrefixOperator::Not,
+                operand,
+                ..
+            } => {
+                pending.push((*operand, want_false, want_true));
+            }
+            Expression::Binary {
+                left,
+                operator: BinaryOperator::LogicalAnd,
+                right,
+                ..
+            } => {
+                let (left_true, _) = results(*left)?;
+                let (right_true, right_false) = results(*right)?;
+                pending.push((
+                    *right,
+                    left_true && want_true && right_true,
+                    left_true && want_false && right_false,
+                ));
+                pending.push((
+                    *left,
+                    (want_true && right_true) || (want_false && right_false),
+                    want_false,
+                ));
+            }
+            Expression::Binary {
+                left,
+                operator: BinaryOperator::LogicalOr,
+                right,
+                ..
+            } => {
+                let (_, left_false) = results(*left)?;
+                let (right_true, right_false) = results(*right)?;
+                pending.push((
+                    *right,
+                    left_false && want_true && right_true,
+                    left_false && want_false && right_false,
+                ));
+                pending.push((
+                    *left,
+                    want_true,
+                    (want_true && right_true) || (want_false && right_false),
+                ));
+            }
+            _ => {}
+        }
+    }
+    excluded.sort_unstable_by_key(|span| span.start());
+    let mut retained = Vec::new();
+    for &write in writes {
+        let span = outcomes.ast.expressions().get(write)?.span();
+        let index = excluded.partition_point(|part| part.start() <= span.start());
+        if index == 0 || span.end() > excluded[index - 1].end() {
+            retained.push(write);
+        }
+    }
+    Ok(retained)
+}
+
+fn when_operand(condition: &WhenCondition) -> Option<ExpressionId> {
+    match condition {
+        WhenCondition::Expression(expression) | WhenCondition::Contains { expression, .. } => {
+            Some(*expression)
+        }
+        WhenCondition::TypeTest { .. } => None,
+    }
 }
 
 /// Preserve invalidation on any incoming normal control edge.
