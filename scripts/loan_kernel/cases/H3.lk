@@ -1,0 +1,33 @@
+// 按出借式合同写的泛型算法：一次只能持有一个元素；转发式迭代器也能交给它
+class Arr(len: Int)
+view class SliceIter(borrow source: Arr, pos: Int)
+view class MutIter(inout data: Arr, pos: Int)
+fun iter(borrow a: Arr): SliceIter from a trusted
+fun iterMut(inout a: Arr): MutIter from a trusted
+fun nextRef(inout it: SliceIter): borrow Int from it.source { return &it.source.len }
+fun nextMut(inout it: MutIter): inout Arr from it.data trusted
+fun nextLend(inout it: MutIter): inout Arr from it { return it.data }
+sig <I, T> NextL(inout it: I): T from it
+sig <I, T> NextF(inout it: I): T from it.*
+fun <I, T> drain(inout it: I, own next: fn NextL): Unit {
+  while (*) {
+    val x = next(it)
+    use(x)
+  }
+}
+fun <I, T> twoAtOnce(inout it: I, own next: fn NextL): Unit {
+  val a = next(it)
+  val b = next(it)  // ERR K4
+  use(a)
+}
+fun lending(): Unit {
+  val arr = Arr(1)
+  val it = iterMut(&mut arr)
+  drain(&mut it, nextLend)
+}
+fun forwardingUsedAsLending(): Unit {
+  val arr = Arr(1)
+  val it = iter(&arr)
+  drain(&mut it, nextRef)
+  arr.len = 2
+}

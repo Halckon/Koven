@@ -1,0 +1,28 @@
+// 借用外部存储的迭代器：元素互相独立，可以同时持有，也可以比迭代器活得久
+class Arr(len: Int)
+view class SliceIter(borrow source: Arr, pos: Int)
+view class MutIter(inout data: Arr, pos: Int)
+fun iter(borrow a: Arr): SliceIter from a trusted
+fun iterMut(inout a: Arr): MutIter from a trusted
+fun nextRef(inout it: SliceIter): borrow Int from it.source { return &it.source.len }
+fun nextMut(inout it: MutIter): inout Arr from it.data trusted
+fun nextLend(inout it: MutIter): inout Arr from it { return it.data }
+fun twoItems(): Unit {
+  val arr = Arr(1)
+  val it = iter(&arr)
+  val a = nextRef(&mut it)
+  val b = nextRef(&mut it)
+  use(a)
+  use(b)
+}
+fun writeWhileItemAlive(): Unit {
+  val arr = Arr(1)
+  val it = iter(&arr)
+  val a = nextRef(&mut it)
+  arr.len = 2  // ERR K1
+  use(a)
+}
+fun itemOutlivesIterator(borrow xs: Arr): borrow Int from xs {
+  val it = iter(xs)
+  return nextRef(&mut it)
+}

@@ -46,11 +46,13 @@ class Fun:
     name: str
     params: list  # (mode, name, type_name)
     result: tuple  # (kind, type_name)；kind 为 "" | "borrow" | "inout"
-    sources: list  # (param, field | None)
+    sources: list  # (param, None | "*" | field)：依赖参数本身、转发它携带的全部来源、转发某个借用字段
     trusted: bool
     body: list
     ret: object
     line: int
+    tparams: list = field(default_factory=list)
+    flows: list = field(default_factory=list)  # ((param, None | "*" | field), 目标参数)
 
 
 @dataclass
@@ -87,7 +89,7 @@ class Stmt:
 
 # ---------------------------------------------------------------- 解析
 
-TOKEN = re.compile(r"\s+|//[^\n]*|[A-Za-z_]\w*|\d+|[(){}:,.=&*]")
+TOKEN = re.compile(r"\s+|//[^\n]*|[A-Za-z_]\w*|\d+|[(){}:,.=&*<>]")
 
 
 def tokenize(text):
@@ -138,12 +140,13 @@ class Parser:
         return False
 
     def program(self):
-        classes, funs = {}, {}
+        classes, funs, sigs = {}, {}, {}
         while self.peek() is not None:
             line = self.line()
-            if self.peek() == "fun":
-                fun = self.fun()
-                funs[fun.name] = fun
+            if self.peek() in ("fun", "sig"):
+                table = funs if self.peek() == "fun" else sigs
+                fun = self.fun(self.peek())
+                table[fun.name] = fun
             else:
                 is_view = self.accept("view")
                 self.expect("class")
@@ -157,11 +160,21 @@ class Parser:
                     fields.append((kind, fname, self.next()))
                     self.accept(",")
                 classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line)
-        return classes, funs
+        return classes, funs, sigs
 
-    def fun(self):
+    def source(self):
+        param = self.next()
+        return (param, self.next() if self.accept(".") else None)
+
+    def fun(self, keyword):
+        """函数或抽象签名（sig）；sig 没有函数体，用作函数类型与接口方法的合同。"""
         line = self.line()
-        self.expect("fun")
+        self.expect(keyword)
+        tparams = []
+        if self.accept("<"):
+            while not self.accept(">"):
+                tparams.append(self.next())
+                self.accept(",")
         name = self.next()
         self.expect("(")
         params = []
@@ -169,19 +182,26 @@ class Parser:
             mode = self.next()
             pname = self.next()
             self.expect(":")
-            params.append((mode, pname, self.next()))
+            ty = self.next()
+            params.append((mode, pname, f"fn {self.next()}" if ty == "fn" else ty))
             self.accept(",")
         self.expect(":")
         kind = self.next() if self.peek() in ("borrow", "inout") else ""
         result = (kind, self.next())
-        sources = []
+        sources, flows = [], []
         if self.accept("from"):
             while True:
-                param = self.next()
-                sources.append((param, self.next() if self.accept(".") else None))
+                sources.append(self.source())
                 if not self.accept(","):
                     break
-        trusted = self.accept("trusted")
+        if self.accept("flows"):
+            while True:
+                src = self.source()
+                self.expect("into")
+                flows.append((src, self.next()))
+                if not self.accept(","):
+                    break
+        trusted = self.accept("trusted") or keyword == "sig"
         body, ret = [], None
         if not trusted:
             self.expect("{")
@@ -190,7 +210,7 @@ class Parser:
             if self.accept("return"):
                 ret = self.expr()
             self.expect("}")
-        return Fun(name, params, result, sources, trusted, body, ret, line)
+        return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows)
 
     def block(self):
         self.expect("{")
@@ -371,8 +391,8 @@ def prefix_related(a, b):
 # ---------------------------------------------------------------- 检查器
 
 class Checker:
-    def __init__(self, classes, funs):
-        self.classes, self.funs = classes, funs
+    def __init__(self, classes, funs, sigs):
+        self.classes, self.funs, self.sigs = classes, funs, sigs
         self.errors = set()
 
     def error(self, rule, line, message):
@@ -388,31 +408,39 @@ class Checker:
             raise SyntaxProblem(f"未声明的类型 {name}")
         return Type("view" if decl.is_view else "cls", name)
 
+    def type_in(self, fun, name):
+        """在 fun 的签名语境里解释类型名：类型参数是不透明类型，fn S 是合同为 S 的函数类型。"""
+        if name.startswith("fn "):
+            if name[3:] not in self.sigs:
+                raise SyntaxProblem(f"未声明的签名 {name[3:]}")
+            return Type("fn", name[3:])
+        return Type("opaque", name) if name in fun.tparams else self.type_of(name)
+
     # ---- 签名
 
     def check_signature(self, fun):
-        """来源声明须指向参数；独占结果只能依赖 inout 参数本身（K6 末句）。"""
+        """来源与流向声明须指向参数；字段形式须是视图的借用字段；流向的目标须是 inout 参数。"""
         params = {name: (mode, ty) for mode, name, ty in fun.params}
-        for param, fld in fun.sources:
+        for param, fld in fun.sources + [src for src, _ in fun.flows]:
             if param not in params:
-                self.error("SIG", fun.line, f"{fun.name}：from 指向不存在的参数 {param}")
+                self.error("SIG", fun.line, f"{fun.name}：来源指向不存在的参数 {param}")
                 continue
             mode, ty = params[param]
             if fld is None:
-                if mode == "own":
-                    self.error("SIG", fun.line, f"{fun.name}：from {param} 要求 {param} 是 borrow 或 inout 参数")
-                elif fun.result[0] == "inout" and mode != "inout":
+                if fun.result[0] == "inout" and mode == "borrow" and (param, fld) in fun.sources:
                     self.error("SIG", fun.line, f"{fun.name}：inout 结果不能依赖 borrow 参数 {param}")
-            else:
+            elif fld != "*":
                 decl = self.classes.get(ty)
                 if decl is None or not decl.is_view or not (decl.field(fld) or ("",))[0]:
                     self.error("SIG", fun.line, f"{fun.name}：{param}.{fld} 不是视图的借用字段")
-                elif fun.result[0] == "inout":
-                    self.error("SIG", fun.line, f"{fun.name}：inout 结果不提供转发，只能写 from {param}")
+        for _, target in fun.flows:
+            if params.get(target, ("",))[0] != "inout":
+                self.error("SIG", fun.line, f"{fun.name}：流向的目标 {target} 须是 inout 参数")
 
     def result_exclusive(self, fun):
         kind, ty = fun.result
-        return kind == "inout" or (ty in self.classes and self.classes[ty].exclusive())
+        # 不透明的结果可能被实例化为独占类型，按独占处理
+        return kind == "inout" or ty in fun.tparams or (ty in self.classes and self.classes[ty].exclusive())
 
     # ---- 函数体
 
@@ -427,13 +455,15 @@ class Checker:
         self.live = set()
         state = {}
         for mode, name, ty_name in fun.params:
-            ty = self.type_of(ty_name)
+            ty = self.type_in(fun, ty_name)
             loans = {}
             if mode != "own":
                 loans[""] = {self.symbolic(name, None, mode, fun.line)}
             if ty.kind == "view":
                 for kind, fld, _ in self.classes[ty_name].ref_fields():
                     loans[fld] = {self.symbolic(name, fld, kind, fun.line)}
+            elif ty.kind == "opaque":  # 类型参数的值携带一组未知的来源
+                loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}
             state[name] = Var(ty if mode == "own" else Type(mode, ty_name), "A", loans)
         declared = set(state)
         self.check_unique(fun.body, declared, fun)
@@ -445,6 +475,7 @@ class Checker:
             kind = fun.result[0]
             returned = self.argument(fun.ret, kind, state) if kind else self.value(fun.ret, state)
             self.check_contract(returned, fun)
+        self.check_flows(state, fun)
 
     def check_unique(self, stmts, declared, fun):
         """演算不处理遮蔽：一个函数内每个名字只声明一次。"""
@@ -463,19 +494,59 @@ class Checker:
         self.loans[key] = Loan("excl" if kind == "inout" else "shared", {(root, ())}, set(), line)
         return key
 
-    def check_contract(self, value, fun):
-        """K6：返回值持有的每个 loan 都要被签名声明覆盖。"""
-        sources = set(fun.sources)
-        for loan in sorted(value.all_loans()):
+    def uncovered(self, loans, sources):
+        """K6 的核心：列出 loans 中没有被 sources 覆盖的来源；落在局部存储上的记为 None。"""
+        missing = []
+        for loan in sorted(loans):
             if any(not root.startswith("*") for root, _ in self.loans[loan].places):
-                self.error("K6", fun.ret.line, "返回值依赖局部变量的存储")
+                missing.append(None)
                 continue
             for ancestor in sorted(self.ancestors({loan}) | {loan}):
                 if not ancestor.startswith("P("):
                     continue
                 param, _, fld = ancestor[2:-1].partition(".")
-                if (param, None) not in sources and (param, fld or None) not in sources:
-                    self.error("K6", fun.ret.line, f"返回值的来源 {ancestor[2:-1]} 没有在 from 中声明")
+                wanted = {(param, None)} | ({(param, "*"), (param, fld)} if fld else set())
+                if not wanted & sources:
+                    missing.append(ancestor[2:-1])
+        return missing
+
+    def check_contract(self, value, fun):
+        """K6：返回值持有的每个 loan 都要被签名的 from 覆盖。"""
+        for name in self.uncovered(value.all_loans(), set(fun.sources)):
+            self.error("K6", fun.ret.line, "返回值依赖局部变量的存储" if name is None
+                       else f"返回值的来源 {name} 没有在 from 中声明")
+
+    def check_flows(self, state, fun):
+        """K6 对流向的延伸：函数体让哪些来源流进了 inout 参数，签名的 flows 就要声明哪些。"""
+        for mode, name, _ in fun.params:
+            var = state.get(name)
+            if mode != "inout" or var is None or var.init == "M":
+                continue
+            extra = set(var.loans.get("*", ())) - {f"P({name}.*)"}
+            declared = {src for src, target in fun.flows if target == name}
+            for missing in self.uncovered(extra, declared):
+                self.error("K6", fun.line, f"流入 {name} 的值依赖局部变量的存储" if missing is None
+                           else f"流入 {name} 的来源 {missing} 没有在 flows 中声明")
+
+    def refines(self, impl, sig, line):
+        """K12：把函数当作合同为 sig 的值使用时，它声明的来源与流向都须被 sig 覆盖。"""
+        if [m for m, _, _ in impl.params] != [m for m, _, _ in sig.params]:
+            self.error("K12", line, f"{impl.name} 的参数模式与 {sig.name} 不符")
+            return
+        rename = {i[1]: s[1] for i, s in zip(impl.params, sig.params)}
+
+        def covered(src, allowed):
+            param, fld = rename.get(src[0], src[0]), src[1]
+            wanted = {(param, None)} | ({(param, "*"), (param, fld)} if fld else set())
+            return bool(wanted & allowed)
+
+        for src in impl.sources:
+            if not covered(src, set(sig.sources)):
+                self.error("K12", line, f"{impl.name} 的来源 {src[0]}{'.' + src[1] if src[1] else ''} 超出 {sig.name} 的声明")
+        for src, target in impl.flows:
+            allowed = {s for s, t in sig.flows if t == rename.get(target, target)}
+            if not covered(src, allowed):
+                self.error("K12", line, f"{impl.name} 的流向超出 {sig.name} 的声明")
 
     # ---- loan 的集合运算
 
@@ -602,7 +673,7 @@ class Checker:
         self.access(state, res.targets, res.via, "read", expr.line)
         if res.ty.kind == "int":
             return Value(INT)
-        movable_only = res.ty.kind in ("cls", "inout") or (
+        movable_only = res.ty.kind in ("cls", "inout", "opaque") or (
             res.ty.kind == "view" and self.classes[res.ty.name].exclusive())
         if movable_only or place.fields:
             self.error("K8", expr.line, f"{place.root} 不可隐式复制，须写 move")
@@ -629,7 +700,7 @@ class Checker:
         kind = stored_kind or ("excl" if mut else "shared")
         loan = self.new_loan(f"L{expr.site}", kind, res.targets, res.via, expr.line)
         loans = {"": {loan}}
-        if res.ty.kind == "view":
+        if res.ty.kind in ("view", "opaque"):
             loans.update(copy_loans({k: v for k, v in (res.field_loans or {}).items() if k}))
         return Value(Type("inout" if mut else "borrow", res.ty.name), loans)
 
@@ -688,27 +759,62 @@ class Checker:
         del self.pending[len(self.pending) - pushed:]
         return Value(self.type_of(expr.name), loans)
 
+    def carried(self, value, mode, fld):
+        """按来源的三种形式取出实参带来的 loan。"""
+        if fld is None:  # 依赖参数本身；按值参数没有“本身”，等同于转发它携带的全部来源
+            return value.all_loans() if mode == "own" else set(value.loans.get("", ()))
+        if fld == "*":
+            if mode == "own":
+                return value.all_loans()
+            return set().union(*(held for key, held in value.loans.items() if key))
+        return set(value.loans.get(fld, ()))
+
+    def callable_argument(self, arg, sig_name, state):
+        """函数类型的实参：只接受具名函数或另一个函数类型的参数，并按 K12 核对合同。"""
+        name = arg.place.root if arg.kind == "place" and not arg.place.fields else None
+        var = state.get(name)
+        impl = self.sigs[var.ty.name] if var is not None and var.ty.kind == "fn" else self.funs.get(name)
+        if impl is None:
+            raise SyntaxProblem(f"第 {arg.line} 行：函数类型的实参须是函数名")
+        self.refines(impl, self.sigs[sig_name], arg.line)
+        return Value(Type("fn", sig_name))
+
     def call(self, expr, state):
         """K5：结果的 loan 完全由被调方的签名决定，不读它的函数体。"""
-        fun = self.funs.get(expr.name)
+        var = state.get(expr.name)
+        fun = self.sigs[var.ty.name] if var is not None and var.ty.kind == "fn" else self.funs.get(expr.name)
         if fun is None or len(fun.params) != len(expr.args):
             raise SyntaxProblem(f"第 {expr.line} 行：调用 {expr.name} 的目标或实参个数不符")
-        depends = {param for param, fld in fun.sources if fld is None}
-        flowed = "excl" if self.result_exclusive(fun) else "shared"
+        modes = {name: mode for mode, name, _ in fun.params}
+        sources = fun.sources + [src for src, _ in fun.flows]
+        depends = {param for param, fld in sources if fld is None and modes.get(param) != "own"}
+        flowed = "excl" if self.result_exclusive(fun) or fun.flows else "shared"
         values, pushed = {}, 0
-        for (mode, name, _), arg in zip(fun.params, expr.args):
+        for (mode, name, ty_name), arg in zip(fun.params, expr.args):
+            if ty_name.startswith("fn "):
+                values[name] = self.callable_argument(arg, ty_name[3:], state)
+                continue
             values[name] = self.argument(arg, mode, state, flowed if name in depends else None)
             self.pending.append(values[name].all_loans())
             pushed += 1
         del self.pending[len(self.pending) - pushed:]
+        for (param, fld), target in fun.flows:  # 来源流入已有的持有者
+            arg = expr.args[[name for _, name, _ in fun.params].index(target)]
+            holder = arg.place.root if arg.kind in ("ref", "place") and not arg.place.fields else None
+            own_param = holder in {name for _, name, _ in self.fun.params}
+            if holder is None or (arg.kind == "place" and not own_param):
+                raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是 &mut 变量，或本函数的 inout 参数")
+            state[holder].loans.setdefault("*", set()).update(self.carried(values[param], modes[param], fld))
         result = set()
         for param, fld in fun.sources:
             if param in values:
-                result |= set(values[param].loans.get(fld or "", ()))
+                result |= self.carried(values[param], modes[param], fld)
         kind, ty_name = fun.result
         if kind:
             return Value(Type(kind, ty_name), {"": result})
-        ty = self.type_of(ty_name)
+        ty = self.type_in(fun, ty_name)
+        if ty.kind == "opaque":
+            return Value(ty, {"*": result})
         if ty.kind == "view":  # K11：含多个借用字段的结果共同持有这些 loan
             return Value(ty, {f[1]: set(result) for f in self.classes[ty_name].ref_fields()})
         return Value(ty)
@@ -730,8 +836,9 @@ class Checker:
         elif stmt.kind == "use":
             res = self.resolve(state, stmt.place)
             self.access(state, res.targets, res.via, "read", stmt.line)
-            if not stmt.place.fields and res.ty.kind in ("borrow", "inout"):
-                via = set(state[stmt.place.root].loans.get("", ()))
+            if not stmt.place.fields and res.ty.kind in ("borrow", "inout", "opaque"):
+                key = "*" if res.ty.kind == "opaque" else ""
+                via = set(state[stmt.place.root].loans.get(key, ()))
                 self.access(state, self.places(via), via, "read", stmt.line)
         elif stmt.kind == "assign":
             self.assign(stmt, state)
@@ -805,8 +912,8 @@ class Checker:
 
 def check(text):
     """检查一段演算程序，返回按行排序的 (规则, 行号, 说明)。空列表表示接受。"""
-    classes, funs = Parser(text).program()
-    checker = Checker(classes, funs)
+    classes, funs, sigs = Parser(text).program()
+    checker = Checker(classes, funs, sigs)
     for fun in funs.values():
         checker.check_fun(fun)
     return sorted(checker.errors, key=lambda e: (e[1], e[0], e[2]))
