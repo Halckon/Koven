@@ -27,6 +27,9 @@ fn inspect(
     if !bound.matches(unit) || bound.counter_parameters()[0] == bound.counter_parameters()[1] {
         return None;
     }
+    if unit.inputs().len() != 1 || unit.names().names().source_units().len() != 1 {
+        return None;
+    }
     super::verify::verify_program(program).ok()?;
     let [module] = program.modules.as_slice() else {
         return None;
@@ -64,14 +67,9 @@ pub(super) fn inspect_function(
     {
         return None;
     }
-    let [input] = unit.inputs() else {
-        return None;
-    };
-    let [names] = unit.names().names().source_units() else {
-        return None;
-    };
-    let source = names.source_unit();
-    let ast = input.parsed().ast();
+    let source = bound.controls.0.source_unit();
+    let parsed = source_for(unit, source)?;
+    let ast = parsed.ast();
     let expr_origin = |id: UnitExpressionId| {
         (id.source_unit() == source)
             .then(|| ast.expressions().get(id.expression()).ok())
@@ -151,8 +149,8 @@ pub(super) fn inspect_function(
             return None;
         }
         let decoded = super::lowering_support::string_literal::decode_plain(
-            input.parsed(),
-            unit.sources().source_text(input.source_id()).ok()?,
+            parsed,
+            unit.sources().source_text(parsed.source_id()).ok()?,
             id.expression(),
         )
         .ok()??;
@@ -400,6 +398,22 @@ impl<'a> CalleeFacts<'a> {
         }
     }
     pub(super) fn from_named(bound: &'a NamedWrapperCallee<'_>) -> Self {
+        Self {
+            controls: bound.controls(),
+            parameters: bound.counter_parameters(),
+            expressions: bound.counter_expressions(),
+            calls: bound.replacements(),
+            sites: bound.producer_sites(),
+            initializers: bound.counter_initializers(),
+            loans: bound.loans(),
+            cleanup: bound.cleanup(),
+            retained: bound.retained(),
+            final_root_use: bound.final_root_use(),
+        }
+    }
+    pub(super) fn from_split(
+        bound: &'a lang_frontend::ownership_checking::d10_catalog_experiment::SplitNamedCallee<'_>,
+    ) -> Self {
         Self {
             controls: bound.controls(),
             parameters: bound.counter_parameters(),

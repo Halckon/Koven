@@ -167,3 +167,31 @@ pub(in crate::ssa) fn role_value(env: &Env, role: Role) -> Option<ValueId> {
 #[path = "d10_after_child_graph_groups.rs"]
 mod groups;
 pub(in crate::ssa) use groups::*;
+
+/// Locate original parsed input by both canonical Unit identity and SourceMap identity.
+/// Never infer source ownership from input position or construct a reduced Unit view.
+pub(in crate::ssa) fn source_for<'parsed>(
+    unit: &lang_frontend::ownership_checking::OwnedCompilationUnitView<'_, 'parsed>,
+    source: lang_frontend::name_resolution::SourceUnitId,
+) -> Option<&'parsed lang_frontend::parser::ParsedFile> {
+    let mut indexed = unit
+        .names()
+        .names()
+        .index()
+        .source_units()
+        .iter()
+        .filter(|candidate| candidate.id() == source);
+    let indexed_source = indexed.next()?;
+    if indexed.next().is_some() {
+        return None;
+    }
+    let mut inputs = unit
+        .inputs()
+        .iter()
+        .filter(|input| input.source_id() == indexed_source.source_id());
+    let input = inputs.next()?;
+    if inputs.next().is_some() || input.parsed().source_id() != indexed_source.source_id() {
+        return None;
+    }
+    Some(input.parsed())
+}

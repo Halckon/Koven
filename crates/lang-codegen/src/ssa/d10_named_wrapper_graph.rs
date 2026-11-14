@@ -22,7 +22,10 @@ pub(crate) fn check(
     program: &Program,
     entry: FunctionId,
 ) -> Result<(), GraphError> {
-    if !bound.matches(unit) {
+    if !bound.matches(unit)
+        || unit.inputs().len() != 1
+        || unit.names().names().source_units().len() != 1
+    {
         return Err(GraphError::Rejected);
     }
     let callee = bound.callee();
@@ -44,7 +47,10 @@ pub(crate) fn check_after_child(
     program: &Program,
     entry: FunctionId,
 ) -> Result<(), GraphError> {
-    if !bound.matches(unit) {
+    if !bound.matches(unit)
+        || unit.inputs().len() != 1
+        || unit.names().names().source_units().len() != 1
+    {
         return Err(GraphError::Rejected);
     }
     let callee = bound.callee();
@@ -65,6 +71,62 @@ pub(crate) fn check_after_child(
     .ok_or(GraphError::Rejected)
 }
 
+/// The full split capability is checked before borrowing any function-local projection.
+pub(crate) fn check_split(
+    unit: &OwnedCompilationUnitView<'_, '_>,
+    bound: &lang_frontend::ownership_checking::d10_catalog_experiment::BoundSplitNamedEntry,
+    program: &Program,
+    entry: FunctionId,
+) -> Result<(), GraphError> {
+    use lang_frontend::ownership_checking::d10_catalog_experiment::NamedEntryOrder;
+    if !bound.matches(unit)
+        || unit.inputs().len() != 2
+        || unit.names().names().source_units().len() != 2
+        || bound.entry().source_unit() == bound.callee().source_unit()
+    {
+        return Err(GraphError::Rejected);
+    }
+    for source in unit.names().names().index().source_units() {
+        if source_for(unit, source.id())
+            .ok_or(GraphError::Rejected)?
+            .roots()
+            .len()
+            != 1
+        {
+            return Err(GraphError::Rejected);
+        }
+    }
+    let callee = bound.callee_facts();
+    let facts = WrapperFacts {
+        entry: bound.entry(),
+        callee: bound.callee(),
+        roots: bound.wrapper_roots(),
+        call: bound.call(),
+        initializers: bound.initializers(),
+        arguments: bound.arguments(),
+        loans: bound.loans(),
+        ends: bound.ends(),
+    };
+    inspect(
+        unit,
+        &facts,
+        program,
+        entry,
+        |module, function| match bound.order() {
+            NamedEntryOrder::BeforeChild => {
+                inspect_function(unit, &CalleeFacts::from_split(&callee), module, function)
+            }
+            NamedEntryOrder::AfterChild => super::d10_after_child_graph::inspect_function(
+                unit,
+                &super::d10_after_child_graph::AfterCalleeFacts::from_split(&callee)?,
+                module,
+                function,
+            ),
+        },
+    )
+    .ok_or(GraphError::Rejected)
+}
+
 fn inspect(
     unit: &OwnedCompilationUnitView<'_, '_>,
     bound: &WrapperFacts<'_>,
@@ -79,23 +141,15 @@ fn inspect(
     if module.functions.len() != 2 || entry.module() != module.id {
         return None;
     }
-    let [input] = unit.inputs() else {
-        return None;
-    };
-    let [names] = unit.names().names().source_units() else {
-        return None;
-    };
-    let source = names.source_unit();
-    let ast = input.parsed().ast();
+    let source = bound.entry.source_unit();
+    let ast = source_for(unit, source)?.ast();
+    let callee_ast = source_for(unit, bound.callee.source_unit())?.ast();
     let callable = bound.callee;
-    if bound.entry.source_unit() != source
-        || callable.source_unit() != source
-        || bound.entry == callable
-    {
+    if bound.entry == callable {
         return None;
     }
     let entry_origin = Origin::Source(ast.items().get(bound.entry.item()).ok()?.span());
-    let callee_origin = Origin::Source(ast.items().get(callable.item()).ok()?.span());
+    let callee_origin = Origin::Source(callee_ast.items().get(callable.item()).ok()?.span());
     let f = module.function(entry)?;
     let mut callees = module
         .functions

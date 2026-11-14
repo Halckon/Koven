@@ -208,7 +208,7 @@ pub use prepare::{
 mod run_identity_tests;
 
 mod split_source;
-pub use split_source::{BoundSplitNamedEntry, analyze_split_named_entry};
+pub use split_source::{BoundSplitNamedEntry, SplitNamedCallee, analyze_split_named_entry};
 pub(crate) use split_source::{SplitSourcePending, SplitWrapperPending};
 
 mod prepare_split;

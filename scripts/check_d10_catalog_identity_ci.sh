@@ -123,3 +123,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'split-source cloned/foreign selector controls compiled/listed; not executed'
 fi
+
+split_graph=ssa::d10_split_source_tests::ci_only_split_graph_rejects_source_and_target_mismatch
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$split_graph" -- --exact --ignored --list)
+[[ $(grep -Fxc "$split_graph: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$split_graph" -- --exact --ignored
+else
+  echo 'split graph controls compiled/listed; not executed'
+fi

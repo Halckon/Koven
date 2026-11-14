@@ -1505,3 +1505,35 @@ use-after-move 与 final member L0080/span 的错误保留。没有已核实的 
 原 index 合同不允许多 MemoryDocument（MemoryDocumentRequiresSingleSource），
 已保留并单独见证拒绝，不为新能力扩张 source-set 合同。跨源独立 CFG replay 与
 对象发布仍是后续步骤，不能由 prepare 成功推断完成。
+
+### split-source 完整 CFG replay 与不可变库对象封包
+
+独立 `SplitNamedEntryProgram` 只消费原 `BoundSplitNamedEntry` 与同次完整 owned
+view。普通完整 Unit lowering 产生原 Program 后，先核唯一 module、恰两函数、
+原 source wrapper/callee、真实 DirectCall target 与全部 wrapper 参数/loan End，
+再按已经封闭的顺序独立核 callee 全 CFG、predecessor、generation 运输与清理。
+任何失败均不返回封包，不 fallback、重新分析、裁剪 Program 或转换旧单源 bound。
+
+共用 function-local checker 按 canonical SourceUnitId 找唯一 SourceId，再匹配原
+input/parsed 身份；不使用 inputs 数组下标。旧 singleton 和旧 named 入口显式
+保持单 source gate。新只读 `SplitNamedCallee` 只借用完整 split bound 中的真实
+pending，不能自行构造；Before/After 实际 producer/cleanup 数组原序保留。
+
+封包持有原完整 Unit、bound 与私有 Program；公开 LLVM 和库对象字节方法每次先
+重检完整图，再调用真实 LLVM 验证/host object emission。没有稳定外部 ABI、main
+胶水、磁盘发布事务、link 或 native 执行接口。普通项目此前的 native 证据不被
+挪作本封包的运行验收。正式 split process/driver 发布仍是后续明确合同，不能从
+库对象字节成功推断其已接入。
+
+正常矩阵覆盖两 Replace 顺序、两 canonical source 角色顺序和两 inputs 顺序。
+公开 integration 将 frontend/codegen 作为非 cfg(test) 库，核真实对象格式、原两个
+定义符号且无 main；合法 literal/extra-root 邻界保持拒绝。错源 call origin 和错
+DirectCall target 控制仅在 CI 执行，本地只编译列举，不运行故障注入。
+
+本地验收：正常完整图八组合通过；公开非 test-library 集成两个测试通过（其中
+正例为八组合，并核真实库对象符号）；旧单源 named 两种顺序各一回归通过。
+frontend 严格 Clippy、codegen 公开库/测试与 support 共存严格 Clippy、默认无 feature
+构建均通过。全仓尺寸报告 2271 handwritten Rust、37 项历史超长，门禁通过；
+文档结构检查 957 Markdown 通过。没有 native 执行或本地故障注入。CI 负控只列举：
+错源 origin 先经普通 SSA verifier 成功才要求独立 checker 拒绝；错 target 同时
+违反签名，仅证明一般拒绝，不能冒称合法 SSA 的独立 target 反例。

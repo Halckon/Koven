@@ -1,4 +1,4 @@
-//! Ordinary full-Unit evidence only; no new D10 bound, publication, or source-set permission.
+//! Ordinary and independently sealed split-source graph evidence; no native execution.
 use super::*;
 use lang_frontend::{
     name_resolution::SourceUnitInput,
@@ -8,7 +8,16 @@ use lang_frontend::{
 };
 
 #[test]
-fn split_sources_preserve_real_unit_call_graph_without_named_admission() {
+fn split_sources_preserve_real_unit_call_graph_and_sealed_publication() {
+    check_matrix(false);
+}
+#[test]
+#[ignore = "CI-only split graph identity and source controls"]
+fn ci_only_split_graph_rejects_source_and_target_mismatch() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    check_matrix(true);
+}
+fn check_matrix(ci_controls: bool) {
     for body in [
         "val parentOld = replace(&a, \"parent\"); var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; outer -= 1",
         "var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; val parentOld = replace(&a, \"parent\"); outer -= 1",
@@ -60,8 +69,8 @@ fn split_sources_preserve_real_unit_call_graph_without_named_admission() {
                     .find(|d| d.name() == "run")
                     .unwrap();
                 assert_ne!(entry.source_unit(), callee.source_unit());
-                // The actual ordinary Unit pipeline may lower this shape. That is not the new
-                // source-qualified D10 graph capability, which still rejects two inputs.
+                // Ordinary lowering already supports this shape. The old single-source named
+                // admission must continue rejecting two inputs; split uses its own bound.
                 assert!(
                     d10_catalog_experiment::analyze_named_entry(
                         &sources, &inputs, &names, &types, &typed
@@ -129,6 +138,90 @@ fn split_sources_preserve_real_unit_call_graph_without_named_admission() {
                     unit.inputs().len(),
                     2,
                     "never crop inputs to reuse a singleton checker"
+                );
+                let prepared = d10_catalog_experiment::prepare_selected_split_named_entry(
+                    &sources, &inputs, &names, &types, typed, entry,
+                )
+                .unwrap();
+                let publication = crate::d10_experiment::lower_prepared_split_named_entry(
+                    &sources, &inputs, &names, &types, &prepared,
+                )
+                .unwrap();
+                if ci_controls {
+                    let same = owned_compilation_unit_view(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        prepared.typed(),
+                        prepared.bound().ownership(),
+                    )
+                    .unwrap();
+                    let (mut wrong_source, wrong_entry) =
+                        unit_lower::lower_owned_unit_with_entry(&same, entry.id()).unwrap();
+                    let wrapper = wrong_source.modules[0]
+                        .functions
+                        .iter_mut()
+                        .find(|f| f.id() == wrong_entry)
+                        .unwrap();
+                    let call = wrapper
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.operation, model::Operation::DirectCall { .. }))
+                        .unwrap();
+                    call.origin = callee_origin.clone();
+                    verify::verify_program(&wrong_source).unwrap();
+                    assert!(
+                        d10_named_wrapper_graph::check_split(
+                            &same,
+                            prepared.bound(),
+                            &wrong_source,
+                            wrong_entry
+                        )
+                        .is_err()
+                    );
+                    // Coarse target rejection: this target also violates the call signature;
+                    // unlike wrong_source, this does not claim structurally valid SSA.
+                    let (mut wrong_target, wrong_entry) =
+                        unit_lower::lower_owned_unit_with_entry(&same, entry.id()).unwrap();
+                    let wrapper = wrong_target.modules[0]
+                        .functions
+                        .iter_mut()
+                        .find(|f| f.id() == wrong_entry)
+                        .unwrap();
+                    let call = wrapper
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.operation, model::Operation::DirectCall { .. }))
+                        .unwrap();
+                    if let model::Operation::DirectCall { callee, .. } = &mut call.operation {
+                        *callee = wrong_entry;
+                    }
+                    assert!(
+                        d10_named_wrapper_graph::check_split(
+                            &same,
+                            prepared.bound(),
+                            &wrong_target,
+                            wrong_entry
+                        )
+                        .is_err()
+                    );
+                }
+                assert_eq!(publication.source_count(), 2);
+                assert_eq!(publication.callable(), prepared.bound().entry());
+                assert_eq!(publication.order(), prepared.bound().order());
+                publication.verified_llvm_ir().unwrap();
+                let bytes = publication.verified_library_object_bytes().unwrap();
+                assert!(!bytes.is_empty());
+                let (sealed_graph, sealed_entry) = publication.replay_input();
+                assert_eq!(sealed_graph.modules.len(), 1);
+                assert_eq!(sealed_graph.modules[0].functions.len(), 2);
+                assert!(
+                    sealed_graph
+                        .module(sealed_entry.module())
+                        .unwrap()
+                        .function(sealed_entry)
+                        .is_some()
                 );
             }
         }

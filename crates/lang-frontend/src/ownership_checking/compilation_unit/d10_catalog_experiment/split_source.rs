@@ -1,9 +1,12 @@
 //! Independent two-source same-run handoff; not an old named or codegen capability.
 use super::*;
+
+mod projection;
 use crate::name_resolution::{DeclarationId, SourceUnitId};
 use crate::ownership_checking::{
     UnitCallArgumentOwnershipContract, UnitDirectCallLoanEndFact, UnitLoanFact,
 };
+pub use projection::SplitNamedCallee;
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct SplitWrapperPending {
     pub(crate) typed: Arc<()>,
@@ -75,6 +78,29 @@ impl BoundSplitNamedEntry {
     #[must_use]
     pub const fn initializers(&self) -> [UnitExpressionId; 2] {
         self.wrapper.initializers
+    }
+    /// Actual wrapper arguments in source argument order.
+    #[must_use]
+    pub const fn arguments(&self) -> [UnitExpressionId; 2] {
+        self.wrapper.arguments
+    }
+    /// Original wrapper Shared loan registrations, without reordering final ownership facts.
+    #[must_use]
+    pub const fn loans(&self) -> &[UnitLoanFact; 2] {
+        &self.wrapper.loans
+    }
+    /// Actual wrapper direct-call ends, including their original precedence.
+    #[must_use]
+    pub const fn ends(&self) -> &[UnitDirectCallLoanEndFact; 2] {
+        &self.wrapper.ends
+    }
+    /// Read-only source-qualified callee facts borrowed from this complete split bound.
+    /// This projection is not a standalone lowering or single-source capability.
+    #[must_use]
+    pub const fn callee_facts(&self) -> SplitNamedCallee<'_> {
+        SplitNamedCallee {
+            callee: &self.callee,
+        }
     }
     /// Actual typed declaration target from the same full Unit.
     #[must_use]
@@ -234,6 +260,7 @@ fn bind(
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     #[ignore = "CI-only cross-analysis split-source control"]
     fn ci_only_split_rejects_same_typed_foreign_run() {
