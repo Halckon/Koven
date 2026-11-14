@@ -1618,3 +1618,46 @@ OutputAlreadyExists 当作后端失败证明。
 本地仅列举新增 exact 控制为 1 test，未执行；普通八组合 exact 1 passed（0.36 秒），
 codegen/support 共存严格 Clippy、格式/脚本/diff 检查通过；尺寸 2274/37 与文档
 957 Markdown 检查通过。远端实际故障验收保持待验证。
+
+### 真实完整项目闭包差异审计（未新增项目准入）
+
+新增可重复 `real_project_keeps_standard_facts_outside_the_split_envelope`：实际创建
+manifest 与两份 app 源，通过原 `prepare_project_unit` 加载，完整追加并授权三份
+宿主 std 源；经原 `check_unit_frontend` 获得同次 Basic typed/owned，再以原完整
+五源 view 发射普通 process 对象，不执行它。两 Replace 顺序得到相同事实规模：
+
+| 实际逻辑源 | roots | loans | call contracts | Drop value-origin | bindings |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| koven/algorithms/ranges.ko | 12 | 42 | 36 | 0 | 24 |
+| koven/core/result.ko | 1 | 0 | 0 | 0 | 0 |
+| koven/text/text.ko | 8 | 23 | 23 | 1 | 13 |
+| app/a.ko（callee） | 1 | 4 | 6 | 4 | 2 |
+| app/z.ko（wrapper） | 1 | 2 | 2 | 0 | 0 |
+
+全 owned 为 5 drops、71 loans、67 contracts、0 receiver facts、1 closure、8
+construction plans、2 ownership primitives；没有诊断或 deferred。表内 Drop 按
+value-origin SourceId 统计，不冒称已完成控制点/声明归属证明。路径仅用于这份真实
+loader fixture 的审计预期，不是标准源授权或生产 whitelist。
+
+普通对象实际只定义两个源码函数 app.run/app.entry（及 main/runtime），未发现 std
+源码函数定义符号；这不单独证明所有 std 语义不可达。没有裁剪输入、AST 或 owned 数组。独立重新分析只观察原 split
+prepare 对完整项目返回 Unsupported，不把其 nonce/facts 与普通产物拼接。本审计
+不赋予新 capability，且 object 符号观察不替代完整 Program 证书。
+
+这给出下一批必要工作而非把计数门删掉：
+
+1. 原同次 planner 汇集每条通道事实的可验证 source/callable 归属；Drop 还需真实
+   point 与 value-origin 的对应，未知/跨 callable 归属必须拒绝。
+2. 新独立项目 binder 保留完整五源与完整 owned，逐项核受限入口事实和全部未达
+   事实的归属账本；不能仅筛出旧 4/6/8 数组再调用旧 binder。额外用户 root、常量
+   admission 与未知通道仍拒绝；不凭 `koven-std` 名字或文本作授权。
+3. 从原完整 Unit 的真实 planner/worklist 证明入口可达闭包，并与最终 Program 的
+   declaration/FunctionId 映射核一致，拒绝本候选范围外的 std 调用。已有 root-set
+   planner 可复用，但多 root 排程本身不证明完整项目事实与可达闭包之间的关系。
+4. 只有新账本与完整图一起成立，才考虑显式项目对象能力；普通 project 已有成功
+   不能给独立 D10 旁路提供许可。现行 singleton/split gates 保持原样。
+
+本批本地验证：完整项目审计 exact 测试 1 passed（内部两种顺序），CLI feature
+all-tests Clippy `-D warnings`、默认 CLI check、fmt/diff/YAML 检查通过；Rust
+尺寸门禁通过（2275 文件、37 项历史债），文档检查通过（957 文件）。仅发射并
+检查真实对象，未链接或执行生成程序；未运行任何故障注入。独立审阅无阻断。
