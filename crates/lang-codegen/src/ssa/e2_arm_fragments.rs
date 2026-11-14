@@ -120,28 +120,74 @@ fn append(
 }
 
 /// One common leaf/helper Program, not a caller/entry publication.
-pub(super) struct EmittedArmSet {
-    pub(super) leaves: e2_callee_leaves::EmittedLeaves,
-    pub(super) locators: Vec<ArmLocator>,
+pub(super) struct EmittedArmSet<'a> {
+    leaves: e2_callee_leaves::EmittedLeaves,
+    experiment: &'a TwoSourceExperiment,
+    locators: Vec<ArmLocator<'a>>,
 }
-pub(super) struct ArmLocator {
-    pub(super) arms: [FunctionId; 2],
-    pub(super) columns: [usize; 2],
+pub(super) struct ArmLocator<'a> {
+    fact: &'a TwoSourceCounterFact,
+    arms: [FunctionId; 2],
+    columns: [usize; 2],
 }
-pub(super) fn emit_for_facts(
+impl ArmLocator<'_> {
+    pub(super) fn arms(&self) -> [FunctionId; 2] {
+        self.arms
+    }
+    pub(super) fn columns(&self) -> [usize; 2] {
+        self.columns
+    }
+    fn matches(&self, fact: &TwoSourceCounterFact) -> bool {
+        self.fact
+            .arms()
+            .iter()
+            .zip(fact.arms())
+            .all(|(a, b)| a.same_identity(b))
+    }
+}
+impl EmittedArmSet<'_> {
+    pub(super) fn program(&self) -> &Program {
+        &self.leaves.program
+    }
+    pub(super) fn leaf_count(&self) -> usize {
+        self.leaves.functions.len()
+    }
+
+    pub(super) fn len(&self) -> usize {
+        self.locators.len()
+    }
+    /// Borrowed locator is bound to this Program and original analysis, never its position.
+    pub(super) fn locator(
+        &self,
+        fact: &TwoSourceCounterFact,
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<&ArmLocator<'_>> {
+        if !self.experiment.matches_types(typed) || !self.experiment.owns(fact) {
+            return None;
+        }
+        let mut found = self.locators.iter().filter(|locator| locator.matches(fact));
+        let locator = found.next()?;
+        if found.next().is_some() {
+            return None;
+        }
+        Some(locator)
+    }
+}
+pub(super) fn emit_for_facts<'a>(
     handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
         '_,
         '_,
     >,
-    experiment: &TwoSourceExperiment,
-    facts: &[&TwoSourceCounterFact],
-) -> Option<EmittedArmSet> {
+    experiment: &'a TwoSourceExperiment,
+    facts: &[&'a TwoSourceCounterFact],
+) -> Option<EmittedArmSet<'a>> {
     let typed = handoff.types();
     let mut leaves = e2_callee_leaves::emit_for_facts(handoff, experiment, facts)?;
     let mut locators = Vec::new();
     for fact in facts {
         let emitted = append(experiment, fact, typed, leaves)?;
         locators.push(ArmLocator {
+            fact,
             arms: emitted.arms,
             columns: emitted.columns,
         });
@@ -150,11 +196,18 @@ pub(super) fn emit_for_facts(
     let [module] = leaves.program.modules.as_slice() else {
         return None;
     };
-    if module.functions.len() != leaves.functions.len() + 2 * facts.len() {
+    if locators.len() != facts.len()
+        || module.functions.len() != leaves.functions.len() + 2 * facts.len()
+    {
         return None;
     }
     let mut used: Vec<_> = leaves.functions.iter().map(|(_, id)| *id).collect();
-    for (fact, locator) in facts.iter().zip(&locators) {
+    for fact in facts {
+        let mut matches = locators.iter().filter(|locator| locator.matches(fact));
+        let locator = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
         for id in locator.arms {
             if used.contains(&id) {
                 return None;
@@ -172,5 +225,9 @@ pub(super) fn emit_for_facts(
         )?;
     }
     super::verify::verify_program(&leaves.program).ok()?;
-    Some(EmittedArmSet { leaves, locators })
+    Some(EmittedArmSet {
+        leaves,
+        experiment,
+        locators,
+    })
 }

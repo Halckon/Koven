@@ -18770,3 +18770,15 @@ leaf 见证；抽出的独立 body/ABI replay 同时复用于旧单闭包路径�
 复用该核验。真实双事实独立/共享 leaf fixture 验证共同 allocator 和完整 helper 数量，
 不支持集合仍无产物。此步尚无共同 caller/entry 或多 entry 封包，普通生产入口不变；
 本地只跑正常回归，故障仍限 CI。
+
+
+### 2026-11-14：共同 helper locator 的事实身份绑定
+
+共同 helper 集合现在私有保留原 experiment、原 fact 引用与 Program；locator 字段
+不公开构造或修改，Program 仅共享只读访问。查询先核同次 typed 与 retained fact，
+再以两臂真实 identity 唯一匹配，不按调用者给出的列表位置分配 helper 权限。构建时
+显式检查 locator 数量，按事实身份查找后逐项 replay，不以 zip 截断代替完整覆盖。
+
+真实双事实 fixture 反向查询仍得到各自唯一 helper，另一 ownership 分析与 retyped
+查询均拒绝。此为共同 caller 接线的身份前置，尚未追加共同 caller/entry 或发布能力；
+普通生产入口未变。本地仅正常测试，未执行故障注入或推送。

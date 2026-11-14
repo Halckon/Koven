@@ -680,12 +680,27 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
         let joint_arms = super::e2_arm_fragments::emit_for_facts(&handoff, &experiment, &all_facts);
         assert_eq!(joint_arms.is_some(), !unsupported && !ordinary);
         if let Some(joint) = joint_arms {
-            assert_eq!(joint.locators.len(), all_facts.len());
+            assert_eq!(joint.len(), all_facts.len());
+            let mut helper_ids = Vec::new();
+            for required in all_facts.iter().rev() {
+                let locator = joint.locator(required, &typed).unwrap();
+                assert_eq!(locator.columns(), [0, 1]);
+                for id in locator.arms() {
+                    assert!(!helper_ids.contains(&id));
+                    helper_ids.push(id);
+                }
+            }
+            assert!(joint.locator(&other.facts()[0], &typed).is_none());
+            let unrelated_types = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            assert!(joint.locator(fact, &unrelated_types).is_none());
             assert_eq!(
-                joint.leaves.program.modules[0].functions.len(),
-                joint.leaves.functions.len() + 2 * all_facts.len()
+                joint.program().modules[0].functions.len(),
+                joint.leaf_count() + 2 * all_facts.len()
             );
-            super::verify::verify_program(&joint.leaves.program).unwrap();
+            super::verify::verify_program(joint.program()).unwrap();
         }
 
         let joint = super::e2_callee_leaves::emit_for_facts(&handoff, &experiment, &all_facts);
