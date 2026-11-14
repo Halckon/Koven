@@ -5,8 +5,15 @@ use crate::ownership_checking::compilation_unit::d10_catalog_experiment::{
 };
 impl DropPlanner<'_, '_> {
     pub(in super::super::super) fn dual_nested_pending(&self) -> Option<DualNestedPending> {
+        self.dual_fields(self.origin_probe.as_ref()?, None)
+    }
+
+    pub(super) fn dual_fields(
+        &self,
+        events: &[Event],
+        wrapper: Option<&super::named_coverage::NamedCoverage>,
+    ) -> Option<DualNestedPending> {
         use crate::ownership_checking::{LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget};
-        let events = self.origin_probe.as_ref()?;
         let [
             Event::Literal(initial),
             Event::Bound(root, bound_initial),
@@ -75,7 +82,7 @@ impl DropPlanner<'_, '_> {
                 role: WhileRole::BodyExit(Some(true)),
             },
             tail @ ..,
-        ] = events.as_slice()
+        ] = events
         else {
             return None;
         };
@@ -307,6 +314,7 @@ impl DropPlanner<'_, '_> {
                 *child_call,
             ],
             (&retained, final_root_use.as_ref()),
+            wrapper,
         )?;
         Some(DualNestedPending {
             typed: c.typed.analysis_owner().clone(),

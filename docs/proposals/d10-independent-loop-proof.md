@@ -1095,3 +1095,43 @@ callee 四个 Drop 与全 owned Drop 保持相等。显式无 lambda 才要求�
 本 checkpoint 精确前端普通测试通过，下游 D10 十三项通过／三项 ignored；前端
 实验 tests 严格 Clippy、默认编译、格式、文档 957、全仓尺寸及独审通过。没有
 运行生成程序或故障控制，没有推送；不能据此宣布新两函数 bound 已完成。
+
+### 独立 named 两函数前端 Bound
+
+新增 default-off `analyze_named_wrapper` 与不可外部构造的 `BoundNamedWrapper`。
+最窄范围固定 BeforeChild callee→零参数 wrapper 的 source-root 顺序；wrapper
+只有两个不同具名 `val Int` literal 初始化和一次按位置调用，callee 有两个独立
+counter 与双根真实后用。literal 直接实参、同根复用、换位、额外调用/声明等
+不在范围。借用型 `NamedWrapperCallee` 只读原局部事实，不可转换为旧 Bound。
+
+旧 callee 严格检查通过私有字段提取复用。旧入口仍要求唯一 root 和原完整 AST；
+新入口把已核 wrapper 节点加入同一原始 AST 的逐 ID 覆盖，拒绝遗漏或重叠，不
+裁剪 ParsedFile。受限新观测通道记录真实两个 root 的连续 34＋5 事件并全部
+消费，核实际 call 进入/实参完成/可dispatch来源，以及原始两 Loan 的逆序 End。
+新第七分析通道独立传递 pending，沿既有错误路径清空；最终 binder 同次 typed
+身份、无诊断/deferred、全 owned 对账与 validate 全通过后才交付。
+
+四 Drop、六 Loan、两 End 与两 Replace 保原序核验；八调用合同先与实际 AST/
+typed 逐字段核验，再与最终 owned 双向唯一对账，不重排 owned，也不声称合同
+数组与另一个构建序列逐项相等。参数 bindings 两角色、formed locals 八个互异
+角色精确覆盖；receiver/closure/borrow transport 等不适用事实通道明确拒绝。
+剩余合法 value-delivery/owner-observation 等保留现有 validated owned 含义，本
+Bound 不授予新的动态 owner 状态证明。
+
+实现验收纠正了两个假设：合同的 argument_span 是实际表达式节点，不含 `&`
+标记；参数 bindings 与局部 formed-owned 列表不能混用。都依据真实普通源码及
+现有合同修正，没有减弱未知事实拒绝。第七通道使历史大文件需要结构收尾，完整
+construction descriptor 收集 helper 原样移入既有 construction 子模块；独审
+确认归一化最窄可见性与路径限定后函数正文完全相等，尺寸政策未改。
+
+真实 integration 测试不在 cfg(test) 的库内构造能力，覆盖十三种合法源码各
+Rooted/Memory，六接受、二十拒绝，并逐项核旧两种 singleton 仍拒绝。实际
+root-trace/pending 普通测试通过。此片仅前端源码和最终 owned 交接，尚未实现
+共同 Program checker、LLVM/native入口接线；静态错误清空审查不能冒充动态
+故障验收。本树仍基于旧 main 组合，未合入后续 #429。
+
+本批最终前端 integration 二十六组合与实际 root/pending 精确测试通过；旧 D10
+下游十三项通过／三项 CI-only ignored。前端实验与默认 tests 严格 Clippy、非
+测试 codegen 实验编译、格式、文档 957、全仓尺寸和独审通过。AfterChild 替换
+顺序及 wrapper-first 声明顺序也作为合法源码明确拒绝。未执行生成程序、故障
+控制或推送；后续 #429 新主线组合、共同 Program与 native 验收仍分别待做。

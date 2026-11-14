@@ -9,6 +9,10 @@ mod dual;
 #[cfg(feature = "d10-catalog-experiment")]
 mod dual_coverage;
 #[cfg(feature = "d10-catalog-experiment")]
+mod named;
+#[cfg(feature = "d10-catalog-experiment")]
+mod named_coverage;
+#[cfg(feature = "d10-catalog-experiment")]
 mod nested;
 #[cfg(feature = "d10-catalog-experiment")]
 mod nested_coverage;

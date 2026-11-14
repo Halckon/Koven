@@ -659,4 +659,5 @@ mod multi_root_stages;
 
 mod root_write_receipts;
 
+#[cfg(feature = "d10-catalog-experiment")]
 mod named_wrapper_boundaries;

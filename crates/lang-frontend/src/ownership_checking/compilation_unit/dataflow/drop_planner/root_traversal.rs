@@ -1,13 +1,13 @@
-//! Original source-root and visited-lambda traversal; test observation does not change execution.
+//! Original source-root and visited-lambda traversal; opt-in observation does not change execution.
 use super::*;
 
 impl DropPlanner<'_, '_> {
     pub(super) fn run(mut self) -> Result<Self, OwnershipCheckingError> {
         for &root in self.checker.parsed.roots() {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
             let trace_start = self.origin_probe.as_ref().map(Vec::len);
             self.item(root)?;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
             if let (Some(ranges), Some(start), Some(events)) =
                 (&mut self.root_trace_ranges, trace_start, &self.origin_probe)
             {

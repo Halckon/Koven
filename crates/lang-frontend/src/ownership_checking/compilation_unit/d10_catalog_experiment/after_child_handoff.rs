@@ -174,7 +174,7 @@ pub fn analyze_after_child_nested_loop(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundAfterChildNestedLoop>, OwnershipCheckingError> {
-    let (owned, _, _, _, _, mut dual) = analysis::analyze_with_catalog(
+    let (owned, _, _, _, _, mut dual, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

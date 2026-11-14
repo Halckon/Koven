@@ -24,6 +24,7 @@ impl DropPlanner<'_, '_> {
         old_roots: [UnitSymbolId; 2],
         sites: [UnitExpressionId; 5],
         suffix_uses: (&Retained, Option<&Retained>),
+        wrapper: Option<&super::named_coverage::NamedCoverage>,
     ) -> Option<DualCoverage> {
         let (retained, final_root_use) = suffix_uses;
         let (parent, child) = controls;
@@ -79,8 +80,16 @@ impl DropPlanner<'_, '_> {
             }
         }
         let retained = Some(retained);
-        let [function_id] = c.parsed.roots() else {
-            return None;
+        let function_id = match (c.parsed.roots(), wrapper) {
+            ([function], None) => function,
+            ([function, entry], Some(wrapper))
+                if wrapper.callee.item() == *function
+                    && wrapper.entry.item() == *entry
+                    && final_root_use.is_some() =>
+            {
+                function
+            }
+            _ => return None,
         };
         let Item::Function {
             extension_receiver: None,
@@ -530,7 +539,18 @@ impl DropPlanner<'_, '_> {
         if items.len() != 7
             || statements.len() != if final_root_use.is_some() { 15 } else { 14 }
             || expressions.len() != if final_root_use.is_some() { 30 } else { 27 }
-            || ast.items().iter().count() != items.len()
+        {
+            return None;
+        }
+        if let Some(wrapper) = wrapper {
+            if counter_parameters[0] == counter_parameters[1] {
+                return None;
+            }
+            items.extend(wrapper.items.iter().copied());
+            statements.extend(wrapper.statements.iter().copied());
+            expressions.extend(wrapper.expressions.iter().copied());
+        }
+        if ast.items().iter().count() != items.len()
             || ast.statements().iter().count() != statements.len()
             || ast.expressions().iter().count() != expressions.len()
             || ast

@@ -8,6 +8,7 @@ mod call_contract;
 mod callable_provenance;
 mod closure;
 mod construction;
+use construction::collect_construction_descriptors;
 mod container;
 mod control;
 mod drop_planner;
@@ -89,6 +90,8 @@ pub(super) struct Analysis {
     pub(super) dual_nested_catalogs: Vec<super::d10_catalog_experiment::DualNestedPending>,
     #[cfg(feature = "d10-catalog-experiment")]
     pub(super) after_child_catalogs: Vec<super::d10_catalog_experiment::AfterChildPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_dual_catalogs: Vec<super::d10_catalog_experiment::WrappedDualPending>,
     pub(super) no_carry: super::loop_no_carry::CompletedNoCarry,
     pub(super) borrow_return_origins:
         Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
@@ -278,6 +281,8 @@ pub(super) fn analyze(
     let mut dual_nested_catalogs = Vec::new();
     #[cfg(feature = "d10-catalog-experiment")]
     let mut after_child_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut wrapped_dual_catalogs = Vec::new();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
     let mut map_iterations = Vec::new();
@@ -353,6 +358,8 @@ pub(super) fn analyze(
         dual_nested_catalogs.extend(drop_analysis.dual_nested_catalog);
         #[cfg(feature = "d10-catalog-experiment")]
         after_child_catalogs.extend(drop_analysis.after_child_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        wrapped_dual_catalogs.extend(drop_analysis.wrapped_dual_catalog);
         no_carry.extend(checker.finish_no_carry_proofs(&drop_analysis.no_carry)?);
         nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
@@ -476,6 +483,8 @@ pub(super) fn analyze(
         dual_nested_catalogs,
         #[cfg(feature = "d10-catalog-experiment")]
         after_child_catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        wrapped_dual_catalogs,
         no_carry,
         borrow_results,
         borrow_return_origins,
@@ -519,34 +528,6 @@ pub(super) fn analyze(
         conditional_receiver_drops,
         deferred,
     })
-}
-
-fn collect_construction_descriptors(
-    descriptors: &[UnitConstructionDescriptor],
-    source_count: usize,
-) -> Result<ConstructionDescriptors, OwnershipCheckingError> {
-    let mut by_source = ConstructionDescriptors::new();
-    for descriptor in descriptors {
-        let expression = descriptor.expression();
-        if expression.source_unit().index() >= source_count {
-            return Err(OwnershipCheckingError::InvalidUnitConstruction {
-                source_unit: expression.source_unit().index(),
-                expression: expression.expression().index(),
-            });
-        }
-        if by_source
-            .entry(expression.source_unit())
-            .or_default()
-            .insert(expression, descriptor.clone())
-            .is_some()
-        {
-            return Err(OwnershipCheckingError::InvalidUnitConstruction {
-                source_unit: expression.source_unit().index(),
-                expression: expression.expression().index(),
-            });
-        }
-    }
-    Ok(by_source)
 }
 
 #[derive(Clone, Copy)]

@@ -32,6 +32,12 @@ fun entry() { val p = 1; val c = 2; run(p, c) }"#;
             planner.origin_probe.is_none(),
             "old automatic probe remains closed"
         );
+        assert!(
+            planner.named_wrapper_coverage().is_some(),
+            "named AST roles"
+        );
+        planner.enable_named_wrapper_probe();
+        assert!(planner.origin_probe.is_some(), "new exact budget capture");
         planner.origin_probe = Some(Vec::new());
         planner.root_trace_ranges = Some(Vec::new());
         let observed = planner.run().unwrap();
@@ -43,6 +49,10 @@ fun entry() { val p = 1; val c = 2; run(p, c) }"#;
         assert_eq!(observed.owner_observations, baseline.owner_observations);
         assert!(observed.dual_nested_pending().is_none());
         assert!(observed.after_child_pending().is_none());
+        assert!(
+            observed.wrapped_dual_pending().is_some(),
+            "complete same-run named pending"
+        );
         let events = observed.origin_probe.as_ref().unwrap();
         let ranges = observed.root_trace_ranges.as_ref().unwrap();
         assert_eq!(ranges.len(), 2);

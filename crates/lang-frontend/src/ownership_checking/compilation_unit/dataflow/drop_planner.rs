@@ -84,6 +84,11 @@ pub(super) struct Analysis {
     pub(super) after_child_catalog: Option<
         crate::ownership_checking::compilation_unit::d10_catalog_experiment::AfterChildPending,
     >,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_dual_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::WrappedDualPending,
+    >,
+
     pub(super) iteration_conditional_scopes:
         Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     pub(super) iteration_owner_scopes: Vec<(
@@ -135,6 +140,7 @@ fn plan_with_owner_observation(
 ) -> Result<Analysis, OwnershipCheckingError> {
     #[cfg(feature = "loan-observation-test-support")]
     let loan_enabled = super::super::loan_observation_test_support::enabled();
+
     #[cfg(not(feature = "loan-observation-test-support"))]
     let loan_enabled = true;
     plan_with_observations(checker, enabled, loan_enabled)
@@ -159,6 +165,8 @@ fn plan_with_observations(
     planner.enable_producer_catalog();
     #[cfg(feature = "d10-catalog-experiment")]
     planner.enable_loop_generation_probe();
+    #[cfg(feature = "d10-catalog-experiment")]
+    planner.enable_named_wrapper_probe();
     planner.owner_observation_enabled = enabled;
     planner.iteration_actions.enabled = loan_actions_enabled;
     let planner = planner.run()?;
@@ -224,6 +232,8 @@ fn plan_with_observations(
     let dual_nested_catalog = planner.dual_nested_pending();
     #[cfg(feature = "d10-catalog-experiment")]
     let after_child_catalog = planner.after_child_pending();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let wrapped_dual_catalog = planner.wrapped_dual_pending();
     let drops = planner
         .facts
         .into_iter()
@@ -243,6 +253,8 @@ fn plan_with_observations(
         dual_nested_catalog,
         #[cfg(feature = "d10-catalog-experiment")]
         after_child_catalog,
+        #[cfg(feature = "d10-catalog-experiment")]
+        wrapped_dual_catalog,
         #[cfg(feature = "d10-catalog-experiment")]
         catalog: planner.producer_catalog.and_then(|c| c.into_pending()),
         owner_observations: planner.owner_observations,
@@ -275,8 +287,8 @@ fn plan_with_observations(
 struct DropPlanner<'a, 'checker> {
     #[cfg(test)]
     carry_probe: Option<Vec<owner_transport::carry_probe::Visit>>,
-    // Test-only contiguous source-root boundaries; not a callable capability or filtered trace.
-    #[cfg(test)]
+    // Opt-in contiguous source-root boundaries; not a callable capability or filtered trace.
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
     root_trace_ranges: Option<Vec<(crate::type_checking::UnitItemId, std::ops::Range<usize>)>>,
     #[cfg(any(test, feature = "d10-catalog-experiment"))]
     origin_probe: Option<Vec<owner_transport::origin_probe::Event>>,
@@ -332,7 +344,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Self {
             #[cfg(test)]
             carry_probe: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
             root_trace_ranges: None,
             #[cfg(any(test, feature = "d10-catalog-experiment"))]
             origin_probe: None,

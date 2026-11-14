@@ -328,3 +328,31 @@ impl Checker<'_> {
         }
     }
 }
+
+pub(super) fn collect_construction_descriptors(
+    descriptors: &[UnitConstructionDescriptor],
+    source_count: usize,
+) -> Result<super::ConstructionDescriptors, OwnershipCheckingError> {
+    let mut by_source = super::ConstructionDescriptors::new();
+    for descriptor in descriptors {
+        let expression = descriptor.expression();
+        if expression.source_unit().index() >= source_count {
+            return Err(OwnershipCheckingError::InvalidUnitConstruction {
+                source_unit: expression.source_unit().index(),
+                expression: expression.expression().index(),
+            });
+        }
+        if by_source
+            .entry(expression.source_unit())
+            .or_default()
+            .insert(expression, descriptor.clone())
+            .is_some()
+        {
+            return Err(OwnershipCheckingError::InvalidUnitConstruction {
+                source_unit: expression.source_unit().index(),
+                expression: expression.expression().index(),
+            });
+        }
+    }
+    Ok(by_source)
+}
