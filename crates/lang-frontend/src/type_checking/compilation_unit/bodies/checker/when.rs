@@ -320,6 +320,10 @@ impl BodyChecker<'_> {
                     }
                 }
             }
+            if !body_reachable {
+                // Static body checking can complete even when no selector can reach it.
+                self.note_pending_statement_exit(source, entry.body, false);
+            }
             if subject_completes && !body_domain.is_empty() && result.falls_through {
                 exits.push((self.flow_facts.clone(), self.flow_versions.clone()));
             }
