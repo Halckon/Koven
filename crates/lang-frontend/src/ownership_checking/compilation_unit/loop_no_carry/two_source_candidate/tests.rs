@@ -469,6 +469,16 @@ fn parameter_print_retains_real_shared_argument_contract_without_ending_input() 
         (
             "helper(item)",
             "\nfun helper(value:String):Unit {other(value)}\nfun other(value:String):Unit {println(value)}",
+            true,
+        ),
+        (
+            "helper(item)",
+            "\nfun helper(value:String):Unit {other(value)}\nfun other(value:String):Unit {helper(value)}",
+            false,
+        ),
+        (
+            "helper(item)",
+            "\nfun helper(value:String):Unit {other(value)}\nfun other(value:String):Unit {println(\"literal\")}",
             false,
         ),
         ("println(\"literal\")", "", false),

@@ -22,7 +22,7 @@ pub enum CalleeLeafBody {
     EmptyUnit,
     /// One bound println intrinsic reuses the single input Shared capability.
     PrintSharedParameter,
-    /// One ordinary source call forwarding the input to a terminal consumer.
+    /// One ordinary source call forwarding the input along a checked acyclic consumer closure.
     ForwardSharedParameter,
 }
 /// Opaque, fully checked leaf body for one concrete instance in the experiment.
@@ -80,41 +80,31 @@ pub(super) fn collect(
                 } else {
                     CalleeLeafBody::EmptyUnit
                 };
-                if let Some(leaf) = leaves.iter().find(|leaf| leaf.instance == *key) {
-                    if (leaf.body == CalleeLeafBody::SharedIdentity)
-                        != (expected == CalleeLeafBody::SharedIdentity)
-                    {
+                // Each completed path reaches a terminal body or an already proved path.
+                // Do not publish pending nodes: revisiting one is recursion, not deduplication.
+                let mut pending: Vec<CalleeLeaf> = Vec::new();
+                let mut current = key.clone();
+                let mut role = expected;
+                loop {
+                    if pending.iter().any(|leaf| leaf.instance == current) {
                         return None;
                     }
-                    continue;
-                }
-                let leaf = collect_one(key, expected, inputs, names, typed, owned)?;
-                let child = if let Some((_, target)) = leaf.source_call() {
-                    let child = collect_one(
-                        target,
-                        CalleeLeafBody::EmptyUnit,
-                        inputs,
-                        names,
-                        typed,
-                        owned,
-                    )?;
-                    if child.body == CalleeLeafBody::ForwardSharedParameter {
-                        return None;
-                    }
-                    Some(child)
-                } else {
-                    None
-                };
-                leaves.push(leaf);
-                if let Some(child) = child {
-                    if let Some(old) = leaves.iter().find(|old| old.instance == child.instance) {
-                        if old.body != child.body || old.span != child.span {
+                    if let Some(leaf) = leaves.iter().find(|leaf| leaf.instance == current) {
+                        if (leaf.body == CalleeLeafBody::SharedIdentity)
+                            != (role == CalleeLeafBody::SharedIdentity)
+                        {
                             return None;
                         }
-                    } else {
-                        leaves.push(child);
+                        break;
                     }
+                    let leaf = collect_one(&current, role, inputs, names, typed, owned)?;
+                    let next = leaf.source_call().map(|(_, target)| target.clone());
+                    pending.push(leaf);
+                    let Some(next) = next else { break };
+                    current = next;
+                    role = CalleeLeafBody::EmptyUnit;
                 }
+                leaves.extend(pending);
             }
         }
     }

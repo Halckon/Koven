@@ -18960,3 +18960,25 @@ SSA 复用输入 loan，不结束它。helper 只可为已支持 EmptyUnit/Print
 scoped entry 发布，避免只修共同路径。前端保留旧同名 println 空函数源码作为普通
 转发正例，要求 `prints_line()==false`；带额外 val 的同名实现仍拒绝。这不将函数名
 视作 intrinsic 权限，也不开放任意 ordinary Unit body/closure/泛型或生产能力。
+
+### E2 实验无环 ordinary 消费闭包
+
+在单个 Borrow String 参数、Unit 返回、完整单条调用体的既有合同内，
+收集器迭代验证整条源码调用路径，不再人为限制一层 helper。待完成路径与已完成路径分开：
+当前路径重复完整 instance key 即拒绝递归，只有到达真实终端或已证明闭包才登记；
+共享已证明 helper 按完整 key 去重，producer/consumer 角色冲突仍拒绝。
+所有节点依然查询同次完整 ownership 的真实 argument contract、loan 和 typed call。
+无新参数模式、任意语句、generic、receiver 或普通生产能力。
+
+共同 planner、预声明单 allocator、源码要求集重建与逐 body 独立 replay 复用原有实现。
+真实源码验证保留旧一层用例，新增八层逆序声明、两原始 caller/entry 共享 helper 的
+同一 Program 对象链接执行；静默/打印同签名目标通过实际输出区分。
+前端补互递归和深层非法实参拒绝。未运行本地故障注入，未启用生产入口。
+
+验证与排障：前端四项、默认 all-target 编译、双 feature Clippy、文档与尺寸门禁通过。
+原生验证曾间歇性在启动前触发原 10 秒 deadline；旧版对照也复现。失败产物无 xattr、
+有效 linker ad-hoc 签名，系统启动日志含 AMFI/ASP 评估消息；但同次成功产物也有 AMFI
+消息，不能据此断言永久签名拒绝。未更改签名、属性、安全设置或 deadline。
+与并行任务协调错开 native 后，从当前源码重新编译，两个 feature 配置各 10 通过、
+7 个 CI-only 故障测试 ignored。八层共享闭包的真实对象链接执行已通过；此结果支持
+负载相关假设但不证明系统延迟根因。此批仍为实验能力，非生产接入或任意深度栈保证。
