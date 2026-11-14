@@ -18869,3 +18869,31 @@ clang 链接并运行，不重新渲染 LLVM、不追加 synthetic driver。原 
 CI 脚本纳入第 7 个精确目标 × 2 配置；本地只编译/list，不执行该失败场景。
 这是待 CI 运行的提交失败证据，不证明 LLVM 写入中断、reserve 失败或已有文件覆盖
 失败的完整矩阵；实际 CI 结果出来前不记为已通过。
+
+
+### 2026-11-14：实验链到生产接入的差距审计
+
+当前实验已具备同次完整 ownership 检查、显式 fact 选择、全 Unit preflight、共同
+Program、独立 replay、封闭发布、真实 object/link/run。不能把这些解释为普通
+OwnedCompilationUnitView 已接受两源循环，也不应继续重复实现另一套 emitter。
+
+| 交界 | 当前代码证据 | 未闭合项 |
+|---|---|---|
+| 前端权限 | `two_source_candidate/bridge.rs` 私有 domain 中检查并保留结果；`handoff.rs` 不提供 ordinary owned 转换 | 生产入口的显式能力类型、选择边界和失败错误合同尚未启用 |
+| 共享规划 | `unit_plan.rs::plan_unit_instances_from_facts` 消费完整 ownership；实验只暴露封闭 preflight 查询 | 普通实例与 E2 闭包共同的只读规划接口、实例集合及声明顺序 |
+| 发射组合 | `unit_lower/orchestrate.rs` 自建 Program/ABI/类型计划；实验 set 也自建完整封闭 Program | 不能拼裸 ID 或两份 Program；须一个 allocator 和统一声明/类型/调用实例映射 |
+| 发布范围 | `e2_arm_fragments.rs` required 来自限定 entry/arm calls，要求每个 fact 一份 entry | 普通函数与 E2 混合闭包的全覆盖、单 process entry 与辅助 roots 的区别 |
+| native | test-only 适配器复用真实事务；ordinary native 只收普通 view | 不能删除 cfg 当启用；需经过正式 capability 与共同 lowering 路径 |
+| CI | 工作流调用 `check_e2_replay_ci.sh`，本地仅 7×2 compile/list | 真实 CI 故障执行结果、集成回归及生产负例未据此确认 |
+
+建议下一批完整做“封闭只读规划能力 → 共同实例计划与单 allocator 声明 → ordinary/E2
+body 分派 → 全闭包独立终检”，先仅在实验域完成混合源码组合。不得导出 retained
+raw ownership 给任意调用者，不增加跳过全声明/binding/global initializer 的例外。
+该批应以普通 helper、共享 leaf、一个真实 process entry 与两个 E2 facts 的混合程序
+为验收整体，而非先拼 Program 后补身份测试。需要先审定规划查询接口和 root/entry
+覆盖合同；本轮只记录缺口，不把受限 entry 的一对一合同默改成任意调用图。
+
+生产启用与 Origin 整体规则不是同一问题：这里已有限定两共享根合同可继续实验，
+但扩大普通 Unit 接受集、错误口径和公开能力仍需单独确认。mutable/carry/guard 等
+未确定语义不在本次接入批中。现有本地分支引用 main/origin-main 为 51a3aad3，
+仅是本地基线，不代表刚核实远端状态；后续集成由发布任务重新核对。
