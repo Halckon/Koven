@@ -25,11 +25,11 @@ pub enum Stage {
     Lowering,
     /// Actual SSA did not prove the complete restricted graph contract.
     Graph,
-    /// LLVM verification/rendering failed; no text was returned.
+    /// LLVM verification or emission failed; no text or object bytes were returned.
     Backend,
 }
 
-/// An experimental error, without publication of a partial Program or backend text.
+/// An experimental error, without publication of a partial Program, backend text, or object bytes.
 #[derive(Debug)]
 pub struct Error {
     stage: Stage,
@@ -70,6 +70,16 @@ impl AfterChildProgram<'_, '_> {
     #[must_use]
     pub fn callable(&self) -> UnitItemId {
         self.bound.controls().0
+    }
+
+    /// Reverify the immutable SSA and LLVM module, then emit a host library object in memory.
+    ///
+    /// Returns bytes only after successful emission. No process entry or debug glue is added,
+    /// no file is written, and no code is linked or executed. Internal callable symbols are not
+    /// a stable external library ABI; this is not a native entry capability.
+    pub fn verified_library_object_bytes(&self) -> Result<Vec<u8>, Error> {
+        crate::llvm::verified_library_object_bytes(&self.program)
+            .map_err(|e| Error::new(Stage::Backend, format!("{e:?}")))
     }
 
     /// Render and verify the actual immutable SSA using the existing LLVM adapter.
@@ -150,6 +160,16 @@ impl BeforeChildProgram<'_, '_> {
         self.bound.controls().0
     }
 
+    /// Reverify the immutable SSA and LLVM module, then emit a host library object in memory.
+    ///
+    /// Returns bytes only after successful emission. No process entry or debug glue is added,
+    /// no file is written, and no code is linked or executed. Internal callable symbols are not
+    /// a stable external library ABI; this is not a native entry capability.
+    pub fn verified_library_object_bytes(&self) -> Result<Vec<u8>, Error> {
+        crate::llvm::verified_library_object_bytes(&self.program)
+            .map_err(|e| Error::new(Stage::Backend, format!("{e:?}")))
+    }
+
     /// Verify and render only; no native entry glue, file publication or execution.
     pub fn verified_llvm_ir(&self) -> Result<String, Error> {
         crate::llvm::render_verified_program(&self.program)
@@ -217,3 +237,7 @@ pub fn lower_before_child<'view, 'parsed: 'view>(
         entry: function,
     })
 }
+
+#[cfg(test)]
+#[path = "d10_experiment_object_tests.rs"]
+pub(crate) mod object_tests;

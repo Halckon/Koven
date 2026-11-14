@@ -648,6 +648,14 @@ pub(crate) fn render_verified_program_with_entry_plan(
     adapter::render_verified_program(program, Some(entry))
 }
 
+/// Default-off in-memory library object, with no process entry or file publication.
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) fn verified_library_object_bytes(
+    program: &Program,
+) -> Result<Vec<u8>, LlvmAdapterError> {
+    adapter::verified_library_object_bytes(program)
+}
+
 pub(crate) fn emit_verified_object(
     program: &Program,
     sources: &SourceMap,

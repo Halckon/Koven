@@ -996,3 +996,33 @@ BeforeChild checker 按真实来源发现父 Replace 与 child counter Read 同�
 严格 Clippy、格式、文档 957、全仓尺寸（main `cc83d9ec`）及顺序/生命周期/CI
 隔离独审通过。native 窗口仍有其他实际测试进程，本片未启动 native，未本地
 注入故障或推送；完整动态与远端 CI 验收不继承这些定向结果。
+
+### 从顺序封包到生产入口的剩余合同
+
+当前前/后顺序封包已通过真实普通 Unit lowering，再独立检查完整实际图；这不等于
+生产 driver 已消费该证明。`native::validate_unit_entry` 只允许既有零参入口或
+单个 `borrow Array<String>` 参数入口，两 Shared Int 的候选函数不能冒充其中任一
+进程 ABI。测试专用 trampoline 也不能作为生产入口授权。两侧 checker 与前端
+完整源码 envelope 仍限定单函数，不能为了接 main wrapper 简单删除函数数量检查。
+
+下一生产组合必须独立证明：合法 entry wrapper 到原 callable 的解析身份、同次
+多函数 owned/闭包计划、实际 Call 参数和 loan 生命周期、callee 全图及 wrapper
+全部操作/清理覆盖；然后才可复用现行原子对象发布。当前原生零/多轮动态矩阵和
+CI-only 负控仍待实际执行。有限 SSA 路径与 LLVM/object 验证均不能替代这些验收。
+
+### Default-off 真实库对象字节交付
+
+两种顺序封包增加 `verified_library_object_bytes()`。只在原 default-off feature 下，
+对私有不可变 Program 再走同一 SSA verifier、LLVM verifier 和宿主 TargetMachine，
+成功完成内存对象发射后才返回完整字节；不构造 process entry/debug glue、不写
+用户文件，不把内部符号提升为稳定外部库 ABI。原 native 文件发布与入口门不变。
+
+普通源码测试分别对前/后序原始 Rooted/Memory 四份对象检查宿主格式、relocatable
+类型，将真实字节写入独立临时文件，使用系统 nm 核原函数恰好一个已定义符号且
+没有 main；不重新编译 LLVM 文本，不链接或执行对象。该结果只补齐后端产物证据，
+不能称作生产 native 接入或运行时清理验收。
+
+本片最终 D10 普通回归十一项通过／三项 CI-only ignored，包含四个库对象及符号
+检查；默认/实验 feature 非 test 编译、实验 tests 严格 Clippy、格式、文档 957、
+全仓尺寸及独立生命周期/权限/失败不交付审查通过。未执行生成程序、CI-only
+故障控制或推送。已有对象动态矩阵仍因共享 native 窗口被占用而未运行。

@@ -140,6 +140,18 @@ fn sealed_after_child_handoff_replays_actual_operations_and_edges() {
                 &literal_bytes(&unit, bound.retained().source().1),
             );
             artifact.verified_llvm_ir().unwrap();
+            if text == AFTER_SOURCE {
+                crate::d10_experiment::object_tests::check(
+                    &artifact
+                        .verified_library_object_bytes()
+                        .expect("verified library object"),
+                    &format!(
+                        "f{}.{}",
+                        artifact.replay_input().1.index(),
+                        artifact.function_name().unwrap()
+                    ),
+                );
+            }
         }
     }
 }

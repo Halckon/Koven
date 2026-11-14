@@ -209,6 +209,18 @@ fn run_cases(native: Option<fn(&Program, FunctionId)>, foreign_owned: bool) -> u
                     .expect("independent old source/graph oracle after publication");
                 path::check_before_child(actual, actual_entry, &evidence.literals);
                 publication.verified_llvm_ir().unwrap();
+                if text == native_fixture {
+                    crate::d10_experiment::object_tests::check(
+                        &publication
+                            .verified_library_object_bytes()
+                            .expect("verified library object"),
+                        &format!(
+                            "f{}.{}",
+                            publication.replay_input().1.index(),
+                            publication.function_name().unwrap()
+                        ),
+                    );
+                }
             } else {
                 let error = match publication {
                     Ok(_) => panic!("narrow publication must reject unproved source scope"),
