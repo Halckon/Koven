@@ -1537,3 +1537,28 @@ frontend 严格 Clippy、codegen 公开库/测试与 support 共存严格 Clippy
 文档结构检查 957 Markdown 通过。没有 native 执行或本地故障注入。CI 负控只列举：
 错源 origin 先经普通 SSA verifier 成功才要求独立 checker 拒绝；错 target 同时
 违反签名，仅证明一般拒绝，不能冒称合法 SSA 的独立 target 反例。
+
+### split-source 真实 process entry 与原子对象发布
+
+`SplitNamedEntryProgram` 新增显式 `emit_process_object` 与
+`emit_new_process_object`；没有默认 driver/CLI 自动选择。独立 native bridge 只
+接受不可变封包，从原 source/root 查唯一真实声明，核同次 ownership、零参数 Unit
+签名、完整跨源图及原 FunctionId 的 LLVM entry plan；全部先于文件系统 reserve。
+LLVM 原对象发射器产生真实 main glue，不伪造源码 main 或借另一次分析的入口。
+
+发布复用既有 SiblingObject。普通 emit 在成功发射后 rename commit，其替换能力
+受宿主平台/文件系统限制，不承诺任何目标类型均可替换。create-only 使用同目录
+hard-link，已存在 file/directory/symlink 均不替换，不支持 hard-link 则失败且无
+rename/copy fallback。link 成功即发布，之后 sibling 清理为 best-effort；不承诺
+fsync/断电持久性或抵抗恶意父目录替换。没有修改普通/E2 的共享发布实现。
+
+验收继续经非 cfg(test) 公开库的八个原 source/order 组合。库对象仍无 main；新增
+process 对象核一个真实 main 与两个原源函数符号。fresh create 成功后，对已有
+对象、目录、symlink 和 dangling symlink 的普通 create-only 冲突保持目标不变，
+并检查没有残留 sibling。这里只检查对象和普通文件冲突，不链接、不执行 native，
+不将其称作新增并发或 backend 故障注入证据。跨源专用 CLI 与动态入口验收仍待做。
+
+本批本地结果：公开 split 集成 2 passed（正例含八组合），旧单源 process 集成
+1 passed；严格 Clippy、默认无 feature 构建、格式/差异检查通过。尺寸报告
+2272 handwritten Rust、37 历史超长，门禁通过；957 Markdown 结构检查通过。
+这些结果不包含远端 CI、跨平台运行或新增故障注入验收。

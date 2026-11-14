@@ -164,6 +164,7 @@ fn check(texts: &[(&str, &str)], expected: Option<experiment::NamedEntryOrder>, 
     assert!(!symbols.lines().any(|s| s == "main" || s == "_main"));
     assert_eq!(fs::read(&object).unwrap(), bytes);
     assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+    check_process_objects(&publication, &directory);
     fs::remove_dir_all(directory).unwrap();
 }
 
@@ -211,4 +212,84 @@ fn legal_split_scope_neighbors_do_not_reach_publication() {
     );
     let extra = format!("{ENTRY}\nfun extra() {{}}");
     check(&[("a.ko", BEFORE), ("z.ko", extra.as_str())], None, 0);
+}
+
+// Ordinary filesystem conflicts are not injected backend failures. No generated code executes.
+fn check_process_objects(
+    publication: &lang_codegen::d10_experiment::SplitNamedEntryProgram<'_, '_>,
+    directory: &std::path::Path,
+) {
+    let object = directory.join("process.o");
+    publication.emit_process_object(&object).unwrap();
+    let bytes = fs::read(&object).unwrap();
+    assert!(!bytes.is_empty());
+    let output = Command::new("/usr/bin/nm")
+        .args(if cfg!(target_os = "macos") {
+            ["-j", "-U"]
+        } else {
+            ["-j", "--defined-only"]
+        })
+        .arg(&object)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let symbols = String::from_utf8(output.stdout).unwrap();
+    let main = if cfg!(target_os = "macos") {
+        "_main"
+    } else {
+        "main"
+    };
+    assert_eq!(
+        symbols.lines().filter(|s| *s == main).count(),
+        1,
+        "{symbols}"
+    );
+    for source in ["run", "entry"] {
+        assert_eq!(
+            symbols
+                .lines()
+                .filter(|s| s.contains(&format!(".{source}.d")))
+                .count(),
+            1,
+            "{symbols}"
+        );
+    }
+    let fresh = directory.join("fresh.o");
+    publication.emit_new_process_object(&fresh).unwrap();
+    let fresh_bytes = fs::read(&fresh).unwrap();
+    assert!(!fresh_bytes.is_empty());
+    let error = publication.emit_new_process_object(&fresh).unwrap_err();
+    assert_eq!(
+        error.kind(),
+        lang_codegen::NativeObjectErrorKind::OutputAlreadyExists
+    );
+    assert_eq!(fs::read(&fresh).unwrap(), fresh_bytes);
+    assert_eq!(fs::read(&object).unwrap(), bytes);
+    let folder = directory.join("folder");
+    fs::create_dir(&folder).unwrap();
+    publication.emit_new_process_object(&folder).unwrap_err();
+    assert!(folder.is_dir());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        let link = directory.join("linked.o");
+        symlink(&fresh, &link).unwrap();
+        let absent = directory.join("absent.o");
+        let dangling = directory.join("dangling.o");
+        symlink(&absent, &dangling).unwrap();
+        for (path, target) in [(&link, &fresh), (&dangling, &absent)] {
+            publication.emit_new_process_object(path).unwrap_err();
+            assert!(fs::symlink_metadata(path).unwrap().file_type().is_symlink());
+            assert_eq!(fs::read_link(path).unwrap(), *target);
+        }
+        assert!(!absent.exists());
+        assert_eq!(fs::read(&fresh).unwrap(), fresh_bytes);
+    }
+    assert!(fs::read_dir(directory).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".koven-unit-object-")
+    }));
 }

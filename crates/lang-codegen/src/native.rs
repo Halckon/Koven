@@ -531,3 +531,6 @@ pub(crate) mod d10_named_wrapper;
 
 #[cfg(feature = "d10-catalog-experiment")]
 pub(crate) mod d10_named_after_child;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod d10_split_entry;

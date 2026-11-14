@@ -13,6 +13,37 @@ pub struct SplitNamedEntryProgram<'view, 'parsed: 'view> {
     entry: FunctionId,
 }
 impl SplitNamedEntryProgram<'_, '_> {
+    /// Emit a process object using the original zero-argument source entry and LLVM main glue.
+    /// All source, ownership, graph and entry checks precede filesystem effects. A sibling
+    /// object is committed only after successful emission; an existing target is not truncated
+    /// in advance. Rename replacement semantics depend on the host filesystem. This does not
+    /// link, execute, select a default driver route or fall back to another capability.
+    pub fn emit_process_object(
+        &self,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        crate::native::d10_split_entry::emit(self, output)
+    }
+    /// Create only if the destination directory entry is absent at hard-link publication.
+    /// Existing files, directories and symlinks are never replaced; no rename/copy fallback.
+    /// Requires same-directory filesystem hard-link support. Commit occurs at link success;
+    /// sibling cleanup is best-effort. No power-loss durability or hostile-parent protection
+    /// is promised. Linking and execution remain separate explicit operations.
+    pub fn emit_new_process_object(
+        &self,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        crate::native::d10_split_entry::emit_new(self, output)
+    }
+    pub(crate) fn process_source(
+        &self,
+    ) -> (&OwnedCompilationUnitView<'_, '_>, &BoundSplitNamedEntry) {
+        (&self.unit, self.bound)
+    }
+    pub(crate) fn process_graph(&self) -> (&Program, FunctionId) {
+        (&self.program, self.entry)
+    }
+
     /// Original source wrapper, not a fabricated process main.
     #[must_use]
     pub fn callable(&self) -> UnitItemId {
