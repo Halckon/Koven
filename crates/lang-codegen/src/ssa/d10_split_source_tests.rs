@@ -9,15 +9,33 @@ use lang_frontend::{
 
 #[test]
 fn split_sources_preserve_real_unit_call_graph_and_sealed_publication() {
-    check_matrix(false);
+    check_matrix(Mode::Normal);
 }
 #[test]
 #[ignore = "CI-only split graph identity and source controls"]
 fn ci_only_split_graph_rejects_source_and_target_mismatch() {
     assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-    check_matrix(true);
+    check_matrix(Mode::GraphControl);
 }
-fn check_matrix(ci_controls: bool) {
+#[test]
+#[ignore = "CI-only split process emission failure; never run locally"]
+fn ci_only_split_process_failure_preserves_target() {
+    check_matrix(Mode::EmissionControl);
+}
+#[derive(Clone, Copy)]
+enum Mode {
+    Normal,
+    GraphControl,
+    EmissionControl,
+}
+fn check_matrix(mode: Mode) {
+    if !matches!(mode, Mode::Normal) {
+        assert_eq!(
+            std::env::var("GITHUB_ACTIONS").as_deref(),
+            Ok("true"),
+            "CI-only split controls"
+        );
+    }
     for body in [
         "val parentOld = replace(&a, \"parent\"); var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; outer -= 1",
         "var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; val parentOld = replace(&a, \"parent\"); outer -= 1",
@@ -147,7 +165,7 @@ fn check_matrix(ci_controls: bool) {
                     &sources, &inputs, &names, &types, &prepared,
                 )
                 .unwrap();
-                if ci_controls {
+                if matches!(mode, Mode::GraphControl) {
                     let same = owned_compilation_unit_view(
                         &sources,
                         &inputs,
@@ -206,6 +224,16 @@ fn check_matrix(ci_controls: bool) {
                         )
                         .is_err()
                     );
+                }
+                if matches!(mode, Mode::EmissionControl) {
+                    // Real cross-source publication; exercise both commit policies through the
+                    // existing LLVM write-failure guard. It is never entered by normal tests.
+                    d10_named_process_object_tests::assert_failure(&|path| {
+                        publication.emit_process_object(path)
+                    });
+                    d10_named_process_object_tests::assert_failure(&|path| {
+                        publication.emit_new_process_object(path)
+                    });
                 }
                 assert_eq!(publication.source_count(), 2);
                 assert_eq!(publication.callable(), prepared.bound().entry());

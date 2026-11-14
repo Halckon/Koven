@@ -1601,3 +1601,20 @@ CLI/cc 子进程未另设逐步超时，CI 给整个 exact 步骤 5 分钟上限
 旧单源 CLI 3 passed；实验/默认两配置 CLI 严格 Clippy 通过。格式、YAML、diff
 检查通过；尺寸为 2274 handwritten Rust、37 历史超长且门禁通过，文档结构检查
 957 Markdown 通过。未推送，因此不宣称本批远端 CI 已完成。
+
+### 跨源专用对象失败原子性 CI 验收
+
+在原八组合的真实 split prepare/lower/publication 上新增独立 ignored CI 控制，
+分别调用 rename 发布与 create-only 发布。复用现有 thread-local、仅 cfg(test)
+的真实 LLVM object-path 故障器，指向普通文件之下的路径使实际写入返回 ENOTDIR，
+核 backend 确实被调用一次、原目标存在/不存在均保持原态、blocker 字节不变及
+sibling 清理。create-only 的已存在目标情形也先经历 backend 写入失败，不把
+OutputAlreadyExists 当作后端失败证明。
+
+非普通矩阵模式先要求 GITHUB_ACTIONS，测试标为 ignored；现有 CI script 用 exact
+列举确认一项后才在 CI 执行，本地仅编译/列举及运行普通矩阵。该批不改变发布代码、
+不新增全局或生产注入开关；在远端真正运行前只称“已布置”，不称失败原子性实测完成。
+
+本地仅列举新增 exact 控制为 1 test，未执行；普通八组合 exact 1 passed（0.36 秒），
+codegen/support 共存严格 Clippy、格式/脚本/diff 检查通过；尺寸 2274/37 与文档
+957 Markdown 检查通过。远端实际故障验收保持待验证。

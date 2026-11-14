@@ -132,3 +132,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'split graph controls compiled/listed; not executed'
 fi
+
+split_process=ssa::d10_split_source_tests::ci_only_split_process_failure_preserves_target
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$split_process" -- --exact --ignored --list)
+[[ $(grep -Fxc "$split_process: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support "$split_process" -- --exact --ignored
+else
+  echo 'split process failure controls compiled/listed; not executed'
+fi
