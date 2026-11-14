@@ -25,6 +25,7 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [集合算法所有权受审修订（r3.1）](collection-algorithm-ownership-r3.md)
 
 - [Unit 函数根集合工程候选](unit-function-root-set.md)：D10 whole-file 身份见证退出路径，未启用
+- [D10 child 未修改根最窄候选](d10-child-pass-through-root.md)：两根、单根更新的隔离设计，未启用
 
 ## 候选依赖与推进顺序
 
