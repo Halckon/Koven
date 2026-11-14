@@ -367,3 +367,9 @@ mod d10_entry_wrapper_tests;
 pub(crate) mod d10_named_wrapper_graph;
 #[cfg(all(test, feature = "d10-catalog-experiment"))]
 mod d10_named_wrapper_tests;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_named_after_child_tests;
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+mod d10_named_process_object_tests;

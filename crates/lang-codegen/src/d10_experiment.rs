@@ -352,3 +352,7 @@ pub fn lower_named_wrapper<'view, 'parsed: 'view>(
         entry: function,
     })
 }
+
+#[path = "d10_experiment_named_after_child.rs"]
+mod named_after_child;
+pub use named_after_child::{NamedAfterChildProgram, lower_named_after_child_wrapper};

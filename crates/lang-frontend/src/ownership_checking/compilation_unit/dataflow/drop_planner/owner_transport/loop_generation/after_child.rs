@@ -6,7 +6,14 @@ use crate::ownership_checking::compilation_unit::d10_catalog_experiment::{
 use crate::ownership_checking::{LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget};
 impl DropPlanner<'_, '_> {
     pub(in super::super::super) fn after_child_pending(&self) -> Option<AfterChildPending> {
-        let roles = self.after_child_coverage()?;
+        self.after_child_fields(self.origin_probe.as_ref()?, None)
+    }
+    pub(super) fn after_child_fields(
+        &self,
+        events: &[Event],
+        wrapper: Option<&super::named_coverage::NamedCoverage>,
+    ) -> Option<AfterChildPending> {
+        let roles = self.after_child_coverage(wrapper)?;
         let c = self.checker;
         let source = c.source_unit;
         let ast = c.parsed.ast();
@@ -21,7 +28,6 @@ impl DropPlanner<'_, '_> {
         ];
         let final_call = expr(roles.final_use?);
         let suffix_call = expr(roles.suffix);
-        let events = self.origin_probe.as_ref()?;
         // Every event is consumed at its original position. Bind only actual loan/drop facts.
         let [
             Event::Literal(initial),
@@ -108,7 +114,7 @@ impl DropPlanner<'_, '_> {
                 call: suffix_removed_call,
             },
             Event::Dropped(suffix_drop),
-        ] = events.as_slice()
+        ] = events
         else {
             return None;
         };

@@ -172,3 +172,6 @@ fn execute_binary(executable: &std::path::Path, expected: &[u8], directory: &std
 
 #[path = "native_d10_named_entry_tests.rs"]
 mod named_entry;
+
+#[path = "native_d10_named_after_entry_tests.rs"]
+mod named_after_entry;

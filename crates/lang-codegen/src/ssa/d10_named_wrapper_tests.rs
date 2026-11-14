@@ -1,5 +1,7 @@
 //! Legal source acceptance/rejection and object inspection only. No native execution or IR faults.
 use super::*;
+use crate::d10_experiment::lower_named_wrapper as lower_wrapper;
+use experiment::analyze_named_wrapper as analyze_wrapper;
 use lang_frontend::{
     name_resolution::SourceUnitInput,
     ownership_checking::{d10_catalog_experiment as experiment, owned_compilation_unit_view},
@@ -65,9 +67,7 @@ fn named_wrapper_publishes_one_complete_program_and_library_object() {
             let inputs = [input];
             let (names, typed, _) =
                 unit_lower_test_support::analyze(&sources, &inputs, &env, &types);
-            let bound =
-                experiment::analyze_named_wrapper(&sources, &inputs, &names, &types, &typed)
-                    .unwrap();
+            let bound = analyze_wrapper(&sources, &inputs, &names, &types, &typed).unwrap();
             assert_eq!(bound.is_some(), accepted, "{text}");
             let Some(bound) = bound else {
                 continue;
@@ -81,7 +81,7 @@ fn named_wrapper_publishes_one_complete_program_and_library_object() {
                 bound.ownership(),
             )
             .unwrap();
-            let artifact = crate::d10_experiment::lower_named_wrapper(unit, &bound).unwrap();
+            let artifact = lower_wrapper(unit, &bound).unwrap();
             assert_eq!(artifact.callable(), bound.entry());
             assert_eq!(artifact.source_count(), 1);
             artifact.verified_llvm_ir().unwrap();
@@ -102,5 +102,4 @@ fn named_wrapper_publishes_one_complete_program_and_library_object() {
     }
 }
 
-#[path = "d10_named_process_object_tests.rs"]
-mod process_object;
+super::d10_named_process_object_tests::suite!(SOURCE, analyze_wrapper, lower_wrapper);

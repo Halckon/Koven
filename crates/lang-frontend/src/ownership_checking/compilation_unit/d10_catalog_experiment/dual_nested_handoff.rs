@@ -161,7 +161,7 @@ pub fn analyze_dual_nested_loop(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundDualNestedLoop>, OwnershipCheckingError> {
-    let (owned, _, _, _, mut dual, _, _) = analysis::analyze_with_catalog(
+    let (owned, _, _, _, mut dual, _, _, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

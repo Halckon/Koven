@@ -1,7 +1,8 @@
 //! Same traversal, complete contiguous two-root observation; no filtered old bound.
 use super::*;
 use crate::ownership_checking::{
-    UnitDropPoint, UnitLoanTarget, compilation_unit::d10_catalog_experiment::WrappedDualPending,
+    UnitDropPoint, UnitLoanTarget,
+    compilation_unit::d10_catalog_experiment::{WrappedAfterChildPending, WrappedDualPending},
 };
 impl DropPlanner<'_, '_> {
     pub(in super::super::super) fn enable_named_wrapper_probe(&mut self) {
@@ -19,6 +20,54 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(in super::super::super) fn wrapped_dual_pending(&self) -> Option<WrappedDualPending> {
+        let trace = self.named_trace()?;
+        let fields = self.dual_fields(trace.callee, Some(&trace.wrapper))?;
+        let final_use = fields.final_root_use.as_ref()?;
+        let contracts = self.named_contracts([
+            fields.calls[0],
+            fields.calls[1],
+            final_use.call,
+            fields.retained.call,
+            trace.wrapper.call,
+        ])?;
+        Some(WrappedDualPending {
+            fields,
+            contracts,
+            entry: trace.wrapper.entry,
+            roots: trace.wrapper.roots,
+            initializers: trace.wrapper.initializers,
+            call: trace.wrapper.call,
+            arguments: trace.wrapper.arguments,
+            loans: trace.loans,
+            ends: trace.ends,
+        })
+    }
+    pub(in super::super::super) fn wrapped_after_child_pending(
+        &self,
+    ) -> Option<WrappedAfterChildPending> {
+        let trace = self.named_trace()?;
+        let fields = self.after_child_fields(trace.callee, Some(&trace.wrapper))?;
+        let final_use = &fields.final_root_use;
+        let contracts = self.named_contracts([
+            fields.calls[0],
+            fields.calls[1],
+            final_use.call,
+            fields.retained.call,
+            trace.wrapper.call,
+        ])?;
+        Some(WrappedAfterChildPending {
+            fields,
+            contracts,
+            entry: trace.wrapper.entry,
+            roots: trace.wrapper.roots,
+            initializers: trace.wrapper.initializers,
+            call: trace.wrapper.call,
+            arguments: trace.wrapper.arguments,
+            loans: trace.loans,
+            ends: trace.ends,
+        })
+    }
+    fn named_trace(&self) -> Option<NamedTrace<'_>> {
         let wrapper = self.named_wrapper_coverage()?;
         let events = self.origin_probe.as_ref()?;
         let [(callee, first), (entry, second)] = self.root_trace_ranges.as_ref()?.as_slice() else {
@@ -108,15 +157,18 @@ impl DropPlanner<'_, '_> {
         {
             return None;
         }
-        let fields = self.dual_fields(events.get(first.clone())?, Some(&wrapper))?;
-        let final_use = fields.final_root_use.as_ref()?;
-        let allowed_calls = [
-            fields.calls[0],
-            fields.calls[1],
-            final_use.call,
-            fields.retained.call,
-            wrapper.call,
-        ];
+        Some(NamedTrace {
+            callee: events.get(first.clone())?,
+            wrapper,
+            loans: [p.clone(), q.clone()],
+            ends: [q_actual.clone(), p_actual.clone()],
+        })
+    }
+    fn named_contracts(
+        &self,
+        allowed_calls: [UnitExpressionId; 5],
+    ) -> Option<Vec<crate::ownership_checking::UnitCallArgumentOwnershipContract>> {
+        let c = self.checker;
         let mut contracts = Vec::new();
         for actual_call in allowed_calls {
             let ast = c.parsed.ast();
@@ -168,16 +220,12 @@ impl DropPlanner<'_, '_> {
         if contracts.len() != 8 || c.contracts_by_call.len() != 5 {
             return None;
         }
-        Some(WrappedDualPending {
-            fields,
-            contracts,
-            entry: wrapper.entry,
-            roots: wrapper.roots,
-            initializers: wrapper.initializers,
-            call: wrapper.call,
-            arguments: wrapper.arguments,
-            loans: [p.clone(), q.clone()],
-            ends: [q_actual.clone(), p_actual.clone()],
-        })
+        Some(contracts)
     }
+}
+struct NamedTrace<'a> {
+    callee: &'a [Event],
+    wrapper: super::named_coverage::NamedCoverage,
+    loans: [crate::ownership_checking::UnitLoanFact; 2],
+    ends: [crate::ownership_checking::UnitDirectCallLoanEndFact; 2],
 }

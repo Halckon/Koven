@@ -88,6 +88,10 @@ pub(super) struct Analysis {
     pub(super) wrapped_dual_catalog: Option<
         crate::ownership_checking::compilation_unit::d10_catalog_experiment::WrappedDualPending,
     >,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_after_child_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::WrappedAfterChildPending,
+    >,
 
     pub(super) iteration_conditional_scopes:
         Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
@@ -234,6 +238,8 @@ fn plan_with_observations(
     let after_child_catalog = planner.after_child_pending();
     #[cfg(feature = "d10-catalog-experiment")]
     let wrapped_dual_catalog = planner.wrapped_dual_pending();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let wrapped_after_child_catalog = planner.wrapped_after_child_pending();
     let drops = planner
         .facts
         .into_iter()
@@ -255,6 +261,8 @@ fn plan_with_observations(
         after_child_catalog,
         #[cfg(feature = "d10-catalog-experiment")]
         wrapped_dual_catalog,
+        #[cfg(feature = "d10-catalog-experiment")]
+        wrapped_after_child_catalog,
         #[cfg(feature = "d10-catalog-experiment")]
         catalog: planner.producer_catalog.and_then(|c| c.into_pending()),
         owner_observations: planner.owner_observations,

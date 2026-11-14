@@ -30,15 +30,25 @@ pub(super) struct Roles {
     pub(super) final_use: Option<ExpressionId>,
 }
 impl DropPlanner<'_, '_> {
-    pub(super) fn after_child_coverage(&self) -> Option<Roles> {
+    pub(super) fn after_child_coverage(
+        &self,
+        wrapper: Option<&super::named_coverage::NamedCoverage>,
+    ) -> Option<Roles> {
         let c = self.checker;
         let source = c.source_unit;
         let ast = c.parsed.ast();
         if !c.parsed.diagnostics().is_empty() {
             return None;
         }
-        let [function] = c.parsed.roots() else {
-            return None;
+        let function = match (c.parsed.roots(), wrapper) {
+            ([function], None) => function,
+            ([function, entry], Some(w))
+                if w.callee == crate::type_checking::UnitItemId::new(source, *function)
+                    && w.entry == crate::type_checking::UnitItemId::new(source, *entry) =>
+            {
+                function
+            }
+            _ => return None,
         };
         let Item::Function {
             extension_receiver: None,
@@ -320,6 +330,14 @@ impl DropPlanner<'_, '_> {
         match block(*body)? {
             [_, _, _, _, r, s] => statements.extend([*r, *s]),
             _ => return None,
+        }
+        if let Some(w) = wrapper {
+            if items.len() != 7 || statements.len() != 15 || expressions.len() != 30 {
+                return None;
+            }
+            items.extend(w.items.iter().copied());
+            statements.extend(w.statements.iter().copied());
+            expressions.extend(w.expressions.iter().copied());
         }
         if ast.items().iter().count() != items.len()
             || ast.statements().iter().count() != statements.len()

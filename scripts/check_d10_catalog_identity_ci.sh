@@ -78,3 +78,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'named process object atomicity control compiled/listed; not executed'
 fi
+
+process_after=ssa::d10_named_after_child_tests::process_object::ci_only_process_object_failure_preserves_target
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$process_after" -- --exact --ignored --list)
+[[ $(grep -Fxc "$process_after: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$process_after" -- --exact --ignored
+else
+  echo 'AfterChild named process object atomicity control compiled/listed; not executed'
+fi

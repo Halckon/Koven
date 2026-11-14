@@ -1208,3 +1208,36 @@ CI-only ignored；新原子失败控制及既有CI精确列表全部以 `--list-
 跨crate公开方法另以 `cargo check --workspace --all-targets --features
 lang-codegen/d10-catalog-experiment` 离线验证通过，包含CLI/LSP消费者与测试编译；
 文档957项检查通过。该check不执行任何native或ignored控制。
+
+### 独立 AfterChild named 源码闭环
+
+另设 `analyze_named_after_child_wrapper`、`BoundNamedAfterChildWrapper` 与
+`NamedAfterChildProgram`，不接受 BeforeChild Bound，不把事件数组转成另一顺序。
+控制/counter仍父→子；producer、Replace、Exclusive Loan和detached-old清理
+保持实际child→parent。独立第八pending通道通过同次最终owned绑定，错误沿原
+路径清空。局部wrapper五事件和最终owned核验只共用私有顺序中立字段投影，
+原AfterChild三十四事件与两root全AST覆盖独立成立，旧singleton仍检查唯一root。
+
+AfterChild函数内图core保留child false边向parent Replace运输当前A：child零轮
+也进入parent Replace，parent旧值必须来自实际child退出边。新共同图先核自身
+bound身份，再用自身callee checker；共享wrapper局部检查不签发任何另一顺序的
+权限。两个module-level公开封包不互换，原BeforeChild入口保持原接收集。
+
+新封包独立原子对象桥复用既有native entry校验与SiblingObject，不重新lower。
+普通对象/CI-only失败测试由各自父模块绑定各自analyze/lower接口，源码与能力不
+跨用。AfterChild真实source-entry native矩阵期望父零轮为first、父正轮无论
+child零/多轮均为parent，第二根为kept；仍复用原10秒执行器，不改旧BeforeChild
+期望，不把单一退出值外推为运行时分配/释放计数或一般Carry证明。
+
+本批普通前端矩阵二十六个源码/布局案例通过；后端完整 D10 静态及对象回归
+十七通过／五项CI-only ignored。真实源码 native 精确验收使用本批已编译测试
+二进制，AfterChild八程序一次通过（6.45秒），旧BeforeChild八程序回归一次通过
+（6.28秒）；单程序仍原10秒，不重试、不注入故障。独立检查确认 child零轮仍
+执行parent Replace，两root原序事实未被旧顺序封包替代。运行时分配计数、
+sanitizer、跨宿主CI及普通生产driver准入仍不在这些结果之内。
+
+共享过程对象断言改为单注册helper与显式源码/analyzer/lower参数的测试suite，
+保持两种Bound独立和CI exact名称，避免重复加载模块；修正后实验all-targets
+严格Clippy与上述十七项普通回归重新通过。CI完整精确列表仍只以 `--list-only`
+验证；默认codegen、workspace all-targets实验编译通过，格式/diff、957份文档和
+2244个Rust文件尺寸门禁通过，独立复审无阻断。以上均本地验收，未推送。

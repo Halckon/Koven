@@ -3,8 +3,8 @@ use super::*;
 use crate::ownership_checking::{UnitDirectCallLoanEndFact, UnitLoanFact};
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct WrappedDualPending {
-    pub(crate) fields: DualNestedPending,
+pub(crate) struct WrappedPending<F> {
+    pub(crate) fields: F,
     pub(crate) contracts: Vec<super::super::UnitCallArgumentOwnershipContract>,
     pub(crate) entry: UnitItemId,
     pub(crate) roots: [UnitSymbolId; 2],
@@ -14,6 +14,9 @@ pub(crate) struct WrappedDualPending {
     pub(crate) loans: [UnitLoanFact; 2],
     pub(crate) ends: [UnitDirectCallLoanEndFact; 2],
 }
+
+pub(crate) type WrappedDualPending = WrappedPending<DualNestedPending>;
+pub(crate) type WrappedAfterChildPending = WrappedPending<AfterChildPending>;
 
 /// Same final ownership analysis for the restricted named wrapper and BeforeChild callee.
 /// This is not an executable-entry or general interprocedural ownership capability.
@@ -156,163 +159,12 @@ impl NamedWrapperCallee<'_> {
 
 impl WrappedDualPending {
     fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundNamedWrapper> {
-        let f = &self.fields;
-        let final_use = f.final_root_use.as_ref()?;
-        let drops = [f.cleanup[0], f.cleanup[1], f.cleanup[2], f.retained.cleanup];
-        let loans = [
-            f.loans[0].clone(),
-            f.loans[1].clone(),
-            final_use.loan.clone(),
-            f.retained.loan.clone(),
-            self.loans[0].clone(),
-            self.loans[1].clone(),
-        ];
-        if !Arc::ptr_eq(&f.typed, &owned.provenance.typed_analysis_owner)
-            || !owned.diagnostics().is_empty()
-            || !owned.deferred().is_empty()
-            || owned.drops() != drops
-            || owned.loans() != loans
-            || owned.direct_call_loan_ends() != self.ends
-            || f.counter_parameters[0] == f.counter_parameters[1]
-            || self.roots[0] == self.roots[1]
-            || !owned.call_receiver_contracts().is_empty()
-            || !owned.receiver_facts().is_empty()
-            || !owned.conditional_receiver_deliveries().is_empty()
-            || !owned.conditional_receiver_drops().is_empty()
-            || !owned.borrow_call_transports().is_empty()
-            || !owned.borrow_binding_transports().is_empty()
-            || !owned.borrow_forward_transports().is_empty()
-            || !owned.borrow_call_handoffs().is_empty()
-            || !owned.borrow_call_prefix_ends().is_empty()
-            || !owned.exclusive_call_prefix_ends().is_empty()
-            || !owned.receiver_call_prefix_ends().is_empty()
-            || !owned.receiver_call_return_ends().is_empty()
-            || !owned.string_clone_loan_ends().is_empty()
-            || !owned.field_replacements().is_empty()
-            || !owned.non_null_assertions().is_empty()
-            || !owned.captures().is_empty()
-            || !owned.closures().is_empty()
-            || !owned.construction_plans().is_empty()
-            || !owned.rc_effects().is_empty()
-            || !owned.delegations().is_empty()
-        {
-            return None;
-        }
-        let plans = owned.ownership_primitives();
-        if plans.len() != 2 {
-            return None;
-        }
-        for ((plan, call), incoming) in plans.iter().zip(f.calls).zip(f.sites[1..].iter()) {
-            if plan.descriptor().expression() != call
-                || plan.descriptor().kind() != crate::type_checking::OwnershipPrimitiveKind::Replace
-                || plan.places().len() != 1
-                || !plan.places()[0].is_root()
-                || plan.places()[0].root() != f.root
-                || plan.descriptor().operands().get(1) != Some(incoming)
-            {
-                return None;
-            }
-        }
-        // Complete source closure limits all calls. Preserve the final array's order; inspect each
-        // original contract in place, never build a filtered Ownership for a single-function binder.
-        let allowed = [
-            f.calls[0],
-            f.calls[1],
-            final_use.call,
-            f.retained.call,
-            self.call,
-        ];
-        if owned.call_argument_contracts().len() != 8
-            || owned
-                .call_argument_contracts()
-                .iter()
-                .any(|contract| !allowed.contains(&contract.call()) || contract.crosses_thread())
-        {
-            return None;
-        }
-        for (index, argument) in self.arguments.into_iter().enumerate() {
-            let mut contracts = owned
-                .call_argument_contracts()
-                .iter()
-                .filter(|c| c.call() == self.call && c.argument() == argument);
-            let contract = contracts.next()?;
-            if contracts.next().is_some()
-                || contract.parameter_index() != index
-                || contract.kind() != super::super::UnitCallArgumentOwnershipKind::SharedLoan
-                || contract.category() != crate::type_checking::ExpressionCategory::Place
-                || contract.argument_span() != self.loans[index].begin_span()
-                || contract.call_span() != self.loans[index].end_span()
-            {
-                return None;
-            }
-        }
-        if owned.call_argument_contracts().iter().any(|actual| {
-            self.contracts
-                .iter()
-                .filter(|expected| *expected == actual)
-                .count()
-                != 1
-        }) || self.contracts.len() != owned.call_argument_contracts().len()
-        {
-            return None;
-        }
-        if self.contracts.iter().any(|expected| {
-            owned
-                .call_argument_contracts()
-                .iter()
-                .filter(|actual| *actual == expected)
-                .count()
-                != 1
-        }) {
-            return None;
-        }
-        // The public bindings array contains parameters, not local val/var descriptors.
-        if owned.bindings().len() != 2
-            || f.counter_parameters.iter().any(|parameter| {
-                owned.binding_kind(*parameter) != Some(super::super::OwnershipBindingKind::Shared)
-            })
-        {
-            return None;
-        }
-        let [
-            super::super::UnitDropTarget::Named(parent_old),
-            super::super::UnitDropTarget::Named(child_old),
-        ] = [f.cleanup[0].target(), f.cleanup[1].target()]
-        else {
-            return None;
-        };
-        let locals = [
-            f.root,
-            f.retained.root,
-            f.counters[0],
-            f.counters[1],
-            parent_old,
-            child_old,
-            self.roots[0],
-            self.roots[1],
-        ];
-        if locals
-            .iter()
-            .copied()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            != locals.len()
-            || owned.formed_owned_locals().len() != locals.len()
-            || locals.iter().any(|root| {
-                owned
-                    .formed_owned_locals()
-                    .iter()
-                    .filter(|id| *id == root)
-                    .count()
-                    != 1
-            })
-        {
-            return None;
-        }
-        // Remaining validated value-delivery/owner-observation facts retain their ordinary meaning;
-        // this source handoff does not claim a new dynamic owner-state proof.
+        let owned = self.validate(
+            owned,
+            super::named_validation::NamedValidation::before(&self.fields)?,
+        )?;
         Some(BoundNamedWrapper {
-            owned: owned.validate().ok()?,
+            owned,
             pending: self,
         })
     }
@@ -327,7 +179,7 @@ pub fn analyze_named_wrapper(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundNamedWrapper>, OwnershipCheckingError> {
-    let (owned, _, _, _, _, _, mut candidates) = analysis::analyze_with_catalog(
+    let (owned, _, _, _, _, _, mut candidates, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

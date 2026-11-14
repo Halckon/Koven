@@ -149,7 +149,7 @@ pub fn analyze(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundCatalog>, OwnershipCheckingError> {
-    let (owned, mut pending, _, _, _, _, _) = analysis::analyze_with_catalog(
+    let (owned, mut pending, _, _, _, _, _, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),
@@ -182,5 +182,11 @@ pub use after_child_handoff::{
 };
 
 mod named_wrapper;
-pub(crate) use named_wrapper::WrappedDualPending;
 pub use named_wrapper::{BoundNamedWrapper, NamedWrapperCallee, analyze_named_wrapper};
+pub(crate) use named_wrapper::{WrappedAfterChildPending, WrappedDualPending};
+
+mod named_after_child;
+mod named_validation;
+pub use named_after_child::{
+    BoundNamedAfterChildWrapper, NamedAfterChildCallee, analyze_named_after_child_wrapper,
+};

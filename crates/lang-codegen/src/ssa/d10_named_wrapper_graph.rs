@@ -5,12 +5,14 @@ use super::{
     model::*,
 };
 use lang_frontend::{
+    name_resolution::UnitSymbolId,
     ownership_checking::{
-        OwnedCompilationUnitView, UnitDropPoint, UnitLoanTarget,
-        d10_catalog_experiment::BoundNamedWrapper,
+        OwnedCompilationUnitView, UnitDirectCallLoanEndFact, UnitDropPoint, UnitLoanFact,
+        UnitLoanTarget,
+        d10_catalog_experiment::{BoundNamedAfterChildWrapper, BoundNamedWrapper},
     },
     parser::{Expression, LiteralKind},
-    type_checking::UnitExpressionId,
+    type_checking::{UnitExpressionId, UnitItemId},
 };
 use std::collections::BTreeSet;
 
@@ -20,17 +22,56 @@ pub(crate) fn check(
     program: &Program,
     entry: FunctionId,
 ) -> Result<(), GraphError> {
-    inspect(unit, bound, program, entry).ok_or(GraphError::Rejected)
+    if !bound.matches(unit) {
+        return Err(GraphError::Rejected);
+    }
+    let callee = bound.callee();
+    inspect(
+        unit,
+        &WrapperFacts::from_before(bound),
+        program,
+        entry,
+        |module, function| {
+            inspect_function(unit, &CalleeFacts::from_named(&callee), module, function)
+        },
+    )
+    .ok_or(GraphError::Rejected)
 }
-fn inspect(
+
+pub(crate) fn check_after_child(
     unit: &OwnedCompilationUnitView<'_, '_>,
-    bound: &BoundNamedWrapper,
+    bound: &BoundNamedAfterChildWrapper,
     program: &Program,
     entry: FunctionId,
-) -> Option<()> {
+) -> Result<(), GraphError> {
     if !bound.matches(unit) {
-        return None;
+        return Err(GraphError::Rejected);
     }
+    let callee = bound.callee();
+    inspect(
+        unit,
+        &WrapperFacts::from_after(bound),
+        program,
+        entry,
+        |module, function| {
+            super::d10_after_child_graph::inspect_function(
+                unit,
+                &super::d10_after_child_graph::AfterCalleeFacts::from_named(&callee),
+                module,
+                function,
+            )
+        },
+    )
+    .ok_or(GraphError::Rejected)
+}
+
+fn inspect(
+    unit: &OwnedCompilationUnitView<'_, '_>,
+    bound: &WrapperFacts<'_>,
+    program: &Program,
+    entry: FunctionId,
+    check_callee: impl FnOnce(&Module, &Function) -> Option<()>,
+) -> Option<()> {
     super::verify::verify_program(program).ok()?;
     let [module] = program.modules.as_slice() else {
         return None;
@@ -46,15 +87,14 @@ fn inspect(
     };
     let source = names.source_unit();
     let ast = input.parsed().ast();
-    let callee_facts = bound.callee();
-    let callable = callee_facts.controls().0;
-    if bound.entry().source_unit() != source
+    let callable = bound.callee;
+    if bound.entry.source_unit() != source
         || callable.source_unit() != source
-        || bound.entry() == callable
+        || bound.entry == callable
     {
         return None;
     }
-    let entry_origin = Origin::Source(ast.items().get(bound.entry().item()).ok()?.span());
+    let entry_origin = Origin::Source(ast.items().get(bound.entry.item()).ok()?.span());
     let callee_origin = Origin::Source(ast.items().get(callable.item()).ok()?.span());
     let f = module.function(entry)?;
     let mut callees = module
@@ -65,12 +105,7 @@ fn inspect(
     if callees.next().is_some() || callee.id() == entry || f.origin != entry_origin {
         return None;
     }
-    inspect_function(
-        unit,
-        &CalleeFacts::from_named(&callee_facts),
-        module,
-        callee,
-    )?;
+    check_callee(module, callee)?;
     if f.receiver.is_some()
         || f.never_returns
         || !f.return_types.is_empty()
@@ -97,7 +132,7 @@ fn inspect(
             ast.expressions().get(id.expression()).ok()?.span(),
         ))
     };
-    let call_origin = origin(bound.call())?;
+    let call_origin = origin(bound.call)?;
     let call = graph.unique(&call_origin, |op| {
         matches!(op, Operation::DirectCall { .. })
     })?;
@@ -126,7 +161,7 @@ fn inspect(
         ..
     } = ast
         .expressions()
-        .get(bound.call().expression())
+        .get(bound.call.expression())
         .ok()?
         .payload()
     else {
@@ -139,14 +174,14 @@ fn inspect(
     let mut preparations = Vec::new();
     let mut endings = Vec::new();
     for index in 0..2 {
-        let fact = &bound.loans()[index];
-        let end = &bound.ends()[1 - index];
-        if fact.call() != bound.call()
-            || fact.argument() != bound.arguments()[index]
+        let fact = &bound.loans[index];
+        let end = &bound.ends[1 - index];
+        if fact.call() != bound.call
+            || fact.argument() != bound.arguments[index]
             || fact.kind() != lang_frontend::ownership_checking::LoanKind::Shared
             || fact.argument().expression() != source_args[index].value
             || end.loan() != fact
-            || end.point() != UnitDropPoint::CallReturn(bound.call())
+            || end.point() != UnitDropPoint::CallReturn(bound.call)
             || end.preceding_drops() != 0
             || end.preceding_call_loan_ends() != 1 - index
         {
@@ -155,7 +190,7 @@ fn inspect(
         let UnitLoanTarget::Place(place) = fact.target() else {
             return None;
         };
-        if !place.is_root() || place.root() != bound.wrapper_roots()[index] {
+        if !place.is_root() || place.root() != bound.roots[index] {
             return None;
         }
         let argument = arguments[index];
@@ -186,7 +221,7 @@ fn inspect(
         let Operation::RootPlace { owner } = root.operation else {
             return None;
         };
-        let init = bound.initializers()[index];
+        let init = bound.initializers[index];
         let node = ast.expressions().get(init.expression()).ok()?;
         let Expression::Literal(LiteralKind::Integer(kind)) = node.payload() else {
             return None;
@@ -234,4 +269,42 @@ fn inspect(
     }
     graph.no_abort(block.id)?;
     Some(())
+}
+
+/// Order-neutral wrapper facts, constructed only from each sealed handoff at its own entry.
+struct WrapperFacts<'a> {
+    entry: UnitItemId,
+    callee: UnitItemId,
+    roots: [UnitSymbolId; 2],
+    call: UnitExpressionId,
+    initializers: [UnitExpressionId; 2],
+    arguments: [UnitExpressionId; 2],
+    loans: &'a [UnitLoanFact; 2],
+    ends: &'a [UnitDirectCallLoanEndFact; 2],
+}
+impl<'a> WrapperFacts<'a> {
+    fn from_before(bound: &'a BoundNamedWrapper) -> Self {
+        Self {
+            entry: bound.entry(),
+            callee: bound.callee().controls().0,
+            roots: bound.wrapper_roots(),
+            call: bound.call(),
+            initializers: bound.initializers(),
+            arguments: bound.arguments(),
+            loans: bound.loans(),
+            ends: bound.ends(),
+        }
+    }
+    fn from_after(bound: &'a BoundNamedAfterChildWrapper) -> Self {
+        Self {
+            entry: bound.entry(),
+            callee: bound.callee().controls().0,
+            roots: bound.wrapper_roots(),
+            call: bound.call(),
+            initializers: bound.initializers(),
+            arguments: bound.arguments(),
+            loans: bound.loans(),
+            ends: bound.ends(),
+        }
+    }
 }

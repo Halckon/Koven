@@ -506,3 +506,6 @@ fn backend_io_error(operation: &str, error: std::io::Error) -> NativeObjectError
 
 #[cfg(feature = "d10-catalog-experiment")]
 pub(crate) mod d10_named_wrapper;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod d10_named_after_child;
