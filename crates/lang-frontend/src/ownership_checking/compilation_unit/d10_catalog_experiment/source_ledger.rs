@@ -1,6 +1,8 @@
 //! Original source traversal batches, not callable ownership or reachability permission.
 use super::*;
 use crate::name_resolution::SourceUnitId;
+mod iteration_collection;
+pub use iteration_collection::IterationSourceCollection;
 
 /// One real planner invocation boundary, not a callable or CFG certificate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,7 +46,7 @@ impl DropTraversalRecord {
     }
 }
 
-/// One actual source traversal's ordered output in five dataflow channels.
+/// One actual source traversal's ordered dataflow outputs and grouped iteration projections.
 /// The source denotes the traversal context, not a proof that every target is local.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceCollectionRecord {
@@ -55,6 +57,7 @@ pub struct SourceCollectionRecord {
     drops: Vec<UnitDropFact>,
     drop_traversals: Vec<DropTraversalRecord>,
     conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
+    iteration_collection: Option<IterationSourceCollection>,
 }
 impl SourceCollectionRecord {
     pub(crate) fn capture(
@@ -74,7 +77,21 @@ impl SourceCollectionRecord {
             drops: drops.to_vec(),
             drop_traversals,
             conditional_receiver_drops: conditional_receiver_drops.to_vec(),
+            iteration_collection: None,
         }
+    }
+    pub(crate) fn with_iteration_collection(
+        mut self,
+        collection: IterationSourceCollection,
+    ) -> Self {
+        self.iteration_collection = Some(collection);
+        self
+    }
+    /// Original three-channel iteration collection, including empty source batches.
+    /// An unsealed internal source record has none and cannot pass validated ledger retrieval.
+    #[must_use]
+    pub const fn iteration_collection(&self) -> Option<&IterationSourceCollection> {
+        self.iteration_collection.as_ref()
     }
     /// Actual canonical source traversed by the original checker/planner.
     #[must_use]
@@ -191,6 +208,7 @@ impl SourceCollectionLedger {
             return false;
         };
         Arc::ptr_eq(&self.analysis, &owned.provenance.analysis_owner)
+            && self.iteration_collections_match(owned)
             && closures.captures == owned.captures()
             && closures.closures == owned.closures()
             && closures
@@ -496,3 +514,6 @@ mod tests {
 
 #[cfg(test)]
 mod conditional_tests;
+
+#[cfg(test)]
+mod iteration_tests;

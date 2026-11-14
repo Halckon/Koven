@@ -218,6 +218,6 @@ pub use prepare_split::{
 
 mod source_ledger;
 pub use source_ledger::{
-    DropTraversal, DropTraversalRecord, SourceCollectionLedger, SourceCollectionRecord,
-    source_collection_ledger,
+    DropTraversal, DropTraversalRecord, IterationSourceCollection, SourceCollectionLedger,
+    SourceCollectionRecord, source_collection_ledger,
 };
