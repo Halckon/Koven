@@ -205,3 +205,19 @@ UnitCallableTarget::Symbol，不能把 nominal 被拒绝冒称为 receiver 根�
 本片普通 planner exact 2/2 通过（generic 含原源和成员变体）；三个 CI-only 目标
 编译/列举成功但 none executed。严格 Clippy、fmt、docs953、diff 和独审通过。
 此处 frontend 为 basic validated 链，不声称 final complete gate；未推送。
+
+### 根准入见证接入封闭 view
+
+将上述 planner 根选择共用 fixture 从 basic validated 链提升为显式 complete
+类型门（同 analysis 身份）、无 deferred 的 ownership 分析及
+OwnedCompilationUnitView；共同 planner 直接从该 view 取 names/types/ownership。
+同一原源、成员变体和 overload 见证分别经过 Rooted/MemoryDocument 两种输入
+布局，旧 singleton 对照、完整计划及来源身份断言保留。CI-only 根准入负控也
+复用这条封闭链，但本地不执行；独立预算目标本次没有升级，仍按其原范围记账。
+
+本片只收紧验收输入，不扩大生产入口或语言语义。不能以编译列举代替非法根
+动态结果，也不能将 Function-root 集合解释为 owner-root 多源借用。
+
+本片 ordinary planner exact 2/2（原 generic、成员变体、overload 均双布局）通过，
+三项 CI-only 目标仅编译/列举，none executed。严格 Clippy、fmt、docs953、diff、
+独审通过；未运行 native/全量测试，未推送。

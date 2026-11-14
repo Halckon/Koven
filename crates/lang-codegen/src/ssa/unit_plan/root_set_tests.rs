@@ -1,11 +1,14 @@
 //! Ordinary sources only: experimental common-plan roots, not whole Program lowering.
 use super::*;
 use lang_frontend::{
+    analysis::analyze_basic_unit_ownership,
     lexer::lex,
     name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
-    ownership_checking::check_compilation_unit_ownership,
+    ownership_checking::{check_compilation_unit_ownership, owned_compilation_unit_view},
     parser::parse_file,
-    type_checking::{check_compilation_unit_types, standard_environments},
+    type_checking::{
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
+    },
 };
 const GENERICS: &str = "fun <T> identity(own input: T): T = input\n\
          fun <T> relay(own input: T): T = identity(input)\n\
@@ -27,26 +30,47 @@ fn with_unreachable_member() -> String {
 }
 
 fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool) {
+    for memory in [false, true] {
+        check_layout(source, root_names, expected, reject_roots, memory);
+    }
+}
+
+fn check_layout(
+    source: &str,
+    root_names: &[&str],
+    expected: usize,
+    reject_roots: bool,
+    memory: bool,
+) {
     let mut sources = SourceMap::new();
     let source_id = sources.add_source("test/roots.ko", source).unwrap();
     let lexed = lex(&sources, source_id).unwrap();
     let parsed = parse_file(&sources, &lexed).unwrap();
     assert!(parsed.diagnostics().is_empty());
-    let inputs = [SourceUnitInput::new("test", "roots.ko", source_id, &parsed)];
+    let inputs = [if memory {
+        SourceUnitInput::memory_document(source_id, &parsed)
+    } else {
+        SourceUnitInput::new("test", "roots.ko", source_id, &parsed)
+    }];
     let (name_env, type_env) = standard_environments();
     let index = index_compilation_unit(&sources, &inputs).unwrap();
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_env)
         .unwrap()
         .validate()
         .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_env)
+    let raw = check_compilation_unit_types(&sources, &inputs, &names, &type_env).unwrap();
+    assert!(raw.diagnostics().is_empty());
+    let complete =
+        complete_compilation_unit_types(&sources, &inputs, &names, &type_env, &raw).unwrap();
+    assert!(complete.is_same_analysis(&raw));
+    let (typed, owned) = analyze_basic_unit_ownership(&sources, &inputs, &names, &type_env, raw)
         .unwrap()
-        .validate()
+        .into_result()
         .unwrap();
-    let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &type_env, &typed)
-        .unwrap()
-        .validate()
-        .unwrap();
+    assert!(owned.deferred().is_empty());
+    let owned = owned.validate().unwrap();
+    let view =
+        owned_compilation_unit_view(&sources, &inputs, &names, &type_env, &typed, &owned).unwrap();
     let entries = root_names
         .iter()
         .map(|name| {
@@ -67,9 +91,9 @@ fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool)
     let plan_roots = |roots: &[DeclarationId]| {
         plan_unit_root_set_from_facts(
             &[&parsed],
-            &names,
-            typed.types(),
-            owned.ownership(),
+            view.names(),
+            view.types(),
+            view.ownership(),
             roots,
             MAX_UNIT_GENERIC_INSTANCES,
             true,
