@@ -99,8 +99,10 @@ checked failure→Abort、正常继续、逐参数类型/arity 以及原实源/n
 ## 10. 验证记录
 
 一次选择的命令、输入与结果在此汇总；原始日志不入库。Spec 保持 in-progress，CI/归档不预填。
-最终本地代码输入为 main `51a3aad3` 上的本片 `crates/lang-codegen` tree
-`ae25f4a44dbb2b097cf44cbe7a77c84f372a8b43`；frontend/manifest/toolchain 无改动。
+首轮本地代码输入为 main `51a3aad3` 上的实现提交 `ba8059da`，`crates/lang-codegen` tree
+`ae25f4a44dbb2b097cf44cbe7a77c84f372a8b43`。后续 CI 两项测试适配后的同路径 tree 为
+`b35042fef1cf7880adb6c373c8106e8653653a6c`，仅两测试文件变化，生产代码与首轮一致；
+frontend/manifest/toolchain 无改动。
 宿主 macOS AArch64，Rust 1.96.0、LLVM21；复用隔离 target 且 Cargo 门禁顺序执行。
 
 | 验收项 | 输入、目标/命令 | 实际结果与边界 |
@@ -113,9 +115,15 @@ checked failure→Abort、正常继续、逐参数类型/arity 以及原实源/n
 | R6 Rust | `cargo fmt --all -- --check`；`cargo check --locked --workspace --all-targets`；两配置 `cargo clippy --locked --workspace --all-targets [--features loan-observation-test-support] -- -D warnings` | 全部退出 0；未声明另跑 feature check |
 | R6 结构 | docs/dependencies/size gates、`git diff --check`；size policy 47 tests | 全部通过；2294 个手写 Rust，36 个既有超千行文件，未增加尺寸欠账，全部修改的 Rust 文件在 1000 行内 |
 | R6 独立审查 | 最终逻辑只读复审，检查路由、local demands 的 source/Span/capture/substitution 及旧断言适配 | 未发现具体问题；审查不代替动态测试或官方 CI |
-| R7 | 独立 PR 精确头的官方 CI | 待执行；不复用其他 PR 绿灯 |
+| R5 追加消费者 | `ba8059da`，`ssa::refine_closure_tests::` | 默认/feature 各 **15/15，无忽略**，退出 0；不计入 620/652 selection 数字 |
+| R7 首跑失败 | [PR #424 run 43565910184](https://github.com/Halckon/Koven/actions/runs/43565910184)，head `ba8059da` / base `51a3aad3` | 两宿主 frontend 均 848 passed / 0 failed / 12 ignored；codegen Linux **3223 / 2 / 55**，macOS **3220 / 2 / 56**。两项失败见下文；Preview producer/consumer 均 skipped，非通过。push 43565752643 成功不代替 PR |
+| R7 失败复现 | 同实现，两个 `ssa::lower_frontend_tests` 目标 | 本地 **0 passed / 2 failed**，退出 101；精确复现与 CI 相同断言，不算修复前通过 |
+| R5 CI 修复重验 | `b35042fe…`，完整 `ssa::lower_frontend_tests::` | 默认/feature 各 **287/287，无忽略**，退出 0；原源码、kind/span、身份与 native/确定性检查保留 |
+| R5 CI 修复直接消费者 | 同输入，`ssa::refine_subset_tests::scalar::`、`ssa::unit_lower_scalar_tests::`、`ssa::verify_scalar_tests::` | 两配置各 **24/24，无忽略**，含入口 Borrow 跨 CFG 不传 loan 参数的原 verifier 合同；不与其他选择合并计数 |
+| R6 CI 修复门禁 | 同输入，fmt、workspace all-target check、双 workspace all-target Clippy、尺寸/依赖/空白；两文件独立只读复审 | 门禁均退出 0，复审无具体发现；root boundary 文件 960 行，未增加尺寸欠账；docs 在账本更新后重验 |
+| R7 修复候选 | PR #424 后续实际 head 的官方 CI | 待推送/核验；不把本地两配置通过或旧 push 绿灯替代 PR，保持 in-progress |
 
-最终 filters：`ssa::refine_subset_tests::`、`ssa::refine_tests::`、`ssa::unit_lower`、
+首轮扩大回归 filters：`ssa::refine_subset_tests::`、`ssa::refine_tests::`、`ssa::unit_lower`、
 `llvm::`、`receipt`、`borrow_return_transport`、`for_atomic`。默认选择 620、feature 选择 652，
 包含忽略项；不是完整 codegen suite。未运行 frontend 全量、完整 codegen lib、本地 CI-only
 故障注入、Linux sanitizer 或 0360 新增动态计数/native；官方完整门禁仍由 R7 核验。
@@ -123,3 +131,13 @@ checked failure→Abort、正常继续、逐参数类型/arity 以及原实源/n
 新测试构造期间的泛型语法/数值 literal expected-type 及过强跨源码 IR/跨分析对象等值断言
 均先纠正；同源正逆输入仍逐字节比较 SSA/LLVM，新增 sibling 以不变路由和实际执行结果验收。
 这些新夹具问题没有被计成产品回归，原有源码、拒绝 kind/span、receipt 负控保持。
+
+CI 两失败为 `declarative_type_roots_do_not_enter_the_scalar_instance_graph` 和
+`lowers_real_scalar_expression_functions_through_verified_ssa`：前者的空类型表断言改为与
+独立分析、正常 Unit lowering 的无声明同形 entry 完整类型表相等，仍禁止 unused 声明
+引入任意类型/布局，保留原五根、零动作、源身份、SSA/LLVM 与名称隔离检查。
+后者按 ADR-0016 及既有 verifier 合同，callee entry loan 支配全 CFG、正常返回隐式结束，
+不要求冗余 loan edge 参数；新断言逐个核对 Shared loan 读取身份/次数/顺序、add 与
+零减输入的数据流、精确 checked value 运输以及原 failure→Abort/continue、arity/type 和来源。
+适配阶段基线比较初版误用 `ty.kind` 曾编译失败，修正为实际 `Vec<SsaTypeKind>` 完整比较后才记通过。
+不为旧表示断言回退路由、改参数模式、篡改 fixture 或修改生产 lowering。
