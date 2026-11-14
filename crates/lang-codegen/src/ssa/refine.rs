@@ -13,7 +13,7 @@ mod nested_body_receipt;
 mod nested_exit_receipt;
 mod nested_resume_receipt;
 #[cfg(test)]
-pub(crate) use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::owner_consumer_test_support::{
+pub(crate) use build::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
 pub(crate) mod bounded_receipt;
