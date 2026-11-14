@@ -13,13 +13,23 @@ use crate::{
 enum Pending {
     Expression(ExpressionId),
     Statement(StatementId),
-    ConditionalRhs(ExpressionId),
-    KeepWritesOnLoopJump {
-        first_write: usize,
-        previous_jumps: usize,
-    },
+    Conditional(ConditionalSite),
+    DiscardNormalWrites(usize),
+    SaveBranchWrites(usize),
+    JoinBranchWrites(usize),
     EnterLoop(StatementId),
     LeaveLoop,
+}
+
+enum ConditionalSite {
+    RightOperand(ExpressionId),
+    Branch(StatementId),
+}
+
+struct LoopWrites {
+    first_write: usize,
+    captured_through: usize,
+    on_jump: BTreeMap<usize, ExpressionId>,
 }
 
 /// Recognize an unconditional RHS without running constant evaluation in flow checking.
@@ -127,6 +137,9 @@ pub(super) fn collect_expression_mutation_targets(
         Pending::Expression(expression),
         |_| true,
         |_| Ok(true),
+        |_| Ok(true),
+        |_| false,
+        false,
     )
 }
 
@@ -134,16 +147,21 @@ pub(super) fn collect_normal_expression_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     expression: ExpressionId,
     includes_inout: impl Fn(ExpressionId) -> bool,
-    conditional_rhs_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    expression_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    branch_completes: impl Fn(StatementId) -> Result<bool, AstError>,
+    includes_loop_jump: impl Fn(ExpressionId) -> bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    if !conditional_rhs_completes(expression)? {
+    if !expression_completes(expression)? {
         return Ok(Vec::new());
     }
     collect_mutation_targets(
         outcomes,
         Pending::Expression(expression),
         includes_inout,
-        conditional_rhs_completes,
+        expression_completes,
+        branch_completes,
+        includes_loop_jump,
+        true,
     )
 }
 
@@ -156,6 +174,9 @@ pub(super) fn collect_statement_mutation_targets(
         Pending::Statement(statement),
         |_| true,
         |_| Ok(true),
+        |_| Ok(true),
+        |_| false,
+        false,
     )
 }
 
@@ -163,42 +184,67 @@ fn collect_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     root: Pending,
     includes_inout: impl Fn(ExpressionId) -> bool,
-    conditional_rhs_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    expression_completes: impl Fn(ExpressionId) -> Result<bool, AstError>,
+    branch_completes: impl Fn(StatementId) -> Result<bool, AstError>,
+    includes_loop_jump: impl Fn(ExpressionId) -> bool,
+    track_loop_writes: bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
     let ast = outcomes.ast;
     let mut pending = vec![root];
-    let mut targets = Vec::new();
-    let mut loop_jumps = Vec::new();
+    let mut targets: Vec<ExpressionId> = Vec::new();
+    let mut loops: Vec<LoopWrites> = Vec::new();
+    let mut branch_writes = Vec::new();
     while let Some(node) = pending.pop() {
         match node {
-            Pending::ConditionalRhs(rhs) => {
-                if conditional_rhs_completes(rhs)? {
-                    pending.push(Pending::Expression(rhs));
-                } else if let Some(&previous_jumps) = loop_jumps.last() {
-                    // Only a jump to a loop already in this scan can make
-                    // writes on this otherwise abrupt path observable.
-                    pending.push(Pending::KeepWritesOnLoopJump {
-                        first_write: targets.len(),
-                        previous_jumps,
-                    });
-                    pending.push(Pending::Expression(rhs));
+            Pending::Conditional(site) => {
+                let (child, completes) = match site {
+                    ConditionalSite::RightOperand(rhs) => {
+                        (Pending::Expression(rhs), expression_completes(rhs)?)
+                    }
+                    ConditionalSite::Branch(branch) => {
+                        (Pending::Statement(branch), branch_completes(branch)?)
+                    }
+                };
+                if !completes {
+                    if loops.is_empty() {
+                        continue;
+                    }
+                    pending.push(Pending::DiscardNormalWrites(targets.len()));
+                } else if !loops.is_empty() && matches!(site, ConditionalSite::Branch(_)) {
+                    pending.push(Pending::SaveBranchWrites(targets.len()));
                 }
+                pending.push(child);
             }
-            Pending::KeepWritesOnLoopJump {
-                first_write,
-                previous_jumps,
-            } => {
-                if loop_jumps.last() == Some(&previous_jumps) {
+            Pending::DiscardNormalWrites(first_write) | Pending::SaveBranchWrites(first_write) => {
+                if matches!(node, Pending::SaveBranchWrites(_)) {
+                    branch_writes.extend(targets.drain(first_write..));
+                } else {
                     targets.truncate(first_write);
                 }
+                if let Some(frame) = loops.last_mut() {
+                    frame.captured_through = frame.captured_through.min(first_write);
+                }
+            }
+            Pending::JoinBranchWrites(first_branch) => {
+                targets.extend(branch_writes.drain(first_branch..));
             }
             Pending::EnterLoop(body) => {
-                loop_jumps.push(0);
-                pending.push(Pending::LeaveLoop);
+                if track_loop_writes {
+                    loops.push(LoopWrites {
+                        first_write: targets.len(),
+                        captured_through: targets.len(),
+                        on_jump: BTreeMap::new(),
+                    });
+                    pending.push(Pending::LeaveLoop);
+                }
                 pending.push(Pending::Statement(body));
             }
             Pending::LeaveLoop => {
-                loop_jumps.pop();
+                let mut frame = loops.pop().expect("matching loop frame");
+                for target in &targets[frame.first_write..] {
+                    frame.on_jump.remove(&target.index());
+                }
+                targets.extend(frame.on_jump.into_values());
             }
             Pending::Expression(expression) => match ast.expressions().get(expression)?.payload() {
                 Expression::Error
@@ -207,8 +253,16 @@ fn collect_mutation_targets(
                 | Expression::Literal(_)
                 | Expression::SuperMember { .. } => {}
                 Expression::Break { .. } | Expression::Continue { .. } => {
-                    if let Some(jumps) = loop_jumps.last_mut() {
-                        *jumps += 1;
+                    if let Some(frame) = loops.last_mut()
+                        && includes_loop_jump(expression)
+                    {
+                        // Keep the prefix reaching this jump before visiting sibling paths.
+                        frame.on_jump.extend(
+                            targets[frame.captured_through..]
+                                .iter()
+                                .map(|&target| (target.index(), target)),
+                        );
+                        frame.captured_through = targets.len();
                     }
                 }
                 // 创建 callable 不执行其声明体；不能把捕获体中的写入算作当前求值效果。
@@ -240,17 +294,19 @@ fn collect_mutation_targets(
                     else_branch,
                     ..
                 } => {
+                    pending.push(Pending::JoinBranchWrites(branch_writes.len()));
                     if let Some(branch) = else_branch {
-                        pending.push(Pending::Statement(*branch));
+                        pending.push(Pending::Conditional(ConditionalSite::Branch(*branch)));
                     }
-                    pending.push(Pending::Statement(*then_branch));
+                    pending.push(Pending::Conditional(ConditionalSite::Branch(*then_branch)));
                     pending.push(Pending::Expression(*condition));
                 }
                 Expression::When {
                     subject, entries, ..
                 } => {
+                    pending.push(Pending::JoinBranchWrites(branch_writes.len()));
                     for entry in entries.iter().rev() {
-                        pending.push(Pending::Statement(entry.body));
+                        pending.push(Pending::Conditional(ConditionalSite::Branch(entry.body)));
                         for condition in entry.conditions.iter().rev() {
                             match condition {
                                 WhenCondition::Expression(expression)
@@ -282,7 +338,8 @@ fn collect_mutation_targets(
                         BinaryOperator::LogicalAnd
                         | BinaryOperator::LogicalOr
                         | BinaryOperator::Elvis => {
-                            pending.push(Pending::ConditionalRhs(*right));
+                            pending
+                                .push(Pending::Conditional(ConditionalSite::RightOperand(*right)));
                         }
                         _ => pending.push(Pending::Expression(*right)),
                     }
@@ -305,10 +362,16 @@ fn collect_mutation_targets(
                                 .then_some(argument.value)
                         }));
                     }
-                    for argument in arguments.iter().rev() {
-                        pending.push(Pending::Expression(argument.value));
+                    let first_operand = pending.len();
+                    for operand in std::iter::once(*callee)
+                        .chain(arguments.iter().map(|argument| argument.value))
+                    {
+                        pending.push(Pending::Expression(operand));
+                        if !expression_completes(operand)? {
+                            break;
+                        }
                     }
-                    pending.push(Pending::Expression(*callee));
+                    pending[first_operand..].reverse();
                 }
                 Expression::Index { receiver, index } => {
                     pending.push(Pending::Expression(*index));

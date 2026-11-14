@@ -187,6 +187,22 @@ fn a_poisoned_call_group_leaves_the_proven_block_separator() {
 }
 
 #[test]
+fn a_call_group_with_cross_line_poison_keeps_the_block_declarations() {
+    let text = "{ f((value\nβ; val saved = 1\nval later = saved }";
+    let (sources, block) = parsed(text);
+    assert_group_diagnostics(
+        &sources,
+        block.diagnostics(),
+        &[("L0001", "β"), ("L0010", "")],
+    );
+    assert!(block.diagnostics().iter().any(|diagnostic| {
+        diagnostic.code().to_string() == "L0010"
+            && diagnostic.primary_span().start() == text.find(';').unwrap()
+    }));
+    assert_call_recovery_keeps_saved_and_later(&sources, &block);
+}
+
+#[test]
 fn a_call_group_keeps_local_semicolons_and_the_next_argument() {
     for (group, expected) in [
         ("(value β; 2)", ("L0001", "β")),
