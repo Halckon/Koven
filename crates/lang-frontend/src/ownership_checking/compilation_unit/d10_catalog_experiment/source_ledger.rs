@@ -252,22 +252,22 @@ impl SourceCollectionLedger {
                 .flat_map(|r| &r.constructions)
                 .eq(owned.construction_plans())
             && self.records.iter().all(|record| {
-                record
+                record.drop_traversals.callables_match(
+                    record.source,
+                    &record.drops,
+                    &record.conditional_receiver_drops,
+                ) && record.drop_traversals.roots.iter().all(|batch| {
+                    batch.traversal.source() == record.source
+                        && batch.drops.iter().all(|fact| {
+                            super::super::owner_transport_validation::point_source(fact.point())
+                                == record.source
+                        })
+                }) && record
                     .drop_traversals
-                    .callables_match(record.source, &record.drops)
-                    && record.drop_traversals.roots.iter().all(|batch| {
-                        batch.traversal.source() == record.source
-                            && batch.drops.iter().all(|fact| {
-                                super::super::owner_transport_validation::point_source(fact.point())
-                                    == record.source
-                            })
-                    })
-                    && record
-                        .drop_traversals
-                        .roots
-                        .iter()
-                        .flat_map(|batch| &batch.drops)
-                        .eq(&record.drops)
+                    .roots
+                    .iter()
+                    .flat_map(|batch| &batch.drops)
+                    .eq(&record.drops)
             })
             && self.records.iter().flat_map(|r| &r.drops).eq(owned.drops())
             && self.records.iter().all(|record| {

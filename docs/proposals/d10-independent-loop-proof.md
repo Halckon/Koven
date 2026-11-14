@@ -1889,3 +1889,22 @@ NoBody/空body区别，FunctionEntry及ControlTransfer实点命中，完整事�
 拒绝）；真实五源项目exact 1 passed（两个Replace顺序）。双feature前端all-tests严格
 Clippy与默认CLI check通过，格式/diff、尺寸2331/37及957 Markdown结构门禁通过。
 独立审阅确认item迁移除观察接线外等价。未推送、未native执行、未故障注入。
+
+
+### 同 callable 边界的 conditional receiver 原始增量
+
+沿原 Function/Deinit/visited Lambda 成功遍历起止保存 conditional_receiver_facts 新增
+切片，复用原 into_unit 保留 point、owner、receiver_type、value_origin、preceding_drops
+全字段；逐源保序拼接精确等于原完整 conditional 数组，不新增遍历、排序或准入。
+preceding_drops 是生产该义务时同一 point 已追加 flat Drop 的数量，不是 source 全局
+索引，也不等于最终同 point 总数；本批不局部归一、不重新计算、不重编号。iteration
+动作排序仍由原 validator 负责，此观测不替代实例化或清理执行证明。
+
+真实原多源fixture明确定位 Finishable.finish 与 Relay.relay 的原 Function item，核唯一
+非空 callable批次、完整字段Eq与relay的原preceding_drops=2；原同point的后续普通Drop
+仍保留 newer/prefix/older次序。反转inputs、零事实、错误与deferred拒绝继续保持。
+
+本地验证：source-ledger普通组7 passed，完整五源project exact 1 passed（两种Replace
+顺序），双feature前端all-tests Clippy `-D warnings`、默认CLI check通过；格式/diff、
+尺寸2331/37、957 Markdown结构门禁通过。独立静审无阻断。中途空间门禁停止下一构建，
+仅清理本任务idle缓存后续验，未重跑已过测试；未推送、native执行或故障注入。

@@ -30,10 +30,19 @@ impl DropCallable {
 pub struct CallableDropRecord {
     callable: DropCallable,
     drops: Vec<UnitDropFact>,
+    conditional_receivers: Vec<UnitConditionalReceiverDropFact>,
 }
 impl CallableDropRecord {
-    pub(crate) fn new(callable: DropCallable, drops: Vec<UnitDropFact>) -> Self {
-        Self { callable, drops }
+    pub(crate) fn new(
+        callable: DropCallable,
+        drops: Vec<UnitDropFact>,
+        conditional_receivers: Vec<UnitConditionalReceiverDropFact>,
+    ) -> Self {
+        Self {
+            callable,
+            drops,
+            conditional_receivers,
+        }
     }
     /// Actual successful traversal identity and body presence.
     #[must_use]
@@ -45,6 +54,12 @@ impl CallableDropRecord {
     pub fn drops(&self) -> &[UnitDropFact] {
         &self.drops
     }
+    /// Original conditional receiver obligations, with all fields and the producer's original
+    /// count of already-appended flat drops at that point. Never rebased to this batch.
+    #[must_use]
+    pub fn conditional_receiver_drops(&self) -> &[UnitConditionalReceiverDropFact] {
+        &self.conditional_receivers
+    }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct DropCollections {
@@ -52,9 +67,18 @@ pub(crate) struct DropCollections {
     pub(crate) callables: Vec<CallableDropRecord>,
 }
 impl DropCollections {
-    pub(super) fn callables_match(&self, source: SourceUnitId, drops: &[UnitDropFact]) -> bool {
+    pub(super) fn callables_match(
+        &self,
+        source: SourceUnitId,
+        drops: &[UnitDropFact],
+        conditional: &[UnitConditionalReceiverDropFact],
+    ) -> bool {
         self.callables.iter().all(|batch| {
             batch.callable.source() == source
+                && batch.conditional_receivers.iter().all(|fact| {
+                    super::super::super::owner_transport_validation::point_source(fact.point())
+                        == source
+                })
                 && batch.drops.iter().all(|fact| {
                     super::super::super::owner_transport_validation::point_source(fact.point())
                         == source
@@ -64,5 +88,10 @@ impl DropCollections {
             .iter()
             .flat_map(|batch| &batch.drops)
             .eq(drops)
+            && self
+                .callables
+                .iter()
+                .flat_map(|batch| &batch.conditional_receivers)
+                .eq(conditional)
     }
 }

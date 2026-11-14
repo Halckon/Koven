@@ -103,6 +103,38 @@ fn conditional_batches_keep_full_fields_source_order_and_failed_publication() {
                     .flat_map(|record| record.conditional_receiver_drops())
                     .eq(owned.ownership().conditional_receiver_drops())
             );
+            for record in ledger.records() {
+                assert!(
+                    record
+                        .callable_drop_traversals()
+                        .iter()
+                        .flat_map(|batch| batch.conditional_receiver_drops())
+                        .eq(record.conditional_receiver_drops())
+                );
+            }
+            // Resolve the exact underlying function item from each original parsed source.
+            // No reconstruction from drop targets or spans of final facts.
+            for (source_index, function_name) in [(0, "finish"), (1, "relay")] {
+                let (item, _) = parsed[source_index].1.ast().items().iter().find(|(_, node)| matches!(node.payload(), crate::parser::Item::Function { name: crate::parser::NameMarker::Present(span), .. } if sources.slice(*span).unwrap() == function_name)).unwrap();
+                let record = &ledger.records()[source_index];
+                let callable = DropCallable::Function {
+                    item: UnitItemId::new(record.source(), item),
+                    has_body: true,
+                };
+                let matches: Vec<_> = record
+                    .callable_drop_traversals()
+                    .iter()
+                    .filter(|batch| batch.callable() == callable)
+                    .collect();
+                assert_eq!(matches.len(), 1);
+                let conditional = matches[0].conditional_receiver_drops();
+                assert!(!conditional.is_empty());
+                if function_name == "finish" {
+                    assert_eq!(conditional, record.conditional_receiver_drops());
+                } else {
+                    assert!(conditional.iter().any(|fact| fact.preceding_drops() == 2));
+                }
+            }
             let [finish] = ledger.records()[0].conditional_receiver_drops() else {
                 panic!("one generic finish obligation")
             };

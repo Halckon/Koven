@@ -14,7 +14,7 @@ impl DropPlanner<'_, '_> {
                     return Ok(());
                 }
                 #[cfg(feature = "d10-catalog-experiment")]
-                let drop_start = self.facts.len();
+                let drop_start = (self.facts.len(), self.conditional_receiver_facts.len());
                 self.begin_owner_function(id);
                 let mut state = ValueState::default();
                 if self.checker.receiver_context(name).is_some() {
@@ -173,7 +173,7 @@ impl DropPlanner<'_, '_> {
             }
             Item::Deinit { body, .. } => {
                 #[cfg(feature = "d10-catalog-experiment")]
-                let drop_start = self.facts.len();
+                let drop_start = (self.facts.len(), self.conditional_receiver_facts.len());
                 self.begin_unsupported_owner(
                     crate::ownership_checking::UnitOwnerCallable::Deinit(
                         crate::type_checking::UnitItemId::new(self.checker.source_unit, id),

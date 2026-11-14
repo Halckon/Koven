@@ -53,13 +53,15 @@ impl DropPlanner<'_, '_> {
             }
             #[cfg(feature = "d10-catalog-experiment")]
             let drop_start = self.facts.len();
+            #[cfg(feature = "d10-catalog-experiment")]
+            let conditional_start = self.conditional_receiver_facts.len();
             self.plan_lambda_body(lambda, &effective_parameters, *body)?;
             #[cfg(feature = "d10-catalog-experiment")]
             self.record_callable_drops(
                 super::super::super::d10_catalog_experiment::DropCallable::Lambda(
                     self.checker.unit_expression(lambda),
                 ),
-                drop_start,
+                (drop_start, conditional_start),
             );
             #[cfg(feature = "d10-catalog-experiment")]
             self.record_drop_traversal(
@@ -94,12 +96,16 @@ impl DropPlanner<'_, '_> {
     pub(super) fn record_callable_drops(
         &mut self,
         callable: super::super::super::d10_catalog_experiment::DropCallable,
-        start: usize,
+        start: (usize, usize),
     ) {
         self.drop_traversals.callables.push(
             super::super::super::d10_catalog_experiment::CallableDropRecord::new(
                 callable,
-                self.facts[start..]
+                self.facts[start.0..]
+                    .iter()
+                    .map(|fact| fact.into_unit(self.checker.source_unit))
+                    .collect(),
+                self.conditional_receiver_facts[start.1..]
                     .iter()
                     .map(|fact| fact.into_unit(self.checker.source_unit))
                     .collect(),
