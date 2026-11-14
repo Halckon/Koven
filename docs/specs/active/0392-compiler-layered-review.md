@@ -6060,3 +6060,23 @@ Compatibility 路由、SSA 验证与真实运行结果。
 参数分别执行写回后 return、非空调用后继续、空值且跳过写回后
 继续。两种源码均退出 0，输出一致，三条路径各观察到一次 Guard
 析构。静态复核确认非空 proof 只进入对应臂，提前退出不进入合流。
+
+## 253. R3/R4 nullable 资源写回后从内层返回
+
+[#430](https://github.com/Halckon/Koven/pull/430) 已交付 R1/R2 的
+Parser 恢复和 Unit 入口回归。其精确头双宿主通过，合入后的
+[主线 CI](https://github.com/Halckon/Koven/actions/runs/43631274287) 也已通过。
+
+在合并提交 `32240166` 上复现带 deinit 的 nullable 资源在
+when 非空臂内赋值时报 UnsupportedNode。旧借用证明仍有效，
+原准入拦截了尚未执行的赋值。候选要求同源普通根赋值及 RHS
+完成时的 Named 旧根析构事实，随后复用原赋值路径。RHS 可借用
+旧值，完成后先结束旧借用并析构旧值，再重绑。重新判空后从
+内层 return 时，Guard 和新值按声明逆序各析构一次。
+
+独立复审核对赋值、RHS 和析构目标的同源身份，以及原有成员、
+索引和复合赋值门禁。按复审补强，RHS 实际读取旧字段并在完成前
+打印独立标记。macOS arm64 的单文件与项目入口均编译并执行，
+15 行 stdout 与 Guide 10 的预期顺序逐字节一致，均退出 0，
+stderr 为空。两条正常边带不同 proof 的合流继续单独复审。
+最终源码的 nullable when 后端套件通过 18 项，零失败或忽略。
