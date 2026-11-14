@@ -18756,3 +18756,17 @@ leaf 见证；抽出的独立 body/ABI replay 同时复用于旧单闭包路径�
 不支持 binding 的拒绝均保留。失败不返回部分 Program。此步仅发射共同 leaf 层，
 没有共同 caller/helpers/entry、没有多 entry receipt 或对象发布，不能称共同 Unit
 已完成；原有生产入口和单 entry publisher 不变。故障仍仅 CI，未在本地运行。
+
+
+### 2026-11-14：共同 Program 的两臂 helper 层
+
+`e2_arm_fragments::emit_for_facts` 从通过全 Unit preflight 的共同 leaf Program 开始，
+消费同一 Program 并逐 fact 追加两臂 helper，不复制或重编号另一 Program。各 helper
+保留原 fact 的调用、父 loan 列映射与真实 child End；名称使用当前 module 分配位置
+避免重复。精确函数数量、leaf/helper ID 不相交及全部 helper 唯一性在返回前核验。
+
+从原单闭包 replay 抽出 `replay_arms`，共同路径逐 fact 独立核对 typed call/key、
+真实源 span、shared parent/child 与 End，同时自包含 ABI/abort 限制；原单闭包继续
+复用该核验。真实双事实独立/共享 leaf fixture 验证共同 allocator 和完整 helper 数量，
+不支持集合仍无产物。此步尚无共同 caller/entry 或多 entry 封包，普通生产入口不变；
+本地只跑正常回归，故障仍限 CI。

@@ -332,82 +332,20 @@ pub(super) fn replay_closure(
         used.push(*id);
         replay_leaf(module, *id, leaf)?;
     }
-    let roles = shell.roles();
-    let columns = if roles[0] < roles[1] { [0, 1] } else { [1, 0] };
-    same!(emitted.fragments.columns, columns);
-    let spans = experiment.arm_spans(fact)?;
-    for (index, id) in emitted.fragments.arms.iter().enumerate() {
-        require!(!used.contains(id));
-        used.push(*id);
-        let f = module.function(*id)?;
-        same!(f.borrow_return, None);
-        require!(f.return_types.is_empty());
-        let [block] = f.blocks.as_slice() else {
-            return None;
-        };
-        same!(block.parameters.len(), 2);
-        for parameter in &block.parameters {
-            shared_string(module, f, *parameter)?;
-        }
-        let origin = Origin::Synthetic {
-            anchor: spans[index].body(),
-            reason: "detached verified E2 arm".to_owned(),
-        };
-        same!(f.origin, origin);
-        same!(block.origin, origin);
-        let term = block.terminator.as_ref()?;
-        same!(term.origin, origin);
-        same!(term.kind, TerminatorKind::Return { values: vec![] });
-        let calls = &fact.calls()[index];
-        same!(calls.len(), spans[index].calls().len());
-        same!(block.instructions.len(), calls.len() + 1);
-        let parent = loan!(block.parameters[columns[index]]);
-        let mut child = None;
-        for (position, ((expression, key), span)) in
-            calls.iter().zip(spans[index].calls()).enumerate()
-        {
-            same!(typed.types().call(*expression)?.instance(), key);
-            let callee = emitted
-                .fragments
-                .leaves
-                .functions
-                .iter()
-                .find(|(candidate, _)| candidate == key)?
-                .1;
-            let instruction = f.instruction(block.instructions[position])?;
-            same!(instruction.origin, Origin::Source(*span));
-            if position == 0 {
-                same!(
-                    instruction.operation,
-                    Operation::BorrowCall {
-                        callee,
-                        arguments: vec![EntityId::Loan(parent)],
-                        source: parent
-                    }
-                );
-                let [result] = instruction.results.as_slice() else {
-                    return None;
-                };
-                shared_string(module, f, *result)?;
-                require!(!block.parameters.contains(result));
-                child = Some(loan!(*result));
-            } else {
-                require!(instruction.results.is_empty());
-                same!(
-                    instruction.operation,
-                    Operation::DirectCall {
-                        callee,
-                        receiver: None,
-                        arguments: vec![EntityId::Loan(child?)]
-                    }
-                );
-            }
-        }
-        let end = f.instruction(*block.instructions.last()?)?;
-        require!(end.results.is_empty());
-        same!(end.operation, Operation::BorrowEnd { loan: child? });
-        same!(end.origin, Origin::Source(spans[index].end()));
+    for id in emitted.fragments.arms {
+        require!(!used.contains(&id));
+        used.push(id);
     }
+    replay_arms(
+        module,
+        &emitted.fragments.arms,
+        emitted.fragments.columns,
+        &emitted.fragments.leaves.functions,
+        experiment,
+        fact,
+        typed,
+    )?;
+    let spans = experiment.arm_spans(fact)?;
     let original = module.function(emitted.caller)?;
     for (index, span) in spans.iter().enumerate() {
         let block = original.blocks.get(3 + index)?;
@@ -470,6 +408,92 @@ pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) ->
             require!(f.return_types.is_empty());
             same!(term.kind, TerminatorKind::Return { values: vec![] });
         }
+    }
+    Some(())
+}
+
+/// Replay exact source arm bodies against shared concrete-instance locators.
+pub(super) fn replay_arms(
+    module: &Module,
+    arms: &[FunctionId; 2],
+    columns: [usize; 2],
+    functions: &[(
+        lang_frontend::type_checking::UnitCallableInstanceKey,
+        FunctionId,
+    )],
+    experiment: &TwoSourceExperiment,
+    fact: &TwoSourceCounterFact,
+    typed: &ValidatedCompilationUnitTypes,
+) -> Option<()> {
+    require!(experiment.owns(fact) && experiment.matches_types(typed));
+    let roles = experiment.function_shell(fact, typed)?.roles();
+    same!(columns, if roles[0] < roles[1] { [0, 1] } else { [1, 0] });
+    let spans = experiment.arm_spans(fact)?;
+    for (index, id) in arms.iter().enumerate() {
+        let f = module.function(*id)?;
+        require!(f.receiver.is_none() && f.carrier_return.is_none() && !f.never_returns);
+        same!(f.borrow_return, None);
+        require!(f.return_types.is_empty());
+        let [block] = f.blocks.as_slice() else {
+            return None;
+        };
+        same!(block.parameters.len(), 2);
+        for parameter in &block.parameters {
+            shared_string(module, f, *parameter)?;
+        }
+        let origin = Origin::Synthetic {
+            anchor: spans[index].body(),
+            reason: "detached verified E2 arm".to_owned(),
+        };
+        same!(f.origin, origin);
+        same!(block.origin, origin);
+        let term = block.terminator.as_ref()?;
+        require!(term.abort.is_none());
+        same!(term.origin, origin);
+        same!(term.kind, TerminatorKind::Return { values: vec![] });
+        let calls = &fact.calls()[index];
+        same!(calls.len(), spans[index].calls().len());
+        same!(block.instructions.len(), calls.len() + 1);
+        let parent = loan!(block.parameters[columns[index]]);
+        let mut child = None;
+        for (position, ((expression, key), span)) in
+            calls.iter().zip(spans[index].calls()).enumerate()
+        {
+            same!(typed.types().call(*expression)?.instance(), key);
+            let callee = functions.iter().find(|(candidate, _)| candidate == key)?.1;
+            let instruction = f.instruction(block.instructions[position])?;
+            same!(instruction.origin, Origin::Source(*span));
+            if position == 0 {
+                same!(
+                    instruction.operation,
+                    Operation::BorrowCall {
+                        callee,
+                        arguments: vec![EntityId::Loan(parent)],
+                        source: parent
+                    }
+                );
+                let [result] = instruction.results.as_slice() else {
+                    return None;
+                };
+                shared_string(module, f, *result)?;
+                require!(!block.parameters.contains(result));
+                child = Some(loan!(*result));
+            } else {
+                require!(instruction.results.is_empty());
+                same!(
+                    instruction.operation,
+                    Operation::DirectCall {
+                        callee,
+                        receiver: None,
+                        arguments: vec![EntityId::Loan(child?)]
+                    }
+                );
+            }
+        }
+        let end = f.instruction(*block.instructions.last()?)?;
+        require!(end.results.is_empty());
+        same!(end.operation, Operation::BorrowEnd { loan: child? });
+        same!(end.origin, Origin::Source(spans[index].end()));
     }
     Some(())
 }

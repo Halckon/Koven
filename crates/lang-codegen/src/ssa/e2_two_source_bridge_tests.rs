@@ -677,6 +677,17 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
         assert!(handoff.for_facts(&[fact, &other.facts()[0]]).is_none());
         let all_facts: Vec<_> = experiment.facts().iter().collect();
         let set = handoff.for_facts(&all_facts);
+        let joint_arms = super::e2_arm_fragments::emit_for_facts(&handoff, &experiment, &all_facts);
+        assert_eq!(joint_arms.is_some(), !unsupported && !ordinary);
+        if let Some(joint) = joint_arms {
+            assert_eq!(joint.locators.len(), all_facts.len());
+            assert_eq!(
+                joint.leaves.program.modules[0].functions.len(),
+                joint.leaves.functions.len() + 2 * all_facts.len()
+            );
+            super::verify::verify_program(&joint.leaves.program).unwrap();
+        }
+
         let joint = super::e2_callee_leaves::emit_for_facts(&handoff, &experiment, &all_facts);
         assert_eq!(joint.is_some(), !unsupported && !ordinary);
         if let Some(joint) = joint {

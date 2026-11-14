@@ -14,9 +14,17 @@ pub(super) fn emit(
     fact: &TwoSourceCounterFact,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Option<EmittedArms> {
+    let leaves = e2_callee_leaves::emit_for_fact(experiment, fact, typed)?;
+    append(experiment, fact, typed, leaves)
+}
+fn append(
+    experiment: &TwoSourceExperiment,
+    fact: &TwoSourceCounterFact,
+    typed: &ValidatedCompilationUnitTypes,
+    mut leaves: e2_callee_leaves::EmittedLeaves,
+) -> Option<EmittedArms> {
     let plan = Plan::new(experiment, fact, typed)?;
     let spans = experiment.arm_spans(fact)?;
-    let mut leaves = e2_callee_leaves::emit_for_fact(experiment, fact, typed)?;
     // The helper has only the two root parameters, ordered by their original signature roles.
     let columns = if plan.source_roles()[0] < plan.source_roles()[1] {
         [0, 1]
@@ -41,7 +49,11 @@ pub(super) fn emit(
             reason: "detached verified E2 arm".to_owned(),
         };
         let id = module
-            .add_function(format!("e2_arm_{arm_index}"), vec![], origin.clone())
+            .add_function(
+                format!("e2_arm_{}_{}", module.functions.len(), arm_index),
+                vec![],
+                origin.clone(),
+            )
             .ok()?;
         let function = module.function_mut(id)?;
         let block = function
@@ -105,4 +117,60 @@ pub(super) fn emit(
         arms: arms.try_into().ok()?,
         columns,
     })
+}
+
+/// One common leaf/helper Program, not a caller/entry publication.
+pub(super) struct EmittedArmSet {
+    pub(super) leaves: e2_callee_leaves::EmittedLeaves,
+    pub(super) locators: Vec<ArmLocator>,
+}
+pub(super) struct ArmLocator {
+    pub(super) arms: [FunctionId; 2],
+    pub(super) columns: [usize; 2],
+}
+pub(super) fn emit_for_facts(
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    experiment: &TwoSourceExperiment,
+    facts: &[&TwoSourceCounterFact],
+) -> Option<EmittedArmSet> {
+    let typed = handoff.types();
+    let mut leaves = e2_callee_leaves::emit_for_facts(handoff, experiment, facts)?;
+    let mut locators = Vec::new();
+    for fact in facts {
+        let emitted = append(experiment, fact, typed, leaves)?;
+        locators.push(ArmLocator {
+            arms: emitted.arms,
+            columns: emitted.columns,
+        });
+        leaves = emitted.leaves;
+    }
+    let [module] = leaves.program.modules.as_slice() else {
+        return None;
+    };
+    if module.functions.len() != leaves.functions.len() + 2 * facts.len() {
+        return None;
+    }
+    let mut used: Vec<_> = leaves.functions.iter().map(|(_, id)| *id).collect();
+    for (fact, locator) in facts.iter().zip(&locators) {
+        for id in locator.arms {
+            if used.contains(&id) {
+                return None;
+            }
+            used.push(id);
+        }
+        super::e2_replay::replay_arms(
+            module,
+            &locator.arms,
+            locator.columns,
+            &leaves.functions,
+            experiment,
+            fact,
+            typed,
+        )?;
+    }
+    super::verify::verify_program(&leaves.program).ok()?;
+    Some(EmittedArmSet { leaves, locators })
 }
