@@ -1,4 +1,4 @@
-//! Execute unmodified experimental LLVM with a synthetic test-only call driver.
+//! Execute experimental LLVM fixtures and exact objects from checked source entry packages.
 use super::model::*;
 use lang_frontend::{
     lexer::lex,
@@ -241,7 +241,11 @@ pub(super) fn execute_llvm(llvm: &str, expected: &[u8]) {
         .output()
         .expect("clang must launch");
     assert!(compiled.status.success(), "{compiled:?}");
-    let mut child = Command::new(&executable)
+    execute_binary(&executable, expected);
+}
+
+fn execute_binary(executable: &std::path::Path, expected: &[u8]) {
+    let mut child = Command::new(executable)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -261,7 +265,7 @@ pub(super) fn execute_llvm(llvm: &str, expected: &[u8]) {
     assert!(output.stderr.is_empty(), "{output:?}");
 }
 
-/// Real object transaction success and identity rejection before any output side effect.
+/// Reject foreign identity before side effects, then link and execute the exact committed object.
 pub(super) fn check_published_object(
     package: &crate::ssa::ExperimentalPublishedEntrySet<'_>,
     handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
@@ -293,4 +297,14 @@ pub(super) fn check_published_object(
         1,
         "no sibling temporary remains"
     );
+    // Link the transaction's exact artifact, not regenerated LLVM or a synthetic driver.
+    let executable = directory.join("joint");
+    let linked = Command::new(crate::test_support::clang())
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    execute_binary(&executable, b"");
 }

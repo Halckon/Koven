@@ -18847,3 +18847,13 @@ names/types/SourceMap 仅取 handoff，不能外接任意来源映射。普通 O
 生成本机对象并核格式、无残余 sibling 文件；foreign handoff/descriptor 的正常输入
 拒绝保持旧输出字节及目录快照不变。后者仅证明身份早拒绝无副作用，不宣称后端故障
 回滚或所有失败阶段已验收。没有本地故障注入，生产 native 发布权限仍未开放。
+
+
+### 2026-11-14：事务提交对象的直接链接执行
+
+实验真实 entry 验收现将 `emit_experimental_e2_object` 已提交的同一 `.o` 直接交给
+clang 链接并运行，不重新渲染 LLVM、不追加 synthetic driver。原 entry fixture 的
+零/正 rounds、双分支及多 fact 独立/共享 leaf 组合复用该检查；执行要求成功退出、
+空 stdout/stderr，并有 10 秒执行超时。临时文件清理在链接前独立核对。
+这证明实验对象可实际运行，不证明空 consumer 的动态执行次数、泄漏或 abort 路径；
+后端故障原子性仍需 CI-only 验收，普通生产能力保持未启用。
