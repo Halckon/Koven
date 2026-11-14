@@ -1,6 +1,7 @@
 //! Independent per-planner construction. No legacy owner tokens, no certificates.
 use super::*;
 use std::sync::Arc;
+mod coverage;
 
 #[derive(Clone, Debug)]
 pub(in super::super) struct Token {
@@ -16,21 +17,110 @@ impl Eq for Token {}
 
 pub(in super::super) struct Catalog {
     identity: Arc<()>,
+    coverage: Option<coverage::Coverage>,
+    bindings: Vec<(UnitSymbolId, UnitExpressionId)>,
     source: crate::name_resolution::SourceUnitId,
-    pub(in super::super) definitions: Vec<(UnitExpressionId, Token)>,
-    pub(in super::super) roots: Vec<(UnitSymbolId, Token)>,
+    definitions: Vec<(UnitExpressionId, Token)>,
+    roots: Vec<(UnitSymbolId, Token)>,
     pending: Vec<(UnitExpressionId, Token)>,
-    pub(in super::super) retirements: Vec<(Token, crate::ownership_checking::UnitDropFact)>,
-    pub(in super::super) replacements: Vec<(UnitSymbolId, Token, Token)>,
-    pub(in super::super) failed: bool,
+    retirements: Vec<(Token, crate::ownership_checking::UnitDropFact)>,
+    replacements: Vec<(UnitSymbolId, Token, Token)>,
+    failed: bool,
 }
+pub(in super::super) struct Closed {
+    _identity: Arc<()>,
+}
+
 impl Catalog {
+    pub(in super::super) fn definitions(&self) -> &[(UnitExpressionId, Token)] {
+        &self.definitions
+    }
+    pub(in super::super) fn roots(&self) -> &[(UnitSymbolId, Token)] {
+        &self.roots
+    }
+    pub(in super::super) fn retirements(
+        &self,
+    ) -> &[(Token, crate::ownership_checking::UnitDropFact)] {
+        &self.retirements
+    }
+    pub(in super::super) fn replacements(&self) -> &[(UnitSymbolId, Token, Token)] {
+        &self.replacements
+    }
+    pub(in super::super) fn failed(&self) -> bool {
+        self.failed
+    }
+    pub(super) fn reject(&mut self) {
+        self.failed = true;
+    }
+    pub(in super::super) fn close(&self) -> Option<Closed> {
+        let expected = self.coverage.as_ref()?;
+        if self.failed
+            || !self.roots.is_empty()
+            || !self.pending.is_empty()
+            || self.bindings != expected.bindings
+            || self
+                .definitions
+                .iter()
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>()
+                != expected.literals
+            || self.replacements.len() != 1
+            || self.replacements[0].0 != expected.bindings[0].0
+            || self.bindings[1].1 != expected.call
+            || self.retirements.len() != self.definitions.len()
+        {
+            return None;
+        }
+        if self.definitions.iter().any(|(_, token)| {
+            self.retirements
+                .iter()
+                .filter(|(actual, _)| actual == token)
+                .count()
+                != 1
+        }) {
+            return None;
+        }
+        let (_, old, new) = &self.replacements[0];
+        if old != &self.definitions[0].1 || new != &self.definitions[1].1 {
+            return None;
+        }
+        for (root, token) in [(expected.bindings[0].0, new), (expected.bindings[1].0, old)] {
+            if !self.retirements.iter().any(|(retired, fact)| {
+                retired == token
+                    && fact.target() == crate::ownership_checking::UnitDropTarget::Named(root)
+            }) {
+                return None;
+            }
+        }
+        if !self.retirements.iter().any(|(token, fact)| {
+            token == old
+                && fact.point()
+                    == crate::ownership_checking::UnitDropPoint::AfterStatement(
+                        expected.old_statement,
+                    )
+        }) {
+            return None;
+        }
+        if !self.retirements.iter().any(|(token, fact)| {
+            token == new
+                && fact.point()
+                    == crate::ownership_checking::UnitDropPoint::CallReturn(expected.call)
+        }) {
+            return None;
+        }
+        Some(Closed {
+            _identity: self.identity.clone(),
+        })
+    }
+
     pub(in super::super) fn pending_is_empty(&self) -> bool {
         self.pending.is_empty()
     }
     fn new(source: crate::name_resolution::SourceUnitId) -> Self {
         Self {
             identity: Arc::new(()),
+            coverage: None,
+            bindings: Vec::new(),
             source,
             definitions: Vec::new(),
             roots: Vec::new(),
@@ -71,6 +161,7 @@ impl Catalog {
         }
         let (_, token) = self.pending.remove(index);
         self.roots.push((root, token));
+        self.bindings.push((root, expression));
     }
     pub(super) fn replace(
         &mut self,
@@ -117,43 +208,8 @@ impl Catalog {
 impl DropPlanner<'_, '_> {
     pub(in super::super) fn enable_producer_catalog(&mut self) {
         let mut catalog = Catalog::new(self.checker.source_unit);
-        use crate::parser::{Expression, Item, Statement, StringPart};
-        let ast = self.checker.parsed.ast();
-        let one_function = ast
-            .items()
-            .iter()
-            .filter(|(_, node)| matches!(node.payload(), Item::Function { .. }))
-            .count()
-            == 1;
-        let items = ast.items().iter().all(|(_, node)| {
-            matches!(
-                node.payload(),
-                Item::Function { .. } | Item::Variable { .. }
-            )
-        });
-        let statements = ast.statements().iter().all(|(_, node)| {
-            matches!(
-                node.payload(),
-                Statement::Block { .. } | Statement::LocalVariable { .. }
-            )
-        });
-        let expressions = ast
-            .expressions()
-            .iter()
-            .all(|(id, node)| match node.payload() {
-                Expression::Name => true,
-                Expression::String { parts } => {
-                    parts.iter().all(|part| matches!(part, StringPart::Text(_)))
-                }
-                Expression::Call { .. } => self.checker.ownership_primitives.iter().any(|plan| {
-                    plan.descriptor().expression() == self.checker.unit_expression(id)
-                        && plan.descriptor().kind() == OwnershipPrimitiveKind::Replace
-                        && plan.places().len() == 1
-                        && plan.places()[0].is_root()
-                }),
-                _ => false,
-            });
-        catalog.failed = !(one_function && items && statements && expressions);
+        catalog.coverage = self.catalog_coverage();
+        catalog.failed = catalog.coverage.is_none();
         self.producer_catalog = Some(catalog);
     }
 }

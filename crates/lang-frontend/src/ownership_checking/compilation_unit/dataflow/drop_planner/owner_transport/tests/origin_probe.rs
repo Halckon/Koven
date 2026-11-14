@@ -508,7 +508,7 @@ fn ordinary_break_loop_has_no_normal_body_slice() {
 fn ordinary_independent_catalog_tracks_literal_replace_without_legacy_tokens() {
     let fixture = Fixture::new(&[(
         "catalog.ko",
-        "fun run(): Unit { var a = \"first\"; val old = replace(&a, \"next\") }",
+        "fun run() { var a = \"first\"; val old = replace(&a, \"next\") }",
     )]);
     let owned = fixture.shared();
     compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
@@ -525,16 +525,17 @@ fn ordinary_independent_catalog_tracks_literal_replace_without_legacy_tokens() {
         assert_eq!(observed.facts, baseline.facts);
         assert_eq!(observed.owner_observations, baseline.owner_observations);
         let catalog = observed.producer_catalog.unwrap();
-        assert!(!catalog.failed);
-        assert_eq!(catalog.definitions.len(), 2);
-        assert_eq!(catalog.replacements.len(), 1);
-        assert!(catalog.roots.is_empty());
+        assert!(!catalog.failed());
+        assert!(catalog.close().is_some());
+        assert_eq!(catalog.definitions().len(), 2);
+        assert_eq!(catalog.replacements().len(), 1);
+        assert!(catalog.roots().is_empty());
         assert!(catalog.pending_is_empty());
-        assert_eq!(catalog.retirements.len(), catalog.definitions.len());
-        for (_, token) in &catalog.definitions {
+        assert_eq!(catalog.retirements().len(), catalog.definitions().len());
+        for (_, token) in catalog.definitions() {
             assert_eq!(
                 catalog
-                    .retirements
+                    .retirements()
                     .iter()
                     .filter(|(actual, _)| actual == token)
                     .count(),
@@ -543,7 +544,7 @@ fn ordinary_independent_catalog_tracks_literal_replace_without_legacy_tokens() {
         }
         assert_eq!(
             catalog
-                .retirements
+                .retirements()
                 .iter()
                 .map(|(_, fact)| *fact)
                 .collect::<Vec<_>>(),
@@ -553,25 +554,27 @@ fn ordinary_independent_catalog_tracks_literal_replace_without_legacy_tokens() {
                 .map(|fact| fact.into_unit(fixture.source(0)))
                 .collect::<Vec<_>>()
         );
-        let (_, old, new) = &catalog.replacements[0];
-        assert_eq!(old, &catalog.definitions[0].1);
-        assert_eq!(new, &catalog.definitions[1].1);
+        let (_, old, new) = &catalog.replacements()[0];
+        assert_eq!(old, &catalog.definitions()[0].1);
+        assert_eq!(new, &catalog.definitions()[1].1);
         assert_ne!(old, new);
         let mut other = make();
         other.enable_producer_catalog();
         let other = other.run().unwrap().producer_catalog.unwrap();
-        assert_ne!(catalog.definitions[0].1, other.definitions[0].1);
+        assert_ne!(catalog.definitions()[0].1, other.definitions()[0].1);
     });
 }
 
 #[test]
 fn ordinary_catalog_rejects_call_move_and_loop_observations() {
     for source in [
-        "fun run(): Unit { val a = \"a\"; println(a) }",
-        "fun run(): Unit { val a = \"a\"; val b = a }",
-        "fun run(flag: Boolean): Unit { while (flag) { break } }",
-        "fun run(): Unit { val a = \"a\"; val number = 1 }",
-        "fun run(): Unit { val a = \"a\"; loop { break } }",
+        "fun run() { val a = \"a\"; println(a) }",
+        "fun run() { val a = \"a\"; val b = a }",
+        "fun run(flag: Boolean) { while (flag) { break } }",
+        "fun run() { val a = \"a\"; val number = 1 }",
+        "fun run(x: Int) { val number = x }",
+        "fun run() { var a = \"first\"; val old = replace(&a, \"next\"); val extra = \"x\" }",
+        "fun run() { val a = \"a\"; loop { break } }",
     ] {
         let fixture = Fixture::new(&[("rejected.ko", source)]);
         let owned = fixture.shared();
@@ -581,7 +584,7 @@ fn ordinary_catalog_rejects_call_move_and_loop_observations() {
                 super::super::super::liveness::build(checker, true).unwrap(),
             );
             planner.enable_producer_catalog();
-            assert!(planner.run().unwrap().producer_catalog.unwrap().failed);
+            assert!(planner.run().unwrap().producer_catalog.unwrap().failed());
         });
     }
 }

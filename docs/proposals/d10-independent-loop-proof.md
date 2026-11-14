@@ -127,3 +127,24 @@ Block/LocalVariable statement、纯文本 String/Name 与已检查的单根 Repl
 
 预筛当前允许 Name，不代表已排除 scalar 参数拷贝；Function/Variable 的参数、
 泛型、返回形式和声明类型尚待进一步收紧，不能扩大为“所有 scalar 都拒绝”。
+
+## 第三批实现：最窄无循环闭合结果
+
+源码覆盖收紧到一个无参数、无泛型、无 extension 的 implicit-Unit 函数；body
+恰为两个局部声明：`var a = "literal"` 与 `val old = replace(&a, "literal")`。
+核两个真实符号均为 String、Replace 单完整根指向第一个声明；所有 item、statement、
+expression 数量和角色逐一匹配，无额外表达式或未归属 Name。显式返回形式及任何
+其他源码形态暂拒绝，不以“同样应该安全”放宽。
+
+catalog 的可变字段已私有化，仅提供只读诊断。私有构造的测试域 Closed 只在
+形态匹配、实际 producer/binding 顺序一致、一次 Replace 的旧/新 token 正确、
+root/pending 耗尽、每 token 恰一次真实 DropFact 且目标分别对应 a/old 后产生。
+它由当次 planner 独立 identity 绑定，不接收旧 token 或外部拼装事实。
+
+这仅闭合上述两声明无循环形态。Closed 没有跨 crate 或生产导出，不代表 CFG、
+loop/header phi、Carry 或一般函数准入。新增参数拷贝与额外局部声明负例防止之前
+仅按 AST 变体放行的空洞重新出现。普通源码测试不进行损坏注入。
+
+完成检查进一步限定真实清理点：新根为该 Replace 的 CallReturn，旧结果为第二个
+声明的 AfterStatement。Closed 是可重复检查的测试域成功标记，不是消费式 emitter
+capability。负例采用 implicit Unit 形态，避免只被返回形式门槛遮蔽。

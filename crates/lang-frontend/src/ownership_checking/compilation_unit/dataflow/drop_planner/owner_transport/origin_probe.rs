@@ -61,7 +61,7 @@ pub(in super::super) enum WhileRole {
 impl DropPlanner<'_, '_> {
     pub(in super::super) fn origin_while(&mut self, control: UnitStatementId, role: WhileRole) {
         if let Some(catalog) = &mut self.producer_catalog {
-            catalog.failed = true;
+            catalog.reject();
         }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::WhileTraversal { control, role });
@@ -79,7 +79,7 @@ impl DropPlanner<'_, '_> {
             return;
         }
         if let Some(catalog) = &mut self.producer_catalog {
-            catalog.failed = true;
+            catalog.reject();
         }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::UncoveredCall(call));
@@ -88,7 +88,7 @@ impl DropPlanner<'_, '_> {
 
     pub(in super::super) fn origin_branch(&mut self, control: ExpressionId, role: BranchRole) {
         if let Some(catalog) = &mut self.producer_catalog {
-            catalog.failed = true;
+            catalog.reject();
         }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Branch {
@@ -104,7 +104,7 @@ impl DropPlanner<'_, '_> {
         source: UnitSymbolId,
     ) {
         if let Some(catalog) = &mut self.producer_catalog {
-            catalog.failed = true;
+            catalog.reject();
         }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Moved {
@@ -119,7 +119,7 @@ impl DropPlanner<'_, '_> {
                 crate::ownership_checking::UnitDropTarget::Named(root) => {
                     catalog.drop_root(root, fact.into_unit(self.checker.source_unit))
                 }
-                _ => catalog.failed = true,
+                _ => catalog.reject(),
             }
         }
         if let Some(probe) = &mut self.origin_probe {
