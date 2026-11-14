@@ -17935,3 +17935,72 @@ allow；重新导出的其他模块不受它的 lint 继承，不能据此宣称
 observer-support codegen all-target 严格 Clippy、原泛型递归身份 ordinary exact
 1/1、fmt、docs951、diff 和独立只读审查通过；未运行故障注入、全量测试或
 远程 CI。该结果不是代码退役或所有死代码清零的证明，未推送。
+
+### E2 两源分臂借用的最小候选合同（2026-11-14，未启用）
+
+本节是下一实施切片的设计准备，不是已批准能力；不修改 Guide、Origin 方案、
+旧同源事实构造器或 selected 范围。基线为 `5e245eb6`（main `3b7a9a7a`）。
+
+**已核实现障碍**：`compilation_unit/loop_no_carry.rs` 的
+`UnitLoopBranchNoCarryFact::new` 明确要求两臂 `source` 相等；
+`refine/arm_loop_receipt.rs` 的 `Plan` 只保存一个 `source`，角色首项取首臂参数；
+其 `validation.rs` 为两臂共同查找这个父 loan。这是跨前后端的现行合同，不能
+只删一个相等判断、把参数数组加长或复用旧事实身份就放开两源。
+
+**建议首片**：仅两只读 String 参数、一个稳定 Boolean 选择、一个已有形状的
+有限递减 counter；每臂在本臂内结束新借用，循环后仍可使用两参数。例如：
+
+```koven
+fun view(source: String): borrow String from source = source
+fun consume(item: String): Unit {}
+fun run(left: String, right: String, rounds: Int, choose: Boolean): Unit {
+    var remaining = rounds
+    while (remaining > 0) {
+        if (choose) { borrow val a = view(left); consume(a) }
+        else { borrow val b = view(right); consume(b); consume(b) }
+        remaining = remaining - 1
+    }
+    consume(left)
+    consume(right)
+}
+```
+
+两个 source 必须都是 Shared String loan。这里只要求两个不同参数符号，
+不要求底层存储不别名；调用者传入同一 owner 的
+两个共享借用应在独立验收中覆盖，不得从符号不同推导内存不重叠。该例尚未
+取得新合同下的编译/native 通过证据，不把静态代码审阅冒充红测试或诊断码。
+
+**事实与独立验收责任**：
+
+1. 新候选事实与原同源域分离（最终命名待实施），精确绑定 callable、loop、
+   branch、then/else 次序、各臂 source symbol/call/binding/唯一 End、counter
+   初始化/condition/update。旧 `owns_no_carry_branch` 不认可新事实；新域也
+   不以结构相似或嵌入旧事实获得授权。Single/Unit 与 observation 开关必须同义。
+2. 实际 CFG 必须捕获 entry 内 init→header→split、两臂→join/op_block、
+   checked subtract 的 op_block→abort/success、success 内 update→header，
+   以及 header→finished→exit（允许既有 finished==exit）的完整前驱/后继集合。
+   保留结果、失败标记、被减数、常量 1 的具体身份/运输和 abort 终结，不因
+   remaining>0 在逻辑上排除溢出便省略实际失败边。保留两个根在各节点的映射；每臂
+   BorrowCall 的 source 和参数只能取该臂的父 loan，不允许位置猜测或交换根。
+3. 每臂新 loan 只在该臂使用并唯一结束，不进入 join/header/exit 参数；两个
+   输入共享 loan 及其 CFG 重绑定均不能被结束、消费或 drop。producer/consumer
+   沿用既有受限 callable 形状和逐次具体 callee 身份核验（含 replay，不以名字或
+   签名匹配代替），不开放未知效果、额外实参或
+   外带借用结果。循环后对两根的
+   正常使用必须由真实后继证据证明，不能以有限执行次数替代静态闭合。
+4. required、selected、detached replay、最终发布分别持有新域身份；丢失任一
+   责任必须 fail loud，不能回退旧同源域或普通 no-carry 域。不能仅用
+   `Vec<source>` 或一个全局 Boolean 证明两根与两臂对应关系。
+
+**刻意不组合**：首片不含 scalar prefix、条件 break、early return/continue、
+嵌套循环、多循环、第三根、Inout、字段/元素投影、可变/替换根、跨轮活跃借用、
+新的 producer 形状。旧同源 counter/prefix/break 三域原边界全部保留。两个根
+并不自动授权一般多源分析，也不改变应用代码零生命周期参数的现行表面合同。
+
+**实施与验收顺序（均待执行）**：先普通前端红证据及完整拒绝身份，再单独发布
+新前端事实；接入 backend 捕获/重放；最后独立验证发布责任。普通矩阵覆盖
+0/1/2 轮、两选择、参数排列、同owner/不同owner调用、rooted/memory输入、
+observer开关及循环后两根继续使用。旧同源正例须保持；上述非目标须继续拒绝。
+CI-only 损坏矩阵至少覆盖臂源交换、遗漏第二根、错 End、fresh loan 进入回边、
+错误 counter 初值/更新、额外前驱、发布身份缺失，并有相邻恢复对照；仅 CI
+执行，不在本地启用故障环境。普通编译/native 不替代这些动态拒绝证据。
