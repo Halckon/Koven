@@ -14,14 +14,20 @@ pub(super) enum Error {
     Emission,
     Replay,
     Verify,
+    Coverage,
 }
 /// Private construction; no mutable/consuming Program escape and no synthetic driver appended.
 pub(super) struct PublishedEntry<'a> {
     program: Program,
     entry: FunctionId,
     required: &'a EntryDescriptor,
+    coverage: super::e2_entry_coverage::Coverage,
 }
 impl PublishedEntry<'_> {
+    pub(super) fn coverage(&self) -> &super::e2_entry_coverage::Coverage {
+        &self.coverage
+    }
+
     pub(super) fn program(&self) -> &Program {
         &self.program
     }
@@ -134,9 +140,12 @@ fn publish_inner<'a>(
     }
     super::verify::verify_program(&emitted.function.fragments.leaves.program)
         .map_err(|_| Error::Verify)?;
+    let coverage = super::e2_entry_coverage::audit(&emitted, experiment, fact, typed)
+        .ok_or(Error::Coverage)?;
     Ok(PublishedEntry {
         program: emitted.function.fragments.leaves.program,
         entry: emitted.entry,
         required,
+        coverage,
     })
 }

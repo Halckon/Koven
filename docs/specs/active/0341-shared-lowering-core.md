@@ -18570,3 +18570,23 @@ check_e2_replay_ci.sh 扩为4个精确 FQN×2配置，复用现有 composition s
    SiblingObject 原子文件发布。实验封包的内存原子性不替代此输出文件合同。
 4. 将普通路径与实验路径保持隔离的编译/拒绝证据、远端故障结果及发布失败不覆盖
    已有输出的验收接齐后，才可评估窄生产入口；本片未改变任何生产接受集。
+
+### 受限原源码调用闭包覆盖审计（实验）
+
+完整 entry publisher 增加独立 Coverage gate，并将只读映射保存在封包内。先经完整
+entry/caller/leaf replay 确认已覆盖所有准入源码 body，再从同次 typed 的 entry
+调用与两臂每个实际 callsite 导出 required instances；不从发射列表反推需求。
+将其与 run/真实 leaf 的精确 instance→FunctionId 映射逐一对账，拒绝遗漏、
+重复 key、复用 ID 或多余源码定义。原 entry 用已验证无参 declaration 单列，
+不凭空制造未发生调用的 instance。两个 synthetic helpers 单列且不得冒充源码
+函数；root、called instances、helpers 合计恰好覆盖最终 module。
+
+该审计只适用于已完整准入的最窄闭包，不是任意 AST 的通用 reachability 算法，
+也不证明未覆盖 Unit 声明可进入生产。在当前范围，单独每个类型检查调用与
+descriptor/fact记录须一致，普通 Unit capability 与 D10 root-set 的组合仍未开放。
+本片不复制 native object wrapper，也不改变既有 CI-only 故障执行规则。
+
+真实两臂改用不同但同签名 consumer 时，源码 called 实例数从3增至4并分别映射，
+不会按签名去重；对应封包仍进行真实 native 验证。当前 leaf 表取自整个实验，
+若其它 fact 带来额外 leaf，所选 entry 会保守拒绝，尚不支持任意多 fact Unit
+组合或自动裁剪其它 fact 的依赖。

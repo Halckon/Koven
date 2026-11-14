@@ -474,10 +474,23 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
 
 #[test]
 fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
-    for (rounds, choose) in [(0, false), (3, false), (3, true)] {
+    for (rounds, choose, distinct) in [
+        (0, false, false),
+        (3, false, false),
+        (3, true, false),
+        (3, true, true),
+    ] {
         let source = format!(
             "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(left);consume(a)}}else{{borrow val b=view(right);consume(b)}};remaining=remaining-1}}}}\nfun main():Unit {{val rounds={rounds};val choose={choose};run(\"left\",\"right\",rounds,choose)}}"
         );
+        let source = if distinct {
+            format!(
+                "{}\nfun other(item:String):Unit {{}}",
+                source.replace("consume(b)", "other(b)")
+            )
+        } else {
+            source
+        };
         let mut sources = SourceMap::new();
         let id = sources.add_source("entry.ko", source).unwrap();
         let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
@@ -543,6 +556,30 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
         ));
         let published = publish(&experiment, entry, fact, &[fact], &typed).unwrap();
         assert_eq!(published.declaration(), entry.entry());
+        let coverage = published.coverage();
+        assert_eq!(coverage.root(), (entry.entry(), published.entry()));
+        assert_eq!(
+            coverage.called().len(),
+            3 + usize::from(distinct),
+            "run plus actual view/consume instances"
+        );
+        assert!(
+            coverage
+                .called()
+                .iter()
+                .any(|(key, _)| key == entry.instance())
+        );
+        assert!(
+            coverage
+                .helpers()
+                .iter()
+                .all(|id| coverage.called().iter().all(|(_, source)| source != id))
+        );
+        assert_eq!(
+            published.program().modules[0].functions.len(),
+            coverage.called().len() + 3
+        );
+
         let llvm =
             crate::llvm::render_verified_program_with_entry(published.program(), published.entry())
                 .unwrap();
