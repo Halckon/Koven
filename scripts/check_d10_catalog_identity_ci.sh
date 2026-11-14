@@ -114,3 +114,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'split-source same-typed foreign-run controls compiled/listed; not executed'
 fi
+
+split_selector=ci_only_split_selector_rejects_cloned_and_foreign_declarations
+listing=$(cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_prepare_split_named_entry "$split_selector" -- --exact --ignored --list)
+[[ $(grep -Fxc "$split_selector: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_prepare_split_named_entry "$split_selector" -- --exact --ignored
+else
+  echo 'split-source cloned/foreign selector controls compiled/listed; not executed'
+fi

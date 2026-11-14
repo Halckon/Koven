@@ -383,7 +383,7 @@ jobs:
           cargo test --locked -j1 --no-default-features -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support ssa::d10_split_source_tests::split_sources_preserve_real_unit_call_graph_without_named_admission -- --exact
           cargo test --locked -j1 --no-default-features -p lang-cli --test d10_project_cli ordinary_project_build_keeps_full_sources_for_nested_d10_shapes -- --exact
       - name: Same-run D10 split-source sealed ownership
-        run: cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_split_named_entry
+        run: cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_split_named_entry --test d10_prepare_split_named_entry
       - name: Ordinary D10 split-source native behavior
         timeout-minutes: 5
         run: cargo test --locked -j1 --no-default-features -p lang-cli --test d10_project_cli ordinary_split_project_executes_parent_child_zero_and_multiple_rounds -- --exact --test-threads=1

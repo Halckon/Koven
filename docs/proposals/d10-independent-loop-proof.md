@@ -1481,3 +1481,27 @@ argument 排序键逐项比较完整最终数组。实际 owned loans、drops、
 身份负控只注册 CI、仅本地编译列举。该结果仅为前端同次完整 ownership 观察，
 尚未新增 final-admission prepare、跨 source 独立 CFG replay 或对象发布权限；
 普通项目此前的编译/native 验收不自动补齐这些独立许可。
+
+### split-source final admission 与显式原声明选择
+
+新增独立 `PreparedSplitNamedEntry`：先对完整 Unit 完成 final type admission，
+再恰一次 ownership 分析；原 diagnostics/deferred 优先于 source scope 与 selector
+错误，逐项原样保留。没有第二次分析、普通 fallback、constant 重写或截取 source。
+
+两 source 各一 root 的范围内，缺 wrapper/callee 角色为 Unsupported；存在多个
+可选角色组合为 Ambiguous；唯一组合但最终 target/身份/全事实绑定失败为 Unproved。
+正常 split 是两个不同角色的 pending，不能套用单源“总数大于一即 ambiguous”。
+原 `analyze_split_named_entry` 的 Option 合同保持，不用 prepare 改写它的语义。
+
+`prepare_selected_split_named_entry` 只接受从本次原 names 声明表借用的实际
+wrapper Function；真实 callee 为 EntryMismatch，克隆/外国声明为 ForeignEntry。
+selector 校验在完整语言 admission 与 sealed binder 后进行，不遮蔽原语言诊断。
+Prepared 仅提供同次 typed/bound 的只读引用，未授予旧单源能力或对象权限。
+
+公开非 test-library 的正常测试覆盖 Rooted 两 Replace 与 canonical/input 顺序、
+同次完整 view、真实错误 entry，以及合法越界、String
+use-after-move 与 final member L0080/span 的错误保留。没有已核实的 deferred-only
+真实样例，因此不宣称该分支已实测；原 deferred 保留逻辑仍显式存在。
+原 index 合同不允许多 MemoryDocument（MemoryDocumentRequiresSingleSource），
+已保留并单独见证拒绝，不为新能力扩张 source-set 合同。跨源独立 CFG replay 与
+对象发布仍是后续步骤，不能由 prepare 成功推断完成。

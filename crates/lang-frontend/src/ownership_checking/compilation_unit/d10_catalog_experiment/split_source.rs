@@ -114,6 +114,34 @@ pub fn analyze_split_named_entry(
     )?;
     Ok(bind(sources, inputs, names, owned, pending))
 }
+/// Classify shape discovery separately from a failed unique same-run proof.
+pub(super) fn select(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    owned: CompilationUnitOwnership,
+    pending: Vec<SplitSourcePending>,
+) -> Result<BoundSplitNamedEntry, PrepareNamedEntryError> {
+    if inputs.len() != 2
+        || names.names().index().source_units().len() != 2
+        || inputs.iter().any(|input| input.parsed().roots().len() != 1)
+    {
+        return Err(PrepareNamedEntryError::Unsupported);
+    }
+    let wrappers = pending
+        .iter()
+        .filter(|p| matches!(p, SplitSourcePending::Wrapper(_)))
+        .count();
+    let callees = pending.len() - wrappers;
+    if wrappers == 0 || callees == 0 {
+        return Err(PrepareNamedEntryError::Unsupported);
+    }
+    if wrappers != 1 || callees != 1 {
+        return Err(PrepareNamedEntryError::Ambiguous);
+    }
+    bind(sources, inputs, names, owned, pending).ok_or(PrepareNamedEntryError::Unproved)
+}
+
 fn bind(
     _sources: &SourceMap,
     inputs: &[SourceUnitInput<'_>],
@@ -274,11 +302,17 @@ mod tests {
                 let (other, _, _, _, _, _, _, _, _) = analyze();
                 assert!(bind(&sources, &inputs, &names, own, pending).is_some());
                 let (_, _, _, _, _, _, _, _, foreign) = analyze();
-                assert!(bind(&sources, &inputs, &names, other, foreign).is_none());
+                assert!(matches!(
+                    select(&sources, &inputs, &names, other, foreign),
+                    Err(PrepareNamedEntryError::Unproved)
+                ));
                 let (own, _, _, _, _, _, _, _, mut original) = analyze();
                 let (_, _, _, _, _, _, _, _, mut other) = analyze();
                 original[0] = other.remove(0);
-                assert!(bind(&sources, &inputs, &names, own, original).is_none());
+                assert!(matches!(
+                    select(&sources, &inputs, &names, own, original),
+                    Err(PrepareNamedEntryError::Unproved)
+                ));
             }
         }
     }
