@@ -503,3 +503,60 @@ fn ordinary_break_loop_has_no_normal_body_slice() {
         assert!(super::super::origin_probe::observed_normal_loop(events).is_none());
     });
 }
+
+#[test]
+fn ordinary_independent_catalog_tracks_literal_replace_without_legacy_tokens() {
+    let fixture = Fixture::new(&[(
+        "catalog.ko",
+        "fun run(): Unit { var a = \"first\"; val old = replace(&a, \"next\") }",
+    )]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let make = || {
+            super::super::super::DropPlanner::new(
+                checker,
+                super::super::super::liveness::build(checker, true).unwrap(),
+            )
+        };
+        let baseline = make().run().unwrap();
+        let mut planner = make();
+        planner.enable_producer_catalog();
+        let observed = planner.run().unwrap();
+        assert_eq!(observed.facts, baseline.facts);
+        assert_eq!(observed.owner_observations, baseline.owner_observations);
+        let catalog = observed.producer_catalog.unwrap();
+        assert!(!catalog.failed);
+        assert_eq!(catalog.definitions.len(), 2);
+        assert_eq!(catalog.replacements.len(), 1);
+        assert!(catalog.roots.is_empty());
+        assert!(catalog.pending_is_empty());
+        let (_, old, new) = &catalog.replacements[0];
+        assert_eq!(old, &catalog.definitions[0].1);
+        assert_eq!(new, &catalog.definitions[1].1);
+        assert_ne!(old, new);
+        let mut other = make();
+        other.enable_producer_catalog();
+        let other = other.run().unwrap().producer_catalog.unwrap();
+        assert_ne!(catalog.definitions[0].1, other.definitions[0].1);
+    });
+}
+
+#[test]
+fn ordinary_catalog_rejects_call_move_and_loop_observations() {
+    for source in [
+        "fun run(): Unit { val a = \"a\"; println(a) }",
+        "fun run(): Unit { val a = \"a\"; val b = a }",
+        "fun run(flag: Boolean): Unit { while (flag) { break } }",
+    ] {
+        let fixture = Fixture::new(&[("rejected.ko", source)]);
+        let owned = fixture.shared();
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = super::super::super::DropPlanner::new(
+                checker,
+                super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.enable_producer_catalog();
+            assert!(planner.run().unwrap().producer_catalog.unwrap().failed);
+        });
+    }
+}

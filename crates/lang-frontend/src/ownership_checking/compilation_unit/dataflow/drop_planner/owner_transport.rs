@@ -8,6 +8,8 @@ mod entry_concat;
 pub(super) mod loops;
 #[cfg(test)]
 pub(super) mod origin_probe;
+#[cfg(test)]
+pub(super) mod producer_catalog;
 pub(super) mod replace_call_consumer;
 pub(super) mod replace_consumer;
 pub(super) mod replace_return_consumer;

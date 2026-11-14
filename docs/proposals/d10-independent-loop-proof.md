@@ -91,3 +91,22 @@ emitter 消费成功的实验结构模型，生成真实 SSA blocks、分支、p
 已有真实事件和静态分区作为调试/来源审计材料保留，但不是本 catalog 或证书。
 本轮只完成架构接口与实施约束设计，未实现上述独立 catalog、CFG emitter、replay，
 没有新增生产能力；不能以此报告 Carry、代际推广或 D10 已完成。
+
+## 第一批实现：无循环 producer catalog（测试域）
+
+后续本地实现独立 per-planner catalog，token 私有构造且以独立 Arc identity 区分
+不同 planner；不读取旧 `UnitOwnerId`。实际 Literal、Binding、Replace commit、
+Named Drop hooks 直接更新 producer/pending/root 环境：Replace 把旧 token 交给
+真实 old-result initializer，新 token 留在根；两者不能误认为同一 producer。
+
+普通源码验证两个 literal producer、一次 Replace、最终根清理及重复分析 token
+不相等；同时比较启用前后生产 facts/observations 不变。已观察的 call、move、
+branch、while 均置失败，普通源码拒绝测试不做损坏注入。
+
+这是第 1 步的内部状态实现，尚无完整源码覆盖检查、完成证书或导出 API。
+`failed == false` 只表示已到达的 hooks 未冲突，绝不等于函数已验证；未观察的语义
+仍可能存在。catalog 暂无 loop/header phi、CFG、replay 或生产权限，不可被下游
+当 capability 使用。后续必须先补覆盖/闭合检查再考虑成功导出。
+
+当前诊断字段仍可由测试域修改，不是不可伪造资格；Named Drop 暂只更新根环境，
+尚未保存 token→具体 DropFact 退休映射，不能宣称完整 old-result 清理证明。

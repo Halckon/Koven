@@ -60,6 +60,9 @@ pub(in super::super) enum WhileRole {
 
 impl DropPlanner<'_, '_> {
     pub(in super::super) fn origin_while(&mut self, control: UnitStatementId, role: WhileRole) {
+        if let Some(catalog) = &mut self.producer_catalog {
+            catalog.failed = true;
+        }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::WhileTraversal { control, role });
         }
@@ -75,12 +78,18 @@ impl DropPlanner<'_, '_> {
         }) {
             return;
         }
+        if let Some(catalog) = &mut self.producer_catalog {
+            catalog.failed = true;
+        }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::UncoveredCall(call));
         }
     }
 
     pub(in super::super) fn origin_branch(&mut self, control: ExpressionId, role: BranchRole) {
+        if let Some(catalog) = &mut self.producer_catalog {
+            catalog.failed = true;
+        }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Branch {
                 control: self.checker.unit_expression(control),
@@ -94,6 +103,9 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         source: UnitSymbolId,
     ) {
+        if let Some(catalog) = &mut self.producer_catalog {
+            catalog.failed = true;
+        }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Moved {
                 expression: self.checker.unit_expression(expression),
@@ -102,12 +114,21 @@ impl DropPlanner<'_, '_> {
         }
     }
     pub(in super::super) fn origin_dropped(&mut self, fact: PlannerDropFact) {
+        if let Some(catalog) = &mut self.producer_catalog {
+            match fact.into_unit(self.checker.source_unit).target() {
+                crate::ownership_checking::UnitDropTarget::Named(root) => catalog.drop_root(root),
+                _ => catalog.failed = true,
+            }
+        }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Dropped(fact.into_unit(self.checker.source_unit)));
         }
     }
 
     pub(in super::super) fn origin_literal(&mut self, expression: ExpressionId) {
+        if let Some(catalog) = &mut self.producer_catalog {
+            catalog.literal(self.checker.unit_expression(expression));
+        }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Literal(self.checker.unit_expression(expression)));
         }
@@ -117,6 +138,9 @@ impl DropPlanner<'_, '_> {
         symbol: UnitSymbolId,
         initializer: ExpressionId,
     ) {
+        if let Some(catalog) = &mut self.producer_catalog {
+            catalog.bind(symbol, self.checker.unit_expression(initializer));
+        }
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Bound(
                 symbol,
@@ -129,9 +153,6 @@ impl DropPlanner<'_, '_> {
         call: ExpressionId,
         updated_root: UnitSymbolId,
     ) {
-        let Some(probe) = &mut self.origin_probe else {
-            return;
-        };
         let call = self.checker.unit_expression(call);
         let Some(plan) = self
             .checker
@@ -149,11 +170,16 @@ impl DropPlanner<'_, '_> {
         if !place.is_root() || place.root() != updated_root {
             return;
         }
-        probe.push(Event::Applied {
-            call,
-            root: place.root(),
-            incoming,
-        });
+        if let Some(catalog) = &mut self.producer_catalog {
+            catalog.replace(place.root(), call, incoming);
+        }
+        if let Some(probe) = &mut self.origin_probe {
+            probe.push(Event::Applied {
+                call,
+                root: place.root(),
+                incoming,
+            });
+        }
     }
 }
 

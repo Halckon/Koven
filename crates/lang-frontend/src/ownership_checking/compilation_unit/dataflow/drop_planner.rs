@@ -237,6 +237,8 @@ struct DropPlanner<'a, 'checker> {
     carry_probe: Option<Vec<owner_transport::carry_probe::Visit>>,
     #[cfg(test)]
     origin_probe: Option<Vec<owner_transport::origin_probe::Event>>,
+    #[cfg(test)]
+    producer_catalog: Option<owner_transport::producer_catalog::Catalog>,
     scalar_entry: Option<owner_transport::loops::scalar_entry::Tracker>,
     no_carry_exit: no_carry_exit::Tracker,
     #[cfg(test)]
@@ -289,6 +291,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             carry_probe: None,
             #[cfg(test)]
             origin_probe: None,
+            #[cfg(test)]
+            producer_catalog: None,
             scalar_entry: None,
             no_carry_exit: no_carry_exit::Tracker::default(),
             #[cfg(test)]
