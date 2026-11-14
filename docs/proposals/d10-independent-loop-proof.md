@@ -202,3 +202,42 @@ SSA形状或测试 Closed 复用生产权限，失败不得发布部分结果或
 沿 Read 的真实 source loan 核参数传递，不错误要求条件值本身是 header 参数。
 同时核唯一 Read/其结果、其他块无指令、全块集合被消费、空值 Return，以及真实
 源码 while/condition 的 Origin。这里不另行宣称验证 Shared ABI 模式或 owner 语义。
+
+## 受限 primitive route 接合合同（候选，尚未启用）
+
+不能给 `lower_call` 加一个可由调用者传入的 `allow_replace: bool`。实验入口应持有
+同一次 `OwnedCompilationUnitView` 借用，并由独立 catalog 验证器私有构造包含
+source/callable、完整源码覆盖、producer 身份、根角色和 cleanup 对应的能力。
+分析一致性由现有 view factory 校验，catalog nonce 只区分一次观察，不替代该校验。
+目前 catalog 为 frontend `cfg(test)` 私有实现；codegen 测试不能直接获得它，且
+其 Closed 只覆盖无循环源码。因此跨 crate 交付接口和 loop catalog 扩展均是实际
+前置缺口，不能用另一套 AST 扫描补造等价 producer 事件。
+
+最窄实现顺序：
+
+1. 先验证普通无 Replace 的 String owner 经真实 loop carried slots、false exit、
+   suffix 使用及清理，确认现有 CFG 与 owner/drop 消费路径确实可复用。
+2. catalog 从真实 planner 观察 producer/bind/primitive，单循环入口、回边与退出
+   必须独立建模；静态 producer 标识只命名源码 producer，动态代际用 header 方程，
+   不能用每次静态遍历递增的 token 假装实际迭代次数。
+3. 独立实验入口只接受上述私有能力，复用真实 loop 构件。在实际 Replace 发射点
+   取走 incoming temporary、更新目标 binding、将旧 owner 作为结果交付；三者的候选 lowering 状态更新与结果发布须
+   原子完成，不新增运行时 abort 清理承诺。不能只更换 bindings 而保留 incoming temporary 别名，亦不能提前
+   drop 旧值。必须按原真实 DropFact，
+   各自在对应 UnitDropPoint 消耗 old-result 和最终根。
+4. 另行 replay 最终 SSA 的真实 predecessor/edge 参数与 producer→实体对应，
+   在正确路径验证唯一清理；Drop 的 Origin 是 `value_origin`，本身不能证明它
+   位于正确 `UnitDropPoint`，还须核实际 block/指令顺序及该 point 的来源映射。
+   局部构建失败时不交付 Program，也不生成任何旧 all-Replace receipt。
+
+上述第 2–4 步尚未完成，普通 primitive gate 保持原样。即使第 1 步成功也只证明
+现有无 Replace owner loop，不能证明混合 Replace/Carry、嵌套或复杂出口准入。
+
+第 1 步已新增普通源码基线：`var a = "initial"; while(flag) {}; println(a)`。
+独立 replay 消费全部四块和七条实际指令，逐边核 owner/flag 参数与类型，确认
+唯一 entry/backedge、真实 false exit 上同一 owner 的 RootPlace、Shared Borrow、
+PrintString、BorrowEnd、Drop 顺序。取同次 ownership 的唯一 Named DropFact，与
+声明 `a` 的实际 Symbol/来源相符；该 fact 的 CallReturn 必须指向真实 suffix
+`println(a)`，实际 Drop Origin 与 value_origin 相符。Rooted 与 MemoryDocument
+均覆盖，带 break 的合法邻近形态不满足 normal-backedge replay，保守拒绝。
+这仍不是新 primitive emitter，未交付独立 catalog token 到 SSA 的映射或 Carry 权限。
