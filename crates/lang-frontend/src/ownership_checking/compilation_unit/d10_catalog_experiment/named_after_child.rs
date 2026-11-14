@@ -148,7 +148,10 @@ impl NamedAfterChildCallee<'_> {
 }
 
 impl WrappedAfterChildPending {
-    fn bind_after(self, owned: CompilationUnitOwnership) -> Option<BoundNamedAfterChildWrapper> {
+    pub(super) fn bind_after(
+        self,
+        owned: CompilationUnitOwnership,
+    ) -> Option<BoundNamedAfterChildWrapper> {
         let owned = self.validate(
             owned,
             super::named_validation::NamedValidation::after(&self.fields),

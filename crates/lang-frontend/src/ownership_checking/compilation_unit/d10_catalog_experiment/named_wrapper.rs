@@ -158,7 +158,7 @@ impl NamedWrapperCallee<'_> {
 }
 
 impl WrappedDualPending {
-    fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundNamedWrapper> {
+    pub(super) fn bind(self, owned: CompilationUnitOwnership) -> Option<BoundNamedWrapper> {
         let owned = self.validate(
             owned,
             super::named_validation::NamedValidation::before(&self.fields)?,

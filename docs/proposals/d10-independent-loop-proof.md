@@ -1241,3 +1241,24 @@ sanitizer、跨宿主CI及普通生产driver准入仍不在这些结果之内。
 严格Clippy与上述十七项普通回归重新通过。CI完整精确列表仍只以 `--list-only`
 验证；默认codegen、workspace all-targets实验编译通过，格式/diff、957份文档和
 2244个Rust文件尺寸门禁通过，独立复审无阻断。以上均本地验收，未推送。
+
+### 同次 named entry 判别前置，不是普通 driver 准入
+
+现有两个公开analyzer各自执行完整ownership分析，调用者依次试探两个顺序会
+生成两套身份。新增default-off统一入口仅调用一次catalog分析，候选计数必须
+恰为Before一项/After零项或反之；缺项、多项、同时存在均拒绝。选择后将同一
+最终owned移入原独立binder；绑定失败不转试另一顺序。私有判别封包只读投影
+保留原sealed bound，后端统一入口只接受整体封包，不接受外部拼接的view。
+
+后端按已封闭变体调用原Unit lowering、完整图checker和原子对象桥，不复用
+另一顺序权限、不返回部分Program、不自动fallback。统一对象方法同样不链接
+或执行。这减少后续driver整合时二次分析身份分叉，不能被表述为正式准入：
+CLI仍使用complete type admission及Basic/Constant capability；实验feature仍
+默认关闭，其test-support依赖、正式选择与诊断合同、跨宿主验收尚须独立处理。
+本批不修改CLI、默认feature或普通生产gate。
+
+单次判别批次验收：前端十二源码/布局组合及旧两analyzer回归通过；后端两顺序
+各Rooted/Memory真实图与对象接线通过，普通D10套件十八通过／五CI-only跳过。
+实验all-targets严格Clippy、默认codegen及workspace all-targets编译通过。
+本批未新增native执行或本地故障注入，未将此前两独立入口native结果称为统一
+入口的新native验收；复用原对象事务不是新的失败原子性负控结果。

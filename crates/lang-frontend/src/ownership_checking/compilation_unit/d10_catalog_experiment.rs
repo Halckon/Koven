@@ -190,3 +190,6 @@ mod named_validation;
 pub use named_after_child::{
     BoundNamedAfterChildWrapper, NamedAfterChildCallee, analyze_named_after_child_wrapper,
 };
+
+mod named_entry;
+pub use named_entry::{BoundNamedEntry, NamedEntryOrder, NamedEntryView, analyze_named_entry};
