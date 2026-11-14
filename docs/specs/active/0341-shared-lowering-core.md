@@ -18063,3 +18063,33 @@ Rust测试状态清理，不伪造Koven接受状态或执行CI故障注入。
 receipt或Origin变更，未推送。
 最终修正源码4/4普通测试、frontend all-target Clippy默认及observer-support两配置、
 fmt/docs951/diff均通过；独立复审确认Unit-only隔离及七个no-carry域撤销断言。
+
+
+### E2 双根 receipt 接口审计（2026-11-14，未启用）
+
+在 `87cff88a` 后核对新 main `51a3aad3`（#421）；相对旧 main `3b7a9a7a`，
+该合并未改本片 `loop_no_carry`、`arm_loop_receipt` 或本 Spec。工作分支未重排，
+本次只审计接口，不把已通过的临时闭合实验升级为可发布事实。
+
+现有 `UnitLoopCounterBranchNoCarryFact` 内嵌旧同源 pair，而 pair 构造器要求
+两臂 source 相同。backend `arm_loop_receipt::Plan` 只保存一个 source slot，
+`roles[0]` 从首臂 source 映射；layout 再核该 slot 对应入口参数，最终 validation
+对两臂都执行 `entity(arm_block, source)`，再逐项比较 BorrowCall 的父 loan 与实参。
+因此仅删除前端等源条件或给 Plan 增加第二个 slot 均不足以形成新合同。
+
+`Emitted::links` 已按目标 slot 顺序，通过前驱 ends 映射验证真实 edge.arguments；
+这可作为运输核验基础，但不能单独证明臂与根的归属。新的有序对应关系必须贯穿
+source symbol → 入口参数角色 → 每个 CFG block 的参数实体 → 对应臂 BorrowCall。
+不同参数角色不得因调用方传入同一 owner 而折叠；也不得以不同符号/slot/SSA 参数
+身份推出底层存储互斥，或要求调用方的两个共享实参实体必须不同。
+
+独立审查建议下一片先用**当前合法、成功编译的非循环双 Shared 参数分支**取得
+真实 SSA，隔离现场核验上述运输关系，覆盖同 owner、不同 owner 与参数排列。
+这一步尚未执行；若当前合法形状不足，应报告拒绝，不借旧 Plan.fact 或失败分析
+payload 造收据。即使该基线通过，也只能称运输证据，不是循环闭合或新域发布。
+
+真实两源 receipt 仍依赖合法新域事实，以及独立 required/selected/replay/publication
+身份链；双根后继使用、fresh loan 唯一 End、callee 身份、完整 checked-counter
+abort/success 边必须共同闭合。当前不增加公开 API、不改变 selector、事实发布或
+生产权限。审计与独立复审完成；本片无 Rust 改动，不重复声明历史 Rust 测试为
+新验证，亦未运行 native、CI 故障注入或远端 CI。
