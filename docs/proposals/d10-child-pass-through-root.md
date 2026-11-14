@@ -1,6 +1,6 @@
 # D10 child 未修改根：最窄隔离候选
 
-> **性质**：非规范工程候选 · **状态**：未启用、未实现 · **读取时机**：评审 D10 child carry 扩展时 · **唯一真源**：本候选；现行行为仍以 SPEC-0341 与代码为准 · **基线**：`a78f8bdb`
+> **性质**：非规范工程候选 · **状态**：未启用；首个真实源码探测发现保活前提不成立 · **读取时机**：评审 D10 child carry 扩展时 · **唯一真源**：本候选；现行行为仍以 SPEC-0341 与代码为准 · **基线**：`a78f8bdb`
 
 ## 问题与现行证据
 
@@ -72,8 +72,33 @@ checked abort 沿用原终止边，不计作正常归纳后继，不能在本候
 5. 按阶段分别记账：来源候选、模型、实验 SSA、普通 LLVM/native、CI 动态、生产
    启用。任何一项未做均明确列未完成。启用须有独立范围裁决，不自动替换旧 oracle。
 
-## 本轮结论
+## 初稿阶段结论
 
 已对照现行 transfer 与 receipt 的全根更新前提，并完成上述有限候选的人工身份、
-父子状态、清理和拒绝责任审查。未实现模型或 emitter、未跑新 ordinary/CI/native，
-更未宣称 child 未修改根已支持。下一可执行切片是第 1 步的真实源码隔离候选提取。
+父子状态、清理和拒绝责任审查。初稿阶段未实现模型或 emitter、未跑新 ordinary/CI/native，
+更未宣称 child 未修改根已支持。下一可执行切片原为第 1 步的真实源码隔离候选提取；下述实际探测已阻止按原限定直接形成候选。
+
+
+## 首个真实源码探测：原限定不能形成 Carry 正例
+
+独立普通源码包含两个 literal 根、child/parent 各一次对 a 的真实 Replace、b
+从未使用。完整类型检查后的同次 ownership 事实明确：b 的唯一 Named Drop 是
+其原 LocalVariable 声明的 AfterStatement，位置早于两个 While；两个真实
+ownership primitive 的 place 均为 a。不是两个声明就有两个活跃循环根。
+
+这与 [Guide 10 ASAP](../guide/10-ownership-borrowing-drop.md#asap-析构)一致：
+未使用的纯内存 owner 在 initializer 完成并建立 binding 后立即析构。因此上文
+“b 全程无使用但最后才清理”的组合不能作为现行合法 Carry 权限前提。先前状态表
+只是假定存在活跃输入根的条件性模型，不是该源码已满足前提的证据。
+
+测试 `ordinary_unused_carry_is_retired_before_parent_entry` 保留此普通真实来源差异。
+未构造 Carry 描述符、未更改 ASAP/selector、未发布 receipt；这是提取必须拒绝的
+前提失败，不是 CI 故障注入。下一步需先明确循环后真实 borrow/consume 的保活用途
+与对应最终清理事实，再提取其合法活跃根；本稿不自行批准或实现该修订。
+
+
+循环后真实用途的现行参照是 `lang-codegen/src/owner_parent_false_tests.rs` 的
+`println(b)` 活跃根分区，符合 Guide 保留未来合法读取/借用的规则；该参照的
+child 仍更新所有根，不能据此取得 Carry 权限。若采用真实输出作为后续用途，
+须另列变体并核对应最终 use/cleanup，不以无意义临时绑定或人为 keepalive 求绿。
+本片普通精确目标 1/1 通过，独审确认前提失败证据有效；不代表提取器完成。
