@@ -14,3 +14,5 @@ workspace = true
 
 [features]
 loan-observation-test-support = ["lang-frontend/loan-observation-test-support"]
+
+d10-catalog-experiment = ["lang-frontend/d10-catalog-experiment", "loan-observation-test-support"]

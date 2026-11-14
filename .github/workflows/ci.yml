@@ -368,6 +368,8 @@ jobs:
         run: bash scripts/check_parent_receipt_ci.sh
       - name: Independent D10 catalog identity controls (CI only)
         run: bash scripts/check_d10_catalog_identity_ci.sh
+      - name: Experimental D10 catalog RootReplace emitter
+        run: cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment ssa::d10_catalog_emitter_tests::original_owned_catalog_emits_and_replays_actual_replace_and_cleanup -- --exact
       - name: Independent child cycle receipt faults (CI only)
         run: bash scripts/check_child_cycle_ci.sh
       - name: List legacy scalar entry ordering target (execution owned by borrow gate)

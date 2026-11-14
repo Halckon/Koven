@@ -323,3 +323,25 @@ suffix 的未覆盖合法源码拒绝。另一 ownership run/producer 身份错�
 组合 feature 回归中，独立 planner 的 nonce 不应相等。比较器现先比较实验快照的
 source/cleanup 完整投影及 old/new 各自唯一 producer 索引，再取出实验 sidecar，
 原样比较全部 legacy 字段。未改 producer nonce 或 ownership product 的相等性。
+
+### 跨 crate 无循环 RootReplace 发射闭环（实验测试域）
+
+codegen 的同名 opt-in feature 转发 frontend feature 并复用既有 observation 测试
+支持。独立测试入口只接收 BoundCatalog 与同一个最终 owned 的 view，不修改普通
+primitive gate，也不构造旧 all-Replace receipt。当前 catalog 仍拒绝 loop，因此
+这里先完成无循环消费，不能据此声称已经发射或证明 loop Replace/Carry。
+
+实际发射按源求值顺序建立一个函数/一个 block：初始 literal、root place、exclusive
+loan、incoming literal、RootReplace、new root Drop、detached old Drop。RootReplace
+自身结束 loan；两个返回 SSA value 分别对应安装后的新根与分离旧值。按真实
+CallReturn(call) 先清理根、再按 AfterStatement 清理旧结果，不按 span 排序。
+
+独立 replay 读取最终 SSA 的全部七指令、operand/result 与顺序，核 literal 的真实
+解码字节和 source origin、RootReplace old/new 对应及两次 Drop。旧清理点还必须
+解析到真实 LocalVariable，其 initializer 是原 Replace call、声明 Symbol 等于
+旧结果 Named root；新清理点必须是原根的精确 CallReturn。局部 Program 完成后
+通过 replay 与 SSA verifier 才返回，无中途结果交付。
+
+普通验收为两个实际源码（含中文与转义）× Rooted/MemoryDocument；另外进行 LLVM
+IR lowering/verifier。没有原生执行、故障注入或 loop predecessor 验收。本首片仍
+只在 test+feature 路径使用，不是默认生产入口；循环根环境/回边/Carry 仍未实现。
