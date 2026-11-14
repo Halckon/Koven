@@ -160,3 +160,151 @@ fn objects(commit_failure: bool) {
         );
     }
 }
+
+#[test]
+fn multiple_entries_preserve_complete_selection_and_mapping() {
+    multiple_entries(false);
+}
+
+#[test]
+#[ignore = "CI-only actual multi-entry object commit failure; local list only"]
+fn multiple_entries_commit_failure_is_atomic() {
+    assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    multiple_entries(true);
+}
+
+fn multiple_entries(commit_failure: bool) {
+    let other = source(false, "").replace("run", "run_second").replace("main", "main_second").replace("fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {println(item)}\n", "");
+    for extra in [
+        "",
+        "fun ordinary(source:String):Unit {borrow val b=view(source);val number=1+1;consume(b)}",
+    ] {
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("multi.ko", source(false, &format!("{other}\n{extra}")))
+            .unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::new("root", "multi.ko", id, &parsed)];
+        let (env, types) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let named = |name| {
+            names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == name)
+                .unwrap()
+                .id()
+        };
+        let a = named("main");
+        let b = named("main_second");
+        for selection in [vec![], vec![a, a], vec![a]] {
+            assert!(
+                prepare_two_source_units(&sources, &inputs, &names, &types, &typed, &selection)
+                    .is_err()
+            );
+        }
+        assert!(matches!(
+            prepare_two_source_unit(&sources, &inputs, &names, &types, &typed, a),
+            Err(TwoSourceUnitError::Preflight(_))
+        ));
+        let result = prepare_two_source_units(&sources, &inputs, &names, &types, &typed, &[b, a]);
+        if !extra.is_empty() {
+            assert!(matches!(result, Err(TwoSourceUnitError::Preflight(_))));
+            continue;
+        }
+        let units = result.unwrap();
+        assert_ne!(units.parts(a).unwrap().2, units.parts(b).unwrap().2);
+        assert_eq!(units.entries.len(), 2);
+        assert_eq!(units.program.modules.len(), 1);
+        assert_eq!(
+            units.program.modules[0].functions.len(),
+            10,
+            "two shared source leaves, four arm helpers, two callers and two original entries"
+        );
+        let directory = crate::native_tests::TestDirectory::create();
+        let output = directory.join("keep.o");
+        if commit_failure {
+            std::fs::create_dir(&output).unwrap();
+            let sentinel = output.join("sentinel");
+            std::fs::write(&sentinel, b"old").unwrap();
+            let error = crate::emit_native_two_source_units_object(&units, b, &output).unwrap_err();
+            assert_eq!(error.kind(), crate::NativeObjectErrorKind::Backend);
+            assert!(error.to_string().contains("commit sibling object"));
+            assert_eq!(std::fs::read(&sentinel).unwrap(), b"old");
+            assert_eq!(directory.snapshot().len(), 1);
+            assert_eq!(std::fs::read_dir(&output).unwrap().count(), 1);
+            std::fs::remove_file(&sentinel).unwrap();
+            std::fs::remove_dir(&output).unwrap();
+            crate::emit_native_two_source_units_object(&units, b, &output).unwrap();
+            crate::test_support::assert_native_object(&std::fs::read(&output).unwrap());
+            continue;
+        }
+        std::fs::write(&output, b"sentinel").unwrap();
+        assert!(
+            crate::emit_native_two_source_units_object(&units, named("view"), &output).is_err()
+        );
+        assert_eq!(std::fs::read(&output).unwrap(), b"sentinel");
+        assert_eq!(directory.snapshot().len(), 1);
+        for entry in [a, b] {
+            crate::emit_native_two_source_units_object(&units, entry, &output).unwrap();
+            crate::test_support::assert_native_object(&std::fs::read(&output).unwrap());
+        }
+    }
+}
+
+#[test]
+fn multiple_entries_reject_same_fact_and_unsupported_entry() {
+    for extra in [
+        "fun alias():Unit {val rounds=1;val choose=true;run(\"a\",\"b\",rounds,choose)}",
+        "fun alias():Unit {println(\"not a bounded entry\")}",
+    ] {
+        let mut sources = SourceMap::new();
+        let id = sources
+            .add_source("selection.ko", source(false, extra))
+            .unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::new("root", "selection.ko", id, &parsed)];
+        let (env, types) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let named = |name| {
+            names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == name)
+                .unwrap()
+                .id()
+        };
+        assert!(matches!(
+            prepare_two_source_units(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                &[named("main"), named("alias")]
+            ),
+            Err(TwoSourceUnitError::UnsupportedSelection)
+        ));
+    }
+}

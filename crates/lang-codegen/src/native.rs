@@ -590,6 +590,29 @@ pub fn emit_native_two_source_unit_object(
     output: &Path,
 ) -> Result<(), NativeObjectError> {
     let (sources, program, declaration, function) = unit.parts();
+    emit_two_source_parts(sources, program, declaration, function, output)
+}
+
+/// Select only an entry already proven inside this complete same-analysis capability.
+/// Each call publishes one object atomically; multiple calls are not a batch transaction.
+#[cfg(feature = "two-source-unit")]
+pub fn emit_native_two_source_units_object(
+    units: &crate::ValidatedTwoSourceUnits<'_>,
+    entry: DeclarationId,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let (sources, program, function) = units.parts(entry).ok_or_else(|| invalid_entry(None))?;
+    emit_two_source_parts(sources, program, entry, function, output)
+}
+
+#[cfg(feature = "two-source-unit")]
+fn emit_two_source_parts(
+    sources: &SourceMap,
+    program: &crate::ssa::model::Program,
+    declaration: DeclarationId,
+    function: crate::ssa::model::FunctionId,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
     crate::ssa::verify::verify_program(program).map_err(|_| invalid_entry(None))?;
     let plan =
         native_unit_entry_plan(program, NativeUnitEntry::NoArguments(declaration), function)?;

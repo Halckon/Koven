@@ -19167,3 +19167,28 @@ cfg(test)，单次真实对象执行 1 passed（1.03s），没有测试 observer
 通过。CI 脚本两配置的三个单元目标及一个外部目标仅编译/列举，本地没有执行故障。
 独立静审核签发隔离、完整 gates、旧 cfg 边界及十秒 helper 原文等价，无阻断。
 该能力仍默认关闭；未推送、未远端执行故障 CI，也未接 CLI 自动选择或放宽一般 body。
+
+### E2 同次分析的显式多入口能力
+
+在 282a1620 上增加 `prepare_two_source_units` / `ValidatedTwoSourceUnits`，仍只在默认关闭
+`two-source-unit` 下可用。所有显式 entry 来自一次真实 ownership analysis，要求非空、
+无重复、每个 descriptor 唯一且分别归属不同 fact；两个入口指向同一 fact 暂拒绝。
+逐 entry 沿用原签名门禁，再复用既有完整 Unit preflight、共同实例计划/单 arena、全部
+body 与独立 replay；不分别编译 Program 后拼接，不减少 build/publish 的独立复核。
+只有全部成功才签发一个不可变 Program 与私有 entry→FunctionId 映射。原单入口函数
+委托单元素选择并验证返回身份，不隐式选择其他 fact，原拒绝域保留。
+
+`emit_native_two_source_units_object` 只允许在封包内选择入口，未知值在 reserve 前拒绝。
+DeclarationId 是此封包内部选择值，不是可识别数值碰撞的跨分析身份令牌。每次调用沿用
+既有原子对象事务；分别发射多个对象不是多文件批事务，不承诺跨调用回滚。能力没有
+公开 Program/ownership 转换，也不接 CLI fallback 或扩大一般 ordinary body。
+
+验收覆盖反序选择两个真实源码入口、共享 leaf、不同 stdout、原单入口拒绝、空/重复/
+同 fact 选择、不支持入口和普通邻居整体失败，以及未知入口保留旧输出且没有 sibling。
+公开库 integration 不带 cfg(test)；实际多入口 commit 失败与原输出保全/无临时产物/
+重试验收继续以 ignored + 双 CI guard 隔离，本地仅编译列举，不宣称远端 CI 已完成。
+
+本地普通验收：正式 feature 独立及三 feature 共存各 4 passed / 2 CI-only ignored；
+两个公开库 integration 在两配置各 2 passed，原对象执行仍用单程序十秒标准。
+最终共同模块/十函数去重断言单独通过，doc-tests 7 passed（含三个能力隔离负例），
+两配置 all-target 严格 Clippy、默认 all-target 编译、文档与 Rust 尺寸门禁通过。

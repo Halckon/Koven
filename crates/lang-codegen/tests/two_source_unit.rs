@@ -81,3 +81,78 @@ fn public_capability_emits_and_executes_without_test_observers() {
     assert!(linked.status.success(), "{linked:?}");
     native_bounded::execute_binary(&executable, b"right\nright\nright\n");
 }
+
+#[test]
+fn public_multiple_entries_execute_one_common_program() {
+    let text = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {println(item)}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {var remaining=rounds;while(remaining>0){if(choose){borrow val a=view(left);consume(a)}else{borrow val b=view(right);consume(b)};remaining=remaining-1}}\nfun main():Unit {val rounds=3;val choose=false;run(\"left\",\"right\",rounds,choose)}";
+    let second = text.replace("run", "run_second").replace("main", "main_second")
+        .replace("val choose=false", "val choose=true")
+        .replace("fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {println(item)}\n", "");
+    let text = format!("{text}\n{second}");
+    let mut sources = SourceMap::new();
+    let id = sources.add_source("public.ko", text).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+    let inputs = [SourceUnitInput::new("root", "public.ko", id, &parsed)];
+    let (env, types) = standard_environments();
+    let index = index_compilation_unit(&sources, &inputs).unwrap();
+    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+        .unwrap()
+        .validate()
+        .unwrap();
+    let entry = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.name() == "main")
+        .unwrap()
+        .id();
+    let other = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.name() == "main_second")
+        .unwrap()
+        .id();
+    let units = lang_codegen::prepare_two_source_units(
+        &sources,
+        &inputs,
+        &names,
+        &types,
+        &typed,
+        &[other, entry],
+    )
+    .unwrap();
+    for (selected, expected) in [
+        (entry, b"right\nright\nright\n".as_slice()),
+        (other, b"left\nleft\nleft\n".as_slice()),
+    ] {
+        let directory = Directory::new();
+        let object = directory.0.join("public.o");
+        lang_codegen::emit_native_two_source_units_object(&units, selected, &object).unwrap();
+        assert_eq!(std::fs::read_dir(&directory.0).unwrap().count(), 1);
+        let executable = directory.0.join("public");
+        let clang = if cfg!(target_os = "macos") {
+            std::path::PathBuf::from("/usr/bin/clang")
+        } else {
+            std::env::var_os("LLVM_SYS_211_PREFIX")
+                .map(std::path::PathBuf::from)
+                .map(|prefix| prefix.join("bin/clang"))
+                .filter(|path| path.is_file())
+                .unwrap_or_else(|| std::path::PathBuf::from("clang"))
+        };
+        let linked = std::process::Command::new(clang)
+            .arg(&object)
+            .arg("-o")
+            .arg(&executable)
+            .output()
+            .unwrap();
+        assert!(linked.status.success(), "{linked:?}");
+        native_bounded::execute_binary(&executable, expected);
+    }
+}
