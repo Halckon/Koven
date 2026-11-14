@@ -366,6 +366,8 @@ jobs:
         run: python3 scripts/check_borrow_faults.py
       - name: Independent parent receipt CI-only fault contracts
         run: bash scripts/check_parent_receipt_ci.sh
+      - name: Independent D10 catalog identity controls (CI only)
+        run: bash scripts/check_d10_catalog_identity_ci.sh
       - name: Independent child cycle receipt faults (CI only)
         run: bash scripts/check_child_cycle_ci.sh
       - name: List legacy scalar entry ordering target (execution owned by borrow gate)

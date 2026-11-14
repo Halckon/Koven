@@ -562,6 +562,30 @@ fn ordinary_independent_catalog_tracks_literal_replace_without_legacy_tokens() {
         other.enable_producer_catalog();
         let other = other.run().unwrap().producer_catalog.unwrap();
         assert_ne!(catalog.definitions()[0].1, other.definitions()[0].1);
+        let (function_id, _) = checker
+            .parsed
+            .ast()
+            .items()
+            .iter()
+            .find(|(_, n)| matches!(n.payload(), crate::parser::Item::Function { .. }))
+            .unwrap();
+        let callable = crate::type_checking::UnitItemId::new(checker.source_unit, function_id);
+        let authorized = catalog.authorize(checker.typed, callable).unwrap();
+        assert!(
+            catalog
+                .authorize(&checker.typed.clone(), callable)
+                .is_some()
+        );
+        for (expression, token) in catalog.definitions() {
+            let (actual, fact) = authorized.producer(token).unwrap();
+            assert_eq!(*expression, actual);
+            assert!(
+                baseline
+                    .facts
+                    .iter()
+                    .any(|f| f.into_unit(fixture.source(0)) == fact)
+            );
+        }
     });
 }
 
@@ -587,4 +611,61 @@ fn ordinary_catalog_rejects_call_move_and_loop_observations() {
             assert!(planner.run().unwrap().producer_catalog.unwrap().failed());
         });
     }
+}
+
+#[test]
+#[ignore = "CI-only mismatched catalog identity negative controls"]
+fn ci_only_catalog_authorization_rejects_foreign_inputs() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    let fixture = Fixture::new(&[(
+        "catalog.ko",
+        "fun run() { var a = \"first\"; val old = replace(&a, \"next\") }",
+    )]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let make = || {
+            let mut planner = super::super::super::DropPlanner::new(
+                checker,
+                super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.enable_producer_catalog();
+            planner.run().unwrap().producer_catalog.unwrap()
+        };
+        let catalog = make();
+        let other = make();
+        let (function_id, _) = checker
+            .parsed
+            .ast()
+            .items()
+            .iter()
+            .find(|(_, n)| matches!(n.payload(), crate::parser::Item::Function { .. }))
+            .unwrap();
+        let callable = crate::type_checking::UnitItemId::new(checker.source_unit, function_id);
+        let authorized = catalog.authorize(checker.typed, callable).unwrap();
+        assert!(authorized.producer(&other.definitions()[0].1).is_none());
+        let (variable_id, _) = checker
+            .parsed
+            .ast()
+            .items()
+            .iter()
+            .find(|(_, n)| matches!(n.payload(), crate::parser::Item::Variable { .. }))
+            .unwrap();
+        assert!(
+            catalog
+                .authorize(
+                    checker.typed,
+                    crate::type_checking::UnitItemId::new(checker.source_unit, variable_id)
+                )
+                .is_none()
+        );
+        let unrelated = Fixture::new(&[(
+            "catalog.ko",
+            "fun run() { var a = \"first\"; val old = replace(&a, \"next\") }",
+        )]);
+        assert!(
+            catalog
+                .authorize(unrelated.typed.types(), callable)
+                .is_none()
+        );
+    });
 }

@@ -241,3 +241,18 @@ PrintString、BorrowEnd、Drop 顺序。取同次 ownership 的唯一 Named Drop
 `println(a)`，实际 Drop Origin 与 value_origin 相符。Rooted 与 MemoryDocument
 均覆盖，带 break 的合法邻近形态不满足 normal-backedge replay，保守拒绝。
 这仍不是新 primitive emitter，未交付独立 catalog token 到 SSA 的映射或 Carry 权限。
+
+### 同分析 catalog 交付前置（仅 frontend 测试域）
+
+catalog 现在保存创建时真实 typed product 的 `analysis_owner`，覆盖记录实际函数
+`UnitItemId`。私有 `authorize` 必须先完成已有无循环 `close`，再核请求 typed 的
+同分析身份及确切 source-qualified callable；成功结果借用 catalog，不复制或暴露
+可写状态。其 producer 查询只接受本次实际 planner 产生的私有 token，返回该 token
+已核对的源码 producer 与真实 DropFact。typed clone 保留分析身份；重新分析相同
+文本、错误 callable、另一 planner 的 token 均应拒绝混入该交付；这些混用负控
+置于 ignored + GitHub Actions 门禁测试，本地只编译列举，执行结果待 CI。
+
+这是跨 crate 接口之前的封闭 payload 原型，仍全部 cfg(test)，不是 ordinary gate
+许可，不可由 codegen 调用；也尚无单循环 catalog 覆盖、动态代际方程或实验 Replace
+SSA 发射。不能把授权函数名称理解为已批准生产 lowering，后续跨 crate 桥还须借用
+经校验的 owned view，并将实际发射结果作独立 replay。

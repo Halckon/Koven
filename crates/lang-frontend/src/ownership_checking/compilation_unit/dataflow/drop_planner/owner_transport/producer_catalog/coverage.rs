@@ -5,6 +5,7 @@ use crate::parser::{
 use crate::type_checking::{BuiltinType, UnitTypeKind};
 
 pub(super) struct Coverage {
+    pub(super) callable: crate::type_checking::UnitItemId,
     pub(super) literals: [UnitExpressionId; 2],
     pub(super) bindings: [(UnitSymbolId, UnitExpressionId); 2],
     pub(super) call: UnitExpressionId,
@@ -19,7 +20,7 @@ impl DropPlanner<'_, '_> {
         {
             return None;
         }
-        let (_, function) = ast
+        let (function_id, function) = ast
             .items()
             .iter()
             .find(|(_, n)| matches!(n.payload(), Item::Function { .. }))?;
@@ -132,6 +133,7 @@ impl DropPlanner<'_, '_> {
             return None;
         }
         Some(Coverage {
+            callable: crate::type_checking::UnitItemId::new(self.checker.source_unit, function_id),
             literals,
             bindings: [a, old],
             call: old.1,

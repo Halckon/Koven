@@ -1,6 +1,7 @@
 //! Independent per-planner construction. No legacy owner tokens, no certificates.
 use super::*;
 use std::sync::Arc;
+mod authorization;
 mod coverage;
 
 #[derive(Clone, Debug)]
@@ -18,6 +19,7 @@ impl Eq for Token {}
 pub(in super::super) struct Catalog {
     identity: Arc<()>,
     coverage: Option<coverage::Coverage>,
+    analysis: Arc<()>,
     bindings: Vec<(UnitSymbolId, UnitExpressionId)>,
     source: crate::name_resolution::SourceUnitId,
     definitions: Vec<(UnitExpressionId, Token)>,
@@ -116,10 +118,11 @@ impl Catalog {
     pub(in super::super) fn pending_is_empty(&self) -> bool {
         self.pending.is_empty()
     }
-    fn new(source: crate::name_resolution::SourceUnitId) -> Self {
+    fn new(source: crate::name_resolution::SourceUnitId, analysis: Arc<()>) -> Self {
         Self {
             identity: Arc::new(()),
             coverage: None,
+            analysis,
             bindings: Vec::new(),
             source,
             definitions: Vec::new(),
@@ -207,7 +210,10 @@ impl Catalog {
 }
 impl DropPlanner<'_, '_> {
     pub(in super::super) fn enable_producer_catalog(&mut self) {
-        let mut catalog = Catalog::new(self.checker.source_unit);
+        let mut catalog = Catalog::new(
+            self.checker.source_unit,
+            self.checker.typed.analysis_owner().clone(),
+        );
         catalog.coverage = self.catalog_coverage();
         catalog.failed = catalog.coverage.is_none();
         self.producer_catalog = Some(catalog);
