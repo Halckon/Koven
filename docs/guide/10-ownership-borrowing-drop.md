@@ -193,8 +193,8 @@ drop 与 loan 冲突时 primary 指向该访问，label 同样指向 loan 来源
 Koven 采用兼顾高吞吐堆内存回收与确定性资源清理的**双轨析构模型**（Dual-Track Drop Strategy）：
 
 1. **类型分类**：
-   - **资源类型（Resource Types）**：显式声明了 `deinit(): Unit` 析构成员的普通 `class`（见[class-family 与成员规则](08-class-family-members.md)），以及其字段递归包含资源类型的复合类型；
-   - **纯内存类型（Pure Memory Types）**：未声明 `deinit` 的普通 `class`、`value class`、`enum class`、`Box<T>`、`Array<T>`、`List<T>` 等标准内建容器。
+   - **资源类型（Resource Types）**：显式声明了 `deinit(): Unit` 析构成员的普通 `class`（见[class-family 与成员规则](08-class-family-members.md)），以及递归包含资源类型的复合类型。“包含”覆盖字段、enum payload、可空包裹，以及 `Box<T>`、`Array<T>`、`List<T>`、`Rc<T>` 等标准内建容器的类型实参：`Box<File>`、`List<File>`、`File?` 在 `File` 是资源类型时也是资源类型；
+   - **纯内存类型（Pure Memory Types）**：不属于资源类型的类型，即未声明 `deinit` 且不递归包含资源类型的普通 `class`、`value class`、`enum class` 与标准内建容器。尚未实例化的类型参数等无法证明为纯内存的类型，不得按纯内存类型提前析构。
 2. **纯内存类型：ASAP 激进析构**：
    - 维持既有的 ASAP 规则：在保持所有未来合法读取、借用、移动和赋值不变的前提下，于 owner 不再 live 的最早边界析构仍 `Available` 的 `MoveOnly` 值。如果 owner 从未使用，则在 initializer 完成且绑定建立后立即析构，尽早归还堆内存。
 3. **资源类型：词法作用域逆序析构（Lexical Scope Drop）**：

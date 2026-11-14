@@ -84,3 +84,20 @@ condition 和 MoveOnly root 不在此切片内。unit 原例仍在 `Shape.Point 
 UnsupportedNode；single 的直接 case 调用实参仍保留 MissingFact 精确范围回归。
 这些边界不通过忽略测试、增加预算或改写 Guide 消除；实际验收见
 [SPEC-0241](../archive/specs/0241-return-control-operands.md)。
+
+## 资源载荷的 native 边界
+
+2026-11-14 在 main `51a3aad3` 上以单文件 `kovenc run` 探测 Guide 10 的资源类型传递（`R` 为声明了
+`deinit` 的 `class`，绑定后不再使用，观察 `deinit` 是否晚于其后的输出）：
+
+| 形态 | 结果 |
+|---|---|
+| `List<R>`、`R?`、`value class W(val r: R)` | 可执行，按词法作用域结束析构；前两者有 native 回归 `resource_scope_drop` |
+| `enum class Holder { Full(r: R), Empty }` 的值 | native 构建返回 UnsupportedNode |
+| `Box(W(R(..)))`、`Box(Holder.Full(R(..)))` | 同上 |
+| `Rc(W(R(..)))`、`Rc(Holder.Full(R(..)))` | 同上 |
+| `Box(R(..))` | 类型错误 L0117，符合 Guide 08（`Box` 的实参须为 `value class` 或 `enum class`） |
+
+前端分类不受此限：`resource_deinit_type_facts` 断言 `Box<enum>`、`Rc<R>`、`Array<R>`、`List<R>`、
+`R?` 与 enum 载荷都判为资源类型。缺口在 lowering，所以这三类形态的析构时机目前不能端到端
+观察；未定位到具体的 lowering 节点，也未探测 unit 入口。
