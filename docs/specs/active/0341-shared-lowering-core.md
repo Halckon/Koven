@@ -18093,3 +18093,27 @@ payload 造收据。即使该基线通过，也只能称运输证据，不是循
 abort/success 边必须共同闭合。当前不增加公开 API、不改变 selector、事实发布或
 生产权限。审计与独立复审完成；本片无 Rust 改动，不重复声明历史 Rust 测试为
 新验证，亦未运行 native、CI 故障注入或远端 CI。
+
+
+### E2 非循环双 Shared 运输基线（2026-11-14）
+
+`46fb61c4` 后的真实试验发现：strict Unit 前端通过的两臂 `view(left/right)`
+借用结果分支仍在 backend 对整个 if 返回 UnsupportedNode，不能据此生成新 receipt。
+普通拒绝测试绑定 if 的完整 Span（含 rooted provider 的 package 偏移），不放宽门禁。
+
+降阶为两臂直接打印各自 Shared 参数、join 后依次使用两根的现行合法程序。
+新增 `e2_two_source_transport_tests` 检查实际条件来自 flag、四块 CFG、两臂及 join
+逐位置参数运输、每臂根角色与后继两根使用。caller 的实际 BorrowBegin→RootPlace
+追到 StringLiteral，分别确认不同 owner 的 a/b 与同 owner 的 a/a，并覆盖形参顺序
+反转。不同共享 loan 可以指向同一 owner，不将 slot 身份误当内存互斥。
+
+输入为 MemoryDocument 严格 Unit 与 rooted 跨源 Unit，不是两个 lowering 引擎。
+程序经真实 frontend、lowering、SSA verifier 与 LLVM render verifier；无合成事实、
+receipt 或故障注入。仅证明非循环、无 BorrowCall 的运输基线；不证明 BorrowCall
+分支、循环闭合、native 执行或 E2 新域发布。独立复审提出的条件/owner/span 三处
+断言已补齐。ssa/mod.rs 增加3行测试注册，未借机重排现有尺寸债。
+
+最终修正源码普通测试2/2、observer-support codegen all-target严格Clippy、fmt、
+docs951、diff及独立复审通过。最初默认配置codegen lib-test编译被10项既有
+receipt观察helper的dead_code阻断；未抑制lint或删除helper，不能宣称默认配置
+编译通过。本轮未运行native与远端CI；现有ssa/mod.rs尺寸为1008行（原1005）。

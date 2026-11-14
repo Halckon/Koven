@@ -134,3 +134,9 @@ borrow binding、同源 branch 或 counter fact，validated ownership factory �
 原同源 pair 构造守卫不变，公共分析仍诊断失败并撤销观察与借用产物；无新 pair、
 validated ownership 或 backend receipt 发布。默认关闭的线程局部 RAII 恢复嵌套/
 异常状态，Single selector 不经过此入口；非测试编译直接使用旧 selector。
+
+
+非循环双 Shared 参数的普通 SSA 基线已独立核验：实际条件来源、两臂与 join 的
+有序参数运输，以及 caller 不同 owner/同 owner 与形参反序；输入覆盖 memory 和
+rooted 跨源 Unit。基线仅直接使用根，不含 BorrowCall；两臂分别产生借用结果的
+邻居仍在整个 if 处 UnsupportedNode，不能把此运输证据当作两源循环 receipt。
