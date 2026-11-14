@@ -19074,3 +19074,32 @@ receipt 观察 guard 在成功和失败时均回滚，原 joint 发布路径及�
 各十项通过、七项 CI-only ignored。新共同路径验证完整 SSA 与独立 replay，旧路径 native
 回归保持原十秒标准；没有运行本地故障注入。独立只读复核确认身份、完整分区、来源和
 观察撤销边界，无遗留阻断。
+
+### E2 共同 Program 的独立受检封包与对象事务
+
+共同构造在全计划分区、真实来源 replay 和最终 SSA verifier 全部成功后，签发独立
+`PublishedCommon`：私有字段保存原 experiment/fact/entry 身份与不可变 Program，不提供
+普通 OwnedUnit 转换。签发器只接受不可伪造的封闭 `JointPlan`，不能由 SSA 内部调用者
+传入裸 plan/leaf/caller/entry 列表拼装权限；内部再次核 typed、完整 key、原 fact 所有权，
+重新选择同次 handoff 并执行完整 Unit preflight。任何失败均不返回封包，普通 receipt
+观察仍随 guard 回滚，不冒充普通生产 receipt。
+
+新增 test-only native adapter 使用封闭的新旧封包枚举复用原对象事务。身份、原入口、
+SSA 与 native entry plan 全在 reserve 前验证，随后使用原 LLVM→SiblingObject→commit
+流程。旧封包及 adapter 保留，生产接受集不变。真实对象测试覆盖原 entry、多 fact、
+共享 leaf、Print、Forward 和八层链，链接事务产出的同一个 object，不重发射 LLVM 或
+替换 driver；外来 handoff/entry 必须保持已有对象与整个目录快照不变。
+
+既有 CI-only commit 失败验收同时覆盖新旧封包，检查真实 commit 错误、原目录哨兵不变、
+无 sibling 遗留及随后完整重试。本地只编译该用例，不执行故障；正常 native 仍沿用
+原十秒单程序 deadline，无签名、属性或系统安全设置变更。
+
+最终本地验收（2026-11-14）：在已观察到的空闲窗口按原十秒单程序标准顺序执行，双
+feature 正常 E2 套件 10 passed / 7 CI-only ignored（73.02s），单 feature 同样
+10 passed / 7 ignored（72.08s）。新共同对象、旧对象与旧 LLVM 路径的真实源码执行均
+包含在正常套件内；没有修改签名、属性、安全策略或 deadline。最终逐 diff 独审确认
+封闭 JointPlan 签发、同源身份与 reserve 前检查保持，无新增阻断。
+
+此前超时仍是已记录的历史失败；本次通过不能单独证明资源竞争或系统策略是其根因。
+CI-only 失败原子性验收未在本地执行；生产入口仍未启用。本片在 a4a9c9f0 基线上验证，
+与后续主线的隔离非 native 组合证据另记，不冒充更新主线的完整 native 验收。

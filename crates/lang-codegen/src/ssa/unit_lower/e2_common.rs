@@ -1,11 +1,11 @@
-//! Complete common-arena construction check. No native/publication capability or Program escapes.
+//! Sealed common-arena experimental package, never ordinary Unit authority.
 use super::*;
-use crate::ssa::unit_plan::{UnitFunctionInstanceKey, UnitInstancePlan};
+use crate::ssa::unit_plan::UnitFunctionInstanceKey;
 use crate::ssa::{
     e2_arm_fragments, e2_callee_leaves, e2_entry, e2_entry_replay, e2_function, e2_replay,
 };
 use lang_frontend::ownership_checking::two_source_experiment::{
-    CalleeLeaf, EntryDescriptor, ExperimentalUnitHandoff, TwoSourceCounterFact, TwoSourceExperiment,
+    EntryDescriptor, ExperimentalUnitHandoff, TwoSourceCounterFact, TwoSourceExperiment,
 };
 use lang_frontend::type_checking::{UnitCallTarget, UnitCallableInstanceKey};
 
@@ -18,14 +18,48 @@ fn key(k: &UnitCallableInstanceKey) -> Option<UnitFunctionInstanceKey> {
         .then(|| UnitFunctionInstanceKey::for_entry(d))
 }
 
-pub(in crate::ssa) fn check(
+/// Constructor is confined to the fully checked emitter below. No mutable IR or ownership escapes.
+pub(crate) struct PublishedCommon<'a> {
+    program: Program,
+    experiment: &'a TwoSourceExperiment,
+    facts: Vec<&'a TwoSourceCounterFact>,
+    entries: Vec<(&'a EntryDescriptor, FunctionId)>,
+}
+impl PublishedCommon<'_> {
+    pub(crate) fn matches_handoff(&self, handoff: &ExperimentalUnitHandoff<'_, '_>) -> bool {
+        self.experiment.matches_types(handoff.types()) && handoff.for_facts(&self.facts).is_some()
+    }
+    pub(crate) fn entry(
+        &self,
+        descriptor: &EntryDescriptor,
+        typed: &lang_frontend::type_checking::ValidatedCompilationUnitTypes,
+    ) -> Option<FunctionId> {
+        if !self.experiment.matches_types(typed) || !self.experiment.owns_entry(descriptor) {
+            return None;
+        }
+        let mut found = self
+            .entries
+            .iter()
+            .filter(|(original, _)| original.entry() == descriptor.entry());
+        let (_, id) = found.next()?;
+        if found.next().is_some() {
+            return None;
+        }
+        Some(*id)
+    }
+    pub(crate) fn program(&self) -> &Program {
+        &self.program
+    }
+}
+
+pub(in crate::ssa) fn publish<'a>(
     handoff: &ExperimentalUnitHandoff<'_, '_>,
-    experiment: &TwoSourceExperiment,
-    plan: UnitInstancePlan,
-    leaves: &[&CalleeLeaf],
-    callers: &[(&TwoSourceCounterFact, UnitCallableInstanceKey)],
-    entries: &[(&EntryDescriptor, UnitCallableInstanceKey)],
-) -> Option<()> {
+    joint: crate::ssa::e2_joint_plan::JointPlan<'a>,
+) -> Option<PublishedCommon<'a>> {
+    let (experiment, plan, leaves, callers, entries) = joint.into_common(handoff)?;
+    let facts: Vec<_> = callers.iter().map(|(fact, _)| *fact).collect();
+    let selected = handoff.for_facts(&facts)?;
+    let handoff = &selected;
     #[cfg(test)]
     let _branch_publication = crate::ssa::refine::branch_receipt::UnitPublication::begin();
     #[cfg(test)]
@@ -144,14 +178,14 @@ pub(in crate::ssa) fn check(
         return None;
     }
     // Independently replay original ordinary bodies against source witnesses and retained plan spans.
-    for leaf in leaves {
+    for leaf in &leaves {
         let k = key(leaf.instance())?;
         let id = *function_ids.get(&k)?;
         e2_replay::replay_declared_leaf(module, id, leaf, &functions, *expected.get(&k)?)?;
     }
     let mut emitted = e2_callee_leaves::EmittedLeaves { program, functions };
     let mut arm_records = Vec::new();
-    for (fact, k) in callers {
+    for (fact, k) in &callers {
         let arms = e2_arm_fragments::append_unverified(experiment, fact, handoff.types(), emitted)?;
         emitted = arms.leaves;
         let module = emitted.program.module_mut(module_id)?;
@@ -186,7 +220,7 @@ pub(in crate::ssa) fn check(
         )?;
         arm_records.push(arms.arms);
     }
-    for (entry, caller) in entries {
+    for (entry, caller) in &entries {
         let entry_key = UnitFunctionInstanceKey::for_entry(entry.entry());
         let id = *function_ids.get(&entry_key)?;
         let caller = *function_ids.get(&key(caller)?)?;
@@ -211,5 +245,19 @@ pub(in crate::ssa) fn check(
         return None;
     }
     crate::ssa::verify::verify_program(&emitted.program).ok()?;
-    Some(())
+    let entries = entries
+        .iter()
+        .map(|(entry, _)| {
+            Some((
+                *entry,
+                *function_ids.get(&UnitFunctionInstanceKey::for_entry(entry.entry()))?,
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(PublishedCommon {
+        program: emitted.program,
+        experiment,
+        facts: callers.iter().map(|(fact, _)| *fact).collect(),
+        entries,
+    })
 }

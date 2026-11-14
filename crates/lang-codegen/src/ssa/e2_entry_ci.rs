@@ -62,41 +62,56 @@ fn fixture(checked: bool, joint: bool, object_commit: bool) {
         };
         if object_commit {
             let package = rebuild().publish_entries(&entries, &typed).unwrap();
-            let directory = crate::native_tests::TestDirectory::create();
-            let output = directory.join("blocked.o");
-            std::fs::create_dir(&output).unwrap();
-            let sentinel = output.join("keep");
-            std::fs::write(&sentinel, b"original directory content").unwrap();
-            for entry in &entries {
-                let error =
-                    crate::native::emit_experimental_e2_object(&package, &handoff, entry, &output)
-                        .unwrap_err();
-                assert_eq!(error.kind(), crate::native::NativeObjectErrorKind::Backend);
-                assert!(
-                    error.to_string().contains("commit sibling object"),
-                    "{error}"
-                );
-                assert_eq!(
-                    std::fs::read(&sentinel).unwrap(),
-                    b"original directory content"
-                );
-                assert_eq!(std::fs::read_dir(&output).unwrap().count(), 1);
-                let names: Vec<_> = std::fs::read_dir(output.parent().unwrap())
+            let common =
+                super::e2_joint_plan::JointPlan::build(&handoff, &experiment, &facts, &entries)
                     .unwrap()
-                    .map(|entry| entry.unwrap().file_name())
-                    .collect();
-                assert_eq!(names, vec![std::ffi::OsString::from("blocked.o")]);
-            }
-            std::fs::remove_file(&sentinel).unwrap();
-            std::fs::remove_dir(&output).unwrap();
-            for entry in &entries {
-                crate::native::emit_experimental_e2_object(&package, &handoff, entry, &output)
+                    .publish_common(&handoff)
                     .unwrap();
-                crate::test_support::assert_native_object(&std::fs::read(&output).unwrap());
-                assert_eq!(
-                    std::fs::read_dir(output.parent().unwrap()).unwrap().count(),
-                    1
-                );
+            for common_path in [false, true] {
+                let emit = |entry, output: &std::path::Path| {
+                    if common_path {
+                        crate::native::emit_experimental_e2_common_object(
+                            &common, &handoff, entry, output,
+                        )
+                    } else {
+                        crate::native::emit_experimental_e2_object(
+                            &package, &handoff, entry, output,
+                        )
+                    }
+                };
+                let directory = crate::native_tests::TestDirectory::create();
+                let output = directory.join("blocked.o");
+                std::fs::create_dir(&output).unwrap();
+                let sentinel = output.join("keep");
+                std::fs::write(&sentinel, b"original directory content").unwrap();
+                for entry in &entries {
+                    let error = emit(entry, &output).unwrap_err();
+                    assert_eq!(error.kind(), crate::native::NativeObjectErrorKind::Backend);
+                    assert!(
+                        error.to_string().contains("commit sibling object"),
+                        "{error}"
+                    );
+                    assert_eq!(
+                        std::fs::read(&sentinel).unwrap(),
+                        b"original directory content"
+                    );
+                    assert_eq!(std::fs::read_dir(&output).unwrap().count(), 1);
+                    let names: Vec<_> = std::fs::read_dir(output.parent().unwrap())
+                        .unwrap()
+                        .map(|entry| entry.unwrap().file_name())
+                        .collect();
+                    assert_eq!(names, vec![std::ffi::OsString::from("blocked.o")]);
+                }
+                std::fs::remove_file(&sentinel).unwrap();
+                std::fs::remove_dir(&output).unwrap();
+                for entry in &entries {
+                    emit(entry, &output).unwrap();
+                    crate::test_support::assert_native_object(&std::fs::read(&output).unwrap());
+                    assert_eq!(
+                        std::fs::read_dir(output.parent().unwrap()).unwrap().count(),
+                        1
+                    );
+                }
             }
             return;
         }

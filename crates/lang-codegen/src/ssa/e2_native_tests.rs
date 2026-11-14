@@ -334,3 +334,97 @@ pub(super) fn execute_published(
     assert!(linked.status.success(), "{linked:?}");
     execute_binary(&executable, expected);
 }
+
+/// Reject foreign identity before side effects, then link and execute the exact committed object.
+pub(super) fn check_common_object(
+    package: &crate::ssa::ExperimentalPublishedCommon<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    foreign_handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<'_, '_>,
+    foreign_entry: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    entry: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+) {
+    let directory = crate::native_tests::TestDirectory::create();
+    let object = directory.join("joint.o");
+    std::fs::write(&object, b"previous object").unwrap();
+    let before = directory.snapshot();
+    assert!(
+        crate::native::emit_experimental_e2_common_object(package, foreign_handoff, entry, &object)
+            .is_err()
+    );
+    assert_eq!(directory.snapshot(), before);
+    assert!(
+        crate::native::emit_experimental_e2_common_object(package, handoff, foreign_entry, &object)
+            .is_err()
+    );
+    assert_eq!(directory.snapshot(), before);
+    crate::native::emit_experimental_e2_common_object(package, handoff, entry, &object).unwrap();
+    crate::test_support::assert_native_object(&std::fs::read(&object).unwrap());
+    assert_eq!(
+        directory.snapshot().len(),
+        1,
+        "no sibling temporary remains"
+    );
+    // Link the transaction's exact artifact, not regenerated LLVM or a synthetic driver.
+    let executable = directory.join("joint");
+    let linked = Command::new(crate::test_support::clang())
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("system clang must launch");
+    assert!(linked.status.success(), "{linked:?}");
+    execute_binary(&executable, b"");
+}
+
+/// Execute an object produced from the original printing entry, without IR rewriting.
+pub(super) fn execute_common(
+    package: &crate::ssa::ExperimentalPublishedCommon<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    entry: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    expected: &[u8],
+) {
+    let directory = crate::native_tests::TestDirectory::create();
+    let object = directory.join("print.o");
+    crate::native::emit_experimental_e2_common_object(package, handoff, entry, &object).unwrap();
+    crate::test_support::assert_native_object(&fs::read(&object).unwrap());
+    assert_eq!(directory.snapshot().len(), 1);
+    let executable = directory.join("print");
+    let linked = Command::new(crate::test_support::clang())
+        .arg(&object)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .unwrap();
+    assert!(linked.status.success(), "{linked:?}");
+    execute_binary(&executable, expected);
+}
+
+/// Keep legacy and common source allocations under the same exact object/entry acceptance matrix.
+pub(super) fn check_both_object_paths(
+    legacy: &crate::ssa::ExperimentalPublishedEntrySet<'_>,
+    common: &crate::ssa::ExperimentalPublishedCommon<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    foreign: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    foreign_entry: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    entries: &[&lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor],
+) {
+    for descriptor in entries {
+        check_common_object(common, handoff, foreign, foreign_entry, descriptor);
+        check_published_object(legacy, handoff, foreign, foreign_entry, descriptor);
+        let id = legacy.entry(descriptor, handoff.types()).unwrap();
+        let llvm = crate::llvm::render_verified_program_with_entry(legacy.program(), id).unwrap();
+        execute_llvm(&llvm, b"");
+    }
+}

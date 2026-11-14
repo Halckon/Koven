@@ -359,6 +359,8 @@ mod e2_joint_plan;
 mod e2_print_tests;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(crate) use e2_arm_fragments::PublishedEntrySet as ExperimentalPublishedEntrySet;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+pub(crate) use unit_lower::e2_common::PublishedCommon as ExperimentalPublishedCommon;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_function;

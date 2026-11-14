@@ -14,6 +14,15 @@ enum Route<'a> {
     E2Caller(&'a TwoSourceCounterFact),
 }
 
+/// Internal decomposition is not a constructor or publication authority.
+pub(super) type CommonParts<'a> = (
+    &'a TwoSourceExperiment,
+    super::unit_plan::UnitInstancePlan,
+    Vec<&'a CalleeLeaf>,
+    Vec<(&'a TwoSourceCounterFact, UnitCallableInstanceKey)>,
+    Vec<(&'a EntryDescriptor, UnitCallableInstanceKey)>,
+);
+
 /// No SSA IDs exist until this closed selection is consumed.
 pub(super) struct JointPlan<'a> {
     experiment: &'a TwoSourceExperiment,
@@ -118,17 +127,23 @@ impl<'a> JointPlan<'a> {
             })
             .collect()
     }
-    /// Exercise the unified source allocator and complete body construction without native authority.
-    pub(super) fn check_common_bodies(
+    /// Only the complete common-arena construction may issue this distinct experimental package.
+    pub(super) fn publish_common(
         self,
         handoff: &ExperimentalUnitHandoff<'_, '_>,
-    ) -> Option<()> {
+    ) -> Option<super::unit_lower::e2_common::PublishedCommon<'a>> {
+        super::unit_lower::e2_common::publish(handoff, self)
+    }
+    pub(super) fn into_common(
+        self,
+        handoff: &ExperimentalUnitHandoff<'_, '_>,
+    ) -> Option<CommonParts<'a>> {
         if !self.experiment.matches_types(handoff.types()) {
             return None;
         }
         self.ordinary.verify(&self)?;
         let facts = self.facts();
-        let selected = handoff.for_facts(&facts)?;
+        handoff.for_facts(&facts)?;
         let mut leaves = Vec::new();
         let mut callers = Vec::new();
         for (key, route) in &self.routes {
@@ -137,14 +152,13 @@ impl<'a> JointPlan<'a> {
                 Route::E2Caller(fact) => callers.push((*fact, key.clone())),
             }
         }
-        super::unit_lower::e2_common::check(
-            &selected,
+        Some((
             self.experiment,
             self.ordinary.into_plan(),
-            &leaves,
-            &callers,
-            &self.entries,
-        )
+            leaves,
+            callers,
+            self.entries,
+        ))
     }
     /// Dispatch only the sealed routes; final publication independently re-derives source coverage.
     pub(super) fn publish(self) -> Option<super::e2_arm_fragments::PublishedEntrySet<'a>> {

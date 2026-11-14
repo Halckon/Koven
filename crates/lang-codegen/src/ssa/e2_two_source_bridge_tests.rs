@@ -752,9 +752,9 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                     .publish_entries(&required, &unrelated_types)
                     .is_none()
             );
-            plan(&required)
+            let common = plan(&required)
                 .unwrap()
-                .check_common_bodies(&handoff)
+                .publish_common(&handoff)
                 .expect("common source bodies");
             let package = plan(&required).unwrap().publish().unwrap();
             assert!(
@@ -766,19 +766,21 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             let foreign_handoff = other
                 .handoff(&sources, &inputs, &names, &types, &typed)
                 .unwrap();
-            for descriptor in required {
-                let id = package.entry(descriptor, &typed).unwrap();
-                super::e2_native_tests::check_published_object(
-                    &package,
-                    &handoff,
-                    &foreign_handoff,
-                    &other.entries(&typed).unwrap()[0],
-                    descriptor,
-                );
-                let llvm =
-                    crate::llvm::render_verified_program_with_entry(package.program(), id).unwrap();
-                super::e2_native_tests::execute_llvm(&llvm, b"");
-            }
+            assert!(
+                plan(&required)
+                    .unwrap()
+                    .publish_common(&foreign_handoff)
+                    .is_none()
+            );
+            assert!(common.entry(entry, &unrelated_types).is_none());
+            super::e2_native_tests::check_both_object_paths(
+                &package,
+                &common,
+                &handoff,
+                &foreign_handoff,
+                &other.entries(&typed).unwrap()[0],
+                &required,
+            );
         }
 
         let joint = super::e2_callee_leaves::emit_for_facts(&handoff, &experiment, &all_facts);

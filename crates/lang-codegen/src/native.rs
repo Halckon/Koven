@@ -193,15 +193,64 @@ pub(crate) fn emit_experimental_e2_object(
     descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
     output: &Path,
 ) -> Result<(), NativeObjectError> {
-    if !package.matches_handoff(handoff) {
+    emit_experimental_e2_package(
+        ExperimentalE2Package::Legacy(package),
+        handoff,
+        descriptor,
+        output,
+    )
+}
+/// Separate experimental entry point: common source allocator package cannot impersonate ordinary owned.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+pub(crate) fn emit_experimental_e2_common_object(
+    package: &crate::ssa::ExperimentalPublishedCommon<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    emit_experimental_e2_package(
+        ExperimentalE2Package::Common(package),
+        handoff,
+        descriptor,
+        output,
+    )
+}
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+enum ExperimentalE2Package<'view, 'facts> {
+    Legacy(&'view crate::ssa::ExperimentalPublishedEntrySet<'facts>),
+    Common(&'view crate::ssa::ExperimentalPublishedCommon<'facts>),
+}
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+fn emit_experimental_e2_package(
+    package: ExperimentalE2Package<'_, '_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    let (matches, function, program) = match package {
+        ExperimentalE2Package::Legacy(p) => (
+            p.matches_handoff(handoff),
+            p.entry(descriptor, handoff.types()),
+            p.program(),
+        ),
+        ExperimentalE2Package::Common(p) => (
+            p.matches_handoff(handoff),
+            p.entry(descriptor, handoff.types()),
+            p.program(),
+        ),
+    };
+    if !matches {
         return Err(invalid_entry(None));
     }
-    let function = package
-        .entry(descriptor, handoff.types())
-        .ok_or_else(|| invalid_entry(None))?;
+    let function = function.ok_or_else(|| invalid_entry(None))?;
     let entry = NativeUnitEntry::NoArguments(descriptor.entry());
     validate_unit_entry(handoff.names(), handoff.types().types(), entry)?;
-    let program = package.program();
     crate::ssa::verify::verify_program(program).map_err(|_| invalid_entry(None))?;
     let plan = native_unit_entry_plan(program, entry, function)?;
     // Exactly the existing object transaction: every identity/entry check precedes reserve.
