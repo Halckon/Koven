@@ -235,6 +235,8 @@ fn plan_with_observations(
 struct DropPlanner<'a, 'checker> {
     #[cfg(test)]
     carry_probe: Option<Vec<owner_transport::carry_probe::Visit>>,
+    #[cfg(test)]
+    origin_probe: Option<Vec<owner_transport::origin_probe::Event>>,
     scalar_entry: Option<owner_transport::loops::scalar_entry::Tracker>,
     no_carry_exit: no_carry_exit::Tracker,
     #[cfg(test)]
@@ -285,6 +287,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         Self {
             #[cfg(test)]
             carry_probe: None,
+            #[cfg(test)]
+            origin_probe: None,
             scalar_entry: None,
             no_carry_exit: no_carry_exit::Tracker::default(),
             #[cfg(test)]
@@ -1172,6 +1176,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     for place in plan.places() {
                         if let Some(index) = state.position(place.root()) {
                             state.values[index].origin = node.span();
+                            #[cfg(test)]
+                            self.origin_applied(id, place.root());
                         }
                     }
                     self.commit_choice_primitive(id, state);

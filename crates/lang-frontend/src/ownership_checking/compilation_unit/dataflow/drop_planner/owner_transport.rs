@@ -6,6 +6,8 @@ pub(super) mod carry_probe;
 pub(super) mod choice;
 mod entry_concat;
 pub(super) mod loops;
+#[cfg(test)]
+pub(super) mod origin_probe;
 pub(super) mod replace_call_consumer;
 pub(super) mod replace_consumer;
 pub(super) mod replace_return_consumer;
@@ -266,6 +268,8 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
+        #[cfg(test)]
+        self.origin_literal(expression);
         self.owner_loop
             .segment_literal(self.checker.unit_expression(expression));
         self.record_root_literal(expression);
@@ -332,6 +336,8 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn inserted_owner(&mut self, symbol: UnitSymbolId, initializer: ExpressionId) {
+        #[cfg(test)]
+        self.origin_bound(symbol, initializer);
         if let Some(choice) = &mut self.owner_choice {
             choice.bound(symbol, self.checker.unit_expression(initializer));
         }

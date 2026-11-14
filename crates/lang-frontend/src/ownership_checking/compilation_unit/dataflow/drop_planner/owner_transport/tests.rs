@@ -32,6 +32,7 @@ mod invariant_suffix;
 mod invariant_while;
 mod loop_boundaries;
 mod open_loop_return;
+mod origin_probe;
 mod parameter_open_loop;
 
 use super::super::super::*;

@@ -260,3 +260,17 @@ cfg(test) 域，没有生产默认开销或新授权。
 因此独立状态转移记录仍必须从 literal 实际产生、binding 安装、primitive 实际
 提交及控制分流/汇合点维护自己的测试域状态，不能复用已停用 token 的比较结果。
 本片未实现该独立状态机，不宣称 Replace/Carry 事件已完备。
+
+### 独立 producer / binding / 更新事件首片
+
+新增默认关闭的 `cfg(test)` `origin_probe`，不读取任何 `UnitOwnerId`：
+String 正常求值回调记录 Literal，真实 `state.insert` 后记录 Bound；primitive
+正常路径中找到实际 root 并更新其 origin 的成功分支记录 Applied，携带真实
+call/root/incoming expression。Applied 不是仅到达 dispatch，也不由 AST 反推。
+
+普通单循环源码对照完整七事件序列：两个 literal/binding、替换 literal、实际
+root 更新、old-result binding；探针开关的既有清理与观察产物相同。
+这些事件可作为独立测试域状态机的输入，不复用停用后残留 token。但当前只覆盖
+一次静态遍历，不代表动态循环迭代，尚未记录完整 Drop/Move/borrow/分流汇合，
+也尚未形成有限循环状态表示、完整事件覆盖证据或 Carry 权限。未创建新 owner
+资格、既有 receipt 或真实 SSA。
