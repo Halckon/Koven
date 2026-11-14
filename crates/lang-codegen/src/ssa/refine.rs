@@ -26,6 +26,7 @@ pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
 pub(crate) mod multi_receipt;
 pub(crate) mod nested_receipt;
+mod nullable_when;
 pub(crate) mod receiver_receipt;
 pub(crate) mod single_receipt;
 mod subset;

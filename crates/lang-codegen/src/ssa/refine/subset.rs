@@ -7,6 +7,7 @@ mod field;
 mod heap;
 mod map;
 pub(super) mod named_route;
+mod nullable_when;
 mod range_borrow;
 mod scalar_text;
 use control::LoopRoute;
@@ -615,6 +616,9 @@ impl Checker<'_, '_> {
         if self.inputs.typed.range_size(id).is_some() {
             return self.storage_type(ty) && self.range_size(expression);
         }
+        if self.inputs.typed.nullable_when(id).is_some() {
+            return self.nullable_when(expression);
+        }
         if !self.unspecialized(expression)
             || !(returns
                 || self.unit(ty)
@@ -937,6 +941,9 @@ impl Checker<'_, '_> {
     }
 
     fn statement(&mut self, statement: StatementId) -> bool {
+        if self.when_proof_crosses_loop(statement) {
+            return false;
+        }
         let Ok(node) = self.inputs.parsed.ast().statements().get(statement) else {
             return false;
         };

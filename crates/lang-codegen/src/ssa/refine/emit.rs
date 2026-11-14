@@ -176,6 +176,11 @@ fn shape(body: &RefinedBody, span: Span) -> Result<Shape, LoweringError> {
         for block in reachable.iter().rev() {
             let (uses, defs) = &local[block];
             let mut live = uses.clone();
+            if let Some(sibling) = body.blocks[block.0].carry_sibling {
+                // The shared view is defined by the non-null edge, not carried from
+                // its sibling. Ordinary If and receipt branches remain unchanged.
+                live.extend(live_in.get(&sibling).into_iter().flatten().copied());
+            }
             if let Some((pred, sibling)) = siblings.get(block) {
                 let excluded = excluded_abort_slots(body, *pred, *block);
                 for slot in live_in.get(sibling).into_iter().flatten() {

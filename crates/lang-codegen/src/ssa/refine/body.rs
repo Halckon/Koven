@@ -934,6 +934,8 @@ pub(super) struct RBlock {
     pub(super) origin: Option<Span>,
     /// Carrier slots pinned as live-in on entry to this block.
     pub(super) pinned: Vec<Slot>,
+    /// These two nullable When successors retain one common carried-column layout.
+    pub(super) carry_sibling: Option<BlockRef>,
     /// Keep a loop header block separate from its single entry predecessor.
     pub(super) preserve_header: bool,
 }

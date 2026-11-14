@@ -116,6 +116,24 @@ RangeView、carrier 别名和其他绑定保留原有前置边界。
 精确 Borrow 传递实际字段 loan；Copyable nullable 转换读取字段并结束原借用链，
 再借用包装槽。正常返回与提前退出由调用清理消费完整临时父对象的析构事实。
 
+## owned pointer-like nullable When
+
+[SPEC-0455](../specs/active/0455-refine-owned-nullable-when.md) 的既有 owned whole-root /
+temporary class、Box、Rc nullable When 经正常 Unit 入口进入 refine。准入与构建共用同轮
+typed descriptor、ownership plan 和 When use fact，核对 control、subject、entry、canonical
+reference、generation、Shared loan / Value delivery；不从普通 if 产品或 expected type 补造事实。
+
+构建复用现有 When CFG、NullableBranch / NullableTake、view retirement 与调用清理。
+subject 求值一次；两个直接后继同步携带 owner 列，但 non-null proof 只属于其发布边。
+Value 实参求值时立即 take，inner 注册为原实参的 pending temporary，后续实参退出仍清理
+inner，全部成功才提交 delivery。消费状态使用路径局部 dead，不全局删除互斥 null 路径的
+owner binding。既有 loop 内 When 的退出源位置与 pending 清理顺序保持。
+
+三份完整原文档逐字节抽为共用 fixture，原 native stdout、17 项负例及 helper 职责不变；
+24 个冻结函数的完整入口路由、single/project、输入正逆序和无关 sibling 均有定向验证。
+此范围不扩 Borrow/Inout root、receiver、proof 跨 loop、nullable place/loan ABI 或 inline
+nullable；enclosing borrow/carrier-return guard 保留。候选与官方 CI 状态以 Spec 账本为准。
+
 ## inline nullable 布局
 
 `SsaTypeKind::InlineNullable { inner, niche }`：String 与顺序容器用 bytes/buffer 指针 niche（空串与
