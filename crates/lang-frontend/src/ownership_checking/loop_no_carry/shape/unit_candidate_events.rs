@@ -5,7 +5,7 @@ thread_local! { static STATE: Cell<(bool, usize)> = const { Cell::new((false, 0)
 pub(crate) fn enabled() -> bool {
     STATE.get().0
 }
-fn run<T>(analyze: impl FnOnce() -> T) -> (T, usize) {
+pub(crate) fn run<T>(analyze: impl FnOnce() -> T) -> (T, usize) {
     struct Restore((bool, usize));
     impl Drop for Restore {
         fn drop(&mut self) {

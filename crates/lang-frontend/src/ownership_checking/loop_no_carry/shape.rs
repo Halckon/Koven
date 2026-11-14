@@ -402,7 +402,10 @@ pub(crate) fn unit_selection<B: Copy + Eq>(
         impl Fn(ExpressionId, &str) -> bool,
     ),
 ) -> Option<Selection<B>> {
-    if unit_candidate_events::enabled() {
+    if unit_candidate_events::enabled()
+        || crate::ownership_checking::compilation_unit::loop_no_carry::two_source_candidate::enabled(
+        )
+    {
         let candidate = select::<B, true>(
             parsed,
             loop_statement,

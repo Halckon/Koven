@@ -618,6 +618,37 @@ impl Checker<'_> {
         for proof in std::mem::take(&mut self.no_carry_proofs) {
             #[cfg(test)]
             let candidate_counter = matches!(&proof, core::Proof::CounterBranch(..));
+            #[cfg(test)]
+            if super::super::loop_no_carry::two_source_candidate::enabled()
+                && let core::Proof::CounterBranch(branch, [left, right], counter) = &proof
+                && left.root != right.root
+            {
+                use super::super::loop_no_carry::two_source_candidate::TwoSourceCounterFact;
+                let fact = super::super::UnitLoopNoCarryFact::new(self.source_unit, left.clone())
+                    .filter(&valid_end)
+                    .zip(
+                        super::super::UnitLoopNoCarryFact::new(self.source_unit, right.clone())
+                            .filter(&valid_end),
+                    )
+                    .and_then(|(left, right)| {
+                        TwoSourceCounterFact::new(
+                            self.source_unit,
+                            *branch,
+                            [left, right],
+                            counter.clone(),
+                        )
+                    });
+                if let Some(fact) = fact {
+                    result.two_sources.push(fact);
+                } else {
+                    self.emit_borrow_binding_diagnostic(
+                        crate::diagnostic::codes::UNSUPPORTED_BORROW_FLOW,
+                        "two-source counter final End does not match closed frames",
+                        left.marker,
+                    )?;
+                }
+                continue;
+            }
             let exit = match &proof {
                 core::Proof::BreakBranch(_, _, exit) => Some(exit.clone()),
                 core::Proof::CounterBreakBranch(_, _, _, plan) => Some(plan.exit.clone()),

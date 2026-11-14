@@ -18149,3 +18149,33 @@ String owner经实际BorrowBegin→RootPlace追溯，唯一Drop必须晚于其�
 BorrowCall分支或E2循环receipt；原UnsupportedNode边界保留。独立只读复审通过。
 默认与observer-support两配置的2项普通测试各2/2、codegen all-target严格Clippy
 均通过，fmt/docs951/diff通过。未运行native、CI故障注入或远端CI；未推送。
+
+### E2 隔离测试态两源事实域（2026-11-14，生产未启用）
+
+在明确授权本地实现新域后，新增 `cfg(test)` 的 `TwoSourceCounterFact` 与独立
+CompletedNoCarry字段。此片从零发布观察实验推进为**测试构建中的前端授权域**，
+不可仍称“零权限实验”，但非测试依赖构建完全不包含该类型、字段、选择入口或
+发布分支，backend未接入。普通生产selector与旧pair等源守卫完全保持。
+
+独立RAII开关选择真实Unit形状回调，Shared String与resolved参数检查、callee
+签名/调用检查、core Frame闭合及counter更新均沿用真实检查器。仅不同源的真实
+CounterBranch且两臂最终唯一End都匹配后，才生成新私有identity与完整counter
+元数据，并由独立成功分支接受。不捕获或持久化失败观察，不以shape或计数授权。
+旧域不发布嵌套arm/pair；owns按Rc身份，克隆保留身份，另一分析不可借用权限。
+
+普通验收覆盖成功后两根继续使用、形参反序、同/异owner调用的前端合法性、
+rooted/memory、observer on/off；精确核AST来源与左右resolved参数。新域内Single
+仍拒绝；旧实验单独仍失败，两开关同时启用仅新域发布。新开关嵌套及panic恢复
+有独立RAII验收。同源邻居仍由旧counter域成功，错误递减与臂内return仍拒绝。
+
+跨源撤销用rooted程序先真实构造一个新fact，再在后一源触发use-after-move：
+构造计数为1但最终新域、七个旧域、borrow bindings与观察均不发布，validate失败。
+已核dataflow的整Unit失败/延后gate将CompletedNoCarry整体置Default。初次同源文件
+late-error试验在End匹配前已被撤销，未把它当“先发布后撤销”证据；MemoryDocument
+仅支持单源，不冒称通过跨源矩阵。
+
+本片不提供可被backend消费的生产新域、不运行同owner native、不形成SSA receipt
+或required/selected/replay/publication后端链。仍需独立启用与完整后端验收。
+最终源码候选/新域5项及旧实验2项普通测试通过，frontend all-target严格Clippy
+默认/observer-support两配置通过，fmt/docs951/diff及独立复审通过。新事实模块95行、
+测试214行，接线文件797行；未运行native、后端receipt或远端CI，未推送。
