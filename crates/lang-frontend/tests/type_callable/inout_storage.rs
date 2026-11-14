@@ -482,6 +482,18 @@ fn only_writes_from_the_selected_loop_exit_reach_the_join() {
     for (fallback, expected) in [
         ("if (flag) { write(&x); return 0 } else { break }", &[][..]),
         ("if (flag) { break } else { write(&x); return 0 }", &[][..]),
+        (
+            "if (flag) { if (other) { write(&x) } else { break }; return 0 } else { break }",
+            &[][..],
+        ),
+        (
+            "if (flag) { if (other) { write(&x) } else { break }; break } else { return 0 }",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "if (flag) { write(&x); if (other) { break }; return 0 } else { break }",
+            &[("L0084", "x")][..],
+        ),
         ("if (flag) return write(&x) else break", &[][..]),
         (
             "when { flag -> { write(&x); return 0 }; else -> { break } }",
@@ -503,7 +515,7 @@ fn only_writes_from_the_selected_loop_exit_reach_the_join() {
         let text = format!(
             "fun take(a: Int, b: Int): Boolean = true
              fun write(inout target: Int?): Int {{ target = null; return 0 }}
-             fun run(left: Boolean?, flag: Boolean): Int {{
+             fun run(left: Boolean?, flag: Boolean, other: Boolean): Int {{
                  var x: Int? = 7
                  if (x != null && (if (flag) {{
                      loop {{ left ?: {fallback}; break }}
@@ -514,6 +526,24 @@ fn only_writes_from_the_selected_loop_exit_reach_the_join() {
         );
         assert_inout_diagnostic_spans(&text, expected);
     }
+}
+
+#[test]
+fn nested_loop_jumps_do_not_duplicate_write_targets() {
+    let loops = format!(
+        "{}write(&x); break{}}}",
+        "loop { ".repeat(28),
+        " }; break".repeat(27)
+    );
+    let text = format!(
+        "fun write(inout target: Int?): Int {{ target = null; return 0 }}
+         fun run(flag: Boolean): Int {{
+             var x: Int? = 7
+             if (x != null && (if (flag) {{ {loops}; true }} else {{ true }})) {{ return x }}
+             return 0
+         }}"
+    );
+    assert_inout_diagnostic_spans(&text, &[("L0084", "x")]);
 }
 
 #[test]
