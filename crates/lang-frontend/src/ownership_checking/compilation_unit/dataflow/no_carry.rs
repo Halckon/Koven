@@ -1,5 +1,9 @@
 //! Production no-carry frame authority; independent of optional observation.
 use super::{ActiveLoanOwner, ActiveLoanTarget, Checker, Flows, State, UnitSymbolId};
+#[cfg(not(test))]
+use crate::ownership_checking::loop_no_carry::shape::selection as select_shape;
+#[cfg(test)]
+use crate::ownership_checking::loop_no_carry::shape::unit_selection as select_shape;
 use crate::{
     ast::{ExpressionId, StatementId},
     ownership_checking::{
@@ -100,7 +104,7 @@ impl Checker<'_> {
         if !self.simple_resources(&entry) {
             return None;
         }
-        let selection = core::shape::selection(
+        let selection = select_shape(
             self.parsed,
             repeated,
             body,
@@ -612,6 +616,8 @@ impl Checker<'_> {
                     .any(|end| end.binding == fact.binding() && end.point == fact.end())
         };
         for proof in std::mem::take(&mut self.no_carry_proofs) {
+            #[cfg(test)]
+            let candidate_counter = matches!(&proof, core::Proof::CounterBranch(..));
             let exit = match &proof {
                 core::Proof::BreakBranch(_, _, exit) => Some(exit.clone()),
                 core::Proof::CounterBreakBranch(_, _, _, plan) => Some(plan.exit.clone()),
@@ -647,6 +653,10 @@ impl Checker<'_> {
                                 .filter(&valid_end),
                         )
                         .and_then(|(left, right)| {
+                            #[cfg(test)]
+                            if candidate_counter {
+                                core::shape::unit_candidate_events::checked_ends(&left, &right);
+                            }
                             super::super::UnitLoopBranchNoCarryFact::new(
                                 self.unit_expression(branch),
                                 [left, right],

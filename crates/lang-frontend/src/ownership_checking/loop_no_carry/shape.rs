@@ -30,6 +30,30 @@ pub(crate) fn selection<B: Copy + Eq>(
         impl Fn(ExpressionId, &str) -> bool,
     ),
 ) -> Option<Selection<B>> {
+    select::<B, false>(
+        parsed,
+        loop_statement,
+        body,
+        resolve,
+        parameter,
+        call,
+        counter_checks,
+    )
+}
+
+fn select<B: Copy + Eq, const TWO_SOURCES: bool>(
+    parsed: &ParsedFile,
+    loop_statement: StatementId,
+    body: StatementId,
+    resolve: impl Fn(Name) -> Option<B>,
+    parameter: impl Fn(ExpressionId, bool) -> bool,
+    call: impl Fn(ExpressionId, bool) -> bool,
+    counter_checks: (
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId, &str) -> bool,
+    ),
+) -> Option<Selection<B>> {
     if let Some(first) = plan(
         parsed,
         (loop_statement, body, body),
@@ -38,6 +62,9 @@ pub(crate) fn selection<B: Copy + Eq>(
         &parameter,
         &call,
     ) {
+        if TWO_SOURCES {
+            return None;
+        }
         return Some(Selection {
             first,
             second: None,
@@ -150,7 +177,11 @@ pub(crate) fn selection<B: Copy + Eq>(
         &parameter,
         &call,
     )?;
-    if first.root != second.root
+    if (if TWO_SOURCES {
+        first.root == second.root
+    } else {
+        first.root != second.root
+    }) || (TWO_SOURCES && (counter.is_none() || exit.is_some() || conditional.is_some()))
         || first.binding == second.binding
         || first.initializer == second.initializer
     {
@@ -349,4 +380,49 @@ fn one_argument(parsed: &ParsedFile, id: ExpressionId) -> Option<ExpressionId> {
         Expression::Name
     )
     .then_some(argument.value)
+}
+
+#[cfg(test)]
+mod two_source_candidate;
+
+#[cfg(test)]
+pub(crate) mod unit_candidate_events;
+
+#[cfg(test)]
+pub(crate) fn unit_selection<B: Copy + Eq>(
+    parsed: &ParsedFile,
+    loop_statement: StatementId,
+    body: StatementId,
+    resolve: impl Fn(Name) -> Option<B>,
+    parameter: impl Fn(ExpressionId, bool) -> bool,
+    call: impl Fn(ExpressionId, bool) -> bool,
+    counter_checks: (
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId, &str) -> bool,
+    ),
+) -> Option<Selection<B>> {
+    if unit_candidate_events::enabled() {
+        let candidate = select::<B, true>(
+            parsed,
+            loop_statement,
+            body,
+            &resolve,
+            &parameter,
+            &call,
+            (&counter_checks.0, &counter_checks.1, &counter_checks.2),
+        );
+        if candidate.is_some() {
+            return candidate;
+        }
+    }
+    selection(
+        parsed,
+        loop_statement,
+        body,
+        resolve,
+        parameter,
+        call,
+        counter_checks,
+    )
 }
