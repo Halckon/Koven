@@ -66,9 +66,27 @@ verifier 原本已共享，因此不应拼接多个独立 Program 或重映射�
 单根并保留原校验；多根调用仅存在私有测试模块，不提供 driver/lowering 入口。
 普通原源核共同计划的九/四实例、根映射、与各单根可达 key 的精确并集关系及逆序根
 输入的完整计划相等。该证据不是共同 SSA Program、LLVM 符号或 native 验收。
-尚未实现多根 orchestrate/返回 FunctionId 映射；共享预算拒绝、内部非法身份及
+第一片尚未实现多根 orchestrate/返回 FunctionId 映射；共享预算拒绝、内部非法身份及
 失败原子性也未完成动态验收。旧 whole-file 测试全部保留，Origin 与语言合同不变。
 
 当前实跑：rooted/basic validated 来源的两个完整 FQN ordinary exact 各 1/1，
 最终源码 no-run 编译通过。独立审查未发现 singleton 校验顺序回归；未执行故障、
-全量或 native 测试，未推送。MemoryDocument、共同 SSA/LLVM 和预算边界仍待验收。
+全量或 native 测试，未推送。第一片的 MemoryDocument、共同 SSA/LLVM 和预算边界仍待验收；后续进展见下节。
+
+### 共同 Program 隔离原型（后续片）
+
+基于 `ba89e1b2` 抽取一次 orchestrate 事务，内部返回 DeclarationId→FunctionId 映射；
+生产 singleton 包装仍保留原签名和原单根 planner，实验多根入口仅在测试内接收
+已封闭 OwnedCompilationUnitView。类型、callable ABI、发射和最终 verifier 共用一次，
+所有观察收据仍在最终 verifier 成功后提交。没有新增 CLI、多 entry 或默认能力。
+
+验收目标为原 rooted/basic 源的九/四共同函数、LLVM verifier、root 原始 Span、
+共享调用与递归自引用、同图 overload target 分离、根逆序渲染稳定和 singleton
+适配器一致性。独立 Program 的 ID 含独立身份，跨运行只比较稳定索引与完整渲染；
+首次误用跨 Program ID 相等的断言失败后修正，同图目标仍按实际 ID 核对。
+这不是旧版本二进制差分；精确 callee 声明/全部类型、MemoryDocument、预算边界、
+失败原子性及 native 仍未全面验收，旧 whole-file oracle 保留。
+
+本片最终两个 ordinary 完整 FQN exact 各 1/1，通过 SSA/LLVM verifier；最终源码
+no-run、带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs
+（953 Markdown）和 diff 检查通过。未运行故障注入、全量或 native，未推送。

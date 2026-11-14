@@ -366,7 +366,7 @@ pub(super) fn plan_unit_instances_from_facts(
 
 // Experimental root-set assembly shares the existing worklist, never separate plans.
 // Production uses only the singleton wrapper above and retains its admission rules.
-fn plan_unit_root_set_from_facts(
+pub(super) fn plan_unit_root_set_from_facts(
     parsed_by_source: &[&ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
