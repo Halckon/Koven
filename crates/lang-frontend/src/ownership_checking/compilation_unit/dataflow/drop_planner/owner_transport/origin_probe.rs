@@ -5,6 +5,7 @@ use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in super::super) enum Event {
     Literal(UnitExpressionId),
+    UncoveredCall(UnitExpressionId),
     Branch {
         control: UnitExpressionId,
         role: BranchRole,
@@ -30,6 +31,21 @@ pub(in super::super) enum BranchRole {
 }
 
 impl DropPlanner<'_, '_> {
+    pub(in super::super) fn origin_call_gap(&mut self, expression: ExpressionId) {
+        let call = self.checker.unit_expression(expression);
+        if self.checker.ownership_primitives.iter().any(|plan| {
+            plan.descriptor().expression() == call
+                && plan.descriptor().kind() == OwnershipPrimitiveKind::Replace
+                && plan.places().len() == 1
+                && plan.places()[0].is_root()
+        }) {
+            return;
+        }
+        if let Some(probe) = &mut self.origin_probe {
+            probe.push(Event::UncoveredCall(call));
+        }
+    }
+
     pub(in super::super) fn origin_branch(&mut self, control: ExpressionId, role: BranchRole) {
         if let Some(probe) = &mut self.origin_probe {
             probe.push(Event::Branch {
@@ -105,4 +121,63 @@ impl DropPlanner<'_, '_> {
             incoming,
         });
     }
+}
+
+/// A partition of observed events, not proof of complete source semantics or CFG.
+pub(in super::super) struct IfPartition<'a> {
+    pub(in super::super) arms: [&'a [Event]; 2],
+    pub(in super::super) continues: [bool; 2],
+}
+
+pub(in super::super) fn partition_if(events: &[Event]) -> Option<IfPartition<'_>> {
+    let Event::Branch {
+        control,
+        role: BranchRole::Enter(0),
+    } = events.first()?
+    else {
+        return None;
+    };
+    let control = *control;
+    let mut position = 1;
+    let mut arms = [&events[0..0]; 2];
+    let mut continues = [false; 2];
+    for arm in 0..2 {
+        if arm == 1 {
+            if events.get(position)
+                != Some(&Event::Branch {
+                    control,
+                    role: BranchRole::Enter(1),
+                })
+            {
+                return None;
+            }
+            position += 1;
+        }
+        let start = position;
+        loop {
+            match events.get(position)? {
+                Event::Branch {
+                    control: actual,
+                    role: BranchRole::Exit(index, normal),
+                } if *actual == control && usize::from(*index) == arm => {
+                    arms[arm] = &events[start..position];
+                    continues[arm] = *normal;
+                    position += 1;
+                    break;
+                }
+                Event::Branch { .. } | Event::UncoveredCall(_) => return None,
+                _ => position += 1,
+            }
+        }
+    }
+    if events.get(position)
+        != Some(&Event::Branch {
+            control,
+            role: BranchRole::JoinInputs(continues.iter().filter(|normal| **normal).count()),
+        })
+        || position + 1 != events.len()
+    {
+        return None;
+    }
+    Some(IfPartition { arms, continues })
 }

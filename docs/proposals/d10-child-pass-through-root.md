@@ -300,3 +300,16 @@ Enter/Exit，携带原 control、arm 号和实际 continues；隐式 else 也由
 异常返回可留下未完成 trace，不能据此发布状态或证明。尚未记录完整 borrower/loan
 角色、When、循环回边合流或真实 CFG predecessor；上述缺口仍阻止完整状态机和
 Carry 资格。本片没有引入生产观察或权限。
+
+### 平级 If 的已观察事件分区与调用缺口
+
+`partition_if` 只消费实际 probe 的完整两臂片段：核同 control、Enter/Exit 顺序、
+continues 与 JoinInputs 数量，并返回各 arm 内的原事件切片。普通局部 owner
+测试核每个 Bound 的 Drop 位于同一 arm，不能跨另一替代臂配对。嵌套 role、
+不完整片段或额外前后事件不在本片范围，一律不产生分区。
+
+实际 call 求值入口对已覆盖单根 Replace 之外的调用记录 UncoveredCall；分区遇到
+此标记拒绝。普通 println 借用源码同时验证存在真实 Shared loan，仍不能被当成
+已覆盖 borrower 转移；nested If 普通源码也保留拒绝。没有从缺失日志推断无借用。
+该分区不是源码完整性证明、动态路径、状态机或 CFG 资格，循环合流与 borrow
+开始/结束实际角色仍待实现。

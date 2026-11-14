@@ -65,7 +65,7 @@ println(b)
                 .as_ref()
                 .unwrap()
                 .iter()
-                .filter(|event| !matches!(event, Event::Dropped(_)))
+                .filter(|event| !matches!(event, Event::Dropped(_) | Event::UncoveredCall(_)))
                 .cloned()
                 .collect::<Vec<_>>(),
             vec![
@@ -159,9 +159,17 @@ fn ordinary_branch_roles_keep_alternatives_separate_from_join_inputs() {
             let observed = planner.run().unwrap();
             assert_eq!(baseline.facts, observed.facts);
             assert_eq!(baseline.owner_observations, observed.owner_observations);
-            let branches = observed
-                .origin_probe
-                .unwrap()
+            let events = observed.origin_probe.unwrap();
+            let partition = super::super::origin_probe::partition_if(&events).unwrap();
+            assert_eq!(partition.continues, continues);
+            for arm in partition.arms {
+                for event in arm {
+                    if let Event::Bound(root, _) = event {
+                        assert_eq!(arm.iter().filter(|other| matches!(other, Event::Dropped(drop) if drop.target() == crate::ownership_checking::UnitDropTarget::Named(*root))).count(), 1);
+                    }
+                }
+            }
+            let branches = events
                 .into_iter()
                 .filter(|event| matches!(event, Event::Branch { .. }))
                 .collect::<Vec<_>>();
@@ -189,6 +197,51 @@ fn ordinary_branch_roles_keep_alternatives_separate_from_join_inputs() {
                         role: BranchRole::JoinInputs(inputs)
                     },
                 ]
+            );
+        });
+    }
+}
+
+#[test]
+fn ordinary_partition_rejects_uncovered_call_and_nested_control() {
+    for body in [
+        r#"if (flag) { val a = "read"; println(a) } else { val b = "other"; println(b) }"#,
+        "if (flag) { if (flag) { val x = \"x\" } } else { val y = \"y\" }",
+    ] {
+        let text = format!("fun run(flag: Boolean) {{ {body} }}");
+        let fixture = Fixture::new(&[("gap.ko", &text)]);
+        let owned = fixture.shared();
+        if body.contains("println") {
+            assert!(
+                owned
+                    .loans()
+                    .iter()
+                    .any(|loan| loan.kind() == crate::ownership_checking::LoanKind::Shared)
+            );
+        }
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let mut planner = super::super::super::DropPlanner::new(
+                checker,
+                super::super::super::liveness::build(checker, true).unwrap(),
+            );
+            planner.origin_probe = Some(Vec::new());
+            let observed = planner.run().unwrap();
+            if body.contains("println") {
+                let call = crate::type_checking::UnitExpressionId::new(
+                    fixture.source(0),
+                    fixture.expression(0, "println(a)"),
+                );
+                assert!(
+                    observed
+                        .origin_probe
+                        .as_ref()
+                        .unwrap()
+                        .contains(&Event::UncoveredCall(call))
+                );
+            }
+            assert!(
+                super::super::origin_probe::partition_if(observed.origin_probe.as_ref().unwrap())
+                    .is_none()
             );
         });
     }

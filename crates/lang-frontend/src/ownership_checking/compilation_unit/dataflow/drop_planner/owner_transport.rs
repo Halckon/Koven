@@ -505,6 +505,13 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
         self.check_owner_expression(id)?;
+        #[cfg(test)]
+        if matches!(
+            self.checker.parsed.ast().expressions().get(id)?.payload(),
+            Expression::Call { .. }
+        ) {
+            self.origin_call_gap(id);
+        }
         let mut owner = None;
         let mut replace_consumer = None;
         let continues =
