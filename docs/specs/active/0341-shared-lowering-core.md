@@ -17880,3 +17880,18 @@ Unit 控制和其他 legacy 身份/ABI 见证均不改动。源码 error 调用�
 全量测试或远程 CI，未推送。
 带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
 与 diff 检查通过。
+
+### 普通 nullable generic planner 见证迁至 Unit（2026-11-14）
+
+基于 `8709803d`，保留
+`ssa::unit_llvm_tests::callable_plan_tests::single_callable_plan_ordinary_nullable_generic_argument_keeps_existing_frontier`
+原 FQN 与源码，使用 MemoryDocument 的 basic validated Unit planner。保留 ignore、
+entry 各一个实例、全部 callable arguments 为空及类型 arena 不增长检查，并核唯一
+Function 声明、原 source Span 与 AST root，避免首个同名匹配掩盖身份问题。
+这是普通非 Fn nullable 参数的规划边界，不是最终类型完整性或 native 门禁；其余
+旧 callable ABI/来源身份见证不动。
+
+最终源码测试编译和完整 FQN exact 1/1 通过，独立只读复核通过。未改生产、Origin
+或故障分类，未运行故障注入、全量测试或远程 CI，未推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+和 diff 检查通过。
