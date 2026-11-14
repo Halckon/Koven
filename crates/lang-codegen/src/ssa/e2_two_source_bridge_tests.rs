@@ -297,10 +297,114 @@ fn unsupported_actual_leaf_bodies_do_not_become_placeholders() {
             1,
             "valid facts remain independent of leaf lowering support"
         );
+        assert!(
+            experiment
+                .function_shell(&experiment.facts()[0], &typed)
+                .is_some(),
+            "caller shell does not promise callee body support"
+        );
         assert!(experiment.callee_leaves().is_none());
         assert!(super::e2_callee_leaves::emit(&experiment, &typed).is_none());
         assert!(
             super::e2_arm_fragments::emit(&experiment, &experiment.facts()[0], &typed).is_none()
+        );
+        assert!(
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .validate()
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
+    let base = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {var remaining=rounds;while(remaining>0){if(choose){borrow val a=view(left);consume(a)}else{borrow val b=view(right);consume(b)};remaining=remaining-1}}";
+    let cases = [
+        (base.to_owned(), Some([0, 1, 2, 3])),
+        (
+            base.replace(
+                "left:String,right:String,rounds:Int,choose:Boolean",
+                "choose:Boolean,right:String,rounds:Int,left:String",
+            ),
+            Some([3, 1, 2, 0]),
+        ),
+        (
+            base.replace("{var remaining", "{consume(left);var remaining"),
+            None,
+        ),
+        (
+            base.replace("remaining-1}}", "remaining-1};consume(right)}"),
+            None,
+        ),
+        (
+            base.replace("choose:Boolean):Unit", "choose:Boolean,extra:Int):Unit"),
+            None,
+        ),
+        (base.replace("rounds:Int", "own rounds:Int"), None),
+    ];
+    for (source, expected) in cases {
+        let mut sources = SourceMap::new();
+        let id = sources.add_source("shell.ko", &source).unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, id).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::new("root", "shell.ko", id, &parsed)];
+        let (env, types) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typecheck = || {
+            check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap()
+        };
+        let typed = typecheck();
+        let analyze = || {
+            analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
+                .unwrap()
+                .unwrap()
+        };
+        let experiment = analyze();
+        let [fact] = experiment.facts() else {
+            panic!("one local closed fact retained")
+        };
+        let shell = experiment.function_shell(fact, &typed);
+        assert_eq!(shell.map(|s| s.roles()), expected, "{source}");
+        if let Some(shell) = shell {
+            assert_eq!(shell.callable(), experiment.callable(fact).unwrap());
+            let signature = typed
+                .types()
+                .signatures()
+                .declaration(shell.callable())
+                .unwrap()
+                .callable()
+                .unwrap();
+            assert_eq!(signature.parameters().len(), 4);
+            for (role, symbol) in shell.roles().into_iter().zip(shell.symbols()) {
+                assert_eq!(signature.parameters()[role].symbol(), Some(symbol));
+            }
+            assert!(!shell.symbols().contains(&shell.counter()));
+            assert_eq!(shell.body().source_id(), id);
+            for control in shell.controls() {
+                assert_eq!(control.source_unit(), fact.branch().source_unit());
+                let span = parsed
+                    .ast()
+                    .expressions()
+                    .get(control.expression())
+                    .unwrap()
+                    .span();
+                assert!(span.start() >= shell.body().start() && span.end() <= shell.body().end());
+            }
+        }
+        assert!(experiment.function_shell(fact, &typecheck()).is_none());
+        let other = analyze();
+        assert!(other.function_shell(fact, &typed).is_none());
+        assert!(experiment.owns(fact));
+        assert!(
+            super::e2_arm_fragments::emit(&experiment, fact, &typed).is_some(),
+            "shell refusal must not revoke local helpers"
         );
         assert!(
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)

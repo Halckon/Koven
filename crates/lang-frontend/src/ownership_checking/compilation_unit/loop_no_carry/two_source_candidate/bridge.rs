@@ -15,8 +15,25 @@ pub struct TwoSourceExperiment {
     callables: Vec<DeclarationId>,
     leaves: Option<Vec<super::CalleeLeaf>>,
     arm_spans: Vec<[super::ArmSourceSpans; 2]>,
+    shells: Vec<Option<super::FunctionShell>>,
 }
 impl TwoSourceExperiment {
+    /// Complete bounded function coverage for an issuing fact and typed analysis only.
+    /// Unsupported prefixes, suffixes or ABI return None without revoking the local fact.
+    pub fn function_shell(
+        &self,
+        fact: &TwoSourceCounterFact,
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<&super::FunctionShell> {
+        if !self.matches_types(typed) {
+            return None;
+        }
+        let index = self
+            .facts
+            .iter()
+            .position(|f| Rc::ptr_eq(&f.identity, &fact.identity))?;
+        self.shells.get(index)?.as_ref()
+    }
     /// Returns only facts retained after the complete validation gate.
     pub fn facts(&self) -> &[TwoSourceCounterFact] {
         &self.facts
@@ -103,6 +120,13 @@ pub fn analyze_two_source_experiment(
     let Some(callables) = callables else {
         return Ok(None);
     };
+    let shells = facts
+        .iter()
+        .zip(&callables)
+        .map(|(fact, callable)| {
+            super::function_shell::collect(fact, *callable, inputs, names, typed)
+        })
+        .collect();
     let leaves = super::leaves::collect(&facts, inputs, names, typed);
     let Some(arm_spans) = facts
         .iter()
@@ -117,5 +141,6 @@ pub fn analyze_two_source_experiment(
         callables,
         leaves,
         arm_spans,
+        shells,
     }))
 }

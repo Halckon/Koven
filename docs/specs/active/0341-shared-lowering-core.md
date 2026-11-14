@@ -18320,3 +18320,25 @@ cargo check、fmt/docs951/diff及独立复审通过。未运行native或远端CI
 publication 证据链。以上是工程接线缺口，不是等待 Origin 整体规则裁决的理由。
 本轮只读核对并独立复审了上述缺口；未修改 Rust、未新增 emitter 或声称新增运行
 证据，未执行 Cargo/native/远端 CI。生产接受集、旧同源守卫及实验 API 均未改变。
+
+
+### E2 完整原函数窄 shell 描述（实验，未接 CFG）
+
+前述接线审计的首片已实现：成功整体实验分析内部逐 fact 建立可选 opaque
+FunctionShell，原 body 必须恰为 counter 初始化与目标循环；完整四参数按原
+resolved symbol 验证为 Borrow String/String/Int/Boolean，返回 Unit，无 receiver、
+泛型或借用返回。保留原声明、body Span、绝对参数角色和控制表达式 ID；这些
+是覆盖描述，不能替代下一步完整 CFG/checked-abort/receipt 证据。
+
+不支持的前缀、后缀、额外参数与 own rounds 仅导致 shell=None，保留局部 fact
+及真实 leaf/helper 支持。getter 要求 issuing fact 和原 typed 身份；重分析及外来
+fact 不能混用。描述 clone 不是独立权限，未来 emitter 必须通过原实验查询并
+继续核身份，不得只接收任意 shell。叶闭包是否支持仍是独立 gate。
+
+真实 rooted Unit 测试覆盖原顺序和四角色反序、上述四种拒绝邻居、原符号到签名
+列/控制表达式范围核验、retyped/foreign 拒绝、局部 helper 保留及普通分析仍拒绝。
+独立只读复审通过；本片没有原函数调用接线或循环 emitter，生产接受集不变。
+最终两配置 E2 定向测试各6/6通过；codegen 两配置 all-target 严格Clippy、frontend
+组合 all-target 严格Clippy及默认/仅观察 cargo check、fmt/docs951/diff通过。
+尺寸门禁相对 c2dcad7e 通过：2174个手写Rust文件、36项历史超限未增加；新增
+shell191行、桥测试416行。未运行native、远端CI或推送。

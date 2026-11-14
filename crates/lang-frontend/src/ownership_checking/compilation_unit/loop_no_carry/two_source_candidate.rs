@@ -127,3 +127,8 @@ pub use leaves::{CalleeLeaf, CalleeLeafBody};
 mod arm_spans;
 #[cfg(feature = "e2-two-source-test-support")]
 pub use arm_spans::ArmSourceSpans;
+
+#[cfg(feature = "e2-two-source-test-support")]
+mod function_shell;
+#[cfg(feature = "e2-two-source-test-support")]
+pub use function_shell::FunctionShell;

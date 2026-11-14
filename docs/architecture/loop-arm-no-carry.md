@@ -181,3 +181,11 @@ Span，通过整个Program verifier与LLVM render。非空consumer/分组produce
 最后child唯一End；不End输入根。桥保留原call/末consumer statement Span，helper
 本身/entry/Return标Synthetic，不冒充原run函数。全module verifier及LLVM通过。
 这些helper尚未被调用方或循环CFG调用，不是两源循环收据或原函数完整ABI。
+
+
+实验桥现另可返回完整原函数的窄 shell 描述：仅四 Borrow 参数（两 String、Int
+rounds、Boolean choose）、Unit 返回，原 body 恰为初始化与该闭合 loop。绝对
+参数列通过真实 resolved symbol 唯一匹配，保留原 callable/body Span/control IDs。
+额外前后缀、参数或未支持 ABI 不生成 shell，但局部 fact 和已支持 helper 保留。
+查询同时要求 issuing fact 与原 typed 身份；shell 是覆盖元数据，不是可独立使用
+的权限 token。此片没有原函数 SSA/循环 CFG 发射，也不保证 callee 叶闭包可支持。
