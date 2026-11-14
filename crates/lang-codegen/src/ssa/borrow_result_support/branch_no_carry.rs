@@ -3,14 +3,14 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     ownership_checking::{
-        BorrowBindingFact, BorrowBindingStorage, CompilationUnitOwnership, UnitLoanTarget,
+        BorrowBindingFact, BorrowBindingStorage, UnitLoanTarget, UnitPreflightFacts,
     },
     parser::{Expression, ParsedFile},
     type_checking::UnitExpressionId,
 };
 pub(in crate::ssa) fn admitted(
     file: &ParsedFile,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     binding: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
 ) -> Option<(StatementId, ExpressionId)> {
     let mut selected =
@@ -76,7 +76,7 @@ pub(in crate::ssa) fn admitted(
 
 /// Internal mechanical traversal; the frontend public capability domains stay separate.
 pub(in crate::ssa) fn pairs(
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
 ) -> impl Iterator<Item = &lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact> {
     owned
         .no_carry_branches()
@@ -86,7 +86,7 @@ pub(in crate::ssa) fn pairs(
         .chain(counter_breaks(owned).map(|f| f.counter().pair()))
 }
 pub(in crate::ssa) fn owns_pair(
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     pair: &lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact,
 ) -> bool {
     counter_breaks(owned)
@@ -104,7 +104,7 @@ pub(in crate::ssa) fn owns_pair(
 
 /// Mechanical traversal still requires the owning domain at every admission.
 pub(in crate::ssa) fn counter_breaks(
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
 ) -> impl Iterator<Item = &lang_frontend::ownership_checking::UnitLoopCounterBreakBranchNoCarryFact>
 {
     owned.no_carry_counter_break_branches().iter().chain(
@@ -115,7 +115,7 @@ pub(in crate::ssa) fn counter_breaks(
     )
 }
 pub(in crate::ssa) fn owns_counter_break(
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     fact: &lang_frontend::ownership_checking::UnitLoopCounterBreakBranchNoCarryFact,
 ) -> bool {
     owned.owns_no_carry_counter_break_branch(fact)

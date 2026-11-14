@@ -537,6 +537,25 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             .handoff(&sources, &inputs, &names, &types, &typed)
             .unwrap();
         assert!(handoff.owns(fact));
+        let parsed_sources =
+            super::lowering_support::parsed_by_source_unit(handoff.inputs(), handoff.names())
+                .unwrap();
+        let preflight = super::unit_lower::preflight::validate(
+            &parsed_sources,
+            handoff.names(),
+            handoff.types().types(),
+            &handoff,
+        );
+        assert!(
+            matches!(
+                preflight,
+                Err(super::LoweringError {
+                    kind: super::LoweringErrorKind::UnsupportedNode,
+                    ..
+                })
+            ),
+            "existing binding gate must not gain a two-source exemption: {preflight:?}"
+        );
         assert!(std::ptr::eq(handoff.sources(), &sources));
         assert!(std::ptr::eq(handoff.inputs(), inputs.as_slice()));
         assert!(std::ptr::eq(handoff.names(), &names));

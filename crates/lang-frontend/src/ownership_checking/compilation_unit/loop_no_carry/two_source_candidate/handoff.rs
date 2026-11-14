@@ -1,5 +1,6 @@
 //! Checked experimental source handoff, NOT a completed backend preflight or ordinary view.
 use super::{TwoSourceCounterFact, TwoSourceExperiment};
+use crate::ownership_checking::borrow_result::UnitBorrowResults;
 use crate::{
     name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{OwnedCompilationUnitViewError, handoff::validate_source_analysis},
@@ -77,5 +78,92 @@ impl TwoSourceExperiment {
             _environment: environment,
             typed,
         })
+    }
+}
+
+use crate::name_resolution::UnitSymbolId;
+use crate::ownership_checking::*;
+impl crate::ownership_checking::preflight::sealed::Sealed for ExperimentalUnitHandoff<'_, '_> {}
+impl UnitPreflightFacts for ExperimentalUnitHandoff<'_, '_> {
+    fn binding_kind(&self, symbol: UnitSymbolId) -> Option<OwnershipBindingKind> {
+        self.experiment.retained.binding_kind(symbol)
+    }
+    fn borrow_call_prefix_ends(&self) -> &[UnitBorrowCallPrefixEndFact] {
+        self.experiment.retained.borrow_call_prefix_ends()
+    }
+    fn borrow_forward_transports(&self) -> &[UnitBorrowForwardTransportFact] {
+        self.experiment.retained.borrow_forward_transports()
+    }
+    fn borrow_results(&self) -> &UnitBorrowResults {
+        self.experiment.retained.borrow_results()
+    }
+    fn borrow_return_origins(
+        &self,
+    ) -> &[BorrowReturnOriginFact<crate::type_checking::UnitExpressionId, UnitLoanTarget>] {
+        self.experiment.retained.borrow_return_origins()
+    }
+    fn call_argument_contracts(&self) -> &[UnitCallArgumentOwnershipContract] {
+        self.experiment.retained.call_argument_contracts()
+    }
+    fn field_replacements(&self) -> &[UnitFieldReplaceOwnershipPlan] {
+        self.experiment.retained.field_replacements()
+    }
+    fn formed_owned_locals(&self) -> &[UnitSymbolId] {
+        self.experiment.retained.formed_owned_locals()
+    }
+    fn loans(&self) -> &[UnitLoanFact] {
+        self.experiment.retained.loans()
+    }
+    fn map_iterations(&self) -> &[UnitMapIterationOwnershipPlan] {
+        self.experiment.retained.map_iterations()
+    }
+    fn no_carry_branches(&self) -> &[UnitLoopBranchNoCarryFact] {
+        self.experiment.retained.no_carry_branches()
+    }
+    fn no_carry_break_branches(&self) -> &[UnitLoopBreakBranchNoCarryFact] {
+        self.experiment.retained.no_carry_break_branches()
+    }
+    fn no_carry_break_prefixes(&self) -> &[UnitLoopBreakPrefixFact] {
+        self.experiment.retained.no_carry_break_prefixes()
+    }
+    fn no_carry_counter_branches(&self) -> &[UnitLoopCounterBranchNoCarryFact] {
+        self.experiment.retained.no_carry_counter_branches()
+    }
+    fn no_carry_counter_break_branches(&self) -> &[UnitLoopCounterBreakBranchNoCarryFact] {
+        self.experiment.retained.no_carry_counter_break_branches()
+    }
+    fn no_carry_loops(&self) -> &[UnitLoopNoCarryFact] {
+        self.experiment.retained.no_carry_loops()
+    }
+    fn no_carry_prefix_counter_breaks(&self) -> &[UnitLoopPrefixCounterBreakFact] {
+        self.experiment.retained.no_carry_prefix_counter_breaks()
+    }
+    fn owns_no_carry_branch(&self, fact: &UnitLoopBranchNoCarryFact) -> bool {
+        self.experiment.retained.owns_no_carry_branch(fact)
+    }
+    fn owns_no_carry_break_branch(&self, fact: &UnitLoopBreakBranchNoCarryFact) -> bool {
+        self.experiment.retained.owns_no_carry_break_branch(fact)
+    }
+    fn owns_no_carry_break_prefix(&self, fact: &UnitLoopBreakPrefixFact) -> bool {
+        self.experiment.retained.owns_no_carry_break_prefix(fact)
+    }
+    fn owns_no_carry_counter_branch(&self, fact: &UnitLoopCounterBranchNoCarryFact) -> bool {
+        self.experiment.retained.owns_no_carry_counter_branch(fact)
+    }
+    fn owns_no_carry_counter_break_branch(
+        &self,
+        fact: &UnitLoopCounterBreakBranchNoCarryFact,
+    ) -> bool {
+        self.experiment
+            .retained
+            .owns_no_carry_counter_break_branch(fact)
+    }
+    fn owns_no_carry_loop(&self, fact: &UnitLoopNoCarryFact) -> bool {
+        self.experiment.retained.owns_no_carry_loop(fact)
+    }
+    fn owns_no_carry_prefix_counter_break(&self, fact: &UnitLoopPrefixCounterBreakFact) -> bool {
+        self.experiment
+            .retained
+            .owns_no_carry_prefix_counter_break(fact)
     }
 }

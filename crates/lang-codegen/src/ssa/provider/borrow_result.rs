@@ -1,6 +1,7 @@
 //! 普通 Borrow/Value 参数 shared 结果的准入，以及非 refine 路径的 Map 借用 root 绑定。
 use crate::ssa::borrow_result_support::{CallAccess, local_if, ordinary_local};
 use crate::ssa::unit_lower::*;
+use lang_frontend::ownership_checking::UnitPreflightFacts;
 use lang_frontend::{
     ownership_checking::{
         BorrowBindingFact, BorrowBindingStorage, OwnershipBindingKind, UnitLoanTarget,
@@ -19,7 +20,7 @@ pub(in crate::ssa) fn validate_declarations(
     parsed: &[&lang_frontend::parser::ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
 ) -> Result<(), LoweringError> {
     for callable in typed
         .signatures()
@@ -72,7 +73,7 @@ fn has_dedicated_binding_path(
     file: &lang_frontend::parser::ParsedFile,
     _names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
 ) -> Result<bool, LoweringError> {
     let UnitLoanTarget::Place(place) = fact.origin() else {
@@ -173,7 +174,7 @@ fn is_local_range_binding(
     file: &lang_frontend::parser::ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
 ) -> bool {
     let source_unit = fact.binding().source_unit();
@@ -242,7 +243,7 @@ fn validate_binding(
     file: &lang_frontend::parser::ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
     mut allowed_controls: Option<std::collections::BTreeSet<usize>>,
 ) -> Result<(), LoweringError> {
@@ -588,7 +589,7 @@ pub(crate) fn validate_bindings(
     parsed: &[&lang_frontend::parser::ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     legacy_gate: bool,
 ) -> Result<(), LoweringError> {
     let bindings: Vec<_> = owned

@@ -6,6 +6,7 @@ pub(in crate::ssa) use orchestrate::observe_final_verifier;
 
 mod aggregate;
 mod borrow;
+pub(in crate::ssa) mod preflight;
 pub(in crate::ssa) use super::provider::borrow_result;
 mod call;
 mod call_lifetimes;

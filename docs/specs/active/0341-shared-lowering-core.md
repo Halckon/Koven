@@ -18634,3 +18634,21 @@ sources/inputs/names/environment/typed 链及 retained typed owner；来源错�
 后续须为 validate_declarations/validate_bindings 的实际递归查询建立封闭投影
 接口，复用同一检查实现和错误顺序；不得用 callback 暴露可克隆的普通 ownership，
 不得因两源 binding 不通过便跳过全声明、其他 bindings 或 global initializer。
+
+### 同一 Unit preflight 的封闭事实接口（未增加两源豁免）
+
+枚举现有 validator 递归链的24项查询，建立 frontend 封闭 UnitPreflightFacts；
+普通 CompilationUnitOwnership 与受检 ExperimentalUnitHandoff 逐项委派原事实，
+包括 owns_* 原身份判断，不返回整体 ownership，不复制事实库。外部不能实现该
+接口；接口本身既不证明来源有效，也不表示 preflight 已通过。
+
+普通 driver 原 preflight 抽为唯一实现，顺序保持全声明→bindings→所有 source
+root 的 runtime global 检查，仍早于实例规划/可达性裁剪。legacy gate 条件与
+各递归谓词原样保留，只将输入改为封闭只读查询。真实实验 entry handoff 已能
+进入同一 gate，但旧 binding frontier 仍返回 UnsupportedNode；此结果是边界
+验证，不是放行。实验 publisher/native 接线未变，未新增两源特殊豁免。
+
+普通 fixture 以可达 main 对照不可达普通函数和不可达 global：前者通过共享
+gate 与普通 lowering，后者已被 frontend L0167 拒绝，不造能力绕过更早门禁。后续若为两源增加专用 binding
+检查，须先明确其完整事实覆盖和拒绝情况，不能跳过其他 declarations/bindings
+或 global initializer，也不能把当前实验封包当普通 Unit 发布能力。

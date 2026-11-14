@@ -2,9 +2,7 @@
 use lang_frontend::{
     ast::StatementId,
     name_resolution::{UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames},
-    ownership_checking::{
-        BorrowBindingFact, CompilationUnitOwnership, UnitDropPoint, UnitLoanTarget,
-    },
+    ownership_checking::{BorrowBindingFact, UnitDropPoint, UnitLoanTarget, UnitPreflightFacts},
     parser::{
         Expression, FunctionBody, FunctionForm, Item, NameMarker, ParsedFile, Statement,
         StringPart, VariableKind,
@@ -21,7 +19,7 @@ pub(in crate::ssa) fn admitted(
     file: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     fact: &Binding,
 ) -> Option<StatementId> {
     if super::ordinary_local::policy(file, typed, owned, fact)
