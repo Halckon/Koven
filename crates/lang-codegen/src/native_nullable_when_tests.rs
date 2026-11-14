@@ -31,6 +31,8 @@ mod sibling_route;
 mod sources;
 #[path = "native_nullable_when_tests/support.rs"]
 mod support;
+#[path = "native_nullable_when_tests/writeback_paths.rs"]
+mod writeback_paths;
 use sources::{Family, Fixture, NEGATIVES, fixtures};
 use support::*;
 

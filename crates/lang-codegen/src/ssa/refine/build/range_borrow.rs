@@ -262,14 +262,15 @@ impl Builder<'_, '_> {
             if block == exit {
                 return Ok(());
             }
-            let (terminator, split_span) = self.body.blocks[block.0]
+            let current = &self.body.blocks[block.0];
+            let (terminator, split_span) = current
                 .terminator
                 .as_ref()
                 .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-            let RTerm::Goto(next) = terminator else {
-                return Err(error(LoweringErrorKind::UnsupportedNode, *split_span));
-            };
-            block = *next;
+            match terminator {
+                RTerm::Goto(next) if !current.folded_condition => block = *next,
+                _ => return Err(error(LoweringErrorKind::UnsupportedNode, *split_span)),
+            }
         }
         Err(error(LoweringErrorKind::InvalidModel, span))
     }

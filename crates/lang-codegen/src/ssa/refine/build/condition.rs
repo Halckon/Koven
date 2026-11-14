@@ -49,7 +49,8 @@ impl Builder<'_, '_> {
                     if self.required(left)?.is_none() {
                         return Ok(());
                     }
-                    return self.condition_internal(right, when_true, when_false, views, None);
+                    return self
+                        .condition_internal(right, when_true, when_false, views, None, true);
                 }
                 UnitShortCircuitRhs::Conditional => plan.rhs_branch(),
             }
@@ -82,9 +83,9 @@ impl Builder<'_, '_> {
                 self.goto(middle, span)?;
             }
         } else if and {
-            self.condition_internal(left, middle, skip, views, None)?;
+            self.condition_internal(left, middle, skip, views, None, true)?;
         } else {
-            self.condition_internal(left, skip, middle, views, None)?;
+            self.condition_internal(left, skip, middle, views, None, true)?;
         }
         // The plain branch that selects between the right operand and the skip edge is the
         // short circuit's own control transfer.
@@ -153,7 +154,7 @@ impl Builder<'_, '_> {
         let mark = self.enter(middle);
         let evaluated_true = self.body.block();
         let evaluated_false = self.body.block();
-        self.condition_internal(right, evaluated_true, evaluated_false, views, None)?;
+        self.condition_internal(right, evaluated_true, evaluated_false, views, None, true)?;
         let mark = mark.min(self.active_views.len());
         let left_views: Vec<_> = self.active_views.drain(mark..).collect();
         let evaluated = self.collect_drops(rhs_point);
@@ -213,7 +214,7 @@ impl Builder<'_, '_> {
         when_true: BlockRef,
         when_false: BlockRef,
     ) -> Result<(), LoweringError> {
-        self.condition_internal(expression, when_true, when_false, true, None)
+        self.condition_internal(expression, when_true, when_false, true, None, false)
     }
 
     pub(super) fn condition_for_control(
@@ -223,7 +224,14 @@ impl Builder<'_, '_> {
         when_false: BlockRef,
         control_span: Span,
     ) -> Result<(), LoweringError> {
-        self.condition_internal(expression, when_true, when_false, true, Some(control_span))
+        self.condition_internal(
+            expression,
+            when_true,
+            when_false,
+            true,
+            Some(control_span),
+            false,
+        )
     }
 
     pub(super) fn condition_with_views(
@@ -233,7 +241,7 @@ impl Builder<'_, '_> {
         when_false: BlockRef,
         views: bool,
     ) -> Result<(), LoweringError> {
-        self.condition_internal(expression, when_true, when_false, views, None)
+        self.condition_internal(expression, when_true, when_false, views, None, false)
     }
 
     fn condition_internal(
@@ -243,11 +251,19 @@ impl Builder<'_, '_> {
         when_false: BlockRef,
         views: bool,
         control_span: Option<Span>,
+        logical_operand: bool,
     ) -> Result<(), LoweringError> {
         let (payload, span) = self.node(expression)?;
         match payload {
             Expression::Group { expression: inner } => {
-                return self.condition_internal(inner, when_true, when_false, views, control_span);
+                return self.condition_internal(
+                    inner,
+                    when_true,
+                    when_false,
+                    views,
+                    control_span,
+                    logical_operand,
+                );
             }
             Expression::Prefix {
                 operator: PrefixOperator::Not,
@@ -260,6 +276,7 @@ impl Builder<'_, '_> {
                     when_true,
                     false,
                     control_span,
+                    logical_operand,
                 );
             }
             Expression::Binary {
@@ -380,7 +397,7 @@ impl Builder<'_, '_> {
                     EntityType::Value(inner_ssa),
                     span,
                 )?;
-                self.narrowed.insert(fact.symbol(), narrowed);
+                self.record_narrowing(fact.symbol(), narrowed, span)?;
                 self.emit_drops(&operand_drops)?;
                 self.entry_dead
                     .entry(on_non_null)
@@ -422,7 +439,7 @@ impl Builder<'_, '_> {
                     EntityType::Value(inner_ssa),
                     span,
                 )?;
-                self.narrowed.insert(fact.symbol(), narrowed);
+                self.record_narrowing(fact.symbol(), narrowed, span)?;
             } else if !views
                 || (!fact.non_null_when_true() && control_span.is_none())
                 || drops_owner
@@ -465,13 +482,26 @@ impl Builder<'_, '_> {
         self.body
             .arm_loop_plans
             .condition(condition_id, condition_block, condition, span)?;
+        let origin = control_span.unwrap_or(span);
+        // Short-circuit operands and paths carrying a Copyable proof need
+        // actual reachability. Other controls retain their structural edges.
+        let carries_proof = self
+            .narrowed
+            .get(&condition_block)
+            .is_some_and(|symbols| !symbols.is_empty());
+        if (logical_operand || carries_proof)
+            && let Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(value)) = payload
+        {
+            self.body.blocks[condition_block.0].folded_condition = true;
+            return self.goto(if value { when_true } else { when_false }, origin);
+        }
         self.terminate(
             RTerm::Branch {
                 condition,
                 when_true,
                 when_false,
             },
-            control_span.unwrap_or(span),
+            origin,
         )
     }
 

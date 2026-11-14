@@ -9,6 +9,7 @@ pub(in crate::ssa::refine) mod condition;
 mod container;
 mod container_for;
 mod control_bridge;
+mod copyable_narrowing;
 mod counter_tail_receipt;
 mod expression;
 
@@ -86,8 +87,9 @@ pub(super) struct Builder<'i, 'a> {
     capture_loans: Vec<Slot>,
     /// The current receiver's value, or the shared loan of a Borrow receiver.
     receiver: Option<Slot>,
-    /// Copyable inner values proven non-null on the current edge.
-    narrowed: BTreeMap<UnitSymbolId, Slot>,
+    /// Copyable inner values available in each block while constructing the CFG.
+    narrowed: BTreeMap<BlockRef, BTreeSet<UnitSymbolId>>,
+    narrow_slots: BTreeMap<UnitSymbolId, Slot>,
     temporaries: BTreeMap<UnitExpressionId, Slot>,
     consumed_drops: BTreeSet<usize>,
     /// Source scopes and exact edge points proven unreachable by the constructed CFG.
@@ -170,6 +172,7 @@ pub(super) fn build(
         capture_loans: Vec::new(),
         receiver: None,
         narrowed: BTreeMap::new(),
+        narrow_slots: BTreeMap::new(),
         temporaries: BTreeMap::new(),
         consumed_drops: BTreeSet::new(),
         unreachable_drop_scopes: Vec::new(),
@@ -424,6 +427,7 @@ impl Builder<'_, '_> {
         self.body
             .forward_plans
             .terminate(&terminator, block, span)?;
+        self.propagate_narrowing(block, &terminator);
         for successor in terminator.successors() {
             self.body.blocks[successor.0].has_predecessor = true;
             self.entry_dead

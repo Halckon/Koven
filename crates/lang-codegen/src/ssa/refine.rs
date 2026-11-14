@@ -389,7 +389,7 @@ thread_local! {
 /// Test-only: runs `lower` and returns the names of the functions this layer lowered,
 /// in lowering order.
 #[cfg(test)]
-pub(in crate::ssa) fn observe_routing<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
+pub(crate) fn observe_routing<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
     ROUTED.with(|routed| *routed.borrow_mut() = Some(Vec::new()));
     let result = lower();
     let names = ROUTED.with(|routed| routed.borrow_mut().take().unwrap_or_default());
