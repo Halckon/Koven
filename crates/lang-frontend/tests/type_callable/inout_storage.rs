@@ -494,6 +494,30 @@ fn only_writes_from_the_selected_loop_exit_reach_the_join() {
             "if (flag) { write(&x); if (other) { break }; return 0 } else { break }",
             &[("L0084", "x")][..],
         ),
+        (
+            "if (flag) { x = if (other) { break } else { return 0 }; return 0 } else { break }",
+            &[][..],
+        ),
+        (
+            "if (flag) { x = if (other) { break } else { null }; return 0 } else { break }",
+            &[][..],
+        ),
+        (
+            "if (flag) { x = if (other) { null } else { return 0 }; break } else { break }",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "if (flag) { x = if (other) { write(&x); break } else { return 0 }; return 0 } else { break }",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "if (flag) { m[if (other) { break } else { return 0 }] = take(write(&x), break); return 0 } else { break }",
+            &[][..],
+        ),
+        (
+            "if (flag) { m[if (other) { write(&x); break } else { return 0 }] = true; return 0 } else { break }",
+            &[("L0084", "x")][..],
+        ),
         ("if (flag) return write(&x) else break", &[][..]),
         (
             "when { flag -> { write(&x); return 0 }; else -> { break } }",
@@ -517,6 +541,7 @@ fn only_writes_from_the_selected_loop_exit_reach_the_join() {
              fun write(inout target: Int?): Int {{ target = null; return 0 }}
              fun run(left: Boolean?, flag: Boolean, other: Boolean): Int {{
                  var x: Int? = 7
+                 val m = mutableMapOf<Int, Boolean>()
                  if (x != null && (if (flag) {{
                      loop {{ left ?: {fallback}; break }}
                      true
@@ -526,6 +551,118 @@ fn only_writes_from_the_selected_loop_exit_reach_the_join() {
         );
         assert_inout_diagnostic_spans(&text, expected);
     }
+}
+
+#[test]
+fn when_selector_writes_follow_their_normal_exit() {
+    assert_nested_loop_flow([
+        (
+            "when { other -> 0; write(&x) -> { return 0 }; else -> { return 0 } }; break",
+            &[][..],
+        ),
+        (
+            "when { other -> 0; write(&x) -> 0; else -> { return 0 } }; break",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "when { other -> 0; write(&x) -> { return 0 }; else -> 0 }; break",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "when { other -> 0; write(&x) -> { break }; else -> { return 0 } }; return 0",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "when { other -> {}; write(&x) -> { return 0 } }; break",
+            &[("L0084", "x")][..],
+        ),
+    ]);
+}
+
+#[test]
+fn when_short_circuit_writes_follow_the_matching_edge() {
+    assert_nested_loop_flow([
+        (
+            "when { other || (write(&x) && false) -> 0; else -> { return 0 } }; break",
+            &[][..],
+        ),
+        (
+            "when { other || (write(&x) && false) -> { return 0 }; else -> 0 }; break",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "when { !(other || (write(&x) && false)) -> 0; else -> { return 0 } }; break",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "when { other && (write(&x) || true) -> { return 0 }; else -> 0 }; break",
+            &[][..],
+        ),
+        (
+            "when { (other || (write(&x) && false)) && (if (flag) { break } else { true }) -> { return 0 }; else -> { return 0 } }; break",
+            &[][..],
+        ),
+        (
+            "when { (other || (write(&x) && true)) && (if (flag) { break } else { true }) -> { return 0 }; else -> { return 0 } }; break",
+            &[("L0084", "x")][..],
+        ),
+    ]);
+}
+
+#[test]
+fn exhausted_when_domain_does_not_supply_a_normal_exit() {
+    assert_nested_loop_flow([(
+        "when (other) { true -> 0; write(&x), false -> { return 0 }; else -> 0 }; break",
+        &[][..],
+    )]);
+}
+
+fn assert_nested_loop_flow<'a>(
+    cases: impl IntoIterator<Item = (&'a str, &'a [(&'a str, &'a str)])>,
+) {
+    for (body, expected) in cases {
+        let text = format!(
+            "fun write(inout target: Int?): Boolean {{ target = null; return true }}
+             fun run(left: Boolean?, flag: Boolean, other: Boolean): Int {{
+                 var x: Int? = 7
+                 if (x != null && (if (flag) {{
+                     loop {{ left ?: if (flag) {{ {body} }} else {{ break }}; break }}
+                     true
+                 }} else {{ true }})) {{ return x }}
+                 return 0
+             }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}
+
+#[test]
+fn nested_loop_body_writes_require_a_reachable_loop_edge() {
+    assert_nested_loop_flow([
+        ("while (other) { write(&x); return 0 }; break", &[][..]),
+        ("while (false) { write(&x) }; break", &[][..]),
+        (
+            "while (!(false || (true && true))) { write(&x) }; break",
+            &[][..],
+        ),
+        (
+            "while (write(&x) && false) {}; break",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "while (other) { write(&x); break }; break",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "var retry = other; while (retry) { write(&x); retry = false; continue }; break",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "while (write(&x) && other) { return 0 }; break",
+            &[("L0084", "x")][..],
+        ),
+        ("for (i in 0..1) { write(&x); return 0 }; break", &[][..]),
+    ]);
 }
 
 #[test]

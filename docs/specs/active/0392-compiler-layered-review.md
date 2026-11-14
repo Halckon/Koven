@@ -5367,3 +5367,168 @@ Single、MemoryDocument Unit、Rooted Unit，以及真实写后 break
 when 后续筛选、右侧提前退出的赋值和仅能 return 的循环体。
 
 前端全目标严格 Clippy、格式、文档和尺寸门禁通过。
+
+## 218. R2 赋值操作数提前退出
+
+在 #425 合入的 `28a3c290` 上复现。赋值右侧执行 break，另一路
+return，旧扫描仍把赋值目标带入循环出口，后继非空读取误报 L0084。
+
+共享扫描按目标、右侧、写入的顺序收集。已检查的任一操作数无正常
+出口时，保留已执行的操作数效果，省略未到达的写入。语法预扫描
+继续保守收集。回归对照正常赋值后 break，以及右侧先通过 inout
+实际写回再 break。
+
+Map 下标赋值另有直接复现。Unit 检查接收者与键时不产生 MapGet，
+扫描需消费两个实际操作数的完成性。键先 break 时排除未求值的
+右侧，有真实写回的键仍使后继事实失效。普通赋值的排序对照也
+覆盖右侧一臂 break、另一臂可求值为 null 后再 return 的形态。
+
+最终八组前端定向套件共 426 项通过，零失败、忽略或过滤。
+新增用例经 Single、MemoryDocument Unit 和 Rooted Unit 运行。
+独立复核核对了下标接收者与键的顺序、跳转前副作用和语法预扫描。
+
+## 219. R2 when 筛选写回与正常出口
+
+在 §218 工作树上实跑，较早的 when 分支匹配并正常完成，后续
+条件若求值则写回，随后所有分支均直接 return。旧扫描把后续
+条件写入计入较早分支的正常出口，导致后继非空读取误报 L0084。
+
+对本次扫描所进入循环中的 when，带 else 且筛选操作数可正常
+完成时，按源码顺序记录能
+到达正常分支出口的筛选前缀。筛选期间已到达循环跳转的写入
+仍由当前循环捕获。省略 else 时保留可能全部不匹配的路径，
+语法预扫描保持保守。正式回归经三个类型入口核对正常臂、
+else、真实 break 及没有 else 的对照。六个定向套件共 409 项
+通过，零失败、忽略或过滤。
+
+本次使用分支体完成性，筛选条件已覆盖整个剩余域而令后续分支
+不可达的场景，仍需要结合现有可达性事实复核。
+独立复核还指出同一筛选条件的匹配与未匹配边可能有不同的写入。
+例如 `other || (write(&x) && false)` 只在条件为 false 的路径
+写入。该形态与剩余域耗尽的对照留待实际复现和分边验收。
+
+## 220. R2 穷尽后的 when 分支可达性
+
+复现 Boolean subject 的筛选已覆盖整个域，末尾 else 的分支体
+自身可正常完成，但任何输入都无法到达该分支。旧扫描把它当作
+正常出口，误保留只通向 return 的筛选写回并报告 L0084。
+
+Single 与 Unit 在检查完 entry 后，将其已知不可达性登记到现有
+分支完成性账本。静态检查仍会验证分支体，扫描使用真实入口可达性。
+独立复核核对了 StatementId、trial 回滚、循环重算和不可达 lambda。
+六组定向套件共 410 项通过，零失败、忽略或过滤，新增回归覆盖
+三个类型入口。单个筛选条件真假边有不同写入的情形仍待处理。
+已用 #425 本机 CLI 在单文件和项目入口重现该真假边问题，两端
+只在后继非空读取报告 L0084。现有 Boolean outcomes 记录真假
+可达性，仍需为匹配边和未匹配边区分写入来源。
+
+## 221. R2 循环体仅从 callable 退出的写回
+
+实跑确认，while 循环体内写回后直接 return 时，旧扫描把写回
+带入外层循环的正常后继，误报 L0084。零次内层迭代的路径
+并未执行该写回。
+
+共享扫描消费两种检查器已有的循环块完成性。没有正常尾边时，
+在退出当前循环帧前截去体内普通写入，保留已在该帧的 break
+或 continue 捕获的写入。while 条件和 for 源表达式在体内
+截断范围之前。语法预扫描仍保守收集。
+
+八个定向套件共 427 项通过，零失败、忽略或过滤。新增用例
+覆盖 while 与 for 的直接 return，以及真实 break 和 continue。
+独立复核未发现漏记真实写入，另指出静态不进入的循环体以及
+§220 的 when 真假边仍需分开验收。
+
+## 222. R2 短路筛选的匹配、未匹配与跳转
+
+三个类型入口的回归覆盖无 subject、带末尾 else 的 when 中的
+单表达式筛选。红测确认 `other || (write(&x) && false)` 的
+写回错误进入匹配分支。另一个红测确认，筛选右操作数内的 break
+会错误捕获左侧短路跳过右操作数时才发生的写入。
+
+正常筛选按布尔结果区分写入，分支体沿匹配边扫描，后续筛选沿
+未匹配边扫描。循环内可能跳转的逻辑右操作数只继承能进入它的
+左侧写入，结束后恢复普通表达式的保守合并。右侧没有跳转时，
+使用惰性的源码位置索引跳过对左侧的额外扫描。
+
+独立复核枚举 20,000 个真假结果边，并核对源码范围、循环捕获
+和两个分支后继，没有发现真实写回漏记。多条件 entry、
+subjectful 比较以及无末尾 else 的筛选维持原有保守收集。
+
+最终带跳转索引的八组定向套件共 430 项通过，零失败、忽略或
+过滤。前端全目标严格 Clippy、格式、文档结构和 diff 检查通过。
+[#425 主线 CI](https://github.com/Halckon/Koven/actions/runs/43593425424)
+在 `28a3c290` 已完成且成功。
+
+## 223. R2 静态不进入的 while 循环体
+
+在 §222 工作树上复现 `while (false)` 内的写回污染外层
+循环正常出口，后继非空读取误报 L0084。复用布尔结果缓存，
+已检查的写回扫描只在条件可能为 true 时进入循环体。
+条件仍用于收集自身的副作用及跳转，语法预扫描继续保守收集。
+
+回归覆盖字面 false、分组取反和逻辑组合，以及条件恒为 false
+但条件求值先写回的负控。三个类型入口共用同一组诊断预期。
+
+八组定向套件共 430 项通过，零失败、忽略或过滤。严格
+Clippy、格式及文档结构门禁通过。独立复核核对了条件的结构
+判定、不可达循环体的静态检查以及语法预扫描入口。
+
+## 224. R0 主线旧入口的直接消费者复查
+
+在 `28a3c290` 按 §151 口径统计直接调用。codegen src 的
+`check_types` 为 15 个文件 18 行，`check_ownership`
+为 14 个文件 17 行，与 §206 一致。排除函数定义，
+`lower_scalar_file_with_entry` 仍为 4 个文件 8 处。
+相较旧清单，readonly receiver 的负控因 #421 的模块合并
+进入 `single_readonly_method_tests.rs`，仍由测试配置启用。
+
+| 直接调用 | 测试职责与处置 |
+|---|---|
+| `lowering_entry_contract_tests.rs` 5 处 | 保留 Single 的诊断、源与分析身份门禁，以及 receiver 能力差异负控。 |
+| `single_readonly_method_tests.rs` 1 处 | 保留 readonly receiver 能力边界的明确拒绝对照。 |
+| `rc_nullable_while_bounded_tests.rs` 和 `rc_nullable_while_observation_tests.rs` 各 1 处 | 保留 Single 与 Unit 的 nullable Rc 循环对照及 lowering 归属见证。 |
+
+以上入口的宿主均由 `cfg(test)` 启用。CLI/LSP src 无直接
+`check_types` 或 `check_ownership` 调用。frontend tests
+的 `check_types` 为 68 个文件 105 行，`check_ownership`
+为 46 个文件 71 行，仍须逐个按实际合同处置。此次清点不含
+别名、间接调用和仓外 API，也不涵盖生产 Unit 的 Compatibility。
+
+## 225. R0 保留的 Single 分析与所有权对照
+
+在 `28a3c290` 的测试源中复查两组仍使用旧检查器的直接消费者。
+
+| 消费者 | 保留的合同 |
+|---|---|
+| `final_type_admission/complete.rs` | `complete_file_types` 的借用身份和分析实例隔离。相同源码重新检查也必须得到不同的分析身份。 |
+| `final_type_admission/static_recovery.rs`、`failed_overload_trials.rs` | 保留现行恢复边界的 Single 证据，和 Unit 分别断言诊断根、源码身份及失败候选事实。 |
+| `final_type_admission/simple_assignment.rs`、`unit_statement_map_write.rs` | 用真实 Single 产物保留既有赋值诊断和能力边界，与 Unit 发布的写入事实对照。 |
+| `unit_borrow_loop_edge_evidence.rs`、`unit_borrow_zero_loop.rs` | 同时观察 Single 和两种 Unit 的循环证据。Single 观测开启前后必须有相同诊断、借用结果、loan 和结束事件。 |
+| `unit_loop_no_carry_boundaries.rs`、`unit_loop_break_arm_no_carry.rs`、`unit_loop_no_carry_evidence.rs` | 保留两个所有权入口的未封闭退出、清理、分析身份和阶段拒绝对照。 |
+
+本次为静态处置。以上见证依赖各自真实的 Single 产物，保留至对应
+旧合同退役。带 loan observation feature 的目标按各自实际运行
+登记。普通前端默认套件的空目标不能证明该 feature 的覆盖。
+
+## 226. R4 可空兼容路径的主线本机证据
+
+在 `28a3c290` 的生产 Unit 入口复查分流。`refine::route`
+按单个 callable 的完整准入决定是否进入细化层。通过准入时，
+orchestrate 补齐类型需求后调用 Refine。当前生产中仍存在
+Compatibility，供未满足完整准入的混合体使用。
+`ForcedPerFamily` 由测试配置启用，测试的强制拒绝不能单独
+作为生产 Compatibility 都会拒绝的证据。
+
+复用 `native_nullable_when_tests/replacement_if.rs` 的普通
+native 源码和独立固定输出。公开 CLI 的单文件及项目均成功
+check 和 build，两个实际进程退出 0，stdout 61 行逐字节符合
+原 oracle，stderr 为空。单文件增加调用原 `entry` 的
+`main`，项目直接选择 `app.entry`。覆盖可空标签、重绑后的
+四种 null 比较写法及每种的四种输入组合。
+
+CLI SHA-256 为
+`04a50ee10856e06fb1ad665e19fa95d22cf753d82875b78095d337308827ea1f`，
+出自 #425 head `e6f70af4`，与合入主干树
+`4e7db50c54331796ebb82f78782cc390e3579f5d` 一致。
+本轮实跑限定 macOS arm64 的公开行为，未读取动态路由标记，
+也未对这 16 个组合另跑 sanitizer。
