@@ -44,9 +44,8 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [Unit 函数根集合工程候选](unit-function-root-set.md)：D10 whole-file 身份见证退出路径，未启用
 - [D10 独立 loop 证明候选](d10-independent-loop-proof.md)：独立 catalog、结构边和 SSA replay 的架构约束，未启用
 - [D10 child 未修改根最窄候选](d10-child-pass-through-root.md)：两根、单根更新的隔离设计，未启用
-
 - [Parser 分阶段形式化验证计划](parser-formal-verification-plan.md)：Phase 1，待评审
-- [Parser 文法与验证路径评审](parser-grammar-verification-review.md)：路线 F 的来源评审
+- [Origin / IO 讨论审计与候选基线](origin-io-candidate-baseline.md)：安全不变量、六项验收矩阵与未决实施门槛，非完整定稿
 
 ## 候选依赖与推进顺序
 
