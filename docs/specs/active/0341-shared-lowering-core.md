@@ -18038,3 +18038,28 @@ observer 开关的完整非观察产物相等。所有结果来自真实 checker
 fact/receipt 或 native 已实现；这些仍待合同启用后的独立实施。
 frontend observer-support all-target 严格 Clippy、fmt、docs951、diff及独立只读
 审查通过。未运行故障注入或远程 CI，未推送；“无事实”仅指本片列出的域。
+
+### E2 Unit-only 真实闭合现场实验（2026-11-14，未启用）
+
+基于 `9be51b28`，先独立审查隔离设计，再实现 `cfg(test)` Unit 专用选择入口。
+它使用真实参数/call回调、core Frame 的 claim/acquire/use-return/removal/close
+和 counter update，不以语法匹配直接发布权限。在两个现有临时 arm fact 分别
+通过最终 End 唯一 receipt 匹配后，只现场断言 callable/loop 一致、roots/body/
+binding/End 身份不同及有实际消费者；不保存 proof 或失败观察 payload，计数
+仅证明断言到达。旧 pair 同源守卫、accepted 计算、诊断及回滚原样保留。
+
+首次代码复审发现共享 selector hook 会扩大到 Single，已改为仅 Unit 的测试
+别名入口；生产与 Single 都调用固定同源 selector，且测试在启用作用域内再次
+实际检查 Single 仍拒绝两源。未引入可在非测试编译启用的开关。
+
+普通矩阵覆盖两源、同源、非counter、臂内return，rooted/memory及observer on/off。
+两源实验应到达现场一次但最终validate仍失败；同源/非目标不误计数。失败公共
+产品须无全部 no-carry 发布域、borrow bindings及loan observations；关闭hook后
+再分析仍拒绝。同源成功邻居保留。独立RAII测试验证嵌套及panic恢复；只测试
+Rust测试状态清理，不伪造Koven接受状态或执行CI故障注入。
+
+本片只能证明测试隔离下真实core/End现场被走到且列明产品被撤销，不证明完整
+两源合同、动态多轮、同owner实参、SSA运输/abort边或native能力；无新公开fact、
+receipt或Origin变更，未推送。
+最终修正源码4/4普通测试、frontend all-target Clippy默认及observer-support两配置、
+fmt/docs951/diff均通过；独立复审确认Unit-only隔离及七个no-carry域撤销断言。

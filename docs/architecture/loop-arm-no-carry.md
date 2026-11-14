@@ -128,3 +128,9 @@ workflow。本地仅编译列举，动态拒绝与恢复结果须以远端执行
 borrow binding、同源 branch 或 counter fact，validated ownership factory 不发布。
 同源 counter 邻居仍发布独立 counter 域身份，旧 branch owns 查询不授予权限。
 这不是两源真实 Acquire/End 事件或新 receipt 的实现证据。
+
+后续 Unit-only 测试入口可暂选候选并运行真实 core Frame；仅在两个临时 arm fact
+各通过真实最终 End 的唯一 receipt 匹配后现场断言，不保存 payload，只计到达。
+原同源 pair 构造守卫不变，公共分析仍诊断失败并撤销观察与借用产物；无新 pair、
+validated ownership 或 backend receipt 发布。默认关闭的线程局部 RAII 恢复嵌套/
+异常状态，Single selector 不经过此入口；非测试编译直接使用旧 selector。

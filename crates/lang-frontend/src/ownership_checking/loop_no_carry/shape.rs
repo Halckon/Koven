@@ -384,3 +384,45 @@ fn one_argument(parsed: &ParsedFile, id: ExpressionId) -> Option<ExpressionId> {
 
 #[cfg(test)]
 mod two_source_candidate;
+
+#[cfg(test)]
+pub(crate) mod unit_candidate_events;
+
+#[cfg(test)]
+pub(crate) fn unit_selection<B: Copy + Eq>(
+    parsed: &ParsedFile,
+    loop_statement: StatementId,
+    body: StatementId,
+    resolve: impl Fn(Name) -> Option<B>,
+    parameter: impl Fn(ExpressionId, bool) -> bool,
+    call: impl Fn(ExpressionId, bool) -> bool,
+    counter_checks: (
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId) -> bool,
+        impl Fn(ExpressionId, &str) -> bool,
+    ),
+) -> Option<Selection<B>> {
+    if unit_candidate_events::enabled() {
+        let candidate = select::<B, true>(
+            parsed,
+            loop_statement,
+            body,
+            &resolve,
+            &parameter,
+            &call,
+            (&counter_checks.0, &counter_checks.1, &counter_checks.2),
+        );
+        if candidate.is_some() {
+            return candidate;
+        }
+    }
+    selection(
+        parsed,
+        loop_statement,
+        body,
+        resolve,
+        parameter,
+        call,
+        counter_checks,
+    )
+}
