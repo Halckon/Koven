@@ -1,0 +1,49 @@
+// 多级来源：按值嵌套的视图，来源可以写到任意一级字段；写前缀即覆盖它之下的全部借用字段
+class Arr(len: Int)
+view class Inner(borrow a: Arr, borrow b: Arr)
+view class Outer(inner: Inner, borrow c: Arr)
+view class MutInner(inout m: Arr)
+view class MutOuter(inner: MutInner, pos: Int)
+fun leaf(borrow x: Outer): borrow Int from x.inner.a { return &x.inner.a.len }
+fun prefix(borrow x: Outer): borrow Int from x.inner { return &x.inner.b.len }
+fun whole(own x: Outer): borrow Int from x { return &x.inner.a.len }
+fun wrongLeaf(borrow x: Outer): borrow Int from x.inner.a {
+  return &x.inner.b.len  // ERR K6
+}
+fun wrongBranch(borrow x: Outer): borrow Int from x.c {
+  return &x.inner.a.len  // ERR K6
+}
+fun leafIsPrecise(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val o = Outer(Inner(&p, &q), &r)
+  val e = leaf(&o)
+  q.len = 5
+  r.len = 6
+  p.len = 7  // ERR K1
+  use(e)
+}
+fun prefixCoversBoth(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val o = Outer(Inner(&p, &q), &r)
+  val e = prefix(&o)
+  r.len = 6
+  q.len = 5  // ERR K1
+  use(e)
+}
+fun wholeCoversAll(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val e = whole(Outer(Inner(&p, &q), &r))
+  r.len = 6  // ERR K1
+  use(e)
+}
+fun nestedExclusiveIsNotCopyable(): Unit {
+  val p = Arr(1)
+  val o = MutOuter(MutInner(&mut p), 0)
+  val o2 = o  // ERR K8
+}

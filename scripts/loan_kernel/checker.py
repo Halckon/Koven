@@ -180,8 +180,14 @@ class Parser:
         return f"{tok} {self.next()}" if tok in ("fn", "any") else tok
 
     def source(self):
+        """来源：x、x.f、x.f.g（多级字段路径）或 x.origins（x 携带的全部来源）。"""
         param = self.next()
-        return (param, self.next() if self.accept(".") else None)
+        path = []
+        while self.accept("."):
+            path.append(self.next())
+        if path == ["origins"]:
+            return (param, "*")
+        return (param, ".".join(path) or None)
 
     def fun(self, keyword):
         """函数或抽象签名（sig）；sig 没有函数体，用作函数类型与接口方法的合同。"""
@@ -466,8 +472,9 @@ class Checker:
                     self.error("SIG", fun.line, f"{fun.name}：inout 结果不能依赖 borrow 参数 {param}")
             elif fld != "*":
                 decl = self.classes.get(ty)
-                if decl is None or not decl.is_view or not (decl.field(fld) or ("",))[0]:
-                    self.error("SIG", fun.line, f"{fun.name}：{param}.{fld} 不是视图的借用字段")
+                paths = [path for _, path in self.ref_paths(ty)] if decl is not None and decl.is_view else []
+                if not any(path == fld or path.startswith(fld + ".") for path in paths):
+                    self.error("SIG", fun.line, f"{fun.name}：{param}.{fld} 之下没有视图的借用字段")
         for _, target in fun.flows:
             if params.get(target, ("",))[0] != "inout":
                 self.error("SIG", fun.line, f"{fun.name}：流向的目标 {target} 须是 inout 参数")
@@ -475,7 +482,7 @@ class Checker:
     def result_exclusive(self, fun):
         kind, ty = fun.result
         # 不透明的结果可能被实例化为独占类型，按独占处理
-        return kind == "inout" or ty in fun.tparams or (ty in self.classes and self.classes[ty].exclusive())
+        return kind == "inout" or ty in fun.tparams or (ty in self.classes and self.exclusive(ty))
 
     # ---- 函数体
 
@@ -495,7 +502,7 @@ class Checker:
             if mode != "own":
                 loans[""] = {self.symbolic(name, None, mode, fun.line)}
             if ty.kind == "view":
-                for kind, fld, _ in self.classes[ty_name].ref_fields():
+                for kind, fld in self.ref_paths(ty_name):
                     loans[fld] = {self.symbolic(name, fld, kind, fun.line)}
             elif ty.kind == "opaque":  # 类型参数的值携带一组未知的来源
                 loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}
@@ -524,6 +531,28 @@ class Checker:
             self.check_unique(stmt.body, declared, fun)
             self.check_unique(stmt.orelse, declared, fun)
 
+    def ref_paths(self, class_name):
+        """视图的全部借用字段，含按值嵌套的视图里的：(种类, 字段路径)。"""
+        paths = []
+        for kind, name, ty_name in self.classes[class_name].fields:
+            if kind:
+                paths.append((kind, name))
+            elif ty_name in self.classes and self.classes[ty_name].is_view:
+                paths.extend((k, f"{name}.{path}") for k, path in self.ref_paths(ty_name))
+        return paths
+
+    def exclusive(self, class_name):
+        return any(kind == "inout" for kind, _ in self.ref_paths(class_name))
+
+    @staticmethod
+    def covering(param, fld):
+        """能覆盖来源 param.fld 的声明：参数本身、全部来源、该路径及它的每个前缀。"""
+        wanted = {(param, None)}
+        if fld:
+            parts = fld.split(".")
+            wanted |= {(param, "*")} | {(param, ".".join(parts[:n])) for n in range(1, len(parts) + 1)}
+        return wanted
+
     def symbolic(self, param, fld, kind, line):
         """参数带来的符号 loan，代表调用方那边的来源。"""
         key = f"P({param}{'.' + fld if fld else ''})"
@@ -542,8 +571,7 @@ class Checker:
                 if not ancestor.startswith("P("):
                     continue
                 param, _, fld = ancestor[2:-1].partition(".")
-                wanted = {(param, None)} | ({(param, "*"), (param, fld)} if fld else set())
-                if not wanted & sources:
+                if not self.covering(param, fld) & sources:
                     missing.append(ancestor[2:-1])
         return missing
 
@@ -574,8 +602,7 @@ class Checker:
 
         def covered(src, allowed):
             param, fld = rename.get(src[0], src[0]), src[1]
-            wanted = {(param, None)} | ({(param, "*"), (param, fld)} if fld else set())
-            return bool(wanted & allowed)
+            return bool(self.covering(param, fld) & allowed)
 
         for src in impl.sources:
             if not covered(src, set(sig.sources)):
@@ -679,6 +706,9 @@ class Checker:
             crossed = kind
             if not kind:
                 targets = {(root, path + (name,)) for root, path in targets}
+                if field_loans is not None:  # 走进按值嵌套的视图：只留它名下的借用字段
+                    field_loans = {key[len(name) + 1:]: held for key, held in field_loans.items()
+                                   if key.startswith(name + ".")}
             else:
                 self.access(state, targets, via, "read", place.line)
                 held = set((field_loans or {}).get(name, ()))
@@ -719,7 +749,7 @@ class Checker:
         if res.ty.kind == "int":
             return Value(INT)
         movable_only = res.ty.kind in ("cls", "inout", "opaque", "any") or (
-            res.ty.kind == "view" and self.classes[res.ty.name].exclusive())
+            res.ty.kind == "view" and self.exclusive(res.ty.name))
         if movable_only or place.fields:
             self.error("K8", expr.line, f"{place.root} 不可隐式复制，须写 move")
         return Value(res.ty, copy_loans(res.field_loans or {}))
@@ -801,6 +831,8 @@ class Checker:
             val = self.argument(arg, kind or "own", state)
             if kind:
                 loans[name] = set(val.loans.get("", ()))
+            else:  # 按值嵌套的视图：它的借用字段记在 字段名.路径 之下
+                loans.update({f"{name}.{key}": set(held) for key, held in val.loans.items() if key})
             self.pending.append(val.all_loans())
             pushed += 1
         del self.pending[len(self.pending) - pushed:]
@@ -843,7 +875,8 @@ class Checker:
             if mode == "own":
                 return value.all_loans()
             return set().union(*(held for key, held in value.loans.items() if key))
-        return set(value.loans.get(fld, ()))
+        held = [loans for key, loans in value.loans.items() if key == fld or key.startswith(fld + ".")]
+        return set().union(*held)
 
     def callable_argument(self, arg, sig_name, state):
         """函数类型的实参：只接受具名函数或另一个函数类型的参数，并按 K12 核对合同。"""
@@ -896,7 +929,7 @@ class Checker:
         if ty.kind == "opaque":
             return Value(ty, {"*": result})
         if ty.kind == "view":  # K11：含多个借用字段的结果共同持有这些 loan
-            return Value(ty, {f[1]: set(result) for f in self.classes[ty_name].ref_fields()})
+            return Value(ty, {path: set(result) for _, path in self.ref_paths(ty_name)})
         return Value(ty)
 
     # ---- 语句
