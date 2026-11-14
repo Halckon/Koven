@@ -18129,3 +18129,9 @@ UnsupportedNode边界完全不变。只复用代码补丁，历史验收不冒�
 与新 main `51a3aad3` 存在两个 merge-base，现有尺寸脚本按设计拒绝 `--base main`；
 本片不修改政策或脚本，明确基线检查采用旧 main `3b7a9a7a` 与本片父提交。
 发布集成线合并新 main 后仍须重跑真正的 main 尺寸门禁。
+
+`c9c7dd5a` 修正树验收：codegen all-target严格Clippy默认/observer-support两配置
+均通过，E2两项普通测试两配置各2/2通过；fmt/docs951/diff通过。尺寸脚本在提交树
+对`bc63736b`及`3b7a9a7a`两明确基线均通过（2164个手写Rust文件，36个既有
+超限文件仍列账）。独立复审逐文件核对与两原修复一致，无新生产权限变更；未运行
+native或远端CI。此前默认配置阻断已解除，main多merge-base集成检查仍留发布线。
