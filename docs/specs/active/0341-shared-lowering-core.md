@@ -18004,3 +18004,22 @@ observer开关及循环后两根继续使用。旧同源正例须保持；上述
 CI-only 损坏矩阵至少覆盖臂源交换、遗漏第二根、错 End、fresh loan 进入回边、
 错误 counter 初值/更新、额外前驱、发布身份缺失，并有相邻恢复对照；仅 CI
 执行，不在本地启用故障环境。普通编译/native 不替代这些动态拒绝证据。
+
+### E2 两源候选语法准备片（2026-11-14，未启用）
+
+基于 `2d36fc8b`，先确认 core `loop_no_carry/shape.rs` 在实际事件检查前也
+要求两 root 相同，故不能直接构造可用新 fact/receipt。生产 `selection` 现固定
+委托 `select::<_, false>`，与原同源条件等价；true 实例只在测试子模块调用，
+要求不同 root、有 counter、无 exit/conditional，直身拒绝。未接入 core session、
+公开 fact、selected 或发布路径，不改 Origin，也不宣称事实实现完成。
+
+真实解析 AST 普通测试覆盖候选两源、旧同源、错误递减常量、break、非 counter
+及臂内 return；另用真实 Single name/type/ownership 链验证两源仍含 L0164，
+同源仍成功。语法回调依赖 fixture 唯一名字，不能代替生产 resolved symbol，
+也不证明 Shared 参数、callee 效果、同 owner 实参、完整诊断身份或全部候选
+合同限制。没有伪造已接受事实或执行故障注入；Unit 真实前端及 backend receipt
+尚待后续，未运行 native/远程 CI。
+
+最终源码 exact 1/1（含上述普通矩阵）、frontend all-target 严格 Clippy通过，
+独立只读审查确认生产 false 路径与原逻辑等价；true 只有当前测试调用隔离，
+不声称它在类型层禁止未来生产调用。本地提交、不推送。

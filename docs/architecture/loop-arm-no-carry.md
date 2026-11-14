@@ -115,3 +115,12 @@ capture 丢失、选中收据在 finish 丢失、最终 verifier 失败撤销两
 反例具体删除实际 BorrowEnd，不把空清理代码跳过说成资源泄漏。所有反例默认
 ignored、GITHUB_ACTIONS 门控；已有双宿主 borrowing runner 精确发现，不重复造
 workflow。本地仅编译列举，动态拒绝与恢复结果须以远端执行为准。
+
+## 两源候选语法探索（未授权执行）
+
+`loop_no_carry/shape.rs` 的生产 `selection` 固定实例化同源分支，保持原检查。
+仅测试子模块调用两源候选分支，解析真实 AST 并筛选不同 root、有限 counter、
+无 exit/conditional 的分臂骨架；不构造 session、End、公开 fact 或 receipt。
+其 fixture 回调使用唯一名字，仅服务语法探索，不证明 Shared 权限、callee 效果、
+符号解析身份或完整候选合同。真实 Single 检查仍拒绝两源（含 L0164），同源邻居
+仍成功。候选分支是当前调用点隔离，不是编译期禁止未来生产调用的机制。
