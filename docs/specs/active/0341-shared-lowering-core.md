@@ -17923,3 +17923,15 @@ SSA/LLVM 确定性及泛型 arena 不增长断言不变。生产和 Origin 不�
 普通 size 3/3 与 generic 4/4 定向测试通过，独立只读审查确认全部原测试体与
 断言保留。fmt 检查通过；未运行故障注入、全量 native 或远程 CI，未推送。
 observer-support codegen all-target 严格 Clippy、docs951 与 diff 检查通过。
+
+### 旧文件 lowering 退出门禁核验（2026-11-14）
+
+基于 `f0c680d5`，仅测试构建的 `lower_frontend` 实际子树恢复
+`deny(dead_code)`，没有删除函数、字段、断言或别名。该作用域不存在反向
+allow；重新导出的其他模块不受它的 lint 继承，不能据此宣称全树已审计。
+严格编译未发现可直接删除的 dead code；旧 single-source 身份见证仍是退出
+前置，scalar Unit adapter 调用数不是独立旧 lowering 能力欠账。
+`lower_frontend.rs` 原 1321 行尺寸债保持，新增仅一行门禁，不机械压行拆文件。
+observer-support codegen all-target 严格 Clippy、原泛型递归身份 ordinary exact
+1/1、fmt、docs951、diff 和独立只读审查通过；未运行故障注入、全量测试或
+远程 CI。该结果不是代码退役或所有死代码清零的证明，未推送。
