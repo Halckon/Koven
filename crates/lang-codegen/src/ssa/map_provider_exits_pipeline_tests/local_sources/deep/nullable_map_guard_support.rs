@@ -1,6 +1,6 @@
 //! CI-only recovery of bounded ordinary B/C checkpoints, never a lowering input seam.
 //! Each fixture first completes the unchanged FE/ownership/SSA pipeline.
-pub(in crate::ssa) use crate::ssa::refine::build::owner_consumer_test_support::checkpoint;
+pub(in crate::ssa) use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::owner_consumer_test_support::checkpoint;
 mod identity {
     use super::*;
     use crate::ssa::lower_frontend::declarations::FunctionDeclaration;

@@ -140,13 +140,14 @@ impl BodyChecker<'_> {
 
     pub(super) fn check_loop_jump(
         &mut self,
+        expression: UnitExpressionId,
         keyword_span: Span,
         jump: super::while_flow::LoopJump,
         message: &'static str,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let loop_base = self.callable_loop_bases.last().copied().unwrap_or(0);
         let ty = if self.loop_depth > loop_base {
-            self.record_pending_loop_jump(jump);
+            self.record_pending_loop_jump(expression, jump);
             self.builtin(BuiltinType::Nothing)
         } else {
             self.emit(codes::JUMP_OUTSIDE_LOOP, message, keyword_span)?;

@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，418 份）"]
+subgraph Garchive["已完成（archive，419 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -427,6 +427,7 @@ subgraph Garchive["已完成（archive，418 份）"]
   S0448["S0448<br/>map_provider_exits_pipeline_tests 测试域叶子薄壳子模块批量退役（132 个）"]
   S0449["S0449<br/>其余测试域叶子薄壳子模块批量退役（42 个）"]
   S0450["S0450<br/>下一层叶子薄壳与同级测试小文件批量收敛（62 个）"]
+  S0454["S0454<br/>无家族触发的直线标量函数进入细化层"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1942,6 +1943,7 @@ S0366 --> S0367
 | SPEC-0448 | archive | [0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md](0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) |
 | SPEC-0449 | archive | [0449-remaining-test-domains-leaf-shells-batch-retirement.md](0449-remaining-test-domains-leaf-shells-batch-retirement.md) |
 | SPEC-0450 | archive | [0450-next-layer-leaf-and-sibling-shells-batch-retirement.md](0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) |
+| SPEC-0454 | archive | [0454-refine-untriggered-linear-scalars.md](0454-refine-untriggered-linear-scalars.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |

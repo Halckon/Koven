@@ -307,6 +307,7 @@ impl Builder<'_, '_> {
         if let Some(loan) = self.inout_loan(symbol) {
             // The caller's place now holds the new value; nothing is rebound here.
             self.push(ROp::LoanMutate { loan, value: slot }, Vec::new(), span)?;
+            self.forget_narrowing(symbol);
             return Ok(Lowered::Unit);
         }
         let binding = *self
@@ -318,7 +319,7 @@ impl Builder<'_, '_> {
         self.dead.remove(&symbol);
         self.push(ROp::Alias { source: slot }, vec![binding], span)?;
         self.arm_counter_alias(symbol, value, slot, binding, false, span)?;
-        self.narrowed.remove(&symbol);
+        self.forget_narrowing(symbol);
         Ok(Lowered::Unit)
     }
 
@@ -385,7 +386,7 @@ impl Builder<'_, '_> {
         self.sync_dead();
         self.dead.remove(&symbol);
         self.push(ROp::Alias { source: result }, vec![binding], span)?;
-        self.narrowed.remove(&symbol);
+        self.forget_narrowing(symbol);
         Ok(Lowered::Unit)
     }
 

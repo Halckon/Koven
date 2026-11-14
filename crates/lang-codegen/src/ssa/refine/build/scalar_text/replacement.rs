@@ -1,18 +1,19 @@
 use super::super::ROp;
-    #[cfg(test)]
-    use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::owner_consumer_test_support::{OwnerFault, take_fault};
-    use super::super::owner_consumer::DropReceipt;
-    use super::super::{BlockRef, Builder, RTerm, RefineInputs, Slot};
-    use crate::ssa::lowering_support::{LoweringError, LoweringErrorKind, error};
-    use lang_frontend::{
-        ast::ExpressionId, name_resolution::UnitSymbolId, source::Span,
-        ownership_checking::{
-            UnitDropPoint, UnitDropTarget, UnitOwnerOrigin,
-            UnitOwnerReplaceBreakReturnActionV1 as ReturnAction,
-            UnitOwnerReplaceBreakReturnConsumerV1,
-        },
-        type_checking::{OwnershipPrimitiveKind, UnitExpressionId},
-    };
+use super::super::owner_consumer::DropReceipt;
+use super::super::{BlockRef, Builder, RTerm, RefineInputs, Slot};
+use crate::ssa::lowering_support::{LoweringError, LoweringErrorKind, error};
+#[cfg(test)]
+use crate::ssa::refine::build::owner_consumer_test_support::{OwnerFault, take_fault};
+use lang_frontend::{
+    ast::ExpressionId,
+    name_resolution::UnitSymbolId,
+    ownership_checking::{
+        UnitDropPoint, UnitDropTarget, UnitOwnerOrigin,
+        UnitOwnerReplaceBreakReturnActionV1 as ReturnAction, UnitOwnerReplaceBreakReturnConsumerV1,
+    },
+    source::Span,
+    type_checking::{OwnershipPrimitiveKind, UnitExpressionId},
+};
 
 pub(in crate::ssa::refine::build) struct ReturnReplacementPlan {
     pub(in crate::ssa::refine::build) call: UnitExpressionId,

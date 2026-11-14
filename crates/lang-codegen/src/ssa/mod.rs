@@ -27,7 +27,7 @@ mod refine_tests;
 #[cfg(test)]
 pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
 #[cfg(test)]
-pub(crate) use refine::with_per_family_lowering;
+pub(crate) use refine::{observe_routing, with_per_family_lowering};
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
 #[deny(dead_code)]
@@ -388,3 +388,6 @@ mod e2_entry_ci;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_entry_coverage;
+
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_main429_combination_tests;

@@ -4,15 +4,24 @@
 
 ## 分流
 
-`lower_owned_unit_with_entry` 对每个无类型替换、无借用/carrier 返回的函数实例先做
-确定性子集预检（`ssa::refine::subset`），只读 typed/ownership facts 与 AST 构造种类，不试跑 lowering。
-receiver 只接受 Copyable enum（Value/Borrow）与普通 class（Borrow/Inout）；Borrow 参数接受 Copyable 类型与
-普通 class（后者只经 loan 借出）。预检通过且函数签名或函数体
-触及任一 nullable 类型、或使用已迁入的家族（`when`、enum `is`、字段替换、`Inout` 参数或 receiver、
-`&` 实参、`Rc` 构造与操作）时，函数体由
-`ssa::refine` lowering；失败即报错，不回退。其余函数仍走 `unit_lower` 的按家族路径；带 `Inout` 参数的函数若未进入细化层，以 UnsupportedNode
-拒绝（unit planning 已为 `Inout` 参数分配 exclusive loan 实体）。精确子集以
-SPEC-0350 §3 的已实现清单与 SPEC-0356 为准。
+`lower_owned_unit_with_entry` 对每个函数实例由 `ssa::refine::route` 做确定性子集预检，
+只读 typed/ownership facts 与 AST 构造种类，不试跑 lowering。当前预检核对完整 signature、
+body、drop 支持及循环条件，再要求 nullable/已迁家族、有界 receiver/named/temporary call
+或直线标量函数触发条件；实例类型替换、普通 borrow/carrier 返回有各自消费路径，
+不再是试点时的统一排除条件。接受后由 `ssa::refine` lowering，失败即报错，不回退；
+其余实例仍进入实际的 `unit_lower` Compatibility 函数体路径。带 `Inout` 参数或 receiver
+的函数若未进入细化层，仍以 UnsupportedNode 拒绝，不在兼容路径伪造 exclusive-loan lowering。
+精确准入以当前 `refine/subset` 代码与测试为准，历史试点清单不是今日完整准入表。
+
+[SPEC-0454](../archive/specs/0454-refine-untriggered-linear-scalars.md) 的直线标量触发只纳入
+非泛型、无 receiver/StaticSelf/借用或carrier返回的普通具名函数：Boolean/整数参数按原
+Value/Copyable Borrow 合同读取，返回标量或 Unit；body 限原 subset 已验证的直线值计算、
+val/var、简单赋值与 return。它不新触发调用、源码分支/短路、循环、nullable 或非标量签名；
+checked 运算内部原 Abort CFG 保留。signature/body/drop/loop 门仍在所有路由 OR 之外。
+`unit_lower` 仍有实际函数体依赖；本片不代表统一路由终态或整个目录可以删除。
+refine 的局部 type demands 按同 source identity 与 callable span 收集，不把未调用 sibling
+局部变量带入当前计划；签名/capture 与既有 Boolean/Unit 基础类型需求保留。checked 内部 CFG
+可用显式 block parameters 运输 live 标量，失败标志仍直接选择 Abort 与正常继续边。
 
 Map 遍历在已规划函数的实际 lowering 路径校验。旧路径在发出迭代操作前核验 provider，
 细化层核对同一条 typed 和 owned 计划及退出动作。未调用函数不再经过独立的整单元
@@ -33,7 +42,8 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
 已登记 MapResult 表示时，同样只读其 tag。借用判空产生 Boolean，原 loan 持续存活。
 
 普通借用返回转发按本次调用实参实际产生的 CFG 判定。直线求值与可合并的无条件跳转
-保留来源身份。实参分支仍以 `UnsupportedNode` 拒绝，定位到实际分支的源码范围。
+保留来源身份。实参分支仍以 `UnsupportedNode` 拒绝，定位到分支的源码范围。
+字面条件折叠为单后继时，槽位 CFG 保留来源标记供这项准入检查使用。
 直接 `Map.requireValue` 结果走独立的 Map 入口。
 
 普通调用结果的局部绑定可以与借用获取前、或有序且已验证的结束点之后的独立 `if`
@@ -48,6 +58,12 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
 - SSA 构造（`refine/emit`）：先把单前驱的直线后继并入其 `Goto` 前驱，再按槽位活跃性生成 block
   参数，非空目标末尾追加 view。abort 块继承同一分支另一条边的活跃集合，存活 owner 因此在 Abort
   边上有归属；产物经完整 verifier。
+
+Copyable 非空值的可用性随 CFG 边传播，合流只保留所有入边已证实的符号。
+每条证明边定义该符号的同一逻辑槽，SSA 构造为不同入边定义建立块参数。
+赋值与写回结束当前路径上的窄化，已读取的表达式值保留求值时的结果。
+非空提取使用已登记布局对应的 `NullableTake` 或 `MapResultUnwrap`。
+前端仍负责发布非空使用事实，并核对循环回边上的写入失效。
 
 调用后双 Abort 的测试 oracle 按 edge arguments 与目标参数的配对位置追踪入口 owner，
 验证预期调用确实消费它，再检查调用后的边不续传其重命名身份。调用前 Abort 和其他

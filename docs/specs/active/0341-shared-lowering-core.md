@@ -19103,3 +19103,37 @@ feature 正常 E2 套件 10 passed / 7 CI-only ignored（73.02s），单 feature
 此前超时仍是已记录的历史失败；本次通过不能单独证明资源竞争或系统策略是其根因。
 CI-only 失败原子性验收未在本地执行；生产入口仍未启用。本片在 a4a9c9f0 基线上验证，
 与后续主线的隔离非 native 组合证据另记，不冒充更新主线的完整 native 验收。
+
+### E2 实验共同计划的封闭选择错误
+
+`JointPlan::build_checked` 在原 test + feature 域内提供阶段化 Result；旧 `build` 仅委托
+`.ok()`，不增加 fallback 或改变生产 API。检查顺序保持分析身份、fact/entry 选择、来源
+映射、完整 Unit preflight、封闭 route/实例计划。来源映射与 preflight 原 `LoweringError`
+及 span 原样保留；其余未细分的闭包事实/一致性失败统称 `ClosedPlanRejected`，不能解读
+为源码在语言层必定非法或自动切换另一 lowering 路径。
+
+真实源码回归对照旧 Option 与新 Result：合法窄闭包、外来分析身份、重复 fact、入口数量
+不匹配、外来 entry，以及普通借用邻居触发的原 preflight 拒绝。此片只做计划选择，不
+发射 Program、对象或执行 native；不依赖尚待 native 最终验收的共同封包工作。
+
+本片单/双 feature 精确非 native 回归各一项通过，双 feature all-target 严格 Clippy、
+默认 all-target 编译通过；逐 diff 独审确认旧接受集及检查顺序不变。此证据不替代共同
+封包的 native/CI 验收，也不代表与更新主线的组合已经完成。
+
+### E2 与 main 21490e9c 的保留来源组合
+
+组合已提交封包 b58247a0、独立错误合同 d90a87d1 与 main 21490e9c，保留原分支。
+condition 冲突同时保留 scalar-entry 的 condition/split/join 观察和 main 的 Copyable
+proof、实际可达性及 literal 折叠。当前 scalar-entry 合同仅接受 Boolean 参数 Name，
+不命中新 literal 折叠分支；最终 receipt 仍核实际 Conditional、两臂及 join，不放宽准入。
+外置观察状态保持唯一；派生文档图按组合源重新生成，不丢 main 的 Spec 归档记录。
+
+实际条件冲突回归包括 main 真实 writeback/literal 源码的前端/SSA/LLVM 检查及原
+scalar-prefix 正例。完整 E2 正常套件在原十秒单程序标准顺序通过：双 feature
+12 passed / 7 CI-only ignored（84.39s），单 feature 12 passed / 7 ignored（64.71s）。
+没有改安全策略、签名、属性或超时。之后仅加强测试的零前端诊断断言，不改变生产实现；
+其精确回归单独复验。CI-only 故障仍未在本地运行，也不将本次组合称为生产已开放。
+
+组合尺寸门禁发现 condition.rs 达 1011 行；仅将原 cfg(test) receiver_ci_tests 模块
+等价提取至同名子模块，主文件降至 822 行，未增加例外额度。独审核正文逐 token 等价、
+生产前缀逐字不变、模块路径/可见域/唯一观察状态不变。仅编译和列举 CI 用例，不执行。

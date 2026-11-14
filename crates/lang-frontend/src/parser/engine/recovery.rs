@@ -15,6 +15,7 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     string_owner_ends: Vec<(usize, usize)>,
     string_recoveries: Vec<(usize, usize)>,
     lexical_poison_string_recoveries: Vec<(usize, usize)>,
+    diagnostic_anchor_prefix: Vec<usize>,
     pub(super) unterminated_interpolation_starts: Vec<usize>,
     pub(super) terminal_error_at_eof: bool,
     pub(super) terminal_owner_events: Vec<TerminalOwnerEvent>,
@@ -72,7 +73,11 @@ impl<'source> LexicalRecoveryIndex<'source> {
         let mut unterminated_interpolation_starts = Vec::new();
         let mut terminal_error_at_eof = false;
         let mut terminal_owner_events = Vec::new();
-        let mut diagnosed_lexemes = vec![false; lexed.lexemes().len()];
+        let mut diagnostic_anchor_prefix = if lexed.diagnostics().is_empty() {
+            Vec::new()
+        } else {
+            vec![0; lexed.lexemes().len() + 1]
+        };
 
         for diagnostic in lexed.diagnostics() {
             let span = diagnostic.primary_span();
@@ -102,10 +107,11 @@ impl<'source> LexicalRecoveryIndex<'source> {
             let Some(anchor_index) = diagnostic_anchor_index(lexed, span, anchor) else {
                 return Err(ParserInternalError::InvalidLexemeStream);
             };
-            if diagnosed_lexemes[anchor_index] {
+            let mark = &mut diagnostic_anchor_prefix[anchor_index + 1];
+            if *mark != 0 {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
-            diagnosed_lexemes[anchor_index] = true;
+            *mark = 1;
             if code == unterminated_string {
                 string_recoveries.push((span.start(), span.end()));
                 string_exit_events.push((span.end(), span.start()));
@@ -149,9 +155,15 @@ impl<'source> LexicalRecoveryIndex<'source> {
             matches!(
                 lexeme.kind(),
                 LexemeKind::Invalid(_) | LexemeKind::Token(TokenKind::ReservedWord(_))
-            ) && !diagnosed_lexemes[index]
+            ) && diagnostic_anchor_prefix.get(index + 1) != Some(&1)
         }) {
             return Err(ParserInternalError::InvalidLexemeStream);
+        }
+
+        let mut count = 0;
+        for mark in &mut diagnostic_anchor_prefix {
+            count += *mark;
+            *mark = count;
         }
 
         string_exit_events.sort_unstable();
@@ -341,6 +353,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
             string_owner_ends,
             string_recoveries,
             lexical_poison_string_recoveries,
+            diagnostic_anchor_prefix,
             unterminated_interpolation_starts,
             terminal_error_at_eof,
             terminal_owner_events: verified_events,
@@ -352,6 +365,17 @@ impl<'source> LexicalRecoveryIndex<'source> {
             supertype_boundary: Cell::new(None),
             angle_terminal_hint: 0,
         })
+    }
+
+    /// Checks diagnostic anchors in an already consumed raw lexeme range.
+    pub(super) fn has_diagnostic_anchor(&self, start: usize, end: usize) -> bool {
+        match (
+            self.diagnostic_anchor_prefix.get(start),
+            self.diagnostic_anchor_prefix.get(end),
+        ) {
+            (Some(before), Some(after)) => before < after,
+            _ => false,
+        }
     }
 
     pub(super) fn angle_group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {

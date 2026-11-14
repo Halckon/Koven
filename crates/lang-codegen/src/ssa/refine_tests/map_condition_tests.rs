@@ -302,7 +302,7 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
     assert_eq!(code, Some(0));
     assert_eq!(stdout, "replace-field-ok\n");
 
-    // Case 3: Mixed unit with refine main and legacy helper.
+    // Case 3: The original scalar helper now refines as well (SPEC-0454).
     let mixed_unit_source = r#"
     class Box(var v: Int)
     fun legacy_math_helper(x: Int, y: Int): Int {
@@ -328,13 +328,13 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
         lower_scalar_unit_with_entry(&sources, &inputs, &names, &type_env, &typed, &owned, entry)
             .expect("mixed unit lowers and verifies")
     });
-    // main routes to refine; helper does not require refine constructs and stays in legacy
+    // No source change is needed: both main and the supported linear helper now refine.
     assert!(routed.iter().any(|name| name.starts_with("koven.p.main.d")));
     assert!(
-        !routed
+        routed
             .iter()
             .any(|name| name.starts_with("koven.p.legacy_math_helper.d")),
-        "legacy_math_helper should remain in per-family lowering: {routed:?}"
+        "the original linear helper should use refine (SPEC-0454): {routed:?}"
     );
     let _llvm =
         crate::llvm::render_verified_program_with_entry(&program, entry).expect("verified LLVM");

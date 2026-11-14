@@ -180,3 +180,40 @@ fn every_public_entry_preserves_each_large_standalone_poison_stream() {
         assert_error_expression_count(parsed.ast());
     }
 }
+
+#[test]
+fn call_separator_does_not_repeat_the_lexical_poison_diagnostic() {
+    for gap in [" ", "\n"] {
+        for (poison, code) in [("β", "L0001"), ("async", "L0002")] {
+            let text = format!("f(0{gap}{poison}, tail)");
+            let (sources, source) = add_source(text.clone());
+            let parsed = parse_expression_twice(&sources, source, &text);
+            let [diagnostic] = parsed.diagnostics() else {
+                panic!("{text:?}: {:?}", parsed.diagnostics());
+            };
+            assert_eq!(diagnostic.code().to_string(), code);
+            assert_eq!(sources.slice(diagnostic.primary_span()), Ok(poison));
+            let call = parsed.ast().expressions().get(parsed.root()).unwrap();
+            let Expression::Call { arguments, .. } = call.payload() else {
+                panic!("{text:?}: expected call");
+            };
+            let [first, bad, tail] = arguments.as_slice() else {
+                panic!("{text:?}: expected both values and the recovered poison");
+            };
+            assert_eq!(sources.slice(first.span), Ok("0"));
+            assert_error_expression(parsed.ast(), bad.value, poison.len());
+            assert_eq!(bad.span, diagnostic.primary_span());
+            assert_eq!(sources.slice(tail.span), Ok("tail"));
+            assert!(matches!(
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(tail.value)
+                    .unwrap()
+                    .payload(),
+                Expression::Name
+            ));
+            assert_eq!(call.span().end(), text.len());
+        }
+    }
+}
