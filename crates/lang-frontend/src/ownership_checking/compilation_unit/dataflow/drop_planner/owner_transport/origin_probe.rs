@@ -5,6 +5,10 @@ use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in super::super) enum Event {
     Literal(UnitExpressionId),
+    Branch {
+        control: UnitExpressionId,
+        role: BranchRole,
+    },
     Moved {
         expression: UnitExpressionId,
         source: UnitSymbolId,
@@ -18,7 +22,23 @@ pub(in super::super) enum Event {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in super::super) enum BranchRole {
+    Enter(u8),
+    Exit(u8, bool),
+    JoinInputs(usize),
+}
+
 impl DropPlanner<'_, '_> {
+    pub(in super::super) fn origin_branch(&mut self, control: ExpressionId, role: BranchRole) {
+        if let Some(probe) = &mut self.origin_probe {
+            probe.push(Event::Branch {
+                control: self.checker.unit_expression(control),
+                role,
+            });
+        }
+    }
+
     pub(in super::super) fn origin_moved(
         &mut self,
         expression: ExpressionId,

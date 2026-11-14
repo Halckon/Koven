@@ -287,3 +287,16 @@ root 更新、old-result binding；探针开关的既有清理与观察产物相
 与事实发布的顺序，不等于运行时执行顺序；特别是分支替代路径的事实不能拼成
 单一路径。尚未记录分支角色/分流汇合和 borrow，故不能据这个线性日志构造完整
 loop/branch 状态机或 Carry 证明；遇到此类需求必须维持未完成/不准入。
+
+### 实际 If arm 与合流输入角色
+
+测试探针在 `owner_if_edges` 实际访问的 arm 入口及 body/清理完成后记录
+Enter/Exit，携带原 control、arm 号和实际 continues；隐式 else 也由其真实路径
+记录。合流前记录 `branch_states.len()` 为 JoinInputs，而不是宣称合流成功。
+正常双臂、一臂 return、双臂 return、隐式 else 四种普通源码分别核对两个、一个、
+零个、两个延续输入，并保持关闭探针时的 facts/旧观察相同。
+
+这是静态 planner 的替代路径边界，两个 arm 不能按日志顺序当成一次运行依次执行。
+异常返回可留下未完成 trace，不能据此发布状态或证明。尚未记录完整 borrower/loan
+角色、When、循环回边合流或真实 CFG predecessor；上述缺口仍阻止完整状态机和
+Carry 资格。本片没有引入生产观察或权限。

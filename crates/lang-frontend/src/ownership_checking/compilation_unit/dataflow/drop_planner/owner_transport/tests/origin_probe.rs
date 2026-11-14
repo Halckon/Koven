@@ -121,3 +121,75 @@ fn ordinary_move_and_drop_trace_records_actual_removal_and_publication() {
         assert_eq!(owned.drops(), &[*drop]);
     });
 }
+
+#[test]
+fn ordinary_branch_roles_keep_alternatives_separate_from_join_inputs() {
+    use super::super::origin_probe::BranchRole;
+    for (body, continues, inputs) in [
+        (
+            "if (flag) { val a = \"left\" } else { val b = \"right\" }",
+            [true, true],
+            2,
+        ),
+        (
+            "if (flag) { return } else { val b = \"right\" }",
+            [false, true],
+            1,
+        ),
+        ("if (flag) { return } else { return }", [false, false], 0),
+        ("if (flag) { val a = \"left\" }", [true, true], 2),
+    ] {
+        let text = format!("fun run(flag: Boolean) {{ {body} }}");
+        let fixture = Fixture::new(&[("branches.ko", &text)]);
+        let owned = fixture.shared();
+        let control = crate::type_checking::UnitExpressionId::new(
+            fixture.source(0),
+            fixture.expression(0, body),
+        );
+        compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+            let make = || {
+                super::super::super::DropPlanner::new(
+                    checker,
+                    super::super::super::liveness::build(checker, true).unwrap(),
+                )
+            };
+            let baseline = make().run().unwrap();
+            let mut planner = make();
+            planner.origin_probe = Some(Vec::new());
+            let observed = planner.run().unwrap();
+            assert_eq!(baseline.facts, observed.facts);
+            assert_eq!(baseline.owner_observations, observed.owner_observations);
+            let branches = observed
+                .origin_probe
+                .unwrap()
+                .into_iter()
+                .filter(|event| matches!(event, Event::Branch { .. }))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                branches,
+                vec![
+                    Event::Branch {
+                        control,
+                        role: BranchRole::Enter(0)
+                    },
+                    Event::Branch {
+                        control,
+                        role: BranchRole::Exit(0, continues[0])
+                    },
+                    Event::Branch {
+                        control,
+                        role: BranchRole::Enter(1)
+                    },
+                    Event::Branch {
+                        control,
+                        role: BranchRole::Exit(1, continues[1])
+                    },
+                    Event::Branch {
+                        control,
+                        role: BranchRole::JoinInputs(inputs)
+                    },
+                ]
+            );
+        });
+    }
+}
