@@ -1661,3 +1661,24 @@ prepare 对完整项目返回 Unsupported，不把其 nonce/facts 与普通产�
 all-tests Clippy `-D warnings`、默认 CLI check、fmt/diff/YAML 检查通过；Rust
 尺寸门禁通过（2275 文件、37 项历史债），文档检查通过（957 文件）。仅发射并
 检查真实对象，未链接或执行生成程序；未运行任何故障注入。独立审阅无阻断。
+
+### 同 run source 遍历批次账本前置（非 callable/项目权限）
+
+在原完整 dataflow source 遍历前保存四通道起点，实际 Checker 与 Drop planner
+汇集完成后捕获保序切片，包括零事实源；不在每次 push 时记录，避免把局部 trial
+回滚的临时事实当成最终发布。`SourceCollectionLedger` 保留原 analysis Arc，最终
+owned 仅在成功且无 deferred 时保留；公开读取必须使用 validated owned，并重新
+逐项核 loans、receiver facts、construction plans、drops 四个完整通道及原 run 身份。
+不存在重新分析、筛选标准源、替换 nonce 或将该账本转为准入能力的 API。
+
+这只是实际 **source 遍历上下文**，不表示事实引用的 target 必须属于本源，更不
+证明 callable、Drop 控制点或可达闭包。contracts/captures 等其他通道尚未覆盖。
+真实完整项目用原 canonical 源序和四通道全量拼接核验，保留标准库 closure 的事实，
+没有将其错误算作外层函数独占事实。默认 feature 不新增此状态，现行 gates 不变。
+
+本批验收：真实五源完整项目 exact 1 passed；正常 String、use-after-move 诊断及
+真实 IndexPlace deferred 三样本的发布边界 exact 1 passed，后两者不保留 ledger 且
+不能 validate；原 basic_unit_ownership 全事实/身份回归 25 passed。前端 lib/tests
+与 CLI tests feature Clippy `-D warnings`、默认 CLI check、fmt/diff/YAML、尺寸
+（2276 文件/37 历史项）及文档（957 文件）检查通过。独审无阻断；未执行 native、
+故障注入或跨 run 人工组合。尚未完成 callable 与剩余通道账本，不能用于项目准入。

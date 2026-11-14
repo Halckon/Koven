@@ -449,6 +449,8 @@ struct UnitOwnershipProvenance {
 /// SPEC-0198 的 recovery compilation-unit ownership product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
+    #[cfg(feature = "d10-catalog-experiment")]
+    source_collection_ledger: Option<d10_catalog_experiment::SourceCollectionLedger>,
     no_carry: loop_no_carry::CompletedNoCarry,
     pub(super) callable_provenance: super::callable_provenance::UnitCallableFacts,
     pub(super) borrow_results: super::borrow_result::UnitBorrowResults,
@@ -611,6 +613,9 @@ impl CompilationUnitOwnership {
             Vec::new()
         };
         Self {
+            #[cfg(feature = "d10-catalog-experiment")]
+            source_collection_ledger: (successful && dataflow.deferred.is_empty())
+                .then_some(dataflow.source_collection_ledger),
             iteration_conditional_scopes: dataflow.iteration_conditional_scopes,
             iteration_owner_scopes: dataflow.iteration_owner_scopes,
             iteration_loan_ends: dataflow.iteration_loan_ends,
