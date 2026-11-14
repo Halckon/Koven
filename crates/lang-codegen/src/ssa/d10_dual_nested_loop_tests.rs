@@ -19,6 +19,12 @@ fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
         (SOURCE.to_owned(), true),
         (
             SOURCE
+                .replace("count: Int", "count: Int, childCount: Int")
+                .replace("var inner = count", "var inner = childCount"),
+            true,
+        ),
+        (
+            SOURCE
                 .replace("first", "初始")
                 .replace("kept", "保留")
                 .replace("parent\"", "父\"")
@@ -80,6 +86,9 @@ fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
             )
             .unwrap();
             assert!(bound.matches(&unit));
+            let evidence = source::facts(&unit).expect("real initializer source identities");
+            assert_eq!(bound.counter_parameters(), evidence.counter_parameters);
+            assert_eq!(bound.counter_initializers(), evidence.counter_initializers);
             assert_ne!(bound.replacements()[0], bound.replacements()[1]);
             assert_ne!(bound.producer_sites()[1], bound.producer_sites()[2]);
             let entry = names

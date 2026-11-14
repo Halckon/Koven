@@ -40,16 +40,30 @@ pub(super) fn replay(
     let ch = block(17)?;
     let cb = block(19)?;
     let cf = block(26)?;
-    let [EntityId::Loan(parameter)] = e.parameters.as_slice() else {
-        return None;
+    let (parameter, child_parameter) = match e.parameters.as_slice() {
+        [EntityId::Loan(parent)] if !source.independent_counters => (*parent, *parent),
+        [EntityId::Loan(parent), EntityId::Loan(child)]
+            if source.independent_counters && parent != child =>
+        {
+            (*parent, *child)
+        }
+        _ => return None,
     };
     let EntityType::Loan {
         kind: LoanKind::Shared,
         target: int,
-    } = f.entity(EntityId::Loan(*parameter))?.ty
+    } = f.entity(EntityId::Loan(parameter))?.ty
     else {
         return None;
     };
+    if f.entity(EntityId::Loan(child_parameter))?.ty
+        != (EntityType::Loan {
+            kind: LoanKind::Shared,
+            target: int,
+        })
+    {
+        return None;
+    }
     if module.types.get(int.index())?
         != &(SsaTypeKind::Integer {
             bits: 32,
@@ -148,7 +162,7 @@ pub(super) fn replay(
         (
             2,
             Operation::Read {
-                source: PlaceAccess::Loan(*parameter),
+                source: PlaceAccess::Loan(parameter),
             },
         ),
         (3, Operation::Constant(ScalarConstant::Integer(0))),
@@ -307,7 +321,13 @@ pub(super) fn replay(
     if term(e)?
         != &TerminatorKind::Branch(edge(
             ph.id,
-            args(*parameter, value(0, 0)?, value(1, 0)?, value(2, 0)?, None),
+            args(
+                child_parameter,
+                value(0, 0)?,
+                value(1, 0)?,
+                value(2, 0)?,
+                None,
+            ),
         ))
         || term(ph)?
             != &(TerminatorKind::Conditional {

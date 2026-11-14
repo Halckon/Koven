@@ -703,3 +703,30 @@ MissingFact 且 span 文本为 `x`。后者不声称已定位多个 `x` 中某�
 两者正常前端分析成功，但不属于双操作 sidecar 的封闭范围；这项回归保留普通
 后端拒绝，不能把 #428 的前端修复或本次组合解读为后端已支持这些控制表达式。
 独立复审无阻断；未运行 native 或本地故障注入，原四项 CI-only 身份用例仍 ignored。
+
+### 双操作嵌套的独立 counter 来源
+
+在上述 #428 组合基线上，实验 dual envelope 保留单 Shared Int 参数，同时允许
+两个不同的默认模式 Int 参数：声明第一个只初始化父 counter，第二个初始化子
+counter。初始化仍是完整源码中的真实 Name 引用；交换、重复使用而闲置另一参数、
+额外参数、own/inout 参数以及合法 Long 倒数邻接均拒绝。所有局部根与参数身份分离，
+原 7/14/27 arena 覆盖、31 个 planner 事件、最终 owned 的两 primitive／三 loan／
+四 Drop 核验不变。`counter_parameters()` 与 `counter_initializers()` 暴露实际角色
+及表达式身份；旧 `roots().3` 仍为父参数，不再代表所有 counter 的共同来源。
+
+真实普通 Unit SSA 对双参数源码产生两个入口 Shared Int loan：父参数只用于入口
+父 counter 的 Read；子参数随父／子循环 block 参数运输，在父 body 的子初始化处
+读取。独立 replay 核验这两个 Read、类型、来源与同次 bound sidecar 对账，保留
+11 block／28 指令的完整根环境、predecessor、清理与回边检查，未重写或筛选 SSA。
+child false edge 携带父 Replace 后的当前根，父回边携带 child 出口当前根。
+
+这使 `run(parentCount, childCount)` 的父正／子零输入可独立表达，修复此前共用
+count 时无法单独取该输入的见证限制；本片仅实际 SSA 验证，没有执行 native 或
+声称动态跑过该输入。固定名称的后端源码适配仍是 fixture 证据，不是任意双参数
+程序认证器。普通 selector、Elvis 分期、其他 nested sidecar 准入均未放宽。
+
+本片验证：三个 handoff 外部套件合计六项普通测试、真实 planner 五项、D10 SSA
+八项均通过；Rooted 与 MemoryDocument 均覆盖双参数及同次 initializer 身份。
+前端与后端严格 Clippy、默认前端编译、文档 956、独立复审通过；四项 CI-only
+身份错配测试保持 ignored。新增 Long 拒绝源码采用 `0L`／`1L`，前端合法后才
+验证候选拒绝，不以类型错误代替 sidecar 边界。

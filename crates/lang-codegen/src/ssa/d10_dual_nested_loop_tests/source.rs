@@ -9,6 +9,9 @@ use lang_frontend::{
 
 pub(super) struct Facts {
     pub(super) callable: Origin,
+    pub(super) independent_counters: bool,
+    pub(super) counter_parameters: [lang_frontend::name_resolution::UnitSymbolId; 2],
+    pub(super) counter_initializers: [UnitExpressionId; 2],
     pub(super) controls: [Origin; 2],
     pub(super) conditions: [Origin; 2],
     pub(super) steps: [Origin; 2],
@@ -224,7 +227,9 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
     }
     let reads = [variable("outer")?.1, variable("inner")?.1];
     let (parameter, _) = symbol("count")?;
-    for id in reads {
+    let child_parameter = symbol("childCount").map(|s| s.0).unwrap_or(parameter);
+    let independent_counters = child_parameter != parameter;
+    for (id, parameter) in reads.into_iter().zip([parameter, child_parameter]) {
         let node = ast.expressions().get(id).ok()?;
         if !matches!(node.payload(), Expression::Name) {
             return None;
@@ -265,6 +270,9 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
         return None;
     };
     Some(Facts {
+        independent_counters,
+        counter_parameters: [parameter, child_parameter],
+        counter_initializers: reads.map(|id| UnitExpressionId::new(source, id)),
         callable: Origin::Source(ast.items().get(*function).ok()?.span()),
         controls: [parent.1, child.1],
         conditions: [outer.1, inner.1],
