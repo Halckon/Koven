@@ -18694,3 +18694,37 @@ native driver、对象发布事务或生产接受集；本地不运行故障注�
 最终缺失 terminator，要求返回对应 Replay/Verify 错误而非任何 checked 包；每次失败后
 正常重试必须重新走完整检查与发射。CI 脚本现在列举 5 个精确目标 × 2 个特性配置。
 本地仅编译/list 故障目标，正常回归仍排除 ignored；未声明故障执行结果或生产能力。
+
+
+### 2026-11-14：多 fact 与生产接入的下一片边界审计（未实现）
+
+当前 `ExperimentalUnitHandoff::for_fact` 只保存一个 selected fact；受检 entry publisher
+内部重新单选，故同 Unit 第二个两源 binding 仍在共享全 Unit preflight 拒绝。
+`e2_callee_leaves::emit_selected` 从新的 Program/Module 分配函数和类型 ID，现有各 entry
+包的数值 ID 不跨包唯一；把已发布 Program 拼接，或仅拼 coverage，不构成共同 Unit。
+
+后续最窄候选是显式 fact-set preflight，而非自动选择所有发现的事实：
+
+1. 输入非空且无重复的原始 fact 身份；所有项须由同次 retained 产品拥有，并有完整
+   FunctionShell 与 scoped leaf closure。不得把 foreign/retyped、缺失 leaf 或额外函数
+   前后缀作为“未选”静默丢弃；失败不产生选择 capability。
+2. 每个 binding 与 callable/loop 在集合中恰属一个事实，核对真实两臂 source/loan/End 后才投影其控制
+   节点。来源相同、key 相同不替代 fact 身份；重复选择与归属冲突保守拒绝。
+3. 一次运行全 Unit declarations/bindings/globals，错误顺序不变；未选两源项仍失败，
+   不能逐 fact 检查后相加成功结果。集合选择
+   只证明 preflight，不证明多个闭包已共同发射，更不能转换普通 owned/native view。
+4. 后续共同 Program 需单一 allocator 与完整 instance-key→FunctionId 表；共享 leaf
+   在同一来源/ABI/角色证明下去重，caller/helper 保持所属 fact，逐项真实 entry 的
+   required/selected 闭包独立 replay，最终整 Program verify 后一次封包。不得改造
+   已发布包的 ID 或用 synthetic entry 冒充原源码调用。此步尚未实现。
+
+候选验收须包括：两个受支持独立事实、共享 leaf、重复/foreign/缺项、普通 unsupported
+binding、未选 sibling，以及同 key 角色冲突。成功选择但发射失败不得留下部分发布。
+这些是新实验接受范围的合同准备，不宣称当前已支持；不需要先定整个 Origin 系统，
+但不可借此放宽未定义的 guard、可变独占或跨迭代 carry 语义。
+
+生产 `emit_native_owned_unit_object` 仍要求普通 OwnedCompilationUnitView，并在 reserve
+之前完成 entry/SSA/native plan 检查，再走 sibling object 原子提交。实验内存封包及
+正常 LLVM 执行尚不能替代这条 authority 与对象事务链；CI-only 故障用例也仍待实际
+远端执行。生产接入需独立明确受支持范围及合法 capability，不使用 unsafe 转型或
+测试 feature 作为发布权限。本节仅记录代码审计与候选次序，未变更接受集。
