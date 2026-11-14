@@ -407,3 +407,20 @@ sidecar 绑定、封闭源码范围、条件/计数器及真实 CFG predecessor/
 普通验收核实际 initial/incoming/call/root 身份、出口 Header 不等于本轮 site、
 old-result 单独清理及全部真实 DropFact，并用 break、额外 println、二次 Replace
 源码核拒绝边界。不构造坏事实，不运行故障注入或 native loop；不改默认生产行为。
+
+### 与 2026-11-14 主线的隔离组合验证
+
+在独立本地分支将 `b15addda` 与 main `28a3c290` 组合，原工作树未重置。
+主线新增 while-flow 的按实际退出筛选写入规则已保留；该组合上的 generation
+候选普通正/拒绝源码、catalog handoff 与 loop cleanup、`inout_storage` 20 项
+（含主线新增 loop-jump/when-generation 邻接回归）通过。
+
+三处模块迁移冲突按独审结果解决：保留外置 checkpoint/owner test helper，主线
+209 个 fault 枚举全部存在于本地 221 项集合；helper 函数仅路径/可见范围变化，
+仍经同一 reexport 使用同一 FAULT/ACTIONS 实例。保留实际 `refine/folding.rs`
+所需显式 path，不复活第二套 helper，不修改主线的其余自动合并内容。
+
+组合 codegen 的 `ssa::d10_` 三项实际 SSA/LLVM 验证通过；更宽 `d10_` 过滤共
+61 项普通回归亦通过，其中包含既有 D10-W09 native 用例。未运行 CI-only 故障。
+格式、文档与 diff 门禁通过。此项是新主线兼容验证，不新增 loop catalog 的
+source-completeness、最终 owned 能力或 Replace/Carry emitter。

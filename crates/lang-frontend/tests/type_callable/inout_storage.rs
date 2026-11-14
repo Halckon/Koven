@@ -430,6 +430,22 @@ fn conditional_scan_distinguishes_callable_exit_from_nested_loop_jumps() {
             &[("L0084", "x")][..],
         ),
         (
+            "loop { left ?: take(write(&x), if (flag) { return 0; break } else { return 0 }); break }; true",
+            &[][..],
+        ),
+        (
+            "loop { left ?: take(write(&x), if (flag) { return 0; continue } else { return 0 }); break }; true",
+            &[][..],
+        ),
+        (
+            "loop { left ?: take(write(&x), if (flag) { take(return 0, break); return 0 } else { return 0 }); break }; true",
+            &[][..],
+        ),
+        (
+            "if (false) { loop { left ?: take(write(&x), break); break } }; true",
+            &[][..],
+        ),
+        (
             "var retry = flag; loop { if (retry) { retry = false; left ?: take(write(&x), continue) }; break }; true",
             &[("L0084", "x")][..],
         ),
@@ -459,6 +475,93 @@ fn conditional_scan_distinguishes_callable_exit_from_nested_loop_jumps() {
         );
         assert_inout_diagnostic_spans(&text, expected);
     }
+}
+
+#[test]
+fn only_writes_from_the_selected_loop_exit_reach_the_join() {
+    for (fallback, expected) in [
+        ("if (flag) { write(&x); return 0 } else { break }", &[][..]),
+        ("if (flag) { break } else { write(&x); return 0 }", &[][..]),
+        (
+            "if (flag) { if (other) { write(&x) } else { break }; return 0 } else { break }",
+            &[][..],
+        ),
+        (
+            "if (flag) { if (other) { write(&x) } else { break }; break } else { return 0 }",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "if (flag) { write(&x); if (other) { break }; return 0 } else { break }",
+            &[("L0084", "x")][..],
+        ),
+        ("if (flag) return write(&x) else break", &[][..]),
+        (
+            "when { flag -> { write(&x); return 0 }; else -> { break } }",
+            &[][..],
+        ),
+        (
+            "if (flag) { write(&x); break } else { return 0 }",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "take(write(&x), if (flag) { break } else { return 0 })",
+            &[("L0084", "x")][..],
+        ),
+        (
+            "when { flag -> { write(&x); break }; else -> { return 0 } }",
+            &[("L0084", "x")][..],
+        ),
+    ] {
+        let text = format!(
+            "fun take(a: Int, b: Int): Boolean = true
+             fun write(inout target: Int?): Int {{ target = null; return 0 }}
+             fun run(left: Boolean?, flag: Boolean, other: Boolean): Int {{
+                 var x: Int? = 7
+                 if (x != null && (if (flag) {{
+                     loop {{ left ?: {fallback}; break }}
+                     true
+                 }} else {{ true }})) {{ return x }}
+                 return 0
+             }}"
+        );
+        assert_inout_diagnostic_spans(&text, expected);
+    }
+}
+
+#[test]
+fn nested_loop_jumps_do_not_duplicate_write_targets() {
+    let loops = format!(
+        "{}write(&x); break{}}}",
+        "loop { ".repeat(28),
+        " }; break".repeat(27)
+    );
+    let text = format!(
+        "fun write(inout target: Int?): Int {{ target = null; return 0 }}
+         fun run(flag: Boolean): Int {{
+             var x: Int? = 7
+             if (x != null && (if (flag) {{ {loops}; true }} else {{ true }})) {{ return x }}
+             return 0
+         }}"
+    );
+    assert_inout_diagnostic_spans(&text, &[("L0084", "x")]);
+}
+
+#[test]
+fn unexecuted_lambda_still_checks_reachable_local_loop_jumps() {
+    let text = "fun take(a: Int, b: Int): Boolean = true
+        fun write(inout target: Int?): Int { target = null; return 0 }
+        fun run(left: Boolean?, flag: Boolean): Int {
+            return 0
+            val closure: () -> Int = {
+                var x: Int? = 7
+                if (x != null && (if (flag) {
+                    loop { left ?: take(write(&x), break); break }
+                    true
+                } else { true })) { return x }
+                return 0
+            }
+        }";
+    assert_inout_diagnostic_spans(text, &[("L0084", "x")]);
 }
 
 #[test]

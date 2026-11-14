@@ -21,6 +21,7 @@ pub(super) struct IterationRecovery {
     pub(super) discovered_loops: BTreeSet<usize>,
     pub(super) abrupt_expressions: BTreeSet<usize>,
     pub(super) abrupt_statements: BTreeSet<usize>,
+    pub(super) unreachable_loop_jumps: BTreeSet<usize>,
     pub(super) boolean_edges: BTreeMap<usize, super::pending_boolean::PendingBooleanEdges>,
     pub(super) deferred_argument_entries: BTreeMap<usize, BTreeSet<SymbolId>>,
 }
