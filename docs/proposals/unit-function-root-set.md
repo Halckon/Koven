@@ -189,3 +189,19 @@ no-run、严格 all-target feature Clippy、fmt、docs953、diff 和独审通过
 
 本片脚本精确编译/列举三项目标，none executed；两个普通 planner exact 2/2、
 严格 all-target feature Clippy、fmt、bash、docs953、diff 与独审通过。未推送。
+
+### 真实非函数根与成员身份的边界
+
+保留原 generic 源，另加含未被调用 Counter.answer 的变体；正常四根仍只规划
+九个实例，并核真实成员 target 是 Symbol、未进入可达实例。原 ordinary exact
+同时验证两种源码，确保 CI-only 负控使用的来源本身可通过基本 Unit 检查。
+
+已有根准入 CI-only 目标再用 Counter 的真实 DeclarationId 分别作为单根、与
+普通四根混合、混合逆序，核 MissingFact/原 name_span，以及 arena 不增长和同
+事实恢复。没有伪造成员 DeclarationId：当前 API 只接受声明根，实例成员使用
+UnitCallableTarget::Symbol，不能把 nominal 被拒绝冒称为 receiver 根动态验收。
+此片不扩 API、不启用生产多根、不删除旧 oracle；负控仍只布置，动态待 CI。
+
+本片普通 planner exact 2/2 通过（generic 含原源和成员变体）；三个 CI-only 目标
+编译/列举成功但 none executed。严格 Clippy、fmt、docs953、diff 和独审通过。
+此处 frontend 为 basic validated 链，不声称 final complete gate；未推送。

@@ -20,6 +20,12 @@ const OVERLOADS: &str = "fun <T> choose(own input: T): T = input\n\
          fun one(input: Int): Int = choose(input)\n\
          fun two(input: Int): Int = choose(input, true)";
 
+fn with_unreachable_member() -> String {
+    format!(
+        "{GENERICS}\nvalue class Counter(val item: Int) {{\n    fun answer(own delta: Int): Int = item + delta\n}}"
+    )
+}
+
 fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool) {
     let mut sources = SourceMap::new();
     let source_id = sources.add_source("test/roots.ko", source).unwrap();
@@ -71,6 +77,30 @@ fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool)
     };
     let run = |roots: &[DeclarationId]| plan_roots(roots).unwrap();
     let plan = run(&entries);
+    let nominal = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.name() == "Counter");
+    if let Some(declaration) = nominal {
+        let signature = typed
+            .types()
+            .signatures()
+            .declaration(declaration.id())
+            .unwrap();
+        let nominal = signature.nominal().unwrap();
+        let [member] = nominal.members() else {
+            panic!("one real receiver member")
+        };
+        assert!(matches!(member.target(), UnitCallableTarget::Symbol(_)));
+        assert!(
+            !plan
+                .instances
+                .iter()
+                .any(|instance| instance.key.target() == member.target())
+        );
+    }
     if reject_roots {
         assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
         let arena = typed.types().types().len();
@@ -86,7 +116,7 @@ fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool)
         mixed.push(generic.id());
         let mut reverse = mixed.clone();
         reverse.reverse();
-        for (roots, kind, span) in [
+        let mut rejected = vec![
             (vec![], LoweringErrorKind::InvalidModel, None),
             (
                 vec![entries[0], entries[0]],
@@ -103,7 +133,21 @@ fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool)
                 LoweringErrorKind::UnsupportedNode,
                 Some(generic_span),
             ),
-        ] {
+        ];
+        if let Some(nominal) = nominal {
+            let mut mixed = entries.clone();
+            mixed.push(nominal.id());
+            let mut reverse = mixed.clone();
+            reverse.reverse();
+            for roots in [vec![nominal.id()], mixed, reverse] {
+                rejected.push((
+                    roots,
+                    LoweringErrorKind::MissingFact,
+                    Some(nominal.name_span()),
+                ));
+            }
+        }
+        for (roots, kind, span) in rejected {
             let error = plan_roots(&roots).unwrap_err();
             assert_eq!(error.kind, kind);
             assert_eq!(error.span, span);
@@ -161,6 +205,12 @@ fn check(source: &str, root_names: &[&str], expected: usize, reject_roots: bool)
 fn ordinary_generic_roots_share_one_instance_plan() {
     check(
         GENERICS,
+        &["useInt", "useIntAgain", "useLong", "recursive"],
+        9,
+        false,
+    );
+    check(
+        &with_unreachable_member(),
         &["useInt", "useIntAgain", "useLong", "recursive"],
         9,
         false,
@@ -261,6 +311,12 @@ fn ci_only_root_selection_rejects_empty_duplicate_and_generic() {
     assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
     check(
         GENERICS,
+        &["useInt", "useIntAgain", "useLong", "recursive"],
+        9,
+        true,
+    );
+    check(
+        &with_unreachable_member(),
         &["useInt", "useIntAgain", "useLong", "recursive"],
         9,
         true,
