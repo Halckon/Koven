@@ -380,7 +380,7 @@ impl Builder<'_, '_> {
                     EntityType::Value(inner_ssa),
                     span,
                 )?;
-                self.narrowed.insert(fact.symbol(), narrowed);
+                self.record_narrowing(fact.symbol(), narrowed, span)?;
                 self.emit_drops(&operand_drops)?;
                 self.entry_dead
                     .entry(on_non_null)
@@ -422,7 +422,7 @@ impl Builder<'_, '_> {
                     EntityType::Value(inner_ssa),
                     span,
                 )?;
-                self.narrowed.insert(fact.symbol(), narrowed);
+                self.record_narrowing(fact.symbol(), narrowed, span)?;
             } else if !views
                 || (!fact.non_null_when_true() && control_span.is_none())
                 || drops_owner
@@ -465,13 +465,26 @@ impl Builder<'_, '_> {
         self.body
             .arm_loop_plans
             .condition(condition_id, condition_block, condition, span)?;
+        let origin = control_span.unwrap_or(span);
+        // Keep explicit If arm identities unless an impossible edge would
+        // participate in merging an existing Copyable proof.
+        let carries_proof = self
+            .narrowed
+            .get(&condition_block)
+            .is_some_and(|symbols| !symbols.is_empty());
+        if (control_span.is_none() || carries_proof)
+            && let Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(value)) = payload
+        {
+            self.body.blocks[condition_block.0].folded_condition = true;
+            return self.goto(if value { when_true } else { when_false }, origin);
+        }
         self.terminate(
             RTerm::Branch {
                 condition,
                 when_true,
                 when_false,
             },
-            control_span.unwrap_or(span),
+            origin,
         )
     }
 

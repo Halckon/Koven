@@ -928,6 +928,8 @@ pub(super) struct RBlock {
     pub(super) has_predecessor: bool,
     pub(super) statements: Vec<RStmt>,
     pub(super) terminator: Option<(RTerm, Span)>,
+    /// A source condition folded into a single-successor terminator.
+    pub(super) folded_condition: bool,
     /// Set for a `NullBranch` non-null target: the proof view defined on entry.
     pub(super) view: Option<Slot>,
     /// Source of the construct this block joins; the function span when unset.
