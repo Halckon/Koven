@@ -17851,3 +17851,17 @@ owner、无重复 BorrowEnd、Drop 晚于构造。结论限于这些既有 SSA �
 未改生产或 Origin，未执行故障注入/全量测试，未推送；远程 CI 不由此替代。
 带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
 和 diff 检查通过；测试文件 892 行，未超过手写 Rust 1000 行软上限。
+
+### when 兄弟边 callback 见证迁至 Unit（2026-11-14）
+
+基于 `6ec0163f`，保留
+`ssa::refine_closure_tests::source_closure_tests::single_runtime_named_shared_callback_survives_when_sibling_edges`
+原 FQN 与四组分支源码，改为已验收的严格 Unit helper；前端 admission、类型 arena
+不增长及 LLVM verifier 条件保留，另核 root 声明身份。首次失败即停止代替失败汇总，
+不放宽成功条件。删除迁移后零调用的模块内旧 lower helper，顶层 Unit lower 与其
+调用方不动；不删除仍由 analyze 承载的旧内部身份见证。
+
+完整 FQN exact 1/1（四组源码）及测试编译通过，独立只读审查无阻断。没有生产、
+Origin 或故障分类变更，未执行故障注入、全量测试或推送。
+带 loan-observation-test-support 的 all-target 严格 Clippy、fmt、docs（951 文件）
+及 diff 检查通过；远程 CI 仍须对应最终发布头另行验收。

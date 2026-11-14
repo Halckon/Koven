@@ -293,22 +293,6 @@ mod source_closure_tests {
         check(&sources, &parsed, &names, &typed, &owned)
     }
 
-    fn lower(text: &str) -> Program {
-        analyze(text, |sources, parsed, names, typed, owned| {
-            let arena = typed.types().len();
-            let program = lower_scalar_file(sources, parsed, names, typed, owned)
-                .expect("source must reach verified SSA");
-            assert_eq!(
-                typed.types().len(),
-                arena,
-                "backend only queries canonical types"
-            );
-            crate::llvm::render_verified_program(&program)
-                .expect("source must reach verified LLVM");
-            program
-        })
-    }
-
     #[test]
     fn single_runtime_nothing_operand_stops_before_borrow_and_initializer() {
         let mut failures = Vec::new();
@@ -742,7 +726,6 @@ mod source_closure_tests {
 
     #[test]
     fn single_runtime_named_shared_callback_survives_when_sibling_edges() {
-        let mut failures = Vec::new();
         for branches in [
             "flag -> println(\"then\")\nelse -> println(\"else\")",
             "flag, other -> println(\"then\")\nelse -> println(\"else\")",
@@ -754,22 +737,9 @@ mod source_closure_tests {
                  val callback: (Int)->Int = {{ index -> index + scale }}\n\
                  when {{ {branches} }}\nval items = List<Int>(3, callback)\nreturn items[2] }}"
             );
-            analyze(&text, |sources, parsed, names, typed, owned| {
-                let before = typed.types().len();
-                match lower_scalar_file(sources, parsed, names, typed, owned) {
-                    Ok(program) => {
-                        crate::llvm::render_verified_program(&program)
-                            .expect("when siblings retain valid capture identities");
-                    }
-                    Err(error) => failures.push(format!("{branches}: {error:?}")),
-                }
-                assert_eq!(typed.types().len(), before);
-            });
+            // Strict Unit preserves the original frontend/arena/LLVM checks.
+            let _ = lower_unit_entry(&text);
         }
-        assert_diagnostic!(
-            failures.is_empty(),
-            "every when sibling must transport its own active Shared capture loan: {failures:?}"
-        );
     }
 
     #[test]
