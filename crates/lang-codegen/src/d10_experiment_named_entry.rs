@@ -94,7 +94,8 @@ pub fn lower_named_entry<'view, 'parsed: 'view>(
 }
 
 /// Lower a final-admitted explicit preparation without reconstructing or replacing its analyses.
-/// This opt-in bridge is not selected by the CLI and never falls back to another capability.
+/// Only the explicit experimental driver selects this bridge; ordinary build/run never do.
+/// It never falls back to another capability.
 pub fn lower_prepared_named_entry<'view, 'parsed: 'view>(
     sources: &'view lang_frontend::source::SourceMap,
     inputs: &'view [lang_frontend::name_resolution::SourceUnitInput<'parsed>],

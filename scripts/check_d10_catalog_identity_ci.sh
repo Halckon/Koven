@@ -87,3 +87,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'AfterChild named process object atomicity control compiled/listed; not executed'
 fi
+
+selected_entry=ci_only_selected_entry_rejects_foreign_and_cloned_declarations
+listing=$(cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_prepare_named_entry "$selected_entry" -- --exact --ignored --list)
+[[ $(grep -Fxc "$selected_entry: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_prepare_named_entry "$selected_entry" -- --exact --ignored
+else
+  echo 'selected-entry foreign/cloned identity controls compiled/listed; not executed'
+fi

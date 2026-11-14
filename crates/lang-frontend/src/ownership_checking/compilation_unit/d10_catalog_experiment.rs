@@ -195,4 +195,6 @@ mod named_entry;
 pub use named_entry::{BoundNamedEntry, NamedEntryOrder, NamedEntryView, analyze_named_entry};
 
 mod prepare;
-pub use prepare::{PrepareNamedEntryError, PreparedNamedEntry, prepare_named_entry};
+pub use prepare::{
+    PrepareNamedEntryError, PreparedNamedEntry, prepare_named_entry, prepare_selected_named_entry,
+};

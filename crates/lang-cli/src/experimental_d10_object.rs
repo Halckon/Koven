@@ -10,7 +10,9 @@ use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::lex,
     name_resolution::SymbolKind,
-    ownership_checking::d10_catalog_experiment::{PrepareNamedEntryError, prepare_named_entry},
+    ownership_checking::d10_catalog_experiment::{
+        PrepareNamedEntryError, prepare_named_entry, prepare_selected_named_entry,
+    },
     parser::parse_file,
     source::SourceMap,
     type_checking::{FinalTypeAdmissionError, check_compilation_unit_types, standard_environments},
@@ -167,54 +169,66 @@ fn emit(path: &Path, entry: &str, output: &Path) -> Result<(), Failure> {
     let typed = typed
         .validate()
         .map_err(|_| operational("experimental source requires basic typed capability"))?;
-    let prepared = prepare_named_entry(sources, &inputs, names, &types, typed).map_err(
-        |error| match error {
-            PrepareNamedEntryError::FinalTypeAdmission(FinalTypeAdmissionError::Diagnostics(
-                values,
-            )) => diagnostics(sources, &values),
-            PrepareNamedEntryError::OwnershipAdmission {
-                diagnostics: values,
-                deferred,
-            } => {
-                if values.is_empty() {
-                    operational(format!("ownership remains deferred: {deferred:?}"))
-                } else {
-                    diagnostics(sources, &values)
-                }
+    let requested = (|| {
+        let source_unit = names
+            .names()
+            .index()
+            .source_units()
+            .iter()
+            .find(|unit| unit.source_id() == source)
+            .ok_or_else(|| operational("original source identity is missing"))?
+            .id();
+        let mut matches = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.source_unit() == source_unit
+                    && declaration.kind() == SymbolKind::Function
+                    && declaration.name() == entry
+            });
+        let selected = matches
+            .next()
+            .ok_or_else(|| operational(format!("entry `{entry}` was not found")))?;
+        if matches.next().is_some() {
+            return Err(operational(format!("entry `{entry}` is ambiguous")));
+        }
+        Ok(selected)
+    })();
+    let admission_failure = |error| match error {
+        PrepareNamedEntryError::FinalTypeAdmission(FinalTypeAdmissionError::Diagnostics(
+            values,
+        )) => diagnostics(sources, &values),
+        PrepareNamedEntryError::OwnershipAdmission {
+            diagnostics: values,
+            deferred,
+        } => {
+            if values.is_empty() {
+                operational(format!("ownership remains deferred: {deferred:?}"))
+            } else {
+                diagnostics(sources, &values)
             }
-            error => operational(format!("{error:?}")),
-        },
-    )?;
-    let sealed = prepared.bound().entry();
-    let source_unit = names
-        .names()
-        .index()
-        .source_units()
-        .iter()
-        .find(|unit| unit.source_id() == source)
-        .ok_or_else(|| operational("original source identity is missing"))?
-        .id();
-    let mut matches = names
-        .names()
-        .index()
-        .declarations()
-        .iter()
-        .filter(|declaration| {
-            declaration.source_unit() == source_unit
-                && declaration.kind() == SymbolKind::Function
-                && declaration.name() == entry
-        });
-    let selected = matches
-        .next()
-        .ok_or_else(|| operational(format!("entry `{entry}` was not found")))?;
-    if matches.next().is_some() {
-        return Err(operational(format!("entry `{entry}` is ambiguous")));
-    }
-    if selected.source_unit() != sealed.source_unit() || selected.root() != sealed.item() {
-        return Err(operational(
-            "explicit entry is not the sealed source wrapper",
-        ));
-    }
+        }
+        PrepareNamedEntryError::EntryMismatch => {
+            operational("explicit entry is not the sealed source wrapper")
+        }
+        error => operational(format!("{error:?}")),
+    };
+    // Exactly one ownership analysis in either branch. A missing/ambiguous CLI selector does
+    // not hide a source admission error; successful resolution uses the library's same-object
+    // membership and sealed-wrapper contract rather than duplicating its root checks here.
+    let prepared = match requested {
+        Ok(selected) => {
+            prepare_selected_named_entry(sources, &inputs, names, &types, typed, selected)
+                .map_err(admission_failure)?
+        }
+        Err(selection_error) => {
+            prepare_named_entry(sources, &inputs, names, &types, typed)
+                .map_err(admission_failure)?;
+            return Err(selection_error);
+        }
+    };
     let publication = lang_codegen::d10_experiment::lower_prepared_named_entry(
         sources, &inputs, names, &types, &prepared,
     )

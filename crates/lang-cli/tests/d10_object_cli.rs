@@ -153,6 +153,13 @@ fun entry() { val p = 1; val c = 2; run(p, c) }"#;
                 let out = command(&source, &object, "entry", json);
                 assert_eq!(out.status.code(), Some(status), "{source_text}: {out:?}");
                 assert!(out.stdout.is_empty());
+                if status == 1 {
+                    // Explicit selector errors must not mask actual source admission failures.
+                    let missing = command(&source, &object, "absentEntry", json);
+                    assert_eq!(missing.status.code(), Some(1));
+                    assert!(missing.stdout.is_empty());
+                    assert_eq!(missing.stderr, out.stderr);
+                }
                 assert_eq!(d.entries(), before);
                 assert_eq!(fs::read_to_string(&source).unwrap(), source_text);
                 if json && status == 1 {

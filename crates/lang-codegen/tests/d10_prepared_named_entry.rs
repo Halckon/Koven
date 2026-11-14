@@ -27,7 +27,8 @@ fn explicit_final_admitted_entry_emits_real_object_without_test_observation_hook
             let index = index_compilation_unit(&sources, &inputs).unwrap();
             let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env).unwrap().validate().unwrap();
             let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap().validate().unwrap();
-            let prepared = experiment::prepare_named_entry(&sources, &inputs, &names, &types, typed).unwrap();
+            let selected = names.names().index().declarations().iter().find(|d| d.name() == "entry" && d.kind() == lang_frontend::name_resolution::SymbolKind::Function).unwrap();
+            let prepared = experiment::prepare_selected_named_entry(&sources, &inputs, &names, &types, typed, selected).unwrap();
             let publication = lang_codegen::d10_experiment::lower_prepared_named_entry(&sources, &inputs, &names, &types, &prepared).unwrap();
             assert_eq!(publication.callable(), prepared.bound().entry());
             assert_eq!(publication.order(), prepared.bound().order());

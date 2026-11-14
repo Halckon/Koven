@@ -2,6 +2,7 @@
 use super::*;
 use crate::{
     diagnostic::Diagnostic,
+    name_resolution::{SymbolKind, UnitDeclaration},
     type_checking::{FinalTypeAdmissionError, complete_compilation_unit_types},
 };
 
@@ -25,6 +26,10 @@ pub enum PrepareNamedEntryError {
     Ambiguous,
     /// The unique candidate failed its original final-owned binder.
     Unproved,
+    /// The selector does not borrow a declaration from the supplied original names instance.
+    ForeignEntry,
+    /// The original declaration is not the sealed source wrapper function.
+    EntryMismatch,
 }
 
 /// Owns the same typed and bound analyses. No mutable access or ownership conversion is offered.
@@ -76,4 +81,35 @@ pub fn prepare_named_entry(
     }
     let bound = super::named_entry::select(owned, before, after)?;
     Ok(PreparedNamedEntry { typed, bound })
+}
+
+/// Prepare once, then validate an explicit original declaration against the sealed wrapper.
+/// Language/admission failures take precedence over selector errors. No alternative entry or
+/// ownership run is attempted; value-equal cloned or foreign declarations are not authority.
+pub fn prepare_selected_named_entry(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: ValidatedCompilationUnitTypes,
+    entry: &UnitDeclaration,
+) -> Result<PreparedNamedEntry, PrepareNamedEntryError> {
+    let prepared = prepare_named_entry(sources, inputs, names, environment, typed)?;
+    if !names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .any(|candidate| std::ptr::eq(candidate, entry))
+    {
+        return Err(PrepareNamedEntryError::ForeignEntry);
+    }
+    let sealed = prepared.bound().entry();
+    if entry.kind() != SymbolKind::Function
+        || entry.source_unit() != sealed.source_unit()
+        || entry.root() != sealed.item()
+    {
+        return Err(PrepareNamedEntryError::EntryMismatch);
+    }
+    Ok(prepared)
 }

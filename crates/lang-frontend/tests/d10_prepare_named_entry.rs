@@ -111,3 +111,156 @@ fn prepare_preserves_real_admission_and_selects_only_closed_sources() {
         }
     }
 }
+
+#[test]
+fn explicit_original_declaration_selects_only_the_sealed_wrapper() {
+    use experiment::PrepareNamedEntryError;
+    let after = BEFORE
+        .replace("val parentOld = replace(&a, \"parent\"); ", "")
+        .replace(
+            "}; outer -= 1",
+            "}; val parentOld = replace(&a, \"parent\"); outer -= 1",
+        );
+    for text in [BEFORE, after.as_str()] {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("selected.ko", text).unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        let (environment, types) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "selected.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            for selector in ["entry", "run"] {
+                let mut declarations = names
+                    .names()
+                    .index()
+                    .declarations()
+                    .iter()
+                    .filter(|d| d.name() == selector);
+                let declaration = declarations.next().unwrap();
+                assert!(declarations.next().is_none());
+                let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+                let result = experiment::prepare_selected_named_entry(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    typed,
+                    declaration,
+                );
+                if selector == "entry" {
+                    let prepared = result.unwrap();
+                    let unit = owned_compilation_unit_view(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        prepared.typed(),
+                        prepared.bound().ownership(),
+                    )
+                    .unwrap();
+                    assert!(prepared.bound().matches(&unit));
+                    assert_eq!(
+                        prepared.bound().entry().source_unit(),
+                        declaration.source_unit()
+                    );
+                    assert_eq!(prepared.bound().entry().item(), declaration.root());
+                } else {
+                    assert!(matches!(result, Err(PrepareNamedEntryError::EntryMismatch)));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "CI-only foreign and cloned selector identity controls"]
+fn ci_only_selected_entry_rejects_foreign_and_cloned_declarations() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    use experiment::PrepareNamedEntryError;
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("selector-identity.ko", BEFORE).unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "selector-identity.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let foreign_index = index_compilation_unit(&sources, &inputs).unwrap();
+        let foreign_names =
+            resolve_compilation_unit_names(&sources, &inputs, &foreign_index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "entry")
+            .unwrap();
+        let foreign = foreign_names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "entry")
+            .unwrap();
+        let cloned = entry.clone();
+        assert!(!std::ptr::eq(entry, foreign));
+        assert!(!std::ptr::eq(entry, &cloned));
+        // Equal source roles are deliberately insufficient to authorize a selector.
+        for other in [foreign, &cloned] {
+            assert_eq!(other.id(), entry.id());
+            assert_eq!(other.name(), entry.name());
+            assert_eq!(other.name_span(), entry.name_span());
+            assert_eq!(other.source_unit(), entry.source_unit());
+            assert_eq!(other.root(), entry.root());
+        }
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let prepared = experiment::prepare_selected_named_entry(
+            &sources, &inputs, &names, &types, typed, entry,
+        )
+        .unwrap();
+        let unit = owned_compilation_unit_view(
+            &sources,
+            &inputs,
+            &names,
+            &types,
+            prepared.typed(),
+            prepared.bound().ownership(),
+        )
+        .unwrap();
+        assert!(prepared.bound().matches(&unit));
+        for selector in [foreign, &cloned] {
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            assert!(matches!(
+                experiment::prepare_selected_named_entry(
+                    &sources, &inputs, &names, &types, typed, selector
+                ),
+                Err(PrepareNamedEntryError::ForeignEntry)
+            ));
+        }
+    }
+}

@@ -1353,3 +1353,22 @@ ignored，未改变原替换能力。独立库/integration及CLI严格Clippy、�
 及旧单元oracle命令通过。新增CI测试严格Clippy、默认编译、格式、2254文件
 尺寸、957文档与workflow YAML解析通过，独审无阻断。workflow已经布置不等于
 Linux或竞争控制已绿；仍须对实际推送头取得双宿主CI结果。
+
+### 显式声明选择的公共准备合同
+
+`prepare_selected_named_entry` 把此前CLI私有的wrapper选择约束放到可复用的前端
+准备入口。调用方借用本次names索引中的真实 `UnitDeclaration`，完整final type /
+ownership与唯一候选绑定成功后，核声明对象确为该索引成员，再核Function类别和
+source-unit/root等于sealed wrapper。值相同的跨分析ID不充当来源能力，克隆声明
+也不接受。选择器不是独立ownership权限，不能扩大两种已证明顺序或普通准入。
+
+旧prepare保留。CLI只负责字符串解析和呈现，解析结果延后消费；找不到入口时仍
+先保留原语言/准入错误，成功解析则调用新入口且不重复分析、不fallback。独立
+公开库对象路径同样复用新合同。默认build/run、单源码builtin-only限制、最终
+create-only发布与失败清理边界均不变；没有接入普通项目/std-source流程。
+
+本批普通验收：两顺序×两布局的真实wrapper成功/callee拒绝，公开非test库
+同路径对象，以及CLI真实错误加缺失入口仍保相同human/JSON诊断均通过。
+默认CLI拒绝、默认build/check、前端/公开对象/CLI严格Clippy、2254文件尺寸及
+957文档门禁通过。新增跨分析同值ID和克隆声明负控有原声明成功正控，已接既有
+CI脚本；本地只精确编译列举，未执行，实际拒绝验收仍待CI。未运行新native。
