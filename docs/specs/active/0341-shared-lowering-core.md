@@ -18287,3 +18287,36 @@ child身份、各consumer目标/顺序、唯一末End及所有source/synthetic o
 最终实验/组合配置各5/5定向测试（含整个SSA verifier与LLVM render）、两配置
 codegen all-target严格Clippy、frontend组合all-target严格Clippy、默认/观察
 cargo check、fmt/docs951/diff及独立复审通过。未运行native或远端CI。
+
+
+### E2 原函数接线前置审计（未实现，不扩大实验接受集）
+
+`8ce0505b` 的 helper 只能说明两个已闭合臂可独立 lowering，不能改名充当原函数。
+现有真实 fixture 的循环后还包含 `consume(left); consume(right)`；
+`loop_no_carry/counter_shape.rs::select` 仅在原函数顶层定位目标循环及紧前初始化，
+不要求整个函数只有这两条语句。因此一个有效两源 fact 不代表完整函数已被覆盖。
+`e2_two_source_plan::Plan` 也仅定位两个 String 来源参数：没有验证完整参数列表、
+返回 ABI、rounds/choose 的参数角色或全部前后继语句。两列 helper 的相对排序
+不能直接替代原函数的绝对参数列，更不能把不同列当成不同运行时 owner。
+
+下一片最窄实施前置是独立 opaque 原函数描述（此处仅列未完成验收，不宣称已实现）：
+
+- 绑定原 callable、issuing typed 身份、完整参数顺序/mode/type 与 Unit 返回；
+  明确拒绝未覆盖 receiver、泛型及其他 ABI 形状，不从 helper 两列重建原签名。
+- 对原函数每条顶层语句作完整覆盖。首片可仅准入“counter 初始化 + 目标循环”，
+  有额外前缀或后缀就拒绝完整函数描述，但不撤销已成功的局部 fact/helper。
+  若后续支持后缀 consumer，须另收集其实际 callsite、完整 callee key 和真实 body；
+  当前仅覆盖臂内调用的叶闭包不够，不能直接跳过后缀。
+- 绑定 rounds、choose 与 counter 的真实 resolved symbol、各原表达式和 Span；
+  由前端描述明确范围，backend 不自行从 AST 猜测新的权限。
+- 之后才发射完整原 ABI 与 CFG：entry/header/split/两臂/join/checked-success/
+  abort/exit；逐边校验两根、标量及其他准入状态的有序运输与重绑定。
+  checked subtract 必须有实际失败标志、对应 abort 及成功回边，不能用计数条件
+  在构造阶段省掉失败边。旧 `arm_loop_receipt/counter_validation.rs` 是同源收据
+  的参考检查，不可当两源收据直接复用。
+
+若调用 detached helper，应明确这是一种 outline 变换，并核验实际调用参数到压缩
+列的映射、正常返回以及输入根不被消耗；仍需独立两源 required/selected/replay/
+publication 证据链。以上是工程接线缺口，不是等待 Origin 整体规则裁决的理由。
+本轮只读核对并独立复审了上述缺口；未修改 Rust、未新增 emitter 或声称新增运行
+证据，未执行 Cargo/native/远端 CI。生产接受集、旧同源守卫及实验 API 均未改变。
