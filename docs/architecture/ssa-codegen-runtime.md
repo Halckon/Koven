@@ -30,7 +30,7 @@ provider builder 固定 length 快照、零 cursor 的入口运输、guard 真�
 
 Unit pointer-like nullable `when` 现消费真实 typed/owned 的 `null/else` descriptor与use witness，
 对 owned whole-root/temporary class、Box、Rc建立实际 `NullableBranch` proof，消费提取走 `NullableTake`。
-view/owner、来源generation、pending槽与分支cleanup逐实体绑定；替换与join结束旧proof，不沿旧generation恢复别名。
+view/owner、来源 generation、pending 槽与分支 cleanup 逐实体绑定。非空臂内直接根替换消费同源赋值及旧根析构事实，RHS 完成后先结束旧 proof 并析构旧值，再重绑。内层提前返回沿原退出清理释放当前 owner。
 有界 fresh owned HeapOwner `If` 支持一侧直接root-Borrow调用、空值侧可省略或执行普通分支 lowering，包含 return 与 Abort；按当前根和真实 null 比较只在非空侧重新证明。
 旧 When view 保持结束状态。Rc/While 及嵌套 proof 仍受原准入限制。String? 已支持直接statement-if的owned根借用与可信文本receiver复用父proof loan，以及if/when的owned结果交付；仅String If允许有入口资格的Shared(String)随CFG重绑定。新增类型身份复用niche表示，已有身份不变；结果使用原transfer/wrap，literal/Group Nothing?按typed结果物化并保留原清理顺序。嵌套Nothing? if/when沿显式控制身份及目标表示复用原CFG，独立Nothing?存储与nullable-subject专用路径不扩展；精确身份与范围见[文本补片](../specs/active/0368-text-byte-foundation.md#string-控制表达式结果交付2026-10-30)。
 原single路径及其三类owner 8alloc/8free、Rc retain/release计数属于历史验收；当前Unit普通SSA/LLVM/native输出
