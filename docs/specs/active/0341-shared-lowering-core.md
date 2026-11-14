@@ -18798,3 +18798,22 @@ CallerSet。真实双事实独立/共享 leaf fixture 反向查询各 caller，f
 此步只完成共同 leaf/helper/caller 层；没有共同 process entry、整体 publication
 receipt 或生产 driver 接入。旧单闭包仍走原完整 replay/coverage/native 验证链；本地
 正常回归不执行 ignored 故障用例，未推送或合并。
+
+
+### 2026-11-14：共同 Program 真实 entry 与整体实验封包
+
+`EmittedCallerSet::publish_entries` 消费同一封闭 Program，要求显式原始 descriptor
+一对一覆盖全部已选事实；空/缺项/重复/foreign 描述符拒绝，按真实目标而非输入顺序
+绑定 caller。逐项追加原 19 指令 entry，包括真实 owner、CallEnd 与临时 String Drop。
+
+终检从原 typed entry/arm call 重建 required 实例，并核对唯一 source instance→ID
+映射及 leaf/helper/caller/entry 全函数覆盖；再复核每个 leaf、两臂、caller、entry
+的独立 replay 和整 Program verifier。全部成功才构造只读 `PublishedEntrySet`，
+没有部分返回或 scoped 降级路径。它继承构建链中同次 handoff 的完整 Unit preflight，
+不将预检与另一 Program 拼接。旧单 entry 发射/replay 复用抽取的真实 entry body，
+ABI 与 abort 元数据门已自包含。
+
+真实双事实独立/共享 leaf fixture 逆序传入 entry 并逐个渲染执行同一 Program 的
+原源码入口；另验证 foreign/retyped 查询和无效集合拒绝。这是有界实验整体封包，
+不是普通 OwnedCompilationUnitView 或 native 对象发布权限。生产 driver/对象事务
+接线与新增共同封包 CI-only 故障验收仍另行推进；本地未执行故障或推送合并。

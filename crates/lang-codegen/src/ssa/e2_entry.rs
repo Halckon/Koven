@@ -63,7 +63,24 @@ pub(super) fn emit<'a>(
     let mut function = e2_function::emit(experiment, fact, typed)?;
     // Before adding the source entry, verify the unchanged source closure independently.
     super::e2_replay::replay(&function, experiment, fact, typed)?;
-    let module = &mut function.fragments.leaves.program.modules[0];
+    let entry = append_entry(
+        &mut function.fragments.leaves.program.modules[0],
+        function.caller,
+        descriptor,
+    )?;
+    super::verify::verify_program(&function.fragments.leaves.program).ok()?;
+    Some(EmittedEntry {
+        function,
+        entry,
+        descriptor,
+    })
+}
+/// Internal same-Program append; the caller owns descriptor/caller identity validation.
+pub(super) fn append_entry(
+    module: &mut Module,
+    caller: FunctionId,
+    descriptor: &EntryDescriptor,
+) -> Option<FunctionId> {
     let string = module.intern_type(SsaTypeKind::StringOwner);
     let int = module.intern_type(SsaTypeKind::Integer {
         bits: 32,
@@ -71,7 +88,11 @@ pub(super) fn emit<'a>(
     });
     let boolean = module.intern_type(SsaTypeKind::Boolean);
     let entry = module
-        .add_function("e2_source_entry", vec![], Origin::Source(descriptor.body()))
+        .add_function(
+            format!("e2_source_entry_{}", module.functions.len()),
+            vec![],
+            Origin::Source(descriptor.body()),
+        )
         .ok()?;
     let f = module.function_mut(entry)?;
     let block = f
@@ -147,7 +168,7 @@ pub(super) fn emit<'a>(
         block,
         Operation::DirectCall {
             receiver: None,
-            callee: function.caller,
+            callee: caller,
             arguments: loans.iter().copied().map(EntityId::Loan).collect(),
         },
         vec![],
@@ -188,10 +209,5 @@ pub(super) fn emit<'a>(
         Origin::Source(descriptor.body()),
     )
     .ok()?;
-    super::verify::verify_program(&function.fragments.leaves.program).ok()?;
-    Some(EmittedEntry {
-        function,
-        entry,
-        descriptor,
-    })
+    Some(entry)
 }

@@ -84,7 +84,20 @@ pub(super) fn replay(
         typed,
         Some(emitted.entry),
     )?;
-    let module = &emitted.function.fragments.leaves.program.modules[0];
+    replay_body(
+        &emitted.function.fragments.leaves.program.modules[0],
+        emitted.entry,
+        emitted.function.caller,
+        d,
+    )
+}
+/// Independent real entry instruction/cleanup replay; no emitter reconstruction.
+pub(super) fn replay_body(
+    module: &Module,
+    entry: FunctionId,
+    caller: FunctionId,
+    d: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+) -> Option<()> {
     let find = |kind: &SsaTypeKind| {
         module
             .types
@@ -101,8 +114,11 @@ pub(super) fn replay(
         signed: true,
     })?;
     let boolean = find(&SsaTypeKind::Boolean)?;
-    let f = module.function(emitted.entry)?;
-    if f.origin != Origin::Source(d.body())
+    let f = module.function(entry)?;
+    if f.receiver.is_some()
+        || f.carrier_return.is_some()
+        || f.never_returns
+        || f.origin != Origin::Source(d.body())
         || !f.return_types.is_empty()
         || f.borrow_return.is_some()
     {
@@ -119,7 +135,9 @@ pub(super) fn replay(
         return None;
     }
     let t = block.terminator.as_ref()?;
-    if t.kind != (TerminatorKind::Return { values: vec![] }) || t.origin != Origin::Source(d.body())
+    if t.abort.is_some()
+        || t.kind != (TerminatorKind::Return { values: vec![] })
+        || t.origin != Origin::Source(d.body())
     {
         return None;
     }
@@ -187,7 +205,7 @@ pub(super) fn replay(
     cursor.step(
         Operation::DirectCall {
             receiver: None,
-            callee: emitted.function.caller,
+            callee: caller,
             arguments: loans.iter().copied().map(EntityId::Loan).collect(),
         },
         origin.clone(),

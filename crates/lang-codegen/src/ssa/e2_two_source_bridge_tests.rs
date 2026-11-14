@@ -720,6 +720,43 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             assert!(callers.caller(&other.facts()[0], &typed).is_none());
             assert!(callers.caller(fact, &unrelated_types).is_none());
             super::verify::verify_program(callers.program()).unwrap();
+            let rebuild = || {
+                super::e2_arm_fragments::emit_for_facts(&handoff, &experiment, &all_facts)
+                    .unwrap()
+                    .append_callers(&typed)
+                    .unwrap()
+            };
+            assert!(rebuild().publish_entries(&[], &typed).is_none());
+            let duplicates = vec![entry; entries.len() + 1];
+            assert!(rebuild().publish_entries(&duplicates, &typed).is_none());
+            let foreign: Vec<_> = other.entries(&typed).unwrap().iter().collect();
+            assert!(rebuild().publish_entries(&foreign, &typed).is_none());
+            if entries.len() > 1 {
+                assert!(
+                    rebuild()
+                        .publish_entries(&vec![entry; entries.len()], &typed)
+                        .is_none()
+                );
+            }
+            let required: Vec<_> = entries.iter().rev().collect();
+            assert!(
+                rebuild()
+                    .publish_entries(&required, &unrelated_types)
+                    .is_none()
+            );
+            let package = callers.publish_entries(&required, &typed).unwrap();
+            assert!(
+                package
+                    .entry(&other.entries(&typed).unwrap()[0], &typed)
+                    .is_none()
+            );
+            assert!(package.entry(entry, &unrelated_types).is_none());
+            for descriptor in required {
+                let id = package.entry(descriptor, &typed).unwrap();
+                let llvm =
+                    crate::llvm::render_verified_program_with_entry(package.program(), id).unwrap();
+                super::e2_native_tests::execute_llvm(&llvm, b"");
+            }
         }
 
         let joint = super::e2_callee_leaves::emit_for_facts(&handoff, &experiment, &all_facts);

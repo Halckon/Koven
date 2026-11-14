@@ -326,3 +326,173 @@ impl<'a> EmittedArmSet<'a> {
         })
     }
 }
+
+/// Final immutable bounded experiment package. Not a production/native capability.
+pub(super) struct PublishedEntrySet<'a> {
+    callers: EmittedCallerSet<'a>,
+    entries: Vec<(
+        &'a lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+        FunctionId,
+    )>,
+}
+impl PublishedEntrySet<'_> {
+    pub(super) fn program(&self) -> &Program {
+        self.callers.program()
+    }
+    pub(super) fn entry(
+        &self,
+        descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<FunctionId> {
+        if !self.callers.arms.experiment.matches_types(typed)
+            || !self.callers.arms.experiment.owns_entry(descriptor)
+        {
+            return None;
+        }
+        let mut found = self
+            .entries
+            .iter()
+            .filter(|(original, _)| original.entry() == descriptor.entry());
+        let (_, id) = found.next()?;
+        if found.next().is_some() {
+            return None;
+        }
+        Some(*id)
+    }
+}
+impl<'a> EmittedCallerSet<'a> {
+    /// Exactly one original entry per selected fact; rejected inputs consume unpublished state.
+    pub(super) fn publish_entries(
+        mut self,
+        descriptors: &[&'a lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor],
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<PublishedEntrySet<'a>> {
+        let experiment = self.arms.experiment;
+        if !experiment.matches_types(typed) || descriptors.len() != self.callers.len() {
+            return None;
+        }
+        let mut selected = Vec::new();
+        let mut declarations = Vec::new();
+        let mut required = Vec::new();
+        for descriptor in descriptors {
+            if !experiment.owns_entry(descriptor) || declarations.contains(&descriptor.entry()) {
+                return None;
+            }
+            declarations.push(descriptor.entry());
+            let mut matches = self.callers.iter().filter(|(fact, _)| {
+                experiment
+                    .callable(fact)
+                    .map(lang_frontend::type_checking::UnitCallTarget::Declaration)
+                    == Some(descriptor.instance().target())
+            });
+            let (fact, caller) = matches.next()?;
+            if matches.next().is_some() || selected.contains(caller) {
+                return None;
+            }
+            selected.push(*caller);
+            let actual = typed
+                .types()
+                .call(descriptor.contracts()[0].call())?
+                .instance();
+            if actual != descriptor.instance() {
+                return None;
+            }
+            required.push(actual.clone());
+            for (call, key) in fact.calls().iter().flatten() {
+                if typed.types().call(*call)?.instance() != key {
+                    return None;
+                }
+                if !required.contains(key) {
+                    required.push(key.clone());
+                }
+            }
+        }
+        let mut entries = Vec::new();
+        for (descriptor, caller) in descriptors.iter().zip(&selected) {
+            let id = super::e2_entry::append_entry(
+                self.arms.leaves.program.modules.first_mut()?,
+                *caller,
+                descriptor,
+            )?;
+            entries.push((*descriptor, id));
+        }
+        super::verify::verify_program(&self.arms.leaves.program).ok()?;
+        let [module] = self.arms.leaves.program.modules.as_slice() else {
+            return None;
+        };
+        if entries.len() != self.callers.len()
+            || module.functions.len() != self.arms.leaves.functions.len() + 4 * self.callers.len()
+        {
+            return None;
+        }
+        let mut source_map = self.arms.leaves.functions.clone();
+        for (descriptor, caller) in descriptors.iter().zip(&selected) {
+            source_map.push((descriptor.instance().clone(), *caller));
+        }
+        if required.len() != source_map.len() {
+            return None;
+        }
+        let mut ids = Vec::new();
+        for key in required {
+            let mut matches = source_map.iter().filter(|(candidate, _)| *candidate == key);
+            let (_, id) = matches.next()?;
+            if matches.next().is_some() || ids.contains(id) {
+                return None;
+            }
+            ids.push(*id);
+        }
+        for (fact, caller) in &self.callers {
+            let locator = self.arms.locator(fact, typed)?;
+            for id in locator.arms {
+                if ids.contains(&id) {
+                    return None;
+                }
+                ids.push(id);
+            }
+            for leaf in experiment.callee_leaves_for(fact, typed)? {
+                let mut matches = self
+                    .arms
+                    .leaves
+                    .functions
+                    .iter()
+                    .filter(|(key, _)| key == leaf.instance());
+                let (_, id) = matches.next()?;
+                if matches.next().is_some() || !experiment.owns_leaf(leaf) {
+                    return None;
+                }
+                super::e2_replay::replay_leaf(module, *id, leaf)?;
+            }
+            super::e2_replay::replay_arms(
+                module,
+                &locator.arms,
+                locator.columns,
+                &self.arms.leaves.functions,
+                experiment,
+                fact,
+                typed,
+            )?;
+            super::e2_replay::replay_caller(
+                module,
+                *caller,
+                locator.arms,
+                locator.columns,
+                experiment.function_shell(fact, typed)?,
+                experiment.arm_spans(fact)?,
+            )?;
+        }
+        for ((descriptor, id), caller) in entries.iter().zip(selected) {
+            if ids.contains(id) {
+                return None;
+            }
+            ids.push(*id);
+            super::e2_entry_replay::replay_body(module, *id, caller, descriptor)?;
+        }
+        if ids.len() != module.functions.len() {
+            return None;
+        }
+        Some(PublishedEntrySet {
+            callers: self,
+            entries,
+        })
+    }
+}
