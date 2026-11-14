@@ -7,6 +7,20 @@ mod source;
 const SOURCE: &str = "fun run(count: Int) { var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) { val parentOld = replace(&a, \"parent\"); var inner = count; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; outer -= 1 }; println(b) }";
 #[test]
 fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
+    run_cases(None);
+}
+
+/// Test adapter receives only the original, fully replayed dual-postuse program.
+pub(crate) fn native_postuse_program(callback: fn(&Program, FunctionId)) {
+    assert_eq!(
+        run_cases(Some(callback)),
+        2,
+        "Rooted and MemoryDocument must both reach the adapter"
+    );
+}
+
+fn run_cases(native: Option<fn(&Program, FunctionId)>) -> usize {
+    let mut deliveries = 0;
     use lang_frontend::{
         name_resolution::{
             SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
@@ -55,6 +69,11 @@ fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
         (SOURCE.replace("inner -= 1", "inner -= 2"), false),
         (SOURCE.replace("println(b)", "println(a)"), false),
     ] {
+        if native.is_some()
+            && !(accepted && text.contains("childCount") && text.contains("println(a)"))
+        {
+            continue;
+        }
         let mut sources = SourceMap::new();
         let (source, ast) = super::unit_lower_test_support::parsed(&mut sources, "dual.ko", &text);
         let (environment, types) = standard_environments();
@@ -122,6 +141,11 @@ fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
                 crate::llvm::render_verified_program(&program)
                     .expect("real dual post-use graph reaches the LLVM adapter");
             }
+            if let Some(callback) = native {
+                callback(&program, function);
+                deliveries += 1;
+            }
         }
     }
+    deliveries
 }

@@ -1132,3 +1132,7 @@ pub(crate) use numeric_literal_tests::resource_exchange_tests;
 
 #[allow(unused_imports)]
 pub(crate) use numeric_literal_tests::field_resource_replace_tests;
+
+#[cfg(feature = "d10-catalog-experiment")]
+#[path = "native_d10_counter_tests.rs"]
+mod d10_counter_tests;

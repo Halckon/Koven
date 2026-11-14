@@ -757,3 +757,26 @@ StringLiteral 使用全局 bytes 与零 capacity，不产生对应 malloc，因�
 本片完整普通回归通过：handoff 六项、planner 五项、D10 SSA 八项（含双后用
 实际 LLVM render/verify）；四项 CI-only 身份测试仍 ignored。前后端严格 Clippy、
 默认前端编译、格式、文档 956 及独立复审通过。本地未执行故障注入或 native。
+
+### 仅测试域原生输出适配器
+
+独立 native 测试通过只读回调接收已完成上述完整 replay 的原 Program；明确要求
+Rooted 和 MemoryDocument 两次交付，避免筛选空集假通过。先核真实函数 ID、两个
+Shared Int32 loan 与无返回值 ABI，再按现有 LLVM 命名规则使用实际函数名。测试
+只在原 LLVM 文本之后追加 `main` trampoline，原函数字节前缀、链接属性、SSA 与
+sidecar 不修改；trampoline 不是源码入口合同或生产 entry 能力。
+
+`main` 顺序调用 `(0,0)、(0,2)、(1,0)、(2,0)、(1,2)、(2,2)`，分别预期
+`first、first、parent、parent、next、next`，每次随后输出 `kept`。Clang 将真实
+LLVM 编译为 `.o` 再链接该对象；对象编译与动态执行是两个独立测试。执行复用 E2
+既有 10 秒 deadline／10 毫秒轮询逻辑，只在超时时终止本测试启动的 child；失败
+保留 IR、对象及输出，不改变系统设置或超时标准，不运行故障注入。
+
+本轮实现时 native 窗口仍被既有完整测试占用，先只验证编译与静态门禁。输出矩阵
+动态执行仍待空闲窗口，不能把 `--no-run` 或对象编译当作通过。即使后续通过，也
+仅证明该封闭输入矩阵的输出，不声称 malloc/free 代际计数或通用 Carry 证明。
+
+适配器 checkpoint 验证：Rust `--no-run`、Rooted/Memory 两份真实对象编译＋链接、
+原 D10 SSA 八项与严格 Clippy 通过，独审无阻断。首轮适配器错误假设函数名为
+`run`，实际 Unit 名为 `koven.run.d0`；已改为从真实 FunctionId/name 按 adapter
+规则生成符号，未修改原函数名。动态测试尚未执行，不能列为已通过。
