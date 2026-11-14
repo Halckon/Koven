@@ -75,6 +75,9 @@ pub enum NativeObjectErrorKind {
     InvalidModel,
     /// LLVM target、验证或 object emission 失败。
     Backend,
+    /// Experimental create-only publication found an existing target directory entry.
+    #[cfg(feature = "d10-catalog-experiment")]
+    OutputAlreadyExists,
     /// 当前 target 无法表示来源类型的存储布局。
     TargetLayout,
 }
@@ -484,8 +487,18 @@ impl SiblingObject {
     // cleanup failure cannot retroactively report publication failure after the target exists.
     #[cfg(feature = "d10-catalog-experiment")]
     fn commit_new(self, output: &Path) -> Result<(), NativeObjectError> {
-        fs::hard_link(self.path(), output)
-            .map_err(|error| backend_io_error("publish new sibling object", error))
+        fs::hard_link(self.path(), output).map_err(|error| {
+            if error.kind() == ErrorKind::AlreadyExists {
+                NativeObjectError {
+                    kind: NativeObjectErrorKind::OutputAlreadyExists,
+                    span: None,
+                    detail: "create-only target already exists".to_owned(),
+                    diagnostic: None,
+                }
+            } else {
+                backend_io_error("publish new sibling object", error)
+            }
+        })
     }
 
     fn commit(mut self, output: &Path) -> Result<(), NativeObjectError> {

@@ -369,7 +369,17 @@ jobs:
       - name: Independent D10 catalog identity controls (CI only)
         run: bash scripts/check_d10_catalog_identity_ci.sh
       - name: Experimental D10 catalog RootReplace emitter
-        run: cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment ssa::d10_catalog_emitter_tests::original_owned_catalog_emits_and_replays_actual_replace_and_cleanup -- --exact
+        run: cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support ssa::d10_catalog_emitter_tests::original_owned_catalog_emits_and_replays_actual_replace_and_cleanup -- --exact
+      - name: Independent D10 public preparation and create-only objects
+        run: |
+          test -x /usr/bin/nm
+          cargo test --locked -j1 --no-default-features -p lang-frontend --features d10-catalog-experiment --test d10_prepare_named_entry
+          cargo test --locked -j1 --no-default-features -p lang-codegen --features d10-catalog-experiment --test d10_prepared_named_entry
+          cargo test --locked -j1 --no-default-features -p lang-cli --features d10-catalog-experiment --test d10_object_cli
+          cargo test --locked -j1 --no-default-features -p lang-cli --test d10_object_cli
+      - name: Independent D10 concurrent create-only publication (CI only)
+        timeout-minutes: 5
+        run: bash scripts/check_d10_publication_ci.sh
       - name: Independent child cycle receipt faults (CI only)
         run: bash scripts/check_child_cycle_ci.sh
       - name: List legacy scalar entry ordering target (execution owned by borrow gate)

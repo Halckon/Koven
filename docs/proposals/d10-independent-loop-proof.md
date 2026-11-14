@@ -1332,3 +1332,24 @@ CLI预检。CLI三个集成回归通过；旧D10含原替换对象路径十八�
 ignored，未改变原替换能力。独立库/integration及CLI严格Clippy、默认编译、
 格式、2253文件尺寸与957文档门禁通过，独审无阻断。仅本机普通文件系统验证，
 未执行竞态、故障注入、跨宿主或新native矩阵。
+
+### 双宿主发布验收与稳定冲突分类
+
+实验create-only的真实目标占用现在返回feature-gated `OutputAlreadyExists`，
+其他hard-link/LLVM失败仍为原backend错误；不会用本地化错误文本猜测冲突。
+原替换路径与默认enum不变。CI原D10单元oracle显式加测试support，独立非test
+公开库与CLI验证分开Cargo调用且禁用default features，避免feature union掩盖
+证明。接入既有macOS15/Ubuntu26.04、LLVM21矩阵，不另设未核宿主。
+
+新增ignored且GitHub Actions门控的公开发布竞争测试：两个线程各自真实分析、
+图验证、生成不同参考对象，然后释放开始发布同一目标；只接受恰一成功及另一
+真实OutputAlreadyExists，最终文件须等于成功者事先独立对象，核main符号与
+普通清理。该测试不声称两系统调用必同时发生或覆盖所有调度；只验证此并发
+发布场景。channel等待有界，CI步骤另设五分钟整体上限覆盖LLVM/join/nm。
+本地仅编译与精确列举，竞争执行及Linux结果均仍待CI，不据此宣称已通过。
+
+本批本地验收：新增竞争控制仅精确编译/列举通过，未执行；公开非test库真实
+对象及稳定冲突分类通过，实验CLI三个集成、default命令拒绝、frontend prepare
+及旧单元oracle命令通过。新增CI测试严格Clippy、默认编译、格式、2254文件
+尺寸、957文档与workflow YAML解析通过，独审无阻断。workflow已经布置不等于
+Linux或竞争控制已绿；仍须对实际推送头取得双宿主CI结果。

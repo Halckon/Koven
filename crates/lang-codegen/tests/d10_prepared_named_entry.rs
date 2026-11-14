@@ -48,7 +48,8 @@ fn explicit_final_admitted_entry_emits_real_object_without_test_observation_hook
             let fresh = directory.join("fresh.o");
             publication.emit_new_process_object(&fresh).unwrap();
             let fresh_bytes = fs::read(&fresh).unwrap();
-            publication.emit_new_process_object(&fresh).expect_err("existing object is never replaced");
+            let conflict = publication.emit_new_process_object(&fresh).expect_err("existing object is never replaced");
+            assert_eq!(conflict.kind(), lang_codegen::NativeObjectErrorKind::OutputAlreadyExists);
             assert_eq!(fs::read(&fresh).unwrap(), fresh_bytes);
             assert_eq!(fs::read(&object).unwrap(), bytes);
             let folder = directory.join("folder");
