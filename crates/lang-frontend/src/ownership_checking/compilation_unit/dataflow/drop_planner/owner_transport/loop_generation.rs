@@ -293,9 +293,9 @@ impl DropPlanner<'_, '_> {
                 ast.statements().iter().count(),
                 ast.expressions().iter().count()
             ),
-            (4, 7, 12) | (5, 9, 16) | (6, 13, 23) | (7, 14, 27)
+            (4, 7, 12) | (5, 9, 16) | (6, 13, 23) | (7, 14, 27) | (7, 15, 30)
         ) {
-            self.origin_probe = Some(Vec::with_capacity(31));
+            self.origin_probe = Some(Vec::with_capacity(34));
         }
     }
     pub(in super::super) fn loop_pending(

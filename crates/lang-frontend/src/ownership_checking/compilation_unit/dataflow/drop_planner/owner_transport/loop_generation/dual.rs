@@ -1,4 +1,4 @@
-//! Exact original 31-event traversal. Never accepts, filters or reconstructs external events.
+//! Exact original or final-root-use traversal. Never accepts, filters or reconstructs external events.
 use super::*;
 use crate::ownership_checking::compilation_unit::d10_catalog_experiment::{
     DualNestedPending, RetainedLoopRoot,
@@ -74,21 +74,86 @@ impl DropPlanner<'_, '_> {
                 control: pback,
                 role: WhileRole::BodyExit(Some(true)),
             },
-            Event::Dropped(root_drop),
-            Event::WhileTraversal {
-                control: pexit,
-                role: WhileRole::Exit(Some(true)),
-            },
-            Event::UncoveredCall(suffix),
-            Event::BorrowRegistered(shared),
-            Event::PendingBorrowRemoved {
-                loan: removed_shared,
-                call: suffix_end,
-            },
-            Event::Dropped(kept_drop),
+            tail @ ..,
         ] = events.as_slice()
         else {
             return None;
+        };
+        // Match the original slice directly; no filtered or reconstructed trajectory.
+        let (
+            root_drop,
+            pexit,
+            suffix,
+            shared,
+            removed_shared,
+            suffix_end,
+            kept_drop,
+            final_root_use,
+        ) = match tail {
+            [
+                Event::Dropped(root_drop),
+                Event::WhileTraversal {
+                    control: pexit,
+                    role: WhileRole::Exit(Some(true)),
+                },
+                Event::UncoveredCall(suffix),
+                Event::BorrowRegistered(shared),
+                Event::PendingBorrowRemoved {
+                    loan: removed_shared,
+                    call: suffix_end,
+                },
+                Event::Dropped(kept_drop),
+            ] => (
+                root_drop,
+                pexit,
+                suffix,
+                shared,
+                removed_shared,
+                suffix_end,
+                kept_drop,
+                None,
+            ),
+            [
+                Event::WhileTraversal {
+                    control: pexit,
+                    role: WhileRole::Exit(Some(true)),
+                },
+                Event::UncoveredCall(root_call),
+                Event::BorrowRegistered(root_loan),
+                Event::PendingBorrowRemoved {
+                    loan: root_removed,
+                    call: root_end,
+                },
+                Event::Dropped(root_drop),
+                Event::UncoveredCall(suffix),
+                Event::BorrowRegistered(shared),
+                Event::PendingBorrowRemoved {
+                    loan: removed_shared,
+                    call: suffix_end,
+                },
+                Event::Dropped(kept_drop),
+            ] => {
+                if root_loan != root_removed || root_call != root_end || root_call == suffix {
+                    return None;
+                }
+                (
+                    root_drop,
+                    pexit,
+                    suffix,
+                    shared,
+                    removed_shared,
+                    suffix_end,
+                    kept_drop,
+                    Some(Retained {
+                        root: *root,
+                        initial: *initial,
+                        call: *root_call,
+                        loan: root_loan.clone(),
+                        cleanup: *root_drop,
+                    }),
+                )
+            }
+            _ => return None,
         };
         let c = self.checker;
         let source = c.source_unit;
@@ -114,7 +179,12 @@ impl DropPlanner<'_, '_> {
             || shared.kind() != LoanKind::Shared
             || !matches!(shared.target(),UnitLoanTarget::Place(p) if p.is_root() && p.root() == *kept_root)
             || root_drop.target() != UnitDropTarget::Named(*root)
-            || root_drop.point() != UnitDropPoint::LoopExit(*parent)
+            || root_drop.point()
+                != final_root_use
+                    .as_ref()
+                    .map_or(UnitDropPoint::LoopExit(*parent), |r| {
+                        UnitDropPoint::CallReturn(r.call)
+                    })
             || kept_drop.target() != UnitDropTarget::Named(*kept_root)
             || kept_drop.point() != UnitDropPoint::CallReturn(*suffix)
         {
@@ -236,7 +306,7 @@ impl DropPlanner<'_, '_> {
                 *child_incoming,
                 *child_call,
             ],
-            &retained,
+            (&retained, final_root_use.as_ref()),
         )?;
         Some(DualNestedPending {
             typed: c.typed.analysis_owner().clone(),
@@ -252,6 +322,13 @@ impl DropPlanner<'_, '_> {
             calls: [*parent_call, *child_call],
             cleanup: [*parent_drop, *child_drop, *root_drop],
             loans: [parent_loan.clone(), child_loan.clone()],
+            final_root_use: final_root_use.map(|r| RetainedLoopRoot {
+                root: r.root,
+                initial: r.initial,
+                call: r.call,
+                loan: r.loan,
+                cleanup: r.cleanup,
+            }),
             retained: RetainedLoopRoot {
                 root: retained.root,
                 initial: retained.initial,

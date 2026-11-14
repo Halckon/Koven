@@ -25,7 +25,32 @@ fn run_cases(mismatch: bool) {
     let separate = SOURCE
         .replace("count: Int", "count: Int, childCount: Int")
         .replace("var inner = count", "var inner = childCount");
+    let both = SOURCE.replace("println(b)", "println(a); println(b)");
     for (text, expected) in [
+        (both.clone(), true),
+        (
+            separate.replace("println(b)", "println(a); println(b)"),
+            true,
+        ),
+        (
+            both.replace("count", "limit").replace("first", "初值"),
+            true,
+        ),
+        (
+            both.replace("println(a); println(b)", "println(b); println(a)"),
+            false,
+        ),
+        (
+            both.replace("println(a); println(b)", "println(a); println(a)"),
+            false,
+        ),
+        (
+            both.replace(
+                "println(a); println(b)",
+                "println(a); println(b); println(a)",
+            ),
+            false,
+        ),
         (SOURCE.to_owned(), true),
         (separate.clone(), true),
         (
@@ -194,7 +219,25 @@ fn run_cases(mismatch: bool) {
                 view.ownership().drops(),
                 &[cleanup[0], cleanup[1], cleanup[2], retained.cleanup()]
             );
-            assert_eq!(cleanup[2].point(), UnitDropPoint::LoopExit(parent));
+            assert_eq!(
+                bound.final_root_use().is_some(),
+                text.contains("println(a); println(b)")
+            );
+            if let Some(root_use) = bound.final_root_use() {
+                assert_eq!(
+                    root_use.source(),
+                    (bound.roots().0, bound.producer_sites()[0])
+                );
+                assert_ne!(root_use.source().0, retained.source().0);
+                assert_ne!(root_use.call(), retained.call());
+                assert_eq!(root_use.cleanup(), cleanup[2]);
+                assert_eq!(
+                    cleanup[2].point(),
+                    UnitDropPoint::CallReturn(root_use.call())
+                );
+            } else {
+                assert_eq!(cleanup[2].point(), UnitDropPoint::LoopExit(parent));
+            }
             assert!(matches!(
                 cleanup[0].point(),
                 UnitDropPoint::AfterStatement(_)
@@ -204,14 +247,12 @@ fn run_cases(mismatch: bool) {
                 UnitDropPoint::AfterStatement(_)
             ));
             assert_ne!(cleanup[0], cleanup[1]);
-            assert_eq!(
-                view.ownership().loans(),
-                &[
-                    bound.loans()[0].clone(),
-                    bound.loans()[1].clone(),
-                    retained.loan().clone()
-                ]
-            );
+            let mut expected_loans = bound.loans().to_vec();
+            if let Some(root_use) = bound.final_root_use() {
+                expected_loans.push(root_use.loan().clone());
+            }
+            expected_loans.push(retained.loan().clone());
+            assert_eq!(view.ownership().loans(), expected_loans);
             assert_eq!(view.ownership().ownership_primitives().len(), 2);
             for (i, plan) in view.ownership().ownership_primitives().iter().enumerate() {
                 assert_eq!(plan.descriptor().expression(), bound.replacements()[i]);

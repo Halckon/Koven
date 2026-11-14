@@ -19,6 +19,7 @@ pub(crate) struct DualNestedPending {
     pub(crate) cleanup: [UnitDropFact; 3],
     pub(crate) loans: [UnitLoanFact; 2],
     pub(crate) retained: RetainedLoopRoot,
+    pub(crate) final_root_use: Option<RetainedLoopRoot>,
 }
 /// Sealed same-run source/fact observation. Not a lowering or Carry capability.
 pub struct BoundDualNestedLoop {
@@ -84,7 +85,8 @@ impl BoundDualNestedLoop {
     pub const fn producer_sites(&self) -> [UnitExpressionId; 3] {
         self.pending.sites
     }
-    /// Parent detached-old, child detached-old and parent-exit current-root cleanups.
+    /// Parent detached-old, child detached-old and final current-root cleanups.
+    /// The last is LoopExit or the explicit final_root_use CallReturn.
     #[must_use]
     pub const fn cleanup(&self) -> &[UnitDropFact; 3] {
         &self.pending.cleanup
@@ -93,6 +95,13 @@ impl BoundDualNestedLoop {
     #[must_use]
     pub const fn loans(&self) -> &[UnitLoanFact; 2] {
         &self.pending.loans
+    }
+    /// Explicit actual post-loop use of the replaced root; absent in the LoopExit variant.
+    /// Its source site is the initial construction, not the current loop generation.
+    /// Only actual CFG exit transport can identify the value consumed by this call.
+    #[must_use]
+    pub const fn final_root_use(&self) -> Option<&RetainedLoopRoot> {
+        self.pending.final_root_use.as_ref()
     }
     /// Required second root with an actual suffix use and cleanup.
     #[must_use]
@@ -105,6 +114,9 @@ impl DualNestedPending {
         let mut drops = self.cleanup.to_vec();
         drops.push(self.retained.cleanup);
         let mut loans = self.loans.to_vec();
+        if let Some(root_use) = &self.final_root_use {
+            loans.push(root_use.loan.clone());
+        }
         loans.push(self.retained.loan.clone());
         if !Arc::ptr_eq(&self.typed, &owned.provenance.typed_analysis_owner)
             || !owned.diagnostics().is_empty()
