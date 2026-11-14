@@ -18857,3 +18857,15 @@ clang 链接并运行，不重新渲染 LLVM、不追加 synthetic driver。原 
 空 stdout/stderr，并有 10 秒执行超时。临时文件清理在链接前独立核对。
 这证明实验对象可实际运行，不证明空 consumer 的动态执行次数、泄漏或 abort 路径；
 后端故障原子性仍需 CI-only 验收，普通生产能力保持未启用。
+
+
+### 2026-11-14：真实 native commit 失败的 CI-only 验收准备
+
+现有 SiblingObject 没有独立 failpoint；新增 ignored 目标复用普通 native 测试的
+真实目录目标，要求实验对象发射后在 `commit sibling object` 的 rename 阶段失败。
+双环境 guard 后，对共同封包的两个 entry 分别检查 Backend 分类、准确失败阶段、
+目标目录哨兵字节及条目不变、无 sibling 残留；移除测试阻挡后以同一只读包逐个重试，
+核对象格式与清理。不伪造事务或改 SSA/LLVM，正常生产与实验适配器均无代码改动。
+CI 脚本纳入第 7 个精确目标 × 2 配置；本地只编译/list，不执行该失败场景。
+这是待 CI 运行的提交失败证据，不证明 LLVM 写入中断、reserve 失败或已有文件覆盖
+失败的完整矩阵；实际 CI 结果出来前不记为已通过。

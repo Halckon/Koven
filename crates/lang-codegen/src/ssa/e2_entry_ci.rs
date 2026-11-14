@@ -12,9 +12,9 @@ use lang_frontend::{
 fn entry_semantic_and_final_gate_failures_publish_nothing() {
     assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
     assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-    fixture(false, false);
+    fixture(false, false, false);
 }
-fn fixture(checked: bool, joint: bool) {
+fn fixture(checked: bool, joint: bool, object_commit: bool) {
     let source = "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {var remaining=rounds;while(remaining>0){if(choose){borrow val a=view(left);consume(a)}else{borrow val b=view(right);consume(b)};remaining=remaining-1}}\nfun main():Unit {val rounds=3;val choose=true;run(\"left\",\"right\",rounds,choose)}";
     let source = if joint {
         let second = source
@@ -60,6 +60,46 @@ fn fixture(checked: bool, joint: bool) {
                 .append_callers(&typed)
                 .unwrap()
         };
+        if object_commit {
+            let package = rebuild().publish_entries(&entries, &typed).unwrap();
+            let directory = crate::native_tests::TestDirectory::create();
+            let output = directory.join("blocked.o");
+            std::fs::create_dir(&output).unwrap();
+            let sentinel = output.join("keep");
+            std::fs::write(&sentinel, b"original directory content").unwrap();
+            for entry in &entries {
+                let error =
+                    crate::native::emit_experimental_e2_object(&package, &handoff, entry, &output)
+                        .unwrap_err();
+                assert_eq!(error.kind(), crate::native::NativeObjectErrorKind::Backend);
+                assert!(
+                    error.to_string().contains("commit sibling object"),
+                    "{error}"
+                );
+                assert_eq!(
+                    std::fs::read(&sentinel).unwrap(),
+                    b"original directory content"
+                );
+                assert_eq!(std::fs::read_dir(&output).unwrap().count(), 1);
+                let names: Vec<_> = std::fs::read_dir(output.parent().unwrap())
+                    .unwrap()
+                    .map(|entry| entry.unwrap().file_name())
+                    .collect();
+                assert_eq!(names, vec![std::ffi::OsString::from("blocked.o")]);
+            }
+            std::fs::remove_file(&sentinel).unwrap();
+            std::fs::remove_dir(&output).unwrap();
+            for entry in &entries {
+                crate::native::emit_experimental_e2_object(&package, &handoff, entry, &output)
+                    .unwrap();
+                crate::test_support::assert_native_object(&std::fs::read(&output).unwrap());
+                assert_eq!(
+                    std::fs::read_dir(output.parent().unwrap()).unwrap().count(),
+                    1
+                );
+            }
+            return;
+        }
         assert!(rebuild().publish_entries(&entries, &typed).is_some());
         for fault in [
             JointCiFault::WrongSecondCaller,
@@ -127,7 +167,7 @@ fn fixture(checked: bool, joint: bool) {
 fn checked_entry_failures_publish_nothing() {
     assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
     assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-    fixture(true, false);
+    fixture(true, false, false);
 }
 
 #[test]
@@ -135,5 +175,13 @@ fn checked_entry_failures_publish_nothing() {
 fn joint_entry_mapping_and_partial_failures_publish_nothing() {
     assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
     assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-    fixture(false, true);
+    fixture(false, true, false);
+}
+
+#[test]
+#[ignore = "CI-only real object commit failure; local compile/list only"]
+fn joint_object_commit_failure_cleans_temporary_and_retries() {
+    assert_eq!(std::env::var("CI").as_deref(), Ok("true"));
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    fixture(false, true, true);
 }
