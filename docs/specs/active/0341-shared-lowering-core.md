@@ -18590,3 +18590,17 @@ descriptor/fact记录须一致，普通 Unit capability 与 D10 root-set 的组�
 不会按签名去重；对应封包仍进行真实 native 验证。当前 leaf 表取自整个实验，
 若其它 fact 带来额外 leaf，所选 entry 会保守拒绝，尚不支持任意多 fact Unit
 组合或自动裁剪其它 fact 的依赖。
+
+### 所选 fact 的精确 leaf 闭包（实验）
+
+修正上一片“其它合法 fact 带来额外 leaf 就拒绝”的有界限制：完整原始 leaf
+验证仍来自同一次成功实验；caller 发射仅选择该 owned fact 的真实调用 keys
+对应 leaf。独立 replay 另从同次 typed callsite 导出该 fact 所需 keys，再核对
+所选 leaf 数量、身份和映射，不复用 emitter 的选择结果作为需求来源。Coverage
+继续对账 entry/run/leaf/helpers 与最终 module，普通完整 leaf 测试入口保留。
+
+真实同 Unit 两个独立 loop caller 与各自 source entry、view/consumer 的 fixture，
+分别只发布各自3个 called instances，两个包源码key不交叉；entry配错另一fact
+拒绝。两份封包均原样 native 编译执行，不合并成多 entry Program。不支持的
+其它 fact 仍会使全局 leaf验证失败，不能裁掉失败事实以绕过完整验证。本片仅
+让“其它也合法”的事实不污染当前封包，不提供通用 Unit 混合后端组合或生产授权。

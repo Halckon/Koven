@@ -474,11 +474,12 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
 
 #[test]
 fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
-    for (rounds, choose, distinct) in [
-        (0, false, false),
-        (3, false, false),
-        (3, true, false),
-        (3, true, true),
+    for (rounds, choose, distinct, multiple) in [
+        (0, false, false, false),
+        (3, false, false, false),
+        (3, true, false, false),
+        (3, true, true, false),
+        (3, false, false, true),
     ] {
         let source = format!(
             "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(left);consume(a)}}else{{borrow val b=view(right);consume(b)}};remaining=remaining-1}}}}\nfun main():Unit {{val rounds={rounds};val choose={choose};run(\"left\",\"right\",rounds,choose)}}"
@@ -488,6 +489,16 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                 "{}\nfun other(item:String):Unit {{}}",
                 source.replace("consume(b)", "other(b)")
             )
+        } else {
+            source
+        };
+        let source = if multiple {
+            let second = source
+                .replace("view", "view_second")
+                .replace("consume", "consume_second")
+                .replace("run", "run_second")
+                .replace("main", "main_second");
+            format!("{source}\n{second}")
         } else {
             source
         };
@@ -508,10 +519,11 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
         let experiment = analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
             .unwrap()
             .unwrap();
+        assert_eq!(experiment.facts().len(), if multiple { 2 } else { 1 });
         let fact = &experiment.facts()[0];
-        let [entry] = experiment.entries(&typed).unwrap() else {
-            panic!("complete source entry")
-        };
+        let entries = experiment.entries(&typed).unwrap();
+        assert_eq!(entries.len(), if multiple { 2 } else { 1 });
+        let entry = &entries[0];
         let emitted = super::e2_entry::emit(&experiment, fact, entry, &typed).unwrap();
         super::e2_entry_replay::replay(&emitted, &experiment, fact, &typed).unwrap();
         // Ordinary single-callable publication/replay does not silently widen its coverage.
@@ -584,5 +596,35 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             crate::llvm::render_verified_program_with_entry(published.program(), published.entry())
                 .unwrap();
         super::e2_native_tests::execute_llvm(&llvm, b"");
+        if multiple {
+            let second = &entries[1];
+            let second_fact = experiment
+                .facts()
+                .iter()
+                .find(|f| {
+                    Some(second.instance().target())
+                        == experiment
+                            .callable(f)
+                            .map(lang_frontend::type_checking::UnitCallTarget::Declaration)
+                })
+                .unwrap();
+            assert!(publish(&experiment, entry, second_fact, &[second_fact], &typed).is_err());
+            let second_package =
+                publish(&experiment, second, second_fact, &[second_fact], &typed).unwrap();
+            assert_eq!(second_package.coverage().called().len(), 3);
+            assert!(second_package.coverage().called().iter().all(|(key, _)| {
+                !published
+                    .coverage()
+                    .called()
+                    .iter()
+                    .any(|(first, _)| first == key)
+            }));
+            let llvm = crate::llvm::render_verified_program_with_entry(
+                second_package.program(),
+                second_package.entry(),
+            )
+            .unwrap();
+            super::e2_native_tests::execute_llvm(&llvm, b"");
+        }
     }
 }

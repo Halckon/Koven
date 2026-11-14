@@ -16,7 +16,7 @@ pub(super) fn emit(
 ) -> Option<EmittedArms> {
     let plan = Plan::new(experiment, fact, typed)?;
     let spans = experiment.arm_spans(fact)?;
-    let mut leaves = e2_callee_leaves::emit(experiment, typed)?;
+    let mut leaves = e2_callee_leaves::emit_for_fact(experiment, fact, typed)?;
     // The helper has only the two root parameters, ordered by their original signature roles.
     let columns = if plan.source_roles()[0] < plan.source_roles()[1] {
         [0, 1]

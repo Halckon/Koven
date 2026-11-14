@@ -298,7 +298,22 @@ pub(super) fn replay_closure(
             }
         }
     }
-    let leaves = experiment.callee_leaves()?;
+    // Independently derive the selected fact's source-call requirement. Other facts'
+    // leaf definitions must not silently enlarge this publication's coverage.
+    let mut required = Vec::new();
+    for (call, key) in fact.calls().iter().flatten() {
+        let actual = typed.types().call(*call)?;
+        same!(actual.instance(), key);
+        if !required.contains(key) {
+            required.push(key.clone());
+        }
+    }
+    let leaves: Vec<_> = experiment
+        .callee_leaves()?
+        .iter()
+        .filter(|leaf| required.contains(leaf.instance()))
+        .collect();
+    same!(leaves.len(), required.len());
     same!(leaves.len(), emitted.fragments.leaves.functions.len());
     same!(
         module.functions.len(),

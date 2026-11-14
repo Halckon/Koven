@@ -1,7 +1,9 @@
 //! Real lowering of the restricted source leaf closure; no loop body or receipt publication.
 use super::model::*;
 use lang_frontend::{
-    ownership_checking::two_source_experiment::{CalleeLeafBody, TwoSourceExperiment},
+    ownership_checking::two_source_experiment::{
+        CalleeLeaf, CalleeLeafBody, TwoSourceCounterFact, TwoSourceExperiment,
+    },
     type_checking::{UnitCallableInstanceKey, ValidatedCompilationUnitTypes},
 };
 
@@ -14,10 +16,43 @@ pub(super) fn emit(
     experiment: &TwoSourceExperiment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Option<EmittedLeaves> {
+    emit_selected(
+        experiment,
+        typed,
+        experiment.callee_leaves()?.iter().collect(),
+    )
+}
+/// Emit only the exact source-leaf closure of this owned fact.
+pub(super) fn emit_for_fact(
+    experiment: &TwoSourceExperiment,
+    fact: &TwoSourceCounterFact,
+    typed: &ValidatedCompilationUnitTypes,
+) -> Option<EmittedLeaves> {
+    if !experiment.owns(fact) {
+        return None;
+    }
+    let keys: Vec<_> = fact.calls().iter().flatten().map(|(_, key)| key).collect();
+    let leaves: Vec<_> = experiment
+        .callee_leaves()?
+        .iter()
+        .filter(|leaf| keys.contains(&leaf.instance()))
+        .collect();
+    if keys
+        .iter()
+        .any(|key| leaves.iter().filter(|leaf| leaf.instance() == *key).count() != 1)
+    {
+        return None;
+    }
+    emit_selected(experiment, typed, leaves)
+}
+fn emit_selected(
+    experiment: &TwoSourceExperiment,
+    typed: &ValidatedCompilationUnitTypes,
+    leaves: Vec<&CalleeLeaf>,
+) -> Option<EmittedLeaves> {
     if !experiment.matches_types(typed) {
         return None;
     }
-    let leaves = experiment.callee_leaves()?;
     if leaves.is_empty() {
         return None;
     }
