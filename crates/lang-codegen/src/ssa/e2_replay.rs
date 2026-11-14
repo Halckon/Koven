@@ -309,7 +309,7 @@ pub(super) fn replay_closure(
         }
     }
     let leaves: Vec<_> = experiment
-        .callee_leaves()?
+        .callee_leaves_for(fact, typed)?
         .iter()
         .filter(|leaf| required.contains(leaf.instance()))
         .collect();

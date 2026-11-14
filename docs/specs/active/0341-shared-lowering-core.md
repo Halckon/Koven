@@ -18604,3 +18604,18 @@ descriptor/fact记录须一致，普通 Unit capability 与 D10 root-set 的组�
 拒绝。两份封包均原样 native 编译执行，不合并成多 entry Program。不支持的
 其它 fact 仍会使全局 leaf验证失败，不能裁掉失败事实以绕过完整验证。本片仅
 让“其它也合法”的事实不污染当前封包，不提供通用 Unit 混合后端组合或生产授权。
+
+### fact 级完整 leaf 准入隔离（实验接受范围变化）
+
+在明确授权的实验域中调整上一片的全局 leaf 限制：完整 Unit ownership 成功仍是
+总前提，真实前端错误仍撤销整个实验。仅后端受限 leaf 子集的适用性按 issuing
+fact 身份隔离；callee_leaves_for 同时核原 typed 身份和 fact 身份，只返回完整
+闭包，缺任一 leaf 不发布部分结果。完整 instance key 的角色冲突使所有依赖
+fact 拒绝，不按遍历顺序挑选赢家。旧全局 callee_leaves 保留全有或全无语义。
+
+emitter 与独立 replay 分别从所选 fact 的真实调用需求核查身份受检闭包。真实
+同 Unit fixture 包含一个受支持 entry 和一个 ownership 合法、consumer body
+非空而超出 leaf 子集的 entry：前者封包原样 native 执行，后者查询、发射、发布
+均拒绝；foreign fact 与 retyped 仍拒绝。并非裁掉 ownership 错误或放宽 leaf
+body 语义。不同包不合并 FunctionId；普通 Unit 的全声明、binding、global
+initializer gates 及生产 capability/混合 Unit 接入均未改动，故障仍仅在 CI 执行。

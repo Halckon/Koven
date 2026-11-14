@@ -33,7 +33,7 @@ pub(super) fn emit_for_fact(
     }
     let keys: Vec<_> = fact.calls().iter().flatten().map(|(_, key)| key).collect();
     let leaves: Vec<_> = experiment
-        .callee_leaves()?
+        .callee_leaves_for(fact, typed)?
         .iter()
         .filter(|leaf| keys.contains(&leaf.instance()))
         .collect();

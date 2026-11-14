@@ -474,12 +474,13 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
 
 #[test]
 fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
-    for (rounds, choose, distinct, multiple) in [
-        (0, false, false, false),
-        (3, false, false, false),
-        (3, true, false, false),
-        (3, true, true, false),
-        (3, false, false, true),
+    for (rounds, choose, distinct, multiple, unsupported) in [
+        (0, false, false, false, false),
+        (3, false, false, false, false),
+        (3, true, false, false, false),
+        (3, true, true, false, false),
+        (3, false, false, true, false),
+        (3, false, false, true, true),
     ] {
         let source = format!(
             "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(left:String,right:String,rounds:Int,choose:Boolean):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(left);consume(a)}}else{{borrow val b=view(right);consume(b)}};remaining=remaining-1}}}}\nfun main():Unit {{val rounds={rounds};val choose={choose};run(\"left\",\"right\",rounds,choose)}}"
@@ -498,6 +499,14 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                 .replace("consume", "consume_second")
                 .replace("run", "run_second")
                 .replace("main", "main_second");
+            let second = if unsupported {
+                second.replace(
+                    "fun consume_second(item:String):Unit {}",
+                    "fun consume_second(item:String):Unit {val unused=1}",
+                )
+            } else {
+                second
+            };
             format!("{source}\n{second}")
         } else {
             source
@@ -609,6 +618,19 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                 })
                 .unwrap();
             assert!(publish(&experiment, entry, second_fact, &[second_fact], &typed).is_err());
+            assert!(
+                experiment
+                    .callee_leaves_for(&other.facts()[0], &typed)
+                    .is_none()
+            );
+            assert!(experiment.callee_leaves_for(fact, &retyped).is_none());
+            if unsupported {
+                assert!(experiment.callee_leaves().is_none());
+                assert!(experiment.callee_leaves_for(second_fact, &typed).is_none());
+                assert!(super::e2_entry::emit(&experiment, second_fact, second, &typed).is_none());
+                assert!(publish(&experiment, second, second_fact, &[second_fact], &typed).is_err());
+                continue;
+            }
             let second_package =
                 publish(&experiment, second, second_fact, &[second_fact], &typed).unwrap();
             assert_eq!(second_package.coverage().called().len(), 3);

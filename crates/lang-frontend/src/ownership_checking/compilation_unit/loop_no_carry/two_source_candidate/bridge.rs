@@ -14,6 +14,7 @@ pub struct TwoSourceExperiment {
     typed_owner: std::sync::Arc<()>,
     callables: Vec<DeclarationId>,
     leaves: Option<Vec<super::CalleeLeaf>>,
+    scoped_leaves: Vec<Option<Vec<super::CalleeLeaf>>>,
     arm_spans: Vec<[super::ArmSourceSpans; 2]>,
     shells: Vec<Option<super::FunctionShell>>,
     entries: Vec<super::EntryDescriptor>,
@@ -58,11 +59,28 @@ impl TwoSourceExperiment {
     pub fn callee_leaves(&self) -> Option<&[super::CalleeLeaf]> {
         self.leaves.as_deref()
     }
+    /// Complete leaf closure for an issuing fact and the original typed analysis.
+    /// Unsupported closures return None; partial leaf sets never escape.
+    pub fn callee_leaves_for(
+        &self,
+        fact: &TwoSourceCounterFact,
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> Option<&[super::CalleeLeaf]> {
+        if !self.matches_types(typed) {
+            return None;
+        }
+        let index = self
+            .facts
+            .iter()
+            .position(|f| Rc::ptr_eq(&f.identity, &fact.identity))?;
+        self.scoped_leaves.get(index)?.as_deref()
+    }
     /// Checks this experiment issued the leaf, not merely an equal signature/body.
     pub fn owns_leaf(&self, leaf: &super::CalleeLeaf) -> bool {
         self.leaves
-            .as_ref()
-            .is_some_and(|leaves| leaves.iter().any(|candidate| candidate.same_identity(leaf)))
+            .iter()
+            .chain(self.scoped_leaves.iter().flatten())
+            .any(|leaves| leaves.iter().any(|candidate| candidate.same_identity(leaf)))
     }
     /// Returns original source projections only for an owned closed fact.
     pub fn arm_spans(&self, fact: &TwoSourceCounterFact) -> Option<&[super::ArmSourceSpans; 2]> {
@@ -146,6 +164,39 @@ pub fn analyze_two_source_experiment(
         .collect();
     let entries = super::entry::collect(sources, &shells, inputs, names, typed, &owned);
     let leaves = super::leaves::collect(&facts, inputs, names, typed);
+    // Keep the full ownership success gate above. Only backend-subset eligibility
+    // is scoped; a shared key with inconsistent roles invalidates every dependent fact.
+    let mut roles = Vec::new();
+    let mut conflicts = Vec::new();
+    for fact in &facts {
+        for calls in &fact.calls {
+            for (position, (_, key)) in calls.iter().enumerate() {
+                let producer = position == 0;
+                if roles
+                    .iter()
+                    .any(|(prior, role)| prior == key && *role != producer)
+                {
+                    conflicts.push(key.clone());
+                }
+                roles.push((key.clone(), producer));
+            }
+        }
+    }
+    let scoped_leaves = facts
+        .iter()
+        .map(|fact| {
+            if fact
+                .calls
+                .iter()
+                .flatten()
+                .any(|(_, key)| conflicts.contains(key))
+            {
+                None
+            } else {
+                super::leaves::collect(std::slice::from_ref(fact), inputs, names, typed)
+            }
+        })
+        .collect();
     let Some(arm_spans) = facts
         .iter()
         .map(|fact| super::arm_spans::collect(fact, inputs, names))
@@ -158,6 +209,7 @@ pub fn analyze_two_source_experiment(
         typed_owner: typed.types().analysis_owner().clone(),
         callables,
         leaves,
+        scoped_leaves,
         arm_spans,
         shells,
         entries,
