@@ -161,6 +161,24 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
                 .eq(facts.conditional_receiver_drops())
         );
 
+        let iteration_collections: Vec<_> = ledger
+            .records()
+            .iter()
+            .map(|record| record.iteration_collection().unwrap())
+            .collect();
+        assert!(
+            iteration_collections
+                .iter()
+                .flat_map(|collection| collection.iterations())
+                .eq(facts.iterations())
+        );
+        assert!(
+            iteration_collections
+                .iter()
+                .flat_map(|collection| collection.map_iterations())
+                .eq(facts.map_iterations())
+        );
+
         assert!(facts.diagnostics().is_empty());
         assert!(facts.deferred().is_empty());
         for source in checked.names.names().index().source_units() {

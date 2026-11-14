@@ -333,6 +333,12 @@ pub(super) fn analyze(
             drops.len(),
             conditional_receiver_drops.len(),
         );
+        #[cfg(feature = "d10-catalog-experiment")]
+        let iteration_start = (
+            iteration_conditional_scopes.len(),
+            iterations.len(),
+            map_iterations.len(),
+        );
         let mut checker = Checker::new(
             sources,
             input.parsed(),
@@ -455,6 +461,13 @@ pub(super) fn analyze(
                 &drops[source_start.3..],
                 drop_analysis.drop_traversals,
                 &conditional_receiver_drops[source_start.4..],
+            )
+            .with_iteration_collection(
+                super::d10_catalog_experiment::IterationSourceCollection::capture(
+                    &iteration_conditional_scopes[iteration_start.0..],
+                    &iterations[iteration_start.1..],
+                    &map_iterations[iteration_start.2..],
+                ),
             ),
         );
     }

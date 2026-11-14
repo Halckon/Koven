@@ -1780,3 +1780,32 @@ frontend/codegen/CLI all-target 严格 Clippy（D10、two-source、E2 与 loan o
 支持同时启用）通过；fmt、文档 957 页、尺寸 2323 Rust 文件/37 历史超限通过。
 本次没有重跑 native 或故障注入；这些证据不扩大上述分析能力边界，也不抹去独立旧树
 的 default workspace all-target 失败记录。
+
+### 条件形成 scopes 与最终 iteration 计划三通道
+
+D10 source record 新增独立分组，只从原 source 汇集入口/出口截取
+iteration_conditional_scopes、iterations、map_iterations 三个原增量。未封闭的内部
+record 不通过读取；同一 run 全源拼接与最终三数组完整 Eq，不重建 action 顺序，
+不从 AST 或 Drop ordinal 推断 scopes，不要求 owner/template 与遍历 source 同源。
+
+计划保持原 provider 排列及嵌套共享同 point 的完整 exits/actions，不能 flatten
+去重或解释为多次执行。原 ActionSource 的 Cleanup 投影不等于其全部事件历史；
+owner_scopes、loan_ends、required_exits 与两类 templates 尚未纳入此分组，仍由原
+validator 核验。此账本不扩大 callable/CFG/可达闭包/native 或项目准入能力；不改
+planner、validator、lowering 及原失败/deferred发布门。
+
+正常源码 source_ledger 5 项通过，新增三源样本覆盖 sequential/Map、嵌套共享 point
+两份完整 actions、夹在内外 provider 中间的 conditional scopes、空源和反向输入序，
+并核真实错误/deferred不发布。独立静审无阻断；dataflow父文件1232→1245仅+13接线，
+既有max1248及拆分计划不变，后续增长仍需复审。其余见证通道与联合验证不在本片内。
+
+本片另有真实五源 project exact 1 passed；feature frontend/CLI all-target strict Clippy、
+默认 frontend all-target check、fmt/diff/YAML、文档（957页）及尺寸（2279文件/37历史项）
+通过。未运行native、人工故障/混配或旧default-workspace-all-target失败项；未在联合树
+复验。旧target串行复用，各编译入口核磁盘≥8Gi，未新建target或扩大准入。
+
+iteration 联合复验：`dc22b651` 与 `439f0920` 组合后，source ledger 5 项和真实
+五源 project 1 项通过；默认 workspace all-target check 及 frontend/codegen/CLI
+all-target 严格 Clippy（D10、two-source、E2、loan observation 同时启用）通过。
+fmt、文档957页、尺寸2325文件/37历史项通过；不重复运行native或人工故障。
+各编译入口均核可用磁盘不少于8Gi。此验收不把未采集的五类验证输入算作已覆盖。
