@@ -1,16 +1,14 @@
 //! Read-only source/FE identities for the four real SPEC-0332 presence fixtures.
 //! Drop points are printed as published; execution ordering is checked separately in SSA.
 use crate::test_support::diagnostics::diagnostic;
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{
         DeclarationId, NameResolution, ReferenceTarget, SymbolId, SymbolKind, UnitReferenceTarget,
         ValidatedCompilationUnitNames,
     },
-    ownership_checking::{
-        CompilationUnitOwnership, DropTarget, OwnershipBindingKind, OwnershipCheckedFile,
-        UnitDropTarget,
-    },
+    ownership_checking::{DropTarget, OwnershipBindingKind, OwnershipCheckedFile, UnitDropTarget},
     parser::{
         AssignmentOperator, BinaryOperator, Expression, FunctionBody, FunctionForm, Item,
         LiteralKind, NameMarker, ParameterModeMarker, ParsedFile, Statement, VariableKind,
@@ -748,7 +746,7 @@ pub(in crate::ssa) fn unit(
     file: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &ValidatedCompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     case: &str,
 ) -> Query<Facts> {
     require(

@@ -1,4 +1,5 @@
 //! unit 实例规划、函数入口与完整 SSA module 组装。
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 #[cfg(test)]
 mod pr120_range_source_contract_tests;
@@ -15,7 +16,7 @@ pub(in crate::ssa) fn lower_unit_from_facts(
     inputs: &[SourceUnitInput<'_>],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     constant_owned: Option<&ConstEnabledOwnedUnit>,
     entry: DeclarationId,
 ) -> Result<(Program, FunctionId), LoweringError> {
@@ -35,7 +36,7 @@ fn lower_unit_impl(
     source_inputs: (&SourceMap, &[SourceUnitInput<'_>]),
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     constant_owned: Option<&ConstEnabledOwnedUnit>,
     entry: DeclarationId,
     #[cfg(test)] capture: Option<&mut pr120_verifier_diagnostics::Capture>,

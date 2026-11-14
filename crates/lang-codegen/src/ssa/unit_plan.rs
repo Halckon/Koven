@@ -1,4 +1,5 @@
 //! SPEC-0199 compilation-unit 可达 callable 与具体实例的确定性计划。
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 mod call_routes;
 mod callable_instances;
@@ -14,7 +15,6 @@ use std::ops::Deref;
 use lang_frontend::{
     ast::ItemId,
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId, ValidatedCompilationUnitNames},
-    ownership_checking::CompilationUnitOwnership,
     parser::{Item, NameMarker, ParsedFile},
     source::Span,
     type_checking::{
@@ -349,7 +349,7 @@ pub(super) fn plan_unit_instances_from_facts(
     parsed_by_source: &[&ParsedFile],
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     entry: DeclarationId,
     max_generic_instances: usize,
 ) -> Result<UnitInstancePlan, LoweringError> {
@@ -737,7 +737,7 @@ fn callable_item(
 
 fn index_calls(
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     parsed_by_source: &[&ParsedFile],
     templates: &[UnitFunctionTemplate],
 ) -> Result<Vec<Vec<(usize, Span)>>, LoweringError> {

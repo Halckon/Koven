@@ -1,4 +1,6 @@
 //! Checked experimental source handoff, NOT a completed backend preflight or ordinary view.
+mod lowering;
+
 use super::{TwoSourceCounterFact, TwoSourceExperiment};
 use crate::ownership_checking::borrow_result::UnitBorrowResults;
 use crate::{

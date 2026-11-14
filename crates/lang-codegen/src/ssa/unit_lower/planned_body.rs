@@ -2,6 +2,7 @@
 //! This is internal orchestration, not an experimental ownership capability.
 use super::*;
 use crate::ssa::refine::CallableRoute;
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 pub(super) struct PlannedBodyContext<'a> {
     pub(super) sources: &'a SourceMap,
@@ -9,7 +10,7 @@ pub(super) struct PlannedBodyContext<'a> {
     pub(super) while_scopes: &'a [crate::ssa::refine::WhileScopes],
     pub(super) names: &'a ValidatedCompilationUnitNames,
     pub(super) typed: &'a CompilationUnitTypes,
-    pub(super) owned: &'a CompilationUnitOwnership,
+    pub(super) owned: &'a dyn UnitLoweringFacts,
     pub(super) constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     pub(super) function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     pub(super) callable_returns: &'a BTreeMap<FunctionId, SsaTypeId>,

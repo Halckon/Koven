@@ -1,4 +1,6 @@
 //! Closed pre-emission selection for the restricted experiment, not ordinary Unit authority.
+mod ordinary;
+
 use lang_frontend::{
     ownership_checking::two_source_experiment::{
         CalleeLeaf, EntryDescriptor, ExperimentalUnitHandoff, TwoSourceCounterFact,
@@ -18,6 +20,7 @@ pub(super) struct JointPlan<'a> {
     typed: &'a ValidatedCompilationUnitTypes,
     routes: Vec<(UnitCallableInstanceKey, Route<'a>)>,
     entries: Vec<(&'a EntryDescriptor, UnitCallableInstanceKey)>,
+    ordinary: ordinary::OrdinaryPlans,
 }
 impl<'a> JointPlan<'a> {
     pub(super) fn build(
@@ -89,11 +92,14 @@ impl<'a> JointPlan<'a> {
                 }
             }
         }
+        let ordinary =
+            ordinary::OrdinaryPlans::build(&selection, experiment, &planned_entries, facts)?;
         Some(Self {
             experiment,
             typed,
             routes,
             entries: planned_entries,
+            ordinary,
         })
     }
 
@@ -114,6 +120,7 @@ impl<'a> JointPlan<'a> {
     }
     /// Dispatch only the sealed routes; final publication independently re-derives source coverage.
     pub(super) fn publish(self) -> Option<super::e2_arm_fragments::PublishedEntrySet<'a>> {
+        self.ordinary.verify(&self)?;
         let mut leaves = Vec::new();
         for (_, route) in &self.routes {
             match route {

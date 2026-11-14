@@ -18995,3 +18995,26 @@ lowerer；参数绑定、receiver/inout 限制、入口 Drop、返回值转移�
 本地验证：普通 `unit_lower_` 回归 174 项通过（包含原有 native 子用例），
 实例计划回归 82 项通过；默认 all-target 编译及双 feature Clippy 通过。
 逐旧循环体独立审查确认只改调用封装及两处 continue 对应 return Ok，未改变准入。
+
+
+### E2 封闭 lowering 事实与普通实例计划对账
+
+`UnitLoweringFacts` 继承 sealed 的 preflight 查询面；ordinary product 与实验 handoff
+都直接委派同次原事实。Unit instance planner、refine、compatibility body、closure layout
+改收此只读接口，无 raw ownership getter、转换或 callback；普通公开 owned/native 入口不变。
+两个按 call/lambda 过滤的 iterator 仍沿原 slice 顺序、无额外分配，诊断 Debug 仍委派原产品。
+查询接口不是身份或发布凭据，不能替代 handoff、完整 Unit gates 和后端最终验证。
+
+joint 计划在已选择的 handoff 与全 Unit preflight 后，用真实 ordinary planner 为每个
+原 entry 建立完整 UnitInstancePlan。构建及发布前按原 entry/caller 唯一对应，比较 fact
+重建的 required 闭包和普通计划的完整 key 集合，并拒绝重复实例；static-self、deinit、
+callable arguments 或类型实参不因窄转换而从实际计划侧消失。完整类型需求与 callable
+arena 保留，不能只留声明编号或数量。
+
+这一批不合并各 entry 独有的 source token/callable arena，不把逐入口计划当同一共享
+body 上下文。共同 ordinary body 发射仍需单一规划、ABI、allocator 和整体 replay 接线；
+现有实验 emitter 继续以原受限源码证据发射，不据此放宽接受范围。故障仍限 CI。
+本地验证：前端四项与两个封闭接口 compile-fail 通过；两个 E2 feature 配置各十项通过、
+七个 CI-only 测试保持 ignored。普通 Unit body 回归 174 项、实例计划 82 项通过；
+前端严格 Clippy、后端双 feature all-target Clippy、默认 all-target 编译、格式、文档及
+尺寸门禁通过。独立审查分别核查查询迁移与 full-key/entry 对账，未发现阻断。

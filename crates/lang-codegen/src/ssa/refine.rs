@@ -4,6 +4,7 @@
 //! During migration `lower_owned_unit_with_entry` routes a function instance here only
 //! when [`accepts`] proves its whole body lies inside the migrated subset. Once routed,
 //! a failure is an error; there is no fallback to the per-family lowering.
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 pub(crate) mod arm_loop_receipt;
 mod body;
 pub(in crate::ssa) mod build;
@@ -39,8 +40,7 @@ use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId, ValidatedCompilationUnitNames},
     ownership_checking::{
-        CompilationUnitOwnership, ConstEnabledOwnedUnit, LoanKind, UnitDropPoint, UnitDropTarget,
-        UnitLoanTarget,
+        ConstEnabledOwnedUnit, LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
     },
     parser::{Expression, ParsedFile},
     source::{SourceMap, Span},
@@ -129,7 +129,7 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) source_unit: SourceUnitId,
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
-    pub(in crate::ssa) owned: &'a CompilationUnitOwnership,
+    pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
     /// Present for the constant capability; const uses stay on the existing path.
     pub(in crate::ssa) constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     pub(in crate::ssa) function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,

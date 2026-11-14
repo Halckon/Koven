@@ -332,7 +332,7 @@ pub(in crate::ssa::unit_plan) mod deinit {
     /// Direct invocation selects a resource body only through the proved callable origin.
     /// A completed receiver prefix alone cannot admit a lambda whose arguments never dispatch.
     pub(in crate::ssa::unit_plan) fn directly_invoked_lambda(
-        owned: &CompilationUnitOwnership,
+        owned: &dyn UnitLoweringFacts,
         parsed: &ParsedFile,
         call: &lang_frontend::type_checking::UnitCallDescriptor,
     ) -> Result<Option<UnitExpressionId>, LoweringError> {
@@ -370,7 +370,7 @@ pub(in crate::ssa::unit_plan) mod deinit {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::ssa::unit_plan) fn plan_instance_deinits(
         typed: &CompilationUnitTypes,
-        owned: &CompilationUnitOwnership,
+        owned: &dyn UnitLoweringFacts,
         names: &ValidatedCompilationUnitNames,
         parsed: &ParsedFile,
         template: &UnitFunctionTemplate,

@@ -236,5 +236,7 @@ pub mod two_source_experiment {
     };
 }
 
+mod lowering_facts;
+pub use lowering_facts::UnitLoweringFacts;
 mod preflight;
 pub use preflight::UnitPreflightFacts;
