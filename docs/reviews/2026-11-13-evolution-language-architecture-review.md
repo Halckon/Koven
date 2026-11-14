@@ -300,6 +300,6 @@ J48 允许监督者接住线程失败、进程继续运行，改变的是失败�
 | R8 | 采纳 | [之十二](../proposals/evolution-12-stdlib-platform.md) §4 规则 3；v1 冻结约束 Z11 | 核对 v1 是否已含目录枚举；`Path` 的 API |
 | A1 | 采纳 | [之一](../proposals/evolution-01-kernel-and-decisions.md) §3.2 | — |
 | A2 | 采纳 | [之九](../proposals/evolution-09-architecture.md) §3 | 各阶段不变量的具体定义（属于之八的规格工作） |
-| A3 | 待裁决 | [析构时机：两个方案的对比](../proposals/drop-timing-comparison.md) | 用户裁决；内存峰值测量 |
+| A3 | 采纳：规范统一为一条规则（词法作用域结束时析构，不可观察时允许提前），随 C1 的 Guide 改写启用 | [析构时机：两个方案的对比](../proposals/drop-timing-comparison.md) §8；之四 C1 | 内存峰值测量；容器以资源类型为实参时属于哪一轨的核对 |
 
 §5 的五组组合验证仍是冻结内核与安排版本的前提。
