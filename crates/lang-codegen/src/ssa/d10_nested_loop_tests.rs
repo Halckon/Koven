@@ -12,7 +12,25 @@ fn actual_nested_replace_preserves_both_roots_and_parameter_loan() {
         type_checking::{check_compilation_unit_types, standard_environments},
     };
     let base = "fun run(count: Int) { var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) { var inner = count; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; outer -= 1 }; println(b) }";
+    let parent = base.replace(
+        "var inner = count; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }",
+        "val old = replace(&a, \"next\"); var inner = count; while(inner > 0) { inner -= 1 }",
+    );
     for (text, accepted) in [
+        (parent.clone(), true),
+        (
+            parent
+                .replace("first", "甲")
+                .replace("kept", "保留")
+                .replace("next", "乙"),
+            true,
+        ),
+        (
+            parent.replace("var inner = count", "var inner = outer"),
+            false,
+        ),
+        (parent.replace("inner -= 1", "inner -= 2"), false),
+        (parent.replace("println(b)", "println(a)"), false),
         (base.to_owned(), true),
         (
             base.replace("first", "甲")
@@ -84,7 +102,12 @@ fn actual_nested_replace_preserves_both_roots_and_parameter_loan() {
                 .is_none(),
                 "single-loop sidecar must not accept nesting"
             );
-            replay::replay(&unit, &program, function).expect("actual nested CFG replay");
+            if bound.replacement_control() == bound.controls().1 {
+                parent_replay::replay(&unit, &program, function)
+                    .expect("actual parent Replace / child counter CFG replay");
+            } else {
+                replay::replay(&unit, &program, function).expect("actual child Replace CFG replay");
+            }
         }
     }
 }
@@ -93,3 +116,5 @@ use super::model::*;
 use lang_frontend::ownership_checking::OwnedCompilationUnitView;
 mod replay;
 mod source;
+
+mod parent_replay;

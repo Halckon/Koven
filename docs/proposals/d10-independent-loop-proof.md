@@ -607,3 +607,35 @@ codegen 的 fixture 取证仍是固定见证适配，并未宣称任意嵌套 SS
 codegen D10 六测试通过；三个 CI-only 身份测试均 ignored。前端默认配置编译、
 前端 all-targets（catalog/loan-observation）及 codegen lib/tests 严格 Clippy 通过；
 格式、956 篇文档结构门禁、独审和增量复审通过。未执行 native、LLVM 验证或故障注入。
+
+### 父一次 Replace／child 仅 counter 的反向受限组合
+
+下一片为同一封闭两层源码增加第二种且仅一种布局：父 body 严格是
+`old = replace(&a, literal)`、`inner = count`、child While、`outer -= 1`；
+child body 仅 `inner -= 1`，没有根写入。不是容许任意调序或合并两种布局：
+原 child-only 与新 parent-only 各自匹配完整真实二十五事件和对应 AST envelope，
+额外 Replace、不同 counter 来源、break、错误 suffix 仍拒绝。完整 arena 预算
+仍为六／十三／二十三，各节点恰归属一次。
+
+新增只读 `replacement_control()` 指出真实 Replace 所在 parent/child，与始终在
+父 LoopExit 的当前根清理区分。复用同次 NestedPending 的延迟绑定与全部事实核验，
+不把静态日志当动态回边或产生现行 Carry 权限。
+
+普通 Unit/Refine 确实可发射新形态的十一块二十三指令，独立 parent replay 不重排
+或伪造 SSA。父 body 真实 Replace 产生新 a，清理 detached old 后重新读取 count，
+把新 a/b/outer/count 与 inner 初值送入 child header。child 的零轮出口、body、
+checked-abort 和正常回边均运输当前 a/b，只有 inner 值变化；child 完成后父仅
+更新 outer，将当前根送回父 header。两个计数算术失败元数据分别核验，不声称
+失败时额外析构。最终父 false-exit 清理当前 a，suffix 对 b 完成真实 Shared
+Borrow/Print/BorrowEnd/Drop。四个计数常量也与实际条件/更新 RHS 源身份配对。
+
+前端矩阵累计四正例、十七邻接拒绝，各有 Rooted/MemoryDocument，计八正、三十四
+拒绝。codegen 两种布局各 ASCII/Unicode 正例及三个邻接拒绝，各有两种输入：
+八例实际 SSA replay，十二例在封闭观察端拒绝。固定 fixture 的 replay 仍不是
+任意输入认证器；生产 gate 与普通单环准入不变。未启用父 child 同时写、多次写、
+三层嵌套、复杂退出，也不以此替代未来新主线退出写回组合验收。
+
+本片实测：前端外部 catalog 四测＋nested 矩阵一测、planner 四测、codegen D10
+六测全通过；前端 all-targets 双实验 feature 与 codegen lib/tests 严格 Clippy、
+格式、文档 956 和独审通过。三项 CI-only 身份测试保持 ignored，未跑 native、
+LLVM 或本地故障注入；本地基线仍为 main `28a3c290`，未自行并入后续退出写回变更。

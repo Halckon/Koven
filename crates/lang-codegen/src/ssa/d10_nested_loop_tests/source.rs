@@ -1,5 +1,5 @@
 //! Read-only fixture evidence from the exact validated unit used by ordinary lowering.
-//! Not a source admission capability; nested BoundLoop deliberately remains unavailable.
+//! Not admission: BoundLoop still rejects nesting; the caller binds a separate BoundNestedLoop.
 use super::*;
 use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget},
