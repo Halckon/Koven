@@ -304,6 +304,16 @@ fn unsupported_actual_leaf_bodies_do_not_become_placeholders() {
             "caller shell does not promise callee body support"
         );
         assert!(super::e2_function::emit(&experiment, &experiment.facts()[0], &typed).is_none());
+        assert_eq!(
+            super::e2_publication::publish(
+                &experiment,
+                &experiment.facts()[0],
+                &[&experiment.facts()[0]],
+                &typed
+            )
+            .err(),
+            Some(super::e2_publication::Error::Emission)
+        );
         assert!(experiment.callee_leaves().is_none());
         assert!(super::e2_callee_leaves::emit(&experiment, &typed).is_none());
         assert!(
@@ -371,6 +381,21 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
         let [fact] = experiment.facts() else {
             panic!("one local closed fact retained")
         };
+        let published = super::e2_publication::publish(&experiment, fact, &[fact], &typed);
+        assert_eq!(published.is_ok(), expected.is_some());
+        if let Ok(published) = published {
+            assert_eq!(published.callable(), experiment.callable(fact).unwrap());
+            assert!(
+                published.program().modules[0]
+                    .function(published.caller())
+                    .is_some()
+            );
+            crate::llvm::render_verified_program(published.program()).unwrap();
+            assert!(super::e2_publication::publish(&experiment, fact, &[], &typed).is_err());
+            assert!(
+                super::e2_publication::publish(&experiment, fact, &[fact, fact], &typed).is_err()
+            );
+        }
         let emitted = super::e2_function::emit(&experiment, fact, &typed);
         assert_eq!(emitted.is_some(), expected.is_some(), "{source}");
         if let Some(emitted) = emitted {
@@ -419,8 +444,20 @@ fn e2_two_source_complete_function_shell_rejects_uncovered_body_and_abi() {
         assert!(super::e2_function::emit(&experiment, fact, &typecheck()).is_none());
         assert!(experiment.function_shell(fact, &typecheck()).is_none());
         let other = analyze();
+        if expected.is_some() {
+            let emitted = super::e2_function::emit(&experiment, fact, &typed).unwrap();
+            assert!(
+                super::e2_replay::replay(&emitted, &other, &other.facts()[0], &typed).is_none(),
+                "equivalent new analysis is not the issuing chain"
+            );
+        }
         assert!(super::e2_function::emit(&other, fact, &typed).is_none());
         assert!(other.function_shell(fact, &typed).is_none());
+        assert!(
+            super::e2_publication::publish(&experiment, fact, &[&other.facts()[0]], &typed)
+                .is_err()
+        );
+        assert!(super::e2_publication::publish(&experiment, fact, &[fact], &typecheck()).is_err());
         assert!(experiment.owns(fact));
         assert!(
             super::e2_arm_fragments::emit(&experiment, fact, &typed).is_some(),

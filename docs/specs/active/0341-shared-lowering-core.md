@@ -18422,3 +18422,31 @@ argv process entry；native 测试合成的驱动不能替代源码入口及实�
 
 这是工程身份/覆盖/发布链的缺口，不依赖未裁决的 Origin 扩展。本轮只读核对，
 没有添加 receipt、开放 driver 或修改接受集；未重复运行 Cargo/native。
+
+
+### E2 单函数独立 replay 与只读实验发布包
+
+本片把 required 明确定为用户选择的一个完整原 callable，而非整个 Unit。
+required 从原 experiment/fact/typed/shell 建立，selected 必须精确一次并保持原
+两臂签发身份；遗漏、重复、foreign 或 retyped 在 emission 前拒绝。builder产物
+另借用实际签发分析/fact，等价重分析不能用数值相同的IDs混入 replay。
+
+独立 replay 不调用 emitter 重建预期产物，也不调用会panic的测试断言。先作
+SSA结构验证，随后从FE重核完整callee key/真实leaf body、每个helper的原callsite
+及唯一child End、来源列，以及原caller九块的所有控制边/checked结果/运输/来源。
+所有函数明确无receiver、无carrier返回且非never-return；callee/columns从FE合同
+核验，不依靠builder的元数据彼此印证。builder的IDs只作最终Program的定位器。
+
+replay与最终整个Program verifier全成功后才交付Published：Program/caller/required
+均私有，仅允许共享引用和只读身份查询，不提供可变出口或ordinary owned转换。
+复制Program不携带发布包；现有native测试继续使用明确的原始可变builder产物，
+没有宣称Synthetic driver被此包覆盖。任何失败不产生部分包，无全局pending状态。
+
+真实用例验证正例封包及LLVM、遗漏/重复selection、foreign/retyped、等价重分析
+产物拒绝和不支持leaf导致Emission失败；不增加本地故障注入。replay损坏矩阵及
+最终gate故障撤销仍待CI-only验证，不能把源码审查当作那些拒绝路径已执行。
+该包只属于test+feature实验域，不是生产receipt、整Unit收据或生产driver接线。
+最终两配置各7/7通过（包含既有raw-builder native回归；不是封包后追加driver），
+双配置codegen all-target严格Clippy、默认/观察check、fmt/docs951/diff和增量
+尺寸门禁通过（2179文件、36旧超限）。独审补齐receiver等ABI元数据与zip长度
+守卫后复审通过。未运行CI-only损坏/撤销矩阵、远端CI或推送。

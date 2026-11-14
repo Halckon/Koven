@@ -4,9 +4,27 @@ use lang_frontend::{
     ownership_checking::two_source_experiment::{TwoSourceCounterFact, TwoSourceExperiment},
     type_checking::ValidatedCompilationUnitTypes,
 };
-pub(super) struct EmittedFunction {
+pub(super) struct EmittedFunction<'a> {
+    experiment: &'a TwoSourceExperiment,
+    fact: &'a TwoSourceCounterFact,
     pub(super) fragments: e2_arm_fragments::EmittedArms,
     pub(super) caller: FunctionId,
+}
+impl EmittedFunction<'_> {
+    pub(super) fn issued_for(
+        &self,
+        experiment: &TwoSourceExperiment,
+        fact: &TwoSourceCounterFact,
+        typed: &ValidatedCompilationUnitTypes,
+    ) -> bool {
+        experiment.owns(self.fact)
+            && self.experiment.matches_types(typed)
+            && fact
+                .arms()
+                .iter()
+                .zip(self.fact.arms())
+                .all(|(a, b)| a.same_identity(b))
+    }
 }
 fn loan(entity: EntityId) -> Option<LoanId> {
     if let EntityId::Loan(id) = entity {
@@ -22,11 +40,11 @@ fn value(entity: EntityId) -> Option<ValueId> {
         None
     }
 }
-pub(super) fn emit(
-    experiment: &TwoSourceExperiment,
-    fact: &TwoSourceCounterFact,
+pub(super) fn emit<'a>(
+    experiment: &'a TwoSourceExperiment,
+    fact: &'a TwoSourceCounterFact,
     typed: &ValidatedCompilationUnitTypes,
-) -> Option<EmittedFunction> {
+) -> Option<EmittedFunction<'a>> {
     let shell = experiment.function_shell(fact, typed)?;
     let mut fragments = e2_arm_fragments::emit(experiment, fact, typed)?;
     let module = fragments.leaves.program.modules.first_mut()?;
@@ -247,5 +265,10 @@ pub(super) fn emit(
     f.set_terminator(exit, TerminatorKind::Return { values: vec![] }, synthetic())
         .ok()?;
     super::verify::verify_program(&fragments.leaves.program).ok()?;
-    Some(EmittedFunction { fragments, caller })
+    Some(EmittedFunction {
+        fragments,
+        caller,
+        experiment,
+        fact,
+    })
 }

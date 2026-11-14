@@ -360,3 +360,7 @@ mod e2_function;
 mod e2_function_tests;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_native_tests;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_publication;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_replay;

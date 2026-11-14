@@ -128,12 +128,8 @@ workflow。本地仅编译列举，动态拒绝与恢复结果须以远端执行
 borrow binding、同源 branch 或 counter fact，validated ownership factory 不发布。
 同源 counter 邻居仍发布独立 counter 域身份，旧 branch owns 查询不授予权限。
 
-后续 Unit-only 测试入口可暂选候选并运行真实 core Frame；仅在两个临时 arm fact
-各通过真实最终 End 的唯一 receipt 匹配后现场断言，不保存 payload，只计到达。
-原同源 pair 构造守卫不变，公共分析仍诊断失败并撤销观察与借用产物；无新 pair、
-validated ownership 或 backend receipt 发布。默认关闭的线程局部 RAII 恢复嵌套/
-异常状态，Single selector 不经过此入口；非测试编译直接使用旧 selector。
-
+原同源 pair 构造守卫不变；仅观察入口不发布新事实。独立实验域见下文，
+默认关闭的 RAII 恢复嵌套/异常状态，Single selector 不经过该实验入口。
 
 非循环双 Shared 参数的普通 SSA 基线已独立核验：实际条件来源、两臂与 join 的
 有序参数运输，以及 caller 不同 owner/同 owner 与形参反序；输入覆盖 memory 和
@@ -197,4 +193,8 @@ initializer/条件/常量/decrement 保留原 Source Span，辅助块及 outline
 两 Shared 来源必定属于不同 owner。现另有 Synthetic native测试驱动，用未改写LLVM
 调用此原函数，覆盖MIN/0/3、双choose、同一Place/不同owner及参数反序；返回后
 输入仍可打印。空consumer不提供动态臂/次数证据，仍由精确CFG断言支持。
-没有生产driver或两源publication收据；正常分析仍拒绝原两源循环。
+实验单函数publication另从issuing fact/typed建立required并精确核selected，独立
+replay真实caller/helper/leaf闭包、完整ABI/来源/运输/End后再作整个Program验证，
+成功才生成私有字段、仅共享引用的Published；复制Program不复制封闭包权限。
+原始测试builder仍可变，但不携带该发布包。失败不返回部分包，无普通owned转换。
+没有生产driver或生产收据；正常分析仍拒绝原两源循环。
