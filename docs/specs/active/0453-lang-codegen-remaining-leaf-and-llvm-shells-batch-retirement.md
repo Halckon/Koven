@@ -169,3 +169,41 @@
 物理进度为 **30/37**，这 7 项不能简单并回原父模块，也不应为满足文件数量再次放入无关宿主。
 本轮仅形成清单与阻塞记录，没有追加退役、改变 §3 验收标准或将本 Spec 标记完成。
 后续先明确职责边界与尺寸目标的取舍，再实施新的布局；整批语义完整性、全量与 CI 验收继续待办。
+
+### 4.2 三组 include_str 迁移审计与 companion 职责归位
+
+本轮输入为集成检查点 `555694f8`，原始正文基线为 `2b3d624b`（原 0453 提交
+`7451e9a3` 的直接父提交）。核对 `native/unit_companion_boundary_tests.rs`、
+`native/unit_map_break_tests.rs`、`native/unit_map_continue_tests.rs` 三组迁移正文，
+不是再次按路径数量推断内容保全。
+
+审计排除 Rust 代码空白及注释，保留 raw-string 原字节，并按 Rust 规则折叠普通字符串
+backslash-newline 续行；除 companion 迁移后的 `super` 层级适配外，三组 token 正文
+均与原基线一致。七处 `include_str!` 分别仍解析到原 frontend final-admission 两个
+companion fixture、codegen map-conditional-break 两个 fixture，以及
+map-conditional-continue 三个 fixture；解析后路径和文件字节均与基线相同。
+此核对保留实际源码、预期输出和断言，不能替代运行证明。
+
+发现 companion capability/原子输出边界测试被挂在不相关的 container-size 测试模块。
+恢复 246 行 `native/unit_companion_boundary_tests.rs`，与原基线文件逐字节一致；从
+`native/unit_container_size_tests.rs` 删除旧内联副本，在 `native/unit_tests.rs`
+将根级 re-export 改回直接模块声明。根接口仍为
+`native::unit_tests::companion_boundary`，仅实际 libtest 路径去掉
+`container_size_tests` 中间层。Fixture、两项测试、Span/拒绝种类、完整输出目录与旧目标
+字节保持断言未改动；没有压行或移入另一无关宿主。break/continue 仍留在原 map-loop
+owner 职责域，同名模块层级及正文均未调整。
+
+| 验证 | 实际结果 |
+|---|---|
+| 修改前 companion feature 定向回归 | 2 passed / 0 failed / 0 ignored，退出码 0 |
+| 修改后 companion 2 项、map break 5 项与 continue 7 项 | 默认及 feature 均 14 passed / 0 failed / 0 ignored，退出码均 0；companion 正控只发射 object，不链接运行；break/continue 保留真实 object/link/run 与 Unit basic/constant 控制 |
+| feature 完整测试发现清单 | 前后均 3269 项，只有预期的两个 companion FQN 迁移，其他测试身份无变化；不等同执行全部测试 |
+| 默认及 feature all-targets Clippy（`-D warnings`） | 均退出码 0 |
+| fmt、文档、Rust 尺寸门禁 | 均退出码 0；container-size 宿主 569→319 行，独立 companion 246 行，原根宿主 1953 行未增长；旧尺寸欠账未清零 |
+| 独立只读审查及账本复核 | 未发现 Rust 迁移的具体问题；发现当前物理清单未更新，追加本节后复核确认已解决，且明确 companion 正控仅发射 object。复核时提示文档门禁待执行，父会话随后实际执行成功；审查本身未运行 Cargo 或门禁 |
+
+当前原清单物理删除进度为 **29/37**，保留文件增为八个：§4.1 七项加
+`native/unit_companion_boundary_tests.rs`。0451、0452 的 21、2 项保留决定不变，
+合计 31 个原目标路径保留。此次为恢复已要求的模块职责，不改 §3 原验收条件，不将
+文件数量变化当成语义完成；其余既有迁移审计、完整回归及集成分支双宿主 CI 仍待验收，
+本 Spec 保持 `in-progress`。

@@ -2,8 +2,8 @@
 mod borrow_result_tests;
 #[allow(unused_imports)]
 pub(crate) use boxed_enum_tests::container_remove_at_tests;
-#[allow(unused_imports)]
-pub(crate) use container_size_tests::companion_boundary;
+#[path = "unit_companion_boundary_tests.rs"]
+pub(crate) mod companion_boundary;
 #[allow(unused_imports)]
 pub(crate) use map_consume_tests::container_insert_at_tests;
 #[allow(unused_imports)]
