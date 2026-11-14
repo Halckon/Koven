@@ -6,6 +6,10 @@ use super::*;
 pub(in super::super) enum Event {
     Literal(UnitExpressionId),
     BorrowRegistered(crate::ownership_checking::UnitLoanFact),
+    UnwindBorrowRemoved {
+        loan: crate::ownership_checking::UnitLoanFact,
+        point: crate::ownership_checking::UnitDropPoint,
+    },
     PendingBorrowRemoved {
         loan: crate::ownership_checking::UnitLoanFact,
         call: UnitExpressionId,
@@ -195,7 +199,8 @@ pub(in super::super) fn partition_if(events: &[Event]) -> Option<IfPartition<'_>
                 | Event::WhileTraversal { .. }
                 | Event::BorrowRegistered(_)
                 | Event::DirectBorrowEnded { .. }
-                | Event::PendingBorrowRemoved { .. } => {
+                | Event::PendingBorrowRemoved { .. }
+                | Event::UnwindBorrowRemoved { .. } => {
                     return None;
                 }
                 _ => position += 1,

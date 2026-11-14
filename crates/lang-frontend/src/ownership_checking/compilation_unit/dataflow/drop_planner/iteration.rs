@@ -319,6 +319,17 @@ impl DropPlanner<'_, '_> {
         for index in (0..state.pending_loans.len()).rev() {
             if state.pending_loans[index].1 >= minimum_depth {
                 let super::model::PendingLoan(action, _, _) = state.pending_loans.remove(index);
+                #[cfg(test)]
+                if let Action::EndCallLoan(loan) = &action
+                    && let Some(probe) = &mut self.origin_probe
+                {
+                    probe.push(
+                        super::owner_transport::origin_probe::Event::UnwindBorrowRemoved {
+                            loan: loan.clone(),
+                            point: point.into_unit(self.checker.source_unit),
+                        },
+                    );
+                }
                 if self.is_observed_borrow_source_unwind(point, &action, state) {
                     self.borrow_source_unwind_actions
                         .insert(self.iteration_actions.len());

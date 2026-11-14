@@ -354,3 +354,15 @@ loan 的登记/正常退休各一次且顺序正确；后者仅有登记、没�
 `observe(a)` 则由既有 direct-end 消费 token，没有第二次 pending 移除。
 这些事件仍是静态遍历观察，不证明所有 receiver/forwarding/控制转移生命周期，
 分区仍拒绝，循环合流、CFG 和 Carry 未获新增权限。
+
+### 提前返回的真实 unwind 记录与静态替代路径
+
+测试域 `UnwindBorrowRemoved` 仅由 `end_iteration_pending_loans` 的实际 depth-aware
+pending 移除路径产生，保留同轮 loan 以及实际 `UnitDropPoint`。它不是从函数出口
+或 span 猜出的 End，也不覆盖 receiver 的独立 action。
+
+普通源码先求值借用参数、再在后续参数 `if` 的一臂 return，另一臂正常返回。
+此静态遍历对同一个 loan 可以记录一次登记、一个 ControlTransfer unwind 和一个
+CallReturn direct-end：后两者属于替代路径，不能串联成运行时两次退休。
+当前记录器只展示这种差异，尚未给出完整路径归属证明；分区保持拒绝，不发布
+动态 CFG、完整借用状态机或 Carry。receiver 的观察仍是独立缺口。

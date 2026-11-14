@@ -345,3 +345,45 @@ fn ordinary_direct_borrow_registration_and_retirement_are_actual_events() {
         assert!(!events.iter().any(|event| matches!(event, Event::PendingBorrowRemoved { loan: actual, .. } if actual == loan)));
     });
 }
+
+#[test]
+fn ordinary_conditional_return_records_alternative_retirements_not_dynamic_sequence() {
+    let fixture = Fixture::new(&[(
+        "exit.ko",
+        "fun observe(value: String, other: Int): Unit {}\nfun run(flag: Boolean): Unit { val a = \"read\"; observe(a, if (flag) { return } else { 0 }) }",
+    )]);
+    let owned = fixture.shared();
+    let call = crate::type_checking::UnitExpressionId::new(
+        fixture.source(0),
+        fixture.expression(0, "observe(a, if (flag) { return } else { 0 })"),
+    );
+    let loan = owned
+        .loans()
+        .iter()
+        .find(|loan| loan.call() == call)
+        .unwrap();
+    let transfer = crate::type_checking::UnitExpressionId::new(
+        fixture.source(0),
+        fixture.expression(0, "return"),
+    );
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.origin_probe = Some(Vec::new());
+        let observed = planner.run().unwrap();
+        let events = observed.origin_probe.as_ref().unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| *event == &Event::BorrowRegistered(loan.clone()))
+                .count(),
+            1
+        );
+        assert_eq!(events.iter().filter(|event| matches!(event, Event::UnwindBorrowRemoved { loan: actual, point } if actual == loan && *point == crate::ownership_checking::UnitDropPoint::ControlTransfer(transfer))).count(), 1);
+        assert_eq!(events.iter().filter(|event| matches!(event, Event::DirectBorrowEnded { loan: actual, point } if actual == loan && *point == crate::ownership_checking::UnitDropPoint::CallReturn(call))).count(), 1);
+        // Two static alternatives, not a loan dynamically ended twice.
+        assert!(super::super::origin_probe::partition_if(events).is_none());
+    });
+}
