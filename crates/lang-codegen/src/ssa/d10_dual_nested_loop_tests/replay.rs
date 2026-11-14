@@ -3,11 +3,16 @@
 use super::*;
 pub(super) fn replay(
     unit: &OwnedCompilationUnitView<'_, '_>,
+    bound: &lang_frontend::ownership_checking::d10_catalog_experiment::BoundDualNestedLoop,
     program: &Program,
     id: FunctionId,
 ) -> Option<()> {
+    if !bound.matches(unit) {
+        return None;
+    }
     verify::verify_program(program).ok()?;
     let source = source::facts(unit)?;
+    source.matches_bound(unit, bound)?;
     let [module] = program.modules.as_slice() else {
         return None;
     };

@@ -33,3 +33,12 @@ if [[ "$mode" != --list-only ]]; then
 else
   echo 'loop final-owned identity CI-only test compiled/listed; not executed'
 fi
+
+replay_bridge=ssa::d10_dual_nested_loop_tests::ci_only_dual_replay_rejects_foreign_owned_identity
+listing=$(cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$replay_bridge" -- --exact --ignored --list)
+[[ $(grep -Fxc "$replay_bridge: test" <<< "$listing") == 1 ]]
+if [[ "$mode" != --list-only ]]; then
+  cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment "$replay_bridge" -- --exact --ignored
+else
+  echo 'nested replay identity CI-only test compiled/listed; not executed'
+fi

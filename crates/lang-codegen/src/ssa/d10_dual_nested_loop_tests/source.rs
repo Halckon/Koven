@@ -7,7 +7,25 @@ use lang_frontend::{
     type_checking::{BuiltinType, UnitExpressionId, UnitStatementId, UnitTypeKind},
 };
 
+// Exact identities are discovered below independently of the sealed observation.
+struct Identities {
+    callable: lang_frontend::type_checking::UnitItemId,
+    controls: [UnitStatementId; 2],
+    roots: [lang_frontend::name_resolution::UnitSymbolId; 3],
+    conditions: [UnitExpressionId; 2],
+    steps: [UnitExpressionId; 2],
+    sites: [UnitExpressionId; 4], // a, b, parent incoming, child incoming
+    calls: [UnitExpressionId; 3],
+    drops: [lang_frontend::ownership_checking::UnitDropFact; 4],
+    loans: [lang_frontend::ownership_checking::UnitLoanFact; 3],
+    retained: lang_frontend::name_resolution::UnitSymbolId,
+    final_use: Option<(
+        UnitExpressionId,
+        lang_frontend::ownership_checking::UnitLoanFact,
+    )>,
+}
 pub(super) struct Facts {
+    identities: Identities,
     pub(super) callable: Origin,
     pub(super) final_root_use: Option<(Origin, Origin)>,
     pub(super) independent_counters: bool,
@@ -215,7 +233,9 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
             (true, [parent, child, final_root, kept]) => (parent, child, Some(final_root), kept),
             _ => return None,
         };
-    let final_root_use = if let (Some(loan), Some((call, call_origin))) = (final_loan, final_call) {
+    let final_root_use = if let (Some(loan), Some((call, call_origin))) =
+        (final_loan, final_call.clone())
+    {
         if loan.call() != call
             || loan.kind() != lang_frontend::ownership_checking::LoanKind::Shared
             || !matches!(loan.target(), UnitLoanTarget::Place(p) if p.is_root() && p.root() == a)
@@ -305,6 +325,25 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
         return None;
     };
     Some(Facts {
+        identities: Identities {
+            callable: lang_frontend::type_checking::UnitItemId::new(source, *function),
+            controls: [parent.0, child.0],
+            roots: [a, symbol("outer")?.0, symbol("inner")?.0],
+            conditions: [outer.0, inner.0],
+            steps: [expression("outer -= 1")?.0, expression("inner -= 1")?.0],
+            sites: sites.map(|id| UnitExpressionId::new(source, id)),
+            calls: [parent_call, call, suffix.0],
+            drops: [*parent_old_drop, *old_drop, *root_drop, *kept_drop],
+            loans: [
+                parent_loan.clone(),
+                replace_loan.clone(),
+                suffix_loan.clone(),
+            ],
+            retained: b,
+            final_use: final_call
+                .zip(final_loan)
+                .map(|((call, _), loan)| (call, loan.clone())),
+        },
         final_root_use,
         independent_counters,
         counter_parameters: [parameter, child_parameter],
@@ -332,4 +371,60 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
             suffix.1,
         ],
     })
+}
+
+/// Reconcile independently discovered source/fact identities with the same-run sealed sidecar.
+/// Neither fixture discovery nor this equality check is a new source-admission capability.
+impl Facts {
+    pub(super) fn matches_bound(
+        &self,
+        unit: &OwnedCompilationUnitView<'_, '_>,
+        bound: &lang_frontend::ownership_checking::d10_catalog_experiment::BoundDualNestedLoop,
+    ) -> Option<()> {
+        if !bound.matches(unit) {
+            return None;
+        }
+        let discovered = self;
+        let ids = &discovered.identities;
+        if bound.controls() != (ids.callable, ids.controls[0], ids.controls[1])
+            || bound.roots()
+                != (
+                    ids.roots[0],
+                    ids.roots[1],
+                    ids.roots[2],
+                    discovered.counter_parameters[0],
+                )
+            || bound.counter_parameters() != discovered.counter_parameters
+            || bound.counter_initializers() != discovered.counter_initializers
+            || bound.counter_expressions()
+                != [
+                    (ids.conditions[0], ids.steps[0]),
+                    (ids.conditions[1], ids.steps[1]),
+                ]
+            || bound.producer_sites() != [ids.sites[0], ids.sites[2], ids.sites[3]]
+            || bound.replacements() != [ids.calls[0], ids.calls[1]]
+            || bound.cleanup() != &ids.drops[..3]
+            || bound.loans() != &ids.loans[..2]
+        {
+            return None;
+        }
+        let kept = bound.retained();
+        if kept.source() != (ids.retained, ids.sites[1])
+            || kept.call() != ids.calls[2]
+            || kept.loan() != &ids.loans[2]
+            || kept.cleanup() != ids.drops[3]
+        {
+            return None;
+        }
+        match (bound.final_root_use(), &ids.final_use) {
+            (None, None) => {}
+            (Some(actual), Some((call, loan)))
+                if actual.source() == (ids.roots[0], ids.sites[0])
+                    && actual.call() == *call
+                    && actual.loan() == loan
+                    && actual.cleanup() == ids.drops[2] => {}
+            _ => return None,
+        }
+        Some(())
+    }
 }

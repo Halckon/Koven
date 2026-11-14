@@ -802,3 +802,26 @@ Drop 时无活跃借用及每代只清理一次；结束要求逻辑 owner 和�
 本片首轮及全 D10 九项普通 SSA 回归通过；Rooted/Memory 合计十八条正常路径、
 两条一步预算拒绝均已执行。严格 Clippy、格式、文档 956 及独审通过。收尾只读
 复核仍有既有 native 子进程在途，故本片没有启动原对象动态矩阵或终止其他任务。
+
+### 完整 sealed sidecar 与真实 source/owned 对账
+
+原 fixture replay 仅接 owned view，调用处只显式核对部分 counter 与后用 span。
+现在 replay 必须同时接收同次 BoundDualNestedLoop，先核 owned analysis 身份，
+再将独立从 AST、names、types、实际 owned 发现的全部 ID/事实与 sealed sidecar
+逐字段对账：callable、父子 controls、根与 counters、参数和 initializer、条件与
+更新、三个 producer site、两次 Replace、完整 cleanup/loan，以及 retained 和
+可选最终根后用。入口 declaration 由实际 callable 的 source/item 唯一映射，
+不再依赖函数名 `run`。独立 facts 不读取 bound 来填充预期值。
+
+这补齐实验交接的闭合检查，不是新生产准入。source adapter 的其他固定名称与
+11 blocks、28/32 instructions 布局限制仍保留；Program 自身没有新增 owned
+provenance token，因此不宣称任意外部 Program 的不可伪造授权。原生动态矩阵
+仍待空闲窗口，SSA 路径见证不是 native。
+
+新增真实第二次 ownership 分析的双向错配拒绝控制，保持 ignored 并要求 CI
+环境；现有 identity CI 脚本负责精确列举后执行。此类身份负控本地仅编译列举，
+不执行、不伪造或改写任何 facts。正常源码/SSA 回归与故障负控分别报告。
+
+本片正常 D10 SSA 九项通过（含真实函数改名后的入口映射），一项新身份负控
+ignored；精确列举确认该项存在但未本地执行。严格 Clippy、格式、文档 956 与
+独审通过。现有 native 占用期间未启动对象动态矩阵，未修改生产代码或门禁。
