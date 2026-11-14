@@ -140,3 +140,5 @@ validated ownership 或 backend receipt 发布。默认关闭的线程局部 RAI
 有序参数运输，以及 caller 不同 owner/同 owner 与形参反序；输入覆盖 memory 和
 rooted 跨源 Unit。基线仅直接使用根，不含 BorrowCall；两臂分别产生借用结果的
 邻居仍在整个 if 处 UnsupportedNode，不能把此运输证据当作两源循环 receipt。
+同一基线的单块正常返回caller另核六个共享loan各唯一结束、调用间不残留，以及
+String owner在其全部关联loan结束后才唯一Drop；不覆盖异常退出或循环收据。

@@ -38,6 +38,78 @@ fn prints(f: &Function, b: &Block) -> Vec<EntityId> {
         .collect()
 }
 
+// This fixture has one caller block: instruction positions are actual execution order.
+// Do not generalize this check to arbitrary CFGs or abnormal returns.
+fn caller_cleanup(f: &Function, callee: FunctionId) {
+    assert_eq!(f.blocks.len(), 1);
+    let block = &f.blocks[0];
+    assert!(matches!(
+        block.terminator.as_ref().unwrap().kind,
+        TerminatorKind::Return { .. }
+    ));
+    let instructions = block
+        .instructions
+        .iter()
+        .map(|id| f.instruction(*id).unwrap())
+        .collect::<Vec<_>>();
+    let mut ended = std::collections::BTreeSet::new();
+    for (position, call) in instructions.iter().enumerate() {
+        let Operation::DirectCall {
+            callee: actual,
+            arguments,
+            ..
+        } = &call.operation
+        else {
+            continue;
+        };
+        assert_eq!(*actual, callee);
+        assert_eq!(arguments.len(), 3);
+        assert!(call.results.is_empty());
+        for argument in arguments {
+            let EntityId::Loan(loan) = argument else {
+                panic!("shared parameter")
+            };
+            assert!(
+                ended.insert(*loan),
+                "each invocation has fresh caller capabilities"
+            );
+            let ends = instructions.iter().enumerate().filter(|(_, inst)| matches!(inst.operation, Operation::BorrowEnd { loan: actual } if actual == *loan)).map(|(i, _)| i).collect::<Vec<_>>();
+            assert_eq!(ends.len(), 1);
+            assert!(ends[0] > position, "end follows normal call return");
+            if let Some(next) = instructions
+                .iter()
+                .enumerate()
+                .skip(position + 1)
+                .find(|(_, inst)| matches!(inst.operation, Operation::DirectCall { .. }))
+                .map(|(i, _)| i)
+            {
+                assert!(ends[0] < next, "prior invocation ends before the next call");
+            }
+            let root = owner(f, *argument);
+            let drops = instructions.iter().enumerate().filter(|(_, inst)| matches!(inst.operation, Operation::Drop { owner } if owner == root)).map(|(i, _)| i).collect::<Vec<_>>();
+            // The Boolean temporary is Copy; only String owners have explicit Drop.
+            if matches!(
+                producer(f, EntityId::Value(root)),
+                Operation::StringLiteral { .. }
+            ) {
+                assert_eq!(drops.len(), 1);
+                assert!(
+                    drops[0] > ends[0],
+                    "same-owner roots survive both capability ends"
+                );
+            }
+        }
+    }
+    assert_eq!(ended.len(), 6);
+    assert_eq!(
+        instructions
+            .iter()
+            .filter(|i| matches!(i.operation, Operation::BorrowEnd { .. }))
+            .count(),
+        ended.len()
+    );
+}
+
 #[test]
 fn shared_branch_transport_baseline() {
     for reversed in [false, true] {
@@ -144,6 +216,7 @@ fn shared_branch_transport_baseline() {
             );
             // Equal owner is compatible with distinct shared loan capabilities.
             assert_ne!(calls[1][left], calls[1][right]);
+            caller_cleanup(caller, f.id);
         }
     }
 }

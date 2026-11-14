@@ -18135,3 +18135,17 @@ UnsupportedNode边界完全不变。只复用代码补丁，历史验收不冒�
 对`bc63736b`及`3b7a9a7a`两明确基线均通过（2164个手写Rust文件，36个既有
 超限文件仍列账）。独立复审逐文件核对与两原修复一致，无新生产权限变更；未运行
 native或远端CI。此前默认配置阻断已解除，main多merge-base集成检查仍留发布线。
+
+### E2 非循环 caller 清理责任（2026-11-14）
+
+核对 #422 为 OPEN、head `3362dee8`；main 为 `51a3aad3`。基于本地 `87de06bf`
+继续独立测试，不改发布集成树。原运输基线增加真实 caller 的正常返回责任检查：
+显式限定一个block且终结为Return，按block.instructions顺序核两个调用的六个
+共享loan各自唯一End，发生在本次call之后、下次call之前；总End数不得有额外项。
+String owner经实际BorrowBegin→RootPlace追溯，唯一Drop必须晚于其每个loan的End，
+包括同owner的两份能力。Boolean Copy临时值不强加String的Drop合同。
+
+本片无新源码形状或生产改动，不把正常返回清理证据推广到异常退出、任意CFG、
+BorrowCall分支或E2循环receipt；原UnsupportedNode边界保留。独立只读复审通过。
+默认与observer-support两配置的2项普通测试各2/2、codegen all-target严格Clippy
+均通过，fmt/docs951/diff通过。未运行native、CI故障注入或远端CI；未推送。
