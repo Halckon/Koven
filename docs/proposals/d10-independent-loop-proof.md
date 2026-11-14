@@ -730,3 +730,30 @@ count 时无法单独取该输入的见证限制；本片仅实际 SSA 验证，
 前端与后端严格 Clippy、默认前端编译、文档 956、独立复审通过；四项 CI-only
 身份错配测试保持 ignored。新增 Long 拒绝源码采用 `0L`／`1L`，前端合法后才
 验证候选拒绝，不以类型错误代替 sidecar 边界。
+
+### 真实循环后 a/b 双后用
+
+后续封闭变体将末尾限定为 `println(a); println(b)`，而非只读取保留根 b。
+实际 planner 轨迹是共同 25 事件及原 6／新 9 事件尾部（总 31／34），不删除、
+重排或合成事件。新形态完整覆盖 7 items／15 statements／30 expressions，核验
+两次内建调用的真实 argument/root、Shared loan begin/end 和声明来源。
+原形态的 a LoopExit Drop 保留；新形态要求 a 的 Drop 精确位于其实际 CallReturn，
+再接 b 的 CallReturn。最终 owned 全量匹配四 Drop、四 loan、两 Replace。
+
+`final_root_use()` 明示这一不同形态；其中 source site 仅为最初构造位置，不是
+当前动态代际。后端取真实父退出 block 参数作为 a 当前值，独立验证 RootPlace、
+Shared Borrow、Print、End、Drop，随后验证 b 的同样链。实际普通 Unit 图保持
+11 blocks，新形态为 32 instructions；仅用显式布局对应复用核验逻辑，新增四条
+指令和整个 finished block 都逐条核对，没有过滤或修改原 SSA。bound 的参数与
+initializer、final-use loan 来源也与独立真实源码证据对账。
+
+该形态使后续原生输入矩阵可以观察 first／parent／next 的最终选择。当前只验证
+真实源码、最终 owned、SSA 与 LLVM adapter，不宣称已经动态执行父零／子零／多轮。
+StringLiteral 使用全局 bytes 与零 capacity，不产生对应 malloc，因此不能套用
+分配计数声称证明本例的代际清理。原生调用入口还需显式测试适配器且遵循原超时；
+它不属于源码准入合同，也不修改生产 entry。普通门禁、Elvis 延后和任意复杂退出
+均未改变。
+
+本片完整普通回归通过：handoff 六项、planner 五项、D10 SSA 八项（含双后用
+实际 LLVM render/verify）；四项 CI-only 身份测试仍 ignored。前后端严格 Clippy、
+默认前端编译、格式、文档 956 及独立复审通过。本地未执行故障注入或 native。

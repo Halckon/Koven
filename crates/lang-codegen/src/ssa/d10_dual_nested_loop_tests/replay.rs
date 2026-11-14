@@ -16,7 +16,12 @@ pub(super) fn replay(
     };
     if f.id() != id
         || f.blocks.len() != 11
-        || f.instructions.len() != 28
+        || f.instructions.len()
+            != if source.final_root_use.is_some() {
+                32
+            } else {
+                28
+            }
         || f.origin != source.callable
         || f.blocks.iter().any(|b| b.origin != source.callable)
         || !f.return_types.is_empty()
@@ -27,12 +32,23 @@ pub(super) fn replay(
     {
         return None;
     }
+    let postuse = source.final_root_use.is_some();
+    // Explicit layout correspondence only; never remove/rewrite actual SSA instructions.
+    let index = |n: usize| {
+        if postuse && n == 11 {
+            15
+        } else if postuse && n >= 12 {
+            n + 4
+        } else {
+            n
+        }
+    };
     let i = &f.instructions;
-    let value = |n: usize, r: usize| match i.get(n)?.results.get(r)? {
+    let value = |n: usize, r: usize| match i.get(index(n))?.results.get(r)? {
         EntityId::Value(v) => Some(*v),
         _ => None,
     };
-    let block = |n: usize| f.block(i[n].block);
+    let block = |n: usize| f.block(i[index(n)].block);
     let e = f.block(f.entry_block()?)?;
     let ph = block(3)?;
     let pb = block(5)?;
@@ -107,35 +123,60 @@ pub(super) fn replay(
     let [EntityId::Value(final_a), EntityId::Value(final_b)] = pf.parameters.as_slice() else {
         return None;
     };
-    let [EntityId::Place(suffix_place)] = i[12].results.as_slice() else {
+    let [EntityId::Place(suffix_place)] = i[index(12)].results.as_slice() else {
         return None;
     };
-    let [EntityId::Loan(suffix_loan)] = i[13].results.as_slice() else {
+    let [EntityId::Loan(suffix_loan)] = i[index(13)].results.as_slice() else {
         return None;
     };
-    let [EntityId::Place(replace_place)] = i[5].results.as_slice() else {
+    let [EntityId::Place(replace_place)] = i[index(5)].results.as_slice() else {
         return None;
     };
-    let [EntityId::Loan(replace_loan)] = i[6].results.as_slice() else {
+    let [EntityId::Loan(replace_loan)] = i[index(6)].results.as_slice() else {
         return None;
     };
     for (n, literal) in [0, 1, 7, 21].into_iter().zip(&source.literals) {
-        let Operation::StringLiteral { string, bytes } = &i[n].operation else {
+        let Operation::StringLiteral { string, bytes } = &i[index(n)].operation else {
             return None;
         };
         if module.types.get(string.index())? != &SsaTypeKind::StringOwner
             || bytes != &literal.1
-            || i[n].origin != literal.0
+            || i[index(n)].origin != literal.0
         {
             return None;
         }
     }
-    let [EntityId::Place(child_place)] = i[19].results.as_slice() else {
+    let [EntityId::Place(child_place)] = i[index(19)].results.as_slice() else {
         return None;
     };
-    let [EntityId::Loan(child_loan)] = i[20].results.as_slice() else {
+    let [EntityId::Loan(child_loan)] = i[index(20)].results.as_slice() else {
         return None;
     };
+    if let Some((borrow_origin, call_origin)) = &source.final_root_use {
+        let [EntityId::Place(place)] = f.instructions[11].results.as_slice() else {
+            return None;
+        };
+        let [EntityId::Loan(loan)] = f.instructions[12].results.as_slice() else {
+            return None;
+        };
+        for (n, expected, origin) in [
+            (11, Operation::RootPlace { owner: *final_a }, borrow_origin),
+            (
+                12,
+                Operation::BorrowBegin {
+                    place: *place,
+                    kind: LoanKind::Shared,
+                },
+                borrow_origin,
+            ),
+            (13, Operation::PrintString { value: *loan }, call_origin),
+            (14, Operation::BorrowEnd { loan: *loan }, call_origin),
+        ] {
+            if f.instructions[n].operation != expected || f.instructions[n].origin != *origin {
+                return None;
+            }
+        }
+    }
     let expected = [
         (19, Operation::RootPlace { owner: bc.1 }),
         (
@@ -247,7 +288,7 @@ pub(super) fn replay(
             },
         ),
     ];
-    if expected.iter().any(|(n, op)| i[*n].operation != *op) {
+    if expected.iter().any(|(n, op)| i[index(*n)].operation != *op) {
         return None;
     }
     for (n, origin) in [
@@ -272,7 +313,7 @@ pub(super) fn replay(
         (25, &source.steps[1]),
         (27, &source.steps[0]),
     ] {
-        if i[n].origin != *origin {
+        if i[index(n)].origin != *origin {
             return None;
         }
     }
@@ -304,7 +345,9 @@ pub(super) fn replay(
             (true, lang_frontend::parser::Expression::Assignment { value, .. }) => *value,
             _ => return None,
         };
-        if i[n].origin != Origin::Source(input.parsed().ast().expressions().get(rhs).ok()?.span()) {
+        if i[index(n)].origin
+            != Origin::Source(input.parsed().ast().expressions().get(rhs).ok()?.span())
+        {
             return None;
         }
     }
@@ -442,7 +485,11 @@ pub(super) fn replay(
         (cb, (19..26)),
         (cf, (26..28)),
     ] {
-        let actual = indices.map(|n| &i[n]).collect::<Vec<_>>();
+        let actual = if postuse && b.id == pf.id {
+            (11..21).map(|n| &f.instructions[n]).collect::<Vec<_>>()
+        } else {
+            indices.map(|n| &i[index(n)]).collect::<Vec<_>>()
+        };
         if b.instructions != actual.iter().map(|op| op.id).collect::<Vec<_>>()
             || actual.iter().any(|op| op.block != b.id)
         {

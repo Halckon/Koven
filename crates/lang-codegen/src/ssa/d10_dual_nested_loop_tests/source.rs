@@ -9,6 +9,7 @@ use lang_frontend::{
 
 pub(super) struct Facts {
     pub(super) callable: Origin,
+    pub(super) final_root_use: Option<(Origin, Origin)>,
     pub(super) independent_counters: bool,
     pub(super) counter_parameters: [lang_frontend::name_resolution::UnitSymbolId; 2],
     pub(super) counter_initializers: [UnitExpressionId; 2],
@@ -26,12 +27,15 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
         return None;
     };
     let ast = input.parsed().ast();
-    if ast.items().iter().count() != 7
-        || ast.statements().iter().count() != 14
-        || ast.expressions().iter().count() != 27
-    {
-        return None;
-    }
+    let postuse = match (
+        ast.items().iter().count(),
+        ast.statements().iter().count(),
+        ast.expressions().iter().count(),
+    ) {
+        (7, 14, 27) => false,
+        (7, 15, 30) => true,
+        _ => return None,
+    };
     let [names] = unit.names().names().source_units() else {
         return None;
     };
@@ -180,8 +184,24 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
             return None;
         }
     }
+    let final_call = if postuse {
+        Some(expression("println(a)")?)
+    } else {
+        None
+    };
+    if let Some((call, _)) = final_call {
+        let descriptor = unit.types().call(call)?;
+        if !descriptor.prints_line() || descriptor.aborts() || descriptor.receiver().is_some() {
+            return None;
+        }
+    }
+    let root_point = final_call
+        .as_ref()
+        .map_or(UnitDropPoint::LoopExit(parent.0), |c| {
+            UnitDropPoint::CallReturn(c.0)
+        });
     if root_drop.target() != UnitDropTarget::Named(a)
-        || root_drop.point() != UnitDropPoint::LoopExit(parent.0)
+        || root_drop.point() != root_point
         || root_drop.value_origin() != a_span
         || kept_drop.target() != UnitDropTarget::Named(b)
         || kept_drop.point() != UnitDropPoint::CallReturn(suffix.0)
@@ -189,8 +209,23 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
     {
         return None;
     }
-    let [parent_loan, replace_loan, suffix_loan] = unit.ownership().loans() else {
-        return None;
+    let (parent_loan, replace_loan, final_loan, suffix_loan) =
+        match (postuse, unit.ownership().loans()) {
+            (false, [parent, child, kept]) => (parent, child, None, kept),
+            (true, [parent, child, final_root, kept]) => (parent, child, Some(final_root), kept),
+            _ => return None,
+        };
+    let final_root_use = if let (Some(loan), Some((call, call_origin))) = (final_loan, final_call) {
+        if loan.call() != call
+            || loan.kind() != lang_frontend::ownership_checking::LoanKind::Shared
+            || !matches!(loan.target(), UnitLoanTarget::Place(p) if p.is_root() && p.root() == a)
+            || loan.end_span() != ast.expressions().get(call.expression()).ok()?.span()
+        {
+            return None;
+        }
+        Some((Origin::Source(loan.begin_span()), call_origin))
+    } else {
+        None
     };
     for (loan, expected_call, root, kind) in [
         (
@@ -270,6 +305,7 @@ pub(super) fn facts(unit: &OwnedCompilationUnitView<'_, '_>) -> Option<Facts> {
         return None;
     };
     Some(Facts {
+        final_root_use,
         independent_counters,
         counter_parameters: [parameter, child_parameter],
         counter_initializers: reads.map(|id| UnitExpressionId::new(source, id)),

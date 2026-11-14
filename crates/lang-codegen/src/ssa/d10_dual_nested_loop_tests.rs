@@ -17,6 +17,14 @@ fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
     };
     for (text, accepted) in [
         (SOURCE.to_owned(), true),
+        (SOURCE.replace("println(b)", "println(a); println(b)"), true),
+        (
+            SOURCE
+                .replace("count: Int", "count: Int, childCount: Int")
+                .replace("var inner = count", "var inner = childCount")
+                .replace("println(b)", "println(a); println(b)"),
+            true,
+        ),
         (
             SOURCE
                 .replace("count: Int", "count: Int, childCount: Int")
@@ -89,6 +97,13 @@ fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
             let evidence = source::facts(&unit).expect("real initializer source identities");
             assert_eq!(bound.counter_parameters(), evidence.counter_parameters);
             assert_eq!(bound.counter_initializers(), evidence.counter_initializers);
+            assert_eq!(
+                bound.final_root_use().map(|u| (
+                    Origin::Source(u.loan().begin_span()),
+                    Origin::Source(u.loan().end_span())
+                )),
+                evidence.final_root_use
+            );
             assert_ne!(bound.replacements()[0], bound.replacements()[1]);
             assert_ne!(bound.producer_sites()[1], bound.producer_sites()[2]);
             let entry = names
@@ -103,6 +118,10 @@ fn actual_dual_nested_replacements_preserve_zero_and_backedge_generations() {
                 unit_lower::lower_owned_unit_with_entry(&unit, entry).unwrap();
             replay::replay(&unit, &program, function)
                 .expect("actual dual Replace CFG and cleanup replay");
+            if bound.final_root_use().is_some() {
+                crate::llvm::render_verified_program(&program)
+                    .expect("real dual post-use graph reaches the LLVM adapter");
+            }
         }
     }
 }
