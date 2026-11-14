@@ -49,6 +49,52 @@ pub(super) fn publish<'a>(
 ) -> Result<PublishedEntry<'a>, Error> {
     publish_inner(experiment, required, fact, selected, typed, None)
 }
+/// Separate proof of whole-Unit preflight followed by bounded experimental publication.
+/// Not an ordinary Unit/native capability; the scoped publisher cannot construct this wrapper.
+pub(super) struct CheckedPublishedEntry<'a>(PublishedEntry<'a>);
+impl<'a> CheckedPublishedEntry<'a> {
+    pub(super) fn publication(&self) -> &PublishedEntry<'a> {
+        &self.0
+    }
+}
+#[derive(Debug)]
+pub(super) enum CheckedError {
+    Required,
+    Preflight(super::LoweringError),
+    Publication(Error),
+}
+/// Re-select the exact required fact internally; never trust a caller's preflight result.
+pub(super) fn publish_checked<'a>(
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        'a,
+        '_,
+    >,
+    experiment: &'a TwoSourceExperiment,
+    required: &'a EntryDescriptor,
+    fact: &'a TwoSourceCounterFact,
+) -> Result<CheckedPublishedEntry<'a>, CheckedError> {
+    let typed = handoff.types();
+    if !handoff.owns(fact)
+        || !experiment.owns(fact)
+        || !experiment.matches_types(typed)
+        || !experiment.owns_entry(required)
+        || experiment
+            .callable(fact)
+            .map(lang_frontend::type_checking::UnitCallTarget::Declaration)
+            != Some(required.instance().target())
+    {
+        return Err(CheckedError::Required);
+    }
+    let selected = handoff.for_fact(fact).ok_or(CheckedError::Required)?;
+    let parsed =
+        super::lowering_support::parsed_by_source_unit(selected.inputs(), selected.names())
+            .map_err(CheckedError::Preflight)?;
+    super::unit_lower::preflight::validate(&parsed, selected.names(), typed.types(), &selected)
+        .map_err(CheckedError::Preflight)?;
+    publish(experiment, required, fact, &[fact], typed)
+        .map(CheckedPublishedEntry)
+        .map_err(CheckedError::Publication)
+}
 /// Closed CI-only fault vocabulary, not an arbitrary mutation callback.
 pub(super) enum CiFault {
     WrongStringArguments,

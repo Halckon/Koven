@@ -699,6 +699,47 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                 .handoff(&sources, &inputs, &names, &types, &retyped)
                 .is_err()
         );
+        use super::e2_entry_publication::{CheckedError, publish_checked};
+        assert!(matches!(
+            publish_checked(
+                &handoff,
+                &other,
+                &other.entries(&typed).unwrap()[0],
+                &other.facts()[0]
+            ),
+            Err(CheckedError::Required)
+        ));
+        let checked = publish_checked(&handoff, &experiment, entry, fact);
+        if multiple || ordinary {
+            match checked {
+                Err(CheckedError::Preflight(error)) => {
+                    assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
+                    assert_eq!(
+                        error.span,
+                        super::unit_lower::preflight::validate(
+                            &parsed_sources,
+                            selected.names(),
+                            selected.types().types(),
+                            &selected,
+                        )
+                        .unwrap_err()
+                        .span
+                    );
+                }
+                Err(CheckedError::Publication(error)) => panic!("wrong failure stage: {error:?}"),
+                _ => panic!("whole Unit gate must fail before publication"),
+            }
+        } else {
+            let checked = checked.unwrap();
+            assert_eq!(checked.publication().declaration(), entry.entry());
+            super::verify::verify_program(checked.publication().program()).unwrap();
+            let llvm = crate::llvm::render_verified_program_with_entry(
+                checked.publication().program(),
+                checked.publication().entry(),
+            )
+            .unwrap();
+            super::e2_native_tests::execute_llvm(&llvm, b"");
+        }
         let published = publish(&experiment, entry, fact, &[fact], &typed).unwrap();
         assert_eq!(published.declaration(), entry.entry());
         let coverage = published.coverage();

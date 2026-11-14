@@ -18672,3 +18672,16 @@ binding、source loan/root、initializer、End、source-unit 与实际 if 分支
 不支持 leaf 不可选择；已有 retyped 身份门不变。选定范围不累积，不提供全事实
 默认放行。实验 entry publisher 仍只证明自身闭包，并未自动接入这一 gate；
 普通 native/生产 driver 未开放两源准入，后续发布组合合同仍单独处理。
+
+
+### 2026-11-14：实验 entry 的全 Unit 受检发布
+
+新增独立 `CheckedPublishedEntry`，只由 `publish_checked` 在同次 handoff/fact/entry/typed
+身份核对、内部单 fact 选择、共享全 Unit preflight、原 emit/replay/verify/coverage 全部成功后
+构造。完整 inputs 按 source unit 排序，不缩为可达源码；声明、全部 binding 与 global 门槛
+及其顺序不变。旧 scoped 包不能转换为 checked 包，失败不返回包或降级 scoped 发布。
+
+真实 fixture 验证单 fact 成功、异次分析拒绝、未选两源 sibling 与普通不支持 binding 在
+原精确 UnsupportedNode span 拒绝；成功包可经现有 LLVM harness 执行。旧 scoped 路径
+仍用于对照局部闭包能力，不能声称通过全 Unit 门槛。新增路径仍仅测试实验域，未接普通
+native driver、对象发布事务或生产接受集；本地不运行故障注入，相关验收仍限 CI。
