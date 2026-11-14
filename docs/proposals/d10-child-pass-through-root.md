@@ -227,3 +227,20 @@ predecessor/edge-argument/block-parameter 对应，没有生成实验 SSA 或发
 第2层还需单独设计循环状态的有限表示与分析身份绑定。未实现该记录以前，本分支
 只保留源码/清理/模型证据，不声称已经形成 Replace/Carry observation 或 CFG 证明。
 所有破坏记录、外来身份、缺边、重复清理和终检回滚负控仍只在 CI 执行。
+
+### 实际遍历快照探针（仅 cfg(test)）
+
+`drop_planner/owner_transport/carry_probe` 默认关闭，仅测试显式启用。探针在实际
+while scoped 遍历前/后及 `commit_owner_primitive` 入口复制 ValueState 的真实
+root/可选 owner token、当前 control、旧 observation 是否 active。不会重新解析
+AST 来造事件，不从模型填 owner，也不把 None 替换成合成 token。
+
+Primitive 记录仅表示到达 primitive commit dispatch；旧 owner observation 可能
+已经停用，因此不能把该记录叫成功 Replace，更不能由快照中存在 b 推定 Carry。
+这只是独立观察基础设施的首片，尚不是前述 ObservedTransitions 完成资格。
+
+普通源码有/无最终 `println(b)` 对照六个真实遍历点（父入、child入、child dispatch、
+child出、parent dispatch、父出），核实际 control/call身份和 b 的存在差异。
+同一 checker 上开关探针的 cleanup facts、conditional facts、旧 owner observations
+保持一致。现有 Unsupported、生产分析和旧 receipt 均不改变；所有钩子及存储都在
+cfg(test) 域，没有生产默认开销或新授权。

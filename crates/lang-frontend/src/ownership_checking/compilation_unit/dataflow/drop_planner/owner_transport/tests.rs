@@ -1,5 +1,6 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
 mod branch_boundaries;
+mod carry_probe;
 mod choice_admission;
 mod choice_alias_chain;
 mod choice_boundaries;

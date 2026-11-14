@@ -1,6 +1,8 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
 mod branch;
 mod capture;
+#[cfg(test)]
+pub(super) mod carry_probe;
 pub(super) mod choice;
 mod entry_concat;
 pub(super) mod loops;
@@ -565,6 +567,11 @@ impl DropPlanner<'_, '_> {
         call: ExpressionId,
         state: &mut ValueState,
     ) -> Option<UnitOwnerId> {
+        #[cfg(test)]
+        self.carry_probe(
+            carry_probe::Point::Primitive(self.checker.unit_expression(call)),
+            state,
+        );
         self.record_root_primitive_write(call, state);
         if !self.owner_observation_active() {
             return None;
