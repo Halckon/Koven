@@ -289,17 +289,17 @@ J48 允许监督者接住线程失败、进程继续运行，改变的是失败�
 
 | 项 | 裁决 | 写入位置 | 仍然未做的 |
 |---|---|---|---|
-| R1 | 采纳 | [之二](../proposals/evolution-02-route-loan-kernel.md) §2、R3.4、R4.4、R4.5 | 四个验证用例；类型之外的函数如何书写“转发”的拼写 |
+| R1 | 采纳 | [之二](../proposals/evolution-02-route-loan-kernel.md) §2、R3.4、R4.4、R4.5 | 四个验证用例；“借用字段名在 `from` 中总是可见”的建议待确认 |
 | R2 | 采纳 | [之三](../proposals/evolution-03-route-existential.md) §2.4、R2.4、R3.5 | 经泛型与辅助函数转发的替换路径用例 |
 | R3 | 采纳 | [U0 提纲](../proposals/unsafe-aliasing-contract-outline.md) FS3；[之四](../proposals/evolution-04-route-capability-unsafe-suspend.md) C1 | `DropPolicy` 拆成独立维度的设计；失败注入用例 |
 | R4 资源保活 | 采纳 | [IO 资源借用、责任交接与清理](../proposals/io-resource-handoff-cleanup.md)；[之七](../proposals/evolution-07-concurrency-async-io-ffi.md) §2.7 | 各后端的证明 |
-| R4 失败域 | 采纳，与 R7 合并 | [之十一](../proposals/evolution-11-failure-interfaces-units.md) J48、§1.4 | 任务子树作为边界时共享状态的规则未证明；行为草案未按新边界逐条重写 |
+| R4 失败域 | 采纳，与 R7 合并 | [之十一](../proposals/evolution-11-failure-interfaces-units.md) J48、§1.4 | 任务子树作为边界时共享状态的规则未证明 |
 | R5 | 采纳 | 之四 C4 的 `Arc` 行 | 以“可共享读取但不可跨线程析构”的类型作反例 |
 | R6 | 采纳 | 之十一 J44、`Iterator` 行、§2.4；之二 L5 的进入条件 | 四种迭代的原型；`Step` 的命名 |
 | R7 | 采纳评审的第一种做法：失败与致命错误分为两个概念；监督边界是显式构造，v1 的 Guide 不改 | 之十一 J48；[v1 冻结约束](../proposals/v1-freeze-decisions.md) Z1 | 监督者继续执行这一可观察结果的验收 |
-| R8 | 采纳 | [之十二](../proposals/evolution-12-stdlib-platform.md) §4 规则 3；v1 冻结约束 Z11 | 核对 v1 是否已含目录枚举；`Path` 的 API |
+| R8 | 采纳 | [之十二](../proposals/evolution-12-stdlib-platform.md) §4 规则 3；v1 冻结约束 Z11 | 无损路径类型的 API 与命名（Guide 13 已有 `Path` 名字空间） |
 | A1 | 采纳 | [之一](../proposals/evolution-01-kernel-and-decisions.md) §3.2 | — |
 | A2 | 采纳 | [之九](../proposals/evolution-09-architecture.md) §3 | 各阶段不变量的具体定义（属于之八的规格工作） |
-| A3 | 采纳：规范统一为一条规则（词法作用域结束时析构，不可观察时允许提前），随 C1 的 Guide 改写启用 | [析构时机：两个方案的对比](../proposals/drop-timing-comparison.md) §8；之四 C1 | 内存峰值测量；容器以资源类型为实参时属于哪一轨的核对 |
+| A3 | 采纳：规范统一为一条规则（词法作用域结束时析构，不可观察时允许提前），随 C1 的 Guide 改写启用 | [析构时机：两个方案的对比](../proposals/drop-timing-comparison.md) §8；之四 C1 | 内存峰值测量；Guide 10 关于容器的文字澄清与四个一致性用例 |
 
 §5 的五组组合验证仍是冻结内核与安排版本的前提。

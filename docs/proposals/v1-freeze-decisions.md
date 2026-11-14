@@ -29,7 +29,7 @@ Spec 编号全局唯一且有进行中的分支在使用，为尚未起草的功
 | Z8 | project 清单中的语言版本字段 | V6 | 是，清单格式由 [ADR-0022](../adr/accepted/0022-minimal-project-manifest-source-discovery.md) 管辖 |
 | Z9 | 一致性矩阵的形态 | V2 | 否，纯工程 |
 | Z10 | `unsafe` 合同的失败安全条款 | 无（v1 之外的文档） | 否，见 [U0 提纲](unsafe-aliasing-contract-outline.md) |
-| Z11 | 不发布返回 `String` 文件名的目录枚举 | L6 及其后继 | 否，是对新增表面的约束 |
+| Z11 | 目录枚举遇到不可表示的文件名时保持“整个调用失败” | L6 | 否，现行 Guide 13 已如此；起草时不要改成跳过或有损转换 |
 
 ## 2. 各项条款
 
@@ -119,13 +119,17 @@ Spec 编号全局唯一且有进行中的分支在使用，为尚未起草的功
 
 依据：[之十](evolution-10-coverage-gaps.md) §7.9。本项未检查现有矩阵是否已经满足；核对本身就是验收的第一步。
 
-### Z11 不发布返回 `String` 文件名的目录枚举（L6 及其后继）
+### Z11 目录枚举遇到不可表示的文件名（L6）
 
-- **需求**：v1 若提供目录枚举，条目的名字不得以 `String` 作为唯一表示。要么推迟目录枚举，要么同时引入无损的路径类型。接受 `String` 路径的打开、读写便利函数不受影响。
-- **非目标**：在 v1 内设计完整的 `Path` API。
-- **验收**：v1 的公开表面中没有“返回 `String` 文件名的枚举”。
+2026-11-14 核对：[Guide 13](../guide/13-program-runtime-standard-library.md) 已启用 `Directory.list(path: String, maxEntries: Int): Result<Array<DirectoryEntry>, IoError>`，条目名是 owned `String`，
+并规定“不可表示的文件名使整个调用失败”。本项初稿写的是“v1 不发布返回 `String` 文件名的目录枚举”，与已启用的 Guide 不符，改写如下。
 
-依据：[之十二](evolution-12-stdlib-platform.md) §4 规则 3（评审 R8）。**未核对** v1 路线图是否已包含目录枚举；若已包含，本项须在对应条目的 Spec 评审中处理。
+- **需求**：按现行 Guide 实现；遇到无法表示为 UTF-8 的文件名时整个调用失败。
+- **非目标**：跳过这类条目；有损转换；在 v1 内引入无损路径类型。
+- **验收**：含非 UTF-8 文件名的目录，`Directory.list` 返回错误而不是部分结果。
+
+依据：[之十二](evolution-12-stdlib-platform.md) §4 规则 3（评审 R8）。失败是不丢信息的行为，日后增加无损的路径类型与相应的枚举接口是纯增量。
+反过来，v1 若发布了“跳过”或“有损转换”，以后就改不回来。
 
 ### Z10 `unsafe` 合同的失败安全条款
 
