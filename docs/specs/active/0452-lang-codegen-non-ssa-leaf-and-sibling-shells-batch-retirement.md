@@ -264,3 +264,22 @@ native loop 用例，源文件从 271 行增为 568 行。继续内联会让当�
 `native_borrow_result_tests.rs` 两个职责文件。0451 的 21 项及 0453 的 7 项保留决定不变，
 三个 Spec 合计保留 30 个原目标路径；该数量不是语义验收。本 Spec 继续 `in-progress`，
 完整回归、既有迁移审计与双宿主 CI 尚未完成，不归档。
+
+### 4.3 修复 sanitizer 静态门禁的退役路径消费者
+
+集成分支 `2828b8d7` 的 [push CI 43542804418](https://github.com/Halckon/Koven/actions/runs/43542804418)
+在 scripts 525 项测试中因一项 `FileNotFoundError` 失败：静态 wiring 测试仍读取已退役的
+`native_sanitizer_tests/map_provider.rs`。实际 exporter 保留在同职责父模块
+`native_sanitizer_tests.rs::map_provider`，完整 libtest FQN 未变化。
+
+先以原静态测试复现失败，再改为确认实际内联模块声明并只截取该模块正文；原真实 IR、
+双模式、12 项 manifest、精确消费标签及输入身份先于逐项执行的全部断言保留。没有恢复
+空壳、扩大为全文件断言、跳过测试或修改生产 sanitizer 脚本。独立只读审查核对实际模块
+边界、Rust 挂载、精确 exporter 调用和 consumer 合同，未发现本轮具体问题。
+
+定向 Python 测试 23 项为 `OK (skipped=1)`；按 CI 使用的 GNU checksum 工具执行完整
+`python3 -m unittest discover -s scripts/tests -v`，525 项为 `OK (skipped=1)`，退出码 0。
+唯一跳过项为真实 Linux `/proc` 进程组资源记账，本机 macOS 未执行，不记作通过。
+首次完整本机运行另因 BSD `sha256sum` 不支持 `--strict` 而失败；使用已安装 GNU
+coreutils 后重验通过，未修改无关工具链测试。`check_docs.py`、diff whitespace 均通过。
+本轮仅修正 Python 路径消费者，不重跑 Cargo；新 head 的远端 CI 仍须独立确认。
