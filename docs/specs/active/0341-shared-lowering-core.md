@@ -18390,3 +18390,35 @@ kill+wait防止错误循环挂住测试。调用前复用完整CFG精确断言�
 codegen all-target 严格Clippy、默认/仅观察check、fmt/docs951/diff及相对33d9608f
 尺寸门禁通过（2177文件、36旧超限）。独审修正同根Place复用后复审通过。
 未运行远端CI、故障注入、ASan或泄漏计数，未推送。
+
+### E2 receipt 与生产 driver 接线审计（未实现）
+
+`7c3c08b4` 的原生成功不改变授权边界。当前 `e2_function::EmittedFunction` 公开
+可变 fragments/Program 与 caller ID，native 测试会继续添加 Synthetic driver；
+故不能把一个独立 token 挂在该可变结果旁就宣称形成了不可失效的 receipt。
+`e2_function_tests::assert_caller` 是会 panic 的测试断言，输入仅 shell，不核完整
+issuing fact/typed、leaf/arm 来源链；它不是可以直接移动到生产的独立 replay。
+
+最小后续顺序（待实现，非当前能力）：
+
+1. 用选定原 callable 定义 required 范围，保存精确 issuing fact 身份；selected
+   必须与 required 一一匹配。不能因为 experiment 有其他函数的 fact 就无条件
+   要求或放行它们，也不能只比较 fact 数量或数值 ID。
+2. 在独立检查模块以可失败的结果重放实际 Program：结合原 experiment/fact/typed，
+   逐项核完整 caller CFG、所有实际 arm helper 的 producer/consumer/唯一 End，
+   以及完整 key→FunctionId→真实 leaf body 映射。保留源码 Span、ABI 列及 checked
+   所有边；只调用通用 SSA verifier 或比较 emitter 自己保存的 ID 表不够。
+3. 先验证独立 replay，再执行最终整个 Program verifier，成功才把 Program 与
+   receipt 封装为同一个不可变产物。不存在公开可变 Program 借用；若测试需追加
+   driver，应显式消耗并放弃此封印，不能继续持旧 receipt 声称覆盖新 Program。
+   任意失败不发布部分产物，且不提供普通 owned 能力转换或沿用旧同源收据身份。
+4. 后续损坏验证只能按既有 CI-only 边界安排；本地不加入或运行故障注入。
+
+普通 `native::emit_native_owned_unit_object` 当前要求真实 OwnedCompilationUnitView，
+并在 reserve 输出之前验证 entry 与 lowering。现有四参数 run 不是合法的无参或
+argv process entry；native 测试合成的驱动不能替代源码入口及实参来源。真正接
+生产须先有合法源入口/调用闭包和相同分析链，再保留现有 sibling temporary 原子
+发布。不能通过新增万能回调或暴露实验内部 ordinary ownership 绕过该门禁。
+
+这是工程身份/覆盖/发布链的缺口，不依赖未裁决的 Origin 扩展。本轮只读核对，
+没有添加 receipt、开放 driver 或修改接受集；未重复运行 Cargo/native。
