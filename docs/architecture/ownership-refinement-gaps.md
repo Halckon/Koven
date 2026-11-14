@@ -78,7 +78,7 @@ A1 是初始差距及已落地主干的有界修复，A2–A3 仍是 ADR-0032 �
   及分配/清理测试。active Spec 的历史“官方 CI 待核”和旧测试文件路径需要逐项归因核验；
   不能直接说“没有实现”，也不能把某次整个 CI 绿自动填成所有验收已完成。
 - SPEC-0392 的层间审查、0341 的 Unit 管线及产品交接仍有各自边界；不合并成一个 E3 完成率。
-- 0451–0453 当前 34 个保留路径是独立的尺寸/职责库存，既不穷尽上述生产差距，也不能证明迁移完整。
+- 0451–0453 的[34项保留边界](../archive/specs/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#52-34-项保留清单唯一交付清单)已获用户批准；原全部删除目标未达成，修订合同有界归档。这是尺寸/职责库存，既不穷尽上述生产差距，也不能证明迁移完整。
 - 初始代码头 `89b57bb8` 的 [PR #423 CI 43554274292](https://github.com/Halckon/Koven/actions/runs/43554274292)
   已成功结束；它不消除上述有测试锁定的兼容路径，也不自动完成各历史 Spec 的逐项归因。
   本次文档追加后的检查/复用须按新 head 独立核验。完整回归与既有迁移审查以实际选择范围为准，
@@ -112,5 +112,5 @@ frontend 全量或完整 codegen lib；这些九项不证明无限源码空间�
 各 **10 passed / 0 failed / 0 ignored**，退出 0；额外见证验证 refine main/linear
 与 Compatibility branching 的实际 native 调用、完整 stdout/空 stderr。
 双配置 codegen all-target Clippy 通过。未重跑完整 LLVM/feature、frontend 全量或
-CI-only fault；[SPEC-0453 §4.5](../specs/active/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#45-runtime-abort-的-map-result--string-职责恢复)
+CI-only fault；[SPEC-0453 §4.5](../archive/specs/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#45-runtime-abort-的-map-result--string-职责恢复)
 的 feature 基线观察期限仍不是通过，最新合并候选 CI 另验。

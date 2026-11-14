@@ -1,15 +1,15 @@
 # SPEC-0452: `lang-codegen` 非 `ssa` 子树叶子薄壳与同级测试小文件批量收敛（129 个）
 
-> **性质**：正式开发规范（Spec） · **状态**：in-progress · **读取时机**：收敛 `crates/lang-codegen/src` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/`
+> **性质**：正式开发规范（Spec） · **状态**：done · **读取时机**：收敛 `crates/lang-codegen/src` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/`
 
 | 字段 | 值 |
 |---|---|
 | 编号 | 0452 |
 | 标题 | `lang-codegen` 非 `ssa` 子树叶子薄壳与同级测试小文件批量收敛（129 个） |
 | 版本目标 | v0.46 |
-| 状态 | in-progress |
+| 状态 | done |
 | 创建日期 | 2026-11-12 |
-| 完成日期 | - |
+| 完成日期 | 2026-11-15 |
 | 关联里程碑 | M2（借用系统）、M3（单线程完备） |
 | 关联迭代 | E3（单下降管道收敛） |
 | 关联 ADR | ADR-0006, ADR-0008, ADR-0032, ADR-0033 |
@@ -203,7 +203,7 @@
 
 ---
 
-## 3. 验收标准
+## 3. 原始验收目标（历史，不再作为本次完成条件）
 
 1. 上述 129 个薄壳文件从物理树移除，全部非例外修改后 Rust 文件严格小于 1000 行。
 2. `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py` 与 `python3 scripts/check_rust_sizes.py --base main` 通过，手写 Rust 文件数从 `1811` 降至 `1682`。
@@ -308,3 +308,15 @@ Clang 链接均成功，但保留了 macOS `-Woverride-module` target-triple 警
 警告、修改目标 IR 或把链接 stderr 误记为空。临时产物、身份摘要和日志留仓库外，本节
 保留输入提交、精确入口与结论。原物理进度仍为 127/129；完整既有迁移与双宿主 CI
 验收继续待办，不改变本 Spec 状态。
+
+## 5. 修订验收与有界收尾
+
+2026-11-15 用户批准保留34个职责模块，并授权按修订合同在收尾 CI 通过后合入 #423。
+§3 原全部删除与固定文件数目标**未达成**，原文保留为历史，不再作为本次完成条件。
+本 Spec 按修订范围标记 done；前面各轮 in-progress/失败/待验描述保留对应历史身份，
+不因归档倒写为通过。
+
+本清单 129 项中 127 路径不存在、2 保留。
+34项完整清单、职责/内容/尺寸/行为验收、精确候选CI及延期边界统一见
+[SPEC-0453 §5](0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#5-修订验收与有界收尾)。
+本次不关闭整个 E3、全部 Compatibility 或主干既有布局欠账；归档 head CI 与合并另验。

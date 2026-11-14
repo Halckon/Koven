@@ -1,15 +1,15 @@
 # SPEC-0453: `lang-codegen` 剩余同目录 `include_str!` 薄壳、`llvm` 子树同级模块与跨父测试小文件批量收敛（37 个）
 
-> **性质**：正式开发规范（Spec） · **状态**：in-progress · **读取时机**：收敛 `crates/lang-codegen/src` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/`
+> **性质**：正式开发规范（Spec） · **状态**：done · **读取时机**：收敛 `crates/lang-codegen/src` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/`
 
 | 字段 | 值 |
 |---|---|
 | 编号 | 0453 |
 | 标题 | `lang-codegen` 剩余同目录 `include_str!` 薄壳、`llvm` 子树同级模块与跨父测试小文件批量收敛（37 个） |
 | 版本目标 | v0.46 |
-| 状态 | in-progress |
+| 状态 | done |
 | 创建日期 | 2026-11-12 |
-| 完成日期 | - |
+| 完成日期 | 2026-11-15 |
 | 关联里程碑 | M2（借用系统）、M3（单线程完备） |
 | 关联迭代 | E3（单下降管道收敛） |
 | 关联 ADR | ADR-0006, ADR-0008, ADR-0032, ADR-0033 |
@@ -121,7 +121,7 @@
 
 ---
 
-## 3. 验收标准
+## 3. 原始验收目标（历史，不再作为本次完成条件）
 
 1. 上述 37 个薄壳文件从物理树移除，全部非例外修改后 Rust 文件严格小于 1000 行。
 2. `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py` 与 `python3 scripts/check_rust_sizes.py --base main` 通过，手写 Rust 文件数从 `1682` 降至 `1645`。
@@ -294,3 +294,97 @@ abort 仅保留终止报告职责，没有新增 wrapper、状态、公开 API �
 拼接成完整 suite；本地 CI-only 仍未执行，最终 merge commit 的 PR CI 必须独立验收。
 workspace check、fmt、docs（952 Markdown）、尺寸及空白通过；runtime 子树与本轮提交
 `28747ded` 字节一致，frontend 与 main 字节一致，没有在冲突解决中手改 Rust。
+
+## 5. 修订验收与有界收尾
+
+### 5.1 用户批准的交付边界
+
+2026-11-15 用户明确同意：接受 34 个模块的保留边界，以职责正确、内容保全、
+尺寸护栏与实际测试证据收尾；收尾提交 CI 通过后合入 #423。
+原 §3 的“全部删除”和固定手写 Rust 总数目标**未达成**，经本次批准不再作为
+现行完成条件；它们仍原文保留，不能据此声称完成原始数量目标。
+
+当前三份冻结清单共 188 个不同路径：0451 为 **1 不存在 / 21 保留**，
+0452 为 **127 / 2**，0453 为 **26 / 11**，合计 **154 / 34**。
+不存在只表示物理状态，不独立证明内容正确；保留是批准的边界，不是需要全部删除的欠账。
+后续先在最新 main 新分支逐项分类，只修具体职责/尺寸/重复问题，不继续无关打包。
+
+本次 done 仅指修订后的 0451–0453 有界交付，不代表 E3、全部 Compatibility、
+历史 Spec 的验收重做或主干既有跨域布局欠账已解决。先前章节的 in-progress、
+失败、观察期限与待验描述均是对应检查点的历史，不被本次归档倒写成成功。
+
+### 5.2 34 项保留清单（唯一交付清单）
+
+| 原 Spec | 相对 `crates/lang-codegen/src/` 的保留路径 | 保留边界 |
+|---|---|---|
+| 0451 | `ssa/lower_frontend_map_break_structure_tests.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/lower_frontend_owned_source_structure_tests.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/lower_frontend_scalar_abi_unit_comparison_tests.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/lowering_entry_contract_tests/temporary_alias.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_iteration_stage_gate_tests/fixture.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/future_use/graph/continuation.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/local_exits/graph/provider.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/nested_exits/ast_checks.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/nested_exits/query_callers.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/nested_exits/query_cleanup_unit.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/scope_lowering/graph/body.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/temporary/unit.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/temporary_delivery/graph/factory.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/temporary_exits/ast_checks.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/map_provider_exits_pipeline_tests/temporary_exits/query_cleanup_unit.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/nullable_map_consume_lowering_tests/read_identity/unit.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/nullable_map_consume_lowering_tests/resource/formed_locals/syntax.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/nullable_operation_tests/transport.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/text_copy_tests/nullable_return.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/unit_legacy_instance_witness_tests.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0451 | `ssa/unit_lower_deinit_tests.rs` | 保留原私有 helper/fixture 与测试域；直接内联容量不足，不跨域 Best-Fit 打包 |
+| 0452 | `native_borrow_result_tests.rs` | 保留原 native 借用结果/nullable Rc 的完整源码、proof 与运行断言 |
+| 0452 | `native_nullable_rc_proof_tests.rs` | 保留原 native 借用结果/nullable Rc 的完整源码、proof 与运行断言 |
+| 0453 | `llvm/container_tests/provider_cfg.rs` | 保留原测试/辅助职责、私有依赖与完整 oracle，不跨域或超限打包 |
+| 0453 | `llvm/runtime/inline_nullable.rs` | 保持 runtime 的实现或目标位宽测试职责，不塞入 abort 或扩大原父尺寸欠账 |
+| 0453 | `llvm/runtime/map_result.rs` | 保持 runtime 的实现或目标位宽测试职责，不塞入 abort 或扩大原父尺寸欠账 |
+| 0453 | `llvm/runtime/narrow_tests.rs` | 保持 runtime 的实现或目标位宽测试职责，不塞入 abort 或扩大原父尺寸欠账 |
+| 0453 | `llvm/runtime/string.rs` | 保持 runtime 的实现或目标位宽测试职责，不塞入 abort 或扩大原父尺寸欠账 |
+| 0453 | `native/unit_companion_boundary_tests.rs` | 保留原测试/辅助职责、私有依赖与完整 oracle，不跨域或超限打包 |
+| 0453 | `native/unit_const_handoff_test_support.rs` | 保留原测试/辅助职责、私有依赖与完整 oracle，不跨域或超限打包 |
+| 0453 | `native_local_object_constant_qualifier_tests.rs` | 保留原测试/辅助职责、私有依赖与完整 oracle，不跨域或超限打包 |
+| 0453 | `ssa/closure_operation_tests/escape_tests/projected_content_tests.rs` | 保留原测试/辅助职责、私有依赖与完整 oracle，不跨域或超限打包 |
+| 0453 | `ssa/field_replace_lower_tests.rs` | 保留原测试/辅助职责、私有依赖与完整 oracle，不跨域或超限打包 |
+| 0453 | `ssa/nullable_map_consume_lowering_tests/resource/runtime.rs` | 保留原测试/辅助职责、私有依赖与完整 oracle，不跨域或超限打包 |
+
+### 5.3 修订后的逐项验收
+
+- [x] R1 职责及内容：仅对 §4 及0452§4实际列明的迁移/修复项，按各轮机械/独立审计
+  保全私有 helper、fixture、source/span、断言与 receipt/fault 身份；Map break 未接线副本
+  已删除，真实 canonical 调用不改。include_str 三组、companion、sanitizer exporter 的
+  具体边界和失败史仍保留。不宣称已对全部188个历史路径完成逐项历史正文/字节审计；
+  原既有迁移审计边界仍保留，不由最终 CI 自动补齐。
+- [x] R2 尺寸：不提高 1000 行护栏，不为固定数量跨域打包。最终本地尺寸门禁报告
+  2140 手写 Rust、36 项历史超限；runtime 根从1014减至1011，欠账未扩大但未清零。
+- [x] R3 行为：默认/feature 的19项直接消费者与集成后10项分别通过，不拼接成完整suite。
+  原 feature LLVM 的900秒观察期限不算通过；CI-only 本地仅 compile/list。
+- [x] R4 官方代码候选：下述精确 PR CI 全绿，双宿主与 Preview 实际执行验收。
+- [x] R5 独立审查与结构：各轮具体修复、方法正文/可见性/调用点保全和主干冲突解决
+  已独立只读复核；跨文档§4.5引用发现已修正并重验。docs/fmt/workspace check、
+  双配置 all-target Clippy、尺寸/依赖/空白的实际结果保留原账本。
+- [x] R6 用户批准的34项保留、未达成原数量目标与延期边界显式登记；三份状态、
+  路径、冻结库存、索引和 roadmap 同批迁移。归档 head CI 及实际合并另验，不预填。
+
+### 5.4 精确候选与最终交付边界
+
+代码 head `4de26bdc88b7edeed123482fb460e88e38818b5e`，base
+`cc83d9ec65314d0cb048acdd93dd41b109b00649`，codegen tree
+`2facaade0611238509c4965fcbcd80bba2426ae3`。
+[PR CI 43617727147](https://github.com/Halckon/Koven/actions/runs/43617727147)
+attempt 1 completed/success：双宿主 Check/Clippy、Targeted Tests、两个 Preview producer
+及两个独立 consumer 均实际 success，不是复用。
+
+frontend 两宿主各 **848 passed / 0 failed / 12 ignored**；codegen Linux
+**3225 / 0 / 55**、macOS **3222 / 0 / 56**。两宿主各62个 borrow fault
+实际恰好执行一次；parent/child receipt、conformance、generated resource 与
+Linux sanitizer 成功。忽略项与 Editor lexical 路径 skipped 不计实际执行，
+conformance 成功不代表全部语言能力实现。
+
+本次归档只改 docs，不改上述 codegen tree。归档提交的结构门禁、代码证据合法复用
+或实际重跑必须独立核对，之后才按用户授权合入；此处不预填归档 head CI、
+实际 merge SHA 或 main CI。原始日志留仓库外，稳定来源为固定 commit/Actions run。
