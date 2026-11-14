@@ -751,8 +751,18 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                     .is_none()
             );
             assert!(package.entry(entry, &unrelated_types).is_none());
+            let foreign_handoff = other
+                .handoff(&sources, &inputs, &names, &types, &typed)
+                .unwrap();
             for descriptor in required {
                 let id = package.entry(descriptor, &typed).unwrap();
+                super::e2_native_tests::check_published_object(
+                    &package,
+                    &handoff,
+                    &foreign_handoff,
+                    &other.entries(&typed).unwrap()[0],
+                    descriptor,
+                );
                 let llvm =
                     crate::llvm::render_verified_program_with_entry(package.program(), id).unwrap();
                 super::e2_native_tests::execute_llvm(&llvm, b"");

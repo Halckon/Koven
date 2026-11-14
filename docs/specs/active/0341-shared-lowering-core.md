@@ -18831,3 +18831,19 @@ ignored 目标要求每次故障不返回任何封包，再由原 source/fact �
 正常发布，逐个查询全部 entry。已有普通缺选/foreign/retyped 输入拒绝不重复包装为
 故障测试。CI 脚本更新为 6 个精确目标 × 2 配置；本地仅 compile/list 与非 ignored
 正常回归，故障实际执行及结果仍待真实 CI，不宣称本地已验证故障效果。
+
+
+### 2026-11-14：实验整体包的 native 对象事务适配
+
+新增仅 `all(test, e2-two-source-test-support)` 的 crate 内适配器，输入封闭
+PublishedEntrySet、真实 ExperimentalUnitHandoff 与原 EntryDescriptor。首先核封包
+原 typed 身份及包内全部 fact 都由 handoff retained 产品拥有，再查原 entry；来源
+names/types/SourceMap 仅取 handoff，不能外接任意来源映射。普通 OwnedUnit API 和
+默认 feature 接受集未修改，也没有实验→普通 capability 转换。
+
+原 `validate_unit_entry`、整 Program verifier 与 native entry plan 均在 reserve 前；
+然后直接复用现有 SiblingObject 的 reserve→emit_verified_object→commit/Drop 路径。
+包只读，内部 Program/locator 不暴露可变引用。实际对象成功测试按每个选定原 entry
+生成本机对象并核格式、无残余 sibling 文件；foreign handoff/descriptor 的正常输入
+拒绝保持旧输出字节及目录快照不变。后者仅证明身份早拒绝无副作用，不宣称后端故障
+回滚或所有失败阶段已验收。没有本地故障注入，生产 native 发布权限仍未开放。

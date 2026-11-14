@@ -182,6 +182,35 @@ pub fn emit_native_owned_unit_object(
     temporary.commit(output)
 }
 
+/// Test-only experimental adapter. Never converts to or replaces ordinary owned authority.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+pub(crate) fn emit_experimental_e2_object(
+    package: &crate::ssa::ExperimentalPublishedEntrySet<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    output: &Path,
+) -> Result<(), NativeObjectError> {
+    if !package.matches_handoff(handoff) {
+        return Err(invalid_entry(None));
+    }
+    let function = package
+        .entry(descriptor, handoff.types())
+        .ok_or_else(|| invalid_entry(None))?;
+    let entry = NativeUnitEntry::NoArguments(descriptor.entry());
+    validate_unit_entry(handoff.names(), handoff.types().types(), entry)?;
+    let program = package.program();
+    crate::ssa::verify::verify_program(program).map_err(|_| invalid_entry(None))?;
+    let plan = native_unit_entry_plan(program, entry, function)?;
+    // Exactly the existing object transaction: every identity/entry check precedes reserve.
+    let temporary = SiblingObject::reserve(output)?;
+    llvm::emit_verified_object(program, handoff.sources(), plan, temporary.path())
+        .map_err(|error| map_backend_error(handoff.sources(), program, error))?;
+    temporary.commit(output)
+}
+
 /// 从同一次常量 typed/owned capability 生成原子发布的 compilation-unit object。
 /// 身份校验及 SSA lowering 在创建临时输出前完成；入口与发布流程复用基础 native 契约。
 ///

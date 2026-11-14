@@ -260,3 +260,37 @@ pub(super) fn execute_llvm(llvm: &str, expected: &[u8]) {
     assert_eq!(output.stdout, expected);
     assert!(output.stderr.is_empty(), "{output:?}");
 }
+
+/// Real object transaction success and identity rejection before any output side effect.
+pub(super) fn check_published_object(
+    package: &crate::ssa::ExperimentalPublishedEntrySet<'_>,
+    handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+        '_,
+        '_,
+    >,
+    foreign_handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<'_, '_>,
+    foreign_entry: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    entry: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+) {
+    let directory = crate::native_tests::TestDirectory::create();
+    let object = directory.join("joint.o");
+    std::fs::write(&object, b"previous object").unwrap();
+    let before = directory.snapshot();
+    assert!(
+        crate::native::emit_experimental_e2_object(package, foreign_handoff, entry, &object)
+            .is_err()
+    );
+    assert_eq!(directory.snapshot(), before);
+    assert!(
+        crate::native::emit_experimental_e2_object(package, handoff, foreign_entry, &object)
+            .is_err()
+    );
+    assert_eq!(directory.snapshot(), before);
+    crate::native::emit_experimental_e2_object(package, handoff, entry, &object).unwrap();
+    crate::test_support::assert_native_object(&std::fs::read(&object).unwrap());
+    assert_eq!(
+        directory.snapshot().len(),
+        1,
+        "no sibling temporary remains"
+    );
+}

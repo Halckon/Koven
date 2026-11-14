@@ -328,7 +328,7 @@ impl<'a> EmittedArmSet<'a> {
 }
 
 /// Final immutable bounded experiment package. Not a production/native capability.
-pub(super) struct PublishedEntrySet<'a> {
+pub(crate) struct PublishedEntrySet<'a> {
     callers: EmittedCallerSet<'a>,
     entries: Vec<(
         &'a lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
@@ -336,10 +336,26 @@ pub(super) struct PublishedEntrySet<'a> {
     )>,
 }
 impl PublishedEntrySet<'_> {
-    pub(super) fn program(&self) -> &Program {
+    pub(crate) fn matches_handoff(
+        &self,
+        handoff: &lang_frontend::ownership_checking::two_source_experiment::ExperimentalUnitHandoff<
+            '_,
+            '_,
+        >,
+    ) -> bool {
+        self.callers.arms.experiment.matches_types(handoff.types())
+            && self
+                .callers
+                .arms
+                .locators
+                .iter()
+                .all(|locator| handoff.owns(locator.fact))
+    }
+
+    pub(crate) fn program(&self) -> &Program {
         self.callers.program()
     }
-    pub(super) fn entry(
+    pub(crate) fn entry(
         &self,
         descriptor: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
         typed: &ValidatedCompilationUnitTypes,
