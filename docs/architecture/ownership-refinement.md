@@ -42,7 +42,8 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
 已登记 MapResult 表示时，同样只读其 tag。借用判空产生 Boolean，原 loan 持续存活。
 
 普通借用返回转发按本次调用实参实际产生的 CFG 判定。直线求值与可合并的无条件跳转
-保留来源身份。实参分支仍以 `UnsupportedNode` 拒绝，定位到实际分支的源码范围。
+保留来源身份。实参分支仍以 `UnsupportedNode` 拒绝，定位到分支的源码范围。
+字面条件折叠为单后继时，槽位 CFG 保留来源标记供这项准入检查使用。
 直接 `Map.requireValue` 结果走独立的 Map 入口。
 
 普通调用结果的局部绑定可以与借用获取前、或有序且已验证的结束点之后的独立 `if`
@@ -57,6 +58,12 @@ Map-for 与已退休整数内建/Range operation 的组合以同函数的 typed 
 - SSA 构造（`refine/emit`）：先把单前驱的直线后继并入其 `Goto` 前驱，再按槽位活跃性生成 block
   参数，非空目标末尾追加 view。abort 块继承同一分支另一条边的活跃集合，存活 owner 因此在 Abort
   边上有归属；产物经完整 verifier。
+
+Copyable 非空值的可用性随 CFG 边传播，合流只保留所有入边已证实的符号。
+每条证明边定义该符号的同一逻辑槽，SSA 构造为不同入边定义建立块参数。
+赋值与写回结束当前路径上的窄化，已读取的表达式值保留求值时的结果。
+非空提取使用已登记布局对应的 `NullableTake` 或 `MapResultUnwrap`。
+前端仍负责发布非空使用事实，并核对循环回边上的写入失效。
 
 调用后双 Abort 的测试 oracle 按 edge arguments 与目标参数的配对位置追踪入口 owner，
 验证预期调用确实消费它，再检查调用后的边不续传其重命名身份。调用前 Abort 和其他

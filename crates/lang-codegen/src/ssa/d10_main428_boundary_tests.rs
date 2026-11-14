@@ -1,7 +1,7 @@
 //! Composition evidence from #428's repository fixture, not the unpublished CLI probe.
 use super::*;
 #[test]
-fn main428_elvis_and_explicit_if_lowering_boundaries_remain_closed() {
+fn main429_fixes_explicit_if_while_elvis_remains_closed() {
     use lang_frontend::{
         name_resolution::{
             SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
@@ -65,19 +65,21 @@ fn main428_elvis_and_explicit_if_lowering_boundaries_remain_closed() {
                 .find(|d| d.name() == "run")
                 .unwrap()
                 .id();
-            let error = match unit_lower::lower_owned_unit_with_entry(&unit, entry) {
-                Ok(_) => panic!("{label}: unsupported boundary unexpectedly admitted"),
+            let result = unit_lower::lower_owned_unit_with_entry(&unit, entry);
+            if label == "local-explicit-if" {
+                let (program, _) = result.expect("main429 repairs actual terminating-write flow");
+                super::verify::verify_program(&program).unwrap();
+                crate::llvm::render_verified_program(&program).unwrap();
+                continue;
+            }
+            let error = match result {
+                Ok(_) => panic!("Elvis remains outside ordinary lowering"),
                 Err(error) => error,
             };
-            let (kind, expected_span) = if label == "repository-elvis" {
-                (LoweringErrorKind::UnsupportedNode, control.as_str())
-            } else {
-                (LoweringErrorKind::MissingFact, "x")
-            };
-            assert_eq!(error.kind, kind, "{label}");
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{label}");
             assert_eq!(
                 error.span.and_then(|span| sources.slice(span).ok()),
-                Some(expected_span),
+                Some(control.as_str()),
                 "{label}"
             );
         }
