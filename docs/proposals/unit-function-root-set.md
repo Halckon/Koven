@@ -121,3 +121,19 @@ native，未推送；这些通过不包含预算和失败原子性动态验收�
 
 本片本地精确 `--list-only` 编译列举 1 项，none executed；严格 all-target feature
 Clippy、fmt、bash 语法、docs953、diff 与独审通过。没有新动态预算通过结论。
+
+### 非空发布的普通前置基线
+
+基于 `42c1409e`，实验多根的测试域增加已经支持的同源两臂借用函数：复用现有
+arm-loop CI fixture 的 first/second 函数体，直接选为两根，不附加 run wrapper。
+这不是新多源借用、Origin 决定或生产多 entry 功能；只验证同一组装事务承载多个
+已有函数的收据。原 scalar 见证仍保留。
+
+Rooted 与 MemoryDocument 均严格准入，两根正/逆序各 lower 一次，核实际两条
+receipt 的 caller 集合恰为两根、recorded/before-verifier 均为 2、pending 为 0、
+无 rollback，并对每条真实 receipt 在所属函数重放以及验证 LLVM、arena 不增长。
+此为非空成功发布基线；它不证明失败时回滚，也不代表预算 CI 已执行。
+
+本片 ordinary 完整 FQN exact 1/1（两来源×两根顺序共四次成功组装）通过；最终
+no-run、严格 all-target feature Clippy、fmt、docs953、diff 和独审通过。
+未运行 CI-only fault、native 或全量测试，未推送。
