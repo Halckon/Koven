@@ -217,4 +217,7 @@ pub use prepare_split::{
 };
 
 mod source_ledger;
-pub use source_ledger::{SourceCollectionLedger, SourceCollectionRecord, source_collection_ledger};
+pub use source_ledger::{
+    DropTraversal, DropTraversalRecord, SourceCollectionLedger, SourceCollectionRecord,
+    source_collection_ledger,
+};

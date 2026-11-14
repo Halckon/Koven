@@ -452,6 +452,7 @@ pub(super) fn analyze(
                 &receiver_facts[source_start.1..],
                 &construction_plans[source_start.2..],
                 &drops[source_start.3..],
+                drop_analysis.drop_traversals,
             ),
         );
     }

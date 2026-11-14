@@ -70,6 +70,8 @@ use model::{
 #[derive(Default, Debug, PartialEq, Eq)]
 pub(super) struct Analysis {
     #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) drop_traversals: Vec<super::super::d10_catalog_experiment::DropTraversalRecord>,
+    #[cfg(feature = "d10-catalog-experiment")]
     pub(super) split_source_catalog: Option<super::super::d10_catalog_experiment::SplitSourcePending>,
     #[cfg(feature = "d10-catalog-experiment")]
     pub(super) catalog:
@@ -202,6 +204,8 @@ struct DropPlanner<'a, 'checker> {
     loan_region_index: std::cell::OnceCell<loan_region::AdmissionIndex>,
     borrow_forward_index: std::cell::OnceCell<loan_provenance::BorrowForwardIndex>,
     liveness: liveness::Liveness,
+    #[cfg(feature = "d10-catalog-experiment")]
+    drop_traversals: Vec<super::super::d10_catalog_experiment::DropTraversalRecord>,
     facts: Vec<PlannerDropFact>,
     conditional_receiver_facts: Vec<PlannerConditionalReceiverDropFact>,
     loop_boundaries: Vec<usize>,
@@ -250,6 +254,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             loan_region_index: std::cell::OnceCell::new(),
             borrow_forward_index: std::cell::OnceCell::new(),
             liveness,
+            #[cfg(feature = "d10-catalog-experiment")]
+            drop_traversals: Vec::new(),
             facts: Vec::new(),
             conditional_receiver_facts: Vec::new(),
             loop_boundaries: Vec::new(),

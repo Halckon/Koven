@@ -6,7 +6,16 @@ impl DropPlanner<'_, '_> {
         for &root in self.checker.parsed.roots() {
             #[cfg(any(test, feature = "d10-catalog-experiment"))]
             let trace_start = self.origin_probe.as_ref().map(Vec::len);
+            #[cfg(feature = "d10-catalog-experiment")]
+            let drop_start = self.facts.len();
             self.item(root)?;
+            #[cfg(feature = "d10-catalog-experiment")]
+            self.record_drop_traversal(
+                super::super::super::d10_catalog_experiment::DropTraversal::SourceRoot(
+                    crate::type_checking::UnitItemId::new(self.checker.source_unit, root),
+                ),
+                drop_start,
+            );
             #[cfg(any(test, feature = "d10-catalog-experiment"))]
             if let (Some(ranges), Some(start), Some(events)) =
                 (&mut self.root_trace_ranges, trace_start, &self.origin_probe)
@@ -42,8 +51,36 @@ impl DropPlanner<'_, '_> {
             {
                 effective_parameters.push(*opener_span);
             }
+            #[cfg(feature = "d10-catalog-experiment")]
+            let drop_start = self.facts.len();
             self.plan_lambda_body(lambda, &effective_parameters, *body)?;
+            #[cfg(feature = "d10-catalog-experiment")]
+            self.record_drop_traversal(
+                super::super::super::d10_catalog_experiment::DropTraversal::Lambda(
+                    self.checker.unit_expression(lambda),
+                ),
+                drop_start,
+            );
         }
         Ok(self)
+    }
+
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn record_drop_traversal(
+        &mut self,
+        traversal: super::super::super::d10_catalog_experiment::DropTraversal,
+        start: usize,
+    ) {
+        // Capture only the final normalized, globally deduplicated append-only product.
+        // Empty means no new facts, not proof of no proposed cleanup or no execution.
+        self.drop_traversals.push(
+            super::super::super::d10_catalog_experiment::DropTraversalRecord::capture(
+                traversal,
+                self.facts[start..]
+                    .iter()
+                    .map(|fact| fact.into_unit(self.checker.source_unit))
+                    .collect(),
+            ),
+        );
     }
 }

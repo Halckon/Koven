@@ -2,6 +2,48 @@
 use super::*;
 use crate::name_resolution::SourceUnitId;
 
+/// One real planner invocation boundary, not a callable or CFG certificate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DropTraversal {
+    /// Original parsed root; a classifier/companion root may contain several members.
+    SourceRoot(UnitItemId),
+    /// Visited lambda planned in the original second pass.
+    Lambda(UnitExpressionId),
+}
+impl DropTraversal {
+    /// Source traversed by the planner, not necessarily every target's declaration source.
+    #[must_use]
+    pub const fn source(self) -> SourceUnitId {
+        match self {
+            Self::SourceRoot(root) => root.source_unit(),
+            Self::Lambda(lambda) => lambda.source_unit(),
+        }
+    }
+}
+/// Newly appended unconditional flat drops after one successful traversal, including empty.
+/// The planner normalizes and globally deduplicates before append: this is not a record of
+/// every proposed drop, independent per-root output, conditional cleanup, or execution order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DropTraversalRecord {
+    traversal: DropTraversal,
+    drops: Vec<UnitDropFact>,
+}
+impl DropTraversalRecord {
+    pub(crate) fn capture(traversal: DropTraversal, drops: Vec<UnitDropFact>) -> Self {
+        Self { traversal, drops }
+    }
+    /// Actual source-root or visited-lambda invocation.
+    #[must_use]
+    pub const fn traversal(&self) -> DropTraversal {
+        self.traversal
+    }
+    /// Exact normalized appended facts, retaining point, target and value origin.
+    #[must_use]
+    pub fn drops(&self) -> &[UnitDropFact] {
+        &self.drops
+    }
+}
+
 /// One actual source traversal's ordered output in four dataflow channels.
 /// The source denotes the traversal context, not a proof that every target is local.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -11,6 +53,7 @@ pub struct SourceCollectionRecord {
     receivers: Vec<UnitReceiverOwnershipFact>,
     constructions: Vec<UnitConstructionOwnershipPlan>,
     drops: Vec<UnitDropFact>,
+    drop_traversals: Vec<DropTraversalRecord>,
 }
 impl SourceCollectionRecord {
     pub(crate) fn capture(
@@ -19,6 +62,7 @@ impl SourceCollectionRecord {
         receivers: &[UnitReceiverOwnershipFact],
         constructions: &[UnitConstructionOwnershipPlan],
         drops: &[UnitDropFact],
+        drop_traversals: Vec<DropTraversalRecord>,
     ) -> Self {
         Self {
             source,
@@ -26,6 +70,7 @@ impl SourceCollectionRecord {
             receivers: receivers.to_vec(),
             constructions: constructions.to_vec(),
             drops: drops.to_vec(),
+            drop_traversals,
         }
     }
     /// Actual canonical source traversed by the original checker/planner.
@@ -47,6 +92,12 @@ impl SourceCollectionRecord {
     #[must_use]
     pub fn constructions(&self) -> &[UnitConstructionOwnershipPlan] {
         &self.constructions
+    }
+    /// Original planner root invocations followed by visited lambdas, including empty batches.
+    /// Not callable attribution or proof of the complete reachable closure.
+    #[must_use]
+    pub fn drop_traversals(&self) -> &[DropTraversalRecord] {
+        &self.drop_traversals
     }
     /// Original Drop planner batch; does not certify callable or CFG-point ownership.
     #[must_use]
@@ -163,6 +214,19 @@ impl SourceCollectionLedger {
                 .iter()
                 .flat_map(|r| &r.constructions)
                 .eq(owned.construction_plans())
+            && self.records.iter().all(|record| {
+                record.drop_traversals.iter().all(|batch| {
+                    batch.traversal.source() == record.source
+                        && batch.drops.iter().all(|fact| {
+                            super::super::owner_transport_validation::point_source(fact.point())
+                                == record.source
+                        })
+                }) && record
+                    .drop_traversals
+                    .iter()
+                    .flat_map(|batch| &batch.drops)
+                    .eq(&record.drops)
+            })
             && self.records.iter().flat_map(|r| &r.drops).eq(owned.drops())
     }
 }
@@ -310,6 +374,101 @@ mod tests {
             assert_eq!(closures, owned.ownership().closures());
             assert_eq!(captures.len(), count);
             assert_eq!(closures.len(), count);
+            let lambda_batches: Vec<_> = ledger.records()[0]
+                .drop_traversals()
+                .iter()
+                .filter(|batch| matches!(batch.traversal(), DropTraversal::Lambda(_)))
+                .collect();
+            assert_eq!(lambda_batches.len(), count);
+            assert!(lambda_batches.iter().all(|batch| batch.drops().is_empty()));
+            assert!(ledger.matches(&owned));
+        }
+    }
+    #[test]
+    fn drop_traversals_preserve_roots_then_visited_lambdas_including_empty() {
+        for text in [
+            "fun empty(): Unit {}\nfun run(): Unit { val read: () -> Unit = { val a = \"lambda\"; println(a) }; read() }",
+            "fun run(): Unit { val read: () -> Unit = { val a = \"lambda\"; println(a) }; read() }\nfun empty(): Unit {}",
+            "class Worker { fun read(): Unit { val a = \"member\"; println(a) } }\nfun empty(): Unit {}",
+        ] {
+            let mut sources = SourceMap::new();
+            let source = sources.add_source("drop-traversals.ko", text).unwrap();
+            let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+            let inputs = [SourceUnitInput::new(
+                "root",
+                "drop-traversals.ko",
+                source,
+                &parsed,
+            )];
+            let (environment, types) = standard_environments();
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let owned = analysis::analyze(
+                &sources,
+                &inputs,
+                names.names(),
+                &types,
+                typed.types(),
+                false,
+            )
+            .unwrap()
+            .validate()
+            .unwrap();
+            let ledger = source_collection_ledger(&owned).unwrap();
+            let record = &ledger.records()[0];
+            let batches = record.drop_traversals();
+            assert_eq!(
+                batches[..parsed.roots().len()]
+                    .iter()
+                    .map(|batch| batch.traversal())
+                    .collect::<Vec<_>>(),
+                parsed
+                    .roots()
+                    .iter()
+                    .map(|&root| DropTraversal::SourceRoot(UnitItemId::new(record.source(), root)))
+                    .collect::<Vec<_>>()
+            );
+            assert!(
+                batches[..parsed.roots().len()]
+                    .iter()
+                    .any(|batch| batch.drops().is_empty())
+            );
+            let lambdas = &batches[parsed.roots().len()..];
+            assert_eq!(lambdas.len(), usize::from(text.contains("lambda")));
+            for batch in lambdas {
+                let DropTraversal::Lambda(lambda) = batch.traversal() else {
+                    panic!("lambda second pass")
+                };
+                assert!(matches!(
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(lambda.expression())
+                        .unwrap()
+                        .payload(),
+                    crate::parser::Expression::Lambda { .. }
+                ));
+                assert!(!batch.drops().is_empty());
+            }
+            assert!(
+                batches
+                    .iter()
+                    .flat_map(|batch| batch.drops())
+                    .eq(record.drops())
+            );
+            assert!(
+                batches
+                    .iter()
+                    .flat_map(|batch| batch.drops())
+                    .eq(owned.ownership().drops())
+            );
             assert!(ledger.matches(&owned));
         }
     }
