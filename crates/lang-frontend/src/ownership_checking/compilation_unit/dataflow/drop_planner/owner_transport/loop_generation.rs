@@ -5,6 +5,10 @@ use super::*;
 use std::sync::Arc;
 mod coverage;
 #[cfg(feature = "d10-catalog-experiment")]
+mod dual;
+#[cfg(feature = "d10-catalog-experiment")]
+mod dual_coverage;
+#[cfg(feature = "d10-catalog-experiment")]
 mod nested;
 #[cfg(feature = "d10-catalog-experiment")]
 mod nested_coverage;
@@ -289,9 +293,9 @@ impl DropPlanner<'_, '_> {
                 ast.statements().iter().count(),
                 ast.expressions().iter().count()
             ),
-            (4, 7, 12) | (5, 9, 16) | (6, 13, 23)
+            (4, 7, 12) | (5, 9, 16) | (6, 13, 23) | (7, 14, 27)
         ) {
-            self.origin_probe = Some(Vec::with_capacity(25));
+            self.origin_probe = Some(Vec::with_capacity(31));
         }
     }
     pub(in super::super) fn loop_pending(

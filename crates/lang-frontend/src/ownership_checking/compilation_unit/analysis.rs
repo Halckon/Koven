@@ -22,7 +22,7 @@ pub(super) fn analyze(
     #[cfg(feature = "d10-catalog-experiment")]
     {
         analyze_inner(sources, inputs, names, environment, typed, constant_control)
-            .map(|(owned, _, _, _)| owned)
+            .map(|(owned, _, _, _, _)| owned)
     }
     #[cfg(not(feature = "d10-catalog-experiment"))]
     {
@@ -38,6 +38,7 @@ type AnalysisOutput = (
     Vec<super::d10_catalog_experiment::Pending>,
     Vec<super::d10_catalog_experiment::LoopPending>,
     Vec<super::d10_catalog_experiment::NestedPending>,
+    Vec<super::d10_catalog_experiment::DualNestedPending>,
 );
 #[cfg(not(feature = "d10-catalog-experiment"))]
 type AnalysisOutput = CompilationUnitOwnership;
@@ -151,6 +152,8 @@ pub(super) fn analyze_inner(
         dataflow.loop_catalogs.clear();
         #[cfg(feature = "d10-catalog-experiment")]
         dataflow.nested_catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.dual_nested_catalogs.clear();
         dataflow.formed_owned_locals.clear();
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
@@ -183,6 +186,8 @@ pub(super) fn analyze_inner(
     let loop_catalogs = std::mem::take(&mut dataflow.loop_catalogs);
     #[cfg(feature = "d10-catalog-experiment")]
     let nested_catalogs = std::mem::take(&mut dataflow.nested_catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let dual_nested_catalogs = std::mem::take(&mut dataflow.dual_nested_catalogs);
     let owned = CompilationUnitOwnership::new(
         typed,
         bindings.into_values().collect(),
@@ -193,7 +198,13 @@ pub(super) fn analyze_inner(
     );
     #[cfg(feature = "d10-catalog-experiment")]
     {
-        Ok((owned, catalogs, loop_catalogs, nested_catalogs))
+        Ok((
+            owned,
+            catalogs,
+            loop_catalogs,
+            nested_catalogs,
+            dual_nested_catalogs,
+        ))
     }
     #[cfg(not(feature = "d10-catalog-experiment"))]
     {

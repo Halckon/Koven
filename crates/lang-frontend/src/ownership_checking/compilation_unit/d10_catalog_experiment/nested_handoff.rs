@@ -111,7 +111,7 @@ pub fn analyze_nested_loop(
     environment: &TypeEnvironment,
     typed: &ValidatedCompilationUnitTypes,
 ) -> Result<Option<BoundNestedLoop>, OwnershipCheckingError> {
-    let (owned, _, _, mut nested) = analysis::analyze_with_catalog(
+    let (owned, _, _, mut nested, _) = analysis::analyze_with_catalog(
         sources,
         inputs,
         names.names(),

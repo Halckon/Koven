@@ -325,3 +325,48 @@ fn parent_replace_child_counter_preserves_original_nested_observation() {
         assert!(observed.loop_generation_candidate().is_none());
     });
 }
+
+#[cfg(feature = "d10-catalog-experiment")]
+#[test]
+fn dual_nested_observation_preserves_both_detached_cleanups() {
+    let text = "fun run(count: Int) { var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) { val parentOld = replace(&a, \"parent\"); var inner = count; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; outer -= 1 }; println(b) }";
+    let fixture = Fixture::new(&[("dual.ko", text)]);
+    let owned = fixture.shared();
+    compare_and_inspect(&fixture, &fixture.parts(&owned), |checker| {
+        let mut planner = super::super::super::DropPlanner::new(
+            checker,
+            super::super::super::liveness::build(checker, true).unwrap(),
+        );
+        planner.origin_probe = Some(Vec::new());
+        let observed = planner.run().unwrap();
+        let pending = observed
+            .dual_nested_pending()
+            .expect("complete actual dual observation");
+        assert_ne!(pending.calls[0], pending.calls[1]);
+        assert_ne!(pending.sites[1], pending.sites[2]);
+        assert_eq!(pending.root, fixture.local(0, "a"));
+        assert_eq!(
+            pending.cleanup[0].target(),
+            crate::ownership_checking::UnitDropTarget::Named(fixture.local(0, "parentOld"))
+        );
+        assert_eq!(
+            pending.cleanup[1].target(),
+            crate::ownership_checking::UnitDropTarget::Named(fixture.local(0, "old"))
+        );
+        assert_eq!(
+            pending.cleanup[2].point(),
+            crate::ownership_checking::UnitDropPoint::LoopExit(pending.controls[0])
+        );
+        assert_eq!(
+            owned.drops(),
+            &[
+                pending.cleanup[0],
+                pending.cleanup[1],
+                pending.cleanup[2],
+                pending.retained.cleanup()
+            ]
+        );
+        assert!(observed.nested_pending().is_none());
+        assert!(observed.loop_generation_candidate().is_none());
+    });
+}
