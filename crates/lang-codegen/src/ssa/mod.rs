@@ -364,3 +364,5 @@ mod e2_native_tests;
 mod e2_publication;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_replay;
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
+mod e2_replay_ci;

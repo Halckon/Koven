@@ -18450,3 +18450,23 @@ replay与最终整个Program verifier全成功后才交付Published：Program/ca
 双配置codegen all-target严格Clippy、默认/观察check、fmt/docs951/diff和增量
 尺寸门禁通过（2179文件、36旧超限）。独审补齐receiver等ABI元数据与zip长度
 守卫后复审通过。未运行CI-only损坏/撤销矩阵、远端CI或推送。
+
+### E2 独立 replay 的 CI-only 损坏矩阵准备（待 CI 执行）
+
+新增3个ignored测试，分别覆盖receiver/outline根列、成功counter/checked成败边、
+同签名consumer替换/child End改父，共6种真实已发射产物的变异。前5种另要求
+保持有效SSA，以区分源码replay与通用结构verifier；End变异允许先被结构gate拒绝。
+每项从真实Unit重新分析/发射并先确认正常replay，再验证变异拒绝和新候选正常
+publication恢复。这里不是把损坏候选送入publisher的整链原子性故障验收。
+
+测试与共享check均要求CI=true及GITHUB_ACTIONS=true，且默认ignored。独立脚本
+check_e2_replay_ci.sh在实验/组合两配置精确列举3个FQN并确认唯一命中，只有CI
+执行模式才运行；composition workflow增加对应步骤，不更改旧borrow fault库存。
+本地仅允许--list-only编译列举；未运行变异，不伪造CI环境。正常本地测试保持忽略。
+
+静态独审确认变异实际生效、guard及接线无阻断；本地列举不等于远端动态通过。
+最终verifier失败撤销、publisher整链故障及生产接入仍不在此片验收范围。
+本地两配置精确编译/列举各3项，故障执行数为0；普通回归各7 passed/3 ignored，
+双配置all-target严格Clippy、默认/观察check、fmt/docs951/diff和尺寸门禁通过
+（2180文件、36旧超限）。脚本bash语法、无CI环境执行拒绝及CI结果脚本44项单测
+通过；独审通过。远端尚未执行，未推送，不能记作6类损坏已动态拒绝。
