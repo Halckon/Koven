@@ -1562,3 +1562,42 @@ process 对象核一个真实 main 与两个原源函数符号。fresh create �
 1 passed；严格 Clippy、默认无 feature 构建、格式/差异检查通过。尺寸报告
 2272 handwritten Rust、37 历史超长，门禁通过；957 Markdown 结构检查通过。
 这些结果不包含远端 CI、跨平台运行或新增故障注入验收。
+
+### 显式 builtin-only 双源 CLI 与真实动态验收
+
+仅 `d10-catalog-experiment` 启用时增加：
+
+```text
+kovenc experimental-d10-split-object <source1.ko> <source2.ko> --entry <name> -o <object>
+```
+
+命令只读取明确传入的两份完整源码，以原 canonical 文件路径记录来源并拒绝重复
+canonical 路径（包括 symlink 别名）；不追加或裁剪 std，不冒充 project loader。
+按完整双源 snapshot 一次完成 names/types/ownership 与 sealed split admission。
+入口名称在真实 Function 声明中唯一选择，最终仍由同对象 selector/binder 核身份。
+语言错误优先于 selector/scope 拒绝；既有输出/无效路径预检仍可先失败，不能将
+该优先序泛化到所有文件操作错误。重复源不是跨平台 inode/hard-link 同一性检测。
+
+两个输入都参与输出重叠保护，最终由真实 create-only hard-link 事务发布。普通
+build/run、旧单源实验与默认无 feature 的帮助/命令集合不变，无 fallback。该命令
+本身只发射对象，不链接或执行；测试另行显式调用宿主 cc 与真实生成程序。
+
+正常 CLI 验收含两 Replace 顺序、canonical 角色和参数次序的八组合，原/错误
+selector、已有目标、两源输出重叠、重复源与 symlink 别名；语法、名字、类型、final
+member、ownership 语言错误及合法范围外形态均不发布产物。JSON 实际按行解析，
+final member L0080 的 source 路径和 fooBar byte span 对回原 entry 文件。
+
+单独 native exact 测试包含 32 程序：两顺序 × 两 canonical 角色 × 两输入次序 ×
+(parent,child)=(0,0)/(0,2)/(2,0)/(2,3)。期望输出按源码零/多轮语义独立给出，真实
+CLI 对象经 cc 链接后执行，核 status/stdout/stderr。保持每生成程序 10 秒/10 ms，
+仅超时才 kill/reap 该测试自身 child；首次失败即停且保目录，无重试或安全设置变更。
+CLI/cc 子进程未另设逐步超时，CI 给整个 exact 步骤 5 分钟上限。
+
+本地在已协调且只读确认的空窗顺序执行一次，32 程序全部通过，exact 1 passed、
+42.34 秒。此为显式 split 路径动态行为，不是通用 Carry、allocator/Drop 次数或
+跨平台运行证明，也不改变默认普通项目接收集；没有故障注入。
+
+最终本地普通验证：split 对象与诊断各 exact 1 passed，默认关闭 exact 1 passed，
+旧单源 CLI 3 passed；实验/默认两配置 CLI 严格 Clippy 通过。格式、YAML、diff
+检查通过；尺寸为 2274 handwritten Rust、37 历史超长且门禁通过，文档结构检查
+957 Markdown 通过。未推送，因此不宣称本批远端 CI 已完成。

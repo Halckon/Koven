@@ -386,6 +386,15 @@ jobs:
         run: cargo test --locked -j1 -p lang-frontend --features d10-catalog-experiment --test d10_split_named_entry --test d10_prepare_split_named_entry
       - name: Independent D10 split-source checked library objects
         run: cargo test --locked -j1 --no-default-features -p lang-codegen --features d10-catalog-experiment --test d10_prepared_split_entry
+      - name: Explicit D10 split CLI normal contract
+        timeout-minutes: 5
+        run: |
+          cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_objects_preserve_sources_selectors_and_existing_targets -- --exact
+          cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_language_errors_precede_selector_and_publish_nothing -- --exact
+          cargo test --locked -j1 -p lang-cli --test d10_split_object_cli
+      - name: Explicit D10 split CLI native behavior
+        timeout-minutes: 5
+        run: cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_native_zero_and_multiple_rounds -- --exact --test-threads=1
       - name: Ordinary D10 split-source native behavior
         timeout-minutes: 5
         run: cargo test --locked -j1 --no-default-features -p lang-cli --test d10_project_cli ordinary_split_project_executes_parent_child_zero_and_multiple_rounds -- --exact --test-threads=1
