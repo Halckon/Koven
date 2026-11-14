@@ -55,6 +55,13 @@ impl DropPlanner<'_, '_> {
             let drop_start = self.facts.len();
             self.plan_lambda_body(lambda, &effective_parameters, *body)?;
             #[cfg(feature = "d10-catalog-experiment")]
+            self.record_callable_drops(
+                super::super::super::d10_catalog_experiment::DropCallable::Lambda(
+                    self.checker.unit_expression(lambda),
+                ),
+                drop_start,
+            );
+            #[cfg(feature = "d10-catalog-experiment")]
             self.record_drop_traversal(
                 super::super::super::d10_catalog_experiment::DropTraversal::Lambda(
                     self.checker.unit_expression(lambda),
@@ -73,9 +80,25 @@ impl DropPlanner<'_, '_> {
     ) {
         // Capture only the final normalized, globally deduplicated append-only product.
         // Empty means no new facts, not proof of no proposed cleanup or no execution.
-        self.drop_traversals.push(
+        self.drop_traversals.roots.push(
             super::super::super::d10_catalog_experiment::DropTraversalRecord::capture(
                 traversal,
+                self.facts[start..]
+                    .iter()
+                    .map(|fact| fact.into_unit(self.checker.source_unit))
+                    .collect(),
+            ),
+        );
+    }
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) fn record_callable_drops(
+        &mut self,
+        callable: super::super::super::d10_catalog_experiment::DropCallable,
+        start: usize,
+    ) {
+        self.drop_traversals.callables.push(
+            super::super::super::d10_catalog_experiment::CallableDropRecord::new(
+                callable,
                 self.facts[start..]
                     .iter()
                     .map(|fact| fact.into_unit(self.checker.source_unit))

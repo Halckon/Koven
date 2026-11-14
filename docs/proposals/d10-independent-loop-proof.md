@@ -1870,3 +1870,22 @@ D10 封闭项目准入仍待完成，不可用普通成功越过旧门禁。
 D10+two-source-unit 共存 CLI all-tests Clippy `-D warnings` 与默认 CLI check 通过。
 格式/diff、Rust 尺寸 2328 文件/37 历史债、957 Markdown 结构门禁通过；独立静审无阻断。
 未推送，远端 CI 与 native/runtime 执行不在本片验收范围。
+
+### 实际 callable 遍历的 flat Drop 新增批次
+
+同次原 planner 在 Function 的 skipped 检查之后、成功结束时记录新增 flat Drop，
+Deinit 与原 visited-lambda 第二遍同样处理。class/companion 只递归，Modified只转发，
+不重复记录容器层；旧 source-root/lambda 批次与 getter 保持，新增独立 callable 序列。
+两序列各自逐源保序拼接精确等于完整原 flat drops，保留 point/target/value-origin。
+全局规范化去重先于 append，因此这不是每 callable 的独立完整输出。
+
+Function记录原item及has_body，无body与真实遍历零Drop不同；skipped/deferred函数、
+未visited lambda不记录，缺席不能读作不可达或已完成。既有错误/deferred总门仍不发布。
+不借用owner_transport的Complete，不增加准入，不证明一般CFG/执行/可达闭包。
+原item处理等价迁至独立item_traversal职责模块，未扩展语言行为。
+
+本地验收：source-ledger正常源码组7 passed（实际两个class成员、Deinit与lambda非空，
+NoBody/空body区别，FunctionEntry及ControlTransfer实点命中，完整事实对账与错误/deferred
+拒绝）；真实五源项目exact 1 passed（两个Replace顺序）。双feature前端all-tests严格
+Clippy与默认CLI check通过，格式/diff、尺寸2331/37及957 Markdown结构门禁通过。
+独立审阅确认item迁移除观察接线外等价。未推送、未native执行、未故障注入。

@@ -1,7 +1,10 @@
 //! Original source traversal batches, not callable ownership or reachability permission.
 use super::*;
 use crate::name_resolution::SourceUnitId;
+mod callable_drops;
 mod iteration_collection;
+pub(crate) use callable_drops::DropCollections;
+pub use callable_drops::{CallableDropRecord, DropCallable};
 pub use iteration_collection::IterationSourceCollection;
 pub(crate) use iteration_collection::IterationValidationInputs;
 
@@ -56,7 +59,7 @@ pub struct SourceCollectionRecord {
     receivers: Vec<UnitReceiverOwnershipFact>,
     constructions: Vec<UnitConstructionOwnershipPlan>,
     drops: Vec<UnitDropFact>,
-    drop_traversals: Vec<DropTraversalRecord>,
+    drop_traversals: DropCollections,
     conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     iteration_collection: Option<IterationSourceCollection>,
 }
@@ -67,7 +70,7 @@ impl SourceCollectionRecord {
         receivers: &[UnitReceiverOwnershipFact],
         constructions: &[UnitConstructionOwnershipPlan],
         drops: &[UnitDropFact],
-        drop_traversals: Vec<DropTraversalRecord>,
+        drop_traversals: DropCollections,
         conditional_receiver_drops: &[UnitConditionalReceiverDropFact],
     ) -> Self {
         Self {
@@ -124,7 +127,13 @@ impl SourceCollectionRecord {
     /// Not callable attribution or proof of the complete reachable closure.
     #[must_use]
     pub fn drop_traversals(&self) -> &[DropTraversalRecord] {
-        &self.drop_traversals
+        &self.drop_traversals.roots
+    }
+    /// Actual function/deinit/visited-lambda append batches, including visited zero-drop bodies.
+    /// Not per-callable independent output or a CFG/reachability certificate.
+    #[must_use]
+    pub fn callable_drop_traversals(&self) -> &[CallableDropRecord] {
+        &self.drop_traversals.callables
     }
     /// Original Drop planner batch; does not certify callable or CFG-point ownership.
     #[must_use]
@@ -243,17 +252,22 @@ impl SourceCollectionLedger {
                 .flat_map(|r| &r.constructions)
                 .eq(owned.construction_plans())
             && self.records.iter().all(|record| {
-                record.drop_traversals.iter().all(|batch| {
-                    batch.traversal.source() == record.source
-                        && batch.drops.iter().all(|fact| {
-                            super::super::owner_transport_validation::point_source(fact.point())
-                                == record.source
-                        })
-                }) && record
+                record
                     .drop_traversals
-                    .iter()
-                    .flat_map(|batch| &batch.drops)
-                    .eq(&record.drops)
+                    .callables_match(record.source, &record.drops)
+                    && record.drop_traversals.roots.iter().all(|batch| {
+                        batch.traversal.source() == record.source
+                            && batch.drops.iter().all(|fact| {
+                                super::super::owner_transport_validation::point_source(fact.point())
+                                    == record.source
+                            })
+                    })
+                    && record
+                        .drop_traversals
+                        .roots
+                        .iter()
+                        .flat_map(|batch| &batch.drops)
+                        .eq(&record.drops)
             })
             && self.records.iter().flat_map(|r| &r.drops).eq(owned.drops())
             && self.records.iter().all(|record| {
@@ -419,6 +433,14 @@ mod tests {
                 .filter(|batch| matches!(batch.traversal(), DropTraversal::Lambda(_)))
                 .collect();
             assert_eq!(lambda_batches.len(), count);
+            assert_eq!(
+                ledger.records()[0]
+                    .callable_drop_traversals()
+                    .iter()
+                    .filter(|b| matches!(b.callable(), DropCallable::Lambda(_)))
+                    .count(),
+                count
+            );
             assert!(lambda_batches.iter().all(|batch| batch.drops().is_empty()));
             assert!(ledger.matches(&owned));
         }
@@ -521,3 +543,6 @@ mod iteration_tests;
 
 #[cfg(test)]
 mod iteration_witness_tests;
+
+#[cfg(test)]
+mod callable_tests;

@@ -217,8 +217,9 @@ pub use prepare_split::{
 };
 
 mod source_ledger;
-pub(crate) use source_ledger::IterationValidationInputs;
 pub use source_ledger::{
-    DropTraversal, DropTraversalRecord, IterationSourceCollection, SourceCollectionLedger,
-    SourceCollectionRecord, source_collection_ledger,
+    CallableDropRecord, DropCallable, DropTraversal, DropTraversalRecord,
+    IterationSourceCollection, SourceCollectionLedger, SourceCollectionRecord,
+    source_collection_ledger,
 };
+pub(crate) use source_ledger::{DropCollections, IterationValidationInputs};
