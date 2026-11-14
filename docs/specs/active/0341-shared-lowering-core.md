@@ -18940,3 +18940,23 @@ function key，完整实例归属不引入外部占位函数。
 双分支的真实对象执行，核 stdout 为对应来源的精确重复序列。这首次给该实验窄片
 提供非空 consumer 的动态分支/次数证据；不扩展任意 ordinary body 或生产接受集。
 合法相邻形状的拒绝与打印参数事实使用正常源码测试，不在本地执行故障注入。
+
+
+### 2026-11-14：一层 ordinary source helper 的传递闭包
+
+实验 consumer 可完整为 `helper(item)` 单语句，真实 typed 目标须为无 receiver/typeargs
+的声明，参数/结果 ABI 为 Borrow String→Unit。原 names/owned 校验参数引用、唯一
+Shared loan/contract、entered/completed 与清理；本窄参数路径的真实证据无 direct End，
+SSA 复用输入 loan，不结束它。helper 只可为已支持 EmptyUnit/PrintSharedParameter，
+再次转发即拒绝；递归、深链、literal 实参和额外语句不进入该域。
+
+描述符携带原 callsite 和完整 instance key，不存 SSA ID。叶收集包含实际 helper，
+同一个 allocator 先声明全部函数再发射 body，转发仅 DirectCall(input)→Return。
+计划、单/多 fact 选择、scoped replay、entry coverage 与共同发布全部从原 fact 和
+描述符的 callsite 经 typed 重建传递 required；不从发射结果倒推需要哪些函数。
+独立 replay 再核实际 DirectCall 的唯一 key→ID、输入、span 和无额外操作。
+
+真实 native 源码用同签名但不同声明的打印/静默 helper，双臂输出不同；同时通过
+scoped entry 发布，避免只修共同路径。前端保留旧同名 println 空函数源码作为普通
+转发正例，要求 `prints_line()==false`；带额外 val 的同名实现仍拒绝。这不将函数名
+视作 intrinsic 权限，也不开放任意 ordinary Unit body/closure/泛型或生产能力。

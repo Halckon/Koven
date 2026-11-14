@@ -452,12 +452,9 @@ impl<'a> EmittedCallerSet<'a> {
                 return None;
             }
             required.push(actual.clone());
-            for (call, key) in fact.calls().iter().flatten() {
-                if typed.types().call(*call)?.instance() != key {
-                    return None;
-                }
-                if !required.contains(key) {
-                    required.push(key.clone());
+            for key in super::e2_replay::required_keys(experiment, fact, typed)? {
+                if !required.contains(&key) {
+                    required.push(key);
                 }
             }
         }
@@ -544,7 +541,7 @@ impl<'a> EmittedCallerSet<'a> {
                 if matches.next().is_some() || !experiment.owns_leaf(leaf) {
                     return None;
                 }
-                super::e2_replay::replay_leaf(module, *id, leaf)?;
+                super::e2_replay::replay_leaf(module, *id, leaf, &self.arms.leaves.functions)?;
             }
             super::e2_replay::replay_arms(
                 module,

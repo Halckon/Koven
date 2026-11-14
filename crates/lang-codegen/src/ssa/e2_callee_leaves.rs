@@ -32,15 +32,15 @@ pub(super) fn emit_for_fact(
     if !experiment.owns(fact) {
         return None;
     }
-    let keys: Vec<_> = fact.calls().iter().flatten().map(|(_, key)| key).collect();
+    let keys = super::e2_replay::required_keys(experiment, fact, typed)?;
     let leaves: Vec<_> = experiment
         .callee_leaves_for(fact, typed)?
         .iter()
-        .filter(|leaf| keys.contains(&leaf.instance()))
+        .filter(|leaf| keys.contains(leaf.instance()))
         .collect();
     if keys
         .iter()
-        .any(|key| leaves.iter().filter(|leaf| leaf.instance() == *key).count() != 1)
+        .any(|key| leaves.iter().filter(|leaf| leaf.instance() == key).count() != 1)
     {
         return None;
     }
@@ -78,13 +78,9 @@ pub(super) fn emit_for_facts(
     // Re-derive required keys from actual typed calls, not the emitter's selected definitions.
     let mut required = Vec::new();
     for fact in facts {
-        for (call, recorded) in fact.calls().iter().flatten() {
-            let actual = typed.types().call(*call)?.instance();
-            if actual != recorded {
-                return None;
-            }
-            if !required.contains(actual) {
-                required.push(actual.clone());
+        for key in super::e2_replay::required_keys(experiment, fact, typed)? {
+            if !required.contains(&key) {
+                required.push(key);
             }
         }
     }
@@ -106,12 +102,7 @@ pub(super) fn emit_for_facts(
         }
         ids.push(*id);
         for fact in facts {
-            if !fact
-                .calls()
-                .iter()
-                .flatten()
-                .any(|(_, needed)| *needed == key)
-            {
+            if !super::e2_replay::required_keys(experiment, fact, typed)?.contains(&key) {
                 continue;
             }
             let mut witnesses = experiment
@@ -122,7 +113,7 @@ pub(super) fn emit_for_facts(
             if witnesses.next().is_some() || !experiment.owns_leaf(leaf) {
                 return None;
             }
-            super::e2_replay::replay_leaf(module, *id, leaf)?;
+            super::e2_replay::replay_leaf(module, *id, leaf, &emitted.functions)?;
         }
     }
     Some(emitted)
@@ -155,7 +146,11 @@ pub(super) fn emit_selected(
                 Origin::Source(leaf.span()),
             )
             .ok()?;
-        let body = module.function_mut(function)?;
+        functions.push((leaf.instance().clone(), function));
+    }
+    for (leaf, (_, function)) in leaves.iter().zip(&functions) {
+        let identity = leaf.body() == CalleeLeafBody::SharedIdentity;
+        let body = module.function_mut(*function)?;
         body.borrow_return = identity.then_some(0);
         let entry = body
             .add_block(
@@ -174,7 +169,29 @@ pub(super) fn emit_selected(
                 entry,
                 Operation::PrintString { value: *parameter },
                 vec![],
-                Origin::Source(leaf.print_loan()?.end_span()),
+                Origin::Source(leaf.input_call_loan()?.end_span()),
+            )
+            .ok()?;
+        }
+        if leaf.body() == CalleeLeafBody::ForwardSharedParameter {
+            let [parameter] = body.block(entry)?.parameters.as_slice() else {
+                return None;
+            };
+            let (_, key) = leaf.source_call()?;
+            let mut targets = functions.iter().filter(|(candidate, _)| candidate == key);
+            let (_, callee) = targets.next()?;
+            if targets.next().is_some() || callee == function {
+                return None;
+            }
+            body.append_instruction(
+                entry,
+                Operation::DirectCall {
+                    callee: *callee,
+                    receiver: None,
+                    arguments: vec![*parameter],
+                },
+                vec![],
+                Origin::Source(leaf.input_call_loan()?.end_span()),
             )
             .ok()?;
         }
@@ -188,7 +205,6 @@ pub(super) fn emit_selected(
         };
         body.set_terminator(entry, terminator, Origin::Source(leaf.span()))
             .ok()?;
-        functions.push((leaf.instance().clone(), function));
     }
     // No partially emitted module escapes on model failure.
     super::verify::verify_program(&program).ok()?;

@@ -68,20 +68,16 @@ impl<'a> JointPlan<'a> {
         }
         // Actual entered calls and opaque leaf witnesses determine every remaining route.
         for fact in facts {
-            for (call, recorded) in fact.calls().iter().flatten() {
-                let key = typed.types().call(*call)?.instance();
-                if key != recorded {
-                    return None;
-                }
+            for key in super::e2_replay::required_keys(experiment, fact, typed)? {
                 let mut witnesses = experiment
                     .callee_leaves_for(fact, typed)?
                     .iter()
-                    .filter(|leaf| leaf.instance() == key);
+                    .filter(|leaf| leaf.instance() == &key);
                 let leaf = witnesses.next()?;
                 if witnesses.next().is_some() || !experiment.owns_leaf(leaf) {
                     return None;
                 }
-                if let Some((_, route)) = routes.iter().find(|(old, _)| old == key) {
+                if let Some((_, route)) = routes.iter().find(|(old, _)| old == &key) {
                     let Route::RestrictedSourceLeaf(old) = route else {
                         return None;
                     };

@@ -37,15 +37,9 @@ pub(super) fn audit(
         return None;
     }
     let mut required = vec![entry_call.instance().clone()];
-    for arm in fact.calls() {
-        for (call, recorded_key) in arm {
-            let actual = typed.types().call(*call)?;
-            if actual.instance() != recorded_key {
-                return None;
-            }
-            if !required.contains(actual.instance()) {
-                required.push(actual.instance().clone());
-            }
+    for key in super::e2_replay::required_keys(experiment, fact, typed)? {
+        if !required.contains(&key) {
+            required.push(key);
         }
     }
     // The selected source definitions are locators, not the source of required keys.

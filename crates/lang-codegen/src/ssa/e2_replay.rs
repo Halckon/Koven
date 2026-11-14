@@ -320,14 +320,7 @@ pub(super) fn replay_closure(
     }
     // Independently derive the selected fact's source-call requirement. Other facts'
     // leaf definitions must not silently enlarge this publication's coverage.
-    let mut required = Vec::new();
-    for (call, key) in fact.calls().iter().flatten() {
-        let actual = typed.types().call(*call)?;
-        same!(actual.instance(), key);
-        if !required.contains(key) {
-            required.push(key.clone());
-        }
-    }
+    let required = required_keys(experiment, fact, typed)?;
     let leaves: Vec<_> = experiment
         .callee_leaves_for(fact, typed)?
         .iter()
@@ -350,7 +343,7 @@ pub(super) fn replay_closure(
         same!(key, leaf.instance());
         require!(!used.contains(id));
         used.push(*id);
-        replay_leaf(module, *id, leaf)?;
+        replay_leaf(module, *id, leaf, &emitted.fragments.leaves.functions)?;
     }
     for id in emitted.fragments.arms {
         require!(!used.contains(&id));
@@ -389,8 +382,59 @@ fn shared_string(module: &Module, f: &Function, entity: EntityId) -> Option<SsaT
     Some(target)
 }
 
+/// Reconstruct the bounded transitive source graph from original callsites, never emitted IDs.
+pub(super) fn required_keys(
+    experiment: &TwoSourceExperiment,
+    fact: &TwoSourceCounterFact,
+    typed: &ValidatedCompilationUnitTypes,
+) -> Option<Vec<lang_frontend::type_checking::UnitCallableInstanceKey>> {
+    if !experiment.owns(fact) || !experiment.matches_types(typed) {
+        return None;
+    }
+    let leaves = experiment.callee_leaves_for(fact, typed)?;
+    let mut required = Vec::new();
+    for (call, recorded) in fact.calls().iter().flatten() {
+        let actual = typed.types().call(*call)?.instance();
+        if actual != recorded {
+            return None;
+        }
+        if !required.contains(actual) {
+            required.push(actual.clone());
+        }
+    }
+    let mut cursor = 0;
+    while cursor < required.len() {
+        let mut found = leaves
+            .iter()
+            .filter(|leaf| leaf.instance() == &required[cursor]);
+        let leaf = found.next()?;
+        if found.next().is_some() || !experiment.owns_leaf(leaf) {
+            return None;
+        }
+        if let Some((call, recorded)) = leaf.source_call() {
+            let actual = typed.types().call(call)?.instance();
+            if actual != recorded {
+                return None;
+            }
+            if !required.contains(actual) {
+                required.push(actual.clone());
+            }
+        }
+        cursor += 1;
+    }
+    (required.len() == leaves.len()).then_some(required)
+}
+
 /// Independent body/ABI replay shared by single-closure and joint-leaf experiments.
-pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) -> Option<()> {
+pub(super) fn replay_leaf(
+    module: &Module,
+    id: FunctionId,
+    leaf: &CalleeLeaf,
+    functions: &[(
+        lang_frontend::type_checking::UnitCallableInstanceKey,
+        FunctionId,
+    )],
+) -> Option<()> {
     let f = module.function(id)?;
     require!(f.receiver.is_none() && f.carrier_return.is_none() && !f.never_returns);
     same!(f.origin, Origin::Source(leaf.span()));
@@ -407,7 +451,7 @@ pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) ->
     same!(term.origin, Origin::Source(leaf.span()));
     match leaf.body() {
         CalleeLeafBody::SharedIdentity => {
-            require!(f.instructions.is_empty() && leaf.print_loan().is_none());
+            require!(f.instructions.is_empty() && leaf.input_call_loan().is_none());
             same!(f.borrow_return, Some(0));
             same!(f.return_types, vec![ty]);
             same!(
@@ -417,7 +461,9 @@ pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) ->
                 }
             );
         }
-        CalleeLeafBody::EmptyUnit | CalleeLeafBody::PrintSharedParameter => {
+        CalleeLeafBody::EmptyUnit
+        | CalleeLeafBody::PrintSharedParameter
+        | CalleeLeafBody::ForwardSharedParameter => {
             if leaf.body() == CalleeLeafBody::PrintSharedParameter {
                 let [instruction] = f.instructions.as_slice() else {
                     return None;
@@ -430,12 +476,34 @@ pub(super) fn replay_leaf(module: &Module, id: FunctionId, leaf: &CalleeLeaf) ->
                 );
                 same!(
                     instruction.origin,
-                    Origin::Source(leaf.print_loan()?.end_span())
+                    Origin::Source(leaf.input_call_loan()?.end_span())
+                );
+                require!(instruction.results.is_empty());
+                same!(block.instructions, vec![instruction.id]);
+            } else if leaf.body() == CalleeLeafBody::ForwardSharedParameter {
+                let [instruction] = f.instructions.as_slice() else {
+                    return None;
+                };
+                let (_, key) = leaf.source_call()?;
+                let mut targets = functions.iter().filter(|(candidate, _)| candidate == key);
+                let (_, callee) = targets.next()?;
+                require!(targets.next().is_none() && *callee != id);
+                same!(
+                    instruction.operation,
+                    Operation::DirectCall {
+                        callee: *callee,
+                        receiver: None,
+                        arguments: vec![*parameter]
+                    }
+                );
+                same!(
+                    instruction.origin,
+                    Origin::Source(leaf.input_call_loan()?.end_span())
                 );
                 require!(instruction.results.is_empty());
                 same!(block.instructions, vec![instruction.id]);
             } else {
-                require!(f.instructions.is_empty() && leaf.print_loan().is_none());
+                require!(f.instructions.is_empty() && leaf.input_call_loan().is_none());
             }
             same!(f.borrow_return, None);
             require!(f.return_types.is_empty());

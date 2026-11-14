@@ -445,12 +445,38 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
 fn parameter_print_retains_real_shared_argument_contract_without_ending_input() {
     for (body, extra, accepted) in [
         ("println(item)", "", true),
+        ("println(item)", "\nfun println(value:String):Unit {}", true),
+        (
+            "helper(item)",
+            "\nfun helper(value:String):Unit {println(value)}",
+            true,
+        ),
+        (
+            "helper(\"literal\")",
+            "\nfun helper(value:String):Unit {println(value)}",
+            false,
+        ),
+        (
+            "helper(item);helper(item)",
+            "\nfun helper(value:String):Unit {println(value)}",
+            false,
+        ),
+        (
+            "helper(item)",
+            "\nfun helper(value:String):Unit {helper(value)}",
+            false,
+        ),
+        (
+            "helper(item)",
+            "\nfun helper(value:String):Unit {other(value)}\nfun other(value:String):Unit {println(value)}",
+            false,
+        ),
         ("println(\"literal\")", "", false),
         ("println(item);println(item)", "", false),
         ("val unused=1;println(item)", "", false),
         (
             "println(item)",
-            "\nfun println(value:String):Unit {}",
+            "\nfun println(value:String):Unit {val unused=1}",
             false,
         ),
     ] {
@@ -490,12 +516,25 @@ fn parameter_print_retains_real_shared_argument_contract_without_ending_input() 
             );
             continue;
         }
-        let call = typed
-            .types()
-            .calls()
-            .iter()
-            .find(|c| c.prints_line())
-            .unwrap();
+        let Some(call) = typed.types().calls().iter().find(|c| c.prints_line()) else {
+            let leaves = experiment.callee_leaves().unwrap();
+            let forward = leaves
+                .iter()
+                .find(|leaf| leaf.body() == CalleeLeafBody::ForwardSharedParameter)
+                .unwrap();
+            let (call, key) = forward.source_call().unwrap();
+            assert!(!typed.types().call(call).unwrap().prints_line());
+            assert!(matches!(
+                key.target(),
+                crate::type_checking::UnitCallTarget::Declaration(_)
+            ));
+            assert!(
+                leaves
+                    .iter()
+                    .any(|leaf| leaf.instance() == key && leaf.body() == CalleeLeafBody::EmptyUnit)
+            );
+            continue;
+        };
         let owned = &experiment.retained;
         let loans: Vec<_> = owned
             .loans()
@@ -536,6 +575,26 @@ fn parameter_print_retains_real_shared_argument_contract_without_ending_input() 
             .filter(|l| l.body() == CalleeLeafBody::PrintSharedParameter)
             .collect();
         assert_eq!(printing.len(), 1);
-        assert_eq!(printing[0].print_loan(), Some(loans[0]));
+        assert_eq!(printing[0].input_call_loan(), Some(loans[0]));
+        for forward in leaves
+            .iter()
+            .filter(|leaf| leaf.body() == CalleeLeafBody::ForwardSharedParameter)
+        {
+            let (source_call, key) = forward.source_call().unwrap();
+            assert_eq!(typed.types().call(source_call).unwrap().instance(), key);
+            assert!(matches!(
+                key.target(),
+                crate::type_checking::UnitCallTarget::Declaration(_)
+            ));
+            let loan = forward.input_call_loan().unwrap();
+            assert_eq!(loan.call(), source_call);
+            assert_eq!(loan.kind(), crate::ownership_checking::LoanKind::Shared);
+            assert!(
+                !owned
+                    .direct_call_loan_ends()
+                    .iter()
+                    .any(|e| e.loan().call() == source_call)
+            );
+        }
     }
 }
