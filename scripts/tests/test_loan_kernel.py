@@ -42,6 +42,17 @@ class LoanKernelCases(unittest.TestCase):
             CHECKER.Checker.ancestors = original
         self.assertNotEqual(expected(text), actual)
 
+    def test_dropping_the_slot_rule_is_detected(self):
+        """去掉槽位检查（X2）之后，评审 R2 的反例必须不再被拒绝，否则 I2 没有在检验它。"""
+        text = (ROOT / "cases" / "I2.lk").read_text(encoding="utf-8")
+        original = CHECKER.Checker.bind_types
+        CHECKER.Checker.bind_types = lambda self, fun, values, line: None
+        try:
+            actual = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.bind_types = original
+        self.assertNotEqual(expected(text), actual)
+
 
 if __name__ == "__main__":
     unittest.main()
