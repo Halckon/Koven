@@ -16,6 +16,14 @@ fn real_domain_success_identity_and_late_failure_revoke() {
         } else {
             SOURCE.to_owned()
         };
+        let base = if reversed {
+            format!(
+                "{}\nfun consume_other(item:String):Unit {{}}",
+                base.replace("consume(b);consume(b)", "consume_other(b);consume(b)")
+            )
+        } else {
+            base
+        };
         let caller = "\nfun entry(){val a=\"a\";val b=\"b\";run(a,b,2,true);run(a,a,2,false)}";
         for success in [true, false] {
             let mut sources = SourceMap::new();
@@ -126,6 +134,46 @@ fn real_domain_success_identity_and_late_failure_revoke() {
                                 source
                             );
                         }
+                        for (arm_index, (arm, calls)) in
+                            fact.arms.iter().zip(&fact.calls).enumerate()
+                        {
+                            let expressions = std::iter::once(arm.initializer())
+                                .chain(arm.consumers().iter().map(|(_, call, _)| *call))
+                                .collect::<Vec<_>>();
+                            assert_eq!(calls.len(), expressions.len());
+                            for (position, ((expression, key), expected)) in
+                                calls.iter().zip(expressions).enumerate()
+                            {
+                                assert_eq!(*expression, expected);
+                                assert_eq!(
+                                    key,
+                                    typed.types().call(*expression).unwrap().instance()
+                                );
+                                let crate::type_checking::UnitCallTarget::Declaration(id) =
+                                    key.target()
+                                else {
+                                    panic!("actual source callee")
+                                };
+                                let declaration = names
+                                    .names()
+                                    .index()
+                                    .declarations()
+                                    .iter()
+                                    .find(|d| d.id() == id)
+                                    .unwrap();
+                                let expected_name = if position == 0 {
+                                    "view"
+                                } else if reversed && arm_index == 1 && position == 1 {
+                                    "consume_other"
+                                } else {
+                                    "consume"
+                                };
+                                assert_eq!(declaration.name(), expected_name);
+                            }
+                        }
+                        assert_eq!(fact.calls[1].len(), 3);
+                        assert_ne!(fact.calls[1][1].0, fact.calls[1][2].0);
+                        assert_eq!(fact.calls[1][1].1 == fact.calls[1][2].1, !reversed);
                         assert_ne!(fact.arms[0].source(), fact.arms[1].source());
                         assert_ne!(fact.counter, fact.rounds);
                         assert_ne!(fact.initial_statement, fact.update);

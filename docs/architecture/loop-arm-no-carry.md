@@ -147,3 +147,5 @@ String owner在其全部关联loan结束后才唯一Drop；不覆盖异常退出
 CounterBranch及两臂最终唯一End成功后构造独立身份；旧pair与生产selector不变。
 该测试态域能成功validate，但不在非测试frontend依赖中暴露，因此不提供backend
 能力。rooted跨源晚失败可观察先构造后经Unit总gate撤销；没有保留失败观察payload。
+测试态事实还按闭合arm顺序保存每次实际callsite与完整callable instance key；
+producer和重复consumer调用不去重，缺失typed映射不生成新事实。这不是SSA receipt。

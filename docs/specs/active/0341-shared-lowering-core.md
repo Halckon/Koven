@@ -18179,3 +18179,21 @@ late-error试验在End匹配前已被撤销，未把它当“先发布后撤销�
 最终源码候选/新域5项及旧实验2项普通测试通过，frontend all-target严格Clippy
 默认/observer-support两配置通过，fmt/docs951/diff及独立复审通过。新事实模块95行、
 测试214行，接线文件797行；未运行native、后端receipt或远端CI，未推送。
+
+### E2 隔离事实的实际 callee 绑定（2026-11-14）
+
+基于`001fb7da`，将未来receipt消费所需的producer/consumer具体callee身份锁入
+测试态事实。每臂仅沿已闭合arm的initializer与有序consumer序列，从同一Checker的
+typed产物取得`(UnitExpressionId, UnitCallableInstanceKey)`；保留完整类型实参顺序，
+不按名字/签名回填、不去重、不再次按AST遍历排序。缺失descriptor、非当前source
+或非Declaration目标均令新事实构造失败；identity与构造计数只在全部记录成功后创建。
+
+普通矩阵加入同签名`consume_other`声明，逐项核对实际typed key、producer与consumer
+声明及顺序；同callee的重复调用必须保留不同callsite，替换为另一声明后key必须不同。
+原独立owns、旧域隔离、晚错误撤销及默认拒绝矩阵继续运行。完整类型实参为直接
+保存既有规范化key，不代表本片另外验证了泛型实例矩阵。
+
+所有记录与构造仍仅在cfg(test)域；不增加producer/consumer允许形状，不接入backend
+计划或receipt，不证明SSA callee replay、实际执行或生产授权。
+最终源码观察配置候选/新域5项与旧实验2项、默认候选2项普通测试通过；frontend
+all-target严格Clippy两配置、fmt/docs951/diff与独立复审通过。未运行native/远端CI。

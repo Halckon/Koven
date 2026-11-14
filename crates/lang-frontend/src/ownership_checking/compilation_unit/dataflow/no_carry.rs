@@ -636,6 +636,7 @@ impl Checker<'_> {
                             *branch,
                             [left, right],
                             counter.clone(),
+                            self.typed,
                         )
                     });
                 if let Some(fact) = fact {

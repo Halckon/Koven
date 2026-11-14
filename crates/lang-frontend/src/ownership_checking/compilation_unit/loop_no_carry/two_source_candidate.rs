@@ -1,5 +1,6 @@
 //! Test-build authorization domain; absent from production dependencies and backend inputs.
 use super::*;
+use crate::type_checking::{CompilationUnitTypes, UnitCallTarget, UnitCallableInstanceKey};
 use crate::{ast::ExpressionId, ownership_checking::loop_no_carry::CounterPlan};
 use std::cell::Cell;
 thread_local! { static DOMAIN: Cell<(bool, usize)> = const { Cell::new((false, 0)) }; }
@@ -23,6 +24,7 @@ pub(crate) struct TwoSourceCounterFact {
     identity: Rc<()>,
     branch: UnitExpressionId,
     arms: [UnitLoopNoCarryFact; 2],
+    calls: [Vec<(UnitExpressionId, UnitCallableInstanceKey)>; 2],
     counter: UnitSymbolId,
     rounds: UnitSymbolId,
     initializer: UnitExpressionId,
@@ -39,6 +41,7 @@ impl TwoSourceCounterFact {
         branch: ExpressionId,
         arms: [UnitLoopNoCarryFact; 2],
         c: CounterPlan<UnitSymbolId>,
+        typed: &CompilationUnitTypes,
     ) -> Option<Self> {
         if !enabled()
             || arms[0].source() == arms[1].source()
@@ -51,11 +54,26 @@ impl TwoSourceCounterFact {
         {
             return None;
         }
+        // The closed arm sequence is the only ordering source. Never deduplicate calls.
+        let calls = |arm: &UnitLoopNoCarryFact| {
+            std::iter::once(arm.initializer())
+                .chain(arm.consumers().iter().map(|(_, call, _)| *call))
+                .map(|expression| {
+                    let call = typed.call(expression)?;
+                    (call.expression() == expression
+                        && expression.source_unit() == unit
+                        && matches!(call.target(), UnitCallTarget::Declaration(_)))
+                    .then(|| (expression, call.instance().clone()))
+                })
+                .collect::<Option<Vec<_>>>()
+        };
+        let calls = [calls(&arms[0])?, calls(&arms[1])?];
         DOMAIN.set((true, DOMAIN.get().1 + 1));
         Some(Self {
             identity: Rc::new(()),
             branch: UnitExpressionId::new(unit, branch),
             arms,
+            calls,
             counter: c.counter,
             rounds: c.rounds,
             initializer: UnitExpressionId::new(unit, c.initializer),
