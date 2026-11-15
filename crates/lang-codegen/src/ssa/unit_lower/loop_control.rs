@@ -516,9 +516,12 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             condition: ExpressionId,
             span: Span,
         ) -> Result<Option<NullableIfEntry>, LoweringError> {
-            if !self.nullable_proofs.is_empty()
-                || !self.loops.is_empty()
+            if !self.loops.is_empty()
                 || !self.substitutions.is_empty()
+                || self
+                    .nullable_proofs
+                    .values()
+                    .any(|proof| proof.when_scope().is_none())
             {
                 return Ok(None);
             }
@@ -547,6 +550,10 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                 return Ok(None);
             };
             let root = comparison.symbol();
+            // A fresh proof may coexist with carried When proofs for other roots.
+            if self.nullable_proofs.contains_key(&root) {
+                return Ok(None);
+            }
             let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
                 return Ok(None);
             };

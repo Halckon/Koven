@@ -6080,3 +6080,26 @@ when 非空臂内赋值时报 UnsupportedNode。旧借用证明仍有效，
 15 行 stdout 与 Guide 10 的预期顺序逐字节一致，均退出 0，
 stderr 为空。两条正常边带不同 proof 的合流继续单独复审。
 最终源码的 nullable when 后端套件通过 18 项，零失败或忽略。
+
+## 254. R3/R4 不同 nullable 根的内层写回与返回
+
+基线为 `d39d0d54`，包含 #430 的 R1/R2 Parser 恢复与 Unit
+入口回归，以及 #431 的单根资源替换后提前返回。新用例保留外层
+nullable when 的借用，在内层 when 写回另一根、重新判空、
+借用两根并 return。基线前端检查通过，后端在重新借用内层根
+的位置报 MissingFact。
+
+Compatibility 复用现有 heap nullable if 的非空边证明，并按
+既有 CFG 参数携带其他根的 When owner 与 loan。待证明的根
+必须没有活跃 proof，已有 If/While proof 仍受原准入限制。
+本次复用现有前端事实、SSA 校验和 return 清理，未改语言规则。
+
+独立复审追踪两根的实体和 loan 身份，以及新 If proof 结束与
+return 清理的边界。按复审补强，借用函数输出各自的 label。
+断言覆盖 RHS 读取旧值并完整结束、旧值析构、新旧根身份、
+return 逆序析构，以及跳过写回和原内层为空的正常路径。
+
+本机 macOS arm64 的 nullable when 套件 19 项通过，零失败或忽略。
+同一用例经 CLI 单文件和项目入口检查、构建并执行。两个程序均退出 0，
+22 行 stdout 与预期逐字节相等，stderr 为空。codegen all-targets
+严格 Clippy、Rust 格式、Rust 尺寸和文档结构检查通过。
