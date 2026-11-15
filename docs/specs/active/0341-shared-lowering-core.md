@@ -20483,3 +20483,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
   unit 清单合计 42 个；同时修正原输出中已滞后的数量。没有新增或改写生产与测试。
 - 本片仅静态逐项核对模块注册、原 `#[test]` 函数名及不存在 ignored/cfg 差异；
   不重跑已完成的本地分片验证，不执行 native 或人工故障项，也不声称远程 CI 已运行。
+
+### D10 单 fresh scope 的 Value Boolean flag
+
+- 单 scope 从原 While condition Name 独立保存 expression/span/symbol、实际 flag 参数位置及完整两参数 ABI/mode；source 仍严格 Borrow String，另一参数仅 Boolean Borrow/Value。原 proof 的 flag 位置/span/mode 与最终 Program Value/SharedLoan 实体类型精确核对，不只放宽模式数组。
+- 复用原 sealed fact/完整 owned ledger、全 caller CFG 与 source/body 消费证明；body 一/二 consumer、前后各至多一次 source consumer 范围不变，旧 Partial 与一般循环义务不变。Value 的条件直接使用实际运输 Value，不虚构 Read 或 End/Drop。
+- 新真实测试覆盖两 ABI 位置、source 顺序、四段组合及一/二 body 顺序，另保长 body/长段、owned String、额外 Boolean、Group 条件边界。红阶段已证实原正常 SSA/receipt 但 audit 仍 missing evidence；末版新三项真实测试通过（48 正向形态各独立 assembly 两次、6 长域反例及 3 边界）；owned String 与 Group 均实际确认原 ownership 单条 L0164 在 borrow 六字符位置，额外 Boolean 保正常原 receipt 但明确 audit gap。
+- 相关旧 fresh/双 flag 共 16 项、旧 Partial 2 项全部通过，codegen 三 feature all-targets 严格 Clippy（52.78s）、default codegen all-targets（32.32s）、格式/docs979/尺寸2459文件与2项历史欠账/diff 门禁通过；真实本树 frontend 重编、红阶段日志保留，绿链首遍通过，独审无阻断。未运行 native、故障注入或推送。
