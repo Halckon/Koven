@@ -28,6 +28,7 @@ subgraph Gactive["现行 active"]
   S0471["S0471<br/>Unit签名类型解析与body产物实现归位"]
   S0472["S0472<br/>Unit canonical、委托与ownership产物归位"]
   S0473["S0473<br/>Drop表达式遍历与Unit place访问检查归位"]
+  S0474["S0474<br/>Single ownership运行与声明职责归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -75,6 +76,7 @@ ARCH --> S0341
 | SPEC-0471 | active | [0471-unit-signature-types-and-body-product.md](active/0471-unit-signature-types-and-body-product.md) |
 | SPEC-0472 | active | [0472-unit-canonical-delegation-and-ownership-product.md](active/0472-unit-canonical-delegation-and-ownership-product.md) |
 | SPEC-0473 | active | [0473-drop-expression-and-unit-place-access.md](active/0473-drop-expression-and-unit-place-access.md) |
+| SPEC-0474 | active | [0474-single-ownership-lifecycle-and-declarations.md](active/0474-single-ownership-lifecycle-and-declarations.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
