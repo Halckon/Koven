@@ -19425,3 +19425,26 @@ check、fmt/diff、docs结构958份；尺寸相对合并前`7a07886d`及合并�
 #432新增`nullable_when_rechecks_an_inner_writeback_before_return_with_an_outer_borrow`
 仅编译并精确`--list`核对一次注册，未执行native。main原提交的native结果不计作本次
 组合动态证据；一般CFG/资源route也不因此获得D10闭包准入。未推送、无本地故障注入。
+
+
+### 既有literal caller的完整单entry退出闭合（2026-11-15）
+
+在`9f7f175f`之上继续消费原temporary receipt，不新增producer hook或放宽单statement
+route。最终Program由原verifier接受后，受限caller必须只有一个entry block，block的
+完整instruction序列与函数instruction表精确等于receipt；无参数/receiver/借用返回ABI，
+唯一正常出口为`Return([])`。这补上先前仅证明子序列存续、未排除额外块/动作的缺口。
+
+同一原成功receipt点保存其全部instruction.results的完整EntityData，不仅是owner/place/
+loan的3N三元组；Int DirectCall结果也必须纳入，Unit调用无结果。最终核类型/所属身份、
+唯一集合覆盖全部value/place/loan表及Definition双向回指，未知或多余实体明确不闭合。
+原link/action IDs及实际操作验证继续复用原validator，不另签Complete、不改生产返回。
+
+新增正常源码已覆盖命名参数反序、同一入口中的两个独立caller以及Int/Unit callee；
+旧双statement仍显式route gap。仅证明这些caller的正常退出，不证明callee全图或运行时
+终止，一般分支CFG与Compatibility双statement消费仍未完成。首次新测试错误假设
+整个project没有gap；实际两个literal caller均闭合，而入口的两个零参数调用按旧规则
+保持Unsupported。修正测试精确断言这两个入口缺口，并补Unit独立直调gaps为空的正常例，
+未为测试修改准入。末版三项、原source ledger十项、五源CLI exact一项通过；
+frontend/codegen/CLI双feature all-targets严格Clippy及默认workspace all-targets
+check通过，fmt/diff/docs958通过；尺寸对`9f7f175f`通过（2341文件/37历史超限）。
+无native执行、本地故障注入或推送。

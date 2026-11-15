@@ -1,7 +1,7 @@
 //! Existing refinement receipts, scoped to one original Unit assembly and final verification.
 use super::*;
 use crate::ssa::{
-    model::{EntityData, Function, Instruction},
+    model::{EntityData, EntityId, Function, Instruction, Operation, TerminatorKind},
     refine::temporary_receipt::TemporaryReceipt,
 };
 use lang_frontend::{
@@ -24,6 +24,7 @@ struct Snapshot {
     receipt: TemporaryReceipt,
     instructions: Option<Vec<Instruction>>,
     entities: Option<Vec<EntityData>>,
+    results: Option<Vec<(EntityId, EntityData)>>,
 }
 type State = Rc<RefCell<Vec<Snapshot>>>;
 thread_local! { static RUNS: RefCell<Vec<State>> = const { RefCell::new(Vec::new()) }; }
@@ -66,6 +67,15 @@ pub(crate) fn record_temporary(receipts: &[TemporaryReceipt], function: &Functio
                     .iter()
                     .map(|id| function.entity(*id).cloned())
                     .collect(),
+                results: receipt
+                    .instructions
+                    .iter()
+                    .try_fold(Vec::new(), |mut all, id| {
+                        for result in &function.instruction(*id)?.results {
+                            all.push((*result, function.entity(*result)?.clone()));
+                        }
+                        Some(all)
+                    }),
                 receipt: receipt.clone(),
             });
         }
@@ -186,29 +196,65 @@ fn matches_final(snapshot: &Snapshot, program: &Program) -> bool {
     {
         return false;
     }
-    let block_id = instructions[0].block;
-    let Some(block) = function.block(block_id) else {
+    let [block] = function.blocks.as_slice() else {
         return false;
     };
-    let mut previous = None;
+    if function.receiver.is_some()
+        || function.borrow_return.is_some()
+        || function.carrier_return.is_some()
+        || function.never_returns
+        || !function.return_types.is_empty()
+        || !block.parameters.is_empty()
+        || block.instructions != receipt.instructions
+        || function.instructions != *instructions
+        || !matches!(&block.terminator, Some(term)
+            if matches!(&term.kind, TerminatorKind::Return { values } if values.is_empty()))
+    {
+        return false;
+    }
     for (id, instruction) in receipt.instructions.iter().zip(instructions) {
-        if function.instruction(*id) != Some(instruction) || instruction.block != block_id {
+        if function.instruction(*id) != Some(instruction) || instruction.block != block.id {
             return false;
         }
-        let positions: Vec<_> = block
-            .instructions
-            .iter()
-            .enumerate()
-            .filter(|(_, actual)| *actual == id)
-            .map(|(index, _)| index)
-            .collect();
-        let [position] = positions.as_slice() else {
+    }
+    // Include the actual DirectCall result, not only the receipt's owner/place/loan triples.
+    let Some(results) = &snapshot.results else {
+        return false;
+    };
+    let result_ids = results.iter().map(|(id, _)| *id).collect::<BTreeSet<_>>();
+    if result_ids.len() != results.len()
+        || results.len() != function.values.len() + function.places.len() + function.loans.len()
+        || receipt.entities.iter().any(|id| !result_ids.contains(id))
+    {
+        return false;
+    }
+    for instruction in instructions {
+        for id in &instruction.results {
+            if !receipt.entities.contains(id)
+                && (!matches!(&instruction.operation, Operation::DirectCall { .. })
+                    || !matches!(id, EntityId::Value(_)))
+            {
+                return false;
+            }
+        }
+    }
+    for (id, entity) in results {
+        if function.entity(*id) != Some(entity) {
+            return false;
+        }
+        let crate::ssa::model::Definition::InstructionResult { instruction, index } =
+            entity.definition
+        else {
             return false;
         };
-        if previous.is_some_and(|last| last >= *position) {
+        if !receipt.instructions.contains(&instruction)
+            || function
+                .instruction(instruction)
+                .and_then(|i| i.results.get(index))
+                != Some(id)
+        {
             return false;
         }
-        previous = Some(*position);
     }
     for (id, entity) in receipt.entities.iter().zip(entities) {
         if function.entity(*id) != Some(entity) {
