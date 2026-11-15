@@ -9,7 +9,7 @@ SPEC = importlib.util.spec_from_file_location("drop_plan", ROOT / "drop_plan.py"
 DP = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(DP)
 
-EXPECT = re.compile(r"fun (\w+) \{\s*// => (.+)")
+EXPECT = re.compile(r"(?:fun|deinit) (\w+) \{\s*// => (.+)")
 
 
 def outcomes(text, policy=DP.Policy()):
@@ -34,7 +34,7 @@ class DropPlanCases(unittest.TestCase):
 
     def test_keeping_everything_until_scope_end_is_also_valid(self):
         """统一规则只“允许”提前析构：一律留到作用域结束的规划同样满足全部不变量。"""
-        for name in ("D1_basics.dp", "D2_conditional_move.dp", "D3_partial_and_open.dp"):
+        for name in ("D1_basics.dp", "D2_conditional_move.dp", "D3_partial_and_open.dp", "D4_deinit_body.dp"):
             lexical = outcomes(read(name), DP.Policy(early="none"))
             self.assertEqual(outcomes(read(name)), lexical, name)
 
@@ -57,6 +57,49 @@ class DropPlanCases(unittest.TestCase):
                                                 DP.Policy(failure_cleanup=False))["lexical"])
         self.assertEqual("violate V1", outcomes(read("D2_conditional_move.dp"),
                                                 DP.Policy(maybe_moved="ignore"))["fileOneBranch"])
+
+    def test_what_each_access_to_this_allows_in_deinit(self):
+        """deinit 里 this 的三种访问方式：只读借用不能取走任何字段；独占借用只能取走有空值的字段；拥有才能取走任意字段。"""
+        text = read("D4_deinit_body.dp")
+        bodies = ("Conn", "Guard", "Taker", "Unlinker", "NoEmpty", "OneBranch")
+        seen = {access: [outcomes(text, DP.Policy(this_access=access))[name] for name in bodies]
+                for access in ("borrow", "inout", "own")}
+        self.assertEqual(["ok", "reject D7", "reject D7", "reject D7", "reject D7", "reject D7"], seen["borrow"])
+        self.assertEqual(["ok", "reject D7", "reject D7", "ok", "reject D8", "reject D7"], seen["inout"])
+        self.assertEqual(["ok", "ok", "ok", "ok", "reject D8", "ok"], seen["own"])
+
+    def test_a_failing_deinit_can_be_an_ordinary_failure_only_with_cleanup_at_drop_points(self):
+        """把 deinit 在正常路径上的失败当作普通失败：每个析构点都要一份清理清单，否则其余的值泄漏。"""
+        text = read("D4_deinit_body.dp")
+        propagate = DP.Policy(deinit_failure="propagate")
+        self.assertEqual(outcomes(text), outcomes(text, propagate))
+        unplanned = outcomes(text, DP.Policy(deinit_failure="propagate", drop_cleanup=False))
+        self.assertEqual("violate V1", unplanned["dropsOne"])
+        self.assertEqual("violate V1", unplanned["dropsTwo"])
+
+    def test_a_second_failure_during_cleanup_terminates_the_process(self):
+        """清理途中 deinit 再次失败只能终止进程；政策为终止时，第一次失败就终止。"""
+        types, funs = DP.parse(read("D4_deinit_body.dp"))
+
+        def aborted(policy):
+            deinits = {"Conn": DP.Planner(types, policy).plan(types["Conn"].body, this="Conn")}
+            verifier = DP.Verifier(types, deinits=deinits, propagate=policy.deinit_failure == "propagate")
+            found = verifier.run_all(DP.Planner(types, policy).plan(funs["dropsTwo"]))
+            self.assertEqual({}, found)
+            return verifier.aborted_paths
+
+        # dropsTwo 有三处会运行 deinit 的清理或析构；propagate 之下只有“失败之后又失败”的路径终止进程
+        self.assertGreater(aborted(DP.Policy()), aborted(DP.Policy(deinit_failure="propagate")))
+        self.assertGreater(aborted(DP.Policy(deinit_failure="propagate")), 0)
+
+    def test_verifier_runs_deinit_bodies(self):
+        """检验器真的执行 deinit 函数体：把规划里对 this 余下字段的析构删掉，必须表现为泄漏。"""
+        types, funs = DP.parse(read("D4_deinit_body.dp"))
+        body = DP.Planner(types, DP.Policy()).plan(types["Conn"].body, this="Conn")
+        holder = DP.Planner(types, DP.Policy()).plan(funs["dropsOne"])
+        broken = [stmt for stmt in body if stmt.kind != "drop"]
+        self.assertEqual({}, DP.Verifier(types, deinits={"Conn": body}).run_all(holder))
+        self.assertEqual(["V1"], [name.split()[0] for name in DP.Verifier(types, deinits={"Conn": broken}).run_all(holder)])
 
     def test_verifier_rejects_hand_written_wrong_plans(self):
         """检验器独立于规划器：手写的错误规划（顺序颠倒、重复析构）必须被它发现。"""
