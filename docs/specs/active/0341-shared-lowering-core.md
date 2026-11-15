@@ -20349,3 +20349,11 @@ Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入�
 原direct_scalars三目标回归通过；三feature frontend/codegen双crate all-targets
 严格Clippy通过（3m13s），fmt/文档结构/size/diff及独立静审通过。
 不推送、不执行native或本地故障注入。
+
+
+### D10 两个顺序 fresh scope 的完整 caller 闭合
+
+- 限定原 AST 恰两个 while、同 source/flag Borrow 参数、每 loop 一个独立 fresh binding 和 consumer，三个 source 段完整 sealed 且为空；保留既有单 loop 八种形状，不修改原 producer、Partial 或准入。
+- build 前独立保存两 while 原顺序；按本次 token/key/callable 整组匹配全部 owned facts，逐 fact 核 owns、same_identity、全字段及 ledger Function 来源。四个原 dispatch 分别对应两 source 与两 consumer；最终完整 Function/原纯 CFG validator 只执行一次，两条边全部通过才发布，失败不留半组边。
+- 正例使用不同 source/consumer callee，交换 source/ABI 顺序并在同 observe 内独立组装两次；三 loop、中间 source 消费、第二 loop 双 consumer 保留原正常 receipt 但不得获此窄证。fresh 模块 8 项、原 Partial loop 2 项全通过；codegen 三 feature all-targets 严格 Clippy 通过（1m01s），default codegen all-targets 通过（13.82s），未运行 workspace 全量。实际静审无阻断，原完整 CFG 只证明静态路径与作用域，不证明循环终止或动态迭代；不执行 native、人工故障或推送。
+- 静态收尾：格式检查、文档结构 968 篇、Rust 尺寸 2421 文件/21 项历史欠账及 diff 检查通过；尺寸基点精确 `86ff93a28e7d0d4efb9f9dcf5e81de32fe66f65e`，未改 baseline 或额度。

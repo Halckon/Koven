@@ -13,6 +13,7 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitExpressionId, UnitItemId},
 };
 use std::rc::Rc;
+mod sequence;
 type Edge = (FunctionId, InstructionId, FunctionId);
 type Call = (UnitFunctionInstanceKey, FunctionId);
 struct Expected {
@@ -23,6 +24,7 @@ struct Expected {
     abi: Option<[SsaTypeId; 2]>,
     source_index: Option<usize>,
     segments: Option<[Vec<SourceConsumer>; 2]>,
+    sequence: Option<[lang_frontend::type_checking::UnitStatementId; 2]>,
 }
 struct Snapshot {
     receipt: Receipt,
@@ -68,7 +70,30 @@ impl Transaction {
         let mut gaps = Vec::new();
         let mut seen = BTreeSet::new();
         let mut used = BTreeSet::new();
+        let mut grouped = BTreeSet::new();
         for e in &state.expected {
+            let group: Vec<_> = state
+                .expected
+                .iter()
+                .filter(|other| other.token == e.token)
+                .collect();
+            if group.len() == 1 || !grouped.insert(e.token) {
+                continue;
+            }
+            let result = sequence::finish(self, &state, &group, program, mapping, owned, &mut used);
+            match result {
+                Some(pair)
+                    if pair[0] != pair[1] && pair.iter().all(|edge| !edges.contains(edge)) =>
+                {
+                    edges.extend(pair);
+                }
+                _ => gaps.push("fresh no-carry sequential caller evidence gap".into()),
+            }
+        }
+        for e in &state.expected {
+            if grouped.contains(&e.token) {
+                continue;
+            }
             let result = (|| {
                 let UnitCallableTarget::Declaration(declaration) = e.key.target() else {
                     return None;
@@ -239,6 +264,7 @@ pub(in crate::ssa) fn expect(inputs: &RefineInputs<'_>, types: &RefineTypes<'_>)
                 .map(call)
                 .collect(),
             segments,
+            sequence: sequence::original_order(inputs),
         };
         RUNS.with(|r| {
             if let Some(s) = r.borrow().last() {
@@ -264,6 +290,15 @@ fn validate_final(
     abi: [SsaTypeId; 2],
     source_index: usize,
 ) -> Option<Edge> {
+    let f = validate_caller(s, program, abi, source_index)?;
+    validate_loop(s, f, calls, 0)
+}
+fn validate_caller<'a>(
+    s: &Snapshot,
+    program: &'a Program,
+    abi: [SsaTypeId; 2],
+    source_index: usize,
+) -> Option<&'a Function> {
     let functions: Vec<_> = program
         .modules
         .iter()
@@ -306,8 +341,11 @@ fn validate_final(
             return None;
         }
     }
+    Some(f)
+}
+fn validate_loop(s: &Snapshot, f: &Function, calls: &[Call], index: usize) -> Option<Edge> {
     let operation = |tag| {
-        let ids: Vec<_> = s.receipt.loops[0]
+        let ids: Vec<_> = s.receipt.loops[index]
             .instructions
             .iter()
             .filter(|(t, _)| *t == tag)
@@ -328,7 +366,7 @@ fn validate_final(
     let [result] = source.results.as_slice() else {
         return None;
     };
-    let body_count = s.receipt.loops[0].fact.consumers().len();
+    let body_count = s.receipt.loops[index].fact.consumers().len();
     let body = f.block(source.block)?;
     let mut previous = body.instructions.iter().position(|id| *id == source.id)?;
     for i in 0..body_count {

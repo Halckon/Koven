@@ -477,3 +477,235 @@ fn check(
         }
     }
 }
+
+#[test]
+fn two_sequential_fresh_scopes_are_certified_as_one_complete_caller() {
+    for reverse_sources in [false, true] {
+        for reverse_parameters in [false, true] {
+            check_sequence(reverse_sources, reverse_parameters, 2, false, false, true);
+        }
+    }
+}
+
+#[test]
+fn longer_or_interrupted_fresh_sequences_keep_the_whole_group_unproven() {
+    check_sequence(false, false, 3, false, false, false);
+    check_sequence(false, false, 2, true, false, false);
+    check_sequence(false, false, 2, false, true, false);
+}
+
+fn check_sequence(
+    reverse_sources: bool,
+    reverse_parameters: bool,
+    count: usize,
+    middle_source_use: bool,
+    second_double_use: bool,
+    certified: bool,
+) {
+    use crate::ssa::{model::EntityId, refine::fresh_loop_receipt::Tag};
+    let mut sources = SourceMap::new();
+    let (provider_id, provider) = unit_lower_test_support::parsed(
+        &mut sources,
+        "sequence-provider.ko",
+        "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}",
+    );
+    let parameters = if reverse_parameters {
+        "flag:Boolean,source:String"
+    } else {
+        "source:String,flag:Boolean"
+    };
+    let mut body = String::from("while(flag){borrow val item=view(source);consume(item)};");
+    if middle_source_use {
+        body.push_str("consume(source);");
+    }
+    body.push_str("while(flag){borrow val second=next(source);other(second);");
+    if second_double_use {
+        body.push_str("consume(second);");
+    }
+    body.push_str("};");
+    if count == 3 {
+        body.push_str("while(flag){borrow val third=view(source);consume(third)}");
+    }
+    let (caller_id, caller) = unit_lower_test_support::parsed(
+        &mut sources,
+        "sequence-caller.ko",
+        &format!("fun run({parameters}):Unit {{{body}}}"),
+    );
+    let mut inputs = [
+        SourceUnitInput::new("root", "sequence-provider.ko", provider_id, &provider),
+        SourceUnitInput::new("root", "sequence-caller.ko", caller_id, &caller),
+    ];
+    if reverse_sources {
+        inputs.reverse();
+    }
+    let (environment, types) = standard_environments();
+    let (names, typed, owned) =
+        unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+    let declaration = |name| {
+        names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == name)
+            .unwrap()
+            .id()
+    };
+    let facts = owned.ownership().no_carry_loops();
+    assert_eq!(facts.len(), count);
+    let ((results, audits), receipts) = fresh_loop_receipt::observe(|| {
+        observe(|| {
+            (0..2)
+                .map(|_| {
+                    unit_lower::lower_scalar_unit_with_entry(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        &typed,
+                        &owned,
+                        declaration("run"),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+    });
+    assert_eq!(audits.len(), 2);
+    assert_eq!(
+        receipts.len(),
+        2,
+        "all normal sources retain the original multi-loop receipt"
+    );
+    for ((result, audit), receipt) in results.into_iter().zip(audits).zip(receipts) {
+        let (program, entry) = result.unwrap();
+        crate::ssa::verify::verify_program(&program).unwrap();
+        let function = program
+            .modules
+            .iter()
+            .flat_map(|m| &m.functions)
+            .find(|f| f.id == entry)
+            .unwrap();
+        receipt.validate(function).unwrap();
+        assert_eq!(receipt.loops.len(), count);
+        for local in &receipt.loops {
+            let originals: Vec<_> = facts
+                .iter()
+                .filter(|f| f.loop_statement() == local.fact.loop_statement())
+                .collect();
+            let [original] = originals.as_slice() else {
+                panic!("unique original loop");
+            };
+            assert!(original.same_identity(&local.fact));
+            assert_eq!(**original, local.fact);
+        }
+        let source_edges = [
+            (declaration("run"), declaration("view")),
+            (declaration("run"), declaration("next")),
+        ];
+        if certified {
+            assert!(audit.unsupported.is_empty(), "{:?}", audit.unsupported);
+            assert!(
+                source_edges
+                    .iter()
+                    .all(|edge| audit.borrow_edges.contains(edge))
+            );
+            assert!(receipt.has_empty_segments(3));
+            let mut results = Vec::new();
+            for (local, (source_name, consumer_name)) in receipt
+                .loops
+                .iter()
+                .zip([("view", "consume"), ("next", "other")])
+            {
+                let instruction = |tag| {
+                    let ids: Vec<_> = local
+                        .instructions
+                        .iter()
+                        .filter(|(t, _)| *t == tag)
+                        .map(|(_, id)| *id)
+                        .collect();
+                    assert_eq!(ids.len(), 1);
+                    function.instruction(ids[0]).unwrap()
+                };
+                let acquire = instruction(Tag::Result);
+                let [result] = acquire.results.as_slice() else {
+                    panic!("one fresh result");
+                };
+                let consumer = instruction(Tag::Consumer(0));
+                let end = instruction(Tag::ResultEnd);
+                let Operation::BorrowCall { callee, .. } = acquire.operation else {
+                    panic!("source call");
+                };
+                assert!(
+                    program
+                        .modules
+                        .iter()
+                        .flat_map(|m| &m.functions)
+                        .find(|f| f.id == callee)
+                        .unwrap()
+                        .name
+                        .contains(&format!(".{source_name}."))
+                );
+                let Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    arguments,
+                } = &consumer.operation
+                else {
+                    panic!("consumer call");
+                };
+                assert_eq!(arguments.as_slice(), [*result]);
+                assert!(
+                    program
+                        .modules
+                        .iter()
+                        .flat_map(|m| &m.functions)
+                        .find(|f| f.id == *callee)
+                        .unwrap()
+                        .name
+                        .contains(&format!(".{consumer_name}."))
+                );
+                let block = function.block(acquire.block).unwrap();
+                let position = |id| block.instructions.iter().position(|v| *v == id).unwrap();
+                assert!(
+                    position(acquire.id) < position(consumer.id)
+                        && position(consumer.id) < position(end.id)
+                );
+                assert!(
+                    matches!(end.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan) == *result)
+                );
+                assert_eq!(function.instructions.iter().filter(|i| matches!(i.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==*result)).count(), 1);
+                assert!(
+                    receipt
+                        .edges
+                        .iter()
+                        .all(|(_, edge)| !edge.arguments.contains(result))
+                );
+                results.push(*result);
+            }
+            assert_ne!(results[0], results[1]);
+            assert_ne!(
+                receipt.loops[0].fact.binding(),
+                receipt.loops[1].fact.binding()
+            );
+        } else {
+            assert!(
+                source_edges
+                    .iter()
+                    .all(|edge| !audit.borrow_edges.contains(edge)),
+                "no partial group publication"
+            );
+            assert!(
+                audit
+                    .unsupported
+                    .iter()
+                    .any(|g| g.contains("sequential caller evidence gap"))
+            );
+            assert!(
+                audit
+                    .unsupported
+                    .iter()
+                    .any(|g| g.contains("unclassified") && g.contains("BorrowCall"))
+            );
+        }
+    }
+}
