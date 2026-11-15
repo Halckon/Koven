@@ -166,6 +166,13 @@ impl CompilationUnitOwnership {
         &self,
         branch: UnitExpressionId,
     ) -> Result<UnitItemId, CallableLoanLinkError> {
+        self.d10_arm_counter_break_suffix_link(branch, None)
+    }
+    pub(crate) fn d10_arm_counter_break_suffix_link(
+        &self,
+        branch: UnitExpressionId,
+        suffix: Option<(UnitExpressionId, UnitExpressionId)>,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
         use CallableLoanLinkError::{Ambiguous, Unsupported};
         let facts: Vec<_> = self
             .no_carry_counter_break_branches()
@@ -178,7 +185,10 @@ impl CompilationUnitOwnership {
         if !self.owns_no_carry_counter_break_branch(fact) {
             return Err(Unsupported);
         }
-        self.link_arm_pair_calls(fact.counter().pair(), &[])
+        self.link_arm_pair_calls(
+            fact.counter().pair(),
+            &suffix.into_iter().collect::<Vec<_>>(),
+        )
     }
     fn link_arm_source(
         &self,

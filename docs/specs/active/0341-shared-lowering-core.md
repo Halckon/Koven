@@ -20611,3 +20611,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 复用已整合 `039d17d8` 的原共享参数 producer 支持事实，不重复支持性 probe；其旧带 suffix 测试不作为本片无 suffix 十二角色验收。新门严格配对：三参数 ABI 为 source/rounds/共享 flag，四参数仍两 flag 各自独立且无未用参数，完整角色集合覆盖所有实际 ABI；source 始终 Borrow，其余保原独立 modes。
 - 两个原 Name expression ID 与 Span 分别独立记录，原 p.roles 与 cb.role 各自核验；同 symbol 不合并两处控制点。Borrow 情形原 split/gate 各唯一 Read、不同原 Span 和结果；Value 情形两个 Conditional 分别沿真实边回到同一原入口角色，不要求跨块实体相同、不伪造 End。原十二角色、break/checked运输、全部实体指令、原 ledger/cleanup 与唯一原 Abort 授权不变。
 - 新两项目标首遍通过：六 ABI 顺序、四 scalar 模式、两来源顺序共四十八形态各两次 assembly；四参数重复共享 flag+未用 Boolean 的四模式均 normal lower/verify/receipt 后精确 gap、不部分认证。完整新目标编译 2m11s、执行 0.35s；旧独立 flag 两项与 rounds 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m48s、default codegen all-targets 33.30s 完整成功日志在短暂断连恢复后核实；未重跑已完成构建，仅重新确认格式检查通过。不执行生成程序/Abort/native/故障注入，不推送，默认 workspace 留联合一次。
+
+### D10 counter-break 后一次 source 消费的完整出口证明
+
+- 原正常形状 probe 一项通过（四种三/四 ABI 与 mode 极值、两来源各两次 assembly），实证十二块与两个空 Branch 前驱把原 source 送入唯一 exit Loan 参数/DirectCall；原 receipt 与审计缺口仍保留，不将该 probe 冒称完整认证。随后独立 Expected 仅接受 `[initial,while]` 或 `[initial,while,单sourceConsumer]`，消费从原 typed/argument/Shared String 合同及 dispatch FullKey/Span 采集，不从 final SSA 反推授权。
+- 新 counter-break 专属 sealed selector 在一个原完整 ledger/ordinal 集合内联合两臂全部 acquisitions 与 suffix：唯一原 call/argument、Function producer、原 source root 全核，重复 ordinal 拒绝。最终同次完整 snapshot 与全部 dispatch 映射核验后，exit 精确一个原 source slot/Loan、一个原 callee/span 的无结果 DirectCall 与唯一空 UnitReturn；无 suffix 的原空出口保持。
+- 从实际 entry 原 source 实体沿全部真实边传播，稳定后对每个已标 source 的目标参数反查所有 incoming 均已知同源，单前驱不能替另一未知来源自证；分别核 yes6 与 finished10 的唯一 source 实参进入 exit11。只跟踪不可变 source，不把合法变化的 Int counter 当作不变 ABI 根；原十二角色、两 cleanup、两臂 fresh End、checked 回边与唯一原 Abort 的一常量/Span/reason约束不松，prefix 原拒绝不绕过。
+- 新两项目标首遍通过：四参数八模式×24 ABI 与共享三参数四模式×6 ABI，再各两来源，共432形态各两次 assembly；后消费包含与臂内相同 consumer/other，仍按原 occurrence 区分。Group/named实参与两次后消费三负例均原 normal lower/verify/receipt 后精确 gap。新目标编译1m09s、执行3.30s，旧独立 flag 两项与共享 flag 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m48s、default codegen all-targets 32.61s 与格式通过。不重原 probe，不执行生成程序/Abort/native/故障注入，不推送，默认workspace留联合一次。
