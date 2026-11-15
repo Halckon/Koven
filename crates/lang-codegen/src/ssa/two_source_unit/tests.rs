@@ -456,3 +456,5 @@ mod staggered_distinct;
 mod late_distinct;
 
 mod joint_final_named;
+
+mod joint_final_distinct;

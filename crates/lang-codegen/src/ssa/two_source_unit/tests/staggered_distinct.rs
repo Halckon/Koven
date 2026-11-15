@@ -236,7 +236,7 @@ fn staggered_distinct_rejects_other_shapes_and_unclaimed_shells() {
     let [case, _] = cases();
     for body in [
         "val a=\"A\";val b=\"B\";run_a(a,a,1,false);run_b(b,b,2,true)",
-        "val a=\"A\";val b=\"B\";run_a(a,b,1,false);run_b(a,b,2,true)",
+        "val a=\"A\";val b=\"B\";run_a(a,b,1,false);run_b(a,b,1+1,true)",
         "val a=\"A\";val b=\"B\";run_a(a,\"temp\",1,false);run_b(b,b,2,true)",
         "val a=\"A\";val b=\"B\";val c=\"C\";run_a(a,b,1,false);run_b(c,c,2,true)",
         "val a=\"A\";run_a(a,a,1,false);val b=\"B\";run_b(b,b,2,true)",

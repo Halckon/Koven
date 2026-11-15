@@ -20745,3 +20745,18 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 原普通 probe 一目标确认两来源各两次 assembly 的十二块/十四指令；完整证书另从原记录导出十二唯一角色，明确 finished!=exit、双臂 join==stop gate、false/no==continued、checked op==continued 而非 join、observed==(yes,exit)。原 stop Read/Conditional、yes 空指令原 break Span→exit、continued 原常量一/checked、失败唯一精确 Abort 与成功回边、零迭代 finished→exit/唯一空 UnitReturn、全 ABI/实体/类型/指令覆盖逐项闭合，两个借用边同次最终 verifier 后原子发布；旧 counter9、tail8 与普通 Abort 空授权不改。
 - 新两目标实跑通过：二十四 ABI 排列与两来源顺序共四十八形态各两次 assembly，实际 stop 入口角色沿真实边追溯到原 Read/Conditional，并分别核 true break 空块和 false checked；Value stop/额外 Boolean 两负例实测原 normal receipt 后精确 gap。首次正例发现新 Expected 将原 ControlBody 误写 Block，诊断定位后按原 selector 精确修复，不兼容放宽；首轮 tuple type_complexity 与测试 collapsible_if 仅等价 alias/let-chain 修复，全部失败日志保留。
 - 末版新两项、旧 counter 两项及 tail 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m27s、default codegen all-targets 32.49s、格式通过。原 probe 不重复；只普通源码→SSA 模型检查，不执行生成 Abort/native/故障注入，不推送，默认 workspace 留联合一次。
+
+
+### E2 不同 callee 双 named root 共同末退役（已定向验收）
+
+- 基联合 419b2b18，exact 两 plain String val 和两个不同闭合 callee，双方空类型实参；
+  每 call 各借同两异根、direct scalar，首完整 Drop 空、末完整双 NamedDrop 原向量。
+- 普通两 case probe 已绿，反 callee/反声明/具名/samebytes 的 8 完整 End 与原 Drop
+  序均核；同 Unit 两原 FullKey 各对应唯一 fact/shell，两 case 准确 Unsupported 红已保留。
+- 原 joint-final 证明抽为固定 owners[2]/terminalDrops[2] 纯载荷，不签发能力；旧 finish
+  仍核 same key，新私有 DifferentJointFinalNamedPair 独立核 different key/两空 typeargs。
+- calls/joint_final_owners 显式投影及 EntryKeys 精确 marker 接线，旧 survivor 分支不变；
+  后端操作不改，逐 occurrence 原 callee/ABI 与 legacy common None 真拒纳入正常测试。
+- 新 3 目标正式/三 feature 各 3/3 通过，9 域外精准分类与 legacy 真拒已执行；
+  旧 joint-final 3 + 迁移负控 1 全过，双 crate all-targets 三 feature strict 通过（1m44）。
+  CI 70 unit/配置；初正式输出的无行为括号 warning 已移除，未执行 native/故障注入。

@@ -1,5 +1,6 @@
 //! Private-construction source entry evidence; not normal ownership or backend authority.
 mod body;
+mod different_joint_final_pair;
 mod different_late_pair;
 mod different_pair;
 mod different_shared_mixed_pair;
@@ -7,6 +8,7 @@ mod different_shared_pair;
 mod different_staggered_pair;
 mod joint_final_pair;
 mod late_pair;
+mod owner;
 mod pair;
 mod shared_pair;
 mod staggered_pair;
@@ -53,6 +55,11 @@ enum EntryCalls {
         owners: Box<[EntryOwnerDescriptor; 2]>,
         calls: Box<[EntryCallDescriptor; 2]>,
     },
+    DifferentJointFinalNamedPair {
+        owners: Box<[EntryOwnerDescriptor; 2]>,
+        terminal_drops: Box<[UnitDropFact; 2]>,
+        calls: Box<[EntryCallDescriptor; 2]>,
+    },
     JointFinalNamedPair {
         owners: Box<[EntryOwnerDescriptor; 2]>,
         terminal_drops: Box<[UnitDropFact; 2]>,
@@ -83,28 +90,6 @@ pub struct EntryOwnerDescriptor {
     span: Span,
     bytes: Vec<u8>,
     drop: UnitDropFact,
-}
-impl EntryOwnerDescriptor {
-    /// Original resolved named root.
-    pub fn root(&self) -> UnitSymbolId {
-        self.root
-    }
-    /// Original initializer expression.
-    pub fn initializer(&self) -> UnitExpressionId {
-        self.initializer
-    }
-    /// Original initializer span.
-    pub fn span(&self) -> Span {
-        self.span
-    }
-    /// Original decoded String bytes.
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-    /// Original final-use Drop, not a synthetic event.
-    pub fn drop_fact(&self) -> &UnitDropFact {
-        &self.drop
-    }
 }
 /// Read-only call occurrence evidence; not an independently owned entry capability.
 #[derive(Clone, Debug)]
@@ -331,14 +316,24 @@ impl EntryDescriptor {
             | EntryCalls::StaggeredNamedPair { calls, .. }
             | EntryCalls::DifferentStaggeredNamedPair { calls, .. }
             | EntryCalls::JointFinalNamedPair { calls, .. }
+            | EntryCalls::DifferentJointFinalNamedPair { calls, .. }
             | EntryCalls::LateInitializedPair(calls)
             | EntryCalls::DifferentLateInitializedPair(calls)
             | EntryCalls::DifferentTemporaryPair(calls) => calls.as_ref(),
         }
     }
+    /// Separately proved distinct-callee joint final-use root.
+    pub fn is_different_joint_final_named_pair(&self) -> bool {
+        matches!(self.calls, EntryCalls::DifferentJointFinalNamedPair { .. })
+    }
     /// Two original initializers and the independent original terminal cleanup sequence.
     pub fn joint_final_owners(&self) -> Option<(&[EntryOwnerDescriptor; 2], &[UnitDropFact; 2])> {
         if let EntryCalls::JointFinalNamedPair {
+            owners,
+            terminal_drops,
+            ..
+        }
+        | EntryCalls::DifferentJointFinalNamedPair {
             owners,
             terminal_drops,
             ..
