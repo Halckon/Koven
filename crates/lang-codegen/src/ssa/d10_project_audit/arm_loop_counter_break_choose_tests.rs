@@ -23,10 +23,10 @@ fn counter_break_choose_value_keeps_stop_role_independent() {
     }
 }
 #[test]
-fn counter_break_choose_value_keeps_rounds_and_extra_parameters_outside() {
+fn counter_break_choose_value_keeps_unclaimed_abi_outside() {
     for signature in [
-        "source:String,own rounds:Int,own choose:Boolean,stop:Boolean",
-        "source:String,own rounds:Int,own choose:Boolean,own stop:Boolean",
+        "source:String,own rounds:Int,own choose:Boolean,stop:Boolean,extra:Boolean",
+        "source:String,own rounds:Int,own choose:Boolean,own stop:Boolean,extra:Boolean",
         "source:String,rounds:Int,own choose:Boolean,stop:Boolean,extra:Boolean",
         "source:String,rounds:Int,own choose:Boolean,own stop:Boolean,extra:Boolean",
     ] {
