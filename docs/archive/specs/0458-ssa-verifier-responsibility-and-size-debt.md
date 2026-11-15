@@ -1,10 +1,10 @@
 # SPEC-0458：SSA verifier 职责与历史尺寸欠账
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批 verifier 职责整理时 · **唯一真源**：本批验收边界，语言语义仍从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批 verifier 职责整理时 · **唯一真源**：本批验收边界，语言语义仍从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0458` |
 | 所属 Phase | Phase 4，typed SSA verifier |
 | 语言规范 | 现行 [Guide](../../guide/README.md) |
@@ -50,14 +50,14 @@ Origin/Span、branch proof、presence payload、owner/loan及中止/cleanup合�
 - [x] R2：两个根及新文件均在1000行以内；仅对应旧baseline/exception删除，其他JSON完全相同。
 - [x] R3：每片先跑既有针对性基线，迁移后跑同组并本地提交；用例/断言不改，实际数与未测项分开记录。
 - [x] R4：批次结束统一组合回归（含先前runtime/native）、双配置all-target Clippy、fmt/docs/空白/尺寸/47项policy tests；独立全pass发现修复后复核。
-- [ ] R5：更新Architecture和真实账本，集中推送同PR，最终精确候选CI另行验收后才归档。
+- [x] R5：更新Architecture和真实账本，集中推送同PR，最终精确候选CI另行验收后才归档。
 
 ## 5. 实施顺序
 
 1. [x] 冻结dominance及直接消费者，定向基线/迁移/定向测试 → 本地提交。
 2. [x] 冻结storage合同及直接消费者，定向基线/迁移/定向测试 → 本地提交。
 3. [x] 一次组合门禁与独立复核，修具体发现 → 更新账本。
-4. [ ] 集中推送并最终候选CI独立验收；不使用旧head的绿灯替代。
+4. [x] 集中推送并最终候选CI独立验收；不使用旧head的绿灯替代。
 
 无行为变化重构以既有GREEN→重构→同组GREEN验证，不伪造RED；原1009/1235行是
 真实尺寸欠账。若发现产品失败，保留失败见证，停下定位而非顺手改合同。
@@ -85,3 +85,20 @@ Architecture已同步物理职责，不改变阶段规范。未跑frontend/完�
 本地CI-only fault或sanitizer全套；无跨crate API变化，不另跑workspace check，不借旧头结果。
 最终docs955、空白通过；下一笔仅账本/快照收齐提交，不再改Rust或重复组合门禁。
 集中推送头d7b066e769f1206e040e311921949f97a67c4735的[PR CI 43664829997](https://github.com/Halckon/Koven/actions/runs/43664829997)实际success：两宿主Check/Clippy/Tests、两个Preview producer和独立consumer通过；frontend各850/0/12，codegen Linux3234/0/55、macOS3231/0/56。Editor lexical及占位Evidence job skipped不计执行。此结果只归因该头，同PR后继0459新代码另验；最终整组交付前保持in-progress，不提前归档。
+
+## 最终交付验收（PR #433）
+
+用户授权先合入再从main开展后续。最终代码头 `914797c2c02dd3787ded8ff1255b53d4d3bc9e09`
+普通整合main `fdf5766b2b2707fe29c7ab7f7b8445b98ef329ad` 后，双配置组合各 **663/0/0**；
+workspace all-target check/双Clippy、fmt、policy47、docs962、尺寸/空白通过，历史超限
+**37→21**（本PR各批次累计，不将此总数归因单一Spec）。
+
+[精确代码PR CI 43699903034](https://github.com/Halckon/Koven/actions/runs/43699903034)
+completed/success：双宿主Check/Clippy/Tests、Preview producer与独立consumer、最终汇总
+实际成功；Editor skipped不计执行。此前c2328e14的PR为43692407513，43692403094是push，
+两者不能替代本集成头。独立交付复核完整实际两个diff（分发2861行、主干增量555行），
+无具体问题；历史0456–0464独立审查保持各自范围，不补成原188路径全量正文审计。
+
+本页旧pending/未完成文字是当时检查点，以上最终记录闭合本次合同勾选；原失败、观察期限
+及本地未跑项保留，不把CI或归档倒写成所有本地检查已跑。归档候选CI和实际合并另行核验，
+不代表E3终态、清空34合理保留或扩大语言准入。

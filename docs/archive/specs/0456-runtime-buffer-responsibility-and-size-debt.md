@@ -1,10 +1,10 @@
 # SPEC-0456：Runtime buffer 职责分离与历史尺寸额度退休
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：处理 runtime buffer 与历史尺寸欠账时 · **唯一真源**：本次有界切片；语言语义从属现行 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：处理 runtime buffer 与历史尺寸欠账时 · **唯一真源**：本次有界切片；语言语义从属现行 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0456` |
 | 所属 Phase | Phase 4，已验证 SSA 到 LLVM/runtime 边界 |
 | 语言规范 | 现行 [Guide v0.47](../../guide/README.md) |
@@ -51,7 +51,7 @@ cleanup 或调用顺序。不迁移其余33个保留模块，不把所有历史�
 - [x] R2：runtime 根和新 buffer 文件均在1000行内；对应历史 baseline/exception 删除，尺寸门禁通过。
 - [x] R3：默认/feature 的原窄位宽、runtime、buffer/生成/argv/Map消费者定向验证；测试名称、source与断言不变。
 - [x] R4：fmt、适用 workspace check、双配置 all-target Clippy、docs、policy tests与空白通过；逻辑独立只读审查。
-- [ ] R5：事实快照、真实验收与独立 PR/CI 来源同步；未运行、ignored及观察期限单独记录。
+- [x] R5：事实快照、真实验收与独立 PR/CI 来源同步；未运行、ignored及观察期限单独记录。
 
 ## 6. 实现约束
 
@@ -68,7 +68,7 @@ cleanup 或调用顺序。不迁移其余33个保留模块，不把所有历史�
 1. [x] 冻结基底、方法、调用者、测试库存与定向基线。
 2. [x] 最小职责移动并删除本文件旧尺寸额度 → 机械审计与尺寸检查。
 3. [x] 同一直接消费者双配置验证、门禁、独立复核；有具体发现修正后复核。
-4. [ ] 更新 Architecture/账本并提交独立 PR；官方 CI 与后续合入分别核验。
+4. [x] 更新 Architecture/账本并提交独立 PR；官方 CI 与后续合入分别核验。
 
 ## 8. 提交计划
 
@@ -101,3 +101,20 @@ cleanup 或调用顺序。不迁移其余33个保留模块，不把所有历史�
 compile/list不当执行，官方完整候选 CI 与本地结果另行归因。34项保留清单仍为历史冻结基线，
 本次未删除其中任何文件；增加单职责buffer文件不是数量优化或新的例外额度。
 docs（953 Markdown）、尺寸、空白门禁通过；审查P1修复后已独立复核闭合。官方PR/CI仍待发布核验。
+
+## 最终交付验收（PR #433）
+
+用户授权先合入再从main开展后续。最终代码头 `914797c2c02dd3787ded8ff1255b53d4d3bc9e09`
+普通整合main `fdf5766b2b2707fe29c7ab7f7b8445b98ef329ad` 后，双配置组合各 **663/0/0**；
+workspace all-target check/双Clippy、fmt、policy47、docs962、尺寸/空白通过，历史超限
+**37→21**（本PR各批次累计，不将此总数归因单一Spec）。
+
+[精确代码PR CI 43699903034](https://github.com/Halckon/Koven/actions/runs/43699903034)
+completed/success：双宿主Check/Clippy/Tests、Preview producer与独立consumer、最终汇总
+实际成功；Editor skipped不计执行。此前c2328e14的PR为43692407513，43692403094是push，
+两者不能替代本集成头。独立交付复核完整实际两个diff（分发2861行、主干增量555行），
+无具体问题；历史0456–0464独立审查保持各自范围，不补成原188路径全量正文审计。
+
+本页旧pending/未完成文字是当时检查点，以上最终记录闭合本次合同勾选；原失败、观察期限
+及本地未跑项保留，不把CI或归档倒写成所有本地检查已跑。归档候选CI和实际合并另行核验，
+不代表E3终态、清空34合理保留或扩大语言准入。

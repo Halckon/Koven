@@ -1,10 +1,10 @@
 # SPEC-0459：SSA tagged/provider 测试职责与尺寸欠账
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批 SSA 测试根职责归位时 · **唯一真源**：本批范围与证据，语言语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批 SSA 测试根职责归位时 · **唯一真源**：本批范围与证据，语言语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0459` |
 | 所属 Phase | Phase 4，typed SSA 测试组织 |
 | 语言规范 | 现行 [Guide](../../guide/README.md)，不改语义 |
@@ -63,14 +63,14 @@ helper身份与断言，不改变生产代码，不以减少文件数量为目�
 - [x] R2：两个根和新文件均不超1000；只退休四项旧额度，尺寸门禁与47项policy tests通过。
 - [x] R3：逐片默认完整8/10项族，迁移前基线及迁移后定向结果一致，再各自本地提交。
 - [x] R4：组末双配置组合回归、双all-target Clippy、fmt/docs/尺寸/空白及独立内容审查；实际结果与未测范围分开记。
-- [ ] R5：同步事实与账本，集中推送同PR，最终精确CI另验后才归档，不借旧绿灯。
+- [x] R5：同步事实与账本，集中推送同PR，最终精确CI另验后才归档，不借旧绿灯。
 
 ## 5. 顺序计划
 
 1. [x] 冻结两个测试块及helper/调用/选择路由，定向基线。
 2. [x] tagged完整归位、定向测试 → 本地提交。
 3. [x] provider完整归位、定向测试 → 本地提交。
-4. [ ] 组合门禁及独立审查，更新快照/账本 → 集中push后验精确CI。
+4. [x] 组合门禁及独立审查，更新快照/账本 → 集中push后验精确CI。
 
 纯组织重构使用原GREEN→移动→原族GREEN，不伪造RED；若既有用例失败，先保留真实失败再定位。
 无跨crate生产API变化，不重复workspace check；本地不执行frontend全量/完整LLVM慢组/CI-only faults。
@@ -94,3 +94,20 @@ helper身份与断言，不改变生产代码，不以减少文件数量为目�
 Architecture已同步实际归属；最终docs956与空白通过。随后仅收齐账本，不再修改Rust或重复整组门禁。原始日志和机械快照置仓库外。前置头d7b066e7的
 [官方CI](https://github.com/Halckon/Koven/actions/runs/43664829997)已success，
 但不能作为本批新头的验证。Spec仍in-progress、PR仍Draft，不提前归档或合入。
+
+## 最终交付验收（PR #433）
+
+用户授权先合入再从main开展后续。最终代码头 `914797c2c02dd3787ded8ff1255b53d4d3bc9e09`
+普通整合main `fdf5766b2b2707fe29c7ab7f7b8445b98ef329ad` 后，双配置组合各 **663/0/0**；
+workspace all-target check/双Clippy、fmt、policy47、docs962、尺寸/空白通过，历史超限
+**37→21**（本PR各批次累计，不将此总数归因单一Spec）。
+
+[精确代码PR CI 43699903034](https://github.com/Halckon/Koven/actions/runs/43699903034)
+completed/success：双宿主Check/Clippy/Tests、Preview producer与独立consumer、最终汇总
+实际成功；Editor skipped不计执行。此前c2328e14的PR为43692407513，43692403094是push，
+两者不能替代本集成头。独立交付复核完整实际两个diff（分发2861行、主干增量555行），
+无具体问题；历史0456–0464独立审查保持各自范围，不补成原188路径全量正文审计。
+
+本页旧pending/未完成文字是当时检查点，以上最终记录闭合本次合同勾选；原失败、观察期限
+及本地未跑项保留，不把CI或归档倒写成所有本地检查已跑。归档候选CI和实际合并另行核验，
+不代表E3终态、清空34合理保留或扩大语言准入。

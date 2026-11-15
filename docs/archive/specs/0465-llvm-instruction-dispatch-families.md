@@ -1,10 +1,10 @@
 # SPEC-0465：LLVM instruction 分发按 operation 家族归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批 LLVM instruction 分发职责整理时 · **唯一真源**：本批范围与验收，语言语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批 LLVM instruction 分发职责整理时 · **唯一真源**：本批范围与验收，语言语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0465` |
 | 所属 Phase | Phase 4，LLVM adapter |
 | 语言规范 | 现行 [Guide](../../guide/README.md)，无语义变更 |
@@ -45,7 +45,7 @@
 - [x] R4：workspace check、双配置 Clippy（`-D warnings`）、fmt、47 项 policy、docs、尺寸/空白。
 - [x] R5：只删除 `adapter.rs` 的 baseline/exception 两项，其他登记逐 JSON 相同；历史超限 22→21。
 - [x] R6：Architecture 已同步（`ssa-codegen-runtime.md` 第 17 行分发家族与私有目录）。
-- [ ] R7：账本后集中 push；精确新头 CI 另验，保持 active/Draft。
+- [x] R7：账本后集中 push；精确新头 CI 另验，保持 active/Draft。
 
 等价证据的正确表述：核心是 **77 个 arm / 99 个 variant 的集合相等**（每个 arm 正文在唯一家族
 内逐字节出现、分发每组与家族 arm 集合相同），以及被删区域**逐行可归因**（999 行 = 1 空行 +
@@ -60,3 +60,20 @@
 
 原始日志/arm 快照/机械脚本/前后 FQN 记录留仓库外。未跑本地完整 frontend/codegen/LLVM 慢组、
 CI-only fault、真实变异校准或 sanitizer 全套。
+
+## 最终交付验收（PR #433）
+
+用户授权先合入再从main开展后续。最终代码头 `914797c2c02dd3787ded8ff1255b53d4d3bc9e09`
+普通整合main `fdf5766b2b2707fe29c7ab7f7b8445b98ef329ad` 后，双配置组合各 **663/0/0**；
+workspace all-target check/双Clippy、fmt、policy47、docs962、尺寸/空白通过，历史超限
+**37→21**（本PR各批次累计，不将此总数归因单一Spec）。
+
+[精确代码PR CI 43699903034](https://github.com/Halckon/Koven/actions/runs/43699903034)
+completed/success：双宿主Check/Clippy/Tests、Preview producer与独立consumer、最终汇总
+实际成功；Editor skipped不计执行。此前c2328e14的PR为43692407513，43692403094是push，
+两者不能替代本集成头。独立交付复核完整实际两个diff（分发2861行、主干增量555行），
+无具体问题；历史0456–0464独立审查保持各自范围，不补成原188路径全量正文审计。
+
+本页旧pending/未完成文字是当时检查点，以上最终记录闭合本次合同勾选；原失败、观察期限
+及本地未跑项保留，不把CI或归档倒写成所有本地检查已跑。归档候选CI和实际合并另行核验，
+不代表E3终态、清空34合理保留或扩大语言准入。

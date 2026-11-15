@@ -1,10 +1,10 @@
 # SPEC-0460：Verifier 借用调用与 place 测试职责归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批 verifier 测试根尺寸欠账时 · **唯一真源**：本批范围与验收，语言语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批 verifier 测试根尺寸欠账时 · **唯一真源**：本批范围与验收，语言语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0460` |
 | 所属 Phase | Phase 4，typed SSA/LLVM测试组织 |
 | 语言规范 | 现行 [Guide](../../guide/README.md)，无语义变更 |
@@ -61,14 +61,14 @@ FQN仅增加places层，完整块正文不改。
 - [x] R2：两根/新文件均不超1000，只删除对应旧额度，47项policy tests及尺寸门禁通过。
 - [x] R3：每片默认完整原族迁移前后实际通过，再分别本地提交；不减少测试数或改断言。
 - [x] R4：批次末双配置组合回归、双all-target Clippy、fmt/docs/尺寸/空白、独立完整内容审查；有具体发现修后复核。
-- [ ] R5：Architecture/真实账本同步，同PR集中push，新头官方CI单独验收后才归档。
+- [x] R5：Architecture/真实账本同步，同PR集中push，新头官方CI单独验收后才归档。
 
 ## 5. 实施顺序
 
 1. [x] 冻结完整块、私有helper和consumer，跑原两族基线。
 2. [x] borrowed_calls移动、原族定向测试 → 本地提交。
 3. [x] places/helper移动、原族定向测试 → 本地提交。
-4. [ ] 一次组合门禁/独立审查与账本 → 集中push，精确候选CI另验。
+4. [x] 一次组合门禁/独立审查与账本 → 集中push，精确候选CI另验。
 
 不伪造RED；若既有用例真实失败，保留证据定位，不改语言合同或删断言。
 
@@ -118,3 +118,20 @@ writeback修复/#434 CI优化原样进入，不把它们作为本Spec新增语�
 选择，未发现具体问题；最终docs与暂存/工作区空白通过。真实generated-owner校准、CI-only
 fault、完整双宿主与Preview仍待精确合并候选的官方CI，不以mock unit tests或list替代。
 当前不归档或合入main。
+
+## 最终交付验收（PR #433）
+
+用户授权先合入再从main开展后续。最终代码头 `914797c2c02dd3787ded8ff1255b53d4d3bc9e09`
+普通整合main `fdf5766b2b2707fe29c7ab7f7b8445b98ef329ad` 后，双配置组合各 **663/0/0**；
+workspace all-target check/双Clippy、fmt、policy47、docs962、尺寸/空白通过，历史超限
+**37→21**（本PR各批次累计，不将此总数归因单一Spec）。
+
+[精确代码PR CI 43699903034](https://github.com/Halckon/Koven/actions/runs/43699903034)
+completed/success：双宿主Check/Clippy/Tests、Preview producer与独立consumer、最终汇总
+实际成功；Editor skipped不计执行。此前c2328e14的PR为43692407513，43692403094是push，
+两者不能替代本集成头。独立交付复核完整实际两个diff（分发2861行、主干增量555行），
+无具体问题；历史0456–0464独立审查保持各自范围，不补成原188路径全量正文审计。
+
+本页旧pending/未完成文字是当时检查点，以上最终记录闭合本次合同勾选；原失败、观察期限
+及本地未跑项保留，不把CI或归档倒写成所有本地检查已跑。归档候选CI和实际合并另行核验，
+不代表E3终态、清空34合理保留或扩大语言准入。
