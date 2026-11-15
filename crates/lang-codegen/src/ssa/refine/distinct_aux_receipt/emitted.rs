@@ -2,7 +2,7 @@
 use super::*;
 use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Receipt {
     pub(crate) ids: Vec<UnitLoanActionId>,
     pub(crate) callable: UnitItemId,
@@ -21,6 +21,8 @@ pub(crate) struct Receipt {
 }
 pub(in crate::ssa::refine) struct Emitted {
     receipts: Vec<Receipt>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    literals: Vec<(InstructionId, Vec<u8>, EntityId)>,
     blocks: Vec<Option<BlockId>>,
     /// Captured at each actual append, with semantic indices independent of argument order.
     frozen: Vec<[Option<EntityId>; 7]>,
@@ -81,10 +83,29 @@ impl Emitted {
             });
         }
         Ok(Self {
+            #[cfg(feature = "d10-catalog-experiment")]
+            literals: Vec::new(),
             blocks: vec![None; receipts.len()],
             frozen: vec![[None; 7]; receipts.len()],
             receipts,
         })
+    }
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(in crate::ssa::refine) fn literal(
+        &mut self,
+        statement: &super::super::body::RStmt,
+        instruction: InstructionId,
+        current: &BTreeMap<Slot, EntityId>,
+    ) {
+        if self.receipts.is_empty() {
+            return;
+        }
+        if let ROp::StringLiteral { bytes, .. } = &statement.op
+            && let [slot] = statement.results.as_slice()
+            && let Some(entity) = current.get(slot)
+        {
+            self.literals.push((instruction, bytes.clone(), *entity));
+        }
     }
     fn check_frozen(
         p: &Plan,
@@ -318,6 +339,15 @@ impl Emitted {
                 return Err(invalid(span));
             }
         }
+        #[cfg(feature = "d10-catalog-experiment")]
+        for receipt in &self.receipts {
+            crate::ssa::d10_project_audit::distinct_aux_consumption::record(
+                plans,
+                function,
+                receipt,
+                &self.literals,
+            );
+        }
         #[cfg(test)]
         ci_tests::record(plans, function, &self.receipts, span);
         #[cfg(test)]
@@ -333,3 +363,48 @@ impl Emitted {
 #[cfg(test)]
 #[path = "ci_tests.rs"]
 mod ci_tests;
+
+#[cfg(feature = "d10-catalog-experiment")]
+impl Receipt {
+    pub(crate) fn validate(
+        &self,
+        plans: &Plans,
+        function: &Function,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let [plan] = plans.entries.as_slice() else {
+            return Err(invalid(span));
+        };
+        if self.entities.len() != 7 || self.instructions.len() != 11 {
+            return Err(invalid(span));
+        }
+        let current: BTreeMap<_, _> = slots(plan)
+            .into_iter()
+            .zip(self.entities.iter().copied())
+            .map(|(slot, entity)| slot.map(|slot| (slot, entity)).ok_or_else(|| invalid(span)))
+            .collect::<Result<_, _>>()?;
+        if current.len() != 7 {
+            return Err(invalid(span));
+        }
+        // Reuse the original pure checks, including chronological seven-slot freezing.
+        // No finish/publication is called here and no SSA operation is appended.
+        let mut replay = Emitted::new(plans, function, span)?;
+        for (role, instruction) in self.instructions.iter().enumerate() {
+            replay.statement(
+                plans,
+                Tag {
+                    plan: 0,
+                    role: role as u8,
+                },
+                function,
+                *instruction,
+                &current,
+                span,
+            )?;
+        }
+        if replay.receipts.as_slice() != std::slice::from_ref(self) {
+            return Err(invalid(span));
+        }
+        Ok(())
+    }
+}

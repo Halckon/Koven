@@ -19912,3 +19912,32 @@ receipt 与 unclassified BorrowCall。原 Boolean 双消费者专用生命周期
 验收 aux 2/2（首编 6m45s）、Boolean exact 1/1；三 feature codegen all-targets strict
 Clippy 1m14s，默认仅 codegen all-targets check 0.72s。独审无阻断；未执行 native、
 人工故障或推送。复用既有基线，不重复无关矩阵。
+
+### D10 不同 root 的辅助 owner 提前释放证明（2026-11-15）
+
+基于 `64d06f93`，限定零参 run 的四语句：两个独立不可变 String literal owner、
+borrow binding、唯一 Unit consumer。复用既有 distinct auxiliary Complete region 九个
+原动作与真实十一角色 receipt，不改变原准入，也不将同 root 证书放宽成不同 root。
+实际顺序为 source/aux 各自 RootPlace/Begin、BorrowCall、aux End、Drop(aux)、
+consumer、result End、source End、Drop(source)。两个字面量之外全 caller 共十三指令、
+两 value/两 place/三 loan、唯一正常空 Return；final 所有实体 Definition、block、
+原类型映射与 StringOwner 实型逐项核对。
+
+独立 expected 来自 build 前原区间/action IDs、两 dispatch key/FunctionId、同 source
+ledger 的三个完整 Begin facts 与实际 Function 归属（同 acquisition call 两 facts 原序）。
+原 distinct retirement 关系的 aux Drop ID、handoff、source parameter 与不同 owner 身份
+均保留，不能套同 root 常量索引。原 declaration/root 分别 decode 两 literal 字节并绑定
+真实 append 的 owner identity，samebytes 不合并两个 owner。
+
+feature-only final 重放使用同次原 Plans 七 Slot 与真实冻结 receipt 七 Entity 构造 map，
+调用原 Emitted::new/statement 纯校验并比较完整 receipt；不扫描最终 op 猜来源，不调用
+finish/CI/observer，不 append 指令。原默认 statement/frozen/finish 检查语义保持。
+原十一指令窗口不替代外层完整十三指令证明。此片只认证来源 BorrowCall，独立 entry
+handoff 仍缺该路线履约 token，正例精确保留唯一旧 entry gap，不称全项目闭合。
+
+真实正例覆盖 source index 0/1、两 source 反序、同 observe 两次 assembly、不同与相同
+literal 字节，验证两个不同 owner 的 Drop 位置；keep_aux 后续消费正常 lower 成功但无
+eager-drop region/receipt，仍明确保 missing entry 与 unclassified BorrowCall。
+末版新 2/2、原 same-root aux 2/2；frontend/codegen 三 feature all-targets strict Clippy
+1m21s、默认仅这两个 crate 的 all-targets check 1m02s。首轮仅新增 trait 缺文档警告，
+已补说明且末版严格通过；独审无阻断。未运行 native、人工故障或推送。

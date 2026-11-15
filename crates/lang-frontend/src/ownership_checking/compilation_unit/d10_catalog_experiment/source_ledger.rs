@@ -6,6 +6,7 @@ mod binding_loans;
 mod branch_loans;
 mod callable_drops;
 mod callable_loans;
+mod distinct_aux_binding_loans;
 mod entry_loans;
 mod forward_loans;
 mod loop_loans;

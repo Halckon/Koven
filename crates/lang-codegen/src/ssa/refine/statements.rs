@@ -466,6 +466,10 @@ impl Emitter<'_> {
                 .aux_binding
                 .literal(statement, instruction, &self.current);
             #[cfg(feature = "d10-catalog-experiment")]
+            receipts
+                .distinct_aux
+                .literal(statement, instruction, &self.current);
+            #[cfg(feature = "d10-catalog-experiment")]
             if body.entry_borrows.iter().any(|p| p.lifecycle.is_some())
                 && let Some(data) = self.function.instruction(instruction)
             {
