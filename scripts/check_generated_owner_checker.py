@@ -25,7 +25,8 @@ else:
 Failure = checks.Failure
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER_FILE = "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs"
-FRONTEND_EXPORT_TEST = "native_generated_owner_tests::export_generated_owner_frontend_case"
+FRONTEND_TARGET = "unit_single_source_analysis"
+FRONTEND_EXPORT_TEST = "export_generated_owner_frontend_case"
 
 
 def sha256(data):
@@ -100,20 +101,12 @@ def mutate_checker(source):
                   source, count=1, flags=re.S)
 
 
-def run_frontend_case(binary, case_dir, cwd=ROOT):
-    env = os.environ.copy()
-    env["KOVEN_GENERATED_OWNER_CASE"] = str(case_dir)
-    return subprocess.run(
-        [str(binary), FRONTEND_EXPORT_TEST, "--exact", "--nocapture"],
-        cwd=cwd, env=env, capture_output=True, timeout=30,
-    )
-
-
 def extract_test_binary(cargo_stdout):
     for line in cargo_stdout.splitlines():
         try:
             item = json.loads(line)
-            if (item.get("reason") == "compiler-artifact" and item.get("target", {}).get("name") == "lang_codegen"
+            if (item.get("reason") == "compiler-artifact" and item.get("target", {}).get("name") == FRONTEND_TARGET
+                    and item["target"].get("kind") == ["test"]
                     and item.get("profile", {}).get("test") and item.get("executable")):
                 return Path(item["executable"])
         except json.JSONDecodeError:
@@ -144,8 +137,8 @@ def verify_checker_mutant(root_dir, artifacts_dir):
         evidence = dict(target_file=CHECKER_FILE, original_sha256=sha256(original),
                         mutated_sha256=sha256(mutated), patch_sha256=sha256(patch),
                         i1_case_id=i1_case["id"], isolated_worktree=str(temp_worktree), phases={})
-        build_argv = ["cargo", "test", "--manifest-path", str(temp_worktree / "Cargo.toml"),
-                      "-p", "lang-codegen", "--lib", "--no-run", "--message-format=json"]
+        build_argv = ["cargo", "test", "--locked", "--manifest-path", str(temp_worktree / "Cargo.toml"),
+                      "-p", "lang-frontend", "--test", FRONTEND_TARGET, "--no-run", "--message-format=json"]
 
         def phase(name, expected):
             directory = artifacts_dir / name
@@ -162,7 +155,8 @@ def verify_checker_mutant(root_dir, artifacts_dir):
                 raise Failure("checker-mutation", "tool_or_harness_failure", "missing-test-binary")
             write_json(directory / "exporter.json", dict(path=str(binary), sha256=sha256(binary.read_bytes())))
             env = {**os.environ, "KOVEN_GENERATED_OWNER_CASE": str(case_dir)}
-            execution = recorded_run(directory, "export", [str(binary), FRONTEND_EXPORT_TEST, "--exact", "--nocapture"],
+            execution = recorded_run(directory, "export",
+                                     [str(binary), FRONTEND_EXPORT_TEST, "--exact", "--ignored", "--nocapture"],
                                      cwd=temp_worktree, env=env, timeout=30)
             if execution.returncode != 0:
                 raise Failure("checker-mutation", "tool_or_harness_failure", f"{name}-test-execution-failed")
