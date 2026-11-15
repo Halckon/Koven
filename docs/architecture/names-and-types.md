@@ -190,7 +190,7 @@ visibility；跨文件 private 访问产生 L0154，import target 的 L0148/L014
 同文件已绑定 classifier/object 的两段常量路径复用 static member 选择并补全 terminal symbol；不存在的本地静态成员报 L0080。
 private 非常量成员可见性、普通值接收者及同名参数遮蔽仍走原类型路径。
 
-String clone 的 typed identity 与后续阶段运输见 [String clone 链路](string-clone.md)。
+String clone 的 typed identity 与后续阶段运输见 [String clone 链路](string-clone.md)。旧Single容器构造/修改分列私有 `checker/container/{construction,mutation}.rs`，lambda expected检查/创建点flow恢复位于 `checker/expression/lambda.rs`；共享类型/分派留根，不改Unit路由或准入。
 
 ## 核心不变量
 

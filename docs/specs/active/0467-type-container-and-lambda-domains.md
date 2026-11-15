@@ -31,9 +31,9 @@
 
 ## 2. 节奏与验收
 
-- [ ] R1：各完整块及剩余根机械保全，权限有效域等价，测试字节不变。
-- [ ] R2：逐片定向GREEN→迁移→GREEN，可构建本地提交，不逐片push。
-- [ ] R3：整组frontend完整测试、下游名称/类型消费者、Clippy/fmt/docs/policy/尺寸/空白。
+- [x] R1：各完整块及剩余根机械保全，权限有效域等价，测试字节不变。
+- [x] R2：逐片定向GREEN→迁移→GREEN，可构建本地提交，不逐片push。
+- [x] R3：整组frontend完整测试、下游名称/类型消费者、Clippy/fmt/docs/policy/尺寸/空白。
 - [ ] R4：独立精确提交区间审查，finding修后复核；Architecture/账本同步，一次集中push同#439。
 - [ ] R5：精确新头CI另验，保持active/Draft，不借前头绿灯，不提前归档或合入。
 
@@ -41,4 +41,30 @@
 
 ## 3. 真实证据
 
-待逐片记录。
+合同535d39a2，以下三片未逐片push；每片原185项选择实际通过后本地提交。
+
+| 切片 | 本地提交/实际结果 | 行数 |
+|---|---|---|
+| container construction | 7761d18b；type_containers35+type_callable47+type_checking103，前后185/0/0 | 新模块246 |
+| MutableList mutation | 952ce171；同完整三个target，前后185/0/0 | container根1178→451，新mutation491 |
+| lambda | 48de11e4；同完整三个target，前后185/0/0 | expression根1113→938，新lambda181 |
+
+完整块/剩余根机械核对：除明确pub域和空白外文本相同；三个target逐名称集前后相同，
+全部测试/fixture/FQN不改；policy只删container exception、expression baseline1204与
+exception三项，其他JSON等值。没有增加allow、wrapper或clone。
+
+Architecture初次新增段落207行触发200行入口上限，精简本批概述并入对应段落后复验，Rust未变。
+
+组末frontend全部目标合计 **3779 passed、0 failed、13 ignored**（含12实际通过的
+compile-fail doctest），不是新增3779测试；ignored不计执行。frontend all-target Clippy
+（-D warnings）、fmt、47项policy、docs964/尺寸/空白退出0；2173手写Rust、历史超限
+**20→18**。原0466的41项亦在完整frontend组合中执行，不重复累计。
+
+独立fresh review完整535d39a2..48de11e4真实diff及共享类型/调用点，确认construction
+publication门、mutation receiver/pending/operand顺序、lambda outer flow恢复和inner
+既有错误传播不变，No issues found。Architecture同步私有领域与旧Single边界；代码在
+组合门禁后未再修改。原始日志/快照与完整diff/review留仓库外。
+
+R3中下游消费者本轮实际覆盖frontend类型target与共享名称路径；未另跑codegen/CLI/LSP
+运行时全套、CI-only fault/校准或sanitizer，不能以frontend全绿代替其执行；官方精确头CI
+另验。R4的独立审查/Architecture/账本已完成，待同PR集中push；R5保持待验。
