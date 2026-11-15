@@ -3,7 +3,6 @@
   "baseline": {
     "crates/lang-codegen/src/llvm/adapter.rs": 1594,
     "crates/lang-codegen/src/llvm/container_tests.rs": 1038,
-    "crates/lang-codegen/src/llvm/runtime.rs": 1187,
     "crates/lang-codegen/src/native/unit_tests.rs": 2006,
     "crates/lang-codegen/src/native_tests.rs": 1297,
     "crates/lang-codegen/src/ssa/aggregate_operation_tests.rs": 1035,
@@ -205,13 +204,6 @@
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续按 LLVM 指令家族整体迁移 adapter，保持旧 static/closure 消费者合同。",
       "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1785 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0291非作者逐diff内容审确认这一行有界接线；沿用原max_lines与split_plan，不增加额度，后续增长须重新审阅。 SPEC-0291 A非作者逐diff审确认N/R资格分离、封装及条件析构接线；沿用原额度与拆分计划，后继增长另审。"
-    },
-    "crates/lang-codegen/src/llvm/runtime.rs": {
-      "max_lines": 1261,
-      "reason": "SPEC-0279 新 generator 的 runtime drop 登记入口；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0280 暴露 free 运行时函数并在 collect_requirements 中登记 ContainerAppend 内存与 drop 依赖，净增 21 行。 SPEC-0281 在 collect_requirements 中登记 ContainerClear 元素 drop 依赖，净增 16 行。 SPEC-0282 在 collect_requirements 中登记 ContainerRemoveAt 的 abort 依赖，净增 3 行。 SPEC-0284 在 collect_requirements 中登记 ContainerRemoveFirst 的 abort 依赖，净增 2 行。 SPEC-0288接手本轮：Map 的元素 drop 依赖登记及向独立 llvm/map/drop 模块委托；不在 runtime 父模块实现哈希表算法。 SPEC-0288 第三轮：仅登记 runtime/map_result 与条件 drop 分派，present-only payload 析构位于该独立模块。 SPEC-0350 按 ADR-0033 声明空 String 共用的非 null sentinel 并提供访问器，净增 8 行（rustfmt 重排声明条件 2 行）。",
-      "owner": "lang-codegen SSA/LLVM",
-      "split_plan": "后续按 runtime allocation/drop 职责拆分，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1261 行；不声称独立评审。再次增长或职责增加前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/signatures.rs": {
       "max_lines": 1038,

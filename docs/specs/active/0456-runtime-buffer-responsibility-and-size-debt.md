@@ -47,10 +47,10 @@ cleanup 或调用顺序。不迁移其余33个保留模块，不把所有历史�
 
 ## 5. 验收标准
 
-- [ ] R1：方法正文/调用点机械保全；私有字段访问成立，可见性等价，无 wrapper。
-- [ ] R2：runtime 根和新 buffer 文件均在1000行内；对应历史 baseline/exception 删除，尺寸门禁通过。
-- [ ] R3：默认/feature 的原窄位宽、runtime、buffer/生成/argv/Map消费者定向验证；测试名称、source与断言不变。
-- [ ] R4：fmt、适用 workspace check、双配置 all-target Clippy、docs、policy tests与空白通过；逻辑独立只读审查。
+- [x] R1：方法正文/调用点机械保全；私有字段访问成立，可见性等价，无 wrapper。
+- [x] R2：runtime 根和新 buffer 文件均在1000行内；对应历史 baseline/exception 删除，尺寸门禁通过。
+- [x] R3：默认/feature 的原窄位宽、runtime、buffer/生成/argv/Map消费者定向验证；测试名称、source与断言不变。
+- [x] R4：fmt、适用 workspace check、双配置 all-target Clippy、docs、policy tests与空白通过；逻辑独立只读审查。
 - [ ] R5：事实快照、真实验收与独立 PR/CI 来源同步；未运行、ignored及观察期限单独记录。
 
 ## 6. 实现约束
@@ -65,9 +65,9 @@ cleanup 或调用顺序。不迁移其余33个保留模块，不把所有历史�
 
 ## 7. 顺序实施计划
 
-1. [ ] 冻结基底、方法、调用者、测试库存与定向基线。
-2. [ ] 最小职责移动并删除本文件旧尺寸额度 → 机械审计与尺寸检查。
-3. [ ] 同一直接消费者双配置验证、门禁、独立复核；有具体发现修正后复核。
+1. [x] 冻结基底、方法、调用者、测试库存与定向基线。
+2. [x] 最小职责移动并删除本文件旧尺寸额度 → 机械审计与尺寸检查。
+3. [x] 同一直接消费者双配置验证、门禁、独立复核；有具体发现修正后复核。
 4. [ ] 更新 Architecture/账本并提交独立 PR；官方 CI 与后续合入分别核验。
 
 ## 8. 提交计划
@@ -83,4 +83,21 @@ cleanup 或调用顺序。不迁移其余33个保留模块，不把所有历史�
 
 初始输入 main `d39d0d54`，runtime 根1011行、narrow测试141行。
 原尺寸 policy 为 runtime 登记 baseline1187及 exception1261；本片只退休该文件额度。
-完整命令、来源、结果与未运行项在实际执行后追加，不预填通过。
+完整命令、来源、结果与未运行项按以下实际执行记录，不预填官方 CI。
+
+| 验证 | 实际结果与范围 |
+|---|---|
+| 迁移前 | 默认/feature 的 `llvm::runtime::narrow_tests::`、`llvm::runtime_tests::`、`llvm::container_tests::`、`llvm::object_tests::borrowed_generate_tests::` 各 **24/0/0**，退出0；均为实际既有用例，不改源码或断言 |
+| 机械保全 | 两个完整方法除等价可见性拼写外字节相同；原 narrow 文件141行逐字节不变，两个 libtest 名称/挂载不变；未改其他调用点或新增wrapper |
+| 迁移后最终 | 同一24项，加 `borrowed_container_length_builds_links_and_runs_with_int_result` 与 `native_map_owned_remove_strings_and_inline_values_have_conditional_drops` 两项实际 native，两配置各 **26/0/0**，退出0，test-threads=1；不与基线重复累计 |
+| 首轮 Clippy | 默认 exit101：移走方法后遗漏清理根的 IntValue import；独立审查发现同一具体问题。删除本次产生的 unused import，不添加 allow |
+| 最终 Rust 门禁 | 两配置 `cargo clippy --locked -p lang-codegen --all-targets [--features loan-observation-test-support] -- -D warnings`、`cargo check --locked --workspace --all-targets`、fmt 均退出0 |
+| policy | 47项 policy tests通过；JSON机械核对仅删除runtime的baseline/exception，其他值完全一致，无阈值提高 |
+| 实际尺寸 | 首次移动根813行；清理unused import并rustfmt后根 **811**、buffer **211**、narrow **141**。base tracked树37个超千行，最终尺寸门禁36个；只清除本文件欠账，不宣称清除全部历史债 |
+
+独立首轮复核确认调用域、私有字段、LLVM检查/abort/ZST/phi顺序及policy退休合法；
+发现的 IntValue 导入问题已修复，并重新运行全部最终双配置选择及 Clippy。
+不运行完整 LLVM（含此前慢 synthetic-ZST 用例）、frontend 全量或本地 CI-only fault；
+compile/list不当执行，官方完整候选 CI 与本地结果另行归因。34项保留清单仍为历史冻结基线，
+本次未删除其中任何文件；增加单职责buffer文件不是数量优化或新的例外额度。
+docs（953 Markdown）、尺寸、空白门禁通过；审查P1修复后已独立复核闭合。官方PR/CI仍待发布核验。
