@@ -20,7 +20,6 @@
     "crates/lang-frontend/src/type_checking/compilation_unit/signatures.rs": 1144,
     "crates/lang-frontend/src/type_checking/model.rs": 1504,
     "crates/lang-frontend/tests/fixtures.rs": 2316,
-    "crates/lang-frontend/tests/lexer.rs": 1178,
     "crates/lang-frontend/tests/multifile_constant_ownership.rs": 1008,
     "crates/lang-frontend/tests/ownership_checking.rs": 1198,
     "crates/lang-frontend/tests/ownership_resource_deinit.rs": 1093,
