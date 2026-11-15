@@ -68,53 +68,16 @@ impl BodyChecker<'_> {
     ) -> Result<WhenConditionCheck, CompilationUnitTypeError> {
         match condition {
             WhenCondition::Expression(expression) => {
+                let is_null = self.is_null_comparison_literal(source, *expression)?;
                 let expected = subject.filter(|ty| {
-                    matches!(
-                        self.file(source)
-                            .ast()
-                            .expressions()
-                            .get(*expression)
-                            .map(|node| node.payload()),
-                        Ok(Expression::Literal(LiteralKind::Null))
-                    ) && matches!(
-                        self.signatures.types().get(*ty),
-                        Some(UnitTypeKind::Nullable(_))
-                    )
+                    is_null
+                        && matches!(
+                            self.signatures.types().get(*ty),
+                            Some(UnitTypeKind::Nullable(_))
+                        )
                 });
-                let is_null = matches!(
-                    self.file(source)
-                        .ast()
-                        .expressions()
-                        .get(*expression)
-                        .map(|node| node.payload()),
-                    Ok(Expression::Literal(LiteralKind::Null))
-                );
-                let result = if is_null {
-                    let ty = if let Some(expected) = expected {
-                        expected
-                    } else {
-                        let span = self
-                            .file(source)
-                            .ast()
-                            .expressions()
-                            .get(*expression)
-                            .map_err(TypeCheckingError::from)?
-                            .span();
-                        self.emit(
-                            codes::CANNOT_INFER_TYPE,
-                            "cannot infer the type of null without a nullable expected type",
-                            span,
-                        )?;
-                        self.error_type()
-                    };
-                    self.record_expression(source, *expression, ty);
-                    ExpressionCheck {
-                        ty,
-                        falls_through: true,
-                    }
-                } else {
-                    self.check_expression(source, *expression, expected, None, return_type)?
-                };
+                let result =
+                    self.check_expression(source, *expression, expected, None, return_type)?;
                 let valid = if let Some(subject) = subject {
                     self.assignable(result.ty, subject) || self.assignable(subject, result.ty)
                 } else {
