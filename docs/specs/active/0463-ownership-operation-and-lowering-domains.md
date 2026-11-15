@@ -64,5 +64,17 @@ all-target Clippy、fmt、47项policy tests、docs961/尺寸/空白通过。尺�
 （本 Spec 两根 25→23），未提高额度。rustfmt 只重整空行与模块声明顺序（`mod string;`），
 之后重跑默认组合仍 **658/0/0**。
 
+## 5. 主干整合与审查闭合
+
+同批普通 merge main `eb67f330342924eb90718ee4f5ac667aefbf0b7c`（提交
+`74dea8a6220c97bd6ed69ba593b15ef9f3353fd0`），无冲突、无手工算法调整；workflow blob 与
+main 相同。主干新增 grouped-when/parser 与 nullable 当前 owner 跨 writeback 修复原样进入：
+`replacement_if::implicit_null::` **7/0/0**（含新增两项），frontend `parser_control_flow`
+**11/0/0**、`type_checking` **103/0/0**。
+
+独立审查 P1（fmt 红）已由 rustfmt 修正并复验；P2 账本数字（14/24、1857）已在证据提交改正；
+P2 冗余 `#[path]`（默认解析已正确）已删除，`4bb658d3` 后 ownership 选择仍 **81/0/0**，
+fmt/尺寸/空白/docs 通过。
+
 原始日志/快照/机械脚本与完整区间审查留仓库外。未跑本地完整 frontend/codegen/LLVM 慢组、
 真实 generated-owner 校准、CI-only faults 或 sanitizer 全套；不把编译/list 当执行。

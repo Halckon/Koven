@@ -62,5 +62,13 @@
 **658/0/0**，未重复计入。rustfmt 首次 fmt 门禁失败（新文件尾部空行与 `mod` 声明顺序），
 格式化后重跑默认组合仍 658/0/0 并通过 fmt/尺寸/空白。
 
+24 项 FQN 各增加一层领域模块（`native::unit_tests::{interface_delegation_tests,class_receiver_tests}::*`），
+CI/脚本无旧全名耦合；归档文档按治理不改写。
+
 组末与0463同树：双配置各 **658/0/0**、workspace check/双Clippy/47项policy/docs961 通过；
-历史超限 25→22。原始日志/快照/完整区间审查留仓库外。
+历史超限 25→22。同批普通 merge main `eb67f330`（提交 `74dea8a6`），无冲突；主干新增
+nullable writeback native 两项与 grouped-when/parser 改动由 0463 §5 记录实测。
+
+独立审查未发现语义问题：arm/错误/location 行位置全部 +3 且文本相同，24 项断言位置一致，
+无新增 ignore/allow；P1 fmt 与 P2 数字/`#[path]` 已按上节闭合。原始日志/快照/完整区间
+审查留仓库外；精确新头 CI 仍待。
