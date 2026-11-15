@@ -12,7 +12,6 @@
     "crates/lang-codegen/src/ssa/model.rs": 1336,
     "crates/lang-codegen/src/ssa/unit_lower.rs": 1252,
     "crates/lang-codegen/src/ssa/unit_lower/control.rs": 1051,
-    "crates/lang-codegen/src/ssa/verify_operation.rs": 1156,
     "crates/lang-codegen/src/ssa/verify_ownership.rs": 1658,
     "crates/lang-codegen/src/ssa/verify_ownership_tests.rs": 1659,
     "crates/lang-codegen/src/ssa/verify_scalar_tests.rs": 1392,
@@ -182,13 +181,6 @@
       "owner": "lang-codegen SSA/LLVM",
       "split_plan": "后续完整 operation/entity 模型按合同自然边界独立拆分，保持旧 static/closure 消费者合同。",
       "review": "SPEC-0288 第二轮自审逐行核对上述有限接线与独立领域模块，锁定 1446 行；超出或增加职责前重新审阅。"
-    },
-    "crates/lang-codegen/src/ssa/verify_operation.rs": {
-      "max_lines": 1306,
-      "reason": "SPEC-0279 新 operation 的 verifier 分发，算法已位于独立 borrowed_generate 子模块；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow严格类型合同仅12行增长。 SPEC-0280 ContainerAppend 的严格容器操作与结果类型合同验证接线净增 20 行。 SPEC-0281 ContainerClear 的严格容器操作与结果类型合同验证接线净增 18 行。 SPEC-0282 ContainerRemoveAt 的严格容器操作与结果类型合同验证接线净增 23 行。 SPEC-0283 ContainerRemoveLast 的严格容器操作与结果类型合同验证接线净增 21 行。 SPEC-0285 ContainerInsertAt 的严格容器操作与结果类型合同验证接线净增 13 行。 SPEC-0288 Map操作分发至独立子模块，主入口接线净增约8行。 SPEC-0288 第二轮：分派 MapResultUnwrap 及允许标量 Map result 的等值比较；布局合同在独立 map 模块。 SPEC-0288 第三轮：为登记的 Map owned result 封闭普通 aggregate construct/explode、field/place/loan 绕过，提取仍要求 NullableBranch/Take 证明。 SPEC-0291：实际1192→1193，仅增加1行MapConsume类型验证分发；资格、交付和六字段重包位于独立领域模块。 SPEC-0291 Map-only nullable A：实际1193行不变，七处既有owning presence封装门同步覆盖N/R，保留旧查询操作权限和MoveOnly payload封闭。",
-      "owner": "lang-codegen SSA/LLVM",
-      "split_plan": "后续按 operation 家族整体迁移分发，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1306 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0291非作者逐diff内容审确认这一行有界接线；沿用原max_lines与split_plan，不增加额度，后续增长须重新审阅。 SPEC-0291 A非作者逐diff审确认N/R资格分离、封装及条件析构接线；沿用原额度与拆分计划，后继增长另审。"
     },
     "crates/lang-codegen/src/ssa/verify_ownership.rs": {
       "max_lines": 1860,
