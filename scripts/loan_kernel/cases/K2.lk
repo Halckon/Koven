@@ -1,0 +1,40 @@
+// 借用的借用：视图的借用字段指向另一个视图；经共享借用走到内层，内层的来源仍可单独转发
+class Arr(len: Int)
+view class Inner(borrow a: Arr, borrow b: Arr)
+view class Ref(borrow inner: Inner, pos: Int)
+view class MutInner(inout m: Arr)
+view class RefMut(borrow inner: MutInner, pos: Int)
+fun leaf(borrow x: Ref): borrow Int from x.inner.a { return &x.inner.a.len }
+fun viaHolder(borrow x: Ref): borrow Int from x.inner { return &x.inner.b.len }
+fun wrong(borrow x: Ref): borrow Int from x.inner.a {
+  return &x.inner.b.len  // ERR K6
+}
+fun leafOutlivesBothViews(borrow p: Arr, borrow q: Arr): borrow Int from p {
+  val i = Inner(p, q)
+  val r = Ref(&i, 0)
+  return leaf(&r)
+}
+fun leafProtectsOnlyItsSource(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val i = Inner(&p, &q)
+  val r = Ref(&i, 0)
+  val e = leaf(&r)
+  q.len = 5
+  p.len = 7  // ERR K1
+  use(e)
+}
+fun innerIsFrozenWhileBorrowed(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val i = Inner(&p, &q)
+  val r = Ref(&i, 0)
+  i = Inner(&q, &p)  // ERR K1
+  use(r.pos)
+}
+fun noWriteThroughSharedOuter(): Unit {
+  val p = Arr(1)
+  val mi = MutInner(&mut p)
+  val r = RefMut(&mi, 0)
+  r.inner.m.len = 3  // ERR K1
+}

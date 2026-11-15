@@ -1,0 +1,45 @@
+// 类型参数默认可逃逸：不带 view 的 T 不能实例化为携带来源的类型，它的值可以自由存放与返回
+class Arr(len: Int)
+class Box(n: Int)
+view class Slice(borrow a: Arr)
+fun <T> id(own x: T): T { return move x }
+fun <view T> idView(own x: T): T from x { return move x }
+fun <view T> forgets(own x: T): T {
+  return move x  // ERR K6
+}
+fun <T> store(inout cell: Box, own x: T): Unit trusted
+fun <view T> relay(own x: T): T from x {
+  return id(move x)  // ERR K17
+}
+fun <T> relayPlain(own x: T): T { return idView(move x) }
+fun plainValue(): Unit {
+  val b = id(Box(1))
+  val c = Box(0)
+  store(&mut c, Box(2))
+  use(b.n)
+}
+fun viewNeedsOptIn(): Unit {
+  val arr = Arr(1)
+  val s = id(Slice(&arr))  // ERR K17
+}
+fun viewWithOptIn(): Unit {
+  val arr = Arr(1)
+  val s = idView(Slice(&arr))
+  arr.len = 2  // ERR K1
+  use(s.a.len)
+}
+fun viewCannotBeStored(): Unit {
+  val arr = Arr(1)
+  val c = Box(0)
+  store(&mut c, Slice(&arr))  // ERR K17
+}
+fun borrowAsPlainValue(): Unit {
+  val arr = Arr(1)
+  val r = id(&arr)  // ERR K17
+}
+fun borrowAsViewValue(): Unit {
+  val arr = Arr(1)
+  val r = idView(&arr)
+  arr.len = 2  // ERR K1
+  use(r)
+}

@@ -1,0 +1,36 @@
+// 三级嵌套与写入嵌套字段：来源按完整路径记录，改写一个内层视图只替换它名下的来源
+class Arr(len: Int)
+view class L3(borrow a: Arr)
+view class L2(deep: L3, borrow b: Arr)
+view class L1(mid: L2, borrow c: Arr)
+fun deepest(borrow x: L1): borrow Int from x.mid.deep.a { return &x.mid.deep.a.len }
+fun middle(borrow x: L1): borrow Int from x.mid { return &x.mid.deep.a.len }
+fun wrongLevel(borrow x: L1): borrow Int from x.mid.b {
+  return &x.mid.deep.a.len  // ERR K6
+}
+fun threeLevels(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val v = L1(L2(L3(&p), &q), &r)
+  val e = deepest(&v)
+  q.len = 5
+  r.len = 6
+  p.len = 7  // ERR K1
+  use(e)
+}
+fun rebindInnerView(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  v.mid.deep = L3(&s)
+  p.len = 7
+  val e = deepest(&v)
+  s.len = 8  // ERR K1
+  use(e)
+}
+fun rebindThroughBorrow(inout v: L1, borrow s: Arr): Unit {
+  v.mid.deep = L3(s)  // ERR K14
+}
