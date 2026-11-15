@@ -416,3 +416,5 @@ mod combined_entries;
 mod distinct_named;
 
 mod mixed_owner;
+
+mod static_strings;
