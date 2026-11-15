@@ -1,12 +1,14 @@
 //! Read-only scoped observations of ordinary whole-unit lowering. Not an admission capability.
 //! Only the original successful final verifier publishes an observation. Object publication
 //! remains a separate result; this module neither changes lowering nor executes generated code.
+pub(crate) mod branch_consumption;
 pub(crate) mod compatibility;
 mod literal_consumption;
 use crate::ssa::{
     model::{FunctionId, Operation, Program, SsaTypeKind, TerminatorKind},
     unit_plan::{UnitFunctionInstanceKey, UnitInstancePlan},
 };
+pub use branch_consumption::BranchConsumption;
 use lang_frontend::{
     name_resolution::{DeclarationId, SourceUnitId, ValidatedCompilationUnitNames},
     source::SourceId,
@@ -38,6 +40,8 @@ pub struct ProjectAudit {
     /// Same-transaction existing protocol-1 receipts linked to original facts and final Program.
     /// This separate bounded domain never upgrades the general project closure result.
     pub literal_consumption: LiteralConsumption,
+    /// Independent bounded both-arm borrow forwarding, not generic CFG completeness.
+    pub branch_consumption: BranchConsumption,
 }
 thread_local! { static OBSERVATIONS: RefCell<Option<Vec<ProjectAudit>>> = const { RefCell::new(None) }; }
 /// Observe the caller's original emission exactly once, without replacing its return value.
@@ -63,6 +67,7 @@ pub fn observe<T>(run: impl FnOnce() -> T) -> (T, Vec<ProjectAudit>) {
 
 pub(crate) struct Pending {
     receipts: literal_consumption::Transaction,
+    branches: branch_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -78,6 +83,7 @@ impl Pending {
             .with(|slot| slot.borrow().is_some())
             .then(|| Self {
                 receipts: literal_consumption::Transaction::begin(),
+                branches: branch_consumption::Transaction::begin(),
                 items: names
                     .names()
                     .index()
@@ -115,6 +121,7 @@ impl Pending {
         owned: &dyn lang_frontend::ownership_checking::UnitLoweringFacts,
     ) {
         let mut audit = ProjectAudit {
+            branch_consumption: self.branches.finish(&self.items, program, mapping, owned),
             source_count: self.sources.len(),
             sources: self.sources,
             declarations: Vec::new(),

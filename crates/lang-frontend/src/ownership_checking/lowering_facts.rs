@@ -29,6 +29,15 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Original branch-path acquisition provenance, independently scoped from literal calls.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_branch_link(
+        &self,
+        _split: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Original is_compatible_with query.
     fn is_compatible_with(&self, typed: &ValidatedCompilationUnitTypes) -> bool;
     /// Original loan_action_observations query.
@@ -131,6 +140,14 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
     ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
     {
         CompilationUnitOwnership::d10_literal_call_link(self, call)
+    }
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_branch_link(
+        &self,
+        split: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_branch_link(self, split)
     }
     fn is_compatible_with(&self, typed: &ValidatedCompilationUnitTypes) -> bool {
         CompilationUnitOwnership::is_compatible_with(self, typed)

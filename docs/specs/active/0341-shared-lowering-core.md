@@ -19491,3 +19491,23 @@ append区间仅提供操作序列，不替代事实消费证据。最终核原re
 两项、source ledger十项和真实五源CLI exact一项通过。三crate双feature all-targets
 严格Clippy、默认workspace all-targets check及fmt/diff/docs958通过；尺寸对
 `3802b326`通过（2344文件/37历史超限）。未执行native、故障注入或推送。
+
+
+### BothArmsReturn 原路径到最终 CFG（2026-11-15）
+
+在既有 branch-forward lowering 上增加独立、只读的同次闭合检查，不套用 literal protocol 1。
+source ledger 用原双路径 Begin 的完整 loan 身份和唯一 source-local ordinal，连接真实
+Function producer；原 catalog 的 Complete/owns、全部 path action IDs 和 live handoff 保持权威。
+既有 branch receipt 在原 validate 成功后保存原 Plans、Receipt 与完整 Function，同次 assembly
+独立收集；仍仅在原 final verifier 成功后进入 ProjectAudit，原 test publication 不重复。
+最终复用原 receipt validator，再核实际 caller mapping、不同 callee 的存在与唯一映射、完整
+Function Eq、三块三指令及所有 block parameters/results 的唯一集合和 Definition 双向回指。
+本片只覆盖 BothArmsReturn 的借用转发正常出口，不代表结束 source loan、callee 全图或运行时终止。
+TailContinuation 继续按原 route 成功，但在新域明确记 gap。没有 region 也不是空集成功。
+
+测试准备：真实两源 distinct-callee、输入反序、单 observe 内两次 assembly；原 publication
+每次仍恰一条。首次定向编译发现测试 observe 模块路径 E0425，已只修测试路径。
+末版新分支定向 2/2、原 literal/Compatibility 桥 3/3、source ledger 10/10、五源 CLI 1/1
+均通过。frontend/codegen/CLI 双 feature 全目标严格 Clippy（-D warnings）与默认 workspace
+全目标 check 通过；fmt、diff-check、docs（958）、相对 6b6de47d 尺寸门禁（2347 Rust 文件，
+37 个历史超限）通过。两次独立静审无阻断。无 native 执行、人工损坏/混配或推送。

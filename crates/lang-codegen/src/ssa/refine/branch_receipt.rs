@@ -8,6 +8,8 @@ use crate::ssa::{
     model::FunctionId,
 };
 pub(super) use emitted::Emitted;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) use emitted::Receipt;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::{
@@ -23,7 +25,7 @@ pub(super) enum Tag {
     Call(usize),
 }
 #[derive(Clone, Debug, Default)]
-pub(super) struct Plans {
+pub(crate) struct Plans {
     pub(super) plan: Option<Plan>,
     pub(super) folds: Vec<(BlockRef, BlockRef)>,
 }
