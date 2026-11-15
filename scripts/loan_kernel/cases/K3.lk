@@ -31,6 +31,6 @@ fun rebindInnerView(): Unit {
   s.len = 8  // ERR K1
   use(e)
 }
-fun rebindThroughBorrow(inout v: L1, borrow s: Arr): Unit {
-  v.mid.deep = L3(s)  // ERR K14
+fun rebindThroughBorrow(inout v: L1, borrow s: Arr): Unit {  // ERR K6
+  v.mid.deep = L3(s)
 }

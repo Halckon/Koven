@@ -53,6 +53,29 @@ class LoanKernelCases(unittest.TestCase):
             CHECKER.Checker.bind_types = original
         self.assertNotEqual(expected(text), actual)
 
+    def test_origins_are_read_from_the_owner_not_from_a_stale_copy(self):
+        """K20：来源只记在拥有存储的变量上。若经别名读到的是建立借用时的副本，写入之后的新来源就丢了。"""
+        text = (ROOT / "cases" / "Q1.lk").read_text(encoding="utf-8")
+        original = CHECKER.Checker.held_fields
+        CHECKER.Checker.held_fields = lambda self, state, targets, carried: CHECKER.copy_loans(carried or {})
+        try:
+            actual = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.held_fields = original
+        self.assertLess(actual, expected(text), "只应少报：别名路径上的新来源不再受保护")
+
+    def test_writing_through_a_borrow_records_the_origins(self):
+        """去掉流向的记账之后，经借用写入的来源既不受保护也不被签名核对，Q1 必须失败。"""
+        text = (ROOT / "cases" / "Q1.lk").read_text(encoding="utf-8")
+        original = CHECKER.Checker.record_flow
+        CHECKER.Checker.record_flow = lambda self, state, targets, incoming, replace=False: None
+        try:
+            actual = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.record_flow = original
+        self.assertEqual(set(), {found for found in actual if found[0] in ("K6", "K9")})
+        self.assertNotEqual(expected(text), actual)
+
     def test_early_drop_never_changes_what_is_accepted(self):
         """统一析构规则：提前析构只是许可。打开它之后，每个用例被接受或拒绝的结果必须不变。"""
         total = []

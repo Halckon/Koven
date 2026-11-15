@@ -56,7 +56,7 @@ class Fun:
     ret: object
     line: int
     tparams: list = field(default_factory=list)
-    flows: list = field(default_factory=list)  # ((param, None | "*" | field), 目标参数)
+    flows: list = field(default_factory=list)  # ((param, None | "*" | field), (目标参数, None | 字段路径))
     owner: str = ""  # in C：该函数是类型 C 的成员，可以访问 C 的私有字段
     views: set = field(default_factory=set)  # 写作 view T 的类型参数：可以实例化为携带来源的类型
     suspend: bool = False  # 可以包含挂起点
@@ -235,7 +235,7 @@ class Parser:
             while True:
                 src = self.source()
                 self.expect("into")
-                flows.append((src, self.next()))
+                flows.append((src, self.source()))
                 if not self.accept(","):
                     break
         owner = self.next() if self.accept("in") else ""
@@ -493,7 +493,8 @@ class Checker:
     def check_signature(self, fun):
         """来源与流向声明须指向参数；字段形式须是视图的借用字段；流向的目标须是 inout 参数。"""
         params = {name: (mode, ty) for mode, name, ty in fun.params}
-        for param, fld in fun.sources + [src for src, _ in fun.flows]:
+        named = fun.sources + [src for src, _ in fun.flows] + [target for _, target in fun.flows if target[1]]
+        for param, fld in named:
             if param not in params:
                 self.error("SIG", fun.line, f"{fun.name}：来源指向不存在的参数 {param}")
                 continue
@@ -506,7 +507,7 @@ class Checker:
                 paths = [path for _, path in self.ref_paths(ty)] if decl is not None and decl.is_view else []
                 if not any(path == fld or path.startswith(fld + ".") for path in paths):
                     self.error("SIG", fun.line, f"{fun.name}：{param}.{fld} 之下没有视图的借用字段")
-        for _, target in fun.flows:
+        for _, (target, _) in fun.flows:
             mode, ty = params.get(target, ("", ""))
             cell = mode == "borrow" and ty in self.classes and self.classes[ty].cell
             if mode != "inout" and not cell:  # K19：经共享借用流入，只对内部可变类型成立
@@ -629,16 +630,71 @@ class Checker:
                        else f"返回值的来源 {name.replace('.*', '.origins')} 没有在 from 中声明")
 
     def check_flows(self, state, fun):
-        """K6 对流向的延伸：函数体让哪些来源流进了 inout 参数，签名的 flows 就要声明哪些。"""
+        """K6 对流向的延伸：函数体让哪些来源流进了借用参数所指的值，签名的 flows 就要声明哪些。
+
+        参数名下每个字段路径（类型参数是 *）起初只持有它自己的符号 loan；多出来的都是流入的。
+        """
         for mode, name, _ in fun.params:
             var = state.get(name)
             if mode == "own" or var is None or var.init == "M":
                 continue
-            extra = set(var.loans.get("*", ())) - {f"P({name}.*)"}
-            declared = {src for src, target in fun.flows if target == name}
-            for missing in self.uncovered(extra, declared):
-                self.error("K6", fun.line, f"流入 {name} 的值依赖局部变量的存储" if missing is None
-                           else f"流入 {name} 的来源 {missing} 没有在 flows 中声明")
+            for key in sorted(k for k in var.loans if k):
+                extra = set(var.loans[key]) - {f"P({name}.{key})"}
+                declared = {src for src, (target, path) in fun.flows if target == name and self.within(key, path)}
+                for missing in self.uncovered(extra, declared):
+                    self.error("K6", fun.line, f"流入 {name} 的值依赖局部变量的存储" if missing is None
+                               else f"流入 {name} 的来源 {missing} 没有在 flows 中声明")
+
+    @staticmethod
+    def within(key, path):
+        """字段路径 key 是否落在 path 之下；path 为 None 表示整个值。"""
+        return path is None or key == path or key.startswith(path + ".")
+
+    def record_flow(self, state, targets, incoming, replace=False):
+        """K20：来源只记一份，记在拥有被写入存储的变量上；incoming 以相对该存储的字段路径为键。
+
+        存储在调用方时记在相应的参数上，由 check_flows 与签名核对。replace 表示旧值确定被整个换掉。
+        """
+        for root, path in sorted(targets):
+            if root in state:
+                owner, base = state[root], path
+            else:
+                name, _, fld = root[1:].partition(".")
+                owner, base = state[name], (tuple(fld.split(".")) if fld else ()) + path
+            prefix = ".".join(base)
+            if replace:
+                owner.loans = {k: held for k, held in owner.loans.items() if not k or not self.within(k, prefix or None)}
+            for sub, held in incoming.items():
+                key = "*" if sub == "*" else ".".join(filter(None, (prefix, sub)))
+                owner.loans.setdefault(key, set()).update(held)
+
+    def held_fields(self, state, targets, carried):
+        """借用所指为视图时，它各借用字段当前持有的 loan：以拥有该存储的变量上的记录为准（K20），
+
+        并上建立这份借用时随它带来的副本。所指在调用方时只有副本可依据。
+        """
+        loans = copy_loans(carried or {})
+        for root, path in targets:
+            owner = state.get(root)
+            if owner is None or owner.ty.kind != "view":
+                continue
+            prefix = "".join(f"{name}." for name in path)
+            for key, held in owner.loans.items():
+                if key.startswith(prefix) and key != "*" and len(key) > len(prefix):
+                    loans.setdefault(key[len(prefix):], set()).update(held)
+        return loans
+
+    def crosses_borrow_field(self, class_name, fields):
+        """字段路径是否越过借用字段，也就是走到了另一个值的存储里。"""
+        for name in fields:
+            decl = self.classes.get(class_name)
+            fld = decl.field(name) if decl else None
+            if fld is None:
+                return False
+            if fld[0]:
+                return True
+            class_name = fld[2]
+        return False
 
     def refines(self, impl, sig, line):
         """K12：把函数当作合同为 sig 的值使用时，它声明的来源与流向都须被 sig 覆盖。"""
@@ -654,8 +710,9 @@ class Checker:
         for src in impl.sources:
             if not covered(src, set(sig.sources)):
                 self.error("K12", line, f"{impl.name} 的来源 {src[0]}{'.' + src[1] if src[1] else ''} 超出 {sig.name} 的声明")
-        for src, target in impl.flows:
-            allowed = {s for s, t in sig.flows if t == rename.get(target, target)}
+        for src, (target, path) in impl.flows:
+            allowed = {s for s, (t, p) in sig.flows
+                       if t == rename.get(target, target) and (p is None or (path and self.within(path, p)))}
             if not covered(src, allowed):
                 self.error("K12", line, f"{impl.name} 的流向超出 {sig.name} 的声明")
 
@@ -741,6 +798,7 @@ class Checker:
             self.access(state, here, set(), "read", place.line)
             via = set(var.loans.get("", ()))
             targets, ty, writable = self.places(via), self.type_of(var.ty.name), var.ty.kind == "inout"
+            field_loans = self.held_fields(state, targets, var.loans)
         crossed = ""
         for name in place.fields:
             decl = self.classes.get(ty.name)
@@ -765,8 +823,8 @@ class Checker:
                 targets = self.places(held)
                 writable = writable and kind == "inout"
                 if field_loans is not None:  # 借用字段指向另一个视图：它的借用字段记在同一前缀之下
-                    field_loans = {key[len(name) + 1:]: held for key, held in field_loans.items()
-                                   if key.startswith(name + ".")}
+                    field_loans = self.held_fields(state, targets, {
+                        key[len(name) + 1:]: held for key, held in field_loans.items() if key.startswith(name + ".")})
             ty = self.type_of(fty)
             if not kind and ty.kind != "view":
                 field_loans = None
@@ -922,7 +980,7 @@ class Checker:
             kind = stored_kind or ("excl" if mut else "shared")
             loan = self.new_loan(f"L{expr.site}", kind, targets, via, expr.line)
             loans = {"": {loan}}
-            loans.update(copy_loans({k: v for k, v in var.loans.items() if k}))
+            loans.update({k: v for k, v in self.held_fields(state, targets, var.loans).items() if k})
             return Value(Type(mode, var.ty.name), loans, var.payload)
         res = self.resolve(state, expr.place)
         if not res.crossed:
@@ -1014,35 +1072,44 @@ class Checker:
             raise SyntaxProblem(f"第 {expr.line} 行：调用 {expr.name} 的目标或实参个数不符")
         suspends = fun.suspend
         modes = {name: mode for mode, name, _ in fun.params}
-        sources = fun.sources + [src for src, _ in fun.flows]
-        depends = {param for param, fld in sources if fld is None and modes.get(param) != "own"}
-        flowed = "excl" if self.result_exclusive(fun) or fun.flows else "shared"
+        # 依赖参数本身的结果或流向使实参处的 loan 在调用之后继续存在：流入独占结果的按独占计，
+        # 流入持有者的按参数自己的模式计，其余按共享计
+        into_result = {param for param, fld in fun.sources if fld is None and modes.get(param) != "own"}
+        into_holder = {param for (param, fld), _ in fun.flows if fld is None and modes.get(param) != "own"}
+        exclusive = {name for name in into_result if self.result_exclusive(fun)} | {
+            name for name in into_holder if modes[name] == "inout"}
         values, pushed = {}, 0
         for (mode, name, ty_name), arg in zip(fun.params, expr.args):
             if ty_name.startswith("fn "):
                 values[name] = self.callable_argument(arg, ty_name[3:], state)
                 continue
-            values[name] = self.argument(arg, mode, state, flowed if name in depends else None)
+            kept = ("excl" if name in exclusive else "shared") if name in into_result | into_holder else None
+            values[name] = self.argument(arg, mode, state, kept)
             self.pending.append(values[name].all_loans())
             pushed += 1
         if suspends:  # 调用 suspend 函数本身是调用方的一个挂起点；实参的 loan 在此期间保持
             self.suspend_point(state, expr.line)
         del self.pending[len(self.pending) - pushed:]
         bound = self.bind_types(fun, values, expr.line)
-        for (param, fld), target in fun.flows:  # 来源流入已有的持有者
-            arg = expr.args[[name for _, name, _ in fun.params].index(target)]
-            holder = arg.place.root if arg.kind in ("ref", "place") and not arg.place.fields else None
-            if holder is None:
-                raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是对变量的借用，或一个借用值")
-            own_params = {name for _, name, _ in self.fun.params}
-            holders = {holder}
-            if arg.kind == "place" and holder not in own_params:
-                # 局部的借用值：来源流入它所指的每个变量；指向调用方的存储时，记在相应的参数上
-                roots = {root for loan in state[holder].loans.get("", ()) for root, _ in self.loans[loan].places}
-                holders = {root if root in state else root[1:].split(".")[0] for root in roots}
+        for (param, fld), (target, path) in fun.flows:  # 来源流入已有的持有者
+            index = [name for _, name, _ in fun.params].index(target)
+            arg, wanted = expr.args[index], fun.params[index][2]
+            holder = state.get(arg.place.root) if arg.kind in ("ref", "place") else None
+            if arg.kind == "ref" and not self.crosses_borrow_field(holder.ty.name, arg.place.fields):
+                targets = self.resolve(state, arg.place).targets
+            elif arg.kind == "place" and not arg.place.fields:
+                # 借用值：来源流入它所指的每处存储；所指在调用方时，记在相应的参数上
+                targets = self.places(holder.loans.get("", ()))
+            else:
+                raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是对变量或其按值字段的借用，或一个借用值")
             flowing = self.carried(values[param], modes[param], fld)
-            for name in holders:
-                state[name].loans.setdefault("*", set()).update(flowing)
+            actual = bound.get(wanted, wanted)
+            if isinstance(actual, str) and actual in self.classes and self.classes[actual].is_view:
+                # 目标是视图：流入的来源可能落在 path 之下的任何一个借用字段上
+                incoming = {p: flowing for _, p in self.ref_paths(actual) if self.within(p, path)}
+            else:
+                incoming = {"*": flowing}
+            self.record_flow(state, targets, incoming)
         result = set()
         for param, fld in fun.sources:
             if param in values:
@@ -1165,6 +1232,10 @@ class Checker:
             self.error("X1", stmt.line, f"不能把 {value.ty.name} 写入 {var.ty.name} 的槽位")
         via = set(var.loans.get("", ()))
         self.access(state, self.places(via), via, "write", stmt.line)
+        incoming = {key: held for key, held in value.loans.items() if key}
+        if incoming:  # K20：新值携带的来源记到所指的存储上
+            var.loans = {"": via}
+            self.record_flow(state, self.places(via), incoming, replace=len(self.places(via)) == 1)
 
     def assign(self, stmt, state):
         value = self.value(stmt.expr, state)
@@ -1176,13 +1247,14 @@ class Checker:
             self.access(state, res.targets, res.via, "write", stmt.line)
             if value.all_loans():  # 把携带来源的值写进视图的字段
                 var = state[place.root]
-                if res.via or var.ty.kind in ("borrow", "inout"):
-                    self.error("K14", stmt.line, "经借用把来源写进视图字段是一次流向，演算只支持流入类型参数的持有者")
-                else:
-                    prefix = ".".join(place.fields)
-                    var.loans = {key: held for key, held in var.loans.items()
-                                 if not key.startswith(prefix + ".")}
-                    var.loans.update({f"{prefix}.{key}": set(held) for key, held in value.loans.items() if key})
+                prefix = ".".join(place.fields)
+                if self.crosses_borrow_field(var.ty.name, place.fields):
+                    self.error("K14", stmt.line, "经视图的借用字段走到另一个视图再写入来源，演算不支持")
+                else:  # K20：直接写局部视图，或经借用写它所指的视图
+                    if var.ty.kind in ("borrow", "inout"):
+                        var.loans = {key: held for key, held in var.loans.items() if not self.within(key, prefix)}
+                    incoming = {key: set(held) for key, held in value.loans.items() if key}
+                    self.record_flow(state, res.targets, incoming, replace=len(res.targets) == 1)
             return
         var = state.get(place.root)
         if var is None:
