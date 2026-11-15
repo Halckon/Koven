@@ -434,9 +434,11 @@ def prefix_related(a, b):
 # ---------------------------------------------------------------- 检查器
 
 class Checker:
-    def __init__(self, classes, funs, sigs):
+    def __init__(self, classes, funs, sigs, early_drop=False):
         self.classes, self.funs, self.sigs = classes, funs, sigs
         self.errors = set()
+        self.early_drop = early_drop  # 析构不可观察的局部值在不再需要时提前析构（统一析构规则的“许可”）
+        self.drops = []  # 提前析构的 (函数名, 变量名, 其后的语句行号)
 
     def error(self, rule, line, message):
         self.errors.add((rule, line, message))
@@ -965,7 +967,34 @@ class Checker:
     def run(self, stmts, state):
         for stmt in stmts:
             state = self.step(stmt, state)
+            if self.early_drop:
+                self.drop_dead(stmt, state)
         return state
+
+    def observable(self, class_name):
+        """析构是否可观察：声明了 deinit，或按值含有这样的字段。"""
+        decl = self.classes.get(class_name)
+        return decl is not None and (decl.deinit or any(
+            not kind and self.observable(ty) for kind, _, ty in decl.fields))
+
+    def drop_dead(self, stmt, state):
+        """提前析构：变量不再被用到、名下没有存活的 loan、析构不可观察时，在这条语句之后析构。
+
+        存活的 loan 使它所指的 owner 保持存活，所以析构点由“变量与从它借出的一切都不再使用”决定。
+        """
+        self.live = set(stmt.live_out)
+        params = {name for _, name, _ in self.fun.params}
+        for name in reversed(list(state)):
+            var = state[name]
+            if name in self.live or name in params or var.init != "A" or var.ty.kind != "cls":
+                continue
+            if self.observable(var.ty.name):
+                continue
+            if any(root == name for loan in self.live_loans(state) for root, _ in self.loans[loan].places):
+                continue
+            self.access(state, {(name, ())}, set(), "kill", stmt.line)
+            var.init = "M"
+            self.drops.append((self.fun.name, name, stmt.line))
 
     def step(self, stmt, state):
         self.live = (set(stmt.live_out) - stmt_defs(stmt)) | stmt_uses(stmt)
@@ -1078,12 +1107,17 @@ class Checker:
         return merged
 
 
-def check(text):
-    """检查一段演算程序，返回按行排序的 (规则, 行号, 说明)。空列表表示接受。"""
+def check(text, early_drop=False, drops=None):
+    """检查一段演算程序，返回按行排序的 (规则, 行号, 说明)。空列表表示接受。
+
+    early_drop 打开提前析构；drops 若给出，收到各处提前析构的 (函数名, 变量名, 行号)。
+    """
     classes, funs, sigs = Parser(text).program()
-    checker = Checker(classes, funs, sigs)
+    checker = Checker(classes, funs, sigs, early_drop)
     for fun in funs.values():
         checker.check_fun(fun)
+    if drops is not None:
+        drops.extend(checker.drops)
     return sorted(checker.errors, key=lambda e: (e[1], e[0], e[2]))
 
 
