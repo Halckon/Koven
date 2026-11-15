@@ -146,7 +146,10 @@ impl UnitTypeTable {
         self.canonical.discard_after(checkpoint);
     }
 
-    pub(in crate::type_checking::compilation_unit) fn take_after(&mut self, checkpoint: usize) -> Vec<UnitTypeKind> {
+    pub(in crate::type_checking::compilation_unit) fn take_after(
+        &mut self,
+        checkpoint: usize,
+    ) -> Vec<UnitTypeKind> {
         self.canonical.take_after(checkpoint)
     }
 
