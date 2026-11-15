@@ -1,4 +1,3 @@
-#[path = "verify_ownership/operation.rs"]
 mod operation;
 use operation::apply_operation;
 
