@@ -20760,3 +20760,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 新 3 目标正式/三 feature 各 3/3 通过，9 域外精准分类与 legacy 真拒已执行；
   旧 joint-final 3 + 迁移负控 1 全过，双 crate all-targets 三 feature strict 通过（1m44）。
   CI 70 unit/配置；初正式输出的无行为括号 warning 已移除，未执行 native/故障注入。
+
+### D10 counter-break 的独立 stop Value 条件
+
+- 仅将四参数完整 ABI 的 stop Boolean 允许 Borrow/Value；source String、rounds Int、choose Boolean 仍强制 Borrow。Expected 由原独立 stop Name symbol 确定角色与 typed mode，最终 entry 同角色逐实体类型核验，gate 按原 mode 精确一条 Read 或零指令；Value 条件沿原实际边追溯同一入口角色，不伪造 Read 或 End。
+- 原十二唯一角色、两个 cleanup 点、两臂 fresh 末 End、true break 与 false continued checked、唯一原 Abort 的常量一来源/Span/reason、原完整 ledger 与同次最终两边原子认证均保持。旧 counter9、ordinary/tail 和普通 whole-function 空 Abort 授权不变。
+- 新两目标首遍通过：二十四 ABI 顺序与两来源顺序共四十八形态各两次 assembly，真实 gate 通过两臂后实际 Branch 定位，Value 无 Read 且 Conditional 仍对应原 stop；Borrow 邻域保持独立原 Read Span/result。own rounds、own choose、额外 Boolean 三负例均真实 normal lower/verify/receipt 后精确 counter-break gap，两边不认证；旧已支持 own stop 负例迁为额外参数。
+- 新目标编译 2m11s、执行 0.36s，旧 counter-break 两项回归通过；FE/codegen 三 feature all-targets 严格 Clippy 1m47s、default codegen all-targets 32.34s 与格式检查通过。只普通源码到 SSA 模型检查，不执行生成 Abort/native/故障注入，不推送，默认 workspace 留联合一次。

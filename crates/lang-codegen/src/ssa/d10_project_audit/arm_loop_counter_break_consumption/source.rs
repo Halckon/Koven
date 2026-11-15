@@ -25,7 +25,7 @@ impl Source {
         let wrapper = break_fact.counter();
         let fact = wrapper.pair();
         if inputs.parameters.len() != 4
-            || inputs.modes != [ParameterMode::Borrow; 4]
+            || inputs.modes.len() != 4
             || !inputs.owned.owns_no_carry_counter_break_branch(break_fact)
         {
             return None;
@@ -252,7 +252,7 @@ impl Source {
             let ty = inputs.typed.symbol_type(*symbol)?;
             let role = roles.iter().position(|r| *r == i)?;
             if inputs.typed.types().get(ty) != Some(&UnitTypeKind::Builtin(kinds[role]))
-                || (role == 0 && inputs.modes[i] != ParameterMode::Borrow)
+                || (role != 3 && inputs.modes[i] != ParameterMode::Borrow)
                 || !matches!(
                     inputs.modes[i],
                     ParameterMode::Borrow | ParameterMode::Value
