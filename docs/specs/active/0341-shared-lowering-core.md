@@ -20409,3 +20409,25 @@ shared_mixed_pair各3目标通过：原事实、三个正例（左右/具名映�
 三feature frontend/codegen双crate all-targets严格Clippy首次通过（2m37s），
 fmt/文档/size/diff通过，无断言调整或人工故障。构建按真实本树FE/API重编且保留日志。
 不推送、不执行native或本地故障注入。
+
+### E2两个named owner的错峰最后使用（2026-11-15）
+
+基于0bfae681，候选精确两plain String val与两同完整instance裸Call，
+首call的两个String实参指向两个不同原root，次call两实参指向同survivor；
+scalar仅直接literal，无String temporary、第三root、额外语句或不同callee。
+普通ownership probe三组源码已通过：不同bytes、同bytes交换存活根、声明顺序
+倒置与具名参数重排；均8 Shared loan/8真实End，首CallReturn完整Drop向量
+仅早结束根，次CallReturn仅survivor，每root全局唯一。E2红精确UnsupportedSelection。
+
+私有StaggeredNamedPair根持两个原initializer和对应真实Drop，per-call仅有
+引用权限；survivor由原实参/完整loan身份确定，不按Drop排序反推。
+独立emit/replay按原声明顺序建立两个owner/root，每call全部End后消费原Drop，
+已释放root移出可用映射，后续不能再借用；32条指令仅辅助检查，最终cursor全消费。
+旧single、SharedNamedPair、SharedMixed域不扩大。生产独审无阻断；新目标保
+两初始化/RootPlace在首BorrowBegin之前，三正例及八个正常源码域外负控。
+正式two-source-unit及三feature staggered_owners各3目标通过；正式旧mixed三目标、
+shared-owner三目标、temporary-pair五目标回归通过。三feature frontend/codegen
+双crate all-targets严格Clippy首次通过（1m39s），无失败或断言调整。
+本片三个精确目标加入原CI双配置清单，bash语法检查通过；未本地执行CI故障脚本。
+本轮锁定0bfae681基线，未混入后续main迁移；按本树FE/API重编避免跨树旧rmeta。
+未重复默认workspace门禁；不推送、不执行native或本地故障注入。

@@ -1,5 +1,6 @@
 //! Private-construction source entry evidence; not normal ownership or backend authority.
 mod shared_pair;
+mod staggered_pair;
 use super::*;
 use crate::{
     name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
@@ -36,18 +37,45 @@ pub struct EntryDescriptor {
 enum EntryCalls {
     Single(Box<EntryCallDescriptor>),
     Pair(Box<[EntryCallDescriptor; 2]>),
+    StaggeredNamedPair {
+        owners: Box<[EntryOwnerDescriptor; 2]>,
+        calls: Box<[EntryCallDescriptor; 2]>,
+    },
     SharedNamedPair {
-        owner: Box<SharedEntryOwner>,
+        owner: Box<EntryOwnerDescriptor>,
         calls: Box<[EntryCallDescriptor; 2]>,
     },
 }
 #[derive(Clone, Debug)]
-struct SharedEntryOwner {
+/// Read-only root-owned initialization and its original final-use Drop.
+pub struct EntryOwnerDescriptor {
     root: UnitSymbolId,
     initializer: UnitExpressionId,
     span: Span,
     bytes: Vec<u8>,
     drop: UnitDropFact,
+}
+impl EntryOwnerDescriptor {
+    /// Original resolved named root.
+    pub fn root(&self) -> UnitSymbolId {
+        self.root
+    }
+    /// Original initializer expression.
+    pub fn initializer(&self) -> UnitExpressionId {
+        self.initializer
+    }
+    /// Original initializer span.
+    pub fn span(&self) -> Span {
+        self.span
+    }
+    /// Original decoded String bytes.
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+    /// Original final-use Drop, not a synthetic event.
+    pub fn drop_fact(&self) -> &UnitDropFact {
+        &self.drop
+    }
 }
 /// Read-only call occurrence evidence; not an independently owned entry capability.
 #[derive(Clone, Debug)]
@@ -66,6 +94,9 @@ pub struct EntryCallDescriptor {
 }
 #[derive(Clone, Debug)]
 enum StringStorage {
+    StaggeredRoots {
+        roots: [UnitSymbolId; 2],
+    },
     SharedMixed {
         root: UnitSymbolId,
         temporary_index: usize,
@@ -178,7 +209,9 @@ impl EntryCallDescriptor {
             || (self.named_strings().is_empty()
                 && !matches!(
                     self.storage,
-                    StringStorage::SharedRoot { .. } | StringStorage::SharedMixed { .. }
+                    StringStorage::SharedRoot { .. }
+                        | StringStorage::SharedMixed { .. }
+                        | StringStorage::StaggeredRoots { .. }
                 ))
         {
             return None;
@@ -190,6 +223,11 @@ impl EntryCallDescriptor {
                 if let StringStorage::SharedRoot { root } | StringStorage::SharedMixed { root, .. } =
                     self.storage
                     && place.root() != root
+                {
+                    return None;
+                }
+                if let StringStorage::StaggeredRoots { roots } = self.storage
+                    && !roots.contains(&place.root())
                 {
                     return None;
                 }
@@ -230,7 +268,7 @@ impl EntryCallDescriptor {
     /// Actual owner drops in traversal order (two temporaries or one/two named owners).
     pub fn drops(&self) -> &[UnitDropFact] {
         match &self.storage {
-            StringStorage::SharedRoot { .. } => &[],
+            StringStorage::SharedRoot { .. } | StringStorage::StaggeredRoots { .. } => &[],
             StringStorage::Temporary { drops, .. } => drops,
             StringStorage::Named { drop, .. } | StringStorage::SharedMixed { drop, .. } => {
                 std::slice::from_ref(drop)
@@ -257,8 +295,17 @@ impl EntryDescriptor {
     pub fn calls(&self) -> &[EntryCallDescriptor] {
         match &self.calls {
             EntryCalls::Single(call) => std::slice::from_ref(call.as_ref()),
-            EntryCalls::Pair(calls) | EntryCalls::SharedNamedPair { calls, .. } => calls.as_ref(),
+            EntryCalls::Pair(calls)
+            | EntryCalls::SharedNamedPair { calls, .. }
+            | EntryCalls::StaggeredNamedPair { calls, .. } => calls.as_ref(),
         }
+    }
+    /// Two distinct root-owned initializers in source order and their separate final-use Drops.
+    pub fn staggered_owners(&self) -> Option<&[EntryOwnerDescriptor; 2]> {
+        let EntryCalls::StaggeredNamedPair { owners, .. } = &self.calls else {
+            return None;
+        };
+        Some(owners.as_ref())
     }
     /// Root-owned initialization and the unique original final-use Drop of a shared pair.
     pub fn shared_owner(
@@ -337,7 +384,25 @@ pub(super) fn collect(
                     let Statement::Block { elements } = node.payload() else {
                         return None;
                     };
-                    if let [local, first, second] = elements.as_slice()
+                    if let [local_a, local_b, first, second] = elements.as_slice()
+                        && [local_a, local_b].iter().all(|id| {
+                            matches!(
+                                parsed
+                                    .ast()
+                                    .statements()
+                                    .get(**id)
+                                    .ok()
+                                    .map(|n| n.payload()),
+                                Some(Statement::LocalVariable { .. })
+                            )
+                        })
+                        && let Statement::Expression { expression: first } =
+                            parsed.ast().statements().get(*first).ok()?.payload()
+                        && let Statement::Expression { expression: second } =
+                            parsed.ast().statements().get(*second).ok()?.payload()
+                    {
+                        (node.span(), &elements[..2], [Some(*first), Some(*second)])
+                    } else if let [local, first, second] = elements.as_slice()
                         && matches!(
                             parsed.ast().statements().get(*local).ok()?.payload(),
                             Statement::LocalVariable { .. }
@@ -378,6 +443,7 @@ pub(super) fn collect(
                 _ => return None,
             };
             let shared_pair = expressions[1].is_some() && declarations.len() == 1;
+            let staggered_pair = expressions[1].is_some() && declarations.len() == 2;
             let collect_call = |expression| {
                 if !matches!(
                     parsed.ast().expressions().get(expression).ok()?.payload(),
@@ -615,18 +681,32 @@ pub(super) fn collect(
                     .filter(|d| d.point() == UnitDropPoint::CallReturn(call_id))
                     .copied()
                     .collect();
-                let shared_owner = if shared_pair {
+                let shared_owner = if staggered_pair {
+                    if named.len() != 2
+                        || locals.iter().any(Option::is_some)
+                        || !temporary_arguments.is_empty()
+                    {
+                        return None;
+                    }
+                    Some(named.clone())
+                } else if shared_pair {
                     if named.len() != 1
                         || locals.iter().any(Option::is_some)
                         || temporary_arguments.len() > 1
                     {
                         return None;
                     }
-                    Some(named[0].clone())
+                    Some(named.clone())
                 } else {
                     None
                 };
-                let storage = if let Some((root, ..)) = &shared_owner {
+                let storage = if staggered_pair {
+                    initialization_order.clear();
+                    StringStorage::StaggeredRoots {
+                        roots: [named[0].0, named[1].0],
+                    }
+                } else if let Some(owners) = &shared_owner {
+                    let (root, ..) = &owners[0];
                     initialization_order.clear();
                     if let Some((temporary_index, temporary)) = temporary_arguments.pop() {
                         let target =
@@ -847,12 +927,17 @@ pub(super) fn collect(
                 {
                     return None;
                 }
-                if shared_pair {
-                    let (root, initializer, span, bytes) = first_owner?;
-                    if second_owner? != (root, initializer, span, bytes.clone()) {
+                if shared_pair || staggered_pair {
+                    let owners = first_owner?;
+                    if second_owner? != owners {
                         return None;
                     }
-                    shared_pair::finish((root, initializer, span, bytes), first, second, owned)?
+                    if staggered_pair {
+                        staggered_pair::finish(owners.try_into().ok()?, first, second, owned)?
+                    } else {
+                        let [owner]: [_; 1] = owners.try_into().ok()?;
+                        shared_pair::finish(owner, first, second, owned)?
+                    }
                 } else {
                     EntryCalls::Pair(Box::new([first, second]))
                 }

@@ -1,4 +1,5 @@
 //! Complete source entry emission in the experiment; no production entry capability.
+mod staggered;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use super::e2_function;
 use super::model::*;
@@ -111,60 +112,65 @@ pub(super) fn fill_entry(
     descriptor: &EntryDescriptor,
 ) -> Option<FunctionId> {
     let block = empty_declaration(module.function(entry)?, &[])?;
-    let shared = if let Some((symbol, _, span, bytes, drop)) = descriptor.shared_owner() {
-        if descriptor.calls().len() != 2
-            || drop.target() != UnitDropTarget::Named(symbol)
-            || drop.point()
-                != lang_frontend::ownership_checking::UnitDropPoint::CallReturn(
-                    descriptor.calls()[1].contracts()[0].call(),
-                )
-        {
-            return None;
-        }
-        let string = module.intern_type(SsaTypeKind::StringOwner);
-        let f = module.function_mut(entry)?;
-        let origin = Origin::Source(span);
-        let owner = value(append(
-            f,
-            block,
-            Operation::StringLiteral {
-                string,
-                bytes: bytes.to_vec(),
-            },
-            EntityType::Value(string),
-            origin.clone(),
-        )?)?;
-        let root = place(append(
-            f,
-            block,
-            Operation::RootPlace { owner },
-            EntityType::Place(string),
-            origin,
-        )?)?;
-        Some((symbol, owner, root))
+    if descriptor.staggered_owners().is_some() {
+        staggered::emit(module, entry, caller, descriptor)?;
     } else {
-        None
-    };
-    for call in descriptor.calls() {
-        emit_call(
-            module,
-            entry,
-            caller,
-            call,
-            shared.map(|(symbol, _, root)| (symbol, root)),
-        )?;
-    }
-    if let Some((_, owner, _)) = shared {
-        let (_, _, _, _, drop) = descriptor.shared_owner()?;
-        module
-            .function_mut(entry)?
-            .append_instruction(
+        let shared = if let Some((symbol, _, span, bytes, drop)) = descriptor.shared_owner() {
+            if descriptor.calls().len() != 2
+                || drop.target() != UnitDropTarget::Named(symbol)
+                || drop.point()
+                    != lang_frontend::ownership_checking::UnitDropPoint::CallReturn(
+                        descriptor.calls()[1].contracts()[0].call(),
+                    )
+            {
+                return None;
+            }
+            let string = module.intern_type(SsaTypeKind::StringOwner);
+            let f = module.function_mut(entry)?;
+            let origin = Origin::Source(span);
+            let owner = value(append(
+                f,
                 block,
-                Operation::Drop { owner },
-                vec![],
-                Origin::Source(drop.value_origin()),
-            )
-            .ok()?;
+                Operation::StringLiteral {
+                    string,
+                    bytes: bytes.to_vec(),
+                },
+                EntityType::Value(string),
+                origin.clone(),
+            )?)?;
+            let root = place(append(
+                f,
+                block,
+                Operation::RootPlace { owner },
+                EntityType::Place(string),
+                origin,
+            )?)?;
+            Some((symbol, owner, root))
+        } else {
+            None
+        };
+        let shared_roots = shared.map(|(symbol, _, root)| [(symbol, root)]);
+        for call in descriptor.calls() {
+            emit_call(
+                module,
+                entry,
+                caller,
+                call,
+                shared_roots.as_ref().map(|roots| roots.as_slice()),
+            )?;
+        }
+        if let Some((_, owner, _)) = shared {
+            let (_, _, _, _, drop) = descriptor.shared_owner()?;
+            module
+                .function_mut(entry)?
+                .append_instruction(
+                    block,
+                    Operation::Drop { owner },
+                    vec![],
+                    Origin::Source(drop.value_origin()),
+                )
+                .ok()?;
+        }
     }
     module
         .function_mut(entry)?
@@ -181,7 +187,7 @@ fn emit_call(
     entry: FunctionId,
     caller: FunctionId,
     descriptor: &EntryCallDescriptor,
-    shared: Option<(UnitSymbolId, PlaceId)>,
+    shared: Option<&[(UnitSymbolId, PlaceId)]>,
 ) -> Option<()> {
     if shared.is_some()
         && (!descriptor.named_strings().is_empty()
@@ -275,8 +281,10 @@ fn emit_call(
         let ty = *[string, string, int, boolean].get(role)?;
         let origin = Origin::Source(c.argument_span());
         let root = if let Some(symbol) = descriptor.named_argument_root(i) {
-            if let Some((actual, root)) = shared {
-                if actual != symbol {
+            if let Some(roots) = shared {
+                let mut matching = roots.iter().filter(|(actual, _)| *actual == symbol);
+                let root = matching.next()?.1;
+                if matching.next().is_some() {
                     return None;
                 }
                 root
