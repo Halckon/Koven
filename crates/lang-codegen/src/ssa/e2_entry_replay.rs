@@ -131,7 +131,20 @@ pub(super) fn replay_declared_body(
         || block.origin != Origin::Source(declaration)
         || block.instructions.len()
             != if d.shared_owner().is_some() {
-                29
+                let counts: Vec<_> = d
+                    .calls()
+                    .iter()
+                    .map(|call| {
+                        (0..4)
+                            .filter(|i| call.temporary_string(*i).is_some())
+                            .count()
+                    })
+                    .collect();
+                match counts.as_slice() {
+                    [0, 0] => 29,
+                    [1, 1] => 35,
+                    _ => return None,
+                }
             } else {
                 d.calls()
                     .iter()
@@ -231,7 +244,7 @@ fn replay_call(
     if shared.is_some()
         && (!d.named_strings().is_empty()
             || !d.initialization_order().is_empty()
-            || !d.drops().is_empty())
+            || d.drops().len() != (0..4).filter(|i| d.temporary_string(*i).is_some()).count())
     {
         return None;
     }

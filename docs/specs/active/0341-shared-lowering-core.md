@@ -20410,3 +20410,22 @@ all-targets严格Clippy最终通过（1m56s），初次collapsible_if仅作等�
 - 原 AST 从左到右精确登记两个 while，并将之前、之间、之后分成三个固定段；每段至多一次原 typed source consumer，不按总语句数猜测来源，不增加 loop/body 上限。
 - 三段完整身份与原 source-plan dispatch 分别保存，最终与三个 sealed 段逐项全字段匹配；实际指令映射整组一次核验，原完整 caller CFG 运输证明与两来源边原子发布不变。
 - 正常源码覆盖八种段存在组合与来源/ABI 反序，区分首入口 source、跨 loop source 和末出口 source：末段为空时退出不留 source，有末段则在真实 Return 块保留 source 并完成调用；原 acquisition 数量及独立 before/middle/after callee 映射均核。任段两次消费、三 loop、第二 body 双消费保持整组缺口。实际 fresh 10 项、旧 Partial 2 项通过；codegen 三 feature all-targets 严格 Clippy（1m16s）、default codegen all-targets（36.99s）、格式/docs968/尺寸2421文件与21项历史欠账/diff 门禁通过。独立静审无阻断，本轮以本树 frontend 真实重编避免跨树缓存失配，首个 attempt 全链成功。未运行 native、故障注入或推送。
+
+### E2共享根与调用内临时owner的交错释放（2026-11-15）
+
+基于db1a7a5b，候选仍原plain String val及两同instance裸Call，每call恰
+一个Name借用同根、一个plain String temporary及直接scalar；不扩第三call、
+多个根、插入语句或任意表达式。普通原事实probe已实测8 Shared loan/8 End，
+两call各四End均在Drop之前；原Drop向量首CallReturn严格[temporary1]，
+次CallReturn严格[temporary2,named]，两个temp与named各唯一消费。E2红为
+精确UnsupportedSelection，未改planner或合成结束事件。
+
+方案让根仅保真实唯一named末Drop，per-call保各自原temporary Drop；
+第一临时owner不得跨到第二call，第二临时owner必须在最终named Drop之前释放。
+完整replay逐事件核来源/类型/身份/顺序，35条总数只是必要检查。
+方案与实际production/helper/测试独审均通过。正式two-source-unit及三feature
+shared_mixed_pair各3目标通过：原事实、三个正例（左右/具名映射、同bytes三owner
+不合并）、九个域外负控；原shared-owner三目标与temporary-pair五目标回归通过。
+三feature frontend/codegen双crate all-targets严格Clippy首次通过（2m37s），
+fmt/文档/size/diff通过，无断言调整或人工故障。构建按真实本树FE/API重编且保留日志。
+不推送、不执行native或本地故障注入。
