@@ -20214,3 +20214,22 @@ scalar拒绝）；旧“拒绝具名重排”负例按本片已批准域转为�
 两项源级测试首次编译后全部通过（1m38），覆盖源顺序/参数顺序、同 observe 两次 assembly 和上述域外输入；旧 Partial loop 两项相邻回归亦通过。frontend/codegen 三 feature 严格 Clippy all-targets 通过（3m36），默认仅这两个 crate 的 all-targets check 通过（1m44），不是 workspace 全验。格式、968 Markdown 文档结构和 Rust 尺寸门禁（基点9e4470cf，2415文件/21项历史债）通过。首次架构文档202行超过200限制，仅移除新增段周围空行后复验通过，没有抬高上限。
 
 独立静审通过；无 native 执行、人工故障或跨 run 混配。零迭代出口与回边依据原纯 SSA validator，不代表运行循环或终止证明。日志为 `/private/tmp/d10-fresh-{tests,oldloop,strict,default,size}.log`。
+
+### E2 原整数 literal 幅值复用（2026-11-15）
+
+在 9e4470cf 独立树中，入口rounds仍限真实非负Int literal，不限纯十进制源文本。
+复用frontend既有integer_literal_magnitude，使用原AST literal kind与原Span文本，
+以checked i32转换守住范围；hex、binary及合法数字间下划线不再被E2额外拒绝。
+不另造解码器、不改变类型推导，不开放负号、运算表达式或非Int参数。
+
+SSA沿用已有Constant与原来源Span，ABI、owner、loan、End/Drop与replay不变。
+新integer_literals两目标先在旧实现复现hex正例UnsupportedSelection、全部边界仍过；
+末版正式/三feature各2 passed：10literal乘3owner/签名/具名映射交叉形态共30正例，
+核实际整数幅值、原Span、4 End和真实owner Drop数量，再经verifier/LLVM render。
+负号、算式、grouped三个真实源码保持Unsupported；非Int及超界六例在原前端类型验证
+拒绝，不声明逐诊断码或文本匹配。
+
+三feature frontend/codegen all-targets严格Clippy通过（1m45s）；fmt、diff、968文件
+文档、2413文件Rust尺寸（21历史超限不变）及脚本语法通过，独立静审无阻断。
+目标进入原双配置CI清单，默认workspace留共同集成一次。构建结束即交槽D10。
+不推送，不执行native或故障注入。

@@ -136,7 +136,7 @@ impl EntryDescriptor {
             _ => None,
         }
     }
-    /// Original analyzed nonnegative decimal Int.
+    /// Original analyzed nonnegative Int literal.
     pub fn rounds(&self) -> i32 {
         self.rounds
     }
@@ -582,11 +582,20 @@ pub(super) fn collect(
                     .ok()?
                     .span(),
             ];
-            let text = sources.slice(initializer_spans[0]).ok()?;
-            if text.is_empty() || !text.bytes().all(|c| c.is_ascii_digit()) {
+            let Expression::Literal(LiteralKind::Integer(kind)) = parsed
+                .ast()
+                .expressions()
+                .get(locals[0].1.expression())
+                .ok()?
+                .payload()
+            else {
                 return None;
-            }
-            let rounds = text.parse::<i32>().ok()?;
+            };
+            let magnitude = crate::type_checking::integer_literal_magnitude(
+                sources.slice(initializer_spans[0]).ok()?,
+                *kind,
+            )?;
+            let rounds = i32::try_from(magnitude).ok()?;
             let Expression::Literal(LiteralKind::Boolean(choose)) = parsed
                 .ast()
                 .expressions()
