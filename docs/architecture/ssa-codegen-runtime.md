@@ -8,7 +8,7 @@
 function、block、entity、type 和 operation；控制流通过 block parameters 与显式 edge operands 传值。
 每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
 
-验证分三层执行：
+验证分三层执行；dominance完整算法位于私有 `verify/dominance.rs`，存储构造/投影合同位于私有 `verify_operation/storage.rs`，两个根保留原调用门面：
 
 - 结构/类型验证：ID、block、dominance、operand/result、edge 和 terminator 契约；
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
