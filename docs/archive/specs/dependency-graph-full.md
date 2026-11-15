@@ -455,6 +455,7 @@ subgraph Gactive["现行 active"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0466["S0466<br/>名称解析表达式遍历职责归位"]
   S0467["S0467<br/>类型检查容器与 lambda 领域归位"]
+  S0468["S0468<br/>Lexer 与调用恢复测试领域归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1983,6 +1984,7 @@ S0456 --> S0457
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |
 | SPEC-0466 | active | [0466-name-resolver-expression-domain.md](../../specs/active/0466-name-resolver-expression-domain.md) |
 | SPEC-0467 | active | [0467-type-container-and-lambda-domains.md](../../specs/active/0467-type-container-and-lambda-domains.md) |
+| SPEC-0468 | active | [0468-lexer-and-call-recovery-test-domains.md](../../specs/active/0468-lexer-and-call-recovery-test-domains.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
