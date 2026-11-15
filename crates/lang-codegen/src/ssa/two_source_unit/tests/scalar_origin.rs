@@ -5,12 +5,12 @@ use lang_frontend::ownership_checking::{
 };
 
 #[test]
-fn scalar_literal_loans_do_not_supply_observed_direct_call_ends() {
-    for (rounds, choose, named_count) in [
-        ("3", "false", 0),
-        ("rounds", "choose", 2),
-        ("3", "choose", 1),
-        ("rounds", "false", 1),
+fn scalar_literal_loans_supply_original_observed_direct_call_ends() {
+    for (rounds, choose) in [
+        ("3", "false"),
+        ("rounds", "choose"),
+        ("3", "choose"),
+        ("rounds", "false"),
     ] {
         // The ordinary callee deliberately has no E2 loop: isolate original ownership facts.
         let text = format!(
@@ -64,13 +64,12 @@ fn scalar_literal_loans_do_not_supply_observed_direct_call_ends() {
                 .iter()
                 .filter(|end| end.loan() == loan)
                 .collect();
-            let observable = named || argument.starts_with('"');
-            assert_eq!(ends.len(), usize::from(observable), "{argument}");
+            assert_eq!(ends.len(), 1, "{argument}");
             for end in ends {
                 assert_eq!(end.point(), UnitDropPoint::CallReturn(call));
             }
         }
-        assert_eq!(ownership.direct_call_loan_ends().len(), 2 + named_count);
+        assert_eq!(ownership.direct_call_loan_ends().len(), 4);
         // Only the two MoveOnly String temporaries carry owner destruction obligations.
         assert_eq!(ownership.drops().len(), 2);
         for loan in &loans[..2] {
