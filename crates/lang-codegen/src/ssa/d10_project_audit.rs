@@ -9,6 +9,9 @@ mod arm_loop_prefix_tests;
 #[cfg(test)]
 mod arm_loop_shared_condition_tests;
 #[cfg(test)]
+mod arm_loop_tail_break_tests;
+pub(crate) mod arm_loop_tail_consumption;
+#[cfg(test)]
 mod arm_loop_value_flags_tests;
 pub(crate) mod aux_binding_consumption;
 #[cfg(test)]
@@ -127,6 +130,7 @@ pub(crate) struct Pending {
     loops: loop_consumption::Transaction,
     fresh_loops: fresh_loop_consumption::Transaction,
     arm_loops: arm_loop_consumption::Transaction,
+    arm_tail_loops: arm_loop_tail_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -154,6 +158,7 @@ impl Pending {
                 loops: loop_consumption::Transaction::begin(plan),
                 fresh_loops: fresh_loop_consumption::Transaction::begin(plan),
                 arm_loops: arm_loop_consumption::Transaction::begin(plan),
+                arm_tail_loops: arm_loop_tail_consumption::Transaction::begin(plan),
                 items: names
                     .names()
                     .index()
@@ -390,6 +395,15 @@ impl Pending {
                 audit
                     .unsupported
                     .push("overlapping ordinary arm-loop edge certificate".into());
+            }
+        }
+        let (tail_edges, tail_gaps) = self.arm_tail_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(tail_gaps);
+        for edge in tail_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping tail-break arm-loop edge certificate".into());
             }
         }
         for function in program.modules.iter().flat_map(|module| &module.functions) {

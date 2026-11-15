@@ -42,6 +42,8 @@ mod prefix_ci;
 mod prefix_fact;
 #[cfg(test)]
 mod publication;
+#[cfg(feature = "d10-catalog-experiment")]
+mod tail_audit;
 mod validation;
 #[cfg(test)]
 pub(in crate::ssa) use publication::{UnitPublication, before_final_verifier};
@@ -597,7 +599,15 @@ impl Emitted {
             };
             receipt.validate(function)?;
             #[cfg(feature = "d10-catalog-experiment")]
-            crate::ssa::d10_project_audit::arm_loop_consumption::record(function, &receipt);
+            {
+                if receipt.plan.tail_break.is_some() {
+                    crate::ssa::d10_project_audit::arm_loop_tail_consumption::record(
+                        function, &receipt,
+                    );
+                } else {
+                    crate::ssa::d10_project_audit::arm_loop_consumption::record(function, &receipt);
+                }
+            }
             #[cfg(test)]
             publication::record(receipt);
         }

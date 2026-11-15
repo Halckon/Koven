@@ -20586,3 +20586,11 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 仅将完整 ABI 扩为两/三参数：source 始终 Borrow String，两参数时两个原 Name 条件必须映到同一 Boolean Borrow/Value 参数，三参数时仍必须不同角色且全部参数被覆盖；不把冗余参数、任意条件或一般循环纳入。两个原 expression/span 独立保存，与原 receipt 的对应角色逐一比对，不因符号相同合并条件事实。
 - 原七块、完整 entry slot 顺序、逐类型实体及边运输、原 source ledger/完整 caller 和同次两边原子发布不变。Borrow 模式在 header/split 仍各有独立 Read/result/原 Name Span，Value 模式两处 Conditional 各自追溯相同原 ABI 角色而无 Read；保零迭代出口和两臂 fresh 独立唯一 End。既有单次 source 前消费可组合，suffix 原 InvalidModel 与多前消费 gap 不改变。
 - 新两目标首遍实跑通过：两 ABI 顺序、Borrow/Value、前消费有无及 source 反序共 16 形态各两次 assembly；两种三参数同 flag 形态均原正常 receipt 但明确 gap。新 helper 另核两个独立控制点及 Read origin/result，不仅对角色集合去重。受影响旧 Value 三项、prefix 两项通过；FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.18s、格式检查通过。首次编译真实使用本树 FE/codegen，未 native、故障注入或推送；默认 workspace 留联合一次。
+
+### D10 独立 tail-break 双臂的完整退出证书
+
+- 独立 `no_carry_break_branches` wrapper 的 owns/对象身份/完整相等与内部 pair 逐项相连；Expected 只收完整 body `[while { if/else; break }]`、三个 Borrow 参数（String source 与独立 Boolean 条件），从原 AST 保存 break expression/span/statement/目标 while、ControlTransfer 与 LoopExit cleanup。普通七块域与 suffix 原 InvalidModel 不放宽。
+- 原普通探针非零一项通过，四种 source/条件顺序各两次 assembly 均真实八块/九指令，而非预设七块。新证书由原角色映射导出八唯一块（finished 与 exit 独立），逐块精确原指令、完整 ABI entry slots、类型/实体/边与唯一空 Unit Return 封闭；原局部 validate 仅作必要条件，不当全 caller 证明。原 break join 必须在两臂唯一 End 后到真实退出，无 normal backedge 权限。
+- frontend 新独立 break ledger selector 取本域 sealed wrapper，复用私有纯核验逐 initializer/consumer 的原唯一 loan ordinal、argument 和同 Function producer；普通 selector 保原 owns 边界。两个同次私有事务按原成功 receipt 的真实 tail 域分流，在最终 verifier 后核最终 Function、原 planned token/key、原 dispatch 与全部 evidence，任一缺口两条边均不发布。
+- 新两项首遍通过：六 ABI、条件互换与 source 反序共 24 正形态各两次 assembly；原两条件 Name Span/Read/角色与 Conditional、每臂原 consumer 顺序/本 fresh/末 End→break join 均独立断言。前消费、后消费、额外 Boolean、Value flag 四负例各四来源/条件组合、两次 assembly 均原正常 receipt 而保精确 tail gap；这不把普通域 suffix 的拒绝误改为成功。
+- 必要 ordinary 两项、prefix 两项通过；FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.51s、格式检查通过，末版独审无阻断。普通 probe 日志与新验收日志独立保留，不重跑 probe、不运行 native/故障注入、不推送；默认 workspace 留后续联合一次。
