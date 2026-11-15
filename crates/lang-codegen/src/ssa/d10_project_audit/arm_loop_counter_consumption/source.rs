@@ -22,7 +22,7 @@ impl Source {
     ) -> Option<Self> {
         let fact = wrapper.pair();
         if inputs.parameters.len() != 3
-            || inputs.modes != [ParameterMode::Borrow; 3]
+            || inputs.modes.len() != 3
             || !inputs.owned.owns_no_carry_counter_branch(wrapper)
         {
             return None;
@@ -180,7 +180,13 @@ impl Source {
         for (i, symbol) in inputs.parameters.iter().enumerate() {
             let ty = inputs.typed.symbol_type(*symbol)?;
             let role = roles.iter().position(|r| *r == i)?;
-            if inputs.typed.types().get(ty) != Some(&UnitTypeKind::Builtin(kinds[role])) {
+            if inputs.typed.types().get(ty) != Some(&UnitTypeKind::Builtin(kinds[role]))
+                || (role != 2 && inputs.modes[i] != ParameterMode::Borrow)
+                || !matches!(
+                    inputs.modes[i],
+                    ParameterMode::Borrow | ParameterMode::Value
+                )
+            {
                 return None;
             }
             abi.push((*types.type_ids.get(&ty)?, inputs.modes[i]));

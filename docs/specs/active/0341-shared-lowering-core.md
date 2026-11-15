@@ -20704,3 +20704,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 原正常 probe 已独立证实九块/十三指令，未重复运行。完整证书要求原 op==join、finished==exit，其余九角色互异并覆盖全部真实块；逐块原指令、完整 ABI entry slots、实体定义/类型/边、唯一空 Unit Return 全部闭合。原 Int counter 成功回边按原 alias/transport 校验，不与两臂 fresh no-carry 混为一谈。
 - 旧 whole-function check 仍传空 Abort 授权，保持原拒绝；新增仅本域的精确 checked-failure 角色校验，要求原 CheckedSubtract result/failed 类型与分支、原常量一沿实际 true edge 到 Abort divisor、精确 Subtract reason/update Span/本 Function Int 实体，恰一次且无其他 Abort。只检查普通源码生成的 SSA 模型，不执行生成程序或 Abort，不声称一般循环终止或一般 Abort 准入。
 - 新两个目标首遍通过：六 ABI 顺序与两 source 顺序共十二形态各两次 assembly；额外 Boolean、Value rounds、Value choose 三负例均实际原 lower/verify/receipt 成功但精确 counter gap 且两边不认证。正例另独立核九块十三指令、原 update Span、failed→Abort 与 success→header、两 fresh 唯一 End 且不运输。ordinary 两项和 tail 两项回归通过；FE/codegen 三 feature all-targets 严格 Clippy 1m45s、default codegen all-targets 32.20s 通过。独审无阻断，默认 workspace 留联合一次；未 native、故障注入或推送。
+
+### D10 bounded-counter 的 Boolean Value 条件
+
+- 仅将原三个完整 ABI 中的 choose Boolean 独立允许 Borrow/Value；source String 与 rounds Int 均仍强制 Borrow。Expected 从原条件 Name symbol 确定 index，保存原 typed type/mode；最终 entry 逐实体类型核验，split 按该原 mode 精确一条 Read 或零指令，Value 直接 Conditional 仍追溯原入口角色。初始化 rounds 的 Read、原 counter Int 成功回边不变。
+- 原 sealed wrapper、两臂完整 loan ledger、九角色覆盖、实际原常量一到唯一 checked-failure Abort payload、原 Span/reason/类型及同次两边原子认证均保持；旧普通 checker 的空 Abort 授权不改。不放开 owned rounds/source、额外参数或一般条件，不执行生成程序。
+- 新两目标首遍通过：六 ABI 顺序与两个来源顺序共十二形态各两次 assembly，明确原 entry→header→split 逐实际 edge 的 choice 运输、Value 零 Read/十二总指令与 Borrow 一 Read/十三总指令。Value rounds 与冗余 Boolean 负例均原正常 lower/verify/receipt 后保精确 counter gap；旧 Borrow 两项通过，原已获证明 own choose 负例改为 own rounds+choose。FE/codegen 三 feature all-targets 严格 Clippy 1m45s、default codegen all-targets 32.23s、格式及末版独审通过；未重 probe/native/故障注入/推送，默认 workspace 留联合一次。
