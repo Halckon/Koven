@@ -7,6 +7,8 @@ mod arm_loop_consumption_tests;
 #[cfg(test)]
 mod arm_loop_prefix_tests;
 #[cfg(test)]
+mod arm_loop_shared_condition_tests;
+#[cfg(test)]
 mod arm_loop_value_flags_tests;
 pub(crate) mod aux_binding_consumption;
 #[cfg(test)]

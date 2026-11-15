@@ -164,7 +164,9 @@ pub(super) fn check_with_prefix(
                     || g.starts_with("unclassified operation: BorrowCall"))
         );
         let entry = function.block(function.entry_block().unwrap()).unwrap();
-        assert_eq!(entry.parameters.len(), 3);
+        assert!(matches!(modes.len(), 2 | 3));
+        assert_eq!(entry.parameters.len(), modes.len());
+        assert_eq!(flag_roles[0] == flag_roles[1], modes.len() == 2);
         if prefix.is_some() {
             let source_role = parameters
                 .split(',')
@@ -241,6 +243,8 @@ pub(super) fn check_with_prefix(
             }
         }
         let mut seen = BTreeSet::new();
+        let mut controls = BTreeSet::new();
+        let mut condition_values = BTreeSet::new();
         for block in &function.blocks {
             let TerminatorKind::Conditional {
                 condition,
@@ -260,6 +264,10 @@ pub(super) fn check_with_prefix(
                     .kind,
                 TerminatorKind::Return { .. }
             );
+            assert!(
+                controls.insert(outer),
+                "two independent original control points"
+            );
             let role = flag_roles[usize::from(!outer)];
             seen.insert(role);
             if modes[role] {
@@ -276,6 +284,23 @@ pub(super) fn check_with_prefix(
                 };
                 assert_eq!(roles.get(&EntityId::Loan(flag)), Some(&role));
                 assert_eq!(read.results, [EntityId::Value(*condition)]);
+                assert!(condition_values.insert(*condition));
+                let start = text
+                    .find(&format!(
+                        "{}({})",
+                        if outer { "while" } else { "if" },
+                        flags[usize::from(!outer)]
+                    ))
+                    .unwrap()
+                    + if outer { 6 } else { 3 };
+                assert_eq!(
+                    read.origin,
+                    crate::ssa::model::Origin::Source(
+                        sources
+                            .span(c, start, start + flags[usize::from(!outer)].len())
+                            .unwrap()
+                    )
+                );
             }
             if outer {
                 assert!(
@@ -284,6 +309,7 @@ pub(super) fn check_with_prefix(
                 );
             }
         }
+        assert_eq!(controls, BTreeSet::from([false, true]));
         assert_eq!(seen, flag_roles.into_iter().collect());
         let results: Vec<_> = function
             .instructions

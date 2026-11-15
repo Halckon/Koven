@@ -6,7 +6,7 @@ use lang_frontend::{
     type_checking::{BuiltinType, UnitTypeKind},
 };
 pub(super) struct Source {
-    pub abi: [(SsaTypeId, ParameterMode); 3],
+    pub abi: Vec<(SsaTypeId, ParameterMode)>,
     pub roles: [usize; 3],
     pub conditions: [(UnitExpressionId, Span); 2],
     pub calls: [Vec<Call>; 2],
@@ -18,8 +18,8 @@ impl Source {
         types: &RefineTypes<'_>,
         fact: &UnitLoopBranchNoCarryFact,
     ) -> Option<Self> {
-        if inputs.parameters.len() != 3
-            || inputs.modes.len() != 3
+        if !matches!(inputs.parameters.len(), 2 | 3)
+            || inputs.modes.len() != inputs.parameters.len()
             || inputs
                 .modes
                 .iter()
@@ -98,7 +98,11 @@ impl Source {
             roles.push(inputs.parameters.iter().position(|p| p == symbol)?);
             conditions.push((UnitExpressionId::new(inputs.source_unit, *e), n.span()));
         }
-        if roles.iter().copied().collect::<BTreeSet<_>>().len() != 3 {
+        if roles.iter().copied().collect::<BTreeSet<_>>() != (0..inputs.parameters.len()).collect()
+            || roles[0] == roles[1]
+            || roles[0] == roles[2]
+            || (roles[1] == roles[2]) != (inputs.parameters.len() == 2)
+        {
             return None;
         }
         let abi = inputs
@@ -152,7 +156,7 @@ impl Source {
             None
         };
         Some(Self {
-            abi: abi.try_into().ok()?,
+            abi,
             roles: roles.try_into().ok()?,
             conditions: conditions.try_into().ok()?,
             calls: calls.try_into().ok()?,

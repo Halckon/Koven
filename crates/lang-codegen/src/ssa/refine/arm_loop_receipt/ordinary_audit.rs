@@ -9,7 +9,7 @@ impl Receipt {
         &self,
         program: &Program,
         fact: &UnitLoopBranchNoCarryFact,
-        abi: &[(SsaTypeId, ParameterMode); 3],
+        abi: &[(SsaTypeId, ParameterMode)],
         roles: &[usize; 3],
         conditions: &[(UnitExpressionId, Span); 2],
         dispatch: (
@@ -28,8 +28,12 @@ impl Receipt {
             || !p.fact.same_identity(fact)
             || p.fact != *fact
             || p.roles != *roles
-            || self.parameters.len() != 3
-            || roles.iter().copied().collect::<BTreeSet<_>>() != BTreeSet::from([0, 1, 2])
+            || !matches!(abi.len(), 2 | 3)
+            || self.parameters.len() != abi.len()
+            || roles.iter().copied().collect::<BTreeSet<_>>() != (0..abi.len()).collect()
+            || roles[0] == roles[1]
+            || roles[0] == roles[2]
+            || (roles[1] == roles[2]) != (abi.len() == 2)
             || p.conditions != conditions.map(|c| c.0)
             || p.condition_spans != conditions.map(|c| c.1)
         {
@@ -99,7 +103,7 @@ impl Receipt {
             return None;
         }
         let entry_block = f.block(ids[0])?;
-        if entry_block.parameters.len() != 3 {
+        if entry_block.parameters.len() != abi.len() {
             return None;
         }
         for (index, (entity, (ty, mode))) in entry_block.parameters.iter().zip(abi).enumerate() {

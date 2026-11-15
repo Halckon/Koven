@@ -20519,3 +20519,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 最终入口精确一条原 callee、原 source entry 实体与原 call Span 的无结果 DirectCall；完整 ABI slot 的 ending 仍逐一对应原 entry 实体，经原边运输到循环。其余原七块、两 Name 条件 Borrow/Value、每臂一/二 consumer 与唯一 End、全实体/type/Return、同次双边原子发布均不放宽。
 - 新两项目标通过：四种条件模式、六 ABI、source 顺序共 48 前消费形态各两次 assembly；实际 entry callee 由原声明 item Span 对应最终唯一 Function Origin，不猜生成函数名。Group/具名参数前消费均原正常 receipt 但精确 gap；旧域外前消费改为两次 consumer 仍保持 gap，suffix 继续原精确 InvalidModel/caller span 与零发布。
 - 受影响旧 arm 两项及 Value 三项通过；FE/codegen 三 feature all-targets 严格 Clippy（1m42s）、default codegen all-targets（32.31s）、格式/docs979/尺寸2466文件与2项历史欠账/diff 全部通过，独审无阻断。首编 E0616 日志保留，SourceConsumer 增加 feature-only 两个按值只读 getter 后实测通过，无构造或变更权限；未 native、故障注入或推送，默认 workspace 留联合一次。
+
+### D10 ordinary 双控制点共用原 Boolean 参数
+
+- 仅将完整 ABI 扩为两/三参数：source 始终 Borrow String，两参数时两个原 Name 条件必须映到同一 Boolean Borrow/Value 参数，三参数时仍必须不同角色且全部参数被覆盖；不把冗余参数、任意条件或一般循环纳入。两个原 expression/span 独立保存，与原 receipt 的对应角色逐一比对，不因符号相同合并条件事实。
+- 原七块、完整 entry slot 顺序、逐类型实体及边运输、原 source ledger/完整 caller 和同次两边原子发布不变。Borrow 模式在 header/split 仍各有独立 Read/result/原 Name Span，Value 模式两处 Conditional 各自追溯相同原 ABI 角色而无 Read；保零迭代出口和两臂 fresh 独立唯一 End。既有单次 source 前消费可组合，suffix 原 InvalidModel 与多前消费 gap 不改变。
+- 新两目标首遍实跑通过：两 ABI 顺序、Borrow/Value、前消费有无及 source 反序共 16 形态各两次 assembly；两种三参数同 flag 形态均原正常 receipt 但明确 gap。新 helper 另核两个独立控制点及 Read origin/result，不仅对角色集合去重。受影响旧 Value 三项、prefix 两项通过；FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.18s、格式检查通过。首次编译真实使用本树 FE/codegen，未 native、故障注入或推送；默认 workspace 留联合一次。
