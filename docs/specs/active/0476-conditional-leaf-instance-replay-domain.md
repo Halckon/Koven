@@ -29,9 +29,9 @@ allow/ignore/新依赖；不复用其他两套独立oracle，不改fixtures/sour
 
 ## 2. 验收
 
-- [ ] R1：完整回放器/原场景机械保全，只有限域与模块/导入变化，测试FQN不变。
-- [ ] R2：原测试精确命中1项（内部三个tail）基线/迁移后通过，本地提交。
-- [ ] R3：原iteration模块测试组合、完整frontend、Clippy/fmt/policy/docs/尺寸/空白、generated-owner Python真实锚点回归与独立精确diff审查。
+- [x] R1：完整回放器/原场景机械保全，只有限域与模块/导入变化，测试FQN不变。
+- [x] R2：原测试精确命中1项（内部三个tail）基线/迁移后通过，本地提交。
+- [x] R3：原iteration模块测试组合、完整frontend、Clippy/fmt/policy/docs/尺寸/空白、generated-owner Python真实锚点回归与独立精确diff审查。
 - [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
 
 本组只迁一套完整回放器；file_parent与sibling_shared_loans不按容量机械拆，后续先独立
@@ -39,4 +39,28 @@ allow/ignore/新依赖；不复用其他两套独立oracle，不改fixtures/sour
 
 ## 3. 真实证据
 
-待记录。
+合同f761a19b，实现282efad2，一套完整局部回放器按真实职责迁移，无容量拼接。
+conditional_leaf根 **1155→838**，新replay模块 **322**；mentions、fixture和场景全部
+断言原位，精确原测试FQN前后各 **1 passed/0 failed/0 ignored**，内部三个tail仍执行。
+iteration::tests组合 **40/0/0**，与完整frontend不重复累计覆盖。
+
+初次迁移工具按字段名替换过宽，误伤参数/模式/构造位置产生编译语法错误；随后从
+原完整块重建，仅在两个明确struct体内加字段可见性，编译通过。保留first-compile-failed.log，
+不当行为RED，不改断言绕过失败；最终补丁不含错误替换。完整回放器和剩余场景经
+rustfmt机械核对：只有限定pub(super)、私有模块与函数内导入/缩进变化，所有表达式/
+分支/临时快照/内部断言保持。policy只删该exception，其他JSON等值。
+
+组末完整frontend **3779 passed、0 failed、13 ignored**（含12实际通过compile-fail
+doctest），ignored不计执行；workspace all-target cargo check0（非下游测试运行）、
+frontend all-target Clippy -D warnings、generated-owner Python80（含真实源码锚点）、
+fmt、policy47、docs973、尺寸/空白0。2195手写Rust，历史超限 **3→2**，本PR21→2。
+
+独立fresh review完整f761a19b..282efad2真实diff与前像/父模块，No issues found，
+确认单一实例模型职责边界、无隐式外围capture、测试域pub(super)不扩生产API；旧choices/
+old_owners读取后统一提交、snapshot/phi clear/write/owner转移、capture path读取及全部
+scene oracle保持。审查只读不Cargo，日志不算独立重跑；父另验组末门禁。
+Architecture同步，原始日志/快照/完整diff/review留仓库外。
+
+Rust门禁后未再改，未重跑下游codegen/CLI/LSP测试全套、真实生成资源变异校准、CI-only
+fault或sanitizer；R4集中push和精确新头CI另验，Spec active、PR Draft，不归档合入。
+剩余file_parent1143与sibling_shared_loans1145先保留；不按数量为零强行拆散连续场景证明。
