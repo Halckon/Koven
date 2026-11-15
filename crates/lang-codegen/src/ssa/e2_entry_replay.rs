@@ -1,4 +1,5 @@
 //! Independent source entry replay. Reads actual instruction results; does not rerun emission.
+mod staggered;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use super::e2_entry::EmittedEntry;
 use super::model::*;
@@ -130,7 +131,9 @@ pub(super) fn replay_declared_body(
     if !block.parameters.is_empty()
         || block.origin != Origin::Source(declaration)
         || block.instructions.len()
-            != if d.shared_owner().is_some() {
+            != if d.staggered_owners().is_some() {
+                32
+            } else if d.shared_owner().is_some() {
                 let counts: Vec<_> = d
                     .calls()
                     .iter()
@@ -180,57 +183,62 @@ pub(super) fn replay_declared_body(
         ids: &block.instructions,
         index: 0,
     };
-    let shared = if let Some((symbol, _, span, bytes, drop)) = d.shared_owner() {
-        if d.calls().len() != 2
-            || drop.target() != UnitDropTarget::Named(symbol)
-            || drop.point()
-                != lang_frontend::ownership_checking::UnitDropPoint::CallReturn(
-                    d.calls()[1].contracts()[0].call(),
-                )
-        {
-            return None;
-        }
-        let string = SsaTypeId {
-            module: module.id,
-            index: module
-                .types
-                .iter()
-                .position(|ty| *ty == SsaTypeKind::StringOwner)?,
-        };
-        let origin = Origin::Source(span);
-        let owner = value(cursor.step(
-            Operation::StringLiteral {
-                string,
-                bytes: bytes.to_vec(),
-            },
-            origin.clone(),
-            Some(EntityType::Value(string)),
-        )?)?;
-        let root = place(cursor.step(
-            Operation::RootPlace { owner },
-            origin,
-            Some(EntityType::Place(string)),
-        )?)?;
-        Some((symbol, owner, root))
+    if d.staggered_owners().is_some() {
+        staggered::replay(module, &mut cursor, caller, d)?;
     } else {
-        None
-    };
-    for call in d.calls() {
-        replay_call(
-            module,
-            &mut cursor,
-            caller,
-            call,
-            shared.map(|(symbol, _, root)| (symbol, root)),
-        )?;
-    }
-    if let Some((_, owner, _)) = shared {
-        let (_, _, _, _, drop) = d.shared_owner()?;
-        cursor.step(
-            Operation::Drop { owner },
-            Origin::Source(drop.value_origin()),
-            None,
-        )?;
+        let shared = if let Some((symbol, _, span, bytes, drop)) = d.shared_owner() {
+            if d.calls().len() != 2
+                || drop.target() != UnitDropTarget::Named(symbol)
+                || drop.point()
+                    != lang_frontend::ownership_checking::UnitDropPoint::CallReturn(
+                        d.calls()[1].contracts()[0].call(),
+                    )
+            {
+                return None;
+            }
+            let string = SsaTypeId {
+                module: module.id,
+                index: module
+                    .types
+                    .iter()
+                    .position(|ty| *ty == SsaTypeKind::StringOwner)?,
+            };
+            let origin = Origin::Source(span);
+            let owner = value(cursor.step(
+                Operation::StringLiteral {
+                    string,
+                    bytes: bytes.to_vec(),
+                },
+                origin.clone(),
+                Some(EntityType::Value(string)),
+            )?)?;
+            let root = place(cursor.step(
+                Operation::RootPlace { owner },
+                origin,
+                Some(EntityType::Place(string)),
+            )?)?;
+            Some((symbol, owner, root))
+        } else {
+            None
+        };
+        let shared_roots = shared.map(|(symbol, _, root)| [(symbol, root)]);
+        for call in d.calls() {
+            replay_call(
+                module,
+                &mut cursor,
+                caller,
+                call,
+                shared_roots.as_ref().map(|roots| roots.as_slice()),
+            )?;
+        }
+        if let Some((_, owner, _)) = shared {
+            let (_, _, _, _, drop) = d.shared_owner()?;
+            cursor.step(
+                Operation::Drop { owner },
+                Origin::Source(drop.value_origin()),
+                None,
+            )?;
+        }
     }
     (cursor.index == block.instructions.len()).then_some(())
 }
@@ -239,7 +247,7 @@ fn replay_call(
     cursor: &mut Cursor<'_>,
     caller: FunctionId,
     d: &EntryCallDescriptor,
-    shared: Option<(UnitSymbolId, PlaceId)>,
+    shared: Option<&[(UnitSymbolId, PlaceId)]>,
 ) -> Option<()> {
     if shared.is_some()
         && (!d.named_strings().is_empty()
@@ -330,8 +338,10 @@ fn replay_call(
         let role = d.argument_role(i)?;
         let ty = *[string, string, int, boolean].get(role)?;
         let root = if let Some(symbol) = d.named_argument_root(i) {
-            if let Some((actual, root)) = shared {
-                if actual != symbol {
+            if let Some(roots) = shared {
+                let mut matching = roots.iter().filter(|(actual, _)| *actual == symbol);
+                let root = matching.next()?.1;
+                if matching.next().is_some() {
                     return None;
                 }
                 root

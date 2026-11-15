@@ -20451,3 +20451,35 @@ fmt/文档/size/diff通过，无断言调整或人工故障。构建按真实本
 - 新增三种非全 Borrow 模式组合 × 六 ABI × 两 condition 次序及 source/末段排列，另测两参数共用 Value flag；额外/冗余参数、Group 保原精确边界，owned String source 经真实分类探针确认在原 ownership 层以两条 L0164 拒绝，精确核 caller 中两处 borrow 六字符位置，不吞并任意 lowering 错误。
 - 末版真实 fresh 16 项（新 Value 3、相关 flag 2、旧 fresh 11）与旧 Partial 2 项通过；新正例 144 个三参组合和 8 个共 Value 两参组合各独立 assembly 两次，核原 Value 条件无 Read、Borrow 条件精确 Read、逐角色运输及零迭代退出。单 loop 原两 Borrow 准入保持。
 - codegen 三 feature all-targets 严格 Clippy（52.08s）、default codegen all-targets（32.24s）、格式/docs968/尺寸2423文件与21项历史欠账/diff 门禁通过，末版独审无阻断。原 owned source 分类探针失败日志保留；最终验收链首遍通过，真实重编本树 frontend，未运行 native、故障注入或推送。
+
+### E2两个named owner的错峰最后使用（2026-11-15）
+
+基于0bfae681，候选精确两plain String val与两同完整instance裸Call，
+首call的两个String实参指向两个不同原root，次call两实参指向同survivor；
+scalar仅直接literal，无String temporary、第三root、额外语句或不同callee。
+普通ownership probe三组源码已通过：不同bytes、同bytes交换存活根、声明顺序
+倒置与具名参数重排；均8 Shared loan/8真实End，首CallReturn完整Drop向量
+仅早结束根，次CallReturn仅survivor，每root全局唯一。E2红精确UnsupportedSelection。
+
+私有StaggeredNamedPair根持两个原initializer和对应真实Drop，per-call仅有
+引用权限；survivor由原实参/完整loan身份确定，不按Drop排序反推。
+独立emit/replay按原声明顺序建立两个owner/root，每call全部End后消费原Drop，
+已释放root移出可用映射，后续不能再借用；32条指令仅辅助检查，最终cursor全消费。
+旧single、SharedNamedPair、SharedMixed域不扩大。生产独审无阻断；新目标保
+两初始化/RootPlace在首BorrowBegin之前，三正例及八个正常源码域外负控。
+正式two-source-unit及三feature staggered_owners各3目标通过；正式旧mixed三目标、
+shared-owner三目标、temporary-pair五目标回归通过。三feature frontend/codegen
+双crate all-targets严格Clippy首次通过（1m39s），无失败或断言调整。
+本片三个精确目标加入原CI双配置清单，bash语法检查通过；未本地执行CI故障脚本。
+本轮锁定0bfae681基线，未混入后续main迁移；按本树FE/API重编避免跨树旧rmeta。
+未重复默认workspace门禁；不推送、不执行native或本地故障注入。
+
+### E2 近期入口 CI 精确目标补齐（独立清单增量）
+
+- 在 staggered 本地提交 `954e2f83` 基线上补全 `scalar_origin`、`direct_scalars`、
+  `expression_entry`、`two_call_entry`、`shared_owner_pair`、`shared_mixed_pair` 六模块
+  共 17 个已有正常测试的精确名称，沿用原两 feature 配置和 `--exact`/列名唯一门禁。
+- 原 25 个 unit 目标及 7 个 public-library 目标顺序和 CI-only/fault 执行限制不变，
+  unit 清单合计 42 个；同时修正原输出中已滞后的数量。没有新增或改写生产与测试。
+- 本片仅静态逐项核对模块注册、原 `#[test]` 函数名及不存在 ignored/cfg 差异；
+  不重跑已完成的本地分片验证，不执行 native 或人工故障项，也不声称远程 CI 已运行。

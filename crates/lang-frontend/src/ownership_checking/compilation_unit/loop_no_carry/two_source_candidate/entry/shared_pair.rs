@@ -71,7 +71,7 @@ pub(super) fn finish(
         _ => return None,
     }
     Some(EntryCalls::SharedNamedPair {
-        owner: Box::new(SharedEntryOwner {
+        owner: Box::new(EntryOwnerDescriptor {
             root,
             initializer,
             span,
