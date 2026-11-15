@@ -14,6 +14,7 @@ use lang_frontend::{
 };
 use std::rc::Rc;
 mod sequence;
+mod single;
 type Edge = (FunctionId, InstructionId, FunctionId);
 type Call = (UnitFunctionInstanceKey, FunctionId);
 struct Expected {
@@ -25,6 +26,7 @@ struct Expected {
     source_index: Option<usize>,
     segments: Option<[Vec<SourceConsumer>; 2]>,
     sequence: Option<sequence::Source>,
+    single: Option<single::Source>,
 }
 struct Snapshot {
     receipt: Receipt,
@@ -183,7 +185,7 @@ impl Transaction {
                         return None;
                     }
                 }
-                validate_final(s, program, calls, e.abi?, e.source_index?)
+                validate_final(s, program, calls, e.single.as_ref()?, &e.fact)
             })();
             match result {
                 Some(edge) if edges.insert(edge) => (),
@@ -265,6 +267,7 @@ pub(in crate::ssa) fn expect(inputs: &RefineInputs<'_>, types: &RefineTypes<'_>)
                 .collect(),
             segments,
             sequence: sequence::original_order(inputs, fact, types),
+            single: single::Source::collect(inputs, fact, types),
         };
         RUNS.with(|r| {
             if let Some(s) = r.borrow().last() {
@@ -287,10 +290,13 @@ fn validate_final(
     s: &Snapshot,
     program: &Program,
     calls: &[Call],
-    abi: [SsaTypeId; 2],
-    source_index: usize,
+    source: &single::Source,
+    fact: &UnitLoopNoCarryFact,
 ) -> Option<Edge> {
-    let f = validate_caller(s, program, &abi, &[ParameterMode::Borrow; 2], source_index)?;
+    if !source.matches(&s.receipt, fact) {
+        return None;
+    }
+    let f = validate_caller(s, program, &source.abi, &source.modes, source.source_index)?;
     let edge = validate_loop(s, f, calls, 0)?;
     validate_segments(
         s,
