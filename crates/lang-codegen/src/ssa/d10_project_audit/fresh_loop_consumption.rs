@@ -129,7 +129,14 @@ impl Transaction {
                 let body_count = e.fact.consumers().len();
                 if !matches!(
                     (body_count, segments[0].len(), segments[1].len()),
-                    (1, 0, 0) | (1, 1, 1) | (2, 0, 0) | (2, 1, 1)
+                    (1, 0, 0)
+                        | (1, 1, 0)
+                        | (1, 0, 1)
+                        | (1, 1, 1)
+                        | (2, 0, 0)
+                        | (2, 1, 0)
+                        | (2, 0, 1)
+                        | (2, 1, 1)
                 ) {
                     return None;
                 }

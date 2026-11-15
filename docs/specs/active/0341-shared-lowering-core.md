@@ -20322,3 +20322,14 @@ ABI排列、每loan唯一End及每String owner唯一且晚于全部End的Drop，
 原declaration_order两目标回归通过；独立静审无阻断，文档/size/diff通过。
 三feature frontend/codegen双crate all-targets严格Clippy通过（4m54s）；
 不推送、不执行native或本地故障注入。
+
+
+### D10 fresh-loop 单侧 source 段（增量验收）
+
+首个独立 AST expected 接受精确 `[before, while]` 或 `[while, after]`，仍通过原只读 source consumer admission 核原完整字段/loan/contract。
+原双段 sealed receipt 必须一段恰空、另一段与该独立 expected 全等；对应 source 调用实际落 entry 或 loop exit，由原 CFG validator 决定运输角色。
+body 仅一/二消费者，前后段各至多一，final 所有原 dispatch、原 typed ABI、完整 Function 与 no-carry 检查不变。
+真实正例覆盖两侧、body一/二且两 callee 交换、源/ABI反序和同 observe 双 assembly；
+显式核唯一 outer 调用/空段、实际块/目标及其 source 参数不等于 fresh result，原 loan call 全集唯一。
+原三 body 消费、单段两次及以上均保真实正常 receipt 但新域 gap；不改 producer、旧 Partial 或一般循环终止边界。
+独立静审通过；末版 fresh 模块六项与旧 Partial loop 两项全部通过。单侧 prefix-only 出口零参数、suffix-only 出口保留一个 source 参数且实际 after 调用位于 Return 块的断言均成立；不代表运行循环或终止证明。frontend/codegen 三 feature 严格 Clippy all-targets 通过（2m39），默认仅两 crate all-targets check 通过（16.28s）。格式已执行，968 Markdown 文档门禁、尺寸门禁（基ae95e90e，2419文件/21历史债）及差异检查通过；不是 workspace 全验。未推送、未执行 native 或人工故障。日志为 `/private/tmp/d10-fresh-sided-{tests,oldloop,strict,default,size}.log`。

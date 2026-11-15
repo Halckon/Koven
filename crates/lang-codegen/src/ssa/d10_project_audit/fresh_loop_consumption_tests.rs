@@ -54,7 +54,23 @@ fn two_body_uses_and_outer_source_segments_keep_distinct_lifetimes() {
     }
 }
 #[test]
-fn original_longer_use_sets_and_unbalanced_segments_remain_outside_fresh_domain() {
+fn single_sided_source_segments_bind_the_exact_entry_or_exit() {
+    for segments in [(1, 0), (0, 1)] {
+        for reverse_sources in [false, true] {
+            for reverse_parameters in [false, true] {
+                for uses in [
+                    "consume(item)",
+                    "consume(item);other(item)",
+                    "other(item);consume(item)",
+                ] {
+                    check(reverse_sources, reverse_parameters, uses, segments, true);
+                }
+            }
+        }
+    }
+}
+#[test]
+fn original_longer_use_sets_and_longer_segments_remain_outside_fresh_domain() {
     check(
         false,
         false,
@@ -69,7 +85,16 @@ fn original_longer_use_sets_and_unbalanced_segments_remain_outside_fresh_domain(
         (1, 1),
         false,
     );
-    for segments in [(1, 0), (0, 1), (2, 1), (1, 2)] {
+    for segments in [(1, 0), (0, 1)] {
+        check(
+            false,
+            false,
+            "consume(item);other(item);consume(item)",
+            segments,
+            false,
+        );
+    }
+    for segments in [(2, 0), (0, 2), (2, 1), (1, 2)] {
         check(false, false, "consume(item)", segments, false);
         check(false, false, "consume(item);other(item)", segments, false);
     }
@@ -228,6 +253,106 @@ fn check(
                         .edges
                         .iter()
                         .all(|(_, edge)| !edge.arguments.contains(result))
+                );
+            }
+            if matches!(segments, (1, 0) | (0, 1)) {
+                let side = usize::from(segments.1 == 1);
+                assert_eq!(receipt.segments.len(), 2);
+                assert!(receipt.segments[1 - side].instructions.is_empty());
+                assert!(!audit.direct_edges.contains(&(
+                    declaration("run"),
+                    declaration(if side == 0 { "after" } else { "before" })
+                )));
+                let exits: Vec<_> = function
+                    .blocks
+                    .iter()
+                    .filter(|b| {
+                        matches!(
+                            b.terminator.as_ref().map(|t| &t.kind),
+                            Some(TerminatorKind::Return { .. })
+                        )
+                    })
+                    .collect();
+                assert_eq!(exits.len(), 1);
+                assert_eq!(
+                    exits[0].parameters.len(),
+                    side,
+                    "only suffix consumption keeps source live at exit"
+                );
+
+                let [id] = receipt.segments[side].instructions.as_slice() else {
+                    panic!("one exact outer call");
+                };
+                let actual = function.instruction(*id).unwrap();
+                assert_eq!(Some(actual.block) == function.entry_block(), side == 0);
+                if side == 1 {
+                    assert_eq!(actual.block, exits[0].id);
+                }
+
+                let Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    arguments,
+                } = &actual.operation
+                else {
+                    panic!("source consumer");
+                };
+                let target = program
+                    .modules
+                    .iter()
+                    .flat_map(|m| &m.functions)
+                    .find(|f| f.id == *callee)
+                    .unwrap();
+                assert!(
+                    target
+                        .name
+                        .contains(if side == 0 { ".before." } else { ".after." })
+                );
+                let [argument] = arguments.as_slice() else {
+                    panic!("source argument");
+                };
+                assert!(
+                    function
+                        .block(actual.block)
+                        .unwrap()
+                        .parameters
+                        .contains(argument)
+                );
+                let fresh = receipt.loops[0]
+                    .instructions
+                    .iter()
+                    .find(|(tag, _)| *tag == fresh_loop_receipt::Tag::Result)
+                    .unwrap()
+                    .1;
+                assert!(
+                    !function
+                        .instruction(fresh)
+                        .unwrap()
+                        .results
+                        .contains(argument)
+                );
+                let source = function
+                    .block(function.entry_block().unwrap())
+                    .unwrap()
+                    .parameters[usize::from(reverse_parameters)];
+                assert_eq!(
+                    function.entity(*argument).unwrap().ty,
+                    function.entity(source).unwrap().ty
+                );
+                let loans: Vec<_> = owned
+                    .ownership()
+                    .loans()
+                    .iter()
+                    .filter(|l| l.call().source_unit() == facts[0].callable().source_unit())
+                    .collect();
+                assert_eq!(loans.len(), 2 + facts[0].consumers().len());
+                assert_eq!(
+                    loans
+                        .iter()
+                        .map(|l| l.call())
+                        .collect::<BTreeSet<_>>()
+                        .len(),
+                    loans.len()
                 );
             }
             if segments == (1, 1) {

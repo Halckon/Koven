@@ -142,6 +142,14 @@ pub(crate) fn audit_segments(
     };
     match elements.as_slice() {
         [only] if *only == fact.loop_statement().statement() => Some([Vec::new(), Vec::new()]),
+        [before, only] if *only == fact.loop_statement().statement() => Some([
+            vec![consumer(inputs, *before, fact.source()).ok()??],
+            Vec::new(),
+        ]),
+        [only, after] if *only == fact.loop_statement().statement() => Some([
+            Vec::new(),
+            vec![consumer(inputs, *after, fact.source()).ok()??],
+        ]),
         [before, middle, after] if *middle == fact.loop_statement().statement() => Some([
             vec![consumer(inputs, *before, fact.source()).ok()??],
             vec![consumer(inputs, *after, fact.source()).ok()??],
