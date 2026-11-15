@@ -20508,3 +20508,12 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 恰三参时额外核最终入口首 Branch 的实际参数集合只含原 source/flag；参数次序与目标角色对应仍由原完整 CFG transport validator 检查。未用 Boolean 在首边不再运输，不声称或补造显式 BorrowEnd/析构。
 - 新测试准备覆盖六种 ABI 顺序、active/unused 各 Borrow/Value、source 反序及首尾段/单双 body 交叉，独立核 unused 身份不进入任何边或非入口 block parameter；第四参、超长段保持原正常 receipt/gap。实际 extra 使用与非 Boolean 原 route 均经原正常源码确认 lowering 成功、SSA verifier 通过、audit 一个但无 fresh receipt，保精确 missing/outside-domain gap 且不发布来源边；extra 的 inspect 调用仍恰一次并保 SharedReborrow gap，未通过删 use 冒充 unused。
 - 末版新三项测试（192 正向组合各两次独立 assembly）、受影响 single Value 三项、原 Borrow 单 scope 一项与旧 Partial 两项通过；codegen 三 feature all-targets 严格 Clippy（53.19s）、default codegen all-targets（32.24s）、格式/docs979/尺寸2460文件与2项历史欠账/diff 门禁通过，独审无阻断。首分类探针的错误假设失败完整留存，后续真实分类与收紧 oracle 分开，末版验收首遍通过；未 native、故障注入或推送。
+
+
+### E2 保行为的逐 occurrence 绑定
+
+基联合 f2923811 的第一步仅重构正式 common 路线，不开放不同 callee。EntryDescriptor 的 common_instance 仅在所有原调用 FullInstance 相同才返回；旧单 caller publication/coverage 显式拒绝 None，不回退首调用。私有 Single/Pair 表保留源码调用位置及重复次数，EntryKeys 从每个原 typed call 双核完整 instance；prepare 按 occurrence 选择唯一 fact 后仅对定义集合去重，JointPlan 保全 key 序列，ordinary root-set 逐 occurrence 重核 required 图并保预算、精确集合覆盖。
+
+共同 arena 发布由原 function_ids 解析每个位置，解析前再次比对原 typed key，核 key 与 FunctionId 双向唯一；emitter 与独立 replay 每次按位置及完整 key 读取 callee，原借用/End/Drop 与初始化次序不改。旧独立单 caller 路线仍使用显式共同 key 包装器，不扩大权限。固定 key 表的构造不提供公开能力或可修改来源。
+
+新增四个正常目标：两个独立完整 E2 callee 分别正控与同 callee 两次 occurrence、同一完整输入两个闭合 callee 保持 UnsupportedSelection、两个不同原调用的普通 8 loan/8 End/4 temporary Drop 顺序 probe，以及纯 prepare/verify/render 多 entry 共享 callee 映射。未使用故障注入或 native 执行；正式 two-source-unit 四项（先3项、再第四项增量）与三 feature 四项均通过；受影响 late_initialization 3、staggered_owners 3、shared_entries 1 正常回归均通过。三 feature 的 frontend/codegen 双 crate all-targets Clippy `-D warnings` 首次通过。两个旧对象产物目标未执行，不计入通过；纯prepare多entry目标补齐正式映射验收。fmt、docs、size（2464 Rust 文件、2 个既有超限债务）、shell语法、diff静态门禁通过。CI 本片四个精确目标加入已整合旧17的列表，每配置实际49 unit目标，另7 public和1 frontend；不得以列表登记代替执行证据。

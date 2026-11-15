@@ -33,7 +33,7 @@ pub(super) type CommonParts<'a> = (
     super::unit_plan::UnitInstancePlan,
     Vec<&'a CalleeLeaf>,
     Vec<(&'a TwoSourceCounterFact, UnitCallableInstanceKey)>,
-    Vec<(&'a EntryDescriptor, UnitCallableInstanceKey)>,
+    Vec<(&'a EntryDescriptor, super::e2_occurrences::EntryKeys)>,
 );
 
 /// No SSA IDs exist until this closed selection is consumed.
@@ -41,7 +41,7 @@ pub(super) struct JointPlan<'a> {
     experiment: &'a TwoSourceExperiment,
     typed: &'a ValidatedCompilationUnitTypes,
     routes: Vec<(UnitCallableInstanceKey, Route<'a>)>,
-    entries: Vec<(&'a EntryDescriptor, UnitCallableInstanceKey)>,
+    entries: Vec<(&'a EntryDescriptor, super::e2_occurrences::EntryKeys)>,
     ordinary: ordinary::OrdinaryPlans,
 }
 impl<'a> JointPlan<'a> {
@@ -108,7 +108,7 @@ impl<'a> JointPlan<'a> {
         .map_err(PlanRejection::UnitPreflightRejected)?;
         (|| {
             let mut routes: Vec<(UnitCallableInstanceKey, Route<'a>)> = Vec::new();
-            let mut planned_entries: Vec<(&EntryDescriptor, UnitCallableInstanceKey)> = Vec::new();
+            let mut planned_entries: Vec<(&EntryDescriptor, super::e2_occurrences::EntryKeys)> = Vec::new();
             for entry in entries {
                 if !experiment.owns_entry(entry)
                     || planned_entries
@@ -117,10 +117,9 @@ impl<'a> JointPlan<'a> {
                 {
                     return None;
                 }
-                let key = entry.instance();
-                for occurrence in entry.calls() {
-                    if typed.types().call(occurrence.contracts()[0].call())?.instance() != key || occurrence.instance() != key { return None; }
-                }
+                let keys = super::e2_occurrences::EntryKeys::checked(entry, typed)?;
+                // Preserve old one-fact-per-entry legacy policy, but retain every call occurrence.
+                let key = entry.common_instance()?;
                 let mut owners = facts.iter().copied().filter(|fact| {
                     experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())
                 });
@@ -135,7 +134,7 @@ impl<'a> JointPlan<'a> {
                 } else {
                     routes.push((key.clone(), Route::E2Caller(fact)));
                 }
-                planned_entries.push((entry, key.clone()));
+                planned_entries.push((entry, keys));
             }
             // Selection is exactly the entry-referenced fact set, not a superset granting bindings.
             if routes.len()!=facts.len() || facts.iter().any(|fact| {

@@ -80,7 +80,7 @@ pub(super) fn replay(
     let d = emitted.descriptor();
     if !experiment.matches_types(typed)
         || !experiment.owns_entry(d)
-        || d.instance().target() != UnitCallTarget::Declaration(experiment.callable(fact)?)
+        || d.common_instance()?.target() != UnitCallTarget::Declaration(experiment.callable(fact)?)
     {
         return None;
     }
@@ -108,6 +108,7 @@ pub(super) fn replay_body(
 ) -> Option<()> {
     replay_declared_body(module, entry, caller, d, d.body())
 }
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn replay_declared_body(
     module: &Module,
     entry: FunctionId,
@@ -115,6 +116,19 @@ pub(super) fn replay_declared_body(
     d: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
     declaration: lang_frontend::source::Span,
 ) -> Option<()> {
+    let bindings = super::e2_occurrences::Bindings::uniform(d, caller)?;
+    replay_bound_body(module, entry, &bindings, d, declaration)
+}
+pub(super) fn replay_bound_body(
+    module: &Module,
+    entry: FunctionId,
+    bindings: &super::e2_occurrences::Bindings,
+    d: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
+    declaration: lang_frontend::source::Span,
+) -> Option<()> {
+    if !bindings.matches(d) {
+        return None;
+    }
     let f = module.function(entry)?;
     if f.receiver.is_some()
         || f.carrier_return.is_some()
@@ -184,7 +198,7 @@ pub(super) fn replay_declared_body(
         index: 0,
     };
     if d.staggered_owners().is_some() {
-        staggered::replay(module, &mut cursor, caller, d)?;
+        staggered::replay(module, &mut cursor, bindings, d)?;
     } else {
         let shared = if let Some((symbol, _, span, bytes, drop)) = d.shared_owner() {
             if d.calls().len() != 2
@@ -222,7 +236,8 @@ pub(super) fn replay_declared_body(
             None
         };
         let shared_roots = shared.map(|(symbol, _, root)| [(symbol, root)]);
-        for call in d.calls() {
+        for (index, call) in d.calls().iter().enumerate() {
+            let caller = bindings.caller(index, call)?;
             replay_call(
                 module,
                 &mut cursor,

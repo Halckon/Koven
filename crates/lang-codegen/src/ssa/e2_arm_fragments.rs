@@ -459,7 +459,10 @@ impl<'a> EmittedCallerSet<'a> {
         let mut declarations = Vec::new();
         let mut required = Vec::new();
         for descriptor in descriptors {
-            if !experiment.owns_entry(descriptor) || declarations.contains(&descriptor.entry()) {
+            if !experiment.owns_entry(descriptor)
+                || descriptor.common_instance().is_none()
+                || declarations.contains(&descriptor.entry())
+            {
                 return None;
             }
             declarations.push(descriptor.entry());
@@ -467,7 +470,7 @@ impl<'a> EmittedCallerSet<'a> {
                 experiment
                     .callable(fact)
                     .map(lang_frontend::type_checking::UnitCallTarget::Declaration)
-                    == Some(descriptor.instance().target())
+                    == descriptor.common_instance().map(|key| key.target())
             });
             let (fact, caller) = matches.next()?;
             if matches.next().is_some() || selected.contains(caller) {
@@ -479,7 +482,7 @@ impl<'a> EmittedCallerSet<'a> {
                     .types()
                     .call(occurrence.contracts()[0].call())?
                     .instance();
-                if actual != occurrence.instance() || actual != descriptor.instance() {
+                if actual != occurrence.instance() || actual != descriptor.common_instance()? {
                     return None;
                 }
                 if !required.contains(actual) {
@@ -542,7 +545,7 @@ impl<'a> EmittedCallerSet<'a> {
         }
         let mut source_map = self.arms.leaves.functions.clone();
         for (descriptor, caller) in descriptors.iter().zip(&selected) {
-            source_map.push((descriptor.instance().clone(), *caller));
+            source_map.push((descriptor.common_instance()?.clone(), *caller));
         }
         if required.len() != source_map.len() {
             return None;

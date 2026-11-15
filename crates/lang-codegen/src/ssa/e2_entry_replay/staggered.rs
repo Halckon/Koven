@@ -5,7 +5,7 @@ use lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor;
 pub(super) fn replay(
     module: &Module,
     cursor: &mut Cursor<'_>,
-    caller: FunctionId,
+    bindings: &crate::ssa::e2_occurrences::Bindings,
     d: &EntryDescriptor,
 ) -> Option<()> {
     let owners = d.staggered_owners()?;
@@ -37,7 +37,8 @@ pub(super) fn replay(
         )?)?;
         actual.push((descriptor.root(), owner, root, false));
     }
-    for call in d.calls() {
+    for (index, call) in d.calls().iter().enumerate() {
+        let caller = bindings.caller(index, call)?;
         if !call.initialization_order().is_empty()
             || !call.drops().is_empty()
             || (0..4).any(|i| call.temporary_string(i).is_some())

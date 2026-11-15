@@ -16,7 +16,7 @@ impl OrdinaryPlans {
     pub(super) fn build(
         selected: &ExperimentalUnitHandoff<'_, '_>,
         experiment: &TwoSourceExperiment,
-        entries: &[(&EntryDescriptor, UnitCallableInstanceKey)],
+        entries: &[(&EntryDescriptor, crate::ssa::e2_occurrences::EntryKeys)],
         facts: &[&TwoSourceCounterFact],
     ) -> Option<Self> {
         let parsed = crate::ssa::lowering_support::parsed_by_source_unit(
@@ -26,15 +26,21 @@ impl OrdinaryPlans {
         .ok()?;
         let roots: Vec<_> = entries.iter().map(|(entry, _)| entry.entry()).collect();
         let mut expected = BTreeSet::new();
-        for (entry, key) in entries {
-            let mut owners = facts.iter().copied().filter(|fact| {
-                experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())
-            });
-            let fact = owners.next()?;
-            if owners.next().is_some() {
+        for (entry, keys) in entries {
+            let original = crate::ssa::e2_occurrences::EntryKeys::checked(entry, selected.types())?;
+            if original.as_slice() != keys.as_slice() {
                 return None;
             }
-            expected.extend(required(experiment, fact, entry, key, selected.types())?);
+            for key in keys.as_slice() {
+                let mut owners = facts.iter().copied().filter(|fact| {
+                    experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())
+                });
+                let fact = owners.next()?;
+                if owners.next().is_some() {
+                    return None;
+                }
+                expected.extend(required(experiment, fact, entry, key, selected.types())?);
+            }
         }
         // Reuse the D10 root-set worklist: a single callable planner and one global instance budget.
         let plan = plan_unit_root_set_from_facts(
@@ -66,19 +72,25 @@ impl OrdinaryPlans {
             return None;
         }
         let mut expected = BTreeSet::new();
-        for (entry, key) in &joint.entries {
-            let mut owners = joint
-                .routes
-                .iter()
-                .filter_map(|(candidate, route)| match route {
-                    Route::E2Caller(fact) if candidate == key => Some(*fact),
-                    _ => None,
-                });
-            let fact = owners.next()?;
-            if owners.next().is_some() {
+        for (entry, keys) in &joint.entries {
+            let original = crate::ssa::e2_occurrences::EntryKeys::checked(entry, joint.typed)?;
+            if original.as_slice() != keys.as_slice() {
                 return None;
             }
-            expected.extend(required(joint.experiment, fact, entry, key, joint.typed)?);
+            for key in keys.as_slice() {
+                let mut owners = joint
+                    .routes
+                    .iter()
+                    .filter_map(|(candidate, route)| match route {
+                        Route::E2Caller(fact) if candidate == key => Some(*fact),
+                        _ => None,
+                    });
+                let fact = owners.next()?;
+                if owners.next().is_some() {
+                    return None;
+                }
+                expected.extend(required(joint.experiment, fact, entry, key, joint.typed)?);
+            }
         }
         check(&self.plan, &expected)
     }

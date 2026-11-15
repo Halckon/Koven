@@ -36,7 +36,7 @@ pub(super) fn audit(
     for occurrence in descriptor.calls() {
         let entry_call = typed.types().call(occurrence.contracts()[0].call())?;
         if entry_call.instance() != occurrence.instance()
-            || occurrence.instance() != descriptor.instance()
+            || occurrence.instance() != descriptor.common_instance()?
         {
             return None;
         }
@@ -50,7 +50,10 @@ pub(super) fn audit(
         }
     }
     // The selected source definitions are locators, not the source of required keys.
-    let mut selected = vec![(descriptor.instance().clone(), emitted.function.caller)];
+    let mut selected = vec![(
+        descriptor.common_instance()?.clone(),
+        emitted.function.caller,
+    )];
     selected.extend(emitted.function.fragments.leaves.functions.iter().cloned());
     if selected.len() != required.len() {
         return None;
