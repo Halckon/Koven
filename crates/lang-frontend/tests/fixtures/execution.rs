@@ -170,7 +170,9 @@ pub(super) fn run_parser_pass_suite(root: &Path) -> Result<Vec<ParserCaseOutcome
         .collect())
 }
 
-pub(super) fn run_parser_pass_case(case: &FixtureCase) -> Result<ParserEvidence, ParserCaseFailure> {
+pub(super) fn run_parser_pass_case(
+    case: &FixtureCase,
+) -> Result<ParserEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
     let parsed = parse_fixture_twice(&sources, &lexed, parse_expression)?;
@@ -201,7 +203,9 @@ pub(super) fn run_parser_fail_suite(root: &Path) -> Result<Vec<ParserCaseOutcome
         .collect())
 }
 
-pub(super) fn run_parser_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCaseFailure> {
+pub(super) fn run_parser_fail_case(
+    case: &LexerFailCase,
+) -> Result<ParserEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
     let parsed = parse_fixture_twice(&sources, &lexed, parse_expression)?;
@@ -284,7 +288,9 @@ pub(super) fn run_lambda_pass_suite(root: &Path) -> Result<Vec<ParserCaseOutcome
         .collect())
 }
 
-pub(super) fn run_lambda_pass_case(case: &FixtureCase) -> Result<ParserEvidence, ParserCaseFailure> {
+pub(super) fn run_lambda_pass_case(
+    case: &FixtureCase,
+) -> Result<ParserEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
     let parsed = parse_fixture_twice(&sources, &lexed, parse_expression)?;
@@ -314,7 +320,9 @@ pub(super) fn run_lambda_fail_suite(root: &Path) -> Result<Vec<ParserCaseOutcome
         .collect())
 }
 
-pub(super) fn run_lambda_fail_case(case: &LexerFailCase) -> Result<ParserEvidence, ParserCaseFailure> {
+pub(super) fn run_lambda_fail_case(
+    case: &LexerFailCase,
+) -> Result<ParserEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
     let parsed = parse_fixture_twice(&sources, &lexed, parse_expression)?;
@@ -331,7 +339,9 @@ pub(super) fn run_lambda_fail_case(case: &LexerFailCase) -> Result<ParserEvidenc
     })
 }
 
-pub(super) fn run_declaration_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+pub(super) fn run_declaration_pass_suite(
+    root: &Path,
+) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
     let cases = discover_fixtures(root)?;
     Ok(cases
         .iter()
@@ -342,7 +352,9 @@ pub(super) fn run_declaration_pass_suite(root: &Path) -> Result<Vec<DeclarationC
         .collect())
 }
 
-pub(super) fn run_declaration_pass_case(case: &FixtureCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
+pub(super) fn run_declaration_pass_case(
+    case: &FixtureCase,
+) -> Result<DeclarationEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
     let parsed = parse_fixture_twice(&sources, &lexed, parse_declaration)?;
@@ -362,7 +374,9 @@ pub(super) fn run_declaration_pass_case(case: &FixtureCase) -> Result<Declaratio
     })
 }
 
-pub(super) fn run_declaration_fail_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+pub(super) fn run_declaration_fail_suite(
+    root: &Path,
+) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
     let cases = discover_lexer_fail_cases(root)?;
     Ok(cases
         .iter()
@@ -406,7 +420,9 @@ pub(super) fn run_file_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutc
         .collect())
 }
 
-pub(super) fn run_file_pass_case(case: &FixtureCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
+pub(super) fn run_file_pass_case(
+    case: &FixtureCase,
+) -> Result<DeclarationEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.disk_path)?;
     let parsed = parse_fixture_twice(&sources, &lexed, parse_file)?;
@@ -440,7 +456,9 @@ pub(super) fn run_file_fail_suite(root: &Path) -> Result<Vec<DeclarationCaseOutc
         .collect())
 }
 
-pub(super) fn run_file_fail_case(case: &LexerFailCase) -> Result<DeclarationEvidence, ParserCaseFailure> {
+pub(super) fn run_file_fail_case(
+    case: &LexerFailCase,
+) -> Result<DeclarationEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
     let parsed = parse_fixture_twice(&sources, &lexed, parse_file)?;
@@ -514,7 +532,9 @@ pub(super) fn validate_implicit_unit_root(
     valid.then_some(()).ok_or(ParserCaseFailure::RootInvariant)
 }
 
-pub(super) fn run_implicit_unit_pass_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+pub(super) fn run_implicit_unit_pass_suite(
+    root: &Path,
+) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
     let cases = discover_fixtures(root)?;
     Ok(cases
         .iter()
@@ -543,7 +563,9 @@ pub(super) fn run_implicit_unit_pass_suite(root: &Path) -> Result<Vec<Declaratio
         .collect())
 }
 
-pub(super) fn run_implicit_unit_fail_suite(root: &Path) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
+pub(super) fn run_implicit_unit_fail_suite(
+    root: &Path,
+) -> Result<Vec<DeclarationCaseOutcome>, SuiteError> {
     let cases = discover_lexer_fail_cases(root)?;
     Ok(cases
         .iter()
@@ -614,7 +636,9 @@ pub(super) fn run_block_fail_suite(root: &Path) -> Result<Vec<BlockCaseOutcome>,
         .collect())
 }
 
-pub(super) fn run_block_fail_case(case: &LexerFailCase) -> Result<BlockEvidence, ParserCaseFailure> {
+pub(super) fn run_block_fail_case(
+    case: &LexerFailCase,
+) -> Result<BlockEvidence, ParserCaseFailure> {
     let (sources, source_id, lexed, byte_len) =
         parser_fixture_source(&case.relative_path, &case.source_path)?;
     let parsed = parse_fixture_twice(&sources, &lexed, parse_block)?;

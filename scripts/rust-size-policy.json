@@ -10,7 +10,6 @@
     "crates/lang-frontend/src/type_checking/checker/callable.rs": 1085,
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": 1222,
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/calls.rs": 1011,
-    "crates/lang-frontend/tests/fixtures.rs": 2316,
     "crates/lang-frontend/tests/multifile_constant_ownership.rs": 1008,
     "crates/lang-frontend/tests/ownership_checking.rs": 1198,
     "crates/lang-frontend/tests/parser_declaration.rs": 1042,

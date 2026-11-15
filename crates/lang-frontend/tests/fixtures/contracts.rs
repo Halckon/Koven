@@ -1,0 +1,893 @@
+
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use super::*;
+
+static NEXT_TEMP_DIR: AtomicU64 = AtomicU64::new(0);
+
+struct TempDir {
+    path: PathBuf,
+}
+
+impl TempDir {
+    fn new(label: &str) -> Self {
+        loop {
+            let sequence = NEXT_TEMP_DIR.fetch_add(1, Ordering::Relaxed);
+            let path = env::temp_dir().join(format!(
+                "koven-fixtures-{}-{sequence}-{label}",
+                std::process::id()
+            ));
+            match fs::create_dir(&path) {
+                Ok(()) => return Self { path },
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("failed to create isolated fixture directory: {error}"),
+            }
+        }
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+fn write(root: &Path, relative_path: &str, bytes: &[u8]) {
+    let path = root.join(relative_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("fixture parent directories must be created");
+    }
+    fs::write(path, bytes).expect("fixture contents must be written");
+}
+
+fn relative_paths(cases: &[FixtureCase]) -> Vec<&str> {
+    cases
+        .iter()
+        .map(|case| case.relative_path.as_str())
+        .collect()
+}
+
+fn fail_relative_paths(cases: &[LexerFailCase]) -> Vec<&str> {
+    cases
+        .iter()
+        .map(|case| case.relative_path.as_str())
+        .collect()
+}
+
+fn assert_discovery_error(root: &Path, expected: SuiteError) {
+    match discover_fixtures(root) {
+        Ok(cases) => panic!(
+            "expected discovery to fail, but it found {:?}",
+            relative_paths(&cases)
+        ),
+        Err(actual) => assert_eq!(actual, expected),
+    }
+}
+
+fn assert_fail_discovery_error(root: &Path, expected: SuiteError) {
+    match discover_lexer_fail_cases(root) {
+        Ok(cases) => panic!(
+            "expected fail discovery to fail, but it found {:?}",
+            fail_relative_paths(&cases)
+        ),
+        Err(actual) => assert_eq!(actual, expected),
+    }
+}
+
+#[test]
+fn checked_in_suite_executes_the_exact_source_loading_case() {
+    let outcomes = run_suite(&phase0_fixture_root()).expect("the checked-in suite must be valid");
+
+    assert_eq!(outcomes.len(), 1, "one checked-in .ko case must execute");
+    assert_eq!(outcomes[0].relative_path, "unicode.ko");
+    let evidence = outcomes[0]
+        .result
+        .as_ref()
+        .expect("the checked-in source-loading case must pass");
+    assert!(evidence.byte_len > 0);
+    assert_eq!(evidence.ast_node_count, 1);
+    assert_eq!(evidence.diagnostic_code, "L9000");
+    assert_eq!(
+        stable_report(&outcomes),
+        format!(
+            "unicode.ko\tok bytes={} ast-nodes=1 diagnostic=L9000",
+            evidence.byte_len
+        )
+    );
+}
+
+#[test]
+fn checked_in_lexer_suites_execute_exact_pass_and_fail_cases() {
+    let pass = run_lexer_pass_suite(&lexer_pass_fixture_root())
+        .expect("the checked-in lexer pass suite must be valid");
+    let fail = run_lexer_fail_suite(&lexer_fail_fixture_root())
+        .expect("the checked-in lexer fail suite must be valid");
+
+    assert_eq!(pass.len(), 1);
+    assert_eq!(pass[0].relative_path, "basic.ko");
+    let pass_evidence = pass[0]
+        .result
+        .as_ref()
+        .expect("the checked-in lexer pass case must pass");
+    assert!(pass_evidence.lexeme_count > 1);
+    assert_eq!(pass_evidence.diagnostic_count, 0);
+
+    assert_eq!(fail.len(), 2);
+    assert_eq!(fail[0].relative_path, "invalid-character.ko");
+    assert_eq!(fail[1].relative_path, "invalid-numeric-suffix.ko");
+    let invalid_character = fail[0]
+        .result
+        .as_ref()
+        .expect("the checked-in lexer fail case must match its sidecar");
+    let invalid_numeric = fail[1]
+        .result
+        .as_ref()
+        .expect("the checked-in numeric fail case must match its sidecar");
+    assert!(invalid_character.lexeme_count > 1);
+    assert!(invalid_numeric.lexeme_count > 1);
+    assert_eq!(invalid_character.diagnostic_count, 1);
+    assert_eq!(invalid_numeric.diagnostic_count, 1);
+
+    assert_eq!(
+        lexer_stable_report(&pass),
+        format!(
+            "basic.ko\tok bytes={} lexemes={} diagnostics=0",
+            pass_evidence.byte_len, pass_evidence.lexeme_count
+        )
+    );
+    assert_eq!(
+        lexer_stable_report(&fail),
+        format!(
+            "invalid-character.ko\tok bytes={} lexemes={} diagnostics=1\n\
+                 invalid-numeric-suffix.ko\tok bytes={} lexemes={} diagnostics=1",
+            invalid_character.byte_len,
+            invalid_character.lexeme_count,
+            invalid_numeric.byte_len,
+            invalid_numeric.lexeme_count
+        )
+    );
+}
+
+#[test]
+fn checked_in_parser_suites_execute_real_pass_and_fail_cases() {
+    let pass = run_parser_pass_suite(&parser_pass_fixture_root())
+        .expect("the checked-in parser pass suite must be valid");
+    let fail = run_parser_fail_suite(&parser_fail_fixture_root())
+        .expect("the checked-in parser fail suite must be valid");
+
+    assert_eq!(pass.len(), 2);
+    assert_eq!(pass[0].relative_path, "call-arguments.ko");
+    let call_evidence = pass[0]
+        .result
+        .as_ref()
+        .expect("the checked-in parser pass case must parse without diagnostics");
+    assert!(call_evidence.expression_count > 1);
+    assert_eq!(call_evidence.diagnostic_count, 0);
+    assert_eq!(pass[1].relative_path, "precedence.ko");
+    let pass_evidence = pass[1]
+        .result
+        .as_ref()
+        .expect("the precedence pass case must parse without diagnostics");
+    assert!(pass_evidence.expression_count > 1);
+    assert_eq!(pass_evidence.diagnostic_count, 0);
+
+    assert_eq!(fail.len(), 2);
+    assert_eq!(fail[0].relative_path, "call-missing-value.ko");
+    let call_fail_evidence = fail[0]
+        .result
+        .as_ref()
+        .expect("the checked-in parser fail case must match merged diagnostics");
+    assert!(call_fail_evidence.expression_count > 0);
+    assert_eq!(call_fail_evidence.diagnostic_count, 1);
+    assert_eq!(fail[1].relative_path, "trailing-token.ko");
+    let fail_evidence = fail[1]
+        .result
+        .as_ref()
+        .expect("the trailing-token fail case must match merged diagnostics");
+    assert!(fail_evidence.expression_count > 0);
+    assert_eq!(fail_evidence.diagnostic_count, 1);
+}
+
+#[test]
+fn checked_in_declaration_suites_execute_real_pass_and_fail_cases() {
+    let pass = run_declaration_pass_suite(&parser_declaration_pass_fixture_root())
+        .expect("the declaration pass suite must be valid");
+    let fail = run_declaration_fail_suite(&parser_declaration_fail_fixture_root())
+        .expect("the declaration fail suite must be valid");
+
+    assert_eq!(pass.len(), 3);
+    assert_eq!(pass[0].relative_path, "callable-parameters.ko");
+    let callable_evidence = pass[0]
+        .result
+        .as_ref()
+        .expect("the declaration pass case must parse without diagnostics");
+    assert_eq!(callable_evidence.item_count, 1);
+    assert_eq!(callable_evidence.diagnostic_count, 0);
+    assert!(callable_evidence.type_ref_count > 0);
+    assert_eq!(pass[1].relative_path, "constant.ko");
+    let pass_evidence = pass[1]
+        .result
+        .as_ref()
+        .expect("the constant declaration must parse without diagnostics");
+    assert_eq!(pass_evidence.item_count, 1);
+    assert!(pass_evidence.expression_count > 0);
+    assert!(pass_evidence.type_ref_count > 0);
+    assert_eq!(pass_evidence.diagnostic_count, 0);
+    let function_evidence = pass[2]
+        .result
+        .as_ref()
+        .expect("the function block fixture must parse without diagnostics");
+    assert_eq!(pass[2].relative_path, "function-block.ko");
+    assert!(function_evidence.item_count >= 2);
+    assert!(function_evidence.expression_count > 0);
+
+    assert_eq!(fail.len(), 2);
+    assert_eq!(fail[0].relative_path, "duplicate-parameter-mode.ko");
+    let duplicate_evidence = fail[0]
+        .result
+        .as_ref()
+        .expect("the declaration fail case must match its sidecar");
+    assert_eq!(duplicate_evidence.item_count, 1);
+    assert_eq!(duplicate_evidence.diagnostic_count, 1);
+    assert_eq!(fail[1].relative_path, "empty.ko");
+    let fail_evidence = fail[1]
+        .result
+        .as_ref()
+        .expect("the empty declaration fail case must match its sidecar");
+    assert_eq!(fail_evidence.item_count, 1);
+    assert_eq!(fail_evidence.diagnostic_count, 1);
+}
+
+#[test]
+fn checked_in_file_suites_execute_multiple_roots_and_cross_declaration_recovery() {
+    let pass = run_file_pass_suite(&parser_file_pass_fixture_root())
+        .expect("the file pass suite must be valid");
+    let fail = run_file_fail_suite(&parser_file_fail_fixture_root())
+        .expect("the file fail suite must be valid");
+    assert_eq!(pass.len(), 4);
+    for outcome in pass {
+        let evidence = outcome.result.as_ref().expect("file pass fixture");
+        if outcome.relative_path == "class-family.ko" {
+            assert!(evidence.item_count >= 8);
+        } else {
+            assert_eq!(evidence.item_count, 2);
+        }
+        assert_eq!(evidence.diagnostic_count, 0);
+    }
+    assert_eq!(fail.len(), 6);
+    for outcome in fail {
+        let evidence = outcome.result.as_ref().expect("file fail fixture");
+        assert_eq!(evidence.item_count, 2);
+        assert_eq!(evidence.diagnostic_count, 1);
+    }
+}
+
+#[test]
+fn checked_in_block_suites_execute_real_typed_ast_and_diagnostics() {
+    let pass = run_block_pass_suite(&parser_block_pass_fixture_root())
+        .expect("the block pass suite must be valid");
+    let fail = run_block_fail_suite(&parser_block_fail_fixture_root())
+        .expect("the block fail suite must be valid");
+
+    assert_eq!(pass.len(), 2);
+    assert_eq!(pass[0].relative_path, "destructuring.ko");
+    let destructuring = pass[0]
+        .result
+        .as_ref()
+        .expect("the destructuring block fixture must parse without diagnostics");
+    assert!(destructuring.statement_count >= 2);
+    assert_eq!(destructuring.expression_count, 1);
+    assert_eq!(destructuring.diagnostic_count, 0);
+    assert_eq!(pass[1].relative_path, "sequence.ko");
+    let pass = pass[1]
+        .result
+        .as_ref()
+        .expect("the block pass fixture must parse without diagnostics");
+    assert!(pass.statement_count >= 4);
+    assert!(pass.item_count >= 2);
+    assert!(pass.expression_count >= 2);
+    assert_eq!(pass.diagnostic_count, 0);
+
+    assert_eq!(fail.len(), 2);
+    assert_eq!(fail[0].relative_path, "destructuring-trailing-comma.ko");
+    let destructuring = fail[0]
+        .result
+        .as_ref()
+        .expect("the destructuring block fail fixture must match its sidecar");
+    assert!(destructuring.statement_count >= 2);
+    assert_eq!(destructuring.diagnostic_count, 1);
+    assert_eq!(fail[1].relative_path, "unsupported-local-function.ko");
+    let fail = fail[1]
+        .result
+        .as_ref()
+        .expect("the block fail fixture must match its sidecar");
+    assert!(fail.statement_count >= 2);
+    assert_eq!(fail.diagnostic_count, 1);
+}
+
+#[test]
+fn checked_in_lambda_suites_execute_real_typed_ast_and_diagnostics() {
+    let pass = run_lambda_pass_suite(&parser_lambda_pass_fixture_root())
+        .expect("the lambda pass suite must be valid");
+    let fail = run_lambda_fail_suite(&parser_lambda_fail_fixture_root())
+        .expect("the lambda fail suite must be valid");
+
+    assert_eq!(pass.len(), 2);
+    assert_eq!(pass[0].relative_path, "basic.ko");
+    let basic = pass[0]
+        .result
+        .as_ref()
+        .expect("the lambda pass fixture must parse to Lambda/LambdaBody");
+    assert!(basic.expression_count >= 3);
+    assert_eq!(basic.diagnostic_count, 0);
+    assert_eq!(pass[1].relative_path, "destructuring.ko");
+    let destructuring = pass[1]
+        .result
+        .as_ref()
+        .expect("the destructuring lambda fixture must parse without diagnostics");
+    assert!(destructuring.expression_count >= 2);
+    assert_eq!(destructuring.diagnostic_count, 0);
+
+    assert_eq!(fail.len(), 2);
+    assert_eq!(
+        fail[0].relative_path,
+        "destructuring-missing-initializer.ko"
+    );
+    let destructuring = fail[0]
+        .result
+        .as_ref()
+        .expect("the destructuring lambda fail fixture must match its sidecar");
+    assert!(destructuring.expression_count >= 2);
+    assert_eq!(destructuring.diagnostic_count, 1);
+    assert_eq!(fail[1].relative_path, "expected-element.ko");
+    let fail = fail[1]
+        .result
+        .as_ref()
+        .expect("the lambda fail fixture must match its sidecar");
+    assert!(fail.expression_count >= 1);
+    assert_eq!(fail.diagnostic_count, 1);
+}
+
+#[test]
+fn checked_in_implicit_unit_suites_execute_each_closed_ast_form() {
+    let pass = run_implicit_unit_pass_suite(&parser_implicit_unit_pass_fixture_root())
+        .expect("the implicit Unit pass suite must be valid");
+    let fail = run_implicit_unit_fail_suite(&parser_implicit_unit_fail_fixture_root())
+        .expect("the implicit Unit fail suite must be valid");
+
+    assert_eq!(
+        pass.iter()
+            .map(|case| case.relative_path.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "absent.ko",
+            "empty-block.ko",
+            "explicit-other.ko",
+            "explicit-unit.ko",
+            "nonempty-block.ko",
+        ]
+    );
+    assert!(pass.iter().all(|case| case.result.is_ok()), "{pass:?}");
+    assert_eq!(
+        fail.iter()
+            .map(|case| case.relative_path.as_str())
+            .collect::<Vec<_>>(),
+        ["missing-expression-return.ko", "missing-type.ko"]
+    );
+    assert!(
+        fail.iter().all(|case| {
+            case.result
+                .as_ref()
+                .is_ok_and(|evidence| evidence.diagnostic_count == 1)
+        }),
+        "{fail:?}"
+    );
+}
+
+#[test]
+fn parser_fixture_discovery_rejects_zero_and_unpaired_fail_cases() {
+    let empty_pass = TempDir::new("parser-pass-empty");
+    assert_eq!(
+        run_parser_pass_suite(empty_pass.path()),
+        Err(SuiteError::NoFixtures)
+    );
+
+    let empty_fail = TempDir::new("parser-fail-empty");
+    assert_eq!(
+        run_parser_fail_suite(empty_fail.path()),
+        Err(SuiteError::NoFixtures)
+    );
+
+    let unpaired = TempDir::new("parser-fail-unpaired");
+    write(unpaired.path(), "missing.ko", b"a b");
+    write(unpaired.path(), "orphan.diag", b"L0013\t2\t3\n");
+    assert_eq!(
+        run_parser_fail_suite(unpaired.path()),
+        Err(SuiteError::InvalidEntries(vec![
+            DiscoveryIssue::MissingSidecar {
+                relative_path: "missing.ko".to_owned(),
+            },
+            DiscoveryIssue::OrphanSidecar {
+                relative_path: "orphan.diag".to_owned(),
+            },
+        ]))
+    );
+
+    assert_eq!(
+        run_declaration_pass_suite(empty_pass.path()),
+        Err(SuiteError::NoFixtures)
+    );
+    assert_eq!(
+        run_implicit_unit_pass_suite(empty_pass.path()),
+        Err(SuiteError::NoFixtures)
+    );
+    assert_eq!(
+        run_implicit_unit_fail_suite(empty_fail.path()),
+        Err(SuiteError::NoFixtures)
+    );
+    assert_eq!(
+        run_implicit_unit_fail_suite(unpaired.path()),
+        Err(SuiteError::InvalidEntries(vec![
+            DiscoveryIssue::MissingSidecar {
+                relative_path: "missing.ko".to_owned(),
+            },
+            DiscoveryIssue::OrphanSidecar {
+                relative_path: "orphan.diag".to_owned(),
+            },
+        ]))
+    );
+    assert_eq!(
+        run_declaration_fail_suite(empty_fail.path()),
+        Err(SuiteError::NoFixtures)
+    );
+    assert_eq!(
+        run_declaration_fail_suite(unpaired.path()),
+        Err(SuiteError::InvalidEntries(vec![
+            DiscoveryIssue::MissingSidecar {
+                relative_path: "missing.ko".to_owned(),
+            },
+            DiscoveryIssue::OrphanSidecar {
+                relative_path: "orphan.diag".to_owned(),
+            },
+        ]))
+    );
+
+    assert_eq!(
+        run_block_pass_suite(empty_pass.path()),
+        Err(SuiteError::NoFixtures)
+    );
+    assert_eq!(
+        run_block_fail_suite(empty_fail.path()),
+        Err(SuiteError::NoFixtures)
+    );
+    assert_eq!(
+        run_block_fail_suite(unpaired.path()),
+        Err(SuiteError::InvalidEntries(vec![
+            DiscoveryIssue::MissingSidecar {
+                relative_path: "missing.ko".to_owned(),
+            },
+            DiscoveryIssue::OrphanSidecar {
+                relative_path: "orphan.diag".to_owned(),
+            },
+        ]))
+    );
+
+    assert_eq!(
+        run_lambda_pass_suite(empty_pass.path()),
+        Err(SuiteError::NoFixtures)
+    );
+    assert_eq!(
+        run_lambda_fail_suite(empty_fail.path()),
+        Err(SuiteError::NoFixtures)
+    );
+    assert_eq!(
+        run_lambda_fail_suite(unpaired.path()),
+        Err(SuiteError::InvalidEntries(vec![
+            DiscoveryIssue::MissingSidecar {
+                relative_path: "missing.ko".to_owned(),
+            },
+            DiscoveryIssue::OrphanSidecar {
+                relative_path: "orphan.diag".to_owned(),
+            },
+        ]))
+    );
+}
+
+#[test]
+fn parser_fail_runner_rejects_invalid_sidecar_lines() {
+    let temp = TempDir::new("parser-invalid-sidecar");
+    write(temp.path(), "case.ko", b"a b");
+    write(temp.path(), "case.diag", b"L0013\t2\n");
+
+    let outcomes = run_parser_fail_suite(temp.path()).expect("the fixture pair is complete");
+
+    assert_eq!(
+        outcomes[0].result,
+        Err(ParserCaseFailure::InvalidSidecar(
+            SidecarError::WrongColumnCount { line: 1 }
+        ))
+    );
+}
+
+#[test]
+fn lexer_fail_discovery_pairs_nested_cases_and_sorts_sources() {
+    let temp = TempDir::new("fail-pairs");
+    write(temp.path(), "z.ko", b"z");
+    write(temp.path(), "z.diag", b"L0001\t0\t1\n");
+    write(temp.path(), "nested/a.diag", b"L0001\t0\t1\n");
+    write(temp.path(), "nested/a.ko", b"a");
+
+    let cases =
+        discover_lexer_fail_cases(temp.path()).expect("every fail source has exactly one sidecar");
+
+    assert_eq!(fail_relative_paths(&cases), ["nested/a.ko", "z.ko"]);
+    assert!(cases[0].sidecar_path.ends_with("nested/a.diag"));
+    assert!(cases[1].sidecar_path.ends_with("z.diag"));
+}
+
+#[test]
+fn lexer_fail_discovery_rejects_empty_missing_or_orphan_suites() {
+    let empty = TempDir::new("fail-empty");
+    assert_fail_discovery_error(empty.path(), SuiteError::NoFixtures);
+
+    let unpaired = TempDir::new("fail-unpaired");
+    write(unpaired.path(), "missing.ko", b"x");
+    write(unpaired.path(), "orphan.diag", b"L0001\t0\t1\n");
+    assert_fail_discovery_error(
+        unpaired.path(),
+        SuiteError::InvalidEntries(vec![
+            DiscoveryIssue::MissingSidecar {
+                relative_path: "missing.ko".to_owned(),
+            },
+            DiscoveryIssue::OrphanSidecar {
+                relative_path: "orphan.diag".to_owned(),
+            },
+        ]),
+    );
+}
+
+#[test]
+fn lexer_fail_discovery_rejects_unknown_extensions() {
+    let temp = TempDir::new("fail-unknown");
+    write(temp.path(), "case.ko", b"x");
+    write(temp.path(), "case.diag", b"L0001\t0\t1\n");
+    write(temp.path(), "README", b"unexpected");
+
+    assert_fail_discovery_error(
+        temp.path(),
+        SuiteError::InvalidEntries(vec![DiscoveryIssue::UnknownExtension {
+            relative_path: "README".to_owned(),
+        }]),
+    );
+}
+
+#[test]
+fn lexer_fail_runner_reports_invalid_utf8_source_and_sidecar_separately() {
+    let invalid_source = TempDir::new("fail-invalid-source");
+    write(invalid_source.path(), "case.ko", &[0xff]);
+    write(invalid_source.path(), "case.diag", b"L0001\t0\t1\n");
+    let source_outcomes =
+        run_lexer_fail_suite(invalid_source.path()).expect("the source and sidecar are paired");
+    assert_eq!(
+        source_outcomes[0].result,
+        Err(LexerCaseFailure::InvalidUtf8Source)
+    );
+
+    let invalid_sidecar = TempDir::new("fail-invalid-sidecar");
+    write(invalid_sidecar.path(), "case.ko", "β".as_bytes());
+    write(invalid_sidecar.path(), "case.diag", &[0xff]);
+    let sidecar_outcomes =
+        run_lexer_fail_suite(invalid_sidecar.path()).expect("the source and sidecar are paired");
+    assert_eq!(
+        sidecar_outcomes[0].result,
+        Err(LexerCaseFailure::InvalidUtf8Sidecar)
+    );
+}
+
+#[test]
+fn sidecar_parser_applies_suite_specific_empty_span_policy() {
+    let mut sources = SourceMap::new();
+    let source_id = sources
+        .add_source("case.ko", "βx")
+        .expect("test source name is unique");
+    let catalog =
+        DiagnosticCodeCatalog::try_new(&["L0001", "L0002", "L0009"]).expect("test codes are valid");
+
+    assert_eq!(
+        parse_sidecar(
+            &sources,
+            source_id,
+            "L0001\t0\t2\r\nL0002\t2\t3",
+            &catalog,
+            SidecarSpanPolicy::LexerDiagnostics,
+        ),
+        Ok(vec![
+            ExpectedDiagnostic {
+                code: "L0001".to_owned(),
+                start: 0,
+                end: 2,
+            },
+            ExpectedDiagnostic {
+                code: "L0002".to_owned(),
+                start: 2,
+                end: 3,
+            },
+        ])
+    );
+
+    assert_eq!(
+        parse_sidecar(
+            &sources,
+            source_id,
+            "L0009\t3\t3",
+            &catalog,
+            SidecarSpanPolicy::MergedParserDiagnostics,
+        ),
+        Ok(vec![ExpectedDiagnostic {
+            code: "L0009".to_owned(),
+            start: 3,
+            end: 3,
+        }])
+    );
+    assert_eq!(
+        parse_sidecar(
+            &sources,
+            source_id,
+            "L0001\t3\t3",
+            &catalog,
+            SidecarSpanPolicy::MergedParserDiagnostics,
+        ),
+        Err(SidecarError::InvalidSpan { line: 1 })
+    );
+
+    for (sidecar, expected) in [
+        ("", SidecarError::Empty),
+        ("\n", SidecarError::EmptyLine { line: 1 }),
+        ("L0001\t0\t2\n\n", SidecarError::EmptyLine { line: 2 }),
+        (
+            "L0001\t0\t2\r",
+            SidecarError::BareCarriageReturn { line: 1 },
+        ),
+        (
+            "L0001\t0\t2\rx\n",
+            SidecarError::BareCarriageReturn { line: 1 },
+        ),
+        ("L0001\t0\n", SidecarError::WrongColumnCount { line: 1 }),
+        ("L9999\t0\t2\n", SidecarError::InvalidCode { line: 1 }),
+        ("L0001\t+0\t2\n", SidecarError::InvalidOffset { line: 1 }),
+        (
+            "L0001\t999999999999999999999999999999\t2\n",
+            SidecarError::InvalidOffset { line: 1 },
+        ),
+        ("L0001\t0\t0\n", SidecarError::InvalidSpan { line: 1 }),
+        ("L0001\t0\t1\n", SidecarError::InvalidSpan { line: 1 }),
+        ("L0001\t2\t1\n", SidecarError::InvalidSpan { line: 1 }),
+        ("L0001\t0\t4\n", SidecarError::InvalidSpan { line: 1 }),
+    ] {
+        assert_eq!(
+            parse_sidecar(
+                &sources,
+                source_id,
+                sidecar,
+                &catalog,
+                SidecarSpanPolicy::LexerDiagnostics,
+            ),
+            Err(expected),
+            "unexpected result for sidecar {sidecar:?}",
+        );
+    }
+}
+
+#[test]
+fn discovery_recurses_and_sorts_complete_utf8_relative_paths() {
+    let temp = TempDir::new("sort");
+    write(temp.path(), "b/a.ko", b"b");
+    write(temp.path(), "a/z.ko", b"z");
+    write(temp.path(), "a.ko", b"a");
+    write(temp.path(), "中文/β.ko", "你好".as_bytes());
+    fs::create_dir_all(temp.path().join("nested.ko")).expect("a directory may itself end in .ko");
+    write(temp.path(), "nested.ko/case.ko", b"nested");
+
+    let first = discover_fixtures(temp.path()).expect("all entries are valid fixtures");
+    let second = discover_fixtures(temp.path()).expect("discovery must be repeatable");
+    let expected = ["a.ko", "a/z.ko", "b/a.ko", "nested.ko/case.ko", "中文/β.ko"];
+
+    assert_eq!(relative_paths(&first), expected);
+    assert_eq!(relative_paths(&second), expected);
+}
+
+#[test]
+fn empty_and_recursively_empty_suites_are_configuration_errors() {
+    let empty = TempDir::new("empty");
+    assert_discovery_error(empty.path(), SuiteError::NoFixtures);
+
+    let nested = TempDir::new("nested-empty");
+    fs::create_dir_all(nested.path().join("one/two"))
+        .expect("empty nested directories must be created");
+    assert_discovery_error(nested.path(), SuiteError::NoFixtures);
+}
+
+#[test]
+fn every_unknown_extension_is_rejected_instead_of_becoming_an_empty_suite() {
+    for (index, name) in ["case.txt", "case.KO", "case.ko.bak", "README", ".DS_Store"]
+        .into_iter()
+        .enumerate()
+    {
+        let temp = TempDir::new(&format!("unknown-{index}"));
+        write(temp.path(), name, b"unknown");
+        assert_discovery_error(
+            temp.path(),
+            SuiteError::InvalidEntries(vec![DiscoveryIssue::UnknownExtension {
+                relative_path: name.to_owned(),
+            }]),
+        );
+    }
+}
+
+#[test]
+fn valid_and_invalid_utf8_contents_produce_sorted_structured_outcomes() {
+    let temp = TempDir::new("content");
+    write(temp.path(), "z-empty.ko", b"");
+    write(temp.path(), "a-unicode.ko", "你好\r\nβ\n".as_bytes());
+    write(temp.path(), "m-invalid.ko", &[0xff]);
+
+    let outcomes = run_suite(temp.path()).expect("all fixture paths are valid");
+
+    assert_eq!(
+        outcomes
+            .iter()
+            .map(|outcome| outcome.relative_path.as_str())
+            .collect::<Vec<_>>(),
+        ["a-unicode.ko", "m-invalid.ko", "z-empty.ko"]
+    );
+    assert_eq!(outcomes[1].result, Err(CaseFailure::InvalidUtf8Content));
+    assert_eq!(
+        stable_report(&outcomes),
+        concat!(
+            "a-unicode.ko\tok bytes=11 ast-nodes=1 diagnostic=L9000\n",
+            "m-invalid.ko\terror invalid-utf8-content\n",
+            "z-empty.ko\tok bytes=0 ast-nodes=1 diagnostic=L9000",
+        )
+    );
+    let temp_path = temp
+        .path()
+        .to_str()
+        .expect("the test runtime's temporary root must be UTF-8");
+    assert!(!stable_report(&outcomes).contains(temp_path));
+}
+
+#[cfg(unix)]
+#[test]
+fn unix_backslash_component_is_not_confused_with_a_directory_separator() {
+    let temp = TempDir::new("backslash");
+    write(temp.path(), "literal\\name.ko", b"component");
+    write(temp.path(), "literal/name.ko", b"nested");
+
+    let cases = discover_fixtures(temp.path()).expect("both Unix paths are valid");
+
+    assert_eq!(
+        relative_paths(&cases),
+        ["literal/name.ko", "literal\\name.ko"]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn stable_report_escapes_path_delimiters_from_real_file_names() {
+    let temp = TempDir::new("report-escaping");
+    for name in [
+        "carriage\rreturn.ko",
+        "line\nbreak.ko",
+        "slash\\name.ko",
+        "tab\tname.ko",
+    ] {
+        write(temp.path(), name, b"x");
+    }
+
+    let report = stable_report(&run_suite(temp.path()).expect("all UTF-8 paths are valid"));
+
+    assert_eq!(
+        report,
+        concat!(
+            "carriage\\rreturn.ko\tok bytes=1 ast-nodes=1 diagnostic=L9000\n",
+            "line\\nbreak.ko\tok bytes=1 ast-nodes=1 diagnostic=L9000\n",
+            "slash\\\\name.ko\tok bytes=1 ast-nodes=1 diagnostic=L9000\n",
+            "tab\\tname.ko\tok bytes=1 ast-nodes=1 diagnostic=L9000",
+        )
+    );
+    assert!(!report.contains('\r'));
+    assert_eq!(report.lines().count(), 4);
+}
+
+#[cfg(unix)]
+#[test]
+fn file_directory_and_dangling_symlinks_are_rejected_without_following() {
+    use std::os::unix::fs::symlink;
+
+    for (label, target_setup, link_name) in [
+        ("file", Some(("target.ko", false)), "alias.ko"),
+        ("directory", Some(("target", true)), "alias"),
+        ("dangling", None, "alias.ko"),
+    ] {
+        let temp = TempDir::new(label);
+        let suite = temp.path().join("suite");
+        fs::create_dir(&suite).expect("suite directory must be created");
+        let target = temp.path().join("outside-target");
+        if let Some((child, is_directory)) = target_setup {
+            if is_directory {
+                fs::create_dir(&target).expect("target directory must be created");
+                write(&target, child, b"outside");
+            } else {
+                fs::write(&target, b"outside").expect("target file must be created");
+            }
+        }
+        symlink(&target, suite.join(link_name)).expect("symlink must be created");
+
+        assert_discovery_error(
+            &suite,
+            SuiteError::InvalidEntries(vec![DiscoveryIssue::Symlink {
+                relative_path: link_name.to_owned(),
+            }]),
+        );
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_discovery_rejects_non_utf8_file_and_directory_components() {
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
+    let file_temp = TempDir::new("non-utf8-file");
+    let file_name = OsString::from_vec(vec![0xff, b'.', b'k', b'o']);
+    fs::write(file_temp.path().join(file_name), b"invalid path")
+        .expect("the filesystem must accept the non-UTF-8 test name");
+    assert_discovery_error(
+        file_temp.path(),
+        SuiteError::InvalidEntries(vec![DiscoveryIssue::NonUtf8RelativePath]),
+    );
+
+    let directory_temp = TempDir::new("non-utf8-directory");
+    let directory_name = OsString::from_vec(vec![0xfe]);
+    let directory = directory_temp.path().join(directory_name);
+    fs::create_dir(&directory).expect("the non-UTF-8 directory must be created");
+    write(&directory, "case.ko", b"unreachable");
+    assert_discovery_error(
+        directory_temp.path(),
+        SuiteError::InvalidEntries(vec![DiscoveryIssue::NonUtf8RelativePath]),
+    );
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+#[test]
+fn unix_non_utf8_components_are_rejected_before_filesystem_io() {
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
+    let file_name = OsString::from_vec(vec![0xff, b'.', b'k', b'o']);
+    assert_eq!(
+        checked_relative_path(Path::new(&file_name)),
+        Err(DiscoveryIssue::NonUtf8RelativePath)
+    );
+
+    let directory_name = OsString::from_vec(vec![0xfe]);
+    assert_eq!(
+        checked_relative_path(&PathBuf::from(directory_name).join("case.ko")),
+        Err(DiscoveryIssue::NonUtf8RelativePath)
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_unpaired_surrogate_components_are_rejected() {
+    use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+
+    let path = PathBuf::from(OsString::from_wide(&[0xd800])).join("case.ko");
+
+    assert_eq!(
+        checked_relative_path(&path),
+        Err(DiscoveryIssue::NonUtf8RelativePath)
+    );
+}
