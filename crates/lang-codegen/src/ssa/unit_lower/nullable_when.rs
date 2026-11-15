@@ -203,7 +203,9 @@ impl UnitExpressionLowerer<'_> {
                 exits.push(exit);
             }
         }
-        // Empty exits use the existing double-escaping cleanup; no synthetic merge.
+        // Local When proofs ended at arm exit. Reconcile any carried outer
+        // proofs on the normal predecessors before moving the current owners.
+        self.retire_conditional_exit_proofs(descriptor.expression(), &mut exits, span)?;
         self.merge_unit_exits(exits, span)
     }
 

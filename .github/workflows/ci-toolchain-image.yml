@@ -6,11 +6,10 @@ on:
     branches: [main]
     paths:
       - '.github/ci-toolchain/**'
-      - '.github/workflows/ci-toolchain-image.yml'
-      - '.github/workflows/ci.yml'
-      - 'scripts/install_ci_llvm*.sh'
-      - 'scripts/*ci*image*.sh'
-      - 'scripts/tests/test_ci_toolchain_image.py'
+      - 'scripts/install_ci_llvm_ubuntu26.sh'
+      - 'scripts/install_ci_image_rust.sh'
+      - 'scripts/verify_ci_toolchain_image.sh'
+      - 'scripts/check_ci_toolchain_image.sh'
       - 'rust-toolchain.toml'
   workflow_dispatch:
 

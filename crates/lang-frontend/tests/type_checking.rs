@@ -705,3 +705,90 @@ fn calling_deinit_as_unqualified_name_is_rejected_as_unresolved() {
     let resolution = resolve_names(&sources, &parsed, &names).expect("names");
     assert_eq!(codes(resolution.diagnostics()), ["L0080"]);
 }
+
+#[test]
+fn grouped_null_when_selector_keeps_nullable_context_and_finite_coverage() {
+    use lang_frontend::{
+        parser::{Expression, WhenCondition},
+        type_checking::{UnitExpressionId, UnitTypeKind},
+    };
+    let text = "fun select(x: Boolean?): Int = when (x) { ((null)), true -> if (x == null) 0 else 1; false -> if (x) 3 else 2 }";
+    let (_, parsed, entries) = unit_entries::checked_entries(text);
+    for (source, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let (control, WhenCondition::Expression(selector)) = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find_map(|(id, node)| {
+                let Expression::When { entries, .. } = node.payload() else {
+                    return None;
+                };
+                Some((id, &entries[0].conditions[0]))
+            })
+            .expect("one When and its first selector")
+        else {
+            panic!("ordinary selector");
+        };
+        let control = UnitExpressionId::new(source, control);
+        assert_eq!(typed.when_closed_after(control), Some(2));
+        assert_eq!(typed.when_final_selector_count(control, 1), Some(1));
+        // Null and true reach the first body, so the read before its
+        // explicit null test must still carry the original nullable type.
+        let read_offset = text.find("x == null").unwrap();
+        let read = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find_map(|(id, node)| {
+                (node.span().start() == read_offset && matches!(node.payload(), Expression::Name))
+                    .then_some(UnitExpressionId::new(source, id))
+            })
+            .expect("read of x in the mixed arm");
+        let ty = typed.expression_type(read).unwrap();
+        assert!(matches!(
+            typed.types().get(ty),
+            Some(UnitTypeKind::Nullable(_))
+        ));
+        assert!(typed.non_null_use(read).is_none());
+        let mut expression = *selector;
+        for depth in 0..=2 {
+            let ty = typed
+                .expression_type(UnitExpressionId::new(source, expression))
+                .unwrap();
+            assert!(
+                matches!(typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
+                if typed.types().get(*inner) == Some(&UnitTypeKind::Builtin(BuiltinType::Boolean)))
+            );
+            let node = parsed.ast().expressions().get(expression).unwrap();
+            if depth == 2 {
+                assert!(matches!(
+                    node.payload(),
+                    Expression::Literal(lang_frontend::parser::LiteralKind::Null)
+                ));
+            } else {
+                let Expression::Group { expression: inner } = node.payload() else {
+                    panic!("nested group");
+                };
+                expression = *inner;
+            }
+        }
+    }
+}
+
+#[test]
+fn grouped_null_when_selector_still_rejects_missing_nullable_context() {
+    for text in [
+        "fun select(x: Boolean): Int = when (x) { ((null)), true -> 1; else -> 0 }",
+        "fun select(): Int = when { ((null)), true -> 1; else -> 0 }",
+    ] {
+        let (sources, _, entries) = unit_entries::checked_entries(text);
+        for (_, typed) in entries {
+            let [diagnostic] = typed.diagnostics() else {
+                panic!("expected one diagnostic: {:?}", typed.diagnostics());
+            };
+            assert_eq!(diagnostic.code().to_string(), "L0083");
+            assert_eq!(sources.slice(diagnostic.primary_span()), Ok("null"));
+        }
+    }
+}

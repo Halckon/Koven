@@ -8,7 +8,7 @@ for name in \
   ci_only_parent_header_receipt_rejects_actual_edge_corruption \
   ci_only_parent_false_receipt_rejects_actual_partition_and_consumption_corruption; do
   target="$prefix::$name"
-  listing=$(cargo test --locked -p lang-codegen --lib "$target" -- --exact --ignored --list)
+  listing=$(bash scripts/run_codegen_default_tests.sh "$target" -- --exact --ignored --list)
   [[ $(grep -Fxc "$target: test" <<< "$listing") == 1 ]]
-  cargo test --locked -p lang-codegen --lib "$target" -- --exact --ignored
+  bash scripts/run_codegen_default_tests.sh "$target" -- --exact --ignored
  done
