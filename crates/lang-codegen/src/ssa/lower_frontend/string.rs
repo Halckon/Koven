@@ -96,5 +96,4 @@ impl ExpressionLowerer<'_> {
             .and_then(|ty| self.typed.types().get(ty))
             == Some(&TypeKind::Builtin(BuiltinType::String))
     }
-
 }

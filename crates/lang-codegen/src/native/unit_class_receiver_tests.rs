@@ -728,4 +728,3 @@ fn move_only_inline_replacement_collects_nested_field_drop_glue() {
     assert!(run.stderr.is_empty(), "{run:?}");
     assert_no_sibling_temporary(&directory.0);
 }
-

@@ -5,10 +5,10 @@ pub(in crate::ssa) use super::carry::source_columns::frontend_borrow_result as b
 pub(in crate::ssa) use container::cleanup_guard_harness;
 pub(in crate::ssa) use map_consume::resource_deinit;
 mod construction;
-mod string;
 pub(in crate::ssa) mod container;
 pub(in crate::ssa) mod control;
 pub(in crate::ssa) mod field_replace;
+mod string;
 pub(in crate::ssa) use super::loan_region_ssa_tests::multi_temporary::instances;
 pub(in crate::ssa) use super::unit_lower_test_support::local_storage;
 pub(in crate::ssa) use super::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_break::loop_control;
@@ -263,7 +263,6 @@ impl ExpressionLowerer<'_> {
         }
     }
 
-
     pub(in crate::ssa) fn lower_statement(
         &mut self,
         statement: StatementId,
@@ -344,7 +343,6 @@ impl ExpressionLowerer<'_> {
         )?;
         Ok(LoweredValue::Value(value(results[0])))
     }
-
 
     pub(in crate::ssa) fn lower_name(
         &mut self,
@@ -516,9 +514,6 @@ impl ExpressionLowerer<'_> {
         )?;
         Ok(LoweredValue::Value(value(results[0])))
     }
-
-
-
 
     pub(in crate::ssa) fn lower_assignment(
         &mut self,

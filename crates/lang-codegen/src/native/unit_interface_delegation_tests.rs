@@ -738,4 +738,3 @@ fn value_interface_default_move_only_and_copyable_specializations_link_and_run()
     assert!(run.stderr.is_empty(), "{run:?}");
     assert_no_sibling_temporary(&directory.0);
 }
-

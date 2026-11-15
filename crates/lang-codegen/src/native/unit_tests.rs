@@ -99,28 +99,6 @@ use map_operand_last_use_tests::analysis_support::{
     UnitAnalysis, analyze_sources, analyze_unit, parsed,
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[test]
 fn direct_slot_generic_string_replacement_links_and_runs() {
     let analysis = analyze_sources(
@@ -376,8 +354,6 @@ fn move_only_empty_enum_case_links_and_runs_with_full_case_drop_glue() {
     assert!(run.stderr.is_empty(), "{run:?}");
     assert_no_sibling_temporary(&directory.0);
 }
-
-
 
 #[test]
 fn unit_object_failures_preserve_targets_and_cleanup_sibling_temporary() {

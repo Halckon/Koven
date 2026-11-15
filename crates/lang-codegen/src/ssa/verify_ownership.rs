@@ -355,7 +355,6 @@ fn register_results(
     }
 }
 
-
 #[allow(clippy::too_many_arguments)]
 fn require_string_view(
     module: &Module,
