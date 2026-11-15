@@ -19378,5 +19378,6 @@ codegen双feature清单3304项无重复：直接borrow模块34、companion bound
 而失败，最小修正后重验通过，没有隐藏该失败或删测试。
 
 合并前尺寸对本地起点`cd487917`通过（2339文件、37历史欠账），文档958及静态wiring
-一项通过。此时HEAD与e16存在两个merge-base，尺寸工具拒绝歧义比较；merge本地提交后
-再对直接父e16补门禁，不fetch改写历史或抬baseline。无native、故障注入、远端CI或推送。
+一项通过。合并前HEAD与e16存在两个merge-base，尺寸工具拒绝歧义比较；本地merge提交
+`5e469240`后，对直接父`e16c1d27`重验通过（2339文件、37历史欠账），未fetch改写
+历史或抬baseline。原分支仍保留`cd487917`。无native、故障注入、远端CI或推送。
