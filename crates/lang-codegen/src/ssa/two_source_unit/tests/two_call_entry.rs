@@ -114,7 +114,7 @@ fn two_call_entry_preserves_second_named_argument_order_and_values() {
 }
 
 #[test]
-fn two_call_entry_rejects_different_supported_callees() {
+fn two_call_entry_rejects_distinct_callees_with_computed_scalar() {
     let fixture = source(false, "");
     let other = fixture
         .lines()
@@ -129,7 +129,11 @@ fn two_call_entry_rejects_different_supported_callees() {
         true,
         fixture.replace("fun run(", "fun other("),
     );
-    check_entry_with_extra(&format!("{FIRST};{other_second}"), false, &other);
+    check_entry_with_extra(
+        &format!("{FIRST};{}", other_second.replace("2,true", "1+1,true")),
+        false,
+        &other,
+    );
 }
 
 #[test]

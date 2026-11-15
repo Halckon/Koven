@@ -30,14 +30,18 @@ impl EntryKeys {
         d: &EntryDescriptor,
         typed: &ValidatedCompilationUnitTypes,
     ) -> Option<Self> {
-        // This refactor deliberately retains the previous same-instance admission boundary.
-        let common = d.common_instance()?;
+        // None is admissible only for the privately constructed exact temporary pair.
+        let common = d.common_instance();
+        if common.is_none() && !d.is_different_temporary_pair() {
+            return None;
+        }
         let keys = d
             .calls()
             .iter()
             .map(|call| {
                 let actual = typed.types().call(call.contracts()[0].call())?.instance();
-                (actual == call.instance() && actual == common).then(|| actual.clone())
+                (actual == call.instance() && common.is_none_or(|key| actual == key))
+                    .then(|| actual.clone())
             })
             .collect::<Option<Vec<_>>>()?;
         Self::from_vec(keys)

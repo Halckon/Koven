@@ -1,5 +1,6 @@
 //! Private-construction source entry evidence; not normal ownership or backend authority.
 mod body;
+mod different_pair;
 mod late_pair;
 mod shared_pair;
 mod staggered_pair;
@@ -40,6 +41,7 @@ enum EntryCalls {
     Single(Box<EntryCallDescriptor>),
     Pair(Box<[EntryCallDescriptor; 2]>),
     LateInitializedPair(Box<[EntryCallDescriptor; 2]>),
+    DifferentTemporaryPair(Box<[EntryCallDescriptor; 2]>),
     StaggeredNamedPair {
         owners: Box<[EntryOwnerDescriptor; 2]>,
         calls: Box<[EntryCallDescriptor; 2]>,
@@ -301,7 +303,8 @@ impl EntryDescriptor {
             EntryCalls::Pair(calls)
             | EntryCalls::SharedNamedPair { calls, .. }
             | EntryCalls::StaggeredNamedPair { calls, .. }
-            | EntryCalls::LateInitializedPair(calls) => calls.as_ref(),
+            | EntryCalls::LateInitializedPair(calls)
+            | EntryCalls::DifferentTemporaryPair(calls) => calls.as_ref(),
         }
     }
     /// Two distinct root-owned initializers in source order and their separate final-use Drops.
@@ -325,6 +328,10 @@ impl EntryDescriptor {
             &owner.bytes,
             &owner.drop,
         ))
+    }
+    /// Privately proven exact pair of fully temporary calls to two closed distinct instances.
+    pub fn is_different_temporary_pair(&self) -> bool {
+        matches!(self.calls, EntryCalls::DifferentTemporaryPair(_))
     }
     /// Returns a key only when every original occurrence shares the complete instance.
     pub fn common_instance(&self) -> Option<&UnitCallableInstanceKey> {
@@ -862,15 +869,19 @@ pub(super) fn collect(
                 collect_call(expressions[0]?, if late { &[] } else { declarations })?;
             let calls = if let Some(second_id) = expressions[1] {
                 let (second, second_owner) = collect_call(second_id, declarations)?;
-                if first.instance() != second.instance()
-                    || first.contracts()[0].call() == second.contracts()[0].call()
+                if first.contracts()[0].call() == second.contracts()[0].call()
                     || [first.contracts()[0].call(), second.contracts()[0].call()]
                         .iter()
                         .any(|call| call.source_unit() != unit)
                 {
                     return None;
                 }
-                if late {
+                if first.instance() != second.instance() {
+                    if late || !declarations.is_empty() {
+                        return None;
+                    }
+                    different_pair::finish(first, second, owned, parsed)?
+                } else if late {
                     late_pair::finish(first, second, owned, parsed)?
                 } else {
                     if !first.initialization_order().is_empty()
