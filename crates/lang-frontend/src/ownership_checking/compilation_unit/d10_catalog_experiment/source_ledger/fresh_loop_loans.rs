@@ -122,6 +122,28 @@ impl CompilationUnitOwnership {
         }
         self.link_arm_pair(fact.pair(), Some((call, argument)))
     }
+    pub(crate) fn d10_arm_break_surrounding_link(
+        &self,
+        branch: UnitExpressionId,
+        calls: &[(UnitExpressionId, UnitExpressionId)],
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
+        use CallableLoanLinkError::{Ambiguous, Unsupported};
+        if calls.len() > 2 {
+            return Err(Unsupported);
+        }
+        let facts: Vec<_> = self
+            .no_carry_break_branches()
+            .iter()
+            .filter(|f| f.pair().branch() == branch)
+            .collect();
+        let [fact] = facts.as_slice() else {
+            return Err(Ambiguous);
+        };
+        if !self.owns_no_carry_break_branch(fact) {
+            return Err(Unsupported);
+        }
+        self.link_arm_pair_calls(fact.pair(), calls)
+    }
     fn link_arm_source(
         &self,
         branch: UnitExpressionId,
@@ -145,6 +167,13 @@ impl CompilationUnitOwnership {
         &self,
         pair: &crate::ownership_checking::UnitLoopBranchNoCarryFact,
         prefix: Option<(UnitExpressionId, UnitExpressionId)>,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
+        self.link_arm_pair_calls(pair, &prefix.into_iter().collect::<Vec<_>>())
+    }
+    fn link_arm_pair_calls(
+        &self,
+        pair: &crate::ownership_checking::UnitLoopBranchNoCarryFact,
+        calls: &[(UnitExpressionId, UnitExpressionId)],
     ) -> Result<UnitItemId, CallableLoanLinkError> {
         use CallableLoanLinkError::{Ambiguous, Unsupported};
         let ledger = self.source_collection_ledger.as_ref().ok_or(Unsupported)?;
@@ -191,7 +220,7 @@ impl CompilationUnitOwnership {
                 ordinals.push(*ordinal);
             }
         }
-        if let Some((call, argument)) = prefix {
+        for &(call, argument) in calls {
             let loans: Vec<_> = record
                 .loans
                 .iter()
@@ -208,6 +237,7 @@ impl CompilationUnitOwnership {
             {
                 return Err(Unsupported);
             }
+            ordinals.push(*ordinal);
         }
         Ok(callable)
     }

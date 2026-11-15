@@ -11,6 +11,7 @@ pub(super) struct Source {
     pub conditions: [(UnitExpressionId, Span); 2],
     pub calls: [Vec<Call>; 2],
     pub transfer: (UnitExpressionId, Span),
+    pub prefix: Option<(crate::ssa::refine::fresh_loop_receipt::SourceConsumer, Call)>,
     pub suffix: Option<(crate::ssa::refine::fresh_loop_receipt::SourceConsumer, Call)>,
 }
 impl Source {
@@ -36,11 +37,26 @@ impl Source {
         let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
             return None;
         };
-        let (statement, after) = match elements.as_slice() {
-            [statement] => (statement, None),
-            [statement, after] => (statement, Some(*after)),
-            _ => return None,
+        let indices = elements
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| {
+                matches!(
+                    ast.statements().get(*s).ok()?.payload(),
+                    Statement::While { .. }
+                )
+                .then_some(i)
+            })
+            .collect::<Vec<_>>();
+        let [index] = indices.as_slice() else {
+            return None;
         };
+        if *index > 1 || elements.len() - index - 1 > 1 {
+            return None;
+        }
+        let statement = &elements[*index];
+        let before = (*index == 1).then(|| elements[0]);
+        let after = elements.get(index + 1).copied();
         if !inputs.owned.owns_no_carry_break_branch(wrapper)
             || wrapper.exit_target() != fact.arms()[0].loop_statement()
             || wrapper.exit_kind()
@@ -179,6 +195,20 @@ impl Source {
                     .collect::<Option<Vec<_>>>()?,
             );
         }
+        let prefix = if let Some(before) = before {
+            let consumer = crate::ssa::refine::fresh_loop_receipt::audit_consumer(
+                inputs,
+                before,
+                fact.arms()[0].source(),
+            )?;
+            let mapped = call(consumer.call)?;
+            if mapped.1 != consumer.callee() {
+                return None;
+            }
+            Some((consumer, mapped))
+        } else {
+            None
+        };
         let suffix = if let Some(after) = after {
             let consumer = crate::ssa::refine::fresh_loop_receipt::audit_consumer(
                 inputs,
@@ -199,6 +229,7 @@ impl Source {
             conditions: conditions.try_into().ok()?,
             calls: calls.try_into().ok()?,
             transfer,
+            prefix,
             suffix,
         })
     }

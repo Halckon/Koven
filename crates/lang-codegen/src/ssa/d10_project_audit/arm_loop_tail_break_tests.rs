@@ -22,7 +22,7 @@ fn tail_break_complete_caller_keeps_surrounding_work_and_unused_roles_outside() 
     for (signature, prefix, suffix) in [
         (
             "source:String,flag:Boolean,choose:Boolean",
-            "consume(source);",
+            "consume(source);other(source);",
             "",
         ),
         (
@@ -60,7 +60,7 @@ pub(super) fn check_roles(
             let (p, provider) = unit_lower_test_support::parsed(
                 &mut sources,
                 "arm-audit-provider.ko",
-                "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun after(item:String):Unit {}",
+                "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun after(item:String):Unit {}\nfun before(item:String):Unit {}",
             );
             let (outer, inner) = if same_flag {
                 ("flag", "flag")
@@ -207,7 +207,7 @@ pub(super) fn check_roles(
                 assert_eq!(function.blocks.len(), 8);
                 assert_eq!(
                     function.instructions.len(),
-                    9 + usize::from(!suffix.is_empty())
+                    9 + usize::from(!suffix.is_empty()) + usize::from(!prefix.is_empty())
                         - signature
                             .split(',')
                             .filter(|p| p.starts_with("own "))
@@ -216,6 +216,64 @@ pub(super) fn check_roles(
                 assert!(breaks[0].instructions.is_empty());
                 assert_eq!(edge.arguments.len(), usize::from(!suffix.is_empty()));
                 let entry_block = function.block(function.entry_block().unwrap()).unwrap();
+                assert_eq!(
+                    entry_block.instructions.len(),
+                    usize::from(!prefix.is_empty())
+                );
+                if !prefix.is_empty() {
+                    let call = function.instruction(entry_block.instructions[0]).unwrap();
+                    let name = prefix.split('(').next().unwrap();
+                    let declaration = names
+                        .names()
+                        .index()
+                        .declarations()
+                        .iter()
+                        .find(|d| d.name() == name)
+                        .unwrap();
+                    let span = provider
+                        .ast()
+                        .items()
+                        .get(declaration.root())
+                        .unwrap()
+                        .span();
+                    let targets: Vec<_> = program
+                        .modules
+                        .iter()
+                        .flat_map(|m| &m.functions)
+                        .filter(|f| f.origin == crate::ssa::model::Origin::Source(span))
+                        .collect();
+                    let [target] = targets.as_slice() else {
+                        panic!("original prefix declaration");
+                    };
+                    let source_role = signature
+                        .split(',')
+                        .position(|p| p == "source:String")
+                        .unwrap();
+                    assert_eq!(
+                        call.operation,
+                        Operation::DirectCall {
+                            callee: target.id,
+                            receiver: None,
+                            arguments: vec![entry_block.parameters[source_role]]
+                        }
+                    );
+                    assert!(call.results.is_empty());
+                    let call_text = prefix.trim_end_matches(';');
+                    let start = text.find(call_text).unwrap();
+                    assert_eq!(
+                        call.origin,
+                        crate::ssa::model::Origin::Source(
+                            sources.span(c, start, start + call_text.len()).unwrap()
+                        )
+                    );
+                    if !suffix.is_empty() {
+                        assert_ne!(call.id, exit.instructions[0]);
+                        assert_ne!(
+                            call.origin,
+                            function.instruction(exit.instructions[0]).unwrap().origin
+                        );
+                    }
+                }
                 let mut roles: BTreeMap<_, _> = entry_block
                     .parameters
                     .iter()

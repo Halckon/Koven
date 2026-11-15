@@ -4,6 +4,12 @@ use crate::ssa::model::{
     EntityType, LoanKind, Operation, Program, SsaTypeId, SsaTypeKind, TerminatorKind,
 };
 use std::collections::BTreeSet;
+type TailDispatch<'a> = (
+    &'a [Vec<FunctionId>; 2],
+    (UnitExpressionId, Span),
+    Option<&'a super::super::fresh_loop_receipt::SourceConsumer>,
+    Option<&'a super::super::fresh_loop_receipt::SourceConsumer>,
+);
 impl Receipt {
     pub(crate) fn certify_tail_break(
         &self,
@@ -12,13 +18,9 @@ impl Receipt {
         abi: &[(SsaTypeId, ParameterMode)],
         roles: &[usize; 3],
         conditions: &[(UnitExpressionId, Span); 2],
-        dispatch: (
-            &[Vec<FunctionId>; 2],
-            (UnitExpressionId, Span),
-            Option<&super::super::fresh_loop_receipt::SourceConsumer>,
-        ),
+        dispatch: TailDispatch<'_>,
     ) -> Option<[(FunctionId, InstructionId, FunctionId); 2]> {
-        let (calls, transfer, suffix) = dispatch;
+        let (calls, transfer, prefix, suffix) = dispatch;
         let fact = wrapper.pair();
         let p = &self.plan;
         let s = self.span;
@@ -146,7 +148,7 @@ impl Receipt {
         for (i, b) in refs.iter().enumerate() {
             let list = self.evidence.ids(f, *b, s).ok()?;
             let count = match i {
-                0 => 0,
+                0 => usize::from(prefix.is_some()),
                 1 | 2 => usize::from(abi[roles[i]].1 == ParameterMode::Borrow),
                 3 => calls[0].len() + 1,
                 4 => calls[1].len() + 1,
@@ -158,6 +160,29 @@ impl Receipt {
             }
             for instruction in list {
                 if !instructions.insert(instruction) {
+                    return None;
+                }
+            }
+        }
+        if let Some(consumer) = prefix {
+            let [instruction] = entry_block.instructions.as_slice() else {
+                return None;
+            };
+            let call = f.instruction(*instruction)?;
+            if call.operation
+                != (Operation::DirectCall {
+                    callee: consumer.callee,
+                    receiver: None,
+                    arguments: vec![entry_block.parameters[roles[0]]],
+                })
+                || !call.results.is_empty()
+                || call.origin != crate::ssa::model::Origin::Source(consumer.span)
+            {
+                return None;
+            }
+            let ending = self.evidence.ends.get(&ids[0])?;
+            for (slot, entity) in self.parameters.iter().zip(&entry_block.parameters) {
+                if ending.get(slot) != Some(entity) {
                     return None;
                 }
             }
