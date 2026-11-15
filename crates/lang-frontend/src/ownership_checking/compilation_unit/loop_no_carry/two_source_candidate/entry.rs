@@ -34,6 +34,12 @@ enum StringStorage {
         strings: [Vec<u8>; 2],
         drops: [UnitDropFact; 2],
     },
+    Mixed {
+        owner: (UnitSymbolId, UnitExpressionId, Span, Vec<u8>),
+        temporary_index: usize,
+        temporary: Vec<u8>,
+        drops: [UnitDropFact; 2],
+    },
     DistinctNamed {
         owners: [(UnitSymbolId, UnitExpressionId, Span, Vec<u8>); 2],
         drops: [UnitDropFact; 2],
@@ -54,6 +60,18 @@ impl EntryDescriptor {
             _ => None,
         }
     }
+    /// Original bytes for the temporary at this argument position, including mixed entries.
+    pub fn temporary_string(&self, index: usize) -> Option<&[u8]> {
+        match &self.storage {
+            StringStorage::Temporary { strings, .. } => strings.get(index).map(Vec::as_slice),
+            StringStorage::Mixed {
+                temporary_index,
+                temporary,
+                ..
+            } if *temporary_index == index => Some(temporary),
+            _ => None,
+        }
+    }
     /// A single real named owner shared by the two distinct String argument loans.
     pub fn named_string(&self) -> Option<(UnitSymbolId, UnitExpressionId, Span, &[u8])> {
         match &self.storage {
@@ -70,6 +88,10 @@ impl EntryDescriptor {
     /// Named owners in source declaration order; never coalesced by equal bytes.
     pub fn named_strings(&self) -> Vec<(UnitSymbolId, UnitExpressionId, Span, &[u8])> {
         match &self.storage {
+            StringStorage::Mixed {
+                owner: (r, i, s, b),
+                ..
+            } => vec![(*r, *i, *s, b.as_slice())],
             StringStorage::DistinctNamed { owners, .. } => owners
                 .iter()
                 .map(|(r, i, s, b)| (*r, *i, *s, b.as_slice()))
@@ -134,7 +156,9 @@ impl EntryDescriptor {
         match &self.storage {
             StringStorage::Temporary { drops, .. } => drops,
             StringStorage::Named { drop, .. } => std::slice::from_ref(drop),
-            StringStorage::DistinctNamed { drops, .. } => drops,
+            StringStorage::DistinctNamed { drops, .. } | StringStorage::Mixed { drops, .. } => {
+                drops
+            }
         }
     }
 }
@@ -335,6 +359,7 @@ pub(super) fn collect(
             if call.arguments().len() != 4 {
                 return None;
             }
+            let mut temporary_arguments = Vec::new();
             for (i, c) in contracts.iter().enumerate() {
                 if c.parameter_index() != i
                     || contracts
@@ -355,19 +380,13 @@ pub(super) fn collect(
                     .expressions()
                     .get(c.argument().expression())
                     .ok()?;
-                if i < 2 && !named.is_empty() {
-                    if !matches!(node.payload(), Expression::Name) {
-                        return None;
-                    }
-                } else if i < 2 {
-                    let Expression::String { parts } = node.payload() else {
-                        return None;
-                    };
-                    if parts
-                        .iter()
-                        .any(|part| !matches!(part, StringPart::Text(_)))
-                    {
-                        return None;
+                if i < 2 {
+                    match node.payload() {
+                        Expression::Name if !named.is_empty() => {}
+                        Expression::String { .. } if named.len() <= 1 => {
+                            temporary_arguments.push((i, plain_string(sources, node.payload())?));
+                        }
+                        _ => return None,
                     }
                 } else if !matches!(node.payload(), Expression::Name) {
                     return None;
@@ -393,9 +412,11 @@ pub(super) fn collect(
                 }
                 match (i, end.loan().target()) {
                     (0 | 1, UnitLoanTarget::Temporary(owner))
-                        if named.is_empty() && *owner == c.argument() => {}
+                        if temporary_arguments.iter().any(|(index, _)| *index == i)
+                            && *owner == c.argument() => {}
                     (0 | 1, UnitLoanTarget::Place(place))
-                        if named.iter().any(|n| place.is_root() && place.root() == n.0) => {}
+                        if !temporary_arguments.iter().any(|(index, _)| *index == i)
+                            && named.iter().any(|n| place.is_root() && place.root() == n.0) => {}
                     (2 | 3, UnitLoanTarget::Place(place))
                         if place.is_root() && place.root() == locals[i - 2].0 => {}
                     _ => return None,
@@ -412,7 +433,39 @@ pub(super) fn collect(
                 .filter(|d| d.point() == UnitDropPoint::CallReturn(call_id))
                 .copied()
                 .collect();
-            let storage = if named.len() == 2 {
+            let storage = if named.len() == 1 && temporary_arguments.len() == 1 {
+                let (temporary_index, temporary) = temporary_arguments.pop()?;
+                let temporary_target =
+                    UnitDropTarget::Temporary(contracts[temporary_index].argument());
+                let named_target = UnitDropTarget::Named(named[0].0);
+                let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
+                for target in [named_target, temporary_target] {
+                    if drops.iter().filter(|drop| drop.target() == target).count() != 1
+                        || owned
+                            .drops()
+                            .iter()
+                            .filter(|drop| drop.target() == target)
+                            .count()
+                            != 1
+                    {
+                        return None;
+                    }
+                }
+                let named_argument = &contracts[1 - temporary_index];
+                if !ends.iter().any(|end| {
+                    end.loan().argument() == named_argument.argument()
+                        && matches!(end.loan().target(), UnitLoanTarget::Place(place)
+                        if place.is_root() && place.root() == named[0].0)
+                }) {
+                    return None;
+                }
+                StringStorage::Mixed {
+                    owner: named.into_iter().next()?,
+                    temporary_index,
+                    temporary,
+                    drops,
+                }
+            } else if named.len() == 2 {
                 let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
                 for (root, _, _, _) in &named {
                     let argument_count = contracts[..2]
@@ -446,6 +499,9 @@ pub(super) fn collect(
                     drops,
                 }
             } else if let Some((root, initializer, span, bytes)) = named.into_iter().next() {
+                if !temporary_arguments.is_empty() {
+                    return None;
+                }
                 let [drop] = drops.as_slice() else {
                     return None;
                 };

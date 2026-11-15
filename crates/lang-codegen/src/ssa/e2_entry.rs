@@ -162,12 +162,12 @@ pub(super) fn fill_entry(
             origin,
         )?)?);
     }
+    let mut temporary_owners = Vec::new();
     let mut loans = Vec::new();
     for (i, c) in descriptor.contracts().iter().enumerate() {
         let ty = [string, string, int, boolean][i];
         let origin = Origin::Source(c.argument_span());
-        let root = if i < 2 && !named_roots.is_empty() {
-            let symbol = descriptor.named_argument_root(i)?;
+        let root = if let Some(symbol) = descriptor.named_argument_root(i) {
             let mut matches = named_roots
                 .iter()
                 .filter(|(candidate, _)| *candidate == symbol);
@@ -182,11 +182,12 @@ pub(super) fn fill_entry(
                 block,
                 Operation::StringLiteral {
                     string,
-                    bytes: descriptor.strings()?[i].clone(),
+                    bytes: descriptor.temporary_string(i)?.to_vec(),
                 },
                 EntityType::Value(string),
                 origin.clone(),
             )?)?;
+            temporary_owners.push((c.argument(), owners.len()));
             owners.push(owner);
             place(append(
                 f,
@@ -241,9 +242,13 @@ pub(super) fn fill_entry(
     for drop in descriptor.drops() {
         let (index, origin) = match drop.target() {
             UnitDropTarget::Temporary(argument) => {
-                let i = descriptor.contracts()[..2]
+                let mut matches = temporary_owners
                     .iter()
-                    .position(|c| c.argument() == argument)?;
+                    .filter(|(candidate, _)| *candidate == argument);
+                let i = matches.next()?.1;
+                if matches.next().is_some() {
+                    return None;
+                }
                 (i, call_origin.clone())
             }
             UnitDropTarget::Named(root) => {

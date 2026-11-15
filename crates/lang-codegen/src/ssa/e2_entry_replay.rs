@@ -142,9 +142,12 @@ pub(super) fn replay_declared_body(
     if !block.parameters.is_empty()
         || block.origin != Origin::Source(declaration)
         || block.instructions.len()
-            != match d.named_strings().len() {
-                1 => 16,
-                0 | 2 => 19,
+            != match (
+                d.named_strings().len(),
+                (0..2).filter(|i| d.temporary_string(*i).is_some()).count(),
+            ) {
+                (1, 0) => 16,
+                (0, 2) | (1, 1) | (2, 0) => 19,
                 _ => return None,
             }
         || f.instructions.len() != block.instructions.len()
@@ -203,12 +206,12 @@ pub(super) fn replay_declared_body(
             Some(EntityType::Place(ty)),
         )?)?);
     }
+    let mut temporary_owners = Vec::new();
     let mut loans = Vec::new();
     for (i, c) in d.contracts().iter().enumerate() {
         let origin = Origin::Source(c.argument_span());
         let ty = [string, string, int, boolean][i];
-        let root = if i < 2 && !named_roots.is_empty() {
-            let symbol = d.named_argument_root(i)?;
+        let root = if let Some(symbol) = d.named_argument_root(i) {
             let mut matches = named_roots
                 .iter()
                 .filter(|(candidate, _)| *candidate == symbol);
@@ -221,11 +224,12 @@ pub(super) fn replay_declared_body(
             let owner = value(cursor.step(
                 Operation::StringLiteral {
                     string,
-                    bytes: d.strings()?[i].clone(),
+                    bytes: d.temporary_string(i)?.to_vec(),
                 },
                 origin.clone(),
                 Some(EntityType::Value(string)),
             )?)?;
+            temporary_owners.push((c.argument(), owners.len()));
             owners.push(owner);
             place(cursor.step(
                 Operation::RootPlace { owner },
@@ -272,9 +276,13 @@ pub(super) fn replay_declared_body(
     for drop in d.drops() {
         let (index, drop_origin) = match drop.target() {
             UnitDropTarget::Temporary(argument) => {
-                let i = d.contracts()[..2]
+                let mut matches = temporary_owners
                     .iter()
-                    .position(|c| c.argument() == argument)?;
+                    .filter(|(candidate, _)| *candidate == argument);
+                let i = matches.next()?.1;
+                if matches.next().is_some() {
+                    return None;
+                }
                 (i, origin.clone())
             }
             UnitDropTarget::Named(root) => {

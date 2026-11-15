@@ -19959,3 +19959,26 @@ proof，跨两路线统一按原 call 计数；唯一完整 fact/来源/映射/�
 原 same-root 2/2 与 Boolean 双消费 exact 1/1 交叉通过。codegen 三 feature all-targets
 strict Clippy 20.95s，默认仅 codegen all-targets check 0.33s。未运行 native、
 人工故障或推送；无额外扩大域的本地测试。
+
+
+### E2 named 与 temporary 混合 String 入口（2026-11-15）
+
+在 023fd504 独立树中扩展既有默认关闭入口，精确四 statement：一个 plain String val、
+既有 Int/Boolean val、一次调用。两个 String 实参恰为一个该 named 根与一个 plain
+literal temporary，支持两个实参位置。保留真实四 Shared End 同 CallReturn/顺序/
+preceding_drops=0；两类目标各有完整 ownership 中唯一 Drop，不从字节相等推断别名。
+var、分组实参、额外后用、额外 owner、转义或插值仍不是本片支持域。
+
+私有 Mixed descriptor 分别保存原 named 与 temporary 身份。后端按声明序建立 named，
+按实参位置实际建立 temporary，并保存 argument→owner index 映射；清理绝不再用实参
+索引假设创建顺序。独立 replay 保留精确19指令、实际源origin与每owner一次消费；
+旧单named/双named/双temporary合同保留。全Unit gate、共同计划、能力隔离和默认关闭不变。
+
+新增 source→SSA→LLVM 用例核两位置、相同字节但不同owner及group/var/后缀拒绝；新增
+公开库 temporary-first 双分支执行用例纳入原CI清单，本地仅编译列名，不运行native。
+末版 source→SSA→LLVM 九形状在正式与三 feature 配置各 1 passed；旧single-named
+与distinct-named直接非native回归各1 passed。额外owner自然负例与旧dual-temporary
+回归已包含在新增目标内，没有重跑旧native矩阵。fmt、diff、文档958文件与尺寸门禁通过；
+公开native正式feature编译与精确列名通过，未执行；frontend/codegen三feature
+all-targets严格Clippy通过（1m40s）。默认跨crate检查留共同集成只运行一次。
+无推送或本地故障注入。
