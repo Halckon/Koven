@@ -65,11 +65,12 @@ enum StringStorage {
     },
 }
 impl EntryDescriptor {
-    /// Semantic role at this source argument/signature position: left, right, rounds, choose.
+    /// Semantic role at this source argument position, through the original parameter mapping.
     pub fn argument_role(&self, index: usize) -> Option<usize> {
+        let parameter = self.contracts.get(index)?.parameter_index();
         self.parameter_roles
             .iter()
-            .position(|position| *position == index)
+            .position(|position| *position == parameter)
     }
     /// Original source declaration order, independent of scalar argument roles.
     pub fn initialization_order(&self) -> &[EntryInitialization] {
@@ -343,11 +344,6 @@ pub(super) fn collect(
             if matching_shells.next().is_some() {
                 return None;
             }
-            let role_at = |index| {
-                parameter_roles
-                    .iter()
-                    .position(|position| *position == index)
-            };
             let contracts: [UnitCallArgumentOwnershipContract; 4] = owned
                 .call_argument_contracts_for(call_id)
                 .copied()
@@ -357,9 +353,25 @@ pub(super) fn collect(
             if call.arguments().len() != 4 {
                 return None;
             }
+            let mut argument_positions = [0; 4];
+            for (role, parameter) in parameter_roles.iter().enumerate() {
+                let mut matching = contracts
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, contract)| contract.parameter_index() == *parameter);
+                argument_positions[role] = matching.next()?.0;
+                if matching.next().is_some() {
+                    return None;
+                }
+            }
+            let role_at = |index| {
+                argument_positions
+                    .iter()
+                    .position(|position| *position == index)
+            };
             let mut temporary_arguments = Vec::new();
             for (i, c) in contracts.iter().enumerate() {
-                if c.parameter_index() != i
+                if c.parameter_index() != call.arguments()[i].parameter_index()
                     || contracts
                         .iter()
                         .filter(|other| other.argument() == c.argument())
@@ -368,7 +380,6 @@ pub(super) fn collect(
                     || c.kind() != UnitCallArgumentOwnershipKind::SharedLoan
                     || c.crosses_thread()
                     || call.arguments()[i].argument_index() != i
-                    || call.arguments()[i].parameter_index() != i
                     || call.arguments()[i].parameter_type() != c.parameter_type()
                 {
                     return None;
@@ -451,7 +462,7 @@ pub(super) fn collect(
                     }
                 }
                 let other_role = 1usize.checked_sub(role_at(temporary_index)?)?;
-                let named_argument = &contracts[parameter_roles[other_role]];
+                let named_argument = &contracts[argument_positions[other_role]];
                 if !ends.iter().any(|end| {
                     end.loan().argument() == named_argument.argument()
                         && matches!(end.loan().target(), UnitLoanTarget::Place(place)
@@ -468,7 +479,7 @@ pub(super) fn collect(
             } else if named.len() == 2 {
                 let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
                 for (root, _, _, _) in &named {
-                    let argument_count = parameter_roles[..2]
+                    let argument_count = argument_positions[..2]
                         .iter()
                         .map(|index| &contracts[*index])
                         .filter(|contract| {
@@ -525,7 +536,10 @@ pub(super) fn collect(
                 }
             } else {
                 let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
-                for c in parameter_roles[..2].iter().map(|index| &contracts[*index]) {
+                for c in argument_positions[..2]
+                    .iter()
+                    .map(|index| &contracts[*index])
+                {
                     if drops
                         .iter()
                         .filter(|d| d.target() == UnitDropTarget::Temporary(c.argument()))
@@ -535,7 +549,7 @@ pub(super) fn collect(
                         return None;
                     }
                 }
-                let strings: [Vec<u8>; 2] = parameter_roles[..2]
+                let strings: [Vec<u8>; 2] = argument_positions[..2]
                     .iter()
                     .map(|index| &contracts[*index])
                     .map(|c| {

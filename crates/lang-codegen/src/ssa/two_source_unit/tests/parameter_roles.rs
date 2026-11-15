@@ -4,15 +4,15 @@ use crate::ssa::model::{
     EntityId, EntityType, LoanKind, Operation, Origin, ScalarConstant, SsaTypeKind,
 };
 
-fn check(order: &[usize], prefix: &str, operands: &[&str; 4], named: bool) {
+fn check(order: &[usize], prefix: &str, operands: &[&str; 4], grouped: bool) {
     let parameters = [
         "left:String",
         "right:String",
         "rounds:Int",
         "choose:Boolean",
     ];
-    let arguments = if named {
-        "choose=choose,rounds=rounds,right=\"RIGHT\",left=\"LEFT\"".to_owned()
+    let arguments = if grouped {
+        "\"LEFT\",\"RIGHT\",rounds,(choose)".to_owned()
     } else {
         order
             .iter()
@@ -56,7 +56,7 @@ fn check(order: &[usize], prefix: &str, operands: &[&str; 4], named: bool) {
         .unwrap()
         .id();
     let result = prepare_two_source_unit(&sources, &inputs, &names, &types, &typed, entry);
-    if named {
+    if grouped {
         assert!(matches!(
             result,
             Err(TwoSourceUnitError::UnsupportedSelection)
@@ -236,7 +236,7 @@ fn entry_arguments_preserve_all_signature_role_permutations() {
     }
 }
 #[test]
-fn entry_role_permutations_do_not_admit_reordered_named_arguments() {
+fn entry_role_permutations_reject_grouped_scalar_arguments() {
     check(
         &[0, 1, 2, 3],
         "",

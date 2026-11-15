@@ -236,13 +236,25 @@ pub(super) fn fill_entry(
             origin,
         )?)?);
     }
+    // Borrow evaluation stays in source order; only the call delivery uses ABI order.
+    let mut arguments = [None; 4];
+    for (contract, loan) in descriptor.contracts().iter().zip(&loans) {
+        if arguments
+            .get_mut(contract.parameter_index())?
+            .replace(EntityId::Loan(*loan))
+            .is_some()
+        {
+            return None;
+        }
+    }
+    let arguments = arguments.into_iter().collect::<Option<Vec<_>>>()?;
     let call_origin = Origin::Source(descriptor.contracts()[0].call_span());
     f.append_instruction(
         block,
         Operation::DirectCall {
             receiver: None,
             callee: caller,
-            arguments: loans.iter().copied().map(EntityId::Loan).collect(),
+            arguments,
         },
         vec![],
         call_origin.clone(),
