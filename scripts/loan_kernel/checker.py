@@ -32,6 +32,7 @@ class ClassDecl:
     line: int
     implements: list = field(default_factory=list)
     private: set = field(default_factory=set)  # 只有声明为该类型成员的函数可以访问的字段
+    cell: bool = False  # 内部可变：内容只能经受信任函数访问，共享借用下也可能被改写
 
     def field(self, name):
         return next((f for f in self.fields if f[1] == name), None)
@@ -155,6 +156,7 @@ class Parser:
                 fun = self.fun(self.peek())
                 table[fun.name] = fun
             else:
+                is_cell = self.accept("cell")
                 is_view = self.accept("view")
                 self.expect("class")
                 name = self.next()
@@ -172,7 +174,7 @@ class Parser:
                 implements = []
                 while self.accept("is"):
                     implements.append(self.next())
-                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements, private)
+                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements, private, is_cell)
         return classes, funs, sigs
 
     def type_name(self):
@@ -482,8 +484,10 @@ class Checker:
                 if not any(path == fld or path.startswith(fld + ".") for path in paths):
                     self.error("SIG", fun.line, f"{fun.name}：{param}.{fld} 之下没有视图的借用字段")
         for _, target in fun.flows:
-            if params.get(target, ("",))[0] != "inout":
-                self.error("SIG", fun.line, f"{fun.name}：流向的目标 {target} 须是 inout 参数")
+            mode, ty = params.get(target, ("", ""))
+            cell = mode == "borrow" and ty in self.classes and self.classes[ty].cell
+            if mode != "inout" and not cell:  # K19：经共享借用流入，只对内部可变类型成立
+                self.error("SIG", fun.line, f"{fun.name}：流向的目标 {target} 须是 inout 参数，或内部可变类型的 borrow 参数")
 
     def result_exclusive(self, fun):
         kind, ty = fun.result
@@ -604,7 +608,7 @@ class Checker:
         """K6 对流向的延伸：函数体让哪些来源流进了 inout 参数，签名的 flows 就要声明哪些。"""
         for mode, name, _ in fun.params:
             var = state.get(name)
-            if mode != "inout" or var is None or var.init == "M":
+            if mode == "own" or var is None or var.init == "M":
                 continue
             extra = set(var.loans.get("*", ())) - {f"P({name}.*)"}
             declared = {src for src, target in fun.flows if target == name}
@@ -719,6 +723,8 @@ class Checker:
             fld = decl.field(name) if decl else None
             if fld is None:
                 raise SyntaxProblem(f"第 {place.line} 行：{ty.name} 没有字段 {name}")
+            if decl.cell:
+                self.error("K19", place.line, f"{decl.name} 是内部可变类型，它的内容只能经受信任函数访问")
             if name in decl.private and self.fun.owner != decl.name:
                 self.error("K15", place.line, f"{decl.name}.{name} 是私有字段，只有 {decl.name} 的成员函数可以访问")
             kind, _, fty = fld
@@ -936,10 +942,17 @@ class Checker:
         for (param, fld), target in fun.flows:  # 来源流入已有的持有者
             arg = expr.args[[name for _, name, _ in fun.params].index(target)]
             holder = arg.place.root if arg.kind in ("ref", "place") and not arg.place.fields else None
-            own_param = holder in {name for _, name, _ in self.fun.params}
-            if holder is None or (arg.kind == "place" and not own_param):
-                raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是 &mut 变量，或本函数的 inout 参数")
-            state[holder].loans.setdefault("*", set()).update(self.carried(values[param], modes[param], fld))
+            if holder is None:
+                raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是对变量的借用，或一个借用值")
+            own_params = {name for _, name, _ in self.fun.params}
+            holders = {holder}
+            if arg.kind == "place" and holder not in own_params:
+                # 局部的借用值：来源流入它所指的每个变量；指向调用方的存储时，记在相应的参数上
+                roots = {root for loan in state[holder].loans.get("", ()) for root, _ in self.loans[loan].places}
+                holders = {root if root in state else root[1:].split(".")[0] for root in roots}
+            flowing = self.carried(values[param], modes[param], fld)
+            for name in holders:
+                state[name].loans.setdefault("*", set()).update(flowing)
         result = set()
         for param, fld in fun.sources:
             if param in values:
