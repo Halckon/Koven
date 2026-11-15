@@ -6,6 +6,8 @@ pub(crate) mod arm_loop_consumption;
 mod arm_loop_consumption_tests;
 pub(crate) mod arm_loop_counter_consumption;
 #[cfg(test)]
+mod arm_loop_counter_prefix_origin_tests;
+#[cfg(test)]
 mod arm_loop_counter_rounds_tests;
 #[cfg(test)]
 mod arm_loop_counter_tests;

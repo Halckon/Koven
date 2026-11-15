@@ -20574,3 +20574,8 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 完整三 ABI 中 source String 仍强制 Borrow；rounds Int 现与 choose Boolean 一样可各自 Borrow/Value，原 typed modes 与完整角色独立保存。Value rounds 必须原 entry 零指令、rounds==initial 且原 init.input 为 rounds slot；Borrow 保原 initializer Span 的唯一 Read。原 alias/transport 继续核 initial→header guard 与 checked success→header 更新，不从结果类型猜来源。
 - 最终全 caller 的 entry 指令数按原 rounds mode 精确为零/一，split 仍按 choose mode 精确零/一；九原角色、sealed wrapper、原完整 ledger、原常量一到唯一 checked-failure Abort 来源与旧普通 checker 的空授权不变，不开放 owned String、额外 ABI 或一般失败路径。
 - 新两项目标首遍通过：六 ABI、choose 两模式、source 两顺序共二十四形态各两次 assembly；实际仍九块，helper 独立追原 rounds 实体经 Read 或直接 Value、实际 entry edge 到 header Compare.left，总代码指令数随两原模式精确为十一至十三。额外 Boolean 两模式均原正常 lower/verify/receipt 但具体 gap；已获证 own rounds 旧负控改为冗余参数。原 Borrow 两项、choose Value 两项通过；FE/codegen 三 feature all-targets 严格 Clippy 1m45s、default codegen all-targets 32.38s、格式、docs 979、尺寸 2480 文件（两项历史欠账）及独审通过。只普通源码到 SSA 模型检查，未重复 probe、未执行生成 Abort/native/故障注入、未推送，默认 workspace 留联合一次。
+
+### D10 counter 前 source 消费的原路由边界
+
+- 仅新增真实源码拒绝回归，未修改生产准入或 planner。消费位于初始化前时，Borrow/双 Value 与来源反序四输入各两次 lower 均有原 counter fact，但原 producer 返回精确 InvalidModel/整个 caller Span，零 receipt/audit/recorded；不得以 sealed fact 存在替代成功完整证据。消费夹在初始化与 while 间时，四输入各一次原 names/types 成功，ownership 精确两条 L0164 位于两处 borrow 六字符 Span，counter facts 与 publication 为空，该路径未进入 lower。
+- 首分类日志保留，包括辅助 analyze 因原 ownership 拒绝而 panic；精确回归首编仅测试 expect_err 要求 Program Debug，改为等价 let Err 后最终一目标通过。两种拒绝均按真实 kind/span 收紧，没有 anyErr 验收，不为本片绕过原拒绝。未重已有支持矩阵、未执行生成 Abort/native/故障注入/推送。
