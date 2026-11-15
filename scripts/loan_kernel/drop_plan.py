@@ -28,6 +28,7 @@ class TypeDecl:
 class Stmt:
     kind: str  # let use move call set take replace open forget return break if loop block
     #            规划器插入：drop；this（deinit 函数体开头，引入 this）
+    #            suspend：挂起点（由借用原型写出）。帧可能在这里被销毁而不再恢复，此时按 cleanup 析构
     line: int
     var: str = ""
     ty: str = ""
@@ -570,7 +571,7 @@ class Verifier:
         if self.early_observable:  # 有可观察的值已析构而它的作用域还在继续执行别的语句
             self.violations.append("V3 可观察的值在作用域结束前被析构")
             self.early_observable.clear()
-        if kind in ("let", "call") and self.explore_failure and self.choose(2):
+        if kind in ("let", "call", "suspend") and self.explore_failure and self.choose(2):
             self.fail(stmt)
         if kind == "let":
             self.declare(stmt.var, stmt.ty)

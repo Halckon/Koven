@@ -134,7 +134,7 @@ class LoanKernelCases(unittest.TestCase):
             for name, (_, program, accepted) in lowered.items():
                 if accepted:
                     walk(program, name)
-        self.assertEqual({("movedOnOneBranch", "f")}, flagged)
+        self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g")}, flagged, "两处都是带 deinit 的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
         listing = [line.split("失败时")[0].strip() for line in CHECKER.DP.show(lowered["plainMovedOnOneBranch"][1])]
@@ -197,6 +197,39 @@ class LoanKernelCases(unittest.TestCase):
         # 第 38 行没有任何帧内借用变量：只是把局部按 inout 传给一个会挂起的函数，被调帧就持有指向调用方帧的借用
         self.assertEqual({("S1", 19), ("S1", 25), ("S1", 38)}, movable - stable)
         self.assertEqual(set(), stable - movable)
+
+    def test_values_waiting_for_their_drop_stay_in_the_frame(self):
+        """S0.3 的析构一侧：留在帧里的不只是还会用到的值，还有等着在作用域结束时析构的值。"""
+        text = (ROOT / "cases" / "P4.lk").read_text(encoding="utf-8")
+        frames = {}
+        CHECKER.check(text, frames=frames)
+        self.assertEqual((["f", "g"], []), frames["sameThreadIsFine", 42], "两个值都不再使用，但都还没析构")
+        self.assertEqual((["a", "f", "g"], []), frames["sameThreadIsFine", 44])
+
+    def test_plain_values_no_longer_needed_are_dropped_before_suspending(self):
+        """S6：不可观察、不再使用的值在挂起前必须已析构，与是否打开提前析构无关；否则它们会被带到另一个线程。"""
+        text = (ROOT / "cases" / "P4.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(text, early_drop=False, lowered=lowered)
+        listing = [line.split("失败时")[0].strip() for line in CHECKER.DP.show(lowered["plainDeadBeforeSuspend"][1])]
+        self.assertEqual(["let s Session", "use s", "drop s", "suspend"], listing)
+        CHECKER.Checker.drop_before_suspend = False
+        try:
+            relaxed = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.drop_before_suspend = True
+        self.assertEqual({("S5", 12)}, relaxed - expected(text), "若只是“允许”提前析构，这个值就跨过了挂起点")
+
+    def test_a_frame_destroyed_while_suspended_drops_what_it_owns(self):
+        """帧在挂起点被销毁而不再恢复时，按那一刻的状态析构；去掉挂起点上的清单，检验器必须报泄漏。"""
+        lowered = {}
+        CHECKER.check((ROOT / "cases" / "P4.lk").read_text(encoding="utf-8"), lowered=lowered)
+        types, program, _ = lowered["destroyedWhileSuspended"]
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        for stmt in program:
+            if stmt.kind == "suspend":
+                stmt.cleanup = []
+        self.assertEqual(["V1"], [name.split()[0] for name in CHECKER.DP.Verifier(types).run_all(program)])
 
     def test_only_parallel_functions_require_transferable_frames(self):
         """之七 J18：默认不换线程。把 parallel 去掉之后，P3 的全部拒绝都应消失。"""

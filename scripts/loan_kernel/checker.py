@@ -477,10 +477,12 @@ def prefix_related(a, b):
 # ---------------------------------------------------------------- 检查器
 
 class Checker:
+    drop_before_suspend = True  # S6；置为 False 仅用于对照
+
     def __init__(self, classes, funs, sigs, early_drop=False, frames_movable=False):
         self.classes, self.funs, self.sigs = classes, funs, sigs
         self.frames_movable = frames_movable  # 对照用：假设开始执行后的帧仍可移动
-        self.frames = {}  # (函数名, 行号) -> (跨这个挂起点存活的变量, 其中被帧内借用指向的变量)
+        self.frames = {}  # (函数名, 行号) -> (跨这个挂起点留在帧里的变量, 其中被帧内借用指向的变量)
         self.errors = set()
         self.early_drop = early_drop  # 析构不可观察的局部值在不再需要时提前析构（统一析构规则的“许可”）
         self.drops = []  # 提前析构的 (函数名, 变量名, 其后的语句行号)
@@ -995,10 +997,16 @@ class Checker:
         if not self.fun.suspend:
             self.error("S0", line, "挂起点只能出现在 suspend 函数里")
             return
+        if self.drop_before_suspend:  # S6：不再需要、析构不可观察的值不带过挂起点
+            self.drop_unneeded(state, line, set())
         loans = self.live_loans(state)
         inside = sorted({root for loan in loans for root, _ in self.loans[loan].places if root in state})
-        names = sorted({n for n in self.live if n in state and state[n].init != "M"} | set(inside))
+        # 留在帧里的：还会用到的、被存活的借用指向的，以及此刻仍拥有的每个值（它们等着在作用域结束时析构）
+        owned = [n for n, v in state.items() if v.ty.kind in ("cls", "any", "opaque") and v.init != "M"]
+        names = sorted({n for n in self.live if n in state and state[n].init != "M"} | set(inside) | set(owned))
         self.frames[self.fun.name, line] = (names, inside)
+        # 帧若在这里被销毁而不再恢复（所在执行器异常终止），按此刻的状态析构：与失败出口是同一份清单
+        self.emit("suspend", line, state=state)
         if self.frames_movable and inside:
             self.error("S1", line, f"帧内有指向 {'、'.join(inside)} 的借用跨过挂起点；帧若可移动，这些借用会悬空")
         if self.fun.parallel:
@@ -1233,19 +1241,22 @@ class Checker:
         存活的 loan 使它所指的 owner 保持存活，所以析构点由“变量与从它借出的一切都不再使用”决定。
         """
         self.live = set(stmt.live_out)
-        params = {name for _, name, _ in self.fun.params}
+        self.drop_unneeded(state, stmt.line, {name for _, name, _ in self.fun.params})
+
+    def drop_unneeded(self, state, line, keep):
+        """析构此刻不再被用到、名下没有存活 loan、析构不可观察的局部值；keep 里的变量不动。"""
         for name in reversed(list(state)):
             var = state[name]
-            if name in self.live or name in params or var.init != "A" or var.ty.kind != "cls":
+            if name in self.live or name in keep or var.init != "A" or var.ty.kind != "cls":
                 continue
             if not self.has("EarlyDrop", var.ty):  # 析构可观察：声明了 deinit，或按值含有这样的字段
                 continue
             if self.borrowed_from(name, state):
                 continue
-            self.access(state, {(name, ())}, set(), "kill", stmt.line)
-            self.destroy(stmt.line, name, var)
+            self.access(state, {(name, ())}, set(), "kill", line)
+            self.destroy(line, name, var)
             var.init = "M"
-            self.drops.append((self.fun.name, name, stmt.line))
+            self.drops.append((self.fun.name, name, line))
 
     def settle(self, then, then_out, other, other_out, stmt):
         """合流前的补偿析构：不可观察的值只在一条分支上被移走或析构、此后不再使用时，在另一条分支末尾析构。
