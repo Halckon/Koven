@@ -202,7 +202,7 @@ fn shared_mixed_pair_rejects_asymmetric_or_uncovered_lifetimes() {
         ),
         (format!("val owner=\"shared\";{FIRST};{SECOND};{FIRST}"), ""),
         (
-            format!("val owner=\"shared\";{FIRST};other(\"second\",owner,2,true)"),
+            format!("val owner=\"shared\";{FIRST};other(\"second\",owner,1+1,true)"),
             other.as_str(),
         ),
         (

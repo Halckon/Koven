@@ -35,6 +35,7 @@ impl EntryKeys {
         if common.is_none()
             && !d.is_different_temporary_pair()
             && !d.is_different_shared_named_pair()
+            && !d.is_different_shared_mixed_pair()
         {
             return None;
         }

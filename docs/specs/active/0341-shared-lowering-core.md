@@ -20580,3 +20580,32 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - SSA 验证同一原 initializer/RootPlace 仅创建一次，4 个 String 实参共享 place、8 个 loan 不合并，
   每位置原 FullKey 对应独立 SSA callee，原实参顺序与 ABI 列分别核对；首完整 End 先于次 Begin，
   最后唯一 Drop 晚于全部 End。独立 replay 与 LLVM render 通过，不生成或执行 native 对象。
+
+
+### E2 不同闭合 callee 的 shared/temporary 混合阶段根（本地已验）
+
+- 基线 `8abbbd2d285cec8c752a5588fe1f08b6ae908e98`，仅 exact 单 plain String val、
+  两个不同闭合 callee，每 call 一个同 named root 与一个 plain temporary String，scalar 均 direct literal。
+- 独立私有 `DifferentSharedMixedPair` 与专用 marker，不将不同 shared named marker 泛化。
+  原 shared/mixed 同 callee 逻辑不改；原不同 shared named 路径仍只接受两 `SharedRoot`。
+- 每 call 原完整 Drop 向量必须为 `[tempA]`、`[tempB, named]`，不排序、不忽略额外事实；
+  三 target 全局各唯一，两个 temporary 原 argument 身份不相同，8 原完整 End 与源序保留。
+- 普通 ownership probe 两 case 首轮通过，含反 callee、具名源码参数序及三个 String 相同字节；
+  formed root membership、首 call 前唯一原 initializer、每参数唯一 contract 与 ABI 四列分别核验。
+  闭合 E2 两 case 的不同 FullKey/空 typeargs/各唯一 shell fact 全部执行后准确汇总
+  `UnsupportedSelection=2`，1 过/1 预期红（不是全绿）。原 attempt 日志保留，无 oracle 修正。
+- 后端不改：原 shared 初始化一次、每 call temporary cleanup、末 root cleanup，与逐 occurrence
+  原 FullKey→SSA 映射直接复用。新增测试要求首 temp Drop 先于第二 temp 形成及所有 Begin，
+  末 temp Drop 先于 named Drop；相同字节的三个 owner 不合并，legacy 真 descriptor 仍拒绝。
+- 生产三目标、邻域与 strict 已验证。CI 同批登记三精确目标，清单 58 unit/配置、7 public、
+  1 frontend；旧 symmetric mixed 负例转 grouped/computed scalar，保持真实域外。未运行远端 CI。
+
+- 最终验收：`--locked -j1 -p lang-codegen --lib --features two-source-unit`
+  新 `shared_mixed_distinct::` 3/3；旧 `shared_mixed_pair::`、`shared_owner_pair::`、
+  `shared_distinct_callees::`、`distinct_callees::` 各 3/3，共 12 项必要回归通过。
+- 三 feature `two-source-unit,e2-two-source-test-support,loan-observation-test-support`
+  新三目标 3/3，包含实际 legacy 拒绝；同配置 frontend/codegen 两 crate
+  `clippy --all-targets -- -D warnings` 首轮通过（1m42s）。两个正向闭合 case 与 12 个域外准确
+  分类均完整执行，绿阶段无 oracle 修改、无重复矩阵。原 probe 红日志保留。
+- verify/LLVM render 已通过，未发射或执行 native 对象，未执行故障注入、全 workspace 或远端 CI；
+  默认 workspace 验收留给联合基线一次执行。
