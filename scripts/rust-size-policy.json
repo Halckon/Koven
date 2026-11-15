@@ -11,7 +11,6 @@
     "crates/lang-codegen/src/ssa/unit_lower.rs": 1252,
     "crates/lang-codegen/src/ssa/unit_lower/control.rs": 1051,
     "crates/lang-codegen/src/ssa/verify_ownership.rs": 1658,
-    "crates/lang-codegen/src/ssa/verify_ownership_tests.rs": 1659,
     "crates/lang-frontend/src/name_resolution/resolver.rs": 1134,
     "crates/lang-frontend/src/ownership_checking/checker.rs": 1371,
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner.rs": 1655,
