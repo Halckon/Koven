@@ -13,13 +13,19 @@ MARKER = re.compile(rf'Code CI Evidence v1 PR([1-9][0-9]*) ({SHA}) ({SHA}) ({SHA
 WORKFLOW = '.github/workflows/ci.yml'
 DOC_ROOTS = ('docs/specs/', 'docs/archive/', 'docs/architecture/', 'docs/development/',
              'docs/adr/', 'docs/proposals/')
+ROADMAP_DOCS = frozenset('docs/roadmap/' + name for name in
+                         ('v1.json', 'by-area.md', 'by-stage.md', 'by-phase.md'))
+
+
+class ReuseUnavailable(ValueError):
+    """A fixed diagnostic that can be reported without leaking API or Git errors."""
 
 
 def documentation_only(path, mode):
-    """Only ordinary, regular Markdown/SVG documents are exempt; unknown = code."""
+    """Exempt ordinary docs and the roadmap checked by the always-run PR docs job."""
     if mode != '100644' or path == 'docs/development/preview-candidate.md':
         return False
-    return path in ('README.md', 'AGENTS.md', 'docs/AGENTS.md') or (
+    return path in ROADMAP_DOCS or path in ('README.md', 'AGENTS.md', 'docs/AGENTS.md') or (
         path.startswith(DOC_ROOTS) and path.endswith(('.md', '.svg')))
 
 
@@ -50,12 +56,23 @@ def tree_inputs(sha):
     return b''.join(records)
 
 
-def fingerprint(head, merge, base):
-    """Bind both checkout modes and the exact immutable merge parents."""
+def merge_base(head, merge):
+    """Read the base from the tested GitHub merge commit, whose second parent is the PR head."""
     ensure_commit(merge)
     parents = git('rev-list', '--parents', '-n', '1', merge).decode().split()
-    if parents != [merge, base, head]:
-        raise ValueError('checkout is not the event base/head merge')
+    if len(parents) != 3 or parents[0] != merge or parents[2] != head:
+        raise ReuseUnavailable('checkout is not a two-parent merge of the PR head')
+    return parents[1]
+
+
+def fingerprint(head, merge, base):
+    """Bind historical evidence to both checkout trees and the exact tested base."""
+    if merge_base(head, merge) != base:
+        raise ReuseUnavailable('checkout does not match the recorded merge base')
+    return input_fingerprint(head, merge, base)
+
+
+def input_fingerprint(head, merge, base):
     digest = hashlib.sha256(b'koven-pr-ci-v1\0' + base.encode() + b'\0')
     for sha in (head, merge):
         digest.update(hashlib.sha256(tree_inputs(sha)).digest())
@@ -163,13 +180,16 @@ def current_context(api, event):
     pr = event['pull_request']
     context = dict(repository=os.environ['GITHUB_REPOSITORY'],
                    head_repository=pr['head']['repo']['full_name'], number=pr['number'],
-                   base=pr['base']['sha'], head=pr['head']['sha'], merge=os.environ['GITHUB_SHA'],
+                   head=pr['head']['sha'], merge=os.environ['GITHUB_SHA'],
                    run_id=int(os.environ['GITHUB_RUN_ID']))
     current = api.get(f"runs/{context['run_id']}")
     context['workflow_id'] = current['workflow_id']
-    if not same_pr(current, context):
-        raise ValueError('current workflow/PR identity unavailable')
-    context['fingerprint'] = fingerprint(context['head'], context['merge'], context['base'])
+    if (not same_pr(current, context)
+            or current.get('head_sha') not in (context['head'], context['merge'])
+            or os.environ['GITHUB_REF'] != f"refs/pull/{pr['number']}/merge"):
+        raise ReuseUnavailable('current workflow/PR merge identity unavailable')
+    context['base'] = merge_base(context['head'], context['merge'])
+    context['fingerprint'] = input_fingerprint(context['head'], context['merge'], context['base'])
     return context
 
 
@@ -239,6 +259,8 @@ def main():
             run, reason = find_evidence(api, context, flags)
             if run:
                 outputs.update(reuse='true', reuse_run=str(run['id']), reuse_attempt=str(run['run_attempt']))
+        except ReuseUnavailable as error:
+            reason = f'evidence unavailable ({error}); run existing required jobs'
         except Exception as error:
             # Failure must increase work, never convert an unknown result into green.
             reason = f'evidence unavailable ({type(error).__name__}); run existing required jobs'

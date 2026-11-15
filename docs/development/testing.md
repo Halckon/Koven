@@ -174,7 +174,10 @@ Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 安装 LLVM 官
 
 PR 的普通文档变更保留路径豁免；全部 Guide、compiler-specs、scripts、workflow/LLVM action
 变更触发 Rust 门禁。代码门禁成功后追加普通文档，可按 [SPEC-0293](../archive/specs/0293-pr-code-ci-reuse.md)
-复用同 PR、同 base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
+复用同 PR、同实际 merge base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
+base 取本轮测试的 GitHub 合成 merge 的第一父提交，同时核对第二父提交、事件 head 和 PR 身份。
+归档更新的四个固定 roadmap 文件由每次 PR 的 docs 门禁验证生成视图与 conformance blocker
+一致性，允许复用旧代码执行结果。复用不会为本轮生成新的 conformance 报告。
 证据不可用保守重跑，docs 每次 PR 运行，跳过不表示本 head 再次执行或生成新 preview 包。
 复用 required jobs 与 workflow 实际名称、OS 矩阵由 `test_pr_ci_reuse.py` 覆盖全部八组
 路径开关组合；拒绝日志标明 run、attempt 及缺失或未成功 job，摘要保留首个候选拒绝原因。

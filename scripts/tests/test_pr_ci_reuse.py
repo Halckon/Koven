@@ -90,6 +90,32 @@ class ReuseTests(unittest.TestCase):
         self.run['path'] += '@refs/pull/7/merge'
         self.assertTrue(self.valid())
 
+    def test_context_uses_actual_merge_base_when_event_base_is_stale(self):
+        env = dict(GITHUB_REPOSITORY='owner/repo', GITHUB_SHA='e' * 40,
+                   GITHUB_RUN_ID='20', GITHUB_REF='refs/pull/7/merge')
+        event = {'pull_request': {'number': 7, 'base': {'sha': 'a' * 40},
+                                  'head': {'sha': 'c' * 40, 'repo': {'full_name': 'owner/fork'}}}}
+        run = dict(self.run, id=20, head_sha='c' * 40, pull_requests=[])
+        api = self.fake_api([run], {})
+        parents = (' '.join(('e' * 40, 'b' * 40, 'c' * 40)) + '\n').encode()
+        with patch.dict(os.environ, env), patch.object(CI, 'git', return_value=parents) as git, \
+                patch.object(CI, 'tree_inputs', return_value=b'input'):
+            self.assertEqual('b' * 40, CI.current_context(api, event)['base'])
+            run['head_sha'] = 'e' * 40
+            self.assertEqual('b' * 40, CI.current_context(api, event)['base'])
+            with patch.dict(os.environ, GITHUB_REF='refs/heads/main'), self.assertRaises(ValueError):
+                CI.current_context(api, event)
+            for malformed in (parents.replace(b'c', b'f'), parents.rsplit(b' ', 1)[0]):
+                git.return_value = malformed
+                with self.assertRaisesRegex(ValueError, 'two-parent merge'):
+                    CI.current_context(api, event)
+
+    def test_roadmap_exemption_is_limited_to_docs_gate_inputs(self):
+        for path in ('v1.json', 'by-area.md', 'by-stage.md', 'by-phase.md'):
+            self.assertTrue(CI.documentation_only('docs/roadmap/' + path, '100644'))
+            self.assertFalse(CI.documentation_only('docs/roadmap/' + path, '120000'))
+        self.assertFalse(CI.documentation_only('docs/roadmap/unknown.json', '100644'))
+
     def test_every_real_job_must_succeed(self):
         for index in range(len(self.jobs)):
             for result in ('skipped', 'failure', 'cancelled', None):
