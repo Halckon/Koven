@@ -12,13 +12,50 @@ use crate::ssa::{
     },
 };
 use lang_frontend::{
-    ownership_checking::{UnitLoanActionCoverage, UnitLoanActionId, UnitLoweringFacts},
+    ownership_checking::{
+        UnitBorrowCallHandoffFact, UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId,
+        UnitLoweringFacts,
+    },
     type_checking::{UnitExpressionId, UnitItemId},
 };
 use std::rc::Rc;
 type Edge = (FunctionId, InstructionId, FunctionId);
 type Call = (UnitFunctionInstanceKey, FunctionId);
 type Literal = (InstructionId, Vec<u8>, EntityId);
+/// Minted only after the complete original later-use auxiliary lifecycle passes final validation.
+/// Private fields prevent another route from manufacturing a discharge from an edge alone.
+pub(super) struct ValidatedHandoff {
+    handoff: UnitBorrowCallHandoffFact,
+    callable: UnitItemId,
+    caller: Call,
+    callee: Call,
+    instruction: crate::ssa::model::Instruction,
+}
+impl ValidatedHandoff {
+    pub(super) fn call(&self) -> UnitExpressionId {
+        self.handoff.source_loan().call()
+    }
+    pub(super) fn matches(
+        &self,
+        handoff: &UnitBorrowCallHandoffFact,
+        callable: UnitItemId,
+        program: &Program,
+        mapping: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
+    ) -> bool {
+        let functions: Vec<_> = program
+            .modules
+            .iter()
+            .flat_map(|m| &m.functions)
+            .filter(|f| f.id == self.caller.1)
+            .collect();
+        self.handoff == *handoff
+            && self.callable == callable
+            && mapping.get(&self.caller.0) == Some(&self.caller.1)
+            && mapping.get(&self.callee.0) == Some(&self.callee.1)
+            && matches!(functions.as_slice(), [f] if f.instruction(self.instruction.id) == Some(&self.instruction))
+            && matches!(self.instruction.operation, Operation::BorrowCall {callee,..} if callee == self.callee.1)
+    }
+}
 struct Expected {
     token: SourceToken,
     key: UnitFunctionInstanceKey,
@@ -71,11 +108,12 @@ impl Transaction {
         program: &Program,
         mapping: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
         owned: &dyn UnitLoweringFacts,
-    ) -> (BTreeSet<Edge>, Vec<String>) {
+    ) -> (BTreeSet<Edge>, Vec<ValidatedHandoff>, Vec<String>) {
         let state = self.state.borrow();
         let mut seen = BTreeSet::new();
         let mut edges = BTreeSet::new();
         let mut gaps = Vec::new();
+        let mut fulfilled = Vec::new();
         for e in &state.expected {
             let UnitCallableTarget::Declaration(declaration) = e.key.target() else {
                 gaps.push("later auxiliary binding nonplain callable".into());
@@ -161,16 +199,42 @@ impl Transaction {
                 gaps.push("later auxiliary binding final lifecycle/callee closure mismatch".into());
                 continue;
             }
+            let Some(UnitLoanAction::BorrowHandoffCommitted(handoff)) = catalog.action(&e.ids[2])
+            else {
+                gaps.push("later auxiliary binding original handoff action gap".into());
+                continue;
+            };
+            let originals: Vec<_> = owned
+                .borrow_call_handoffs()
+                .iter()
+                .filter(|h| h.source_loan().call() == e.source)
+                .collect();
+            if !matches!(originals.as_slice(), [original] if *original == handoff) {
+                gaps.push("later auxiliary binding original handoff fact mismatch".into());
+                continue;
+            }
+            let Some(instruction) = snapshot.function.instruction(r.instructions[4]) else {
+                gaps.push("later auxiliary binding source instruction missing".into());
+                continue;
+            };
             if !edges.insert((r.caller, r.instructions[4], calls[0].1)) {
                 gaps.push("duplicate later auxiliary binding certified edge".into());
+                continue;
             }
+            fulfilled.push(ValidatedHandoff {
+                handoff: handoff.clone(),
+                callable: e.callable,
+                caller: (e.key.clone(), r.caller),
+                callee: calls[0].clone(),
+                instruction: instruction.clone(),
+            });
         }
         for s in &state.snapshots {
             if !seen.contains(&s.receipt.source_call) {
                 gaps.push("later auxiliary binding receipt outside original inputs".into());
             }
         }
-        (edges, gaps)
+        (edges, fulfilled, gaps)
     }
 }
 impl Drop for Transaction {

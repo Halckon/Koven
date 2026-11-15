@@ -99,10 +99,9 @@ fn check(reverse: bool, source_second: bool, extra: bool, same_bytes: bool) {
             .contains(&(declaration("run"), declaration("view")));
         if extra {
             // No eager-drop receipt was minted above. The separate later-use
-            // route now certifies the edge but not its independent entry obligation.
+            // route now certifies the edge and discharges the same original handoff.
             assert!(certified, "{:?}", audit.unsupported);
-            assert_eq!(audit.unsupported.len(), 1, "{:?}", audit.unsupported);
-            assert!(audit.unsupported[0].starts_with("missing/duplicate entry call receipt:"));
+            assert!(audit.unsupported.is_empty(), "{:?}", audit.unsupported);
             continue;
         }
         assert!(certified, "{:?}", audit.unsupported);

@@ -9,13 +9,15 @@ use std::rc::Rc;
 /// Each variant can only contain a route-private token minted after whole-caller verification.
 pub(super) enum Fulfillment {
     SameRoot(super::aux_binding_consumption::ValidatedHandoff),
-    DistinctRoot(super::distinct_aux_consumption::ValidatedHandoff),
+    EagerDistinct(super::distinct_aux_consumption::ValidatedHandoff),
+    LaterUse(super::later_aux_consumption::ValidatedHandoff),
 }
 impl Fulfillment {
     fn call(&self) -> UnitExpressionId {
         match self {
             Self::SameRoot(p) => p.call(),
-            Self::DistinctRoot(p) => p.call(),
+            Self::EagerDistinct(p) => p.call(),
+            Self::LaterUse(p) => p.call(),
         }
     }
     fn matches(
@@ -27,7 +29,8 @@ impl Fulfillment {
     ) -> bool {
         match self {
             Self::SameRoot(p) => p.matches(handoff, callable, program, mapping),
-            Self::DistinctRoot(p) => p.matches(handoff, callable, program, mapping),
+            Self::EagerDistinct(p) => p.matches(handoff, callable, program, mapping),
+            Self::LaterUse(p) => p.matches(handoff, callable, program, mapping),
         }
     }
 }

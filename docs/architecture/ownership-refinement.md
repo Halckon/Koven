@@ -176,7 +176,8 @@ source/result 留至 consumer 后退休。双原 literal→两个独立 owner �
 与 same-root token 合并检查唯一消费/竞争；later-use 不获 eager-drop 证。
 独立 later-use Complete 域复用原十一动作/十五角色：aux 初借结束但 owner 保活，
 source 清理后才新建 aux place/loan、独立消费并 End/Drop；完整十七指令/九实体与
-三个 dispatch、四 Begin 来源逐项核对，第二 later-use 无证；此路线仍保独立 entry gap。
+三个 dispatch、四 Begin 来源逐项核对；全证后自有 token 可精确履行原 entry 义务，
+统一三路唯一消费/竞争检查，第二 later-use 无证仍保 gap。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、

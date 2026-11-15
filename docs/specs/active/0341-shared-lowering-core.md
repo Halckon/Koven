@@ -19985,3 +19985,18 @@ entry gap，不放宽 eager-drop 域。末版新 2/2 与相邻 distinct 2/2 均�
 frontend/codegen 三 feature all-targets strict Clippy 1m10s；默认仅两 crate all-targets
 check 38.16s；末版新测试复用缓存 0.34s，无重复无关矩阵。独审无阻断；未执行 native、
 人工故障或推送。
+
+### D10 later-use 同次 entry 履约（2026-11-15）
+
+接续 `26532e17`，later 原完整十一动作/ledger/十七指令/九实体 final 校验后，才从
+ids[2] 原 handoff 与完整 handoff 列表唯一 FullEq 产生自有私有 token。保存原完整
+fact、callable、双 key/FunctionId 和实际 BorrowCall；不开放任意构造或仅按 edge 排除 gap。
+entry 原 expected 不变，三路 opaque token 进入同一个 alternatives/consumed 判定，
+原 call/lifetime 竞争、重复、不匹配及残余仍 gap。图边依旧只原位置发布一次。
+
+later 正例及相邻 distinct keep_aux（仍零 eager region/receipt）现由 later 完整证据履约，
+无 unsupported；真实第二 later-use 仍无证且保 missing entry/unclassified BorrowCall。
+新2、相邻2、原Boolean exact1全部通过；strict首次触发三枚举变体共同Root后缀lint，
+仅改名 EagerDistinct/LaterUse，不新增allow或改语义。末版later2再验通过，codegen
+三feature all-targets严格Clippy21.27s、默认仅codegen all-targets check0.35s。
+独审通过；E2使用target期间本片未运行cargo，slot释放后串行验证。无native/fault/push。
