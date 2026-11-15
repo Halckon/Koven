@@ -118,21 +118,26 @@ impl<'a> JointPlan<'a> {
                     return None;
                 }
                 let keys = super::e2_occurrences::EntryKeys::checked(entry, typed)?;
-                // Preserve old one-fact-per-entry legacy policy, but retain every call occurrence.
-                let key = entry.common_instance()?;
-                let mut owners = facts.iter().copied().filter(|fact| {
-                    experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())
-                });
-                let fact = owners.next()?;
-                if owners.next().is_some() || !experiment.owns(fact) {
-                    return None;
-                }
-                experiment.function_shell(fact, typed)?;
-                if let Some((_, route)) = routes.iter().find(|(old,_)| old==key) {
-                    let Route::E2Caller(previous) = route else { return None; };
-                    if !shared_entries || !std::ptr::eq(*previous,fact) { return None; }
-                } else {
-                    routes.push((key.clone(), Route::E2Caller(fact)));
+                // Old independent publishers have no multi-callee root authority.
+                if !shared_entries && entry.common_instance().is_none() { return None; }
+                let mut local_keys = Vec::new();
+                for key in keys.as_slice() {
+                    let mut owners = facts.iter().copied().filter(|fact| {
+                        experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())
+                    });
+                    let fact = owners.next()?;
+                    if owners.next().is_some() || !experiment.owns(fact) || !key.type_arguments().is_empty() { return None; }
+                    let shell = experiment.function_shell(fact, typed)?;
+                    if key.target() != UnitCallTarget::Declaration(shell.callable()) { return None; }
+                    // Repeated source occurrences are retained in keys; only definitions deduplicate.
+                    if local_keys.contains(key) { continue; }
+                    local_keys.push(key.clone());
+                    if let Some((_, route)) = routes.iter().find(|(old,_)| old==key) {
+                        let Route::E2Caller(previous) = route else { return None; };
+                        if !shared_entries || !std::ptr::eq(*previous,fact) { return None; }
+                    } else {
+                        routes.push((key.clone(), Route::E2Caller(fact)));
+                    }
                 }
                 planned_entries.push((entry, keys));
             }

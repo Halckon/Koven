@@ -20525,3 +20525,14 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 普通原事实探针已通过两 source 顺序各两次 assembly，真实原 receipt/publication、两独立 fresh 与唯一 End 成立，原 audit 两 BorrowCall 未分类缺口明确。首个短名 exact 只编译、零测试不计通过；后续完整测试名实跑非零且日志独立保留。末版新增两项实跑通过：24 组 ABI/condition/source 顺序正例各两次 assembly，四项正常原 receipt 域外保持双边 gap；suffix source 消费精确原 InvalidModel/caller span 且无 audit/receipt，不笼统接受任意错误。该拒绝属于原 lower/producer，不能进一步声称未经追踪的具体失败分支。
 
 - 必要 fresh 单 scope 一项与旧 Partial 两项通过；FE/codegen 三 feature all-targets 严格 Clippy（1m33s）、default codegen all-targets（32.65s）、格式/docs979/尺寸2464文件与2项历史欠账/diff 门禁通过，末版独审通过。首分类的 suffix 分隔符错误、原 InvalidModel 分类及严格检查 unneeded-unit 均完整保留各自日志，等价修正与最终成功分开记录。未运行 native、故障注入或推送；原独立分支保留，默认 workspace 检查留后续联合一次。
+
+
+### E2 两个不同闭合 callee 的全临时窄域
+
+在第一步 occurrence 绑定已验收后，第二步仅加入私有 DifferentTemporaryPair：原 block 精确两条裸 direct call、无声明，String/Int/Boolean 全部裸 literal、两个不同无类型实参 FullInstance。两个 call 各自经已有 collector 证明完整 shell/typed 参数/4 FullLoan End；私有根额外核原 source 次序、每个 CallReturn 完整 temporary Drop 向量与全局唯一 target。域标记只能由该完整私有构造产生。named/shared/mixed/staggered/late 的不同 callee 及一般 callee仍不接纳。
+
+正式 EntryKeys 仅在 common_instance 存在或新私有域成立时逐 occurrence 对照原 typed FullInstance。JointPlan 逐位置匹配唯一 owned fact，核空 type arguments、原 shell.callable 与 key target 一致；sequence 保留多重性，仅定义路由去重，facts 与全部引用定义双向精确，普通 root-set 图等值/全 Unit preflight不变。common arena 的 function_ids、emit、独立 replay沿第一步逐位置绑定，不复制第一 callee，不合并不同 source owner；先完整清理第一 call再获取第二 call。
+
+所有 legacy 单 caller 路线保 common_instance=None 必拒；真实正常新域源码直接调用旧 publication 与 emit 均须拒绝，不构造假 descriptor、无故障注入。新增 3 个正常目标涵盖反调用序、反输入文件序、具名实参源码顺序及同字节不同owner，按原FullKey逐位核实际不同SSAcallee/Span、ABI映射/8End/4Drop、完整图；另核named/mixed/late/第三call/复杂scalar/Group、非E2 callee与未认领合法shell负控。先前两个不同callee拒例已改名保留为named-owner与computed-scalar真域外负控，未删除其余旧能力证明。
+
+本片已通过正式 two-source-unit 与三 feature 各 3 个新目标；旧 occurrence_bindings 4、two_call_entry 5 均完成必要回归（首轮两个更名负控与后续3+4分批覆盖，不重复执行）。三 feature 正例内真实 legacy publication/emit 对每个 fact 均拒绝无 common key。非 E2 callee 精确 UnsupportedSelection、未认领合法 shell 精确 Preflight 已实测。双 crate all-targets 三 feature Clippy `-D warnings` 首次通过。首轮正例唯一失败为测试误将临时 Drop 的 IR origin 等同 ownership value_origin；经独审仅修 oracle：原 Drop.value_origin 仍核实参 AST Span，而既有 IR cleanup 在原 CallReturn Span。复验通过，失败日志保留、生产未因此改动。fmt、docs、size（2467 Rust、2 个历史超限债务）、shell语法与diff门禁通过。引用第一步实际双fact/shell闭合但入口 Unsupported 的红基线，未重复原probe。CI同批新增3精确目标并同步两处旧名，实际每配置52 unit目标、7 public、另1 frontend；登记不等于执行，仍不跑native或fault。

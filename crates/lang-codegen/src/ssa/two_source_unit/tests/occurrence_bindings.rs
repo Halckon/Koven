@@ -46,9 +46,12 @@ fn occurrence_bindings_keep_single_callee_and_repeated_occurrences() {
 }
 
 #[test]
-fn occurrence_bindings_keep_two_closed_callees_unsupported() {
+fn occurrence_bindings_reject_named_owner_across_distinct_callees() {
     check(
-        &fixture("run_a(\"a\",\"b\",1,false);run_b(\"c\",\"d\",2,true)", true),
+        &fixture(
+            "val owner=\"s\";run_a(owner,owner,1,false);run_b(owner,owner,2,true)",
+            true,
+        ),
         2,
         true,
     );
