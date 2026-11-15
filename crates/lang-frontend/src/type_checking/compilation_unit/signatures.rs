@@ -1,6 +1,6 @@
-mod type_resolution;
 mod box_arguments;
 mod callable;
+mod type_resolution;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{

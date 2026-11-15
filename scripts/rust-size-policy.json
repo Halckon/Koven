@@ -13,7 +13,6 @@
     "crates/lang-frontend/src/parser/engine/class.rs": 1088,
     "crates/lang-frontend/src/parser/engine/expression.rs": 1002,
     "crates/lang-frontend/src/type_checking/checker/callable.rs": 1085,
-    "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": 1337,
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": 1222,
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker/calls.rs": 1011,
     "crates/lang-frontend/src/type_checking/compilation_unit/model.rs": 1404,
@@ -72,13 +71,6 @@
       "owner": "lang-frontend unit drop planner",
       "split_plan": "后续抽取完整assignment/replacement职责，保留return与loop scope cleanup合同。",
       "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1669 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1615→1618 行（+3）；原 max_lines=1669、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。 2026-11-03 owner A 本地静审范围：1463→1519 行；不提高既有 max_lines，编译/行为仍待 CI。 SPEC-0341 本轮自审仅核对 Exclusive return 前缀事件存储/成功发布接线，1463→1467 行；动作筛选与事实类型留独立子模块，原上限及拆分计划不变，未动态验证。 2026-11-03 #294/main 组合保留独立提取与resource_deferred早返，1519→1523行；上限不变，待独立静审。"
-    },
-    "crates/lang-frontend/src/type_checking/compilation_unit/bodies.rs": {
-      "max_lines": 1385,
-      "reason": "SPEC-0265 在已有trial克隆的parts保存source-qualified迭代计划，并提供只读query；不复制类型检查算法。 SPEC-0274本轮：仅3行新增descriptor产物字段，descriptor实现已在container子模块。 SPEC-0280本轮：仅3行新增container_appends产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0281本轮：仅3行新增container_clears产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0282本轮：仅3行新增container_remove_ats产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0283本轮：仅3行新增container_remove_lasts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0284本轮：仅3行新增container_remove_firsts产物字段与构造传递，descriptor定义与方法已在container子模块。 SPEC-0288本轮：仅3行新增map_descriptors产物字段与构造传递，descriptor定义与方法收敛于独立map子模块。 SPEC-0331 本轮：仅在 basic/const 既有类型准入接入 Map 表验证；不复制验证算法。",
-      "owner": "lang-frontend unit types",
-      "split_plan": "后续按公开产物/调用描述职责拆分公开模型，保持跨crate接口。",
-      "review": "SPEC-0288独立完整审阅核对此次有界增长与既有职责；超过1385行或增加职责前重新审阅。 SPEC-0331 本轮复查对象为上述 Map 接线及实际增长 1354→1356 行（+2）；原 max_lines=1385、baseline、owner 与拆分计划不变，再次增长或扩展职责前重新审阅。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs": {
       "max_lines": 1226,
