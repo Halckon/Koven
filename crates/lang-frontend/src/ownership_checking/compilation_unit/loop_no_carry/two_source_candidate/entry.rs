@@ -1,4 +1,5 @@
 //! Private-construction source entry evidence; not normal ownership or backend authority.
+mod shared_pair;
 use super::*;
 use crate::{
     name_resolution::{DeclarationId, SourceUnitInput, ValidatedCompilationUnitNames},
@@ -65,6 +66,12 @@ pub struct EntryCallDescriptor {
 }
 #[derive(Clone, Debug)]
 enum StringStorage {
+    SharedMixed {
+        root: UnitSymbolId,
+        temporary_index: usize,
+        temporary: Vec<u8>,
+        drop: UnitDropFact,
+    },
     SharedRoot {
         root: UnitSymbolId,
     },
@@ -129,6 +136,11 @@ impl EntryCallDescriptor {
                 temporary_index,
                 temporary,
                 ..
+            }
+            | StringStorage::SharedMixed {
+                temporary_index,
+                temporary,
+                ..
             } if *temporary_index == index => Some(temporary),
             _ => None,
         }
@@ -164,7 +176,10 @@ impl EntryCallDescriptor {
     pub fn named_argument_root(&self, index: usize) -> Option<UnitSymbolId> {
         if self.argument_role(index)? >= 2
             || (self.named_strings().is_empty()
-                && !matches!(self.storage, StringStorage::SharedRoot { .. }))
+                && !matches!(
+                    self.storage,
+                    StringStorage::SharedRoot { .. } | StringStorage::SharedMixed { .. }
+                ))
         {
             return None;
         }
@@ -172,7 +187,8 @@ impl EntryCallDescriptor {
         let end = self.ends.iter().find(|e| e.loan().argument() == argument)?;
         match end.loan().target() {
             UnitLoanTarget::Place(place) if place.is_root() => {
-                if let StringStorage::SharedRoot { root } = self.storage
+                if let StringStorage::SharedRoot { root } | StringStorage::SharedMixed { root, .. } =
+                    self.storage
                     && place.root() != root
                 {
                     return None;
@@ -216,7 +232,9 @@ impl EntryCallDescriptor {
         match &self.storage {
             StringStorage::SharedRoot { .. } => &[],
             StringStorage::Temporary { drops, .. } => drops,
-            StringStorage::Named { drop, .. } => std::slice::from_ref(drop),
+            StringStorage::Named { drop, .. } | StringStorage::SharedMixed { drop, .. } => {
+                std::slice::from_ref(drop)
+            }
             StringStorage::DistinctNamed { drops, .. } | StringStorage::Mixed { drops, .. } => {
                 drops
             }
@@ -600,7 +618,7 @@ pub(super) fn collect(
                 let shared_owner = if shared_pair {
                     if named.len() != 1
                         || locals.iter().any(Option::is_some)
-                        || !temporary_arguments.is_empty()
+                        || temporary_arguments.len() > 1
                     {
                         return None;
                     }
@@ -610,7 +628,30 @@ pub(super) fn collect(
                 };
                 let storage = if let Some((root, ..)) = &shared_owner {
                     initialization_order.clear();
-                    StringStorage::SharedRoot { root: *root }
+                    if let Some((temporary_index, temporary)) = temporary_arguments.pop() {
+                        let target =
+                            UnitDropTarget::Temporary(contracts[temporary_index].argument());
+                        let mut matching = drops.iter().filter(|d| d.target() == target);
+                        let drop = *matching.next()?;
+                        if matching.next().is_some()
+                            || owned
+                                .drops()
+                                .iter()
+                                .filter(|d| d.target() == target)
+                                .count()
+                                != 1
+                        {
+                            return None;
+                        }
+                        StringStorage::SharedMixed {
+                            root: *root,
+                            temporary_index,
+                            temporary,
+                            drop,
+                        }
+                    } else {
+                        StringStorage::SharedRoot { root: *root }
+                    }
                 } else if named.len() == 1 && temporary_arguments.len() == 1 {
                     let (temporary_index, temporary) = temporary_arguments.pop()?;
                     let temporary_target =
@@ -811,43 +852,7 @@ pub(super) fn collect(
                     if second_owner? != (root, initializer, span, bytes.clone()) {
                         return None;
                     }
-                    let first_call = first.contracts()[0].call();
-                    let last_call = second.contracts()[0].call();
-                    if owned
-                        .drops()
-                        .iter()
-                        .any(|d| d.point() == UnitDropPoint::CallReturn(first_call))
-                    {
-                        return None;
-                    }
-                    let final_drops: Vec<_> = owned
-                        .drops()
-                        .iter()
-                        .filter(|d| d.point() == UnitDropPoint::CallReturn(last_call))
-                        .collect();
-                    let [drop] = final_drops.as_slice() else {
-                        return None;
-                    };
-                    if drop.target() != UnitDropTarget::Named(root)
-                        || owned
-                            .drops()
-                            .iter()
-                            .filter(|d| d.target() == UnitDropTarget::Named(root))
-                            .count()
-                            != 1
-                    {
-                        return None;
-                    }
-                    EntryCalls::SharedNamedPair {
-                        owner: Box::new(SharedEntryOwner {
-                            root,
-                            initializer,
-                            span,
-                            bytes,
-                            drop: **drop,
-                        }),
-                        calls: Box::new([first, second]),
-                    }
+                    shared_pair::finish((root, initializer, span, bytes), first, second, owned)?
                 } else {
                     EntryCalls::Pair(Box::new([first, second]))
                 }

@@ -20390,3 +20390,22 @@ CI-only WrongRounds旧accessor只迁首occurrence，未运行故障。
 all-targets严格Clippy最终通过（1m56s），初次collapsible_if仅作等价样式整理；
 独立静审及fmt/文档/size/diff通过，失败日志保留，未重复已通过矩阵。
 不推送、不执行native或本地故障注入。
+
+### E2共享根与调用内临时owner的交错释放（2026-11-15）
+
+基于db1a7a5b，候选仍原plain String val及两同instance裸Call，每call恰
+一个Name借用同根、一个plain String temporary及直接scalar；不扩第三call、
+多个根、插入语句或任意表达式。普通原事实probe已实测8 Shared loan/8 End，
+两call各四End均在Drop之前；原Drop向量首CallReturn严格[temporary1]，
+次CallReturn严格[temporary2,named]，两个temp与named各唯一消费。E2红为
+精确UnsupportedSelection，未改planner或合成结束事件。
+
+方案让根仅保真实唯一named末Drop，per-call保各自原temporary Drop；
+第一临时owner不得跨到第二call，第二临时owner必须在最终named Drop之前释放。
+完整replay逐事件核来源/类型/身份/顺序，35条总数只是必要检查。
+方案与实际production/helper/测试独审均通过。正式two-source-unit及三feature
+shared_mixed_pair各3目标通过：原事实、三个正例（左右/具名映射、同bytes三owner
+不合并）、九个域外负控；原shared-owner三目标与temporary-pair五目标回归通过。
+三feature frontend/codegen双crate all-targets严格Clippy首次通过（2m37s），
+fmt/文档/size/diff通过，无断言调整或人工故障。构建按真实本树FE/API重编且保留日志。
+不推送、不执行native或本地故障注入。

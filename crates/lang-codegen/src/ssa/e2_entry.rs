@@ -186,7 +186,10 @@ fn emit_call(
     if shared.is_some()
         && (!descriptor.named_strings().is_empty()
             || !descriptor.initialization_order().is_empty()
-            || !descriptor.drops().is_empty())
+            || descriptor.drops().len()
+                != (0..4)
+                    .filter(|i| descriptor.temporary_string(*i).is_some())
+                    .count())
     {
         return None;
     }
