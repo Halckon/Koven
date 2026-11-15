@@ -1,7 +1,6 @@
 {
   "version": 1,
   "baseline": {
-    "crates/lang-codegen/src/llvm/adapter.rs": 1594,
     "crates/lang-codegen/src/llvm/container_tests.rs": 1038,
     "crates/lang-codegen/src/ssa/lower_frontend_tests.rs": 2028,
     "crates/lang-codegen/src/ssa/unit_lower.rs": 1252,
@@ -144,13 +143,6 @@
       "owner": "lang-frontend single type model",
       "split_plan": "后续完整迁移typed产物查询接口，保持type identity与trial合同。",
       "review": "SPEC-0287独立完整审阅核对Map与MutableMap类型构造器与Hashable能力扩展，锁定1555行；超过1555行或增加职责前重新审阅。"
-    },
-    "crates/lang-codegen/src/llvm/adapter.rs": {
-      "max_lines": 1785,
-      "reason": "SPEC-0279 borrowed generator adapter 分发，准备/调用算法已分离；旧入口仅有界接线，机械搬迁既有大型入口会扩大本次行为修复范围。 SPEC-0279后续共享引用切片：SharedReferenceFollow仅增加loan-result路由与slot pointer load，16行增长。 SPEC-0280 ContainerAppend LLVM adapter 分发接线净增 18 行，具体扩容由独立 container 模块承载。 SPEC-0281 ContainerClear LLVM adapter 分发接线净增 18 行，具体清空与元素逆序 drop 由独立 container 模块承载。 SPEC-0282 ContainerRemoveAt LLVM adapter 分发接线净增 20 行，具体元素移出与内存搬迁由独立 container 模块承载。 SPEC-0283 ContainerRemoveLast LLVM adapter 分发接线净增 22 行，具体尾部元素移出由独立 container 模块承载。 SPEC-0284 ContainerRemoveFirst LLVM adapter 分发接线净增 23 行，具体头部元素移出与内存前移由独立 container 模块承载。 SPEC-0285 ContainerInsertAt LLVM adapter 分发接线净增 24 行，具体插入与后移由独立 container 模块承载。 SPEC-0288 第三轮：Map owned result 的 NullableWrap/Null/IsNull/Take 与 branch 接线；presence、payload stack view 算法位于 adapter/map.rs。 SPEC-0291：实际1752→1753，仅增加1行MapConsume LLVM adapter分发；资格、交付和六字段重包位于独立领域模块。 SPEC-0291 Map-only nullable A：实际1753行不变，两处NullableWrap/Take仅改物理storage查询，具体算法仍在adapter/map.rs。",
-      "owner": "lang-codegen SSA/LLVM",
-      "split_plan": "后续按 LLVM 指令家族整体迁移 adapter，保持旧 static/closure 消费者合同。",
-      "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1785 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0291非作者逐diff内容审确认这一行有界接线；沿用原max_lines与split_plan，不增加额度，后续增长须重新审阅。 SPEC-0291 A非作者逐diff审确认N/R资格分离、封装及条件析构接线；沿用原额度与拆分计划，后继增长另审。"
     },
     "crates/lang-frontend/src/type_checking/compilation_unit/signatures.rs": {
       "max_lines": 1038,

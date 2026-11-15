@@ -29,6 +29,7 @@ subgraph Gactive["现行 active"]
   S0462["S0462<br/>Refine 调用与 CFG 汇合职责归位"]
   S0463["S0463<br/>Ownership operation 与 lowering 领域职责归位"]
   S0464["S0464<br/>Native 接口/委托与接收者测试领域归位"]
+  S0465["S0465<br/>LLVM instruction 分发按 operation 家族归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -79,6 +80,7 @@ ARCH --> S0456
 | SPEC-0462 | active | [0462-refine-call-and-control-merge-responsibility.md](active/0462-refine-call-and-control-merge-responsibility.md) |
 | SPEC-0463 | active | [0463-ownership-operation-and-lowering-domains.md](active/0463-ownership-operation-and-lowering-domains.md) |
 | SPEC-0464 | active | [0464-native-interface-and-receiver-test-domains.md](active/0464-native-interface-and-receiver-test-domains.md) |
+| SPEC-0465 | active | [0465-llvm-instruction-dispatch-families.md](active/0465-llvm-instruction-dispatch-families.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
