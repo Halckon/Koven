@@ -29,13 +29,42 @@
 
 ## 2. 验收
 
-- [ ] R1：完整块/根机械保全、精确权限与路径变化；共享状态和算法时点不变。
-- [ ] R2：Unit signature/body原定向target前后通过，逐片本地提交，不逐片push、不伪造RED。
-- [ ] R3：完整frontend、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
+- [x] R1：完整块/根机械保全、精确权限与路径变化；共享状态和算法时点不变。
+- [x] R2：Unit signature/body原定向target前后通过，逐片本地提交，不逐片push、不伪造RED。
+- [x] R3：完整frontend、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
 - [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
 
 原始证据留仓库外，区分未运行/ignored/compile/list和真实passed，不重复累计。
 
 ## 3. 真实证据
 
-待逐片记录。
+合同7c89ddfc，两个完整职责逐片定向通过后本地提交，不逐片push。
+
+| 切片 | 提交 | 原四完整target前后 | 尺寸 |
+|---|---|---|---|
+| signature类型解析六方法 | babefa41 | 316/0/0 | signatures1038→798，新245 |
+| 完整body产物impl | 8efff38b | 316/0/0 | bodies1318→879，新442 |
+
+定向四target：multifile_type_checking288、multifile_type_signatures24、signature
+provenance2、determinism2，三轮FQN逐项相同。没有新增测试覆盖或改测试/fixture。
+两完整块与剩余根机械保全：仅六fn→pub(super)、两super路径精确增层、私有模块声明变化。
+policy只删除signatures baseline1144/exception、bodies baseline1337/exception四项，
+其他JSON等值；实际1038/1318与历史登记分别记，不提高尺寸额度。
+
+整组完整frontend **3779 passed、0 failed、13 ignored**（含12实际通过compile-fail
+doctest），ignored不计执行，定向不重复累计。首条组合命令链900秒超时；完整frontend
+已退出成功（其后&&已进入Python门禁），workspace check日志也已结束，但不能因此宣称
+整条门禁通过。确认本会话无遗留Cargo后补跑workspace all-target check退出0（缓存0.47s，
+编译非下游测试运行）、frontend all-target Clippy -D warnings退出0（7.03s），fmt、
+policy47、docs968、尺寸/空白0。原始超时输出留会话，已结束日志保留，不清缓存或干扰
+其他会话。2184手写Rust，历史超限 **12→10**，本PR21→10。
+
+独立fresh review完整7c89ddfc..8efff38b真实1460行diff与直接消费者，No issues found：
+确认缓存写回与递归顺序、enum case检查/Box委托、兄弟方法权限、source-qualified查询/
+owner与身份链、pending/error及五类事实验证门、basic/const能力发布互不混淆。
+审查者只读不Cargo，读取日志不算独立重跑；父流程补齐组末门禁。Architecture同步职责，
+原始证据/快照/完整diff与review留仓库外。
+
+Rust组末门禁后未再修改。未运行下游codegen/CLI/LSP测试全套、CI-only fault/真实校准/
+sanitizer；R4集中push与精确新头CI另验，Spec active、PR Draft，不归档合入，不借旧头CI
+或编译结果代替运行测试。
