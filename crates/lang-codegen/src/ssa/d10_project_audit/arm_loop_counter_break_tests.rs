@@ -218,13 +218,67 @@ pub(super) fn check(signature: &str, certified: bool) {
                         || s.starts_with("unclassified operation: BorrowCall"))
             );
             assert_eq!(function.blocks.len(), 12);
+            let value_rounds = signature.split(',').any(|p| p == "own rounds:Int");
             let value_choose = signature.split(',').any(|p| p == "own choose:Boolean");
             let value_stop = signature.split(',').any(|p| p == "own stop:Boolean");
             assert_eq!(
                 function.instructions.len(),
-                14 - usize::from(value_stop) - usize::from(value_choose)
+                14 - usize::from(value_stop)
+                    - usize::from(value_choose)
+                    - usize::from(value_rounds)
             );
             let entry_block = function.block(function.entry_block().unwrap()).unwrap();
+            let TerminatorKind::Branch(entry_edge) = &entry_block.terminator.as_ref().unwrap().kind
+            else {
+                panic!("entry branch")
+            };
+            let header = function.block(entry_edge.target).unwrap();
+            let rounds_index = signature
+                .split(',')
+                .position(|p| p.trim().ends_with("rounds:Int"))
+                .unwrap();
+            let rounds = entry_block.parameters[rounds_index];
+            let initial = if value_rounds {
+                assert!(entry_block.instructions.is_empty());
+                assert!(matches!(rounds, EntityId::Value(_)));
+                rounds
+            } else {
+                assert_eq!(entry_block.instructions.len(), 1);
+                let read = function.instruction(entry_block.instructions[0]).unwrap();
+                let EntityId::Loan(loan) = rounds else {
+                    panic!("borrow rounds")
+                };
+                assert_eq!(
+                    read.operation,
+                    Operation::Read {
+                        source: crate::ssa::model::PlaceAccess::Loan(loan)
+                    }
+                );
+                assert_eq!(
+                    read.origin,
+                    crate::ssa::model::Origin::Source(
+                        caller
+                            .ast()
+                            .expressions()
+                            .get(fact.initializer().expression())
+                            .unwrap()
+                            .span()
+                    )
+                );
+                assert_eq!(read.results.len(), 1);
+                read.results[0]
+            };
+            let position = entry_edge
+                .arguments
+                .iter()
+                .position(|e| *e == initial)
+                .unwrap();
+            let current = header.parameters[position];
+            let compare = function.instruction(header.instructions[1]).unwrap();
+            let Operation::Compare { left, .. } = compare.operation else {
+                panic!("original guard compare")
+            };
+            assert_eq!(EntityId::Value(left), current);
             let mut roles = entry_block
                 .parameters
                 .iter()

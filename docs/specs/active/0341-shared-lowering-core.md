@@ -20773,3 +20773,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 四参数 ABI 中 choose 与 stop 两个 Boolean 现各自按原 typed mode 允许 Borrow/Value；source String、rounds Int 仍强制 Borrow。原两个不同 Name 身份分别确定 split/gate 的角色与 Span，entry 逐实体类型核验；每个条件独立要求原 Read 或零 Read，Value 不借同型 stop 自证 choose，亦不伪造 End。
 - 新两项首遍通过：二十四 ABI 顺序、stop 两模式、两来源顺序共九十六形态各两次 assembly，实际十二块、十二至十三条指令。choose 的原 Span 从原 pair.branch If 取出，再由真实 entry→header 真边定位 split，独立追溯原角色；stop 既有 gate/退出/更新路径断言保持。own rounds 与额外参数的四模式负例均原 normal receipt 后精确 gap；旧 own choose 负例迁为 own rounds+choose，不把既获证域仍当拒绝。
 - 原 sealed wrapper/完整 ledger、十二角色全集、两个 cleanup 点、两臂 fresh 唯一末 End、唯一原 checked Abort 静态来源及原子发布完全保持。新目标编译 2m10s、执行 0.67s；旧 counter-break 两项与 stop 两项均通过，FE/codegen 三 feature all-targets 严格 Clippy 1m47s、default codegen all-targets 32.25s 与格式通过。未重复原 probe，不执行生成 Abort/native/故障注入，不推送，默认 workspace 留联合一次。
+
+### D10 counter-break 的原 rounds Value 初始化
+
+- 完整四参数 ABI 的 rounds Int 现允许 Borrow/Value，choose/stop 已有独立两模式保持，source String 仍强制 Borrow。Expected 保存原 typed mode 与角色；entry 按 rounds 模式精确零/一指令，原 validator 仍核 Value rounds==initial、init.input==原 rounds slot，Borrow 仍原 initializer Span 的唯一 Read，不伪造借用生命周期。
+- 新两项目标首遍通过：二十四 ABI、四 Boolean 模式与两来源顺序共一百九十二形态各两次 assembly；独立从原 signature 获取 rounds entry 实体，经原 Read 或 Value 直接进入真实 entry edge，核对应 header 参数就是原 Compare.left，后续 checked alias/回边沿原完整证明。实际十二块、十一至十三指令，额外 Boolean 四模式均 normal lower/receipt 后精确 gap；旧已支持 own rounds 负控改为额外 ABI 并同步准确测试名。
+- 十二角色、break/零迭代两路退出、原两 cleanup、原完整 ledger 与两臂末 End、唯一原 checked Abort 的 one/Span/reason 保持，旧普通空授权仍不扩。新目标编译 2m12s、执行 1.31s；旧 counter-break、stop 与 choose 各两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m47s、default codegen all-targets 32.30s 与格式通过。不重复原 probe，不执行生成程序/Abort/native/故障注入，不推送，默认 workspace 留联合一次。
