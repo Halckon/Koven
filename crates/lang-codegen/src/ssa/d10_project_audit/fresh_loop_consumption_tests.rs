@@ -13,38 +13,55 @@ fn fresh_body_lease_closes_one_loop_across_source_and_parameter_order() {
                 reverse_sources,
                 reverse_parameters,
                 "consume(item)",
-                false,
+                (0, 0),
                 true,
             );
         }
     }
 }
 #[test]
-fn original_multiple_consumers_and_source_segments_remain_outside_fresh_domain() {
-    check(false, false, "consume(item);other(item)", false, false);
-    check(false, false, "consume(item)", true, false);
+fn fresh_source_segments_preserve_entry_and_exit_source_consumption() {
+    for reverse_sources in [false, true] {
+        for reverse_parameters in [false, true] {
+            check(
+                reverse_sources,
+                reverse_parameters,
+                "consume(item)",
+                (1, 1),
+                true,
+            );
+        }
+    }
+}
+#[test]
+fn original_multiple_consumers_and_unbalanced_segments_remain_outside_fresh_domain() {
+    check(false, false, "consume(item);other(item)", (0, 0), false);
+    for segments in [(1, 0), (0, 1), (2, 1), (1, 2)] {
+        check(false, false, "consume(item)", segments, false);
+    }
 }
 fn check(
     reverse_sources: bool,
     reverse_parameters: bool,
     uses: &str,
-    segments: bool,
+    segments: (usize, usize),
     certified: bool,
 ) {
     let mut sources = SourceMap::new();
     let (provider_id, provider) = unit_lower_test_support::parsed(
         &mut sources,
         "fresh-provider.ko",
-        "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}",
+        "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun before(item:String):Unit {}\nfun after(item:String):Unit {}",
     );
     let parameters = if reverse_parameters {
         "flag:Boolean,source:String"
     } else {
         "source:String,flag:Boolean"
     };
-    let segment = if segments { "consume(source);" } else { "" };
+    let before = "before(source);".repeat(segments.0);
+    let after = "after(source);".repeat(segments.1);
     let text = format!(
-        "fun run({parameters}):Unit {{{segment}while(flag){{borrow val item=view(source);{uses}}};{segment}}}"
+        "fun run({parameters}):Unit {{{before}while(flag){{borrow val item=view(source);{uses}}};{after}}}"
     );
     let (caller_id, caller) =
         unit_lower_test_support::parsed(&mut sources, "fresh-caller.ko", &text);
@@ -119,6 +136,65 @@ fn check(
                     .direct_edges
                     .contains(&(declaration("run"), declaration("consume")))
             );
+            if segments == (1, 1) {
+                assert!(
+                    audit
+                        .direct_edges
+                        .contains(&(declaration("run"), declaration("before")))
+                );
+                assert!(
+                    audit
+                        .direct_edges
+                        .contains(&(declaration("run"), declaration("after")))
+                );
+                assert_eq!(receipt.segments.len(), 2);
+                assert_eq!(receipt.segments[0].instructions.len(), 1);
+                assert_eq!(receipt.segments[1].instructions.len(), 1);
+                let first = function
+                    .instruction(receipt.segments[0].instructions[0])
+                    .unwrap();
+                let last = function
+                    .instruction(receipt.segments[1].instructions[0])
+                    .unwrap();
+                assert_eq!(Some(first.block), function.entry_block());
+                assert_ne!(first.block, last.block);
+                let source_index = usize::from(reverse_parameters);
+                let entry_source = function
+                    .block(function.entry_block().unwrap())
+                    .unwrap()
+                    .parameters[source_index];
+                for (instruction, name) in [(first, ".before."), (last, ".after.")] {
+                    let Operation::DirectCall {
+                        callee,
+                        receiver: None,
+                        arguments,
+                    } = &instruction.operation
+                    else {
+                        panic!("actual segment call");
+                    };
+                    let target = program
+                        .modules
+                        .iter()
+                        .flat_map(|m| &m.functions)
+                        .find(|f| f.id == *callee)
+                        .unwrap();
+                    assert!(target.name.contains(name), "{}", target.name);
+                    let [argument] = arguments.as_slice() else {
+                        panic!("one source argument");
+                    };
+                    assert!(
+                        function
+                            .block(instruction.block)
+                            .unwrap()
+                            .parameters
+                            .contains(argument)
+                    );
+                    assert_eq!(
+                        function.entity(*argument).unwrap().ty,
+                        function.entity(entry_source).unwrap().ty
+                    );
+                }
+            }
             assert!(audit.unsupported.is_empty(), "{:?}", audit.unsupported);
         } else {
             assert!(!audit.borrow_edges.contains(&edge));

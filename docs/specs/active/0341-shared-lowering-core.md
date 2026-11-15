@@ -20233,3 +20233,15 @@ SSA沿用已有Constant与原来源Span，ABI、owner、loan、End/Drop与replay
 文档、2413文件Rust尺寸（21历史超限不变）及脚本语法通过，独立静审无阻断。
 目标进入原双配置CI清单，默认workspace留共同集成一次。构建结束即交槽D10。
 不推送，不执行native或故障注入。
+
+
+### D10 fresh-loop 前后 source 消费（增量验收）
+
+保留空段 `(0,0)`，新增精确前后各一次 `(1,1)`，body 仍只有一个 fresh result consumer。
+build 前复用原只读 `source_admission::consumer`，独立取得完整 statement/call/argument/span/callee 以及原 typed/loan/contract 检查；不从成功 receipt 倒推 expected。
+原 sealed segments 与该完整 expected 逐段全等，四个 dispatch key 与最终 FunctionId 独立核对；
+源账本核原参数 root 的每条 acquisition 唯一 call 和实际 Function producer，不接受外部任意 tuple 作为授权。
+最终原完整 CFG validator 仍绑定 entry/exit 与回边，另核两实际 DirectCall；
+源参数跨循环继续有效，fresh result 不越回边/出口，不等同于动态运行或终止证明。
+单侧、前二后一/前一后二以及双 body consumer 的正常原 receipt 仍明确域外，不改原准入或旧 Partial 路线。
+真实 fresh 模块三项首次全部通过（2m42），覆盖空段、前后不同 callee、source/参数反序、同 observe 双 assembly、单侧/更长段及双 body consumer；实际 entry/exit 调用目标与所用 block parameter loan 同类型已断言。旧 Partial loop 两项相邻回归通过。frontend/codegen 三 feature 严格 Clippy all-targets 通过（3m19），默认仅两 crate all-targets check 通过（8.59s），不是 workspace 全验。格式已执行，968 Markdown 文档门禁、尺寸门禁（基12abef01，2416文件/21历史债）及差异检查通过；独立静审无阻断。未运行 native 或人工故障、未推送。日志为 `/private/tmp/d10-fresh-segments-{tests,oldloop,strict,default,size}.log`。

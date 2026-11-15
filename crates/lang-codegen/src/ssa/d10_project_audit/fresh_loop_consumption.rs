@@ -4,13 +4,12 @@ use crate::ssa::{
     lowering_support::callable_instances::SourceToken,
     model::{EntityId, EntityType, Function, InstructionId, LoanKind, SsaTypeId},
     refine::{
-        RefineBody, RefineInputs, RefineTypes,
-        fresh_loop_receipt::{Receipt, Tag},
+        RefineInputs, RefineTypes,
+        fresh_loop_receipt::{Receipt, SourceConsumer, Tag, audit_segments},
     },
 };
 use lang_frontend::{
     ownership_checking::{UnitLoopNoCarryFact, UnitLoweringFacts},
-    parser::Statement,
     type_checking::{ParameterMode, UnitExpressionId, UnitItemId},
 };
 use std::rc::Rc;
@@ -23,7 +22,7 @@ struct Expected {
     calls: Option<Vec<Call>>,
     abi: Option<[SsaTypeId; 2]>,
     source_index: Option<usize>,
-    sole_statement: bool,
+    segments: Option<[Vec<SourceConsumer>; 2]>,
 }
 struct Snapshot {
     receipt: Receipt,
@@ -75,7 +74,6 @@ impl Transaction {
                     return None;
                 };
                 if !seen.insert(e.fact.loop_statement())
-                    || !e.sole_statement
                     || e.fact.consumers().len() != 1
                     || e.key != UnitFunctionInstanceKey::for_entry(declaration)
                     || self.planned.get(&e.token) != Some(&(e.key.clone(), e.fact.callable()))
@@ -123,12 +121,12 @@ impl Transaction {
                 let local = &s.receipt.loops[0];
                 if !local.fact.same_identity(&e.fact)
                     || local.fact != e.fact
-                    || !s.receipt.empty_source_segments()
+                    || !s.receipt.matches_source_segments(e.segments.as_ref()?)
                 {
                     return None;
                 }
                 let calls = e.calls.as_ref()?;
-                if calls.len() != 2 {
+                if calls.len() != 2 + e.segments.as_ref()?.iter().map(Vec::len).sum::<usize>() {
                     return None;
                 }
                 for (key, id) in calls {
@@ -213,29 +211,19 @@ pub(in crate::ssa) fn expect(inputs: &RefineInputs<'_>, types: &RefineTypes<'_>)
             }
             result.try_into().ok()
         })();
-        let sole_statement = (|| {
-            let RefineBody::Block(body) = inputs.body else {
-                return None;
-            };
-            let Statement::Block { elements } =
-                inputs.parsed.ast().statements().get(body).ok()?.payload()
-            else {
-                return None;
-            };
-            Some(elements.as_slice() == [fact.loop_statement().statement()])
-        })()
-        .unwrap_or(false);
+        let segments = audit_segments(inputs, fact);
         let e = Expected {
             token: inputs.source_token,
             key: key.clone(),
             fact: fact.clone(),
             abi,
             source_index,
-            sole_statement,
             calls: std::iter::once(fact.initializer())
                 .chain(fact.consumers().iter().map(|(_, c, _)| *c))
+                .chain(segments.iter().flatten().flatten().map(|c| c.call))
                 .map(call)
                 .collect(),
+            segments,
         };
         RUNS.with(|r| {
             if let Some(s) = r.borrow().last() {
@@ -322,6 +310,19 @@ fn validate_final(
     if callee != calls[0].1
         || !matches!(operation(Tag::Consumer(0))?.operation,Operation::DirectCall{callee,receiver:None,..} if callee==calls[1].1)
     {
+        return None;
+    }
+    let mut mapped = calls[2..].iter();
+    for segment in &s.receipt.segments {
+        for id in &segment.instructions {
+            let (_, expected) = mapped.next()?;
+            if !matches!(f.instruction(*id)?.operation,Operation::DirectCall{callee,receiver:None,..} if callee==*expected)
+            {
+                return None;
+            }
+        }
+    }
+    if mapped.next().is_some() {
         return None;
     }
     Some((f.id, source.id, callee))

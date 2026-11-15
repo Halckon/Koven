@@ -54,6 +54,16 @@ impl CompilationUnitOwnership {
             }
             ordinals.push(*ordinal);
         }
+        // Source segments use this same original parameter root. Check every such
+        // original acquisition, not caller-supplied expression tuples or a final IR scan.
+        for (ordinal, loan) in record.loans.iter().enumerate().filter(|(_,loan)| {
+            matches!(loan.target(), crate::ownership_checking::UnitLoanTarget::Place(place) if place.is_root() && place.root()==fact.source())
+        }) {
+            if producers.get(ordinal)!=Some(&Some(LoanProducer::Function(fact.callable())))
+                || record.loans.iter().filter(|other| other.call()==loan.call()).count()!=1 {
+                return Err(Ambiguous);
+            }
+        }
         Ok(fact.callable())
     }
 }

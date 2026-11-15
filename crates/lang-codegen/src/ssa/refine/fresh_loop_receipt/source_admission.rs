@@ -126,3 +126,26 @@ pub(super) fn consumer(
         argument_span: argument.span(),
     }))
 }
+
+/// Independent source admission before building or observing a receipt.
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) fn audit_segments(
+    inputs: &RefineInputs<'_>,
+    fact: &UnitLoopNoCarryFact,
+) -> Option<[Vec<SourceConsumer>; 2]> {
+    let super::super::RefineBody::Block(body) = inputs.body else {
+        return None;
+    };
+    let Statement::Block { elements } = inputs.parsed.ast().statements().get(body).ok()?.payload()
+    else {
+        return None;
+    };
+    match elements.as_slice() {
+        [only] if *only == fact.loop_statement().statement() => Some([Vec::new(), Vec::new()]),
+        [before, middle, after] if *middle == fact.loop_statement().statement() => Some([
+            vec![consumer(inputs, *before, fact.source()).ok()??],
+            vec![consumer(inputs, *after, fact.source()).ok()??],
+        ]),
+        _ => None,
+    }
+}

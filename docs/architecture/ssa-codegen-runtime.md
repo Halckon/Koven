@@ -193,7 +193,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 普通 unit 的 sibling reserve/commit/Drop 算法不变，失败由 RAII 清理 object 临时文件并保留旧目标。
 CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作为普通 frontend input 进入同一 validated 链。
-D10 的 fresh no-carry 审计另以原 sealed core fact 的对象身份连接单 while、单 consumer、两个 Borrow String/Boolean 参数及空 source segments；同次最终 Program 复核原完整 CFG validator、实际类型与两条调用映射。该窄证明不提升旧 Partial loop lineage，不证明循环终止或一般迭代行为；多 consumer、前后 source segments 仍保审计缺口。
+D10 的 fresh no-carry 审计另以原 sealed core fact 的对象身份连接单 while、单 consumer、两个 Borrow String/Boolean 参数及空 source segments 或前后各一次 source consumer；同次最终 Program 复核原完整 CFG validator、实际类型与全部调用映射。该窄证明不提升旧 Partial loop lineage，不证明循环终止或一般迭代行为；多 body consumer、单侧或更长 source segments 仍保审计缺口。
 ## 测试覆盖位置
 
 SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；aggregate/tagged、container/provider、scalar/borrowed_calls及ownership/places领域由原测试根加载私有子模块，通用harness/helper仍留各根；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../archive/development/codegen-receiver-test-migration.md)。numeric proof 独立解析/Origin 坐标比较位于私有 `while_flow_tests/numeric_proof_contract/source_identity.rs`，唯一 Spans/only 及完整 CFG/资源证明留根，FQN 不变。

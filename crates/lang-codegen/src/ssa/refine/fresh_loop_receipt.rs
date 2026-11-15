@@ -67,9 +67,9 @@ pub(super) struct Plan {
     pub(super) boundary: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct SourceConsumer {
+pub(crate) struct SourceConsumer {
     pub(super) statement: UnitStatementId,
-    pub(super) call: UnitExpressionId,
+    pub(crate) call: UnitExpressionId,
     pub(super) argument: UnitExpressionId,
     pub(super) callee: FunctionId,
     pub(super) span: Span,
@@ -219,3 +219,6 @@ pub(super) fn record(receipt: Receipt) {
     #[cfg(not(test))]
     let _ = receipt;
 }
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) use source_admission::audit_segments;

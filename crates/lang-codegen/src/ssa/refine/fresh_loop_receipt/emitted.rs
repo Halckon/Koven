@@ -606,9 +606,12 @@ impl Emitted {
 
 #[cfg(feature = "d10-catalog-experiment")]
 impl Receipt {
-    pub(crate) fn empty_source_segments(&self) -> bool {
-        self.segments
-            .iter()
-            .all(|s| s.sealed() && s.consumers.is_empty() && s.instructions.is_empty())
+    pub(crate) fn matches_source_segments(&self, expected: &[Vec<SourceConsumer>; 2]) -> bool {
+        self.segments.len() == 2
+            && self
+                .segments
+                .iter()
+                .zip(expected)
+                .all(|(s, e)| s.sealed() && s.consumers == *e && s.instructions.len() == e.len())
     }
 }
