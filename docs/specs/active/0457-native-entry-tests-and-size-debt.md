@@ -42,7 +42,7 @@ object边界与 argv wrapper，不与无关内容按容量拼接。保留原cfg(
 UTF-8正反矩阵、nm/main符号断言、目录快照、错误种类与object存在/不存在断言。
 
 `TestDirectory`、唯一NEXT_DIRECTORY、emit_link_and_run与UnitSource原归属不动；
-不复制或新建harness，不添加wrapper、重导出、pub或allow。删除原根自己新增的unused import。
+不复制或新建harness，不添加wrapper、重导出、pub或allow。保留后代constant_tests仍通过原根使用的NativeUnitEntry导入，不把间接消费者误判为unused。
 仅退休该根baseline1297和exception1312；不改变其余阈值、checker、Rust生产逻辑或其他34项保留文件。
 
 归档0182记录的旧完整测试名是历史命令，不改写为本批新路径；本批另记录一对一前缀迁移。
@@ -50,17 +50,17 @@ UTF-8正反矩阵、nm/main符号断言、目录快照、错误种类与object�
 
 ## 4. 验收
 
-- [ ] R1：五项测试含属性与正文逐字节保全，FQN仅增加entry_tests一层；fixture/断言/cfg与唯一harness不变。
-- [ ] R2：根与新文件在1000行内；仅该根两项policy登记删除，其他JSON值不变，尺寸门禁和47项policy tests通过。
-- [ ] R3：五项迁移前后默认/feature均实际运行；原argv有效/无效UTF-8、native返回与object/no-object断言通过。
-- [ ] R4：临近仍留根的stdout与layout/diagnostic consumer定向通过，双配置all-target Clippy、fmt/docs/空白通过；独立审查且有发现修后复核。
+- [x] R1：五项测试含属性与正文逐字节保全，FQN仅增加entry_tests一层；fixture/断言/cfg与唯一harness不变。
+- [x] R2：根与新文件在1000行内；仅该根两项policy登记删除，其他JSON值不变，尺寸门禁和47项policy tests通过。
+- [x] R3：五项迁移前后默认/feature均实际运行；原argv有效/无效UTF-8、native返回与object/no-object断言通过。
+- [x] R4：临近仍留根的stdout与layout/diagnostic consumer定向通过，双配置all-target Clippy、fmt/docs/空白通过；独立审查且有发现修后复核。
 - [ ] R5：事实快照和真实验收记录同步；最终同PR精确CI绿灯后再申请交付，不借旧候选成功。
 
 ## 5. 顺序计划
 
-1. [ ] 读harness/入口helper/直接调用方，冻结五项正文与旧测试库存，跑双配置基线。
-2. [ ] 最小职责移动、删本根旧额度 → 机械保全、尺寸与policy核对。
-3. [ ] 双配置新命名用例与临近消费者、门禁、独立复核 → 记录实际结果。
+1. [x] 读harness/入口helper/直接调用方，冻结五项正文与旧测试库存，跑双配置基线。
+2. [x] 最小职责移动、删本根旧额度 → 机械保全、尺寸与policy核对。
+3. [x] 双配置新命名用例与临近消费者、门禁、独立复核 → 记录实际结果。
 4. [ ] 追加提交并更新同一PR；精确CI另验，不提前归档/合并。
 
 本次是已有测试组织重构，不增加产品行为，不伪造RED；1134行为真实尺寸旧欠账。
@@ -68,4 +68,21 @@ UTF-8正反矩阵、nm/main符号断言、目录快照、错误种类与object�
 
 ## 6. 验证记录
 
-尚待执行。原始日志与审计只留仓库外；库crate不增加日志。尚未运行的门禁不预填通过。
+输入为 `179e6bf8`（0457合同提交，Rust内容与前置6c5d0904相同）。原始日志与机械审计只留仓库外，以下为真实结果，不预填最终CI。
+
+| 验证项 | 选择与结果 |
+|---|---|
+| 迁移前 | §3五个旧FQN默认/feature各 **5/0/0**；fixture与断言未改 |
+| 机械保全 | 五个完整属性/正文逐字节相同；新FQN只插入entry_tests，两个libtest list各核实恰一次、旧FQN不重复；root除模块注册/移走测试外完全相同，所有原导入和harness字节不变 |
+| 首次构建失败 | 默认after exit101，E0433位于 `native_string_length_tests.rs:302`：误删根NativeUnitEntry导入，遗漏后代constant_tests通过super::super::*使用。恢复原导入，不修改consumer或加allow |
+| 最终定向 | 五项新FQN，加原根stdout、layout diagnostics及间接constant argv的3项，再加0456原26项；同次默认/feature各 **34/0/0**、exit0。8项本片与26项前片分组，不重复累计；native均实际build/link/run |
+| 编译/格式 | 默认/feature all-target Clippy带-D warnings、fmt退出0；未另跑workspace check：本片仅cfg(test)私有测试接线，无生产或跨crate API变化，不用前片旧头check冒充本片执行 |
+| 尺寸/policy | 根 **1134→869**、新entry文件 **274**；恰好删除本根baseline1297/exception1312，其他JSON值不变；policy tests **47/0**、尺寸门禁通过，当前全树35个历史超限，不宣称清零 |
+| 独立审查 | 首轮误认删根导入正确；修正复核已明确撤回该结论，确认间接依赖、原导入恢复、最终34项/双Clippy/FQN证据及唯一harness；不以错误初审代替复核 |
+
+Architecture已同步测试实际归属，归档0182旧名称原样保留。当前未跑frontend/完整codegen、
+完整LLVM慢组、本地CI-only fault或sanitizer全套；实际全矩阵由同PR最终候选CI另验。
+前片候选 `6c5d0904` 的run43659088768观察时仍in-progress（Linux tests已success，
+macOS tests未结束），不作为本片完整验收；push过滤成功也不替代PR CI。
+最终docs954、空白通过；一次合并门禁命令在120秒观察期限内未完成尺寸检查，
+不计通过。随后独立尺寸复跑实际退出0（2145手写Rust、35历史超限），原超时边界保留。
