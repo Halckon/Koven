@@ -35,9 +35,9 @@
 
 ## 2. 节奏与验收
 
-- [ ] R1：完整函数/类型块机械保全（仅等价路径/有效域调整），原根剩余代码与全部测试不变。
-- [ ] R2：逐片默认直接族与相关native基线→迁移→通过，各自本地提交；不逐片push或重复整套门禁。
-- [ ] R3：四片成组统一双配置组合与真实native消费者、workspace check、双Clippy、fmt/docs/尺寸/policy。
+- [x] R1：完整函数/类型块机械保全（仅等价路径/有效域调整），原根剩余代码与全部测试不变。
+- [x] R2：逐片默认直接族与相关native基线→迁移→通过，各自本地提交；不逐片push或重复整套门禁。
+- [x] R3：四片成组统一双配置组合与真实native消费者、workspace check、双Clippy、fmt/docs/尺寸/policy。
 - [ ] R4：独立完整精确提交区间审查，有finding修后复核；Architecture/账本同步，一次集中push同PR。
 - [ ] R5：官方精确新头CI另验，保持Spec active与PR Draft，无本轮合并授权不归档或合入main。
 
@@ -46,4 +46,30 @@
 
 ## 3. 真实证据
 
-待逐片记录；本地定向证据不等于完整codegen、CI-only fault、真实变异校准或双宿主CI。
+两片接在0461本地提交后，未逐片push；最终48275563只整理本批两个根的三行额外空白。
+
+| 切片 | 实际结果 |
+|---|---|
+| call | 14356ef9；完整refine_tests92、call_lifetimes3、receiver46、two_phase14与普通native direct-prefix5，前后 **160/0/0**、逐名相同；根1001→631，新call376 |
+| control merge | fd62be6a；完整lower_frontend_tests287、while_flow_tests46及map scope_lowering1，前后各 **334/0/0**、逐名相同；根1321→912，新merge416；Map sibling consumer实跑 |
+| 机械保全 | 4根/新文件完整块与剩余根、唯一helper及全部测试不变，仅明确scope/path及空白调整；两批policy只删model/control两项baseline和四项exceptions，其余JSON完全相同 |
+| 独立审查 | 精确6edff77f..48275563完整九文件2180行patch，核call source求值/parameter槽/receiver/pending loan/deliver/失败cleanup/writeback/drop与merge role/column去重/proof/Map重绑和间接imports；无具体问题 |
+| 最终组合 | 默认/feature各 **634/0/0**、同一634个FQN，所有过滤器命中；原127与四片去重519有12项交集，不按两数相加虚增，不新增测试或把搬迁算新覆盖 |
+| 统一门禁 | workspace all-target check/Clippy、feature codegen all-target Clippy、fmt、policy47、docs959、尺寸/空白退出0；2156手写Rust，25历史超限（两批29→25） |
+
+call首次基线155项实际通过，但旧native文件名过滤器零命中，仓库外runner因此失败，
+不能作为完整native基线。源码未变时仅补正确direct_call_prefix_tests五项，再以不重叠
+逐名并集160对迁移后160核对；保留首次日志/失败，不重复跑既有155或伪称产品用例失败。
+
+首次control快照被read的50KB上限截断尾部，机械audit明确失败；改从14356ef9完整git blob
+提取并保留旧partial，再核对所有剩余根完全相同。产品使用精确块edit，尾部从未丢失；
+未把截断快照当完整内容审计。Architecture门禁首轮204>200失败，精简本批职责概述后
+200行/docs959复验通过，Rust未变；最终其他门禁无需因纯文案重跑Cargo。
+
+Architecture同步四个私有职责；原始日志/快照/完整diff与审查保存在仓库外。当前源树已
+整合main c3ceea14，父636c56d0的CI43675343635最终success、双宿主/Preview及最终汇总
+均通过（Editor skipped不计执行），只证明父候选，不替代本批尚待的新头CI。
+
+本地未跑完整frontend/codegen/LLVM慢组、CI-only fault、真实变异校准或sanitizer全套；
+不将列举/编译或mock单测当真实校准。R4的独立审查/Architecture已完成，余同PR集中push；
+R5待精确新头官方验收，保持active/Draft、不归档或合入main。
