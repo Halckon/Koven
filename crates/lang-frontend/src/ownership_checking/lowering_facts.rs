@@ -56,6 +56,15 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Original independently sealed conditional counter-exit arm acquisitions.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_arm_counter_break_link(
+        &self,
+        _branch: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Joint original surrounding acquisitions; occurrences cannot share an ordinal.
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_arm_break_surrounding_link(
@@ -290,6 +299,15 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
     ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
     {
         CompilationUnitOwnership::d10_arm_counter_link(self, branch)
+    }
+    /// Original independently sealed conditional counter-exit arm acquisitions.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_arm_counter_break_link(
+        &self,
+        branch: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_arm_counter_break_link(self, branch)
     }
 
     #[cfg(feature = "d10-catalog-experiment")]

@@ -392,6 +392,8 @@ pub(in crate::ssa) fn lower(
     #[cfg(feature = "d10-catalog-experiment")]
     crate::ssa::d10_project_audit::arm_loop_counter_consumption::expect(inputs, types);
     #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::arm_loop_counter_break_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
     crate::ssa::d10_project_audit::aux_binding_consumption::expect(inputs, types);
     #[cfg(feature = "d10-catalog-experiment")]
     crate::ssa::d10_project_audit::distinct_aux_consumption::expect(inputs, types);

@@ -4,6 +4,9 @@
 pub(crate) mod arm_loop_consumption;
 #[cfg(test)]
 mod arm_loop_consumption_tests;
+pub(crate) mod arm_loop_counter_break_consumption;
+#[cfg(test)]
+mod arm_loop_counter_break_tests;
 pub(crate) mod arm_loop_counter_consumption;
 #[cfg(test)]
 mod arm_loop_counter_prefix_origin_tests;
@@ -147,6 +150,7 @@ pub(crate) struct Pending {
     arm_loops: arm_loop_consumption::Transaction,
     arm_tail_loops: arm_loop_tail_consumption::Transaction,
     arm_counter_loops: arm_loop_counter_consumption::Transaction,
+    arm_counter_break_loops: arm_loop_counter_break_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -176,6 +180,9 @@ impl Pending {
                 arm_loops: arm_loop_consumption::Transaction::begin(plan),
                 arm_tail_loops: arm_loop_tail_consumption::Transaction::begin(plan),
                 arm_counter_loops: arm_loop_counter_consumption::Transaction::begin(plan),
+                arm_counter_break_loops: arm_loop_counter_break_consumption::Transaction::begin(
+                    plan,
+                ),
                 items: names
                     .names()
                     .index()
@@ -426,6 +433,16 @@ impl Pending {
         let (counter_edges, counter_gaps) = self.arm_counter_loops.finish(program, mapping, owned);
         audit.unsupported.extend(counter_gaps);
         for edge in counter_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping bounded-counter edge certificate".into());
+            }
+        }
+        let (counter_break_edges, counter_break_gaps) =
+            self.arm_counter_break_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(counter_break_gaps);
+        for edge in counter_break_edges {
             if !branch_edges.insert(edge) {
                 audit
                     .unsupported

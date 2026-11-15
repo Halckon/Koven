@@ -20738,3 +20738,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 
 - 仅新增真实源码拒绝回归，未修改生产准入或 planner。消费位于初始化前时，Borrow/双 Value 与来源反序四输入各两次 lower 均有原 counter fact，但原 producer 返回精确 InvalidModel/整个 caller Span，零 receipt/audit/recorded；不得以 sealed fact 存在替代成功完整证据。消费夹在初始化与 while 间时，四输入各一次原 names/types 成功，ownership 精确两条 L0164 位于两处 borrow 六字符 Span，counter facts 与 publication 为空，该路径未进入 lower。
 - 首分类日志保留，包括辅助 analyze 因原 ownership 拒绝而 panic；精确回归首编仅测试 expect_err 要求 Program Debug，改为等价 let Err 后最终一目标通过。两种拒绝均按真实 kind/span 收紧，没有 anyErr 验收，不为本片绕过原拒绝。未重已有支持矩阵、未执行生成 Abort/native/故障注入/推送。
+
+### D10 独立 counter-break 十二角色完整 caller 证书
+
+- 新独立 `no_carry_counter_break_branches` sealed selector 核 wrapper owns/identity/FullEq、内层 counter/pair 与原完整 loan ordinal/Function producer，不将嵌入 witness 当旧 counter 域权限。Expected 从完整 `[initial,while]` 和循环内 `[双臂,if(stop){break},update]` 独立核四 Borrow ABI、两个 Boolean 原 Name 不同角色、原 break ControlBody/statement/expression/目标与两 cleanup、原初始化/guard/更新 Span；不含 prefix/suffix/Value stop/冗余参数。
+- 原普通 probe 一目标确认两来源各两次 assembly 的十二块/十四指令；完整证书另从原记录导出十二唯一角色，明确 finished!=exit、双臂 join==stop gate、false/no==continued、checked op==continued 而非 join、observed==(yes,exit)。原 stop Read/Conditional、yes 空指令原 break Span→exit、continued 原常量一/checked、失败唯一精确 Abort 与成功回边、零迭代 finished→exit/唯一空 UnitReturn、全 ABI/实体/类型/指令覆盖逐项闭合，两个借用边同次最终 verifier 后原子发布；旧 counter9、tail8 与普通 Abort 空授权不改。
+- 新两目标实跑通过：二十四 ABI 排列与两来源顺序共四十八形态各两次 assembly，实际 stop 入口角色沿真实边追溯到原 Read/Conditional，并分别核 true break 空块和 false checked；Value stop/额外 Boolean 两负例实测原 normal receipt 后精确 gap。首次正例发现新 Expected 将原 ControlBody 误写 Block，诊断定位后按原 selector 精确修复，不兼容放宽；首轮 tuple type_complexity 与测试 collapsible_if 仅等价 alias/let-chain 修复，全部失败日志保留。
+- 末版新两项、旧 counter 两项及 tail 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m27s、default codegen all-targets 32.49s、格式通过。原 probe 不重复；只普通源码→SSA 模型检查，不执行生成 Abort/native/故障注入，不推送，默认 workspace 留联合一次。
