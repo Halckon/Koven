@@ -191,6 +191,9 @@ active/archive 的编号真源为 [Spec 冻结库存](../specs/inventory.md)；�
 docs 和最终汇总失败。parser/脚本、base 或其他代码输入变化仍按原证据规则保守重跑。
 main 与 workflow_dispatch 强制执行全部配置，feature/fix push 保持
 仅文档/fmt 的现有成本策略；完整矩阵在 PR 执行。最终汇总拒绝 changes 失败或必需 job 跳过。
+通过路径、文档和格式检查后，双宿主 Check/Clippy、测试与 Preview producer 并行。
+独立 consumer 仍等待对应 producer 并验证本次产物。最终汇总等待全部必需任务；
+任一支失败均会阻止汇总通过。
 
 独立的[手写 Rust 尺寸护栏](rust-size-policy.md)在所有上述事件运行，包含policy测试和基于
 明确Git base的增长检查；纯文档PR也不能跳过它。其失败/取消/缺失/跳过均使汇总失败。
