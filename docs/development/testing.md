@@ -62,6 +62,7 @@ Preview24 继续独立生产和消费，不能复用核心镜像证明发布 ABI
 独立镜像验收的 PR 路径限于 Docker 构建目录、实际安装和校验脚本、候选门禁入口及
 `rust-toolchain.toml`。核心 CI 编排变更仍由固定镜像上的实际核心门禁验证。只调整
 镜像 workflow 编排时，可在该分支手动执行镜像验收；发布仍只允许可信 main 手动执行。
+普通文档追加仍通过 docs 门禁，候选镜像任务只在 PR 累计差异包含上述输入时触发。
 
 ## Linux CI 磁盘故障诊断
 
@@ -120,6 +121,11 @@ LLVM 21.1.8，初始盘容量 145GiB、空闲 88GiB；composition 末 target 从
 - 持久保留规则不放宽 CI 有效输入或复用判定；不要靠豁免 JSON/fixture 路径换取跳过测试。
 
 ## Codegen 大体积测试诊断
+
+核心 codegen 测试继续启用 `loan-observation-test-support`。parent/child receipt 故障、
+sanitizer 导出和生成资源导出共用 `scripts/run_codegen_default_tests.sh`，保留默认 feature、
+原有测试选择和 Rust 源码行号。该入口仅为 `lang-codegen` 的测试编译配置行号表与
+64 个编译单元。Koven 生成的 IR、DWARF、native 输出与 sanitizer 验收继续逐项比较。
 
 普通 SSA 测试族及 LLVM/native 的大 payload 断言通过 `test_support::diagnostics` 把完整
 证据写入系统临时目录的 `koven-codegen-diagnostics-<pid>-<sequence>.log`。每个测试线程

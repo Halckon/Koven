@@ -166,7 +166,7 @@ class Execution:
             self.record_packages()
             self.run([self.prefix / "bin/llvm-symbolizer", "--version"], self.root, "symbolizer", must_succeed=True)
         if self.binary is None:
-            built = self.run(["cargo", "test", "--locked", "--offline", "-p", "lang-codegen", "--lib", "--no-run",
+            built = self.run(["bash", "scripts/run_codegen_default_tests.sh", "--offline", "--no-run",
                               "--message-format=json"], self.root, "build-exporter", timeout=900, must_succeed=True)
             self.binary = test_binary(built.stdout.decode())
         if not self.binary.is_file():
