@@ -20793,3 +20793,17 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 新三目标正式/三 feature 各 3/3 通过，8 域外精准分类；旧 shared 3 + mixed 3 全过，
   包含旧混合负例迁计算 scalar。双 crate all-targets 三 feature strict 通过（1m45），
   CI73；未运行 native/故障注入。
+
+
+### E2 首调用 early temporary 与跨调用共享根
+
+- 基 147f0fa6，same FullKey/空 typeargs，exact 一 plain String val 加两 call，
+  首 Mixed/次 SharedRoot，direct scalars。原 probe 两 case 实测完整 [temp]/[named]、
+  8 FullEnd/ordinal、global 唯一/nameSpan，闭合同 shell 两 case 准确 Unsupported2 红。
+- 独立 EarlyTemporarySharedPair 私有根与 marker，replay 仅此根接受 [1,0]32；
+  原 late/mixed 根不扩大，emit 操作复用原逐 occurrence 事实。只读 EntryDescriptor
+  投影按职责移独立模块，不增加构造权限。
+- 真实 SSA 核首全 End<tempDrop<第二任何 Begin<末 End<NamedDrop，共享根不重建。
+  新三目标正式与三 feature 各 3/3，7 域外精准分类；旧 late 3 + mixed 3 全过，
+  旧 early 负例迁计算 scalar。双 crate all-targets 三 feature strict 通过（1m47），
+  CI76；未运行 native/故障注入。投影 same_identity 精确保原父模块可见范围。

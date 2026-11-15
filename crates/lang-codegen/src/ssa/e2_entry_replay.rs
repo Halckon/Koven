@@ -162,6 +162,7 @@ pub(super) fn replay_bound_body(
                     [0, 0] => 29,
                     [1, 1] => 35,
                     [0, 1] if d.is_late_temporary_shared_pair() => 32,
+                    [1, 0] if d.is_early_temporary_shared_pair() => 32,
                     _ => return None,
                 }
             } else {
