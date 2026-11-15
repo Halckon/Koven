@@ -20594,3 +20594,32 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - frontend 新独立 break ledger selector 取本域 sealed wrapper，复用私有纯核验逐 initializer/consumer 的原唯一 loan ordinal、argument 和同 Function producer；普通 selector 保原 owns 边界。两个同次私有事务按原成功 receipt 的真实 tail 域分流，在最终 verifier 后核最终 Function、原 planned token/key、原 dispatch 与全部 evidence，任一缺口两条边均不发布。
 - 新两项首遍通过：六 ABI、条件互换与 source 反序共 24 正形态各两次 assembly；原两条件 Name Span/Read/角色与 Conditional、每臂原 consumer 顺序/本 fresh/末 End→break join 均独立断言。前消费、后消费、额外 Boolean、Value flag 四负例各四来源/条件组合、两次 assembly 均原正常 receipt 而保精确 tail gap；这不把普通域 suffix 的拒绝误改为成功。
 - 必要 ordinary 两项、prefix 两项通过；FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.51s、格式检查通过，末版独审无阻断。普通 probe 日志与新验收日志独立保留，不重跑 probe、不运行 native/故障注入、不推送；默认 workspace 留后续联合一次。
+
+
+### E2 不同闭合 callee 的 shared/temporary 混合阶段根（本地已验）
+
+- 基线 `8abbbd2d285cec8c752a5588fe1f08b6ae908e98`，仅 exact 单 plain String val、
+  两个不同闭合 callee，每 call 一个同 named root 与一个 plain temporary String，scalar 均 direct literal。
+- 独立私有 `DifferentSharedMixedPair` 与专用 marker，不将不同 shared named marker 泛化。
+  原 shared/mixed 同 callee 逻辑不改；原不同 shared named 路径仍只接受两 `SharedRoot`。
+- 每 call 原完整 Drop 向量必须为 `[tempA]`、`[tempB, named]`，不排序、不忽略额外事实；
+  三 target 全局各唯一，两个 temporary 原 argument 身份不相同，8 原完整 End 与源序保留。
+- 普通 ownership probe 两 case 首轮通过，含反 callee、具名源码参数序及三个 String 相同字节；
+  formed root membership、首 call 前唯一原 initializer、每参数唯一 contract 与 ABI 四列分别核验。
+  闭合 E2 两 case 的不同 FullKey/空 typeargs/各唯一 shell fact 全部执行后准确汇总
+  `UnsupportedSelection=2`，1 过/1 预期红（不是全绿）。原 attempt 日志保留，无 oracle 修正。
+- 后端不改：原 shared 初始化一次、每 call temporary cleanup、末 root cleanup，与逐 occurrence
+  原 FullKey→SSA 映射直接复用。新增测试要求首 temp Drop 先于第二 temp 形成及所有 Begin，
+  末 temp Drop 先于 named Drop；相同字节的三个 owner 不合并，legacy 真 descriptor 仍拒绝。
+- 生产三目标、邻域与 strict 已验证。CI 同批登记三精确目标，清单 58 unit/配置、7 public、
+  1 frontend；旧 symmetric mixed 负例转 grouped/computed scalar，保持真实域外。未运行远端 CI。
+
+- 最终验收：`--locked -j1 -p lang-codegen --lib --features two-source-unit`
+  新 `shared_mixed_distinct::` 3/3；旧 `shared_mixed_pair::`、`shared_owner_pair::`、
+  `shared_distinct_callees::`、`distinct_callees::` 各 3/3，共 12 项必要回归通过。
+- 三 feature `two-source-unit,e2-two-source-test-support,loan-observation-test-support`
+  新三目标 3/3，包含实际 legacy 拒绝；同配置 frontend/codegen 两 crate
+  `clippy --all-targets -- -D warnings` 首轮通过（1m42s）。两个正向闭合 case 与 12 个域外准确
+  分类均完整执行，绿阶段无 oracle 修改、无重复矩阵。原 probe 红日志保留。
+- verify/LLVM render 已通过，未发射或执行 native 对象，未执行故障注入、全 workspace 或远端 CI；
+  默认 workspace 验收留给联合基线一次执行。
