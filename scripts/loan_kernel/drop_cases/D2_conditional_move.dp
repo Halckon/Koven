@@ -1,0 +1,50 @@
+// 只在一条分支上被移走的值
+type File deinit
+type Buf
+fun bufOneBranch {       // => ok
+  let b = Buf
+  if {
+    move b
+  }
+  call
+}
+fun fileOneBranch {      // => ok
+  let f = File
+  if {
+    move f
+  }
+  call
+}
+fun fileThenOrder {      // => ok
+  let f = File
+  let g = File
+  if {
+    move f
+  } else {
+    move g
+  }
+  call
+}
+fun useAfterMaybeMove {  // => reject D1
+  let f = File
+  if {
+    move f
+  }
+  use f
+}
+fun bothBranches {       // => ok
+  let f = File
+  if {
+    move f
+  } else {
+    move f
+  }
+  call
+}
+fun moveOrReturn {       // => ok
+  let f = File
+  if {
+    return
+  }
+  move f
+}
