@@ -20404,3 +20404,9 @@ CI-only WrongRounds旧accessor只迁首occurrence，未运行故障。
 all-targets严格Clippy最终通过（1m56s），初次collapsible_if仅作等价样式整理；
 独立静审及fmt/文档/size/diff通过，失败日志保留，未重复已通过矩阵。
 不推送、不执行native或本地故障注入。
+
+### D10 双 fresh scope 三个 source 段的独立证明
+
+- 原 AST 从左到右精确登记两个 while，并将之前、之间、之后分成三个固定段；每段至多一次原 typed source consumer，不按总语句数猜测来源，不增加 loop/body 上限。
+- 三段完整身份与原 source-plan dispatch 分别保存，最终与三个 sealed 段逐项全字段匹配；实际指令映射整组一次核验，原完整 caller CFG 运输证明与两来源边原子发布不变。
+- 正常源码覆盖八种段存在组合与来源/ABI 反序，区分首入口 source、跨 loop source 和末出口 source：末段为空时退出不留 source，有末段则在真实 Return 块保留 source 并完成调用；原 acquisition 数量及独立 before/middle/after callee 映射均核。任段两次消费、三 loop、第二 body 双消费保持整组缺口。实际 fresh 10 项、旧 Partial 2 项通过；codegen 三 feature all-targets 严格 Clippy（1m16s）、default codegen all-targets（36.99s）、格式/docs968/尺寸2421文件与21项历史欠账/diff 门禁通过。独立静审无阻断，本轮以本树 frontend 真实重编避免跨树缓存失配，首个 attempt 全链成功。未运行 native、故障注入或推送。

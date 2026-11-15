@@ -486,8 +486,7 @@ fn two_sequential_fresh_scopes_are_certified_as_one_complete_caller() {
                 reverse_sources,
                 reverse_parameters,
                 2,
-                0,
-                false,
+                [0, 0, 0],
                 false,
                 true,
             );
@@ -497,11 +496,12 @@ fn two_sequential_fresh_scopes_are_certified_as_one_complete_caller() {
 
 #[test]
 fn longer_or_interrupted_fresh_sequences_keep_the_whole_group_unproven() {
-    check_sequence(false, false, 3, 0, false, false, false);
-    check_sequence(false, false, 2, 2, false, false, false);
-    check_sequence(false, false, 2, 1, false, true, false);
-    check_sequence(false, false, 2, 0, true, false, false);
-    check_sequence(false, false, 2, 1, true, false, false);
+    check_sequence(false, false, 3, [0, 0, 0], false, false);
+    for segments in [[2, 0, 0], [0, 2, 0], [0, 0, 2], [1, 2, 1]] {
+        check_sequence(false, false, 2, segments, false, false);
+    }
+    check_sequence(false, false, 2, [0, 0, 0], true, false);
+    check_sequence(false, false, 2, [1, 1, 1], true, false);
 }
 
 #[test]
@@ -512,11 +512,29 @@ fn middle_source_consumer_connects_two_independent_fresh_scopes() {
                 reverse_sources,
                 reverse_parameters,
                 2,
-                1,
-                false,
+                [0, 1, 0],
                 false,
                 true,
             );
+        }
+    }
+}
+
+#[test]
+fn three_source_segments_preserve_entry_middle_and_exit_lifetimes() {
+    for reverse_sources in [false, true] {
+        for reverse_parameters in [false, true] {
+            for mask in 0..8 {
+                let segments = [mask & 1, (mask >> 1) & 1, (mask >> 2) & 1];
+                check_sequence(
+                    reverse_sources,
+                    reverse_parameters,
+                    2,
+                    segments,
+                    false,
+                    true,
+                );
+            }
         }
     }
 }
@@ -525,9 +543,8 @@ fn check_sequence(
     reverse_sources: bool,
     reverse_parameters: bool,
     count: usize,
-    middle_source_use: usize,
+    segments: [usize; 3],
     second_double_use: bool,
-    outer_source_use: bool,
     certified: bool,
 ) {
     use crate::ssa::{model::EntityId, refine::fresh_loop_receipt::Tag};
@@ -535,15 +552,16 @@ fn check_sequence(
     let (provider_id, provider) = unit_lower_test_support::parsed(
         &mut sources,
         "sequence-provider.ko",
-        "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun middle(item:String):Unit {}",
+        "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun middle(item:String):Unit {}\nfun before(item:String):Unit {}\nfun after(item:String):Unit {}",
     );
     let parameters = if reverse_parameters {
         "flag:Boolean,source:String"
     } else {
         "source:String,flag:Boolean"
     };
-    let mut body = String::from("while(flag){borrow val item=view(source);consume(item)};");
-    body.push_str(&"middle(source);".repeat(middle_source_use));
+    let mut body = "before(source);".repeat(segments[0]);
+    body.push_str("while(flag){borrow val item=view(source);consume(item)};");
+    body.push_str(&"middle(source);".repeat(segments[1]));
     body.push_str("while(flag){borrow val second=next(source);other(second);");
     if second_double_use {
         body.push_str("consume(second);");
@@ -552,9 +570,7 @@ fn check_sequence(
     if count == 3 {
         body.push_str("while(flag){borrow val third=view(source);consume(third)}");
     }
-    if outer_source_use {
-        body = format!("consume(source);{body}consume(source);");
-    }
+    body.push_str(&"after(source);".repeat(segments[2]));
     let (caller_id, caller) = unit_lower_test_support::parsed(
         &mut sources,
         "sequence-caller.ko",
@@ -645,9 +661,9 @@ fn check_sequence(
                     .iter()
                     .map(|s| s.instructions.len())
                     .collect::<Vec<_>>(),
-                [0, middle_source_use, 0]
+                segments
             );
-            if middle_source_use == 0 {
+            if segments == [0, 0, 0] {
                 assert!(receipt.has_empty_segments(3));
             }
             let mut results = Vec::new();
@@ -723,8 +739,11 @@ fn check_sequence(
                 results.push(*result);
             }
             assert_ne!(results[0], results[1]);
-            if middle_source_use == 1 {
-                let middle = &receipt.segments[1];
+            for (segment_index, name) in [".before.", ".middle.", ".after."].iter().enumerate() {
+                if segments[segment_index] == 0 {
+                    continue;
+                }
+                let middle = &receipt.segments[segment_index];
                 assert_eq!(middle.instructions.len(), 1);
                 let call = function.instruction(middle.instructions[0]).unwrap();
                 let Operation::DirectCall {
@@ -743,7 +762,7 @@ fn check_sequence(
                         .find(|f| f.id == *callee)
                         .unwrap()
                         .name
-                        .contains(".middle.")
+                        .contains(name)
                 );
                 let [source] = arguments.as_slice() else {
                     panic!("one source argument");
@@ -775,7 +794,28 @@ fn check_sequence(
                     .filter(|loan| loan.call().source_unit() == facts[0].callable().source_unit())
                     .map(|loan| loan.call())
                     .collect();
-                assert_eq!(acquisition_calls.len(), 5);
+                assert_eq!(acquisition_calls.len(), 4 + segments.iter().sum::<usize>());
+                if segment_index == 0 {
+                    assert_eq!(Some(call.block), function.entry_block());
+                }
+            }
+            let exits: Vec<_> = function
+                .blocks
+                .iter()
+                .filter(|b| {
+                    matches!(
+                        b.terminator.as_ref().map(|t| &t.kind),
+                        Some(crate::ssa::model::TerminatorKind::Return { .. })
+                    )
+                })
+                .collect();
+            assert_eq!(exits.len(), 1);
+            assert_eq!(exits[0].parameters.len(), segments[2]);
+            if segments[2] == 1 {
+                let call = function
+                    .instruction(receipt.segments[2].instructions[0])
+                    .unwrap();
+                assert_eq!(call.block, exits[0].id);
             }
             assert_ne!(
                 receipt.loops[0].fact.binding(),
