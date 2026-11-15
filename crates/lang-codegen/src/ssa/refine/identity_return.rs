@@ -75,23 +75,31 @@ pub(in crate::ssa) fn certify(
     };
     let expression = UnitExpressionId::new(inputs.source_unit, raw);
     let node = inputs.parsed.ast().expressions().get(raw).ok()?;
-    let [root] = inputs.parameters.as_slice() else {
+    let source_index = inputs.borrow_return?;
+    if !matches!(inputs.parameters.len(), 1 | 2) {
         return None;
-    };
+    }
+    let root = inputs.parameters.get(source_index)?;
     if !matches!(node.payload(), Expression::Name)
         || inputs
             .references
             .get(&(node.span().start(), node.span().end()))
             != Some(root)
-        || inputs.modes != [ParameterMode::Borrow]
+        || inputs.modes.len() != inputs.parameters.len()
+        || inputs
+            .modes
+            .iter()
+            .any(|mode| *mode != ParameterMode::Borrow)
         || inputs.receiver.is_some()
         || inputs.static_self.is_some()
         || !inputs.substitutions.is_empty()
         || !inputs.callables.is_empty()
-        || inputs.borrow_return != Some(0)
         || inputs.carrier_return.is_some()
         || inputs.constant_owned.is_some()
-        || inputs.typed.symbol_type(*root) != Some(inputs.return_type)
+        || inputs
+            .parameters
+            .iter()
+            .any(|symbol| inputs.typed.symbol_type(*symbol) != Some(inputs.return_type))
         || inputs.typed.expression_type(expression) != Some(inputs.return_type)
         || inputs.typed.types().get(inputs.return_type)
             != Some(&UnitTypeKind::Builtin(BuiltinType::String))
@@ -123,17 +131,21 @@ pub(in crate::ssa) fn certify(
         .signatures()
         .declaration(declaration.id())?
         .callable()?;
-    let [parameter] = signature.parameters() else {
-        return None;
-    };
     let contract = signature.borrow_return()?;
     if !signature.type_parameters().is_empty()
         || signature.receiver().is_some()
-        || parameter.symbol() != Some(*root)
-        || parameter.mode() != ParameterMode::Borrow
-        || parameter.ty() != inputs.return_type
+        || signature.parameters().len() != inputs.parameters.len()
+        || signature
+            .parameters()
+            .iter()
+            .zip(&inputs.parameters)
+            .any(|(parameter, symbol)| {
+                parameter.symbol() != Some(*symbol)
+                    || parameter.mode() != ParameterMode::Borrow
+                    || parameter.ty() != inputs.return_type
+            })
         || signature.return_type() != inputs.return_type
-        || contract.origin() != BorrowReturnOrigin::Parameter(0)
+        || contract.origin() != BorrowReturnOrigin::Parameter(source_index)
     {
         return None;
     }
@@ -155,7 +167,7 @@ pub(in crate::ssa) fn certify(
     if types.ssa_types.get(target.index) != Some(&SsaTypeKind::StringOwner)
         || target.module != function.id.module
         || function.origin != Origin::Source(inputs.span)
-        || function.borrow_return != Some(0)
+        || function.borrow_return != Some(source_index)
         || function.carrier_return.is_some()
         || function.receiver.is_some()
         || function.never_returns
@@ -163,38 +175,48 @@ pub(in crate::ssa) fn certify(
         || !function.instructions.is_empty()
         || !function.values.is_empty()
         || !function.places.is_empty()
-        || function.loans.len() != 1
+        || function.loans.len() != inputs.parameters.len()
     {
         return None;
     }
     let [block] = function.blocks.as_slice() else {
         return None;
     };
-    let [EntityId::Loan(loan)] = block.parameters.as_slice() else {
-        return None;
-    };
     if function.entry_block() != Some(block.id)
         || function.block(block.id) != Some(block)
         || !block.instructions.is_empty()
         || block.origin != Origin::Source(inputs.span)
+        || block.parameters.len() != inputs.parameters.len()
     {
         return None;
     }
-    let entity = function.entity(EntityId::Loan(*loan))?;
-    if entity.ty
-        != (EntityType::Loan {
-            kind: LoanKind::Shared,
-            target,
-        })
-        || entity.definition
-            != (Definition::BlockParameter {
-                block: block.id,
-                index: 0,
+    let mut loans = std::collections::BTreeSet::new();
+    for (index, parameter) in block.parameters.iter().enumerate() {
+        let EntityId::Loan(loan) = parameter else {
+            return None;
+        };
+        if loan.function() != function.id || !loans.insert(*loan) {
+            return None;
+        }
+        let entity = function.entity(*parameter)?;
+        if entity.ty
+            != (EntityType::Loan {
+                kind: LoanKind::Shared,
+                target,
             })
-        || entity.origin != Origin::Source(inputs.span)
-    {
-        return None;
+            || entity.definition
+                != (Definition::BlockParameter {
+                    block: block.id,
+                    index,
+                })
+            || entity.origin != Origin::Source(inputs.span)
+        {
+            return None;
+        }
     }
+    let EntityId::Loan(loan) = block.parameters.get(source_index)? else {
+        return None;
+    };
     let terminator = block.terminator.as_ref()?;
     if terminator.abort.is_some()
         || terminator.kind != (TerminatorKind::BorrowReturn { loan: *loan })

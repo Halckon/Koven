@@ -99,10 +99,10 @@ fn check(reverse: bool, source_second: bool, extra: bool) {
             "{:?}",
             audit.unsupported
         );
-        assert!(
-            audit.unsupported.iter().any(|g| g.contains("BorrowReturn")),
-            "two-parameter leaf remains outside identity domain"
-        );
+        // The independent entry-call candidate still lacks its own receipt; this
+        // slice closes the leaf, not that separate candidate obligation.
+        assert_eq!(audit.unsupported.len(), 1, "{:?}", audit.unsupported);
+        assert!(audit.unsupported[0].starts_with("missing/duplicate entry call receipt:"));
         let f = program
             .modules
             .iter()

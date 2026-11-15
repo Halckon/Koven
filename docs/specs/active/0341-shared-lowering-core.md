@@ -19872,3 +19872,22 @@ frontend/codegen 三 feature all-targets 严格 Clippy（4m03s）、默认仅这
 all-targets check（2m05s）、fmt/diff/docs（958）及相对 `0678c166` 尺寸门禁
 （2373 Rust、37 历史超限）通过；末版独立静审无阻断。未重复无关矩阵，未推送，
 未执行 native 或本地人工故障；旧生产准入和部分证据的边界不变。
+
+
+### D10 双参数 String identity 叶退出闭合（2026-11-15）
+
+在 `8f846d85` 的 aux early-End 证明之后，复用原 identity receipt 与同次 assembly 事务，
+仅将证书域从一个 Borrow String 参数扩至精确一或两个；不改变原 lowering 准入。
+原 Name 引用、typed signature 每参数 symbol/mode/type、唯一 borrow-return origin/marker、
+contract source index 与实际 ABI 及 Return 指向同一参数。最终单块零指令、无 value/place，
+全部 Shared String loan 参数唯一且逐 Definition::BlockParameter 原序覆盖；非源参数不与返回 loan 别名。
+
+真实源码覆盖返源 index 0/1、原单参，三参数/混 Boolean/group/block 保原无证或 Unsupported。
+aux 两源正反序和同 observe 两次 assembly 的完整 caller 仍获证；BorrowReturn 叶 gap 消除，
+但精确保留唯一旧 `missing/duplicate entry call receipt`。旧 entry 独立 expected 会登记双 acquisition，
+而其 Pending 只支持单 Boolean caller，零参 aux caller 不满足；本片未更改这两个边界。
+首次 aux 全 gap 清零断言失败后已修为唯一旧 entry gap，未放宽生产或隐藏其他缺口。
+
+验收：identity 定向 1/1（测试名改为 `identity_leaf_certifies_only_one_or_two_plain_string_parameters`）；
+末版 aux 2/2；三 feature codegen all-targets strict Clippy 1m36s、默认仅 codegen all-targets check 0.86s。
+未执行 native、人工故障或推送。静态门禁结果见本次提交记录。

@@ -6,8 +6,20 @@ use lang_frontend::{
 };
 
 #[test]
-fn identity_leaf_certifies_only_plain_single_string_name_return() {
+fn identity_leaf_certifies_only_one_or_two_plain_string_parameters() {
     for (source, expected) in [
+        (
+            "fun identity(source:String,aux:String):borrow String from source=source",
+            true,
+        ),
+        (
+            "fun identity(aux:String,source:String):borrow String from source=source",
+            true,
+        ),
+        (
+            "fun identity(source:String,a:String,b:String):borrow String from source=source",
+            false,
+        ),
         (
             "fun identity(source:String):borrow String from source=source",
             true,
