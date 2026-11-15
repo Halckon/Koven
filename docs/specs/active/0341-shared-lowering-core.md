@@ -20173,3 +20173,25 @@ receipt 必须一致；原五个 Begin 的完整 facts/producer 分别核对，A
 但不得获本桥证书。独审通过，四项真实源码测试通过；frontend/codegen 三 feature
 all-targets 严格 Clippy 通过（1m01s），默认两 crate all-targets check 通过（6.17s）。
 fmt、968文件文档、2411 Rust文件尺寸（21项历史欠账）及diff通过。无 native/故障/推送。
+
+### E2 受限入口的具名实参映射（2026-11-15）
+
+在 6e2856fd 独立分支中保留原 typed call 的源码argument→parameter映射，允许
+既有四Shared参数封闭caller的具名实参重排。入口仍只原受限val/literal集合，原
+FunctionShell角色证据和完整Unit检查不变；不重做名称匹配或构造参数映射。
+
+所有operand、temporary创建与BorrowBegin依源码实参顺序一次完成；仅DirectCall
+ABI列表按原parameter_index收集，私有descriptor的角色查询也通过真实contract列
+映射，不再把源码下标误当参数列。独立replay分别校验求值序与ABI序，真实loan、
+End/Drop的顺序、身份和每owner唯一消费保持；不排序清理来迎合ABI。
+
+新named_arguments目标在旧实现先复现反序具名调用UnsupportedSelection；
+末版正式/三feature各1 passed（3签名乘24源码实参排列乘5owner形态，共360组合）。
+每例核源码BorrowBegin Span顺序、实际owner/loan、参数ABI列、唯一End/Drop，并通过
+verifier/LLVM render。旧parameter_roles在正式配置2 passed（120排列及grouped
+scalar拒绝）；旧“拒绝具名重排”负例按本片已批准域转为正例，保留真实域外负控。
+
+三feature frontend/codegen all-targets严格Clippy通过（2m07s）；fmt、diff、968文件
+文档、2412文件Rust尺寸（21历史超限）及脚本语法通过，独立静审无阻断。新增目标
+纳入原CI双配置，默认workspace留联合一次。构建结束立即交槽D10，不等账本提交。
+无push、native执行或人工故障注入。
