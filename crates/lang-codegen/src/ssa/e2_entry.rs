@@ -115,7 +115,8 @@ pub(super) fn fill_entry(
     let f = module.function_mut(entry)?;
     let block = empty_declaration(f, &[])?;
     let mut owners = Vec::new();
-    let named_root = if let Some((_, _, span, bytes)) = descriptor.named_string() {
+    let mut named_roots = Vec::new();
+    for (symbol, _, span, bytes) in descriptor.named_strings() {
         let origin = Origin::Source(span);
         let owner = value(append(
             f,
@@ -128,16 +129,15 @@ pub(super) fn fill_entry(
             origin.clone(),
         )?)?;
         owners.push(owner);
-        Some(place(append(
+        let root = place(append(
             f,
             block,
             Operation::RootPlace { owner },
             EntityType::Place(string),
             origin,
-        )?)?)
-    } else {
-        None
-    };
+        )?)?;
+        named_roots.push((symbol, root));
+    }
     let mut scalar_places = Vec::new();
     for (i, (ty, constant)) in [
         (int, ScalarConstant::Integer(descriptor.rounds().into())),
@@ -166,8 +166,16 @@ pub(super) fn fill_entry(
     for (i, c) in descriptor.contracts().iter().enumerate() {
         let ty = [string, string, int, boolean][i];
         let origin = Origin::Source(c.argument_span());
-        let root = if i < 2 && named_root.is_some() {
-            named_root?
+        let root = if i < 2 && !named_roots.is_empty() {
+            let symbol = descriptor.named_argument_root(i)?;
+            let mut matches = named_roots
+                .iter()
+                .filter(|(candidate, _)| *candidate == symbol);
+            let root = matches.next()?.1;
+            if matches.next().is_some() {
+                return None;
+            }
+            root
         } else if i < 2 {
             let owner = value(append(
                 f,
@@ -229,23 +237,31 @@ pub(super) fn fill_entry(
         )
         .ok()?;
     }
+    let mut dropped = vec![false; owners.len()];
     for drop in descriptor.drops() {
-        let (owner, origin) = match drop.target() {
+        let (index, origin) = match drop.target() {
             UnitDropTarget::Temporary(argument) => {
                 let i = descriptor.contracts()[..2]
                     .iter()
                     .position(|c| c.argument() == argument)?;
-                (owners[i], call_origin.clone())
+                (i, call_origin.clone())
             }
-            UnitDropTarget::Named(root)
-                if descriptor.named_string().is_some_and(|n| n.0 == root) =>
-            {
-                (*owners.first()?, Origin::Source(drop.value_origin()))
+            UnitDropTarget::Named(root) => {
+                let i = named_roots.iter().position(|(symbol, _)| *symbol == root)?;
+                (i, Origin::Source(drop.value_origin()))
             }
             _ => return None,
         };
+        if *dropped.get(index)? {
+            return None;
+        }
+        dropped[index] = true;
+        let owner = *owners.get(index)?;
         f.append_instruction(block, Operation::Drop { owner }, vec![], origin)
             .ok()?;
+    }
+    if dropped.iter().any(|consumed| !consumed) {
+        return None;
     }
     f.set_terminator(
         block,

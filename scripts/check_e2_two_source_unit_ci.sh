@@ -8,7 +8,7 @@ if [[ "$mode" != --list-only ]]; then
 fi
 cd "$(dirname "$0")/.."
 for features in two-source-unit 'two-source-unit e2-two-source-test-support loan-observation-test-support'; do
-  for name in explicit_capability_checks_whole_unit_and_source_identity explicit_capability_executes_original_object explicit_capability_commit_failure_is_atomic multiple_entries_preserve_complete_selection_and_mapping multiple_entries_commit_failure_is_atomic multiple_entries_reject_unsupported_entry shared_entries::shared_caller_entries_use_exact_fact_set_and_independent_roots named_shared_owner_entry_is_closed_and_unique validation_errors::ownership_validation_errors_are_not_unsupported_selection validation_errors::deferred_rejection_is_distinct_from_valid_unsupported_subset combined_entries::named_shared_entries_keep_cleanup_and_whole_unit_diagnostics; do
+  for name in explicit_capability_checks_whole_unit_and_source_identity explicit_capability_executes_original_object explicit_capability_commit_failure_is_atomic multiple_entries_preserve_complete_selection_and_mapping multiple_entries_commit_failure_is_atomic multiple_entries_reject_unsupported_entry shared_entries::shared_caller_entries_use_exact_fact_set_and_independent_roots named_shared_owner_entry_is_closed_and_unique distinct_named::distinct_named_owners_preserve_argument_identity_and_cleanup validation_errors::ownership_validation_errors_are_not_unsupported_selection validation_errors::deferred_rejection_is_distinct_from_valid_unsupported_subset combined_entries::named_shared_entries_keep_cleanup_and_whole_unit_diagnostics; do
     target="ssa::two_source_unit::tests::$name"
     args=(--exact)
     [[ "$name" != *_commit_failure_is_atomic ]] || args+=(--ignored)
@@ -18,7 +18,7 @@ for features in two-source-unit 'two-source-unit e2-two-source-test-support loan
       cargo test --locked -j1 -p lang-codegen --lib --features "$features" "$target" -- "${args[@]}"
     fi
   done
-  for public in public_capability_emits_and_executes_without_test_observers public_multiple_entries_execute_one_common_program public_named_shared_owner_executes_exact_source public_shared_caller_entries_execute_distinct_roots public_shared_named_entries_execute_distinct_owners; do
+  for public in public_capability_emits_and_executes_without_test_observers public_multiple_entries_execute_one_common_program public_named_shared_owner_executes_exact_source public_distinct_named_owners_execute_reversed_arguments public_shared_caller_entries_execute_distinct_roots public_shared_named_entries_execute_distinct_owners; do
     listing=$(cargo test --locked -j1 -p lang-codegen --test two_source_unit --features "$features" "$public" -- --exact --list)
     [[ $(grep -Fxc "$public: test" <<< "$listing") == 1 ]]
     if [[ "$mode" != --list-only ]]; then
