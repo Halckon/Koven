@@ -450,6 +450,16 @@ impl Emitter<'_> {
                 self.current.insert(*slot, entity);
                 self.defined.insert(*slot, entity);
             }
+            #[cfg(feature = "d10-catalog-experiment")]
+            for pending in body
+                .entry_borrows
+                .iter()
+                .filter(|p| p.matches_result(&statement.results))
+            {
+                if let Some(receipt) = pending.emitted(self.function, instruction, &self.current) {
+                    crate::ssa::d10_project_audit::entry_borrow::record(receipt);
+                }
+            }
             receipts.owner_bridge.statement(
                 body,
                 self.function,

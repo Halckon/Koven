@@ -512,3 +512,6 @@ mod statements;
 
 #[cfg(test)]
 pub(in crate::ssa::refine) mod temporary_ci_tests;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod entry_borrow_receipt;

@@ -31,17 +31,32 @@ fn original_tail_continuation_closes_actual_fold_with_distinct_callees() {
 #[test]
 fn certified_branch_edges_close_plan_without_hiding_identity_leaf_gaps() {
     for tail in [false, true] {
-        let audits = run_entry(tail, true, true);
+        let audits = run_entry(tail, true, true, false);
         assert_eq!(audits.len(), 2);
         for audit in audits {
             assert!(audit.gaps.is_empty());
         }
     }
 }
-fn run(tail: bool, reverse: bool) -> Vec<BranchConsumption> {
-    run_entry(tail, reverse, false)
+#[test]
+fn extra_entry_parameter_keeps_actual_call_outside_certificate_domain() {
+    for reverse in [false, true] {
+        let audits = run_entry(false, reverse, false, true);
+        assert_eq!(audits.len(), 2);
+        for audit in audits {
+            assert!(audit.gaps.is_empty(), "{:?}", audit.gaps);
+        }
+    }
 }
-fn run_entry(tail: bool, reverse: bool, wrapper_entry: bool) -> Vec<BranchConsumption> {
+fn run(tail: bool, reverse: bool) -> Vec<BranchConsumption> {
+    run_entry(tail, reverse, false, false)
+}
+fn run_entry(
+    tail: bool,
+    reverse: bool,
+    wrapper_entry: bool,
+    extra_parameter: bool,
+) -> Vec<BranchConsumption> {
     let mut sources = SourceMap::new();
     let (provider_id, provider) = unit_lower_test_support::parsed(
         &mut sources,
@@ -56,6 +71,14 @@ fn run_entry(tail: bool, reverse: bool, wrapper_entry: bool) -> Vec<BranchConsum
         )
     } else {
         text.to_owned()
+    };
+    let text = if extra_parameter {
+        text.replace(
+            "fun run(flag: Boolean)",
+            "fun run(flag: Boolean, unused: Boolean)",
+        )
+    } else {
+        text
     };
     let (caller_id, caller) = unit_lower_test_support::parsed(&mut sources, "caller.ko", &text);
     let mut inputs = [
@@ -161,13 +184,17 @@ fn run_entry(tail: bool, reverse: bool, wrapper_entry: bool) -> Vec<BranchConsum
             .id()
     };
     for audit in &audits {
-        assert_eq!(
-            audit.borrow_edges,
-            vec![
-                (declaration("wrap"), declaration("view_left")),
-                (declaration("wrap"), declaration("view_right"))
-            ]
-        );
+        let mut edges = audit.borrow_edges.clone();
+        edges.sort();
+        let mut expected_edges = vec![
+            (declaration("wrap"), declaration("view_left")),
+            (declaration("wrap"), declaration("view_right")),
+        ];
+        if !wrapper_entry && !extra_parameter {
+            expected_edges.push((declaration("run"), declaration("wrap")));
+        }
+        expected_edges.sort();
+        assert_eq!(edges, expected_edges);
         assert_eq!(
             audit
                 .unsupported
@@ -184,15 +211,33 @@ fn run_entry(tail: bool, reverse: bool, wrapper_entry: bool) -> Vec<BranchConsum
                 .iter()
                 .filter(|g| g.contains("unclassified operation: BorrowCall"))
                 .count(),
-            usize::from(!wrapper_entry),
-            "run -> wrap must not inherit a branch certificate"
+            usize::from(extra_parameter),
+            "run -> wrap requires its independent actual entry certificate"
         );
         assert_eq!(
             audit
                 .unsupported
                 .iter()
                 .any(|g| g.contains("entry/certified-edge closure")),
-            !wrapper_entry
+            extra_parameter
+        );
+        assert_eq!(
+            audit
+                .unsupported
+                .iter()
+                .filter(|g| g.contains("entry binding lifetime unproven"))
+                .count(),
+            usize::from(!wrapper_entry && !extra_parameter)
+        );
+        assert_eq!(
+            audit
+                .unsupported
+                .iter()
+                .filter(|g| g.contains("missing/duplicate entry call receipt"))
+                .count(),
+            usize::from(extra_parameter),
+            "{:?}",
+            audit.unsupported
         );
         assert!(
             !audit

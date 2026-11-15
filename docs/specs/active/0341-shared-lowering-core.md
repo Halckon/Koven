@@ -19576,3 +19576,23 @@ D10 代码不变。组合三 feature（d10-catalog-experiment/e2-two-source-test
 branch 定向 3/3、E2 distinct_named exact 1/1 通过；默认 workspace all-targets check 一次通过。
 fmt/diff-check、docs（958）、相对 `2c97add5` 尺寸门禁（2348 Rust 文件、37 历史超限）通过。
 两侧既有严格验收复用，不重复 native 或旧全套。没有推送、人工故障、新 PR 或远端 CI 结论。
+
+### D10 有界入口 BorrowCall 实际边消费（2026-11-15）
+
+沿原 Refine 成功路径，将原 source ledger 的唯一 handoff 与完整 loan producer 归属
+连接到原 source/result Slot，再在实际 emitter 记录 BorrowCall Instruction/Entity；
+每次 assembly 私有 RAII 收集，最终 verifier 后对原独立 expected、计划 mapping、
+完整 instruction/result 快照和 block 成员身份核对。不是扫描最终 Program 推测来源，
+不改变 BorrowEnd、Drop、原 route 或生产返回。
+
+本片仅单 Boolean 参数、Unit 返回 caller，以具名 String owner 和该原参数调用
+两 Borrow 参数且从首参数借返 String 的 plain callee。成功只认证调用图边，始终保留
+`entry binding lifetime unproven`；binding-use/end、source retirement 与 Drop 生命周期
+并未因此闭合。identity 叶返回仍未获本片证明，不宣称整体项目准入或 runtime 完备。
+
+正常域外多一 Boolean 参数必须仍成功 lowering，但缺 receipt、BorrowCall 未认证及
+图闭合缺口均保留。定向覆盖两拓扑、两源反序、同观察区间独立两次 assembly；
+新增域外用例不篡改任何 facts/Program。三 feature branch 定向 4/4 通过；受影响
+frontend/codegen all-targets 严格 Clippy 通过，fmt/diff、docs（958）与相对
+`f6602d64` 尺寸门禁（2351 Rust、37 历史超限）通过。未跑 native、未推送；
+identity 独立片尚未组合，本次不重跑既有未受影响全套。

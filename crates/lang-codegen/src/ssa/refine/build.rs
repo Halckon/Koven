@@ -140,6 +140,8 @@ pub(super) fn build(
         checked_edge_receipts: Vec::new(),
         types,
         body: RefinedBody {
+            #[cfg(feature = "d10-catalog-experiment")]
+            entry_borrows: Vec::new(),
             loan_plans: super::loan_receipt::Plans::new(inputs)?,
             receiver_plans: super::receiver_receipt::Plans::new(inputs)?,
             named_plans: super::named_receipt::Plans::new(inputs)?,
@@ -992,8 +994,4 @@ impl Builder<'_, '_> {
         self.sync_dead();
         self.this_dead = true;
     }
-}
-
-impl Builder<'_, '_> {
-    // ---- statements ----
 }

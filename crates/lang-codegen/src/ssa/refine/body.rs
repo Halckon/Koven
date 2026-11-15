@@ -943,6 +943,8 @@ pub(super) struct RBlock {
 /// Block 0 is the function entry; `parameters` are defined there.
 #[derive(Clone, Debug, Default)]
 pub(super) struct RefinedBody {
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) entry_borrows: Vec<super::entry_borrow_receipt::Pending>,
     pub(super) child_cycle_plans: super::child_cycle_receipt::Plans,
     pub(super) nested_body_plans: super::nested_body_receipt::Plans,
     pub(super) nested_resume_plans: super::nested_resume_receipt::Plans,

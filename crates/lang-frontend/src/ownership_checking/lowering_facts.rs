@@ -38,6 +38,14 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Actual acquisition provenance only; not binding-lifetime closure.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_entry_borrow_link(
+        &self,
+        _call: UnitExpressionId,
+    ) -> Option<crate::type_checking::UnitItemId> {
+        None
+    }
     /// Original is_compatible_with query.
     fn is_compatible_with(&self, typed: &ValidatedCompilationUnitTypes) -> bool;
     /// Original loan_action_observations query.
@@ -148,6 +156,13 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
     ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
     {
         CompilationUnitOwnership::d10_branch_link(self, split)
+    }
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_entry_borrow_link(
+        &self,
+        call: UnitExpressionId,
+    ) -> Option<crate::type_checking::UnitItemId> {
+        CompilationUnitOwnership::d10_entry_borrow_link(self, call)
     }
     fn is_compatible_with(&self, typed: &ValidatedCompilationUnitTypes) -> bool {
         CompilationUnitOwnership::is_compatible_with(self, typed)

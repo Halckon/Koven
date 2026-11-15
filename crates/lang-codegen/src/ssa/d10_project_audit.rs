@@ -3,6 +3,7 @@
 //! remains a separate result; this module neither changes lowering nor executes generated code.
 pub(crate) mod branch_consumption;
 pub(crate) mod compatibility;
+pub(crate) mod entry_borrow;
 mod literal_consumption;
 use crate::ssa::{
     model::{FunctionId, Operation, Program, SsaTypeKind, TerminatorKind},
@@ -32,7 +33,7 @@ pub struct ProjectAudit {
     pub declarations: Vec<DeclarationId>,
     /// Every actual direct call, retaining multiplicity.
     pub direct_edges: Vec<(DeclarationId, DeclarationId)>,
-    /// Actual BorrowCall edges certified by original branch paths and their full final CFG.
+    /// Actual BorrowCall edges certified by branch CFG proofs or bounded entry consumption.
     /// Uncertified borrowed calls and leaf returns remain explicit unsupported obligations.
     pub borrow_edges: Vec<(DeclarationId, DeclarationId)>,
     /// Explicit SSA runtime-bearing operations, including allocation/drop/abort. These are
@@ -71,6 +72,7 @@ pub fn observe<T>(run: impl FnOnce() -> T) -> (T, Vec<ProjectAudit>) {
 pub(crate) struct Pending {
     receipts: literal_consumption::Transaction,
     branches: branch_consumption::Transaction,
+    entry_borrows: entry_borrow::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -87,6 +89,7 @@ impl Pending {
             .then(|| Self {
                 receipts: literal_consumption::Transaction::begin(),
                 branches: branch_consumption::Transaction::begin(),
+                entry_borrows: entry_borrow::Transaction::begin(),
                 items: names
                     .names()
                     .index()
@@ -201,7 +204,12 @@ impl Pending {
                     .push("type outside scalar/String domain".into());
             }
         }
+        let (entry_edges, entry_gaps) =
+            self.entry_borrows
+                .finish(&self.items, program, mapping, owned);
+        audit.unsupported.extend(entry_gaps);
         let mut branch_edges = audit.branch_consumption.edges.clone();
+        branch_edges.extend(entry_edges);
         let mut branch_returns = audit.branch_consumption.returns.clone();
         for function in program.modules.iter().flat_map(|module| &module.functions) {
             for instruction in &function.instructions {
