@@ -47,6 +47,17 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Original tail-break source suffix acquisition, disjoint from both arm call chains.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_arm_break_suffix_link(
+        &self,
+        _branch: UnitExpressionId,
+        _call: UnitExpressionId,
+        _argument: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Original independently sealed tail-break arm-pair acquisitions and callable producer.
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_arm_break_link(
@@ -251,6 +262,17 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
     ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
     {
         CompilationUnitOwnership::d10_arm_loop_prefix_link(self, branch, call, argument)
+    }
+
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_arm_break_suffix_link(
+        &self,
+        branch: UnitExpressionId,
+        call: UnitExpressionId,
+        argument: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_arm_break_suffix_link(self, branch, call, argument)
     }
 
     #[cfg(feature = "d10-catalog-experiment")]
