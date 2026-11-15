@@ -23,13 +23,6 @@
       "split_plan": "后续按source orchestration和intrinsic分发完整职责提取，不机械搬迁driver状态机。",
       "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1336 行；不声称独立评审。再次增长或职责增加前重新审阅。"
     },
-    "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/conditional_leaf.rs": {
-      "max_lines": 1155,
-      "reason": "单个条件叶phi场景以同一形成快照与presence状态完成fallthrough/continue/break回放；完整1159行原helper及6行调用case不可在纯搬迁中切断断言或重构状态。",
-      "owner": "lang-frontend ownership/drop tests（Halckon）",
-      "split_plan": "后续单独评审从完整场景提取形成快照/入边回放与末端清理oracle helper，保持三条tail矩阵与全部断言。",
-      "review": "下次修改本场景、共用回放helper或instance_replay合同前复查；增加职责或超过当前上限必须独立评审。"
-    },
     "crates/lang-frontend/src/ownership_checking/checker/drop_planner/iteration/tests/file_parent.rs": {
       "max_lines": 1143,
       "reason": "六个跨循环/嵌套环境场景共享一个1072行原helper，其文件级release layout与连续实例状态必须一起验收；纯搬迁不拆断状态或断言。",
