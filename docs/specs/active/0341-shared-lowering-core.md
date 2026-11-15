@@ -19410,3 +19410,18 @@ all-targets严格Clippy与默认workspace all-targets check通过，首次Clippy
 条件可合并，等价修正后重跑通过且新两项再次通过。fmt、diff与docs检查（958份）通过；
 尺寸门禁相对本片基点`b1170be5`通过：2341个手写Rust文件、37个超过1000行，
 无新增超限文件。当前证据仅为本地非native验收，不代表已推送或CI验证。
+
+### main #432 独立组合验收（2026-11-15）
+
+原`integration/spec-0341-d10-e2-main426-20261115`保留`7a07886d`；新main432
+分支以`1c896532`合并准确`50f12468`，双父为`7a07886d`及`50f12468`。
+五文件增量无冲突，独立静审确认与main #432增量一致，未覆盖既有D10/E2接线。
+
+本次组合本地通过：原receipt桥两项、source ledger十项、真实五源CLI exact一项；
+frontend/codegen/CLI双feature all-targets严格Clippy、默认workspace all-targets
+check、fmt/diff、docs结构958份；尺寸相对合并前`7a07886d`及合并后准确main父
+`50f12468`均通过（2341个手写Rust文件、37个超过1000行，无新增超限文件）。
+
+#432新增`nullable_when_rechecks_an_inner_writeback_before_return_with_an_outer_borrow`
+仅编译并精确`--list`核对一次注册，未执行native。main原提交的native结果不计作本次
+组合动态证据；一般CFG/资源route也不因此获得D10闭包准入。未推送、无本地故障注入。
