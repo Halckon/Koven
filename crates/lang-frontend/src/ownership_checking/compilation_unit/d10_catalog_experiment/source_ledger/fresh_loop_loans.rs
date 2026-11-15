@@ -144,6 +144,24 @@ impl CompilationUnitOwnership {
         }
         self.link_arm_pair_calls(fact.pair(), calls)
     }
+    pub(crate) fn d10_arm_counter_link(
+        &self,
+        branch: UnitExpressionId,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
+        use CallableLoanLinkError::{Ambiguous, Unsupported};
+        let facts: Vec<_> = self
+            .no_carry_counter_branches()
+            .iter()
+            .filter(|f| f.pair().branch() == branch)
+            .collect();
+        let [fact] = facts.as_slice() else {
+            return Err(Ambiguous);
+        };
+        if !self.owns_no_carry_counter_branch(fact) {
+            return Err(Unsupported);
+        }
+        self.link_arm_pair_calls(fact.pair(), &[])
+    }
     fn link_arm_source(
         &self,
         branch: UnitExpressionId,
