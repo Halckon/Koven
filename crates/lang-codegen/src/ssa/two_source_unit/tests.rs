@@ -420,3 +420,5 @@ mod mixed_owner;
 mod static_strings;
 
 mod declaration_order;
+
+mod parameter_roles;

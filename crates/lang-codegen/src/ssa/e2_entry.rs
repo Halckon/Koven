@@ -187,7 +187,8 @@ pub(super) fn fill_entry(
     let mut temporary_owners = Vec::new();
     let mut loans = Vec::new();
     for (i, c) in descriptor.contracts().iter().enumerate() {
-        let ty = [string, string, int, boolean][i];
+        let role = descriptor.argument_role(i)?;
+        let ty = *[string, string, int, boolean].get(role)?;
         let origin = Origin::Source(c.argument_span());
         let root = if let Some(symbol) = descriptor.named_argument_root(i) {
             let mut matches = named_roots
@@ -198,7 +199,7 @@ pub(super) fn fill_entry(
                 return None;
             }
             root
-        } else if i < 2 {
+        } else if role < 2 {
             let owner = value(append(
                 f,
                 block,
@@ -219,7 +220,7 @@ pub(super) fn fill_entry(
                 origin.clone(),
             )?)?
         } else {
-            scalar_places[i - 2]?
+            (*scalar_places.get(role - 2)?)?
         };
         loans.push(loan(append(
             f,

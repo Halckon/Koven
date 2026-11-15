@@ -20099,3 +20099,26 @@ verifier和LLVM render，不执行native。两crate三feature all-targets严格C
 
 默认关闭能力和完整Unit审查不变；默认workspace留共同集成一次，不推送、不做故障
 注入。构建槽在strict结束后立即交给D10，不等待账本或本地提交。
+
+### E2 受限 caller 的原参数角色排列（2026-11-15）
+
+在 5502bcd2 独立树中接续既有 FunctionShell 的四参数角色证据，移除entry对
+`[left,right,rounds,choose]` 固定签名列位置的无关限制。四参数仍全Shared、零泛型、
+既有封闭loop/callee及入口val字面量集合；不开放具名实参重排或一般调用形式。
+
+私有descriptor保留原shell角色到签名列映射；实参contract仍源码序且同签名列，
+发射和独立replay按实际实参位置进行BorrowBegin/temporary创建，按语义角色选择
+String/Int/Boolean及scalar根。原真实End顺序、Drop身份和原ABI不改，不把语义角色
+序列当作求值顺序。两String owner的payload按语义角色存储，temporary清理始终
+通过原argument身份映射。
+
+新 `parameter_roles` 两目标在原实现先复现 Boolean-leading 签名入口
+UnsupportedSelection，具名实参重排拒绝保持。末版正式与三feature各2 passed/
+0 ignored：24签名排列乘5 owner形态共120源码正例，核真实ABI参数/loan类型、
+源码实参Span及owner值、4 End唯一性和每owner一次Drop且位于End之后；另1个
+具名实参重排自然拒绝。所有正例通过原verifier/LLVM render，未执行native。
+
+三feature frontend/codegen all-targets严格Clippy通过（3m54s）；fmt、diff、
+958文件文档、2386文件Rust尺寸（37旧债不变）及脚本语法门禁通过；独立静审无阻断。
+新目标纳入既有双配置CI清单。默认workspace留联合一次，构建槽结束即交D10。
+默认关闭、完整Unit审查和能力隔离保持；不推送、不运行native或故障注入。
