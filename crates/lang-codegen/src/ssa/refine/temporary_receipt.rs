@@ -443,6 +443,8 @@ pub(in crate::ssa::refine) mod emitted {
                     return Err(invalid(span));
                 }
             }
+            #[cfg(feature = "d10-catalog-experiment")]
+            crate::d10_project_audit::record_temporary(&self.receipts, function);
             #[cfg(test)]
             ci_tests::record(plans, function, &self.receipts);
             #[cfg(test)]
@@ -461,6 +463,8 @@ use crate::ssa::{
     model::{FunctionId, LoanKind},
 };
 pub(in crate::ssa::refine) use emitted::Emitted;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) use emitted::Receipt as TemporaryReceipt;
 use lang_frontend::{
     ownership_checking::{UnitDropTarget, UnitLoanActionId, UnitLoanFact},
     source::Span,

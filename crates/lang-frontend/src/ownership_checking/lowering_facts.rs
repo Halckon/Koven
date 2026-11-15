@@ -19,6 +19,16 @@ use crate::type_checking::{
 /// }
 /// ```
 pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
+    /// Read-only bounded original-run linkage, not ownership or admission authority.
+    /// Experimental/other providers remain unsupported unless explicitly implemented.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_literal_call_link(
+        &self,
+        _call: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Original is_compatible_with query.
     fn is_compatible_with(&self, typed: &ValidatedCompilationUnitTypes) -> bool;
     /// Original loan_action_observations query.
@@ -114,6 +124,14 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
 }
 
 impl UnitLoweringFacts for CompilationUnitOwnership {
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_literal_call_link(
+        &self,
+        call: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_literal_call_link(self, call)
+    }
     fn is_compatible_with(&self, typed: &ValidatedCompilationUnitTypes) -> bool {
         CompilationUnitOwnership::is_compatible_with(self, typed)
     }

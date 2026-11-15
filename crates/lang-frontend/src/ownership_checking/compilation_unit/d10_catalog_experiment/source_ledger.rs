@@ -217,7 +217,9 @@ impl SourceCollectionLedger {
     /// Full, ordered equality with the same final ownership run. Not a lowering gate.
     #[must_use]
     pub fn matches(&self, owned: &ValidatedCompilationUnitOwnership) -> bool {
-        let owned = owned.ownership();
+        self.matches_original(owned.ownership())
+    }
+    pub(super) fn matches_original(&self, owned: &CompilationUnitOwnership) -> bool {
         let Some(closures) = &self.final_closures else {
             return false;
         };

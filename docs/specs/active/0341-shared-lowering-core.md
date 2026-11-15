@@ -19381,3 +19381,32 @@ codegen双feature清单3304项无重复：直接borrow模块34、companion bound
 一项通过。合并前HEAD与e16存在两个merge-base，尺寸工具拒绝歧义比较；本地merge提交
 `5e469240`后，对直接父`e16c1d27`重验通过（2339文件、37历史欠账），未fetch改写
 历史或抬baseline。原分支仍保留`cd487917`。无native、故障注入、远端CI或推送。
+
+### 原temporary receipt与同次最终Unit Program的受限消费桥（2026-11-15）
+
+基于`b1170be5`，不在Unit lowering新建动作记录链，复用已有
+`refine::temporary_receipt`的实际协议1 receipt。仅在其`Emitted::finish`成功处添加
+feature-only只读桥，保留原action IDs/call/callable/caller/InstructionId/EntityId，
+同时按已有ID捕获实际Instruction和Entity全字段快照；原准入、动作producer与原validator
+均不变。sealed `UnitLoweringFacts`仅增加受限link查询，普通事实复用原ledger/link核心，
+实验handoff及其它provider默认Unsupported，不能取回raw owned或提升普通准入。
+
+每次原Unit assembly在Pending内建立独立私有Rc收集身份，RAII在错误/展开时丢弃，
+不以外层observe数组区间代替transaction。最终Program verifier成功后才发布审计：
+expected由原计划plain callable及原region/link独立确定，再逐项核原catalog action IDs、
+callable→FunctionId映射、实际Instruction/Entity全字段、单block内唯一ID递增顺序与
+实体definition回指；缺失、多余、重复或不一致receipt均列缺口。两statement源码即便
+前端link成功，原refine单statement route不匹配也明确MissingReceipt，不以沉默算成功。
+
+范围仅为计划中有callable身份的plain原region及非空protocol1；无callable或非plain
+不在此域。序列存续不等于整个block没有额外动作、任意CFG闭合或runtime实现正确。
+错误/展开RAII当前为独立静审保障，未人为制造失败或宣称动态覆盖。普通lowering返回值、
+D10门禁、项目一般闭包结论和旧Unsupported均不改变。
+
+正常新回归两项已通过：真实双源双String参数原序与反序、单observe两次独立assembly及
+新的分析run隔离；双statement真实route gap、零参数拒绝。没有跨run混配产物或native执行。
+既有source ledger十项、真实五源CLI exact一项均回归通过；frontend/codegen/CLI双feature
+all-targets严格Clippy与默认workspace all-targets check通过，首次Clippy仅指出新增
+条件可合并，等价修正后重跑通过且新两项再次通过。fmt、diff与docs检查（958份）通过；
+尺寸门禁相对本片基点`b1170be5`通过：2341个手写Rust文件、37个超过1000行，
+无新增超限文件。当前证据仅为本地非native验收，不代表已推送或CI验证。

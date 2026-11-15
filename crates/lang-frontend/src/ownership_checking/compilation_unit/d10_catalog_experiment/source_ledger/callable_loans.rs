@@ -65,11 +65,18 @@ impl SourceCollectionLedger {
         owned: &ValidatedCompilationUnitOwnership,
         call: UnitExpressionId,
     ) -> Result<UnitItemId, CallableLoanLinkError> {
+        self.link_original(owned.ownership(), call)
+    }
+    fn link_original(
+        &self,
+        owned: &CompilationUnitOwnership,
+        call: UnitExpressionId,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
         use CallableLoanLinkError::{Ambiguous, Unsupported};
-        if !self.matches(owned) {
+        if !self.matches_original(owned) {
             return Err(Unsupported);
         }
-        let observations = owned.ownership().loan_action_observations();
+        let observations = owned.loan_action_observations();
         let mut matches = observations.iter().flat_map(|observation| {
             observation
                 .regions()
@@ -168,5 +175,17 @@ impl SourceCollectionLedger {
             return Err(Unsupported);
         }
         Ok(callable)
+    }
+}
+
+impl CompilationUnitOwnership {
+    pub(crate) fn d10_literal_call_link(
+        &self,
+        call: UnitExpressionId,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
+        self.source_collection_ledger
+            .as_ref()
+            .ok_or(CallableLoanLinkError::Unsupported)?
+            .link_original(self, call)
     }
 }

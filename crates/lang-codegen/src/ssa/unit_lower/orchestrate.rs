@@ -258,7 +258,7 @@ fn lower_unit_roots_impl(
     })?;
     #[cfg(feature = "d10-catalog-experiment")]
     if let Some(audit) = project_audit {
-        audit.finish(&program, &function_ids);
+        audit.finish(&program, &function_ids, owned);
     }
     #[cfg(test)]
     branch_publication.commit();

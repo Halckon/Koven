@@ -1,6 +1,7 @@
 //! Read-only scoped observations of ordinary whole-unit lowering. Not an admission capability.
 //! Only the original successful final verifier publishes an observation. Object publication
 //! remains a separate result; this module neither changes lowering nor executes generated code.
+mod literal_consumption;
 use crate::ssa::{
     model::{FunctionId, Operation, Program, SsaTypeKind, TerminatorKind},
     unit_plan::{UnitFunctionInstanceKey, UnitInstancePlan},
@@ -10,6 +11,8 @@ use lang_frontend::{
     source::SourceId,
     type_checking::UnitCallableTarget,
 };
+pub use literal_consumption::LiteralConsumption;
+pub(crate) use literal_consumption::record_temporary;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
@@ -31,6 +34,9 @@ pub struct ProjectAudit {
     pub runtime_operations: BTreeMap<&'static str, usize>,
     /// Empty only when plan/mapping/Program close within this restricted observation domain.
     pub unsupported: Vec<String>,
+    /// Same-transaction existing protocol-1 receipts linked to original facts and final Program.
+    /// This separate bounded domain never upgrades the general project closure result.
+    pub literal_consumption: LiteralConsumption,
 }
 thread_local! { static OBSERVATIONS: RefCell<Option<Vec<ProjectAudit>>> = const { RefCell::new(None) }; }
 /// Observe the caller's original emission exactly once, without replacing its return value.
@@ -55,6 +61,8 @@ pub fn observe<T>(run: impl FnOnce() -> T) -> (T, Vec<ProjectAudit>) {
 }
 
 pub(crate) struct Pending {
+    receipts: literal_consumption::Transaction,
+    items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
     sources: Vec<(SourceUnitId, SourceId)>,
@@ -68,6 +76,22 @@ impl Pending {
         OBSERVATIONS
             .with(|slot| slot.borrow().is_some())
             .then(|| Self {
+                receipts: literal_consumption::Transaction::begin(),
+                items: names
+                    .names()
+                    .index()
+                    .declarations()
+                    .iter()
+                    .map(|d| {
+                        (
+                            d.id(),
+                            lang_frontend::type_checking::UnitItemId::new(
+                                d.source_unit(),
+                                d.root(),
+                            ),
+                        )
+                    })
+                    .collect(),
                 keys: plan
                     .instances()
                     .iter()
@@ -87,6 +111,7 @@ impl Pending {
         self,
         program: &Program,
         mapping: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
+        owned: &dyn lang_frontend::ownership_checking::UnitLoweringFacts,
     ) {
         let mut audit = ProjectAudit {
             source_count: self.sources.len(),
@@ -95,6 +120,13 @@ impl Pending {
             direct_edges: Vec::new(),
             runtime_operations: BTreeMap::new(),
             unsupported: Vec::new(),
+            literal_consumption: literal_consumption::finish(
+                &self.receipts,
+                &self.items,
+                program,
+                mapping,
+                owned,
+            ),
         };
         let planned: BTreeSet<_> = self.keys.iter().collect();
         if planned.len() != self.keys.len() || planned != mapping.keys().collect() {
@@ -238,3 +270,6 @@ impl Pending {
         });
     }
 }
+
+#[cfg(test)]
+mod tests;
