@@ -141,7 +141,12 @@ pub(super) fn replay_declared_body(
     };
     if !block.parameters.is_empty()
         || block.origin != Origin::Source(declaration)
-        || block.instructions.len() != if d.named_string().is_some() { 16 } else { 19 }
+        || block.instructions.len()
+            != match d.named_strings().len() {
+                1 => 16,
+                0 | 2 => 19,
+                _ => return None,
+            }
         || f.instructions.len() != block.instructions.len()
     {
         return None;
@@ -159,7 +164,8 @@ pub(super) fn replay_declared_body(
         index: 0,
     };
     let mut owners = Vec::new();
-    let named_root = if let Some((_, _, span, bytes)) = d.named_string() {
+    let mut named_roots = Vec::new();
+    for (symbol, _, span, bytes) in d.named_strings() {
         let origin = Origin::Source(span);
         let owner = value(cursor.step(
             Operation::StringLiteral {
@@ -170,14 +176,13 @@ pub(super) fn replay_declared_body(
             Some(EntityType::Value(string)),
         )?)?;
         owners.push(owner);
-        Some(place(cursor.step(
+        let root = place(cursor.step(
             Operation::RootPlace { owner },
             origin,
             Some(EntityType::Place(string)),
-        )?)?)
-    } else {
-        None
-    };
+        )?)?;
+        named_roots.push((symbol, root));
+    }
     let mut roots = Vec::new();
     for (i, (ty, c)) in [
         (int, ScalarConstant::Integer(d.rounds().into())),
@@ -202,8 +207,16 @@ pub(super) fn replay_declared_body(
     for (i, c) in d.contracts().iter().enumerate() {
         let origin = Origin::Source(c.argument_span());
         let ty = [string, string, int, boolean][i];
-        let root = if i < 2 && named_root.is_some() {
-            named_root?
+        let root = if i < 2 && !named_roots.is_empty() {
+            let symbol = d.named_argument_root(i)?;
+            let mut matches = named_roots
+                .iter()
+                .filter(|(candidate, _)| *candidate == symbol);
+            let root = matches.next()?.1;
+            if matches.next().is_some() {
+                return None;
+            }
+            root
         } else if i < 2 {
             let owner = value(cursor.step(
                 Operation::StringLiteral {
@@ -255,21 +268,29 @@ pub(super) fn replay_declared_body(
             None,
         )?;
     }
+    let mut dropped = vec![false; owners.len()];
     for drop in d.drops() {
-        let (owner, drop_origin) = match drop.target() {
+        let (index, drop_origin) = match drop.target() {
             UnitDropTarget::Temporary(argument) => {
                 let i = d.contracts()[..2]
                     .iter()
                     .position(|c| c.argument() == argument)?;
-                (owners[i], origin.clone())
+                (i, origin.clone())
             }
-            UnitDropTarget::Named(root) if d.named_string().is_some_and(|n| n.0 == root) => {
-                (*owners.first()?, Origin::Source(drop.value_origin()))
+            UnitDropTarget::Named(root) => {
+                let i = named_roots.iter().position(|(symbol, _)| *symbol == root)?;
+                (i, Origin::Source(drop.value_origin()))
             }
             _ => return None,
         };
+        if *dropped.get(index)? {
+            return None;
+        }
+        dropped[index] = true;
+        let owner = *owners.get(index)?;
         cursor.step(Operation::Drop { owner }, drop_origin, None)?;
     }
 
-    (cursor.index == block.instructions.len()).then_some(())
+    (cursor.index == block.instructions.len() && dropped.iter().all(|consumed| *consumed))
+        .then_some(())
 }

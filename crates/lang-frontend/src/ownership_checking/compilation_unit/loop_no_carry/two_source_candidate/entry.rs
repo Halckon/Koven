@@ -13,7 +13,7 @@ use crate::{
     source::Span,
     type_checking::{BuiltinType, UnitTypeKind, ValidatedCompilationUnitTypes},
 };
-/// Opaque evidence for two scalar vals and one call, optionally preceded by one shared String owner.
+/// Opaque evidence for two scalar vals and one call, optionally preceded by one shared or two distinct String owners.
 #[derive(Clone, Debug)]
 pub struct EntryDescriptor {
     identity: Rc<()>,
@@ -32,6 +32,10 @@ pub struct EntryDescriptor {
 enum StringStorage {
     Temporary {
         strings: [Vec<u8>; 2],
+        drops: [UnitDropFact; 2],
+    },
+    DistinctNamed {
+        owners: [(UnitSymbolId, UnitExpressionId, Span, Vec<u8>); 2],
         drops: [UnitDropFact; 2],
     },
     Named {
@@ -60,6 +64,28 @@ impl EntryDescriptor {
                 bytes,
                 ..
             } => Some((*root, *initializer, *span, bytes)),
+            _ => None,
+        }
+    }
+    /// Named owners in source declaration order; never coalesced by equal bytes.
+    pub fn named_strings(&self) -> Vec<(UnitSymbolId, UnitExpressionId, Span, &[u8])> {
+        match &self.storage {
+            StringStorage::DistinctNamed { owners, .. } => owners
+                .iter()
+                .map(|(r, i, s, b)| (*r, *i, *s, b.as_slice()))
+                .collect(),
+            _ => self.named_string().into_iter().collect(),
+        }
+    }
+    /// Root of the original argument's real ended loan, not its positional name.
+    pub fn named_argument_root(&self, index: usize) -> Option<UnitSymbolId> {
+        if index >= 2 || self.named_strings().is_empty() {
+            return None;
+        }
+        let argument = self.contracts.get(index)?.argument();
+        let end = self.ends.iter().find(|e| e.loan().argument() == argument)?;
+        match end.loan().target() {
+            UnitLoanTarget::Place(place) if place.is_root() => Some(place.root()),
             _ => None,
         }
     }
@@ -103,11 +129,12 @@ impl EntryDescriptor {
     pub fn ends(&self) -> &[UnitDirectCallLoanEndFact; 4] {
         &self.ends
     }
-    /// Actual owner drops in traversal order (two temporaries or one named owner).
+    /// Actual owner drops in traversal order (two temporaries or one/two named owners).
     pub fn drops(&self) -> &[UnitDropFact] {
         match &self.storage {
             StringStorage::Temporary { drops, .. } => drops,
             StringStorage::Named { drop, .. } => std::slice::from_ref(drop),
+            StringStorage::DistinctNamed { drops, .. } => drops,
         }
     }
 }
@@ -170,9 +197,10 @@ pub(super) fn collect(
             let Statement::Block { elements } = body_node.payload() else {
                 return None;
             };
-            let (named_statement, first, second, last) = match elements.as_slice() {
-                [first, second, last] => (None, first, second, last),
-                [named, first, second, last] => (Some(named), first, second, last),
+            let (named_statements, first, second, last) = match elements.as_slice() {
+                [first, second, last] => (&elements[..0], first, second, last),
+                [_, first, second, last] => (&elements[..1], first, second, last),
+                [_, _, first, second, last] => (&elements[..2], first, second, last),
                 _ => return None,
             };
             let formed_local = |span: Span| {
@@ -188,46 +216,50 @@ pub(super) fn collect(
                 let binding = *bindings.next()?;
                 bindings.next().is_none().then_some(binding)
             };
-            let named = if let Some(statement) = named_statement {
-                let Statement::LocalVariable { declaration } =
-                    parsed.ast().statements().get(*statement).ok()?.payload()
-                else {
-                    return None;
-                };
-                let Item::Variable {
-                    kind: VariableKind::Val,
-                    name: NameMarker::Present(name),
-                    initializer,
-                    ..
-                } = parsed.ast().items().get(*declaration).ok()?.payload()
-                else {
-                    return None;
-                };
-                let root = formed_local(*name)?;
-                let initializer = UnitExpressionId::new(unit, *initializer);
-                if typed
-                    .types()
-                    .symbol_type(root)
-                    .and_then(|t| typed.types().types().get(t))
-                    != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-                    || typed
+            let named: Vec<_> = named_statements
+                .iter()
+                .map(|statement| {
+                    let Statement::LocalVariable { declaration } =
+                        parsed.ast().statements().get(*statement).ok()?.payload()
+                    else {
+                        return None;
+                    };
+                    let Item::Variable {
+                        kind: VariableKind::Val,
+                        name: NameMarker::Present(name),
+                        initializer,
+                        ..
+                    } = parsed.ast().items().get(*declaration).ok()?.payload()
+                    else {
+                        return None;
+                    };
+                    let root = formed_local(*name)?;
+                    let initializer = UnitExpressionId::new(unit, *initializer);
+                    if typed
                         .types()
-                        .expression_type(initializer)
+                        .symbol_type(root)
                         .and_then(|t| typed.types().types().get(t))
                         != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-                {
-                    return None;
-                }
-                let node = parsed
-                    .ast()
-                    .expressions()
-                    .get(initializer.expression())
-                    .ok()?;
-                let bytes = plain_string(sources, node.payload())?;
-                Some((root, initializer, node.span(), bytes))
-            } else {
-                None
-            };
+                        || typed
+                            .types()
+                            .expression_type(initializer)
+                            .and_then(|t| typed.types().types().get(t))
+                            != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    {
+                        return None;
+                    }
+                    let node = parsed
+                        .ast()
+                        .expressions()
+                        .get(initializer.expression())
+                        .ok()?;
+                    let bytes = plain_string(sources, node.payload())?;
+                    Some((root, initializer, node.span(), bytes))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            if named.len() == 2 && named[0].0 == named[1].0 {
+                return None;
+            }
             let mut locals = Vec::new();
             for (position, statement) in [first, second].into_iter().enumerate() {
                 let Statement::LocalVariable { declaration } =
@@ -323,7 +355,7 @@ pub(super) fn collect(
                     .expressions()
                     .get(c.argument().expression())
                     .ok()?;
-                if i < 2 && named.is_some() {
+                if i < 2 && !named.is_empty() {
                     if !matches!(node.payload(), Expression::Name) {
                         return None;
                     }
@@ -361,11 +393,9 @@ pub(super) fn collect(
                 }
                 match (i, end.loan().target()) {
                     (0 | 1, UnitLoanTarget::Temporary(owner))
-                        if named.is_none() && *owner == c.argument() => {}
+                        if named.is_empty() && *owner == c.argument() => {}
                     (0 | 1, UnitLoanTarget::Place(place))
-                        if named
-                            .as_ref()
-                            .is_some_and(|n| place.is_root() && place.root() == n.0) => {}
+                        if named.iter().any(|n| place.is_root() && place.root() == n.0) => {}
                     (2 | 3, UnitLoanTarget::Place(place))
                         if place.is_root() && place.root() == locals[i - 2].0 => {}
                     _ => return None,
@@ -382,7 +412,40 @@ pub(super) fn collect(
                 .filter(|d| d.point() == UnitDropPoint::CallReturn(call_id))
                 .copied()
                 .collect();
-            let storage = if let Some((root, initializer, span, bytes)) = named {
+            let storage = if named.len() == 2 {
+                let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
+                for (root, _, _, _) in &named {
+                    let argument_count = contracts[..2]
+                        .iter()
+                        .filter(|contract| {
+                            ends.iter().any(|end| {
+                                end.loan().argument() == contract.argument()
+                                    && matches!(end.loan().target(), UnitLoanTarget::Place(place)
+                                    if place.is_root() && place.root() == *root)
+                            })
+                        })
+                        .count();
+                    if argument_count != 1
+                        || drops
+                            .iter()
+                            .filter(|drop| drop.target() == UnitDropTarget::Named(*root))
+                            .count()
+                            != 1
+                        || owned
+                            .drops()
+                            .iter()
+                            .filter(|drop| drop.target() == UnitDropTarget::Named(*root))
+                            .count()
+                            != 1
+                    {
+                        return None;
+                    }
+                }
+                StringStorage::DistinctNamed {
+                    owners: named.try_into().ok()?,
+                    drops,
+                }
+            } else if let Some((root, initializer, span, bytes)) = named.into_iter().next() {
                 let [drop] = drops.as_slice() else {
                     return None;
                 };

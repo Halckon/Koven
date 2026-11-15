@@ -19544,3 +19544,35 @@ fmt/diff-check、docs（958）、相对 d47fca34 尺寸门禁（2347 Rust 文件
 匹配分支中冗余 `()`，只改为等价空块后 codegen 双 feature 全目标 `-D warnings` 通过。
 fmt/diff-check、docs（958）、相对 30cbf5df 尺寸门禁（2347 Rust 文件、37 历史超限）通过，
 独立静审无阻断。复用已过基线，无旧全套重跑、native 执行、人工故障或推送。
+
+
+### E2 两个独立具名 String owner 入口（2026-11-15）
+
+在 d47fca34 独立分支上，将默认关闭的显式 E2 入口扩展为精确五 statement：两个
+plain String val 声明、原 Int/Boolean val、末尾调用。两个 String 实参必须各借用一个
+不同的真实 formed local 根，可反序；不支持 var、混合临时值、额外语句或转义字符串。
+原单根 alias 与双 temporary 入口保持。相同字节不会合并 owner。
+
+私有 descriptor 保留声明序以及原四个 Shared End、两个唯一 Named Drop；按真实
+End 根而非实参序号绑定借用，仍核同 CallReturn、End 次序、preceding_drops=0、各根
+在完整 ownership 中唯一 Drop。后端按声明序构造两 owner，按原事实清理；独立 replay
+逐指令与来源核对并要求每 owner 恰消费一次，完整 Unit gate/单 arena/最终 verifier
+及来源身份不变。不是一般 local binding 或任意多源准入。
+
+新增验收项：`distinct_named::distinct_named_owners_preserve_argument_identity_and_cleanup`
+覆盖正序、反序、同字节独立根及重复根/mixed/var/后缀拒绝，实际来源到 SSA verifier/LLVM；
+`public_distinct_named_owners_execute_reversed_arguments` 为不带 cfg(test) 的库边界
+双分支 native 用例，纳入既有 CI 清单。本轮本地 native 仅编译列名，不宣称动态执行通过。
+本地新增来源/SSA/LLVM 正反例在正式与三 feature 配置各 1 passed；原 single-named
+直接消费者回归 1 passed。新增 native 用例两配置编译及精确列名通过，未执行。
+fmt、diff、文档（958 文件）与尺寸门禁通过；受影响 frontend/codegen 三 feature all-target 严格 Clippy 通过，组合后默认 workspace
+只由主开发运行一次，避免重复；没有推送或远端 CI 结果。
+
+### D10 图桥与 E2 独立双具名根组合验收（2026-11-15）
+
+独立组合分支以 D10 `2c97add5` 和 E2 `e4ecc241` 为准确父检查点；旧分支保留。
+仅本文件双方尾部追加冲突，完整保留两侧；其余 E2 文件自动合并且独审逐 blob 与原提交一致，
+D10 代码不变。组合三 feature（d10-catalog-experiment/e2-two-source-test-support/two-source-unit）
+branch 定向 3/3、E2 distinct_named exact 1/1 通过；默认 workspace all-targets check 一次通过。
+fmt/diff-check、docs（958）、相对 `2c97add5` 尺寸门禁（2348 Rust 文件、37 历史超限）通过。
+两侧既有严格验收复用，不重复 native 或旧全套。没有推送、人工故障、新 PR 或远端 CI 结论。
