@@ -17,6 +17,9 @@ pub(crate) mod forward_consumption;
 #[cfg(test)]
 mod forward_consumption_tests;
 pub(crate) mod identity_return;
+pub(crate) mod later_aux_consumption;
+#[cfg(test)]
+mod later_aux_consumption_tests;
 mod literal_consumption;
 pub(crate) mod loop_consumption;
 #[cfg(test)]
@@ -96,6 +99,7 @@ pub(crate) struct Pending {
     bindings: binding_consumption::Transaction,
     aux_bindings: aux_binding_consumption::Transaction,
     distinct_aux: distinct_aux_consumption::Transaction,
+    later_aux: later_aux_consumption::Transaction,
     loops: loop_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
@@ -119,6 +123,7 @@ impl Pending {
                 bindings: binding_consumption::Transaction::begin(plan),
                 aux_bindings: aux_binding_consumption::Transaction::begin(plan),
                 distinct_aux: distinct_aux_consumption::Transaction::begin(plan),
+                later_aux: later_aux_consumption::Transaction::begin(plan),
                 loops: loop_consumption::Transaction::begin(plan),
                 items: names
                     .names()
@@ -298,6 +303,15 @@ impl Pending {
                 audit
                     .unsupported
                     .push("overlapping distinct auxiliary binding edge certificate".into());
+            }
+        }
+        let (later_edges, later_gaps) = self.later_aux.finish(program, mapping, owned);
+        audit.unsupported.extend(later_gaps);
+        for edge in later_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping later auxiliary binding edge certificate".into());
             }
         }
         let (loop_edges, loop_callers, loop_gaps) = self.loops.finish(program, mapping, owned);

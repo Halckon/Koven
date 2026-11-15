@@ -19959,3 +19959,29 @@ proof，跨两路线统一按原 call 计数；唯一完整 fact/来源/映射/�
 原 same-root 2/2 与 Boolean 双消费 exact 1/1 交叉通过。codegen 三 feature all-targets
 strict Clippy 20.95s，默认仅 codegen all-targets check 0.33s。未运行 native、
 人工故障或推送；无额外扩大域的本地测试。
+
+### D10 辅助 owner 延后独立再借用闭包（2026-11-15）
+
+基于 `023fd504`，限定两个 String literal owner、borrow binding、结果 consumer、一次
+独立 auxiliary consumer 的五语句正常域。初次 aux loan 在来源调用后 End，但 owner
+不立即 Drop；来源结果/来源 loan 退休并 Drop(source) 后，aux 再 RootPlace/Begin、
+独立 DirectCall、End(new loan) 与 Drop(aux)。这不是同一 loan 消费次数扩展。
+
+复用原 later_aux Complete 十一动作与十五角色 receipt，feature-only 最终按原 Plans
+九 Slot 与真实冻结九 Entity 重放原纯 validator，无 finish/publication/新动作。原
+later_return_cursor 指向同 catalog EndCallLoan、later loan 全 fact、CallReturn/aux Drop
+及 distinct retirement auxiliary_drop=None 的因果条件保留。四 Begin 的完整原事实及
+实际 Function producer 分别核对；来源、结果消费、later 三个原 dispatch key/ID 独立
+保存并在 final 验证。最终双原 literal/root/typed 映射与十七条指令、2 value/3 place/
+4 loan、完整 Definition、唯一正常空 Return 全闭包。只认证来源边，尚未为此路线
+mint entry 履约 token，正例精确保留唯一旧 entry gap，不称全项目闭合。
+
+真实正例包括 source index 0/1、反序 source、相同/不同字节独立 owner、双 assembly，
+later 使用不同 callee；真实第二次 later-use 原 lowering 成功但无本证书，仍保 missing
+entry 与 unclassified BorrowCall。旧 distinct keep_aux 负控首次失败，因为来源边现在
+被新 later 路线正确认证；已改精确预期：distinct region/receipt 仍零、later 获边、仅
+entry gap，不放宽 eager-drop 域。末版新 2/2 与相邻 distinct 2/2 均过。
+
+frontend/codegen 三 feature all-targets strict Clippy 1m10s；默认仅两 crate all-targets
+check 38.16s；末版新测试复用缓存 0.34s，无重复无关矩阵。独审无阻断；未执行 native、
+人工故障或推送。

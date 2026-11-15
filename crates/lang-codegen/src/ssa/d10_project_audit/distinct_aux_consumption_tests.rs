@@ -98,23 +98,11 @@ fn check(reverse: bool, source_second: bool, extra: bool, same_bytes: bool) {
             .borrow_edges
             .contains(&(declaration("run"), declaration("view")));
         if extra {
-            assert!(!certified);
-            assert!(
-                audit
-                    .unsupported
-                    .iter()
-                    .any(|g| g.starts_with("missing/duplicate entry call receipt:")),
-                "{:?}",
-                audit.unsupported
-            );
-            assert!(
-                audit
-                    .unsupported
-                    .iter()
-                    .any(|g| g.starts_with("unclassified operation: BorrowCall")),
-                "{:?}",
-                audit.unsupported
-            );
+            // No eager-drop receipt was minted above. The separate later-use
+            // route now certifies the edge but not its independent entry obligation.
+            assert!(certified, "{:?}", audit.unsupported);
+            assert_eq!(audit.unsupported.len(), 1, "{:?}", audit.unsupported);
+            assert!(audit.unsupported[0].starts_with("missing/duplicate entry call receipt:"));
             continue;
         }
         assert!(certified, "{:?}", audit.unsupported);

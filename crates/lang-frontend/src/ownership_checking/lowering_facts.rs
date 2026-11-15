@@ -74,6 +74,15 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Later-use auxiliary full-fact provenance, not admission authority.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_later_aux_binding_link(
+        &self,
+        _call: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Complete binding-region acquisition provenance, not admission authority.
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_binding_link(
@@ -201,6 +210,15 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
     ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
     {
         CompilationUnitOwnership::d10_distinct_aux_binding_link(self, call)
+    }
+    /// Later-use auxiliary full-fact provenance, not admission authority.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_later_aux_binding_link(
+        &self,
+        call: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_later_aux_binding_link(self, call)
     }
 
     #[cfg(feature = "d10-catalog-experiment")]
