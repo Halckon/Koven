@@ -20517,3 +20517,11 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 共同 arena 发布由原 function_ids 解析每个位置，解析前再次比对原 typed key，核 key 与 FunctionId 双向唯一；emitter 与独立 replay 每次按位置及完整 key 读取 callee，原借用/End/Drop 与初始化次序不改。旧独立单 caller 路线仍使用显式共同 key 包装器，不扩大权限。固定 key 表的构造不提供公开能力或可修改来源。
 
 新增四个正常目标：两个独立完整 E2 callee 分别正控与同 callee 两次 occurrence、同一完整输入两个闭合 callee 保持 UnsupportedSelection、两个不同原调用的普通 8 loan/8 End/4 temporary Drop 顺序 probe，以及纯 prepare/verify/render 多 entry 共享 callee 映射。未使用故障注入或 native 执行；正式 two-source-unit 四项（先3项、再第四项增量）与三 feature 四项均通过；受影响 late_initialization 3、staggered_owners 3、shared_entries 1 正常回归均通过。三 feature 的 frontend/codegen 双 crate all-targets Clippy `-D warnings` 首次通过。两个旧对象产物目标未执行，不计入通过；纯prepare多entry目标补齐正式映射验收。fmt、docs、size（2464 Rust 文件、2 个既有超限债务）、shell语法、diff静态门禁通过。CI 本片四个精确目标加入已整合旧17的列表，每配置实际49 unit目标，另7 public和1 frontend；不得以列表登记代替执行证据。
+
+### D10 ordinary 双臂 fresh-loop 的完整 caller 证书
+
+- 仅接原 ordinary 单 while 内唯一 if/else、完整三个 Borrow 参数（一个 String source 与两个独立 Boolean Name 条件）、每臂一/二 consumer；prefix/counter/break/tail、外部 source 消费、额外参数及同 flag 均不纳入。Expected 从原 AST、typed dispatch、sealed ordinary pair 独立生成，原 source ledger 逐实际 call/argument/唯一 loan ordinal 核 Function producer，不以语法相似或最终 SSA 反推事实。
+- 原 arm receipt 的局部 validate 不作为完整 caller 证明。feature-only 补充校验使用原角色映射导出七块集合、各块精确原序指令、原 entry slot 顺序与完整 ABI、全实体 Definition/type/边闭包和唯一 Unit Return；同次 RAII 在原成功 emission 捕获、最终 verifier 后与最终 Program 比对，任一缺口保持两来源边均不认证。旧 fresh whole-function 纯检查仅复用可见性，原调用行为不变。
+- 普通原事实探针已通过两 source 顺序各两次 assembly，真实原 receipt/publication、两独立 fresh 与唯一 End 成立，原 audit 两 BorrowCall 未分类缺口明确。首个短名 exact 只编译、零测试不计通过；后续完整测试名实跑非零且日志独立保留。末版新增两项实跑通过：24 组 ABI/condition/source 顺序正例各两次 assembly，四项正常原 receipt 域外保持双边 gap；suffix source 消费精确原 InvalidModel/caller span 且无 audit/receipt，不笼统接受任意错误。该拒绝属于原 lower/producer，不能进一步声称未经追踪的具体失败分支。
+
+- 必要 fresh 单 scope 一项与旧 Partial 两项通过；FE/codegen 三 feature all-targets 严格 Clippy（1m33s）、default codegen all-targets（32.65s）、格式/docs979/尺寸2464文件与2项历史欠账/diff 门禁通过，末版独审通过。首分类的 suffix 分隔符错误、原 InvalidModel 分类及严格检查 unneeded-unit 均完整保留各自日志，等价修正与最终成功分开记录。未运行 native、故障注入或推送；原独立分支保留，默认 workspace 检查留后续联合一次。

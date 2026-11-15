@@ -34,6 +34,8 @@ mod counter_break_validation;
 mod counter_ci;
 mod counter_hooks;
 mod counter_validation;
+#[cfg(feature = "d10-catalog-experiment")]
+mod ordinary_audit;
 mod prefix;
 #[cfg(test)]
 mod prefix_ci;
@@ -594,6 +596,8 @@ impl Emitted {
                 span,
             };
             receipt.validate(function)?;
+            #[cfg(feature = "d10-catalog-experiment")]
+            crate::ssa::d10_project_audit::arm_loop_consumption::record(function, &receipt);
             #[cfg(test)]
             publication::record(receipt);
         }

@@ -47,6 +47,15 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Original ordinary arm-pair acquisitions and their real callable producer.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_arm_loop_link(
+        &self,
+        _branch: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Original core no-carry acquisition provenance, without a catalog coverage upgrade.
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_fresh_loop_link(
@@ -213,6 +222,15 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
 }
 
 impl UnitLoweringFacts for CompilationUnitOwnership {
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_arm_loop_link(
+        &self,
+        branch: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_arm_loop_link(self, branch)
+    }
+
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_fresh_loop_link(
         &self,

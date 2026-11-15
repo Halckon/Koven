@@ -24,6 +24,8 @@ mod validation;
 mod whole_function;
 pub(super) use emitted::Emitted;
 pub(crate) use emitted::Receipt;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(in crate::ssa::refine) use whole_function::check as audit_whole_function;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Tag {
     Condition,

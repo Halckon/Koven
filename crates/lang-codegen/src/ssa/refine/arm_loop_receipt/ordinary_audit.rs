@@ -1,0 +1,183 @@
+//! Feature-only exhaustive ordinary caller closure, not the general receipt's local replay.
+use super::*;
+use crate::ssa::model::{
+    EntityType, LoanKind, Operation, Program, SsaTypeId, SsaTypeKind, TerminatorKind,
+};
+use std::collections::BTreeSet;
+impl Receipt {
+    pub(crate) fn certify_ordinary(
+        &self,
+        program: &Program,
+        fact: &UnitLoopBranchNoCarryFact,
+        abi: &[SsaTypeId; 3],
+        roles: &[usize; 3],
+        conditions: &[(UnitExpressionId, Span); 2],
+        calls: &[Vec<FunctionId>; 2],
+    ) -> Option<[(FunctionId, InstructionId, FunctionId); 2]> {
+        let p = &self.plan;
+        let s = self.span;
+        if p.prefix.is_some()
+            || p.counter.is_some()
+            || p.counter_fact.is_some()
+            || p.counter_break.is_some()
+            || p.tail_break.is_some()
+            || !p.fact.same_identity(fact)
+            || p.fact != *fact
+            || p.roles != *roles
+            || self.parameters.len() != 3
+            || roles.iter().copied().collect::<BTreeSet<_>>() != BTreeSet::from([0, 1, 2])
+            || p.conditions != conditions.map(|c| c.0)
+            || p.condition_spans != conditions.map(|c| c.1)
+        {
+            return None;
+        }
+        for (arm, ids) in p.arms.iter().zip(calls) {
+            if !matches!(arm.consumers.len(), 1 | 2)
+                || ids.first() != Some(&arm.callee)
+                || ids.get(1..) != Some(arm.consumers.as_slice())
+            {
+                return None;
+            }
+        }
+        let modules: Vec<_> = program
+            .modules
+            .iter()
+            .filter(|m| m.id == self.caller.module)
+            .collect();
+        let [module] = modules.as_slice() else {
+            return None;
+        };
+        let functions: Vec<_> = module
+            .functions
+            .iter()
+            .filter(|f| f.id == self.caller)
+            .collect();
+        let [f] = functions.as_slice() else {
+            return None;
+        };
+        self.validate(f).ok()?;
+        if !f.return_types.is_empty()
+            || f.never_returns
+            || f.borrow_return.is_some()
+            || f.carrier_return.is_some()
+            || f.receiver.is_some()
+        {
+            return None;
+        }
+        let [entry, header, split, finished, exit] = p.blocks?;
+        let [actual_split, left, right] = p.split?;
+        let join = p.join?;
+        // The ordinary source has no suffix, so the producer folds finished into exit.
+        if split != actual_split || finished != exit {
+            return None;
+        }
+        let refs = [entry, header, split, left, right, join, exit];
+        let ids = refs
+            .map(|b| self.evidence.block(b, s).ok())
+            .into_iter()
+            .collect::<Option<Vec<_>>>()?;
+        let covered = ids.iter().copied().collect::<BTreeSet<_>>();
+        if covered.len() != 7 || f.entry_block() != Some(ids[0]) {
+            return None;
+        }
+        if self.evidence.blocks.len() != 7
+            || self
+                .evidence
+                .blocks
+                .values()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                != covered
+        {
+            return None;
+        }
+        if self.evidence.parameters.get(&entry) != Some(&self.parameters) {
+            return None;
+        }
+        let entry_block = f.block(ids[0])?;
+        if entry_block.parameters.len() != 3 {
+            return None;
+        }
+        for (index, (entity, ty)) in entry_block.parameters.iter().zip(abi).enumerate() {
+            let kind = if index == roles[0] {
+                SsaTypeKind::StringOwner
+            } else {
+                SsaTypeKind::Boolean
+            };
+            if ty.module != f.id.module
+                || module.type_kind(*ty) != Some(&kind)
+                || !matches!(entity, EntityId::Loan(_))
+                || f.entity(*entity)?.ty
+                    != (EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: *ty,
+                    })
+            {
+                return None;
+            }
+        }
+        let mut instructions = BTreeSet::new();
+        for (i, b) in refs.iter().enumerate() {
+            let list = self.evidence.ids(f, *b, s).ok()?;
+            let count = match i {
+                1 | 2 => 1,
+                3 => calls[0].len() + 1,
+                4 => calls[1].len() + 1,
+                _ => 0,
+            };
+            if list.len() != count {
+                return None;
+            }
+            for instruction in list {
+                if !instructions.insert(instruction) {
+                    return None;
+                }
+            }
+        }
+        let exit_block = f.block(ids[6])?;
+        if !exit_block.parameters.is_empty()
+            || !matches!(&exit_block.terminator.as_ref()?.kind,TerminatorKind::Return{values} if values.is_empty())
+            || f.blocks
+                .iter()
+                .filter(|b| {
+                    matches!(
+                        b.terminator.as_ref().map(|t| &t.kind),
+                        Some(TerminatorKind::Return { .. })
+                    )
+                })
+                .count()
+                != 1
+        {
+            return None;
+        }
+        // This reusable structural audit receives producer-role-derived sets, never the final universe.
+        super::super::fresh_loop_receipt::audit_whole_function(f, &covered, &instructions, s)
+            .ok()?;
+        // Every entity's semantic type must exist and lie in the independently typed ABI domain.
+        for entity in f.values.iter().chain(&f.places).chain(&f.loans) {
+            match entity.ty {
+                EntityType::Value(t)
+                    if t == abi[roles[1]] && module.type_kind(t) == Some(&SsaTypeKind::Boolean) => {
+                }
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                } if abi.contains(&target) && module.type_kind(target).is_some() => (),
+                _ => return None,
+            }
+        }
+        let mut edges = Vec::new();
+        for (i, b) in [left, right].iter().enumerate() {
+            let list = self.evidence.ids(f, *b, s).ok()?;
+            let inst = f.instruction(*list.first()?)?;
+            let Operation::BorrowCall { callee, .. } = inst.operation else {
+                return None;
+            };
+            if callee != calls[i][0] {
+                return None;
+            }
+            edges.push((f.id, inst.id, callee));
+        }
+        edges.try_into().ok()
+    }
+}
