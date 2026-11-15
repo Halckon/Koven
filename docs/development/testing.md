@@ -165,12 +165,14 @@ stage还完整选择 `const_owned_compilation_unit_view`、`const_owned_unit_vie
 
 ## 双宿主 CI
 
-`.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格
-clippy、核心测试、`check_stage_integration.sh` 和 `check_guide_litmus.sh`；fmt 只运行一次。
+`.github/workflows/ci.yml` 在 macOS 15 AArch64 与 Ubuntu 26.04 x86_64 运行 check、严格
+clippy 和核心组合测试。fmt 只运行一次。组合测试执行 stage integration，并补跑核心和
+stage 没有覆盖的 Guide litmus 目标。
 同一双宿主 test job 通过 `check_integration.sh` 完整执行 `cargo test --locked -p lang-frontend --test ownership_iteration`，
 不加测试名过滤器或细分路径条件，随现有Rust PR/main/dispatch门禁执行；不是frontend全量。
-Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 安装 LLVM 官方 Noble 21 签名源
-中的固定 21.1.8 包及同版本 LLDB/Python 绑定，macOS 保留 `brew install llvm@21` 与系统 LLDB；版本、工具或所需 SB API 缺失直接失败。
+Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 核心任务使用预置镜像中的
+LLVM 21.1.8 与同版本 LLDB/Python 绑定，macOS 使用 `brew install llvm@21` 与系统 LLDB。
+版本、工具或所需 SB API 缺失会使任务失败。Linux Preview 继续在 Ubuntu 24.04 验证发布 ABI。
 
 PR 的普通文档变更保留路径豁免；全部 Guide、compiler-specs、scripts、workflow/LLVM action
 变更触发 Rust 门禁。代码门禁成功后追加普通文档，可按 [SPEC-0293](../archive/specs/0293-pr-code-ci-reuse.md)
