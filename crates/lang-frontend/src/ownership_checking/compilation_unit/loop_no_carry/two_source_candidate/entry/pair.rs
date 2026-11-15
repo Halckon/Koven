@@ -18,7 +18,8 @@ pub(super) fn finish(
 ) -> Option<EntryCalls> {
     if first.instance() != second.instance() {
         match shape {
-            Shape::Late | Shape::Other => None,
+            Shape::Late => different_late_pair::finish(first, second, owned, parsed),
+            Shape::Other => None,
             Shape::Empty => different_pair::finish(first, second, owned, parsed),
             Shape::Shared | Shape::Staggered => {
                 let owners = first_owner?;

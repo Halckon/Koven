@@ -452,3 +452,5 @@ mod shared_distinct_callees;
 mod shared_mixed_distinct;
 
 mod staggered_distinct;
+
+mod late_distinct;
