@@ -7,6 +7,8 @@ use crate::ssa::{
     model::FunctionId,
 };
 pub(super) use emitted::Emitted;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) use emitted::Receipt;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::{BorrowSourceLoan, UnitLoanActionId},
@@ -18,7 +20,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Tag;
 #[derive(Clone, Debug, Default)]
-pub(super) struct Plans {
+pub(crate) struct Plans {
     entries: Vec<Plan>,
 }
 #[derive(Clone, Debug)]

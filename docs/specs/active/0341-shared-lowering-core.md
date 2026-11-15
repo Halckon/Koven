@@ -19750,3 +19750,28 @@ var、资源或效果 initializer、两个标量以及原控制流不纳入。
 独立末版静审无阻断。frontend/codegen 三 feature all-targets 严格 Clippy（1m19s）、
 默认 all-targets check（6s）、fmt/diff/docs（958）及相对 `c23af6fa` 尺寸门禁
 （2361 Rust、37 历史超限）通过。未推送、未执行 native 或人工故障，未宣称远端 CI。
+
+
+### D10 live-forward callable 实际闭合（2026-11-15）
+
+锁 `ad1e5aa8` 基线，复用原 forward Plans 的完整 Begin/BorrowForwardHandoff 与实际
+Slot→BorrowCall→BorrowReturn receipt，提取原 finish 的纯验证责任，保留旧 producer
+和测试 observer。新 expected 在原 build 前由原 catalog 独立确定，私有每 assembly
+RAII 不读取测试 observer；完整 action IDs 再连接原 source ledger 的唯一 Function
+producer。当前 plan token/key、原 call-site dispatch key/FunctionId、最终 mapping 和
+唯一 definition 全部核对，缺失/重复/额外证据保持 gap。
+
+最终完整 Function Eq 后仍调用原 validator，并核唯一 entry/block/instruction、全部
+两 loan 的 Definition 双向指向、Shared StringOwner 及最终类型表、borrow ABI/Return；
+认证边和退出仅按精确身份交给主扫描 remove，跨证书重叠与残留仍为 gap。这使真实
+branch→forward→identity 多 callable 消费闭合，不扩大原 route 或一般 CFG 能力。
+
+首次编译的新增 trait 转发位置错误已修正。真实链正例通过；block-body 反例首次因
+误假设原 lower 成功而失败，实际为原 UnsupportedNode 定位声明 `borrow`，仅修测试
+为该精确拒绝与无成功 audit，未改 production。末版新 2/2 通过，正例覆盖两源反序与
+同 observe 两次独立 assembly，主图精确核 run→wrap→forward→identity 无 unsupported。
+原 forward receipt 正常 on/off 回归启用其 `loan-observation-test-support` 后精确 1/1
+通过；此前未启用 feature 的两次 0 匹配不计通过，未运行任何 CI fault 测试。
+frontend/codegen 三 feature all-targets 严格 Clippy（1m18s）、默认 all-targets check
+（41.72s）、fmt/diff/docs（958）与相对 `ad1e5aa8` 尺寸门禁（2364 Rust、37 历史超限）
+通过。末版独审无阻断；未推送、未执行 native 或本地故障，不声明远端 CI。

@@ -38,6 +38,15 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Original live-forward acquisition and callable provenance; no admission authority.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_forward_link(
+        &self,
+        _call: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Actual acquisition provenance only; not binding-lifetime closure.
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_entry_borrow_link(
@@ -141,6 +150,14 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
 }
 
 impl UnitLoweringFacts for CompilationUnitOwnership {
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_forward_link(
+        &self,
+        call: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_forward_link(self, call)
+    }
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_literal_call_link(
         &self,

@@ -4,6 +4,9 @@
 pub(crate) mod branch_consumption;
 pub(crate) mod compatibility;
 pub(crate) mod entry_borrow;
+pub(crate) mod forward_consumption;
+#[cfg(test)]
+mod forward_consumption_tests;
 pub(crate) mod identity_return;
 mod literal_consumption;
 use crate::ssa::{
@@ -75,6 +78,7 @@ pub(crate) struct Pending {
     branches: branch_consumption::Transaction,
     entry_borrows: entry_borrow::Transaction,
     identity_returns: identity_return::Transaction,
+    forwards: forward_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -93,6 +97,7 @@ impl Pending {
                 branches: branch_consumption::Transaction::begin(),
                 entry_borrows: entry_borrow::Transaction::begin(),
                 identity_returns: identity_return::Transaction::begin(plan),
+                forwards: forward_consumption::Transaction::begin(plan),
                 items: names
                     .names()
                     .index()
@@ -217,6 +222,23 @@ impl Pending {
         let (identity_returns, identity_gaps) = self.identity_returns.finish(program, mapping);
         audit.unsupported.extend(identity_gaps);
         branch_returns.extend(identity_returns);
+        let (forward_edges, forward_returns, forward_gaps) =
+            self.forwards.finish(program, mapping, owned);
+        audit.unsupported.extend(forward_gaps);
+        for edge in forward_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping forward edge certificate".into());
+            }
+        }
+        for exit in forward_returns {
+            if !branch_returns.insert(exit) {
+                audit
+                    .unsupported
+                    .push("overlapping forward return certificate".into());
+            }
+        }
         for function in program.modules.iter().flat_map(|module| &module.functions) {
             for instruction in &function.instructions {
                 let runtime = match &instruction.operation {

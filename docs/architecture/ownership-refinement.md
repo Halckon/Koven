@@ -152,6 +152,9 @@ borrow binding / 一或两个顺序 Unit consumer、唯一 Boolean 参数与原 
 逐次保留原 call/loan/Begin 身份；两次消费间可跨一个独立不可变 Int literal 定义，
 原声明/值经真实 Constant/Alias Slot 映射核对。第三次、两个标量、var、非 literal 等未证域
 仍保 gap；显式 return/条件消费保留原 Unsupported，不扩大生产准入。
+D10 主图还复用原 live-forward region/producer receipt，核 planned callable、同 catalog
+Begin/Handoff、最终完整单块 BorrowCall/BorrowReturn 与 StringOwner 两 loan 定义，认证
+forward→callee 边和正常借用退出；仅原 expression-forward 域，不从最终形状放行 block 返回。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、
