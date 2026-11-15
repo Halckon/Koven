@@ -23,7 +23,6 @@
     "crates/lang-frontend/tests/multifile_constant_ownership.rs": 1008,
     "crates/lang-frontend/tests/ownership_checking.rs": 1198,
     "crates/lang-frontend/tests/ownership_resource_deinit.rs": 1093,
-    "crates/lang-frontend/tests/parser_call_argument.rs": 1512,
     "crates/lang-frontend/tests/parser_declaration.rs": 1042,
     "crates/lang-frontend/tests/parser_expression.rs": 1926,
     "crates/lang-frontend/tests/type_checking.rs": 2251
