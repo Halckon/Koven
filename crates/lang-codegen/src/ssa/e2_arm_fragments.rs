@@ -474,14 +474,18 @@ impl<'a> EmittedCallerSet<'a> {
                 return None;
             }
             selected.push(*caller);
-            let actual = typed
-                .types()
-                .call(descriptor.contracts()[0].call())?
-                .instance();
-            if actual != descriptor.instance() {
-                return None;
+            for occurrence in descriptor.calls() {
+                let actual = typed
+                    .types()
+                    .call(occurrence.contracts()[0].call())?
+                    .instance();
+                if actual != occurrence.instance() || actual != descriptor.instance() {
+                    return None;
+                }
+                if !required.contains(actual) {
+                    required.push(actual.clone());
+                }
             }
-            required.push(actual.clone());
             for key in super::e2_replay::required_keys(experiment, fact, typed)? {
                 if !required.contains(&key) {
                     required.push(key);

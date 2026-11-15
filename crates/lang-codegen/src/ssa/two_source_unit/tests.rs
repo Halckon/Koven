@@ -432,3 +432,5 @@ mod scalar_origin;
 mod direct_scalars;
 
 mod expression_entry;
+
+mod two_call_entry;

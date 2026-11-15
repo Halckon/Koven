@@ -20357,3 +20357,25 @@ Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入�
 - build 前独立保存两 while 原顺序；按本次 token/key/callable 整组匹配全部 owned facts，逐 fact 核 owns、same_identity、全字段及 ledger Function 来源。四个原 dispatch 分别对应两 source 与两 consumer；最终完整 Function/原纯 CFG validator 只执行一次，两条边全部通过才发布，失败不留半组边。
 - 正例使用不同 source/consumer callee，交换 source/ABI 顺序并在同 observe 内独立组装两次；三 loop、中间 source 消费、第二 loop 双 consumer 保留原正常 receipt 但不得获此窄证。fresh 模块 8 项、原 Partial loop 2 项全通过；codegen 三 feature all-targets 严格 Clippy 通过（1m01s），default codegen all-targets 通过（13.82s），未运行 workspace 全量。实际静审无阻断，原完整 CFG 只证明静态路径与作用域，不证明循环终止或动态迭代；不执行 native、人工故障或推送。
 - 静态收尾：格式检查、文档结构 968 篇、Rust 尺寸 2421 文件/21 项历史欠账及 diff 检查通过；尺寸基点精确 `86ff93a28e7d0d4efb9f9dcf5e81de32fe66f65e`，未改 baseline 或额度。
+
+### E2同入口顺序两次独立临时调用（2026-11-15）
+
+基于86ff93a2，新增候选仅为原Block恰两次同完整instance的裸Call，所有参数
+均为受限literal、无声明或跨调用named owner。先行普通ownership探针已通过：
+8个原Shared Temporary loan、8个唯一CallReturn End、4个对应String Drop；
+每call四End的原rank为0..3且precedingDrops为0、两个真实String owner分别Drop。
+原E2红阶段准确为UnsupportedSelection，不由loan数组顺序臆造跨call时序。
+
+设计使用私有根身份下固定Single/Pair调用证据，子call无独立入口授权身份。
+各call仍按原源码实参求值及ABI列交付，第一call全部End/Drop后才开始第二call，
+整函数仅最后一个Return；精确replay逐项消费所有来源/类型/loan/清理，不仅核总数量。
+coverage/plan核每次原call的完整typed instance，定义key去重不替代调用发生点认领。
+普通single入口边界与默认关闭保持，域外第三call/跨callowner/非literal不扩。
+末版正式two-source-unit及三feature two_call_entry各5目标通过：原事实、
+先清理后第二借用、具名重排与不同bytes、两个合法callee不一致拒绝、五类域外拒绝。
+原expression_entry两目标、direct_scalars三目标，以及frontend原scalar证据/
+named cleanup两个正常目标各1通过；后者同步既有scalar/角色/escape/hex能力的旧预期，
+保留原完整loan/Drop断言与域外拒绝。三feature双crate all-targets严格Clippy通过
+（1m52s）。不同callee正控改为独立完整fixture，未放宽全Unit preflight；
+CI-only WrongRounds旧accessor只迁首occurrence，未运行故障。
+不推送、不执行native或故障注入。
