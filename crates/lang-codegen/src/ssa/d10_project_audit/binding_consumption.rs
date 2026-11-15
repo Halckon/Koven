@@ -216,7 +216,7 @@ pub(in crate::ssa) fn expect(inputs: &RefineInputs<'_>) {
         }
     }
 }
-fn original_literal(
+pub(super) fn original_literal(
     inputs: &RefineInputs<'_>,
     root: lang_frontend::name_resolution::UnitSymbolId,
 ) -> Option<Vec<u8>> {

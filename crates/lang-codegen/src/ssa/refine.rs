@@ -381,6 +381,8 @@ pub(in crate::ssa) fn lower(
     crate::ssa::d10_project_audit::forward_consumption::expect(inputs);
     #[cfg(feature = "d10-catalog-experiment")]
     crate::ssa::d10_project_audit::binding_consumption::expect(inputs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::loop_consumption::expect(inputs, types);
     let body = build::build(inputs, parameters, types)?;
     emit::emit(&body, function, entry, parameters, inputs.span)?;
     #[cfg(feature = "d10-catalog-experiment")]

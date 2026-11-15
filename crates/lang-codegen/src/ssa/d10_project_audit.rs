@@ -12,6 +12,9 @@ pub(crate) mod forward_consumption;
 mod forward_consumption_tests;
 pub(crate) mod identity_return;
 mod literal_consumption;
+pub(crate) mod loop_consumption;
+#[cfg(test)]
+mod loop_consumption_tests;
 use crate::ssa::{
     model::{FunctionId, Operation, Program, SsaTypeKind, TerminatorKind},
     unit_plan::{UnitFunctionInstanceKey, UnitInstancePlan},
@@ -51,6 +54,8 @@ pub struct ProjectAudit {
     /// Same-transaction existing protocol-1 receipts linked to original facts and final Program.
     /// This separate bounded domain never upgrades the general project closure result.
     pub literal_consumption: LiteralConsumption,
+    /// Bounded whole-loop SSA receipts; original lineage remains Partial in unsupported.
+    pub certified_loop_callers: Vec<DeclarationId>,
     /// Independent bounded both-arm borrow forwarding, not generic CFG completeness.
     pub branch_consumption: BranchConsumption,
 }
@@ -83,6 +88,7 @@ pub(crate) struct Pending {
     identity_returns: identity_return::Transaction,
     forwards: forward_consumption::Transaction,
     bindings: binding_consumption::Transaction,
+    loops: loop_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -103,6 +109,7 @@ impl Pending {
                 identity_returns: identity_return::Transaction::begin(plan),
                 forwards: forward_consumption::Transaction::begin(plan),
                 bindings: binding_consumption::Transaction::begin(plan),
+                loops: loop_consumption::Transaction::begin(plan),
                 items: names
                     .names()
                     .index()
@@ -141,6 +148,7 @@ impl Pending {
     ) {
         let mut audit = ProjectAudit {
             branch_consumption: self.branches.finish(&self.items, program, mapping, owned),
+            certified_loop_callers: Vec::new(),
             source_count: self.sources.len(),
             sources: self.sources,
             declarations: Vec::new(),
@@ -251,6 +259,16 @@ impl Pending {
                 audit
                     .unsupported
                     .push("overlapping binding edge certificate".into());
+            }
+        }
+        let (loop_edges, loop_callers, loop_gaps) = self.loops.finish(program, mapping, owned);
+        audit.certified_loop_callers = loop_callers;
+        audit.unsupported.extend(loop_gaps);
+        for edge in loop_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping loop edge certificate".into());
             }
         }
         for function in program.modules.iter().flat_map(|module| &module.functions) {

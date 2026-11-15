@@ -7,6 +7,7 @@ mod callable_drops;
 mod callable_loans;
 mod entry_loans;
 mod forward_loans;
+mod loop_loans;
 pub use callable_loans::{CallableLoanLinkError, LoanProducer};
 mod iteration_collection;
 pub(crate) use callable_drops::DropCollections;

@@ -19820,3 +19820,28 @@ Clippy 初轮（22.73s）通过；新增 source-only 测试后严格 Clippy（15
 （958）通过，相对 `70a1fa16` 尺寸门禁通过（2367 Rust、37 历史超限），新增 helper
 所在文件 448 行。staged 合并与纯 SSA helper 独审；本地提交，不推送、无 native 执行
 或本地故障注入，未将远端 CI 状态计作本地验收。
+
+### D10 原 Partial loop lineage 与有限 SSA CFG 消费（2026-11-15）
+
+锁 `778436b0`。复用原 loop_receipt，不新造循环 producer 或扩准入。build 前从原 body
+顶层 loop_invariant_lineages 独立登记 expected，保同 catalog lineage 全身份与 Partial，
+source/每次 use 的 Begin 逐一与完整 source ledger、唯一实际 Function producer 对账。
+原 root String/flag Boolean builtin 与本次 type_ids、原 literal decode 字节及 source/
+consumer dispatch key→FunctionId 独立保存；不是从成功 receipt 或最终操作倒推。
+
+原 plans.finish 与 receipt.validate 成功后才私有同 run 捕获；最终 verifier 后重核完整
+Function Eq、原 whole-function blocks/instructions/entities/Definition/可达性与回边参数
+校验，再核 Program StringOwner/Boolean 实型、精确类型 ID、所有 callee 映射，才认证
+实际来源 BorrowCall。`certified_loop_callers` 单列有限 SSA 证据，unsupported 始终保留
+Partial 的一般 fixed-point、任意迭代和终止未证明义务，不声称循环运行时执行或 Complete。
+缺失/重复/域外/额外证据保 gap，原返回与旧生产观察不变。
+
+首次定向编译发现 StringLiteral 字段名与 RefineBody 借用 API 使用错误，已修正；独审
+补强原 typed→SSA 精确类型及 caller mapping 唯一性后通过。真实源码验收使用普通 Borrow
+Boolean 的一/两不同 consumer、两源反序、同 observe 两 assembly；owned Boolean 邻例
+原 lower 正常成功但无合格 receipt，不伪造 flag loan。修正后定向 2/2 通过
+（编译 9m15s，运行 0.22s），原 binding 2/2 回归通过；正例仅保明确 Partial 义务，
+未将 loop 本身的有限 SSA 校验升级为一般项目完整性。
+frontend/codegen 三 feature all-targets 严格 Clippy（3m53s）、默认 all-targets check
+（1m55s）、fmt/diff/docs（958）及相对 `778436b0` 尺寸门禁（2370 Rust、37 历史超限）
+通过；末版独立静审无阻断。未重复无关矩阵，未推送、未执行 native 或本地人工故障。

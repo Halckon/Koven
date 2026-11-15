@@ -419,6 +419,8 @@ impl Emitted {
         r.validate(function)?;
         #[cfg(test)]
         ci_tests::record(plans, function, std::slice::from_ref(&r), span);
+        #[cfg(feature = "d10-catalog-experiment")]
+        crate::ssa::d10_project_audit::loop_consumption::record(function, &r);
         record(r);
         Ok(())
     }

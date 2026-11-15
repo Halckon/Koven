@@ -158,6 +158,10 @@ forward→callee 边和正常借用退出；仅原 expression-forward 域，不�
 原 Complete binding region 的零参三语句入口另复用七动作/七指令生产证据，连同实际
 literal 字节/owner 核完整八指令 caller、两 callee 映射和退休/Drop，再认证来源调用边；
 额外 consumer 不按七指令窗口放行，不替代前述 Boolean 入口证明。
+原 Partial loop lineage 可另连同原 loop receipt 核完整有限 SSA CFG、回边参数传递与
+正常退出 cleanup，认证真实来源 BorrowCall；原 literal 字节、String/Boolean typed→SSA
+身份及各 callee 映射独立核对。`certified_loop_callers` 不提升 coverage，项目 unsupported
+仍明确保留 Partial 的一般 fixed-point、任意迭代与终止未证明义务；owned flag 等无证域不认证。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、
