@@ -57,22 +57,38 @@ FQN仅增加places层，完整块正文不改。
 
 ## 4. 验收
 
-- [ ] R1：十二测试与四个field helper完整保全（仅一处等价model路径）；原root剩余imports/helper/test不变，FQN一对一无副本。
-- [ ] R2：两根/新文件均不超1000，只删除对应旧额度，47项policy tests及尺寸门禁通过。
-- [ ] R3：每片默认完整原族迁移前后实际通过，再分别本地提交；不减少测试数或改断言。
-- [ ] R4：批次末双配置组合回归、双all-target Clippy、fmt/docs/尺寸/空白、独立完整内容审查；有具体发现修后复核。
+- [x] R1：十二测试与四个field helper完整保全（仅一处等价model路径）；原root剩余imports/helper/test不变，FQN一对一无副本。
+- [x] R2：两根/新文件均不超1000，只删除对应旧额度，47项policy tests及尺寸门禁通过。
+- [x] R3：每片默认完整原族迁移前后实际通过，再分别本地提交；不减少测试数或改断言。
+- [x] R4：批次末双配置组合回归、双all-target Clippy、fmt/docs/尺寸/空白、独立完整内容审查；有具体发现修后复核。
 - [ ] R5：Architecture/真实账本同步，同PR集中push，新头官方CI单独验收后才归档。
 
 ## 5. 实施顺序
 
-1. [ ] 冻结完整块、私有helper和consumer，跑原两族基线。
-2. [ ] borrowed_calls移动、原族定向测试 → 本地提交。
-3. [ ] places/helper移动、原族定向测试 → 本地提交。
+1. [x] 冻结完整块、私有helper和consumer，跑原两族基线。
+2. [x] borrowed_calls移动、原族定向测试 → 本地提交。
+3. [x] places/helper移动、原族定向测试 → 本地提交。
 4. [ ] 一次组合门禁/独立审查与账本 → 集中push，精确候选CI另验。
 
 不伪造RED；若既有用例真实失败，保留证据定位，不改语言合同或删断言。
 
 ## 6. 真实证据
 
-当前尚未执行本批验证；原始日志/快照留仓库外。无跨crate生产API变化，不重复workspace
-check；不跑frontend/完整codegen/完整LLVM慢组、本地CI-only faults或sanitizer全套。
+输入合同提交74dc3943，Rust内容与888ec601相同；逐片默认定向后本地提交，组末统一双配置门禁，未逐片push。
+
+| 验证 | 实际结果 |
+|---|---|
+| borrowed_calls | 默认原scalar族迁移前后各 **12/0/0**，本地提交5040a797；根1393→658，新文件740；六测试只有一处等价model全路径调整 |
+| places | 默认原ownership族迁移前后各 **16/0/0**，本地提交a749635d；根1659→796，新文件868；六测试、四field helper及HeapFieldAction enum完整搬迁，既有too_many_arguments allow随原helper保留，不是新增 |
+| 机械保全 | 两根原imports、通用Harness/TestType/origin/留根helper/test字节不变；新private mod继承同一祖先绑定，无复制构图器或扩权；policy仅删scalar baseline1392/exception1393及ownership baseline1659三项（ownership原无exception），其他JSON值完全相同 |
+| 最终组合 | 延续前批122项（已含原12/16族），默认/feature各 **122/0/0**、exit0，未重复累计；所有filter命中，十二个新FQN各恰一次、旧完整名无副本，先前native仍实际运行 |
+| 编译/格式 | 双all-target Clippy带-D warnings及fmt退出0；没有Rust生产/跨crate API变化，不另跑workspace check |
+| policy/尺寸 | 47项policy tests通过；重新fetch origin/main后尺寸门禁退出0，2151手写Rust、29历史超限、无生成物登记，不扩大额度 |
+| 独立审查 | 分页核74dc3943..a749635d完整3302行五文件patch，核SSA/LLVM receiver/pointer/free、精确错误数及loan身份、take与field全矩阵/构图helper、祖先权限/宏、FQN路由及policy；未发现具体问题，未用空工作区diff代替范围 |
+
+Architecture同步实际归属；最终docs957与空白通过，之后仅收齐账本不改Rust。原始日志/快照留仓库外；未跑frontend/
+完整codegen/完整LLVM慢组、本地CI-only faults或sanitizer全套，不把旧头或其他配置当当前通过。
+
+组末fetch时远端main已推进c3ceea14（含#432及#434），本批冻结输入未导入这些后继变化。
+尺寸门禁使用实际merge-base，不把它当成已验证最新main合并树；新候选CI及必要主干整合另验。
+一次查询前批CI遇GitHub API EOF，不能据此判前批失败或成功；先前888ec601观察为in-progress。
