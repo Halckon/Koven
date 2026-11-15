@@ -76,6 +76,17 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual(set(), {found for found in actual if found[0] in ("K6", "K9")})
         self.assertNotEqual(expected(text), actual)
 
+    def test_capabilities_come_from_the_derivation_engine(self):
+        """可复制、可逃逸、可转移都向能力推导问：让推导器一律回答“满足”，R1 的相应拒绝必须消失。"""
+        text = (ROOT / "cases" / "R1.lk").read_text(encoding="utf-8")
+        original = CHECKER.CAP.Engine.requires
+        CHECKER.CAP.Engine.requires = lambda self, ty, cap, params=(): CHECKER.CAP.ALWAYS
+        try:
+            actual = {rule for rule, _, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.CAP.Engine.requires = original
+        self.assertEqual({"S5", "CAP"}, actual, "只剩没有上界的类型参数引出的两类拒绝")
+
     def test_early_drop_never_changes_what_is_accepted(self):
         """统一析构规则：提前析构只是许可。打开它之后，每个用例被接受或拒绝的结果必须不变。"""
         total = []

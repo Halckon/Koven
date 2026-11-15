@@ -6,11 +6,24 @@ docs/proposals/loan-kernel-calculus.md；本文件只把那页的规则写成可
 """
 from __future__ import annotations
 
+import importlib.util
 import re
 import sys
 from collections import namedtuple
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+def sibling(name):
+    """加载同目录下的另一个原型；各原型都是独立脚本，不组成包。"""
+    spec = importlib.util.spec_from_file_location(f"loan_kernel_{name}", Path(__file__).with_name(f"{name}.py"))
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+CAP = sibling("capability")  # 结构能力推导（KB4）：可复制、可转移、可逃逸、可提前析构都向它问
 
 Type = namedtuple("Type", "kind name")  # kind: int | unit | cls | view | borrow | inout
 INT = Type("int", "Int")
@@ -61,6 +74,7 @@ class Fun:
     views: set = field(default_factory=set)  # 写作 view T 的类型参数：可以实例化为携带来源的类型
     suspend: bool = False  # 可以包含挂起点
     parallel: bool = False  # 可能在另一个线程上恢复：跨挂起点存活的值须可转移
+    bounds: dict = field(default_factory=dict)  # 类型参数 -> 它声明的能力上界（T: Cap + Cap）
 
 
 @dataclass
@@ -97,7 +111,7 @@ class Stmt:
 
 # ---------------------------------------------------------------- 解析
 
-TOKEN = re.compile(r"\s+|//[^\n]*|[A-Za-z_]\w*|\d+|[(){}:,.=&*<>]")
+TOKEN = re.compile(r"\s+|//[^\n]*|[A-Za-z_]\w*|\d+|[(){}:,.=&*<>+]")
 
 
 def tokenize(text):
@@ -205,13 +219,17 @@ class Parser:
         """函数或抽象签名（sig）；sig 没有函数体，用作函数类型与接口方法的合同。"""
         line = self.line()
         self.expect(keyword)
-        tparams, views = [], set()
+        tparams, views, bounds = [], set(), {}
         if self.accept("<"):
             while not self.accept(">"):
                 may_carry = self.accept("view")
                 tparams.append(self.next())
                 if may_carry:
                     views.add(tparams[-1])
+                if self.accept(":"):
+                    bounds[tparams[-1]] = {self.next()}
+                    while self.accept("+"):
+                        bounds[tparams[-1]].add(self.next())
                 self.accept(",")
         name = self.next()
         self.expect("(")
@@ -248,7 +266,8 @@ class Parser:
             if self.accept("return"):
                 ret = self.expr()
             self.expect("}")
-        return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows, owner, views)
+        return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows, owner, views,
+                   bounds=bounds)
 
     def block(self):
         self.expect("{")
@@ -464,6 +483,40 @@ class Checker:
         self.errors = set()
         self.early_drop = early_drop  # 析构不可观察的局部值在不再需要时提前析构（统一析构规则的“许可”）
         self.drops = []  # 提前析构的 (函数名, 变量名, 其后的语句行号)
+        self.caps = CAP.Engine({name: self.cap_decl(decl) for name, decl in classes.items()})
+        for line, message in self.caps.check_declarations():
+            self.error("CAP", line, message)
+
+    # ---- 能力（KB4）：演算的声明翻译成能力推导的声明，各处的判定都向推导器问
+
+    @staticmethod
+    def cap_ty(name):
+        if name.startswith("any "):
+            return CAP.Ty("Any")
+        return CAP.Ty("Unit" if name.startswith("fn ") else name)
+
+    def cap_decl(self, decl):
+        """内部可变即含有一个 RawCell；绑定在线程上即含有一个非原子的共享计数。两者都不另设标记。"""
+        fields = [(name, CAP.Ty(kind, (self.cap_ty(ty),)) if kind else self.cap_ty(ty)) for kind, name, ty in decl.fields]
+        if decl.cell:
+            fields.append(("cell", CAP.Ty("RawCell", (CAP.Ty("Unit"),))))
+        if decl.local:
+            fields.append(("count", CAP.Ty("Rc", (CAP.Ty("Unit"),))))
+        return CAP.Decl(decl.name, [], fields, "view" if decl.is_view else "class", deinit=decl.deinit, line=decl.line)
+
+    def has(self, cap, ty):
+        """类型 ty 的值是否满足能力 cap。类型参数只凭它声明的上界；任务一律不满足。"""
+        if ty.kind in ("int", "unit", "fn"):
+            return True
+        if ty.kind == "task":
+            return False
+        if ty.kind == "opaque" or ty.name in self.fun.tparams:
+            if ty.kind == "borrow" and cap == "Transferable":  # 共享借用可转移，当且仅当所指可共享
+                cap = "Shareable"
+            return ty.kind != "inout" and cap in self.fun.bounds.get(ty.name, ())
+        inner = self.cap_ty(ty.name)
+        asked = CAP.Ty(ty.kind, (inner,)) if ty.kind in ("borrow", "inout") else inner
+        return self.caps.requires(asked, cap) is not CAP.NEVER
 
     def error(self, rule, line, message):
         self.errors.add((rule, line, message))
@@ -584,9 +637,9 @@ class Checker:
         return paths
 
     def escapable(self, ty_name):
-        """类型的值是否一定不携带来源：视图与 view T 不是，其余都是。"""
+        """类型的值是否一定不携带来源：含借用字段的视图、借用值与 view T 不是，其余都是。"""
         if ty_name in self.classes:
-            return not self.classes[ty_name].is_view
+            return self.has("Escapable", self.type_of(ty_name))
         return ty_name not in self.fun.views and not ty_name.startswith(("borrow ", "inout "))
 
     def exclusive(self, class_name):
@@ -859,9 +912,7 @@ class Checker:
         self.access(state, res.targets, res.via, "read", expr.line)
         if res.ty.kind == "int":
             return Value(INT)
-        movable_only = res.ty.kind in ("cls", "inout", "opaque", "any", "task") or (
-            res.ty.kind == "view" and self.exclusive(res.ty.name))
-        if movable_only or place.fields:
+        if not self.has("Copyable", res.ty) or place.fields:
             self.error("K8", expr.line, f"{place.root} 不可隐式复制，须写 move")
         return Value(res.ty, copy_loans(res.field_loans or {}))
 
@@ -910,26 +961,8 @@ class Checker:
             self.error("S1", line, f"帧内有指向 {'、'.join(inside)} 的借用跨过挂起点；帧若可移动，这些借用会悬空")
         if self.fun.parallel:
             for name in names:
-                if not self.transferable(state[name].ty):
+                if not self.has("Transferable", state[name].ty):
                     self.error("S5", line, f"{name} 跨过挂起点存活，但它不可转移到另一个线程")
-
-    def sendable(self, class_name, shared):
-        """类的值可否转移（shared=False）或被多个线程同时引用（shared=True）。"""
-        decl = self.classes.get(class_name)
-        if decl is None:
-            return class_name == "Int"
-        if decl.local or (shared and decl.cell):
-            return False
-        return all(self.sendable(ty, shared or kind == "borrow") for kind, _, ty in decl.fields)
-
-    def transferable(self, ty):
-        if ty.kind in ("int", "unit", "fn"):
-            return True
-        if ty.kind in ("cls", "view", "inout"):
-            return self.sendable(ty.name, False)
-        if ty.kind == "borrow":  # 共享借用可转移，当且仅当所指可共享
-            return self.sendable(ty.name, True)
-        return False  # 类型参数、存在类型、任务：没有上界可依据，按不可转移处理
 
     def check_tasks(self, state, names, line):
         """S4：已开始执行的任务在离开作用域前须被等待；正常路径上任务总是运行到自己返回。"""
@@ -1035,6 +1068,16 @@ class Checker:
                     shown = [b[1] + "（经 " + b[2] + " 打开的未知类型）" if isinstance(b, tuple) else b
                              for b in (bound[wanted], actual)]
                     self.error("X2", line, f"类型参数 {wanted} 被同时实例化为 {shown[0]} 与 {shown[1]}")
+                for cap in sorted(fun.bounds.get(wanted, ())):  # 实参的类型须满足类型参数声明的上界
+                    if isinstance(actual, tuple):
+                        known = False  # 打开得到的未知类型：没有上界可依据
+                    elif actual.startswith(("borrow ", "inout ")):
+                        known = self.has(cap, Type(*actual.split(" ", 1)))
+                    else:
+                        known = self.has(cap, self.type_in(self.fun, actual))
+                    if not known:
+                        shown = actual[1] if isinstance(actual, tuple) else actual
+                        self.error("CAP", line, f"{name}：{shown} 不满足类型参数 {wanted} 的上界 {cap}")
             elif wanted.startswith("any "):
                 decl = self.classes.get(actual)
                 if actual != wanted and (decl is None or wanted[4:] not in decl.implements):
@@ -1141,12 +1184,6 @@ class Checker:
                 self.drop_dead(stmt, state)
         return state
 
-    def observable(self, class_name):
-        """析构是否可观察：声明了 deinit，或按值含有这样的字段。"""
-        decl = self.classes.get(class_name)
-        return decl is not None and (decl.deinit or any(
-            not kind and self.observable(ty) for kind, _, ty in decl.fields))
-
     def drop_dead(self, stmt, state):
         """提前析构：变量不再被用到、名下没有存活的 loan、析构不可观察时，在这条语句之后析构。
 
@@ -1158,7 +1195,7 @@ class Checker:
             var = state[name]
             if name in self.live or name in params or var.init != "A" or var.ty.kind != "cls":
                 continue
-            if self.observable(var.ty.name):
+            if not self.has("EarlyDrop", var.ty):  # 析构可观察：声明了 deinit，或按值含有这样的字段
                 continue
             if any(root == name for loan in self.live_loans(state) for root, _ in self.loans[loan].places):
                 continue
