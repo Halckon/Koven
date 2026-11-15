@@ -20490,3 +20490,14 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 复用原 sealed fact/完整 owned ledger、全 caller CFG 与 source/body 消费证明；body 一/二 consumer、前后各至多一次 source consumer 范围不变，旧 Partial 与一般循环义务不变。Value 的条件直接使用实际运输 Value，不虚构 Read 或 End/Drop。
 - 新真实测试覆盖两 ABI 位置、source 顺序、四段组合及一/二 body 顺序，另保长 body/长段、owned String、额外 Boolean、Group 条件边界。红阶段已证实原正常 SSA/receipt 但 audit 仍 missing evidence；末版新三项真实测试通过（48 正向形态各独立 assembly 两次、6 长域反例及 3 边界）；owned String 与 Group 均实际确认原 ownership 单条 L0164 在 borrow 六字符位置，额外 Boolean 保正常原 receipt 但明确 audit gap。
 - 相关旧 fresh/双 flag 共 16 项、旧 Partial 2 项全部通过，codegen 三 feature all-targets 严格 Clippy（52.78s）、default codegen all-targets（32.32s）、格式/docs979/尺寸2459文件与2项历史欠账/diff 门禁通过；真实本树 frontend 重编、红阶段日志保留，绿链首遍通过，独审无阻断。未运行 native、故障注入或推送。
+
+
+### E2 两调用之间的受限晚 owner 形成
+
+本片限定零参数 Unit block 的原三 statement：全裸 literal direct call、单 plain String val、同完整 instance 的 direct call。第二 call 的两 String 实参必须为同一晚 root，Int/Boolean 均为裸 literal；不扩第二 call mixed、额外声明/消费/第三 call、Group initializer 或不同 callee。
+
+原普通 ownership probe 两个真实 case（含同字节与具名实参重排）已验证：各 8 Shared loan、8 完整 End、3 Drop。首 CallReturn 的原完整未排序向量为源码第二 String temporary、第一 String temporary；次 CallReturn 为唯一 Named(root)。此为该 planner 实际向量，不声明一般析构顺序。原 formed_owned_locals 仅作为存在事实，形成位置由原 AST initializer 严格位于两 call 之间证明；Named Drop 的 value_origin 是原 binding name Span，不是 initializer Span。第一次 probe 的该 oracle 误判已修正，第二次 probe 全通过，E2 正例仍以 UnsupportedSelection 形成红基线；保留两次独立原始日志。
+
+私有 LateInitializedPair 固定两个阶段，首 collector 明确只见空 declaration slice，次 collector 仅见原晚 val。各阶段复用原 Temporary/Named 完整 per-call 证据，不赋予子 descriptor 根授权；根再核完整 Drop 向量、每 target 全局唯一及源码位置。原 emitter 与独立 replay 本就逐 call 完整处理初始化、借用、ABI 调用、End 和 Drop，故直接复用该逐阶段消费，禁止提前建立晚 owner，最终仍唯一 Return、全 cursor 消费；35 条指令只是辅助结构检查。
+
+生产已通过 two-source-unit 与 three-feature（另启 e2-two-source-test-support、loan-observation-test-support）各 3 个正常测试目标；body 抽取受影响回归 expression_entry 2、two_call_entry 5、shared_owner_pair 3、shared_mixed_pair 3、staggered_owners 3 均通过。三 feature 的 frontend/codegen 双 crate all-targets Clippy `-D warnings` 首次通过。首轮生产编译暴露按值 UnitDropFact::target 不能直接 map 引用 iterator，已仅改调用 closure，不改证明或断言，并保留失败日志。fmt、docs（968 Markdown）、size（2431 Rust 文件、21 个既有超限债务）、shell 语法和 diff 静态检查通过。CI 同批仅登记本片 3 个精确目标，本树列表实际为每配置 28 个 unit 目标（含原 failure-atomicity 目标）及 7 个 public-library 目标，另 1 个 frontend 目标；不表示本地执行 native 或故障注入，不混入另行处理的旧 17 目标缺口。

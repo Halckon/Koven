@@ -1,4 +1,6 @@
 //! Private-construction source entry evidence; not normal ownership or backend authority.
+mod body;
+mod late_pair;
 mod shared_pair;
 mod staggered_pair;
 use super::*;
@@ -25,7 +27,7 @@ pub enum EntryInitialization {
     /// Original Boolean literal initializer.
     Choose,
 }
-/// Opaque entry evidence for one call or an exact temporary/shared-owner call pair.
+/// Opaque entry evidence for one call or an exact proven two-call lifecycle, including late formation.
 #[derive(Clone, Debug)]
 pub struct EntryDescriptor {
     identity: Rc<()>,
@@ -37,6 +39,7 @@ pub struct EntryDescriptor {
 enum EntryCalls {
     Single(Box<EntryCallDescriptor>),
     Pair(Box<[EntryCallDescriptor; 2]>),
+    LateInitializedPair(Box<[EntryCallDescriptor; 2]>),
     StaggeredNamedPair {
         owners: Box<[EntryOwnerDescriptor; 2]>,
         calls: Box<[EntryCallDescriptor; 2]>,
@@ -297,7 +300,8 @@ impl EntryDescriptor {
             EntryCalls::Single(call) => std::slice::from_ref(call.as_ref()),
             EntryCalls::Pair(calls)
             | EntryCalls::SharedNamedPair { calls, .. }
-            | EntryCalls::StaggeredNamedPair { calls, .. } => calls.as_ref(),
+            | EntryCalls::StaggeredNamedPair { calls, .. }
+            | EntryCalls::LateInitializedPair(calls) => calls.as_ref(),
         }
     }
     /// Two distinct root-owned initializers in source order and their separate final-use Drops.
@@ -374,77 +378,15 @@ pub(super) fn collect(
             else {
                 return None;
             };
-            let (body_span, declarations, expressions) = match form {
-                FunctionForm::ImplicitUnitBlock(body)
-                | FunctionForm::Explicit {
-                    body: FunctionBody::Block(body),
-                    ..
-                } => {
-                    let node = parsed.ast().statements().get(*body).ok()?;
-                    let Statement::Block { elements } = node.payload() else {
-                        return None;
-                    };
-                    if let [local_a, local_b, first, second] = elements.as_slice()
-                        && [local_a, local_b].iter().all(|id| {
-                            matches!(
-                                parsed
-                                    .ast()
-                                    .statements()
-                                    .get(**id)
-                                    .ok()
-                                    .map(|n| n.payload()),
-                                Some(Statement::LocalVariable { .. })
-                            )
-                        })
-                        && let Statement::Expression { expression: first } =
-                            parsed.ast().statements().get(*first).ok()?.payload()
-                        && let Statement::Expression { expression: second } =
-                            parsed.ast().statements().get(*second).ok()?.payload()
-                    {
-                        (node.span(), &elements[..2], [Some(*first), Some(*second)])
-                    } else if let [local, first, second] = elements.as_slice()
-                        && matches!(
-                            parsed.ast().statements().get(*local).ok()?.payload(),
-                            Statement::LocalVariable { .. }
-                        )
-                        && let Statement::Expression { expression: first } =
-                            parsed.ast().statements().get(*first).ok()?.payload()
-                        && let Statement::Expression { expression: second } =
-                            parsed.ast().statements().get(*second).ok()?.payload()
-                    {
-                        (node.span(), &elements[..1], [Some(*first), Some(*second)])
-                    } else if let [first, second] = elements.as_slice()
-                        && let Statement::Expression { expression: first } =
-                            parsed.ast().statements().get(*first).ok()?.payload()
-                        && let Statement::Expression { expression: second } =
-                            parsed.ast().statements().get(*second).ok()?.payload()
-                    {
-                        (node.span(), &[][..], [Some(*first), Some(*second)])
-                    } else {
-                        let (last, declarations) = elements.split_last()?;
-                        let Statement::Expression { expression } =
-                            parsed.ast().statements().get(*last).ok()?.payload()
-                        else {
-                            return None;
-                        };
-                        (node.span(), declarations, [Some(*expression), None])
-                    }
-                }
-                FunctionForm::Explicit {
-                    body: FunctionBody::Expression { expression, .. },
-                    ..
-                } => {
-                    let node = parsed.ast().expressions().get(*expression).ok()?;
-                    if !matches!(node.payload(), Expression::Call { .. }) {
-                        return None;
-                    }
-                    (node.span(), &[][..], [Some(*expression), None])
-                }
-                _ => return None,
-            };
-            let shared_pair = expressions[1].is_some() && declarations.len() == 1;
+            let body::EntryBody {
+                span: body_span,
+                declarations,
+                expressions,
+                late,
+            } = body::extract(parsed, form)?;
+            let shared_pair = !late && expressions[1].is_some() && declarations.len() == 1;
             let staggered_pair = expressions[1].is_some() && declarations.len() == 2;
-            let collect_call = |expression| {
+            let collect_call = |expression, declarations: &[crate::ast::StatementId]| {
                 if !matches!(
                     parsed.ast().expressions().get(expression).ok()?.payload(),
                     Expression::Call { .. }
@@ -912,34 +854,42 @@ pub(super) fn collect(
                     shared_owner,
                 ))
             };
-            let (first, first_owner) = collect_call(expressions[0]?)?;
+            let (first, first_owner) =
+                collect_call(expressions[0]?, if late { &[] } else { declarations })?;
             let calls = if let Some(second_id) = expressions[1] {
-                let (second, second_owner) = collect_call(second_id)?;
+                let (second, second_owner) = collect_call(second_id, declarations)?;
                 if first.instance() != second.instance()
                     || first.contracts()[0].call() == second.contracts()[0].call()
-                    || !first.initialization_order().is_empty()
-                    || !second.initialization_order().is_empty()
-                    || !first.named_strings().is_empty()
-                    || !second.named_strings().is_empty()
                     || [first.contracts()[0].call(), second.contracts()[0].call()]
                         .iter()
                         .any(|call| call.source_unit() != unit)
                 {
                     return None;
                 }
-                if shared_pair || staggered_pair {
-                    let owners = first_owner?;
-                    if second_owner? != owners {
+                if late {
+                    late_pair::finish(first, second, owned, parsed)?
+                } else {
+                    if !first.initialization_order().is_empty()
+                        || !second.initialization_order().is_empty()
+                        || !first.named_strings().is_empty()
+                        || !second.named_strings().is_empty()
+                    {
                         return None;
                     }
-                    if staggered_pair {
-                        staggered_pair::finish(owners.try_into().ok()?, first, second, owned)?
+                    if shared_pair || staggered_pair {
+                        let owners = first_owner?;
+                        if second_owner? != owners {
+                            return None;
+                        }
+                        if staggered_pair {
+                            staggered_pair::finish(owners.try_into().ok()?, first, second, owned)?
+                        } else {
+                            let [owner]: [_; 1] = owners.try_into().ok()?;
+                            shared_pair::finish(owner, first, second, owned)?
+                        }
                     } else {
-                        let [owner]: [_; 1] = owners.try_into().ok()?;
-                        shared_pair::finish(owner, first, second, owned)?
+                        EntryCalls::Pair(Box::new([first, second]))
                     }
-                } else {
-                    EntryCalls::Pair(Box::new([first, second]))
                 }
             } else {
                 EntryCalls::Single(Box::new(first))

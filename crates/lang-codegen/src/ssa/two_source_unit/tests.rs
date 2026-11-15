@@ -440,3 +440,5 @@ mod shared_owner_pair;
 mod shared_mixed_pair;
 
 mod staggered_owners;
+
+mod late_initialization;
