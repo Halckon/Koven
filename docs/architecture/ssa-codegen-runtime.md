@@ -8,7 +8,7 @@
 function、block、entity、type 和 operation；控制流通过 block parameters 与显式 edge operands 传值。
 每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。完整 `ModelError` 与 Display/Error impl 位于私有 `model/error.rs`，根直接 re-export；ProgramOwner、atomic、typed ID 仍唯一留根。
 
-验证分三层执行；dominance完整算法位于私有 `verify/dominance.rs`，存储构造/投影合同位于私有 `verify_operation/storage.rs`，两个根保留原调用门面：
+验证分三层执行；dominance位于私有 `verify/dominance.rs`，存储构造/投影位于 `verify_operation/storage.rs`，ownership单指令效果位于 `verify_ownership/operation.rs`，各根保留原调用门面：
 
 - 结构/类型验证：ID、block、dominance、operand/result、edge 和 terminator 契约；
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
@@ -164,7 +164,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 两种 view 错误仍映射原 lowering kind 与 None span；[中立支撑](lowering-support.md)保留原错误路径，不新增公开 SSA/planner API。
 常量 lowering 独立校验身份后共享原 driver；公开常量 native 仍消费专用 capability，不转换为普通 view。
 
-实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。完整 refine call 求值/cleanup 位于私有 `refine/build/expression/call.rs`；既有 cfg(test) 的 `lower_frontend/control/merge.rs` 承载 exit-role/columns 汇合，根私有 MergeSlot 绑定保留 map_frames 间接消费者，不改生产路由或准入。
+实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块；构造/Rc与String表达式lowering分列私有 `lower_frontend/{construction,string}.rs`。完整 refine call 求值/cleanup 位于私有 `refine/build/expression/call.rs`；既有 cfg(test) 的 `lower_frontend/control/merge.rs` 承载 exit-role/columns 汇合，根私有 MergeSlot 绑定保留 map_frames 间接消费者，不改生产路由或准入。
 
 ## LLVM 与 ABI 边界
 
@@ -197,4 +197,4 @@ CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作�
 ## 测试覆盖位置
 
 SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；aggregate/tagged、container/provider、scalar/borrowed_calls及ownership/places领域由原测试根加载私有子模块，通用harness/helper仍留各根；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../archive/development/codegen-receiver-test-migration.md)。numeric proof 独立解析/Origin 坐标比较位于私有 `while_flow_tests/numeric_proof_contract/source_identity.rs`，唯一 Spans/only 及完整 CFG/资源证明留根，FQN 不变。
-planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../archive/development/codegen-plan-test-migration.md)；native入口/object边界五项位于私有 `native_entry_tests.rs`，唯一harness仍留 `native_tests.rs`；公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。
+planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../archive/development/codegen-plan-test-migration.md)；native入口/object边界五项位于 `native_entry_tests.rs`，接口/委托14项与类接收者10项分列 `unit_interface_delegation_tests.rs`、`unit_class_receiver_tests.rs`，harness与唯一目录辅助仍留 `native/unit_tests.rs`；公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。
