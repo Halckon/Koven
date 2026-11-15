@@ -19,7 +19,7 @@ impl CompilationUnitOwnership {
             return Err(Ambiguous);
         };
         if !self.owns_no_carry_loop(fact)
-            || fact.consumers().len() != 1
+            || !matches!(fact.consumers().len(), 1 | 2)
             || fact.callable().source_unit() != statement.source_unit()
         {
             return Err(Unsupported);

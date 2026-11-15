@@ -34,8 +34,25 @@ fn fresh_source_segments_preserve_entry_and_exit_source_consumption() {
     }
 }
 #[test]
-fn original_multiple_consumers_and_unbalanced_segments_remain_outside_fresh_domain() {
-    check(false, false, "consume(item);other(item)", (0, 0), false);
+fn two_ordered_consumers_share_one_fresh_result_until_the_last_end() {
+    for reverse_sources in [false, true] {
+        for reverse_parameters in [false, true] {
+            for uses in ["consume(item);other(item)", "other(item);consume(item)"] {
+                check(reverse_sources, reverse_parameters, uses, (0, 0), true);
+            }
+        }
+    }
+}
+#[test]
+fn original_longer_use_sets_and_unbalanced_segments_remain_outside_fresh_domain() {
+    check(
+        false,
+        false,
+        "consume(item);other(item);consume(item)",
+        (0, 0),
+        false,
+    );
+    check(false, false, "consume(item);other(item)", (1, 1), false);
     for segments in [(1, 0), (0, 1), (2, 1), (1, 2)] {
         check(false, false, "consume(item)", segments, false);
     }
@@ -136,6 +153,66 @@ fn check(
                     .direct_edges
                     .contains(&(declaration("run"), declaration("consume")))
             );
+            if facts[0].consumers().len() == 2 {
+                use crate::ssa::{model::EntityId, refine::fresh_loop_receipt::Tag};
+                use lang_frontend::ownership_checking::UnitDropPoint;
+                let local = &receipt.loops[0];
+                let instruction = |tag| {
+                    let ids: Vec<_> = local
+                        .instructions
+                        .iter()
+                        .filter(|(t, _)| *t == tag)
+                        .collect();
+                    assert_eq!(ids.len(), 1);
+                    function.instruction(ids[0].1).unwrap()
+                };
+                let acquire = instruction(Tag::Result);
+                let [result] = acquire.results.as_slice() else {
+                    panic!("one fresh loan");
+                };
+                let first = instruction(Tag::Consumer(0));
+                let second = instruction(Tag::Consumer(1));
+                let end = instruction(Tag::ResultEnd);
+                assert_eq!(
+                    facts[0].end(),
+                    UnitDropPoint::AfterStatement(facts[0].consumers()[1].0)
+                );
+                let body = function.block(acquire.block).unwrap();
+                let position = |id| body.instructions.iter().position(|v| *v == id).unwrap();
+                assert!(
+                    position(first.id) < position(second.id)
+                        && position(second.id) < position(end.id)
+                );
+                for (call, name) in [first, second].into_iter().zip(uses.split(';')) {
+                    let Operation::DirectCall {
+                        callee,
+                        receiver: None,
+                        arguments,
+                    } = &call.operation
+                    else {
+                        panic!("body consumer");
+                    };
+                    assert_eq!(arguments.as_slice(), [*result]);
+                    let target = program
+                        .modules
+                        .iter()
+                        .flat_map(|m| &m.functions)
+                        .find(|f| f.id == *callee)
+                        .unwrap();
+                    let marker = format!(".{}.", name.split('(').next().unwrap());
+                    assert!(target.name.contains(&marker));
+                }
+                assert_eq!(function.instructions.iter().filter(|i| matches!(i.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==*result)).count(),1);
+                assert!(
+                    matches!(end.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==*result)
+                );
+                assert!(
+                    receipt
+                        .edges
+                        .iter()
+                        .all(|(_, edge)| !edge.arguments.contains(result))
+                );
+            }
             if segments == (1, 1) {
                 assert!(
                     audit

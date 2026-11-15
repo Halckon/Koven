@@ -20245,3 +20245,15 @@ build 前复用原只读 `source_admission::consumer`，独立取得完整 state
 源参数跨循环继续有效，fresh result 不越回边/出口，不等同于动态运行或终止证明。
 单侧、前二后一/前一后二以及双 body consumer 的正常原 receipt 仍明确域外，不改原准入或旧 Partial 路线。
 真实 fresh 模块三项首次全部通过（2m42），覆盖空段、前后不同 callee、source/参数反序、同 observe 双 assembly、单侧/更长段及双 body consumer；实际 entry/exit 调用目标与所用 block parameter loan 同类型已断言。旧 Partial loop 两项相邻回归通过。frontend/codegen 三 feature 严格 Clippy all-targets 通过（3m19），默认仅两 crate all-targets check 通过（8.59s），不是 workspace 全验。格式已执行，968 Markdown 文档门禁、尺寸门禁（基12abef01，2416文件/21历史债）及差异检查通过；独立静审无阻断。未运行 native 或人工故障、未推送。日志为 `/private/tmp/d10-fresh-segments-{tests,oldloop,strict,default,size}.log`。
+
+
+### D10 fresh result 双消费末次 End（增量验收）
+
+在原单 body consumer 的空段/前后各一次域外，仅增加双 body consumer 且空 source segments。
+不是放开任意 consumer 数量：明确形状 `(body,before,after)` 为 `(1,0,0)/(1,1,1)/(2,0,0)`。
+原 sealed fact 保完整有序 normal returns 与原最后 statement End；源账本逐一核 initializer 和两 consumer 原 loan 唯一 ordinal/实际 Function producer，三个 dispatch key 独立匹配。
+最终实际 Consumer0/1 必须按原序共用同一个 fresh result，唯一 ResultEnd 在第二次消费之后；
+原完整 CFG validator 仍核全部块、实体、回边及出口不携 result，不改 producer 或旧 Partial 路线。
+真实测试准备使用两个不同 callee 并交换其源码顺序，结合源/参数反序及同 observe 两 assembly；
+三个 body consumer、双 consumer 加前后 source 段保原正常 receipt 但留本片 gap。
+独立静审通过；末版 fresh 模块四项首次全部通过（2m56），旧 Partial loop 两项相邻回归通过。frontend/codegen 三 feature 严格 Clippy all-targets 通过（2m07），默认仅两 crate all-targets check 通过（0.60s），不是 workspace 全验。格式、968 Markdown 文档门禁、尺寸门禁（基9a9c8172，2416文件/21历史债）及差异检查通过。未新增 owned Boolean 矩阵，不冒称覆盖；未执行 native 或人工故障，未推送。日志为 `/private/tmp/d10-fresh-two-{tests,oldloop,strict,default,size}.log`。

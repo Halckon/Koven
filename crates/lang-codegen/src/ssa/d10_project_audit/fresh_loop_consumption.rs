@@ -74,7 +74,7 @@ impl Transaction {
                     return None;
                 };
                 if !seen.insert(e.fact.loop_statement())
-                    || e.fact.consumers().len() != 1
+                    || !matches!(e.fact.consumers().len(), 1 | 2)
                     || e.key != UnitFunctionInstanceKey::for_entry(declaration)
                     || self.planned.get(&e.token) != Some(&(e.key.clone(), e.fact.callable()))
                 {
@@ -125,8 +125,16 @@ impl Transaction {
                 {
                     return None;
                 }
+                let segments = e.segments.as_ref()?;
+                let body_count = e.fact.consumers().len();
+                if !matches!(
+                    (body_count, segments[0].len(), segments[1].len()),
+                    (1, 0, 0) | (1, 1, 1) | (2, 0, 0)
+                ) {
+                    return None;
+                }
                 let calls = e.calls.as_ref()?;
-                if calls.len() != 2 + e.segments.as_ref()?.iter().map(Vec::len).sum::<usize>() {
+                if calls.len() != 1 + body_count + segments.iter().map(Vec::len).sum::<usize>() {
                     return None;
                 }
                 for (key, id) in calls {
@@ -307,12 +315,33 @@ fn validate_final(
     let Operation::BorrowCall { callee, .. } = source.operation else {
         return None;
     };
-    if callee != calls[0].1
-        || !matches!(operation(Tag::Consumer(0))?.operation,Operation::DirectCall{callee,receiver:None,..} if callee==calls[1].1)
-    {
+    if callee != calls[0].1 {
         return None;
     }
-    let mut mapped = calls[2..].iter();
+    let [result] = source.results.as_slice() else {
+        return None;
+    };
+    let body_count = s.receipt.loops[0].fact.consumers().len();
+    let body = f.block(source.block)?;
+    let mut previous = body.instructions.iter().position(|id| *id == source.id)?;
+    for i in 0..body_count {
+        let consumer = operation(Tag::Consumer(i))?;
+        if consumer.block != source.block
+            || !matches!(&consumer.operation,Operation::DirectCall{callee,receiver:None,arguments} if *callee==calls[1+i].1 && arguments.as_slice()==[*result])
+        {
+            return None;
+        }
+        let position = body.instructions.iter().position(|id| *id == consumer.id)?;
+        if position <= previous {
+            return None;
+        }
+        previous = position;
+    }
+    let end = operation(Tag::ResultEnd)?;
+    if end.block!=source.block || !matches!(end.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==*result)
+        || body.instructions.iter().position(|id| *id==end.id)?<=previous
+        || f.instructions.iter().filter(|i| matches!(i.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==*result)).count()!=1 {return None;}
+    let mut mapped = calls[1 + body_count..].iter();
     for segment in &s.receipt.segments {
         for id in &segment.instructions {
             let (_, expected) = mapped.next()?;
