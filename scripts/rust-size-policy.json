@@ -3,7 +3,6 @@
   "baseline": {
     "crates/lang-codegen/src/llvm/adapter.rs": 1594,
     "crates/lang-codegen/src/llvm/container_tests.rs": 1038,
-    "crates/lang-codegen/src/native/unit_tests.rs": 2006,
     "crates/lang-codegen/src/ssa/lower_frontend_tests.rs": 2028,
     "crates/lang-codegen/src/ssa/unit_lower.rs": 1252,
     "crates/lang-codegen/src/ssa/unit_lower/control.rs": 1051,
@@ -110,13 +109,6 @@
       "owner": "lang-codegen compilation-unit control lowering",
       "split_plan": "后续控制流专项按short-circuit、when与conditional合流职责提取，保持loan/carrier完整状态。",
       "review": "SPEC-0279 independent full review核对实际增长、领域子模块与现有行为边界；超过1079行或扩张职责前重新审阅。"
-    },
-    "crates/lang-codegen/src/native/unit_tests.rs": {
-      "max_lines": 2030,
-      "reason": "SPEC-0268 仅增加五个独立 unit-for 测试模块的路径与 mod 声明，共十行；所有新用例和 oracle 均位于独立短文件。 SPEC-0274本轮：仅增加两个独立测试模块的注册（6行）；测试主体已位于各自小文件，本入口不新增测试实现。 SPEC-0282本轮：仅增加独立 unit_container_remove_at_tests 测试模块注册（2行），具体测试位于独立短文件。 SPEC-0283本轮：仅增加独立 unit_container_remove_last_tests 测试模块注册（2行），具体测试位于独立短文件。 SPEC-0284本轮：仅增加独立 unit_container_remove_first_tests 测试模块注册（2行），具体测试位于独立短文件。 SPEC-0285本轮：仅增加独立 unit_container_insert_at_tests 测试模块注册（2行），具体测试位于独立短文件。",
-      "owner": "lang-codegen native tests",
-      "split_plan": "后续native测试入口整体迁移时按领域拆注册，保持fixture与断言边界。",
-      "review": "SPEC-0285独立完整审阅核对此次有界增长与既有职责；超过2030行或增加职责前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker.rs": {
       "max_lines": 1429,
