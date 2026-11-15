@@ -167,8 +167,9 @@ literal 字节/owner 核完整八指令 caller、两 callee 映射和退休/Drop
 source 参数前/后顺序均保原 chronology。最终核 literal+十指令全 caller、六实体及原
 retirement 三 ID 关系（关系本身不是 End 事件）。identity 叶证书限一或两个 Borrow String
 参数的直接 Name 返回，按原 contract 源 index 核全部独立 Shared loan/参数定义及正常退出；
-三参数、混类型、group/block 等域不据最终形状放行，不改变原准入；aux 交叉仍保
-独立 entry receipt 缺口，不将叶退出证明当成全项目闭合。
+三参数、混类型、group/block 等域不据最终形状放行，不改变原准入。完整 aux 生命周期
+证书可在同次 final audit 以私有 token 精确履行同一原 handoff 的 entry 义务；全 fact/
+callable/映射/实际指令核对且无竞争才消费，缺失、重复、域外与未消费证明仍保 gap。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、

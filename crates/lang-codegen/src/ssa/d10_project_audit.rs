@@ -230,9 +230,12 @@ impl Pending {
                     .push("type outside scalar/String domain".into());
             }
         }
+        let (aux_edges, aux_fulfilled, aux_gaps) =
+            self.aux_bindings.finish(program, mapping, owned);
+        audit.unsupported.extend(aux_gaps);
         let (entry_edges, entry_gaps) =
             self.entry_borrows
-                .finish(&self.items, program, mapping, owned);
+                .finish(&self.items, program, mapping, owned, aux_fulfilled);
         audit.unsupported.extend(entry_gaps);
         let mut branch_edges = audit.branch_consumption.edges.clone();
         branch_edges.extend(entry_edges);
@@ -266,8 +269,6 @@ impl Pending {
                     .push("overlapping binding edge certificate".into());
             }
         }
-        let (aux_edges, aux_gaps) = self.aux_bindings.finish(program, mapping, owned);
-        audit.unsupported.extend(aux_gaps);
         for edge in aux_edges {
             if !branch_edges.insert(edge) {
                 audit

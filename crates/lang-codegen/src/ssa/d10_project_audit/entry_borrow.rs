@@ -26,6 +26,7 @@ impl Transaction {
         program: &Program,
         mapping: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
         owned: &dyn UnitLoweringFacts,
+        fulfilled: Vec<super::aux_binding_consumption::ValidatedHandoff>,
     ) -> (Edges, Vec<String>) {
         let mut expected = BTreeMap::new();
         let mut gaps = Vec::new();
@@ -35,13 +36,34 @@ impl Transaction {
                 continue;
             };
             if !mapping.keys().any(|key| matches!(key.target(), UnitCallableTarget::Declaration(d) if items.get(&d) == Some(&callable))) { continue; }
-            if expected.insert(call, callable).is_some() {
+            if expected.insert(call, (callable, handoff)).is_some() {
                 gaps.push("ambiguous original entry handoff".into());
             }
         }
         let snapshots = self.state.borrow();
         let mut edges = Edges::new();
-        for (call, callable) in &expected {
+        let mut consumed = BTreeSet::new();
+        for (call, (callable, handoff)) in &expected {
+            let alternatives: Vec<_> = fulfilled
+                .iter()
+                .enumerate()
+                .filter(|(_, proof)| proof.call() == *call)
+                .collect();
+            if !alternatives.is_empty() {
+                if let [(index, proof)] = alternatives.as_slice()
+                    && proof.matches(handoff, *callable, program, mapping)
+                    && !snapshots.calls.iter().any(|r| r.call() == *call)
+                    && !snapshots.lifetimes.iter().any(|r| r.call == *call)
+                {
+                    consumed.insert(*index);
+                    // The auxiliary route already publishes this exact edge once.
+                    continue;
+                }
+                gaps.push(format!(
+                    "conflicting/invalid auxiliary entry fulfillment: {call:?}"
+                ));
+                continue;
+            }
             let matches: Vec<_> = snapshots
                 .calls
                 .iter()
@@ -103,6 +125,9 @@ impl Transaction {
             if !proven {
                 gaps.push(format!("entry binding lifetime unproven: {call:?}"));
             }
+        }
+        if consumed.len() != fulfilled.len() {
+            gaps.push("unconsumed auxiliary entry fulfillment".into());
         }
         for receipt in snapshots.calls.iter() {
             if !expected.contains_key(&receipt.call()) {

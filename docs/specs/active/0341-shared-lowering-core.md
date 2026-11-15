@@ -19891,3 +19891,24 @@ aux 两源正反序和同 observe 两次 assembly 的完整 caller 仍获证；B
 验收：identity 定向 1/1（测试名改为 `identity_leaf_certifies_only_one_or_two_plain_string_parameters`）；
 末版 aux 2/2；三 feature codegen all-targets strict Clippy 1m36s、默认仅 codegen all-targets check 0.86s。
 未执行 native、人工故障或推送。静态门禁结果见本次提交记录。
+
+### D10 同次 aux 生命周期证据精确履行 entry 义务（2026-11-15）
+
+接续 `b4e67236`：旧 entry 义务独立从两 acquisition/handoff 形成，专用 Boolean
+receipt 不覆盖零参 aux caller。现在保留该 expected，不按已认证边或错误文本屏蔽 gap。
+原 aux final 校验全部通过后，核 catalog handoff 与原完整 handoff 列表恰唯一 FullEq，
+才产生私有、不可外部构造且不可 Clone 的履约 token。token 保存原完整 fact、callable、
+caller/callee key 与 ID、实际完整 BorrowCall 指令；仅在同次 audit 内直接传给 entry。
+原 aux 全十一指令校验已保证 mint 使用的指令存在，不在未验证输入上解引用。
+
+entry 仍独立登记并核原 expected；唯一 token 的 fact/callable/映射/最终实际指令均精确
+一致且没有原 entry call/lifetime receipt 竞争时才消费。缺失、重复、竞争、不匹配与
+未消费 token 保留显式 gap。aux 来源边只按原路径发布一次，履约分支不重复插边。
+不改变生产准入、返回行为、catalog 动作或 coverage。
+
+真实 aux source index 0/1、两源反序、同 observe 两次 assembly 全图现无 unsupported；
+额外 consumer 的原 lowering 正常成功，但无完整 aux 证明，仍明确保留 missing entry
+receipt 与 unclassified BorrowCall。原 Boolean 双消费者专用生命周期 exact 回归不变。
+验收 aux 2/2（首编 6m45s）、Boolean exact 1/1；三 feature codegen all-targets strict
+Clippy 1m14s，默认仅 codegen all-targets check 0.72s。独审无阻断；未执行 native、
+人工故障或推送。复用既有基线，不重复无关矩阵。

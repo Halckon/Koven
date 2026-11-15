@@ -87,7 +87,22 @@ fn check(reverse: bool, source_second: bool, extra: bool) {
             .contains(&(declaration("run"), declaration("view")));
         if extra {
             assert!(!certified);
-            assert!(!audit.unsupported.is_empty());
+            assert!(
+                audit
+                    .unsupported
+                    .iter()
+                    .any(|g| g.starts_with("missing/duplicate entry call receipt:")),
+                "{:?}",
+                audit.unsupported
+            );
+            assert!(
+                audit
+                    .unsupported
+                    .iter()
+                    .any(|g| g.starts_with("unclassified operation: BorrowCall")),
+                "{:?}",
+                audit.unsupported
+            );
             continue;
         }
         assert!(certified, "{:?}", audit.unsupported);
@@ -99,10 +114,7 @@ fn check(reverse: bool, source_second: bool, extra: bool) {
             "{:?}",
             audit.unsupported
         );
-        // The independent entry-call candidate still lacks its own receipt; this
-        // slice closes the leaf, not that separate candidate obligation.
-        assert_eq!(audit.unsupported.len(), 1, "{:?}", audit.unsupported);
-        assert!(audit.unsupported[0].starts_with("missing/duplicate entry call receipt:"));
+        assert!(audit.unsupported.is_empty(), "{:?}", audit.unsupported);
         let f = program
             .modules
             .iter()
