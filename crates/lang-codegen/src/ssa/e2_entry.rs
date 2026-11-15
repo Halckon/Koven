@@ -4,7 +4,7 @@ use super::e2_function;
 use super::model::*;
 use lang_frontend::ownership_checking::{
     UnitDropTarget,
-    two_source_experiment::{EntryDescriptor, EntryInitialization},
+    two_source_experiment::{EntryCallDescriptor, EntryDescriptor, EntryInitialization},
 };
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use lang_frontend::{
@@ -109,6 +109,26 @@ pub(super) fn fill_entry(
     caller: FunctionId,
     descriptor: &EntryDescriptor,
 ) -> Option<FunctionId> {
+    let block = empty_declaration(module.function(entry)?, &[])?;
+    for call in descriptor.calls() {
+        emit_call(module, entry, caller, call)?;
+    }
+    module
+        .function_mut(entry)?
+        .set_terminator(
+            block,
+            TerminatorKind::Return { values: vec![] },
+            Origin::Source(descriptor.body()),
+        )
+        .ok()?;
+    Some(entry)
+}
+fn emit_call(
+    module: &mut Module,
+    entry: FunctionId,
+    caller: FunctionId,
+    descriptor: &EntryCallDescriptor,
+) -> Option<()> {
     let string = module.intern_type(SsaTypeKind::StringOwner);
     let int = module.intern_type(SsaTypeKind::Integer {
         bits: 32,
@@ -116,7 +136,7 @@ pub(super) fn fill_entry(
     });
     let boolean = module.intern_type(SsaTypeKind::Boolean);
     let f = module.function_mut(entry)?;
-    let block = empty_declaration(f, &[])?;
+    let block = *f.blocks.first().map(|b| &b.id)?;
     let mut owners = Vec::new();
     let mut named_roots = Vec::new();
     let mut scalar_places = [None; 2];
@@ -331,13 +351,7 @@ pub(super) fn fill_entry(
     if dropped.iter().any(|consumed| !consumed) {
         return None;
     }
-    f.set_terminator(
-        block,
-        TerminatorKind::Return { values: vec![] },
-        Origin::Source(descriptor.body()),
-    )
-    .ok()?;
-    Some(entry)
+    Some(())
 }
 
 /// ABI and empty-body check only; caller must separately prove same-analysis source ownership.

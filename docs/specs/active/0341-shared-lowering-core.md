@@ -20349,3 +20349,25 @@ Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入�
 原direct_scalars三目标回归通过；三feature frontend/codegen双crate all-targets
 严格Clippy通过（3m13s），fmt/文档结构/size/diff及独立静审通过。
 不推送、不执行native或本地故障注入。
+
+### E2同入口顺序两次独立临时调用（2026-11-15）
+
+基于86ff93a2，新增候选仅为原Block恰两次同完整instance的裸Call，所有参数
+均为受限literal、无声明或跨调用named owner。先行普通ownership探针已通过：
+8个原Shared Temporary loan、8个唯一CallReturn End、4个对应String Drop；
+每call四End的原rank为0..3且precedingDrops为0、两个真实String owner分别Drop。
+原E2红阶段准确为UnsupportedSelection，不由loan数组顺序臆造跨call时序。
+
+设计使用私有根身份下固定Single/Pair调用证据，子call无独立入口授权身份。
+各call仍按原源码实参求值及ABI列交付，第一call全部End/Drop后才开始第二call，
+整函数仅最后一个Return；精确replay逐项消费所有来源/类型/loan/清理，不仅核总数量。
+coverage/plan核每次原call的完整typed instance，定义key去重不替代调用发生点认领。
+普通single入口边界与默认关闭保持，域外第三call/跨callowner/非literal不扩。
+末版正式two-source-unit及三feature two_call_entry各5目标通过：原事实、
+先清理后第二借用、具名重排与不同bytes、两个合法callee不一致拒绝、五类域外拒绝。
+原expression_entry两目标、direct_scalars三目标，以及frontend原scalar证据/
+named cleanup两个正常目标各1通过；后者同步既有scalar/角色/escape/hex能力的旧预期，
+保留原完整loan/Drop断言与域外拒绝。三feature双crate all-targets严格Clippy通过
+（1m52s）。不同callee正控改为独立完整fixture，未放宽全Unit preflight；
+CI-only WrongRounds旧accessor只迁首occurrence，未运行故障。
+不推送、不执行native或故障注入。

@@ -185,8 +185,9 @@ fn publish_inner<'a>(
                 ) {
                     return Err(Error::Emission);
                 }
-                first.operation =
-                    Operation::Constant(ScalarConstant::Integer(i128::from(required.rounds()) + 1));
+                first.operation = Operation::Constant(ScalarConstant::Integer(
+                    i128::from(required.calls().first().ok_or(Error::Emission)?.rounds()) + 1,
+                ));
             }
             _ => unreachable!(),
         }

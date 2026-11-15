@@ -230,10 +230,10 @@ pub use research_borrow_consumer_body::{
 #[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 pub mod two_source_experiment {
     pub use super::compilation_unit::loop_no_carry::two_source_candidate::{
-        ArmSourceSpans, CalleeLeaf, CalleeLeafBody, EntryDescriptor, EntryInitialization,
-        ExperimentalBinding, ExperimentalUnitHandoff, FunctionShell, OwnershipValidationFailure,
-        TwoSourceAnalysisOutcome, TwoSourceCounterFact, TwoSourceExperiment,
-        analyze_two_source_experiment, analyze_two_source_outcome,
+        ArmSourceSpans, CalleeLeaf, CalleeLeafBody, EntryCallDescriptor, EntryDescriptor,
+        EntryInitialization, ExperimentalBinding, ExperimentalUnitHandoff, FunctionShell,
+        OwnershipValidationFailure, TwoSourceAnalysisOutcome, TwoSourceCounterFact,
+        TwoSourceExperiment, analyze_two_source_experiment, analyze_two_source_outcome,
     };
 }
 

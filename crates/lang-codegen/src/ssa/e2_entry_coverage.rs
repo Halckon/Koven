@@ -32,11 +32,18 @@ pub(super) fn audit(
     // calls could silently omit unsupported source expressions.
     super::e2_entry_replay::replay(emitted, experiment, fact, typed)?;
     let descriptor = emitted.descriptor();
-    let entry_call = typed.types().call(descriptor.contracts()[0].call())?;
-    if entry_call.instance() != descriptor.instance() {
-        return None;
+    let mut required = Vec::new();
+    for occurrence in descriptor.calls() {
+        let entry_call = typed.types().call(occurrence.contracts()[0].call())?;
+        if entry_call.instance() != occurrence.instance()
+            || occurrence.instance() != descriptor.instance()
+        {
+            return None;
+        }
+        if !required.contains(entry_call.instance()) {
+            required.push(entry_call.instance().clone());
+        }
     }
-    let mut required = vec![entry_call.instance().clone()];
     for key in super::e2_replay::required_keys(experiment, fact, typed)? {
         if !required.contains(&key) {
             required.push(key);

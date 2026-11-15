@@ -117,9 +117,9 @@ impl<'a> JointPlan<'a> {
                 {
                     return None;
                 }
-                let key = typed.types().call(entry.contracts()[0].call())?.instance();
-                if key != entry.instance() {
-                    return None;
+                let key = entry.instance();
+                for occurrence in entry.calls() {
+                    if typed.types().call(occurrence.contracts()[0].call())?.instance() != key || occurrence.instance() != key { return None; }
                 }
                 let mut owners = facts.iter().copied().filter(|fact| {
                     experiment.callable(fact).map(UnitCallTarget::Declaration) == Some(key.target())

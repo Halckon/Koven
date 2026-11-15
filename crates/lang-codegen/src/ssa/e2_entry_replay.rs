@@ -3,7 +3,8 @@
 use super::e2_entry::EmittedEntry;
 use super::model::*;
 use lang_frontend::ownership_checking::{
-    UnitDropTarget, two_source_experiment::EntryInitialization,
+    UnitDropTarget,
+    two_source_experiment::{EntryCallDescriptor, EntryInitialization},
 };
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use lang_frontend::{
@@ -112,22 +113,6 @@ pub(super) fn replay_declared_body(
     d: &lang_frontend::ownership_checking::two_source_experiment::EntryDescriptor,
     declaration: lang_frontend::source::Span,
 ) -> Option<()> {
-    let find = |kind: &SsaTypeKind| {
-        module
-            .types
-            .iter()
-            .position(|t| t == kind)
-            .map(|index| SsaTypeId {
-                module: module.id,
-                index,
-            })
-    };
-    let string = find(&SsaTypeKind::StringOwner)?;
-    let int = find(&SsaTypeKind::Integer {
-        bits: 32,
-        signed: true,
-    })?;
-    let boolean = find(&SsaTypeKind::Boolean)?;
     let f = module.function(entry)?;
     if f.receiver.is_some()
         || f.carrier_return.is_some()
@@ -144,14 +129,23 @@ pub(super) fn replay_declared_body(
     if !block.parameters.is_empty()
         || block.origin != Origin::Source(declaration)
         || block.instructions.len()
-            != match (
-                d.named_strings().len(),
-                (0..4).filter(|i| d.temporary_string(*i).is_some()).count(),
-            ) {
-                (1, 0) => 16,
-                (0, 2) | (1, 1) | (2, 0) => 19,
-                _ => return None,
-            }
+            != d.calls()
+                .iter()
+                .map(|call| {
+                    match (
+                        call.named_strings().len(),
+                        (0..4)
+                            .filter(|i| call.temporary_string(*i).is_some())
+                            .count(),
+                    ) {
+                        (1, 0) => Some(16),
+                        (0, 2) | (1, 1) | (2, 0) => Some(19),
+                        _ => None,
+                    }
+                })
+                .collect::<Option<Vec<usize>>>()?
+                .iter()
+                .sum::<usize>()
         || f.instructions.len() != block.instructions.len()
     {
         return None;
@@ -168,6 +162,33 @@ pub(super) fn replay_declared_body(
         ids: &block.instructions,
         index: 0,
     };
+    for call in d.calls() {
+        replay_call(module, &mut cursor, caller, call)?;
+    }
+    (cursor.index == block.instructions.len()).then_some(())
+}
+fn replay_call(
+    module: &Module,
+    cursor: &mut Cursor<'_>,
+    caller: FunctionId,
+    d: &EntryCallDescriptor,
+) -> Option<()> {
+    let find = |kind: &SsaTypeKind| {
+        module
+            .types
+            .iter()
+            .position(|t| t == kind)
+            .map(|index| SsaTypeId {
+                module: module.id,
+                index,
+            })
+    };
+    let string = find(&SsaTypeKind::StringOwner)?;
+    let int = find(&SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    })?;
+    let boolean = find(&SsaTypeKind::Boolean)?;
     let mut owners = Vec::new();
     let mut named_roots = Vec::new();
     let mut roots = [None; 2];
@@ -357,6 +378,5 @@ pub(super) fn replay_declared_body(
         cursor.step(Operation::Drop { owner }, drop_origin, None)?;
     }
 
-    (cursor.index == block.instructions.len() && dropped.iter().all(|consumed| *consumed))
-        .then_some(())
+    dropped.iter().all(|consumed| *consumed).then_some(())
 }

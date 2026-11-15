@@ -323,16 +323,18 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
             .unwrap()
             .unwrap();
         let entries = experiment.entries(&typed).unwrap();
-        assert_eq!(entries.len(), usize::from(named && extra == 0));
-        if named && extra == 0 {
+        let accepted = matches!(extra, 0 | 4 | 5 | 6);
+        assert_eq!(entries.len(), usize::from(accepted));
+        if accepted {
+            assert_eq!(entries[0].calls().len(), 1);
             assert!(experiment.owns_entry(&entries[0].clone()));
             let other = analyze_two_source_experiment(&sources, &inputs, &names, &types, &typed)
                 .unwrap()
                 .unwrap();
             assert!(!other.owns_entry(&entries[0]));
-            assert_eq!(entries[0].contracts().len(), 4);
-            assert_eq!(entries[0].ends().len(), 4);
-            assert_eq!(entries[0].drops().len(), 2);
+            assert_eq!(entries[0].calls()[0].contracts().len(), 4);
+            assert_eq!(entries[0].calls()[0].ends().len(), 4);
+            assert_eq!(entries[0].calls()[0].drops().len(), 2);
             let retyped = check_compilation_unit_types(&sources, &inputs, &names, &types)
                 .unwrap()
                 .validate()
@@ -382,11 +384,11 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
             .collect();
         assert_eq!(
             ends.len(),
-            if named { 4 } else { 2 },
-            "named scalar roots have observed Ends; literal scalars do not"
+            4,
+            "local and direct scalar loans have original observed Ends"
         );
         use crate::ownership_checking::{UnitDropPoint, UnitDropTarget, UnitLoanTarget};
-        for contract in contracts.iter().take(if named { 4 } else { 2 }) {
+        for contract in &contracts {
             assert_eq!(
                 ends.iter()
                     .filter(|end| end.loan().argument() == contract.argument())
@@ -427,11 +429,7 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
                 continue;
             }
             let loan = end.loan();
-            assert!(
-                contracts[..2]
-                    .iter()
-                    .any(|c| c.argument() == loan.argument())
-            );
+            assert!(contracts.iter().any(|c| c.argument() == loan.argument()));
             assert!(
                 matches!(loan.target(), crate::ownership_checking::UnitLoanTarget::Temporary(owner)
             if *owner == loan.argument())
@@ -635,11 +633,11 @@ fn named_shared_string_entry_cleanup_evidence() {
     let entries = experiment.entries(&typed).unwrap();
     assert_eq!(entries.len(), 1);
     let descriptor = &entries[0];
-    assert!(descriptor.strings().is_none());
-    let (named_root, _, initializer_span, bytes) = descriptor.named_string().unwrap();
+    assert!(descriptor.calls()[0].strings().is_none());
+    let (named_root, _, initializer_span, bytes) = descriptor.calls()[0].named_string().unwrap();
     assert_eq!(sources.slice(initializer_span).unwrap(), "\"same\"");
     assert_eq!(bytes, b"same");
-    assert_eq!(descriptor.drops().len(), 1);
+    assert_eq!(descriptor.calls()[0].drops().len(), 1);
     let run = names
         .names()
         .index()
@@ -684,7 +682,7 @@ fn named_shared_string_entry_cleanup_evidence() {
             matches!(matches[0].loan().target(),UnitLoanTarget::Place(place) if place.is_root() && place.root()==named_root)
         );
     }
-    let drop = descriptor.drops()[0];
+    let drop = descriptor.calls()[0].drops()[0];
     assert_eq!(drop.point(), UnitDropPoint::CallReturn(call));
     assert_eq!(drop.target(), UnitDropTarget::Named(named_root));
     assert_eq!(sources.slice(drop.value_origin()).unwrap(), "text");

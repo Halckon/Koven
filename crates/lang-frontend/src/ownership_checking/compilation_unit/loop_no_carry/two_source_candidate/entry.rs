@@ -23,12 +23,22 @@ pub enum EntryInitialization {
     /// Original Boolean literal initializer.
     Choose,
 }
-/// Opaque evidence for two scalar literal values (locals or direct arguments), String owners and one call.
+/// Opaque entry evidence for one call or exactly two consecutive all-temporary calls.
 #[derive(Clone, Debug)]
 pub struct EntryDescriptor {
     identity: Rc<()>,
     entry: DeclarationId,
     body: Span,
+    calls: EntryCalls,
+}
+#[derive(Clone, Debug)]
+enum EntryCalls {
+    Single(Box<EntryCallDescriptor>),
+    Pair(Box<[EntryCallDescriptor; 2]>),
+}
+/// Read-only call occurrence evidence; not an independently owned entry capability.
+#[derive(Clone, Debug)]
+pub struct EntryCallDescriptor {
     instance: UnitCallableInstanceKey,
     parameter_roles: [usize; 4],
     initializers: [UnitExpressionId; 2],
@@ -65,7 +75,7 @@ enum StringStorage {
         drop: UnitDropFact,
     },
 }
-impl EntryDescriptor {
+impl EntryCallDescriptor {
     /// Semantic role at this source argument position, through the original parameter mapping.
     pub fn argument_role(&self, index: usize) -> Option<usize> {
         let parameter = self.contracts.get(index)?.parameter_index();
@@ -160,17 +170,6 @@ impl EntryDescriptor {
         self.initializer_spans
     }
 
-    pub(super) fn same_identity(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.identity, &other.identity)
-    }
-    /// Original zero-parameter Unit declaration.
-    pub fn entry(&self) -> DeclarationId {
-        self.entry
-    }
-    /// Complete source body.
-    pub fn body(&self) -> Span {
-        self.body
-    }
     /// Exact called instance.
     pub fn instance(&self) -> &UnitCallableInstanceKey {
         &self.instance
@@ -196,6 +195,30 @@ impl EntryDescriptor {
                 drops
             }
         }
+    }
+}
+impl EntryDescriptor {
+    pub(super) fn same_identity(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.identity, &other.identity)
+    }
+    /// Original zero-parameter Unit declaration.
+    pub fn entry(&self) -> DeclarationId {
+        self.entry
+    }
+    /// Complete source body.
+    pub fn body(&self) -> Span {
+        self.body
+    }
+    /// Every source call occurrence, in the complete original body order.
+    pub fn calls(&self) -> &[EntryCallDescriptor] {
+        match &self.calls {
+            EntryCalls::Single(call) => std::slice::from_ref(call.as_ref()),
+            EntryCalls::Pair(calls) => calls.as_ref(),
+        }
+    }
+    /// The one instance shared by all occurrences, proven during private construction.
+    pub fn instance(&self) -> &UnitCallableInstanceKey {
+        self.calls()[0].instance()
     }
 }
 pub(super) fn collect(
@@ -245,7 +268,7 @@ pub(super) fn collect(
             else {
                 return None;
             };
-            let (body_span, declarations, expression) = match form {
+            let (body_span, declarations, expressions) = match form {
                 FunctionForm::ImplicitUnitBlock(body)
                 | FunctionForm::Explicit {
                     body: FunctionBody::Block(body),
@@ -255,13 +278,22 @@ pub(super) fn collect(
                     let Statement::Block { elements } = node.payload() else {
                         return None;
                     };
-                    let (last, declarations) = elements.split_last()?;
-                    let Statement::Expression { expression } =
-                        parsed.ast().statements().get(*last).ok()?.payload()
-                    else {
-                        return None;
-                    };
-                    (node.span(), declarations, *expression)
+                    if let [first, second] = elements.as_slice()
+                        && let Statement::Expression { expression: first } =
+                            parsed.ast().statements().get(*first).ok()?.payload()
+                        && let Statement::Expression { expression: second } =
+                            parsed.ast().statements().get(*second).ok()?.payload()
+                    {
+                        (node.span(), &[][..], [Some(*first), Some(*second)])
+                    } else {
+                        let (last, declarations) = elements.split_last()?;
+                        let Statement::Expression { expression } =
+                            parsed.ast().statements().get(*last).ok()?.payload()
+                        else {
+                            return None;
+                        };
+                        (node.span(), declarations, [Some(*expression), None])
+                    }
                 }
                 FunctionForm::Explicit {
                     body: FunctionBody::Expression { expression, .. },
@@ -271,407 +303,448 @@ pub(super) fn collect(
                     if !matches!(node.payload(), Expression::Call { .. }) {
                         return None;
                     }
-                    (node.span(), &[][..], *expression)
+                    (node.span(), &[][..], [Some(*expression), None])
                 }
                 _ => return None,
             };
-            if declarations.len() > 4 {
-                return None;
-            }
-            let formed_local = |span: Span| {
-                let mut bindings = owned.formed_owned_locals().iter().filter(|symbol| {
-                    symbol.source_unit() == unit
-                        && names
-                            .names()
-                            .source_units()
-                            .get(unit.index())
-                            .and_then(|s| s.resolution().symbols().get(symbol.symbol().index()))
-                            .is_some_and(|resolved| resolved.span() == span)
-                });
-                let binding = *bindings.next()?;
-                bindings.next().is_none().then_some(binding)
-            };
-            let mut named = Vec::new();
-            let mut locals = [None, None];
-            let mut initialization_order = Vec::new();
-            for statement in declarations {
-                let Statement::LocalVariable { declaration } =
-                    parsed.ast().statements().get(*statement).ok()?.payload()
-                else {
+            let collect_call = |expression| {
+                if !matches!(
+                    parsed.ast().expressions().get(expression).ok()?.payload(),
+                    Expression::Call { .. }
+                ) {
                     return None;
-                };
-                let Item::Variable {
-                    kind: VariableKind::Val,
-                    name: NameMarker::Present(span),
-                    initializer,
-                    ..
-                } = parsed.ast().items().get(*declaration).ok()?.payload()
-                else {
+                }
+                if declarations.len() > 4 {
                     return None;
+                }
+                let formed_local = |span: Span| {
+                    let mut bindings = owned.formed_owned_locals().iter().filter(|symbol| {
+                        symbol.source_unit() == unit
+                            && names
+                                .names()
+                                .source_units()
+                                .get(unit.index())
+                                .and_then(|s| s.resolution().symbols().get(symbol.symbol().index()))
+                                .is_some_and(|resolved| resolved.span() == span)
+                    });
+                    let binding = *bindings.next()?;
+                    bindings.next().is_none().then_some(binding)
                 };
-                let expression = parsed.ast().expressions().get(*initializer).ok()?;
-                let binding = formed_local(*span)?;
-                let initializer = UnitExpressionId::new(unit, *initializer);
-                let (expected, role) = match expression.payload() {
-                    Expression::String { .. } => (BuiltinType::String, None),
-                    Expression::Literal(LiteralKind::Integer(_)) => (BuiltinType::Int, Some(0)),
-                    Expression::Literal(LiteralKind::Boolean(_)) => (BuiltinType::Boolean, Some(1)),
-                    _ => return None,
-                };
-                let expected = UnitTypeKind::Builtin(expected);
-                if typed
-                    .types()
-                    .expression_type(initializer)
-                    .and_then(|ty| typed.types().types().get(ty))
-                    != Some(&expected)
-                    || typed
+                let mut named = Vec::new();
+                let mut locals = [None, None];
+                let mut initialization_order = Vec::new();
+                for statement in declarations {
+                    let Statement::LocalVariable { declaration } =
+                        parsed.ast().statements().get(*statement).ok()?.payload()
+                    else {
+                        return None;
+                    };
+                    let Item::Variable {
+                        kind: VariableKind::Val,
+                        name: NameMarker::Present(span),
+                        initializer,
+                        ..
+                    } = parsed.ast().items().get(*declaration).ok()?.payload()
+                    else {
+                        return None;
+                    };
+                    let expression = parsed.ast().expressions().get(*initializer).ok()?;
+                    let binding = formed_local(*span)?;
+                    let initializer = UnitExpressionId::new(unit, *initializer);
+                    let (expected, role) = match expression.payload() {
+                        Expression::String { .. } => (BuiltinType::String, None),
+                        Expression::Literal(LiteralKind::Integer(_)) => (BuiltinType::Int, Some(0)),
+                        Expression::Literal(LiteralKind::Boolean(_)) => {
+                            (BuiltinType::Boolean, Some(1))
+                        }
+                        _ => return None,
+                    };
+                    let expected = UnitTypeKind::Builtin(expected);
+                    if typed
                         .types()
-                        .symbol_type(binding)
+                        .expression_type(initializer)
                         .and_then(|ty| typed.types().types().get(ty))
                         != Some(&expected)
-                {
-                    return None;
-                }
-                if let Some(role) = role {
-                    if locals[role].replace((binding, initializer)).is_some() {
-                        return None;
-                    }
-                    initialization_order.push(if role == 0 {
-                        EntryInitialization::Rounds
-                    } else {
-                        EntryInitialization::Choose
-                    });
-                } else {
-                    if named.iter().any(|(root, _, _, _)| *root == binding) {
-                        return None;
-                    }
-                    let bytes = plain_string(sources, expression.payload())?;
-                    named.push((binding, initializer, expression.span(), bytes));
-                    initialization_order.push(EntryInitialization::Named(binding));
-                }
-            }
-
-            let call_id = UnitExpressionId::new(unit, expression);
-            let call = typed.types().call(call_id)?;
-            if call.receiver().is_some() || !call.instance().type_arguments().is_empty() {
-                return None;
-            }
-            let UnitCallTarget::Declaration(target) = call.target() else {
-                return None;
-            };
-            let mut matching_shells = shells
-                .iter()
-                .flatten()
-                .filter(|shell| shell.callable() == target);
-            let parameter_roles = matching_shells.next()?.roles();
-            if matching_shells.next().is_some() {
-                return None;
-            }
-            let contracts: [UnitCallArgumentOwnershipContract; 4] = owned
-                .call_argument_contracts_for(call_id)
-                .copied()
-                .collect::<Vec<_>>()
-                .try_into()
-                .ok()?;
-            if call.arguments().len() != 4 {
-                return None;
-            }
-            let mut argument_positions = [0; 4];
-            for (role, parameter) in parameter_roles.iter().enumerate() {
-                let mut matching = contracts
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, contract)| contract.parameter_index() == *parameter);
-                argument_positions[role] = matching.next()?.0;
-                if matching.next().is_some() {
-                    return None;
-                }
-            }
-            let role_at = |index| {
-                argument_positions
-                    .iter()
-                    .position(|position| *position == index)
-            };
-            let mut temporary_arguments = Vec::new();
-            let mut scalar_initializers = [None, None];
-            let mut temporary_scalars = [None, None];
-            for (i, c) in contracts.iter().enumerate() {
-                if c.parameter_index() != call.arguments()[i].parameter_index()
-                    || contracts
-                        .iter()
-                        .filter(|other| other.argument() == c.argument())
-                        .count()
-                        != 1
-                    || c.kind() != UnitCallArgumentOwnershipKind::SharedLoan
-                    || c.crosses_thread()
-                    || call.arguments()[i].argument_index() != i
-                    || call.arguments()[i].parameter_type() != c.parameter_type()
-                {
-                    return None;
-                }
-                let node = parsed
-                    .ast()
-                    .expressions()
-                    .get(c.argument().expression())
-                    .ok()?;
-                if role_at(i)? < 2 {
-                    match node.payload() {
-                        Expression::Name if !named.is_empty() => {}
-                        Expression::String { .. } if named.len() <= 1 => {
-                            temporary_arguments.push((i, plain_string(sources, node.payload())?));
-                        }
-                        _ => return None,
-                    }
-                } else {
-                    let scalar = role_at(i)? - 2;
-                    let expected = UnitTypeKind::Builtin(if scalar == 0 {
-                        BuiltinType::Int
-                    } else {
-                        BuiltinType::Boolean
-                    });
-                    let ty = typed.types().expression_type(c.argument())?;
-                    if typed.types().types().get(ty) != Some(&expected) || c.parameter_type() != ty
+                        || typed
+                            .types()
+                            .symbol_type(binding)
+                            .and_then(|ty| typed.types().types().get(ty))
+                            != Some(&expected)
                     {
                         return None;
                     }
-                    scalar_initializers[scalar] = Some(match (node.payload(), locals[scalar]) {
-                        (Expression::Name, Some((_, initializer))) => initializer,
-                        (Expression::Literal(LiteralKind::Integer(_)), None) if scalar == 0 => {
-                            temporary_scalars[scalar] = Some(c.argument());
-                            c.argument()
+                    if let Some(role) = role {
+                        if locals[role].replace((binding, initializer)).is_some() {
+                            return None;
                         }
-                        (Expression::Literal(LiteralKind::Boolean(_)), None) if scalar == 1 => {
-                            temporary_scalars[scalar] = Some(c.argument());
-                            c.argument()
+                        initialization_order.push(if role == 0 {
+                            EntryInitialization::Rounds
+                        } else {
+                            EntryInitialization::Choose
+                        });
+                    } else {
+                        if named.iter().any(|(root, _, _, _)| *root == binding) {
+                            return None;
                         }
-                        _ => return None,
-                    });
+                        let bytes = plain_string(sources, expression.payload())?;
+                        named.push((binding, initializer, expression.span(), bytes));
+                        initialization_order.push(EntryInitialization::Named(binding));
+                    }
                 }
-            }
-            let ends: [UnitDirectCallLoanEndFact; 4] = owned
-                .direct_call_loan_ends()
-                .iter()
-                .filter(|e| e.loan().call() == call_id)
-                .cloned()
-                .collect::<Vec<_>>()
-                .try_into()
-                .ok()?;
-            for (i, c) in contracts.iter().enumerate() {
-                let mut matching = ends.iter().filter(|e| e.loan().argument() == c.argument());
-                let end = matching.next()?;
-                if matching.next().is_some()
-                    || end.point() != UnitDropPoint::CallReturn(call_id)
-                    || end.preceding_drops() != 0
-                    || end.loan().kind() != crate::ownership_checking::LoanKind::Shared
-                {
+
+                let call_id = UnitExpressionId::new(unit, expression);
+                let call = typed.types().call(call_id)?;
+                if call.receiver().is_some() || !call.instance().type_arguments().is_empty() {
                     return None;
                 }
-                let role = role_at(i)?;
-                match (role, end.loan().target()) {
-                    (0 | 1, UnitLoanTarget::Temporary(owner))
-                        if temporary_arguments.iter().any(|(index, _)| *index == i)
-                            && *owner == c.argument() => {}
-                    (0 | 1, UnitLoanTarget::Place(place))
-                        if !temporary_arguments.iter().any(|(index, _)| *index == i)
-                            && named.iter().any(|n| place.is_root() && place.root() == n.0) => {}
-                    (2 | 3, UnitLoanTarget::Place(place))
-                        if locals[role - 2]
-                            .is_some_and(|(root, _)| place.is_root() && place.root() == root) => {}
-                    (2 | 3, UnitLoanTarget::Temporary(owner))
-                        if temporary_scalars[role - 2] == Some(c.argument())
-                            && *owner == c.argument() => {}
-                    _ => return None,
-                }
-            }
-            for (position, end) in ends.iter().enumerate() {
-                if end.preceding_call_loan_ends() != position {
+                let UnitCallTarget::Declaration(target) = call.target() else {
+                    return None;
+                };
+                let mut matching_shells = shells
+                    .iter()
+                    .flatten()
+                    .filter(|shell| shell.callable() == target);
+                let parameter_roles = matching_shells.next()?.roles();
+                if matching_shells.next().is_some() {
                     return None;
                 }
-            }
-            let drops: Vec<_> = owned
-                .drops()
-                .iter()
-                .filter(|d| d.point() == UnitDropPoint::CallReturn(call_id))
-                .copied()
-                .collect();
-            let storage = if named.len() == 1 && temporary_arguments.len() == 1 {
-                let (temporary_index, temporary) = temporary_arguments.pop()?;
-                let temporary_target =
-                    UnitDropTarget::Temporary(contracts[temporary_index].argument());
-                let named_target = UnitDropTarget::Named(named[0].0);
-                let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
-                for target in [named_target, temporary_target] {
-                    if drops.iter().filter(|drop| drop.target() == target).count() != 1
-                        || owned
-                            .drops()
+                let contracts: [UnitCallArgumentOwnershipContract; 4] = owned
+                    .call_argument_contracts_for(call_id)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .ok()?;
+                if call.arguments().len() != 4 {
+                    return None;
+                }
+                let mut argument_positions = [0; 4];
+                for (role, parameter) in parameter_roles.iter().enumerate() {
+                    let mut matching = contracts
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, contract)| contract.parameter_index() == *parameter);
+                    argument_positions[role] = matching.next()?.0;
+                    if matching.next().is_some() {
+                        return None;
+                    }
+                }
+                let role_at = |index| {
+                    argument_positions
+                        .iter()
+                        .position(|position| *position == index)
+                };
+                let mut temporary_arguments = Vec::new();
+                let mut scalar_initializers = [None, None];
+                let mut temporary_scalars = [None, None];
+                for (i, c) in contracts.iter().enumerate() {
+                    if c.parameter_index() != call.arguments()[i].parameter_index()
+                        || contracts
                             .iter()
-                            .filter(|drop| drop.target() == target)
+                            .filter(|other| other.argument() == c.argument())
                             .count()
                             != 1
+                        || c.kind() != UnitCallArgumentOwnershipKind::SharedLoan
+                        || c.crosses_thread()
+                        || call.arguments()[i].argument_index() != i
+                        || call.arguments()[i].parameter_type() != c.parameter_type()
                     {
                         return None;
                     }
+                    let node = parsed
+                        .ast()
+                        .expressions()
+                        .get(c.argument().expression())
+                        .ok()?;
+                    if role_at(i)? < 2 {
+                        match node.payload() {
+                            Expression::Name if !named.is_empty() => {}
+                            Expression::String { .. } if named.len() <= 1 => {
+                                temporary_arguments
+                                    .push((i, plain_string(sources, node.payload())?));
+                            }
+                            _ => return None,
+                        }
+                    } else {
+                        let scalar = role_at(i)? - 2;
+                        let expected = UnitTypeKind::Builtin(if scalar == 0 {
+                            BuiltinType::Int
+                        } else {
+                            BuiltinType::Boolean
+                        });
+                        let ty = typed.types().expression_type(c.argument())?;
+                        if typed.types().types().get(ty) != Some(&expected)
+                            || c.parameter_type() != ty
+                        {
+                            return None;
+                        }
+                        scalar_initializers[scalar] =
+                            Some(match (node.payload(), locals[scalar]) {
+                                (Expression::Name, Some((_, initializer))) => initializer,
+                                (Expression::Literal(LiteralKind::Integer(_)), None)
+                                    if scalar == 0 =>
+                                {
+                                    temporary_scalars[scalar] = Some(c.argument());
+                                    c.argument()
+                                }
+                                (Expression::Literal(LiteralKind::Boolean(_)), None)
+                                    if scalar == 1 =>
+                                {
+                                    temporary_scalars[scalar] = Some(c.argument());
+                                    c.argument()
+                                }
+                                _ => return None,
+                            });
+                    }
                 }
-                let other_role = 1usize.checked_sub(role_at(temporary_index)?)?;
-                let named_argument = &contracts[argument_positions[other_role]];
-                if !ends.iter().any(|end| {
-                    end.loan().argument() == named_argument.argument()
-                        && matches!(end.loan().target(), UnitLoanTarget::Place(place)
+                let ends: [UnitDirectCallLoanEndFact; 4] = owned
+                    .direct_call_loan_ends()
+                    .iter()
+                    .filter(|e| e.loan().call() == call_id)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .ok()?;
+                for (i, c) in contracts.iter().enumerate() {
+                    let mut matching = ends.iter().filter(|e| e.loan().argument() == c.argument());
+                    let end = matching.next()?;
+                    if matching.next().is_some()
+                        || end.point() != UnitDropPoint::CallReturn(call_id)
+                        || end.preceding_drops() != 0
+                        || end.loan().kind() != crate::ownership_checking::LoanKind::Shared
+                    {
+                        return None;
+                    }
+                    let role = role_at(i)?;
+                    match (role, end.loan().target()) {
+                        (0 | 1, UnitLoanTarget::Temporary(owner))
+                            if temporary_arguments.iter().any(|(index, _)| *index == i)
+                                && *owner == c.argument() => {}
+                        (0 | 1, UnitLoanTarget::Place(place))
+                            if !temporary_arguments.iter().any(|(index, _)| *index == i)
+                                && named.iter().any(|n| place.is_root() && place.root() == n.0) => {
+                        }
+                        (2 | 3, UnitLoanTarget::Place(place))
+                            if locals[role - 2].is_some_and(|(root, _)| {
+                                place.is_root() && place.root() == root
+                            }) => {}
+                        (2 | 3, UnitLoanTarget::Temporary(owner))
+                            if temporary_scalars[role - 2] == Some(c.argument())
+                                && *owner == c.argument() => {}
+                        _ => return None,
+                    }
+                }
+                for (position, end) in ends.iter().enumerate() {
+                    if end.preceding_call_loan_ends() != position {
+                        return None;
+                    }
+                }
+                let drops: Vec<_> = owned
+                    .drops()
+                    .iter()
+                    .filter(|d| d.point() == UnitDropPoint::CallReturn(call_id))
+                    .copied()
+                    .collect();
+                let storage = if named.len() == 1 && temporary_arguments.len() == 1 {
+                    let (temporary_index, temporary) = temporary_arguments.pop()?;
+                    let temporary_target =
+                        UnitDropTarget::Temporary(contracts[temporary_index].argument());
+                    let named_target = UnitDropTarget::Named(named[0].0);
+                    let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
+                    for target in [named_target, temporary_target] {
+                        if drops.iter().filter(|drop| drop.target() == target).count() != 1
+                            || owned
+                                .drops()
+                                .iter()
+                                .filter(|drop| drop.target() == target)
+                                .count()
+                                != 1
+                        {
+                            return None;
+                        }
+                    }
+                    let other_role = 1usize.checked_sub(role_at(temporary_index)?)?;
+                    let named_argument = &contracts[argument_positions[other_role]];
+                    if !ends.iter().any(|end| {
+                        end.loan().argument() == named_argument.argument()
+                            && matches!(end.loan().target(), UnitLoanTarget::Place(place)
                         if place.is_root() && place.root() == named[0].0)
-                }) {
-                    return None;
-                }
-                StringStorage::Mixed {
-                    owner: named.into_iter().next()?,
-                    temporary_index,
-                    temporary,
-                    drops,
-                }
-            } else if named.len() == 2 {
-                let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
-                for (root, _, _, _) in &named {
-                    let argument_count = argument_positions[..2]
-                        .iter()
-                        .map(|index| &contracts[*index])
-                        .filter(|contract| {
-                            ends.iter().any(|end| {
+                    }) {
+                        return None;
+                    }
+                    StringStorage::Mixed {
+                        owner: named.into_iter().next()?,
+                        temporary_index,
+                        temporary,
+                        drops,
+                    }
+                } else if named.len() == 2 {
+                    let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
+                    for (root, _, _, _) in &named {
+                        let argument_count = argument_positions[..2]
+                            .iter()
+                            .map(|index| &contracts[*index])
+                            .filter(|contract| {
+                                ends.iter().any(|end| {
                                 end.loan().argument() == contract.argument()
                                     && matches!(end.loan().target(), UnitLoanTarget::Place(place)
                                     if place.is_root() && place.root() == *root)
                             })
-                        })
-                        .count();
-                    if argument_count != 1
-                        || drops
-                            .iter()
-                            .filter(|drop| drop.target() == UnitDropTarget::Named(*root))
-                            .count()
-                            != 1
+                            })
+                            .count();
+                        if argument_count != 1
+                            || drops
+                                .iter()
+                                .filter(|drop| drop.target() == UnitDropTarget::Named(*root))
+                                .count()
+                                != 1
+                            || owned
+                                .drops()
+                                .iter()
+                                .filter(|drop| drop.target() == UnitDropTarget::Named(*root))
+                                .count()
+                                != 1
+                        {
+                            return None;
+                        }
+                    }
+                    StringStorage::DistinctNamed {
+                        owners: named.try_into().ok()?,
+                        drops,
+                    }
+                } else if let Some((root, initializer, span, bytes)) = named.into_iter().next() {
+                    if !temporary_arguments.is_empty() {
+                        return None;
+                    }
+                    let [drop] = drops.as_slice() else {
+                        return None;
+                    };
+                    if drop.target() != UnitDropTarget::Named(root)
                         || owned
                             .drops()
                             .iter()
-                            .filter(|drop| drop.target() == UnitDropTarget::Named(*root))
+                            .filter(|d| d.target() == UnitDropTarget::Named(root))
                             .count()
                             != 1
                     {
                         return None;
                     }
-                }
-                StringStorage::DistinctNamed {
-                    owners: named.try_into().ok()?,
-                    drops,
-                }
-            } else if let Some((root, initializer, span, bytes)) = named.into_iter().next() {
-                if !temporary_arguments.is_empty() {
-                    return None;
-                }
-                let [drop] = drops.as_slice() else {
-                    return None;
-                };
-                if drop.target() != UnitDropTarget::Named(root)
-                    || owned
-                        .drops()
-                        .iter()
-                        .filter(|d| d.target() == UnitDropTarget::Named(root))
-                        .count()
-                        != 1
-                {
-                    return None;
-                }
-                StringStorage::Named {
-                    root,
-                    initializer,
-                    span,
-                    bytes,
-                    drop: *drop,
-                }
-            } else {
-                let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
-                for c in argument_positions[..2]
-                    .iter()
-                    .map(|index| &contracts[*index])
-                {
-                    if drops
-                        .iter()
-                        .filter(|d| d.target() == UnitDropTarget::Temporary(c.argument()))
-                        .count()
-                        != 1
-                    {
-                        return None;
+                    StringStorage::Named {
+                        root,
+                        initializer,
+                        span,
+                        bytes,
+                        drop: *drop,
                     }
-                }
-                let strings: [Vec<u8>; 2] = argument_positions[..2]
-                    .iter()
-                    .map(|index| &contracts[*index])
-                    .map(|c| {
-                        plain_string(
-                            sources,
-                            parsed
-                                .ast()
-                                .expressions()
-                                .get(c.argument().expression())
-                                .ok()?
-                                .payload(),
-                        )
-                    })
-                    .collect::<Option<Vec<_>>>()?
-                    .try_into()
-                    .ok()?;
-                StringStorage::Temporary { strings, drops }
-            };
-            let initializers = [scalar_initializers[0]?, scalar_initializers[1]?];
-            let initializer_spans = [
-                parsed
+                } else {
+                    let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
+                    for c in argument_positions[..2]
+                        .iter()
+                        .map(|index| &contracts[*index])
+                    {
+                        if drops
+                            .iter()
+                            .filter(|d| d.target() == UnitDropTarget::Temporary(c.argument()))
+                            .count()
+                            != 1
+                        {
+                            return None;
+                        }
+                    }
+                    let strings: [Vec<u8>; 2] = argument_positions[..2]
+                        .iter()
+                        .map(|index| &contracts[*index])
+                        .map(|c| {
+                            plain_string(
+                                sources,
+                                parsed
+                                    .ast()
+                                    .expressions()
+                                    .get(c.argument().expression())
+                                    .ok()?
+                                    .payload(),
+                            )
+                        })
+                        .collect::<Option<Vec<_>>>()?
+                        .try_into()
+                        .ok()?;
+                    StringStorage::Temporary { strings, drops }
+                };
+                let initializers = [scalar_initializers[0]?, scalar_initializers[1]?];
+                let initializer_spans = [
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(initializers[0].expression())
+                        .ok()?
+                        .span(),
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(initializers[1].expression())
+                        .ok()?
+                        .span(),
+                ];
+                let Expression::Literal(LiteralKind::Integer(kind)) = parsed
                     .ast()
                     .expressions()
                     .get(initializers[0].expression())
                     .ok()?
-                    .span(),
-                parsed
+                    .payload()
+                else {
+                    return None;
+                };
+                let magnitude = crate::type_checking::integer_literal_magnitude(
+                    sources.slice(initializer_spans[0]).ok()?,
+                    *kind,
+                )?;
+                let rounds = i32::try_from(magnitude).ok()?;
+                let Expression::Literal(LiteralKind::Boolean(choose)) = parsed
                     .ast()
                     .expressions()
                     .get(initializers[1].expression())
                     .ok()?
-                    .span(),
-            ];
-            let Expression::Literal(LiteralKind::Integer(kind)) = parsed
-                .ast()
-                .expressions()
-                .get(initializers[0].expression())
-                .ok()?
-                .payload()
-            else {
-                return None;
+                    .payload()
+                else {
+                    return None;
+                };
+                Some(EntryCallDescriptor {
+                    storage,
+                    rounds,
+                    choose: *choose,
+                    initializer_spans,
+                    instance: call.instance().clone(),
+                    parameter_roles,
+                    initializers,
+                    temporary_scalars,
+                    initialization_order,
+                    contracts,
+                    ends,
+                })
             };
-            let magnitude = crate::type_checking::integer_literal_magnitude(
-                sources.slice(initializer_spans[0]).ok()?,
-                *kind,
-            )?;
-            let rounds = i32::try_from(magnitude).ok()?;
-            let Expression::Literal(LiteralKind::Boolean(choose)) = parsed
-                .ast()
-                .expressions()
-                .get(initializers[1].expression())
-                .ok()?
-                .payload()
-            else {
-                return None;
+            let first = collect_call(expressions[0]?)?;
+            let calls = if let Some(second_id) = expressions[1] {
+                let second = collect_call(second_id)?;
+                if first.instance() != second.instance()
+                    || first.contracts()[0].call() == second.contracts()[0].call()
+                    || !first.initialization_order().is_empty()
+                    || !second.initialization_order().is_empty()
+                    || !first.named_strings().is_empty()
+                    || !second.named_strings().is_empty()
+                    || [first.contracts()[0].call(), second.contracts()[0].call()]
+                        .iter()
+                        .any(|call| call.source_unit() != unit)
+                {
+                    return None;
+                }
+                EntryCalls::Pair(Box::new([first, second]))
+            } else {
+                EntryCalls::Single(Box::new(first))
             };
             Some(EntryDescriptor {
                 identity: Rc::new(()),
-                storage,
-                rounds,
-                choose: *choose,
-                initializer_spans,
                 entry: declaration.id(),
                 body: body_span,
-                instance: call.instance().clone(),
-                parameter_roles,
-                initializers,
-                temporary_scalars,
-                initialization_order,
-                contracts,
-                ends,
+                calls,
             })
         })
         .collect()
