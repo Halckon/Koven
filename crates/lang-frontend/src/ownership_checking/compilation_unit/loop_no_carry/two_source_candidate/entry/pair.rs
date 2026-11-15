@@ -91,7 +91,17 @@ pub(super) fn finish(
                 }
             } else {
                 let [owner]: [_; 1] = owners.try_into().ok()?;
-                shared_pair::finish(owner, first, second, owned)
+                if matches!(
+                    (&first.storage, &second.storage),
+                    (
+                        StringStorage::SharedRoot { .. },
+                        StringStorage::SharedMixed { .. }
+                    )
+                ) {
+                    late_temporary_shared_pair::finish(owner, first, second, owned)
+                } else {
+                    shared_pair::finish(owner, first, second, owned)
+                }
             }
         } else {
             Some(EntryCalls::Pair(Box::new([first, second])))

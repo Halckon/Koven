@@ -20760,3 +20760,17 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 新 3 目标正式/三 feature 各 3/3 通过，9 域外精准分类与 legacy 真拒已执行；
   旧 joint-final 3 + 迁移负控 1 全过，双 crate all-targets 三 feature strict 通过（1m44）。
   CI 70 unit/配置；初正式输出的无行为括号 warning 已移除，未执行 native/故障注入。
+
+
+### E2 共享根的第二调用晚 temporary（已定向验收）
+
+- 基 f1d74d30，same FullKey/空 typeargs，exact 一个 plain String val 加两个 call：
+  首两 String 实参同 Name，次一同 Name/一裸 String，scalar 裸 literal。
+- 原普通两 case（temp 左右、具名、samebytes）通过：8 完整 End、首 Drop[]、末完整
+  [temp,named] 原序、两 target 全局唯一及 nameSpan；闭合同 shell 两 case 准确 Unsupported2 红。
+- 私有 LateTemporarySharedPair 仅授权 SharedRoot→SharedMixed，原初始化和 End/Drop 全保；
+  replay 仅对该 marker 接受 [0,1] temporary 计数，32 为辅助，原 cursor 独立逐项复核。
+  反向 [1,0] 与一般 body 不放宽；不改 emit 的逐 occurrence 操作。
+- 新三目标正式/三 feature 各 3/3 通过，8 域外精准分类；旧 shared 3 + mixed 3 全过，
+  包含旧混合负例迁计算 scalar。双 crate all-targets 三 feature strict 通过（1m45），
+  CI73；未运行 native/故障注入。

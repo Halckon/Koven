@@ -8,6 +8,7 @@ mod different_shared_pair;
 mod different_staggered_pair;
 mod joint_final_pair;
 mod late_pair;
+mod late_temporary_shared_pair;
 mod owner;
 mod pair;
 mod shared_pair;
@@ -74,6 +75,10 @@ enum EntryCalls {
         calls: Box<[EntryCallDescriptor; 2]>,
     },
     DifferentSharedNamedPair {
+        owner: Box<EntryOwnerDescriptor>,
+        calls: Box<[EntryCallDescriptor; 2]>,
+    },
+    LateTemporarySharedPair {
         owner: Box<EntryOwnerDescriptor>,
         calls: Box<[EntryCallDescriptor; 2]>,
     },
@@ -311,6 +316,7 @@ impl EntryDescriptor {
             EntryCalls::Single(call) => std::slice::from_ref(call.as_ref()),
             EntryCalls::Pair(calls)
             | EntryCalls::SharedNamedPair { calls, .. }
+            | EntryCalls::LateTemporarySharedPair { calls, .. }
             | EntryCalls::DifferentSharedNamedPair { calls, .. }
             | EntryCalls::DifferentSharedMixedPair { calls, .. }
             | EntryCalls::StaggeredNamedPair { calls, .. }
@@ -359,7 +365,8 @@ impl EntryDescriptor {
     ) -> Option<(UnitSymbolId, UnitExpressionId, Span, &[u8], &UnitDropFact)> {
         let (EntryCalls::SharedNamedPair { owner, .. }
         | EntryCalls::DifferentSharedNamedPair { owner, .. }
-        | EntryCalls::DifferentSharedMixedPair { owner, .. }) = &self.calls
+        | EntryCalls::DifferentSharedMixedPair { owner, .. }
+        | EntryCalls::LateTemporarySharedPair { owner, .. }) = &self.calls
         else {
             return None;
         };
@@ -370,6 +377,10 @@ impl EntryDescriptor {
             &owner.bytes,
             &owner.drop,
         ))
+    }
+    /// Exact shared-only first call followed by one call-local temporary.
+    pub fn is_late_temporary_shared_pair(&self) -> bool {
+        matches!(self.calls, EntryCalls::LateTemporarySharedPair { .. })
     }
     /// Privately proven exact pair of fully temporary calls to two closed distinct instances.
     pub fn is_different_temporary_pair(&self) -> bool {

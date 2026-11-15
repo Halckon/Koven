@@ -175,7 +175,7 @@ fn shared_mixed_pair_rejects_asymmetric_or_uncovered_lifetimes() {
         .replace("fun run(", "fun other(");
     for (body, extra) in [
         (
-            format!("val owner=\"shared\";run(owner,owner,1,false);{SECOND}"),
+            format!("val owner=\"shared\";run(owner,owner,1+1,false);{SECOND}"),
             "",
         ),
         (
