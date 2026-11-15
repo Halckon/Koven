@@ -1,0 +1,46 @@
+// 析构的三项性质（评审 R3）：可否提前、可否遗忘、可否隐式析构；类型参数默认要求后两项
+class Guard(n: Int) deinit
+class Scope(n: Int) deinit unforgettable
+class Ticket(n: Int) consume
+class Broken(n: Int) unforgettable  // ERR
+class HoldsScope(s: Scope, n: Int)
+class HoldsTicket(t: Ticket)
+class Linear(n: Int) deinit unforgettable consume
+class Leaky(s: Rc<Scope>)  // ERR
+class Shared(g: Rc<Guard>)
+class Generic<T>(item: Rc<T>)
+class Loose<T: ?Forgettable>(item: Rc<T>)  // ERR
+class Owner<T: ?Forgettable + ?ImplicitDrop>(item: Box<T>)
+expect EarlyDrop Guard = no
+expect Forgettable Guard = yes
+expect ImplicitDrop Guard = yes
+expect EarlyDrop Scope = no
+expect Forgettable Scope = no
+expect ImplicitDrop Scope = yes
+expect Forgettable Ticket = yes
+expect ImplicitDrop Ticket = no
+expect EarlyDrop Ticket = no
+expect EarlyDrop HoldsTicket = no
+expect Forgettable HoldsScope = no
+expect why Forgettable HoldsScope = HoldsScope.s -> Scope（声明使它不满足 Forgettable）
+expect ImplicitDrop HoldsTicket = no
+expect Forgettable Linear = no
+expect ImplicitDrop Linear = no
+expect wf Rc<Scope> = no
+expect wf Rc<Guard> = yes
+expect wf Box<Scope> = yes
+expect wf List<Rc<Scope>> = no
+expect wf Generic<Scope> = no
+expect wf Generic<Guard> = yes
+expect wf Generic<Ticket> = no
+expect wf Owner<Scope> = yes
+expect wf Owner<Ticket> = yes
+expect Forgettable Owner = if T: Forgettable
+expect Forgettable Owner<Scope> = no
+expect wf List<Scope> = yes
+expect wf Rc<Ticket> = no
+expect wf Box<Ticket> = yes
+expect EarlyDrop Any = no
+expect Transferable Any = no
+expect Forgettable Any = yes
+expect wf Rc<Any> = yes

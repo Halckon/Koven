@@ -1,0 +1,15 @@
+// 类型参数默认带 Escapable 上界：容器不放开就装不了视图
+class Arr(len: Int)
+view class Slice(borrow a: Arr)
+class Bag<T>(item: T)
+view class ViewBag<view T>(item: T)
+class Wrong<view T>(item: T)  // ERR
+class Hidden(s: Slice)  // ERR
+expect wf Bag<Arr> = yes
+expect wf Bag<Slice> = no
+expect wf List<Slice> = no
+expect wf ViewBag<Slice> = yes
+expect Escapable ViewBag = if T: Escapable
+expect Escapable ViewBag<Slice> = no
+expect Escapable ViewBag<Arr> = yes
+expect Escapable Wrong<Slice> = no
