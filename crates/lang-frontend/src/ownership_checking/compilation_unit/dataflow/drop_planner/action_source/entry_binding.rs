@@ -2,7 +2,7 @@
 use super::*;
 use crate::{
     ownership_checking::compilation_unit::d10_catalog_experiment::{
-        EntryBindingEvidence, EntryBindingUse,
+        EntryBindingEvidence, EntryBindingScalar, EntryBindingUse,
     },
     ownership_checking::{UnitBorrowBindingTransportFact, UnitLoanActionId},
     type_checking::{UnitExpressionId, UnitItemId},
@@ -10,6 +10,7 @@ use crate::{
 pub(in crate::ownership_checking::compilation_unit::dataflow::drop_planner) struct Retiring<'a> {
     pub callable: UnitItemId,
     pub consumers: &'a [UnitExpressionId],
+    pub scalar: Option<&'a EntryBindingScalar>,
     pub transaction: &'a UnitBorrowBindingTransportFact,
     pub source: Option<&'a ActionHandle>,
     pub handoff: Option<&'a ActionHandle>,
@@ -25,6 +26,7 @@ impl ActionSource {
         let Retiring {
             callable,
             consumers,
+            scalar,
             transaction,
             source,
             handoff,
@@ -72,6 +74,7 @@ impl ActionSource {
             consumer,
             transaction: transaction.clone(),
             uses,
+            scalar: scalar.cloned(),
             source_begin: source_id,
             handoff: handoff_id,
             binding_end: end_id,

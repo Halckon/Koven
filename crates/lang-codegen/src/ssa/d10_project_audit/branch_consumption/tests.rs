@@ -57,7 +57,15 @@ fn run_entry(
     wrapper_entry: bool,
     extra_parameter: bool,
 ) -> Vec<BranchConsumption> {
-    run_entry_uses(tail, reverse, wrapper_entry, extra_parameter, false, false)
+    run_entry_uses(
+        tail,
+        reverse,
+        wrapper_entry,
+        extra_parameter,
+        false,
+        false,
+        None,
+    )
 }
 fn run_entry_uses(
     tail: bool,
@@ -66,6 +74,7 @@ fn run_entry_uses(
     extra_parameter: bool,
     twice: bool,
     distinct: bool,
+    scalar: Option<i128>,
 ) -> Vec<BranchConsumption> {
     let mut sources = SourceMap::new();
     let (provider_id, provider) = unit_lower_test_support::parsed(
@@ -110,6 +119,14 @@ fn run_entry_uses(
     } else {
         text
     };
+    let text = if let Some(value) = scalar {
+        text.replace(
+            "consume(item);",
+            &format!("consume(item); val independent = {value};"),
+        )
+    } else {
+        text
+    };
     let (caller_id, caller) = unit_lower_test_support::parsed(&mut sources, "caller.ko", &text);
     let mut inputs = [
         SourceUnitInput::new("root", "provider.ko", provider_id, &provider),
@@ -137,6 +154,7 @@ fn run_entry_uses(
         use lang_frontend::ownership_checking::UnitLoanAction;
         assert!(observation.owns_entry_binding_evidence(evidence));
         assert!(!evidence.ambiguous_use());
+        assert_eq!(evidence.scalar().map(|s| s.value()), scalar);
         assert_eq!(evidence.uses().len(), if twice { 2 } else { 1 });
         let ordinal = |id| {
             (0..observation.actions().len())
@@ -247,7 +265,29 @@ fn run_entry_uses(
                 .find(|f| f.id == entry_function)
                 .unwrap();
             assert_eq!(caller.blocks.len(), 1);
-            assert_eq!(caller.instructions.len(), if twice { 9 } else { 8 });
+            if let Some(value) = scalar {
+                let constants: Vec<_> = caller
+                    .instructions
+                    .iter()
+                    .filter_map(|i| match i.operation {
+                        Operation::Constant(crate::ssa::model::ScalarConstant::Integer(v)) => {
+                            Some(v)
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(constants, [value]);
+            }
+            assert_eq!(
+                caller.instructions.len(),
+                if scalar.is_some() {
+                    10
+                } else if twice {
+                    9
+                } else {
+                    8
+                }
+            );
             assert_eq!(
                 caller
                     .instructions
@@ -447,7 +487,10 @@ fn entry_lifetime_keeps_unsupported_transfer_and_lifetime_gaps() {
     for body in [
         r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); return"#,
         r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); consume(item); consume(item)"#,
-        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); val n=1; consume(item)"#,
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); val n=1; val m=2; consume(item)"#,
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); var n=1; consume(item)"#,
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); val n=flag; consume(item)"#,
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); val n=consume(item); consume(item)"#,
         r#"val owner="kept"; borrow val item=wrap(owner,flag); if(flag){consume(item)}else{consume(item)}"#,
     ] {
         let mut sources = SourceMap::new();
@@ -544,7 +587,21 @@ fn two_ordered_consumers_share_result_until_single_retirement() {
     for distinct in [false, true] {
         for reverse in [false, true] {
             for tail in [false, true] {
-                let audits = run_entry_uses(tail, reverse, false, false, true, distinct);
+                let audits = run_entry_uses(tail, reverse, false, false, true, distinct, None);
+                assert_eq!(audits.len(), 2);
+                assert!(audits.iter().all(|a| a.gaps.is_empty()));
+            }
+        }
+    }
+}
+
+#[test]
+fn scalar_definition_preserves_live_result_between_ordered_consumers() {
+    for value in [0, 17, 2147483647] {
+        for reverse in [false, true] {
+            for distinct in [false, true] {
+                let audits =
+                    run_entry_uses(false, reverse, false, false, true, distinct, Some(value));
                 assert_eq!(audits.len(), 2);
                 assert!(audits.iter().all(|a| a.gaps.is_empty()));
             }

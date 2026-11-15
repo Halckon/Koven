@@ -19726,3 +19726,27 @@ Unsupported span 拒绝且无成功 audit。原单次八指令形状回归保持
 三 feature all-targets 严格 Clippy 与默认 all-targets check 通过；fmt/diff/docs（958）
 及相对 `82b89268` 尺寸门禁（2361 Rust、37 历史超限）通过。独立静审无生产阻断；
 没有新增准入、native 执行、故障注入、推送或远端 CI 声明。
+
+
+### D10 活跃借用跨独立 Int 定义（2026-11-15）
+
+在 `c23af6fa` 单/双消费者基线上，仅新增精确 owner / bind / use0 / `val n=Int literal`
+/ use1 五语句域，不将消费者数量增加至三。原前端选择 statement、declaration、initializer、
+symbol、typed Int 与 `integer_literal_magnitude` 原值，同 catalog 保留；负号 Unary、
+var、资源或效果 initializer、两个标量以及原控制流不纳入。
+
+实际 local producer 记录 Constant 与 Alias 两个 RStmt 的起止、原 initializer/declaration
+和 symbol→Slot，机械 emitter 将 Constant 连到真实 Value，下一消费者映射核 Alias 与
+同一 Value。Alias 不产生 SSA 指令，因此 use/retire 的 RStmt 坐标增二，但完整 caller
+仅从九增至十条 SSA 指令；两 consumer 共用原 result loan，第二次后才结束 result/source
+和原 owner Drop。完整最终 instruction/entity/Definition/Return 闭合继续保留，不从
+最终 IR 反推源 literal 或生产点，不增旧 catalog 动作或 Complete 权限。
+
+末版增量 8/8 通过：标量值 0/17/2147483647、同/不同 consumer callee、两源反序、
+同 observe 两次独立 assembly 均核原值及完整十指令 caller，单/双无穿插形状回归保持。
+两个标量、var、Name initializer、效果调用 initializer 与第三次消费均真实 lower/verifier
+成功，保精确 run→wrap 边与 lifetime gap；return/条件消费仍原 Unsupported，不伪称
+动态成功。原声明类型与 initializer 双 Int、实际本次 type_ids→两个 Slot 类型已补核，
+独立末版静审无阻断。frontend/codegen 三 feature all-targets 严格 Clippy（1m19s）、
+默认 all-targets check（6s）、fmt/diff/docs（958）及相对 `c23af6fa` 尺寸门禁
+（2361 Rust、37 历史超限）通过。未推送、未执行 native 或人工故障，未宣称远端 CI。

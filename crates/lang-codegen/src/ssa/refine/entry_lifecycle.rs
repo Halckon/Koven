@@ -24,6 +24,7 @@ pub(super) struct Pending {
     pub source_retirement: Option<(Position, Vec<Slot>)>,
     pub drop: Option<(Position, UnitDropFact, Slot)>,
     pub invalid: bool,
+    pub scalar: Option<(Position, Slot, Slot, crate::ssa::model::EntityType)>,
     consumer_callees: Vec<FunctionId>,
     expected_drop: UnitDropFact,
 }
@@ -109,6 +110,7 @@ impl Pending {
             source_retirement: None,
             drop: None,
             invalid: false,
+            scalar: None,
         })
     }
     pub(super) fn binding(&self) -> UnitSymbolId {
@@ -192,6 +194,11 @@ impl Receipt {
         }
         let (commit, result, continued) = p.commit.as_ref()?;
         let count = p.evidence.uses().len();
+        let scalar_width = if p.evidence.scalar().is_some() { 2 } else { 0 };
+        if (scalar_width != 0 && count != 2) || p.scalar.is_some() != p.evidence.scalar().is_some()
+        {
+            return None;
+        }
         if !matches!(count, 1 | 2)
             || p.arguments.len() != count
             || p.consumers.len() != count
@@ -215,7 +222,7 @@ impl Receipt {
             || commit.0 != BlockRef(0)
             || retire.0 != commit.0
             || drop.0 != commit.0
-            || retire.1 != commit.1 + count
+            || retire.1 != commit.1 + count + scalar_width
             || retire.1 + 2 != drop.1
             || fact.point() != p.evidence.transaction().point()
         {
@@ -251,7 +258,11 @@ impl Receipt {
                 || actual_call != arg_call
                 || used != *result
                 || arg != consumer
-                || consumer != (commit.0, commit.1 + index)
+                || consumer
+                    != (
+                        commit.0,
+                        commit.1 + index + if index == 1 { scalar_width } else { 0 },
+                    )
             {
                 return None;
             }
@@ -264,6 +275,26 @@ impl Receipt {
                 return None;
             }
             used_entity = Some(entity);
+        }
+        if let Some(expected) = p.evidence.scalar() {
+            let (position, value, binding, ty) = p.scalar?;
+            if position != (commit.0, commit.1 + 1) {
+                return None;
+            }
+            let (instruction, map) = self.emitted.get(&position)?;
+            let entity = *map.get(&value)?;
+            let (_, next_map) = self.emitted.get(&p.consumers[1].1)?;
+            if !matches!(entity, EntityId::Value(_))
+                || next_map.get(&binding) != Some(&entity)
+                || instruction.results != [entity]
+                || instruction.operation
+                    != Operation::Constant(crate::ssa::model::ScalarConstant::Integer(
+                        expected.value(),
+                    ))
+                || f.entity(entity)?.ty != ty
+            {
+                return None;
+            }
         }
         let result_entity = used_entity?;
         let (end_result, end_map) = self.emitted.get(retire)?;
@@ -323,7 +354,10 @@ impl Receipt {
         let mut source_calls = 0;
         let mut source_place = None;
         for (position, (i, _)) in &self.emitted {
-            if p.consumers.iter().any(|(_, consumer)| position == consumer)
+            if p.scalar
+                .as_ref()
+                .is_some_and(|(scalar, _, _, _)| position == scalar)
+                || p.consumers.iter().any(|(_, consumer)| position == consumer)
                 || *position == *retire
                 || *position == (retire.0, retire.1 + 1)
                 || *position == *drop

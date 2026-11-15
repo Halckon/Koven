@@ -7,7 +7,7 @@ use crate::{
     source::SourceMap,
     type_checking::TypeEnvironment,
 };
-pub use entry_binding::{EntryBindingEvidence, EntryBindingUse};
+pub use entry_binding::{EntryBindingEvidence, EntryBindingScalar, EntryBindingUse};
 
 /// Opaque identity from the original planner observation, not an AST-derived token.
 #[derive(Clone, Debug)]

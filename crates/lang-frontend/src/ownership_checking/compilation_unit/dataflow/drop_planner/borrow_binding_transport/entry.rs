@@ -9,6 +9,7 @@ use crate::{
 pub(super) struct Observation {
     callable: UnitItemId,
     consumers: Vec<UnitExpressionId>,
+    scalar: Option<crate::ownership_checking::d10_catalog_experiment::EntryBindingScalar>,
     returned: Vec<(UnitLoanFact, Option<ActionHandle>)>,
     ambiguous: bool,
 }
@@ -108,9 +109,13 @@ impl DropPlanner<'_, '_> {
             let [owner, bind, consumers @ ..] = elements.as_slice() else {
                 return None;
             };
-            if !matches!(consumers.len(), 1 | 2) {
-                return None;
-            }
+            let (consumers, scalar) = match consumers {
+                [first, scalar, second] => {
+                    (vec![*first, *second], Some(self.entry_scalar(*scalar)?))
+                }
+                one_or_two if matches!(one_or_two.len(), 1 | 2) => (one_or_two.to_vec(), None),
+                _ => return None,
+            };
             let Statement::LocalVariable { declaration } =
                 ast.statements().get(*owner).ok()?.payload()
             else {
@@ -215,6 +220,7 @@ impl DropPlanner<'_, '_> {
             Some(Observation {
                 callable: UnitItemId::new(self.checker.source_unit, item),
                 consumers,
+                scalar,
                 returned: Vec::new(),
                 ambiguous: false,
             })
@@ -269,6 +275,7 @@ impl PendingBindingTransport {
             actions.entry_binding_retired(super::super::action_source::entry_binding::Retiring {
                 callable: entry.callable,
                 consumers: &entry.consumers,
+                scalar: entry.scalar.as_ref(),
                 transaction,
                 source: self.source_begin.as_ref(),
                 handoff: self.handoff.as_ref(),
@@ -277,5 +284,67 @@ impl PendingBindingTransport {
                 end,
             });
         }
+    }
+}
+
+impl DropPlanner<'_, '_> {
+    fn entry_scalar(
+        &self,
+        statement: crate::ast::StatementId,
+    ) -> Option<crate::ownership_checking::d10_catalog_experiment::EntryBindingScalar> {
+        use crate::ownership_checking::d10_catalog_experiment::EntryBindingScalar;
+        use crate::parser::{IntegerLiteralKind, LiteralKind, VariableKind};
+        let ast = self.checker.parsed.ast();
+        let Statement::LocalVariable { declaration } =
+            ast.statements().get(statement).ok()?.payload()
+        else {
+            return None;
+        };
+        let Item::Variable {
+            kind: VariableKind::Val,
+            name,
+            initializer,
+            ..
+        } = ast.items().get(*declaration).ok()?.payload()
+        else {
+            return None;
+        };
+        let node = ast.expressions().get(*initializer).ok()?;
+        if !matches!(
+            node.payload(),
+            Expression::Literal(LiteralKind::Integer(IntegerLiteralKind::Unsuffixed))
+        ) || self.checker.typed.types().get(
+            self.checker
+                .typed
+                .expression_type(self.checker.unit_expression(*initializer))?,
+        ) != Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        {
+            return None;
+        }
+        let symbol = *self.checker.marker_symbol(*name)?;
+        if self
+            .checker
+            .typed
+            .types()
+            .get(self.checker.typed.symbol_type(symbol)?)
+            != Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        {
+            return None;
+        }
+        let value = crate::type_checking::integer_literal_magnitude(
+            self.checker.sources.slice(node.span()).ok()?,
+            IntegerLiteralKind::Unsuffixed,
+        )
+        .and_then(|v| i128::try_from(v).ok())?;
+        Some(EntryBindingScalar {
+            statement: crate::type_checking::UnitStatementId::new(
+                self.checker.source_unit,
+                statement,
+            ),
+            declaration: UnitItemId::new(self.checker.source_unit, *declaration),
+            initializer: self.checker.unit_expression(*initializer),
+            symbol,
+            value,
+        })
     }
 }

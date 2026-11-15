@@ -12,6 +12,7 @@ pub struct EntryBindingEvidence {
     pub(in crate::ownership_checking::compilation_unit) consumer: UnitExpressionId,
     pub(in crate::ownership_checking::compilation_unit) transaction: UnitBorrowBindingTransportFact,
     pub(in crate::ownership_checking::compilation_unit) uses: Vec<EntryBindingUse>,
+    pub(in crate::ownership_checking::compilation_unit) scalar: Option<EntryBindingScalar>,
     pub(in crate::ownership_checking::compilation_unit) source_begin: Option<UnitLoanActionId>,
     pub(in crate::ownership_checking::compilation_unit) handoff: Option<UnitLoanActionId>,
     pub(in crate::ownership_checking::compilation_unit) binding_end: Option<UnitLoanActionId>,
@@ -29,6 +30,10 @@ impl EntryBindingEvidence {
     /// Independently selected source consumers with each actual ordered return and acquisition.
     pub fn uses(&self) -> &[EntryBindingUse] {
         &self.uses
+    }
+    /// Optional independently selected Int definition between the two consumers.
+    pub fn scalar(&self) -> Option<&EntryBindingScalar> {
+        self.scalar.as_ref()
     }
     /// The actual source retirement transaction after binding removal.
     pub fn transaction(&self) -> &UnitBorrowBindingTransportFact {
@@ -79,5 +84,39 @@ impl EntryBindingUse {
     /// Original catalog Begin ID, ordered after the preceding use or initial handoff.
     pub fn begin(&self) -> Option<&UnitLoanActionId> {
         self.begin.as_ref()
+    }
+}
+
+/// Exact immutable Int literal declaration crossing a live result loan.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntryBindingScalar {
+    pub(in crate::ownership_checking::compilation_unit) statement:
+        crate::type_checking::UnitStatementId,
+    pub(in crate::ownership_checking::compilation_unit) declaration: UnitItemId,
+    pub(in crate::ownership_checking::compilation_unit) initializer: UnitExpressionId,
+    pub(in crate::ownership_checking::compilation_unit) symbol:
+        crate::name_resolution::UnitSymbolId,
+    pub(in crate::ownership_checking::compilation_unit) value: i128,
+}
+impl EntryBindingScalar {
+    /// Original statement identity.
+    pub fn statement(&self) -> crate::type_checking::UnitStatementId {
+        self.statement
+    }
+    /// Original declaration identity.
+    pub fn declaration(&self) -> UnitItemId {
+        self.declaration
+    }
+    /// Original typed literal expression.
+    pub fn initializer(&self) -> UnitExpressionId {
+        self.initializer
+    }
+    /// Original immutable local symbol.
+    pub fn symbol(&self) -> crate::name_resolution::UnitSymbolId {
+        self.symbol
+    }
+    /// Original parsed integer magnitude, not a value inferred from SSA.
+    pub fn value(&self) -> i128 {
+        self.value
     }
 }

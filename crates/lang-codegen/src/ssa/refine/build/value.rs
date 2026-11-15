@@ -891,6 +891,8 @@ pub(in crate::ssa::refine::build) mod field {
             } else {
                 self.expected_nullable = None;
             }
+            #[cfg(feature = "d10-catalog-experiment")]
+            let entry_scalar_start = self.entry_position();
             let lowered = self.expression(initializer);
             self.expected_nullable = saved_expected;
             let Lowered::Value(value) = lowered? else {
@@ -925,6 +927,15 @@ pub(in crate::ssa::refine::build) mod field {
             self.bridge_suffix_emitted(suffix, Some(binding), span)?;
             self.bridge_entry_emitted(entry, binding, span)?;
             self.bindings.insert(symbol, binding);
+            #[cfg(feature = "d10-catalog-experiment")]
+            self.entry_scalar(
+                declaration,
+                initializer,
+                symbol,
+                value,
+                binding,
+                entry_scalar_start,
+            );
             self.owner_binding_emitted(symbol, binding);
             #[cfg(test)]
             if self.owner_is_suffix(symbol)
