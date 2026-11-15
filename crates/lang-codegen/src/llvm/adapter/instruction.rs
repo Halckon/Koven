@@ -1,4 +1,8 @@
 //! Instruction lowering dispatch by operation family.
+//!
+//! Invariant: the groups below partition every `Operation` variant, and each family module matches
+//! exactly its own group. The compiler enforces the partition; the family wildcard exists only to
+//! report an internal dispatch violation, never a user-source path.
 mod aggregate;
 mod call;
 mod container;

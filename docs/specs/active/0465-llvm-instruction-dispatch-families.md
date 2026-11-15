@@ -44,7 +44,14 @@
   另 **660/0/0**；含真实 native object/link/run 与 LLVM container/object/runtime 用例。
 - [x] R4：workspace check、双配置 Clippy（`-D warnings`）、fmt、47 项 policy、docs、尺寸/空白。
 - [x] R5：只删除 `adapter.rs` 的 baseline/exception 两项，其他登记逐 JSON 相同；历史超限 22→21。
-- [ ] R6：Architecture 同步与账本后集中 push；精确新头 CI 另验，保持 active/Draft。
+- [x] R6：Architecture 已同步（`ssa-codegen-runtime.md` 第 17 行分发家族与私有目录）。
+- [ ] R7：账本后集中 push；精确新头 CI 另验，保持 active/Draft。
+
+等价证据的正确表述：核心是 **77 个 arm / 99 个 variant 的集合相等**（每个 arm 正文在唯一家族
+内逐字节出现、分发每组与家族 arm 集合相同），以及被删区域**逐行可归因**（999 行 = 1 空行 +
+函数签名 + 27 行 `results` 预计算 + 2 行 match 花括号 + 967 行 arm；该区域无 doc comment、属性
+或臂间注释，因此不存在未受检查的残留文本）。新文件合计多出 274 行脚手架（模块 doc/use/impl
+头/方法签名/match 包装/内部错误分支），**行数算术不作为等价证据**。
 
 真实失败与修正保留：首次 `cargo check` 的 95 个错误来自孙模块 `use super::*` 看不到 adapter
 绑定，改为 `use super::super::*`；随后 `lower_call` 与既有 helper 同名冲突，家族方法统一加

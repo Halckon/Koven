@@ -331,7 +331,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::MapRemove { .. } => self.lower_map_operation(instruction)?,
             _ => {
                 return Err(unsupported(
-                    "operation must be dispatched to its lowering family",
+                    "internal dispatch invariant violated: operation belongs to another lowering family",
                 ));
             }
         }

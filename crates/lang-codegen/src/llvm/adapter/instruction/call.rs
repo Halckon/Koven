@@ -47,7 +47,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::CallableInvokeView { .. } => self.lower_callable(instruction, &results)?,
             _ => {
                 return Err(unsupported(
-                    "operation must be dispatched to its lowering family",
+                    "internal dispatch invariant violated: operation belongs to another lowering family",
                 ));
             }
         }
