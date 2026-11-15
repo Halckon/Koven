@@ -25,3 +25,32 @@ pub(super) fn capture_iteration(
         validation,
     )
 }
+
+// Own source slicing and sealing together, preserving the original aggregate append order.
+type Channels<'a> = (
+    &'a [super::UnitLoanFact],
+    &'a [super::UnitReceiverOwnershipFact],
+    &'a [super::UnitConstructionOwnershipPlan],
+    &'a [super::UnitDropFact],
+    &'a [super::UnitConditionalReceiverDropFact],
+);
+pub(super) fn capture_source(
+    source: crate::name_resolution::SourceUnitId,
+    start: (usize, usize, usize, usize, usize),
+    channels: Channels<'_>,
+    drops: super::super::d10_catalog_experiment::DropCollections,
+    iteration: IterationSourceCollection,
+    producers: Option<Vec<Option<super::super::d10_catalog_experiment::LoanProducer>>>,
+) -> super::super::d10_catalog_experiment::SourceCollectionRecord {
+    super::super::d10_catalog_experiment::SourceCollectionRecord::capture(
+        source,
+        &channels.0[start.0..],
+        &channels.1[start.1..],
+        &channels.2[start.2..],
+        &channels.3[start.3..],
+        drops,
+        &channels.4[start.4..],
+    )
+    .with_iteration_collection(iteration)
+    .with_loan_producers(producers)
+}

@@ -19325,3 +19325,28 @@ MemoryDocument、rooted Unit 与 legacy caller/block-return 拒绝三项 exact �
 最终下游 D10 普通 SSA 十一项通过／一项 CI-only ignored；实验配置前后端 tests
 严格 Clippy、默认前后端 check、格式、文档 957 和 diff 检查通过。本次本地提交
 仍未推送，不以这些定向结果代替全套远端验收。
+
+
+### Callable loan 原producer与既有protocol1关联（2026-11-15）
+
+基于 `9fae0522`，feature-only薄索引随两个真实loan append站点记录原Function/Deinit/
+Lambda body身份，不复制loan；capture形成仍属外层，所有Result返回先恢复body上下文。
+每source保存共享loan Vec起始位置，assignment原checkpoint按checked差值截断；
+非法checkpoint sticky失效而非后续可擦除的临时标记。源账本逐项保留未知身份并核总量。
+
+`link_literal_call`只消费原owned catalog已验证的非空protocol1 Complete region，
+核同source、唯一Begin→原loan ordinal→producer、完整call batch及唯一原Drop批次，
+不重写validator、不签发Complete、不放宽D10/owner-transport门禁；缺失、空、其他协议
+及有歧义路径明确拒绝。新增正常双参数跨源反序、lambda body返回外层与String intrinsic、
+第二source不可变赋值诊断触发真实rollback的回归准备。Deinit仅有生产接点，尚无本片专测。
+
+`dataflow.rs`1237→1246的9行接点增长经独审允许，仍低现登记1248 ceiling；
+新增实现分别位于loan_producers及callable_loans职责模块，未修改尺寸baseline。
+恢复空间后，新三项及完整source ledger十项通过；rollback末版精确要求不可变赋值
+诊断再验通过。其原路径先完成RHS loan append，再按第二源全局checkpoint回滚且
+debug断言核索引长度，最终全unit错误撤销全部loans/ledger，不以最终空数组证明prefix。
+五源CLI exact（一测试内两种Replace顺序）、frontend双feature tests严格Clippy、
+默认CLI check、格式/diff、文档957通过。尺寸对本片起点`9fae0522`通过（2334文件、
+37历史欠账）；当前main比较无唯一merge-base，组合后的主干门禁仍待后续独立核验。
+不执行生成native、故障注入或推送；只证明既有protocol1局部事实跨通道关联，不是
+一般callable/CFG闭包、Deinit专测或项目准入完成。

@@ -2,6 +2,8 @@
 use super::*;
 use crate::name_resolution::SourceUnitId;
 mod callable_drops;
+mod callable_loans;
+pub use callable_loans::{CallableLoanLinkError, LoanProducer};
 mod iteration_collection;
 pub(crate) use callable_drops::DropCollections;
 pub use callable_drops::{CallableDropRecord, DropCallable};
@@ -56,6 +58,7 @@ impl DropTraversalRecord {
 pub struct SourceCollectionRecord {
     source: SourceUnitId,
     loans: Vec<UnitLoanFact>,
+    loan_producers: Option<Vec<Option<LoanProducer>>>,
     receivers: Vec<UnitReceiverOwnershipFact>,
     constructions: Vec<UnitConstructionOwnershipPlan>,
     drops: Vec<UnitDropFact>,
@@ -76,6 +79,7 @@ impl SourceCollectionRecord {
         Self {
             source,
             loans: loans.to_vec(),
+            loan_producers: None,
             receivers: receivers.to_vec(),
             constructions: constructions.to_vec(),
             drops: drops.to_vec(),
@@ -219,6 +223,10 @@ impl SourceCollectionLedger {
         };
         Arc::ptr_eq(&self.analysis, &owned.provenance.analysis_owner)
             && self.iteration_collections_match(owned)
+            && self
+                .records
+                .iter()
+                .all(SourceCollectionRecord::loan_producers_match)
             && closures.captures == owned.captures()
             && closures.closures == owned.closures()
             && closures
@@ -546,3 +554,6 @@ mod iteration_witness_tests;
 
 #[cfg(test)]
 mod callable_tests;
+
+#[cfg(test)]
+mod callable_loan_tests;

@@ -218,8 +218,8 @@ pub use prepare_split::{
 
 mod source_ledger;
 pub use source_ledger::{
-    CallableDropRecord, DropCallable, DropTraversal, DropTraversalRecord,
-    IterationSourceCollection, SourceCollectionLedger, SourceCollectionRecord,
+    CallableDropRecord, CallableLoanLinkError, DropCallable, DropTraversal, DropTraversalRecord,
+    IterationSourceCollection, LoanProducer, SourceCollectionLedger, SourceCollectionRecord,
     source_collection_ledger,
 };
 pub(crate) use source_ledger::{DropCollections, IterationValidationInputs};

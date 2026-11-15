@@ -8,6 +8,7 @@ mod call_contract;
 mod callable_provenance;
 mod closure;
 mod construction;
+mod loan_producers;
 use construction::collect_construction_descriptors;
 mod container;
 mod control;
@@ -450,18 +451,22 @@ pub(super) fn analyze(
             .extend(checker.borrow_results.forwarded);
         borrow_results.ends.extend(drop_analysis.no_carry.ends);
         #[cfg(feature = "d10-catalog-experiment")]
-        source_records.push(
-            super::d10_catalog_experiment::SourceCollectionRecord::capture(
-                source.id(),
-                &loans[source_start.0..],
-                &receiver_facts[source_start.1..],
-                &construction_plans[source_start.2..],
-                &drops[source_start.3..],
-                drop_analysis.drop_traversals,
-                &conditional_receiver_drops[source_start.4..],
-            )
-            .with_iteration_collection(iteration_collection),
-        );
+        let loan_producers = checker.loan_producers.finish();
+        #[cfg(feature = "d10-catalog-experiment")]
+        source_records.push(source_collection::capture_source(
+            source.id(),
+            source_start,
+            (
+                &loans,
+                &receiver_facts,
+                &construction_plans,
+                &drops,
+                &conditional_receiver_drops,
+            ),
+            drop_analysis.drop_traversals,
+            iteration_collection,
+            loan_producers,
+        ));
     }
 
     let diagnostics: Vec<Diagnostic> =
@@ -608,6 +613,8 @@ struct Codes {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    #[cfg(feature = "d10-catalog-experiment")]
+    loan_producers: loan_producers::Collection,
     #[cfg(feature = "d10-catalog-experiment")]
     analysis_owner: std::sync::Arc<()>,
     callable_sources: &'a mut callable_provenance::Collection,
@@ -783,6 +790,8 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(Self {
+            #[cfg(feature = "d10-catalog-experiment")]
+            loan_producers: loan_producers::Collection::new(loans.len()),
             callable_sources,
             iterations: BTreeMap::new(),
             map_iterations: BTreeMap::new(),
