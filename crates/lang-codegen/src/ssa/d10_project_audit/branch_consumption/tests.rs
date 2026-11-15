@@ -29,7 +29,7 @@ fn original_tail_continuation_closes_actual_fold_with_distinct_callees() {
     }
 }
 #[test]
-fn certified_branch_and_identity_edges_close_plan_but_keep_entry_lifetime_gap() {
+fn certified_branch_and_identity_edges_close_wrapper_plan() {
     for tail in [false, true] {
         let audits = run_entry(tail, true, true, false);
         assert_eq!(audits.len(), 2);
@@ -185,6 +185,36 @@ fn run_entry(
         assert!(receipt.paths[0].branch.then_arm());
         assert!(!receipt.paths[1].branch.then_arm());
         let (program, entry_function) = result.unwrap();
+        if !wrapper_entry && !extra_parameter {
+            use crate::ssa::model::Operation;
+            let caller = program
+                .modules
+                .iter()
+                .flat_map(|m| &m.functions)
+                .find(|f| f.id == entry_function)
+                .unwrap();
+            assert_eq!(caller.blocks.len(), 1);
+            assert_eq!(caller.instructions.len(), 8);
+            assert_eq!(
+                caller
+                    .instructions
+                    .iter()
+                    .filter(|i| matches!(i.operation, Operation::BorrowBegin { .. }))
+                    .count(),
+                1,
+                "Boolean flag is passed by value; no auxiliary SSA loan"
+            );
+            assert_eq!(
+                caller
+                    .instructions
+                    .iter()
+                    .filter(|i| matches!(i.operation, Operation::BorrowEnd { .. }))
+                    .count(),
+                2,
+                "result then continued source retirements only"
+            );
+        }
+
         for path in &receipt.paths {
             assert_ne!(path.callee, entry_function);
             assert_ne!(
@@ -282,7 +312,9 @@ fn run_entry(
                 .iter()
                 .filter(|g| g.contains("entry binding lifetime unproven"))
                 .count(),
-            usize::from(!wrapper_entry && !extra_parameter)
+            0,
+            "{:?}",
+            audit.unsupported
         );
         assert!(
             !audit.unsupported.iter().any(|g| g.contains("identity")),
@@ -306,12 +338,7 @@ fn run_entry(
                 .any(|g| g.contains("unconsumed certified"))
         );
         if !extra_parameter {
-            assert_eq!(
-                audit.unsupported.len(),
-                usize::from(!wrapper_entry),
-                "{:?}",
-                audit.unsupported
-            );
+            assert_eq!(audit.unsupported.len(), 0, "{:?}", audit.unsupported);
         }
         if wrapper_entry {
             assert!(audit.direct_edges.is_empty());
@@ -343,6 +370,102 @@ fn entry_evidence_rejects_extra_statements_multiple_uses_and_control_flow() {
                 .iter()
                 .all(|o| o.entry_binding_evidence().is_empty()),
             "{body}"
+        );
+    }
+}
+
+#[test]
+fn entry_lifetime_keeps_unsupported_transfer_and_lifetime_gaps() {
+    for body in [
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); return"#,
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); consume(item)"#,
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); if(flag){consume(item)}else{consume(item)}"#,
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "fun identity(source:String):borrow String from source=source\nfun wrap(source:String,flag:Boolean):borrow String from source {{if(flag){{return identity(source)}}else{{return identity(source)}}}}\nfun consume(item:String):Unit {{}}\nfun run(flag:Boolean):Unit {{{body}}}"
+        );
+        let (id, parsed) = unit_lower_test_support::parsed(&mut sources, "lifetime-gap.ko", &text);
+        let inputs = [SourceUnitInput::memory_document(id, &parsed)];
+        let (environment, types) = standard_environments();
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "run")
+            .unwrap()
+            .id();
+        let (result, audits) = crate::ssa::d10_project_audit::observe(|| {
+            unit_lower::lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &types, &typed, &owned, entry,
+            )
+        });
+        if body.ends_with("return") || body.contains("if(flag)") {
+            let Err(error) = result else {
+                panic!("existing control-transfer/branch route stays unsupported");
+            };
+            assert_eq!(
+                error.kind,
+                crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
+            );
+            assert_eq!(
+                sources.slice(error.span.unwrap()),
+                Ok(if body.ends_with("return") {
+                    "return"
+                } else {
+                    "if(flag){consume(item)}else{consume(item)}"
+                })
+            );
+            assert!(
+                audits.is_empty(),
+                "failed lowering publishes no successful audit"
+            );
+            continue;
+        }
+        let (program, _) = result.unwrap_or_else(|e| panic!("normal source {body}: {e:?}"));
+        crate::ssa::verify::verify_program(&program).unwrap();
+        let [audit] = audits.as_slice() else {
+            panic!("one assembly");
+        };
+        assert!(
+            audit
+                .unsupported
+                .iter()
+                .any(|g| g.contains("entry binding lifetime unproven")),
+            "{body}: {:?}",
+            audit.unsupported
+        );
+        assert!(
+            !audit
+                .unsupported
+                .iter()
+                .any(|g| g.contains("missing/duplicate entry call receipt")),
+            "{body}: {:?}",
+            audit.unsupported
+        );
+        let wrap = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "wrap")
+            .unwrap()
+            .id();
+        assert!(
+            audit.borrow_edges.contains(&(entry, wrap)),
+            "{body}: {:?}",
+            audit.borrow_edges
+        );
+        assert!(
+            !audit
+                .unsupported
+                .iter()
+                .any(|g| g.contains("entry final call identity gap")),
+            "{:?}",
+            audit.unsupported
         );
     }
 }

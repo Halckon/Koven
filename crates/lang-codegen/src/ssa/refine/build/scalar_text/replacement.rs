@@ -361,6 +361,8 @@ impl Builder<'_, '_> {
         #[cfg(test)]
         let replay = op.clone();
         self.push(op, Vec::new(), span)?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        self.entry_consumer(call);
         if receipt.is_some() {
             let plan = self
                 .owner_plan

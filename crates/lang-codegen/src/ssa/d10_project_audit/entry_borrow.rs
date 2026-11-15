@@ -3,7 +3,12 @@ use super::*;
 use crate::ssa::{model::InstructionId, refine::entry_borrow_receipt::Receipt};
 use lang_frontend::{ownership_checking::UnitLoweringFacts, type_checking::UnitItemId};
 use std::rc::Rc;
-type State = Rc<RefCell<Vec<Receipt>>>;
+#[derive(Default)]
+struct Recorded {
+    calls: Vec<Receipt>,
+    lifetimes: Vec<crate::ssa::refine::entry_lifecycle::Receipt>,
+}
+type State = Rc<RefCell<Recorded>>;
 type Edges = BTreeSet<(FunctionId, InstructionId, FunctionId)>;
 thread_local! { static RUNS: RefCell<Vec<State>> = const {RefCell::new(Vec::new())}; }
 pub(super) struct Transaction {
@@ -11,7 +16,7 @@ pub(super) struct Transaction {
 }
 impl Transaction {
     pub(super) fn begin() -> Self {
-        let state = Rc::new(RefCell::new(Vec::new()));
+        let state = Rc::new(RefCell::new(Recorded::default()));
         RUNS.with(|runs| runs.borrow_mut().push(state.clone()));
         Self { state }
     }
@@ -37,7 +42,11 @@ impl Transaction {
         let snapshots = self.state.borrow();
         let mut edges = Edges::new();
         for (call, callable) in &expected {
-            let matches: Vec<_> = snapshots.iter().filter(|r| r.call() == *call).collect();
+            let matches: Vec<_> = snapshots
+                .calls
+                .iter()
+                .filter(|r| r.call() == *call)
+                .collect();
             let [receipt] = matches.as_slice() else {
                 gaps.push(format!("missing/duplicate entry call receipt: {call:?}"));
                 continue;
@@ -69,11 +78,40 @@ impl Transaction {
                 continue;
             }
             edges.insert((receipt.caller(), receipt.instruction.id, receipt.callee()));
-            gaps.push(format!("entry binding lifetime unproven: {call:?}"));
+            let evidence: Vec<_> = owned
+                .loan_action_observations()
+                .iter()
+                .flat_map(|o| o.entry_binding_evidence().iter().map(move |e| (o, e)))
+                .filter(|(_, e)| {
+                    e.callable() == *callable && e.transaction().source_loan().call() == *call
+                })
+                .collect();
+            let lifetimes: Vec<_> = snapshots
+                .lifetimes
+                .iter()
+                .filter(|r| r.call == *call)
+                .collect();
+            let proven = match (evidence.as_slice(), lifetimes.as_slice()) {
+                ([(catalog, original)], [lifetime]) => {
+                    catalog.owns_entry_binding_evidence(lifetime.evidence())
+                        && lifetime.evidence() == *original
+                        && lifetime.caller() == receipt.caller()
+                        && lifetime.matches_final(function, &receipt.instruction)
+                }
+                _ => false,
+            };
+            if !proven {
+                gaps.push(format!("entry binding lifetime unproven: {call:?}"));
+            }
         }
-        for receipt in snapshots.iter() {
+        for receipt in snapshots.calls.iter() {
             if !expected.contains_key(&receipt.call()) {
                 gaps.push("entry receipt outside original expected handoffs".into());
+            }
+        }
+        for lifetime in &snapshots.lifetimes {
+            if !expected.contains_key(&lifetime.call) {
+                gaps.push("entry lifetime outside original expected handoffs".into());
             }
         }
         (edges, gaps)
@@ -90,7 +128,15 @@ impl Drop for Transaction {
 pub(crate) fn record(receipt: Receipt) {
     RUNS.with(|runs| {
         if let Some(state) = runs.borrow().last() {
-            state.borrow_mut().push(receipt);
+            state.borrow_mut().calls.push(receipt);
+        }
+    });
+}
+
+pub(crate) fn record_lifetime(receipt: crate::ssa::refine::entry_lifecycle::Receipt) {
+    RUNS.with(|runs| {
+        if let Some(state) = runs.borrow().last() {
+            state.borrow_mut().lifetimes.push(receipt);
         }
     });
 }

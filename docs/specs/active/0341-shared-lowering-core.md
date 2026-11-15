@@ -19670,3 +19670,36 @@ docs（958）及相对 `7aad724b` 尺寸门禁（2357 Rust、37 历史超限）�
 新增 nullable when 两个 native 回归只编译列名，各精确出现一次，没有执行。
 本地组合不声称验证 native 行为、全部相邻 MissingFact 缺口或入口生命周期消费；
 没有故障注入、推送或新增远端 CI 结论。
+
+### D10 有界入口生命周期实际消费（2026-11-15）
+
+本片从 `b64059cd` 继续，消费上一阶段同 catalog 的完整真实入口 transport 旁证。
+独立 expected 仍从原 handoff/旁证选取，不由成功 receipt 倒推；缺失、重复、多余或
+来源身份不一致仍保 gap。原 action 数组不补造 UseReturned/SourceRetired，也不提升
+旧 coverage 或扩展 Refine 准入。
+
+实际 binding map commit、consumer argument、正常 DirectCall、binding removal、
+continued-source map removal 及原完整 Drop fact 的真实 producer 分别留证。
+机械 emitter 把真实 RStmt 坐标/Slot 关联到 Instruction/Entity；只为有入口候选的
+函数采集。最终同 assembly verifier 后核完整 Function、唯一 block/Return、全部
+instructions/entities/Definition，原 entry call 指令完整相等，String producer 字节、
+owner/place/Shared source loan 链、consumer/result/source 身份及顺序共同闭合才消除
+该入口 lifetime gap。Boolean 参数在本 fixture 的 SSA 按值传递：8 指令、1 Begin、
+2 End；consumer 复用已有 result loan，不强造新的 Begin，也不把辅助 End 当退休。
+
+仅接原三语句、唯一 Boolean 参数、String owner、单一 Unit consumer、精确
+AfterStatement 正常退休直线域；证明 caller 的正常退出清理，不证明 callee 运行时
+终止、其他资源/参数/控制流的一般生命周期。显式 return 和条件消费原 route 为 Unsupported，
+不得称作正常成功的反例；重复 consumer 真实 lowering 成功，仍保认证入口边和 lifetime gap。
+两个近上限 helper 只等价迁移职责，未提高尺寸额度。异常展开隔离仍以原私有 RAII
+事务静审保证；没有本地故障注入或 native 执行。
+
+末版正常定向 6/6 通过：两拓扑、两源反序、同 observe 内独立 assembly 的入口
+实际清除 lifetime gap；重复 consume 正常成功但精确 run→wrap 边保留且 lifetime gap
+保留；显式 return/条件消费精确原 Unsupported span 且无成功 audit。identity exact
+1/1 通过，受影响 codegen 三 feature all-targets 严格 Clippy、默认 all-targets check
+通过；最后 expected Drop 补强后六项与严格 Clippy 已再验。fmt/diff/docs（958）和
+相对 `b64059cd` 尺寸门禁（2361 Rust、37 历史超限）通过；最后新增模块为 368 行，
+未提高尺寸额度。首编字段/可见性及测试 Debug 约束已修正；首次域外测试错误假定
+return/if 可 lower，修正为如实保留原拒绝，未改变生产规则。独立静审无阻断。
+没有 native 执行、故障注入、推送或新远端 CI 结果。
