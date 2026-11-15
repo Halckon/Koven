@@ -19845,3 +19845,30 @@ Boolean 的一/两不同 consumer、两源反序、同 observe 两 assembly；ow
 frontend/codegen 三 feature all-targets 严格 Clippy（3m53s）、默认 all-targets check
 （1m55s）、fmt/diff/docs（958）及相对 `778436b0` 尺寸门禁（2370 Rust、37 历史超限）
 通过；末版独立静审无阻断。未重复无关矩阵，未推送、未执行 native 或本地人工故障。
+
+### D10 同根 auxiliary 提前结束的完整 caller 消费（2026-11-15）
+
+锁 `0678c166`，复用原 auxiliary-binding Complete 八 action 与十 producer 角色。
+两个借用来自同一 owner 的不同实参，不是两个 root；source_index 由原 handoff/typed
+合同决定。原 role0..9 match 等价抽为共享操作校验，保 source_second 时第四角色之后
+的语义实体顺序 swap；feature-only 最终重核按原 slots 重放校验，不产生新指令。
+原 auxiliary_retirements 只是同 catalog source/aux Begin 与 Handoff 三 ID 关系，
+不伪造 End action。真正提前 End 由原 append 指令 role5 记录，来源和返回结果随后仍活跃。
+
+build 前 expected 从原 region 独立保存 action IDs、两 call dispatch key 与原 literal
+字节/typed String→SSA ID。source ledger 核同 call 两个完整原 fact 的原序、三个 Begin
+各自唯一不同 ordinal/同实际 Function producer，不错误要求每 call 只有一个 loan。
+最终同 run 的完整 Function Eq、literal+十指令精确全块、六实体所有 Definition/Shared
+StringOwner 类型及 Unit Return 闭合后认证来源边；auxiliary 先 End、consumer 后
+result/source End 与 Drop 的次序由原共享 validator 证明。两参数 view 的 BorrowReturn
+仍不在单参数 identity 域，保留原 gap，不为项目清零扩大叶准入。
+
+首次编译发现新增 trait 声明编辑重复，修为唯一默认 Unsupported 方法与真实 owned 转发；
+其余旧方法完整保留。正常源级验收覆盖 source_index 两序、两源反序、同 observe 两次
+assembly、Unicode/转义字节，以及额外 consumer 域外邻例。末版定向 2/2 通过
+（编译 10m57s，运行 0.10s）；额外 consumer 原 lower/verify 正常成功但不认证，
+两参数返源叶 BorrowReturn gap 如实保留。原 binding 2/2、loop 2/2 直接回归均通过。
+frontend/codegen 三 feature all-targets 严格 Clippy（4m03s）、默认仅这两个 crate 的
+all-targets check（2m05s）、fmt/diff/docs（958）及相对 `0678c166` 尺寸门禁
+（2373 Rust、37 历史超限）通过；末版独立静审无阻断。未重复无关矩阵，未推送，
+未执行 native 或本地人工故障；旧生产准入和部分证据的边界不变。

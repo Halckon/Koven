@@ -1,6 +1,9 @@
 //! Read-only scoped observations of ordinary whole-unit lowering. Not an admission capability.
 //! Only the original successful final verifier publishes an observation. Object publication
 //! remains a separate result; this module neither changes lowering nor executes generated code.
+pub(crate) mod aux_binding_consumption;
+#[cfg(test)]
+mod aux_binding_consumption_tests;
 pub(crate) mod binding_consumption;
 #[cfg(test)]
 mod binding_consumption_tests;
@@ -88,6 +91,7 @@ pub(crate) struct Pending {
     identity_returns: identity_return::Transaction,
     forwards: forward_consumption::Transaction,
     bindings: binding_consumption::Transaction,
+    aux_bindings: aux_binding_consumption::Transaction,
     loops: loop_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
@@ -109,6 +113,7 @@ impl Pending {
                 identity_returns: identity_return::Transaction::begin(plan),
                 forwards: forward_consumption::Transaction::begin(plan),
                 bindings: binding_consumption::Transaction::begin(plan),
+                aux_bindings: aux_binding_consumption::Transaction::begin(plan),
                 loops: loop_consumption::Transaction::begin(plan),
                 items: names
                     .names()
@@ -259,6 +264,15 @@ impl Pending {
                 audit
                     .unsupported
                     .push("overlapping binding edge certificate".into());
+            }
+        }
+        let (aux_edges, aux_gaps) = self.aux_bindings.finish(program, mapping, owned);
+        audit.unsupported.extend(aux_gaps);
+        for edge in aux_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping auxiliary binding edge certificate".into());
             }
         }
         let (loop_edges, loop_callers, loop_gaps) = self.loops.finish(program, mapping, owned);

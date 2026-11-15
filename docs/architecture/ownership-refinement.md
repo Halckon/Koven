@@ -162,6 +162,10 @@ literal 字节/owner 核完整八指令 caller、两 callee 映射和退休/Drop
 正常退出 cleanup，认证真实来源 BorrowCall；原 literal 字节、String/Boolean typed→SSA
 身份及各 callee 映射独立核对。`certified_loop_callers` 不提升 coverage，项目 unsupported
 仍明确保留 Partial 的一般 fixed-point、任意迭代与终止未证明义务；owned flag 等无证域不认证。
+原 auxiliary-binding Complete region 的同 owner 两个独立借用可另消费原十角色证据：
+非返回源 aux 在 BorrowCall 后先 End，返回源/结果留至 consumer 后退休和 Drop；
+source 参数前/后顺序均保原 chronology。最终核 literal+十指令全 caller、六实体及原
+retirement 三 ID 关系（关系本身不是 End 事件）；两参数返源叶仍在旧 identity 域外保 gap。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、

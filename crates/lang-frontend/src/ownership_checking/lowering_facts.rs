@@ -56,6 +56,15 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Auxiliary-binding full-fact provenance; not admission authority.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_aux_binding_link(
+        &self,
+        _call: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Complete binding-region acquisition provenance, not admission authority.
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_binding_link(
@@ -168,6 +177,15 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
 }
 
 impl UnitLoweringFacts for CompilationUnitOwnership {
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_aux_binding_link(
+        &self,
+        call: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_aux_binding_link(self, call)
+    }
+
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_loop_link(
         &self,
