@@ -20304,3 +20304,21 @@ final 仍逐项核五个目标映射、两 body 调用同 fresh result、唯一�
 同时核五个原 acquisition/call 与四个实际 DirectCall，复用原 body no-carry 和 outer 参数运输强断言。
 三个 body consumer（含带外段）、单侧或更长外段在单/双 body 两族均保持真实原 receipt 与新域 gap。
 独立静审通过，末版 fresh 模块五项与旧 Partial loop 两项全部通过。组合矩阵另显式断言两 outer 实参均不是实际 fresh result。frontend/codegen 三 feature 严格 Clippy all-targets 通过（1m12），默认仅两 crate all-targets check 通过（0.53s）。格式、968 Markdown 文档门禁、尺寸门禁（基74961f5a，2418文件/21历史债）、差异检查通过；不代表 workspace 全验。未推送、未执行 native 或本地人工故障。日志为 `/private/tmp/d10-fresh-combined-{tests,oldloop,strict,default,size}.log`。
+
+### E2裸scalar实参的原事实消费（2026-11-15）
+
+基于74961f5a包含的原planner scalar实际End修复，受限入口允许Int/Boolean角色
+直接由裸literal提供，或与原scalar val混合；已有val仍必须被精确Name/root使用，
+不接受遗留未消费scalar声明。参数与表达式必须为同一原Int/Boolean类型，
+直接实参需匹配自身Temporary loan及真实CallReturn End，不从语法或描述符合成结束。
+
+Constant及其root按原源码实参位置建立，具名实参仍只在最终调用按原ABI列交付；
+原声明顺序、String存储/owner身份、四个真实End及String Drop顺序维持，scalar不加Drop。
+继续拒绝Group、nullable转换、运算与其他表达式，普通入口与默认关闭策略不变。
+真实源码红阶段为预期UnsupportedSelection。正式two-source-unit及三feature
+配置direct_scalars各3目标通过：16个direct/local×String存储组合、额外true正例，
+10个域外/未消费local负控；检查原Span、Constant/root相邻身份、源Borrow顺序、
+ABI排列、每loan唯一End及每String owner唯一且晚于全部End的Drop，完整verify/render通过。
+原declaration_order两目标回归通过；独立静审无阻断，文档/size/diff通过。
+三feature frontend/codegen双crate all-targets严格Clippy通过（4m54s）；
+不推送、不执行native或本地故障注入。

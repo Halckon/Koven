@@ -23,7 +23,7 @@ pub enum EntryInitialization {
     /// Original Boolean literal initializer.
     Choose,
 }
-/// Opaque evidence for two scalar vals, up to two String owners and one call.
+/// Opaque evidence for two scalar literal values (locals or direct arguments), String owners and one call.
 #[derive(Clone, Debug)]
 pub struct EntryDescriptor {
     identity: Rc<()>,
@@ -32,6 +32,7 @@ pub struct EntryDescriptor {
     instance: UnitCallableInstanceKey,
     parameter_roles: [usize; 4],
     initializers: [UnitExpressionId; 2],
+    temporary_scalars: [Option<UnitExpressionId>; 2],
     initialization_order: Vec<EntryInitialization>,
     contracts: [UnitCallArgumentOwnershipContract; 4],
     ends: [UnitDirectCallLoanEndFact; 4],
@@ -71,6 +72,16 @@ impl EntryDescriptor {
         self.parameter_roles
             .iter()
             .position(|position| *position == parameter)
+    }
+    /// Original direct scalar argument identity, already matched to its real End.
+    pub fn temporary_scalar_argument(&self, index: usize) -> Option<UnitExpressionId> {
+        let role = self.argument_role(index)?.checked_sub(2)?;
+        let argument = self.contracts.get(index)?.argument();
+        self.temporary_scalars
+            .get(role)
+            .copied()
+            .flatten()
+            .filter(|id| *id == argument)
     }
     /// Original source declaration order, independent of scalar argument roles.
     pub fn initialization_order(&self) -> &[EntryInitialization] {
@@ -164,7 +175,7 @@ impl EntryDescriptor {
     pub fn instance(&self) -> &UnitCallableInstanceKey {
         &self.instance
     }
-    /// Original Int and Boolean local initializers.
+    /// Original Int and Boolean value expressions: local initializers or direct arguments.
     pub fn initializers(&self) -> &[UnitExpressionId; 2] {
         &self.initializers
     }
@@ -247,7 +258,7 @@ pub(super) fn collect(
                 return None;
             };
             let (last, declarations) = elements.split_last()?;
-            if !(2..=4).contains(&declarations.len()) {
+            if declarations.len() > 4 {
                 return None;
             }
             let formed_local = |span: Span| {
@@ -322,7 +333,7 @@ pub(super) fn collect(
                     initialization_order.push(EntryInitialization::Named(binding));
                 }
             }
-            let locals = [locals[0]?, locals[1]?];
+
             let Statement::Expression { expression } =
                 parsed.ast().statements().get(*last).ok()?.payload()
             else {
@@ -370,6 +381,8 @@ pub(super) fn collect(
                     .position(|position| *position == index)
             };
             let mut temporary_arguments = Vec::new();
+            let mut scalar_initializers = [None, None];
+            let mut temporary_scalars = [None, None];
             for (i, c) in contracts.iter().enumerate() {
                 if c.parameter_index() != call.arguments()[i].parameter_index()
                     || contracts
@@ -397,8 +410,30 @@ pub(super) fn collect(
                         }
                         _ => return None,
                     }
-                } else if !matches!(node.payload(), Expression::Name) {
-                    return None;
+                } else {
+                    let scalar = role_at(i)? - 2;
+                    let expected = UnitTypeKind::Builtin(if scalar == 0 {
+                        BuiltinType::Int
+                    } else {
+                        BuiltinType::Boolean
+                    });
+                    let ty = typed.types().expression_type(c.argument())?;
+                    if typed.types().types().get(ty) != Some(&expected) || c.parameter_type() != ty
+                    {
+                        return None;
+                    }
+                    scalar_initializers[scalar] = Some(match (node.payload(), locals[scalar]) {
+                        (Expression::Name, Some((_, initializer))) => initializer,
+                        (Expression::Literal(LiteralKind::Integer(_)), None) if scalar == 0 => {
+                            temporary_scalars[scalar] = Some(c.argument());
+                            c.argument()
+                        }
+                        (Expression::Literal(LiteralKind::Boolean(_)), None) if scalar == 1 => {
+                            temporary_scalars[scalar] = Some(c.argument());
+                            c.argument()
+                        }
+                        _ => return None,
+                    });
                 }
             }
             let ends: [UnitDirectCallLoanEndFact; 4] = owned
@@ -428,7 +463,11 @@ pub(super) fn collect(
                         if !temporary_arguments.iter().any(|(index, _)| *index == i)
                             && named.iter().any(|n| place.is_root() && place.root() == n.0) => {}
                     (2 | 3, UnitLoanTarget::Place(place))
-                        if place.is_root() && place.root() == locals[role - 2].0 => {}
+                        if locals[role - 2]
+                            .is_some_and(|(root, _)| place.is_root() && place.root() == root) => {}
+                    (2 | 3, UnitLoanTarget::Temporary(owner))
+                        if temporary_scalars[role - 2] == Some(c.argument())
+                            && *owner == c.argument() => {}
                     _ => return None,
                 }
             }
@@ -568,24 +607,25 @@ pub(super) fn collect(
                     .ok()?;
                 StringStorage::Temporary { strings, drops }
             };
+            let initializers = [scalar_initializers[0]?, scalar_initializers[1]?];
             let initializer_spans = [
                 parsed
                     .ast()
                     .expressions()
-                    .get(locals[0].1.expression())
+                    .get(initializers[0].expression())
                     .ok()?
                     .span(),
                 parsed
                     .ast()
                     .expressions()
-                    .get(locals[1].1.expression())
+                    .get(initializers[1].expression())
                     .ok()?
                     .span(),
             ];
             let Expression::Literal(LiteralKind::Integer(kind)) = parsed
                 .ast()
                 .expressions()
-                .get(locals[0].1.expression())
+                .get(initializers[0].expression())
                 .ok()?
                 .payload()
             else {
@@ -599,7 +639,7 @@ pub(super) fn collect(
             let Expression::Literal(LiteralKind::Boolean(choose)) = parsed
                 .ast()
                 .expressions()
-                .get(locals[1].1.expression())
+                .get(initializers[1].expression())
                 .ok()?
                 .payload()
             else {
@@ -615,7 +655,8 @@ pub(super) fn collect(
                 body: body_node.span(),
                 instance: call.instance().clone(),
                 parameter_roles,
-                initializers: [locals[0].1, locals[1].1],
+                initializers,
+                temporary_scalars,
                 initialization_order,
                 contracts,
                 ends,

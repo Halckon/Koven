@@ -428,3 +428,5 @@ mod named_arguments;
 mod integer_literals;
 
 mod scalar_origin;
+
+mod direct_scalars;
