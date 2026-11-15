@@ -67,6 +67,10 @@ Cargo 将该 runner 注册为 `fixtures` integration suite。
 共享表、诊断编号、public fact 与跨 crate 边界由对应领域 suite 共同覆盖；如何按影响面选择和扩大
 验证见[开发测试指南](../development/testing.md)。
 
+生成资源门禁的 L0131 变异校准使用 frontend 的 `unit_single_source_analysis` 测试目标。
+隔离工作树中分别构建变异和恢复版本，比较同一 I1 源码的诊断码、主 Span 与标签。
+该校准只运行 frontend 阶段。生成程序的 LLVM、native 和资源计数仍由 codegen 门禁验证。
+
 ## 确定性与失败边界
 
 - 正常用户错误的回归测试重复断言相同 code、Span、detail 和顺序。

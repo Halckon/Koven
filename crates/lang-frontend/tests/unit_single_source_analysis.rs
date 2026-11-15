@@ -1,14 +1,14 @@
 //! 单个真实内存来源的 Unit strict/recovery、显式环境与身份合同。
 //! foreign source/environment tests are CI-only controls; this target is not a local run list.
 
-use std::error::Error;
+use std::{error::Error, fs, path::PathBuf};
 
 use lang_frontend::{
     analysis::{
         UnitNameAnalysisError, UnitRecoveryAnalysisError, UnitSourceDescriptor,
         analyze_basic_unit_ownership, analyze_unit_names, analyze_unit_recovery,
     },
-    diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
+    diagnostic::{Diagnostic, DiagnosticCodeCatalog, DiagnosticDetail, Severity},
     lexer::{LexerInternalError, lex},
     name_resolution::{NameEnvironment, SourceUnitInputKey},
     ownership_checking::{
@@ -21,6 +21,74 @@ use lang_frontend::{
         complete_compilation_unit_types, standard_environments,
     },
 };
+
+// The generated-owner checker calibration supplies the same source to both builds.
+#[test]
+#[ignore = "run by the generated-owner checker calibration with an explicit fixture"]
+fn export_generated_owner_frontend_case() {
+    let directory =
+        PathBuf::from(std::env::var_os("KOVEN_GENERATED_OWNER_CASE").expect("calibration fixture"));
+    let text = fs::read_to_string(directory.join("case.ko")).unwrap();
+    assert!(text.len() <= 8192, "generated source exceeds 8 KiB");
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("case.ko", text).unwrap();
+    let (environment, types) = standard_environments();
+    let snapshot = analyze_unit_names(
+        sources,
+        vec![UnitSourceDescriptor::memory_document(source)],
+        environment,
+    )
+    .unwrap();
+    assert!(snapshot.parsed_files()[0].diagnostics().is_empty());
+    assert!(snapshot.names().diagnostics().is_empty());
+    let names = snapshot.validated_names().expect("calibration names");
+    let inputs = snapshot.inputs();
+    let raw = check_compilation_unit_types(snapshot.sources(), &inputs, names, &types).unwrap();
+    assert!(raw.diagnostics().is_empty());
+    complete_compilation_unit_types(snapshot.sources(), &inputs, names, &types, &raw)
+        .expect("calibration final type admission");
+    let (_, owned) = analyze_basic_unit_ownership(snapshot.sources(), &inputs, names, &types, raw)
+        .unwrap()
+        .into_result()
+        .expect("calibration basic ownership");
+    let diagnostics = owned.diagnostics();
+    let mut rows = String::new();
+    for diagnostic in diagnostics {
+        use std::fmt::Write;
+        let span = diagnostic.primary_span();
+        let labels = diagnostic
+            .details()
+            .iter()
+            .filter_map(|detail| match detail {
+                DiagnosticDetail::Label(label) => {
+                    Some(format!("{}:{}", label.span().start(), label.span().end()))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        writeln!(
+            rows,
+            "ownership\t{}\t{}\t{}\t{labels}",
+            diagnostic.code(),
+            span.start(),
+            span.end()
+        )
+        .unwrap();
+    }
+    fs::write(directory.join("diagnostics.tsv"), rows).unwrap();
+    fs::write(
+        directory.join("stages.tsv"),
+        format!(
+            "parse\t0\nnames\t0\ntypes\t0\nownership\t{}\n",
+            diagnostics.len()
+        ),
+    )
+    .unwrap();
+    if diagnostics.is_empty() {
+        owned.validate().expect("calibration ownership admission");
+    }
+}
 
 #[test]
 fn empty_and_unicode_crlf_sources_keep_full_strict_facts_and_owned_identity() {
