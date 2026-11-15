@@ -16,7 +16,7 @@ use std::rc::Rc;
 pub struct BranchConsumption {
     /// Independently selected original splits of planned plain callables.
     pub expected: Vec<UnitExpressionId>,
-    /// BothArmsReturn splits whose complete final caller and original paths match.
+    /// Original both-return or folded-tail splits whose complete final caller and paths match.
     pub linked: Vec<UnitExpressionId>,
     /// Other topologies, missing/ambiguous provenance or final CFG mismatches.
     pub gaps: Vec<String>,
@@ -69,10 +69,17 @@ impl Transaction {
         result.expected = expected.keys().copied().collect();
         let snapshots = self.state.borrow();
         for (split, (catalog, region)) in &expected {
-            if region.topology() != UnitBorrowBranchForwardTopology::BothArmsReturn {
-                result.gaps.push(format!(
-                    "branch topology outside BothArmsReturn domain: {split:?}"
-                ));
+            // Both original topologies share the final three-block shape. Their distinction
+            // remains in the original Plans/Receipt validator: TailContinuation must retain
+            // its exact false-arm -> join fold, while BothArmsReturn must have none.
+            if !matches!(
+                region.topology(),
+                UnitBorrowBranchForwardTopology::BothArmsReturn
+                    | UnitBorrowBranchForwardTopology::TailContinuation
+            ) {
+                result
+                    .gaps
+                    .push(format!("branch topology outside bounded domain: {split:?}"));
                 continue;
             }
             if region.coverage() != UnitLoanActionCoverage::Complete

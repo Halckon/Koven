@@ -19511,3 +19511,19 @@ TailContinuation 继续按原 route 成功，但在新域明确记 gap。没有 
 均通过。frontend/codegen/CLI 双 feature 全目标严格 Clippy（-D warnings）与默认 workspace
 全目标 check 通过；fmt、diff-check、docs（958）、相对 6b6de47d 尺寸门禁（2347 Rust 文件，
 37 个历史超限）通过。两次独立静审无阻断。无 native 执行、人工损坏/混配或推送。
+
+
+### TailContinuation 原 fold 消费闭合（2026-11-15）
+
+在 d47fca34 已过检查点上增量覆盖原 TailContinuation，不新增 lowering route 或生产能力。
+新审计显式只接受 BothArmsReturn/TailContinuation；后者的唯一 false-arm→join fold 仍由
+原 Plans/Receipt.validate 核验，fold 后保持三块三指令，原 final verifier 后完整 Function Eq、
+所有边、参数/results 与 Definition 双向闭合继续生效。原 publication 每次仍只有一条。
+原 source catalog/实际 callable producer 链不变；不同 callee 的 then/tail 路径不能互换。
+这不是跨互斥 arm 的线性执行证明，不表示 source loan 结束，也不扩展到任意 CFG。
+
+增量真实测试保留 BothArmsReturn，并将 Tail 正例覆盖两源正/反序、同 observe 两次 assembly、
+实际非退化 fold、两个实际分支 edge 和各 BorrowReturn。首次及追加显式两拓扑 gate 后末版
+定向均 2/2 通过。codegen 双 feature 全目标严格 Clippy（-D warnings）、默认 lib check 通过；
+fmt/diff-check、docs（958）、相对 d47fca34 尺寸门禁（2347 Rust 文件、37 历史超限）通过。
+独立静审无阻断。复用 d47 基线，不重复整套 frontend/CLI 验收；无 native、人工故障或推送。

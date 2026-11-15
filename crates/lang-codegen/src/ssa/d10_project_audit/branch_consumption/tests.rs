@@ -17,12 +17,15 @@ fn original_both_arm_paths_close_with_distinct_callees_and_run_isolation() {
     }
 }
 #[test]
-fn original_tail_continuation_still_lowers_but_is_outside_new_domain() {
-    for audit in run(true, false) {
-        assert_eq!(audit.expected.len(), 1);
-        assert!(audit.linked.is_empty());
-        assert_eq!(audit.gaps.len(), 1);
-        assert!(audit.gaps[0].contains("outside BothArmsReturn"));
+fn original_tail_continuation_closes_actual_fold_with_distinct_callees() {
+    for reverse in [false, true] {
+        let audits = run(true, reverse);
+        assert_eq!(audits.len(), 2);
+        for audit in audits {
+            assert_eq!(audit.expected.len(), 1);
+            assert_eq!(audit.linked, audit.expected);
+            assert!(audit.gaps.is_empty(), "{:?}", audit.gaps);
+        }
     }
 }
 fn run(tail: bool, reverse: bool) -> Vec<BranchConsumption> {
@@ -92,11 +95,47 @@ fn run(tail: bool, reverse: bool) -> Vec<BranchConsumption> {
     });
     // Existing publication remains one receipt per original successful assembly.
     assert_eq!(receipts.len(), 2);
-    for receipt in receipts {
+    for (receipt, result) in receipts.into_iter().zip(results) {
         assert_ne!(receipt.paths[0].callee, receipt.paths[1].callee);
-    }
-    for result in results {
-        result.unwrap();
+        assert_eq!(receipt.folded_distinct_blocks(), tail);
+        assert!(receipt.paths[0].branch.then_arm());
+        assert!(!receipt.paths[1].branch.then_arm());
+        let (program, _) = result.unwrap();
+        let function = program
+            .modules
+            .iter()
+            .flat_map(|m| &m.functions)
+            .find(|f| f.id == receipt.caller)
+            .unwrap();
+        assert_eq!(function.blocks.len(), 3);
+        let branch = function
+            .block(receipt.entry)
+            .unwrap()
+            .terminator
+            .as_ref()
+            .unwrap();
+        let crate::ssa::model::TerminatorKind::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = &branch.kind
+        else {
+            panic!("original dynamic branch");
+        };
+        assert_eq!(when_true, &receipt.paths[0].edge);
+        assert_eq!(when_false, &receipt.paths[1].edge);
+        for path in &receipt.paths {
+            assert_eq!(
+                function
+                    .block(path.block)
+                    .unwrap()
+                    .terminator
+                    .as_ref()
+                    .unwrap()
+                    .kind,
+                crate::ssa::model::TerminatorKind::BorrowReturn { loan: path.result }
+            );
+        }
     }
     audits.into_iter().map(|a| a.branch_consumption).collect()
 }
