@@ -8,8 +8,8 @@ use lang_frontend::{
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct Source {
     order: [UnitStatementId; 2],
-    middle: Vec<SourceConsumer>,
-    call: Option<Call>,
+    segments: [Vec<SourceConsumer>; 3],
+    calls: Vec<Call>,
 }
 
 pub(super) fn original_order(
@@ -23,31 +23,46 @@ pub(super) fn original_order(
     let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
         return None;
     };
-    let (first, second, middle) = match elements.as_slice() {
-        [first, second] => (first, second, Vec::new()),
-        [first, middle, second] => (
-            first,
-            second,
-            vec![crate::ssa::refine::fresh_loop_receipt::audit_consumer(
+    let mut loops = Vec::new();
+    let mut segments: [Vec<SourceConsumer>; 3] = std::array::from_fn(|_| Vec::new());
+    for &statement in elements {
+        if matches!(
+            ast.statements().get(statement).ok()?.payload(),
+            Statement::While { .. }
+        ) {
+            if loops.len() == 2 {
+                return None;
+            }
+            loops.push(statement);
+        } else {
+            let segment = segments.get_mut(loops.len())?;
+            if !segment.is_empty() {
+                return None;
+            }
+            segment.push(crate::ssa::refine::fresh_loop_receipt::audit_consumer(
                 inputs,
-                *middle,
+                statement,
                 fact.source(),
-            )?],
-        ),
-        _ => return None,
-    };
-    let call = if let Some(consumer) = middle.first() {
-        let site = inputs
-            .source_plan
-            .call_site(inputs.source_token, consumer.call)?;
-        if !site.delegation().is_empty() {
-            return None;
+            )?);
         }
-        let key = site.dispatch_key()?;
-        Some((key.clone(), *inputs.function_ids.get(key)?))
-    } else {
-        None
+    }
+    let [first, second] = loops.as_slice() else {
+        return None;
     };
+    let calls = segments
+        .iter()
+        .flatten()
+        .map(|consumer| {
+            let site = inputs
+                .source_plan
+                .call_site(inputs.source_token, consumer.call)?;
+            if !site.delegation().is_empty() {
+                return None;
+            }
+            let key = site.dispatch_key()?;
+            Some((key.clone(), *inputs.function_ids.get(key)?))
+        })
+        .collect::<Option<Vec<_>>>()?;
     let mut flag = None;
     for statement in [first, second] {
         let Statement::While { condition, .. } = ast.statements().get(*statement).ok()?.payload()
@@ -71,8 +86,8 @@ pub(super) fn original_order(
             UnitStatementId::new(inputs.source_unit, *first),
             UnitStatementId::new(inputs.source_unit, *second),
         ],
-        middle,
-        call,
+        segments,
+        calls,
     })
 }
 
@@ -178,20 +193,15 @@ pub(super) fn finish(
     if used.contains(index)
         || snapshot.receipt.caller != caller
         || snapshot.receipt.loops.len() != 2
-        || (source.middle.is_empty() && !snapshot.receipt.has_empty_segments(3))
-        || !snapshot.receipt.matches_source_segments(&[
-            Vec::new(),
-            source.middle.clone(),
-            Vec::new(),
-        ])
+        || (source.calls.is_empty() && !snapshot.receipt.has_empty_segments(3))
+        || !snapshot.receipt.matches_source_segments(&source.segments)
     {
         return None;
     }
     // Validate the complete caller CFG once, including both loop exits and their connecting edge.
     let function = validate_caller(snapshot, program, anchor.abi?, anchor.source_index?)?;
-    let middle_calls: Vec<_> = source.call.iter().cloned().collect();
-    validate_mapping(&middle_calls, program, mapping)?;
-    validate_segments(snapshot, function, &middle_calls)?;
+    validate_mapping(&source.calls, program, mapping)?;
+    validate_segments(snapshot, function, &source.calls)?;
     let mut edges = Vec::new();
     for (index, (e, local)) in expected.iter().zip(&snapshot.receipt.loops).enumerate() {
         if !local.fact.same_identity(&e.fact) || local.fact != e.fact {

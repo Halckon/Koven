@@ -20363,3 +20363,9 @@ Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入�
 - 保留精确双 while、同 source/flag、各单 fresh consumer 的范围；新增中间恰一次原 source consumer，外段仍空。独立原 AST/typed consumer 保存完整来源与调用实例，不由最终指令反推期望。
 - 三个 sealed source 段与原完整 consumer 字段逐项匹配，原完整 Function/CFG 仍只整体验证一次；中间实际 DirectCall 必须匹配独立调用映射，两 loop 原事实、ledger 和 last End 继续各自核对，全部成功后才发布两条来源边。
 - 真实源码测试覆盖来源及 ABI 反序、同次两次独立组装，中间源参数与两 fresh 结果分离、五条原 acquisition；三 loop、中间双消费、外部消费、第二 loop 双消费均保整组缺口。实际 fresh 模块 9 项、旧 Partial 2 项全过；codegen 三 feature all-targets 严格 Clippy（1m33s）、default codegen all-targets（40.24s）通过，格式、文档 968 篇、尺寸 2421 文件/21 项历史欠账及 diff 门禁通过。首编私有测试字段访问已修正；共享 target 的跨树 frontend API 失配经本树真实 frontend/codegen 重编消失，不声称首遍成功。原完整失败日志已被覆写，仅保留诊断摘要及成功日志；未执行 native、故障注入或推送。
+
+### D10 双 fresh scope 三个 source 段的独立证明
+
+- 原 AST 从左到右精确登记两个 while，并将之前、之间、之后分成三个固定段；每段至多一次原 typed source consumer，不按总语句数猜测来源，不增加 loop/body 上限。
+- 三段完整身份与原 source-plan dispatch 分别保存，最终与三个 sealed 段逐项全字段匹配；实际指令映射整组一次核验，原完整 caller CFG 运输证明与两来源边原子发布不变。
+- 正常源码覆盖八种段存在组合与来源/ABI 反序，区分首入口 source、跨 loop source 和末出口 source：末段为空时退出不留 source，有末段则在真实 Return 块保留 source 并完成调用；原 acquisition 数量及独立 before/middle/after callee 映射均核。任段两次消费、三 loop、第二 body 双消费保持整组缺口。实际 fresh 10 项、旧 Partial 2 项通过；codegen 三 feature all-targets 严格 Clippy（1m16s）、default codegen all-targets（36.99s）、格式/docs968/尺寸2421文件与21项历史欠账/diff 门禁通过。独立静审无阻断，本轮以本树 frontend 真实重编避免跨树缓存失配，首个 attempt 全链成功。未运行 native、故障注入或推送。
