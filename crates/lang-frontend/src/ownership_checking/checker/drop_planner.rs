@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod binding;
-mod expression;
 mod borrow_result;
 mod capture;
 mod conditional;
 mod control;
 mod elvis;
+mod expression;
 mod iteration;
 mod lambda;
 mod liveness;

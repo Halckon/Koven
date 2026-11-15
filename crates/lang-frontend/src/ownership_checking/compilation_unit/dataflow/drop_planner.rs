@@ -1,5 +1,4 @@
 mod action_source;
-mod expression;
 mod assignment;
 mod binding;
 mod borrow_binding_transport;
@@ -11,6 +10,7 @@ mod bounded_forward_plan;
 mod branch_forward_scope;
 mod call_loan_end;
 mod control;
+mod expression;
 mod iteration;
 mod lambda;
 mod loan_auxiliary_binding_region;
