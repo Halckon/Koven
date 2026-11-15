@@ -23,6 +23,8 @@ pub(crate) mod child_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod identity_return;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
 #[deny(dead_code)]
@@ -373,8 +375,16 @@ pub(in crate::ssa) fn lower(
     parameters: &[EntityId],
     types: &RefineTypes<'_>,
 ) -> Result<(), LoweringError> {
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::identity_return::expect(inputs);
     let body = build::build(inputs, parameters, types)?;
     emit::emit(&body, function, entry, parameters, inputs.span)?;
+    #[cfg(feature = "d10-catalog-experiment")]
+    if let Some(receipt) = identity_return::certify(inputs, function, types) {
+        crate::ssa::d10_project_audit::identity_return::record(receipt);
+    }
+    #[cfg(all(test, feature = "d10-catalog-experiment"))]
+    identity_return::test_record(inputs, function, types);
     #[cfg(test)]
     ROUTED.with(|routed| {
         if let Some(routed) = routed.borrow_mut().as_mut() {

@@ -29,7 +29,7 @@ fn original_tail_continuation_closes_actual_fold_with_distinct_callees() {
     }
 }
 #[test]
-fn certified_branch_edges_close_plan_without_hiding_identity_leaf_gaps() {
+fn certified_branch_and_identity_edges_close_plan_but_keep_entry_lifetime_gap() {
     for tail in [false, true] {
         let audits = run_entry(tail, true, true, false);
         assert_eq!(audits.len(), 2);
@@ -136,7 +136,14 @@ fn run_entry(
         assert_eq!(receipt.folded_distinct_blocks(), tail);
         assert!(receipt.paths[0].branch.then_arm());
         assert!(!receipt.paths[1].branch.then_arm());
-        let (program, _) = result.unwrap();
+        let (program, entry_function) = result.unwrap();
+        for path in &receipt.paths {
+            assert_ne!(path.callee, entry_function);
+            assert_ne!(
+                path.callee.index, 0,
+                "identity evidence must support nonzero leaf IDs"
+            );
+        }
         let function = program
             .modules
             .iter()
@@ -201,8 +208,8 @@ fn run_entry(
                 .iter()
                 .filter(|g| g.contains("unclassified terminator: Some(BorrowReturn"))
                 .count(),
-            2,
-            "identity leaf returns remain unproven: {:?}",
+            0,
+            "identity leaf returns require their independent certificate: {:?}",
             audit.unsupported
         );
         assert_eq!(
@@ -229,6 +236,11 @@ fn run_entry(
                 .count(),
             usize::from(!wrapper_entry && !extra_parameter)
         );
+        assert!(
+            !audit.unsupported.iter().any(|g| g.contains("identity")),
+            "{:?}",
+            audit.unsupported
+        );
         assert_eq!(
             audit
                 .unsupported
@@ -245,6 +257,14 @@ fn run_entry(
                 .iter()
                 .any(|g| g.contains("unconsumed certified"))
         );
+        if !extra_parameter {
+            assert_eq!(
+                audit.unsupported.len(),
+                usize::from(!wrapper_entry),
+                "{:?}",
+                audit.unsupported
+            );
+        }
         if wrapper_entry {
             assert!(audit.direct_edges.is_empty());
         }

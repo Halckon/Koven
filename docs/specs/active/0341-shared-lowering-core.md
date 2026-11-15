@@ -19596,3 +19596,42 @@ fmt/diff-check、docs（958）、相对 `2c97add5` 尺寸门禁（2348 Rust 文�
 frontend/codegen all-targets 严格 Clippy 通过，fmt/diff、docs（958）与相对
 `f6602d64` 尺寸门禁（2351 Rust、37 历史超限）通过。未跑 native、未推送；
 identity 独立片尚未组合，本次不重跑既有未受影响全套。
+### D10 identity leaf 的精确终结证明前置（2026-11-15）
+
+独立切片仅在原 refine emit 成功后检查现有 inputs 和 Function，不重发射、不改准入。
+限定 plain 单 Borrow String 参数的直接 Name 表达式体，原 references 必须回到唯一参数，
+原唯一 borrow-return origin/marker 与参数根及真实签名一致；source_token 在原 source_plan
+中定位完整非特化 key，再与原 function_ids 和 callable item 对账，不按名称或 span 猜身份。
+
+最终定义须为一 block、零 instructions、无 Value/Place、唯一 Shared String loan 参数，
+唯一 BorrowReturn 交付同一 loan，Definition、类型、全部 origin、ABI 和完整 Function
+均核对。私有 receipt 对最终 Program 重新检查唯一函数快照及 StringOwner 类型表。
+这不证明其他借用形状、callee 闭包、native 执行或一般准入；source_token 仍是 plan-local，
+接入项目图必须另由同 assembly transaction 保证隔离，不能跨次重用 receipt。
+
+本切片只提供 certifier 和测试观察 hook；生产事务/最终项目图接线由共同集成完成。
+新增 `identity_leaf_certifies_only_plain_single_string_name_return` 使用真实源码，覆盖直接
+Name 正例与 grouped Name、block return、额外参数反例，每个输入独立发射两次。未改写
+SSA、构造假事实或做跨分析混配。定向 1 passed；grouped 负形状保留原 lowering
+Unsupported，不强求它成功发射后才拒绝认证。初版测试对该负形状误作成功发射假设，
+仅修正测试预期，未改变原 route。fmt、文档（958 文件）、diff 与尺寸门禁通过；
+受影响 codegen d10 feature all-target 严格 Clippy 通过。没有 native 执行、推送或远端 CI 结果。
+
+### D10 identity 叶同次生产接线（2026-11-15）
+
+组合准确入口 `636b420a` 与独立 identity `50297826`，保留双方检查点及追加文档。
+原 RefineInputs 中 expression-body Name 借返候选在 build/emit 之前独立登记；
+certify 仅在原 emit 成功后记录。每次 assembly 私有 RAII 状态同时保存原计划
+source token/key/callable，最终 verifier 后逐项核 expression、mapping、完整最终
+Function/StringOwner 类型，再将精确 BorrowReturn 身份交给原主图消费者。
+缺失、重复、多余或身份不一致均为显式 gap；不读取测试 OBSERVED、不保留临时
+allow(dead_code)，不改变 route/生产返回。候选宽于证书时仍如实缺证，不过滤掉缺口。
+
+集成用两源反序、同 observe 内两次 assembly、非 root 非零函数 ID 的真实 identity
+叶验证；wrapper 根须无 unsupported，普通入口仍只保留 binding lifecycle 未证项。
+这是有界主图与 identity 叶证据，不是普通入口生命周期完成或一般 runtime 证明。
+末版 identity exact 1/1、组合 branch 4/4 通过；codegen 三 feature all-targets
+严格 Clippy 与默认 codegen all-targets check 通过。fmt/diff、docs（958）及相对
+`636b420a` 尺寸门禁（2354 Rust、37 历史超限）通过。首编暴露两项接口可见性
+告警，已收窄到 SSA 域而非加 allow，末版重测无警告。RAII 错误/展开清理为静态
+审查保证，本片没有故障注入、native 执行、推送或新 main 整合。

@@ -4,6 +4,7 @@
 pub(crate) mod branch_consumption;
 pub(crate) mod compatibility;
 pub(crate) mod entry_borrow;
+pub(crate) mod identity_return;
 mod literal_consumption;
 use crate::ssa::{
     model::{FunctionId, Operation, Program, SsaTypeKind, TerminatorKind},
@@ -73,6 +74,7 @@ pub(crate) struct Pending {
     receipts: literal_consumption::Transaction,
     branches: branch_consumption::Transaction,
     entry_borrows: entry_borrow::Transaction,
+    identity_returns: identity_return::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -90,6 +92,7 @@ impl Pending {
                 receipts: literal_consumption::Transaction::begin(),
                 branches: branch_consumption::Transaction::begin(),
                 entry_borrows: entry_borrow::Transaction::begin(),
+                identity_returns: identity_return::Transaction::begin(plan),
                 items: names
                     .names()
                     .index()
@@ -211,6 +214,9 @@ impl Pending {
         let mut branch_edges = audit.branch_consumption.edges.clone();
         branch_edges.extend(entry_edges);
         let mut branch_returns = audit.branch_consumption.returns.clone();
+        let (identity_returns, identity_gaps) = self.identity_returns.finish(program, mapping);
+        audit.unsupported.extend(identity_gaps);
+        branch_returns.extend(identity_returns);
         for function in program.modules.iter().flat_map(|module| &module.functions) {
             for instruction in &function.instructions {
                 let runtime = match &instruction.operation {
