@@ -37,7 +37,7 @@ fn distinct_callees_preserve_original_instances_and_call_lifetimes() {
 #[test]
 fn distinct_callees_keep_other_lifetime_and_shape_boundaries() {
     for body in [
-        "val owner=\"s\";run_a(owner,owner,1,false);run_b(owner,owner,2,true)",
+        "val owner=\"s\";run_a(owner,owner,1,false);run_b(owner,owner,(2),true)",
         "val owner=\"s\";run_a(owner,\"a\",1,false);run_b(\"b\",owner,2,true)",
         "run_a(\"a\",\"b\",1,false);val owner=\"s\";run_b(owner,owner,2,true)",
         "run_a(\"a\",\"b\",1,false);run_b(\"c\",\"d\",2,true);run_a(\"e\",\"f\",3,false)",

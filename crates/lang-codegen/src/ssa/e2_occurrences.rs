@@ -30,9 +30,12 @@ impl EntryKeys {
         d: &EntryDescriptor,
         typed: &ValidatedCompilationUnitTypes,
     ) -> Option<Self> {
-        // None is admissible only for the privately constructed exact temporary pair.
+        // None is admissible only for separately proven private distinct-instance roots.
         let common = d.common_instance();
-        if common.is_none() && !d.is_different_temporary_pair() {
+        if common.is_none()
+            && !d.is_different_temporary_pair()
+            && !d.is_different_shared_named_pair()
+        {
             return None;
         }
         let keys = d

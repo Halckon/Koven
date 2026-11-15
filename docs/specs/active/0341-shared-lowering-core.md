@@ -20550,3 +20550,33 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 最终入口精确一条原 callee、原 source entry 实体与原 call Span 的无结果 DirectCall；完整 ABI slot 的 ending 仍逐一对应原 entry 实体，经原边运输到循环。其余原七块、两 Name 条件 Borrow/Value、每臂一/二 consumer 与唯一 End、全实体/type/Return、同次双边原子发布均不放宽。
 - 新两项目标通过：四种条件模式、六 ABI、source 顺序共 48 前消费形态各两次 assembly；实际 entry callee 由原声明 item Span 对应最终唯一 Function Origin，不猜生成函数名。Group/具名参数前消费均原正常 receipt 但精确 gap；旧域外前消费改为两次 consumer 仍保持 gap，suffix 继续原精确 InvalidModel/caller span 与零发布。
 - 受影响旧 arm 两项及 Value 三项通过；FE/codegen 三 feature all-targets 严格 Clippy（1m42s）、default codegen all-targets（32.31s）、格式/docs979/尺寸2466文件与2项历史欠账/diff 全部通过，独审无阻断。首编 E0616 日志保留，SourceConsumer 增加 feature-only 两个按值只读 getter 后实测通过，无构造或变更权限；未 native、故障注入或推送，默认 workspace 留联合一次。
+
+
+### E2 不同闭合 callee 的单 named owner 阶段根（本地已验）
+
+- 基线 `268119beecc2c46bcec511184024b250b5855035`。只开放 exact
+  `val owner="shared"; callA(owner,owner,IntLiteral,BooleanLiteral); callB(owner,owner,IntLiteral,BooleanLiteral)`；
+  两个不同完整实例均需原闭合 E2 fact/shell，空类型实参，保持默认关闭。
+- 私有 `DifferentSharedNamedPair` 独立根及 marker；不将 `SharedMixed`、late、双 owner
+  或一般 `common_instance=None` 纳入。原 shared_pair 算法未改，JointPlan 闭包未改。
+- 每 call 仍消费原完整 loan/End；根按原 initializer Span 仅创建一次，首完整 Drop 向量为空，
+  末向量精确为唯一 NamedDrop。正式逐 occurrence FullKey→fact→SSA 绑定保留；legacy 路径仍拒绝。
+- ordinary probe 两 case 已通过：8 个不同 argument/Shared loan、8 个 End，call 内 ordinal 0..3，
+  formed owner membership 与原初始化位置分别核验，4 个 Name 借用同根但身份/Span 不同。
+  原闭合双 fact 正序 case 确认两不同 FullKey/空类型实参/闭合 shell；入口准确返回
+  `UnsupportedSelection`（预期红，不是通过；反序闭合 case 当时未执行）。
+- 初次编译仅测试使用旧 `Symbol.span` 字段导致 E0616，适配公开 `span()` 后原两目标为 1 过、1 预期红。
+  日志保留；没有更改生产迎合 probe。生产新增三目标及邻域回归、三 feature legacy 拒绝和 strict 已验，见下。
+- CI 同批登记三精确 unit 目标，并将旧 named-different-callee 负例改为仍拒绝的计算 scalar；
+  清单由 52 增为 55 unit/配置，保留 7 public 与 1 frontend 项。尚未运行 CI，不宣称通过。
+
+- 最终本地验收（全部 `--locked -j1`，不 native/故障注入）：正式 `two-source-unit`
+  `shared_distinct_callees::` 3/3 通过，含正反完整闭合调用、具名 ABI 与 10 个域外准确分类；
+  `shared_owner_pair::` 3/3、`shared_mixed_pair::` 3/3、`distinct_callees::` 3/3、
+  `occurrence_bindings::` 4/4 通过。未重复其他矩阵或全 workspace。
+- `two-source-unit,e2-two-source-test-support,loan-observation-test-support` 新三目标 3/3 通过，
+  原 descriptor 的 legacy publication/emit 拒绝真实执行；同配置 frontend/codegen 两 crate
+  `clippy --all-targets -- -D warnings` 首轮通过（1m41s）。生产绿阶段没有 oracle 修正。
+- SSA 验证同一原 initializer/RootPlace 仅创建一次，4 个 String 实参共享 place、8 个 loan 不合并，
+  每位置原 FullKey 对应独立 SSA callee，原实参顺序与 ABI 列分别核对；首完整 End 先于次 Begin，
+  最后唯一 Drop 晚于全部 End。独立 replay 与 LLVM render 通过，不生成或执行 native 对象。

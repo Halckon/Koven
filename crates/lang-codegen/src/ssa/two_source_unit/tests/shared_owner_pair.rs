@@ -153,7 +153,7 @@ fn shared_owner_pair_rejects_other_lifetime_shapes() {
         ),
         (format!("val owner=\"shared\";{FIRST};{SECOND};{FIRST}"), ""),
         (
-            format!("val owner=\"shared\";{FIRST};other(owner,owner,2,true)"),
+            format!("val owner=\"shared\";{FIRST};other(owner,owner,1+1,true)"),
             other.as_str(),
         ),
         (
