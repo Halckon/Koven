@@ -20292,3 +20292,15 @@ all-targets严格Clippy（4m00s）及codegen two-source-unit/e2-two-source-test-
 loan-observation-test-support三feature all-targets严格Clippy（4m16s）均通过；
 fmt、文档结构、diff与Rust体积guard通过，独立静审含nullable补门无阻断。
 不推送或执行native/故障注入。
+
+
+### D10 双 fresh body 消费与前后 source 段组合（增量验收）
+
+仅将已封闭的双 body use-set 与前后各一次 source 段组合为 `(2,1,1)`，保留原三种形状。
+独立原 expected 仍含全部消费者与五个 dispatch，源账本核 initializer/两 body/两 outer 原 acquisition 同 Function；
+final 仍逐项核五个目标映射、两 body 调用同 fresh result、唯一末次 End、sealed outer segments 原完整字段以及全 Function/CFG。
+未引入新 producer 或准入规则，不改变旧 Partial，不以跳过缺口替代证明。
+新增不同 before/after 与不同 body callees 的正常源矩阵，交换 body 顺序、source/参数顺序、同 observe 两 assembly；
+同时核五个原 acquisition/call 与四个实际 DirectCall，复用原 body no-carry 和 outer 参数运输强断言。
+三个 body consumer（含带外段）、单侧或更长外段在单/双 body 两族均保持真实原 receipt 与新域 gap。
+独立静审通过，末版 fresh 模块五项与旧 Partial loop 两项全部通过。组合矩阵另显式断言两 outer 实参均不是实际 fresh result。frontend/codegen 三 feature 严格 Clippy all-targets 通过（1m12），默认仅两 crate all-targets check 通过（0.53s）。格式、968 Markdown 文档门禁、尺寸门禁（基74961f5a，2418文件/21历史债）、差异检查通过；不代表 workspace 全验。未推送、未执行 native 或本地人工故障。日志为 `/private/tmp/d10-fresh-combined-{tests,oldloop,strict,default,size}.log`。

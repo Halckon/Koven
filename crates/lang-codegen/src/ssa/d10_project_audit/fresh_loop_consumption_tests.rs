@@ -44,6 +44,16 @@ fn two_ordered_consumers_share_one_fresh_result_until_the_last_end() {
     }
 }
 #[test]
+fn two_body_uses_and_outer_source_segments_keep_distinct_lifetimes() {
+    for reverse_sources in [false, true] {
+        for reverse_parameters in [false, true] {
+            for uses in ["consume(item);other(item)", "other(item);consume(item)"] {
+                check(reverse_sources, reverse_parameters, uses, (1, 1), true);
+            }
+        }
+    }
+}
+#[test]
 fn original_longer_use_sets_and_unbalanced_segments_remain_outside_fresh_domain() {
     check(
         false,
@@ -52,9 +62,16 @@ fn original_longer_use_sets_and_unbalanced_segments_remain_outside_fresh_domain(
         (0, 0),
         false,
     );
-    check(false, false, "consume(item);other(item)", (1, 1), false);
+    check(
+        false,
+        false,
+        "consume(item);other(item);consume(item)",
+        (1, 1),
+        false,
+    );
     for segments in [(1, 0), (0, 1), (2, 1), (1, 2)] {
         check(false, false, "consume(item)", segments, false);
+        check(false, false, "consume(item);other(item)", segments, false);
     }
 }
 fn check(
@@ -214,6 +231,33 @@ fn check(
                 );
             }
             if segments == (1, 1) {
+                if facts[0].consumers().len() == 2 {
+                    let original: Vec<_> = owned
+                        .ownership()
+                        .loans()
+                        .iter()
+                        .filter(|l| l.call().source_unit() == facts[0].callable().source_unit())
+                        .collect();
+                    assert_eq!(
+                        original.len(),
+                        5,
+                        "initializer, two body and two outer consumers"
+                    );
+                    let calls: BTreeSet<_> = original.iter().map(|l| l.call()).collect();
+                    assert_eq!(
+                        calls.len(),
+                        5,
+                        "each original acquisition has its own source call"
+                    );
+                    assert_eq!(
+                        function
+                            .instructions
+                            .iter()
+                            .filter(|i| matches!(i.operation, Operation::DirectCall { .. }))
+                            .count(),
+                        4
+                    );
+                }
                 assert!(
                     audit
                         .direct_edges
@@ -259,6 +303,20 @@ fn check(
                     let [argument] = arguments.as_slice() else {
                         panic!("one source argument");
                     };
+                    let fresh = receipt.loops[0]
+                        .instructions
+                        .iter()
+                        .find(|(tag, _)| *tag == fresh_loop_receipt::Tag::Result)
+                        .unwrap()
+                        .1;
+                    let [fresh_result] = function.instruction(fresh).unwrap().results.as_slice()
+                    else {
+                        panic!("one fresh result");
+                    };
+                    assert_ne!(
+                        argument, fresh_result,
+                        "outer source loan is never the fresh body result"
+                    );
                     assert!(
                         function
                             .block(instruction.block)
