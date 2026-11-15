@@ -459,6 +459,7 @@ subgraph Gactive["现行 active"]
   S0469["S0469<br/>表达式与资源交换测试领域归位"]
   S0470["S0470<br/>类型表、typed产物实现与短路测试归位"]
   S0471["S0471<br/>Unit签名类型解析与body产物实现归位"]
+  S0472["S0472<br/>Unit canonical、委托与ownership产物归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1991,6 +1992,7 @@ S0456 --> S0457
 | SPEC-0469 | active | [0469-expression-and-resource-exchange-test-domains.md](../../specs/active/0469-expression-and-resource-exchange-test-domains.md) |
 | SPEC-0470 | active | [0470-type-table-and-typed-file-domains.md](../../specs/active/0470-type-table-and-typed-file-domains.md) |
 | SPEC-0471 | active | [0471-unit-signature-types-and-body-product.md](../../specs/active/0471-unit-signature-types-and-body-product.md) |
+| SPEC-0472 | active | [0472-unit-canonical-delegation-and-ownership-product.md](../../specs/active/0472-unit-canonical-delegation-and-ownership-product.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
