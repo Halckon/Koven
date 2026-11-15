@@ -611,3 +611,16 @@
 - [SPEC-0379](0379-refine-reassignment-and-move-enum-when.md)：MoveOnly 局部可变重赋值与 MoveOnly 枚举 `when` 迁入所有权细化层。
 - [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)：`deinit` 析构体、多层字段借用、接口委托、无状态 `object` 与 `Map.withValue` 迁入所有权细化层。
 - [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)：默认分流边界修复与旧路径退休。
+
+## PR #433 有界职责与尺寸交付
+
+- [0461 model-error-and-numeric-source-identity](0461-model-error-and-numeric-source-identity.md)
+- [0458 ssa-verifier-responsibility-and-size-debt](0458-ssa-verifier-responsibility-and-size-debt.md)
+- [0462 refine-call-and-control-merge-responsibility](0462-refine-call-and-control-merge-responsibility.md)
+- [0465 llvm-instruction-dispatch-families](0465-llvm-instruction-dispatch-families.md)
+- [0459 ssa-domain-tests-and-size-debt](0459-ssa-domain-tests-and-size-debt.md)
+- [0457 native-entry-tests-and-size-debt](0457-native-entry-tests-and-size-debt.md)
+- [0464 native-interface-and-receiver-test-domains](0464-native-interface-and-receiver-test-domains.md)
+- [0463 ownership-operation-and-lowering-domains](0463-ownership-operation-and-lowering-domains.md)
+- [0456 runtime-buffer-responsibility-and-size-debt](0456-runtime-buffer-responsibility-and-size-debt.md)
+- [0460 verifier-borrowed-call-and-place-tests](0460-verifier-borrowed-call-and-place-tests.md)

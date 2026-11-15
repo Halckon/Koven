@@ -6,15 +6,15 @@
 
 `lang-codegen::ssa` 自有 typed SSA，不把 LLVM 类型当作 frontend 或中间语义。`Program` 包含 module、
 function、block、entity、type 和 operation；控制流通过 block parameters 与显式 edge operands 传值。
-每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
+每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。完整 `ModelError` 与 Display/Error impl 位于私有 `model/error.rs`，根直接 re-export；ProgramOwner、atomic、typed ID 仍唯一留根。
 
-验证分三层执行：
+验证分三层执行；dominance位于私有 `verify/dominance.rs`，存储构造/投影位于 `verify_operation/storage.rs`，ownership单指令效果位于 `verify_ownership/operation.rs`，各根保留原调用门面：
 
 - 结构/类型验证：ID、block、dominance、operand/result、edge 和 terminator 契约；
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
 - ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop、control-flow 合并及[borrowed closure owned escape](borrowed-closure-escape.md)。闭包形成与实际析构检查同一 capture loan 的唯一活跃持有者。外部派生 loan 存活时拒绝释放父捕获或经父 loan 写入。
 
-未经验证的 SSA 不进入 LLVM adapter。SPEC-0341 的[空体标量前缀](../specs/active/0341-shared-lowering-core.md#已批准的-tail-break-独立标量前缀扩展2026-11-13)以独立事实和实际 CFG/资源参数运输证据接入有界 tail-break；另有[已批准的前缀与 counter 条件 break 组合](../specs/active/0341-shared-lowering-core.md#已批准的-scalar-prefix--counter-条件-break-组合2026-11-13)，独立证明 prefix join、实际计数初始化、header 与双出口，独立 Boolean 可按活性裁剪但共享 stop 与资源根必须保留。两者不授权一般前缀。renderer 只用于确定性调试和测试，不是稳定序列化协议。LLVM 模块已移除整模块 dead-code 豁免；仅测试消费的 IR render/smoke 入口限于测试构建，生产 object lowering 保留。SSA carry 以及整个 refine、unit_lower、unit_plan 子树恢复 dead-code 门禁，render 与仅旧路径测试消费的查询接口限制为测试构建；生产 SSA 顶层恢复 dead-code 门禁，仅保留具名模型变体及诊断载荷例外；Unit planner 测试及其五个子模块恢复 dead-code 门禁，未删减原断言或夹具；仅测试构建的 `lower_frontend` 实际子树也恢复 dead-code 门禁，别名目标不在其继承范围；其他历史测试夹具广域豁免仍待独立审计。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
+未经验证的 SSA 不进入 LLVM adapter；adapter 的 instruction lowering 按 operation 家族分布，顶层 `lower_instruction` 只做编译期穷尽分发，家族实现位于私有 `llvm/adapter/instruction/`。SPEC-0341 的[空体标量前缀](../specs/active/0341-shared-lowering-core.md#已批准的-tail-break-独立标量前缀扩展2026-11-13)以独立事实和实际 CFG/资源参数运输证据接入有界 tail-break；另有[已批准的前缀与 counter 条件 break 组合](../specs/active/0341-shared-lowering-core.md#已批准的-scalar-prefix--counter-条件-break-组合2026-11-13)，独立证明 prefix join、实际计数初始化、header 与双出口，独立 Boolean 可按活性裁剪但共享 stop 与资源根必须保留。两者不授权一般前缀。renderer 只用于确定性调试和测试，不是稳定序列化协议。LLVM 模块已移除整模块 dead-code 豁免；仅测试消费的 IR render/smoke 入口限于测试构建，生产 object lowering 保留。SSA carry 以及整个 refine、unit_lower、unit_plan 子树恢复 dead-code 门禁，render 与仅旧路径测试消费的查询接口限制为测试构建；生产 SSA 顶层恢复 dead-code 门禁，仅保留具名模型变体及诊断载荷例外；Unit planner 测试及其五个子模块恢复 dead-code 门禁，未删减原断言或夹具；仅测试构建的 `lower_frontend` 实际子树也恢复 dead-code 门禁，别名目标不在其继承范围；其他历史测试夹具广域豁免仍待独立审计。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
 
 顺序容器的 `ContainerLength` 接受 Value 或 active shared Loan；verifier 拒绝 exclusive、失效和错误 target 的 loan。source `.size`与unit String读取见[接入边界](unit-container-storage.md#source-size与unit-string读取)。
 结果是 signed i32 Koven `Int`，LLVM header 用 target `size_t`；借用读取按创建不变量转为 i32。list-form 与 runtime-length 创建共用目标位宽的 logical length 上限。
@@ -164,7 +164,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 两种 view 错误仍映射原 lowering kind 与 None span；[中立支撑](lowering-support.md)保留原错误路径，不新增公开 SSA/planner API。
 常量 lowering 独立校验身份后共享原 driver；公开常量 native 仍消费专用 capability，不转换为普通 view。
 
-实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。
+实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块；构造/Rc与String表达式lowering分列私有 `lower_frontend/{construction,string}.rs`。完整 refine call 求值/cleanup 位于私有 `refine/build/expression/call.rs`；既有 cfg(test) 的 `lower_frontend/control/merge.rs` 承载 exit-role/columns 汇合，根私有 MergeSlot 绑定保留 map_frames 间接消费者，不改生产路由或准入。
 
 ## LLVM 与 ABI 边界
 
@@ -182,7 +182,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 - nullable handle 使用 null niche 和条件 drop；[inline nullable](ownership-refinement.md#inline-nullable-布局)不强制成 pointer。
 - 一个 compilation unit 生成一个 LLVM module，并保留多 source DWARF 行映射。
 
-[Unit 容器存储](unit-container-storage.md)记录单文件有界接入与 void ABI 隔离；runtime helper 位于 `llvm/runtime.rs` 及其子模块，abort 只负责终止报告。
+[Unit 容器存储](unit-container-storage.md)记录单文件有界接入与 void ABI 隔离；长度桥及受检 buffer 分配位于私有 `llvm/runtime/buffer.rs`，RuntimeAbi 初始化/drop 分派仍留根，abort 只负责终止报告。
 条件析构由 `llvm/runtime/inline_nullable.rs`、`llvm/runtime/map_result.rs` 直接承载；String 分配/stdout 由 `llvm/runtime/string.rs` 承载，原 `RuntimeAbi` 调用与 ABI 不变。
 
 ## Native object 与发布
@@ -196,5 +196,5 @@ CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作�
 
 ## 测试覆盖位置
 
-SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../archive/development/codegen-receiver-test-migration.md)。
-planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../archive/development/codegen-plan-test-migration.md)；native公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。
+SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；aggregate/tagged、container/provider、scalar/borrowed_calls及ownership/places领域由原测试根加载私有子模块，通用harness/helper仍留各根；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../archive/development/codegen-receiver-test-migration.md)。numeric proof 独立解析/Origin 坐标比较位于私有 `while_flow_tests/numeric_proof_contract/source_identity.rs`，唯一 Spans/only 及完整 CFG/资源证明留根，FQN 不变。
+planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../archive/development/codegen-plan-test-migration.md)；native入口/object边界五项位于 `native_entry_tests.rs`，接口/委托14项与类接收者10项分列 `unit_interface_delegation_tests.rs`、`unit_class_receiver_tests.rs`，harness与唯一目录辅助仍留 `native/unit_tests.rs`；公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。

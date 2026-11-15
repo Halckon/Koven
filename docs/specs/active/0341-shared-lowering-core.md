@@ -20141,3 +20141,18 @@ UnsupportedSelection，具名实参重排拒绝保持。末版正式与三featur
 958文件文档、2386文件Rust尺寸（37旧债不变）及脚本语法门禁通过；独立静审无阻断。
 新目标纳入既有双配置CI清单。默认workspace留联合一次，构建槽结束即交D10。
 默认关闭、完整Unit审查和能力隔离保持；不推送、不运行native或故障注入。
+
+### 联合 main 62a73cc7 职责拆分验收（2026-11-15）
+
+在 c9855e6b 独立组合准确 main 62a73cc7446517d262841a7b54370227fc4bd9c5，
+不纳入后续未合 PR。63 个 incoming 文件的暂存独审通过：55 个非交集 blob 等于 main，
+六处代码保留 D10 导出、runtime 去未读字段、counter 注册及窄 lint/cfg；架构保双方，
+size policy 按 key 保本地记录且不恢复 main 已清除的13项 baseline。
+
+三 feature 实际源码到 SSA 的 AB/ABA/域外三项、E2 parameter_roles 两项和
+声明顺序两项均通过。默认 workspace all-targets check 通过（26.95s）；
+frontend/codegen 三 feature all-targets 严格 Clippy 通过（2m18s）。
+迁移后的 native entry、class receiver、interface delegation 与本地 d10_counter
+各选一个精确目标，均编译并 --list --exact 得到1 test，仅核注册，未执行 native。
+fmt、968文件文档、2411 Rust 文件尺寸门禁（21项历史欠账）、bash语法和diff通过。
+本地无故障注入或推送；一般 CFG/生命周期未证明域仍保原 gap，不以拆分验收替代证明。
