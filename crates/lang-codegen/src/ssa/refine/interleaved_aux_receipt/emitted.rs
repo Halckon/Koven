@@ -488,10 +488,10 @@ impl Receipt {
         let [plan] = plans.entries.as_slice() else {
             return Err(invalid(span));
         };
-        if plan.uses.len() != 1
+        if !matches!(plan.uses.len(), 1 | 2)
             || plan.prefix != 1
-            || self.entities.len() != 9
-            || self.instructions.len() != 15
+            || self.entities.len() != 7 + 2 * plan.uses.len()
+            || self.instructions.len() != 11 + 4 * plan.uses.len()
         {
             return Err(invalid(span));
         }
@@ -500,10 +500,10 @@ impl Receipt {
             .zip(self.entities.iter().copied())
             .map(|(slot, entity)| slot.map(|slot| (slot, entity)).ok_or_else(|| invalid(span)))
             .collect::<Result<_, _>>()?;
-        if current.len() != 9 {
+        if current.len() != self.entities.len() {
             return Err(invalid(span));
         }
-        // Reuse the original pure checks, including chronological nine-slot freezing.
+        // Reuse the original pure checks, including chronological slot freezing for the bounded AB/ABA shapes.
         // No finish/publication is called here and no SSA operation is appended.
         let mut replay = Emitted::new(plans, function, span)?;
         for (role, instruction) in self.instructions.iter().enumerate() {

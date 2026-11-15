@@ -46,13 +46,22 @@ impl CompilationUnitOwnership {
         };
         let producers = record.loan_producers().ok_or(Unsupported)?;
         let ids: Vec<_> = region.action_ids().collect();
-        if ids.len() != 11 || region.uses().len() != 1 || region.binding_use_position() != 1 {
+        let count = region.uses().len();
+        if !matches!(count, 1 | 2)
+            || ids.len() != 9 + 2 * count
+            || region.binding_use_position() != 1
+        {
             return Err(Unsupported);
         }
         let Some(UnitLoanAction::BorrowHandoffCommitted(handoff)) = catalog.action(&ids[2]) else {
             return Err(Unsupported);
         };
-        let acquisitions: Vec<_> = [0, 1, 6, 3]
+        let indices = if count == 1 {
+            vec![0, 1, 6, 3]
+        } else {
+            vec![0, 1, 5, 3, 10]
+        };
+        let acquisitions: Vec<_> = indices
             .into_iter()
             .map(|index| match catalog.action(&ids[index]) {
                 Some(UnitLoanAction::Begin(loan)) => Ok(loan),
@@ -83,10 +92,18 @@ impl CompilationUnitOwnership {
         {
             return Err(Unsupported);
         }
-        if Some(acquisitions[3].call()) != region.uses().first().map(|u| u.loan().call()) {
+        if acquisitions[3..]
+            .iter()
+            .map(|l| l.call())
+            .collect::<Vec<_>>()
+            != region
+                .uses()
+                .iter()
+                .map(|u| u.loan().call())
+                .collect::<Vec<_>>()
+        {
             return Err(Unsupported);
         }
-        let later_call = acquisitions[3].call();
         let source_facts: Vec<_> = record.loans.iter().filter(|l| l.call() == call).collect();
         if source_facts != acquisitions[..2] || acquisitions[2].call() != region.consumer_call() {
             return Err(Unsupported);
@@ -118,13 +135,14 @@ impl CompilationUnitOwnership {
         {
             return Err(Ambiguous);
         }
-        if record
-            .loans
-            .iter()
-            .filter(|l| l.call() == later_call)
-            .count()
-            != 1
-        {
+        if region.uses().iter().any(|u| {
+            record
+                .loans
+                .iter()
+                .filter(|l| l.call() == u.loan().call())
+                .count()
+                != 1
+        }) {
             return Err(Ambiguous);
         }
         Ok(callable)

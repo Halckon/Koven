@@ -20099,3 +20099,22 @@ verifier和LLVM render，不执行native。两crate三feature all-targets严格C
 
 默认关闭能力和完整Unit审查不变；默认workspace留共同集成一次，不推送、不做故障
 注入。构建槽在strict结束后立即交给D10，不等待账本或本地提交。
+
+### D10 ABA 跨 binding 退休的辅助再借用（2026-11-15）
+
+基于 5502bcd2，只扩审计的精确 count=2/prefix=1，并保留 AB。原生产 MAX8、准入、
+Partial/Complete 权威不变。原 BeforeBinding 的 source Begin/handoff 与第二次
+AfterBinding 的 source retirement/drop 必须同 catalog；五个 Begin 完整原 fact 与
+实际 Function producer 唯一对应。四个原 call expression 的 dispatch 分别核验，
+即使相同 callee 也不合并 call 身份。
+
+原 feature-only pure replay 复用原 statement，精确十九 role/十一槽；最终核两原 literal
+加全二十一指令、十一实体与定义/类型/Return，不仅检查窗口。第一 A 独立结束后 B
+消费并退休来源；第二 A 在 source Drop 后重新建立不同 place/loan，最后 Drop(aux)。
+原私有履约 token 仍只在完整最终验证后产生，不裸过滤 gap。
+
+真实测试包含两 source 参数位置、反序源、同字节不同 owner、双 assembly，第二 A 使用
+不同 callee；AAB/ABAA 正常原 receipt 保留但不获本桥证明。独审与三项真实源码测试通过，
+含 AB、ABA 正例及 AAB/ABAA 正常域外负控。frontend/codegen 三 feature all-targets
+严格 Clippy 与默认两 crate all-targets check 均通过；fmt、958 文件文档、2385 Rust
+文件尺寸门禁（37 项历史欠账）和 diff 通过。不执行 native/人工故障、不推送。

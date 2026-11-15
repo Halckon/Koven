@@ -62,9 +62,9 @@ struct Expected {
     callable: UnitItemId,
     source: UnitExpressionId,
     consumer: UnitExpressionId,
-    later: Option<UnitExpressionId>,
+    uses: Vec<UnitExpressionId>,
     ids: Vec<UnitLoanActionId>,
-    calls: Option<[Call; 3]>,
+    calls: Option<Vec<Call>>,
     bytes: [Option<Vec<u8>>; 2],
     string: [Option<crate::ssa::model::SsaTypeId>; 2],
 }
@@ -140,13 +140,18 @@ impl Transaction {
                 gaps.push("interleaved auxiliary binding original region missing/duplicate".into());
                 continue;
             };
-            if region.uses().len() != 1
+            if !matches!(region.uses().len(), 1 | 2)
                 || region.binding_use_position() != 1
                 || !catalog.owns_interleaved_auxiliary_region(region)
                 || region.coverage() != UnitLoanActionCoverage::Complete
                 || region.action_ids().collect::<Vec<_>>() != e.ids
                 || region.consumer_call() != e.consumer
-                || region.uses().first().map(|u| u.loan().call()) != e.later
+                || region
+                    .uses()
+                    .iter()
+                    .map(|u| u.loan().call())
+                    .collect::<Vec<_>>()
+                    != e.uses
                 || owned.d10_interleaved_aux_link(e.source) != Ok(e.callable)
             {
                 gaps.push(
@@ -170,8 +175,8 @@ impl Transaction {
                 || r.callable != e.callable
                 || r.consumer_call != e.consumer
                 || r.prefix != 1
-                || r.calls.len() != 1
-                || r.calls.first().copied() != e.later
+                || r.calls.len() != e.uses.len()
+                || r.calls != e.uses
                 || r.binding != region.binding()
                 || r.root != region.root()
                 || Some(r.auxiliary_root) != region.auxiliary_root()
@@ -201,7 +206,7 @@ impl Transaction {
                 snapshot,
                 program,
                 [e.bytes[0].as_deref(), e.bytes[1].as_deref()],
-                [calls[0].1, calls[1].1, calls[2].1],
+                &calls.iter().map(|c| c.1).collect::<Vec<_>>(),
                 e.string,
             ) {
                 gaps.push(
@@ -282,18 +287,13 @@ pub(in crate::ssa) fn expect(inputs: &RefineInputs<'_>, types: &RefineTypes<'_>)
                 callable,
                 source: region.source_call(),
                 consumer: region.consumer_call(),
-                later: region.uses().first().map(|u| u.loan().call()),
+                uses: region.uses().iter().map(|u| u.loan().call()).collect(),
                 ids: region.action_ids().collect(),
-                calls: call(region.source_call())
-                    .zip(call(region.consumer_call()))
-                    .zip(
-                        region
-                            .uses()
-                            .first()
-                            .map(|u| u.loan().call())
-                            .and_then(call),
-                    )
-                    .map(|((a, b), c)| [a, b, c]),
+                calls: std::iter::once(region.source_call())
+                    .chain(std::iter::once(region.consumer_call()))
+                    .chain(region.uses().iter().map(|u| u.loan().call()))
+                    .map(call)
+                    .collect(),
                 bytes: [
                     original_literal(inputs, region.root(), 0),
                     region
@@ -333,7 +333,7 @@ fn matches_final(
     s: &Snapshot,
     program: &Program,
     expected_bytes: [Option<&[u8]>; 2],
-    callees: [FunctionId; 3],
+    callees: &[FunctionId],
     string: [Option<crate::ssa::model::SsaTypeId>; 2],
 ) -> bool {
     validate_final(s, program, expected_bytes, callees, string).is_some()
@@ -342,10 +342,16 @@ fn validate_final(
     s: &Snapshot,
     program: &Program,
     expected_bytes: [Option<&[u8]>; 2],
-    callees: [FunctionId; 3],
+    callees: &[FunctionId],
     string: [Option<crate::ssa::model::SsaTypeId>; 2],
 ) -> Option<()> {
     let r = &s.receipt;
+    let count = r.calls.len();
+    if !matches!(count, 1 | 2) || r.prefix != 1 || callees.len() != count + 2 {
+        return None;
+    }
+    let instruction_count = 13 + 4 * count;
+    let consumer_role = if count == 1 { 11 } else { 10 };
     let functions: Vec<_> = program
         .modules
         .iter()
@@ -358,7 +364,7 @@ fn validate_final(
     if **f != s.function
         || r.validate(&s.plans, f, f.origin.span()).is_err()
         || f.blocks.len() != 1
-        || f.instructions.len() != 17
+        || f.instructions.len() != instruction_count
         || f.borrow_return.is_some()
         || f.carrier_return.is_some()
         || f.receiver.is_some()
@@ -378,20 +384,26 @@ fn validate_final(
     let [source_literal, aux_literal] = s.literals.as_slice() else {
         return None;
     };
-    let [
-        source_owner,
-        aux_owner,
-        EntityId::Place(_),
-        EntityId::Loan(_),
-        EntityId::Place(_),
-        EntityId::Loan(_),
-        EntityId::Loan(_),
-        EntityId::Place(_),
-        EntityId::Loan(_),
-    ] = r.entities.as_slice()
-    else {
+    let [source_owner, aux_owner, rest @ ..] = r.entities.as_slice() else {
         return None;
     };
+    if rest.len() != 5 + 2 * count
+        || !matches!(
+            rest.get(..5)?,
+            [
+                EntityId::Place(_),
+                EntityId::Loan(_),
+                EntityId::Place(_),
+                EntityId::Loan(_),
+                EntityId::Loan(_)
+            ]
+        )
+        || rest[5..]
+            .chunks_exact(2)
+            .any(|pair| !matches!(pair, [EntityId::Place(_), EntityId::Loan(_)]))
+    {
+        return None;
+    }
     if !matches!(
         (source_owner, aux_owner),
         (EntityId::Value(_), EntityId::Value(_))
@@ -401,7 +413,9 @@ fn validate_final(
     }
     let mut expected = vec![source_literal.0, aux_literal.0];
     expected.extend_from_slice(&r.instructions);
-    if expected.iter().collect::<BTreeSet<_>>().len() != 17 || block.instructions != expected {
+    if expected.iter().collect::<BTreeSet<_>>().len() != instruction_count
+        || block.instructions != expected
+    {
         return None;
     }
     for (index, ((literal, bytes, actual_owner), owner)) in [source_literal, aux_literal]
@@ -419,8 +433,11 @@ fn validate_final(
         }
     }
     if !matches!(f.instruction(r.instructions[4])?.operation,Operation::BorrowCall{callee,..} if callee==callees[0])
-        || !matches!(f.instruction(r.instructions[11])?.operation,Operation::DirectCall{callee,..} if callee==callees[1])
-        || !matches!(f.instruction(r.instructions[8])?.operation,Operation::DirectCall{callee,..} if callee==callees[2])
+        || !matches!(f.instruction(r.instructions[consumer_role])?.operation,Operation::DirectCall{callee,..} if callee==callees[1])
+        || (0..count).any(|index| {
+            let role = if index == 0 { 8 } else { 16 };
+            !matches!(f.instruction(r.instructions[role]).map(|i| &i.operation),Some(Operation::DirectCall{callee,..}) if *callee==callees[2+index])
+        })
     {
         return None;
     }
@@ -440,8 +457,8 @@ fn validate_final(
         || target.module != f.id.module
         || module.types.get(target.index) != Some(&SsaTypeKind::StringOwner)
         || f.values.len() != 2
-        || f.places.len() != 3
-        || f.loans.len() != 4
+        || f.places.len() != 2 + count
+        || f.loans.len() != 3 + count
     {
         return None;
     }
@@ -497,9 +514,11 @@ fn original_literal(
     let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
         return None;
     };
-    let [source, auxiliary, _, _, _] = elements.as_slice() else {
+    if !matches!(elements.len(), 5 | 6) {
         return None;
-    };
+    }
+    let source = &elements[0];
+    let auxiliary = &elements[1];
     let first = match position {
         0 => source,
         1 => auxiliary,
