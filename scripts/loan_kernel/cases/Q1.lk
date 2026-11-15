@@ -46,8 +46,8 @@ fun <view T> putInto(inout out: T, own x: T): Unit flows x into out {
 fun <view T> putUndeclared(inout out: T, own x: T): Unit {  // ERR K6
   *out = move x
 }
-fun crossing(own h: Holder, borrow s: Arr): Unit {
-  h.target.mid.deep = L3(s)  // ERR K14
+fun crossing(own h: Holder, borrow s: Arr): Unit {  // ERR K6
+  h.target.mid.deep = L3(s)
 }
 fun holderProtectsNewSource(): Unit {
   val p = Arr(1)

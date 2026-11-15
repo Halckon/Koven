@@ -1,0 +1,54 @@
+// 两阶段借用：接收者的独占借用在其余实参求值期间只算共享，求值完才生效
+class Arr(len: Int)
+fun push(inout this: Arr, own n: Int): Unit trusted
+fun size(borrow this: Arr): Int trusted
+fun bump(inout this: Arr): Int trusted
+fun update(inout this: Arr, borrow other: Arr): Unit trusted
+fun last(inout this: Arr): inout Int from this trusted
+fun plain(inout a: Arr, own n: Int): Unit trusted
+fun takeArr(own a: Arr): Int trusted
+fun readWhileReserved(): Unit {
+  val v = Arr(1)
+  push(&mut v, size(&v))
+  push(&mut v, v.len)
+}
+fun onlyTheReceiver(): Unit {
+  val v = Arr(1)
+  plain(&mut v, size(&v))  // ERR K1
+}
+fun sharedLoanReachesTheCallee(): Unit {
+  val v = Arr(1)
+  update(&mut v, &v)  // ERR K1
+}
+fun writeWhileReserved(): Unit {
+  val v = Arr(1)
+  push(&mut v, bump(&mut v))  // ERR K1
+}
+fun moveWhileReserved(): Unit {
+  val v = Arr(1)
+  push(&mut v, takeArr(move v))  // ERR K1
+}
+fun olderLoanStillLive(): Unit {
+  val v = Arr(1)
+  val r = &v.len
+  push(&mut v, 2)  // ERR K1
+  use(r)
+}
+fun insideLoop(): Unit {
+  val v = Arr(1)
+  while (*) {
+    push(&mut v, size(&v))
+  }
+  use(v.len)
+}
+fun lendingResult(): Unit {
+  val v = Arr(1)
+  val e = last(&mut v)
+  push(&mut v, size(&v))  // ERR K1
+  use(e)
+}
+fun otherObject(): Unit {
+  val v = Arr(1)
+  val w = Arr(2)
+  update(&mut v, &w)
+}

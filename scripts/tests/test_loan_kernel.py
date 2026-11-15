@@ -87,6 +87,45 @@ class LoanKernelCases(unittest.TestCase):
             CHECKER.CAP.Engine.requires = original
         self.assertEqual({"S5", "CAP"}, actual, "只剩没有上界的类型参数引出的两类拒绝")
 
+    def test_flows_across_a_borrow_field_reach_the_owner(self):
+        """流向越过借用字段时，账要记到那个字段所指的视图的拥有者上；不记，拥有者一侧就看不到新来源。"""
+        text = (ROOT / "cases" / "Q2.lk").read_text(encoding="utf-8")
+        original = CHECKER.Checker.flow_into
+        CHECKER.Checker.flow_into = lambda self, state, targets, fields, class_name, declared, flowing: None
+        try:
+            actual = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.flow_into = original
+        lost = expected(text) - actual
+        self.assertEqual({"K1", "K6", "K9"}, {rule for rule, _ in lost})
+        self.assertEqual(set(), actual - expected(text))
+
+    def test_origins_beyond_the_recursion_point_fold_onto_the_field(self):
+        """递归视图：参数名下更深的来源归到回到同一类型的那个字段名下；不这样做，它们就没有来源可查。"""
+        text = (ROOT / "cases" / "U1.lk").read_text(encoding="utf-8")
+        original = CHECKER.Checker.folded
+        CHECKER.Checker.folded = lambda self, fields, class_name, reached: fields
+        try:
+            actual = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.folded = original
+        self.assertEqual({("K6", 9), ("K6", 12)}, expected(text) - actual)
+
+    def test_two_phase_borrows_only_relax_the_receiver(self):
+        """K21：去掉“先按共享预留”，接收者位置在实参里读自己的写法都被拒绝，其余结果不变。"""
+        text = (ROOT / "cases" / "T1.lk").read_text(encoding="utf-8")
+        original = CHECKER.Checker.argument
+        CHECKER.Checker.argument = lambda self, expr, mode, state, stored_kind=None, reserved=False: original(
+            self, expr, mode, state, stored_kind)
+        original_activate = CHECKER.Checker.activate
+        CHECKER.Checker.activate = lambda self, *args: None
+        try:
+            actual = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.argument, CHECKER.Checker.activate = original, original_activate
+        self.assertEqual({("K1", 12), ("K1", 13), ("K1", 40)}, actual - expected(text))
+        self.assertEqual(set(), expected(text) - actual)
+
     def test_early_drop_never_changes_what_is_accepted(self):
         """统一析构规则：提前析构只是许可。打开它之后，每个用例被接受或拒绝的结果必须不变。"""
         total = []
