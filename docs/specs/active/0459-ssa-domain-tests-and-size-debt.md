@@ -59,17 +59,17 @@ helper身份与断言，不改变生产代码，不以减少文件数量为目�
 
 ## 4. 验收
 
-- [ ] R1：四项完整属性/正文逐字节保全；私有helper/原根其余字节不变，四个新FQN各恰一次，旧名无副本。
-- [ ] R2：两个根和新文件均不超1000；只退休四项旧额度，尺寸门禁与47项policy tests通过。
-- [ ] R3：逐片默认完整8/10项族，迁移前基线及迁移后定向结果一致，再各自本地提交。
-- [ ] R4：组末双配置组合回归、双all-target Clippy、fmt/docs/尺寸/空白及独立内容审查；实际结果与未测范围分开记。
+- [x] R1：四项完整属性/正文逐字节保全；私有helper/原根其余字节不变，四个新FQN各恰一次，旧名无副本。
+- [x] R2：两个根和新文件均不超1000；只退休四项旧额度，尺寸门禁与47项policy tests通过。
+- [x] R3：逐片默认完整8/10项族，迁移前基线及迁移后定向结果一致，再各自本地提交。
+- [x] R4：组末双配置组合回归、双all-target Clippy、fmt/docs/尺寸/空白及独立内容审查；实际结果与未测范围分开记。
 - [ ] R5：同步事实与账本，集中推送同PR，最终精确CI另验后才归档，不借旧绿灯。
 
 ## 5. 顺序计划
 
-1. [ ] 冻结两个测试块及helper/调用/选择路由，定向基线。
-2. [ ] tagged完整归位、定向测试 → 本地提交。
-3. [ ] provider完整归位、定向测试 → 本地提交。
+1. [x] 冻结两个测试块及helper/调用/选择路由，定向基线。
+2. [x] tagged完整归位、定向测试 → 本地提交。
+3. [x] provider完整归位、定向测试 → 本地提交。
 4. [ ] 组合门禁及独立审查，更新快照/账本 → 集中push后验精确CI。
 
 纯组织重构使用原GREEN→移动→原族GREEN，不伪造RED；若既有用例失败，先保留真实失败再定位。
@@ -77,6 +77,20 @@ helper身份与断言，不改变生产代码，不以减少文件数量为目�
 
 ## 6. 证据
 
-实施后记录实际结果；原始日志和机械快照置仓库外。前置头d7b066e7的
+输入合同提交69f6a65f，Rust内容与d7b066e7相同；逐片只运行默认完整测试族后本地提交，组末再统一验证。
+
+| 切片/门禁 | 实际结果 |
+|---|---|
+| tagged | 默认原aggregate族迁移前后各 **8/0/0**；本地提交 `2dad57e0`，根1036→899、新文件142 |
+| provider | 默认原container族迁移前后各 **10/0/0**；本地提交 `432719d2`，根1032→704、新文件333 |
+| 机械核对 | 四个完整测试块含属性/正文逐字节保全；根原imports/helpers/其余测试完全相同，仅加private mod及移走测试；policy只删两根四项，其他JSON值相同 |
+| 最终组合 | 前片112项（已含aggregate8项）加container10项去重，同次默认/feature各 **122/0/0**、exit0；每个filter实际命中，四个新FQN各恰一次，旧完整FQN无重复；原native也实际运行 |
+| 编译/格式 | 默认/feature `cargo clippy --locked -p lang-codegen --all-targets [--features loan-observation-test-support] -- -D warnings`、fmt退出0 |
+| policy/尺寸 | 47项policy tests通过；fetch origin main后尺寸门禁退出0，2149手写Rust、31历史超限，无生成物登记；不提高旧阈值、不声称清零 |
+| 独立复核 | 审69f6a65f..432719d2完整五文件提交区间，不用空工作区diff；核正负矩阵、provider实体/边运输及结束顺序、完整renderer/count/error断言、原helper/宏解析、FQN接线和policy。未发现具体问题 |
+
+以上Cargo顺序使用同一target（Rust1.96/LLVM21），未跑frontend/完整codegen/LLVM慢组、
+本地CI-only faults、sanitizer全套或workspace check；不冒称其他头/配置覆盖。
+Architecture已同步实际归属；最终docs956与空白通过。随后仅收齐账本，不再修改Rust或重复整组门禁。原始日志和机械快照置仓库外。前置头d7b066e7的
 [官方CI](https://github.com/Halckon/Koven/actions/runs/43664829997)已success，
 但不能作为本批新头的验证。Spec仍in-progress、PR仍Draft，不提前归档或合入。
