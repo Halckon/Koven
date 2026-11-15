@@ -8,8 +8,8 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(super) struct Observation {
     callable: UnitItemId,
-    consumer: UnitExpressionId,
-    returned: Option<(UnitLoanFact, Option<ActionHandle>)>,
+    consumers: Vec<UnitExpressionId>,
+    returned: Vec<(UnitLoanFact, Option<ActionHandle>)>,
     ambiguous: bool,
 }
 impl DropPlanner<'_, '_> {
@@ -105,9 +105,12 @@ impl DropPlanner<'_, '_> {
             let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
                 return None;
             };
-            let [owner, bind, consumer] = elements.as_slice() else {
+            let [owner, bind, consumers @ ..] = elements.as_slice() else {
                 return None;
             };
+            if !matches!(consumers.len(), 1 | 2) {
+                return None;
+            }
             let Statement::LocalVariable { declaration } =
                 ast.statements().get(*owner).ok()?.payload()
             else {
@@ -180,33 +183,39 @@ impl DropPlanner<'_, '_> {
             {
                 return None;
             }
-            let Statement::Expression { expression } =
-                ast.statements().get(*consumer).ok()?.payload()
-            else {
-                return None;
-            };
-            let Expression::Call { arguments, .. } =
-                ast.expressions().get(*expression).ok()?.payload()
-            else {
-                return None;
-            };
-            let [argument] = arguments.as_slice() else {
-                return None;
-            };
-            if !matches!(
-                ast.expressions().get(argument.value).ok()?.payload(),
-                Expression::Name
-            ) {
-                return None;
-            }
-            let place = self.checker.place(argument.value).ok()??;
-            if !place.is_root() || place.root() != binding {
-                return None;
-            }
+            let consumers = consumers
+                .iter()
+                .map(|consumer| {
+                    let Statement::Expression { expression } =
+                        ast.statements().get(*consumer).ok()?.payload()
+                    else {
+                        return None;
+                    };
+                    let Expression::Call { arguments, .. } =
+                        ast.expressions().get(*expression).ok()?.payload()
+                    else {
+                        return None;
+                    };
+                    let [argument] = arguments.as_slice() else {
+                        return None;
+                    };
+                    if !matches!(
+                        ast.expressions().get(argument.value).ok()?.payload(),
+                        Expression::Name
+                    ) {
+                        return None;
+                    }
+                    let place = self.checker.place(argument.value).ok()??;
+                    if !place.is_root() || place.root() != binding {
+                        return None;
+                    }
+                    Some(self.checker.unit_expression(*expression))
+                })
+                .collect::<Option<Vec<_>>>()?;
             Some(Observation {
                 callable: UnitItemId::new(self.checker.source_unit, item),
-                consumer: self.checker.unit_expression(*expression),
-                returned: None,
+                consumers,
+                returned: Vec::new(),
                 ambiguous: false,
             })
         })
@@ -227,7 +236,7 @@ impl DropPlanner<'_, '_> {
             };
             let valid = single
                 && place.is_root()
-                && loan.call() == entry.consumer
+                && entry.consumers.get(entry.returned.len()) == Some(&loan.call())
                 && loan.target() == p.source.target()
                 && self.checker.typed.call(loan.call()).is_some_and(|call| {
                     call.result_source() == CallableResultSource::Owned
@@ -241,10 +250,10 @@ impl DropPlanner<'_, '_> {
                         crate::type_checking::ExpressionCategory::Place,
                     )
                     .is_some_and(|(checked, _)| checked == *loan);
-            if !valid || entry.returned.is_some() {
+            if !valid || entry.ambiguous {
                 entry.ambiguous = true;
             } else {
-                entry.returned = Some((loan.clone(), acquisition.cloned()));
+                entry.returned.push((loan.clone(), acquisition.cloned()));
             }
         }
     }
@@ -259,11 +268,11 @@ impl PendingBindingTransport {
         if let Some(entry) = &self.entry {
             actions.entry_binding_retired(super::super::action_source::entry_binding::Retiring {
                 callable: entry.callable,
-                consumer: entry.consumer,
+                consumers: &entry.consumers,
                 transaction,
                 source: self.source_begin.as_ref(),
                 handoff: self.handoff.as_ref(),
-                returned: entry.returned.as_ref(),
+                returned: &entry.returned,
                 ambiguous_use: entry.ambiguous,
                 end,
             });

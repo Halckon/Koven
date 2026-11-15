@@ -145,11 +145,11 @@ pointer-like nullable。
 新建的来源借用并执行来源的实参完成边清理。外层调用借用单独的 nullable 槽。
 借用结果生产者的辅助参数也可使用同源 Shared Temporary 事实包装 Copyable 值。
 
-默认关闭的 D10 审计另消费同 catalog 入口 transport 旁证，只在三语句 String owner /
-borrow binding / 单 Unit consumer、唯一 Boolean 参数与原 AfterStatement 正常退休域，
+默认关闭的 D10 审计另消费同 catalog 入口 transport 旁证，只在三或四语句 String owner /
+borrow binding / 一或两个顺序 Unit consumer、唯一 Boolean 参数与原 AfterStatement 正常退休域，
 将实际 commit/use、binding/source map removal、原 Drop 和机械 Slot→SSA 身份连接。
 最终 verifier 后核完整单块 caller 与全部实体、正常 Return 才消除该 lifetime gap；
-重复消费等未证域仍保 gap，显式 return/条件消费保留原 Unsupported，不扩大生产准入。
+逐次保留原 call/loan/Begin 身份；第三次或插入语句等未证域仍保 gap，显式 return/条件消费保留原 Unsupported，不扩大生产准入。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、

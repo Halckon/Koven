@@ -19703,3 +19703,26 @@ AfterStatement 正常退休直线域；证明 caller 的正常退出清理，不
 未提高尺寸额度。首编字段/可见性及测试 Debug 约束已修正；首次域外测试错误假定
 return/if 可 lower，修正为如实保留原拒绝，未改变生产规则。独立静审无阻断。
 没有 native 执行、故障注入、推送或新远端 CI 结果。
+
+### D10 两次顺序消费同一入口借用结果（2026-11-15）
+
+从 `82b89268` 的已证单次入口继续，仅增加恰四语句 owner/binding/consumer1/consumer2。
+原 AST 独立选取一或两个不同 call expression；实际正常返回回调逐次保存完整 loan 与
+原 Begin handle，顺序错误、额外事件或缺失永久保留歧义，不按 callee 去重或覆盖末次。
+同 catalog 发布逐项核 source/handoff/use0/use1/binding-end 的原身份和顺序，不新增
+旧 UseReturned/SourceRetired action，不把观察升级为 Complete。原单次 getter 只表示
+首项，完整序列由 `uses()` 提供。
+
+SSA 两个实际 argument/call 事件分别连接各自原 source-plan callee、指令及同一 result
+loan Entity，只有第二次完成后才接受唯一 binding/source map removal 和原完整 Drop。
+完整单块闭合严格限定单用八指令或双用九指令，不接受任意 N；第三次、插入语句、
+未证控制流仍有 gap 或原 Unsupported，不改变 route/生产返回。
+
+末版增量 7/7 通过，双用正例覆盖同/不同 callee、两个 wrapper 拓扑、两源反序及同
+observe 中两次独立 assembly；核每个原 Begin 的完整 fact/顺序、共享 result Entity、
+九条完整指令与唯一退休/Drop。第三次消费和两次之间插入 `val n=1` 均真实 lower 与
+verifier 成功，仍保精确 run→wrap 边和 lifetime gap；return/条件消费仍按原精确
+Unsupported span 拒绝且无成功 audit。原单次八指令形状回归保持。frontend/codegen
+三 feature all-targets 严格 Clippy 与默认 all-targets check 通过；fmt/diff/docs（958）
+及相对 `82b89268` 尺寸门禁（2361 Rust、37 历史超限）通过。独立静审无生产阻断；
+没有新增准入、native 执行、故障注入、推送或远端 CI 声明。

@@ -57,6 +57,16 @@ fn run_entry(
     wrapper_entry: bool,
     extra_parameter: bool,
 ) -> Vec<BranchConsumption> {
+    run_entry_uses(tail, reverse, wrapper_entry, extra_parameter, false, false)
+}
+fn run_entry_uses(
+    tail: bool,
+    reverse: bool,
+    wrapper_entry: bool,
+    extra_parameter: bool,
+    twice: bool,
+    distinct: bool,
+) -> Vec<BranchConsumption> {
     let mut sources = SourceMap::new();
     let (provider_id, provider) = unit_lower_test_support::parsed(
         &mut sources,
@@ -77,6 +87,26 @@ fn run_entry(
             "fun run(flag: Boolean)",
             "fun run(flag: Boolean, unused: Boolean)",
         )
+    } else {
+        text
+    };
+    let text = if twice {
+        let text = text.replace(
+            "consume(item) }",
+            if distinct {
+                "consume(item); consume_other(item) }"
+            } else {
+                "consume(item); consume(item) }"
+            },
+        );
+        if distinct {
+            text.replace(
+                "fun consume(item: String): Unit {}",
+                "fun consume(item: String): Unit {}\nfun consume_other(item: String): Unit {}",
+            )
+        } else {
+            text
+        }
     } else {
         text
     };
@@ -107,6 +137,29 @@ fn run_entry(
         use lang_frontend::ownership_checking::UnitLoanAction;
         assert!(observation.owns_entry_binding_evidence(evidence));
         assert!(!evidence.ambiguous_use());
+        assert_eq!(evidence.uses().len(), if twice { 2 } else { 1 });
+        let ordinal = |id| {
+            (0..observation.actions().len())
+                .find(|&index| observation.action_id(index).as_ref() == Some(id))
+                .unwrap()
+        };
+        let mut previous = ordinal(evidence.handoff().unwrap());
+        let end = ordinal(evidence.binding_end().unwrap());
+        for use_event in evidence.uses() {
+            let returned = use_event.returned().unwrap();
+            assert_eq!(returned.call(), use_event.consumer());
+            let begin = use_event.begin().unwrap();
+            assert!(
+                matches!(observation.action(begin),Some(UnitLoanAction::Begin(actual)) if actual==returned)
+            );
+            let index = ordinal(begin);
+            assert!(previous < index && index < end);
+            previous = index;
+        }
+        if twice {
+            assert_ne!(evidence.uses()[0].consumer(), evidence.uses()[1].consumer());
+        }
+
         assert_eq!(
             owned
                 .ownership()
@@ -194,7 +247,7 @@ fn run_entry(
                 .find(|f| f.id == entry_function)
                 .unwrap();
             assert_eq!(caller.blocks.len(), 1);
-            assert_eq!(caller.instructions.len(), 8);
+            assert_eq!(caller.instructions.len(), if twice { 9 } else { 8 });
             assert_eq!(
                 caller
                     .instructions
@@ -269,6 +322,21 @@ fn run_entry(
             .id()
     };
     for audit in &audits {
+        if twice && !wrapper_entry {
+            assert!(
+                audit
+                    .direct_edges
+                    .contains(&(declaration("run"), declaration("consume")))
+            );
+            if distinct {
+                assert!(
+                    audit
+                        .direct_edges
+                        .contains(&(declaration("run"), declaration("consume_other")))
+                );
+            }
+        }
+
         let mut edges = audit.borrow_edges.clone();
         edges.sort();
         let mut expected_edges = vec![
@@ -351,7 +419,7 @@ fn run_entry(
 fn entry_evidence_rejects_extra_statements_multiple_uses_and_control_flow() {
     for body in [
         r#"val owner = "kept"; consume(owner); borrow val item = wrap(owner, flag); consume(item)"#,
-        r#"val owner = "kept"; borrow val item = wrap(owner, flag); consume(item); consume(item)"#,
+        r#"val owner = "kept"; borrow val item = wrap(owner, flag); consume(item); consume(item); consume(item)"#,
         r#"val owner = "kept"; borrow val item = wrap(owner, flag); if(flag) { consume(item) } else { consume(item) }"#,
     ] {
         let mut sources = SourceMap::new();
@@ -378,7 +446,8 @@ fn entry_evidence_rejects_extra_statements_multiple_uses_and_control_flow() {
 fn entry_lifetime_keeps_unsupported_transfer_and_lifetime_gaps() {
     for body in [
         r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); return"#,
-        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); consume(item)"#,
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); consume(item); consume(item)"#,
+        r#"val owner="kept"; borrow val item=wrap(owner,flag); consume(item); val n=1; consume(item)"#,
         r#"val owner="kept"; borrow val item=wrap(owner,flag); if(flag){consume(item)}else{consume(item)}"#,
     ] {
         let mut sources = SourceMap::new();
@@ -467,5 +536,18 @@ fn entry_lifetime_keeps_unsupported_transfer_and_lifetime_gaps() {
             "{:?}",
             audit.unsupported
         );
+    }
+}
+
+#[test]
+fn two_ordered_consumers_share_result_until_single_retirement() {
+    for distinct in [false, true] {
+        for reverse in [false, true] {
+            for tail in [false, true] {
+                let audits = run_entry_uses(tail, reverse, false, false, true, distinct);
+                assert_eq!(audits.len(), 2);
+                assert!(audits.iter().all(|a| a.gaps.is_empty()));
+            }
+        }
     }
 }

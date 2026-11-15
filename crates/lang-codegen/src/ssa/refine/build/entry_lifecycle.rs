@@ -31,14 +31,19 @@ impl Builder<'_, '_> {
         let argument = self.unit(argument);
         for entry in &mut self.body.entry_borrows {
             if let Some(p) = &mut entry.lifecycle
-                && p.evidence.consumer() == call
+                && p.evidence.uses().iter().any(|u| u.consumer() == call)
             {
-                p.invalid |= p.argument.is_some()
-                    || p.evidence
-                        .returned()
-                        .is_none_or(|f| f.argument() != argument)
+                p.invalid |= p.arguments.len() != p.consumers.len()
+                    || p.evidence.uses().get(p.arguments.len()).is_none_or(|u| {
+                        u.consumer() != call
+                            || u.returned().is_none_or(|f| f.argument() != argument)
+                    })
                     || self.borrowed.get(&p.binding()) != Some(&loan);
-                p.argument = position.map(|pos| (pos, loan));
+                if let Some(position) = position {
+                    p.arguments.push((call, position, loan));
+                } else {
+                    p.invalid = true;
+                }
             }
         }
     }
@@ -48,10 +53,18 @@ impl Builder<'_, '_> {
             .and_then(|(b, i)| i.checked_sub(1).map(|i| (b, i)));
         for entry in &mut self.body.entry_borrows {
             if let Some(p) = &mut entry.lifecycle
-                && p.evidence.consumer() == call
+                && p.evidence.uses().iter().any(|u| u.consumer() == call)
             {
-                p.invalid |= p.consumer.is_some();
-                p.consumer = position;
+                p.invalid |= p.arguments.len() != p.consumers.len() + 1
+                    || p.evidence
+                        .uses()
+                        .get(p.consumers.len())
+                        .is_none_or(|u| u.consumer() != call);
+                if let Some(position) = position {
+                    p.consumers.push((call, position));
+                } else {
+                    p.invalid = true;
+                }
             }
         }
     }

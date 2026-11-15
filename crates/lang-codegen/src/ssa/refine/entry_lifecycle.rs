@@ -18,13 +18,13 @@ pub(super) type Position = (BlockRef, usize);
 pub(super) struct Pending {
     pub evidence: EntryBindingEvidence,
     pub commit: Option<(Position, Slot, Vec<Slot>)>,
-    pub argument: Option<(Position, Slot)>,
-    pub consumer: Option<Position>,
+    pub arguments: Vec<(UnitExpressionId, Position, Slot)>,
+    pub consumers: Vec<(UnitExpressionId, Position)>,
     pub retirement: Option<(Position, Slot, Vec<Slot>)>,
     pub source_retirement: Option<(Position, Vec<Slot>)>,
     pub drop: Option<(Position, UnitDropFact, Slot)>,
     pub invalid: bool,
-    consumer_callee: FunctionId,
+    consumer_callees: Vec<FunctionId>,
     expected_drop: UnitDropFact,
 }
 impl Pending {
@@ -47,7 +47,17 @@ impl Pending {
         };
         if !catalog.owns_entry_binding_evidence(evidence)
             || evidence.ambiguous_use()
-            || evidence.returned()?.call() != evidence.consumer()
+            || !matches!(evidence.uses().len(), 1 | 2)
+            || evidence.uses().iter().any(|u| {
+                u.returned().is_none_or(|f| f.call() != u.consumer()) || u.begin().is_none()
+            })
+            || evidence
+                .uses()
+                .iter()
+                .map(|u| u.consumer())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != evidence.uses().len()
             || evidence.source_begin().is_none()
             || evidence.handoff().is_none()
             || evidence.use_begin().is_none()
@@ -75,20 +85,26 @@ impl Pending {
         let [expected_drop] = drops.as_slice() else {
             return None;
         };
-        let site = inputs
-            .source_plan
-            .call_site(inputs.source_token, evidence.consumer())?;
-        if !site.delegation().is_empty() {
-            return None;
-        }
-        let consumer_callee = *inputs.function_ids.get(site.dispatch_key()?)?;
+        let consumer_callees = evidence
+            .uses()
+            .iter()
+            .map(|u| {
+                let site = inputs
+                    .source_plan
+                    .call_site(inputs.source_token, u.consumer())?;
+                if !site.delegation().is_empty() {
+                    return None;
+                }
+                inputs.function_ids.get(site.dispatch_key()?).copied()
+            })
+            .collect::<Option<Vec<_>>>()?;
         Some(Self {
-            consumer_callee,
+            consumer_callees,
             expected_drop: **expected_drop,
             evidence: (*evidence).clone(),
             commit: None,
-            argument: None,
-            consumer: None,
+            arguments: Vec::new(),
+            consumers: Vec::new(),
             retirement: None,
             source_retirement: None,
             drop: None,
@@ -175,8 +191,15 @@ impl Receipt {
             return None;
         }
         let (commit, result, continued) = p.commit.as_ref()?;
-        let (arg, used) = p.argument?;
-        let consumer = p.consumer?;
+        let count = p.evidence.uses().len();
+        if !matches!(count, 1 | 2)
+            || p.arguments.len() != count
+            || p.consumers.len() != count
+            || p.consumer_callees.len() != count
+        {
+            return None;
+        }
+
         let (retire, ended, sources) = p.retirement.as_ref()?;
         let (drop, fact, owner) = p.drop.as_ref()?;
         if fact != &p.expected_drop {
@@ -186,19 +209,14 @@ impl Receipt {
         if *source_position != (retire.0, retire.1 + 1) || removed_sources != sources {
             return None;
         }
-        if *result != used
-            || result != ended
+        if result != ended
             || continued != sources
             || continued.len() != 1
             || commit.0 != BlockRef(0)
-            || arg.0 != commit.0
-            || consumer.0 != commit.0
             || retire.0 != commit.0
             || drop.0 != commit.0
-            || !(commit.1 <= arg.1
-                && arg.1 <= consumer.1
-                && consumer.1 < retire.1
-                && retire.1 + 2 == drop.1)
+            || retire.1 != commit.1 + count
+            || retire.1 + 2 != drop.1
             || fact.point() != p.evidence.transaction().point()
         {
             return None;
@@ -225,17 +243,29 @@ impl Receipt {
         {
             return None;
         }
-        let (use_instruction, map) = self.emitted.get(&consumer)?;
-        let result_entity = *map.get(result)?;
-        if !use_instruction.results.is_empty()
-            || !matches!(&use_instruction.operation,Operation::DirectCall{callee,arguments,receiver:None} if *callee==p.consumer_callee && arguments==&[result_entity])
-        {
-            return None;
+        let mut used_entity = None;
+        for (index, expected) in p.evidence.uses().iter().enumerate() {
+            let (arg_call, arg, used) = p.arguments[index];
+            let (actual_call, consumer) = p.consumers[index];
+            if arg_call != expected.consumer()
+                || actual_call != arg_call
+                || used != *result
+                || arg != consumer
+                || consumer != (commit.0, commit.1 + index)
+            {
+                return None;
+            }
+            let (instruction, map) = self.emitted.get(&consumer)?;
+            let entity = *map.get(result)?;
+            if used_entity.is_some_and(|previous| previous != entity)
+                || !instruction.results.is_empty()
+                || !matches!(&instruction.operation,Operation::DirectCall{callee,arguments,receiver:None} if *callee==p.consumer_callees[index] && arguments==&[entity])
+            {
+                return None;
+            }
+            used_entity = Some(entity);
         }
-        let expected_consumer = p.evidence.consumer();
-        if p.evidence.returned()?.call() != expected_consumer {
-            return None;
-        }
+        let result_entity = used_entity?;
         let (end_result, end_map) = self.emitted.get(retire)?;
         let EntityId::Loan(result_loan) = *end_map.get(result)? else {
             return None;
@@ -286,14 +316,14 @@ impl Receipt {
             return None;
         }
         // This narrow entry contains one creation, one source acquisition, one source call,
-        // one consumer, then the two explicit retirements and the original owner drop.
+        // exactly one or two consumers, then the two retirements and original owner drop.
         let mut literals = 0;
         let mut roots = 0;
         let mut begins = 0;
         let mut source_calls = 0;
         let mut source_place = None;
         for (position, (i, _)) in &self.emitted {
-            if *position == consumer
+            if p.consumers.iter().any(|(_, consumer)| position == consumer)
                 || *position == *retire
                 || *position == (retire.0, retire.1 + 1)
                 || *position == *drop
