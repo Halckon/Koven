@@ -30,6 +30,7 @@ pub struct EntryDescriptor {
     entry: DeclarationId,
     body: Span,
     instance: UnitCallableInstanceKey,
+    parameter_roles: [usize; 4],
     initializers: [UnitExpressionId; 2],
     initialization_order: Vec<EntryInitialization>,
     contracts: [UnitCallArgumentOwnershipContract; 4],
@@ -64,11 +65,17 @@ enum StringStorage {
     },
 }
 impl EntryDescriptor {
+    /// Semantic role at this source argument/signature position: left, right, rounds, choose.
+    pub fn argument_role(&self, index: usize) -> Option<usize> {
+        self.parameter_roles
+            .iter()
+            .position(|position| *position == index)
+    }
     /// Original source declaration order, independent of scalar argument roles.
     pub fn initialization_order(&self) -> &[EntryInitialization] {
         &self.initialization_order
     }
-    /// Temporary-only original String payloads; named-owner entries return None.
+    /// Temporary-only String payloads in left/right role order, not signature order.
     pub fn strings(&self) -> Option<&[Vec<u8>; 2]> {
         match &self.storage {
             StringStorage::Temporary { strings, .. } => Some(strings),
@@ -78,7 +85,9 @@ impl EntryDescriptor {
     /// Original bytes for the temporary at this argument position, including mixed entries.
     pub fn temporary_string(&self, index: usize) -> Option<&[u8]> {
         match &self.storage {
-            StringStorage::Temporary { strings, .. } => strings.get(index).map(Vec::as_slice),
+            StringStorage::Temporary { strings, .. } => {
+                strings.get(self.argument_role(index)?).map(Vec::as_slice)
+            }
             StringStorage::Mixed {
                 temporary_index,
                 temporary,
@@ -116,7 +125,7 @@ impl EntryDescriptor {
     }
     /// Root of the original argument's real ended loan, not its positional name.
     pub fn named_argument_root(&self, index: usize) -> Option<UnitSymbolId> {
-        if index >= 2 || self.named_strings().is_empty() {
+        if self.argument_role(index)? >= 2 || self.named_strings().is_empty() {
             return None;
         }
         let argument = self.contracts.get(index)?.argument();
@@ -326,13 +335,19 @@ pub(super) fn collect(
             let UnitCallTarget::Declaration(target) = call.target() else {
                 return None;
             };
-            if !shells
+            let mut matching_shells = shells
                 .iter()
                 .flatten()
-                .any(|s| s.callable() == target && s.roles() == [0, 1, 2, 3])
-            {
+                .filter(|shell| shell.callable() == target);
+            let parameter_roles = matching_shells.next()?.roles();
+            if matching_shells.next().is_some() {
                 return None;
             }
+            let role_at = |index| {
+                parameter_roles
+                    .iter()
+                    .position(|position| *position == index)
+            };
             let contracts: [UnitCallArgumentOwnershipContract; 4] = owned
                 .call_argument_contracts_for(call_id)
                 .copied()
@@ -363,7 +378,7 @@ pub(super) fn collect(
                     .expressions()
                     .get(c.argument().expression())
                     .ok()?;
-                if i < 2 {
+                if role_at(i)? < 2 {
                     match node.payload() {
                         Expression::Name if !named.is_empty() => {}
                         Expression::String { .. } if named.len() <= 1 => {
@@ -393,7 +408,8 @@ pub(super) fn collect(
                 {
                     return None;
                 }
-                match (i, end.loan().target()) {
+                let role = role_at(i)?;
+                match (role, end.loan().target()) {
                     (0 | 1, UnitLoanTarget::Temporary(owner))
                         if temporary_arguments.iter().any(|(index, _)| *index == i)
                             && *owner == c.argument() => {}
@@ -401,7 +417,7 @@ pub(super) fn collect(
                         if !temporary_arguments.iter().any(|(index, _)| *index == i)
                             && named.iter().any(|n| place.is_root() && place.root() == n.0) => {}
                     (2 | 3, UnitLoanTarget::Place(place))
-                        if place.is_root() && place.root() == locals[i - 2].0 => {}
+                        if place.is_root() && place.root() == locals[role - 2].0 => {}
                     _ => return None,
                 }
             }
@@ -434,7 +450,8 @@ pub(super) fn collect(
                         return None;
                     }
                 }
-                let named_argument = &contracts[1 - temporary_index];
+                let other_role = 1usize.checked_sub(role_at(temporary_index)?)?;
+                let named_argument = &contracts[parameter_roles[other_role]];
                 if !ends.iter().any(|end| {
                     end.loan().argument() == named_argument.argument()
                         && matches!(end.loan().target(), UnitLoanTarget::Place(place)
@@ -451,8 +468,9 @@ pub(super) fn collect(
             } else if named.len() == 2 {
                 let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
                 for (root, _, _, _) in &named {
-                    let argument_count = contracts[..2]
+                    let argument_count = parameter_roles[..2]
                         .iter()
+                        .map(|index| &contracts[*index])
                         .filter(|contract| {
                             ends.iter().any(|end| {
                                 end.loan().argument() == contract.argument()
@@ -507,7 +525,7 @@ pub(super) fn collect(
                 }
             } else {
                 let drops: [UnitDropFact; 2] = drops.try_into().ok()?;
-                for c in &contracts[..2] {
+                for c in parameter_roles[..2].iter().map(|index| &contracts[*index]) {
                     if drops
                         .iter()
                         .filter(|d| d.target() == UnitDropTarget::Temporary(c.argument()))
@@ -517,8 +535,9 @@ pub(super) fn collect(
                         return None;
                     }
                 }
-                let strings: [Vec<u8>; 2] = contracts[..2]
+                let strings: [Vec<u8>; 2] = parameter_roles[..2]
                     .iter()
+                    .map(|index| &contracts[*index])
                     .map(|c| {
                         plain_string(
                             sources,
@@ -572,6 +591,7 @@ pub(super) fn collect(
                 entry: declaration.id(),
                 body: body_node.span(),
                 instance: call.instance().clone(),
+                parameter_roles,
                 initializers: [locals[0].1, locals[1].1],
                 initialization_order,
                 contracts,

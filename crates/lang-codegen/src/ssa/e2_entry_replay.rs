@@ -146,7 +146,7 @@ pub(super) fn replay_declared_body(
         || block.instructions.len()
             != match (
                 d.named_strings().len(),
-                (0..2).filter(|i| d.temporary_string(*i).is_some()).count(),
+                (0..4).filter(|i| d.temporary_string(*i).is_some()).count(),
             ) {
                 (1, 0) => 16,
                 (0, 2) | (1, 1) | (2, 0) => 19,
@@ -231,7 +231,8 @@ pub(super) fn replay_declared_body(
     let mut loans = Vec::new();
     for (i, c) in d.contracts().iter().enumerate() {
         let origin = Origin::Source(c.argument_span());
-        let ty = [string, string, int, boolean][i];
+        let role = d.argument_role(i)?;
+        let ty = *[string, string, int, boolean].get(role)?;
         let root = if let Some(symbol) = d.named_argument_root(i) {
             let mut matches = named_roots
                 .iter()
@@ -241,7 +242,7 @@ pub(super) fn replay_declared_body(
                 return None;
             }
             root
-        } else if i < 2 {
+        } else if role < 2 {
             let owner = value(cursor.step(
                 Operation::StringLiteral {
                     string,
@@ -258,7 +259,7 @@ pub(super) fn replay_declared_body(
                 Some(EntityType::Place(string)),
             )?)?
         } else {
-            roots[i - 2]?
+            (*roots.get(role - 2)?)?
         };
         loans.push(loan(cursor.step(
             Operation::BorrowBegin {
