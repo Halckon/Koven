@@ -25,8 +25,18 @@ fn reacquisition_straddles_binding_retirement() {
     }
 }
 #[test]
+fn repeated_auxiliary_ends_before_binding_consumption() {
+    for reverse in [false, true] {
+        for source_second in [false, true] {
+            for same_bytes in [false, true] {
+                check(reverse, source_second, "AAB", same_bytes);
+            }
+        }
+    }
+}
+#[test]
 fn other_interleavings_keep_bounded_certificate_absent() {
-    check(false, true, "AAB", false);
+    check(false, true, "AAAB", false);
     check(true, false, "ABAA", true);
 }
 fn check(reverse: bool, source_second: bool, word: &str, same_bytes: bool) {
@@ -41,7 +51,7 @@ fn check(reverse: bool, source_second: bool, word: &str, same_bytes: bool) {
     );
     let (provider_id, provider) =
         unit_lower_test_support::parsed(&mut sources, "aux-provider.ko", &provider_text);
-    let extra = !matches!(word, "AB" | "ABA");
+    let extra = !matches!(word, "AB" | "ABA" | "AAB");
     let count = word.chars().filter(|c| *c == 'A').count();
     let prefix = word.find('B').unwrap();
     let mut auxiliary_index = 0;
@@ -194,17 +204,23 @@ fn check(reverse: bool, source_second: bool, word: &str, same_bytes: bool) {
         assert!(
             matches!(f.instructions[7].operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==aux)
         );
+        let consumer_position = 8 + 4 * prefix + usize::from(prefix == count);
+        let auxiliary_drop_position = if prefix == count {
+            8 + 4 * count
+        } else {
+            12 + 4 * count
+        };
         assert!(
-            matches!(f.instructions[if count == 1 { 15 } else { 14 }].operation,Operation::BorrowEnd{loan} if loan==*source)
+            matches!(f.instructions[consumer_position + 2].operation,Operation::BorrowEnd{loan} if loan==*source)
         );
         let Operation::Drop { owner: aux_owner } =
-            f.instructions[if count == 1 { 12 } else { 20 }].operation
+            f.instructions[auxiliary_drop_position].operation
         else {
             panic!("aux drop");
         };
         let Operation::Drop {
             owner: source_owner,
-        } = f.instructions[if count == 1 { 16 } else { 15 }].operation
+        } = f.instructions[consumer_position + 3].operation
         else {
             panic!("source drop");
         };
@@ -220,17 +236,36 @@ fn check(reverse: bool, source_second: bool, word: &str, same_bytes: bool) {
         assert_ne!(later_loan, *source);
         if count == 2 {
             use lang_frontend::ownership_checking::UnitAuxiliarySourceState;
-            assert!(matches!(regions[0].uses()[1].source_state(),
-                UnitAuxiliarySourceState::AfterBinding { retirement, drop, .. }
-                    if *retirement == ids[8] && *drop == ids[9]));
-            let Operation::RootPlace { owner } = f.instructions[16].operation else {
-                panic!("post-retirement root");
+            if prefix == 1 {
+                assert!(matches!(regions[0].uses()[1].source_state(),
+                    UnitAuxiliarySourceState::AfterBinding { retirement, drop }
+                        if *retirement == ids[8] && *drop == ids[9]));
+            } else {
+                assert!(matches!(regions[0].uses()[1].source_state(),
+                    UnitAuxiliarySourceState::BeforeBinding {owner,source_begin,handoff}
+                        if Some(owner)==regions[0].source_owner() && *source_begin==ids[usize::from(source_second)] && *handoff==ids[2]));
+            }
+            let second_root = if prefix == 1 { 16 } else { 12 };
+            let Operation::RootPlace { owner } = f.instructions[second_root].operation else {
+                panic!("second auxiliary root");
             };
             assert_eq!(owner, aux_owner);
-            let Operation::BorrowEnd { loan: last } = f.instructions[19].operation else {
-                panic!("post-retirement end");
+            let Operation::BorrowEnd { loan: last } = f.instructions[second_root + 3].operation
+            else {
+                panic!("second auxiliary end");
             };
             assert_ne!(last, later_loan);
+            if prefix == 2 {
+                assert_eq!(second_root + 4, auxiliary_drop_position);
+                assert_eq!(auxiliary_drop_position + 1, consumer_position);
+                let [EntityId::Loan(result)] = f.instructions[6].results.as_slice() else {
+                    panic!("source result");
+                };
+                assert_ne!(last, *result);
+                assert!(
+                    matches!(f.instructions[consumer_position+1].operation,Operation::BorrowEnd{loan} if loan==*result)
+                );
+            }
             assert_ne!(last, *source);
             assert_ne!(EntityId::Loan(last), aux);
             assert!(
@@ -248,7 +283,7 @@ fn check(reverse: bool, source_second: bool, word: &str, same_bytes: bool) {
             let Operation::DirectCall {
                 callee: second_callee,
                 ..
-            } = f.instructions[18].operation
+            } = f.instructions[second_root + 2].operation
             else {
                 panic!("second auxiliary call");
             };

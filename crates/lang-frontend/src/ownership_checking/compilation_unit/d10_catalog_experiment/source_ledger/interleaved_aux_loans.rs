@@ -47,9 +47,10 @@ impl CompilationUnitOwnership {
         let producers = record.loan_producers().ok_or(Unsupported)?;
         let ids: Vec<_> = region.action_ids().collect();
         let count = region.uses().len();
-        if !matches!(count, 1 | 2)
-            || ids.len() != 9 + 2 * count
-            || region.binding_use_position() != 1
+        if !matches!(
+            (count, region.binding_use_position()),
+            (1, 1) | (2, 1) | (2, 2)
+        ) || ids.len() != 9 + 2 * count
         {
             return Err(Unsupported);
         }
@@ -58,8 +59,10 @@ impl CompilationUnitOwnership {
         };
         let indices = if count == 1 {
             vec![0, 1, 6, 3]
-        } else {
+        } else if region.binding_use_position() == 1 {
             vec![0, 1, 5, 3, 10]
+        } else {
+            vec![0, 1, 8, 3, 5]
         };
         let acquisitions: Vec<_> = indices
             .into_iter()

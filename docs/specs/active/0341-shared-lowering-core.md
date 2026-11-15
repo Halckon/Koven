@@ -20156,3 +20156,20 @@ frontend/codegen 三 feature all-targets 严格 Clippy 通过（2m18s）。
 各选一个精确目标，均编译并 --list --exact 得到1 test，仅核注册，未执行 native。
 fmt、968文件文档、2411 Rust 文件尺寸门禁（21项历史欠账）、bash语法和diff通过。
 本地无故障注入或推送；一般 CFG/生命周期未证明域仍保原 gap，不以拆分验收替代证明。
+
+### D10 AAB：两次辅助借用结束后再消费 binding（2026-11-15）
+
+基于 6e2856fd，审计显式形状集合仅 AB(1,1)、ABA(2,1)、AAB(2,2)，不扩原
+MAX8、生产准入或 Partial/Complete 权威。独立 expected 保存原 region prefix，最终
+receipt 必须一致；原五个 Begin 的完整 facts/producer 分别核对，AAB 的 action 索引
+为0/1/8/3/5，两个辅助 use 均须原 BeforeBinding 的 source Begin/handoff 因果。
+
+四个 call dispatch 独立匹配，复用原纯 statement 重放。完整二十一指令/十一实体
+要求 A1 End→Drop(aux)→B→result/source End→Drop(source)，不只删除 gap。第二
+辅助 loan 与初始辅助、首 A、来源和返回 loan 均不同；原私有履约仅全证明后 mint。
+
+真实测试保 AB/ABA，AAB 覆盖两个 source 参数位置、反序源、相同字节不同 owner、
+同 observe 两 assembly 与两个不同辅助 callee；AAAB/ABAA 原正常 receipt 仍存在
+但不得获本桥证书。独审通过，四项真实源码测试通过；frontend/codegen 三 feature
+all-targets 严格 Clippy 通过（1m01s），默认两 crate all-targets check 通过（6.17s）。
+fmt、968文件文档、2411 Rust文件尺寸（21项历史欠账）及diff通过。无 native/故障/推送。

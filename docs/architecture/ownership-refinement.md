@@ -182,7 +182,8 @@ interleaved 的 AB 窄桥含一个 BeforeBinding 辅助再借用：返回借用�
 再消费结果并退休来源；原 prefix=1、原因果状态与全十七指令/九实体共同核对。
 全证后自有私有 token 可精确履行原 entry handoff；四路证明统一检测竞争，图边仅发布一次。
 新增 ABA 精确 count=2/prefix=1，原 BeforeBinding/AfterBinding 引用跨来源退休边界，
-完整二十一指令/十一实体及四个 dispatch 对账。原 MAX8 不变，AAB/ABAA 等仍保 gap。
+完整二十一指令/十一实体及四个 dispatch 对账。AAB 精确 count=2/prefix=2 则两次
+BeforeBinding 独立 End 后先 Drop(aux)，再 B/来源退休；原 MAX8 不变，AAAB/ABAA 等仍保 gap。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、

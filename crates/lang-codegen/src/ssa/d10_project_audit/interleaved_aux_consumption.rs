@@ -63,6 +63,7 @@ struct Expected {
     source: UnitExpressionId,
     consumer: UnitExpressionId,
     uses: Vec<UnitExpressionId>,
+    prefix: usize,
     ids: Vec<UnitLoanActionId>,
     calls: Option<Vec<Call>>,
     bytes: [Option<Vec<u8>>; 2],
@@ -140,8 +141,10 @@ impl Transaction {
                 gaps.push("interleaved auxiliary binding original region missing/duplicate".into());
                 continue;
             };
-            if !matches!(region.uses().len(), 1 | 2)
-                || region.binding_use_position() != 1
+            if !matches!(
+                (region.uses().len(), region.binding_use_position()),
+                (1, 1) | (2, 1) | (2, 2)
+            ) || region.binding_use_position() != e.prefix
                 || !catalog.owns_interleaved_auxiliary_region(region)
                 || region.coverage() != UnitLoanActionCoverage::Complete
                 || region.action_ids().collect::<Vec<_>>() != e.ids
@@ -174,7 +177,7 @@ impl Transaction {
             if r.ids != e.ids
                 || r.callable != e.callable
                 || r.consumer_call != e.consumer
-                || r.prefix != 1
+                || r.prefix != e.prefix
                 || r.calls.len() != e.uses.len()
                 || r.calls != e.uses
                 || r.binding != region.binding()
@@ -288,6 +291,7 @@ pub(in crate::ssa) fn expect(inputs: &RefineInputs<'_>, types: &RefineTypes<'_>)
                 source: region.source_call(),
                 consumer: region.consumer_call(),
                 uses: region.uses().iter().map(|u| u.loan().call()).collect(),
+                prefix: region.binding_use_position(),
                 ids: region.action_ids().collect(),
                 calls: std::iter::once(region.source_call())
                     .chain(std::iter::once(region.consumer_call()))
@@ -347,11 +351,11 @@ fn validate_final(
 ) -> Option<()> {
     let r = &s.receipt;
     let count = r.calls.len();
-    if !matches!(count, 1 | 2) || r.prefix != 1 || callees.len() != count + 2 {
+    if !matches!((count, r.prefix), (1, 1) | (2, 1) | (2, 2)) || callees.len() != count + 2 {
         return None;
     }
     let instruction_count = 13 + 4 * count;
-    let consumer_role = if count == 1 { 11 } else { 10 };
+    let consumer_role = 6 + 4 * r.prefix + usize::from(r.prefix == count);
     let functions: Vec<_> = program
         .modules
         .iter()
@@ -435,7 +439,7 @@ fn validate_final(
     if !matches!(f.instruction(r.instructions[4])?.operation,Operation::BorrowCall{callee,..} if callee==callees[0])
         || !matches!(f.instruction(r.instructions[consumer_role])?.operation,Operation::DirectCall{callee,..} if callee==callees[1])
         || (0..count).any(|index| {
-            let role = if index == 0 { 8 } else { 16 };
+            let role = if index < r.prefix { 8 + 4 * index } else { 12 + 4 * index };
             !matches!(f.instruction(r.instructions[role]).map(|i| &i.operation),Some(Operation::DirectCall{callee,..}) if *callee==callees[2+index])
         })
     {
