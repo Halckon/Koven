@@ -6,6 +6,8 @@ mod binding_dependency_drops;
 mod binding_links;
 mod binding_regions;
 mod binding_use_sets;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(super) mod entry_binding;
 mod loop_invariant;
 pub(super) use binding_use_sets::{
     Expected as BindingUseSetExpected, Token as BindingUseSetToken, UseRole as BindingUseRole,
@@ -55,6 +57,8 @@ impl ActionHandle {
 }
 
 pub(super) struct ActionSource {
+    #[cfg(feature = "d10-catalog-experiment")]
+    entry_binding_evidence: Vec<crate::ownership_checking::compilation_unit::d10_catalog_experiment::EntryBindingEvidence>,
     identity: Arc<()>,
     binding_use_sets: Vec<binding_use_sets::Candidate>,
     loop_invariants: Vec<loop_invariant::Candidate>,
@@ -122,6 +126,8 @@ enum Record {
 impl Default for ActionSource {
     fn default() -> Self {
         Self {
+            #[cfg(feature = "d10-catalog-experiment")]
+            entry_binding_evidence: Vec::new(),
             identity: Arc::new(()),
             records: Vec::new(),
             binding_use_sets: Vec::new(),
@@ -669,6 +675,8 @@ impl ActionSource {
             })
             .collect();
         vec![crate::ownership_checking::UnitLoanActionObservation {
+            #[cfg(feature = "d10-catalog-experiment")]
+            entry_binding_evidence: self.entry_binding_evidence,
             identity,
             source,
             actions,

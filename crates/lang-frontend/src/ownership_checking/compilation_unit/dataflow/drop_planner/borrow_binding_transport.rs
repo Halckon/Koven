@@ -3,6 +3,8 @@ mod auxiliary;
 mod child;
 pub(super) mod dependency_drop;
 mod distinct;
+#[cfg(feature = "d10-catalog-experiment")]
+mod entry;
 mod observation;
 use super::action_source::ActionHandle;
 use super::{DropPlanner, PlannerDropPoint, ValueState};
@@ -17,6 +19,8 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub(super) struct PendingBindingTransport {
+    #[cfg(feature = "d10-catalog-experiment")]
+    entry: Option<entry::Observation>,
     binding: UnitSymbolId,
     source: UnitLoanFact,
     source_begin: Option<ActionHandle>,
@@ -129,6 +133,10 @@ impl PendingBindingTransport {
     }
 
     pub(super) fn reconcile(&mut self, alternatives: &[Self]) {
+        #[cfg(feature = "d10-catalog-experiment")]
+        {
+            self.entry = None;
+        }
         self.use_set = None;
         // This narrowly linear observation capability never crosses a merge.
         self.auxiliary = None;
@@ -230,6 +238,8 @@ impl DropPlanner<'_, '_> {
         state
             .borrow_binding_transports
             .push(PendingBindingTransport {
+                #[cfg(feature = "d10-catalog-experiment")]
+                entry: self.entry_binding_candidate(&source, binding.binding()),
                 binding: binding.binding(),
                 source,
                 source_begin,
@@ -286,6 +296,8 @@ impl PendingBindingTransport {
         transaction: UnitBorrowBindingTransportFact,
         binding_end: ActionHandle,
     ) -> (Option<ActionHandle>, Option<ActionHandle>) {
+        #[cfg(feature = "d10-catalog-experiment")]
+        self.publish_entry_retirement(actions, &transaction, &binding_end);
         if self.observable {
             let use_return = match &self.use_return {
                 UseReturn::Unique(handle) => Some(handle.clone()),

@@ -91,6 +91,54 @@ fn run_entry(
     let (environment, types) = standard_environments();
     let (names, typed, owned) =
         unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+    let evidence: Vec<_> = owned
+        .ownership()
+        .loan_action_observations()
+        .iter()
+        .flat_map(|observation| {
+            observation
+                .entry_binding_evidence()
+                .iter()
+                .map(move |e| (observation, e))
+        })
+        .collect();
+    assert_eq!(evidence.len(), usize::from(!extra_parameter));
+    for (observation, evidence) in evidence {
+        use lang_frontend::ownership_checking::UnitLoanAction;
+        assert!(observation.owns_entry_binding_evidence(evidence));
+        assert!(!evidence.ambiguous_use());
+        assert_eq!(
+            owned
+                .ownership()
+                .d10_entry_borrow_link(evidence.transaction().source_loan().call()),
+            Some(evidence.callable())
+        );
+        let source = observation
+            .action(evidence.source_begin().expect("actual source begin"))
+            .unwrap();
+        assert!(
+            matches!(source, UnitLoanAction::Begin(loan) if loan == evidence.transaction().source_loan())
+        );
+        assert!(
+            matches!(observation.action(evidence.handoff().expect("actual handoff")), Some(UnitLoanAction::BorrowHandoffCommitted(h)) if h.binding() == evidence.transaction().binding())
+        );
+        let returned = evidence.returned().expect("actual consumer return");
+        assert_eq!(returned.call(), evidence.consumer());
+        assert!(
+            matches!(observation.action(evidence.use_begin().expect("actual consumer begin")), Some(UnitLoanAction::Begin(loan)) if loan == returned)
+        );
+        assert!(
+            matches!(observation.action(evidence.binding_end().expect("actual binding end")), Some(UnitLoanAction::BorrowBindingEnd(end)) if end.point() == evidence.transaction().point() && end.binding() == evidence.transaction().binding())
+        );
+        assert!(
+            !observation.actions().iter().any(|a| matches!(
+                a,
+                UnitLoanAction::BorrowBindingUseReturned(_)
+                    | UnitLoanAction::BorrowBindingSourceRetired(_)
+            )),
+            "legacy actions are not broadened"
+        );
+    }
     let entry = names
         .names()
         .index()
@@ -270,4 +318,31 @@ fn run_entry(
         }
     }
     audits.into_iter().map(|a| a.branch_consumption).collect()
+}
+
+#[test]
+fn entry_evidence_rejects_extra_statements_multiple_uses_and_control_flow() {
+    for body in [
+        r#"val owner = "kept"; consume(owner); borrow val item = wrap(owner, flag); consume(item)"#,
+        r#"val owner = "kept"; borrow val item = wrap(owner, flag); consume(item); consume(item)"#,
+        r#"val owner = "kept"; borrow val item = wrap(owner, flag); if(flag) { consume(item) } else { consume(item) }"#,
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "fun wrap(source:String, flag:Boolean):borrow String from source=source\nfun consume(item:String):Unit {{}}\nfun run(flag:Boolean):Unit {{{body}}}"
+        );
+        let (id, parsed) = unit_lower_test_support::parsed(&mut sources, "entry-domain.ko", &text);
+        let inputs = [SourceUnitInput::memory_document(id, &parsed)];
+        let (environment, types) = standard_environments();
+        let (_, _, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        assert!(
+            owned
+                .ownership()
+                .loan_action_observations()
+                .iter()
+                .all(|o| o.entry_binding_evidence().is_empty()),
+            "{body}"
+        );
+    }
 }

@@ -1,4 +1,5 @@
 //! Opt-in same-run observation handoffs. Not production primitive lowering capabilities.
+mod entry_binding;
 use super::*;
 use crate::type_checking::UnitItemId;
 use crate::{
@@ -6,6 +7,7 @@ use crate::{
     source::SourceMap,
     type_checking::TypeEnvironment,
 };
+pub use entry_binding::EntryBindingEvidence;
 
 /// Opaque identity from the original planner observation, not an AST-derived token.
 #[derive(Clone, Debug)]

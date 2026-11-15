@@ -19635,3 +19635,24 @@ allow(dead_code)，不改变 route/生产返回。候选宽于证书时仍如实
 `636b420a` 尺寸门禁（2354 Rust、37 历史超限）通过。首编暴露两项接口可见性
 告警，已收窄到 SSA 域而非加 allow，末版重测无警告。RAII 错误/展开清理为静态
 审查保证，本片没有故障注入、native 执行、推送或新 main 整合。
+
+### D10 入口真实 transport 独立旁证，第一阶段（2026-11-15）
+
+真实 Boolean 入口原 catalog 不含 BorrowBindingUseReturned/SourceRetired：旧
+observes_binding_source 复用单参数 consumer_region_loan，故两参数来源的 observable
+为 false。不能以旧 region Complete 或缺失 action ID 冒充入口生命周期闭合。
+
+本片独立 feature-only token 随实际 PendingBindingTransport 保留来源，限定原三语句
+String owner / borrow binding / Unit consumer 和唯一 Boolean 参数。真实正常 use
+回调保存原 loan；真实 binding removal 后的 source retirement 发布独立旁证数组。
+已有 source Begin、handoff、consumer Begin、BindingEnd 只在原完整事实和顺序匹配时
+提供真实 catalog ID；新 use-return/retirement 没有伪造旧 action ID。缺失引用、未见
+use 或歧义保持可见，合流丢弃旁证；不修改原 observable、相等性、actions 或 coverage。
+
+本片不连接 SSA 消费者，不证 Drop 消费，不移除 entry binding lifetime unproven。
+原编译错误路径无 validated owned 输出；撤销/合流的保证需区分静审与实际动态验收。
+正常定向 5/5 通过，含两源反序/两拓扑与额外参数、语句、多 consumer、控制流拒绝；
+原 actions 未增加旧缺失事件，主图 lifetime gap 保持。受影响 frontend/codegen 三 feature
+all-targets 严格 Clippy 与默认 all-targets check 通过；fmt/diff/docs（958）和相对
+`3328f1fa` 尺寸门禁（2357 Rust、37 历史超限）通过。首次缺文档、参数过多 lint
+及旧测试构造缺字段均已修正；未执行故障/native 测试，未推送。

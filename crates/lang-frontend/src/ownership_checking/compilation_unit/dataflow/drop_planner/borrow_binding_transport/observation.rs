@@ -76,6 +76,8 @@ impl DropPlanner<'_, '_> {
         acquisition: Option<ActionHandle>,
         pending: &mut [PendingBindingTransport],
     ) {
+        #[cfg(feature = "d10-catalog-experiment")]
+        self.observe_entry_binding_use(&loan, acquisition.as_ref(), pending);
         self.observe_auxiliary_binding_use(&loan, acquisition.as_ref(), pending);
         self.observe_distinct_binding_use(&loan, acquisition.as_ref(), pending);
         // Use the original argument place, never the canonical source root in loan.target().
