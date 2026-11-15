@@ -513,11 +513,14 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
     ) -> Result<WhenCondition, ParserInternalError> {
-        let condition_stops = outer_stops
-            .without_lambda_body_soft_stops()
-            .with(Stops::COMMA)
-            .with(Stops::ARROW)
-            .with(Stops::RIGHT_BRACE);
+        let condition_stops = Stops {
+            when_entry_body: false,
+            ..outer_stops
+                .without_lambda_body_soft_stops()
+                .with(Stops::COMMA)
+                .with(Stops::ARROW)
+                .with(Stops::RIGHT_BRACE)
+        };
         if self.current_is_keyword(Keyword::Is) || self.current_is_symbol(Symbol::BangIs) {
             let operator = self.bump()?;
             let negated = matches!(

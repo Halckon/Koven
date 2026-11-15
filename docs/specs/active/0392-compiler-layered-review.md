@@ -6103,3 +6103,18 @@ return 逆序析构，以及跳过写回和原内层为空的正常路径。
 同一用例经 CLI 单文件和项目入口检查、构建并执行。两个程序均退出 0，
 22 行 stdout 与预期逐字节相等，stderr 为空。codegen all-targets
 严格 Clippy、Rust 格式、Rust 尺寸和文档结构检查通过。
+
+## 255. R1/R2 分组 when selector 的分支边界与类型上下文
+
+在 `50f12468` 上分别复现换行后的配对分组被上一臂吞作调用，以及
+`((null)), true` 中 null 丢失主体期望类型。Parser 用已索引的闭括号
+和紧随其后的箭头确认后继分支，并隔离嵌套 when 自己的 selector。
+类型检查沿用比较表达式识别分组 null 的规则，保留外层分组、内层
+分组和 null 的类型；混合臂继续保留 nullable 流事实。
+
+独立复审定位了嵌套 selector 继承外层停止规则的问题。回归覆盖
+嵌套 selector 的跨行实参、原分支体内的合法跨行调用、物理箭头、
+双 Unit 入口的有限域覆盖和缺少 nullable 上下文时的诊断。四组
+frontend 测试共 430 项通过，零失败或忽略，严格 Clippy 通过。
+换行后的复合或未配对 selector、现有后端专用 nullable 描述符对
+分组 null 的接受边界仍保留为后续复审项。

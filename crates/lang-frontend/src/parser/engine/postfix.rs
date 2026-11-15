@@ -7,7 +7,9 @@ impl Parser<'_> {
         stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
         loop {
-            if self.at_block_expression_line_break(receiver, stops)? {
+            if self.at_block_expression_line_break(receiver, stops)?
+                || (stops.when_entry_body && self.grouped_when_entry_follows(receiver)?)
+            {
                 break;
             }
             if matches!(
@@ -90,6 +92,36 @@ impl Parser<'_> {
             };
         }
         Ok(receiver)
+    }
+
+    /// Retain the next entry's paired group without treating every newline as a call boundary.
+    fn grouped_when_entry_follows(
+        &self,
+        receiver: ExpressionId,
+    ) -> Result<bool, ParserInternalError> {
+        if !self.current_is_symbol(Symbol::LeftParen)
+            || !self.gap_has_line_break(
+                self.expression_span(receiver)?.end(),
+                self.current()?.span().start(),
+            )?
+        {
+            return Ok(false);
+        }
+        let Some(closer) = self
+            .lexical_recoveries
+            .group_closer(self.lexed, self.current_raw()?)
+        else {
+            return Ok(false);
+        };
+        let next = self.lexed.lexemes()[closer + 1..]
+            .iter()
+            .find(|lexeme| !matches!(lexeme.kind(), LexemeKind::Trivia(_)));
+        Ok(next.is_some_and(|lexeme| {
+            matches!(
+                lexeme.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow))
+            )
+        }))
     }
 
     pub(super) fn is_postfix_start(&self) -> bool {
