@@ -31,13 +31,46 @@
 
 ## 2. 验收
 
-- [ ] R1：完整块/剩余根机械保全，只有精确可见域/路径/直接reexport与模块声明变化。
-- [ ] R2：原Unit type/ownership定向target前后通过，逐片本地提交，不逐片push、不伪造RED。
-- [ ] R3：完整frontend、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
+- [x] R1：完整块/剩余根机械保全，只有精确可见域/路径/直接reexport与模块声明变化。
+- [x] R2：原Unit type/ownership定向target前后通过，逐片本地提交，不逐片push、不伪造RED。
+- [x] R3：完整frontend、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
 - [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
 
 原始证据留仓库外，未运行/ignored/compile/list与真实passed分别记，不重复累计。
 
 ## 3. 真实证据
 
-待逐片记录。
+合同3e32ccc3，三个完整切片逐片定向通过后本地提交，不逐片push。
+
+| 切片 | 提交 | 原五完整target前后 | 尺寸 |
+|---|---|---|---|
+| Unit canonical模型 | 33faf735 | 506/0/0 | 新185行（含后续fmt折行） |
+| delegation完整模型 | eca88b11 | 506/0/0 | type model1327→887，新269 |
+| 完整ownership产物impl | 7386e462 | 506/0/0 | ownership根1152→574，新581 |
+
+五target为multifile_type_signatures24/type_checking288/type_member_graph7/
+ownership_checking164/constant_ownership23，四轮506FQN逐项相同，测试fixture全未改。
+完整块/剩余根按rustfmt核对，仅明确pub域/路径/模块/直接reexport差异；type_table
+checkpoint两方法保持原compilation-unit域，ownership new仅恢复原compilation-unit域。
+模型私有Resolution和forwarder sort随同迁移，既有unreachable分支保留而非新增。
+policy仅删type model baseline1404/exception与ownership baseline1116/exception四项，
+其余JSON等值，实际1327/1152与登记分别记，不提高额度。
+
+机械核对首轮重建root时把两次新增声明的插入顺序写反，assert失败；逐段diff确认仅新
+声明相对位置，按实际明确插入位置重建后通过，产品未因脚本失败修改。工具输出留会话，
+无单独首轮失败日志；不当行为RED或隐去失败。
+
+整组完整frontend **3779 passed、0 failed、13 ignored**（含12实际通过compile-fail
+doctest），ignored不计执行，定向与全量不重复累计。workspace all-target cargo check
+退出0（编译非下游测试运行）、frontend all-target Clippy -D warnings、fmt、policy47、
+docs969、尺寸/空白均0；2187手写Rust，历史超限 **10→8**，本PR21→8。
+
+独立fresh review完整3e32ccc3..7386e462真实diff及canonical撤回、forwarder发布排序、
+错误清理driver、const专用入口等直接消费者，No issues found：确认类型身份/回滚、
+私有状态/顺序、successful与deferred表筛选、owner/analysis链和basic/const拒绝门、loan
+事实权限不扩展。审查者只读不Cargo，读日志不算重跑；父流程另验组末门禁。
+Architecture同步职责，原始证据/快照/完整diff/review与机械结论留仓库外。
+
+Rust组末门禁后未再改，未运行下游codegen/CLI/LSP测试全套、CI-only fault/真实校准/
+sanitizer；R4集中push与精确新头CI另验，Spec active、PR Draft，不归档合入，不借旧头CI
+或编译检查代替真实运行测试。
