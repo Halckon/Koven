@@ -25,9 +25,9 @@
 
 ## 2. 验收
 
-- [ ] R1：完整方法与剩余根机械保全（除scope/空白），测试字节不变。
-- [ ] R2：name_resolution、multifile_name_resolution、unit_name_snapshot迁移前后同FQN集通过。
-- [ ] R3：frontend完整测试、Clippy/fmt/docs/尺寸/policy与独立精确区间审查。
+- [x] R1：完整方法与剩余根机械保全（除scope/空白），测试字节不变。
+- [x] R2：name_resolution、multifile_name_resolution、unit_name_snapshot迁移前后同FQN集通过。
+- [x] R3：frontend完整测试、Clippy/fmt/docs/尺寸/policy与独立精确区间审查。
 - [ ] R4：Architecture与真实账本同步、新PR/精确CI另验；保持active，不提前归档或合入。
 
 纯重组先GREEN→REFACTOR→GREEN，不伪造RED。原始日志/快照放仓库外，实际执行与
@@ -35,4 +35,19 @@ compile/list/ignored分别记；行为失败先停线定位，不能改断言绕
 
 ## 3. 真实证据
 
-待定向与组末实际记录。
+实现 `cbb5829a`、policy `3ad1d8e2`；根1116→920，新模块201。
+完整197行方法仅fn→pub(super)，根剩余正文及imports严格机械相等；全部测试/fixture/FQN不变，
+policy仅删除baseline1134一项，其他JSON值相同。定向三个完整target：
+`name_resolution`、`multifile_name_resolution`、`unit_name_snapshot`前后各 **41/0/0**（19+15+7），
+按target/名称集合一致。完整frontend全部目标汇总 **3779 passed / 0 failed / 13 ignored**，
+包括12项实际通过的compile-fail doctest；ignored未计作执行。
+
+frontend all-target Clippy（-D warnings）、fmt、47项policy tests、docs963、尺寸/空白退出0；
+2170手写Rust，历史超限21→20。独立完整 `8bfd6971..3ad1d8e2` 三路径diff复核，确认
+lambda implicit it、递归/访问顺序、member/type fallback、enum case诊断Span及祖先/兄弟
+可见域保全，No issues found。Architecture同步实际归属。
+
+仓库外核验脚本首次误将实际行数1116当作登记值，assert失败（工具会话保留错误输出，
+未另外保存原始日志，不声称reviewer独立复现）；读取实际baseline1134后精确删除复验。
+不是语言行为失败，未改断言绕过。本地未跑下游codegen/CLI/LSP全套或CI-only故障注入，
+精确新PR CI另验。原始日志/快照/审查留仓库外。
