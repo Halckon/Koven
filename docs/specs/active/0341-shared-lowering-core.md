@@ -20371,3 +20371,22 @@ named cleanup两个正常目标各1通过；后者同步既有scalar/角色/esca
 （1m52s）。不同callee正控改为独立完整fixture，未放宽全Unit preflight；
 CI-only WrongRounds旧accessor只迁首occurrence，未运行故障。
 不推送、不执行native或故障注入。
+
+### E2两调用共享单named owner的最终释放（2026-11-15）
+
+基于2e54242a，候选仅原Block中的plain String val与两次同完整instance裸Call，
+四个String实参都是原Name指向同一formed root，scalar均直接literal；不扩大到
+多个owner、mixed临时String、插入语句、不同callee或第三调用。
+先行普通ownership实测8 Shared loan/8真实End，四String loan同一Place root，
+首CallReturn无Drop、第二CallReturn唯一NamedDrop；E2红为精确UnsupportedSelection。
+
+实现设计由私有SharedNamedPair根持原owner初始化、身份与原唯一末Drop，
+两个call occurrence只引用SharedRoot，不持初始化或已消费权限，不虚构首call Drop。
+根一次建立owner/place，两call各自完整End后才按原第二CallReturn Drop释放，
+所有来源、类型、loan/Drop由独立replay逐项消费，29条总数只是必要检查。
+原single及temporary pair生命周期保持，默认关闭不变。正式two-source-unit及
+三feature shared_owner_pair各3目标通过（原事实、两正例/具名重排、七域外）；
+旧temporary pair五目标、frontend named清理一目标通过。双crate三feature
+all-targets严格Clippy最终通过（1m56s），初次collapsible_if仅作等价样式整理；
+独立静审及fmt/文档/size/diff通过，失败日志保留，未重复已通过矩阵。
+不推送、不执行native或本地故障注入。

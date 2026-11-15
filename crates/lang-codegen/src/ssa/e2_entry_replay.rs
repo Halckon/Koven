@@ -2,6 +2,7 @@
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use super::e2_entry::EmittedEntry;
 use super::model::*;
+use lang_frontend::name_resolution::UnitSymbolId;
 use lang_frontend::ownership_checking::{
     UnitDropTarget,
     two_source_experiment::{EntryCallDescriptor, EntryInitialization},
@@ -129,23 +130,27 @@ pub(super) fn replay_declared_body(
     if !block.parameters.is_empty()
         || block.origin != Origin::Source(declaration)
         || block.instructions.len()
-            != d.calls()
-                .iter()
-                .map(|call| {
-                    match (
-                        call.named_strings().len(),
-                        (0..4)
-                            .filter(|i| call.temporary_string(*i).is_some())
-                            .count(),
-                    ) {
-                        (1, 0) => Some(16),
-                        (0, 2) | (1, 1) | (2, 0) => Some(19),
-                        _ => None,
-                    }
-                })
-                .collect::<Option<Vec<usize>>>()?
-                .iter()
-                .sum::<usize>()
+            != if d.shared_owner().is_some() {
+                29
+            } else {
+                d.calls()
+                    .iter()
+                    .map(|call| {
+                        match (
+                            call.named_strings().len(),
+                            (0..4)
+                                .filter(|i| call.temporary_string(*i).is_some())
+                                .count(),
+                        ) {
+                            (1, 0) => Some(16),
+                            (0, 2) | (1, 1) | (2, 0) => Some(19),
+                            _ => None,
+                        }
+                    })
+                    .collect::<Option<Vec<usize>>>()?
+                    .iter()
+                    .sum::<usize>()
+            }
         || f.instructions.len() != block.instructions.len()
     {
         return None;
@@ -162,8 +167,57 @@ pub(super) fn replay_declared_body(
         ids: &block.instructions,
         index: 0,
     };
+    let shared = if let Some((symbol, _, span, bytes, drop)) = d.shared_owner() {
+        if d.calls().len() != 2
+            || drop.target() != UnitDropTarget::Named(symbol)
+            || drop.point()
+                != lang_frontend::ownership_checking::UnitDropPoint::CallReturn(
+                    d.calls()[1].contracts()[0].call(),
+                )
+        {
+            return None;
+        }
+        let string = SsaTypeId {
+            module: module.id,
+            index: module
+                .types
+                .iter()
+                .position(|ty| *ty == SsaTypeKind::StringOwner)?,
+        };
+        let origin = Origin::Source(span);
+        let owner = value(cursor.step(
+            Operation::StringLiteral {
+                string,
+                bytes: bytes.to_vec(),
+            },
+            origin.clone(),
+            Some(EntityType::Value(string)),
+        )?)?;
+        let root = place(cursor.step(
+            Operation::RootPlace { owner },
+            origin,
+            Some(EntityType::Place(string)),
+        )?)?;
+        Some((symbol, owner, root))
+    } else {
+        None
+    };
     for call in d.calls() {
-        replay_call(module, &mut cursor, caller, call)?;
+        replay_call(
+            module,
+            &mut cursor,
+            caller,
+            call,
+            shared.map(|(symbol, _, root)| (symbol, root)),
+        )?;
+    }
+    if let Some((_, owner, _)) = shared {
+        let (_, _, _, _, drop) = d.shared_owner()?;
+        cursor.step(
+            Operation::Drop { owner },
+            Origin::Source(drop.value_origin()),
+            None,
+        )?;
     }
     (cursor.index == block.instructions.len()).then_some(())
 }
@@ -172,7 +226,15 @@ fn replay_call(
     cursor: &mut Cursor<'_>,
     caller: FunctionId,
     d: &EntryCallDescriptor,
+    shared: Option<(UnitSymbolId, PlaceId)>,
 ) -> Option<()> {
+    if shared.is_some()
+        && (!d.named_strings().is_empty()
+            || !d.initialization_order().is_empty()
+            || !d.drops().is_empty())
+    {
+        return None;
+    }
     let find = |kind: &SsaTypeKind| {
         module
             .types
@@ -255,14 +317,21 @@ fn replay_call(
         let role = d.argument_role(i)?;
         let ty = *[string, string, int, boolean].get(role)?;
         let root = if let Some(symbol) = d.named_argument_root(i) {
-            let mut matches = named_roots
-                .iter()
-                .filter(|(candidate, _)| *candidate == symbol);
-            let root = matches.next()?.1;
-            if matches.next().is_some() {
-                return None;
+            if let Some((actual, root)) = shared {
+                if actual != symbol {
+                    return None;
+                }
+                root
+            } else {
+                let mut matches = named_roots
+                    .iter()
+                    .filter(|(candidate, _)| *candidate == symbol);
+                let root = matches.next()?.1;
+                if matches.next().is_some() {
+                    return None;
+                }
+                root
             }
-            root
         } else if role < 2 {
             let owner = value(cursor.step(
                 Operation::StringLiteral {
