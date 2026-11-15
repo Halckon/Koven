@@ -124,7 +124,7 @@ impl UnitExpressionLowerer<'_> {
         let place = self.lower_borrow_place(argument, fact.target(), target, span);
         self.closure_binding_context = previous;
         let place = place?;
-        let (_, results) = self
+        let (_instruction, results) = self
             .function
             .append_instruction(
                 self.block,
@@ -145,6 +145,13 @@ impl UnitExpressionLowerer<'_> {
                 fact.begin_span(),
             ));
         };
+        #[cfg(feature = "d10-catalog-experiment")]
+        crate::ssa::d10_project_audit::compatibility::loan(
+            self.function.id,
+            fact,
+            _instruction,
+            loan,
+        );
         Ok((loan, vec![loan], fact.end_span()))
     }
 

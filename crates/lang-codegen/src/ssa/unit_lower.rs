@@ -11,6 +11,8 @@ pub(in crate::ssa) mod preflight;
 pub(in crate::ssa) use super::provider::borrow_result;
 mod call;
 mod call_lifetimes;
+#[cfg(feature = "d10-catalog-experiment")]
+mod compatibility_audit;
 pub(in crate::ssa) use call_lifetimes::callable_abi;
 mod cfg;
 pub(in crate::ssa) mod closure;

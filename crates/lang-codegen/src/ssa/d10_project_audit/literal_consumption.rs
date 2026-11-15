@@ -31,12 +31,16 @@ thread_local! { static RUNS: RefCell<Vec<State>> = const { RefCell::new(Vec::new
 /// Private per-assembly identity. Unwinding/early failure discards unpublished receipts.
 pub(super) struct Transaction {
     state: State,
+    compatibility: super::compatibility::Transaction,
 }
 impl Transaction {
     pub(super) fn begin() -> Self {
         let state = Rc::new(RefCell::new(Vec::new()));
         RUNS.with(|runs| runs.borrow_mut().push(state.clone()));
-        Self { state }
+        Self {
+            state,
+            compatibility: super::compatibility::Transaction::begin(),
+        }
     }
 }
 impl Drop for Transaction {
@@ -159,6 +163,19 @@ pub(super) fn finish(
         }
         result.linked.push(call);
     }
+    let compatibility = transaction
+        .compatibility
+        .finish(program, &expected, &callers, owned);
+    for call in compatibility.0 {
+        if !seen.insert(call) {
+            result
+                .gaps
+                .push(format!("duplicate route receipt: {call:?}"));
+        } else {
+            result.linked.push(call);
+        }
+    }
+    result.gaps.extend(compatibility.1);
     for call in expected.keys().filter(|call| !seen.contains(call)) {
         result.gaps.push(format!(
             "missing real refinement receipt (route gap): {call:?}"
@@ -196,36 +213,14 @@ fn matches_final(snapshot: &Snapshot, program: &Program) -> bool {
     {
         return false;
     }
-    let [block] = function.blocks.as_slice() else {
-        return false;
-    };
-    if function.receiver.is_some()
-        || function.borrow_return.is_some()
-        || function.carrier_return.is_some()
-        || function.never_returns
-        || !function.return_types.is_empty()
-        || !block.parameters.is_empty()
-        || block.instructions != receipt.instructions
-        || function.instructions != *instructions
-        || !matches!(&block.terminator, Some(term)
-            if matches!(&term.kind, TerminatorKind::Return { values } if values.is_empty()))
-    {
-        return false;
-    }
-    for (id, instruction) in receipt.instructions.iter().zip(instructions) {
-        if function.instruction(*id) != Some(instruction) || instruction.block != block.id {
-            return false;
-        }
-    }
-    // Include the actual DirectCall result, not only the receipt's owner/place/loan triples.
     let Some(results) = &snapshot.results else {
         return false;
     };
+    if !complete_function(function, &receipt.instructions, instructions, results) {
+        return false;
+    }
     let result_ids = results.iter().map(|(id, _)| *id).collect::<BTreeSet<_>>();
-    if result_ids.len() != results.len()
-        || results.len() != function.values.len() + function.places.len() + function.loans.len()
-        || receipt.entities.iter().any(|id| !result_ids.contains(id))
-    {
+    if receipt.entities.iter().any(|id| !result_ids.contains(id)) {
         return false;
     }
     for instruction in instructions {
@@ -238,7 +233,7 @@ fn matches_final(snapshot: &Snapshot, program: &Program) -> bool {
             }
         }
     }
-    for (id, entity) in results {
+    for (id, entity) in receipt.entities.iter().zip(entities) {
         if function.entity(*id) != Some(entity) {
             return false;
         }
@@ -256,7 +251,49 @@ fn matches_final(snapshot: &Snapshot, program: &Program) -> bool {
             return false;
         }
     }
-    for (id, entity) in receipt.entities.iter().zip(entities) {
+    true
+}
+
+pub(super) fn complete_function(
+    function: &Function,
+    ids: &[crate::ssa::model::InstructionId],
+    instructions: &[Instruction],
+    results: &[(EntityId, EntityData)],
+) -> bool {
+    if ids.is_empty()
+        || ids.len() != instructions.len()
+        || ids.iter().collect::<BTreeSet<_>>().len() != ids.len()
+    {
+        return false;
+    }
+    let [block] = function.blocks.as_slice() else {
+        return false;
+    };
+    if function.receiver.is_some()
+        || function.borrow_return.is_some()
+        || function.carrier_return.is_some()
+        || function.never_returns
+        || !function.return_types.is_empty()
+        || !block.parameters.is_empty()
+        || block.instructions != ids
+        || function.instructions != instructions
+        || !matches!(&block.terminator, Some(term)
+            if matches!(&term.kind, TerminatorKind::Return { values } if values.is_empty()))
+    {
+        return false;
+    }
+    for (id, instruction) in ids.iter().zip(instructions) {
+        if function.instruction(*id) != Some(instruction) || instruction.block != block.id {
+            return false;
+        }
+    }
+    let result_ids = results.iter().map(|(id, _)| *id).collect::<BTreeSet<_>>();
+    if result_ids.len() != results.len()
+        || results.len() != function.values.len() + function.places.len() + function.loans.len()
+    {
+        return false;
+    }
+    for (id, entity) in results {
         if function.entity(*id) != Some(entity) {
             return false;
         }
@@ -265,7 +302,7 @@ fn matches_final(snapshot: &Snapshot, program: &Program) -> bool {
         else {
             return false;
         };
-        if !receipt.instructions.contains(&instruction)
+        if !ids.contains(&instruction)
             || function
                 .instruction(instruction)
                 .and_then(|i| i.results.get(index))

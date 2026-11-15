@@ -1,6 +1,7 @@
 //! Read-only scoped observations of ordinary whole-unit lowering. Not an admission capability.
 //! Only the original successful final verifier publishes an observation. Object publication
 //! remains a separate result; this module neither changes lowering nor executes generated code.
+pub(crate) mod compatibility;
 mod literal_consumption;
 use crate::ssa::{
     model::{FunctionId, Operation, Program, SsaTypeKind, TerminatorKind},

@@ -19465,3 +19465,29 @@ check通过，fmt/diff/docs958通过；尺寸对`9f7f175f`通过（2341文件/37
 Clippy及默认workspace all-targets check通过。fmt首次仅模块声明排序需调整，调整后
 通过；docs958、diff与尺寸相对`d7a29159`通过（2342文件/37历史超限）。无native执行、
 跨run混配或故障注入。
+
+
+### Compatibility两段literal调用的原事实消费（2026-11-15）
+
+在`3802b326`共享纯validator之上，保持原Compatibility/Refine路由不变。新记录类型
+与Refine Plan/TemporaryReceipt分离；仅原source plan映射到plain caller、原link接受的
+非空String literal实参、无receiver/泛型且Int/Unit结果调用构成审计候选。
+
+原borrow唯一loan fact选择并实际追加BorrowBegin后记录完整fact、LoanId及InstructionId；
+原emit_drop_fact实际追加Drop后记录完整fact、owner及InstructionId。调用前后的真实
+append区间仅提供操作序列，不替代事实消费证据。最终核原region/action IDs与这些原fact
+完整Eq、实际Begin/Drop指令身份及参数排列，再调用共享六类SSA操作validator。
+
+同一次assembly私有RAII隔离这些记录，原最终verifier成功才发布；按caller真实追加顺序
+拼接两段，要求完整单entry指令/实体表与空Return出口闭合，前段逆End/Drop完成后才能
+开始下一段。Int调用结果也计入；额外普通调用/动作不会静默忽略。此证据仍不证明callee
+全图、运行时终止或一般分支CFG，也不扩D10生产准入。
+
+正常回归覆盖命名实参反序、Int及Unit调用、两源反序、单observe两次assembly隔离；
+额外number()保持完整caller gap，零参数域仍拒绝。独审指出首版literal bytes不能
+从同条SSA操作自取自比，且未显式限制调用段数；末版改为原parsed/source_text经现有
+`decode_plain`独立保存字节，final validator对该字节，并显式要求恰两调用。正常测试
+加入Unicode/转义字节及三调用保持gap。末版独审无阻断；末版定向三项、原route/receipt
+两项、source ledger十项和真实五源CLI exact一项通过。三crate双feature all-targets
+严格Clippy、默认workspace all-targets check及fmt/diff/docs958通过；尺寸对
+`3802b326`通过（2344文件/37历史超限）。未执行native、故障注入或推送。

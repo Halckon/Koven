@@ -67,29 +67,52 @@ fn original_refinement_receipt_closes_final_unit_program_and_runs_are_isolated()
     assert!(independent[0].literal_consumption.gaps.is_empty());
 }
 #[test]
-fn real_uncovered_route_and_empty_region_are_not_consumption_success() {
-    let audits = run("inspect(\"a\", \"b\"); inspect(\"c\", \"d\")", false, false);
-    let audit = &audits[0].literal_consumption;
-    assert_eq!(
-        audit.expected.len(),
-        2,
-        "frontend links alone do not establish the refinement route"
+fn compatibility_two_calls_close_but_extra_actions_and_empty_domain_do_not() {
+    let audits = run(
+        r#"inspect(b = "b\n", a = "中"); observe(b = "d", a = "c")"#,
+        true,
+        true,
     );
-    assert!(audit.linked.is_empty());
-    assert_eq!(
-        audit
+    assert_eq!(audits.len(), 2);
+    for audit in audits {
+        let audit = audit.literal_consumption;
+        assert_eq!(audit.expected.len(), 2);
+        assert_eq!(audit.linked, audit.expected);
+        assert!(audit.gaps.is_empty(), "{:?}", audit.gaps);
+    }
+    let extra = run(
+        "inspect(\"a\", \"b\"); number(); inspect(\"c\", \"d\")",
+        false,
+        false,
+    );
+    assert_eq!(extra[0].literal_consumption.expected.len(), 2);
+    assert!(extra[0].literal_consumption.linked.is_empty());
+    assert!(
+        extra[0]
+            .literal_consumption
             .gaps
             .iter()
-            .filter(|g| g.contains("route gap"))
-            .count(),
-        2
+            .any(|g| g.contains("complete caller gap"))
+    );
+    let three = run(
+        "inspect(\"a\", \"b\"); inspect(\"c\", \"d\"); observe(\"e\", \"f\")",
+        false,
+        false,
+    );
+    assert_eq!(three[0].literal_consumption.expected.len(), 3);
+    assert!(three[0].literal_consumption.linked.is_empty());
+    assert!(
+        three[0]
+            .literal_consumption
+            .gaps
+            .iter()
+            .any(|g| g.contains("complete caller gap"))
     );
     let empty = run("number()", false, false);
     assert!(empty[0].literal_consumption.expected.is_empty());
     assert!(empty[0].literal_consumption.linked.is_empty());
     assert!(!empty[0].literal_consumption.gaps.is_empty());
 }
-
 #[test]
 fn complete_entry_blocks_account_for_named_arguments_and_int_or_unit_results() {
     let audits = run_source(
