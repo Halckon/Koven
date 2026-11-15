@@ -4,6 +4,8 @@
 pub(crate) mod arm_loop_consumption;
 #[cfg(test)]
 mod arm_loop_consumption_tests;
+#[cfg(test)]
+mod arm_loop_counter_break_choose_tests;
 pub(crate) mod arm_loop_counter_break_consumption;
 #[cfg(test)]
 mod arm_loop_counter_break_stop_tests;

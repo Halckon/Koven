@@ -252,7 +252,7 @@ impl Source {
             let ty = inputs.typed.symbol_type(*symbol)?;
             let role = roles.iter().position(|r| *r == i)?;
             if inputs.typed.types().get(ty) != Some(&UnitTypeKind::Builtin(kinds[role]))
-                || (role != 3 && inputs.modes[i] != ParameterMode::Borrow)
+                || (role < 2 && inputs.modes[i] != ParameterMode::Borrow)
                 || !matches!(
                     inputs.modes[i],
                     ParameterMode::Borrow | ParameterMode::Value
