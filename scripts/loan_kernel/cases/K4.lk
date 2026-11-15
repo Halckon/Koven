@@ -1,0 +1,38 @@
+// 嵌套视图上的流向：流入容器的来源可以写到某一级字段，容器只保护那一级之下的来源
+class Arr(len: Int)
+view class Inner(borrow a: Arr, borrow b: Arr)
+view class Outer(inner: Inner, borrow c: Arr)
+class Bag(n: Int)
+fun <view T> put(inout bag: Bag, own x: T): Unit flows x into bag trusted
+fun keepLeaf(borrow x: Outer, inout out: Bag): Unit flows x.inner.a into out {
+  put(out, x.inner.a)
+}
+fun keepBranch(borrow x: Outer, inout out: Bag): Unit flows x.inner into out {
+  put(out, x.inner.b)
+}
+fun undeclared(borrow x: Outer, inout out: Bag): Unit flows x.c into out {  // ERR K6
+  put(out, x.inner.a)
+}
+fun leafFlow(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val bag = Bag(0)
+  val o = Outer(Inner(&p, &q), &r)
+  keepLeaf(&o, &mut bag)
+  q.len = 5
+  r.len = 6
+  p.len = 7  // ERR K1
+  use(bag.n)
+}
+fun branchFlow(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val bag = Bag(0)
+  val o = Outer(Inner(&p, &q), &r)
+  keepBranch(&o, &mut bag)
+  r.len = 6
+  q.len = 5  // ERR K1
+  use(bag.n)
+}

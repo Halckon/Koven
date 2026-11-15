@@ -56,6 +56,7 @@ class Fun:
     tparams: list = field(default_factory=list)
     flows: list = field(default_factory=list)  # ((param, None | "*" | field), 目标参数)
     owner: str = ""  # in C：该函数是类型 C 的成员，可以访问 C 的私有字段
+    views: set = field(default_factory=set)  # 写作 view T 的类型参数：可以实例化为携带来源的类型
 
 
 @dataclass
@@ -193,10 +194,13 @@ class Parser:
         """函数或抽象签名（sig）；sig 没有函数体，用作函数类型与接口方法的合同。"""
         line = self.line()
         self.expect(keyword)
-        tparams = []
+        tparams, views = [], set()
         if self.accept("<"):
             while not self.accept(">"):
+                may_carry = self.accept("view")
                 tparams.append(self.next())
+                if may_carry:
+                    views.add(tparams[-1])
                 self.accept(",")
         name = self.next()
         self.expect("(")
@@ -233,7 +237,7 @@ class Parser:
             if self.accept("return"):
                 ret = self.expr()
             self.expect("}")
-        return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows, owner)
+        return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows, owner, views)
 
     def block(self):
         self.expect("{")
@@ -504,7 +508,7 @@ class Checker:
             if ty.kind == "view":
                 for kind, fld in self.ref_paths(ty_name):
                     loans[fld] = {self.symbolic(name, fld, kind, fun.line)}
-            elif ty.kind == "opaque":  # 类型参数的值携带一组未知的来源
+            elif ty.kind == "opaque" and ty_name in fun.views:  # view T 的值携带一组未知的来源
                 loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}
             # 按 inout / borrow 接收存在类型，得到的是载荷访问（之三 §2.4）
             state[name] = Var(ty if mode == "own" else Type(mode, ty_name), "A", loans,
@@ -533,13 +537,26 @@ class Checker:
 
     def ref_paths(self, class_name):
         """视图的全部借用字段，含按值嵌套的视图里的：(种类, 字段路径)。"""
+        return self.paths_within(class_name, ())
+
+    def paths_within(self, class_name, visiting):
+        """经共享借用字段走到内层视图时，内层的借用字段一律按共享计。"""
+        if class_name in visiting:  # 递归的视图类型：不再展开
+            return []
         paths = []
         for kind, name, ty_name in self.classes[class_name].fields:
             if kind:
                 paths.append((kind, name))
-            elif ty_name in self.classes and self.classes[ty_name].is_view:
-                paths.extend((k, f"{name}.{path}") for k, path in self.ref_paths(ty_name))
+            if ty_name in self.classes and self.classes[ty_name].is_view:
+                for inner, path in self.paths_within(ty_name, visiting + (class_name,)):
+                    paths.append(("borrow" if kind == "borrow" else inner, f"{name}.{path}"))
         return paths
+
+    def escapable(self, ty_name):
+        """类型的值是否一定不携带来源：视图与 view T 不是，其余都是。"""
+        if ty_name in self.classes:
+            return not self.classes[ty_name].is_view
+        return ty_name not in self.fun.views and not ty_name.startswith(("borrow ", "inout "))
 
     def exclusive(self, class_name):
         return any(kind == "inout" for kind, _ in self.ref_paths(class_name))
@@ -579,7 +596,7 @@ class Checker:
         """K6：返回值持有的每个 loan 都要被签名的 from 覆盖。"""
         for name in self.uncovered(value.all_loans(), set(fun.sources)):
             self.error("K6", fun.ret.line, "返回值依赖局部变量的存储" if name is None
-                       else f"返回值的来源 {name} 没有在 from 中声明")
+                       else f"返回值的来源 {name.replace('.*', '.origins')} 没有在 from 中声明")
 
     def check_flows(self, state, fun):
         """K6 对流向的延伸：函数体让哪些来源流进了 inout 参数，签名的 flows 就要声明哪些。"""
@@ -715,7 +732,9 @@ class Checker:
                 via = held if kind == "borrow" else via | held
                 targets = self.places(held)
                 writable = writable and kind == "inout"
-                field_loans = None
+                if field_loans is not None:  # 借用字段指向另一个视图：它的借用字段记在同一前缀之下
+                    field_loans = {key[len(name) + 1:]: held for key, held in field_loans.items()
+                                   if key.startswith(name + ".")}
             ty = self.type_of(fty)
             if not kind and ty.kind != "view":
                 field_loans = None
@@ -831,8 +850,8 @@ class Checker:
             val = self.argument(arg, kind or "own", state)
             if kind:
                 loans[name] = set(val.loans.get("", ()))
-            else:  # 按值嵌套的视图：它的借用字段记在 字段名.路径 之下
-                loans.update({f"{name}.{key}": set(held) for key, held in val.loans.items() if key})
+            # 按值嵌套或借用另一个视图：内层的借用字段记在 字段名.路径 之下
+            loans.update({f"{name}.{key}": set(held) for key, held in val.loans.items() if key and key != "*"})
             self.pending.append(val.all_loans())
             pushed += 1
         del self.pending[len(self.pending) - pushed:]
@@ -852,6 +871,10 @@ class Checker:
             if value.ty.kind == "fn":
                 continue
             actual = value.ty.name
+            if mode == "own" and value.ty.kind in ("borrow", "inout"):  # 借用值本身作为 T 的值
+                actual = f"{value.ty.kind} {actual}"
+            if wanted in fun.tparams and wanted not in fun.views and not self.escapable(actual):
+                self.error("K17", line, f"{name}：{actual} 可能携带来源，不能实例化可逃逸的类型参数 {wanted}")
             if wanted in fun.tparams:
                 if mode == "inout" and value.payload:
                     actual = ("opened", actual, name)
@@ -926,6 +949,11 @@ class Checker:
                 return Value(Type(kind, actual[1]), {"": result}, True)
             return Value(Type(kind, actual), {"": result}, actual.startswith("any "))
         ty = self.type_in(fun, ty_name)
+        if ty.kind == "opaque" and isinstance(bound.get(ty_name), str):  # 类型参数换成本次调用的实例
+            ty_name = bound[ty_name]
+            if ty_name.startswith(("borrow ", "inout ")):
+                return Value(Type(*ty_name.split(" ", 1)), {"": result})
+            ty = self.type_in(self.fun, ty_name)
         if ty.kind == "opaque":
             return Value(ty, {"*": result})
         if ty.kind == "view":  # K11：含多个借用字段的结果共同持有这些 loan
@@ -1001,6 +1029,15 @@ class Checker:
             if not res.writable:
                 self.error("K1", stmt.line, "不能经共享借用写入")
             self.access(state, res.targets, res.via, "write", stmt.line)
+            if value.all_loans():  # 把携带来源的值写进视图的字段
+                var = state[place.root]
+                if res.via or var.ty.kind in ("borrow", "inout"):
+                    self.error("K14", stmt.line, "经借用把来源写进视图字段是一次流向，演算只支持流入类型参数的持有者")
+                else:
+                    prefix = ".".join(place.fields)
+                    var.loans = {key: held for key, held in var.loans.items()
+                                 if not key.startswith(prefix + ".")}
+                    var.loans.update({f"{prefix}.{key}": set(held) for key, held in value.loans.items() if key})
             return
         var = state.get(place.root)
         if var is None:
