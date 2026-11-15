@@ -1,0 +1,63 @@
+// 并行恢复：只有显式并行的函数才可能换线程；跨挂起点存活的值须可转移，被共享借用的值须可共享
+class Arr(len: Int)
+cell class Counter(n: Int)
+local class RcBox(n: Int)
+class Holder(b: RcBox)
+view class Peek(borrow c: Counter)
+fun bump(borrow c: Counter): Unit trusted
+suspend fun sameThread(): Unit {
+  val b = RcBox(1)
+  val c = Counter(0)
+  val r = &c
+  suspend
+  bump(r)
+  use(b.n)
+}
+parallel suspend fun ownedCrosses(): Unit {
+  val a = Arr(1)
+  val c = Counter(0)
+  suspend
+  use(a.len)
+  bump(&c)
+}
+parallel suspend fun localCannotCross(): Unit {
+  val b = RcBox(1)
+  suspend  // ERR S5
+  use(b.n)
+}
+parallel suspend fun localInsideCannotCross(): Unit {
+  val h = Holder(RcBox(1))
+  suspend  // ERR S5
+  use(h.b.n)
+}
+parallel suspend fun localBeforeSuspendIsFine(): Unit {
+  val b = RcBox(1)
+  use(b.n)
+  suspend
+}
+parallel suspend fun sharedBorrowOfPlainCrosses(): Unit {
+  val a = Arr(1)
+  val r = &a
+  suspend
+  use(r)
+}
+parallel suspend fun sharedBorrowOfCellCannotCross(): Unit {
+  val c = Counter(0)
+  val r = &c
+  suspend  // ERR S5
+  bump(r)
+}
+parallel suspend fun viewOfCellCannotCross(): Unit {
+  val c = Counter(0)
+  val p = Peek(&c)
+  suspend  // ERR S5
+  use(p)
+}
+parallel suspend fun borrowParamOfCell(borrow c: Counter): Unit {
+  suspend  // ERR S5
+  bump(c)
+}
+parallel suspend fun <T> unknownCannotCross(own x: T): Unit {
+  suspend  // ERR S5
+  use(x)
+}

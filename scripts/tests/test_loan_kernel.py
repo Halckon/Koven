@@ -72,6 +72,23 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual([("b", 9), ("a", 10), ("c", 11)], first)
         self.assertEqual([("a", 17)], [(n, l) for fun, n, l in drops if fun == "observableWaits"])
 
+    def test_stable_frames_are_what_allow_loans_across_suspension(self):
+        """之四 S0.1：帧地址稳定是跨挂起点的帧内借用合法的前提；假设帧可移动，同一批用例必须被拒绝。"""
+        text = (ROOT / "cases" / "P1.lk").read_text(encoding="utf-8")
+        frames = {}
+        stable = {(rule, line) for rule, line, _ in CHECKER.check(text, frames=frames)}
+        self.assertEqual((["a", "r"], ["a"]), frames["loanAcrossSuspend", 19])
+        self.assertEqual((["a"], []), frames["loanEndsBeforeSuspend", 33], "借用已结束，帧里只剩 owner")
+        movable = {(rule, line) for rule, line, _ in CHECKER.check(text, frames_movable=True)}
+        # 第 38 行没有任何帧内借用变量：只是把局部按 inout 传给一个会挂起的函数，被调帧就持有指向调用方帧的借用
+        self.assertEqual({("S1", 19), ("S1", 25), ("S1", 38)}, movable - stable)
+        self.assertEqual(set(), stable - movable)
+
+    def test_only_parallel_functions_require_transferable_frames(self):
+        """之七 J18：默认不换线程。把 parallel 去掉之后，P3 的全部拒绝都应消失。"""
+        text = (ROOT / "cases" / "P3.lk").read_text(encoding="utf-8")
+        self.assertEqual([], CHECKER.check(text.replace("parallel suspend fun", "suspend fun")))
+
 
 if __name__ == "__main__":
     unittest.main()

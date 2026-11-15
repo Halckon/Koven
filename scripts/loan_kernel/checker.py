@@ -33,6 +33,7 @@ class ClassDecl:
     implements: list = field(default_factory=list)
     private: set = field(default_factory=set)  # 只有声明为该类型成员的函数可以访问的字段
     cell: bool = False  # 内部可变：内容只能经受信任函数访问，共享借用下也可能被改写
+    local: bool = False  # 绑定在创建它的线程上，不可转移（例如非原子的共享计数）
 
     def field(self, name):
         return next((f for f in self.fields if f[1] == name), None)
@@ -58,6 +59,8 @@ class Fun:
     flows: list = field(default_factory=list)  # ((param, None | "*" | field), 目标参数)
     owner: str = ""  # in C：该函数是类型 C 的成员，可以访问 C 的私有字段
     views: set = field(default_factory=set)  # 写作 view T 的类型参数：可以实例化为携带来源的类型
+    suspend: bool = False  # 可以包含挂起点
+    parallel: bool = False  # 可能在另一个线程上恢复：跨挂起点存活的值须可转移
 
 
 @dataclass
@@ -69,7 +72,7 @@ class Place:
 
 @dataclass
 class Expr:
-    kind: str  # int | place | move | ref | call | pack
+    kind: str  # int | place | move | ref | call | pack | start
     line: int
     site: int
     place: Place = None
@@ -80,7 +83,7 @@ class Expr:
 
 @dataclass
 class Stmt:
-    kind: str  # val | assign | store | use | call | block | if | while
+    kind: str  # val | assign | store | use | call | block | if | while | suspend | poll | await
     line: int
     name: str = ""
     place: Place = None
@@ -151,11 +154,16 @@ class Parser:
             line = self.line()
             if self.accept("interface"):
                 self.interfaces.add(self.next())
-            elif self.peek() in ("fun", "sig"):
+            elif self.peek() in ("fun", "sig", "suspend", "parallel"):
+                mods = set()
+                while self.peek() in ("suspend", "parallel"):
+                    mods.add(self.next())
                 table = funs if self.peek() == "fun" else sigs
                 fun = self.fun(self.peek())
+                fun.suspend, fun.parallel = bool(mods), "parallel" in mods
                 table[fun.name] = fun
             else:
+                is_local = self.accept("local")
                 is_cell = self.accept("cell")
                 is_view = self.accept("view")
                 self.expect("class")
@@ -174,7 +182,8 @@ class Parser:
                 implements = []
                 while self.accept("is"):
                     implements.append(self.next())
-                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements, private, is_cell)
+                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements, private, is_cell,
+                                          is_local)
         return classes, funs, sigs
 
     def type_name(self):
@@ -284,6 +293,12 @@ class Parser:
             self.star_condition()
             body, end = self.block()
             return Stmt("while", line, body=body, end_line=end)
+        if tok == "suspend":  # 一个挂起点
+            self.next()
+            return Stmt("suspend", line)
+        if tok in ("poll", "await") and self.peek(1) != "(":  # 推进一个任务但不等它结束；等它结束并消费它
+            self.next()
+            return Stmt(tok, line, name=self.next())
         if tok == "*":  # 经独占借用整体替换它所指的值
             self.next()
             name = self.next()
@@ -312,6 +327,10 @@ class Parser:
         if tok == "move":
             self.next()
             return Expr("move", line, site, place=self.place())
+        if tok == "start":  # 创建一个任务：实参已求值并存进它的帧，函数体尚未开始执行
+            self.next()
+            inner = self.expr()
+            return Expr("start", line, site, name=inner.name, args=inner.args)
         if tok == "pack":  # 把具体类型的值打包为存在类型
             self.next()
             name = self.next()
@@ -347,7 +366,7 @@ def stmt_uses(stmt):
     uses = expr_uses(stmt.expr) if stmt.expr else set()
     if stmt.kind == "use" or (stmt.kind == "assign" and stmt.place.fields):
         uses.add(stmt.place.root)
-    if stmt.kind == "store":
+    if stmt.kind in ("store", "poll", "await"):
         uses.add(stmt.name)
     return uses
 
@@ -398,6 +417,7 @@ class Var:
     init: str  # A | M | MM
     loans: dict  # "" 为借用值自身持有的 loan；其余键为视图的借用字段
     payload: bool = False  # 对存在类型的载荷访问：只能调用方法，不能整体替换
+    pinned: bool = False  # 任务已开始执行：帧不可再移动，离开作用域前须等它结束
 
 
 @dataclass
@@ -425,7 +445,8 @@ def copy_loans(loans):
 
 
 def copy_state(state):
-    return {name: Var(var.ty, var.init, copy_loans(var.loans), var.payload) for name, var in state.items()}
+    return {name: Var(var.ty, var.init, copy_loans(var.loans), var.payload, var.pinned)
+            for name, var in state.items()}
 
 
 def prefix_related(a, b):
@@ -436,8 +457,10 @@ def prefix_related(a, b):
 # ---------------------------------------------------------------- 检查器
 
 class Checker:
-    def __init__(self, classes, funs, sigs, early_drop=False):
+    def __init__(self, classes, funs, sigs, early_drop=False, frames_movable=False):
         self.classes, self.funs, self.sigs = classes, funs, sigs
+        self.frames_movable = frames_movable  # 对照用：假设开始执行后的帧仍可移动
+        self.frames = {}  # (函数名, 行号) -> (跨这个挂起点存活的变量, 其中被帧内借用指向的变量)
         self.errors = set()
         self.early_drop = early_drop  # 析构不可观察的局部值在不再需要时提前析构（统一析构规则的“许可”）
         self.drops = []  # 提前析构的 (函数名, 变量名, 其后的语句行号)
@@ -530,6 +553,7 @@ class Checker:
             returned = self.argument(fun.ret, kind, state) if kind else self.value(fun.ret, state)
             self.check_contract(returned, fun)
         self.check_flows(state, fun)
+        self.check_tasks(state, list(state), fun.line)
 
     def check_unique(self, stmts, declared, fun):
         """演算不处理遮蔽：一个函数内每个名字只声明一次。"""
@@ -760,6 +784,8 @@ class Checker:
             return self.borrow(expr, expr.place, expr.mut, state)
         if expr.kind == "call":
             return self.construct(expr, state) if expr.name in self.classes else self.call(expr, state)
+        if expr.kind == "start":
+            return self.start(expr, state)
         if expr.kind == "pack":
             inner = self.value(expr.args[0], state)
             decl = self.classes.get(inner.ty.name)
@@ -775,7 +801,7 @@ class Checker:
         self.access(state, res.targets, res.via, "read", expr.line)
         if res.ty.kind == "int":
             return Value(INT)
-        movable_only = res.ty.kind in ("cls", "inout", "opaque", "any") or (
+        movable_only = res.ty.kind in ("cls", "inout", "opaque", "any", "task") or (
             res.ty.kind == "view" and self.exclusive(res.ty.name))
         if movable_only or place.fields:
             self.error("K8", expr.line, f"{place.root} 不可隐式复制，须写 move")
@@ -789,9 +815,70 @@ class Checker:
         res = self.resolve(state, place)
         self.access(state, res.targets, set(), "move", expr.line)
         var = state[place.root]
+        if var.pinned:
+            self.error("S3", expr.line, f"{place.root} 已开始执行，它的帧不能再移动")
         value = Value(var.ty, copy_loans(var.loans), var.payload)
         var.init, var.loans = "M", {}
         return value
+
+    # ---- 挂起（内核基底 KB8）
+
+    def start(self, expr, state):
+        """创建任务：按被调函数的参数模式求实参，任务值持有全部实参带来的 loan。"""
+        fun = self.funs.get(expr.name)
+        if fun is None or len(fun.params) != len(expr.args):
+            raise SyntaxProblem(f"第 {expr.line} 行：start {expr.name} 的目标或实参个数不符")
+        if not fun.suspend:
+            self.error("S0", expr.line, f"{expr.name} 不是 suspend 函数，不能作为任务启动")
+        held, pushed = set(), 0
+        for (mode, _, _), arg in zip(fun.params, expr.args):
+            value = self.argument(arg, mode, state)
+            held |= value.all_loans()
+            self.pending.append(value.all_loans())
+            pushed += 1
+        del self.pending[len(self.pending) - pushed:]
+        return Value(Type("task", expr.name), {"*": held})
+
+    def suspend_point(self, state, line):
+        """S0.3 状态守恒：挂起不是一次访问，loan 集合不变。这里记录并检查留在帧里的东西。"""
+        if not self.fun.suspend:
+            self.error("S0", line, "挂起点只能出现在 suspend 函数里")
+            return
+        loans = self.live_loans(state)
+        inside = sorted({root for loan in loans for root, _ in self.loans[loan].places if root in state})
+        names = sorted({n for n in self.live if n in state and state[n].init != "M"} | set(inside))
+        self.frames[self.fun.name, line] = (names, inside)
+        if self.frames_movable and inside:
+            self.error("S1", line, f"帧内有指向 {'、'.join(inside)} 的借用跨过挂起点；帧若可移动，这些借用会悬空")
+        if self.fun.parallel:
+            for name in names:
+                if not self.transferable(state[name].ty):
+                    self.error("S5", line, f"{name} 跨过挂起点存活，但它不可转移到另一个线程")
+
+    def sendable(self, class_name, shared):
+        """类的值可否转移（shared=False）或被多个线程同时引用（shared=True）。"""
+        decl = self.classes.get(class_name)
+        if decl is None:
+            return class_name == "Int"
+        if decl.local or (shared and decl.cell):
+            return False
+        return all(self.sendable(ty, shared or kind == "borrow") for kind, _, ty in decl.fields)
+
+    def transferable(self, ty):
+        if ty.kind in ("int", "unit", "fn"):
+            return True
+        if ty.kind in ("cls", "view", "inout"):
+            return self.sendable(ty.name, False)
+        if ty.kind == "borrow":  # 共享借用可转移，当且仅当所指可共享
+            return self.sendable(ty.name, True)
+        return False  # 类型参数、存在类型、任务：没有上界可依据，按不可转移处理
+
+    def check_tasks(self, state, names, line):
+        """S4：已开始执行的任务在离开作用域前须被等待；正常路径上任务总是运行到自己返回。"""
+        for name in names:
+            var = state.get(name)
+            if var is not None and var.ty.kind == "task" and var.pinned and var.init != "M":
+                self.error("S4", line, f"任务 {name} 已开始执行，离开作用域前须 await")
 
     def borrow(self, expr, place, mut, state, stored_kind=None):
         """K2：在 place 上建立 loan；经持有者到达时，新 loan 是其 loan 的子 loan。"""
@@ -925,6 +1012,7 @@ class Checker:
         fun = self.sigs[var.ty.name] if var is not None and var.ty.kind == "fn" else self.funs.get(expr.name)
         if fun is None or len(fun.params) != len(expr.args):
             raise SyntaxProblem(f"第 {expr.line} 行：调用 {expr.name} 的目标或实参个数不符")
+        suspends = fun.suspend
         modes = {name: mode for mode, name, _ in fun.params}
         sources = fun.sources + [src for src, _ in fun.flows]
         depends = {param for param, fld in sources if fld is None and modes.get(param) != "own"}
@@ -937,6 +1025,8 @@ class Checker:
             values[name] = self.argument(arg, mode, state, flowed if name in depends else None)
             self.pending.append(values[name].all_loans())
             pushed += 1
+        if suspends:  # 调用 suspend 函数本身是调用方的一个挂起点；实参的 loan 在此期间保持
+            self.suspend_point(state, expr.line)
         del self.pending[len(self.pending) - pushed:]
         bound = self.bind_types(fun, values, expr.line)
         for (param, fld), target in fun.flows:  # 来源流入已有的持有者
@@ -1016,6 +1106,19 @@ class Checker:
             state[stmt.name] = Var(value.ty, "A", value.loans, value.payload)
         elif stmt.kind == "store":
             self.store(stmt, state)
+        elif stmt.kind == "suspend":
+            self.suspend_point(state, stmt.line)
+        elif stmt.kind in ("poll", "await"):
+            var = state.get(stmt.name)
+            if var is None or var.ty.kind != "task":
+                raise SyntaxProblem(f"第 {stmt.line} 行：{stmt.name} 不是任务")
+            if var.init != "A":
+                self.error("K8", stmt.line, f"{stmt.name} 已被移动或可能已被移动")
+            elif stmt.kind == "poll":
+                var.pinned = True
+            else:  # await：等它结束。等待期间任务及其持有的 loan 都在；结束后任务被消费
+                self.suspend_point(state, stmt.line)
+                var.init, var.loans = "M", {}
         elif stmt.kind == "call":
             self.value(stmt.expr, state)
         elif stmt.kind == "use":
@@ -1100,6 +1203,7 @@ class Checker:
         outer = set(state)
         state = self.run(stmts, state)
         self.live = set(live_after)
+        self.check_tasks(state, [n for n in state if n not in outer], end_line)
         for name in reversed([n for n in state if n not in outer]):
             if state[name].init != "M":
                 self.access(state, {(name, ())}, set(), "kill", end_line)
@@ -1116,21 +1220,23 @@ class Checker:
             loans = copy_loans(x.loans)
             for key, held in y.loans.items():
                 loans.setdefault(key, set()).update(held)
-            merged[name] = Var(x.ty, x.init if x.init == y.init else "MM", loans, x.payload)
+            merged[name] = Var(x.ty, x.init if x.init == y.init else "MM", loans, x.payload, x.pinned or y.pinned)
         return merged
 
 
-def check(text, early_drop=False, drops=None):
+def check(text, early_drop=False, drops=None, frames_movable=False, frames=None):
     """检查一段演算程序，返回按行排序的 (规则, 行号, 说明)。空列表表示接受。
 
     early_drop 打开提前析构；drops 若给出，收到各处提前析构的 (函数名, 变量名, 行号)。
     """
     classes, funs, sigs = Parser(text).program()
-    checker = Checker(classes, funs, sigs, early_drop)
+    checker = Checker(classes, funs, sigs, early_drop, frames_movable)
     for fun in funs.values():
         checker.check_fun(fun)
     if drops is not None:
         drops.extend(checker.drops)
+    if frames is not None:
+        frames.update(checker.frames)
     return sorted(checker.errors, key=lambda e: (e[1], e[0], e[2]))
 
 
