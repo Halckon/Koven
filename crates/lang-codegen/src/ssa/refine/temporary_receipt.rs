@@ -259,7 +259,8 @@ pub(in crate::ssa::refine) mod admission {
 }
 pub(in crate::ssa::refine) mod emitted {
     use super::*;
-    use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
+    use crate::ssa::model::{BlockId, EntityId, Function, InstructionId};
+    use crate::ssa::protocol1_operation::{self, Expected};
     #[cfg(test)]
     use crate::ssa::refine::temporary_ci_tests as ci_tests;
     use std::collections::BTreeMap;
@@ -336,72 +337,62 @@ pub(in crate::ssa::refine) mod emitted {
                 }
             }
             let step = p.step(tag.role).ok_or_else(|| invalid(span))?;
-            let mut produced = None;
-            match (step, &data.operation) {
-                (Step::Literal(i), Operation::StringLiteral { bytes, .. })
-                    if Some(bytes) == p.operands[i].literal.as_ref() =>
-                {
-                    let [owner @ EntityId::Value(_)] = data.results.as_slice() else {
-                        return Err(invalid(span));
-                    };
-                    if r.entities.len() != 3 * i || *owner != entity(p.operands[i].owner)? {
+            // Keep source admission, stage and frozen Slot identity here. The shared helper
+            // only matches an actual SSA operation against independently established identities.
+            let arguments;
+            let expected = match step {
+                Step::Literal(i) => {
+                    if r.entities.len() != 3 * i {
                         return Err(invalid(span));
                     }
-                    produced = Some(*owner);
+                    Expected::Literal {
+                        bytes: p.operands[i]
+                            .literal
+                            .as_deref()
+                            .ok_or_else(|| invalid(span))?,
+                        owner: entity(p.operands[i].owner)?,
+                    }
                 }
-                (Step::Root(i), Operation::RootPlace { owner })
-                    if Some(&EntityId::Value(*owner)) == r.entities.get(3 * i) =>
-                {
-                    let [place @ EntityId::Place(_)] = data.results.as_slice() else {
-                        return Err(invalid(span));
-                    };
-                    if r.entities.len() != 3 * i + 1 || *place != entity(p.operands[i].place)? {
+                Step::Root(i) => {
+                    if r.entities.len() != 3 * i + 1 {
                         return Err(invalid(span));
                     }
-                    produced = Some(*place);
+                    Expected::Root {
+                        owner: *r.entities.get(3 * i).ok_or_else(|| invalid(span))?,
+                        place: entity(p.operands[i].place)?,
+                    }
                 }
-                (
-                    Step::Begin(i),
-                    Operation::BorrowBegin {
-                        place,
-                        kind: LoanKind::Shared,
-                    },
-                ) if Some(&EntityId::Place(*place)) == r.entities.get(3 * i + 1) => {
-                    let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
-                        return Err(invalid(span));
-                    };
-                    if r.entities.len() != 3 * i + 2
-                        || *loan != entity(p.operands[i].loan)?
-                        || id.function() != function.id()
-                    {
+                Step::Begin(i) => {
+                    if r.entities.len() != 3 * i + 2 {
                         return Err(invalid(span));
                     }
-                    produced = Some(*loan);
+                    Expected::Begin {
+                        place: *r.entities.get(3 * i + 1).ok_or_else(|| invalid(span))?,
+                        loan: entity(p.operands[i].loan)?,
+                        caller: function.id(),
+                    }
                 }
-                (
-                    Step::Call,
-                    Operation::DirectCall {
-                        callee,
-                        receiver,
-                        arguments,
-                    },
-                ) if *callee == p.callee
-                    && receiver.is_none()
-                    && *arguments
-                        == p.parameter_loans(span)?
-                            .into_iter()
-                            .map(|slot| entity(Some(slot)))
-                            .collect::<Result<Vec<_>, _>>()?
-                    && data.results.len() == usize::from(p.returns_value)
-                    && data.results.iter().all(|e| matches!(e, EntityId::Value(_))) => {}
-                (Step::End(i), Operation::BorrowEnd { loan })
-                    if EntityId::Loan(*loan) == entity(p.operands[i].loan)?
-                        && data.results.is_empty() => {}
-                (Step::Drop(i), Operation::Drop { owner })
-                    if EntityId::Value(*owner) == entity(p.operands[i].owner)?
-                        && data.results.is_empty() => {}
-                _ => return Err(invalid(span)),
-            }
+                Step::Call => {
+                    arguments = p
+                        .parameter_loans(span)?
+                        .into_iter()
+                        .map(|slot| entity(Some(slot)))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Expected::Call {
+                        callee: p.callee,
+                        arguments: &arguments,
+                        returns_value: p.returns_value,
+                    }
+                }
+                Step::End(i) => Expected::End {
+                    loan: entity(p.operands[i].loan)?,
+                },
+                Step::Drop(i) => Expected::Drop {
+                    owner: entity(p.operands[i].owner)?,
+                },
+            };
+            let produced =
+                protocol1_operation::validate(expected, data).ok_or_else(|| invalid(span))?;
             if let Some(e) = produced {
                 if r.entities.contains(&e) {
                     return Err(invalid(span));

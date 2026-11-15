@@ -20,6 +20,7 @@ mod expression_core;
 mod lower_frontend;
 #[cfg(test)]
 mod map_source;
+mod protocol1_operation;
 #[deny(dead_code)]
 mod refine;
 #[cfg(test)]

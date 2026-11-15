@@ -19448,3 +19448,20 @@ loan的3N三元组；Int DirectCall结果也必须纳入，Unit调用无结果�
 frontend/codegen/CLI双feature all-targets严格Clippy及默认workspace all-targets
 check通过，fmt/diff/docs958通过；尺寸对`9f7f175f`通过（2341文件/37历史超限）。
 无native执行、本地故障注入或推送。
+
+### protocol1实际SSA匹配责任提取（2026-11-15）
+
+在`d7a29159`之上先做独立等价重构，为后续Compatibility真实消费证据复用做准备。
+`ssa::protocol1_operation`只核实际Literal/Root/Begin/Call/End/Drop操作及结果，
+输入是调用方独立建立的SSA身份、literal bytes及返回ABI，不持有或伪造Refine Plan。
+原temporary receipt继续负责源事实准入、stage/Slot冻结、3N位置、唯一性和成功发布。
+
+此片没有新增Compatibility hook、没有关闭两statement gap，也不把instruction slice
+当成原loan/Drop事实已消费的证据。后续需在原borrow/drop实际消费点记录唯一fact及
+实际SSA身份，使用独立Compatibility记录；本次不会先行声称该能力。
+
+独立逐分支静审确认六类旧match约束等价。原桥三项、原multi-temporary顶层route/receipt
+两项、source ledger十项及五源CLI exact一项通过；三crate双feature all-targets严格
+Clippy及默认workspace all-targets check通过。fmt首次仅模块声明排序需调整，调整后
+通过；docs958、diff与尺寸相对`d7a29159`通过（2342文件/37历史超限）。无native执行、
+跨run混配或故障注入。
