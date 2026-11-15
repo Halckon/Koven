@@ -503,6 +503,22 @@ fn lower_unit_impl(
             span: None,
         })?;
     let known_functions = callable_abi.known_functions(&function_ids, &source_plan);
+    let mut non_null_use_spans = BTreeMap::new();
+    for fact in typed.non_null_uses() {
+        let expression = fact.expression();
+        let root = fact.symbol();
+        if expression.source_unit() == root.source_unit() {
+            let span = parsed_by_source
+                .get(expression.source_unit().index())
+                .and_then(|parsed| parsed.ast().expressions().get(expression.expression()).ok())
+                .ok_or(LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })?
+                .span();
+            non_null_use_spans.insert((root, span.start()), span);
+        }
+    }
 
     for plan in plans {
         let parsed = parsed_by_source[plan.instance.source_unit().index()];
@@ -738,6 +754,7 @@ fn lower_unit_impl(
             borrow_bindings,
             entry_boolean_roots,
             nullable_proofs: BTreeMap::new(),
+            non_null_use_spans: &non_null_use_spans,
             current_receiver,
             consumed_receiver: None,
             closure_binding_context: false,

@@ -315,6 +315,7 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
         pub(in crate::ssa::unit_lower) owner: ValueId,
         pub(in crate::ssa::unit_lower) inner: SsaTypeId,
         pub(in crate::ssa::unit_lower) scope: UnitExpressionId,
+        pub(in crate::ssa::unit_lower) last_borrow: UnitExpressionId,
         pub(in crate::ssa::unit_lower) non_null_when_true: bool,
     }
 
@@ -420,7 +421,10 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
                 column,
                 entry.root,
                 entry.inner,
-                NullableProofScope::If(entry.scope),
+                NullableProofScope::If {
+                    control: entry.scope,
+                    last_borrow: entry.last_borrow,
+                },
                 span,
             )?;
             self.emit_direct_nullable_condition_drops(condition, span)
@@ -785,6 +789,7 @@ mod result_tests {
                 borrow_bindings,
                 entry_boolean_roots,
                 nullable_proofs: BTreeMap::new(),
+                non_null_use_spans: &BTreeMap::new(),
                 current_receiver: None,
                 consumed_receiver: None,
                 closure_binding_context: false,
