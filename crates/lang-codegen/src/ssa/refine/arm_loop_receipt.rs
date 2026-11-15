@@ -29,6 +29,8 @@ mod counter;
 #[cfg(feature = "d10-catalog-experiment")]
 mod counter_audit;
 mod counter_break;
+#[cfg(feature = "d10-catalog-experiment")]
+mod counter_break_audit;
 #[cfg(test)]
 mod counter_break_ci;
 mod counter_break_validation;
@@ -604,6 +606,10 @@ impl Emitted {
             {
                 if receipt.plan.tail_break.is_some() {
                     crate::ssa::d10_project_audit::arm_loop_tail_consumption::record(
+                        function, &receipt,
+                    );
+                } else if receipt.plan.counter_break.is_some() {
+                    crate::ssa::d10_project_audit::arm_loop_counter_break_consumption::record(
                         function, &receipt,
                     );
                 } else if receipt.plan.counter_fact.is_some() {
