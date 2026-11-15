@@ -155,6 +155,9 @@ borrow binding / 一或两个顺序 Unit consumer、唯一 Boolean 参数与原 
 D10 主图还复用原 live-forward region/producer receipt，核 planned callable、同 catalog
 Begin/Handoff、最终完整单块 BorrowCall/BorrowReturn 与 StringOwner 两 loan 定义，认证
 forward→callee 边和正常借用退出；仅原 expression-forward 域，不从最终形状放行 block 返回。
+原 Complete binding region 的零参三语句入口另复用七动作/七指令生产证据，连同实际
+literal 字节/owner 核完整八指令 caller、两 callee 映射和退休/Drop，再认证来源调用边；
+额外 consumer 不按七指令窗口放行，不替代前述 Boolean 入口证明。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、

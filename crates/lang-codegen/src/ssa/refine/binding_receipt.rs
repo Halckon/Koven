@@ -192,6 +192,82 @@ mod emitted {
     }
     use crate::ssa::model::{BlockId, EntityId, Function, InstructionId, Operation};
 
+    fn validate_operation(
+        p: &Plan,
+        r: &Receipt,
+        role: u8,
+        data: &crate::ssa::model::Instruction,
+        entity: &impl Fn(Option<Slot>) -> Result<EntityId, LoweringError>,
+        span: Span,
+    ) -> Result<Vec<EntityId>, LoweringError> {
+        let mut produced = Vec::new();
+        match (role, &data.operation) {
+            (0, Operation::RootPlace { owner }) if EntityId::Value(*owner) == entity(p.owner)? => {
+                let [place @ EntityId::Place(_)] = data.results.as_slice() else {
+                    return Err(invalid(span));
+                };
+                if *place != entity(p.place)? || owner.function() != r.caller {
+                    return Err(invalid(span));
+                }
+                produced.extend([EntityId::Value(*owner), *place]);
+            }
+            (
+                1,
+                Operation::BorrowBegin {
+                    place,
+                    kind: LoanKind::Shared,
+                },
+            ) if Some(&EntityId::Place(*place)) == r.entities.get(1) => {
+                let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
+                    return Err(invalid(span));
+                };
+                if *loan != entity(p.source)? || id.function() != r.caller {
+                    return Err(invalid(span));
+                }
+                produced.push(*loan);
+            }
+            (
+                2,
+                Operation::BorrowCall {
+                    callee,
+                    arguments,
+                    source,
+                },
+            ) if *callee == p.source_callee
+                && EntityId::Loan(*source) == entity(p.source)?
+                && arguments.as_slice() == [entity(p.source)?] =>
+            {
+                let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
+                    return Err(invalid(span));
+                };
+                if *loan != entity(p.result)?
+                    || *loan == entity(p.source)?
+                    || id.function() != r.caller
+                {
+                    return Err(invalid(span));
+                }
+                produced.push(*loan);
+            }
+            (
+                3,
+                Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    arguments,
+                },
+            ) if *callee == p.consumer_callee
+                && arguments.as_slice() == [entity(p.result)?]
+                && data.results.is_empty() => {}
+            (4, Operation::BorrowEnd { loan })
+                if EntityId::Loan(*loan) == entity(p.result)? && data.results.is_empty() => {}
+            (5, Operation::BorrowEnd { loan })
+                if EntityId::Loan(*loan) == entity(p.source)? && data.results.is_empty() => {}
+            (6, Operation::Drop { owner })
+                if EntityId::Value(*owner) == entity(p.owner)? && data.results.is_empty() => {}
+            _ => return Err(invalid(span)),
+        }
+        Ok(produced)
+    }
     #[derive(Clone, Debug)]
     pub(crate) struct Receipt {
         pub(crate) ids: Vec<UnitLoanActionId>,
@@ -209,6 +285,8 @@ mod emitted {
     pub(in crate::ssa::refine) struct Emitted {
         receipts: Vec<Receipt>,
         blocks: Vec<Option<BlockId>>,
+        #[cfg(feature = "d10-catalog-experiment")]
+        literals: Vec<(InstructionId, Vec<u8>, EntityId)>,
     }
     impl Emitted {
         pub(in crate::ssa::refine) fn new(
@@ -247,7 +325,26 @@ mod emitted {
             Ok(Self {
                 blocks: vec![None; receipts.len()],
                 receipts,
+                #[cfg(feature = "d10-catalog-experiment")]
+                literals: Vec::new(),
             })
+        }
+        #[cfg(feature = "d10-catalog-experiment")]
+        pub(in crate::ssa::refine) fn literal(
+            &mut self,
+            statement: &super::super::body::RStmt,
+            instruction: InstructionId,
+            current: &BTreeMap<Slot, EntityId>,
+        ) {
+            if self.receipts.is_empty() {
+                return;
+            }
+            if let ROp::StringLiteral { bytes, .. } = &statement.op
+                && let [slot] = statement.results.as_slice()
+                && let Some(entity) = current.get(slot)
+            {
+                self.literals.push((instruction, bytes.clone(), *entity));
+            }
         }
         fn frozen(
             p: &Plan,
@@ -304,73 +401,8 @@ mod emitted {
                 slot.and_then(|s| current.get(&s).copied())
                     .ok_or_else(|| invalid(span))
             };
-            match (tag.role, &data.operation) {
-                (0, Operation::RootPlace { owner })
-                    if EntityId::Value(*owner) == entity(p.owner)? =>
-                {
-                    let [place @ EntityId::Place(_)] = data.results.as_slice() else {
-                        return Err(invalid(span));
-                    };
-                    if *place != entity(p.place)? || owner.function() != function.id() {
-                        return Err(invalid(span));
-                    }
-                    r.entities.extend([EntityId::Value(*owner), *place]);
-                }
-                (
-                    1,
-                    Operation::BorrowBegin {
-                        place,
-                        kind: LoanKind::Shared,
-                    },
-                ) if Some(&EntityId::Place(*place)) == r.entities.get(1) => {
-                    let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
-                        return Err(invalid(span));
-                    };
-                    if *loan != entity(p.source)? || id.function() != function.id() {
-                        return Err(invalid(span));
-                    }
-                    r.entities.push(*loan);
-                }
-                (
-                    2,
-                    Operation::BorrowCall {
-                        callee,
-                        arguments,
-                        source,
-                    },
-                ) if *callee == p.source_callee
-                    && EntityId::Loan(*source) == entity(p.source)?
-                    && arguments.as_slice() == [entity(p.source)?] =>
-                {
-                    let [loan @ EntityId::Loan(id)] = data.results.as_slice() else {
-                        return Err(invalid(span));
-                    };
-                    if *loan != entity(p.result)?
-                        || *loan == entity(p.source)?
-                        || id.function() != function.id()
-                    {
-                        return Err(invalid(span));
-                    }
-                    r.entities.push(*loan);
-                }
-                (
-                    3,
-                    Operation::DirectCall {
-                        callee,
-                        receiver: None,
-                        arguments,
-                    },
-                ) if *callee == p.consumer_callee
-                    && arguments.as_slice() == [entity(p.result)?]
-                    && data.results.is_empty() => {}
-                (4, Operation::BorrowEnd { loan })
-                    if EntityId::Loan(*loan) == entity(p.result)? && data.results.is_empty() => {}
-                (5, Operation::BorrowEnd { loan })
-                    if EntityId::Loan(*loan) == entity(p.source)? && data.results.is_empty() => {}
-                (6, Operation::Drop { owner })
-                    if EntityId::Value(*owner) == entity(p.owner)? && data.results.is_empty() => {}
-                _ => return Err(invalid(span)),
-            }
+            let produced = validate_operation(p, r, tag.role, data, &entity, span)?;
+            r.entities.extend(produced);
             self.blocks[tag.plan] = Some(data.block);
             r.instructions.push(instruction);
             Ok(())
@@ -414,6 +446,15 @@ mod emitted {
                     return Err(invalid(span));
                 }
             }
+            #[cfg(feature = "d10-catalog-experiment")]
+            for receipt in &self.receipts {
+                crate::ssa::d10_project_audit::binding_consumption::record(
+                    plans,
+                    function,
+                    receipt,
+                    &self.literals,
+                );
+            }
             #[cfg(test)]
             ci_tests::record(plans, function, &self.receipts, span);
             #[cfg(test)]
@@ -425,6 +466,68 @@ mod emitted {
             Ok(())
         }
     }
+    impl Receipt {
+        #[cfg(feature = "d10-catalog-experiment")]
+        pub(crate) fn validate(
+            &self,
+            plans: &Plans,
+            function: &Function,
+            span: Span,
+        ) -> Result<(), LoweringError> {
+            let [p] = plans.entries.as_slice() else {
+                return Err(invalid(span));
+            };
+            if p.stage != 7
+                || !p.completed
+                || !p.retired
+                || !p.committed
+                || !p.consumer_authorized
+                || !p.drop_authorized
+                || !p.activated
+                || !p.source_authorized
+                || self.ids != p.ids
+                || self.callable != p.callable
+                || self.caller != function.id
+                || self.binding != p.binding
+                || self.root != p.root
+                || self.source_call != p.source_call
+                || self.consumer_call != p.consumer_call
+                || self.entry_statement != p.entry_statement
+                || self.completion_statement != p.completion_statement
+                || self.instructions.len() != 7
+                || self.entities.len() != 4
+            {
+                return Err(invalid(span));
+            }
+            let slots = [p.owner, p.place, p.source, p.result];
+            let entity = |slot: Option<Slot>| {
+                let matches: Vec<_> = slots
+                    .iter()
+                    .zip(&self.entities)
+                    .filter(|(s, _)| s.is_some() && **s == slot)
+                    .map(|(_, e)| *e)
+                    .collect();
+                match matches.as_slice() {
+                    [e] => Ok(*e),
+                    _ => Err(invalid(span)),
+                }
+            };
+            for (index, id) in self.instructions.iter().enumerate() {
+                let data = function.instruction(*id).ok_or_else(|| invalid(span))?;
+                let produced = validate_operation(p, self, index as u8, data, &entity, span)?;
+                let expected = match index {
+                    0 => &self.entities[..2],
+                    1 => &self.entities[2..3],
+                    2 => &self.entities[3..4],
+                    _ => &[],
+                };
+                if produced != expected {
+                    return Err(invalid(span));
+                }
+            }
+            Ok(())
+        }
+    }
 }
 use super::body::{BlockRef, ROp, Slot};
 use crate::ssa::{
@@ -432,6 +535,8 @@ use crate::ssa::{
     model::{FunctionId, LoanKind},
 };
 pub(super) use emitted::Emitted;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) use emitted::Receipt;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::{BorrowSourceLoan, UnitDropPoint, UnitDropTarget, UnitLoanActionId},
@@ -446,7 +551,7 @@ pub(super) struct Tag {
     pub(super) role: u8,
 }
 #[derive(Clone, Debug, Default)]
-pub(super) struct Plans {
+pub(crate) struct Plans {
     pub(in crate::ssa::refine) entries: Vec<Plan>,
 }
 #[derive(Clone, Debug)]
@@ -768,7 +873,13 @@ fn invalid(span: Span) -> LoweringError {
 }
 #[cfg(test)]
 thread_local! { static RECEIPTS: std::cell::RefCell<Option<Vec<emitted::Receipt>>> = const { std::cell::RefCell::new(None) }; }
-#[cfg(all(test, feature = "loan-observation-test-support"))]
+#[cfg(all(
+    test,
+    any(
+        feature = "loan-observation-test-support",
+        feature = "d10-catalog-experiment"
+    )
+))]
 pub(crate) fn observe<T>(lower: impl FnOnce() -> T) -> (T, Vec<emitted::Receipt>) {
     RECEIPTS.with(|r| {
         assert!(r.borrow().is_none());

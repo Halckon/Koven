@@ -19775,3 +19775,29 @@ branch→forward→identity 多 callable 消费闭合，不扩大原 route 或�
 frontend/codegen 三 feature all-targets 严格 Clippy（1m18s）、默认 all-targets check
 （41.72s）、fmt/diff/docs（958）与相对 `ad1e5aa8` 尺寸门禁（2364 Rust、37 历史超限）
 通过。末版独审无阻断；未推送、未执行 native 或本地故障，不声明远端 CI。
+
+
+### D10 原 Complete binding region 的入口闭合（2026-11-15）
+
+锁 `c5d9b350`，消费原零参 Unit 三语句 `owner / borrow val / consume` 完整 region，
+不增加 consumer 数量或扩大旧 Unsupported。原七动作已有真实 UseReturned、End、
+SourceRetired、Cleanup；只读取原身份，不造此前 Boolean 入口缺失的动作。build 前
+独立 expected 取 binding_regions、原两 call dispatch key/FunctionId 和 first literal
+原解析字节，两 Begin 分别与 source ledger 唯一原 loan、同实际 Function producer 对账。
+
+原 emitter role0..6 的纯 operation 校验抽出共用，原 frozen/阶段/块校验与默认 finish
+保持；只在已有 binding plan 的真实 StringLiteral append 后捕获原 RStmt bytes 与
+当次 Slot→owner Entity，补齐七指令窗口之外的创建来源。最终完整 Function Eq 再核
+精确 `[literal]+七指令`、所有 instruction.block、四实体双向 Definition 和 Shared
+StringOwner 类型表、零参 Unit Return，才认证来源 BorrowCall；与其他证书交集仍 gap。
+生产返回及 admission 不变，原测试 observer 不作为证书来源。
+
+初次 featurecheck 通过；首次测试编译发现原 test-only observer 的 feature 可见性限制，
+仅增加 d10 测试可见条件，不更改生产观察行为。新 2/2 通过：零参入口分别连 identity
+和 live-forward，覆盖两源反序、同 observe 两次独立 assembly、Unicode/转义 literal，
+原 observer 的完整七 action IDs 与七指令保持，最终八指令/四实体全图无 unsupported。
+额外 consumer 邻例原 lower/verifier 正常成功，但无完整 region/receipt，来源边不认证
+并保 gap；没有将七指令局部窗口当完整 caller。frontend/codegen 三 feature all-targets
+严格 Clippy（1m12s）、默认 all-targets check（37.72s）、fmt/diff/docs（958）及相对
+`c5d9b350` 尺寸门禁（2367 Rust、37 历史超限）通过。独立静审无阻断，未重复无关基线，
+未纳新 main/PR、未推送、未执行 native 或人工故障。

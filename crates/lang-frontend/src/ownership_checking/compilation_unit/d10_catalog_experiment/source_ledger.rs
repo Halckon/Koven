@@ -1,6 +1,7 @@
 //! Original source traversal batches, not callable ownership or reachability permission.
 use super::*;
 use crate::name_resolution::SourceUnitId;
+mod binding_loans;
 mod branch_loans;
 mod callable_drops;
 mod callable_loans;

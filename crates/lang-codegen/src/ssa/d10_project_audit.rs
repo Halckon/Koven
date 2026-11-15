@@ -1,6 +1,9 @@
 //! Read-only scoped observations of ordinary whole-unit lowering. Not an admission capability.
 //! Only the original successful final verifier publishes an observation. Object publication
 //! remains a separate result; this module neither changes lowering nor executes generated code.
+pub(crate) mod binding_consumption;
+#[cfg(test)]
+mod binding_consumption_tests;
 pub(crate) mod branch_consumption;
 pub(crate) mod compatibility;
 pub(crate) mod entry_borrow;
@@ -79,6 +82,7 @@ pub(crate) struct Pending {
     entry_borrows: entry_borrow::Transaction,
     identity_returns: identity_return::Transaction,
     forwards: forward_consumption::Transaction,
+    bindings: binding_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -98,6 +102,7 @@ impl Pending {
                 entry_borrows: entry_borrow::Transaction::begin(),
                 identity_returns: identity_return::Transaction::begin(plan),
                 forwards: forward_consumption::Transaction::begin(plan),
+                bindings: binding_consumption::Transaction::begin(plan),
                 items: names
                     .names()
                     .index()
@@ -237,6 +242,15 @@ impl Pending {
                 audit
                     .unsupported
                     .push("overlapping forward return certificate".into());
+            }
+        }
+        let (binding_edges, binding_gaps) = self.bindings.finish(program, mapping, owned);
+        audit.unsupported.extend(binding_gaps);
+        for edge in binding_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping binding edge certificate".into());
             }
         }
         for function in program.modules.iter().flat_map(|module| &module.functions) {
