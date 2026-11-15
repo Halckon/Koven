@@ -20586,3 +20586,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 原普通 probe 一目标确认两来源各两次 assembly 的十二块/十四指令；完整证书另从原记录导出十二唯一角色，明确 finished!=exit、双臂 join==stop gate、false/no==continued、checked op==continued 而非 join、observed==(yes,exit)。原 stop Read/Conditional、yes 空指令原 break Span→exit、continued 原常量一/checked、失败唯一精确 Abort 与成功回边、零迭代 finished→exit/唯一空 UnitReturn、全 ABI/实体/类型/指令覆盖逐项闭合，两个借用边同次最终 verifier 后原子发布；旧 counter9、tail8 与普通 Abort 空授权不改。
 - 新两目标实跑通过：二十四 ABI 排列与两来源顺序共四十八形态各两次 assembly，实际 stop 入口角色沿真实边追溯到原 Read/Conditional，并分别核 true break 空块和 false checked；Value stop/额外 Boolean 两负例实测原 normal receipt 后精确 gap。首次正例发现新 Expected 将原 ControlBody 误写 Block，诊断定位后按原 selector 精确修复，不兼容放宽；首轮 tuple type_complexity 与测试 collapsible_if 仅等价 alias/let-chain 修复，全部失败日志保留。
 - 末版新两项、旧 counter 两项及 tail 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m27s、default codegen all-targets 32.49s、格式通过。原 probe 不重复；只普通源码→SSA 模型检查，不执行生成 Abort/native/故障注入，不推送，默认 workspace 留联合一次。
+
+### D10 counter-break 的独立 stop Value 条件
+
+- 仅将四参数完整 ABI 的 stop Boolean 允许 Borrow/Value；source String、rounds Int、choose Boolean 仍强制 Borrow。Expected 由原独立 stop Name symbol 确定角色与 typed mode，最终 entry 同角色逐实体类型核验，gate 按原 mode 精确一条 Read 或零指令；Value 条件沿原实际边追溯同一入口角色，不伪造 Read 或 End。
+- 原十二唯一角色、两个 cleanup 点、两臂 fresh 末 End、true break 与 false continued checked、唯一原 Abort 的常量一来源/Span/reason、原完整 ledger 与同次最终两边原子认证均保持。旧 counter9、ordinary/tail 和普通 whole-function 空 Abort 授权不变。
+- 新两目标首遍通过：二十四 ABI 顺序与两来源顺序共四十八形态各两次 assembly，真实 gate 通过两臂后实际 Branch 定位，Value 无 Read 且 Conditional 仍对应原 stop；Borrow 邻域保持独立原 Read Span/result。own rounds、own choose、额外 Boolean 三负例均真实 normal lower/verify/receipt 后精确 counter-break gap，两边不认证；旧已支持 own stop 负例迁为额外参数。
+- 新目标编译 2m11s、执行 0.36s，旧 counter-break 两项回归通过；FE/codegen 三 feature all-targets 严格 Clippy 1m47s、default codegen all-targets 32.34s 与格式检查通过。只普通源码到 SSA 模型检查，不执行生成 Abort/native/故障注入，不推送，默认 workspace 留联合一次。
