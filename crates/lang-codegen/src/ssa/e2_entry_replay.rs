@@ -224,7 +224,7 @@ pub(super) fn replay_declared_body(
             }
         }
     }
-    if named_roots.len() != named.len() || roots.iter().any(Option::is_none) {
+    if named_roots.len() != named.len() {
         return None;
     }
     let mut temporary_owners = Vec::new();
@@ -258,6 +258,27 @@ pub(super) fn replay_declared_body(
                 origin.clone(),
                 Some(EntityType::Place(string)),
             )?)?
+        } else if d.temporary_scalar_argument(i) == Some(c.argument()) {
+            if roots[role - 2].is_some() {
+                return None;
+            }
+            let constant = if role == 2 {
+                ScalarConstant::Integer(d.rounds().into())
+            } else {
+                ScalarConstant::Boolean(d.choose())
+            };
+            let owner = value(cursor.step(
+                Operation::Constant(constant),
+                origin.clone(),
+                Some(EntityType::Value(ty)),
+            )?)?;
+            let root = place(cursor.step(
+                Operation::RootPlace { owner },
+                origin.clone(),
+                Some(EntityType::Place(ty)),
+            )?)?;
+            roots[role - 2] = Some(root);
+            root
         } else {
             (*roots.get(role - 2)?)?
         };
@@ -272,6 +293,9 @@ pub(super) fn replay_declared_body(
                 target: ty,
             }),
         )?)?);
+    }
+    if roots.iter().any(Option::is_none) {
+        return None;
     }
     // Borrow evaluation stays in source order; only the call delivery uses ABI order.
     let mut arguments = [None; 4];

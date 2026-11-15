@@ -181,7 +181,7 @@ pub(super) fn fill_entry(
             }
         }
     }
-    if named_roots.len() != named.len() || scalar_places.iter().any(Option::is_none) {
+    if named_roots.len() != named.len() {
         return None;
     }
     let mut temporary_owners = Vec::new();
@@ -219,6 +219,31 @@ pub(super) fn fill_entry(
                 EntityType::Place(string),
                 origin.clone(),
             )?)?
+        } else if descriptor.temporary_scalar_argument(i) == Some(c.argument()) {
+            if scalar_places[role - 2].is_some() {
+                return None;
+            }
+            let constant = if role == 2 {
+                ScalarConstant::Integer(descriptor.rounds().into())
+            } else {
+                ScalarConstant::Boolean(descriptor.choose())
+            };
+            let owner = value(append(
+                f,
+                block,
+                Operation::Constant(constant),
+                EntityType::Value(ty),
+                origin.clone(),
+            )?)?;
+            let root = place(append(
+                f,
+                block,
+                Operation::RootPlace { owner },
+                EntityType::Place(ty),
+                origin.clone(),
+            )?)?;
+            scalar_places[role - 2] = Some(root);
+            root
         } else {
             (*scalar_places.get(role - 2)?)?
         };
@@ -235,6 +260,9 @@ pub(super) fn fill_entry(
             },
             origin,
         )?)?);
+    }
+    if scalar_places.iter().any(Option::is_none) {
+        return None;
     }
     // Borrow evaluation stays in source order; only the call delivery uses ABI order.
     let mut arguments = [None; 4];
