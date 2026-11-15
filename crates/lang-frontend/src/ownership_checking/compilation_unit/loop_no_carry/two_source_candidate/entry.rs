@@ -1,6 +1,7 @@
 //! Private-construction source entry evidence; not normal ownership or backend authority.
 mod body;
 mod different_pair;
+mod different_shared_pair;
 mod late_pair;
 mod shared_pair;
 mod staggered_pair;
@@ -44,6 +45,10 @@ enum EntryCalls {
     DifferentTemporaryPair(Box<[EntryCallDescriptor; 2]>),
     StaggeredNamedPair {
         owners: Box<[EntryOwnerDescriptor; 2]>,
+        calls: Box<[EntryCallDescriptor; 2]>,
+    },
+    DifferentSharedNamedPair {
+        owner: Box<EntryOwnerDescriptor>,
         calls: Box<[EntryCallDescriptor; 2]>,
     },
     SharedNamedPair {
@@ -302,6 +307,7 @@ impl EntryDescriptor {
             EntryCalls::Single(call) => std::slice::from_ref(call.as_ref()),
             EntryCalls::Pair(calls)
             | EntryCalls::SharedNamedPair { calls, .. }
+            | EntryCalls::DifferentSharedNamedPair { calls, .. }
             | EntryCalls::StaggeredNamedPair { calls, .. }
             | EntryCalls::LateInitializedPair(calls)
             | EntryCalls::DifferentTemporaryPair(calls) => calls.as_ref(),
@@ -318,7 +324,9 @@ impl EntryDescriptor {
     pub fn shared_owner(
         &self,
     ) -> Option<(UnitSymbolId, UnitExpressionId, Span, &[u8], &UnitDropFact)> {
-        let EntryCalls::SharedNamedPair { owner, .. } = &self.calls else {
+        let (EntryCalls::SharedNamedPair { owner, .. }
+        | EntryCalls::DifferentSharedNamedPair { owner, .. }) = &self.calls
+        else {
             return None;
         };
         Some((
@@ -332,6 +340,10 @@ impl EntryDescriptor {
     /// Privately proven exact pair of fully temporary calls to two closed distinct instances.
     pub fn is_different_temporary_pair(&self) -> bool {
         matches!(self.calls, EntryCalls::DifferentTemporaryPair(_))
+    }
+    /// Privately proven single shared named owner across two closed distinct instances.
+    pub fn is_different_shared_named_pair(&self) -> bool {
+        matches!(self.calls, EntryCalls::DifferentSharedNamedPair { .. })
     }
     /// Returns a key only when every original occurrence shares the complete instance.
     pub fn common_instance(&self) -> Option<&UnitCallableInstanceKey> {
@@ -877,10 +889,21 @@ pub(super) fn collect(
                     return None;
                 }
                 if first.instance() != second.instance() {
-                    if late || !declarations.is_empty() {
+                    if late {
                         return None;
                     }
-                    different_pair::finish(first, second, owned, parsed)?
+                    if shared_pair {
+                        let owners = first_owner?;
+                        if second_owner? != owners {
+                            return None;
+                        }
+                        let [owner]: [_; 1] = owners.try_into().ok()?;
+                        different_shared_pair::finish(owner, first, second, owned, parsed)?
+                    } else if declarations.is_empty() {
+                        different_pair::finish(first, second, owned, parsed)?
+                    } else {
+                        return None;
+                    }
                 } else if late {
                     late_pair::finish(first, second, owned, parsed)?
                 } else {

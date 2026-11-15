@@ -46,10 +46,10 @@ fn occurrence_bindings_keep_single_callee_and_repeated_occurrences() {
 }
 
 #[test]
-fn occurrence_bindings_reject_named_owner_across_distinct_callees() {
+fn occurrence_bindings_reject_computed_scalar_with_named_distinct_callees() {
     check(
         &fixture(
-            "val owner=\"s\";run_a(owner,owner,1,false);run_b(owner,owner,2,true)",
+            "val owner=\"s\";run_a(owner,owner,1,false);run_b(owner,owner,1+1,true)",
             true,
         ),
         2,

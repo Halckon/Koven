@@ -20536,3 +20536,33 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 所有 legacy 单 caller 路线保 common_instance=None 必拒；真实正常新域源码直接调用旧 publication 与 emit 均须拒绝，不构造假 descriptor、无故障注入。新增 3 个正常目标涵盖反调用序、反输入文件序、具名实参源码顺序及同字节不同owner，按原FullKey逐位核实际不同SSAcallee/Span、ABI映射/8End/4Drop、完整图；另核named/mixed/late/第三call/复杂scalar/Group、非E2 callee与未认领合法shell负控。先前两个不同callee拒例已改名保留为named-owner与computed-scalar真域外负控，未删除其余旧能力证明。
 
 本片已通过正式 two-source-unit 与三 feature 各 3 个新目标；旧 occurrence_bindings 4、two_call_entry 5 均完成必要回归（首轮两个更名负控与后续3+4分批覆盖，不重复执行）。三 feature 正例内真实 legacy publication/emit 对每个 fact 均拒绝无 common key。非 E2 callee 精确 UnsupportedSelection、未认领合法 shell 精确 Preflight 已实测。双 crate all-targets 三 feature Clippy `-D warnings` 首次通过。首轮正例唯一失败为测试误将临时 Drop 的 IR origin 等同 ownership value_origin；经独审仅修 oracle：原 Drop.value_origin 仍核实参 AST Span，而既有 IR cleanup 在原 CallReturn Span。复验通过，失败日志保留、生产未因此改动。fmt、docs、size（2467 Rust、2 个历史超限债务）、shell语法与diff门禁通过。引用第一步实际双fact/shell闭合但入口 Unsupported 的红基线，未重复原probe。CI同批新增3精确目标并同步两处旧名，实际每配置52 unit目标、7 public、另1 frontend；登记不等于执行，仍不跑native或fault。
+
+
+### E2 不同闭合 callee 的单 named owner 阶段根（本地已验）
+
+- 基线 `268119beecc2c46bcec511184024b250b5855035`。只开放 exact
+  `val owner="shared"; callA(owner,owner,IntLiteral,BooleanLiteral); callB(owner,owner,IntLiteral,BooleanLiteral)`；
+  两个不同完整实例均需原闭合 E2 fact/shell，空类型实参，保持默认关闭。
+- 私有 `DifferentSharedNamedPair` 独立根及 marker；不将 `SharedMixed`、late、双 owner
+  或一般 `common_instance=None` 纳入。原 shared_pair 算法未改，JointPlan 闭包未改。
+- 每 call 仍消费原完整 loan/End；根按原 initializer Span 仅创建一次，首完整 Drop 向量为空，
+  末向量精确为唯一 NamedDrop。正式逐 occurrence FullKey→fact→SSA 绑定保留；legacy 路径仍拒绝。
+- ordinary probe 两 case 已通过：8 个不同 argument/Shared loan、8 个 End，call 内 ordinal 0..3，
+  formed owner membership 与原初始化位置分别核验，4 个 Name 借用同根但身份/Span 不同。
+  原闭合双 fact 正序 case 确认两不同 FullKey/空类型实参/闭合 shell；入口准确返回
+  `UnsupportedSelection`（预期红，不是通过；反序闭合 case 当时未执行）。
+- 初次编译仅测试使用旧 `Symbol.span` 字段导致 E0616，适配公开 `span()` 后原两目标为 1 过、1 预期红。
+  日志保留；没有更改生产迎合 probe。生产新增三目标及邻域回归、三 feature legacy 拒绝和 strict 已验，见下。
+- CI 同批登记三精确 unit 目标，并将旧 named-different-callee 负例改为仍拒绝的计算 scalar；
+  清单由 52 增为 55 unit/配置，保留 7 public 与 1 frontend 项。尚未运行 CI，不宣称通过。
+
+- 最终本地验收（全部 `--locked -j1`，不 native/故障注入）：正式 `two-source-unit`
+  `shared_distinct_callees::` 3/3 通过，含正反完整闭合调用、具名 ABI 与 10 个域外准确分类；
+  `shared_owner_pair::` 3/3、`shared_mixed_pair::` 3/3、`distinct_callees::` 3/3、
+  `occurrence_bindings::` 4/4 通过。未重复其他矩阵或全 workspace。
+- `two-source-unit,e2-two-source-test-support,loan-observation-test-support` 新三目标 3/3 通过，
+  原 descriptor 的 legacy publication/emit 拒绝真实执行；同配置 frontend/codegen 两 crate
+  `clippy --all-targets -- -D warnings` 首轮通过（1m41s）。生产绿阶段没有 oracle 修正。
+- SSA 验证同一原 initializer/RootPlace 仅创建一次，4 个 String 实参共享 place、8 个 loan 不合并，
+  每位置原 FullKey 对应独立 SSA callee，原实参顺序与 ABI 列分别核对；首完整 End 先于次 Begin，
+  最后唯一 Drop 晚于全部 End。独立 replay 与 LLVM render 通过，不生成或执行 native 对象。
