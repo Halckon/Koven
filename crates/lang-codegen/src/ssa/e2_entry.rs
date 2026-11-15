@@ -65,7 +65,8 @@ pub(super) fn emit<'a>(
 ) -> Option<EmittedEntry<'a>> {
     if !experiment.matches_types(typed)
         || !experiment.owns_entry(descriptor)
-        || descriptor.instance().target() != UnitCallTarget::Declaration(experiment.callable(fact)?)
+        || descriptor.common_instance()?.target()
+            != UnitCallTarget::Declaration(experiment.callable(fact)?)
     {
         return None;
     }
@@ -105,15 +106,28 @@ pub(super) fn append_entry(
     fill_entry(module, entry, caller, descriptor)
 }
 /// Preserve a predeclared source identity and its real declaration/entry origins.
+#[cfg(all(test, feature = "e2-two-source-test-support"))]
 pub(super) fn fill_entry(
     module: &mut Module,
     entry: FunctionId,
     caller: FunctionId,
     descriptor: &EntryDescriptor,
 ) -> Option<FunctionId> {
+    let bindings = super::e2_occurrences::Bindings::uniform(descriptor, caller)?;
+    fill_bound_entry(module, entry, &bindings, descriptor)
+}
+pub(super) fn fill_bound_entry(
+    module: &mut Module,
+    entry: FunctionId,
+    bindings: &super::e2_occurrences::Bindings,
+    descriptor: &EntryDescriptor,
+) -> Option<FunctionId> {
+    if !bindings.matches(descriptor) {
+        return None;
+    }
     let block = empty_declaration(module.function(entry)?, &[])?;
     if descriptor.staggered_owners().is_some() {
-        staggered::emit(module, entry, caller, descriptor)?;
+        staggered::emit(module, entry, bindings, descriptor)?;
     } else {
         let shared = if let Some((symbol, _, span, bytes, drop)) = descriptor.shared_owner() {
             if descriptor.calls().len() != 2
@@ -150,7 +164,8 @@ pub(super) fn fill_entry(
             None
         };
         let shared_roots = shared.map(|(symbol, _, root)| [(symbol, root)]);
-        for call in descriptor.calls() {
+        for (index, call) in descriptor.calls().iter().enumerate() {
+            let caller = bindings.caller(index, call)?;
             emit_call(
                 module,
                 entry,

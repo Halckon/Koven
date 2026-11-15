@@ -96,10 +96,11 @@ fn publish_checked_inner<'a>(
         || !experiment.owns(fact)
         || !experiment.matches_types(typed)
         || !experiment.owns_entry(required)
+        || required.common_instance().is_none()
         || experiment
             .callable(fact)
             .map(lang_frontend::type_checking::UnitCallTarget::Declaration)
-            != Some(required.instance().target())
+            != required.common_instance().map(|key| key.target())
     {
         return Err(CheckedError::Required);
     }
@@ -140,6 +141,7 @@ fn publish_inner<'a>(
 ) -> Result<PublishedEntry<'a>, Error> {
     if !experiment.matches_types(typed)
         || !experiment.owns_entry(required)
+        || required.common_instance().is_none()
         || !experiment.owns(fact)
         || experiment.function_shell(fact, typed).is_none()
     {

@@ -230,16 +230,18 @@ pub(in crate::ssa) fn publish<'a>(
         )?;
         arm_records.push(arms.arms);
     }
-    for (entry, caller) in &entries {
+    for (entry, occurrences) in &entries {
         let entry_key = UnitFunctionInstanceKey::for_entry(entry.entry());
         let id = *function_ids.get(&entry_key)?;
-        let caller = *function_ids.get(&key(caller)?)?;
+        let bindings = occurrences.resolve(entry, handoff.types(), |original| {
+            function_ids.get(&key(original)?).copied()
+        })?;
         let module = emitted.program.module_mut(module_id)?;
-        e2_entry::fill_entry(module, id, caller, entry)?;
-        e2_entry_replay::replay_declared_body(
+        e2_entry::fill_bound_entry(module, id, &bindings, entry)?;
+        e2_entry_replay::replay_bound_body(
             module,
             id,
-            caller,
+            &bindings,
             entry,
             *expected.get(&entry_key)?,
         )?;

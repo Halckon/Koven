@@ -326,9 +326,13 @@ impl EntryDescriptor {
             &owner.drop,
         ))
     }
-    /// The one instance shared by all occurrences, proven during private construction.
-    pub fn instance(&self) -> &UnitCallableInstanceKey {
-        self.calls()[0].instance()
+    /// Returns a key only when every original occurrence shares the complete instance.
+    pub fn common_instance(&self) -> Option<&UnitCallableInstanceKey> {
+        let first = self.calls().first()?.instance();
+        self.calls()
+            .iter()
+            .all(|call| call.instance() == first)
+            .then_some(first)
     }
 }
 pub(super) fn collect(

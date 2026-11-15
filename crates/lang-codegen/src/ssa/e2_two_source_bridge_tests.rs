@@ -928,7 +928,7 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
             coverage
                 .called()
                 .iter()
-                .any(|(key, _)| key == entry.instance())
+                .any(|(key, _)| key == entry.common_instance().unwrap())
         );
         assert!(
             coverage
@@ -951,7 +951,7 @@ fn e2_real_source_entry_publication_executes_without_synthetic_driver() {
                 .facts()
                 .iter()
                 .find(|f| {
-                    Some(second.instance().target())
+                    Some(second.common_instance().unwrap().target())
                         == experiment
                             .callable(f)
                             .map(lang_frontend::type_checking::UnitCallTarget::Declaration)

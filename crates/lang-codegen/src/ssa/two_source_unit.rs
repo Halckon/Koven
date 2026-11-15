@@ -165,17 +165,24 @@ pub fn prepare_two_source_units<'a>(
         if selected.next().is_some() {
             return Err(TwoSourceUnitError::UnsupportedSelection);
         }
-        let mut selected = experiment.facts().iter().filter(|fact| {
-            experiment
-                .callable(fact)
-                .map(lang_frontend::type_checking::UnitCallTarget::Declaration)
-                == Some(descriptor.instance().target())
-        });
-        let fact = selected
-            .next()
+        let keys = super::e2_occurrences::EntryKeys::checked(descriptor, typed)
             .ok_or(TwoSourceUnitError::UnsupportedSelection)?;
-        if selected.next().is_some() {
-            return Err(TwoSourceUnitError::UnsupportedSelection);
+        for key in keys.as_slice() {
+            let mut selected = experiment.facts().iter().filter(|fact| {
+                experiment
+                    .callable(fact)
+                    .map(lang_frontend::type_checking::UnitCallTarget::Declaration)
+                    == Some(key.target())
+            });
+            let fact = selected
+                .next()
+                .ok_or(TwoSourceUnitError::UnsupportedSelection)?;
+            if selected.next().is_some() {
+                return Err(TwoSourceUnitError::UnsupportedSelection);
+            }
+            if !facts.iter().any(|old| std::ptr::eq(*old, fact)) {
+                facts.push(fact);
+            }
         }
         crate::native::validate_unit_entry(
             names,
@@ -184,9 +191,6 @@ pub fn prepare_two_source_units<'a>(
         )
         .map_err(TwoSourceUnitError::Entry)?;
         descriptors.push(descriptor);
-        if !facts.iter().any(|old| std::ptr::eq(*old, fact)) {
-            facts.push(fact);
-        }
     }
     let plan = JointPlan::build_shared_entries_checked(&handoff, &experiment, &facts, &descriptors)
         .map_err(|error| match error {

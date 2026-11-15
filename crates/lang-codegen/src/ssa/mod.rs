@@ -416,6 +416,11 @@ mod e2_entry;
     all(test, feature = "e2-two-source-test-support")
 ))]
 mod e2_entry_replay;
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
+mod e2_occurrences;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 mod e2_entry_publication;

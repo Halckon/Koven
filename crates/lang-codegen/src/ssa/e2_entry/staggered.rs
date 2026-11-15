@@ -4,7 +4,7 @@ use super::*;
 pub(super) fn emit(
     module: &mut Module,
     entry: FunctionId,
-    caller: FunctionId,
+    bindings: &crate::ssa::e2_occurrences::Bindings,
     d: &EntryDescriptor,
 ) -> Option<()> {
     let owners = d.staggered_owners()?;
@@ -36,7 +36,8 @@ pub(super) fn emit(
         )?)?;
         actual.push((descriptor.root(), owner, root, false));
     }
-    for call in d.calls() {
+    for (index, call) in d.calls().iter().enumerate() {
+        let caller = bindings.caller(index, call)?;
         if !call.initialization_order().is_empty()
             || !call.drops().is_empty()
             || (0..4).any(|i| call.temporary_string(i).is_some())

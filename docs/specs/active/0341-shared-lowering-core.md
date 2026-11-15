@@ -20501,3 +20501,12 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 私有 LateInitializedPair 固定两个阶段，首 collector 明确只见空 declaration slice，次 collector 仅见原晚 val。各阶段复用原 Temporary/Named 完整 per-call 证据，不赋予子 descriptor 根授权；根再核完整 Drop 向量、每 target 全局唯一及源码位置。原 emitter 与独立 replay 本就逐 call 完整处理初始化、借用、ABI 调用、End 和 Drop，故直接复用该逐阶段消费，禁止提前建立晚 owner，最终仍唯一 Return、全 cursor 消费；35 条指令只是辅助结构检查。
 
 生产已通过 two-source-unit 与 three-feature（另启 e2-two-source-test-support、loan-observation-test-support）各 3 个正常测试目标；body 抽取受影响回归 expression_entry 2、two_call_entry 5、shared_owner_pair 3、shared_mixed_pair 3、staggered_owners 3 均通过。三 feature 的 frontend/codegen 双 crate all-targets Clippy `-D warnings` 首次通过。首轮生产编译暴露按值 UnitDropFact::target 不能直接 map 引用 iterator，已仅改调用 closure，不改证明或断言，并保留失败日志。fmt、docs（968 Markdown）、size（2431 Rust 文件、21 个既有超限债务）、shell 语法和 diff 静态检查通过。CI 同批仅登记本片 3 个精确目标，本树列表实际为每配置 28 个 unit 目标（含原 failure-atomicity 目标）及 7 个 public-library 目标，另 1 个 frontend 目标；不表示本地执行 native 或故障注入，不混入另行处理的旧 17 目标缺口。
+
+
+### E2 保行为的逐 occurrence 绑定
+
+基联合 f2923811 的第一步仅重构正式 common 路线，不开放不同 callee。EntryDescriptor 的 common_instance 仅在所有原调用 FullInstance 相同才返回；旧单 caller publication/coverage 显式拒绝 None，不回退首调用。私有 Single/Pair 表保留源码调用位置及重复次数，EntryKeys 从每个原 typed call 双核完整 instance；prepare 按 occurrence 选择唯一 fact 后仅对定义集合去重，JointPlan 保全 key 序列，ordinary root-set 逐 occurrence 重核 required 图并保预算、精确集合覆盖。
+
+共同 arena 发布由原 function_ids 解析每个位置，解析前再次比对原 typed key，核 key 与 FunctionId 双向唯一；emitter 与独立 replay 每次按位置及完整 key 读取 callee，原借用/End/Drop 与初始化次序不改。旧独立单 caller 路线仍使用显式共同 key 包装器，不扩大权限。固定 key 表的构造不提供公开能力或可修改来源。
+
+新增四个正常目标：两个独立完整 E2 callee 分别正控与同 callee 两次 occurrence、同一完整输入两个闭合 callee 保持 UnsupportedSelection、两个不同原调用的普通 8 loan/8 End/4 temporary Drop 顺序 probe，以及纯 prepare/verify/render 多 entry 共享 callee 映射。未使用故障注入或 native 执行；正式 two-source-unit 四项（先3项、再第四项增量）与三 feature 四项均通过；受影响 late_initialization 3、staggered_owners 3、shared_entries 1 正常回归均通过。三 feature 的 frontend/codegen 双 crate all-targets Clippy `-D warnings` 首次通过。两个旧对象产物目标未执行，不计入通过；纯prepare多entry目标补齐正式映射验收。fmt、docs、size（2464 Rust 文件、2 个既有超限债务）、shell语法、diff静态门禁通过。CI 本片四个精确目标加入已整合旧17的列表，每配置实际49 unit目标，另7 public和1 frontend；不得以列表登记代替执行证据。
