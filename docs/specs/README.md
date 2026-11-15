@@ -154,8 +154,12 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：422 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：443 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
+
+## PR439 有界收口
+
+SPEC-0466–0476按代码4d3f9068的[精确PR CI43728630323](https://github.com/Halckon/Koven/actions/runs/43728630323)验收归档，active21→10/archive432→443；历史超限21→2，退休19根。用户批准剩余file_parent与sibling_shared_loans后续治理，不改两例外，不宣称E3或188路径正文审计完成。归档头CI及普通合并身份从[PR439](https://github.com/Halckon/Koven/pull/439)追溯；归档不等于此刻已合并。
 
 ## 生命周期
 

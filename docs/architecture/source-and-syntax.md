@@ -30,7 +30,7 @@ trivia 和固定符号最长匹配。它只分类拼写，不解析数值范围�
 [SPEC-0277](../archive/specs/0277-p2-evidence-test-alignment.md)；未改变生产规则。
 
 实现入口是 `crates/lang-frontend/src/lexer/`；对应覆盖位于 `lexer`、`lexer_boundary_matrix` 和
-`lexer_stress_matrix` integration suites。
+`lexer_stress_matrix` integration suites。`tests/lexer/{literals,symbols}.rs` 分别承载完整字面量与符号测试；共享重复 lex harness 留根，未复制 oracle。
 
 ## Parser 入口与模块
 
@@ -55,7 +55,7 @@ TypeRef 的上下文头部由正式解析与 strict call trial 保持一致：`m
 调用实参的显式模式只识别 `&`；`borrow(x)`、`borrow (x)`、member/typed call 与尾 lambda
 按普通表达式解析，`borrow` 不再由后继 token 推断成调用 marker。旧 `f(borrow x)` 沿
 L0034 separator 恢复，在 `x` 起点报告空 Span，保留两个值与后继实参的源码身份。
-声明与函数类型的 Borrow 模式不变；对应直接证据为 `parser_call_argument`。
+声明与函数类型的 Borrow 模式不变；对应直接证据为 `parser_call_argument`，其私有 `parser_call_argument/recovery.rs` 承载十七项调用诊断/恢复测试，共享重复 parse harness 与 SourceId 测试留根。
 
 Pratt binding power 只有一个实现来源。Parser 保存参数 marker、调用实参、receiver、尾 lambda、
 隐式 `it` anchor、control-flow、class-family、package/import、解构和错误传播等源码结构；名称映射、
@@ -175,3 +175,5 @@ lookup。
 
 实现入口是 `crates/lang-frontend/src/ast.rs` 与 `parser/syntax.rs`；对应覆盖位于 `indexed_ast`
 integration suite。
+
+表达式公开测试按私有 `tests/parser_expression/{shapes,recovery}.rs` 分离AST形状/类型引用/优先级与诊断恢复域；共享重复parse harness和跨域helper留根，stress/深度边界仍在原target执行。
