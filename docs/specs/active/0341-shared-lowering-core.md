@@ -20501,3 +20501,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 私有 LateInitializedPair 固定两个阶段，首 collector 明确只见空 declaration slice，次 collector 仅见原晚 val。各阶段复用原 Temporary/Named 完整 per-call 证据，不赋予子 descriptor 根授权；根再核完整 Drop 向量、每 target 全局唯一及源码位置。原 emitter 与独立 replay 本就逐 call 完整处理初始化、借用、ABI 调用、End 和 Drop，故直接复用该逐阶段消费，禁止提前建立晚 owner，最终仍唯一 Return、全 cursor 消费；35 条指令只是辅助结构检查。
 
 生产已通过 two-source-unit 与 three-feature（另启 e2-two-source-test-support、loan-observation-test-support）各 3 个正常测试目标；body 抽取受影响回归 expression_entry 2、two_call_entry 5、shared_owner_pair 3、shared_mixed_pair 3、staggered_owners 3 均通过。三 feature 的 frontend/codegen 双 crate all-targets Clippy `-D warnings` 首次通过。首轮生产编译暴露按值 UnitDropFact::target 不能直接 map 引用 iterator，已仅改调用 closure，不改证明或断言，并保留失败日志。fmt、docs（968 Markdown）、size（2431 Rust 文件、21 个既有超限债务）、shell 语法和 diff 静态检查通过。CI 同批仅登记本片 3 个精确目标，本树列表实际为每配置 28 个 unit 目标（含原 failure-atomicity 目标）及 7 个 public-library 目标，另 1 个 frontend 目标；不表示本地执行 native 或故障注入，不混入另行处理的旧 17 目标缺口。
+
+### D10 单 fresh scope 的未用 Boolean ABI 角色
+
+- 单 scope 仅从原完整两/三 ABI 中识别 source、原 Name condition 的实际 flag 及可选唯一未用 Boolean；source 必须 Borrow String，其他仅 Boolean Borrow/Value。完整原 typed/owned/fact/statement 消费链与原全 caller receipt 验证不变，不忽略 extra 的实际引用。
+- 恰三参时额外核最终入口首 Branch 的实际参数集合只含原 source/flag；参数次序与目标角色对应仍由原完整 CFG transport validator 检查。未用 Boolean 在首边不再运输，不声称或补造显式 BorrowEnd/析构。
+- 新测试准备覆盖六种 ABI 顺序、active/unused 各 Borrow/Value、source 反序及首尾段/单双 body 交叉，独立核 unused 身份不进入任何边或非入口 block parameter；第四参、超长段保持原正常 receipt/gap。实际 extra 使用与非 Boolean 原 route 均经原正常源码确认 lowering 成功、SSA verifier 通过、audit 一个但无 fresh receipt，保精确 missing/outside-domain gap 且不发布来源边；extra 的 inspect 调用仍恰一次并保 SharedReborrow gap，未通过删 use 冒充 unused。
+- 末版新三项测试（192 正向组合各两次独立 assembly）、受影响 single Value 三项、原 Borrow 单 scope 一项与旧 Partial 两项通过；codegen 三 feature all-targets 严格 Clippy（53.19s）、default codegen all-targets（32.24s）、格式/docs979/尺寸2460文件与2项历史欠账/diff 门禁通过，独审无阻断。首分类探针的错误假设失败完整留存，后续真实分类与收紧 oracle 分开，末版验收首遍通过；未 native、故障注入或推送。

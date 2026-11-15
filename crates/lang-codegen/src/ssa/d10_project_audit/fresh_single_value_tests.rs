@@ -40,17 +40,26 @@ fn single_value_flag_retains_long_body_and_source_segment_gaps() {
     }
 }
 fn check(reverse: bool, abi: bool, segments: (usize, usize), uses: &str, certified: bool) {
+    let parameters = if abi {
+        "own flag:Boolean,source:String"
+    } else {
+        "source:String,own flag:Boolean"
+    };
+    check_parameters(reverse, parameters, segments, uses, certified);
+}
+pub(super) fn check_parameters(
+    reverse: bool,
+    parameters: &str,
+    segments: (usize, usize),
+    uses: &str,
+    certified: bool,
+) {
     let mut sources = SourceMap::new();
     let (provider_id, provider) = unit_lower_test_support::parsed(
         &mut sources,
         "single-value-provider.ko",
         "fun view(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun before(item:String):Unit {}\nfun after(item:String):Unit {}",
     );
-    let parameters = if abi {
-        "own flag:Boolean,source:String"
-    } else {
-        "source:String,own flag:Boolean"
-    };
     let text = format!(
         "fun run({parameters}):Unit {{{}while(flag){{borrow val item=view(source);{uses}}};{}}}",
         "before(source);".repeat(segments.0),
@@ -124,12 +133,20 @@ fn check(reverse: bool, abi: bool, segments: (usize, usize), uses: &str, certifi
         assert!(audit.unsupported.is_empty(), "{:?}", audit.unsupported);
         let local = &receipt.loops[0];
         assert_eq!(receipt.loops.len(), 1);
-        assert!(!local.instructions.iter().any(|(t, _)| *t == Tag::Condition));
         let start = function.block(function.entry_block().unwrap()).unwrap();
-        let source_role = usize::from(abi);
-        let flag_role = 1 - source_role;
+        let params: Vec<_> = parameters.split(',').collect();
+        let source_role = params.iter().position(|p| *p == "source:String").unwrap();
+        let flag_role = params
+            .iter()
+            .position(|p| p.trim_start_matches("own ") == "flag:Boolean")
+            .unwrap();
+        let flag_owned = params[flag_role].starts_with("own ");
+        assert_eq!(start.parameters.len(), params.len());
         assert!(matches!(start.parameters[source_role], EntityId::Loan(_)));
-        assert!(matches!(start.parameters[flag_role], EntityId::Value(_)));
+        assert_eq!(
+            matches!(start.parameters[flag_role], EntityId::Value(_)),
+            flag_owned
+        );
         let mut roles: BTreeMap<_, _> = start
             .parameters
             .iter()
@@ -174,7 +191,56 @@ fn check(reverse: bool, abi: bool, segments: (usize, usize), uses: &str, certifi
         else {
             panic!("conditional");
         };
-        assert_eq!(roles.get(&EntityId::Value(*condition)), Some(&flag_role));
+        if flag_owned {
+            assert!(!local.instructions.iter().any(|(t, _)| *t == Tag::Condition));
+            assert_eq!(roles.get(&EntityId::Value(*condition)), Some(&flag_role));
+        } else {
+            let read = function
+                .instruction(
+                    local
+                        .instructions
+                        .iter()
+                        .find(|(t, _)| *t == Tag::Condition)
+                        .unwrap()
+                        .1,
+                )
+                .unwrap();
+            let Operation::Read {
+                source: crate::ssa::model::PlaceAccess::Loan(loan),
+            } = read.operation
+            else {
+                panic!("borrow Read");
+            };
+            assert_eq!(roles.get(&EntityId::Loan(loan)), Some(&flag_role));
+            assert_eq!(read.results.as_slice(), &[EntityId::Value(*condition)]);
+        }
+        for (unused, parameter) in params
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != source_role && *i != flag_role)
+        {
+            let entity = start.parameters[unused];
+            assert_eq!(
+                matches!(entity, EntityId::Value(_)),
+                parameter.starts_with("own ")
+            );
+            assert!(
+                receipt
+                    .edges
+                    .iter()
+                    .all(|(_, e)| !e.arguments.contains(&entity))
+            );
+            for block in &function.blocks {
+                if block.id != start.id {
+                    assert!(
+                        block
+                            .parameters
+                            .iter()
+                            .all(|p| roles.get(p) != Some(&unused))
+                    );
+                }
+            }
+        }
         let actual: BTreeSet<_> = when_false
             .arguments
             .iter()
@@ -277,7 +343,7 @@ fn single_value_flag_preserves_resource_extra_parameter_and_condition_boundaries
         ("own source:String,own flag:Boolean", "flag", true),
         ("source:String,own flag:Boolean", "(flag)", true),
         (
-            "source:String,own flag:Boolean,unused:Boolean",
+            "source:String,own flag:Boolean,unused:Boolean,extra:Boolean",
             "flag",
             false,
         ),
