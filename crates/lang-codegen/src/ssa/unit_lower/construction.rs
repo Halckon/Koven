@@ -295,7 +295,10 @@ pub(super) mod nullable_proof {
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub(in super::super) enum NullableProofScope {
-        If(UnitExpressionId),
+        If {
+            control: UnitExpressionId,
+            last_borrow: UnitExpressionId,
+        },
         When(super::super::nullable_when::NullableWhenScope),
     }
 
@@ -316,7 +319,7 @@ pub(super) mod nullable_proof {
     impl NullableProof {
         pub(in super::super) fn if_scope(self) -> Option<UnitExpressionId> {
             match self.origin.scope {
-                NullableProofScope::If(scope) => Some(scope),
+                NullableProofScope::If { control, .. } => Some(control),
                 NullableProofScope::When(_) => None,
             }
         }
@@ -326,7 +329,7 @@ pub(super) mod nullable_proof {
         ) -> Option<super::super::nullable_when::NullableWhenScope> {
             match self.origin.scope {
                 NullableProofScope::When(scope) => Some(scope),
-                NullableProofScope::If(_) => None,
+                NullableProofScope::If { .. } => None,
             }
         }
     }
@@ -421,7 +424,33 @@ pub(super) mod nullable_proof {
             Ok(())
         }
 
-        /// If retests currently support only local reads and normal branch completion.
+        /// End only the view whose last qualified call has completed.
+        pub(in super::super) fn retire_completed_heap_if_borrow(
+            &mut self,
+            expression: UnitExpressionId,
+        ) -> Result<(), LoweringError> {
+            let root = self.nullable_proofs.iter().find_map(|(&root, proof)| {
+                matches!(proof.origin.scope, NullableProofScope::If { last_borrow, .. }
+                    if last_borrow == expression)
+                .then_some(root)
+            });
+            if let Some(root) = root {
+                let span = self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(expression.expression())
+                    .map_err(|_| LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?
+                    .span();
+                self.end_nullable_proof(root, span)?;
+            }
+            Ok(())
+        }
+
+        /// Reject paths that cannot carry or close a live heap If proof.
         pub(in super::super) fn reject_live_if_proof(
             &self,
             span: Span,
@@ -547,9 +576,12 @@ pub(super) mod nullable_proof {
                     .is_some_and(|old| old != identity)
                     || root.source_unit() != self.source_unit
                     || match proof.origin.scope {
-                        NullableProofScope::If(scope) => scope.source_unit() != self.source_unit
-                            || !self.parsed.ast().expressions().get(scope.expression())
-                                .is_ok_and(|node| matches!(node.payload(), Expression::If { .. })),
+                        NullableProofScope::If { control, last_borrow } => {
+                            control.source_unit() != self.source_unit
+                                || last_borrow.source_unit() != self.source_unit
+                                || !self.parsed.ast().expressions().get(control.expression())
+                                    .is_ok_and(|node| matches!(node.payload(), Expression::If { .. }))
+                        }
                         NullableProofScope::When(scope) => {
                             !self.valid_nullable_when_scope(*root, scope, proof.inner)
                         }
