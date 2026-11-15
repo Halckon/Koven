@@ -20820,3 +20820,8 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 新 counter-break 专属 sealed selector 在一个原完整 ledger/ordinal 集合内联合两臂全部 acquisitions 与 suffix：唯一原 call/argument、Function producer、原 source root 全核，重复 ordinal 拒绝。最终同次完整 snapshot 与全部 dispatch 映射核验后，exit 精确一个原 source slot/Loan、一个原 callee/span 的无结果 DirectCall 与唯一空 UnitReturn；无 suffix 的原空出口保持。
 - 从实际 entry 原 source 实体沿全部真实边传播，稳定后对每个已标 source 的目标参数反查所有 incoming 均已知同源，单前驱不能替另一未知来源自证；分别核 yes6 与 finished10 的唯一 source 实参进入 exit11。只跟踪不可变 source，不把合法变化的 Int counter 当作不变 ABI 根；原十二角色、两 cleanup、两臂 fresh End、checked 回边与唯一原 Abort 的一常量/Span/reason约束不松，prefix 原拒绝不绕过。
 - 新两项目标首遍通过：四参数八模式×24 ABI 与共享三参数四模式×6 ABI，再各两来源，共432形态各两次 assembly；后消费包含与臂内相同 consumer/other，仍按原 occurrence 区分。Group/named实参与两次后消费三负例均原 normal lower/verify/receipt 后精确 gap。新目标编译1m09s、执行3.30s，旧独立 flag 两项与共享 flag 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m48s、default codegen all-targets 32.61s 与格式通过。不重原 probe，不执行生成程序/Abort/native/故障注入，不推送，默认workspace留联合一次。
+
+### counter-break 初始化前普通 source 消费的原拒绝边界
+
+- 独立分类未修改生产：`consume(source); var remaining=rounds; while...` 在三/四 ABI、Borrow/Value 极值及来源反序共八输入中，原 names/types 均成功，而 ownership 均拒绝。两个实际 `borrow` 六字符 Span 各报 L0164，counter-break 与 prefix-counter-break 原 facts 均为空；没有到 lowering，不混称此前 counter9 的 producer InvalidModel，也不声称双 assembly。
+- 分类日志保留后，测试已收紧为原 ownership 必须拒绝、精确 diagnostic code/source/start/end、零 audit/receipt/recorded，删除泛错误分类打印。唯一精确回归一项通过（增量编译47.70s、执行0.02s），格式与独审通过；没有为此扩原 selector/planner、没有重跑完整矩阵，不执行生成程序/Abort/native/故障注入、不推送。后续仅另行研究已有原 If 前缀支持域，不绕过本拒绝。
