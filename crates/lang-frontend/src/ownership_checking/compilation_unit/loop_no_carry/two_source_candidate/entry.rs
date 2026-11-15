@@ -13,7 +13,17 @@ use crate::{
     source::Span,
     type_checking::{BuiltinType, UnitTypeKind, ValidatedCompilationUnitTypes},
 };
-/// Opaque evidence for two scalar vals and one call, optionally preceded by one shared or two distinct String owners.
+/// A source declaration initializer role; descriptors remain privately constructed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EntryInitialization {
+    /// Original named String owner, identified by its resolved symbol.
+    Named(UnitSymbolId),
+    /// Original Int literal initializer.
+    Rounds,
+    /// Original Boolean literal initializer.
+    Choose,
+}
+/// Opaque evidence for two scalar vals, up to two String owners and one call.
 #[derive(Clone, Debug)]
 pub struct EntryDescriptor {
     identity: Rc<()>,
@@ -21,6 +31,7 @@ pub struct EntryDescriptor {
     body: Span,
     instance: UnitCallableInstanceKey,
     initializers: [UnitExpressionId; 2],
+    initialization_order: Vec<EntryInitialization>,
     contracts: [UnitCallArgumentOwnershipContract; 4],
     ends: [UnitDirectCallLoanEndFact; 4],
     storage: StringStorage,
@@ -53,6 +64,10 @@ enum StringStorage {
     },
 }
 impl EntryDescriptor {
+    /// Original source declaration order, independent of scalar argument roles.
+    pub fn initialization_order(&self) -> &[EntryInitialization] {
+        &self.initialization_order
+    }
     /// Temporary-only original String payloads; named-owner entries return None.
     pub fn strings(&self) -> Option<&[Vec<u8>; 2]> {
         match &self.storage {
@@ -221,12 +236,10 @@ pub(super) fn collect(
             let Statement::Block { elements } = body_node.payload() else {
                 return None;
             };
-            let (named_statements, first, second, last) = match elements.as_slice() {
-                [first, second, last] => (&elements[..0], first, second, last),
-                [_, first, second, last] => (&elements[..1], first, second, last),
-                [_, _, first, second, last] => (&elements[..2], first, second, last),
-                _ => return None,
-            };
+            let (last, declarations) = elements.split_last()?;
+            if !(2..=4).contains(&declarations.len()) {
+                return None;
+            }
             let formed_local = |span: Span| {
                 let mut bindings = owned.formed_owned_locals().iter().filter(|symbol| {
                     symbol.source_unit() == unit
@@ -240,52 +253,10 @@ pub(super) fn collect(
                 let binding = *bindings.next()?;
                 bindings.next().is_none().then_some(binding)
             };
-            let named: Vec<_> = named_statements
-                .iter()
-                .map(|statement| {
-                    let Statement::LocalVariable { declaration } =
-                        parsed.ast().statements().get(*statement).ok()?.payload()
-                    else {
-                        return None;
-                    };
-                    let Item::Variable {
-                        kind: VariableKind::Val,
-                        name: NameMarker::Present(name),
-                        initializer,
-                        ..
-                    } = parsed.ast().items().get(*declaration).ok()?.payload()
-                    else {
-                        return None;
-                    };
-                    let root = formed_local(*name)?;
-                    let initializer = UnitExpressionId::new(unit, *initializer);
-                    if typed
-                        .types()
-                        .symbol_type(root)
-                        .and_then(|t| typed.types().types().get(t))
-                        != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-                        || typed
-                            .types()
-                            .expression_type(initializer)
-                            .and_then(|t| typed.types().types().get(t))
-                            != Some(&UnitTypeKind::Builtin(BuiltinType::String))
-                    {
-                        return None;
-                    }
-                    let node = parsed
-                        .ast()
-                        .expressions()
-                        .get(initializer.expression())
-                        .ok()?;
-                    let bytes = plain_string(sources, node.payload())?;
-                    Some((root, initializer, node.span(), bytes))
-                })
-                .collect::<Option<Vec<_>>>()?;
-            if named.len() == 2 && named[0].0 == named[1].0 {
-                return None;
-            }
-            let mut locals = Vec::new();
-            for (position, statement) in [first, second].into_iter().enumerate() {
+            let mut named = Vec::new();
+            let mut locals = [None, None];
+            let mut initialization_order = Vec::new();
+            for statement in declarations {
                 let Statement::LocalVariable { declaration } =
                     parsed.ast().statements().get(*statement).ok()?.payload()
                 else {
@@ -301,20 +272,15 @@ pub(super) fn collect(
                     return None;
                 };
                 let expression = parsed.ast().expressions().get(*initializer).ok()?;
-                if !matches!(
-                    (position, expression.payload()),
-                    (0, Expression::Literal(LiteralKind::Integer(_)))
-                        | (1, Expression::Literal(LiteralKind::Boolean(_)))
-                ) {
-                    return None;
-                }
                 let binding = formed_local(*span)?;
                 let initializer = UnitExpressionId::new(unit, *initializer);
-                let expected = UnitTypeKind::Builtin(if position == 0 {
-                    BuiltinType::Int
-                } else {
-                    BuiltinType::Boolean
-                });
+                let (expected, role) = match expression.payload() {
+                    Expression::String { .. } => (BuiltinType::String, None),
+                    Expression::Literal(LiteralKind::Integer(_)) => (BuiltinType::Int, Some(0)),
+                    Expression::Literal(LiteralKind::Boolean(_)) => (BuiltinType::Boolean, Some(1)),
+                    _ => return None,
+                };
+                let expected = UnitTypeKind::Builtin(expected);
                 if typed
                     .types()
                     .expression_type(initializer)
@@ -328,8 +294,25 @@ pub(super) fn collect(
                 {
                     return None;
                 }
-                locals.push((binding, initializer));
+                if let Some(role) = role {
+                    if locals[role].replace((binding, initializer)).is_some() {
+                        return None;
+                    }
+                    initialization_order.push(if role == 0 {
+                        EntryInitialization::Rounds
+                    } else {
+                        EntryInitialization::Choose
+                    });
+                } else {
+                    if named.iter().any(|(root, _, _, _)| *root == binding) {
+                        return None;
+                    }
+                    let bytes = plain_string(sources, expression.payload())?;
+                    named.push((binding, initializer, expression.span(), bytes));
+                    initialization_order.push(EntryInitialization::Named(binding));
+                }
             }
+            let locals = [locals[0]?, locals[1]?];
             let Statement::Expression { expression } =
                 parsed.ast().statements().get(*last).ok()?.payload()
             else {
@@ -590,6 +573,7 @@ pub(super) fn collect(
                 body: body_node.span(),
                 instance: call.instance().clone(),
                 initializers: [locals[0].1, locals[1].1],
+                initialization_order,
                 contracts,
                 ends,
             })

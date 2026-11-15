@@ -2,7 +2,9 @@
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use super::e2_entry::EmittedEntry;
 use super::model::*;
-use lang_frontend::ownership_checking::UnitDropTarget;
+use lang_frontend::ownership_checking::{
+    UnitDropTarget, two_source_experiment::EntryInitialization,
+};
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use lang_frontend::{
     ownership_checking::two_source_experiment::{TwoSourceCounterFact, TwoSourceExperiment},
@@ -168,43 +170,62 @@ pub(super) fn replay_declared_body(
     };
     let mut owners = Vec::new();
     let mut named_roots = Vec::new();
-    for (symbol, _, span, bytes) in d.named_strings() {
-        let origin = Origin::Source(span);
-        let owner = value(cursor.step(
-            Operation::StringLiteral {
-                string,
-                bytes: bytes.to_vec(),
-            },
-            origin.clone(),
-            Some(EntityType::Value(string)),
-        )?)?;
-        owners.push(owner);
-        let root = place(cursor.step(
-            Operation::RootPlace { owner },
-            origin,
-            Some(EntityType::Place(string)),
-        )?)?;
-        named_roots.push((symbol, root));
+    let mut roots = [None; 2];
+    let named = d.named_strings();
+    for initialization in d.initialization_order() {
+        match initialization {
+            EntryInitialization::Named(symbol) => {
+                if named_roots.iter().any(|(root, _)| root == symbol) {
+                    return None;
+                }
+                let mut matches = named.iter().filter(|(root, _, _, _)| root == symbol);
+                let (_, _, span, bytes) = matches.next()?;
+                if matches.next().is_some() {
+                    return None;
+                }
+                let origin = Origin::Source(*span);
+                let owner = value(cursor.step(
+                    Operation::StringLiteral {
+                        string,
+                        bytes: bytes.to_vec(),
+                    },
+                    origin.clone(),
+                    Some(EntityType::Value(string)),
+                )?)?;
+                owners.push(owner);
+                let root = place(cursor.step(
+                    Operation::RootPlace { owner },
+                    origin,
+                    Some(EntityType::Place(string)),
+                )?)?;
+                named_roots.push((*symbol, root));
+            }
+            EntryInitialization::Rounds | EntryInitialization::Choose => {
+                let i = usize::from(matches!(initialization, EntryInitialization::Choose));
+                if roots[i].is_some() {
+                    return None;
+                }
+                let (ty, constant) = if i == 0 {
+                    (int, ScalarConstant::Integer(d.rounds().into()))
+                } else {
+                    (boolean, ScalarConstant::Boolean(d.choose()))
+                };
+                let origin = Origin::Source(d.initializer_spans()[i]);
+                let owner = value(cursor.step(
+                    Operation::Constant(constant),
+                    origin.clone(),
+                    Some(EntityType::Value(ty)),
+                )?)?;
+                roots[i] = Some(place(cursor.step(
+                    Operation::RootPlace { owner },
+                    origin,
+                    Some(EntityType::Place(ty)),
+                )?)?);
+            }
+        }
     }
-    let mut roots = Vec::new();
-    for (i, (ty, c)) in [
-        (int, ScalarConstant::Integer(d.rounds().into())),
-        (boolean, ScalarConstant::Boolean(d.choose())),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let origin = Origin::Source(d.initializer_spans()[i]);
-        let owner = value(cursor.step(
-            Operation::Constant(c),
-            origin.clone(),
-            Some(EntityType::Value(ty)),
-        )?)?;
-        roots.push(place(cursor.step(
-            Operation::RootPlace { owner },
-            origin,
-            Some(EntityType::Place(ty)),
-        )?)?);
+    if named_roots.len() != named.len() || roots.iter().any(Option::is_none) {
+        return None;
     }
     let mut temporary_owners = Vec::new();
     let mut loans = Vec::new();
@@ -237,7 +258,7 @@ pub(super) fn replay_declared_body(
                 Some(EntityType::Place(string)),
             )?)?
         } else {
-            roots[i - 2]
+            roots[i - 2]?
         };
         loans.push(loan(cursor.step(
             Operation::BorrowBegin {
