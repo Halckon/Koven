@@ -16,6 +16,9 @@ pub(crate) mod entry_borrow;
 pub(crate) mod forward_consumption;
 #[cfg(test)]
 mod forward_consumption_tests;
+pub(crate) mod fresh_loop_consumption;
+#[cfg(test)]
+mod fresh_loop_consumption_tests;
 pub(crate) mod identity_return;
 pub(crate) mod interleaved_aux_consumption;
 #[cfg(test)]
@@ -105,6 +108,7 @@ pub(crate) struct Pending {
     later_aux: later_aux_consumption::Transaction,
     interleaved_aux: interleaved_aux_consumption::Transaction,
     loops: loop_consumption::Transaction,
+    fresh_loops: fresh_loop_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -130,6 +134,7 @@ impl Pending {
                 later_aux: later_aux_consumption::Transaction::begin(plan),
                 interleaved_aux: interleaved_aux_consumption::Transaction::begin(plan),
                 loops: loop_consumption::Transaction::begin(plan),
+                fresh_loops: fresh_loop_consumption::Transaction::begin(plan),
                 items: names
                     .names()
                     .index()
@@ -348,6 +353,15 @@ impl Pending {
                 audit
                     .unsupported
                     .push("overlapping loop edge certificate".into());
+            }
+        }
+        let (fresh_edges, fresh_gaps) = self.fresh_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(fresh_gaps);
+        for edge in fresh_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping fresh no-carry edge certificate".into());
             }
         }
         for function in program.modules.iter().flat_map(|module| &module.functions) {

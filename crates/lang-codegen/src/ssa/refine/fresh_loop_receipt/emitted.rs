@@ -597,7 +597,18 @@ impl Emitted {
             }
         }
         r.validate(function)?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        crate::ssa::d10_project_audit::fresh_loop_consumption::record(function, &r);
         record(r);
         Ok(())
+    }
+}
+
+#[cfg(feature = "d10-catalog-experiment")]
+impl Receipt {
+    pub(crate) fn empty_source_segments(&self) -> bool {
+        self.segments
+            .iter()
+            .all(|s| s.sealed() && s.consumers.is_empty() && s.instructions.is_empty())
     }
 }

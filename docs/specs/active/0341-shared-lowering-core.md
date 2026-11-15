@@ -20195,3 +20195,22 @@ scalar拒绝）；旧“拒绝具名重排”负例按本片已批准域转为�
 文档、2412文件Rust尺寸（21历史超限）及脚本语法通过，独立静审无阻断。新增目标
 纳入原CI双配置，默认workspace留联合一次。构建结束立即交槽D10，不等账本提交。
 无push、native执行或人工故障注入。
+
+
+### D10 fresh loop-local no-carry 窄桥（增量验收）
+
+本批沿原 `fresh_loop_receipt` 的真实成功发布点保存同次完整 Function 与原 receipt，
+不读取测试 observer，不改变原准入或返回。build 前从原 sealed `UnitLoopNoCarryFact`
+独立登记 expected；最终同时核 owns、`same_identity` 与完整字段相等，
+源账本的 initializer/consumer 原 loan 唯一 ordinal 与实际 Function producer，
+以及原 typed String/Boolean 到本次 SSA 类型和两调用 dispatch 映射。
+
+首片仅一个 while、一个 body consumer、两个 Borrow 参数，原 segments 必须逐段封闭且为空。
+最终复用原纯 validator 的完整块、指令、实体 Definition、边与回边检查，
+并核最终 Function 完整相等和 Program 实际类型，才将实际 BorrowCall 边交主图精确消费。
+原 Partial invariant-loop 路线及其独立缺口不变；不声称 catalog Complete、终止或任意动态迭代完备。
+真实双 consumer、前后 source consumer segments 保留原正常 receipt，却仍在本批域外。
+
+两项源级测试首次编译后全部通过（1m38），覆盖源顺序/参数顺序、同 observe 两次 assembly 和上述域外输入；旧 Partial loop 两项相邻回归亦通过。frontend/codegen 三 feature 严格 Clippy all-targets 通过（3m36），默认仅这两个 crate 的 all-targets check 通过（1m44），不是 workspace 全验。格式、968 Markdown 文档结构和 Rust 尺寸门禁（基点9e4470cf，2415文件/21项历史债）通过。首次架构文档202行超过200限制，仅移除新增段周围空行后复验通过，没有抬高上限。
+
+独立静审通过；无 native 执行、人工故障或跨 run 混配。零迭代出口与回边依据原纯 SSA validator，不代表运行循环或终止证明。日志为 `/private/tmp/d10-fresh-{tests,oldloop,strict,default,size}.log`。
