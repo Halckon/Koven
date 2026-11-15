@@ -87,3 +87,5 @@ macOS 的 DWARF 调试器测试保留 LLDB 断点/运行断言。Linux 的 DWARF
 `llvm-dwarfdump --debug-line` 检查生成 ELF object 中的 `.ko` 文件、行和列，再经系统 C driver
 链接并实际运行；该测试不声称 Linux 调试器断点或变量查看已通过。工具前提与未运行平台的
 报告规则见[测试指南](../development/testing.md#本机目标与工具前提)。
+
+资源生命周期测试 `ownership_resource_deinit/exchange.rs` 私有域承载root/direct-field replace/swap的十二项完整转移/清理测试；根共享Single/Unit检查入口、原Unit helper与全部断言保持唯一。

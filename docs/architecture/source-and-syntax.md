@@ -175,3 +175,5 @@ lookup。
 
 实现入口是 `crates/lang-frontend/src/ast.rs` 与 `parser/syntax.rs`；对应覆盖位于 `indexed_ast`
 integration suite。
+
+表达式公开测试按私有 `tests/parser_expression/{shapes,recovery}.rs` 分离AST形状/类型引用/优先级与诊断恢复域；共享重复parse harness和跨域helper留根，stress/深度边界仍在原target执行。
