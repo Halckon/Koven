@@ -2,7 +2,10 @@
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use super::e2_function;
 use super::model::*;
-use lang_frontend::ownership_checking::{UnitDropTarget, two_source_experiment::EntryDescriptor};
+use lang_frontend::ownership_checking::{
+    UnitDropTarget,
+    two_source_experiment::{EntryDescriptor, EntryInitialization},
+};
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use lang_frontend::{
     ownership_checking::two_source_experiment::{TwoSourceCounterFact, TwoSourceExperiment},
@@ -116,51 +119,70 @@ pub(super) fn fill_entry(
     let block = empty_declaration(f, &[])?;
     let mut owners = Vec::new();
     let mut named_roots = Vec::new();
-    for (symbol, _, span, bytes) in descriptor.named_strings() {
-        let origin = Origin::Source(span);
-        let owner = value(append(
-            f,
-            block,
-            Operation::StringLiteral {
-                string,
-                bytes: bytes.to_vec(),
-            },
-            EntityType::Value(string),
-            origin.clone(),
-        )?)?;
-        owners.push(owner);
-        let root = place(append(
-            f,
-            block,
-            Operation::RootPlace { owner },
-            EntityType::Place(string),
-            origin,
-        )?)?;
-        named_roots.push((symbol, root));
+    let mut scalar_places = [None; 2];
+    let named = descriptor.named_strings();
+    for initialization in descriptor.initialization_order() {
+        match initialization {
+            EntryInitialization::Named(symbol) => {
+                if named_roots.iter().any(|(root, _)| root == symbol) {
+                    return None;
+                }
+                let mut matches = named.iter().filter(|(root, _, _, _)| root == symbol);
+                let (_, _, span, bytes) = matches.next()?;
+                if matches.next().is_some() {
+                    return None;
+                }
+                let origin = Origin::Source(*span);
+                let owner = value(append(
+                    f,
+                    block,
+                    Operation::StringLiteral {
+                        string,
+                        bytes: bytes.to_vec(),
+                    },
+                    EntityType::Value(string),
+                    origin.clone(),
+                )?)?;
+                owners.push(owner);
+                let root = place(append(
+                    f,
+                    block,
+                    Operation::RootPlace { owner },
+                    EntityType::Place(string),
+                    origin,
+                )?)?;
+                named_roots.push((*symbol, root));
+            }
+            EntryInitialization::Rounds | EntryInitialization::Choose => {
+                let i = usize::from(matches!(initialization, EntryInitialization::Choose));
+                if scalar_places[i].is_some() {
+                    return None;
+                }
+                let (ty, constant) = if i == 0 {
+                    (int, ScalarConstant::Integer(descriptor.rounds().into()))
+                } else {
+                    (boolean, ScalarConstant::Boolean(descriptor.choose()))
+                };
+                let origin = Origin::Source(descriptor.initializer_spans()[i]);
+                let owner = value(append(
+                    f,
+                    block,
+                    Operation::Constant(constant),
+                    EntityType::Value(ty),
+                    origin.clone(),
+                )?)?;
+                scalar_places[i] = Some(place(append(
+                    f,
+                    block,
+                    Operation::RootPlace { owner },
+                    EntityType::Place(ty),
+                    origin,
+                )?)?);
+            }
+        }
     }
-    let mut scalar_places = Vec::new();
-    for (i, (ty, constant)) in [
-        (int, ScalarConstant::Integer(descriptor.rounds().into())),
-        (boolean, ScalarConstant::Boolean(descriptor.choose())),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let origin = Origin::Source(descriptor.initializer_spans()[i]);
-        let owner = value(append(
-            f,
-            block,
-            Operation::Constant(constant),
-            EntityType::Value(ty),
-            origin.clone(),
-        )?)?;
-        scalar_places.push(place(append(
-            f,
-            block,
-            Operation::RootPlace { owner },
-            EntityType::Place(ty),
-            origin,
-        )?)?);
+    if named_roots.len() != named.len() || scalar_places.iter().any(Option::is_none) {
+        return None;
     }
     let mut temporary_owners = Vec::new();
     let mut loans = Vec::new();
@@ -197,7 +219,7 @@ pub(super) fn fill_entry(
                 origin.clone(),
             )?)?
         } else {
-            scalar_places[i - 2]
+            scalar_places[i - 2]?
         };
         loans.push(loan(append(
             f,

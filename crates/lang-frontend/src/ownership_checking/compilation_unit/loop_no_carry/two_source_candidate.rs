@@ -142,7 +142,7 @@ pub use function_shell::FunctionShell;
 #[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 mod entry;
 #[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
-pub use entry::EntryDescriptor;
+pub use entry::{EntryDescriptor, EntryInitialization};
 
 #[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 mod handoff;

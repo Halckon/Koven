@@ -418,3 +418,5 @@ mod distinct_named;
 mod mixed_owner;
 
 mod static_strings;
+
+mod declaration_order;

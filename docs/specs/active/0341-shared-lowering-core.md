@@ -20062,3 +20062,25 @@ parts 仍拒绝，既有 grouped expression 等域外限制不变。后端只消
 数与 verifier/LLVM render 均核对。受影响 frontend/codegen 三 feature all-targets
 严格 Clippy 通过（4m48s）；fmt、diff、bash语法、958文件文档和Rust尺寸门禁通过。
 默认workspace留共同集成一次；本片不执行native、不做故障注入、不推送。
+
+### E2 受限入口的原声明序初始化（2026-11-15）
+
+在 b483f6ea 独立分支中取消受限入口对声明位置的无关限制：仍只有零至两个静态
+String val、一个非负十进制 Int literal val、一个 Boolean literal val及末尾一次调用；
+允许这些既有声明按原源码次序交错。没有一般表达式、插值、多调用或多余局部变量准入。
+
+私有构造的 EntryDescriptor 记录原 statement 次序的初始化项；角色索引仍按
+rounds/choose，不从声明位置猜测参数角色。emit与独立replay分别按记录顺序创建和
+核对实际指令/origin，scalar place按角色保存；named owner按原named声明顺序保留，
+真实call End/Drop顺序及完整事实核对不变，不通过重排Drop或合并相同字节owner适配。
+
+新 `declaration_order` 两目标先在旧实现复现 choose-before-rounds 的
+UnsupportedSelection；额外/计算locals拒绝保持通过。末版正式/三feature配置各
+2 passed/0 ignored：44种声明排列逐初始化值、原Span文本及递增源码位置核对，
+5种额外Int/Boolean、computed、var、unused String真实源码拒绝。全部通过原
+verifier和LLVM render，不执行native。两crate三feature all-targets严格Clippy
+通过（1m51s），fmt、diff、958文件文档、2385文件Rust尺寸（37旧债不变）及脚本
+语法检查通过。独立静审无阻断；新目标加入既有双配置CI清单。
+
+默认关闭能力和完整Unit审查不变；默认workspace留共同集成一次，不推送、不做故障
+注入。构建槽在strict结束后立即交给D10，不等待账本或本地提交。
