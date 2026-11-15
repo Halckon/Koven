@@ -89,3 +89,5 @@ macOS 的 DWARF 调试器测试保留 LLDB 断点/运行断言。Linux 的 DWARF
 报告规则见[测试指南](../development/testing.md#本机目标与工具前提)。
 
 资源生命周期测试 `ownership_resource_deinit/exchange.rs` 私有域承载root/direct-field replace/swap的十二项完整转移/清理测试；根共享Single/Unit检查入口、原Unit helper与全部断言保持唯一。
+
+`tests/fixtures.rs`保留共享模型/路径/加载校验/重复解析与报告；私有`fixtures/{discovery,execution}.rs`负责发现-sidecar与suite执行，原`tests`模块外置`fixtures/contracts.rs`且FQN不变，平台条件保护原样保留。
