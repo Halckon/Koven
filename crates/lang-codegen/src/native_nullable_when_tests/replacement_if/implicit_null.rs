@@ -161,3 +161,56 @@ fun entry(): Unit {
     );
     crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
 }
+
+#[test]
+fn nullable_when_rechecks_an_inner_writeback_before_return_with_an_outer_borrow() {
+    let text = r#"class Resource(val label: String) { deinit() { println(label) } }
+fun make(value: Resource): Resource? { println("rhs"); println(value.label); println("rhs-finished"); return Resource("drop-new") }
+fun seeOuter(value: Resource): Unit { println("outer"); println(value.label) }
+fun seeInner(value: Resource): Unit { println("inner"); println(value.label) }
+fun run(own outer: Resource?, own inner: Resource?, flag: Boolean): Unit {
+    var y = inner
+    when (outer) {
+        null -> { println("outer-null") }
+        else -> {
+            when (y) {
+                null -> { println("inner-null") }
+                else -> {
+                    if (flag) {
+                        y = make(y)
+                        if (y != null) { seeInner(y) }
+                        seeOuter(outer)
+                        println("returning")
+                        return
+                    }
+                    seeInner(y)
+                }
+            }
+            println("outer-end")
+        }
+    }
+    println("normal")
+}
+fun entry(): Unit {
+    run(Resource("drop-outer"), Resource("drop-inner"), true)
+    println("caller")
+    run(Resource("drop-outer"), Resource("drop-kept"), false)
+    run(Resource("drop-outer"), null, true)
+}
+"#;
+    const PATH: &str = "nested-resource-writeback-return.ko";
+    let source = checked(PATH, text);
+    let entry = source.declaration("entry", SymbolKind::Function);
+    let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
+    let (program, _) = result.expect("distinct nullable owners survive the inner writeback");
+    assert!(!routed.contains(&function(&source, &program, "run").name));
+    verify_program(&program).expect("actual Unit SSA verifies");
+
+    let output = crate::native_tests::emit_link_and_run(PATH, text, "entry");
+    let expected = concat!(
+        "rhs\ndrop-inner\nrhs-finished\ndrop-inner\ninner\ndrop-new\nouter\ndrop-outer\nreturning\ndrop-new\ndrop-outer\ncaller\n",
+        "inner\ndrop-kept\nouter-end\nnormal\ndrop-kept\ndrop-outer\n",
+        "inner-null\nouter-end\nnormal\ndrop-outer\n",
+    );
+    crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+}
