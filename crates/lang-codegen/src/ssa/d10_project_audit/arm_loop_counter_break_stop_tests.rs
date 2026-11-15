@@ -29,7 +29,7 @@ fn counter_break_stop_value_preserves_exit_and_checked_paths() {
 fn counter_break_stop_value_does_not_authorize_other_value_roles() {
     for signature in [
         "source:String,own rounds:Int,choose:Boolean,own stop:Boolean",
-        "source:String,rounds:Int,own choose:Boolean,own stop:Boolean",
+        "source:String,own rounds:Int,own choose:Boolean,own stop:Boolean",
         "source:String,rounds:Int,choose:Boolean,own stop:Boolean,extra:Boolean",
     ] {
         check(signature, false);

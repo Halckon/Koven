@@ -218,10 +218,11 @@ pub(super) fn check(signature: &str, certified: bool) {
                         || s.starts_with("unclassified operation: BorrowCall"))
             );
             assert_eq!(function.blocks.len(), 12);
+            let value_choose = signature.split(',').any(|p| p == "own choose:Boolean");
             let value_stop = signature.split(',').any(|p| p == "own stop:Boolean");
             assert_eq!(
                 function.instructions.len(),
-                if value_stop { 13 } else { 14 }
+                14 - usize::from(value_stop) - usize::from(value_choose)
             );
             let entry_block = function.block(function.entry_block().unwrap()).unwrap();
             let mut roles = entry_block
@@ -257,6 +258,69 @@ pub(super) fn check(signature: &str, certified: bool) {
                 if roles == old {
                     break;
                 }
+            }
+            let choose_role = signature
+                .split(',')
+                .position(|p| p.ends_with("choose:Boolean"))
+                .unwrap();
+            let lang_frontend::parser::Expression::If {
+                condition: choice, ..
+            } = caller
+                .ast()
+                .expressions()
+                .get(fact.pair().branch().expression())
+                .unwrap()
+                .payload()
+            else {
+                panic!("original choice If")
+            };
+            let choice_span = caller.ast().expressions().get(*choice).unwrap().span();
+            let TerminatorKind::Branch(to_header) = &entry_block.terminator.as_ref().unwrap().kind
+            else {
+                panic!("entry header")
+            };
+            let header = function.block(to_header.target).unwrap();
+            let TerminatorKind::Conditional {
+                when_true: to_split,
+                ..
+            } = &header.terminator.as_ref().unwrap().kind
+            else {
+                panic!("counter guard")
+            };
+            let split = function.block(to_split.target).unwrap();
+            let TerminatorKind::Conditional {
+                condition: choice_value,
+                ..
+            } = &split.terminator.as_ref().unwrap().kind
+            else {
+                panic!("original choice split")
+            };
+            let choice_reads = function
+                .instructions
+                .iter()
+                .filter(|i| i.origin == crate::ssa::model::Origin::Source(choice_span))
+                .collect::<Vec<_>>();
+            if value_choose {
+                assert!(choice_reads.is_empty());
+                assert!(split.instructions.is_empty());
+                assert_eq!(
+                    roles.get(&EntityId::Value(*choice_value)),
+                    Some(&choose_role)
+                );
+            } else {
+                let [read] = choice_reads.as_slice() else {
+                    panic!("unique choice Read")
+                };
+                let Operation::Read {
+                    source: crate::ssa::model::PlaceAccess::Loan(loan),
+                } = read.operation
+                else {
+                    panic!("borrow choice")
+                };
+                assert_eq!(read.block, split.id);
+                assert_eq!(split.instructions.len(), 1);
+                assert_eq!(roles.get(&EntityId::Loan(loan)), Some(&choose_role));
+                assert_eq!(read.results, [EntityId::Value(*choice_value)]);
             }
             let stop_role = signature
                 .split(',')

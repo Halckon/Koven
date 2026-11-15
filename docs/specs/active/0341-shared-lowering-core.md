@@ -20767,3 +20767,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 原十二唯一角色、两个 cleanup 点、两臂 fresh 末 End、true break 与 false continued checked、唯一原 Abort 的常量一来源/Span/reason、原完整 ledger 与同次最终两边原子认证均保持。旧 counter9、ordinary/tail 和普通 whole-function 空 Abort 授权不变。
 - 新两目标首遍通过：二十四 ABI 顺序与两来源顺序共四十八形态各两次 assembly，真实 gate 通过两臂后实际 Branch 定位，Value 无 Read 且 Conditional 仍对应原 stop；Borrow 邻域保持独立原 Read Span/result。own rounds、own choose、额外 Boolean 三负例均真实 normal lower/verify/receipt 后精确 counter-break gap，两边不认证；旧已支持 own stop 负例迁为额外参数。
 - 新目标编译 2m11s、执行 0.36s，旧 counter-break 两项回归通过；FE/codegen 三 feature all-targets 严格 Clippy 1m47s、default codegen all-targets 32.34s 与格式检查通过。只普通源码到 SSA 模型检查，不执行生成 Abort/native/故障注入，不推送，默认 workspace 留联合一次。
+
+### D10 counter-break 的独立 choose Value 条件
+
+- 四参数 ABI 中 choose 与 stop 两个 Boolean 现各自按原 typed mode 允许 Borrow/Value；source String、rounds Int 仍强制 Borrow。原两个不同 Name 身份分别确定 split/gate 的角色与 Span，entry 逐实体类型核验；每个条件独立要求原 Read 或零 Read，Value 不借同型 stop 自证 choose，亦不伪造 End。
+- 新两项首遍通过：二十四 ABI 顺序、stop 两模式、两来源顺序共九十六形态各两次 assembly，实际十二块、十二至十三条指令。choose 的原 Span 从原 pair.branch If 取出，再由真实 entry→header 真边定位 split，独立追溯原角色；stop 既有 gate/退出/更新路径断言保持。own rounds 与额外参数的四模式负例均原 normal receipt 后精确 gap；旧 own choose 负例迁为 own rounds+choose，不把既获证域仍当拒绝。
+- 原 sealed wrapper/完整 ledger、十二角色全集、两个 cleanup 点、两臂 fresh 唯一末 End、唯一原 checked Abort 静态来源及原子发布完全保持。新目标编译 2m10s、执行 0.67s；旧 counter-break 两项与 stop 两项均通过，FE/codegen 三 feature all-targets 严格 Clippy 1m47s、default codegen all-targets 32.25s 与格式通过。未重复原 probe，不执行生成 Abort/native/故障注入，不推送，默认 workspace 留联合一次。
