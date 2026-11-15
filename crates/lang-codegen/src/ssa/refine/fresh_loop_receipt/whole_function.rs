@@ -16,6 +16,44 @@ pub(in crate::ssa::refine) fn check(
     covered_instructions: &BTreeSet<InstructionId>,
     span: Span,
 ) -> Result<(), LoweringError> {
+    check_impl(function, covered_blocks, covered_instructions, span, None)
+}
+
+/// A single caller-validated checked-failure role, never a general Abort permission.
+#[cfg(feature = "d10-catalog-experiment")]
+pub(in crate::ssa::refine) fn check_counter_failure(
+    function: &Function,
+    covered_blocks: &BTreeSet<BlockId>,
+    covered_instructions: &BTreeSet<InstructionId>,
+    span: Span,
+    failure: (
+        BlockId,
+        crate::ssa::model::AbortReason,
+        Span,
+        crate::ssa::model::SsaTypeId,
+    ),
+) -> Result<(), LoweringError> {
+    check_impl(
+        function,
+        covered_blocks,
+        covered_instructions,
+        span,
+        Some(failure),
+    )
+}
+fn check_impl(
+    function: &Function,
+    covered_blocks: &BTreeSet<BlockId>,
+    covered_instructions: &BTreeSet<InstructionId>,
+    span: Span,
+    failure: Option<(
+        BlockId,
+        crate::ssa::model::AbortReason,
+        Span,
+        crate::ssa::model::SsaTypeId,
+    )>,
+) -> Result<(), LoweringError> {
+    let mut seen_failure = false;
     let id = function.id();
     let entry = function.entry_block().ok_or_else(|| invalid(span))?;
     let mut blocks = BTreeSet::new();
@@ -95,6 +133,31 @@ pub(in crate::ssa::refine) fn check(
                 vec![when_true, when_false]
             }
             TerminatorKind::Return { values } if values.is_empty() => Vec::new(),
+            TerminatorKind::Abort => {
+                let Some((allowed, reason, origin, int_type)) = &failure else {
+                    return Err(invalid(span));
+                };
+                let crate::ssa::model::AbortReason::CheckedArithmetic {
+                    operator: crate::ssa::model::CheckedArithmeticOperator::Subtract,
+                    divisor,
+                } = reason
+                else {
+                    return Err(invalid(span));
+                };
+                let actual = block.terminator.as_ref().ok_or_else(|| invalid(span))?;
+                if seen_failure
+                    || block.id != *allowed
+                    || actual.abort.as_ref() != Some(reason)
+                    || actual.origin != crate::ssa::model::Origin::Source(*origin)
+                    || divisor.function() != function.id()
+                    || function.entity(EntityId::Value(*divisor)).map(|e| e.ty)
+                        != Some(EntityType::Value(*int_type))
+                {
+                    return Err(invalid(span));
+                }
+                seen_failure = true;
+                Vec::new()
+            }
             _ => return Err(invalid(span)),
         };
         let mut targets = Vec::new();
@@ -158,7 +221,7 @@ pub(in crate::ssa::refine) fn check(
             }
         }
     }
-    if reached != blocks {
+    if seen_failure != failure.is_some() || reached != blocks {
         return Err(invalid(span));
     }
     Ok(())

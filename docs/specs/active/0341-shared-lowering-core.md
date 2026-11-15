@@ -20697,3 +20697,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
   必要旧 late 3 + 两个改动负控共 5/5 通过，双 crate all-targets 三 feature strict 通过（1m43）。
 - CI 同批登记 64 unit/配置，保留 7 public 与 1 frontend；旧晚 owner 不同 callee 负例转为
   Group/计算 scalar，保持真实域外。不执行 native/故障注入/整 CI，默认 workspace 留联合一次。
+
+### D10 bounded-counter 双臂的独立完整 caller 证书
+
+- 独立 sealed `no_carry_counter_branches` selector 核 owns/identity/FullEq、原 counter/rounds/initializer/decrement 与原 pair；Expected 从完整 AST 的初始化、guard、零/一字面及更新表达式独立保存身份和 Span，限完整三个 Borrow 参数（String source、Int rounds、Boolean choose），不开放 Value 模式、额外参数、前后段或 counter-break。原 loan ledger 对每臂 initializer/consumer 逐原 call/argument/ordinal 与 Function producer 核验，最终同次 verifier 后两条边原子发布。
+- 原正常 probe 已独立证实九块/十三指令，未重复运行。完整证书要求原 op==join、finished==exit，其余九角色互异并覆盖全部真实块；逐块原指令、完整 ABI entry slots、实体定义/类型/边、唯一空 Unit Return 全部闭合。原 Int counter 成功回边按原 alias/transport 校验，不与两臂 fresh no-carry 混为一谈。
+- 旧 whole-function check 仍传空 Abort 授权，保持原拒绝；新增仅本域的精确 checked-failure 角色校验，要求原 CheckedSubtract result/failed 类型与分支、原常量一沿实际 true edge 到 Abort divisor、精确 Subtract reason/update Span/本 Function Int 实体，恰一次且无其他 Abort。只检查普通源码生成的 SSA 模型，不执行生成程序或 Abort，不声称一般循环终止或一般 Abort 准入。
+- 新两个目标首遍通过：六 ABI 顺序与两 source 顺序共十二形态各两次 assembly；额外 Boolean、Value rounds、Value choose 三负例均实际原 lower/verify/receipt 成功但精确 counter gap 且两边不认证。正例另独立核九块十三指令、原 update Span、failed→Abort 与 success→header、两 fresh 唯一 End 且不运输。ordinary 两项和 tail 两项回归通过；FE/codegen 三 feature all-targets 严格 Clippy 1m45s、default codegen all-targets 32.20s 通过。独审无阻断，默认 workspace 留联合一次；未 native、故障注入或推送。

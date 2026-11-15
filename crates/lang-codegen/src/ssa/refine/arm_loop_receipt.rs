@@ -26,6 +26,8 @@ mod composed_prefix;
 #[cfg(test)]
 mod composed_prefix_ci;
 mod counter;
+#[cfg(feature = "d10-catalog-experiment")]
+mod counter_audit;
 mod counter_break;
 #[cfg(test)]
 mod counter_break_ci;
@@ -602,6 +604,10 @@ impl Emitted {
             {
                 if receipt.plan.tail_break.is_some() {
                     crate::ssa::d10_project_audit::arm_loop_tail_consumption::record(
+                        function, &receipt,
+                    );
+                } else if receipt.plan.counter_fact.is_some() {
+                    crate::ssa::d10_project_audit::arm_loop_counter_consumption::record(
                         function, &receipt,
                     );
                 } else {
