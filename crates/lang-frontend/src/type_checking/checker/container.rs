@@ -448,6 +448,4 @@ impl Checker<'_> {
             SequentialContainerKind::MutableList => IntrinsicTypeConstructor::MutableList,
         }
     }
-
-
 }
