@@ -20540,3 +20540,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 八角色全 caller 证书保持，exit 仅原 source slot 与唯一原 callee/span 的无结果 DirectCall、空 Unit Return。除原 slot/edge validator，新增从完整 entry 的原 ABI 角色沿实际边传播，固定点后再遍历全边：已知 target role 的每条 incoming 必须已知同 role，未知不能借另一前驱标签；break join 和零迭代 finished 两入边均只运输原 source，flags/fresh 不得带出。无 suffix 的原 exit 仍零参数/零指令。
 - 新两项首遍实跑通过：六 ABI、两条件顺序、source 反序 24 形态各两次 assembly，后消费独立 callee 由原声明 Span 定位；两个退出前驱与实际唯一调用、每臂 End 后汇合均核。Group/具名 suffix、prefix+suffix、多 suffix 四家族均实测原正常 receipt 与具体 gap。旧 tail 两项（原单 suffix 负例改双 suffix）和 ordinary 两项（含原 suffix 精确拒绝）通过。
 - FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.35s、格式检查通过；未重跑已过普通 probe，未 native/故障注入/推送，默认 workspace 留联合一次。
+
+### D10 tail-break 的独立 Boolean Value 条件
+
+- 完整三参数原 typed ABI 中 source 仍强制 Borrow String，两个独立 Name Boolean 条件各可 Borrow/Value；Source 保存原 type/mode 与每个条件 expression/span，并由原 symbol 确定和保存参数 index，entry 逐实体精确核 SharedLoan/Value 与类型。八角色、原 sealed break/ledger、最后 End、无回边和唯一 Unit Return 不变，source suffix 的全边角色来源证明不放宽。
+- header/split 各按原模式要求一条 Read 或零指令；实际 Conditional 对应原角色，Value 不虚构 Read/End。两 ABI 条件仍必须独立且无未用参数，不能把同型值互换；ordinary 的拒绝规则与专有七块证书不变。
+- 新三项首遍通过：三种新模式、六 ABI、条件/source 反序与 suffix 有无共 144 形态各两次 assembly；测试从 entry 实际边定位 header/split，Value 直接 Conditional 追溯原角色，Borrow 唯一 Read 的原 Name Span/result，原 fresh/两退出来源仍完整核验。额外参数与三参数同 flag 保原正常 receipt+gap；owned String source 与 Group 条件均实测原 ownership 精确两条 L0164、两处 borrow 六字符 span、无 audit/receipt。
+- 受影响 tail 两项及 suffix 两项通过；旧 Value flag 负例改为真正额外参数域外。FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.14s、格式检查通过。未重跑普通 probe、未 native/故障注入/推送，默认 workspace 留联合一次。

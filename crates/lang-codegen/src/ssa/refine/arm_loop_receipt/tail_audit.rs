@@ -30,7 +30,9 @@ impl Receipt {
             || p.fact != *fact
             || p.roles != *roles
             || abi.len() != 3
-            || abi.iter().any(|(_, mode)| *mode != ParameterMode::Borrow)
+            || abi
+                .iter()
+                .any(|(_, mode)| !matches!(mode, ParameterMode::Borrow | ParameterMode::Value))
             || self.parameters.len() != abi.len()
             || roles.iter().copied().collect::<BTreeSet<_>>() != (0..abi.len()).collect()
             || roles[0] == roles[1]
