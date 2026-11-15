@@ -6,6 +6,7 @@ use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 pub(super) struct PlannedBodyContext<'a> {
     pub(super) sources: &'a SourceMap,
+    pub(super) non_null_use_spans: &'a BTreeMap<(UnitSymbolId, usize), Span>,
     pub(super) parsed_by_source: &'a [&'a ParsedFile],
     pub(super) while_scopes: &'a [crate::ssa::refine::WhileScopes],
     pub(super) names: &'a ValidatedCompilationUnitNames,
@@ -272,6 +273,7 @@ impl PlannedBodyContext<'_> {
             borrow_bindings,
             entry_boolean_roots,
             nullable_proofs: BTreeMap::new(),
+            non_null_use_spans: self.non_null_use_spans,
             current_receiver,
             consumed_receiver: None,
             closure_binding_context: false,
@@ -342,4 +344,29 @@ impl PlannedBodyContext<'_> {
 
         Ok(())
     }
+}
+
+/// Index original typed narrowed uses for both ordinary and experimental body routes.
+pub(super) fn non_null_use_spans(
+    typed: &CompilationUnitTypes,
+    parsed_by_source: &[&ParsedFile],
+) -> Result<BTreeMap<(UnitSymbolId, usize), Span>, LoweringError> {
+    let mut non_null_use_spans = BTreeMap::new();
+    for fact in typed.non_null_uses() {
+        let expression = fact.expression();
+        let root = fact.symbol();
+        if expression.source_unit() == root.source_unit() {
+            let span = parsed_by_source
+                .get(expression.source_unit().index())
+                .and_then(|parsed| parsed.ast().expressions().get(expression.expression()).ok())
+                .ok_or(LoweringError {
+                    kind: LoweringErrorKind::MissingFact,
+                    span: None,
+                })?
+                .span();
+            non_null_use_spans.insert((root, span.start()), span);
+        }
+    }
+
+    Ok(non_null_use_spans)
 }

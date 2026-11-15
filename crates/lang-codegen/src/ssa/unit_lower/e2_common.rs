@@ -139,7 +139,9 @@ pub(in crate::ssa) fn publish<'a>(
     let known_functions = callable_abi.known_functions(&function_ids, &source_plan);
     let scopes: Vec<crate::ssa::refine::WhileScopes> =
         (0..parsed.len()).map(|_| Default::default()).collect();
+    let non_null_use_spans = super::planned_body::non_null_use_spans(typed, &parsed).ok()?;
     let context = super::planned_body::PlannedBodyContext {
+        non_null_use_spans: &non_null_use_spans,
         sources: handoff.sources(),
         parsed_by_source: &parsed,
         while_scopes: &scopes,

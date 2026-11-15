@@ -28,5 +28,6 @@ RUN bash /opt/koven-ci/install_ci_llvm_ubuntu26.sh \
 
 # Cargo tools live outside HOME, which Actions replaces with its own mount.
 # Jobs choose their own writable CARGO_HOME/target; no crate cache enters the image.
+LABEL org.opencontainers.image.title="Koven CI toolchain"
 WORKDIR /workspace
 CMD ["bash"]

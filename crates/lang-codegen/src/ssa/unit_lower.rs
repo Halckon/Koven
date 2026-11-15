@@ -194,6 +194,7 @@ pub(in crate::ssa) struct UnitExpressionLowerer<'a> {
     pub(in crate::ssa) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
+    non_null_use_spans: &'a BTreeMap<(UnitSymbolId, usize), Span>,
     current_receiver: Option<ReceiverBinding>,
     consumed_receiver: Option<ConsumedReceiver>,
     closure_binding_context: bool,
@@ -224,6 +225,7 @@ impl UnitExpressionLowerer<'_> {
         }
         if result != LoweredValue::Diverged {
             self.emit_drops(UnitDropPoint::AfterExpression(unit_expression))?;
+            self.retire_completed_heap_if_borrow(unit_expression)?;
         }
         Ok(result)
     }
@@ -419,6 +421,54 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
+    }
+
+    /// The view is needed only through the last typed narrowed use in the body.
+    /// Every statement up to that use must be an existing direct Borrow call.
+    fn heap_if_borrow_prefix_end(
+        &self,
+        control: UnitExpressionId,
+        body: StatementId,
+        root: loop_control::heap_nullable_if::NamedNullableIfRoot,
+        span: Span,
+    ) -> Result<Option<UnitExpressionId>, LoweringError> {
+        let ast = self.parsed.ast();
+        let body = ast
+            .statements()
+            .get(body)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Statement::ControlBody { elements } = body.payload() else {
+            return Ok(None);
+        };
+        let range = (root.symbol, body.span().start())..(root.symbol, body.span().end());
+        let last_use = self
+            .non_null_use_spans
+            .range(range)
+            .rev()
+            .find_map(|(_, &span)| span_contains(body.span(), span).then_some(span));
+        let Some(last_use) = last_use else {
+            return Ok(None);
+        };
+        if !self.heap_if_source_context(control, span)? {
+            return Ok(None);
+        }
+        for statement in elements {
+            let statement = ast
+                .statements()
+                .get(*statement)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let Statement::Expression { expression } = *statement.payload() else {
+                return Ok(None);
+            };
+            let expression = self.ungroup_map_if_expression(expression, span)?;
+            if !self.heap_if_call_qualifies(expression, root, span)? {
+                return Ok(None);
+            }
+            if span_contains(statement.span(), last_use) {
+                return Ok(Some(UnitExpressionId::new(self.source_unit, expression)));
+            }
+        }
+        Err(lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
     fn lower_return(

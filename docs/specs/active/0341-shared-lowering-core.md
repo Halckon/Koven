@@ -19801,3 +19801,22 @@ StringOwner 类型表、零参 Unit Return，才认证来源 BorrowCall；与其
 严格 Clippy（1m12s）、默认 all-targets check（37.72s）、fmt/diff/docs（958）及相对
 `c5d9b350` 尺寸门禁（2367 Rust、37 历史超限）通过。独立静审无阻断，未重复无关基线，
 未纳新 main/PR、未推送、未执行 native 或人工故障。
+
+### 锁定 binding 后组合 main #437/#438（2026-11-15）
+
+保留 `70a1fa16` 原分支，独立组合准确 main `fdf5766b`；不纳未合 #433。
+#437 仅镜像 LABEL；#438 原 typed non-null-use 索引等价迁入 planned-body 共用 helper，
+普通入口与 E2 common 入口各自构建并经 BodyContext 传给实际 lowerer，保本地拆分、
+完整 owned 与 D10/E2 hooks，不恢复旧大 orchestrate。原 nullable Heap If 的最后合格
+Borrow 前缀后退休 proof；不据此放宽 D10 String 控制流或既有准入。
+
+组合 binding 2/2、正常 E2 transport 3/3、E2 common distinct-named exact 1/1 通过。
+复用 #438 原 NULLABLE_IF_WRITEBACK 与原 suffix 变体，将 native helper 的
+checked→lower_entry→verify 前半等价提取，新 source-only 1/1 实际验证重绑定与
+两次 see 后普通 println/return suffix；未调用 emit/link/run。新增原 native 三项仅
+编译列名。conditional 内含人工错 target/type 的测试仅编译，未执行。
+默认 workspace all-targets check（9.30s）与 codegen 三 feature all-targets 严格
+Clippy 初轮（22.73s）通过；新增 source-only 测试后严格 Clippy（15.00s）通过。fmt/diff/docs
+（958）通过，相对 `70a1fa16` 尺寸门禁通过（2367 Rust、37 历史超限），新增 helper
+所在文件 448 行。staged 合并与纯 SSA helper 独审；本地提交，不推送、无 native 执行
+或本地故障注入，未将远端 CI 状态计作本地验收。

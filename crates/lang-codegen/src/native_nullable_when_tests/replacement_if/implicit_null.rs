@@ -319,3 +319,130 @@ fun entry(): Unit {
     );
     crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
 }
+
+const NULLABLE_IF_WRITEBACK: &str = r#"class Resource(val label: String) { deinit() { println(label) } }
+fun make(value: Resource, empty: Boolean): Resource? {
+    println("rhs")
+    println(value.label)
+    println("rhs-finished")
+    if (empty) { return null }
+    return Resource("drop-new")
+}
+fun see(value: Resource): Unit { println("see"); println(value.label) }
+fun run(own input: Resource?, own trigger: Resource?, empty: Boolean): Unit {
+    var x = input
+    when (x) {
+        null -> { println("null") }
+        else -> {
+            when (trigger) {
+                null -> { see(x) }
+                else -> { see(trigger); x = make(x, empty) }
+            }
+            println("join")
+            if (x != null) { see(x); return }
+        }
+    }
+    println("normal")
+}
+fun entry(): Unit {
+    run(Resource("drop-old"), Resource("trigger-new"), false)
+    println("caller")
+    run(Resource("drop-to-null"), Resource("trigger-null"), true)
+    run(Resource("drop-kept"), null, false)
+    run(null, Resource("trigger-skipped"), false)
+}
+"#;
+const NULLABLE_IF_WRITEBACK_OUTPUT: &str = concat!(
+    "see\ntrigger-new\nrhs\ndrop-old\nrhs-finished\ndrop-old\n",
+    "join\nsee\ndrop-new\ndrop-new\ntrigger-new\ncaller\n",
+    "see\ntrigger-null\nrhs\ndrop-to-null\nrhs-finished\ndrop-to-null\n",
+    "join\nnormal\ntrigger-null\n",
+    "see\ndrop-kept\njoin\nsee\ndrop-kept\ndrop-kept\n",
+    "null\nnormal\ntrigger-skipped\n",
+);
+#[test]
+fn nullable_if_borrows_rebound_outer_resource_then_returns() {
+    assert_nullable_if_writeback(
+        "nullable-if-resource-writeback-return.ko",
+        NULLABLE_IF_WRITEBACK,
+        NULLABLE_IF_WRITEBACK_OUTPUT,
+    );
+}
+
+#[test]
+fn nullable_if_releases_its_view_before_the_return_suffix() {
+    let text = NULLABLE_IF_WRITEBACK.replace(
+        "see(x); return",
+        "see(x); see(x); println(\"returning\"); return",
+    );
+    let expected = NULLABLE_IF_WRITEBACK_OUTPUT
+        .replace(
+            "join\nsee\ndrop-new\n",
+            "join\nsee\ndrop-new\nsee\ndrop-new\nreturning\n",
+        )
+        .replace(
+            "join\nsee\ndrop-kept\n",
+            "join\nsee\ndrop-kept\nsee\ndrop-kept\nreturning\n",
+        );
+    assert_nullable_if_writeback("nullable-if-resource-return-suffix.ko", &text, &expected);
+}
+
+fn assert_nullable_if_writeback_ssa(path: &str, text: &str) {
+    let source = checked(path, text);
+    let entry = source.declaration("entry", SymbolKind::Function);
+    let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
+    let (program, _) =
+        result.expect("the rechecked current owner must survive the borrow until return");
+    assert!(!routed.contains(&function(&source, &program, "run").name));
+    verify_program(&program).expect("actual Unit SSA verifies");
+}
+
+#[test]
+fn nullable_if_writeback_prefix_and_suffix_verify_without_native_execution() {
+    assert_nullable_if_writeback_ssa("nullable-if-writeback-ssa.ko", NULLABLE_IF_WRITEBACK);
+    let suffix = NULLABLE_IF_WRITEBACK.replace(
+        "see(x); return",
+        "see(x); see(x); println(\"returning\"); return",
+    );
+    assert_nullable_if_writeback_ssa("nullable-if-suffix-ssa.ko", &suffix);
+}
+
+fn assert_nullable_if_writeback(path: &str, text: &str, expected: &str) {
+    assert_nullable_if_writeback_ssa(path, text);
+    let output = crate::native_tests::emit_link_and_run(path, text, "entry");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+}
+
+#[test]
+fn heap_if_prefix_leaves_an_independent_first_call_to_ordinary_lowering() {
+    let text = r#"class Resource(val label: String) { deinit() { println(label) } }
+fun make(): Resource? = Resource("drop-new")
+fun see(value: Resource): Unit { println("see"); println(value.label) }
+fun run(own input: Resource?, own independent: Resource): Unit {
+    var x = input
+    when (x) { null -> { println("old-null") }; else -> { println("old-present") } }
+    if (x != null) {
+        see(independent)
+        x = make()
+        if (x != null) { see(x) }
+    }
+}
+fun entry(): Unit {
+    run(Resource("drop-old"), Resource("drop-independent"))
+    run(null, Resource("drop-null-path"))
+}
+"#;
+    let expected = concat!(
+        "old-present\nsee\ndrop-independent\ndrop-old\nsee\ndrop-new\ndrop-new\ndrop-independent\n",
+        "old-null\ndrop-null-path\n",
+    );
+    assert_nullable_if_writeback("nullable-if-independent-first.ko", text, expected);
+
+    // Zero-argument constructions do not publish a general-purpose call descriptor.
+    let text = format!(
+        "class Marker {{ deinit() {{ println(\"drop-marker\") }} }}\n{}",
+        text.replace("see(independent)", "Marker(); see(independent)"),
+    );
+    let expected = expected.replacen("old-present\n", "old-present\ndrop-marker\n", 1);
+    assert_nullable_if_writeback("nullable-if-construction-first.ko", &text, &expected);
+}

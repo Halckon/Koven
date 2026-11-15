@@ -148,11 +148,13 @@ fn lower_unit_roots_impl(
         })
         .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
     let known_functions = callable_abi.known_functions(&function_ids, &source_plan);
+    let non_null_use_spans = super::planned_body::non_null_use_spans(typed, &parsed_by_source)?;
 
     let body_context = super::planned_body::PlannedBodyContext {
         sources,
         parsed_by_source: &parsed_by_source,
         while_scopes: &while_scopes,
+        non_null_use_spans: &non_null_use_spans,
         names,
         typed,
         owned,
