@@ -1,0 +1,27 @@
+// 递归与泛型：条件按声明求一次；自引用、互引用、实参不断增长的递归都收敛
+class Resource(n: Int) deinit
+class PlainCycle(next: PlainCycle?)
+class ResourceCycle(next: ResourceCycle?, item: Resource)
+class MutualA(next: MutualB?)
+class MutualB(next: MutualA?, item: Rc<Int>)
+class Node<T>(item: T, next: Box<Node<T>>?)
+class Grow<T>(item: T, next: Grow<List<T>>?)
+class Swap<A, B>(item: A, next: Swap<B, A>?)
+class Pair<A, B>(first: A, second: B)
+class Phantom<T>(n: Int)
+expect EarlyDrop PlainCycle = yes
+expect Transferable PlainCycle = yes
+expect EarlyDrop ResourceCycle = no
+expect Transferable MutualA = no
+expect why Transferable MutualA = MutualA.next -> MutualB? -> MutualB.item -> Rc<Int>（不满足 Transferable）
+expect Transferable Node = if T: Transferable
+expect EarlyDrop Node<Resource> = no
+expect EarlyDrop Node<Int> = yes
+expect Transferable Grow = if T: Transferable
+expect EarlyDrop Grow<Resource> = no
+expect Transferable Swap = if A: Transferable, B: Transferable
+expect Transferable Swap<Int, Rc<Int>> = no
+expect Transferable Pair = if A: Transferable, B: Transferable
+expect Transferable Pair<Int, String> = yes
+expect Transferable Phantom = yes
+expect Transferable Phantom<Rc<Int>> = yes

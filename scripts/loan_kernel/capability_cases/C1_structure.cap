@@ -1,0 +1,32 @@
+// 结构推导：与 Guide 10、11 现行的 Copyable / Transferable 规则逐条对照
+value class Point(x: Int, y: Int)
+value class Named(name: String, at: Point)
+class Account(id: Int, owner: String)
+enum Option<T>(T)
+enum Color
+class File(fd: Int) deinit
+class Holder(file: File, tag: Int)
+expect Copyable Point = yes
+expect Copyable Named = no
+expect why Copyable Named = Named.name -> String（不满足 Copyable）
+expect Copyable Account = no
+expect Copyable Color = yes
+expect Copyable Option = if T: Copyable
+expect Copyable Option<Point> = yes
+expect Copyable Option<Account> = no
+expect Copyable Point? = yes
+expect Transferable Account = yes
+expect Transferable Box<Account> = yes
+expect Transferable Rc<Int> = no
+expect Transferable List<Rc<Int>> = no
+expect why Transferable List<Rc<Int>> = List<Rc<Int>> -> Rc<Int>（不满足 Transferable）
+expect Transferable Option = if T: Transferable
+expect Copyable File = no
+expect EarlyDrop File = no
+expect EarlyDrop Holder = no
+expect why EarlyDrop Holder = Holder.file -> File（声明使它不满足 EarlyDrop）
+expect EarlyDrop Account = yes
+expect EarlyDrop List<File> = no
+expect EarlyDrop File? = no
+expect EarlyDrop Box<Option<File>> = no
+expect EarlyDrop Rc<File> = no

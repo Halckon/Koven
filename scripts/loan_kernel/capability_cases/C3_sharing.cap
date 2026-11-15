@@ -1,0 +1,32 @@
+// Shareable、内部可变与受信任声明：评审 R5 的 Arc 条件
+opaque class Arc<T>(p: RawPtr<T>) trusted Shareable if T: Shareable, T: Transferable trusted Transferable if T: Shareable, T: Transferable trusted Escapable if T: Escapable trusted Forgettable yes trusted ImplicitDrop yes
+opaque class Mutex<T>(cell: RawCell<T>) trusted Shareable if T: Transferable trusted Transferable if T: Transferable trusted Escapable yes trusted EarlyDrop if T: EarlyDrop trusted Forgettable if T: Forgettable trusted ImplicitDrop if T: ImplicitDrop
+opaque class Atomic(cell: RawCell<Int>) trusted Shareable yes trusted Transferable yes trusted Escapable yes trusted EarlyDrop yes trusted Forgettable yes trusted ImplicitDrop yes
+class Cell<T>(cell: RawCell<T>)
+class Config(name: String, limit: Int)
+class Counter(hits: Cell<Int>)
+view class Reader(borrow c: Config)
+view class Writer(inout c: Config)
+view class CellReader(borrow c: Counter)
+expect Shareable Config = yes
+expect Shareable RawCell<Int> = no
+expect Shareable Cell<Int> = no
+expect Transferable Cell<Int> = yes
+expect Shareable Counter = no
+expect why Shareable Counter = Counter.hits -> Cell<Int>.cell -> RawCell<Int>（不满足 Shareable）
+expect Shareable Atomic = yes
+expect Shareable Mutex<Cell<Int>> = yes
+expect Shareable Mutex<Rc<Int>> = no
+expect Shareable Arc = if T: Shareable, T: Transferable
+expect Transferable Arc<Config> = yes
+expect Transferable Arc<Cell<Int>> = no
+expect Shareable Arc<Mutex<Cell<Int>>> = yes
+expect Transferable Arc<Mutex<Rc<Int>>> = no
+expect Transferable Reader = yes
+expect Transferable CellReader = no
+expect why Transferable CellReader = CellReader.c -> borrow<Counter> -> Counter.hits -> Cell<Int>.cell -> RawCell<Int>（不满足 Shareable）
+expect Transferable Writer = yes
+expect Copyable Reader = yes
+expect Copyable Writer = no
+expect Escapable Reader = no
+expect Escapable Config = yes
