@@ -1,15 +1,15 @@
 # SPEC-0452: `lang-codegen` 非 `ssa` 子树叶子薄壳与同级测试小文件批量收敛（129 个）
 
-> **性质**：正式开发规范（Spec） · **状态**：in-progress · **读取时机**：收敛 `crates/lang-codegen/src` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/`
+> **性质**：正式开发规范（Spec） · **状态**：done · **读取时机**：收敛 `crates/lang-codegen/src` 遗留壳子模块时 · **唯一真源**：`crates/lang-codegen/src/`
 
 | 字段 | 值 |
 |---|---|
 | 编号 | 0452 |
 | 标题 | `lang-codegen` 非 `ssa` 子树叶子薄壳与同级测试小文件批量收敛（129 个） |
 | 版本目标 | v0.46 |
-| 状态 | in-progress |
+| 状态 | done |
 | 创建日期 | 2026-11-12 |
-| 完成日期 | - |
+| 完成日期 | 2026-11-15 |
 | 关联里程碑 | M2（借用系统）、M3（单线程完备） |
 | 关联迭代 | E3（单下降管道收敛） |
 | 关联 ADR | ADR-0006, ADR-0008, ADR-0032, ADR-0033 |
@@ -203,7 +203,7 @@
 
 ---
 
-## 3. 验收标准
+## 3. 原始验收目标（历史，不再作为本次完成条件）
 
 1. 上述 129 个薄壳文件从物理树移除，全部非例外修改后 Rust 文件严格小于 1000 行。
 2. `python3 scripts/gen_spec_dag.py`、`python3 scripts/check_docs.py` 与 `python3 scripts/check_rust_sizes.py --base main` 通过，手写 Rust 文件数从 `1811` 降至 `1682`。
@@ -233,7 +233,7 @@
 | fmt、Rust 尺寸门禁 | 均退出码 0；内联宿主 955 行 |
 | 独立只读审查 | 核对三个旧文件、完整 diff、挂载、private helper 来源、fixture、cfg 与位置敏感风险，未发现本候选的具体问题 |
 
-当前原清单物理删除进度为 **128/129**，剩余 nullable Rc 文件继续待办。
+`0cf1d025` 检查点的原清单物理删除进度为 **128/129**，当时剩余 nullable Rc 文件待办。
 125 项既有迁移的完整性、原总文件数目标、完整回归与双宿主 CI 仍须验收；本 Spec 保持
 `in-progress`，不以本轮三个模块的有界通过替代整批验收。
 
@@ -253,3 +253,94 @@ checkpoint 测试支持不能容纳 D10 新增的全部 fault 变体而仍满足
 checkpoint 的已有内容及 D10 原 helper 的所有变体共同保全；这属于模块迁移而非
 纯内联退役，不能把源目录 helper 消失视为测试支持责任已经删除。动态验证另记
 SPEC-0341 整合验收，故障注入仍只在 CI 执行。
+
+### 4.2 同步 PR421 与新 owner/borrow 主干后的职责文件恢复
+
+以 `4855b620` 为集成输入，同步 PR421 `9526753c`（含 main `3b7a9a7a`）。唯一
+modify/delete 冲突是 `native_borrow_result_tests.rs`：此前的 18 个测试已内联到
+`native_boxed_enum_tests.rs::borrow_result_tests`；新主干在原职责文件追加 12 个真实
+native loop 用例，源文件从 271 行增为 568 行。继续内联会让当时 868 行父文件增长到
+约 1165 行，违反尺寸护栏。因此恢复 canonical 文件，正文与 PR421 输入逐字节相同；
+删除旧内联副本，把 `native_tests::borrow_result_tests` 从 re-export 改回直接模块声明。
+没有复制测试、删掉新增矩阵或塞到无关宿主。
+
+原有 helper 接口仍在 `native_tests::borrow_result_tests`；实际 libtest 路径回到 main
+的 `native_tests::borrow_result_tests::*`。全清单发现 3269 项 feature 测试，末尾名称的
+多重集与新 PR421 完全一致，但清单不证明执行通过。独立只读审查核对 18 旧 + 12 新测试、
+两个内部 helper、fixture 入口、`super` 作用域及精确 FQN 引用，未发现本轮具体问题。
+
+| 验证 | 实际结果 |
+|---|---|
+| feature all-targets check | 退出码 0 |
+| 原 borrow native 全模块、三组 owner 与 local reassignment 合选 | 300 秒超时，45 项中观察到 42 项 passed，无观察到失败；缺少汇总，不计整组通过 |
+| 收窄至新增 12 项 borrow native、原三组 owner 9 项、local reassignment 6 项 | 默认与 feature 均 27 passed / 0 failed / 0 ignored，退出码均 0 |
+| 默认与 feature 的 all-targets Clippy（`-D warnings`） | 均退出码 0 |
+| fmt、文档、Rust 尺寸门禁 | 均退出码 0；恢复文件 568 行、原 boxed 宿主降为 590 行，不提高上限 |
+
+当前物理进度回调为 **127/129**，保留 `native_nullable_rc_proof_tests.rs` 与
+`native_borrow_result_tests.rs` 两个职责文件。0451 的 21 项及 0453 的 7 项保留决定不变，
+三个 Spec 合计保留 30 个原目标路径；该数量不是语义验收。本 Spec 继续 `in-progress`，
+完整回归、既有迁移审计与双宿主 CI 尚未完成，不归档。
+
+### 4.3 修复 sanitizer 静态门禁的退役路径消费者
+
+集成分支 `2828b8d7` 的 [push CI 43542804418](https://github.com/Halckon/Koven/actions/runs/43542804418)
+在 scripts 525 项测试中因一项 `FileNotFoundError` 失败：静态 wiring 测试仍读取已退役的
+`native_sanitizer_tests/map_provider.rs`。实际 exporter 保留在同职责父模块
+`native_sanitizer_tests.rs::map_provider`，完整 libtest FQN 未变化。
+
+先以原静态测试复现失败，再改为确认实际内联模块声明并只截取该模块正文；原真实 IR、
+双模式、12 项 manifest、精确消费标签及输入身份先于逐项执行的全部断言保留。没有恢复
+空壳、扩大为全文件断言、跳过测试或修改生产 sanitizer 脚本。独立只读审查核对实际模块
+边界、Rust 挂载、精确 exporter 调用和 consumer 合同，未发现本轮具体问题。
+
+定向 Python 测试 23 项为 `OK (skipped=1)`；按 CI 使用的 GNU checksum 工具执行完整
+`python3 -m unittest discover -s scripts/tests -v`，525 项为 `OK (skipped=1)`，退出码 0。
+唯一跳过项为真实 Linux `/proc` 进程组资源记账，本机 macOS 未执行，不记作通过。
+首次完整本机运行另因 BSD `sha256sum` 不支持 `--strict` 而失败；使用已安装 GNU
+coreutils 后重验通过，未修改无关工具链测试。`check_docs.py`、diff whitespace 均通过。
+本轮仅修正 Python 路径消费者，不重跑 Cargo；新 head 的远端 CI 仍须独立确认。
+
+### 4.4 CI 修复确认及 sanitizer exporter 实际迁移验收
+
+修复检查点 `72b93319` 的 [push CI 43543710735](https://github.com/Halckon/Koven/actions/runs/43543710735)
+已成功结束：6 项成功、8 项按本次 Python/文档改动过滤跳过，原 Docs & Spec Structural
+Gate 通过。被过滤的 Rust tests/Clippy/Preview 不计为已执行；本结果不补齐整批双宿主验收。
+
+随后继续核对该 exporter 的实际迁移。原始文件基线为 `90f05cd1`（原 0452 提交
+`2b3d624b` 的直接父提交）：退役文件全部 884 个代码/字面量 token 与当前内联正文
+一致，仅排除代码空白及注释，没有裁掉 helper 或改动 source/golden。
+
+默认与 `loan-observation-test-support` 分别精确执行
+`native_sanitizer_tests::map_provider::map_provider_resource_histories_export_real_ir`，
+各为 1 passed / 0 failed / 0 ignored，退出码 0；另外在两配置各保留一轮真实 exporter
+产物并复跑通过。每配置 manifest 恰为 12 个唯一标签，来自六个原 Resource history
+用例乘 MemoryDocument Unit/rooted Unit 两条实际入口；历史标签 single/unit 未改名。
+保留产物的 24 个 cell 均实际链接并执行，退出状态为 0，完整 stdout 等于独立 golden，
+运行 stderr 为空。两配置逐标签源码、golden 和原始 LLVM IR 字节一致，两入口对应的
+六组 source/golden 也一致。ASan 属性模块仍经 LLVM verifier；本轮没有实际运行 Linux
+ASan/LSan consumer，不把 exporter 成功等同 sanitizer 检出验收。
+
+Clang 链接均成功，但保留了 macOS `-Woverride-module` target-triple 警告；没有关闭
+警告、修改目标 IR 或把链接 stderr 误记为空。临时产物、身份摘要和日志留仓库外，本节
+保留输入提交、精确入口与结论。原物理进度仍为 127/129；完整既有迁移与双宿主 CI
+验收继续待办，不改变本 Spec 状态。
+
+## 5. 修订验收与有界收尾
+
+2026-11-15 用户批准保留34个职责模块，并授权按修订合同在收尾 CI 通过后合入 #423。
+§3 原全部删除与固定文件数目标**未达成**，原文保留为历史，不再作为本次完成条件。
+本 Spec 按修订范围标记 done；前面各轮 in-progress/失败/待验描述保留对应历史身份，
+不因归档倒写为通过。
+
+本清单 129 项中 127 路径不存在、2 保留。
+34项完整清单、职责/内容/尺寸/行为验收、精确候选CI及延期边界统一见
+[SPEC-0453 §5](0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#5-修订验收与有界收尾)。
+本次不关闭整个 E3、全部 Compatibility 或主干既有布局欠账；归档 head CI 与合并另验。
+
+
+### 5.1 D10/E2 组合树挂载说明（2026-11-15）
+
+本次组合保留§4.1全部新增borrow native正文，但采用§4.2之后主干的直接
+`native_tests::borrow_result_tests`挂载，取消boxed宿主的旧path/re-export，helper
+引用回到直接父域。§4.1路径仅是当时历史，不代表当前FQN；不复制或删减测试。

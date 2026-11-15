@@ -19350,3 +19350,33 @@ debug断言核索引长度，最终全unit错误撤销全部loans/ledger，不�
 37历史欠账）；当前main比较无唯一merge-base，组合后的主干门禁仍待后续独立核验。
 不执行生成native、故障注入或推送；只证明既有protocol1局部事实跨通道关联，不是
 一般callable/CFG闭包、Deinit专测或项目准入完成。
+
+### D10/E2 保留检查点与 main #426 的独立组合（2026-11-15）
+
+从本地 `cd487917` 新建 `integration/spec-0341-d10-e2-main426-20261115`，
+合并准确主干 `e16c1d27`；旧 `main430` 集成分支保留原检查点，不覆盖或推送。
+六处冲突按职责解决：保留全部新增borrow native正文，使用主干直接
+`native_tests::borrow_result_tests`挂载并调整父域import/helper，删除boxed旧重复挂载；
+`d10_counter`及三owner测试保留。`lib.rs`/`native.rs`/`llvm.rs`与本地检查点字节一致，
+D10/E2 hook与create-only未损失。Runtime三职责模块按main迁回独立模块，
+不恢复无读abort字段或扩大lint。0452两边历史及新挂载说明保全，依赖图由生成器重建；
+sanitizer静态消费者使用实际内联模块边界，原精确断言保留。
+
+Guide #426的容器/nullable/payload递归资源分类与未知泛型词法析构文字及新增测试保留；
+本片String literal限定不扩展到泛型或资源生命周期。
+
+联合实跑通过：source ledger十项、资源分类十一项（含RcOwner）、五源CLI exact一项
+（两Replace顺序）；E2仅四项明确无native/跨run混配的普通源码→SSA检查：
+`e2_two_source_transport_tests::{shared_branch_transport_baseline,child_borrow_branch_remains_unsupported,shared_child_straight_line_transport_baseline}`
+和`e2_two_source_bridge_tests::unsupported_actual_leaf_bodies_do_not_become_placeholders`。
+没有执行bridge其余混配/native测试，也没有把清单结果当动态通过。
+
+默认workspace all-targets check与frontend/codegen/CLI双feature all-targets严格Clippy通过。
+codegen双feature清单3304项无重复：直接borrow模块34、companion boundary2、d10_counter4，
+三owner指定入口各一次，旧boxed borrow路径零；native_cli默认清单59项含两个资源scope
+测试。上述native条目只编译/列名，未执行。首次默认check因borrow顶端父域import未迁移
+而失败，最小修正后重验通过，没有隐藏该失败或删测试。
+
+合并前尺寸对本地起点`cd487917`通过（2339文件、37历史欠账），文档958及静态wiring
+一项通过。此时HEAD与e16存在两个merge-base，尺寸工具拒绝歧义比较；merge本地提交后
+再对直接父e16补门禁，不fetch改写历史或抬baseline。无native、故障注入、远端CI或推送。

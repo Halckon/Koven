@@ -39,6 +39,9 @@ mod builtin_result;
 #[path = "native_cli/final_debug_artifacts.rs"]
 mod final_debug_artifacts;
 
+#[path = "native_cli/resource_scope_drop.rs"]
+mod resource_scope_drop;
+
 use std::{
     ffi::OsStr,
     fs,

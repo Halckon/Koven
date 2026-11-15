@@ -11,7 +11,8 @@ body、drop 支持及循环条件，再要求 nullable/已迁家族、有界 rec
 不再是试点时的统一排除条件。接受后由 `ssa::refine` lowering，失败即报错，不回退；
 其余实例仍进入实际的 `unit_lower` Compatibility 函数体路径。带 `Inout` 参数或 receiver
 的函数若未进入细化层，仍以 UnsupportedNode 拒绝，不在兼容路径伪造 exclusive-loan lowering。
-精确准入以当前 `refine/subset` 代码与测试为准，历史试点清单不是今日完整准入表。
+精确准入以当前 `refine/subset` 代码与测试为准，历史试点清单不是今日完整准入表；
+当前代表性残余、延后项与测试负控见[终态差距快照](ownership-refinement-gaps.md)。
 
 [SPEC-0454](../archive/specs/0454-refine-untriggered-linear-scalars.md) 的直线标量触发只纳入
 非泛型、无 receiver/StaticSelf/借用或carrier返回的普通具名函数：Boolean/整数参数按原
