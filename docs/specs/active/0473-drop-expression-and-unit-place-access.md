@@ -72,3 +72,29 @@ iteration loan优先级、borrowed/container/partial move、alias与mutable-this
 Rust组末门禁后未再改。未跑下游codegen/CLI/LSP测试全套、CI-only fault/真实校准/
 sanitizer；R4集中push及精确新头CI另验，Spec active、PR Draft，不归档合入，不以旧头CI
 或编译检查代替真实运行。剩余五根不代表必须机械拆散大型单一测试算法。
+
+## 4. PR #439 CI校准路径修复
+
+失败输入a94bc214，精确PR CI43717226099双平台Targeted Tests的Generated resource
+program contracts报checker-mutation/tool_or_harness_failure/target-pattern-not-unique。
+本Spec将ensure_available移dataflow/place_access.rs，但真实checker校准脚本仍读取旧
+根dataflow.rs，mock也随常量构造假源，未覆盖真实源码位置。这是本批遗漏的校准接缝，
+不是语言行为测试失败，不用重试/忽略/降门禁掩盖。
+
+修复268317dc：更新CHECKER_FILE到真实模块；regex下一方法边界识别普通fn与pub/
+pub(scope) fn，防迁移后跨可见方法拼接误命中。保留严格唯一/真实red-green/恢复hash与
+diff检查，不选首匹配或禁用校准。新增真实仓库目标唯一且可反替换还原测试及四种方法
+边界负例。实际RED为旧路径1 error、public边界3 failures；修后定向4通过，全部generated
+owner Python测试80通过。首版边界fixture缺目标comma未触发原regex，修为真实片段后
+证实RED，不把无效fixture当回归证据。
+
+修复提交上实际运行check_generated_owner_checker.py：真实mutant报告消失、恢复后原
+L0131/span/labels一致，红绿各真实binary精确命中1项；restored_clean/green_verified为true，
+original/restored hash一致。再运行CI同名check_generated_owners.py：退出0，16个生成
+案例通过，真实checker校准通过。macOS calibration为partial：address ASan因平台限制
+skipped，leak为counter路径，不能声称Linux ASan/LSan也已执行；精确双平台CI另验。
+
+独立完整e43b2e49..268317dc真实63行diff复核No issues found，核真实位置、方法边界、
+fail-closed与回归测试及真实校准产物；审查只读不重跑。docs971/空白通过，Rust未改，
+不无故重复frontend全套；本次证据位于仓库外CI修复目录。本地完整合同不是远端双平台
+精确head CI通过；本Spec继续active、PR Draft，不归档或合入。
