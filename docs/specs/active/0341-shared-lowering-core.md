@@ -20431,3 +20431,13 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 本片三个精确目标加入原CI双配置清单，bash语法检查通过；未本地执行CI故障脚本。
 本轮锁定0bfae681基线，未混入后续main迁移；按本树FE/API重编避免跨树旧rmeta。
 未重复默认workspace门禁；不推送、不执行native或本地故障注入。
+
+### E2 近期入口 CI 精确目标补齐（独立清单增量）
+
+- 在 staggered 本地提交 `954e2f83` 基线上补全 `scalar_origin`、`direct_scalars`、
+  `expression_entry`、`two_call_entry`、`shared_owner_pair`、`shared_mixed_pair` 六模块
+  共 17 个已有正常测试的精确名称，沿用原两 feature 配置和 `--exact`/列名唯一门禁。
+- 原 25 个 unit 目标及 7 个 public-library 目标顺序和 CI-only/fault 执行限制不变，
+  unit 清单合计 42 个；同时修正原输出中已滞后的数量。没有新增或改写生产与测试。
+- 本片仅静态逐项核对模块注册、原 `#[test]` 函数名及不存在 ignored/cfg 差异；
+  不重跑已完成的本地分片验证，不执行 native 或人工故障项，也不声称远程 CI 已运行。
