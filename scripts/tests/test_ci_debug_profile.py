@@ -1,5 +1,8 @@
 """CI-only Linux limited-debug profile contracts; do not run Cargo."""
 from pathlib import Path
+import os
+import subprocess
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,6 +46,26 @@ class CiDebugProfileTests(unittest.TestCase):
         summary = self.workflow.split('\n  ci-passed:\n', 1)[1]
         self.assertIn('test,', summary.split('steps:', 1)[0])
         self.assertIn('run: python3 scripts/check_ci_results.py', summary)
+
+    def test_default_codegen_gate_keeps_exact_selection_and_uses_scoped_build_settings(self):
+        with tempfile.TemporaryDirectory() as temp:
+            cargo = Path(temp) / 'cargo'
+            cargo.write_text('#!/bin/sh\npwd -P\nprintf "%s\\n" "$@"\nexit 37\n')
+            cargo.chmod(0o755)
+            result = subprocess.run(
+                ['bash', str(ROOT / 'scripts/run_codegen_default_tests.sh'),
+                 '--offline', '-j1', 'fault::example', '--', '--exact', '--ignored'],
+                cwd=temp, env={**os.environ, 'PATH': temp + os.pathsep + os.environ['PATH']},
+                capture_output=True, text=True, check=False, timeout=10,
+            )
+        self.assertEqual(37, result.returncode, result.stderr)
+        self.assertEqual([
+            str(ROOT.resolve()),
+            'test', '--locked', '-p', 'lang-codegen', '--lib',
+            '--config', 'profile.test.package.lang-codegen.debug="line-tables-only"',
+            '--config', 'profile.test.package.lang-codegen.codegen-units=64',
+            '--offline', '-j1', 'fault::example', '--', '--exact', '--ignored',
+        ], result.stdout.splitlines())
 
 
 if __name__ == '__main__':

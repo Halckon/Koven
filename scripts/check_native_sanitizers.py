@@ -280,7 +280,7 @@ def check_linux(directory):
     (directory / "host.json").write_text(json.dumps(dict(system=platform.system(), machine=platform.machine(),
                                                           platform=platform.platform()), indent=2) + "\n")
     fixture_dir = directory / "fixtures"
-    exported = checked(["cargo", "test", "--locked", "--offline", "-p", "lang-codegen", "--lib",
+    exported = checked(["bash", "scripts/run_codegen_default_tests.sh", "--offline",
                         EXPORT_TEST, "--", "--exact", "--nocapture"], directory, "export-koven", timeout=900,
                        env={"KOVEN_SANITIZER_ARTIFACTS": str(fixture_dir)})
     assert_export_ran(exported.stdout.decode())
@@ -343,14 +343,14 @@ def check_linux(directory):
             summary.append(f"LSan {name}/enabled={enabled}: expected classification verified")
     # SPEC-0288 G5: the Map program itself, not only the generic Cell fixtures.
     map_dir = directory / "map-fixture"
-    map_export = checked(["cargo", "test", "--locked", "--offline", "-p", "lang-codegen", "--lib",
+    map_export = checked(["bash", "scripts/run_codegen_default_tests.sh", "--offline",
                           MAP_EXPORT_TEST, "--", "--exact", "--nocapture"], directory, "export-map",
                          timeout=900, env={"KOVEN_SANITIZER_MAP_ARTIFACTS": str(map_dir)})
     assert_export_ran(map_export.stdout.decode(), MAP_EXPORT_TEST)
     summary.extend(check_map(directory, map_dir, clang, symbolizer, asan_env, lsan_entry))
     # Twelve actual Resource provider programs: all six finite histories through both lowering entries.
     provider_dir = directory / "provider-fixtures"
-    provider_export = checked(["cargo", "test", "--locked", "--offline", "-p", "lang-codegen", "--lib",
+    provider_export = checked(["bash", "scripts/run_codegen_default_tests.sh", "--offline",
                                PROVIDER_EXPORT_TEST, "--", "--exact", "--nocapture"], directory,
                               "export-provider", timeout=900,
                               env={"KOVEN_SANITIZER_PROVIDER_ARTIFACTS": str(provider_dir)})

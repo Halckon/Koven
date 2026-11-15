@@ -122,6 +122,11 @@ LLVM 21.1.8，初始盘容量 145GiB、空闲 88GiB；composition 末 target 从
 
 ## Codegen 大体积测试诊断
 
+核心 codegen 测试继续启用 `loan-observation-test-support`。parent/child receipt 故障、
+sanitizer 导出和生成资源导出共用 `scripts/run_codegen_default_tests.sh`，保留默认 feature、
+原有测试选择和 Rust 源码行号。该入口仅为 `lang-codegen` 的测试编译配置行号表与
+64 个编译单元。Koven 生成的 IR、DWARF、native 输出与 sanitizer 验收继续逐项比较。
+
 普通 SSA 测试族及 LLVM/native 的大 payload 断言通过 `test_support::diagnostics` 把完整
 证据写入系统临时目录的 `koven-codegen-diagnostics-<pid>-<sequence>.log`。每个测试线程
 一份文件，首行标记测试名；create_new 防止旧文件和并行线程互相覆盖，缓冲写入后逐条 flush。
