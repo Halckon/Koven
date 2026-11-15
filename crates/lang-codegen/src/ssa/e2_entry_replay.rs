@@ -161,6 +161,7 @@ pub(super) fn replay_bound_body(
                 match counts.as_slice() {
                     [0, 0] => 29,
                     [1, 1] => 35,
+                    [0, 1] if d.is_late_temporary_shared_pair() => 32,
                     _ => return None,
                 }
             } else {

@@ -20779,3 +20779,17 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 完整四参数 ABI 的 rounds Int 现允许 Borrow/Value，choose/stop 已有独立两模式保持，source String 仍强制 Borrow。Expected 保存原 typed mode 与角色；entry 按 rounds 模式精确零/一指令，原 validator 仍核 Value rounds==initial、init.input==原 rounds slot，Borrow 仍原 initializer Span 的唯一 Read，不伪造借用生命周期。
 - 新两项目标首遍通过：二十四 ABI、四 Boolean 模式与两来源顺序共一百九十二形态各两次 assembly；独立从原 signature 获取 rounds entry 实体，经原 Read 或 Value 直接进入真实 entry edge，核对应 header 参数就是原 Compare.left，后续 checked alias/回边沿原完整证明。实际十二块、十一至十三指令，额外 Boolean 四模式均 normal lower/receipt 后精确 gap；旧已支持 own rounds 负控改为额外 ABI 并同步准确测试名。
 - 十二角色、break/零迭代两路退出、原两 cleanup、原完整 ledger 与两臂末 End、唯一原 checked Abort 的 one/Span/reason 保持，旧普通空授权仍不扩。新目标编译 2m12s、执行 1.31s；旧 counter-break、stop 与 choose 各两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m47s、default codegen all-targets 32.30s 与格式通过。不重复原 probe，不执行生成程序/Abort/native/故障注入，不推送，默认 workspace 留联合一次。
+
+
+### E2 共享根的第二调用晚 temporary（已定向验收）
+
+- 基 f1d74d30，same FullKey/空 typeargs，exact 一个 plain String val 加两个 call：
+  首两 String 实参同 Name，次一同 Name/一裸 String，scalar 裸 literal。
+- 原普通两 case（temp 左右、具名、samebytes）通过：8 完整 End、首 Drop[]、末完整
+  [temp,named] 原序、两 target 全局唯一及 nameSpan；闭合同 shell 两 case 准确 Unsupported2 红。
+- 私有 LateTemporarySharedPair 仅授权 SharedRoot→SharedMixed，原初始化和 End/Drop 全保；
+  replay 仅对该 marker 接受 [0,1] temporary 计数，32 为辅助，原 cursor 独立逐项复核。
+  反向 [1,0] 与一般 body 不放宽；不改 emit 的逐 occurrence 操作。
+- 新三目标正式/三 feature 各 3/3 通过，8 域外精准分类；旧 shared 3 + mixed 3 全过，
+  包含旧混合负例迁计算 scalar。双 crate all-targets 三 feature strict 通过（1m45），
+  CI73；未运行 native/故障注入。
