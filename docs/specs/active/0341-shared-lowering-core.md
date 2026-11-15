@@ -20547,3 +20547,11 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - header/split 各按原模式要求一条 Read 或零指令；实际 Conditional 对应原角色，Value 不虚构 Read/End。两 ABI 条件仍必须独立且无未用参数，不能把同型值互换；ordinary 的拒绝规则与专有七块证书不变。
 - 新三项首遍通过：三种新模式、六 ABI、条件/source 反序与 suffix 有无共 144 形态各两次 assembly；测试从 entry 实际边定位 header/split，Value 直接 Conditional 追溯原角色，Borrow 唯一 Read 的原 Name Span/result，原 fresh/两退出来源仍完整核验。额外参数与三参数同 flag 保原正常 receipt+gap；owned String source 与 Group 条件均实测原 ownership 精确两条 L0164、两处 borrow 六字符 span、无 audit/receipt。
 - 受影响 tail 两项及 suffix 两项通过；旧 Value flag 负例改为真正额外参数域外。FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.14s、格式检查通过。未重跑普通 probe、未 native/故障注入/推送，默认 workspace 留联合一次。
+
+### D10 tail-break 前后 source 消费的完整生命周期
+
+- 原 AST 独立定位唯一 while，前后各最多一个原 `audit_consumer` 认领的 source Call；两侧各保存原 FullKey/argument/Span，不按相同 callee 合并 occurrence。三个完整 ABI、两独立 Boolean Borrow/Value、八角色、无 counter/多段及 ordinary suffix 拒绝规则保持。
+- 新 break 专用 surrounding ledger 在一次原 sealed selector 与原完整账本匹配后，联合核两臂全部 acquisitions 与前后两次原 call/argument/root source/Function producer；每次核完将 ordinal 加入同一集合，跨段重复也拒绝。旧单侧 API 仅转入同一纯 helper，权限选择仍各自独立。
+- entry 精确单条原 source entry 实体实参、原 callee/Span/noresult，前消费后每个原 ABI slot 的 ending 保持原实体；exit 原零/一消费与完整全边来源补强不变，break 和零迭代路径均追溯同源，flag/fresh 不带出。原八块全 caller 覆盖和两边同次原子认证不放松。
+- 新两项通过：四模式、六 ABI、前消费独立/两侧不同callee/两侧同callee、条件/source反序共288形态各两次 assembly；同callee前后仍不同InstructionId与原Span。Group/具名前消费、双前段、双后段四家族均真实原normalreceipt+精确gap；旧tail2/suffix2/Value3通过，已获得证明的单前消费负例换为双前段。
+- strict首轮仅四元dispatch的type_complexity，日志完整保留；等价提取TailDispatch别名并独审原顺序/类型不变后，新两项复验、FE/codegen三feature all-targets严格Clippy1m33s/defaultcodegen all-targets32.14s及格式通过。旧七项复用未重复；未probe/native/故障注入/推送，默认workspace留联合一次。

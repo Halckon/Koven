@@ -93,15 +93,16 @@ impl Transaction {
                     return None;
                 }
                 let source = e.source.as_ref()?;
-                if let Some((suffix, _)) = &source.suffix
-                    && owned
-                        .d10_arm_break_suffix_link(
-                            e.fact.pair().branch(),
-                            suffix.call,
-                            suffix.argument(),
-                        )
-                        .ok()
-                        != Some(e.fact.pair().arms()[0].callable())
+                let surrounding = source
+                    .prefix
+                    .iter()
+                    .chain(&source.suffix)
+                    .map(|(consumer, _)| (consumer.call, consumer.argument()))
+                    .collect::<Vec<_>>();
+                if owned
+                    .d10_arm_break_surrounding_link(e.fact.pair().branch(), &surrounding)
+                    .ok()
+                    != Some(e.fact.pair().arms()[0].callable())
                 {
                     return None;
                 }
@@ -119,12 +120,13 @@ impl Transaction {
                 {
                     return None;
                 }
-                for (key, id) in source
-                    .calls
-                    .iter()
-                    .flatten()
-                    .chain(source.suffix.iter().map(|(_, call)| call))
-                {
+                for (key, id) in source.calls.iter().flatten().chain(
+                    source
+                        .prefix
+                        .iter()
+                        .chain(&source.suffix)
+                        .map(|(_, call)| call),
+                ) {
                     if mapping.get(key) != Some(id)
                         || mapping.values().filter(|x| *x == id).count() != 1
                         || program
@@ -163,6 +165,7 @@ impl Transaction {
                     (
                         &calls,
                         source.transfer,
+                        source.prefix.as_ref().map(|(consumer, _)| consumer),
                         source.suffix.as_ref().map(|(consumer, _)| consumer),
                     ),
                 )?;

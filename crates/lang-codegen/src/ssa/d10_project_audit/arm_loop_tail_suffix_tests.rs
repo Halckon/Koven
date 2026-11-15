@@ -18,7 +18,7 @@ fn tail_break_suffix_rejects_unproved_argument_and_surrounding_work() {
     for (prefix, suffix) in [
         ("", ";after((source))"),
         ("", ";after(item=source)"),
-        ("consume(source);", ";after(source)"),
+        ("consume(source);other(source);", ";after(source)"),
         ("", ";after(source);consume(source)"),
     ] {
         check(
