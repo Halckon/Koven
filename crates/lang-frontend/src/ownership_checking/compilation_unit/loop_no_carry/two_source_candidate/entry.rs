@@ -23,7 +23,7 @@ pub enum EntryInitialization {
     /// Original Boolean literal initializer.
     Choose,
 }
-/// Opaque entry evidence for one call or exactly two consecutive all-temporary calls.
+/// Opaque entry evidence for one call or an exact temporary/shared-owner call pair.
 #[derive(Clone, Debug)]
 pub struct EntryDescriptor {
     identity: Rc<()>,
@@ -35,6 +35,18 @@ pub struct EntryDescriptor {
 enum EntryCalls {
     Single(Box<EntryCallDescriptor>),
     Pair(Box<[EntryCallDescriptor; 2]>),
+    SharedNamedPair {
+        owner: Box<SharedEntryOwner>,
+        calls: Box<[EntryCallDescriptor; 2]>,
+    },
+}
+#[derive(Clone, Debug)]
+struct SharedEntryOwner {
+    root: UnitSymbolId,
+    initializer: UnitExpressionId,
+    span: Span,
+    bytes: Vec<u8>,
+    drop: UnitDropFact,
 }
 /// Read-only call occurrence evidence; not an independently owned entry capability.
 #[derive(Clone, Debug)]
@@ -53,6 +65,9 @@ pub struct EntryCallDescriptor {
 }
 #[derive(Clone, Debug)]
 enum StringStorage {
+    SharedRoot {
+        root: UnitSymbolId,
+    },
     Temporary {
         strings: [Vec<u8>; 2],
         drops: [UnitDropFact; 2],
@@ -147,13 +162,23 @@ impl EntryCallDescriptor {
     }
     /// Root of the original argument's real ended loan, not its positional name.
     pub fn named_argument_root(&self, index: usize) -> Option<UnitSymbolId> {
-        if self.argument_role(index)? >= 2 || self.named_strings().is_empty() {
+        if self.argument_role(index)? >= 2
+            || (self.named_strings().is_empty()
+                && !matches!(self.storage, StringStorage::SharedRoot { .. }))
+        {
             return None;
         }
         let argument = self.contracts.get(index)?.argument();
         let end = self.ends.iter().find(|e| e.loan().argument() == argument)?;
         match end.loan().target() {
-            UnitLoanTarget::Place(place) if place.is_root() => Some(place.root()),
+            UnitLoanTarget::Place(place) if place.is_root() => {
+                if let StringStorage::SharedRoot { root } = self.storage
+                    && place.root() != root
+                {
+                    return None;
+                }
+                Some(place.root())
+            }
             _ => None,
         }
     }
@@ -189,6 +214,7 @@ impl EntryCallDescriptor {
     /// Actual owner drops in traversal order (two temporaries or one/two named owners).
     pub fn drops(&self) -> &[UnitDropFact] {
         match &self.storage {
+            StringStorage::SharedRoot { .. } => &[],
             StringStorage::Temporary { drops, .. } => drops,
             StringStorage::Named { drop, .. } => std::slice::from_ref(drop),
             StringStorage::DistinctNamed { drops, .. } | StringStorage::Mixed { drops, .. } => {
@@ -213,8 +239,23 @@ impl EntryDescriptor {
     pub fn calls(&self) -> &[EntryCallDescriptor] {
         match &self.calls {
             EntryCalls::Single(call) => std::slice::from_ref(call.as_ref()),
-            EntryCalls::Pair(calls) => calls.as_ref(),
+            EntryCalls::Pair(calls) | EntryCalls::SharedNamedPair { calls, .. } => calls.as_ref(),
         }
+    }
+    /// Root-owned initialization and the unique original final-use Drop of a shared pair.
+    pub fn shared_owner(
+        &self,
+    ) -> Option<(UnitSymbolId, UnitExpressionId, Span, &[u8], &UnitDropFact)> {
+        let EntryCalls::SharedNamedPair { owner, .. } = &self.calls else {
+            return None;
+        };
+        Some((
+            owner.root,
+            owner.initializer,
+            owner.span,
+            &owner.bytes,
+            &owner.drop,
+        ))
     }
     /// The one instance shared by all occurrences, proven during private construction.
     pub fn instance(&self) -> &UnitCallableInstanceKey {
@@ -278,7 +319,18 @@ pub(super) fn collect(
                     let Statement::Block { elements } = node.payload() else {
                         return None;
                     };
-                    if let [first, second] = elements.as_slice()
+                    if let [local, first, second] = elements.as_slice()
+                        && matches!(
+                            parsed.ast().statements().get(*local).ok()?.payload(),
+                            Statement::LocalVariable { .. }
+                        )
+                        && let Statement::Expression { expression: first } =
+                            parsed.ast().statements().get(*first).ok()?.payload()
+                        && let Statement::Expression { expression: second } =
+                            parsed.ast().statements().get(*second).ok()?.payload()
+                    {
+                        (node.span(), &elements[..1], [Some(*first), Some(*second)])
+                    } else if let [first, second] = elements.as_slice()
                         && let Statement::Expression { expression: first } =
                             parsed.ast().statements().get(*first).ok()?.payload()
                         && let Statement::Expression { expression: second } =
@@ -307,6 +359,7 @@ pub(super) fn collect(
                 }
                 _ => return None,
             };
+            let shared_pair = expressions[1].is_some() && declarations.len() == 1;
             let collect_call = |expression| {
                 if !matches!(
                     parsed.ast().expressions().get(expression).ok()?.payload(),
@@ -544,7 +597,21 @@ pub(super) fn collect(
                     .filter(|d| d.point() == UnitDropPoint::CallReturn(call_id))
                     .copied()
                     .collect();
-                let storage = if named.len() == 1 && temporary_arguments.len() == 1 {
+                let shared_owner = if shared_pair {
+                    if named.len() != 1
+                        || locals.iter().any(Option::is_some)
+                        || !temporary_arguments.is_empty()
+                    {
+                        return None;
+                    }
+                    Some(named[0].clone())
+                } else {
+                    None
+                };
+                let storage = if let Some((root, ..)) = &shared_owner {
+                    initialization_order.clear();
+                    StringStorage::SharedRoot { root: *root }
+                } else if named.len() == 1 && temporary_arguments.len() == 1 {
                     let (temporary_index, temporary) = temporary_arguments.pop()?;
                     let temporary_target =
                         UnitDropTarget::Temporary(contracts[temporary_index].argument());
@@ -707,23 +774,26 @@ pub(super) fn collect(
                 else {
                     return None;
                 };
-                Some(EntryCallDescriptor {
-                    storage,
-                    rounds,
-                    choose: *choose,
-                    initializer_spans,
-                    instance: call.instance().clone(),
-                    parameter_roles,
-                    initializers,
-                    temporary_scalars,
-                    initialization_order,
-                    contracts,
-                    ends,
-                })
+                Some((
+                    EntryCallDescriptor {
+                        storage,
+                        rounds,
+                        choose: *choose,
+                        initializer_spans,
+                        instance: call.instance().clone(),
+                        parameter_roles,
+                        initializers,
+                        temporary_scalars,
+                        initialization_order,
+                        contracts,
+                        ends,
+                    },
+                    shared_owner,
+                ))
             };
-            let first = collect_call(expressions[0]?)?;
+            let (first, first_owner) = collect_call(expressions[0]?)?;
             let calls = if let Some(second_id) = expressions[1] {
-                let second = collect_call(second_id)?;
+                let (second, second_owner) = collect_call(second_id)?;
                 if first.instance() != second.instance()
                     || first.contracts()[0].call() == second.contracts()[0].call()
                     || !first.initialization_order().is_empty()
@@ -736,7 +806,51 @@ pub(super) fn collect(
                 {
                     return None;
                 }
-                EntryCalls::Pair(Box::new([first, second]))
+                if shared_pair {
+                    let (root, initializer, span, bytes) = first_owner?;
+                    if second_owner? != (root, initializer, span, bytes.clone()) {
+                        return None;
+                    }
+                    let first_call = first.contracts()[0].call();
+                    let last_call = second.contracts()[0].call();
+                    if owned
+                        .drops()
+                        .iter()
+                        .any(|d| d.point() == UnitDropPoint::CallReturn(first_call))
+                    {
+                        return None;
+                    }
+                    let final_drops: Vec<_> = owned
+                        .drops()
+                        .iter()
+                        .filter(|d| d.point() == UnitDropPoint::CallReturn(last_call))
+                        .collect();
+                    let [drop] = final_drops.as_slice() else {
+                        return None;
+                    };
+                    if drop.target() != UnitDropTarget::Named(root)
+                        || owned
+                            .drops()
+                            .iter()
+                            .filter(|d| d.target() == UnitDropTarget::Named(root))
+                            .count()
+                            != 1
+                    {
+                        return None;
+                    }
+                    EntryCalls::SharedNamedPair {
+                        owner: Box::new(SharedEntryOwner {
+                            root,
+                            initializer,
+                            span,
+                            bytes,
+                            drop: **drop,
+                        }),
+                        calls: Box::new([first, second]),
+                    }
+                } else {
+                    EntryCalls::Pair(Box::new([first, second]))
+                }
             } else {
                 EntryCalls::Single(Box::new(first))
             };

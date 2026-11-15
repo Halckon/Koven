@@ -20385,3 +20385,22 @@ CI-only WrongRounds旧accessor只迁首occurrence，未运行故障。
 - 保留精确双 while、同 source/flag、各单 fresh consumer 的范围；新增中间恰一次原 source consumer，外段仍空。独立原 AST/typed consumer 保存完整来源与调用实例，不由最终指令反推期望。
 - 三个 sealed source 段与原完整 consumer 字段逐项匹配，原完整 Function/CFG 仍只整体验证一次；中间实际 DirectCall 必须匹配独立调用映射，两 loop 原事实、ledger 和 last End 继续各自核对，全部成功后才发布两条来源边。
 - 真实源码测试覆盖来源及 ABI 反序、同次两次独立组装，中间源参数与两 fresh 结果分离、五条原 acquisition；三 loop、中间双消费、外部消费、第二 loop 双消费均保整组缺口。实际 fresh 模块 9 项、旧 Partial 2 项全过；codegen 三 feature all-targets 严格 Clippy（1m33s）、default codegen all-targets（40.24s）通过，格式、文档 968 篇、尺寸 2421 文件/21 项历史欠账及 diff 门禁通过。首编私有测试字段访问已修正；共享 target 的跨树 frontend API 失配经本树真实 frontend/codegen 重编消失，不声称首遍成功。原完整失败日志已被覆写，仅保留诊断摘要及成功日志；未执行 native、故障注入或推送。
+
+### E2两调用共享单named owner的最终释放（2026-11-15）
+
+基于2e54242a，候选仅原Block中的plain String val与两次同完整instance裸Call，
+四个String实参都是原Name指向同一formed root，scalar均直接literal；不扩大到
+多个owner、mixed临时String、插入语句、不同callee或第三调用。
+先行普通ownership实测8 Shared loan/8真实End，四String loan同一Place root，
+首CallReturn无Drop、第二CallReturn唯一NamedDrop；E2红为精确UnsupportedSelection。
+
+实现设计由私有SharedNamedPair根持原owner初始化、身份与原唯一末Drop，
+两个call occurrence只引用SharedRoot，不持初始化或已消费权限，不虚构首call Drop。
+根一次建立owner/place，两call各自完整End后才按原第二CallReturn Drop释放，
+所有来源、类型、loan/Drop由独立replay逐项消费，29条总数只是必要检查。
+原single及temporary pair生命周期保持，默认关闭不变。正式two-source-unit及
+三feature shared_owner_pair各3目标通过（原事实、两正例/具名重排、七域外）；
+旧temporary pair五目标、frontend named清理一目标通过。双crate三feature
+all-targets严格Clippy最终通过（1m56s），初次collapsible_if仅作等价样式整理；
+独立静审及fmt/文档/size/diff通过，失败日志保留，未重复已通过矩阵。
+不推送、不执行native或本地故障注入。
