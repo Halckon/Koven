@@ -28,7 +28,20 @@ fn original_tail_continuation_closes_actual_fold_with_distinct_callees() {
         }
     }
 }
+#[test]
+fn certified_branch_edges_close_plan_without_hiding_identity_leaf_gaps() {
+    for tail in [false, true] {
+        let audits = run_entry(tail, true, true);
+        assert_eq!(audits.len(), 2);
+        for audit in audits {
+            assert!(audit.gaps.is_empty());
+        }
+    }
+}
 fn run(tail: bool, reverse: bool) -> Vec<BranchConsumption> {
+    run_entry(tail, reverse, false)
+}
+fn run_entry(tail: bool, reverse: bool, wrapper_entry: bool) -> Vec<BranchConsumption> {
     let mut sources = SourceMap::new();
     let (provider_id, provider) = unit_lower_test_support::parsed(
         &mut sources,
@@ -60,7 +73,7 @@ fn run(tail: bool, reverse: bool) -> Vec<BranchConsumption> {
         .index()
         .declarations()
         .iter()
-        .find(|d| d.name() == "run")
+        .find(|d| d.name() == if wrapper_entry { "wrap" } else { "run" })
         .unwrap()
         .id();
     let expected_item = names
@@ -135,6 +148,60 @@ fn run(tail: bool, reverse: bool) -> Vec<BranchConsumption> {
                     .kind,
                 crate::ssa::model::TerminatorKind::BorrowReturn { loan: path.result }
             );
+        }
+    }
+    let declaration = |name| {
+        names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == name)
+            .unwrap()
+            .id()
+    };
+    for audit in &audits {
+        assert_eq!(
+            audit.borrow_edges,
+            vec![
+                (declaration("wrap"), declaration("view_left")),
+                (declaration("wrap"), declaration("view_right"))
+            ]
+        );
+        assert_eq!(
+            audit
+                .unsupported
+                .iter()
+                .filter(|g| g.contains("unclassified terminator: Some(BorrowReturn"))
+                .count(),
+            2,
+            "identity leaf returns remain unproven: {:?}",
+            audit.unsupported
+        );
+        assert_eq!(
+            audit
+                .unsupported
+                .iter()
+                .filter(|g| g.contains("unclassified operation: BorrowCall"))
+                .count(),
+            usize::from(!wrapper_entry),
+            "run -> wrap must not inherit a branch certificate"
+        );
+        assert_eq!(
+            audit
+                .unsupported
+                .iter()
+                .any(|g| g.contains("entry/certified-edge closure")),
+            !wrapper_entry
+        );
+        assert!(
+            !audit
+                .unsupported
+                .iter()
+                .any(|g| g.contains("unconsumed certified"))
+        );
+        if wrapper_entry {
+            assert!(audit.direct_edges.is_empty());
         }
     }
     audits.into_iter().map(|a| a.branch_consumption).collect()

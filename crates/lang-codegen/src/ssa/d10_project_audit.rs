@@ -21,7 +21,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
 };
 
-/// A restricted direct-call graph observation, not a general callable or runtime certificate.
+/// A restricted direct/certified-borrow graph, not a general callable or runtime certificate.
 #[derive(Debug)]
 pub struct ProjectAudit {
     /// Number of canonical source units in the original names.
@@ -32,6 +32,9 @@ pub struct ProjectAudit {
     pub declarations: Vec<DeclarationId>,
     /// Every actual direct call, retaining multiplicity.
     pub direct_edges: Vec<(DeclarationId, DeclarationId)>,
+    /// Actual BorrowCall edges certified by original branch paths and their full final CFG.
+    /// Uncertified borrowed calls and leaf returns remain explicit unsupported obligations.
+    pub borrow_edges: Vec<(DeclarationId, DeclarationId)>,
     /// Explicit SSA runtime-bearing operations, including allocation/drop/abort. These are
     /// observed obligations, not proof of their LLVM/runtime implementations or termination.
     pub runtime_operations: BTreeMap<&'static str, usize>,
@@ -126,6 +129,7 @@ impl Pending {
             sources: self.sources,
             declarations: Vec::new(),
             direct_edges: Vec::new(),
+            borrow_edges: Vec::new(),
             runtime_operations: BTreeMap::new(),
             unsupported: Vec::new(),
             literal_consumption: literal_consumption::finish(
@@ -197,6 +201,8 @@ impl Pending {
                     .push("type outside scalar/String domain".into());
             }
         }
+        let mut branch_edges = audit.branch_consumption.edges.clone();
+        let mut branch_returns = audit.branch_consumption.returns.clone();
         for function in program.modules.iter().flat_map(|module| &module.functions) {
             for instruction in &function.instructions {
                 let runtime = match &instruction.operation {
@@ -208,6 +214,17 @@ impl Pending {
                         match (declarations.get(&function.id), declarations.get(callee)) {
                             (Some(from), Some(to)) => audit.direct_edges.push((*from, *to)),
                             _ => audit.unsupported.push("unmapped direct call".into()),
+                        }
+                        None
+                    }
+                    Operation::BorrowCall { callee, .. }
+                        if branch_edges.remove(&(function.id, instruction.id, *callee)) =>
+                    {
+                        match (declarations.get(&function.id), declarations.get(callee)) {
+                            (Some(from), Some(to)) => audit.borrow_edges.push((*from, *to)),
+                            _ => audit
+                                .unsupported
+                                .push("unmapped certified borrow call".into()),
                         }
                         None
                     }
@@ -239,6 +256,8 @@ impl Pending {
             }
             for block in &function.blocks {
                 match block.terminator.as_ref().map(|t| &t.kind) {
+                    Some(TerminatorKind::BorrowReturn { loan })
+                        if branch_returns.remove(&(function.id, block.id, *loan)) => {}
                     Some(TerminatorKind::Abort) => {
                         *audit.runtime_operations.entry("Abort").or_default() += 1;
                     }
@@ -253,10 +272,15 @@ impl Pending {
                 }
             }
         }
+        if !branch_edges.is_empty() || !branch_returns.is_empty() {
+            audit
+                .unsupported
+                .push("unconsumed certified branch evidence".into());
+        }
         let mut reached: BTreeSet<_> = self.roots.into_iter().collect();
         loop {
             let before = reached.len();
-            for (from, to) in &audit.direct_edges {
+            for (from, to) in audit.direct_edges.iter().chain(&audit.borrow_edges) {
                 if reached.contains(from) {
                     reached.insert(*to);
                 }
@@ -268,7 +292,7 @@ impl Pending {
         if reached != audit.declarations.iter().copied().collect() {
             audit
                 .unsupported
-                .push("entry/direct-edge closure differs from complete plan".into());
+                .push("entry/certified-edge closure differs from complete plan".into());
         }
         audit.declarations.sort();
         OBSERVATIONS.with(|slot| {

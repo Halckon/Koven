@@ -1,7 +1,7 @@
 //! Same-assembly original branch certificate consumption. Never a new lowering route.
 use super::*;
 use crate::ssa::{
-    model::{Definition, Function},
+    model::{BlockId, Definition, Function, InstructionId, LoanId},
     refine::branch_receipt::{Plans, Receipt},
 };
 use lang_frontend::{
@@ -20,6 +20,9 @@ pub struct BranchConsumption {
     pub linked: Vec<UnitExpressionId>,
     /// Other topologies, missing/ambiguous provenance or final CFG mismatches.
     pub gaps: Vec<String>,
+    // Private evidence only from successful original-path/final-CFG validation below.
+    pub(super) edges: BTreeSet<(FunctionId, InstructionId, FunctionId)>,
+    pub(super) returns: BTreeSet<(FunctionId, BlockId, LoanId)>,
 }
 struct Snapshot {
     plans: Plans,
@@ -127,6 +130,14 @@ impl Transaction {
                     "branch final CFG/path identity mismatch: {split:?}"
                 ));
                 continue;
+            }
+            for path in &receipt.paths {
+                result
+                    .edges
+                    .insert((receipt.caller, path.instruction, path.callee));
+                result
+                    .returns
+                    .insert((receipt.caller, path.block, path.result));
             }
             result.linked.push(*split);
         }

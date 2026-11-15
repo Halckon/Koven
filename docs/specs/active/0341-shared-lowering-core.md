@@ -19527,3 +19527,20 @@ TailContinuation 继续按原 route 成功，但在新域明确记 gap。没有 
 定向均 2/2 通过。codegen 双 feature 全目标严格 Clippy（-D warnings）、默认 lib check 通过；
 fmt/diff-check、docs（958）、相对 d47fca34 尺寸门禁（2347 Rust 文件、37 历史超限）通过。
 独立静审无阻断。复用 d47 基线，不重复整套 frontend/CLI 验收；无 native、人工故障或推送。
+
+
+### 已认证 branch 边接入 ProjectAudit 主图（2026-11-15）
+
+仅在原 branch source/callable/path 与最终完整 CFG 校验成功后，保留私有的
+`(caller, InstructionId, callee)` 与 `(caller, BlockId, returned LoanId)` 集合。
+主扫描逐精确身份消费这些 BorrowCall/BorrowReturn 证据，剩余未消费证据显式 gap；
+新增独立 `borrow_edges`，不混入 `direct_edges`，两类边共同计算原 entry 到完整 plan 的闭合。
+未获证的 `run→wrap` 借用调用以及 identity 叶函数的 BorrowReturn 仍保持 unsupported，
+不会因相邻 branch 成功而被默认放行。此片不改变原 lowering route 或生产返回。
+
+测试准备在真实 distinct-callee/反序源/同 observe 两 assembly 上精确断言两条获证边、
+未认证调用和两个叶返回缺口；另以原 wrapper 为 root，验证仅借用边可连到两个叶定义，
+主图可达集合闭合但叶语义缺口仍保留。增量 branch tests 3/3 通过；首次严格 Clippy 指出
+匹配分支中冗余 `()`，只改为等价空块后 codegen 双 feature 全目标 `-D warnings` 通过。
+fmt/diff-check、docs（958）、相对 30cbf5df 尺寸门禁（2347 Rust 文件、37 历史超限）通过，
+独立静审无阻断。复用已过基线，无旧全套重跑、native 执行、人工故障或推送。
