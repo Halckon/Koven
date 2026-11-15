@@ -20023,3 +20023,23 @@ var、分组实参、额外后用、额外 owner、转义或插值仍不是本�
 公开native正式feature编译与精确列名通过，未执行；frontend/codegen三feature
 all-targets严格Clippy通过（1m40s）。默认跨crate检查留共同集成只运行一次。
 无推送或本地故障注入。
+
+### E2 无插值 String 的静态转义字节（2026-11-15）
+
+接续 02c65be2，在独立分支复用 frontend 既有常量文本解码器，供 E2 entry 的原
+String Text parts 使用。只增加 crate-private 转发，不新增词法/转义规则，不把
+constant evaluator 变为 E2 准入权限。原 Text Span 取源码、原 initializer/argument
+身份、真实 End/Drop、独立 replay 及默认关闭能力边界均不变。
+
+四类入口（双 temporary、单 named 共用、双 named、named/temporary 混合）支持
+现行静态转义及 UTF-8/NUL 实际字节；字面 `\${` 不误判为插值。真正 interpolation
+parts 仍拒绝，既有 grouped expression 等域外限制不变。后端只消费 descriptor
+既有字节，不重新解析源字符串，不修改 String runtime ABI。
+
+定向目标位于 `two_source_unit::tests::static_strings`，由既有 E2 CI 清单在正式和
+观察 feature 配置各自运行。红阶段转义正例准确得到 UnsupportedSelection，插值拒绝
+已过；实现后两个配置各 2 passed/0 ignored，每配置含五种 owner 位置形态乘全转义、
+空串、纯 Unicode 共15正例，以及5个真实插值拒绝。SSA实际字节、四 End、owner Drop
+数与 verifier/LLVM render 均核对。受影响 frontend/codegen 三 feature all-targets
+严格 Clippy 通过（4m48s）；fmt、diff、bash语法、958文件文档和Rust尺寸门禁通过。
+默认workspace留共同集成一次；本片不执行native、不做故障注入、不推送。

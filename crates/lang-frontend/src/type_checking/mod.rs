@@ -66,6 +66,12 @@ pub use call::*;
 pub use compilation_unit::*;
 pub use constant::*;
 pub use constant_value::ConstValue;
+#[cfg(any(
+    test,
+    feature = "e2-two-source-test-support",
+    feature = "two-source-unit"
+))]
+pub(crate) use constant_value::decode_text as decode_string_literal_text;
 pub use construction::*;
 pub use container::*;
 pub use error::TypeCheckingError;

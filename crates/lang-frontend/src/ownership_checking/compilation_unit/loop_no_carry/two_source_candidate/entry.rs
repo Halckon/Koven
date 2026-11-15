@@ -607,10 +607,8 @@ fn plain_string(sources: &crate::source::SourceMap, expression: &Expression) -> 
             return None;
         };
         let text = sources.slice(*span).ok()?;
-        if text.contains('\\') {
-            return None;
-        }
-        bytes.extend_from_slice(text.as_bytes());
+        let decoded = crate::type_checking::decode_string_literal_text(text)?;
+        bytes.extend_from_slice(decoded.as_bytes());
     }
     Some(bytes)
 }

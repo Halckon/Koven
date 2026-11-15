@@ -139,7 +139,7 @@ fn integer_bitwise(ty: BuiltinType, operator: Binary, left: i128, right: i128) -
 }
 
 /// Decode the lexer-approved escape set without importing a backend or executing user code.
-pub(super) fn decode_text(text: &str) -> Option<String> {
+pub(crate) fn decode_text(text: &str) -> Option<String> {
     let mut output = String::new();
     visit_decoded_text(text, |character| output.push(character))?;
     Some(output)
