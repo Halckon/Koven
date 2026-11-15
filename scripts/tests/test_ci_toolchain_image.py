@@ -15,6 +15,24 @@ WORKFLOW = ROOT / '.github/workflows/ci-toolchain-image.yml'
 
 
 class CiToolchainImageTests(unittest.TestCase):
+    def test_pr_trigger_tracks_candidate_inputs_not_ordinary_ci_or_docs(self):
+        import fnmatch
+
+        trigger = WORKFLOW.read_text().split('\npermissions:', 1)[0]
+        patterns = re.findall(r"(?m)^      - '([^']+)'$", trigger)
+        dockerfile = (ROOT / '.github/ci-toolchain/Dockerfile').read_text()
+        copied = re.search(r'^COPY (.+) /opt/koven-ci/$', dockerfile, re.M)
+        self.assertIsNotNone(copied)
+        required = ['.github/ci-toolchain/Dockerfile', 'scripts/check_ci_toolchain_image.sh',
+                    *('scripts/' + name for name in copied[1].split())]
+        for path in required:
+            self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns), path)
+        for path in ('.github/workflows/ci.yml', '.github/workflows/ci-toolchain-image.yml',
+                     'docs/roadmap/v1.json', 'docs/development/testing.md',
+                     'scripts/install_ci_llvm.sh'):
+            self.assertFalse(any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns), path)
+        self.assertIn('\n  workflow_dispatch:', trigger)
+
     def test_base_and_rust_payloads_are_immutable(self):
         dockerfile = (ROOT / '.github/ci-toolchain/Dockerfile').read_text()
         self.assertRegex(dockerfile, r'FROM ubuntu:26\.04@sha256:[0-9a-f]{64}\n')

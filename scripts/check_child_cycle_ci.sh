@@ -13,10 +13,10 @@ for name in \
   ci_only_child_cycle_rejects_abort_topology_and_new_owner_corruption \
   ci_only_initial_concat_rejects_source_cleanup_and_transport_corruption; do
   target="$prefix::$name"
-  listing=$(cargo test --locked -j1 -p lang-codegen --lib "$target" -- --exact --ignored --list)
+  listing=$(bash scripts/run_codegen_default_tests.sh -j1 "$target" -- --exact --ignored --list)
   [[ $(grep -Fxc "$target: test" <<< "$listing") == 1 ]]
   if [[ "$mode" != --list-only ]]; then
-    cargo test --locked -j1 -p lang-codegen --lib "$target" -- --exact --ignored
+    bash scripts/run_codegen_default_tests.sh -j1 "$target" -- --exact --ignored
   fi
  done
 if [[ "$mode" == --list-only ]]; then
