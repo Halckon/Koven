@@ -20233,3 +20233,19 @@ SSA沿用已有Constant与原来源Span，ABI、owner、loan、End/Drop与replay
 文档、2413文件Rust尺寸（21历史超限不变）及脚本语法通过，独立静审无阻断。
 目标进入原双配置CI清单，默认workspace留共同集成一次。构建结束即交槽D10。
 不推送，不执行native或故障注入。
+
+### E2 直接scalar literal原始终结证据核查（2026-11-15）
+
+在 12abef01 独立test分支进行普通空体callee的真实ownership探针，不改生产准入。
+四个实参固定为两个String temporary与Int/Boolean；两个scalar各取literal或named，
+以四种源码形态隔离loan描述符和实际direct_call_loan_ends事件。
+
+实测每形态都有4个Shared loan及2个String Drop；双literal的实际direct-call End
+只有2个、双named为4个、两种mixed各3个。literal scalar原loan确为自身argument
+Temporary，但没有该观察表中的CallReturn End；不能用loan描述符补造终结证据。
+静态路径核查也确认observes_call_loan尚不接受Integer/Boolean Literal，真实pending
+loan登记不等于已发布direct-call End。该结果不外推所有调用或语言语义错误。
+
+新增scalar_origin单目标1 passed（四形态），独立静审无阻断；只运行此事实probe，
+没有SSA/native执行、生产修改、人工故障或推送，也不为test-only探针重复strict。
+后续若支持直接scalar literal，需先证明原planner实际终结链，而非仅放宽E2 entry。

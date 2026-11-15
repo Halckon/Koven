@@ -426,3 +426,5 @@ mod parameter_roles;
 mod named_arguments;
 
 mod integer_literals;
+
+mod scalar_origin;
