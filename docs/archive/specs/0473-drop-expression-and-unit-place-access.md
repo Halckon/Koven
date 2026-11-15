@@ -1,10 +1,10 @@
 # SPEC-0473：Drop表达式遍历与Unit place访问检查归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批ownership算法归位时 · **唯一真源**：本批范围与验收，语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批ownership算法归位时 · **唯一真源**：本批范围与验收，语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0473` |
 | 所属 Phase | Phase 3 ownership/drop planning |
 | 语言规范 | [Guide](../../guide/README.md)，无语义变更 |
@@ -33,7 +33,7 @@ resource/drop、path状态和能力门不变，所有测试fixture/FQN原样。�
 - [x] R1：完整方法与根机械保全，仅精确可见域/相对路径与模块接线变化。
 - [x] R2：原ownership定向target前后通过，逐片本地提交，不逐片push、不伪造RED。
 - [x] R3：完整frontend、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
-- [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
+- [x] R4：Architecture/账本及集中push完成；精确代码头4d3f9068的PR CI43728630323通过，按本页最终交付账本闭合。
 
 原始证据留仓库外，未运行/ignored/compile/list与真实passed区分，不重复累计。
 
@@ -98,3 +98,14 @@ skipped，leak为counter路径，不能声称Linux ASan/LSan也已执行；精�
 fail-closed与回归测试及真实校准产物；审查只读不重跑。docs971/空白通过，Rust未改，
 不无故重复frontend全套；本次证据位于仓库外CI修复目录。本地完整合同不是远端双平台
 精确head CI通过；本Spec继续active、PR Draft，不归档或合入。
+
+## 最终交付账本（收口覆盖前述实施时的待项）
+
+用户批准先收口合入#439，剩余file_parent1143与sibling_shared_loans1145后续独立治理，
+现有两例外不改；本PR历史超限21→2，退休19根，不宣称清零或E3整体完成。
+最新main仍为base62a73cc7，无新增组合代码；最终代码4d3f9068的
+[精确PR CI43728630323](https://github.com/Halckon/Koven/actions/runs/43728630323)成功：
+双宿主Targeted/Clippy、双Preview producer/独立consumer均success，Editor按过滤skipped不计执行。
+各片定向测试、完整diff独审、失败与限制保留上文；本轮仅归档文档，不冒称重跑Rust。
+本地iteration复验40/0/0，其中剩两文件7项实际passed。11份Spec按有界范围done归档；
+归档头精确CI与正常merge状态由[PR439](https://github.com/Halckon/Koven/pull/439)追溯，未提前声称已合并。

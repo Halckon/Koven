@@ -1,10 +1,10 @@
 # SPEC-0468：Lexer 与调用恢复测试领域归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批lexer/parser测试职责整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批lexer/parser测试职责整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0468` |
 | 所属 Phase | Phase 1 lexer/parser测试组织 |
 | 语言规范 | [Guide](../../guide/README.md)，无语义变更 |
@@ -31,7 +31,7 @@ baseline，其他policy等值，不提高尺寸额度或为了数量删除合理
 - [x] R1：完整测试及剩余根机械保全，无重复，按test leaf和新增模块FQN一一核对。
 - [x] R2：逐片原完整target前后通过、本地提交，不逐片push、不伪造RED。
 - [x] R3：整组完整frontend、all-target Clippy、fmt/docs/尺寸/policy/空白与独立精确diff审查。
-- [ ] R4：Architecture/真实账本同步，集中push同PR，精确新头CI另验，保持active/Draft。
+- [x] R4：Architecture/账本及集中push完成；精确代码头4d3f9068的PR CI43728630323通过，按本页最终交付账本闭合。
 
 原始日志与快照留仓库外；未运行、ignored/compile/list分别记，不改断言绕过失败。
 
@@ -67,3 +67,14 @@ Architecture同步私有测试域，原始证据/机械核对/完整diff与revie
 Rust代码组末门禁后未再改。未本地重跑下游codegen/CLI/LSP全套、CI-only fault/真实
 校准或sanitizer，不以本批纯测试重组扩大现有能力；R4集中push与精确新头CI另验，保持
 active/Draft，不以旧头CI代替，不归档或合入。
+
+## 最终交付账本（收口覆盖前述实施时的待项）
+
+用户批准先收口合入#439，剩余file_parent1143与sibling_shared_loans1145后续独立治理，
+现有两例外不改；本PR历史超限21→2，退休19根，不宣称清零或E3整体完成。
+最新main仍为base62a73cc7，无新增组合代码；最终代码4d3f9068的
+[精确PR CI43728630323](https://github.com/Halckon/Koven/actions/runs/43728630323)成功：
+双宿主Targeted/Clippy、双Preview producer/独立consumer均success，Editor按过滤skipped不计执行。
+各片定向测试、完整diff独审、失败与限制保留上文；本轮仅归档文档，不冒称重跑Rust。
+本地iteration复验40/0/0，其中剩两文件7项实际passed。11份Spec按有界范围done归档；
+归档头精确CI与正常merge状态由[PR439](https://github.com/Halckon/Koven/pull/439)追溯，未提前声称已合并。

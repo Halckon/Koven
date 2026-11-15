@@ -1,10 +1,10 @@
 # SPEC-0474：Single ownership运行与声明职责归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批Single ownership归位时 · **唯一真源**：本批范围与验收，语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批Single ownership归位时 · **唯一真源**：本批范围与验收，语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0474` |
 | 所属 Phase | Phase 3 Single ownership |
 | 语言规范 | [Guide](../../guide/README.md)，无语义变更 |
@@ -33,7 +33,7 @@ policy等值，不提高额度，不按容量拆三个大型单一iteration测�
 - [x] R1：完整块/根机械保全，只有限域/路径/模块与必要imports变化。
 - [x] R2：原Single ownership定向target前后通过，逐片本地提交，不逐片push、不伪造RED。
 - [x] R3：完整frontend、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
-- [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
+- [x] R4：Architecture/账本及集中push完成；精确代码头4d3f9068的PR CI43728630323通过，按本页最终交付账本闭合。
 
 原始证据留仓库外，未运行/ignored/compile/list与真实passed区分，不重复累计。
 
@@ -74,3 +74,14 @@ borrow-return上下文恢复。审查者只读不Cargo，父另验修后完整�
 Rust最终门禁后未再改，未跑下游codegen/CLI/LSP测试全套、CI-only fault/真实校准/
 sanitizer；R4集中push及精确新头CI另验，Spec active、PR Draft，不归档合入，不借旧头CI
 或编译检查代替真实运行。剩余四根不意味着必须机械拆散单一大型测试算法。
+
+## 最终交付账本（收口覆盖前述实施时的待项）
+
+用户批准先收口合入#439，剩余file_parent1143与sibling_shared_loans1145后续独立治理，
+现有两例外不改；本PR历史超限21→2，退休19根，不宣称清零或E3整体完成。
+最新main仍为base62a73cc7，无新增组合代码；最终代码4d3f9068的
+[精确PR CI43728630323](https://github.com/Halckon/Koven/actions/runs/43728630323)成功：
+双宿主Targeted/Clippy、双Preview producer/独立consumer均success，Editor按过滤skipped不计执行。
+各片定向测试、完整diff独审、失败与限制保留上文；本轮仅归档文档，不冒称重跑Rust。
+本地iteration复验40/0/0，其中剩两文件7项实际passed。11份Spec按有界范围done归档；
+归档头精确CI与正常merge状态由[PR439](https://github.com/Halckon/Koven/pull/439)追溯，未提前声称已合并。

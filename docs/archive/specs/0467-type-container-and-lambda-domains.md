@@ -1,10 +1,10 @@
 # SPEC-0467：类型检查容器与 lambda 领域归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批类型检查职责整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批类型检查职责整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0467` |
 | 所属 Phase | Phase 2 类型检查 |
 | 语言规范 | [Guide](../../guide/README.md)，无语义变更 |
@@ -34,8 +34,8 @@
 - [x] R1：各完整块及剩余根机械保全，权限有效域等价，测试字节不变。
 - [x] R2：逐片定向GREEN→迁移→GREEN，可构建本地提交，不逐片push。
 - [x] R3：整组frontend完整测试、下游名称/类型消费者、Clippy/fmt/docs/policy/尺寸/空白。
-- [ ] R4：独立精确提交区间审查，finding修后复核；Architecture/账本同步，一次集中push同#439。
-- [ ] R5：精确新头CI另验，保持active/Draft，不借前头绿灯，不提前归档或合入。
+- [x] R4：Architecture/账本及集中push完成；精确代码头4d3f9068的PR CI43728630323通过，按本页最终交付账本闭合。
+- [x] R5：Architecture/账本及集中push完成；精确代码头4d3f9068的PR CI43728630323通过，按本页最终交付账本闭合。
 
 原始日志/快照留仓库外。不伪造RED，不把ignored/compile/list算执行，不以清空34保留项为目标。
 
@@ -68,3 +68,14 @@ publication门、mutation receiver/pending/operand顺序、lambda outer flow恢�
 R3中下游消费者本轮实际覆盖frontend类型target与共享名称路径；未另跑codegen/CLI/LSP
 运行时全套、CI-only fault/校准或sanitizer，不能以frontend全绿代替其执行；官方精确头CI
 另验。R4的独立审查/Architecture/账本已完成，待同PR集中push；R5保持待验。
+
+## 最终交付账本（收口覆盖前述实施时的待项）
+
+用户批准先收口合入#439，剩余file_parent1143与sibling_shared_loans1145后续独立治理，
+现有两例外不改；本PR历史超限21→2，退休19根，不宣称清零或E3整体完成。
+最新main仍为base62a73cc7，无新增组合代码；最终代码4d3f9068的
+[精确PR CI43728630323](https://github.com/Halckon/Koven/actions/runs/43728630323)成功：
+双宿主Targeted/Clippy、双Preview producer/独立consumer均success，Editor按过滤skipped不计执行。
+各片定向测试、完整diff独审、失败与限制保留上文；本轮仅归档文档，不冒称重跑Rust。
+本地iteration复验40/0/0，其中剩两文件7项实际passed。11份Spec按有界范围done归档；
+归档头精确CI与正常merge状态由[PR439](https://github.com/Halckon/Koven/pull/439)追溯，未提前声称已合并。

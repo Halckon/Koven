@@ -1,10 +1,10 @@
 # SPEC-0475：Fixture发现、执行与合同测试归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批fixture职责整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批fixture职责整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0475` |
 | 所属 Phase | Phase 0/1 fixture测试harness组织 |
 | 语言规范 | [Guide](../../guide/README.md)，无语义变更 |
@@ -34,7 +34,7 @@ Span/排序、平台symlink与空/非UTF8/sidecar失败保护。无allow/ignore/
 - [x] R1：完整块/剩余根机械核对，fixture字符串/测试/平台条件及FQN不变。
 - [x] R2：原完整fixtures target基线及逐片通过后本地提交，不逐片push、不伪造RED。
 - [x] R3：完整frontend、generated-owner Python真实源码接缝回归、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
-- [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
+- [x] R4：Architecture/账本及集中push完成；精确代码头4d3f9068的PR CI43728630323通过，按本页最终交付账本闭合。
 
 原始证据留仓库外，未运行/ignored/compile/list与真实passed区分，平台cfg未执行不计通过，
 不重复累计，不为了数量机械拆散剩余三个大型单一iteration测试算法。
@@ -73,3 +73,14 @@ expected与root shape、重复parse/lex与报告稳定性；审查不Cargo。后
 最终门禁后Rust未再改。未跑下游codegen/CLI/LSP测试全套、生成资源真实校准重跑、
 CI-only fault或sanitizer全套；R4集中push与精确新头CI另验，Spec active、PR Draft，
 不归档合入，不借旧头CI或编译代替运行。剩余三个大型单一测试算法不以容量机械切碎。
+
+## 最终交付账本（收口覆盖前述实施时的待项）
+
+用户批准先收口合入#439，剩余file_parent1143与sibling_shared_loans1145后续独立治理，
+现有两例外不改；本PR历史超限21→2，退休19根，不宣称清零或E3整体完成。
+最新main仍为base62a73cc7，无新增组合代码；最终代码4d3f9068的
+[精确PR CI43728630323](https://github.com/Halckon/Koven/actions/runs/43728630323)成功：
+双宿主Targeted/Clippy、双Preview producer/独立consumer均success，Editor按过滤skipped不计执行。
+各片定向测试、完整diff独审、失败与限制保留上文；本轮仅归档文档，不冒称重跑Rust。
+本地iteration复验40/0/0，其中剩两文件7项实际passed。11份Spec按有界范围done归档；
+归档头精确CI与正常merge状态由[PR439](https://github.com/Halckon/Koven/pull/439)追溯，未提前声称已合并。

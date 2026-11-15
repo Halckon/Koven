@@ -1,15 +1,15 @@
 # SPEC-0466：名称解析表达式遍历职责归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批名称解析表达式职责整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批名称解析表达式职责整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0466` |
 | 所属 Phase | Phase 2 名称解析 |
 | 语言规范 | [Guide](../../guide/README.md)，无语义变更 |
 | 批准依据 | 用户要求先合入#433、再从main继续新的 |
-| 前置 Spec | [0465](../../archive/specs/0465-llvm-instruction-dispatch-families.md) |
+| 前置 Spec | [0465](0465-llvm-instruction-dispatch-families.md) |
 | 影响范围 | name_resolution/resolver.rs与私有expression.rs、对应baseline |
 | 语言语义变更 | 否 |
 | 阻塞项 | 无 |
@@ -28,7 +28,7 @@
 - [x] R1：完整方法与剩余根机械保全（除scope/空白），测试字节不变。
 - [x] R2：name_resolution、multifile_name_resolution、unit_name_snapshot迁移前后同FQN集通过。
 - [x] R3：frontend完整测试、Clippy/fmt/docs/尺寸/policy与独立精确区间审查。
-- [ ] R4：Architecture与真实账本同步、新PR/精确CI另验；保持active，不提前归档或合入。
+- [x] R4：Architecture/账本及集中push完成；精确代码头4d3f9068的PR CI43728630323通过，按本页最终交付账本闭合。
 
 纯重组先GREEN→REFACTOR→GREEN，不伪造RED。原始日志/快照放仓库外，实际执行与
 compile/list/ignored分别记；行为失败先停线定位，不能改断言绕过。
@@ -51,3 +51,14 @@ lambda implicit it、递归/访问顺序、member/type fallback、enum case诊�
 未另外保存原始日志，不声称reviewer独立复现）；读取实际baseline1134后精确删除复验。
 不是语言行为失败，未改断言绕过。本地未跑下游codegen/CLI/LSP全套或CI-only故障注入，
 精确新PR CI另验。原始日志/快照/审查留仓库外。
+
+## 最终交付账本（收口覆盖前述实施时的待项）
+
+用户批准先收口合入#439，剩余file_parent1143与sibling_shared_loans1145后续独立治理，
+现有两例外不改；本PR历史超限21→2，退休19根，不宣称清零或E3整体完成。
+最新main仍为base62a73cc7，无新增组合代码；最终代码4d3f9068的
+[精确PR CI43728630323](https://github.com/Halckon/Koven/actions/runs/43728630323)成功：
+双宿主Targeted/Clippy、双Preview producer/独立consumer均success，Editor按过滤skipped不计执行。
+各片定向测试、完整diff独审、失败与限制保留上文；本轮仅归档文档，不冒称重跑Rust。
+本地iteration复验40/0/0，其中剩两文件7项实际passed。11份Spec按有界范围done归档；
+归档头精确CI与正常merge状态由[PR439](https://github.com/Halckon/Koven/pull/439)追溯，未提前声称已合并。

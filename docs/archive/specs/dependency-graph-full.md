@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，432 份）"]
+subgraph Garchive["已完成（archive，443 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -441,6 +441,17 @@ subgraph Garchive["已完成（archive，432 份）"]
   S0463["S0463<br/>Ownership operation 与 lowering 领域职责归位"]
   S0464["S0464<br/>Native 接口/委托与接收者测试领域归位"]
   S0465["S0465<br/>LLVM instruction 分发按 operation 家族归位"]
+  S0466["S0466<br/>名称解析表达式遍历职责归位"]
+  S0467["S0467<br/>类型检查容器与 lambda 领域归位"]
+  S0468["S0468<br/>Lexer 与调用恢复测试领域归位"]
+  S0469["S0469<br/>表达式与资源交换测试领域归位"]
+  S0470["S0470<br/>类型表、typed产物实现与短路测试归位"]
+  S0471["S0471<br/>Unit签名类型解析与body产物实现归位"]
+  S0472["S0472<br/>Unit canonical、委托与ownership产物归位"]
+  S0473["S0473<br/>Drop表达式遍历与Unit place访问检查归位"]
+  S0474["S0474<br/>Single ownership运行与声明职责归位"]
+  S0475["S0475<br/>Fixture发现、执行与合同测试归位"]
+  S0476["S0476<br/>Conditional leaf实例回放器归位"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -453,17 +464,6 @@ subgraph Gactive["现行 active"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
-  S0466["S0466<br/>名称解析表达式遍历职责归位"]
-  S0467["S0467<br/>类型检查容器与 lambda 领域归位"]
-  S0468["S0468<br/>Lexer 与调用恢复测试领域归位"]
-  S0469["S0469<br/>表达式与资源交换测试领域归位"]
-  S0470["S0470<br/>类型表、typed产物实现与短路测试归位"]
-  S0471["S0471<br/>Unit签名类型解析与body产物实现归位"]
-  S0472["S0472<br/>Unit canonical、委托与ownership产物归位"]
-  S0473["S0473<br/>Drop表达式遍历与Unit place访问检查归位"]
-  S0474["S0474<br/>Single ownership运行与声明职责归位"]
-  S0475["S0475<br/>Fixture发现、执行与合同测试归位"]
-  S0476["S0476<br/>Conditional leaf实例回放器归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1980,6 +1980,17 @@ S0456 --> S0457
 | SPEC-0463 | archive | [0463-ownership-operation-and-lowering-domains.md](0463-ownership-operation-and-lowering-domains.md) |
 | SPEC-0464 | archive | [0464-native-interface-and-receiver-test-domains.md](0464-native-interface-and-receiver-test-domains.md) |
 | SPEC-0465 | archive | [0465-llvm-instruction-dispatch-families.md](0465-llvm-instruction-dispatch-families.md) |
+| SPEC-0466 | archive | [0466-name-resolver-expression-domain.md](0466-name-resolver-expression-domain.md) |
+| SPEC-0467 | archive | [0467-type-container-and-lambda-domains.md](0467-type-container-and-lambda-domains.md) |
+| SPEC-0468 | archive | [0468-lexer-and-call-recovery-test-domains.md](0468-lexer-and-call-recovery-test-domains.md) |
+| SPEC-0469 | archive | [0469-expression-and-resource-exchange-test-domains.md](0469-expression-and-resource-exchange-test-domains.md) |
+| SPEC-0470 | archive | [0470-type-table-and-typed-file-domains.md](0470-type-table-and-typed-file-domains.md) |
+| SPEC-0471 | archive | [0471-unit-signature-types-and-body-product.md](0471-unit-signature-types-and-body-product.md) |
+| SPEC-0472 | archive | [0472-unit-canonical-delegation-and-ownership-product.md](0472-unit-canonical-delegation-and-ownership-product.md) |
+| SPEC-0473 | archive | [0473-drop-expression-and-unit-place-access.md](0473-drop-expression-and-unit-place-access.md) |
+| SPEC-0474 | archive | [0474-single-ownership-lifecycle-and-declarations.md](0474-single-ownership-lifecycle-and-declarations.md) |
+| SPEC-0475 | archive | [0475-fixture-discovery-execution-and-contracts.md](0475-fixture-discovery-execution-and-contracts.md) |
+| SPEC-0476 | archive | [0476-conditional-leaf-instance-replay-domain.md](0476-conditional-leaf-instance-replay-domain.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -1990,17 +2001,6 @@ S0456 --> S0457
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |
-| SPEC-0466 | active | [0466-name-resolver-expression-domain.md](../../specs/active/0466-name-resolver-expression-domain.md) |
-| SPEC-0467 | active | [0467-type-container-and-lambda-domains.md](../../specs/active/0467-type-container-and-lambda-domains.md) |
-| SPEC-0468 | active | [0468-lexer-and-call-recovery-test-domains.md](../../specs/active/0468-lexer-and-call-recovery-test-domains.md) |
-| SPEC-0469 | active | [0469-expression-and-resource-exchange-test-domains.md](../../specs/active/0469-expression-and-resource-exchange-test-domains.md) |
-| SPEC-0470 | active | [0470-type-table-and-typed-file-domains.md](../../specs/active/0470-type-table-and-typed-file-domains.md) |
-| SPEC-0471 | active | [0471-unit-signature-types-and-body-product.md](../../specs/active/0471-unit-signature-types-and-body-product.md) |
-| SPEC-0472 | active | [0472-unit-canonical-delegation-and-ownership-product.md](../../specs/active/0472-unit-canonical-delegation-and-ownership-product.md) |
-| SPEC-0473 | active | [0473-drop-expression-and-unit-place-access.md](../../specs/active/0473-drop-expression-and-unit-place-access.md) |
-| SPEC-0474 | active | [0474-single-ownership-lifecycle-and-declarations.md](../../specs/active/0474-single-ownership-lifecycle-and-declarations.md) |
-| SPEC-0475 | active | [0475-fixture-discovery-execution-and-contracts.md](../../specs/active/0475-fixture-discovery-execution-and-contracts.md) |
-| SPEC-0476 | active | [0476-conditional-leaf-instance-replay-domain.md](../../specs/active/0476-conditional-leaf-instance-replay-domain.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

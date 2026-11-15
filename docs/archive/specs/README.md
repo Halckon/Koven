@@ -1,5 +1,18 @@
 # 完成 Specs
 
+- [SPEC-0466](0466-name-resolver-expression-domain.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0467](0467-type-container-and-lambda-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0468](0468-lexer-and-call-recovery-test-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0469](0469-expression-and-resource-exchange-test-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0470](0470-type-table-and-typed-file-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0471](0471-unit-signature-types-and-body-product.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0472](0472-unit-canonical-delegation-and-ownership-product.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0473](0473-drop-expression-and-unit-place-access.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0474](0474-single-ownership-lifecycle-and-declarations.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0475](0475-fixture-discovery-execution-and-contracts.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0476](0476-conditional-leaf-instance-replay-domain.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+
+
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
 本目录共 422 份 `done`/`superseded` Spec。它们不是当前工作队列。

@@ -1,10 +1,10 @@
 # SPEC-0476：Conditional leaf实例回放器归位
 
-> **性质**：实施 Spec · **状态**：in-progress · **读取时机**：本批回放器整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
+> **性质**：实施 Spec · **状态**：done · **读取时机**：本批回放器整理时 · **唯一真源**：本批范围与验收，语义从属 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0476` |
 | 所属 Phase | Phase 3 ownership测试回放 |
 | 语言规范 | [Guide](../../guide/README.md)，无语义变更 |
@@ -32,7 +32,7 @@ allow/ignore/新依赖；不复用其他两套独立oracle，不改fixtures/sour
 - [x] R1：完整回放器/原场景机械保全，只有限域与模块/导入变化，测试FQN不变。
 - [x] R2：原测试精确命中1项（内部三个tail）基线/迁移后通过，本地提交。
 - [x] R3：原iteration模块测试组合、完整frontend、Clippy/fmt/policy/docs/尺寸/空白、generated-owner Python真实锚点回归与独立精确diff审查。
-- [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
+- [x] R4：Architecture/账本及集中push完成；精确代码头4d3f9068的PR CI43728630323通过，按本页最终交付账本闭合。
 
 本组只迁一套完整回放器；file_parent与sibling_shared_loans不按容量机械拆，后续先独立
 评估实际边界。原始证据留仓库外，未运行/ignored/compile/list与真实passed区分，不累计重复。
@@ -64,3 +64,14 @@ Architecture同步，原始日志/快照/完整diff/review留仓库外。
 Rust门禁后未再改，未重跑下游codegen/CLI/LSP测试全套、真实生成资源变异校准、CI-only
 fault或sanitizer；R4集中push和精确新头CI另验，Spec active、PR Draft，不归档合入。
 剩余file_parent1143与sibling_shared_loans1145先保留；不按数量为零强行拆散连续场景证明。
+
+## 最终交付账本（收口覆盖前述实施时的待项）
+
+用户批准先收口合入#439，剩余file_parent1143与sibling_shared_loans1145后续独立治理，
+现有两例外不改；本PR历史超限21→2，退休19根，不宣称清零或E3整体完成。
+最新main仍为base62a73cc7，无新增组合代码；最终代码4d3f9068的
+[精确PR CI43728630323](https://github.com/Halckon/Koven/actions/runs/43728630323)成功：
+双宿主Targeted/Clippy、双Preview producer/独立consumer均success，Editor按过滤skipped不计执行。
+各片定向测试、完整diff独审、失败与限制保留上文；本轮仅归档文档，不冒称重跑Rust。
+本地iteration复验40/0/0，其中剩两文件7项实际passed。11份Spec按有界范围done归档；
+归档头精确CI与正常merge状态由[PR439](https://github.com/Halckon/Koven/pull/439)追溯，未提前声称已合并。

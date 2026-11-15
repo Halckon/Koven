@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 432 份"))
+ARCH(("已完成<br/>archive 443 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -20,17 +20,6 @@ subgraph Gactive["现行 active"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
-  S0466["S0466<br/>名称解析表达式遍历职责归位"]
-  S0467["S0467<br/>类型检查容器与 lambda 领域归位"]
-  S0468["S0468<br/>Lexer 与调用恢复测试领域归位"]
-  S0469["S0469<br/>表达式与资源交换测试领域归位"]
-  S0470["S0470<br/>类型表、typed产物实现与短路测试归位"]
-  S0471["S0471<br/>Unit签名类型解析与body产物实现归位"]
-  S0472["S0472<br/>Unit canonical、委托与ownership产物归位"]
-  S0473["S0473<br/>Drop表达式遍历与Unit place访问检查归位"]
-  S0474["S0474<br/>Single ownership运行与声明职责归位"]
-  S0475["S0475<br/>Fixture发现、执行与合同测试归位"]
-  S0476["S0476<br/>Conditional leaf实例回放器归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -70,17 +59,6 @@ ARCH --> S0341
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
-| SPEC-0466 | active | [0466-name-resolver-expression-domain.md](active/0466-name-resolver-expression-domain.md) |
-| SPEC-0467 | active | [0467-type-container-and-lambda-domains.md](active/0467-type-container-and-lambda-domains.md) |
-| SPEC-0468 | active | [0468-lexer-and-call-recovery-test-domains.md](active/0468-lexer-and-call-recovery-test-domains.md) |
-| SPEC-0469 | active | [0469-expression-and-resource-exchange-test-domains.md](active/0469-expression-and-resource-exchange-test-domains.md) |
-| SPEC-0470 | active | [0470-type-table-and-typed-file-domains.md](active/0470-type-table-and-typed-file-domains.md) |
-| SPEC-0471 | active | [0471-unit-signature-types-and-body-product.md](active/0471-unit-signature-types-and-body-product.md) |
-| SPEC-0472 | active | [0472-unit-canonical-delegation-and-ownership-product.md](active/0472-unit-canonical-delegation-and-ownership-product.md) |
-| SPEC-0473 | active | [0473-drop-expression-and-unit-place-access.md](active/0473-drop-expression-and-unit-place-access.md) |
-| SPEC-0474 | active | [0474-single-ownership-lifecycle-and-declarations.md](active/0474-single-ownership-lifecycle-and-declarations.md) |
-| SPEC-0475 | active | [0475-fixture-discovery-execution-and-contracts.md](active/0475-fixture-discovery-execution-and-contracts.md) |
-| SPEC-0476 | active | [0476-conditional-leaf-instance-replay-domain.md](active/0476-conditional-leaf-instance-replay-domain.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -89,4 +67,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（432 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（443 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
