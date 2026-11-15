@@ -29,13 +29,40 @@ ignore/额外clone/兼容层。两根及新模块均小于1000，只删对应bas
 
 ## 2. 验收
 
-- [ ] R1：完整块/剩余根机械核对，仅精确路径/模块/reexport变化，测试无漏重。
-- [ ] R2：逐片定向基线与迁移后通过、本地提交，不逐片push，不伪造RED。
-- [ ] R3：完整frontend、下游all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
+- [x] R1：完整块/剩余根机械核对，仅精确路径/模块/reexport变化，测试无漏重。
+- [x] R2：逐片定向基线与迁移后通过、本地提交，不逐片push，不伪造RED。
+- [x] R3：完整frontend、下游all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
 - [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
 
 证据留仓库外，不把未跑/ignored/list/compile算真实运行，不重复累计测试。
 
 ## 3. 真实证据
 
-待逐片记录。
+合同d98cc9b9，三个切片逐片定向通过后本地提交，组末统一门禁/审查再集中push。
+
+| 切片 | 提交 | 实际结果 | 行数 |
+|---|---|---|---|
+| canonical类型模型 | 8b96e29d | 原四完整target前后208/0/0 | 新210 |
+| 全部TypedFile impl | ad23eefe | 同四完整target前后208/0/0 | model根1554→952，新399 |
+| 短路六项测试 | f02fe6da | 原multifile_constant_ownership前后23/0/0 | 根1011→770，新246 |
+
+四target为type_checking103+type_containers35+type_callable47+multifile_constant_ownership23，
+不是新增208覆盖；六项测试仅增加short_circuit域前缀，原23个leaf相同，fixtures/assert保全。
+模型两完整块及剩余root机械核对：仅精确super路径增层、私有声明/直接reexport与尾空白
+差异，TypedFile结构/Parts字段原位。policy仅删model baseline1504与exception、test exception，
+其他JSON等值；model实测1554与历史登记1504分别记，不提高额度。
+
+整组完整frontend **3779 passed、0 failed、13 ignored**（含12实际通过compile-fail
+doctest），ignored不计执行，定向与全量不重复累计。workspace all-target cargo check
+退出0（包含下游编译、不是执行下游测试）；frontend all-target Clippy -D warnings、fmt、
+policy47、docs967、尺寸/空白退出0，2182手写Rust，历史超限 **14→12**，本PR21→12。
+
+独立fresh review完整d98cc9b9..f02fe6da真实diff，补查canonical core、上下游直接类型
+消费者及常量事实门，No issues found：确认种子Builtin→Signed→Unsigned→Error、结构去重/
+身份、analysis owner继承与字段域、descriptor查询及短路skip/pending/source oracle保全。
+审查者只读不Cargo，读取既有日志不算独立重跑；组末门禁由父另验，原始证据/快照/完整
+diff与审查留仓库外，Architecture同步私有实现职责。
+
+Rust组末门禁后未再改，未运行下游codegen/CLI/LSP测试全套、CI-only故障注入/真实校准/
+sanitizer；不借编译或旧头CI代替真实执行。R4集中push与精确新头CI另验，Spec active、
+PR Draft，不归档或合入。
