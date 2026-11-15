@@ -124,7 +124,7 @@ pub(super) fn finish(
             || e.fact.source() != anchor.fact.source()
             || e.abi != anchor.abi
             || e.source_index != anchor.source_index
-            || e.fact.consumers().len() != 1
+            || !matches!(e.fact.consumers().len(), 1 | 2)
         {
             return None;
         }
@@ -208,7 +208,7 @@ pub(super) fn finish(
             return None;
         }
         let calls = e.calls.as_ref()?;
-        if calls.len() != 2 {
+        if calls.len() != 1 + e.fact.consumers().len() {
             return None;
         }
         validate_mapping(calls, program, mapping)?;
