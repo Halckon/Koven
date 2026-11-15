@@ -1,0 +1,56 @@
+// 内部可变：经共享借用改写只能由受信任函数完成；经共享借用流入的来源同样被跟踪
+class Arr(len: Int)
+cell class Counter(n: Int)
+cell class Slot(n: Int)
+view class Slice(borrow a: Arr)
+fun bump(borrow c: Counter): Unit trusted
+fun read(borrow c: Counter): Int trusted
+fun <view T> put(borrow s: Slot, own x: T): Unit flows x into s trusted
+fun <view T> wrongPut(borrow s: Arr, own x: T): Unit flows x into s trusted  // ERR SIG
+fun twoSharedWriters(): Unit {
+  val c = Counter(0)
+  val r1 = &c
+  val r2 = &c
+  bump(r1)
+  bump(r2)
+  val n = read(r1)
+  use(n)
+}
+fun noDirectAccess(borrow c: Counter): Unit {
+  use(c.n)  // ERR K19
+}
+fun slotProtectsSource(): Unit {
+  val arr = Arr(1)
+  val s = Slot(0)
+  put(&s, Slice(&arr))
+  arr.len = 2  // ERR K1
+  val r = &s
+  use(r)
+}
+fun viaSharedHolder(): Unit {
+  val arr = Arr(1)
+  val s = Slot(0)
+  val r = &s
+  put(r, Slice(&arr))
+  arr.len = 2  // ERR K1
+  use(r)
+}
+fun slotOutlivesSource(): Unit {
+  val s = Slot(0)
+  {
+    val arr = Arr(1)
+    put(&s, Slice(&arr))
+  }  // ERR K9
+  val r = &s
+  use(r)
+}
+fun relay(borrow s: Slot, borrow a: Arr): Unit flows a into s {
+  put(s, Slice(a))
+}
+fun relayUndeclared(borrow s: Slot, borrow a: Arr): Unit {  // ERR K6
+  put(s, Slice(a))
+}
+fun relayViaLocal(borrow s: Slot, borrow a: Arr): Unit {  // ERR K6
+  val t = s
+  put(t, Slice(a))
+}
