@@ -22,7 +22,10 @@ impl Source {
         let fact = wrapper.pair();
         if inputs.parameters.len() != 3
             || inputs.modes.len() != inputs.parameters.len()
-            || inputs.modes.iter().any(|m| *m != ParameterMode::Borrow)
+            || inputs
+                .modes
+                .iter()
+                .any(|m| !matches!(m, ParameterMode::Borrow | ParameterMode::Value))
         {
             return None;
         }

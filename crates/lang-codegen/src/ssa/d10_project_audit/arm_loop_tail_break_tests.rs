@@ -35,12 +35,25 @@ fn tail_break_complete_caller_keeps_surrounding_work_and_unused_roles_outside() 
             "",
             "",
         ),
-        ("source:String,own flag:Boolean,choose:Boolean", "", ""),
+        (
+            "source:String,own flag:Boolean,choose:Boolean,extra:Boolean",
+            "",
+            "",
+        ),
     ] {
         check(signature, prefix, suffix, false);
     }
 }
 pub(super) fn check(signature: &str, prefix: &str, suffix: &str, certified: bool) {
+    check_roles(signature, prefix, suffix, certified, false);
+}
+pub(super) fn check_roles(
+    signature: &str,
+    prefix: &str,
+    suffix: &str,
+    certified: bool,
+    same_flag: bool,
+) {
     for swapped in [false, true] {
         for reverse in [false, true] {
             let mut sources = SourceMap::new();
@@ -49,7 +62,9 @@ pub(super) fn check(signature: &str, prefix: &str, suffix: &str, certified: bool
                 "arm-audit-provider.ko",
                 "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun after(item:String):Unit {}",
             );
-            let (outer, inner) = if swapped {
+            let (outer, inner) = if same_flag {
+                ("flag", "flag")
+            } else if swapped {
                 ("choose", "flag")
             } else {
                 ("flag", "choose")
@@ -193,6 +208,10 @@ pub(super) fn check(signature: &str, prefix: &str, suffix: &str, certified: bool
                 assert_eq!(
                     function.instructions.len(),
                     9 + usize::from(!suffix.is_empty())
+                        - signature
+                            .split(',')
+                            .filter(|p| p.starts_with("own "))
+                            .count()
                 );
                 assert!(breaks[0].instructions.is_empty());
                 assert_eq!(edge.arguments.len(), usize::from(!suffix.is_empty()));
@@ -294,44 +313,57 @@ pub(super) fn check(signature: &str, prefix: &str, suffix: &str, certified: bool
                     }
                 }
                 let mut read_results = BTreeSet::new();
-                for (keyword, name) in [("while", outer), ("if", inner)] {
+                let TerminatorKind::Branch(to_header) =
+                    &entry_block.terminator.as_ref().unwrap().kind
+                else {
+                    panic!("entry header");
+                };
+                let header = function.block(to_header.target).unwrap();
+                let TerminatorKind::Conditional { when_true, .. } =
+                    &header.terminator.as_ref().unwrap().kind
+                else {
+                    panic!("outer condition");
+                };
+                let split = function.block(when_true.target).unwrap();
+                for ((keyword, name), block) in [("while", outer), ("if", inner)]
+                    .into_iter()
+                    .zip([header, split])
+                {
                     let start =
                         text.find(&format!("{keyword}({name})")).unwrap() + keyword.len() + 1;
                     let span = sources.span(c, start, start + name.len()).unwrap();
-                    let reads: Vec<_> = function
-                        .instructions
-                        .iter()
-                        .filter(|i| i.origin == crate::ssa::model::Origin::Source(span))
-                        .collect();
-                    let [read] = reads.as_slice() else {
-                        panic!("one original condition read");
-                    };
-                    let Operation::Read {
-                        source: crate::ssa::model::PlaceAccess::Loan(flag),
-                    } = read.operation
-                    else {
-                        panic!("shared flag read");
-                    };
-                    let role = signature
+                    let (role, parameter) = signature
                         .split(',')
-                        .position(|p| p.starts_with(&format!("{name}:")))
+                        .enumerate()
+                        .find(|(_, p)| {
+                            p.trim_start_matches("own ")
+                                .starts_with(&format!("{name}:"))
+                        })
                         .unwrap();
-                    assert_eq!(roles.get(&EntityId::Loan(flag)), Some(&role));
-                    let [EntityId::Value(value)] = read.results.as_slice() else {
-                        panic!("one Boolean result");
-                    };
-                    assert!(read_results.insert(*value));
-                    let TerminatorKind::Conditional { condition, .. } = function
-                        .block(read.block)
-                        .unwrap()
-                        .terminator
-                        .as_ref()
-                        .unwrap()
-                        .kind
+                    let TerminatorKind::Conditional { condition, .. } =
+                        block.terminator.as_ref().unwrap().kind
                     else {
                         panic!("original conditional");
                     };
-                    assert_eq!(condition, *value);
+                    if parameter.starts_with("own ") {
+                        assert!(block.instructions.is_empty());
+                        assert_eq!(roles.get(&EntityId::Value(condition)), Some(&role));
+                    } else {
+                        let [instruction] = block.instructions.as_slice() else {
+                            panic!("one original condition read");
+                        };
+                        let read = function.instruction(*instruction).unwrap();
+                        assert_eq!(read.origin, crate::ssa::model::Origin::Source(span));
+                        let Operation::Read {
+                            source: crate::ssa::model::PlaceAccess::Loan(flag),
+                        } = read.operation
+                        else {
+                            panic!("shared flag read");
+                        };
+                        assert_eq!(roles.get(&EntityId::Loan(flag)), Some(&role));
+                        assert_eq!(read.results, [EntityId::Value(condition)]);
+                        assert!(read_results.insert(condition));
+                    }
                 }
                 for arm in pair.arms() {
                     let initializer_span = caller
