@@ -20637,3 +20637,34 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - header/split 各按原模式要求一条 Read 或零指令；实际 Conditional 对应原角色，Value 不虚构 Read/End。两 ABI 条件仍必须独立且无未用参数，不能把同型值互换；ordinary 的拒绝规则与专有七块证书不变。
 - 新三项首遍通过：三种新模式、六 ABI、条件/source 反序与 suffix 有无共 144 形态各两次 assembly；测试从 entry 实际边定位 header/split，Value 直接 Conditional 追溯原角色，Borrow 唯一 Read 的原 Name Span/result，原 fresh/两退出来源仍完整核验。额外参数与三参数同 flag 保原正常 receipt+gap；owned String source 与 Group 条件均实测原 ownership 精确两条 L0164、两处 borrow 六字符 span、无 audit/receipt。
 - 受影响 tail 两项及 suffix 两项通过；旧 Value flag 负例改为真正额外参数域外。FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.14s、格式检查通过。未重跑普通 probe、未 native/故障注入/推送，默认 workspace 留联合一次。
+
+
+### E2 不同闭合 callee 的双 named owner 独立末次使用（本地已验）
+
+- 基线 `a146163aa1a72ad2e421ca1a7f7ffb41b53da6cb`。exact 两 plain String val、两个不同闭合
+  callee；首 call 两个不同原 root，次 call 同 survivor 借两次，scalar 仅 direct literal。
+- `DifferentStaggeredNamedPair` 独立私有根及 marker；原第二 call 的 named loan 选择 survivor，
+  不由 Drop 排序推断。原两 point 各完整单 NamedDrop、每 target 全局唯一，8 原 FullEnd 源序保留。
+  新外层另核两完整 key 不同/空 typeargs，两 initializer 原声明序且均在首 call 前。
+- 将 entry 已完成单 call 证明后的固定 pair 收束提取到职责独立 helper；无无界序列、万能签发器。
+  原 staggered owner 证明抽取为固定 `[EntryOwnerDescriptor;2]` 纯函数，旧 same-callee 外层不扩大。
+  所有 projection 显式新 variant，正式逐 occurrence 映射保留，legacy 仍拒绝共同 key 为 None。
+- 原事实 probe 两 case 首轮通过，含反 survivor/反 callee、具名源序、相同字节不同 owner；
+  8 唯一 Shared loan/End、每 contract 唯一与四参数列、两个 formed root、独立原 initializer/符号 Span、
+  两 point 完整 Drop 及其 value_origin 全部核验。闭合双 shell 两 case 完整遍历后准确汇总
+  `UnsupportedSelection=2`：1 过/1 预期红，日志保留，无编译错误或 oracle 修正。
+- 新 SSA 正例核原声明序两 owner/place、原 FullKey 对应两独立 callee、具名 source→ABI，
+  `first4End < earlyDrop < any secondBegin`、第二只用 survivor、末 Drop 晚于 second4End；
+  verify/render 不产生 native 对象。域外与三 feature legacy 精确拒绝已动态验收。
+- “第二借已退役根”不能伪装成普通合法源码负例：若源码后续再借该根，原 planner 必须把它选为
+  survivor，而不是提前 Drop。真实反 survivor 正例覆盖此情形；两异根后续仍用则属未支持域。
+- CI 同批登记新三精确目标，61 unit/配置、7 public、1 frontend；旧双 root 不同 callee 负例
+  转 Group/计算 scalar，保持真实域外。生产两配置、必要邻域及 strict 已验，未运行远端 CI。
+
+- 最终验收均 `--locked -j1`：正式 `two-source-unit` 新 `staggered_distinct::` 3/3；
+  旧 `staggered_owners::`、`shared_mixed_distinct::`、`shared_distinct_callees::` 各 3/3。
+  两正例和 11 域外准确分类全部实际执行，绿阶段未修正 oracle 或重跑矩阵。
+- 三 feature `two-source-unit,e2-two-source-test-support,loan-observation-test-support` 新 3/3，
+  原 descriptor 的 legacy 拒绝真实执行；同配置 frontend/codegen 两 crate
+  `clippy --all-targets -- -D warnings` 首轮通过（1m42s）。
+  默认 workspace 留联合一次；未执行 native/故障注入/整 CI 脚本，原 probe 红日志保留。

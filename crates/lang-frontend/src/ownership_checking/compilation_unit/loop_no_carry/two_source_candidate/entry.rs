@@ -3,7 +3,9 @@ mod body;
 mod different_pair;
 mod different_shared_mixed_pair;
 mod different_shared_pair;
+mod different_staggered_pair;
 mod late_pair;
+mod pair;
 mod shared_pair;
 mod staggered_pair;
 use super::*;
@@ -44,6 +46,10 @@ enum EntryCalls {
     Pair(Box<[EntryCallDescriptor; 2]>),
     LateInitializedPair(Box<[EntryCallDescriptor; 2]>),
     DifferentTemporaryPair(Box<[EntryCallDescriptor; 2]>),
+    DifferentStaggeredNamedPair {
+        owners: Box<[EntryOwnerDescriptor; 2]>,
+        calls: Box<[EntryCallDescriptor; 2]>,
+    },
     StaggeredNamedPair {
         owners: Box<[EntryOwnerDescriptor; 2]>,
         calls: Box<[EntryCallDescriptor; 2]>,
@@ -315,13 +321,16 @@ impl EntryDescriptor {
             | EntryCalls::DifferentSharedNamedPair { calls, .. }
             | EntryCalls::DifferentSharedMixedPair { calls, .. }
             | EntryCalls::StaggeredNamedPair { calls, .. }
+            | EntryCalls::DifferentStaggeredNamedPair { calls, .. }
             | EntryCalls::LateInitializedPair(calls)
             | EntryCalls::DifferentTemporaryPair(calls) => calls.as_ref(),
         }
     }
     /// Two distinct root-owned initializers in source order and their separate final-use Drops.
     pub fn staggered_owners(&self) -> Option<&[EntryOwnerDescriptor; 2]> {
-        let EntryCalls::StaggeredNamedPair { owners, .. } = &self.calls else {
+        let (EntryCalls::StaggeredNamedPair { owners, .. }
+        | EntryCalls::DifferentStaggeredNamedPair { owners, .. }) = &self.calls
+        else {
             return None;
         };
         Some(owners.as_ref())
@@ -355,6 +364,10 @@ impl EntryDescriptor {
     /// Privately proven shared root plus one temporary per distinct closed call.
     pub fn is_different_shared_mixed_pair(&self) -> bool {
         matches!(self.calls, EntryCalls::DifferentSharedMixedPair { .. })
+    }
+    /// Private two-root separate-last-use proof across two distinct closed instances.
+    pub fn is_different_staggered_named_pair(&self) -> bool {
+        matches!(self.calls, EntryCalls::DifferentStaggeredNamedPair { .. })
     }
     /// Returns a key only when every original occurrence shares the complete instance.
     pub fn common_instance(&self) -> Option<&UnitCallableInstanceKey> {
@@ -899,59 +912,24 @@ pub(super) fn collect(
                 {
                     return None;
                 }
-                if first.instance() != second.instance() {
-                    if late {
-                        return None;
-                    }
-                    if shared_pair {
-                        let owners = first_owner?;
-                        if second_owner? != owners {
-                            return None;
-                        }
-                        let [owner]: [_; 1] = owners.try_into().ok()?;
-                        if matches!(
-                            (&first.storage, &second.storage),
-                            (
-                                StringStorage::SharedMixed { .. },
-                                StringStorage::SharedMixed { .. }
-                            )
-                        ) {
-                            different_shared_mixed_pair::finish(
-                                owner, first, second, owned, parsed,
-                            )?
-                        } else {
-                            different_shared_pair::finish(owner, first, second, owned, parsed)?
-                        }
-                    } else if declarations.is_empty() {
-                        different_pair::finish(first, second, owned, parsed)?
-                    } else {
-                        return None;
-                    }
-                } else if late {
-                    late_pair::finish(first, second, owned, parsed)?
+                let shape = if late {
+                    pair::Shape::Late
+                } else if staggered_pair {
+                    pair::Shape::Staggered
+                } else if shared_pair {
+                    pair::Shape::Shared
+                } else if declarations.is_empty() {
+                    pair::Shape::Empty
                 } else {
-                    if !first.initialization_order().is_empty()
-                        || !second.initialization_order().is_empty()
-                        || !first.named_strings().is_empty()
-                        || !second.named_strings().is_empty()
-                    {
-                        return None;
-                    }
-                    if shared_pair || staggered_pair {
-                        let owners = first_owner?;
-                        if second_owner? != owners {
-                            return None;
-                        }
-                        if staggered_pair {
-                            staggered_pair::finish(owners.try_into().ok()?, first, second, owned)?
-                        } else {
-                            let [owner]: [_; 1] = owners.try_into().ok()?;
-                            shared_pair::finish(owner, first, second, owned)?
-                        }
-                    } else {
-                        EntryCalls::Pair(Box::new([first, second]))
-                    }
-                }
+                    pair::Shape::Other
+                };
+                pair::finish(
+                    (first, first_owner),
+                    (second, second_owner),
+                    shape,
+                    owned,
+                    parsed,
+                )?
             } else {
                 EntryCalls::Single(Box::new(first))
             };

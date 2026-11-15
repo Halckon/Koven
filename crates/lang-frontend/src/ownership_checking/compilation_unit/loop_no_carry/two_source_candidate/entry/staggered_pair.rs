@@ -8,6 +8,19 @@ pub(super) fn finish(
     second: EntryCallDescriptor,
     owned: &CompilationUnitOwnership,
 ) -> Option<EntryCalls> {
+    let owners = prove_owners(initializers, &first, &second, owned)?;
+    Some(EntryCalls::StaggeredNamedPair {
+        owners: Box::new(owners),
+        calls: Box::new([first, second]),
+    })
+}
+
+pub(super) fn prove_owners(
+    initializers: [Initializer; 2],
+    first: &EntryCallDescriptor,
+    second: &EntryCallDescriptor,
+    owned: &CompilationUnitOwnership,
+) -> Option<[EntryOwnerDescriptor; 2]> {
     let call_roots = |call: &EntryCallDescriptor| -> Option<[UnitSymbolId; 2]> {
         let roots: Vec<_> = (0..4)
             .filter(|i| call.argument_role(*i).is_some_and(|role| role < 2))
@@ -16,8 +29,8 @@ pub(super) fn finish(
         roots.try_into().ok()
     };
     let initial_roots = [initializers[0].0, initializers[1].0];
-    let first_roots = call_roots(&first)?;
-    let second_roots = call_roots(&second)?;
+    let first_roots = call_roots(first)?;
+    let second_roots = call_roots(second)?;
     if initial_roots[0] == initial_roots[1]
         || first_roots[0] == first_roots[1]
         || first_roots.iter().any(|root| !initial_roots.contains(root))
@@ -29,7 +42,7 @@ pub(super) fn finish(
     let survivor = second_roots[0];
     let early = *initial_roots.iter().find(|root| **root != survivor)?;
     let mut drops = Vec::new();
-    for (call, root) in [(&first, early), (&second, survivor)] {
+    for (call, root) in [(first, early), (second, survivor)] {
         let point = UnitDropPoint::CallReturn(call.contracts()[0].call());
         let actual: Vec<_> = owned
             .drops()
@@ -67,8 +80,5 @@ pub(super) fn finish(
             })
         })
         .collect::<Option<_>>()?;
-    Some(EntryCalls::StaggeredNamedPair {
-        owners: Box::new(owners.try_into().ok()?),
-        calls: Box::new([first, second]),
-    })
+    owners.try_into().ok()
 }
