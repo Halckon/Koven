@@ -6,7 +6,7 @@ use lang_frontend::{
     type_checking::{BuiltinType, UnitTypeKind},
 };
 pub(super) struct Source {
-    pub abi: [SsaTypeId; 3],
+    pub abi: [(SsaTypeId, ParameterMode); 3],
     pub roles: [usize; 3],
     pub conditions: [(UnitExpressionId, Span); 2],
     pub calls: [Vec<Call>; 2],
@@ -17,7 +17,13 @@ impl Source {
         types: &RefineTypes<'_>,
         fact: &UnitLoopBranchNoCarryFact,
     ) -> Option<Self> {
-        if inputs.parameters.len() != 3 || inputs.modes.as_slice() != [ParameterMode::Borrow; 3] {
+        if inputs.parameters.len() != 3
+            || inputs.modes.len() != 3
+            || inputs
+                .modes
+                .iter()
+                .any(|m| !matches!(m, ParameterMode::Borrow | ParameterMode::Value))
+        {
             return None;
         }
         let ast = inputs.parsed.ast();
@@ -75,6 +81,9 @@ impl Source {
             .parameters
             .iter()
             .position(|s| *s == fact.arms()[0].source())?;
+        if inputs.modes[source] != ParameterMode::Borrow {
+            return None;
+        }
         let mut roles = vec![source];
         let mut conditions = Vec::new();
         for e in [outer, condition] {
@@ -103,7 +112,7 @@ impl Source {
                 if inputs.typed.types().get(t) != Some(&UnitTypeKind::Builtin(expected)) {
                     return None;
                 }
-                types.type_ids.get(&t).copied()
+                Some((*types.type_ids.get(&t)?, inputs.modes[i]))
             })
             .collect::<Option<Vec<_>>>()?;
         let call = |expression| {

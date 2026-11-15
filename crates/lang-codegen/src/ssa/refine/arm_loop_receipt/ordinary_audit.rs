@@ -9,7 +9,7 @@ impl Receipt {
         &self,
         program: &Program,
         fact: &UnitLoopBranchNoCarryFact,
-        abi: &[SsaTypeId; 3],
+        abi: &[(SsaTypeId, ParameterMode); 3],
         roles: &[usize; 3],
         conditions: &[(UnitExpressionId, Span); 2],
         calls: &[Vec<FunctionId>; 2],
@@ -98,20 +98,25 @@ impl Receipt {
         if entry_block.parameters.len() != 3 {
             return None;
         }
-        for (index, (entity, ty)) in entry_block.parameters.iter().zip(abi).enumerate() {
+        for (index, (entity, (ty, mode))) in entry_block.parameters.iter().zip(abi).enumerate() {
             let kind = if index == roles[0] {
                 SsaTypeKind::StringOwner
             } else {
                 SsaTypeKind::Boolean
             };
+            let expected = match (mode, entity) {
+                (ParameterMode::Borrow, EntityId::Loan(_)) => EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: *ty,
+                },
+                (ParameterMode::Value, EntityId::Value(_)) if index != roles[0] => {
+                    EntityType::Value(*ty)
+                }
+                _ => return None,
+            };
             if ty.module != f.id.module
                 || module.type_kind(*ty) != Some(&kind)
-                || !matches!(entity, EntityId::Loan(_))
-                || f.entity(*entity)?.ty
-                    != (EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target: *ty,
-                    })
+                || f.entity(*entity)?.ty != expected
             {
                 return None;
             }
@@ -120,7 +125,7 @@ impl Receipt {
         for (i, b) in refs.iter().enumerate() {
             let list = self.evidence.ids(f, *b, s).ok()?;
             let count = match i {
-                1 | 2 => 1,
+                1 | 2 => usize::from(abi[roles[i]].1 == ParameterMode::Borrow),
                 3 => calls[0].len() + 1,
                 4 => calls[1].len() + 1,
                 _ => 0,
@@ -157,12 +162,13 @@ impl Receipt {
         for entity in f.values.iter().chain(&f.places).chain(&f.loans) {
             match entity.ty {
                 EntityType::Value(t)
-                    if t == abi[roles[1]] && module.type_kind(t) == Some(&SsaTypeKind::Boolean) => {
-                }
+                    if t == abi[roles[1]].0
+                        && module.type_kind(t) == Some(&SsaTypeKind::Boolean) => {}
                 EntityType::Loan {
                     kind: LoanKind::Shared,
                     target,
-                } if abi.contains(&target) && module.type_kind(target).is_some() => (),
+                } if abi.iter().any(|(ty, _)| *ty == target)
+                    && module.type_kind(target).is_some() => {}
                 _ => return None,
             }
         }

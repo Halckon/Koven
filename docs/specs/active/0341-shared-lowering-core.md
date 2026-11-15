@@ -20505,3 +20505,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 普通原事实探针已通过两 source 顺序各两次 assembly，真实原 receipt/publication、两独立 fresh 与唯一 End 成立，原 audit 两 BorrowCall 未分类缺口明确。首个短名 exact 只编译、零测试不计通过；后续完整测试名实跑非零且日志独立保留。末版新增两项实跑通过：24 组 ABI/condition/source 顺序正例各两次 assembly，四项正常原 receipt 域外保持双边 gap；suffix source 消费精确原 InvalidModel/caller span 且无 audit/receipt，不笼统接受任意错误。该拒绝属于原 lower/producer，不能进一步声称未经追踪的具体失败分支。
 
 - 必要 fresh 单 scope 一项与旧 Partial 两项通过；FE/codegen 三 feature all-targets 严格 Clippy（1m33s）、default codegen all-targets（32.65s）、格式/docs979/尺寸2464文件与2项历史欠账/diff 门禁通过，末版独审通过。首分类的 suffix 分隔符错误、原 InvalidModel 分类及严格检查 unneeded-unit 均完整保留各自日志，等价修正与最终成功分开记录。未运行 native、故障注入或推送；原独立分支保留，默认 workspace 检查留后续联合一次。
+
+### D10 ordinary 双臂的 Boolean Value 条件角色
+
+- 独立 Expected 保存三个原 typed ABI type/mode；source 始终 Borrow String，其余两个独立 Name 条件只接受 Boolean Borrow/Value。原 source ledger/condition expression-span-symbol-index/同次 receipt 与完整七块证明不变，不把同型 Boolean 视为可互换。
+- entry 逐原参数核 Value 或 SharedLoan，原 condition validator 将实际 Conditional operand 对应回原角色；Borrow 条件保唯一 Read，Value 条件不产生 Read/End/Drop。每块指令的零/一要求按原条件模式独立确定，不因 Value 放松块覆盖或循环/分支边。
+- 新三项真实测试首遍通过：三种新模式、六 ABI 顺序、条件互换、source 反序共 72 组合各两次 assembly；独立从最终真实 edges 追溯条件角色并核零迭代出口和两个 fresh 的唯一 End。额外参数/重复条件角色两项保持正常 receipt 及明确 gap；owned String source 与 Group 外条件均实测原 ownership 精确两条 L0164、两处 borrow 六字符 span 及零 audit/receipt，不泛接任意错误。
+- 原 Borrow arm 两项通过，FE/codegen 三 feature all-targets 严格 Clippy（1m44s）、default codegen all-targets（32.25s）、格式/docs979/尺寸2465文件与2项历史欠账/diff 全部通过，独审无阻断。fmt 后空 unit 表达式仅等价整理，实际原七块拓扑无需放宽；未 native、故障注入或推送，默认 workspace 留联合一次。

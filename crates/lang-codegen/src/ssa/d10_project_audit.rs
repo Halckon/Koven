@@ -4,6 +4,8 @@
 pub(crate) mod arm_loop_consumption;
 #[cfg(test)]
 mod arm_loop_consumption_tests;
+#[cfg(test)]
+mod arm_loop_value_flags_tests;
 pub(crate) mod aux_binding_consumption;
 #[cfg(test)]
 mod aux_binding_consumption_tests;
