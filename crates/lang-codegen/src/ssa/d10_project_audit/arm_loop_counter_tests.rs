@@ -25,8 +25,8 @@ fn counter_full_caller_preserves_checked_update_and_original_roots() {
 fn counter_full_caller_keeps_unproved_modes_and_extra_parameters_outside() {
     for signature in [
         "source:String,rounds:Int,choose:Boolean,extra:Boolean",
-        "source:String,own rounds:Int,choose:Boolean",
-        "source:String,own rounds:Int,own choose:Boolean",
+        "source:String,own rounds:Int,choose:Boolean,extra:Boolean",
+        "source:String,own rounds:Int,own choose:Boolean,extra:Boolean",
     ] {
         check(signature, false);
     }
@@ -216,9 +216,10 @@ pub(super) fn check(signature: &str, certified: bool) {
             let value_choice = signature
                 .split(',')
                 .position(|p| p.trim() == "own choose:Boolean");
+            let value_rounds = signature.split(',').any(|p| p.trim() == "own rounds:Int");
             assert_eq!(
                 function.instructions.len(),
-                if value_choice.is_some() { 12 } else { 13 }
+                13 - usize::from(value_choice.is_some()) - usize::from(value_rounds)
             );
             let entry_block = function.block(function.entry_block().unwrap()).unwrap();
             let TerminatorKind::Branch(entry_edge) = &entry_block.terminator.as_ref().unwrap().kind
@@ -226,6 +227,52 @@ pub(super) fn check(signature: &str, certified: bool) {
                 panic!("entry branch")
             };
             let header = function.block(entry_edge.target).unwrap();
+            let rounds_index = signature
+                .split(',')
+                .position(|p| p.trim().ends_with("rounds:Int"))
+                .unwrap();
+            let rounds = entry_block.parameters[rounds_index];
+            let initial = if value_rounds {
+                assert!(entry_block.instructions.is_empty());
+                assert!(matches!(rounds, EntityId::Value(_)));
+                rounds
+            } else {
+                assert_eq!(entry_block.instructions.len(), 1);
+                let read = function.instruction(entry_block.instructions[0]).unwrap();
+                let EntityId::Loan(loan) = rounds else {
+                    panic!("borrow rounds")
+                };
+                assert_eq!(
+                    read.operation,
+                    Operation::Read {
+                        source: crate::ssa::model::PlaceAccess::Loan(loan)
+                    }
+                );
+                assert_eq!(
+                    read.origin,
+                    crate::ssa::model::Origin::Source(
+                        caller
+                            .ast()
+                            .expressions()
+                            .get(fact.initializer().expression())
+                            .unwrap()
+                            .span()
+                    )
+                );
+                assert_eq!(read.results.len(), 1);
+                read.results[0]
+            };
+            let position = entry_edge
+                .arguments
+                .iter()
+                .position(|e| *e == initial)
+                .unwrap();
+            let current = header.parameters[position];
+            let compare = function.instruction(header.instructions[1]).unwrap();
+            let Operation::Compare { left, .. } = compare.operation else {
+                panic!("original guard compare")
+            };
+            assert_eq!(EntityId::Value(left), current);
             let TerminatorKind::Conditional {
                 when_true: split_edge,
                 ..

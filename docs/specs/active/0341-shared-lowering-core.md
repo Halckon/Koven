@@ -20710,3 +20710,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 仅将原三个完整 ABI 中的 choose Boolean 独立允许 Borrow/Value；source String 与 rounds Int 均仍强制 Borrow。Expected 从原条件 Name symbol 确定 index，保存原 typed type/mode；最终 entry 逐实体类型核验，split 按该原 mode 精确一条 Read 或零指令，Value 直接 Conditional 仍追溯原入口角色。初始化 rounds 的 Read、原 counter Int 成功回边不变。
 - 原 sealed wrapper、两臂完整 loan ledger、九角色覆盖、实际原常量一到唯一 checked-failure Abort payload、原 Span/reason/类型及同次两边原子认证均保持；旧普通 checker 的空 Abort 授权不改。不放开 owned rounds/source、额外参数或一般条件，不执行生成程序。
 - 新两目标首遍通过：六 ABI 顺序与两个来源顺序共十二形态各两次 assembly，明确原 entry→header→split 逐实际 edge 的 choice 运输、Value 零 Read/十二总指令与 Borrow 一 Read/十三总指令。Value rounds 与冗余 Boolean 负例均原正常 lower/verify/receipt 后保精确 counter gap；旧 Borrow 两项通过，原已获证明 own choose 负例改为 own rounds+choose。FE/codegen 三 feature all-targets 严格 Clippy 1m45s、default codegen all-targets 32.23s、格式及末版独审通过；未重 probe/native/故障注入/推送，默认 workspace 留联合一次。
+
+### D10 bounded-counter 的 Int Value 初始化
+
+- 完整三 ABI 中 source String 仍强制 Borrow；rounds Int 现与 choose Boolean 一样可各自 Borrow/Value，原 typed modes 与完整角色独立保存。Value rounds 必须原 entry 零指令、rounds==initial 且原 init.input 为 rounds slot；Borrow 保原 initializer Span 的唯一 Read。原 alias/transport 继续核 initial→header guard 与 checked success→header 更新，不从结果类型猜来源。
+- 最终全 caller 的 entry 指令数按原 rounds mode 精确为零/一，split 仍按 choose mode 精确零/一；九原角色、sealed wrapper、原完整 ledger、原常量一到唯一 checked-failure Abort 来源与旧普通 checker 的空授权不变，不开放 owned String、额外 ABI 或一般失败路径。
+- 新两项目标首遍通过：六 ABI、choose 两模式、source 两顺序共二十四形态各两次 assembly；实际仍九块，helper 独立追原 rounds 实体经 Read 或直接 Value、实际 entry edge 到 header Compare.left，总代码指令数随两原模式精确为十一至十三。额外 Boolean 两模式均原正常 lower/verify/receipt 但具体 gap；已获证 own rounds 旧负控改为冗余参数。原 Borrow 两项、choose Value 两项通过；FE/codegen 三 feature all-targets 严格 Clippy 1m45s、default codegen all-targets 32.38s、格式、docs 979、尺寸 2480 文件（两项历史欠账）及独审通过。只普通源码到 SSA 模型检查，未重复 probe、未执行生成 Abort/native/故障注入、未推送，默认 workspace 留联合一次。

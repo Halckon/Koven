@@ -14,9 +14,9 @@ fn counter_boolean_value_keeps_original_condition_transport() {
     }
 }
 #[test]
-fn counter_boolean_value_does_not_authorize_owned_rounds_or_unused_parameters() {
+fn counter_boolean_value_does_not_authorize_unused_parameters() {
     for signature in [
-        "source:String,own rounds:Int,own choose:Boolean",
+        "source:String,own rounds:Int,own choose:Boolean,extra:Boolean",
         "source:String,rounds:Int,own choose:Boolean,extra:Boolean",
     ] {
         check(signature, false);
