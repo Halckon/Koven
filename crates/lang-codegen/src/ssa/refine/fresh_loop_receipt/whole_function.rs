@@ -10,7 +10,7 @@ use crate::ssa::{
 use lang_frontend::source::Span;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-pub(super) fn check(
+pub(in crate::ssa::refine) fn check(
     function: &Function,
     covered_blocks: &BTreeSet<BlockId>,
     covered_instructions: &BTreeSet<InstructionId>,

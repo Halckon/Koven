@@ -67,3 +67,68 @@ impl CompilationUnitOwnership {
         Ok(fact.callable())
     }
 }
+
+// The ordinary branch pair has separate call occurrences and sealed arm identities.
+impl CompilationUnitOwnership {
+    pub(crate) fn d10_arm_loop_link(
+        &self,
+        branch: UnitExpressionId,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
+        use CallableLoanLinkError::{Ambiguous, Unsupported};
+        let ledger = self.source_collection_ledger.as_ref().ok_or(Unsupported)?;
+        if !ledger.matches_original(self) {
+            return Err(Unsupported);
+        }
+        let facts: Vec<_> = self
+            .no_carry_branches()
+            .iter()
+            .filter(|f| f.branch() == branch)
+            .collect();
+        let [pair] = facts.as_slice() else {
+            return Err(Ambiguous);
+        };
+        if !self.owns_no_carry_branch(pair) {
+            return Err(Unsupported);
+        }
+        let callable = pair.arms()[0].callable();
+        let records: Vec<_> = ledger
+            .records
+            .iter()
+            .filter(|r| r.source == branch.source_unit())
+            .collect();
+        let [record] = records.as_slice() else {
+            return Err(Ambiguous);
+        };
+        let producers = record.loan_producers().ok_or(Unsupported)?;
+        let mut ordinals = Vec::new();
+        for fact in pair.arms() {
+            if fact.callable() != callable
+                || callable.source_unit() != branch.source_unit()
+                || !matches!(fact.consumers().len(), 1 | 2)
+            {
+                return Err(Unsupported);
+            }
+            for (call, argument) in std::iter::once((fact.initializer(), fact.source_argument()))
+                .chain(fact.consumers().iter().map(|(_, c, a)| (*c, *a)))
+            {
+                let loans: Vec<_> = record
+                    .loans
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, l)| l.call() == call)
+                    .collect();
+                let [(ordinal, loan)] = loans.as_slice() else {
+                    return Err(Ambiguous);
+                };
+                if loan.argument() != argument
+                    || producers.get(*ordinal) != Some(&Some(LoanProducer::Function(callable)))
+                    || ordinals.contains(ordinal)
+                {
+                    return Err(Unsupported);
+                }
+                ordinals.push(*ordinal);
+            }
+        }
+        Ok(callable)
+    }
+}

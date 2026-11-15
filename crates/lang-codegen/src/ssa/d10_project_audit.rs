@@ -1,6 +1,9 @@
 //! Read-only scoped observations of ordinary whole-unit lowering. Not an admission capability.
 //! Only the original successful final verifier publishes an observation. Object publication
 //! remains a separate result; this module neither changes lowering nor executes generated code.
+pub(crate) mod arm_loop_consumption;
+#[cfg(test)]
+mod arm_loop_consumption_tests;
 pub(crate) mod aux_binding_consumption;
 #[cfg(test)]
 mod aux_binding_consumption_tests;
@@ -117,6 +120,7 @@ pub(crate) struct Pending {
     interleaved_aux: interleaved_aux_consumption::Transaction,
     loops: loop_consumption::Transaction,
     fresh_loops: fresh_loop_consumption::Transaction,
+    arm_loops: arm_loop_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
     roots: Vec<DeclarationId>,
@@ -143,6 +147,7 @@ impl Pending {
                 interleaved_aux: interleaved_aux_consumption::Transaction::begin(plan),
                 loops: loop_consumption::Transaction::begin(plan),
                 fresh_loops: fresh_loop_consumption::Transaction::begin(plan),
+                arm_loops: arm_loop_consumption::Transaction::begin(plan),
                 items: names
                     .names()
                     .index()
@@ -370,6 +375,15 @@ impl Pending {
                 audit
                     .unsupported
                     .push("overlapping fresh no-carry edge certificate".into());
+            }
+        }
+        let (arm_edges, arm_gaps) = self.arm_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(arm_gaps);
+        for edge in arm_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping ordinary arm-loop edge certificate".into());
             }
         }
         for function in program.modules.iter().flat_map(|module| &module.functions) {

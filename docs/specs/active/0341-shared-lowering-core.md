@@ -20497,3 +20497,11 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 恰三参时额外核最终入口首 Branch 的实际参数集合只含原 source/flag；参数次序与目标角色对应仍由原完整 CFG transport validator 检查。未用 Boolean 在首边不再运输，不声称或补造显式 BorrowEnd/析构。
 - 新测试准备覆盖六种 ABI 顺序、active/unused 各 Borrow/Value、source 反序及首尾段/单双 body 交叉，独立核 unused 身份不进入任何边或非入口 block parameter；第四参、超长段保持原正常 receipt/gap。实际 extra 使用与非 Boolean 原 route 均经原正常源码确认 lowering 成功、SSA verifier 通过、audit 一个但无 fresh receipt，保精确 missing/outside-domain gap 且不发布来源边；extra 的 inspect 调用仍恰一次并保 SharedReborrow gap，未通过删 use 冒充 unused。
 - 末版新三项测试（192 正向组合各两次独立 assembly）、受影响 single Value 三项、原 Borrow 单 scope 一项与旧 Partial 两项通过；codegen 三 feature all-targets 严格 Clippy（53.19s）、default codegen all-targets（32.24s）、格式/docs979/尺寸2460文件与2项历史欠账/diff 门禁通过，独审无阻断。首分类探针的错误假设失败完整留存，后续真实分类与收紧 oracle 分开，末版验收首遍通过；未 native、故障注入或推送。
+
+### D10 ordinary 双臂 fresh-loop 的完整 caller 证书
+
+- 仅接原 ordinary 单 while 内唯一 if/else、完整三个 Borrow 参数（一个 String source 与两个独立 Boolean Name 条件）、每臂一/二 consumer；prefix/counter/break/tail、外部 source 消费、额外参数及同 flag 均不纳入。Expected 从原 AST、typed dispatch、sealed ordinary pair 独立生成，原 source ledger 逐实际 call/argument/唯一 loan ordinal 核 Function producer，不以语法相似或最终 SSA 反推事实。
+- 原 arm receipt 的局部 validate 不作为完整 caller 证明。feature-only 补充校验使用原角色映射导出七块集合、各块精确原序指令、原 entry slot 顺序与完整 ABI、全实体 Definition/type/边闭包和唯一 Unit Return；同次 RAII 在原成功 emission 捕获、最终 verifier 后与最终 Program 比对，任一缺口保持两来源边均不认证。旧 fresh whole-function 纯检查仅复用可见性，原调用行为不变。
+- 普通原事实探针已通过两 source 顺序各两次 assembly，真实原 receipt/publication、两独立 fresh 与唯一 End 成立，原 audit 两 BorrowCall 未分类缺口明确。首个短名 exact 只编译、零测试不计通过；后续完整测试名实跑非零且日志独立保留。末版新增两项实跑通过：24 组 ABI/condition/source 顺序正例各两次 assembly，四项正常原 receipt 域外保持双边 gap；suffix source 消费精确原 InvalidModel/caller span 且无 audit/receipt，不笼统接受任意错误。该拒绝属于原 lower/producer，不能进一步声称未经追踪的具体失败分支。
+
+- 必要 fresh 单 scope 一项与旧 Partial 两项通过；FE/codegen 三 feature all-targets 严格 Clippy（1m33s）、default codegen all-targets（32.65s）、格式/docs979/尺寸2464文件与2项历史欠账/diff 门禁通过，末版独审通过。首分类的 suffix 分隔符错误、原 InvalidModel 分类及严格检查 unneeded-unit 均完整保留各自日志，等价修正与最终成功分开记录。未运行 native、故障注入或推送；原独立分支保留，默认 workspace 检查留后续联合一次。
