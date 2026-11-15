@@ -1,0 +1,51 @@
+// 挂起点：挂起不是一次访问，借用原样跨过它；帧地址稳定，帧内自引用合法；被调帧持有的借用在调用方挂起期间保持
+class Arr(len: Int)
+suspend fun tick(): Unit {
+  suspend
+}
+suspend fun fill(inout a: Arr): Unit {
+  suspend
+  a.len = 1
+}
+fun plain(): Unit {
+  suspend  // ERR S0
+}
+fun plainCalls(): Unit {
+  tick()  // ERR S0
+}
+suspend fun loanAcrossSuspend(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  suspend
+  use(r)
+}
+suspend fun writeWhileLoanedAcrossSuspend(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  suspend
+  a.len = 2  // ERR K1
+  use(r)
+}
+suspend fun loanEndsBeforeSuspend(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  use(r)
+  suspend
+  a.len = 2
+}
+suspend fun calleeFrameHoldsLoan(): Unit {
+  val a = Arr(1)
+  fill(&mut a)
+  use(a.len)
+}
+suspend fun paramStaysLoaned(inout a: Arr): Unit {
+  tick()
+  a.len = 2
+}
+suspend fun movedBeforeSuspend(): Unit {
+  val a = Arr(1)
+  val b = move a
+  suspend
+  use(a.len)  // ERR K8
+  use(b.len)
+}

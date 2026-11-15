@@ -1,0 +1,91 @@
+// 任务值：创建时持有全部实参的借用；开始执行后帧不可移动，且须等它结束；未开始的任务可以直接丢弃
+class Arr(len: Int)
+suspend fun fill(inout a: Arr): Unit {
+  suspend
+  a.len = 1
+}
+suspend fun read(borrow a: Arr): Unit {
+  suspend
+  use(a.len)
+}
+suspend fun taskHoldsLoan(): Unit {
+  val a = Arr(1)
+  val t = start fill(&mut a)
+  a.len = 2  // ERR K1
+  await t
+}
+suspend fun loanReturnsAfterAwait(): Unit {
+  val a = Arr(1)
+  val t = start fill(&mut a)
+  await t
+  a.len = 2
+}
+suspend fun twoReaders(): Unit {
+  val a = Arr(1)
+  val t = start read(&a)
+  val u = start read(&a)
+  poll t
+  poll u
+  use(a.len)
+  await t
+  await u
+}
+suspend fun readerAndWriter(): Unit {
+  val a = Arr(1)
+  val t = start read(&a)
+  val u = start fill(&mut a)  // ERR K1
+  await t
+  await u
+}
+suspend fun unstartedMayBeDropped(): Unit {
+  val a = Arr(1)
+  val t = start fill(&mut a)
+  a.len = 2
+}
+suspend fun unstartedMayMove(): Unit {
+  val a = Arr(1)
+  val t = start fill(&mut a)
+  val u = move t
+  await u
+}
+suspend fun startedCannotMove(): Unit {
+  val a = Arr(1)
+  val t = start fill(&mut a)
+  poll t
+  val u = move t  // ERR S3
+  await u
+}
+suspend fun startedMustBeAwaited(): Unit {  // ERR S4
+  val a = Arr(1)
+  val t = start fill(&mut a)
+  poll t
+}
+suspend fun startedOnOneBranch(): Unit {  // ERR S4
+  val a = Arr(1)
+  val t = start fill(&mut a)
+  if (*) {
+    poll t
+  } else {
+  }
+}
+suspend fun taskOutlivesSource(): Unit {
+  val keep = Arr(0)
+  val t = start read(&keep)
+  {
+    val a = Arr(1)
+    val u = start read(&a)
+    poll u
+  }  // ERR S4
+  await t
+}
+suspend fun awaitTwice(): Unit {
+  val a = Arr(1)
+  val t = start read(&a)
+  await t
+  await t  // ERR K8
+}
+fun plainCannotAwait(): Unit {
+  val a = Arr(1)
+  val t = start read(&a)
+  await t  // ERR S0
+}
