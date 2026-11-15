@@ -23,6 +23,12 @@ pub(crate) mod child_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
+#[cfg(feature = "d10-catalog-experiment")]
+#[allow(
+    dead_code,
+    reason = "staged identity certificate for same-assembly project audit consumer"
+)]
+pub(crate) mod identity_return;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
 #[deny(dead_code)]
@@ -375,6 +381,8 @@ pub(in crate::ssa) fn lower(
 ) -> Result<(), LoweringError> {
     let body = build::build(inputs, parameters, types)?;
     emit::emit(&body, function, entry, parameters, inputs.span)?;
+    #[cfg(all(test, feature = "d10-catalog-experiment"))]
+    identity_return::test_record(inputs, function, types);
     #[cfg(test)]
     ROUTED.with(|routed| {
         if let Some(routed) = routed.borrow_mut().as_mut() {
