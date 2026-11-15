@@ -20257,3 +20257,38 @@ build 前复用原只读 `source_admission::consumer`，独立取得完整 state
 真实测试准备使用两个不同 callee 并交换其源码顺序，结合源/参数反序及同 observe 两 assembly；
 三个 body consumer、双 consumer 加前后 source 段保原正常 receipt 但留本片 gap。
 独立静审通过；末版 fresh 模块四项首次全部通过（2m56），旧 Partial loop 两项相邻回归通过。frontend/codegen 三 feature 严格 Clippy all-targets 通过（2m07），默认仅两 crate all-targets check 通过（0.60s），不是 workspace 全验。格式、968 Markdown 文档门禁、尺寸门禁（基9a9c8172，2416文件/21历史债）及差异检查通过。未新增 owned Boolean 矩阵，不冒称覆盖；未执行 native 或人工故障，未推送。日志为 `/private/tmp/d10-fresh-two-{tests,oldloop,strict,default,size}.log`。
+
+### E2 直接scalar literal原始终结证据核查（2026-11-15）
+
+在 12abef01 独立test分支进行普通空体callee的真实ownership探针，不改生产准入。
+四个实参固定为两个String temporary与Int/Boolean；两个scalar各取literal或named，
+以四种源码形态隔离loan描述符和实际direct_call_loan_ends事件。
+
+实测每形态都有4个Shared loan及2个String Drop；双literal的实际direct-call End
+只有2个、双named为4个、两种mixed各3个。literal scalar原loan确为自身argument
+Temporary，但没有该观察表中的CallReturn End；不能用loan描述符补造终结证据。
+静态路径核查也确认observes_call_loan尚不接受Integer/Boolean Literal，真实pending
+loan登记不等于已发布direct-call End。该结果不外推所有调用或语言语义错误。
+
+新增scalar_origin单目标1 passed（四形态），独立静审无阻断；只运行此事实probe，
+没有SSA/native执行、生产修改、人工故障或推送，也不为test-only探针重复strict。
+后续若支持直接scalar literal，需先证明原planner实际终结链，而非仅放宽E2 entry。
+
+### 原planner的受限scalar literal实际终结（2026-11-15）
+
+以 dbaadff0 的真实事实探针为基线，不直接放宽E2 entry。仅对裸Int/Boolean literal、
+原typed Copyable类型、唯一原contract同型参数及自身argument Temporary目标的Shared loan，允许既有
+finish_direct_call_loans消费原pending token并发布同一CallReturn End事件。没有
+根据描述符补造End，没有新增scalar owner Drop，没有改原源码实参或清理遍历序。
+
+nullable参数转换、其他literal类型、Group、运算和调用结果保持原观察域；控制转移走现有pending
+unwind，诊断拒绝保持原清空边界。E2直接scalar语法准入仍待独立消费证明。
+实际前端unit_direct_call_loan_ends整套348/348通过（含新增5项）：重复call中每个
+原token唯一结束且先于String Drop、return/break/continue只展开已获得prefix、
+非返回与后续ownership诊断不发布cleanup、域外表达式及nullable wrapper不扩大。
+正式two-source-unit scalar_origin单目标1 passed：四形态均为4 Shared loan、
+4个匹配完整原loan的CallReturn End及2个String temporary Drop。frontend默认
+all-targets严格Clippy（4m00s）及codegen two-source-unit/e2-two-source-test-support/
+loan-observation-test-support三feature all-targets严格Clippy（4m16s）均通过；
+fmt、文档结构、diff与Rust体积guard通过，独立静审含nullable补门无阻断。
+不推送或执行native/故障注入。
