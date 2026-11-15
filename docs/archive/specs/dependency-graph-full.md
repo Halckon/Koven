@@ -450,6 +450,8 @@ subgraph Gactive["现行 active"]
   S0460["S0460<br/>Verifier 借用调用与 place 测试职责归位"]
   S0461["S0461<br/>SSA model 错误与 numeric proof 来源职责归位"]
   S0462["S0462<br/>Refine 调用与 CFG 汇合职责归位"]
+  S0463["S0463<br/>Ownership operation 与 lowering 领域职责归位"]
+  S0464["S0464<br/>Native 接口/委托与接收者测试领域归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1973,6 +1975,8 @@ S0456 --> S0457
 | SPEC-0460 | active | [0460-verifier-borrowed-call-and-place-tests.md](../../specs/active/0460-verifier-borrowed-call-and-place-tests.md) |
 | SPEC-0461 | active | [0461-model-error-and-numeric-source-identity.md](../../specs/active/0461-model-error-and-numeric-source-identity.md) |
 | SPEC-0462 | active | [0462-refine-call-and-control-merge-responsibility.md](../../specs/active/0462-refine-call-and-control-merge-responsibility.md) |
+| SPEC-0463 | active | [0463-ownership-operation-and-lowering-domains.md](../../specs/active/0463-ownership-operation-and-lowering-domains.md) |
+| SPEC-0464 | active | [0464-native-interface-and-receiver-test-domains.md](../../specs/active/0464-native-interface-and-receiver-test-domains.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
