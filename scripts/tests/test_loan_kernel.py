@@ -98,6 +98,86 @@ class LoanKernelCases(unittest.TestCase):
                 self.assertEqual(lexical, early)
         self.assertGreater(len(total), 50, "提前析构应当在用例里真的发生过")
 
+    def test_the_drops_it_decides_satisfy_the_drop_obligation_verifier(self):
+        """合并原型：借用检查器定下的析构（作用域结束、提前、赋值、失败清理）交给析构义务的检验器独立检验。
+
+        检验器不看借用，只执行带显式析构的程序：每份义务恰好履行一次、可观察的不提前且按逆序、
+        不使用已析构的值。经借用的访问记为对 owner 的使用，所以“借用使 owner 保持存活”也在其中。
+        """
+        checked = 0
+        for path in sorted(ROOT.glob("cases/*.lk")):
+            text = path.read_text(encoding="utf-8")
+            for early in (False, True):
+                lowered = {}
+                CHECKER.check(text, early, lowered=lowered)
+                for name, (types, program, accepted) in lowered.items():
+                    if accepted:
+                        with self.subTest(case=path.stem, fun=name, early=early):
+                            self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+                            checked += 1
+        self.assertGreater(checked, 250, "被接受的函数应当都检验到了")
+
+    def test_only_observable_values_need_a_drop_flag(self):
+        """只在一条分支上移走：不可观察的值在另一条分支末尾补偿析构，可观察的值留到作用域结束并带析构标志。"""
+        flagged = set()
+
+        def walk(stmts, fun):
+            for stmt in stmts:
+                if stmt.kind == "drop" and stmt.if_owned:
+                    flagged.add((fun, stmt.var))
+                walk(stmt.body, fun)
+                walk(stmt.orelse, fun)
+
+        for path in sorted(ROOT.glob("cases/*.lk")):
+            lowered = {}
+            CHECKER.check(path.read_text(encoding="utf-8"), True, lowered=lowered)
+            for name, (_, program, accepted) in lowered.items():
+                if accepted:
+                    walk(program, name)
+        self.assertEqual({("movedOnOneBranch", "f")}, flagged)
+        lowered = {}
+        CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
+        listing = [line.split("失败时")[0].strip() for line in CHECKER.DP.show(lowered["plainMovedOnOneBranch"][1])]
+        self.assertEqual(["let a Arr", "if {", "move a", "call", "} else {", "drop a", "}",
+                          "let b Arr", "use b", "drop b"], listing)
+
+    def violations(self, case, fun, early=True):
+        lowered = {}
+        CHECKER.check((ROOT / "cases" / case).read_text(encoding="utf-8"), early, lowered=lowered)
+        types, program, _ = lowered[fun]
+        return {name.split()[0] for name in CHECKER.DP.Verifier(types).run_all(program)}
+
+    def test_the_verifier_catches_an_owner_dropped_under_a_live_loan(self):
+        """去掉“存活的 loan 使 owner 保持存活”，检验器必须独立发现 owner 在被借用期间析构了。"""
+        original = CHECKER.Checker.borrowed_from
+        CHECKER.Checker.borrowed_from = lambda self, name, state: False
+        try:
+            self.assertEqual({"V5"}, self.violations("L1.lk", "loanKeepsOwnerAlive"))
+        finally:
+            CHECKER.Checker.borrowed_from = original
+        self.assertEqual(set(), self.violations("L1.lk", "loanKeepsOwnerAlive"))
+
+    def test_the_verifier_catches_an_observable_value_dropped_early(self):
+        """让能力推导把一切都判为可提前析构，检验器必须发现可观察的值被提前析构了。"""
+        original = CHECKER.Checker.has
+        CHECKER.Checker.has = lambda self, cap, ty: cap != "EarlyDrop" and original(self, cap, ty)
+        try:
+            self.assertEqual(set(), self.violations("L1.lk", "observableWaits"), "判定为可观察时不提前")
+        finally:
+            CHECKER.Checker.has = original
+        CHECKER.Checker.has = lambda self, cap, ty: cap == "EarlyDrop" or original(self, cap, ty)
+        try:
+            lowered = {}
+            CHECKER.check((ROOT / "cases" / "L1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
+            _, program, _ = lowered["observableWaits"]
+            # 检验器按真实的性质判断：File 声明了 deinit，Wrap 按值含有一个 File
+            types = {name: CHECKER.DP.TypeDecl(name, [], deinit=name in ("File", "Wrap"))
+                     for name in lowered["observableWaits"][0]}
+            found = {name.split()[0] for name in CHECKER.DP.Verifier(types).run_all(program)}
+        finally:
+            CHECKER.Checker.has = original
+        self.assertIn("V3", found)
+
     def test_a_live_loan_keeps_its_owner_alive(self):
         """owner 的析构点由“它与从它借出的一切都不再使用”决定；可观察的值不提前。"""
         drops = []
