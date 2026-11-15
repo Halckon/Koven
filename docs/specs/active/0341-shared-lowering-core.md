@@ -20357,3 +20357,9 @@ Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入�
 - build 前独立保存两 while 原顺序；按本次 token/key/callable 整组匹配全部 owned facts，逐 fact 核 owns、same_identity、全字段及 ledger Function 来源。四个原 dispatch 分别对应两 source 与两 consumer；最终完整 Function/原纯 CFG validator 只执行一次，两条边全部通过才发布，失败不留半组边。
 - 正例使用不同 source/consumer callee，交换 source/ABI 顺序并在同 observe 内独立组装两次；三 loop、中间 source 消费、第二 loop 双 consumer 保留原正常 receipt 但不得获此窄证。fresh 模块 8 项、原 Partial loop 2 项全通过；codegen 三 feature all-targets 严格 Clippy 通过（1m01s），default codegen all-targets 通过（13.82s），未运行 workspace 全量。实际静审无阻断，原完整 CFG 只证明静态路径与作用域，不证明循环终止或动态迭代；不执行 native、人工故障或推送。
 - 静态收尾：格式检查、文档结构 968 篇、Rust 尺寸 2421 文件/21 项历史欠账及 diff 检查通过；尺寸基点精确 `86ff93a28e7d0d4efb9f9dcf5e81de32fe66f65e`，未改 baseline 或额度。
+
+### D10 双 fresh scope 之间的真实 source 消费
+
+- 保留精确双 while、同 source/flag、各单 fresh consumer 的范围；新增中间恰一次原 source consumer，外段仍空。独立原 AST/typed consumer 保存完整来源与调用实例，不由最终指令反推期望。
+- 三个 sealed source 段与原完整 consumer 字段逐项匹配，原完整 Function/CFG 仍只整体验证一次；中间实际 DirectCall 必须匹配独立调用映射，两 loop 原事实、ledger 和 last End 继续各自核对，全部成功后才发布两条来源边。
+- 真实源码测试覆盖来源及 ABI 反序、同次两次独立组装，中间源参数与两 fresh 结果分离、五条原 acquisition；三 loop、中间双消费、外部消费、第二 loop 双消费均保整组缺口。实际 fresh 模块 9 项、旧 Partial 2 项全过；codegen 三 feature all-targets 严格 Clippy（1m33s）、default codegen all-targets（40.24s）通过，格式、文档 968 篇、尺寸 2421 文件/21 项历史欠账及 diff 门禁通过。首编私有测试字段访问已修正；共享 target 的跨树 frontend API 失配经本树真实 frontend/codegen 重编消失，不声称首遍成功。原完整失败日志已被覆写，仅保留诊断摘要及成功日志；未执行 native、故障注入或推送。

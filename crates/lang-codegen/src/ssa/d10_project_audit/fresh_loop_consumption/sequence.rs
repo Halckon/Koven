@@ -5,7 +5,17 @@ use lang_frontend::{
     type_checking::UnitStatementId,
 };
 
-pub(super) fn original_order(inputs: &RefineInputs<'_>) -> Option<[UnitStatementId; 2]> {
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct Source {
+    order: [UnitStatementId; 2],
+    middle: Vec<SourceConsumer>,
+    call: Option<Call>,
+}
+
+pub(super) fn original_order(
+    inputs: &RefineInputs<'_>,
+    fact: &UnitLoopNoCarryFact,
+) -> Option<Source> {
     let crate::ssa::refine::RefineBody::Block(body) = inputs.body else {
         return None;
     };
@@ -13,8 +23,30 @@ pub(super) fn original_order(inputs: &RefineInputs<'_>) -> Option<[UnitStatement
     let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
         return None;
     };
-    let [first, second] = elements.as_slice() else {
-        return None;
+    let (first, second, middle) = match elements.as_slice() {
+        [first, second] => (first, second, Vec::new()),
+        [first, middle, second] => (
+            first,
+            second,
+            vec![crate::ssa::refine::fresh_loop_receipt::audit_consumer(
+                inputs,
+                *middle,
+                fact.source(),
+            )?],
+        ),
+        _ => return None,
+    };
+    let call = if let Some(consumer) = middle.first() {
+        let site = inputs
+            .source_plan
+            .call_site(inputs.source_token, consumer.call)?;
+        if !site.delegation().is_empty() {
+            return None;
+        }
+        let key = site.dispatch_key()?;
+        Some((key.clone(), *inputs.function_ids.get(key)?))
+    } else {
+        None
     };
     let mut flag = None;
     for statement in [first, second] {
@@ -34,10 +66,14 @@ pub(super) fn original_order(inputs: &RefineInputs<'_>) -> Option<[UnitStatement
         }
         flag = Some(symbol);
     }
-    Some([
-        UnitStatementId::new(inputs.source_unit, *first),
-        UnitStatementId::new(inputs.source_unit, *second),
-    ])
+    Some(Source {
+        order: [
+            UnitStatementId::new(inputs.source_unit, *first),
+            UnitStatementId::new(inputs.source_unit, *second),
+        ],
+        middle,
+        call,
+    })
 }
 
 pub(super) fn finish(
@@ -52,7 +88,8 @@ pub(super) fn finish(
     let [anchor, _] = group else {
         return None;
     };
-    let order = anchor.sequence?;
+    let source = anchor.sequence.as_ref()?;
+    let order = source.order;
     if order[0] == order[1] {
         return None;
     }
@@ -66,7 +103,7 @@ pub(super) fn finish(
         let [e] = matches.as_slice() else {
             return None;
         };
-        if e.sequence != Some(order)
+        if e.sequence.as_ref() != Some(source)
             || e.key != anchor.key
             || e.fact.callable() != anchor.fact.callable()
             || e.fact.source() != anchor.fact.source()
@@ -141,12 +178,20 @@ pub(super) fn finish(
     if used.contains(index)
         || snapshot.receipt.caller != caller
         || snapshot.receipt.loops.len() != 2
-        || !snapshot.receipt.has_empty_segments(3)
+        || (source.middle.is_empty() && !snapshot.receipt.has_empty_segments(3))
+        || !snapshot.receipt.matches_source_segments(&[
+            Vec::new(),
+            source.middle.clone(),
+            Vec::new(),
+        ])
     {
         return None;
     }
     // Validate the complete caller CFG once, including both loop exits and their connecting edge.
     let function = validate_caller(snapshot, program, anchor.abi?, anchor.source_index?)?;
+    let middle_calls: Vec<_> = source.call.iter().cloned().collect();
+    validate_mapping(&middle_calls, program, mapping)?;
+    validate_segments(snapshot, function, &middle_calls)?;
     let mut edges = Vec::new();
     for (index, (e, local)) in expected.iter().zip(&snapshot.receipt.loops).enumerate() {
         if !local.fact.same_identity(&e.fact) || local.fact != e.fact {
@@ -156,20 +201,7 @@ pub(super) fn finish(
         if calls.len() != 2 {
             return None;
         }
-        for (key, id) in calls {
-            if mapping.get(key) != Some(id)
-                || mapping.values().filter(|v| *v == id).count() != 1
-                || program
-                    .modules
-                    .iter()
-                    .flat_map(|m| &m.functions)
-                    .filter(|f| f.id == *id)
-                    .count()
-                    != 1
-            {
-                return None;
-            }
-        }
+        validate_mapping(calls, program, mapping)?;
         edges.push(validate_loop(snapshot, function, calls, index)?);
     }
     let edges: [Edge; 2] = edges.try_into().ok()?;
@@ -178,4 +210,26 @@ pub(super) fn finish(
     }
     used.insert(*index);
     Some(edges)
+}
+
+fn validate_mapping(
+    calls: &[Call],
+    program: &Program,
+    mapping: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
+) -> Option<()> {
+    for (key, id) in calls {
+        if mapping.get(key) != Some(id)
+            || mapping.values().filter(|v| *v == id).count() != 1
+            || program
+                .modules
+                .iter()
+                .flat_map(|m| &m.functions)
+                .filter(|f| f.id == *id)
+                .count()
+                != 1
+        {
+            return None;
+        }
+    }
+    Some(())
 }

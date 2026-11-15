@@ -157,3 +157,13 @@ pub(crate) fn audit_segments(
         _ => None,
     }
 }
+
+/// Original typed/source identity for one sequence boundary consumer.
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) fn audit_consumer(
+    inputs: &RefineInputs<'_>,
+    statement: StatementId,
+    source: UnitSymbolId,
+) -> Option<SourceConsumer> {
+    consumer(inputs, statement, source).ok()?
+}

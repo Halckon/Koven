@@ -24,7 +24,7 @@ struct Expected {
     abi: Option<[SsaTypeId; 2]>,
     source_index: Option<usize>,
     segments: Option<[Vec<SourceConsumer>; 2]>,
-    sequence: Option<[lang_frontend::type_checking::UnitStatementId; 2]>,
+    sequence: Option<sequence::Source>,
 }
 struct Snapshot {
     receipt: Receipt,
@@ -264,7 +264,7 @@ pub(in crate::ssa) fn expect(inputs: &RefineInputs<'_>, types: &RefineTypes<'_>)
                 .map(call)
                 .collect(),
             segments,
-            sequence: sequence::original_order(inputs),
+            sequence: sequence::original_order(inputs, fact),
         };
         RUNS.with(|r| {
             if let Some(s) = r.borrow().last() {
@@ -291,7 +291,13 @@ fn validate_final(
     source_index: usize,
 ) -> Option<Edge> {
     let f = validate_caller(s, program, abi, source_index)?;
-    validate_loop(s, f, calls, 0)
+    let edge = validate_loop(s, f, calls, 0)?;
+    validate_segments(
+        s,
+        f,
+        &calls[1 + s.receipt.loops[0].fact.consumers().len()..],
+    )?;
+    Some(edge)
 }
 fn validate_caller<'a>(
     s: &Snapshot,
@@ -386,7 +392,10 @@ fn validate_loop(s: &Snapshot, f: &Function, calls: &[Call], index: usize) -> Op
     if end.block!=source.block || !matches!(end.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==*result)
         || body.instructions.iter().position(|id| *id==end.id)?<=previous
         || f.instructions.iter().filter(|i| matches!(i.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==*result)).count()!=1 {return None;}
-    let mut mapped = calls[1 + body_count..].iter();
+    Some((f.id, source.id, callee))
+}
+fn validate_segments(s: &Snapshot, f: &Function, calls: &[Call]) -> Option<()> {
+    let mut mapped = calls.iter();
     for segment in &s.receipt.segments {
         for id in &segment.instructions {
             let (_, expected) = mapped.next()?;
@@ -399,5 +408,5 @@ fn validate_loop(s: &Snapshot, f: &Function, calls: &[Call], index: usize) -> Op
     if mapped.next().is_some() {
         return None;
     }
-    Some((f.id, source.id, callee))
+    Some(())
 }

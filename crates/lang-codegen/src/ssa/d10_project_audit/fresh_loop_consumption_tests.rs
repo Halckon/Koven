@@ -482,24 +482,52 @@ fn check(
 fn two_sequential_fresh_scopes_are_certified_as_one_complete_caller() {
     for reverse_sources in [false, true] {
         for reverse_parameters in [false, true] {
-            check_sequence(reverse_sources, reverse_parameters, 2, false, false, true);
+            check_sequence(
+                reverse_sources,
+                reverse_parameters,
+                2,
+                0,
+                false,
+                false,
+                true,
+            );
         }
     }
 }
 
 #[test]
 fn longer_or_interrupted_fresh_sequences_keep_the_whole_group_unproven() {
-    check_sequence(false, false, 3, false, false, false);
-    check_sequence(false, false, 2, true, false, false);
-    check_sequence(false, false, 2, false, true, false);
+    check_sequence(false, false, 3, 0, false, false, false);
+    check_sequence(false, false, 2, 2, false, false, false);
+    check_sequence(false, false, 2, 1, false, true, false);
+    check_sequence(false, false, 2, 0, true, false, false);
+    check_sequence(false, false, 2, 1, true, false, false);
+}
+
+#[test]
+fn middle_source_consumer_connects_two_independent_fresh_scopes() {
+    for reverse_sources in [false, true] {
+        for reverse_parameters in [false, true] {
+            check_sequence(
+                reverse_sources,
+                reverse_parameters,
+                2,
+                1,
+                false,
+                false,
+                true,
+            );
+        }
+    }
 }
 
 fn check_sequence(
     reverse_sources: bool,
     reverse_parameters: bool,
     count: usize,
-    middle_source_use: bool,
+    middle_source_use: usize,
     second_double_use: bool,
+    outer_source_use: bool,
     certified: bool,
 ) {
     use crate::ssa::{model::EntityId, refine::fresh_loop_receipt::Tag};
@@ -507,7 +535,7 @@ fn check_sequence(
     let (provider_id, provider) = unit_lower_test_support::parsed(
         &mut sources,
         "sequence-provider.ko",
-        "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}",
+        "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun middle(item:String):Unit {}",
     );
     let parameters = if reverse_parameters {
         "flag:Boolean,source:String"
@@ -515,9 +543,7 @@ fn check_sequence(
         "source:String,flag:Boolean"
     };
     let mut body = String::from("while(flag){borrow val item=view(source);consume(item)};");
-    if middle_source_use {
-        body.push_str("consume(source);");
-    }
+    body.push_str(&"middle(source);".repeat(middle_source_use));
     body.push_str("while(flag){borrow val second=next(source);other(second);");
     if second_double_use {
         body.push_str("consume(second);");
@@ -525,6 +551,9 @@ fn check_sequence(
     body.push_str("};");
     if count == 3 {
         body.push_str("while(flag){borrow val third=view(source);consume(third)}");
+    }
+    if outer_source_use {
+        body = format!("consume(source);{body}consume(source);");
     }
     let (caller_id, caller) = unit_lower_test_support::parsed(
         &mut sources,
@@ -609,7 +638,18 @@ fn check_sequence(
                     .iter()
                     .all(|edge| audit.borrow_edges.contains(edge))
             );
-            assert!(receipt.has_empty_segments(3));
+            assert_eq!(receipt.segments.len(), 3);
+            assert_eq!(
+                receipt
+                    .segments
+                    .iter()
+                    .map(|s| s.instructions.len())
+                    .collect::<Vec<_>>(),
+                [0, middle_source_use, 0]
+            );
+            if middle_source_use == 0 {
+                assert!(receipt.has_empty_segments(3));
+            }
             let mut results = Vec::new();
             for (local, (source_name, consumer_name)) in receipt
                 .loops
@@ -683,6 +723,60 @@ fn check_sequence(
                 results.push(*result);
             }
             assert_ne!(results[0], results[1]);
+            if middle_source_use == 1 {
+                let middle = &receipt.segments[1];
+                assert_eq!(middle.instructions.len(), 1);
+                let call = function.instruction(middle.instructions[0]).unwrap();
+                let Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    arguments,
+                } = &call.operation
+                else {
+                    panic!("middle source call");
+                };
+                assert!(
+                    program
+                        .modules
+                        .iter()
+                        .flat_map(|m| &m.functions)
+                        .find(|f| f.id == *callee)
+                        .unwrap()
+                        .name
+                        .contains(".middle.")
+                );
+                let [source] = arguments.as_slice() else {
+                    panic!("one source argument");
+                };
+                assert!(!results.contains(source));
+                assert!(
+                    function
+                        .block(call.block)
+                        .unwrap()
+                        .parameters
+                        .contains(source)
+                );
+                assert_eq!(
+                    function.entity(*source).unwrap().ty,
+                    function
+                        .entity(
+                            function
+                                .block(function.entry_block().unwrap())
+                                .unwrap()
+                                .parameters[usize::from(reverse_parameters)]
+                        )
+                        .unwrap()
+                        .ty
+                );
+                let acquisition_calls: BTreeSet<_> = owned
+                    .ownership()
+                    .loans()
+                    .iter()
+                    .filter(|loan| loan.call().source_unit() == facts[0].callable().source_unit())
+                    .map(|loan| loan.call())
+                    .collect();
+                assert_eq!(acquisition_calls.len(), 5);
+            }
             assert_ne!(
                 receipt.loops[0].fact.binding(),
                 receipt.loops[1].fact.binding()
