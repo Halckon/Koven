@@ -17,6 +17,9 @@ pub(crate) mod forward_consumption;
 #[cfg(test)]
 mod forward_consumption_tests;
 pub(crate) mod identity_return;
+pub(crate) mod interleaved_aux_consumption;
+#[cfg(test)]
+mod interleaved_aux_consumption_tests;
 pub(crate) mod later_aux_consumption;
 #[cfg(test)]
 mod later_aux_consumption_tests;
@@ -100,6 +103,7 @@ pub(crate) struct Pending {
     aux_bindings: aux_binding_consumption::Transaction,
     distinct_aux: distinct_aux_consumption::Transaction,
     later_aux: later_aux_consumption::Transaction,
+    interleaved_aux: interleaved_aux_consumption::Transaction,
     loops: loop_consumption::Transaction,
     items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
     keys: Vec<UnitFunctionInstanceKey>,
@@ -124,6 +128,7 @@ impl Pending {
                 aux_bindings: aux_binding_consumption::Transaction::begin(plan),
                 distinct_aux: distinct_aux_consumption::Transaction::begin(plan),
                 later_aux: later_aux_consumption::Transaction::begin(plan),
+                interleaved_aux: interleaved_aux_consumption::Transaction::begin(plan),
                 loops: loop_consumption::Transaction::begin(plan),
                 items: names
                     .names()
@@ -318,6 +323,16 @@ impl Pending {
                 audit
                     .unsupported
                     .push("overlapping later auxiliary binding edge certificate".into());
+            }
+        }
+        let (interleaved_edges, interleaved_gaps) =
+            self.interleaved_aux.finish(program, mapping, owned);
+        audit.unsupported.extend(interleaved_gaps);
+        for edge in interleaved_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping interleaved auxiliary binding edge certificate".into());
             }
         }
         let (loop_edges, loop_callers, loop_gaps) = self.loops.finish(program, mapping, owned);

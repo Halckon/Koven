@@ -20023,3 +20023,22 @@ var、分组实参、额外后用、额外 owner、转义或插值仍不是本�
 公开native正式feature编译与精确列名通过，未执行；frontend/codegen三feature
 all-targets严格Clippy通过（1m40s）。默认跨crate检查留共同集成只运行一次。
 无推送或本地故障注入。
+
+### D10 interleaved AB：结果借用存活期间的辅助再借用（2026-11-15）
+
+在 02c65be2 上复用原 interleaved receipt，新增仅 count=1/prefix=1 的 AB 审计桥。
+A 为辅助 owner 再借用，B 为返回 binding 消费。原 BeforeBinding 的 owner、source Begin、
+handoff 与原十一 action/cursor 保留；四个 Begin 的完整 loan 与实际 Function 来源对账。
+原 MAX8、准入和默认返回不变，不把完整原 region 当成所有交错均获新桥证明。
+
+独立 expected 在 build 前读取原 catalog，绑定两 root 的原字面量解码字节、typed String
+及本次 TypeId、三个原 call dispatch key。最终复核同次原 receipt 与完整 Function、
+十七指令、九实体和所有定义。辅助新 loan End/owner Drop 在 B 之前，结果/来源退休在 B
+之后。纯重放只调用原 new/statement，不触发 finish、观察发布或 CI 故障入口。
+
+真实正例含两个 source 参数位置、反序源、同字节不同 owner 和同 observe 两次 assembly。
+正常 ABA 仍有原完整 region/receipt，但不获 AB 窄桥证书；独立 entry 履约 gap 本片保留。
+独审通过；新 AB 两项与相邻 later 两项均通过。frontend/codegen 三 feature all-targets
+严格 Clippy 通过（4m01s），默认两 crate all-targets check 通过（1m13s，非 workspace）。
+fmt、958 文件文档、2383 Rust 文件尺寸门禁（37 项历史欠账）与 diff 检查通过。
+本地不执行 native/故障、不推送。

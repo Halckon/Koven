@@ -9,6 +9,7 @@ mod callable_loans;
 mod distinct_aux_binding_loans;
 mod entry_loans;
 mod forward_loans;
+mod interleaved_aux_loans;
 mod later_aux_binding_loans;
 mod loop_loans;
 pub use callable_loans::{CallableLoanLinkError, LoanProducer};

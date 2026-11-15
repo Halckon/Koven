@@ -389,6 +389,8 @@ pub(in crate::ssa) fn lower(
     crate::ssa::d10_project_audit::distinct_aux_consumption::expect(inputs, types);
     #[cfg(feature = "d10-catalog-experiment")]
     crate::ssa::d10_project_audit::later_aux_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::interleaved_aux_consumption::expect(inputs, types);
     let body = build::build(inputs, parameters, types)?;
     emit::emit(&body, function, entry, parameters, inputs.span)?;
     #[cfg(feature = "d10-catalog-experiment")]
