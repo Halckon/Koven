@@ -38,12 +38,12 @@ mod resource_state;
 mod string;
 
 use crate::{
-    ast::{ExpressionId, ItemId, StatementId},
+    ast::{ExpressionId, StatementId},
     diagnostic::{Diagnostic, DiagnosticCode, Severity, codes, ordered_diagnostics},
     name_resolution::{NameResolution, ReferenceTarget, SymbolId, SymbolKind},
     parser::{
-        AssignmentOperator, BinaryOperator, Expression, FunctionBody, FunctionForm, Item,
-        NameMarker, ParsedFile, Statement, StringPart, VariableKind,
+        AssignmentOperator, BinaryOperator, Expression, Item, NameMarker, ParsedFile, Statement,
+        StringPart, VariableKind,
     },
     source::{SourceMap, Span},
     type_checking::{
