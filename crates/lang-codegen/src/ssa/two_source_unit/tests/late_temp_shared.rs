@@ -447,7 +447,7 @@ fn late_temp_shared_closed_facts_prepare_asymmetric_lifetime() {
 #[test]
 fn late_temp_shared_rejects_reverse_and_uncovered_shapes() {
     for body in [
-        "val owner=\"shared\";run(owner,\"t\",1,false);run(owner,owner,2,true)",
+        "val owner=\"shared\";run(owner,\"t\",1,false);run(owner,owner,1+1,true)",
         "val owner=\"shared\";run(owner,owner,1,false);run(\"a\",\"b\",2,true)",
         "val owner=\"shared\";val other=\"o\";run(owner,owner,1,false);run(\"t\",other,2,true)",
         "val owner=\"shared\";run(owner,owner,1,false);consume(owner);run(\"t\",owner,2,true)",

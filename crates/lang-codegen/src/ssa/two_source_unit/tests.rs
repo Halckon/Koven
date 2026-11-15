@@ -460,3 +460,5 @@ mod joint_final_named;
 mod joint_final_distinct;
 
 mod late_temp_shared;
+
+mod early_temp_shared;
