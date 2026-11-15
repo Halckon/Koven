@@ -77,6 +77,15 @@ pub(crate) struct SourceConsumer {
     pub(super) span: Span,
     pub(super) argument_span: Span,
 }
+#[cfg(feature = "d10-catalog-experiment")]
+impl SourceConsumer {
+    pub(crate) fn argument(&self) -> UnitExpressionId {
+        self.argument
+    }
+    pub(crate) fn callee(&self) -> FunctionId {
+        self.callee
+    }
+}
 #[derive(Clone, Debug, Default)]
 pub(super) struct SourceSegment {
     pub(super) consumers: Vec<SourceConsumer>,

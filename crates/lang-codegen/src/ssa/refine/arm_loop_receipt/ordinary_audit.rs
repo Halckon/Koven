@@ -9,11 +9,15 @@ impl Receipt {
         &self,
         program: &Program,
         fact: &UnitLoopBranchNoCarryFact,
-        abi: &[SsaTypeId; 3],
+        abi: &[(SsaTypeId, ParameterMode); 3],
         roles: &[usize; 3],
         conditions: &[(UnitExpressionId, Span); 2],
-        calls: &[Vec<FunctionId>; 2],
+        dispatch: (
+            &[Vec<FunctionId>; 2],
+            Option<&super::super::fresh_loop_receipt::SourceConsumer>,
+        ),
     ) -> Option<[(FunctionId, InstructionId, FunctionId); 2]> {
+        let (calls, prefix) = dispatch;
         let p = &self.plan;
         let s = self.span;
         if p.prefix.is_some()
@@ -98,20 +102,25 @@ impl Receipt {
         if entry_block.parameters.len() != 3 {
             return None;
         }
-        for (index, (entity, ty)) in entry_block.parameters.iter().zip(abi).enumerate() {
+        for (index, (entity, (ty, mode))) in entry_block.parameters.iter().zip(abi).enumerate() {
             let kind = if index == roles[0] {
                 SsaTypeKind::StringOwner
             } else {
                 SsaTypeKind::Boolean
             };
+            let expected = match (mode, entity) {
+                (ParameterMode::Borrow, EntityId::Loan(_)) => EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: *ty,
+                },
+                (ParameterMode::Value, EntityId::Value(_)) if index != roles[0] => {
+                    EntityType::Value(*ty)
+                }
+                _ => return None,
+            };
             if ty.module != f.id.module
                 || module.type_kind(*ty) != Some(&kind)
-                || !matches!(entity, EntityId::Loan(_))
-                || f.entity(*entity)?.ty
-                    != (EntityType::Loan {
-                        kind: LoanKind::Shared,
-                        target: *ty,
-                    })
+                || f.entity(*entity)?.ty != expected
             {
                 return None;
             }
@@ -120,7 +129,8 @@ impl Receipt {
         for (i, b) in refs.iter().enumerate() {
             let list = self.evidence.ids(f, *b, s).ok()?;
             let count = match i {
-                1 | 2 => 1,
+                0 => usize::from(prefix.is_some()),
+                1 | 2 => usize::from(abi[roles[i]].1 == ParameterMode::Borrow),
                 3 => calls[0].len() + 1,
                 4 => calls[1].len() + 1,
                 _ => 0,
@@ -130,6 +140,29 @@ impl Receipt {
             }
             for instruction in list {
                 if !instructions.insert(instruction) {
+                    return None;
+                }
+            }
+        }
+        if let Some(prefix) = prefix {
+            let [instruction] = entry_block.instructions.as_slice() else {
+                return None;
+            };
+            let call = f.instruction(*instruction)?;
+            if call.operation
+                != (Operation::DirectCall {
+                    callee: prefix.callee,
+                    receiver: None,
+                    arguments: vec![entry_block.parameters[roles[0]]],
+                })
+                || !call.results.is_empty()
+                || call.origin != crate::ssa::model::Origin::Source(prefix.span)
+            {
+                return None;
+            }
+            let ending = self.evidence.ends.get(&ids[0])?;
+            for (slot, entity) in self.parameters.iter().zip(&entry_block.parameters) {
+                if ending.get(slot) != Some(entity) {
                     return None;
                 }
             }
@@ -157,12 +190,13 @@ impl Receipt {
         for entity in f.values.iter().chain(&f.places).chain(&f.loans) {
             match entity.ty {
                 EntityType::Value(t)
-                    if t == abi[roles[1]] && module.type_kind(t) == Some(&SsaTypeKind::Boolean) => {
-                }
+                    if t == abi[roles[1]].0
+                        && module.type_kind(t) == Some(&SsaTypeKind::Boolean) => {}
                 EntityType::Loan {
                     kind: LoanKind::Shared,
                     target,
-                } if abi.contains(&target) && module.type_kind(target).is_some() => (),
+                } if abi.iter().any(|(ty, _)| *ty == target)
+                    && module.type_kind(target).is_some() => {}
                 _ => return None,
             }
         }

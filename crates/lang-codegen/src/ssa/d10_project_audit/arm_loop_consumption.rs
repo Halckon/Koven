@@ -93,6 +93,14 @@ impl Transaction {
                     return None;
                 }
                 let source = e.source.as_ref()?;
+                if let Some((prefix, _)) = &source.prefix
+                    && owned
+                        .d10_arm_loop_prefix_link(e.fact.branch(), prefix.call, prefix.argument())
+                        .ok()
+                        != Some(e.fact.arms()[0].callable())
+                {
+                    return None;
+                }
                 let caller = *mapping.get(&e.key)?;
                 let snapshots: Vec<_> = state
                     .snapshots
@@ -107,7 +115,12 @@ impl Transaction {
                 {
                     return None;
                 }
-                for (key, id) in source.calls.iter().flatten() {
+                for (key, id) in source
+                    .calls
+                    .iter()
+                    .flatten()
+                    .chain(source.prefix.iter().map(|(_, call)| call))
+                {
                     if mapping.get(key) != Some(id)
                         || mapping.values().filter(|x| *x == id).count() != 1
                         || program
@@ -143,7 +156,7 @@ impl Transaction {
                     &source.abi,
                     &source.roles,
                     &source.conditions,
-                    &calls,
+                    (&calls, source.prefix.as_ref().map(|(prefix, _)| prefix)),
                 )?;
                 if result[0] == result[1] || result.iter().any(|x| edges.contains(x)) {
                     return None;

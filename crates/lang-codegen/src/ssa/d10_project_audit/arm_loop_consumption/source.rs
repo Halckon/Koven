@@ -6,10 +6,11 @@ use lang_frontend::{
     type_checking::{BuiltinType, UnitTypeKind},
 };
 pub(super) struct Source {
-    pub abi: [SsaTypeId; 3],
+    pub abi: [(SsaTypeId, ParameterMode); 3],
     pub roles: [usize; 3],
     pub conditions: [(UnitExpressionId, Span); 2],
     pub calls: [Vec<Call>; 2],
+    pub prefix: Option<(crate::ssa::refine::fresh_loop_receipt::SourceConsumer, Call)>,
 }
 impl Source {
     pub(super) fn collect(
@@ -17,7 +18,13 @@ impl Source {
         types: &RefineTypes<'_>,
         fact: &UnitLoopBranchNoCarryFact,
     ) -> Option<Self> {
-        if inputs.parameters.len() != 3 || inputs.modes.as_slice() != [ParameterMode::Borrow; 3] {
+        if inputs.parameters.len() != 3
+            || inputs.modes.len() != 3
+            || inputs
+                .modes
+                .iter()
+                .any(|m| !matches!(m, ParameterMode::Borrow | ParameterMode::Value))
+        {
             return None;
         }
         let ast = inputs.parsed.ast();
@@ -27,8 +34,10 @@ impl Source {
         let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
             return None;
         };
-        let [statement] = elements.as_slice() else {
-            return None;
+        let (before, statement) = match elements.as_slice() {
+            [statement] => (None, statement),
+            [before, statement] => (Some(*before), statement),
+            _ => return None,
         };
         if fact.arms().iter().any(|a| {
             a.loop_statement().source_unit() != inputs.source_unit
@@ -75,6 +84,9 @@ impl Source {
             .parameters
             .iter()
             .position(|s| *s == fact.arms()[0].source())?;
+        if inputs.modes[source] != ParameterMode::Borrow {
+            return None;
+        }
         let mut roles = vec![source];
         let mut conditions = Vec::new();
         for e in [outer, condition] {
@@ -103,7 +115,7 @@ impl Source {
                 if inputs.typed.types().get(t) != Some(&UnitTypeKind::Builtin(expected)) {
                     return None;
                 }
-                types.type_ids.get(&t).copied()
+                Some((*types.type_ids.get(&t)?, inputs.modes[i]))
             })
             .collect::<Option<Vec<_>>>()?;
         let call = |expression| {
@@ -125,11 +137,26 @@ impl Source {
                     .collect::<Option<Vec<_>>>()?,
             );
         }
+        let prefix = if let Some(statement) = before {
+            let consumer = crate::ssa::refine::fresh_loop_receipt::audit_consumer(
+                inputs,
+                statement,
+                fact.arms()[0].source(),
+            )?;
+            let mapped = call(consumer.call)?;
+            if mapped.1 != consumer.callee() {
+                return None;
+            }
+            Some((consumer, mapped))
+        } else {
+            None
+        };
         Some(Self {
             abi: abi.try_into().ok()?,
             roles: roles.try_into().ok()?,
             conditions: conditions.try_into().ok()?,
             calls: calls.try_into().ok()?,
+            prefix,
         })
     }
 }

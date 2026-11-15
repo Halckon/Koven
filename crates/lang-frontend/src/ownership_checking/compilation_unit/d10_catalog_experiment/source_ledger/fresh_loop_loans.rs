@@ -74,6 +74,21 @@ impl CompilationUnitOwnership {
         &self,
         branch: UnitExpressionId,
     ) -> Result<UnitItemId, CallableLoanLinkError> {
+        self.link_arm_source(branch, None)
+    }
+    pub(crate) fn d10_arm_loop_prefix_link(
+        &self,
+        branch: UnitExpressionId,
+        call: UnitExpressionId,
+        argument: UnitExpressionId,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
+        self.link_arm_source(branch, Some((call, argument)))
+    }
+    fn link_arm_source(
+        &self,
+        branch: UnitExpressionId,
+        prefix: Option<(UnitExpressionId, UnitExpressionId)>,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
         use CallableLoanLinkError::{Ambiguous, Unsupported};
         let ledger = self.source_collection_ledger.as_ref().ok_or(Unsupported)?;
         if !ledger.matches_original(self) {
@@ -127,6 +142,24 @@ impl CompilationUnitOwnership {
                     return Err(Unsupported);
                 }
                 ordinals.push(*ordinal);
+            }
+        }
+        if let Some((call, argument)) = prefix {
+            let loans: Vec<_> = record
+                .loans
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| l.call() == call)
+                .collect();
+            let [(ordinal, loan)] = loans.as_slice() else {
+                return Err(Ambiguous);
+            };
+            if ordinals.contains(ordinal)
+                || loan.argument() != argument
+                || producers.get(*ordinal) != Some(&Some(LoanProducer::Function(callable)))
+                || !matches!(loan.target(), crate::ownership_checking::UnitLoanTarget::Place(place) if place.is_root() && place.root()==pair.arms()[0].source())
+            {
+                return Err(Unsupported);
             }
         }
         Ok(callable)

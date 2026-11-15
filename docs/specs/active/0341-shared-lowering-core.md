@@ -20536,3 +20536,17 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 所有 legacy 单 caller 路线保 common_instance=None 必拒；真实正常新域源码直接调用旧 publication 与 emit 均须拒绝，不构造假 descriptor、无故障注入。新增 3 个正常目标涵盖反调用序、反输入文件序、具名实参源码顺序及同字节不同owner，按原FullKey逐位核实际不同SSAcallee/Span、ABI映射/8End/4Drop、完整图；另核named/mixed/late/第三call/复杂scalar/Group、非E2 callee与未认领合法shell负控。先前两个不同callee拒例已改名保留为named-owner与computed-scalar真域外负控，未删除其余旧能力证明。
 
 本片已通过正式 two-source-unit 与三 feature 各 3 个新目标；旧 occurrence_bindings 4、two_call_entry 5 均完成必要回归（首轮两个更名负控与后续3+4分批覆盖，不重复执行）。三 feature 正例内真实 legacy publication/emit 对每个 fact 均拒绝无 common key。非 E2 callee 精确 UnsupportedSelection、未认领合法 shell 精确 Preflight 已实测。双 crate all-targets 三 feature Clippy `-D warnings` 首次通过。首轮正例唯一失败为测试误将临时 Drop 的 IR origin 等同 ownership value_origin；经独审仅修 oracle：原 Drop.value_origin 仍核实参 AST Span，而既有 IR cleanup 在原 CallReturn Span。复验通过，失败日志保留、生产未因此改动。fmt、docs、size（2467 Rust、2 个历史超限债务）、shell语法与diff门禁通过。引用第一步实际双fact/shell闭合但入口 Unsupported 的红基线，未重复原probe。CI同批新增3精确目标并同步两处旧名，实际每配置52 unit目标、7 public、另1 frontend；登记不等于执行，仍不跑native或fault。
+
+### D10 ordinary 双臂的 Boolean Value 条件角色
+
+- 独立 Expected 保存三个原 typed ABI type/mode；source 始终 Borrow String，其余两个独立 Name 条件只接受 Boolean Borrow/Value。原 source ledger/condition expression-span-symbol-index/同次 receipt 与完整七块证明不变，不把同型 Boolean 视为可互换。
+- entry 逐原参数核 Value 或 SharedLoan，原 condition validator 将实际 Conditional operand 对应回原角色；Borrow 条件保唯一 Read，Value 条件不产生 Read/End/Drop。每块指令的零/一要求按原条件模式独立确定，不因 Value 放松块覆盖或循环/分支边。
+- 新三项真实测试首遍通过：三种新模式、六 ABI 顺序、条件互换、source 反序共 72 组合各两次 assembly；独立从最终真实 edges 追溯条件角色并核零迭代出口和两个 fresh 的唯一 End。额外参数/重复条件角色两项保持正常 receipt 及明确 gap；owned String source 与 Group 外条件均实测原 ownership 精确两条 L0164、两处 borrow 六字符 span 及零 audit/receipt，不泛接任意错误。
+- 原 Borrow arm 两项通过，FE/codegen 三 feature all-targets 严格 Clippy（1m44s）、default codegen all-targets（32.25s）、格式/docs979/尺寸2465文件与2项历史欠账/diff 全部通过，独审无阻断。fmt 后空 unit 表达式仅等价整理，实际原七块拓扑无需放宽；未 native、故障注入或推送，默认 workspace 留联合一次。
+
+### D10 ordinary 双臂之前的单次 source 消费
+
+- 原完整 body 仅接受 `[while]` 或 `[sourceConsumer, while]`；前消费复用原 source-admission 的 typed Call/Name 参数、SharedLoan contract、实际 loan/end-span 与 callee，不把原 plan.prefix 专用结构普遍放开。独立 source ledger 再核此前 call 的唯一 loan ordinal/argument/Function producer，与两臂全部 acquisitions 不重。
+- 最终入口精确一条原 callee、原 source entry 实体与原 call Span 的无结果 DirectCall；完整 ABI slot 的 ending 仍逐一对应原 entry 实体，经原边运输到循环。其余原七块、两 Name 条件 Borrow/Value、每臂一/二 consumer 与唯一 End、全实体/type/Return、同次双边原子发布均不放宽。
+- 新两项目标通过：四种条件模式、六 ABI、source 顺序共 48 前消费形态各两次 assembly；实际 entry callee 由原声明 item Span 对应最终唯一 Function Origin，不猜生成函数名。Group/具名参数前消费均原正常 receipt 但精确 gap；旧域外前消费改为两次 consumer 仍保持 gap，suffix 继续原精确 InvalidModel/caller span 与零发布。
+- 受影响旧 arm 两项及 Value 三项通过；FE/codegen 三 feature all-targets 严格 Clippy（1m42s）、default codegen all-targets（32.31s）、格式/docs979/尺寸2466文件与2项历史欠账/diff 全部通过，独审无阻断。首编 E0616 日志保留，SourceConsumer 增加 feature-only 两个按值只读 getter 后实测通过，无构造或变更权限；未 native、故障注入或推送，默认 workspace 留联合一次。
