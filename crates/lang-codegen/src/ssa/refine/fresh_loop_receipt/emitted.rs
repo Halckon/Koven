@@ -613,8 +613,11 @@ impl Receipt {
                 .iter()
                 .all(|s| s.sealed() && s.consumers.is_empty() && s.instructions.is_empty())
     }
-    pub(crate) fn matches_source_segments(&self, expected: &[Vec<SourceConsumer>; 2]) -> bool {
-        self.segments.len() == 2
+    pub(crate) fn matches_source_segments<const N: usize>(
+        &self,
+        expected: &[Vec<SourceConsumer>; N],
+    ) -> bool {
+        self.segments.len() == N
             && self
                 .segments
                 .iter()

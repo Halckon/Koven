@@ -221,4 +221,4 @@ pub(super) fn record(receipt: Receipt) {
 }
 
 #[cfg(feature = "d10-catalog-experiment")]
-pub(crate) use source_admission::audit_segments;
+pub(crate) use source_admission::{audit_consumer, audit_segments};
