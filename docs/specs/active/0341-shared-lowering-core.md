@@ -20697,3 +20697,20 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
   必要旧 late 3 + 两个改动负控共 5/5 通过，双 crate all-targets 三 feature strict 通过（1m43）。
 - CI 同批登记 64 unit/配置，保留 7 public 与 1 frontend；旧晚 owner 不同 callee 负例转为
   Group/计算 scalar，保持真实域外。不执行 native/故障注入/整 CI，默认 workspace 留联合一次。
+
+
+### E2 两 named root 共同末退役（已定向验收）
+
+- 基联合 cd3a57b1，exact 两 plain String val 加两次同 FullKey/空类型实参调用，
+  每次各借两不同原根，scalar 为裸 literal；不扩第三调用或任意语句。
+- 原 probe 两 case 已验证 8 唯一完整 Shared loan/End、首 Drop 空、末两 NamedDrop 全局唯一。
+  原声明 a,b 时实测退役 b,a，反声明时退役 a,b；生产保存原向量，不从声明顺序猜清理顺序。
+- 初轮附加 End 源 Span 递增 oracle 错误；原 planner 逆序结束 pending loan，修正经独审，
+  原 ordinal、每 loan 唯一合同/End/Span 和完整 Drop 证明均保留，普通复验 1/1 过；
+  双 case 闭合事实准确 UnsupportedSelection 红已保留，不重复该红。
+- 私有 JointFinalNamedPair 固定 owners[2] 与 terminal_drops[2] 分别保存声明与原清理顺序；
+  独立 emit/replay 保首 End 后两根仍活跃，次全 End 后依原向量释放，旧 staggered 不放宽。
+- 三个正常目标正式与三 feature 各 3/3 通过，7 个域外 case 精确拒绝；旧 staggered 3 与
+  paired 5 通过，双 crate all-targets 三 feature strict 通过（1m43），CI 登记 67 unit/配置。
+- 旧 staggered 的共同末退役负例已属本片正域，首回归失败记录保留；经独审仅改其
+  第二 scalar 为计算表达式，单目标复验通过。未重复原已绿目标，不运行 native/故障注入。

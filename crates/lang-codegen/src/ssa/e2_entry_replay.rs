@@ -1,4 +1,5 @@
 //! Independent source entry replay. Reads actual instruction results; does not rerun emission.
+mod joint_final;
 mod staggered;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use super::e2_entry::EmittedEntry;
@@ -145,7 +146,7 @@ pub(super) fn replay_bound_body(
     if !block.parameters.is_empty()
         || block.origin != Origin::Source(declaration)
         || block.instructions.len()
-            != if d.staggered_owners().is_some() {
+            != if d.staggered_owners().is_some() || d.joint_final_owners().is_some() {
                 32
             } else if d.shared_owner().is_some() {
                 let counts: Vec<_> = d
@@ -197,7 +198,9 @@ pub(super) fn replay_bound_body(
         ids: &block.instructions,
         index: 0,
     };
-    if d.staggered_owners().is_some() {
+    if d.joint_final_owners().is_some() {
+        joint_final::replay(module, &mut cursor, bindings, d)?;
+    } else if d.staggered_owners().is_some() {
         staggered::replay(module, &mut cursor, bindings, d)?;
     } else {
         let shared = if let Some((symbol, _, span, bytes, drop)) = d.shared_owner() {

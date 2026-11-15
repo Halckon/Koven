@@ -1,4 +1,5 @@
 //! Complete source entry emission in the experiment; no production entry capability.
+mod joint_final;
 mod staggered;
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
 use super::e2_function;
@@ -126,7 +127,9 @@ pub(super) fn fill_bound_entry(
         return None;
     }
     let block = empty_declaration(module.function(entry)?, &[])?;
-    if descriptor.staggered_owners().is_some() {
+    if descriptor.joint_final_owners().is_some() {
+        joint_final::emit(module, entry, bindings, descriptor)?;
+    } else if descriptor.staggered_owners().is_some() {
         staggered::emit(module, entry, bindings, descriptor)?;
     } else {
         let shared = if let Some((symbol, _, span, bytes, drop)) = descriptor.shared_owner() {
