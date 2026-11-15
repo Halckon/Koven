@@ -463,6 +463,7 @@ subgraph Gactive["现行 active"]
   S0473["S0473<br/>Drop表达式遍历与Unit place访问检查归位"]
   S0474["S0474<br/>Single ownership运行与声明职责归位"]
   S0475["S0475<br/>Fixture发现、执行与合同测试归位"]
+  S0476["S0476<br/>Conditional leaf实例回放器归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1999,6 +2000,7 @@ S0456 --> S0457
 | SPEC-0473 | active | [0473-drop-expression-and-unit-place-access.md](../../specs/active/0473-drop-expression-and-unit-place-access.md) |
 | SPEC-0474 | active | [0474-single-ownership-lifecycle-and-declarations.md](../../specs/active/0474-single-ownership-lifecycle-and-declarations.md) |
 | SPEC-0475 | active | [0475-fixture-discovery-execution-and-contracts.md](../../specs/active/0475-fixture-discovery-execution-and-contracts.md) |
+| SPEC-0476 | active | [0476-conditional-leaf-instance-replay-domain.md](../../specs/active/0476-conditional-leaf-instance-replay-domain.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
