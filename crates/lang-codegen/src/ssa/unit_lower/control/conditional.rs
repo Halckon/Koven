@@ -327,12 +327,13 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
             result_required: bool,
             span: Span,
         ) -> Result<Option<NullableIfEntry>, LoweringError> {
-            if !self.nullable_proofs.is_empty() || result_required {
+            if result_required {
                 return Ok(None);
             }
             // Nullable `String?` ifs lower only in `ssa::refine` (SPEC-0398); a mixed
             // compatibility body keeps its older inline-nullable handling.
             if !self.migrated_family_compatibility
+                && self.nullable_proofs.is_empty()
                 && self
                     .typed
                     .null_comparison(UnitExpressionId::new(self.source_unit, condition))

@@ -247,11 +247,8 @@ jobs:
     needs: [changes, docs, fmt]
     if: |
       needs.changes.outputs.reuse != 'true' &&
-      always() &&
       (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
-      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
-      (needs.docs.result == 'success' || needs.docs.result == 'skipped') &&
-      (needs.fmt.result == 'success' || needs.fmt.result == 'skipped')
+      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     strategy:
       fail-fast: false
       matrix:
@@ -302,13 +299,11 @@ jobs:
 
   test:
     name: Targeted Tests (${{ matrix.os }})
-    needs: [changes, clippy]
+    needs: [changes, docs, fmt]
     if: |
       needs.changes.outputs.reuse != 'true' &&
-      always() &&
       (needs.changes.outputs.rust == 'true' || needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
-      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
-      needs.clippy.result == 'success'
+      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     strategy:
       fail-fast: false
       matrix:
@@ -415,10 +410,10 @@ jobs:
 
   preview-macos-produce:
     name: Preview Producer (macos-15)
-    needs: [changes, test]
+    needs: [changes, docs, fmt]
     if: |
       needs.changes.outputs.reuse != 'true' &&
-      always() && needs.test.result == 'success' &&
+      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       (needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: macos-15
     timeout-minutes: 30
@@ -539,10 +534,10 @@ jobs:
 
   preview-linux-produce:
     name: Preview Producer (ubuntu-24.04)
-    needs: [changes, test]
+    needs: [changes, docs, fmt]
     if: |
       needs.changes.outputs.reuse != 'true' &&
-      always() && needs.test.result == 'success' &&
+      (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') &&
       (needs.changes.outputs.preview == 'true' || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 30

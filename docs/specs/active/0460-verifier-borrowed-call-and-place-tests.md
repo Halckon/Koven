@@ -92,3 +92,29 @@ Architecture同步实际归属；最终docs957与空白通过，之后仅收齐�
 组末fetch时远端main已推进c3ceea14（含#432及#434），本批冻结输入未导入这些后继变化。
 尺寸门禁使用实际merge-base，不把它当成已验证最新main合并树；新候选CI及必要主干整合另验。
 一次查询前批CI遇GitHub API EOF，不能据此判前批失败或成功；先前888ec601观察为in-progress。
+
+## 7. 同PR主干整合
+
+用户要求继续推进后，从clean的9ff7e1bb普通merge最新main
+`c3ceea143a3a94ecc36f91cfb394170e71893889`，不rebase/force、不另开PR。
+无冲突、无手工Rust或CI算法调整。主干已批准的#426资源分类说明/#432不同根nullable
+writeback修复/#434 CI优化原样进入，不把它们作为本Spec新增语言授权。
+
+机械整合核对：13个主干Rust/CI文件与main逐字节相同；17个本分支Rust/policy文件与
+9ff7e1bb逐字节相同。两侧Architecture/roadmap自动合并后按真源重生成，无生成视图差异。
+
+| 整合验证 | 实际结果 |
+|---|---|
+| 组合codegen | 原122+implicit_null五项，默认/feature各 **127/0/0**，所有过滤器实际命中；包括主干新增inner writeback后outer Borrow/return的native消费者 |
+| 资源分类 | frontend `resource_deinit_type_facts`完整 **11/0/0** |
+| 资源作用域native | CLI `native_cli`中的resource_scope_drop两项真实编译/链接/run，**2/0/0**，stdout精确为marker后deinit、stderr空 |
+| CI-only边界 | `unit_single_source_analysis`仅编译/list，列出6项；ignored generated-owner校准入口未执行，不能记作6 passed或补成fault覆盖 |
+| Rust | workspace all-target check与Clippy、feature codegen all-target Clippy、fmt退出0，同target顺序执行 |
+| CI优化脚本 | pr_ci_reuse 35、check_ci_results 45、checker_evidence 4项unit tests均通过；其中拒绝/blocked JSON为测试fixture输出，不代表真实CI状态 |
+| 门禁 | policy tests47通过、docs957、尺寸退出0：2152手写Rust、29历史超限；没有新增/放宽额度 |
+
+这次整合验证归因合并后的实际工作树，不与整合前122项重复累计为覆盖；原始日志与
+整合diff/机械核对置仓库外。独立只读复核已确认两侧代码/文档保全、proof交汇面与真实组合
+选择，未发现具体问题；最终docs与暂存/工作区空白通过。真实generated-owner校准、CI-only
+fault、完整双宿主与Preview仍待精确合并候选的官方CI，不以mock unit tests或list替代。
+当前不归档或合入main。
