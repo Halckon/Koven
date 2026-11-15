@@ -20062,3 +20062,18 @@ parts 仍拒绝，既有 grouped expression 等域外限制不变。后端只消
 数与 verifier/LLVM render 均核对。受影响 frontend/codegen 三 feature all-targets
 严格 Clippy 通过（4m48s）；fmt、diff、bash语法、958文件文档和Rust尺寸门禁通过。
 默认workspace留共同集成一次；本片不执行native、不做故障注入、不推送。
+
+### D10 AB 获证 handoff 的独立 entry 履约（2026-11-15）
+
+在 b483f6ea 上仅连接已完整获证 AB 域，不扩 count=1/prefix=1 或原 MAX8。原同次
+十七指令/九实体、BeforeBinding 因果链与最终映射全部通过后，从同 catalog ids2 读取
+完整 handoff，并要求原 owned 同 call 的 handoff 恰一且全字段相等，才 mint 私有 token。
+不开放裸 edge 构造器，不从成功证书倒推原 entry expected。
+
+第四 Fulfillment 与原三路合并后统一检查数量、完整身份、原 call/lifetime 竞争和残余；
+消费只履行同一义务，不重复发布图边。AB 正例预期清除唯一旧 entry gap；正常 ABA
+仍有原完整 interleaved receipt，但不获窄桥 token，保 missing entry 与 unclassified 边。
+独审通过；AB 两项、later 正例一项、Boolean 双消费一项共四项通过。codegen 三 feature
+all-targets 严格 Clippy 通过（28.13s），默认 codegen all-targets check 通过（7.04s，
+非 workspace）。fmt、958 文件文档、2384 Rust 文件尺寸门禁（37 项历史欠账）与 diff
+检查通过。无 native/人工故障或推送。

@@ -254,6 +254,9 @@ impl Pending {
         let (later_edges, later_fulfilled, later_gaps) =
             self.later_aux.finish(program, mapping, owned);
         audit.unsupported.extend(later_gaps);
+        let (interleaved_edges, interleaved_fulfilled, interleaved_gaps) =
+            self.interleaved_aux.finish(program, mapping, owned);
+        audit.unsupported.extend(interleaved_gaps);
         let fulfilled = aux_fulfilled
             .into_iter()
             .map(entry_borrow::Fulfillment::SameRoot)
@@ -266,6 +269,11 @@ impl Pending {
                 later_fulfilled
                     .into_iter()
                     .map(entry_borrow::Fulfillment::LaterUse),
+            )
+            .chain(
+                interleaved_fulfilled
+                    .into_iter()
+                    .map(entry_borrow::Fulfillment::InterleavedAb),
             )
             .collect();
         let (entry_edges, entry_gaps) =
@@ -325,9 +333,6 @@ impl Pending {
                     .push("overlapping later auxiliary binding edge certificate".into());
             }
         }
-        let (interleaved_edges, interleaved_gaps) =
-            self.interleaved_aux.finish(program, mapping, owned);
-        audit.unsupported.extend(interleaved_gaps);
         for edge in interleaved_edges {
             if !branch_edges.insert(edge) {
                 audit

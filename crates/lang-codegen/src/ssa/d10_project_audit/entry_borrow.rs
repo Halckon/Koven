@@ -11,6 +11,7 @@ pub(super) enum Fulfillment {
     SameRoot(super::aux_binding_consumption::ValidatedHandoff),
     EagerDistinct(super::distinct_aux_consumption::ValidatedHandoff),
     LaterUse(super::later_aux_consumption::ValidatedHandoff),
+    InterleavedAb(super::interleaved_aux_consumption::ValidatedHandoff),
 }
 impl Fulfillment {
     fn call(&self) -> UnitExpressionId {
@@ -18,6 +19,7 @@ impl Fulfillment {
             Self::SameRoot(p) => p.call(),
             Self::EagerDistinct(p) => p.call(),
             Self::LaterUse(p) => p.call(),
+            Self::InterleavedAb(p) => p.call(),
         }
     }
     fn matches(
@@ -31,6 +33,7 @@ impl Fulfillment {
             Self::SameRoot(p) => p.matches(handoff, callable, program, mapping),
             Self::EagerDistinct(p) => p.matches(handoff, callable, program, mapping),
             Self::LaterUse(p) => p.matches(handoff, callable, program, mapping),
+            Self::InterleavedAb(p) => p.matches(handoff, callable, program, mapping),
         }
     }
 }

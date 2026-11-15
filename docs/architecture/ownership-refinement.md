@@ -180,7 +180,8 @@ source 清理后才新建 aux place/loan、独立消费并 End/Drop；完整十�
 统一三路唯一消费/竞争检查，第二 later-use 无证仍保 gap。
 interleaved 的 AB 窄桥限一个 BeforeBinding 辅助再借用：返回借用仍活时先 End/Drop(aux)，
 再消费结果并退休来源；原 prefix=1、原因果状态与全十七指令/九实体共同核对。
-原 MAX8 不变，更长正常交错未获此桥证明，独立 entry 义务仍保 gap。
+全证后自有私有 token 可精确履行原 entry handoff；四路证明统一检测竞争，图边仅发布一次。
+原 MAX8 不变，更长正常交错未获此桥证明，其 entry 义务仍保 gap。
 具体边界及实际验收见 [D10 生命周期消费](../specs/active/0341-shared-lowering-core.md#d10-有界入口生命周期实际消费2026-11-15)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、
