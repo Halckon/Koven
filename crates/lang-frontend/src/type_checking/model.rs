@@ -1,10 +1,10 @@
 mod callable_descriptor;
 mod type_table;
 mod typed_file;
-pub use type_table::{DeferredReason, IntegerConstraint, TypeId, TypeKind, TypeTable};
 use crate::type_checking::{IntegerOperationDescriptor, IntegerRangeOperationDescriptor};
 pub use callable_descriptor::CallableDescriptor;
 use std::{collections::BTreeMap, sync::Arc};
+pub use type_table::{DeferredReason, IntegerConstraint, TypeId, TypeKind, TypeTable};
 
 use crate::{
     ast::{ExpressionId, StatementId, TypeRefId},
@@ -950,4 +950,3 @@ pub(crate) struct TypedFileParts {
     pub(crate) element_places: Vec<ElementPlaceDescriptor>,
     pub(crate) map_descriptors: super::map_descriptor::MapDescriptors,
 }
-
