@@ -424,3 +424,5 @@ mod declaration_order;
 mod parameter_roles;
 
 mod named_arguments;
+
+mod integer_literals;
