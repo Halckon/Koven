@@ -7,7 +7,7 @@
 单文件入口为 `ownership_checking::check_ownership`；`check_compilation_unit_ownership` 消费 validated typed unit，返回 source-qualified
 `CompilationUnitOwnership`。两条路径使用各自产物的 ID，不能混用；旧 Single 对非已证 Copyable 的 Value receiver 报 L0170，不发布成功所有权计划，完整 owning receiver 由 Unit 提供；范围见 [SPEC-0392](../specs/active/0392-compiler-layered-review.md)。[receiver 借用](receiver-borrows.md)记录预留/激活与 Shared Return 前缀结束的有界合同；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的提交与边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
 
-公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；contracts/capture/dataflow 与错误
+Single checker初始化/运行与事实发布位于 `checker/lifecycle.rs`，声明检查归于现有 `checker/declaration.rs`，共享State/Flows与表达式遍历留根。公开 unit 入口委托私有 `compilation_unit/analysis.rs` driver；Single/Unit drop表达式完整遍历分别在 `checker/drop_planner/expression.rs` 与 `compilation_unit/dataflow/drop_planner/expression.rs`，Unit place消费/访问检查在 `dataflow/place_access.rs`，共享state/helper留根且两套实现不合并；产物构造/筛选/查询/验证实现位于私有 `compilation_unit/product.rs`，结构字段与wrapper留根；contracts/capture/dataflow 与错误
 清理顺序不变。独立 `check_compilation_unit_constant_ownership` 消费 `ConstEnabledTypedUnit`，
 返回 `CompilationUnitConstantOwnership`；其 `validate` 仅在完整物化与短路事实存在时产生
 `ConstEnabledOwnedUnit`。`is_compatible_with` 核对 typed 分析的 Arc 身份，等值重新分析不兼容。 [0357](../specs/active/0357-string-when-ownership-facts.md)新增 String when literal 首核的比较后清理事实，其他形状deferred；codegen尚未消费，仍明确拒绝。

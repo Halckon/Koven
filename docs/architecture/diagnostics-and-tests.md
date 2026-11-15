@@ -87,3 +87,9 @@ macOS 的 DWARF 调试器测试保留 LLDB 断点/运行断言。Linux 的 DWARF
 `llvm-dwarfdump --debug-line` 检查生成 ELF object 中的 `.ko` 文件、行和列，再经系统 C driver
 链接并实际运行；该测试不声称 Linux 调试器断点或变量查看已通过。工具前提与未运行平台的
 报告规则见[测试指南](../development/testing.md#本机目标与工具前提)。
+
+资源生命周期测试 `ownership_resource_deinit/exchange.rs` 私有域承载root/direct-field replace/swap的十二项完整转移/清理测试；根共享Single/Unit检查入口、原Unit helper与全部断言保持唯一。
+
+`tests/fixtures.rs`保留共享模型/路径/加载校验/重复解析与报告；私有`fixtures/{discovery,execution}.rs`负责发现-sidecar与suite执行，原`tests`模块外置`fixtures/contracts.rs`且FQN不变，平台条件保护原样保留。
+
+Conditional-leaf iteration测试的实例/selector/phi回放器位于私有 `conditional_leaf/replay.rs`；场景、fixture及静态/动态断言留原测试函数，原FQN与三个tail不变，未合并其他独立oracle。
