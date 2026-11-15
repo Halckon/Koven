@@ -24,6 +24,7 @@ def sibling(name):
 
 
 CAP = sibling("capability")  # 结构能力推导（KB4）：可复制、可转移、可逃逸、可提前析构都向它问
+DP = sibling("drop_plan")  # 析构义务（KB1）：本检查器定下的析构交给它的检验器独立检验
 
 Type = namedtuple("Type", "kind name")  # kind: int | unit | cls | view | borrow | inout
 INT = Type("int", "Int")
@@ -483,6 +484,9 @@ class Checker:
         self.errors = set()
         self.early_drop = early_drop  # 析构不可观察的局部值在不再需要时提前析构（统一析构规则的“许可”）
         self.drops = []  # 提前析构的 (函数名, 变量名, 其后的语句行号)
+        self.out = None  # 正在生成的析构义务程序（DP.Stmt 列表）
+        self.quiet = False  # 为真时访问不记为使用（整体赋值的目标）
+        self.lowered = {}  # 函数名 -> (类型表, 带显式析构的程序, 是否被接受)
         self.caps = CAP.Engine({name: self.cap_decl(decl) for name, decl in classes.items()})
         for line, message in self.caps.check_declarations():
             self.error("CAP", line, message)
@@ -541,6 +545,31 @@ class Checker:
             return Type("fn", name[3:])
         return Type("opaque", name) if name in fun.tparams else self.type_of(name)
 
+    # ---- 析构义务（KB1）：把每个函数写成只含所有权操作、析构显式的程序
+
+    @staticmethod
+    def tracked(var):
+        """名下有析构义务的变量：拥有的值。借用值、整数、函数值与任务不在内。"""
+        return var is not None and var.ty.kind in ("cls", "view", "any", "opaque")
+
+    def emit(self, kind, line, name="", state=None, **tags):
+        if self.out is None:
+            return
+        stmt = DP.Stmt(kind, line, var=name, **tags)
+        if state is not None:  # 可能失败的操作：失败时析构此刻仍拥有的变量，自内向外、声明逆序
+            stmt.cleanup = [(n, v.init == "MM") for n, v in reversed(list(state.items()))
+                            if self.tracked(v) and v.init != "M"]
+        self.out.append(stmt)
+
+    def declare(self, kind, line, name, ty, state):
+        """声明或重新赋值一个拥有的变量；析构是否可观察取自能力推导。"""
+        self.dp_types[ty.name] = DP.TypeDecl(ty.name, [], deinit=not self.has("EarlyDrop", ty))
+        self.emit(kind, line, name, state if kind == "let" else None, ty=ty.name)
+
+    def destroy(self, line, name, var, **tags):
+        if self.tracked(var) and var.init != "M":
+            self.emit("drop", line, name, if_owned=var.init == "MM", **tags)
+
     # ---- 签名
 
     def check_signature(self, fun):
@@ -582,6 +611,7 @@ class Checker:
         self.version = 0
         self.pending = []
         self.live = set()
+        self.out, self.dp_types, known = [], {}, len(self.errors)
         state = {}
         for mode, name, ty_name in fun.params:
             ty = self.type_in(fun, ty_name)
@@ -594,6 +624,8 @@ class Checker:
             elif ty.kind == "opaque" and ty_name in fun.views:  # view T 的值携带一组未知的来源
                 loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}
             # 按 inout / borrow 接收存在类型，得到的是载荷访问（之三 §2.4）
+            if mode == "own" and self.tracked(Var(ty, "A", {})):
+                self.declare("let", fun.line, name, ty, state)
             state[name] = Var(ty if mode == "own" else Type(mode, ty_name), "A", loans,
                               mode != "own" and ty.kind == "any")
         declared = set(state)
@@ -608,6 +640,10 @@ class Checker:
             self.check_contract(returned, fun)
         self.check_flows(state, fun)
         self.check_tasks(state, list(state), fun.line)
+        for name in reversed(list(state)):  # 函数结束：仍拥有的值按声明逆序析构
+            self.destroy(fun.line, name, state[name])
+        self.lowered[fun.name] = (self.dp_types, self.out, len(self.errors) == known)
+        self.out = None
 
     def check_unique(self, stmts, declared, fun):
         """演算不处理遮蔽：一个函数内每个名字只声明一次。"""
@@ -807,6 +843,10 @@ class Checker:
         via 是这次访问所凭借的 loan；它们及其祖先不算冲突。冲突的 loan 若是 via 的后代，
         说明父持有者正被子借用暂停，记为 K4；作用域结束时的析构冲突记为 K9；其余记为 K1。
         """
+        if kind not in ("move", "kill") and not self.quiet:
+            for root in sorted({root for root, _ in targets}):  # 经借用访问也是对 owner 的一次使用
+                if self.tracked(state.get(root)):
+                    self.emit("use", line, root)
         skip = set(via) | self.ancestors(via)
         for loan in sorted(self.live_loans(state) - skip):
             info = self.loans[loan]
@@ -927,6 +967,8 @@ class Checker:
         if var.pinned:
             self.error("S3", expr.line, f"{place.root} 已开始执行，它的帧不能再移动")
         value = Value(var.ty, copy_loans(var.loans), var.payload)
+        if self.tracked(var):
+            self.emit("move", expr.line, place.root)
         var.init, var.loans = "M", {}
         return value
 
@@ -1133,6 +1175,7 @@ class Checker:
         if suspends:  # 调用 suspend 函数本身是调用方的一个挂起点；实参的 loan 在此期间保持
             self.suspend_point(state, expr.line)
         del self.pending[len(self.pending) - pushed:]
+        self.emit("call", expr.line, state=state)
         bound = self.bind_types(fun, values, expr.line)
         for (param, fld), (target, path) in fun.flows:  # 来源流入已有的持有者
             index = [name for _, name, _ in fun.params].index(target)
@@ -1197,17 +1240,45 @@ class Checker:
                 continue
             if not self.has("EarlyDrop", var.ty):  # 析构可观察：声明了 deinit，或按值含有这样的字段
                 continue
-            if any(root == name for loan in self.live_loans(state) for root, _ in self.loans[loan].places):
+            if self.borrowed_from(name, state):
                 continue
             self.access(state, {(name, ())}, set(), "kill", stmt.line)
+            self.destroy(stmt.line, name, var)
             var.init = "M"
             self.drops.append((self.fun.name, name, stmt.line))
+
+    def settle(self, then, then_out, other, other_out, stmt):
+        """合流前的补偿析构：不可观察的值只在一条分支上被移走或析构、此后不再使用时，在另一条分支末尾析构。
+
+        这样合流后两边一致，不需要运行时的析构标志；可观察的值不在此列，它们留到作用域结束并带标志。
+        """
+        self.live = set(stmt.live_out)
+        params = {name for _, name, _ in self.fun.params}
+        for name in reversed([n for n in then if n in other]):
+            for state, out, gone in ((then, then_out, other[name].init), (other, other_out, then[name].init)):
+                var = state[name]
+                if var.init != "A" or gone != "M" or name in self.live or name in params:
+                    continue
+                if var.ty.kind != "cls" or not self.has("EarlyDrop", var.ty) or self.borrowed_from(name, state):
+                    continue
+                self.access(state, {(name, ())}, set(), "kill", stmt.line)
+                if out is not None:
+                    out.append(DP.Stmt("drop", stmt.line, var=name))
+                var.init = "M"
+                self.drops.append((self.fun.name, name, stmt.line))
+
+    def borrowed_from(self, name, state):
+        """是否还有存活的 loan 指向变量 name 的存储。"""
+        return any(root == name for loan in self.live_loans(state) for root, _ in self.loans[loan].places)
 
     def step(self, stmt, state):
         self.live = (set(stmt.live_out) - stmt_defs(stmt)) | stmt_uses(stmt)
         if stmt.kind == "val":
             value = self.value(stmt.expr, state)
-            state[stmt.name] = Var(value.ty, "A", value.loans, value.payload)
+            var = Var(value.ty, "A", value.loans, value.payload)
+            if self.tracked(var):
+                self.declare("let", stmt.line, stmt.name, value.ty, state)
+            state[stmt.name] = var
         elif stmt.kind == "store":
             self.store(stmt, state)
         elif stmt.kind == "suspend":
@@ -1236,9 +1307,14 @@ class Checker:
             self.assign(stmt, state)
         elif stmt.kind == "block":
             state = self.scope(stmt.body, state, stmt.live_out, stmt.end_line)
+            self.emit("block", stmt.line, body=self.inner)
         elif stmt.kind == "if":
             then = self.scope(stmt.body, copy_state(state), stmt.live_out, stmt.end_line)
+            body = self.inner
             other = self.scope(stmt.orelse, copy_state(state), stmt.live_out, stmt.else_end_line)
+            if self.early_drop:
+                self.settle(then, body, other, self.inner, stmt)
+            self.emit("if", stmt.line, body=body, orelse=self.inner)
             state = self.join(then, other)
         elif stmt.kind == "while":
             head = set(stmt.live_out)
@@ -1254,6 +1330,7 @@ class Checker:
                 if merged == state and before == self.version:
                     break
                 state = merged
+            self.emit("loop", stmt.line, body=self.inner)  # 取到达不动点的那一遍
         return state
 
     def store(self, stmt, state):
@@ -1300,9 +1377,14 @@ class Checker:
         self.live = set(stmt.live_out) - {place.root}
         if place.root in stmt.live_out:
             self.pending.append(value.all_loans())
+        self.quiet = True
         self.access(state, {(place.root, ())}, set(), "write", stmt.line)
+        self.quiet = False
         if place.root in stmt.live_out:
             self.pending.pop()
+        if self.tracked(var):  # 先求值新值，再析构旧值，再提交
+            self.destroy(stmt.line, place.root, var, replace=True)
+            self.declare("set", stmt.line, place.root, value.ty, state)
         if var.ty.kind == "any" and value.ty.name != var.ty.name:  # X3：槽位里只能放同一存在类型的值
             self.error("X1", stmt.line, f"不能把 {value.ty.name} 赋给 {var.ty.name}")
         var.init, var.loans, var.payload = "A", value.loans, value.payload
@@ -1310,13 +1392,16 @@ class Checker:
     def scope(self, stmts, state, live_after, end_line):
         """K9：作用域结束时按声明逆序析构；析构与仍存活的 loan 冲突即拒绝。"""
         outer = set(state)
+        enclosing, self.out = self.out, [] if self.out is not None else None
         state = self.run(stmts, state)
         self.live = set(live_after)
         self.check_tasks(state, [n for n in state if n not in outer], end_line)
         for name in reversed([n for n in state if n not in outer]):
             if state[name].init != "M":
                 self.access(state, {(name, ())}, set(), "kill", end_line)
+            self.destroy(end_line, name, state[name])
             del state[name]
+        self.inner, self.out = self.out, enclosing
         return state
 
     def join(self, a, b):
@@ -1333,10 +1418,11 @@ class Checker:
         return merged
 
 
-def check(text, early_drop=False, drops=None, frames_movable=False, frames=None):
+def check(text, early_drop=False, drops=None, frames_movable=False, frames=None, lowered=None):
     """检查一段演算程序，返回按行排序的 (规则, 行号, 说明)。空列表表示接受。
 
     early_drop 打开提前析构；drops 若给出，收到各处提前析构的 (函数名, 变量名, 行号)。
+    lowered 若给出，收到各函数的 (类型表, 带显式析构的程序, 是否被接受)，可交给 DP.Verifier。
     """
     classes, funs, sigs = Parser(text).program()
     checker = Checker(classes, funs, sigs, early_drop, frames_movable)
@@ -1346,6 +1432,8 @@ def check(text, early_drop=False, drops=None, frames_movable=False, frames=None)
         drops.extend(checker.drops)
     if frames is not None:
         frames.update(checker.frames)
+    if lowered is not None:
+        lowered.update(checker.lowered)
     return sorted(checker.errors, key=lambda e: (e[1], e[0], e[2]))
 
 

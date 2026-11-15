@@ -1,0 +1,56 @@
+// 交给析构义务检验器的情形：只在一条分支上移走、整体赋值、按值参数、循环里的局部值、借用跨过分支
+class Arr(len: Int)
+class File(fd: Int) deinit
+fun consume(own f: File): Unit trusted
+fun consumeArr(own a: Arr): Unit trusted
+fun movedOnOneBranch(): Unit {
+  val f = File(1)
+  val g = File(2)
+  if (*) {
+    consume(move f)
+  }
+  use(g.fd)
+}
+fun plainMovedOnOneBranch(): Unit {
+  val a = Arr(1)
+  if (*) {
+    consumeArr(move a)
+  }
+  val b = Arr(2)
+  use(b.len)
+}
+fun reassigned(): Unit {
+  val f = File(1)
+  f = File(2)
+  use(f.fd)
+}
+fun ownParams(own f: File, own a: Arr): Unit {
+  use(a.len)
+  val b = Arr(2)
+  use(b.len)
+}
+fun loopLocal(): Unit {
+  val f = File(1)
+  while (*) {
+    val a = Arr(1)
+    consumeArr(move a)
+    val g = File(2)
+  }
+  use(f.fd)
+}
+fun loanAcrossBranch(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  if (*) {
+    use(r)
+  }
+  val b = Arr(2)
+  use(b.len)
+}
+fun movedThenUsed(): Unit {
+  val f = File(1)
+  if (*) {
+    consume(move f)
+  }
+  use(f.fd)  // ERR K8
+}
