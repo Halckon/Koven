@@ -1,0 +1,67 @@
+// 部分移出、消费并解除析构、必须消费、不可遗忘
+type File deinit
+type Buf
+type Pair(a: File, b: Buf)
+type Conn(sock: File, buf: Buf) deinit
+type Ticket consume
+type Scope deinit unforgettable
+type Holder(s: Scope, b: Buf)
+fun partial {            // => ok
+  let p = Pair
+  take a = p.a
+  call
+  use a
+}
+fun partialThenWhole {   // => reject D1
+  let p = Pair
+  take a = p.a
+  move p
+}
+fun partialOfDeinit {    // => reject D2
+  let c = Conn
+  take s = c.sock
+}
+fun close {              // => ok
+  let c = Conn
+  open c as sock, buf
+  call
+  move sock
+}
+fun closeKeepsOrder {    // => ok
+  let f = File
+  let c = Conn
+  open c as sock, buf
+  call
+}
+fun ticketConsumed {     // => ok
+  let t = Ticket
+  call
+  move t
+}
+fun ticketDropped {      // => reject D5
+  let t = Ticket
+  call
+}
+fun ticketOnOneBranch {  // => reject D5
+  let t = Ticket
+  if {
+    move t
+  }
+}
+fun forgetGuard {        // => ok
+  let f = File
+  forget f
+}
+fun forgetScope {        // => reject D6
+  let s = Scope
+  forget s
+}
+fun forgetHolder {       // => reject D6
+  let h = Holder
+  forget h
+}
+fun ticketAcrossFailure {  // => ok
+  let t = Ticket
+  call
+  move t
+}
