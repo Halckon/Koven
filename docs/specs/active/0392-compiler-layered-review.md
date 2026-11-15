@@ -6142,3 +6142,13 @@ return 的对照两入口各 28 行输出一致。两组均退出 0，stderr 为
 留作单独复审。R1/R2 分组 selector 也已通过 CLI 双入口 check。
 后端使用 CI 的 loan observation feature 运行 nullable 过滤套件，
 265 项通过，零失败或忽略。
+
+### PR 双宿主复验中的 Parser 栈回归
+
+[#435 首轮 macOS 测试](https://github.com/Halckon/Koven/actions/runs/43670948815/job/132682055593)
+的 64 层未闭合下标测试在 libtest 工作线程发生栈溢出。本机
+arm64 调试构建也复现。将两种 postfix 分支边界判定放到先返回的
+非递归 helper，保留求值顺序、错误和分支归属。独立复核确认语义
+等价。反汇编显示本机调试构建的递归栈帧由 6960 减到 6672 字节。
+同一压力测试在默认测试线程栈通过，手动缩到 2000000 字节仍溢出。
+完整 frontend lib 测试为 850 通过、12 项既有 ignore、零失败。

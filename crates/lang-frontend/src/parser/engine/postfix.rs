@@ -7,9 +7,7 @@ impl Parser<'_> {
         stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
         loop {
-            if self.at_block_expression_line_break(receiver, stops)?
-                || (stops.when_entry_body && self.grouped_when_entry_follows(receiver)?)
-            {
+            if self.at_postfix_line_break(receiver, stops)? {
                 break;
             }
             if matches!(
@@ -92,6 +90,21 @@ impl Parser<'_> {
             };
         }
         Ok(receiver)
+    }
+
+    // Keep both fallible checks out of the recursive postfix frame.
+    fn at_postfix_line_break(
+        &self,
+        receiver: ExpressionId,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        if self.at_block_expression_line_break(receiver, stops)? {
+            return Ok(true);
+        }
+        if stops.when_entry_body {
+            return self.grouped_when_entry_follows(receiver);
+        }
+        Ok(false)
     }
 
     /// Retain the next entry's paired group without treating every newline as a call boundary.
