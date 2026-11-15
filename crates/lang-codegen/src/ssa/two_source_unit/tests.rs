@@ -312,7 +312,10 @@ fn named_shared_owner_entry_is_closed_and_unique() {
     let named = "val text=\"same\";val rounds=3;val choose=false;run(text,text,rounds,choose)";
     for (body, accepted) in [
         (named.to_owned(), true),
-        (named.replace("run(text,text", "run(text,\"other\""), false),
+        (
+            named.replace("run(text,text", "run((text),\"other\""),
+            false,
+        ),
         (named.replace("val text", "var text"), false),
         (format!("{named};consume(text)"), false),
         (named.replace("same", "same\\n"), false),
@@ -411,3 +414,5 @@ mod validation_errors;
 mod combined_entries;
 
 mod distinct_named;
+
+mod mixed_owner;

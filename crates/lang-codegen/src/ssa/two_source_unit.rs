@@ -67,7 +67,7 @@ pub enum TwoSourceUnitError {
 /// Opt-in, single original entry route. Ordinary and constant unit entry points are unchanged.
 /// No disjointness is inferred between Shared String parameters. Source entries admit either
 /// two literal temporaries, the checked four-statement single named String owner form,
-/// or five statements with two distinct named String owners.
+/// five statements with two distinct named String owners, or one named owner plus one literal.
 #[allow(clippy::too_many_arguments)]
 pub fn prepare_two_source_unit<'a>(
     sources: &'a SourceMap,
