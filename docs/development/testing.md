@@ -59,6 +59,9 @@ Linux LLDB 测试显式保留 ASLR，避免为固定地址请求 personality 变
 版本/包身份，不以 apt/rustup 修复。Actions HOME、checkout、冷缓存查找/保存与产物上传
 已在上述 CI 实际通过；缓存命中后的恢复/解包仍待验证，SPEC-0390 保持 in-progress。
 Preview24 继续独立生产和消费，不能复用核心镜像证明发布 ABI。
+独立镜像验收的 PR 路径限于 Docker 构建目录、实际安装和校验脚本、候选门禁入口及
+`rust-toolchain.toml`。核心 CI 编排变更仍由固定镜像上的实际核心门禁验证。只调整
+镜像 workflow 编排时，可在该分支手动执行镜像验收；发布仍只允许可信 main 手动执行。
 
 ## Linux CI 磁盘故障诊断
 
