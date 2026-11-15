@@ -12,9 +12,13 @@ impl Receipt {
         abi: &[(SsaTypeId, ParameterMode)],
         roles: &[usize; 3],
         conditions: &[(UnitExpressionId, Span); 2],
-        dispatch: (&[Vec<FunctionId>; 2], (UnitExpressionId, Span)),
+        dispatch: (
+            &[Vec<FunctionId>; 2],
+            (UnitExpressionId, Span),
+            Option<&super::super::fresh_loop_receipt::SourceConsumer>,
+        ),
     ) -> Option<[(FunctionId, InstructionId, FunctionId); 2]> {
-        let (calls, transfer) = dispatch;
+        let (calls, transfer, suffix) = dispatch;
         let fact = wrapper.pair();
         let p = &self.plan;
         let s = self.span;
@@ -82,7 +86,7 @@ impl Receipt {
         let [entry, header, split, finished, exit] = p.blocks?;
         let [actual_split, left, right] = p.split?;
         let join = p.join?;
-        // This exact no-suffix tail-break producer retains its independent false-path block.
+        // This exact tail-break producer retains its independent false-path block.
         if split != actual_split || finished == exit || tail.observed != Some((join, exit)) {
             return None;
         }
@@ -144,6 +148,7 @@ impl Receipt {
                 1 | 2 => usize::from(abi[roles[i]].1 == ParameterMode::Borrow),
                 3 => calls[0].len() + 1,
                 4 => calls[1].len() + 1,
+                7 => usize::from(suffix.is_some()),
                 _ => 0,
             };
             if list.len() != count {
@@ -156,8 +161,110 @@ impl Receipt {
             }
         }
         let exit_block = f.block(ids[7])?;
-        if !exit_block.parameters.is_empty()
-            || !matches!(&exit_block.terminator.as_ref()?.kind,TerminatorKind::Return{values} if values.is_empty())
+        let source_slot = *self.parameters.get(roles[0])?;
+        if let Some(consumer) = suffix {
+            if self.evidence.parameters.get(&exit)?.as_slice() != [source_slot]
+                || exit_block.parameters.len() != 1
+                || exit_block.parameters[0] != self.evidence.entity(exit, source_slot, s).ok()?
+            {
+                return None;
+            }
+            // Independently carry original ABI roles through actual edges, not captured ends.
+            let mut actual_roles: std::collections::BTreeMap<_, _> = entry_block
+                .parameters
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(i, entity)| (entity, i))
+                .collect();
+            for _ in 0..refs.len() {
+                for id in &ids {
+                    let block = f.block(*id)?;
+                    let edges = match &block.terminator.as_ref()?.kind {
+                        TerminatorKind::Branch(edge) => vec![edge],
+                        TerminatorKind::Conditional {
+                            when_true,
+                            when_false,
+                            ..
+                        } => vec![when_true, when_false],
+                        TerminatorKind::Return { .. } => vec![],
+                        _ => return None,
+                    };
+                    for edge in edges {
+                        let target = f.block(edge.target)?;
+                        if edge.arguments.len() != target.parameters.len() {
+                            return None;
+                        }
+                        for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                            if let Some(role) = actual_roles.get(argument).copied()
+                                && let Some(previous) = actual_roles.insert(*parameter, role)
+                                && previous != role
+                            {
+                                return None;
+                            }
+                        }
+                    }
+                }
+            }
+            // Every predecessor must substantiate a known target role; an unknown
+            // incoming value cannot borrow the role established by another arm.
+            for id in &ids {
+                let block = f.block(*id)?;
+                let edges = match &block.terminator.as_ref()?.kind {
+                    TerminatorKind::Branch(edge) => vec![edge],
+                    TerminatorKind::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => vec![when_true, when_false],
+                    TerminatorKind::Return { .. } => vec![],
+                    _ => return None,
+                };
+                for edge in edges {
+                    let target = f.block(edge.target)?;
+                    for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                        if let Some(role) = actual_roles.get(parameter)
+                            && actual_roles.get(argument) != Some(role)
+                        {
+                            return None;
+                        }
+                    }
+                }
+            }
+            if actual_roles.get(&exit_block.parameters[0]) != Some(&roles[0]) {
+                return None;
+            }
+            for predecessor in [join, finished] {
+                let block = f.block(self.evidence.block(predecessor, s).ok()?)?;
+                let TerminatorKind::Branch(edge) = &block.terminator.as_ref()?.kind else {
+                    return None;
+                };
+                if edge.target != exit_block.id
+                    || edge.arguments.len() != 1
+                    || actual_roles.get(&edge.arguments[0]) != Some(&roles[0])
+                {
+                    return None;
+                }
+            }
+            let [instruction] = exit_block.instructions.as_slice() else {
+                return None;
+            };
+            let call = f.instruction(*instruction)?;
+            if call.operation
+                != (Operation::DirectCall {
+                    callee: consumer.callee,
+                    receiver: None,
+                    arguments: vec![exit_block.parameters[0]],
+                })
+                || !call.results.is_empty()
+                || call.origin != crate::ssa::model::Origin::Source(consumer.span)
+            {
+                return None;
+            }
+        } else if !exit_block.parameters.is_empty() {
+            return None;
+        }
+        if !matches!(&exit_block.terminator.as_ref()?.kind,TerminatorKind::Return{values} if values.is_empty())
             || f.blocks
                 .iter()
                 .filter(|b| {

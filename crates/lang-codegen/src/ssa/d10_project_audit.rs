@@ -12,6 +12,8 @@ mod arm_loop_shared_condition_tests;
 mod arm_loop_tail_break_tests;
 pub(crate) mod arm_loop_tail_consumption;
 #[cfg(test)]
+mod arm_loop_tail_suffix_tests;
+#[cfg(test)]
 mod arm_loop_value_flags_tests;
 pub(crate) mod aux_binding_consumption;
 #[cfg(test)]

@@ -28,7 +28,7 @@ fn tail_break_complete_caller_keeps_surrounding_work_and_unused_roles_outside() 
         (
             "source:String,flag:Boolean,choose:Boolean",
             "",
-            ";consume(source)",
+            ";consume(source);other(source)",
         ),
         (
             "source:String,flag:Boolean,choose:Boolean,extra:Boolean",
@@ -40,14 +40,14 @@ fn tail_break_complete_caller_keeps_surrounding_work_and_unused_roles_outside() 
         check(signature, prefix, suffix, false);
     }
 }
-fn check(signature: &str, prefix: &str, suffix: &str, certified: bool) {
+pub(super) fn check(signature: &str, prefix: &str, suffix: &str, certified: bool) {
     for swapped in [false, true] {
         for reverse in [false, true] {
             let mut sources = SourceMap::new();
             let (p, provider) = unit_lower_test_support::parsed(
                 &mut sources,
                 "arm-audit-provider.ko",
-                "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}",
+                "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun after(item:String):Unit {}",
             );
             let (outer, inner) = if swapped {
                 ("choose", "flag")
@@ -187,12 +187,15 @@ fn check(signature: &str, prefix: &str, suffix: &str, certified: bool) {
                 assert!(
                     matches!(&exit.terminator.as_ref().unwrap().kind, TerminatorKind::Return { values } if values.is_empty())
                 );
-                assert!(exit.parameters.is_empty());
-                assert!(exit.instructions.is_empty());
+                assert_eq!(exit.parameters.len(), usize::from(!suffix.is_empty()));
+                assert_eq!(exit.instructions.len(), usize::from(!suffix.is_empty()));
                 assert_eq!(function.blocks.len(), 8);
-                assert_eq!(function.instructions.len(), 9);
+                assert_eq!(
+                    function.instructions.len(),
+                    9 + usize::from(!suffix.is_empty())
+                );
                 assert!(breaks[0].instructions.is_empty());
-                assert!(edge.arguments.is_empty());
+                assert_eq!(edge.arguments.len(), usize::from(!suffix.is_empty()));
                 let entry_block = function.block(function.entry_block().unwrap()).unwrap();
                 let mut roles: BTreeMap<_, _> = entry_block
                     .parameters
@@ -225,6 +228,69 @@ fn check(signature: &str, prefix: &str, suffix: &str, certified: bool) {
                                 }
                             }
                         }
+                    }
+                }
+                if !suffix.is_empty() {
+                    let source_role = signature
+                        .split(',')
+                        .position(|p| p == "source:String")
+                        .unwrap();
+                    assert_eq!(roles.get(&exit.parameters[0]), Some(&source_role));
+                    let source_entity = exit.parameters[0];
+                    let call = function.instruction(exit.instructions[0]).unwrap();
+                    let declaration = names
+                        .names()
+                        .index()
+                        .declarations()
+                        .iter()
+                        .find(|d| d.name() == "after")
+                        .unwrap();
+                    let span = provider
+                        .ast()
+                        .items()
+                        .get(declaration.root())
+                        .unwrap()
+                        .span();
+                    let targets: Vec<_> = program
+                        .modules
+                        .iter()
+                        .flat_map(|m| &m.functions)
+                        .filter(|f| f.origin == crate::ssa::model::Origin::Source(span))
+                        .collect();
+                    let [target] = targets.as_slice() else {
+                        panic!("original suffix declaration");
+                    };
+                    assert_eq!(
+                        call.operation,
+                        Operation::DirectCall {
+                            callee: target.id,
+                            receiver: None,
+                            arguments: vec![source_entity]
+                        }
+                    );
+                    assert!(call.results.is_empty());
+                    let start = text.rfind("after(source)").unwrap();
+                    assert_eq!(
+                        call.origin,
+                        crate::ssa::model::Origin::Source(
+                            sources
+                                .span(c, start, start + "after(source)".len())
+                                .unwrap()
+                        )
+                    );
+                    let predecessors: Vec<_> = function
+                        .blocks
+                        .iter()
+                        .filter_map(|b| match &b.terminator.as_ref().unwrap().kind {
+                            TerminatorKind::Branch(e) if e.target == exit.id => Some((b, e)),
+                            _ => None,
+                        })
+                        .collect();
+                    assert_eq!(predecessors.len(), 2);
+                    for (block, incoming) in predecessors {
+                        assert!(block.instructions.is_empty());
+                        assert_eq!(incoming.arguments.len(), 1);
+                        assert_eq!(roles.get(&incoming.arguments[0]), Some(&source_role));
                     }
                 }
                 let mut read_results = BTreeSet::new();

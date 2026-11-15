@@ -11,6 +11,7 @@ pub(super) struct Source {
     pub conditions: [(UnitExpressionId, Span); 2],
     pub calls: [Vec<Call>; 2],
     pub transfer: (UnitExpressionId, Span),
+    pub suffix: Option<(crate::ssa::refine::fresh_loop_receipt::SourceConsumer, Call)>,
 }
 impl Source {
     pub(super) fn collect(
@@ -32,8 +33,10 @@ impl Source {
         let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
             return None;
         };
-        let [statement] = elements.as_slice() else {
-            return None;
+        let (statement, after) = match elements.as_slice() {
+            [statement] => (statement, None),
+            [statement, after] => (statement, Some(*after)),
+            _ => return None,
         };
         if !inputs.owned.owns_no_carry_break_branch(wrapper)
             || wrapper.exit_target() != fact.arms()[0].loop_statement()
@@ -173,12 +176,27 @@ impl Source {
                     .collect::<Option<Vec<_>>>()?,
             );
         }
+        let suffix = if let Some(after) = after {
+            let consumer = crate::ssa::refine::fresh_loop_receipt::audit_consumer(
+                inputs,
+                after,
+                fact.arms()[0].source(),
+            )?;
+            let mapped = call(consumer.call)?;
+            if mapped.1 != consumer.callee() {
+                return None;
+            }
+            Some((consumer, mapped))
+        } else {
+            None
+        };
         Some(Self {
             abi,
             roles: roles.try_into().ok()?,
             conditions: conditions.try_into().ok()?,
             calls: calls.try_into().ok()?,
             transfer,
+            suffix,
         })
     }
 }

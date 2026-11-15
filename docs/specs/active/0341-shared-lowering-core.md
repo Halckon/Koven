@@ -20533,3 +20533,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - frontend 新独立 break ledger selector 取本域 sealed wrapper，复用私有纯核验逐 initializer/consumer 的原唯一 loan ordinal、argument 和同 Function producer；普通 selector 保原 owns 边界。两个同次私有事务按原成功 receipt 的真实 tail 域分流，在最终 verifier 后核最终 Function、原 planned token/key、原 dispatch 与全部 evidence，任一缺口两条边均不发布。
 - 新两项首遍通过：六 ABI、条件互换与 source 反序共 24 正形态各两次 assembly；原两条件 Name Span/Read/角色与 Conditional、每臂原 consumer 顺序/本 fresh/末 End→break join 均独立断言。前消费、后消费、额外 Boolean、Value flag 四负例各四来源/条件组合、两次 assembly 均原正常 receipt 而保精确 tail gap；这不把普通域 suffix 的拒绝误改为成功。
 - 必要 ordinary 两项、prefix 两项通过；FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.51s、格式检查通过，末版独审无阻断。普通 probe 日志与新验收日志独立保留，不重跑 probe、不运行 native/故障注入、不推送；默认 workspace 留后续联合一次。
+
+### D10 tail-break 后的单次 source 生命周期消费
+
+- 独立 tail 域仅增加完整 body `[while { if/else; break }, sourceConsumer]`，仍三 Borrow ABI、无 prefix/多 suffix/counter；原 ordinary suffix InvalidModel 完全不改。SourceConsumer 复用原 typed bare-Name argument、contract/loan/end-span 与真实 dispatch，新增 break 专用 suffix ledger 核唯一原 call/argument/root source/Function producer/ordinal，并与两臂所有 acquisitions 不重。
+- 八角色全 caller 证书保持，exit 仅原 source slot 与唯一原 callee/span 的无结果 DirectCall、空 Unit Return。除原 slot/edge validator，新增从完整 entry 的原 ABI 角色沿实际边传播，固定点后再遍历全边：已知 target role 的每条 incoming 必须已知同 role，未知不能借另一前驱标签；break join 和零迭代 finished 两入边均只运输原 source，flags/fresh 不得带出。无 suffix 的原 exit 仍零参数/零指令。
+- 新两项首遍实跑通过：六 ABI、两条件顺序、source 反序 24 形态各两次 assembly，后消费独立 callee 由原声明 Span 定位；两个退出前驱与实际唯一调用、每臂 End 后汇合均核。Group/具名 suffix、prefix+suffix、多 suffix 四家族均实测原正常 receipt 与具体 gap。旧 tail 两项（原单 suffix 负例改双 suffix）和 ordinary 两项（含原 suffix 精确拒绝）通过。
+- FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.35s、格式检查通过；未重跑已过普通 probe，未 native/故障注入/推送，默认 workspace 留联合一次。
