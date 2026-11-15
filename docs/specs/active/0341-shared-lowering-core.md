@@ -19656,3 +19656,17 @@ use 或歧义保持可见，合流丢弃旁证；不修改原 observable、相�
 all-targets 严格 Clippy 与默认 all-targets check 通过；fmt/diff/docs（958）和相对
 `3328f1fa` 尺寸门禁（2357 Rust、37 历史超限）通过。首次缺文档、参数过多 lint
 及旧测试构造缺字段均已修正；未执行故障/native 测试，未推送。
+
+### D10/E2 与 main #435 独立组合（2026-11-15）
+
+保留 `7aad724b`（入口 transport 第一阶段及 #434）检查点，组合准确 main
+`8fd09265`。独审确认 12 个文件等于该 main 的原 blob，SSA 架构页仅合入其精确
+单行更新并保留本地事实，其余原文件不变。没有扩大 D10 准入或移除入口生命周期 gap。
+
+新增 parser_control_flow 两项与 type_checking 两项 exact 均通过；三 feature 的
+branch_consumption 5/5、identity_return 1/1 交叉回归通过。frontend/codegen
+三 feature all-targets 严格 Clippy 与默认 all-targets check 通过；fmt、diff、
+docs（958）及相对 `7aad724b` 尺寸门禁（2357 Rust、37 历史超限）通过。
+新增 nullable when 两个 native 回归只编译列名，各精确出现一次，没有执行。
+本地组合不声称验证 native 行为、全部相邻 MissingFact 缺口或入口生命周期消费；
+没有故障注入、推送或新增远端 CI 结论。

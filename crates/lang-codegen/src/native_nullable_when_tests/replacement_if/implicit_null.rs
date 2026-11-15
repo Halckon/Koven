@@ -214,3 +214,108 @@ fun entry(): Unit {
     );
     crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
 }
+
+#[test]
+fn nullable_when_rechecks_the_current_resource_after_a_writeback_join() {
+    let text = r#"class Resource(val label: String) { deinit() { println(label) } }
+fun make(value: Resource, empty: Boolean): Resource? {
+    println("rhs")
+    println(value.label)
+    println("rhs-finished")
+    if (empty) { return null }
+    return Resource("drop-new")
+}
+fun see(value: Resource): Unit { println("see"); println(value.label) }
+fun run(own input: Resource?, flag: Boolean, empty: Boolean): Unit {
+    var x = input
+    when (x) {
+        null -> { println("null") }
+        else -> {
+            if (flag) { x = make(x, empty) } else { see(x) }
+            println("join")
+            if (x != null) { see(x) }
+        }
+    }
+    println("normal")
+}
+fun entry(): Unit {
+    run(Resource("drop-old"), true, false)
+    run(Resource("drop-to-null"), true, true)
+    run(Resource("drop-kept"), false, false)
+    run(null, true, false)
+}
+"#;
+    const PATH: &str = "nullable-resource-writeback-join.ko";
+    let source = checked(PATH, text);
+    let entry = source.declaration("entry", SymbolKind::Function);
+    let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
+    let (program, _) = result.expect("both normal edges must deliver their current owner");
+    assert!(!routed.contains(&function(&source, &program, "run").name));
+    verify_program(&program).expect("actual Unit SSA verifies");
+
+    let output = crate::native_tests::emit_link_and_run(PATH, text, "entry");
+    let expected = concat!(
+        "rhs\ndrop-old\nrhs-finished\ndrop-old\njoin\nsee\ndrop-new\nnormal\ndrop-new\n",
+        "rhs\ndrop-to-null\nrhs-finished\ndrop-to-null\njoin\nnormal\n",
+        "see\ndrop-kept\njoin\nsee\ndrop-kept\nnormal\ndrop-kept\n",
+        "null\nnormal\n",
+    );
+    crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+}
+
+#[test]
+fn nullable_when_joins_a_rebound_outer_resource_before_return() {
+    let text = r#"class Resource(val label: String) { deinit() { println(label) } }
+fun make(value: Resource, empty: Boolean): Resource? {
+    println("rhs")
+    println(value.label)
+    println("rhs-finished")
+    if (empty) { return null }
+    return Resource("drop-new")
+}
+fun see(value: Resource): Unit { println("see"); println(value.label) }
+fun run(own input: Resource?, own trigger: Resource?, empty: Boolean): Unit {
+    var x = input
+    when (x) {
+        null -> { println("null") }
+        else -> {
+            when (trigger) {
+                null -> { see(x) }
+                else -> { see(trigger); x = make(x, empty) }
+            }
+            println("join")
+            when (x) {
+                null -> {}
+                else -> { see(x); println("returning"); return }
+            }
+        }
+    }
+    println("normal")
+}
+fun entry(): Unit {
+    run(Resource("drop-old"), Resource("trigger-new"), false)
+    println("caller")
+    run(Resource("drop-to-null"), Resource("trigger-null"), true)
+    run(Resource("drop-kept"), null, false)
+    run(null, Resource("trigger-skipped"), false)
+}
+"#;
+    const PATH: &str = "nested-when-resource-writeback-return.ko";
+    let source = checked(PATH, text);
+    let entry = source.declaration("entry", SymbolKind::Function);
+    let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
+    let (program, _) = result.expect("both When arms must deliver the current outer owner");
+    assert!(!routed.contains(&function(&source, &program, "run").name));
+    verify_program(&program).expect("actual Unit SSA verifies");
+
+    let output = crate::native_tests::emit_link_and_run(PATH, text, "entry");
+    let expected = concat!(
+        "see\ntrigger-new\nrhs\ndrop-old\nrhs-finished\ndrop-old\n",
+        "join\nsee\ndrop-new\nreturning\ndrop-new\ntrigger-new\ncaller\n",
+        "see\ntrigger-null\nrhs\ndrop-to-null\nrhs-finished\ndrop-to-null\n",
+        "join\nnormal\ntrigger-null\n",
+        "see\ndrop-kept\njoin\nsee\ndrop-kept\nreturning\ndrop-kept\n",
+        "null\nnormal\ntrigger-skipped\n",
+    );
+    crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+}
