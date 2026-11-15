@@ -53,6 +53,25 @@ class LoanKernelCases(unittest.TestCase):
             CHECKER.Checker.bind_types = original
         self.assertNotEqual(expected(text), actual)
 
+    def test_early_drop_never_changes_what_is_accepted(self):
+        """统一析构规则：提前析构只是许可。打开它之后，每个用例被接受或拒绝的结果必须不变。"""
+        total = []
+        for path in sorted(ROOT.glob("cases/*.lk")):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(case=path.stem):
+                lexical = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+                early = {(rule, line) for rule, line, _ in CHECKER.check(text, True, total)}
+                self.assertEqual(lexical, early)
+        self.assertGreater(len(total), 50, "提前析构应当在用例里真的发生过")
+
+    def test_a_live_loan_keeps_its_owner_alive(self):
+        """owner 的析构点由“它与从它借出的一切都不再使用”决定；可观察的值不提前。"""
+        drops = []
+        CHECKER.check((ROOT / "cases" / "L1.lk").read_text(encoding="utf-8"), True, drops)
+        first = [(name, line) for fun, name, line in drops if fun == "loanKeepsOwnerAlive"]
+        self.assertEqual([("b", 9), ("a", 10), ("c", 11)], first)
+        self.assertEqual([("a", 17)], [(n, l) for fun, n, l in drops if fun == "observableWaits"])
+
 
 if __name__ == "__main__":
     unittest.main()

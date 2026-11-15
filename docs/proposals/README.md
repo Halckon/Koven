@@ -34,6 +34,7 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [v1 冻结前的兼容性约束（Z1–Z11）](v1-freeze-decisions.md)：可并入 v1 条目 Spec 的条款，已登记为路线图决策 D16
 - [unsafe 合同提纲（U0）](unsafe-aliasing-contract-outline.md)：章节结构、失败安全条款草案与内存模型取向
 - [借用内核演算（内核 MVP 第 1–3 步）](loan-kernel-calculus.md)：参考检查器原型的语法、规则、用例清单与原型得到的发现
+- [内核原型的覆盖与欠账](kernel-prototype-coverage.md)：各内核基底的原型覆盖状态，未覆盖项按“先做 / 记账后集中做”排期
 - [析构义务的原型（内核基底 KB1）](drop-obligation-model.md)：析构规划器与独立检验器、条件移动与失败出口的清理、“消费并解除析构”与必须消费的发现
 - [结构能力推导的原型（内核基底 KB4）](capability-derivation-model.md)：能力引擎的模型、与现行规则和实现的对照用例、析构性质拆分与默认上界的发现
 - [失败出口与清理义务的状态模型（内核 MVP 第 4 步）](failure-cleanup-model.md)：借用型子任务的失败传播与在途 IO 两个状态模型，各候选政策违反的不变量与发现

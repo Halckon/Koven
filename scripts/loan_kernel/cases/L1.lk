@@ -1,0 +1,35 @@
+// 借用与析构的配合：存活的借用使它所指的 owner 保持存活；析构不可观察时可以提前，可观察时留到作用域结束
+class Arr(len: Int)
+class File(fd: Int) deinit
+class Wrap(f: File, n: Int)
+fun loanKeepsOwnerAlive(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  val b = Arr(2)
+  use(b.len)
+  use(r)
+  val c = Arr(3)
+}
+fun observableWaits(): Unit {
+  val f = File(1)
+  val w = Wrap(File(2), 0)
+  val a = Arr(1)
+  use(a.len)
+  use(f.fd)
+}
+fun droppedOnBothPaths(): Unit {
+  val a = Arr(1)
+  if (*) {
+    use(a.len)
+  } else {
+    val b = Arr(2)
+  }
+  val c = Arr(3)
+  use(c.len)
+}
+fun writeAfterLoanEnds(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  use(r)
+  a.len = 2
+}
