@@ -8,6 +8,7 @@ type CounterBreakDispatch<'a> = (
     &'a [Vec<FunctionId>; 2],
     [Span; 5],
     (UnitExpressionId, Span, Span),
+    Option<&'a super::super::fresh_loop_receipt::SourceConsumer>,
 );
 impl Receipt {
     pub(crate) fn certify_counter_break(
@@ -19,7 +20,7 @@ impl Receipt {
         conditions: &[(UnitExpressionId, Span); 2],
         dispatch: CounterBreakDispatch<'_>,
     ) -> Option<[(FunctionId, InstructionId, FunctionId); 2]> {
-        let (calls, spans, exit_fact) = dispatch;
+        let (calls, spans, exit_fact, suffix) = dispatch;
         let cb = self.plan.counter_break.as_ref()?;
         if !cb.fact.same_identity(wrapper)
             || cb.fact != *wrapper
@@ -192,6 +193,7 @@ impl Receipt {
                 1 | 7 => 2,
                 3 => calls[0].len() + 1,
                 4 => calls[1].len() + 1,
+                11 => usize::from(suffix.is_some()),
                 _ => 0,
             };
             if list.len() != count {
@@ -204,8 +206,12 @@ impl Receipt {
             }
         }
         let exit_block = f.block(ids[11])?;
-        if !exit_block.parameters.is_empty()
-            || !matches!(&exit_block.terminator.as_ref()?.kind,TerminatorKind::Return{values} if values.is_empty())
+        if let Some(consumer) = suffix {
+            self.validate_counter_break_suffix(f, &ids, roles[0], consumer)?;
+        } else if !exit_block.parameters.is_empty() {
+            return None;
+        }
+        if !matches!(&exit_block.terminator.as_ref()?.kind,TerminatorKind::Return{values} if values.is_empty())
             || f.blocks
                 .iter()
                 .filter(|b| {
@@ -335,5 +341,109 @@ impl Receipt {
             edges.push((f.id, inst.id, callee));
         }
         edges.try_into().ok()
+    }
+    fn validate_counter_break_suffix(
+        &self,
+        f: &Function,
+        ids: &[BlockId],
+        source: usize,
+        consumer: &super::super::fresh_loop_receipt::SourceConsumer,
+    ) -> Option<()> {
+        let entry = f.block(*ids.first()?)?;
+        let exit = f.block(*ids.get(11)?)?;
+        let source_slot = *self.parameters.get(source)?;
+        let original_exit = self.plan.blocks?[4];
+        if self.evidence.parameters.get(&original_exit)?.as_slice() != [source_slot]
+            || exit.parameters.len() != 1
+            || exit.parameters[0]
+                != self
+                    .evidence
+                    .entity(original_exit, source_slot, self.span)
+                    .ok()?
+            || !matches!(exit.parameters[0], EntityId::Loan(_))
+        {
+            return None;
+        }
+        // Track only the immutable source role: the integer counter deliberately
+        // changes across its checked backedge and is validated by the original proof.
+        let mut origins = BTreeSet::from([*entry.parameters.get(source)?]);
+        for _ in 0..ids.len() {
+            for id in ids {
+                let block = f.block(*id)?;
+                let edges = match &block.terminator.as_ref()?.kind {
+                    TerminatorKind::Branch(e) => vec![e],
+                    TerminatorKind::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => vec![when_true, when_false],
+                    TerminatorKind::Return { .. } | TerminatorKind::Abort => vec![],
+                    _ => return None,
+                };
+                for edge in edges {
+                    let target = f.block(edge.target)?;
+                    if edge.arguments.len() != target.parameters.len() {
+                        return None;
+                    }
+                    for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                        if origins.contains(argument) {
+                            origins.insert(*parameter);
+                        }
+                    }
+                }
+            }
+        }
+        for id in ids {
+            let block = f.block(*id)?;
+            let edges = match &block.terminator.as_ref()?.kind {
+                TerminatorKind::Branch(e) => vec![e],
+                TerminatorKind::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![when_true, when_false],
+                TerminatorKind::Return { .. } | TerminatorKind::Abort => vec![],
+                _ => return None,
+            };
+            for edge in edges {
+                let target = f.block(edge.target)?;
+                for (argument, parameter) in edge.arguments.iter().zip(&target.parameters) {
+                    if origins.contains(parameter) && !origins.contains(argument) {
+                        return None;
+                    }
+                }
+            }
+        }
+        if !origins.contains(&exit.parameters[0]) {
+            return None;
+        }
+        for index in [6, 10] {
+            let predecessor = f.block(*ids.get(index)?)?;
+            let TerminatorKind::Branch(edge) = &predecessor.terminator.as_ref()?.kind else {
+                return None;
+            };
+            if edge.target != exit.id
+                || edge.arguments.len() != 1
+                || !origins.contains(&edge.arguments[0])
+            {
+                return None;
+            }
+        }
+        let [instruction] = exit.instructions.as_slice() else {
+            return None;
+        };
+        let call = f.instruction(*instruction)?;
+        if call.operation
+            != (Operation::DirectCall {
+                callee: consumer.callee,
+                receiver: None,
+                arguments: vec![exit.parameters[0]],
+            })
+            || !call.results.is_empty()
+            || call.origin != crate::ssa::model::Origin::Source(consumer.span)
+        {
+            return None;
+        }
+        Some(())
     }
 }

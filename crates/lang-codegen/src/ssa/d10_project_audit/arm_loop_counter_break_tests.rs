@@ -45,6 +45,9 @@ pub(super) fn check(signature: &str, certified: bool) {
     check_with_stop(signature, "stop", certified);
 }
 pub(super) fn check_with_stop(signature: &str, stop_name: &str, certified: bool) {
+    check_with_suffix(signature, stop_name, "", certified);
+}
+pub(super) fn check_with_suffix(signature: &str, stop_name: &str, suffix: &str, certified: bool) {
     for reverse in [false, true] {
         let mut sources = SourceMap::new();
         let (p, provider) = unit_lower_test_support::parsed(
@@ -53,7 +56,7 @@ pub(super) fn check_with_stop(signature: &str, stop_name: &str, certified: bool)
             "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}",
         );
         let text = format!(
-            "fun run({signature}):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=next(source);other(b);consume(b)}};if({stop_name}){{break}};remaining=remaining-1}}}}"
+            "fun run({signature}):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=next(source);other(b);consume(b)}};if({stop_name}){{break}};remaining=remaining-1}}{suffix}}}"
         );
         let (c, caller) = unit_lower_test_support::parsed(&mut sources, "counter-caller.ko", &text);
         let mut inputs = [
@@ -204,6 +207,86 @@ pub(super) fn check_with_stop(signature: &str, stop_name: &str, certified: bool)
                     certified
                 );
             }
+            if !suffix.is_empty() && certified {
+                assert_eq!(function.blocks.len(), 12);
+                let exits = function.blocks.iter().filter(|b|matches!(&b.terminator.as_ref().unwrap().kind,TerminatorKind::Return{values} if values.is_empty())).collect::<Vec<_>>();
+                let [exit] = exits.as_slice() else {
+                    panic!("unique Unit exit")
+                };
+                assert_eq!(exit.parameters.len(), 1);
+                assert!(matches!(exit.parameters[0], EntityId::Loan(_)));
+                assert_eq!(exit.instructions.len(), 1);
+                let call = function.instruction(exit.instructions[0]).unwrap();
+                assert!(call.results.is_empty());
+                assert!(
+                    matches!(&call.operation,Operation::DirectCall {arguments,..} if arguments==&exit.parameters)
+                );
+                let incoming = function
+                    .blocks
+                    .iter()
+                    .filter_map(|b| match &b.terminator.as_ref().unwrap().kind {
+                        TerminatorKind::Branch(edge) if edge.target == exit.id => Some((b, edge)),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(incoming.len(), 2);
+                let source_index = signature
+                    .split(',')
+                    .position(|p| p == "source:String")
+                    .unwrap();
+                let entry = function.block(function.entry_block().unwrap()).unwrap();
+                let mut source_entities = BTreeSet::from([entry.parameters[source_index]]);
+                for _ in 0..function.blocks.len() {
+                    for block in &function.blocks {
+                        let edges = match &block.terminator.as_ref().unwrap().kind {
+                            TerminatorKind::Branch(e) => vec![e],
+                            TerminatorKind::Conditional {
+                                when_true,
+                                when_false,
+                                ..
+                            } => vec![when_true, when_false],
+                            TerminatorKind::Return { .. } | TerminatorKind::Abort => vec![],
+                            _ => panic!("counter shape"),
+                        };
+                        for edge in edges {
+                            let target = function.block(edge.target).unwrap();
+                            assert_eq!(edge.arguments.len(), target.parameters.len());
+                            for (arg, param) in edge.arguments.iter().zip(&target.parameters) {
+                                if source_entities.contains(arg) {
+                                    source_entities.insert(*param);
+                                }
+                            }
+                        }
+                    }
+                }
+                assert!(source_entities.contains(&exit.parameters[0]));
+                for block in &function.blocks {
+                    let edges = match &block.terminator.as_ref().unwrap().kind {
+                        TerminatorKind::Branch(e) => vec![e],
+                        TerminatorKind::Conditional {
+                            when_true,
+                            when_false,
+                            ..
+                        } => vec![when_true, when_false],
+                        TerminatorKind::Return { .. } | TerminatorKind::Abort => vec![],
+                        _ => panic!("counter shape"),
+                    };
+                    for edge in edges {
+                        let target = function.block(edge.target).unwrap();
+                        for (arg, param) in edge.arguments.iter().zip(&target.parameters) {
+                            if source_entities.contains(param) {
+                                assert!(source_entities.contains(arg));
+                            }
+                        }
+                    }
+                }
+                for (block, edge) in incoming {
+                    assert!(block.instructions.is_empty());
+                    assert_eq!(edge.arguments.len(), 1);
+                    assert!(matches!(edge.arguments[0], EntityId::Loan(_)));
+                    assert!(source_entities.contains(&edge.arguments[0]));
+                }
+            }
             if !certified {
                 assert!(
                     audits[0]
@@ -231,6 +314,7 @@ pub(super) fn check_with_stop(signature: &str, stop_name: &str, certified: bool)
                 14 - usize::from(value_stop)
                     - usize::from(value_choose)
                     - usize::from(value_rounds)
+                    + usize::from(!suffix.is_empty())
             );
             let entry_block = function.block(function.entry_block().unwrap()).unwrap();
             let TerminatorKind::Branch(entry_edge) = &entry_block.terminator.as_ref().unwrap().kind
@@ -463,7 +547,7 @@ pub(super) fn check_with_stop(signature: &str, stop_name: &str, certified: bool)
                 )
             );
             let exit = function.block(exit_edge.target).unwrap();
-            assert!(exit.parameters.is_empty());
+            assert_eq!(exit.parameters.len(), usize::from(!suffix.is_empty()));
             assert!(
                 matches!(&exit.terminator.as_ref().unwrap().kind,TerminatorKind::Return{values} if values.is_empty())
             );

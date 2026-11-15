@@ -14,6 +14,8 @@ mod arm_loop_counter_break_shared_tests;
 #[cfg(test)]
 mod arm_loop_counter_break_stop_tests;
 #[cfg(test)]
+mod arm_loop_counter_break_suffix_origin_tests;
+#[cfg(test)]
 mod arm_loop_counter_break_tests;
 pub(crate) mod arm_loop_counter_consumption;
 #[cfg(test)]

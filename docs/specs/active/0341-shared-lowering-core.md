@@ -20813,3 +20813,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
   新三目标正式与三 feature 各 3/3，7 域外精准分类；旧 late 3 + mixed 3 全过，
   旧 early 负例迁计算 scalar。双 crate all-targets 三 feature strict 通过（1m47），
   CI76；未运行 native/故障注入。投影 same_identity 精确保原父模块可见范围。
+
+### D10 counter-break 后一次 source 消费的完整出口证明
+
+- 原正常形状 probe 一项通过（四种三/四 ABI 与 mode 极值、两来源各两次 assembly），实证十二块与两个空 Branch 前驱把原 source 送入唯一 exit Loan 参数/DirectCall；原 receipt 与审计缺口仍保留，不将该 probe 冒称完整认证。随后独立 Expected 仅接受 `[initial,while]` 或 `[initial,while,单sourceConsumer]`，消费从原 typed/argument/Shared String 合同及 dispatch FullKey/Span 采集，不从 final SSA 反推授权。
+- 新 counter-break 专属 sealed selector 在一个原完整 ledger/ordinal 集合内联合两臂全部 acquisitions 与 suffix：唯一原 call/argument、Function producer、原 source root 全核，重复 ordinal 拒绝。最终同次完整 snapshot 与全部 dispatch 映射核验后，exit 精确一个原 source slot/Loan、一个原 callee/span 的无结果 DirectCall 与唯一空 UnitReturn；无 suffix 的原空出口保持。
+- 从实际 entry 原 source 实体沿全部真实边传播，稳定后对每个已标 source 的目标参数反查所有 incoming 均已知同源，单前驱不能替另一未知来源自证；分别核 yes6 与 finished10 的唯一 source 实参进入 exit11。只跟踪不可变 source，不把合法变化的 Int counter 当作不变 ABI 根；原十二角色、两 cleanup、两臂 fresh End、checked 回边与唯一原 Abort 的一常量/Span/reason约束不松，prefix 原拒绝不绕过。
+- 新两项目标首遍通过：四参数八模式×24 ABI 与共享三参数四模式×6 ABI，再各两来源，共432形态各两次 assembly；后消费包含与臂内相同 consumer/other，仍按原 occurrence 区分。Group/named实参与两次后消费三负例均原 normal lower/verify/receipt 后精确 gap。新目标编译1m09s、执行3.30s，旧独立 flag 两项与共享 flag 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m48s、default codegen all-targets 32.61s 与格式通过。不重原 probe，不执行生成程序/Abort/native/故障注入，不推送，默认workspace留联合一次。
