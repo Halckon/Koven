@@ -544,7 +544,64 @@ fn check_sequence(
     reverse_parameters: bool,
     count: usize,
     segments: [usize; 3],
-    second_double_use: bool,
+    second_longer_use: bool,
+    certified: bool,
+) {
+    let second = if second_longer_use {
+        "other,consume,other"
+    } else {
+        "other"
+    };
+    check_sequence_uses(
+        reverse_sources,
+        reverse_parameters,
+        count,
+        segments,
+        ["consume", second],
+        certified,
+    );
+}
+
+#[test]
+fn two_scopes_consume_their_own_results_in_independent_orders() {
+    for reverse_sources in [false, true] {
+        for reverse_parameters in [false, true] {
+            for uses in [
+                ["consume", "other"],
+                ["consume", "other,consume"],
+                ["other,consume", "other"],
+                ["consume,other", "other,consume"],
+                ["other,consume", "consume,other"],
+                ["consume,consume", "other,other"],
+            ] {
+                for segments in [[0, 0, 0], [1, 1, 1]] {
+                    check_sequence_uses(
+                        reverse_sources,
+                        reverse_parameters,
+                        2,
+                        segments,
+                        uses,
+                        true,
+                    );
+                }
+            }
+        }
+    }
+    for uses in [
+        ["consume,other,consume", "other"],
+        ["consume", "other,consume,other"],
+        ["consume,other,consume", "other,consume"],
+    ] {
+        check_sequence_uses(false, false, 2, [1, 1, 1], uses, false);
+    }
+}
+
+fn check_sequence_uses(
+    reverse_sources: bool,
+    reverse_parameters: bool,
+    count: usize,
+    segments: [usize; 3],
+    uses: [&str; 2],
     certified: bool,
 ) {
     use crate::ssa::{model::EntityId, refine::fresh_loop_receipt::Tag};
@@ -560,11 +617,15 @@ fn check_sequence(
         "source:String,flag:Boolean"
     };
     let mut body = "before(source);".repeat(segments[0]);
-    body.push_str("while(flag){borrow val item=view(source);consume(item)};");
+    body.push_str("while(flag){borrow val item=view(source);");
+    for name in uses[0].split(',') {
+        body.push_str(&format!("{name}(item);"));
+    }
+    body.push_str("};");
     body.push_str(&"middle(source);".repeat(segments[1]));
-    body.push_str("while(flag){borrow val second=next(source);other(second);");
-    if second_double_use {
-        body.push_str("consume(second);");
+    body.push_str("while(flag){borrow val second=next(source);");
+    for name in uses[1].split(',') {
+        body.push_str(&format!("{name}(second);"));
     }
     body.push_str("};");
     if count == 3 {
@@ -670,7 +731,7 @@ fn check_sequence(
             for (local, (source_name, consumer_name)) in receipt
                 .loops
                 .iter()
-                .zip([("view", "consume"), ("next", "other")])
+                .zip([("view", uses[0]), ("next", uses[1])])
             {
                 let instruction = |tag| {
                     let ids: Vec<_> = local
@@ -686,7 +747,6 @@ fn check_sequence(
                 let [result] = acquire.results.as_slice() else {
                     panic!("one fresh result");
                 };
-                let consumer = instruction(Tag::Consumer(0));
                 let end = instruction(Tag::ResultEnd);
                 let Operation::BorrowCall { callee, .. } = acquire.operation else {
                     panic!("source call");
@@ -701,31 +761,37 @@ fn check_sequence(
                         .name
                         .contains(&format!(".{source_name}."))
                 );
-                let Operation::DirectCall {
-                    callee,
-                    receiver: None,
-                    arguments,
-                } = &consumer.operation
-                else {
-                    panic!("consumer call");
-                };
-                assert_eq!(arguments.as_slice(), [*result]);
-                assert!(
-                    program
-                        .modules
-                        .iter()
-                        .flat_map(|m| &m.functions)
-                        .find(|f| f.id == *callee)
-                        .unwrap()
-                        .name
-                        .contains(&format!(".{consumer_name}."))
-                );
                 let block = function.block(acquire.block).unwrap();
                 let position = |id| block.instructions.iter().position(|v| *v == id).unwrap();
-                assert!(
-                    position(acquire.id) < position(consumer.id)
-                        && position(consumer.id) < position(end.id)
-                );
+                let mut previous = position(acquire.id);
+                let names: Vec<_> = consumer_name.split(',').collect();
+                assert_eq!(local.fact.consumers().len(), names.len());
+                for (i, name) in names.iter().enumerate() {
+                    let consumer = instruction(Tag::Consumer(i));
+                    let Operation::DirectCall {
+                        callee,
+                        receiver: None,
+                        arguments,
+                    } = &consumer.operation
+                    else {
+                        panic!("consumer call");
+                    };
+                    assert_eq!(arguments.as_slice(), [*result]);
+                    assert_eq!(consumer.block, acquire.block);
+                    assert!(
+                        program
+                            .modules
+                            .iter()
+                            .flat_map(|m| &m.functions)
+                            .find(|f| f.id == *callee)
+                            .unwrap()
+                            .name
+                            .contains(&format!(".{name}."))
+                    );
+                    assert!(position(consumer.id) > previous);
+                    previous = position(consumer.id);
+                }
+                assert!(position(end.id) > previous);
                 assert!(
                     matches!(end.operation, Operation::BorrowEnd { loan } if EntityId::Loan(loan) == *result)
                 );
@@ -794,7 +860,11 @@ fn check_sequence(
                     .filter(|loan| loan.call().source_unit() == facts[0].callable().source_unit())
                     .map(|loan| loan.call())
                     .collect();
-                assert_eq!(acquisition_calls.len(), 4 + segments.iter().sum::<usize>());
+                assert_eq!(
+                    acquisition_calls.len(),
+                    2 + uses.iter().map(|u| u.split(',').count()).sum::<usize>()
+                        + segments.iter().sum::<usize>()
+                );
                 if segment_index == 0 {
                     assert_eq!(Some(call.block), function.entry_block());
                 }
