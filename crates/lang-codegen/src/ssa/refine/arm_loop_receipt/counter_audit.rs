@@ -27,7 +27,7 @@ impl Receipt {
             || p.roles != *roles
             || abi.len() != 3
             || abi.iter().enumerate().any(|(i, (_, mode))| {
-                (i != roles[2] && *mode != ParameterMode::Borrow)
+                (i == roles[0] && *mode != ParameterMode::Borrow)
                     || !matches!(mode, ParameterMode::Borrow | ParameterMode::Value)
             })
             || self.parameters.len() != abi.len()
@@ -144,7 +144,7 @@ impl Receipt {
                     kind: LoanKind::Shared,
                     target: *ty,
                 },
-                (ParameterMode::Value, EntityId::Value(_)) if index == roles[2] => {
+                (ParameterMode::Value, EntityId::Value(_)) if index != roles[0] => {
                     EntityType::Value(*ty)
                 }
                 _ => return None,
@@ -160,7 +160,7 @@ impl Receipt {
         for (i, b) in refs.iter().enumerate() {
             let list = self.evidence.ids(f, *b, s).ok()?;
             let count = match i {
-                0 => 1,
+                0 => usize::from(abi[roles[1]].1 == ParameterMode::Borrow),
                 2 => usize::from(abi[roles[2]].1 == ParameterMode::Borrow),
                 1 | 5 => 2,
                 3 => calls[0].len() + 1,
