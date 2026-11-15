@@ -6,15 +6,26 @@ use lang_frontend::{
 };
 
 #[derive(Clone, PartialEq, Eq)]
+struct Condition {
+    expression: UnitExpressionId,
+    symbol: lang_frontend::name_resolution::UnitSymbolId,
+    span: lang_frontend::source::Span,
+    parameter: usize,
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct Source {
     order: [UnitStatementId; 2],
     segments: [Vec<SourceConsumer>; 3],
     calls: Vec<Call>,
+    abi: Vec<SsaTypeId>,
+    flags: [Condition; 2],
 }
 
 pub(super) fn original_order(
     inputs: &RefineInputs<'_>,
     fact: &UnitLoopNoCarryFact,
+    types: &RefineTypes<'_>,
 ) -> Option<Source> {
     let crate::ssa::refine::RefineBody::Block(body) = inputs.body else {
         return None;
@@ -63,7 +74,7 @@ pub(super) fn original_order(
             Some((key.clone(), *inputs.function_ids.get(key)?))
         })
         .collect::<Option<Vec<_>>>()?;
-    let mut flag = None;
+    let mut flags = Vec::new();
     for statement in [first, second] {
         let Statement::While { condition, .. } = ast.statements().get(*statement).ok()?.payload()
         else {
@@ -76,12 +87,47 @@ pub(super) fn original_order(
         let symbol = *inputs
             .references
             .get(&(node.span().start(), node.span().end()))?;
-        if flag.is_some_and(|previous| previous != symbol) {
-            return None;
-        }
-        flag = Some(symbol);
+        flags.push(Condition {
+            expression: UnitExpressionId::new(inputs.source_unit, *condition),
+            symbol,
+            span: node.span(),
+            parameter: inputs.parameters.iter().position(|p| *p == symbol)?,
+        });
     }
+    if !matches!(inputs.parameters.len(), 2 | 3)
+        || inputs.modes.len() != inputs.parameters.len()
+        || inputs.modes.iter().any(|m| *m != ParameterMode::Borrow)
+    {
+        return None;
+    }
+    let source_index = inputs.parameters.iter().position(|p| *p == fact.source())?;
+    let expected_flags: BTreeSet<_> = (0..inputs.parameters.len())
+        .filter(|i| *i != source_index)
+        .collect();
+    if flags.iter().map(|f| f.parameter).collect::<BTreeSet<_>>() != expected_flags {
+        return None;
+    }
+    let abi = inputs
+        .parameters
+        .iter()
+        .enumerate()
+        .map(|(i, symbol)| {
+            use lang_frontend::type_checking::{BuiltinType, UnitTypeKind};
+            let ty = inputs.typed.symbol_type(*symbol)?;
+            let expected = if i == source_index {
+                BuiltinType::String
+            } else {
+                BuiltinType::Boolean
+            };
+            if inputs.typed.types().get(ty) != Some(&UnitTypeKind::Builtin(expected)) {
+                return None;
+            }
+            types.type_ids.get(&ty).copied()
+        })
+        .collect::<Option<Vec<_>>>()?;
     Some(Source {
+        abi,
+        flags: flags.try_into().ok()?,
         order: [
             UnitStatementId::new(inputs.source_unit, *first),
             UnitStatementId::new(inputs.source_unit, *second),
@@ -195,11 +241,18 @@ pub(super) fn finish(
         || snapshot.receipt.loops.len() != 2
         || (source.calls.is_empty() && !snapshot.receipt.has_empty_segments(3))
         || !snapshot.receipt.matches_source_segments(&source.segments)
+        || !snapshot.receipt.matches_borrowed_flags(
+            &source
+                .flags
+                .iter()
+                .map(|f| (f.parameter, f.span))
+                .collect::<Vec<_>>(),
+        )
     {
         return None;
     }
     // Validate the complete caller CFG once, including both loop exits and their connecting edge.
-    let function = validate_caller(snapshot, program, anchor.abi?, anchor.source_index?)?;
+    let function = validate_caller(snapshot, program, &source.abi, anchor.source_index?)?;
     validate_mapping(&source.calls, program, mapping)?;
     validate_segments(snapshot, function, &source.calls)?;
     let mut edges = Vec::new();

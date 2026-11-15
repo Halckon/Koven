@@ -264,7 +264,7 @@ pub(in crate::ssa) fn expect(inputs: &RefineInputs<'_>, types: &RefineTypes<'_>)
                 .map(call)
                 .collect(),
             segments,
-            sequence: sequence::original_order(inputs, fact),
+            sequence: sequence::original_order(inputs, fact, types),
         };
         RUNS.with(|r| {
             if let Some(s) = r.borrow().last() {
@@ -290,7 +290,7 @@ fn validate_final(
     abi: [SsaTypeId; 2],
     source_index: usize,
 ) -> Option<Edge> {
-    let f = validate_caller(s, program, abi, source_index)?;
+    let f = validate_caller(s, program, &abi, source_index)?;
     let edge = validate_loop(s, f, calls, 0)?;
     validate_segments(
         s,
@@ -302,7 +302,7 @@ fn validate_final(
 fn validate_caller<'a>(
     s: &Snapshot,
     program: &'a Program,
-    abi: [SsaTypeId; 2],
+    abi: &[SsaTypeId],
     source_index: usize,
 ) -> Option<&'a Function> {
     let functions: Vec<_> = program
@@ -326,10 +326,10 @@ fn validate_caller<'a>(
         return None;
     };
     let entry = f.block(f.entry_block()?)?;
-    if entry.parameters.len() != 2 || source_index >= 2 {
+    if entry.parameters.len() != abi.len() || source_index >= abi.len() {
         return None;
     }
-    for (i, (entity, ty)) in entry.parameters.iter().zip(abi).enumerate() {
+    for (i, (entity, ty)) in entry.parameters.iter().zip(abi.iter().copied()).enumerate() {
         let kind = if i == source_index {
             SsaTypeKind::StringOwner
         } else {

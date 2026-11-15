@@ -20375,3 +20375,11 @@ Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入�
 - 每条原 fact 独立限定一或二个 body consumer，分别核 `calls.len() == 1 + fact.consumers().len()`，不以两个 scope 的总调用数抵消缺项；两 while/三 source 段上限保持。
 - 原每 fact 完整 ledger acquisition、调用来源与 sealed 身份继续独立匹配；每个真实 consumer 按其 scope 的 `Consumer(i)` 顺序消费本 scope fresh result，唯一 ResultEnd 晚于该 scope 最后一次消费，两 fresh result 不同且都不进入任何边运输。完整 caller 通过后才原子发布两条来源边。
 - 真实源码覆盖四种消费数量组合、不同 callee 的各自顺序互换、同 callee 重复及三段交叉；第一或第二 scope 三次消费均保留正常原 receipt 但整个组不获证。实际 fresh 模块 11 项与旧 Partial 2 项通过；codegen 三 feature all-targets 严格 Clippy（1m15s）、default codegen all-targets（40.99s）、格式/docs968/尺寸2421文件与21项历史欠账/diff 门禁通过。本轮独立首 attempt 真实重编本树 frontend/codegen，静审无阻断；未运行 native、故障注入或推送。
+
+### D10 双 fresh scope 的独立借入 flag 角色
+
+- 单 loop 原两参准入不变；双 loop 另存两个原 condition Name 的 expression/span/symbol 与实际参数位置。仅接纳 source String 加一个共用或两个恰好均被使用的 Borrow Boolean，拒额外未用参数、owned flag 和非 Name 条件。
+- 完整 ABI 类型与每 loop 独立 flag 角色来自 build 前 typed/名字事实；只读 receipt getter 对照原 proof 的 flag_parameter/condition_span 后，原完整 CFG 验证按仍需的角色运输。三段 source 与各 body 一/二消费上限、整组原子发布不变。
+- 真实正例覆盖六种三参 ABI 排列、两 flag 条件次序交换、来源反序与末段有无；明确核第一 scope 零迭代退出只保 source/后 flag、末 scope 不运输已失效 flag。额外未用 Boolean、同 flag 多参及 owned flag 保正常原 lowering/receipt 且明确整组 evidence gap；Group 条件保原 ownership 两条 L0164，精确对应两处 borrow 关键字位置，不归为 lowering Unsupported。
+- 实际新 flags 两项（48 正向组合各独立 assembly 两次及四类负控）、旧 fresh 11 项、旧 Partial 两项通过；15 项 CI-only mutation 测试明确 ignored，未执行。codegen 三 feature all-targets 严格 Clippy（37.35s）、default codegen all-targets（32.57s）、格式/docs968/尺寸2422文件与21项历史欠账/diff 通过，末版独审无阻断。
+- 验证过程完整保留独立日志：首次临时探针因 Program 无 Debug 编译失败，改为仅输出错误后原事实探针确认 Group 在 ownership 层拒绝；末版首链所有真实测试通过但测试嵌套 if 触发严格 lint，等价整理后仅重跑新 flags 与剩余门禁，未重复不变的旧矩阵。真实重编本树 frontend，源码内容不变。未运行 native、故障注入或推送。

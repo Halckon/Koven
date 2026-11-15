@@ -606,6 +606,14 @@ impl Emitted {
 
 #[cfg(feature = "d10-catalog-experiment")]
 impl Receipt {
+    pub(crate) fn matches_borrowed_flags(&self, expected: &[(usize, Span)]) -> bool {
+        self.loops.len() == expected.len()
+            && self.loops.iter().zip(expected).all(|(l, i)| {
+                !l.proof.flag_owned
+                    && l.proof.flag_parameter == i.0
+                    && l.proof.condition_span == i.1
+            })
+    }
     pub(crate) fn has_empty_segments(&self, count: usize) -> bool {
         self.segments.len() == count
             && self
