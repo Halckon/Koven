@@ -454,3 +454,5 @@ mod shared_mixed_distinct;
 mod staggered_distinct;
 
 mod late_distinct;
+
+mod joint_final_named;

@@ -66,7 +66,16 @@ pub(super) fn finish(
                 return None;
             }
             if matches!(shape, Shape::Staggered) {
-                staggered_pair::finish(owners.try_into().ok()?, first, second, owned)
+                let initializers = owners.try_into().ok()?;
+                let borrowed: Vec<_> = (0..4)
+                    .filter(|i| second.argument_role(*i).is_some_and(|role| role < 2))
+                    .filter_map(|i| second.named_argument_root(i))
+                    .collect();
+                if borrowed.len() == 2 && borrowed[0] != borrowed[1] {
+                    joint_final_pair::finish(initializers, first, second, owned)
+                } else {
+                    staggered_pair::finish(initializers, first, second, owned)
+                }
             } else {
                 let [owner]: [_; 1] = owners.try_into().ok()?;
                 shared_pair::finish(owner, first, second, owned)

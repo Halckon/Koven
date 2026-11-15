@@ -5,6 +5,7 @@ mod different_pair;
 mod different_shared_mixed_pair;
 mod different_shared_pair;
 mod different_staggered_pair;
+mod joint_final_pair;
 mod late_pair;
 mod pair;
 mod shared_pair;
@@ -50,6 +51,11 @@ enum EntryCalls {
     DifferentTemporaryPair(Box<[EntryCallDescriptor; 2]>),
     DifferentStaggeredNamedPair {
         owners: Box<[EntryOwnerDescriptor; 2]>,
+        calls: Box<[EntryCallDescriptor; 2]>,
+    },
+    JointFinalNamedPair {
+        owners: Box<[EntryOwnerDescriptor; 2]>,
+        terminal_drops: Box<[UnitDropFact; 2]>,
         calls: Box<[EntryCallDescriptor; 2]>,
     },
     StaggeredNamedPair {
@@ -324,9 +330,23 @@ impl EntryDescriptor {
             | EntryCalls::DifferentSharedMixedPair { calls, .. }
             | EntryCalls::StaggeredNamedPair { calls, .. }
             | EntryCalls::DifferentStaggeredNamedPair { calls, .. }
+            | EntryCalls::JointFinalNamedPair { calls, .. }
             | EntryCalls::LateInitializedPair(calls)
             | EntryCalls::DifferentLateInitializedPair(calls)
             | EntryCalls::DifferentTemporaryPair(calls) => calls.as_ref(),
+        }
+    }
+    /// Two original initializers and the independent original terminal cleanup sequence.
+    pub fn joint_final_owners(&self) -> Option<(&[EntryOwnerDescriptor; 2], &[UnitDropFact; 2])> {
+        if let EntryCalls::JointFinalNamedPair {
+            owners,
+            terminal_drops,
+            ..
+        } = &self.calls
+        {
+            Some((owners, terminal_drops))
+        } else {
+            None
         }
     }
     /// Two distinct root-owned initializers in source order and their separate final-use Drops.
