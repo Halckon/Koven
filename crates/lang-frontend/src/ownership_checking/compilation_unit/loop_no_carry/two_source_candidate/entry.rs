@@ -1,5 +1,6 @@
 //! Private-construction source entry evidence; not normal ownership or backend authority.
 mod body;
+mod different_late_pair;
 mod different_pair;
 mod different_shared_mixed_pair;
 mod different_shared_pair;
@@ -45,6 +46,7 @@ enum EntryCalls {
     Single(Box<EntryCallDescriptor>),
     Pair(Box<[EntryCallDescriptor; 2]>),
     LateInitializedPair(Box<[EntryCallDescriptor; 2]>),
+    DifferentLateInitializedPair(Box<[EntryCallDescriptor; 2]>),
     DifferentTemporaryPair(Box<[EntryCallDescriptor; 2]>),
     DifferentStaggeredNamedPair {
         owners: Box<[EntryOwnerDescriptor; 2]>,
@@ -323,6 +325,7 @@ impl EntryDescriptor {
             | EntryCalls::StaggeredNamedPair { calls, .. }
             | EntryCalls::DifferentStaggeredNamedPair { calls, .. }
             | EntryCalls::LateInitializedPair(calls)
+            | EntryCalls::DifferentLateInitializedPair(calls)
             | EntryCalls::DifferentTemporaryPair(calls) => calls.as_ref(),
         }
     }
@@ -368,6 +371,10 @@ impl EntryDescriptor {
     /// Private two-root separate-last-use proof across two distinct closed instances.
     pub fn is_different_staggered_named_pair(&self) -> bool {
         matches!(self.calls, EntryCalls::DifferentStaggeredNamedPair { .. })
+    }
+    /// Privately proven late named formation after a distinct complete temporary call.
+    pub fn is_different_late_initialized_pair(&self) -> bool {
+        matches!(self.calls, EntryCalls::DifferentLateInitializedPair(_))
     }
     /// Returns a key only when every original occurrence shares the complete instance.
     pub fn common_instance(&self) -> Option<&UnitCallableInstanceKey> {

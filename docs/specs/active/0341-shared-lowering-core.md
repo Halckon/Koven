@@ -20668,3 +20668,24 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
   原 descriptor 的 legacy 拒绝真实执行；同配置 frontend/codegen 两 crate
   `clippy --all-targets -- -D warnings` 首轮通过（1m42s）。
   默认 workspace 留联合一次；未执行 native/故障注入/整 CI 脚本，原 probe 红日志保留。
+
+
+### E2 不同闭合 callee 的晚 named owner 形成边界（已定向验收）
+
+- 基线 `5c8da47a7297d0bece233232849a09560d5711ce`。仅 exact 首全 literal call、一个晚 plain
+  String val、第二同 named 双借用 call，两个不同闭合 FullKey，空 typeargs/direct scalar。
+- 独立私有 `DifferentLateInitializedPair`，首 collector 仍接空 declaration slice，晚 val 只在
+  第二 collector 可见。纯 late 阶段证明复用原 storage/initialization_order/Span/完整 Drop 约束；
+  新外层核不同 FullKey/空类型实参/8 完整 End。不同 shape 分派仅将 Late 从拒绝转专用证明。
+- 不增加 shared/staggered root 投影，不将晚初始化 hoist 到根前缀；原后端逐 call 的初始化与
+  清理直接复用，逐 occurrence FullKey→SSA 绑定和 legacy common None 拒绝保持。
+- 普通两 case probe 首轮通过，8 唯一完整 loan/End、四 contract 列与逐 loan 唯一合同、
+  首完整 `[tempSecond,tempFirst]`/末 `[Named]` 原顺序、三 target 全局唯一与 NameSpan 已实测；
+  formed 仅 membership，唯一原 initializer 严格夹两 Call，反 callee/具名/samebytes 均覆盖。
+  闭合双 shell 两 case 全遍历后准确 `UnsupportedSelection=2`，1 过/1 预期红，原日志保留。
+- 新 SSA 断言首两 Drop 均晚于首 4 End 且早于晚 StringLiteral/RootPlace，晚 RootPlace 早于
+  所有第二 Begin；3 owner 同字节不合并，原 FullKey/callee 与 source→ABI/逐点完整 Drop 顺序一致。
+  新三目标正式与三 feature 各 3/3 通过，10 域外精准分类与三 feature legacy 真拒均执行；
+  必要旧 late 3 + 两个改动负控共 5/5 通过，双 crate all-targets 三 feature strict 通过（1m43）。
+- CI 同批登记 64 unit/配置，保留 7 public 与 1 frontend；旧晚 owner 不同 callee 负例转为
+  Group/计算 scalar，保持真实域外。不执行 native/故障注入/整 CI，默认 workspace 留联合一次。

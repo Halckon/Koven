@@ -406,7 +406,7 @@ fn late_initialization_rejects_other_formation_and_call_shapes() {
             "",
         ),
         (
-            "run(\"a\",\"b\",1,false);val owner=\"late\";other(owner,owner,2,true)",
+            "run(\"a\",\"b\",1,false);val owner=\"late\";other(owner,owner,1+1,true)",
             other.as_str(),
         ),
         (

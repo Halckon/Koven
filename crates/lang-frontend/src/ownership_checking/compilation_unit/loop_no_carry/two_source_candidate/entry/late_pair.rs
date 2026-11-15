@@ -7,6 +7,16 @@ pub(super) fn finish(
     owned: &CompilationUnitOwnership,
     parsed: &crate::parser::ParsedFile,
 ) -> Option<EntryCalls> {
+    prove(&first, &second, owned, parsed)?;
+    Some(EntryCalls::LateInitializedPair(Box::new([first, second])))
+}
+
+pub(super) fn prove(
+    first: &EntryCallDescriptor,
+    second: &EntryCallDescriptor,
+    owned: &CompilationUnitOwnership,
+    parsed: &crate::parser::ParsedFile,
+) -> Option<()> {
     let StringStorage::Temporary {
         drops: first_drops, ..
     } = &first.storage
@@ -88,5 +98,5 @@ pub(super) fn finish(
             }
         }
     }
-    Some(EntryCalls::LateInitializedPair(Box::new([first, second])))
+    Some(())
 }

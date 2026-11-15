@@ -37,6 +37,7 @@ impl EntryKeys {
             && !d.is_different_shared_named_pair()
             && !d.is_different_shared_mixed_pair()
             && !d.is_different_staggered_named_pair()
+            && !d.is_different_late_initialized_pair()
         {
             return None;
         }
