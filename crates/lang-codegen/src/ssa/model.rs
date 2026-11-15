@@ -923,4 +923,3 @@ impl Program {
         self.module(ty.module())?.type_origin(ty)
     }
 }
-
