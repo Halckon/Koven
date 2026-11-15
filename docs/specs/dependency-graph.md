@@ -24,6 +24,7 @@ subgraph Gactive["现行 active"]
   S0457["S0457<br/>Native 入口测试职责与根文件尺寸欠账"]
   S0458["S0458<br/>SSA verifier 职责与历史尺寸欠账"]
   S0459["S0459<br/>SSA tagged/provider 测试职责与尺寸欠账"]
+  S0460["S0460<br/>Verifier 借用调用与 place 测试职责归位"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -69,6 +70,7 @@ ARCH --> S0456
 | SPEC-0457 | active | [0457-native-entry-tests-and-size-debt.md](active/0457-native-entry-tests-and-size-debt.md) |
 | SPEC-0458 | active | [0458-ssa-verifier-responsibility-and-size-debt.md](active/0458-ssa-verifier-responsibility-and-size-debt.md) |
 | SPEC-0459 | active | [0459-ssa-domain-tests-and-size-debt.md](active/0459-ssa-domain-tests-and-size-debt.md) |
+| SPEC-0460 | active | [0460-verifier-borrowed-call-and-place-tests.md](active/0460-verifier-borrowed-call-and-place-tests.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
