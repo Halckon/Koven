@@ -20580,3 +20580,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - SSA 验证同一原 initializer/RootPlace 仅创建一次，4 个 String 实参共享 place、8 个 loan 不合并，
   每位置原 FullKey 对应独立 SSA callee，原实参顺序与 ABI 列分别核对；首完整 End 先于次 Begin，
   最后唯一 Drop 晚于全部 End。独立 replay 与 LLVM render 通过，不生成或执行 native 对象。
+
+### D10 ordinary 双控制点共用原 Boolean 参数
+
+- 仅将完整 ABI 扩为两/三参数：source 始终 Borrow String，两参数时两个原 Name 条件必须映到同一 Boolean Borrow/Value 参数，三参数时仍必须不同角色且全部参数被覆盖；不把冗余参数、任意条件或一般循环纳入。两个原 expression/span 独立保存，与原 receipt 的对应角色逐一比对，不因符号相同合并条件事实。
+- 原七块、完整 entry slot 顺序、逐类型实体及边运输、原 source ledger/完整 caller 和同次两边原子发布不变。Borrow 模式在 header/split 仍各有独立 Read/result/原 Name Span，Value 模式两处 Conditional 各自追溯相同原 ABI 角色而无 Read；保零迭代出口和两臂 fresh 独立唯一 End。既有单次 source 前消费可组合，suffix 原 InvalidModel 与多前消费 gap 不改变。
+- 新两目标首遍实跑通过：两 ABI 顺序、Borrow/Value、前消费有无及 source 反序共 16 形态各两次 assembly；两种三参数同 flag 形态均原正常 receipt 但明确 gap。新 helper 另核两个独立控制点及 Read origin/result，不仅对角色集合去重。受影响旧 Value 三项、prefix 两项通过；FE/codegen 三 feature all-targets 严格 Clippy 1m43s、default codegen all-targets 32.18s、格式检查通过。首次编译真实使用本树 FE/codegen，未 native、故障注入或推送；默认 workspace 留联合一次。
