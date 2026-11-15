@@ -1077,6 +1077,7 @@
   <path d="M 1236 450 C 1236 482, 972 500, 972 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 13644 120 C 13644 152, 2820 188, 2820 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 34620 101 C 35068 101, 35068 257, 35516 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 35636 294 C 35636 326, 35900 344, 35900 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2969,4 +2970,8 @@
   <text x="35636" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0456</text>
   <text x="35636" y="261" text-anchor="middle" font-size="13">Runtime buffer</text>
   <text x="35636" y="279" text-anchor="middle" font-size="13"> 职责分离与历史尺寸额度退休</text>
+  <rect x="35780" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="35900" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0457</text>
+  <text x="35900" y="417" text-anchor="middle" font-size="13">Native 入口测试职责与</text>
+  <text x="35900" y="435" text-anchor="middle" font-size="13">根文件尺寸欠账</text>
 </svg>

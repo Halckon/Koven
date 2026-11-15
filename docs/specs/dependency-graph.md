@@ -21,6 +21,7 @@ subgraph Gactive["现行 active"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0456["S0456<br/>Runtime buffer 职责分离与历史尺寸额度退休"]
+  S0457["S0457<br/>Native 入口测试职责与根文件尺寸欠账"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -34,6 +35,7 @@ subgraph Gdrafts_v044["v0.44（draft）"]
   S0339["S0339<br/>Unit 值实参与待决调用求值"]
   S0340["S0340<br/>名义类型 nullable retest view 的普通读取"]
 end
+S0456 --> S0457
 ARCH --> S0292
 ARCH --> S0333
 ARCH --> S0334
@@ -62,6 +64,7 @@ ARCH --> S0456
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
 | SPEC-0456 | active | [0456-runtime-buffer-responsibility-and-size-debt.md](active/0456-runtime-buffer-responsibility-and-size-debt.md) |
+| SPEC-0457 | active | [0457-native-entry-tests-and-size-debt.md](active/0457-native-entry-tests-and-size-debt.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
