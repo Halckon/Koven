@@ -126,8 +126,7 @@ fn check(reverse: bool, source_second: bool, extra: bool, same_bytes: bool) {
             "{:?}",
             audit.unsupported
         );
-        assert_eq!(audit.unsupported.len(), 1, "{:?}", audit.unsupported);
-        assert!(audit.unsupported[0].starts_with("missing/duplicate entry call receipt:"));
+        assert!(audit.unsupported.is_empty(), "{:?}", audit.unsupported);
         let f = program
             .modules
             .iter()

@@ -1,8 +1,36 @@
 //! Actual entry call edges only; lifecycle gaps remain separate from graph reachability.
 use super::*;
 use crate::ssa::{model::InstructionId, refine::entry_borrow_receipt::Receipt};
-use lang_frontend::{ownership_checking::UnitLoweringFacts, type_checking::UnitItemId};
+use lang_frontend::{
+    ownership_checking::{UnitBorrowCallHandoffFact, UnitLoweringFacts},
+    type_checking::{UnitExpressionId, UnitItemId},
+};
 use std::rc::Rc;
+/// Each variant can only contain a route-private token minted after whole-caller verification.
+pub(super) enum Fulfillment {
+    SameRoot(super::aux_binding_consumption::ValidatedHandoff),
+    DistinctRoot(super::distinct_aux_consumption::ValidatedHandoff),
+}
+impl Fulfillment {
+    fn call(&self) -> UnitExpressionId {
+        match self {
+            Self::SameRoot(p) => p.call(),
+            Self::DistinctRoot(p) => p.call(),
+        }
+    }
+    fn matches(
+        &self,
+        handoff: &UnitBorrowCallHandoffFact,
+        callable: UnitItemId,
+        program: &Program,
+        mapping: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
+    ) -> bool {
+        match self {
+            Self::SameRoot(p) => p.matches(handoff, callable, program, mapping),
+            Self::DistinctRoot(p) => p.matches(handoff, callable, program, mapping),
+        }
+    }
+}
 #[derive(Default)]
 struct Recorded {
     calls: Vec<Receipt>,
@@ -26,7 +54,7 @@ impl Transaction {
         program: &Program,
         mapping: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
         owned: &dyn UnitLoweringFacts,
-        fulfilled: Vec<super::aux_binding_consumption::ValidatedHandoff>,
+        fulfilled: Vec<Fulfillment>,
     ) -> (Edges, Vec<String>) {
         let mut expected = BTreeMap::new();
         let mut gaps = Vec::new();

@@ -19941,3 +19941,21 @@ eager-drop region/receipt，仍明确保 missing entry 与 unclassified BorrowCa
 末版新 2/2、原 same-root aux 2/2；frontend/codegen 三 feature all-targets strict Clippy
 1m21s、默认仅这两个 crate 的 all-targets check 1m02s。首轮仅新增 trait 缺文档警告，
 已补说明且末版严格通过；独审无阻断。未运行 native、人工故障或推送。
+
+### D10 distinct-owner 证据精确履行 entry 义务（2026-11-15）
+
+接续 `3a79edb5`，保持原 distinct 九动作、ledger 及完整十三指令/七实体验证，全部
+成功后才 mint distinct 路线自有的私有 `ValidatedHandoff`。原 ids[3] handoff 与完整
+handoff 列表恰唯一 FullEq，保存 callable、caller/callee keys/IDs 与实际指令；不开放
+same-root token 的任意构造，也不从裸 edge/filter 推出履约。
+
+entry 的原 expected 登记与专用 Boolean receipt 校验不变。内部两变体包装 opaque
+proof，跨两路线统一按原 call 计数；唯一完整 fact/来源/映射/最终实际指令匹配且无
+原 entry call/lifetime receipt 竞争才消费。重复、冲突、不匹配及残余继续 gap；
+每路线仍只在原位置发布 edge 一次，履约分支不重复插边。不改变准入或 coverage。
+
+真实 distinct 正反 2/2（源参数0/1、反序、samebytes 独立 owner、双 assembly）；
+正例现无 unsupported，keep_aux 后用无完整 eager-drop 证据仍保原两个缺口。
+原 same-root 2/2 与 Boolean 双消费 exact 1/1 交叉通过。codegen 三 feature all-targets
+strict Clippy 20.95s，默认仅 codegen all-targets check 0.33s。未运行 native、
+人工故障或推送；无额外扩大域的本地测试。
