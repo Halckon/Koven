@@ -20733,3 +20733,8 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
   paired 5 通过，双 crate all-targets 三 feature strict 通过（1m43），CI 登记 67 unit/配置。
 - 旧 staggered 的共同末退役负例已属本片正域，首回归失败记录保留；经独审仅改其
   第二 scalar 为计算表达式，单目标复验通过。未重复原已绿目标，不运行 native/故障注入。
+
+### D10 counter 前 source 消费的原路由边界
+
+- 仅新增真实源码拒绝回归，未修改生产准入或 planner。消费位于初始化前时，Borrow/双 Value 与来源反序四输入各两次 lower 均有原 counter fact，但原 producer 返回精确 InvalidModel/整个 caller Span，零 receipt/audit/recorded；不得以 sealed fact 存在替代成功完整证据。消费夹在初始化与 while 间时，四输入各一次原 names/types 成功，ownership 精确两条 L0164 位于两处 borrow 六字符 Span，counter facts 与 publication 为空，该路径未进入 lower。
+- 首分类日志保留，包括辅助 analyze 因原 ownership 拒绝而 panic；精确回归首编仅测试 expect_err 要求 Program Debug，改为等价 let Err 后最终一目标通过。两种拒绝均按真实 kind/span 收紧，没有 anyErr 验收，不为本片绕过原拒绝。未重已有支持矩阵、未执行生成 Abort/native/故障注入/推送。
