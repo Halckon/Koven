@@ -20333,3 +20333,19 @@ body 仅一/二消费者，前后段各至多一，final 所有原 dispatch、�
 显式核唯一 outer 调用/空段、实际块/目标及其 source 参数不等于 fresh result，原 loan call 全集唯一。
 原三 body 消费、单段两次及以上均保真实正常 receipt 但新域 gap；不改 producer、旧 Partial 或一般循环终止边界。
 独立静审通过；末版 fresh 模块六项与旧 Partial loop 两项全部通过。单侧 prefix-only 出口零参数、suffix-only 出口保留一个 source 参数且实际 after 调用位于 Return 块的断言均成立；不代表运行循环或终止证明。frontend/codegen 三 feature 严格 Clippy all-targets 通过（2m39），默认仅两 crate all-targets check 通过（16.28s）。格式已执行，968 Markdown 文档门禁、尺寸门禁（基ae95e90e，2419文件/21历史债）及差异检查通过；不是 workspace 全验。未推送、未执行 native 或人工故障。日志为 `/private/tmp/d10-fresh-sided-{tests,oldloop,strict,default,size}.log`。
+
+### E2显式Unit表达式体的原调用入口（2026-11-15）
+
+基于ae95e90e，仅把零参数显式Unit函数中原始直接Call表达式作为受限入口；
+不包装成虚构Block，也不扩Group、分支、多调用或其他表达式。原call仍必须满足
+已有typed/contracts/完整真实loan End与String Drop约束，默认关闭能力保持。
+
+先行真实ownership探针已验证4 loan对应唯一4 CallReturn End，且全部2个String
+Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入口红阶段为
+预期UnsupportedSelection。生产改为复用原body表达式Span及同一collect链，
+函数/块保持原声明Origin，终结指令保持原body Origin。
+正式two-source-unit和三feature expression_entry各2目标通过，覆盖补强原事实、
+普通/具名重排裸Call正例及Group/if拒绝；完整SSA verify/LLVM render与精确Origin通过。
+原direct_scalars三目标回归通过；三feature frontend/codegen双crate all-targets
+严格Clippy通过（3m13s），fmt/文档结构/size/diff及独立静审通过。
+不推送、不执行native或本地故障注入。

@@ -245,19 +245,36 @@ pub(super) fn collect(
             else {
                 return None;
             };
-            let body = match form {
+            let (body_span, declarations, expression) = match form {
                 FunctionForm::ImplicitUnitBlock(body)
                 | FunctionForm::Explicit {
                     body: FunctionBody::Block(body),
                     ..
-                } => *body,
+                } => {
+                    let node = parsed.ast().statements().get(*body).ok()?;
+                    let Statement::Block { elements } = node.payload() else {
+                        return None;
+                    };
+                    let (last, declarations) = elements.split_last()?;
+                    let Statement::Expression { expression } =
+                        parsed.ast().statements().get(*last).ok()?.payload()
+                    else {
+                        return None;
+                    };
+                    (node.span(), declarations, *expression)
+                }
+                FunctionForm::Explicit {
+                    body: FunctionBody::Expression { expression, .. },
+                    ..
+                } => {
+                    let node = parsed.ast().expressions().get(*expression).ok()?;
+                    if !matches!(node.payload(), Expression::Call { .. }) {
+                        return None;
+                    }
+                    (node.span(), &[][..], *expression)
+                }
                 _ => return None,
             };
-            let body_node = parsed.ast().statements().get(body).ok()?;
-            let Statement::Block { elements } = body_node.payload() else {
-                return None;
-            };
-            let (last, declarations) = elements.split_last()?;
             if declarations.len() > 4 {
                 return None;
             }
@@ -334,12 +351,7 @@ pub(super) fn collect(
                 }
             }
 
-            let Statement::Expression { expression } =
-                parsed.ast().statements().get(*last).ok()?.payload()
-            else {
-                return None;
-            };
-            let call_id = UnitExpressionId::new(unit, *expression);
+            let call_id = UnitExpressionId::new(unit, expression);
             let call = typed.types().call(call_id)?;
             if call.receiver().is_some() || !call.instance().type_arguments().is_empty() {
                 return None;
@@ -652,7 +664,7 @@ pub(super) fn collect(
                 choose: *choose,
                 initializer_spans,
                 entry: declaration.id(),
-                body: body_node.span(),
+                body: body_span,
                 instance: call.instance().clone(),
                 parameter_roles,
                 initializers,
