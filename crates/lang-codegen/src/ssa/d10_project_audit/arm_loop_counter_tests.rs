@@ -26,12 +26,12 @@ fn counter_full_caller_keeps_unproved_modes_and_extra_parameters_outside() {
     for signature in [
         "source:String,rounds:Int,choose:Boolean,extra:Boolean",
         "source:String,own rounds:Int,choose:Boolean",
-        "source:String,rounds:Int,own choose:Boolean",
+        "source:String,own rounds:Int,own choose:Boolean",
     ] {
         check(signature, false);
     }
 }
-fn check(signature: &str, certified: bool) {
+pub(super) fn check(signature: &str, certified: bool) {
     for reverse in [false, true] {
         let mut sources = SourceMap::new();
         let (p, provider) = unit_lower_test_support::parsed(
@@ -213,7 +213,58 @@ fn check(signature: &str, certified: bool) {
                         || g.starts_with("unclassified operation: BorrowCall"))
             );
             assert_eq!(function.blocks.len(), 9);
-            assert_eq!(function.instructions.len(), 13);
+            let value_choice = signature
+                .split(',')
+                .position(|p| p.trim() == "own choose:Boolean");
+            assert_eq!(
+                function.instructions.len(),
+                if value_choice.is_some() { 12 } else { 13 }
+            );
+            let entry_block = function.block(function.entry_block().unwrap()).unwrap();
+            let TerminatorKind::Branch(entry_edge) = &entry_block.terminator.as_ref().unwrap().kind
+            else {
+                panic!("entry branch")
+            };
+            let header = function.block(entry_edge.target).unwrap();
+            let TerminatorKind::Conditional {
+                when_true: split_edge,
+                ..
+            } = &header.terminator.as_ref().unwrap().kind
+            else {
+                panic!("counter guard")
+            };
+            let split = function.block(split_edge.target).unwrap();
+            let choice_index = signature
+                .split(',')
+                .position(|p| p.trim().ends_with("choose:Boolean"))
+                .unwrap();
+            let mut choice = entry_block.parameters[choice_index];
+            for (edge, target) in [(entry_edge, header), (split_edge, split)] {
+                let position = edge.arguments.iter().position(|e| *e == choice).unwrap();
+                choice = target.parameters[position];
+            }
+            let TerminatorKind::Conditional { condition, .. } =
+                &split.terminator.as_ref().unwrap().kind
+            else {
+                panic!("choice conditional")
+            };
+            if value_choice.is_some() {
+                assert!(split.instructions.is_empty());
+                assert_eq!(EntityId::Value(*condition), choice);
+            } else {
+                assert_eq!(split.instructions.len(), 1);
+                let read = function.instruction(split.instructions[0]).unwrap();
+                let EntityId::Loan(loan) = choice else {
+                    panic!("borrow choice")
+                };
+                assert_eq!(
+                    read.operation,
+                    Operation::Read {
+                        source: crate::ssa::model::PlaceAccess::Loan(loan)
+                    }
+                );
+                assert_eq!(read.results, [EntityId::Value(*condition)]);
+            }
             let updates: Vec<_> = function
                 .instructions
                 .iter()

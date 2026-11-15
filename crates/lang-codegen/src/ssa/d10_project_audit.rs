@@ -8,6 +8,8 @@ pub(crate) mod arm_loop_counter_consumption;
 #[cfg(test)]
 mod arm_loop_counter_tests;
 #[cfg(test)]
+mod arm_loop_counter_value_tests;
+#[cfg(test)]
 mod arm_loop_prefix_tests;
 #[cfg(test)]
 mod arm_loop_shared_condition_tests;

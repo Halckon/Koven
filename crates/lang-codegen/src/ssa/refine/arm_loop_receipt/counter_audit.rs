@@ -26,12 +26,15 @@ impl Receipt {
             || p.fact != *fact
             || p.roles != *roles
             || abi.len() != 3
-            || abi.iter().any(|(_, mode)| *mode != ParameterMode::Borrow)
+            || abi.iter().enumerate().any(|(i, (_, mode))| {
+                (i != roles[2] && *mode != ParameterMode::Borrow)
+                    || !matches!(mode, ParameterMode::Borrow | ParameterMode::Value)
+            })
             || self.parameters.len() != abi.len()
             || roles.iter().copied().collect::<BTreeSet<_>>() != (0..abi.len()).collect()
             || roles[0] == roles[1]
             || roles[0] == roles[2]
-            || (roles[1] == roles[2]) != (abi.len() == 2)
+            || roles[1] == roles[2]
             || p.conditions != conditions.map(|c| c.0)
             || p.condition_spans != conditions.map(|c| c.1)
         {
@@ -141,7 +144,7 @@ impl Receipt {
                     kind: LoanKind::Shared,
                     target: *ty,
                 },
-                (ParameterMode::Value, EntityId::Value(_)) if index != roles[0] => {
+                (ParameterMode::Value, EntityId::Value(_)) if index == roles[2] => {
                     EntityType::Value(*ty)
                 }
                 _ => return None,
@@ -157,7 +160,8 @@ impl Receipt {
         for (i, b) in refs.iter().enumerate() {
             let list = self.evidence.ids(f, *b, s).ok()?;
             let count = match i {
-                0 | 2 => 1,
+                0 => 1,
+                2 => usize::from(abi[roles[2]].1 == ParameterMode::Borrow),
                 1 | 5 => 2,
                 3 => calls[0].len() + 1,
                 4 => calls[1].len() + 1,
