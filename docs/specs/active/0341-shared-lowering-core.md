@@ -20490,3 +20490,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 复用原 sealed fact/完整 owned ledger、全 caller CFG 与 source/body 消费证明；body 一/二 consumer、前后各至多一次 source consumer 范围不变，旧 Partial 与一般循环义务不变。Value 的条件直接使用实际运输 Value，不虚构 Read 或 End/Drop。
 - 新真实测试覆盖两 ABI 位置、source 顺序、四段组合及一/二 body 顺序，另保长 body/长段、owned String、额外 Boolean、Group 条件边界。红阶段已证实原正常 SSA/receipt 但 audit 仍 missing evidence；末版新三项真实测试通过（48 正向形态各独立 assembly 两次、6 长域反例及 3 边界）；owned String 与 Group 均实际确认原 ownership 单条 L0164 在 borrow 六字符位置，额外 Boolean 保正常原 receipt 但明确 audit gap。
 - 相关旧 fresh/双 flag 共 16 项、旧 Partial 2 项全部通过，codegen 三 feature all-targets 严格 Clippy（52.78s）、default codegen all-targets（32.32s）、格式/docs979/尺寸2459文件与2项历史欠账/diff 门禁通过；真实本树 frontend 重编、红阶段日志保留，绿链首遍通过，独审无阻断。未运行 native、故障注入或推送。
+
+### D10 单 fresh scope 的未用 Boolean ABI 角色
+
+- 单 scope 仅从原完整两/三 ABI 中识别 source、原 Name condition 的实际 flag 及可选唯一未用 Boolean；source 必须 Borrow String，其他仅 Boolean Borrow/Value。完整原 typed/owned/fact/statement 消费链与原全 caller receipt 验证不变，不忽略 extra 的实际引用。
+- 恰三参时额外核最终入口首 Branch 的实际参数集合只含原 source/flag；参数次序与目标角色对应仍由原完整 CFG transport validator 检查。未用 Boolean 在首边不再运输，不声称或补造显式 BorrowEnd/析构。
+- 新测试准备覆盖六种 ABI 顺序、active/unused 各 Borrow/Value、source 反序及首尾段/单双 body 交叉，独立核 unused 身份不进入任何边或非入口 block parameter；第四参、超长段保持原正常 receipt/gap。实际 extra 使用与非 Boolean 原 route 均经原正常源码确认 lowering 成功、SSA verifier 通过、audit 一个但无 fresh receipt，保精确 missing/outside-domain gap 且不发布来源边；extra 的 inspect 调用仍恰一次并保 SharedReborrow gap，未通过删 use 冒充 unused。
+- 末版新三项测试（192 正向组合各两次独立 assembly）、受影响 single Value 三项、原 Borrow 单 scope 一项与旧 Partial 两项通过；codegen 三 feature all-targets 严格 Clippy（53.19s）、default codegen all-targets（32.24s）、格式/docs979/尺寸2460文件与2项历史欠账/diff 门禁通过，独审无阻断。首分类探针的错误假设失败完整留存，后续真实分类与收紧 oracle 分开，末版验收首遍通过；未 native、故障注入或推送。

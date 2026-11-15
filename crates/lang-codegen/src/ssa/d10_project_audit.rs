@@ -25,6 +25,8 @@ mod fresh_loop_flags_tests;
 mod fresh_loop_value_flags_tests;
 #[cfg(test)]
 mod fresh_single_value_tests;
+#[cfg(test)]
+mod fresh_unused_flag_tests;
 pub(crate) mod identity_return;
 pub(crate) mod interleaved_aux_consumption;
 #[cfg(test)]

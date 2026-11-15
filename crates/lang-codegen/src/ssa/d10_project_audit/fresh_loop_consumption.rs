@@ -297,6 +297,9 @@ fn validate_final(
         return None;
     }
     let f = validate_caller(s, program, &source.abi, &source.modes, source.source_index)?;
+    if !source.validates_entry_transport(f) {
+        return None;
+    }
     let edge = validate_loop(s, f, calls, 0)?;
     validate_segments(
         s,
