@@ -30,13 +30,47 @@ policy等值，不提高额度，不按容量拆三个大型单一iteration测�
 
 ## 2. 验收
 
-- [ ] R1：完整块/根机械保全，只有限域/路径/模块与必要imports变化。
-- [ ] R2：原Single ownership定向target前后通过，逐片本地提交，不逐片push、不伪造RED。
-- [ ] R3：完整frontend、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
+- [x] R1：完整块/根机械保全，只有限域/路径/模块与必要imports变化。
+- [x] R2：原Single ownership定向target前后通过，逐片本地提交，不逐片push、不伪造RED。
+- [x] R3：完整frontend、workspace all-target check、Clippy/fmt/policy/docs/尺寸/空白与独立精确diff审查。
 - [ ] R4：Architecture/真实账本同步、集中push同#439；精确新头CI另验，active/Draft不归档合入。
 
 原始证据留仓库外，未运行/ignored/compile/list与真实passed区分，不重复累计。
 
 ## 3. 真实证据
 
-待逐片记录。
+合同78b5dffb，两个完整职责逐片定向通过后本地提交，不逐片push。
+
+| 切片 | 提交 | 原七完整target前后 | 尺寸 |
+|---|---|---|---|
+| Checker初始化/运行 | fd976aa0 | 219/0/0 | 新lifecycle339 |
+| 声明收集/初始化/函数检查 | 19faedcb | 219/0/0 | 根1364→939，原declaration增长至186 |
+| review finding修复 | 3e282e7c | 219/0/0 | 仅删迁移造成的三个无用imports |
+
+七target为ownership_checking28/closures74/constants16/containers45/resource_deinit31/
+borrow_result12/map13，基线、两片迁移后及修复后219FQN逐项相同，测试fixture未改。
+完整方法/剩余根及原check_item按rustfmt核对，只有五pub(super)、原super路径增层、
+私有模块声明、必要imports与移除本次造成的unused imports差异；无wrapper/额外clone。
+policy只删checker baseline1371与exception，其余JSON等值；实际1364与登记分别记。
+
+首轮完整frontend3779/0/13及workspace check通过后，Clippy真实失败：checker根残留
+ItemId/FunctionBody/FunctionForm，与独立审查P1一致。3e282e7c只删三imports，既有目标
+模块直接导入不受影响；保留clippy-first-failed.log，不加allow绕过。机械核对首轮预期
+漏写新增方法前空行assert失败，定位仅空行后修预期通过，产品未因此改；工具输出留
+会话、无独立首轮audit失败日志，不能当行为RED。
+
+修后最终完整frontend **3779 passed、0 failed、13 ignored**（含12实际通过compile-fail
+doctest），ignored不计执行，不把前后重复运行累计新增覆盖；workspace all-target cargo
+check退出0（编译非下游测试运行）、frontend all-target Clippy -D warnings、fmt、policy47、
+docs971、尺寸/空白均0；2191手写Rust、历史超限 **5→4**，本PR21→4。
+
+独立fresh review完整78b5dffb..19faedcb真实930行diff，确认算法/owner与发布门保全，
+找到unused imports P1；修后读取完整78b5dffb..3e282e7c真实更新diff和精确fix差异复核，
+原finding闭合，No issues found。核初始化/capture/contracts顺序、诊断排序与错误清表、
+Map双向门/常量analysis owner、closure/loan/deferred发布、正常initializer binding及
+borrow-return上下文恢复。审查者只读不Cargo，父另验修后完整门禁。Architecture同步，
+原始证据/完整diff/初审与复核留仓库外。
+
+Rust最终门禁后未再改，未跑下游codegen/CLI/LSP测试全套、CI-only fault/真实校准/
+sanitizer；R4集中push及精确新头CI另验，Spec active、PR Draft，不归档合入，不借旧头CI
+或编译检查代替真实运行。剩余四根不意味着必须机械拆散单一大型测试算法。
