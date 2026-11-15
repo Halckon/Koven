@@ -30,6 +30,32 @@ class CheckerMutantTests(unittest.TestCase):
         with self.assertRaises(checks.Failure):
             checker_gate.mutate_checker(original.replace("ensure_available", "ensure_place_available"))
 
+    def test_repository_checker_target_is_unique(self):
+        # A checker extraction must also update the real mutation target, not only mocks.
+        source = (checker_gate.ROOT / checker_gate.CHECKER_FILE).read_text(encoding="utf-8")
+        mutated = checker_gate.mutate_checker(source)
+        self.assertEqual(mutated.count("MUTANT_CHECKER_DISABLED"), 1)
+        self.assertEqual(mutated.replace(
+            "// MUTANT_CHECKER_DISABLED: self.diagnostics.push(diagnostic);",
+            "self.diagnostics.push(diagnostic);",
+        ), source)
+
+    def test_mutation_cannot_cross_visible_method_boundary(self):
+        for visibility in ("", "pub ", "pub(super) ", "pub(crate) "):
+            with self.subTest(visibility=visibility):
+                source = (
+                    'fn ensure_available(&mut self) {\n'
+                    '    let code = (self.codes.use_after_move,);\n'
+                    '}\n'
+                    f'    {visibility}fn unrelated(&mut self) {{\n'
+                    '    diagnostic.add_label(self.sources, origin, "value was moved here")?;\n'
+                    '    add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;\n'
+                    '    self.diagnostics.push(diagnostic);\n'
+                    '}'
+                )
+                with self.assertRaises(checks.Failure):
+                    checker_gate.mutate_checker(source)
+
     def test_verify_cleans_up_worktree_on_exception(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

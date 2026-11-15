@@ -24,7 +24,7 @@ else:
 
 Failure = checks.Failure
 ROOT = Path(__file__).resolve().parents[1]
-CHECKER_FILE = "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs"
+CHECKER_FILE = "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow/place_access.rs"
 FRONTEND_TARGET = "unit_single_source_analysis"
 FRONTEND_EXPORT_TEST = "export_generated_owner_frontend_case"
 
@@ -90,8 +90,9 @@ def assert_frontend_hit(text):
 def mutate_checker(source):
     # Bind the Unit L0131 reporter, including its real parameter provenance.
     # Never cross the next method or silently select one of multiple matches.
-    pattern = (r'(fn ensure_available\b(?:(?!\n    fn ).)*?self\.codes\.use_after_move,'
-               r'(?:(?!\n    fn ).)*?diagnostic\.add_label\(self\.sources,\s*origin,\s*'
+    method_boundary = r'\n    (?:pub(?:\([^)]*\))?\s+)?fn '
+    pattern = (rf'(fn ensure_available\b(?:(?!{method_boundary}).)*?self\.codes\.use_after_move,'
+               rf'(?:(?!{method_boundary}).)*?diagnostic\.add_label\(self\.sources,\s*origin,\s*'
                r'"value was moved here"\)\?;\s*'
                r'add_parameter_label\(self\.sources,\s*&mut diagnostic,\s*parameter_span\)\?;\s*'
                r')self\.diagnostics\.push\(diagnostic\);')
