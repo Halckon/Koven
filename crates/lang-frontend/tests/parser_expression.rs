@@ -1,9 +1,9 @@
 //! SPEC-0007 / SPEC-0117 的公开表达式 Parser 契约测试。
 
-#[path = "parser_expression/shapes.rs"]
-mod shapes;
 #[path = "parser_expression/recovery.rs"]
 mod recovery;
+#[path = "parser_expression/shapes.rs"]
+mod shapes;
 
 use lang_frontend::{
     ast::ExpressionId,
