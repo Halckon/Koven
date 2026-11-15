@@ -5,7 +5,6 @@
     "crates/lang-codegen/src/llvm/container_tests.rs": 1038,
     "crates/lang-codegen/src/native/unit_tests.rs": 2006,
     "crates/lang-codegen/src/ssa/lower_frontend.rs": 1475,
-    "crates/lang-codegen/src/ssa/lower_frontend/control.rs": 1443,
     "crates/lang-codegen/src/ssa/lower_frontend_tests.rs": 2028,
     "crates/lang-codegen/src/ssa/unit_lower.rs": 1252,
     "crates/lang-codegen/src/ssa/unit_lower/control.rs": 1051,
@@ -127,13 +126,6 @@
       "owner": "lang-codegen single-file lowering",
       "split_plan": "后续按局部交付与intrinsic分发完整职责拆分，保持source plan和expression lowerer的显式输入。",
       "review": "SPEC-0288 第三轮自审逐行核对 owned remove/assignment 合同与上述领域接线，锁定 1525 行；不声称独立评审。再次增长或职责增加前重新审阅。 SPEC-0313非作者静审核对两行有界接线，旧1525行上限不增加。 SPEC-0291非作者逐diff内容审确认这一行有界接线；沿用原max_lines与split_plan，不增加额度，后续增长须重新审阅。 SPEC-0291 A非作者逐diff审确认N/R资格分离、封装及条件析构接线；沿用原额度与拆分计划，后继增长另审。"
-    },
-    "crates/lang-codegen/src/ssa/lower_frontend/control.rs": {
-      "max_lines": 1520,
-      "reason": "SPEC-0279 source ABI：在1449基础净增58行，全部为已有CFG运输capture loan及when兄弟分支快照恢复。独立审阅发现when遗漏，三项合法源码真实InvalidSsa修后通过；不新增控制流语义。 SPEC-0288接手本轮：消费短路 RHS 与跳过出口的 BranchExit drop 事实，修复 Map 最后查询的合流清理；既有控制流算法保持原职责。 SPEC-0288 第二轮：按注册的 Copyable 查询 identity 选择普通条件路径，仍保留 pointer nullable 原分支。 SPEC-0299：在本次main 1277行基础净增19行，仅透明Group定位既有nullable descriptor并保持原condition cleanup来源；不新增控制流语义。",
-      "owner": "lang-codegen single-file control lowering",
-      "split_plan": "后续控制流专项按线性状态运输与分支合流完整职责提取，不机械切片既有control算法。",
-      "review": "SPEC-0299非作者审查核对19行有界接线、原single plain路径与cleanup；既有1520行上限不提高，后续增长或职责变化前重新审阅。"
     },
     "crates/lang-frontend/src/ownership_checking/checker.rs": {
       "max_lines": 1429,
