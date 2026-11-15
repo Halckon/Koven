@@ -20733,3 +20733,18 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
   paired 5 通过，双 crate all-targets 三 feature strict 通过（1m43），CI 登记 67 unit/配置。
 - 旧 staggered 的共同末退役负例已属本片正域，首回归失败记录保留；经独审仅改其
   第二 scalar 为计算表达式，单目标复验通过。未重复原已绿目标，不运行 native/故障注入。
+
+
+### E2 不同 callee 双 named root 共同末退役（已定向验收）
+
+- 基联合 419b2b18，exact 两 plain String val 和两个不同闭合 callee，双方空类型实参；
+  每 call 各借同两异根、direct scalar，首完整 Drop 空、末完整双 NamedDrop 原向量。
+- 普通两 case probe 已绿，反 callee/反声明/具名/samebytes 的 8 完整 End 与原 Drop
+  序均核；同 Unit 两原 FullKey 各对应唯一 fact/shell，两 case 准确 Unsupported 红已保留。
+- 原 joint-final 证明抽为固定 owners[2]/terminalDrops[2] 纯载荷，不签发能力；旧 finish
+  仍核 same key，新私有 DifferentJointFinalNamedPair 独立核 different key/两空 typeargs。
+- calls/joint_final_owners 显式投影及 EntryKeys 精确 marker 接线，旧 survivor 分支不变；
+  后端操作不改，逐 occurrence 原 callee/ABI 与 legacy common None 真拒纳入正常测试。
+- 新 3 目标正式/三 feature 各 3/3 通过，9 域外精准分类与 legacy 真拒已执行；
+  旧 joint-final 3 + 迁移负控 1 全过，双 crate all-targets 三 feature strict 通过（1m44）。
+  CI 70 unit/配置；初正式输出的无行为括号 warning 已移除，未执行 native/故障注入。

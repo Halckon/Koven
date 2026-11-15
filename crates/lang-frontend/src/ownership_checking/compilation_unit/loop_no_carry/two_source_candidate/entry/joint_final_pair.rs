@@ -10,11 +10,24 @@ pub(super) fn finish(
     if first.instance() != second.instance() || !first.instance().type_arguments().is_empty() {
         return None;
     }
+    let (owners, terminal_drops) = prove(initializers, &first, &second, owned)?;
+    Some(EntryCalls::JointFinalNamedPair {
+        owners: Box::new(owners),
+        terminal_drops: Box::new(terminal_drops),
+        calls: Box::new([first, second]),
+    })
+}
+pub(super) fn prove(
+    initializers: [Initializer; 2],
+    first: &EntryCallDescriptor,
+    second: &EntryCallDescriptor,
+    owned: &CompilationUnitOwnership,
+) -> Option<([EntryOwnerDescriptor; 2], [UnitDropFact; 2])> {
     let roots = [initializers[0].0, initializers[1].0];
     if roots[0] == roots[1] {
         return None;
     }
-    for call in [&first, &second] {
+    for call in [first, second] {
         let StringStorage::StaggeredRoots { roots: original } = call.storage else {
             return None;
         };
@@ -49,10 +62,10 @@ pub(super) fn finish(
             .copied()
             .collect::<Vec<_>>()
     };
-    if !at(&first).is_empty() {
+    if !at(first).is_empty() {
         return None;
     }
-    let terminal_drops: [UnitDropFact; 2] = at(&second).try_into().ok()?;
+    let terminal_drops: [UnitDropFact; 2] = at(second).try_into().ok()?;
     if terminal_drops[0].target() == terminal_drops[1].target() {
         return None;
     }
@@ -86,9 +99,5 @@ pub(super) fn finish(
             })
         })
         .collect::<Option<_>>()?;
-    Some(EntryCalls::JointFinalNamedPair {
-        owners: Box::new(owners.try_into().ok()?),
-        terminal_drops: Box::new(terminal_drops),
-        calls: Box::new([first, second]),
-    })
+    Some((owners.try_into().ok()?, terminal_drops))
 }

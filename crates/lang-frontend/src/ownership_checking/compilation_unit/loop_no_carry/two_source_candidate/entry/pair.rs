@@ -27,13 +27,26 @@ pub(super) fn finish(
                     return None;
                 }
                 if matches!(shape, Shape::Staggered) {
-                    different_staggered_pair::finish(
-                        owners.try_into().ok()?,
-                        first,
-                        second,
-                        owned,
-                        parsed,
-                    )
+                    let roots: Vec<_> = (0..4)
+                        .filter(|i| second.argument_role(*i).is_some_and(|r| r < 2))
+                        .filter_map(|i| second.named_argument_root(i))
+                        .collect();
+                    if roots.len() == 2 && roots[0] != roots[1] {
+                        different_joint_final_pair::finish(
+                            owners.try_into().ok()?,
+                            first,
+                            second,
+                            owned,
+                        )
+                    } else {
+                        different_staggered_pair::finish(
+                            owners.try_into().ok()?,
+                            first,
+                            second,
+                            owned,
+                            parsed,
+                        )
+                    }
                 } else {
                     let [owner]: [_; 1] = owners.try_into().ok()?;
                     if matches!(
