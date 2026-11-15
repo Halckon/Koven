@@ -84,16 +84,30 @@ impl CompilationUnitOwnership {
     ) -> Result<UnitItemId, CallableLoanLinkError> {
         self.link_arm_source(branch, Some((call, argument)))
     }
+    pub(crate) fn d10_arm_break_link(
+        &self,
+        branch: UnitExpressionId,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
+        use CallableLoanLinkError::{Ambiguous, Unsupported};
+        let facts: Vec<_> = self
+            .no_carry_break_branches()
+            .iter()
+            .filter(|f| f.pair().branch() == branch)
+            .collect();
+        let [fact] = facts.as_slice() else {
+            return Err(Ambiguous);
+        };
+        if !self.owns_no_carry_break_branch(fact) {
+            return Err(Unsupported);
+        }
+        self.link_arm_pair(fact.pair(), None)
+    }
     fn link_arm_source(
         &self,
         branch: UnitExpressionId,
         prefix: Option<(UnitExpressionId, UnitExpressionId)>,
     ) -> Result<UnitItemId, CallableLoanLinkError> {
         use CallableLoanLinkError::{Ambiguous, Unsupported};
-        let ledger = self.source_collection_ledger.as_ref().ok_or(Unsupported)?;
-        if !ledger.matches_original(self) {
-            return Err(Unsupported);
-        }
         let facts: Vec<_> = self
             .no_carry_branches()
             .iter()
@@ -105,6 +119,19 @@ impl CompilationUnitOwnership {
         if !self.owns_no_carry_branch(pair) {
             return Err(Unsupported);
         }
+        self.link_arm_pair(pair, prefix)
+    }
+    fn link_arm_pair(
+        &self,
+        pair: &crate::ownership_checking::UnitLoopBranchNoCarryFact,
+        prefix: Option<(UnitExpressionId, UnitExpressionId)>,
+    ) -> Result<UnitItemId, CallableLoanLinkError> {
+        use CallableLoanLinkError::{Ambiguous, Unsupported};
+        let ledger = self.source_collection_ledger.as_ref().ok_or(Unsupported)?;
+        if !ledger.matches_original(self) {
+            return Err(Unsupported);
+        }
+        let branch = pair.branch();
         let callable = pair.arms()[0].callable();
         let records: Vec<_> = ledger
             .records
