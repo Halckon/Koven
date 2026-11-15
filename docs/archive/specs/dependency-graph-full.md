@@ -446,6 +446,7 @@ subgraph Gactive["现行 active"]
   S0456["S0456<br/>Runtime buffer 职责分离与历史尺寸额度退休"]
   S0457["S0457<br/>Native 入口测试职责与根文件尺寸欠账"]
   S0458["S0458<br/>SSA verifier 职责与历史尺寸欠账"]
+  S0459["S0459<br/>SSA tagged/provider 测试职责与尺寸欠账"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1965,6 +1966,7 @@ S0456 --> S0457
 | SPEC-0456 | active | [0456-runtime-buffer-responsibility-and-size-debt.md](../../specs/active/0456-runtime-buffer-responsibility-and-size-debt.md) |
 | SPEC-0457 | active | [0457-native-entry-tests-and-size-debt.md](../../specs/active/0457-native-entry-tests-and-size-debt.md) |
 | SPEC-0458 | active | [0458-ssa-verifier-responsibility-and-size-debt.md](../../specs/active/0458-ssa-verifier-responsibility-and-size-debt.md) |
+| SPEC-0459 | active | [0459-ssa-domain-tests-and-size-debt.md](../../specs/active/0459-ssa-domain-tests-and-size-debt.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

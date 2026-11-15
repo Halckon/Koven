@@ -84,4 +84,4 @@ Origin/Span、branch proof、presence payload、owner/loan及中止/cleanup合�
 Architecture已同步物理职责，不改变阶段规范。未跑frontend/完整codegen/LLVM慢组、
 本地CI-only fault或sanitizer全套；无跨crate API变化，不另跑workspace check，不借旧头结果。
 最终docs955、空白通过；下一笔仅账本/快照收齐提交，不再改Rust或重复组合门禁。
-集中推送后的精确PR CI仍待独立验收，当前不标done或归档。
+集中推送头d7b066e769f1206e040e311921949f97a67c4735的[PR CI 43664829997](https://github.com/Halckon/Koven/actions/runs/43664829997)实际success：两宿主Check/Clippy/Tests、两个Preview producer和独立consumer通过；frontend各850/0/12，codegen Linux3234/0/55、macOS3231/0/56。Editor lexical及占位Evidence job skipped不计执行。此结果只归因该头，同PR后继0459新代码另验；最终整组交付前保持in-progress，不提前归档。
