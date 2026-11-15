@@ -70,7 +70,7 @@ OriginContract 的来源取三种形式之一：
   from p.origins : 转发 p 携带的全部来源。只在 p 的类型是类型参数或接口、没有字段名可写时需要；origins 是占位
   from p.f.g : 具体类型的字段路径可以多级；写到中间一级即覆盖它之下的全部借用字段（2026-11-15）
 OriginContract 另有流向子句：
-  flows o into q : 调用之后，o 所指的来源由 inout 实参 q 背后的持有者持有
+  flows o into q : 调用之后，o 所指的来源由 inout 实参 q 背后的持有者持有；q 可以写到字段路径（演算 §18）
 存活的补充      : 存活的 loan 所指的存储若是某个持有者变量，该变量随之存活
 合同细化        : 函数被当作某个函数类型或接口方法使用时，它声明的来源与流向须被后者覆盖；p 覆盖 p.origins，p.origins 覆盖 p.f
 ```
