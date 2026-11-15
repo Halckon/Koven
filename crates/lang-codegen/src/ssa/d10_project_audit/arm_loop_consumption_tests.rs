@@ -132,7 +132,7 @@ fn ordinary_arm_loop_domain_boundaries_keep_both_edges_uncertified() {
     let arm = "if(choose){borrow val a=view(source);consume(a)}else{borrow val b=next(source);other(b);consume(b)}";
     let cases = [
         format!(
-            "fun run(source:String,flag:Boolean,choose:Boolean):Unit {{consume(source);while(flag){{{arm}}}}}"
+            "fun run(source:String,flag:Boolean,choose:Boolean):Unit {{consume(source);other(source);while(flag){{{arm}}}}}"
         ),
         format!(
             "fun run(source:String,flag:Boolean,choose:Boolean):Unit {{while(flag){{{arm}}};consume(source)}}"

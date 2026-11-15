@@ -10,6 +10,7 @@ pub(super) struct Source {
     pub roles: [usize; 3],
     pub conditions: [(UnitExpressionId, Span); 2],
     pub calls: [Vec<Call>; 2],
+    pub prefix: Option<(crate::ssa::refine::fresh_loop_receipt::SourceConsumer, Call)>,
 }
 impl Source {
     pub(super) fn collect(
@@ -33,8 +34,10 @@ impl Source {
         let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
             return None;
         };
-        let [statement] = elements.as_slice() else {
-            return None;
+        let (before, statement) = match elements.as_slice() {
+            [statement] => (None, statement),
+            [before, statement] => (Some(*before), statement),
+            _ => return None,
         };
         if fact.arms().iter().any(|a| {
             a.loop_statement().source_unit() != inputs.source_unit
@@ -134,11 +137,26 @@ impl Source {
                     .collect::<Option<Vec<_>>>()?,
             );
         }
+        let prefix = if let Some(statement) = before {
+            let consumer = crate::ssa::refine::fresh_loop_receipt::audit_consumer(
+                inputs,
+                statement,
+                fact.arms()[0].source(),
+            )?;
+            let mapped = call(consumer.call)?;
+            if mapped.1 != consumer.callee() {
+                return None;
+            }
+            Some((consumer, mapped))
+        } else {
+            None
+        };
         Some(Self {
             abi: abi.try_into().ok()?,
             roles: roles.try_into().ok()?,
             conditions: conditions.try_into().ok()?,
             calls: calls.try_into().ok()?,
+            prefix,
         })
     }
 }

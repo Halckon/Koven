@@ -59,15 +59,26 @@ fn ordinary_arm_value_flags_do_not_ignore_extra_or_repeated_roles() {
     }
 }
 fn check(parameters: &str, flags: [&str; 2], reverse: bool, certified: bool) {
+    check_with_prefix(parameters, flags, reverse, certified, None);
+}
+pub(super) fn check_with_prefix(
+    parameters: &str,
+    flags: [&str; 2],
+    reverse: bool,
+    certified: bool,
+    prefix: Option<&str>,
+) {
     let mut sources = SourceMap::new();
     let (p, provider) = unit_lower_test_support::parsed(
         &mut sources,
         "arm-value-provider.ko",
-        "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}",
+        "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}\nfun before(item:String):Unit {}",
     );
     let text = format!(
-        "fun run({parameters}):Unit {{while({}){{if({}){{borrow val a=view(source);consume(a)}}else{{borrow val b=next(source);other(b);consume(b)}}}}}}",
-        flags[0], flags[1]
+        "fun run({parameters}):Unit {{{}while({}){{if({}){{borrow val a=view(source);consume(a)}}else{{borrow val b=next(source);other(b);consume(b)}}}}}}",
+        prefix.unwrap_or(""),
+        flags[0],
+        flags[1]
     );
     let (c, caller) = unit_lower_test_support::parsed(&mut sources, "arm-value-caller.ko", &text);
     let mut inputs = [
@@ -154,6 +165,44 @@ fn check(parameters: &str, flags: [&str; 2], reverse: bool, certified: bool) {
         );
         let entry = function.block(function.entry_block().unwrap()).unwrap();
         assert_eq!(entry.parameters.len(), 3);
+        if prefix.is_some() {
+            let source_role = parameters
+                .split(',')
+                .position(|p| p.starts_with("source:"))
+                .unwrap();
+            let [id] = entry.instructions.as_slice() else {
+                panic!("one original prefix call");
+            };
+            let call = function.instruction(*id).unwrap();
+            let before = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "before")
+                .unwrap();
+            let span = provider.ast().items().get(before.root()).unwrap().span();
+            let targets: Vec<_> = program
+                .modules
+                .iter()
+                .flat_map(|m| &m.functions)
+                .filter(|f| f.origin == crate::ssa::model::Origin::Source(span))
+                .collect();
+            let [target] = targets.as_slice() else {
+                panic!("unique original prefix callable");
+            };
+            let callee = target.id;
+            assert_eq!(
+                call.operation,
+                Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    arguments: vec![entry.parameters[source_role]]
+                }
+            );
+            assert!(call.results.is_empty());
+        }
+
         for (entity, mode) in entry.parameters.iter().zip(&modes) {
             assert_eq!(matches!(entity, EntityId::Value(_)), *mode);
             assert_eq!(matches!(entity, EntityId::Loan(_)), !*mode);

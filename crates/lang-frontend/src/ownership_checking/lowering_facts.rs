@@ -56,6 +56,17 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     {
         Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
     }
+    /// Original single external source-prefix acquisition, disjoint from both arm call chains.
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_arm_loop_prefix_link(
+        &self,
+        _branch: UnitExpressionId,
+        _call: UnitExpressionId,
+        _argument: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        Err(d10_catalog_experiment::CallableLoanLinkError::Unsupported)
+    }
     /// Original core no-carry acquisition provenance, without a catalog coverage upgrade.
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_fresh_loop_link(
@@ -222,6 +233,17 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
 }
 
 impl UnitLoweringFacts for CompilationUnitOwnership {
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn d10_arm_loop_prefix_link(
+        &self,
+        branch: UnitExpressionId,
+        call: UnitExpressionId,
+        argument: UnitExpressionId,
+    ) -> Result<crate::type_checking::UnitItemId, d10_catalog_experiment::CallableLoanLinkError>
+    {
+        CompilationUnitOwnership::d10_arm_loop_prefix_link(self, branch, call, argument)
+    }
+
     #[cfg(feature = "d10-catalog-experiment")]
     fn d10_arm_loop_link(
         &self,

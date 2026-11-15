@@ -12,8 +12,12 @@ impl Receipt {
         abi: &[(SsaTypeId, ParameterMode); 3],
         roles: &[usize; 3],
         conditions: &[(UnitExpressionId, Span); 2],
-        calls: &[Vec<FunctionId>; 2],
+        dispatch: (
+            &[Vec<FunctionId>; 2],
+            Option<&super::super::fresh_loop_receipt::SourceConsumer>,
+        ),
     ) -> Option<[(FunctionId, InstructionId, FunctionId); 2]> {
+        let (calls, prefix) = dispatch;
         let p = &self.plan;
         let s = self.span;
         if p.prefix.is_some()
@@ -125,6 +129,7 @@ impl Receipt {
         for (i, b) in refs.iter().enumerate() {
             let list = self.evidence.ids(f, *b, s).ok()?;
             let count = match i {
+                0 => usize::from(prefix.is_some()),
                 1 | 2 => usize::from(abi[roles[i]].1 == ParameterMode::Borrow),
                 3 => calls[0].len() + 1,
                 4 => calls[1].len() + 1,
@@ -135,6 +140,29 @@ impl Receipt {
             }
             for instruction in list {
                 if !instructions.insert(instruction) {
+                    return None;
+                }
+            }
+        }
+        if let Some(prefix) = prefix {
+            let [instruction] = entry_block.instructions.as_slice() else {
+                return None;
+            };
+            let call = f.instruction(*instruction)?;
+            if call.operation
+                != (Operation::DirectCall {
+                    callee: prefix.callee,
+                    receiver: None,
+                    arguments: vec![entry_block.parameters[roles[0]]],
+                })
+                || !call.results.is_empty()
+                || call.origin != crate::ssa::model::Origin::Source(prefix.span)
+            {
+                return None;
+            }
+            let ending = self.evidence.ends.get(&ids[0])?;
+            for (slot, entity) in self.parameters.iter().zip(&entry_block.parameters) {
+                if ending.get(slot) != Some(entity) {
                     return None;
                 }
             }

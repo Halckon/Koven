@@ -20512,3 +20512,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - entry 逐原参数核 Value 或 SharedLoan，原 condition validator 将实际 Conditional operand 对应回原角色；Borrow 条件保唯一 Read，Value 条件不产生 Read/End/Drop。每块指令的零/一要求按原条件模式独立确定，不因 Value 放松块覆盖或循环/分支边。
 - 新三项真实测试首遍通过：三种新模式、六 ABI 顺序、条件互换、source 反序共 72 组合各两次 assembly；独立从最终真实 edges 追溯条件角色并核零迭代出口和两个 fresh 的唯一 End。额外参数/重复条件角色两项保持正常 receipt 及明确 gap；owned String source 与 Group 外条件均实测原 ownership 精确两条 L0164、两处 borrow 六字符 span 及零 audit/receipt，不泛接任意错误。
 - 原 Borrow arm 两项通过，FE/codegen 三 feature all-targets 严格 Clippy（1m44s）、default codegen all-targets（32.25s）、格式/docs979/尺寸2465文件与2项历史欠账/diff 全部通过，独审无阻断。fmt 后空 unit 表达式仅等价整理，实际原七块拓扑无需放宽；未 native、故障注入或推送，默认 workspace 留联合一次。
+
+### D10 ordinary 双臂之前的单次 source 消费
+
+- 原完整 body 仅接受 `[while]` 或 `[sourceConsumer, while]`；前消费复用原 source-admission 的 typed Call/Name 参数、SharedLoan contract、实际 loan/end-span 与 callee，不把原 plan.prefix 专用结构普遍放开。独立 source ledger 再核此前 call 的唯一 loan ordinal/argument/Function producer，与两臂全部 acquisitions 不重。
+- 最终入口精确一条原 callee、原 source entry 实体与原 call Span 的无结果 DirectCall；完整 ABI slot 的 ending 仍逐一对应原 entry 实体，经原边运输到循环。其余原七块、两 Name 条件 Borrow/Value、每臂一/二 consumer 与唯一 End、全实体/type/Return、同次双边原子发布均不放宽。
+- 新两项目标通过：四种条件模式、六 ABI、source 顺序共 48 前消费形态各两次 assembly；实际 entry callee 由原声明 item Span 对应最终唯一 Function Origin，不猜生成函数名。Group/具名参数前消费均原正常 receipt 但精确 gap；旧域外前消费改为两次 consumer 仍保持 gap，suffix 继续原精确 InvalidModel/caller span 与零发布。
+- 受影响旧 arm 两项及 Value 三项通过；FE/codegen 三 feature all-targets 严格 Clippy（1m42s）、default codegen all-targets（32.31s）、格式/docs979/尺寸2466文件与2项历史欠账/diff 全部通过，独审无阻断。首编 E0616 日志保留，SourceConsumer 增加 feature-only 两个按值只读 getter 后实测通过，无构造或变更权限；未 native、故障注入或推送，默认 workspace 留联合一次。
