@@ -222,7 +222,7 @@ fn staggered_owners_reject_other_root_and_call_shapes() {
             "",
         ),
         (
-            "val a=\"A\";val b=\"B\";run(a,b,1,false);other(a,a,2,true)",
+            "val a=\"A\";val b=\"B\";run(a,b,1,false);other(a,a,1+1,true)",
             other.as_str(),
         ),
         (
