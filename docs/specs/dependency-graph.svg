@@ -23,6 +23,7 @@
   <path d="M 300 92 C 2280 92, 2280 257, 4260 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 2412 92, 2412 266, 4524 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 484 92, 484 266, 668 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 300 92 C 616 92, 616 257, 932 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="404" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="524" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
   <text x="524" y="105" text-anchor="middle" font-size="13">非空只读 Map 构造与插入</text>
@@ -100,6 +101,10 @@
   <rect x="2252" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="2372" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0392</text>
   <text x="2372" y="105" text-anchor="middle" font-size="13">编译器分层复审与前端合同修复</text>
+  <rect x="932" y="220" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="1052" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0456</text>
+  <text x="1052" y="261" text-anchor="middle" font-size="13">Runtime buffer</text>
+  <text x="1052" y="279" text-anchor="middle" font-size="13"> 职责分离与历史尺寸额度退休</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">archive，422 份</text>
