@@ -2,38 +2,38 @@ use crate::test_support::diagnostics::assert_diagnostic;
 #[path = "native_runtime_constructor_tests.rs"]
 pub(crate) mod runtime_constructor_tests;
 
-#[path = "native_field_replace_tests.rs"]
-mod field_replace_tests;
+#[allow(unused_imports)]
+pub(crate) use string_length_tests::field_replace_tests;
 
-#[path = "native_root_primitive_tests.rs"]
-mod root_primitive_tests;
+#[allow(unused_imports)]
+pub(crate) use runtime_constructor_tests::root_primitive_tests;
 
 #[path = "native_return_control_tests.rs"]
 pub(crate) mod return_control_tests;
 
 #[path = "native_string_length_tests.rs"]
-mod string_length_tests;
+pub(crate) mod string_length_tests;
 
-#[path = "native_string_clone_tests.rs"]
-mod string_clone_tests;
+#[allow(unused_imports)]
+pub(crate) use scalar_joint_tests::string_clone_tests;
 
 #[path = "native_numeric_literal_tests.rs"]
-mod numeric_literal_tests;
+pub(crate) mod numeric_literal_tests;
 
 #[path = "native_scalar_joint_tests.rs"]
-mod scalar_joint_tests;
+pub(crate) mod scalar_joint_tests;
 
-#[path = "native_constant_tests.rs"]
-mod constant_tests;
+#[allow(unused_imports)]
+pub(crate) use string_length_tests::constant_tests;
 
-#[path = "native_non_null_assertion_tests.rs"]
-mod non_null_assertion_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::non_null_assertion_tests;
 
-#[path = "native_abort_output_tests.rs"]
-mod abort_output_tests;
+#[allow(unused_imports)]
+pub(crate) use boxed_enum_tests::abort_output_tests;
 
 #[path = "native_sequential_for_tests.rs"]
-mod sequential_for_tests;
+pub(crate) mod sequential_for_tests;
 
 #[path = "native_boxed_enum_tests.rs"]
 pub(crate) mod boxed_enum_tests;
@@ -41,13 +41,14 @@ pub(crate) mod boxed_enum_tests;
 #[path = "native_map_tests.rs"]
 mod map_tests;
 
-mod map_sibling_route_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::map_sibling_route_tests;
 
 #[path = "native_ordered_map_tests.rs"]
-mod ordered_map_tests;
+pub(crate) mod ordered_map_tests;
 
 #[path = "native_borrow_result_tests.rs"]
-mod borrow_result_tests;
+pub(crate) mod borrow_result_tests;
 
 use std::{
     fs,
@@ -1120,14 +1121,14 @@ fn associated_constants_reach_native_scalar_char_and_string_operations() {
     assert!(run.stderr.is_empty(), "{run:?}");
 }
 
-#[path = "native_bitwise_tests.rs"]
-mod bitwise_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::bitwise_tests;
 
 #[path = "native_resource_deinit_tests.rs"]
 mod resource_deinit_tests;
 
-#[path = "native_resource_exchange_tests.rs"]
-mod resource_exchange_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::resource_exchange_tests;
 
-#[path = "native_field_resource_replace_tests.rs"]
-mod field_resource_replace_tests;
+#[allow(unused_imports)]
+pub(crate) use numeric_literal_tests::field_resource_replace_tests;

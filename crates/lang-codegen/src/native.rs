@@ -1,7 +1,7 @@
 //! 已完成 frontend analysis 到首个本机 object 的 workspace 公共边界。
 
 #[cfg(test)]
-mod unit_tests;
+pub(crate) mod unit_tests;
 
 use std::{
     fmt, fs,

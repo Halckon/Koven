@@ -80,6 +80,8 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 ### 近期交付
 
+- [0451–0453 批次有界交付](../archive/specs/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#5-修订验收与有界收尾)：用户批准保留34个职责模块，原全部删除/固定文件数目标未达成、不再作为本次验收条件；代码 `4de26bdc` 的 PR CI 43617727147 已全绿。归档 head 检查及合并另验，不关闭整个 E3。
+
 - [0454 直线标量默认路由](../archive/specs/0454-refine-untriggered-linear-scalars.md)：最终代码 `81864b03` 的 [PR #424 CI](https://github.com/Halckon/Koven/actions/runs/43605797887) 已通过双宿主及 Preview 独立消费验收，按用户授权有界归档；归档 head CI 与实际合并另验，不表示整个 E3 完成。
 
 - [0331 Map双分量借用遍历](../archive/specs/0331-map-borrowed-iteration.md)：H `7c38bcf3` 完成冻结普通联合门、完整[PR119实现CI](https://github.com/Halckon/Koven/actions/runs/39217973375)与三产物独审；原失败/独立调用与ABI前置及Mac partial保留。此为最小归档，归档头CI与正常merge/main状态另验，不称已合并。
@@ -152,7 +154,7 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 - [v0.40](drafts/v0.40/README.md)：v0.40 已继承的三项规则实施入口；v0.41引入并由现行版本继承的 move literal 澄清由 SPEC-0279 验收
 - [v0.36](drafts/v0.36/README.md)：常量 Phase 2/3/4 已完成
 - [v0.37](drafts/v0.37/README.md)：0179/0211/0212 已归档；0182本机补强证据按需从archive追溯
-- [完成 Spec Archive](../archive/specs/README.md)：419 份 `done`/`superseded`，只在追溯时读取
+- [完成 Spec Archive](../archive/specs/README.md)：422 份 `done`/`superseded`，只在追溯时读取
 - [Proposals](../proposals/README.md)：尚未启用的候选，不因本批归档取得规范地位
 
 ## 生命周期
