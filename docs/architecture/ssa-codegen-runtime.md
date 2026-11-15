@@ -193,7 +193,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 
 普通 unit 的 sibling reserve/commit/Drop 算法不变，失败由 RAII 清理 object 临时文件并保留旧目标。
 CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作为普通 frontend input 进入同一 validated 链。
-D10 的 fresh no-carry 审计另以原 sealed core fact 的对象身份连接单 while、两个 Borrow String/Boolean 参数：单/双 body consumer 前后 source 段各可空或一次 consumer；同次最终 Program 复核原完整 CFG validator、实际类型与全部调用映射。另限定两个顺序 while 各自一或二个 consumer，可共用一个或分别使用两个借入 Boolean flag（完整两/三参数角色）、前/中/后三个 source 段各可空或一次原 source consumer，以原 AST 顺序与完整 owned facts 整组核对一次最终 receipt/CFG 后原子发布两条来源边，任一缺证整组保缺口。该窄证明不提升旧 Partial loop lineage，不证明循环终止或一般迭代行为；三个及以上 body consumer、单段两次及以上 source consumer 仍保审计缺口。
+D10 的 fresh no-carry 审计另以原 sealed core fact 的对象身份连接单 while、两个 Borrow String/Boolean 参数：单/双 body consumer 前后 source 段各可空或一次 consumer；同次最终 Program 复核原完整 CFG validator、实际类型与全部调用映射。另限定两个顺序 while 各自一或二个 consumer，可共用一个或分别使用两个 Boolean flag（Borrow/Value 模式按原完整两/三参数角色逐一匹配，source 始终 Borrow String）、前/中/后三个 source 段各可空或一次原 source consumer，以原 AST 顺序与完整 owned facts 整组核对一次最终 receipt/CFG 后原子发布两条来源边，任一缺证整组保缺口。该窄证明不提升旧 Partial loop lineage，不证明循环终止或一般迭代行为；三个及以上 body consumer、单段两次及以上 source consumer 仍保审计缺口。
 ## 测试覆盖位置
 
 SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；aggregate/tagged、container/provider、scalar/borrowed_calls及ownership/places领域由原测试根加载私有子模块，通用harness/helper仍留各根；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../archive/development/codegen-receiver-test-migration.md)。numeric proof 独立解析/Origin 坐标比较位于私有 `while_flow_tests/numeric_proof_contract/source_identity.rs`，唯一 Spans/only 及完整 CFG/资源证明留根，FQN 不变。

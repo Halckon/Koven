@@ -21,6 +21,8 @@ pub(crate) mod fresh_loop_consumption;
 mod fresh_loop_consumption_tests;
 #[cfg(test)]
 mod fresh_loop_flags_tests;
+#[cfg(test)]
+mod fresh_loop_value_flags_tests;
 pub(crate) mod identity_return;
 pub(crate) mod interleaved_aux_consumption;
 #[cfg(test)]

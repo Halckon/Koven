@@ -30,21 +30,26 @@ fn independent_flags_follow_all_abi_positions_and_condition_orders() {
 }
 
 #[test]
-fn extra_owned_and_non_name_flags_do_not_acquire_sequence_evidence() {
+fn extra_and_non_name_flags_do_not_acquire_sequence_evidence() {
     for (parameters, flags) in [
         (
             "source:String,a:Boolean,b:Boolean,unused:Boolean",
             ["a", "b"],
         ),
         ("source:String,a:Boolean,b:Boolean", ["a", "a"]),
-        ("source:String,own a:Boolean,b:Boolean", ["a", "b"]),
         ("source:String,a:Boolean,b:Boolean", ["(a)", "b"]),
     ] {
         check(parameters, flags, false, false, false);
     }
 }
 
-fn check(parameters: &str, flags: [&str; 2], reverse: bool, suffix: bool, certified: bool) {
+pub(super) fn check(
+    parameters: &str,
+    flags: [&str; 2],
+    reverse: bool,
+    suffix: bool,
+    certified: bool,
+) {
     let mut sources = SourceMap::new();
     let (provider_id, provider) = unit_lower_test_support::parsed(
         &mut sources,
@@ -66,7 +71,7 @@ fn check(parameters: &str, flags: [&str; 2], reverse: bool, suffix: bool, certif
         inputs.reverse();
     }
     let (environment, types) = standard_environments();
-    if flags[0] == "(a)" {
+    if flags[0] == "(a)" || parameters.split(',').any(|p| p.starts_with("own source:")) {
         use lang_frontend::{
             name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
             ownership_checking::check_compilation_unit_ownership,
@@ -87,7 +92,7 @@ fn check(parameters: &str, flags: [&str; 2], reverse: bool, suffix: bool, certif
                     check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
                         .unwrap()
                         .validate()
-                        .expect_err("Group retains original ownership rejection");
+                        .expect_err("Group/owned source retains original ownership rejection");
                 rejected
                     .diagnostics()
                     .iter()
@@ -180,10 +185,17 @@ fn check(parameters: &str, flags: [&str; 2], reverse: bool, suffix: bool, certif
     let flag_roles = flags.map(|name| {
         parameters
             .split(',')
-            .position(|p| p.starts_with(&format!("{name}:")))
+            .position(|p| {
+                p.trim_start_matches("own ")
+                    .starts_with(&format!("{name}:"))
+            })
             .unwrap()
     });
-    assert_ne!(flag_roles[0], flag_roles[1]);
+    let modes: Vec<_> = parameters
+        .split(',')
+        .map(|p| p.starts_with("own "))
+        .collect();
+    assert_eq!(flag_roles[0] == flag_roles[1], modes.len() == 2);
     for ((result, audit), receipt) in results.into_iter().zip(audits).zip(receipts) {
         let (program, entry) = result.unwrap();
         crate::ssa::verify::verify_program(&program).unwrap();
@@ -203,7 +215,11 @@ fn check(parameters: &str, flags: [&str; 2], reverse: bool, suffix: bool, certif
             .unwrap();
         receipt.validate(function).unwrap();
         let entry = function.block(function.entry_block().unwrap()).unwrap();
-        assert_eq!(entry.parameters.len(), 3);
+        assert_eq!(entry.parameters.len(), modes.len());
+        for (entity, owned) in entry.parameters.iter().zip(&modes) {
+            assert_eq!(matches!(entity, EntityId::Value(_)), *owned);
+            assert_eq!(matches!(entity, EntityId::Loan(_)), !*owned);
+        }
         let mut roles: BTreeMap<_, _> = entry
             .parameters
             .iter()
@@ -227,26 +243,54 @@ fn check(parameters: &str, flags: [&str; 2], reverse: bool, suffix: bool, certif
             }
         }
         for (i, local) in receipt.loops.iter().enumerate() {
-            let id = local
+            let result_id = local
                 .instructions
                 .iter()
-                .find(|(tag, _)| *tag == Tag::Condition)
+                .find(|(tag, _)| *tag == Tag::Result)
                 .unwrap()
                 .1;
-            let condition = function.instruction(id).unwrap();
-            let Operation::Read {
-                source: PlaceAccess::Loan(flag),
-            } = condition.operation
-            else {
-                panic!("borrowed flag read");
+            let body = function.instruction(result_id).unwrap().block;
+            let headers:Vec<_>=function.blocks.iter().filter(|block|matches!(&block.terminator.as_ref().unwrap().kind,TerminatorKind::Conditional{when_true,..} if when_true.target==body)).collect();
+            let [header] = headers.as_slice() else {
+                panic!("unique real loop header");
             };
-            assert_eq!(roles.get(&EntityId::Loan(flag)), Some(&flag_roles[i]));
-            let header = function.block(condition.block).unwrap();
-            let TerminatorKind::Conditional { when_false, .. } =
-                &header.terminator.as_ref().unwrap().kind
+            let TerminatorKind::Conditional {
+                condition,
+                when_false,
+                ..
+            } = &header.terminator.as_ref().unwrap().kind
             else {
-                panic!("while branch");
+                panic!("loop conditional");
             };
+            if modes[flag_roles[i]] {
+                assert!(
+                    !local
+                        .instructions
+                        .iter()
+                        .any(|(tag, _)| *tag == Tag::Condition)
+                );
+                assert_eq!(
+                    roles.get(&EntityId::Value(*condition)),
+                    Some(&flag_roles[i])
+                );
+            } else {
+                let id = local
+                    .instructions
+                    .iter()
+                    .find(|(tag, _)| *tag == Tag::Condition)
+                    .unwrap()
+                    .1;
+                let read = function.instruction(id).unwrap();
+                let Operation::Read {
+                    source: PlaceAccess::Loan(flag),
+                } = read.operation
+                else {
+                    panic!("borrowed flag Read");
+                };
+                assert_eq!(roles.get(&EntityId::Loan(flag)), Some(&flag_roles[i]));
+                assert_eq!(read.block, header.id);
+                assert_eq!(read.results.as_slice(), &[EntityId::Value(*condition)]);
+            }
             let actual: BTreeSet<_> = when_false
                 .arguments
                 .iter()

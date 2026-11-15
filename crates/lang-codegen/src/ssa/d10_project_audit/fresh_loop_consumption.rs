@@ -290,7 +290,7 @@ fn validate_final(
     abi: [SsaTypeId; 2],
     source_index: usize,
 ) -> Option<Edge> {
-    let f = validate_caller(s, program, &abi, source_index)?;
+    let f = validate_caller(s, program, &abi, &[ParameterMode::Borrow; 2], source_index)?;
     let edge = validate_loop(s, f, calls, 0)?;
     validate_segments(
         s,
@@ -303,6 +303,7 @@ fn validate_caller<'a>(
     s: &Snapshot,
     program: &'a Program,
     abi: &[SsaTypeId],
+    modes: &[ParameterMode],
     source_index: usize,
 ) -> Option<&'a Function> {
     let functions: Vec<_> = program
@@ -326,7 +327,11 @@ fn validate_caller<'a>(
         return None;
     };
     let entry = f.block(f.entry_block()?)?;
-    if entry.parameters.len() != abi.len() || source_index >= abi.len() {
+    if entry.parameters.len() != abi.len()
+        || modes.len() != abi.len()
+        || source_index >= abi.len()
+        || modes[source_index] != ParameterMode::Borrow
+    {
         return None;
     }
     for (i, (entity, ty)) in entry.parameters.iter().zip(abi.iter().copied()).enumerate() {
@@ -335,14 +340,19 @@ fn validate_caller<'a>(
         } else {
             SsaTypeKind::Boolean
         };
+        let expected = match modes[i] {
+            ParameterMode::Borrow if matches!(entity, EntityId::Loan(_)) => EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: ty,
+            },
+            ParameterMode::Value if i != source_index && matches!(entity, EntityId::Value(_)) => {
+                EntityType::Value(ty)
+            }
+            _ => return None,
+        };
         if ty.module != f.id.module
             || module.type_kind(ty) != Some(&kind)
-            || !matches!(entity, EntityId::Loan(_))
-            || f.entity(*entity)?.ty
-                != (EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target: ty,
-                })
+            || f.entity(*entity)?.ty != expected
         {
             return None;
         }

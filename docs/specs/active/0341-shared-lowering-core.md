@@ -20383,3 +20383,11 @@ Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入�
 - 真实正例覆盖六种三参 ABI 排列、两 flag 条件次序交换、来源反序与末段有无；明确核第一 scope 零迭代退出只保 source/后 flag、末 scope 不运输已失效 flag。额外未用 Boolean、同 flag 多参及 owned flag 保正常原 lowering/receipt 且明确整组 evidence gap；Group 条件保原 ownership 两条 L0164，精确对应两处 borrow 关键字位置，不归为 lowering Unsupported。
 - 实际新 flags 两项（48 正向组合各独立 assembly 两次及四类负控）、旧 fresh 11 项、旧 Partial 两项通过；15 项 CI-only mutation 测试明确 ignored，未执行。codegen 三 feature all-targets 严格 Clippy（37.35s）、default codegen all-targets（32.57s）、格式/docs968/尺寸2422文件与21项历史欠账/diff 通过，末版独审无阻断。
 - 验证过程完整保留独立日志：首次临时探针因 Program 无 Debug 编译失败，改为仅输出错误后原事实探针确认 Group 在 ownership 层拒绝；末版首链所有真实测试通过但测试嵌套 if 触发严格 lint，等价整理后仅重跑新 flags 与剩余门禁，未重复不变的旧矩阵。真实重编本树 frontend，源码内容不变。未运行 native、故障注入或推送。
+
+### D10 双 fresh scope 的 Boolean Value/Shared 模式
+
+- 仅双 scope 另保存原完整 ParameterMode 序列：source 必须 Borrow String，所有实际使用的 flag 仅 Boolean 的 Borrow 或 Value，完整两/三参数及 flag 覆盖门不变；单 loop 仍显式使用原两 Borrow ABI，不扩 owned 资源范围。
+- 原 condition 身份/位置、原 proof flag_owned 与原 ABI mode 精确对应；最终入口逐参数区分 Shared Loan 与 Value 类型，复用原完整 CFG 运输。Value 条件直接消费运输来的 Boolean 值且无 Read，Borrow 条件仍精确原 Loan Read。首 scope 零迭代退出只保后 scope 还需要的 flag 与 source，不为 Boolean 值虚构 End/Drop。
+- 新增三种非全 Borrow 模式组合 × 六 ABI × 两 condition 次序及 source/末段排列，另测两参数共用 Value flag；额外/冗余参数、Group 保原精确边界，owned String source 经真实分类探针确认在原 ownership 层以两条 L0164 拒绝，精确核 caller 中两处 borrow 六字符位置，不吞并任意 lowering 错误。
+- 末版真实 fresh 16 项（新 Value 3、相关 flag 2、旧 fresh 11）与旧 Partial 2 项通过；新正例 144 个三参组合和 8 个共 Value 两参组合各独立 assembly 两次，核原 Value 条件无 Read、Borrow 条件精确 Read、逐角色运输及零迭代退出。单 loop 原两 Borrow 准入保持。
+- codegen 三 feature all-targets 严格 Clippy（52.08s）、default codegen all-targets（32.24s）、格式/docs968/尺寸2423文件与21项历史欠账/diff 门禁通过，末版独审无阻断。原 owned source 分类探针失败日志保留；最终验收链首遍通过，真实重编本树 frontend，未运行 native、故障注入或推送。

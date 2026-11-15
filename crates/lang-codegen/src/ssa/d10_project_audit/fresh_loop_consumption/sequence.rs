@@ -19,6 +19,7 @@ pub(super) struct Source {
     segments: [Vec<SourceConsumer>; 3],
     calls: Vec<Call>,
     abi: Vec<SsaTypeId>,
+    modes: Vec<ParameterMode>,
     flags: [Condition; 2],
 }
 
@@ -96,11 +97,17 @@ pub(super) fn original_order(
     }
     if !matches!(inputs.parameters.len(), 2 | 3)
         || inputs.modes.len() != inputs.parameters.len()
-        || inputs.modes.iter().any(|m| *m != ParameterMode::Borrow)
+        || inputs
+            .modes
+            .iter()
+            .any(|m| !matches!(m, ParameterMode::Borrow | ParameterMode::Value))
     {
         return None;
     }
     let source_index = inputs.parameters.iter().position(|p| *p == fact.source())?;
+    if inputs.modes[source_index] != ParameterMode::Borrow {
+        return None;
+    }
     let expected_flags: BTreeSet<_> = (0..inputs.parameters.len())
         .filter(|i| *i != source_index)
         .collect();
@@ -127,6 +134,7 @@ pub(super) fn original_order(
         .collect::<Option<Vec<_>>>()?;
     Some(Source {
         abi,
+        modes: inputs.modes.to_vec(),
         flags: flags.try_into().ok()?,
         order: [
             UnitStatementId::new(inputs.source_unit, *first),
@@ -241,18 +249,24 @@ pub(super) fn finish(
         || snapshot.receipt.loops.len() != 2
         || (source.calls.is_empty() && !snapshot.receipt.has_empty_segments(3))
         || !snapshot.receipt.matches_source_segments(&source.segments)
-        || !snapshot.receipt.matches_borrowed_flags(
+        || !snapshot.receipt.matches_flag_roles(
             &source
                 .flags
                 .iter()
-                .map(|f| (f.parameter, f.span))
+                .map(|f| (f.parameter, f.span, source.modes[f.parameter]))
                 .collect::<Vec<_>>(),
         )
     {
         return None;
     }
     // Validate the complete caller CFG once, including both loop exits and their connecting edge.
-    let function = validate_caller(snapshot, program, &source.abi, anchor.source_index?)?;
+    let function = validate_caller(
+        snapshot,
+        program,
+        &source.abi,
+        &source.modes,
+        anchor.source_index?,
+    )?;
     validate_mapping(&source.calls, program, mapping)?;
     validate_segments(snapshot, function, &source.calls)?;
     let mut edges = Vec::new();

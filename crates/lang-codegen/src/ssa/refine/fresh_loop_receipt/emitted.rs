@@ -606,10 +606,10 @@ impl Emitted {
 
 #[cfg(feature = "d10-catalog-experiment")]
 impl Receipt {
-    pub(crate) fn matches_borrowed_flags(&self, expected: &[(usize, Span)]) -> bool {
+    pub(crate) fn matches_flag_roles(&self, expected: &[(usize, Span, ParameterMode)]) -> bool {
         self.loops.len() == expected.len()
             && self.loops.iter().zip(expected).all(|(l, i)| {
-                !l.proof.flag_owned
+                l.proof.flag_owned == (i.2 == ParameterMode::Value)
                     && l.proof.flag_parameter == i.0
                     && l.proof.condition_span == i.1
             })
