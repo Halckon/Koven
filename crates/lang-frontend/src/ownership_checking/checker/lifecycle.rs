@@ -91,7 +91,9 @@ impl<'a> Checker<'a> {
             allowed_borrow_call: None,
             no_carry: None,
             borrow_results: Default::default(),
-            range_producers: super::super::range_producer::collect_single(sources, parsed, names, typed)?,
+            range_producers: super::super::range_producer::collect_single(
+                sources, parsed, names, typed,
+            )?,
             current_borrow_return: None,
             borrow_return_origins: Vec::new(),
             loop_has_exit: BTreeMap::new(),
