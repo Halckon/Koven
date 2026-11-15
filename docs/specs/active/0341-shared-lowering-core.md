@@ -20605,3 +20605,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 完整四参数 ABI 的 rounds Int 现允许 Borrow/Value，choose/stop 已有独立两模式保持，source String 仍强制 Borrow。Expected 保存原 typed mode 与角色；entry 按 rounds 模式精确零/一指令，原 validator 仍核 Value rounds==initial、init.input==原 rounds slot，Borrow 仍原 initializer Span 的唯一 Read，不伪造借用生命周期。
 - 新两项目标首遍通过：二十四 ABI、四 Boolean 模式与两来源顺序共一百九十二形态各两次 assembly；独立从原 signature 获取 rounds entry 实体，经原 Read 或 Value 直接进入真实 entry edge，核对应 header 参数就是原 Compare.left，后续 checked alias/回边沿原完整证明。实际十二块、十一至十三指令，额外 Boolean 四模式均 normal lower/receipt 后精确 gap；旧已支持 own rounds 负控改为额外 ABI 并同步准确测试名。
 - 十二角色、break/零迭代两路退出、原两 cleanup、原完整 ledger 与两臂末 End、唯一原 checked Abort 的 one/Span/reason 保持，旧普通空授权仍不扩。新目标编译 2m12s、执行 1.31s；旧 counter-break、stop 与 choose 各两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m47s、default codegen all-targets 32.30s 与格式通过。不重复原 probe，不执行生成程序/Abort/native/故障注入，不推送，默认 workspace 留联合一次。
+
+### D10 counter-break 两个原条件共用 Boolean 角色
+
+- 复用已整合 `039d17d8` 的原共享参数 producer 支持事实，不重复支持性 probe；其旧带 suffix 测试不作为本片无 suffix 十二角色验收。新门严格配对：三参数 ABI 为 source/rounds/共享 flag，四参数仍两 flag 各自独立且无未用参数，完整角色集合覆盖所有实际 ABI；source 始终 Borrow，其余保原独立 modes。
+- 两个原 Name expression ID 与 Span 分别独立记录，原 p.roles 与 cb.role 各自核验；同 symbol 不合并两处控制点。Borrow 情形原 split/gate 各唯一 Read、不同原 Span 和结果；Value 情形两个 Conditional 分别沿真实边回到同一原入口角色，不要求跨块实体相同、不伪造 End。原十二角色、break/checked运输、全部实体指令、原 ledger/cleanup 与唯一原 Abort 授权不变。
+- 新两项目标首遍通过：六 ABI 顺序、四 scalar 模式、两来源顺序共四十八形态各两次 assembly；四参数重复共享 flag+未用 Boolean 的四模式均 normal lower/verify/receipt 后精确 gap、不部分认证。完整新目标编译 2m11s、执行 0.35s；旧独立 flag 两项与 rounds 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m48s、default codegen all-targets 33.30s 完整成功日志在短暂断连恢复后核实；未重跑已完成构建，仅重新确认格式检查通过。不执行生成程序/Abort/native/故障注入，不推送，默认 workspace 留联合一次。

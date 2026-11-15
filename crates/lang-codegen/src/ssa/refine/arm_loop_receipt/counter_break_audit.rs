@@ -41,7 +41,7 @@ impl Receipt {
             || !p.fact.same_identity(fact)
             || p.fact != *fact
             || p.roles != [roles[0], roles[1], roles[2]]
-            || abi.len() != 4
+            || !matches!(abi.len(), 3 | 4)
             || abi.iter().enumerate().any(|(index, (_, mode))| {
                 (index == roles[0] && *mode != ParameterMode::Borrow)
                     || !matches!(mode, ParameterMode::Borrow | ParameterMode::Value)
@@ -51,6 +51,7 @@ impl Receipt {
             || roles[0] == roles[1]
             || roles[0] == roles[2]
             || roles[1] == roles[2]
+            || (roles[2] == roles[3]) != (abi.len() == 3)
             || p.conditions != conditions.map(|c| c.0)
             || p.condition_spans != conditions.map(|c| c.1)
         {

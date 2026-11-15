@@ -42,6 +42,9 @@ fn counter_break_complete_caller_keeps_unproved_abi_modes_outside() {
     }
 }
 pub(super) fn check(signature: &str, certified: bool) {
+    check_with_stop(signature, "stop", certified);
+}
+pub(super) fn check_with_stop(signature: &str, stop_name: &str, certified: bool) {
     for reverse in [false, true] {
         let mut sources = SourceMap::new();
         let (p, provider) = unit_lower_test_support::parsed(
@@ -50,7 +53,7 @@ pub(super) fn check(signature: &str, certified: bool) {
             "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}",
         );
         let text = format!(
-            "fun run({signature}):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=next(source);other(b);consume(b)}};if(stop){{break}};remaining=remaining-1}}}}"
+            "fun run({signature}):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=next(source);other(b);consume(b)}};if({stop_name}){{break}};remaining=remaining-1}}}}"
         );
         let (c, caller) = unit_lower_test_support::parsed(&mut sources, "counter-caller.ko", &text);
         let mut inputs = [
@@ -90,7 +93,7 @@ pub(super) fn check(signature: &str, certified: bool) {
                         .span()
                 )
                 .unwrap(),
-            "stop"
+            stop_name
         );
         assert_eq!(
             sources
@@ -220,7 +223,9 @@ pub(super) fn check(signature: &str, certified: bool) {
             assert_eq!(function.blocks.len(), 12);
             let value_rounds = signature.split(',').any(|p| p == "own rounds:Int");
             let value_choose = signature.split(',').any(|p| p == "own choose:Boolean");
-            let value_stop = signature.split(',').any(|p| p == "own stop:Boolean");
+            let value_stop = signature
+                .split(',')
+                .any(|p| p == format!("own {stop_name}:Boolean"));
             assert_eq!(
                 function.instructions.len(),
                 14 - usize::from(value_stop)
@@ -378,7 +383,7 @@ pub(super) fn check(signature: &str, certified: bool) {
             }
             let stop_role = signature
                 .split(',')
-                .position(|p| p.ends_with("stop:Boolean"))
+                .position(|p| p.ends_with(&format!("{stop_name}:Boolean")))
                 .unwrap();
             let stop_span = caller
                 .ast()
@@ -386,6 +391,9 @@ pub(super) fn check(signature: &str, certified: bool) {
                 .get(wrapper.break_condition().expression())
                 .unwrap()
                 .span();
+            assert_ne!(choice_span, stop_span);
+            assert_ne!(*choice, wrapper.break_condition().expression());
+            assert_eq!(choose_role == stop_role, signature.split(',').count() == 3);
             let reads = function
                 .instructions
                 .iter()
@@ -433,6 +441,10 @@ pub(super) fn check(signature: &str, certified: bool) {
                 assert_eq!(gate.instructions.len(), 1);
                 assert_eq!(roles.get(&EntityId::Loan(loan)), Some(&stop_role));
                 assert_eq!(read.results, [EntityId::Value(*condition)]);
+            }
+            assert_ne!(split.id, gate.id);
+            if !value_choose && !value_stop {
+                assert_ne!(choice_reads[0].results, reads[0].results);
             }
             let yes = function.block(when_true.target).unwrap();
             assert!(yes.instructions.is_empty());

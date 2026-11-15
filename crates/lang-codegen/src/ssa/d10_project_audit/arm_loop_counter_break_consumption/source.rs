@@ -24,8 +24,8 @@ impl Source {
         let break_fact = wrapper;
         let wrapper = break_fact.counter();
         let fact = wrapper.pair();
-        if inputs.parameters.len() != 4
-            || inputs.modes.len() != 4
+        if !matches!(inputs.parameters.len(), 3 | 4)
+            || inputs.modes.len() != inputs.parameters.len()
             || !inputs.owned.owns_no_carry_counter_break_branch(break_fact)
         {
             return None;
@@ -238,7 +238,12 @@ impl Source {
             .map(|symbol| inputs.parameters.iter().position(|s| *s == symbol))
             .into_iter()
             .collect::<Option<Vec<_>>>()?;
-        if roles.iter().copied().collect::<BTreeSet<_>>() != BTreeSet::from([0, 1, 2, 3]) {
+        if roles.iter().copied().collect::<BTreeSet<_>>() != (0..inputs.parameters.len()).collect()
+            || roles[0] == roles[1]
+            || roles[0] == roles[2]
+            || roles[1] == roles[2]
+            || (roles[2] == roles[3]) != (inputs.parameters.len() == 3)
+        {
             return None;
         }
         let kinds = [
