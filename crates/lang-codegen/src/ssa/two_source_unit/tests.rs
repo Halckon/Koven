@@ -430,3 +430,5 @@ mod integer_literals;
 mod scalar_origin;
 
 mod direct_scalars;
+
+mod expression_entry;

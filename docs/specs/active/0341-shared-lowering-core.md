@@ -20322,3 +20322,19 @@ ABI排列、每loan唯一End及每String owner唯一且晚于全部End的Drop，
 原declaration_order两目标回归通过；独立静审无阻断，文档/size/diff通过。
 三feature frontend/codegen双crate all-targets严格Clippy通过（4m54s）；
 不推送、不执行native或本地故障注入。
+
+### E2显式Unit表达式体的原调用入口（2026-11-15）
+
+基于ae95e90e，仅把零参数显式Unit函数中原始直接Call表达式作为受限入口；
+不包装成虚构Block，也不扩Group、分支、多调用或其他表达式。原call仍必须满足
+已有typed/contracts/完整真实loan End与String Drop约束，默认关闭能力保持。
+
+先行真实ownership探针已验证4 loan对应唯一4 CallReturn End，且全部2个String
+Drop都在同一CallReturn，没有遗漏外层ControlTransfer清理；原E2入口红阶段为
+预期UnsupportedSelection。生产改为复用原body表达式Span及同一collect链，
+函数/块保持原声明Origin，终结指令保持原body Origin。
+正式two-source-unit和三feature expression_entry各2目标通过，覆盖补强原事实、
+普通/具名重排裸Call正例及Group/if拒绝；完整SSA verify/LLVM render与精确Origin通过。
+原direct_scalars三目标回归通过；三feature frontend/codegen双crate all-targets
+严格Clippy通过（3m13s），fmt/文档结构/size/diff及独立静审通过。
+不推送、不执行native或本地故障注入。
