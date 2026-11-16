@@ -314,15 +314,12 @@ fn named_shared_owner_entry_is_closed_and_unique() {
     let original = source(false, "");
     let literal = "val rounds=3;val choose=false;run(\"left\",\"right\",rounds,choose)";
     let named = "val text=\"same\";val rounds=3;val choose=false;run(text,text,rounds,choose)";
-    for (body, accepted) in [
-        (named.to_owned(), true),
-        (
-            named.replace("run(text,text", "run((text),\"other\""),
-            false,
-        ),
-        (named.replace("val text", "var text"), false),
-        (format!("{named};consume(text)"), false),
-        (named.replace("same", "same\\n"), false),
+    for (body, expected_bytes) in [
+        (named.to_owned(), Some(b"same".as_slice())),
+        (named.replace("run(text,text", "run((text),\"other\""), None),
+        (named.replace("val text", "var text"), None),
+        (format!("{named};consume(text)"), None),
+        (named.replace("same", "same\\n"), Some(b"same\n".as_slice())),
     ] {
         let mut sources = SourceMap::new();
         let id = sources
@@ -349,14 +346,15 @@ fn named_shared_owner_entry_is_closed_and_unique() {
             .unwrap()
             .id();
         let result = prepare_two_source_unit(&sources, &inputs, &names, &types, &typed, entry);
-        if !accepted {
-            assert!(matches!(
-                result,
-                Err(TwoSourceUnitError::UnsupportedSelection)
-            ));
+        let Some(expected_bytes) = expected_bytes else {
+            assert!(
+                matches!(result, Err(TwoSourceUnitError::UnsupportedSelection)),
+                "body={body}; actual={:?}",
+                result.as_ref().err()
+            );
             continue;
-        }
-        let unit = result.unwrap();
+        };
+        let unit = result.unwrap_or_else(|error| panic!("body={body}; error={error:?}"));
         assert!(
             lang_frontend::ownership_checking::check_compilation_unit_ownership(
                 &sources, &inputs, &names, &types, &typed
@@ -385,6 +383,10 @@ fn named_shared_owner_entry_is_closed_and_unique() {
             .iter()
             .find(|i| matches!(i.operation, Operation::StringLiteral { .. }))
             .unwrap();
+        let Operation::StringLiteral { bytes, .. } = &literal.operation else {
+            unreachable!("selected string literal")
+        };
+        assert_eq!(bytes.as_slice(), expected_bytes, "body={body}");
         let [EntityId::Value(owner)] = literal.results.as_slice() else {
             panic!("one string owner")
         };
