@@ -9,6 +9,19 @@ pub(super) fn finish(
     if first.instance() != second.instance() || !first.instance().type_arguments().is_empty() {
         return None;
     }
+    let owner = prove((root, initializer, span, bytes), &first, &second, owned)?;
+    Some(EntryCalls::LateTemporarySharedPair {
+        owner: Box::new(owner),
+        calls: Box::new([first, second]),
+    })
+}
+/// Pure fixed owner payload; no entry authority or callable-key decision.
+pub(super) fn prove(
+    (root, initializer, span, bytes): (UnitSymbolId, UnitExpressionId, Span, Vec<u8>),
+    first: &EntryCallDescriptor,
+    second: &EntryCallDescriptor,
+    owned: &CompilationUnitOwnership,
+) -> Option<EntryOwnerDescriptor> {
     let (
         StringStorage::SharedRoot { root: a },
         StringStorage::SharedMixed {
@@ -23,7 +36,7 @@ pub(super) fn finish(
     if *a != root || *b != root || !matches!(temp.target(), UnitDropTarget::Temporary(_)) {
         return None;
     }
-    for call in [&first, &second] {
+    for call in [first, second] {
         if call.temporary_scalars.iter().any(Option::is_none) {
             return None;
         }
@@ -66,17 +79,14 @@ pub(super) fn finish(
             .copied()
             .collect::<Vec<_>>()
     };
-    if !at(&first).is_empty() || at(&second).as_slice() != [*temp, *drop] {
+    if !at(first).is_empty() || at(second).as_slice() != [*temp, *drop] {
         return None;
     }
-    Some(EntryCalls::LateTemporarySharedPair {
-        owner: Box::new(EntryOwnerDescriptor {
-            root,
-            initializer,
-            span,
-            bytes,
-            drop: *drop,
-        }),
-        calls: Box::new([first, second]),
+    Some(EntryOwnerDescriptor {
+        root,
+        initializer,
+        span,
+        bytes,
+        drop: *drop,
     })
 }

@@ -19,6 +19,7 @@ impl EntryDescriptor {
             EntryCalls::Pair(calls)
             | EntryCalls::SharedNamedPair { calls, .. }
             | EntryCalls::LateTemporarySharedPair { calls, .. }
+            | EntryCalls::DifferentLateTemporarySharedPair { calls, .. }
             | EntryCalls::EarlyTemporarySharedPair { calls, .. }
             | EntryCalls::DifferentSharedNamedPair { calls, .. }
             | EntryCalls::DifferentSharedMixedPair { calls, .. }
@@ -70,6 +71,7 @@ impl EntryDescriptor {
         | EntryCalls::DifferentSharedNamedPair { owner, .. }
         | EntryCalls::DifferentSharedMixedPair { owner, .. }
         | EntryCalls::LateTemporarySharedPair { owner, .. }
+        | EntryCalls::DifferentLateTemporarySharedPair { owner, .. }
         | EntryCalls::EarlyTemporarySharedPair { owner, .. }) = &self.calls
         else {
             return None;
@@ -81,6 +83,13 @@ impl EntryDescriptor {
             &owner.bytes,
             &owner.drop,
         ))
+    }
+    /// Separately proved distinct-callee shared-only then late temporary shape.
+    pub fn is_different_late_temporary_shared_pair(&self) -> bool {
+        matches!(
+            self.calls,
+            EntryCalls::DifferentLateTemporarySharedPair { .. }
+        )
     }
     /// Exact first-call temporary followed by shared-only root use.
     pub fn is_early_temporary_shared_pair(&self) -> bool {

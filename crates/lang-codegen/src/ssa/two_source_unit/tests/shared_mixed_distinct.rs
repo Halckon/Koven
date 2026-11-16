@@ -261,16 +261,16 @@ fn shared_mixed_distinct_closed_facts_prepare_interleaved_root() {
 #[test]
 fn shared_mixed_distinct_reject_other_shapes_and_unclaimed_shells() {
     for body in [
-        "val owner=\"shared\";run_a(owner,owner,1,false);run_b(\"b\",owner,2,true)",
+        "val owner=\"shared\";run_a(owner,owner,1,false);run_b(\"b\",owner,1+1,true)",
         "val owner=\"shared\";run_a(owner,\"a\",1,false);run_b(owner,owner,2,true)",
-        "val owner=\"shared\";run_a(\"a\",\"b\",1,false);run_b(\"b\",owner,2,true)",
-        "run_a(\"a\",\"b\",1,false);val owner=\"shared\";run_b(\"b\",owner,2,true)",
+        "val owner=\"shared\";run_a(\"a\",\"b\",1,false);run_b(\"b\",owner,1+1,true)",
+        "run_a(\"a\",\"b\",1,false);val owner=\"shared\";run_b(\"b\",owner,1+1,true)",
         "val owner=\"shared\";val other=\"shared\";run_a(owner,\"a\",1,false);run_b(\"b\",other,2,true)",
-        "val owner=\"shared\";run_a(owner,\"a\",1,false);run_b(\"b\",owner,2,true);run_a(owner,\"c\",3,true)",
-        "val owner=\"shared\";val rounds=1;run_a(owner,\"a\",rounds,false);run_b(\"b\",owner,2,true)",
+        "val owner=\"shared\";run_a(owner,\"a\",1,false);run_b(\"b\",owner,1+1,true);run_a(owner,\"c\",3,true)",
+        "val owner=\"shared\";val rounds=1;run_a(owner,\"a\",rounds,false);run_b(\"b\",owner,1+1,true)",
         "val owner=\"shared\";run_a(owner,\"a\",1,false);run_b(\"b\",owner,1+1,true)",
-        "val owner=(\"shared\");run_a(owner,\"a\",1,false);run_b(\"b\",owner,2,true)",
-        "val owner=\"shared\";run_a(owner,\"a\",1,false);consume(owner);run_b(\"b\",owner,2,true)",
+        "val owner=(\"shared\");run_a(owner,\"a\",1,false);run_b(\"b\",owner,1+1,true)",
+        "val owner=\"shared\";run_a(owner,\"a\",1,false);consume(owner);run_b(\"b\",owner,1+1,true)",
     ] {
         check_closed(CASES[0], Some(body), Some(0));
     }

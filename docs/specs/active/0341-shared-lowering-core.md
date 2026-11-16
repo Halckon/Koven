@@ -20820,3 +20820,19 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 新 counter-break 专属 sealed selector 在一个原完整 ledger/ordinal 集合内联合两臂全部 acquisitions 与 suffix：唯一原 call/argument、Function producer、原 source root 全核，重复 ordinal 拒绝。最终同次完整 snapshot 与全部 dispatch 映射核验后，exit 精确一个原 source slot/Loan、一个原 callee/span 的无结果 DirectCall 与唯一空 UnitReturn；无 suffix 的原空出口保持。
 - 从实际 entry 原 source 实体沿全部真实边传播，稳定后对每个已标 source 的目标参数反查所有 incoming 均已知同源，单前驱不能替另一未知来源自证；分别核 yes6 与 finished10 的唯一 source 实参进入 exit11。只跟踪不可变 source，不把合法变化的 Int counter 当作不变 ABI 根；原十二角色、两 cleanup、两臂 fresh End、checked 回边与唯一原 Abort 的一常量/Span/reason约束不松，prefix 原拒绝不绕过。
 - 新两项目标首遍通过：四参数八模式×24 ABI 与共享三参数四模式×6 ABI，再各两来源，共432形态各两次 assembly；后消费包含与臂内相同 consumer/other，仍按原 occurrence 区分。Group/named实参与两次后消费三负例均原 normal lower/verify/receipt 后精确 gap。新目标编译1m09s、执行3.30s，旧独立 flag 两项与共享 flag 两项通过，FE/codegen 三 feature all-targets 严格 Clippy 1m48s、default codegen all-targets 32.61s 与格式通过。不重原 probe，不执行生成程序/Abort/native/故障注入，不推送，默认workspace留联合一次。
+
+
+### E2 不同 callee 的 late temporary 共享根
+
+- 基 20e9382f，exact val String + SharedRoot call + SharedMixed call，两个不同
+  FullKey/空 typeargs；两个反序、temporary 左右、具名 same-bytes case 的普通原事实已通过。
+  原 8 FullEnd/ordinal、完整 []/[temp,named]、全球唯一 target/nameSpan 不排序；
+  两闭合 shell case 均准确 Unsupported，原红日志 1 pass/1 fail（预期红）保留。
+- 原 late 生命周期检查抽为纯固定 owner 载荷，same-key finish 原门保留；新私有根
+  独立核不同 key、初始化/两 call 源顺序、空 args 与无局部初始化权限。
+  calls/shared_owner 与 EntryKeys 精确 marker 接线，replay 仅新 marker 授权 [0,1]32；
+  emit/JointPlan 操作及 legacy common None 拒绝不改。
+- 新 SSA 正例逐原 typed key/SSA callee、ABI、8 loan/End、晚 temporary 初始化与完整
+  两 Drop 顺序已验；8 shape 与 2 closure 域外精准分类通过。旧两条负例迁计算 scalar，
+  新三目标正式/三 feature 各 3/3，原 sameLate 3 + 两迁移负控 2 全过，
+  双 crate all-targets 三 feature strict 通过（1m48）；CI79，未运行 native 或故障注入。
