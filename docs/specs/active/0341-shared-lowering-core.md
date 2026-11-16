@@ -21089,3 +21089,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `6553ede0`，逐例前审及末审后收敛 `multifile_type_checking/nullable_when_scope.rs` 四个既有源码场景，删除重复 Single 路线及唯一 lambda Single observer，Rust净减121行。原FQN、四源码、lambda目标提取与完整Unit observer逐字保留；原八次观察去重为四次Rooted Unit观察，不新增测试或第二种布局覆盖。
 - 条件短路写和循环写保实际when subject/else reference、nullable Boolean存储及精确L0084/无错误proof；lambda创建不发布内部proof、保留传入proof两场景保持实际参数/内外引用身份、Nullable Int类型及完整proof查询。原解析两次、panic/stage报告和同轮成功准入保留；负例completion仍保原诊断并禁止额外L0165，不夸称其为raw/final完整对象等值。父模块三个复杂nullable-when合同及旧plan观察不变，不推断Unit null/else descriptor覆盖所有旧finite-Boolean计划。
 - 精确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）按冻结补丁逆用/重应用验证，原nullable_when模块修改前后各4 passed / 0 ignored，真实本树编译24.70s/1.78s；frontend all-targets严格Clippy35.03s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过；每次构建前核空间高于8GiB并串行执行，完成后交还E2槽。未改生产语义，未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：Map recovery 旧API消费者迁至两Unit入口
+
+- 基 `a4b1d4ab`，逐项前审和末审后迁移 `type_map.rs` 最后两个旧类型分析消费者，保原FQN（`single_`为历史名称）、六个checked-key和十一个nullable-wrapper原源码与全部期望值。该文件不再调用旧resolve_names/check_types；两Unit布局复用每份原AST及环境，从实际index核源身份后包装表达式ID，不重复解析或重建预期。
+- 保map_get/outer call是否发布、query的Error或Nullable(Int)、value的Int、non-null assertion数量及实际表达式查询，以及原有序诊断code/start offset。未增加complete或ownership门禁，仍为raw recovery；不将原有限code/start oracle描述为完整Diagnostic或完整Span等值。两布局是MemoryDocument/Rooted入口覆盖，不是两套独立实现。
+- 冻结已审补丁并逆用/重应用，精确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原type_map全target前后各19 passed / 0 ignored，真实本树编译25.82s/0.50s，17原fixture在两Unit入口均保持原oracle，无预期迁就；frontend all-targets严格Clippy43.59s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过。每步构建前核8GiB门槛，串行槽完成后交还E2；未改生产语义，未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
