@@ -59,20 +59,6 @@ fn assert_rejection(
             assert_eq!(sources.slice(diagnostic.primary_span()), Ok(*token));
         }
     };
-    let names = resolve_names(&sources, &file, environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &file, &names, types).unwrap();
-    assert!(typed.call(call_id).is_none());
-    assert!(typed.ownership_primitives().is_empty());
-    assert_eq!(
-        typed
-            .expression_type(call_id)
-            .and_then(|ty| typed.types().get(ty)),
-        Some(&TypeKind::Error)
-    );
-    let complete =
-        rejected(complete_file_types(&sources, &file, &names, types, &typed).map(|_| ()));
-    assert_diagnostics(typed.diagnostics(), complete);
     for input in [
         SourceUnitInput::new("root", "primitive-arity.ko", source, &file),
         SourceUnitInput::memory_document(source, &file),

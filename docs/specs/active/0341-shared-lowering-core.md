@@ -21065,3 +21065,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `90e04803`，逐项前审及末审后删除 `string_clone.rs` 成功路径的旧 `assert_legacy_clone_call_return` 调用、唯一helper及专用旧API导入，Rust净减37行；修正阶段checkpoint注释。原源码、19个测试及 MemoryDocument/Rooted Unit检查、独立 `loan_ends` 邻控全部保留。
 - 原旧oracle逐clone仅要求存在CallReturn；既有两Unit `assert_complete` 已逐clone核唯一实际正常结束事件、CallReturn、receiver/Shared及完整loan身份。生产observer在真实receiver遍历正常完成后才记录，提前退出不记；不是仅descriptor存在的替身。本片未改observer/cleanup算法，不将静态观察当动态执行次数、cleanup执行器或统一事件总序；独立return后无事件、内层完成外层提前退出与同名方法邻控保留。
 - 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前本树真实编译23.73s，原 `string_clone` target19 passed；修改后真实重编1.45s，同19 passed / 0 ignored；frontend all-targets严格Clippy36.60s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；串行构建及空间8GiB门槛保持。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：primitive arity 拒绝消费者收敛
+
+- 基 `41575bb8`，前审及末审后仅删除 `final_type_admission/primitive_arity.rs::assert_rejection` 的14行旧 raw/final 执行；影响5个既有FQN、9个原fixture，不新增覆盖。共享oracle、同源两Unit循环与所有其它旧专有合同不变。
+- 保留完整 raw/complete Diagnostic 等值、L0091 whole-call预期对象及message/Span/details、其余错误原有数量/顺序/code/slice、无call descriptor/无ownership primitive/Error类型与completion只能为Diagnostics。ordinary external的旧L0165 token/message与Unit真实差异、external overload旧names身份、其它成功/恢复旧合同均保留，本片不声称这些已等价退休。
+- 为先准备代码且不抢E2构建，保存独审精确补丁，获槽后仅逆用该补丁恢复干净基线；随后重应用且字节核对同一补丁。精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 `primitive_arity::` 模块8项基线全通过（真实重编27.37s），修改后同8 passed / 0 ignored（真实重编0.76s），包含未改external差异邻控；frontend all-targets严格Clippy35.75s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check通过。各编译前独立核空间高于8GiB，未自动清理；完成后交还E2串行槽。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
