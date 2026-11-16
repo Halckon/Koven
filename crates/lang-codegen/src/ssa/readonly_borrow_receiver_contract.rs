@@ -1,5 +1,5 @@
 //! Same original readonly receiver source, strict Unit identity/lifetime proof.
-//! The caller independently preserves its legacy rejection; no production changes.
+//! The caller retains this supported Unit contract after retiring the old rejection.
 use super::*;
 
 pub(super) fn assert_unit(text: &str) {

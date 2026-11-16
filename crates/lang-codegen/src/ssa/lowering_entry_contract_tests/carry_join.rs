@@ -511,7 +511,7 @@ fn graph_entry(function: &Function) -> &crate::ssa::model::Block {
 }
 
 pub(in crate::ssa) mod receiver {
-    //! Original receiver source, Unit-only resource oracle. Keep the legacy witness.
+    //! Original receiver source, complete Unit resource oracle after Legacy retirement.
     use super::super::*;
     use crate::ssa::model::{EntityType, Instruction, LoanKind};
     use lang_frontend::name_resolution::SymbolKind;

@@ -21029,3 +21029,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `97e012e8`，删除 `rejects_inline_nullable_lowering_without_panicking` 中仅旧实现 `UnsupportedNode` 的分析/lowering支路；原 Token/inspect 源码、历史 FQN 与 `inline_nullable_contract::assert_unit` 完整不变。净退休一个旧拒绝消费者，Rust净减14行；不宣称旧拒绝与 Unit 成功等价。
 - 逐例前审及末审确认既有严格 Unit 正控保留原 MemoryDocument/两声明、实际 inspect entry、tagged InlineNullable<Token> 与单 i32 字段、四块 CFG、真实 owner/proof 的 NullableBranch、唯一 NullableTake 的操作数/类型/origin、无多余 copy/drop、汇合空返回、SSA 与无进程入口 LLVM。旧支路没有额外成功 ABI/清理或 runtime oracle，本次不改生产路线、不新增 native 证据。
 - 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m54s，原 exact 1 passed / 0 ignored；codegen all-targets 严格 Clippy1m05s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
+
+### 2026-11-16：readonly borrow 与 String receiver 旧限制退休
+
+- 基 `665fd0ae`，逐例审查后退休两个已被现有完整 Unit 正控覆盖的旧 receiver 限制。`readonly_keeps_borrow_result_receiver_boundary` 仅删 Legacy rejected 调用，原 source/FQN 与 Item owner/root、BorrowCall source/result loan、实际 view/read callee、receiver、两 loan End 顺序、无额外 Copy/Retain 和实际入口 LLVM 合同全保留。
+- 删除纯旧 `receiver_string_borrow_keeps_existing_single_unit_capability_difference` 测试，不新增重复 Unit 测试。其原源码（含 NUL）与既有 `receiver_original_source_preserves_exact_unit_owners_and_call_loans` 的 SOURCE 逐字一致；后者完整保留实际 receiver/String owner、独立 loan、精确 end/drop 及事件数量/顺序、callee借入打印合同。Rooted 单/双源顺序分支通过 events 验 LLVM，直接 MemoryDocument 分支保完整 SSA oracle；不混称该分支单独调用过 LLVM。
+- 两处过时“保留Legacy见证”顶注同步纠正；Rust净减33行。前审及末审确认无有效合同丢失；这是旧实现限制退休，不是新旧拒绝等价或新增 native 证明。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m37s，两原 Unit exact 各1 passed / 0 ignored，codegen all-targets 严格 Clippy50.48s/exit0；fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
