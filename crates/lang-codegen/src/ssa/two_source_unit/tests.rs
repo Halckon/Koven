@@ -242,7 +242,11 @@ fn multiple_entries(commit_failure: bool) {
             assert_eq!(error.kind(), crate::NativeObjectErrorKind::Backend);
             assert!(error.to_string().contains("commit sibling object"));
             assert_eq!(std::fs::read(&sentinel).unwrap(), b"old");
-            assert_eq!(directory.snapshot().len(), 1);
+            let siblings = std::fs::read_dir(output.parent().unwrap())
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .collect::<Vec<_>>();
+            assert_eq!(siblings, vec![output.clone()]);
             assert_eq!(std::fs::read_dir(&output).unwrap().count(), 1);
             std::fs::remove_file(&sentinel).unwrap();
             std::fs::remove_dir(&output).unwrap();
