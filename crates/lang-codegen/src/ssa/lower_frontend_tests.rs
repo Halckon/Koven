@@ -404,22 +404,8 @@ fn rejects_inline_nullable_lowering_without_panicking() {
          fun inspect(own token: Token?): Unit {\n\
              if (token != null) {}\n\
          }";
-    let analysis = analyze(text);
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let error = match lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    ) {
-        Ok(_) => panic!("inline nullable ABI remains outside SPEC-0196"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    // The legacy rejection remains an independent implementation boundary.
-    // Strict Unit supports the same complete source; prove its ABI/CFG separately.
+    // Keep the historical FQN and original source; the supported Unit ABI/CFG
+    // contract supersedes the obsolete Legacy implementation rejection.
     inline_nullable_contract::assert_unit(text);
 }
 

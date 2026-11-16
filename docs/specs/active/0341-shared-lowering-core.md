@@ -21023,3 +21023,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `a4718830`。按不长期保留 Legacy 实现限制的方向，逐例审查原 `this.observe()` 和 `inspect(inner.text)` 两条完整源码，删除 `single_resource_deinit_rejects_member_calls_and_nested_call_borrows` 内仅旧 `UnsupportedNode`/span 的拒绝支路与无用 tuple 常量；原 FQN 保持稳定，实际只剩已支持的 Unit 合同。其他 generic、nullable、partial-move 旧边界不动。
 - 既有 Unit block 逐字节保全：严格四阶段 clean/no deferred、原 source/path、真实 run 入口、原 classifier 内注册且带 Shared receiver 的 deinit、原调用表达式 source origin 对应 DirectCall 恰一次、SSA/LLVM 验证。旧拒绝没有额外成功 loan/drop 或 runtime oracle；不宣称新旧结果等价、具体 callee/逐边 loan 次序新增证明或 native 析构次数已验证。
 - 净退休两个旧实现限制消费者，Rust净减43行。独立逐例前审与末审通过；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m41s，原 exact 1 passed / 0 ignored（两 fixture）；codegen all-targets 严格 Clippy48.57s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交，不推送。
+
+### 2026-11-16：inline nullable 原 Token 旧拒绝见证退休
+
+- 基 `97e012e8`，删除 `rejects_inline_nullable_lowering_without_panicking` 中仅旧实现 `UnsupportedNode` 的分析/lowering支路；原 Token/inspect 源码、历史 FQN 与 `inline_nullable_contract::assert_unit` 完整不变。净退休一个旧拒绝消费者，Rust净减14行；不宣称旧拒绝与 Unit 成功等价。
+- 逐例前审及末审确认既有严格 Unit 正控保留原 MemoryDocument/两声明、实际 inspect entry、tagged InlineNullable<Token> 与单 i32 字段、四块 CFG、真实 owner/proof 的 NullableBranch、唯一 NullableTake 的操作数/类型/origin、无多余 copy/drop、汇合空返回、SSA 与无进程入口 LLVM。旧支路没有额外成功 ABI/清理或 runtime oracle，本次不改生产路线、不新增 native 证据。
+- 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m54s，原 exact 1 passed / 0 ignored；codegen all-targets 严格 Clippy1m05s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
