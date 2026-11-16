@@ -582,6 +582,9 @@ case!(
     b"receiver\nsecond\nfirst\nfourteen\n"
 );
 
+#[path = "readonly_borrow_receiver_contract.rs"]
+mod borrow_receiver_contract;
+
 mod boundaries {
     //! Scope controls use only original frontend-produced source facts.
     use super::super::*;
@@ -695,10 +698,11 @@ mod boundaries {
 
     #[test]
     fn readonly_keeps_borrow_result_receiver_boundary() {
-        rejected(
-            "value class Item(val n:Int) { fun read():Int=this.n }\nfun view(item:Item):borrow Item from item=item\nfun entry() { val item=Item(7); borrow val alias=view(item); alias.read() }",
-            "alias.read()",
-        );
+        let text = "value class Item(val n:Int) { fun read():Int=this.n }\nfun view(item:Item):borrow Item from item=item\nfun entry() { val item=Item(7); borrow val alias=view(item); alias.read() }";
+        // Keep this independent legacy implementation boundary. Unit support below
+        // is a separate positive contract, not retirement of the old negative control.
+        rejected(text, "alias.read()");
+        super::borrow_receiver_contract::assert_unit(text);
     }
 
     #[test]
