@@ -1,9 +1,17 @@
 //! Identity is transported at existing planner transitions, never reconstructed from drops.
 mod branch;
 mod capture;
+#[cfg(test)]
+pub(super) mod carry_probe;
 pub(super) mod choice;
 mod entry_concat;
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
+mod loop_generation;
 pub(super) mod loops;
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
+pub(super) mod origin_probe;
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
+pub(super) mod producer_catalog;
 pub(super) mod replace_call_consumer;
 pub(super) mod replace_consumer;
 pub(super) mod replace_return_consumer;
@@ -40,6 +48,7 @@ impl DropPlanner<'_, '_> {
         self.owner_controls = loops::ControlStack::default();
         self.owner_choice = choice::ChoiceTransaction::begin(self.checker, item, identity.clone());
         self.owner_loop = loops::ControlTransactions::begin(self.checker, item, identity.clone());
+        self.scalar_entry = loops::scalar_entry::Tracker::begin(self.checker, item);
         self.owner_branch_depth = 0;
         self.owner_observation = Some(UnitOwnerObservation {
             identity,
@@ -70,6 +79,7 @@ impl DropPlanner<'_, '_> {
             return;
         }
         self.owner_controls = loops::ControlStack::default();
+        self.scalar_entry = None;
         self.owner_choice = None;
         self.owner_loop.clear();
         self.owner_branch_depth = 0;
@@ -122,7 +132,10 @@ impl DropPlanner<'_, '_> {
             .owner_choice
             .take()
             .and_then(choice::ChoiceTransaction::finish);
-        let nested_normal = self.owner_loop.take_nested_normal();
+        let mut nested_normal = self.owner_loop.take_nested_normal();
+        if let (Some(tracker), Some(nested)) = (self.scalar_entry.take(), nested_normal.as_mut()) {
+            nested.scalar_entry = tracker.finish(nested);
+        }
         let private_control_chain = self.owner_loop.take_private_chain();
         let control_bridge = self.owner_loop.take_control_bridge();
         let counter_batch = self.owner_loop.take_counter_batch();
@@ -259,6 +272,8 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn define_string_owner(&mut self, expression: ExpressionId) -> Option<UnitOwnerId> {
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        self.origin_literal(expression);
         self.owner_loop
             .segment_literal(self.checker.unit_expression(expression));
         self.record_root_literal(expression);
@@ -275,6 +290,10 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         value: Option<OwnedValue>,
     ) -> Option<UnitOwnerId> {
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        if let Some(value) = &value {
+            self.origin_moved(expression, value.symbol);
+        }
         if self.is_string_expression(expression) {
             self.owner_loop
                 .segment_move(self.checker.unit_expression(expression), value.as_ref());
@@ -325,6 +344,8 @@ impl DropPlanner<'_, '_> {
     }
 
     pub(super) fn inserted_owner(&mut self, symbol: UnitSymbolId, initializer: ExpressionId) {
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        self.origin_bound(symbol, initializer);
         if let Some(choice) = &mut self.owner_choice {
             choice.bound(symbol, self.checker.unit_expression(initializer));
         }
@@ -337,6 +358,7 @@ impl DropPlanner<'_, '_> {
     ) -> Result<(), OwnershipCheckingError> {
         self.owner_loop
             .segment_statement(UnitStatementId::new(self.checker.source_unit, id), state);
+        self.scalar_entry_parent(id, state);
         self.begin_nested_resume_statement(id, state);
         self.begin_root_suffix_statement(id, state);
         self.prepare_owner_loop_input(id, state);
@@ -441,21 +463,22 @@ impl DropPlanner<'_, '_> {
                 .iter()
                 .any(|part| matches!(part, StringPart::Interpolation { .. })),
             Expression::Call { .. } => {
-                let supported = self.checker.ownership_primitives.iter().any(|plan| {
-                    plan.descriptor().expression() == self.checker.unit_expression(id)
-                        && match plan.descriptor().kind() {
-                            OwnershipPrimitiveKind::Replace => plan.places().len() == 1,
-                            OwnershipPrimitiveKind::Swap => plan.places().len() == 2,
-                        }
-                        && plan.descriptor().operands().len() == 2
-                        && plan.places().iter().all(|place| place.is_root())
-                        && self
-                            .checker
-                            .typed
-                            .types()
-                            .get(plan.descriptor().value_type())
-                            == Some(&UnitTypeKind::Builtin(BuiltinType::String))
-                });
+                let supported = self.scalar_entry_call_supported(id)
+                    || self.checker.ownership_primitives.iter().any(|plan| {
+                        plan.descriptor().expression() == self.checker.unit_expression(id)
+                            && match plan.descriptor().kind() {
+                                OwnershipPrimitiveKind::Replace => plan.places().len() == 1,
+                                OwnershipPrimitiveKind::Swap => plan.places().len() == 2,
+                            }
+                            && plan.descriptor().operands().len() == 2
+                            && plan.places().iter().all(|place| place.is_root())
+                            && self
+                                .checker
+                                .typed
+                                .types()
+                                .get(plan.descriptor().value_type())
+                                == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    });
                 if !supported {
                     self.reject_owner_expression(id, UnitOwnerUnsupportedReason::OpaqueCall);
                 }
@@ -486,10 +509,18 @@ impl DropPlanner<'_, '_> {
         state: &mut ValueState,
     ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
         self.check_owner_expression(id)?;
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        if matches!(
+            self.checker.parsed.ast().expressions().get(id)?.payload(),
+            Expression::Call { .. }
+        ) {
+            self.origin_call_gap(id);
+        }
         let mut owner = None;
         let mut replace_consumer = None;
         let continues =
             self.expression_inner(id, usage, state, &mut owner, &mut replace_consumer)?;
+        self.scalar_entry_call_completed(id, continues);
         self.normal_assignment_completed(id, continues);
         if let Some(choice) = &mut self.owner_choice {
             choice.expression_completed(
@@ -557,6 +588,11 @@ impl DropPlanner<'_, '_> {
         call: ExpressionId,
         state: &mut ValueState,
     ) -> Option<UnitOwnerId> {
+        #[cfg(test)]
+        self.carry_probe(
+            carry_probe::Point::Primitive(self.checker.unit_expression(call)),
+            state,
+        );
         self.record_root_primitive_write(call, state);
         if !self.owner_observation_active() {
             return None;

@@ -146,6 +146,7 @@ const CLASSIFICATIONS: &str = "class Resource { deinit() {} }\n\
     class ArrayOwner(val item: Array<Resource>)\n\
     class ListOwner(val item: List<Resource>)\n\
     class MutableListOwner(val item: MutableList<Resource>)\n\
+    class RcOwner(val item: Rc<Resource>)\n\
     class DeclaredGeneric<T> { deinit() {} }\n\
     class GenericInstance(val item: Generic<Resource>)\n\
     class DeclaredGenericInstance(val item: DeclaredGeneric<Int>)\n\
@@ -168,6 +169,7 @@ const EXPECTED: &[(&str, Option<bool>)] = &[
     ("ArrayOwner", Some(true)),
     ("ListOwner", Some(true)),
     ("MutableListOwner", Some(true)),
+    ("RcOwner", Some(true)),
     ("DeclaredGeneric", Some(true)),
     ("GenericInstance", Some(true)),
     ("DeclaredGenericInstance", Some(true)),

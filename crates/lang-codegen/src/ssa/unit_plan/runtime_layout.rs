@@ -423,7 +423,7 @@ pub(in crate::ssa::unit_plan) mod recipe_preflight {
 
     use lang_frontend::{
         name_resolution::UnitSymbolId,
-        ownership_checking::CompilationUnitOwnership,
+        ownership_checking::UnitLoweringFacts,
         source::Span,
         type_checking::{
             CompilationUnitTypes, UnitCallTarget, UnitCallableTarget, UnitTypeId, UnitTypeKind,
@@ -467,7 +467,7 @@ pub(in crate::ssa::unit_plan) mod recipe_preflight {
 
     pub(in crate::ssa::unit_plan) fn preflight_unit_call_recipes(
         typed: &CompilationUnitTypes,
-        owned: &CompilationUnitOwnership,
+        owned: &dyn UnitLoweringFacts,
         call_index: usize,
         span: Span,
         context: (
@@ -700,7 +700,7 @@ pub(in crate::ssa::unit_plan) mod recipe_preflight {
 
     pub(in crate::ssa::unit_plan) fn collect_frontier_unit_recipe_failures(
         typed: &CompilationUnitTypes,
-        owned: &CompilationUnitOwnership,
+        owned: &dyn UnitLoweringFacts,
         templates: &[UnitFunctionTemplate],
         template_by_target: &BTreeMap<UnitCallableTarget, usize>,
         calls_by_template: &[Vec<(usize, Span)>],
@@ -750,7 +750,7 @@ pub(in crate::ssa::unit_plan) mod recipe_preflight {
 
     fn collect_reachable_unit_recipe_failures(
         typed: &CompilationUnitTypes,
-        owned: &CompilationUnitOwnership,
+        owned: &dyn UnitLoweringFacts,
         templates: &[UnitFunctionTemplate],
         template_by_target: &BTreeMap<UnitCallableTarget, usize>,
         calls_by_template: &[Vec<(usize, Span)>],

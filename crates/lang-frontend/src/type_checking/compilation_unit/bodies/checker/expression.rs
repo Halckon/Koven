@@ -166,11 +166,13 @@ impl BodyChecker<'_> {
                 value,
             } => self.check_return(source, keyword_span, value, return_type)?,
             Expression::Break { keyword_span } => self.check_loop_jump(
+                key,
                 keyword_span,
                 super::while_flow::LoopJump::Break,
                 "break is not inside an enclosing loop in this callable",
             )?,
             Expression::Continue { keyword_span } => self.check_loop_jump(
+                key,
                 keyword_span,
                 super::while_flow::LoopJump::Continue,
                 "continue is not inside an enclosing loop in this callable",

@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，418 份）"]
+subgraph Garchive["已完成（archive，443 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -427,6 +427,31 @@ subgraph Garchive["已完成（archive，418 份）"]
   S0448["S0448<br/>map_provider_exits_pipeline_tests 测试域叶子薄壳子模块批量退役（132 个）"]
   S0449["S0449<br/>其余测试域叶子薄壳子模块批量退役（42 个）"]
   S0450["S0450<br/>下一层叶子薄壳与同级测试小文件批量收敛（62 个）"]
+  S0451["S0451<br/>跨父模块测试薄壳批量打包收敛（22 个）"]
+  S0452["S0452<br/>lang-codegen 非 ssa 子树叶子薄壳与同级测试小文件批量收敛（129 个）"]
+  S0453["S0453<br/>lang-codegen 剩余同目录 include_str! 薄壳、llvm 子树同级模块与跨父测试小文件批量收敛（37 个）"]
+  S0454["S0454<br/>无家族触发的直线标量函数进入细化层"]
+  S0456["S0456<br/>Runtime buffer 职责分离与历史尺寸额度退休"]
+  S0457["S0457<br/>Native 入口测试职责与根文件尺寸欠账"]
+  S0458["S0458<br/>SSA verifier 职责与历史尺寸欠账"]
+  S0459["S0459<br/>SSA tagged/provider 测试职责与尺寸欠账"]
+  S0460["S0460<br/>Verifier 借用调用与 place 测试职责归位"]
+  S0461["S0461<br/>SSA model 错误与 numeric proof 来源职责归位"]
+  S0462["S0462<br/>Refine 调用与 CFG 汇合职责归位"]
+  S0463["S0463<br/>Ownership operation 与 lowering 领域职责归位"]
+  S0464["S0464<br/>Native 接口/委托与接收者测试领域归位"]
+  S0465["S0465<br/>LLVM instruction 分发按 operation 家族归位"]
+  S0466["S0466<br/>名称解析表达式遍历职责归位"]
+  S0467["S0467<br/>类型检查容器与 lambda 领域归位"]
+  S0468["S0468<br/>Lexer 与调用恢复测试领域归位"]
+  S0469["S0469<br/>表达式与资源交换测试领域归位"]
+  S0470["S0470<br/>类型表、typed产物实现与短路测试归位"]
+  S0471["S0471<br/>Unit签名类型解析与body产物实现归位"]
+  S0472["S0472<br/>Unit canonical、委托与ownership产物归位"]
+  S0473["S0473<br/>Drop表达式遍历与Unit place访问检查归位"]
+  S0474["S0474<br/>Single ownership运行与声明职责归位"]
+  S0475["S0475<br/>Fixture发现、执行与合同测试归位"]
+  S0476["S0476<br/>Conditional leaf实例回放器归位"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1516,6 +1541,8 @@ S0343 --> S0354
 S0343 --> S0355
 S0354 --> S0349
 S0366 --> S0367
+S0451 --> S0456
+S0456 --> S0457
 ```
 
 ## 节点链接
@@ -1940,6 +1967,31 @@ S0366 --> S0367
 | SPEC-0448 | archive | [0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md](0448-map-provider-exits-pipeline-leaf-tests-batch-retirement.md) |
 | SPEC-0449 | archive | [0449-remaining-test-domains-leaf-shells-batch-retirement.md](0449-remaining-test-domains-leaf-shells-batch-retirement.md) |
 | SPEC-0450 | archive | [0450-next-layer-leaf-and-sibling-shells-batch-retirement.md](0450-next-layer-leaf-and-sibling-shells-batch-retirement.md) |
+| SPEC-0451 | archive | [0451-cross-parent-leaf-test-shells-batch-retirement.md](0451-cross-parent-leaf-test-shells-batch-retirement.md) |
+| SPEC-0452 | archive | [0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md](0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md) |
+| SPEC-0453 | archive | [0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md](0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md) |
+| SPEC-0454 | archive | [0454-refine-untriggered-linear-scalars.md](0454-refine-untriggered-linear-scalars.md) |
+| SPEC-0456 | archive | [0456-runtime-buffer-responsibility-and-size-debt.md](0456-runtime-buffer-responsibility-and-size-debt.md) |
+| SPEC-0457 | archive | [0457-native-entry-tests-and-size-debt.md](0457-native-entry-tests-and-size-debt.md) |
+| SPEC-0458 | archive | [0458-ssa-verifier-responsibility-and-size-debt.md](0458-ssa-verifier-responsibility-and-size-debt.md) |
+| SPEC-0459 | archive | [0459-ssa-domain-tests-and-size-debt.md](0459-ssa-domain-tests-and-size-debt.md) |
+| SPEC-0460 | archive | [0460-verifier-borrowed-call-and-place-tests.md](0460-verifier-borrowed-call-and-place-tests.md) |
+| SPEC-0461 | archive | [0461-model-error-and-numeric-source-identity.md](0461-model-error-and-numeric-source-identity.md) |
+| SPEC-0462 | archive | [0462-refine-call-and-control-merge-responsibility.md](0462-refine-call-and-control-merge-responsibility.md) |
+| SPEC-0463 | archive | [0463-ownership-operation-and-lowering-domains.md](0463-ownership-operation-and-lowering-domains.md) |
+| SPEC-0464 | archive | [0464-native-interface-and-receiver-test-domains.md](0464-native-interface-and-receiver-test-domains.md) |
+| SPEC-0465 | archive | [0465-llvm-instruction-dispatch-families.md](0465-llvm-instruction-dispatch-families.md) |
+| SPEC-0466 | archive | [0466-name-resolver-expression-domain.md](0466-name-resolver-expression-domain.md) |
+| SPEC-0467 | archive | [0467-type-container-and-lambda-domains.md](0467-type-container-and-lambda-domains.md) |
+| SPEC-0468 | archive | [0468-lexer-and-call-recovery-test-domains.md](0468-lexer-and-call-recovery-test-domains.md) |
+| SPEC-0469 | archive | [0469-expression-and-resource-exchange-test-domains.md](0469-expression-and-resource-exchange-test-domains.md) |
+| SPEC-0470 | archive | [0470-type-table-and-typed-file-domains.md](0470-type-table-and-typed-file-domains.md) |
+| SPEC-0471 | archive | [0471-unit-signature-types-and-body-product.md](0471-unit-signature-types-and-body-product.md) |
+| SPEC-0472 | archive | [0472-unit-canonical-delegation-and-ownership-product.md](0472-unit-canonical-delegation-and-ownership-product.md) |
+| SPEC-0473 | archive | [0473-drop-expression-and-unit-place-access.md](0473-drop-expression-and-unit-place-access.md) |
+| SPEC-0474 | archive | [0474-single-ownership-lifecycle-and-declarations.md](0474-single-ownership-lifecycle-and-declarations.md) |
+| SPEC-0475 | archive | [0475-fixture-discovery-execution-and-contracts.md](0475-fixture-discovery-execution-and-contracts.md) |
+| SPEC-0476 | archive | [0476-conditional-leaf-instance-replay-domain.md](0476-conditional-leaf-instance-replay-domain.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |

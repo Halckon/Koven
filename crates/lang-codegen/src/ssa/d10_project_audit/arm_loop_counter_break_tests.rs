@@ -1,0 +1,568 @@
+//! Complete bounded counter/conditional-break model evidence from ordinary source only.
+use super::*;
+use crate::ssa::{
+    model::{CheckedArithmeticOperator, EntityId, TerminatorKind},
+    refine::arm_loop_receipt,
+    unit_lower, unit_lower_test_support,
+};
+use lang_frontend::{
+    name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
+};
+#[test]
+fn counter_break_complete_caller_preserves_distinct_stop_and_checked_paths() {
+    let parameters = [
+        "source:String",
+        "rounds:Int",
+        "choose:Boolean",
+        "stop:Boolean",
+    ];
+    for a in 0..4 {
+        for b in 0..4 {
+            for c in 0..4 {
+                for d in 0..4 {
+                    if [a, b, c, d].iter().copied().collect::<BTreeSet<_>>().len() != 4 {
+                        continue;
+                    }
+                    check(
+                        &[parameters[a], parameters[b], parameters[c], parameters[d]].join(","),
+                        true,
+                    );
+                }
+            }
+        }
+    }
+}
+#[test]
+fn counter_break_complete_caller_keeps_unproved_abi_modes_outside() {
+    for signature in [
+        "source:String,rounds:Int,choose:Boolean,own stop:Boolean,extra:Boolean",
+        "source:String,rounds:Int,choose:Boolean,stop:Boolean,extra:Boolean",
+    ] {
+        check(signature, false);
+    }
+}
+pub(super) fn check(signature: &str, certified: bool) {
+    check_with_stop(signature, "stop", certified);
+}
+pub(super) fn check_with_stop(signature: &str, stop_name: &str, certified: bool) {
+    check_with_suffix(signature, stop_name, "", certified);
+}
+pub(super) fn check_with_suffix(signature: &str, stop_name: &str, suffix: &str, certified: bool) {
+    for reverse in [false, true] {
+        let mut sources = SourceMap::new();
+        let (p, provider) = unit_lower_test_support::parsed(
+            &mut sources,
+            "counter-provider.ko",
+            "fun view(source:String):borrow String from source=source\nfun next(source:String):borrow String from source=source\nfun consume(item:String):Unit {}\nfun other(item:String):Unit {}",
+        );
+        let text = format!(
+            "fun run({signature}):Unit {{var remaining=rounds;while(remaining>0){{if(choose){{borrow val a=view(source);consume(a)}}else{{borrow val b=next(source);other(b);consume(b)}};if({stop_name}){{break}};remaining=remaining-1}}{suffix}}}"
+        );
+        let (c, caller) = unit_lower_test_support::parsed(&mut sources, "counter-caller.ko", &text);
+        let mut inputs = [
+            SourceUnitInput::new("root", "counter-provider.ko", p, &provider),
+            SourceUnitInput::new("root", "counter-caller.ko", c, &caller),
+        ];
+        if reverse {
+            inputs.reverse();
+        }
+        let (environment, types) = standard_environments();
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let facts = owned.ownership().no_carry_counter_break_branches();
+        assert_eq!(facts.len(), 1);
+        let wrapper = &facts[0];
+        assert!(
+            owned
+                .ownership()
+                .owns_no_carry_counter_break_branch(wrapper)
+        );
+        assert!(wrapper.same_identity(&wrapper.clone()));
+        assert!(owned.ownership().no_carry_counter_branches().is_empty());
+        assert!(owned.ownership().no_carry_break_branches().is_empty());
+        let fact = wrapper.counter();
+        assert_eq!(
+            wrapper.target_loop(),
+            fact.pair().arms()[0].loop_statement()
+        );
+        assert_eq!(
+            sources
+                .slice(
+                    caller
+                        .ast()
+                        .expressions()
+                        .get(wrapper.break_condition().expression())
+                        .unwrap()
+                        .span()
+                )
+                .unwrap(),
+            stop_name
+        );
+        assert_eq!(
+            sources
+                .slice(
+                    caller
+                        .ast()
+                        .expressions()
+                        .get(wrapper.break_expression().expression())
+                        .unwrap()
+                        .span()
+                )
+                .unwrap(),
+            "break"
+        );
+        let declaration = |name| {
+            names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == name)
+                .unwrap()
+                .id()
+        };
+        for _ in 0..2 {
+            let ((result, audits), receipts, trace) = arm_loop_receipt::observe(|| {
+                observe(|| {
+                    unit_lower::lower_scalar_unit_with_entry(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &types,
+                        &typed,
+                        &owned,
+                        declaration("run"),
+                    )
+                })
+            });
+            let (program, entry) = result.expect("original real counter producer");
+            crate::ssa::verify::verify_program(&program).unwrap();
+            assert_eq!(receipts.len(), 1);
+            assert_eq!(trace.recorded, 1);
+            assert_eq!(trace.before_verifier, 1);
+            assert_eq!(trace.pending_after, 0);
+            assert!(!trace.rolled_back);
+            let function = program
+                .modules
+                .iter()
+                .flat_map(|m| &m.functions)
+                .find(|f| f.id == entry)
+                .unwrap();
+            receipts[0].validate(function).unwrap();
+            let calls: Vec<_> = function
+                .instructions
+                .iter()
+                .filter(|i| matches!(i.operation, Operation::BorrowCall { .. }))
+                .collect();
+            assert_eq!(calls.len(), 2);
+            assert_ne!(calls[0].results, calls[1].results);
+            for call in calls {
+                let result = call.results[0];
+                assert_eq!(function.instructions.iter().filter(|i|matches!(i.operation,Operation::BorrowEnd{loan} if EntityId::Loan(loan)==result)).count(),1);
+                for block in &function.blocks {
+                    assert!(!block.parameters.contains(&result));
+                    assert!(
+                        !block
+                            .terminator
+                            .as_ref()
+                            .unwrap()
+                            .kind
+                            .entities()
+                            .contains(&result)
+                    );
+                }
+            }
+            assert_eq!(
+                function
+                    .instructions
+                    .iter()
+                    .filter(|i| matches!(
+                        i.operation,
+                        Operation::CheckedArithmetic {
+                            operator: CheckedArithmeticOperator::Subtract,
+                            ..
+                        }
+                    ))
+                    .count(),
+                1
+            );
+            assert_eq!(
+                function
+                    .blocks
+                    .iter()
+                    .filter(|b| matches!(
+                        b.terminator.as_ref().unwrap().kind,
+                        TerminatorKind::Abort
+                    ))
+                    .count(),
+                1
+            );
+            assert_eq!(function.blocks.iter().filter(|b|matches!(&b.terminator.as_ref().unwrap().kind,TerminatorKind::Return{values} if values.is_empty())).count(),1);
+            assert_eq!(audits.len(), 1);
+            for name in ["view", "next"] {
+                assert_eq!(
+                    audits[0]
+                        .borrow_edges
+                        .contains(&(declaration("run"), declaration(name))),
+                    certified
+                );
+            }
+            if !suffix.is_empty() && certified {
+                assert_eq!(function.blocks.len(), 12);
+                let exits = function.blocks.iter().filter(|b|matches!(&b.terminator.as_ref().unwrap().kind,TerminatorKind::Return{values} if values.is_empty())).collect::<Vec<_>>();
+                let [exit] = exits.as_slice() else {
+                    panic!("unique Unit exit")
+                };
+                assert_eq!(exit.parameters.len(), 1);
+                assert!(matches!(exit.parameters[0], EntityId::Loan(_)));
+                assert_eq!(exit.instructions.len(), 1);
+                let call = function.instruction(exit.instructions[0]).unwrap();
+                assert!(call.results.is_empty());
+                assert!(
+                    matches!(&call.operation,Operation::DirectCall {arguments,..} if arguments==&exit.parameters)
+                );
+                let incoming = function
+                    .blocks
+                    .iter()
+                    .filter_map(|b| match &b.terminator.as_ref().unwrap().kind {
+                        TerminatorKind::Branch(edge) if edge.target == exit.id => Some((b, edge)),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(incoming.len(), 2);
+                let source_index = signature
+                    .split(',')
+                    .position(|p| p == "source:String")
+                    .unwrap();
+                let entry = function.block(function.entry_block().unwrap()).unwrap();
+                let mut source_entities = BTreeSet::from([entry.parameters[source_index]]);
+                for _ in 0..function.blocks.len() {
+                    for block in &function.blocks {
+                        let edges = match &block.terminator.as_ref().unwrap().kind {
+                            TerminatorKind::Branch(e) => vec![e],
+                            TerminatorKind::Conditional {
+                                when_true,
+                                when_false,
+                                ..
+                            } => vec![when_true, when_false],
+                            TerminatorKind::Return { .. } | TerminatorKind::Abort => vec![],
+                            _ => panic!("counter shape"),
+                        };
+                        for edge in edges {
+                            let target = function.block(edge.target).unwrap();
+                            assert_eq!(edge.arguments.len(), target.parameters.len());
+                            for (arg, param) in edge.arguments.iter().zip(&target.parameters) {
+                                if source_entities.contains(arg) {
+                                    source_entities.insert(*param);
+                                }
+                            }
+                        }
+                    }
+                }
+                assert!(source_entities.contains(&exit.parameters[0]));
+                for block in &function.blocks {
+                    let edges = match &block.terminator.as_ref().unwrap().kind {
+                        TerminatorKind::Branch(e) => vec![e],
+                        TerminatorKind::Conditional {
+                            when_true,
+                            when_false,
+                            ..
+                        } => vec![when_true, when_false],
+                        TerminatorKind::Return { .. } | TerminatorKind::Abort => vec![],
+                        _ => panic!("counter shape"),
+                    };
+                    for edge in edges {
+                        let target = function.block(edge.target).unwrap();
+                        for (arg, param) in edge.arguments.iter().zip(&target.parameters) {
+                            if source_entities.contains(param) {
+                                assert!(source_entities.contains(arg));
+                            }
+                        }
+                    }
+                }
+                for (block, edge) in incoming {
+                    assert!(block.instructions.is_empty());
+                    assert_eq!(edge.arguments.len(), 1);
+                    assert!(matches!(edge.arguments[0], EntityId::Loan(_)));
+                    assert!(source_entities.contains(&edge.arguments[0]));
+                }
+            }
+            if !certified {
+                assert!(
+                    audits[0]
+                        .unsupported
+                        .iter()
+                        .any(|s| s == "counter-break arm-loop full-caller evidence gap")
+                );
+                continue;
+            }
+            assert!(
+                !audits[0]
+                    .unsupported
+                    .iter()
+                    .any(|s| s.starts_with("counter-break arm-loop")
+                        || s.starts_with("unclassified operation: BorrowCall"))
+            );
+            assert_eq!(function.blocks.len(), 12);
+            let value_rounds = signature.split(',').any(|p| p == "own rounds:Int");
+            let value_choose = signature.split(',').any(|p| p == "own choose:Boolean");
+            let value_stop = signature
+                .split(',')
+                .any(|p| p == format!("own {stop_name}:Boolean"));
+            assert_eq!(
+                function.instructions.len(),
+                14 - usize::from(value_stop)
+                    - usize::from(value_choose)
+                    - usize::from(value_rounds)
+                    + usize::from(!suffix.is_empty())
+            );
+            let entry_block = function.block(function.entry_block().unwrap()).unwrap();
+            let TerminatorKind::Branch(entry_edge) = &entry_block.terminator.as_ref().unwrap().kind
+            else {
+                panic!("entry branch")
+            };
+            let header = function.block(entry_edge.target).unwrap();
+            let rounds_index = signature
+                .split(',')
+                .position(|p| p.trim().ends_with("rounds:Int"))
+                .unwrap();
+            let rounds = entry_block.parameters[rounds_index];
+            let initial = if value_rounds {
+                assert!(entry_block.instructions.is_empty());
+                assert!(matches!(rounds, EntityId::Value(_)));
+                rounds
+            } else {
+                assert_eq!(entry_block.instructions.len(), 1);
+                let read = function.instruction(entry_block.instructions[0]).unwrap();
+                let EntityId::Loan(loan) = rounds else {
+                    panic!("borrow rounds")
+                };
+                assert_eq!(
+                    read.operation,
+                    Operation::Read {
+                        source: crate::ssa::model::PlaceAccess::Loan(loan)
+                    }
+                );
+                assert_eq!(
+                    read.origin,
+                    crate::ssa::model::Origin::Source(
+                        caller
+                            .ast()
+                            .expressions()
+                            .get(fact.initializer().expression())
+                            .unwrap()
+                            .span()
+                    )
+                );
+                assert_eq!(read.results.len(), 1);
+                read.results[0]
+            };
+            let position = entry_edge
+                .arguments
+                .iter()
+                .position(|e| *e == initial)
+                .unwrap();
+            let current = header.parameters[position];
+            let compare = function.instruction(header.instructions[1]).unwrap();
+            let Operation::Compare { left, .. } = compare.operation else {
+                panic!("original guard compare")
+            };
+            assert_eq!(EntityId::Value(left), current);
+            let mut roles = entry_block
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(i, e)| (*e, i))
+                .collect::<BTreeMap<_, _>>();
+            loop {
+                let old = roles.clone();
+                for block in &function.blocks {
+                    let edges = match &block.terminator.as_ref().unwrap().kind {
+                        TerminatorKind::Branch(edge) => vec![edge],
+                        TerminatorKind::Conditional {
+                            when_true,
+                            when_false,
+                            ..
+                        } => vec![when_true, when_false],
+                        TerminatorKind::Return { .. } | TerminatorKind::Abort => vec![],
+                        _ => panic!("bounded counter terminator"),
+                    };
+                    for edge in edges {
+                        let target = function.block(edge.target).unwrap();
+                        for (arg, param) in edge.arguments.iter().zip(&target.parameters) {
+                            if let Some(role) = old.get(arg)
+                                && let Some(previous) = roles.insert(*param, *role)
+                            {
+                                assert_eq!(previous, *role);
+                            }
+                        }
+                    }
+                }
+                if roles == old {
+                    break;
+                }
+            }
+            let choose_role = signature
+                .split(',')
+                .position(|p| p.ends_with("choose:Boolean"))
+                .unwrap();
+            let lang_frontend::parser::Expression::If {
+                condition: choice, ..
+            } = caller
+                .ast()
+                .expressions()
+                .get(fact.pair().branch().expression())
+                .unwrap()
+                .payload()
+            else {
+                panic!("original choice If")
+            };
+            let choice_span = caller.ast().expressions().get(*choice).unwrap().span();
+            let TerminatorKind::Branch(to_header) = &entry_block.terminator.as_ref().unwrap().kind
+            else {
+                panic!("entry header")
+            };
+            let header = function.block(to_header.target).unwrap();
+            let TerminatorKind::Conditional {
+                when_true: to_split,
+                ..
+            } = &header.terminator.as_ref().unwrap().kind
+            else {
+                panic!("counter guard")
+            };
+            let split = function.block(to_split.target).unwrap();
+            let TerminatorKind::Conditional {
+                condition: choice_value,
+                ..
+            } = &split.terminator.as_ref().unwrap().kind
+            else {
+                panic!("original choice split")
+            };
+            let choice_reads = function
+                .instructions
+                .iter()
+                .filter(|i| i.origin == crate::ssa::model::Origin::Source(choice_span))
+                .collect::<Vec<_>>();
+            if value_choose {
+                assert!(choice_reads.is_empty());
+                assert!(split.instructions.is_empty());
+                assert_eq!(
+                    roles.get(&EntityId::Value(*choice_value)),
+                    Some(&choose_role)
+                );
+            } else {
+                let [read] = choice_reads.as_slice() else {
+                    panic!("unique choice Read")
+                };
+                let Operation::Read {
+                    source: crate::ssa::model::PlaceAccess::Loan(loan),
+                } = read.operation
+                else {
+                    panic!("borrow choice")
+                };
+                assert_eq!(read.block, split.id);
+                assert_eq!(split.instructions.len(), 1);
+                assert_eq!(roles.get(&EntityId::Loan(loan)), Some(&choose_role));
+                assert_eq!(read.results, [EntityId::Value(*choice_value)]);
+            }
+            let stop_role = signature
+                .split(',')
+                .position(|p| p.ends_with(&format!("{stop_name}:Boolean")))
+                .unwrap();
+            let stop_span = caller
+                .ast()
+                .expressions()
+                .get(wrapper.break_condition().expression())
+                .unwrap()
+                .span();
+            assert_ne!(choice_span, stop_span);
+            assert_ne!(*choice, wrapper.break_condition().expression());
+            assert_eq!(choose_role == stop_role, signature.split(',').count() == 3);
+            let reads = function
+                .instructions
+                .iter()
+                .filter(|i| i.origin == crate::ssa::model::Origin::Source(stop_span))
+                .collect::<Vec<_>>();
+            let arm = function
+                .instructions
+                .iter()
+                .find(|i| matches!(i.operation, Operation::BorrowCall { .. }))
+                .unwrap();
+            let TerminatorKind::Branch(gate_edge) = &function
+                .block(arm.block)
+                .unwrap()
+                .terminator
+                .as_ref()
+                .unwrap()
+                .kind
+            else {
+                panic!("arm to gate")
+            };
+            let gate = function.block(gate_edge.target).unwrap();
+            let TerminatorKind::Conditional {
+                condition,
+                when_true,
+                when_false,
+            } = &gate.terminator.as_ref().unwrap().kind
+            else {
+                panic!("stop gate")
+            };
+            if value_stop {
+                assert!(reads.is_empty());
+                assert!(gate.instructions.is_empty());
+                assert_eq!(roles.get(&EntityId::Value(*condition)), Some(&stop_role));
+            } else {
+                let [read] = reads.as_slice() else {
+                    panic!("one original stop Read")
+                };
+                let Operation::Read {
+                    source: crate::ssa::model::PlaceAccess::Loan(loan),
+                } = read.operation
+                else {
+                    panic!("borrow stop")
+                };
+                assert_eq!(read.block, gate.id);
+                assert_eq!(gate.instructions.len(), 1);
+                assert_eq!(roles.get(&EntityId::Loan(loan)), Some(&stop_role));
+                assert_eq!(read.results, [EntityId::Value(*condition)]);
+            }
+            assert_ne!(split.id, gate.id);
+            if !value_choose && !value_stop {
+                assert_ne!(choice_reads[0].results, reads[0].results);
+            }
+            let yes = function.block(when_true.target).unwrap();
+            assert!(yes.instructions.is_empty());
+            let TerminatorKind::Branch(exit_edge) = &yes.terminator.as_ref().unwrap().kind else {
+                panic!("break exit")
+            };
+            assert_eq!(
+                yes.terminator.as_ref().unwrap().origin,
+                crate::ssa::model::Origin::Source(
+                    caller
+                        .ast()
+                        .expressions()
+                        .get(wrapper.break_expression().expression())
+                        .unwrap()
+                        .span()
+                )
+            );
+            let exit = function.block(exit_edge.target).unwrap();
+            assert_eq!(exit.parameters.len(), usize::from(!suffix.is_empty()));
+            assert!(
+                matches!(&exit.terminator.as_ref().unwrap().kind,TerminatorKind::Return{values} if values.is_empty())
+            );
+            let continued = function.block(when_false.target).unwrap();
+            assert_eq!(continued.instructions.len(), 2);
+            assert!(matches!(
+                function
+                    .instruction(continued.instructions[1])
+                    .unwrap()
+                    .operation,
+                Operation::CheckedArithmetic {
+                    operator: CheckedArithmeticOperator::Subtract,
+                    ..
+                }
+            ));
+        }
+    }
+}

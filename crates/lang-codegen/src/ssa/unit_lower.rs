@@ -1,4 +1,5 @@
 //! SPEC-0199 compilation-unit frontend 到单一 verified SSA module 的 lowering。
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 pub(in crate::ssa) mod orchestrate;
 use orchestrate::lower_unit_from_facts;
 #[cfg(all(test, feature = "loan-observation-test-support"))]
@@ -6,9 +7,12 @@ pub(in crate::ssa) use orchestrate::observe_final_verifier;
 
 mod aggregate;
 mod borrow;
+pub(in crate::ssa) mod preflight;
 pub(in crate::ssa) use super::provider::borrow_result;
 mod call;
 mod call_lifetimes;
+#[cfg(feature = "d10-catalog-experiment")]
+mod compatibility_audit;
 pub(in crate::ssa) use call_lifetimes::callable_abi;
 mod cfg;
 pub(in crate::ssa) mod closure;
@@ -19,8 +23,15 @@ mod control;
 mod loop_control;
 mod map;
 use construction::nullable_proof;
+#[cfg(any(
+    feature = "two-source-unit",
+    all(test, feature = "e2-two-source-test-support")
+))]
+pub(in crate::ssa) mod e2_common;
 mod nullable_when;
 mod ownership;
+mod planned_body;
+mod planned_declarations;
 mod receiver;
 use control::scalar;
 pub(in crate::ssa) mod type_lower;
@@ -41,7 +52,7 @@ pub(in crate::ssa) use lang_frontend::{
         DeclarationId, Namespace, SourceUnitId, SourceUnitInput, SymbolKind, UnitReferenceTarget,
         UnitSymbolId, ValidatedCompilationUnitNames,
     },
-    ownership_checking::{CompilationUnitOwnership, ConstEnabledOwnedUnit, UnitDropPoint},
+    ownership_checking::{ConstEnabledOwnedUnit, UnitDropPoint},
     parser::{
         Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, ParsedFile,
         Statement,
@@ -162,7 +173,7 @@ pub(in crate::ssa) struct UnitExpressionLowerer<'a> {
     pub(in crate::ssa) source_unit: SourceUnitId,
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
-    pub(in crate::ssa) owned: &'a CompilationUnitOwnership,
+    pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
     constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     source_plan: &'a super::unit_plan::UnitCallablePlan,
@@ -183,6 +194,7 @@ pub(in crate::ssa) struct UnitExpressionLowerer<'a> {
     pub(in crate::ssa) borrow_bindings: BTreeMap<UnitSymbolId, LoanId>,
     entry_boolean_roots: std::collections::BTreeSet<UnitSymbolId>,
     nullable_proofs: NullableProofs,
+    non_null_use_spans: &'a BTreeMap<(UnitSymbolId, usize), Span>,
     current_receiver: Option<ReceiverBinding>,
     consumed_receiver: Option<ConsumedReceiver>,
     closure_binding_context: bool,
@@ -213,6 +225,7 @@ impl UnitExpressionLowerer<'_> {
         }
         if result != LoweredValue::Diverged {
             self.emit_drops(UnitDropPoint::AfterExpression(unit_expression))?;
+            self.retire_completed_heap_if_borrow(unit_expression)?;
         }
         Ok(result)
     }
@@ -408,6 +421,54 @@ impl UnitExpressionLowerer<'_> {
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
         Ok(LoweredValue::Value(require_value(results[0], span)?))
+    }
+
+    /// The view is needed only through the last typed narrowed use in the body.
+    /// Every statement up to that use must be an existing direct Borrow call.
+    fn heap_if_borrow_prefix_end(
+        &self,
+        control: UnitExpressionId,
+        body: StatementId,
+        root: loop_control::heap_nullable_if::NamedNullableIfRoot,
+        span: Span,
+    ) -> Result<Option<UnitExpressionId>, LoweringError> {
+        let ast = self.parsed.ast();
+        let body = ast
+            .statements()
+            .get(body)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Statement::ControlBody { elements } = body.payload() else {
+            return Ok(None);
+        };
+        let range = (root.symbol, body.span().start())..(root.symbol, body.span().end());
+        let last_use = self
+            .non_null_use_spans
+            .range(range)
+            .rev()
+            .find_map(|(_, &span)| span_contains(body.span(), span).then_some(span));
+        let Some(last_use) = last_use else {
+            return Ok(None);
+        };
+        if !self.heap_if_source_context(control, span)? {
+            return Ok(None);
+        }
+        for statement in elements {
+            let statement = ast
+                .statements()
+                .get(*statement)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let Statement::Expression { expression } = *statement.payload() else {
+                return Ok(None);
+            };
+            let expression = self.ungroup_map_if_expression(expression, span)?;
+            if !self.heap_if_call_qualifies(expression, root, span)? {
+                return Ok(None);
+            }
+            if span_contains(statement.span(), last_use) {
+                return Ok(Some(UnitExpressionId::new(self.source_unit, expression)));
+            }
+        }
+        Err(lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
     fn lower_return(

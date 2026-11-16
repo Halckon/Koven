@@ -47,9 +47,17 @@ pub(super) fn assert_unused_declarations(text: &str) {
     assert_eq!(program.modules.len(), 1);
     let module = program.module(entry.module()).unwrap();
     assert_eq!(module.functions.len(), 1);
-    assert!(
-        module.types.is_empty(),
-        "unused declarations have no runtime layout"
+    // SPEC-0454 also refines this empty Unit body. Its Boolean/Unit compiler types
+    // must be identical without the unused declarations, not mistaken for layouts.
+    let baseline = original_unit("fun entry(): Unit {}");
+    let (baseline_program, baseline_entry) = baseline
+        .lower_entry(baseline.declaration("entry", SymbolKind::Function))
+        .expect("declaration-free baseline lowers");
+    verify_program(&baseline_program).expect("baseline SSA verifies");
+    let baseline_module = baseline_program.module(baseline_entry.module()).unwrap();
+    assert_eq!(
+        module.types, baseline_module.types,
+        "unused declarations add no runtime layouts or compiler types"
     );
     let function = module.function(entry).unwrap();
     assert_eq!(

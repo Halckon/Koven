@@ -166,7 +166,6 @@ child-cycle 的 CI-only 负例独立放在 `child_cycle_receipt/faults.rs`，分
 `--list-only` 只编译列举，不能作为破坏矩阵运行通过的证据。新增父 true 根交换、preheader 额外前驱及根消费三例，共 18 类；仍只本地编译列举。
 父初始入口与组合归纳仍待推进。
 
-
 ### 受限父初始来源
 
 child-cycle 可再保留真实函数入口为第八角色：仅选择沿 Alias 追踪到 own 参数或
@@ -182,7 +181,8 @@ String literal、且进入 parent 前未被其它指令使用的完整根向量�
 根向量沿 child false、父单次 literal Replace 和 checked-success 回到同根父 header。
 未改根无消费，改根的新代无直接使用或旁路；父初始/回边前驱闭合，父 header 拒绝
 Place/新建 loan/String 根 loan，只允许原槽既有 Shared Int 输入借用。独立 preparation 子模块核父 RootPlace、Exclusive BorrowBegin、Replace
-唯一定义/使用和结束链，复用 old 的既有 Drop 收据。abort 保持独立终止并核 metadata。
+唯一定义/使用和结束链；三指令均须在全函数块列表中仅挂载一次且属于原块，复用 old
+的既有 Drop 收据。abort 保持独立终止并核 metadata。
 此部分正确性仅适用于已选择的初始 own 参数/literal、直接父子 while、单次父写入与
 checked tail；不是一般父循环证明或终止证明，也不以有限 native 轮数作归纳依据。
 
@@ -192,8 +192,8 @@ Exclusive 借用结束链；链检查与 parent 复用。组合选择另在 buil
 独立 required，layout 保存预期，选后证据丢失必须报错而不是跳过证明。此补强不改变
 原形状权限；CI-only 矩阵扩为 34 类，尚未本地执行或取得远端验证。
 
-父组合另核实际 literal producer 在 resume 指令列表中恰好出现一次，避免仅首次位置
-检查漏掉重复成员。新增 CI-only 真实重复 producer ID 变异，由组合收据直接拒绝；
+父子 literal producer 与 detached old Drop 均在全函数块列表恰一挂载且属于原块；
+保持原有次序及定义/使用检查。CI-only 同块/异块重复 ID 由各自独立收据直接拒绝；
 不扩大语言形状，不替代 generic verifier，破坏性验收仅在远端 CI 执行。
 
 受限入口总计一次 concat 的来源、临时清理与运输合同，见

@@ -57,30 +57,7 @@ impl DropPlanner<'_, '_> {
         if !found {
             return None;
         }
-        let Expression::Binary {
-            left,
-            operator: BinaryOperator::Add,
-            right,
-            ..
-        } = ast.expressions().get(expression).ok()?.payload()
-        else {
-            return None;
-        };
-        for operand in [*left, *right] {
-            let Expression::String { parts } = ast.expressions().get(operand).ok()?.payload()
-            else {
-                return None;
-            };
-            if parts
-                .iter()
-                .any(|p| matches!(p, StringPart::Interpolation { .. }))
-                || !self.is_string_expression(operand)
-            {
-                return None;
-            }
-        }
-        self.is_string_expression(expression)
-            .then_some([*left, *right])
+        literal_concat_operands(self.checker, expression)
     }
 
     // Called only after string_binary completed the two actual operand traversals
@@ -90,22 +67,8 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
     ) -> Option<UnitOwnerId> {
         let [left, right] = self.entry_concat_operands(expression)?;
-        for operand in [left, right] {
-            if !self.facts.iter().any(|fact| {
-                fact.point() == PlannerDropPoint::AfterBinaryOperands(expression)
-                    && fact.target() == PlannerDropTarget::Temporary(operand)
-            }) {
-                return None;
-            }
-            if !self
-                .owner_observation
-                .as_ref()?
-                .definitions
-                .iter()
-                .any(|d| d.origin == UnitOwnerOrigin::String(self.checker.unit_expression(operand)))
-            {
-                return None;
-            }
+        if !self.concat_operands_cleaned(expression, [left, right]) {
+            return None;
         }
         self.define_owner(UnitOwnerOrigin::StringConcat {
             expression: self.checker.unit_expression(expression),
@@ -113,4 +76,84 @@ impl DropPlanner<'_, '_> {
             right: self.checker.unit_expression(right),
         })
     }
+    // Reused by the combined scalar-entry admission after the origin was published.
+    fn concat_operands_cleaned(
+        &self,
+        expression: ExpressionId,
+        operands: [ExpressionId; 2],
+    ) -> bool {
+        let Some(observation) = self.owner_observation.as_ref() else {
+            return false;
+        };
+        operands.into_iter().all(|operand| {
+            self.facts.iter().any(|fact| {
+                fact.point() == PlannerDropPoint::AfterBinaryOperands(expression)
+                    && fact.target() == PlannerDropTarget::Temporary(operand)
+            }) && observation
+                .definitions
+                .iter()
+                .any(|d| d.origin == UnitOwnerOrigin::String(self.checker.unit_expression(operand)))
+        })
+    }
+    pub(in super::super) fn completed_concat_origin(&self, origin: UnitOwnerOrigin) -> bool {
+        let UnitOwnerOrigin::StringConcat {
+            expression,
+            left,
+            right,
+        } = origin
+        else {
+            return false;
+        };
+        if [expression, left, right]
+            .iter()
+            .any(|id| id.source_unit() != self.checker.source_unit)
+        {
+            return false;
+        }
+        literal_concat_operands(self.checker, expression.expression())
+            == Some([left.expression(), right.expression()])
+            && self.concat_operands_cleaned(
+                expression.expression(),
+                [left.expression(), right.expression()],
+            )
+    }
+}
+
+// Shape only. Actual owner admission additionally checks entry position and completion.
+pub(super) fn literal_concat_operands(
+    checker: &Checker<'_>,
+    expression: ExpressionId,
+) -> Option<[ExpressionId; 2]> {
+    let ast = checker.parsed.ast();
+    let Expression::Binary {
+        left,
+        operator: BinaryOperator::Add,
+        right,
+        ..
+    } = ast.expressions().get(expression).ok()?.payload()
+    else {
+        return None;
+    };
+    for operand in [expression, *left, *right] {
+        if checker
+            .typed
+            .expression_type(checker.unit_expression(operand))
+            .and_then(|ty| checker.typed.types().get(ty))
+            != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        {
+            return None;
+        }
+    }
+    for operand in [*left, *right] {
+        let Expression::String { parts } = ast.expressions().get(operand).ok()?.payload() else {
+            return None;
+        };
+        if parts
+            .iter()
+            .any(|p| matches!(p, StringPart::Interpolation { .. }))
+        {
+            return None;
+        }
+    }
+    Some([*left, *right])
 }

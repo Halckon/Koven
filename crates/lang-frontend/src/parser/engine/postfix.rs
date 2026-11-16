@@ -7,7 +7,7 @@ impl Parser<'_> {
         stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
         loop {
-            if self.at_block_expression_line_break(receiver, stops)? {
+            if self.at_postfix_line_break(receiver, stops)? {
                 break;
             }
             if matches!(
@@ -90,6 +90,51 @@ impl Parser<'_> {
             };
         }
         Ok(receiver)
+    }
+
+    // Keep both fallible checks out of the recursive postfix frame.
+    fn at_postfix_line_break(
+        &self,
+        receiver: ExpressionId,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        if self.at_block_expression_line_break(receiver, stops)? {
+            return Ok(true);
+        }
+        if stops.when_entry_body {
+            return self.grouped_when_entry_follows(receiver);
+        }
+        Ok(false)
+    }
+
+    /// Retain the next entry's paired group without treating every newline as a call boundary.
+    fn grouped_when_entry_follows(
+        &self,
+        receiver: ExpressionId,
+    ) -> Result<bool, ParserInternalError> {
+        if !self.current_is_symbol(Symbol::LeftParen)
+            || !self.gap_has_line_break(
+                self.expression_span(receiver)?.end(),
+                self.current()?.span().start(),
+            )?
+        {
+            return Ok(false);
+        }
+        let Some(closer) = self
+            .lexical_recoveries
+            .group_closer(self.lexed, self.current_raw()?)
+        else {
+            return Ok(false);
+        };
+        let next = self.lexed.lexemes()[closer + 1..]
+            .iter()
+            .find(|lexeme| !matches!(lexeme.kind(), LexemeKind::Trivia(_)));
+        Ok(next.is_some_and(|lexeme| {
+            matches!(
+                lexeme.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow))
+            )
+        }))
     }
 
     pub(super) fn is_postfix_start(&self) -> bool {
@@ -390,11 +435,14 @@ impl Parser<'_> {
                     break;
                 }
                 if self.can_start_call_argument(current) {
-                    self.emit(
-                        codes::EXPECTED_ARGUMENT_SEPARATOR,
-                        "expected argument separator",
-                        self.empty_at(current.span().start())?,
-                    )?;
+                    // Poison can start an Error value, but its diagnostic belongs to the Lexer.
+                    if !self.is_poison_kind(current.kind()) {
+                        self.emit(
+                            codes::EXPECTED_ARGUMENT_SEPARATOR,
+                            "expected argument separator",
+                            self.empty_at(current.span().start())?,
+                        )?;
+                    }
                     continue;
                 }
                 let diagnostic_span = current.span();
@@ -735,8 +783,12 @@ impl Parser<'_> {
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightBracket))
         );
         // A failed key parse can leave a nested bracket at the cursor.
+        // Lexical poison can produce an Error value without a parser diagnostic.
         let mut at_index_closer = at_bracket
-            && (self.diagnostics.len() == diagnostic_count
+            && ((self.diagnostics.len() == diagnostic_count
+                && !self
+                    .lexical_recoveries
+                    .has_diagnostic_anchor(opener_raw + 1, self.index))
                 || self.lexical_recoveries.group_closer(self.lexed, opener_raw)
                     == Some(self.current_raw()?));
         let mut last_consumed_end = index_span.end().max(opener.end());

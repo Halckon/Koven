@@ -1,8 +1,21 @@
 # 完成 Specs
 
+- [SPEC-0466](0466-name-resolver-expression-domain.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0467](0467-type-container-and-lambda-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0468](0468-lexer-and-call-recovery-test-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0469](0469-expression-and-resource-exchange-test-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0470](0470-type-table-and-typed-file-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0471](0471-unit-signature-types-and-body-product.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0472](0472-unit-canonical-delegation-and-ownership-product.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0473](0473-drop-expression-and-unit-place-access.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0474](0474-single-ownership-lifecycle-and-declarations.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0475](0475-fixture-discovery-execution-and-contracts.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0476](0476-conditional-leaf-instance-replay-domain.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+
+
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 342 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 443 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
@@ -224,6 +237,10 @@
 - [SPEC-0243](./0243-receiver-two-phase-borrows.md)：方法 receiver 两阶段借用与 unit SSA/native 有界验收
 
 ## Phase 4
+
+- [SPEC-0451](0451-cross-parent-leaf-test-shells-batch-retirement.md)、[SPEC-0452](0452-lang-codegen-non-ssa-leaf-and-sibling-shells-batch-retirement.md)、[SPEC-0453](0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md)：按用户批准的34项保留边界有界交付；原全部删除/固定数量目标未达成，修订验收与精确 CI 证据见0453§5，归档 head 与合并另验。
+
+- [SPEC-0454](0454-refine-untriggered-linear-scalars.md)：无家族触发的直线 Boolean/整数默认路由；最终候选 `81864b03` 双宿主与 Preview 独立消费 CI 已验收，归档 head 与合并交付另验。
 
 - [SPEC-0264](./0264-unit-direct-field-borrow.md)：unit owned local class 一级字段直接 Borrow，PR41首轮双宿主验收
 
@@ -607,3 +624,16 @@
 - [SPEC-0379](0379-refine-reassignment-and-move-enum-when.md)：MoveOnly 局部可变重赋值与 MoveOnly 枚举 `when` 迁入所有权细化层。
 - [SPEC-0380](0380-refine-deinit-nested-fields-and-box-payloads.md)：`deinit` 析构体、多层字段借用、接口委托、无状态 `object` 与 `Map.withValue` 迁入所有权细化层。
 - [SPEC-0381](0381-refine-default-routing-and-legacy-retirement.md)：默认分流边界修复与旧路径退休。
+
+## PR #433 有界职责与尺寸交付
+
+- [0461 model-error-and-numeric-source-identity](0461-model-error-and-numeric-source-identity.md)
+- [0458 ssa-verifier-responsibility-and-size-debt](0458-ssa-verifier-responsibility-and-size-debt.md)
+- [0462 refine-call-and-control-merge-responsibility](0462-refine-call-and-control-merge-responsibility.md)
+- [0465 llvm-instruction-dispatch-families](0465-llvm-instruction-dispatch-families.md)
+- [0459 ssa-domain-tests-and-size-debt](0459-ssa-domain-tests-and-size-debt.md)
+- [0457 native-entry-tests-and-size-debt](0457-native-entry-tests-and-size-debt.md)
+- [0464 native-interface-and-receiver-test-domains](0464-native-interface-and-receiver-test-domains.md)
+- [0463 ownership-operation-and-lowering-domains](0463-ownership-operation-and-lowering-domains.md)
+- [0456 runtime-buffer-responsibility-and-size-debt](0456-runtime-buffer-responsibility-and-size-debt.md)
+- [0460 verifier-borrowed-call-and-place-tests](0460-verifier-borrowed-call-and-place-tests.md)

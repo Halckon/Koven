@@ -492,7 +492,12 @@ impl UnitExpressionLowerer<'_> {
             Expression::Member { receiver, .. } | Expression::Index { receiver, .. } => {
                 Some(*receiver)
             }
-            Expression::Assignment { target, .. } => Some(*target),
+            Expression::Assignment { target, value, .. } => {
+                if self.can_replace_nullable_when_root(expression, *target, *value, span)? {
+                    return Ok(());
+                }
+                Some(*target)
+            }
             Expression::NonNullAssert { operand, .. } => Some(*operand),
             Expression::Call { callee, .. } => Some(*callee),
             Expression::Lambda { .. } => {

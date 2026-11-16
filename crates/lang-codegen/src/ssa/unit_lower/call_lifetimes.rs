@@ -583,7 +583,7 @@ pub(in crate::ssa) mod callable_abi {
         pub(in crate::ssa::unit_lower) fn expression_type(
             &self,
             plan: &crate::ssa::unit_plan::UnitCallablePlan,
-            owned: &CompilationUnitOwnership,
+            owned: &dyn UnitLoweringFacts,
             source: SourceToken,
             expression: UnitExpressionId,
             span: Span,

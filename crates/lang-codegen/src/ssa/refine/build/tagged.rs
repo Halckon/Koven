@@ -568,7 +568,7 @@ pub(in crate::ssa::refine::build) mod inout {
             };
             let value = self.value(op, EntityType::Value(target), writeback.span)?;
             self.push(ROp::Alias { source: value }, vec![binding], writeback.span)?;
-            self.narrowed.remove(&writeback.symbol);
+            self.forget_narrowing(writeback.symbol);
             Ok(())
         }
 
@@ -656,7 +656,7 @@ pub(in crate::ssa::refine::build) mod inout {
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
                     let begin_span = fact.begin_span();
                     self.end_views_of(symbol, begin_span)?;
-                    self.narrowed.remove(&symbol);
+                    self.forget_narrowing(symbol);
                     let binding = if is_unit {
                         let b = self.value(
                             ROp::Constant(crate::ssa::model::ScalarConstant::Unit),
@@ -833,7 +833,7 @@ pub(in crate::ssa::refine::build) mod inout {
                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, arguments[0].span))?;
             let begin_span = fact.begin_span();
             self.end_views_of(symbol, begin_span)?;
-            self.narrowed.remove(&symbol);
+            self.forget_narrowing(symbol);
             let owner = *self
                 .bindings
                 .get(&symbol)

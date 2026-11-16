@@ -53,6 +53,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | 多根写入、私有 token 与清理证据 | [多根私有证据](unit-loop-root-evidence.md) |
 | 多根 false 出口后的实际消费 | [受限消费前缀](unit-loop-root-suffix.md) |
 | 计数控制的实际审计与桥接body | [counter 尾部](unit-loop-counter-audit.md)、[独立body消费](control-bridge-body.md)、[成员SSA receipt](control-chain-ssa-members.md)、[嵌套内层body](nested-owner-normal-body.md)、[入口concat](nested-owner-initial-concat.md) |
+| 父循环前的标量分支入口 | [D10 独立入口基例](d10-scalar-owner-entry.md) |
 | 普通 loan acquisition、cleanup 投影与覆盖边界 | [Loan 实际动作源](unit-loan-action-source.md) |
 | 循环内有限 no-carry 借用及真实关闭 | [循环内 no-carry](loop-no-carry.md) |
 | 循环内双臂分别闭合与后端收据 | [双臂 no-carry](loop-arm-no-carry.md) |
@@ -63,7 +64,7 @@ PR #13 的 head `c5507a5` 双宿主 CI 通过并合入 main `efc52b6`；精确�
 | 普通 Borrow 参数的精确 caller 路由与 Complete3 生产核验 | [Named loan production receipts](named-loan-production-receipts.md) |
 | 单/双临时 String caller 的精确路由与非空 Complete1 核验 | [Temporary loan production receipts](temporary-loan-production-receipts.md) |
 | unit planning、typed SSA、LLVM、runtime | [SSA、Codegen 与 Runtime](ssa-codegen-runtime.md)、[中立 lowering 支撑](lowering-support.md) |
-| 所有权细化层、子集分流与 inline nullable 表示 | [所有权细化层](ownership-refinement.md) |
+| 所有权细化层、子集分流与 inline nullable 表示 | [所有权细化层](ownership-refinement.md)、[终态差距快照](ownership-refinement-gaps.md) |
 | N1a 连续范围的类型、来源与阶段能力门 | [范围 carrier](range-carrier.md) |
 | 普通借用结果的短期同步实参消费与source终止 | [同步Borrow实参](synchronous-borrow-result-arguments.md) |
 | 普通多参数唯一来源 Borrow 返回与调用分流 | [多参数借用返回](multi-parameter-borrow-results.md) |

@@ -516,9 +516,12 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             condition: ExpressionId,
             span: Span,
         ) -> Result<Option<NullableIfEntry>, LoweringError> {
-            if !self.nullable_proofs.is_empty()
-                || !self.loops.is_empty()
+            if !self.loops.is_empty()
                 || !self.substitutions.is_empty()
+                || self
+                    .nullable_proofs
+                    .values()
+                    .any(|proof| proof.when_scope().is_none())
             {
                 return Ok(None);
             }
@@ -531,7 +534,7 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             let Expression::If {
                 condition: actual,
                 then_branch,
-                else_branch: Some(else_branch),
+                else_branch,
                 ..
             } = *node.payload()
             else {
@@ -547,6 +550,10 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                 return Ok(None);
             };
             let root = comparison.symbol();
+            // A fresh proof may coexist with carried When proofs for other roots.
+            if self.nullable_proofs.contains_key(&root) {
+                return Ok(None);
+            }
             let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
                 return Ok(None);
             };
@@ -578,22 +585,19 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                 declared: comparison.nullable_type(),
                 narrowed: *narrowed,
             };
-            let (non_null, null) = if comparison.non_null_when_true() {
-                (then_branch, else_branch)
+            let non_null = if comparison.non_null_when_true() {
+                Some(then_branch)
             } else {
-                (else_branch, then_branch)
+                else_branch
             };
-            if !self.map_if_body_is_empty(Some(null), span)? {
-                return Ok(None);
-            }
-            let Some(call) = self.heap_if_direct_borrow_call(non_null, span)? else {
+            let Some(non_null) = non_null else {
                 return Ok(None);
             };
-            if !self.heap_if_source_context(control, span)?
-                || !self.heap_if_call_qualifies(call, root, span)?
-            {
+            let Some(last_borrow) =
+                self.heap_if_borrow_prefix_end(control, non_null, root, span)?
+            else {
                 return Ok(None);
-            }
+            };
             self.validate_named_nullable_if_condition(condition, comparison, root, span)?;
             let (nullable, inner) = self.heap_nullable_storage(comparison, span)?;
             if storage != nullable
@@ -612,6 +616,7 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                 owner,
                 inner,
                 scope: control,
+                last_borrow,
                 non_null_when_true: comparison.non_null_when_true(),
             }))
         }
@@ -661,7 +666,7 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             Ok((nullable, inner))
         }
 
-        fn heap_if_source_context(
+        pub(in crate::ssa::unit_lower) fn heap_if_source_context(
             &self,
             control: UnitExpressionId,
             span: Span,
@@ -705,42 +710,6 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                         Expression::Group { .. } | Expression::If { .. } | Expression::When { .. }
                     )
             }))
-        }
-
-        fn heap_if_direct_borrow_call(
-            &self,
-            body: StatementId,
-            span: Span,
-        ) -> Result<Option<ExpressionId>, LoweringError> {
-            let node = self
-                .parsed
-                .ast()
-                .statements()
-                .get(body)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let Statement::ControlBody { elements } = node.payload() else {
-                return Ok(None);
-            };
-            let [statement] = elements.as_slice() else {
-                return Ok(None);
-            };
-            let node = self
-                .parsed
-                .ast()
-                .statements()
-                .get(*statement)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let Statement::Expression { expression } = *node.payload() else {
-                return Ok(None);
-            };
-            let expression = self.ungroup_map_if_expression(expression, span)?;
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(expression)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            Ok(matches!(node.payload(), Expression::Call { .. }).then_some(expression))
         }
 
         pub(in crate::ssa::unit_lower) fn validate_named_nullable_if_condition(
@@ -794,7 +763,7 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             Ok(())
         }
 
-        fn heap_if_call_qualifies(
+        pub(in crate::ssa::unit_lower) fn heap_if_call_qualifies(
             &self,
             expression: ExpressionId,
             root: NamedNullableIfRoot,
@@ -811,6 +780,19 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             else {
                 return Ok(false);
             };
+            // An independent call must fall back before strict fact/route checks.
+            if arguments.is_empty()
+                || self.typed.construction(call).is_some()
+                || self.typed.ownership_primitive(call).is_some()
+                || !arguments.iter().all(|argument| {
+                    nodes.get(argument.value).is_ok_and(|node| {
+                        let span = node.span();
+                        self.non_null_use_spans.get(&(root.symbol, span.start())) == Some(&span)
+                    })
+                })
+            {
+                return Ok(false);
+            }
             let callee = self.ungroup_map_if_expression(*callee, span)?;
             if !nodes
                 .get(callee)
@@ -830,9 +812,6 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
                 || descriptor.prints_line()
                 || descriptor.result_source() != CallableResultSource::Owned
                 || !descriptor.instance().type_arguments().is_empty()
-                || self.typed.construction(call).is_some()
-                || self.typed.ownership_primitive(call).is_some()
-                || arguments.is_empty()
                 || descriptor.arguments().iter().any(|mapping| {
                     mapping.mode() != ParameterMode::Borrow || mapping.crosses_thread()
                 })

@@ -1,4 +1,5 @@
 //! SSA construction: slot liveness decides block parameters; operands map mechanically.
+#[path = "folding.rs"]
 mod folding;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{

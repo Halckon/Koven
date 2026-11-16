@@ -7,6 +7,8 @@ use crate::ssa::{
     model::{FunctionId, LoanKind},
 };
 pub(super) use emitted::Emitted;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) use emitted::Receipt;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::{BorrowSourceLoan, UnitDropPoint, UnitDropTarget, UnitLoanActionId},
@@ -21,7 +23,7 @@ pub(super) struct Tag {
     pub(super) role: u8,
 }
 #[derive(Clone, Debug, Default)]
-pub(super) struct Plans {
+pub(crate) struct Plans {
     entries: Vec<Plan>,
 }
 #[derive(Clone, Debug)]

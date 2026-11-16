@@ -446,3 +446,59 @@ fn unfinished_for_binding_preserves_block_and_index_closers() {
         index.span()
     );
 }
+
+#[test]
+fn grouped_when_entries_own_their_arrows_across_lines() {
+    let text = "when (x) { null -> run\n(1)\n((true)) -> 2\nelse -> 3 }";
+    let (sources, parsed) = expression(text);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let Expression::When { entries, .. } = expression_payload(&parsed, parsed.root()) else {
+        panic!("when expression");
+    };
+    let [first, grouped, otherwise] = entries.as_slice() else {
+        panic!("three entries: {entries:?}");
+    };
+    let body = parsed.ast().statements().get(first.body).unwrap();
+    assert!(
+        matches!(body.payload(), Statement::Expression { expression }
+        if matches!(expression_payload(&parsed, *expression), Expression::Call { .. }))
+    );
+    assert_eq!(sources.slice(body.span()), Ok("run\n(1)"));
+    let [WhenCondition::Expression(selector)] = grouped.conditions.as_slice() else {
+        panic!("one grouped selector");
+    };
+    let selector = parsed.ast().expressions().get(*selector).unwrap();
+    assert!(matches!(selector.payload(), Expression::Group { .. }));
+    assert_eq!(sources.slice(selector.span()), Ok("((true))"));
+    assert_eq!(sources.slice(grouped.arrow_span), Ok("->"));
+    assert_eq!(
+        sources.slice(parsed.ast().statements().get(grouped.body).unwrap().span()),
+        Ok("2")
+    );
+    assert!(otherwise.else_span.is_some());
+}
+
+#[test]
+fn nested_when_selectors_keep_their_own_postfix_calls() {
+    let text = "when (x) { null -> when (y) { test\n(1) -> 1; else -> 2 }; else -> 3 }";
+    let (sources, parsed) = expression(text);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let calls = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter_map(|(_, node)| matches!(node.payload(), Expression::Call { .. }).then_some(node))
+        .collect::<Vec<_>>();
+    let [selector] = calls.as_slice() else {
+        panic!("one call");
+    };
+    assert_eq!(sources.slice(selector.span()), Ok("test\n(1)"));
+}

@@ -365,6 +365,36 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
+    // A whole-root replacement keeps the proof through RHS evaluation.
+    // The published drop of the old owner retires it before rebinding.
+    pub(super) fn can_replace_nullable_when_root(
+        &self,
+        expression: UnitExpressionId,
+        target: ExpressionId,
+        value: ExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let Some(root) = self.direct_name_symbol(target, span)? else {
+            return Ok(false);
+        };
+        let target = UnitExpressionId::new(self.source_unit, target);
+        let rhs = UnitExpressionId::new(self.source_unit, value);
+        Ok(self
+            .nullable_proofs
+            .get(&root)
+            .is_some_and(|proof| proof.when_scope().is_some())
+            && self.typed.assignment(expression).is_some_and(|assignment| {
+                assignment.falls_through()
+                    && assignment.operator() == AssignmentOperator::Assign
+                    && assignment.target() == target
+                    && assignment.value() == rhs
+            })
+            && self.owned.drops().iter().any(|fact| {
+                fact.point() == UnitDropPoint::AfterExpression(rhs)
+                    && fact.target() == UnitDropTarget::Named(root)
+            }))
+    }
+
     pub(super) fn lower_assignment(
         &mut self,
         expression: ExpressionId,

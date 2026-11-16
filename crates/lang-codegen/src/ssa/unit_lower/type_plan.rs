@@ -1,4 +1,5 @@
 //! Reachable compilation-unit body 使用的 scalar storage type 预规划。
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 use std::collections::BTreeSet;
 
@@ -7,7 +8,6 @@ use lang_frontend::{
     name_resolution::{
         NameResolution, ScopeId, ScopeKind, SymbolKind, ValidatedCompilationUnitNames,
     },
-    ownership_checking::CompilationUnitOwnership,
     parser::{
         AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, NameMarker, ParsedFile,
         PrefixOperator, Statement, WhenCondition,
@@ -297,7 +297,7 @@ pub(in crate::ssa) fn intern_formed_nullable_map_types(
     plan: &super::FunctionPlan,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     types: &mut UnitTypeLowering,
 ) -> Result<(), LoweringError> {
     if plan.instance.key().deinit_owner().is_some() {
@@ -380,7 +380,7 @@ pub(in crate::ssa) fn intern_lambda_formed_nullable_map_types(
     plan: &super::closure::CallablePlan,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     types: &mut UnitTypeLowering,
 ) -> Result<(), LoweringError> {
     let source = names

@@ -566,3 +566,182 @@ fun take(own source:String):Unit {println(source)}
     let run = emit_link_and_run("arm-tail-break-mixed-control-aliases", &text, "entry");
     super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
 }
+
+#[test]
+fn native_counter_arm_conditional_break_runs_zero_one_two_rounds() {
+    run_counter_break_paths(false);
+}
+
+#[test]
+fn native_counter_arm_conditional_break_shares_stable_flag() {
+    run_counter_break_paths(true);
+}
+
+fn run_counter_break_paths(shared: bool) {
+    let mut text = String::from(
+        r#"fun view(source:String):borrow String from source=source
+fun left(item:String):Unit {println("L");println(item)}
+fun right(item:String):Unit {println("R");println(item)}
+fun take(own source:String):Unit {println(source)}
+"#,
+    );
+    let mut entry =
+        String::from("fun entry(){val source=\"kept\".clone();val yes=true;val no=false;\n");
+    let mut expected = String::new();
+    for mask in 0..if shared { 4 } else { 8 } {
+        let mode = |bit| if mask & bit != 0 { "own " } else { "" };
+        let (rounds, choose, stop) = (mode(1), mode(2), mode(4));
+        let stop_parameter = if shared {
+            String::new()
+        } else {
+            format!("{stop}stop:Boolean,")
+        };
+        let stop_condition = if shared { "choose" } else { "stop" };
+        text.push_str(&format!(r#"fun run{mask}({rounds}rounds:Int,{stop_parameter}source:String,{choose}choose:Boolean):Unit {{
+ var remaining=rounds
+ while(remaining>0){{if(choose){{borrow val a=view(source);left(a)}}else{{borrow val b=view(source);right(b);right(b)}};if({stop_condition}){{break}};remaining=remaining-1}}
+ println("after-loop");println(source)
+}}
+"#));
+        entry.push_str(&format!("println(\"mode-{mask}\");\n"));
+        expected.push_str(&format!("mode-{mask}\n"));
+        for rounds in 0..=2 {
+            for choose in [false, true] {
+                for stop in [false, true] {
+                    if shared && stop != choose {
+                        continue;
+                    }
+                    let name = |value| if value { "yes" } else { "no" };
+                    let stop_argument = if shared {
+                        String::new()
+                    } else {
+                        format!("{},", name(stop))
+                    };
+                    entry.push_str(&format!(
+                        "run{mask}({rounds},{stop_argument}source,{});\n",
+                        name(choose)
+                    ));
+                    let iterations = if stop { rounds.min(1) } else { rounds };
+                    for _ in 0..iterations {
+                        expected.push_str(if choose {
+                            "L\nkept\n"
+                        } else {
+                            "R\nkept\nR\nkept\n"
+                        });
+                    }
+                    expected.push_str("after-loop\nkept\n");
+                }
+            }
+        }
+    }
+    entry.push_str("take(source)}");
+    expected.push_str("kept\n");
+    text.push_str(&entry);
+    let label = if shared {
+        "counter-arm-conditional-break-shared-flag"
+    } else {
+        "counter-arm-conditional-break"
+    };
+    let run = emit_link_and_run(label, &text, "entry");
+    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+}
+
+#[test]
+fn native_prefix_counter_break_preserves_paths_and_dead_flags() {
+    run_prefix_counter_roles(0..3, 504, "prefix-counter-break-paths-and-flags");
+}
+
+#[test]
+fn native_prefix_counter_break_pairwise_roles() {
+    run_prefix_counter_roles(3..5, 192, "prefix-counter-break-pairwise-roles");
+}
+
+fn run_prefix_counter_roles(scenarios: std::ops::Range<usize>, expected_calls: usize, label: &str) {
+    let mut text = String::from(
+        "fun tick(own n:Int):Unit {}\nfun view(source:String):borrow String from source=source\nfun left(item:String):Unit {println(\"L\");println(item)}\nfun right(item:String):Unit {println(\"R\");println(item)}\nfun take(own source:String):Unit {println(source)}\n",
+    );
+    let mut entry =
+        String::from("fun entry(){val source=\"kept\".clone();val yes=true;val no=false;\n");
+    let mut expected = String::new();
+    let mut calls = 0;
+    for scenario in scenarios {
+        for mask in 0..[16, 8, 4, 8, 8][scenario] {
+            let mode = |bit| if mask & bit != 0 { "own " } else { "" };
+            let (rounds, choose, stop, before) = (
+                mode(1),
+                mode(2),
+                mode(4),
+                mode(if scenario == 4 { 4 } else { 8 }),
+            );
+            let prefix_parameter = if matches!(scenario, 0 | 4) {
+                format!("{before}before:Boolean,")
+            } else {
+                String::new()
+            };
+            let stop_parameter = if matches!(scenario, 0 | 1 | 3) {
+                format!("{stop}stop:Boolean,")
+            } else {
+                String::new()
+            };
+            let prefix_condition = ["before", "stop", "choose", "choose", "before"][scenario];
+            let stop_condition = if matches!(scenario, 2 | 4) {
+                "choose"
+            } else {
+                "stop"
+            };
+            let function = format!("run{scenario}_{mask}");
+            text.push_str(&format!(r#"fun {function}({prefix_parameter}{rounds}rounds:Int,{stop_parameter}source:String,{choose}choose:Boolean):Unit {{
+ if({prefix_condition}){{tick(1)}}else{{tick(2)}}
+ var remaining=rounds
+ while(remaining>0){{if(choose){{borrow val a=view(source);left(a)}}else{{borrow val b=view(source);right(b);right(b)}};if({stop_condition}){{break}};remaining=remaining-1}}
+ println("after-loop");println(source)
+}}
+"#));
+            for rounds in 0..=2 {
+                for before in [false, true] {
+                    for choose in [false, true] {
+                        for stop in [false, true] {
+                            if (scenario == 1 && before != stop)
+                                || (scenario == 2 && (before != choose || stop != choose))
+                                || (scenario == 3 && before != choose)
+                                || (scenario == 4 && stop != choose)
+                            {
+                                continue;
+                            }
+                            let name = |b| if b { "yes" } else { "no" };
+                            let prefix_argument = if matches!(scenario, 0 | 4) {
+                                format!("{},", name(before))
+                            } else {
+                                String::new()
+                            };
+                            let stop_argument = if matches!(scenario, 0 | 1 | 3) {
+                                format!("{},", name(stop))
+                            } else {
+                                String::new()
+                            };
+                            entry.push_str(&format!(
+                                "{function}({prefix_argument}{rounds},{stop_argument}source,{});\n",
+                                name(choose)
+                            ));
+                            calls += 1;
+                            for _ in 0..if stop { rounds.min(1) } else { rounds } {
+                                expected.push_str(if choose {
+                                    "L\nkept\n"
+                                } else {
+                                    "R\nkept\nR\nkept\n"
+                                });
+                            }
+                            expected.push_str("after-loop\nkept\n");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(calls, expected_calls);
+    entry.push_str("take(source)}");
+    expected.push_str("kept\n");
+    text.push_str(&entry);
+    let run = emit_link_and_run(label, &text, "entry");
+    super::boxed_enum_tests::assert_success(&run, expected.as_bytes());
+}

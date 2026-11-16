@@ -6,6 +6,7 @@ use lang_frontend::{
     name_resolution::SymbolKind,
     ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{AssignmentOperator, Expression, Item, NameMarker, VariableKind},
+    source::Span,
     type_checking::{
         CallableResultSource, Copyability, NominalKind, ParameterMode, UnitAggregateProjectionKind,
         UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget, UnitExpressionId,
@@ -17,6 +18,35 @@ use super::{Checker, receiver::Owner};
 use crate::ssa::{refine::RefineBody, unit_plan::resolve_nominal_runtime_field_types};
 
 impl Checker<'_, '_> {
+    /// Uncalled siblings do not contribute local storage types to this callable's plan.
+    pub(super) fn local_type_demands(&self, scope: Span) -> impl Iterator<Item = UnitTypeId> + '_ {
+        self.inputs
+            .typed
+            .body_symbol_types()
+            .keys()
+            .filter_map(move |symbol| {
+                if symbol.source_unit() != self.inputs.source_unit {
+                    return None;
+                }
+                let source = self
+                    .inputs
+                    .names
+                    .names()
+                    .source_units()
+                    .get(symbol.source_unit().index())?;
+                let span = source
+                    .resolution()
+                    .symbols()
+                    .get(symbol.symbol().index())?
+                    .span();
+                (span.source_id() == scope.source_id()
+                    && scope.start() <= span.start()
+                    && span.end() <= scope.end())
+                .then(|| self.symbol_type(*symbol))
+                .flatten()
+            })
+    }
+
     pub(super) fn local_variable(&mut self, mut declaration: ItemId) -> bool {
         while let Ok(node) = self.inputs.parsed.ast().items().get(declaration) {
             if let Item::Modified {

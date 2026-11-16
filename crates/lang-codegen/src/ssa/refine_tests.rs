@@ -940,6 +940,21 @@ fn checked_division_with_inactive_divisor_lowers_and_executes() {
 }
 
 #[test]
+fn literal_control_edges_keep_only_executed_owner_cleanup() {
+    let source = r#"fun main(): Unit {
+        var text: String? = "before".clone()
+        while (false) { text = "unreachable-loop".clone() }
+        while (true) {
+            if (false) { text = "unreachable-arm".clone() }
+            text = "after".clone()
+            break
+        }
+        if (text != null) { println(text) }
+    }"#;
+    counted(source, 2, b"after\n");
+}
+
+#[test]
 fn loop_reassignment_with_outer_view_and_break_preserves_resources() {
     let source = r#"fun main(): Unit {
         var outer: String? = "first".clone()

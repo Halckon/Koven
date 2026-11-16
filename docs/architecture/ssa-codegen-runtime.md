@@ -6,15 +6,15 @@
 
 `lang-codegen::ssa` 自有 typed SSA，不把 LLVM 类型当作 frontend 或中间语义。`Program` 包含 module、
 function、block、entity、type 和 operation；控制流通过 block parameters 与显式 edge operands 传值。
-每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。
+每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。完整 `ModelError` 与 Display/Error impl 位于私有 `model/error.rs`，根直接 re-export；ProgramOwner、atomic、typed ID 仍唯一留根。
 
-验证分三层执行：
+验证分三层执行；dominance位于私有 `verify/dominance.rs`，存储构造/投影位于 `verify_operation/storage.rs`，ownership单指令效果位于 `verify_ownership/operation.rs`，各根保留原调用门面：
 
 - 结构/类型验证：ID、block、dominance、operand/result、edge 和 terminator 契约；
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
 - ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop、control-flow 合并及[borrowed closure owned escape](borrowed-closure-escape.md)。闭包形成与实际析构检查同一 capture loan 的唯一活跃持有者。外部派生 loan 存活时拒绝释放父捕获或经父 loan 写入。
 
-未经验证的 SSA 不进入 LLVM adapter。SPEC-0341 的[空体标量前缀](../specs/active/0341-shared-lowering-core.md#已批准的-tail-break-独立标量前缀扩展2026-11-13)以独立事实和实际 CFG/资源参数运输证据接入有界 tail-break，不授权一般前缀。renderer 只用于确定性调试和测试，不是稳定序列化协议。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
+E2 native 准备先对完整 source-set（含未达声明）完成最终类型准入，`FinalTypes` 保留诊断/内部身份错误。未经验证的 SSA 不进入 LLVM adapter；adapter 的 instruction lowering 按 operation 家族分布，顶层 `lower_instruction` 只做编译期穷尽分发，家族实现位于私有 `llvm/adapter/instruction/`。SPEC-0341 的[空体标量前缀](../specs/active/0341-shared-lowering-core.md#已批准的-tail-break-独立标量前缀扩展2026-11-13)以独立事实和实际 CFG/资源参数运输证据接入有界 tail-break；另有[已批准的前缀与 counter 条件 break 组合](../specs/active/0341-shared-lowering-core.md#已批准的-scalar-prefix--counter-条件-break-组合2026-11-13)，独立证明 prefix join、实际计数初始化、header 与双出口，独立 Boolean 可按活性裁剪但共享 stop 与资源根必须保留。两者不授权一般前缀。renderer 只用于确定性调试和测试，不是稳定序列化协议。LLVM 模块已移除整模块 dead-code 豁免；仅测试消费的 IR render/smoke 入口限于测试构建，生产 object lowering 保留。SSA carry 以及整个 refine、unit_lower、unit_plan 子树恢复 dead-code 门禁，render 与仅旧路径测试消费的查询接口限制为测试构建；生产 SSA 顶层恢复 dead-code 门禁，仅保留具名模型变体及诊断载荷例外；Unit planner 测试及其五个子模块恢复 dead-code 门禁，未删减原断言或夹具；仅测试构建的 `lower_frontend` 实际子树也恢复 dead-code 门禁，别名目标不在其继承范围；其他历史测试夹具广域豁免仍待独立审计。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
 
 顺序容器的 `ContainerLength` 接受 Value 或 active shared Loan；verifier 拒绝 exclusive、失效和错误 target 的 loan。source `.size`与unit String读取见[接入边界](unit-container-storage.md#source-size与unit-string读取)。
 结果是 signed i32 Koven `Int`，LLVM header 用 target `size_t`；借用读取按创建不变量转为 i32。list-form 与 runtime-length 创建共用目标位宽的 logical length 上限。
@@ -30,9 +30,9 @@ provider builder 固定 length 快照、零 cursor 的入口运输、guard 真�
 
 Unit pointer-like nullable `when` 现消费真实 typed/owned 的 `null/else` descriptor与use witness，
 对 owned whole-root/temporary class、Box、Rc建立实际 `NullableBranch` proof，消费提取走 `NullableTake`。
-view/owner、来源generation、pending槽与分支cleanup逐实体绑定；替换与join结束旧proof，不沿旧generation恢复别名。
-有界 fresh owned HeapOwner `If` 支持一侧直接root-Borrow调用、另一侧为空；按当前根和真实null比较重新证明，
-不复活旧When view，也不扩展Rc/While、nested proof或live-If控制转移。String? 已支持直接statement-if的owned根借用与可信文本receiver复用父proof loan，以及if/when的owned结果交付；仅String If允许有入口资格的Shared(String)随CFG重绑定。新增类型身份复用niche表示，已有身份不变；结果使用原transfer/wrap，literal/Group Nothing?按typed结果物化并保留原清理顺序。嵌套Nothing? if/when沿显式控制身份及目标表示复用原CFG，独立Nothing?存储与nullable-subject专用路径不扩展；精确身份与范围见[文本补片](../specs/active/0368-text-byte-foundation.md#string-控制表达式结果交付2026-10-30)。
+view/owner、来源 generation、pending 槽与分支 cleanup 逐实体绑定。非空臂内直接根替换消费同源赋值及旧根析构事实，RHS 完成后先结束旧 proof 并析构旧值，再重绑。内层提前返回沿原退出清理释放当前 owner。
+有界 fresh owned HeapOwner `If` 按当前根和真实 null 比较在非空侧建立证明。非空臂的连续直接 root Borrow 前缀按已发布窄化使用确定末次调用，调用后结束证明，后续语句与 return 使用普通 lowering。空值臂可省略或执行普通 lowering，包含 return 与 Abort。
+普通 if 与 nullable when 合流前在持有单边外层 When proof 的实际前驱结束该借用，再传递各边当前 owner；当前 when 的局部 proof 仍在各臂退出时清理。可按 owner/loan 列携带其他根的 When proof；Rc、同根嵌套及 If/While proof 仍受限。String? 已支持直接statement-if的owned根借用与可信文本receiver复用父proof loan，以及if/when的owned结果交付；仅String If允许有入口资格的Shared(String)随CFG重绑定。新增类型身份复用niche表示，已有身份不变；结果使用原transfer/wrap，literal/Group Nothing?按typed结果物化并保留原清理顺序。嵌套Nothing? if/when沿显式控制身份及目标表示复用原CFG，独立Nothing?存储与nullable-subject专用路径不扩展；精确身份与范围见[文本补片](../specs/active/0368-text-byte-foundation.md#string-控制表达式结果交付2026-10-30)。
 原single路径及其三类owner 8alloc/8free、Rc retain/release计数属于历史验收；当前Unit普通SSA/LLVM/native输出
 证据不替代原mixed whole的计数/Abort验收，当前范围与待验结果见 [0341检查点](../specs/active/0341-shared-lowering-core.md#50-post054-修复与有限收尾检查点)。
 
@@ -164,7 +164,7 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 两种 view 错误仍映射原 lowering kind 与 None span；[中立支撑](lowering-support.md)保留原错误路径，不新增公开 SSA/planner API。
 常量 lowering 独立校验身份后共享原 driver；公开常量 native 仍消费专用 capability，不转换为普通 view。
 
-实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块。
+实现入口：`crates/lang-codegen/src/ssa/unit_plan.rs`、`unit_lower.rs` 及对应子模块；构造/Rc与String表达式lowering分列私有 `lower_frontend/{construction,string}.rs`。完整 refine call 求值/cleanup 位于私有 `refine/build/expression/call.rs`；既有 cfg(test) 的 `lower_frontend/control/merge.rs` 承载 exit-role/columns 汇合，根私有 MergeSlot 绑定保留 map_frames 间接消费者，不改生产路由或准入。
 
 ## LLVM 与 ABI 边界
 
@@ -182,19 +182,19 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 - nullable handle 使用 null niche 和条件 drop；[inline nullable](ownership-refinement.md#inline-nullable-布局)不强制成 pointer。
 - 一个 compilation unit 生成一个 LLVM module，并保留多 source DWARF 行映射。
 
-[Unit 容器存储](unit-container-storage.md)记录单文件有界接入与 void ABI 隔离。实现位于 `crates/lang-codegen/src/llvm/`；runtime helper 集中在 `llvm/runtime.rs` 与
-`llvm/runtime/` 子模块。
+[Unit 容器存储](unit-container-storage.md)记录单文件有界接入与 void ABI 隔离；长度桥及受检 buffer 分配位于私有 `llvm/runtime/buffer.rs`，RuntimeAbi 初始化/drop 分派仍留根，abort 只负责终止报告。
+条件析构由 `llvm/runtime/inline_nullable.rs`、`llvm/runtime/map_result.rs` 直接承载；String 分配/stdout 由 `llvm/runtime/string.rs` 承载，原 `RuntimeAbi` 调用与 ABI 不变。
 
 ## Native object 与发布
 
-`NativeUnitEntry` 的普通出口为 `emit_native_unit_object` / `emit_native_owned_unit_object`，常量出口为 `emit_native_constant_unit_object` / `emit_native_const_owned_unit_object`；两种 capability 不互换。
+`NativeUnitEntry` 的普通出口为 `emit_native_unit_object` / `emit_native_owned_unit_object`，常量出口为 `emit_native_constant_unit_object` / `emit_native_const_owned_unit_object`；两种 capability 不互换。 默认关闭的 [E2 显式能力](../specs/active/0341-shared-lowering-core.md#e2-默认关闭的显式完整-unit-能力)另行签发，并支持[同次分析多入口](../specs/active/0341-shared-lowering-core.md#e2-同次分析的显式多入口能力)的单 Program，以及[具名同 owner 窄入口](../specs/active/0341-shared-lowering-core.md#e2-具名同-owner-的封闭入口)，以及五 statement 的双具名 String owner 窄入口（按真实 End 匹配实参根，两个真实 Drop 分别消费），以及一个 named/一个 literal temporary 的混合入口（保留两类真实清理身份与实参次序）；四类入口的无插值 String 共用 frontend 原静态转义解码器，保留 UTF-8/NUL 实际字节及原 End/Drop 身份，仍拒绝插值；上述受限literal声明可按原源码次序交错，descriptor明确保留初始化顺序，emit/replay按原序建立值且独立映射scalar角色；caller四参数角色可按原签名列排列，入口仍按源码实参序求值并以原角色映射核ABI与清理；具名实参依原typed映射按源码序建立loan，仅最终调用按签名ABI列交付，原End/Drop源序不变；rounds复用原frontend整数literal解码，支持Int域内hex/binary/合法分隔符并保留原Span，仍拒绝运算表达式及非Int；Int/Boolean可在受限入口直接使用裸literal或与原scalar val混合，仅消费原planner已发布的同型Temporary loan End，Constant/root按源码实参处建立，调用ABI交付与String End/Drop身份不变，不扩nullable或Group；零参数显式Unit表达式体可沿同一原Call事实链形成受限入口，保留声明/body来源，不包装虚构Block或接受分支；同入口可按固定Pair证明顺序两次同instance全literal调用，每call独立完成全部End/Drop后再开始下一次，coverage与replay认领全部原调用，另以SharedNamedPair根证明单named owner跨同两call存活，首call不释放共享根、第二call末唯一原NamedDrop；SharedMixed独立域允许两call各自一个临时String，严格按原[firstTemp]及[secondTemp,named]次序释放，拒非对称混合；StaggeredNamedPair经定向双配置与strict验收，限定两plain named owner及两call，首call两不同根、次call同survivor，按原声明初始化并在各call原End后消费对应唯一NamedDrop；LateInitializedPair新增受限`call;val String;call`阶段根（定向双配置与strict已通过），首call完整临时清理后才按原位置形成晚owner，第二call同根双借用后原NamedDrop；仍拒其他跨调用owner组合及第三call；正式common路线新增固定Single/Pair的逐occurrence完整key→SSA绑定（双配置与strict已验收），同key旧域保持；新增私有DifferentTemporaryPair仅允许两个全literal调用不同已闭合E2callee（定向双配置与strict已验），逐位置原typed/fact/SSA双向映射，legacy共同key门仍拒None；DifferentSharedNamedPair受限支持一个plain named owner跨两个不同已闭合callee，根只初始化一次、按原8End及末唯一NamedDrop收束（原事实及双配置定向、strict已验），不扩late/staggered；独立DifferentSharedMixedPair限定不同callee各1named/1temporary，完整原Drop向量[tempA]/[tempB,named]及逐occurrence映射保持（原事实及双配置定向、strict已验）；独立DifferentStaggeredNamedPair限定两named root跨不同callee，首call两异root/次call同survivor，每point原单NamedDrop分别退役（原probe及双配置定向、strict已验）；DifferentLateInitializedPair仅不同callee的首全temporary调用→晚String val→次同named调用，保首完整清理后形成与原Drop向量（原probe及双配置定向、strict已验）；独立JointFinalNamedPair限定同callee两named root跨两call共同末退役，原声明序初始化和原末Drop顺序分开保留（原probe及双配置定向、strict已验）；DifferentJointFinalNamedPair将同一完整双根末退役证明受限用于两个不同闭合callee，逐原FullKey绑定且legacy拒None（probe及双配置定向、strict已验）；LateTemporarySharedPair限定同callee首两同Name、次一Name一temporary，原首空/末[temp,named]向量保持，反向仍拒（probe及双配置定向、strict已验）；EarlyTemporarySharedPair独立证明反向首temporary先退役而共享根继续供第二call使用，保持[temp]/[named]原点向量（probe及双配置定向、strict已验）；DifferentLateTemporarySharedPair受限证明两个不同闭合callee的SharedRoot→SharedMixed，保原完整[]/[temp,named]与逐occurrence身份（probe及双配置定向、strict已验）；不转换普通 owned、接受实验封包或自动接入 CLI。
 旧 `NativeEntry`、`emit_native_object` 及专属私有转接已删除；私有 `lower_frontend` 和旧 checker 仍有真实测试消费者，未随门面机械删除。 普通整数越界、未解析名和非法break拒绝，以及原for-loop/String泛型成功消费者已改走strict Unit；其余真实旧入口见证保留。
 普通与常量八参入口先执行用户 Into，再各经 factory 进入对应封闭 view；校验、reserve 与 emission 顺序见[交接流水线](pipeline-and-workspace.md#普通-owned-unit-交接)。
 
 普通 unit 的 sibling reserve/commit/Drop 算法不变，失败由 RAII 清理 object 临时文件并保留旧目标。
 CLI 的 linker/runner 与链接产物清理留宿主层；标准库源码仍作为普通 frontend input 进入同一 validated 链。
-
+D10 的 fresh no-carry 审计另以原 sealed core fact 的对象身份连接单 while、Borrow String source 与 Borrow/Value Boolean flag 两参数（或恰另一个未用 Boolean，在原入口 CFG 首边不再运输）：单/双 body consumer 前后 source 段各可空或一次 consumer；同次最终 Program 复核原完整 CFG validator、实际类型与全部调用映射。另限定两个顺序 while 各自一或二个 consumer，可共用一个或分别使用两个 Boolean flag（Borrow/Value 模式按原完整两/三参数角色逐一匹配，source 始终 Borrow String）、前/中/后三个 source 段各可空或一次原 source consumer，以原 AST 顺序与完整 owned facts 整组核对一次最终 receipt/CFG 后原子发布两条来源边，任一缺证整组保缺口。该窄证明不提升旧 Partial loop lineage，不证明循环终止或一般迭代行为；三个及以上 body consumer、单段两次及以上 source consumer 仍保审计缺口。 Ordinary 双臂可带恰一次原 typed source 前消费（原入口 DirectCall 与 source 持续运输逐项核验），另限完整两/三参数 ABI（source Borrow String，其余 Boolean Borrow/Value）：两个独立原 Name 条件可在两参数时共用同一 Boolean 角色，三参数时必须各用不同角色且无未用参数，由原 ledger 及完整七块/实体/Unit Return 证书在最终 verifier 后原子认证；独立 tail-break 域另以原 sealed break wrapper、原 transfer/target/cleanup 与八块全 caller 证书证明两臂 End 后退出（完整三参数 ABI：source Borrow String、两个独立 Boolean 各 Borrow/Value，无 counter；入口和共同 exit 各可恰一次原 typed source 消费，两侧原 call/argument/loan ordinal 与全部双臂 acquisitions 联合去重，实际全边逐角色证明零迭代和 break 路径同根运输）；不以原 arm 局部 validate 冒充完整 caller，范围见 [SPEC-0341](../specs/active/0341-shared-lowering-core.md)。 D10 另以原 sealed bounded-counter wrapper 连接完整三个 ABI（source String 始终 Borrow，rounds Int 与 choose Boolean 各可 Borrow/Value）的初始化、guard 与减一更新；独立九角色全 caller 证书在原类型/alias/运输与完整 source ledger 后，仅静态核唯一原 CheckedSubtract 失败块的精确 Abort reason、常量一来源和更新 Span。旧普通全函数检查仍拒绝 Abort，成功 Int 回边与两臂 fresh 末 End 分别核验；不证明一般终止或执行失败路径。独立 counter-break 域另从原 sealed wrapper 与 stop Name 身份核完整三/四参数 ABI（三参数时 choose/stop 共用同 Boolean，四参数时各自独立且无未用参数；source String 始终 Borrow，rounds Int 与 Boolean 各可 Borrow/Value）和十二唯一角色，双臂 End 后 gate 分为直接 break exit 与 continued checked 两路；原 break Span/cleanup、零迭代出口、唯一 checked-failure 和全实体覆盖分别闭合；可在循环后恰一次原 typed source 消费，专属 ledger 联合两臂与后消费 ordinal，所有实际汇入边证明 finished/break 两路仅同根 source 进入唯一出口 DirectCall，不跨用 counter9 权限。
 ## 测试覆盖位置
 
-SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../archive/development/codegen-receiver-test-migration.md)。
-planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../archive/development/codegen-plan-test-migration.md)；native公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。
+SSA/lowering 覆盖位于 `unit_lower_*_tests.rs`、`*_operation_tests.rs` 和 LLVM 模块测试；aggregate/tagged、container/provider、scalar/borrowed_calls及ownership/places领域由原测试根加载私有子模块，通用harness/helper仍留各根；receiver的46项由原私有cfg(test)入口加载七个领域模块，见[搬迁验收](../archive/development/codegen-receiver-test-migration.md)。numeric proof 独立解析/Origin 坐标比较位于私有 `while_flow_tests/numeric_proof_contract/source_identity.rs`，唯一 Spans/only 及完整 CFG/资源证明留根，FQN 不变。
+planner的48项保留私有cfg(test)入口与七域组织，见[plan验收](../archive/development/codegen-plan-test-migration.md)；native入口/object边界五项位于 `native_entry_tests.rs`，接口/委托14项与类接收者10项分列 `unit_interface_delegation_tests.rs`、`unit_class_receiver_tests.rs`，harness与唯一目录辅助仍留 `native/unit_tests.rs`；公共路径另由 `lang-cli` integration tests 覆盖，命令与扩大范围见[开发测试指南](../development/testing.md)。

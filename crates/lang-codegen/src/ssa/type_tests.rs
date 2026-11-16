@@ -578,12 +578,13 @@ pub(in crate::ssa) mod unit_lower_container_size_tests {
     use super::super::{
         model::{Definition, EntityId, EntityType, Function, LoanKind, Operation, Program},
         render::render_program,
-        unit_lower::lower_scalar_unit_with_entry,
+        unit_lower::lower_owned_unit_with_entry,
         unit_lower_test_support::{analyze, declaration, parsed},
     };
     use crate::test_support::diagnostics::assert_text_eq;
     use lang_frontend::{
-        name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
+        name_resolution::SourceUnitInput, ownership_checking::owned_compilation_unit_view,
+        source::SourceMap, type_checking::standard_environments,
     };
 
     #[test]
@@ -837,26 +838,16 @@ pub(in crate::ssa) mod unit_lower_container_size_tests {
         let (name_environment, environment) = standard_environments();
         let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
         let entry = declaration(&names, "q", "entry");
-        let (program, _) = lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &environment,
-            &typed,
-            &owned,
-            entry,
-        )
-        .expect("source size is a checked read of an existing container");
-        let (permuted, _) = lower_scalar_unit_with_entry(
-            &sources,
-            &reversed,
-            &names,
-            &environment,
-            &typed,
-            &owned,
-            entry,
-        )
-        .expect("source identity must survive input permutation");
+        let unit =
+            owned_compilation_unit_view(&sources, &inputs, &names, &environment, &typed, &owned)
+                .expect("sealed Unit view");
+        let (program, _) = lower_owned_unit_with_entry(&unit, entry)
+            .expect("source size is a checked read of an existing container");
+        let unit =
+            owned_compilation_unit_view(&sources, &reversed, &names, &environment, &typed, &owned)
+                .expect("sealed Unit view");
+        let (permuted, _) = lower_owned_unit_with_entry(&unit, entry)
+            .expect("source identity must survive input permutation");
         assert_text_eq!(render_program(&program), render_program(&permuted));
         assert_text_eq!(
             crate::llvm::render_verified_program(&program).unwrap(),

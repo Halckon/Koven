@@ -1,4 +1,5 @@
 //! compilation-unit lambda 的 function pointer/concrete closure、thunk 与调用 lowering。
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 use std::collections::BTreeMap;
 
@@ -275,7 +276,7 @@ pub(in crate::ssa) mod layout {
         instances: &[crate::ssa::unit_plan::UnitPlannedInstance],
         names: &ValidatedCompilationUnitNames,
         typed: &lang_frontend::type_checking::CompilationUnitTypes,
-        owned: &lang_frontend::ownership_checking::CompilationUnitOwnership,
+        owned: &dyn UnitLoweringFacts,
         types: &mut UnitTypeLowering,
     ) -> Result<CallableLayouts, LoweringError> {
         let mut closures = BTreeMap::new();

@@ -59,6 +59,10 @@ Linux LLDB 测试显式保留 ASLR，避免为固定地址请求 personality 变
 版本/包身份，不以 apt/rustup 修复。Actions HOME、checkout、冷缓存查找/保存与产物上传
 已在上述 CI 实际通过；缓存命中后的恢复/解包仍待验证，SPEC-0390 保持 in-progress。
 Preview24 继续独立生产和消费，不能复用核心镜像证明发布 ABI。
+独立镜像验收的 PR 路径限于 Docker 构建目录、实际安装和校验脚本、候选门禁入口及
+`rust-toolchain.toml`。核心 CI 编排变更仍由固定镜像上的实际核心门禁验证。只调整
+镜像 workflow 编排时，可在该分支手动执行镜像验收；发布仍只允许可信 main 手动执行。
+普通文档追加仍通过 docs 门禁，候选镜像任务只在 PR 累计差异包含上述输入时触发。
 
 ## Linux CI 磁盘故障诊断
 
@@ -118,6 +122,11 @@ LLVM 21.1.8，初始盘容量 145GiB、空闲 88GiB；composition 末 target 从
 
 ## Codegen 大体积测试诊断
 
+核心 codegen 测试继续启用 `loan-observation-test-support`。parent/child receipt 故障、
+sanitizer 导出和生成资源导出共用 `scripts/run_codegen_default_tests.sh`，保留默认 feature、
+原有测试选择和 Rust 源码行号。该入口仅为 `lang-codegen` 的测试编译配置行号表与
+64 个编译单元。Koven 生成的 IR、DWARF、native 输出与 sanitizer 验收继续逐项比较。
+
 普通 SSA 测试族及 LLVM/native 的大 payload 断言通过 `test_support::diagnostics` 把完整
 证据写入系统临时目录的 `koven-codegen-diagnostics-<pid>-<sequence>.log`。每个测试线程
 一份文件，首行标记测试名；create_new 防止旧文件和并行线程互相覆盖，缓冲写入后逐条 flush。
@@ -165,16 +174,21 @@ stage还完整选择 `const_owned_compilation_unit_view`、`const_owned_unit_vie
 
 ## 双宿主 CI
 
-`.github/workflows/ci.yml` 配置 macOS 14 AArch64 / Ubuntu 24.04 x86_64 的 check、严格
-clippy、核心测试、`check_stage_integration.sh` 和 `check_guide_litmus.sh`；fmt 只运行一次。
+`.github/workflows/ci.yml` 在 macOS 15 AArch64 与 Ubuntu 26.04 x86_64 运行 check、严格
+clippy 和核心组合测试。fmt 只运行一次。组合测试执行 stage integration，并补跑核心和
+stage 没有覆盖的 Guide litmus 目标。
 同一双宿主 test job 通过 `check_integration.sh` 完整执行 `cargo test --locked -p lang-frontend --test ownership_iteration`，
 不加测试名过滤器或细分路径条件，随现有Rust PR/main/dispatch门禁执行；不是frontend全量。
-Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 安装 LLVM 官方 Noble 21 签名源
-中的固定 21.1.8 包及同版本 LLDB/Python 绑定，macOS 保留 `brew install llvm@21` 与系统 LLDB；版本、工具或所需 SB API 缺失直接失败。
+Rust 固定 1.96.0，check/clippy/test 使用 `--locked`。Linux 核心任务使用预置镜像中的
+LLVM 21.1.8 与同版本 LLDB/Python 绑定，macOS 使用 `brew install llvm@21` 与系统 LLDB。
+版本、工具或所需 SB API 缺失会使任务失败。Linux Preview 继续在 Ubuntu 24.04 验证发布 ABI。
 
 PR 的普通文档变更保留路径豁免；全部 Guide、compiler-specs、scripts、workflow/LLVM action
 变更触发 Rust 门禁。代码门禁成功后追加普通文档，可按 [SPEC-0293](../archive/specs/0293-pr-code-ci-reuse.md)
-复用同 PR、同 base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
+复用同 PR、同实际 merge base、同 head/merge 有效输入的真实 job 证据；汇总独立重验，不能只凭 workflow success。
+base 取本轮测试的 GitHub 合成 merge 的第一父提交，同时核对第二父提交、事件 head 和 PR 身份。
+归档更新的四个固定 roadmap 文件由每次 PR 的 docs 门禁验证生成视图与 conformance blocker
+一致性，允许复用旧代码执行结果。复用不会为本轮生成新的 conformance 报告。
 证据不可用保守重跑，docs 每次 PR 运行，跳过不表示本 head 再次执行或生成新 preview 包。
 复用 required jobs 与 workflow 实际名称、OS 矩阵由 `test_pr_ci_reuse.py` 覆盖全部八组
 路径开关组合；拒绝日志标明 run、attempt 及缺失或未成功 job，摘要保留首个候选拒绝原因。
@@ -188,6 +202,9 @@ active/archive 的编号真源为 [Spec 冻结库存](../specs/inventory.md)；�
 docs 和最终汇总失败。parser/脚本、base 或其他代码输入变化仍按原证据规则保守重跑。
 main 与 workflow_dispatch 强制执行全部配置，feature/fix push 保持
 仅文档/fmt 的现有成本策略；完整矩阵在 PR 执行。最终汇总拒绝 changes 失败或必需 job 跳过。
+通过路径、文档和格式检查后，双宿主 Check/Clippy、测试与 Preview producer 并行。
+独立 consumer 仍等待对应 producer 并验证本次产物。最终汇总等待全部必需任务；
+任一支失败均会阻止汇总通过。
 
 独立的[手写 Rust 尺寸护栏](rust-size-policy.md)在所有上述事件运行，包含policy测试和基于
 明确Git base的增长检查；纯文档PR也不能跳过它。其失败/取消/缺失/跳过均使汇总失败。

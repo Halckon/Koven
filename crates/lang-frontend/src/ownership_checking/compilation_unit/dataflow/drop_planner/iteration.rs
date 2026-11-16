@@ -272,6 +272,12 @@ impl DropPlanner<'_, '_> {
                 && loan.argument() == self.checker.unit_expression(argument)
         }) {
             let acquisition = self.iteration_actions.begin(loan.clone());
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            if let Some(probe) = &mut self.origin_probe {
+                probe.push(
+                    super::owner_transport::origin_probe::Event::BorrowRegistered(loan.clone()),
+                );
+            }
             state.pending_loans.push(super::model::PendingLoan(
                 Action::EndCallLoan(loan.clone()),
                 self.loop_boundaries.len(),
@@ -295,6 +301,12 @@ impl DropPlanner<'_, '_> {
                 )
         }) {
             self.iteration_actions.begin_receiver(fact.clone());
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            if let Some(probe) = &mut self.origin_probe {
+                probe.push(
+                    super::owner_transport::origin_probe::Event::ReceiverRegistered(fact.clone()),
+                );
+            }
             state.pending_loans.push(super::model::PendingLoan(
                 Action::EndReceiverLoan(fact.clone()),
                 self.loop_boundaries.len(),
@@ -313,6 +325,17 @@ impl DropPlanner<'_, '_> {
         for index in (0..state.pending_loans.len()).rev() {
             if state.pending_loans[index].1 >= minimum_depth {
                 let super::model::PendingLoan(action, _, _) = state.pending_loans.remove(index);
+                #[cfg(any(test, feature = "d10-catalog-experiment"))]
+                if let Action::EndCallLoan(loan) = &action
+                    && let Some(probe) = &mut self.origin_probe
+                {
+                    probe.push(
+                        super::owner_transport::origin_probe::Event::UnwindBorrowRemoved {
+                            loan: loan.clone(),
+                            point: point.into_unit(self.checker.source_unit),
+                        },
+                    );
+                }
                 if self.is_observed_borrow_source_unwind(point, &action, state) {
                     self.borrow_source_unwind_actions
                         .insert(self.iteration_actions.len());

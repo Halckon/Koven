@@ -6,8 +6,11 @@ use crate::{
         LoanKind, UnitDirectCallLoanEndFact, UnitIterationCleanupAction as Action, UnitLoanFact,
         UnitLoanTarget,
     },
-    parser::Expression,
-    type_checking::{CallableResultSource, ExpressionCategory, UnitCallTarget},
+    parser::{Expression, LiteralKind},
+    type_checking::{
+        BuiltinType, CallableResultSource, Copyability, ExpressionCategory, UnitCallTarget,
+        UnitTypeKind,
+    },
 };
 use std::collections::BTreeMap;
 
@@ -85,6 +88,38 @@ impl DropPlanner<'_, '_> {
                         && self.is_move_only_temporary(loan.argument().expression())
                         && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
                 }
+                Expression::Literal(LiteralKind::Integer(_) | LiteralKind::Boolean(_)) => {
+                    // Observe only the original bare Copyable scalar operand. A grouped
+                    // literal is deliberately not widened by the traversal above.
+                    let argument = loan.argument();
+                    let Some(ty) = self.checker.typed.expression_type(argument) else {
+                        return false;
+                    };
+                    let Some(contracts) = self.checker.contracts_by_call.get(&loan.call()) else {
+                        return false;
+                    };
+                    let mut matching = contracts
+                        .iter()
+                        .filter(|contract| contract.argument() == argument);
+                    let Some(contract) = matching.next() else {
+                        return false;
+                    };
+                    if matching.next().is_some() || contract.parameter_type() != ty {
+                        return false;
+                    }
+                    return kind == LoanKind::Shared
+                        && operand == argument.expression()
+                        && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == argument)
+                        && self.checker.typed.expression_category(argument)
+                            == Some(ExpressionCategory::Temporary)
+                        && self.checker.typed.copyability(ty) == Copyability::Copyable
+                        && matches!(
+                            self.checker.typed.types().get(ty),
+                            Some(UnitTypeKind::Builtin(
+                                BuiltinType::Int | BuiltinType::Boolean
+                            ))
+                        );
+                }
                 Expression::String { .. } => {
                     // The argument token is registered only after every interpolation
                     // completed. It borrows the outer String, not any interpolation input.
@@ -112,6 +147,16 @@ impl DropPlanner<'_, '_> {
             let super::model::PendingLoan(action, _, acquisition) =
                 state.pending_loans.remove(index);
             if let Action::EndCallLoan(loan) = &action {
+                #[cfg(any(test, feature = "d10-catalog-experiment"))]
+                if let Some(probe) = &mut self.origin_probe {
+                    probe.push(
+                        super::owner_transport::origin_probe::Event::DirectBorrowEnded {
+                            loan: loan.clone(),
+                            point: PlannerDropPoint::CallReturn(call)
+                                .into_unit(self.checker.source_unit),
+                        },
+                    );
+                }
                 self.iteration_actions.observe_multi_auxiliary_return(
                     loan,
                     acquisition.as_ref(),

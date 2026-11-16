@@ -67,6 +67,10 @@ Cargo 将该 runner 注册为 `fixtures` integration suite。
 共享表、诊断编号、public fact 与跨 crate 边界由对应领域 suite 共同覆盖；如何按影响面选择和扩大
 验证见[开发测试指南](../development/testing.md)。
 
+生成资源门禁的 L0131 变异校准使用 frontend 的 `unit_single_source_analysis` 测试目标。
+隔离工作树中分别构建变异和恢复版本，比较同一 I1 源码的诊断码、主 Span 与标签。
+该校准只运行 frontend 阶段。生成程序的 LLVM、native 和资源计数仍由 codegen 门禁验证。
+
 ## 确定性与失败边界
 
 - 正常用户错误的回归测试重复断言相同 code、Span、detail 和顺序。
@@ -83,3 +87,9 @@ macOS 的 DWARF 调试器测试保留 LLDB 断点/运行断言。Linux 的 DWARF
 `llvm-dwarfdump --debug-line` 检查生成 ELF object 中的 `.ko` 文件、行和列，再经系统 C driver
 链接并实际运行；该测试不声称 Linux 调试器断点或变量查看已通过。工具前提与未运行平台的
 报告规则见[测试指南](../development/testing.md#本机目标与工具前提)。
+
+资源生命周期测试 `ownership_resource_deinit/exchange.rs` 私有域承载root/direct-field replace/swap的十二项完整转移/清理测试；根共享Single/Unit检查入口、原Unit helper与全部断言保持唯一。
+
+`tests/fixtures.rs`保留共享模型/路径/加载校验/重复解析与报告；私有`fixtures/{discovery,execution}.rs`负责发现-sidecar与suite执行，原`tests`模块外置`fixtures/contracts.rs`且FQN不变，平台条件保护原样保留。
+
+Conditional-leaf iteration测试的实例/selector/phi回放器位于私有 `conditional_leaf/replay.rs`；场景、fixture及静态/动态断言留原测试函数，原FQN与三个tail不变，未合并其他独立oracle。

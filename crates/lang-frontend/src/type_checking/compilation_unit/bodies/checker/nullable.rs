@@ -15,7 +15,7 @@ use crate::{
 use super::{BodyChecker, UnitExpressionId, flow::ConditionFacts, flow::FlowKey};
 
 impl BodyChecker<'_> {
-    /// Comparison-only syntax classification; do not alter container inference.
+    /// Read-only literal classification for comparisons and When selectors.
     pub(super) fn is_null_comparison_literal(
         &self,
         source: SourceUnitId,

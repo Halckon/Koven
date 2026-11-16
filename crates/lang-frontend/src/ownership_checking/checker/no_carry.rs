@@ -22,6 +22,7 @@ pub(super) struct Session {
     first_closed: Option<core::Plan<SymbolId>>,
     branch: bool,
     exit: Option<core::BreakPlan>,
+    conditional: Option<core::CounterBreakPlan<SymbolId>>,
     broke: bool,
     valid: bool,
     counter: Option<core::CounterPlan<SymbolId>>,
@@ -157,6 +158,14 @@ impl Checker<'_> {
         {
             return;
         }
+        if let Some(prefix) = selection.conditional.as_ref().and_then(|c| c.prefix)
+            && selection
+                .counter
+                .as_ref()
+                .is_none_or(|c| !self.prefix_ready(statement, prefix, c.initial_statement, &entry))
+        {
+            return;
+        }
         let plan = selection.first;
         self.no_carry = Some(Session {
             frame: core::Frame::new(plan.clone(), entry.clone()),
@@ -171,6 +180,7 @@ impl Checker<'_> {
             first_closed: None,
             branch: selection.branch.is_some(),
             exit: selection.exit,
+            conditional: selection.conditional,
             broke: false,
             valid: true,
             counter: selection.counter,
@@ -518,7 +528,15 @@ impl Checker<'_> {
         let actual = exit_flow
             .as_ref()
             .map(|state| self.resource_snapshot(state));
-        let expected_edge = if s.exit.is_some() {
+        let expected_edge = if s.conditional.is_some() {
+            s.broke
+                && flows.continues.is_none()
+                && flows
+                    .next
+                    .as_ref()
+                    .is_some_and(|state| self.resource_snapshot(state) == s.entry)
+                && flows.breaks.is_some()
+        } else if s.exit.is_some() {
             s.broke && flows.next.is_none() && flows.breaks.is_some() && flows.continues.is_none()
         } else {
             flows.breaks.is_none() && flows.continues.is_none()

@@ -353,7 +353,8 @@ impl UnitExpressionLowerer<'_> {
                 ));
             }
         };
-        self.function
+        let (_instruction, _) = self
+            .function
             .append_instruction(
                 self.block,
                 Operation::Drop { owner },
@@ -361,6 +362,13 @@ impl UnitExpressionLowerer<'_> {
                 Origin::Source(fact.value_origin()),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, fact.value_origin()))?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        crate::ssa::d10_project_audit::compatibility::drop_fact(
+            self.function.id,
+            fact,
+            _instruction,
+            owner,
+        );
         Ok(())
     }
 

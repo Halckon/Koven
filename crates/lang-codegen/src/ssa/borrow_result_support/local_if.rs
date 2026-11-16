@@ -247,8 +247,8 @@ pub(in crate::ssa) mod ordinary_local {
         ast::{ExpressionId, StatementId},
         name_resolution::{SourceUnitId, UnitSymbolId},
         ownership_checking::{
-            BorrowBindingFact, BorrowBindingStorage, CompilationUnitOwnership, UnitDropPoint,
-            UnitLoanTarget,
+            BorrowBindingFact, BorrowBindingStorage, UnitDropPoint, UnitLoanTarget,
+            UnitPreflightFacts,
         },
         parser::{Expression, Item, ParsedFile, Statement, VariableKind},
         source::Span,
@@ -266,7 +266,7 @@ pub(in crate::ssa) mod ordinary_local {
     pub(in crate::ssa) fn policy(
         file: &ParsedFile,
         typed: &CompilationUnitTypes,
-        owned: &CompilationUnitOwnership,
+        owned: &dyn UnitPreflightFacts,
         fact: &Binding,
     ) -> Option<Policy> {
         let source = fact.source_loan()?;
@@ -343,7 +343,7 @@ pub(in crate::ssa) mod ordinary_local {
     /// For disjoint lexical controls, only follow statement order through ordinary blocks.
     pub(in crate::ssa) fn allowed_controls(
         file: &ParsedFile,
-        owned: &CompilationUnitOwnership,
+        owned: &dyn UnitPreflightFacts,
         fact: &Binding,
         argument_controls: &BTreeMap<UnitExpressionId, BTreeSet<usize>>,
     ) -> BTreeSet<usize> {
@@ -422,7 +422,7 @@ pub(in crate::ssa) mod ordinary_local {
     pub(in crate::ssa) fn argument_returns(
         file: &ParsedFile,
         typed: &CompilationUnitTypes,
-        owned: &CompilationUnitOwnership,
+        owned: &dyn UnitPreflightFacts,
         fact: &Binding,
     ) -> Option<BTreeSet<usize>> {
         let source = fact.source_loan()?;

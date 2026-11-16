@@ -1,4 +1,5 @@
 //! Unit source identities and frozen routes consume the sealed frontend provenance tables.
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 use super::*;
 use crate::ssa::lowering_support::callable_instances::{CallableArena, CallableKey};
@@ -123,7 +124,7 @@ pub(super) struct CallablePlanner<'a> {
     plan: UnitCallablePlan,
     parsed: &'a [&'a ParsedFile],
     typed: &'a CompilationUnitTypes,
-    owned: &'a CompilationUnitOwnership,
+    owned: &'a dyn UnitLoweringFacts,
     templates: &'a [UnitFunctionTemplate],
     by_target: &'a BTreeMap<UnitCallableTarget, usize>,
 }
@@ -132,7 +133,7 @@ impl<'a> CallablePlanner<'a> {
     pub(super) fn new(
         parsed: &'a [&'a ParsedFile],
         typed: &'a CompilationUnitTypes,
-        owned: &'a CompilationUnitOwnership,
+        owned: &'a dyn UnitLoweringFacts,
         templates: &'a [UnitFunctionTemplate],
         by_target: &'a BTreeMap<UnitCallableTarget, usize>,
     ) -> Self {

@@ -61,7 +61,7 @@ impl Checker<'_> {
                 expression: receiver.expression().index(),
             });
         };
-        self.loans.push(UnitLoanFact::new(
+        self.push_loan(UnitLoanFact::new(
             expression,
             receiver,
             target,

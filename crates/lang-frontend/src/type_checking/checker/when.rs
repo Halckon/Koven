@@ -313,6 +313,11 @@ impl Checker<'_> {
             })?;
             if reaches_body && self.pending_statement_exit(entry.body, result.falls_through)? {
                 pending_exits.merge(self.pending_branch_edges(entry.body)?);
+            } else if !reaches_body {
+                // Static body checking can complete even when no selector can reach it.
+                self.iteration_recovery
+                    .abrupt_statements
+                    .insert(entry.body.index());
             }
             if result.falls_through {
                 exits.push(self.flow_facts.clone());

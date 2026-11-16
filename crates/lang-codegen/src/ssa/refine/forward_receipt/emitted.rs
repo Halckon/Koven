@@ -128,7 +128,7 @@ impl Emitted {
         function: &Function,
         span: Span,
     ) -> Result<(), LoweringError> {
-        let Some(plan) = plans.entries.first() else {
+        let Some(_) = plans.entries.first() else {
             return if self.receipt.is_none() && !self.returned {
                 Ok(())
             } else {
@@ -136,8 +136,37 @@ impl Emitted {
             };
         };
         let r = self.receipt.ok_or_else(|| invalid(span))?;
-        if !self.returned
-            || function.id() != r.caller
+        if !self.returned {
+            return Err(invalid(span));
+        }
+        r.validate(plans, function, span)?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        crate::ssa::d10_project_audit::forward_consumption::record(plans, function, &r);
+        #[cfg(test)]
+        ci_tests::record(plans, function, &r, span);
+        #[cfg(test)]
+        RECEIPTS.with(|v| {
+            if let Some(v) = v.borrow_mut().as_mut() {
+                v.push(r);
+            }
+        });
+        Ok(())
+    }
+}
+
+impl Receipt {
+    pub(crate) fn validate(
+        &self,
+        plans: &Plans,
+        function: &Function,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        plans.finish(span)?;
+        let [plan] = plans.entries.as_slice() else {
+            return Err(invalid(span));
+        };
+        let r = self;
+        if function.id() != r.caller
             || function.blocks.len() != 1
             || function.instructions.len() != 1
             || r.ids != plan.ids
@@ -164,14 +193,6 @@ impl Emitted {
         {
             return Err(invalid(span));
         }
-        #[cfg(test)]
-        ci_tests::record(plans, function, &r, span);
-        #[cfg(test)]
-        RECEIPTS.with(|v| {
-            if let Some(v) = v.borrow_mut().as_mut() {
-                v.push(r);
-            }
-        });
         Ok(())
     }
 }

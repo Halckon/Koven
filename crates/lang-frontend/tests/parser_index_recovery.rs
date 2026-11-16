@@ -747,3 +747,18 @@ fn adjacent_poison_does_not_turn_a_caller_block_into_a_trailing_lambda() {
         );
     }
 }
+
+#[test]
+fn a_call_poison_does_not_hide_the_index_closer_behind_an_error_postfix() {
+    for call in ["f(0 β)", "f(0, β)"] {
+        let key = format!("{call} + γ.[]");
+        let index = format!("xs[{key}]");
+        assert_call_with_index(
+            &format!("invoke({index}, next)"),
+            &index,
+            &key,
+            true,
+            &[("L0001", "β"), ("L0001", "γ")],
+        );
+    }
+}

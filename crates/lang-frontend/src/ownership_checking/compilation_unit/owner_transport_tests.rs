@@ -3,6 +3,7 @@ pub(super) mod branch_boundaries;
 mod capture;
 pub(super) mod capture_branch_release;
 pub(super) mod capture_composition;
+mod child_carry_candidate;
 pub(super) mod choice_model;
 pub(super) mod combination;
 pub(super) mod if_observation;

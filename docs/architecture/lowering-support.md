@@ -109,7 +109,9 @@ owner；Resource temporary 在 if body 前析构，具名 Resource 的词法清�
 一般aggregate projection仍以目标Span拒绝；M1A通过字段replace更新，不证明普通
 `report.text = ...`已可执行。这里仅静态核对当前分流，未新增或执行源码回归。
 
-普通`Resource?`工厂即使没有Map或判空，single仍在函数返回类型登记时被resource nominal
-验证拒绝。现存`owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison`
-固定完整函数Span的UnsupportedNode，并有unit同源verifier正例；该边界早于body，
-与0296的具名/临时判空清理无关。本次只读核对测试与分流，没有重跑。
+普通`Resource?`工厂的旧single planner拒绝见证已由`c7b8cd631`退休；旧`lower_frontend`
+仅为测试保留，不把其UnsupportedNode及完整函数Span作为现行语言限制。
+`owned_null_cleanup_tests::single_nullable_factory_planning_boundary_precedes_any_comparison`
+保留原完整源码，在MemoryDocument与Rooted两种严格Unit适配下核原factory/entry/deinit
+身份、分配→nullable包裹→返回→实际调用→唯一Drop及SSA/LLVM；不声明native析构已验证。
+历史0296的拒绝记录不改写；迁移依据及边界见[0341退休说明](../specs/active/0341-shared-lowering-core.md#nullable-resource-factory-旧拒绝见证退休说明2026-11-16)。

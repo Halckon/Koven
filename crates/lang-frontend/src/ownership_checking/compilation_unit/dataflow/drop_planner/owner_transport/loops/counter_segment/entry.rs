@@ -176,7 +176,9 @@ impl ControlTransactions {
 mod tests {
     thread_local! {static PHASE:std::cell::Cell<usize>=const{std::cell::Cell::new(0)};static HITS:std::cell::Cell<usize>=const{std::cell::Cell::new(0)};}
     #[test]
+    #[ignore = "CI-only owner fault injection; exact dual-host entry runner"]
     fn ci_only_bridge_scalar_entry_requires_actual_ordered_completion() {
+        assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
         use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
         let text = r#"fun run(n: Int) {
             var n0=n; var g0=n0>0; var a0="a"; var b0="b";

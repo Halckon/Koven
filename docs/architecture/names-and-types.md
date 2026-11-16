@@ -5,7 +5,7 @@
 ## 单文件分析
 
 `name_resolution::resolve_names` 使用只读 `ParsedFile` 与显式 `NameEnvironment`，建立 scope、symbol、reference 和 overload set。
-Unit 按文件复用该原语，再叠加跨文件声明身份与 package/import 规则。resolver 不读取文件系统或隐式加载 prelude。
+Unit 按文件复用该原语，再叠加跨文件声明身份与 package/import 规则。resolver 不读取文件系统或隐式加载 prelude。 完整表达式遍历位于私有 `name_resolution/resolver/expression.rs`，原 Resolver、scope/symbol 分配及诊断排序仍由根维护。
 
 单文件解析使用类型/值双命名空间。顶层和成员先收集后解析，block local 在 initializer 完成后可见，
 嵌套作用域允许遮蔽。引用结果保留声明身份和源码 Span，未解析与歧义形成结构化诊断。
@@ -82,7 +82,7 @@ L0158 定位运算符；短路 RHS 不进入值求值。失败依赖不发布值
 
 ## nullable when 与非空来源事实
 
-Unit selector 提前退出只截断尚未匹配的路径，保留前序匹配和独立的真假待定写回。 `TypedFile::nullable_whens` / `nullable_when` 保留 subject、来源类别、稳定 symbol、entry/alternative
+分组包裹的 null selector 沿用主体的 nullable 期望类型。Unit selector 提前退出只截断尚未匹配的路径，保留前序匹配和独立的真假待定写回。 `TypedFile::nullable_whens` / `nullable_when` 保留 subject、来源类别、稳定 symbol、entry/alternative
 输入与剩余域；Boolean/enum 保有限域原子，nullable 域区分 null/non-null，字段/元素不绑定重新求值。
 Unit 为有 subject 的 `null -> …; else -> …` 发布 `UnitNullableWhenDescriptor`，以 source-qualified
 expression/subject/body、真实 reference、symbol 与 generation 连接分支域及 `UnitNullableWhenUseWitness`。
@@ -190,7 +190,7 @@ visibility；跨文件 private 访问产生 L0154，import target 的 L0148/L014
 同文件已绑定 classifier/object 的两段常量路径复用 static member 选择并补全 terminal symbol；不存在的本地静态成员报 L0080。
 private 非常量成员可见性、普通值接收者及同名参数遮蔽仍走原类型路径。
 
-String clone 的 typed identity 与后续阶段运输见 [String clone 链路](string-clone.md)。
+String clone 的 typed identity 与后续阶段运输见 [String clone 链路](string-clone.md)。旧Single容器构造/修改分列私有 `checker/container/{construction,mutation}.rs`，lambda expected检查/创建点flow恢复位于 `checker/expression/lambda.rs`；共享类型/分派留根，不改Unit路由或准入。 单文件canonical类型模型位于私有 `model/type_table.rs`，五类型由model直接re-export；TypedFile构造/查询在 `model/typed_file.rs`，结构/Parts与字段可见域留根，owner与插入顺序不变。 Unit签名类型引用/实例化在私有 `signatures/type_resolution.rs`，body产物构造/查询/能力门在 `bodies/product.rs`；collector与产物字段仍由根持有。 Unit canonical模型与checkpoint在私有 `model/type_table.rs`，delegation模型在 `model/delegation.rs`，直接re-export保持类型身份与API路径。
 
 ## 核心不变量
 

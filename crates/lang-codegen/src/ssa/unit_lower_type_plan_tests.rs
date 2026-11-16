@@ -74,8 +74,11 @@ fn reachable_body_only_boolean_type_is_planned_deterministically() {
                 signed: true,
             },
             SsaTypeKind::Boolean,
+            // SPEC-0454 routes the empty Unit-returning preserve helper through refine,
+            // whose existing demand plan registers explicit Unit storage.
+            SsaTypeKind::Unit,
         ],
-        "all callable signature types precede body-only types"
+        "ABI value signature types precede body/refine-only types"
     );
     let select = forward.modules[0]
         .functions
@@ -120,10 +123,15 @@ fn unreachable_body_types_do_not_pollute_the_ssa_type_table() {
     assert_eq!(program.modules[0].functions.len(), 1);
     assert_eq!(
         program.modules[0].types,
-        vec![SsaTypeKind::Integer {
-            bits: 32,
-            signed: true,
-        }]
+        vec![
+            SsaTypeKind::Integer {
+                bits: 32,
+                signed: true
+            },
+            // Refine requires its Boolean control type even for a literal-only entry.
+            // The new String/Long sibling-local witness separately detects source pollution.
+            SsaTypeKind::Boolean,
+        ]
     );
 }
 

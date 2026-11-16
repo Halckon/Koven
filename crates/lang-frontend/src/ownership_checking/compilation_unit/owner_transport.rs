@@ -1,5 +1,6 @@
 //! Narrow owner identity observations, independent of cleanup eligibility.
 mod loops;
+mod scalar_entry;
 pub(in crate::ownership_checking::compilation_unit) use loops::{
     CallConsumerTarget, HeaderCompletion, HeaderCore, HeaderEquation, MixedParameterThreshold,
     ReplaceBreakSuffix, ReturnConsumerTarget,
@@ -33,6 +34,7 @@ pub use loops::{
     UnitOwnerReturnEndpointV1, UnitOwnerRootBoundarySlotV1, UnitOwnerRootEdgeV1,
     UnitOwnerRootExitPartitionV1, UnitOwnerRootGenerationRuleV1, UnitOwnerRootReplaceStepV1,
 };
+pub use scalar_entry::UnitOwnerScalarEntryV1;
 pub(super) mod values;
 pub use values::{
     UnitOwnerChoiceIdV1, UnitOwnerChoiceInputV1, UnitOwnerChoiceV1, UnitOwnerProducerCatalogV1,

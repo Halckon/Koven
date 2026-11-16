@@ -224,6 +224,7 @@ impl Plan {
 }
 
 impl Receipt {
+    #[cfg(test)]
     pub(crate) fn folded_distinct_blocks(&self) -> bool {
         self.fold.is_some_and(|(from, to)| from != to)
     }

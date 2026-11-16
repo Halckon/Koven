@@ -1,5 +1,6 @@
-//! 保留 Single 原见证，在双 Unit 入口核同一源码的 arity 诊断锚点。
+//! 双 Unit 入口的名义类型身份与 arity 诊断锚点。
 use super::{codes, diagnostic_spans, unit_entries::checked_entries};
+use lang_frontend::type_checking::{BuiltinType, UnitTypeKind, UnitTypeRefId};
 
 #[test]
 fn nominal_signature_arity_keeps_original_type_name_spans() {
@@ -8,7 +9,7 @@ fn nominal_signature_arity_keeps_original_type_name_spans() {
                 class Right {}\n\
                 fun inspect(left: Box<Int>, again: Box<Int>, missing: Box, many: Left<Int>): Unit";
     let (sources, file, entries) = checked_entries(text);
-    for (_, typed) in entries {
+    for (source, typed) in entries {
         assert_eq!(codes(typed.diagnostics()), ["L0091", "L0091"]);
         assert_eq!(
             diagnostic_spans(&sources, &typed.diagnostics()[0]),
@@ -23,6 +24,60 @@ fn nominal_signature_arity_keeps_original_type_name_spans() {
         assert_eq!(
             (span.source_id(), span.start(), span.end()),
             (file.source_id(), start, start + 4)
+        );
+        let nominals = typed
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|declaration| declaration.nominal())
+            .collect::<Vec<_>>();
+        let [boxed, left, right] = nominals.as_slice() else {
+            panic!("Box, Left and Right signatures");
+        };
+        assert_ne!(left.declaration(), right.declaration());
+
+        let box_types = file
+            .ast()
+            .type_refs()
+            .iter()
+            .filter(|(_, node)| sources.slice(node.span()) == Ok("Box<Int>"))
+            .map(|(id, _)| {
+                typed
+                    .type_ref_type(UnitTypeRefId::new(source, id))
+                    .expect("typed Box<Int>")
+            })
+            .collect::<Vec<_>>();
+        let [first, second] = box_types.as_slice() else {
+            panic!("two Box<Int> uses");
+        };
+        assert_eq!(first, second);
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = typed.types().get(*first)
+        else {
+            panic!("Box<Int> instance");
+        };
+        assert_eq!(*declaration, boxed.declaration());
+        let [argument] = arguments.as_slice() else {
+            panic!("one Box type argument");
+        };
+        assert_eq!(
+            typed.types().get(*argument),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+
+        let [parameter] = boxed.type_parameters() else {
+            panic!("one Box type parameter");
+        };
+        assert_eq!(parameter.source_unit(), source);
+        let [field] = boxed.fields() else {
+            panic!("one Box field");
+        };
+        assert_eq!(typed.symbol_type(*parameter), Some(field.ty()));
+        assert_eq!(
+            typed.types().get(field.ty()),
+            Some(&UnitTypeKind::TypeParameter(*parameter))
         );
         assert!(typed.validate().is_err());
     }

@@ -307,6 +307,7 @@ impl Builder<'_, '_> {
         if let Some(loan) = self.inout_loan(symbol) {
             // The caller's place now holds the new value; nothing is rebound here.
             self.push(ROp::LoanMutate { loan, value: slot }, Vec::new(), span)?;
+            self.forget_narrowing(symbol);
             return Ok(Lowered::Unit);
         }
         let binding = *self
@@ -318,7 +319,7 @@ impl Builder<'_, '_> {
         self.dead.remove(&symbol);
         self.push(ROp::Alias { source: slot }, vec![binding], span)?;
         self.arm_counter_alias(symbol, value, slot, binding, false, span)?;
-        self.narrowed.remove(&symbol);
+        self.forget_narrowing(symbol);
         Ok(Lowered::Unit)
     }
 
@@ -385,7 +386,7 @@ impl Builder<'_, '_> {
         self.sync_dead();
         self.dead.remove(&symbol);
         self.push(ROp::Alias { source: result }, vec![binding], span)?;
-        self.narrowed.remove(&symbol);
+        self.forget_narrowing(symbol);
         Ok(Lowered::Unit)
     }
 
@@ -890,6 +891,8 @@ pub(in crate::ssa::refine::build) mod field {
             } else {
                 self.expected_nullable = None;
             }
+            #[cfg(feature = "d10-catalog-experiment")]
+            let entry_scalar_start = self.entry_position();
             let lowered = self.expression(initializer);
             self.expected_nullable = saved_expected;
             let Lowered::Value(value) = lowered? else {
@@ -924,6 +927,15 @@ pub(in crate::ssa::refine::build) mod field {
             self.bridge_suffix_emitted(suffix, Some(binding), span)?;
             self.bridge_entry_emitted(entry, binding, span)?;
             self.bindings.insert(symbol, binding);
+            #[cfg(feature = "d10-catalog-experiment")]
+            self.entry_scalar(
+                declaration,
+                initializer,
+                symbol,
+                value,
+                binding,
+                entry_scalar_start,
+            );
             self.owner_binding_emitted(symbol, binding);
             #[cfg(test)]
             if self.owner_is_suffix(symbol)

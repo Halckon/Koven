@@ -1,21 +1,5 @@
-//! Source-order call operands, loans, writebacks and final dispatch.
-use lang_frontend::{
-    ast::ExpressionId,
-    ownership_checking::UnitDropPoint,
-    parser::CallArgument,
-    source::Span,
-    type_checking::{ParameterMode, UnitCallTarget, UnitTypeKind},
-};
-
-use super::{Builder, Lowered};
-use crate::ssa::{
-    lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::EntityType,
-    refine::{
-        body::{RAbort, ROp, RTerm, Slot},
-        build::receiver,
-    },
-};
+//! Call evaluation, delivery and cleanup in the refined CFG.
+use super::*;
 
 impl Builder<'_, '_> {
     pub(super) fn call(
@@ -65,7 +49,7 @@ impl Builder<'_, '_> {
         } else {
             self.receiver_before_arguments(call, &descriptor, span)?
         };
-        if let Some(receiver::Receiver::Ready { ref loans, .. }) = receiver {
+        if let Some(super::super::receiver::Receiver::Ready { ref loans, .. }) = receiver {
             self.pending_call_loans.extend(loans.iter().copied());
         }
         let ext_offset = usize::from(is_extension);

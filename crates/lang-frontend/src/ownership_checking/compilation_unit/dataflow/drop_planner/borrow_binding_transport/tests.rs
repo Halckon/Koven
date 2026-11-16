@@ -16,6 +16,8 @@ fn ci_only_binding_metadata_preserves_semantic_eq_and_sticky_merge_loss() {
     let source_begin = actions.begin(transaction.source_loan().clone());
     let handoff = actions.commit_borrow_handoff(shared.borrow_call_handoffs()[0].clone());
     let first = PendingBindingTransport {
+        #[cfg(feature = "d10-catalog-experiment")]
+        entry: None,
         binding: transaction.binding(),
         source: transaction.source_loan().clone(),
         source_begin: source_begin.clone(),

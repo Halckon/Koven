@@ -225,6 +225,15 @@ impl Builder<'_, '_> {
         let continued = arg_loans
             .remove(&source.argument())
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        let entry_borrow = super::super::entry_borrow_receipt::Pending::new(
+            self.inputs,
+            id,
+            source,
+            callee,
+            &lowered_args,
+            source_loan,
+        );
         let result = self.value(
             ROp::BorrowCall {
                 callee,
@@ -237,6 +246,10 @@ impl Builder<'_, '_> {
             },
             call_span,
         )?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        if let Some(pending) = entry_borrow {
+            self.body.entry_borrows.push(pending.with_result(result));
+        }
         for (loan, end_span) in created_loans.into_iter().rev() {
             self.pending_call_loans.retain(|&active| active != loan);
             if !continued.contains(&loan) {
@@ -262,14 +275,15 @@ impl Builder<'_, '_> {
             if block == exit {
                 return Ok(());
             }
-            let (terminator, split_span) = self.body.blocks[block.0]
+            let current = &self.body.blocks[block.0];
+            let (terminator, split_span) = current
                 .terminator
                 .as_ref()
                 .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-            let RTerm::Goto(next) = terminator else {
-                return Err(error(LoweringErrorKind::UnsupportedNode, *split_span));
-            };
-            block = *next;
+            match terminator {
+                RTerm::Goto(next) if !current.folded_condition => block = *next,
+                _ => return Err(error(LoweringErrorKind::UnsupportedNode, *split_span)),
+            }
         }
         Err(error(LoweringErrorKind::InvalidModel, span))
     }

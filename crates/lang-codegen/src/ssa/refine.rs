@@ -4,6 +4,7 @@
 //! During migration `lower_owned_unit_with_entry` routes a function instance here only
 //! when [`accepts`] proves its whole body lies inside the migrated subset. Once routed,
 //! a failure is an error; there is no fallback to the per-family lowering.
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 pub(crate) mod arm_loop_receipt;
 mod body;
 pub(in crate::ssa) mod build;
@@ -13,7 +14,7 @@ mod nested_body_receipt;
 mod nested_exit_receipt;
 mod nested_resume_receipt;
 #[cfg(test)]
-pub(crate) use build::owner_consumer_test_support::{
+pub(crate) use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::owner_consumer_test_support::{
     OwnerFault, observe_owner_actions, with_owner_fault,
 };
 pub(crate) mod bounded_receipt;
@@ -22,12 +23,17 @@ pub(crate) mod child_receipt;
 mod emit;
 pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod identity_return;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
+#[deny(dead_code)]
 pub(crate) mod multi_receipt;
+#[deny(dead_code)]
 pub(crate) mod nested_receipt;
 mod nullable_when;
 pub(crate) mod receiver_receipt;
+#[deny(dead_code)]
 pub(crate) mod single_receipt;
 mod subset;
 
@@ -37,8 +43,7 @@ use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{DeclarationId, SourceUnitId, UnitSymbolId, ValidatedCompilationUnitNames},
     ownership_checking::{
-        CompilationUnitOwnership, ConstEnabledOwnedUnit, LoanKind, UnitDropPoint, UnitDropTarget,
-        UnitLoanTarget,
+        ConstEnabledOwnedUnit, LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
     },
     parser::{Expression, ParsedFile},
     source::{SourceMap, Span},
@@ -127,7 +132,7 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) source_unit: SourceUnitId,
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
-    pub(in crate::ssa) owned: &'a CompilationUnitOwnership,
+    pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
     /// Present for the constant capability; const uses stay on the existing path.
     pub(in crate::ssa) constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     pub(in crate::ssa) function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
@@ -371,8 +376,40 @@ pub(in crate::ssa) fn lower(
     parameters: &[EntityId],
     types: &RefineTypes<'_>,
 ) -> Result<(), LoweringError> {
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::identity_return::expect(inputs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::forward_consumption::expect(inputs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::binding_consumption::expect(inputs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::loop_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::fresh_loop_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::arm_loop_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::arm_loop_tail_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::arm_loop_counter_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::arm_loop_counter_break_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::aux_binding_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::distinct_aux_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::later_aux_consumption::expect(inputs, types);
+    #[cfg(feature = "d10-catalog-experiment")]
+    crate::ssa::d10_project_audit::interleaved_aux_consumption::expect(inputs, types);
     let body = build::build(inputs, parameters, types)?;
     emit::emit(&body, function, entry, parameters, inputs.span)?;
+    #[cfg(feature = "d10-catalog-experiment")]
+    if let Some(receipt) = identity_return::certify(inputs, function, types) {
+        crate::ssa::d10_project_audit::identity_return::record(receipt);
+    }
+    #[cfg(all(test, feature = "d10-catalog-experiment"))]
+    identity_return::test_record(inputs, function, types);
     #[cfg(test)]
     ROUTED.with(|routed| {
         if let Some(routed) = routed.borrow_mut().as_mut() {
@@ -390,7 +427,7 @@ thread_local! {
 /// Test-only: runs `lower` and returns the names of the functions this layer lowered,
 /// in lowering order.
 #[cfg(test)]
-pub(in crate::ssa) fn observe_routing<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
+pub(crate) fn observe_routing<T>(lower: impl FnOnce() -> T) -> (T, Vec<String>) {
     ROUTED.with(|routed| *routed.borrow_mut() = Some(Vec::new()));
     let result = lower();
     let names = ROUTED.with(|routed| routed.borrow_mut().take().unwrap_or_default());
@@ -510,3 +547,8 @@ mod statements;
 
 #[cfg(test)]
 pub(in crate::ssa::refine) mod temporary_ci_tests;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod entry_borrow_receipt;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) mod entry_lifecycle;

@@ -507,6 +507,18 @@ class CheckCiResultsTests(unittest.TestCase):
         for package in ("lang-codegen", "lang-cli", "lang-lsp", "lang-std"):
             self.assertIn(f"cargo test --locked -p {package}", core)
 
+    def test_slow_checks_share_fast_prerequisites_and_preview_keeps_independent_consumer(self):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text()
+        for name in ("clippy", "test", "preview-macos-produce", "preview-linux-produce"):
+            header = workflow.split(f"\n  {name}:\n", 1)[1].split("    steps:", 1)[0]
+            needs = re.search(r"(?m)^    needs: \[(.*)\]$", header)
+            self.assertIsNotNone(needs)
+            self.assertEqual({"changes", "docs", "fmt"}, set(needs[1].split(", ")))
+            self.assertIn("github.event_name == 'pull_request'", header)
+        for host in ("macos", "linux"):
+            consumer = workflow.split(f"\n  preview-{host}-consume:\n", 1)[1]
+            self.assertIn(f"\n    needs: preview-{host}-produce\n", consumer.split("    steps:", 1)[0])
+
     def test_ownership_iteration_runs_unfiltered_in_existing_test_matrix(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()

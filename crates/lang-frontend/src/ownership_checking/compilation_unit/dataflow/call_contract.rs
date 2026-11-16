@@ -183,7 +183,7 @@ impl Checker<'_> {
                         }
                     }
                 };
-                self.loans.push(UnitLoanFact::new(
+                self.push_loan(UnitLoanFact::new(
                     contract.call(),
                     contract.argument(),
                     target,

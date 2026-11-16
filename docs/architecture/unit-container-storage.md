@@ -196,3 +196,5 @@ Array/List/MutableList/Map/MutableMap 的 Unit storage 身份同样保留首次�
 共享 helper 也为 nullable Map 的内层 MapContainer 记录来源；nullable wrapper、View 与 MapResult 的额外身份不因此获得新来源或能力。
 View 的合成 List source 复用同一 helper：View-first 时记录 View 类型需求位置，List-first 时保留已有来源；
 这只是布局诊断来源，不替代 collection owner/loan 来源合同。RangeView 自身仍不新增 origin，元素名义声明来源不变。
+
+容器 size 与泛型容器签名测试直接构造 sealed Unit 并调用 lowering，保留原 owner/loan、cleanup、具体类型、arena 不增长和输入排列检查。旧 scalar 测试 adapter 本来就委托该入口；这是测试依赖清理，不是新增 lowering 能力，也不重复执行相同后端冒充双路径覆盖。

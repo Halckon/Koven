@@ -90,6 +90,8 @@ impl Eq for UnitLoanActionId {}
 /// General result-continuation, receiver-activation and permission-restoration coverage remains unproved.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UnitLoanActionObservation {
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) entry_binding_evidence: Vec<super::d10_catalog_experiment::EntryBindingEvidence>,
     pub(super) identity: Arc<()>,
     pub(super) source: SourceUnitId,
     pub(super) actions: Vec<UnitLoanAction>,
@@ -120,6 +122,19 @@ pub struct UnitLoanActionObservation {
 }
 
 impl UnitLoanActionObservation {
+    #[cfg(feature = "d10-catalog-experiment")]
+    /// Independent actual bounded entry events, not Complete coverage or admission.
+    pub fn entry_binding_evidence(&self) -> &[super::d10_catalog_experiment::EntryBindingEvidence] {
+        &self.entry_binding_evidence
+    }
+    #[cfg(feature = "d10-catalog-experiment")]
+    /// Check the original catalog identity rather than structural snapshot equality.
+    pub fn owns_entry_binding_evidence(
+        &self,
+        evidence: &super::d10_catalog_experiment::EntryBindingEvidence,
+    ) -> bool {
+        Arc::ptr_eq(&self.identity, &evidence.identity)
+    }
     /// Actual multi-source continuations; absence never grants admission.
     pub fn bounded_multi_continuation_regions(
         &self,

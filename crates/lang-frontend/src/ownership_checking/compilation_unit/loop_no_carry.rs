@@ -1,26 +1,51 @@
 //! Sealed core-checker no-carry facts. Not a runtime iteration trace or an SSA receipt.
+mod counter_break;
+mod prefix_counter_break;
+#[cfg(any(
+    test,
+    any(feature = "e2-two-source-test-support", feature = "two-source-unit")
+))]
+pub(crate) mod two_source_candidate;
 use super::{CompilationUnitOwnership, UnitDropPoint};
 use crate::{
     name_resolution::{SourceUnitId, UnitSymbolId},
     type_checking::{UnitExpressionId, UnitItemId, UnitStatementId},
 };
+pub use counter_break::UnitLoopCounterBreakBranchNoCarryFact;
+pub use prefix_counter_break::UnitLoopPrefixCounterBreakFact;
 use std::rc::Rc;
 
 /// One publication gate for both independent no-carry proof domains.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct CompletedNoCarry {
+    #[cfg(any(
+        test,
+        any(feature = "e2-two-source-test-support", feature = "two-source-unit")
+    ))]
+    pub(super) two_sources: Vec<two_source_candidate::TwoSourceCounterFact>,
+    pub(super) prefix_counter_breaks: Vec<UnitLoopPrefixCounterBreakFact>,
     pub(super) loops: Vec<UnitLoopNoCarryFact>,
     pub(super) branches: Vec<UnitLoopBranchNoCarryFact>,
     pub(super) counter_branches: Vec<UnitLoopCounterBranchNoCarryFact>,
     pub(super) break_prefixes: Vec<UnitLoopBreakPrefixFact>,
+    pub(super) counter_break_branches: Vec<UnitLoopCounterBreakBranchNoCarryFact>,
     pub(super) break_branches: Vec<UnitLoopBreakBranchNoCarryFact>,
 }
 impl CompletedNoCarry {
     pub(super) fn extend(&mut self, other: Self) {
+        #[cfg(any(
+            test,
+            any(feature = "e2-two-source-test-support", feature = "two-source-unit")
+        ))]
+        self.two_sources.extend(other.two_sources);
+        self.prefix_counter_breaks
+            .extend(other.prefix_counter_breaks);
         self.loops.extend(other.loops);
         self.branches.extend(other.branches);
         self.counter_branches.extend(other.counter_branches);
         self.break_branches.extend(other.break_branches);
+        self.counter_break_branches
+            .extend(other.counter_break_branches);
         self.break_prefixes.extend(other.break_prefixes);
     }
 }

@@ -23,6 +23,8 @@ fn ci_only_child_metadata_never_changes_semantic_eq_or_recovers_lost_commit() {
     let source_begin = actions.begin(transport.source_loan().clone());
     let handoff = actions.commit_borrow_handoff(shared.borrow_call_handoffs()[0].clone());
     let mut first = PendingBindingTransport {
+        #[cfg(feature = "d10-catalog-experiment")]
+        entry: None,
         binding: transport.binding(),
         source: transport.source_loan().clone(),
         source_begin: source_begin.clone(),

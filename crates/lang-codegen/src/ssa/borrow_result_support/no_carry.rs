@@ -3,7 +3,7 @@ use lang_frontend::{
     ast::StatementId,
     name_resolution::UnitSymbolId,
     ownership_checking::{
-        BorrowBindingFact, BorrowBindingStorage, CompilationUnitOwnership, UnitLoanTarget,
+        BorrowBindingFact, BorrowBindingStorage, UnitLoanTarget, UnitPreflightFacts,
     },
     parser::{ParsedFile, Statement},
     type_checking::UnitExpressionId,
@@ -11,7 +11,7 @@ use lang_frontend::{
 
 pub(in crate::ssa) fn admitted(
     file: &ParsedFile,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     binding: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
 ) -> Option<StatementId> {
     let mut selected = owned
@@ -58,7 +58,7 @@ pub(in crate::ssa) fn admitted(
 /// Direct peers grant permission only to a binding with its own sealed no-carry proof.
 pub(in crate::ssa) fn siblings(
     file: &ParsedFile,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     binding: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
 ) -> Vec<StatementId> {
     let Some(current_statement) = admitted(file, owned, binding) else {

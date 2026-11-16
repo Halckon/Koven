@@ -150,7 +150,11 @@ impl Checker<'_> {
                     }
                 }
                 let previous_return = self.enter_callable(name);
+                #[cfg(feature = "d10-catalog-experiment")]
+                let previous_producer = self.loan_producers.enter_item(self.source_unit, id, false);
                 let result = self.check_function(form, function_state);
+                #[cfg(feature = "d10-catalog-experiment")]
+                self.loan_producers.restore(previous_producer);
                 self.leave_callable(previous_return);
                 self.current_borrow_return = previous_borrow;
                 self.current_receiver = previous_receiver;
@@ -190,7 +194,11 @@ impl Checker<'_> {
                         declaration_span,
                     });
                 let previous_receiver = std::mem::replace(&mut self.current_receiver, receiver);
+                #[cfg(feature = "d10-catalog-experiment")]
+                let previous_producer = self.loan_producers.enter_item(self.source_unit, id, true);
                 let result = self.check_statement(body, State::default());
+                #[cfg(feature = "d10-catalog-experiment")]
+                self.loan_producers.restore(previous_producer);
                 self.current_receiver = previous_receiver;
                 result?;
                 Ok(Flows::next(state))
@@ -243,6 +251,7 @@ impl Checker<'_> {
         id: StatementId,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
+        self.prefix_init_before(id, &state);
         self.no_carry_update_before(id, &state);
         let statement = self.parsed.ast().statements().get(id)?.payload().clone();
         let loop_exit = matches!(
@@ -354,6 +363,7 @@ impl Checker<'_> {
         };
         let mut flows = checked?;
         self.no_carry_update_after(id, &flows);
+        self.prefix_init_after(id, &flows);
         if loop_exit && let Some(state) = &mut flows.next {
             self.release_dead_exclusive_captures(&self.statement_live_after[id.index()], state);
         }

@@ -1,5 +1,6 @@
 //! Signature 的 case TypeRef 必须拒绝，合法 type-test 仍保留。
 use super::{codes, diagnostic_spans, unit_entries::checked_entries};
+use lang_frontend::type_checking::{BuiltinType, UnitTypeKind, UnitTypeRefId};
 
 #[test]
 fn enum_case_signature_rejects_original_single_source_in_both_entries() {
@@ -8,12 +9,51 @@ fn enum_case_signature_rejects_original_single_source_in_both_entries() {
                     fun isCircle(): Boolean = this is Circle\n\
                 }\n\
                 fun invalid(input: Shape.Circle): Unit {}";
-    let (sources, _, entries) = checked_entries(text);
-    for (_, typed) in entries {
+    let (sources, parsed, entries) = checked_entries(text);
+    for (source, typed) in entries {
         assert_eq!(codes(typed.diagnostics()), ["L0114"], "{text}");
         assert_eq!(
             diagnostic_spans(&sources, &typed.diagnostics()[0]),
             ("Shape.Circle", "Shape")
+        );
+        let shape = typed
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|declaration| declaration.nominal())
+            .find(|nominal| !nominal.enum_cases().is_empty())
+            .expect("Shape signature");
+        let [circle, point] = shape.enum_cases() else {
+            panic!("Shape has two enum cases");
+        };
+        assert_eq!((circle.name(), point.name()), ("Circle", "Point"));
+        let [radius] = circle.payloads() else {
+            panic!("Circle has one payload");
+        };
+        assert_eq!(radius.name(), "radius");
+        assert_eq!(
+            typed.types().get(radius.ty()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        assert!(point.payloads().is_empty());
+
+        let (reference, _) = parsed
+            .ast()
+            .type_refs()
+            .iter()
+            .find(|(_, node)| sources.slice(node.span()) == Ok("Circle"))
+            .expect("unqualified case in the member type test");
+        let case_type = typed
+            .type_ref_type(UnitTypeRefId::new(source, reference))
+            .expect("type-test case type");
+        assert_eq!(case_type, circle.case_type());
+        assert_eq!(circle.type_symbol().source_unit(), source);
+        assert_eq!(
+            typed.types().get(case_type),
+            Some(&UnitTypeKind::EnumCase {
+                case: circle.type_symbol(),
+                root: shape.ty(),
+            })
         );
         assert!(typed.validate().is_err());
     }

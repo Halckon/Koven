@@ -769,8 +769,18 @@ mod map_require_tests {
         )));
 
         let entry = unit.declaration("entry", SymbolKind::Function);
-        let (program, _) = unit.lower_entry(entry).unwrap();
+        let (program, root) = unit.lower_entry(entry).unwrap();
         verify_program(&program).unwrap();
+        let module = program.module(root.module()).unwrap();
+        assert_eq!(
+            module.functions.len(),
+            1,
+            "only the selected entry is reachable"
+        );
+        assert_eq!(
+            module.function(root).unwrap().origin,
+            Origin::Source(unit.declaration_span(entry))
+        );
         assert!(
             program
                 .modules
@@ -784,11 +794,45 @@ mod map_require_tests {
     fn legacy_whole_file_emits_unselected_map_require_wrapper() {
         let program = crate::ssa::borrow_result_contract_tests::single(READONLY_WRAPPER).unwrap();
         verify_program(&program).unwrap();
-        assert!(
-            program.modules[0]
-                .functions
-                .iter()
-                .any(|f| f.borrow_return.is_some())
+        let functions = &program.modules[0].functions;
+        assert_eq!(
+            functions.len(),
+            2,
+            "whole-file admission retains both roots"
         );
+        let wrappers = functions
+            .iter()
+            .filter(|function| function.name == "view")
+            .collect::<Vec<_>>();
+        let [wrapper] = wrappers.as_slice() else {
+            panic!("the original unselected view must be emitted exactly once");
+        };
+        assert!(wrapper.borrow_return.is_some());
+        assert!(
+            functions
+                .iter()
+                .any(|function| { function.name == "entry" && function.borrow_return.is_none() })
+        );
+        let queries = wrapper
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                matches!(instruction.operation, Operation::MapRequireValue { .. })
+            })
+            .collect::<Vec<_>>();
+        let [query] = queries.as_slice() else {
+            panic!("the unselected wrapper must query exactly one original slot");
+        };
+        let [EntityId::Loan(slot)] = query.results.as_slice() else {
+            panic!("the original slot must remain a loan");
+        };
+        assert!(wrapper.blocks.iter().any(|block| matches!(
+            block.terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::BorrowReturn { loan }) if loan == slot
+        )));
+        assert!(!wrapper.instructions.iter().any(|instruction| matches!(
+            instruction.operation,
+            Operation::Copy { .. } | Operation::SharedRetain { .. }
+        )));
     }
 }

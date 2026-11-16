@@ -21,7 +21,8 @@ class CheckerEvidenceTests(unittest.TestCase):
         def fake_run(argv, **kwargs):
             if argv[0] == 'cargo':
                 if cargo_error: raise cargo_error
-                row = dict(reason='compiler-artifact', target=dict(name='lang_codegen'), profile=dict(test=True), executable=str(binary))
+                row = dict(reason='compiler-artifact', target=dict(name=gate.FRONTEND_TARGET, kind=['test']),
+                           profile=dict(test=True), executable=str(binary))
                 return subprocess.CompletedProcess(argv, 0, json.dumps(row).encode(), b'build stderr\x00')
             if argv[0] == str(binary):
                 folder = Path(kwargs['env']['KOVEN_GENERATED_OWNER_CASE'])

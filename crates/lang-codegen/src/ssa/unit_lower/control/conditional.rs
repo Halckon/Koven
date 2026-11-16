@@ -1,4 +1,4 @@
-//! Shared conditional CFG; only ordinary if opts into bounded proof retirement.
+//! Shared conditional CFG and bounded proof retirement on normal exits.
 use super::*;
 
 impl UnitExpressionLowerer<'_> {
@@ -59,7 +59,7 @@ impl UnitExpressionLowerer<'_> {
                     Some(self.loop_state())
                 };
                 let mut exits: Vec<_> = exit.into_iter().collect();
-                self.retire_if_exit_proofs(control, &mut exits, span)?;
+                self.retire_conditional_exit_proofs(control, &mut exits, span)?;
                 return self.merge_unit_exits(exits, span);
             }
         }
@@ -293,7 +293,7 @@ impl UnitExpressionLowerer<'_> {
             });
         }
         if ordinary_if {
-            self.retire_if_exit_proofs(control, &mut exits, span)?;
+            self.retire_conditional_exit_proofs(control, &mut exits, span)?;
         }
         self.merge_unit_exits(exits, span)
     }
@@ -302,7 +302,7 @@ impl UnitExpressionLowerer<'_> {
 pub(in crate::ssa::unit_lower) mod nullable_if {
     //! Bounded nullable entries: root Borrow and heap Ifs.
 
-    use super::super::super::{Statement, nullable_proof::NullableProofScope};
+    use super::super::super::nullable_proof::NullableProofScope;
     use super::super::*;
     use crate::ssa::model::LoanId;
     use lang_frontend::type_checking::{
@@ -315,6 +315,7 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
         pub(in crate::ssa::unit_lower) owner: ValueId,
         pub(in crate::ssa::unit_lower) inner: SsaTypeId,
         pub(in crate::ssa::unit_lower) scope: UnitExpressionId,
+        pub(in crate::ssa::unit_lower) last_borrow: UnitExpressionId,
         pub(in crate::ssa::unit_lower) non_null_when_true: bool,
     }
 
@@ -327,12 +328,13 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
             result_required: bool,
             span: Span,
         ) -> Result<Option<NullableIfEntry>, LoweringError> {
-            if !self.nullable_proofs.is_empty() || result_required {
+            if result_required {
                 return Ok(None);
             }
             // Nullable `String?` ifs lower only in `ssa::refine` (SPEC-0398); a mixed
             // compatibility body keeps its older inline-nullable handling.
             if !self.migrated_family_compatibility
+                && self.nullable_proofs.is_empty()
                 && self
                     .typed
                     .null_comparison(UnitExpressionId::new(self.source_unit, condition))
@@ -390,21 +392,6 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
             }
         }
 
-        pub(in crate::ssa::unit_lower) fn map_if_body_is_empty(
-            &self,
-            body: Option<StatementId>,
-            span: Span,
-        ) -> Result<bool, LoweringError> {
-            let Some(body) = body else { return Ok(true) };
-            let node = self
-                .parsed
-                .ast()
-                .statements()
-                .get(body)
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            Ok(matches!(node.payload(), Statement::ControlBody { elements } if elements.is_empty()))
-        }
-
         #[allow(clippy::too_many_arguments)]
         pub(in super::super) fn enter_nullable_if_branch(
             &mut self,
@@ -434,7 +421,10 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
                 column,
                 entry.root,
                 entry.inner,
-                NullableProofScope::If(entry.scope),
+                NullableProofScope::If {
+                    control: entry.scope,
+                    last_borrow: entry.last_borrow,
+                },
                 span,
             )?;
             self.emit_direct_nullable_condition_drops(condition, span)
@@ -473,7 +463,7 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
 
         /// Preflight every retirement against its own complete live exit before emission.
         /// Same-root origin disagreements remain errors, even if another root is absent.
-        pub(in super::super) fn retire_if_exit_proofs(
+        pub(in crate::ssa::unit_lower) fn retire_conditional_exit_proofs(
             &mut self,
             control: UnitExpressionId,
             exits: &mut [BranchExit],
@@ -520,7 +510,8 @@ pub(in crate::ssa::unit_lower) mod nullable_if {
                         .nullable_proofs
                         .get(root)
                         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                    if proof.if_scope() != Some(control) {
+                    // A When proof missing from another normal edge ends on this edge.
+                    if proof.if_scope() != Some(control) && proof.when_scope().is_none() {
                         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                     }
                 }
@@ -798,6 +789,7 @@ mod result_tests {
                 borrow_bindings,
                 entry_boolean_roots,
                 nullable_proofs: BTreeMap::new(),
+                non_null_use_spans: &BTreeMap::new(),
                 current_receiver: None,
                 consumed_receiver: None,
                 closure_binding_context: false,

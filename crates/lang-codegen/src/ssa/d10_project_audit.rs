@@ -1,0 +1,567 @@
+//! Read-only scoped observations of ordinary whole-unit lowering. Not an admission capability.
+//! Only the original successful final verifier publishes an observation. Object publication
+//! remains a separate result; this module neither changes lowering nor executes generated code.
+pub(crate) mod arm_loop_consumption;
+#[cfg(test)]
+mod arm_loop_consumption_tests;
+#[cfg(test)]
+mod arm_loop_counter_break_choose_tests;
+pub(crate) mod arm_loop_counter_break_consumption;
+#[cfg(test)]
+mod arm_loop_counter_break_prefix_origin_tests;
+#[cfg(test)]
+mod arm_loop_counter_break_rounds_tests;
+#[cfg(test)]
+mod arm_loop_counter_break_shared_tests;
+#[cfg(test)]
+mod arm_loop_counter_break_stop_tests;
+#[cfg(test)]
+mod arm_loop_counter_break_suffix_origin_tests;
+#[cfg(test)]
+mod arm_loop_counter_break_tests;
+pub(crate) mod arm_loop_counter_consumption;
+#[cfg(test)]
+mod arm_loop_counter_prefix_origin_tests;
+#[cfg(test)]
+mod arm_loop_counter_rounds_tests;
+#[cfg(test)]
+mod arm_loop_counter_tests;
+#[cfg(test)]
+mod arm_loop_counter_value_tests;
+#[cfg(test)]
+mod arm_loop_if_prefix_counter_break_origin_tests;
+#[cfg(test)]
+mod arm_loop_prefix_tests;
+#[cfg(test)]
+mod arm_loop_shared_condition_tests;
+#[cfg(test)]
+mod arm_loop_tail_break_tests;
+pub(crate) mod arm_loop_tail_consumption;
+#[cfg(test)]
+mod arm_loop_tail_suffix_tests;
+#[cfg(test)]
+mod arm_loop_tail_surround_tests;
+#[cfg(test)]
+mod arm_loop_tail_value_tests;
+#[cfg(test)]
+mod arm_loop_value_flags_tests;
+pub(crate) mod aux_binding_consumption;
+#[cfg(test)]
+mod aux_binding_consumption_tests;
+pub(crate) mod binding_consumption;
+#[cfg(test)]
+mod binding_consumption_tests;
+pub(crate) mod branch_consumption;
+pub(crate) mod compatibility;
+pub(crate) mod distinct_aux_consumption;
+#[cfg(test)]
+mod distinct_aux_consumption_tests;
+pub(crate) mod entry_borrow;
+pub(crate) mod forward_consumption;
+#[cfg(test)]
+mod forward_consumption_tests;
+pub(crate) mod fresh_loop_consumption;
+#[cfg(test)]
+mod fresh_loop_consumption_tests;
+#[cfg(test)]
+mod fresh_loop_flags_tests;
+#[cfg(test)]
+mod fresh_loop_value_flags_tests;
+#[cfg(test)]
+mod fresh_single_value_tests;
+#[cfg(test)]
+mod fresh_unused_flag_tests;
+pub(crate) mod identity_return;
+pub(crate) mod interleaved_aux_consumption;
+#[cfg(test)]
+mod interleaved_aux_consumption_tests;
+pub(crate) mod later_aux_consumption;
+#[cfg(test)]
+mod later_aux_consumption_tests;
+mod literal_consumption;
+pub(crate) mod loop_consumption;
+#[cfg(test)]
+mod loop_consumption_tests;
+use crate::ssa::{
+    model::{FunctionId, Operation, Program, SsaTypeKind, TerminatorKind},
+    unit_plan::{UnitFunctionInstanceKey, UnitInstancePlan},
+};
+pub use branch_consumption::BranchConsumption;
+use lang_frontend::{
+    name_resolution::{DeclarationId, SourceUnitId, ValidatedCompilationUnitNames},
+    source::SourceId,
+    type_checking::UnitCallableTarget,
+};
+pub use literal_consumption::LiteralConsumption;
+pub(crate) use literal_consumption::record_temporary;
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+};
+
+/// A restricted direct/certified-borrow graph, not a general callable or runtime certificate.
+#[derive(Debug)]
+pub struct ProjectAudit {
+    /// Number of canonical source units in the original names.
+    pub source_count: usize,
+    /// Canonical complete source-unit and source identities, copied from the original names.
+    pub sources: Vec<(SourceUnitId, SourceId)>,
+    /// Original declaration IDs of the complete restricted instance plan.
+    pub declarations: Vec<DeclarationId>,
+    /// Every actual direct call, retaining multiplicity.
+    pub direct_edges: Vec<(DeclarationId, DeclarationId)>,
+    /// Actual BorrowCall edges certified by branch CFG proofs or bounded entry consumption.
+    /// Uncertified borrowed calls and leaf returns remain explicit unsupported obligations.
+    pub borrow_edges: Vec<(DeclarationId, DeclarationId)>,
+    /// Explicit SSA runtime-bearing operations, including allocation/drop/abort. These are
+    /// observed obligations, not proof of their LLVM/runtime implementations or termination.
+    pub runtime_operations: BTreeMap<&'static str, usize>,
+    /// Empty only when plan/mapping/Program close within this restricted observation domain.
+    pub unsupported: Vec<String>,
+    /// Same-transaction existing protocol-1 receipts linked to original facts and final Program.
+    /// This separate bounded domain never upgrades the general project closure result.
+    pub literal_consumption: LiteralConsumption,
+    /// Bounded whole-loop SSA receipts; original lineage remains Partial in unsupported.
+    pub certified_loop_callers: Vec<DeclarationId>,
+    /// Independent bounded both-arm borrow forwarding, not generic CFG completeness.
+    pub branch_consumption: BranchConsumption,
+}
+thread_local! { static OBSERVATIONS: RefCell<Option<Vec<ProjectAudit>>> = const { RefCell::new(None) }; }
+/// Observe the caller's original emission exactly once, without replacing its return value.
+/// Nested observation is prohibited; unwinding clears the thread-local observation slot.
+pub fn observe<T>(run: impl FnOnce() -> T) -> (T, Vec<ProjectAudit>) {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            OBSERVATIONS.with(|slot| {
+                slot.borrow_mut().take();
+            });
+        }
+    }
+    OBSERVATIONS.with(|slot| {
+        assert!(slot.borrow().is_none(), "nested project audit");
+        *slot.borrow_mut() = Some(Vec::new());
+    });
+    let _reset = Reset;
+    let result = run();
+    let observations = OBSERVATIONS.with(|slot| slot.borrow_mut().take().unwrap());
+    (result, observations)
+}
+
+pub(crate) struct Pending {
+    receipts: literal_consumption::Transaction,
+    branches: branch_consumption::Transaction,
+    entry_borrows: entry_borrow::Transaction,
+    identity_returns: identity_return::Transaction,
+    forwards: forward_consumption::Transaction,
+    bindings: binding_consumption::Transaction,
+    aux_bindings: aux_binding_consumption::Transaction,
+    distinct_aux: distinct_aux_consumption::Transaction,
+    later_aux: later_aux_consumption::Transaction,
+    interleaved_aux: interleaved_aux_consumption::Transaction,
+    loops: loop_consumption::Transaction,
+    fresh_loops: fresh_loop_consumption::Transaction,
+    arm_loops: arm_loop_consumption::Transaction,
+    arm_tail_loops: arm_loop_tail_consumption::Transaction,
+    arm_counter_loops: arm_loop_counter_consumption::Transaction,
+    arm_counter_break_loops: arm_loop_counter_break_consumption::Transaction,
+    items: BTreeMap<DeclarationId, lang_frontend::type_checking::UnitItemId>,
+    keys: Vec<UnitFunctionInstanceKey>,
+    roots: Vec<DeclarationId>,
+    sources: Vec<(SourceUnitId, SourceId)>,
+}
+impl Pending {
+    pub(crate) fn capture(
+        plan: &UnitInstancePlan,
+        names: &ValidatedCompilationUnitNames,
+        roots: &[DeclarationId],
+    ) -> Option<Self> {
+        OBSERVATIONS
+            .with(|slot| slot.borrow().is_some())
+            .then(|| Self {
+                receipts: literal_consumption::Transaction::begin(),
+                branches: branch_consumption::Transaction::begin(),
+                entry_borrows: entry_borrow::Transaction::begin(),
+                identity_returns: identity_return::Transaction::begin(plan),
+                forwards: forward_consumption::Transaction::begin(plan),
+                bindings: binding_consumption::Transaction::begin(plan),
+                aux_bindings: aux_binding_consumption::Transaction::begin(plan),
+                distinct_aux: distinct_aux_consumption::Transaction::begin(plan),
+                later_aux: later_aux_consumption::Transaction::begin(plan),
+                interleaved_aux: interleaved_aux_consumption::Transaction::begin(plan),
+                loops: loop_consumption::Transaction::begin(plan),
+                fresh_loops: fresh_loop_consumption::Transaction::begin(plan),
+                arm_loops: arm_loop_consumption::Transaction::begin(plan),
+                arm_tail_loops: arm_loop_tail_consumption::Transaction::begin(plan),
+                arm_counter_loops: arm_loop_counter_consumption::Transaction::begin(plan),
+                arm_counter_break_loops: arm_loop_counter_break_consumption::Transaction::begin(
+                    plan,
+                ),
+                items: names
+                    .names()
+                    .index()
+                    .declarations()
+                    .iter()
+                    .map(|d| {
+                        (
+                            d.id(),
+                            lang_frontend::type_checking::UnitItemId::new(
+                                d.source_unit(),
+                                d.root(),
+                            ),
+                        )
+                    })
+                    .collect(),
+                keys: plan
+                    .instances()
+                    .iter()
+                    .map(|instance| instance.key().clone())
+                    .collect(),
+                roots: roots.to_vec(),
+                sources: names
+                    .names()
+                    .index()
+                    .source_units()
+                    .iter()
+                    .map(|s| (s.id(), s.source_id()))
+                    .collect(),
+            })
+    }
+    pub(crate) fn finish(
+        self,
+        program: &Program,
+        mapping: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
+        owned: &dyn lang_frontend::ownership_checking::UnitLoweringFacts,
+    ) {
+        let mut audit = ProjectAudit {
+            branch_consumption: self.branches.finish(&self.items, program, mapping, owned),
+            certified_loop_callers: Vec::new(),
+            source_count: self.sources.len(),
+            sources: self.sources,
+            declarations: Vec::new(),
+            direct_edges: Vec::new(),
+            borrow_edges: Vec::new(),
+            runtime_operations: BTreeMap::new(),
+            unsupported: Vec::new(),
+            literal_consumption: literal_consumption::finish(
+                &self.receipts,
+                &self.items,
+                program,
+                mapping,
+                owned,
+            ),
+        };
+        let planned: BTreeSet<_> = self.keys.iter().collect();
+        if planned.len() != self.keys.len() || planned != mapping.keys().collect() {
+            audit
+                .unsupported
+                .push("plan/mapping identity mismatch".into());
+        }
+        let mut declarations = BTreeMap::new();
+        for (key, id) in mapping {
+            match key.target() {
+                UnitCallableTarget::Declaration(d)
+                    if *key == UnitFunctionInstanceKey::for_entry(d) =>
+                {
+                    declarations.insert(*id, d);
+                    audit.declarations.push(d);
+                }
+                _ => audit.unsupported.push(
+                    "specialized/member/deinit/callable instance outside direct-only domain".into(),
+                ),
+            }
+        }
+        let defined: BTreeSet<_> = program
+            .modules
+            .iter()
+            .flat_map(|module| module.functions.iter())
+            .map(|f| f.id)
+            .collect();
+        let mapped: BTreeSet<_> = mapping.values().copied().collect();
+        let definitions = program
+            .modules
+            .iter()
+            .map(|m| m.functions.len())
+            .sum::<usize>();
+        if definitions != mapping.len() || defined != mapped || mapped.len() != mapping.len() {
+            audit
+                .unsupported
+                .push("Program/mapping definitions mismatch".into());
+        }
+        for module in &program.modules {
+            if !module.deinits.is_empty()
+                || !module.map_results.is_empty()
+                || !module.nullable_maps.is_empty()
+                || !module.integer_ranges.is_empty()
+            {
+                audit
+                    .unsupported
+                    .push("runtime descriptor table outside scalar/String domain".into());
+            }
+            if module.types.iter().any(|ty| {
+                !matches!(
+                    ty,
+                    SsaTypeKind::Unit
+                        | SsaTypeKind::Boolean
+                        | SsaTypeKind::Integer { .. }
+                        | SsaTypeKind::StringOwner
+                )
+            }) {
+                audit
+                    .unsupported
+                    .push("type outside scalar/String domain".into());
+            }
+        }
+        let (aux_edges, aux_fulfilled, aux_gaps) =
+            self.aux_bindings.finish(program, mapping, owned);
+        audit.unsupported.extend(aux_gaps);
+        let (distinct_edges, distinct_fulfilled, distinct_gaps) =
+            self.distinct_aux.finish(program, mapping, owned);
+        audit.unsupported.extend(distinct_gaps);
+        let (later_edges, later_fulfilled, later_gaps) =
+            self.later_aux.finish(program, mapping, owned);
+        audit.unsupported.extend(later_gaps);
+        let (interleaved_edges, interleaved_fulfilled, interleaved_gaps) =
+            self.interleaved_aux.finish(program, mapping, owned);
+        audit.unsupported.extend(interleaved_gaps);
+        let fulfilled = aux_fulfilled
+            .into_iter()
+            .map(entry_borrow::Fulfillment::SameRoot)
+            .chain(
+                distinct_fulfilled
+                    .into_iter()
+                    .map(entry_borrow::Fulfillment::EagerDistinct),
+            )
+            .chain(
+                later_fulfilled
+                    .into_iter()
+                    .map(entry_borrow::Fulfillment::LaterUse),
+            )
+            .chain(
+                interleaved_fulfilled
+                    .into_iter()
+                    .map(entry_borrow::Fulfillment::InterleavedAb),
+            )
+            .collect();
+        let (entry_edges, entry_gaps) =
+            self.entry_borrows
+                .finish(&self.items, program, mapping, owned, fulfilled);
+        audit.unsupported.extend(entry_gaps);
+        let mut branch_edges = audit.branch_consumption.edges.clone();
+        branch_edges.extend(entry_edges);
+        let mut branch_returns = audit.branch_consumption.returns.clone();
+        let (identity_returns, identity_gaps) = self.identity_returns.finish(program, mapping);
+        audit.unsupported.extend(identity_gaps);
+        branch_returns.extend(identity_returns);
+        let (forward_edges, forward_returns, forward_gaps) =
+            self.forwards.finish(program, mapping, owned);
+        audit.unsupported.extend(forward_gaps);
+        for edge in forward_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping forward edge certificate".into());
+            }
+        }
+        for exit in forward_returns {
+            if !branch_returns.insert(exit) {
+                audit
+                    .unsupported
+                    .push("overlapping forward return certificate".into());
+            }
+        }
+        let (binding_edges, binding_gaps) = self.bindings.finish(program, mapping, owned);
+        audit.unsupported.extend(binding_gaps);
+        for edge in binding_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping binding edge certificate".into());
+            }
+        }
+        for edge in aux_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping auxiliary binding edge certificate".into());
+            }
+        }
+        for edge in distinct_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping distinct auxiliary binding edge certificate".into());
+            }
+        }
+        for edge in later_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping later auxiliary binding edge certificate".into());
+            }
+        }
+        for edge in interleaved_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping interleaved auxiliary binding edge certificate".into());
+            }
+        }
+        let (loop_edges, loop_callers, loop_gaps) = self.loops.finish(program, mapping, owned);
+        audit.certified_loop_callers = loop_callers;
+        audit.unsupported.extend(loop_gaps);
+        for edge in loop_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping loop edge certificate".into());
+            }
+        }
+        let (fresh_edges, fresh_gaps) = self.fresh_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(fresh_gaps);
+        for edge in fresh_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping fresh no-carry edge certificate".into());
+            }
+        }
+        let (arm_edges, arm_gaps) = self.arm_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(arm_gaps);
+        for edge in arm_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping ordinary arm-loop edge certificate".into());
+            }
+        }
+        let (tail_edges, tail_gaps) = self.arm_tail_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(tail_gaps);
+        for edge in tail_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping tail-break arm-loop edge certificate".into());
+            }
+        }
+        let (counter_edges, counter_gaps) = self.arm_counter_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(counter_gaps);
+        for edge in counter_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping bounded-counter edge certificate".into());
+            }
+        }
+        let (counter_break_edges, counter_break_gaps) =
+            self.arm_counter_break_loops.finish(program, mapping, owned);
+        audit.unsupported.extend(counter_break_gaps);
+        for edge in counter_break_edges {
+            if !branch_edges.insert(edge) {
+                audit
+                    .unsupported
+                    .push("overlapping bounded-counter edge certificate".into());
+            }
+        }
+        for function in program.modules.iter().flat_map(|module| &module.functions) {
+            for instruction in &function.instructions {
+                let runtime = match &instruction.operation {
+                    Operation::DirectCall {
+                        callee,
+                        receiver: None,
+                        ..
+                    } => {
+                        match (declarations.get(&function.id), declarations.get(callee)) {
+                            (Some(from), Some(to)) => audit.direct_edges.push((*from, *to)),
+                            _ => audit.unsupported.push("unmapped direct call".into()),
+                        }
+                        None
+                    }
+                    Operation::BorrowCall { callee, .. }
+                        if branch_edges.remove(&(function.id, instruction.id, *callee)) =>
+                    {
+                        match (declarations.get(&function.id), declarations.get(callee)) {
+                            (Some(from), Some(to)) => audit.borrow_edges.push((*from, *to)),
+                            _ => audit
+                                .unsupported
+                                .push("unmapped certified borrow call".into()),
+                        }
+                        None
+                    }
+                    Operation::StringLiteral { .. } => Some("StringLiteral"),
+                    Operation::PrintString { .. } => Some("PrintString"),
+                    Operation::Drop { .. } => Some("Drop"),
+                    Operation::CheckedArithmetic { .. } => Some("CheckedArithmetic"),
+                    Operation::Constant(_)
+                    | Operation::Compare { .. }
+                    | Operation::Copy { .. }
+                    | Operation::Consume { .. }
+                    | Operation::RootPlace { .. }
+                    | Operation::RootPlaceTake { .. }
+                    | Operation::RootReplace { .. }
+                    | Operation::BorrowBegin { .. }
+                    | Operation::BorrowEnd { .. }
+                    | Operation::Read { .. }
+                    | Operation::Mutate { .. } => None,
+                    other => {
+                        audit
+                            .unsupported
+                            .push(format!("unclassified operation: {other:?}"));
+                        None
+                    }
+                };
+                if let Some(runtime) = runtime {
+                    *audit.runtime_operations.entry(runtime).or_default() += 1;
+                }
+            }
+            for block in &function.blocks {
+                match block.terminator.as_ref().map(|t| &t.kind) {
+                    Some(TerminatorKind::BorrowReturn { loan })
+                        if branch_returns.remove(&(function.id, block.id, *loan)) => {}
+                    Some(TerminatorKind::Abort) => {
+                        *audit.runtime_operations.entry("Abort").or_default() += 1;
+                    }
+                    Some(
+                        TerminatorKind::Branch(_)
+                        | TerminatorKind::Conditional { .. }
+                        | TerminatorKind::Return { .. },
+                    ) => (),
+                    other => audit
+                        .unsupported
+                        .push(format!("unclassified terminator: {other:?}")),
+                }
+            }
+        }
+        if !branch_edges.is_empty() || !branch_returns.is_empty() {
+            audit
+                .unsupported
+                .push("unconsumed certified branch evidence".into());
+        }
+        let mut reached: BTreeSet<_> = self.roots.into_iter().collect();
+        loop {
+            let before = reached.len();
+            for (from, to) in audit.direct_edges.iter().chain(&audit.borrow_edges) {
+                if reached.contains(from) {
+                    reached.insert(*to);
+                }
+            }
+            if before == reached.len() {
+                break;
+            }
+        }
+        if reached != audit.declarations.iter().copied().collect() {
+            audit
+                .unsupported
+                .push("entry/certified-edge closure differs from complete plan".into());
+        }
+        audit.declarations.sort();
+        OBSERVATIONS.with(|slot| {
+            if let Some(observations) = slot.borrow_mut().as_mut() {
+                observations.push(audit);
+            }
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests;

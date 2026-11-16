@@ -335,6 +335,8 @@ impl Emitted {
             paths,
         };
         receipt.validate(plans, function, span)?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        crate::ssa::d10_project_audit::branch_consumption::record(plans, function, &receipt);
         #[cfg(test)]
         ci_tests::record(plans, function, &receipt, span);
         #[cfg(test)]
@@ -347,11 +349,17 @@ impl Emitted {
     }
 }
 impl Receipt {
-    #[cfg(test)]
+    #[cfg(all(
+        test,
+        any(
+            feature = "loan-observation-test-support",
+            feature = "d10-catalog-experiment"
+        )
+    ))]
     pub(crate) fn folded_distinct_blocks(&self) -> bool {
         self.fold.is_some_and(|(from, to)| from != to)
     }
-    fn validate(
+    pub(crate) fn validate(
         &self,
         plans: &Plans,
         function: &Function,

@@ -9,9 +9,8 @@ use lang_frontend::{
     parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        BuiltinType, CompilationUnitTypes, ExpressionCategory, TypeKind, TypedFile,
-        UnitExpressionId, UnitTypeKind, check_compilation_unit_types, check_types,
-        standard_environments,
+        BuiltinType, CompilationUnitTypes, ExpressionCategory, TypedFile, UnitExpressionId,
+        UnitTypeKind, check_compilation_unit_types, check_types, standard_environments,
     },
 };
 
@@ -76,7 +75,7 @@ fn checked_entries(text: &str) -> [(SourceMap, CompilationUnitTypes); 2] {
 
 // Unit facts do not expose legacy owner matches/use_at/use-category, and the Unit
 // type entry requires validated names. Keep those original witnesses without weakening them.
-// Six complete tests also retain this entry: Unit adds L0167 for top-level runtime values,
+// Several tests also retain this entry: Unit adds L0167 for top-level runtime values,
 // differs on Any/Any? admission, and does not share legacy invalid-dependency suppression.
 // Their original sources and exact diagnostics are not rewritten to fit the Unit boundary.
 fn legacy_checked(text: &str) -> (SourceMap, TypedFile) {
@@ -201,81 +200,100 @@ fn associated_constant_selection_uses_declaration_namespace_and_concrete_type() 
     ] {
         // Concrete Int facts must be available even if the use precedes the declaration.
         for source in [
-            format!("{declaration}\nval selected = Config.LIMIT"),
-            format!("val selected = Config.LIMIT\n{declaration}"),
+            format!("{declaration}\nfun selected(): Int = Config.LIMIT"),
+            format!("fun selected(): Int = Config.LIMIT\n{declaration}"),
         ] {
-            let (sources, parsed, typed) = legacy_analyzed(&source);
-            assert!(
-                typed.diagnostics().is_empty(),
-                "{source}: {:?}",
-                typed.diagnostics()
-            );
-            let (expression, _) = parsed
-                .ast()
-                .expressions()
-                .iter()
-                .find(|(_, node)| sources.slice(node.span()).unwrap() == "Config.LIMIT")
-                .expect("member expression");
-            let facts = typed
-                .constants()
-                .expect("all classifier kinds publish constants");
-            assert_eq!(
-                facts.use_at(expression).unwrap().value(),
-                &lang_frontend::type_checking::ConstValue::Integer {
-                    ty: BuiltinType::Int,
-                    value: 7
-                }
-            );
-            assert_eq!(facts.declarations().len(), 2);
-            assert_eq!(facts.uses().len(), 2); // bare initializer dependency and qualified runtime use
-            assert_eq!(
-                typed.expression_category(expression),
-                Some(ExpressionCategory::Temporary)
-            );
-            assert_eq!(
-                typed
-                    .types()
-                    .get(typed.expression_type(expression).unwrap()),
-                Some(&TypeKind::Builtin(BuiltinType::Int)),
-                "{source}"
-            );
+            for rooted in [false, true] {
+                let (sources, parsed, unit, typed) = analyzed_entry(&source, rooted);
+                assert!(
+                    typed.diagnostics().is_empty(),
+                    "{source}: {:?}",
+                    typed.diagnostics()
+                );
+                let (expression, _) = parsed
+                    .ast()
+                    .expressions()
+                    .iter()
+                    .find(|(_, node)| sources.slice(node.span()) == Ok("Config.LIMIT"))
+                    .expect("member expression");
+                let expression = UnitExpressionId::new(unit, expression);
+                let facts = typed
+                    .constants()
+                    .expect("all classifier kinds publish constants");
+                let usage = facts
+                    .uses()
+                    .iter()
+                    .find(|usage| usage.expression() == expression)
+                    .expect("selected qualified runtime use");
+                let limit = facts
+                    .declarations()
+                    .iter()
+                    .find(|decl| sources.slice(decl.declaration_span()) == Ok("LIMIT"))
+                    .expect("Config.LIMIT declaration");
+                assert_eq!(usage.target(), limit.symbol());
+                assert_eq!(usage.value(), limit.value());
+                assert_eq!(
+                    usage.value(),
+                    &lang_frontend::type_checking::ConstValue::Integer {
+                        ty: BuiltinType::Int,
+                        value: 7
+                    }
+                );
+                assert_eq!(facts.declarations().len(), 2);
+                assert_eq!(facts.uses().len(), 2); // initializer dependency and qualified runtime use
+                assert_eq!(
+                    typed.expression_category(expression),
+                    Some(ExpressionCategory::Temporary)
+                );
+                assert_eq!(typed.expression_type(expression), Some(usage.ty()));
+                assert_eq!(
+                    typed.types().get(usage.ty()),
+                    Some(&UnitTypeKind::Builtin(BuiltinType::Int)),
+                    "{source}"
+                );
+            }
         }
     }
 }
 
 #[test]
-fn associated_constant_visibility_and_missing_member_are_precise() {
-    for (declaration, target, code) in [
-        (
-            "class Config { companion { private const val LIMIT: Int = 7 } }",
-            "Config.LIMIT",
-            "L0154",
-        ),
-        (
-            "object Config { private const val LIMIT: Int = 7 }",
-            "Config.LIMIT",
-            "L0154",
-        ),
-        ("class Config {}", "Config.MISSING", "L0080"),
+fn associated_constant_visibility_is_precise_in_both_unit_entries() {
+    for declaration in [
+        "class Config { companion { private const val LIMIT: Int = 7 } }",
+        "object Config { private const val LIMIT: Int = 7 }",
+    ] {
+        let text = format!("{declaration}\nfun inspect(): Int = Config.LIMIT");
+        for (sources, typed) in checked_entries(&text) {
+            assert_eq!(codes(typed.diagnostics()), ["L0154"], "{declaration}");
+            assert_eq!(
+                sources.slice(typed.diagnostics()[0].primary_span()),
+                Ok("LIMIT")
+            );
+        }
+    }
+    let text = "class Config { companion { private const val LIMIT: Int = 7\nconst val COPY: Int = Config.LIMIT } }";
+    for (_, typed) in checked_entries(text) {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+    }
+}
+
+#[test]
+fn missing_associated_constants_are_precise_in_legacy_type_recovery() {
+    for (declaration, member) in [
+        ("class Config {}", "MISSING"),
         (
             "interface Protocol { companion { const val LIMIT: Int = 7 } }\nclass Config : Protocol {}",
-            "Config.LIMIT",
-            "L0080",
+            "LIMIT",
         ),
     ] {
-        let (sources, typed) = legacy_checked(&format!("{declaration}\nval selected = {target}"));
-        assert_eq!(codes(typed.diagnostics()), [code], "{target}");
+        let (sources, typed) =
+            legacy_checked(&format!("{declaration}\nval selected = Config.{member}"));
+        assert_eq!(codes(typed.diagnostics()), ["L0080"], "{member}");
         assert_eq!(
-            sources
-                .slice(typed.diagnostics()[0].primary_span())
-                .unwrap(),
-            target.split('.').next_back().unwrap()
+            sources.slice(typed.diagnostics()[0].primary_span()),
+            Ok(member)
         );
     }
-    let (_, typed) = legacy_checked(
-        "class Config { companion { private const val LIMIT: Int = 7\nconst val COPY: Int = Config.LIMIT } }",
-    );
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
 }
 
 #[test]
@@ -320,30 +338,43 @@ fn associated_constant_inout_is_rejected_after_overload_type_filtering() {
 
 #[test]
 fn constant_expressions_reject_runtime_work_even_in_a_short_circuit_rhs() {
-    for (prefix, expression, invalid) in [
-        ("fun compute(): Int = 7\n", "compute()", "compute()"),
-        ("val ordinary: Int = 7\n", "ordinary + 1", "ordinary"),
+    for (prefix, expression, invalid, expected) in [
+        (
+            "fun compute(): Int = 7\n",
+            "compute()",
+            "compute()",
+            &["L0156"][..],
+        ),
+        (
+            "val ordinary: Int = 7\n",
+            "ordinary + 1",
+            "ordinary",
+            &["L0167", "L0156"][..],
+        ),
         (
             "fun probe(): Boolean = true\n",
             "false && probe()",
             "probe()",
+            &["L0156"][..],
         ),
         (
             "",
             "if (true) { 1 } else { 2 }",
             "if (true) { 1 } else { 2 }",
+            &["L0156"][..],
         ),
-        ("", "\"answer ${1}\"", "\"answer ${1}\""),
-        ("", "1.0 == 2.0", "1.0 == 2.0"),
+        ("", "\"answer ${1}\"", "\"answer ${1}\"", &["L0156"][..]),
+        ("", "1.0 == 2.0", "1.0 == 2.0", &["L0156"][..]),
     ] {
-        let (sources, typed) = legacy_checked(&format!("{prefix}const val sample = {expression}"));
-        assert_eq!(codes(typed.diagnostics()), ["L0156"], "{expression}");
-        assert_eq!(
-            sources
-                .slice(typed.diagnostics()[0].primary_span())
-                .unwrap(),
-            invalid
-        );
+        let text = format!("{prefix}const val sample = {expression}");
+        for (sources, typed) in checked_entries(&text) {
+            assert_eq!(codes(typed.diagnostics()), expected, "{expression}");
+            assert_eq!(
+                sources.slice(typed.diagnostics().last().unwrap().primary_span()),
+                Ok(invalid)
+            );
+            assert!(typed.constants().is_none());
+        }
     }
 }
 

@@ -1,7 +1,8 @@
 //! Expressions in the refined CFG.
+#[path = "expression/call.rs"]
 mod call;
+#[path = "expression/nullable_argument.rs"]
 mod nullable_argument;
-
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,
@@ -304,8 +305,9 @@ impl Builder<'_, '_> {
             if fact.symbol() != symbol {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
-            if let Some(slot) = self.narrowed.get(&symbol).copied() {
-                return Ok(slot);
+            if let Some(slot) = self.narrowed_value(symbol) {
+                // A later operand can compare the same root and redefine its proof slot.
+                return self.value(ROp::Alias { source: slot }, self.body.slots[slot.0], span);
             }
             let narrowed = self.c(fact.narrowed_type());
             if self.move_only(narrowed) && self.active_view(symbol).is_some() {
