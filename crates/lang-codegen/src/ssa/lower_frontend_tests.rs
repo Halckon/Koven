@@ -552,76 +552,12 @@ fn rejects_out_of_range_integer_literals_before_ssa_construction() {
     );
 }
 
+#[path = "generic_recursive_unit_contract.rs"]
+mod generic_recursive_unit_contract;
+
 #[test]
 fn lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity() {
-    let analysis = analyze(
-        "fun <T> identity(own input: T): T = input\n\
-         fun <T> relay(own input: T): T = identity(input)\n\
-         fun <T> recurse(own input: T): T = recurse(input)\n\
-         fun <T> unused(own input: T): T = input\n\
-         fun useInt(input: Int): Int = relay<Int>(input)\n\
-         fun useIntAgain(input: Int): Int = relay(input)\n\
-         fun useLong(input: Long): Long = relay(input)\n\
-         fun recursive(input: Int): Int = recurse(input)",
-    );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("reachable concrete scalar generic instances must lower");
-    let rendered = render_program(&program);
-    let repeated = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("repeated instance planning must lower");
-    assert_text_eq!(rendered, render_program(&repeated));
-    assert_eq!(rendered.matches("func \"identity<Int>\"").count(), 1);
-    assert_eq!(rendered.matches("func \"identity<Long>\"").count(), 1);
-    assert_eq!(rendered.matches("func \"relay<Int>\"").count(), 1);
-    assert_eq!(rendered.matches("func \"relay<Long>\"").count(), 1);
-    assert_eq!(rendered.matches("func \"recurse<Int>\"").count(), 1);
-    assert!(!rendered.contains("unused<"));
-
-    let module = &program.modules[0];
-    let recursive = module
-        .functions
-        .iter()
-        .find(|function| function.name == "recurse<Int>")
-        .expect("recursive generic instance must exist");
-    let recursive_body = rendered
-        .split("func \"recurse<Int>\"")
-        .nth(1)
-        .and_then(|body| body.split("\n\n  func").next())
-        .expect("recursive instance body must render");
-    assert!(recursive_body.contains(&format!("call @f{}(", recursive.id.index())));
+    generic_recursive_unit_contract::assert_reachable_instances();
 }
 
 #[path = "generic_overload_unit_contract.rs"]

@@ -20862,3 +20862,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 同轮严格 MemoryDocument Unit view 通过已有测试多 root 入口一次规划 `[one,two]`，恰四函数、两个原重载各唯一实例；两 caller 的唯一 DirectCall 各指向独立原声明 Span，借用 Int caller/Value Int callee/第二 callee Borrow Boolean 与 Int return 独立核验。
 - 保全两 LLVM 定义各一次和两调用均存在的原 oracle，并加强为每 caller body 预期 call 恰一、另一目标零。真实 Unit 符号按 FunctionId/name 编码（`.dN.tN`），不沿用 Legacy `choose<Int>` 字符串；类型实例身份由原泛型声明和实际 ABI 证明，不靠名字自证。
 - 独立只读审查通过，原源码字节、同图身份和全部 LLVM oracle 保全；三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）完整 exact 首遍 1 passed/0 failed/0 ignored/exit0，编译 1m25s、执行 0.03s；codegen all-targets 同三 feature 严格 Clippy 56.02s/exit0。fmt/docs979/尺寸2523（历史两例外不扩大）/diff 通过。净退休一项旧 analyze/lower_scalar_file 测试消费者，不改变生产准入；未运行默认全 workspace、native、自递归程序、故障注入或远端 CI，不推送。
+
+### 可达泛型实例与递归身份的严格 Unit 多根迁移（2026-11-16）
+
+- 基 `99d8296a`，只迁移 `lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity`，保留原八声明源码与四个 concrete roots；同轮严格 MemoryDocument 名称、完整类型和 ownership view 一次规划四根，不修改生产路径或相邻重载/inline 测试。
+- 以原声明 Span 及实际 Int32/Int64 参数/返回类型定位 identity/relay 各两个、recurse 一个唯一实例，完整模块恰九函数，unused 不实例化；四根真实目标、relay→identity 与 recurse→自身实际 FunctionId 均核验，不依赖 Legacy 或 Unit 名字字符串。
+- 重复组装保留原完整 SSA 文本确定性，并核同原 Declaration keys、稳定 module/function index 与各自 Program 内解析的 Origin。首验新增的跨 Program opaque FunctionId 直接相等断言失败：原模型的 ModuleId 含独立 ProgramOwner，不能用打印相同的索引替代所有权身份。仅修此测试 oracle，保留失败日志；原渲染相等在首验已通过，不修改模型或弱化同 Program 递归身份。
+- 修正经独立末审后，在准确退休三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下 exact 一项通过（编译4m50s、执行0.05s），codegen all-targets 严格 Clippy 1m58s/exit0；fmt/docs979/尺寸2524（两历史例外不扩大）/diff 通过。首验误用 two-source-unit 的配置和失败日志保留，不冒称同配置通过。未重跑默认 workspace 或远端 CI，不执行自递归生成程序、native、Abort 或故障注入，不推送。
