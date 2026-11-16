@@ -153,6 +153,20 @@ class LoanKernelCases(unittest.TestCase):
         finally:
             CHECKER.Checker.has = original
 
+    def test_the_scope_waits_for_its_children_before_their_sources_die(self):
+        """作用域库：子任务的来源之所以安全，是因为作用域的析构等齐全部子任务，而它活到析构点。
+
+        去掉作用域的 deinit，“作用域还在时写被借出的变量”与“来源声明在作用域之后”都不再被拒绝。
+        """
+        text = (ROOT / "cases" / "W1.lk").read_text(encoding="utf-8")
+        relaxed = text.replace("cell view class Scope<view T>(n: Int) deinit", "cell view class Scope<view T>(n: Int)")
+        self.assertNotEqual(text, relaxed)
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(relaxed)}
+        lost = expected(text) - actual
+        self.assertEqual({"K1", "K9", "K22"}, {rule for rule, _ in lost})
+        self.assertEqual(3, len(lost))
+        self.assertEqual(set(), actual - expected(text))
+
     def test_early_drop_never_changes_what_is_accepted(self):
         """统一析构规则：提前析构只是许可。打开它之后，每个用例被接受或拒绝的结果必须不变。"""
         total = []
