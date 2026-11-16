@@ -21101,3 +21101,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `7402e9d6`，前审及末审后收敛 `ownership_borrow_result.rs` 七个既有FQN、十四个原fixture，删除唯一 `checked_single` 及旧names/types/ownership专用依赖，Rust净减54行。原源码、两Unit布局helper及有效断言不变，未修改生产语义或新增重复测试。
 - 保nullable promotion唯一L0162与空return origins/bindings/forwarded loans，真实nullable storage的两bindings、forwarded loan/call use数量、enum narrowing的binding，promoted continuation唯一L0164/空call uses，以及nullable复制的两个有序Shared temporary/Exclusive root place与两例唯一L0135。诊断合同是数量/code，不声称完整Diagnostic或Span等价；原正常/后续参数退出loan-end邻控保留。
 - 冻结独审补丁并逆用/重应用，准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原ownership_borrow_result全target修改前后各12 passed / 0 ignored，真实本树编译24.16s/0.52s；frontend all-targets严格Clippy35.26s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check通过；每步构建前核空间高于8GiB并串行执行，完成后交还E2槽。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：结构解构与私有访问原合同迁Unit
+
+- 基 `f6b10c67`，逐例前审及末审后迁移 `ownership_structural.rs` 三个既有FQN、四个原fixture。保持原源码及历史`legacy_`测试名，前两例保持原自定义环境；同一AST进入MemoryDocument/Rooted，核唯一source和布局key，component用真实UnitSymbolId查所属local symbol，不混用裸ID。
+- 保命名binding按字段顺序、唯一L0080/`arbitrary`，private lexical access的三L0080/三个`hidden`、一destructuring/一projection/无call，以及原complete完整诊断等于raw；borrowed discard保L0160/空诊断及iteration数量0/1。仅原private例执行complete，其他保raw阶段。Malformed parser恢复及其他旧projection/partial-move合同未动，不声称全文件旧API已清除。
+- 冻结已审补丁，基线与候选原ownership_structural全target各11 passed / 0 ignored，精确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）真实本树编译25.41s/0.63s；frontend all-targets严格Clippy36.81s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过。离线前调用无session/日志且未计验证，恢复后核无进程和基线日志再执行；每步核8GiB并串行，结束余量约8.69GiB，已交还E2槽。未改生产语义，未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。

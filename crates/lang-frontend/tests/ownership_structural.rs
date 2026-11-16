@@ -438,6 +438,49 @@ fn checked_in_phase3_structural_fixtures_execute_pass_and_fail_cases() {
     }
 }
 
+// Preserve the original raw type-recovery contract on both source layouts.
+fn inspect_raw_unit_entries(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    environment: &NameEnvironment,
+    types: &TypeEnvironment,
+    mut inspect: impl FnMut(
+        &[SourceUnitInput<'_>],
+        &lang_frontend::name_resolution::ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+    ),
+) {
+    let source = parsed.source_id();
+    let path = sources.source_name(source).unwrap();
+    for (layout, input) in [
+        SourceUnitInput::memory_document(source, parsed),
+        SourceUnitInput::new("root", path, source, parsed),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let inputs = [input];
+        let index = index_compilation_unit(sources, &inputs).unwrap();
+        let [indexed] = index.source_units() else {
+            panic!("one original source")
+        };
+        assert_eq!(indexed.source_id(), source);
+        match (layout, indexed.key()) {
+            (0, SourceUnitKey::MemoryDocument) => {}
+            (1, SourceUnitKey::Rooted { root, logical_path }) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), path);
+            }
+            _ => panic!("requested source layout"),
+        }
+        let names = resolve_compilation_unit_names(sources, &inputs, &index, environment).unwrap();
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().unwrap();
+        let typed = check_compilation_unit_types(sources, &inputs, &names, types).unwrap();
+        inspect(&inputs, &names, &typed);
+    }
+}
+
 #[test]
 fn legacy_destructuring_keeps_named_bindings_aligned_with_their_field_types() {
     let mut sources = SourceMap::new();
@@ -451,26 +494,38 @@ fn legacy_destructuring_keeps_named_bindings_aligned_with_their_field_types() {
         .unwrap();
     let parsed = parse_file_twice(&sources, source, "legacy named split");
     let (names_env, types_env) = environments();
-    let names = resolve_names(&sources, &parsed, &names_env).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
-    assert_eq!(codes(typed.diagnostics()), ["L0080"]);
-    assert_eq!(
-        sources.slice(typed.diagnostics()[0].primary_span()),
-        Ok("arbitrary")
+    inspect_raw_unit_entries(
+        &sources,
+        &parsed,
+        &names_env,
+        &types_env,
+        |_, names, typed| {
+            assert_eq!(codes(typed.diagnostics()), ["L0080"]);
+            assert_eq!(
+                sources.slice(typed.diagnostics()[0].primary_span()),
+                Ok("arbitrary")
+            );
+            let [descriptor] = typed.destructurings() else {
+                panic!("only the complete named split publishes facts");
+            };
+            let bindings = descriptor
+                .components()
+                .iter()
+                .map(|component| {
+                    let symbol_id = component.symbol();
+                    let local = names
+                        .names()
+                        .source_units()
+                        .iter()
+                        .find(|unit| unit.source_unit() == symbol_id.source_unit())
+                        .unwrap();
+                    let symbol = &local.resolution().symbols()[symbol_id.symbol().index()];
+                    sources.slice(symbol.span()).unwrap()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(bindings, ["first", "second"]);
+        },
     );
-    let [descriptor] = typed.destructurings() else {
-        panic!("only the complete named split publishes facts");
-    };
-    let bindings = descriptor
-        .components()
-        .iter()
-        .map(|component| {
-            let symbol = &names.symbols()[component.symbol().index()];
-            sources.slice(symbol.span()).unwrap()
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(bindings, ["first", "second"]);
 }
 
 #[test]
@@ -486,27 +541,35 @@ fn legacy_private_fields_require_the_lexical_classifier() {
     let source = sources.add_source("legacy-private-field.ko", text).unwrap();
     let parsed = parse_file_twice(&sources, source, "legacy private field");
     let (names_env, types_env) = environments();
-    let names = resolve_names(&sources, &parsed, &names_env).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
-    assert_eq!(codes(typed.diagnostics()), ["L0080"; 3]);
-    assert_eq!(
-        typed
-            .diagnostics()
-            .iter()
-            .map(|d| sources.slice(d.primary_span()).unwrap())
-            .collect::<Vec<_>>(),
-        ["hidden", "hidden", "hidden"],
+    inspect_raw_unit_entries(
+        &sources,
+        &parsed,
+        &names_env,
+        &types_env,
+        |inputs, names, typed| {
+            assert_eq!(codes(typed.diagnostics()), ["L0080"; 3]);
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| sources.slice(d.primary_span()).unwrap())
+                    .collect::<Vec<_>>(),
+                ["hidden", "hidden", "hidden"],
+            );
+            assert_eq!(typed.destructurings().len(), 1);
+            assert_eq!(typed.aggregate_projections().len(), 1);
+            assert!(typed.calls().is_empty());
+            use lang_frontend::type_checking::{
+                FinalTypeAdmissionError, complete_compilation_unit_types,
+            };
+            let admission =
+                complete_compilation_unit_types(&sources, inputs, names, &types_env, typed);
+            let Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics)) = admission else {
+                panic!("private patterns must reject with source diagnostics: {admission:?}");
+            };
+            assert_eq!(final_diagnostics, typed.diagnostics());
+        },
     );
-    assert_eq!(typed.destructurings().len(), 1);
-    assert_eq!(typed.aggregate_projections().len(), 1);
-    assert!(typed.calls().is_empty());
-    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_file_types};
-    let admission = complete_file_types(&sources, &parsed, &names, &types_env, &typed);
-    let Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics)) = admission else {
-        panic!("private patterns must reject with source diagnostics: {admission:?}");
-    };
-    assert_eq!(final_diagnostics, typed.diagnostics());
 }
 
 #[test]
@@ -528,14 +591,13 @@ fn legacy_borrowed_destructuring_does_not_read_discarded_private_fields() {
         let source = sources.add_source("legacy-private-for.ko", text).unwrap();
         let parsed = parse_file_twice(&sources, source, "legacy private for");
         let (names_env, types_env) = standard_environments();
-        let names = resolve_names(&sources, &parsed, &names_env).unwrap();
-        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-        let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
-        assert_eq!(codes(typed.diagnostics()), expected);
-        assert_eq!(
-            typed.sequential_iterations().len(),
-            usize::from(expected.is_empty())
-        );
+        inspect_raw_unit_entries(&sources, &parsed, &names_env, &types_env, |_, _, typed| {
+            assert_eq!(codes(typed.diagnostics()), expected);
+            assert_eq!(
+                typed.sequential_iterations().len(),
+                usize::from(expected.is_empty())
+            );
+        });
     }
 }
 
