@@ -684,6 +684,17 @@ class Checker:
             return self.has("Escapable", self.type_of(ty_name))
         return ty_name not in self.fun.views and not ty_name.startswith(("borrow ", "inout "))
 
+    def escapable_class(self, ty_name):
+        return ty_name in self.classes and self.has("Escapable", self.type_of(ty_name))
+
+    def carries(self, value):
+        """K20：值是否携带来源，以它名下的账为准。
+
+        可逃逸的类经流向收下来源之后（演算没有泛型类型，Bag 代表以视图实例化的 Bag<T>），
+        类型看不出它携带来源，账上看得出。
+        """
+        return any(held for key, held in value.loans.items() if key)
+
     def exclusive(self, class_name):
         return any(kind == "inout" for kind, _ in self.ref_paths(class_name))
 
@@ -727,9 +738,19 @@ class Checker:
     def check_flows(self, state, fun):
         """K6 对流向的延伸：函数体让哪些来源流进了借用参数所指的值，签名的 flows 就要声明哪些。
 
+        """
+        for name, key, extra in self.flowed_in(state):
+            declared = {src for src, (target, path) in fun.flows if target == name and self.within(key, path)}
+            for missing in self.uncovered(extra, declared):
+                self.error("K6", fun.line, f"流入 {name} 的值依赖局部变量的存储" if missing is None
+                           else f"流入 {name} 的来源 {missing} 没有在 flows 中声明")
+
+    def flowed_in(self, state):
+        """流进调用方存储的来源：(参数名, 字段路径, loan)。
+
         参数名下每个字段路径（类型参数是 *）起初只持有它自己的符号 loan；多出来的都是流入的。
         """
-        for mode, name, ty in fun.params:
+        for mode, name, ty in self.fun.params:
             var = state.get(name)
             if var is None or (var.init == "M" and mode != "own"):
                 continue
@@ -737,11 +758,7 @@ class Checker:
                 # 按值参数自己的存储随它消失；只有越过借用字段、落在调用方视图里的才算流出
                 if mode == "own" and not self.crosses_borrow_field(ty, key.split(".")[:-1]):
                     continue
-                extra = set(var.loans[key]) - {f"P({name}.{key})"}
-                declared = {src for src, (target, path) in fun.flows if target == name and self.within(key, path)}
-                for missing in self.uncovered(extra, declared):
-                    self.error("K6", fun.line, f"流入 {name} 的值依赖局部变量的存储" if missing is None
-                               else f"流入 {name} 的来源 {missing} 没有在 flows 中声明")
+                yield name, key, set(var.loans[key]) - {f"P({name}.{key})"}
 
     @staticmethod
     def within(key, path):
@@ -787,6 +804,33 @@ class Checker:
                     loans.setdefault(key[len(prefix):], set()).update(held)
         return loans
 
+    def walk(self, state, targets, held, class_name, through):
+        """沿字段路径走：按值字段留在同一处存储，借用字段换到它所指的存储。返回走到的存储与那里的账。"""
+        at = set(targets)
+        for name in through:
+            kind, _, class_name = self.classes[class_name].field(name)
+            beneath = {key[len(name) + 1:]: loans for key, loans in held.items() if key.startswith(name + ".")}
+            if kind:  # 越过借用字段：接下来的存储是它所指的视图
+                at = self.places(held.get(name, ()))
+                held = self.held_fields(state, at, beneath)
+            else:
+                at, held = {(root, where + (name,)) for root, where in at}, beneath
+        return at, held
+
+    def current_fields(self, state, targets, carried, class_name):
+        """K20 现查：视图 class_name 位于 targets 时各借用字段当前持有的 loan。
+
+        借用字段之外的路径（它所指的另一个视图的字段）在这个视图名下只有建立时的副本，
+        账在所指视图的拥有者上，沿路径走过去取。
+        """
+        fields = self.held_fields(state, targets, carried)
+        for _, path in self.ref_paths(class_name) if class_name in self.classes else ():
+            *through, last = path.split(".")
+            if self.crosses_borrow_field(class_name, through):
+                _, held = self.walk(state, targets, fields, class_name, through)
+                fields.setdefault(path, set()).update(held.get(last, ()))
+        return fields
+
     def flow_into(self, state, targets, fields, class_name, declared, flowing):
         """K20 调用：来源并入视图 class_name 在 declared 之下的每个借用字段。
 
@@ -796,16 +840,8 @@ class Checker:
         for _, path in self.ref_paths(class_name):
             if not self.within(path, declared):
                 continue
-            at, held, cls = set(targets), fields, class_name
             *through, last = path.split(".")
-            for name in through:
-                kind, _, cls = self.classes[cls].field(name)
-                beneath = {key[len(name) + 1:]: loans for key, loans in held.items() if key.startswith(name + ".")}
-                if kind:  # 越过借用字段：接下来的存储是它所指的视图
-                    at = self.places(held.get(name, ()))
-                    held = self.held_fields(state, at, beneath)
-                else:
-                    at, held = {(root, where + (name,)) for root, where in at}, beneath
+            at, _ = self.walk(state, targets, fields, class_name, through)
             self.record_flow(state, at, {last: flowing})
 
     def reaches_exclusively(self, class_name, fields):
@@ -878,9 +914,12 @@ class Checker:
 
         实现原型时补充的一条：存活 loan 所指的存储若是某个持有者变量，该变量随之存活，
         否则“依赖视图本身”的结果无法保住视图所持有的来源。
+        调用方的持有者在本函数返回之后仍然存活，所以流进它的来源一直存活（K20 存活）。
         """
         names = {n for n in self.live if n in state}
         loans = set().union(*self.pending) if self.pending else set()
+        for _, _, extra in self.flowed_in(state):
+            loans |= extra
         while True:
             size = (len(names), len(loans))
             for name in names:
@@ -939,13 +978,14 @@ class Checker:
             self.error("K8", place.line, f"{place.root} 已被移动或可能已被移动")
         here = {(place.root, ())}
         if not place.fields:
-            return Resolved(here, set(), var.ty, True, var.loans, "")
+            held = self.current_fields(state, here, {}, var.ty.name) if var.ty.kind == "view" else var.loans
+            return Resolved(here, set(), var.ty, True, held, "")
         targets, via, ty, writable, field_loans = here, set(), var.ty, True, var.loans
         if var.ty.kind in ("borrow", "inout"):
             self.access(state, here, set(), "read", place.line)
             via = set(var.loans.get("", ()))
             targets, ty, writable = self.places(via), self.type_of(var.ty.name), var.ty.kind == "inout"
-            field_loans = self.folded(self.held_fields(state, targets, var.loans), var.ty.name, via)
+            field_loans = self.folded(self.current_fields(state, targets, var.loans, var.ty.name), var.ty.name, via)
         crossed = ""
         for name in place.fields:
             decl = self.classes.get(ty.name)
@@ -970,9 +1010,9 @@ class Checker:
                 targets = self.places(held)
                 writable = writable and kind == "inout"
                 if field_loans is not None:  # 借用字段指向另一个视图：它的借用字段记在同一前缀之下
-                    field_loans = self.folded(self.held_fields(state, targets, {
-                        key[len(name) + 1:]: held for key, held in field_loans.items() if key.startswith(name + ".")}),
-                        fty, held)
+                    field_loans = self.folded(self.current_fields(state, targets, {
+                        key[len(name) + 1:]: held for key, held in field_loans.items() if key.startswith(name + ".")},
+                        fty), fty, held)
             ty = self.type_of(fty)
             if not kind and ty.kind != "view":
                 field_loans = None
@@ -1021,7 +1061,7 @@ class Checker:
         var = state[place.root]
         if var.pinned:
             self.error("S3", expr.line, f"{place.root} 已开始执行，它的帧不能再移动")
-        value = Value(var.ty, copy_loans(var.loans), var.payload)
+        value = Value(var.ty, copy_loans(res.field_loans), var.payload)
         if self.tracked(var):
             self.emit("move", expr.line, place.root)
         var.init, var.loans = "M", {}
@@ -1129,7 +1169,7 @@ class Checker:
             kind = stored_kind or ("excl" if mut else "shared")
             loan = self.new_loan(f"L{expr.site}", kind, targets, via, expr.line)
             loans = {"": {loan}}
-            loans.update({k: v for k, v in self.held_fields(state, targets, var.loans).items() if k})
+            loans.update({k: v for k, v in self.current_fields(state, targets, var.loans, var.ty.name).items() if k})
             return Value(Type(mode, var.ty.name), loans, var.payload)
         res = self.resolve(state, expr.place)
         if not res.crossed:
@@ -1150,10 +1190,12 @@ class Checker:
         if len(expr.args) != len(decl.fields):
             raise SyntaxProblem(f"第 {expr.line} 行：{expr.name} 的实参个数不符")
         loans, pushed = {}, 0
-        for (kind, name, _), arg in zip(decl.fields, expr.args):
+        for (kind, name, fty), arg in zip(decl.fields, expr.args):
             val = self.argument(arg, kind or "own", state)
             if kind:
                 loans[name] = set(val.loans.get("", ()))
+            elif self.carries(val) and self.escapable_class(fty):
+                self.error("K17", arg.line, f"{name}：这个 {fty} 名下记着来源，不能存进可逃逸的类型的字段")
             # 按值嵌套或借用另一个视图：内层的借用字段记在 字段名.路径 之下
             loans.update({f"{name}.{key}": set(held) for key, held in val.loans.items() if key and key != "*"})
             self.pending.append(val.all_loans())
@@ -1177,8 +1219,11 @@ class Checker:
             actual = value.ty.name
             if mode == "own" and value.ty.kind in ("borrow", "inout"):  # 借用值本身作为 T 的值
                 actual = f"{value.ty.kind} {actual}"
-            if wanted in fun.tparams and wanted not in fun.views and not self.escapable(actual):
+            plain = wanted in fun.tparams and wanted not in fun.views
+            if plain and not self.escapable(actual):
                 self.error("K17", line, f"{name}：{actual} 可能携带来源，不能实例化可逃逸的类型参数 {wanted}")
+            elif mode == "own" and self.carries(value) and (plain or self.escapable_class(wanted)):
+                self.error("K17", line, f"{name}：这个 {actual} 名下记着来源，不能交给可逃逸的类型 {wanted}")
             if wanted in fun.tparams:
                 if mode == "inout" and value.payload:
                     actual = ("opened", actual, name)
@@ -1277,7 +1322,7 @@ class Checker:
             if isinstance(actual, str) and actual in self.classes and self.classes[actual].is_view:
                 # 目标是视图：流入的来源可能落在 path 之下的任何一个借用字段上
                 fields = {key: held for key, held in given.loans.items() if key}
-                self.flow_into(state, targets, self.held_fields(state, targets, fields), actual, path, flowing)
+                self.flow_into(state, targets, self.current_fields(state, targets, fields, actual), actual, path, flowing)
             else:
                 self.record_flow(state, targets, {"*": flowing})
         result = set()
@@ -1300,6 +1345,8 @@ class Checker:
             return Value(ty, {"*": result})
         if ty.kind == "view":  # K11：含多个借用字段的结果共同持有这些 loan
             return Value(ty, {path: set(result) for _, path in self.ref_paths(ty_name)})
+        if ty.kind == "cls" and result:  # 签名声明了来源的类：值名下记着这些来源（K20）
+            return Value(ty, {"*": result})
         return Value(ty)
 
     # ---- 语句
@@ -1452,7 +1499,7 @@ class Checker:
                 # K20：账记在被写入的存储的拥有者上；经借用或经视图的借用字段到达时，
                 # 这条路径上随借用带来的副本作废，之后从拥有者那里现查
                 if var.ty.kind in ("borrow", "inout") or self.crosses_borrow_field(var.ty.name, place.fields):
-                    var.loans = {key: held for key, held in var.loans.items() if not self.within(key, prefix)}
+                    var.loans = {key: held for key, held in var.loans.items() if not key.startswith(prefix + ".")}
                 incoming = {key: set(held) for key, held in value.loans.items() if key}
                 self.record_flow(state, res.targets, incoming, replace=len(res.targets) == 1)
             return
