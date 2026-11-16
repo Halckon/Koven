@@ -10,6 +10,7 @@ import importlib.util
 import re
 import sys
 from collections import namedtuple
+import functools
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -120,16 +121,24 @@ TOKEN = re.compile(r"\s+|//[^\n]*|[A-Za-z_]\w*|\d+|[(){}:,.=&*<>+]")
 def tokenize(text):
     """切分为 (文本, 行号)；空白与注释丢弃。"""
     tokens, pos, line = [], 0, 1
-    while pos < len(text):
-        match = TOKEN.match(text, pos)
-        if not match:
-            raise SyntaxProblem(f"第 {line} 行：无法识别的字符 {text[pos]!r}")
+    for match in TOKEN.finditer(text):
+        if match.start() != pos:
+            break
         tok = match.group()
-        if not tok.isspace() and not tok.startswith("//"):
+        if tok[0] in " \t\r\n":
+            line += tok.count("\n")
+        elif not tok.startswith("//"):
             tokens.append((tok, line))
-        line += tok.count("\n")
         pos = match.end()
+    if pos < len(text):
+        raise SyntaxProblem(f"第 {line} 行：无法识别的字符 {text[pos]!r}")
     return tokens
+
+
+@functools.lru_cache(maxsize=None)
+def parse(text):
+    """同一段程序只解析一次。检查器不改写语法树（活性标注每次重算，结果只由语法树决定），所以可以共用。"""
+    return Parser(text).program()
 
 
 class Parser:
@@ -1654,7 +1663,7 @@ def check(text, early_drop=False, drops=None, frames_movable=False, frames=None,
     early_drop 打开提前析构；drops 若给出，收到各处提前析构的 (函数名, 变量名, 行号)。
     lowered 若给出，收到各函数的 (类型表, 带显式析构的程序, 是否被接受)，可交给 DP.Verifier。
     """
-    classes, funs, sigs = Parser(text).program()
+    classes, funs, sigs = parse(text)
     checker = Checker(classes, funs, sigs, early_drop, frames_movable)
     for fun in funs.values():
         checker.check_fun(fun)
