@@ -227,6 +227,23 @@ class LoanKernelCases(unittest.TestCase):
         types, program, _ = lowered[fun]
         return {name.split()[0] for name in CHECKER.DP.Verifier(types).run_all(program)}
 
+    def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
+        """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
+        self.assertEqual(set(), self.violations("X1.lk", "bothFields"))
+        self.assertEqual(set(), self.violations("X1.lk", "observableField"))
+        original = CHECKER.Checker.take
+
+        def forgetful(checker, expr, state):
+            value = original(checker, expr, state)
+            state[expr.place.root].gone.clear()
+            return value
+
+        CHECKER.Checker.take = forgetful
+        try:
+            self.assertEqual({"V2"}, self.violations("X1.lk", "bothFields"))
+        finally:
+            CHECKER.Checker.take = original
+
     def test_the_verifier_catches_an_owner_dropped_under_a_live_loan(self):
         """去掉“存活的 loan 使 owner 保持存活”，检验器必须独立发现 owner 在被借用期间析构了。"""
         original = CHECKER.Checker.borrowed_from
