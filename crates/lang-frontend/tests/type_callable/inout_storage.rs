@@ -1,11 +1,8 @@
 use super::{parsed, unit_entries::checked_named_entries};
 use lang_frontend::{
     diagnostic::Diagnostic,
-    name_resolution::resolve_names,
     parser::{Expression, ParameterModeMarker},
-    type_checking::{
-        BuiltinType, TypeKind, UnitExpressionId, UnitTypeKind, check_types, standard_environments,
-    },
+    type_checking::{BuiltinType, UnitExpressionId, UnitTypeKind, standard_environments},
 };
 
 fn assert_inout_storage(text: &str, nullable: Option<bool>) {
@@ -49,34 +46,6 @@ fn assert_inout_storage(text: &str, nullable: Option<bool>) {
             assert_eq!(diagnostic.primary_span(), operand_span, "{text}");
         }
     };
-
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let single = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert_diagnostics(single.diagnostics());
-    if let Some(nullable) = nullable {
-        let operand_ty = single.expression_type(operand).unwrap();
-        let actual = single.types().get(operand_ty);
-        assert!(
-            if nullable {
-                matches!(actual, Some(TypeKind::Nullable(inner)) if single.types().get(*inner) == Some(&TypeKind::Builtin(BuiltinType::Int)))
-            } else {
-                actual == Some(&TypeKind::Builtin(BuiltinType::Int))
-            },
-            "{text}: {actual:?}"
-        );
-        assert!(single.non_null_use(operand).is_none(), "{text}");
-        assert_eq!(
-            single.call(call).unwrap().arguments()[0].parameter_type(),
-            operand_ty,
-            "{text}"
-        );
-    } else {
-        assert!(single.call(call).is_none(), "{text}");
-    }
-    if let Some(read) = ordinary_read {
-        assert!(single.non_null_use(read).is_some(), "{text}");
-    }
 
     for (names, unit) in checked_named_entries(&sources, &parsed, &environment, &types) {
         let source = names.index().source_units()[0].id();
@@ -187,9 +156,6 @@ fn assert_inout_diagnostic_spans(text: &str, expected: &[(&str, &str)]) {
             .collect::<Vec<_>>();
         assert_eq!(actual, expected, "{text}");
     };
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let single = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert_diagnostics(single.diagnostics());
     for (_, unit) in checked_named_entries(&sources, &parsed, &environment, &types) {
         assert_diagnostics(unit.diagnostics());
     }

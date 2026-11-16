@@ -21053,3 +21053,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `524ac892`，逐项前审及末审后移除 `type_containers.rs` 的两处重复 Single 执行及唯一私有 `checked` / `NameResolution`、`TypedFile`、`resolve_names`、`check_types` 依赖，Rust净减22行。原两 FQN、源码、共享 parser/自定义类型环境及 MemoryDocument/Rooted Unit 块逐字保留。
 - `non_storable_and_wrong_arity_container_types_are_rejected` 保原有序四诊断code；`deferred_callable_reference_element_does_not_become_a_false_storable_error` 保原无诊断和空 construction 合同。旧执行没有额外 span/label/identity 断言；不将 code 列表声称完整诊断对象等价。Unit 继续使用 raw type-checking recovery 阶段，不增加 final admission，也不扩删旧阶段或身份合同。
 - 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前两原 exact 各1 passed，本树真实编译23.76s；修改后真实重编1.36s，两原 exact 各1 passed / 0 ignored。frontend all-targets 严格 Clippy33.49s/exit0；fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过。串行构建并核空间高于8GiB；未执行 native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：inout storage 同源重复消费者收敛
+
+- 基 `bfeef7d4`，经逐项前审和末审，删除 `type_callable/inout_storage.rs` 两个私有 helper 内的旧分析执行块及专用 `resolve_names` / `check_types` / `TypeKind` 导入，Rust净减34行。范围影响该模块26个既有测试FQN，不是新增26项覆盖；全部 fixture、共享 oracle 和两段 Unit 检查逐字保留。
+- 两 Unit 路线仍消费同一 SourceMap/AST/显式标准环境，保原 nullable storage/type/call参数身份、inout operand不误收窄、普通non-null读取、拒绝时无call descriptor、精确L0084 operand Span及有序(code, source slice)恢复诊断。仍为 raw type-checking recovery 产品，不增加 final admission，不改生产语义或其它旧阶段合同。
+- 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前本树真实编译25.42s，`type_callable` 的 `inout_storage::` 模块26 passed；修改后真实重编0.95s，同26 passed / 0 ignored，frontend all-targets严格Clippy34.68s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；串行构建、各次空间门槛高于8GiB。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
