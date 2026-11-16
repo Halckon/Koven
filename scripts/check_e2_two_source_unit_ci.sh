@@ -26,12 +26,14 @@ for features in two-source-unit 'two-source-unit e2-two-source-test-support loan
     fi
   done
 done
-frontend=ownership_checking::compilation_unit::loop_no_carry::two_source_candidate::tests::named_shared_string_entry_cleanup_evidence
-listing=$(cargo test --locked -j1 -p lang-frontend --lib --features 'e2-two-source-test-support loan-observation-test-support' "$frontend" -- --exact --list)
-[[ $(grep -Fxc "$frontend: test" <<< "$listing") == 1 ]]
-if [[ "$mode" != --list-only ]]; then
-  cargo test --locked -j1 -p lang-frontend --lib --features 'e2-two-source-test-support loan-observation-test-support' "$frontend" -- --exact
-fi
+for name in named_shared_string_entry_cleanup_evidence process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars parameter_print_retains_real_shared_argument_contract_without_ending_input; do
+  frontend="ownership_checking::compilation_unit::loop_no_carry::two_source_candidate::tests::$name"
+  listing=$(cargo test --locked -j1 -p lang-frontend --lib --features 'e2-two-source-test-support loan-observation-test-support' "$frontend" -- --exact --list)
+  [[ $(grep -Fxc "$frontend: test" <<< "$listing") == 1 ]]
+  if [[ "$mode" != --list-only ]]; then
+    cargo test --locked -j1 -p lang-frontend --lib --features 'e2-two-source-test-support loan-observation-test-support' "$frontend" -- --exact
+  fi
+done
 if [[ "$mode" == --list-only ]]; then
-  echo 'Two-source Unit: 79 unit and 7 public-library targets in 2 configurations plus 1 frontend evidence target listed; none executed'
+  echo 'Two-source Unit: 79 unit and 7 public-library targets in 2 configurations plus 3 frontend evidence targets listed; none executed'
 fi
