@@ -131,6 +131,11 @@ fn early_return_reservation_has_no_activation_or_normal_end() {
             panic!("one evaluated receiver reservation");
         };
         assert_eq!(reserve.activation_point(), None);
+        assert!(
+            !actions
+                .iter()
+                .any(|action| matches!(action, UnitLoanAction::ReceiverActivate(_)))
+        );
         assert!(!actions.iter().any(|action| matches!(action, UnitLoanAction::ReceiverEnd(end) if end.receiver() == *reserve)));
         assert_eq!(actions.iter().filter(|action| matches!(action,
             UnitLoanAction::Cleanup { action: UnitIterationCleanupAction::EndReceiverLoan(receiver), .. } if receiver == *reserve
@@ -380,5 +385,71 @@ fn owned_nested_shared_and_sequential_reservations_keep_actual_identity() {
                 .iter()
                 .all(|r| r.coverage() != UnitLoanActionCoverage::Complete)
         );
+    }
+}
+
+#[test]
+fn activation_uses_actual_transition_after_nested_argument_return() {
+    let observed = observe(&format!(
+        "{CELL}fun run(inout cell:Cell):Unit {{cell.set(cell.read());cell.set(2)}}"
+    ));
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let actions = unit.loan_action_observations()[0].actions();
+        let reserves = actions
+            .iter()
+            .enumerate()
+            .filter_map(|(i, a)| match a {
+                UnitLoanAction::ReceiverReserve(r) => Some((i, r)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(reserves.len(), 2);
+        let shared_end = actions.iter().position(|a| matches!(a, UnitLoanAction::ReceiverEnd(e) if e.receiver().kind() == UnitReceiverOwnershipKind::SharedLoan)).unwrap();
+        for (index, (reserve_index, reserve)) in reserves.iter().enumerate() {
+            let activations = actions
+                .iter()
+                .enumerate()
+                .filter_map(|(i, a)| match a {
+                    UnitLoanAction::ReceiverActivate(r) if r == *reserve => Some(i),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                activations.len(),
+                1,
+                "actual checker activation must reach its planner call position"
+            );
+            let end = actions
+                .iter()
+                .position(
+                    |a| matches!(a, UnitLoanAction::ReceiverEnd(e) if e.receiver() == *reserve),
+                )
+                .unwrap();
+            assert!(*reserve_index < activations[0] && activations[0] < end);
+            if index == 0 {
+                assert!(shared_end < activations[0]);
+                assert!(end < reserves[1].0);
+            }
+        }
+        assert_eq!(
+            unit.loan_action_observations()[0].coverage(),
+            UnitLoanActionCoverage::Partial
+        );
+    }
+}
+
+#[test]
+fn activation_overlap_conflict_revokes_new_actions() {
+    let observed = observe(
+        "class Cell(var value:Int) { inout fun update(other:Cell):Unit {} }\nfun run(inout cell:Cell):Unit {cell.update(cell)}",
+    );
+    for unit in &observed.units {
+        assert!(
+            unit.diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == "L0135")
+        );
+        assert!(unit.loan_action_observations().is_empty());
     }
 }

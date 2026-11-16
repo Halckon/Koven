@@ -1,4 +1,5 @@
 //! CI-only assignment rollback guard; inspect raw history before aggregate clearing.
+mod activation;
 mod adjacent;
 mod adjacent_borrow_results;
 mod normalization;
@@ -23,6 +24,7 @@ class Holder(var target: Int) {
 "#;
 
 type FactLengths = (
+    usize,
     usize,
     usize,
     usize,
@@ -73,6 +75,7 @@ impl Facts {
             self.primitives.len(),
             self.replacements.len(),
             self.formed.len(),
+            0, // Existing fixtures have no Exclusive receiver transition.
         )
     }
 }
@@ -82,6 +85,16 @@ fn with_checker<T>(
     fixture: &Fixture,
     parts: &Parts,
     immutable: bool,
+    inspect: impl FnOnce(&mut Checker<'_>) -> T,
+) -> T {
+    with_checker_phase(fixture, parts, immutable, true, inspect)
+}
+
+fn with_checker_phase<T>(
+    fixture: &Fixture,
+    parts: &Parts,
+    immutable: bool,
+    through_planner: bool,
     inspect: impl FnOnce(&mut Checker<'_>) -> T,
 ) -> T {
     let inputs = fixture.inputs();
@@ -161,8 +174,24 @@ fn with_checker<T>(
         fixture.typed.types(),
     )
     .unwrap();
-    let drop_analysis = checker.run().unwrap();
-    assert!(drop_analysis.deferred.is_empty());
+    if through_planner {
+        let drop_analysis = checker.run().unwrap();
+        assert!(drop_analysis.deferred.is_empty());
+    } else {
+        // Inspect actual checker assignment rollback before planner/publication
+        // cleanup can hide a leaked activation witness. No fact injection.
+        for (item, _) in checker.parsed.ast().items().iter() {
+            checker.collect_mutability(item).unwrap();
+        }
+        let live = liveness::build(&checker, false).unwrap();
+        checker.expression_live_after = live.expression_after;
+        checker.if_branch_live_in = live.if_branch_live_in;
+        checker.when_entry_live_in = live.when_entry_live_in;
+        checker.statement_live_after = live.statement_after;
+        for &root in checker.parsed.roots() {
+            checker.check_item(root, State::default()).unwrap();
+        }
+    }
     assert!(checker.primitive_deferred.is_empty());
     inspect(&mut checker)
 }

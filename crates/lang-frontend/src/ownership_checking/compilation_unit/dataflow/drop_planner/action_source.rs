@@ -97,6 +97,7 @@ enum Record {
     Begin(UnitLoanFact),
     ReceiverBegin(crate::ownership_checking::UnitReceiverOwnershipFact),
     ReceiverReserve(crate::ownership_checking::UnitReceiverOwnershipFact),
+    ReceiverActivate(crate::ownership_checking::UnitReceiverOwnershipFact),
     ReceiverEnd(crate::ownership_checking::UnitReceiverCallReturnEndFact),
     BorrowHandoffCommitted(UnitBorrowCallHandoffFact),
     BorrowBindingEnd(BindingEnd),
@@ -236,6 +237,15 @@ impl ActionSource {
                 self.records.push(Record::ReceiverReserve(receiver))
             }
             _ => {}
+        }
+    }
+
+    pub(super) fn activate_receiver(
+        &mut self,
+        receiver: crate::ownership_checking::UnitReceiverOwnershipFact,
+    ) {
+        if self.enabled {
+            self.records.push(Record::ReceiverActivate(receiver));
         }
     }
 
@@ -445,6 +455,7 @@ impl ActionSource {
         self.records.iter().filter_map(|record| match record {
             Record::Cleanup(cleanup) => Some(cleanup),
             Record::Begin(_)
+            | Record::ReceiverActivate(_)
             | Record::ReceiverReserve(_)
             | Record::ReceiverBegin(_)
             | Record::ReceiverEnd(_)
@@ -524,6 +535,7 @@ impl ActionSource {
                 Record::Begin(loan) => UnitLoanAction::Begin(loan),
                 Record::ReceiverBegin(receiver) => UnitLoanAction::ReceiverBegin(receiver),
                 Record::ReceiverReserve(receiver) => UnitLoanAction::ReceiverReserve(receiver),
+                Record::ReceiverActivate(receiver) => UnitLoanAction::ReceiverActivate(receiver),
                 Record::ReceiverEnd(end) => UnitLoanAction::ReceiverEnd(end),
                 Record::BorrowHandoffCommitted(fact) => {
                     UnitLoanAction::BorrowHandoffCommitted(fact)

@@ -315,6 +315,9 @@ impl Checker<'_> {
             })?;
         state.loans[index].reserved = false;
         fact.activate();
+        // Sole witness producer: the actual successful state transition, never
+        // reconstructed later by scanning final activation descriptors.
+        self.receiver_activations.push(fact.clone());
         Ok(())
     }
 

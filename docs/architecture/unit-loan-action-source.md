@@ -12,7 +12,7 @@ append-only `ActionSource`。旧 direct/prefix/provider 切片只迭代其中 Cl
 仍在 raw 与公开边界全局撤销。静态 record 的封闭 catalog ID 不可跨 source 产品或重分析解析；
 结构快照相等不表示 catalog 相同，记录顺序不是跨分支、循环或 callable 的执行时间线。
 
-source仍Partial或Unsupported，空表不证明absence，Single oracle未退休。Exclusive pending真实注册记ReceiverReserve；正常退休接普通owned local/Value参数及Inout参数Name/Group根，旧Shared-only投影不变。Reserve携带最终checker快照，但activation字段不是此时Activate事件；不发布因果链接或permission恢复证书。
+source仍Partial或Unsupported，空表不证明absence，Single oracle未退休。Exclusive pending真实注册记ReceiverReserve；正常退休接普通owned local/Value参数及Inout参数Name/Group根，旧Shared-only投影不变。Reserve携带最终checker快照，但activation字段不是此时Activate事件；另由checker真实成功转换保存私有witness，在planner实参完成后与唯一原pending全字段配对发布ReceiverActivate，先于Nothing dispatch判断。assignment按独立长度回滚，run结束清空witness；只证同轮静态Partial位置，不发布动态身份、因果链接或permission恢复证书。
 [wrapper局部出口](unit-loan-forward-exit.md)之外，双出口区域独立核声明、真实控制及完整路径动作，
 仅局部Complete发布两条path；不扩大旧receipt或增加End/Drop。[合同与验收](../specs/active/0341-shared-lowering-core.md#同来源动态双出口独立路径覆盖合同2026-11-11)。
 

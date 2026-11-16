@@ -26,6 +26,10 @@ pub enum UnitLoanAction {
     /// The checker snapshot may carry a later activation point; that field is not
     /// an activation event here. No reserve-to-end causal certificate is published.
     ReceiverReserve(super::UnitReceiverOwnershipFact),
+    /// A successful checker reservation transition, published after actual planner
+    /// arguments complete and matched to its original pending receiver. Static Partial
+    /// observation only: not a dynamic activation identity or permission certificate.
+    ReceiverActivate(super::UnitReceiverOwnershipFact),
     /// Normal-return retirement, observed without adding an execution cleanup.
     ReceiverEnd(super::UnitReceiverCallReturnEndFact),
     /// Successful initializer commit of the existing source-to-binding handoff.
