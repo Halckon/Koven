@@ -20916,3 +20916,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 原 `single_runtime_unreachable_lambdas_do_not_register_storage_or_nested_layouts` FQN 和两段源码不变，改共享严格 Unit helper；完整保留静态 closure Some/callable_origin None、arena不增、唯一entry原始身份/no thunk/LLVM，及已有Unit的无ConcreteClosure类型、无closure/callable指令断言。另核原MemoryDocument、源名/全文及单AST根。
 - 原 Unit FQN 保留但复用同一合同，明确不是两个独立实现的对照。可达 nested lambda 的原 Legacy 精确拒绝仍保留，本片只净退休两个不可达正常fixture，不扩大生产准入。独立审查无阻塞。
 - 最终准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树重编21.73s，两个历史FQN各1 passed/0 ignored；同配置codegen all-targets strict36.01s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与diff-check通过。未运行native、Abort或故障注入，未推送。
+
+### 2026-11-16：Rc nullable-while 普通观察消费者净迁移
+
+- 两个原普通观察FQN的无package `inspect.ko`/SOURCE字节不变，现以严格MemoryDocument Unit产品核complete/ownership、原Rc<Int>? Value参数与同源null-comparison descriptor、MoveOnly及Int payload、真实entry origin、SSA与no-process-entry LLVM。原Rooted `package p`路线仍保持；普通FQN名称保留，但含义是两个原source layout，不再宣称独立Legacy/Unit对照。
+- collector仍只断言前置及真实lower attempt，成功测试仍独立要求outcome Ok，没有将收集结果偷换为通过。只有普通无inspect调用启用MemoryDocument选项；显式`observe_with_inspector(false,true)`仍走原Legacy，原私有cleanup/owner身份查询完整保留，default refine routing参数不变。
+- 独立审查无阻塞。本树真实重编1m03s，准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下两个普通目标、原owner identity与default routing必要回归共4 exact各1 passed/0 ignored；codegen all-targets strict38.86s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与diff-check通过。仅净退休两个普通Legacy调用消费者，不称私有身份路线已退休；未运行native、Abort或故障，未推送。

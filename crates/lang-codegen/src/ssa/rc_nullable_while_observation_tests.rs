@@ -1,4 +1,4 @@
-//! SPEC-0332 first evidence: ordinary source, both frontends, no native execution.
+//! SPEC-0332 ordinary source layouts; private Legacy identity controls stay explicit.
 //! A passing collector proves complete/ownership and a real lowering attempt only.
 use crate::test_support::diagnostics::diagnostic;
 use std::fmt::Debug;
@@ -56,14 +56,16 @@ pub(in crate::ssa) struct Observation {
 }
 
 fn observe(unit: bool) -> Observation {
-    observe_with_inspector(unit, false).0
+    // Ordinary success consumers retire the unqualified Legacy path; the explicit
+    // inspector below retains the original private owner-identity oracle.
+    observe_with_options(unit, false, true, !unit).0
 }
 
 pub(in crate::ssa) fn observe_with_inspector(
     unit: bool,
     inspect_identity: bool,
 ) -> (Observation, Result<(), String>) {
-    let (obs, identity, _) = observe_with_options(unit, inspect_identity, true);
+    let (obs, identity, _) = observe_with_options(unit, inspect_identity, true, false);
     (obs, identity)
 }
 
@@ -71,7 +73,9 @@ fn observe_with_options(
     unit: bool,
     inspect_identity: bool,
     per_family_only: bool,
+    memory_document: bool,
 ) -> (Observation, Result<(), String>, Vec<String>) {
+    assert!(!memory_document || (!unit && !inspect_identity));
     let mut complete_ok = false;
     let mut ownership_ok = false;
     let mut frontend_anchor_ok = false;
@@ -86,7 +90,9 @@ fn observe_with_options(
         } else {
             ("inspect.ko", SOURCE.to_owned())
         };
-        diagnostic!("SPEC0332 INPUT unit={unit} path={path:?} source={text:?}");
+        diagnostic!(
+            "SPEC0332 INPUT unit={unit} memory_document={memory_document} path={path:?} source={text:?}"
+        );
         let source = sources
             .add_source(path, &text)
             .map_err(|error| failure("source-map", error))?;
@@ -116,14 +122,33 @@ fn observe_with_options(
             file.roots().len()
         );
         let (environment, types) = standard_environments();
-        let lowered = if unit {
-            let inputs = [SourceUnitInput::new("root", path, source, &file)];
+        let lowered = if unit || memory_document {
+            let inputs = [if memory_document {
+                SourceUnitInput::memory_document(source, &file)
+            } else {
+                SourceUnitInput::new("root", path, source, &file)
+            }];
             let index = index_compilation_unit(&sources, &inputs)
                 .map_err(|error| failure("index-api", error))?;
             let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
                 .map_err(|error| failure("names-api", error))?
                 .validate()
                 .map_err(|error| failure("names-validation", error))?;
+            if memory_document {
+                let [input] = names.names().index().source_units() else {
+                    return Err(failure(
+                        "source-identity",
+                        "one original MemoryDocument required",
+                    ));
+                };
+                assert_eq!(
+                    input.key(),
+                    &lang_frontend::name_resolution::SourceUnitKey::MemoryDocument
+                );
+                assert_eq!(input.source_id(), source);
+                assert_eq!(sources.source_name(source), Ok("inspect.ko"));
+                assert_eq!(sources.source_text(source), Ok(SOURCE));
+            }
             diagnostic!("SPEC0332 STAGE unit={unit} names=ok");
             let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
                 .map_err(|error| failure("types-api", error))?;
@@ -155,19 +180,21 @@ fn observe_with_options(
                 .filter(|declaration| {
                     declaration.name() == "inspect"
                         && declaration.kind() == SymbolKind::Function
-                        && names.names().index().packages()[declaration.package().index()]
-                            .name()
-                            .expect("named package")
-                            .segments()
-                            .iter()
-                            .map(String::as_str)
-                            .eq(["p"])
+                        && declaration.source_unit() == names.names().index().source_units()[0].id()
+                        && (memory_document
+                            || names.names().index().packages()[declaration.package().index()]
+                                .name()
+                                .expect("named package")
+                                .segments()
+                                .iter()
+                                .map(String::as_str)
+                                .eq(["p"]))
                 })
                 .collect::<Vec<_>>();
             let [declaration] = declarations.as_slice() else {
                 return Err(failure(
                     "entry-selection",
-                    "expected exactly one p.inspect declaration",
+                    "expected exactly one inspect declaration in its original source layout",
                 ));
             };
             let entry = declaration.id();
@@ -358,7 +385,7 @@ fn observe_with_options(
 
 #[test]
 fn rc_nullable_while_default_routing_matches_or_surpasses_per_family() {
-    let (obs, identity, routed) = observe_with_options(true, true, false);
+    let (obs, identity, routed) = observe_with_options(true, true, false, false);
     assert!(
         obs.outcome.is_ok(),
         "default routing must pass and reach verified LLVM: {:?}",
@@ -380,7 +407,8 @@ fn rc_nullable_while_default_routing_matches_or_surpasses_per_family() {
 
 #[test]
 fn observe_rc_nullable_while_both_frontends() {
-    // Finish both actual Result pipelines before any harness assertion.
+    // Finish the original unqualified MemoryDocument and package Rooted layouts
+    // before assertions; these ordinary consumers no longer exercise Legacy.
     let observations = [observe(false), observe(true)];
     for observation in &observations {
         let unit = observation.unit;
@@ -420,7 +448,8 @@ fn observe_rc_nullable_while_both_frontends() {
 
 #[test]
 fn rc_nullable_while_both_frontends_reach_verified_llvm() {
-    // Preserve both real pipeline outcomes before applying the success oracle.
+    // Preserve both original source-layout outcomes before the success oracle;
+    // the separate explicit inspector still exercises the private Legacy contract.
     let observations = [observe(false), observe(true)];
     for observation in &observations {
         let unit = observation.unit;
