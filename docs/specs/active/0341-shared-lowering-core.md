@@ -21189,3 +21189,8 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 本整合树实际完成 `check_cli` 7、`ownership_borrow_result` 12、`ownership_structural` 11、`while_flow_facts` 16，共 46 个普通测试；覆盖索引与现有 Unit 消费者、两宿主诊断及标准源 key 修复的组合。frontend all-targets `loan-observation-test-support` strict 2m12s、codegen 默认配置 all-targets strict 1m15s 均 exit0。未重复原单片索引/邻控矩阵，也未以该默认配置声称全部 feature 组合通过。
 - Mac 断连时原 CLI 编译没有测试结果，核无在途进程后保留中断日志并续验；进程门禁曾因外部非 UTF-8 命令行解码失败保守停止，修正外部验证脚本后仅续未执行阶段，未重复已过目标。每步复核全局构建槽与 8GiB 门槛，不终止外部任务。docs979、尺寸2541（两历史例外未扩大）及 diff-check 通过。
 - 未执行 native、Abort、故障注入或远端 CI；此前 injector 的编译/list 证据不等于故障行为验收。整体里程碑及发布状态不由本次组合验收宣告完成，不推送。
+
+### 多 root 同 logical path 的 CLI 诊断身份回归（本地验证，未推送）
+
+- 基 `6d939f4d`。保留原多 root 诊断排序 fixture 与 FQN，在其后补两份不同 root、同 `app/Bad.ko`、同 package 下不同函数的合法来源；manifest 正反序均须保留两个完整 root-qualified L0080 primary、独立源码字节位置和稳定排序。复用现有 human/JSON gate 与无输出/无 staging 断言，不修改生产身份规则。
+- ADR-0005 的身份是 `(root, logical path)`；原场景的两个维度同时不同，新增场景单独保护 root 维度，不称发现生产缺陷、新增语言能力或退休旧消费者。独立审查、fmt/diff-check、docs979 与尺寸2541（两历史例外未扩大）通过；本树真实重编1m41s，原精确 FQN 1 passed，包含原两次及新增四次 CLI 子进程。strict 前因外部构建占槽暂停，随后空窗内仅补 CLI all-targets strict，本树真实检查43.06s/exit0；没有重复精确目标。本片仅补回归证据，不执行 native/fault，仅本地提交、不推送。

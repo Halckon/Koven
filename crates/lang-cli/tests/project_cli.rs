@@ -492,6 +492,28 @@ fn project_frontend_diagnostics_precede_entry_and_preserve_source_key_order() {
     assert_eq!(records[1]["primary"]["source"], "zroot/z/Bad.ko");
     assert!(!json_output.exists());
     assert_no_build_temporaries(project.path());
+
+    // Root is an identity dimension even when both sources have the same package and path.
+    let project = TestProject::create("same-logical-path-diagnostics");
+    project.write(
+        "aroot/app/Bad.ko",
+        "package app\nfun alpha(): Unit { missingA }\n",
+    );
+    project.write(
+        "zroot/app/Bad.ko",
+        "package app\nfun zed(): Unit { missingZ }\n",
+    );
+    for roots in [["zroot", "aroot"], ["aroot", "zroot"]] {
+        let manifest = project.manifest(&roots);
+        assert_project_gate(
+            &project,
+            &manifest,
+            &[
+                gate_diagnostic("L0080", "aroot/app/Bad.ko", 32..40, 2, 21),
+                gate_diagnostic("L0080", "zroot/app/Bad.ko", 30..38, 2, 19),
+            ],
+        );
+    }
 }
 
 const TYPE_GATE_BODY: &str = "fun typed(): Unit { val item: String = 1 }\n";
