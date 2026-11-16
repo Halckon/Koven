@@ -20825,3 +20825,19 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 
 - 独立分类未修改生产：`consume(source); var remaining=rounds; while...` 在三/四 ABI、Borrow/Value 极值及来源反序共八输入中，原 names/types 均成功，而 ownership 均拒绝。两个实际 `borrow` 六字符 Span 各报 L0164，counter-break 与 prefix-counter-break 原 facts 均为空；没有到 lowering，不混称此前 counter9 的 producer InvalidModel，也不声称双 assembly。
 - 分类日志保留后，测试已收紧为原 ownership 必须拒绝、精确 diagnostic code/source/start/end、零 audit/receipt/recorded，删除泛错误分类打印。唯一精确回归一项通过（增量编译47.70s、执行0.02s），格式与独审通过；没有为此扩原 selector/planner、没有重跑完整矩阵，不执行生成程序/Abort/native/故障注入、不推送。后续仅另行研究已有原 If 前缀支持域，不绕过本拒绝。
+
+
+### E2 不同 callee 的 late temporary 共享根
+
+- 基 20e9382f，exact val String + SharedRoot call + SharedMixed call，两个不同
+  FullKey/空 typeargs；两个反序、temporary 左右、具名 same-bytes case 的普通原事实已通过。
+  原 8 FullEnd/ordinal、完整 []/[temp,named]、全球唯一 target/nameSpan 不排序；
+  两闭合 shell case 均准确 Unsupported，原红日志 1 pass/1 fail（预期红）保留。
+- 原 late 生命周期检查抽为纯固定 owner 载荷，same-key finish 原门保留；新私有根
+  独立核不同 key、初始化/两 call 源顺序、空 args 与无局部初始化权限。
+  calls/shared_owner 与 EntryKeys 精确 marker 接线，replay 仅新 marker 授权 [0,1]32；
+  emit/JointPlan 操作及 legacy common None 拒绝不改。
+- 新 SSA 正例逐原 typed key/SSA callee、ABI、8 loan/End、晚 temporary 初始化与完整
+  两 Drop 顺序已验；8 shape 与 2 closure 域外精准分类通过。旧两条负例迁计算 scalar，
+  新三目标正式/三 feature 各 3/3，原 sameLate 3 + 两迁移负控 2 全过，
+  双 crate all-targets 三 feature strict 通过（1m48）；CI79，未运行 native 或故障注入。

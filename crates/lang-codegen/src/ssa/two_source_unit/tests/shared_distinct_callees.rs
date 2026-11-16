@@ -208,7 +208,7 @@ fn shared_distinct_callees_closed_facts_prepare_shared_root() {
 fn shared_distinct_callees_reject_other_shapes_and_unclaimed_shells() {
     for body in [
         "val owner=\"shared\";run_a(owner,\"a\",1,false);run_b(\"b\",owner,(2),true)",
-        "val owner=\"shared\";run_a(owner,owner,1,false);run_b(owner,\"b\",2,true)",
+        "val owner=\"shared\";run_a(owner,owner,1,false);run_b(owner,\"b\",1+1,true)",
         "run_a(\"a\",\"b\",1,false);val owner=\"shared\";run_b(owner,owner,(2),true)",
         "val owner=\"shared\";val other=\"shared\";run_a(owner,other,1,false);run_b(owner,owner,(2),true)",
         "val owner=\"shared\";run_a(owner,owner,1,false);run_b(owner,owner,2,true);run_a(owner,owner,3,true)",

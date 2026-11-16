@@ -2,6 +2,7 @@
 mod body;
 mod different_joint_final_pair;
 mod different_late_pair;
+mod different_late_temporary_shared_pair;
 mod different_pair;
 mod different_shared_mixed_pair;
 mod different_shared_pair;
@@ -81,6 +82,10 @@ enum EntryCalls {
         calls: Box<[EntryCallDescriptor; 2]>,
     },
     EarlyTemporarySharedPair {
+        owner: Box<EntryOwnerDescriptor>,
+        calls: Box<[EntryCallDescriptor; 2]>,
+    },
+    DifferentLateTemporarySharedPair {
         owner: Box<EntryOwnerDescriptor>,
         calls: Box<[EntryCallDescriptor; 2]>,
     },

@@ -57,6 +57,16 @@ pub(super) fn finish(
                         )
                     ) {
                         different_shared_mixed_pair::finish(owner, first, second, owned, parsed)
+                    } else if matches!(
+                        (&first.storage, &second.storage),
+                        (
+                            StringStorage::SharedRoot { .. },
+                            StringStorage::SharedMixed { .. }
+                        )
+                    ) {
+                        different_late_temporary_shared_pair::finish(
+                            owner, first, second, owned, parsed,
+                        )
                     } else {
                         different_shared_pair::finish(owner, first, second, owned, parsed)
                     }
