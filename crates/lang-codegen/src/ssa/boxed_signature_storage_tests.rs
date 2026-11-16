@@ -1,5 +1,5 @@
 //! Signature-only storage mapping without construction demand.
-use super::{analyze, lower_scalar_file, render_program, render_verified_program};
+use super::{render_program, render_verified_program};
 use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
 
 #[test]
@@ -10,22 +10,108 @@ fn boxed_enum_signature_only_storage_accepts_box_or_enum_first() {
              fun first(value: {first}): Unit {{}}\n\
              fun second(value: {second}): Unit {{}}"
         );
-        let analysis = analyze(&source);
-        assert!(analysis.parsed.diagnostics().is_empty());
-        assert!(analysis.names.diagnostics().is_empty());
-        assert!(analysis.typed.diagnostics().is_empty());
-        assert!(analysis.owned.diagnostics().is_empty());
-        // Without any construction demand, the first parameter is the mapper's actual entry root.
-        assert!(analysis.typed.constructions().is_empty());
-        let lower = || {
-            lower_scalar_file(
-                &analysis.sources,
-                &analysis.parsed,
-                &analysis.names,
-                &analysis.typed,
-                &analysis.owned,
+        use lang_frontend::{
+            analysis::analyze_basic_unit_ownership,
+            lexer::lex,
+            name_resolution::{
+                SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+            },
+            ownership_checking::owned_compilation_unit_view,
+            parser::parse_file,
+            source::SourceMap,
+            type_checking::{
+                check_compilation_unit_types, complete_compilation_unit_types,
+                standard_environments,
+            },
+        };
+        let mut sources = SourceMap::new();
+        let source_id = sources.add_source("lowering.ko", &source).unwrap();
+        let lexed = lex(&sources, source_id).unwrap();
+        assert!(lexed.diagnostics().is_empty());
+        let parsed = parse_file(&sources, &lexed).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let inputs = [SourceUnitInput::memory_document(source_id, &parsed)];
+        let (name_env, type_env) = standard_environments();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let raw_names =
+            resolve_compilation_unit_names(&sources, &inputs, &index, &name_env).unwrap();
+        assert!(raw_names.diagnostics().is_empty());
+        let names = raw_names.validate().unwrap();
+        let [document] = names.names().index().source_units() else {
+            panic!("one original memory document")
+        };
+        assert_eq!(document.source_id(), source_id);
+        assert_eq!(
+            document.key(),
+            &lang_frontend::name_resolution::SourceUnitKey::MemoryDocument
+        );
+        assert_eq!(sources.source_name(source_id), Ok("lowering.ko"));
+        assert_eq!(sources.source_text(source_id), Ok(source.as_str()));
+        let raw_types = check_compilation_unit_types(&sources, &inputs, &names, &type_env).unwrap();
+        assert!(raw_types.diagnostics().is_empty());
+        assert!(raw_types.constructions().is_empty());
+        let complete =
+            complete_compilation_unit_types(&sources, &inputs, &names, &type_env, &raw_types)
+                .unwrap();
+        assert!(complete.is_same_analysis(&raw_types));
+        let (typed, raw_owned) =
+            analyze_basic_unit_ownership(&sources, &inputs, &names, &type_env, raw_types)
+                .unwrap()
+                .into_result()
+                .unwrap();
+        assert!(raw_owned.diagnostics().is_empty());
+        assert!(raw_owned.deferred().is_empty());
+        let owned = raw_owned.validate().unwrap();
+        let entries = ["first", "second"].map(|name| {
+            let declarations = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .filter(|declaration| declaration.name() == name)
+                .collect::<Vec<_>>();
+            let [declaration] = declarations.as_slice() else {
+                panic!("one original named root")
+            };
+            (
+                declaration.id(),
+                parsed.ast().items().get(declaration.root()).unwrap().span(),
             )
-            .expect("either recursive storage demand root must lower")
+        });
+        assert!(
+            entries[0].0 < entries[1].0,
+            "original declaration demand order"
+        );
+        let view =
+            owned_compilation_unit_view(&sources, &inputs, &names, &type_env, &typed, &owned)
+                .unwrap();
+        // Both original signatures share one mapper/Program, unlike independent root lowering.
+        // Swapping their parameter types retains Box-first and enum-first demand observations.
+        let lower = || {
+            let (program, roots) = crate::ssa::unit_lower::orchestrate::lower_roots(
+                &view,
+                &[entries[0].0, entries[1].0],
+            )
+            .expect("either recursive storage demand root must lower");
+            assert_eq!(program.modules.len(), 1);
+            let module = &program.modules[0];
+            assert_eq!(module.functions.len(), 2);
+            assert_eq!(roots.len(), 2);
+            for (function, (declaration, span)) in module.functions.iter().zip(entries) {
+                assert_eq!(function.id, roots[&declaration]);
+                assert_eq!(function.origin, crate::ssa::model::Origin::Source(span));
+                let entry = function.block(function.entry_block().unwrap()).unwrap();
+                assert_eq!(entry.parameters.len(), 1);
+                assert!(matches!(
+                    function.entity(entry.parameters[0]).unwrap().ty,
+                    crate::ssa::model::EntityType::Loan {
+                        kind: crate::ssa::model::LoanKind::Shared,
+                        ..
+                    }
+                ));
+            }
+            crate::ssa::verify::verify_program(&program).unwrap();
+            program
         };
         let program = lower();
         let rendered = render_program(&program);
@@ -108,7 +194,7 @@ fn boxed_enum_signature_only_unit_roots_accept_box_or_enum_first() {
              fun first(value: {first}): Unit {{}}\n\
              fun second(value: {second}): Unit {{}}"
         );
-        // Independent Unit roots supplement, not replace, the shared-mapper legacy observation.
+        // Independent Unit roots supplement the shared-mapper multi-root observation above.
         let unit = UnitSource::analyze("lowering.ko", &source)
             .unwrap_or_else(|error| panic!("{first}/{second}: strict Unit admission: {error:?}"));
         unit.assert_frontend_clean();

@@ -20848,3 +20848,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 首 fixture 错将 tick 放在 provider，真实 ownership 返回两条 L0164、facts 空且未进入 lowering；首失败日志完整保留。仅把 tick 空定义移入 caller 后，唯一正常目标通过（编译15.15s、执行0.05s），两来源顺序各两次 assembly 均原 lower、SSA verify 与 receipt.validate 成功。原 run→view 未获证且 unsupported 非空，没有把局部 receipt 当完整 caller 证书。
 - 实测无 suffix、五 Borrow 参数形状为15块18指令：原12块 counter-break 前增加 head 与两个标量臂，prefix join 即 counter 初始化入口。before 只在首 Read 使用后不再运输，两臂各一个 Int Constant 与 tick DirectCall，其余四个原 ABI 参数继续运输；原两 fresh End、唯一原 Abort 与 UnitReturn 保留。该结果只记录原支持几何，不扩大 source 前消费、模式或一般控制流准入，不宣称完整退役。
 - 复用上述唯一真实探针及已完成格式化，收尾只作格式检查、文档检查、diff 与独立静审，不另跑 Cargo/strict/default，不执行生成程序、Abort、native 或故障注入，不推送。后续工作转统一 legacy consumer 退役，不继续自动新增小域。
+
+### Box/enum 双签名共享 mapper 消费者迁移（2026-11-16）
+
+- 基 `a446e653`，仅迁移 `boxed_enum_signature_only_storage_accepts_box_or_enum_first` 的旧 single 产物入口；原两段源码、两个原函数的声明顺序和 Box-first/enum-first 参数排列不变，不添加 caller 或构造需求。
+- 复用既有测试专用 `root_set::lower_roots`，两个原 DeclarationId 在同轮严格 MemoryDocument Unit facts/view 上一次规划并组装同一个 Program；不是分别 lower 两个入口后拼装，也不扩生产 singleton 入口。
+- 保留无 construction、完整阶段诊断、heap/tagged 存储、重复 lowering 确定性与 LLVM 校验；增加同一 module 恰两函数、原声明顺序/Span、原 Borrow 参数和 SSA verifier 检查。既有逐 root 独立测试仍保留，不能替代共享 mapper 见证。
+- 独立只读审查确认原两声明排序与共享 mapper 实际 demand 保全，无阻断。三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）完整 exact 实际 1 passed/0 failed，首次编译 1m42s、执行 0.03s；其后 shell 后处理误用 zsh 保留变量 status 报只读错误，已与成功测试日志分开记录，没有重复执行测试。codegen all-targets 同三 feature 严格 Clippy 56.09s/exit0，fmt/docs979/尺寸2519（历史两例外未扩大）/diff 通过。仅本地普通 SSA/LLVM 验收，不运行 native/故障注入，不推送；默认配置及精确远端头 CI 未在本片重跑，不声称 D10/E2 全部终态完成。

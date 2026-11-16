@@ -28,7 +28,7 @@ pub(super) fn lower_unit_impl(
 }
 
 #[cfg(test)]
-fn lower_roots(
+pub(in crate::ssa) fn lower_roots(
     view: &lang_frontend::ownership_checking::OwnedCompilationUnitView<'_, '_>,
     roots: &[DeclarationId],
 ) -> Result<(Program, BTreeMap<DeclarationId, FunctionId>), LoweringError> {
