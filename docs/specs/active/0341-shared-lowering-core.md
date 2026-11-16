@@ -20922,3 +20922,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 普通对照首验真实本树重编1m28s，发现 Unit 已接受第一条原拒绝源码，因此停止退休；第二轮18.41s重编证明两条相同源码的 strict Unit 均到 verified LLVM。保首失败日志，不把接受误报成与 Legacy 拒绝等价。
 - 同轮补成对能力合同：相同 `lowering.ko` / 原源码、无 deferred、真实 `run` DeclarationId/Span 入口，实际 Resource/Outer 析构函数中原调用表达式对应 DirectCall 恰一次，并验证 LLVM。未新增生产能力、未改变根选择或旧拒绝；这是差异见证，Legacy 净退休数为零，不宣称 D10/E2 完成。
 - 末版在本工作树真实重编31.23s，准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 exact 1 passed（两 fixture，0.04s）；同配置 codegen all-targets 严格 Clippy 47.42s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check 与只读独审通过。未执行 native、Abort、故障注入、默认 workspace 或远端 CI；仅本地提交，不推送。
+
+### 2026-11-16：Rc presence 原 Single 清理身份消费者退休
+
+- 基 `42631e82`。先核既有 MemoryDocument 原身份目标的实际 CI 证据：[PR441 run43807524911](https://github.com/Halckon/koven/actions/runs/43807524911)，提交 `37a90566cdd92e002f39455d299809aeb0451847`；macOS job133101971763 与 Linux job133101972008 日志均明确 `ssa::rc_nullable_while_bounded_tests::memory_document::original_presence_sources_reach_source_anchored_memory_document_llvm ... ok`。该运行整体失败，不作整 CI 通过声明；迁移前 MemoryDocument helper、FE facts、SSA identity、bounded 来源与四个 fixture 均与该提交一致。
+- 将旧 `presence_rc_nullable_while_preserves_owner_cleanup_identity` 的四个 Single 调用改为同源码 strict MemoryDocument 原完整身份检查，复用既有真实 Unit facts → 三函数 source identity → SSA owner/cleanup identity → verified LLVM；四个 package-qualified Rooted 对照不变。两个已有 FQN 均保留，共用同一 Unit helper，不宣称新增独立覆盖。
+- 删除已无消费者的 `identity_facts::single` 及专用 reference helper/import；旧 observer 明确不再接受 Single 身份请求，但四个 payload/owner-return 的 Legacy 成功与 Unit 拒绝边界仍保留。没有改变生产准入、Rc ABI、cleanup 或源码语义，不触碰 native/fault 路线。
+- 新头明确在本树强制真实重编1m34s；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）旧身份 FQN exact 1 passed（四 MemoryDocument + 四 Rooted，0.08s），原 MemoryDocument FQN exact 1 passed（四 fixture，0.02s），保留 payload 边界 exact 1 passed（八观察，0.03s）。同配置 codegen all-targets 严格 Clippy 47.18s/exit0，fmt、docs979、尺寸2531（两历史债不扩大）、diff-check 与独审通过；只做 SSA/LLVM，未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI。仅本地提交，整体 D10/E2 仍未完成。

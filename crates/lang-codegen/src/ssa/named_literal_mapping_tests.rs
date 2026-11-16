@@ -864,13 +864,14 @@ pub(in crate::ssa) mod rc_nullable_while_presence_identity {
     fn presence_rc_nullable_while_preserves_owner_cleanup_identity() {
         let mut observations = Vec::new();
         for (case, source, _) in crate::ssa::rc_nullable_while_bounded_tests::presence_cases() {
-            for unit in [false, true] {
-                observations.push(
-                    crate::ssa::rc_nullable_while_bounded_tests::observe_with_identity(
-                        case, source, unit, true,
-                    ),
-                );
-            }
+            crate::ssa::rc_nullable_while_bounded_tests::memory_document::assert_presence_identity(
+                case, source,
+            );
+            observations.push(
+                crate::ssa::rc_nullable_while_bounded_tests::observe_with_identity(
+                    case, source, true, true,
+                ),
+            );
         }
         for (observation, identity) in &observations {
             diagnostic!(
@@ -895,7 +896,7 @@ pub(in crate::ssa) mod rc_nullable_while_presence_identity {
                 );
             }
         }
-        assert_eq!(observations.len(), 8);
+        assert_eq!(observations.len(), 4);
         assert!(
             observations.iter().all(|(observation, identity)| {
                 observation.complete_ok
@@ -905,7 +906,7 @@ pub(in crate::ssa) mod rc_nullable_while_presence_identity {
                     && observation.outcome.is_ok()
                     && identity.is_ok()
             }),
-            "all eight real presence sources independently preserve source/result owners and normal cleanup identities"
+            "all four Rooted controls preserve source/result owners and cleanup identities alongside the four original MemoryDocument sources"
         );
     }
 }

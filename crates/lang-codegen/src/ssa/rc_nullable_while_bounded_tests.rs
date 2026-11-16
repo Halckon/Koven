@@ -209,6 +209,10 @@ pub(in crate::ssa) fn observe_with_identity(
     unit: bool,
     inspect_identity: bool,
 ) -> (Observation, Result<(), String>) {
+    assert!(
+        unit || !inspect_identity,
+        "Single identity consumers use strict MemoryDocument"
+    );
     let mut source_identity = Err("real FE identity query not reached".to_owned());
     let mut identity = Err("real SSA identity query not reached".to_owned());
     let mut complete_ok = false;
@@ -328,14 +332,6 @@ pub(in crate::ssa) fn observe_with_identity(
                 ));
             }
             ownership_ok = true;
-            if inspect_identity {
-                source_identity =
-                    identity_facts::single(&sources, &file, &names, &typed, &owned, case);
-                diagnostic!(
-                    "SPEC0332 PRESENCE FE IDENTITY case={case} unit={unit} query={:?}",
-                    source_identity.as_ref().map(|_| ())
-                );
-            }
             let entries = names
                 .symbols()
                 .iter()
@@ -497,7 +493,7 @@ fn bounded_presence_rc_nullable_while_sources_reach_verified_llvm() {
     }
     // Original bytes now have the strict MemoryDocument success witness in
     // memory_document. Keep these four package-qualified Rooted observations;
-    // the separate Single cleanup-identity and payload-boundary witnesses stay.
+    // the separate Legacy payload-boundary witnesses stay.
     for observation in &observations {
         let case = observation.case;
         let unit = observation.unit;
