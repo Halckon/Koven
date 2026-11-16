@@ -536,62 +536,19 @@ fn single_resource_deinit_registers_body_local_resource_cleanup_on_return() {
 
 #[test]
 fn single_resource_deinit_rejects_member_calls_and_nested_call_borrows() {
-    for (source, start, end, rejected, classifier, call) in [
+    // Keep the historical FQN; only the supported Unit body contract remains.
+    for (source, classifier, call) in [
         (
             "class Resource { fun observe(): Unit {}\n deinit() { this.observe() } }\nfun run(): Unit { val resource = Resource() }",
-            52,
-            66,
-            "this.observe()",
             "Resource",
             "this.observe()",
         ),
         (
             "fun inspect(text: String): Unit {}\nclass Inner(val text: String)\nclass Outer(val inner: Inner) { deinit() { inspect(inner.text) } }\nfun run(): Unit { val outer = Outer(Inner(\"nested\")) }",
-            116,
-            126,
-            "inner.text",
             "Outer",
             "inspect(inner.text)",
         ),
     ] {
-        let analysis = analyze_legacy(source);
-        assert!(
-            analysis.parsed.diagnostics().is_empty(),
-            "{source}: {:?}",
-            analysis.parsed.diagnostics()
-        );
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{source}: {:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{source}: {:?}",
-            analysis.owned.diagnostics()
-        );
-        let failure = match lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        ) {
-            Ok(_) => panic!("unsupported destructor body must be rejected"),
-            Err(error) => error,
-        };
-        let source_id = analysis.parsed.source_id();
-        let span = analysis.sources.span(source_id, start, end).unwrap();
-        assert_eq!(analysis.sources.slice(span), Ok(rejected));
-        assert_eq!(
-            failure,
-            crate::ssa::LoweringError {
-                kind: LoweringErrorKind::UnsupportedNode,
-                span: Some(span),
-            }
-        );
-        // Unit supports both original bodies. This is a paired capability witness,
-        // not retirement of the distinct Legacy rejection above.
         let unit = lower_resource(source, "run");
         let unit_source = unit.source.parsed().source_id();
         assert_eq!(

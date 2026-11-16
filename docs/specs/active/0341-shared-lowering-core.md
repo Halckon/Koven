@@ -21017,3 +21017,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `eb4acaef`，按不长期保留 Legacy 实现限制的退休方向，逐例核对 two-returns、mixed-continue、replacement-seed、alias-seed、resource-source、outer-owner/inner-loop、same-source-nested、same-source-sequential。八条原源码、原 FQN 和既有 Unit 正控逐字节保留；只删除旧前端/lowering 的 `UnsupportedNode(keys)` 拒绝支路、专用导入及 `keys_start` 参数。此文件不再消费旧 analyze/lower_scalar_file，净退休八个旧拒绝消费者。
 - 逐例前审及末审确认旧支路没有成功 SSA 或运行时清理 oracle。保留的严格 Unit 正控检查原 source/MemoryDocument、四阶段 clean/no deferred、真实 For descriptor/source identity 与 iteration 数量、main 声明到实际 entry、元素访问数，以及包含静态 ownership verifier 的实际入口 LLVM 验证。这里是退休已废弃实现限制，不声称旧拒绝与 Unit 成功等价，也不把静态验证扩大为 native 析构次数/次序证据。
 - 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m32s，八项原 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy47.81s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交、不推送，D10/E2 仍 in-progress。
+
+### 2026-11-16：resource 析构调用两例旧实现限制退休
+
+- 基 `a4718830`。按不长期保留 Legacy 实现限制的方向，逐例审查原 `this.observe()` 和 `inspect(inner.text)` 两条完整源码，删除 `single_resource_deinit_rejects_member_calls_and_nested_call_borrows` 内仅旧 `UnsupportedNode`/span 的拒绝支路与无用 tuple 常量；原 FQN 保持稳定，实际只剩已支持的 Unit 合同。其他 generic、nullable、partial-move 旧边界不动。
+- 既有 Unit block 逐字节保全：严格四阶段 clean/no deferred、原 source/path、真实 run 入口、原 classifier 内注册且带 Shared receiver 的 deinit、原调用表达式 source origin 对应 DirectCall 恰一次、SSA/LLVM 验证。旧拒绝没有额外成功 loan/drop 或 runtime oracle；不宣称新旧结果等价、具体 callee/逐边 loan 次序新增证明或 native 析构次数已验证。
+- 净退休两个旧实现限制消费者，Rust净减43行。独立逐例前审与末审通过；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m41s，原 exact 1 passed / 0 ignored（两 fixture）；codegen all-targets 严格 Clippy48.57s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交，不推送。
