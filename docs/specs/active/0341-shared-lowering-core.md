@@ -20855,3 +20855,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 复用既有测试专用 `root_set::lower_roots`，两个原 DeclarationId 在同轮严格 MemoryDocument Unit facts/view 上一次规划并组装同一个 Program；不是分别 lower 两个入口后拼装，也不扩生产 singleton 入口。
 - 保留无 construction、完整阶段诊断、heap/tagged 存储、重复 lowering 确定性与 LLVM 校验；增加同一 module 恰两函数、原声明顺序/Span、原 Borrow 参数和 SSA verifier 检查。既有逐 root 独立测试仍保留，不能替代共享 mapper 见证。
 - 独立只读审查确认原两声明排序与共享 mapper 实际 demand 保全，无阻断。三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）完整 exact 实际 1 passed/0 failed，首次编译 1m42s、执行 0.03s；其后 shell 后处理误用 zsh 保留变量 status 报只读错误，已与成功测试日志分开记录，没有重复执行测试。codegen all-targets 同三 feature 严格 Clippy 56.09s/exit0，fmt/docs979/尺寸2519（历史两例外未扩大）/diff 通过。仅本地普通 SSA/LLVM 验收，不运行 native/故障注入，不推送；默认配置及精确远端头 CI 未在本片重跑，不声称 D10/E2 全部终态完成。
+
+### 泛型重载同轮多根消费者迁移（2026-11-16）
+
+- 基 `ce35ed52`，保持原 `generic_overloads_with_the_same_type_arguments_keep_distinct_targets` 测试身份及四声明源码，测试职责移入独立子模块；不修改待 CI 的联合 PR 分支。
+- 同轮严格 MemoryDocument Unit view 通过已有测试多 root 入口一次规划 `[one,two]`，恰四函数、两个原重载各唯一实例；两 caller 的唯一 DirectCall 各指向独立原声明 Span，借用 Int caller/Value Int callee/第二 callee Borrow Boolean 与 Int return 独立核验。
+- 保全两 LLVM 定义各一次和两调用均存在的原 oracle，并加强为每 caller body 预期 call 恰一、另一目标零。真实 Unit 符号按 FunctionId/name 编码（`.dN.tN`），不沿用 Legacy `choose<Int>` 字符串；类型实例身份由原泛型声明和实际 ABI 证明，不靠名字自证。
+- 独立只读审查通过，原源码字节、同图身份和全部 LLVM oracle 保全；三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）完整 exact 首遍 1 passed/0 failed/0 ignored/exit0，编译 1m25s、执行 0.03s；codegen all-targets 同三 feature 严格 Clippy 56.02s/exit0。fmt/docs979/尺寸2523（历史两例外不扩大）/diff 通过。净退休一项旧 analyze/lower_scalar_file 测试消费者，不改变生产准入；未运行默认全 workspace、native、自递归程序、故障注入或远端 CI，不推送。

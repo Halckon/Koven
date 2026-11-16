@@ -624,73 +624,12 @@ fn lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity()
     assert!(recursive_body.contains(&format!("call @f{}(", recursive.id.index())));
 }
 
+#[path = "generic_overload_unit_contract.rs"]
+mod generic_overload_unit_contract;
+
 #[test]
 fn generic_overloads_with_the_same_type_arguments_keep_distinct_targets() {
-    let analysis = analyze(
-        "fun <T> choose(own input: T): T = input\n\
-         fun <T> choose(own input: T, fallback: Boolean): T = input\n\
-         fun one(input: Int): Int = choose(input)\n\
-         fun two(input: Int): Int = choose(input, true)",
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("generic overload instances must lower independently");
-    let module = &program.modules[0];
-    let choices = module
-        .functions
-        .iter()
-        .filter(|function| function.name == "choose<Int>")
-        .map(|function| function.id)
-        .collect::<Vec<_>>();
-    assert_eq!(choices.len(), 2);
-    let target_of = |name: &str| {
-        let function = module
-            .functions
-            .iter()
-            .find(|function| function.name == name)
-            .expect("caller must exist");
-        function
-            .instructions
-            .iter()
-            .find_map(|instruction| match instruction.operation {
-                Operation::DirectCall { callee, .. } => Some(callee),
-                _ => None,
-            })
-            .expect("caller must contain one direct call")
-    };
-    let one = target_of("one");
-    let two = target_of("two");
-    assert_ne!(one, two);
-    assert!(choices.contains(&one));
-    assert!(choices.contains(&two));
-    let llvm = render_verified_program(&program).expect("distinct overload instances must lower");
-    assert_eq!(
-        llvm.matches("define internal i32 @\"f0.choose<Int>\"")
-            .count(),
-        1
-    );
-    assert_eq!(
-        llvm.matches("define internal i32 @\"f1.choose<Int>\"")
-            .count(),
-        1
-    );
-    assert!(llvm.contains("call i32 @\"f0.choose<Int>\""));
-    assert!(llvm.contains("call i32 @\"f1.choose<Int>\""));
+    generic_overload_unit_contract::assert_distinct_targets();
 }
 
 #[test]
