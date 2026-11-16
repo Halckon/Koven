@@ -2,6 +2,7 @@
 mod activation;
 mod adjacent;
 mod adjacent_borrow_results;
+mod borrow_call_rollback;
 mod normalization;
 mod publication;
 
@@ -24,6 +25,7 @@ class Holder(var target: Int) {
 "#;
 
 type FactLengths = (
+    usize,
     usize,
     usize,
     usize,
@@ -76,6 +78,7 @@ impl Facts {
             self.replacements.len(),
             self.formed.len(),
             0, // Existing fixtures have no Exclusive receiver transition.
+            0, // Existing fixtures have no nested borrow call uses.
         )
     }
 }

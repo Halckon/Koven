@@ -17,6 +17,8 @@ Group只归一inner调用，原outer operand仍保留；没有伪造binding symb
 再发布outer operand的canonical LoanFact。该lease用于重叠权限；lowering必须用返回的真实
 payload Loan，不把source对象地址当payload。后续operand的own move或exclusive重叠仍冲突。
 错误来源/owned交付、诊断或deferred沿现有原子发布门清空call-use事实。
+失败assignment另按进入RHS前保存的call-use长度撤回新增消费，与source loan回滚同步，
+保留已完成前缀；成功赋值不截断。此局部事务修复不改变原全局失败门或语言准入。
 
 single把原source loan从inner PendingCall移入outer帧，保持原call/argument identity，
 在outer返回发布显式LoanEndFact；同帧普通operand/result先于continued祖先发布。

@@ -20892,3 +20892,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - planner实际完成全部实参后，要求同call唯一witness与唯一真实pending receiver全字段相同才发布 `ReceiverActivate`；歧义拒绝。位置在现有 `if !returns` 之前：callee为Nothing不等于实参提前退出，前者进入callee前仍可激活，后者已从实参遍历离开。不是重放动态时间线，不新增激活执行/权限恢复；source仍Partial，原Shared投影及Complete精确验证边界不变。
 - 普通源码11项通过，核外Reserve→内Shared End→外Activate→外End、同根不同call、早Return无Activate、冲突撤销和on/off旧产品。三个真实checker普通测试通过：不可变赋值失败仅回滚RHS新witness并保旧前缀；activation冲突前真实reservation存在但私有成功witness为空；独立source诊断/deferred撤销raw action catalogs。无注入，测试专用before-planner路径只执行真实checker，以免最终清空掩盖checkpoint错误。
 - 原reservation不获Complete精确邻控1 passed；frontend all-targets `loan-observation-test-support` strict36.33s、codegen all-targets `two-source-unit e2-two-source-test-support loan-observation-test-support` strict56.33s均exit0。fmt/docs979/尺寸2525（两历史例外未扩大，dataflow主文件991行）/diff及独审通过。每步核8GiB门槛，收尾11,714,756KiB并释放串行槽。未执行native、Abort、fault或远端CI；Nothing/Abort区别本轮由源顺序静审，不声称其动态验收。此片只证同轮静态Partial位置，不提供跨记录因果或动态activation身份，未退休旧oracle。
+
+### 2026-11-16：Phase 3 assignment 同步 borrow call-use 事务回滚
+
+- 基 `310a5086`，修复局部 checker transaction：真实 RHS 已发布同步 call-use，随后不可变赋值失败撤回 source loan 时，原 checkpoint 没有撤回该 call-use。新增独立长度保存并在原 rollback 截断，仅撤回该 RHS 后缀，保留先前已完成的消费；成功路径和准入边界不变，不涉及 E3。
+- 普通源码回归使用真实 before-planner helper 区分前缀与失败 RHS，同步核保留 source loan 的 call/argument、Shared kind 和 canonical target；可变赋值对照保留两个独立 call。既有全局诊断门已经清空 raw/public 借用表，本修复不宣称公开泄漏或成功程序误编译。
+- 真实红灯在本树重编59.33s后为1 passed / 1 failed（失败RHS未撤回，2≠1）；恢复唯一truncate后本树重编11.05s，两条普通测试2 passed，原activation三邻控3 passed。frontend all-targets `loan-observation-test-support` strict 1m22s exit0，独审、fmt、docs979、尺寸2526（原两历史例外未扩大）及diff-check通过。各构建步骤先核全局空槽及8GiB，等待中的占槽exit98和主动停止的143均不算测试证据。未跑native、故障注入或远端CI；不声称整个borrow-result表族的局部回滚均已闭合。
