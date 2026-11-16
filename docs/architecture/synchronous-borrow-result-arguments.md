@@ -26,6 +26,14 @@ single把原source loan从inner PendingCall移入outer帧，保持原call/argume
 的loan查询，在inner清理前将canonical owner交给outer pending borrow，防止ASAP提前drop。
 两入口不把结果当MoveOnly temporary，也不改变Resource词法析构策略。
 
+## 准入扫描复用
+
+Unit checker 私有 `OnceCell` 缓存当前 parsed/typed 输入的稀疏 span 候选：普通函数、
+原函数级与调用级禁用节点，以及精确 typed Nothing 节点。仍使用原包含关系及最短函数
+选择规则，Nothing 保留原 offset-only 判断；不推断 CFG、不扩大准入或发布权限。
+缓存不含可回滚事实，生命周期限定于同一 checker。一次建立遍历 AST，另含逐表达式
+类型查询；每次查询仅扫描候选，多个函数或大量禁用节点仍可能有二次最坏成本。
+
 ## SSA 与普通 native
 
 single普通DirectCall在局部Vec中运输`lower_result_call`返回的新建source祖先；outer先结束

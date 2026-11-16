@@ -2,6 +2,7 @@
 
 mod assignment;
 mod borrow_binding;
+mod borrow_call_admission;
 mod borrow_call_use;
 mod borrow_result;
 mod call_contract;
@@ -614,6 +615,7 @@ struct Codes {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    borrow_call_admission: std::cell::OnceCell<borrow_call_admission::AdmissionIndex>,
     #[cfg(feature = "d10-catalog-experiment")]
     loan_producers: loan_producers::Collection,
     #[cfg(feature = "d10-catalog-experiment")]
@@ -829,6 +831,7 @@ impl<'a> Checker<'a> {
             no_carry_prefix: Default::default(),
             no_carry_proofs: Vec::new(),
             borrow_results: Default::default(),
+            borrow_call_admission: std::cell::OnceCell::new(),
             range_producers: Vec::new(),
             current_borrow_return: None,
             borrow_return_origins: Vec::new(),

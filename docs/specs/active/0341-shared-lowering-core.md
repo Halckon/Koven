@@ -20898,3 +20898,7 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `310a5086`，修复局部 checker transaction：真实 RHS 已发布同步 call-use，随后不可变赋值失败撤回 source loan 时，原 checkpoint 没有撤回该 call-use。新增独立长度保存并在原 rollback 截断，仅撤回该 RHS 后缀，保留先前已完成的消费；成功路径和准入边界不变，不涉及 E3。
 - 普通源码回归使用真实 before-planner helper 区分前缀与失败 RHS，同步核保留 source loan 的 call/argument、Shared kind 和 canonical target；可变赋值对照保留两个独立 call。既有全局诊断门已经清空 raw/public 借用表，本修复不宣称公开泄漏或成功程序误编译。
 - 真实红灯在本树重编59.33s后为1 passed / 1 failed（失败RHS未撤回，2≠1）；恢复唯一truncate后本树重编11.05s，两条普通测试2 passed，原activation三邻控3 passed。frontend all-targets `loan-observation-test-support` strict 1m22s exit0，独审、fmt、docs979、尺寸2526（原两历史例外未扩大）及diff-check通过。各构建步骤先核全局空槽及8GiB，等待中的占槽exit98和主动停止的143均不算测试证据。未跑native、故障注入或远端CI；不声称整个borrow-result表族的局部回滚均已闭合。
+
+### 私有 borrow-call 准入扫描缓存（本地验证，未推送）
+
+Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数、调用内禁用节点和精确 typed Nothing 判定；不扩大准入、事实发布权限或 E3 子集。保留旧共享谓词作为逐 call 对照。一次建立访问 O(I+E+S) 个 AST 节点，另含 E 次既有 typed lookup 的成本；每次查询 O(F+B+C+Z)，不保证一般最坏线性复杂度。新增节点访问计数仅衡量测试主动查询全部 Call 的工作负载，不代表完整 checker 的性能实测。代码经独立静审；本树编译及新增 4 项、rollback/activation 邻控 5 项、普通 nested-borrow 全 target 14 项通过。原谓词 fixture 曾因不支持块内函数声明解析失败，已改用真实 lambda 语法后通过，不视为生产红灯。frontend all-target strict 已强制本树检查通过（54.12s，不采用首次共享缓存结果）。普通 single-source/unit-source SSA 两个精确矩阵各 1 passed，验证原有 verifier、来源/结果身份和终止顺序合同；codegen 本树真实重编 2m49s。fmt、diff-check、docs 979 和尺寸护栏 2529（旧 2 例外）通过；独立静审无阻塞。未运行 native 或故障注入，不宣称一般端到端性能增益。

@@ -2,6 +2,7 @@
 mod activation;
 mod adjacent;
 mod adjacent_borrow_results;
+mod borrow_call_index;
 mod borrow_call_rollback;
 mod normalization;
 mod publication;
