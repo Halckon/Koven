@@ -21059,3 +21059,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `bfeef7d4`，经逐项前审和末审，删除 `type_callable/inout_storage.rs` 两个私有 helper 内的旧分析执行块及专用 `resolve_names` / `check_types` / `TypeKind` 导入，Rust净减34行。范围影响该模块26个既有测试FQN，不是新增26项覆盖；全部 fixture、共享 oracle 和两段 Unit 检查逐字保留。
 - 两 Unit 路线仍消费同一 SourceMap/AST/显式标准环境，保原 nullable storage/type/call参数身份、inout operand不误收窄、普通non-null读取、拒绝时无call descriptor、精确L0084 operand Span及有序(code, source slice)恢复诊断。仍为 raw type-checking recovery 产品，不增加 final admission，不改生产语义或其它旧阶段合同。
 - 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前本树真实编译25.42s，`type_callable` 的 `inout_storage::` 模块26 passed；修改后真实重编0.95s，同26 passed / 0 ignored，frontend all-targets严格Clippy34.68s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；串行构建、各次空间门槛高于8GiB。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：String.clone 完成点重复消费者收敛
+
+- 基 `90e04803`，逐项前审及末审后删除 `string_clone.rs` 成功路径的旧 `assert_legacy_clone_call_return` 调用、唯一helper及专用旧API导入，Rust净减37行；修正阶段checkpoint注释。原源码、19个测试及 MemoryDocument/Rooted Unit检查、独立 `loan_ends` 邻控全部保留。
+- 原旧oracle逐clone仅要求存在CallReturn；既有两Unit `assert_complete` 已逐clone核唯一实际正常结束事件、CallReturn、receiver/Shared及完整loan身份。生产observer在真实receiver遍历正常完成后才记录，提前退出不记；不是仅descriptor存在的替身。本片未改observer/cleanup算法，不将静态观察当动态执行次数、cleanup执行器或统一事件总序；独立return后无事件、内层完成外层提前退出与同名方法邻控保留。
+- 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前本树真实编译23.73s，原 `string_clone` target19 passed；修改后真实重编1.45s，同19 passed / 0 ignored；frontend all-targets严格Clippy36.60s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；串行构建及空间8GiB门槛保持。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
