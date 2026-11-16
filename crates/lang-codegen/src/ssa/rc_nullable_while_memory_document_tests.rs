@@ -1,5 +1,5 @@
 //! Unchanged SPEC-0332 sources through strict MemoryDocument admission.
-//! Presence Single identities are migrated; Legacy payload and Rooted witnesses remain.
+//! Presence identities and payload successes use Unit; explicit per-family boundaries remain.
 use super::*;
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use lang_frontend::{name_resolution::SourceUnitKey, parser::Expression};

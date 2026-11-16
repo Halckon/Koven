@@ -12,20 +12,19 @@ pub(in crate::ssa) mod identity_facts;
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
+        SourceUnitInput, SourceUnitKey, SymbolKind, index_compilation_unit,
+        resolve_compilation_unit_names,
     },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
+    ownership_checking::check_compilation_unit_ownership,
     parser::{Item, NameMarker, ParsedFile, parse_file},
     source::{SourceMap, Span},
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 
 use super::{
-    LoweringError, lower_scalar_file_with_entry,
+    LoweringError,
     model::{FunctionId, Operation, Origin, Program},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
@@ -211,7 +210,7 @@ pub(in crate::ssa) fn observe_with_identity(
 ) -> (Observation, Result<(), String>) {
     assert!(
         unit || !inspect_identity,
-        "Single identity consumers use strict MemoryDocument"
+        "unqualified identity consumers use the dedicated strict MemoryDocument contract"
     );
     let mut source_identity = Err("real FE identity query not reached".to_owned());
     let mut identity = Err("real SSA identity query not reached".to_owned());
@@ -241,110 +240,103 @@ pub(in crate::ssa) fn observe_with_identity(
         let function_spans = source_functions(&sources, &file)?;
         diagnostic!("SPEC0332 BOUNDED STAGE case={case} unit={unit} parse-and-source-identity=ok");
         let (environment, types) = standard_environments();
-        let lowered = if unit {
-            let inputs = [SourceUnitInput::new("root", &path, source, &file)];
-            let index = index_compilation_unit(&sources, &inputs)
-                .map_err(|error| failure("index-api", error))?;
-            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-                .map_err(|error| failure("names-api", error))?
-                .validate()
-                .map_err(|error| failure("names-validation", error))?;
-            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-                .map_err(|error| failure("types-api", error))?;
-            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
-                .map_err(|error| failure("complete", error))?;
-            complete_ok = true;
-            let typed = typed
-                .validate()
-                .map_err(|error| failure("types-validation", error))?;
-            let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
-                .map_err(|error| failure("ownership-api", error))?;
-            if !owned.diagnostics().is_empty() || !owned.deferred().is_empty() {
-                return Err(failure(
-                    "ownership-diagnostics-or-deferred",
-                    (owned.diagnostics(), owned.deferred()),
-                ));
-            }
-            let owned = owned
-                .validate()
-                .map_err(|error| failure("ownership-validation", error))?;
-            ownership_ok = true;
-            if inspect_identity {
-                source_identity =
-                    identity_facts::unit(&sources, &file, &names, &typed, owned.ownership(), case);
-                diagnostic!(
-                    "SPEC0332 PRESENCE FE IDENTITY case={case} unit={unit} query={:?}",
-                    source_identity.as_ref().map(|_| ())
-                );
-            }
-            let entries = names
-                .names()
-                .index()
-                .declarations()
-                .iter()
-                .filter(|declaration| {
-                    declaration.name() == "entry"
-                        && declaration.kind() == SymbolKind::Function
-                        && names.names().index().packages()[declaration.package().index()]
+        let inputs = [if unit {
+            SourceUnitInput::new("root", &path, source, &file)
+        } else {
+            SourceUnitInput::memory_document(source, &file)
+        }];
+        let index = index_compilation_unit(&sources, &inputs)
+            .map_err(|error| failure("index-api", error))?;
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .map_err(|error| failure("names-api", error))?
+            .validate()
+            .map_err(|error| failure("names-validation", error))?;
+        let [indexed] = names.names().index().source_units() else {
+            return Err(failure("source-identity", "one original source unit"));
+        };
+        if indexed.source_id() != source
+            || sources.source_name(source) != Ok(path.as_str())
+            || sources.source_text(source) != Ok(text.as_str())
+            || (!unit && indexed.key() != &SourceUnitKey::MemoryDocument)
+        {
+            return Err(failure(
+                "source-identity",
+                "original source layout and bytes",
+            ));
+        }
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .map_err(|error| failure("types-api", error))?;
+        complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+            .map_err(|error| failure("complete", error))?;
+        complete_ok = true;
+        let typed = typed
+            .validate()
+            .map_err(|error| failure("types-validation", error))?;
+        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+            .map_err(|error| failure("ownership-api", error))?;
+        if !owned.diagnostics().is_empty() || !owned.deferred().is_empty() {
+            return Err(failure(
+                "ownership-diagnostics-or-deferred",
+                (owned.diagnostics(), owned.deferred()),
+            ));
+        }
+        let owned = owned
+            .validate()
+            .map_err(|error| failure("ownership-validation", error))?;
+        ownership_ok = true;
+        if inspect_identity {
+            source_identity =
+                identity_facts::unit(&sources, &file, &names, &typed, owned.ownership(), case);
+            diagnostic!(
+                "SPEC0332 PRESENCE FE IDENTITY case={case} unit={unit} query={:?}",
+                source_identity.as_ref().map(|_| ())
+            );
+        }
+        let entries = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .filter(|declaration| {
+                declaration.name() == "entry"
+                    && declaration.kind() == SymbolKind::Function
+                    && (!unit
+                        || names.names().index().packages()[declaration.package().index()]
                             .name()
                             .expect("named package")
                             .segments()
                             .iter()
                             .map(String::as_str)
-                            .eq(["p"])
-                })
-                .collect::<Vec<_>>();
-            let [entry] = entries.as_slice() else {
-                return Err(failure("entry-selection", "expected exactly one p.entry"));
-            };
-            lower_attempted = true;
-            diagnostic!(
-                "SPEC0332 BOUNDED STAGE case={case} unit={unit} complete=ok ownership=ok deferred=0 lower=attempt"
-            );
-            crate::ssa::with_per_family_lowering(|| {
-                lower_scalar_unit_with_entry(
-                    &sources,
-                    &inputs,
-                    &names,
-                    &types,
-                    &typed,
-                    &owned,
-                    entry.id(),
-                )
+                            .eq(["p"]))
             })
+            .collect::<Vec<_>>();
+        let [entry] = entries.as_slice() else {
+            return Err(failure(
+                "entry-selection",
+                "expected exactly one original entry",
+            ));
+        };
+        lower_attempted = true;
+        diagnostic!(
+            "SPEC0332 BOUNDED STAGE case={case} unit={unit} complete=ok ownership=ok deferred=0 lower=attempt"
+        );
+        let lower = || {
+            lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &types,
+                &typed,
+                &owned,
+                entry.id(),
+            )
+        };
+        // Keep the explicit Rooted per-family frontier; the original unqualified
+        // success consumer now uses the already-supported default Unit route.
+        let lowered = if unit {
+            crate::ssa::with_per_family_lowering(lower)
         } else {
-            let names = resolve_names(&sources, &file, &environment)
-                .map_err(|error| failure("names-api", error))?;
-            if !names.diagnostics().is_empty() {
-                return Err(failure("names-diagnostics", names.diagnostics()));
-            }
-            let typed = check_types(&sources, &file, &names, &types)
-                .map_err(|error| failure("types-api", error))?;
-            complete_file_types(&sources, &file, &names, &types, &typed)
-                .map_err(|error| failure("complete", error))?;
-            complete_ok = true;
-            let owned = check_ownership(&sources, &file, &names, &typed)
-                .map_err(|error| failure("ownership-api", error))?;
-            if !owned.diagnostics().is_empty() || !owned.deferred().is_empty() {
-                return Err(failure(
-                    "ownership-diagnostics-or-deferred",
-                    (owned.diagnostics(), owned.deferred()),
-                ));
-            }
-            ownership_ok = true;
-            let entries = names
-                .symbols()
-                .iter()
-                .filter(|symbol| symbol.name() == "entry" && symbol.kind() == SymbolKind::Function)
-                .collect::<Vec<_>>();
-            let [entry] = entries.as_slice() else {
-                return Err(failure("entry-selection", "expected exactly one entry"));
-            };
-            lower_attempted = true;
-            diagnostic!(
-                "SPEC0332 BOUNDED STAGE case={case} unit={unit} complete=ok ownership=ok deferred=0 lower=attempt"
-            );
-            lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry.id())
+            lower()
         };
         let (program, entry) = lowered.map_err(|error| Failure {
             stage: "lower",
@@ -387,7 +379,8 @@ pub(in crate::ssa) fn observe_with_identity(
     )
 }
 
-// Characterizes observed implementation debt; not a language rejection contract.
+// Default MemoryDocument successes and explicit per-family Rooted boundaries.
+// This is a routing comparison within Unit, not an independent Legacy witness.
 #[test]
 fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
     let mut observations = Vec::new();
@@ -455,7 +448,7 @@ fn bounded_payload_and_owner_return_sources_record_current_stage_boundary() {
                     _ => false,
                 }
         }),
-        "observed boundary is exactly four single LLVM successes and four source-anchored Unit payload-operation rejections"
+        "four default MemoryDocument Unit successes and four explicit per-family Rooted payload-operation rejections"
     );
 }
 
@@ -493,7 +486,7 @@ fn bounded_presence_rc_nullable_while_sources_reach_verified_llvm() {
     }
     // Original bytes now have the strict MemoryDocument success witness in
     // memory_document. Keep these four package-qualified Rooted observations;
-    // the separate Legacy payload-boundary witnesses stay.
+    // the separate explicit per-family payload-boundary witnesses stay.
     for observation in &observations {
         let case = observation.case;
         let unit = observation.unit;

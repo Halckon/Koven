@@ -20991,3 +20991,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 
 - 基本地整合 `0a928a58`，`boundaries::observe` 的八个调用均固定 `supported=false`；成功消费者此前已迁 Unit，本次仅删除无调用方的 Legacy 成功/LLVM 分支及布尔参数，重命名为 `observe_rejection`。八条原源码、声明精确错误、循环数量和完整 Unit 正控合同不变，不将死分支清理计成八个 Legacy 消费者退休。
 - 独立只读审查确认 Unit 合同及其他调用逐字节保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m41s，八项原 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy52.73s/exit0，fmt、docs979、尺寸2531（两历史债不扩大）和 diff-check 通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交，不推送。
+
+### 2026-11-16：Rc payload 四个原正常消费者迁默认 MemoryDocument Unit
+
+- 基 `c6d42b13`。经与 E3 默认路由复验协调，确认四个原 payload fixture 的默认 Unit 已可到 SSA/LLVM；不能从强制 per-family 的旧拒绝推断默认能力缺失。本片不新增 Rc lowering，不修改生产路由，也不要求所有函数均走 refine。
+- `bounded_payload_and_owner_return_sources_record_current_stage_boundary` 中四个无 package 的 Legacy 成功消费者改为同路径、同字节的严格 MemoryDocument 默认 Unit。原三声明源码身份、唯一实际 entry、可达 block/call graph、SSA verifier 与无进程入口 LLVM oracle 均保留；补单一源 unit、MemoryDocument key 和源名/全文校验。删除该 observer 的旧 names/types/ownership/lowering 分支及专用导入，净退休四个 Legacy 正常消费者。
+- 原 Rooted 路径仍显式 `with_per_family_lowering`，四个精确 UnsupportedNode、payload span 与 `owner.value` 断言不变；独立 MemoryDocument per-family 原拒绝测试主体亦不变。文案明确是 Unit 内默认/显式 per-family 的路由对照，不再称独立 Legacy 见证；不把保留边界当成默认语义缺口。
+- 独立只读审查确认原源码及完整成功/失败 oracle 保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m39s：原 payload 八观察、presence 四观察、MemoryDocument per-family 四拒绝三个 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy49.74s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过；未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
