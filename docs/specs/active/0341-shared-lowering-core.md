@@ -20929,3 +20929,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 将旧 `presence_rc_nullable_while_preserves_owner_cleanup_identity` 的四个 Single 调用改为同源码 strict MemoryDocument 原完整身份检查，复用既有真实 Unit facts → 三函数 source identity → SSA owner/cleanup identity → verified LLVM；四个 package-qualified Rooted 对照不变。两个已有 FQN 均保留，共用同一 Unit helper，不宣称新增独立覆盖。
 - 删除已无消费者的 `identity_facts::single` 及专用 reference helper/import；旧 observer 明确不再接受 Single 身份请求，但四个 payload/owner-return 的 Legacy 成功与 Unit 拒绝边界仍保留。没有改变生产准入、Rc ABI、cleanup 或源码语义，不触碰 native/fault 路线。
 - 新头明确在本树强制真实重编1m34s；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）旧身份 FQN exact 1 passed（四 MemoryDocument + 四 Rooted，0.08s），原 MemoryDocument FQN exact 1 passed（四 fixture，0.02s），保留 payload 边界 exact 1 passed（八观察，0.03s）。同配置 codegen all-targets 严格 Clippy 47.18s/exit0，fmt、docs979、尺寸2531（两历史债不扩大）、diff-check 与独审通过；只做 SSA/LLVM，未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI。仅本地提交，整体 D10/E2 仍未完成。
+
+### 2026-11-16：Rooted direct-proof 消费者去除无断言的 Legacy 重复执行
+
+- 基 `80a316f3`，原 `unit_direct_nullable_while_birth_and_local_retirement_reach_llvm` 从双路线收集后仅消费奇数 Rooted 结果，改为直接调用同一 `lower_unit_source(text, true)`；五条原源码、`package p` 布局、SSA/LLVM 验证及 `assert_unit_direct_proof` 全保留，FQN 不变。
+- 这只消除该消费者中被丢弃的五次 Legacy Program 构造，不是五个独立 Legacy 合同退休。原 `single_direct...` 的完整 Legacy loan/terminal/origin oracle 与 MemoryDocument 观察不变，numeric/borrowed 两个 shape 边界不变；共享 Legacy collector 仍保留，未绕过其显式退休决定门槛。
+- 新头在本树强制真实重编1m49s；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 Unit FQN exact 1 passed（五 fixture，0.05s）、原 Single FQN exact 1 passed（完整旧 shape 与原 MemoryDocument，0.03s）。同配置 codegen all-targets 严格 Clippy 50.45s/exit0，fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及只读独审通过。未执行 native、Abort、故障注入、默认 workspace 或远端 CI；仅本地提交、不推送，不宣称剩余形状合同已退休。
