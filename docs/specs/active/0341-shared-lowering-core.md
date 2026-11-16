@@ -20876,3 +20876,11 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 严格 MemoryDocument 名称、完整类型和 ownership view 上一次显式规划十个原顶层 Function DeclarationId，共享同一 Program/type mapper；新增唯一模块、恰十函数、完整 roots 映射、原声明 Span 与无参数检查，不用十个单根结果拼装代替共享名义类型需求。
 - 原 SSA 计数及 LLVM oracle 原样保留，六类型见证按下项映射保全：aggregate.construct 11、heap.allocate 4、tagged.construct 4、aggregate.project/copy_explode/heap.payload_place/tagged.payload_place 各1、tagged.discriminant 2、drop 2，以及 Wrapped/Holder/Box/Flag/Maybe/Owned 类型见证；LLVM malloc 4/free 2、enum 类型与无 retain/clone 亦完整保全。独审逐字节核原 fixture、计数及 LLVM 断言，并另审六类型见证等价，不以已有单根 enum 测试替代本片真实多根验收。
 - 首 exact 的九项 SSA 数量检查全部通过，随后旧 `Wrapped#t` 显示名检查失败；完整诊断与失败日志保留。Unit 原 mapper 按原 DeclarationId/UnitTypeId 编码 value/class/enum 标签及 Box intrinsic 标签，不复用 Legacy 显示名。六项见证改为原唯一 classifier、canonical 类型实参（含 Maybe<Int>/Owned<Resource>/Box<Wrapped>）导出精确标签，并核唯一正确 Aggregate/HeapOwner/TaggedUnion；不删见证、不改计数或 LLVM oracle。修正经独审后，在准确退休三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下原完整 FQN 一项通过（编译1m43s、执行0.09s），codegen all-targets 严格 Clippy 1m57s/exit0；fmt/docs979/尺寸2527（两历史例外不扩大）/diff 通过。不修改生产准入，未重跑默认 workspace 或远端 CI，不执行 native、Abort 或故障测试，不推送。
+
+### 2026-11-16：泛型容器 callback 的 Legacy / Unit 独立 ABI 合同
+
+- 原 `source_closure_tests::single_runtime_generic_helper_preserves_nominal_element_and_three_environments` 六个 Array/List × pointer/shared/owned fixture 及整个 Legacy helper 具体环境 ABI 断言原样保留。本片不计净退休，不改变生产能力。
+- 最初尝试迁移该消费者，断连截断 attempt1；恢复后 attempt2 原正常目标确切失败于 pointer helper 的具体 ABI 断言，strict 未启动。原 Unit `call_lifetimes::view_type` 按 ADR-0034 使用 CallableView 参数，而调用侧仍有 FunctionPointer / ConcreteClosure；这不是显示名称差异，不能把旧断言简单换成 view 并算等价。
+- 新独立普通 Unit 合同复用完整六 fixture，严格 MemoryDocument / 显式原 entry；原 generate declaration Span 唯一定位。核 caller 实际 lambda 构造与捕获、RootPlace/SharedLoan/CallableViewOf、实际 generate 实参和 helper initializer view/signature/nominal HeapOwner 元素、view 的结束后于调用且先于 source 结束，以及 canonical arena 只读和 verified LLVM。
+- attempt3 新合同真实失败于 helper entry callback 与 success block 参数 LoanId 不同；原 producer 直接借入 callback，经真实 CFG 参数运输，不能要求跨块 ID 相等。保失败日志，改独立入口播种、实际全部边传播及所有入边同源反核，并由独审核收。
+- attempt4 新 Unit 精确目标 1 passed（六 fixture，编译 44.19s / 执行 0.11s），恢复原 Legacy 精确目标 1 passed（0.16s / 0.03s）。codegen 准确退休三 feature all-targets strict 58.46s / exit0；fmt、docs 979、Rust size 2528（2 项历史债）与 diff-check 通过。不执行 native、Abort 或故障注入，不推送。

@@ -876,3 +876,6 @@ fn unit_unreachable_lambdas_do_not_register_storage_or_nested_layouts() {
             .expect("reachable Unit entry verifies through LLVM");
     }
 }
+
+#[path = "generic_container_view_contract.rs"]
+mod generic_container_view_contract;
