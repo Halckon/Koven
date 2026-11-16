@@ -20979,3 +20979,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `80a316f3`，原 `unit_direct_nullable_while_birth_and_local_retirement_reach_llvm` 从双路线收集后仅消费奇数 Rooted 结果，改为直接调用同一 `lower_unit_source(text, true)`；五条原源码、`package p` 布局、SSA/LLVM 验证及 `assert_unit_direct_proof` 全保留，FQN 不变。
 - 这只消除该消费者中被丢弃的五次 Legacy Program 构造，不是五个独立 Legacy 合同退休。原 `single_direct...` 的完整 Legacy loan/terminal/origin oracle 与 MemoryDocument 观察不变，numeric/borrowed 两个 shape 边界不变；共享 Legacy collector 仍保留，未绕过其显式退休决定门槛。
 - 新头在本树强制真实重编1m49s；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 Unit FQN exact 1 passed（五 fixture，0.05s）、原 Single FQN exact 1 passed（完整旧 shape 与原 MemoryDocument，0.03s）。同配置 codegen all-targets 严格 Clippy 50.45s/exit0，fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及只读独审通过。未执行 native、Abort、故障注入、默认 workspace 或远端 CI；仅本地提交、不推送，不宣称剩余形状合同已退休。
+
+### 2026-11-16：D10/E2 两条本地退休线与 PR441 修复整合
+
+- 共同基线 `6e946bcd`，以 merge 保全 D10 `3106eff1`、E2 `973ad9db` 的原提交身份；两线源文件无交集，唯一冲突为本 Spec 尾追加，按共同前缀 + D10 追加 + E2 追加逐字节保全。再合入当时实时查询的 PR441 头 `29836b88`，无源码冲突；整合代码头 `b929196e`，没有复制共同提交或改写原审计记录。
+- 独立只读审查逐项核双方独有文件与父提交 blob 一致，三个原头均为整合头祖先，无意外变化。共享 Cargo target 前触碰本树变更源码，日志明确在独立整合树真实编译1m41s，不用其他工作树的旧二进制代替。
+- 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下组合九项 exact 各1 passed / 0 ignored：Rc inspect 原 owner、普通成功与 default routing；Rc presence 原身份及保留 payload 边界；direct-proof 原 Unit/Single 两目标；Map wrapper 显式两根及生产 singleton 控制。codegen all-targets 同配置严格 Clippy52.28s/exit0；fmt、docs979、Rust尺寸2531（两项历史债不扩大）与 diff-check 通过。
+- 仅执行普通 SSA/LLVM 目标；故障目标只编译/列出，不在本地执行；未运行 native、Abort、默认 workspace 或新头远端 CI，未推送。此整合不表示 D10/E2 整体完成，不触碰 #427。
