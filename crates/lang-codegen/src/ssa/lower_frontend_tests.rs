@@ -395,14 +395,16 @@ fn rejects_nested_interpolation_in_println_at_whole_file_boundary() {
     assert_eq!(span.end(), text.rfind('"').unwrap() + 1);
 }
 
+#[path = "inline_nullable_unit_contract.rs"]
+mod inline_nullable_contract;
+
 #[test]
 fn rejects_inline_nullable_lowering_without_panicking() {
-    let analysis = analyze(
-        "value class Token(val item: Int)\n\
+    let text = "value class Token(val item: Int)\n\
          fun inspect(own token: Token?): Unit {\n\
              if (token != null) {}\n\
-         }",
-    );
+         }";
+    let analysis = analyze(text);
     assert!(analysis.typed.diagnostics().is_empty());
     assert!(analysis.owned.diagnostics().is_empty());
     let error = match lower_scalar_file(
@@ -416,6 +418,9 @@ fn rejects_inline_nullable_lowering_without_panicking() {
         Err(error) => error,
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    // The legacy rejection remains an independent implementation boundary.
+    // Strict Unit supports the same complete source; prove its ABI/CFG separately.
+    inline_nullable_contract::assert_unit(text);
 }
 
 #[test]
