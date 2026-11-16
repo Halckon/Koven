@@ -38,6 +38,7 @@ impl Checker<'_> {
             self.ownership_primitives.len(),
             self.field_replacements.len(),
             self.formed_owned_locals.len(),
+            self.receiver_activations.len(),
         );
         let nullable_when_checkpoint = self.nullable_whens.clone();
         let mut flows = self.check_expression(
@@ -186,6 +187,7 @@ impl Checker<'_> {
             usize,
             usize,
             usize,
+            usize,
         ),
     ) {
         self.loans.truncate(lengths.0);
@@ -199,6 +201,7 @@ impl Checker<'_> {
         self.ownership_primitives.truncate(lengths.6);
         self.field_replacements.truncate(lengths.7);
         self.formed_owned_locals.truncate(lengths.8);
+        self.receiver_activations.truncate(lengths.9);
     }
 
     fn restore_flow_states(mut flows: Flows, entry: &State) -> Flows {

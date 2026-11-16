@@ -510,6 +510,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         self.register_iteration_pending_loans(id, argument.value, state);
                     }
                 }
+                self.observe_receiver_activation(id, state);
                 if !returns {
                     return Ok(false);
                 }

@@ -92,14 +92,20 @@ impl Checker<'_> {
         self.if_branch_live_in = liveness.if_branch_live_in;
         self.when_entry_live_in = liveness.when_entry_live_in;
         self.statement_live_after = liveness.statement_after;
-        for &root in self.parsed.roots() {
-            self.check_item(root, super::State::default())?;
-        }
-        if self.diagnostics.is_empty() && self.typed.has_valid_type_facts() {
-            super::drop_planner::plan(self)
-        } else {
-            Ok(super::drop_planner::Analysis::default())
-        }
+        let result = (|| {
+            for &root in self.parsed.roots() {
+                self.check_item(root, super::State::default())?;
+            }
+            if self.diagnostics.is_empty() && self.typed.has_valid_type_facts() {
+                super::drop_planner::plan(self)
+            } else {
+                Ok(super::drop_planner::Analysis::default())
+            }
+        })();
+        // These witnesses belong only to this checker/planner pass, including
+        // error/deferred results. No raw parallel activation table escapes it.
+        self.receiver_activations.clear();
+        result
     }
 }
 

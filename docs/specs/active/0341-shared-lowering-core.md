@@ -21128,3 +21128,26 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 旧helper只重复names clean及raw clean/唯一L0084+marker start/end；两Unit已有精确AST marker、节点类型、完整primary Span、raw诊断保持、失败raw/final完整等值和成功同analysis合同。原旧flow.ko源名没有额外断言，不以源码命名变化声称新语义能力；未新增观测抽象或生产变化。
 - 初候选遗漏子模块三调用，编译失败暴露后补齐并重新全仓调用检索、独审及静态核验，未将失败计通过。准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原全target基线16 passed（真实本树27.11s），最终候选16 passed / 0 ignored（2.09s），frontend all-targets严格Clippy53.27s/exit0；最终fmt、docs979、尺寸2531（两历史债不扩大）及diff-check通过。
 - 本次获用户授权后先等独立工作自然结束并核无cargo/rustc，仅删除共享target/debug/incremental，保源码、deps、其他target和日志；空间恢复后每步核8GiB并等待空窗串行验证，不终止其他任务。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：Phase 3 Exclusive receiver 的真实 Reserve/正常退休桥
+
+- 独立基 `286f9550`，属于 ADR-0038/0040 已批准真实生命周期事实范围，不改 E3 CFG/SSA。原注册/退休路径真实处理 Exclusive token，但统一动作源丢弃它；普通 `cell.set(cell.read())` 红灯实际1 failed（End为0而预期1，编译23.78s），不以测试覆盖替代生产缺口。
+- 在原 pending 注册点新增明确 `ReceiverReserve`，不能复用 Shared ReceiverBegin：注册在实参之前，checker最终fact虽含activation_point，也不代表此刻已激活。正常extract点直接移动原token到ReceiverEnd；仅普通Inout ValueParameter的Name/Group根、非provider/binding、Owned结果、reservation且activation_point精确等于call。无新Activate、无End执行、无owner drop、无reserve→end认证链接，catalog仍Partial，不扩大Complete或permission恢复。
+- 旧 `receiver_call_return_ends` 保持原顺序的Shared-only投影；observer关闭不改变旧产物。早Return保原prefix cleanup且无normalEnd。Owned/字段root不取得新normal观察。字段负控曾发现canonical backing place可省略projection，仅核elements为空不足；追加原Name/Group语法门修复，不扩大支持。
+- 新七项普通源码覆盖嵌套Shared顺序、同根不同call、未激活早退、Owned/字段域外、错误/deferred邻函数撤销和同names/types/environment的on/off。最初两个新增测试错误（缺声明分隔符、用不同analysis/environment作on/off）已纠正并保日志；deferred保留旧receiver诊断facts不是新事件泄漏，断言仅要求新action catalog与normal ends撤销。未声称跨source撤销新增覆盖。
+- 末轮真实本树重编7.17s，`unit_direct_call_loan_ends` 新模块7 passed（两Unit布局，0.03s）；原inout Shared投影、reservation不获Complete、Owned Shared三项精确回归各1 passed。frontend all-targets `loan-observation-test-support` strict34.13s、codegen all-targets `two-source-unit e2-two-source-test-support loan-observation-test-support` strict48.13s均exit0，证实新增enum消费者兼容。fmt、docs979、尺寸2524（两历史债不扩大）、diff-check及独审通过。各构建前复核8GiB；末步完成可用8,426,040KiB仍高于8,388,608KiB，不再开新构建。未跑native/Abort/fault或远端CI，仅独立本地提交。
+
+### 2026-11-16：Phase 3 Owned receiver 的真实正常退休桥
+
+- 后继基 `e54798de`，补 ADR-0040 允许的真实动作观察缺口：普通 owned local/Value 参数同样已注册 Exclusive Reserve，并在正常返回 extract 点实际移除原 pending token，但旧窄 predicate 未公开 End。原 owned local fixture 改为新合同后先实测红灯（End 0≠1，1 failed），不以新增测试冒充实现。
+- 只扩现有 predicate：Variable 必须在真实 formed_owned 集合，ValueParameter 必须为 Owned 或原 Exclusive binding；保留 Name/Group、完整 target 相等、Owned result、reservation/activation 精确 call、provider/borrow-binding 排除。直接移动原退休 token，不新增产品或 cleanup；不造 Activate/因果链接，不恢复 permission，不改变 Drop、Shared-only 旧投影、Complete validator 或 E3。
+- Rooted/MemoryDocument 新合同核 owned local 与 own 参数各唯一 End、完整原 Drop fact 恰一次且 End 在前；嵌套 Shared 与同根连续调用核各自 call 身份及真实动作顺序。既有 Inout、早 Return、投影域外、失败/deferred 撤销继续通过；同轮 names/types/environment 的 observer on/off 进一步覆盖 owned local/parameter，原产品全等。仍是 Partial 观察，不宣称完整 owner/loan 生命周期或跨 source 新撤销证据。
+- 最终普通模块9 passed，原 `action_source::receiver_region_unadmitted_roots_and_reservations_are_not_complete` exact 1 passed；frontend all-targets `loan-observation-test-support` strict36.26s、codegen all-targets `two-source-unit e2-two-source-test-support loan-observation-test-support` strict49.45s均exit0。独审无阻塞并补 catalog 原 Drop 唯一性断言；fmt/docs/尺寸/diff-check随提交核验。每步核8GiB门槛，收尾仍17,348,740KiB。未执行native、Abort、fault或远端CI；依赖前片，独立本地提交，不声称已发布或退休旧oracle。
+
+### 2026-11-16：Phase 3 receiver 实际激活转换见证桥
+
+- 后继基 `310d8d54`。按 ADR-0040 的实际建立/激活/结束事件区分，补统一动作源原先缺失的 Activate；先只增加事件类型和真实嵌套调用断言，实测红灯1 failed（事件0≠1，真实本树编译25.89s），再接生产，不从最终 `activation_point` 反推事件。
+- 唯一 producer 位于 checker `activate_receiver` 成功将 reservation 状态切为 active 并更新原fact之后，保存完整原fact为该Checker私有witness。assignment第十个checkpoint长度精确回滚新增witness；checker/planner结果返回前统一清空，包括错误路径，不新增公开raw平行表。
+- planner实际完成全部实参后，要求同call唯一witness与唯一真实pending receiver全字段相同才发布 `ReceiverActivate`；歧义拒绝。位置在现有 `if !returns` 之前：callee为Nothing不等于实参提前退出，前者进入callee前仍可激活，后者已从实参遍历离开。不是重放动态时间线，不新增激活执行/权限恢复；source仍Partial，原Shared投影及Complete精确验证边界不变。
+- 普通源码11项通过，核外Reserve→内Shared End→外Activate→外End、同根不同call、早Return无Activate、冲突撤销和on/off旧产品。三个真实checker普通测试通过：不可变赋值失败仅回滚RHS新witness并保旧前缀；activation冲突前真实reservation存在但私有成功witness为空；独立source诊断/deferred撤销raw action catalogs。无注入，测试专用before-planner路径只执行真实checker，以免最终清空掩盖checkpoint错误。
+- 原reservation不获Complete精确邻控1 passed；frontend all-targets `loan-observation-test-support` strict36.33s、codegen all-targets `two-source-unit e2-two-source-test-support loan-observation-test-support` strict56.33s均exit0。fmt/docs979/尺寸2525（两历史例外未扩大，dataflow主文件991行）/diff及独审通过。每步核8GiB门槛，收尾11,714,756KiB并释放串行槽。未执行native、Abort、fault或远端CI；Nothing/Abort区别本轮由源顺序静审，不声称其动态验收。此片只证同轮静态Partial位置，不提供跨记录因果或动态activation身份，未退休旧oracle。
