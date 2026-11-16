@@ -20623,3 +20623,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 
 - 独立分类未修改生产：`consume(source); var remaining=rounds; while...` 在三/四 ABI、Borrow/Value 极值及来源反序共八输入中，原 names/types 均成功，而 ownership 均拒绝。两个实际 `borrow` 六字符 Span 各报 L0164，counter-break 与 prefix-counter-break 原 facts 均为空；没有到 lowering，不混称此前 counter9 的 producer InvalidModel，也不声称双 assembly。
 - 分类日志保留后，测试已收紧为原 ownership 必须拒绝、精确 diagnostic code/source/start/end、零 audit/receipt/recorded，删除泛错误分类打印。唯一精确回归一项通过（增量编译47.70s、执行0.02s），格式与独审通过；没有为此扩原 selector/planner、没有重跑完整矩阵，不执行生成程序/Abort/native/故障注入、不推送。后续仅另行研究已有原 If 前缀支持域，不绕过本拒绝。
+
+### If 标量前缀 counter-break 的原支持几何证据（未新增认证）
+
+- 本片只登记普通源码探针，生产零改动。前缀为 `if(before){tick(1)}else{tick(2)}`，原 `prefix_empty_callee` 要求 tick 与 caller 同 source unit 且为已知空函数体，签名不能代替效果证明；view/consume 仍可来自另一来源。原 prefix-counter-break wrapper 唯一且 owns，内部 counter-break 并非独立 owns，不能借内层事实绕过专属 selector。
+- 首 fixture 错将 tick 放在 provider，真实 ownership 返回两条 L0164、facts 空且未进入 lowering；首失败日志完整保留。仅把 tick 空定义移入 caller 后，唯一正常目标通过（编译15.15s、执行0.05s），两来源顺序各两次 assembly 均原 lower、SSA verify 与 receipt.validate 成功。原 run→view 未获证且 unsupported 非空，没有把局部 receipt 当完整 caller 证书。
+- 实测无 suffix、五 Borrow 参数形状为15块18指令：原12块 counter-break 前增加 head 与两个标量臂，prefix join 即 counter 初始化入口。before 只在首 Read 使用后不再运输，两臂各一个 Int Constant 与 tick DirectCall，其余四个原 ABI 参数继续运输；原两 fresh End、唯一原 Abort 与 UnitReturn 保留。该结果只记录原支持几何，不扩大 source 前消费、模式或一般控制流准入，不宣称完整退役。
+- 复用上述唯一真实探针及已完成格式化，收尾只作格式检查、文档检查、diff 与独立静审，不另跑 Cargo/strict/default，不执行生成程序、Abort、native 或故障注入，不推送。后续工作转统一 legacy consumer 退役，不继续自动新增小域。
