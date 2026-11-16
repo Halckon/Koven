@@ -21182,3 +21182,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 ### 私有 borrow-call 准入扫描缓存（本地验证，未推送）
 
 Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数、调用内禁用节点和精确 typed Nothing 判定；不扩大准入、事实发布权限或 E3 子集。保留旧共享谓词作为逐 call 对照。一次建立访问 O(I+E+S) 个 AST 节点，另含 E 次既有 typed lookup 的成本；每次查询 O(F+B+C+Z)，不保证一般最坏线性复杂度。新增节点访问计数仅衡量测试主动查询全部 Call 的工作负载，不代表完整 checker 的性能实测。代码经独立静审；本树编译及新增 4 项、rollback/activation 邻控 5 项、普通 nested-borrow 全 target 14 项通过。原谓词 fixture 曾因不支持块内函数声明解析失败，已改用真实 lambda 语法后通过，不视为生产红灯。frontend all-target strict 已强制本树检查通过（54.12s，不采用首次共享缓存结果）。普通 single-source/unit-source SSA 两个精确矩阵各 1 passed，验证原有 verifier、来源/结果身份和终止顺序合同；codegen 本树真实重编 2m49s。fmt、diff-check、docs 979 和尺寸护栏 2529（旧 2 例外）通过；独立静审无阻塞。未运行 native 或故障注入，不宣称一般端到端性能增益。
+
+### 私有 borrow-call 索引与 CLI 修复的组合验收（本地，未推送）
+
+- 代码头 `09557aa0` 以 merge 保留 `b92f542f` 与 `c5386d50` 祖先；共同基线 `9d10fa43`，唯一冲突为本 Spec，严格保留左侧全文和右侧 1302 字节追加。独立审查确认其他两侧独有文件 blob/mode 原样，无遗漏或额外源码修改。CLI/codegen 与左侧一致，frontend 生产源码与右侧一致；保留两线各自既有验收，不把单片证据当成组合运行。
+- 本整合树实际完成 `check_cli` 7、`ownership_borrow_result` 12、`ownership_structural` 11、`while_flow_facts` 16，共 46 个普通测试；覆盖索引与现有 Unit 消费者、两宿主诊断及标准源 key 修复的组合。frontend all-targets `loan-observation-test-support` strict 2m12s、codegen 默认配置 all-targets strict 1m15s 均 exit0。未重复原单片索引/邻控矩阵，也未以该默认配置声称全部 feature 组合通过。
+- Mac 断连时原 CLI 编译没有测试结果，核无在途进程后保留中断日志并续验；进程门禁曾因外部非 UTF-8 命令行解码失败保守停止，修正外部验证脚本后仅续未执行阶段，未重复已过目标。每步复核全局构建槽与 8GiB 门槛，不终止外部任务。docs979、尺寸2541（两历史例外未扩大）及 diff-check 通过。
+- 未执行 native、Abort、故障注入或远端 CI；此前 injector 的编译/list 证据不等于故障行为验收。整体里程碑及发布状态不由本次组合验收宣告完成，不推送。
