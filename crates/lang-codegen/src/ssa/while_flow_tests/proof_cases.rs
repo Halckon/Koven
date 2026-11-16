@@ -12,6 +12,7 @@ use borrowed_proof_cases::rejection_diagnostics::assert_rejection;
 use super::super::{
     integer_range_value_tests::{
         collect_memory_entry_observations, collect_shape_boundaries, collect_sources,
+        lower_unit_source,
     },
     verify::verify_program,
 };
@@ -207,12 +208,13 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
 
 #[test]
 fn unit_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
-    let outcomes = direct_proof_observations();
-    for (index, result) in outcomes.into_iter().enumerate() {
-        if index % 2 == 1 {
-            let program = expect(result, "unit direct nullable while reaches verified LLVM");
-            direct_contract::assert_unit_direct_proof(&program, index / 2);
-        }
+    // This original consumer asserted only the Rooted half. Do not execute and
+    // discard five Legacy programs whose complete shape oracle lives above.
+    for (case, text) in direct_proof_sources().iter().enumerate() {
+        let source = expect(lower_unit_source(text, true), "original Rooted Unit source");
+        verify_program(&source.program).expect("original Rooted Unit SSA");
+        crate::llvm::render_verified_program(&source.program).expect("original Rooted Unit LLVM");
+        direct_contract::assert_unit_direct_proof(&source.program, case);
     }
 }
 

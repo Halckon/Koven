@@ -1,5 +1,5 @@
-//! Stage A: unchanged SPEC-0332 sources through MemoryDocument admission.
-//! Keep the original Single/Rooted witnesses; these assertions require CI execution.
+//! Unchanged SPEC-0332 sources through strict MemoryDocument admission.
+//! Presence Single identities are migrated; Legacy payload and Rooted witnesses remain.
 use super::*;
 use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 use lang_frontend::{name_resolution::SourceUnitKey, parser::Expression};
@@ -79,40 +79,43 @@ fn original_payload_sources_keep_precise_memory_document_return_boundary() {
 #[test]
 fn original_presence_sources_reach_source_anchored_memory_document_llvm() {
     for (case, text, _golden) in presence_cases() {
-        let unit = original_memory_source(case, text);
-        // Stage A for the stronger identity oracle: keep the independent Single
-        // identity witness until this exact MemoryDocument path has CI evidence.
-        let facts = identity_facts::unit(
-            unit.sources(),
-            unit.parsed(),
-            unit.names(),
-            unit.basic_types(),
-            unit.ownership(),
-            case,
-        )
-        .unwrap_or_else(|error| panic!("{case}: original frontend owner identity: {error}"));
-        let expected = source_functions(unit.sources(), unit.parsed())
-            .unwrap_or_else(|error| panic!("{case}: {}: {}", error.stage, error.detail));
-        let entry = unit.declaration("entry", SymbolKind::Function);
-        let entry_span = unit.declaration_span(entry);
-        let lower_result = crate::ssa::with_per_family_lowering(|| unit.lower_entry(entry));
-        let (program, entry) = lower_result
-            .unwrap_or_else(|error| panic!("{case}: original presence source: {error:?}"));
-        let function = program
-            .module(entry.module())
-            .unwrap()
-            .function(entry)
-            .unwrap();
-        assert_eq!(function.origin.span(), entry_span);
-        verify_entry_sources(unit.sources(), &program, entry, &expected)
-            .unwrap_or_else(|error| panic!("{case}: {}: {}", error.stage, error.detail));
-        verify_program(&program).unwrap();
-        identity::inspect_program(&program, entry, case, &facts)
-            .unwrap_or_else(|error| panic!("{case}: original SSA cleanup identity: {error}"));
-        let llvm = crate::llvm::render_verified_program(&program)
-            .unwrap_or_else(|error| panic!("{case}: verified LLVM: {error:?}"));
-        assert!(!llvm.is_empty(), "{case}: nonempty rendered module");
+        assert_presence_identity(case, text);
     }
+}
+
+pub(in crate::ssa) fn assert_presence_identity(case: &str, text: &str) {
+    let unit = original_memory_source(case, text);
+    // The original Single identity consumer now shares this CI-proven Unit path.
+    let facts = identity_facts::unit(
+        unit.sources(),
+        unit.parsed(),
+        unit.names(),
+        unit.basic_types(),
+        unit.ownership(),
+        case,
+    )
+    .unwrap_or_else(|error| panic!("{case}: original frontend owner identity: {error}"));
+    let expected = source_functions(unit.sources(), unit.parsed())
+        .unwrap_or_else(|error| panic!("{case}: {}: {}", error.stage, error.detail));
+    let entry = unit.declaration("entry", SymbolKind::Function);
+    let entry_span = unit.declaration_span(entry);
+    let lower_result = crate::ssa::with_per_family_lowering(|| unit.lower_entry(entry));
+    let (program, entry) =
+        lower_result.unwrap_or_else(|error| panic!("{case}: original presence source: {error:?}"));
+    let function = program
+        .module(entry.module())
+        .unwrap()
+        .function(entry)
+        .unwrap();
+    assert_eq!(function.origin.span(), entry_span);
+    verify_entry_sources(unit.sources(), &program, entry, &expected)
+        .unwrap_or_else(|error| panic!("{case}: {}: {}", error.stage, error.detail));
+    verify_program(&program).unwrap();
+    identity::inspect_program(&program, entry, case, &facts)
+        .unwrap_or_else(|error| panic!("{case}: original SSA cleanup identity: {error}"));
+    let llvm = crate::llvm::render_verified_program(&program)
+        .unwrap_or_else(|error| panic!("{case}: verified LLVM: {error:?}"));
+    assert!(!llvm.is_empty(), "{case}: nonempty rendered module");
 }
 
 pub(in crate::ssa) mod map_consume_nullable {
