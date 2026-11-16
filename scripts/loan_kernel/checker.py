@@ -79,6 +79,7 @@ class Fun:
     suspend: bool = False  # 可以包含挂起点
     parallel: bool = False  # 可能在另一个线程上恢复：跨挂起点存活的值须可转移
     bounds: dict = field(default_factory=dict)  # 类型参数 -> 它声明的能力上界（T: Cap + Cap）
+    deinit_of: str = ""  # deinit C { … }：类型 C 的析构函数体，this 拥有各字段
 
 
 @dataclass
@@ -180,6 +181,12 @@ class Parser:
             line = self.line()
             if self.accept("interface"):
                 self.interfaces.add(self.next())
+            elif self.peek() == "deinit":  # deinit C { … }：C 的析构函数体
+                self.next()
+                name = self.next()
+                body, _ = self.block()
+                funs[f"deinit {name}"] = Fun(f"deinit {name}", [("own", "this", name)], ("", "Unit"), [], False, body,
+                                             None, line, owner=name, deinit_of=name)
             elif self.peek() in ("fun", "sig", "suspend", "parallel"):
                 mods = set()
                 while self.peek() in ("suspend", "parallel"):
@@ -213,7 +220,8 @@ class Parser:
                 implements = []
                 while self.accept("is"):
                     implements.append(self.next())
-                classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements, private, is_cell,
+                has_deinit = self.peek() == "deinit" and self.peek(2) != "{" and self.accept("deinit")
+                classes[name] = ClassDecl(name, fields, is_view, has_deinit, line, implements, private, is_cell,
                                           is_local, is_carrier)
         return classes, funs, sigs
 
@@ -612,6 +620,13 @@ class Checker:
             self.dp_types[ty.name] = DP.TypeDecl(ty.name, [], deinit=not self.has("EarlyDrop", ty))
         return ty.name
 
+    def declare_this(self, line, ty):
+        """deinit 函数体里的 this：拥有各字段，deinit 这份义务正在履行，不再另算（析构义务原型 §6.2 的“拥有”）。"""
+        decl = self.dp_types[self.dp_type(ty)]
+        shadow = f"{ty.name}.fields"
+        self.dp_types[shadow] = DP.TypeDecl(shadow, decl.fields)
+        self.out.append(DP.Stmt("this", line, var="this", ty=shadow))
+
     def declare(self, kind, line, name, ty, state):
         """声明或重新赋值一个拥有的变量。"""
         self.emit(kind, line, name, state if kind == "let" else None, ty=self.dp_type(ty))
@@ -686,7 +701,11 @@ class Checker:
             elif ty.kind == "opaque" and ty_name in fun.views or mode == "own" and self.carrier(ty_name):
                 loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}  # view T 与容器的值携带一组未知的来源
             # 按 inout / borrow 接收存在类型，得到的是载荷访问（之三 §2.4）
-            if mode == "own" and self.tracked(Var(ty, "A", {})):
+            if fun.deinit_of:
+                if not (ty_name in self.classes and self.classes[ty_name].deinit):
+                    raise SyntaxProblem(f"第 {fun.line} 行：{ty_name} 没有声明 deinit")
+                self.declare_this(fun.line, ty)
+            elif mode == "own" and self.tracked(Var(ty, "A", {})):
                 self.declare("let", fun.line, name, ty, state)
             state[name] = Var(ty if mode == "own" else Type(mode, ty_name), "A", loans,
                               mode != "own" and ty.kind == "any")
@@ -1129,6 +1148,8 @@ class Checker:
         if place.fields:
             return self.take(expr, state)
         res = self.resolve(state, place)
+        if self.fun.deinit_of and place.root == "this":
+            self.error("K24", expr.line, "deinit 里不能整体移走 this")
         self.access(state, res.targets, set(), "move", expr.line)
         var = state[place.root]
         if var.pinned:
@@ -1156,7 +1177,7 @@ class Checker:
         if var.ty.kind not in ("cls", "view") or res.crossed:
             self.error("K8", expr.line, f"{place.root}.{name} 不在这个变量自己的存储里，不能移出")
             return Value(res.ty)
-        if decl.deinit:
+        if decl.deinit and not (self.fun.deinit_of and place.root == "this"):
             self.error("K23", expr.line, f"{var.ty.name} 声明了 deinit，不能从它里面移出字段")
         self.access(state, res.targets, set(), "move", expr.line)
         value = Value(res.ty, copy_loans(res.field_loans or {}))
