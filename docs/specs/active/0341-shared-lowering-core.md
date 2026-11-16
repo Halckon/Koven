@@ -21151,3 +21151,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - planner实际完成全部实参后，要求同call唯一witness与唯一真实pending receiver全字段相同才发布 `ReceiverActivate`；歧义拒绝。位置在现有 `if !returns` 之前：callee为Nothing不等于实参提前退出，前者进入callee前仍可激活，后者已从实参遍历离开。不是重放动态时间线，不新增激活执行/权限恢复；source仍Partial，原Shared投影及Complete精确验证边界不变。
 - 普通源码11项通过，核外Reserve→内Shared End→外Activate→外End、同根不同call、早Return无Activate、冲突撤销和on/off旧产品。三个真实checker普通测试通过：不可变赋值失败仅回滚RHS新witness并保旧前缀；activation冲突前真实reservation存在但私有成功witness为空；独立source诊断/deferred撤销raw action catalogs。无注入，测试专用before-planner路径只执行真实checker，以免最终清空掩盖checkpoint错误。
 - 原reservation不获Complete精确邻控1 passed；frontend all-targets `loan-observation-test-support` strict36.33s、codegen all-targets `two-source-unit e2-two-source-test-support loan-observation-test-support` strict56.33s均exit0。fmt/docs979/尺寸2525（两历史例外未扩大，dataflow主文件991行）/diff及独审通过。每步核8GiB门槛，收尾11,714,756KiB并释放串行槽。未执行native、Abort、fault或远端CI；Nothing/Abort区别本轮由源顺序静审，不声称其动态验收。此片只证同轮静态Partial位置，不提供跨记录因果或动态activation身份，未退休旧oracle。
+
+### 2026-11-16：E2 跨文件共享 caller 多入口证据补足
+
+- 基已发布 `286f9550`，不依赖其后的本地 D10 消费者链。复用原真实 shared-caller 源码，拆成 leaves/caller/entries 三个 `SourceUnitInput`，在 inputs 正反序与 requested 两入口正反序的四组合中实际准备同一完整 capability。
+- 核三文件 lexer/parser 洁净、原 view/consume 唯一函数来源、main/alias 不同实际入口、共同 run 的同一 FunctionId及原声明 Span；验证请求次序映射、同一个 SourceMap/Program、恰七函数、SSA verifier与 LLVM。无伪造 facts、无 native/fault执行。现有生产能力已支持此输入，本片明确是端到端证据缺口补足，不声称新增生产功能或消费者退休。
+- 新精确目标注册到 E2 CI 两配置清单（81 unit、7 public，两配置另加3 frontend），不在本地执行整个含native/fault的脚本。首次误用旧三feature产生0 tests，已保存日志并不计通过；随后正式 `two-source-unit` 真实重编1m21s，exact 1 passed（四组合，0.06s）。支持配置与strict结果待后续记录。
+- 支持配置 `two-source-unit e2-two-source-test-support loan-observation-test-support` 本树真实重编1m31s，exact 1 passed（四组合，0.07s）；同配置 codegen all-target strict 50.50s/exit0。新源/注册及CI目标清单81项已复核，fmt、docs979、尺寸、bash语法、diff-check及独审通过。仅本地提交，不推送；新头远端双宿主/native/fault尚未执行。
