@@ -11,7 +11,7 @@
 - 单文件 `build` / `run`，接收显式 source、可选 source-root、entry 和输出选择；`check <source.ko> [--source-root <dir>]` 与 `check --project <manifest>` 只跑同一全部 frontend gate（不选入口、不生成 object），退出 0 干净/1 诊断/2 usage 或 operational；`help`/`--help`/`-h` 写 stdout 并退出 0；
 - `format` / `format --check`，结果写 stdout，不原地改文件；`doc` 导出 syntax-only 声明 JSON，见 [API 入口](../tutorials/api/README.md)；
 - `--message-format=json` 的版本化 JSON Lines 语言诊断；
-- 显式 `project.toml` 的本地 project build/run；`source-set --project <project.toml>` 导出 ADR-0021 v1 base JSON。
+- 显式 `project.toml` 的本地 project build/run；`source-set --project <project.toml>` 导出 ADR-0021 v1 base JSON。 project build 的裸相对 `.ko` 输出按 cwd 检查 canonical 父目录，与 `./` 拼写一致；source root 内仍拒绝，避免污染后续 discovery。
 
 project loader 校验 version 1 manifest、root/logical path、symlink/overlap 和 physical file identity，发布稳定只读 source set；导出保留完整文本与逻辑身份，以 canonical file URI 展示，不分析源码。
 std 依次登记 `ranges.ko`、`koven/core/result.ko`，后者经 `NameEnvironment::authorize_builtin_source` 按 SourceId 授权为内建 `Result`/`Ok`/`Err`；原 SourceMap 移入 `UnitNameSnapshot`，统一拥有源码、语法、环境与名称事实。

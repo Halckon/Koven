@@ -24,6 +24,9 @@ mod mutable_list_delivery;
 #[path = "project_cli/final_type_admission.rs"]
 mod final_type_admission;
 
+#[path = "project_cli/relative_output.rs"]
+mod relative_output;
+
 #[path = "project_cli/runtime_constructor.rs"]
 mod runtime_constructor;
 

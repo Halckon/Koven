@@ -21158,3 +21158,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 核三文件 lexer/parser 洁净、原 view/consume 唯一函数来源、main/alias 不同实际入口、共同 run 的同一 FunctionId及原声明 Span；验证请求次序映射、同一个 SourceMap/Program、恰七函数、SSA verifier与 LLVM。无伪造 facts、无 native/fault执行。现有生产能力已支持此输入，本片明确是端到端证据缺口补足，不声称新增生产功能或消费者退休。
 - 新精确目标注册到 E2 CI 两配置清单（81 unit、7 public，两配置另加3 frontend），不在本地执行整个含native/fault的脚本。首次误用旧三feature产生0 tests，已保存日志并不计通过；随后正式 `two-source-unit` 真实重编1m21s，exact 1 passed（四组合，0.06s）。支持配置与strict结果待后续记录。
 - 支持配置 `two-source-unit e2-two-source-test-support loan-observation-test-support` 本树真实重编1m31s，exact 1 passed（四组合，0.07s）；同配置 codegen all-target strict 50.50s/exit0。新源/注册及CI目标清单81项已复核，fmt、docs979、尺寸、bash语法、diff-check及独审通过。仅本地提交，不推送；新头远端双宿主/native/fault尚未执行。
+
+### Project 裸相对 `.ko` 输出的路径预检修复（2026-11-16）
+
+- 独立基 `0cabdf7f`；`build --project ... -o artifact.ko` 的原输出直接进入 source-root 保护，`Path::parent()` 返回空路径而非 `None`。staging 已按当前目录处理，但项目路径检查对空路径 canonicalize，故与 `./artifact.ko` 不一致。仅将空 parent 同样解释为 `.`；不改变 canonical source-root 边界或扩展名规则。
+- 新普通进程回归保留完整项目 Unit 路径，以原源码未解析名称 L0080 阻断 object/link/native。项目根 cwd 下两种拼写须给相同完整 JSON 和固定 source/span；src cwd 下两种拼写仍拒绝下一轮 source discovery。每轮核原 manifest/source 字节、目录项与 final/debug 产物未变；这是 staging 清理合同，不宣称从未创建临时目录。
+- 独审通过。暂撤最小生产修复后，当前树真实编译 8m55s，outside 精确目标如期 1 failed：原路径 IO operational 输出无法作为语言 JSON 解析。恢复修复后本树重编 3.55s，两普通目标共 2 passed（四个子进程组合，0 ignored），完整诊断、源内拒绝及失败清理均通过；CLI build 与 all-targets strict 30.67s/exit0 通过。
+- fmt、docs979、Rust 尺寸及 diff-check 通过；新增模块按职责命名 `relative_output`。只执行前端诊断/路径拒绝，不执行链接、native 或 fault；整个含 native 的 project 套件及此前整合交叉回归仍未执行，不能以本片代替。仅本地提交，不推送。
