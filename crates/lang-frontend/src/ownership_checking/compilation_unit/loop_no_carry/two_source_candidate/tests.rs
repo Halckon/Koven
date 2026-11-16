@@ -261,6 +261,7 @@ fn independent_domain_preserves_old_neighbor_and_rejections() {
     }
 }
 
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 #[test]
 fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars() {
     for (named, extra) in [
@@ -439,6 +440,7 @@ fn process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars(
     }
 }
 
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 #[test]
 fn parameter_print_retains_real_shared_argument_contract_without_ending_input() {
     for (body, extra, accepted) in [
@@ -607,6 +609,7 @@ fn parameter_print_retains_real_shared_argument_contract_without_ending_input() 
     }
 }
 
+#[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 #[test]
 fn named_shared_string_entry_cleanup_evidence() {
     let mut sources = SourceMap::new();
