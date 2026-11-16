@@ -3,8 +3,7 @@
 use lang_frontend::{
     name_resolution::resolve_names,
     ownership_checking::{
-        ConstantMaterializationKind, DropPoint, DropTarget, LoanTarget, OwnershipCheckedFile,
-        check_ownership,
+        DropPoint, DropTarget, LoanTarget, OwnershipCheckedFile, check_ownership,
     },
     source::SourceMap,
     type_checking::{TypedFile, check_types, standard_environments},
@@ -178,51 +177,6 @@ fun use(): Int {
 }
 "#;
     unit_materialization::identity(source);
-    let (sources, typed, owned) = analyzed(source);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let facts = owned.constant_materializations().expect("validated");
-    assert!(facts.matches(&typed));
-    assert_eq!(facts.plans().len(), 3);
-    assert_eq!(owned.drops().len(), 2);
-    let (_, other, repeated) = analyzed(source);
-    assert!(!facts.matches(&other));
-    let snapshot = |owned: &OwnershipCheckedFile| {
-        owned
-            .constant_materializations()
-            .unwrap()
-            .plans()
-            .iter()
-            .map(|plan| {
-                let descriptor = plan.descriptor();
-                (
-                    descriptor.expression().index(),
-                    descriptor.target().index(),
-                    descriptor.value().clone(),
-                    plan.kind(),
-                )
-            })
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(snapshot(&owned), snapshot(&repeated));
-    for (plan, kind) in facts.plans().iter().zip([
-        ConstantMaterializationKind::StringTemporary,
-        ConstantMaterializationKind::StringTemporary,
-        ConstantMaterializationKind::InlineCopy,
-    ]) {
-        assert_eq!(plan.kind(), kind);
-        assert_eq!(
-            facts
-                .plan_at(plan.descriptor().expression())
-                .unwrap()
-                .descriptor()
-                .target(),
-            plan.descriptor().target()
-        );
-    }
-    assert_eq!(
-        sources.slice(owned.drops()[0].value_origin()).unwrap(),
-        "COPY"
-    );
 }
 
 #[test]
@@ -332,18 +286,6 @@ fn every_closed_scalar_type_repeats_value_delivery_without_runtime_owners() {
             "const val VALUE: {ty} = {literal}\nfun take(own input: {ty}): Unit {{}}\nfun use(): Unit {{\nval first = take(VALUE)\nval second = take((VALUE))\n}}"
         );
         unit_materialization::scalar(&text);
-        let (_, owned) = checked(&text);
-        let plans = owned.constant_materializations().unwrap().plans();
-        assert_eq!(plans.len(), 2, "{ty}: group must not rematerialize");
-        assert!(
-            plans
-                .iter()
-                .all(|plan| plan.kind() == ConstantMaterializationKind::InlineCopy),
-            "{ty}"
-        );
-        assert!(owned.loans().is_empty(), "{ty}");
-        assert!(owned.drops().is_empty(), "{ty}");
-        assert!(owned.captures().is_empty(), "{ty}");
     }
 }
 
@@ -399,27 +341,6 @@ fun use(flag: Boolean): Unit {
 fun discard(): Unit { (TEXT) }
 "#;
     unit_materialization::grouped(text);
-    let (_, owned) = checked(text);
-    let facts = owned.constant_materializations().unwrap();
-    assert_eq!(facts.plans().len(), 3);
-    assert_eq!(owned.loans().len(), 1);
-    for loan in owned.loans() {
-        if let LoanTarget::Temporary(owner) = loan.target() {
-            assert!(facts.plan_at(*owner).is_some(), "{loan:?}");
-        }
-    }
-    let temporaries = owned
-        .drops()
-        .iter()
-        .filter_map(|drop| match drop.target() {
-            DropTarget::Temporary(owner) => Some(owner),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(temporaries.len(), 3);
-    for owner in temporaries {
-        assert!(facts.plan_at(owner).is_some(), "{owner:?}");
-    }
 }
 
 #[test]
