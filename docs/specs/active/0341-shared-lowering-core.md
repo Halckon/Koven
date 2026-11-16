@@ -20855,3 +20855,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 复用既有测试专用 `root_set::lower_roots`，两个原 DeclarationId 在同轮严格 MemoryDocument Unit facts/view 上一次规划并组装同一个 Program；不是分别 lower 两个入口后拼装，也不扩生产 singleton 入口。
 - 保留无 construction、完整阶段诊断、heap/tagged 存储、重复 lowering 确定性与 LLVM 校验；增加同一 module 恰两函数、原声明顺序/Span、原 Borrow 参数和 SSA verifier 检查。既有逐 root 独立测试仍保留，不能替代共享 mapper 见证。
 - 独立只读审查确认原两声明排序与共享 mapper 实际 demand 保全，无阻断。三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）完整 exact 实际 1 passed/0 failed，首次编译 1m42s、执行 0.03s；其后 shell 后处理误用 zsh 保留变量 status 报只读错误，已与成功测试日志分开记录，没有重复执行测试。codegen all-targets 同三 feature 严格 Clippy 56.09s/exit0，fmt/docs979/尺寸2519（历史两例外未扩大）/diff 通过。仅本地普通 SSA/LLVM 验收，不运行 native/故障注入，不推送；默认配置及精确远端头 CI 未在本片重跑，不声称 D10/E2 全部终态完成。
+
+### E2 native 准备的完整最终类型门（2026-11-16）
+
+- 基线 `29836b88`：基础 Unit 类型验证通过的未达 `a.fooBar()` 可取得 E2 native 准备资格；普通回归已先真实失败。
+- `prepare_two_source_units` 在所有权分析前完成显式 source-set 的最终类型检查；单入口包装共用该门，`FinalTypes` 原样保留诊断与内部身份错误，不降为 unsupported。
+- `final_types_reject_unreachable_member_in_complete_source_set` 核合法控制、同文件/另一输入文件中的未达非法成员：L0080、精确 source/`fooBar` span、完整诊断相等，两公共 API 均拒绝发资格；已列入两种 CI feature 配置。
+- 本地两种 feature 配置下新目标各 1 passed，组合配置四个相邻 ownership/multi-entry 目标各 1 passed；workspace all-target strict、fmt/docs/尺寸/脚本语法与独审通过。无 native、Abort 或故障注入执行，双宿主新头 CI 待验。

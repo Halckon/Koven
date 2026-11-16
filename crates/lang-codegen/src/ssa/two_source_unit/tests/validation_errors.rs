@@ -107,8 +107,10 @@ fn deferred_rejection_is_distinct_from_valid_unsupported_subset() {
         ));
         assert!(matches!(
             prepare_two_source_unit(&sources, &[], &names, &types, &typed, entry),
-            Err(TwoSourceUnitError::Ownership(
-                OwnershipCheckingError::MismatchedCompilationUnitTypes
+            Err(TwoSourceUnitError::FinalTypes(
+                lang_frontend::type_checking::FinalTypeAdmissionError::Internal(
+                    lang_frontend::type_checking::FinalTypeAdmissionInternalError::MismatchedAnalysisIdentity
+                )
             ))
         ));
         let outcome =

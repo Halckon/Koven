@@ -12,7 +12,10 @@ use lang_frontend::{
         },
     },
     source::SourceMap,
-    type_checking::{TypeEnvironment, ValidatedCompilationUnitTypes},
+    type_checking::{
+        FinalTypeAdmissionError, TypeEnvironment, ValidatedCompilationUnitTypes,
+        complete_compilation_unit_types,
+    },
 };
 
 /// An immutable, completely lowered bounded unit. No ordinary ownership or mutable IR conversion.
@@ -46,6 +49,8 @@ impl ValidatedTwoSourceUnit<'_> {
 /// Preparation failures never yield a partial capability or create an output artifact.
 #[derive(Debug)]
 pub enum TwoSourceUnitError {
+    /// Full source-set final type admission failed; original diagnostics/identity are preserved.
+    FinalTypes(FinalTypeAdmissionError),
     /// The real ownership checker failed.
     Ownership(OwnershipCheckingError),
     /// Real ownership validation failed; no failed ownership or authority escapes.
@@ -134,6 +139,8 @@ pub fn prepare_two_source_units<'a>(
     {
         return Err(TwoSourceUnitError::UnsupportedSelection);
     }
+    complete_compilation_unit_types(sources, inputs, names, environment, typed.types())
+        .map_err(TwoSourceUnitError::FinalTypes)?;
     let experiment = match analyze_two_source_outcome(sources, inputs, names, environment, typed)
         .map_err(TwoSourceUnitError::Ownership)?
     {

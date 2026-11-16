@@ -470,3 +470,5 @@ mod late_temp_shared;
 mod early_temp_shared;
 
 mod different_late_temp_shared;
+
+mod final_types;
