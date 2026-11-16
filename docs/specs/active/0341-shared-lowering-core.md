@@ -20869,3 +20869,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 以原声明 Span 及实际 Int32/Int64 参数/返回类型定位 identity/relay 各两个、recurse 一个唯一实例，完整模块恰九函数，unused 不实例化；四根真实目标、relay→identity 与 recurse→自身实际 FunctionId 均核验，不依赖 Legacy 或 Unit 名字字符串。
 - 重复组装保留原完整 SSA 文本确定性，并核同原 Declaration keys、稳定 module/function index 与各自 Program 内解析的 Origin。首验新增的跨 Program opaque FunctionId 直接相等断言失败：原模型的 ModuleId 含独立 ProgramOwner，不能用打印相同的索引替代所有权身份。仅修此测试 oracle，保留失败日志；原渲染相等在首验已通过，不修改模型或弱化同 Program 递归身份。
 - 修正经独立末审后，在准确退休三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下 exact 一项通过（编译4m50s、执行0.05s），codegen all-targets 严格 Clippy 1m58s/exit0；fmt/docs979/尺寸2524（两历史例外不扩大）/diff 通过。首验误用 two-source-unit 的配置和失败日志保留，不冒称同配置通过。未重跑默认 workspace 或远端 CI，不执行自递归生成程序、native、Abort 或故障注入，不推送。
+
+### 原 nominal 正常段同轮十根 Unit 消费者迁移（2026-11-16）
+
+- 基 `8de8deed`，仅迁移 `declarative_type_roots_do_not_enter_the_scalar_instance_graph` 中 `nominal_use` 正常成功段；原六类型、十函数源码逐字节保留，顶部已 Unit 的未使用声明检查和 runtime-bearing `val` 的 Legacy 拒绝合同保持，不将整个 FQN 称为全部退休。
+- 严格 MemoryDocument 名称、完整类型和 ownership view 上一次显式规划十个原顶层 Function DeclarationId，共享同一 Program/type mapper；新增唯一模块、恰十函数、完整 roots 映射、原声明 Span 与无参数检查，不用十个单根结果拼装代替共享名义类型需求。
+- 原 SSA 计数及 LLVM oracle 原样保留，六类型见证按下项映射保全：aggregate.construct 11、heap.allocate 4、tagged.construct 4、aggregate.project/copy_explode/heap.payload_place/tagged.payload_place 各1、tagged.discriminant 2、drop 2，以及 Wrapped/Holder/Box/Flag/Maybe/Owned 类型见证；LLVM malloc 4/free 2、enum 类型与无 retain/clone 亦完整保全。独审逐字节核原 fixture、计数及 LLVM 断言，并另审六类型见证等价，不以已有单根 enum 测试替代本片真实多根验收。
+- 首 exact 的九项 SSA 数量检查全部通过，随后旧 `Wrapped#t` 显示名检查失败；完整诊断与失败日志保留。Unit 原 mapper 按原 DeclarationId/UnitTypeId 编码 value/class/enum 标签及 Box intrinsic 标签，不复用 Legacy 显示名。六项见证改为原唯一 classifier、canonical 类型实参（含 Maybe<Int>/Owned<Resource>/Box<Wrapped>）导出精确标签，并核唯一正确 Aggregate/HeapOwner/TaggedUnion；不删见证、不改计数或 LLVM oracle。修正经独审后，在准确退休三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下原完整 FQN 一项通过（编译1m43s、执行0.09s），codegen all-targets 严格 Clippy 1m57s/exit0；fmt/docs979/尺寸2527（两历史例外不扩大）/diff 通过。不修改生产准入，未重跑默认 workspace 或远端 CI，不执行 native、Abort 或故障测试，不推送。
