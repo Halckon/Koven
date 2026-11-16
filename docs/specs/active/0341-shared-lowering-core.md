@@ -21005,3 +21005,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 先静审完整 `assert_borrowed_proof`：其 `_unit` 参数已不参与分支，三路线均使用相同 owner/view/element 逐边身份、LoanEnd/Drop 和 scalar 运输 oracle。既有 MemoryDocument 原 entry/guard 来源观察仍保留，与新 no-package臂共用真实lowering，不计为新增独立覆盖。不改变任何 Legacy-specific assertion，因为该oracle已无该分支。
 - 迁移前精确目标在 [PR441 run43807524911](https://github.com/Halckon/koven/actions/runs/43807524911) 的 macOS job133101971763、Linux job133101972008 均实际 `ok`；提交 `37a90566` 与本片迁移前 borrowed 源码/contract blob一致。该运行整体失败，旧目标证据不替代新头验证。Legacy shape collector仍留给 direct/numeric 两项真实不同形状的合同，不宣称整体退役。
 - 新头明确在本树强制真实重编1m34s，准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 borrowed-for FQN exact 1 passed（0.10s），相邻 nullable-while 外层 borrowed-for FQN exact 1 passed（0.04s）；同配置 codegen all-targets 严格 Clippy 57.83s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check和独审通过；未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI。仅独立本地提交，不推送、不覆盖整合在途树。
+
+### 2026-11-16：borrowed proof 与 Rc payload 退休组合验收
+
+- 独立整合头 `989fa112` 合并 `be362f7e` 与 `f855606c`，共同基线 `973ad9db`；原提交均保留为祖先。唯一 Spec 尾追加冲突按左侧完整账本 + 右侧相对基线的新段逐字节保全；独立只读审查确认两边独有源码 blob 与父提交相同，无丢失、复制或额外变更。
+- 触碰本树变更源码强制共享 target 真实编译1m34s。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下 borrowed-for/outer-borrowed 两原 exact、Rc payload 八观察及 presence 四观察共四个 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy49.48s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。
+- 仅做必要的普通 SSA/LLVM 组合交叉验证，不重复各片已验独立负控；未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI，未推送；D10/E2 整体仍 in-progress。
