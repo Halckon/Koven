@@ -821,7 +821,7 @@ fn project_entry_failures_preserve_complete_operational_messages() {
 }
 
 #[test]
-fn project_standard_key_collision_preserves_the_complete_operational_error() {
+fn project_standard_key_collision_preserves_valid_user_program() {
     let project = TestProject::create("standard-key-collision");
     let manifest = project.manifest(&["koven-std"]);
     project.write(
@@ -836,14 +836,16 @@ fn project_standard_key_collision_preserves_the_complete_operational_error() {
             &executable,
             Some(format),
         );
-        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
         assert!(output.stdout.is_empty(), "{output:?}");
-        assert_eq!(
-            output.stderr,
-            b"error: project build failed: compilation-unit input failed: duplicate source key (\"koven-std\", \"koven/algorithms/ranges.ko\")\n",
-            "{output:?}"
+        assert!(output.stderr.is_empty(), "{output:?}");
+        assert!(executable.is_file());
+        let launched = Command::new(&executable).output().unwrap();
+        assert_eq!(launched.status.code(), Some(0), "{launched:?}");
+        assert!(
+            launched.stdout.is_empty() && launched.stderr.is_empty(),
+            "{launched:?}"
         );
-        assert!(!executable.exists());
         assert_no_build_temporaries(project.path());
     }
 }

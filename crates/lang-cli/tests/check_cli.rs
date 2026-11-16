@@ -379,3 +379,35 @@ fn help_prints_full_usage_to_stdout() {
             .contains("expected `format`, `check`, `build`, `run`, `doc`, `source-set` or `help`")
     );
 }
+
+#[test]
+fn project_standard_source_key_collision_reports_user_diagnostic() {
+    let directory = TestDirectory::create();
+    let manifest = directory.join("project.toml");
+    fs::write(
+        &manifest,
+        concat!(
+            "schema = \"koven.project\"\nversion = 1\n[project]\n",
+            "name = \"standard-collision\"\nsource-roots = [\"koven-std\"]\n",
+        ),
+    )
+    .unwrap();
+    let source = directory.join("koven-std/koven/core/result.ko");
+    fs::create_dir_all(source.parent().unwrap()).unwrap();
+    fs::write(
+        &source,
+        "package koven.core\nfun probe(): Unit { missing }\n",
+    )
+    .unwrap();
+    let output = kovenc([
+        OsStr::new("check"),
+        OsStr::new("--project"),
+        manifest.as_os_str(),
+    ]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        "error[L0080] koven-std/koven/core/result.ko:2:21-2:28: unresolved name\n"
+    );
+}

@@ -14,7 +14,7 @@
 - 显式 `project.toml` 的本地 project build/run；`source-set --project <project.toml>` 导出 ADR-0021 v1 base JSON。 project build 的裸相对 `.ko` 输出按 cwd 检查 canonical 父目录，与 `./` 拼写一致；source root 内仍拒绝，避免污染后续 discovery。
 
 project loader 校验 version 1 manifest、root/logical path、symlink/overlap 和 physical file identity，发布稳定只读 source set；导出保留完整文本与逻辑身份，以 canonical file URI 展示，不分析源码。
-std 依次登记 `ranges.ko`、`koven/core/result.ko`，后者经 `NameEnvironment::authorize_builtin_source` 按 SourceId 授权为内建 `Result`/`Ok`/`Err`；原 SourceMap 移入 `UnitNameSnapshot`，统一拥有源码、语法、环境与名称事实。
+std 依次登记 ranges、result、text；只有完整标准键碰撞时才选择首个空闲 `koven-std-N` 供三源共用，按相关占用 root 数有界避让且与输入顺序无关。用户 root/path 与显示名不改，标准显示名独立避让；所有授权只绑定宿主新建 SourceId，result 经 `NameEnvironment::authorize_builtin_source` 授予内建 `Result`/`Ok`/`Err`。原 SourceMap 移入 `UnitNameSnapshot`，拥有源码、语法、环境与名称事实。
 `project_build` 与 single bootstrap 共用 `unit_build`（`check_unit_frontend` 跑全部 frontend gate，`emit_unit_object` 其后选入口并生成 object），借 snapshot/同轮类型环境推进；标准 loader/core 共用中立错误，CLI 不从 cwd/祖先猜 manifest。
 共同链在完整 names 前缀后 gate；typed diagnostics 由宿主拦截且先于 entry，再由 `complete_compilation_unit_types`
 准入并调用 `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership；宿主验证 raw ownership 后进入单 object、link 与原子 executable 发布。
