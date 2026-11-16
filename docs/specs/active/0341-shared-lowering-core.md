@@ -20884,3 +20884,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 新独立普通 Unit 合同复用完整六 fixture，严格 MemoryDocument / 显式原 entry；原 generate declaration Span 唯一定位。核 caller 实际 lambda 构造与捕获、RootPlace/SharedLoan/CallableViewOf、实际 generate 实参和 helper initializer view/signature/nominal HeapOwner 元素、view 的结束后于调用且先于 source 结束，以及 canonical arena 只读和 verified LLVM。
 - attempt3 新合同真实失败于 helper entry callback 与 success block 参数 LoanId 不同；原 producer 直接借入 callback，经真实 CFG 参数运输，不能要求跨块 ID 相等。保失败日志，改独立入口播种、实际全部边传播及所有入边同源反核，并由独审核收。
 - attempt4 新 Unit 精确目标 1 passed（六 fixture，编译 44.19s / 执行 0.11s），恢复原 Legacy 精确目标 1 passed（0.16s / 0.03s）。codegen 准确退休三 feature all-targets strict 58.46s / exit0；fmt、docs 979、Rust size 2528（2 项历史债）与 diff-check 通过。不执行 native、Abort 或故障注入，不推送。
+
+### 2026-11-16：return-loop source loan 拒绝消费者迁移
+
+- 基 `6e946bcd`，原 `owned_source_return_source_loan_rejects_body_moves_and_mutation` FQN 及四段 Array/MutableList body move/mutation 源码逐字节保留，测试委托独立 Unit 合同模块；仅退休此一测试的四个 Legacy frontend 消费，不更改生产实现或其他边界。
+- 首普通定向 probe 实测两路前三阶段 clean、ownership 恰一 L0135，主 Span 与冲突 source loan Label 相同。Unit 文案分别明确 move/mutation/new loan，move 另含 selected-parameter Label；原测试只断言 L0135，不声称完整诊断字节等价，也不为旧未冻结文案保留兼容路径。
+- 严格 MemoryDocument Unit 返回 Diagnostics，不能以 incomplete ownership 或可执行结果替代；完整固定 stage/count、severity/code/message、主 Span、source name/text/slice 与全部有序 Label。原 probe 完整诊断保留在本地外部测试日志，末审确认四 fixture 与所有原断言保全，无阻断。
+- 末版明确在本工作树真实重编（41.01s），准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 exact 1 passed / 0 failed / 0 ignored（四 fixture，执行0.02s）；codegen all-targets 同配置严格 Clippy 59.74s/exit0。fmt、docs979、尺寸2529（两历史债未扩大）与 diff-check 通过。未运行默认 workspace、SSA/native/Abort、故障注入或远端 CI，不推送，不声称 D10/E2 整体完成。
