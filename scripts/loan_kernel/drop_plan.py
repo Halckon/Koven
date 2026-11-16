@@ -8,9 +8,22 @@
 规格见 docs/proposals/drop-obligation-model.md。用法：python3 scripts/loan_kernel/drop_plan.py 文件.dp ...
 """
 from dataclasses import dataclass, field
+import importlib.util
 from pathlib import Path
 import re
 import sys
+
+
+def sibling(name):
+    """加载同目录下的另一个原型；各原型都是独立脚本，不组成包。"""
+    spec = importlib.util.spec_from_file_location(f"loan_kernel_{name}", Path(__file__).with_name(f"{name}.py"))
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+CAP = sibling("capability")  # 结构能力推导（KB4）：可否提前析构、可否遗忘、可否隐式析构都向它问
 
 
 @dataclass
@@ -109,11 +122,20 @@ def parse(text):
 class Types:
     def __init__(self, types):
         self.types = types
+        self.known = None
+
+    def has(self, name, cap):
+        """类型是否满足一项析构能力。类型标记翻译成能力推导的声明，结论由它按字段推导。"""
+        if self.known != len(self.types):  # deinit 拥有 this 时会补进新的类型
+            self.engine = CAP.Engine({decl.name: CAP.Decl(
+                decl.name, [], [(fld, CAP.Ty(ty)) for fld, ty in decl.fields], "class", deinit=decl.deinit,
+                unforgettable=decl.unforgettable, must_consume=decl.consume) for decl in self.types.values()})
+            self.known = len(self.types)
+        return self.engine.requires(CAP.Ty(name), cap) is not CAP.NEVER
 
     def observable(self, name):
-        """析构是否可观察：自己声明了 deinit，或某个字段可观察。"""
-        decl = self.types[name]
-        return decl.deinit or any(self.observable(ty) for _, ty in decl.fields)
+        """析构是否可观察：不可提前析构（自己声明了 deinit，或某个字段可观察）。"""
+        return not self.has(name, "EarlyDrop")
 
     def units(self, var, name):
         """一个变量名下的义务单元：每个字段一份，声明了 deinit 的类型自身另有一份。"""
@@ -205,7 +227,7 @@ class Planner:
             self.policy.early == "eligible" and not self.t.observable(self.ty[var]))
 
     def drop(self, var, line, **tags):
-        if self.t.types[self.ty[var]].consume:  # 任何隐式析构都不允许，无论由哪条规则引出
+        if not self.t.has(self.ty[var], "ImplicitDrop"):  # 任何隐式析构都不允许，无论由哪条规则引出
             raise Rejected(line, "D5", f"{var} 必须显式消费，不能被隐式析构")
         flagged = any(self.status[u] == "?" for u in self.units(var))
         for unit in self.units(var):
@@ -226,7 +248,7 @@ class Planner:
             for var in reversed(names):
                 if not self.owned(var):
                     continue
-                if self.t.types[self.ty[var]].consume:
+                if not self.t.has(self.ty[var], "ImplicitDrop"):
                     raise Rejected(line, "D5", f"{var} 必须显式消费，不能留到作用域结束")
                 out.append(self.drop(var, line))
         if not commit:
@@ -261,7 +283,7 @@ class Planner:
         for names in reversed(self.scopes):
             for var in reversed(names):
                 if var not in live and self.early(var) and self.state(var) in ("O", "P") and self.owned(var):
-                    if self.t.types[self.ty[var]].consume:
+                    if not self.t.has(self.ty[var], "ImplicitDrop"):
                         continue
                     out.append(self.drop(var, line))
         return out
@@ -299,7 +321,7 @@ class Planner:
             evaluate = Stmt("call", line, cleanup=self.cleanup())
             out = [evaluate]
             if self.owned(stmt.var):
-                if self.t.types[self.ty[stmt.var]].consume:
+                if not self.t.has(self.ty[stmt.var], "ImplicitDrop"):
                     raise Rejected(line, "D5", f"{stmt.var} 必须显式消费，不能被覆盖")
                 out.append(self.drop(stmt.var, line, replace=True))
             self.ty[stmt.var] = stmt.ty
@@ -367,8 +389,7 @@ class Planner:
             self.status[unit] = "O"
 
     def unforgettable(self, name):
-        decl = self.t.types[name]
-        return decl.unforgettable or any(self.unforgettable(ty) for _, ty in decl.fields)
+        return not self.t.has(name, "Forgettable")
 
     def visible(self):
         return [var for names in self.scopes for var in names]
@@ -581,6 +602,8 @@ class Verifier:
                 self.unit[unit] = "O"
         elif kind in ("use", "move", "forget", "open"):
             units = self.t.units(stmt.var, self.ty[stmt.var])
+            if kind == "use" and f"{stmt.var}.{stmt.fld}" in units:  # 只用到一个字段（由借用原型写出）
+                units = [f"{stmt.var}.{stmt.fld}"]
             if any(self.unit[u] != "O" for u in units):
                 self.violations.append("V5 使用了已析构或已移走的值")
             if kind != "use":

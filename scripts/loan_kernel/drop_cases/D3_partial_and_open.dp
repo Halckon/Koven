@@ -6,6 +6,7 @@ type Conn(sock: File, buf: Buf) deinit
 type Ticket consume
 type Scope deinit unforgettable
 type Holder(s: Scope, b: Buf)
+type TicketBox(t: Ticket, b: Buf)
 fun partial {            // => ok
   let p = Pair
   take a = p.a
@@ -64,4 +65,13 @@ fun ticketAcrossFailure {  // => ok
   let t = Ticket
   call
   move t
+}
+fun boxedTicketDropped { // => reject D5
+  let w = TicketBox
+  call
+}
+fun boxedTicketMoved {   // => ok
+  let w = TicketBox
+  call
+  move w
 }

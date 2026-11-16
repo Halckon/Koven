@@ -445,6 +445,7 @@ class Var:
     loans: dict  # "" 为借用值自身持有的 loan；其余键为视图的借用字段
     payload: bool = False  # 对存在类型的载荷访问：只能调用方法，不能整体替换
     pinned: bool = False  # 任务已开始执行：帧不可再移动，离开作用域前须等它结束
+    gone: dict = field(default_factory=dict)  # 已移出的按值字段：(字段名,) -> M | MM
 
 
 @dataclass
@@ -472,7 +473,7 @@ def copy_loans(loans):
 
 
 def copy_state(state):
-    return {name: Var(var.ty, var.init, copy_loans(var.loans), var.payload, var.pinned)
+    return {name: Var(var.ty, var.init, copy_loans(var.loans), var.payload, var.pinned, dict(var.gone))
             for name, var in state.items()}
 
 
@@ -574,20 +575,43 @@ class Checker:
             return
         stmt = DP.Stmt(kind, line, var=name, **tags)
         if state is not None:  # 可能失败的操作：失败时析构此刻仍拥有的变量，自内向外、声明逆序
-            stmt.cleanup = [(n, v.init == "MM") for n, v in reversed(list(state.items()))
-                            if self.tracked(v) and v.init != "M"]
+            stmt.cleanup = [(n, self.flagged(v)) for n, v in reversed(list(state.items())) if self.owes(v)]
         self.out.append(stmt)
 
+    def owes(self, var):
+        """变量名下是否还有析构义务：拥有的值，没有被整体移走，字段也没有全部移出。"""
+        decl = self.classes.get(var.ty.name)
+        emptied = decl is not None and decl.fields and all(var.gone.get((f,)) == "M" for _, f, _ in decl.fields)
+        return self.tracked(var) and var.init != "M" and not emptied
+
+    @staticmethod
+    def flagged(var):
+        """析构时须看运行时的标志：整体或某个字段只在部分路径上被移走。"""
+        return var.init == "MM" or "MM" in var.gone.values()
+
+    def dp_type(self, ty):
+        """析构义务一侧的类型。普通的类与视图带着字段，可以逐字段移出；其余只有“析构是否可观察”一个标记。"""
+        decl = self.classes.get(ty.name)
+        if ty.kind in ("cls", "view") and decl is not None and not (decl.cell or decl.local or decl.carrier):
+            fields = []
+            for kind, name, fty in decl.fields:
+                plain = kind or fty in ("Int", "Unit") or fty.startswith("fn ")  # 没有析构义务的字段
+                fields.append((name, "&" if plain else self.dp_type(self.type_of(fty))))
+            self.dp_types.setdefault("&", DP.TypeDecl("&", []))
+            self.dp_types[ty.name] = DP.TypeDecl(ty.name, fields, deinit=decl.deinit)
+        else:  # 析构是否可观察取自能力推导
+            self.dp_types[ty.name] = DP.TypeDecl(ty.name, [], deinit=not self.has("EarlyDrop", ty))
+        return ty.name
+
     def declare(self, kind, line, name, ty, state):
-        """声明或重新赋值一个拥有的变量；析构是否可观察取自能力推导。"""
-        self.dp_types[ty.name] = DP.TypeDecl(ty.name, [], deinit=not self.has("EarlyDrop", ty))
-        self.emit(kind, line, name, state if kind == "let" else None, ty=ty.name)
+        """声明或重新赋值一个拥有的变量。"""
+        self.emit(kind, line, name, state if kind == "let" else None, ty=self.dp_type(ty))
         if kind == "let":
             self.leave(state, "fail", line)
 
     def destroy(self, line, name, var, **tags):
-        if self.tracked(var) and var.init != "M":
-            self.emit("drop", line, name, if_owned=var.init == "MM", **tags)
+        if self.owes(var):
+            self.emit("drop", line, name, if_owned=self.flagged(var), **tags)
 
     # ---- 签名
 
@@ -959,9 +983,9 @@ class Checker:
         说明父持有者正被子借用暂停，记为 K4；作用域结束时的析构冲突记为 K9；其余记为 K1。
         """
         if kind not in ("move", "kill", "fail") and not self.quiet:
-            for root in sorted({root for root, _ in targets}):  # 经借用访问也是对 owner 的一次使用
+            for root, path in sorted(targets):  # 经借用访问也是对 owner 的一次使用；带上用到的是哪个字段
                 if self.tracked(state.get(root)):
-                    self.emit("use", line, root)
+                    self.emit("use", line, root, fld=path[0] if path else "")
         skip = set(via) | self.ancestors(via)
         for loan in sorted(self.live_loans(state) - skip):
             info = self.loans[loan]
@@ -1013,6 +1037,8 @@ class Checker:
             raise SyntaxProblem(f"第 {place.line} 行：未声明的变量 {place.root}")
         if var.init != "A":
             self.error("K8", place.line, f"{place.root} 已被移动或可能已被移动")
+        elif var.gone and (not place.fields or (place.fields[0],) in var.gone):
+            self.error("K8", place.line, f"{'.'.join([place.root] + place.fields[:1])} 已被部分移出")
         here = {(place.root, ())}
         if not place.fields:
             held = self.current_fields(state, here, {}, var.ty.name) if var.ty.kind == "view" else var.loans
@@ -1092,7 +1118,7 @@ class Checker:
         """K8：移动整个变量；移动是一次与任何存活 loan 都不相容的访问。"""
         place = expr.place
         if place.fields:
-            raise SyntaxProblem(f"第 {expr.line} 行：演算不支持部分移动")
+            return self.take(expr, state)
         res = self.resolve(state, place)
         self.access(state, res.targets, set(), "move", expr.line)
         var = state[place.root]
@@ -1102,6 +1128,36 @@ class Checker:
         if self.tracked(var):
             self.emit("move", expr.line, place.root)
         var.init, var.loans = "M", {}
+        return value
+
+    def take(self, expr, state):
+        """K23：从拥有的变量里移出一个按值字段。此后这个字段不可再用，变量不可再整体使用，其余字段照常。
+
+        声明了 deinit 的类型不能被移出字段：它的 deinit 要看到完整的值。
+        """
+        place = expr.place
+        if len(place.fields) != 1:
+            raise SyntaxProblem(f"第 {expr.line} 行：演算只支持移出一层字段")
+        res = self.resolve(state, place)
+        var, name = state[place.root], place.fields[0]
+        if res.ty.kind == "int":  # 整数没有可移走的东西，只是一次读
+            self.access(state, res.targets, res.via, "read", expr.line)
+            return Value(INT)
+        decl = self.classes.get(var.ty.name)
+        if var.ty.kind not in ("cls", "view") or res.crossed:
+            self.error("K8", expr.line, f"{place.root}.{name} 不在这个变量自己的存储里，不能移出")
+            return Value(res.ty)
+        if decl.deinit:
+            self.error("K23", expr.line, f"{var.ty.name} 声明了 deinit，不能从它里面移出字段")
+        self.access(state, res.targets, set(), "move", expr.line)
+        value = Value(res.ty, copy_loans(res.field_loans or {}))
+        var.loans = {key: held for key, held in var.loans.items() if not self.within(key, name)}
+        var.gone[(name,)] = "M"
+        if self.tracked(Var(res.ty, "A", {})):
+            taken = f"{place.root}#{name}"
+            self.dp_type(res.ty)
+            self.emit("take", expr.line, taken, ty=place.root, fld=name)
+            self.emit("move", expr.line, taken)
         return value
 
     # ---- 挂起（内核基底 KB8）
@@ -1559,7 +1615,7 @@ class Checker:
             self.declare("set", stmt.line, place.root, value.ty, state)
         if var.ty.kind == "any" and value.ty.name != var.ty.name:  # X3：槽位里只能放同一存在类型的值
             self.error("X1", stmt.line, f"不能把 {value.ty.name} 赋给 {var.ty.name}")
-        var.init, var.loans, var.payload = "A", value.loans, value.payload
+        var.init, var.loans, var.payload, var.gone = "A", value.loans, value.payload, {}
 
     def scope(self, stmts, state, live_after, end_line):
         """K9：作用域结束时按声明逆序析构；析构与仍存活的 loan 冲突即拒绝。"""
@@ -1586,7 +1642,9 @@ class Checker:
             loans = copy_loans(x.loans)
             for key, held in y.loans.items():
                 loans.setdefault(key, set()).update(held)
-            merged[name] = Var(x.ty, x.init if x.init == y.init else "MM", loans, x.payload, x.pinned or y.pinned)
+            gone = {path: x.gone[path] if x.gone.get(path) == y.gone.get(path) else "MM"
+                    for path in sorted(set(x.gone) | set(y.gone))}
+            merged[name] = Var(x.ty, x.init if x.init == y.init else "MM", loans, x.payload, x.pinned or y.pinned, gone)
         return merged
 
 

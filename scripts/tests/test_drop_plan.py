@@ -32,6 +32,23 @@ class DropPlanCases(unittest.TestCase):
             with self.subTest(case=path.stem):
                 self.assertEqual(expected, outcomes(text))
 
+    def test_drop_capabilities_come_from_the_derivation_engine(self):
+        """可否隐式析构、可否遗忘、可否提前析构都由能力推导按字段得出：装着“必须消费”的值的类型同样不能被隐式析构。
+
+        让推导器一律回答“满足”，D5、D6 的拒绝全部消失。
+        """
+        text = read("D3_partial_and_open.dp")
+        self.assertEqual("reject D5", outcomes(text)["boxedTicketDropped"])
+        original = DP.CAP.Engine.requires
+        DP.CAP.Engine.requires = lambda self, ty, cap, params=(): DP.CAP.ALWAYS
+        try:
+            relaxed = outcomes(text)
+        finally:
+            DP.CAP.Engine.requires = original
+        self.assertEqual(set(), {name for name, result in relaxed.items() if result in ("reject D5", "reject D6")})
+        self.assertIn("reject D5", outcomes(text).values())
+        self.assertIn("reject D6", outcomes(text).values())
+
     def test_keeping_everything_until_scope_end_is_also_valid(self):
         """统一规则只“允许”提前析构：一律留到作用域结束的规划同样满足全部不变量。"""
         for name in ("D1_basics.dp", "D2_conditional_move.dp", "D3_partial_and_open.dp", "D4_deinit_body.dp"):
