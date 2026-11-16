@@ -33,6 +33,8 @@ pub(in crate::ssa) fn lower_unit_from_facts(
 }
 
 mod root_set;
+#[cfg(test)]
+pub(in crate::ssa) use root_set::lower_roots;
 use root_set::lower_unit_impl;
 
 // One assembly transaction for all roots; production still calls the singleton adapter.

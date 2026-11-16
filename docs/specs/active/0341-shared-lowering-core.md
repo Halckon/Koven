@@ -20825,3 +20825,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 
 - 独立分类未修改生产：`consume(source); var remaining=rounds; while...` 在三/四 ABI、Borrow/Value 极值及来源反序共八输入中，原 names/types 均成功，而 ownership 均拒绝。两个实际 `borrow` 六字符 Span 各报 L0164，counter-break 与 prefix-counter-break 原 facts 均为空；没有到 lowering，不混称此前 counter9 的 producer InvalidModel，也不声称双 assembly。
 - 分类日志保留后，测试已收紧为原 ownership 必须拒绝、精确 diagnostic code/source/start/end、零 audit/receipt/recorded，删除泛错误分类打印。唯一精确回归一项通过（增量编译47.70s、执行0.02s），格式与独审通过；没有为此扩原 selector/planner、没有重跑完整矩阵，不执行生成程序/Abort/native/故障注入、不推送。后续仅另行研究已有原 If 前缀支持域，不绕过本拒绝。
+
+### Box/enum 双签名共享 mapper 消费者迁移（2026-11-16）
+
+- 基 `a446e653`，仅迁移 `boxed_enum_signature_only_storage_accepts_box_or_enum_first` 的旧 single 产物入口；原两段源码、两个原函数的声明顺序和 Box-first/enum-first 参数排列不变，不添加 caller 或构造需求。
+- 复用既有测试专用 `root_set::lower_roots`，两个原 DeclarationId 在同轮严格 MemoryDocument Unit facts/view 上一次规划并组装同一个 Program；不是分别 lower 两个入口后拼装，也不扩生产 singleton 入口。
+- 保留无 construction、完整阶段诊断、heap/tagged 存储、重复 lowering 确定性与 LLVM 校验；增加同一 module 恰两函数、原声明顺序/Span、原 Borrow 参数和 SSA verifier 检查。既有逐 root 独立测试仍保留，不能替代共享 mapper 见证。
+- 独立只读审查确认原两声明排序与共享 mapper 实际 demand 保全，无阻断。三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）完整 exact 实际 1 passed/0 failed，首次编译 1m42s、执行 0.03s；其后 shell 后处理误用 zsh 保留变量 status 报只读错误，已与成功测试日志分开记录，没有重复执行测试。codegen all-targets 同三 feature 严格 Clippy 56.09s/exit0，fmt/docs979/尺寸2519（历史两例外未扩大）/diff 通过。仅本地普通 SSA/LLVM 验收，不运行 native/故障注入，不推送；默认配置及精确远端头 CI 未在本片重跑，不声称 D10/E2 全部终态完成。
