@@ -20922,3 +20922,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 两个原普通观察FQN的无package `inspect.ko`/SOURCE字节不变，现以严格MemoryDocument Unit产品核complete/ownership、原Rc<Int>? Value参数与同源null-comparison descriptor、MoveOnly及Int payload、真实entry origin、SSA与no-process-entry LLVM。原Rooted `package p`路线仍保持；普通FQN名称保留，但含义是两个原source layout，不再宣称独立Legacy/Unit对照。
 - collector仍只断言前置及真实lower attempt，成功测试仍独立要求outcome Ok，没有将收集结果偷换为通过。只有普通无inspect调用启用MemoryDocument选项；显式`observe_with_inspector(false,true)`仍走原Legacy，原私有cleanup/owner身份查询完整保留，default refine routing参数不变。
 - 独立审查无阻塞。本树真实重编1m03s，准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下两个普通目标、原owner identity与default routing必要回归共4 exact各1 passed/0 ignored；codegen all-targets strict38.86s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与diff-check通过。仅净退休两个普通Legacy调用消费者，不称私有身份路线已退休；未运行native、Abort或故障，未推送。
+
+### 2026-11-16：Rc inspect 原 owner 身份消费者与旧入口退休
+
+- 将无package `inspect.ko` 的显式owner身份消费者迁同源MemoryDocument Unit。先逐项核single_source/unit_source：原唯一函数/参数/while/return、参数Value身份与null比较、return回到同一root、Owned且无Named drop、MoveOnly Rc<Int>?全部由Unit源查询保留。未修改原`inspect`五块闭包、两个is-null/not指令、return owner及无create/retain/extract/drop的精确SSA oracle。
+- 保留旧实现的MemoryDocument probe真实通过原完整owner FQN（本树编译1m04s/1 passed）后，删除observation中的整条Legacy lowering分支及唯一single_source专用query/import。两个源布局均走严格Unit；default refine路由及其原结构不匹配断言不变。不再保留不可达的旧入口或用双合同数充当退休数。
+- 两文件净减少157行；独立前置合同审查及末审无阻塞。最终本树重编29.62s，准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下原owner身份、两普通观察及default routing共4 exact各1 passed/0 ignored；codegen all-targets strict37.34s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与diff-check通过。未执行native、Abort或故障注入，未推送；其他Rc payload/nullable shape合同不在本次退休范围。
