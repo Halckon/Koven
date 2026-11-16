@@ -5,6 +5,13 @@ use crate::ssa::model::Definition;
 impl Emitted {
     pub(super) fn inject_scalar_entry(&self, function: &mut Function) -> bool {
         use OwnerFault::*;
+        // Keep the pending fault for the function carrying the scalar-entry receipt.
+        let Some(p) = self.plan.as_ref() else {
+            return false;
+        };
+        let Some(prefix) = p.scalar_entry.as_ref() else {
+            return false;
+        };
         let Some(fault) = [
             ScalarEntryArmConsume,
             ScalarEntryJoinEscape,
@@ -18,8 +25,6 @@ impl Emitted {
             return false;
         };
         assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-        let p = self.plan.as_ref().unwrap();
-        let prefix = p.scalar_entry.as_ref().unwrap();
         let [head, arm, _] = prefix.split.unwrap();
         let join = prefix.join.unwrap();
         let span = p.checked_span;
