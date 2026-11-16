@@ -21011,3 +21011,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 独立整合头 `989fa112` 合并 `be362f7e` 与 `f855606c`，共同基线 `973ad9db`；原提交均保留为祖先。唯一 Spec 尾追加冲突按左侧完整账本 + 右侧相对基线的新段逐字节保全；独立只读审查确认两边独有源码 blob 与父提交相同，无丢失、复制或额外变更。
 - 触碰本树变更源码强制共享 target 真实编译1m34s。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下 borrowed-for/outer-borrowed 两原 exact、Rc payload 八观察及 presence 四观察共四个 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy49.48s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。
 - 仅做必要的普通 SSA/LLVM 组合交叉验证，不重复各片已验独立负控；未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI，未推送；D10/E2 整体仍 in-progress。
+
+### 2026-11-16：return 八例旧实现拒绝见证退休
+
+- 基 `eb4acaef`，按不长期保留 Legacy 实现限制的退休方向，逐例核对 two-returns、mixed-continue、replacement-seed、alias-seed、resource-source、outer-owner/inner-loop、same-source-nested、same-source-sequential。八条原源码、原 FQN 和既有 Unit 正控逐字节保留；只删除旧前端/lowering 的 `UnsupportedNode(keys)` 拒绝支路、专用导入及 `keys_start` 参数。此文件不再消费旧 analyze/lower_scalar_file，净退休八个旧拒绝消费者。
+- 逐例前审及末审确认旧支路没有成功 SSA 或运行时清理 oracle。保留的严格 Unit 正控检查原 source/MemoryDocument、四阶段 clean/no deferred、真实 For descriptor/source identity 与 iteration 数量、main 声明到实际 entry、元素访问数，以及包含静态 ownership verifier 的实际入口 LLVM 验证。这里是退休已废弃实现限制，不声称旧拒绝与 Unit 成功等价，也不把静态验证扩大为 native 析构次数/次序证据。
+- 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m32s，八项原 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy47.81s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交、不推送，D10/E2 仍 in-progress。
