@@ -20998,3 +20998,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - `bounded_payload_and_owner_return_sources_record_current_stage_boundary` 中四个无 package 的 Legacy 成功消费者改为同路径、同字节的严格 MemoryDocument 默认 Unit。原三声明源码身份、唯一实际 entry、可达 block/call graph、SSA verifier 与无进程入口 LLVM oracle 均保留；补单一源 unit、MemoryDocument key 和源名/全文校验。删除该 observer 的旧 names/types/ownership/lowering 分支及专用导入，净退休四个 Legacy 正常消费者。
 - 原 Rooted 路径仍显式 `with_per_family_lowering`，四个精确 UnsupportedNode、payload span 与 `owner.value` 断言不变；独立 MemoryDocument per-family 原拒绝测试主体亦不变。文案明确是 Unit 内默认/显式 per-family 的路由对照，不再称独立 Legacy 见证；不把保留边界当成默认语义缺口。
 - 独立只读审查确认原源码及完整成功/失败 oracle 保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m39s：原 payload 八观察、presence 四观察、MemoryDocument per-family 四拒绝三个 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy49.74s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过；未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
+
+### 2026-11-16：borrowed-for 外层 nullable proof 原消费者退休
+
+- 基 `973ad9db`，原 `borrowed_for_preserves_the_outer_nullable_while_proof` 两条源码（普通/Group）及全部断言不改，只将原 no-package Legacy 收集臂切到既有 `collect_sources` 的严格 MemoryDocument 路线；`package p` Rooted 臂不变。相邻 `nullable_while_preserves_the_outer_borrowed_for_access` 两布局仍走原 Unit 路线。
+- 先静审完整 `assert_borrowed_proof`：其 `_unit` 参数已不参与分支，三路线均使用相同 owner/view/element 逐边身份、LoanEnd/Drop 和 scalar 运输 oracle。既有 MemoryDocument 原 entry/guard 来源观察仍保留，与新 no-package臂共用真实lowering，不计为新增独立覆盖。不改变任何 Legacy-specific assertion，因为该oracle已无该分支。
+- 迁移前精确目标在 [PR441 run43807524911](https://github.com/Halckon/koven/actions/runs/43807524911) 的 macOS job133101971763、Linux job133101972008 均实际 `ok`；提交 `37a90566` 与本片迁移前 borrowed 源码/contract blob一致。该运行整体失败，旧目标证据不替代新头验证。Legacy shape collector仍留给 direct/numeric 两项真实不同形状的合同，不宣称整体退役。
+- 新头明确在本树强制真实重编1m34s，准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 borrowed-for FQN exact 1 passed（0.10s），相邻 nullable-while 外层 borrowed-for FQN exact 1 passed（0.04s）；同配置 codegen all-targets 严格 Clippy 57.83s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check和独审通过；未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI。仅独立本地提交，不推送、不覆盖整合在途树。
