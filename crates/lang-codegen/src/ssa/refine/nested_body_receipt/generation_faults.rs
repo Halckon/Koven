@@ -8,6 +8,9 @@ impl Emitted {
         body: &RefinedBody,
         function: &mut Function,
     ) {
+        let Some(p) = body.nested_body_plans.0.as_ref() else {
+            return;
+        };
         let faults = [
             OwnerFault::ChildGenerationProducer,
             OwnerFault::ChildGenerationSharedLoan,
@@ -20,7 +23,6 @@ impl Emitted {
             return;
         };
         assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-        let p = body.nested_body_plans.0.as_ref().unwrap();
         let span = p.steps[0].spans[0];
         self.finish(body, function, span)
             .expect("baseline child source and retirement");

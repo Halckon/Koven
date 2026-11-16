@@ -311,3 +311,45 @@ fn initial_concat_native_preserves_zero_and_repeated_generations() {
         super::assert_general_counter_baseline(&text, expected.as_bytes(), false);
     }
 }
+
+#[test]
+#[ignore = "CI-only fault injection; unrelated function must not consume pending fault"]
+fn ci_only_child_cycle_faults_wait_for_applicable_function() {
+    use crate::ssa::OwnerFault::{ChildGenerationProducer, ParentCompositionCarrySwap};
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    let unrelated = UnitSource::analyze("unrelated.ko", "fun entry():Int=1").unwrap();
+    unrelated.assert_frontend_clean();
+    let source = fault_source();
+    source.assert_frontend_clean();
+    source
+        .lower_entry(source.entry())
+        .expect("uncorrupted baseline");
+    for fault in [ChildGenerationProducer, ParentCompositionCarrySwap] {
+        let (result, actions) = crate::ssa::observe_owner_actions(|| {
+            crate::ssa::with_owner_fault(fault, || {
+                let (lowered, routed) =
+                    crate::ssa::observe_routing(|| unrelated.lower_entry(unrelated.entry()));
+                let (program, entry) =
+                    lowered.expect("unrelated function must not consume the pending fault");
+                assert_eq!(
+                    routed,
+                    [program.modules[0].function(entry).unwrap().name.clone()],
+                    "the unrelated function must reach refine"
+                );
+                crate::ssa::verify::verify_program(&program).unwrap();
+                source.lower_entry(source.entry())
+            })
+        });
+        assert!(
+            result.is_err(),
+            "target corruption must reject: {actions:?}"
+        );
+        for marker in ["child-cycle-fault-hit", "child-cycle-independent-rejection"] {
+            assert_eq!(
+                actions.iter().filter(|(name, _)| *name == marker).count(),
+                1,
+                "{marker}: {actions:?}"
+            );
+        }
+    }
+}
