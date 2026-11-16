@@ -965,3 +965,6 @@ mod consumer_action_link;
 
 #[path = "unit_direct_call_loan_ends/scalar_literals.rs"]
 mod scalar_literals;
+
+#[path = "unit_direct_call_loan_ends/exclusive_receiver_actions.rs"]
+mod exclusive_receiver_actions;

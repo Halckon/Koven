@@ -22,6 +22,10 @@ pub enum UnitLoanAction {
     Begin(UnitLoanFact),
     /// The evaluated Shared receiver registered its actual pending token.
     ReceiverBegin(super::UnitReceiverOwnershipFact),
+    /// Actual Exclusive pending registration before argument traversal, not activation.
+    /// The checker snapshot may carry a later activation point; that field is not
+    /// an activation event here. No reserve-to-end causal certificate is published.
+    ReceiverReserve(super::UnitReceiverOwnershipFact),
     /// Normal-return retirement, observed without adding an execution cleanup.
     ReceiverEnd(super::UnitReceiverCallReturnEndFact),
     /// Successful initializer commit of the existing source-to-binding handoff.

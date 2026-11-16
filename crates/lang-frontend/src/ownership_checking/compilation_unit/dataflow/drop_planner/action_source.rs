@@ -96,6 +96,7 @@ pub(super) struct ActionSource {
 enum Record {
     Begin(UnitLoanFact),
     ReceiverBegin(crate::ownership_checking::UnitReceiverOwnershipFact),
+    ReceiverReserve(crate::ownership_checking::UnitReceiverOwnershipFact),
     ReceiverEnd(crate::ownership_checking::UnitReceiverCallReturnEndFact),
     BorrowHandoffCommitted(UnitBorrowCallHandoffFact),
     BorrowBindingEnd(BindingEnd),
@@ -222,10 +223,19 @@ impl ActionSource {
         &mut self,
         receiver: crate::ownership_checking::UnitReceiverOwnershipFact,
     ) {
-        if self.enabled
-            && receiver.kind() == crate::ownership_checking::UnitReceiverOwnershipKind::SharedLoan
-        {
-            self.records.push(Record::ReceiverBegin(receiver));
+        if !self.enabled {
+            return;
+        }
+        match receiver.kind() {
+            crate::ownership_checking::UnitReceiverOwnershipKind::SharedLoan => {
+                self.records.push(Record::ReceiverBegin(receiver))
+            }
+            crate::ownership_checking::UnitReceiverOwnershipKind::ExclusiveLoan
+                if receiver.is_receiver_reservation() =>
+            {
+                self.records.push(Record::ReceiverReserve(receiver))
+            }
+            _ => {}
         }
     }
 
@@ -243,7 +253,12 @@ impl ActionSource {
         self.records
             .iter()
             .filter_map(|record| match record {
-                Record::ReceiverEnd(end) => Some(end.clone()),
+                Record::ReceiverEnd(end)
+                    if end.receiver().kind()
+                        == crate::ownership_checking::UnitReceiverOwnershipKind::SharedLoan =>
+                {
+                    Some(end.clone())
+                }
                 _ => None,
             })
             .collect()
@@ -430,6 +445,7 @@ impl ActionSource {
         self.records.iter().filter_map(|record| match record {
             Record::Cleanup(cleanup) => Some(cleanup),
             Record::Begin(_)
+            | Record::ReceiverReserve(_)
             | Record::ReceiverBegin(_)
             | Record::ReceiverEnd(_)
             | Record::BorrowHandoffCommitted(_)
@@ -507,6 +523,7 @@ impl ActionSource {
             .map(|(index, record)| match record {
                 Record::Begin(loan) => UnitLoanAction::Begin(loan),
                 Record::ReceiverBegin(receiver) => UnitLoanAction::ReceiverBegin(receiver),
+                Record::ReceiverReserve(receiver) => UnitLoanAction::ReceiverReserve(receiver),
                 Record::ReceiverEnd(end) => UnitLoanAction::ReceiverEnd(end),
                 Record::BorrowHandoffCommitted(fact) => {
                     UnitLoanAction::BorrowHandoffCommitted(fact)

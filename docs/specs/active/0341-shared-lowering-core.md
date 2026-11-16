@@ -20869,3 +20869,11 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 按本 Spec §46 的未发布阶段规则，不永久兼容旧不合理限制。Guide 类型相容允许 `T` 适配 `T?`，资源分类包含可空资源包裹；旧 `lower_frontend` 及重导出均已限 `cfg(test)`。其他测试仍使用旧实现不使本例旧拒绝成为永久验收要求；历史 SPEC-0296 的当时边界及结果保持不变。
 - 原完整源码与 FQN 保留。MemoryDocument/Rooted 两适配均经过最终类型检查、ownership validation 和真实 entry lowering；核原 factory/entry/deinit 来源、一次 allocation→wrap→return、实际 factory call→唯一结果 Drop、无结果 Copy/判空及 SSA verifier/verified LLVM。退休的是旧错误 kind/Span 期望，不删除原有效成功合同，不新增生产准入或改变 E3 实现。
 - 本次仅纠正当前 Architecture 仍称旧负控现存的漂移，并显式登记上述映射；不复跑 Cargo/native/故障注入，不补算 native 析构、泄漏或最终双宿主证据。静态文档检查及独立审查结果随本次提交报告。
+
+### 2026-11-16：Phase 3 Exclusive receiver 的真实 Reserve/正常退休桥
+
+- 独立基 `286f9550`，属于 ADR-0038/0040 已批准真实生命周期事实范围，不改 E3 CFG/SSA。原注册/退休路径真实处理 Exclusive token，但统一动作源丢弃它；普通 `cell.set(cell.read())` 红灯实际1 failed（End为0而预期1，编译23.78s），不以测试覆盖替代生产缺口。
+- 在原 pending 注册点新增明确 `ReceiverReserve`，不能复用 Shared ReceiverBegin：注册在实参之前，checker最终fact虽含activation_point，也不代表此刻已激活。正常extract点直接移动原token到ReceiverEnd；仅普通Inout ValueParameter的Name/Group根、非provider/binding、Owned结果、reservation且activation_point精确等于call。无新Activate、无End执行、无owner drop、无reserve→end认证链接，catalog仍Partial，不扩大Complete或permission恢复。
+- 旧 `receiver_call_return_ends` 保持原顺序的Shared-only投影；observer关闭不改变旧产物。早Return保原prefix cleanup且无normalEnd。Owned/字段root不取得新normal观察。字段负控曾发现canonical backing place可省略projection，仅核elements为空不足；追加原Name/Group语法门修复，不扩大支持。
+- 新七项普通源码覆盖嵌套Shared顺序、同根不同call、未激活早退、Owned/字段域外、错误/deferred邻函数撤销和同names/types/environment的on/off。最初两个新增测试错误（缺声明分隔符、用不同analysis/environment作on/off）已纠正并保日志；deferred保留旧receiver诊断facts不是新事件泄漏，断言仅要求新action catalog与normal ends撤销。未声称跨source撤销新增覆盖。
+- 末轮真实本树重编7.17s，`unit_direct_call_loan_ends` 新模块7 passed（两Unit布局，0.03s）；原inout Shared投影、reservation不获Complete、Owned Shared三项精确回归各1 passed。frontend all-targets `loan-observation-test-support` strict34.13s、codegen all-targets `two-source-unit e2-two-source-test-support loan-observation-test-support` strict48.13s均exit0，证实新增enum消费者兼容。fmt、docs979、尺寸2524（两历史债不扩大）、diff-check及独审通过。各构建前复核8GiB；末步完成可用8,426,040KiB仍高于8,388,608KiB，不再开新构建。未跑native/Abort/fault或远端CI，仅独立本地提交。
