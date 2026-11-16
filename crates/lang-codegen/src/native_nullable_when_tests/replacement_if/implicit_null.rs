@@ -387,7 +387,7 @@ fn nullable_if_releases_its_view_before_the_return_suffix() {
     assert_nullable_if_writeback("nullable-if-resource-return-suffix.ko", &text, &expected);
 }
 
-fn assert_nullable_if_writeback(path: &str, text: &str, expected: &str) {
+fn assert_nullable_if_writeback_ssa(path: &str, text: &str) {
     let source = checked(path, text);
     let entry = source.declaration("entry", SymbolKind::Function);
     let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
@@ -395,7 +395,20 @@ fn assert_nullable_if_writeback(path: &str, text: &str, expected: &str) {
         result.expect("the rechecked current owner must survive the borrow until return");
     assert!(!routed.contains(&function(&source, &program, "run").name));
     verify_program(&program).expect("actual Unit SSA verifies");
+}
 
+#[test]
+fn nullable_if_writeback_prefix_and_suffix_verify_without_native_execution() {
+    assert_nullable_if_writeback_ssa("nullable-if-writeback-ssa.ko", NULLABLE_IF_WRITEBACK);
+    let suffix = NULLABLE_IF_WRITEBACK.replace(
+        "see(x); return",
+        "see(x); see(x); println(\"returning\"); return",
+    );
+    assert_nullable_if_writeback_ssa("nullable-if-suffix-ssa.ko", &suffix);
+}
+
+fn assert_nullable_if_writeback(path: &str, text: &str, expected: &str) {
+    assert_nullable_if_writeback_ssa(path, text);
     let output = crate::native_tests::emit_link_and_run(path, text, "entry");
     crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
 }

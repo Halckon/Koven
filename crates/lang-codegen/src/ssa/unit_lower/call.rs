@@ -247,6 +247,8 @@ impl UnitExpressionLowerer<'_> {
                         .collect(),
                 });
         }
+        #[cfg(feature = "d10-catalog-experiment")]
+        let audit = self.compatibility_call_audit(call);
         let lowered_arguments = self.lower_call_arguments(call, arguments, descriptor, span);
         if receiver.is_some() {
             self.pending_call_frames.pop();
@@ -446,6 +448,10 @@ impl UnitExpressionLowerer<'_> {
         }
         self.emit_borrow_argument_expression_drops(call)?;
         self.emit_drops(UnitDropPoint::CallReturn(call))?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        if let Some(audit) = audit {
+            crate::ssa::d10_project_audit::compatibility::finish_call(audit, self.function);
+        }
         match results.as_slice() {
             [] => Ok(LoweredValue::Unit),
             [result] => Ok(LoweredValue::Value(require_value(*result, span)?)),

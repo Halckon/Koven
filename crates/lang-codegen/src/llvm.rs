@@ -591,6 +591,7 @@ mod utf8_tests {
 
 use inkwell::OptimizationLevel;
 use inkwell::builder::BuilderError;
+#[cfg(test)]
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::targets::{
@@ -623,6 +624,7 @@ impl From<BuilderError> for LlvmAdapterError {
 }
 
 /// 把已验证的 target-independent SSA 映射为当前受支持宿主的 LLVM IR 文本。
+#[cfg(any(test, feature = "d10-catalog-experiment"))]
 pub(crate) fn render_verified_program(program: &Program) -> Result<String, LlvmAdapterError> {
     adapter::render_verified_program(program, None)
 }
@@ -644,6 +646,14 @@ pub(crate) fn render_verified_program_with_entry_plan(
     entry: entry::NativeEntryPlan,
 ) -> Result<String, LlvmAdapterError> {
     adapter::render_verified_program(program, Some(entry))
+}
+
+/// Default-off in-memory library object, with no process entry or file publication.
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) fn verified_library_object_bytes(
+    program: &Program,
+) -> Result<Vec<u8>, LlvmAdapterError> {
+    adapter::verified_library_object_bytes(program)
 }
 
 pub(crate) fn emit_verified_object(
@@ -669,6 +679,7 @@ pub(crate) fn render_verified_program_with_debug(
 }
 
 /// 构造最小标量模块，以验证固定 LLVM 工具链、target backend 和 verifier 边界。
+#[cfg(test)]
 pub(crate) fn render_scalar_smoke_module() -> Result<String, LlvmAdapterError> {
     let (triple, target_machine) = native_target_machine()?;
 

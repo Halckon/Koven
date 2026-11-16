@@ -682,6 +682,8 @@ mod canonical_callable_tests {
 
     #[test]
     fn canonical_callable_single_specialization_keeps_modes_move_and_container_return() {
+        use crate::ssa::unit_lower_test_support::{analyze, parsed};
+        use lang_frontend::{name_resolution::SourceUnitInput, type_checking::UnitTypeKind};
         let mut failures = Vec::new();
         for (function_type, concrete_type) in [
             ("(borrow Int) -> T", "(borrow Int) -> Int"),
@@ -692,32 +694,58 @@ mod canonical_callable_tests {
                 "fun <T> helper(f: {function_type}): Unit {{}}\n\
                  fun entry(f: {concrete_type}): Unit {{ helper<Int>(f) }}"
             );
-            let (parsed, typed) = analyze_types(&text);
-            let helper = &typed.callables()[0];
-            let entry = &typed.callables()[1];
+            let mut sources = SourceMap::new();
+            let (source, file) = parsed(&mut sources, "canonical-callable.ko", &text);
+            let inputs = [SourceUnitInput::memory_document(source, &file)];
+            let (environment, types) = standard_environments();
+            let (names, typed, _) = analyze(&sources, &inputs, &environment, &types);
+            let signature = |name| {
+                let declarations = names
+                    .names()
+                    .index()
+                    .declarations()
+                    .iter()
+                    .filter(|declaration| declaration.name() == name)
+                    .collect::<Vec<_>>();
+                let [declaration] = declarations.as_slice() else {
+                    panic!("unique original declaration")
+                };
+                assert_eq!(declaration.name_span().source_id(), source);
+                assert!(file.roots().contains(&declaration.root()));
+                typed
+                    .types()
+                    .signatures()
+                    .declaration(declaration.id())
+                    .unwrap()
+                    .callable()
+                    .unwrap()
+            };
+            let helper = signature("helper");
+            let entry = signature("entry");
             let substitutions = BTreeMap::from([(
                 helper.type_parameters()[0],
-                typed.types().builtin(BuiltinType::Int).unwrap(),
+                typed.types().types().builtin(BuiltinType::Int).unwrap(),
             )]);
-            let len = typed.types().len();
-            let resolved = resolve_concrete_type(
-                &typed,
-                helper.parameters()[0].ty,
+            let len = typed.types().types().len();
+            let resolved = crate::ssa::unit_plan::resolve_concrete_type(
+                typed.types(),
+                helper.parameters()[0].ty(),
                 &substitutions,
-                parsed.ast().items().get(parsed.roots()[0]).unwrap().span(),
+                None,
+                file.ast().items().get(file.roots()[0]).unwrap().span(),
             );
             assert_eq!(
-                typed.types().len(),
+                typed.types().types().len(),
                 len,
                 "lowering cannot intern frontend types"
             );
             match resolved {
-                Ok(ty) => assert_eq!(ty, entry.parameters()[0].ty, "{text}"),
+                Ok(ty) => assert_eq!(ty, entry.parameters()[0].ty(), "{text}"),
                 Err(error) => failures.push(format!("{function_type}: {error:?}")),
             }
             assert!(matches!(
-                typed.types().get(entry.parameters()[0].ty),
-                Some(TypeKind::Function { .. })
+                typed.types().types().get(entry.parameters()[0].ty()),
+                Some(UnitTypeKind::Function { .. })
             ));
         }
         assert_diagnostic!(

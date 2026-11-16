@@ -144,18 +144,21 @@ pub use receiver::{
     UnitReceiverOwnershipFact, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
 
+#[cfg(test)]
+use crate::{
+    name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
+    source::SourceMap,
+    type_checking::TypeEnvironment,
+};
 use std::sync::Arc;
 
 use crate::{
     diagnostic::{Diagnostic, Severity},
-    name_resolution::{
-        CompilationUnitNames, DeclarationId, SourceUnitInput, UnitSymbolId,
-        ValidatedCompilationUnitNames,
-    },
-    source::{SourceMap, Span},
+    name_resolution::{DeclarationId, UnitSymbolId},
+    source::Span,
     type_checking::{
-        CompilationUnitTypes, ExpressionCategory, TypeEnvironment, UnitExpressionId,
-        UnitStatementId, UnitTypeId, ValidatedCompilationUnitTypes,
+        CompilationUnitTypes, ExpressionCategory, UnitExpressionId, UnitStatementId, UnitTypeId,
+        ValidatedCompilationUnitTypes,
     },
 };
 
@@ -447,6 +450,8 @@ struct UnitOwnershipProvenance {
 /// SPEC-0198 的 recovery compilation-unit ownership product。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompilationUnitOwnership {
+    #[cfg(feature = "d10-catalog-experiment")]
+    source_collection_ledger: Option<d10_catalog_experiment::SourceCollectionLedger>,
     no_carry: loop_no_carry::CompletedNoCarry,
     pub(super) callable_provenance: super::callable_provenance::UnitCallableFacts,
     pub(super) borrow_results: super::borrow_result::UnitBorrowResults,
@@ -534,41 +539,11 @@ impl ValidatedCompilationUnitOwnership {
     }
 }
 
-/// 建立 source-qualified compilation-unit ownership recovery product。
-///
-/// 当前发布 callable parameter bindings、call argument contracts、普通 call 与 intrinsic
-/// container 的 loan/value deliveries、receiver loan/delivery 与 `StaticSelf` conditional delivery、
-/// intrinsic Rc effects、constructor ordered delivery/root obligations、closure
-/// capture/formation/Transferability，以及完整 body-local ASAP drop facts。
-/// recovery product 可能携带诊断或显式 deferred drop 边界；调用 [`CompilationUnitOwnership::validate`]
-/// 后才获得 codegen 可消费的 view。
-pub fn check_compilation_unit_ownership(
-    sources: &SourceMap,
-    inputs: &[SourceUnitInput<'_>],
-    names: &ValidatedCompilationUnitNames,
-    environment: &TypeEnvironment,
-    typed: &ValidatedCompilationUnitTypes,
-) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
-    analysis::analyze(
-        sources,
-        inputs,
-        names.names(),
-        environment,
-        typed.types(),
-        false,
-    )
-}
-
-/// 同一 producer 的诊断入口；上游资格在产物中继承，constant control 仍为普通保守遍历。
-pub(crate) fn check_compilation_unit_ownership_recovering(
-    sources: &SourceMap,
-    inputs: &[SourceUnitInput<'_>],
-    names: &CompilationUnitNames,
-    environment: &TypeEnvironment,
-    typed: &CompilationUnitTypes,
-) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
-    analysis::analyze(sources, inputs, names, environment, typed, false)
-}
+pub use analysis::check_compilation_unit_ownership;
+pub(crate) use analysis::check_compilation_unit_ownership_recovering;
 
 #[cfg(feature = "loan-observation-test-support")]
 pub(super) mod loan_observation_test_support;
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub mod d10_catalog_experiment;

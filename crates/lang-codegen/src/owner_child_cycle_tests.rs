@@ -46,6 +46,7 @@ fn child_cycle_receipt_connects_actual_current_and_next_root_vectors() {
                 [2]
             );
         }
+        super::super::super::assert_native_output(&source, b"seed\nb\nnext-a\nouter-b\n");
     }
 }
 
@@ -102,6 +103,11 @@ fn ci_only_child_cycle_rejects_missing_evidence_and_transport_corruption() {
         ChildGenerationProducer,
         ChildGenerationSharedLoan,
         ChildGenerationExtraLoanUse,
+        ChildGenerationDuplicateBorrowPlacement,
+        ChildGenerationDuplicateLiteralPlacement,
+        ChildGenerationDuplicateDropPlacement,
+        ParentCompositionCrossBlockProducer,
+        ParentResumeDuplicateDropPlacement,
         ParentCompositionSelectedFlagLost,
         ParentCompositionRequiredFlagLost,
         ParentCompositionMissingCarry,
@@ -234,6 +240,7 @@ fn ci_only_initial_concat_rejects_source_cleanup_and_transport_corruption() {
             InitialConcatDuplicateInput,
             InitialConcatMissingDrop,
             InitialConcatEarlyDrop,
+            InitialConcatDuplicateDropPlacement,
             ChildCycleInitialSwap,
             ChildCycleInitialConsumer,
         ],

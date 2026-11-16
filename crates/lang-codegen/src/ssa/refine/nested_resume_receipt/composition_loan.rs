@@ -45,18 +45,21 @@ pub(in crate::ssa::refine) fn verify(
     {
         return Err(fail());
     }
-    let block = function.block(r.block).ok_or_else(fail)?;
     let at = |id| {
-        let positions = block
-            .instructions
+        let placements = function
+            .blocks
             .iter()
-            .enumerate()
-            .filter_map(|(i, x)| (*x == id).then_some(i))
+            .flat_map(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, actual)| (*actual == id).then_some((block.id, index)))
+            })
             .collect::<Vec<_>>();
-        if positions.len() == 1 {
-            Ok(positions[0])
-        } else {
-            Err(fail())
+        match placements.as_slice() {
+            [(block, index)] if *block == r.block => Ok(*index),
+            _ => Err(fail()),
         }
     };
     if !(at(prepare)? < at(borrow)? && at(borrow)? < at(replace)?) {

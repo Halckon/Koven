@@ -943,6 +943,8 @@ pub(super) struct RBlock {
 /// Block 0 is the function entry; `parameters` are defined there.
 #[derive(Clone, Debug, Default)]
 pub(super) struct RefinedBody {
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) entry_borrows: Vec<super::entry_borrow_receipt::Pending>,
     pub(super) child_cycle_plans: super::child_cycle_receipt::Plans,
     pub(super) nested_body_plans: super::nested_body_receipt::Plans,
     pub(super) nested_resume_plans: super::nested_resume_receipt::Plans,
@@ -952,9 +954,13 @@ pub(super) struct RefinedBody {
     pub(super) fresh_loop_plans: super::fresh_loop_receipt::Plans,
     pub(super) arm_loop_plans: super::arm_loop_receipt::Plans,
     pub(super) arm_loop_required: Vec<lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact>,
+    pub(super) arm_composed_prefix_required:
+        Vec<lang_frontend::ownership_checking::UnitLoopPrefixCounterBreakFact>,
     pub(super) arm_prefix_required: Vec<lang_frontend::ownership_checking::UnitLoopBreakPrefixFact>,
     pub(super) arm_break_required:
         Vec<lang_frontend::ownership_checking::UnitLoopBreakBranchNoCarryFact>,
+    pub(super) arm_counter_break_required:
+        Vec<lang_frontend::ownership_checking::UnitLoopCounterBreakBranchNoCarryFact>,
     pub(super) arm_counter_required:
         Vec<lang_frontend::ownership_checking::UnitLoopCounterBranchNoCarryFact>,
     pub(super) loan_plans: super::loan_receipt::Plans,

@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+default = []
+d10-catalog-experiment = ["lang-frontend/d10-catalog-experiment", "lang-codegen/d10-catalog-experiment"]
+
 [dependencies]
 libc.workspace = true
 fluent-uri.workspace = true

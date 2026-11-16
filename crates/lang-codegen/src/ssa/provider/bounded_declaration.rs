@@ -4,8 +4,7 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::{UnitReferenceTarget, UnitSymbolId, ValidatedCompilationUnitNames},
     ownership_checking::{
-        CompilationUnitOwnership, LoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint,
-        UnitLoanTarget,
+        LoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint, UnitLoanTarget, UnitPreflightFacts,
     },
     parser::{Expression, FunctionBody, FunctionForm, Item, ParsedFile, Statement},
     type_checking::{
@@ -18,7 +17,7 @@ pub(in crate::ssa::provider) fn allows(
     file: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     callable: &UnitCallableSignature,
 ) -> bool {
     admitted(file, names, typed, owned, callable).is_some()
@@ -28,7 +27,7 @@ fn admitted(
     file: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitPreflightFacts,
     callable: &UnitCallableSignature,
 ) -> Option<()> {
     let UnitCallableTarget::Declaration(id) = callable.target() else {

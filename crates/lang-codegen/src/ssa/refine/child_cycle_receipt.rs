@@ -4,6 +4,10 @@ mod faults;
 mod initial_base;
 mod initial_concat;
 mod parent_entry;
+pub(in crate::ssa::refine) mod scalar_entry;
+#[cfg(test)]
+mod scalar_entry_faults;
+mod scalar_entry_verify;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -22,6 +26,7 @@ pub(super) struct Plan {
     pub control: UnitStatementId,
     pub parent_header: BlockRef,
     pub initial_base: Option<BlockRef>,
+    pub scalar_entry: Option<scalar_entry::ScalarEntry>,
     pub entry: BlockRef,
     pub header: BlockRef,
     pub body: BlockRef,
@@ -45,6 +50,9 @@ impl Plan {
             self.abort,
         ];
         roles.extend(self.initial_base);
+        if let Some(prefix) = &self.scalar_entry {
+            roles.extend(prefix.split.into_iter().flatten());
+        }
         roles
     }
     fn valid(&self) -> bool {
@@ -85,6 +93,9 @@ impl Plans {
             }
             if p.initial_base == Some(successor) {
                 p.initial_base = Some(block);
+            }
+            if let Some(prefix) = &mut p.scalar_entry {
+                prefix.fold(block, successor);
             }
             if !p.valid() {
                 return Err(invalid(span));
@@ -208,6 +219,7 @@ impl Emitted {
             if role != p.entry
                 && role != p.abort
                 && Some(role) != p.initial_base
+                && p.scalar_entry.as_ref().and_then(|s| s.split.map(|r| r[0])) != Some(role)
                 && p.roots.iter().any(|r| !ss.contains(r))
             {
                 return Err(fail());
@@ -243,7 +255,12 @@ impl Emitted {
         {
             return Err(fail());
         }
-        if Some(role) == p.initial_base {
+        if Some(role)
+            == p.scalar_entry
+                .as_ref()
+                .and_then(|s| s.split.map(|r| r[0]))
+                .or(p.initial_base)
+        {
             for root in &p.roots {
                 let owner = *current.get(root).ok_or_else(fail)?;
                 if let crate::ssa::model::Definition::InstructionResult { instruction, .. } =
@@ -356,6 +373,7 @@ impl Emitted {
         let fail = || invalid(span);
         let actual = body.child_cycle_plans.0.as_ref().ok_or_else(fail)?;
         if self.function != Some(function.id())
+            || actual.scalar_entry != p.scalar_entry
             || actual.control != p.control
             || actual.roles() != p.roles()
             || actual.roots != p.roots

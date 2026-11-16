@@ -189,6 +189,8 @@ impl Checker<'_> {
         ),
     ) {
         self.loans.truncate(lengths.0);
+        #[cfg(feature = "d10-catalog-experiment")]
+        self.loan_producers.rollback(lengths.0);
         self.value_deliveries.truncate(lengths.1);
         self.receiver_facts.truncate(lengths.2);
         self.rc_effects.truncate(lengths.3);

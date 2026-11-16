@@ -160,12 +160,29 @@ impl DropPlanner<'_, '_> {
                     _ => false,
                 })
         {
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            if let Action::EndReceiverLoan(receiver) = &action
+                && let Some(probe) = &mut self.origin_probe
+            {
+                probe.push(
+                    super::owner_transport::origin_probe::Event::ReceiverRemoved(receiver.clone()),
+                );
+            }
             match action {
                 Action::EndReceiverLoan(receiver) if self.observes_bounded_receiver(&receiver) => {
                     self.iteration_actions
                         .end_receiver(UnitReceiverCallReturnEndFact { receiver });
                 }
                 Action::EndCallLoan(loan) => {
+                    #[cfg(any(test, feature = "d10-catalog-experiment"))]
+                    if let Some(probe) = &mut self.origin_probe {
+                        probe.push(
+                            super::owner_transport::origin_probe::Event::PendingBorrowRemoved {
+                                loan: loan.clone(),
+                                call,
+                            },
+                        );
+                    }
                     self.iteration_actions
                         .capture_loop_return(&loan, acquisition.as_ref());
                     for pending in &mut state.borrow_binding_transports {

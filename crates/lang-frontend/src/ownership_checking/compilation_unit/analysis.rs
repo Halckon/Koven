@@ -4,6 +4,9 @@ use super::{
     UnitOwnershipBindingDescriptor, capture, contracts, dataflow,
 };
 use crate::{
+    name_resolution::ValidatedCompilationUnitNames, type_checking::ValidatedCompilationUnitTypes,
+};
+use crate::{
     name_resolution::{CompilationUnitNames, SourceUnitInput, UnitSymbolId},
     source::{SourceMap, Span},
     type_checking::{CompilationUnitTypes, ParameterMode, TypeEnvironment, UnitCallableSignature},
@@ -19,6 +22,42 @@ pub(super) fn analyze(
     typed: &CompilationUnitTypes,
     constant_control: bool,
 ) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
+    #[cfg(feature = "d10-catalog-experiment")]
+    {
+        analyze_inner(sources, inputs, names, environment, typed, constant_control)
+            .map(|(owned, _, _, _, _, _, _, _, _)| owned)
+    }
+    #[cfg(not(feature = "d10-catalog-experiment"))]
+    {
+        analyze_inner(sources, inputs, names, environment, typed, constant_control)
+    }
+}
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(super) use analyze_inner as analyze_with_catalog;
+#[cfg(feature = "d10-catalog-experiment")]
+type AnalysisOutput = (
+    CompilationUnitOwnership,
+    Vec<super::d10_catalog_experiment::Pending>,
+    Vec<super::d10_catalog_experiment::LoopPending>,
+    Vec<super::d10_catalog_experiment::NestedPending>,
+    Vec<super::d10_catalog_experiment::DualNestedPending>,
+    Vec<super::d10_catalog_experiment::AfterChildPending>,
+    Vec<super::d10_catalog_experiment::WrappedDualPending>,
+    Vec<super::d10_catalog_experiment::WrappedAfterChildPending>,
+    Vec<super::d10_catalog_experiment::SplitSourcePending>,
+);
+#[cfg(not(feature = "d10-catalog-experiment"))]
+type AnalysisOutput = CompilationUnitOwnership;
+
+pub(super) fn analyze_inner(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &CompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &CompilationUnitTypes,
+    constant_control: bool,
+) -> Result<AnalysisOutput, OwnershipCheckingError> {
     if !typed.is_compatible_with_raw(sources, inputs, names, environment) {
         return Err(OwnershipCheckingError::MismatchedCompilationUnitTypes);
     }
@@ -114,6 +153,22 @@ pub(super) fn analyze(
         ),
     )?;
     if !dataflow.diagnostics.is_empty() || !typed.has_valid_type_facts() {
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.loop_catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.nested_catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.dual_nested_catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.after_child_catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.wrapped_dual_catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.wrapped_after_child_catalogs.clear();
+        #[cfg(feature = "d10-catalog-experiment")]
+        dataflow.split_source_catalogs.clear();
         dataflow.formed_owned_locals.clear();
         dataflow.receiver_facts.clear();
         dataflow.conditional_receiver_deliveries.clear();
@@ -140,6 +195,22 @@ pub(super) fn analyze(
         dataflow.conditional_receiver_drops.clear();
     }
 
+    #[cfg(feature = "d10-catalog-experiment")]
+    let catalogs = std::mem::take(&mut dataflow.catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let loop_catalogs = std::mem::take(&mut dataflow.loop_catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let nested_catalogs = std::mem::take(&mut dataflow.nested_catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let dual_nested_catalogs = std::mem::take(&mut dataflow.dual_nested_catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let after_child_catalogs = std::mem::take(&mut dataflow.after_child_catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let wrapped_dual_catalogs = std::mem::take(&mut dataflow.wrapped_dual_catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let wrapped_after_child_catalogs = std::mem::take(&mut dataflow.wrapped_after_child_catalogs);
+    #[cfg(feature = "d10-catalog-experiment")]
+    let split_source_catalogs = std::mem::take(&mut dataflow.split_source_catalogs);
     let owned = CompilationUnitOwnership::new(
         typed,
         bindings.into_values().collect(),
@@ -148,7 +219,24 @@ pub(super) fn analyze(
         capture,
         dataflow,
     );
-    Ok(owned)
+    #[cfg(feature = "d10-catalog-experiment")]
+    {
+        Ok((
+            owned,
+            catalogs,
+            loop_catalogs,
+            nested_catalogs,
+            dual_nested_catalogs,
+            after_child_catalogs,
+            wrapped_dual_catalogs,
+            wrapped_after_child_catalogs,
+            split_source_catalogs,
+        ))
+    }
+    #[cfg(not(feature = "d10-catalog-experiment"))]
+    {
+        Ok(owned)
+    }
 }
 
 fn collect_callable_bindings(
@@ -221,4 +309,40 @@ const fn binding_kind(mode: ParameterMode) -> OwnershipBindingKind {
         ParameterMode::Borrow => OwnershipBindingKind::Shared,
         ParameterMode::Inout => OwnershipBindingKind::Exclusive,
     }
+}
+
+/// 建立 source-qualified compilation-unit ownership recovery product。
+///
+/// 当前发布 callable parameter bindings、call argument contracts、普通 call 与 intrinsic
+/// container 的 loan/value deliveries、receiver loan/delivery 与 `StaticSelf` conditional delivery、
+/// intrinsic Rc effects、constructor ordered delivery/root obligations、closure
+/// capture/formation/Transferability，以及完整 body-local ASAP drop facts。
+/// recovery product 可能携带诊断或显式 deferred drop 边界；调用 [`CompilationUnitOwnership::validate`]
+/// 后才获得 codegen 可消费的 view。
+pub fn check_compilation_unit_ownership(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &ValidatedCompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &ValidatedCompilationUnitTypes,
+) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
+    analyze(
+        sources,
+        inputs,
+        names.names(),
+        environment,
+        typed.types(),
+        false,
+    )
+}
+
+/// 同一 producer 的诊断入口；上游资格在产物中继承，constant control 仍为普通保守遍历。
+pub(crate) fn check_compilation_unit_ownership_recovering(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &CompilationUnitNames,
+    environment: &TypeEnvironment,
+    typed: &CompilationUnitTypes,
+) -> Result<CompilationUnitOwnership, OwnershipCheckingError> {
+    analyze(sources, inputs, names, environment, typed, false)
 }

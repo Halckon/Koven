@@ -90,6 +90,7 @@ impl<'a> Checker<'a> {
             checking_borrow_return: false,
             allowed_borrow_call: None,
             no_carry: None,
+            no_carry_prefix: Default::default(),
             borrow_results: Default::default(),
             range_producers: super::super::range_producer::collect_single(
                 sources, parsed, names, typed,

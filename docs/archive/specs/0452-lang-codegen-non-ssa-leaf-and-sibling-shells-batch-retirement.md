@@ -237,6 +237,23 @@
 125 项既有迁移的完整性、原总文件数目标、完整回归与双宿主 CI 仍须验收；本 Spec 保持
 `in-progress`，不以本轮三个模块的有界通过替代整批验收。
 
+### 4.1 与后续 D10 普通见证共同整合的保留边界
+
+续接 `d06eb394` 与 `235b0c20` 时，`native_borrow_result_tests.rs` 已增长为
+751 行实质测试模块，包含 no-carry、counter、prefix/conditional-break 的新增普通
+native 见证。完整内联会使 `native_boxed_enum_tests.rs` 超过 1000 行；本轮保留
+独立文件，并以该 host 的 path module 接线，使新 FQN 仍为
+`native_tests::boxed_enum_tests::borrow_result_tests::*`。原有 `native_tests` re-export
+保留，源码中上级 helper 引用按新词法父模块调整，未删 fixture、断言或新增可见权限。
+本项不再计为本集成树的物理文件退役；§2.2 及旧数量是历史计划而非当前完成声明。
+
+同一整合中，`ssa/boxed_signature_storage_tests.rs` 的 owner observation/fault 与
+checkpoint 测试支持不能容纳 D10 新增的全部 fault 变体而仍满足尺寸目标，因此按完整
+职责迁至 `ssa/owner_consumer_test_support.rs`（949 行），原同名模块/FQN保留。
+checkpoint 的已有内容及 D10 原 helper 的所有变体共同保全；这属于模块迁移而非
+纯内联退役，不能把源目录 helper 消失视为测试支持责任已经删除。动态验证另记
+SPEC-0341 整合验收，故障注入仍只在 CI 执行。
+
 ### 4.2 同步 PR421 与新 owner/borrow 主干后的职责文件恢复
 
 以 `4855b620` 为集成输入，同步 PR421 `9526753c`（含 main `3b7a9a7a`）。唯一
@@ -320,3 +337,10 @@ Clang 链接均成功，但保留了 macOS `-Woverride-module` target-triple 警
 34项完整清单、职责/内容/尺寸/行为验收、精确候选CI及延期边界统一见
 [SPEC-0453 §5](0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#5-修订验收与有界收尾)。
 本次不关闭整个 E3、全部 Compatibility 或主干既有布局欠账；归档 head CI 与合并另验。
+
+
+### 5.1 D10/E2 组合树挂载说明（2026-11-15）
+
+本次组合保留§4.1全部新增borrow native正文，但采用§4.2之后主干的直接
+`native_tests::borrow_result_tests`挂载，取消boxed宿主的旧path/re-export，helper
+引用回到直接父域。§4.1路径仅是当时历史，不代表当前FQN；不复制或删减测试。

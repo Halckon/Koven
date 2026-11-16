@@ -1,3 +1,5 @@
+mod analysis;
+use analysis::plan_with_observations;
 mod action_source;
 mod assignment;
 mod binding;
@@ -11,6 +13,7 @@ mod branch_forward_scope;
 mod call_loan_end;
 mod control;
 mod expression;
+mod item_traversal;
 mod iteration;
 mod lambda;
 mod loan_auxiliary_binding_region;
@@ -37,6 +40,7 @@ mod owner_transport;
 mod pending_call;
 mod receiver_loan_end;
 mod resource;
+mod root_traversal;
 mod short_circuit;
 mod string;
 mod string_when;
@@ -67,6 +71,36 @@ use model::{
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub(super) struct Analysis {
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) drop_traversals: super::super::d10_catalog_experiment::DropCollections,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) split_source_catalog: Option<super::super::d10_catalog_experiment::SplitSourcePending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) catalog:
+        Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::Pending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) loop_catalog:
+        Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::LoopPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) nested_catalog:
+        Option<crate::ownership_checking::compilation_unit::d10_catalog_experiment::NestedPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) dual_nested_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::DualNestedPending,
+    >,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) after_child_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::AfterChildPending,
+    >,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_dual_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::WrappedDualPending,
+    >,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_after_child_catalog: Option<
+        crate::ownership_checking::compilation_unit::d10_catalog_experiment::WrappedAfterChildPending,
+    >,
+
     pub(super) iteration_conditional_scopes:
         Vec<(UnitConditionalReceiverDropFact, Vec<UnitStatementId>)>,
     pub(super) iteration_owner_scopes: Vec<(
@@ -118,122 +152,23 @@ fn plan_with_owner_observation(
 ) -> Result<Analysis, OwnershipCheckingError> {
     #[cfg(feature = "loan-observation-test-support")]
     let loan_enabled = super::super::loan_observation_test_support::enabled();
+
     #[cfg(not(feature = "loan-observation-test-support"))]
     let loan_enabled = true;
     plan_with_observations(checker, enabled, loan_enabled)
 }
 
-fn plan_with_observations(
-    checker: &Checker<'_>,
-    enabled: bool,
-    loan_actions_enabled: bool,
-) -> Result<Analysis, OwnershipCheckingError> {
-    let liveness = liveness::build(checker, true)?;
-    let mut deferred: Vec<_> = liveness
-        .deferred
-        .iter()
-        .copied()
-        .map(|expression| {
-            UnitOwnershipDeferredFact::new(expression, OwnershipDeferredReason::IndexPlace)
-        })
-        .collect();
-    let mut planner = DropPlanner::new(checker, liveness);
-    planner.owner_observation_enabled = enabled;
-    planner.iteration_actions.enabled = loan_actions_enabled;
-    let planner = planner.run()?;
-    let iterations = planner.iteration_plans()?;
-    let map_iterations = planner.map_iteration_plans()?;
-    let mut iteration_owner_scopes: Vec<_> = planner
-        .iteration_scope_depths
-        .iter()
-        .flat_map(|(statement, depth)| {
-            planner
-                .binding_depths
-                .iter()
-                .map(move |(symbol, binding_depth)| {
-                    (
-                        *statement,
-                        crate::ownership_checking::UnitDropTarget::Named(*symbol),
-                        binding_depth > depth,
-                    )
-                })
-        })
-        .collect();
-    iteration_owner_scopes.extend(planner.iteration_temporary_scopes.iter().copied());
-    let iteration_required_exits = planner
-        .iteration_exits
-        .iter()
-        .map(|(owner, kind, point)| (*owner, *kind, point.into_unit(checker.source_unit)))
-        .collect();
-    let iteration_loan_ends = planner
-        .iteration_actions
-        .iter()
-        .filter(|(_, action)| {
-            matches!(
-                action,
-                crate::ownership_checking::UnitIterationCleanupAction::EndCallLoan(_)
-                    | crate::ownership_checking::UnitIterationCleanupAction::EndReceiverLoan(_)
-                    | crate::ownership_checking::UnitIterationCleanupAction::EndCaptureLoan { .. }
-            )
-        })
-        .map(|(point, action)| (point.into_unit(checker.source_unit), action.clone()))
-        .collect();
-    deferred.extend(planner.resource_deferred.iter().copied());
-    if !planner.resource_deferred.is_empty() {
-        return Ok(Analysis {
-            owner_observations: planner.owner_observations,
-            deferred,
-            ..Analysis::default()
-        });
-    }
-    let direct_call_loan_ends = planner.direct_call_loan_ends();
-    let borrow_call_prefix_ends = planner.borrow_call_prefix_ends();
-    let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
-    let receiver_call_prefix_ends = planner.receiver_call_prefix_ends();
-    let receiver_call_return_ends = planner.iteration_actions.receiver_return_ends();
-    let borrow_call_handoffs = planner.iteration_actions.borrow_handoffs();
-    let borrow_ends = planner.iteration_actions.borrow_binding_ends();
-    let borrow_call_transports = planner.iteration_actions.consumer_transports();
-    let borrow_forward_transports = planner.iteration_actions.forward_transports();
-    let drops = planner
-        .facts
-        .into_iter()
-        .map(|fact| fact.into_unit(checker.source_unit))
-        .collect();
-    let conditional_receiver_drops = planner
-        .conditional_receiver_facts
-        .into_iter()
-        .map(|fact| fact.into_unit(checker.source_unit))
-        .collect();
-    Ok(Analysis {
-        owner_observations: planner.owner_observations,
-        loan_action_observations: planner
-            .iteration_actions
-            .finish(checker.source_unit, checker.parsed.source_id()),
-        direct_call_loan_ends,
-        string_clone_loan_ends: planner.string_clone_loan_ends,
-        borrow_call_prefix_ends,
-        borrow_call_handoffs,
-        borrow_call_transports,
-        borrow_binding_transports: planner.borrow_binding_transports,
-        borrow_forward_transports,
-        exclusive_call_prefix_ends,
-        receiver_call_prefix_ends,
-        receiver_call_return_ends,
-        no_carry: planner.no_carry_exit.finish(borrow_ends),
-        iteration_conditional_scopes: planner.iteration_conditional_scopes,
-        iteration_owner_scopes,
-        iteration_loan_ends,
-        iterations,
-        map_iterations,
-        iteration_required_exits,
-        drops,
-        conditional_receiver_drops,
-        deferred,
-    })
-}
-
 struct DropPlanner<'a, 'checker> {
+    #[cfg(test)]
+    carry_probe: Option<Vec<owner_transport::carry_probe::Visit>>,
+    // Opt-in contiguous source-root boundaries; not a callable capability or filtered trace.
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
+    root_trace_ranges: Option<Vec<(crate::type_checking::UnitItemId, std::ops::Range<usize>)>>,
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
+    origin_probe: Option<Vec<owner_transport::origin_probe::Event>>,
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
+    producer_catalog: Option<owner_transport::producer_catalog::Catalog>,
+    scalar_entry: Option<owner_transport::loops::scalar_entry::Tracker>,
     no_carry_exit: no_carry_exit::Tracker,
     #[cfg(test)]
     owner_hook_probe: Option<Vec<crate::ownership_checking::UnitOwnerTransportEvent>>,
@@ -271,6 +206,8 @@ struct DropPlanner<'a, 'checker> {
     loan_region_index: std::cell::OnceCell<loan_region::AdmissionIndex>,
     borrow_forward_index: std::cell::OnceCell<loan_provenance::BorrowForwardIndex>,
     liveness: liveness::Liveness,
+    #[cfg(feature = "d10-catalog-experiment")]
+    drop_traversals: super::super::d10_catalog_experiment::DropCollections,
     facts: Vec<PlannerDropFact>,
     conditional_receiver_facts: Vec<PlannerConditionalReceiverDropFact>,
     loop_boundaries: Vec<usize>,
@@ -281,6 +218,15 @@ struct DropPlanner<'a, 'checker> {
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     fn new(checker: &'a Checker<'checker>, liveness: liveness::Liveness) -> Self {
         Self {
+            #[cfg(test)]
+            carry_probe: None,
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            root_trace_ranges: None,
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            origin_probe: None,
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            producer_catalog: None,
+            scalar_entry: None,
             no_carry_exit: no_carry_exit::Tracker::default(),
             #[cfg(test)]
             owner_hook_probe: None,
@@ -310,224 +256,14 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             loan_region_index: std::cell::OnceCell::new(),
             borrow_forward_index: std::cell::OnceCell::new(),
             liveness,
+            #[cfg(feature = "d10-catalog-experiment")]
+            drop_traversals: Default::default(),
             facts: Vec::new(),
             conditional_receiver_facts: Vec::new(),
             loop_boundaries: Vec::new(),
             scope_depth: 0,
             binding_depths: BTreeMap::new(),
         }
-    }
-
-    fn run(mut self) -> Result<Self, OwnershipCheckingError> {
-        for &root in self.checker.parsed.roots() {
-            self.item(root)?;
-        }
-        for (lambda, node) in self.checker.parsed.ast().expressions().iter() {
-            let Expression::Lambda {
-                opener_span,
-                parameters,
-                arrow_span,
-                body,
-                ..
-            } = node.payload()
-            else {
-                continue;
-            };
-            if !self
-                .checker
-                .visited_lambdas
-                .contains(&self.checker.unit_expression(lambda))
-            {
-                continue;
-            }
-            let mut effective_parameters = parameters.clone();
-            if arrow_span.is_none()
-                && let Some(symbol) = self.checker.symbols_by_span.get(&span_key(*opener_span))
-                && self.checker.typed.body_parameter_mode(*symbol).is_some()
-            {
-                effective_parameters.push(*opener_span);
-            }
-            self.plan_lambda_body(lambda, &effective_parameters, *body)?;
-        }
-        Ok(self)
-    }
-
-    fn item(&mut self, id: ItemId) -> Result<(), OwnershipCheckingError> {
-        match self.checker.parsed.ast().items().get(id)?.payload().clone() {
-            Item::Modified { declaration, .. } => self.item(declaration)?,
-            Item::Function {
-                name,
-                parameters,
-                form,
-                ..
-            } => {
-                if self.liveness.skipped_functions.contains(&id.index()) {
-                    return Ok(());
-                }
-                self.begin_owner_function(id);
-                let mut state = ValueState::default();
-                if self.checker.receiver_context(name).is_some() {
-                    self.reject_owner_callable(id);
-                }
-                if let Some(receiver) = self.checker.receiver_context(name)
-                    && receiver.mode == ParameterMode::Value
-                {
-                    let conditional_type = match self.checker.typed.types().get(receiver.ty) {
-                        Some(UnitTypeKind::StaticSelf(_)) => Some(receiver.ty),
-                        _ => None,
-                    };
-                    if conditional_type.is_some()
-                        || self.checker.typed.copyability(receiver.ty) == Copyability::MoveOnly
-                    {
-                        state.this = Some(OwnedThis {
-                            owner: receiver.owner,
-                            origin: receiver.declaration_span,
-                            conditional_type,
-                        });
-                    }
-                }
-                for parameter in parameters {
-                    if let Some(symbol) = self.checker.marker_symbol(parameter.name).copied()
-                        && self.checker.is_move_only_variable(symbol)
-                    {
-                        self.binding_depths.insert(symbol, 0);
-                        state.insert(OwnedValue {
-                            owner: self.parameter_owner(id, symbol),
-                            symbol,
-                            origin: marker_span(parameter.name),
-                            declaration: marker_span(parameter.name),
-                            scope_depth: 0,
-                        });
-                    }
-                }
-                let live_in = self
-                    .liveness
-                    .function_live_in
-                    .get(&id.index())
-                    .cloned()
-                    .unwrap_or_default();
-                let has_body = !matches!(
-                    form,
-                    FunctionForm::ImplicitUnitAbsent
-                        | FunctionForm::Explicit {
-                            body: FunctionBody::Absent,
-                            ..
-                        }
-                );
-                if !has_body {
-                    self.reject_owner_callable(id);
-                }
-                if has_body {
-                    let unused_parameters = state
-                        .values
-                        .iter()
-                        .filter(|value| !live_in.contains(&value.symbol))
-                        .map(|value| value.symbol)
-                        .collect::<Vec<_>>();
-                    for symbol in unused_parameters.into_iter().rev() {
-                        self.drop_named_asap(
-                            PlannerDropPoint::FunctionEntry(id),
-                            symbol,
-                            &mut state,
-                        );
-                    }
-                }
-                match form {
-                    FunctionForm::ImplicitUnitAbsent => {}
-                    FunctionForm::ImplicitUnitBlock(body) => {
-                        if self.statement(body, &mut state)? {
-                            self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
-                        }
-                    }
-                    FunctionForm::Explicit { body, .. } => match body {
-                        FunctionBody::Absent => {}
-                        FunctionBody::Expression { expression, .. } => {
-                            state.forward_scope = self.forward_expression_scope(id, expression);
-                            self.enter_forward_region(id, &mut state);
-                            if self.expression(
-                                expression,
-                                DropExpressionUse::Consume,
-                                &mut state,
-                            )? {
-                                let pre_clear = self.forward_region_boundary_clear(&state, true);
-                                self.drop_all(
-                                    PlannerDropPoint::ControlTransfer(expression),
-                                    &mut state,
-                                );
-                                let post_clear = self.forward_region_boundary_clear(&state, false);
-                                self.iteration_actions.complete_forward_region(
-                                    state.forward_scope,
-                                    pre_clear,
-                                    post_clear,
-                                );
-                            }
-                        }
-                        FunctionBody::Block(body) => {
-                            state.branch_forward_plan = self.branch_forward_plan(id, body);
-                            state.nested_forward = self.nested_forward_plan(id, body).map(|plan| {
-                                nested_forward_scope::NestedForwardState {
-                                    plan,
-                                    path: [None; 2],
-                                    leaf: None,
-                                    ready_split: None,
-                                    coverage: None,
-                                }
-                            });
-                            let bounded_coverage =
-                                self.begin_bounded_coverage(id, body, &mut state);
-                            let coverage = self.begin_branch_coverage(&mut state);
-                            let nested_coverage = self.begin_nested_coverage(&mut state);
-                            let continues = self.statement(body, &mut state)?;
-                            if continues {
-                                self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
-                            }
-                            self.finish_branch_coverage(coverage, continues, &state);
-                            self.finish_nested_coverage(nested_coverage, continues, &state);
-                            self.finish_bounded_coverage(bounded_coverage, continues, &state);
-                        }
-                    },
-                }
-                self.finish_owner_observation();
-                self.iteration_actions.close_branch_callable(
-                    crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
-                );
-                self.iteration_actions
-                    .close_bounded(crate::type_checking::UnitItemId::new(
-                        self.checker.source_unit,
-                        id,
-                    ));
-                self.iteration_actions.close_nested_callable(
-                    crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
-                );
-            }
-            Item::Classifier(classifier) => {
-                if let Some(body) = classifier.body {
-                    for member in body.members {
-                        self.item(member)?;
-                    }
-                }
-            }
-            Item::Companion(companion) => {
-                for member in companion.body.members {
-                    self.item(member)?;
-                }
-            }
-            Item::Deinit { body, .. } => {
-                self.begin_unsupported_owner(
-                    crate::ownership_checking::UnitOwnerCallable::Deinit(
-                        crate::type_checking::UnitItemId::new(self.checker.source_unit, id),
-                    ),
-                    PlannerDropPoint::FunctionEntry(id).into_unit(self.checker.source_unit),
-                );
-                let mut state = ValueState::default();
-                if self.statement(body, &mut state)? {
-                    self.drop_all(PlannerDropPoint::AfterStatement(body), &mut state);
-                }
-                self.finish_owner_observation();
-            }
-            Item::Error | Item::Variable { .. } | Item::Constant { .. } => {}
-        }
-        Ok(())
     }
 
     fn statement_inner(

@@ -24,6 +24,10 @@ mod validation;
 mod whole_function;
 pub(super) use emitted::Emitted;
 pub(crate) use emitted::Receipt;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(in crate::ssa::refine) use whole_function::check as audit_whole_function;
+#[cfg(feature = "d10-catalog-experiment")]
+pub(in crate::ssa::refine) use whole_function::check_counter_failure as audit_counter_whole_function;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Tag {
     Condition,
@@ -67,13 +71,22 @@ pub(super) struct Plan {
     pub(super) boundary: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct SourceConsumer {
+pub(crate) struct SourceConsumer {
     pub(super) statement: UnitStatementId,
-    pub(super) call: UnitExpressionId,
+    pub(crate) call: UnitExpressionId,
     pub(super) argument: UnitExpressionId,
     pub(super) callee: FunctionId,
     pub(super) span: Span,
     pub(super) argument_span: Span,
+}
+#[cfg(feature = "d10-catalog-experiment")]
+impl SourceConsumer {
+    pub(crate) fn argument(&self) -> UnitExpressionId {
+        self.argument
+    }
+    pub(crate) fn callee(&self) -> FunctionId {
+        self.callee
+    }
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct SourceSegment {
@@ -106,6 +119,13 @@ pub(crate) enum PublicationStage {
 }
 #[cfg(test)]
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    not(feature = "loan-observation-test-support"),
+    allow(
+        dead_code,
+        reason = "Default receipt observers discard the trace; loan-observation-test-support tests inspect every event field"
+    )
+)]
 pub(crate) struct PublicationEvent {
     pub(crate) stage: PublicationStage,
     pub(crate) pending: Vec<FunctionId>,
@@ -212,3 +232,6 @@ pub(super) fn record(receipt: Receipt) {
     #[cfg(not(test))]
     let _ = receipt;
 }
+
+#[cfg(feature = "d10-catalog-experiment")]
+pub(crate) use source_admission::{audit_consumer, audit_segments};

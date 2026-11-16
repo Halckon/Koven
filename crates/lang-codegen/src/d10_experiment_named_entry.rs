@@ -1,0 +1,116 @@
+//! One same-run ordered source entry dispatch. Not ordinary driver admission or fallback.
+use super::*;
+use lang_frontend::ownership_checking::d10_catalog_experiment::{
+    BoundNamedEntry, NamedEntryOrder, NamedEntryView,
+};
+
+/// Immutable checked publication selected by a single sealed frontend analysis.
+/// Neither variant can be constructed, swapped, or converted to an ordinary driver capability.
+pub struct NamedEntryProgram<'view, 'parsed: 'view> {
+    publication: Publication<'view, 'parsed>,
+}
+enum Publication<'view, 'parsed: 'view> {
+    Before(NamedWrapperProgram<'view, 'parsed>),
+    After(NamedAfterChildProgram<'view, 'parsed>),
+}
+impl NamedEntryProgram<'_, '_> {
+    /// Exact restricted source order, not a general Carry permission.
+    #[must_use]
+    pub const fn order(&self) -> NamedEntryOrder {
+        match self.publication {
+            Publication::Before(_) => NamedEntryOrder::BeforeChild,
+            Publication::After(_) => NamedEntryOrder::AfterChild,
+        }
+    }
+    /// Original zero-argument source wrapper identity.
+    #[must_use]
+    pub fn callable(&self) -> UnitItemId {
+        match &self.publication {
+            Publication::Before(p) => p.callable(),
+            Publication::After(p) => p.callable(),
+        }
+    }
+    /// Render and verify the complete immutable graph using its original order-specific proof.
+    pub fn verified_llvm_ir(&self) -> Result<String, Error> {
+        match &self.publication {
+            Publication::Before(p) => p.verified_llvm_ir(),
+            Publication::After(p) => p.verified_llvm_ir(),
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn replay_input(&self) -> (&Program, FunctionId) {
+        match &self.publication {
+            Publication::Before(p) => p.replay_input(),
+            Publication::After(p) => p.replay_input(),
+        }
+    }
+    /// Publish only if the destination directory entry is absent at atomic hard-link creation.
+    ///
+    /// Existing files, symlinks and directories are never replaced. Requires filesystem hard-link
+    /// support; unsupported operations fail without a rename/copy fallback. Publication commits
+    /// at link success; sibling cleanup is best-effort thereafter. Does not promise durability
+    /// across power loss or defend against hostile replacement of containing directories.
+    pub fn emit_new_process_object(
+        &self,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        match &self.publication {
+            Publication::Before(p) => crate::native::d10_named_wrapper::emit_new(p, output),
+            Publication::After(p) => crate::native::d10_named_after_child::emit_new(p, output),
+        }
+    }
+
+    /// Publish a real process object through the existing order-specific atomic transaction.
+    /// No default driver selection, linking, execution or retry with another order is performed.
+    pub fn emit_process_object(
+        &self,
+        output: &std::path::Path,
+    ) -> Result<(), crate::NativeObjectError> {
+        match &self.publication {
+            Publication::Before(p) => p.emit_process_object(output),
+            Publication::After(p) => p.emit_process_object(output),
+        }
+    }
+}
+/// Dispatch only the already selected same-run capability to its original complete graph checker.
+/// Failure is terminal; the other order is never tried and no partial publication is returned.
+pub fn lower_named_entry<'view, 'parsed: 'view>(
+    unit: OwnedCompilationUnitView<'view, 'parsed>,
+    bound: &'view BoundNamedEntry,
+) -> Result<NamedEntryProgram<'view, 'parsed>, Error> {
+    if !bound.matches(&unit) {
+        return Err(Error::new(
+            Stage::Identity,
+            "named entry final ownership differs",
+        ));
+    }
+    let publication = match bound.view() {
+        NamedEntryView::BeforeChild(b) => Publication::Before(lower_named_wrapper(unit, b)?),
+        NamedEntryView::AfterChild(b) => {
+            Publication::After(lower_named_after_child_wrapper(unit, b)?)
+        }
+    };
+    Ok(NamedEntryProgram { publication })
+}
+
+/// Lower a final-admitted explicit preparation without reconstructing or replacing its analyses.
+/// Only the explicit experimental driver selects this bridge; ordinary build/run never do.
+/// It never falls back to another capability.
+pub fn lower_prepared_named_entry<'view, 'parsed: 'view>(
+    sources: &'view lang_frontend::source::SourceMap,
+    inputs: &'view [lang_frontend::name_resolution::SourceUnitInput<'parsed>],
+    names: &'view lang_frontend::name_resolution::ValidatedCompilationUnitNames,
+    environment: &'view lang_frontend::type_checking::TypeEnvironment,
+    prepared: &'view lang_frontend::ownership_checking::d10_catalog_experiment::PreparedNamedEntry,
+) -> Result<NamedEntryProgram<'view, 'parsed>, Error> {
+    let unit = lang_frontend::ownership_checking::owned_compilation_unit_view(
+        sources,
+        inputs,
+        names,
+        environment,
+        prepared.typed(),
+        prepared.bound().ownership(),
+    )
+    .map_err(|error| Error::new(Stage::Identity, format!("{error:?}")))?;
+    lower_named_entry(unit, prepared.bound())
+}

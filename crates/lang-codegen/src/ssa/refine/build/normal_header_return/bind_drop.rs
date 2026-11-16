@@ -9,6 +9,7 @@ pub(super) struct State {
 pub(in crate::ssa::refine) struct DropReceipt {
     selected: Slot,
     bound: Slot,
+    #[cfg(test)]
     index: usize,
     block: BlockRef,
     instruction: usize,
@@ -159,6 +160,7 @@ impl Builder<'_, '_> {
         Ok(Some(DropReceipt {
             selected,
             bound: slot,
+            #[cfg(test)]
             index,
             block: exit,
             instruction: self.body.blocks[exit.0].statements.len(),

@@ -64,11 +64,11 @@ pub(super) struct Proof {
     pub(super) end_span: Span,
 }
 impl Receipt {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn recorded_fold_count(&self) -> usize {
         self.folds.len()
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "loan-observation-test-support"))]
     pub(crate) fn sequential_exit_links(&self) -> bool {
         self.loops.windows(2).all(|pair| {
             let from = pair[0].proof.blocks.exit;
@@ -597,7 +597,39 @@ impl Emitted {
             }
         }
         r.validate(function)?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        crate::ssa::d10_project_audit::fresh_loop_consumption::record(function, &r);
         record(r);
         Ok(())
+    }
+}
+
+#[cfg(feature = "d10-catalog-experiment")]
+impl Receipt {
+    pub(crate) fn matches_flag_roles(&self, expected: &[(usize, Span, ParameterMode)]) -> bool {
+        self.loops.len() == expected.len()
+            && self.loops.iter().zip(expected).all(|(l, i)| {
+                l.proof.flag_owned == (i.2 == ParameterMode::Value)
+                    && l.proof.flag_parameter == i.0
+                    && l.proof.condition_span == i.1
+            })
+    }
+    pub(crate) fn has_empty_segments(&self, count: usize) -> bool {
+        self.segments.len() == count
+            && self
+                .segments
+                .iter()
+                .all(|s| s.sealed() && s.consumers.is_empty() && s.instructions.is_empty())
+    }
+    pub(crate) fn matches_source_segments<const N: usize>(
+        &self,
+        expected: &[Vec<SourceConsumer>; N],
+    ) -> bool {
+        self.segments.len() == N
+            && self
+                .segments
+                .iter()
+                .zip(expected)
+                .all(|(s, e)| s.sealed() && s.consumers == *e && s.instructions.len() == e.len())
     }
 }

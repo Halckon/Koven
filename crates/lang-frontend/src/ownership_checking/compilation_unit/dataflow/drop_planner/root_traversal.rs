@@ -1,0 +1,115 @@
+//! Original source-root and visited-lambda traversal; opt-in observation does not change execution.
+use super::*;
+
+impl DropPlanner<'_, '_> {
+    pub(super) fn run(mut self) -> Result<Self, OwnershipCheckingError> {
+        for &root in self.checker.parsed.roots() {
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            let trace_start = self.origin_probe.as_ref().map(Vec::len);
+            #[cfg(feature = "d10-catalog-experiment")]
+            let drop_start = self.facts.len();
+            self.item(root)?;
+            #[cfg(feature = "d10-catalog-experiment")]
+            self.record_drop_traversal(
+                super::super::super::d10_catalog_experiment::DropTraversal::SourceRoot(
+                    crate::type_checking::UnitItemId::new(self.checker.source_unit, root),
+                ),
+                drop_start,
+            );
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            if let (Some(ranges), Some(start), Some(events)) =
+                (&mut self.root_trace_ranges, trace_start, &self.origin_probe)
+            {
+                ranges.push((
+                    crate::type_checking::UnitItemId::new(self.checker.source_unit, root),
+                    start..events.len(),
+                ));
+            }
+        }
+        for (lambda, node) in self.checker.parsed.ast().expressions().iter() {
+            let Expression::Lambda {
+                opener_span,
+                parameters,
+                arrow_span,
+                body,
+                ..
+            } = node.payload()
+            else {
+                continue;
+            };
+            if !self
+                .checker
+                .visited_lambdas
+                .contains(&self.checker.unit_expression(lambda))
+            {
+                continue;
+            }
+            let mut effective_parameters = parameters.clone();
+            if arrow_span.is_none()
+                && let Some(symbol) = self.checker.symbols_by_span.get(&span_key(*opener_span))
+                && self.checker.typed.body_parameter_mode(*symbol).is_some()
+            {
+                effective_parameters.push(*opener_span);
+            }
+            #[cfg(feature = "d10-catalog-experiment")]
+            let drop_start = self.facts.len();
+            #[cfg(feature = "d10-catalog-experiment")]
+            let conditional_start = self.conditional_receiver_facts.len();
+            self.plan_lambda_body(lambda, &effective_parameters, *body)?;
+            #[cfg(feature = "d10-catalog-experiment")]
+            self.record_callable_drops(
+                super::super::super::d10_catalog_experiment::DropCallable::Lambda(
+                    self.checker.unit_expression(lambda),
+                ),
+                (drop_start, conditional_start),
+            );
+            #[cfg(feature = "d10-catalog-experiment")]
+            self.record_drop_traversal(
+                super::super::super::d10_catalog_experiment::DropTraversal::Lambda(
+                    self.checker.unit_expression(lambda),
+                ),
+                drop_start,
+            );
+        }
+        Ok(self)
+    }
+
+    #[cfg(feature = "d10-catalog-experiment")]
+    fn record_drop_traversal(
+        &mut self,
+        traversal: super::super::super::d10_catalog_experiment::DropTraversal,
+        start: usize,
+    ) {
+        // Capture only the final normalized, globally deduplicated append-only product.
+        // Empty means no new facts, not proof of no proposed cleanup or no execution.
+        self.drop_traversals.roots.push(
+            super::super::super::d10_catalog_experiment::DropTraversalRecord::capture(
+                traversal,
+                self.facts[start..]
+                    .iter()
+                    .map(|fact| fact.into_unit(self.checker.source_unit))
+                    .collect(),
+            ),
+        );
+    }
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) fn record_callable_drops(
+        &mut self,
+        callable: super::super::super::d10_catalog_experiment::DropCallable,
+        start: (usize, usize),
+    ) {
+        self.drop_traversals.callables.push(
+            super::super::super::d10_catalog_experiment::CallableDropRecord::new(
+                callable,
+                self.facts[start.0..]
+                    .iter()
+                    .map(|fact| fact.into_unit(self.checker.source_unit))
+                    .collect(),
+                self.conditional_receiver_facts[start.1..]
+                    .iter()
+                    .map(|fact| fact.into_unit(self.checker.source_unit))
+                    .collect(),
+            ),
+        );
+    }
+}

@@ -962,3 +962,6 @@ mod result_action_source;
 
 #[path = "unit_direct_call_loan_ends/consumer_action_link.rs"]
 mod consumer_action_link;
+
+#[path = "unit_direct_call_loan_ends/scalar_literals.rs"]
+mod scalar_literals;

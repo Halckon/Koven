@@ -567,3 +567,54 @@ impl OpenLoopInput {
             .then_some(UnitOwnerOpenLoopObservationV1::BreakLive(Box::new(value)))
     }
 }
+
+impl LoopTransaction {
+    pub(in super::super::super) fn complete_replace_consumer(
+        &mut self,
+        consumer: crate::ownership_checking::UnitOwnerReplaceBreakConsumerV1,
+    ) {
+        if let Some(UnitOwnerOpenLoopObservationV1::BreakLive(boundary)) = &mut self.replace_result
+            && boundary.consumer.is_none()
+        {
+            boundary.consumer = Some(consumer);
+            if !boundary.is_consistent() {
+                boundary.consumer = None;
+            }
+        }
+    }
+}
+
+impl LoopTransaction {
+    pub(in super::super::super) fn complete_replace_call_consumer(
+        &mut self,
+        consumer: crate::ownership_checking::UnitOwnerReplaceBreakCallConsumerV1,
+    ) {
+        if let Some(UnitOwnerOpenLoopObservationV1::BreakLive(boundary)) = &mut self.replace_result
+            && boundary.consumer.is_none()
+            && boundary.call_consumer.is_none()
+        {
+            boundary.call_consumer = Some(consumer);
+            if !boundary.is_consistent() {
+                boundary.call_consumer = None;
+            }
+        }
+    }
+}
+
+impl LoopTransaction {
+    pub(in super::super::super) fn complete_replace_return_consumer(
+        &mut self,
+        consumer: crate::ownership_checking::UnitOwnerReplaceBreakReturnConsumerV1,
+    ) {
+        if let Some(UnitOwnerOpenLoopObservationV1::BreakLive(boundary)) = &mut self.replace_result
+            && boundary.consumer.is_none()
+            && boundary.call_consumer.is_none()
+            && boundary.return_consumer.is_none()
+        {
+            boundary.return_consumer = Some(consumer);
+            if !boundary.is_consistent() {
+                boundary.return_consumer = None;
+            }
+        }
+    }
+}

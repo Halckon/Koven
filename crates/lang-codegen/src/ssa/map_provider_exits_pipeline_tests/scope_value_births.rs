@@ -12,6 +12,7 @@ pub(crate) use conditional_owner_observer::cases as conditional_owner_sources;
 mod owner_update_observer;
 pub(crate) use owner_update_observer::cases as owner_update_sources;
 
+#[deny(dead_code)]
 pub(in crate::ssa) mod query_temporary_cleanup {
     //! The original temporary Call owns one LoopExit obligation in each public FE product.
     use super::super::{
@@ -31,6 +32,11 @@ pub(in crate::ssa) mod query_temporary_cleanup {
         type_checking::{UnitExpressionId, UnitStatementId},
     };
 
+    // df48178f moved ordinary consumers to Unit; retain this distinct legacy contract.
+    #[allow(
+        dead_code,
+        reason = "legacy cleanup-condition witness retained pending contract audit"
+    )]
     pub(in crate::ssa) fn single(
         statement: StatementId,
         source: ExpressionId,

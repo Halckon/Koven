@@ -8,6 +8,8 @@ mod call_contract;
 mod callable_provenance;
 mod closure;
 mod construction;
+mod loan_producers;
+use construction::collect_construction_descriptors;
 mod container;
 mod control;
 mod drop_planner;
@@ -44,6 +46,8 @@ mod scope_escape;
 use receiver::ReceiverContext;
 mod loop_control;
 mod short_circuit;
+#[cfg(feature = "d10-catalog-experiment")]
+mod source_collection;
 mod string;
 mod traversal;
 
@@ -80,6 +84,27 @@ use flow::{
 };
 
 pub(super) struct Analysis {
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) source_collection_ledger: super::d10_catalog_experiment::SourceCollectionLedger,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) split_source_catalogs: Vec<super::d10_catalog_experiment::SplitSourcePending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) analysis_owner: std::sync::Arc<()>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) catalogs: Vec<super::d10_catalog_experiment::Pending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) loop_catalogs: Vec<super::d10_catalog_experiment::LoopPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) nested_catalogs: Vec<super::d10_catalog_experiment::NestedPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) dual_nested_catalogs: Vec<super::d10_catalog_experiment::DualNestedPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) after_child_catalogs: Vec<super::d10_catalog_experiment::AfterChildPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_dual_catalogs: Vec<super::d10_catalog_experiment::WrappedDualPending>,
+    #[cfg(feature = "d10-catalog-experiment")]
+    pub(super) wrapped_after_child_catalogs:
+        Vec<super::d10_catalog_experiment::WrappedAfterChildPending>,
     pub(super) no_carry: super::loop_no_carry::CompletedNoCarry,
     pub(super) borrow_return_origins:
         Vec<crate::ownership_checking::BorrowReturnOriginFact<UnitExpressionId, UnitLoanTarget>>,
@@ -259,6 +284,22 @@ pub(super) fn analyze(
     let mut borrow_return_origins = Vec::new();
     let mut no_carry = super::loop_no_carry::CompletedNoCarry::default();
     let mut borrow_results = crate::ownership_checking::borrow_result::UnitBorrowResults::default();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut loop_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut nested_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut dual_nested_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut after_child_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut wrapped_dual_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut split_source_catalogs = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut wrapped_after_child_catalogs = Vec::new();
     let mut drops = Vec::new();
     let mut iterations = Vec::new();
     let mut map_iterations = Vec::new();
@@ -270,6 +311,10 @@ pub(super) fn analyze(
     let mut iteration_required_exits = Vec::new();
     let mut conditional_receiver_drops = Vec::new();
     let mut deferred = Vec::new();
+    #[cfg(feature = "d10-catalog-experiment")]
+    let analysis_owner = std::sync::Arc::new(());
+    #[cfg(feature = "d10-catalog-experiment")]
+    let mut source_records = Vec::new();
     let capture_index = closure::capture_index(closure_inputs.captures, typed);
     let empty_construction_descriptors = BTreeMap::new();
     let field_kinds = traversal::collect_field_mutability(inputs, names)?;
@@ -284,6 +329,14 @@ pub(super) fn analyze(
             .ok_or(OwnershipCheckingError::InvalidUnitSource {
                 source_unit: source.id().index(),
             })?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        let source_start = (
+            loans.len(),
+            receiver_facts.len(),
+            construction_plans.len(),
+            drops.len(),
+            conditional_receiver_drops.len(),
+        );
         let mut checker = Checker::new(
             sources,
             input.parsed(),
@@ -321,9 +374,31 @@ pub(super) fn analyze(
             &mut non_null_assertions,
             &mut callable_sources,
         )?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        {
+            checker.analysis_owner = analysis_owner.clone();
+        }
         checker.constant_control = constant_control;
         checker.range_producers = range_producers.clone();
         let drop_analysis = checker.run()?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        let iteration_collection = source_collection::capture_iteration(&checker, &drop_analysis);
+        #[cfg(feature = "d10-catalog-experiment")]
+        catalogs.extend(drop_analysis.catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        loop_catalogs.extend(drop_analysis.loop_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        nested_catalogs.extend(drop_analysis.nested_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        dual_nested_catalogs.extend(drop_analysis.dual_nested_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        after_child_catalogs.extend(drop_analysis.after_child_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        wrapped_dual_catalogs.extend(drop_analysis.wrapped_dual_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        split_source_catalogs.extend(drop_analysis.split_source_catalog);
+        #[cfg(feature = "d10-catalog-experiment")]
+        wrapped_after_child_catalogs.extend(drop_analysis.wrapped_after_child_catalog);
         no_carry.extend(checker.finish_no_carry_proofs(&drop_analysis.no_carry)?);
         nullable_whens.extend(checker.nullable_whens.finish()?);
         formed_owned_locals.extend(checker.formed_owned_locals);
@@ -376,6 +451,23 @@ pub(super) fn analyze(
             .forwarded
             .extend(checker.borrow_results.forwarded);
         borrow_results.ends.extend(drop_analysis.no_carry.ends);
+        #[cfg(feature = "d10-catalog-experiment")]
+        let loan_producers = checker.loan_producers.finish();
+        #[cfg(feature = "d10-catalog-experiment")]
+        source_records.push(source_collection::capture_source(
+            source.id(),
+            source_start,
+            (
+                &loans,
+                &receiver_facts,
+                &construction_plans,
+                &drops,
+                &conditional_receiver_drops,
+            ),
+            drop_analysis.drop_traversals,
+            iteration_collection,
+            loan_producers,
+        ));
     }
 
     let diagnostics: Vec<Diagnostic> =
@@ -437,6 +529,31 @@ pub(super) fn analyze(
         .range_uses
         .sort_by_key(|fact| fact.expression());
     Ok(Analysis {
+        #[cfg(feature = "d10-catalog-experiment")]
+        source_collection_ledger: super::d10_catalog_experiment::SourceCollectionLedger::new(
+            analysis_owner.clone(),
+            source_records,
+            call_inputs.arguments,
+            call_inputs.receivers,
+        ),
+        #[cfg(feature = "d10-catalog-experiment")]
+        split_source_catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        analysis_owner,
+        #[cfg(feature = "d10-catalog-experiment")]
+        catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        loop_catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        nested_catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        dual_nested_catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        after_child_catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        wrapped_dual_catalogs,
+        #[cfg(feature = "d10-catalog-experiment")]
+        wrapped_after_child_catalogs,
         no_carry,
         borrow_results,
         borrow_return_origins,
@@ -482,34 +599,6 @@ pub(super) fn analyze(
     })
 }
 
-fn collect_construction_descriptors(
-    descriptors: &[UnitConstructionDescriptor],
-    source_count: usize,
-) -> Result<ConstructionDescriptors, OwnershipCheckingError> {
-    let mut by_source = ConstructionDescriptors::new();
-    for descriptor in descriptors {
-        let expression = descriptor.expression();
-        if expression.source_unit().index() >= source_count {
-            return Err(OwnershipCheckingError::InvalidUnitConstruction {
-                source_unit: expression.source_unit().index(),
-                expression: expression.expression().index(),
-            });
-        }
-        if by_source
-            .entry(expression.source_unit())
-            .or_default()
-            .insert(expression, descriptor.clone())
-            .is_some()
-        {
-            return Err(OwnershipCheckingError::InvalidUnitConstruction {
-                source_unit: expression.source_unit().index(),
-                expression: expression.expression().index(),
-            });
-        }
-    }
-    Ok(by_source)
-}
-
 #[derive(Clone, Copy)]
 struct Codes {
     use_after_move: DiagnosticCode,
@@ -525,6 +614,10 @@ struct Codes {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    #[cfg(feature = "d10-catalog-experiment")]
+    loan_producers: loan_producers::Collection,
+    #[cfg(feature = "d10-catalog-experiment")]
+    analysis_owner: std::sync::Arc<()>,
     callable_sources: &'a mut callable_provenance::Collection,
     iterations: BTreeMap<
         crate::type_checking::UnitStatementId,
@@ -698,6 +791,8 @@ impl<'a> Checker<'a> {
             }
         }
         Ok(Self {
+            #[cfg(feature = "d10-catalog-experiment")]
+            loan_producers: loan_producers::Collection::new(loans.len()),
             callable_sources,
             iterations: BTreeMap::new(),
             map_iterations: BTreeMap::new(),
@@ -705,6 +800,8 @@ impl<'a> Checker<'a> {
             call_dispatch: BTreeMap::new(),
             completed_arguments: std::collections::BTreeSet::new(),
             visited_lambdas: std::collections::BTreeSet::new(),
+            #[cfg(feature = "d10-catalog-experiment")]
+            analysis_owner: std::sync::Arc::new(()),
             constant_control: false,
             short_circuits: BTreeMap::new(),
             constant_materializations: BTreeMap::new(),
@@ -889,61 +986,4 @@ const fn span_key(span: Span) -> (usize, usize) {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::{
-        lexer::lex,
-        name_resolution::{
-            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
-        },
-        parser::{ParsedFile, parse_file},
-        source::{SourceId, SourceMap},
-        type_checking::{check_compilation_unit_types, standard_environments},
-    };
-
-    use super::{OwnershipCheckingError, collect_construction_descriptors};
-
-    fn parsed(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFile) {
-        let source = sources.add_source(name, text).expect("unique source");
-        let lexed = lex(sources, source).expect("lexing succeeds internally");
-        let parsed = parse_file(sources, &lexed).expect("parsing succeeds internally");
-        assert!(
-            parsed.diagnostics().is_empty(),
-            "{:?}",
-            parsed.diagnostics()
-        );
-        (source, parsed)
-    }
-
-    #[test]
-    fn duplicate_construction_descriptor_is_rejected_before_dataflow() {
-        let mut sources = SourceMap::new();
-        let (source, parsed) = parsed(
-            &mut sources,
-            "p/source.ko",
-            "package p\nclass Resource {}\nfun build(): Unit { val result = Resource() }",
-        );
-        let inputs = [SourceUnitInput::new("root", "p/source.ko", source, &parsed)];
-        let (name_environment, type_environment) = standard_environments();
-        let index = index_compilation_unit(&sources, &inputs).expect("valid unit input");
-        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
-            .expect("name resolution succeeds internally")
-            .validate()
-            .expect("valid names");
-        let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
-            .expect("type checking succeeds internally")
-            .validate()
-            .expect("valid types");
-        let descriptor = typed.types().constructions()[0].clone();
-
-        let error = collect_construction_descriptors(
-            &[descriptor.clone(), descriptor],
-            names.names().index().source_units().len(),
-        )
-        .expect_err("duplicate construction locator must fail before body traversal");
-
-        assert!(matches!(
-            error,
-            OwnershipCheckingError::InvalidUnitConstruction { .. }
-        ));
-    }
-}
+mod tests;

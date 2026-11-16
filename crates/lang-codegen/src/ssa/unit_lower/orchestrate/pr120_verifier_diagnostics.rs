@@ -1,5 +1,6 @@
 //! 七份完整原源的真实 final-verifier 观察；五份 take 闭包仅允许 CI 执行。
 //! 不注入 SSA、不重跑 verifier、不改变返回值，不进入 LLVM/native。
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 use std::{
     collections::BTreeMap,
     fmt::Debug,
@@ -15,9 +16,7 @@ use lang_frontend::{
     },
     lexer::lex,
     name_resolution::{DeclarationId, SymbolKind, ValidatedCompilationUnitNames},
-    ownership_checking::{
-        CompilationUnitOwnership, OwnedCompilationUnitView, owned_compilation_unit_view,
-    },
+    ownership_checking::{OwnedCompilationUnitView, owned_compilation_unit_view},
     parser::parse_file,
     source::{SourceMap, Span},
     type_checking::{
@@ -131,7 +130,7 @@ impl Capture {
         }
     }
 
-    fn debug(&mut self, label: &str, value: &impl Debug) {
+    fn debug(&mut self, label: &str, value: &(impl Debug + ?Sized)) {
         self.section(label, &format!("{value:#?}"));
     }
 
@@ -208,7 +207,7 @@ impl Capture {
             &SourceMap,
             &ValidatedCompilationUnitNames,
             &CompilationUnitTypes,
-            &CompilationUnitOwnership,
+            &dyn UnitLoweringFacts,
         ),
         function_ids: &BTreeMap<UnitFunctionInstanceKey, FunctionId>,
         types: &UnitTypeLowering,

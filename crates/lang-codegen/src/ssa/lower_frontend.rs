@@ -1,4 +1,5 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
+#![deny(dead_code)]
 
 pub(in crate::ssa) use super::carry::source_columns::frontend_borrow_result as borrow_result;
 #[cfg(test)]

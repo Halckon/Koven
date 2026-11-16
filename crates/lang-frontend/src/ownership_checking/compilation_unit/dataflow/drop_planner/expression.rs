@@ -526,6 +526,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     for place in plan.places() {
                         if let Some(index) = state.position(place.root()) {
                             state.values[index].origin = node.span();
+                            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+                            self.origin_applied(id, place.root());
                         }
                     }
                     self.commit_choice_primitive(id, state);

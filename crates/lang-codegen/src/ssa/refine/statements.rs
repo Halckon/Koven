@@ -11,6 +11,8 @@ use lang_frontend::source::Span;
 use std::collections::BTreeMap;
 /// Each protocol retains its own plans, role identities and final receipt.
 pub(in crate::ssa::refine) struct LoanReceipts {
+    #[cfg(feature = "d10-catalog-experiment")]
+    entry_lifecycle: super::entry_lifecycle::Emitted,
     child_cycle: crate::ssa::refine::child_cycle_receipt::Emitted,
     arm_loop: crate::ssa::refine::arm_loop_receipt::Emitted,
     nested_body: crate::ssa::refine::nested_body_receipt::Emitted,
@@ -45,6 +47,8 @@ impl LoanReceipts {
         span: Span,
     ) -> Result<Self, LoweringError> {
         Ok(Self {
+            #[cfg(feature = "d10-catalog-experiment")]
+            entry_lifecycle: Default::default(),
             child_cycle: Default::default(),
             arm_loop: Default::default(),
             nested_body: Default::default(),
@@ -319,7 +323,10 @@ impl LoanReceipts {
         self.bounded.finish(&body.bounded_plans, function, span)?;
         self.single.finish(&body.single_plans, function, span)?;
         self.multi.finish(&body.multi_plans, function, span)?;
-        self.branch.finish(&body.branch_plans, function, span)
+        self.branch.finish(&body.branch_plans, function, span)?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        self.entry_lifecycle.finish(body, function);
+        Ok(())
     }
 }
 
@@ -449,6 +456,44 @@ impl Emitter<'_> {
             for (slot, entity) in statement.results.iter().zip(results) {
                 self.current.insert(*slot, entity);
                 self.defined.insert(*slot, entity);
+            }
+            #[cfg(feature = "d10-catalog-experiment")]
+            receipts
+                .binding
+                .literal(statement, instruction, &self.current);
+            #[cfg(feature = "d10-catalog-experiment")]
+            receipts
+                .aux_binding
+                .literal(statement, instruction, &self.current);
+            #[cfg(feature = "d10-catalog-experiment")]
+            receipts
+                .distinct_aux
+                .literal(statement, instruction, &self.current);
+            #[cfg(feature = "d10-catalog-experiment")]
+            receipts
+                .later_aux
+                .literal(statement, instruction, &self.current);
+            #[cfg(feature = "d10-catalog-experiment")]
+            receipts
+                .interleaved_aux
+                .literal(statement, instruction, &self.current);
+            #[cfg(feature = "d10-catalog-experiment")]
+            if body.entry_borrows.iter().any(|p| p.lifecycle.is_some())
+                && let Some(data) = self.function.instruction(instruction)
+            {
+                receipts
+                    .entry_lifecycle
+                    .statement((block, index), statement, data, &self.current);
+            }
+            #[cfg(feature = "d10-catalog-experiment")]
+            for pending in body
+                .entry_borrows
+                .iter()
+                .filter(|p| p.matches_result(&statement.results))
+            {
+                if let Some(receipt) = pending.emitted(self.function, instruction, &self.current) {
+                    crate::ssa::d10_project_audit::entry_borrow::record(receipt);
+                }
             }
             receipts.owner_bridge.statement(
                 body,
@@ -684,7 +729,7 @@ impl Emitter<'_> {
 }
 
 #[cfg(test)]
-pub(super) fn inject_owner_final(
+pub(in crate::ssa::refine) fn inject_owner_final(
     body: &RefinedBody,
     function: &mut Function,
     receipts: &mut LoanReceipts,

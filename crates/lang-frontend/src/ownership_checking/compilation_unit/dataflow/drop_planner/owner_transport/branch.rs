@@ -10,6 +10,7 @@ impl DropPlanner<'_, '_> {
         else_branch: Option<StatementId>,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
+        self.scalar_entry_boundary(id, 0, true, state);
         let branch_usage = self.control_result_usage(id);
         self.observe_branch_condition(id, condition, state, false);
         self.observe_nested_condition(id, condition, state, false);
@@ -28,6 +29,7 @@ impl DropPlanner<'_, '_> {
         }
         // Restore depth even when legacy traversal returns an error. Only the real
         // branch bodies and their cleanup run inside this admission boundary.
+        self.scalar_entry_boundary(id, 1, true, state);
         let outcomes = self.checker.ordinary_condition_outcomes(condition);
         self.observe_branch_condition(id, condition, state, true);
         self.observe_nested_condition(id, condition, state, true);
@@ -81,6 +83,8 @@ impl DropPlanner<'_, '_> {
         let mut then_terminated = false;
         let mut else_terminated = false;
         if reaches_then {
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            self.origin_branch(id, super::origin_probe::BranchRole::Enter(0));
             let mut then_state = base.clone();
             self.enter_forward_arm(id, true, &mut then_state);
             self.enter_nested_forward_arm(id, true, &mut then_state);
@@ -90,6 +94,7 @@ impl DropPlanner<'_, '_> {
             self.conditional_break_arm_enter(id, then_branch, &then_state);
             self.conditional_return_arm_enter(id, then_branch, &then_state);
             self.enter_root_branch_arm(id, 0);
+            self.scalar_entry_boundary(id, 2, true, &then_state);
             let evaluated = self.evaluate_control_body(then_branch, branch_usage, &mut then_state);
             self.leave_root_branch_arm(id, 0);
             let (then_tail, then_result) = evaluated?;
@@ -97,6 +102,12 @@ impl DropPlanner<'_, '_> {
             if then_result.continues {
                 self.drop_branch_exit(id, 0, &mut then_state);
             }
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            self.origin_branch(
+                id,
+                super::origin_probe::BranchRole::Exit(0, then_result.continues),
+            );
+            self.scalar_entry_boundary(id, 4, then_result.continues, &then_state);
             self.finish_owner_loop_arm(id, 0, then_tail, &then_result, &then_state);
             self.conditional_break_arm_finish(id, then_tail, &then_result, &then_state);
             self.conditional_return_arm_finish(id, then_tail, &then_result, &then_state);
@@ -114,6 +125,8 @@ impl DropPlanner<'_, '_> {
         }
         let then_events = self.take_owner_edge(checkpoint);
         if reaches_else {
+            #[cfg(any(test, feature = "d10-catalog-experiment"))]
+            self.origin_branch(id, super::origin_probe::BranchRole::Enter(1));
             if let Some(else_branch) = else_branch {
                 let mut else_state = base;
                 self.enter_forward_arm(id, false, &mut else_state);
@@ -122,6 +135,7 @@ impl DropPlanner<'_, '_> {
                 self.drop_branch_entry(id, 1, &[], &mut else_state);
                 self.begin_owner_loop_arm(id, 1, else_branch, &else_state);
                 self.enter_root_branch_arm(id, 1);
+                self.scalar_entry_boundary(id, 5, true, &else_state);
                 let evaluated =
                     self.evaluate_control_body(else_branch, branch_usage, &mut else_state);
                 self.leave_root_branch_arm(id, 1);
@@ -130,6 +144,12 @@ impl DropPlanner<'_, '_> {
                 if else_result.continues {
                     self.drop_branch_exit(id, 1, &mut else_state);
                 }
+                #[cfg(any(test, feature = "d10-catalog-experiment"))]
+                self.origin_branch(
+                    id,
+                    super::origin_probe::BranchRole::Exit(1, else_result.continues),
+                );
+                self.scalar_entry_boundary(id, 7, else_result.continues, &else_state);
                 self.finish_owner_loop_arm(id, 1, else_tail, &else_result, &else_state);
                 if else_result.continues {
                     branch_states.push(else_state);
@@ -185,6 +205,8 @@ impl DropPlanner<'_, '_> {
                 self.conditional_return_implicit(id, true, &implicit);
                 self.observe_single_hole(&implicit);
                 self.observe_multi_hole(&implicit);
+                #[cfg(any(test, feature = "d10-catalog-experiment"))]
+                self.origin_branch(id, super::origin_probe::BranchRole::Exit(1, true));
                 branch_states.push(implicit);
             }
         }
@@ -239,6 +261,11 @@ impl DropPlanner<'_, '_> {
                 self.reject_owner_expression(id, UnitOwnerUnsupportedReason::Syntax);
             }
         }
+        #[cfg(any(test, feature = "d10-catalog-experiment"))]
+        self.origin_branch(
+            id,
+            super::origin_probe::BranchRole::JoinInputs(branch_states.len()),
+        );
         let continues = !branch_states.is_empty();
         self.observe_branch_join(
             branch_plan,
@@ -282,6 +309,7 @@ impl DropPlanner<'_, '_> {
         self.resume_single_join(single_resume, state);
         self.resume_multi_join(multi_resume, state);
         self.resume_nested_join(nested_continuation, state);
+        self.scalar_entry_boundary(id, 8, continues, state);
         self.finish_owner_loop_join(id, state);
         self.conditional_break_if_completed(id, continues, state);
         self.conditional_return_if_completed(id, continues, state);

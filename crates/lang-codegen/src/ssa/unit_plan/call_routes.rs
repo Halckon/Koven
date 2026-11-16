@@ -1,10 +1,10 @@
 //! 消费 frontend 已选择的静态 call route，形成具体 owner 参数与 callable identity。
+use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
     name_resolution::{DeclarationId, UnitSymbolId},
-    ownership_checking::CompilationUnitOwnership,
     source::Span,
     type_checking::{
         CompilationUnitTypes, IntrinsicTypeConstructor, NominalKind, UnitCallableTarget,
@@ -106,7 +106,7 @@ pub(crate) fn callable_static_self_receiver(
 /// 把 typed call target 与 concrete receiver 解析为 planner/lowerer 共用的实例 identity。
 pub(crate) fn resolve_unit_call_instance(
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,
@@ -127,7 +127,7 @@ pub(crate) fn resolve_unit_call_instance(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_unit_call_instance_with_recipe_failures(
     typed: &CompilationUnitTypes,
-    owned: &CompilationUnitOwnership,
+    owned: &dyn UnitLoweringFacts,
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,

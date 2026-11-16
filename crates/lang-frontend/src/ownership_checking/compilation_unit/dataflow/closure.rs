@@ -318,16 +318,20 @@ impl Checker<'_> {
                 }
                 _ => None,
             });
-        if let Some(ty) = result_type
+        #[cfg(feature = "d10-catalog-experiment")]
+        let previous_producer = self.loan_producers.enter_lambda(lambda_id);
+        let body_result = if let Some(ty) = result_type
             && self.typed.types().get(ty)
                 != Some(&crate::type_checking::UnitTypeKind::Builtin(
                     crate::type_checking::BuiltinType::Unit,
-                ))
-        {
-            self.check_control_body(body, body_state, ExpressionUse::Read, true)?;
+                )) {
+            self.check_control_body(body, body_state, ExpressionUse::Read, true)
         } else {
-            self.check_statement(body, body_state)?;
-        }
+            self.check_statement(body, body_state)
+        };
+        #[cfg(feature = "d10-catalog-experiment")]
+        self.loan_producers.restore(previous_producer);
+        body_result?;
         if self.diagnostics.len() != diagnostic_count {
             return Ok(Flows::next(entry_state));
         }

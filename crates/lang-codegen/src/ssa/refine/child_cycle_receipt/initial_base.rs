@@ -9,6 +9,9 @@ impl Emitted {
     ) -> Result<(), LoweringError> {
         let fail = || invalid(span);
         let p = self.plan.as_ref().ok_or_else(fail)?;
+        if p.scalar_entry.is_some() {
+            return self.scalar_initial_base(function, span);
+        }
         let Some(initial) = p.initial_base else {
             return Ok(());
         };

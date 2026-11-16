@@ -292,14 +292,18 @@ impl Emitted {
             return Err(fail());
         }
         let unique = |id| {
-            let positions = block
-                .instructions
-                .iter()
-                .enumerate()
-                .filter_map(|(i, x)| (*x == id).then_some(i))
-                .collect::<Vec<_>>();
-            match positions.as_slice() {
-                [i] => Ok(*i),
+            let placements =
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|candidate| {
+                        candidate.instructions.iter().enumerate().filter_map(
+                            move |(index, actual)| (*actual == id).then_some((candidate.id, index)),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+            match placements.as_slice() {
+                [(owner, index)] if *owner == block.id => Ok(*index),
                 _ => Err(fail()),
             }
         };

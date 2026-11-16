@@ -497,6 +497,7 @@ impl UnitExpressionLowerer<'_> {
     }
 }
 
+#[deny(dead_code)]
 pub(in crate::ssa::unit_lower) mod scalar {
     use std::collections::BTreeMap;
 
@@ -518,14 +519,13 @@ pub(in crate::ssa::unit_lower) mod scalar {
         expression_core::checked::{self, CheckedCarry, CheckedLowering},
         integer::{bitwise_operator, checked_operator, comparison_operator},
         model::{
-            BlockId, CheckedArithmeticOperator, EntityId, EntityType, Function, LoanId, Operation,
-            Origin, ScalarConstant, SsaTypeId, ValueId,
+            BlockId, CheckedArithmeticOperator, EntityId, EntityType, Function, Operation, Origin,
+            ScalarConstant, SsaTypeId, ValueId,
         },
     };
 
     pub(in crate::ssa) struct CheckedRoles {
         baseline: BTreeMap<UnitSymbolId, LoweredValue>,
-        baseline_borrows: BTreeMap<UnitSymbolId, LoanId>,
         carried: Vec<cfg::CarriedBinding>,
         carried_loans: Vec<cfg::CarriedAccess>,
     }
@@ -575,7 +575,6 @@ pub(in crate::ssa::unit_lower) mod scalar {
                 columns: cfg::checked_carry_columns(&carried, &carried_loans),
                 roles: CheckedRoles {
                     baseline,
-                    baseline_borrows,
                     carried,
                     carried_loans,
                 },

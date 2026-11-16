@@ -86,6 +86,7 @@ impl<'e, E> IncomingColumns<'e, E> {
         Ok(choice)
     }
 
+    #[cfg(test)]
     pub(in crate::ssa) fn columns(&self) -> &[Vec<EntityId>] {
         &self.columns
     }

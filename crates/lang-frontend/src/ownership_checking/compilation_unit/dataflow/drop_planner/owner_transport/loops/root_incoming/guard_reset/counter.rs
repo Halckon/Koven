@@ -201,6 +201,8 @@ fn prefix_segment(
                 };
                 initializers.push((*checker.marker_symbol(*name)?, *initializer));
             }
+            Statement::Expression { expression }
+                if super::super::super::scalar_entry::is_prefix(checker, *expression) => {}
             Statement::While {
                 condition, body, ..
             } => {

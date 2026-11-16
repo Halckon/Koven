@@ -825,3 +825,7 @@ mod tests {
         selector.split('.').map(str::to_owned).collect()
     }
 }
+
+#[cfg(all(test, feature = "d10-catalog-experiment"))]
+#[path = "d10_project_scope_tests.rs"]
+mod d10_project_scope_tests;

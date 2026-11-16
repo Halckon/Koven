@@ -225,6 +225,15 @@ impl Builder<'_, '_> {
         let continued = arg_loans
             .remove(&source.argument())
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        let entry_borrow = super::super::entry_borrow_receipt::Pending::new(
+            self.inputs,
+            id,
+            source,
+            callee,
+            &lowered_args,
+            source_loan,
+        );
         let result = self.value(
             ROp::BorrowCall {
                 callee,
@@ -237,6 +246,10 @@ impl Builder<'_, '_> {
             },
             call_span,
         )?;
+        #[cfg(feature = "d10-catalog-experiment")]
+        if let Some(pending) = entry_borrow {
+            self.body.entry_borrows.push(pending.with_result(result));
+        }
         for (loan, end_span) in created_loans.into_iter().rev() {
             self.pending_call_loans.retain(|&active| active != loan);
             if !continued.contains(&loan) {

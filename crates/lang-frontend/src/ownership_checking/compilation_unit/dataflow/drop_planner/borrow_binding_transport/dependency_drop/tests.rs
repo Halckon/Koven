@@ -39,6 +39,8 @@ fun run(): Unit { val owner = "kept"; borrow val parent = view(owner); borrow va
     batch.observe(None, Some(different), &actions);
     assert!(batch.cause().is_none());
     let mut first = PendingBindingTransport {
+        #[cfg(feature = "d10-catalog-experiment")]
+        entry: None,
         binding: tx.binding(),
         source: tx.source_loan().clone(),
         source_begin: Some(handle.clone()),

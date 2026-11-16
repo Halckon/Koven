@@ -1,5 +1,10 @@
 //! Koven SSA 与本机代码生成的公共 crate 边界。
 
+#[cfg(feature = "d10-catalog-experiment")]
+pub mod d10_experiment;
+#[cfg(feature = "d10-catalog-experiment")]
+pub use ssa::d10_project_audit;
+
 pub(crate) mod native;
 #[cfg(test)]
 mod native_borrow_last_use_cases {
@@ -671,12 +676,12 @@ pub use native::{
     emit_native_constant_unit_object, emit_native_owned_unit_object, emit_native_unit_object,
 };
 
-// SPEC-0034 完成 SSA→LLVM adapter 后移除该暂时的未使用门禁。
-#[allow(dead_code)]
 mod llvm;
 
-// SPEC-0033 只建立 crate 内部 SSA；SPEC-0034 接入 lowering 后移除该暂时的未使用门禁。
-#[allow(dead_code)]
+// Production exceptions are scoped to model witnesses and diagnostic payloads.
+// Legacy test fixtures still require a separate unused-field/helper audit.
+#[cfg_attr(not(test), deny(dead_code))]
+#[cfg_attr(test, allow(dead_code))]
 pub(crate) mod ssa;
 
 #[cfg(test)]
@@ -931,3 +936,11 @@ pub(crate) use test_support::native_nested_borrow_cases;
 
 #[cfg(test)]
 pub(crate) mod native_borrow_value_field_cases;
+
+#[cfg(feature = "two-source-unit")]
+pub use native::{emit_native_two_source_unit_object, emit_native_two_source_units_object};
+#[cfg(feature = "two-source-unit")]
+pub use ssa::two_source_unit::{
+    TwoSourceUnitError, ValidatedTwoSourceUnit, ValidatedTwoSourceUnits, prepare_two_source_unit,
+    prepare_two_source_units,
+};

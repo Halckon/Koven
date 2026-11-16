@@ -15,6 +15,8 @@ mod local_object_constant_qualifier_tests;
 mod nullable_rc_proof_tests;
 #[path = "native_nullable_when_tests.rs"]
 mod nullable_when_tests;
+#[path = "owner_call_initial_probe_tests.rs"]
+mod owner_call_initial_probe_tests;
 #[path = "owner_conditional_break_tests.rs"]
 mod owner_conditional_break_tests;
 #[path = "owner_conditional_return_tests.rs"]
@@ -207,6 +209,10 @@ mod owner_replace_break_downstream_tests;
 mod owner_replacement_success_tests;
 #[path = "owner_return_tests.rs"]
 mod owner_return_tests;
+#[path = "owner_sibling_isolation_tests.rs"]
+mod owner_sibling_isolation_tests;
+#[path = "owner_string_bytes_tests.rs"]
+mod owner_string_bytes_tests;
 #[path = "native_pending_construction_tests.rs"]
 mod pending_construction_tests;
 #[path = "native_resource_map_loop_tests.rs"]

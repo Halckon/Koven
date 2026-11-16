@@ -34,6 +34,8 @@ fn ci_only_auxiliary_activation_rejects_foreign_order_duplicates_and_merge_reviv
         .unwrap();
     let handoff = actions.commit_borrow_handoff(fact.clone());
     let initial = PendingBindingTransport {
+        #[cfg(feature = "d10-catalog-experiment")]
+        entry: None,
         binding: fact.binding(),
         source: fact.source_loan().clone(),
         source_begin: Some(source.clone()),
