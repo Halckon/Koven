@@ -20884,3 +20884,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 新独立普通 Unit 合同复用完整六 fixture，严格 MemoryDocument / 显式原 entry；原 generate declaration Span 唯一定位。核 caller 实际 lambda 构造与捕获、RootPlace/SharedLoan/CallableViewOf、实际 generate 实参和 helper initializer view/signature/nominal HeapOwner 元素、view 的结束后于调用且先于 source 结束，以及 canonical arena 只读和 verified LLVM。
 - attempt3 新合同真实失败于 helper entry callback 与 success block 参数 LoanId 不同；原 producer 直接借入 callback，经真实 CFG 参数运输，不能要求跨块 ID 相等。保失败日志，改独立入口播种、实际全部边传播及所有入边同源反核，并由独审核收。
 - attempt4 新 Unit 精确目标 1 passed（六 fixture，编译 44.19s / 执行 0.11s），恢复原 Legacy 精确目标 1 passed（0.16s / 0.03s）。codegen 准确退休三 feature all-targets strict 58.46s / exit0；fmt、docs 979、Rust size 2528（2 项历史债）与 diff-check 通过。不执行 native、Abort 或故障注入，不推送。
+
+### 2026-11-16：owned-source continue 声明身份正常消费者净迁移
+
+- `owned_source_continue_declaration_identity_and_groups` 前两个原正常 fixture（分组 Array 单函数、同名 keys 的 Array/List 双函数）不再先走一次 Legacy lowering；原源码文本不变，直接保留已有严格 MemoryDocument Unit helper 的完整校验。
+- 原 Legacy 正常合同的 frontend clean、成功 SSA lowering 和 verified LLVM 均由严格 Unit 原产品及实际入口覆盖；现有 helper 另核全部原 declaration Span、不同 keys root/symbol、原 loop provider/owned source loan 与真实 main→first FunctionId/调用 Span，没有把双函数改成只验单根。
+- 后半 alias 源的原 Legacy `UnsupportedNode` 与精确 keys Span 拒绝仍原样保留，其独立 Unit 支持也不变。本片仅净退休两个正常消费，不称整个 FQN 或 alias 拒绝合同已退休。
+- 首次过滤误用文件名作为模块名，编译完成但运行 0 tests，不计验收；已从实际注册及已编译二进制清单核实真实 FQN 为 `ssa::lower_frontend_tests::owned_source_continue_tests::owned_source_continue_declaration_identity_and_groups`，保留首日志，原 strict 链结束后仅补该非零目标。attempt2 真实 1 passed / 0 ignored（0.21s 增量 / 0.26s 执行）；codegen 准确退休三 feature all-targets strict 1m00 / exit0、fmt、docs 979、Rust size 2528（2 项历史债）及 diff-check 通过；不执行 native、Abort 或故障，不推送。

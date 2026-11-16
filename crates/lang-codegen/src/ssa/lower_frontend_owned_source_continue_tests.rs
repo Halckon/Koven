@@ -692,20 +692,9 @@ fn owned_source_continue_declaration_identity_and_groups() {
         "fun main(): Unit { var keys = ((arrayOf(1, 2))); for (key in keys) { if (key == 2) { continue } }; keys.size }",
         "fun first(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size }\nfun main(): Unit { val keys = listOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size; first() }",
     ] {
-        let analysis = analyze(text);
-        assert!(analysis.parsed.diagnostics().is_empty());
-        assert!(analysis.names.diagnostics().is_empty());
-        assert!(analysis.typed.diagnostics().is_empty());
-        assert!(analysis.owned.diagnostics().is_empty());
-        let program = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .unwrap();
-        crate::llvm::render_verified_program(&program).unwrap();
+        // Retire only the two original successful Legacy consumers. The strict
+        // Unit helper below preserves the unchanged sources, all reachable roots
+        // and verified LLVM. The alias rejection after this loop stays Legacy.
         let expected = if text.starts_with("fun first") {
             vec![
                 ("first", SequentialContainerKind::Array, 24),
