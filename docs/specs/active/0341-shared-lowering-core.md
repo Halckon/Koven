@@ -20862,3 +20862,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - `prepare_two_source_units` 在所有权分析前完成显式 source-set 的最终类型检查；单入口包装共用该门，`FinalTypes` 原样保留诊断与内部身份错误，不降为 unsupported。
 - `final_types_reject_unreachable_member_in_complete_source_set` 核合法控制、同文件/另一输入文件中的未达非法成员：L0080、精确 source/`fooBar` span、完整诊断相等，两公共 API 均拒绝发资格；已列入两种 CI feature 配置。
 - 本地两种 feature 配置下新目标各 1 passed，组合配置四个相邻 ownership/multi-entry 目标各 1 passed；workspace all-target strict、fmt/docs/尺寸/脚本语法与独审通过。无 native、Abort 或故障注入执行，双宿主新头 CI 待验。
+
+### Nullable Resource factory 旧拒绝见证退休说明（2026-11-16）
+
+- 复核精确 `29836b88` 的 `c7b8cd631` 迁移：原 `single_nullable_factory_planning_boundary_precedes_any_comparison` 仅以旧 single planner 的 `UnsupportedNode` 和完整 `make` 函数 Span 锁定当时实现限制，未承载成功路径资源计数或 native 清理 oracle。该旧拒绝不是语言禁止，也不是新旧拒绝等价迁移。
+- 按本 Spec §46 的未发布阶段规则，不永久兼容旧不合理限制。Guide 类型相容允许 `T` 适配 `T?`，资源分类包含可空资源包裹；旧 `lower_frontend` 及重导出均已限 `cfg(test)`。其他测试仍使用旧实现不使本例旧拒绝成为永久验收要求；历史 SPEC-0296 的当时边界及结果保持不变。
+- 原完整源码与 FQN 保留。MemoryDocument/Rooted 两适配均经过最终类型检查、ownership validation 和真实 entry lowering；核原 factory/entry/deinit 来源、一次 allocation→wrap→return、实际 factory call→唯一结果 Drop、无结果 Copy/判空及 SSA verifier/verified LLVM。退休的是旧错误 kind/Span 期望，不删除原有效成功合同，不新增生产准入或改变 E3 实现。
+- 本次仅纠正当前 Architecture 仍称旧负控现存的漂移，并显式登记上述映射；不复跑 Cargo/native/故障注入，不补算 native 析构、泄漏或最终双宿主证据。静态文档检查及独立审查结果随本次提交报告。
