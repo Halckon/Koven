@@ -19,8 +19,8 @@ view class W(inner: V, borrow c: Arr)
 view class P(borrow target: V)
 view class H(inout target: V)
 view class Env(borrow a: Arr)
-class Bag(n: Int)
-cell class Slot(n: Int)
+view class Bag<view T>(n: Int)
+cell view class Slot<view T>(n: Int)
 sig <view F> Body(borrow f: F): borrow Int from f.origins
 fun lenOf(borrow a: Arr): borrow Int from a { return &a.len }
 fun readV(borrow v: V): borrow Int from v.a { return &v.a.len }
@@ -35,11 +35,11 @@ fun <view T> put(inout bag: Bag, own x: T): Unit flows x into bag trusted
 fun peekBag(borrow bag: Bag): borrow Int from bag trusted
 fun <view T> set(borrow slot: Slot, own x: T): Unit flows x into slot trusted
 fun peekSlot(borrow slot: Slot): borrow Int from slot trusted
-class BoxBag(inner: Bag)
-class BoxSlot(inner: Slot)
+view class BoxBag(inner: Bag)
+view class BoxSlot(inner: Slot)
 fun <T> id(own x: T): T { return move x }
-fun sinkBag(own x: Bag): Unit trusted
-fun sinkSlot(own x: Slot): Unit trusted
+fun keepBag(own x: Bag): Bag from x trusted
+fun keepSlot(own x: Slot): Slot from x trusted
 """
 
 # 轴一：来源存在哪里。持有者一律叫 h；{s} 是要跟踪的来源，{o} 是另一个来源（旧值或旁支）。
@@ -154,7 +154,7 @@ def variants(spec, kind, hop, location):
     opaque, path = spec["path"] is None, spec["path"]
     if location == "按值的视图参数":
         if opaque:
-            return "不透明的持有者是可逃逸的类，按值参数不携带来源"
+            return "读出的借用依赖按值参数自己的存储，返回不了调用方"
         if kind != "构造":
             return "持有者由调用方交入，本函数不放入来源"
         got = read(spec, hop, False, True)
@@ -220,37 +220,42 @@ def enumerate_axes():
 
 
 def escapes():
-    """不透明的持有者是可逃逸的类，类型看不出它收下了来源；收下之后交给可逃逸的位置须被拒绝（K17）。
+    """容器（Bag、Slot）代表以携带来源的类型实例化的泛型类型：类型上不可逃逸，携带的来源随值走。
 
-    声明了来源返回给调用方时，调用方那边的值仍记着来源（K1）。对照程序不放入来源，全部须被接受。
+    交给可逃逸的类型参数须被拒绝（K17），空容器也一样，因为这是类型上的判断；按值转交、存进视图的
+    按值字段、声明来源后返回，之后读出的借用仍保护来源（K1）；不声明就转交或返回须被拒绝（K6）。
     """
-    sinks = {
-        "可逃逸的类型参数": ["val g = id(move h){mark}", "use(g.n)"],
-        "可逃逸的类的按值参数": ["sink{cls}(move h){mark}"],
-        "可逃逸的类的字段": ["val g = Box{cls}(move h){mark}", "use(g.inner.n)"],
-    }
     for storage in ("类型参数的持有者", "内部可变的槽"):
         spec = STORAGES[storage]
-        cls, peek = spec["cls"], spec["reader"].format(h="&g")
+        cls = spec["cls"]
+        peek = lambda h: f"val e = {spec['reader'].format(h=h)}"
         setup = ["val s = Arr(1)"] + spec["seed"]
-        placed = [spec["write"].format(t=spec["target"], s="&s")]
-        for sink, lines in sinks.items():
-            lines = [line.replace("{cls}", cls) for line in lines]
-            if cls == "Slot":  # 内部可变类型的字段只能经受信任函数访问
-                lines = [line for line in lines if not line.startswith("use(")]
-            for verdict, body in (("接受", setup), ("拒绝", setup + placed)):
-                mark = "  // ERR K17" if verdict == "拒绝" else ""
-                text = function("fun f(): Unit {", body, [line.replace("{mark}", mark) for line in lines])
-                yield f"{storage}/交给{sink}/{verdict}", PRELUDE + text
-        make = [spec["write"].format(t=spec["target"], s="s"), "return move h"]
-        yield f"{storage}/未声明来源就返回/拒绝", PRELUDE + function(
-            f"fun f(borrow s: Arr): {cls} {{", spec["seed"], make[:1] + ["return move h  // ERR K6"])
-        declared = function(f"fun make(borrow s: Arr): {cls} from s {{", spec["seed"], make)
-        caller = ["val s = Arr(1)", "val g = make(&s)", f"val e = {peek}"]
-        yield f"{storage}/声明来源后返回/接受", PRELUDE + declared + function(
-            "fun f(): Unit {", caller, ["use(e)", "s.len = 9"])
-        yield f"{storage}/声明来源后返回/拒绝", PRELUDE + declared + function(
-            "fun f(): Unit {", caller, ["s.len = 9  // ERR K1", "use(e)"])
+        placed = setup + [spec["write"].format(t=spec["target"], s="&s")]
+        named = lambda name, text: (f"{storage}/{name}", PRELUDE + text)
+        yield named("交给可逃逸的类型参数/拒绝", function("fun f(): Unit {", placed, ["val g = id(move h)  // ERR K17"]))
+        yield named("空容器交给可逃逸的类型参数/拒绝", function("fun f(): Unit {", setup, ["val g = id(move h)  // ERR K17"]))
+        moves = {"按值转交": f"val g = keep{cls}(move h)", "存进视图的按值字段": f"val g = Box{cls}(move h)"}
+        for name, line in moves.items():
+            body = placed + [line, peek("&g.inner" if "Box" in line else "&g")]
+            yield named(f"{name}/接受", function("fun f(): Unit {", body, ["use(e)", "s.len = 9"]))
+            yield named(f"{name}/拒绝", function("fun f(): Unit {", body, ["s.len = 9  // ERR K1", "use(e)"]))
+        yield named("转交的函数体/接受", function(f"fun f(own x: {cls}): {cls} from x {{", [], ["return move x"]))
+        yield named("转交的函数体/拒绝", function(f"fun f(own x: {cls}): {cls} {{", [], ["return move x  // ERR K6"]))
+        yield named("存进普通类的字段/拒绝", f"class Plain(inner: {cls})  // ERR CAP\n")
+        make = [spec["write"].format(t=spec["target"], s="s")]
+        yield named("未声明来源就返回/拒绝", function(
+            f"fun f(borrow s: Arr): {cls} {{", spec["seed"] + make, ["return move h  // ERR K6"]))
+        declared = function(f"fun make(borrow s: Arr): {cls} from s {{", spec["seed"] + make, ["return move h"])
+        caller = ["val s = Arr(1)", "val g = make(&s)", peek("&g")]
+        yield named("声明来源后返回/接受", declared + function("fun f(): Unit {", caller, ["use(e)", "s.len = 9"]))
+        yield named("声明来源后返回/拒绝", declared + function("fun f(): Unit {", caller, ["s.len = 9  // ERR K1", "use(e)"]))
+    # 裁决（2026-11-16）：流向的目标与带来源的结果，类型上须能携带来源
+    yield "签名/类型上不能携带来源/拒绝", PRELUDE + """\
+class Plain(n: Int)
+fun <view T> intoPlain(inout p: Plain, own x: T): Unit flows x into p trusted  // ERR SIG
+fun <T, view U> intoEscapable(inout out: T, own x: U): Unit flows x into out trusted  // ERR SIG
+fun plainResult(borrow s: Arr): Plain from s trusted  // ERR SIG
+"""
 
 
 def cases():

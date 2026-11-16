@@ -9,7 +9,7 @@ fun nextMut(inout it: MutIter): inout Arr from it.data trusted
 fun nextLend(inout it: MutIter): inout Arr from it { return it.data }
 sig <view I, view T> NextL(inout it: I): T from it
 sig <view I, view T> NextF(inout it: I): T from it.origins
-class Bag(n: Int)
+view class Bag<view T>(n: Int)
 sig <view B, view T> Push(inout bag: B, own x: T): Unit flows x into bag
 fun <view T> put(inout bag: Bag, own x: T): Unit flows x into bag trusted
 fun <view I, view T, view B> collectTwo(inout it: I, own next: fn NextF, inout out: B, own push: fn Push): Unit flows it.origins into out {

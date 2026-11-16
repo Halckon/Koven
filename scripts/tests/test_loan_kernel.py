@@ -77,22 +77,15 @@ class LoanKernelCases(unittest.TestCase):
         self.assertNotEqual(expected(text), actual)
 
     def test_capabilities_come_from_the_derivation_engine(self):
-        """可复制、可逃逸、可转移都向能力推导问：让推导器一律回答“满足”，R1 的相应拒绝必须消失。
-
-        例外是带着借用的视图交给可逃逸的类型参数：类型一侧的拒绝消失了，值名下的账仍然拒绝它（K20）。
-        """
+        """可复制、可逃逸、可转移都向能力推导问：让推导器一律回答“满足”，R1 的相应拒绝必须消失。"""
         text = (ROOT / "cases" / "R1.lk").read_text(encoding="utf-8")
-        original, carries = CHECKER.CAP.Engine.requires, CHECKER.Checker.carries
+        original = CHECKER.CAP.Engine.requires
         CHECKER.CAP.Engine.requires = lambda self, ty, cap, params=(): CHECKER.CAP.ALWAYS
         try:
-            actual = {(rule, line) for rule, line, _ in CHECKER.check(text)}
-            CHECKER.Checker.carries = lambda self, value: False
-            unaccounted = {rule for rule, _, _ in CHECKER.check(text)}
+            actual = {rule for rule, _, _ in CHECKER.check(text)}
         finally:
             CHECKER.CAP.Engine.requires = original
-            CHECKER.Checker.carries = carries
-        self.assertEqual({("K17", 36), ("S5", 56), ("CAP", 64)}, actual)
-        self.assertEqual({"S5", "CAP"}, unaccounted, "只剩没有上界的类型参数引出的两类拒绝")
+        self.assertEqual({"S5", "CAP"}, actual, "只剩没有上界的类型参数引出的两类拒绝")
 
     def test_flows_across_a_borrow_field_reach_the_owner(self):
         """流向越过借用字段时，账要记到那个字段所指的视图的拥有者上；不记，拥有者一侧就看不到新来源。"""

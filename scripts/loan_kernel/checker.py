@@ -48,6 +48,8 @@ class ClassDecl:
     private: set = field(default_factory=set)  # 只有声明为该类型成员的函数可以访问的字段
     cell: bool = False  # 内部可变：内容只能经受信任函数访问，共享借用下也可能被改写
     local: bool = False  # 绑定在创建它的线程上，不可转移（例如非原子的共享计数）
+    carrier: bool = False  # 写作 view class C<view T>：泛型容器。演算不写类型实参，它一律代表以携带来源的类型
+    #                        实例化的 C<T>；内容只经受信任函数访问，携带的来源整体记在值名下
 
     def field(self, name):
         return next((f for f in self.fields if f[1] == name), None)
@@ -183,6 +185,11 @@ class Parser:
                 is_view = self.accept("view")
                 self.expect("class")
                 name = self.next()
+                is_carrier = self.accept("<")
+                if is_carrier:
+                    self.expect("view")
+                    self.next()
+                    self.expect(">")
                 self.expect("(")
                 fields, private = [], set()
                 while not self.accept(")"):
@@ -198,7 +205,7 @@ class Parser:
                 while self.accept("is"):
                     implements.append(self.next())
                 classes[name] = ClassDecl(name, fields, is_view, self.accept("deinit"), line, implements, private, is_cell,
-                                          is_local)
+                                          is_local, is_carrier)
         return classes, funs, sigs
 
     def type_name(self):
@@ -495,11 +502,15 @@ class Checker:
 
     # ---- 能力（KB4）：演算的声明翻译成能力推导的声明，各处的判定都向推导器问
 
-    @staticmethod
-    def cap_ty(name):
+    def cap_ty(self, name):
         if name.startswith("any "):
             return CAP.Ty("Any")
+        if self.carrier(name):
+            return CAP.Ty(name, (CAP.Ty("inout", (CAP.Ty("Unit"),)),))  # 实参取一个携带来源、不可复制的代表
         return CAP.Ty("Unit" if name.startswith("fn ") else name)
+
+    def carrier(self, name):
+        return name in self.classes and self.classes[name].carrier
 
     def cap_decl(self, decl):
         """内部可变即含有一个 RawCell；绑定在线程上即含有一个非原子的共享计数。两者都不另设标记。"""
@@ -508,7 +519,11 @@ class Checker:
             fields.append(("cell", CAP.Ty("RawCell", (CAP.Ty("Unit"),))))
         if decl.local:
             fields.append(("count", CAP.Ty("Rc", (CAP.Ty("Unit"),))))
-        return CAP.Decl(decl.name, [], fields, "view" if decl.is_view else "class", deinit=decl.deinit, line=decl.line)
+        params = ["T"] if decl.carrier else []
+        if decl.carrier:  # 容器按值含有它的元素
+            fields.append(("item", CAP.Ty("T")))
+        return CAP.Decl(decl.name, params, fields, "view" if decl.is_view else "class", deinit=decl.deinit,
+                        bounds={p: set() for p in params}, relaxed={p: {"Escapable"} for p in params}, line=decl.line)
 
     def has(self, cap, ty):
         """类型 ty 的值是否满足能力 cap。类型参数只凭它声明的上界；任务一律不满足。"""
@@ -537,7 +552,7 @@ class Checker:
         decl = self.classes.get(name)
         if decl is None:
             raise SyntaxProblem(f"未声明的类型 {name}")
-        return Type("view" if decl.is_view else "cls", name)
+        return Type("view" if decl.is_view and not decl.carrier else "cls", name)
 
     def type_in(self, fun, name):
         """在 fun 的签名语境里解释类型名：类型参数是不透明类型，fn S 是合同为 S 的函数类型。"""
@@ -591,12 +606,17 @@ class Checker:
                 paths = [path for _, path in self.ref_paths(ty)] if decl is not None and decl.is_view else []
                 if not any(path == fld or path.startswith(fld + ".") for path in paths):
                     self.error("SIG", fun.line, f"{fun.name}：{param}.{fld} 之下没有视图的借用字段")
+        kind, ty = fun.result
+        if fun.sources and not kind and (ty in ("Int", "Unit") or ty in self.classes and self.escapable_in(fun, ty)):
+            self.error("SIG", fun.line, f"{fun.name}：结果类型 {ty} 不能携带来源，不能声明 from")
         for _, (target, path) in fun.flows:
             mode, ty = params.get(target, ("", ""))
             cell = mode == "borrow" and ty in self.classes and self.classes[ty].cell
             # 按值的视图参数：流向只能经它的独占字段落到另一个视图里
             beyond = mode == "own" and ty in self.classes and self.classes[ty].is_view and any(
                 self.within(p, path) and self.reaches_exclusively(ty, p.split(".")[:-1]) for _, p in self.ref_paths(ty))
+            if ty in self.classes and not self.classes[ty].is_view or ty in fun.tparams and ty not in fun.views:
+                self.error("SIG", fun.line, f"{fun.name}：流向的目标 {target} 的类型 {ty} 不能携带来源")
             if mode != "inout" and not cell and not beyond:  # K19：经共享借用流入，只对内部可变类型成立
                 self.error("SIG", fun.line, f"{fun.name}：流向的目标 {target} 须是 inout 参数、内部可变类型的 borrow 参数，"
                                             "或经独占字段指向另一个视图的按值参数")
@@ -627,8 +647,8 @@ class Checker:
             if ty.kind == "view":
                 for kind, fld in self.ref_paths(ty_name):
                     loans[fld] = {self.symbolic(name, fld, kind, fun.line)}
-            elif ty.kind == "opaque" and ty_name in fun.views:  # view T 的值携带一组未知的来源
-                loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}
+            elif ty.kind == "opaque" and ty_name in fun.views or mode == "own" and self.carrier(ty_name):
+                loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}  # view T 与容器的值携带一组未知的来源
             # 按 inout / borrow 接收存在类型，得到的是载荷访问（之三 §2.4）
             if mode == "own" and self.tracked(Var(ty, "A", {})):
                 self.declare("let", fun.line, name, ty, state)
@@ -673,6 +693,8 @@ class Checker:
         for kind, name, ty_name in self.classes[class_name].fields:
             if kind:
                 paths.append((kind, name))
+            elif self.carrier(ty_name):  # 按值的容器字段携带一组未知的来源，按独占计
+                paths.append(("inout", name))
             if ty_name in self.classes and self.classes[ty_name].is_view:
                 for inner, path in self.paths_within(ty_name, visiting + (class_name,)):
                     paths.append(("borrow" if kind == "borrow" else inner, f"{name}.{path}"))
@@ -684,16 +706,10 @@ class Checker:
             return self.has("Escapable", self.type_of(ty_name))
         return ty_name not in self.fun.views and not ty_name.startswith(("borrow ", "inout "))
 
-    def escapable_class(self, ty_name):
-        return ty_name in self.classes and self.has("Escapable", self.type_of(ty_name))
-
-    def carries(self, value):
-        """K20：值是否携带来源，以它名下的账为准。
-
-        可逃逸的类经流向收下来源之后（演算没有泛型类型，Bag 代表以视图实例化的 Bag<T>），
-        类型看不出它携带来源，账上看得出。
-        """
-        return any(held for key, held in value.loans.items() if key)
+    def escapable_in(self, fun, ty_name):
+        """签名检查时函数体还没有开始，能力判定里的类型参数取这个签名的。"""
+        self.fun = fun
+        return self.has("Escapable", self.type_of(ty_name))
 
     def exclusive(self, class_name):
         return any(kind == "inout" for kind, _ in self.ref_paths(class_name))
@@ -780,7 +796,7 @@ class Checker:
             if replace:
                 owner.loans = {k: held for k, held in owner.loans.items() if not k or not self.within(k, prefix or None)}
             for sub, held in incoming.items():
-                key = "*" if sub == "*" else ".".join(filter(None, (prefix, sub)))
+                key = prefix or "*" if sub == "*" else ".".join(filter(None, (prefix, sub)))
                 owner.loans.setdefault(key, set()).update(held)
 
     def held_fields(self, state, targets, carried):
@@ -1194,8 +1210,8 @@ class Checker:
             val = self.argument(arg, kind or "own", state)
             if kind:
                 loans[name] = set(val.loans.get("", ()))
-            elif self.carries(val) and self.escapable_class(fty):
-                self.error("K17", arg.line, f"{name}：这个 {fty} 名下记着来源，不能存进可逃逸的类型的字段")
+            elif self.carrier(fty):  # 按值的容器字段：它携带的来源记在这个字段名下
+                loans[name] = set(val.loans.get("*", ()))
             # 按值嵌套或借用另一个视图：内层的借用字段记在 字段名.路径 之下
             loans.update({f"{name}.{key}": set(held) for key, held in val.loans.items() if key and key != "*"})
             self.pending.append(val.all_loans())
@@ -1219,11 +1235,8 @@ class Checker:
             actual = value.ty.name
             if mode == "own" and value.ty.kind in ("borrow", "inout"):  # 借用值本身作为 T 的值
                 actual = f"{value.ty.kind} {actual}"
-            plain = wanted in fun.tparams and wanted not in fun.views
-            if plain and not self.escapable(actual):
+            if wanted in fun.tparams and wanted not in fun.views and not self.escapable(actual):
                 self.error("K17", line, f"{name}：{actual} 可能携带来源，不能实例化可逃逸的类型参数 {wanted}")
-            elif mode == "own" and self.carries(value) and (plain or self.escapable_class(wanted)):
-                self.error("K17", line, f"{name}：这个 {actual} 名下记着来源，不能交给可逃逸的类型 {wanted}")
             if wanted in fun.tparams:
                 if mode == "inout" and value.payload:
                     actual = ("opened", actual, name)
@@ -1319,7 +1332,7 @@ class Checker:
                 raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是对变量或其字段的借用，或一个借用值")
             flowing = self.carried(values[param], modes[param], fld)
             actual = bound.get(wanted, wanted)
-            if isinstance(actual, str) and actual in self.classes and self.classes[actual].is_view:
+            if isinstance(actual, str) and actual in self.classes and self.type_of(actual).kind == "view":
                 # 目标是视图：流入的来源可能落在 path 之下的任何一个借用字段上
                 fields = {key: held for key, held in given.loans.items() if key}
                 self.flow_into(state, targets, self.current_fields(state, targets, fields, actual), actual, path, flowing)
@@ -1345,7 +1358,7 @@ class Checker:
             return Value(ty, {"*": result})
         if ty.kind == "view":  # K11：含多个借用字段的结果共同持有这些 loan
             return Value(ty, {path: set(result) for _, path in self.ref_paths(ty_name)})
-        if ty.kind == "cls" and result:  # 签名声明了来源的类：值名下记着这些来源（K20）
+        if self.carrier(ty_name):  # 容器：它携带的来源整体记在值名下
             return Value(ty, {"*": result})
         return Value(ty)
 

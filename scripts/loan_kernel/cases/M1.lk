@@ -1,7 +1,7 @@
 // 内部可变：经共享借用改写只能由受信任函数完成；经共享借用流入的来源同样被跟踪
 class Arr(len: Int)
 cell class Counter(n: Int)
-cell class Slot(n: Int)
+cell view class Slot<view T>(n: Int)
 view class Slice(borrow a: Arr)
 fun bump(borrow c: Counter): Unit trusted
 fun read(borrow c: Counter): Int trusted
