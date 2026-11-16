@@ -1,12 +1,14 @@
 //! Single-source Unit resource destructors are real readonly callable bodies.
-//! Legacy rejection, direct-invoked resource closure and raw DropPoint observations
-//! retain their original pipeline.
+//! Legacy rejection and direct-invoked resource closure retain their original pipeline.
 
 use crate::test_support::diagnostics::assert_text_eq;
 #[path = "lower_frontend_resource_deinit_tests/direct_closure.rs"]
 pub(in crate::ssa) mod direct_closure;
 #[allow(unused_imports)]
 pub(in crate::ssa) use direct_closure::field_chain;
+
+#[path = "lower_frontend_resource_deinit_tests/nested_scope_drops.rs"]
+mod nested_scope_drops;
 
 use direct_closure::field_chain::assert_nested_this_field_chain;
 use lang_frontend::name_resolution::SymbolKind;
@@ -819,7 +821,6 @@ fn single_resource_deinit_local_move_chain_transports_only_current_owner() {
 
 #[test]
 fn single_resource_deinit_control_body_nested_scope_consumes_published_drops() {
-    use lang_frontend::ownership_checking::{DropPoint, DropTarget};
     let source = r#"
         class Resource { deinit() {} }
         fun work(outer: Boolean, inner: Boolean): Unit {
@@ -834,32 +835,8 @@ fn single_resource_deinit_control_body_nested_scope_consumes_published_drops() {
             println("done")
         }
     "#;
-    // Legacy observation only: keep the raw DropPoint/order oracle intact.
-    // The independent Unit lowering below receives no facts from this analysis.
-    let analysis = analyze_legacy(source);
-    let resource_drops = analysis
-        .owned
-        .drops()
-        .iter()
-        .filter_map(|fact| {
-            let DropTarget::Named(symbol) = fact.target() else {
-                return None;
-            };
-            let name = analysis
-                .names
-                .symbols()
-                .iter()
-                .find(|entry| entry.id() == symbol)?
-                .name();
-            matches!(name, "first" | "second").then_some((name, fact.point()))
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(resource_drops.len(), 2);
-    assert_eq!(resource_drops[0].0, "second");
-    assert_eq!(resource_drops[1].0, "first");
-    assert_eq!(resource_drops[0].1, resource_drops[1].1);
-    assert!(matches!(resource_drops[0].1, DropPoint::AfterStatement(_)));
     let unit = lower_resource(source, "work");
+    nested_scope_drops::assert_original_facts(&unit);
     render_verified_program(&unit.program)
         .expect("nested normal scope exits consume frontend drops");
 }

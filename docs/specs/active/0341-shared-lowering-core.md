@@ -20902,3 +20902,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 
 - 修复后 LLVM 构造成功，但新增的“无 free”检查在第二次普通验收失败：原 String key 临时值的 Drop 本就需要 String cleanup/free。仅修正这个新增错误 oracle，改核真实 String Drop 和 free 存在；不改生产 cleanup 或原借用合同，保该失败日志。
 - 第三次准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）真实本树重编28.46s，显式双根 exact 1 passed（0.04s），原 singleton/control exact 1 passed（0.01s）；codegen all-targets 同配置严格 Clippy 54.63s/exit0，末审无阻断。fmt、docs979、Rust尺寸2530（两历史债不扩大）及 diff-check 通过。未执行 native、缺 key 的 abort、故障注入、默认 workspace 或远端 CI；本地未推送，不宣称完整 D10/E2 退役。
+
+### 2026-11-16：nested resource scope 的 Unit 析构事实消费者迁移
+
+- 基 `91657fc8`，`single_resource_deinit_control_body_nested_scope_consumes_published_drops` 原 Resource/work 源码、FQN 及 verified LLVM 保留；原独立 Legacy raw drop 观察改从实际用于 lowering 的同一个严格 Unit 产品读取，不构造替代 facts、不混两轮分析。
+- 原两个 named resource 的 `[second,first]` 逆序、相同 AfterStatement 点保持，并核不同真实 symbol、原 value-origin 文本、MemoryDocument/SourceUnit 身份及可解析原 AST statement。测试专用观察移入小模块，其他 Legacy 拒绝和 closure 正控不动；不修改生产 drop 策略或声明 D10/E2 整体退役。
+- 独立只读末审确认原 fixture/全部原 oracle 保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原完整 exact 本树真实重编1m35s，1 passed / 0 failed / 0 ignored（0.04s）；codegen all-targets 同配置严格 Clippy 47.63s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过；未执行 native、Abort、故障注入、默认 workspace 或远端 CI，不推送。
