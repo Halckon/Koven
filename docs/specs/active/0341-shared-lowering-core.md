@@ -21165,3 +21165,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 新普通进程回归保留完整项目 Unit 路径，以原源码未解析名称 L0080 阻断 object/link/native。项目根 cwd 下两种拼写须给相同完整 JSON 和固定 source/span；src cwd 下两种拼写仍拒绝下一轮 source discovery。每轮核原 manifest/source 字节、目录项与 final/debug 产物未变；这是 staging 清理合同，不宣称从未创建临时目录。
 - 独审通过。暂撤最小生产修复后，当前树真实编译 8m55s，outside 精确目标如期 1 failed：原路径 IO operational 输出无法作为语言 JSON 解析。恢复修复后本树重编 3.55s，两普通目标共 2 passed（四个子进程组合，0 ignored），完整诊断、源内拒绝及失败清理均通过；CLI build 与 all-targets strict 30.67s/exit0 通过。
 - fmt、docs979、Rust 尺寸及 diff-check 通过；新增模块按职责命名 `relative_output`。只执行前端诊断/路径拒绝，不执行链接、native 或 fault；整个含 native 的 project 套件及此前整合交叉回归仍未执行，不能以本片代替。仅本地提交，不推送。
+
+### 2026-11-16：Phase 3 assignment 同步 borrow call-use 事务回滚
+
+- 基 `310a5086`，修复局部 checker transaction：真实 RHS 已发布同步 call-use，随后不可变赋值失败撤回 source loan 时，原 checkpoint 没有撤回该 call-use。新增独立长度保存并在原 rollback 截断，仅撤回该 RHS 后缀，保留先前已完成的消费；成功路径和准入边界不变，不涉及 E3。
+- 普通源码回归使用真实 before-planner helper 区分前缀与失败 RHS，同步核保留 source loan 的 call/argument、Shared kind 和 canonical target；可变赋值对照保留两个独立 call。既有全局诊断门已经清空 raw/public 借用表，本修复不宣称公开泄漏或成功程序误编译。
+- 真实红灯在本树重编59.33s后为1 passed / 1 failed（失败RHS未撤回，2≠1）；恢复唯一truncate后本树重编11.05s，两条普通测试2 passed，原activation三邻控3 passed。frontend all-targets `loan-observation-test-support` strict 1m22s exit0，独审、fmt、docs979、尺寸2526（原两历史例外未扩大）及diff-check通过。各构建步骤先核全局空槽及8GiB，等待中的占槽exit98和主动停止的143均不算测试证据。未跑native、故障注入或远端CI；不声称整个borrow-result表族的局部回滚均已闭合。
