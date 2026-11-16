@@ -43,6 +43,13 @@ class FakeRunner:
 
 
 class BorrowFaultGateTests(unittest.TestCase):
+    def test_catalog_identity_is_in_full_frontend_inventory(self):
+        manifest = GATE.load_manifest(GATE.ROOT / "scripts/borrow_fault_tests.json")
+        target = ("ownership_checking::compilation_unit::dataflow::drop_planner::"
+                  "owner_transport::tests::origin_probe::"
+                  "ci_only_catalog_authorization_rejects_foreign_inputs")
+        self.assertEqual(manifest["lang-frontend"].count(target), 1)
+
     def test_legacy_scalar_entry_is_in_full_frontend_inventory(self):
         manifest = GATE.load_manifest(GATE.ROOT / "scripts/borrow_fault_tests.json")
         target = ("ownership_checking::compilation_unit::dataflow::drop_planner::"
