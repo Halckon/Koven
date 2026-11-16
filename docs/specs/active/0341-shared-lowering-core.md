@@ -20903,3 +20903,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - `owned_source_continue_existing_boundaries_remain_explicit` 的唯一 return 正常 fixture 字节不变，改复用既有严格 Unit `unit_contract::observe`，准确指定 Array/local owner/live/Return/no Map；保留四阶段 clean、同次原源及声明身份、真实 return/耗尽 cleanup、实际 main SSA entry、verifier 与原 no-process-entry LLVM renderer。
 - 另七个原 Legacy 拒绝消费者、错误 kind 与 Span 断言保持；仅净退休一个正常消费，不称整个边界矩阵已退休。没有修改共享 helper 或生产代码，独立审查无阻塞。
 - 显式触发当前工作树重编以排除共享 target 跨树缓存：三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）精确目标 1 passed/0 ignored（编译1m12s/执行0.05s），同配置 codegen all-targets strict 36.74s/exit0；fmt、docs979、Rust size（两历史例外不扩大）与 diff-check 通过。未运行 native、Abort 或故障注入，未推送。
+
+### 2026-11-16：continue dead-Map 正常消费者净迁移
+
+- `owned_source_continue_external_owner_and_short_circuit_boundaries` 中无 post-control Map 使用的原成功 fixture 字节不变，改走严格 UnitSource；核四阶段 clean/no deferred、原 MemoryDocument/源码、唯一 AST root、main 声明到真实 entry origin，并保留原 no-process-entry `render_verified_program` 合同。
+- 另两条原 Legacy `UnsupportedNode` 及 keys/second Span 内容断言保持；只净退休一个正常消费，未将独立拒绝合同或 native/runtime 验收算作已迁移。无生产代码变动，独立审查无阻塞。
+- 触发当前工作树真实重编：准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）exact 1 passed/0 ignored（编译1m06s/执行0.05s），同配置 codegen all-targets strict 36.84s/exit0；fmt、docs979、Rust size（两历史例外不扩大）与 diff-check 通过。未执行 native、Abort 或故障注入，未推送。
