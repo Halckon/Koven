@@ -21083,3 +21083,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `bbcd17f2`，前审与末审后移除 `multifile_type_checking/baseline_regressions.rs` 两处重复旧执行及该文件全部 `resolve_names` / `check_types` / `TypeKind` 专用依赖，Rust净减29行。原FQN/源码、Unit完整布局与construction目标、Borrow Int→Int隐式lambda及实际参数身份、when Error、basic准入拒绝，以及独立多源顺序/身份测试全保留。
 - 原old/Unit L0112 primary的交叉比较没有直接丢弃：两生产实现均以失败分支body的Statement span定位，先在保留两路线的基线加入同一原AST第二分支body完整Span及slice为`0`的断言并实测通过；最终候选保留独立同一Span oracle，不误称whole when定位或额外label合同。
 - E2占槽及空间约8.04GiB时暂停新构建；收到获批清理完成通知后核20.87GiB及无编译进程再接槽，未自行清理。精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）带Span冻结的原模块3项基线passed（真实本树28.74s），撤回仅基线临时补丁并重应用已审候选后同3 passed / 0 ignored（真实1.06s）；frontend all-targets严格Clippy35.93s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过，每步编译前核8GiB门槛。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：nullable scope 重复旧消费者收敛
+
+- 基 `6553ede0`，逐例前审及末审后收敛 `multifile_type_checking/nullable_when_scope.rs` 四个既有源码场景，删除重复 Single 路线及唯一 lambda Single observer，Rust净减121行。原FQN、四源码、lambda目标提取与完整Unit observer逐字保留；原八次观察去重为四次Rooted Unit观察，不新增测试或第二种布局覆盖。
+- 条件短路写和循环写保实际when subject/else reference、nullable Boolean存储及精确L0084/无错误proof；lambda创建不发布内部proof、保留传入proof两场景保持实际参数/内外引用身份、Nullable Int类型及完整proof查询。原解析两次、panic/stage报告和同轮成功准入保留；负例completion仍保原诊断并禁止额外L0165，不夸称其为raw/final完整对象等值。父模块三个复杂nullable-when合同及旧plan观察不变，不推断Unit null/else descriptor覆盖所有旧finite-Boolean计划。
+- 精确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）按冻结补丁逆用/重应用验证，原nullable_when模块修改前后各4 passed / 0 ignored，真实本树编译24.70s/1.78s；frontend all-targets严格Clippy35.03s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过；每次构建前核空间高于8GiB并串行执行，完成后交还E2槽。未改生产语义，未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
