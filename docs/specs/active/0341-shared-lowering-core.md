@@ -21171,3 +21171,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `310a5086`，修复局部 checker transaction：真实 RHS 已发布同步 call-use，随后不可变赋值失败撤回 source loan 时，原 checkpoint 没有撤回该 call-use。新增独立长度保存并在原 rollback 截断，仅撤回该 RHS 后缀，保留先前已完成的消费；成功路径和准入边界不变，不涉及 E3。
 - 普通源码回归使用真实 before-planner helper 区分前缀与失败 RHS，同步核保留 source loan 的 call/argument、Shared kind 和 canonical target；可变赋值对照保留两个独立 call。既有全局诊断门已经清空 raw/public 借用表，本修复不宣称公开泄漏或成功程序误编译。
 - 真实红灯在本树重编59.33s后为1 passed / 1 failed（失败RHS未撤回，2≠1）；恢复唯一truncate后本树重编11.05s，两条普通测试2 passed，原activation三邻控3 passed。frontend all-targets `loan-observation-test-support` strict 1m22s exit0，独审、fmt、docs979、尺寸2526（原两历史例外未扩大）及diff-check通过。各构建步骤先核全局空槽及8GiB，等待中的占槽exit98和主动停止的143均不算测试证据。未跑native、故障注入或远端CI；不声称整个borrow-result表族的局部回滚均已闭合。
+
+### 2026-11-16：标准 source key 与合法用户 root 隔离
+
+- 基 `8bfd4337`，受验 Rust/Architecture 提交 `d60dffee468cbe3c460002e0af19116ae5283d54`。标准 loader 仅按三条标准 logical path 的完整键收集占用 root，从 `koven-std` 起选择首个空闲后缀 root，三份标准 descriptor 统一使用；N 个占用 root、N+1 个候选保证有界且与输入顺序无关。用户 descriptor/逻辑路径/展示名不改，标准展示名独立避让，原 SourceId 授权顺序与资产字节保留；不禁止合法 manifest root，不放宽 frontend 用户重复键校验。
+- 新身份四项真实红轮 2 failed / 2 passed（本树 frontend/codegen/CLI 重编 1m08s）；两失败分别为首个 ranges 完整键的 `DuplicateSourceKey` 与未避让到 `-2`。红轮循环后续路径、反序及公开 CLI 未执行，不冒称全部场景已复现。候选 `standard_sources::` 15 passed / 0 ignored（CLI 重编4.23s），包含四新项和十一既有合同；验证三条标准路径、连续候选/反序、非标准路径不误占、原资产身份与授权、不碰撞不改及用户自身重复键仍拒绝。
+- `check_cli::project_standard_source_key_collision_reports_user_diagnostic` 1 passed，保合法 `koven-std` root 与 `koven/core/result.ko`，实际 exit1、空 stdout、完整 L0080 用户定位。原 `project_standard_key_collision_preserves_the_complete_operational_error` 只有一个合法用户文件，历史错误期望不能当用户自身 duplicate 防线；保原空 main fixture、两格式及产物/临时文件检查，改名 `project_standard_key_collision_preserves_valid_user_program`，1 passed，human/json 各真实 build 后运行 native，exit0且 stdout/stderr 为空。§39 历史验收记录不改写。
+- 默认 feature、offline/locked/-j1：CLI all-targets Clippy `-D warnings` 47.26s/exit0，`cargo build -p lang-cli` 0.39s/exit0，fmt、docs979、尺寸2538（两个原历史例外不扩大）、diff-check与独立静态审查通过。每步核全局空槽与8GiB；外部任务阻挡时等待，不终止/抢占、不重跑通过项。仅上述一项普通 native 合同，未跑全量target、故障注入、预期Abort或远端CI；本地提交未推送。本文为同Rust输入的文档后继，不冒称再次执行动态验收。
