@@ -536,9 +536,23 @@ fn single_resource_deinit_registers_body_local_resource_cleanup_on_return() {
 
 #[test]
 fn single_resource_deinit_rejects_member_calls_and_nested_call_borrows() {
-    for source in [
-        "class Resource { fun observe(): Unit {}\n deinit() { this.observe() } }\nfun run(): Unit { val resource = Resource() }",
-        "fun inspect(text: String): Unit {}\nclass Inner(val text: String)\nclass Outer(val inner: Inner) { deinit() { inspect(inner.text) } }\nfun run(): Unit { val outer = Outer(Inner(\"nested\")) }",
+    for (source, start, end, rejected, classifier, call) in [
+        (
+            "class Resource { fun observe(): Unit {}\n deinit() { this.observe() } }\nfun run(): Unit { val resource = Resource() }",
+            52,
+            66,
+            "this.observe()",
+            "Resource",
+            "this.observe()",
+        ),
+        (
+            "fun inspect(text: String): Unit {}\nclass Inner(val text: String)\nclass Outer(val inner: Inner) { deinit() { inspect(inner.text) } }\nfun run(): Unit { val outer = Outer(Inner(\"nested\")) }",
+            116,
+            126,
+            "inner.text",
+            "Outer",
+            "inspect(inner.text)",
+        ),
     ] {
         let analysis = analyze_legacy(source);
         assert!(
@@ -566,8 +580,42 @@ fn single_resource_deinit_rejects_member_calls_and_nested_call_borrows() {
             Ok(_) => panic!("unsupported destructor body must be rejected"),
             Err(error) => error,
         };
-        assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode);
-        assert!(failure.span.is_some());
+        let source_id = analysis.parsed.source_id();
+        let span = analysis.sources.span(source_id, start, end).unwrap();
+        assert_eq!(analysis.sources.slice(span), Ok(rejected));
+        assert_eq!(
+            failure,
+            crate::ssa::LoweringError {
+                kind: LoweringErrorKind::UnsupportedNode,
+                span: Some(span),
+            }
+        );
+        // Unit supports both original bodies. This is a paired capability witness,
+        // not retirement of the distinct Legacy rejection above.
+        let unit = lower_resource(source, "run");
+        let unit_source = unit.source.parsed().source_id();
+        assert_eq!(
+            unit.source.sources().source_name(unit_source),
+            Ok("lowering.ko")
+        );
+        assert_eq!(unit.source.sources().source_text(unit_source), Ok(source));
+        assert!(unit.source.ownership().deferred().is_empty());
+        let destructor = unit.deinit(classifier);
+        let calls = destructor
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                matches!(instruction.operation, Operation::DirectCall { .. })
+                    && matches!(instruction.origin, Origin::Source(span)
+                    if unit.source.sources().slice(span) == Ok(call))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls.len(),
+            1,
+            "original destructor call must actually lower"
+        );
+        render_verified_program(&unit.program).expect("same original source Unit LLVM");
     }
 }
 

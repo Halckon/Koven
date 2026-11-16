@@ -20915,3 +20915,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 原 thunk 内 HeapAllocate 恰一、body Drop 恰一 HeapOwner、run 内 CallableInvoke 恰一、entry Drop 恰一 ConcreteClosure 与 verified LLVM 全保全。现有 helper 额外按实际 ClosureConstruct 的 thunk 身份定位，核 Resource deinit 注册以及唯一 Owned String capture 与其环境析构；不凭旧显示名后缀替代身份。
 - 删除唯一已无调用方的 `lower_resource_legacy` 辅助函数，其他 Legacy 拒绝原样保留，不改生产 closure ABI 或准入。
 - 独审逐项核原 oracle 与源码，无阻断；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m35s，原 FQN exact 1 passed（0.04s），不同 alias/repeated-call fixture exact 1 passed（0.01s）；codegen all-targets 同配置严格 Clippy 47.43s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。原补充 Unit FQN 与迁移后原 FQN 共用同输入/helper，未重复运行或称为独立 oracle。未执行 native、Abort、故障注入、默认 workspace 或远端 CI，不推送。
+
+### 2026-11-16：resource 析构调用原拒绝与 Unit 能力差异
+
+- 基 `1da2ac2b`，保留 `single_resource_deinit_rejects_member_calls_and_nested_call_borrows` 原 FQN、两条源码字节与 Legacy 消费者；将旧 `UnsupportedNode` / 有 span 断言加强为各自 SourceMap 内完整错误身份：`this.observe()` 52..66、`inner.text` 116..126。
+- 普通对照首验真实本树重编1m28s，发现 Unit 已接受第一条原拒绝源码，因此停止退休；第二轮18.41s重编证明两条相同源码的 strict Unit 均到 verified LLVM。保首失败日志，不把接受误报成与 Legacy 拒绝等价。
+- 同轮补成对能力合同：相同 `lowering.ko` / 原源码、无 deferred、真实 `run` DeclarationId/Span 入口，实际 Resource/Outer 析构函数中原调用表达式对应 DirectCall 恰一次，并验证 LLVM。未新增生产能力、未改变根选择或旧拒绝；这是差异见证，Legacy 净退休数为零，不宣称 D10/E2 完成。
+- 末版在本工作树真实重编31.23s，准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 exact 1 passed（两 fixture，0.04s）；同配置 codegen all-targets 严格 Clippy 47.42s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check 与只读独审通过。未执行 native、Abort、故障注入、默认 workspace 或远端 CI；仅本地提交，不推送。
