@@ -1,9 +1,5 @@
 //! SPEC-0247: recovery must not manufacture runtime layout capabilities.
 use super::*;
-use lang_frontend::{
-    name_resolution::resolve_names,
-    type_checking::{TypeKind, check_types},
-};
 
 #[test]
 fn unbound_field_recipes_recover_without_partial_layouts_or_constructions() {
@@ -29,19 +25,6 @@ fn unbound_field_recipes_recover_without_partial_layouts_or_constructions() {
         );
         let (mut ne, te) = standard_environments();
         ne.declare_type("Opaque").unwrap();
-        if field_type == "Opaque" {
-            // The direct unbound-field fixture has the same diagnostic-free recovery
-            // contract in both entries; composite capability recovery is independently staged.
-            let single_names = resolve_names(&sources, &file, &ne).unwrap();
-            assert!(single_names.diagnostics().is_empty());
-            let single = check_types(&sources, &file, &single_names, &te).unwrap();
-            assert!(
-                single.diagnostics().is_empty(),
-                "{:?}",
-                single.diagnostics()
-            );
-            assert_eq!(single.constructions().len(), 1);
-        }
         let inputs = [SourceUnitInput::new("root", "recovery.ko", source, &file)];
         let names = validated_names(&sources, &inputs, &ne);
         let typed = check_compilation_unit_types(&sources, &inputs, &names, &te)
@@ -154,16 +137,6 @@ fn implicit_unused_lambda_parameter_and_known_when_join_match_single_file() {
         "fun done(): Unit {}\nfun parity(flag: Boolean): Unit {\nval unused: (borrow Int) -> Int = { 1 }\nval joined = when (flag) { true -> done(); false -> 0 }\n}",
     );
     let (ne, te) = standard_environments();
-    let names = resolve_names(&sources, &file, &ne).unwrap();
-    let single = check_types(&sources, &file, &names, &te).unwrap();
-    assert_eq!(
-        single
-            .diagnostics()
-            .iter()
-            .map(|d| d.code().to_string())
-            .collect::<Vec<_>>(),
-        ["L0112"]
-    );
     let inputs = [SourceUnitInput::new("root", "parity.ko", source, &file)];
     let unit_names = validated_names(&sources, &inputs, &ne);
     let unit = source_unit(&unit_names, source);
@@ -176,14 +149,17 @@ fn implicit_unused_lambda_parameter_and_known_when_join_match_single_file() {
             .collect::<Vec<_>>(),
         ["L0112"]
     );
-    assert_eq!(
-        single.diagnostics()[0].primary_span(),
-        typed.diagnostics()[0].primary_span()
-    );
+    // Both original producers anchor L0112 to the conflicting branch body, not the whole when.
+    let when = when_expressions(&file)[0];
+    let Expression::When { entries, .. } = file.ast().expressions().get(when).unwrap().payload()
+    else {
+        panic!("original when expression");
+    };
+    assert_eq!(entries.len(), 2);
+    let conflict = file.ast().statements().get(entries[1].body).unwrap().span();
+    assert_eq!(sources.slice(conflict), Ok("0"));
+    assert_eq!(typed.diagnostics()[0].primary_span(), conflict);
     let lambda = expression_with_text(&sources, &file, "{ 1 }");
-    assert!(
-        matches!(single.types().get(single.expression_type(lambda).unwrap()), Some(TypeKind::Function { parameters, return_type, .. }) if parameters.len() == 1 && parameters[0].mode == ParameterMode::Borrow && single.types().get(parameters[0].ty) == Some(&TypeKind::Builtin(BuiltinType::Int)) && single.types().get(*return_type) == Some(&TypeKind::Builtin(BuiltinType::Int)))
-    );
     assert!(
         matches!(typed.types().get(typed.expression_type(UnitExpressionId::new(unit, lambda)).unwrap()), Some(UnitTypeKind::Function { parameters, return_type, .. }) if parameters.len() == 1 && parameters[0].mode() == ParameterMode::Borrow && typed.types().get(parameters[0].ty()) == Some(&UnitTypeKind::Builtin(BuiltinType::Int)) && typed.types().get(*return_type) == Some(&UnitTypeKind::Builtin(BuiltinType::Int)))
     );
@@ -205,11 +181,6 @@ fn implicit_unused_lambda_parameter_and_known_when_join_match_single_file() {
     assert_eq!(
         typed.types().get(typed.symbol_type(implicit).unwrap()),
         Some(&UnitTypeKind::Builtin(BuiltinType::Int))
-    );
-    let when = when_expressions(&file)[0];
-    assert_eq!(
-        single.types().get(single.expression_type(when).unwrap()),
-        Some(&TypeKind::Error)
     );
     assert_eq!(
         typed.types().get(

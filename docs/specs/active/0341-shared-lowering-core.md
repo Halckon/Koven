@@ -21077,3 +21077,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `fdc539d0`，前审及末审后仅收敛 `primitive_arity.rs` 三处旧重复执行（3个FQN、5个fixture），Rust净减19行。原两Unit代码块、fixtures与共享oracle不变：成功同轮analysis及primitive数量0/2、泛型raw/complete完整诊断及message/details/精确位置、真实外部overload候选ID及顺序全保留。
 - 普通同名external的L0165旧token/message与Unit完整call差异逐字保留，`complete_file_types`未删除。不以本片推断所有旧资格/诊断阶段已等价，也未修改生产语义。
 - E2占槽期间完成代码、独审及静态检查；获槽后按同一精确补丁逆用/重应用分别验证干净基线和候选。三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 `primitive_arity::` 模块前后各8 passed / 0 ignored，真实本树编译24.36s/0.67s；frontend all-targets严格Clippy34.67s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check通过。每步构建前核空间高于8GiB，未清理数据，结束交还E2槽。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：baseline recovery 文件旧分析依赖收敛
+
+- 基 `bbcd17f2`，前审与末审后移除 `multifile_type_checking/baseline_regressions.rs` 两处重复旧执行及该文件全部 `resolve_names` / `check_types` / `TypeKind` 专用依赖，Rust净减29行。原FQN/源码、Unit完整布局与construction目标、Borrow Int→Int隐式lambda及实际参数身份、when Error、basic准入拒绝，以及独立多源顺序/身份测试全保留。
+- 原old/Unit L0112 primary的交叉比较没有直接丢弃：两生产实现均以失败分支body的Statement span定位，先在保留两路线的基线加入同一原AST第二分支body完整Span及slice为`0`的断言并实测通过；最终候选保留独立同一Span oracle，不误称whole when定位或额外label合同。
+- E2占槽及空间约8.04GiB时暂停新构建；收到获批清理完成通知后核20.87GiB及无编译进程再接槽，未自行清理。精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）带Span冻结的原模块3项基线passed（真实本树28.74s），撤回仅基线临时补丁并重应用已审候选后同3 passed / 0 ignored（真实1.06s）；frontend all-targets严格Clippy35.93s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过，每步编译前核8GiB门槛。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
