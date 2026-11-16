@@ -125,6 +125,8 @@ impl RuntimeRequirements {
                     }
                     Operation::ContainerElementPlace { .. }
                     | Operation::RangeElementPlace { .. }
+                    // A borrowed wrapper may query a Map without constructing one locally.
+                    | Operation::MapRequireValue { .. }
                     | Operation::MapIterationNext { .. }
                     | Operation::MapIterationKeyLoan { .. }
                     | Operation::MapIterationValueLoan { .. } => {

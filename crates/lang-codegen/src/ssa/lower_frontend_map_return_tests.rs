@@ -119,18 +119,14 @@ pub(in crate::ssa) mod rc_nullable_while_identity_queries {
     use lang_frontend::{
         ast::{ExpressionId, ItemId},
         name_resolution::{
-            DeclarationId, NameResolution, ReferenceTarget, SymbolId, SymbolKind,
-            UnitReferenceTarget, ValidatedCompilationUnitNames,
+            DeclarationId, SymbolKind, UnitReferenceTarget, ValidatedCompilationUnitNames,
         },
-        ownership_checking::{
-            CompilationUnitOwnership, DropTarget, OwnershipBindingKind, OwnershipCheckedFile,
-            UnitDropTarget,
-        },
+        ownership_checking::{CompilationUnitOwnership, OwnershipBindingKind, UnitDropTarget},
         parser::{Expression, Item, NameMarker, ParsedFile, Statement},
         source::Span,
         type_checking::{
             BuiltinType, CompilationUnitTypes, Copyability, IntrinsicTypeConstructor,
-            ParameterMode, TypeKind, TypedFile, UnitExpressionId, UnitTypeKind,
+            ParameterMode, UnitExpressionId, UnitTypeKind,
         },
     };
 
@@ -229,84 +225,6 @@ pub(in crate::ssa) mod rc_nullable_while_identity_queries {
             returned,
             return_name: value.span(),
         })
-    }
-
-    pub(in crate::ssa) fn single_source(
-        file: &ParsedFile,
-        names: &NameResolution,
-        typed: &TypedFile,
-        owned: &OwnershipCheckedFile,
-        entry: SymbolId,
-    ) -> Query<SourceIdentity> {
-        let source = source(file)?;
-        let function = one(
-            names.symbols().iter().filter(|symbol| symbol.id() == entry),
-            "single function symbol",
-        )?;
-        require(
-            function.kind() == SymbolKind::Function && function.span() == source.function_name,
-            "single selected function matches original declaration",
-        )?;
-        let comparison = typed
-            .null_comparison(source.condition)
-            .ok_or("single comparison absent")?;
-        let root = comparison.symbol();
-        let signature = one(
-            typed
-                .callables()
-                .iter()
-                .filter(|signature| signature.symbol() == entry),
-            "single signature",
-        )?;
-        let parameter = one(signature.parameters().iter(), "single parameter contract")?;
-        require(
-            signature.parameter_symbols() == [Some(root)]
-                && parameter.mode == ParameterMode::Value
-                && parameter.ty == comparison.nullable_type()
-                && typed.parameter_mode(root) == Some(ParameterMode::Value)
-                && typed.symbol_type(root) == Some(comparison.nullable_type())
-                && comparison.expression() == source.condition
-                && comparison.non_null_when_true(),
-            "single comparison uses this callable's sole Value parameter",
-        )?;
-        let return_root = one(
-            names.references().iter().filter_map(|reference| {
-                if reference.span() != source.return_name {
-                    return None;
-                }
-                match reference.target() {
-                    ReferenceTarget::Symbol(symbol) => Some(*symbol),
-                    _ => None,
-                }
-            }),
-            "single actual return reference",
-        )?;
-        require(
-            return_root == root
-                && owned.binding_kind(root) == Some(OwnershipBindingKind::Owned)
-                && owned
-                    .drops()
-                    .iter()
-                    .all(|drop| drop.target() != DropTarget::Named(root)),
-            "single return moves original owned parameter without a parameter drop",
-        )?;
-        let Some(TypeKind::Nullable(inner)) = typed.types().get(comparison.nullable_type()) else {
-            return Err("single input is not a real nullable type".into());
-        };
-        let Some(TypeKind::Intrinsic {
-            constructor: IntrinsicTypeConstructor::Rc,
-            arguments,
-        }) = typed.types().get(*inner)
-        else {
-            return Err("single nullable input is not intrinsic Rc".into());
-        };
-        let argument = one(arguments.iter().copied(), "single Rc payload")?;
-        require(
-            typed.types().get(argument) == Some(&TypeKind::Builtin(BuiltinType::Int))
-                && typed.copyability(comparison.nullable_type()) == Some(Copyability::MoveOnly),
-            "single source input is MoveOnly Rc<Int>?",
-        )?;
-        Ok(source)
     }
 
     pub(in crate::ssa) fn unit_source(
@@ -686,7 +604,8 @@ pub(in crate::ssa) mod rc_nullable_while_identity_queries {
 
     #[test]
     fn original_rc_nullable_while_preserves_return_owner_identity() {
-        // Preserve both actual frontend/lowering/SSA/LLVM outcomes before assertions.
+        // Preserve both original source-layout outcomes and the unchanged exact SSA
+        // owner oracle before assertions; both layouts now use strict Unit.
         let observations = [
             crate::ssa::rc_nullable_while_observation_tests::observe_with_inspector(false, true),
             crate::ssa::rc_nullable_while_observation_tests::observe_with_inspector(true, true),

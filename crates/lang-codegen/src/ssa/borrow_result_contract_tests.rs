@@ -4,34 +4,11 @@ use super::{
     verify::verify_program, verify_borrow_result::call_contract,
 };
 use lang_frontend::{
-    lexer::lex,
-    name_resolution::{SourceUnitInput, resolve_names},
-    ownership_checking::check_ownership,
-    parser::parse_file,
-    source::SourceMap,
-    type_checking::{check_types, standard_environments},
+    name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
 
 const PROVIDER: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) { println(source) }\n";
 const ENTRY: &str = "fun entry() { val source = \"kept\".clone(); { borrow val item = wrap(source); println((item)) }; consume(source) }";
-
-pub(super) fn single(text: &str) -> Result<Program, super::LoweringError> {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("result.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    super::lower_frontend::orchestrate::lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
-}
 
 fn assert_flow(program: &Program) {
     verify_program(program).unwrap();
@@ -274,16 +251,58 @@ fn borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa() {
 #[test]
 fn borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported() {
     let entry = "fun entry(flag: Boolean) { val source = \"kept\"; borrow val item = view(source); if (flag) { println((item)) }; println((item)) }";
-    assert_eq!(
-        single(&format!("{PROVIDER}{entry}")).err().unwrap().kind,
-        LoweringErrorKind::UnsupportedNode
-    );
+    let caller = format!("{PROVIDER}{entry}");
     let block =
         "fun view(source: String): borrow String from source { return source }\nfun entry() {}";
-    assert_eq!(
-        single(block).err().unwrap().kind,
-        LoweringErrorKind::UnsupportedNode
-    );
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+    // These are precise current lowering boundaries, not frontend language errors.
+    // Keep both complete original sources; never replace them with a smaller fixture.
+    for (source, root, expected_span) in [
+        (caller.as_str(), "entry", "if (flag) { println((item)) }"),
+        (block, "entry", "borrow"),
+        (block, "view", "borrow"),
+    ] {
+        let analysis = UnitSource::analyze("borrow-result-original.ko", source).unwrap();
+        analysis.assert_frontend_clean();
+        let declaration = analysis.declaration(root, SymbolKind::Function);
+        let root_span = analysis.declaration_span(declaration);
+        assert_eq!(
+            analysis
+                .sources()
+                .source_text(root_span.source_id())
+                .unwrap(),
+            source
+        );
+        let expected_root = if root == "view" {
+            "fun view(source: String): borrow String from source { return source }"
+        } else if source == block {
+            "fun entry() {}"
+        } else {
+            entry
+        };
+        assert_eq!(analysis.sources().slice(root_span).unwrap(), expected_root);
+        // The block-bodied view is uncalled by entry. Check both the whole-source
+        // preflight with entry and the explicit view root, never an empty success graph.
+        let error = analysis
+            .lower_entry(declaration)
+            .err()
+            .expect("known Unit lowering boundary");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        let span = error.span.expect("original source rejection span");
+        assert_eq!(span.source_id(), root_span.source_id());
+        assert_eq!(span.start(), source.find(expected_span).unwrap());
+        assert_eq!(span.end(), span.start() + expected_span.len());
+        assert_eq!(analysis.sources().slice(span).unwrap(), expected_span);
+        if source == block {
+            let [origin] = analysis.ownership().borrow_return_origins() else {
+                panic!("one actual block-view borrow-result declaration")
+            };
+            assert_eq!(span, origin.declaration_span());
+        } else {
+            assert_eq!(analysis.ownership().borrow_results().bindings().len(), 1);
+        }
+    }
 }
 
 const LOCAL_RESULT_CONTROL: &str = "if (flag) { println(\"branch\") }";

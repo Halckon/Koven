@@ -59,20 +59,6 @@ fn assert_rejection(
             assert_eq!(sources.slice(diagnostic.primary_span()), Ok(*token));
         }
     };
-    let names = resolve_names(&sources, &file, environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &file, &names, types).unwrap();
-    assert!(typed.call(call_id).is_none());
-    assert!(typed.ownership_primitives().is_empty());
-    assert_eq!(
-        typed
-            .expression_type(call_id)
-            .and_then(|ty| typed.types().get(ty)),
-        Some(&TypeKind::Error)
-    );
-    let complete =
-        rejected(complete_file_types(&sources, &file, &names, types, &typed).map(|_| ()));
-    assert_diagnostics(typed.diagnostics(), complete);
     for input in [
         SourceUnitInput::new("root", "primitive-arity.ko", source, &file),
         SourceUnitInput::memory_document(source, &file),
@@ -166,13 +152,7 @@ fn source_functions_named_like_intrinsics_and_valid_primitives_still_complete() 
     ] {
         let mut sources = SourceMap::new();
         let (source, file) = parsed(&mut sources, "healthy.ko", text);
-        let names = resolve_names(&sources, &file, &environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &types).unwrap();
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        let complete = complete_file_types(&sources, &file, &names, &types, &typed).unwrap();
-        assert!(complete.is_same_analysis(&typed));
         let count = if text.starts_with("fun <") { 0 } else { 2 };
-        assert_eq!(typed.ownership_primitives().len(), count);
         for input in [
             SourceUnitInput::new("root", "healthy.ko", source, &file),
             SourceUnitInput::memory_document(source, &file),
@@ -224,11 +204,6 @@ fn source_generic_excess_arity_checks_operands_and_keeps_type_argument_span() {
                 assert_eq!(sources.slice(operand.primary_span()), Ok("+"));
             }
         };
-        let names = resolve_names(&sources, &file, &environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &types).unwrap();
-        let complete =
-            rejected(complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ()));
-        check(typed.diagnostics(), complete);
         for input in [
             SourceUnitInput::new("root", "source-call.ko", source, &file),
             SourceUnitInput::memory_document(source, &file),
@@ -338,7 +313,7 @@ fn same_spelling_non_intrinsic_external_retains_deferred_call_rejection() {
 
 #[test]
 fn external_overload_set_keeps_the_real_intrinsic_binding() {
-    use lang_frontend::name_resolution::{ReferenceTarget, UnitReferenceTarget};
+    use lang_frontend::name_resolution::UnitReferenceTarget;
     let mut environment = NameEnvironment::new();
     let int = environment.declare_type("Int").unwrap();
     let unit = environment.declare_type("Unit").unwrap();
@@ -355,14 +330,6 @@ fn external_overload_set_keeps_the_real_intrinsic_binding() {
     let text = format!("fun run(): Unit {{ var a = 1; {call} }}");
     let mut sources = SourceMap::new();
     let (source, file) = parsed(&mut sources, "overload.ko", &text);
-    let names = resolve_names(&sources, &file, &environment).unwrap();
-    assert!(
-        names
-            .references()
-            .iter()
-            .any(|reference| matches!(reference.target(),
-        ReferenceTarget::ExternalOverloadSet(ids) if ids.as_slice() == [ordinary, intrinsic]))
-    );
     for input in [
         SourceUnitInput::new("root", "overload.ko", source, &file),
         SourceUnitInput::memory_document(source, &file),

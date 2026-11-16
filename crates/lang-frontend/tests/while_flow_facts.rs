@@ -21,7 +21,7 @@ mod literal_short_circuit;
 #[path = "while_flow_facts/null_comparison_fallback.rs"]
 mod null_comparison_fallback;
 
-// Preserve the rooted Unit control while migrating the legacy single-file path.
+// Preserve both source-layout controls with the same flow contracts.
 #[derive(Clone, Copy, Debug)]
 enum SourceMode {
     MemoryDocument,
@@ -690,7 +690,7 @@ fn while_scans_evaluated_initializers_and_preserves_error_and_capture_rules() {
 
 #[test]
 fn repeating_bodies_keep_header_reads_and_drop_backedge_and_exit_refinements() {
-    assert_repeating_cases(&[
+    assert_cases(&[
         Case {
             name: "for-backedge",
             text: "fun inspect(input: Int?): Int {
@@ -777,7 +777,7 @@ fn repeating_bodies_keep_header_reads_and_drop_backedge_and_exit_refinements() {
 
 #[test]
 fn elvis_exports_only_facts_from_its_normal_predecessors() {
-    assert_repeating_cases(&[
+    assert_cases(&[
         Case {
             name: "nullable-left-can-skip-fallback-proof",
             text: "fun inspect(left: Int?, x: Int?): Int {
@@ -868,42 +868,4 @@ fn elvis_exports_only_facts_from_its_normal_predecessors() {
             rejected: None,
         },
     ]);
-}
-
-fn assert_repeating_cases(cases: &[Case]) {
-    use lang_frontend::{name_resolution::resolve_names, type_checking::check_types};
-
-    assert_cases(cases);
-    // The remaining legacy checker must keep the same diagnostics for these flow contracts.
-    for case in cases {
-        let mut sources = SourceMap::new();
-        let source = sources.add_source("flow.ko", case.text).unwrap();
-        let tokens = lex(&sources, source).unwrap();
-        let file = parse_file(&sources, &tokens).unwrap();
-        let (name_environment, type_environment) = standard_environments();
-        let names = resolve_names(&sources, &file, &name_environment).unwrap();
-        assert!(names.diagnostics().is_empty(), "{}", case.name);
-        let typed = check_types(&sources, &file, &names, &type_environment).unwrap();
-        if let Some(marker) = case.rejected {
-            let mark = case.marks.iter().find(|mark| mark.name == marker).unwrap();
-            let [diagnostic] = typed.diagnostics() else {
-                panic!("{}: {:?}", case.name, typed.diagnostics());
-            };
-            let span = diagnostic.primary_span();
-            assert_eq!(diagnostic.code().to_string(), "L0084", "{}", case.name);
-            assert_eq!(
-                Some((span.start(), span.end())),
-                marker_range(case.text, mark),
-                "{}",
-                case.name
-            );
-        } else {
-            assert!(
-                typed.diagnostics().is_empty(),
-                "{}: {:?}",
-                case.name,
-                typed.diagnostics()
-            );
-        }
-    }
 }

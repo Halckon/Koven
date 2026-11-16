@@ -20869,3 +20869,262 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 按本 Spec §46 的未发布阶段规则，不永久兼容旧不合理限制。Guide 类型相容允许 `T` 适配 `T?`，资源分类包含可空资源包裹；旧 `lower_frontend` 及重导出均已限 `cfg(test)`。其他测试仍使用旧实现不使本例旧拒绝成为永久验收要求；历史 SPEC-0296 的当时边界及结果保持不变。
 - 原完整源码与 FQN 保留。MemoryDocument/Rooted 两适配均经过最终类型检查、ownership validation 和真实 entry lowering；核原 factory/entry/deinit 来源、一次 allocation→wrap→return、实际 factory call→唯一结果 Drop、无结果 Copy/判空及 SSA verifier/verified LLVM。退休的是旧错误 kind/Span 期望，不删除原有效成功合同，不新增生产准入或改变 E3 实现。
 - 本次仅纠正当前 Architecture 仍称旧负控现存的漂移，并显式登记上述映射；不复跑 Cargo/native/故障注入，不补算 native 析构、泄漏或最终双宿主证据。静态文档检查及独立审查结果随本次提交报告。
+
+### 泛型重载同轮多根消费者迁移（2026-11-16）
+
+- 基 `ce35ed52`，保持原 `generic_overloads_with_the_same_type_arguments_keep_distinct_targets` 测试身份及四声明源码，测试职责移入独立子模块；不修改待 CI 的联合 PR 分支。
+- 同轮严格 MemoryDocument Unit view 通过已有测试多 root 入口一次规划 `[one,two]`，恰四函数、两个原重载各唯一实例；两 caller 的唯一 DirectCall 各指向独立原声明 Span，借用 Int caller/Value Int callee/第二 callee Borrow Boolean 与 Int return 独立核验。
+- 保全两 LLVM 定义各一次和两调用均存在的原 oracle，并加强为每 caller body 预期 call 恰一、另一目标零。真实 Unit 符号按 FunctionId/name 编码（`.dN.tN`），不沿用 Legacy `choose<Int>` 字符串；类型实例身份由原泛型声明和实际 ABI 证明，不靠名字自证。
+- 独立只读审查通过，原源码字节、同图身份和全部 LLVM oracle 保全；三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）完整 exact 首遍 1 passed/0 failed/0 ignored/exit0，编译 1m25s、执行 0.03s；codegen all-targets 同三 feature 严格 Clippy 56.02s/exit0。fmt/docs979/尺寸2523（历史两例外不扩大）/diff 通过。净退休一项旧 analyze/lower_scalar_file 测试消费者，不改变生产准入；未运行默认全 workspace、native、自递归程序、故障注入或远端 CI，不推送。
+
+### 可达泛型实例与递归身份的严格 Unit 多根迁移（2026-11-16）
+
+- 基 `99d8296a`，只迁移 `lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity`，保留原八声明源码与四个 concrete roots；同轮严格 MemoryDocument 名称、完整类型和 ownership view 一次规划四根，不修改生产路径或相邻重载/inline 测试。
+- 以原声明 Span 及实际 Int32/Int64 参数/返回类型定位 identity/relay 各两个、recurse 一个唯一实例，完整模块恰九函数，unused 不实例化；四根真实目标、relay→identity 与 recurse→自身实际 FunctionId 均核验，不依赖 Legacy 或 Unit 名字字符串。
+- 重复组装保留原完整 SSA 文本确定性，并核同原 Declaration keys、稳定 module/function index 与各自 Program 内解析的 Origin。首验新增的跨 Program opaque FunctionId 直接相等断言失败：原模型的 ModuleId 含独立 ProgramOwner，不能用打印相同的索引替代所有权身份。仅修此测试 oracle，保留失败日志；原渲染相等在首验已通过，不修改模型或弱化同 Program 递归身份。
+- 修正经独立末审后，在准确退休三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下 exact 一项通过（编译4m50s、执行0.05s），codegen all-targets 严格 Clippy 1m58s/exit0；fmt/docs979/尺寸2524（两历史例外不扩大）/diff 通过。首验误用 two-source-unit 的配置和失败日志保留，不冒称同配置通过。未重跑默认 workspace 或远端 CI，不执行自递归生成程序、native、Abort 或故障注入，不推送。
+
+### 原 nominal 正常段同轮十根 Unit 消费者迁移（2026-11-16）
+
+- 基 `8de8deed`，仅迁移 `declarative_type_roots_do_not_enter_the_scalar_instance_graph` 中 `nominal_use` 正常成功段；原六类型、十函数源码逐字节保留，顶部已 Unit 的未使用声明检查和 runtime-bearing `val` 的 Legacy 拒绝合同保持，不将整个 FQN 称为全部退休。
+- 严格 MemoryDocument 名称、完整类型和 ownership view 上一次显式规划十个原顶层 Function DeclarationId，共享同一 Program/type mapper；新增唯一模块、恰十函数、完整 roots 映射、原声明 Span 与无参数检查，不用十个单根结果拼装代替共享名义类型需求。
+- 原 SSA 计数及 LLVM oracle 原样保留，六类型见证按下项映射保全：aggregate.construct 11、heap.allocate 4、tagged.construct 4、aggregate.project/copy_explode/heap.payload_place/tagged.payload_place 各1、tagged.discriminant 2、drop 2，以及 Wrapped/Holder/Box/Flag/Maybe/Owned 类型见证；LLVM malloc 4/free 2、enum 类型与无 retain/clone 亦完整保全。独审逐字节核原 fixture、计数及 LLVM 断言，并另审六类型见证等价，不以已有单根 enum 测试替代本片真实多根验收。
+- 首 exact 的九项 SSA 数量检查全部通过，随后旧 `Wrapped#t` 显示名检查失败；完整诊断与失败日志保留。Unit 原 mapper 按原 DeclarationId/UnitTypeId 编码 value/class/enum 标签及 Box intrinsic 标签，不复用 Legacy 显示名。六项见证改为原唯一 classifier、canonical 类型实参（含 Maybe<Int>/Owned<Resource>/Box<Wrapped>）导出精确标签，并核唯一正确 Aggregate/HeapOwner/TaggedUnion；不删见证、不改计数或 LLVM oracle。修正经独审后，在准确退休三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下原完整 FQN 一项通过（编译1m43s、执行0.09s），codegen all-targets 严格 Clippy 1m57s/exit0；fmt/docs979/尺寸2527（两历史例外不扩大）/diff 通过。不修改生产准入，未重跑默认 workspace 或远端 CI，不执行 native、Abort 或故障测试，不推送。
+
+### 2026-11-16：泛型容器 callback 的 Legacy / Unit 独立 ABI 合同
+
+- 原 `source_closure_tests::single_runtime_generic_helper_preserves_nominal_element_and_three_environments` 六个 Array/List × pointer/shared/owned fixture 及整个 Legacy helper 具体环境 ABI 断言原样保留。本片不计净退休，不改变生产能力。
+- 最初尝试迁移该消费者，断连截断 attempt1；恢复后 attempt2 原正常目标确切失败于 pointer helper 的具体 ABI 断言，strict 未启动。原 Unit `call_lifetimes::view_type` 按 ADR-0034 使用 CallableView 参数，而调用侧仍有 FunctionPointer / ConcreteClosure；这不是显示名称差异，不能把旧断言简单换成 view 并算等价。
+- 新独立普通 Unit 合同复用完整六 fixture，严格 MemoryDocument / 显式原 entry；原 generate declaration Span 唯一定位。核 caller 实际 lambda 构造与捕获、RootPlace/SharedLoan/CallableViewOf、实际 generate 实参和 helper initializer view/signature/nominal HeapOwner 元素、view 的结束后于调用且先于 source 结束，以及 canonical arena 只读和 verified LLVM。
+- attempt3 新合同真实失败于 helper entry callback 与 success block 参数 LoanId 不同；原 producer 直接借入 callback，经真实 CFG 参数运输，不能要求跨块 ID 相等。保失败日志，改独立入口播种、实际全部边传播及所有入边同源反核，并由独审核收。
+- attempt4 新 Unit 精确目标 1 passed（六 fixture，编译 44.19s / 执行 0.11s），恢复原 Legacy 精确目标 1 passed（0.16s / 0.03s）。codegen 准确退休三 feature all-targets strict 58.46s / exit0；fmt、docs 979、Rust size 2528（2 项历史债）与 diff-check 通过。不执行 native、Abort 或故障注入，不推送。
+
+### 2026-11-16：owned-source continue 声明身份正常消费者净迁移
+
+- `owned_source_continue_declaration_identity_and_groups` 前两个原正常 fixture（分组 Array 单函数、同名 keys 的 Array/List 双函数）不再先走一次 Legacy lowering；原源码文本不变，直接保留已有严格 MemoryDocument Unit helper 的完整校验。
+- 原 Legacy 正常合同的 frontend clean、成功 SSA lowering 和 verified LLVM 均由严格 Unit 原产品及实际入口覆盖；现有 helper 另核全部原 declaration Span、不同 keys root/symbol、原 loop provider/owned source loan 与真实 main→first FunctionId/调用 Span，没有把双函数改成只验单根。
+- 后半 alias 源的原 Legacy `UnsupportedNode` 与精确 keys Span 拒绝仍原样保留，其独立 Unit 支持也不变。本片仅净退休两个正常消费，不称整个 FQN 或 alias 拒绝合同已退休。
+- 首次过滤误用文件名作为模块名，编译完成但运行 0 tests，不计验收；已从实际注册及已编译二进制清单核实真实 FQN 为 `ssa::lower_frontend_tests::owned_source_continue_tests::owned_source_continue_declaration_identity_and_groups`，保留首日志，原 strict 链结束后仅补该非零目标。attempt2 真实 1 passed / 0 ignored（0.21s 增量 / 0.26s 执行）；codegen 准确退休三 feature all-targets strict 1m00 / exit0、fmt、docs 979、Rust size 2528（2 项历史债）及 diff-check 通过；不执行 native、Abort 或故障，不推送。
+
+### 2026-11-16：nested continue 的独立 fresh inner 正常消费者净迁移
+
+- 原 `owned_source_continue_nested_scope_boundaries` 的 `inner_fresh` 源码不变，仅移除重复 Legacy 成功消费；严格 Unit 仍核四阶段 clean、MemoryDocument/源码身份、两项原 iteration descriptor、唯一 main/实际 entry、两处元素访问及 verified LLVM。
+- 其余三个嵌套/顺序循环的 Legacy `UnsupportedNode` 与精确 keys declaration Span 拒绝完整保留；仅净退休一个正常消费，不称整个 FQN 已退休。独立只读审查无阻塞。
+- 首次 exact 命中共享 target 的另一工作树缓存，虽 1 passed 仍不计本片验收；codegen 三 feature strict 确认重编本树并通过。随后显式触发本树重编（日志确认本工作树 codegen，2m18s），nested exact 1 passed/0 ignored；同一产物 identity 交叉 exact 1 passed/0 ignored。三 feature 为 loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support；strict 19.00s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与 diff-check 通过。不运行 native、Abort 或故障注入，不推送。
+
+### 2026-11-16：continue 边界矩阵中的 return 正常消费者净迁移
+
+- `owned_source_continue_existing_boundaries_remain_explicit` 的唯一 return 正常 fixture 字节不变，改复用既有严格 Unit `unit_contract::observe`，准确指定 Array/local owner/live/Return/no Map；保留四阶段 clean、同次原源及声明身份、真实 return/耗尽 cleanup、实际 main SSA entry、verifier 与原 no-process-entry LLVM renderer。
+- 另七个原 Legacy 拒绝消费者、错误 kind 与 Span 断言保持；仅净退休一个正常消费，不称整个边界矩阵已退休。没有修改共享 helper 或生产代码，独立审查无阻塞。
+- 显式触发当前工作树重编以排除共享 target 跨树缓存：三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）精确目标 1 passed/0 ignored（编译1m12s/执行0.05s），同配置 codegen all-targets strict 36.74s/exit0；fmt、docs979、Rust size（两历史例外不扩大）与 diff-check 通过。未运行 native、Abort 或故障注入，未推送。
+
+### 2026-11-16：continue dead-Map 正常消费者净迁移
+
+- `owned_source_continue_external_owner_and_short_circuit_boundaries` 中无 post-control Map 使用的原成功 fixture 字节不变，改走严格 UnitSource；核四阶段 clean/no deferred、原 MemoryDocument/源码、唯一 AST root、main 声明到真实 entry origin，并保留原 no-process-entry `render_verified_program` 合同。
+- 另两条原 Legacy `UnsupportedNode` 及 keys/second Span 内容断言保持；只净退休一个正常消费，未将独立拒绝合同或 native/runtime 验收算作已迁移。无生产代码变动，独立审查无阻塞。
+- 触发当前工作树真实重编：准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）exact 1 passed/0 ignored（编译1m06s/执行0.05s），同配置 codegen all-targets strict 36.84s/exit0；fmt、docs979、Rust size（两历史例外不扩大）与 diff-check 通过。未执行 native、Abort 或故障注入，未推送。
+
+### 2026-11-16：不可达 lambda 静态事实消费者净迁移
+
+- 重新核实当前 Unit 公开事实：以原 AST ExpressionId 加原 SourceUnitId 查询，两个原 fixture 均有静态 closure descriptor、无未执行 lambda 的 callable_origin；canonical type arena 在实际 lowering 前后不增。保留 Legacy 的第一轮独立 Unit probe 1 passed（真实当前树编译1m03s）。这补齐并取代 2026-11-14 对照记录中“事实模型不同形，本轮不退役”的当前阻塞判断，不改写当时历史结果。
+- 原 `single_runtime_unreachable_lambdas_do_not_register_storage_or_nested_layouts` FQN 和两段源码不变，改共享严格 Unit helper；完整保留静态 closure Some/callable_origin None、arena不增、唯一entry原始身份/no thunk/LLVM，及已有Unit的无ConcreteClosure类型、无closure/callable指令断言。另核原MemoryDocument、源名/全文及单AST根。
+- 原 Unit FQN 保留但复用同一合同，明确不是两个独立实现的对照。可达 nested lambda 的原 Legacy 精确拒绝仍保留，本片只净退休两个不可达正常fixture，不扩大生产准入。独立审查无阻塞。
+- 最终准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树重编21.73s，两个历史FQN各1 passed/0 ignored；同配置codegen all-targets strict36.01s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与diff-check通过。未运行native、Abort或故障注入，未推送。
+
+### 2026-11-16：Rc nullable-while 普通观察消费者净迁移
+
+- 两个原普通观察FQN的无package `inspect.ko`/SOURCE字节不变，现以严格MemoryDocument Unit产品核complete/ownership、原Rc<Int>? Value参数与同源null-comparison descriptor、MoveOnly及Int payload、真实entry origin、SSA与no-process-entry LLVM。原Rooted `package p`路线仍保持；普通FQN名称保留，但含义是两个原source layout，不再宣称独立Legacy/Unit对照。
+- collector仍只断言前置及真实lower attempt，成功测试仍独立要求outcome Ok，没有将收集结果偷换为通过。只有普通无inspect调用启用MemoryDocument选项；显式`observe_with_inspector(false,true)`仍走原Legacy，原私有cleanup/owner身份查询完整保留，default refine routing参数不变。
+- 独立审查无阻塞。本树真实重编1m03s，准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下两个普通目标、原owner identity与default routing必要回归共4 exact各1 passed/0 ignored；codegen all-targets strict38.86s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与diff-check通过。仅净退休两个普通Legacy调用消费者，不称私有身份路线已退休；未运行native、Abort或故障，未推送。
+
+### 2026-11-16：Rc inspect 原 owner 身份消费者与旧入口退休
+
+- 将无package `inspect.ko` 的显式owner身份消费者迁同源MemoryDocument Unit。先逐项核single_source/unit_source：原唯一函数/参数/while/return、参数Value身份与null比较、return回到同一root、Owned且无Named drop、MoveOnly Rc<Int>?全部由Unit源查询保留。未修改原`inspect`五块闭包、两个is-null/not指令、return owner及无create/retain/extract/drop的精确SSA oracle。
+- 保留旧实现的MemoryDocument probe真实通过原完整owner FQN（本树编译1m04s/1 passed）后，删除observation中的整条Legacy lowering分支及唯一single_source专用query/import。两个源布局均走严格Unit；default refine路由及其原结构不匹配断言不变。不再保留不可达的旧入口或用双合同数充当退休数。
+- 两文件净减少157行；独立前置合同审查及末审无阻塞。最终本树重编29.62s，准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下原owner身份、两普通观察及default routing共4 exact各1 passed/0 ignored；codegen all-targets strict37.34s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与diff-check通过。未执行native、Abort或故障注入，未推送；其他Rc payload/nullable shape合同不在本次退休范围。
+
+### 2026-11-16：return-loop source loan 拒绝消费者迁移
+
+- 基 `6e946bcd`，原 `owned_source_return_source_loan_rejects_body_moves_and_mutation` FQN 及四段 Array/MutableList body move/mutation 源码逐字节保留，测试委托独立 Unit 合同模块；仅退休此一测试的四个 Legacy frontend 消费，不更改生产实现或其他边界。
+- 首普通定向 probe 实测两路前三阶段 clean、ownership 恰一 L0135，主 Span 与冲突 source loan Label 相同。Unit 文案分别明确 move/mutation/new loan，move 另含 selected-parameter Label；原测试只断言 L0135，不声称完整诊断字节等价，也不为旧未冻结文案保留兼容路径。
+- 严格 MemoryDocument Unit 返回 Diagnostics，不能以 incomplete ownership 或可执行结果替代；完整固定 stage/count、severity/code/message、主 Span、source name/text/slice 与全部有序 Label。原 probe 完整诊断保留在本地外部测试日志，末审确认四 fixture 与所有原断言保全，无阻断。
+- 末版明确在本工作树真实重编（41.01s），准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 exact 1 passed / 0 failed / 0 ignored（四 fixture，执行0.02s）；codegen all-targets 同配置严格 Clippy 59.74s/exit0。fmt、docs979、尺寸2529（两历史债未扩大）与 diff-check 通过。未运行默认 workspace、SSA/native/Abort、故障注入或远端 CI，不推送，不声称 D10/E2 整体完成。
+
+### 2026-11-16：Map borrow wrapper 原两根同轮 Unit 消费者迁移
+
+- 基 `9506d830`，保留原 `READONLY_WRAPPER` 两声明源码和 `result.ko` 身份，以严格 MemoryDocument 的同轮 names、完整 types、ownership view 一次测试专用 `lower_roots([view,entry])` 规划组装；不是两个单根 Program 拼装，不扩大生产 singleton 入口。
+- 原 whole-file 的恰两函数、唯一 view、唯一 MapRequireValue slot loan、BorrowReturn 返回同 loan、无 Copy/SharedRetain 全保留；原符号字符串定位改为真实 DeclarationId → FunctionId 与原声明 Span，并核完整 roots、声明顺序及同一 module。新增 verified LLVM，不运行其缺 key 的执行路径。
+- 原 `legacy_whole_file_emits_unselected_map_require_wrapper` 改名为 `explicit_unit_roots_preserve_whole_file_map_require_wrapper`，明确显式两根而非假称单根也发射不可达 view。相邻原 selected-entry 只发射 entry 的独立 Unit 测试完整保留；此前根选择差异记录仅为历史，本片不改变生产选择语义。
+- 原 `borrow_result_contract_tests::single` 唯一消费者已迁移，删除该 Legacy helper 及专用导入；不删除现有借用结果/存储测试，不改 verifier 生产实现。
+- 首验真实重编2m53s，原 SSA/两根/slot oracle 均已通过，新增 LLVM 处失败 `Build("abort 未声明")`。`MapRequireValue` lowering 的缺 key 分支会生成 abort，但 `RuntimeRequirements` 未登记该指令自身依赖；借用 wrapper 无 MapConstruct/PrintString 等指令替其带入声明。最小补 needs_abort arm，不改变查询、错误语义或 runtime ABI；独立 singleton wrapper 亦补 LLVM/abort 声明与 missing/found 路径检查，两根另核不引入 malloc，保首失败日志。
+
+- 修复后 LLVM 构造成功，但新增的“无 free”检查在第二次普通验收失败：原 String key 临时值的 Drop 本就需要 String cleanup/free。仅修正这个新增错误 oracle，改核真实 String Drop 和 free 存在；不改生产 cleanup 或原借用合同，保该失败日志。
+- 第三次准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）真实本树重编28.46s，显式双根 exact 1 passed（0.04s），原 singleton/control exact 1 passed（0.01s）；codegen all-targets 同配置严格 Clippy 54.63s/exit0，末审无阻断。fmt、docs979、Rust尺寸2530（两历史债不扩大）及 diff-check 通过。未执行 native、缺 key 的 abort、故障注入、默认 workspace 或远端 CI；本地未推送，不宣称完整 D10/E2 退役。
+
+### 2026-11-16：nested resource scope 的 Unit 析构事实消费者迁移
+
+- 基 `91657fc8`，`single_resource_deinit_control_body_nested_scope_consumes_published_drops` 原 Resource/work 源码、FQN 及 verified LLVM 保留；原独立 Legacy raw drop 观察改从实际用于 lowering 的同一个严格 Unit 产品读取，不构造替代 facts、不混两轮分析。
+- 原两个 named resource 的 `[second,first]` 逆序、相同 AfterStatement 点保持，并核不同真实 symbol、原 value-origin 文本、MemoryDocument/SourceUnit 身份及可解析原 AST statement。测试专用观察移入小模块，其他 Legacy 拒绝和 closure 正控不动；不修改生产 drop 策略或声明 D10/E2 整体退役。
+- 独立只读末审确认原 fixture/全部原 oracle 保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原完整 exact 本树真实重编1m35s，1 passed / 0 failed / 0 ignored（0.04s）；codegen all-targets 同配置严格 Clippy 47.63s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过；未执行 native、Abort、故障注入、默认 workspace 或远端 CI，不推送。
+
+### 2026-11-16：direct resource closure 原正控消费者迁移
+
+- 基 `778923c9`，原 `single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup` FQN 与源码字节保留，直接复用已有严格 Unit `direct_closure::assert_cleanup`；原独立 Unit 测试身份和 alias/repeated-call fixture 均保留，不把重复的同输入验收当新增覆盖。
+- 原 thunk 内 HeapAllocate 恰一、body Drop 恰一 HeapOwner、run 内 CallableInvoke 恰一、entry Drop 恰一 ConcreteClosure 与 verified LLVM 全保全。现有 helper 额外按实际 ClosureConstruct 的 thunk 身份定位，核 Resource deinit 注册以及唯一 Owned String capture 与其环境析构；不凭旧显示名后缀替代身份。
+- 删除唯一已无调用方的 `lower_resource_legacy` 辅助函数，其他 Legacy 拒绝原样保留，不改生产 closure ABI 或准入。
+- 独审逐项核原 oracle 与源码，无阻断；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m35s，原 FQN exact 1 passed（0.04s），不同 alias/repeated-call fixture exact 1 passed（0.01s）；codegen all-targets 同配置严格 Clippy 47.43s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。原补充 Unit FQN 与迁移后原 FQN 共用同输入/helper，未重复运行或称为独立 oracle。未执行 native、Abort、故障注入、默认 workspace 或远端 CI，不推送。
+
+### 2026-11-16：resource 析构调用原拒绝与 Unit 能力差异
+
+- 基 `1da2ac2b`，保留 `single_resource_deinit_rejects_member_calls_and_nested_call_borrows` 原 FQN、两条源码字节与 Legacy 消费者；将旧 `UnsupportedNode` / 有 span 断言加强为各自 SourceMap 内完整错误身份：`this.observe()` 52..66、`inner.text` 116..126。
+- 普通对照首验真实本树重编1m28s，发现 Unit 已接受第一条原拒绝源码，因此停止退休；第二轮18.41s重编证明两条相同源码的 strict Unit 均到 verified LLVM。保首失败日志，不把接受误报成与 Legacy 拒绝等价。
+- 同轮补成对能力合同：相同 `lowering.ko` / 原源码、无 deferred、真实 `run` DeclarationId/Span 入口，实际 Resource/Outer 析构函数中原调用表达式对应 DirectCall 恰一次，并验证 LLVM。未新增生产能力、未改变根选择或旧拒绝；这是差异见证，Legacy 净退休数为零，不宣称 D10/E2 完成。
+- 末版在本工作树真实重编31.23s，准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 exact 1 passed（两 fixture，0.04s）；同配置 codegen all-targets 严格 Clippy 47.42s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check 与只读独审通过。未执行 native、Abort、故障注入、默认 workspace 或远端 CI；仅本地提交，不推送。
+
+### 2026-11-16：Rc presence 原 Single 清理身份消费者退休
+
+- 基 `42631e82`。先核既有 MemoryDocument 原身份目标的实际 CI 证据：[PR441 run43807524911](https://github.com/Halckon/koven/actions/runs/43807524911)，提交 `37a90566cdd92e002f39455d299809aeb0451847`；macOS job133101971763 与 Linux job133101972008 日志均明确 `ssa::rc_nullable_while_bounded_tests::memory_document::original_presence_sources_reach_source_anchored_memory_document_llvm ... ok`。该运行整体失败，不作整 CI 通过声明；迁移前 MemoryDocument helper、FE facts、SSA identity、bounded 来源与四个 fixture 均与该提交一致。
+- 将旧 `presence_rc_nullable_while_preserves_owner_cleanup_identity` 的四个 Single 调用改为同源码 strict MemoryDocument 原完整身份检查，复用既有真实 Unit facts → 三函数 source identity → SSA owner/cleanup identity → verified LLVM；四个 package-qualified Rooted 对照不变。两个已有 FQN 均保留，共用同一 Unit helper，不宣称新增独立覆盖。
+- 删除已无消费者的 `identity_facts::single` 及专用 reference helper/import；旧 observer 明确不再接受 Single 身份请求，但四个 payload/owner-return 的 Legacy 成功与 Unit 拒绝边界仍保留。没有改变生产准入、Rc ABI、cleanup 或源码语义，不触碰 native/fault 路线。
+- 新头明确在本树强制真实重编1m34s；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）旧身份 FQN exact 1 passed（四 MemoryDocument + 四 Rooted，0.08s），原 MemoryDocument FQN exact 1 passed（四 fixture，0.02s），保留 payload 边界 exact 1 passed（八观察，0.03s）。同配置 codegen all-targets 严格 Clippy 47.18s/exit0，fmt、docs979、尺寸2531（两历史债不扩大）、diff-check 与独审通过；只做 SSA/LLVM，未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI。仅本地提交，整体 D10/E2 仍未完成。
+
+### 2026-11-16：Rooted direct-proof 消费者去除无断言的 Legacy 重复执行
+
+- 基 `80a316f3`，原 `unit_direct_nullable_while_birth_and_local_retirement_reach_llvm` 从双路线收集后仅消费奇数 Rooted 结果，改为直接调用同一 `lower_unit_source(text, true)`；五条原源码、`package p` 布局、SSA/LLVM 验证及 `assert_unit_direct_proof` 全保留，FQN 不变。
+- 这只消除该消费者中被丢弃的五次 Legacy Program 构造，不是五个独立 Legacy 合同退休。原 `single_direct...` 的完整 Legacy loan/terminal/origin oracle 与 MemoryDocument 观察不变，numeric/borrowed 两个 shape 边界不变；共享 Legacy collector 仍保留，未绕过其显式退休决定门槛。
+- 新头在本树强制真实重编1m49s；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 Unit FQN exact 1 passed（五 fixture，0.05s）、原 Single FQN exact 1 passed（完整旧 shape 与原 MemoryDocument，0.03s）。同配置 codegen all-targets 严格 Clippy 50.45s/exit0，fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及只读独审通过。未执行 native、Abort、故障注入、默认 workspace 或远端 CI；仅本地提交、不推送，不宣称剩余形状合同已退休。
+
+### 2026-11-16：D10/E2 两条本地退休线与 PR441 修复整合
+
+- 共同基线 `6e946bcd`，以 merge 保全 D10 `3106eff1`、E2 `973ad9db` 的原提交身份；两线源文件无交集，唯一冲突为本 Spec 尾追加，按共同前缀 + D10 追加 + E2 追加逐字节保全。再合入当时实时查询的 PR441 头 `29836b88`，无源码冲突；整合代码头 `b929196e`，没有复制共同提交或改写原审计记录。
+- 独立只读审查逐项核双方独有文件与父提交 blob 一致，三个原头均为整合头祖先，无意外变化。共享 Cargo target 前触碰本树变更源码，日志明确在独立整合树真实编译1m41s，不用其他工作树的旧二进制代替。
+- 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下组合九项 exact 各1 passed / 0 ignored：Rc inspect 原 owner、普通成功与 default routing；Rc presence 原身份及保留 payload 边界；direct-proof 原 Unit/Single 两目标；Map wrapper 显式两根及生产 singleton 控制。codegen all-targets 同配置严格 Clippy52.28s/exit0；fmt、docs979、Rust尺寸2531（两项历史债不扩大）与 diff-check 通过。
+- 仅执行普通 SSA/LLVM 目标；故障目标只编译/列出，不在本地执行；未运行 native、Abort、默认 workspace 或新头远端 CI，未推送。此整合不表示 D10/E2 整体完成，不触碰 #427。
+
+### 2026-11-16：return 边界辅助函数删除无消费者的旧成功分支
+
+- 基本地整合 `0a928a58`，`boundaries::observe` 的八个调用均固定 `supported=false`；成功消费者此前已迁 Unit，本次仅删除无调用方的 Legacy 成功/LLVM 分支及布尔参数，重命名为 `observe_rejection`。八条原源码、声明精确错误、循环数量和完整 Unit 正控合同不变，不将死分支清理计成八个 Legacy 消费者退休。
+- 独立只读审查确认 Unit 合同及其他调用逐字节保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m41s，八项原 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy52.73s/exit0，fmt、docs979、尺寸2531（两历史债不扩大）和 diff-check 通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交，不推送。
+
+### 2026-11-16：Rc payload 四个原正常消费者迁默认 MemoryDocument Unit
+
+- 基 `c6d42b13`。经与 E3 默认路由复验协调，确认四个原 payload fixture 的默认 Unit 已可到 SSA/LLVM；不能从强制 per-family 的旧拒绝推断默认能力缺失。本片不新增 Rc lowering，不修改生产路由，也不要求所有函数均走 refine。
+- `bounded_payload_and_owner_return_sources_record_current_stage_boundary` 中四个无 package 的 Legacy 成功消费者改为同路径、同字节的严格 MemoryDocument 默认 Unit。原三声明源码身份、唯一实际 entry、可达 block/call graph、SSA verifier 与无进程入口 LLVM oracle 均保留；补单一源 unit、MemoryDocument key 和源名/全文校验。删除该 observer 的旧 names/types/ownership/lowering 分支及专用导入，净退休四个 Legacy 正常消费者。
+- 原 Rooted 路径仍显式 `with_per_family_lowering`，四个精确 UnsupportedNode、payload span 与 `owner.value` 断言不变；独立 MemoryDocument per-family 原拒绝测试主体亦不变。文案明确是 Unit 内默认/显式 per-family 的路由对照，不再称独立 Legacy 见证；不把保留边界当成默认语义缺口。
+- 独立只读审查确认原源码及完整成功/失败 oracle 保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m39s：原 payload 八观察、presence 四观察、MemoryDocument per-family 四拒绝三个 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy49.74s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过；未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
+
+### 2026-11-16：borrowed-for 外层 nullable proof 原消费者退休
+
+- 基 `973ad9db`，原 `borrowed_for_preserves_the_outer_nullable_while_proof` 两条源码（普通/Group）及全部断言不改，只将原 no-package Legacy 收集臂切到既有 `collect_sources` 的严格 MemoryDocument 路线；`package p` Rooted 臂不变。相邻 `nullable_while_preserves_the_outer_borrowed_for_access` 两布局仍走原 Unit 路线。
+- 先静审完整 `assert_borrowed_proof`：其 `_unit` 参数已不参与分支，三路线均使用相同 owner/view/element 逐边身份、LoanEnd/Drop 和 scalar 运输 oracle。既有 MemoryDocument 原 entry/guard 来源观察仍保留，与新 no-package臂共用真实lowering，不计为新增独立覆盖。不改变任何 Legacy-specific assertion，因为该oracle已无该分支。
+- 迁移前精确目标在 [PR441 run43807524911](https://github.com/Halckon/koven/actions/runs/43807524911) 的 macOS job133101971763、Linux job133101972008 均实际 `ok`；提交 `37a90566` 与本片迁移前 borrowed 源码/contract blob一致。该运行整体失败，旧目标证据不替代新头验证。Legacy shape collector仍留给 direct/numeric 两项真实不同形状的合同，不宣称整体退役。
+- 新头明确在本树强制真实重编1m34s，准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 borrowed-for FQN exact 1 passed（0.10s），相邻 nullable-while 外层 borrowed-for FQN exact 1 passed（0.04s）；同配置 codegen all-targets 严格 Clippy 57.83s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check和独审通过；未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI。仅独立本地提交，不推送、不覆盖整合在途树。
+
+### 2026-11-16：borrowed proof 与 Rc payload 退休组合验收
+
+- 独立整合头 `989fa112` 合并 `be362f7e` 与 `f855606c`，共同基线 `973ad9db`；原提交均保留为祖先。唯一 Spec 尾追加冲突按左侧完整账本 + 右侧相对基线的新段逐字节保全；独立只读审查确认两边独有源码 blob 与父提交相同，无丢失、复制或额外变更。
+- 触碰本树变更源码强制共享 target 真实编译1m34s。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下 borrowed-for/outer-borrowed 两原 exact、Rc payload 八观察及 presence 四观察共四个 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy49.48s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。
+- 仅做必要的普通 SSA/LLVM 组合交叉验证，不重复各片已验独立负控；未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI，未推送；D10/E2 整体仍 in-progress。
+
+### 2026-11-16：return 八例旧实现拒绝见证退休
+
+- 基 `eb4acaef`，按不长期保留 Legacy 实现限制的退休方向，逐例核对 two-returns、mixed-continue、replacement-seed、alias-seed、resource-source、outer-owner/inner-loop、same-source-nested、same-source-sequential。八条原源码、原 FQN 和既有 Unit 正控逐字节保留；只删除旧前端/lowering 的 `UnsupportedNode(keys)` 拒绝支路、专用导入及 `keys_start` 参数。此文件不再消费旧 analyze/lower_scalar_file，净退休八个旧拒绝消费者。
+- 逐例前审及末审确认旧支路没有成功 SSA 或运行时清理 oracle。保留的严格 Unit 正控检查原 source/MemoryDocument、四阶段 clean/no deferred、真实 For descriptor/source identity 与 iteration 数量、main 声明到实际 entry、元素访问数，以及包含静态 ownership verifier 的实际入口 LLVM 验证。这里是退休已废弃实现限制，不声称旧拒绝与 Unit 成功等价，也不把静态验证扩大为 native 析构次数/次序证据。
+- 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m32s，八项原 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy47.81s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交、不推送，D10/E2 仍 in-progress。
+
+### 2026-11-16：resource 析构调用两例旧实现限制退休
+
+- 基 `a4718830`。按不长期保留 Legacy 实现限制的方向，逐例审查原 `this.observe()` 和 `inspect(inner.text)` 两条完整源码，删除 `single_resource_deinit_rejects_member_calls_and_nested_call_borrows` 内仅旧 `UnsupportedNode`/span 的拒绝支路与无用 tuple 常量；原 FQN 保持稳定，实际只剩已支持的 Unit 合同。其他 generic、nullable、partial-move 旧边界不动。
+- 既有 Unit block 逐字节保全：严格四阶段 clean/no deferred、原 source/path、真实 run 入口、原 classifier 内注册且带 Shared receiver 的 deinit、原调用表达式 source origin 对应 DirectCall 恰一次、SSA/LLVM 验证。旧拒绝没有额外成功 loan/drop 或 runtime oracle；不宣称新旧结果等价、具体 callee/逐边 loan 次序新增证明或 native 析构次数已验证。
+- 净退休两个旧实现限制消费者，Rust净减43行。独立逐例前审与末审通过；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m41s，原 exact 1 passed / 0 ignored（两 fixture）；codegen all-targets 严格 Clippy48.57s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交，不推送。
+
+### 2026-11-16：inline nullable 原 Token 旧拒绝见证退休
+
+- 基 `97e012e8`，删除 `rejects_inline_nullable_lowering_without_panicking` 中仅旧实现 `UnsupportedNode` 的分析/lowering支路；原 Token/inspect 源码、历史 FQN 与 `inline_nullable_contract::assert_unit` 完整不变。净退休一个旧拒绝消费者，Rust净减14行；不宣称旧拒绝与 Unit 成功等价。
+- 逐例前审及末审确认既有严格 Unit 正控保留原 MemoryDocument/两声明、实际 inspect entry、tagged InlineNullable<Token> 与单 i32 字段、四块 CFG、真实 owner/proof 的 NullableBranch、唯一 NullableTake 的操作数/类型/origin、无多余 copy/drop、汇合空返回、SSA 与无进程入口 LLVM。旧支路没有额外成功 ABI/清理或 runtime oracle，本次不改生产路线、不新增 native 证据。
+- 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m54s，原 exact 1 passed / 0 ignored；codegen all-targets 严格 Clippy1m05s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
+
+### 2026-11-16：readonly borrow 与 String receiver 旧限制退休
+
+- 基 `665fd0ae`，逐例审查后退休两个已被现有完整 Unit 正控覆盖的旧 receiver 限制。`readonly_keeps_borrow_result_receiver_boundary` 仅删 Legacy rejected 调用，原 source/FQN 与 Item owner/root、BorrowCall source/result loan、实际 view/read callee、receiver、两 loan End 顺序、无额外 Copy/Retain 和实际入口 LLVM 合同全保留。
+- 删除纯旧 `receiver_string_borrow_keeps_existing_single_unit_capability_difference` 测试，不新增重复 Unit 测试。其原源码（含 NUL）与既有 `receiver_original_source_preserves_exact_unit_owners_and_call_loans` 的 SOURCE 逐字一致；后者完整保留实际 receiver/String owner、独立 loan、精确 end/drop 及事件数量/顺序、callee借入打印合同。Rooted 单/双源顺序分支通过 events 验 LLVM，直接 MemoryDocument 分支保完整 SSA oracle；不混称该分支单独调用过 LLVM。
+- 两处过时“保留Legacy见证”顶注同步纠正；Rust净减33行。前审及末审确认无有效合同丢失；这是旧实现限制退休，不是新旧拒绝等价或新增 native 证明。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m37s，两原 Unit exact 各1 passed / 0 ignored，codegen all-targets 严格 Clippy50.48s/exit0；fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
+
+### 2026-11-16：continue 嵌套/顺序与 alias 四例旧限制退休
+
+- 基 `77372107`。逐例审查 outer-independent-inner、same-source-nested、sequential-same-source 与 alias，删除仅旧 `UnsupportedNode` 拒绝支路；原 nested 四源码（含已迁 inner-fresh）、identity 三源码及全部 FQN 保留。净退休四个旧拒绝消费者，Rust净减61行；不把同批已迁正控重复计入退休数。
+- 完整 Unit block/helper 逐字节保全：严格准入、source/MemoryDocument、原 iteration descriptor、真实 main/entry 与两 loop 元素访问、alias 的实际 Owned source loan root 与 keys 53..57、原 Array provider 及 SSA/LLVM。旧分支没有额外成功 loan/drop 或 native oracle；本片不是新旧结果等价，不扩称动态借用或运行时释放次数已验证。
+- 前审及末审无阻塞；fmt、docs979、Rust尺寸2531（两历史债不扩大）与 diff-check 通过。磁盘低于8GiB期间暂停构建且未清理用户数据，获恢复通知后核41.8GiB并串行接槽，触碰本树源码真实重编1m36s。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）两个原 exact 各1 passed / 0 ignored，codegen all-targets 严格 Clippy53.21s/exit0；结束可用37.7GiB。未执行 native、Abort、故障注入或远端 CI；仅本地提交、不推送。
+
+### 2026-11-16：条件资源消费的 Unit fail-closed 来源证明
+
+- 基 `dad4fb5c`，仅强化既有 `unit_conditional_resource_move_is_deferred_instead_of_released_early_or_lost` 及其 Unit helper。原源码、MemoryDocument/Rooted 两适配及旧 Single 对照保留；不删除合同、不修改生产语义、不宣称支持 partial-move 或条件资源清理。
+- 将原“存在 ResourceLifetime”观察收紧为唯一该 deferred，核实际 If 表达式的 source-unit 身份及完整源码 Span；保留 flat drops 为空，并核本固定 fixture 无 conditional receiver cleanup。基础 capability 准入仍必须失败，返回的未验证产品保留同一 deferred。相邻 while 保持原 oracle。该证明不要求整个 ownership product 为空，不把观察事实当成可执行 capability，也不代表 E3 CFG 能力扩展。
+- 事实预审与实现末审通过；精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树 frontend 真实重编25.38s，`ownership_resource_deinit` 原测试 target 31 passed / 0 ignored；frontend all-targets 严格 Clippy32.81s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）及 diff-check 通过。构建前/strict前均核空间高于8GiB并串行执行；未执行 native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：容器类型两处同源重复消费者收敛
+
+- 基 `524ac892`，逐项前审及末审后移除 `type_containers.rs` 的两处重复 Single 执行及唯一私有 `checked` / `NameResolution`、`TypedFile`、`resolve_names`、`check_types` 依赖，Rust净减22行。原两 FQN、源码、共享 parser/自定义类型环境及 MemoryDocument/Rooted Unit 块逐字保留。
+- `non_storable_and_wrong_arity_container_types_are_rejected` 保原有序四诊断code；`deferred_callable_reference_element_does_not_become_a_false_storable_error` 保原无诊断和空 construction 合同。旧执行没有额外 span/label/identity 断言；不将 code 列表声称完整诊断对象等价。Unit 继续使用 raw type-checking recovery 阶段，不增加 final admission，也不扩删旧阶段或身份合同。
+- 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前两原 exact 各1 passed，本树真实编译23.76s；修改后真实重编1.36s，两原 exact 各1 passed / 0 ignored。frontend all-targets 严格 Clippy33.49s/exit0；fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过。串行构建并核空间高于8GiB；未执行 native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：inout storage 同源重复消费者收敛
+
+- 基 `bfeef7d4`，经逐项前审和末审，删除 `type_callable/inout_storage.rs` 两个私有 helper 内的旧分析执行块及专用 `resolve_names` / `check_types` / `TypeKind` 导入，Rust净减34行。范围影响该模块26个既有测试FQN，不是新增26项覆盖；全部 fixture、共享 oracle 和两段 Unit 检查逐字保留。
+- 两 Unit 路线仍消费同一 SourceMap/AST/显式标准环境，保原 nullable storage/type/call参数身份、inout operand不误收窄、普通non-null读取、拒绝时无call descriptor、精确L0084 operand Span及有序(code, source slice)恢复诊断。仍为 raw type-checking recovery 产品，不增加 final admission，不改生产语义或其它旧阶段合同。
+- 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前本树真实编译25.42s，`type_callable` 的 `inout_storage::` 模块26 passed；修改后真实重编0.95s，同26 passed / 0 ignored，frontend all-targets严格Clippy34.68s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；串行构建、各次空间门槛高于8GiB。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：String.clone 完成点重复消费者收敛
+
+- 基 `90e04803`，逐项前审及末审后删除 `string_clone.rs` 成功路径的旧 `assert_legacy_clone_call_return` 调用、唯一helper及专用旧API导入，Rust净减37行；修正阶段checkpoint注释。原源码、19个测试及 MemoryDocument/Rooted Unit检查、独立 `loan_ends` 邻控全部保留。
+- 原旧oracle逐clone仅要求存在CallReturn；既有两Unit `assert_complete` 已逐clone核唯一实际正常结束事件、CallReturn、receiver/Shared及完整loan身份。生产observer在真实receiver遍历正常完成后才记录，提前退出不记；不是仅descriptor存在的替身。本片未改observer/cleanup算法，不将静态观察当动态执行次数、cleanup执行器或统一事件总序；独立return后无事件、内层完成外层提前退出与同名方法邻控保留。
+- 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前本树真实编译23.73s，原 `string_clone` target19 passed；修改后真实重编1.45s，同19 passed / 0 ignored；frontend all-targets严格Clippy36.60s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过；串行构建及空间8GiB门槛保持。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：primitive arity 拒绝消费者收敛
+
+- 基 `41575bb8`，前审及末审后仅删除 `final_type_admission/primitive_arity.rs::assert_rejection` 的14行旧 raw/final 执行；影响5个既有FQN、9个原fixture，不新增覆盖。共享oracle、同源两Unit循环与所有其它旧专有合同不变。
+- 保留完整 raw/complete Diagnostic 等值、L0091 whole-call预期对象及message/Span/details、其余错误原有数量/顺序/code/slice、无call descriptor/无ownership primitive/Error类型与completion只能为Diagnostics。ordinary external的旧L0165 token/message与Unit真实差异、external overload旧names身份、其它成功/恢复旧合同均保留，本片不声称这些已等价退休。
+- 为先准备代码且不抢E2构建，保存独审精确补丁，获槽后仅逆用该补丁恢复干净基线；随后重应用且字节核对同一补丁。精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 `primitive_arity::` 模块8项基线全通过（真实重编27.37s），修改后同8 passed / 0 ignored（真实重编0.76s），包含未改external差异邻控；frontend all-targets严格Clippy35.75s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check通过。各编译前独立核空间高于8GiB，未自动清理；完成后交还E2串行槽。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：arity 成功、泛型恢复及绑定邻控收敛
+
+- 基 `fdc539d0`，前审及末审后仅收敛 `primitive_arity.rs` 三处旧重复执行（3个FQN、5个fixture），Rust净减19行。原两Unit代码块、fixtures与共享oracle不变：成功同轮analysis及primitive数量0/2、泛型raw/complete完整诊断及message/details/精确位置、真实外部overload候选ID及顺序全保留。
+- 普通同名external的L0165旧token/message与Unit完整call差异逐字保留，`complete_file_types`未删除。不以本片推断所有旧资格/诊断阶段已等价，也未修改生产语义。
+- E2占槽期间完成代码、独审及静态检查；获槽后按同一精确补丁逆用/重应用分别验证干净基线和候选。三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 `primitive_arity::` 模块前后各8 passed / 0 ignored，真实本树编译24.36s/0.67s；frontend all-targets严格Clippy34.67s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check通过。每步构建前核空间高于8GiB，未清理数据，结束交还E2槽。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：baseline recovery 文件旧分析依赖收敛
+
+- 基 `bbcd17f2`，前审与末审后移除 `multifile_type_checking/baseline_regressions.rs` 两处重复旧执行及该文件全部 `resolve_names` / `check_types` / `TypeKind` 专用依赖，Rust净减29行。原FQN/源码、Unit完整布局与construction目标、Borrow Int→Int隐式lambda及实际参数身份、when Error、basic准入拒绝，以及独立多源顺序/身份测试全保留。
+- 原old/Unit L0112 primary的交叉比较没有直接丢弃：两生产实现均以失败分支body的Statement span定位，先在保留两路线的基线加入同一原AST第二分支body完整Span及slice为`0`的断言并实测通过；最终候选保留独立同一Span oracle，不误称whole when定位或额外label合同。
+- E2占槽及空间约8.04GiB时暂停新构建；收到获批清理完成通知后核20.87GiB及无编译进程再接槽，未自行清理。精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）带Span冻结的原模块3项基线passed（真实本树28.74s），撤回仅基线临时补丁并重应用已审候选后同3 passed / 0 ignored（真实1.06s）；frontend all-targets严格Clippy35.93s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过，每步编译前核8GiB门槛。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：nullable scope 重复旧消费者收敛
+
+- 基 `6553ede0`，逐例前审及末审后收敛 `multifile_type_checking/nullable_when_scope.rs` 四个既有源码场景，删除重复 Single 路线及唯一 lambda Single observer，Rust净减121行。原FQN、四源码、lambda目标提取与完整Unit observer逐字保留；原八次观察去重为四次Rooted Unit观察，不新增测试或第二种布局覆盖。
+- 条件短路写和循环写保实际when subject/else reference、nullable Boolean存储及精确L0084/无错误proof；lambda创建不发布内部proof、保留传入proof两场景保持实际参数/内外引用身份、Nullable Int类型及完整proof查询。原解析两次、panic/stage报告和同轮成功准入保留；负例completion仍保原诊断并禁止额外L0165，不夸称其为raw/final完整对象等值。父模块三个复杂nullable-when合同及旧plan观察不变，不推断Unit null/else descriptor覆盖所有旧finite-Boolean计划。
+- 精确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）按冻结补丁逆用/重应用验证，原nullable_when模块修改前后各4 passed / 0 ignored，真实本树编译24.70s/1.78s；frontend all-targets严格Clippy35.03s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过；每次构建前核空间高于8GiB并串行执行，完成后交还E2槽。未改生产语义，未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：Map recovery 旧API消费者迁至两Unit入口
+
+- 基 `a4b1d4ab`，逐项前审和末审后迁移 `type_map.rs` 最后两个旧类型分析消费者，保原FQN（`single_`为历史名称）、六个checked-key和十一个nullable-wrapper原源码与全部期望值。该文件不再调用旧resolve_names/check_types；两Unit布局复用每份原AST及环境，从实际index核源身份后包装表达式ID，不重复解析或重建预期。
+- 保map_get/outer call是否发布、query的Error或Nullable(Int)、value的Int、non-null assertion数量及实际表达式查询，以及原有序诊断code/start offset。未增加complete或ownership门禁，仍为raw recovery；不将原有限code/start oracle描述为完整Diagnostic或完整Span等值。两布局是MemoryDocument/Rooted入口覆盖，不是两套独立实现。
+- 冻结已审补丁并逆用/重应用，精确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原type_map全target前后各19 passed / 0 ignored，真实本树编译25.82s/0.50s，17原fixture在两Unit入口均保持原oracle，无预期迁就；frontend all-targets严格Clippy43.59s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过。每步构建前核8GiB门槛，串行槽完成后交还E2；未改生产语义，未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：borrow-result nullable 消费者旧依赖收敛
+
+- 基 `7402e9d6`，前审及末审后收敛 `ownership_borrow_result.rs` 七个既有FQN、十四个原fixture，删除唯一 `checked_single` 及旧names/types/ownership专用依赖，Rust净减54行。原源码、两Unit布局helper及有效断言不变，未修改生产语义或新增重复测试。
+- 保nullable promotion唯一L0162与空return origins/bindings/forwarded loans，真实nullable storage的两bindings、forwarded loan/call use数量、enum narrowing的binding，promoted continuation唯一L0164/空call uses，以及nullable复制的两个有序Shared temporary/Exclusive root place与两例唯一L0135。诊断合同是数量/code，不声称完整Diagnostic或Span等价；原正常/后续参数退出loan-end邻控保留。
+- 冻结独审补丁并逆用/重应用，准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原ownership_borrow_result全target修改前后各12 passed / 0 ignored，真实本树编译24.16s/0.52s；frontend all-targets严格Clippy35.26s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check通过；每步构建前核空间高于8GiB并串行执行，完成后交还E2槽。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：结构解构与私有访问原合同迁Unit
+
+- 基 `f6b10c67`，逐例前审及末审后迁移 `ownership_structural.rs` 三个既有FQN、四个原fixture。保持原源码及历史`legacy_`测试名，前两例保持原自定义环境；同一AST进入MemoryDocument/Rooted，核唯一source和布局key，component用真实UnitSymbolId查所属local symbol，不混用裸ID。
+- 保命名binding按字段顺序、唯一L0080/`arbitrary`，private lexical access的三L0080/三个`hidden`、一destructuring/一projection/无call，以及原complete完整诊断等于raw；borrowed discard保L0160/空诊断及iteration数量0/1。仅原private例执行complete，其他保raw阶段。Malformed parser恢复及其他旧projection/partial-move合同未动，不声称全文件旧API已清除。
+- 冻结已审补丁，基线与候选原ownership_structural全target各11 passed / 0 ignored，精确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）真实本树编译25.41s/0.63s；frontend all-targets严格Clippy36.81s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过。离线前调用无session/日志且未计验证，恢复后核无进程和基线日志再执行；每步核8GiB并串行，结束余量约8.69GiB，已交还E2槽。未改生产语义，未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：while flow 最后重复旧分析依赖收敛
+
+- 基 `754f5a01`，删除 `while_flow_facts.rs` 唯一旧 `assert_repeating_cases`，五处原调用直接复用已有 `assert_cases`；包括 literal_short_circuit 子模块三处，Rust净减38行。范围为5个既有FQN、26个原fixture（14成功/12拒绝），全部Case、markers、Unit观察和oracle逐字不变，独立多源测试保留。
+- 旧helper只重复names clean及raw clean/唯一L0084+marker start/end；两Unit已有精确AST marker、节点类型、完整primary Span、raw诊断保持、失败raw/final完整等值和成功同analysis合同。原旧flow.ko源名没有额外断言，不以源码命名变化声称新语义能力；未新增观测抽象或生产变化。
+- 初候选遗漏子模块三调用，编译失败暴露后补齐并重新全仓调用检索、独审及静态核验，未将失败计通过。准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原全target基线16 passed（真实本树27.11s），最终候选16 passed / 0 ignored（2.09s），frontend all-targets严格Clippy53.27s/exit0；最终fmt、docs979、尺寸2531（两历史债不扩大）及diff-check通过。
+- 本次获用户授权后先等独立工作自然结束并核无cargo/rustc，仅删除共享target/debug/incremental，保源码、deps、其他target和日志；空间恢复后每步核8GiB并等待空窗串行验证，不终止其他任务。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。

@@ -385,10 +385,7 @@ fn map_nullable_borrow_argument_requires_a_non_null_proof() {
 
 #[test]
 fn single_map_queries_publish_only_with_a_checked_key() {
-    use lang_frontend::{
-        name_resolution::resolve_names,
-        type_checking::{BuiltinType, TypeKind, check_types},
-    };
+    use lang_frontend::type_checking::{BuiltinType, UnitExpressionId, UnitTypeKind};
     let declarations = "fun reject(inout target: Int, input: Int): Int = input\nfun outer(inout target: Int?, value: Int?): Boolean { target = null; return true }";
     for (key, rejected, resolved) in [
         ("1", false, true),
@@ -402,49 +399,63 @@ fn single_map_queries_publish_only_with_a_checked_key() {
             );
             let (sources, file) = parsed(&text);
             let (environment, types) = standard_environments();
-            let names = resolve_names(&sources, &file, &environment).unwrap();
-            let typed = check_types(&sources, &file, &names, &types).unwrap();
-            let expression = |expected| {
-                file.ast()
-                    .expressions()
-                    .iter()
-                    .find(|(_, node)| sources.slice(node.span()) == Ok(expected))
-                    .unwrap_or_else(|| panic!("expression not found: {expected}"))
-                    .0
-            };
-            let query_id = expression(&query);
-            assert_eq!(typed.map_get(query_id).is_some(), resolved, "{text}");
-            assert_eq!(typed.call(expression(&outer)).is_some(), resolved, "{text}");
-            let actual = typed.types().get(typed.expression_type(query_id).unwrap());
-            if rejected {
-                assert_eq!(actual, Some(&TypeKind::Error), "{text}");
-            } else {
+            for entry in ENTRIES {
+                let inputs = [entry.input(&file, "map_test.ko")];
+                let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+                entry.assert_identity(&index, &file, "map_test.ko");
+                let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                    .expect("unit names");
                 assert!(
-                    matches!(actual, Some(TypeKind::Nullable(inner))
-                    if typed.types().get(*inner) == Some(&TypeKind::Builtin(BuiltinType::Int))),
-                    "{text}"
+                    names.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    names.diagnostics()
                 );
+                let names = names.validate().expect("valid unit names");
+                let source_unit = names.names().index().source_units()[0].id();
+                let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                    .expect("unit raw types");
+                let expression = |expected| {
+                    UnitExpressionId::new(
+                        source_unit,
+                        file.ast()
+                            .expressions()
+                            .iter()
+                            .find(|(_, node)| sources.slice(node.span()) == Ok(expected))
+                            .unwrap_or_else(|| panic!("expression not found: {expected}"))
+                            .0,
+                    )
+                };
+                let query_id = expression(&query);
+                assert_eq!(typed.map_get(query_id).is_some(), resolved, "{text}");
+                assert_eq!(typed.call(expression(&outer)).is_some(), resolved, "{text}");
+                let actual = typed.types().get(typed.expression_type(query_id).unwrap());
+                if rejected {
+                    assert_eq!(actual, Some(&UnitTypeKind::Error), "{text}");
+                } else {
+                    assert!(
+                        matches!(actual, Some(UnitTypeKind::Nullable(inner))
+                    if typed.types().get(*inner) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))),
+                        "{text}"
+                    );
+                }
+                let [diagnostic] = typed.diagnostics() else {
+                    panic!("expected one mismatch: {text}: {:?}", typed.diagnostics());
+                };
+                assert_eq!(diagnostic.code().to_string(), "L0084");
+                let offset = if rejected {
+                    text.find("reject(&y").unwrap() + "reject(&".len()
+                } else {
+                    text.find("/*read*/").unwrap() + "/*read*/".len()
+                };
+                assert_eq!(diagnostic.primary_span().start(), offset, "{text}");
             }
-            let [diagnostic] = typed.diagnostics() else {
-                panic!("expected one mismatch: {text}: {:?}", typed.diagnostics());
-            };
-            assert_eq!(diagnostic.code().to_string(), "L0084");
-            let offset = if rejected {
-                text.find("reject(&y").unwrap() + "reject(&".len()
-            } else {
-                text.find("/*read*/").unwrap() + "/*read*/".len()
-            };
-            assert_eq!(diagnostic.primary_span().start(), offset, "{text}");
         }
     }
 }
 
 #[test]
 fn single_nullable_wrappers_keep_map_recovery_separate_from_checked_facts() {
-    use lang_frontend::{
-        name_resolution::resolve_names,
-        type_checking::{BuiltinType, TypeKind, check_types},
-    };
+    use lang_frontend::type_checking::{BuiltinType, UnitExpressionId, UnitTypeKind};
 
     let declarations = "fun take(a: Int, b: Int): Int = a\nfun reject(inout target: Int, input: Int): Int = input\nfun write(inout target: Int?): Int { target = null; return 0 }\nfun outer(inout target: Int?, value: Int): Boolean { target = null; return true }";
     for (value, selected, assertions, diagnostic_spans) in [
@@ -511,59 +522,76 @@ fn single_nullable_wrappers_keep_map_recovery_separate_from_checked_facts() {
         );
         let (sources, file) = parsed(&text);
         let (environment, types) = standard_environments();
-        let names = resolve_names(&sources, &file, &environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &types).unwrap();
-        let expression = |expected| {
-            file.ast()
-                .expressions()
-                .iter()
-                .find(|(_, node)| sources.slice(node.span()) == Ok(expected))
-                .unwrap_or_else(|| panic!("expression not found: {expected}"))
-                .0
-        };
-        assert_eq!(
-            typed.call(expression(&outer)).is_some(),
-            selected,
-            "{value}"
-        );
-        assert_eq!(typed.non_null_assertions().len(), assertions, "{value}");
-        if assertions == 1 {
+        for entry in ENTRIES {
+            let inputs = [entry.input(&file, "map_test.ko")];
+            let index = index_compilation_unit(&sources, &inputs).expect("unit index");
+            entry.assert_identity(&index, &file, "map_test.ko");
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+                .expect("unit names");
             assert!(
-                typed.non_null_assertion(expression(value)).is_some(),
-                "{value}"
+                names.diagnostics().is_empty(),
+                "{text}: {:?}",
+                names.diagnostics()
             );
-        }
-        if diagnostic_spans[0].1 == "/*after*/x" {
-            let value_ty = typed.expression_type(expression(value)).unwrap();
+            let names = names.validate().expect("valid unit names");
+            let source_unit = names.names().index().source_units()[0].id();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+                .expect("unit raw types");
+            let expression = |expected| {
+                UnitExpressionId::new(
+                    source_unit,
+                    file.ast()
+                        .expressions()
+                        .iter()
+                        .find(|(_, node)| sources.slice(node.span()) == Ok(expected))
+                        .unwrap_or_else(|| panic!("expression not found: {expected}"))
+                        .0,
+                )
+            };
             assert_eq!(
-                typed.types().get(value_ty),
-                Some(&TypeKind::Builtin(BuiltinType::Int)),
+                typed.call(expression(&outer)).is_some(),
+                selected,
                 "{value}"
             );
+            assert_eq!(typed.non_null_assertions().len(), assertions, "{value}");
+            if assertions == 1 {
+                assert!(
+                    typed.non_null_assertion(expression(value)).is_some(),
+                    "{value}"
+                );
+            }
+            if diagnostic_spans[0].1 == "/*after*/x" {
+                let value_ty = typed.expression_type(expression(value)).unwrap();
+                assert_eq!(
+                    typed.types().get(value_ty),
+                    Some(&UnitTypeKind::Builtin(BuiltinType::Int)),
+                    "{value}"
+                );
+            }
+            let actual = typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| {
+                    (
+                        diagnostic.code().to_string(),
+                        diagnostic.primary_span().start(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let expected = diagnostic_spans
+                .iter()
+                .map(|&(code, marker)| {
+                    let operand = marker
+                        .rsplit_once("*/")
+                        .map_or(marker, |(_, operand)| operand);
+                    let operand = operand.strip_prefix("reject(&").unwrap_or(operand);
+                    (
+                        code.to_owned(),
+                        text.find(marker).unwrap() + marker.len() - operand.len(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "{value}");
         }
-        let actual = typed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| {
-                (
-                    diagnostic.code().to_string(),
-                    diagnostic.primary_span().start(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let expected = diagnostic_spans
-            .into_iter()
-            .map(|(code, marker)| {
-                let operand = marker
-                    .rsplit_once("*/")
-                    .map_or(marker, |(_, operand)| operand);
-                let operand = operand.strip_prefix("reject(&").unwrap_or(operand);
-                (
-                    code.to_owned(),
-                    text.find(marker).unwrap() + marker.len() - operand.len(),
-                )
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(actual, expected, "{value}");
     }
 }
