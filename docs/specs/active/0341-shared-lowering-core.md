@@ -21041,3 +21041,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `77372107`。逐例审查 outer-independent-inner、same-source-nested、sequential-same-source 与 alias，删除仅旧 `UnsupportedNode` 拒绝支路；原 nested 四源码（含已迁 inner-fresh）、identity 三源码及全部 FQN 保留。净退休四个旧拒绝消费者，Rust净减61行；不把同批已迁正控重复计入退休数。
 - 完整 Unit block/helper 逐字节保全：严格准入、source/MemoryDocument、原 iteration descriptor、真实 main/entry 与两 loop 元素访问、alias 的实际 Owned source loan root 与 keys 53..57、原 Array provider 及 SSA/LLVM。旧分支没有额外成功 loan/drop 或 native oracle；本片不是新旧结果等价，不扩称动态借用或运行时释放次数已验证。
 - 前审及末审无阻塞；fmt、docs979、Rust尺寸2531（两历史债不扩大）与 diff-check 通过。磁盘低于8GiB期间暂停构建且未清理用户数据，获恢复通知后核41.8GiB并串行接槽，触碰本树源码真实重编1m36s。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）两个原 exact 各1 passed / 0 ignored，codegen all-targets 严格 Clippy53.21s/exit0；结束可用37.7GiB。未执行 native、Abort、故障注入或远端 CI；仅本地提交、不推送。
+
+### 2026-11-16：条件资源消费的 Unit fail-closed 来源证明
+
+- 基 `dad4fb5c`，仅强化既有 `unit_conditional_resource_move_is_deferred_instead_of_released_early_or_lost` 及其 Unit helper。原源码、MemoryDocument/Rooted 两适配及旧 Single 对照保留；不删除合同、不修改生产语义、不宣称支持 partial-move 或条件资源清理。
+- 将原“存在 ResourceLifetime”观察收紧为唯一该 deferred，核实际 If 表达式的 source-unit 身份及完整源码 Span；保留 flat drops 为空，并核本固定 fixture 无 conditional receiver cleanup。基础 capability 准入仍必须失败，返回的未验证产品保留同一 deferred。相邻 while 保持原 oracle。该证明不要求整个 ownership product 为空，不把观察事实当成可执行 capability，也不代表 E3 CFG 能力扩展。
+- 事实预审与实现末审通过；精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树 frontend 真实重编25.38s，`ownership_resource_deinit` 原测试 target 31 passed / 0 ignored；frontend all-targets 严格 Clippy32.81s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）及 diff-check 通过。构建前/strict前均核空间高于8GiB并串行执行；未执行 native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
