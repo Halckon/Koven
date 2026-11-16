@@ -229,22 +229,19 @@ fn owned_source_continue_nested_scope_boundaries() {
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; for (key in keys) { if (key == 2) { continue } }; keys.size }",
         ),
     ] {
-        let analysis = analyze(text);
-        assert!(analysis.parsed.diagnostics().is_empty());
-        assert!(analysis.names.diagnostics().is_empty());
-        assert!(analysis.typed.diagnostics().is_empty());
-        assert!(analysis.owned.diagnostics().is_empty());
-        let result = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        );
-        if label == "inner_fresh" {
-            crate::llvm::render_verified_program(&result.expect("independent fresh inner owner"))
-                .unwrap();
-        } else {
+        if label != "inner_fresh" {
+            let analysis = analyze(text);
+            assert!(analysis.parsed.diagnostics().is_empty());
+            assert!(analysis.names.diagnostics().is_empty());
+            assert!(analysis.typed.diagnostics().is_empty());
+            assert!(analysis.owned.diagnostics().is_empty());
+            let result = lower_scalar_file(
+                &analysis.sources,
+                &analysis.parsed,
+                &analysis.names,
+                &analysis.typed,
+                &analysis.owned,
+            );
             let error = result
                 .err()
                 .expect("cross-loop owner proof remains unsupported");
@@ -263,8 +260,8 @@ fn owned_source_continue_nested_scope_boundaries() {
             );
         }
 
-        // The same ordinary inputs are all supported by Unit. This is a comparison,
-        // not retirement of the three distinct Legacy rejection witnesses above.
+        // Unit replaces the original inner_fresh successful consumer. The other
+        // three inputs remain comparisons, not retired Legacy rejection witnesses.
         use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
         use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 

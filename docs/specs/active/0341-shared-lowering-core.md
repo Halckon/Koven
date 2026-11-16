@@ -20891,3 +20891,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 原 Legacy 正常合同的 frontend clean、成功 SSA lowering 和 verified LLVM 均由严格 Unit 原产品及实际入口覆盖；现有 helper 另核全部原 declaration Span、不同 keys root/symbol、原 loop provider/owned source loan 与真实 main→first FunctionId/调用 Span，没有把双函数改成只验单根。
 - 后半 alias 源的原 Legacy `UnsupportedNode` 与精确 keys Span 拒绝仍原样保留，其独立 Unit 支持也不变。本片仅净退休两个正常消费，不称整个 FQN 或 alias 拒绝合同已退休。
 - 首次过滤误用文件名作为模块名，编译完成但运行 0 tests，不计验收；已从实际注册及已编译二进制清单核实真实 FQN 为 `ssa::lower_frontend_tests::owned_source_continue_tests::owned_source_continue_declaration_identity_and_groups`，保留首日志，原 strict 链结束后仅补该非零目标。attempt2 真实 1 passed / 0 ignored（0.21s 增量 / 0.26s 执行）；codegen 准确退休三 feature all-targets strict 1m00 / exit0、fmt、docs 979、Rust size 2528（2 项历史债）及 diff-check 通过；不执行 native、Abort 或故障，不推送。
+
+### 2026-11-16：nested continue 的独立 fresh inner 正常消费者净迁移
+
+- 原 `owned_source_continue_nested_scope_boundaries` 的 `inner_fresh` 源码不变，仅移除重复 Legacy 成功消费；严格 Unit 仍核四阶段 clean、MemoryDocument/源码身份、两项原 iteration descriptor、唯一 main/实际 entry、两处元素访问及 verified LLVM。
+- 其余三个嵌套/顺序循环的 Legacy `UnsupportedNode` 与精确 keys declaration Span 拒绝完整保留；仅净退休一个正常消费，不称整个 FQN 已退休。独立只读审查无阻塞。
+- 首次 exact 命中共享 target 的另一工作树缓存，虽 1 passed 仍不计本片验收；codegen 三 feature strict 确认重编本树并通过。随后显式触发本树重编（日志确认本工作树 codegen，2m18s），nested exact 1 passed/0 ignored；同一产物 identity 交叉 exact 1 passed/0 ignored。三 feature 为 loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support；strict 19.00s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与 diff-check 通过。不运行 native、Abort 或故障注入，不推送。
