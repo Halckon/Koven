@@ -146,10 +146,10 @@ impl DropPlanner<'_, '_> {
             && matches!(receiver.target(), UnitReceiverOwnershipTarget::Place(target) if target == place)
     }
 
-    // A normal-return observation for a direct Inout parameter root only. This
+    // A normal-return observation for a direct owned or Inout parameter root. This
     // consumes the actual pending token; it does not certify activation or restore
     // the parent permission, and does not broaden the Shared-only legacy projection.
-    fn observes_exclusive_parameter_return(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
+    fn observes_exclusive_root_return(&self, receiver: &UnitReceiverOwnershipFact) -> bool {
         if receiver.kind() != UnitReceiverOwnershipKind::ExclusiveLoan
             || !receiver.is_receiver_reservation()
             || receiver.activation_point() != Some(receiver.call())
@@ -187,13 +187,20 @@ impl DropPlanner<'_, '_> {
         };
         let root = place.root();
         let provenance = self.loan_provenance();
+        let admitted_root = match self.checker.symbol_kind(root) {
+            Some(SymbolKind::Variable) => provenance.formed_owned.contains(&root),
+            Some(SymbolKind::ValueParameter) => {
+                self.checker.bindings.get(&root).is_some_and(|binding| {
+                    matches!(
+                        binding.kind(),
+                        OwnershipBindingKind::Owned | OwnershipBindingKind::Exclusive
+                    )
+                })
+            }
+            _ => false,
+        };
         place.elements().is_empty()
-            && self.checker.symbol_kind(root) == Some(SymbolKind::ValueParameter)
-            && self
-                .checker
-                .bindings
-                .get(&root)
-                .is_some_and(|binding| binding.kind() == OwnershipBindingKind::Exclusive)
+            && admitted_root
             && !provenance.iteration_providers.contains(&root)
             && !provenance.borrow_bindings.contains(&root)
             && matches!(receiver.target(), UnitReceiverOwnershipTarget::Place(target) if target == &place)
@@ -224,7 +231,7 @@ impl DropPlanner<'_, '_> {
             match action {
                 Action::EndReceiverLoan(receiver)
                     if self.observes_bounded_receiver(&receiver)
-                        || self.observes_exclusive_parameter_return(&receiver) =>
+                        || self.observes_exclusive_root_return(&receiver) =>
                 {
                     self.iteration_actions
                         .end_receiver(UnitReceiverCallReturnEndFact { receiver });

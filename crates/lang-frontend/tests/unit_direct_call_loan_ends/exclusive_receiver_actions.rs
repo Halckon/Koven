@@ -140,10 +140,17 @@ fn early_return_reservation_has_no_activation_or_normal_end() {
 }
 
 #[test]
-fn owned_root_stays_outside_exclusive_parameter_normal_observation() {
-    let observed = observe(&format!(
-        "{CELL}fun run():Unit {{var cell=Cell(1);cell.set(2)}}"
-    ));
+fn owned_root_normal_retirement_precedes_original_drop() {
+    assert_owned_receiver_retirement("fun run():Unit {var cell=Cell(1);cell.set(2)}");
+}
+
+#[test]
+fn owned_parameter_normal_retirement_precedes_original_drop() {
+    assert_owned_receiver_retirement("fun run(own cell:Cell):Unit {cell.set(2)}");
+}
+
+fn assert_owned_receiver_retirement(body: &str) {
+    let observed = observe(&format!("{CELL}{body}"));
     assert_units_admitted(&observed);
     for unit in &observed.units {
         let actions = unit.loan_action_observations()[0].actions();
@@ -154,7 +161,65 @@ fn owned_root_stays_outside_exclusive_parameter_normal_observation() {
                 .count(),
             1
         );
-        assert!(!actions.iter().any(|action| matches!(action, UnitLoanAction::ReceiverEnd(end) if end.receiver().kind() == UnitReceiverOwnershipKind::ExclusiveLoan)));
+        let reserve = actions
+            .iter()
+            .find_map(|action| match action {
+                UnitLoanAction::ReceiverReserve(receiver) => Some(receiver),
+                _ => None,
+            })
+            .unwrap();
+        let ends = actions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, action)| match action {
+                UnitLoanAction::ReceiverEnd(end) if end.receiver() == reserve => Some(index),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ends.len(),
+            1,
+            "actual owned-root pending retirement must not disappear"
+        );
+        let drop_index = actions
+            .iter()
+            .position(|action| {
+                matches!(
+                    action,
+                    UnitLoanAction::Cleanup {
+                        action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(
+                            _
+                        ),
+                        ..
+                    }
+                )
+            })
+            .unwrap();
+        assert!(
+            ends[0] < drop_index,
+            "actual receiver retirement precedes original owner drop"
+        );
+        assert_eq!(unit.drops().len(), 1);
+        assert_eq!(actions.iter().filter(|action| matches!(action,
+            UnitLoanAction::Cleanup { action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop), .. } if drop == &unit.drops()[0]
+        )).count(), 1, "original owner Drop has one action-source record");
+        let UnitLoanAction::Cleanup {
+            action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop),
+            ..
+        } = &actions[drop_index]
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            drop,
+            &unit.drops()[0],
+            "preserve the complete original Drop fact"
+        );
+        assert!(unit.receiver_call_return_ends().is_empty());
+        assert_eq!(
+            unit.loan_action_observations()[0].coverage(),
+            UnitLoanActionCoverage::Partial
+        );
     }
 }
 
@@ -171,7 +236,7 @@ fn invalid_or_deferred_neighbor_revokes_exclusive_actions() {
         ),
     ] {
         let observed = observe(&format!(
-            "{CELL}fun run(inout cell:Cell):Unit {{cell.set(2)}}\n{bad}"
+            "{CELL}fun run(inout cell:Cell):Unit {{cell.set(2)}}\nfun owned():Unit {{var cell=Cell(1);cell.set(2)}}\n{bad}"
         ));
         for unit in &observed.units {
             if deferred {
@@ -192,7 +257,9 @@ fn invalid_or_deferred_neighbor_revokes_exclusive_actions() {
 #[test]
 fn observation_switch_preserves_old_receiver_products() {
     use lang_frontend::ownership_checking::{legacy_ownership_eq, with_loan_observation};
-    let text = format!("{CELL}fun run(inout cell:Cell):Unit {{cell.set(cell.read());cell.read()}}");
+    let text = format!(
+        "{CELL}fun run(inout cell:Cell):Unit {{cell.set(cell.read());cell.read()}}\nfun owned():Unit {{var cell=Cell(1);cell.set(cell.read());((cell)).set(2)}}\nfun parameter(own cell:Cell):Unit {{cell.set(2)}}"
+    );
     let baseline = observe(&text);
     for index in 0..2 {
         let (env, types) = standard_environments();
@@ -250,5 +317,68 @@ fn projected_inout_receiver_stays_outside_normal_return_bridge() {
             1
         );
         assert!(!actions.iter().any(|action| matches!(action, UnitLoanAction::ReceiverEnd(end) if end.receiver().kind() == UnitReceiverOwnershipKind::ExclusiveLoan)));
+    }
+}
+
+#[test]
+fn owned_nested_shared_and_sequential_reservations_keep_actual_identity() {
+    let observed = observe(&format!(
+        "{CELL}fun run():Unit {{var cell=Cell(1);cell.set(cell.read());((cell)).set(2)}}"
+    ));
+    assert_units_admitted(&observed);
+    for unit in &observed.units {
+        let catalog = &unit.loan_action_observations()[0];
+        let actions = catalog.actions();
+        let reserves = actions
+            .iter()
+            .enumerate()
+            .filter_map(|(i, action)| match action {
+                UnitLoanAction::ReceiverReserve(receiver) => Some((i, receiver)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(reserves.len(), 2);
+        assert_ne!(reserves[0].1.call(), reserves[1].1.call());
+        assert_eq!(reserves[0].1.target(), reserves[1].1.target());
+        assert_eq!(unit.receiver_call_return_ends().len(), 1);
+        let shared_end = actions
+            .iter()
+            .position(|action| {
+                matches!(action,
+                    UnitLoanAction::ReceiverEnd(end) if end == &unit.receiver_call_return_ends()[0]
+                )
+            })
+            .unwrap();
+        let mut end_indices = Vec::new();
+        for (begin, receiver) in &reserves {
+            let ends = actions
+                .iter()
+                .enumerate()
+                .filter_map(|(i, action)| match action {
+                    UnitLoanAction::ReceiverEnd(end) if end.receiver() == *receiver => Some(i),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(ends.len(), 1);
+            assert!(*begin < ends[0]);
+            end_indices.push(ends[0]);
+        }
+        assert!(reserves[0].0 < shared_end && shared_end < end_indices[0]);
+        assert!(end_indices[0] < reserves[1].0);
+        assert_eq!(unit.drops().len(), 1);
+        assert_eq!(actions.iter().filter(|action| matches!(action,
+            UnitLoanAction::Cleanup { action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop), .. } if drop == &unit.drops()[0]
+        )).count(), 1, "original owner Drop has one action-source record");
+        let drop_index = actions.iter().position(|action| matches!(action,
+            UnitLoanAction::Cleanup { action: lang_frontend::ownership_checking::UnitIterationCleanupAction::Drop(drop), .. } if drop == &unit.drops()[0]
+        )).unwrap();
+        assert!(end_indices[1] < drop_index);
+        assert_eq!(catalog.coverage(), UnitLoanActionCoverage::Partial);
+        assert!(
+            catalog
+                .regions()
+                .iter()
+                .all(|r| r.coverage() != UnitLoanActionCoverage::Complete)
+        );
     }
 }

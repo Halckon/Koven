@@ -402,7 +402,7 @@ impl UnitReceiverCallPrefixEndFact {
 
 /// 正常调用完成时从真实 pending 队列退休的具名根/字段、具体 this 或首层直接根/字段来源借用绑定的 Shared receiver。
 /// 直接绑定仅限 BorrowedStorage、无 parent/source loan，initializer 与完整来源 place 相同。
-/// 统一 Partial action catalog 另记录普通 Inout 参数根 Exclusive token 的正常退休；
+/// 统一 Partial action catalog 另记录普通 owned local/Value 参数或 Inout 参数根 Exclusive token 的正常退休；
 /// 历史 receiver_call_return_ends 投影仍仅含上述 Shared 范围。
 /// 与前缀退出分开观察，不声明实际 Activate、参数/receiver/drop 全序或完整借用事件流。
 #[derive(Clone, Debug, PartialEq, Eq)]
