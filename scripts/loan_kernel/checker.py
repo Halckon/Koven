@@ -582,6 +582,8 @@ class Checker:
         """声明或重新赋值一个拥有的变量；析构是否可观察取自能力推导。"""
         self.dp_types[ty.name] = DP.TypeDecl(ty.name, [], deinit=not self.has("EarlyDrop", ty))
         self.emit(kind, line, name, state if kind == "let" else None, ty=ty.name)
+        if kind == "let":
+            self.leave(state, "fail", line)
 
     def destroy(self, line, name, var, **tags):
         if self.tracked(var) and var.init != "M":
@@ -637,6 +639,7 @@ class Checker:
         self.version = 0
         self.pending = []
         self.live = set()
+        self.leaving = False  # 正在离开函数（返回或失败）：调用方的持有者不会指向本函数的局部存储（K6）
         self.out, self.dp_types, known = [], {}, len(self.errors)
         state = {}
         for mode, name, ty_name in fun.params:
@@ -666,6 +669,7 @@ class Checker:
             self.check_contract(returned, fun)
         self.check_flows(state, fun)
         self.check_tasks(state, list(state), fun.line)
+        self.leave(state, "kill", fun.line)
         for name in reversed(list(state)):  # 函数结束：仍拥有的值按声明逆序析构
             self.destroy(fun.line, name, state[name])
         self.lowered[fun.name] = (self.dp_types, self.out, len(self.errors) == known)
@@ -931,10 +935,12 @@ class Checker:
         实现原型时补充的一条：存活 loan 所指的存储若是某个持有者变量，该变量随之存活，
         否则“依赖视图本身”的结果无法保住视图所持有的来源。
         调用方的持有者在本函数返回之后仍然存活，所以流进它的来源一直存活（K20 存活）。
+        析构可观察的值活到它被析构的那一刻：它的 deinit 可能经它持有的借用读出去（之二 R1.2）。
         """
-        names = {n for n in self.live if n in state}
+        names = {n for n in self.live if n in state} | {
+            n for n, v in state.items() if self.tracked(v) and v.init != "M" and not self.has("EarlyDrop", v.ty)}
         loans = set().union(*self.pending) if self.pending else set()
-        for _, _, extra in self.flowed_in(state):
+        for _, _, extra in () if self.leaving else self.flowed_in(state):
             loans |= extra
         while True:
             size = (len(names), len(loans))
@@ -952,7 +958,7 @@ class Checker:
         via 是这次访问所凭借的 loan；它们及其祖先不算冲突。冲突的 loan 若是 via 的后代，
         说明父持有者正被子借用暂停，记为 K4；作用域结束时的析构冲突记为 K9；其余记为 K1。
         """
-        if kind not in ("move", "kill") and not self.quiet:
+        if kind not in ("move", "kill", "fail") and not self.quiet:
             for root in sorted({root for root, _ in targets}):  # 经借用访问也是对 owner 的一次使用
                 if self.tracked(state.get(root)):
                     self.emit("use", line, root)
@@ -963,8 +969,23 @@ class Checker:
                 continue
             if not any(r == r2 and prefix_related(p, p2) for r, p in targets for r2, p2 in info.places):
                 continue
-            rule = "K4" if via & self.ancestors({loan}) else ("K9" if kind == "kill" else "K1")
+            rule = "K4" if via & self.ancestors({loan}) else {"kill": "K9", "fail": "K22"}.get(kind, "K1")
             self.error(rule, line, f"{kind} 与第 {info.line} 行建立的 {info.kind} loan 冲突")
+
+    def leave(self, state, kind, line):
+        """离开函数时的析构：仍拥有的值自内向外、声明逆序析构，此后本函数没有别的代码再运行。
+
+        kind 为 kill 是正常返回（K9），为 fail 是某个操作失败（K22）。此刻还存活的 loan 只剩
+        尚未析构的、析构可观察的值所持有的：先析构的若是它们的来源，它们的 deinit 就会读到已析构的存储。
+        """
+        saved = self.live, self.pending
+        self.live, self.pending, self.leaving = set(), [], True
+        left = dict(state)
+        for name in reversed(list(left)):
+            if left[name].init != "M":
+                self.access(left, {(name, ())}, set(), kind, line)
+            del left[name]
+        (self.live, self.pending), self.leaving = saved, False
 
     def new_loan(self, site, kind, targets, parents, line):
         """K2：loan 以建立它的语法位置为身份，循环中重复执行同一位置得到同一个 loan。"""
@@ -1116,6 +1137,7 @@ class Checker:
         self.frames[self.fun.name, line] = (names, inside)
         # 帧若在这里被销毁而不再恢复（所在执行器异常终止），按此刻的状态析构：与失败出口是同一份清单
         self.emit("suspend", line, state=state)
+        self.leave(state, "fail", line)
         if self.frames_movable and inside:
             self.error("S1", line, f"帧内有指向 {'、'.join(inside)} 的借用跨过挂起点；帧若可移动，这些借用会悬空")
         if self.fun.parallel:
@@ -1281,7 +1303,7 @@ class Checker:
         if impl is None:
             raise SyntaxProblem(f"第 {arg.line} 行：函数类型的实参须是函数名")
         self.refines(impl, self.sigs[sig_name], arg.line)
-        return Value(Type("fn", sig_name))
+        return Value(Type("fn", sig_name)), impl
 
     def call(self, expr, state):
         """K5：结果的 loan 完全由被调方的签名决定，不读它的函数体。"""
@@ -1297,10 +1319,13 @@ class Checker:
         into_holder = {param for (param, fld), _ in fun.flows if fld is None and modes.get(param) != "own"}
         exclusive = {name for name in into_result if self.result_exclusive(fun)} | {
             name for name in into_holder if modes[name] == "inout"}
-        values, pushed, receiver = {}, 0, None
+        values, pushed, receiver, results = {}, 0, None, {}
         for (mode, name, ty_name), arg in zip(fun.params, expr.args):
             if ty_name.startswith("fn "):
-                values[name] = self.callable_argument(arg, ty_name[3:], state)
+                values[name], impl = self.callable_argument(arg, ty_name[3:], state)
+                # 合同的结果是类型参数、实参函数的结果是具体类型时，这个类型参数就此确定（同名即同一个）
+                if self.sigs[ty_name[3:]].result[1] in fun.tparams and impl.result[1] not in impl.tparams:
+                    results[self.sigs[ty_name[3:]].result[1]] = " ".join(filter(None, impl.result))
                 continue
             kept = ("excl" if name in exclusive else "shared") if name in into_result | into_holder else None
             # 接收者：名为 this 的第一个参数，按 inout 传入且实参是直接的 &mut
@@ -1316,7 +1341,7 @@ class Checker:
             self.suspend_point(state, expr.line)
         del self.pending[len(self.pending) - pushed:]
         self.emit("call", expr.line, state=state)
-        bound = self.bind_types(fun, values, expr.line)
+        bound = {**results, **(self.bind_types(fun, values, expr.line) or {})}
         for (param, fld), (target, path) in fun.flows:  # 来源流入已有的持有者
             index = [name for _, name, _ in fun.params].index(target)
             arg, wanted = expr.args[index], fun.params[index][2]
@@ -1338,6 +1363,7 @@ class Checker:
                 self.flow_into(state, targets, self.current_fields(state, targets, fields, actual), actual, path, flowing)
             else:
                 self.record_flow(state, targets, {"*": flowing})
+        self.leave(state, "fail", expr.line)  # 被调方可能在流向发生之后才失败
         result = set()
         for param, fld in fun.sources:
             if param in values:

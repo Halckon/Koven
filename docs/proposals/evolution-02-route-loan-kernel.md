@@ -122,6 +122,7 @@ OriginContract 另有流向子句：
 
 - R1.1 借用局部、借用结果等 Holder 的死亡点是其最后一次使用之后（CFG 上的后向活性，含循环回边）。
 - R1.2 其类型的 `DropPolicy` 为 `LexicalRequired` 的 Holder（例如将来带 `deinit` 的 guard 视图）死亡点为词法作用域结束。
+  原型于 2026-11-16 补上这一条并延伸到失败出口（[演算](loan-kernel-calculus.md) §24）：操作失败时逆序析构，来源不得先于这样的 Holder 被析构；调用声明的流向在它失败时须假定已经发生。
 - R1.3 `from a, b`：结果的 Origins 是对所列每个来源的 loan 之并；函数体每条返回路径上结果的实际 Origins 必须是声明集合的子集。
 - R1.4 合流取并集（§2），因此不存在“无法证明”的控制流形状。
 
