@@ -20935,3 +20935,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `80a316f3`，原 `unit_direct_nullable_while_birth_and_local_retirement_reach_llvm` 从双路线收集后仅消费奇数 Rooted 结果，改为直接调用同一 `lower_unit_source(text, true)`；五条原源码、`package p` 布局、SSA/LLVM 验证及 `assert_unit_direct_proof` 全保留，FQN 不变。
 - 这只消除该消费者中被丢弃的五次 Legacy Program 构造，不是五个独立 Legacy 合同退休。原 `single_direct...` 的完整 Legacy loan/terminal/origin oracle 与 MemoryDocument 观察不变，numeric/borrowed 两个 shape 边界不变；共享 Legacy collector 仍保留，未绕过其显式退休决定门槛。
 - 新头在本树强制真实重编1m49s；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 Unit FQN exact 1 passed（五 fixture，0.05s）、原 Single FQN exact 1 passed（完整旧 shape 与原 MemoryDocument，0.03s）。同配置 codegen all-targets 严格 Clippy 50.45s/exit0，fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及只读独审通过。未执行 native、Abort、故障注入、默认 workspace 或远端 CI；仅本地提交、不推送，不宣称剩余形状合同已退休。
+
+### 2026-11-16：borrowed-for 外层 nullable proof 原消费者退休
+
+- 基 `973ad9db`，原 `borrowed_for_preserves_the_outer_nullable_while_proof` 两条源码（普通/Group）及全部断言不改，只将原 no-package Legacy 收集臂切到既有 `collect_sources` 的严格 MemoryDocument 路线；`package p` Rooted 臂不变。相邻 `nullable_while_preserves_the_outer_borrowed_for_access` 两布局仍走原 Unit 路线。
+- 先静审完整 `assert_borrowed_proof`：其 `_unit` 参数已不参与分支，三路线均使用相同 owner/view/element 逐边身份、LoanEnd/Drop 和 scalar 运输 oracle。既有 MemoryDocument 原 entry/guard 来源观察仍保留，与新 no-package臂共用真实lowering，不计为新增独立覆盖。不改变任何 Legacy-specific assertion，因为该oracle已无该分支。
+- 迁移前精确目标在 [PR441 run43807524911](https://github.com/Halckon/koven/actions/runs/43807524911) 的 macOS job133101971763、Linux job133101972008 均实际 `ok`；提交 `37a90566` 与本片迁移前 borrowed 源码/contract blob一致。该运行整体失败，旧目标证据不替代新头验证。Legacy shape collector仍留给 direct/numeric 两项真实不同形状的合同，不宣称整体退役。
+- 新头明确在本树强制真实重编1m34s，准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 borrowed-for FQN exact 1 passed（0.10s），相邻 nullable-while 外层 borrowed-for FQN exact 1 passed（0.04s）；同配置 codegen all-targets 严格 Clippy 57.83s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check和独审通过；未执行 native、Abort、故障注入、默认 workspace 或新头远端 CI。仅独立本地提交，不推送、不覆盖整合在途树。
