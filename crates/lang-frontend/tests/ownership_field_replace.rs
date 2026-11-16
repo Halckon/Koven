@@ -218,16 +218,6 @@ fn direct_field_replace_temporary_receiver_is_not_a_place() {
     let source = sources.add_source("temporary.ko", text).unwrap();
     let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
     let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &environment).unwrap();
-    let typed = check_types(&sources, &file, &names, &types).unwrap();
-    assert!(
-        typed
-            .diagnostics()
-            .iter()
-            .any(|d| d.code().to_string() == "L0122"),
-        "{:?}",
-        typed.diagnostics()
-    );
     let mut diagnostics = Vec::new();
     for input in [
         SourceUnitInput::new("root", "temporary.ko", source, &file),

@@ -21199,3 +21199,8 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 
 - 基 `4619249b`，仅收敛 `guide_litmus::litmus_11_iteration_frontend`：保原 FQN、Guide 第 11 例原文提取、MemoryDocument/Rooted 两入口及唯一精确 incomplete fact `listOf → Some(Deferred(Call))`。原 Legacy 消费使用完全相同 oracle，未额外检查 plan 或身份；移除此一次重复消费，不删除共享 Legacy helper 或其他有差异的 litmus。
 - 独审确认 Unit `validate_constants()` 与 `owned.validate()` 承接旧 constants/constant-materializations 的存在断言，且保各阶段诊断空、ownership deferred 空；不声称完整 final-type 或 SSA/native 能力。独立审查、fmt/diff-check、docs979 与尺寸2541（两历史例外未扩大）通过。原基线 exact 本树重编48.15s、候选 exact 本树重编2.15s，均 1 passed；frontend all-targets strict（`loan-observation-test-support`）本树检查2m23s/exit0。每阶段核空槽与8GiB门槛，未执行 native/fault，不推送。
+
+### 临时字段 receiver 的重复类型拒绝消费者收敛（本地验证，未推送）
+
+- 基 `62e88653`，仅删除 `direct_field_replace_temporary_receiver_is_not_a_place` 中旧 names/types 的重复 L0122 存在断言；原源码、SourceMap/AST/environment、两 Unit 路径的 Phase 2 L0122 与完整诊断对象相等断言均保留。旧块没有额外身份、span、recovery 或 ownership 观察，global receiver 不同准入与其他旧合同不动。
+- 本记录后续于 §60 当时保留临时值旧 witness 的范围记录，不更写历史；当前架构要求的 temporary 非 place 在 Phase 2 拒绝继续由同源 Unit 负控承接，不称旧/新全部诊断相等或新增支持。独审、fmt/diff-check、docs979、尺寸2541通过；原基线 exact 本树重编39.23s/1 passed，候选本树重编0.61s/1 passed；frontend all-targets strict（`loan-observation-test-support`）本树检查1m39s/exit0。每步核空槽与8GiB门槛，无 native/fault，仅本地提交、不推送。
