@@ -21047,3 +21047,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `dad4fb5c`，仅强化既有 `unit_conditional_resource_move_is_deferred_instead_of_released_early_or_lost` 及其 Unit helper。原源码、MemoryDocument/Rooted 两适配及旧 Single 对照保留；不删除合同、不修改生产语义、不宣称支持 partial-move 或条件资源清理。
 - 将原“存在 ResourceLifetime”观察收紧为唯一该 deferred，核实际 If 表达式的 source-unit 身份及完整源码 Span；保留 flat drops 为空，并核本固定 fixture 无 conditional receiver cleanup。基础 capability 准入仍必须失败，返回的未验证产品保留同一 deferred。相邻 while 保持原 oracle。该证明不要求整个 ownership product 为空，不把观察事实当成可执行 capability，也不代表 E3 CFG 能力扩展。
 - 事实预审与实现末审通过；精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树 frontend 真实重编25.38s，`ownership_resource_deinit` 原测试 target 31 passed / 0 ignored；frontend all-targets 严格 Clippy32.81s/exit0。fmt、docs979、Rust尺寸2531（两历史债不扩大）及 diff-check 通过。构建前/strict前均核空间高于8GiB并串行执行；未执行 native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：容器类型两处同源重复消费者收敛
+
+- 基 `524ac892`，逐项前审及末审后移除 `type_containers.rs` 的两处重复 Single 执行及唯一私有 `checked` / `NameResolution`、`TypedFile`、`resolve_names`、`check_types` 依赖，Rust净减22行。原两 FQN、源码、共享 parser/自定义类型环境及 MemoryDocument/Rooted Unit 块逐字保留。
+- `non_storable_and_wrong_arity_container_types_are_rejected` 保原有序四诊断code；`deferred_callable_reference_element_does_not_become_a_false_storable_error` 保原无诊断和空 construction 合同。旧执行没有额外 span/label/identity 断言；不将 code 列表声称完整诊断对象等价。Unit 继续使用 raw type-checking recovery 阶段，不增加 final admission，也不扩删旧阶段或身份合同。
+- 精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）修改前两原 exact 各1 passed，本树真实编译23.76s；修改后真实重编1.36s，两原 exact 各1 passed / 0 ignored。frontend all-targets 严格 Clippy33.49s/exit0；fmt、docs979、Rust尺寸2531（两历史债不扩大）、diff-check及独审通过。串行构建并核空间高于8GiB；未执行 native、Abort进程、故障注入或远端CI，仅本地提交、不推送。

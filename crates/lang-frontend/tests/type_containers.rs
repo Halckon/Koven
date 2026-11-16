@@ -2,13 +2,13 @@
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    name_resolution::{NameEnvironment, NameResolution, resolve_names},
+    name_resolution::NameEnvironment,
     parser::{Expression, ParsedFile},
     source::SourceMap,
     type_checking::{
         BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory, IntrinsicCallable,
         IntrinsicTypeConstructor, ParameterMode, SequentialContainerKind, TypeEnvironment,
-        TypedFile, UnitExpressionId, UnitTypeKind, check_types,
+        UnitExpressionId, UnitTypeKind,
     },
 };
 
@@ -112,20 +112,6 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     (names, types)
 }
 
-// Keep independent Single witnesses for deferred recovery and signature storage diagnostics.
-fn checked(text: &str) -> (SourceMap, ParsedFile, NameResolution, TypedFile) {
-    let (sources, parsed) = parsed(text);
-    let (names, types) = environments();
-    let resolution = resolve_names(&sources, &parsed, &names).expect("names");
-    assert!(
-        resolution.diagnostics().is_empty(),
-        "{:?}",
-        resolution.diagnostics()
-    );
-    let typed = check_types(&sources, &parsed, &resolution, &types).expect("types");
-    (sources, parsed, resolution, typed)
-}
-
 fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
     diagnostics
         .iter()
@@ -220,11 +206,6 @@ fn non_storable_and_wrong_arity_container_types_are_rejected() {
                     never: List<Nothing>, top: Array<Any>, dynamic: List<Shape>,\n\
                     arity: MutableList<Int, Long>, callable: List<(Nothing) -> Nothing>\n\
                 ): Unit {}";
-    let (_, _, _, typed) = checked(text);
-    assert_eq!(
-        codes(typed.diagnostics()),
-        ["L0125", "L0125", "L0094", "L0091"]
-    );
     for (_, typed) in checked_entries(text).2 {
         assert_eq!(
             codes(typed.diagnostics()),
@@ -387,9 +368,6 @@ fn deferred_callable_reference_element_does_not_become_a_false_storable_error() 
                     val reference = ::identity\n\
                     val pending = listOf(reference(1))\n\
                 }";
-    let (_, _, _, typed) = checked(text);
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    assert!(typed.container_constructions().is_empty());
     for (_, typed) in checked_entries(text).2 {
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         assert!(typed.container_constructions().is_empty());
