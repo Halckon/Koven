@@ -126,6 +126,33 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual({("K1", 12), ("K1", 13), ("K1", 40)}, actual - expected(text))
         self.assertEqual(set(), expected(text) - actual)
 
+    def test_leaving_the_function_destroys_what_it_still_owns(self):
+        """K22：操作失败时函数从那里离开，仍拥有的值逆序析构。去掉离开时的检查，失败出口上的拒绝全部消失，
+
+        连同函数正常结束时“来源先于析构可观察的持有者被析构”的两处；代码块结束处的那一处不受影响。
+        """
+        text = (ROOT / "cases" / "V1.lk").read_text(encoding="utf-8")
+        original = CHECKER.Checker.leave
+        CHECKER.Checker.leave = lambda self, state, kind, line: None
+        try:
+            actual = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.leave = original
+        lost = expected(text) - actual
+        self.assertEqual({found for found in expected(text) if found[0] == "K22"} | {("K9", 33), ("K9", 70)}, lost)
+        self.assertEqual(set(), actual - expected(text))
+        self.assertEqual(10, sum(rule == "K22" for rule, _ in expected(text)))
+
+    def test_an_observable_holder_lives_until_it_is_destroyed(self):
+        """之二 R1.2：带 deinit 的持有者活到析构点。把一切都判为可提前析构，V1 的拒绝全部消失。"""
+        text = (ROOT / "cases" / "V1.lk").read_text(encoding="utf-8")
+        original = CHECKER.Checker.has
+        CHECKER.Checker.has = lambda self, cap, ty: cap == "EarlyDrop" or original(self, cap, ty)
+        try:
+            self.assertEqual([], CHECKER.check(text))
+        finally:
+            CHECKER.Checker.has = original
+
     def test_early_drop_never_changes_what_is_accepted(self):
         """统一析构规则：提前析构只是许可。打开它之后，每个用例被接受或拒绝的结果必须不变。"""
         total = []

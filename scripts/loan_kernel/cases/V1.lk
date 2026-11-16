@@ -1,0 +1,96 @@
+// 失败出口上的借用检查：析构可观察的持有者活到它被析构的那一刻；操作失败时仍拥有的值逆序析构，流向须假定已经发生
+class Arr(len: Int)
+view class Guard(borrow a: Arr) deinit
+view class Plain(borrow a: Arr)
+fun setGuard(inout g: Guard, borrow s: Arr): Unit flows s into g trusted
+fun setPlain(inout g: Plain, borrow s: Arr): Unit flows s into g trusted
+fun release(own g: Guard): Unit trusted
+fun mayFail(): Unit trusted
+suspend fun pause(): Unit {
+  suspend
+}
+fun guardLivesToScopeEnd(): Unit {
+  val a = Arr(1)
+  val g = Guard(&a)
+  a.len = 2  // ERR K1
+}
+fun plainHolderDiesAfterLastUse(): Unit {
+  val a = Arr(1)
+  val g = Plain(&a)
+  a.len = 2
+}
+fun guardReleasedFirst(): Unit {
+  val a = Arr(1)
+  val g = Guard(&a)
+  release(move g)
+  a.len = 2
+}
+fun declaredInOrder(): Unit {
+  val s = Arr(1)
+  val g = Guard(&s)
+  mayFail()
+}
+fun sourceDeclaredAfterGuard(): Unit {  // ERR K9
+  val o = Arr(0)
+  val g = Guard(&o)
+  val s = Arr(1)
+  setGuard(&mut g, &s)  // ERR K22
+}
+fun plainHolderMayOutliveSource(): Unit {
+  val o = Arr(0)
+  val g = Plain(&o)
+  val s = Arr(1)
+  setPlain(&mut g, &s)
+  mayFail()
+}
+fun sourceInInnerScope(): Unit {
+  val o = Arr(0)
+  val g = Guard(&o)
+  {
+    val s = Arr(1)
+    setGuard(&mut g, &s)  // ERR K22
+  }  // ERR K9
+}
+fun releasedOnTheNormalPathOnly(): Unit {
+  val o = Arr(0)
+  val g = Guard(&o)
+  val s = Arr(1)
+  setGuard(&mut g, &s)  // ERR K22
+  mayFail()  // ERR K22
+  release(move g)
+}
+fun failureBeforeTheFlow(): Unit {
+  val o = Arr(0)
+  val g = Guard(&o)
+  val s = Arr(1)
+  mayFail()
+  release(move g)
+  use(s.len)
+}
+fun releasedOnOneBranch(): Unit {  // ERR K9
+  val o = Arr(0)
+  val g = Guard(&o)
+  val s = Arr(1)
+  setGuard(&mut g, &s)  // ERR K22
+  if (*) {
+    release(move g)
+  }
+}
+suspend fun destroyedWhileSuspended(): Unit {
+  val o = Arr(0)
+  val g = Guard(&o)
+  val s = Arr(1)
+  setGuard(&mut g, &s)  // ERR K22
+  suspend  // ERR K22
+  pause()  // ERR K22
+  release(move g)
+}
+fun laterDeclarationFails(): Unit {
+  val o = Arr(0)
+  val g = Guard(&o)
+  val s = Arr(1)
+  setGuard(&mut g, &s)  // ERR K22
+  val t = Arr(2)  // ERR K22
+  release(move g)
+  use(t.len)
+}

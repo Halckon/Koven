@@ -18,7 +18,7 @@ fun <view I, view T> drain(inout it: I, own next: fn NextL): Unit {
 fun <view I, view T> twoAtOnce(inout it: I, own next: fn NextL): Unit {
   val a = next(it)
   val b = next(it)  // ERR K4
-  use(a)
+  use(a)  // ERR K1
 }
 fun lending(): Unit {
   val arr = Arr(1)
