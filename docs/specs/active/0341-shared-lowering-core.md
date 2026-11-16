@@ -20869,3 +20869,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 按本 Spec §46 的未发布阶段规则，不永久兼容旧不合理限制。Guide 类型相容允许 `T` 适配 `T?`，资源分类包含可空资源包裹；旧 `lower_frontend` 及重导出均已限 `cfg(test)`。其他测试仍使用旧实现不使本例旧拒绝成为永久验收要求；历史 SPEC-0296 的当时边界及结果保持不变。
 - 原完整源码与 FQN 保留。MemoryDocument/Rooted 两适配均经过最终类型检查、ownership validation 和真实 entry lowering；核原 factory/entry/deinit 来源、一次 allocation→wrap→return、实际 factory call→唯一结果 Drop、无结果 Copy/判空及 SSA verifier/verified LLVM。退休的是旧错误 kind/Span 期望，不删除原有效成功合同，不新增生产准入或改变 E3 实现。
 - 本次仅纠正当前 Architecture 仍称旧负控现存的漂移，并显式登记上述映射；不复跑 Cargo/native/故障注入，不补算 native 析构、泄漏或最终双宿主证据。静态文档检查及独立审查结果随本次提交报告。
+
+### 2026-11-16：E2 跨文件共享 caller 多入口证据补足
+
+- 基已发布 `286f9550`，不依赖其后的本地 D10 消费者链。复用原真实 shared-caller 源码，拆成 leaves/caller/entries 三个 `SourceUnitInput`，在 inputs 正反序与 requested 两入口正反序的四组合中实际准备同一完整 capability。
+- 核三文件 lexer/parser 洁净、原 view/consume 唯一函数来源、main/alias 不同实际入口、共同 run 的同一 FunctionId及原声明 Span；验证请求次序映射、同一个 SourceMap/Program、恰七函数、SSA verifier与 LLVM。无伪造 facts、无 native/fault执行。现有生产能力已支持此输入，本片明确是端到端证据缺口补足，不声称新增生产功能或消费者退休。
+- 新精确目标注册到 E2 CI 两配置清单（81 unit、7 public，两配置另加3 frontend），不在本地执行整个含native/fault的脚本。首次误用旧三feature产生0 tests，已保存日志并不计通过；随后正式 `two-source-unit` 真实重编1m21s，exact 1 passed（四组合，0.06s）。支持配置与strict结果待后续记录。
+- 支持配置 `two-source-unit e2-two-source-test-support loan-observation-test-support` 本树真实重编1m31s，exact 1 passed（四组合，0.07s）；同配置 codegen all-target strict 50.50s/exit0。新源/注册及CI目标清单81项已复核，fmt、docs979、尺寸、bash语法、diff-check及独审通过。仅本地提交，不推送；新头远端双宿主/native/fault尚未执行。
