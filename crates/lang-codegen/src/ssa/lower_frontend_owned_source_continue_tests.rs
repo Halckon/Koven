@@ -211,7 +211,7 @@ fn owned_source_continue_unit_constant_live() {
 // Exact outcomes; the original baseline observations remain outside the repository.
 #[test]
 fn owned_source_continue_nested_scope_boundaries() {
-    for (label, text) in [
+    for (_label, text) in [
         (
             "inner_fresh",
             "fun main(): Unit { for (outer in arrayOf(1, 2)) { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
@@ -229,39 +229,7 @@ fn owned_source_continue_nested_scope_boundaries() {
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; for (key in keys) { if (key == 2) { continue } }; keys.size }",
         ),
     ] {
-        if label != "inner_fresh" {
-            let analysis = analyze(text);
-            assert!(analysis.parsed.diagnostics().is_empty());
-            assert!(analysis.names.diagnostics().is_empty());
-            assert!(analysis.typed.diagnostics().is_empty());
-            assert!(analysis.owned.diagnostics().is_empty());
-            let result = lower_scalar_file(
-                &analysis.sources,
-                &analysis.parsed,
-                &analysis.names,
-                &analysis.typed,
-                &analysis.owned,
-            );
-            let error = result
-                .err()
-                .expect("cross-loop owner proof remains unsupported");
-            let source = analysis.parsed.source_id();
-            assert_eq!(analysis.sources.source_name(source), Ok("lowering.ko"));
-            assert_eq!(analysis.sources.source_text(source), Ok(text));
-            let expected_span = analysis.sources.span(source, 23, 27).unwrap();
-            assert_eq!(analysis.sources.slice(expected_span), Ok("keys"));
-            assert_eq!(
-                error,
-                crate::ssa::LoweringError {
-                    kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
-                    span: Some(expected_span),
-                },
-                "the original Legacy boundary stays at its declaration, not a later use"
-            );
-        }
-
-        // Unit replaces the original inner_fresh successful consumer. The other
-        // three inputs remain comparisons, not retired Legacy rejection witnesses.
+        // All original nested/sequential fixtures retain their supported Unit contract.
         use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
         use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
@@ -526,7 +494,7 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
     }
 }
 
-// These original sources have different Legacy/Unit alias outcomes. Keep both oracles.
+// Original declaration, grouping and alias sources share the full Unit identity contract.
 fn assert_continue_identity_unit(text: &str, expected: &[(&str, SequentialContainerKind, usize)]) {
     use crate::{
         native_tests::boxed_enum_tests::unit_source::UnitSource,
@@ -699,9 +667,7 @@ fn owned_source_continue_declaration_identity_and_groups() {
         "fun main(): Unit { var keys = ((arrayOf(1, 2))); for (key in keys) { if (key == 2) { continue } }; keys.size }",
         "fun first(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size }\nfun main(): Unit { val keys = listOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size; first() }",
     ] {
-        // Retire only the two original successful Legacy consumers. The strict
-        // Unit helper below preserves the unchanged sources, all reachable roots
-        // and verified LLVM. The alias rejection after this loop stays Legacy.
+        // Keep the original sources, all reachable roots and verified Unit LLVM.
         let expected = if text.starts_with("fun first") {
             vec![
                 ("first", SequentialContainerKind::Array, 24),
@@ -713,33 +679,6 @@ fn owned_source_continue_declaration_identity_and_groups() {
         assert_continue_identity_unit(text, &expected);
     }
     let text = "fun main(): Unit { val original = arrayOf(1, 2); val keys = original; for (key in keys) { if (key == 2) { continue } }; keys.size }";
-    let analysis = analyze(text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let error = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .err()
-    .expect("alias is not a fresh initializer seed");
-    let source = analysis.parsed.source_id();
-    assert_eq!(analysis.sources.source_name(source), Ok("lowering.ko"));
-    assert_eq!(analysis.sources.source_text(source), Ok(text));
-    let expected_span = analysis.sources.span(source, 53, 57).unwrap();
-    assert_eq!(analysis.sources.slice(expected_span), Ok("keys"));
-    assert_eq!(
-        error,
-        crate::ssa::LoweringError {
-            kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
-            span: Some(expected_span),
-        },
-        "the original alias boundary stays at keys, not original or a later use"
-    );
     assert_continue_identity_unit(text, &[("main", SequentialContainerKind::Array, 53)]);
 }
 

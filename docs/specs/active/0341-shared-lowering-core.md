@@ -21035,3 +21035,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `665fd0ae`，逐例审查后退休两个已被现有完整 Unit 正控覆盖的旧 receiver 限制。`readonly_keeps_borrow_result_receiver_boundary` 仅删 Legacy rejected 调用，原 source/FQN 与 Item owner/root、BorrowCall source/result loan、实际 view/read callee、receiver、两 loan End 顺序、无额外 Copy/Retain 和实际入口 LLVM 合同全保留。
 - 删除纯旧 `receiver_string_borrow_keeps_existing_single_unit_capability_difference` 测试，不新增重复 Unit 测试。其原源码（含 NUL）与既有 `receiver_original_source_preserves_exact_unit_owners_and_call_loans` 的 SOURCE 逐字一致；后者完整保留实际 receiver/String owner、独立 loan、精确 end/drop 及事件数量/顺序、callee借入打印合同。Rooted 单/双源顺序分支通过 events 验 LLVM，直接 MemoryDocument 分支保完整 SSA oracle；不混称该分支单独调用过 LLVM。
 - 两处过时“保留Legacy见证”顶注同步纠正；Rust净减33行。前审及末审确认无有效合同丢失；这是旧实现限制退休，不是新旧拒绝等价或新增 native 证明。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m37s，两原 Unit exact 各1 passed / 0 ignored，codegen all-targets 严格 Clippy50.48s/exit0；fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。未执行 native、Abort、故障注入或远端 CI，仅本地提交、不推送。
+
+### 2026-11-16：continue 嵌套/顺序与 alias 四例旧限制退休
+
+- 基 `77372107`。逐例审查 outer-independent-inner、same-source-nested、sequential-same-source 与 alias，删除仅旧 `UnsupportedNode` 拒绝支路；原 nested 四源码（含已迁 inner-fresh）、identity 三源码及全部 FQN 保留。净退休四个旧拒绝消费者，Rust净减61行；不把同批已迁正控重复计入退休数。
+- 完整 Unit block/helper 逐字节保全：严格准入、source/MemoryDocument、原 iteration descriptor、真实 main/entry 与两 loop 元素访问、alias 的实际 Owned source loan root 与 keys 53..57、原 Array provider 及 SSA/LLVM。旧分支没有额外成功 loan/drop 或 native oracle；本片不是新旧结果等价，不扩称动态借用或运行时释放次数已验证。
+- 前审及末审无阻塞；fmt、docs979、Rust尺寸2531（两历史债不扩大）与 diff-check 通过。磁盘低于8GiB期间暂停构建且未清理用户数据，获恢复通知后核41.8GiB并串行接槽，触碰本树源码真实重编1m36s。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）两个原 exact 各1 passed / 0 ignored，codegen all-targets 严格 Clippy53.21s/exit0；结束可用37.7GiB。未执行 native、Abort、故障注入或远端 CI；仅本地提交、不推送。
