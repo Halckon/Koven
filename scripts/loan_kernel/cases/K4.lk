@@ -2,7 +2,7 @@
 class Arr(len: Int)
 view class Inner(borrow a: Arr, borrow b: Arr)
 view class Outer(inner: Inner, borrow c: Arr)
-class Bag(n: Int)
+view class Bag<view T>(n: Int)
 fun <view T> put(inout bag: Bag, own x: T): Unit flows x into bag trusted
 fun keepLeaf(borrow x: Outer, inout out: Bag): Unit flows x.inner.a into out {
   put(out, x.inner.a)

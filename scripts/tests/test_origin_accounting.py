@@ -96,17 +96,25 @@ class OriginAccountingCases(unittest.TestCase):
                 self.assertEqual(("独占字段所指的另一个视图", "经调用返回"), tuple(name.split("/")[::2][:2]))
                 self.assertEqual(set(), actual, "只应少报")
 
-    def test_escapability_follows_the_account_not_only_the_type(self):
-        """可逃逸的类收下来源之后，类型看不出、账上看得出；不看账，它就能带着来源交给任何可逃逸的位置。"""
-        original = CHECKER.Checker.carries
-        CHECKER.Checker.carries = lambda self, value: False
+    def test_containers_are_not_escapable_by_their_type(self):
+        """裁决（2026-11-16）：流向的目标须是类型上能携带来源的值，所以逃逸性只问类型，不问账。
+
+        容器的不可逃逸来自能力推导（以携带来源的类型实例化的 view class C<view T>）：让推导器把两个容器
+        判为可逃逸，“交给可逃逸的类型参数”与“存进普通类的字段”就不再在标记处被拒绝。
+        """
+        original = CHECKER.CAP.Engine.requires
+        CHECKER.CAP.Engine.requires = lambda self, ty, cap, params=(): CHECKER.CAP.ALWAYS if (
+            cap == "Escapable" and ty.name in ("Bag", "Slot")) else original(self, ty, cap, params)
         try:
             wrong = mismatches()
         finally:
-            CHECKER.Checker.carries = original
-        handed = {name for name, _ in CASES.escapes() if "/交给" in name and name.endswith("/拒绝")}
-        self.assertEqual(6, len(handed))
-        self.assertEqual(handed, set(wrong))
+            CHECKER.CAP.Engine.requires = original
+        typed = {name for name, _ in CASES.escapes() if "交给可逃逸的类型参数" in name or "存进普通类的字段" in name}
+        self.assertEqual(6, len(typed))
+        for name in typed:
+            with self.subTest(case=name):
+                wanted, actual = wrong[name]
+                self.assertEqual(set(), wanted & actual, "标记处不再被拒绝")
 
 
 if __name__ == "__main__":
