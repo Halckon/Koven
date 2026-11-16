@@ -21204,3 +21204,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 
 - 基 `62e88653`，仅删除 `direct_field_replace_temporary_receiver_is_not_a_place` 中旧 names/types 的重复 L0122 存在断言；原源码、SourceMap/AST/environment、两 Unit 路径的 Phase 2 L0122 与完整诊断对象相等断言均保留。旧块没有额外身份、span、recovery 或 ownership 观察，global receiver 不同准入与其他旧合同不动。
 - 本记录后续于 §60 当时保留临时值旧 witness 的范围记录，不更写历史；当前架构要求的 temporary 非 place 在 Phase 2 拒绝继续由同源 Unit 负控承接，不称旧/新全部诊断相等或新增支持。独审、fmt/diff-check、docs979、尺寸2541通过；原基线 exact 本树重编39.23s/1 passed，候选本树重编0.61s/1 passed；frontend all-targets strict（`loan-observation-test-support`）本树检查1m39s/exit0。每步核空槽与8GiB门槛，无 native/fault，仅本地提交、不推送。
+
+### Unit loop 清理规划使用实际正常后继（本地验证，未推送）
+
+- 基 `e7942e91`。原常量物化身份 fixture 的 Unit 产物额外发布 `forever` 中 `loop { continue }` 后不可达 `view(TEXT)` 的 String temporary / CallReturn drop（原 span166..170），而该读取无 materialization；旧固定两 drop 合同不变。只证明前端清理事实错误，不宣称已证明运行时 double-free。
+- 主 ownership traversal 的 `body.breaks` 决定 loop 正常后继；私有 `loop_has_exit` 将这个已有判定交给 drop planner，后者仍规划 body 的真实清理，仅在实际有出口时发布 LoopExit 并继续后续语句。不扫描 AST 猜 break，不新增公共或 Partial 能力。
+- 新增 continue、break、inner-only break、内层无限后不可达 outer break、两层 break、条件 break 六类原源/两 Unit 对照。原3组12 fixture 的 Legacy oracle 暂完整保留，新增 Unit 物化 kind、完整 owner 查询与重分析身份拒绝；不得以不同 ID 混比。新循环红测1!=0，修复后 ownership_constants 17 passed（含原固定 identity 两 drop），本树重编22.83s。邻控 multifile constants23、two-phase borrow18、while-flow16全部通过；frontend all-targets strict（`loan-observation-test-support`）本树检查2m15s/exit0。独审、fmt/diff-check、docs979与尺寸2542通过，历史两尺寸例外不扩大；未重复已过17项。无 native/fault，不推送。

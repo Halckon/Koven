@@ -13,6 +13,9 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+#[path = "ownership_constants/unit_materialization.rs"]
+mod unit_materialization;
+
 fn analyzed(text: &str) -> (SourceMap, TypedFile, OwnershipCheckedFile) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("constants.ko", text).expect("source");
@@ -174,6 +177,7 @@ fun use(): Int {
     val unreachable = view(TEXT)
 }
 "#;
+    unit_materialization::identity(source);
     let (sources, typed, owned) = analyzed(source);
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     let facts = owned.constant_materializations().expect("validated");
@@ -324,9 +328,11 @@ fn every_closed_scalar_type_repeats_value_delivery_without_runtime_owners() {
         ("ULong", "1uL"),
         ("Char", "'文'"),
     ] {
-        let (_, owned) = checked(&format!(
+        let text = format!(
             "const val VALUE: {ty} = {literal}\nfun take(own input: {ty}): Unit {{}}\nfun use(): Unit {{\nval first = take(VALUE)\nval second = take((VALUE))\n}}"
-        ));
+        );
+        unit_materialization::scalar(&text);
+        let (_, owned) = checked(&text);
         let plans = owned.constant_materializations().unwrap().plans();
         assert_eq!(plans.len(), 2, "{ty}: group must not rematerialize");
         assert!(
@@ -382,8 +388,7 @@ fun use(): Unit {
 
 #[test]
 fn grouped_string_reads_keep_the_materialization_owner_identity() {
-    let (_, owned) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun view(text: String): Unit {}
 fun take(own text: String, own number: Int): Unit {}
@@ -392,8 +397,9 @@ fun use(flag: Boolean): Unit {
     val second = take((TEXT), if (flag) { return } else { 0 })
 }
 fun discard(): Unit { (TEXT) }
-"#,
-    );
+"#;
+    unit_materialization::grouped(text);
+    let (_, owned) = checked(text);
     let facts = owned.constant_materializations().unwrap();
     assert_eq!(facts.plans().len(), 3);
     assert_eq!(owned.loans().len(), 1);

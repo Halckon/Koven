@@ -350,6 +350,8 @@ impl Checker<'_> {
                     self.check_loop_backedge(body_id, body_id, &body)?;
                     self.check_loop_capture_transport(id, body_id, &entry, &body)?;
                 }
+                // Preserve the analyzed successor, not the presence of a syntactic break.
+                self.loop_has_exit.insert(id.index(), body.breaks.is_some());
                 Ok(Flows {
                     next: body.breaks,
                     ..Flows::default()
