@@ -20897,3 +20897,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 原 `owned_source_continue_nested_scope_boundaries` 的 `inner_fresh` 源码不变，仅移除重复 Legacy 成功消费；严格 Unit 仍核四阶段 clean、MemoryDocument/源码身份、两项原 iteration descriptor、唯一 main/实际 entry、两处元素访问及 verified LLVM。
 - 其余三个嵌套/顺序循环的 Legacy `UnsupportedNode` 与精确 keys declaration Span 拒绝完整保留；仅净退休一个正常消费，不称整个 FQN 已退休。独立只读审查无阻塞。
 - 首次 exact 命中共享 target 的另一工作树缓存，虽 1 passed 仍不计本片验收；codegen 三 feature strict 确认重编本树并通过。随后显式触发本树重编（日志确认本工作树 codegen，2m18s），nested exact 1 passed/0 ignored；同一产物 identity 交叉 exact 1 passed/0 ignored。三 feature 为 loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support；strict 19.00s/exit0，fmt、docs979、Rust size（两历史例外不扩大）与 diff-check 通过。不运行 native、Abort 或故障注入，不推送。
+
+### 2026-11-16：continue 边界矩阵中的 return 正常消费者净迁移
+
+- `owned_source_continue_existing_boundaries_remain_explicit` 的唯一 return 正常 fixture 字节不变，改复用既有严格 Unit `unit_contract::observe`，准确指定 Array/local owner/live/Return/no Map；保留四阶段 clean、同次原源及声明身份、真实 return/耗尽 cleanup、实际 main SSA entry、verifier 与原 no-process-entry LLVM renderer。
+- 另七个原 Legacy 拒绝消费者、错误 kind 与 Span 断言保持；仅净退休一个正常消费，不称整个边界矩阵已退休。没有修改共享 helper 或生产代码，独立审查无阻塞。
+- 显式触发当前工作树重编以排除共享 target 跨树缓存：三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）精确目标 1 passed/0 ignored（编译1m12s/执行0.05s），同配置 codegen all-targets strict 36.74s/exit0；fmt、docs979、Rust size（两历史例外不扩大）与 diff-check 通过。未运行 native、Abort 或故障注入，未推送。

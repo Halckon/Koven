@@ -460,6 +460,23 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
             "fun main(): Unit { var keys = arrayOf(1, 2); keys = arrayOf(2, 3); for (key in keys) { if (key == 2) { continue } }; keys.size }",
         ),
     ] {
+        if label == "return" {
+            // Keep the original successful return source on the strict Unit path;
+            // the remaining seven Legacy rejection contracts below stay intact.
+            unit_contract::observe(
+                text,
+                "main",
+                &[Expected {
+                    function: "main",
+                    live: true,
+                    container: SequentialContainerKind::Array,
+                    own: false,
+                }],
+                Control::Return,
+                false,
+            );
+            continue;
+        }
         let analysis = analyze(text);
         assert!(
             analysis.parsed.diagnostics().is_empty(),
@@ -488,13 +505,6 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
             &analysis.typed,
             &analysis.owned,
         );
-        if label == "return" {
-            crate::llvm::render_verified_program(
-                &result.expect("SPEC-0314 independent return proof"),
-            )
-            .unwrap();
-            continue;
-        }
         let error = result
             .err()
             .unwrap_or_else(|| panic!("{label} remains outside the source proof"));
