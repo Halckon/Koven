@@ -20841,3 +20841,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
   两 Drop 顺序已验；8 shape 与 2 closure 域外精准分类通过。旧两条负例迁计算 scalar，
   新三目标正式/三 feature 各 3/3，原 sameLate 3 + 两迁移负控 2 全过，
   双 crate all-targets 三 feature strict 通过（1m48）；CI79，未运行 native 或故障注入。
+
+### If 标量前缀 counter-break 的原支持几何证据（未新增认证）
+
+- 本片只登记普通源码探针，生产零改动。前缀为 `if(before){tick(1)}else{tick(2)}`，原 `prefix_empty_callee` 要求 tick 与 caller 同 source unit 且为已知空函数体，签名不能代替效果证明；view/consume 仍可来自另一来源。原 prefix-counter-break wrapper 唯一且 owns，内部 counter-break 并非独立 owns，不能借内层事实绕过专属 selector。
+- 首 fixture 错将 tick 放在 provider，真实 ownership 返回两条 L0164、facts 空且未进入 lowering；首失败日志完整保留。仅把 tick 空定义移入 caller 后，唯一正常目标通过（编译15.15s、执行0.05s），两来源顺序各两次 assembly 均原 lower、SSA verify 与 receipt.validate 成功。原 run→view 未获证且 unsupported 非空，没有把局部 receipt 当完整 caller 证书。
+- 实测无 suffix、五 Borrow 参数形状为15块18指令：原12块 counter-break 前增加 head 与两个标量臂，prefix join 即 counter 初始化入口。before 只在首 Read 使用后不再运输，两臂各一个 Int Constant 与 tick DirectCall，其余四个原 ABI 参数继续运输；原两 fresh End、唯一原 Abort 与 UnitReturn 保留。该结果只记录原支持几何，不扩大 source 前消费、模式或一般控制流准入，不宣称完整退役。
+- 复用上述唯一真实探针及已完成格式化，收尾只作格式检查、文档检查、diff 与独立静审，不另跑 Cargo/strict/default，不执行生成程序、Abort、native 或故障注入，不推送。后续工作转统一 legacy consumer 退役，不继续自动新增小域。

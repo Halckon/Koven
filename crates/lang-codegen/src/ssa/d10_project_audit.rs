@@ -29,6 +29,8 @@ mod arm_loop_counter_tests;
 #[cfg(test)]
 mod arm_loop_counter_value_tests;
 #[cfg(test)]
+mod arm_loop_if_prefix_counter_break_origin_tests;
+#[cfg(test)]
 mod arm_loop_prefix_tests;
 #[cfg(test)]
 mod arm_loop_shared_condition_tests;
