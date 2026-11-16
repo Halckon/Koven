@@ -21107,3 +21107,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `f6b10c67`，逐例前审及末审后迁移 `ownership_structural.rs` 三个既有FQN、四个原fixture。保持原源码及历史`legacy_`测试名，前两例保持原自定义环境；同一AST进入MemoryDocument/Rooted，核唯一source和布局key，component用真实UnitSymbolId查所属local symbol，不混用裸ID。
 - 保命名binding按字段顺序、唯一L0080/`arbitrary`，private lexical access的三L0080/三个`hidden`、一destructuring/一projection/无call，以及原complete完整诊断等于raw；borrowed discard保L0160/空诊断及iteration数量0/1。仅原private例执行complete，其他保raw阶段。Malformed parser恢复及其他旧projection/partial-move合同未动，不声称全文件旧API已清除。
 - 冻结已审补丁，基线与候选原ownership_structural全target各11 passed / 0 ignored，精确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）真实本树编译25.41s/0.63s；frontend all-targets严格Clippy36.81s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check及独审通过。离线前调用无session/日志且未计验证，恢复后核无进程和基线日志再执行；每步核8GiB并串行，结束余量约8.69GiB，已交还E2槽。未改生产语义，未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：while flow 最后重复旧分析依赖收敛
+
+- 基 `754f5a01`，删除 `while_flow_facts.rs` 唯一旧 `assert_repeating_cases`，五处原调用直接复用已有 `assert_cases`；包括 literal_short_circuit 子模块三处，Rust净减38行。范围为5个既有FQN、26个原fixture（14成功/12拒绝），全部Case、markers、Unit观察和oracle逐字不变，独立多源测试保留。
+- 旧helper只重复names clean及raw clean/唯一L0084+marker start/end；两Unit已有精确AST marker、节点类型、完整primary Span、raw诊断保持、失败raw/final完整等值和成功同analysis合同。原旧flow.ko源名没有额外断言，不以源码命名变化声称新语义能力；未新增观测抽象或生产变化。
+- 初候选遗漏子模块三调用，编译失败暴露后补齐并重新全仓调用检索、独审及静态核验，未将失败计通过。准确三feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原全target基线16 passed（真实本树27.11s），最终候选16 passed / 0 ignored（2.09s），frontend all-targets严格Clippy53.27s/exit0；最终fmt、docs979、尺寸2531（两历史债不扩大）及diff-check通过。
+- 本次获用户授权后先等独立工作自然结束并核无cargo/rustc，仅删除共享target/debug/incremental，保源码、deps、其他target和日志；空间恢复后每步核8GiB并等待空窗串行验证，不终止其他任务。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。

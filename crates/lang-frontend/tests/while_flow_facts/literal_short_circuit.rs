@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn known_bypassed_logical_rhs_does_not_kill_nullable_flow() {
-    assert_repeating_cases(&[
+    assert_cases(&[
         Case {
             name: "false_and_true_or_and_grouped_not",
             text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; if (x != null) { val one = false && mutate(&x); val a: Int = /*a*/x; val two = true || mutate(&x); val b: Int = /*b*/x; val three = (!((true))) && mutate(&x); val c: Int = /*c*/x } }",
@@ -44,7 +44,7 @@ fn known_bypassed_logical_rhs_does_not_kill_nullable_flow() {
 
 #[test]
 fn potentially_evaluated_rhs_still_kills_facts_and_dead_rhs_is_checked() {
-    assert_repeating_cases(&[
+    assert_cases(&[
         Case {
             name: "required_rhs_still_kills",
             text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?): Unit { var x = initial; if (x != null) { val ignore = true && mutate(&x); val bad: Int = /*reject*/x } }",
@@ -82,7 +82,7 @@ fn potentially_evaluated_rhs_still_kills_facts_and_dead_rhs_is_checked() {
 
 #[test]
 fn composite_boolean_proof_bypasses_only_the_unreachable_rhs() {
-    assert_repeating_cases(&[
+    assert_cases(&[
         Case {
             name: "composite_boolean_lefts_bypass_rhs",
             text: "fun mutate(inout value: Int?): Boolean = true\nfun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) { val a = (false && flag) && mutate(&x); val first: Int = /*first*/x; val b = (flag || true) || mutate(&x); val second: Int = /*second*/x; val c = !(flag || true) && mutate(&x); val third: Int = /*third*/x } }",
