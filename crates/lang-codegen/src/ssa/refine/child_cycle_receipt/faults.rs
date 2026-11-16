@@ -11,6 +11,10 @@ impl Emitted {
         if self.inject_scalar_entry(function) {
             return;
         }
+        // Other emitted functions must not consume a fault for this cycle receipt.
+        let Some(p) = self.plan.clone() else {
+            return;
+        };
         let faults = [
             OwnerFault::InitialConcatDuplicateInput,
             OwnerFault::InitialConcatMissingDrop,
@@ -40,7 +44,6 @@ impl Emitted {
             return;
         };
         assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-        let p = self.plan.clone().expect("selected child cycle");
         let span = p.checked_span;
         retirement
             .finish(body, function, span)
