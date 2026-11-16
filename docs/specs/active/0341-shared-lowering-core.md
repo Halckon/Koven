@@ -21071,3 +21071,9 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `41575bb8`，前审及末审后仅删除 `final_type_admission/primitive_arity.rs::assert_rejection` 的14行旧 raw/final 执行；影响5个既有FQN、9个原fixture，不新增覆盖。共享oracle、同源两Unit循环与所有其它旧专有合同不变。
 - 保留完整 raw/complete Diagnostic 等值、L0091 whole-call预期对象及message/Span/details、其余错误原有数量/顺序/code/slice、无call descriptor/无ownership primitive/Error类型与completion只能为Diagnostics。ordinary external的旧L0165 token/message与Unit真实差异、external overload旧names身份、其它成功/恢复旧合同均保留，本片不声称这些已等价退休。
 - 为先准备代码且不抢E2构建，保存独审精确补丁，获槽后仅逆用该补丁恢复干净基线；随后重应用且字节核对同一补丁。精确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 `primitive_arity::` 模块8项基线全通过（真实重编27.37s），修改后同8 passed / 0 ignored（真实重编0.76s），包含未改external差异邻控；frontend all-targets严格Clippy35.75s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check通过。各编译前独立核空间高于8GiB，未自动清理；完成后交还E2串行槽。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-16：arity 成功、泛型恢复及绑定邻控收敛
+
+- 基 `fdc539d0`，前审及末审后仅收敛 `primitive_arity.rs` 三处旧重复执行（3个FQN、5个fixture），Rust净减19行。原两Unit代码块、fixtures与共享oracle不变：成功同轮analysis及primitive数量0/2、泛型raw/complete完整诊断及message/details/精确位置、真实外部overload候选ID及顺序全保留。
+- 普通同名external的L0165旧token/message与Unit完整call差异逐字保留，`complete_file_types`未删除。不以本片推断所有旧资格/诊断阶段已等价，也未修改生产语义。
+- E2占槽期间完成代码、独审及静态检查；获槽后按同一精确补丁逆用/重应用分别验证干净基线和候选。三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 `primitive_arity::` 模块前后各8 passed / 0 ignored，真实本树编译24.36s/0.67s；frontend all-targets严格Clippy34.67s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）、diff-check通过。每步构建前核空间高于8GiB，未清理数据，结束交还E2槽。未执行native、Abort进程、故障注入或远端CI，仅本地提交、不推送。
