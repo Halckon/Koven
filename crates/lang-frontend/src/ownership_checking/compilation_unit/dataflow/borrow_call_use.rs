@@ -42,24 +42,14 @@ impl Checker<'_> {
                 outer.target(),
                 UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
             )
-            || !crate::ownership_checking::borrow_result::call_use_is_straight_line(
-                self.parsed,
-                call,
-            )
-        {
-            return None;
-        }
-        let span = self.parsed.ast().expressions().get(call).ok()?.span();
-        if self
-            .parsed
-            .ast()
-            .expressions()
-            .iter()
-            .any(|(expression, node)| {
-                span.start() <= node.span().start()
-                    && node.span().end() <= span.end()
-                    && self.is_nothing_expression(self.unit_expression(expression))
-            })
+            || !self
+                .borrow_call_admission
+                .get_or_init(|| {
+                    super::borrow_call_admission::AdmissionIndex::new(self.parsed, |expression| {
+                        self.is_nothing_expression(self.unit_expression(expression))
+                    })
+                })
+                .allows(self.parsed, call)
         {
             return None;
         }
