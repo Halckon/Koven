@@ -714,7 +714,7 @@ mod boundaries {
     use super::{analyze, lower_scalar_file};
     use crate::test_support::diagnostics::diagnostic;
 
-    fn observe(text: &str, supported: bool, keys_start: usize, expected_loops: usize) {
+    fn observe_rejection(text: &str, keys_start: usize, expected_loops: usize) {
         let a = analyze(text);
         assert!(
             a.parsed.diagnostics().is_empty(),
@@ -737,27 +737,23 @@ mod boundaries {
             a.owned.diagnostics()
         );
         let result = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned);
-        if supported {
-            crate::llvm::render_verified_program(&result.unwrap()).unwrap();
-        } else {
-            let error = result
-                .err()
-                .expect("bounded source proof remains unsupported");
-            let source = a.parsed.source_id();
-            assert_eq!(a.sources.source_name(source), Ok("lowering.ko"));
-            assert_eq!(a.sources.source_text(source), Ok(text));
-            let expected_span = a.sources.span(source, keys_start, keys_start + 4).unwrap();
-            assert_eq!(a.sources.slice(expected_span), Ok("keys"));
-            assert_eq!(
-                error,
-                crate::ssa::LoweringError {
-                    kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
-                    span: Some(expected_span),
-                },
-                "the complete original Legacy boundary stays at its declaration"
-            );
-            diagnostic!("BOUNDARY {text}: {error:?}");
-        }
+        let error = result
+            .err()
+            .expect("bounded source proof remains unsupported");
+        let source = a.parsed.source_id();
+        assert_eq!(a.sources.source_name(source), Ok("lowering.ko"));
+        assert_eq!(a.sources.source_text(source), Ok(text));
+        let expected_span = a.sources.span(source, keys_start, keys_start + 4).unwrap();
+        assert_eq!(a.sources.slice(expected_span), Ok("keys"));
+        assert_eq!(
+            error,
+            crate::ssa::LoweringError {
+                kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
+                span: Some(expected_span),
+            },
+            "the complete original Legacy boundary stays at its declaration"
+        );
+        diagnostic!("BOUNDARY {text}: {error:?}");
 
         // Unit already accepts these complete original sources. Preserve the distinct
         // Legacy rejection above rather than treating this as consumer retirement.
@@ -863,45 +859,40 @@ mod boundaries {
 
     #[test]
     fn owned_source_return_two_returns_remain_bounded() {
-        observe(
+        observe_rejection(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 1) { return }; if (key == 2) { return } }; keys.size }",
-            false,
             23,
             1,
         );
     }
     #[test]
     fn owned_source_return_mixed_continue_remains_bounded() {
-        observe(
+        observe_rejection(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 1) { return }; if (key == 2) { continue } }; keys.size }",
-            false,
             23,
             1,
         );
     }
     #[test]
     fn owned_source_return_replacement_seed_remains_bounded() {
-        observe(
+        observe_rejection(
             "fun main(): Unit { var keys = arrayOf(1, 2); keys = arrayOf(2, 3); for (key in keys) { if (key == 2) { return } }; keys.size }",
-            false,
             23,
             1,
         );
     }
     #[test]
     fn owned_source_return_alias_seed_remains_bounded() {
-        observe(
+        observe_rejection(
             "fun main(): Unit { val original = arrayOf(1, 2); val keys = original; for (key in keys) { if (key == 2) { return } }; keys.size }",
-            false,
             53,
             1,
         );
     }
     #[test]
     fn owned_source_return_resource_source_remains_bounded() {
-        observe(
+        observe_rejection(
             "class Item(val id: Int) { deinit() {} }\nfun main(): Unit { val keys = arrayOf(Item(1), Item(2)); for (key in keys) { if (key.id == 2) { return } }; keys.size }",
-            false,
             63,
             1,
         );
@@ -916,27 +907,24 @@ mod boundaries {
     }
     #[test]
     fn owned_source_return_outer_owner_with_inner_loop() {
-        observe(
+        observe_rejection(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { for (other in arrayOf(3)) { other }; if (key == 2) { return } }; keys.size }",
-            false,
             23,
             2,
         );
     }
     #[test]
     fn owned_source_return_same_source_nested() {
-        observe(
+        observe_rejection(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (outer in keys) { for (key in keys) { if (key == 2) { return } } }; keys.size }",
-            false,
             23,
             2,
         );
     }
     #[test]
     fn owned_source_return_same_source_sequential() {
-        observe(
+        observe_rejection(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { return } }; for (key in keys) { if (key == 2) { return } }; keys.size }",
-            false,
             23,
             2,
         );

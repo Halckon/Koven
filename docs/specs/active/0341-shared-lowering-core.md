@@ -20986,3 +20986,8 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 独立只读审查逐项核双方独有文件与父提交 blob 一致，三个原头均为整合头祖先，无意外变化。共享 Cargo target 前触碰本树变更源码，日志明确在独立整合树真实编译1m41s，不用其他工作树的旧二进制代替。
 - 准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）下组合九项 exact 各1 passed / 0 ignored：Rc inspect 原 owner、普通成功与 default routing；Rc presence 原身份及保留 payload 边界；direct-proof 原 Unit/Single 两目标；Map wrapper 显式两根及生产 singleton 控制。codegen all-targets 同配置严格 Clippy52.28s/exit0；fmt、docs979、Rust尺寸2531（两项历史债不扩大）与 diff-check 通过。
 - 仅执行普通 SSA/LLVM 目标；故障目标只编译/列出，不在本地执行；未运行 native、Abort、默认 workspace 或新头远端 CI，未推送。此整合不表示 D10/E2 整体完成，不触碰 #427。
+
+### 2026-11-16：return 边界辅助函数删除无消费者的旧成功分支
+
+- 基本地整合 `0a928a58`，`boundaries::observe` 的八个调用均固定 `supported=false`；成功消费者此前已迁 Unit，本次仅删除无调用方的 Legacy 成功/LLVM 分支及布尔参数，重命名为 `observe_rejection`。八条原源码、声明精确错误、循环数量和完整 Unit 正控合同不变，不将死分支清理计成八个 Legacy 消费者退休。
+- 独立只读审查确认 Unit 合同及其他调用逐字节保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实重编1m41s，八项原 exact 各1 passed / 0 ignored；codegen all-targets 严格 Clippy52.73s/exit0，fmt、docs979、尺寸2531（两历史债不扩大）和 diff-check 通过。未执行 native、Abort、故障注入或远端 CI；仅本地提交，不推送。
