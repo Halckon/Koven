@@ -190,12 +190,65 @@ class LoanKernelCases(unittest.TestCase):
             for early in (False, True):
                 lowered = {}
                 CHECKER.check(text, early, lowered=lowered)
+                deinits = {name[len("deinit "):]: (kinds, program) for name, (kinds, program, accepted)
+                           in lowered.items() if name.startswith("deinit ") and accepted}
                 for name, (types, program, accepted) in lowered.items():
                     if accepted:
                         with self.subTest(case=path.stem, fun=name, early=early):
-                            self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+                            self.assertEqual({}, self.verify(types, program, name, deinits))
                             checked += 1
         self.assertGreater(checked, 250, "被接受的函数应当都检验到了")
+
+    @staticmethod
+    def verify(types, program, name, deinits):
+        """函数直接执行；deinit 函数体放进“声明一个该类型的值然后析构它”的程序里执行。
+
+        函数里析构到的值，凡是写出了 deinit 函数体的，检验器都真的执行那段函数体。
+        """
+        DP = CHECKER.DP
+        if name.startswith("deinit "):
+            owner = name[len("deinit "):]
+            program = [DP.Stmt("let", 0, var="value", ty=owner), DP.Stmt("drop", 0, var="value")]
+        used = {ty: deinits[ty] for ty in types if ty in deinits}
+        for kinds, _ in used.values():  # 函数体里 this 的类型
+            types = {**kinds, **types}
+        return DP.Verifier(types, deinits={ty: body for ty, (_, body) in used.items()}).run_all(program)
+
+    def test_a_deinit_body_owns_the_fields_of_this(self):
+        """deinit 函数体走同一条路：this 拥有各字段，移出的由函数体交出去，余下的在函数体结束时析构。
+
+        借用原型若忘了字段已被移出，检验器独立报重复析构；若把 this 当作不拥有字段，余下的字段就泄漏。
+        """
+        text = (ROOT / "cases" / "Y1.lk").read_text(encoding="utf-8")
+
+        def found(fun):
+            lowered = {}
+            CHECKER.check(text, lowered=lowered)
+            types, program, _ = lowered[fun]
+            deinits = {fun[len("deinit "):]: (types, program)}
+            return {name.split()[0] for name in self.verify(types, program, fun, deinits)}
+
+        self.assertEqual(set(), found("deinit Taker"))
+        self.assertEqual(set(), found("deinit OneBranch"))
+        self.assertEqual(set(), found("deinit Guard"))
+        original = CHECKER.Checker.take
+
+        def forgetful(checker, expr, state):
+            value = original(checker, expr, state)
+            state[expr.place.root].gone.clear()
+            return value
+
+        CHECKER.Checker.take = forgetful
+        try:
+            self.assertEqual({"V2"}, found("deinit Guard"))
+        finally:
+            CHECKER.Checker.take = original
+        original = CHECKER.Checker.owes
+        CHECKER.Checker.owes = lambda checker, var: var.ty.name != "Taker" and original(checker, var)
+        try:
+            self.assertEqual({"V1"}, found("deinit Taker"))
+        finally:
+            CHECKER.Checker.owes = original
 
     def test_only_observable_values_need_a_drop_flag(self):
         """只在一条分支上移走：不可观察的值在另一条分支末尾补偿析构，可观察的值留到作用域结束并带析构标志。"""
@@ -214,7 +267,8 @@ class LoanKernelCases(unittest.TestCase):
             for name, (_, program, accepted) in lowered.items():
                 if accepted:
                     walk(program, name)
-        self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g")}, flagged, "两处都是带 deinit 的值")
+        self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g"), ("deinit OneBranch", "this")},
+                         flagged, "三处都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
         listing = [line.split("失败时")[0].strip() for line in CHECKER.DP.show(lowered["plainMovedOnOneBranch"][1])]
