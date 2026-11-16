@@ -4,34 +4,11 @@ use super::{
     verify::verify_program, verify_borrow_result::call_contract,
 };
 use lang_frontend::{
-    lexer::lex,
-    name_resolution::{SourceUnitInput, resolve_names},
-    ownership_checking::check_ownership,
-    parser::parse_file,
-    source::SourceMap,
-    type_checking::{check_types, standard_environments},
+    name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
 
 const PROVIDER: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) { println(source) }\n";
 const ENTRY: &str = "fun entry() { val source = \"kept\".clone(); { borrow val item = wrap(source); println((item)) }; consume(source) }";
-
-pub(super) fn single(text: &str) -> Result<Program, super::LoweringError> {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("result.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    super::lower_frontend::orchestrate::lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
-}
 
 fn assert_flow(program: &Program) {
     verify_program(program).unwrap();

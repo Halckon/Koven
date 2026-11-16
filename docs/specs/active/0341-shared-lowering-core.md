@@ -20891,3 +20891,14 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 首普通定向 probe 实测两路前三阶段 clean、ownership 恰一 L0135，主 Span 与冲突 source loan Label 相同。Unit 文案分别明确 move/mutation/new loan，move 另含 selected-parameter Label；原测试只断言 L0135，不声称完整诊断字节等价，也不为旧未冻结文案保留兼容路径。
 - 严格 MemoryDocument Unit 返回 Diagnostics，不能以 incomplete ownership 或可执行结果替代；完整固定 stage/count、severity/code/message、主 Span、source name/text/slice 与全部有序 Label。原 probe 完整诊断保留在本地外部测试日志，末审确认四 fixture 与所有原断言保全，无阻断。
 - 末版明确在本工作树真实重编（41.01s），准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原 exact 1 passed / 0 failed / 0 ignored（四 fixture，执行0.02s）；codegen all-targets 同配置严格 Clippy 59.74s/exit0。fmt、docs979、尺寸2529（两历史债未扩大）与 diff-check 通过。未运行默认 workspace、SSA/native/Abort、故障注入或远端 CI，不推送，不声称 D10/E2 整体完成。
+
+### 2026-11-16：Map borrow wrapper 原两根同轮 Unit 消费者迁移
+
+- 基 `9506d830`，保留原 `READONLY_WRAPPER` 两声明源码和 `result.ko` 身份，以严格 MemoryDocument 的同轮 names、完整 types、ownership view 一次测试专用 `lower_roots([view,entry])` 规划组装；不是两个单根 Program 拼装，不扩大生产 singleton 入口。
+- 原 whole-file 的恰两函数、唯一 view、唯一 MapRequireValue slot loan、BorrowReturn 返回同 loan、无 Copy/SharedRetain 全保留；原符号字符串定位改为真实 DeclarationId → FunctionId 与原声明 Span，并核完整 roots、声明顺序及同一 module。新增 verified LLVM，不运行其缺 key 的执行路径。
+- 原 `legacy_whole_file_emits_unselected_map_require_wrapper` 改名为 `explicit_unit_roots_preserve_whole_file_map_require_wrapper`，明确显式两根而非假称单根也发射不可达 view。相邻原 selected-entry 只发射 entry 的独立 Unit 测试完整保留；此前根选择差异记录仅为历史，本片不改变生产选择语义。
+- 原 `borrow_result_contract_tests::single` 唯一消费者已迁移，删除该 Legacy helper 及专用导入；不删除现有借用结果/存储测试，不改 verifier 生产实现。
+- 首验真实重编2m53s，原 SSA/两根/slot oracle 均已通过，新增 LLVM 处失败 `Build("abort 未声明")`。`MapRequireValue` lowering 的缺 key 分支会生成 abort，但 `RuntimeRequirements` 未登记该指令自身依赖；借用 wrapper 无 MapConstruct/PrintString 等指令替其带入声明。最小补 needs_abort arm，不改变查询、错误语义或 runtime ABI；独立 singleton wrapper 亦补 LLVM/abort 声明与 missing/found 路径检查，两根另核不引入 malloc，保首失败日志。
+
+- 修复后 LLVM 构造成功，但新增的“无 free”检查在第二次普通验收失败：原 String key 临时值的 Drop 本就需要 String cleanup/free。仅修正这个新增错误 oracle，改核真实 String Drop 和 free 存在；不改生产 cleanup 或原借用合同，保该失败日志。
+- 第三次准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）真实本树重编28.46s，显式双根 exact 1 passed（0.04s），原 singleton/control exact 1 passed（0.01s）；codegen all-targets 同配置严格 Clippy 54.63s/exit0，末审无阻断。fmt、docs979、Rust尺寸2530（两历史债不扩大）及 diff-check 通过。未执行 native、缺 key 的 abort、故障注入、默认 workspace 或远端 CI；本地未推送，不宣称完整 D10/E2 退役。
