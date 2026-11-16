@@ -1,5 +1,5 @@
 //! Single-source Unit resource destructors are real readonly callable bodies.
-//! Legacy rejection and direct-invoked resource closure retain their original pipeline.
+//! Only the remaining Legacy rejection contracts retain their original pipeline.
 
 use crate::test_support::diagnostics::assert_text_eq;
 #[path = "lower_frontend_resource_deinit_tests/direct_closure.rs"]
@@ -109,39 +109,6 @@ fn lower_resource(source: &str, entry_name: &str) -> ResourceUnit {
         program,
         entry,
     }
-}
-
-// Keep the original direct resource closure success witness beside its strict Unit counterpart.
-fn lower_resource_legacy(source: &str) -> crate::ssa::model::Program {
-    let analysis = analyze_legacy(source);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("resource deinit body must lower")
 }
 
 #[test]
@@ -505,76 +472,10 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
 
 #[test]
 fn single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup() {
-    // Keep the complete original body/environment oracle on the Legacy path.
-    // direct_closure independently verifies the identical source through strict Unit.
-    let program = lower_resource_legacy(
+    direct_closure::assert_cleanup(
         "class Resource { deinit() {} }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource() }; callback() }",
+        1,
     );
-    let module = &program.modules[0];
-    let thunk = module
-        .functions
-        .iter()
-        .find(|function| function.name.ends_with(".thunk"))
-        .expect("one selected owned closure thunk");
-    assert_eq!(
-        thunk
-            .instructions
-            .iter()
-            .filter(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. }))
-            .count(),
-        1
-    );
-    let body_drops = thunk
-        .instructions
-        .iter()
-        .filter_map(|instruction| {
-            if let Operation::Drop { owner } = instruction.operation {
-                Some(thunk.entity(EntityId::Value(owner)).unwrap().ty)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    let [EntityType::Value(resource)] = body_drops.as_slice() else {
-        panic!("the callback's local Resource must have one drop")
-    };
-    assert!(matches!(
-        module.type_kind(*resource),
-        Some(SsaTypeKind::HeapOwner { .. })
-    ));
-    let entry = module
-        .functions
-        .iter()
-        .find(|function| function.name == "run")
-        .expect("run");
-    assert_eq!(
-        entry
-            .instructions
-            .iter()
-            .filter(|instruction| matches!(instruction.operation, Operation::CallableInvoke { .. }))
-            .count(),
-        1
-    );
-    let entry_drops = entry
-        .instructions
-        .iter()
-        .filter_map(|instruction| {
-            if let Operation::Drop { owner } = instruction.operation {
-                Some(entry.entity(EntityId::Value(owner)).unwrap().ty)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    let [EntityType::Value(closure)] = entry_drops.as_slice() else {
-        panic!("the closure must independently drop its owned String environment once")
-    };
-    assert!(matches!(
-        module.type_kind(*closure),
-        Some(SsaTypeKind::ConcreteClosure { .. })
-    ));
-    render_verified_program(&program)
-        .expect("body Resource and owned environment cleanup verify through LLVM");
 }
 
 #[test]

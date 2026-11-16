@@ -20908,3 +20908,10 @@ shared-owner三目标、temporary-pair五目标回归通过。三feature fronten
 - 基 `91657fc8`，`single_resource_deinit_control_body_nested_scope_consumes_published_drops` 原 Resource/work 源码、FQN 及 verified LLVM 保留；原独立 Legacy raw drop 观察改从实际用于 lowering 的同一个严格 Unit 产品读取，不构造替代 facts、不混两轮分析。
 - 原两个 named resource 的 `[second,first]` 逆序、相同 AfterStatement 点保持，并核不同真实 symbol、原 value-origin 文本、MemoryDocument/SourceUnit 身份及可解析原 AST statement。测试专用观察移入小模块，其他 Legacy 拒绝和 closure 正控不动；不修改生产 drop 策略或声明 D10/E2 整体退役。
 - 独立只读末审确认原 fixture/全部原 oracle 保全。准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）原完整 exact 本树真实重编1m35s，1 passed / 0 failed / 0 ignored（0.04s）；codegen all-targets 同配置严格 Clippy 47.63s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过；未执行 native、Abort、故障注入、默认 workspace 或远端 CI，不推送。
+
+### 2026-11-16：direct resource closure 原正控消费者迁移
+
+- 基 `778923c9`，原 `single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup` FQN 与源码字节保留，直接复用已有严格 Unit `direct_closure::assert_cleanup`；原独立 Unit 测试身份和 alias/repeated-call fixture 均保留，不把重复的同输入验收当新增覆盖。
+- 原 thunk 内 HeapAllocate 恰一、body Drop 恰一 HeapOwner、run 内 CallableInvoke 恰一、entry Drop 恰一 ConcreteClosure 与 verified LLVM 全保全。现有 helper 额外按实际 ClosureConstruct 的 thunk 身份定位，核 Resource deinit 注册以及唯一 Owned String capture 与其环境析构；不凭旧显示名后缀替代身份。
+- 删除唯一已无调用方的 `lower_resource_legacy` 辅助函数，其他 Legacy 拒绝原样保留，不改生产 closure ABI 或准入。
+- 独审逐项核原 oracle 与源码，无阻断；准确三 feature（loan-observation-test-support、d10-catalog-experiment、e2-two-source-test-support）本树真实编译1m35s，原 FQN exact 1 passed（0.04s），不同 alias/repeated-call fixture exact 1 passed（0.01s）；codegen all-targets 同配置严格 Clippy 47.43s/exit0。fmt、docs979、尺寸2531（两历史债不扩大）与 diff-check 通过。原补充 Unit FQN 与迁移后原 FQN 共用同输入/helper，未重复运行或称为独立 oracle。未执行 native、Abort、故障注入、默认 workspace 或远端 CI，不推送。
