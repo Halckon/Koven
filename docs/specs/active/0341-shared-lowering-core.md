@@ -21442,3 +21442,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 保实际 lambda 的唯一 This/Shared capture、原 any This/Shared 和完整有序 L0137/L0138/L0133 code 断言；源文本、closures.ko、原环境不变。两布局是 MemoryDocument/Rooted，不称独立实现对照。
 - 原活动 receiver 字段冲突的 Single L0135 在 Unit 得 L0134，真实 probe 失败证据保留仓库外，该测试正文逐字保留。未标 receiver 默认为 Borrow，Unit 在进入 loan 冲突前先拒绝不可写字段；不改源码为 Inout 或更改期望促成退休，也不将同一 ownership 阶段的拒绝检查顺序差异称为错误接纳。Unit L0134 为本轮 probe 观察记录，不新增持久对照断言。
 - 最终原 ownership_closures 普通 target 74 passed（本树重编5.88s），强制本树 frontend all-target strict（loan-observation-test-support）2m05s/exit0。原三项基线和两个通过的保旧对照日志、失败对照补丁留仓库外；无 native/fault 执行，不推送。
+
+### 2026-11-17：范围原语错误参数数量的恢复出口隔离
+
+- Phase 2 非法输入恢复修复，不扩大 E2 合法程序准入：`rangeView` 错误 arity 的参数检查复用普通 call 的 `check_call_arguments_without_expected`，继续返回错误类型与 `falls_through: true`，保原 L0121、全部后缀静态诊断和空范围 descriptor。
+- 原实现真实红测为 1 passed / 1 failed：`return 7` 后不可达 `break` 错误污染外层循环出口，额外产生 L0088。修复只隔离不可达参数出口，不跳过参数检查；活 `break` 的 L0088 与后缀 L0084 的精确 span 均保留。
+- 七个源码各经 Rooted / MemoryDocument：四个循环出口对照及三个后缀诊断对照。重解析的唯一 Call/span 仅用于独立单源测试定位，不声明跨分析 AST 身份。
+- 本地本树重编后 `type_range_construction` 8 passed、`type_range_source_authority` 6 passed；另本树重编 `multifile_type_checking construction_completion` 6 passed。强制本树 `cargo clippy --locked -p lang-frontend --all-targets --features loan-observation-test-support -- -D warnings` 通过（28.76 秒）。未执行 native 或 CI-only fault；未推送。
