@@ -51,7 +51,7 @@ L0165以私有穷尽映射呈现18项真实Deferred原因，不显示Debug名或
 未选Member的失败recovery、Deferred或本name精确L0080错误，只在真实静态限定符身份下恢复非值壳；
 Member本身的最终类型仍检查，动态receiver及实参不会因该恢复被跳过。
 源函数overload的原typed L0123/L0124、Error和无selection证明失败trial，未提交lambda body不作消费root；独立错误仍检查。
-直接覆盖在frontend `final_type_admission`（含`iteration_recovery`）与CLI同名测试模块，原能力回归保留原oracle。
+直接覆盖在frontend `final_type_admission`（含`iteration_recovery`）与CLI同名测试模块，原能力回归保留原oracle。`complete` 的五项同源final诊断消费者使用MemoryDocument/Rooted双Unit；Single资格身份负控、initializer的L0167差异及独立raw观察仍保留，不将两种布局称为旧/新实现对照。
 
 ## LSP
 

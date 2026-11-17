@@ -21330,3 +21330,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 存储拒绝后的参数检查仅复用已有 `ConstructionOperandFlow`；保 `Some(Error)`、原storage recovery标记、原失败返回及无成功construction，不改变存储准入。
 - 新8源码×双布局覆盖真实/不可达break、命名顺序、正常存储、Error expected抑制参数级联、原L0125主span、无descriptor及独立suffix诊断。outside外部名称注册但无类型绑定，依原rejected_call_recovery合同区分raw L0125与final admission L0125+L0165并核outside主span；初fixture缺name注册和随后混用raw/final预期的失败均保日志，未改生产绕过。最终精确绿本树4.03s。
 - 完整multifile_type_checking296项及ownership_construction10项通过；frontend all-targets strict（loan-observation-test-support）强制本树1m59s/exit0。独审、fmt/diff、docs979、Rust尺寸2556通过；无native/fault，不推送。
+
+### 同源 final admission 诊断消费者双 Unit 收敛
+
+- 基 `6e8496c0`，仅迁移 `complete` 的 frozen roots、outer-call recovery、early-call diagnostics、underscore 与 deferred message 五原FQN，共19份原fixture；源码、前缀、source/span及顺序oracle保留，最后一项另保severity/message/details。新MemoryDocument与原Rooted各自核raw诊断不变、完整资格引用的ptr与analysis身份。
+- SPEC0319要求资格绑定原分析。`complete_both` 与resolved_roles的Single身份/独立重分析拒绝完整保留；initializer_order的Single final与Unit额外L0167实际不同，整项raw/final不动。五项中既有with_types的raw差异块逐字保留。不是整文件或旧API移除，也不新增生产能力。
+- 初盘曾漏读initializer final差异，逐调用复核后已将它明确排除；不以相同helper推断所有oracle等价。原基线五exact各1 passed（首项真实原树重编9.26s），候选complete全10项真实本树重编42.22s通过；强制本树frontend all-targets strict（loan-observation-test-support）1m47s/exit0。保留helper、身份/initializer两项及3个raw块另经字节比对一致；独审、fmt/diff、docs979、Rust尺寸2556通过。无native/fault，不推送。
