@@ -21360,3 +21360,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 新 3 项共 12 源 × MemoryDocument/Rooted，含临时 iteration 与普通同步 call、纯/混合 break/continue、原 live-range L0135、外层 iteration 保护不被第二个中断调用误释、borrow-val loop 原 L0164。纯 continue 后的 consume 不可达，仅证明不发布虚构事实，不能算退出权限恢复证据。首次绿测发现借用绑定 loop 原 gate，未改生产绕过，转为明确负控。
 - 原精确红灯 L0135；最终 ownership_range_construction 全 17 项通过。不扩大 E3 子集，不运行 native/fault，不推送。
 - 普通 borrow continuation/result/nested-argument 与 range producer/receiver 五 target 共 57 项通过；frontend all-target strict（loan-observation-test-support）强制本树 53.30s/exit0。独审通过，fmt/diff、docs980 与 Rust 尺寸通过；所有原工作树不动。
+
+### 分组范围实参保真实生产者身份
+
+- 基 `43c6177a`，未分组对照通过而 `observe((rangeView(source, 0, 1)))` 真实红灯 L0164。Phase 3 原以 Group ID 查只属于 Call 的 descriptor，遗漏短期来源授权；不是新 carrier 权限。
+- 仅同步 SharedLoan 非跨线程 argument 分支复用现有 borrow_result_call 解 Group，按真实 Call 保原 producer 证明；allowed、range-use 与 source loan handoff 使用此 Call。contract.argument、参数检查及完成性仍保原 Group ID。receiver、iteration 与 E3 生产不改。
+- 新 FE 2项含 10 源 × 双布局：0/1/3层括号、named/temporary源、真实源loan identity、消费后恢复、分组纯/混合break与混合continue、后参数消费活根仍L0135。原target红→完整ownership_range_construction19passed。
+- 独审要求保持原谓词：最终用底层 Group-only helper 搭配原 range_expression_is_proven，不额外收紧 source operand 条件。最终前端五 target 共 56 项通过；精确 `ssa::refine_tests::container_tests::grouped_range_call_arguments_reach_verified_ssa_and_llvm` 的 6 源 × 双布局全经实际 refine、SSA verifier 与 LLVM adapter，两轮真实通过，未执行 native。
+- frontend all-target feature strict 强制本树 1m04s，codegen default all-target strict 强制本树 59.89s，均 exit0。独审、fmt/diff、docs980、Rust 尺寸2563（原2例外）通过；无 native/fault，不推送。

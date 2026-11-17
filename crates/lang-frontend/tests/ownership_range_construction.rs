@@ -674,3 +674,79 @@ fn interrupted_range_binding_keeps_existing_loop_boundary() {
         );
     }
 }
+
+#[test]
+fn grouped_range_arguments_keep_actual_call_identity_and_root_lifetime() {
+    for depth in [0, 1, 3] {
+        for source in ["source", "listOf(\"temporary\")"] {
+            let range = format!("rangeView({source}, 0, 1)");
+            let argument = format!("{}{range}{}", "(".repeat(depth), ")".repeat(depth));
+            let text = format!(
+                "fun run(own source: List<String>): Unit {{ observe({argument}); consume(source) }}"
+            );
+            let (sources, document, rooted) = checked(&text);
+            for owned in [&document, &rooted] {
+                assert!(
+                    owned.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    owned.diagnostics()
+                );
+                let [fact] = owned.borrow_results().range_uses() else {
+                    panic!("one actual range use: {text}")
+                };
+                let source_loan = owned
+                    .loans()
+                    .iter()
+                    .find(|loan| {
+                        loan.call() == fact.source_loan().call()
+                            && loan.argument() == fact.source_loan().argument()
+                    })
+                    .expect("original actual source loan");
+                assert_eq!(fact.expression(), source_loan.call());
+                assert_eq!(source_loan.target(), fact.origin());
+                assert_eq!(sources.slice(source_loan.begin_span()), Ok(source));
+                assert!(matches!(
+                    fact.site(),
+                    lang_frontend::ownership_checking::RangeUseSite::Call(_)
+                ));
+            }
+        }
+    }
+}
+
+#[test]
+fn grouped_range_arguments_preserve_prefix_exits_and_live_root_rejection() {
+    for bound in [
+        "break",
+        "if (flag) { break } else { 0 }",
+        "if (flag) { continue } else { 0 }",
+    ] {
+        let text = format!(
+            "fun run(own source: List<String>, flag: Boolean): Unit {{ loop {{ observe(((rangeView(source, {bound}, 1)))); break }}; consume(source) }}"
+        );
+        let (_, document, rooted) = checked(&text);
+        for owned in [&document, &rooted] {
+            assert!(
+                owned.diagnostics().is_empty(),
+                "{text}: {:?}",
+                owned.diagnostics()
+            );
+            if bound == "break" {
+                assert!(owned.borrow_results().range_uses().is_empty());
+            }
+        }
+    }
+    let (_, document, rooted) = checked(
+        "fun use(view: View<String>, own removed: List<String>): Unit {}\nfun run(own source: List<String>): Unit { use(((rangeView(source, 0, 1))), source) }",
+    );
+    for owned in [&document, &rooted] {
+        assert!(
+            owned
+                .diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == "L0135"),
+            "{:?}",
+            owned.diagnostics()
+        );
+    }
+}

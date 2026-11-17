@@ -805,9 +805,17 @@ impl Checker<'_> {
                 self.reject_borrowed_closure_escape(argument.value, next)?;
             }
             let previous = self.allowed_borrow_call;
-            let range = contract.is_some_and(|c| {
-                c.kind() == UnitCallArgumentOwnershipKind::SharedLoan && !c.crosses_thread()
-            }) && self.range_expression_is_proven(argument.value);
+            let range = contract
+                .filter(|c| {
+                    c.kind() == UnitCallArgumentOwnershipKind::SharedLoan && !c.crosses_thread()
+                })
+                .and_then(|_| {
+                    crate::ownership_checking::borrow_result::borrow_result_call(
+                        self.parsed,
+                        argument.value,
+                        |actual| self.range_expression_is_proven(actual),
+                    )
+                });
             let borrow_call = contract
                 .filter(|contract| {
                     contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
@@ -818,18 +826,21 @@ impl Checker<'_> {
                 });
             if let Some((expression, _)) = borrow_call {
                 self.allowed_borrow_call = Some(expression);
-            } else if range {
-                self.allowed_borrow_call = Some(argument.value);
+            } else if let Some(actual) = range {
+                self.allowed_borrow_call = Some(actual);
             }
             flows = self.chain_expression(flows, argument.value, usage)?;
             self.allowed_borrow_call = previous;
-            if range && self.diagnostics.len() == diagnostic_count && flows.next.is_some() {
+            if let Some(actual) = range
+                && self.diagnostics.len() == diagnostic_count
+                && flows.next.is_some()
+            {
                 self.record_range_use(
-                    argument.value,
+                    actual,
                     crate::ownership_checking::RangeUseSite::Call(self.unit_expression(id)),
                 );
                 self.continue_range_source(
-                    argument.value,
+                    actual,
                     super::ActiveLoanOwner::Call(self.unit_expression(id)),
                     &mut flows,
                 );
