@@ -21221,3 +21221,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `562eb425`。binary operands、nested temporary 逆序、interpolation 内层 owner 释放三项保原 FQN/源码，先完整 Legacy 与 MemoryDocument/Rooted Unit 对照，各1 passed，本树首编43.97s；之后只退休三处旧消费者。
 - Unit 原样承接 drop 数量、精确 point 类别/相等性、源位置逆序、原文切片和完整 source-qualified temporary target/物化 descriptor 查询。共享常量分析 helper 仅扩大测试模块内可见性，不新增生产事实、不放宽 Partial 能力；其他 loan-end/失败及控制流旧合同保留。
 - 最终 ownership_constants 全目标17 passed，本树重编1.96s；frontend all-targets strict（`loan-observation-test-support`）本树实检1m41s/exit0。独立设计/probe/退休审查、fmt/diff-check、docs及尺寸门禁通过。仅普通前端源码测试，无 native/fault，不推送。
+
+### 常量 String 前缀控制转移清理消费者收敛
+
+- 基 `fc5a997f`，两原 FQN / 15 fixture（binary 的 TEXT/literal 各5、interpolation 5）先保 Legacy 全断言做 MemoryDocument/Rooted 同源对照，各1 passed，本树首编42.06s，再退休对应两处旧消费者。
+- 保原 return/break/continue/条件 abort/无条件 abort 源码、预期计数与过滤口径；binary 只取 Temporary 且匹配 origin，interpolation 仍只按 TEXT origin，不新增过滤掩盖额外清理。精确 ControlTransfer、AfterBinaryOperands/AfterExpression 分类和匹配总数断言不变；零清理限该源码前缀，不宣称 Partial loan-end 完整 absence 或 native Abort 行为。
+- 最终 ownership_constants 17 passed，本树重编2.61s；frontend all-targets strict（`loan-observation-test-support`）本树实检1m29s/exit0。独立设计/probe/退休审查、fmt/diff-check、docs及尺寸门禁通过。无生产修改，无 native/fault，不推送。

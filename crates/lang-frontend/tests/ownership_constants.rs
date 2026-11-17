@@ -16,6 +16,8 @@ mod parser_test_assertions;
 mod unit_cleanup_order;
 #[path = "ownership_constants/unit_materialization.rs"]
 mod unit_materialization;
+#[path = "ownership_constants/unit_transfer_cleanup.rs"]
+mod unit_transfer_cleanup;
 
 fn analyzed(text: &str) -> (SourceMap, TypedFile, OwnershipCheckedFile) {
     let mut sources = SourceMap::new();
@@ -386,36 +388,7 @@ fn string_left_temporary_cleanup_follows_right_control_transfer() {
                 "const val TEXT = \"hi\"\nfun stop(): Nothing = stop()\nfun use(flag: Boolean): Unit {{ {} }}",
                 body.replace("LEFT", left)
             );
-            let (sources, owned) = checked(&source);
-            let drops = owned
-                .drops()
-                .iter()
-                .filter(|drop| {
-                    matches!(drop.target(), DropTarget::Temporary(_))
-                        && sources.slice(drop.value_origin()).unwrap() == left
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(
-                drops
-                    .iter()
-                    .filter(|drop| matches!(drop.point(), DropPoint::ControlTransfer(_)))
-                    .count(),
-                transfers,
-                "{source}: {drops:?}"
-            );
-            assert_eq!(
-                drops
-                    .iter()
-                    .filter(|drop| matches!(drop.point(), DropPoint::AfterBinaryOperands(_)))
-                    .count(),
-                normal,
-                "{source}: {drops:?}"
-            );
-            assert_eq!(
-                drops.len(),
-                transfers + normal,
-                "{source}: no extra cleanup"
-            );
+            unit_transfer_cleanup::binary(&source, left, transfers, normal);
         }
     }
 }
@@ -465,30 +438,9 @@ fn interpolation_prefix_temporaries_follow_control_transfer_and_abort() {
         ),
         ("val result = \"${TEXT}-${stop()}\"", 0, 0),
     ] {
-        let (sources, owned) = checked(&format!(
+        let source = format!(
             "const val TEXT = \"hi\"\nfun stop(): Nothing = stop()\nfun use(flag: Boolean): Unit {{ {body} }}"
-        ));
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|drop| sources.slice(drop.value_origin()).unwrap() == "TEXT")
-            .collect::<Vec<_>>();
-        assert_eq!(
-            drops
-                .iter()
-                .filter(|drop| matches!(drop.point(), DropPoint::ControlTransfer(_)))
-                .count(),
-            transfers,
-            "{body}: {drops:?}"
         );
-        assert_eq!(
-            drops
-                .iter()
-                .filter(|drop| matches!(drop.point(), DropPoint::AfterExpression(_)))
-                .count(),
-            normal,
-            "{body}: {drops:?}"
-        );
-        assert_eq!(drops.len(), transfers + normal);
+        unit_transfer_cleanup::interpolation(&source, transfers, normal);
     }
 }
