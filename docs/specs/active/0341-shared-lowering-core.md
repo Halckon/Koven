@@ -21316,3 +21316,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 仅在nominal `already_checked` 补充适配条件加 `checked.falls_through`；推导、参数/后缀检查、完成性累积和失败recovery不变。intrinsic同型代码尚无真实触发证据，不顺带修改，不扩E3。
 - 新16组合保显式/推导、构造/factory终止operand、正常与条件可完成拒绝、双source布局；成功核String泛型实参与descriptor结果身份和false完成性；拒绝保单个L0084及各路线原主span切片，非完整Diagnostic对象相等。
 - 新旧completion6项本树8.55s通过；完整multifile_type_checking294项及ownership_construction10项通过。frontend all-targets strict（loan-observation-test-support）强制本树1m44s/exit0；独审、fmt/diff、docs979、Rust尺寸2555通过。无native/fault，不推送。
+
+### Nominal 构造参数保循环退出可达性
+
+- 基 `b99e4197`，普通原源 `loop { Pair(return 7, break) }` 错误产生L0088；同形 `sink(return 7, break)` 无诊断。真实本树红灯证实nominal参数裸检查把不可达suffix break写入外层loop。不是SSA/native执行错误或E3能力扩展。
+- 推导预检查与finish共用私有 `ConstructionOperandFlow`，复用已有 `check_loop_paths` 普通/pending双状态；缓存命中仍推进状态。所有参数仍静态检查、保原泛型推导与诊断；恢复参数委托现有普通调用顺序checker，不从false完成性伪造pending事实。intrinsic单参数路径不作无证据扩展。
+- 新普通回归15源码×MemoryDocument/Rooted，覆盖Pair/sink、显式/推导泛型、命名源码重排、可达break、不可达continue/条件后缀、后缀内层loop及错误suffix；核loop完成性、诊断code，L0084另保原主span。独审确认lambda跳过及缓存规则与现有普通调用一致，不将静态对应宣称为全部pending状态实测。
+- 原源真实红灯1m02s；新15源码双布局绿17.38s，补主span后完整multifile_type_checking295项本树3.26s通过；ownership_construction10、lambda_completion4、while_flow_facts16项通过。frontend all-targets strict（loan-observation-test-support）强制本树1m44s/exit0；独审、fmt/diff、docs979、Rust尺寸2556通过。无native/fault，不推送。

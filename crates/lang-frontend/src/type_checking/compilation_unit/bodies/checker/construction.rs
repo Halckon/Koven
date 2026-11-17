@@ -20,9 +20,11 @@ use crate::{
 use super::{BodyChecker, ExpressionCheck, ExpressionExpected};
 
 use bounds::BoundCheck;
+use operands::ConstructionOperandFlow;
 
 mod bounds;
 mod intrinsic;
+mod operands;
 
 #[derive(Clone, Copy)]
 enum Target {
@@ -410,12 +412,13 @@ impl BodyChecker<'_> {
                 .collect::<BTreeSet<_>>();
             let mut poisoned = false;
             let mut partial_operands = Vec::new();
+            let mut flow = ConstructionOperandFlow::new(self);
             for (argument_index, argument) in arguments.iter().enumerate() {
                 if self.is_lambda_syntax(source, argument.value) {
                     continue;
                 }
-                let actual = self
-                    .check_expression(source, argument.value, None, None, return_type)?
+                let actual = flow
+                    .check(self, source, argument.value, None, None, return_type)?
                     .ty;
                 let template = shape.parameters[mapping[argument_index]].ty();
                 let span = self
@@ -814,7 +817,7 @@ impl BodyChecker<'_> {
         deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut valid = true;
-        let mut falls_through = true;
+        let mut flow = ConstructionOperandFlow::new(self);
         let mut pending_parameter = false;
         let mut descriptors = Vec::with_capacity(arguments.len());
         for (evaluation_index, argument) in arguments.iter().enumerate() {
@@ -826,15 +829,14 @@ impl BodyChecker<'_> {
             let parameter_poisoned = self.construction_type_contains_poison(parameter_type);
             let argument_key = UnitExpressionId::new(source, argument.value);
             let already_checked = self.parts.expression_types.contains_key(&argument_key);
-            let checked = self.check_expression(
+            let checked = flow.check(
+                self,
                 source,
                 argument.value,
                 Some(parameter_type),
                 Some(parameter.span()),
                 return_type,
             )?;
-            // Check every operand, including unreachable suffixes, before combining flow.
-            falls_through &= checked.falls_through;
             if already_checked
                 && checked.falls_through
                 && !(self.is_error(checked.ty)
@@ -879,6 +881,7 @@ impl BodyChecker<'_> {
                 },
             ));
         }
+        let falls_through = flow.falls_through();
         if !valid || self.diagnostics.len() != diagnostics {
             return Ok(self.failed_construction());
         }
@@ -934,10 +937,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<(), CompilationUnitTypeError> {
-        for argument in arguments {
-            self.check_expression(source, argument.value, None, None, return_type)?;
-        }
-        Ok(())
+        self.check_call_arguments_without_expected(source, arguments, return_type)
     }
 
     pub(super) fn check_rejected_construction_operands(

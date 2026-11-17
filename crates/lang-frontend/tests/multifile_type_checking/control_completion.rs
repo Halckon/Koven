@@ -244,3 +244,116 @@ fn unit_loop_completion_requires_a_structurally_reachable_local_break() {
         }
     }
 }
+
+#[test]
+fn construction_operands_preserve_reachable_loop_exits() {
+    for (body, has_exit, expected) in [
+        ("loop { sink(return 7, break) }", false, [].as_slice()),
+        ("loop { Pair(return 7, break) }", false, [].as_slice()),
+        ("loop { Pair(7, break) }", true, ["L0088"].as_slice()),
+        ("loop { Pair(continue, break) }", false, [].as_slice()),
+        ("loop { Pair(break, return 7) }", true, ["L0088"].as_slice()),
+        (
+            "loop { Pair(second = return 7, first = break) }",
+            false,
+            [].as_slice(),
+        ),
+        (
+            "loop { Pair(second = 7, first = break) }",
+            true,
+            ["L0088"].as_slice(),
+        ),
+        (
+            "loop { Generic(\"tag\", return 7, break) }",
+            false,
+            [].as_slice(),
+        ),
+        (
+            "loop { Generic<String>(\"tag\", return 7, break) }",
+            false,
+            [].as_slice(),
+        ),
+        (
+            "loop { Generic(\"tag\", 7, break) }",
+            true,
+            ["L0088"].as_slice(),
+        ),
+        (
+            "loop { Generic<String>(\"tag\", 7, break) }",
+            true,
+            ["L0088"].as_slice(),
+        ),
+        (
+            "loop { Pair(if (flag) { return 7 } else { 8 }, break) }",
+            true,
+            ["L0088"].as_slice(),
+        ),
+        (
+            "loop { Pair(if (flag) { return 7 } else { return 8 }, break) }",
+            false,
+            [].as_slice(),
+        ),
+        (
+            "loop { Pair(return 7, if (flag) { loop { break }; 8 } else { 9 }) }",
+            false,
+            [].as_slice(),
+        ),
+        (
+            "loop { Pair(return 7, \"bad\") }",
+            false,
+            ["L0084"].as_slice(),
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(
+            &mut sources,
+            "loop-completion.ko",
+            &format!(
+                "class Pair(val first: Int, val second: Int)
+                 class Generic<T>(val tag: T, val first: Int, val second: Int)
+                 fun pred(value: Int): Boolean = value == 1
+                 fun sink(first: Int, second: Int): Unit {{}}
+                 fun choose(flag: Boolean): Int {{ {body} }}"
+            ),
+        );
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "loop-completion.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let (name_environment, type_environment) = standard_environments();
+            let names = validated_names(&sources, &inputs, &name_environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+                .expect("type product");
+            let actual: Vec<_> = typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect();
+            assert_eq!(actual, expected, "{body}");
+            if expected == ["L0084"] {
+                assert_eq!(
+                    sources.slice(typed.diagnostics()[0].primary_span()),
+                    Ok("\"bad\"")
+                );
+            }
+            let (outer, _) = file
+                .ast()
+                .statements()
+                .iter()
+                .filter(|(_, node)| {
+                    matches!(
+                        node.payload(),
+                        lang_frontend::parser::Statement::Loop { .. }
+                    )
+                })
+                .last()
+                .expect("outer loop");
+            let id = lang_frontend::type_checking::UnitStatementId::new(
+                source_unit(&names, source),
+                outer,
+            );
+            assert_eq!(typed.loop_falls_through(id), Some(has_exit), "{body}");
+        }
+    }
+}
