@@ -21502,3 +21502,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `3b26d754`，两个原 FQN、四份原源的 Single 基线各1 passed（本树44.00s），保旧双 Unit 对照各1 passed（本树5.41s）后，仅替换该四次旧分析消费。复用既有同源 helper，原 closures.ko、标准环境与所有源码保持不变。
 - 完整保留解析、名称、类型和 ownership 无诊断，以及 ownership deferred 为空。该组原先只有接受性前置；注释现明确不证明 CFG 或循环来源，不把未查询的 Future facts 计为已迁移合同。裸函数 Deferred、caller-first 摘要/类型及错误分析身份等 Single 差异见证不动。
 - 最终原 closure target 74 passed；强制本树 frontend all-target `loan-observation-test-support` strict 1m14s/exit0，独立末审通过。无生产/API变化，无 native/fault 执行，未推送。
+
+### 2026-11-17：嵌套 Rc Copyable payload 读取的结构化受限诊断
+
+- 独立基线 `3b26d754`。真实红测 `outer = Rc(Rc(7)); return outer.value.value` 在 Phase 2 complete/validate 通过后，由 Phase 3 返回 `InvalidUnitArgumentPlace`；五个既有控制通过。首个 Rooted 入口已失败，原红不宣称 MemoryDocument 已执行。
+- Guide 允许 Copyable payload 从 shared place 复制，但当前 E3 尚无非 Name 嵌套 owner 读取与 backing 生命周期运输。本片只修内部错误报告：原 place/temporary 均失败、同源 Rc.Value receiver、外层 Value 且 payload 明确 Copyable 时发 L0164；不实现或批准合法执行支持。既有 Share 文本、MoveOnly/未知类别及其它身份错误不变，receiver 原错误优先。
+- 十二份源码各经双 Unit：Int/Boolean、零/一/二层 Group、带/不带先前成功 share。核单条 L0164及完整读取 span、rc_effects/loans/drops/construction 全部撤销与 validate 拒绝；另双布局 moved outer 仍仅 L0131。原五项控制不改。
+- 本树 `ownership_rc` 全 target 7 passed（重编 4.93 秒），`type_checking rc_unit::` 两项 passed；强制本树 frontend all-target `loan-observation-test-support` strict 通过（28.52 秒）。首次邻控误用不存在的 `type_rc` target，未执行测试，已改实际 target 后补验，不计为通过证据。独立方案与实际 diff 末审均通过；无 native/fault、未推送。

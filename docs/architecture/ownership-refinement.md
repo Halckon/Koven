@@ -183,3 +183,7 @@ source 清理后才新建 aux place/loan、独立消费并 End/Drop；完整十�
 `outer.value.share()` 的嵌套 Rc payload receiver（含 Group）仍无完整 backing-owner 生命周期运输。
 Unit Phase 3 对该已知受限形状返回 L0164，失败清空 Rc/loan/drop 等事实并拒绝 validated capability，
 不再返回内部 place 错误；这不是嵌套 share 的合法执行支持，E3 非 Name receiver 与 retain/drop 顺序仍待联合接通。
+
+同一受限 backing-owner 链上的 `outer.value.value`，最终 payload 明确 Copyable 时也以 L0164
+报告当前未实现的嵌套读取，而非内部 place 错误；仍不授予合法执行能力。MoveOnly/未知 payload
+与其它身份错误不并入此边界，已有 receiver 错误保持优先，失败后原成功前缀事实一并撤销。
