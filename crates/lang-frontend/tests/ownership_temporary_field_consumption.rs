@@ -11,6 +11,8 @@ use lang_frontend::{
 };
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
+#[path = "ownership_temporary_field_consumption/source_identity.rs"]
+mod source_identity;
 
 fn observe(
     text: &str,

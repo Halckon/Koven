@@ -21239,3 +21239,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `ef39f866`。旧常量 deferred fixture `Holder(TEXT).text` 在两 Unit 中 diagnostics/deferred 均空且 constant ownership validate 成功；表达式函数返回确为 Consume，并非 borrow return。按现行 Guide08 字段禁止隐式部分移动、Guide11 String/普通 class 为 MoveOnly，属前端错误准入，不是预期能力扩展。保留原 Legacy deferred witness，不把不同合同强行退休。
 - Unit Member 无 stable place 时保 receiver 原 Read 求值，仅在正常后继且未新增诊断、外层 Consume 时，按同轮 typed Field projection 的替换后类型拒绝 MoveOnly，复用 L0132/真实字段声明/own 参数 label。Copyable、Borrow/Read、整体结构化解构未变，不新增 Partial 事实，不宣称所有 projection 已闭合或 runtime 内存损坏。
 - 新原源衍生矩阵覆盖表达式返回、Group、显式 return、局部初始化、own 实参的20个 basic/constant×两布局拒绝；另12个 Borrow/Copy/发散 receiver 控制和4个 receiver 已有 L0131 不叠诊断控制。红测真实空诊断对完整 L0132 失败/合法对照成功；修复后3测试全绿。邻控 constants17、multifile constants23、field replace14、structural11通过；frontend all-targets strict（`loan-observation-test-support`）本树实检2m23s/exit0。独审、fmt/diff-check、docs及尺寸门禁通过，无 native/fault，不推送。
+
+### 临时泛型字段消费的跨源身份回归
+
+- 基 `0ad4e5d4`，仅增加测试，无生产语义修改。两 provider 同 package models 声明泛型 Left/Right 的同名 value 字段，分别选择 String 消费拒绝、Int Copy 成功、String Borrow 成功；核替换后 Copyability、consumer expression 来源、实际 provider 的完整 UnitSymbolId/异位字段 Span，以及完整 L0132 主 span/label 或 validated capability。
+- 2 provider × 3用法 × 同 root 不同 path / 分 root 同 models/types.ko × 全 inputs 正反顺序 × basic/constant ownership 入口，共48组合。跨文件均为有效 Rooted 布局，不冒称 MemoryDocument；原单文件两入口控制不变。首轮测试 package/path 配置错误已修正，不作为生产红灯。
+- 新精确 FQN 1 passed/48组合，本树重编2.33s；frontend all-targets strict（`loan-observation-test-support`）本树实检1m41s/exit0。独审、fmt/diff-check、docs与尺寸门禁通过；未重复未改的单文件测试，无 native/fault，不推送。
