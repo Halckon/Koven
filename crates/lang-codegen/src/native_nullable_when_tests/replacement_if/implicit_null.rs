@@ -393,7 +393,13 @@ fn assert_nullable_if_writeback_ssa(path: &str, text: &str) {
     let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
     let (program, _) =
         result.expect("the rechecked current owner must survive the borrow until return");
-    assert!(!routed.contains(&function(&source, &program, "run").name));
+    let run_name = &function(&source, &program, "run").name;
+    if path == "nullable-if-independent-first.ko" || path == "nullable-if-construction-first.ko" {
+        // Under SPEC-0455, the owned nullable when in `run` is admitted to refinement.
+        assert!(routed.contains(run_name));
+    } else {
+        assert!(!routed.contains(run_name));
+    }
     verify_program(&program).expect("actual Unit SSA verifies");
 }
 
@@ -421,7 +427,6 @@ fun see(value: Resource): Unit { println("see"); println(value.label) }
 fun run(own input: Resource?, own independent: Resource): Unit {
     var x = input
     when (x) { null -> { println("old-null") }; else -> { println("old-present") } }
-    for (item in listOf("kept")) {}
     if (x != null) {
         see(independent)
         x = make()
