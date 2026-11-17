@@ -21434,3 +21434,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `880806b2`，原 `4610cd41` 候选树保全，仅在新独立树应用同一已审补丁。`numeric_snapshots_allow_owned_items_source_reassignment_and_local_cleanup` 保 Int/Long 各 return、source 重赋、continue、break、discard 共十原源码，删除这些正例重复 Single 分析；Rooted/MemoryDocument 原有 provider、Value delivery、OwnedSnapshot、绑定数/Owned、无 EndSource、非空 exits 全保留，显式补 deferred 为空。
 - 原 Unit validate 继续验证同轮 iteration 模板、完整 required-exit/action 与身份，不以 Partial 缺项代替完整合同；不宣称新旧 validator 算法相同。`numeric_inner_loop_preserves_outer_container_borrow` 的完整 Single/Unit 不同诊断与完整原源码全部保留，旧 helper 的条件 validator 路径保持；该负例有诊断，不宣称执行旧 validator。没有生产、准入、E3 或 native 能力变化。
 - 整合基线原完整目标 2 passed，候选同目标 2 passed，分别真实本树编译22.00s/1.00s。外部 cargo 出现时阶段门禁暂停，待自然空窗后只续候选，不重复基线；每次构建前复核宿主/容器与8GiB。强制本树 frontend all-targets `loan-observation-test-support` Clippy `-D warnings` 1m09s/exit0；fmt、docs980、尺寸2568（两项原历史例外不扩大）、diff-check与独立末审通过。未执行 native/fault，不推送。
+
+
+### 2026-11-17：隐式 This 捕获消费者的有界收敛
+
+- 基 `5d1e78d0`，原三个 FQN 基线均通过；同源码双 Unit 对照中，字段归一捕获及其逃逸拒绝、隐式 member-call 捕获及原三个拒绝通过。只迁这两个测试的旧消费者，复用已有 source-qualified lambda 与 This/Shared 事实；成功入口保同轮 complete、no deferred、sealed validate，失败入口保持原 basic 阶段。无生产语义或公开 API 修改。
+- 保实际 lambda 的唯一 This/Shared capture、原 any This/Shared 和完整有序 L0137/L0138/L0133 code 断言；源文本、closures.ko、原环境不变。两布局是 MemoryDocument/Rooted，不称独立实现对照。
+- 原活动 receiver 字段冲突的 Single L0135 在 Unit 得 L0134，真实 probe 失败证据保留仓库外，该测试正文逐字保留。未标 receiver 默认为 Borrow，Unit 在进入 loan 冲突前先拒绝不可写字段；不改源码为 Inout 或更改期望促成退休，也不将同一 ownership 阶段的拒绝检查顺序差异称为错误接纳。Unit L0134 为本轮 probe 观察记录，不新增持久对照断言。
+- 最终原 ownership_closures 普通 target 74 passed（本树重编5.88s），强制本树 frontend all-target strict（loan-observation-test-support）2m05s/exit0。原三项基线和两个通过的保旧对照日志、失败对照补丁留仓库外；无 native/fault 执行，不推送。

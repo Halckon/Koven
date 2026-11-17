@@ -15,7 +15,7 @@ use lang_frontend::{
     },
 };
 
-fn checked(
+pub(super) fn checked(
     text: &str,
 ) -> Vec<(
     NameResolution,

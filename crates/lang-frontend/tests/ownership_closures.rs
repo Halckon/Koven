@@ -333,15 +333,21 @@ fn unqualified_field_reference_normalizes_to_this_capture() {
     let text = "class Counter(val count: Int) {\n\
                     fun reader() { val closure: () -> Unit = { val result = count } }\n\
                 }";
-    let (_, parsed, _, _, owned) = checked(text);
-    let lambda = lambdas(&parsed)[0];
-    let captures = owned.captures_of(lambda).copied().collect::<Vec<_>>();
-    assert_eq!(captures.len(), 1);
-    assert_eq!(captures[0].source(), ClosureCaptureSource::This);
-    assert_eq!(captures[0].mode(), ClosureCaptureMode::Shared);
     let escaping =
         "class Counter(val count: Int) { fun reader(): () -> Unit = { val result = count } }";
-    assert_eq!(codes(&analyzed(escaping).4), ["L0137"]);
+    for (_, owned, lambdas) in capture_identity_unit::checked(text) {
+        assert_eq!(lambdas.len(), 1);
+        let captures = owned.captures_of(lambdas[0]).copied().collect::<Vec<_>>();
+        assert_eq!(captures.len(), 1);
+        assert_eq!(
+            captures[0].source(),
+            lang_frontend::ownership_checking::UnitClosureCaptureSource::This
+        );
+        assert_eq!(captures[0].mode(), ClosureCaptureMode::Shared);
+    }
+    for rooted in [false, true] {
+        assert_eq!(unit_codes(&analyzed_unit(escaping, rooted)), ["L0137"]);
+    }
 }
 
 #[test]
@@ -451,14 +457,14 @@ fn shared_capture_cannot_supply_an_exclusive_inout_receiver() {
 
 #[test]
 fn implicit_member_call_captures_this_instead_of_creating_a_capture_free_closure() {
-    let (_, _, _, _, owned) = checked(
+    for (_, owned, _) in capture_identity_unit::checked(
         "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun keep(): Unit { val f: () -> Unit = { val x = read() } } }",
-    );
-    assert!(owned.captures().iter().any(|capture| {
-        capture.source() == ClosureCaptureSource::This
-            && capture.mode() == ClosureCaptureMode::Shared
-    }));
-
+    ) {
+        assert!(owned.captures().iter().any(|capture| {
+            capture.source() == lang_frontend::ownership_checking::UnitClosureCaptureSource::This
+                && capture.mode() == ClosureCaptureMode::Shared
+        }));
+    }
     for rooted in [false, true] {
         let owned = analyzed_unit(
             "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun escape(): () -> Unit = { val x = read() } }",
