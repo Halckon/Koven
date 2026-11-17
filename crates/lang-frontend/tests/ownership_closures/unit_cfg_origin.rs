@@ -1,4 +1,4 @@
-//! Source-qualified observations of the original callable CFG fixtures.
+//! Source-qualified observations of the original callable CFG and return fixtures.
 use super::*;
 use lang_frontend::{
     name_resolution::{
@@ -8,18 +8,22 @@ use lang_frontend::{
     ownership_checking::{
         CompilationUnitOwnership, UnitCallableOrigin, check_compilation_unit_ownership,
     },
-    type_checking::{UnitExpressionId, check_compilation_unit_types, standard_environments},
+    type_checking::{
+        UnitCallableSignature, UnitCallableTarget, UnitExpressionId, check_compilation_unit_types,
+        standard_environments,
+    },
 };
 
 pub(super) struct Analysis {
     sources: SourceMap,
     parsed: ParsedFile,
     unit: SourceUnitId,
-    owned: CompilationUnitOwnership,
+    pub(super) owned: CompilationUnitOwnership,
+    signatures: Vec<UnitCallableSignature>,
 }
 
 impl Analysis {
-    pub(super) fn origin(&self, text: &str) -> Option<UnitCallableOrigin> {
+    pub(super) fn expression(&self, text: &str) -> UnitExpressionId {
         let expressions = self
             .parsed
             .ast()
@@ -31,9 +35,68 @@ impl Analysis {
         let [expression] = expressions.as_slice() else {
             panic!("one actual expression: {text}");
         };
+        UnitExpressionId::new(self.unit, *expression)
+    }
+
+    pub(super) fn origin(&self, text: &str) -> Option<UnitCallableOrigin> {
         self.owned
-            .callable_origin(UnitExpressionId::new(self.unit, *expression))
+            .callable_origin(self.expression(text))
             .map(|fact| fact.origin())
+    }
+
+    pub(super) fn target(&self, name: &str) -> UnitCallableTarget {
+        let matches = self
+            .signatures
+            .iter()
+            .filter(|s| s.name() == name)
+            .collect::<Vec<_>>();
+        let [signature] = matches.as_slice() else {
+            panic!("one source callable {name}")
+        };
+        assert!(matches!(
+            signature.target(),
+            UnitCallableTarget::Declaration(_)
+        ));
+        signature.target()
+    }
+
+    pub(super) fn assert_value_parameter(&self, callable: &str, parameter: &str) {
+        let target = self.target(callable);
+        let signature = self
+            .signatures
+            .iter()
+            .find(|s| s.target() == target)
+            .unwrap();
+        let [actual] = signature.parameters() else {
+            panic!("one actual parameter")
+        };
+        assert_eq!(actual.name(), Some(parameter));
+        assert_eq!(
+            actual
+                .symbol()
+                .expect("actual source parameter")
+                .source_unit(),
+            self.unit
+        );
+        assert_eq!(actual.mode(), ParameterMode::Value);
+    }
+
+    pub(super) fn assert_pointer_lambda(&self, name: &str, operand: Option<&str>, index: usize) {
+        use lang_frontend::ownership_checking::UnitPointerCallableReturnOrigin;
+        let summary = self
+            .owned
+            .pointer_callable_return(self.target(name))
+            .expect("normal pointer return");
+        let UnitCallableOrigin::Lambda(lambda) = self.lambda(index) else {
+            unreachable!()
+        };
+        assert_eq!(
+            summary.origin(),
+            UnitPointerCallableReturnOrigin::Lambda(lambda)
+        );
+        if let Some(operand) = operand {
+            assert_eq!(summary.return_value(), self.expression(operand));
+        }
     }
 
     pub(super) fn lambda(&self, index: usize) -> UnitCallableOrigin {
@@ -89,11 +152,30 @@ pub(super) fn preflight(text: &str) -> [Analysis; 2] {
         assert!(owned.is_compatible_with(&typed));
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        let signatures = index
+            .declarations()
+            .iter()
+            .map(|declaration| {
+                assert_eq!(declaration.source_unit(), unit);
+                let signature = typed
+                    .types()
+                    .signatures()
+                    .declaration(declaration.id())
+                    .expect("actual declaration");
+                let callable = signature.callable().expect("fixture functions");
+                assert_eq!(
+                    callable.target(),
+                    UnitCallableTarget::Declaration(declaration.id())
+                );
+                callable.clone()
+            })
+            .collect();
         Analysis {
             sources,
             parsed,
             unit,
             owned,
+            signatures,
         }
     })
 }

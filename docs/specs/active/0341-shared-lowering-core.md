@@ -21403,3 +21403,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 新 nested primitive SSA 正向 probe 在第一个无分组控制即 UnsupportedNode；独审确认现有 subset 来源只走普通 expression，未递归接入 primitive range。随后还原唯一生产 diff 实跑基线：6源×双布局均在原 outer range span 拒绝，证明不是本修复引入；候选已恢复。保留此边界测试，绝不将其记为 nested SSA 支持。初次 expect_err 因 Program 无 Debug 未编译，改为显式 Err 匹配后实测。
 - 最终FE五target66项通过；已支持的 grouped普通call/receiver 两个SSA/LLVM矩阵通过，nested primitive 基线与候选均保持上述拒绝（单独计边界）。没有修改后端能力门来制造绿灯。
 - frontend all-target feature strict 强制本树1m01s、codegen default all-target strict 强制本树54.15s均exit0。独审、fmt/diff、docs980、Rust尺寸2565（原2例外）通过；全过程守8GiB门槛，未删除数据，无native/fault，不推送。
+
+
+### Callable factory 返回统计消费者迁移
+
+- 基 `5c140cbb`，六个原 FQN 的四项 return-statistics、multiple/capturing pointer 摘要空与 abort/lambda-inner-return 观察迁至 MemoryDocument/Rooted；原源码保持，既有 CFG 五项及剩余四项 Single 身份/类型/错误合同不删。仅测试消费者收敛，不新增生产或 E3 能力。
+- 复用同源 Unit 预检与真实 AST 身份；factory target 从当前 index declaration 对应签名取得并核同一 DeclarationId，Value 参数从实际 consume 签名唯一参数核名字、source-unit 和 mode。前两项仍各查自己的摘要，但先收齐 Int/Function 两源的双布局及参数检查，保原先分析后断言顺序。
+- 完整保正常 return operand（含 Group）、lambda 原排序序号、factory call/result 两处 FactoryResult、nested 实际 return 的唯一摘要；无正常返回的 factory 保单查 None、全 pointer 表空及两处 origin None。multiple/capturing 仅断言 pointer 表空，不把既有 closure 摘要能力误称不存在。
+- 最新基线六项各 1 passed（原树重编39.33s）；保旧双 Unit 六项各 1 passed（修正后本树7.38s）。首次 probe 是测试 helper 未经 `types()` 访问 validated 产品导致编译错误，修正后才计结果，失败日志保留在仓库外。独审确认完整原观察映射，不扩大为通用 ABI 等价。
+- 最终 contract 普通目标15项通过（本树重编6.54s），强制本树 frontend all-target strict（loan-observation-test-support）1m34s/exit0；独审确认其余九个测试正文逐字不变。fmt/diff、docs980与Rust尺寸2565（原两项例外）通过；未运行native/fault，不推送。

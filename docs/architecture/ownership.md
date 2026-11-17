@@ -159,7 +159,7 @@ return cleanup。专用 unit native 已消费新增 pending Value operand，按�
 
 单文件实现位于 `crates/lang-frontend/src/ownership_checking/`，unit 实现位于其
 `compilation_unit/` 子树。对应覆盖位于 `ownership_checking`、`ownership_structural`、
-`ownership_containers`、`ownership_closures` 与 `multifile_ownership_checking` integration suites。 `ownership_structural` 的未声明 component final 消费者采用同源双 Unit，保留两个 L0165 与空 call/projection；综合字段投影与显式 component 方法也复用双 Unit，保投影顺序、真实字段/调用目标、类型与诊断合同；malformed Single 类型恢复见证保留，不再经旧 ownership helper。 callable CFG/loop 的五项来源消费者使用双 Unit 的真实 source-qualified origin，保唯一来源及未知来源边界；factory、裸函数和捕获清理的旧差异见证不变。
+`ownership_containers`、`ownership_closures` 与 `multifile_ownership_checking` integration suites。 `ownership_structural` 的未声明 component final 消费者采用同源双 Unit，保留两个 L0165 与空 call/projection；综合字段投影与显式 component 方法也复用双 Unit，保投影顺序、真实字段/调用目标、类型与诊断合同；malformed Single 类型恢复见证保留，不再经旧 ownership helper。 callable CFG/loop 的五项来源消费者使用双 Unit 的真实 source-qualified origin，保唯一来源及未知来源边界；factory 的六项返回统计/摘要消费者也使用双 Unit，保真实 Value 参数、正常 return operand 与 factory-result 来源，以及 pointer 摘要为空的边界；裸函数 Deferred、参数来源类型/Span、caller-first 原始类型及错误阶段的 Single 见证不变。
 
 单文件调用前缀同时保存尚未交付的 MoveOnly Value 实参义务。正常调用提交时移除义务，
 不发布 CallReturn drop；return 或离开当前实参求值范围的 break/continue 发布对应
