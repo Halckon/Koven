@@ -126,8 +126,8 @@ fn explicitly_declared_component_methods_use_normal_call_targets() {
             val created = value.component1()
             return holder.component1()
         }";
-    observe(text, |_, _, diagnostics, typed, _| {
-        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    checked_each(text, |_, names, typed, owned| {
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
         assert_eq!(
             typed
                 .calls()
@@ -136,13 +136,7 @@ fn explicitly_declared_component_methods_use_normal_call_targets() {
                 .count(),
             2
         );
+        assert_eq!(typed.calls().iter().filter(|call| matches!(call.target(), UnitCallTarget::Symbol(symbol) if unit_symbol_name(names, symbol) == "component1")).count(), 2);
         assert_eq!(typed.aggregate_projections().len(), 1, "only this.amount");
     });
-    let (_, _, names, typed, owned) = checked(text);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(
-        typed.calls().iter().filter(|call| matches!(call.target(), CallableTarget::Source(symbol) if names.symbols()[symbol.index()].name() == "component1")).count(),
-        2
-    );
-    assert_eq!(typed.aggregate_projections().len(), 1, "only this.amount");
 }

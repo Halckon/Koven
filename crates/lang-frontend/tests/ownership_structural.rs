@@ -4,13 +4,12 @@ use std::{fs, path::Path};
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    name_resolution::{NameEnvironment, NameResolution, resolve_names},
-    ownership_checking::{OwnershipCheckedFile, check_ownership},
+    name_resolution::{NameEnvironment, resolve_names},
     parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        AggregateProjectionKind, AggregateProjectionReceiver, BuiltinType, CallableTarget,
-        Capability, Copyability, IntrinsicTypeConstructor, TypeEnvironment, TypedFile, check_types,
+        BuiltinType, Capability, Copyability, IntrinsicTypeConstructor, TypeEnvironment,
+        check_types,
     },
 };
 
@@ -20,7 +19,10 @@ use lang_frontend::{
         resolve_compilation_unit_names,
     },
     ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
-    type_checking::{CompilationUnitTypes, check_compilation_unit_types},
+    type_checking::{
+        CompilationUnitTypes, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
+        UnitCallTarget, check_compilation_unit_types,
+    },
 };
 
 #[path = "ownership_structural/component_partial_move.rs"]
@@ -132,33 +134,7 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     (names, types)
 }
 
-fn checked(
-    text: &str,
-) -> (
-    SourceMap,
-    ParsedFile,
-    NameResolution,
-    TypedFile,
-    OwnershipCheckedFile,
-) {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("structural.ko", text).expect("source");
-    let parsed = parse_file_twice(&sources, source, "structural ownership source");
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (environment, types) = environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
-    (sources, parsed, names, typed, owned)
-}
-
-// Retain the Single projection oracle alongside the Unit ownership checks.
+// Inspect the original source and custom environment through both Unit layouts.
 fn checked_each(
     text: &str,
     mut inspect: impl FnMut(
@@ -207,6 +183,18 @@ fn checked_each(
         }
         inspect(&sources, names.names(), typed.types(), &owned);
     }
+}
+
+fn unit_symbol_name(
+    names: &CompilationUnitNames,
+    symbol: lang_frontend::name_resolution::UnitSymbolId,
+) -> &str {
+    let source = names
+        .source_units()
+        .iter()
+        .find(|source| source.source_unit() == symbol.source_unit())
+        .expect("symbol belongs to its real source unit");
+    source.resolution().symbols()[symbol.symbol().index()].name()
 }
 
 fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
@@ -309,96 +297,98 @@ fn field_projection_and_explicit_methods_preserve_ownership_contracts() {
                     val holderWhole = takeHolder(holder)\n\
                     val holderMoved = takeHolder(holder)\n\
                 }";
-    let (sources, _, names, typed, checked) = checked(text);
-    assert_eq!(
-        codes(checked.diagnostics()),
-        ["L0134", "L0132", "L0131", "L0132", "L0131"]
-    );
-    assert_eq!(
-        checked
+    checked_each(text, |sources, names, typed, checked| {
+        assert_eq!(
+            codes(checked.diagnostics()),
+            ["L0134", "L0132", "L0131", "L0132", "L0131"]
+        );
+        assert_eq!(
+            checked
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
+                .collect::<Vec<_>>(),
+            ["&", "payload", "bundle", "payload", "holder"]
+        );
+        for diagnostic in checked
             .diagnostics()
             .iter()
-            .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
-            .collect::<Vec<_>>(),
-        ["&", "payload", "bundle", "payload", "holder"]
-    );
-    for diagnostic in checked
-        .diagnostics()
-        .iter()
-        .filter(|diagnostic| diagnostic.code().to_string() == "L0132")
-    {
-        let label = diagnostic
-            .details()
-            .iter()
-            .find_map(|detail| match detail {
-                DiagnosticDetail::Label(label) => Some(label.span()),
-                DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
-            })
-            .expect("field label");
-        assert_eq!(sources.slice(label).unwrap(), "payload");
-    }
+            .filter(|diagnostic| diagnostic.code().to_string() == "L0132")
+        {
+            let label = diagnostic
+                .details()
+                .iter()
+                .find_map(|detail| match detail {
+                    DiagnosticDetail::Label(label) => Some(label.span()),
+                    DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+                })
+                .expect("field label");
+            assert_eq!(sources.slice(label).unwrap(), "payload");
+        }
 
-    let projections = typed.aggregate_projections();
-    assert_eq!(
-        projections
-            .iter()
-            .map(|projection| {
-                (
-                    projection.kind(),
-                    names.symbols()[projection.field().index()].name(),
-                    typed.copyability(projection.ty()).unwrap(),
-                )
-            })
-            .collect::<Vec<_>>(),
-        [
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "count",
-                Copyability::Copyable,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-        ]
-    );
-    for projection in projections {
-        let AggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
-            panic!("structural fixture only contains explicit projection receivers");
-        };
-        assert!(typed.expression_type(receiver).is_some());
+        let projections = typed.aggregate_projections();
         assert_eq!(
-            typed.expression_type(projection.expression()),
-            Some(projection.ty())
+            projections
+                .iter()
+                .map(|projection| {
+                    (
+                        projection.kind(),
+                        unit_symbol_name(names, projection.field()),
+                        typed.copyability(projection.ty()),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            [
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "count",
+                    Copyability::Copyable,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+            ]
         );
-    }
-    assert!(
-        typed
-            .calls()
-            .iter()
-            .any(|call| matches!(call.target(), CallableTarget::Source(_)))
-    );
+        for projection in projections {
+            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            else {
+                panic!("structural fixture only contains explicit projection receivers");
+            };
+            assert!(typed.expression_type(receiver).is_some());
+            assert_eq!(
+                typed.expression_type(projection.expression()),
+                Some(projection.ty())
+            );
+        }
+        assert!(
+            typed
+                .calls()
+                .iter()
+                .any(|call| matches!(call.target(), UnitCallTarget::Symbol(_)))
+        );
+    });
 }
 
 #[test]

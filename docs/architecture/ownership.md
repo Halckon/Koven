@@ -159,7 +159,7 @@ return cleanup。专用 unit native 已消费新增 pending Value operand，按�
 
 单文件实现位于 `crates/lang-frontend/src/ownership_checking/`，unit 实现位于其
 `compilation_unit/` 子树。对应覆盖位于 `ownership_checking`、`ownership_structural`、
-`ownership_containers`、`ownership_closures` 与 `multifile_ownership_checking` integration suites。 `ownership_structural` 的未声明 component final 消费者采用同源双 Unit，保留两个 L0165 与空 call/projection；字段、fixture 及其他 Single 恢复见证继续保留。
+`ownership_containers`、`ownership_closures` 与 `multifile_ownership_checking` integration suites。 `ownership_structural` 的未声明 component final 消费者采用同源双 Unit，保留两个 L0165 与空 call/projection；综合字段投影与显式 component 方法也复用双 Unit，保投影顺序、真实字段/调用目标、类型与诊断合同；malformed Single 类型恢复见证保留，不再经旧 ownership helper。
 
 单文件调用前缀同时保存尚未交付的 MoveOnly Value 实参义务。正常调用提交时移除义务，
 不发布 CallReturn drop；return 或离开当前实参求值范围的 break/continue 发布对应

@@ -21368,3 +21368,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 新 FE 2项含 10 源 × 双布局：0/1/3层括号、named/temporary源、真实源loan identity、消费后恢复、分组纯/混合break与混合continue、后参数消费活根仍L0135。原target红→完整ownership_range_construction19passed。
 - 独审要求保持原谓词：最终用底层 Group-only helper 搭配原 range_expression_is_proven，不额外收紧 source operand 条件。最终前端五 target 共 56 项通过；精确 `ssa::refine_tests::container_tests::grouped_range_call_arguments_reach_verified_ssa_and_llvm` 的 6 源 × 双布局全经实际 refine、SSA verifier 与 LLVM adapter，两轮真实通过，未执行 native。
 - frontend all-target feature strict 强制本树 1m04s，codegen default all-target strict 强制本树 59.89s，均 exit0。独审、fmt/diff、docs980、Rust 尺寸2563（原2例外）通过；无 native/fault，不推送。
+
+
+### structural 投影与显式方法的旧 ownership 消费链收敛
+
+- 基 `c5ae9142`，原父 `field_projection_and_explicit_methods_preserve_ownership_contracts` 与子 `component_partial_move::explicitly_declared_component_methods_use_normal_call_targets` 先保 Single 做同源 MemoryDocument/Rooted probe。当前原源码明确声明 Custom/Value/Holder 的 component 方法，不将历史自动 component 的不等价场景当作已修复或删去。
+- 父例保5个有序诊断 code/primary切片、两个L0132首label，以及6个投影的顺序、Field种类、真实字段名、Copyability、Expression receiver类型、结果类型与descriptor相等、至少一个源码调用。Unit字段名通过真实source-unit对应的resolution及local symbol读取，不以同名文本猜身份。子例同时保2个Symbol总目标、2个真实component1名字目标、唯一this.amount投影及诊断空。
+- 自定义环境、parse两遍、names/types clean、原basic validation边界不变，不增加final admission。删除仅供这两项的旧checked/Single ownership helper和专用imports；文件末尾malformed missing-closer的resolve_names/check_types/complete_file_types合同及其他测试逐字保留，不能称整文件无Single。
+- 两项原基线各1 passed（原树重编51.93s），保旧双Unit probe各1 passed（候选重编1m00s）；最终ownership_structural全11项通过（本树重编8.06s）。这是原受断言合同迁移，不宣称完整所有权产物或全部Diagnostic相等；未运行native/fault、不推送。
+- 强制候选本树frontend all-target strict（loan-observation-test-support）2m21s/exit0；独审确认checked_each与父例后全部无关测试字节未变。
