@@ -21394,3 +21394,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 完整保留 stable=lambda[0]、overwrite=lambda[1]、backedge/重复条件未知、同源join=lambda[0]/不同源未知、break仅Some/continue None、for源=lambda[1]。stable/overwrite及break/continue先收齐原场景分析再断言。None只表示该use未证明唯一origin，不代表无运行时closure，也不用Partial loan观测推absence。
 - 五项原基线各1 passed（原树重编43.12s），保Single双Unit probe各1 passed（候选53s）；最终普通contract全15项通过（本树8.96s），含未改十项邻控。名称含abort的测试仅作普通前端源码分析，无native执行/故障注入，不推送。
 - 强制候选本树frontend all-target strict（loan-observation-test-support）1m49s/exit0；独审确认全部原受断言合同及不相干函数保持。
+
+### 分组嵌套范围来源保留实际根权限
+
+- 基 `6f5cc96b`，真实红测先通过无分组 L0135 控制，再证实 `read(rangeView((rangeView(root,0,1)),0,1), move(root))` 被错误接受且诊断为空。分组实参已准入，但 apply_contract 的 range-origin fallback 仍按 Group 查事实，生成 Temporary(Group) source loan；外层返回清理因此撤销真实根保护。
+- 唯一生产修复在 call_contract：仅 Shared range-origin fallback 使用底层 Group-only helper 查 actual 已有事实，保普通 borrow-use 优先、原 argument/span 与原准入。不是新增语法或放宽生命周期；不动 iteration、validator 或 E3 生产。
+- 新 FE 两项共9源×双布局，0/1/3层分组负控要求 L0135 精确落在实际 root 移动；named/temporary正控逐层核 source loan 与 fact 同根、原Group span及真实临时根唯一最外CallReturn Drop。完整ownership_range_construction21项通过。
+- 新 nested primitive SSA 正向 probe 在第一个无分组控制即 UnsupportedNode；独审确认现有 subset 来源只走普通 expression，未递归接入 primitive range。随后还原唯一生产 diff 实跑基线：6源×双布局均在原 outer range span 拒绝，证明不是本修复引入；候选已恢复。保留此边界测试，绝不将其记为 nested SSA 支持。初次 expect_err 因 Program 无 Debug 未编译，改为显式 Err 匹配后实测。
+- 最终FE五target66项通过；已支持的 grouped普通call/receiver 两个SSA/LLVM矩阵通过，nested primitive 基线与候选均保持上述拒绝（单独计边界）。没有修改后端能力门来制造绿灯。
+- frontend all-target feature strict 强制本树1m01s、codegen default all-target strict 强制本树54.15s均exit0。独审、fmt/diff、docs980、Rust尺寸2565（原2例外）通过；全过程守8GiB门槛，未删除数据，无native/fault，不推送。

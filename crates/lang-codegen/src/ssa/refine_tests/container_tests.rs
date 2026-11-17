@@ -955,3 +955,6 @@ fn grouped_range_receivers_reach_verified_ssa_and_llvm() {
         }
     }
 }
+
+#[path = "grouped_range_source.rs"]
+mod grouped_range_source;
