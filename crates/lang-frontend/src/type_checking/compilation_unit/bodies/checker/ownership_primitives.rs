@@ -154,9 +154,7 @@ impl BodyChecker<'_> {
                 "intrinsic 'replace' requires exactly 2 arguments",
                 call_span,
             )?;
-            for argument in arguments {
-                self.check_expression(source, argument.value, None, None, return_type)?;
-            }
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -419,9 +417,7 @@ impl BodyChecker<'_> {
                 "intrinsic 'swap' requires exactly 2 arguments",
                 call_span,
             )?;
-            for argument in arguments {
-                self.check_expression(source, argument.value, None, None, return_type)?;
-            }
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
             return Ok(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,

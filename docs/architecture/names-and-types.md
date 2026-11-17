@@ -119,7 +119,7 @@ unit 使用 source-qualified identity，并在普通及 const-enabled 验证入�
 source/type/category/call 关系；精确 AST argument identity 由封闭 producer 绑定，后继
 读取 AST 时仍需比对 operand 顺序。错误输入清空整表，trial 回滚和稳定排序覆盖新事实。
 
-Nothing operand 不删除静态调用结构；Deferred operand 不发布成功原语事实。
+Nothing operand 不删除静态调用结构；Deferred operand 不发布成功原语事实。 错误 arity 复用普通 call 参数恢复，保错误完成性与全部后缀诊断，但不登记不可达参数的循环出口。
 这些产物本身不授予 ownership commit 或 native 执行权限。[Owned root 原语](root-ownership-primitives.md)
 已另外消费可信 ownership plan 接通两入口 native；[一级字段 replace](direct-field-replace.md)
 使用独立 field plan，已有有界本地和双平台验收。普通 unit call 的 flow 失效、已收窄 nullable place 的 storage-T 推导不因 root 或直接字段切片而扩大。

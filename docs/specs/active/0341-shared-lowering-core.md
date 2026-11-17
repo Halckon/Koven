@@ -21451,3 +21451,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - L0131 失败时 Single/Unit 都清空捕获产品，此处零 captures 仅保原失败产品合同，不能单独证明成功形成时没有捕获；成功 Borrow/Inout 对照仍要求全部实际 lambda 零 captures。失败入口保基本 typed.validate，不引入 complete 或 owned.validate 来绕开原观察。
 - 初次对照 helper 误用私有 UnitSymbolId 构造器而编译失败，改用现有公开产品中的精确身份键后才通过（本树3.40s）；失败日志保留仓库外，不计为能力差异。所有不等价 this/callable/raw 负控不动。
 - 最终原 ownership_closures 普通 target 74 passed（本树重编3.46s），强制本树 frontend all-target feature strict 2m14s/exit0。独审、fmt/diff、docs980和Rust尺寸2569（原两项例外）通过；无 native/fault 执行，不推送。
+
+### 2026-11-17：replace/swap 错误 arity 的参数出口恢复
+
+- Phase 2 非法输入恢复，不扩 E2 合法程序准入。两原语错误 arity 分支仅复用普通 call 参数恢复 helper，保 L0121、Error 类型及 `falls_through: true`，不发布被拒绝原语或调用 descriptor；正常 arity 与 mode/place/类型检查未改。
+- 两原语分别实测红灯：`replace(return 7, break, 0)`、`swap(return 7, break, 0)` 的不可达 break 原先均多发 L0088。首次测试自身跨 SourceMap 比较 span 失败已纠正，不作为生产红灯；后续仅在同字节单源 fixture 内按字节区间定位重解析 Call，不声称跨分析身份。
+- 十四源码经 Rooted/MemoryDocument，包括活 break、return/stop/continue 后不可达 break 与保 L0084 精确字节区间的后缀诊断。完整 `type_ownership_primitives` 21 passed（本树重编 7.23 秒），`multifile_type_checking construction_completion` 6 passed；强制本树 frontend all-target `loan-observation-test-support` strict 通过（54.26 秒）。独立代码末审通过；无 native/fault 执行、未推送。
