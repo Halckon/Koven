@@ -24,7 +24,7 @@ owned。表达式/控制流清理矩阵的实际证据记录于 SPEC-0226；此�
 专用 native 已消费，六借用封闭交接见[流水线](pipeline-and-workspace.md#常量-owned-unit-交接)。
 
 unit 常量 Group 将 loan、Value delivery、temporary drop owner 与 drop Span 归一至实际常量读取，保留实参 identity、调用及清理位置。
-此归一不适用于普通 literal/variable/其他 temporary。直接 class 构造（仅透明 Group）读 Copyable 字段时，正常完成的 parent 以 actual receiver 的 AfterExpression / 原 construction temporary 清理；Refine 精确核该唯一事实，复用构造和字段借用，在 read/end 后释放 parent，避免通用 expression 提前消费该点。Borrow 参数保持原 CallReturn，未完成构造不新增 drop；普通 factory 进一步仅接受无 receiver 的 Declaration 调用、Owned 返回和实际非 nullable class；复用原 call 参数/CallReturn 路径，成功才登记结果 owner，Borrow/Carrier及其他形态不由此准入。
+此归一不适用于普通 literal/variable/其他 temporary。直接 class 构造（仅透明 Group）读 Copyable 字段时，正常完成的 parent 以 actual receiver 的 AfterExpression / 原 construction temporary 清理；Refine 精确核该唯一事实，复用构造和字段借用，在 read/end 后释放 parent，避免通用 expression 提前消费该点。Borrow 参数保持原 CallReturn，未完成构造不新增 drop；普通 factory 进一步仅接受无 receiver 的 Declaration 调用、Owned 返回和实际非 nullable class；复用原 call 参数/CallReturn 路径，成功才登记结果 owner，Borrow/Carrier及其他形态不由此准入。该 Owned field receiver 若 typed 明确无正常后继且实际 call_may_dispatch=false，则仅降低原参数前缀、强制 Diverged；无父结果drop/owner/read。私有准入集合只在完整校验后登记同一call，并按原最内层lender授权其前缀ControlTransfer，不能扩到嵌套lender或普通无字段调用。
 
 unit String 插值将已完成求值的 MoveOnly temporary 保存到与调用共用的 pending 状态，
 按插值 expression 隔离。正常完成在 `AfterExpression` 逆序释放输入；返回的外层 String 与

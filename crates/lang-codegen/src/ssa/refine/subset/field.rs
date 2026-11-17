@@ -377,7 +377,8 @@ impl Checker<'_, '_> {
     /// temporary moved into a Value argument. A borrowed temporary stays outside unless the
     /// legacy path can no longer lower its call: a function-value call (captured closures
     /// lower only here), a `RangeView` carrier call, or a borrow-result call proven not to
-    /// dispatch. The ordinary exit ends those loans before dropping the temporary.
+    /// dispatch, or an explicitly admitted non-dispatching owned field receiver.
+    /// The ordinary exit ends those loans before dropping the temporary.
     fn pending_owner(&self, expression: UnitExpressionId) -> bool {
         if self.temporary_field_parents.contains(&expression) {
             return true;
@@ -417,6 +418,7 @@ impl Checker<'_, '_> {
             let abandoned_callback = ty.is_some_and(|ty| self.view_function(ty))
                 && self.inputs.owned.call_may_dispatch(call) == Some(false);
             !abandoned_callback
+                && !self.non_dispatching_field_calls.contains(&call)
                 && !self.abandoned_borrow_result_call(call)
                 && !self.inputs.typed.call(call).is_some_and(|call| {
                     call.target() == UnitCallTarget::FunctionValue

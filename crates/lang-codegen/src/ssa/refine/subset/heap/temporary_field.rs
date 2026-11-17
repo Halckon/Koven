@@ -32,6 +32,26 @@ impl Checker<'_, '_> {
         };
         let constructor_id = self.id(constructor);
         let receiver_id = self.id(receiver_expression);
+        if self.owned_factory_result(constructor)
+            && self.inputs.typed.expression_falls_through(receiver_id) == Some(false)
+            && self.inputs.owned.call_may_dispatch(constructor_id) == Some(false)
+        {
+            if !self.class_field(owner, field)
+                || self.expression_type(constructor) != Some(owner)
+                || self
+                    .inputs
+                    .owned
+                    .drops()
+                    .iter()
+                    .any(|fact| fact.target() == UnitDropTarget::Temporary(constructor_id))
+                || !self.expression(constructor)
+            {
+                return false;
+            }
+            self.non_dispatching_field_calls.insert(constructor_id);
+            self.migrated = true;
+            return true;
+        }
         let cleanup = self
             .inputs
             .owned

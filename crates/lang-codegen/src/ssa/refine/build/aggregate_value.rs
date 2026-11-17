@@ -139,6 +139,31 @@ impl Builder<'_, '_> {
             .typed
             .aggregate_projection(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        // A proven non-dispatching owned factory has no result parent to borrow.
+        // Lower only its already-validated argument prefix, before runtime field lookup.
+        if let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            && receiver.source_unit() == self.inputs.source_unit
+            && self.inputs.typed.expression_falls_through(receiver) == Some(false)
+        {
+            let mut root = receiver.expression();
+            while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+                root = inner;
+            }
+            let root_id = self.unit(root);
+            if self.inputs.owned.call_may_dispatch(root_id) == Some(false)
+                && self.inputs.typed.call(root_id).is_some_and(|call| {
+                    matches!(call.target(), UnitCallTarget::Declaration(_))
+                        && call.receiver().is_none()
+                        && call.result_source()
+                            == lang_frontend::type_checking::CallableResultSource::Owned
+                })
+            {
+                if self.expression(receiver.expression())? != Lowered::Diverged {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                }
+                return Ok(Lowered::Diverged);
+            }
+        }
         let result_type = self.ssa_type(self.expression_type(expression)?, span)?;
         let is_nested = if let UnitAggregateProjectionReceiver::Expression(receiver) =
             projection.receiver()

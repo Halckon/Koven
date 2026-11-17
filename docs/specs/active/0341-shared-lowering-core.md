@@ -21263,3 +21263,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - FE owned result 原[]对唯一结果 drop 真红，既有 borrow-result 字段 continuation 的完整 L0164/调用主span/borrow声明label负控保留；修复后原完整target9项通过。新普通Owned 12组合、borrow负控4组合、String前缀成功/return/Abort边界12组合；前缀正常CallReturn与结果AfterExpression分别一次，提前return仅前缀，Abort不展开。
 - 实际SSA4项本树重编2m23s通过：factory12组合及原direct12均核单次owner生产、实际entry Refine、对应owner唯一Drop与read/end/drop、verify/LLVM；另2入口的String借用实参Drop在call后field read前，父结果另一次Drop；兼容路由仍拒绝。前缀return/Abort目前仅FE事实证明，未声称这些退出路径SSA/native已支持。最初模块路径/enum import错误及clone fixture额外自身receiver清理均已修正，不计生产红灯。
 - 邻控 field-replace14、structural11、原 temporary-field Borrow SSA1通过。frontend all-targets strict（loan-observation-test-support）本树2m45s/exit0，codegen同配置strict本树1m12s/exit0；独审、fmt/diff、docs979、Rust尺寸2552通过（heap995行），历史尺寸例外未改。无native/fault，不推送。
+
+
+### 已证明不 dispatch 的 Owned factory 字段 receiver
+
+- 基 `dd3d2432`，普通 SSA probe 实证 `make("prefix", return 9/stop()).value` 两 ownership 入口均 Unsupported，entry未走Refine；冻结原源成功合同后真红。FE已有 typed 无正常后继与 actual call_may_dispatch=false，且无父结果drop，不能把缺失事实/单纯Nothing当作此证明。
+- 仅原Owned无receiver Declaration/class/Copy字段边界，准入复用完整call前缀检查；builder在runtime字段映射/父owner/loan/read前执行原含Group receiver并强制Diverged，不制造不存在结果的清理。首轮仍拒绝，诊断实证各前置门均通过，定位后置drops_supported对普通Borrow temporary的保守边界；新增Checker私有完整call ID集合，只登记已核fieldcall，并保原最内层lender、MoveOnly及来源检查，不普遍扩展borrow前缀。
+- 原12组合（Return/stop × 0/1/2 Group × basic/constant）核实际entry Refine、factory无实际调用、无父HeapAllocate/字段读取、Return前缀唯一Drop且对应BorrowEnd在前、Abort不展开、正常Return数量及verify/LLVM。相同无field调用与nested lender两负控保持entry未获本路线授权（兼容成功则verify/LLVM，原Unsupported则保留），不将本检查声称完整负例语义等价。
+- 同模块6项本树重编1m40s通过，保原direct/factory正常及compatibility边界。一次Mac断线使prefix-green仅有Compiling，无通过证据；恢复先核原进程结束，再以新日志完整验证，未重复red。无native/fault，不推送。
+- 三项普通 SSA 邻控（shared receiver提前return、nested/loop退出、temporary field借用）各1 passed；codegen all-targets strict（loan-observation-test-support）本树1m51s/exit0，未改frontend生产输入，不重复其既有验证。独审、fmt/diff、docs979、Rust尺寸2552通过，历史例外未改。
