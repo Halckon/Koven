@@ -200,12 +200,14 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
-        if !self.validate_construction_result(
-            result_type,
-            expected,
-            expression_span,
-            expected_span,
-        )? {
+        if checked.falls_through
+            && !self.validate_construction_result(
+                result_type,
+                expected,
+                expression_span,
+                expected_span,
+            )?
+        {
             return Ok(self.failed_construction());
         }
         if self.has_pending_storage_value_since(deferred) {

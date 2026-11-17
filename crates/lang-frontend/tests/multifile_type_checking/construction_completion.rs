@@ -132,3 +132,111 @@ fn zero_argument_construction_and_ordinary_calls_keep_their_flow() {
         }
     }
 }
+
+#[test]
+fn non_completing_construction_preserves_identity_without_delivering_a_result() {
+    for (expression, completes) in [
+        ("Holder(return 9)", false),
+        ("Holder(7)", true),
+        ("Point(return 9)", false),
+        ("Point(7)", true),
+        ("Choice.Item(return 9)", false),
+        ("Choice.Item(7)", true),
+        ("Box<Point>(return 9)", false),
+        ("Box<Point>(Point(7))", true),
+        ("Rc<Int>(return 9)", false),
+        ("Rc<Int>(7)", true),
+        ("make(return 9)", false),
+        ("make(7)", true),
+        ("Generic<Int>(return 9)", false),
+        ("Holder(if (flag) { return 9 } else { return 8 })", false),
+        ("Holder(if (flag) { return 9 } else { 7 })", true),
+    ] {
+        let text = format!(
+            "class Holder(val value: Int)\nclass Generic<T>(val value: T)\nvalue class Point(val value: Int)\nenum class Choice {{ Item(value: Int) }}\nfun make(value: Int): Holder = Holder(value)\nfun use(flag: Boolean): Int {{ val item: Int = {expression}; return 0 }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "expectation.ko", &text);
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "expectation.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let (environment, types) = standard_environments();
+            let names = validated_names(&sources, &inputs, &environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+            let local = file
+                .ast()
+                .expressions()
+                .iter()
+                .find(|(_, node)| sources.slice(node.span()) == Ok(expression))
+                .unwrap()
+                .0;
+            let id = UnitExpressionId::new(source_unit(&names, source), local);
+            if completes {
+                assert_eq!(
+                    typed.diagnostics().len(),
+                    1,
+                    "{expression}: {:?}",
+                    typed.diagnostics()
+                );
+                let diagnostic = &typed.diagnostics()[0];
+                assert_eq!(diagnostic.code().to_string(), "L0084");
+                assert_eq!(sources.slice(diagnostic.primary_span()), Ok(expression));
+            } else {
+                assert!(
+                    typed.diagnostics().is_empty(),
+                    "{expression}: {:?}",
+                    typed.diagnostics()
+                );
+                assert_eq!(typed.expression_falls_through(id), Some(false));
+                assert!(matches!(
+                    typed
+                        .expression_type(id)
+                        .and_then(|ty| typed.types().get(ty)),
+                    Some(UnitTypeKind::Nominal { .. } | UnitTypeKind::Intrinsic { .. })
+                ));
+                if !expression.starts_with("make(") {
+                    assert_eq!(
+                        typed
+                            .constructions()
+                            .iter()
+                            .find(|d| d.expression() == id)
+                            .unwrap()
+                            .result_type(),
+                        typed.expression_type(id).unwrap()
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn non_completing_construction_keeps_return_value_and_suffix_diagnostics() {
+    for (expression, marker) in [
+        ("Holder(return \"bad\")", "\"bad\""),
+        ("Pair(return 9, \"bad\")", "\"bad\""),
+    ] {
+        let text = format!(
+            "class Holder(val value: Int)\nclass Pair(val value: Int, val tail: Int)\nfun use(): Int {{ val item: Int = {expression}; return 0 }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "diagnostics.ko", &text);
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "diagnostics.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let (environment, types) = standard_environments();
+            let names = validated_names(&sources, &inputs, &environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+            assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
+            assert_eq!(typed.diagnostics()[0].code().to_string(), "L0084");
+            assert_eq!(
+                sources.slice(typed.diagnostics()[0].primary_span()),
+                Ok(marker)
+            );
+        }
+    }
+}

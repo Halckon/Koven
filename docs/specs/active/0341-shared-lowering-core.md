@@ -21302,3 +21302,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Unit dataflow每轮处理construction参数前，若已无正常后继即停止。原 `chain_expression` 本来也不检查该不可达后缀；问题是随后无条件Nothing识别仍发布事实。三行修复保实际到达Nothing的当轮发布、诊断门和条件正常分支；名义类型但已终止的嵌套构造仍不据此获得外层完整plan，公开Nothing事实合同未扩。
 - 两项新回归16组合覆盖双source布局、Inner Return/stop、Group、类型匹配的Middle链式嵌套、正常和条件可继续分支；保真实Inner plan、Outer/Middle无假plan、可达stop的精确source-order delivery和无root。Return仅清理真实prefix Temporary及对应ControlTransfer，stop不展开prefix清理。
 - 完整 `ownership_construction` 10项本树8.59s通过；`construction_completion` 3项含不可达后缀类型诊断、`source_construction` 7项含recovery/推断/跨文件邻控通过。frontend all-targets strict（loan-observation-test-support）强制本树1m37s/exit0。独审、fmt/diff、docs979、Rust尺寸2555通过；无native/fault，不推送。第一次绿测因外部容器占槽有限等待退出，未启动Cargo，不计验收。
+
+### 无正常后继构造不适配不存在的结果值
+
+- 基 `b5262a0f`，双布局普通probe实证五类构造的 `return 9` 实参在Int expected下错误L0084并变成Error/flow true；同返回Holder的普通 `make(return 9)` 无诊断、保Nominal/flow false，而正常Holder/make都拒绝不匹配。结合Guide的Nothing bottom、构造源码顺序与不再求值后缀规则，及通用expression的静态身份/正常后继分离合同，冻结成功合同后真实红灯。
+- 仅在nominal/intrinsic构造所有参数检查完成后的最终结果适配增加falls_through门；不跳过泛型推导、参数类型、return值或不可达后缀诊断，不改失败recovery。无正常后继不交付结果值，但保持原静态结果类型和descriptor身份；有正常分支仍执行原结果适配。
+- 新两项34组合覆盖class/value class/enum/Box/Rc正常与终止、普通call、显式Generic<Int>、条件双臂/单臂、错误return及suffix，双source布局保L0084主span及成功type/descriptor关联。不是完整诊断对象等价或全部泛型推导证明；现有推导/恢复合同由原target邻控保留。
+- 新旧completion共5项本树8.29s绿；完整multifile_type_checking293项、ownership_construction10项通过。frontend all-targets strict（loan-observation-test-support）强制本树1m37s/exit0；独审、fmt/diff、docs979、Rust尺寸2555通过。未扩大E3，无native/fault，不推送。
