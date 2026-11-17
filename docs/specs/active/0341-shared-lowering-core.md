@@ -21352,3 +21352,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 这不表示全部 raw 类型产品等价：真实错误场景的 Single Deferred 子壳与 Unit 可不同，它们不属于这三项原断言；不据此扩展 Unit 能力。两 companion 的 Single Deferred/Unit 成功、独立 unresolved static member 的类型阶段/名称阶段及 message 差异原样保留，旧入口未整文件删除。
 - 基线五 exact 各 1 passed（真实基线重编10.63s）；候选五 exact 各 1 passed（真实候选重编47.72s），三保留差异 exact 各 1 passed。仅普通前端，不运行 native/fault，不推送。
 - 强制候选本树 frontend all-target strict（loan-observation-test-support）3m50s/exit0；独审通过。构建阶段启动前全局空槽，strict期间外部独立target新起编译，未干扰或重复本线步骤。
+
+### 中断范围前缀不续接不存在的消费者
+
+- 基 `cbb19974`，真实红测 `loop { for (item in rangeView(source, break, 1)) {} }; consume(source)` 报错误 L0135：未完成调用的源贷款在 break 状态被保留并转给未进入的 iteration。属于 Phase 3 checker 实际状态错误，不从静态 descriptor 推断生命周期。
+- 本 call 的 source loan 仅在正常后继保留；break/continue 分支释放本 call 贷款，不改其他 call/binding/iteration 贷款。range 续接仅修改 next，iteration 使用事实仅在真实正常后继发布；混合分支不套用正常路径的保留规则。
+- 新 3 项共 12 源 × MemoryDocument/Rooted，含临时 iteration 与普通同步 call、纯/混合 break/continue、原 live-range L0135、外层 iteration 保护不被第二个中断调用误释、borrow-val loop 原 L0164。纯 continue 后的 consume 不可达，仅证明不发布虚构事实，不能算退出权限恢复证据。首次绿测发现借用绑定 loop 原 gate，未改生产绕过，转为明确负控。
+- 原精确红灯 L0135；最终 ownership_range_construction 全 17 项通过。不扩大 E3 子集，不运行 native/fault，不推送。
+- 普通 borrow continuation/result/nested-argument 与 range producer/receiver 五 target 共 57 项通过；frontend all-target strict（loan-observation-test-support）强制本树 53.30s/exit0。独审通过，fmt/diff、docs980 与 Rust 尺寸通过；所有原工作树不动。

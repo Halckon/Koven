@@ -45,10 +45,8 @@ impl Checker<'_> {
                 .iter()
                 .find(|loan| loan.call() == source.call() && loan.argument() == source.argument())
                 .map(|loan| loan.begin_span());
-            for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
-                .into_iter()
-                .flatten()
-            {
+            // A prefix jump has no descriptor to transfer to this consumer.
+            if let Some(state) = flows.next.as_mut() {
                 for loan in &mut state.loans {
                     if loan.owner == super::ActiveLoanOwner::Call(call)
                         && Some(loan.origin) == begin

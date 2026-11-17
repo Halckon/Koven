@@ -602,3 +602,75 @@ fun run(flag:Boolean,n:Int):Unit{
         );
     }
 }
+
+#[test]
+fn terminated_range_prefix_releases_source_before_outer_loop_exit() {
+    for consumer in [
+        "for (item in rangeView(source, BOUND, 1)) {}",
+        "observe(rangeView(source, BOUND, 1))",
+    ] {
+        for bound in [
+            "break",
+            "if (flag) { break } else { 0 }",
+            "continue",
+            "if (flag) { continue } else { 0 }",
+        ] {
+            let body = consumer.replace("BOUND", bound);
+            let text = format!(
+                "fun run(own source: List<String>, flag: Boolean): Unit {{ loop {{ {body}; break }}; consume(source) }}"
+            );
+            let (_, document, rooted) = checked(&text);
+            for owned in [&document, &rooted] {
+                assert!(
+                    owned.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    owned.diagnostics()
+                );
+                if matches!(bound, "break" | "continue") {
+                    assert!(owned.borrow_results().range_uses().is_empty(), "{text}");
+                    assert!(owned.iterations().is_empty(), "{text}");
+                    assert!(owned.borrow_results().bindings().is_empty(), "{text}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn completed_range_prefix_still_protects_live_source() {
+    for body in [
+        "for (item in rangeView(source, 0, 1)) { consume(source) }",
+        "borrow val part = rangeView(source, 0, 1); consume(source); observe(part)",
+        "for (item in rangeView(source, 0, 1)) { loop { observe(rangeView(source, break, 1)); break }; consume(source) }",
+    ] {
+        let text = format!("fun run(own source: List<String>): Unit {{ {body} }}");
+        let (_, document, rooted) = checked(&text);
+        for owned in [&document, &rooted] {
+            assert!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .any(|d| d.code().to_string() == "L0135"),
+                "{text}: {:?}",
+                owned.diagnostics()
+            );
+        }
+    }
+}
+
+#[test]
+fn interrupted_range_binding_keeps_existing_loop_boundary() {
+    let (_, document, rooted) = checked(
+        "fun run(own source: List<String>): Unit { loop { borrow val part = rangeView(source, break, 1); observe(part); break }; consume(source) }",
+    );
+    for owned in [&document, &rooted] {
+        assert!(
+            owned
+                .diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == "L0164"),
+            "{:?}",
+            owned.diagnostics()
+        );
+    }
+}
