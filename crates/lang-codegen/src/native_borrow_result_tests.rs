@@ -139,6 +139,79 @@ fn native_borrow_result_single_direct_and_wrapper_keep_source_until_scope_end() 
 }
 
 #[test]
+fn native_borrow_result_string_observers_preserve_lexical_lifetime() {
+    const TEMPLATE: &str = r#"
+fun view(source: String): borrow String from source = source
+fun consume(own source: String): Unit { println(source) }
+fun inspect(own owner: String): Unit {
+    {
+        borrow val s = view(owner)
+        OBSERVE
+    }
+    consume(owner)
+}
+fun entry(): Unit {
+    inspect("alpha".clone())
+    inspect("beta".clone())
+}
+"#;
+    for (kind, observation) in [
+        (
+            "comparison",
+            r#"if ((s) == "alpha") { println("matched") } else { println("unmatched") }"#,
+        ),
+        (
+            "subject",
+            r#"when ((s)) { "other", "alpha" -> println("matched"); else -> println("unmatched") }"#,
+        ),
+    ] {
+        let path = format!("borrow-result-string-{kind}.ko");
+        let source = TEMPLATE.replace("OBSERVE", observation);
+        let expected = b"matched\nalpha\nunmatched\nbeta\n";
+        let native = emit_link_and_run(&path, &source, "entry");
+        super::boxed_enum_tests::assert_success(&native, expected);
+        let llvm = super::boxed_enum_tests::lower_to_llvm(&path, &source);
+        let counted = super::boxed_enum_tests::run_counted_allocations(&llvm, 2);
+        super::boxed_enum_tests::assert_success(&counted, expected);
+    }
+}
+
+#[test]
+fn native_borrow_result_string_observers_end_the_loan_on_return_paths() {
+    let source = r#"
+fun view(source: String): borrow String from source = source
+fun choose(own owner: String, flag: Boolean): Int {
+    {
+        borrow val s = view(owner)
+        if ("alpha" != (s)) { return 1 }
+        println(s)
+    }
+    if (flag) { return 2 }
+    return 3
+}
+fun classify(own owner: String): Int {
+    borrow val s = view(owner)
+    return when ((s)) { "other", "alpha" -> 4; else -> 5 }
+}
+fun entry(): Unit {
+    if (choose("beta".clone(), true) != 1) { error("early") }
+    if (choose("alpha".clone(), true) != 2) { error("later") }
+    if (choose("alpha".clone(), false) != 3) { error("tail") }
+    if (classify("alpha".clone()) != 4) { error("match") }
+    if (classify("beta".clone()) != 5) { error("else") }
+    println("returned")
+}
+"#;
+    let path = "borrow-result-string-return.ko";
+    let expected = b"alpha\nalpha\nreturned\n";
+    let native = emit_link_and_run(path, source, "entry");
+    super::boxed_enum_tests::assert_success(&native, expected);
+    let llvm = super::boxed_enum_tests::lower_to_llvm(path, source);
+    let counted = super::boxed_enum_tests::run_counted_allocations(&llvm, 5);
+    super::boxed_enum_tests::assert_success(&counted, expected);
+}
+
+#[test]
 fn native_borrow_result_single_scalar_pointer_reads_copyable_storage() {
     let text = "fun view(source: Int): borrow Int from source = source\nfun wrap(source: Int): borrow Int from source = view(source)\nfun observe(own source: Int) { if (source == 7) { println(\"seven\") } else { error(\"wrong value\") } }\nfun entry() { val source = 7; { borrow val item = wrap(source); observe(item) }; observe(source) }";
     let run = emit_link_and_run("borrow_int.ko", text, "entry");

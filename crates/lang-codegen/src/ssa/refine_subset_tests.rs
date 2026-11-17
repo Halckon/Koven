@@ -27,6 +27,8 @@ pub(in crate::ssa) use temporary_sequential_for::control_completion;
 #[test]
 fn nullable_functions_inside_the_subset_are_routed() {
     for source in [
+        "fun view(s: String): borrow String from s = s\n\
+             fun f(): Int { val owner = \"a\"; borrow val s = view(owner); return when (s) { \"a\" -> 1; else -> 0 } }",
         "fun f(own s: String): Int = when (s) { \"a\" -> 1\n else -> 0 }",
         "fun f(s: String): Int = when ((s)) { (\"a\") -> 1\n else -> 0 }",
         "fun f(own x: Int?): Int { if (x != null) { return x }; return 0 }",
@@ -107,11 +109,6 @@ fn nullable_functions_inside_the_subset_are_routed() {
 #[test]
 fn functions_outside_the_subset_keep_the_per_family_path() {
     for (reason, source) in [
-        (
-            "explicit String borrow-result binding",
-            "fun view(s: String): borrow String from s = s\n\
-             fun f(): Int { val owner = \"a\"; borrow val s = view(owner); return when (s) { \"a\" -> 1; else -> 0 } }",
-        ),
         (
             "when with a nullable subject",
             "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",

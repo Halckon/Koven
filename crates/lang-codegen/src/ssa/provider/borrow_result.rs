@@ -239,6 +239,120 @@ fn is_local_range_binding(
     }
 }
 
+/// The canonical string operations observe the existing result loan. A return
+/// may cross the binding only at a frontend-published loan end.
+fn admit_string_result_observers(
+    file: &lang_frontend::parser::ParsedFile,
+    names: &ValidatedCompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    owned: &dyn UnitPreflightFacts,
+    fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+) -> std::collections::BTreeSet<usize> {
+    use lang_frontend::parser::{BinaryOperator, WhenCondition};
+
+    let mut allowed = std::collections::BTreeSet::new();
+    let builtin = |expression| {
+        let id = UnitExpressionId::new(fact.binding().source_unit(), expression);
+        match typed
+            .expression_type(id)
+            .and_then(|ty| typed.types().get(ty))
+        {
+            Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
+            _ => None,
+        }
+    };
+    if fact.storage() != BorrowBindingStorage::BorrowedStorage
+        || fact.source_loan().is_none()
+        || builtin(fact.initializer().expression()) != Some(BuiltinType::String)
+        || !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.is_root())
+    {
+        return allowed;
+    }
+    let expressions = file.ast().expressions();
+    let root = |expression| {
+        crate::ssa::borrow_result_support::ungroup(file, expression, fact.marker_span()).ok()
+    };
+    let references = names
+        .names()
+        .references()
+        .iter()
+        .filter(|reference| {
+            reference.source_unit() == fact.binding().source_unit()
+                && reference.target() == &UnitReferenceTarget::Symbol(fact.binding())
+        })
+        .map(|reference| (reference.span().start(), reference.span().end()))
+        .collect::<std::collections::BTreeSet<_>>();
+    let observes_binding = |expression| {
+        root(expression)
+            .and_then(|leaf| expressions.get(leaf).ok())
+            .is_some_and(|node| {
+                matches!(node.payload(), Expression::Name)
+                    && references.contains(&(node.span().start(), node.span().end()))
+            })
+    };
+    let comparison = |expression| {
+        builtin(expression) == Some(BuiltinType::Boolean)
+            && root(expression)
+                .and_then(|leaf| expressions.get(leaf).ok())
+                .is_some_and(|node| {
+                    matches!(
+                        node.payload(),
+                        Expression::Binary {
+                            operator: BinaryOperator::Equal | BinaryOperator::NotEqual,
+                            left,
+                            right,
+                            ..
+                        } if builtin(*left) == Some(BuiltinType::String)
+                            && builtin(*right) == Some(BuiltinType::String)
+                            && (observes_binding(*left) || observes_binding(*right))
+                    )
+                })
+    };
+    for (expression, node) in expressions.iter() {
+        let admitted = match node.payload() {
+            Expression::Binary { .. } => comparison(expression),
+            Expression::If { condition, .. } => comparison(*condition),
+            Expression::When { subject: Some(subject), entries, .. } => {
+                builtin(*subject) == Some(BuiltinType::String)
+                    && observes_binding(*subject)
+                    && entries.iter().all(|entry| {
+                        entry.conditions.iter().all(|condition| {
+                            matches!(condition, WhenCondition::Expression(selector)
+                                if root(*selector)
+                                    .and_then(|leaf| expressions.get(leaf).ok())
+                                    .is_some_and(|node| matches!(node.payload(), Expression::String { .. })))
+                        })
+                    })
+            }
+            _ => false,
+        };
+        if admitted {
+            allowed.insert(expression.index());
+        }
+    }
+    if !allowed.is_empty() {
+        allowed.extend(
+            owned
+                .borrow_results()
+                .ends()
+                .iter()
+                .filter(|end| end.binding() == fact.binding())
+                .filter_map(|end| match end.point() {
+                    UnitDropPoint::ControlTransfer(expression)
+                        if expression.source_unit() == fact.binding().source_unit()
+                            && expressions.get(expression.expression()).is_ok_and(|node| {
+                                matches!(node.payload(), Expression::Return { .. })
+                            }) =>
+                    {
+                        Some(expression.expression().index())
+                    }
+                    _ => None,
+                }),
+        );
+    }
+    allowed
+}
+
 fn validate_binding(
     file: &lang_frontend::parser::ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -643,15 +757,27 @@ pub(crate) fn validate_bindings(
             file.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
         match policy {
             Some(ordinary_local::Policy::Scoped) => {
-                let allowed =
-                    ordinary_local::allowed_controls(file, owned, fact, &argument_controls);
+                let observers = admit_string_result_observers(file, names, typed, owned, fact);
+                let allowed = ordinary_local::allowed_controls(
+                    file,
+                    owned,
+                    fact,
+                    &argument_controls,
+                    &observers,
+                );
                 validate_binding(file, names, typed, owned, fact, Some(allowed))?;
             }
             None if legacy_gate
                 && !has_dedicated_binding_path(file, names, typed, owned, fact)? =>
             {
                 let allowed = is_local_range_binding(file, names, typed, owned, fact).then(|| {
-                    ordinary_local::allowed_controls(file, owned, fact, &argument_controls)
+                    ordinary_local::allowed_controls(
+                        file,
+                        owned,
+                        fact,
+                        &argument_controls,
+                        &Default::default(),
+                    )
                 });
                 validate_binding(file, names, typed, owned, fact, allowed)?;
             }
