@@ -21495,3 +21495,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 六份源码各经 Rooted/MemoryDocument：无 Group、一层、两层 Group，分别带或不带前缀合法 `outer.share()`。保 Phase 2 准入，核单条 L0164/准确 call span、Rc effects/loans/drops/construction 清空及 ownership validate 拒绝；原 Name share、payload MoveOnly 提取、moved owner 与 inout 负控保留。
 - `ownership_rc` 全 target 5 passed（本树重编 5.08 秒）；强制本树 frontend all-target `loan-observation-test-support` strict 通过（40.57 秒）。独立设计与代码末审通过。无 native/fault 执行、未推送。
 - 完整支持另需联合 E3 核真实 payload owner 链、retain 前 backing 存活、retain 后清理及非 Name receiver 的 subset/builder 消费；本片不实现或批准这些扩展。
+
+
+### 2026-11-17：Callable CFG/loop 接受性前置消费者收敛
+
+- 基 `3b26d754`，两个原 FQN、四份原源的 Single 基线各1 passed（本树44.00s），保旧双 Unit 对照各1 passed（本树5.41s）后，仅替换该四次旧分析消费。复用既有同源 helper，原 closures.ko、标准环境与所有源码保持不变。
+- 完整保留解析、名称、类型和 ownership 无诊断，以及 ownership deferred 为空。该组原先只有接受性前置；注释现明确不证明 CFG 或循环来源，不把未查询的 Future facts 计为已迁移合同。裸函数 Deferred、caller-first 摘要/类型及错误分析身份等 Single 差异见证不动。
+- 最终原 closure target 74 passed；强制本树 frontend all-target `loan-observation-test-support` strict 1m14s/exit0，独立末审通过。无生产/API变化，无 native/fault 执行，未推送。

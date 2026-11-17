@@ -24,6 +24,16 @@ fn preflight(
     result
 }
 
+// Only the original clean-analysis preflight; this does not assert CFG origins.
+fn unit_preflight(text: &str) {
+    for rooted in [false, true] {
+        let (_, owned) =
+            borrow_rejection_unit::checked(text, "closures.ko", rooted, standard_environments());
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    }
+}
+
 const FUNCTIONS: &str = "fun identity(index: Int): Int = index\n\
                         fun other(index: Int): Int = index + 1\n\
                         fun take(callback: (Int) -> Int): Unit {}\n";
@@ -131,8 +141,8 @@ fn callable_provenance_preflight_same_and_different_origin_cfg() {
             take(different)\n\
         }}"
     );
-    preflight(&text);
-    // Future facts retain identity for same, but publish no guessed origin for different.
+    unit_preflight(&text);
+    // This preflight checks acceptance, not same/different CFG origin facts.
 }
 
 #[test]
@@ -153,9 +163,8 @@ fn callable_provenance_preflight_loop_alias_stable_overwrite_and_conflict() {
                 }}\n\
             }}"
         );
-        preflight(&text);
-        // The third case is Unknown across the backedge; the first two remain identity.
-        // A single ownership traversal cannot itself prove these repeated-use origins.
+        unit_preflight(&text);
+        // This preflight checks acceptance, not repeated-use origin facts.
     }
 }
 
