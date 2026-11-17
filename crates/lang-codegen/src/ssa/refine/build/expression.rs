@@ -1,6 +1,8 @@
 //! Expressions in the refined CFG.
 #[path = "expression/call.rs"]
 mod call;
+#[path = "expression/nullable_argument.rs"]
+mod nullable_argument;
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::UnitDropPoint,

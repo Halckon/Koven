@@ -322,8 +322,8 @@ impl Checker<'_, '_> {
                 }
                 // A jump out of a call argument drops the earlier MoveOnly arguments it
                 // abandons; temporaries holding loans stay outside.
-                UnitDropPoint::ControlTransfer(_) => match fact.target() {
-                    UnitDropTarget::Temporary(expression) => self.pending_owner(expression),
+                UnitDropPoint::ControlTransfer(transfer) => match fact.target() {
+                    UnitDropTarget::Temporary(expression) => self.pending_owner(expression, transfer),
                     _ => true,
                 },
                 _ => true,
@@ -379,7 +379,7 @@ impl Checker<'_, '_> {
     /// lower only here), a `RangeView` carrier call, or a borrow-result call proven not to
     /// dispatch, or an explicitly admitted non-dispatching owned field receiver.
     /// The ordinary exit ends those loans before dropping the temporary.
-    fn pending_owner(&self, expression: UnitExpressionId) -> bool {
+    fn pending_owner(&self, expression: UnitExpressionId, transfer: UnitExpressionId) -> bool {
         if self.temporary_field_parents.contains(&expression) {
             return true;
         }
@@ -420,6 +420,7 @@ impl Checker<'_, '_> {
             !abandoned_callback
                 && !self.non_dispatching_field_calls.contains(&call)
                 && !self.abandoned_borrow_result_call(call)
+                && !self.nullable_when_abandons_lender(call, transfer)
                 && !self.inputs.typed.call(call).is_some_and(|call| {
                     call.target() == UnitCallTarget::FunctionValue
                         || matches!(call.result_source(), CallableResultSource::Carrier(_))

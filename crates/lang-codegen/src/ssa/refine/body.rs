@@ -1,5 +1,15 @@
 //! Slot-based refined CFG: every move, drop and loan is an explicit statement.
-use lang_frontend::source::Span;
+#[path = "body/term.rs"]
+mod term;
+use lang_frontend::{
+    ownership_checking::{
+        UnitLoopBranchNoCarryFact, UnitLoopBreakBranchNoCarryFact, UnitLoopBreakPrefixFact,
+        UnitLoopCounterBranchNoCarryFact, UnitLoopCounterBreakBranchNoCarryFact,
+        UnitLoopPrefixCounterBreakFact,
+    },
+    source::Span,
+};
+pub(super) use term::{RAbort, RTerm};
 
 use crate::ssa::model::{
     CheckedArithmeticOperator, ComparisonOperator, EntityType, FunctionId, IntegerBitwiseOperator,
@@ -835,94 +845,6 @@ pub(super) struct RStmt {
     pub(super) span: Span,
 }
 
-#[derive(Clone, Debug)]
-pub(super) enum RAbort {
-    CheckedArithmetic {
-        operator: CheckedArithmeticOperator,
-        divisor: Slot,
-    },
-    CheckedConversion {
-        target: SsaTypeId,
-    },
-    /// `!!` on a null value.
-    NullAssertion,
-    /// Negative runtime container length.
-    NegativeSize,
-    /// The fall-through of a value `when` over a closed domain the frontend proved
-    /// covered; unreachable at run time.
-    UnmatchedWhen,
-    /// `error(message)` call.
-    Error {
-        message: Slot,
-    },
-}
-
-#[derive(Clone, Debug)]
-pub(super) enum RTerm {
-    Goto(BlockRef),
-    Branch {
-        condition: Slot,
-        when_true: BlockRef,
-        when_false: BlockRef,
-    },
-    /// `non_null` is a dedicated target whose last parameter is the `view` slot.
-    NullBranch {
-        owner: Slot,
-        when_null: BlockRef,
-        when_non_null: BlockRef,
-    },
-    Return(Option<Slot>),
-    BorrowReturn {
-        loan: Slot,
-    },
-    RangeReturn {
-        view: Slot,
-        source: Slot,
-    },
-    Abort(RAbort),
-    Unreachable,
-}
-
-impl RTerm {
-    pub(super) fn operands(&self) -> Vec<Slot> {
-        match self {
-            Self::Goto(_) | Self::Return(None) | Self::Unreachable => Vec::new(),
-            Self::Abort(RAbort::Error { message }) => vec![*message],
-            Self::Abort(RAbort::CheckedArithmetic {
-                operator: CheckedArithmeticOperator::Divide | CheckedArithmeticOperator::Remainder,
-                divisor,
-            }) => vec![*divisor],
-            Self::Abort(_) => Vec::new(),
-            Self::Branch { condition, .. } => vec![*condition],
-            Self::NullBranch { owner, .. } => vec![*owner],
-            Self::Return(Some(value)) => vec![*value],
-            Self::BorrowReturn { loan } => vec![*loan],
-            Self::RangeReturn { view, source } => vec![*view, *source],
-        }
-    }
-
-    pub(super) fn successors(&self) -> Vec<BlockRef> {
-        match self {
-            Self::Goto(target) => vec![*target],
-            Self::Branch {
-                when_true,
-                when_false,
-                ..
-            } => vec![*when_true, *when_false],
-            Self::NullBranch {
-                when_null,
-                when_non_null,
-                ..
-            } => vec![*when_null, *when_non_null],
-            Self::Return(_)
-            | Self::BorrowReturn { .. }
-            | Self::RangeReturn { .. }
-            | Self::Abort(_)
-            | Self::Unreachable => Vec::new(),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 pub(super) struct RBlock {
     pub(super) has_predecessor: bool,
@@ -936,6 +858,8 @@ pub(super) struct RBlock {
     pub(super) origin: Option<Span>,
     /// Carrier slots pinned as live-in on entry to this block.
     pub(super) pinned: Vec<Slot>,
+    /// These two nullable When successors retain one common carried-column layout.
+    pub(super) carry_sibling: Option<BlockRef>,
     /// Keep a loop header block separate from its single entry predecessor.
     pub(super) preserve_header: bool,
 }
@@ -953,16 +877,12 @@ pub(super) struct RefinedBody {
     pub(super) loop_plans: super::loop_receipt::Plans,
     pub(super) fresh_loop_plans: super::fresh_loop_receipt::Plans,
     pub(super) arm_loop_plans: super::arm_loop_receipt::Plans,
-    pub(super) arm_loop_required: Vec<lang_frontend::ownership_checking::UnitLoopBranchNoCarryFact>,
-    pub(super) arm_composed_prefix_required:
-        Vec<lang_frontend::ownership_checking::UnitLoopPrefixCounterBreakFact>,
-    pub(super) arm_prefix_required: Vec<lang_frontend::ownership_checking::UnitLoopBreakPrefixFact>,
-    pub(super) arm_break_required:
-        Vec<lang_frontend::ownership_checking::UnitLoopBreakBranchNoCarryFact>,
-    pub(super) arm_counter_break_required:
-        Vec<lang_frontend::ownership_checking::UnitLoopCounterBreakBranchNoCarryFact>,
-    pub(super) arm_counter_required:
-        Vec<lang_frontend::ownership_checking::UnitLoopCounterBranchNoCarryFact>,
+    pub(super) arm_loop_required: Vec<UnitLoopBranchNoCarryFact>,
+    pub(super) arm_composed_prefix_required: Vec<UnitLoopPrefixCounterBreakFact>,
+    pub(super) arm_prefix_required: Vec<UnitLoopBreakPrefixFact>,
+    pub(super) arm_break_required: Vec<UnitLoopBreakBranchNoCarryFact>,
+    pub(super) arm_counter_break_required: Vec<UnitLoopCounterBreakBranchNoCarryFact>,
+    pub(super) arm_counter_required: Vec<UnitLoopCounterBranchNoCarryFact>,
     pub(super) loan_plans: super::loan_receipt::Plans,
     pub(super) receiver_plans: super::receiver_receipt::Plans,
     pub(super) named_plans: super::named_receipt::Plans,

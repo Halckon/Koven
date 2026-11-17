@@ -31,6 +31,7 @@ pub(crate) mod loop_receipt;
 pub(crate) mod multi_receipt;
 #[deny(dead_code)]
 pub(crate) mod nested_receipt;
+mod nullable_when;
 pub(crate) mod receiver_receipt;
 #[deny(dead_code)]
 pub(crate) mod single_receipt;
