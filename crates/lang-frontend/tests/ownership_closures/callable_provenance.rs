@@ -34,6 +34,16 @@ fn unit_preflight(text: &str) {
     }
 }
 
+// These single-function fixtures prove only their selected empty fact tables.
+fn failed_unit(text: &str) -> [lang_frontend::ownership_checking::CompilationUnitOwnership; 2] {
+    [false, true].map(|rooted| {
+        let (_, owned) =
+            borrow_rejection_unit::checked(text, "closures.ko", rooted, standard_environments());
+        assert_eq!(unit_codes(&owned), ["L0138"]);
+        owned
+    })
+}
+
 const FUNCTIONS: &str = "fun identity(index: Int): Int = index\n\
                         fun other(index: Int): Int = index + 1\n\
                         fun take(callback: (Int) -> Int): Unit {}\n";
@@ -161,12 +171,11 @@ fn callable_provenance_preflight_loop_alias_stable_overwrite_and_conflict() {
 #[test]
 fn callable_provenance_preflight_ownership_error_suppresses_executable_facts() {
     let text = "fun invalid(label: String): (Int) -> Boolean = move { index -> label == \"borrowed\" && index == 0 }";
-    let (_, _, _, _, owned) = analyzed_with(text, standard_environments());
-    assert_eq!(codes(&owned), ["L0138"]);
-    assert!(owned.captures().is_empty());
-    assert!(owned.loans().is_empty());
-    assert!(owned.drops().is_empty());
-    // Future provenance and pointer summaries must also be empty after a P3 error.
+    for unit in failed_unit(text) {
+        assert!(unit.captures().is_empty());
+        assert!(unit.loans().is_empty());
+        assert!(unit.drops().is_empty());
+    }
 }
 
 #[test]

@@ -21522,3 +21522,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基线 `15595b2f`，与整合头 `70675d06` 的相关生产文件相同。仅 Checker 固定 AST 的私有惰性 loop span 缓存；保持 no-carry 短路、三类循环集合、arena 顺序及原 offset-only 包含谓词，诊断与准入不变。
 - 原谓词逐节点及真实 BorrowVal marker 对照覆盖无循环、三类循环、相邻和嵌套；8/32/128 个真实绑定的确定性计数证明 statement 只扫描 S 次。查询成本 O(S+B×L)，无循环 O(S+B)，不宣称整体检查器基准或新增功能支持。
 - 本树两项定向回归通过（重编30.67秒）；原 borrow_result 12、no_carry 1、boundaries 2通过（重编21.40秒）。默认 evidence target 为0项，不计验收；等待外部构建结束后，启用 loan-observation-test-support 的 evidence 本树重编21.57秒、真实1项通过，强制本树 frontend all-target 同 feature strict 通过。独立生产及测试末审通过；无 native/fault，不推送。
+
+
+### 2026-11-17：两份 callable P3 拒绝源码的事实消费者收敛
+
+- 基 `fd509af3`，两原 FQN 基线及完整保旧双 Unit 对照各1 passed（本树37.79s/3.48s），仅替换两份合法 typed、P3 报 L0138 的 Single 观察。原源码、closures.ko、标准环境及解析/名称/类型 clean 前置不变，使用 raw ownership 结果而非要求失败产品 validate 成功。
+- 一份原源码保 captures/loans/drops 全表空，另一份保 callable origins/pointer return summaries 全表空，均保完整 `[L0138]`。captures 和 callable 表有错误发布门；loans/drops 直接承接 dataflow，故此处只证明原单函数场景，不泛化为所有失败 Unit 统一清表。
+- P2 typed-error 后半段、分析身份、Deferred 和 caller-first 差异见证完整保留。最终 closure 74 passed，强制本树 frontend all-target `loan-observation-test-support` strict 1m08s/exit0，独立末审通过；不改生产/API，无 native/fault，未推送。

@@ -301,13 +301,11 @@ fn callable_contract_loop_backedge_and_repeated_condition_revoke_unstable_origin
 
 #[test]
 fn callable_contract_p2_and_p3_errors_clear_both_public_tables() {
-    let (_, _, _, _, owned) = analyzed_with(
-        "fun bad(label: String): (Int)->Boolean = move { index -> label == \"borrowed\" && index == 0 }",
-        standard_environments(),
-    );
-    assert_eq!(codes(&owned), ["L0138"]);
-    assert!(owned.callable_origins().is_empty());
-    assert!(owned.pointer_callable_returns().is_empty());
+    let text = "fun bad(label: String): (Int)->Boolean = move { index -> label == \"borrowed\" && index == 0 }";
+    for unit in failed_unit(text) {
+        assert!(unit.callable_origins().is_empty());
+        assert!(unit.pointer_callable_returns().is_empty());
+    }
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(
