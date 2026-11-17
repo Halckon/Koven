@@ -21502,3 +21502,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Guide 允许 Copyable payload 从 shared place 复制，但当前 E3 尚无非 Name 嵌套 owner 读取与 backing 生命周期运输。本片只修内部错误报告：原 place/temporary 均失败、同源 Rc.Value receiver、外层 Value 且 payload 明确 Copyable 时发 L0164；不实现或批准合法执行支持。既有 Share 文本、MoveOnly/未知类别及其它身份错误不变，receiver 原错误优先。
 - 十二份源码各经双 Unit：Int/Boolean、零/一/二层 Group、带/不带先前成功 share。核单条 L0164及完整读取 span、rc_effects/loans/drops/construction 全部撤销与 validate 拒绝；另双布局 moved outer 仍仅 L0131。原五项控制不改。
 - 本树 `ownership_rc` 全 target 7 passed（重编 4.93 秒），`type_checking rc_unit::` 两项 passed；强制本树 frontend all-target `loan-observation-test-support` strict 通过（28.52 秒）。首次邻控误用不存在的 `type_rc` target，未执行测试，已改实际 target 后补验，不计为通过证据。独立方案与实际 diff 末审均通过；无 native/fault、未推送。
+
+### 2026-11-17：借用绑定循环范围扫描缓存
+
+- 基线 `15595b2f`，与整合头 `70675d06` 的相关生产文件相同。仅 Checker 固定 AST 的私有惰性 loop span 缓存；保持 no-carry 短路、三类循环集合、arena 顺序及原 offset-only 包含谓词，诊断与准入不变。
+- 原谓词逐节点及真实 BorrowVal marker 对照覆盖无循环、三类循环、相邻和嵌套；8/32/128 个真实绑定的确定性计数证明 statement 只扫描 S 次。查询成本 O(S+B×L)，无循环 O(S+B)，不宣称整体检查器基准或新增功能支持。
+- 本树两项定向回归通过（重编30.67秒）；原 borrow_result 12、no_carry 1、boundaries 2通过（重编21.40秒）。默认 evidence target 为0项，不计验收；等待外部构建结束后，启用 loan-observation-test-support 的 evidence 本树重编21.57秒、真实1项通过，强制本树 frontend all-target 同 feature strict 通过。独立生产及测试末审通过；无 native/fault，不推送。
