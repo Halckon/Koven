@@ -724,10 +724,17 @@ impl Checker<'_> {
                         },
                     };
                     let previous = self.allowed_borrow_call;
-                    let range = contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
-                        && self.range_expression_is_proven(receiver.expression());
-                    if range {
-                        self.allowed_borrow_call = Some(receiver.expression());
+                    let range = (contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan)
+                        .then(|| {
+                            crate::ownership_checking::borrow_result::borrow_result_call(
+                                self.parsed,
+                                receiver.expression(),
+                                |actual| self.range_expression_is_proven(actual),
+                            )
+                        })
+                        .flatten();
+                    if let Some(actual) = range {
+                        self.allowed_borrow_call = Some(actual);
                     }
                     let checked = if consume {
                         self.check_map_consume_receiver(receiver.expression(), state)
@@ -740,13 +747,16 @@ impl Checker<'_> {
                     };
                     self.allowed_borrow_call = previous;
                     let mut flows = checked?;
-                    if range && self.diagnostics.len() == diagnostic_count && flows.next.is_some() {
+                    if let Some(actual) = range
+                        && self.diagnostics.len() == diagnostic_count
+                        && flows.next.is_some()
+                    {
                         self.record_range_use(
-                            receiver.expression(),
+                            actual,
                             crate::ownership_checking::RangeUseSite::Call(call),
                         );
                         self.continue_range_source(
-                            receiver.expression(),
+                            actual,
                             super::ActiveLoanOwner::Call(call),
                             &mut flows,
                         );

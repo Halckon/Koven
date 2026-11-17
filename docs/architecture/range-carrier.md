@@ -27,7 +27,7 @@ source-qualified UnitSymbolId。普通 nominal `this` 保持既有 receiver 路�
 producer 证明从实际构造/已选择转发与返回根取得，不能仅凭 `from this` 发布来源。
 caller 用真实 receiver expression 建立 Shared source loan，View 派生续接原根；新 descriptor root-flat，metadata 保留父依赖。
 结果 end 与元素/provider 结束共同约束权限恢复，临时链延续到实际立即消费者返回后清理一次。
-同步 Borrow 实参的 Group 保留实参身份，来源授权、range-use 与贷款续接锚定已证明的内层 Call；不按括号伪造 descriptor。
+同步 Borrow 实参及可信 range receiver 的 Group 保留原契约身份；授权、range-use、真实根与续借锚定内层 Call，不伪造 descriptor。
 
 可信扩展的来源与续接已接到 single/unit 静态 RangeCall ABI。lowering 消费已绑定的
 合成 `this` symbol 与 receiver_type，receiver 为入口参数 0，显式参数后移，

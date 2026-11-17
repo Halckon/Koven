@@ -21377,3 +21377,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 自定义环境、parse两遍、names/types clean、原basic validation边界不变，不增加final admission。删除仅供这两项的旧checked/Single ownership helper和专用imports；文件末尾malformed missing-closer的resolve_names/check_types/complete_file_types合同及其他测试逐字保留，不能称整文件无Single。
 - 两项原基线各1 passed（原树重编51.93s），保旧双Unit probe各1 passed（候选重编1m00s）；最终ownership_structural全11项通过（本树重编8.06s）。这是原受断言合同迁移，不宣称完整所有权产物或全部Diagnostic相等；未运行native/fault、不推送。
 - 强制候选本树frontend all-target strict（loan-observation-test-support）2m21s/exit0；独审确认checked_each与父例后全部无关测试字节未变。
+
+### 分组范围 receiver 的 root-flat 身份桥
+
+- 基 `f6339bdf`，原合法 `inspect(root.prefix(1).prefix(1))` 加 receiver 括号后真实 L0164。仅解来源许可仍不安全：explicit_receiver_effect 原按 Group 查 range-use 会丢 actual fact，错把 Group 当临时根。
+- traversal receiver 分支仅复用底层 Group-only helper 和原 range 谓词；许可、事实、续借用 actual Call。receiver effect 也仅在已有真实 range-use 查询上剥 Group，保原 contract/receiver argument/span，恢复真实 root-flat origin。普通 receiver、iteration、validator 与 E3 生产均不变。
+- 新 FE 2项共7源码×双布局：原无括号与1/3层括号、named/temporary根，两层事实同origin、outer源loan保原Group span、真实临时根唯一最外CallReturn Drop；后参数消费活根仍L0135。原精确红灯后完整ownership_range_receiver13项通过。
+- 新精确 SSA/LLVM 矩阵 6 源 × 双布局真实通过：refine 路由、SSA verifier 与 LLVM adapter 均实测，未执行 native。五组 range/普通receiver/来源权限邻控共61项通过，未改变 iteration validator 或普通receiver合同。
+- frontend all-target feature strict 强制本树1m32s、codegen default all-target strict 强制本树1m09s均通过；独审、fmt/diff、docs980、Rust尺寸2563（原2例外）通过。无 native/fault，不推送。
