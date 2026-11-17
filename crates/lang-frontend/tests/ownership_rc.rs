@@ -203,3 +203,48 @@ fn nested_rc_payload_share_reports_unsupported_lifetime_without_partial_facts() 
         }
     }
 }
+
+#[test]
+fn nested_rc_copyable_payload_read_reports_unsupported_lifetime() {
+    for (ty, value) in [("Int", "7"), ("Boolean", "true")] {
+        for receiver in ["outer.value", "(outer.value)", "((outer.value))"] {
+            for prefix in ["", "val retained = outer.share()"] {
+                let read = format!("{receiver}.value");
+                let text = format!(
+                    "fun run(): {ty} {{
+                    val outer = Rc(Rc({value}))
+                    {prefix}
+                    return {read}
+                }}"
+                );
+                for (operations, owned) in checked(&text) {
+                    assert_eq!(operations, if prefix.is_empty() { 2 } else { 3 });
+                    assert_eq!(codes(owned.diagnostics()), ["L0164"]);
+                    let span = owned.diagnostics()[0].primary_span();
+                    assert_eq!(text.get(span.start()..span.end()), Some(read.as_str()));
+                    assert!(owned.rc_effects().is_empty());
+                    assert!(owned.construction_plans().is_empty());
+                    assert!(owned.loans().is_empty());
+                    assert!(owned.drops().is_empty());
+                    assert!(owned.clone().validate().is_err());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn nested_rc_copyable_payload_read_preserves_moved_owner_diagnostic() {
+    let text = "fun run(): Int {
+        val outer = Rc(Rc(7))
+        val moved = outer
+        return outer.value.value
+    }";
+    for (_, owned) in checked(text) {
+        assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+        assert!(owned.rc_effects().is_empty());
+        assert!(owned.loans().is_empty());
+        assert!(owned.drops().is_empty());
+        assert!(owned.clone().validate().is_err());
+    }
+}

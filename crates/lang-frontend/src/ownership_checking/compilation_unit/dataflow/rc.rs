@@ -68,6 +68,21 @@ impl Checker<'_> {
                 )?);
                 return Ok(flows);
             }
+            if descriptor.kind() == RcOperationKind::Value
+                && self.typed.copyability(descriptor.payload_type()) == Copyability::Copyable
+                && self.rc_value_receiver(receiver.expression())?.is_some()
+            {
+                // Copying the final payload is legal, but the nested backing owner
+                // must remain borrowed until that copy actually completes.
+                self.diagnostics.push(Diagnostic::new(
+                    self.sources,
+                    Severity::Error,
+                    codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
+                    "nested Rc payload read requires unsupported backing-owner lifetime transport",
+                    primary,
+                )?);
+                return Ok(flows);
+            }
             return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
                 source_unit: self.source_unit.index(),
                 expression: receiver.expression().index(),
