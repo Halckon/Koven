@@ -13,6 +13,7 @@ mod branch_forward_scope;
 mod call_loan_end;
 mod control;
 mod expression;
+mod field_read;
 mod item_traversal;
 mod iteration;
 mod lambda;

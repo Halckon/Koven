@@ -21245,3 +21245,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `0ad4e5d4`，仅增加测试，无生产语义修改。两 provider 同 package models 声明泛型 Left/Right 的同名 value 字段，分别选择 String 消费拒绝、Int Copy 成功、String Borrow 成功；核替换后 Copyability、consumer expression 来源、实际 provider 的完整 UnitSymbolId/异位字段 Span，以及完整 L0132 主 span/label 或 validated capability。
 - 2 provider × 3用法 × 同 root 不同 path / 分 root 同 models/types.ko × 全 inputs 正反顺序 × basic/constant ownership 入口，共48组合。跨文件均为有效 Rooted 布局，不冒称 MemoryDocument；原单文件两入口控制不变。首轮测试 package/path 配置错误已修正，不作为生产红灯。
 - 新精确 FQN 1 passed/48组合，本树重编2.33s；frontend all-targets strict（`loan-observation-test-support`）本树实检1m41s/exit0。独审、fmt/diff-check、docs与尺寸门禁通过；未重复未改的单文件测试，无 native/fault，不推送。
+
+
+### 直接构造父对象的 Copy 字段读取清理
+
+- 基 `8e9fe8a1`。合法 `Holder(7).value` 先前两 ownership 入口均无 parent drop、默认路由 Unsupported，未生成可执行 Program，不据此宣称运行时泄漏。仅支持直接 class construction 及透明 Group，不扩 factory、nullable/nested 或 MoveOnly 字段消费。
+- Unit planner 在非 Place 的正常字段 Copy 读完成后，发布 actual receiver 的 AfterExpression / ungrouped construction Temporary，保 source-qualified identity/origin；Borrow/包装参数保持 CallReturn，return/Abort 未完成构造不新增 parent drop。
+- Refine 要求精确唯一事实及实际 class/field/type/constructor 准入。真实 SSA 红灯揭示 generic required(receiver) 会提前消费该清理点；限定投影分支复用现有 construction/register/lend，随后原 HeapFieldRead、BorrowEnd、parent Drop，未修改通用 owner_loan、IR 或 LLVM。Diverged 在父分配/登记前返回，不伪造清理。
+- 前端事实真实红灯后2项/28组合通过；实际 SSA 两项包含12个基本/constant、Group、有无 deinit 正控与 factory/兼容路由负控，核单次分配、同 owner 唯一 Drop、read/end/drop 顺序及 verify/LLVM。初版 deinit fixture 语法错误已修正，不计生产红灯。前端原 target 与 field-replace/structural 合计31项、既有临时字段借用 SSA1项通过。无 native/fault，未推送。
+- frontend all-targets strict 本树3m12s通过；codegen strict初版1m11s通过。尺寸门禁促使仅新增准入谓词拆为私有constructor_field模块（heap993行），拆分后SSA2项本树重编2m51s通过；修正抽取后尾return的机械lint，最终codegen all-targets strict本树46.16s/exit0。独审通过，Rust尺寸2551文件门禁通过，既有两项历史例外未改；fmt/diff/docs通过。

@@ -187,6 +187,22 @@ impl Builder<'_, '_> {
             Some(receiver) if !rc_payload => self.narrowed_view(receiver)?,
             _ => None,
         };
+        // A direct constructor's receiver cleanup belongs after the field read, not
+        // to `required(receiver)`: that wrapper would consume AfterExpression early.
+        let mut constructor = receiver;
+        while let Some(expression) = constructor {
+            if let (Expression::Group { expression: inner }, _) = self.node(expression)? {
+                constructor = Some(inner);
+            } else {
+                break;
+            }
+        }
+        let constructor = constructor.filter(|expression| {
+            self.inputs
+                .typed
+                .construction(self.unit(*expression))
+                .is_some()
+        });
         let (loan, rc_view_read) = match (view, receiver) {
             (Some(view), _) => (
                 OwnerLoan {
@@ -197,6 +213,16 @@ impl Builder<'_, '_> {
             ),
             // `rc.value.f`: a shared loan of the payload place (SPEC-0359).
             (None, Some(receiver)) if rc_payload => self.rc_payload_loan(receiver, span)?,
+            (None, _) if constructor.is_some() => {
+                let expression = constructor.unwrap();
+                let value = match self.construction(expression, self.span(expression))? {
+                    Lowered::Value(value) => value,
+                    Lowered::Diverged => return Ok(Lowered::Diverged),
+                    Lowered::Unit => return Err(error(LoweringErrorKind::InvalidModel, span)),
+                };
+                self.register_temporary(expression, value)?;
+                (self.lend(value, LoanKind::Shared, span)?, None)
+            }
             (None, _) => (self.owner_loan(owner, LoanKind::Shared, span)?, None),
         };
         let result = self.value(

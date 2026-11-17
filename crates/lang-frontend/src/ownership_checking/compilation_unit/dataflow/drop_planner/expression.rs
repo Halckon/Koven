@@ -300,7 +300,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     } else {
                         DropExpressionUse::Read
                     };
-                    self.expression(receiver, receiver_use, state)
+                    if !self.expression(receiver, receiver_use, state)? {
+                        return Ok(false);
+                    }
+                    if usage != DropExpressionUse::Place {
+                        self.drop_copied_field_constructor(id, receiver)?;
+                    }
+                    Ok(true)
                 }
             }
             Expression::Call {

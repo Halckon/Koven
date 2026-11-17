@@ -9,6 +9,8 @@ use lang_frontend::{
     source::{SourceId, SourceMap},
     type_checking::{check_compilation_unit_types, standard_environments},
 };
+#[path = "ownership_temporary_field_consumption/copy_cleanup.rs"]
+mod copy_cleanup;
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 #[path = "ownership_temporary_field_consumption/source_identity.rs"]
@@ -18,7 +20,12 @@ fn observe(
     text: &str,
     constants: bool,
     rooted: bool,
-) -> (SourceMap, SourceId, CompilationUnitOwnership) {
+) -> (
+    SourceMap,
+    SourceId,
+    CompilationUnitOwnership,
+    lang_frontend::parser::ParsedFile,
+) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("fields.ko", text).unwrap();
     let file = parser_test_assertions::parse_file_twice(&sources, source, "temporary field");
@@ -63,7 +70,7 @@ fn observe(
         }
         owned
     };
-    (sources, source, owned)
+    (sources, source, owned, file)
 }
 
 #[test]
@@ -86,7 +93,7 @@ fn temporary_string_field_consumption_is_rejected() {
                 body.replace("VALUE", if constants { "TEXT" } else { "\"hi\"" })
             );
             for rooted in [false, true] {
-                let (sources, source, owned) = observe(&text, constants, rooted);
+                let (sources, source, owned, _) = observe(&text, constants, rooted);
                 let start = text.rfind(".text").unwrap() + 1;
                 let field = text.find("text:").unwrap();
                 let catalog = DiagnosticCodeCatalog::try_new(&["L0132"]).unwrap();
@@ -133,7 +140,7 @@ fn temporary_field_borrow_and_copy_remain_valid() {
     ] {
         for constants in [false, true] {
             for rooted in [false, true] {
-                let (_, _, owned) = observe(text, constants, rooted);
+                let (_, _, owned, _) = observe(text, constants, rooted);
                 assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
                 assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
             }
@@ -146,7 +153,7 @@ fn erroneous_receiver_does_not_add_a_field_move_diagnostic() {
     let text = "class Holder(val text: String)\nfun make(own text: String): Holder = Holder(text)\nfun use(own text: String): String { val first = make(text); return make(text).text }";
     for constants in [false, true] {
         for rooted in [false, true] {
-            let (_, _, owned) = observe(text, constants, rooted);
+            let (_, _, owned, _) = observe(text, constants, rooted);
             assert_eq!(
                 owned
                     .diagnostics()

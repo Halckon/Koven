@@ -1,4 +1,6 @@
 //! Subset rules for class construction, field reads and `!!`; they mirror the builder.
+mod constructor_field;
+
 use std::collections::BTreeSet;
 
 use lang_frontend::{
@@ -399,6 +401,14 @@ impl Checker<'_, '_> {
                     }
                     self.migrated = true;
                     return true;
+                }
+                let constructor = self.ungrouped(receiver_expression);
+                if typed.construction(self.id(constructor)).is_some() {
+                    return self.constructor_field_read(
+                        receiver_expression,
+                        constructor,
+                        projection.field(),
+                    );
                 }
                 if !self.plain(receiver_expression) {
                     return false;
