@@ -519,8 +519,9 @@ impl BodyChecker<'_> {
             Some(expression),
         )? {
             let error = self.error_type();
+            let mut flow = ConstructionOperandFlow::new(self);
             for argument in arguments {
-                self.check_expression(source, argument.value, Some(error), None, return_type)?;
+                flow.check(self, source, argument.value, Some(error), None, return_type)?;
             }
             return Ok(None);
         }

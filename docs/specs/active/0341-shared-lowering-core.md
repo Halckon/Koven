@@ -21323,3 +21323,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 推导预检查与finish共用私有 `ConstructionOperandFlow`，复用已有 `check_loop_paths` 普通/pending双状态；缓存命中仍推进状态。所有参数仍静态检查、保原泛型推导与诊断；恢复参数委托现有普通调用顺序checker，不从false完成性伪造pending事实。intrinsic单参数路径不作无证据扩展。
 - 新普通回归15源码×MemoryDocument/Rooted，覆盖Pair/sink、显式/推导泛型、命名源码重排、可达break、不可达continue/条件后缀、后缀内层loop及错误suffix；核loop完成性、诊断code，L0084另保原主span。独审确认lambda跳过及缓存规则与现有普通调用一致，不将静态对应宣称为全部pending状态实测。
 - 原源真实红灯1m02s；新15源码双布局绿17.38s，补主span后完整multifile_type_checking295项本树3.26s通过；ownership_construction10、lambda_completion4、while_flow_facts16项通过。frontend all-targets strict（loan-observation-test-support）强制本树1m44s/exit0；独审、fmt/diff、docs979、Rust尺寸2556通过。无native/fault，不推送。
+
+### 存储拒绝构造保恢复路径可达性
+
+- 基 `4c84c9c0`，真实44.84s红灯确认 `Marker<Nothing>(return 7, break)` 在原L0125之外错误增加L0088，合法 `Marker<Int>` 控制先通过。该问题限错误程序的恢复事实与级联诊断，不称合法程序codegen缺陷。
+- 存储拒绝后的参数检查仅复用已有 `ConstructionOperandFlow`；保 `Some(Error)`、原storage recovery标记、原失败返回及无成功construction，不改变存储准入。
+- 新8源码×双布局覆盖真实/不可达break、命名顺序、正常存储、Error expected抑制参数级联、原L0125主span、无descriptor及独立suffix诊断。outside外部名称注册但无类型绑定，依原rejected_call_recovery合同区分raw L0125与final admission L0125+L0165并核outside主span；初fixture缺name注册和随后混用raw/final预期的失败均保日志，未改生产绕过。最终精确绿本树4.03s。
+- 完整multifile_type_checking296项及ownership_construction10项通过；frontend all-targets strict（loan-observation-test-support）强制本树1m59s/exit0。独审、fmt/diff、docs979、Rust尺寸2556通过；无native/fault，不推送。

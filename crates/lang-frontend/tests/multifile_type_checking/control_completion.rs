@@ -357,3 +357,130 @@ fn construction_operands_preserve_reachable_loop_exits() {
         }
     }
 }
+
+#[test]
+fn rejected_construction_storage_keeps_loop_completion() {
+    for (body, has_exit, expected) in [
+        (
+            "loop { Marker<Int>(return 7, break) }",
+            false,
+            [].as_slice(),
+        ),
+        (
+            "loop { Marker<Nothing>(return 7, break) }",
+            false,
+            ["L0125"].as_slice(),
+        ),
+        (
+            "loop { Marker<Nothing>(7, break) }",
+            true,
+            ["L0125", "L0088"].as_slice(),
+        ),
+        ("loop { Marker<Int>(7, break) }", true, ["L0088"].as_slice()),
+        (
+            "loop { Marker<Nothing>(second = return 7, first = break) }",
+            false,
+            ["L0125"].as_slice(),
+        ),
+        (
+            "loop { Marker<Nothing>(7, 8) }",
+            false,
+            ["L0125"].as_slice(),
+        ),
+        (
+            "loop { Marker<Nothing>(return 7, \"bad\") }",
+            false,
+            ["L0125"].as_slice(),
+        ),
+        (
+            "loop { Marker<Nothing>(return 7, outside()) }",
+            false,
+            ["L0125", "L0165"].as_slice(),
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(
+            &mut sources,
+            "loop-completion.ko",
+            &format!(
+                "interface Pattern<T>
+                 class Marker<T>(val first: Int, val second: Int) : Pattern<Rc<T>>
+                 fun choose(flag: Boolean): Int {{ {body} }}"
+            ),
+        );
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "loop-completion.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let (mut name_environment, type_environment) = standard_environments();
+            name_environment.declare_function("outside").unwrap();
+            let names = validated_names(&sources, &inputs, &name_environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+                .expect("type product");
+            let actual: Vec<_> = typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect();
+            // Unbound external signatures are diagnosed by final admission, not raw checking.
+            let raw_expected: Vec<_> = expected
+                .iter()
+                .copied()
+                .filter(|code| *code != "L0165")
+                .collect();
+            assert_eq!(actual, raw_expected, "{body}");
+            if body.contains("outside()") {
+                use lang_frontend::type_checking::{
+                    FinalTypeAdmissionError, complete_compilation_unit_types,
+                };
+                let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+                    complete_compilation_unit_types(
+                        &sources,
+                        &inputs,
+                        &names,
+                        &type_environment,
+                        &typed,
+                    )
+                else {
+                    panic!("unbound suffix must fail final admission")
+                };
+                let final_codes: Vec<_> =
+                    diagnostics.iter().map(|d| d.code().to_string()).collect();
+                assert_eq!(final_codes, expected);
+                assert_eq!(sources.slice(diagnostics[1].primary_span()), Ok("outside"));
+            }
+            for diagnostic in typed.diagnostics() {
+                match diagnostic.code().to_string().as_str() {
+                    "L0125" => assert_eq!(sources.slice(diagnostic.primary_span()), Ok("Nothing")),
+                    "L0165" => assert_eq!(sources.slice(diagnostic.primary_span()), Ok("outside")),
+                    "L0088" => {}
+                    code => panic!("unexpected diagnostic {code}"),
+                }
+            }
+            if body.contains("Marker<Nothing>") {
+                assert!(
+                    typed.constructions().is_empty(),
+                    "rejected storage publishes no construction"
+                );
+            }
+            let (outer, _) = file
+                .ast()
+                .statements()
+                .iter()
+                .filter(|(_, node)| {
+                    matches!(
+                        node.payload(),
+                        lang_frontend::parser::Statement::Loop { .. }
+                    )
+                })
+                .last()
+                .expect("outer loop");
+            let id = lang_frontend::type_checking::UnitStatementId::new(
+                source_unit(&names, source),
+                outer,
+            );
+            assert_eq!(typed.loop_falls_through(id), Some(has_exit), "{body}");
+        }
+    }
+}
