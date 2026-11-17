@@ -21516,3 +21516,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `70675d06`，两原 FQN 基线及保旧双 Unit 对照各1 passed（本树36.67s/3.45s），再替换两处 Single 分析；原源码、closures.ko、标准环境、四阶段 clean 和无 ownership deferred 保持不变。
 - caller-first 成功前置保 AST lambda 数量1、全表 captures 空，以及 typed.calls 至少一个 Function 返回；合法 return 前置保原排序首 AST lambda 的 source-qualified captures 恰1且为 Owned。使用同轮 Unit 类型和捕获产品，无新增生产 API。
 - 这些成功分析观察不等于 pointer return summary；原 caller-first 摘要数量/namedFactory 差异、Deferred 及错误身份见证保留。最终 closure target 74 passed，强制本树 frontend all-target feature strict 1m10s/exit0，独立末审通过。未执行 native/fault，未推送。
+
+### 2026-11-17：借用绑定循环范围扫描缓存
+
+- 基线 `15595b2f`，与整合头 `70675d06` 的相关生产文件相同。仅 Checker 固定 AST 的私有惰性 loop span 缓存；保持 no-carry 短路、三类循环集合、arena 顺序及原 offset-only 包含谓词，诊断与准入不变。
+- 原谓词逐节点及真实 BorrowVal marker 对照覆盖无循环、三类循环、相邻和嵌套；8/32/128 个真实绑定的确定性计数证明 statement 只扫描 S 次。查询成本 O(S+B×L)，无循环 O(S+B)，不宣称整体检查器基准或新增功能支持。
+- 本树两项定向回归通过（重编30.67秒）；原 borrow_result 12、no_carry 1、boundaries 2通过（重编21.40秒）。默认 evidence target 为0项，不计验收；等待外部构建结束后，启用 loan-observation-test-support 的 evidence 本树重编21.57秒、真实1项通过，强制本树 frontend all-target 同 feature strict 通过。独立生产及测试末审通过；无 native/fault，不推送。

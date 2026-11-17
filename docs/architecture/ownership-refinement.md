@@ -187,3 +187,7 @@ Unit Phase 3 对该已知受限形状返回 L0164，失败清空 Rc/loan/drop �
 同一受限 backing-owner 链上的 `outer.value.value`，最终 payload 明确 Copyable 时也以 L0164
 报告当前未实现的嵌套读取，而非内部 place 错误；仍不授予合法执行能力。MoveOnly/未知 payload
 与其它身份错误不并入此边界，已有 receiver 错误保持优先，失败后原成功前缀事实一并撤销。
+
+借用结果绑定的循环范围查询按 Checker 固定 AST 惰性缓存三类循环 span；保持原
+no-carry 特许短路、offset-only 包含判断和诊断，不新增准入证明。此查询的 statement
+扫描从每次绑定重扫改为一次；B 次查询成本为 O(S+B×L)，不代表整个检查器线性。

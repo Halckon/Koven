@@ -10,6 +10,7 @@ mod callable_provenance;
 mod closure;
 mod construction;
 mod loan_producers;
+mod loop_spans;
 use construction::collect_construction_descriptors;
 mod container;
 mod control;
@@ -616,6 +617,7 @@ struct Codes {
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
     borrow_call_admission: std::cell::OnceCell<borrow_call_admission::AdmissionIndex>,
+    loop_spans: loop_spans::LoopSpans,
     #[cfg(feature = "d10-catalog-experiment")]
     loan_producers: loan_producers::Collection,
     #[cfg(feature = "d10-catalog-experiment")]
@@ -833,6 +835,7 @@ impl<'a> Checker<'a> {
             no_carry_proofs: Vec::new(),
             borrow_results: Default::default(),
             borrow_call_admission: std::cell::OnceCell::new(),
+            loop_spans: loop_spans::LoopSpans::default(),
             range_producers: Vec::new(),
             current_borrow_return: None,
             borrow_return_origins: Vec::new(),
