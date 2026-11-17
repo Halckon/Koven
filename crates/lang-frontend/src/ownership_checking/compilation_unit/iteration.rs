@@ -127,6 +127,8 @@ impl UnitIterationExitPlan {
 pub struct UnitIterationOwnershipPlan {
     pub(super) descriptor: UnitSequentialIterationDescriptor,
     pub(super) source: crate::ownership_checking::IterationSource<UnitLoanTarget, UnitExpressionId>,
+    // Same-round producer identity behind transparent source groups; never a public guess.
+    pub(super) range_source_call: Option<UnitExpressionId>,
     pub(super) source_access: UnitIterationSourceAccess,
     pub(super) bindings: Vec<UnitOwnershipBindingDescriptor>,
     pub(super) exits: Vec<UnitIterationExitPlan>,

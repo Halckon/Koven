@@ -59,8 +59,13 @@ impl Checker<'_> {
             .is_some_and(|plan| plan.delivery() == crate::type_checking::ParameterMode::Value);
         let errors = self.diagnostics.len();
         let previous = self.allowed_borrow_call;
-        if self.range_expression_is_proven(source) {
-            self.allowed_borrow_call = Some(source);
+        let range = crate::ownership_checking::borrow_result::borrow_result_call(
+            self.parsed,
+            source,
+            |actual| self.range_expression_is_proven(actual),
+        );
+        if let Some(actual) = range {
+            self.allowed_borrow_call = Some(actual);
         }
         let checked = if map_descriptor.is_some() {
             self.check_map_iteration_source(source, state)
@@ -79,13 +84,13 @@ impl Checker<'_> {
         };
         self.allowed_borrow_call = previous;
         let mut prefix = checked?;
-        if prefix.next.is_some()
+        if let Some(actual) = range
+            && prefix.next.is_some()
             && self.diagnostics.len() == errors
-            && self.range_expression_is_proven(source)
         {
-            self.record_range_use(source, crate::ownership_checking::RangeUseSite::Iteration);
+            self.record_range_use(actual, crate::ownership_checking::RangeUseSite::Iteration);
             self.continue_range_source(
-                source,
+                actual,
                 ActiveLoanOwner::IterationSource(UnitStatementId::new(self.source_unit, statement)),
                 &mut prefix,
             );
@@ -117,10 +122,11 @@ impl Checker<'_> {
         } else {
             None
         };
+        let actual_source = range.unwrap_or(source);
         let target = if numeric {
             None
         } else {
-            Some(if let Some(fact) = self.range_use(source) {
+            Some(if let Some(fact) = self.range_use(actual_source) {
                 fact.origin().clone()
             } else if let Some(place) = self.place(source)? {
                 let place = if map_descriptor.is_some() {
@@ -274,6 +280,9 @@ impl Checker<'_> {
                 statement,
                 UnitIterationOwnershipPlan {
                     descriptor,
+                    range_source_call: range
+                        .filter(|actual| self.range_use(*actual).is_some())
+                        .map(|actual| self.unit_expression(actual)),
                     source: target.map_or_else(
                         || {
                             crate::ownership_checking::IterationSource::OwnedSnapshot(

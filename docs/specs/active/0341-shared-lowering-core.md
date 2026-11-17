@@ -21412,3 +21412,13 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 完整保正常 return operand（含 Group）、lambda 原排序序号、factory call/result 两处 FactoryResult、nested 实际 return 的唯一摘要；无正常返回的 factory 保单查 None、全 pointer 表空及两处 origin None。multiple/capturing 仅断言 pointer 表空，不把既有 closure 摘要能力误称不存在。
 - 最新基线六项各 1 passed（原树重编39.33s）；保旧双 Unit 六项各 1 passed（修正后本树7.38s）。首次 probe 是测试 helper 未经 `types()` 访问 validated 产品导致编译错误，修正后才计结果，失败日志保留在仓库外。独审确认完整原观察映射，不扩大为通用 ABI 等价。
 - 最终 contract 普通目标15项通过（本树重编6.54s），强制本树 frontend all-target strict（loan-observation-test-support）1m34s/exit0；独审确认其余九个测试正文逐字不变。fmt/diff、docs980与Rust尺寸2565（原两项例外）通过；未运行native/fault，不推送。
+
+### 分组范围迭代的真实调用身份与 sealed 交付
+
+- 基 `4610cd41`，原源码红测在无分组正控通过后，单层 Group 的立即 range 迭代被 L0164 错拒；实际 producer 是内层 Call，原授权按外 Group 查事实。仅复用 Group-only `borrow_result_call`，前端授权、range-use、根续接及 planner pending 移交锚定实际 Call，原 source 单次求值、descriptor/span 和同根检查不变。
+- 首轮 FE 普通事实通过，但 SSA 严格入口进一步发现分组临时根的 validator 仍要求 Call 等于外层 source。具体 case 日志确认无分组临时根和分组具名根均通过，不能归因于最初猜测的无关 owner carry。保留失败证据后新增仅内部 `range_source_call`，由唯一生产点生成并随同轮模板 clone；无公开 getter、无第二套 AST 推导或 E3 生产修改。
+- sealed 校验保同 statement 模板精确相等、Call/argument/source 的 source-unit 一致、唯一精确 Call 的 Iteration fact、原 Shared loan(call,argument) 与完整 root 对应。非 RangeView 不允许映射，临时 Range 必须有映射，已绑定具名 view 可无映射；没有按任意同根事实绕过拒绝。
+- 前端正矩阵为 0/1/3 层 Group、具名/临时根、耗尽/break/continue/return 的24源×双Unit，验证真实 source loan、原 Group descriptor、每个终止计划的 provider/source end 和临时根 Drop 恰一次，且 sealed validate 成功。负控覆盖活根 L0135 数量与 primary 切片、return/Abort/纯 break/continue 前缀无 provider/use，条件混合只验证正常路径的静态计划，不声称运行时逐路径验证。
+- Return 前缀最初全文件 Named drop 计数误含 helper consume 的 FunctionEntry owner，实证两者 target 不同；最终按实际 ControlTransfer 清理并断言同 target 全表唯一，未删除真实清理。原 validator 篡改负控保留并扩 Group 层数与缺失/错误 Call；仅准备 CI，本地不执行篡改。
+- 最终 FE ownership_range_construction 全23项通过；已有 refine 路由的 SSA/LLVM 为24源×双布局48组合通过。临时根 SSA fixture 不夹带额外无关 owner；未做 native 执行、运行时 Abort 或 fault，不将静态计划数说成实际 IR Drop 计数。
+- 五个普通邻控 target 共242项通过；强制本树 frontend all-target feature strict 2m17s通过。外部测试占槽时守门有限退出，恢复空窗后仅续未完成项：最终 SSA 矩阵重编38.10s/1 passed（48组合），codegen default all-target strict强制本树51.91s/exit0。独审、fmt/diff、docs980和Rust尺寸2567（原两项例外）通过；未推送。

@@ -846,3 +846,6 @@ fn grouped_nested_range_source_keeps_real_root_identity_and_cleanup() {
         }
     }
 }
+
+#[path = "ownership_range_construction/grouped_iteration.rs"]
+mod grouped_iteration;
