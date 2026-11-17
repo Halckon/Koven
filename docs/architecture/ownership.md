@@ -34,7 +34,7 @@ Abort 不展开；常量 Group 的 drop 仍归一到实际读取。
 String 二元表达式在右操作数求值期间保留左 temporary 的 pending 清理义务，以及左 named
 owner 的借用保护；正常完成在 `AfterBinaryOperands` 逆序清理，named 是否仍 live 以整个
 binary 的后继为准。嵌套完成只解除自身保护；不继续的左/右操作数停止后续 drop traversal，
-return/break/continue 清理已求值前缀，Abort 不展开。
+return/break/continue 清理已求值前缀，Abort 不展开。Unit construction dataflow 在无正常后继后停止后续参数处理，不能把不可达的 Nothing 后缀登记为 terminating operand；已终止但保留名义类型的嵌套构造仍不据此发布外层完整 plan，现有 Nothing 事实合同不扩展。
 
 基础 Unit 共用类型产物的布尔正常结果。短路 RHS 提前退出时保留可达旁路，析构边仍为
 0=求值 RHS 后正常完成、1=旁路。专用常量入口显式启用独立短路计划，空常量 unit 也启用。

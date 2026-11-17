@@ -505,3 +505,110 @@ fn checked_in_phase3_construction_fixtures_execute_pass_and_fail_cases() {
         }
     }
 }
+
+#[test]
+fn unreachable_construction_suffix_is_not_a_terminating_operand() {
+    for exit in ["return 9", "stop()"] {
+        for (middle, child_type) in [
+            (format!("Inner({exit})"), "Inner"),
+            (format!("((Inner({exit})))"), "Inner"),
+            (format!("Middle(Inner({exit}))"), "Middle"),
+        ] {
+            let text = format!(
+                "class Inner(val value: Int)\nclass Middle(val child: Inner)\nclass Outer(val prefix: String, val child: {child_type}, val tail: Int)\nfun stop(): Nothing = stop()\nfun entry(): Int {{ Outer(\"prefix\", {middle}, stop()); return 0 }}"
+            );
+            check_each(&text, |sources, parsed, owned| {
+                assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+                let origin = |id: lang_frontend::type_checking::UnitExpressionId| {
+                    sources
+                        .slice(
+                            parsed
+                                .ast()
+                                .expressions()
+                                .get(id.expression())
+                                .unwrap()
+                                .span(),
+                        )
+                        .unwrap()
+                };
+                let plans = owned.construction_plans();
+                let inner = plans
+                    .iter()
+                    .find(|p| origin(p.construction()) == format!("Inner({exit})"))
+                    .expect("real inner terminating plan");
+                assert_eq!(inner.terminating_operand().map(origin), Some(exit));
+                assert!(inner.deliveries().is_empty());
+                assert!(inner.root_obligation().is_none());
+                assert!(
+                    !plans
+                        .iter()
+                        .any(|p| origin(p.construction()).starts_with("Outer(")
+                            || origin(p.construction()).starts_with("Middle(")),
+                    "incomplete enclosing plan must remain absent"
+                );
+                let drops = owned
+                    .drops()
+                    .iter()
+                    .filter(|d| sources.slice(d.value_origin()) == Ok("\"prefix\""))
+                    .collect::<Vec<_>>();
+                assert_eq!(drops.len(), usize::from(exit == "return 9"));
+                if exit == "return 9" {
+                    let UnitDropPoint::ControlTransfer(point) = drops[0].point() else {
+                        panic!("return cleanup")
+                    };
+                    assert_eq!(origin(point), exit);
+                    let UnitDropTarget::Temporary(target) = drops[0].target() else {
+                        panic!("prefix temporary")
+                    };
+                    assert_eq!(origin(target), "\"prefix\"");
+                }
+            });
+        }
+    }
+}
+
+#[test]
+fn reachable_construction_terminator_preserves_conditional_and_ordered_delivery() {
+    for middle in [
+        "Inner(1)",
+        "if (flag) { Inner(return 9) } else { Inner(1) }",
+    ] {
+        let text = format!(
+            "class Inner(val value: Int)\nclass Outer(val prefix: String, val child: Inner, val tail: Int)\nfun stop(): Nothing = stop()\nfun entry(flag: Boolean): Int {{ Outer(\"prefix\", {middle}, stop()); return 0 }}"
+        );
+        check_each(&text, |sources, parsed, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            let origin = |id: lang_frontend::type_checking::UnitExpressionId| {
+                sources
+                    .slice(
+                        parsed
+                            .ast()
+                            .expressions()
+                            .get(id.expression())
+                            .unwrap()
+                            .span(),
+                    )
+                    .unwrap()
+            };
+            let plan = owned
+                .construction_plans()
+                .iter()
+                .find(|p| origin(p.construction()).starts_with("Outer("))
+                .expect("reachable final operand");
+            assert_eq!(plan.terminating_operand().map(origin), Some("stop()"));
+            assert!(plan.root_obligation().is_none());
+            let delivered = plan
+                .deliveries()
+                .iter()
+                .map(|d| {
+                    (
+                        d.evaluation_index(),
+                        d.parameter_index(),
+                        origin(d.argument()),
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(delivered, [(0, 0, "\"prefix\""), (1, 1, middle)]);
+        });
+    }
+}

@@ -21295,3 +21295,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 冻结普通成功合同后原源真红MissingFact；修复后72组合覆盖语句、initializer及既有字段对照，Return/stop、空/Temporary String/具名Copy+Move前缀、命名重排、Group和不可达后缀；均核实际entry Refine、无父分配/read、前缀owner精确Drop及返回数量、verify/LLVM。原48个字段前缀及正常factory/direct邻控保留。
 - 直接class返回4组合精确核Return operand为原fallback参数，无父分配；stop分支诊断实证第一条Drop属于未用fallback入口参数，前缀String随后才创建。对照保该FunctionEntry职责及prefix不被Abort清理，不以总Drop数猜测错误；Return分支唯一Drop属于prefix。Rc/Box/value class共6组合仅证明entry未获本class路线授权，不声称其lowering结果。
 - 完整模块10项本树36.41s通过；按独审补返回operand后对应exact本树45.77s通过。codegen all-targets strict（loan-observation-test-support）本树59.86s/exit0，含frontend依赖检查。独审、fmt/diff、docs979及Rust尺寸2555通过，heap999行，历史例外未改。无native/fault，不推送。
+
+### Construction producer 不登记不可达后缀终止身份
+
+- 基 `96de2e58`，普通原源 `Outer("prefix", Inner(return 9), stop())` 实证：Inner正确发布return终止，但Outer把从未执行的stop后缀发布成terminating operand。冻结不可登记后缀的合同后本树44.11s真红；不推断发生运行时泄漏或扩大E3准入。
+- Unit dataflow每轮处理construction参数前，若已无正常后继即停止。原 `chain_expression` 本来也不检查该不可达后缀；问题是随后无条件Nothing识别仍发布事实。三行修复保实际到达Nothing的当轮发布、诊断门和条件正常分支；名义类型但已终止的嵌套构造仍不据此获得外层完整plan，公开Nothing事实合同未扩。
+- 两项新回归16组合覆盖双source布局、Inner Return/stop、Group、类型匹配的Middle链式嵌套、正常和条件可继续分支；保真实Inner plan、Outer/Middle无假plan、可达stop的精确source-order delivery和无root。Return仅清理真实prefix Temporary及对应ControlTransfer，stop不展开prefix清理。
+- 完整 `ownership_construction` 10项本树8.59s通过；`construction_completion` 3项含不可达后缀类型诊断、`source_construction` 7项含recovery/推断/跨文件邻控通过。frontend all-targets strict（loan-observation-test-support）强制本树1m37s/exit0。独审、fmt/diff、docs979、Rust尺寸2555通过；无native/fault，不推送。第一次绿测因外部容器占槽有限等待退出，未启动Cargo，不计验收。

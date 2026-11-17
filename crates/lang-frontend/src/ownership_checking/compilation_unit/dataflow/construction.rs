@@ -171,6 +171,9 @@ impl Checker<'_> {
         let mut deliveries_complete = true;
 
         for argument in arguments {
+            if flows.next.is_none() {
+                break;
+            }
             let parameter_span = argument
                 .parameter_symbol()
                 .map(|symbol| self.symbol_span(symbol))
