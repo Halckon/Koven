@@ -112,6 +112,10 @@ impl Checker<'_, '_> {
                 return false;
             }
         }
-        self.expression(terminating.expression())
+        if !self.expression(terminating.expression()) {
+            return false;
+        }
+        self.migrated = true;
+        true
     }
 }

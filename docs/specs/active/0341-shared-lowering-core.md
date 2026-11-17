@@ -21287,3 +21287,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Builder复用既有construction lowering并强制Diverged，发生在runtime field映射、父owner/loan/read前。48组合覆盖空/String temporary/Copy+Move前缀、命名重排、不可达后缀、return/stop及0/1/2层Group，basic/constant两入口均核实际entry Refine、无父分配/read、前缀String及return唯一Drop/Abort不展开、返回数量、SSA验证/LLVM。
 - 新standalone负控最初误预计Unsupported；独立 `00da0fb7` 同源4组合真实返回MissingFact及完整构造span，定位未改的unit_lower在求值前拒绝terminating plan。最终负控保该kind/span和entry不进Refine，明确仅既有兼容边界而非语言规范；补正helper的package前缀后通过。未扩该路径或其他lender。
 - 最终完整模块8项本树重编52.75s通过，保原direct/factory正常与factory终止/借用清理及compatibility控制。一次共享target误复用基线7项被计数守卫拒绝，不计候选通过；后续强制本树编译。codegen all-targets strict（loan-observation-test-support）本树1m24s/exit0，含frontend依赖检查。独审、fmt/diff、docs979及Rust尺寸2555通过，历史例外未改。无native/fault，不推送。
+
+### 普通 class 构造的真实终止前缀准入
+
+- 基 `7dc47f42`，原standalone提前退出的MissingFact是兼容实现拒绝terminating plan的已证能力缺口，不是须永久兼容的语言合同。可见215个worktree四个关键构造文件无dirty；不能据此排除不可见/已提交并行工作。本片不改兼容unit_lower或新建清理算法。
+- 普通class construction准入复用前批完整真实plan谓词，只有全部前缀交付及终止表达式检查成功才置migrated。正常完整root门、函数整体drops_supported/借用/返回准入保留，不新增pending-owner白名单，不扩非class。
+- 冻结普通成功合同后原源真红MissingFact；修复后72组合覆盖语句、initializer及既有字段对照，Return/stop、空/Temporary String/具名Copy+Move前缀、命名重排、Group和不可达后缀；均核实际entry Refine、无父分配/read、前缀owner精确Drop及返回数量、verify/LLVM。原48个字段前缀及正常factory/direct邻控保留。
+- 直接class返回4组合精确核Return operand为原fallback参数，无父分配；stop分支诊断实证第一条Drop属于未用fallback入口参数，前缀String随后才创建。对照保该FunctionEntry职责及prefix不被Abort清理，不以总Drop数猜测错误；Return分支唯一Drop属于prefix。Rc/Box/value class共6组合仅证明entry未获本class路线授权，不声称其lowering结果。
+- 完整模块10项本树36.41s通过；按独审补返回operand后对应exact本树45.77s通过。codegen all-targets strict（loan-observation-test-support）本树59.86s/exit0，含frontend依赖检查。独审、fmt/diff、docs979及Rust尺寸2555通过，heap999行，历史例外未改。无native/fault，不推送。

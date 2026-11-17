@@ -265,8 +265,11 @@ impl Checker<'_, '_> {
         ok
     }
 
-    /// A plain-class construction whose single plan delivers every field in order.
+    /// A plain-class construction with a complete root or a proven terminating prefix.
     pub(super) fn construction(&mut self, expression: ExpressionId) -> bool {
+        if self.terminated_construction(expression) {
+            return true;
+        }
         let id = self.id(expression);
         let typed = self.inputs.typed;
         let Some(descriptor) = typed
