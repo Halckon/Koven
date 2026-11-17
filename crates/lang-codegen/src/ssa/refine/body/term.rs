@@ -3,7 +3,7 @@ use super::{BlockRef, Slot};
 use crate::ssa::model::{CheckedArithmeticOperator, SsaTypeId};
 
 #[derive(Clone, Debug)]
-pub(super) enum RAbort {
+pub(crate) enum RAbort {
     CheckedArithmetic {
         operator: CheckedArithmeticOperator,
         divisor: Slot,
@@ -25,7 +25,7 @@ pub(super) enum RAbort {
 }
 
 #[derive(Clone, Debug)]
-pub(super) enum RTerm {
+pub(crate) enum RTerm {
     Goto(BlockRef),
     Branch {
         condition: Slot,
@@ -51,7 +51,7 @@ pub(super) enum RTerm {
 }
 
 impl RTerm {
-    pub(super) fn operands(&self) -> Vec<Slot> {
+    pub(crate) fn operands(&self) -> Vec<Slot> {
         match self {
             Self::Goto(_) | Self::Return(None) | Self::Unreachable => Vec::new(),
             Self::Abort(RAbort::Error { message }) => vec![*message],
@@ -68,7 +68,7 @@ impl RTerm {
         }
     }
 
-    pub(super) fn successors(&self) -> Vec<BlockRef> {
+    pub(crate) fn successors(&self) -> Vec<BlockRef> {
         match self {
             Self::Goto(target) => vec![*target],
             Self::Branch {

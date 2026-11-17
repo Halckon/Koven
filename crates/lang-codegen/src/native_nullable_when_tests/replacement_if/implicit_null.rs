@@ -421,6 +421,7 @@ fun see(value: Resource): Unit { println("see"); println(value.label) }
 fun run(own input: Resource?, own independent: Resource): Unit {
     var x = input
     when (x) { null -> { println("old-null") }; else -> { println("old-present") } }
+    for (item in listOf("kept")) {}
     if (x != null) {
         see(independent)
         x = make()

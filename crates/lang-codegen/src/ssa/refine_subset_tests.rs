@@ -1,7 +1,5 @@
 //! SPEC-0350 routing: which functions the refinement layer lowers, and that the choice
 //! and its output are independent of input order.
-mod nullable_when;
-
 use lang_frontend::{
     name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     source::SourceMap,

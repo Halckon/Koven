@@ -1,15 +1,15 @@
 //! Slot-based refined CFG: every move, drop and loan is an explicit statement.
 #[path = "body/term.rs"]
 mod term;
-pub(super) use term::{RAbort, RTerm};
 use lang_frontend::{
     ownership_checking::{
-        UnitLoopBreakBranchNoCarryFact, UnitLoopBreakPrefixFact, UnitLoopBranchNoCarryFact,
+        UnitLoopBranchNoCarryFact, UnitLoopBreakBranchNoCarryFact, UnitLoopBreakPrefixFact,
         UnitLoopCounterBranchNoCarryFact, UnitLoopCounterBreakBranchNoCarryFact,
         UnitLoopPrefixCounterBreakFact,
     },
     source::Span,
 };
+pub(super) use term::{RAbort, RTerm};
 
 use crate::ssa::model::{
     CheckedArithmeticOperator, ComparisonOperator, EntityType, FunctionId, IntegerBitwiseOperator,
