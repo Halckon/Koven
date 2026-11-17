@@ -32,6 +32,9 @@ mod exclusive_lifetime;
 #[path = "ownership_closures/capability_unit.rs"]
 mod capability_unit;
 
+#[path = "ownership_closures/shared_lifetime_unit.rs"]
+mod shared_lifetime_unit;
+
 #[path = "ownership_closures/parameter_modes_unit.rs"]
 mod parameter_modes_unit;
 
@@ -463,7 +466,6 @@ fn shared_capture_loan_ends_after_the_closure_last_use() {
                        val invoked = run(closure)\n\
                        val moved = take(item)\n\
                    }";
-    checked(passing);
 
     let failing = "class Resource {}\n\
                    fun inspect(item: Resource): Unit {}\n\
@@ -474,7 +476,6 @@ fn shared_capture_loan_ends_after_the_closure_last_use() {
                        val moved = take(item)\n\
                        val invoked = run(closure)\n\
                    }";
-    assert_eq!(codes(&analyzed(failing).4), ["L0135"]);
 
     let dropping = "class Resource {}\n\
                     fun inspect(item: Resource): Unit {}\n\
@@ -483,26 +484,7 @@ fn shared_capture_loan_ends_after_the_closure_last_use() {
                         val closure: () -> Unit = { val read = inspect(item) }\n\
                         val invoked = run(closure)\n\
                     }";
-    let (_, _, names, _, owned) = checked(dropping);
-    let item = names
-        .symbols()
-        .iter()
-        .rfind(|candidate| candidate.name() == "item")
-        .expect("releaseOnly item")
-        .id();
-    let closure = symbol(&names, "closure");
-    let call_return_drops = owned
-        .drops()
-        .iter()
-        .filter_map(|drop| match drop.point() {
-            DropPoint::CallReturn(_) => Some(drop.target()),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        call_return_drops,
-        [DropTarget::Named(closure), DropTarget::Named(item)]
-    );
+    shared_lifetime_unit::check(passing, failing, dropping);
 }
 
 #[test]

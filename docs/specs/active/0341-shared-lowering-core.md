@@ -21472,3 +21472,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 保六个 Transferable、六个 NotTransferable 及重复 packet 断言。原 helper 使用首个同名 local symbol，字段/payload 可能先于函数参数；Unit 按同源 NameResolution 原 SymbolId 在现成签名参数/字段/枚举 payload 中匹配唯一真实 UnitSymbolId，再查 symbol_type 与 owned.transferability，不以同名参数或相同能力值替代身份。
 - 跨线程保完整有序 `[L0139,L0139]`、每个非空 call 首参 crosses_thread，以及普通源码同名 dispatch 无 ownership 诊断。没有把测试名解读为额外的 Copyability 断言，也没有新增原本不存在的无 effect 断言；失败路径保 basic validated types 与 raw ownership，不强加 complete。
 - 最终原 closure 普通 target 74 passed（本树重编4.89s），强制本树 frontend all-target `loan-observation-test-support` strict 1m24s/exit0。独审、fmt/diff、docs980及Rust尺寸2570（原两项例外）通过；无native/fault执行，不推送。
+
+
+### 2026-11-17：Shared capture 最后使用消费者收敛
+
+- 基 `95071651`，原 `shared_capture_loan_ends_after_the_closure_last_use` 三源基线1 passed（本树1m03s），保 Single 的双 Unit 对照1 passed（本树6.21s）后，仅退休该项 Single 分析。原源码、closures.ko、环境和前置阶段 clean/basic validated types 不变，不改生产或公开 API。
+- MemoryDocument/Rooted 均保成功源码无 ownership 诊断、失败源码完整 `[L0135]`，以及整个 CallReturn drop 表恰为 closure、releaseOnly item 两项且顺序不变。预期 owner 从原 NameResolution 的首个 closure/末个 item 对应真实 names 引用匹配 source-qualified 身份，不从被测 drops 反推；额外断言两项都指向实际 `run(closure)` AST Call。
+- 此处验证 drop 合同，不冒称实际 loan-end 事件；普通 expected move 的真实 CallReturn loan-end 旧见证和 Shared This 的 L0135/L0134 差异负控保持不变。
+- 最终原 closure 普通 target 74 passed（本树5.04s）；强制本树 frontend all-target `loan-observation-test-support` strict 1m07s/exit0，独立末审无阻塞。未执行 native/fault，未推送。
