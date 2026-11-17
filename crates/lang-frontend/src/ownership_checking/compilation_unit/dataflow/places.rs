@@ -200,7 +200,7 @@ impl Checker<'_> {
         self.place(expression)
     }
 
-    fn rc_value_receiver(
+    pub(super) fn rc_value_receiver(
         &self,
         expression: ExpressionId,
     ) -> Result<Option<ExpressionId>, OwnershipCheckingError> {

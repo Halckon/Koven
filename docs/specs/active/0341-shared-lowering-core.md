@@ -21487,3 +21487,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `2ab88c58`，原单项 FQN 基线1 passed（本树39.24s），完整保旧双 Unit 对照1 passed（本树5.31s）后仅替换该消费者。原源码与标准环境不变；保留相邻 Deferred、caller-first 摘要/原始类型及错误分析身份的 Single 见证，不修改生产或公开 API。
 - 双布局复用现有 Unit CFG 前置，保四阶段 clean/无 ownership deferred；四个 alias/group 表达式保真实 expression、Lambda 来源与精确 span。扫描全部原 AST forwarded 引用，来源必须为 relay 签名的实际参数，并核 source-unit 与原 NameResolution 首个同名 SymbolId；对整个 callable origins 表逐项核同轮表达式类型为 Function，非只核选定表达式。
 - 最终原 closure target 74 passed；强制本树 frontend all-target `loan-observation-test-support` strict 1m08s/exit0，独立末审无阻塞。无 native/fault 执行，未推送。
+
+### 2026-11-17：嵌套 Rc payload share 的结构化受限诊断
+
+- 独立基线 `2ab88c58`。真实红测 `outer = Rc(Rc(7)); shared = outer.value.share()` 在 Phase 2 complete/validate 成功后，Phase 3 返回 `InvalidUnitArgumentPlace`；原四项 Rc 正负控通过。红测首个 Rooted 入口即停止，不把尚未执行的 MemoryDocument 记为已复现。
+- 最小修复仅在原 place/temporary 均不可解析、实际 Share receiver 为同源 Value descriptor（允许 Group）时返回 L0164；其余内部错误与既有支持不变。复用原 payload receiver 查询，仅扩大模块内可见性。不调用 planner、不发布部分事实，不把结构化拒绝声称为嵌套 share 合法功能完成。
+- 六份源码各经 Rooted/MemoryDocument：无 Group、一层、两层 Group，分别带或不带前缀合法 `outer.share()`。保 Phase 2 准入，核单条 L0164/准确 call span、Rc effects/loans/drops/construction 清空及 ownership validate 拒绝；原 Name share、payload MoveOnly 提取、moved owner 与 inout 负控保留。
+- `ownership_rc` 全 target 5 passed（本树重编 5.08 秒）；强制本树 frontend all-target `loan-observation-test-support` strict 通过（40.57 秒）。独立设计与代码末审通过。无 native/fault 执行、未推送。
+- 完整支持另需联合 E3 核真实 payload owner 链、retain 前 backing 存活、retain 后清理及非 Name receiver 的 subset/builder 消费；本片不实现或批准这些扩展。

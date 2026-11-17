@@ -179,3 +179,7 @@ source 清理后才新建 aux place/loan、独立消费并 End/Drop；完整十�
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、
 `llvm/runtime/inline_nullable.rs`；测试在 `ssa/refine_tests.rs` 与 `llvm/inline_nullable_tests.rs`。
+
+`outer.value.share()` 的嵌套 Rc payload receiver（含 Group）仍无完整 backing-owner 生命周期运输。
+Unit Phase 3 对该已知受限形状返回 L0164，失败清空 Rc/loan/drop 等事实并拒绝 validated capability，
+不再返回内部 place 错误；这不是嵌套 share 的合法执行支持，E3 非 Name receiver 与 retain/drop 顺序仍待联合接通。

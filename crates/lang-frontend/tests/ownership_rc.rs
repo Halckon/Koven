@@ -175,3 +175,31 @@ fn rc_payload_is_not_an_inout_place() {
         assert!(owned.rc_effects().is_empty());
     }
 }
+
+#[test]
+fn nested_rc_payload_share_reports_unsupported_lifetime_without_partial_facts() {
+    for receiver in ["outer.value", "(outer.value)", "((outer.value))"] {
+        for prefix in ["", "val retained = outer.share()"] {
+            let call = format!("{receiver}.share()");
+            let text = format!(
+                "fun run(): Int {{
+                val outer = Rc(Rc(7))
+                {prefix}
+                val shared = {call}
+                return shared.value
+            }}"
+            );
+            for (operations, owned) in checked(&text) {
+                assert_eq!(operations, if prefix.is_empty() { 3 } else { 4 });
+                assert_eq!(codes(owned.diagnostics()), ["L0164"]);
+                let span = owned.diagnostics()[0].primary_span();
+                assert_eq!(text.get(span.start()..span.end()), Some(call.as_str()));
+                assert!(owned.rc_effects().is_empty());
+                assert!(owned.construction_plans().is_empty());
+                assert!(owned.loans().is_empty());
+                assert!(owned.drops().is_empty());
+                assert!(owned.clone().validate().is_err());
+            }
+        }
+    }
+}

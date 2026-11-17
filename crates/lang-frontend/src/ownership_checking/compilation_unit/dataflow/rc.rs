@@ -1,7 +1,7 @@
 //! Intrinsic Rc retain 与 payload-borrow 的 source-qualified effect。
 
 use crate::{
-    diagnostic::{Diagnostic, Severity},
+    diagnostic::{Diagnostic, Severity, codes},
     ownership_checking::RcOwnershipEffectKind,
     parser::Expression,
     type_checking::{Copyability, RcOperationKind, UnitRcOperationDescriptor},
@@ -54,6 +54,20 @@ impl Checker<'_> {
             .temporary_expression_origin(receiver.expression())?
             .is_none()
         {
+            if descriptor.kind() == RcOperationKind::Share
+                && self.rc_value_receiver(receiver.expression())?.is_some()
+            {
+                // This is a known payload borrow, not a malformed source identity.
+                // Retaining through it needs backing-owner lifetime transport first.
+                self.diagnostics.push(Diagnostic::new(
+                    self.sources,
+                    Severity::Error,
+                    codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
+                    "sharing an Rc payload requires unsupported backing-owner lifetime transport",
+                    primary,
+                )?);
+                return Ok(flows);
+            }
             return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
                 source_unit: self.source_unit.index(),
                 expression: receiver.expression().index(),
