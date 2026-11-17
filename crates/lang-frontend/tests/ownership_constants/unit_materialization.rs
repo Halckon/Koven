@@ -11,7 +11,10 @@ use lang_frontend::{
     type_checking::{ConstEnabledTypedUnit, check_compilation_unit_types, standard_environments},
 };
 
-fn checked(text: &str, rooted: bool) -> (SourceMap, ConstEnabledTypedUnit, ConstEnabledOwnedUnit) {
+pub(super) fn checked(
+    text: &str,
+    rooted: bool,
+) -> (SourceMap, ConstEnabledTypedUnit, ConstEnabledOwnedUnit) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("constants.ko", text).unwrap();
     let parsed = super::parser_test_assertions::parse_file_twice(

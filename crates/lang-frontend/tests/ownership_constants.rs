@@ -12,6 +12,8 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
+#[path = "ownership_constants/unit_cleanup_order.rs"]
+mod unit_cleanup_order;
 #[path = "ownership_constants/unit_materialization.rs"]
 mod unit_materialization;
 
@@ -98,22 +100,11 @@ fun use(): Unit {
 
 #[test]
 fn string_binary_operands_drop_materializations_in_reverse_order() {
-    let (sources, ownership) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hello"
 fun use(): Boolean = (TEXT + TEXT) == TEXT
-"#,
-    );
-    assert_eq!(ownership.drops().len(), 4);
-    assert!(ownership.drops().iter().all(|drop| {
-        matches!(drop.target(), DropTarget::Temporary(_))
-            && matches!(drop.point(), DropPoint::AfterBinaryOperands(_))
-    }));
-    let drops = ownership.drops();
-    assert_eq!(drops[0].point(), drops[1].point());
-    assert!(drops[0].value_origin().start() > drops[1].value_origin().start());
-    assert_eq!(sources.slice(drops[0].value_origin()).unwrap(), "TEXT");
-    assert_eq!(sources.slice(drops[1].value_origin()).unwrap(), "TEXT");
+"#;
+    unit_cleanup_order::binary(text);
 }
 
 #[test]
@@ -431,64 +422,22 @@ fn string_left_temporary_cleanup_follows_right_control_transfer() {
 
 #[test]
 fn nested_string_left_temporaries_cleanup_in_reverse_evaluation_order() {
-    let (sources, owned) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun use(flag: Boolean): Unit {
     val result = TEXT + (TEXT + "${if (flag) { return } else { 0 }}")
 }
-"#,
-    );
-    let transfers = owned
-        .drops()
-        .iter()
-        .filter(|drop| {
-            matches!(drop.point(), DropPoint::ControlTransfer(_))
-                && sources.slice(drop.value_origin()).unwrap() == "TEXT"
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(transfers.len(), 2);
-    assert_eq!(transfers[0].point(), transfers[1].point());
-    assert!(transfers[0].value_origin().start() > transfers[1].value_origin().start());
-    for transfer in transfers {
-        assert_eq!(
-            owned
-                .drops()
-                .iter()
-                .filter(|drop| {
-                    drop.target() == transfer.target()
-                        && matches!(drop.point(), DropPoint::AfterBinaryOperands(_))
-                })
-                .count(),
-            1
-        );
-    }
+"#;
+    unit_cleanup_order::nested(text);
 }
 
 #[test]
 fn interpolated_string_constants_release_inner_owners_before_returning_outer_string() {
-    let (sources, owned) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun use(): String = "${TEXT}-${(TEXT)}"
-"#,
-    );
-    let plans = owned.constant_materializations().unwrap().plans();
-    assert_eq!(plans.len(), 2);
-    assert_eq!(owned.drops().len(), 2, "{:?}", owned.drops());
-    assert_eq!(owned.drops()[0].point(), owned.drops()[1].point());
-    assert!(owned.drops()[0].value_origin().start() > owned.drops()[1].value_origin().start());
-    for plan in plans {
-        let owner = plan.descriptor().expression();
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|drop| drop.target() == DropTarget::Temporary(owner))
-            .collect::<Vec<_>>();
-        assert_eq!(drops.len(), 1);
-        assert!(matches!(drops[0].point(), DropPoint::AfterExpression(_)));
-        assert_eq!(sources.slice(drops[0].value_origin()).unwrap(), "TEXT");
-    }
+"#;
+    unit_cleanup_order::interpolation(text);
 }
 
 #[test]

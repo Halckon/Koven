@@ -21215,3 +21215,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 
 - 基 `13d91839`，仅退休已同源验证的3个 FQN / 12个 fixture 的旧消费者：10类标量分组读取、物化依赖/不可达/精确分析身份、grouped String owner。保全部原字节、两 Unit 完整断言及独立重分析拒绝；原计划数量/kind/顺序、局部identity快照、完整owner查询及drop归属不变。
 - 先前 loop 修复后的同源对照全绿是基线；本片不改生产或Unit helper。其他常量清理/loan-end、失败/deferred合同仍保留，不称整个 Legacy API 已删除。候选 ownership_constants 全目标17 passed，本树重编56.36s；移除退休后无用途 import 后，frontend all-targets strict（`loan-observation-test-support`）本树实检51.57s/exit0。独审、fmt/diff-check、docs979及尺寸2542通过；保留17项证据，未因 import 清理重复测试。无 native/fault，不推送。
+
+### 常量 String 清理顺序消费者收敛
+
+- 基 `562eb425`。binary operands、nested temporary 逆序、interpolation 内层 owner 释放三项保原 FQN/源码，先完整 Legacy 与 MemoryDocument/Rooted Unit 对照，各1 passed，本树首编43.97s；之后只退休三处旧消费者。
+- Unit 原样承接 drop 数量、精确 point 类别/相等性、源位置逆序、原文切片和完整 source-qualified temporary target/物化 descriptor 查询。共享常量分析 helper 仅扩大测试模块内可见性，不新增生产事实、不放宽 Partial 能力；其他 loan-end/失败及控制流旧合同保留。
+- 最终 ownership_constants 全目标17 passed，本树重编1.96s；frontend all-targets strict（`loan-observation-test-support`）本树实检1m41s/exit0。独立设计/probe/退休审查、fmt/diff-check、docs及尺寸门禁通过。仅普通前端源码测试，无 native/fault，不推送。
