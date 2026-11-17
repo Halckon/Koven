@@ -79,7 +79,10 @@ impl Checker<'_> {
         };
         self.allowed_borrow_call = previous;
         let mut prefix = checked?;
-        if self.diagnostics.len() == errors && self.range_expression_is_proven(source) {
+        if prefix.next.is_some()
+            && self.diagnostics.len() == errors
+            && self.range_expression_is_proven(source)
+        {
             self.record_range_use(source, crate::ownership_checking::RangeUseSite::Iteration);
             self.continue_range_source(
                 source,

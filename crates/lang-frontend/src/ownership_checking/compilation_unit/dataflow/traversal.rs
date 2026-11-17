@@ -888,14 +888,19 @@ impl Checker<'_> {
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let body_return = self.research_body_prepare_return(id, &flows);
         let no_carry_return = self.no_carry_prepare(id, &flows);
-        for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
-            .into_iter()
-            .flatten()
-        {
-            state.loans.retain(|loan| {
-                loan.owner != super::ActiveLoanOwner::Call(call)
-                    || source_origin == Some(loan.origin)
-            });
+        // Only a completed call can deliver a borrowed result. Prefix jumps never
+        // create that result, even when another branch of the same operand completes.
+        for (flow, completes) in [
+            (&mut flows.next, true),
+            (&mut flows.breaks, false),
+            (&mut flows.continues, false),
+        ] {
+            if let Some(state) = flow {
+                state.loans.retain(|loan| {
+                    loan.owner != super::ActiveLoanOwner::Call(call)
+                        || completes && source_origin == Some(loan.origin)
+                });
+            }
         }
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let consumer_return = self.research_release_consumer(consumer_return, &flows);

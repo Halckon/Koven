@@ -52,10 +52,10 @@ compiler-bound `rangeView(source, begin, end)` 发布元素 identity、List/View
 合法来源的 bounds 共用私有 `CallOperandFlow`，保静态 identity、后项诊断与真实完成性，隔离不可达 loop 退出。标记区分真实
 DeclarationFrom 和 PrimitiveCall；原语没有伪造 from。无效类型输入原子撤销构造事实。
 
-Phase 3 的 BorrowBindingStorage 区分普通存储借用、既有 metadata 借用和新内联
-descriptor。稳定 List 构造续接实际 caller source loan 并发布 end；View 派生继承
-真实根而不持有父 metadata，metadata alias 仍依赖父绑定。父、子、兄弟对根的保护
-覆盖到最后使用结束，随后允许移动 owner。三组 single/unit 回归提供直接事实证据。
+Phase 3 的 BorrowBindingStorage 区分普通存储借用、metadata 借用及新内联 descriptor。
+稳定 List 续接真实 source loan/end；View 派生继承根而不持有父 metadata，alias 仍依赖父绑定。
+父、子、兄弟保护根到最后使用结束后恢复移动，三组 single/unit 回归保事实。只有正常完成分支续接 source loan；
+未 dispatch 的 break/continue 释放本 call 贷款，不发布未进入的迭代使用，混合分支仍保正常消费者及其他活贷款。
 
 ## producer 返回与标准源码
 

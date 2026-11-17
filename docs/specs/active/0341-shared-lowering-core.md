@@ -21343,3 +21343,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 原私有构造操作数状态机机械移为 checker 私有 `CallOperandFlow`，名义构造调用点不改算法。范围构造合法 List/View 来源与 bounds 共用普通/pending 顺序，保后项静态检查、原 descriptor/来源 identity、SourceId 授权及同名函数隔离。无效 source 和 arity 恢复仍为原边界，本片不声称全恢复路径闭合。
 - 新 3 项共 13 源 × MemoryDocument/Rooted，覆盖正常、Return、Nothing、条件完成性、可达/不可达 break、continue、后项 L0084 原主 span 和无错误 descriptor。原 target 红灯 4 passed/2 failed；修复后 6 passed。共享状态机邻控 multifile_type_checking 296、ownership_construction 10、ownership_range_construction 14、type_range_source_authority 6 全过。
 - 最终 target（含 L0084 主 span）6 passed；frontend all-target strict（loan-observation-test-support）强制本树 1m02s/exit0，独审无阻塞。未运行 SSA/native/fault，未推送。
+
+### 中断范围前缀不续接不存在的消费者
+
+- 基 `cbb19974`，真实红测 `loop { for (item in rangeView(source, break, 1)) {} }; consume(source)` 报错误 L0135：未完成调用的源贷款在 break 状态被保留并转给未进入的 iteration。属于 Phase 3 checker 实际状态错误，不从静态 descriptor 推断生命周期。
+- 本 call 的 source loan 仅在正常后继保留；break/continue 分支释放本 call 贷款，不改其他 call/binding/iteration 贷款。range 续接仅修改 next，iteration 使用事实仅在真实正常后继发布；混合分支不套用正常路径的保留规则。
+- 新 3 项共 12 源 × MemoryDocument/Rooted，含临时 iteration 与普通同步 call、纯/混合 break/continue、原 live-range L0135、外层 iteration 保护不被第二个中断调用误释、borrow-val loop 原 L0164。纯 continue 后的 consume 不可达，仅证明不发布虚构事实，不能算退出权限恢复证据。首次绿测发现借用绑定 loop 原 gate，未改生产绕过，转为明确负控。
+- 原精确红灯 L0135；最终 ownership_range_construction 全 17 项通过。不扩大 E3 子集，不运行 native/fault，不推送。
+- 普通 borrow continuation/result/nested-argument 与 range producer/receiver 五 target 共 57 项通过；frontend all-target strict（loan-observation-test-support）强制本树 53.30s/exit0。独审通过，fmt/diff、docs980 与 Rust 尺寸通过；所有原工作树不动。
