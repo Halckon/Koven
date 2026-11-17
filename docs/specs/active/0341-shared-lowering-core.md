@@ -21412,3 +21412,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 完整保正常 return operand（含 Group）、lambda 原排序序号、factory call/result 两处 FactoryResult、nested 实际 return 的唯一摘要；无正常返回的 factory 保单查 None、全 pointer 表空及两处 origin None。multiple/capturing 仅断言 pointer 表空，不把既有 closure 摘要能力误称不存在。
 - 最新基线六项各 1 passed（原树重编39.33s）；保旧双 Unit 六项各 1 passed（修正后本树7.38s）。首次 probe 是测试 helper 未经 `types()` 访问 validated 产品导致编译错误，修正后才计结果，失败日志保留在仓库外。独审确认完整原观察映射，不扩大为通用 ABI 等价。
 - 最终 contract 普通目标15项通过（本树重编6.54s），强制本树 frontend all-target strict（loan-observation-test-support）1m34s/exit0；独审确认其余九个测试正文逐字不变。fmt/diff、docs980与Rust尺寸2565（原两项例外）通过；未运行native/fault，不推送。
+
+### 2026-11-17：赋值失败同步撤销 range-use 后缀
+
+- 基 `4610cd41`。真实不可变赋值 RHS 已建立 `rangeView` 同步 consumer，随后 L0134 回滚 source loan，但 range-use 留下两项而非仅前缀一项；原生产红测 1 passed / 1 failed，失败前完整诊断和标签已核。最终 dataflow 失败门原已清空整个 borrow-results，此片只修局部事务内部悬空关联，不宣称公开 capability 泄漏或误编译。
+- assignment checkpoint 增加第十二项 range-use 长度，共用原六个失败出口截断后缀；原十一项索引、成功路径、诊断与全局撤销不变。测试保存真实源授权与实际 checker 路径，无事实注入；负例保原 prefix 和其完整 source-loan 身份、撤销 RHS，成功 var 对照保两个不同 expression 及实际贷款。旧回滚夹具只同步零列，无新公开 API、准入或 E3 改动。
+- 绿测两项与旧 borrow-call rollback 两项通过；相关 `ownership_nested_borrow_arguments` 14、`ownership_range_construction` 21、`ownership_range_receiver` 13 项通过。强制本树 frontend all-targets `loan-observation-test-support` Clippy `-D warnings` 50.46s/exit0；fmt、docs980、尺寸2566（两项原历史例外不扩大）、diff-check与独立末审通过。每步宿主/容器空槽及8GiB门槛核验；未执行 native、Abort 或 fault，不推送。

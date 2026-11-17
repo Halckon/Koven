@@ -6,6 +6,7 @@ mod borrow_call_index;
 mod borrow_call_rollback;
 mod normalization;
 mod publication;
+mod range_use_rollback;
 
 use super::super::formed_tests::{Fixture, Parts};
 use super::*;
@@ -26,6 +27,7 @@ class Holder(var target: Int) {
 "#;
 
 type FactLengths = (
+    usize,
     usize,
     usize,
     usize,
@@ -80,6 +82,7 @@ impl Facts {
             self.formed.len(),
             0, // Existing fixtures have no Exclusive receiver transition.
             0, // Existing fixtures have no nested borrow call uses.
+            0, // Existing fixtures have no range uses.
         )
     }
 }
