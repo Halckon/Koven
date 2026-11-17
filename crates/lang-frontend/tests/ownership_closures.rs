@@ -29,6 +29,9 @@ mod callable_provenance;
 #[path = "ownership_closures/exclusive_lifetime.rs"]
 mod exclusive_lifetime;
 
+#[path = "ownership_closures/parameter_modes_unit.rs"]
+mod parameter_modes_unit;
+
 #[path = "ownership_closures/capture_identity_unit.rs"]
 mod capture_identity_unit;
 
@@ -277,20 +280,7 @@ fn implicit_it_is_a_value_parameter_and_never_a_capture() {
                         val second = useResource(it)\n\
                     }\n\
                 }";
-    let (_, parsed, names, typed, owned) = analyzed(text);
-    let lambda = lambdas(&parsed)[0];
-    let implicit = names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "it")
-        .expect("implicit it symbol");
-
-    assert_eq!(
-        typed.parameter_mode(implicit.id()),
-        Some(ParameterMode::Value)
-    );
-    assert_eq!(owned.captures_of(lambda).count(), 0);
-    assert_eq!(codes(&owned), ["L0131"]);
+    parameter_modes_unit::check(text, &[("it", ParameterMode::Value)], &["L0131"]);
 }
 
 #[test]
@@ -303,28 +293,15 @@ fn implicit_borrow_and_inout_match_explicit_parameter_ownership() {
                     val implicitInout: (inout Int) -> Unit = { it = 2 }\n\
                     val explicitInout: (inout Int) -> Unit = { item -> item = 2 }\n\
                 }";
-    let (_, parsed, names, typed, owned) = analyzed(text);
-
-    assert!(owned.diagnostics().is_empty());
-    assert!(
-        lambdas(&parsed)
-            .into_iter()
-            .all(|lambda| owned.captures_of(lambda).count() == 0)
-    );
-    assert_eq!(
-        names
-            .symbols()
-            .iter()
-            .filter(|symbol| symbol.kind()
-                == lang_frontend::name_resolution::SymbolKind::LambdaParameter)
-            .map(|symbol| typed.parameter_mode(symbol.id()))
-            .collect::<Vec<_>>(),
-        [
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Inout),
-            Some(ParameterMode::Inout),
-        ]
+    parameter_modes_unit::check(
+        text,
+        &[
+            ("it", ParameterMode::Borrow),
+            ("item", ParameterMode::Borrow),
+            ("it", ParameterMode::Inout),
+            ("item", ParameterMode::Inout),
+        ],
+        &[],
     );
 }
 

@@ -21442,3 +21442,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 保实际 lambda 的唯一 This/Shared capture、原 any This/Shared 和完整有序 L0137/L0138/L0133 code 断言；源文本、closures.ko、原环境不变。两布局是 MemoryDocument/Rooted，不称独立实现对照。
 - 原活动 receiver 字段冲突的 Single L0135 在 Unit 得 L0134，真实 probe 失败证据保留仓库外，该测试正文逐字保留。未标 receiver 默认为 Borrow，Unit 在进入 loan 冲突前先拒绝不可写字段；不改源码为 Inout 或更改期望促成退休，也不将同一 ownership 阶段的拒绝检查顺序差异称为错误接纳。Unit L0134 为本轮 probe 观察记录，不新增持久对照断言。
 - 最终原 ownership_closures 普通 target 74 passed（本树重编5.88s），强制本树 frontend all-target strict（loan-observation-test-support）2m05s/exit0。原三项基线和两个通过的保旧对照日志、失败对照补丁留仓库外；无 native/fault 执行，不推送。
+
+
+### 2026-11-17：隐式 lambda 参数模式及捕获消费者收敛
+
+- 基 `3ca55bd5`，保原两个 FQN 和所有源文本、closures.ko、custom environments；原基线各1 passed（本树37.72s）。先保 Single 断言跑 MemoryDocument/Rooted，两个对照各1 passed，才收敛旧调用；不修改生产或公开 API。
+- Unit 从原 NameResolution 的 LambdaParameter 顺序匹配既有 body_parameter_modes 的同 source-unit/真实 SymbolId 键，再用 body_parameter_mode 观察 Value 或 Borrow/Borrow/Inout/Inout；不用声明名字模拟身份。补核实际 it/item 名字及 AST lambda 数，保实际 lambda 的零 captures 和完整有序 L0131/无诊断。
+- L0131 失败时 Single/Unit 都清空捕获产品，此处零 captures 仅保原失败产品合同，不能单独证明成功形成时没有捕获；成功 Borrow/Inout 对照仍要求全部实际 lambda 零 captures。失败入口保基本 typed.validate，不引入 complete 或 owned.validate 来绕开原观察。
+- 初次对照 helper 误用私有 UnitSymbolId 构造器而编译失败，改用现有公开产品中的精确身份键后才通过（本树3.40s）；失败日志保留仓库外，不计为能力差异。所有不等价 this/callable/raw 负控不动。
+- 最终原 ownership_closures 普通 target 74 passed（本树重编3.46s），强制本树 frontend all-target feature strict 2m14s/exit0。独审、fmt/diff、docs980和Rust尺寸2569（原两项例外）通过；无 native/fault 执行，不推送。
