@@ -21227,3 +21227,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `fc5a997f`，两原 FQN / 15 fixture（binary 的 TEXT/literal 各5、interpolation 5）先保 Legacy 全断言做 MemoryDocument/Rooted 同源对照，各1 passed，本树首编42.06s，再退休对应两处旧消费者。
 - 保原 return/break/continue/条件 abort/无条件 abort 源码、预期计数与过滤口径；binary 只取 Temporary 且匹配 origin，interpolation 仍只按 TEXT origin，不新增过滤掩盖额外清理。精确 ControlTransfer、AfterBinaryOperands/AfterExpression 分类和匹配总数断言不变；零清理限该源码前缀，不宣称 Partial loan-end 完整 absence 或 native Abort 行为。
 - 最终 ownership_constants 17 passed，本树重编2.61s；frontend all-targets strict（`loan-observation-test-support`）本树实检1m29s/exit0。独立设计/probe/退休审查、fmt/diff-check、docs及尺寸门禁通过。无生产修改，无 native/fault，不推送。
+
+### 常量 runtime 身份消费者收敛
+
+- 基 `3152193c`。重复 String 借用、scalar/String 返回、closure 常量读取三原 FQN/源码先做 Legacy 与两 Unit 完整对照，各1 passed，本树首编41.76s，再退休三处旧消费者。
+- 保每条实际 loan 必为 Temporary、完整 owner 唯一性、唯一 Temporary(owner)/CallReturn(loan.call()) drop、总数及 captures 空；scalar/return 保 loans/drops/captures 空，closure 仅保原 captures/loans 空，不新增 drops 假设。使用完整 Unit identity 去重/匹配，不从 Partial loan-end catalog 推 absence。
+- 最终 ownership_constants 17 passed，本树重编3.10s；移除退休后无用 imports 后，frontend all-targets strict（`loan-observation-test-support`）本树实检1m17s/exit0，不重复17项。独审、fmt/diff-check、docs及尺寸门禁通过，无生产修改、native/fault，不推送。

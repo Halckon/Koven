@@ -2,9 +2,7 @@
 
 use lang_frontend::{
     name_resolution::resolve_names,
-    ownership_checking::{
-        DropPoint, DropTarget, LoanTarget, OwnershipCheckedFile, check_ownership,
-    },
+    ownership_checking::{OwnershipCheckedFile, check_ownership},
     source::SourceMap,
     type_checking::{TypedFile, check_types, standard_environments},
 };
@@ -16,6 +14,8 @@ mod parser_test_assertions;
 mod unit_cleanup_order;
 #[path = "ownership_constants/unit_materialization.rs"]
 mod unit_materialization;
+#[path = "ownership_constants/unit_runtime_identity.rs"]
+mod unit_runtime_identity;
 #[path = "ownership_constants/unit_transfer_cleanup.rs"]
 mod unit_transfer_cleanup;
 
@@ -61,8 +61,7 @@ fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile) {
 
 #[test]
 fn repeated_string_borrows_own_distinct_temporaries_without_declaration_loans() {
-    let (_, ownership) = checked(
-        r#"
+    let text = r#"
 object Labels { const val TEXT = "hello" }
 const val COPY = Labels.TEXT
 fun view(text: String): Unit {}
@@ -71,33 +70,8 @@ fun use(): Unit {
     val second = view(COPY)
     val third = view(Labels.TEXT)
 }
-"#,
-    );
-    // Dependency reads have no runtime effects; each executed read has its own owner.
-    assert_eq!(ownership.loans().len(), 3);
-    let mut owners = Vec::new();
-    for loan in ownership.loans() {
-        let LoanTarget::Temporary(owner) = loan.target() else {
-            panic!("constant declaration must not be borrowed: {loan:?}");
-        };
-        owners.push(*owner);
-        assert_eq!(
-            ownership
-                .drops()
-                .iter()
-                .filter(|drop| {
-                    drop.target() == DropTarget::Temporary(*owner)
-                        && drop.point() == DropPoint::CallReturn(loan.call())
-                })
-                .count(),
-            1
-        );
-    }
-    owners.sort_by_key(|owner| owner.index());
-    owners.dedup();
-    assert_eq!(owners.len(), 3);
-    assert_eq!(ownership.drops().len(), 3);
-    assert!(ownership.captures().is_empty());
+"#;
+    unit_runtime_identity::repeated(text);
 }
 
 #[test]
@@ -111,8 +85,7 @@ fun use(): Boolean = (TEXT + TEXT) == TEXT
 
 #[test]
 fn scalar_delivery_and_string_return_do_not_own_constant_declarations() {
-    let (_, ownership) = checked(
-        r#"
+    let text = r#"
 const val NUMBER = 7
 const val LETTER = '文'
 const val TEXT = "hello"
@@ -123,27 +96,21 @@ fun use(): Unit {
 }
 fun first(): String = TEXT
 fun second(): String = TEXT
-"#,
-    );
-    assert!(ownership.loans().is_empty());
-    assert!(ownership.drops().is_empty());
-    assert!(ownership.captures().is_empty());
+"#;
+    unit_runtime_identity::delivery(text);
 }
 
 #[test]
 fn closure_reads_do_not_capture_constant_or_namespace_identity() {
-    let (_, ownership) = checked(
-        r#"
+    let text = r#"
 object Labels { const val TEXT = "hello" }
 class Names { companion { const val TEXT = Labels.TEXT } }
 fun use(): Unit {
     val shared: () -> String = { Labels.TEXT }
     val owned: move () -> String = move { Names.TEXT }
 }
-"#,
-    );
-    assert!(ownership.captures().is_empty());
-    assert!(ownership.loans().is_empty());
+"#;
+    unit_runtime_identity::closure(text);
 }
 
 #[test]
