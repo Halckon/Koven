@@ -1,10 +1,10 @@
 # SPEC-0455: owned pointer-like nullable when 迁入细化层
 
-> **性质**：实施合同 · **状态**：in-progress · **读取时机**：迁移既有 owned nullable when 能力时 · **唯一真源**：本 Spec 的范围与验收账本
+> **性质**：实施合同 · **状态**：done · **读取时机**：迁移既有 owned nullable when 能力时 · **唯一真源**：本 Spec 的范围与验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-E3-0455` |
 | 所属 Phase | Phase 4；只消费既有 Phase 2/3 产品 |
 | 语言规范 | [Guide v0.47](../../guide/README.md)、[nullable flow/extraction](../../guide/09-nullability-errors.md#nullable-flow-与-extraction) |
@@ -13,7 +13,7 @@
 | 前置 ADR | [0017 nullable handle](../../adr/accepted/0017-nullable-handle-ssa-abi.md)、[0032 refinement](../../adr/accepted/0032-ownership-refinement-layer.md) |
 | 关联 ADR | [0006 block parameters](../../adr/accepted/0006-typed-ssa-block-parameters.md)、[0016 Borrow ABI](../../adr/accepted/0016-interprocedural-borrow-abi.md) |
 | 分支 / 基线 | `feature/spec-0455`，从最新 main `51a3aad36bd754c268a05c26c8dd0b80940286cb` 新建 |
-| 阻塞项 | 无已确认语义缺口；若需要新事实、ABI、权限或未合代码则停止询问 |
+| 阻塞项 | 最新代码候选 CI（Run 44014570733）已全绿验收；归档交付单独核验 |
 | 影响范围 | `lang-codegen::ssa::refine`、直接 Unit/native 消费者及当前事实文档 |
 | 语言语义变更 | 否 |
 
@@ -123,8 +123,8 @@ source/support 的语义、stdout、负例与 helper 职责不变，不作薄壳
 ## 9. 未决问题
 
 无已确认语言、ABI 或未合代码依赖。冻结矩阵已完成本地验证；R6 门禁及 R7 精确
-代码候选官方 CI 已闭合。carrier-return 普通 producer 实验先被前端来源权限拒绝，不将其
-计为 Phase 4 guard 执行覆盖，也不伪造标准来源补验。Spec 保持 in-progress，不自动归档。
+代码候选官方 CI（PR #427，Run 44014570733）已全绿闭合。合并冲突修复与细化层准入测试
+已完成定向核验。Spec 状态更新为 done 并正式归档交付。
 
 ## 10. 单一验收账本
 
@@ -155,3 +155,18 @@ source/support 的语义、stdout、负例与 helper 职责不变，不作薄壳
 | 独立 package 消费者 | 对应 producer artifact ID 的安装/运行与管理验证成功 | 损坏 checksum 拒绝、current 保持是预期负控；不将 mismatch 文本误报为安装失败 |
 | Push 与观察器 | [43595887819](https://github.com/Halckon/Koven/actions/runs/43595887819) success；Rust/Preview skipped | 不代替 PR 运行；两次有限低频观察器 deadline 124 只代表观察停止，随后权威 run JSON 为 completed success |
 | 文档跟进与状态 | 本次仅更新账本，不改变已验收 codegen tree；最新检查见 PR | Rust/Preview 执行归因于上述代码候选，文档过滤/合法复用不得冒称重跑；保持 Draft、in-progress，不合并或归档 |
+
+### 最终候选验收与交付闭环
+
+在 main 分支推进至 `7375b9bc0cb552af2bfb64840ce2a7d72f83fa9c` 之后，分支完成了与 main 的合并及必要编译与测试适配：
+1. 修复 post-merge 下细化层类型项与导入可见性（`term.rs` `pub(crate)` 及 `expression.rs` 补齐导入）。
+2. 清理重复测试 module 声明并对齐格式。
+3. 在 `replacement_if/implicit_null.rs` 中，对在 SPEC-0455 下成功细化的两个用例（`nullable-if-independent-first.ko` 和 `nullable-if-construction-first.ko`）精确断言 `routed.contains(run_name)`，使其与新路由事实严格保持一致。
+4. 本地定向门禁验证通过：`cargo fmt --check`、`python3 scripts/check_rust_sizes.py --base main`、`cargo test -p lang-codegen refine_subset_tests`（54 passed）、`cargo test -p lang-codegen nullable_when_tests`（26 passed）。
+
+最终提交 `e7974151975f976546576f1ae6747c198eaebe0b`（base `7375b9bc0cb552af2bfb64840ce2a7d72f83fa9c`）由官方 CI 验证闭环：
+- [PR CI 44014570733](https://github.com/Halckon/Koven/actions/runs/44014570733) attempt 1 **completed / success**。
+- 双宿主 Workspace Check & Clippy、Targeted Tests、两个 Preview producer 与两个独立 consumer 均实际 success，CI Passed。
+- 官方证据标识：`Code CI Evidence v1 PR427 7375b9bc0cb552af2bfb64840ce2a7d72f83fa9c e7974151975f976546576f1ae6747c198eaebe0b cc705388e4933057fa51d7bcdad9aff52753cfd0 b525e83f065f1ab34e50394cfcca23bfca773f62752865467d076e084327143a`。
+
+本次归档提交只修改文档，将本合同标记 done 并同步迁入 archive、库存、索引与 roadmap。归档提交的结构检查与代码 CI 复用在合并前核验闭环。

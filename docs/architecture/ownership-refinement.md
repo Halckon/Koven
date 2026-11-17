@@ -135,7 +135,7 @@ RangeView、carrier 别名和其他绑定保留原有前置边界。
 
 ## owned pointer-like nullable When
 
-[SPEC-0455](../specs/active/0455-refine-owned-nullable-when.md) 的既有 owned whole-root /
+[SPEC-0455](../archive/specs/0455-refine-owned-nullable-when.md) 的既有 owned whole-root /
 temporary class、Box、Rc nullable When 经正常 Unit 入口进入 refine。准入与构建共用同轮
 typed descriptor、ownership plan 和 When use fact，核对 control、subject、entry、canonical
 reference、generation、Shared loan / Value delivery；不从普通 if 产品或 expected type 补造事实。
