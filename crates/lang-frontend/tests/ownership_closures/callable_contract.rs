@@ -132,35 +132,8 @@ fn callable_contract_lambda_alias_group_and_recursive_parameter_forwarding() {
         fun use(): Unit {{ val first: (Int) -> Int = {{ index -> index }}\n\
         val alias = (first)\ntake((alias)) }}"
     );
-    let (sources, parsed, names, typed, owned) = preflight(&text);
-    let lambda = lambdas(&parsed)[0];
-    for value in ["first", "(first)", "alias", "(alias)"] {
-        let id = expression(&sources, &parsed, value);
-        let fact = owned
-            .callable_origin(id)
-            .expect("transparent lambda origin");
-        assert_eq!(fact.expression(), id);
-        assert_eq!(fact.origin(), CallableOrigin::Lambda(lambda));
-        assert_eq!(
-            fact.span(),
-            parsed.ast().expressions().get(id).unwrap().span()
-        );
-    }
-    for (id, node) in parsed.ast().expressions().iter() {
-        if sources.slice(node.span()).unwrap() == "forwarded" {
-            assert_eq!(
-                owned.callable_origin(id).unwrap().origin(),
-                CallableOrigin::Parameter(symbol(&names, "forwarded"))
-            );
-        }
-    }
-    for fact in owned.callable_origins() {
-        assert!(matches!(
-            typed
-                .expression_type(fact.expression())
-                .and_then(|ty| typed.types().get(ty)),
-            Some(TypeKind::Function { .. })
-        ));
+    for checked in unit_cfg_origin::preflight(&text) {
+        checked.assert_alias_and_parameter_origins();
     }
 }
 

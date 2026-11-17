@@ -21480,3 +21480,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - MemoryDocument/Rooted 均保成功源码无 ownership 诊断、失败源码完整 `[L0135]`，以及整个 CallReturn drop 表恰为 closure、releaseOnly item 两项且顺序不变。预期 owner 从原 NameResolution 的首个 closure/末个 item 对应真实 names 引用匹配 source-qualified 身份，不从被测 drops 反推；额外断言两项都指向实际 `run(closure)` AST Call。
 - 此处验证 drop 合同，不冒称实际 loan-end 事件；普通 expected move 的真实 CallReturn loan-end 旧见证和 Shared This 的 L0135/L0134 差异负控保持不变。
 - 最终原 closure 普通 target 74 passed（本树5.04s）；强制本树 frontend all-target `loan-observation-test-support` strict 1m07s/exit0，独立末审无阻塞。未执行 native/fault，未推送。
+
+
+### 2026-11-17：Callable alias/group 与递归参数来源消费者收敛
+
+- 基 `2ab88c58`，原单项 FQN 基线1 passed（本树39.24s），完整保旧双 Unit 对照1 passed（本树5.31s）后仅替换该消费者。原源码与标准环境不变；保留相邻 Deferred、caller-first 摘要/原始类型及错误分析身份的 Single 见证，不修改生产或公开 API。
+- 双布局复用现有 Unit CFG 前置，保四阶段 clean/无 ownership deferred；四个 alias/group 表达式保真实 expression、Lambda 来源与精确 span。扫描全部原 AST forwarded 引用，来源必须为 relay 签名的实际参数，并核 source-unit 与原 NameResolution 首个同名 SymbolId；对整个 callable origins 表逐项核同轮表达式类型为 Function，非只核选定表达式。
+- 最终原 closure target 74 passed；强制本树 frontend all-target `loan-observation-test-support` strict 1m08s/exit0，独立末审无阻塞。无 native/fault 执行，未推送。

@@ -20,9 +20,68 @@ pub(super) struct Analysis {
     unit: SourceUnitId,
     pub(super) owned: CompilationUnitOwnership,
     signatures: Vec<UnitCallableSignature>,
+    typed: lang_frontend::type_checking::CompilationUnitTypes,
+    symbols: Vec<(String, SymbolId)>,
 }
 
 impl Analysis {
+    pub(super) fn assert_alias_and_parameter_origins(&self) {
+        for value in ["first", "(first)", "alias", "(alias)"] {
+            let id = self.expression(value);
+            let fact = self
+                .owned
+                .callable_origin(id)
+                .expect("transparent lambda origin");
+            assert_eq!(fact.expression(), id);
+            assert_eq!(fact.origin(), self.lambda(0));
+            assert_eq!(
+                fact.span(),
+                self.parsed
+                    .ast()
+                    .expressions()
+                    .get(id.expression())
+                    .unwrap()
+                    .span()
+            );
+        }
+        let signature = self
+            .signatures
+            .iter()
+            .find(|s| s.name() == "relay")
+            .unwrap();
+        let [parameter] = signature.parameters() else {
+            panic!("one relay parameter")
+        };
+        let parameter = parameter.symbol().expect("actual relay parameter");
+        let original = self
+            .symbols
+            .iter()
+            .find(|(name, _)| name == "forwarded")
+            .unwrap()
+            .1;
+        assert_eq!(parameter.source_unit(), self.unit);
+        assert_eq!(parameter.symbol(), original);
+        for (id, node) in self.parsed.ast().expressions().iter() {
+            if self.sources.slice(node.span()) == Ok("forwarded") {
+                assert_eq!(
+                    self.owned
+                        .callable_origin(UnitExpressionId::new(self.unit, id))
+                        .unwrap()
+                        .origin(),
+                    UnitCallableOrigin::Parameter(parameter)
+                );
+            }
+        }
+        for fact in self.owned.callable_origins() {
+            assert!(matches!(
+                self.typed
+                    .expression_type(fact.expression())
+                    .and_then(|ty| self.typed.types().get(ty)),
+                Some(lang_frontend::type_checking::UnitTypeKind::Function { .. })
+            ));
+        }
+    }
+
     pub(super) fn expression(&self, text: &str) -> UnitExpressionId {
         let expressions = self
             .parsed
@@ -170,12 +229,20 @@ pub(super) fn preflight(text: &str) -> [Analysis; 2] {
                 callable.clone()
             })
             .collect();
+        let symbols = names.names().source_units()[0]
+            .resolution()
+            .symbols()
+            .iter()
+            .map(|symbol| (symbol.name().to_owned(), symbol.id()))
+            .collect();
         Analysis {
             sources,
             parsed,
             unit,
             owned,
             signatures,
+            typed: typed.into_types(),
+            symbols,
         }
     })
 }
