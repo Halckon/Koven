@@ -25,6 +25,22 @@ pub(super) struct Analysis {
 }
 
 impl Analysis {
+    pub(super) fn assert_factory_preflight(&self) {
+        assert_eq!(lambdas(&self.parsed).len(), 1);
+        assert!(self.owned.captures().is_empty());
+        assert!(self.typed.calls().iter().any(|call| matches!(
+            self.typed.types().get(call.return_type()),
+            Some(lang_frontend::type_checking::UnitTypeKind::Function { .. })
+        )));
+    }
+
+    pub(super) fn assert_owned_return_capture_preflight(&self) {
+        let lambda = UnitExpressionId::new(self.unit, lambdas(&self.parsed)[0]);
+        let captures = self.owned.captures_of(lambda).collect::<Vec<_>>();
+        assert_eq!(captures.len(), 1);
+        assert_eq!(captures[0].mode(), ClosureCaptureMode::Owned);
+    }
+
     pub(super) fn assert_alias_and_parameter_origins(&self) {
         for value in ["first", "(first)", "alias", "(alias)"] {
             let id = self.expression(value);

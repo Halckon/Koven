@@ -21509,3 +21509,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Guide 允许 Copyable payload 从 shared place 复制，但当前 E3 尚无非 Name 嵌套 owner 读取与 backing 生命周期运输。本片只修内部错误报告：原 place/temporary 均失败、同源 Rc.Value receiver、外层 Value 且 payload 明确 Copyable 时发 L0164；不实现或批准合法执行支持。既有 Share 文本、MoveOnly/未知类别及其它身份错误不变，receiver 原错误优先。
 - 十二份源码各经双 Unit：Int/Boolean、零/一/二层 Group、带/不带先前成功 share。核单条 L0164及完整读取 span、rc_effects/loans/drops/construction 全部撤销与 validate 拒绝；另双布局 moved outer 仍仅 L0131。原五项控制不改。
 - 本树 `ownership_rc` 全 target 7 passed（重编 4.93 秒），`type_checking rc_unit::` 两项 passed；强制本树 frontend all-target `loan-observation-test-support` strict 通过（28.52 秒）。首次邻控误用不存在的 `type_rc` target，未执行测试，已改实际 target 后补验，不计为通过证据。独立方案与实际 diff 末审均通过；无 native/fault、未推送。
+
+
+### 2026-11-17：Callable factory/owned return 成功前置消费者收敛
+
+- 基 `70675d06`，两原 FQN 基线及保旧双 Unit 对照各1 passed（本树36.67s/3.45s），再替换两处 Single 分析；原源码、closures.ko、标准环境、四阶段 clean 和无 ownership deferred 保持不变。
+- caller-first 成功前置保 AST lambda 数量1、全表 captures 空，以及 typed.calls 至少一个 Function 返回；合法 return 前置保原排序首 AST lambda 的 source-qualified captures 恰1且为 Owned。使用同轮 Unit 类型和捕获产品，无新增生产 API。
+- 这些成功分析观察不等于 pointer return summary；原 caller-first 摘要数量/namedFactory 差异、Deferred 及错误身份见证保留。最终 closure target 74 passed，强制本树 frontend all-target feature strict 1m10s/exit0，独立末审通过。未执行 native/fault，未推送。

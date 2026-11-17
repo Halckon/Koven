@@ -102,14 +102,8 @@ fn callable_provenance_preflight_caller_first_pointer_factories() {
         fun factory(): (Int) -> Int {{ println(\"factory\")\nreturn ({{ index -> index }}) }}\n\
         fun namedFactory(): (Int) -> Int = (identity)"
     );
-    let (_, parsed, _, typed, owned) = preflight(&text);
-    assert_eq!(lambdas(&parsed).len(), 1);
-    assert!(owned.captures().is_empty());
-    assert!(typed.calls().iter().any(|call| matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Function { .. })
-    )));
-    // Future summaries keep both source identities and publish caller-first FactoryResult aliases.
+    // Preserve successful-analysis observations, not pointer return summaries.
+    contract::factory_preflight_unit(&text);
 }
 
 #[test]
@@ -122,12 +116,8 @@ fn callable_provenance_preflight_legal_returns_outside_pointer_summary() {
         fun captured(own label: String): (Int) -> Boolean =\n\
             move {{ index -> label == \"captured\" && index == 0 }}"
     );
-    let (_, parsed, _, _, owned) = preflight(&text);
-    let lambda = lambdas(&parsed)[0];
-    let captures = owned.captures_of(lambda).collect::<Vec<_>>();
-    assert_eq!(captures.len(), 1);
-    assert_eq!(captures[0].mode(), ClosureCaptureMode::Owned);
-    // Future pointer summaries are absent for two normal returns and capturing returns.
+    // Preserve successful-analysis observations, not pointer return summaries.
+    contract::owned_return_capture_preflight_unit(&text);
 }
 
 #[test]

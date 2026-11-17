@@ -6,6 +6,19 @@ use lang_frontend::ownership_checking::{
     CallableOrigin, PointerCallableReturnOrigin, UnitCallableOrigin,
 };
 
+// Bridges only the original successful-analysis observations, not return summaries.
+pub(super) fn factory_preflight_unit(text: &str) {
+    for checked in unit_cfg_origin::preflight(text) {
+        checked.assert_factory_preflight();
+    }
+}
+
+pub(super) fn owned_return_capture_preflight_unit(text: &str) {
+    for checked in unit_cfg_origin::preflight(text) {
+        checked.assert_owned_return_capture_preflight();
+    }
+}
+
 fn expression(sources: &SourceMap, parsed: &ParsedFile, text: &str) -> ExpressionId {
     let ids = parsed
         .ast()
