@@ -21343,3 +21343,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 原私有构造操作数状态机机械移为 checker 私有 `CallOperandFlow`，名义构造调用点不改算法。范围构造合法 List/View 来源与 bounds 共用普通/pending 顺序，保后项静态检查、原 descriptor/来源 identity、SourceId 授权及同名函数隔离。无效 source 和 arity 恢复仍为原边界，本片不声称全恢复路径闭合。
 - 新 3 项共 13 源 × MemoryDocument/Rooted，覆盖正常、Return、Nothing、条件完成性、可达/不可达 break、continue、后项 L0084 原主 span 和无错误 descriptor。原 target 红灯 4 passed/2 failed；修复后 6 passed。共享状态机邻控 multifile_type_checking 296、ownership_construction 10、ownership_range_construction 14、type_range_source_authority 6 全过。
 - 最终 target（含 L0084 主 span）6 passed；frontend all-target strict（loan-observation-test-support）强制本树 1m02s/exit0，独审无阻塞。未运行 SSA/native/fault，未推送。
+
+
+### static recovery 诊断消费者双 Unit 收敛
+
+- 基 `cbb19974`，仅将 `static_recovery` 的 original/minimal Result propagation、dynamic receiver、static constructor argument、local value shadowing 五原 FQN 首观察从 Single 换为 MemoryDocument，另一侧保原 Rooted。全部原源码及断言保留；按职责提取原 Single/Unit collector，不改生产、阶段顺序或错误恢复。
+- 两个 Result 仍要求本次 raw 分析含真实 Deferred，final 唯一 L0165 精确主 span 指回该根；三项真实错误仍要求 final 完整等于本路 raw Diagnostic，完成后 raw 不变。原基线与候选的完整 original/final Diagnostic（含 severity、code、message、span、details）逐项日志对照相等，不只比较 code。
+- 这不表示全部 raw 类型产品等价：真实错误场景的 Single Deferred 子壳与 Unit 可不同，它们不属于这三项原断言；不据此扩展 Unit 能力。两 companion 的 Single Deferred/Unit 成功、独立 unresolved static member 的类型阶段/名称阶段及 message 差异原样保留，旧入口未整文件删除。
+- 基线五 exact 各 1 passed（真实基线重编10.63s）；候选五 exact 各 1 passed（真实候选重编47.72s），三保留差异 exact 各 1 passed。仅普通前端，不运行 native/fault，不推送。
+- 强制候选本树 frontend all-target strict（loan-observation-test-support）3m50s/exit0；独审通过。构建阶段启动前全局空槽，strict期间外部独立target新起编译，未干扰或重复本线步骤。
