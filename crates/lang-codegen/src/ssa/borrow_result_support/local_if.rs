@@ -346,11 +346,13 @@ pub(in crate::ssa) mod ordinary_local {
         owned: &dyn UnitPreflightFacts,
         fact: &Binding,
         argument_controls: &BTreeMap<UnitExpressionId, BTreeSet<usize>>,
+        observers: &BTreeSet<usize>,
     ) -> BTreeSet<usize> {
         let mut allowed = argument_controls
             .get(&fact.initializer())
             .cloned()
             .unwrap_or_default();
+        allowed.extend(observers.iter().copied());
         let range = matches!(
             fact.storage(),
             BorrowBindingStorage::NewRangeDescriptor
@@ -363,6 +365,7 @@ pub(in crate::ssa) mod ordinary_local {
                 fact.binding().source_unit(),
                 argument_controls,
                 range,
+                !observers.is_empty(),
                 allowed,
             );
         };
@@ -386,9 +389,9 @@ pub(in crate::ssa) mod ordinary_local {
 
         let mut ends = owned.borrow_results().ends().iter().filter(|end| {
             end.binding() == fact.binding()
-                && !(range
-                    && matches!(end.point(), UnitDropPoint::ControlTransfer(expression)
-                        if expression.source_unit() == fact.binding().source_unit()))
+                && !matches!(end.point(), UnitDropPoint::ControlTransfer(expression)
+                    if expression.source_unit() == fact.binding().source_unit()
+                        && (range || observers.contains(&expression.expression().index())))
         });
         let end = match (ends.next().map(|end| end.point()), ends.next()) {
             (Some(UnitDropPoint::AfterStatement(end)), None)
@@ -485,6 +488,15 @@ pub(in crate::ssa) mod ordinary_local {
         file: &ParsedFile,
         statement: StatementId,
     ) -> Option<ExpressionId> {
+        let expression = tail_return(file, statement)?;
+        matches!(
+            file.ast().expressions().get(expression).ok()?.payload(),
+            Expression::Return { value: None, .. }
+        )
+        .then_some(expression)
+    }
+
+    fn tail_return(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId> {
         let statements = file.ast().statements();
         let node = statements.get(statement).ok()?;
         let tail = match node.payload() {
@@ -499,7 +511,7 @@ pub(in crate::ssa) mod ordinary_local {
         let expression = ungroup(file, *expression, tail.span()).ok()?;
         matches!(
             file.ast().expressions().get(expression).ok()?.payload(),
-            Expression::Return { value: None, .. }
+            Expression::Return { .. }
         )
         .then_some(expression)
     }
@@ -510,6 +522,7 @@ pub(in crate::ssa) mod ordinary_local {
         source_unit: SourceUnitId,
         argument_controls: &BTreeMap<UnitExpressionId, BTreeSet<usize>>,
         range: bool,
+        string_observer: bool,
         allowed: &mut BTreeSet<usize>,
     ) {
         let mut pending = statements.to_vec();
@@ -533,15 +546,20 @@ pub(in crate::ssa) mod ordinary_local {
                             ..
                         } => {
                             allowed.insert(expression.index());
-                            if range {
+                            if range || string_observer {
+                                let returned = if string_observer {
+                                    tail_return
+                                } else {
+                                    bare_return
+                                };
                                 for branch in std::iter::once(*then_branch).chain(*else_branch) {
-                                    if let Some(returned) = bare_return(file, branch) {
+                                    if let Some(returned) = returned(file, branch) {
                                         allowed.insert(returned.index());
                                     }
                                 }
                             }
                         }
-                        Expression::Return { .. } if range => {
+                        Expression::Return { .. } if range || string_observer => {
                             allowed.insert(expression.index());
                         }
                         _ => {}
