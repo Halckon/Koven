@@ -814,6 +814,7 @@ impl BodyChecker<'_> {
         deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut valid = true;
+        let mut falls_through = true;
         let mut pending_parameter = false;
         let mut descriptors = Vec::with_capacity(arguments.len());
         for (evaluation_index, argument) in arguments.iter().enumerate() {
@@ -832,6 +833,8 @@ impl BodyChecker<'_> {
                 Some(parameter.span()),
                 return_type,
             )?;
+            // Check every operand, including unreachable suffixes, before combining flow.
+            falls_through &= checked.falls_through;
             if already_checked
                 && !(self.is_error(checked.ty)
                     || self.is_deferred(checked.ty)
@@ -900,7 +903,7 @@ impl BodyChecker<'_> {
             self.note_pending_storage_value(UnitExpressionId::new(source, expression), result_type);
             return Ok(ExpressionCheck {
                 ty: result_type,
-                falls_through: true,
+                falls_through,
             });
         }
         descriptors.sort_by_key(|(index, _)| *index);
@@ -918,7 +921,7 @@ impl BodyChecker<'_> {
         });
         Ok(ExpressionCheck {
             ty: result_type,
-            falls_through: true,
+            falls_through,
         })
     }
 

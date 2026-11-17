@@ -21272,3 +21272,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 原12组合（Return/stop × 0/1/2 Group × basic/constant）核实际entry Refine、factory无实际调用、无父HeapAllocate/字段读取、Return前缀唯一Drop且对应BorrowEnd在前、Abort不展开、正常Return数量及verify/LLVM。相同无field调用与nested lender两负控保持entry未获本路线授权（兼容成功则verify/LLVM，原Unsupported则保留），不将本检查声称完整负例语义等价。
 - 同模块6项本树重编1m40s通过，保原direct/factory正常及compatibility边界。一次Mac断线使prefix-green仅有Compiling，无通过证据；恢复先核原进程结束，再以新日志完整验证，未重复red。无native/fault，不推送。
 - 三项普通 SSA 邻控（shared receiver提前return、nested/loop退出、temporary field借用）各1 passed；codegen all-targets strict（loan-observation-test-support）本树1m51s/exit0，未改frontend生产输入，不重复其既有验证。独审、fmt/diff、docs979、Rust尺寸2552通过，历史例外未改。
+
+### 构造实参的普通完成性传播
+
+- 基 `61bbb425`，从直接构造字段 receiver 的原源诊断发现独立前端矛盾：合法 `Holder(return 9)` 的 operand 为无正常后继，构造却硬发布 true。冻结成功合同后真实红灯为 Some(true) 对 Some(false)，错误后缀对照仍通过；本批不放宽后端准入，也不声称原先发生运行时泄漏。
+- 名义构造在实际检查每个 source-order 实参后合取完成性，intrinsic 继承唯一实参；成功与 pending 出口一致。仍检查所有后缀，保留静态 result type、原 descriptor、失败 recovery 和零参 true。pending 出口仅静审覆盖，不声称特定 pending fixture 已实测。
+- 三项回归共94组合：class/value class/enum/Box/Rc、命名重排、Group/嵌套构造的80个正常/return/stop/条件单臂与双臂组合；错误后缀6组合保单个 L0084 及精确主span源码；零参及普通call8组合。双source布局核 completion 与 clone 发布、construction result type关联，非完整所有目标身份独立证明。
+- 修复后完整 `multifile_type_checking` 291项通过，`ownership_construction` 8项、`type_range_construction` 3项和 `ownership_range_construction` 14项邻控通过；frontend all-targets strict（loan-observation-test-support）强制本树检查1m33s/exit0。独审通过；无native/fault，不推送，原有界codegen候选留待本修复提交后续验。
