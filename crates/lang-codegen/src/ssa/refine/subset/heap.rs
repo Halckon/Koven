@@ -1,5 +1,6 @@
 //! Subset rules for class construction, field reads and `!!`; they mirror the builder.
 mod temporary_field;
+mod terminated_construction;
 
 use std::collections::BTreeSet;
 

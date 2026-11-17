@@ -281,3 +281,5 @@ fn field_prefix_admission_does_not_authorize_other_lenders() {
         }
     }
 }
+
+mod constructor_prefix;

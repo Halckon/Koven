@@ -139,7 +139,7 @@ impl Builder<'_, '_> {
             .typed
             .aggregate_projection(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        // A proven non-dispatching owned factory has no result parent to borrow.
+        // A proven terminating constructor or factory has no result parent to borrow.
         // Lower only its already-validated argument prefix, before runtime field lookup.
         if let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
             && receiver.source_unit() == self.inputs.source_unit
@@ -150,13 +150,23 @@ impl Builder<'_, '_> {
                 root = inner;
             }
             let root_id = self.unit(root);
-            if self.inputs.owned.call_may_dispatch(root_id) == Some(false)
-                && self.inputs.typed.call(root_id).is_some_and(|call| {
-                    matches!(call.target(), UnitCallTarget::Declaration(_))
-                        && call.receiver().is_none()
-                        && call.result_source()
-                            == lang_frontend::type_checking::CallableResultSource::Owned
-                })
+            let mut plans = self
+                .inputs
+                .owned
+                .construction_plans()
+                .iter()
+                .filter(|plan| plan.construction() == root_id);
+            let terminated_construction = matches!((plans.next(), plans.next()), (Some(plan), None)
+                if plan.root_obligation().is_none() && plan.terminating_operand().is_some_and(|operand| self.inputs.typed.expression_falls_through(operand) == Some(false)))
+                && self.inputs.typed.construction(root_id).is_some();
+            if terminated_construction
+                || (self.inputs.owned.call_may_dispatch(root_id) == Some(false)
+                    && self.inputs.typed.call(root_id).is_some_and(|call| {
+                        matches!(call.target(), UnitCallTarget::Declaration(_))
+                            && call.receiver().is_none()
+                            && call.result_source()
+                                == lang_frontend::type_checking::CallableResultSource::Owned
+                    }))
             {
                 if self.expression(receiver.expression())? != Lowered::Diverged {
                     return Err(error(LoweringErrorKind::InvalidModel, span));

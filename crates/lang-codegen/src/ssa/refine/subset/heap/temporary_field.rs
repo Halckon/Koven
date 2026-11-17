@@ -32,6 +32,24 @@ impl Checker<'_, '_> {
         };
         let constructor_id = self.id(constructor);
         let receiver_id = self.id(receiver_expression);
+        if self.inputs.typed.construction(constructor_id).is_some()
+            && self.inputs.typed.expression_falls_through(receiver_id) == Some(false)
+        {
+            if !self.class_field(owner, field)
+                || self.expression_type(constructor) != Some(owner)
+                || self
+                    .inputs
+                    .owned
+                    .drops()
+                    .iter()
+                    .any(|fact| fact.target() == UnitDropTarget::Temporary(constructor_id))
+                || !self.terminated_construction(constructor)
+            {
+                return false;
+            }
+            self.migrated = true;
+            return true;
+        }
         if self.owned_factory_result(constructor)
             && self.inputs.typed.expression_falls_through(receiver_id) == Some(false)
             && self.inputs.owned.call_may_dispatch(constructor_id) == Some(false)

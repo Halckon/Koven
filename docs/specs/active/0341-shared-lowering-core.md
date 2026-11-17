@@ -21279,3 +21279,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 名义构造在实际检查每个 source-order 实参后合取完成性，intrinsic 继承唯一实参；成功与 pending 出口一致。仍检查所有后缀，保留静态 result type、原 descriptor、失败 recovery 和零参 true。pending 出口仅静审覆盖，不声称特定 pending fixture 已实测。
 - 三项回归共94组合：class/value class/enum/Box/Rc、命名重排、Group/嵌套构造的80个正常/return/stop/条件单臂与双臂组合；错误后缀6组合保单个 L0084 及精确主span源码；零参及普通call8组合。双source布局核 completion 与 clone 发布、construction result type关联，非完整所有目标身份独立证明。
 - 修复后完整 `multifile_type_checking` 291项通过，`ownership_construction` 8项、`type_range_construction` 3项和 `ownership_range_construction` 14项邻控通过；frontend all-targets strict（loan-observation-test-support）强制本树检查1m33s/exit0。独审通过；无native/fault，不推送，原有界codegen候选留待本修复提交后续验。
+
+### 真实终止 construction plan 的字段 receiver 前缀
+
+- 基 `00da0fb7`，保留前批前端 completion 修复为独立祖先；此前原源8次默认SSA尝试均Unsupported，冻结48组合成功合同后真红。没有实证原源发生泄漏或double-free，不将缺失/Partial视为允许。
+- 仅直接class构造及透明Group的Copy字段receiver：核实际nominal/type/field身份、唯一construction plan、无root、同源Nothing终止operand、typed构造及receiver明确false，按source evaluation index核完整delivery前缀及参数槽位/symbol。delivery kind按实际argument类型能力匹配，命名重排不能改求值顺序。后缀只校metadata，不准入/执行表达式；原完整构造门不放宽。
+- Builder复用既有construction lowering并强制Diverged，发生在runtime field映射、父owner/loan/read前。48组合覆盖空/String temporary/Copy+Move前缀、命名重排、不可达后缀、return/stop及0/1/2层Group，basic/constant两入口均核实际entry Refine、无父分配/read、前缀String及return唯一Drop/Abort不展开、返回数量、SSA验证/LLVM。
+- 新standalone负控最初误预计Unsupported；独立 `00da0fb7` 同源4组合真实返回MissingFact及完整构造span，定位未改的unit_lower在求值前拒绝terminating plan。最终负控保该kind/span和entry不进Refine，明确仅既有兼容边界而非语言规范；补正helper的package前缀后通过。未扩该路径或其他lender。
+- 最终完整模块8项本树重编52.75s通过，保原direct/factory正常与factory终止/借用清理及compatibility控制。一次共享target误复用基线7项被计数守卫拒绝，不计候选通过；后续强制本树编译。codegen all-targets strict（loan-observation-test-support）本树1m24s/exit0，含frontend依赖检查。独审、fmt/diff、docs979及Rust尺寸2555通过，历史例外未改。无native/fault，不推送。
