@@ -304,7 +304,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         return Ok(false);
                     }
                     if usage != DropExpressionUse::Place {
-                        self.drop_copied_field_constructor(id, receiver)?;
+                        self.drop_copied_field_owner(id, receiver)?;
                     }
                     Ok(true)
                 }

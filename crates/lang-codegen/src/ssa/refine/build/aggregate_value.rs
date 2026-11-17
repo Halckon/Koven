@@ -6,7 +6,7 @@ use super::{
 use crate::ssa::{model::LoanKind, refine::body::RAbort};
 use lang_frontend::{
     ownership_checking::NonNullAssertionTransferKind,
-    type_checking::{UnitAggregateProjectionReceiver, UnitConstructionTarget},
+    type_checking::{UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget},
 };
 
 impl Builder<'_, '_> {
@@ -187,7 +187,7 @@ impl Builder<'_, '_> {
             Some(receiver) if !rc_payload => self.narrowed_view(receiver)?,
             _ => None,
         };
-        // A direct constructor's receiver cleanup belongs after the field read, not
+        // An owned temporary's receiver cleanup belongs after the field read, not
         // to `required(receiver)`: that wrapper would consume AfterExpression early.
         let mut constructor = receiver;
         while let Some(expression) = constructor {
@@ -202,6 +202,16 @@ impl Builder<'_, '_> {
                 .typed
                 .construction(self.unit(*expression))
                 .is_some()
+                || self
+                    .inputs
+                    .typed
+                    .call(self.unit(*expression))
+                    .is_some_and(|call| {
+                        matches!(call.target(), UnitCallTarget::Declaration(_))
+                            && call.receiver().is_none()
+                            && call.result_source()
+                                == lang_frontend::type_checking::CallableResultSource::Owned
+                    })
         });
         let (loan, rc_view_read) = match (view, receiver) {
             (Some(view), _) => (
@@ -215,7 +225,7 @@ impl Builder<'_, '_> {
             (None, Some(receiver)) if rc_payload => self.rc_payload_loan(receiver, span)?,
             (None, _) if constructor.is_some() => {
                 let expression = constructor.unwrap();
-                let value = match self.construction(expression, self.span(expression))? {
+                let value = match self.expression_inner(expression)? {
                     Lowered::Value(value) => value,
                     Lowered::Diverged => return Ok(Lowered::Diverged),
                     Lowered::Unit => return Err(error(LoweringErrorKind::InvalidModel, span)),

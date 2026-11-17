@@ -1,9 +1,12 @@
-//! Completed direct constructor parents of copied fields have one final read boundary.
+//! Completed owned temporary parents of copied fields have one final read boundary.
 use super::*;
-use crate::type_checking::{NominalKind, UnitAggregateProjectionKind, UnitConstructionTarget};
+use crate::type_checking::{
+    CallableResultSource, NominalKind, UnitAggregateProjectionKind, UnitCallTarget,
+    UnitConstructionTarget,
+};
 
 impl DropPlanner<'_, '_> {
-    pub(super) fn drop_copied_field_constructor(
+    pub(super) fn drop_copied_field_owner(
         &mut self,
         field: ExpressionId,
         receiver: ExpressionId,
@@ -31,15 +34,35 @@ impl DropPlanner<'_, '_> {
         {
             constructor = *expression;
         }
-        let Some(descriptor) = self
+        let declaration = if let Some(descriptor) = self
             .checker
             .construction_descriptors
             .get(&self.checker.unit_expression(constructor))
-        else {
-            return Ok(());
-        };
-        let UnitConstructionTarget::Nominal(declaration) = descriptor.target() else {
-            return Ok(());
+        {
+            let UnitConstructionTarget::Nominal(declaration) = descriptor.target() else {
+                return Ok(());
+            };
+            declaration
+        } else {
+            let unit = self.checker.unit_expression(constructor);
+            let Some(call) = self.checker.typed.call(unit) else {
+                return Ok(());
+            };
+            if !matches!(call.target(), UnitCallTarget::Declaration(_))
+                || call.receiver().is_some()
+                || call.result_source() != CallableResultSource::Owned
+            {
+                return Ok(());
+            }
+            let Some(UnitTypeKind::Nominal { declaration, .. }) = self
+                .checker
+                .typed
+                .expression_type(unit)
+                .and_then(|ty| self.checker.typed.types().get(ty))
+            else {
+                return Ok(());
+            };
+            *declaration
         };
         if !self.is_move_only_temporary(constructor)
             || !self

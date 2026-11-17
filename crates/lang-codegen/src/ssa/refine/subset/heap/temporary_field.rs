@@ -1,4 +1,4 @@
-//! Admit only a complete direct-constructor field read and its exact parent cleanup.
+//! Admit only a complete owned temporary field read and its exact parent cleanup.
 use super::*;
 use lang_frontend::{
     name_resolution::UnitSymbolId,
@@ -6,7 +6,22 @@ use lang_frontend::{
 };
 
 impl Checker<'_, '_> {
-    pub(super) fn constructor_field_read(
+    pub(super) fn owned_factory_result(&self, expression: ExpressionId) -> bool {
+        use lang_frontend::type_checking::{CallableResultSource, UnitCallTarget};
+        self.inputs
+            .typed
+            .call(self.id(expression))
+            .is_some_and(|call| {
+                matches!(call.target(), UnitCallTarget::Declaration(_))
+                    && call.receiver().is_none()
+                    && call.result_source() == CallableResultSource::Owned
+                    && self
+                        .expression_type(expression)
+                        .is_some_and(|ty| self.class(ty))
+            })
+    }
+
+    pub(super) fn temporary_field_read(
         &mut self,
         receiver_expression: ExpressionId,
         constructor: ExpressionId,

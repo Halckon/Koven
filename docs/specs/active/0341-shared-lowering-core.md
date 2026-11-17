@@ -21254,3 +21254,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Refine 要求精确唯一事实及实际 class/field/type/constructor 准入。真实 SSA 红灯揭示 generic required(receiver) 会提前消费该清理点；限定投影分支复用现有 construction/register/lend，随后原 HeapFieldRead、BorrowEnd、parent Drop，未修改通用 owner_loan、IR 或 LLVM。Diverged 在父分配/登记前返回，不伪造清理。
 - 前端事实真实红灯后2项/28组合通过；实际 SSA 两项包含12个基本/constant、Group、有无 deinit 正控与 factory/兼容路由负控，核单次分配、同 owner 唯一 Drop、read/end/drop 顺序及 verify/LLVM。初版 deinit fixture 语法错误已修正，不计生产红灯。前端原 target 与 field-replace/structural 合计31项、既有临时字段借用 SSA1项通过。无 native/fault，未推送。
 - frontend all-targets strict 本树3m12s通过；codegen strict初版1m11s通过。尺寸门禁促使仅新增准入谓词拆为私有constructor_field模块（heap993行），拆分后SSA2项本树重编2m51s通过；修正抽取后尾return的机械lint，最终codegen all-targets strict本树46.16s/exit0。独审通过，Rust尺寸2551文件门禁通过，既有两项历史例外未改；fmt/diff/docs通过。
+
+
+### Owned factory 返回父对象的 Copy 字段读取
+
+- 基 `4b689170`，将已实证默认 Unsupported 的普通 factory 扩为明确有界能力，不称与旧拒绝等价。仅无 receiver 的 Declaration 调用、Owned 返回、实际非 nullable class，透明 Group 保实际 receiver point/未分组 call target；FE 保 borrow_result_call 排除，Refine 两侧核同一边界及唯一精确清理事实。
+- 复用既有 expression_inner(call) 的参数求值/借用结束/CallReturn，不经会提前消费结果清理的通用 expression 包装；成功结果才登记、lend，之后原 field read/end/drop。未扩 function value、member receiver、Borrow/Carrier 或嵌套来源，无新 IR/析构路径。
+- FE owned result 原[]对唯一结果 drop 真红，既有 borrow-result 字段 continuation 的完整 L0164/调用主span/borrow声明label负控保留；修复后原完整target9项通过。新普通Owned 12组合、borrow负控4组合、String前缀成功/return/Abort边界12组合；前缀正常CallReturn与结果AfterExpression分别一次，提前return仅前缀，Abort不展开。
+- 实际SSA4项本树重编2m23s通过：factory12组合及原direct12均核单次owner生产、实际entry Refine、对应owner唯一Drop与read/end/drop、verify/LLVM；另2入口的String借用实参Drop在call后field read前，父结果另一次Drop；兼容路由仍拒绝。前缀return/Abort目前仅FE事实证明，未声称这些退出路径SSA/native已支持。最初模块路径/enum import错误及clone fixture额外自身receiver清理均已修正，不计生产红灯。
+- 邻控 field-replace14、structural11、原 temporary-field Borrow SSA1通过。frontend all-targets strict（loan-observation-test-support）本树2m45s/exit0，codegen同配置strict本树1m12s/exit0；独审、fmt/diff、docs979、Rust尺寸2552通过（heap995行），历史尺寸例外未改。无native/fault，不推送。

@@ -166,3 +166,6 @@ fn erroneous_receiver_does_not_add_a_field_move_diagnostic() {
         }
     }
 }
+
+#[path = "ownership_temporary_field_consumption/factory_copy_cleanup.rs"]
+mod factory_copy_cleanup;

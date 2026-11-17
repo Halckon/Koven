@@ -1,5 +1,5 @@
 //! Subset rules for class construction, field reads and `!!`; they mirror the builder.
-mod constructor_field;
+mod temporary_field;
 
 use std::collections::BTreeSet;
 
@@ -403,8 +403,10 @@ impl Checker<'_, '_> {
                     return true;
                 }
                 let constructor = self.ungrouped(receiver_expression);
-                if typed.construction(self.id(constructor)).is_some() {
-                    return self.constructor_field_read(
+                if typed.construction(self.id(constructor)).is_some()
+                    || self.owned_factory_result(constructor)
+                {
+                    return self.temporary_field_read(
                         receiver_expression,
                         constructor,
                         projection.field(),
