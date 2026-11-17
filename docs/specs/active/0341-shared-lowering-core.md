@@ -21330,3 +21330,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 存储拒绝后的参数检查仅复用已有 `ConstructionOperandFlow`；保 `Some(Error)`、原storage recovery标记、原失败返回及无成功construction，不改变存储准入。
 - 新8源码×双布局覆盖真实/不可达break、命名顺序、正常存储、Error expected抑制参数级联、原L0125主span、无descriptor及独立suffix诊断。outside外部名称注册但无类型绑定，依原rejected_call_recovery合同区分raw L0125与final admission L0125+L0165并核outside主span；初fixture缺name注册和随后混用raw/final预期的失败均保日志，未改生产绕过。最终精确绿本树4.03s。
 - 完整multifile_type_checking296项及ownership_construction10项通过；frontend all-targets strict（loan-observation-test-support）强制本树1m59s/exit0。独审、fmt/diff、docs979、Rust尺寸2556通过；无native/fault，不推送。
+
+### 范围构造 bounds 的真实完成性与后项隔离
+
+- 基 `6e8496c0`，原生产代码真实红测：`rangeView(source, return 7, 1)` 完成性错误为 true；`loop { rangeView(source, return 7, break) }` 因不可达 break 多出 L0088。属于 Phase 2 完成性与 Phase 3 输入正确性，不宣称 E3/native 扩展。
+- 原私有构造操作数状态机机械移为 checker 私有 `CallOperandFlow`，名义构造调用点不改算法。范围构造合法 List/View 来源与 bounds 共用普通/pending 顺序，保后项静态检查、原 descriptor/来源 identity、SourceId 授权及同名函数隔离。无效 source 和 arity 恢复仍为原边界，本片不声称全恢复路径闭合。
+- 新 3 项共 13 源 × MemoryDocument/Rooted，覆盖正常、Return、Nothing、条件完成性、可达/不可达 break、continue、后项 L0084 原主 span 和无错误 descriptor。原 target 红灯 4 passed/2 failed；修复后 6 passed。共享状态机邻控 multifile_type_checking 296、ownership_construction 10、ownership_range_construction 14、type_range_source_authority 6 全过。
+- 最终 target（含 L0084 主 span）6 passed；frontend all-target strict（loan-observation-test-support）强制本树 1m02s/exit0，独审无阻塞。未运行 SSA/native/fault，未推送。

@@ -156,3 +156,100 @@ fn source_function_with_the_constructor_name_has_no_intrinsic_facts() {
             .all(|c| c.range_construction().is_none())
     );
 }
+
+#[test]
+fn range_bounds_preserve_operand_completion() {
+    for (begin, end, completes) in [
+        ("0", "1", true),
+        ("return 7", "1", false),
+        ("0", "return 7", false),
+        ("stop()", "1", false),
+        ("0", "stop()", false),
+        ("if (flag) { return 7 } else { 0 }", "1", true),
+    ] {
+        let text = format!(
+            "fun stop(): Nothing = stop()\nfun run(source: List<Int>, flag: Boolean): Int {{ borrow val part = rangeView(source, {begin}, {end}); return 0 }}"
+        );
+        let (_, document, rooted) = checked(&text, true);
+        for typed in [&document, &rooted] {
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            let descriptor = typed
+                .calls()
+                .iter()
+                .find_map(|call| call.range_construction())
+                .expect("static range identity");
+            assert_eq!(
+                typed.expression_type(descriptor.expression()),
+                Some(descriptor.result_type())
+            );
+            assert_eq!(
+                typed.expression_falls_through(descriptor.expression()),
+                Some(completes),
+                "{text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn range_bounds_do_not_publish_unreachable_loop_break() {
+    for (begin, end, missing_return) in [
+        ("return 7", "break", false),
+        ("stop()", "break", false),
+        ("continue", "break", false),
+        ("0", "break", true),
+    ] {
+        let text = format!(
+            "fun stop(): Nothing = stop()\nfun run(source: List<Int>): Int {{ loop {{ rangeView(source, {begin}, {end}) }} }}"
+        );
+        let (_, document, rooted) = checked(&text, true);
+        for typed in [&document, &rooted] {
+            let codes: Vec<_> = typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect();
+            assert_eq!(
+                codes,
+                if missing_return {
+                    vec!["L0088"]
+                } else {
+                    vec![]
+                },
+                "{text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn range_bounds_keep_unreachable_suffix_diagnostics() {
+    for begin in ["0", "return 7", "stop()"] {
+        let text = format!(
+            "fun stop(): Nothing = stop()\nfun run(source: List<Int>): Int {{ rangeView(source, {begin}, \"bad\"); return 0 }}"
+        );
+        let (sources, document, rooted) = checked(&text, true);
+        for typed in [&document, &rooted] {
+            let codes: Vec<_> = typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect();
+            assert_eq!(codes, ["L0084"], "{text}");
+            assert_eq!(
+                sources.slice(typed.diagnostics()[0].primary_span()),
+                Ok("\"bad\"")
+            );
+            assert!(
+                typed
+                    .calls()
+                    .iter()
+                    .all(|call| call.range_construction().is_none())
+            );
+        }
+    }
+}

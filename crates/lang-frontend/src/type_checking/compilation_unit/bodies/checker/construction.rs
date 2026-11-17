@@ -19,12 +19,11 @@ use crate::{
 
 use super::{BodyChecker, ExpressionCheck, ExpressionExpected};
 
+use super::call_operand_flow::CallOperandFlow;
 use bounds::BoundCheck;
-use operands::ConstructionOperandFlow;
 
 mod bounds;
 mod intrinsic;
-mod operands;
 
 #[derive(Clone, Copy)]
 enum Target {
@@ -412,7 +411,7 @@ impl BodyChecker<'_> {
                 .collect::<BTreeSet<_>>();
             let mut poisoned = false;
             let mut partial_operands = Vec::new();
-            let mut flow = ConstructionOperandFlow::new(self);
+            let mut flow = CallOperandFlow::new(self);
             for (argument_index, argument) in arguments.iter().enumerate() {
                 if self.is_lambda_syntax(source, argument.value) {
                     continue;
@@ -519,7 +518,7 @@ impl BodyChecker<'_> {
             Some(expression),
         )? {
             let error = self.error_type();
-            let mut flow = ConstructionOperandFlow::new(self);
+            let mut flow = CallOperandFlow::new(self);
             for argument in arguments {
                 flow.check(self, source, argument.value, Some(error), None, return_type)?;
             }
@@ -818,7 +817,7 @@ impl BodyChecker<'_> {
         deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut valid = true;
-        let mut flow = ConstructionOperandFlow::new(self);
+        let mut flow = CallOperandFlow::new(self);
         let mut pending_parameter = false;
         let mut descriptors = Vec::with_capacity(arguments.len());
         for (evaluation_index, argument) in arguments.iter().enumerate() {
