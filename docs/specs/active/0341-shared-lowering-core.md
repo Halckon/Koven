@@ -21309,3 +21309,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 仅在nominal/intrinsic构造所有参数检查完成后的最终结果适配增加falls_through门；不跳过泛型推导、参数类型、return值或不可达后缀诊断，不改失败recovery。无正常后继不交付结果值，但保持原静态结果类型和descriptor身份；有正常分支仍执行原结果适配。
 - 新两项34组合覆盖class/value class/enum/Box/Rc正常与终止、普通call、显式Generic<Int>、条件双臂/单臂、错误return及suffix，双source布局保L0084主span及成功type/descriptor关联。不是完整诊断对象等价或全部泛型推导证明；现有推导/恢复合同由原target邻控保留。
 - 新旧completion共5项本树8.29s绿；完整multifile_type_checking293项、ownership_construction10项通过。frontend all-targets strict（loan-observation-test-support）强制本树1m37s/exit0；独审、fmt/diff、docs979、Rust尺寸2555通过。未扩大E3，无native/fault，不推送。
+
+### Nominal 构造缓存实参保完成性
+
+- 基 `683d299d`，双布局probe实证 `Pair<String>("tag", Inner(return 9))` 及普通factory operand成功，等价可推导的 `Pair("tag", ...)` 却L0084/Error/flow true。原因是泛型推导先检查并缓存实参，nominal finish补充适配忽略缓存的false完成性；冻结原源合同后真红。正常与有正常分支的条件operand两路线仍拒绝，原诊断主span有差异，不误称完整诊断等价。
+- 仅在nominal `already_checked` 补充适配条件加 `checked.falls_through`；推导、参数/后缀检查、完成性累积和失败recovery不变。intrinsic同型代码尚无真实触发证据，不顺带修改，不扩E3。
+- 新16组合保显式/推导、构造/factory终止operand、正常与条件可完成拒绝、双source布局；成功核String泛型实参与descriptor结果身份和false完成性；拒绝保单个L0084及各路线原主span切片，非完整Diagnostic对象相等。
+- 新旧completion6项本树8.55s通过；完整multifile_type_checking294项及ownership_construction10项通过。frontend all-targets strict（loan-observation-test-support）强制本树1m44s/exit0；独审、fmt/diff、docs979、Rust尺寸2555通过。无native/fault，不推送。

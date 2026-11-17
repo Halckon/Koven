@@ -836,6 +836,7 @@ impl BodyChecker<'_> {
             // Check every operand, including unreachable suffixes, before combining flow.
             falls_through &= checked.falls_through;
             if already_checked
+                && checked.falls_through
                 && !(self.is_error(checked.ty)
                     || self.is_deferred(checked.ty)
                     || self.assignable(checked.ty, parameter_type)

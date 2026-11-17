@@ -240,3 +240,77 @@ fn non_completing_construction_keeps_return_value_and_suffix_diagnostics() {
         }
     }
 }
+
+#[test]
+fn cached_constructor_operands_keep_completion_and_normal_diagnostics() {
+    for operand in [
+        "Inner(return 9)",
+        "make(return 9)",
+        "Inner(7)",
+        "if (flag) { Inner(return 9) } else { Inner(7) }",
+    ] {
+        for callee in ["Pair<String>", "Pair"] {
+            let expression = format!("{callee}(\"tag\", {operand})");
+            let text = format!(
+                "class Inner(val value: Int)\nclass Pair<T>(val tag: T, val value: Int)\nfun make(value: Int): Inner = Inner(value)\nfun use(flag: Boolean): Int {{ val item = {expression}; return 0 }}"
+            );
+            let mut sources = SourceMap::new();
+            let (source, file) = parsed(&mut sources, "cache.ko", &text);
+            for input in [
+                SourceUnitInput::memory_document(source, &file),
+                SourceUnitInput::new("root", "cache.ko", source, &file),
+            ] {
+                let inputs = [input];
+                let (environment, types) = standard_environments();
+                let names = validated_names(&sources, &inputs, &environment);
+                let typed =
+                    check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+                let local = file
+                    .ast()
+                    .expressions()
+                    .iter()
+                    .find(|(_, node)| sources.slice(node.span()) == Ok(expression.as_str()))
+                    .unwrap()
+                    .0;
+                let id = UnitExpressionId::new(source_unit(&names, source), local);
+                let completes = operand == "Inner(7)" || operand.starts_with("if ");
+                if completes {
+                    assert_eq!(
+                        typed.diagnostics().len(),
+                        1,
+                        "{expression}: {:?}",
+                        typed.diagnostics()
+                    );
+                    let diagnostic = &typed.diagnostics()[0];
+                    assert_eq!(diagnostic.code().to_string(), "L0084");
+                    let marker = if callee == "Pair<String>" && operand.starts_with("if ") {
+                        "Inner(7)"
+                    } else {
+                        operand
+                    };
+                    assert_eq!(sources.slice(diagnostic.primary_span()), Ok(marker));
+                } else {
+                    assert!(
+                        typed.diagnostics().is_empty(),
+                        "{expression}: {:?}",
+                        typed.diagnostics()
+                    );
+                    assert_eq!(typed.expression_falls_through(id), Some(false));
+                    let descriptor = typed
+                        .constructions()
+                        .iter()
+                        .find(|d| d.expression() == id)
+                        .expect("construction identity");
+                    assert_eq!(typed.expression_type(id), Some(descriptor.result_type()));
+                    let [argument] = descriptor.instance().type_arguments() else {
+                        panic!("one inferred or explicit type")
+                    };
+                    assert_eq!(
+                        typed.types().get(*argument),
+                        Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                    );
+                }
+            }
+        }
+    }
+}
