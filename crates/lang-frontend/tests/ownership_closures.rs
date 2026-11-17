@@ -29,6 +29,9 @@ mod callable_provenance;
 #[path = "ownership_closures/exclusive_lifetime.rs"]
 mod exclusive_lifetime;
 
+#[path = "ownership_closures/capability_unit.rs"]
+mod capability_unit;
+
 #[path = "ownership_closures/parameter_modes_unit.rs"]
 mod parameter_modes_unit;
 
@@ -255,20 +258,6 @@ fn lambdas(parsed: &ParsedFile) -> Vec<ExpressionId> {
     lambdas.into_iter().map(|(_, id)| id).collect()
 }
 
-fn ability(
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    name: &str,
-) -> Transferability {
-    let ty = typed
-        .symbol_type(symbol(names, name))
-        .unwrap_or_else(|| panic!("missing type for {name}"));
-    owned
-        .transferability(ty)
-        .unwrap_or_else(|| panic!("missing transferability for {name}"))
-}
-
 #[test]
 fn implicit_it_is_a_value_parameter_and_never_a_capture() {
     let text = "class Resource {}\n\
@@ -351,33 +340,7 @@ fn transferability_is_structural_and_independent_from_copyability() {
                     packets: List<Packet>, callbacks: List<CallbackBox>, shared: Rc<Packet>, action: () -> Unit,\n\
                     choice: Choice, proven: T, unknown: U, top: Any\n\
                 ): Unit {}";
-    let (_, _, names, typed, owned) = checked(text);
-    for name in ["packet", "text", "maybe", "packets", "choice", "proven"] {
-        assert_eq!(
-            ability(&names, &typed, &owned, name),
-            Transferability::Transferable,
-            "{name}"
-        );
-    }
-    for name in [
-        "callback",
-        "callbacks",
-        "shared",
-        "action",
-        "unknown",
-        "top",
-    ] {
-        assert_eq!(
-            ability(&names, &typed, &owned, name),
-            Transferability::NotTransferable,
-            "{name}"
-        );
-    }
-    assert_eq!(
-        ability(&names, &typed, &owned, "packet"),
-        Transferability::Transferable,
-        "ordinary classes can be transferable while remaining MoveOnly"
-    );
+    capability_unit::structural(text);
 }
 
 #[test]
@@ -570,22 +533,12 @@ fn only_compiler_bound_cross_thread_effect_requires_transferability() {
                     fun opaque(own callback: move () -> Unit): Unit {\n\
                         val sent = dispatch(callback)\n\
                     }";
-    let (_, _, _, typed, owned) = analyzed_with(external, cross_thread_environments());
-    assert_eq!(codes(&owned), ["L0139", "L0139"]);
-    assert!(
-        typed
-            .calls()
-            .iter()
-            .filter(|call| !call.arguments().is_empty())
-            .all(|call| call.arguments()[0].crosses_thread())
-    );
-
     let source_same_name = "class Local(val callback: () -> Unit)\n\
                             fun dispatch(own callback: move () -> Unit): Unit {}\n\
                             fun ordinary(own local: Local): Unit {\n\
                                 val sent = dispatch(move { val read = local })\n\
                             }";
-    checked(source_same_name);
+    capability_unit::cross_thread(external, source_same_name);
 }
 
 #[test]

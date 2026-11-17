@@ -123,7 +123,7 @@ drop facts 管理；这不代表 Phase 4 lowering 已接入。
 
 ## Capture、Transferability 与 drop
 
-Single/Unit 共用 capture scope、同源 Span 包含与 Transferability 合并，保留类型求值和身份适配，按 lambda/source binding 发布。Unit 数据流按 source-qualified lambda 索引捕获，形成、逃逸、跨线程、循环检查与 factory 返回归类共用索引，保留原发布顺序。 隐式/显式 lambda 参数模式与非捕获的原消费者，以及隐式字段和 member-call 的原 `This` 捕获消费者使用双 Unit；未标 receiver 的字段写入保留原 Single L0135 负控；同源 Unit 观察到 readonly L0134，记录拒绝检查顺序差异，不宣称该项等价。
+Single/Unit 共用 capture scope、同源 Span 包含与 Transferability 合并，保留类型求值和身份适配，按 lambda/source binding 发布。Unit 数据流按 source-qualified lambda 索引捕获，形成、逃逸、跨线程、循环检查与 factory 返回归类共用索引，保留原发布顺序。 隐式/显式 lambda 参数模式、结构化 Transferability 与编译器绑定跨线程 effect，以及隐式字段和 member-call 的原 `This` 捕获消费者使用双 Unit；未标 receiver 的字段写入保留原 Single L0135 负控；同源 Unit 观察到 readonly L0134，记录拒绝检查顺序差异，不宣称该项等价。
 普通 closure 借用 capture，`move` closure 按 Copy/Move 获取 owner。跨线程检查完整环境的 `Transferability`。Unit 为可达的 Copyable 局部根和可验证的具体 MoveOnly 根建立独占 capture loan，冲突报 L0135。MoveOnly 根在 RHS 正常完成后发布 `BeforeReplacement/ReplacedCapture`，捕获根由调用者持有。未证明的环境运输由 L0164 限制，SSA 入口拒绝独占环境布局。[捕获根替换](../specs/active/0392-compiler-layered-review.md#50-r3-moveonly-捕获根替换)
 
 反向 liveness 产生 source-qualified drop plan，覆盖参数、local、temporary、replaced value、container

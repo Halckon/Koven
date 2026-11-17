@@ -21464,3 +21464,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 原实现真实红测为 1 passed / 1 failed：`return 7` 后不可达 `break` 错误污染外层循环出口，额外产生 L0088。修复只隔离不可达参数出口，不跳过参数检查；活 `break` 的 L0088 与后缀 L0084 的精确 span 均保留。
 - 七个源码各经 Rooted / MemoryDocument：四个循环出口对照及三个后缀诊断对照。重解析的唯一 Call/span 仅用于独立单源测试定位，不声明跨分析 AST 身份。
 - 本地本树重编后 `type_range_construction` 8 passed、`type_range_source_authority` 6 passed；另本树重编 `multifile_type_checking construction_completion` 6 passed。强制本树 `cargo clippy --locked -p lang-frontend --all-targets --features loan-observation-test-support -- -D warnings` 通过（28.76 秒）。未执行 native 或 CI-only fault；未推送。
+
+
+### 2026-11-17：结构化能力与跨线程 effect 消费者收敛
+
+- 基 `b15fc47b`，两原 FQN 基线各1 passed（本树1m14s/5.44s），保旧双 Unit 两项各1 passed（本树3.20s）；完整对应后退休两处 Single 分析和唯一专用 ability helper。原源码、closures.ko、普通与 compiler-bound 环境分别保留，不改生产或新增公开 API。
+- 保六个 Transferable、六个 NotTransferable 及重复 packet 断言。原 helper 使用首个同名 local symbol，字段/payload 可能先于函数参数；Unit 按同源 NameResolution 原 SymbolId 在现成签名参数/字段/枚举 payload 中匹配唯一真实 UnitSymbolId，再查 symbol_type 与 owned.transferability，不以同名参数或相同能力值替代身份。
+- 跨线程保完整有序 `[L0139,L0139]`、每个非空 call 首参 crosses_thread，以及普通源码同名 dispatch 无 ownership 诊断。没有把测试名解读为额外的 Copyability 断言，也没有新增原本不存在的无 effect 断言；失败路径保 basic validated types 与 raw ownership，不强加 complete。
+- 最终原 closure 普通 target 74 passed（本树重编4.89s），强制本树 frontend all-target `loan-observation-test-support` strict 1m24s/exit0。独审、fmt/diff、docs980及Rust尺寸2570（原两项例外）通过；无native/fault执行，不推送。
