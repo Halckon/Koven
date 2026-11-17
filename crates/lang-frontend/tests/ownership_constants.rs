@@ -12,6 +12,8 @@ mod parser_test_assertions;
 
 #[path = "ownership_constants/unit_cleanup_order.rs"]
 mod unit_cleanup_order;
+#[path = "ownership_constants/unit_failure.rs"]
+mod unit_failure;
 #[path = "ownership_constants/unit_materialization.rs"]
 mod unit_materialization;
 #[path = "ownership_constants/unit_runtime_identity.rs"]
@@ -141,8 +143,7 @@ fun use(): Int {
 
 #[test]
 fn ownership_failure_clears_materialization_capability() {
-    let (_, _, owned) = analyzed(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun take(own text: String): Unit {}
 fun use(own input: String): Unit {
@@ -150,12 +151,13 @@ fun use(own input: String): Unit {
     val second = take(input)
     val third = take(input)
 }
-"#,
-    );
+"#;
+    let (sources, _, owned) = analyzed(text);
     assert!(!owned.diagnostics().is_empty());
     assert!(owned.constant_materializations().is_none());
     assert!(owned.drops().is_empty());
     assert!(owned.loans().is_empty());
+    unit_failure::check(&sources, owned.diagnostics());
 }
 
 #[test]

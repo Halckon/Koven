@@ -191,3 +191,6 @@ Unit Phase 3 对该已知受限形状返回 L0164，失败清空 Rc/loan/drop �
 借用结果绑定的循环范围查询按 Checker 固定 AST 惰性缓存三类循环 span；保持原
 no-carry 特许短路、offset-only 包含判断和诊断，不新增准入证明。此查询的 statement
 扫描从每次绑定重扫改为一次；B 次查询成本为 O(S+B×L)，不代表整个检查器线性。
+
+常量所有权失败的双 Unit recovery 保留无物化 capability、无 loan/drop 的原合同；
+L0131 相比 Single 多实际已选参数声明标签，精确差异见证保留两入口，不视为诊断等价退休。

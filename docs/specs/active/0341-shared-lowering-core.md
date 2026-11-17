@@ -21529,3 +21529,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `fd509af3`，两原 FQN 基线及完整保旧双 Unit 对照各1 passed（本树37.79s/3.48s），仅替换两份合法 typed、P3 报 L0138 的 Single 观察。原源码、closures.ko、标准环境及解析/名称/类型 clean 前置不变，使用 raw ownership 结果而非要求失败产品 validate 成功。
 - 一份原源码保 captures/loans/drops 全表空，另一份保 callable origins/pointer return summaries 全表空，均保完整 `[L0138]`。captures 和 callable 表有错误发布门；loans/drops 直接承接 dataflow，故此处只证明原单函数场景，不泛化为所有失败 Unit 统一清表。
 - P2 typed-error 后半段、分析身份、Deferred 和 caller-first 差异见证完整保留。最终 closure 74 passed，强制本树 frontend all-target `loan-observation-test-support` strict 1m08s/exit0，独立末审通过；不改生产/API，无 native/fault，未推送。
+
+### 2026-11-17：常量失败 capability 的精确诊断差异见证
+
+- 基 `8b76503c`，保留 `ownership_failure_clears_materialization_capability` 原 Single 源码及诊断非空、materializations None、drops/loans 空四断言，不退休消费者、不改生产。
+- 原基线1项通过（本树22.61秒）。完整诊断对照实测发现 Unit L0131 比 Single 多 `selected parameter declared here` 标签，primary 与原 moved 标签相同；这是既有 Unit 通用 ensure_available 行为，不是常量功能缺陷。首 MemoryDocument 已失败，不将该轮记双布局通过。
+- 精确差异见证克隆完整 Single 诊断，仅追加唯一 `take` AST 的真实 `own text: String` 参数 span；两 Unit 完整比较后核 raw constant recovery 无 capability、loans/drops 空且 validate 失败。保同一原 SourceMap 与 SourceId，不过滤任意标签。
+- 首版 helper 跨 SourceMap 追加标签被 InvalidSourceId 拒绝（16邻控通过、新1失败）；修复为复用原 Single SourceMap 后，全 ownership_constants 17 passed（本树5.51秒），强制本树 frontend all-target loan-observation-test-support strict 通过。独立方案、差异边界与身份修正审阅通过。无 native/fault，不推送；不声称完整诊断等价、旧入口退休或 E2 新功能完成。
