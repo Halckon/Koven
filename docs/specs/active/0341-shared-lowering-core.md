@@ -21428,3 +21428,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `4610cd41`。真实不可变赋值 RHS 已建立 `rangeView` 同步 consumer，随后 L0134 回滚 source loan，但 range-use 留下两项而非仅前缀一项；原生产红测 1 passed / 1 failed，失败前完整诊断和标签已核。最终 dataflow 失败门原已清空整个 borrow-results，此片只修局部事务内部悬空关联，不宣称公开 capability 泄漏或误编译。
 - assignment checkpoint 增加第十二项 range-use 长度，共用原六个失败出口截断后缀；原十一项索引、成功路径、诊断与全局撤销不变。测试保存真实源授权与实际 checker 路径，无事实注入；负例保原 prefix 和其完整 source-loan 身份、撤销 RHS，成功 var 对照保两个不同 expression 及实际贷款。旧回滚夹具只同步零列，无新公开 API、准入或 E3 改动。
 - 绿测两项与旧 borrow-call rollback 两项通过；相关 `ownership_nested_borrow_arguments` 14、`ownership_range_construction` 21、`ownership_range_receiver` 13 项通过。强制本树 frontend all-targets `loan-observation-test-support` Clippy `-D warnings` 50.46s/exit0；fmt、docs980、尺寸2566（两项原历史例外不扩大）、diff-check与独立末审通过。每步宿主/容器空槽及8GiB门槛核验；未执行 native、Abort 或 fault，不推送。
+
+### 2026-11-17：数值 iteration 快照正例收敛到双 Unit 消费者
+
+- 基 `880806b2`，原 `4610cd41` 候选树保全，仅在新独立树应用同一已审补丁。`numeric_snapshots_allow_owned_items_source_reassignment_and_local_cleanup` 保 Int/Long 各 return、source 重赋、continue、break、discard 共十原源码，删除这些正例重复 Single 分析；Rooted/MemoryDocument 原有 provider、Value delivery、OwnedSnapshot、绑定数/Owned、无 EndSource、非空 exits 全保留，显式补 deferred 为空。
+- 原 Unit validate 继续验证同轮 iteration 模板、完整 required-exit/action 与身份，不以 Partial 缺项代替完整合同；不宣称新旧 validator 算法相同。`numeric_inner_loop_preserves_outer_container_borrow` 的完整 Single/Unit 不同诊断与完整原源码全部保留，旧 helper 的条件 validator 路径保持；该负例有诊断，不宣称执行旧 validator。没有生产、准入、E3 或 native 能力变化。
+- 整合基线原完整目标 2 passed，候选同目标 2 passed，分别真实本树编译22.00s/1.00s。外部 cargo 出现时阶段门禁暂停，待自然空窗后只续候选，不重复基线；每次构建前复核宿主/容器与8GiB。强制本树 frontend all-targets `loan-observation-test-support` Clippy `-D warnings` 1m09s/exit0；fmt、docs980、尺寸2568（两项原历史例外不扩大）、diff-check与独立末审通过。未执行 native/fault，不推送。
