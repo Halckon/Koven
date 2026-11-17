@@ -453,6 +453,7 @@ impl Builder<'_, '_> {
                     symbol: fact.symbol(),
                     slot: view,
                     target: on_non_null,
+                    when_scope: None,
                 });
             }
             self.emit_drops(&operand_drops)?;

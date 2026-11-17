@@ -125,6 +125,36 @@ impl Builder<'_, '_> {
             let span = self.statement_span(loop_body)?;
             self.unreachable_drop_scopes.push(span);
         }
+        // Preserve the original loop source identity for migrated nullable When
+        // exits; ordinary loop/receipt layouts and their origins stay untouched.
+        let contains_when = self.body.blocks.iter().any(|block| {
+            block.terminator.as_ref().is_some_and(|(term, origin)| {
+                matches!(term, super::RTerm::NullBranch { when_non_null, .. }
+                    if self.body.blocks[when_non_null.0].carry_sibling.is_some())
+                    && origin.source_id() == span.source_id()
+                    && span.start() <= origin.start()
+                    && origin.end() <= span.end()
+            })
+        });
+        if contains_when {
+            // Cleanup instructions retain the exact break expression origin, while
+            // the outgoing break edge identifies its original While boundary.
+            for block in &mut self.body.blocks {
+                if let Some((super::RTerm::Goto(target), origin)) = &mut block.terminator
+                    && *target == exit
+                {
+                    *origin = span;
+                }
+            }
+            for block in [header, finished, exit] {
+                self.body.blocks[block.0].origin = Some(span);
+            }
+            if let Some((super::RTerm::Branch { .. }, origin)) =
+                &mut self.body.blocks[header.0].terminator
+            {
+                *origin = span;
+            }
+        }
         let exit_point = UnitDropPoint::LoopExit(statement);
         let facts = self.collect_drops(exit_point);
         if self.body.blocks[finished.0].has_predecessor {

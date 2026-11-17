@@ -91,6 +91,21 @@ impl Builder<'_, '_> {
         while let Some((param_slot, value_expression, call_arg_span, mode, parameter_type)) =
             call_args.next()
         {
+            if let Some((slot, borrowed)) = self.nullable_when_argument(
+                expression,
+                value_expression,
+                mode,
+                parameter_type,
+                call_arg_span,
+            )? {
+                lowered_slots[param_slot] = Some(slot);
+                if borrowed {
+                    view_reads.push(value_expression);
+                } else {
+                    delivered.push(value_expression);
+                }
+                continue;
+            }
             if mode == ParameterMode::Inout {
                 let (loan, writeback) = self.inout_argument(value_expression)?;
                 lowered_slots[param_slot] = Some(loan);
@@ -369,7 +384,9 @@ impl Builder<'_, '_> {
             self.drops(UnitDropPoint::AfterExpression(receiver_expr))?;
         }
         for argument in view_reads {
-            self.drops(UnitDropPoint::AfterExpression(self.unit(argument)))?;
+            if !self.nullable_when_observe_drops(argument)? {
+                self.drops(UnitDropPoint::AfterExpression(self.unit(argument)))?;
+            }
         }
         Ok(result)
     }
