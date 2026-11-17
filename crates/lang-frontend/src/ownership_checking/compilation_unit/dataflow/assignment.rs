@@ -43,13 +43,16 @@ impl Checker<'_> {
             self.borrow_results.range_uses.len(),
         );
         let nullable_when_checkpoint = self.nullable_whens.clone();
-        let mut flows = self.check_expression(
-            value,
-            state,
-            ExpressionUse::Consume {
-                parameter_span: None,
-            },
-        )?;
+        let usage = ExpressionUse::Consume {
+            parameter_span: None,
+        };
+        // A stored environment belongs to the container, not the local capture scope.
+        // Check escaping control tails before their branch locals disappear.
+        let mut flows = if self.element_place_descriptor(target)?.is_some() {
+            self.check_escaping_expression(value, state, usage)?
+        } else {
+            self.check_expression(value, state, usage)?
+        };
         if root.is_some() {
             for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
                 .into_iter()

@@ -21536,3 +21536,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 原基线1项通过（本树22.61秒）。完整诊断对照实测发现 Unit L0131 比 Single 多 `selected parameter declared here` 标签，primary 与原 moved 标签相同；这是既有 Unit 通用 ensure_available 行为，不是常量功能缺陷。首 MemoryDocument 已失败，不将该轮记双布局通过。
 - 精确差异见证克隆完整 Single 诊断，仅追加唯一 `take` AST 的真实 `own text: String` 参数 span；两 Unit 完整比较后核 raw constant recovery 无 capability、loans/drops 空且 validate 失败。保同一原 SourceMap 与 SourceId，不过滤任意标签。
 - 首版 helper 跨 SourceMap 追加标签被 InvalidSourceId 拒绝（16邻控通过、新1失败）；修复为复用原 Single SourceMap 后，全 ownership_constants 17 passed（本树5.51秒），强制本树 frontend all-target loan-observation-test-support strict 通过。独立方案、差异边界与身份修正审阅通过。无 native/fault，不推送；不声称完整诊断等价、旧入口退休或 E2 新功能完成。
+
+### 2026-11-17：元素存储借用闭包逃逸检查
+
+- 输入基线 `a9cb3251`；原 `element_storage_cannot_keep_an_iteration_capture_past_the_element_access` 的直接、if 局部尾与 when 局部尾三份源码保留。Single 精确目标通过，而双 Unit 原拒绝合同先真实失败；独立观察六组合均无诊断、存在一个 drop/capture 且 validate 成功。此为前端非法存储接纳证据，不推断运行时后果。
+- Unit 赋值仅对 typed element target 的 RHS 复用既有 escaping-expression 检查，在分支局部来源退场前拒绝；沿原事务回滚。普通局部赋值、字段检查与 receiver/index 求值时序不改，不扩展 E3。
+- 保 Single 见证和双 Unit 三原源至少 L0137、全 drops/captures 空；增加 Array/MutableList 合法 owned/capture-free 十二组合、提前 return/break/continue 不可达尾六组合及普通局部借用赋值两组合。无旧消费者退休或公共 API 新增。
+- 验证：原目标基线通过，保旧 probe 真实失败；修复后 `ownership_iteration` 221、`ownership_containers` 45、`ownership_closures` 74 全通过，强制本树 frontend all-targets `loan-observation-test-support` strict 通过（1m20s）；静态独审、docs 与尺寸门禁通过。未运行 native/fault，未推送。
