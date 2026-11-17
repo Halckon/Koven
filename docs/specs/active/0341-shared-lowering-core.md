@@ -21385,3 +21385,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 新 FE 2项共7源码×双布局：原无括号与1/3层括号、named/temporary根，两层事实同origin、outer源loan保原Group span、真实临时根唯一最外CallReturn Drop；后参数消费活根仍L0135。原精确红灯后完整ownership_range_receiver13项通过。
 - 新精确 SSA/LLVM 矩阵 6 源 × 双布局真实通过：refine 路由、SSA verifier 与 LLVM adapter 均实测，未执行 native。五组 range/普通receiver/来源权限邻控共61项通过，未改变 iteration validator 或普通receiver合同。
 - frontend all-target feature strict 强制本树1m32s、codegen default all-target strict 强制本树1m09s均通过；独审、fmt/diff、docs980、Rust尺寸2563（原2例外）通过。无 native/fault，不推送。
+
+
+### callable CFG 与 loop 来源消费者双 Unit 收敛
+
+- 基 `6964506c`，迁移 `callable_contract` 的 loop fixed-point、backedge/repeated condition、CFG join、break/continue 与 for-source 五原FQN，共八份原源码；其余十项 factory摘要、裸函数Deferred、参数/捕获等合同及原Single preflight不改。仅测试消费迁移，不扩E3或生产能力。
+- 新私有 `unit_cfg_origin` 沿原 `closures.ko`、standard environments、parse两遍、names/types/ownership诊断空及ownership deferred空边界；MemoryDocument/Rooted各自解析相同原字节并核实际SourceId/SourceUnitKey，不声称共享同一AST对象。按唯一原表达式文本定位实际AST，再用真实SourceUnitId查询；lambda下标仍由原helper按span.start排序，不靠arena顺序。
+- 完整保留 stable=lambda[0]、overwrite=lambda[1]、backedge/重复条件未知、同源join=lambda[0]/不同源未知、break仅Some/continue None、for源=lambda[1]。stable/overwrite及break/continue先收齐原场景分析再断言。None只表示该use未证明唯一origin，不代表无运行时closure，也不用Partial loan观测推absence。
+- 五项原基线各1 passed（原树重编43.12s），保Single双Unit probe各1 passed（候选53s）；最终普通contract全15项通过（本树8.96s），含未改十项邻控。名称含abort的测试仅作普通前端源码分析，无native执行/故障注入，不推送。
+- 强制候选本树frontend all-target strict（loan-observation-test-support）1m49s/exit0；独审确认全部原受断言合同及不相干函数保持。

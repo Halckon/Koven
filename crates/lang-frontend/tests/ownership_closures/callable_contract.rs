@@ -1,5 +1,7 @@
 //! Provenance is evidence from completed analysis, never an ABI guess.
 use super::*;
+#[path = "unit_cfg_origin.rs"]
+mod unit_cfg_origin;
 use lang_frontend::ownership_checking::{CallableOrigin, PointerCallableReturnOrigin};
 
 fn expression(sources: &SourceMap, parsed: &ParsedFile, text: &str) -> ExpressionId {
@@ -321,25 +323,18 @@ fn callable_contract_loop_fixed_point_preserves_stable_and_overwritten_origins()
         val next: (Int)->Int = {{ index -> index + 1 }}\ncallback = next\nval alias = (callback)\ntake((alias))\n\
         val again: (Int)->Int = {{ index -> index + 2 }}\ncallback = again\n }} }}"
     );
-    let stable_analysis = preflight(&stable);
-    let overwrite_analysis = preflight(&overwrite);
-    let (sources, parsed, _, _, owned) = stable_analysis;
-    assert_eq!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "callback"))
-            .unwrap()
-            .origin(),
-        CallableOrigin::Lambda(lambdas(&parsed)[0])
-    );
-    let (sources, parsed, _, _, owned) = overwrite_analysis;
-    assert_eq!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "alias"))
-            .unwrap()
-            .origin(),
-        CallableOrigin::Lambda(lambdas(&parsed)[1]),
-        "overwrite before use cuts unstable header dependency"
-    );
+    let stable_analysis = unit_cfg_origin::preflight(&stable);
+    let overwrite_analysis = unit_cfg_origin::preflight(&overwrite);
+    for checked in stable_analysis {
+        assert_eq!(checked.origin("callback").unwrap(), checked.lambda(0));
+    }
+    for checked in overwrite_analysis {
+        assert_eq!(
+            checked.origin("alias").unwrap(),
+            checked.lambda(1),
+            "overwrite before use cuts unstable header dependency"
+        );
+    }
 }
 
 #[test]
@@ -349,25 +344,17 @@ fn callable_contract_loop_backedge_and_repeated_condition_revoke_unstable_origin
         var callback: (Int) -> Int = {{ index -> index }}\nwhile(flag) {{\n\
         val alias = (callback)\ntake((alias))\nval next: (Int)->Int = {{ index -> index + 1 }}\ncallback = next\n }} }}"
     );
-    let (sources, parsed, _, _, owned) = preflight(&conflict);
-    assert!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "alias"))
-            .is_none(),
-        "next iteration sees another source through alias/Group"
-    );
+    for checked in unit_cfg_origin::preflight(&conflict) {
+        assert!(checked.origin("alias").is_none());
+    }
     let condition = format!(
         "{FUNCTIONS}\nfun decide(f: (Int) -> Int): Boolean = false\n\
         fun use(): Unit {{ var callback: (Int) -> Int = {{ index -> index }}\n\
         while(decide((callback))) {{ val next: (Int)->Int = {{ index -> index + 1 }}\ncallback = next }} }}"
     );
-    let (sources, parsed, _, _, owned) = preflight(&condition);
-    assert!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "(callback)"))
-            .is_none(),
-        "header must precede repeated condition"
-    );
+    for checked in unit_cfg_origin::preflight(&condition) {
+        assert!(checked.origin("(callback)").is_none());
+    }
 }
 
 #[test]
@@ -408,19 +395,10 @@ fn callable_contract_cfg_join_requires_the_same_origin_on_every_normal_path() {
         val first: (Int)->Int = {{ index -> index + 1 }}\nval second: (Int)->Int = {{ index -> index + 2 }}\n\
         val different: (Int)->Int = if(flag) {{ first }} else {{ second }}\ntake(different) }}"
     );
-    let (sources, parsed, _, _, owned) = preflight(&text);
-    assert_eq!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "same"))
-            .unwrap()
-            .origin(),
-        CallableOrigin::Lambda(lambdas(&parsed)[0])
-    );
-    assert!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "different"))
-            .is_none()
-    );
+    for checked in unit_cfg_origin::preflight(&text) {
+        assert_eq!(checked.origin("same").unwrap(), checked.lambda(0));
+        assert!(checked.origin("different").is_none());
+    }
 }
 
 #[test]
@@ -431,15 +409,16 @@ fn callable_contract_break_is_an_exit_but_continue_is_a_repeating_edge() {
             var callback: (Int)->Int = {{ index -> index }}\nwhile(flag) {{\n\
             take((callback))\nval next: (Int)->Int = {{ index -> index + 1 }}\ncallback = next\n{jump}\n }} }}"
         );
-        (jump, known, preflight(&text))
+        (jump, known, unit_cfg_origin::preflight(&text))
     });
-    for (jump, known, (sources, parsed, _, _, owned)) in cases {
-        let fact = owned.callable_origin(expression(&sources, &parsed, "(callback)"));
-        assert_eq!(
-            fact.is_some(),
-            known,
-            "{jump} must connect to the right loop boundary"
-        );
+    for (jump, known, analyses) in cases {
+        for checked in analyses {
+            assert_eq!(
+                checked.origin("(callback)").is_some(),
+                known,
+                "{jump} must connect to the right loop boundary"
+            );
+        }
     }
 }
 
@@ -451,15 +430,9 @@ fn callable_contract_for_source_is_not_a_repeated_header_use() {
         fun use(): Unit {{ var callback: (Int)->Int = {{ index -> index + 1 }}\n\
         for (_ in source((callback))) {{ val again: (Int)->Int = {{ index -> index + 2 }}\ncallback = again }} }}"
     );
-    let (sources, parsed, _, _, owned) = preflight(&text);
-    assert_eq!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "(callback)"))
-            .unwrap()
-            .origin(),
-        CallableOrigin::Lambda(lambdas(&parsed)[1]),
-        "for source is evaluated once before body changes the callback"
-    );
+    for checked in unit_cfg_origin::preflight(&text) {
+        assert_eq!(checked.origin("(callback)").unwrap(), checked.lambda(1));
+    }
 }
 
 #[test]
