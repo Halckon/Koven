@@ -4,13 +4,13 @@ use super::{
     UnitTypeId,
 };
 
-pub(super) struct ConstructionOperandFlow {
+pub(super) struct CallOperandFlow {
     ordinary: bool,
     pending: bool,
     track_pending: bool,
 }
 
-impl ConstructionOperandFlow {
+impl CallOperandFlow {
     pub(super) fn new(checker: &BodyChecker<'_>) -> Self {
         Self {
             ordinary: true,

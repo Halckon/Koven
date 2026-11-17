@@ -21336,3 +21336,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `6e8496c0`，仅迁移 `complete` 的 frozen roots、outer-call recovery、early-call diagnostics、underscore 与 deferred message 五原FQN，共19份原fixture；源码、前缀、source/span及顺序oracle保留，最后一项另保severity/message/details。新MemoryDocument与原Rooted各自核raw诊断不变、完整资格引用的ptr与analysis身份。
 - SPEC0319要求资格绑定原分析。`complete_both` 与resolved_roles的Single身份/独立重分析拒绝完整保留；initializer_order的Single final与Unit额外L0167实际不同，整项raw/final不动。五项中既有with_types的raw差异块逐字保留。不是整文件或旧API移除，也不新增生产能力。
 - 初盘曾漏读initializer final差异，逐调用复核后已将它明确排除；不以相同helper推断所有oracle等价。原基线五exact各1 passed（首项真实原树重编9.26s），候选complete全10项真实本树重编42.22s通过；强制本树frontend all-targets strict（loan-observation-test-support）1m47s/exit0。保留helper、身份/initializer两项及3个raw块另经字节比对一致；独审、fmt/diff、docs979、Rust尺寸2556通过。无native/fault，不推送。
+
+### 范围构造 bounds 的真实完成性与后项隔离
+
+- 基 `6e8496c0`，原生产代码真实红测：`rangeView(source, return 7, 1)` 完成性错误为 true；`loop { rangeView(source, return 7, break) }` 因不可达 break 多出 L0088。属于 Phase 2 完成性与 Phase 3 输入正确性，不宣称 E3/native 扩展。
+- 原私有构造操作数状态机机械移为 checker 私有 `CallOperandFlow`，名义构造调用点不改算法。范围构造合法 List/View 来源与 bounds 共用普通/pending 顺序，保后项静态检查、原 descriptor/来源 identity、SourceId 授权及同名函数隔离。无效 source 和 arity 恢复仍为原边界，本片不声称全恢复路径闭合。
+- 新 3 项共 13 源 × MemoryDocument/Rooted，覆盖正常、Return、Nothing、条件完成性、可达/不可达 break、continue、后项 L0084 原主 span 和无错误 descriptor。原 target 红灯 4 passed/2 failed；修复后 6 passed。共享状态机邻控 multifile_type_checking 296、ownership_construction 10、ownership_range_construction 14、type_range_source_authority 6 全过。
+- 最终 target（含 L0084 主 span）6 passed；frontend all-target strict（loan-observation-test-support）强制本树 1m02s/exit0，独审无阻塞。未运行 SSA/native/fault，未推送。

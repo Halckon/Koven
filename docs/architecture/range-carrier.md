@@ -48,8 +48,8 @@ Int、String、MoveOnly 使用相同合同；Borrow metadata 不拥有或清理�
 
 ## 构造与稳定根绑定
 
-compiler-bound `rangeView(source, begin, end)` 发布元素 identity、List/View 来源种类与
-真实三操作数；只允许已授权源码调用，源码同名函数不获得原语权限。标记区分真实
+compiler-bound `rangeView(source, begin, end)` 发布元素 identity、List/View 来源与真实三操作数；仅授权源码可调用，同名函数无权限。
+合法来源的 bounds 共用私有 `CallOperandFlow`，保静态 identity、后项诊断与真实完成性，隔离不可达 loop 退出。标记区分真实
 DeclarationFrom 和 PrimitiveCall；原语没有伪造 from。无效类型输入原子撤销构造事实。
 
 Phase 3 的 BorrowBindingStorage 区分普通存储借用、既有 metadata 借用和新内联
