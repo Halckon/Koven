@@ -21457,3 +21457,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Phase 2 非法输入恢复，不扩 E2 合法程序准入。两原语错误 arity 分支仅复用普通 call 参数恢复 helper，保 L0121、Error 类型及 `falls_through: true`，不发布被拒绝原语或调用 descriptor；正常 arity 与 mode/place/类型检查未改。
 - 两原语分别实测红灯：`replace(return 7, break, 0)`、`swap(return 7, break, 0)` 的不可达 break 原先均多发 L0088。首次测试自身跨 SourceMap 比较 span 失败已纠正，不作为生产红灯；后续仅在同字节单源 fixture 内按字节区间定位重解析 Call，不声称跨分析身份。
 - 十四源码经 Rooted/MemoryDocument，包括活 break、return/stop/continue 后不可达 break 与保 L0084 精确字节区间的后缀诊断。完整 `type_ownership_primitives` 21 passed（本树重编 7.23 秒），`multifile_type_checking construction_completion` 6 passed；强制本树 frontend all-target `loan-observation-test-support` strict 通过（54.26 秒）。独立代码末审通过；无 native/fault 执行、未推送。
+
+### 2026-11-17：范围原语错误参数数量的恢复出口隔离
+
+- Phase 2 非法输入恢复修复，不扩大 E2 合法程序准入：`rangeView` 错误 arity 的参数检查复用普通 call 的 `check_call_arguments_without_expected`，继续返回错误类型与 `falls_through: true`，保原 L0121、全部后缀静态诊断和空范围 descriptor。
+- 原实现真实红测为 1 passed / 1 failed：`return 7` 后不可达 `break` 错误污染外层循环出口，额外产生 L0088。修复只隔离不可达参数出口，不跳过参数检查；活 `break` 的 L0088 与后缀 L0084 的精确 span 均保留。
+- 七个源码各经 Rooted / MemoryDocument：四个循环出口对照及三个后缀诊断对照。重解析的唯一 Call/span 仅用于独立单源测试定位，不声明跨分析 AST 身份。
+- 本地本树重编后 `type_range_construction` 8 passed、`type_range_source_authority` 6 passed；另本树重编 `multifile_type_checking construction_completion` 6 passed。强制本树 `cargo clippy --locked -p lang-frontend --all-targets --features loan-observation-test-support -- -D warnings` 通过（28.76 秒）。未执行 native 或 CI-only fault；未推送。

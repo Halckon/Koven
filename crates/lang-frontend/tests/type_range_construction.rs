@@ -253,3 +253,95 @@ fn range_bounds_keep_unreachable_suffix_diagnostics() {
         }
     }
 }
+
+fn assert_rejected_range_recovery(sources: &SourceMap, typed: &CompilationUnitTypes) {
+    let arity = typed
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic.code().to_string() == "L0121")
+        .expect("original argument arity rejection");
+    let source = arity.primary_span().source_id();
+    let parsed = parse_file(sources, &lex(sources, source).unwrap()).unwrap();
+    let calls = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .filter(|(_, node)| {
+            node.span() == arity.primary_span()
+                && matches!(
+                    node.payload(),
+                    lang_frontend::parser::Expression::Call { .. }
+                )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1, "unique reparsed rejected call");
+    let expression = calls[0].0;
+    let expression = typed
+        .expression_types()
+        .keys()
+        .find(|id| id.expression() == expression)
+        .copied()
+        .unwrap();
+    assert_eq!(typed.expression_falls_through(expression), Some(true));
+    assert!(
+        typed
+            .calls()
+            .iter()
+            .all(|call| call.range_construction().is_none())
+    );
+}
+
+#[test]
+fn rejected_range_arity_does_not_publish_unreachable_loop_exits() {
+    for (prefix, missing_return) in [
+        ("0", true),
+        ("return 7", false),
+        ("stop()", false),
+        ("continue", false),
+    ] {
+        let text = format!(
+            "fun stop(): Nothing = stop()\nfun run(source: List<Int>): Int {{ loop {{ rangeView(source, {prefix}, break, 0) }} }}"
+        );
+        let (sources, document, rooted) = checked(&text, true);
+        for typed in [&document, &rooted] {
+            assert_rejected_range_recovery(&sources, typed);
+            let codes = typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                codes,
+                if missing_return {
+                    vec!["L0121", "L0088"]
+                } else {
+                    vec!["L0121"]
+                },
+                "{text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn rejected_range_arity_keeps_unreachable_suffix_diagnostics() {
+    for prefix in ["0", "return 7", "stop()"] {
+        let text = format!(
+            "fun stop(): Nothing = stop()\nfun run(source: List<Int>): Int {{ rangeView(source, {prefix}, if (true) {{ val invalid: Int = \"bad\"; 0 }} else 0, 0); return 0 }}"
+        );
+        let (sources, document, rooted) = checked(&text, true);
+        for typed in [&document, &rooted] {
+            assert_rejected_range_recovery(&sources, typed);
+            let codes = typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(codes, ["L0121", "L0084"], "{text}");
+            assert_eq!(
+                sources.slice(typed.diagnostics()[1].primary_span()),
+                Ok("\"bad\"")
+            );
+        }
+    }
+}

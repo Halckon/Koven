@@ -81,9 +81,7 @@ impl BodyChecker<'_> {
                 "range construction requires source, begin and end",
                 span,
             )?;
-            for argument in arguments {
-                self.check_expression(source, argument.value, None, None, return_type)?;
-            }
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
             return Ok(Some(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,

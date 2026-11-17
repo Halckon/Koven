@@ -21,7 +21,7 @@ member 候选只从名称阶段的可选词法查询提示取得，unit 复用�
 按 receiver 类型区分，同 receiver 的 alpha 等价重复签名仍拒绝，mode 不参与 shape。
 普通函数调用不能省略扩展的 receiver。String 与 MoveOnly 使用同一选择与实例化路径。
 
-此绑定本身仍只是签名与类型选择。Phase 3 为真实扩展声明建立合成 Borrow 参数，
+范围原语参数数量错误复用普通 call 恢复：保错误完成性，检查全部后缀诊断但不登记不可达循环出口。此绑定本身仍只是签名与类型选择。Phase 3 为真实扩展声明建立合成 Borrow 参数，
 锚定到 receiver TypeRef 的源码 Span；`this` 的名称引用指向该参数，unit 使用
 source-qualified UnitSymbolId。普通 nominal `this` 保持既有 receiver 路径。
 producer 证明从实际构造/已选择转发与返回根取得，不能仅凭 `from this` 发布来源。
