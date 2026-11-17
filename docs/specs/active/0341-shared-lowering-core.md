@@ -21422,3 +21422,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Return 前缀最初全文件 Named drop 计数误含 helper consume 的 FunctionEntry owner，实证两者 target 不同；最终按实际 ControlTransfer 清理并断言同 target 全表唯一，未删除真实清理。原 validator 篡改负控保留并扩 Group 层数与缺失/错误 Call；仅准备 CI，本地不执行篡改。
 - 最终 FE ownership_range_construction 全23项通过；已有 refine 路由的 SSA/LLVM 为24源×双布局48组合通过。临时根 SSA fixture 不夹带额外无关 owner；未做 native 执行、运行时 Abort 或 fault，不将静态计划数说成实际 IR Drop 计数。
 - 五个普通邻控 target 共242项通过；强制本树 frontend all-target feature strict 2m17s通过。外部测试占槽时守门有限退出，恢复空窗后仅续未完成项：最终 SSA 矩阵重编38.10s/1 passed（48组合），codegen default all-target strict强制本树51.91s/exit0。独审、fmt/diff、docs980和Rust尺寸2567（原两项例外）通过；未推送。
+
+### 2026-11-17：赋值失败同步撤销 range-use 后缀
+
+- 基 `4610cd41`。真实不可变赋值 RHS 已建立 `rangeView` 同步 consumer，随后 L0134 回滚 source loan，但 range-use 留下两项而非仅前缀一项；原生产红测 1 passed / 1 failed，失败前完整诊断和标签已核。最终 dataflow 失败门原已清空整个 borrow-results，此片只修局部事务内部悬空关联，不宣称公开 capability 泄漏或误编译。
+- assignment checkpoint 增加第十二项 range-use 长度，共用原六个失败出口截断后缀；原十一项索引、成功路径、诊断与全局撤销不变。测试保存真实源授权与实际 checker 路径，无事实注入；负例保原 prefix 和其完整 source-loan 身份、撤销 RHS，成功 var 对照保两个不同 expression 及实际贷款。旧回滚夹具只同步零列，无新公开 API、准入或 E3 改动。
+- 绿测两项与旧 borrow-call rollback 两项通过；相关 `ownership_nested_borrow_arguments` 14、`ownership_range_construction` 21、`ownership_range_receiver` 13 项通过。强制本树 frontend all-targets `loan-observation-test-support` Clippy `-D warnings` 50.46s/exit0；fmt、docs980、尺寸2566（两项原历史例外不扩大）、diff-check与独立末审通过。每步宿主/容器空槽及8GiB门槛核验；未执行 native、Abort 或 fault，不推送。
