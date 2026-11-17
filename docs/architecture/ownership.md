@@ -89,7 +89,7 @@ binding 能力由声明和参数 mode 决定：Owned、Shared 或 Exclusive。pl
 
 Borrow 与 Inout 调用分别建立 shared/exclusive loan。loan 在调用或 capture 生命周期的确定边界结束；
 派生 field/reborrow loan 活跃时不能提前结束父 loan。字段赋值同时检查可变性、receiver 能力和 active
-loan，普通源码违规形成所有权诊断。
+loan，普通源码违规形成所有权诊断。Unit 对无 stable place 的字段 Consume 仍按真实 Field descriptor 的 MoveOnly 能力报 L0132；仅在 receiver 正常返回且未新增错误后检查，不影响 Borrow/Read、Copyable 字段或发散前缀。
 已选EnumCase构造按实际operand建立Temporary loan；single place查询排除真实construction，真实同名binding/field仍为Place。
 MoveOnly Group保留内层构造owner与外层operand的调用期loan/CallReturn清理；`&E.C`沿类型类别报既有L0122，缺失descriptor不授予借用成功。
 

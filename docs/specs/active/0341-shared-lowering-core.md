@@ -21233,3 +21233,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基 `3152193c`。重复 String 借用、scalar/String 返回、closure 常量读取三原 FQN/源码先做 Legacy 与两 Unit 完整对照，各1 passed，本树首编41.76s，再退休三处旧消费者。
 - 保每条实际 loan 必为 Temporary、完整 owner 唯一性、唯一 Temporary(owner)/CallReturn(loan.call()) drop、总数及 captures 空；scalar/return 保 loans/drops/captures 空，closure 仅保原 captures/loans 空，不新增 drops 假设。使用完整 Unit identity 去重/匹配，不从 Partial loan-end catalog 推 absence。
 - 最终 ownership_constants 17 passed，本树重编3.10s；移除退休后无用 imports 后，frontend all-targets strict（`loan-observation-test-support`）本树实检1m17s/exit0，不重复17项。独审、fmt/diff-check、docs及尺寸门禁通过，无生产修改、native/fault，不推送。
+
+### 临时父字段消费拒绝修复
+
+- 基 `ef39f866`。旧常量 deferred fixture `Holder(TEXT).text` 在两 Unit 中 diagnostics/deferred 均空且 constant ownership validate 成功；表达式函数返回确为 Consume，并非 borrow return。按现行 Guide08 字段禁止隐式部分移动、Guide11 String/普通 class 为 MoveOnly，属前端错误准入，不是预期能力扩展。保留原 Legacy deferred witness，不把不同合同强行退休。
+- Unit Member 无 stable place 时保 receiver 原 Read 求值，仅在正常后继且未新增诊断、外层 Consume 时，按同轮 typed Field projection 的替换后类型拒绝 MoveOnly，复用 L0132/真实字段声明/own 参数 label。Copyable、Borrow/Read、整体结构化解构未变，不新增 Partial 事实，不宣称所有 projection 已闭合或 runtime 内存损坏。
+- 新原源衍生矩阵覆盖表达式返回、Group、显式 return、局部初始化、own 实参的20个 basic/constant×两布局拒绝；另12个 Borrow/Copy/发散 receiver 控制和4个 receiver 已有 L0131 不叠诊断控制。红测真实空诊断对完整 L0132 失败/合法对照成功；修复后3测试全绿。邻控 constants17、multifile constants23、field replace14、structural11通过；frontend all-targets strict（`loan-observation-test-support`）本树实检2m23s/exit0。独审、fmt/diff-check、docs及尺寸门禁通过，无 native/fault，不推送。

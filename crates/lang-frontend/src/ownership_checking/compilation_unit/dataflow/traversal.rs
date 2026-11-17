@@ -642,7 +642,15 @@ impl Checker<'_> {
                         },
                     )
                 } else {
-                    self.check_expression(receiver, state, ExpressionUse::Read)
+                    let diagnostic_count = self.diagnostics.len();
+                    let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
+                    if flows.next.is_some()
+                        && self.diagnostics.len() == diagnostic_count
+                        && let ExpressionUse::Consume { parameter_span } = usage
+                    {
+                        self.reject_unrooted_field_move(id, name_span, parameter_span)?;
+                    }
+                    Ok(flows)
                 }
             }
             Expression::Call {
