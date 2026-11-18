@@ -338,6 +338,21 @@ def branch_local_flow():
     yield from owner_readbacks("分支内流向", setup, ("left",))
 
 
+def distinct_arm_flows():
+    """两臂各有一次流向调用；合流后从具体拥有者读，不能把另一臂的来源混进来。"""
+    setup = owner_pair("val s = Arr(3)") + ["val t = Arr(4)", "if (*) {", "  val a = Outer(&mut h)",
+            "  setV(a.link.target, &s)", "} else {", "  h = H(&mut right)", "  val b = Outer(&mut h)",
+            "  setV(b.link.target, &t)", "}"]
+    for owner, protected in (("left", ("l", "s")), ("right", ("r", "t"))):
+        body = setup + [f"val e = readV(&{owner})"]
+        for source in ("l", "r", "s", "t"):
+            mark = "  // ERR K1" if source in protected else ""
+            yield f"双臂不同来源/{owner}/{source}", DEEP_PRELUDE + function(
+                "fun f(): Unit {", body, [f"{source}.len = 9" + mark, "use(e)"])
+        tail = ["use(e)"] + [f"{source}.len = 9" for source in protected]
+        yield f"双臂不同来源/{owner}/最后使用后写", DEEP_PRELUDE + function("fun f(): Unit {", body, tail)
+
+
 def owner_readbacks(group, setup, written):
     for owner, old, other in (("left", "l", "r"), ("right", "r", "l")):
         body = setup + [f"val e = readV(&{owner})"]
@@ -418,6 +433,7 @@ def cases():
     yield from joined_owner_writes("多目标写入", "q.link.target = V(&s)")
     yield from joined_owner_writes("多目标流向", "setV(q.link.target, &s)")
     yield from branch_local_flow()
+    yield from distinct_arm_flows()
     yield from contract_view_reads()
     yield from loop_backedges()
 

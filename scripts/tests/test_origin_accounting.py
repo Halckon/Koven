@@ -125,6 +125,31 @@ class OriginAccountingCases(unittest.TestCase):
                     self.assertEqual(["K1"] if blocked else [], [r for r, _, _ in errors])
                     self.assertEqual(expected(one) if blocked else set(), {(r, n) for r, n, _ in errors})
 
+    def test_distinct_arm_flows_keep_sources_separate(self):
+        prefix = "双臂不同来源/"
+        programs = {n.removeprefix(prefix): t for n, t in CASES.cases() if n.startswith(prefix)}
+        self.assertEqual({f"{owner}/{probe}" for owner in ("left", "right")
+                          for probe in ("l", "r", "s", "t", "最后使用后写")}, set(programs))
+        left = "val a = Outer(&mut h)\n    setV(a.link.target, &s)"
+        right = "h = H(&mut right)\n    val b = Outer(&mut h)\n    setV(b.link.target, &t)"
+        branch = f"if (*) {{\n    {left}\n  }} else {{\n    {right}\n  }}"
+        for name, text in programs.items():
+            owner, probe = name.split("/")
+            self.assertIn(f"{branch}\n  val e = readV(&{owner})", text)
+            old, new = ("l", "s") if owner == "left" else ("r", "t")
+            tail = text.split(f"val e = readV(&{owner})\n")[1]
+            actions = [line.split("//")[0].strip() for line in tail.splitlines() if line.strip() != "}"]
+            wanted = (["use(e)", f"{old}.len = 9", f"{new}.len = 9"] if probe == "最后使用后写"
+                      else [f"{probe}.len = 9", "use(e)"])
+            self.assertEqual(wanted, actions, name)
+            for arm, body in (("both", branch), ("left", left), ("right", right)):
+                with self.subTest(case=name, arm=arm):
+                    one = text.replace(branch, body)
+                    blocked = probe == old or (probe == new and arm in ("both", owner))
+                    errors = CHECKER.check(one)
+                    self.assertEqual(["K1"] if blocked else [], [r for r, _, _ in errors])
+                    self.assertEqual(expected(one) if blocked else set(), {(r, n) for r, n, _ in errors})
+
     def test_conditional_flow_survives_without_a_read_of_the_callers_holder(self):
         prefix = f"分支合流/调用方视图/不读回/{HELD_INOUT}/"
         programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
