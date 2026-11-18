@@ -27,10 +27,14 @@ pub(in crate::ssa) use temporary_sequential_for::control_completion;
 #[test]
 fn nullable_functions_inside_the_subset_are_routed() {
     for source in [
+        "fun view(s: String): borrow String from s = s\n\
+             fun f(): Int { val owner = \"a\"; borrow val s = view(owner); return when (s) { \"a\" -> 1; else -> 0 } }",
         "fun f(own s: String): Int = when (s) { \"a\" -> 1\n else -> 0 }",
         "fun f(s: String): Int = when ((s)) { (\"a\") -> 1\n else -> 0 }",
         "fun f(own x: Int?): Int { if (x != null) { return x }; return 0 }",
         "fun f(s: String?): Int { if (s != null) { return 1 }; return 0 }",
+        "fun f(inout s: String): Unit { s = \"a\" }",
+        "class Counter(var n: Int)\nfun f(inout c: Counter): Unit { c = Counter(1) }",
         "fun f(own x: Int?): Int = when { x == null -> 0\n else -> 1 }",
         "fun f(own x: Int?): Int { while (x != null) { break }; var i = 0\n\
          loop { i = i + 1; if (i > 2) break else continue }; return i }",
@@ -47,6 +51,11 @@ fn nullable_functions_inside_the_subset_are_routed() {
         "fun f(inout x: Int): Unit { x = x + 1 }",
         "fun g(inout x: Int): Unit { x = 1 }\nfun f(inout x: Int): Unit { g(&x) }",
         "class Data(val n: Int)\nfun f(): Int { val a = Rc(Data(1)); val b = a.share(); return b.value.n }",
+        "class Data(val n: Int)\nfun f(r: Rc<Data>): Int = r.value.n",
+        "fun inspect(r: Rc<Int>): Unit {}\n\
+         fun f(own r: Rc<Int>?): Unit { if (!(r == null)) { inspect((r)) } }",
+        "fun inspect(r: Rc<Int>): Unit {}\n\
+         fun f(borrow r: Rc<Int>?): Unit { if (!(r == null)) { inspect((r)) } }",
         "class Counter(var count: Int)\nfun f(): Int { var c = Counter(0); c.count = 5; return c.count }",
         "class Counter(var n: Int) { inout fun inc(): Unit { n = n + 1 } }\n\
          fun f(inout c: Counter): Unit { c.inc() }",
@@ -58,6 +67,8 @@ fn nullable_functions_inside_the_subset_are_routed() {
          fun f(own c: Cell<Int>?): Int { if (c != null) { return 1 }; return 0 }",
         "enum class Opt<T> { Some(v: T), None }\n\
          fun f(o: Opt<Int>): Int = when (o) { is Opt.Some -> 1\n else -> 0 }",
+        "fun f(s: String?): Unit { if (s != null) { println(s) } }",
+        "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",
         "fun f(b: Boolean): Int = when (b) { true -> 1\n false -> 0 }",
         "fun f(own s: String?): Boolean { val present = s != null; return present }",
         "class Node(val v: Int) { fun get(): Int = v }\n\
@@ -108,34 +119,14 @@ fn nullable_functions_inside_the_subset_are_routed() {
 fn functions_outside_the_subset_keep_the_per_family_path() {
     for (reason, source) in [
         (
-            "explicit String borrow-result binding",
-            "fun view(s: String): borrow String from s = s\n\
-             fun f(): Int { val owner = \"a\"; borrow val s = view(owner); return when (s) { \"a\" -> 1; else -> 0 } }",
-        ),
-        (
-            "when with a nullable subject",
-            "fun f(own x: Int?): Int = when (x) { null -> 0\n else -> 1 }",
-        ),
-        (
             "jump out of a call argument past a borrowed temporary",
             "class Node()\nfun outer(node: Node, own r: Int): Int = r\n\
              fun f(flag: Boolean): Int = outer(Node(), when (flag) { true -> return 1\n else -> 0 })",
         ),
         (
-            "MoveOnly Borrow parameter needs a payload view",
-            "fun f(s: String?): Unit { if (s != null) { println(s) } }",
-        ),
-        (
-            "MoveOnly Inout parameter",
-            "fun f(inout s: String): Unit { s = \"a\" }",
-        ),
-        (
-            "whole replacement of a MoveOnly Inout target",
-            "class Counter(var n: Int)\nfun f(inout c: Counter): Unit { c = Counter(1) }",
-        ),
-        (
-            "Borrow Rc parameter",
-            "class Data(val n: Int)\nfun f(r: Rc<Data>): Int = r.value.n",
+            "Inout class? parameter has no shared non-null proof",
+            "class Item()\nfun inspect(r: Item): Unit {}\n\
+             fun f(inout r: Item?): Unit { if (r != null) { inspect(r) } }",
         ),
     ] {
         let (_, routed) = route(source);

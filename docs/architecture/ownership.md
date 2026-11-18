@@ -101,8 +101,7 @@ MoveOnly Group保留内层构造owner与外层operand的调用期loan/CallReturn
 - Move：消费 named/root place，后续使用被拒绝；
 - Temporary：消费本次求值产生的 owner。
 
-构造、container、Rc、assignment 和 return 复用同一 delivery 模型。求值若以 `Nothing` 提前终止，
-只提交已实际执行前缀的 effect。任一所有权错误会清空 executable loan/delivery/drop facts，避免后端
+构造、container、Rc、assignment 和 return 复用同一 delivery 模型。Rc 载荷及字段的共享实参以最外层相关 owner 为借用根；嵌套 Rc 的每次读取与 retain 保留各自的操作记录。复制读取的临时句柄沿外层表达式清理。短路右侧只在部分续行路径形成的临时句柄带条件清理标记，仍按求值逆序留至同一外层边界。共享实参的临时句柄保留至调用返回或放弃调用的控制退出边。求值若无正常续行，只发布已完成前缀的 effect 和实际终止实参。未完成的构造没有根析构义务。任一所有权错误会清空 executable loan/delivery/drop facts，避免后端
 消费部分成功状态。
 
 `!!` 的操作数消费不受外层实参 Borrow mode 改写。单文件入口读取 typed assertion descriptor，

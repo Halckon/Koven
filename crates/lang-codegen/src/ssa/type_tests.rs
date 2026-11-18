@@ -291,6 +291,9 @@ fn named_types_can_be_used_in_function_signatures_after_definition() {
         .expect("payload definition must succeed");
 }
 
+#[path = "type_tests/rc_payload_loans.rs"]
+mod rc_payload_loans;
+
 pub(in crate::ssa) mod shared_owner_operation_tests {
     use lang_frontend::source::SourceMap;
 
@@ -303,7 +306,7 @@ pub(in crate::ssa) mod shared_owner_operation_tests {
         verify::{VerifyErrorKind, VerifyLocation, verify_program},
     };
 
-    fn origin() -> Origin {
+    pub(super) fn origin() -> Origin {
         let mut sources = SourceMap::default();
         let source = sources
             .add_source("shared-owner.ko", "Rc(value)")
@@ -311,14 +314,14 @@ pub(in crate::ssa) mod shared_owner_operation_tests {
         Origin::Source(sources.span(source, 0, 2).expect("span"))
     }
 
-    fn value(entity: EntityId) -> ValueId {
+    pub(super) fn value(entity: EntityId) -> ValueId {
         let EntityId::Value(value) = entity else {
             panic!("expected value");
         };
         value
     }
 
-    fn append(
+    pub(super) fn append(
         function: &mut Function,
         block: BlockId,
         operation: Operation,

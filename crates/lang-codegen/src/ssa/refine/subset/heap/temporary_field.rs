@@ -21,6 +21,37 @@ impl Checker<'_, '_> {
             })
     }
 
+    /// Preserve the existing factory-prefix cleanup proof before the generic
+    /// non-completing receiver path. None leaves all other main routes unchanged.
+    /// Once matched, failure is final: expression checking may mutate this checker.
+    pub(super) fn non_dispatching_factory_projection(
+        &mut self,
+        expression: ExpressionId,
+        receiver: ExpressionId,
+    ) -> Option<bool> {
+        let id = self.id(expression);
+        let receiver_id = self.id(receiver);
+        let projection = self.inputs.typed.aggregate_projection(id)?;
+        if projection.expression() != id
+            || projection.kind() != UnitAggregateProjectionKind::Field
+            || projection.receiver() != UnitAggregateProjectionReceiver::Expression(receiver_id)
+            || self.expression_type_of(id) != Some(self.c(projection.ty()))
+            || !self.storage_type(self.c(projection.ty()))
+            || self.copyability_of(self.c(projection.ty())) != Copyability::Copyable
+            || self.inputs.typed.expression_falls_through(receiver_id) != Some(false)
+        {
+            return None;
+        }
+        let call = self.ungrouped(receiver);
+        if !self.owned_factory_result(call)
+            || self.inputs.owned.call_may_dispatch(self.id(call)) != Some(false)
+        {
+            return None;
+        }
+        let field = projection.field();
+        Some(self.temporary_field_read(receiver, call, field))
+    }
+
     pub(super) fn temporary_field_read(
         &mut self,
         receiver_expression: ExpressionId,

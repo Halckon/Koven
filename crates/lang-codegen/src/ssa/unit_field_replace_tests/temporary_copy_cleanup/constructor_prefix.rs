@@ -258,11 +258,7 @@ fn constructor_return_prefix_returns_only_an_existing_owner() {
 
 #[test]
 fn terminated_non_class_construction_does_not_gain_class_routing() {
-    for expression in [
-        "Point(return 9)",
-        "Box<Point>(return 9)",
-        "Rc<Int>(return 9)",
-    ] {
+    for expression in ["Point(return 9)", "Box<Point>(return 9)"] {
         let source = format!(
             "value class Point(val value: Int)\nfun entry(): Int {{ {expression}; return 0 }}"
         );
@@ -275,5 +271,58 @@ fn terminated_non_class_construction_does_not_gain_class_routing() {
                 "{expression}: {routed:?}"
             );
         }
+    }
+}
+
+// Main supports a terminating Rc operand without constructing its shared owner.
+#[test]
+fn terminated_rc_construction_returns_before_owner_and_suffix() {
+    let source =
+        "value class Point(val value: Int)\nfun entry(): Int { Rc<Int>(return 9); return 0 }";
+    for constants in [false, true] {
+        let (result, routed) = refine::observe_routing(|| lower(source, constants));
+        let (program, _) = result.expect("terminating Rc operand lowers");
+        assert!(
+            routed
+                .iter()
+                .any(|name| name.starts_with("koven.test.entry.d")),
+            "{routed:?}"
+        );
+        verify_program(&program).unwrap();
+        let function = entry(&program);
+        let mut returned_nine = None;
+        for instruction in &function.instructions {
+            match instruction.operation {
+                Operation::Constant(crate::ssa::model::ScalarConstant::Integer(9)) => {
+                    let [EntityId::Value(value)] = instruction.results.as_slice() else {
+                        panic!("integer result");
+                    };
+                    assert!(
+                        returned_nine.replace(*value).is_none(),
+                        "one return operand"
+                    );
+                }
+                Operation::Constant(crate::ssa::model::ScalarConstant::Integer(0)) => {
+                    panic!("unreachable return suffix was evaluated");
+                }
+                Operation::SharedAllocate { .. }
+                | Operation::SharedRetain { .. }
+                | Operation::Drop { .. } => panic!("no Rc owner exists before the return"),
+                _ => {}
+            }
+        }
+        let returned_nine = returned_nine.expect("actual return operand 9");
+        let returns = function
+            .blocks
+            .iter()
+            .filter_map(|block| block.terminator.as_ref())
+            .filter_map(|terminator| match &terminator.kind {
+                crate::ssa::model::TerminatorKind::Return { values } => Some(values),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(returns.len(), 1);
+        assert_eq!(returns[0].as_slice(), &[returned_nine]);
+        crate::llvm::render_verified_program(&program).unwrap();
     }
 }

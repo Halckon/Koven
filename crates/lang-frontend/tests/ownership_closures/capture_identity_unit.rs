@@ -6,7 +6,7 @@ use lang_frontend::{
         resolve_compilation_unit_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, UnitClosureCaptureSource as ClosureCaptureSource,
+        CompilationUnitOwnership, UnitClosureCaptureSource as ClosureCaptureSource, UnitDropPoint,
         UnitDropTarget as DropTarget, check_compilation_unit_ownership,
     },
     source::SourceMap,
@@ -197,5 +197,54 @@ fn nested_capture_uses_symbol_identity_and_shadowing_does_not_capture() {
             ]
         );
         assert_eq!(owned.captures_of(lambdas[2]).count(), 0);
+    }
+}
+
+#[test]
+fn immediate_shared_capture_retires_the_environment_before_its_last_used_source() {
+    let text = r#"
+fun inspect(text: String): Unit {}
+fun lastUse(own last: String): Unit {
+    (({ -> inspect(last) }))()
+}
+fun laterUse(own later: String): Unit {
+    ({ -> inspect(later) })()
+    inspect(later)
+}
+"#;
+    for (names, owned, lambdas) in checked(text) {
+        let last = symbol(&names, &owned, "last");
+        let later = symbol(&names, &owned, "later");
+        let [last_lambda, later_lambda] = lambdas.as_slice() else {
+            panic!("expected two lambda literals");
+        };
+        for (lambda, dropped_source) in [(*last_lambda, Some(last)), (*later_lambda, None)] {
+            let temporary = DropTarget::Temporary(lambda);
+            let closure_drop = owned
+                .drops()
+                .iter()
+                .find(|drop| drop.target() == temporary)
+                .expect("literal has a drop at the invocation return");
+            let point = closure_drop.point();
+            assert!(matches!(point, UnitDropPoint::CallReturn(_)));
+            assert_eq!(
+                owned
+                    .drops()
+                    .iter()
+                    .filter(|drop| drop.point() == point)
+                    .map(|drop| drop.target())
+                    .collect::<Vec<_>>(),
+                [Some(temporary), dropped_source.map(DropTarget::Named)]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
+            );
+        }
+        assert!(
+            owned
+                .drops()
+                .iter()
+                .any(|drop| drop.target() == DropTarget::Named(later))
+        );
     }
 }

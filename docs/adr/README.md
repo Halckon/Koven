@@ -41,6 +41,9 @@ scope 逃逸修复由 0363 维护，闭包家族实施由 0364 维护。
 用户对推荐方向的批准接受；0038 首片选 B，0040 先普通调用生命周期，实施由 SPEC-0341
 限定。accepted 不表示共同消费、完整覆盖或下游已经实现。
 
+[0041 借入的 nullable String 的非空视图](accepted/0041-borrowed-nullable-string-payload.md)
+于 2026-11-17 经用户确认接受，由 SPEC-0392 实施。
+
 ## Proposed
 
 [0025 递归 closure 环境句柄](proposed/0025-recursive-closure-environment-handles.md)仍为

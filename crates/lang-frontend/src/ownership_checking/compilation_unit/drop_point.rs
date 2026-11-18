@@ -90,6 +90,13 @@ pub enum UnitDropTarget {
         /// 被替换字段的 source-qualified symbol。
         field: UnitSymbolId,
     },
+    /// Inout 参数在正常整值替换时持有的旧值。
+    ReplacedInout {
+        /// 完成 RHS 求值后执行替换的赋值。
+        assignment: UnitExpressionId,
+        /// 调用方 place 对应的 callee 参数。
+        symbol: UnitSymbolId,
+    },
     /// 独占借入的 MoveOnly 槽在正常替换时持有的旧值。
     ReplacedCapture {
         /// 持有独占借用的 lambda。
@@ -114,6 +121,7 @@ pub struct UnitDropFact {
     point: UnitDropPoint,
     target: UnitDropTarget,
     value_origin: Span,
+    conditional_temporary: bool,
 }
 
 /// interface default 的 `StaticSelf` Value receiver 析构义务。
@@ -189,7 +197,19 @@ impl UnitDropFact {
             point,
             target,
             value_origin,
+            conditional_temporary: false,
         }
+    }
+
+    pub(super) const fn with_conditional_temporary(mut self, conditional: bool) -> Self {
+        self.conditional_temporary = conditional;
+        self
+    }
+
+    /// A temporary cleanup on a path that can reach this point without forming the owner.
+    #[must_use]
+    pub const fn is_conditional_temporary(self) -> bool {
+        self.conditional_temporary
     }
 
     /// 返回析构发生的 source-qualified 控制流边界。

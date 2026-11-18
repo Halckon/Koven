@@ -219,9 +219,7 @@ fn lower_unit_roots_impl(
                 plan.span,
             ));
         }
-        for ty in crate::ssa::refine::type_demands(&inputs) {
-            types.intern(module, typed, ty, plan.span)?;
-        }
+        crate::ssa::refine::prepare_types(&inputs, &mut types, module)?;
         let function = module
             .functions
             .get_mut(plan.thunk.index())

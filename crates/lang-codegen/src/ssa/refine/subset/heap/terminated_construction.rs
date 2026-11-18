@@ -58,9 +58,6 @@ impl Checker<'_, '_> {
             || terminating.source_unit() != self.inputs.source_unit
             || self.inputs.typed.expression_falls_through(id) != Some(false)
             || self.inputs.typed.expression_falls_through(terminating) != Some(false)
-            || !self
-                .expression_type_of(terminating)
-                .is_some_and(|ty| self.nothing(ty))
         {
             return false;
         }

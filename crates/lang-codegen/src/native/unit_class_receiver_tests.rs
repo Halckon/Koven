@@ -728,3 +728,46 @@ fn move_only_inline_replacement_collects_nested_field_drop_glue() {
     assert!(run.stderr.is_empty(), "{run:?}");
     assert_no_sibling_temporary(&directory.0);
 }
+
+#[test]
+fn move_only_inout_root_replacement_drops_old_value_after_rhs_and_writes_back() {
+    let text = r#"class Resource(val id: Int) {
+    deinit() { if (id == 1) { println("drop-old") } else { println("drop-new") } }
+}
+fun next(own id: Int): Resource {
+    println("rhs")
+    return Resource(id + 1)
+}
+fun replaceOwner(inout x: Resource, stop: Boolean): Unit {
+    x = if (stop) { return } else { next(x.id) }
+}
+fun forward(inout x: Resource, stop: Boolean): Unit { replaceOwner(&x, stop) }
+fun replaceText(inout s: String): Unit {
+    println(s)
+    s = "new-text"
+}
+fun exitBeforeCall(stop: Boolean): Unit {
+    var x = Resource(1)
+    forward(&x, if (stop) { println("argument-exit"); return } else { false })
+    if (x.id == 2) { println("unexpected") }
+}
+fun entry(): Unit {
+    exitBeforeCall(true)
+    var s = "old-text"
+    replaceText(&s)
+    println(s)
+    var x = Resource(1)
+    forward(&x, true)
+    if (x.id == 1) { println("caller-old") } else { error("early return") }
+    val skip = x.id == 0
+    forward(&x, if (skip) { true } else { false })
+    if (x.id == 2) { println("caller-new") } else { error("writeback") }
+}
+"#;
+    let output =
+        crate::native_tests::emit_link_and_run("move-only-inout-replacement.ko", text, "entry");
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &output,
+        b"argument-exit\ndrop-old\nold-text\nnew-text\ncaller-old\nrhs\ndrop-old\ncaller-new\ndrop-new\n",
+    );
+}

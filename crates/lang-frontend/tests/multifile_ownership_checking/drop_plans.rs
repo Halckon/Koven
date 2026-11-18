@@ -25,7 +25,10 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
          fun inspect(item: Resource): Unit {}\n\
          fun replaceOther(inout holder: Holder, own replacement: Resource): Unit {\n\
              val result = (holder.item = replacement)\n\
-         }",
+         }\n\
+         fun replaceRoot(inout slot: Resource, own replacement: Resource): Unit { slot = replacement }\n\
+         fun stopRoot(inout slot: Resource): Unit { slot = error(\"inout-stop\") }\n\
+         fun replaceNumber(inout number: Int): Unit { number = 1 }",
     );
     let (consumer_source, consumer) = parsed(
         &mut sources,
@@ -140,14 +143,30 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
                 ) && sources.slice(fact.value_origin()).unwrap().ends_with("item")
         ));
     }
+    let inout_assignment = UnitExpressionId::new(
+        provider_unit,
+        expression_with_text(&sources, &provider, "slot = replacement"),
+    );
+    let replaced_inout = ownership
+        .drops()
+        .iter()
+        .filter(|fact| matches!(fact.target(), UnitDropTarget::ReplacedInout { .. }))
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        replaced_inout.as_slice(),
+        [fact] if fact.point() == UnitDropPoint::BeforeReplacement(inout_assignment)
+            && matches!(fact.target(), UnitDropTarget::ReplacedInout { assignment, symbol }
+                if assignment == inout_assignment && symbol.source_unit() == provider_unit)
+            && sources.slice(fact.value_origin()).unwrap() == "slot"
+    ));
     assert_eq!(
         ownership
             .drops()
             .iter()
             .filter(|fact| matches!(fact.point(), UnitDropPoint::BeforeReplacement(_)))
             .count(),
-        2,
-        "Copyable and non-fallthrough field assignments must not publish old-field drop facts"
+        3,
+        "Copyable and non-fallthrough assignments must not publish replacement drop facts"
     );
     let unreachable_drops = ownership
         .drops()
@@ -183,6 +202,7 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
             | UnitDropTarget::Temporary(_)
             | UnitDropTarget::ReplacedElement(_)
             | UnitDropTarget::ReplacedField { .. }
+            | UnitDropTarget::ReplacedInout { .. }
             | UnitDropTarget::ReplacedCapture { .. }
             | UnitDropTarget::Captured { .. } => None,
         })

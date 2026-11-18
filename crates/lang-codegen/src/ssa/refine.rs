@@ -25,6 +25,7 @@ pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
 #[cfg(feature = "d10-catalog-experiment")]
 pub(crate) mod identity_return;
+mod inout_field;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
 #[deny(dead_code)]
@@ -32,12 +33,14 @@ pub(crate) mod multi_receipt;
 #[deny(dead_code)]
 pub(crate) mod nested_receipt;
 mod nullable_when;
+pub(in crate::ssa) use nullable_when::owned_string_presence_only;
 pub(crate) mod receiver_receipt;
 #[deny(dead_code)]
 pub(crate) mod single_receipt;
 mod subset;
+pub(in crate::ssa) use subset::integer as is_integer_builtin;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
@@ -48,9 +51,9 @@ use lang_frontend::{
     parser::{Expression, ParsedFile},
     source::{SourceMap, Span},
     type_checking::{
-        CompilationUnitTypes, Copyability, ExpressionCategory, NominalKind, ParameterMode,
-        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitExpressionId, UnitTypeId,
-        UnitTypeKind,
+        BuiltinType, CompilationUnitTypes, Copyability, ExpressionCategory, NominalKind,
+        ParameterMode, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
+        UnitCallTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -170,6 +173,124 @@ pub(in crate::ssa) struct RefineInputs<'a> {
 }
 
 impl RefineInputs<'_> {
+    fn is_nullable_string(&self, ty: UnitTypeId) -> bool {
+        let types = self.typed.types();
+        matches!(types.get(ty), Some(UnitTypeKind::Nullable(inner))
+            if matches!(types.get(*inner), Some(UnitTypeKind::Builtin(BuiltinType::String))))
+    }
+
+    /// A bottom right operand can exit after the nullable left operand has completed.
+    fn is_nullable_string_equality(&self, left: UnitTypeId, right: UnitTypeId) -> bool {
+        let types = self.typed.types();
+        let left_nullable = self.is_nullable_string(left);
+        let right_nullable = self.is_nullable_string(right);
+        if left_nullable {
+            right_nullable
+                || matches!(
+                    types.get(right),
+                    Some(UnitTypeKind::Builtin(
+                        BuiltinType::String | BuiltinType::Nothing
+                    ))
+                )
+        } else {
+            right_nullable
+                && matches!(
+                    types.get(left),
+                    Some(UnitTypeKind::Builtin(BuiltinType::String))
+                )
+        }
+    }
+
+    /// A negated, direct Rc null comparison; logical combinations keep their own edge rules.
+    fn negated_rc_null_test(&self, mut expression: ExpressionId) -> Option<(UnitSymbolId, bool)> {
+        use lang_frontend::{parser::PrefixOperator, type_checking::IntrinsicTypeConstructor};
+
+        let mut negated = false;
+        let mut saw_not = false;
+        loop {
+            match self
+                .parsed
+                .ast()
+                .expressions()
+                .get(expression)
+                .ok()?
+                .payload()
+            {
+                Expression::Group { expression: inner } => expression = *inner,
+                Expression::Prefix {
+                    operator: PrefixOperator::Not,
+                    operand,
+                    ..
+                } => {
+                    expression = *operand;
+                    saw_not = true;
+                    negated = !negated;
+                }
+                _ => break,
+            }
+        }
+        if !saw_not {
+            return None;
+        }
+        let fact = self
+            .typed
+            .null_comparison(UnitExpressionId::new(self.source_unit, expression))?;
+        let UnitTypeKind::Nullable(inner) = self
+            .typed
+            .types()
+            .get(self.concrete(fact.nullable_type())?)?
+        else {
+            return None;
+        };
+        matches!(
+            self.typed.types().get(*inner),
+            Some(UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Rc,
+                ..
+            })
+        )
+        .then_some((fact.symbol(), fact.non_null_when_true() ^ negated))
+    }
+
+    fn string_entry_source(&self) -> Option<UnitSymbolId> {
+        let index = self.borrow_return?;
+        let source = *self.parameters.get(index)?;
+        (self.modes.get(index) == Some(&ParameterMode::Borrow)
+            && self.carrier_return.is_none()
+            && matches!(
+                self.typed.types().get(self.return_type),
+                Some(UnitTypeKind::Builtin(BuiltinType::String))
+            )
+            && self
+                .typed
+                .symbol_type(source)
+                .and_then(|ty| self.concrete(ty))
+                == Some(self.return_type))
+        .then_some(source)
+    }
+
+    fn abandoned_borrow_result_call(&self, id: UnitExpressionId) -> bool {
+        // Only lower the call prefix when both frontend phases and dispatch planning
+        // agree that execution never reaches the callee.
+        id.source_unit() == self.source_unit
+            && self.carrier_return.is_none()
+            && (self.borrow_return.is_none() || self.string_entry_source().is_some())
+            && self.typed.expression_falls_through(id) == Some(false)
+            && self.owned.call_may_dispatch(id) == Some(false)
+            && self.typed.call(id).is_some_and(|descriptor| {
+                descriptor.borrow_return().is_some()
+                    && descriptor.receiver().is_none()
+                    && matches!(
+                        descriptor.target(),
+                        UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+                    )
+            })
+            && self
+                .source_plan
+                .call_site(self.source_token, id)
+                .is_some_and(|site| site.dispatch_key().is_none())
+    }
+
     /// The lexical span of this function or lambda thunk.
     pub(in crate::ssa) fn scope_span(&self) -> Option<Span> {
         match self.function_item {
@@ -195,6 +316,170 @@ impl RefineInputs<'_> {
             self.span,
         )
         .ok()
+    }
+
+    /// A source-qualified use already narrowed by frontend flow after this control.
+    fn borrowed_narrowing_used_after(&self, symbol: UnitSymbolId, control: Span) -> bool {
+        self.narrowing_used_after(symbol, control, |kind| {
+            matches!(
+                kind,
+                UnitTypeKind::Builtin(BuiltinType::String)
+                    | UnitTypeKind::Intrinsic {
+                        constructor: lang_frontend::type_checking::IntrinsicTypeConstructor::Rc,
+                        ..
+                    }
+            )
+        })
+    }
+
+    fn rc_narrowing_used_after(&self, symbol: UnitSymbolId, control: Span) -> bool {
+        self.narrowing_used_after(symbol, control, |kind| {
+            matches!(
+                kind,
+                UnitTypeKind::Intrinsic {
+                    constructor: lang_frontend::type_checking::IntrinsicTypeConstructor::Rc,
+                    ..
+                }
+            )
+        })
+    }
+
+    fn narrowing_used_after(
+        &self,
+        symbol: UnitSymbolId,
+        control: Span,
+        accepts: impl Fn(&UnitTypeKind) -> bool,
+    ) -> bool {
+        self.typed.non_null_uses().iter().any(|fact| {
+            let use_id = fact.expression();
+            fact.symbol() == symbol
+                && use_id.source_unit() == self.source_unit
+                && self
+                    .concrete(fact.narrowed_type())
+                    .and_then(|inner| self.typed.types().get(inner))
+                    .is_some_and(&accepts)
+                && self
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(use_id.expression())
+                    .is_ok_and(|use_node| use_node.span().start() >= control.end())
+        })
+    }
+
+    /// The active proof may be consumed only for the frontend's exact whole-root move.
+    fn narrowed_string_delivery(
+        &self,
+        call: UnitExpressionId,
+        argument: UnitExpressionId,
+        parameter: UnitTypeId,
+    ) -> Option<UnitSymbolId> {
+        use lang_frontend::ownership_checking::{
+            UnitCallArgumentOwnershipKind, UnitValueDeliveryKind,
+        };
+
+        if call.source_unit() != self.source_unit
+            || argument.source_unit() != self.source_unit
+            || self.typed.types().get(parameter)
+                != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            || self.typed.nullable_when_use(argument).is_some()
+        {
+            return None;
+        }
+        let expressions = self.parsed.ast().expressions();
+        let span = expressions.get(argument.expression()).ok()?.span();
+        let root =
+            crate::ssa::borrow_result_support::ungroup(self.parsed, argument.expression(), span)
+                .ok()?;
+        let node = expressions.get(root).ok()?;
+        if !matches!(node.payload(), Expression::Name) {
+            return None;
+        }
+        let symbol = *self
+            .references
+            .get(&(node.span().start(), node.span().end()))?;
+        let proof = self
+            .typed
+            .non_null_use(UnitExpressionId::new(self.source_unit, root))?;
+        if proof.symbol() != symbol
+            || self.concrete(proof.narrowed_type()) != Some(parameter)
+            || self.typed.symbol_type(symbol) != Some(proof.declared_type())
+            || self
+                .concrete(proof.declared_type())
+                .is_none_or(|ty| !self.is_nullable_string(ty))
+        {
+            return None;
+        }
+        let mut contracts = self
+            .owned
+            .call_argument_contracts_for(call)
+            .filter(|contract| contract.argument() == argument);
+        let contract = contracts.next()?;
+        if contracts.next().is_some()
+            || contract.kind() != UnitCallArgumentOwnershipKind::Value
+            || contract.category() != ExpressionCategory::Place
+            || self.concrete(contract.parameter_type()) != Some(parameter)
+            || contract.crosses_thread()
+        {
+            return None;
+        }
+        let mut deliveries = self
+            .owned
+            .value_deliveries()
+            .iter()
+            .filter(|delivery| delivery.call() == call && delivery.argument() == argument);
+        let delivery = deliveries.next()?;
+        (deliveries.next().is_none()
+            && delivery.kind() == UnitValueDeliveryKind::Move
+            && delivery.span() == span
+            && delivery.parameter_span() == contract.parameter_span()
+            && delivery
+                .place()
+                .is_some_and(|place| place.is_root() && place.root() == symbol))
+        .then_some(symbol)
+    }
+
+    fn string_borrow_adaptation(&self, argument: UnitExpressionId, parameter: UnitTypeId) -> bool {
+        let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(parameter) else {
+            return false;
+        };
+        matches!(
+            self.typed.types().get(*inner),
+            Some(UnitTypeKind::Builtin(
+                lang_frontend::type_checking::BuiltinType::String
+            ))
+        ) && self
+            .typed
+            .expression_type(argument)
+            .and_then(|ty| self.concrete(ty))
+            == Some(*inner)
+    }
+
+    /// The selected call lends either the named root or a borrow binding's proven origin.
+    fn string_nullable_place_borrow(
+        &self,
+        call: UnitExpressionId,
+        argument: UnitExpressionId,
+        symbol: UnitSymbolId,
+        parameter: UnitTypeId,
+    ) -> bool {
+        self.string_borrow_adaptation(argument, parameter)
+            && self.typed.expression_category(argument) == Some(ExpressionCategory::Place)
+            && self.owned.loans().iter().any(|loan| {
+                loan.call() == call
+                    && loan.argument() == argument
+                    && loan.kind() == LoanKind::Shared
+                    && (matches!(loan.target(), UnitLoanTarget::Place(place)
+                        if place.is_root() && place.root() == symbol)
+                        || self
+                            .owned
+                            .borrow_results()
+                            .bindings()
+                            .iter()
+                            .any(|binding| {
+                                binding.binding() == symbol && binding.origin() == loan.target()
+                            }))
+            })
     }
 
     /// Qualifies the shared field loan and the complete temporary that the call must clean up.
@@ -345,12 +630,79 @@ pub(crate) fn with_per_family_lowering<T>(lower: impl FnOnce() -> T) -> T {
     lower()
 }
 
-/// Frontend types an accepted body needs in the SSA type table, in first-use order.
-pub(in crate::ssa) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
-    subset::type_demands(inputs)
+impl RefineInputs<'_> {
+    /// No member operation follows a receiver whose verified evaluation never continues.
+    fn non_completing_projection_receiver(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<ExpressionId> {
+        let receiver = if let Some(rc) = self.typed.rc_operation(expression) {
+            (rc.expression() == expression).then_some(rc.receiver())?
+        } else if let Some(projection) = self.typed.aggregate_projection(expression) {
+            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            else {
+                return None;
+            };
+            (projection.expression() == expression).then_some(receiver)?
+        } else {
+            self.typed.string_operation(expression)?.receiver()
+        };
+        (receiver.source_unit() == self.source_unit
+            && self.typed.expression_falls_through(receiver) == Some(false))
+        .then_some(receiver.expression())
+    }
+
+    fn conditional_temporary_ids(&self) -> BTreeSet<UnitExpressionId> {
+        let scope = self.scope_span().unwrap_or(self.span);
+        self.owned
+            .drops()
+            .iter()
+            .filter_map(|fact| {
+                let UnitDropTarget::Temporary(id) = fact.target() else {
+                    return None;
+                };
+                let origin = fact.value_origin();
+                (fact.is_conditional_temporary()
+                    && id.source_unit() == self.source_unit
+                    && origin.source_id() == scope.source_id()
+                    && origin.start() >= scope.start()
+                    && origin.end() <= scope.end())
+                .then_some(id)
+            })
+            .collect()
+    }
 }
 
-/// The unit's interned type identities, filled in after [`type_demands`].
+/// Intern the source types and the SSA-only storage for conditionally formed Rc owners.
+pub(in crate::ssa) fn prepare_types(
+    inputs: &RefineInputs<'_>,
+    types: &mut super::unit_lower::type_lower::UnitTypeLowering,
+    module: &mut super::model::Module,
+) -> Result<(), LoweringError> {
+    for ty in subset::type_demands(inputs) {
+        types.intern(module, inputs.typed, ty, inputs.span)?;
+    }
+    for id in inputs.conditional_temporary_ids() {
+        // A nested callable's generic arguments may not be bound in the current instance.
+        let Some(ty) = inputs
+            .typed
+            .expression_type(id)
+            .and_then(|ty| inputs.concrete(ty))
+        else {
+            continue;
+        };
+        let owner = types.intern(module, inputs.typed, ty, inputs.span)?;
+        module.add_nullable_handle_type(owner).map_err(|_| {
+            super::lowering_support::error(
+                super::lowering_support::LoweringErrorKind::InvalidModel,
+                inputs.span,
+            )
+        })?;
+    }
+    Ok(())
+}
+
+/// The unit's interned type identities, filled in after [`prepare_types`].
 pub(in crate::ssa) struct RefineTypes<'t> {
     pub(in crate::ssa) type_ids: &'t BTreeMap<UnitTypeId, SsaTypeId>,
     /// Class owner type to its payload aggregate.

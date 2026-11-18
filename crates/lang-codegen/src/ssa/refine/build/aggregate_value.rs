@@ -1,12 +1,11 @@
 //! Aggregate construction, projection, and non-null value lowering.
-use super::{
-    field::{OwnerLoan, OwnerRef},
-    *,
-};
+use super::{field::OwnerRef, *};
 use crate::ssa::{model::LoanKind, refine::body::RAbort};
 use lang_frontend::{
     ownership_checking::NonNullAssertionTransferKind,
-    type_checking::{UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget},
+    type_checking::{
+        RcOperationKind, UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget,
+    },
 };
 
 impl Builder<'_, '_> {
@@ -81,12 +80,17 @@ impl Builder<'_, '_> {
         arguments.sort_by_key(|argument| argument.evaluation_index());
         let mut fields: Vec<Option<Slot>> = vec![None; arguments.len()];
         let mut delivered = Vec::with_capacity(arguments.len());
-        for argument in arguments {
+        let mut arguments = arguments.into_iter();
+        while let Some(argument) = arguments.next() {
             if argument.argument().source_unit() != self.inputs.source_unit {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
             let value_expression = argument.argument().expression();
             let Some(value) = self.required(value_expression)? else {
+                for skipped in arguments {
+                    self.unreachable_drop_scopes
+                        .push(self.span(skipped.argument().expression()));
+                }
                 return Ok(Lowered::Diverged);
             };
             let value = self.adapt(value, value_expression, self.c(argument.parameter_type()))?;
@@ -212,14 +216,16 @@ impl Builder<'_, '_> {
             .get(&(owner_type, projection.field()))
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let rc_payload = receiver.is_some_and(|receiver| {
-            self.inputs
-                .typed
-                .rc_operation(self.unit(receiver))
-                .is_some()
-        });
+        let mut rc_root = receiver;
+        while let Some(root) = rc_root
+            && let (Expression::Group { expression: inner }, _) = self.node(root)?
+        {
+            rc_root = Some(inner);
+        }
+        let rc_payload =
+            rc_root.filter(|root| self.inputs.typed.rc_operation(self.unit(*root)).is_some());
         let view = match receiver {
-            Some(receiver) if !rc_payload => self.narrowed_view(receiver)?,
+            Some(receiver) if rc_payload.is_none() => self.narrowed_view(receiver)?,
             _ => None,
         };
         // An owned temporary's receiver cleanup belongs after the field read, not
@@ -248,16 +254,10 @@ impl Builder<'_, '_> {
                                 == lang_frontend::type_checking::CallableResultSource::Owned
                     })
         });
-        let (loan, rc_view_read) = match (view, receiver) {
-            (Some(view), _) => (
-                OwnerLoan {
-                    loan: view,
-                    scoped: false,
-                },
-                None,
-            ),
-            // `rc.value.f`: a shared loan of the payload place (SPEC-0359).
-            (None, Some(receiver)) if rc_payload => self.rc_payload_loan(receiver, span)?,
+        let (loan, created, rc_view_read) = match (view, rc_payload) {
+            (Some(view), _) => (view, Vec::new(), Vec::new()),
+            // `rc.value.f`: borrow the payload and any ancestors until after the read.
+            (None, Some(receiver)) => self.rc_payload_loan(receiver, span)?,
             (None, _) if constructor.is_some() => {
                 let expression = constructor.unwrap();
                 let value = match self.expression_inner(expression)? {
@@ -266,27 +266,89 @@ impl Builder<'_, '_> {
                     Lowered::Unit => return Err(error(LoweringErrorKind::InvalidModel, span)),
                 };
                 self.register_temporary(expression, value)?;
-                (self.lend(value, LoanKind::Shared, span)?, None)
+                let loan = self.lend(value, LoanKind::Shared, span)?;
+                (
+                    loan.loan,
+                    loan.scoped.then_some(loan.loan).into_iter().collect(),
+                    Vec::new(),
+                )
             }
-            (None, _) => (self.owner_loan(owner, LoanKind::Shared, span)?, None),
+            (None, _) => {
+                let loan = self.owner_loan(owner, LoanKind::Shared, span)?;
+                (
+                    loan.loan,
+                    loan.scoped.then_some(loan.loan).into_iter().collect(),
+                    Vec::new(),
+                )
+            }
         };
         let result = self.value(
             ROp::HeapFieldRead {
-                receiver: loan.loan,
+                receiver: loan,
                 field,
             },
             EntityType::Value(result_type),
             span,
         )?;
-        self.end_owner_loan(loan, span)?;
+        for loan in created.into_iter().rev() {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
         // The receiver is read in place; its own drop point follows the read.
-        if let Some(read) = rc_view_read {
+        for read in rc_view_read {
             self.drops(UnitDropPoint::AfterExpression(self.unit(read)))?;
         }
         if let Some(receiver) = receiver {
             self.drops(UnitDropPoint::AfterExpression(self.unit(receiver)))?;
         }
         Ok(Lowered::Value(result))
+    }
+
+    /// Borrow an Rc payload and keep its ancestor loans alive for the consumer.
+    pub(super) fn rc_payload_loan(
+        &mut self,
+        receiver: ExpressionId,
+        span: Span,
+    ) -> Result<super::callable::ProjectionLoan, LoweringError> {
+        let descriptor = self
+            .inputs
+            .typed
+            .rc_operation(self.unit(receiver))
+            .filter(|descriptor| descriptor.kind() == RcOperationKind::Value)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let (owner, mut created, view_read) = self.rc_owner(descriptor.receiver().expression())?;
+        let target = self.ssa_type(self.c(descriptor.payload_type()), span)?;
+        let loan = self.shared_rc_payload_loan(owner, target, span)?;
+        created.push(loan);
+        Ok((loan, created, view_read))
+    }
+
+    pub(super) fn shared_rc_payload_loan(
+        &mut self,
+        owner: Slot,
+        target: crate::ssa::model::SsaTypeId,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
+        let op = if matches!(self.body.slots[owner.0], EntityType::Loan { .. }) {
+            ROp::SharedPayloadLoan { source: owner }
+        } else {
+            let place = self.value(
+                ROp::SharedPayloadPlace { owner },
+                EntityType::Place(target),
+                span,
+            )?;
+            ROp::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            }
+        };
+        self.value(
+            op,
+            EntityType::Loan {
+                kind: LoanKind::Shared,
+                target,
+            },
+            span,
+        )
     }
 
     /// The owner a class field projection goes through, its (narrowed) class type and the

@@ -165,7 +165,7 @@ impl UnitConstructionOwnershipPlan {
         self.root_obligation
     }
 
-    /// 返回阻止 construction 完成的 `Nothing` operand。
+    /// 返回无正常续行、因而未完成 construction 的 operand。
     #[must_use]
     pub const fn terminating_operand(&self) -> Option<UnitExpressionId> {
         self.terminating_operand

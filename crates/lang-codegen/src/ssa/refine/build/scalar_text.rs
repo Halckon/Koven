@@ -247,7 +247,7 @@ impl Builder<'_, '_> {
             } else if let Some((loan, created, read)) =
                 self.borrowed_rc_payload_loan(receiver, receiver_ty, span)?
             {
-                (loan, created, read.into_iter().collect())
+                (loan, created, read)
             } else if let Some((loan, created, read)) =
                 self.borrowed_container_element_loan(receiver, receiver_ty, span)?
             {

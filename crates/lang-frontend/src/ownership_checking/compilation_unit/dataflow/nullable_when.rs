@@ -4,11 +4,12 @@ use std::collections::BTreeMap;
 use super::{AccessKind, Checker, ExpressionUse, Flows, State, UnitCallArgumentOwnershipContract};
 use crate::{
     ast::{ExpressionId, StatementId},
+    name_resolution::UnitSymbolId,
     ownership_checking::{
         LoanKind, OwnershipBindingKind, OwnershipCheckingError, UnitCallArgumentOwnershipKind,
-        UnitLoanTarget, UnitNullableWhenEntryOwnershipFact, UnitNullableWhenOwnershipPlan,
-        UnitNullableWhenUseFact, UnitNullableWhenUseKind, UnitValueDeliveryKind,
-        UnitValueDeliverySource,
+        UnitLoanFact, UnitLoanTarget, UnitNullableWhenEntryOwnershipFact,
+        UnitNullableWhenOwnershipPlan, UnitNullableWhenUseFact, UnitNullableWhenUseKind,
+        UnitValueDeliveryKind, UnitValueDeliverySource,
     },
     parser::Expression,
     type_checking::{
@@ -201,7 +202,15 @@ impl Checker<'_> {
             return Ok(None);
         };
         let descriptor = &plan.descriptor;
-        if descriptor.source_category() != NullableWhenSubjectCategory::OwnedRoot {
+        use NullableWhenSubjectCategory::{BorrowRoot, InoutRoot, OwnedRoot};
+        if !matches!(
+            (descriptor.source_category(), contract.kind()),
+            (OwnedRoot, _)
+                | (
+                    BorrowRoot | InoutRoot,
+                    UnitCallArgumentOwnershipKind::SharedLoan
+                )
+        ) {
             return Ok(None);
         }
         if witness.expression() != contract.argument()
@@ -300,9 +309,24 @@ impl Checker<'_> {
         })
     }
 
+    /// Query the original completed call-loan observation before drop planning.
+    pub(super) fn nullable_when_loan_source(&self, loan: &UnitLoanFact) -> Option<UnitSymbolId> {
+        let witness = self.typed.nullable_when_use(loan.argument())?;
+        let plan = self.nullable_whens.plans.get(&witness.control())?;
+        plan.uses
+            .iter()
+            .find(|fact| {
+                fact.kind == UnitNullableWhenUseKind::Observe
+                    && fact.witness == witness
+                    && fact.loan.as_ref() == Some(loan)
+            })
+            .map(|fact| fact.witness.symbol())
+    }
+
     pub(super) fn record_nullable_when_loan(
         &mut self,
         contract: UnitCallArgumentOwnershipContract,
+        state: &State,
     ) -> Result<(), OwnershipCheckingError> {
         if contract.kind() != UnitCallArgumentOwnershipKind::SharedLoan {
             return Ok(());
@@ -317,9 +341,14 @@ impl Checker<'_> {
         }) else {
             return Err(invalid(contract.argument()));
         };
-        if !matches!(loan.target(), UnitLoanTarget::Place(place)
-            if place.is_root() && place.root() == witness.symbol())
-        {
+        let UnitLoanTarget::Place(place) = loan.target() else {
+            return Ok(());
+        };
+        // The witness names the lexical slot; the call loan names its canonical lease.
+        if !state.borrow_bindings.get(&witness.symbol()).map_or_else(
+            || place.is_root() && place.root() == witness.symbol(),
+            |origin| place == origin,
+        ) {
             return Ok(());
         }
         self.nullable_whens.record_use(UnitNullableWhenUseFact {

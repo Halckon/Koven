@@ -19,8 +19,12 @@ use lang_frontend::{
 };
 use std::collections::BTreeSet;
 
+#[path = "native_nullable_when_tests/borrowed_results.rs"]
+mod borrowed_results;
 #[path = "native_nullable_when_tests/generation.rs"]
 mod generation;
+#[path = "native_nullable_when_tests/inline.rs"]
+mod inline;
 #[allow(unused_imports)]
 pub(crate) use sibling_route::products;
 #[path = "native_nullable_when_tests/replacement_if.rs"]
@@ -916,25 +920,25 @@ fn nullable_when_out_of_slice_sources_keep_exact_boundaries() {
 }
 
 #[test]
-fn nullable_when_keeps_the_enclosing_borrow_return_rejection() {
-    let text = r#"class Node {}
-fun view(source: String): borrow String from source {
-val subject: Node? = Node()
-when (subject) { null -> {}; else -> {} }
-return source
+fn nullable_when_preserves_an_independent_borrow_return_source() {
+    use crate::native_tests::{boxed_enum_tests::assert_success, emit_link_and_run};
+
+    let text = r#"
+class Node { deinit() { println("drop") } }
+fun view(source: String, own subject: Node?): borrow String from source {
+    when (subject) { null -> {}; else -> {} }
+    return source
 }
-fun entry(): Unit { val source = "kept".clone(); { borrow val result = view(source); println(result) } }
+fun entry(): Unit {
+    val source = "kept".clone()
+    val subject: Node? = Node()
+    { borrow val result = view(source, subject); println(result) }
+    { borrow val result = view(source, null); println(result) }
+    println(source)
+}
 "#;
-    let source =
-        UnitSource::analyze("when-borrow-return.ko", text).expect("real frontend products");
-    source.assert_frontend_clean();
-    let entry = source.declaration("entry", SymbolKind::Function);
-    let error = source
-        .lower_entry(entry)
-        .err()
-        .expect("enclosing callable remains rejected");
-    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-    let span = error.span.expect("original signature origin");
-    assert_eq!((span.start(), span.end()), (40, 46));
-    assert_eq!(source.sources().slice(span), Ok("borrow"));
+    assert_success(
+        &emit_link_and_run("when-borrow-return.ko", text, "entry"),
+        b"drop\nkept\nkept\nkept\n",
+    );
 }

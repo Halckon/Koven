@@ -107,9 +107,6 @@ impl UnitLoweringFacts for ExperimentalUnitHandoff<'_, '_> {
     ) -> Option<&UnitNonNullAssertionOwnershipPlan> {
         self.experiment.retained.non_null_assertion(expression)
     }
-    fn nullable_when(&self, control: UnitExpressionId) -> Option<&UnitNullableWhenOwnershipPlan> {
-        self.experiment.retained.nullable_when(control)
-    }
     fn nullable_when_use(&self, argument: UnitExpressionId) -> Option<&UnitNullableWhenUseFact> {
         self.experiment.retained.nullable_when_use(argument)
     }

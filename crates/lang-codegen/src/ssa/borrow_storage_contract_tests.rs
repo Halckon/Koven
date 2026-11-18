@@ -173,19 +173,37 @@ fun entry() {}"#;
 }
 
 #[test]
-fn inout_root_alias_keeps_existing_codegen_boundary() {
-    let source = r#"fun probe(inout owner: String, own flag: Boolean): Unit {
+fn inout_root_alias_ends_before_the_caller_takes_its_value_back() {
+    let source = r#"fun probe(inout owner: String): Unit {
     borrow val item = ((owner))
-    if (flag) { println(item); return }
     println(item)
 }
-fun entry() { var owner = "kept".clone(); probe(&owner, true) }"#;
+fun entry() { var owner = "kept".clone(); probe(&owner) }"#;
     let sibling =
         format!("{source}\nfun unrelated(): Unit {{ var a = 1; var b = 2; swap(&a, &b) }}");
     for text in [source, &sibling] {
         for lower in [single, unit] {
-            let error = lower(text).err().expect("original Inout boundary");
-            assert_eq!(error.kind, super::LoweringErrorKind::UnsupportedNode);
+            let program = lower(text).expect("Inout String may be synchronously reborrowed");
+            verify_program(&program).unwrap();
+            let module = &program.modules[0];
+            let probe = module
+                .functions
+                .iter()
+                .find(|f| f.name.contains("probe"))
+                .unwrap();
+            assert!(probe.instructions.iter().any(|instruction| matches!(
+                instruction.operation,
+                Operation::SharedReborrow { .. }
+            )));
+            let entry = module
+                .functions
+                .iter()
+                .find(|f| f.name.contains("entry"))
+                .unwrap();
+            assert!(entry.instructions.iter().any(|instruction| matches!(
+                instruction.operation,
+                Operation::RootPlaceTake { .. }
+            )));
         }
     }
 }

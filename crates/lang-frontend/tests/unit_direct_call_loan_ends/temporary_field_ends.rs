@@ -303,11 +303,21 @@ fn rc_backed_fields_do_not_gain_direct_parent_events() {
         ));
         assert_units_admitted(&observed);
         for unit in &observed.units {
-            assert!(
-                unit.loans()
+            let loan = unit
+                .loans()
+                .iter()
+                .find(|loan| observed.sources.slice(loan.begin_span()) == Ok(field))
+                .expect("real Rc payload projection loan");
+            let UnitLoanTarget::Temporary(parent) = loan.target() else {
+                panic!("the temporary Rc is the shared backing owner");
+            };
+            assert_eq!(
+                unit.drops()
                     .iter()
-                    .any(|loan| observed.sources.slice(loan.begin_span()) == Ok(field)),
-                "real unsupported projection loan"
+                    .filter(|drop| drop.target() == UnitDropTarget::Temporary(*parent))
+                    .map(|drop| drop.point())
+                    .collect::<Vec<_>>(),
+                [UnitDropPoint::CallReturn(loan.call())]
             );
             assert!(unit.direct_call_loan_ends().is_empty());
         }

@@ -46,19 +46,20 @@ impl Checker<'_> {
             .expressions()
             .get(descriptor.expression().expression())?
             .span();
-        if let Some(place) = self.place(receiver.expression())? {
+        if let Some(place) = self.loan_place(receiver.expression())? {
             if !self.access_place(&place, AccessKind::Read, primary, None, state)? {
                 return Ok(flows);
             }
         } else if self
             .temporary_expression_origin(receiver.expression())?
+            .or(self.temporary_rc_payload_owner(receiver.expression())?)
             .is_none()
         {
             if descriptor.kind() == RcOperationKind::Share
                 && self.rc_value_receiver(receiver.expression())?.is_some()
             {
-                // This is a known payload borrow, not a malformed source identity.
-                // Retaining through it needs backing-owner lifetime transport first.
+                // Known payload syntax without a proven named or temporary backing owner.
+                // Main supports nested owners above; this is only the residual unproven route.
                 self.diagnostics.push(Diagnostic::new(
                     self.sources,
                     Severity::Error,
@@ -72,8 +73,8 @@ impl Checker<'_> {
                 && self.typed.copyability(descriptor.payload_type()) == Copyability::Copyable
                 && self.rc_value_receiver(receiver.expression())?.is_some()
             {
-                // Copying the final payload is legal, but the nested backing owner
-                // must remain borrowed until that copy actually completes.
+                // A Copyable read still needs a proven backing owner. Named/temporary
+                // nested owners were handled above; do not admit an unproven remainder.
                 self.diagnostics.push(Diagnostic::new(
                     self.sources,
                     Severity::Error,

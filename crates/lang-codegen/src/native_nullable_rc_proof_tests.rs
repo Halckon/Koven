@@ -111,25 +111,26 @@ fn assert_operations(source: &UnitSource, function: &Function, owner: EntityId) 
         panic!("share creates exactly one independent owner")
     };
     for (text, expected) in [("owner.value", owner), ("retained.value", *retained)] {
+        let expected_operation = match expected {
+            EntityId::Loan(source) => Operation::SharedPayloadLoan { source },
+            _ => Operation::SharedPayloadPlace { owner: expected },
+        };
         let payload = instruction(source, function, text, |operation| {
-            matches!(operation, Operation::SharedPayloadPlace { .. })
+            *operation == expected_operation
         });
-        assert_eq!(
-            payload.operation,
-            Operation::SharedPayloadPlace { owner: expected }
-        );
-        let [EntityId::Place(place)] = payload.results.as_slice() else {
-            panic!("payload is a read-only place, not another owner")
+        let access = match payload.results.as_slice() {
+            [EntityId::Loan(loan)] if matches!(expected, EntityId::Loan(_)) => {
+                PlaceAccess::Loan(*loan)
+            }
+            [EntityId::Place(place)] if matches!(expected, EntityId::Value(_)) => {
+                PlaceAccess::Place(*place)
+            }
+            _ => panic!("payload must use the expected kind of access"),
         };
         let read = instruction(source, function, text, |operation| {
             matches!(operation, Operation::Read { .. })
         });
-        assert_eq!(
-            read.operation,
-            Operation::Read {
-                source: PlaceAccess::Place(*place)
-            }
-        );
+        assert_eq!(read.operation, Operation::Read { source: access });
         assert_eq!(read.block, payload.block);
     }
     let drops = function
@@ -318,9 +319,12 @@ fn nullable_rc_if_uses_one_shared_proof_and_returns_the_original_owner() {
         panic!("the proof ends exactly once")
     };
     assert_eq!(end.block, present.target);
-    let payload = instruction(&source, function, "owner.value", |operation| {
-        matches!(operation, Operation::SharedPayloadPlace { .. })
-    });
+    let payload = instruction(
+        &source,
+        function,
+        "owner.value",
+        |operation| matches!(operation, Operation::SharedPayloadLoan { source } if source == view),
+    );
     assert_eq!(payload.block, present.target);
     let position = |id| {
         present_block
@@ -329,7 +333,17 @@ fn nullable_rc_if_uses_one_shared_proof_and_returns_the_original_owner() {
             .position(|actual| *actual == id)
             .unwrap()
     };
-    assert!(position(payload.id) < position(end.id));
+    let [EntityId::Loan(child)] = payload.results.as_slice() else {
+        panic!("proof payload has a child loan");
+    };
+    let child_end = function
+        .instructions
+        .iter()
+        .find(|instruction| instruction.operation == Operation::BorrowEnd { loan: *child })
+        .expect("the child ends before the proof");
+    assert_eq!(child_end.block, present.target);
+    assert!(position(payload.id) < position(child_end.id));
+    assert!(position(child_end.id) < position(end.id));
     let null_owner = forwarded(function, null, *owner);
     let present_owner = forwarded(function, present, *owner);
     let TerminatorKind::Branch(null_join) = &function

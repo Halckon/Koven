@@ -473,8 +473,8 @@ mod when {
         parser::{Expression, WhenCondition, WhenEntry},
         type_checking::{
             Copyability, ExpressionCategory, IntegerRangeOperationKind, IntrinsicTypeConstructor,
-            ParameterMode, RcOperationKind, UnitConstructionTarget, UnitRcOperationDescriptor,
-            UnitTypeId, UnitTypeKind,
+            ParameterMode, RcOperationKind, UnitConstructionTarget, UnitExpressionId,
+            UnitRcOperationDescriptor, UnitTypeId, UnitTypeKind,
         },
     };
 
@@ -544,14 +544,23 @@ mod when {
                 return false;
             };
             let value = argument.argument();
-            descriptor.target() == UnitConstructionTarget::IntrinsicRc
+            let shape = descriptor.target() == UnitConstructionTarget::IntrinsicRc
                 && self.expression_type(expression) == Some(result)
                 && self.c(*type_argument) == payload
                 && self.c(argument.parameter_type()) == payload
                 && value.source_unit() == self.inputs.source_unit
-                && plan.target() == descriptor.target()
-                && plan.terminating_operand().is_none()
-                && plan.deliveries().len() == 1
+                && plan.target() == descriptor.target();
+            if !shape {
+                return false;
+            }
+            if let Some(terminating) = plan.terminating_operand() {
+                return terminating == value
+                    && plan.deliveries().is_empty()
+                    && plan.root_obligation().is_none()
+                    && self.inputs.typed.expression_falls_through(value) == Some(false)
+                    && self.expression(value.expression());
+            }
+            plan.deliveries().len() == 1
                 && plan.deliveries()[0].argument() == value
                 && plan.root_obligation().is_some_and(|root| {
                     root.construction() == id
@@ -563,7 +572,7 @@ mod when {
         }
 
         pub(in crate::ssa::refine::subset) fn rc_operation_on_owner(
-            &self,
+            &mut self,
             expression: ExpressionId,
         ) -> Option<UnitRcOperationDescriptor> {
             let id = self.id(expression);
@@ -585,23 +594,63 @@ mod when {
                 && effect.receiver() == receiver
                 && self.c(effect.payload_type()) == self.c(descriptor.payload_type())
                 && effect.kind() == expected
-                && receiver.source_unit() == self.inputs.source_unit
-                && self.inputs.typed.expression_category(receiver)
-                    == Some(ExpressionCategory::Place);
+                && receiver.source_unit() == self.inputs.source_unit;
+            if !shape {
+                return None;
+            }
             let root = self.ungrouped(receiver.expression());
             let node = self.inputs.parsed.ast().expressions().get(root).ok()?;
             let payload_ty = self.c(descriptor.payload_type());
-            let owner = matches!(node.payload(), Expression::Name)
+            let category = self.inputs.typed.expression_category(receiver);
+            let temporary = if category == Some(ExpressionCategory::Temporary) {
+                receiver
+            } else {
+                self.id(root)
+            };
+            if self.inputs.typed.expression_category(temporary)
+                == Some(ExpressionCategory::Temporary)
+                && self
+                    .expression_type(root)
+                    .and_then(|ty| self.rc_payload(ty))
+                    == Some(payload_ty)
+                && self.inputs.typed.expression_falls_through(receiver) != Some(false)
+                && self.expression(receiver.expression())
+            {
+                self.temporary_field_parents.insert(temporary);
+                self.migrated = true;
+                return Some(descriptor);
+            }
+            if category == Some(ExpressionCategory::Place)
+                && let Some(inner) = self.inputs.typed.rc_operation(self.id(root))
+                && inner.kind() == RcOperationKind::Value
+                && self.rc_payload(self.c(inner.payload_type())) == Some(payload_ty)
+                && self.rc_operation_on_owner(root).is_some()
+            {
+                self.migrated = true;
+                return Some(descriptor);
+            }
+            if category == Some(ExpressionCategory::Place)
+                && self
+                    .field_loan_receiver(root, true)
+                    .and_then(|ty| self.rc_payload(ty))
+                    == Some(payload_ty)
+            {
+                self.migrated = true;
+                return Some(descriptor);
+            }
+            let owner = category == Some(ExpressionCategory::Place)
+                && matches!(node.payload(), Expression::Name)
                 && self.reference(root).is_some_and(|symbol| {
                     self.known.contains(&symbol)
-                        && matches!(
-                            self.parameter_mode(symbol),
-                            None | Some(ParameterMode::Value)
-                        )
                         && match self.inputs.typed.non_null_use(receiver) {
-                            None => self
-                                .symbol_type(symbol)
-                                .is_some_and(|ty| self.rc_payload(ty) == Some(payload_ty)),
+                            None => {
+                                matches!(
+                                    self.parameter_mode(symbol),
+                                    None | Some(ParameterMode::Value | ParameterMode::Borrow)
+                                ) && self
+                                    .symbol_type(symbol)
+                                    .is_some_and(|ty| self.rc_payload(ty) == Some(payload_ty))
+                            }
                             Some(fact) => {
                                 fact.symbol() == symbol
                                     && self.view_symbols.contains(&symbol)
@@ -610,7 +659,7 @@ mod when {
                             }
                         }
                 });
-            (shape && owner).then_some(descriptor)
+            owner.then_some(descriptor)
         }
 
         pub(in crate::ssa::refine::subset) fn rc_operation(
@@ -618,6 +667,12 @@ mod when {
             expression: ExpressionId,
         ) -> bool {
             self.migrated = true;
+            if let Some(receiver) = self
+                .inputs
+                .non_completing_projection_receiver(self.id(expression))
+            {
+                return self.expression(receiver);
+            }
             self.rc_operation_on_owner(expression)
                 .is_some_and(|descriptor| match descriptor.kind() {
                     RcOperationKind::Share => true,
@@ -634,7 +689,7 @@ mod when {
             receiver: ExpressionId,
         ) -> Option<UnitTypeId> {
             self.migrated = true;
-            let descriptor = self.rc_operation_on_owner(receiver)?;
+            let descriptor = self.rc_operation_on_owner(self.ungrouped(receiver))?;
             (descriptor.kind() == RcOperationKind::Value
                 && self.class(self.c(descriptor.payload_type())))
             .then(|| self.c(descriptor.payload_type()))
@@ -646,11 +701,7 @@ mod when {
             value: ExpressionId,
             parameter: UnitTypeId,
         ) -> bool {
-            let Ok(call_node) = self.inputs.parsed.ast().expressions().get(call) else {
-                return false;
-            };
-            if self.span_has_control_transfer(call_node.span())
-                || self.copyability_of(parameter) != Copyability::MoveOnly
+            if self.copyability_of(parameter) != Copyability::MoveOnly
                 || !self.storage_type(parameter)
             {
                 return false;
@@ -689,26 +740,28 @@ mod when {
             let move_enum = self.box_enum_type(subject_type);
             let tagged = copy_enum || move_enum;
             let string = self.string(subject_type);
-            let subject_ok = if string {
-                self.string_when_subject(subject)
-            } else if move_enum {
-                self.move_enum_when_subject(subject, subject_type, entries)
-            } else {
-                (self.scalar(subject_type) || copy_enum) && self.expression(subject)
-            };
+            let nullable_boolean = self.inputs.nullable_boolean_inner(subject).is_some();
             let control = self.id(control);
             let closed_after = self.inputs.typed.when_closed_after(control);
             let Some(entries) = entries.get(..closed_after.unwrap_or(entries.len())) else {
                 return false;
             };
+            let subject_ok = if string {
+                self.string_when_subject(subject)
+            } else if move_enum {
+                self.move_enum_when_subject(control, subject, subject_type, entries)
+            } else {
+                (self.scalar(subject_type) || copy_enum || nullable_boolean)
+                    && self.expression(subject)
+            };
             let has_else = entries.iter().any(|entry| entry.else_span.is_some());
-            let boolean_exhaustive = matches!(
-                self.kind(subject_type),
-                Some(lang_frontend::type_checking::UnitTypeKind::Builtin(
-                    lang_frontend::type_checking::BuiltinType::Boolean
-                ))
-            ) && (closed_after.is_some()
-                || self.boolean_two_arms(entries));
+            let boolean_exhaustive = (nullable_boolean && closed_after.is_some())
+                || matches!(
+                    self.kind(subject_type),
+                    Some(lang_frontend::type_checking::UnitTypeKind::Builtin(
+                        lang_frontend::type_checking::BuiltinType::Boolean
+                    ))
+                ) && (closed_after.is_some() || self.boolean_two_arms(entries));
             if !subject_ok || !(self.unit(ty) || has_else || tagged || boolean_exhaustive) {
                 return false;
             }
@@ -740,6 +793,9 @@ mod when {
                                 WhenCondition::Expression(condition) if tagged => {
                                     copy_enum && self.case_value_condition(*condition, subject_type)
                                 }
+                                WhenCondition::Expression(condition) if nullable_boolean => {
+                                    self.inputs.copyable_when_selector(*condition).is_some()
+                                }
                                 WhenCondition::Expression(condition) => {
                                     self.expression_type(*condition) == Some(subject_type)
                                         && self.expression(*condition)
@@ -747,6 +803,7 @@ mod when {
                                 WhenCondition::Contains { expression, .. } => {
                                     !tagged
                                         && !string
+                                        && !nullable_boolean
                                         && self.range_condition(*expression, subject_type)
                                 }
                                 WhenCondition::TypeTest { type_ref, .. } => {
@@ -775,6 +832,7 @@ mod when {
 
         fn move_enum_when_subject(
             &mut self,
+            control: UnitExpressionId,
             subject: ExpressionId,
             subject_type: UnitTypeId,
             entries: &[WhenEntry],
@@ -816,10 +874,18 @@ mod when {
                 })
             });
             !snapshot_tag
-                || entries
-                    .iter()
-                    .flat_map(|entry| &entry.conditions)
-                    .all(|condition| matches!(condition, WhenCondition::TypeTest { .. }))
+                || entries.iter().enumerate().all(|(index, entry)| {
+                    let selectors = self
+                        .inputs
+                        .typed
+                        .when_final_selector_count(control, index)
+                        .unwrap_or(entry.conditions.len());
+                    entry
+                        .conditions
+                        .iter()
+                        .take(selectors)
+                        .all(|condition| matches!(condition, WhenCondition::TypeTest { .. }))
+                })
         }
 
         fn boolean_two_arms(&self, entries: &[WhenEntry]) -> bool {
@@ -911,37 +977,6 @@ mod when {
                 && self.expression(operation.left().expression())
                 && (self.inputs.typed.expression_falls_through(operation.left()) == Some(false)
                     || self.expression(operation.right().expression()))
-        }
-
-        pub(in crate::ssa::refine::subset) fn subjectless_when(
-            &mut self,
-            ty: UnitTypeId,
-            entries: &[WhenEntry],
-        ) -> bool {
-            self.migrated = true;
-            let has_else = entries.iter().any(|entry| entry.else_span.is_some());
-            let mut can_reach_entry = true;
-            (self.unit(ty) || has_else)
-                && entries.iter().all(|entry| {
-                    if !can_reach_entry {
-                        return true;
-                    }
-                    let mut can_match = entry.else_span.is_some();
-                    entry.else_span.is_some() == entry.conditions.is_empty()
-                        && entry.conditions.iter().all(|condition| {
-                            if !can_reach_entry {
-                                return true;
-                            }
-                            let WhenCondition::Expression(condition) = condition else {
-                                return false;
-                            };
-                            let (yes, no) = self.condition_outcomes(*condition);
-                            can_match |= yes;
-                            can_reach_entry = no;
-                            self.condition(*condition, false)
-                        })
-                        && (!can_match || self.statement(entry.body))
-                })
         }
     }
 }

@@ -10,6 +10,7 @@ pub(super) mod named_route;
 mod nullable_when;
 mod range_borrow;
 mod scalar_text;
+mod when_control;
 use control::LoopRoute;
 pub(super) use control::accepts;
 use scalar_text::control;
@@ -72,6 +73,7 @@ struct Checker<'i, 'a> {
     range_view_bindings: BTreeSet<UnitSymbolId>,
     /// MoveOnly nullable bindings whose non-null proof view is active in the current branch.
     view_symbols: BTreeSet<UnitSymbolId>,
+    string_when_reads: BTreeSet<UnitExpressionId>,
 }
 
 fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> (bool, bool) {
@@ -98,6 +100,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         for_borrowed: BTreeSet::new(),
         range_view_bindings: BTreeSet::new(),
         view_symbols: BTreeSet::new(),
+        string_when_reads: BTreeSet::new(),
     };
     let mut signature_types: Vec<_> = inputs
         .parameters
@@ -136,8 +139,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         checker.migrated = true;
     }
     // Copyable Borrow parameters are read by copy, except String when subjects read the
-    // loan; Inout parameters are Copyable types or plain classes, read through and replaced
-    // under the caller's exclusive loan.
+    // loan. An Inout parameter's storage is accessed through the caller's exclusive loan.
     let signature = inputs.parameters.len() == inputs.modes.len()
         && inputs
             .parameters
@@ -166,10 +168,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
                                         || checker.rc_payload(ty).is_some()
                                         || checker.nullable_storage(ty)
                                 }
-                                ParameterMode::Inout => {
-                                    checker.copyability_of(ty) == Copyability::Copyable
-                                        || checker.class(ty)
-                                }
+                                ParameterMode::Inout => true,
                             }
                 })
             })
@@ -286,6 +285,7 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         for_borrowed: BTreeSet::new(),
         range_view_bindings: BTreeSet::new(),
         view_symbols: BTreeSet::new(),
+        string_when_reads: BTreeSet::new(),
     }
 }
 
@@ -368,7 +368,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     ordered
 }
 
-const fn integer(builtin: BuiltinType) -> bool {
+pub(in crate::ssa) const fn integer(builtin: BuiltinType) -> bool {
     matches!(
         builtin,
         BuiltinType::Byte
@@ -705,12 +705,16 @@ impl Checker<'_, '_> {
                 ..
             } => {
                 let saved = self.view_symbols.clone();
-                let cond_ok = self.condition(condition, true);
+                let Some([when_false, when_true]) = self.if_condition_proofs(condition) else {
+                    return false;
+                };
+                self.view_symbols.extend(when_true);
                 let (reaches_then, reaches_else) = self.condition_outcomes(condition);
-                let then_ok = cond_ok && (!reaches_then || self.statement(then_branch));
+                let then_ok = !reaches_then || self.statement(then_branch);
                 let then_views = self.view_symbols.clone();
                 self.view_symbols = saved.clone();
                 self.note_else_view(condition);
+                self.view_symbols.extend(when_false);
                 let else_ok =
                     !reaches_else || else_branch.is_none_or(|branch| self.statement(branch));
                 let else_views = self.view_symbols.clone();
@@ -724,6 +728,10 @@ impl Checker<'_, '_> {
                             && (!else_continues || else_views.contains(symbol))
                     })
                     .collect();
+                self.note_continuing_if_views(
+                    node.span(),
+                    [(then_continues, &then_views), (else_continues, &else_views)],
+                );
                 then_ok
                     && else_ok
                     && (self.unit(ty) || else_branch.is_some())
@@ -733,7 +741,7 @@ impl Checker<'_, '_> {
                 subject: None,
                 entries,
                 ..
-            } => self.subjectless_when(ty, &entries),
+            } => self.subjectless_when(ty, &entries, node.span()),
             Expression::When {
                 subject: Some(subject),
                 entries,
@@ -898,6 +906,16 @@ impl Checker<'_, '_> {
             // The builder propagates the left exit before asking for the right value.
             return self.expression(left);
         }
+        if matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+            && self
+                .expression_type(right)
+                .is_some_and(|right_ty| self.inputs.is_nullable_string_equality(operand, right_ty))
+        {
+            let admitted =
+                self.string_equality_operand(left) && self.string_equality_operand(right);
+            self.migrated |= admitted;
+            return admitted;
+        }
         let supported = match operator {
             BinaryOperator::Add if self.string(operand) => true,
             BinaryOperator::Add
@@ -922,23 +940,6 @@ impl Checker<'_, '_> {
         };
         let string = self.string(operand);
         supported && self.operand(left, string) && self.operand(right, string)
-    }
-
-    /// A String operand may be a Borrow String binding or a MoveOnly non-null name.
-    fn operand(&mut self, expression: ExpressionId, string: bool) -> bool {
-        if string && self.borrowed_string_name(expression) {
-            return true;
-        }
-        if string
-            && let Some(fact) = self.inputs.typed.non_null_use(self.id(expression))
-            && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
-        {
-            let root = self.ungrouped(expression);
-            return self.reference(root) == Some(fact.symbol())
-                && self.known.contains(&fact.symbol())
-                && self.view_symbols.contains(&fact.symbol());
-        }
-        self.expression(expression)
     }
 
     fn statement(&mut self, statement: StatementId) -> bool {

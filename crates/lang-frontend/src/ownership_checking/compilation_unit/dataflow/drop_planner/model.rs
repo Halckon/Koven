@@ -124,6 +124,10 @@ pub(super) enum PlannerDropTarget {
         assignment: ExpressionId,
         field: UnitSymbolId,
     },
+    ReplacedInout {
+        assignment: ExpressionId,
+        symbol: UnitSymbolId,
+    },
     ReplacedCapture {
         closure: ExpressionId,
         assignment: ExpressionId,
@@ -140,6 +144,7 @@ pub(super) struct PlannerDropFact {
     point: PlannerDropPoint,
     target: PlannerDropTarget,
     value_origin: Span,
+    pub(super) conditional_temporary: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -181,6 +186,7 @@ impl PlannerDropFact {
             point,
             target,
             value_origin,
+            conditional_temporary: false,
         }
     }
 
@@ -200,6 +206,12 @@ impl PlannerDropFact {
                     field,
                 }
             }
+            PlannerDropTarget::ReplacedInout { assignment, symbol } => {
+                UnitDropTarget::ReplacedInout {
+                    assignment: expression(assignment),
+                    symbol,
+                }
+            }
             PlannerDropTarget::ReplacedCapture {
                 closure,
                 assignment,
@@ -215,6 +227,7 @@ impl PlannerDropFact {
             },
         };
         UnitDropFact::new(point, target, self.value_origin)
+            .with_conditional_temporary(self.conditional_temporary)
     }
 }
 

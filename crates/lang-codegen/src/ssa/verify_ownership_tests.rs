@@ -1,3 +1,4 @@
+mod nullable_string;
 mod places;
 
 use lang_frontend::source::SourceMap;

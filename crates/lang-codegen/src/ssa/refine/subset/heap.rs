@@ -155,23 +155,6 @@ impl Checker<'_, '_> {
         matches!(self.kind(ty), Some(UnitTypeKind::Nullable(inner)) if self.storage_type(*inner))
     }
 
-    /// Presence through a MoveOnly Borrow does not mint an owned payload view.
-    pub(super) fn borrowed_nullable_presence(
-        &self,
-        symbol: lang_frontend::name_resolution::UnitSymbolId,
-        nullable: UnitTypeId,
-    ) -> Option<bool> {
-        (self.parameter_mode(symbol) == Some(ParameterMode::Borrow)
-            && self.copyability_of(nullable) == Copyability::MoveOnly)
-            .then(|| {
-                matches!(
-                    self.kind(nullable),
-                    Some(UnitTypeKind::Nullable(inner))
-                        if self.map_kv(*inner).is_none() && self.view_inner(*inner)
-                )
-            })
-    }
-
     /// A concrete `Box<T>` whose payload is a supported `value class` or `enum class`.
     pub(super) fn box_payload(&self, ty: UnitTypeId) -> Option<UnitTypeId> {
         self.box_payload_seen(ty, &mut BTreeSet::new())
@@ -367,6 +350,12 @@ impl Checker<'_, '_> {
     /// view, a known local, a Borrow/Inout parameter or the current receiver.
     pub(super) fn projection(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
+        if let Some(receiver) = self.inputs.non_completing_projection_receiver(id) {
+            if let Some(ok) = self.non_dispatching_factory_projection(expression, receiver) {
+                return ok;
+            }
+            return self.expression(receiver);
+        }
         let typed = self.inputs.typed;
         let Some(projection) = typed.aggregate_projection(id) else {
             return false;
@@ -380,7 +369,9 @@ impl Checker<'_, '_> {
         }
         let owner = match projection.receiver() {
             UnitAggregateProjectionReceiver::Expression(receiver)
-                if typed.rc_operation(receiver).is_some() =>
+                if typed
+                    .rc_operation(self.id(self.ungrouped(receiver.expression())))
+                    .is_some() =>
             {
                 // `rc.value.f`: the payload is read through its place (SPEC-0359).
                 if receiver.source_unit() != self.inputs.source_unit {
@@ -556,10 +547,21 @@ impl Checker<'_, '_> {
         self.inputs.modes.get(index).copied()
     }
 
-    /// `&x` for an `Inout` parameter: a known scalar or plain-class local, or an `Inout`
+    /// `&x` for an `Inout` parameter: a known local with supported storage, or an `Inout`
     /// parameter passed on, whose exclusive loan the ownership facts publish.
-    pub(super) fn inout_argument(&mut self, call: ExpressionId, value: ExpressionId) -> bool {
+    pub(super) fn inout_argument(
+        &mut self,
+        call: ExpressionId,
+        value: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> bool {
         self.migrated = true;
+        if let Some(field) = self.inputs.inout_field(self.id(call), value, parameter) {
+            return self.known.contains(&field.owner)
+                && self.parameter_mode(field.owner).is_none()
+                && self.class_field(field.owner_ty, field.field)
+                && self.storage_type(field.target);
+        }
         let Some(symbol) = self.direct_place_symbol(value) else {
             return false;
         };
@@ -572,16 +574,14 @@ impl Checker<'_, '_> {
             )
             && typed.non_null_use(value_id).is_none()
             && self.symbol_type(symbol).is_some_and(|ty| {
-                ((self.storage_type(ty)
-                    && self.copyability_of(ty)
-                        == lang_frontend::type_checking::Copyability::Copyable)
-                    || self.class(ty))
-                    && self.expression_type_of(value_id) == Some(ty)
+                self.storage_type(ty) && self.expression_type_of(value_id) == Some(ty)
             })
             && self.inputs.owned.loans().iter().any(|loan| {
                 loan.call() == call
                     && loan.argument() == value_id
                     && loan.kind() == lang_frontend::ownership_checking::LoanKind::Exclusive
+                    && matches!(loan.target(), lang_frontend::ownership_checking::UnitLoanTarget::Place(place)
+                        if place.is_root() && place.root() == symbol)
             })
     }
 

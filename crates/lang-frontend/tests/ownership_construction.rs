@@ -255,6 +255,7 @@ fn construction_roots_transfer_or_drop_once_across_local_branch_loop_and_return_
                 | UnitDropTarget::Captured { .. }
                 | UnitDropTarget::This(_)
                 | UnitDropTarget::ReplacedField { .. }
+                | UnitDropTarget::ReplacedInout { .. }
                 | UnitDropTarget::ReplacedCapture { .. } => None,
             })
             .collect::<Vec<_>>();
@@ -539,12 +540,39 @@ fn unreachable_construction_suffix_is_not_a_terminating_operand() {
                 assert_eq!(inner.terminating_operand().map(origin), Some(exit));
                 assert!(inner.deliveries().is_empty());
                 assert!(inner.root_obligation().is_none());
-                assert!(
-                    !plans
+                // Main now publishes the actual non-completing child, even when its
+                // static type is not Nothing. The unreachable suffix is never selected.
+                let outer = plans
+                    .iter()
+                    .find(|p| origin(p.construction()).starts_with("Outer("))
+                    .expect("outer records its actual terminating child");
+                assert_eq!(
+                    outer.terminating_operand().map(origin),
+                    Some(middle.as_str())
+                );
+                assert!(outer.root_obligation().is_none());
+                let [prefix] = outer.deliveries() else {
+                    panic!("only the completed prefix is delivered")
+                };
+                assert_eq!(origin(prefix.argument()), "\"prefix\"");
+                assert_eq!(prefix.construction(), outer.construction());
+                assert_eq!(prefix.parameter_index(), 0);
+                assert_eq!(prefix.evaluation_index(), 0);
+                if middle.starts_with("Middle(") {
+                    let nested = plans
                         .iter()
-                        .any(|p| origin(p.construction()).starts_with("Outer(")
-                            || origin(p.construction()).starts_with("Middle(")),
-                    "incomplete enclosing plan must remain absent"
+                        .find(|p| origin(p.construction()).starts_with("Middle("))
+                        .expect("middle records the actual terminating Inner");
+                    assert_eq!(
+                        nested.terminating_operand().map(origin),
+                        Some(format!("Inner({exit})").as_str())
+                    );
+                    assert!(nested.deliveries().is_empty());
+                    assert!(nested.root_obligation().is_none());
+                }
+                assert_eq!(
+                    plans.len(),
+                    if middle.starts_with("Middle(") { 3 } else { 2 }
                 );
                 let drops = owned
                     .drops()

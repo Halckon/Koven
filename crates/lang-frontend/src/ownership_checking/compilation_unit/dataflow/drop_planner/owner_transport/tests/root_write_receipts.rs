@@ -256,7 +256,7 @@ fn actual_root_writes_qualify_evaluated_short_circuit_rhs_and_restore() {
                 &fixture.parts(&owned),
                 constant_control,
                 |checker| {
-                    let expected = if constant_control { expected } else { 2 };
+                    // Both modes must omit writes on a statically bypassed RHS.
                     let mut planner = super::super::super::DropPlanner::new(
                         checker,
                         super::super::super::liveness::build(checker, true).unwrap(),
@@ -265,7 +265,11 @@ fn actual_root_writes_qualify_evaluated_short_circuit_rhs_and_restore() {
                     let planner = planner.run().unwrap();
                     let visits = planner.owner_control_probe.as_ref().unwrap();
                     let writes = &visits[1].root_writes;
-                    assert_eq!(writes.len(), expected, "{text}");
+                    assert_eq!(
+                        writes.len(),
+                        expected,
+                        "constant control {constant_control}: {text}"
+                    );
                     assert!(writes.last().unwrap().branch_arms.is_empty());
                     if expected == 2 {
                         assert_eq!(writes[0].branch_arms.len(), 2);

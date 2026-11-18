@@ -1,6 +1,7 @@
 //! `when`: alternatives tested in source order; the first match enters its body. A scalar
 //! subject is evaluated once and compared by value or by integer Range membership; a
 //! Copyable enum subject is tested by case.
+mod joins;
 mod nullable;
 use std::collections::BTreeSet;
 
@@ -34,10 +35,16 @@ pub(super) struct PredecessorBranch {
 enum WhenSubject {
     Value(Slot),
     Tag(Slot),
+    CopyableNullable {
+        owner: Slot,
+        inner: SsaTypeId,
+        symbol: Option<UnitSymbolId>,
+        payload_on_miss: Option<Slot>,
+    },
     Nullable {
         control: UnitExpressionId,
         owner: Slot,
-        proof: Slot,
+        proof: Option<Slot>,
     },
 }
 
@@ -104,7 +111,7 @@ impl Builder<'_, '_> {
                 }
             })
             .transpose()?;
-        let subject = if self.inputs.typed.nullable_when(control).is_some() {
+        let mut subject = if self.inputs.typed.nullable_when(control).is_some() {
             match self.nullable_when_subject(control)? {
                 Some(subject) => Some(subject),
                 None => return Ok(Lowered::Diverged),
@@ -134,10 +141,13 @@ impl Builder<'_, '_> {
             let id = self.unit(expression);
             self.temporaries.get(&id).copied().map(|slot| (id, slot))
         });
+        let subjectless = subject.is_none();
+        let outer_pending_views = subjectless.then(|| std::mem::take(&mut self.pending_views));
         let nullable_drops = self.nullable_when_operand_drops(subject)?;
         let join = self.body.block();
         self.body.blocks[join.0].origin = Some(span);
         let outer_views = self.active_views.clone();
+        let mut unmatched_views = outer_views.clone();
         let outer_pending_loans = self.pending_call_loans.clone();
         let outer_short_ranges = self.short_ranges.clone();
         let mut predecessors = Vec::new();
@@ -157,10 +167,11 @@ impl Builder<'_, '_> {
                 }
                 continue;
             }
-            self.active_views = outer_views.clone();
+            self.active_views.clone_from(&unmatched_views);
             self.pending_call_loans = outer_pending_loans.clone();
             self.short_ranges = outer_short_ranges.clone();
             let body = self.body.block();
+            let mut matched_paths = Vec::new();
             if entry.else_span.is_some() {
                 falls_through = false;
                 self.goto(body, entry.span)?;
@@ -183,7 +194,7 @@ impl Builder<'_, '_> {
                 let matched = self.body.block();
                 let next = self.body.block();
                 self.when_condition(
-                    subject,
+                    &mut subject,
                     root,
                     condition,
                     (matched, next),
@@ -204,12 +215,24 @@ impl Builder<'_, '_> {
                     entry: index,
                     alternative,
                 };
+                let selector_views = subjectless.then(|| self.active_views.clone());
                 let matched_reached = self.body.blocks[matched.0].has_predecessor;
                 if matched_reached {
                     let mark = self.enter(matched);
                     self.leave_unclaimed(mark, entry.span)?;
                     self.drops(match_point)?;
-                    self.goto(body, entry.span)?;
+                    if subjectless {
+                        self.sync_dead();
+                        matched_paths.push(PredecessorBranch {
+                            block: self.current(entry.span)?,
+                            views: self.active_views.clone(),
+                            dead: self.dead.clone(),
+                            this_dead: self.this_dead,
+                        });
+                        self.block = None;
+                    } else {
+                        self.goto(body, entry.span)?;
+                    }
                 } else {
                     self.unreachable_drop_points.push(match_point);
                 }
@@ -225,6 +248,9 @@ impl Builder<'_, '_> {
                     }
                     continue;
                 }
+                if let Some(views) = selector_views {
+                    self.active_views = views;
+                }
                 let mark = self.enter(next);
                 self.leave_unclaimed(mark, entry.span)?;
                 if let Some((id, slot)) = subject_temporary {
@@ -236,13 +262,23 @@ impl Builder<'_, '_> {
             if unmatched.is_none() {
                 falls_through = false;
             }
+            if subjectless {
+                if unmatched.is_some() {
+                    unmatched_views.clone_from(&self.active_views);
+                }
+                if !matched_paths.is_empty() {
+                    self.coalesce_borrowed_proofs(&mut matched_paths, entry.span)?;
+                    self.join_views(matched_paths, body, entry.span)?;
+                }
+            } else {
+                self.active_views.clone_from(&outer_views);
+            }
             if !self.body.blocks[body.0].has_predecessor {
                 let span = self.statement_span(entry.body)?;
                 self.unreachable_drop_scopes.push(span);
                 self.unreachable_drop_points.push(exit_point);
                 continue;
             }
-            self.active_views = outer_views.clone();
             let mark = self.enter(body);
             if matches!(subject, Some(WhenSubject::Nullable { .. })) {
                 self.enter_nullable_when_arm(subject, index, body, span)?;
@@ -260,7 +296,11 @@ impl Builder<'_, '_> {
             }
             let value = self.branch_value(entry.body)?;
             self.expected_nullable = saved_expected;
-            self.leave(mark, span)?;
+            if subjectless && value.is_some() {
+                self.leave_continuing_branch(&outer_views, span, false)?;
+            } else {
+                self.leave(mark, span)?;
+            }
             if let Some(value) = value {
                 if let Some(result) = result {
                     let (slot, source) =
@@ -302,7 +342,10 @@ impl Builder<'_, '_> {
             if result.is_some() {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             }
-            self.active_views = outer_views;
+            self.active_views = unmatched_views;
+            if subjectless {
+                self.leave_continuing_branch(&outer_views, span, false)?;
+            }
             self.drops(UnitDropPoint::BranchExit {
                 control,
                 branch: entries.len(),
@@ -326,9 +369,15 @@ impl Builder<'_, '_> {
         }
         self.pending_call_loans = outer_pending_loans;
         self.short_ranges = outer_short_ranges;
+        if subjectless {
+            self.coalesce_borrowed_proofs(&mut predecessors, span)?;
+        }
         let reached = self.join_views(predecessors, join, span)?;
         if !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
+        }
+        if let Some(outer) = outer_pending_views {
+            self.pending_views = outer;
         }
         if !reached {
             return Ok(Lowered::Diverged);
@@ -586,7 +635,7 @@ impl Builder<'_, '_> {
     /// Ends the current block with a branch to `matched` / `next`.
     fn when_condition(
         &mut self,
-        subject: Option<WhenSubject>,
+        subject: &mut Option<WhenSubject>,
         root: Option<UnitTypeId>,
         condition: &WhenCondition,
         edges: (BlockRef, BlockRef),
@@ -594,7 +643,28 @@ impl Builder<'_, '_> {
         completed: Option<UnitDropPoint>,
     ) -> Result<(), LoweringError> {
         let (matched, next) = edges;
-        let (subject, condition) = match (subject, condition) {
+        if let (
+            Some(WhenSubject::CopyableNullable {
+                owner,
+                inner,
+                symbol,
+                payload_on_miss,
+            }),
+            WhenCondition::Expression(condition),
+        ) = (subject.as_mut(), condition)
+        {
+            let selector = self
+                .inputs
+                .copyable_when_selector(*condition)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            if let Some(payload) = *payload_on_miss {
+                return self.branch_copied_selector(selector, payload, edges, span);
+            }
+            *payload_on_miss =
+                self.copyable_nullable_when_branch(*owner, *inner, *symbol, selector, edges, span)?;
+            return Ok(());
+        }
+        let (subject, condition) = match (*subject, condition) {
             (
                 Some(WhenSubject::Nullable {
                     control,
@@ -609,6 +679,22 @@ impl Builder<'_, '_> {
                 ) {
                     return Err(error(LoweringErrorKind::MissingFact, span));
                 }
+                let Some(proof) = proof else {
+                    let boolean = self.boolean_type(span)?;
+                    let condition = self.value(
+                        ROp::NullableIsNull { owner },
+                        EntityType::Value(boolean),
+                        span,
+                    )?;
+                    return self.terminate(
+                        RTerm::Branch {
+                            condition,
+                            when_true: matched,
+                            when_false: next,
+                        },
+                        self.span(control.expression()),
+                    );
+                };
                 self.body.blocks[next.0].view = Some(proof);
                 self.body.blocks[next.0].carry_sibling = Some(matched);
                 self.body.blocks[matched.0].carry_sibling = Some(next);
@@ -650,7 +736,7 @@ impl Builder<'_, '_> {
                     WhenSubject::Value(owner) => {
                         self.type_test(owner, root, *type_ref, *negated, span)?
                     }
-                    WhenSubject::Nullable { .. } => {
+                    WhenSubject::Nullable { .. } | WhenSubject::CopyableNullable { .. } => {
                         return Err(error(LoweringErrorKind::UnsupportedNode, span));
                     }
                     WhenSubject::Tag(tag) => {
@@ -735,6 +821,9 @@ impl Builder<'_, '_> {
         string: bool,
         root: Option<UnitTypeId>,
     ) -> Result<Option<WhenSubject>, LoweringError> {
+        if let Some(inner) = self.inputs.nullable_boolean_inner(expression) {
+            return self.nullable_boolean_when_subject(expression, inner);
+        }
         if string {
             let (payload, span) = self.node(expression)?;
             let id = self.unit(expression);
@@ -887,45 +976,5 @@ impl Builder<'_, '_> {
             .builtin(BuiltinType::Boolean)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         self.ssa_type(boolean, span)
-    }
-
-    /// Joins active views from reached branch predecessors at `join`.
-    /// Non-common views in any predecessor end on that predecessor's edge before jumping.
-    pub(super) fn join_views(
-        &mut self,
-        predecessors: Vec<PredecessorBranch>,
-        join: BlockRef,
-        span: Span,
-    ) -> Result<bool, LoweringError> {
-        if predecessors.is_empty() {
-            self.block = None;
-            return Ok(false);
-        }
-        let mut common = Vec::new();
-        if let Some(first) = predecessors.first() {
-            for v in &first.views {
-                if predecessors[1..]
-                    .iter()
-                    .all(|other| other.views.iter().any(|ov| ov.slot == v.slot))
-                {
-                    common.push(*v);
-                }
-            }
-        }
-        for pred in predecessors {
-            self.block = Some(pred.block);
-            self.dead = pred.dead;
-            self.this_dead = pred.this_dead;
-            self.dead_block = Some(pred.block);
-            for v in pred.views.iter().rev() {
-                if !common.iter().any(|cv| cv.slot == v.slot) {
-                    self.push(ROp::BorrowEnd { loan: v.slot }, Vec::new(), span)?;
-                }
-            }
-            self.goto(join, span)?;
-        }
-        self.block = Some(join);
-        self.active_views = common;
-        Ok(true)
     }
 }

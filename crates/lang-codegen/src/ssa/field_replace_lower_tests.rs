@@ -350,7 +350,6 @@ fn field_replace_single_nullable_layout_keeps_nonclass_and_generic_boundaries() 
             "Holder",
         ),
         ("class Holder(val state: Int?)", "Holder"),
-        ("class Holder(val state: String?)", "Holder"),
         (
             "value class Inline(val id: Int)\nclass Holder(val state: Inline?)",
             "Holder",
@@ -382,9 +381,17 @@ fn field_replace_single_nullable_layout_keeps_nonclass_and_generic_boundaries() 
             "{source}"
         );
     }
-    // SPEC-0350 / ADR-0033: a generic class instantiated with a scalar or String
-    // nullable field interns the inline nullable layout, so this recipe now lowers
-    // (non-generic `Int?`/`String?` fields above keep the pointer-like storage gate).
+    let source = "class Holder(val state: String?)\nfun test(own input: Holder): Unit {}";
+    let program =
+        lower_field(&analyze_field(source)).expect("a direct String? field uses the niche");
+    let module = &program.modules[0];
+    assert!(module.types.iter().any(|kind| matches!(
+        kind, SsaTypeKind::InlineNullable { inner, niche: true }
+            if module.type_kind(*inner) == Some(&SsaTypeKind::StringOwner)
+    )));
+    render_verified_program(&program).expect("direct nullable String field layout reaches LLVM");
+
+    // SPEC-0350 / ADR-0033: a concrete scalar or String type parameter uses inline nullable storage.
     for owner in ["Holder<Int>", "Holder<String>"] {
         let source =
             format!("class Holder<T>(val state: T?)\nfun test(own input: {owner}): Unit {{}}");
@@ -429,34 +436,19 @@ fn field_replace_single_nullable_layout_preserves_direct_parameter_and_name_inde
 }
 
 #[test]
-fn field_replace_single_nullable_recursive_class_layout_stays_unsupported() {
-    for (source, start, end, parameter) in [
-        (
-            "class Node(val next: Node?)\nfun test(own input: Node): Unit {}",
-            37,
-            52,
-            "own input: Node",
-        ),
-        (
-            "class Left(val right: Right?)\nclass Right(val left: Left?)\nfun test(own input: Left): Unit {}",
-            68,
-            83,
-            "own input: Left",
-        ),
+fn single_nullable_recursive_class_layout_definition_reaches_llvm() {
+    for source in [
+        "class Node(val next: Node?)\nfun test(own input: Node): Unit {}",
+        "class Left(val right: Right?)\nclass Right(val left: Left?)\nfun test(own input: Left): Unit {}",
     ] {
         let analysis = analyze_field(source);
-        let error = lower_field(&analysis)
-            .err()
-            .expect("recursive nullable layout remains closed");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{source}");
-        // Signature intern stores this exact parameter span in the pending owner.
-        // Nullable re-entry rejects the already-active root, not the recursive field.
-        let source_id = analysis
-            .declaration_span(analysis.declaration("test", SymbolKind::Function))
-            .source_id();
-        let expected = analysis.sources().span(source_id, start, end).unwrap();
-        assert_eq!(analysis.sources().slice(expected), Ok(parameter));
-        assert_eq!(error.span, Some(expected), "{source}");
+        let program = lower_field(&analysis).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+        let module = &program.modules[0];
+        assert!(module.types.iter().any(|kind| matches!(
+            kind, SsaTypeKind::NullableHandle { inner }
+                if matches!(module.type_kind(*inner), Some(SsaTypeKind::HeapOwner { payload: Some(_), .. }))
+        )));
+        render_verified_program(&program).expect("completed recursive heap layouts reach LLVM");
     }
 }
 

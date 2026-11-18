@@ -151,6 +151,24 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.places.insert(result, place);
             }
+            Operation::SharedPayloadLoan { source } => {
+                let [EntityId::Loan(result)] = instruction.results.as_slice() else {
+                    return Err(invalid_result_count(
+                        "shared payload loan",
+                        1,
+                        instruction.results.len(),
+                    ));
+                };
+                let owner = EntityId::Loan(*source);
+                let place = self.dependencies.runtime.shared_payload_place(
+                    &self.builder,
+                    self.dependencies.type_map,
+                    self.shared_owner_type(owner)?,
+                    self.shared_owner_pointer(owner)?,
+                    &format!("l{}", result.index()),
+                )?;
+                self.loans.insert(*result, place);
+            }
             Operation::SharedReferenceFollow { source } => {
                 let [EntityId::Loan(result)] = instruction.results.as_slice() else {
                     return Err(invalid_result_count(

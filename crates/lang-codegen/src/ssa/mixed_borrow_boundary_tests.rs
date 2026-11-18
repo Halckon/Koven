@@ -132,29 +132,29 @@ fn mixed_value_borrow_callable_value_remains_lowering_unsupported() {
 }
 
 #[test]
-fn mixed_value_borrow_wrapper_control_prefix_remains_lowering_unsupported() {
+fn mixed_value_borrow_wrapper_evaluates_control_prefix() {
     for argument in ["-n", "if (true) { 1 } else { 2 }", "n + 1"] {
         let source = format!(
             "fun view(own other: Int, source: String): borrow String from source = source\nfun wrap(source: String, n: Int): borrow String from source = view({argument}, source)\nfun entry() {{ val source = \"kept\"; borrow val item = wrap(source, 7); println(item) }}"
         );
         for lowered in [memory_unit(&source), unit(&source)] {
-            assert_eq!(
-                lowered.err().unwrap().kind,
-                LoweringErrorKind::UnsupportedNode
-            );
+            crate::ssa::verify::verify_program(&lowered.expect("control prefix lowering")).unwrap();
         }
+        let output =
+            crate::native_tests::emit_link_and_run("borrow-control-prefix.ko", &source, "entry");
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"kept\n");
     }
 }
 
 #[test]
-fn mixed_value_borrow_caller_cfg_remains_lowering_unsupported() {
+fn mixed_value_borrow_caller_reads_the_result_across_a_branch() {
     let source = "fun view(source: String, own other: Int): borrow String from source = source\nfun entry() { val source = \"kept\"; borrow val item = view(source, 7); if (true) { println(item) }; println(item) }";
     for lowered in [memory_unit(source), unit(source)] {
-        assert_eq!(
-            lowered.err().unwrap().kind,
-            LoweringErrorKind::UnsupportedNode
-        );
+        crate::ssa::verify::verify_program(&lowered.expect("branch preserves the result loan"))
+            .unwrap();
     }
+    let output = crate::native_tests::emit_link_and_run("borrow-caller-cfg.ko", source, "entry");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"kept\nkept\n");
 }
 
 pub(in crate::ssa) mod map_iteration_local {

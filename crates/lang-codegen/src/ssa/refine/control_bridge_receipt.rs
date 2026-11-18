@@ -817,14 +817,24 @@ impl Emitted {
                     when_null,
                     when_non_null,
                 },
-                TerminatorKind::NullableBranch {
-                    owner: actual,
-                    when_null: a,
-                    when_non_null: b,
-                    ..
-                },
+                term,
             ) => {
-                if current.get(owner) != Some(&EntityId::Value(*actual)) {
+                let (input, a, b) = match term {
+                    TerminatorKind::NullableBranch {
+                        owner,
+                        when_null,
+                        when_non_null,
+                        ..
+                    } => (EntityId::Value(*owner), when_null, when_non_null),
+                    TerminatorKind::NullableLoanBranch {
+                        source,
+                        when_null,
+                        when_non_null,
+                        ..
+                    } => (EntityId::Loan(*source), when_null, when_non_null),
+                    _ => return Err(invalid(span)),
+                };
+                if current.get(owner) != Some(&input) {
                     return Err(invalid(span));
                 }
                 self.edge(body, *when_null, a, current, span)?;

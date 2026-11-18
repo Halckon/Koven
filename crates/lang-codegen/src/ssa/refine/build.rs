@@ -96,6 +96,9 @@ pub(super) struct Builder<'i, 'a> {
     narrowed: BTreeMap<BlockRef, BTreeSet<UnitSymbolId>>,
     narrow_slots: BTreeMap<UnitSymbolId, Slot>,
     temporaries: BTreeMap<UnitExpressionId, Slot>,
+    // Extracted payload arguments already moved the source at evaluation time.
+    taken_arguments: BTreeSet<UnitExpressionId>,
+    conditional_temporary_ids: BTreeSet<UnitExpressionId>,
     consumed_drops: BTreeSet<usize>,
     /// Source scopes and exact edge points proven unreachable by the constructed CFG.
     unreachable_drop_scopes: Vec<Span>,
@@ -186,6 +189,8 @@ pub(super) fn build(
         narrowed: BTreeMap::new(),
         narrow_slots: BTreeMap::new(),
         temporaries: BTreeMap::new(),
+        taken_arguments: BTreeSet::new(),
+        conditional_temporary_ids: inputs.conditional_temporary_ids(),
         consumed_drops: BTreeSet::new(),
         unreachable_drop_scopes: Vec::new(),
         unreachable_drop_points: Vec::new(),
@@ -507,6 +512,7 @@ impl Builder<'_, '_> {
         } else {
             Some(result.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?)
         };
+        self.end_all_views(span)?;
         for loan in self.capture_loans.clone().into_iter().rev() {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
@@ -518,6 +524,10 @@ impl Builder<'_, '_> {
     /// Consumes every drop fact published at `point`, in publication order.
     fn drops(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
         self.end_result_bindings(point)?;
+        self.drops_after_result_bindings(point)
+    }
+
+    fn drops_after_result_bindings(&mut self, point: UnitDropPoint) -> Result<(), LoweringError> {
         if self
             .loops
             .iter()
@@ -816,7 +826,8 @@ impl Builder<'_, '_> {
 
     /// The named owner a pending argument value was moved out of.
     fn pending_symbol(&self, expression: UnitExpressionId) -> Option<UnitSymbolId> {
-        if expression.source_unit() != self.inputs.source_unit
+        if self.taken_arguments.contains(&expression)
+            || expression.source_unit() != self.inputs.source_unit
             || self
                 .inputs
                 .constant_owned
@@ -889,7 +900,8 @@ impl Builder<'_, '_> {
         {
             self.deliver_this();
         }
-        if let Some(symbol) = self.pending_symbol(self.unit(root))
+        if !self.taken_arguments.contains(&self.unit(expression))
+            && let Some(symbol) = self.pending_symbol(self.unit(root))
             && self.bindings.contains_key(&symbol)
             && self
                 .expression_type(root)

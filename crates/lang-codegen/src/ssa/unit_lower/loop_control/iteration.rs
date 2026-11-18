@@ -581,6 +581,7 @@ mod provider_entry_projection_tests {
     fn reference(tokens: &[LoanId], live: bool) -> Reference {
         Reference {
             lineage: tokens.iter().copied().collect(),
+            origin: *tokens.last().expect("reference origin"),
             live,
         }
     }

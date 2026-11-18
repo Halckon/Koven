@@ -80,10 +80,8 @@ impl Checker<'_> {
         }
         let target_span = self.parsed.ast().expressions().get(target)?.span();
         let place = self.place(target)?;
-        if let Some(place) = &place
-            && !self.is_mutable_place(target)?
-        {
-            let declaration = place.fields().last().copied().unwrap_or(place.root());
+        let rc_receiver = self.rc_value_receiver(target)?;
+        if (place.is_some() || rc_receiver.is_some()) && !self.is_mutable_place(target)? {
             let mut diagnostic = Diagnostic::new(
                 self.sources,
                 Severity::Error,
@@ -91,11 +89,20 @@ impl Checker<'_> {
                 "assignment target is not a mutable place",
                 target_span,
             )?;
-            diagnostic.add_label(
-                self.sources,
-                self.symbol_span(declaration)?,
-                "immutable binding declared here",
-            )?;
+            if let Some(place) = &place {
+                let declaration = place.fields().last().copied().unwrap_or(place.root());
+                diagnostic.add_label(
+                    self.sources,
+                    self.symbol_span(declaration)?,
+                    "immutable binding declared here",
+                )?;
+            } else if let Some(receiver) = rc_receiver {
+                diagnostic.add_label(
+                    self.sources,
+                    self.parsed.ast().expressions().get(receiver)?.span(),
+                    "Rc owner provides shared access to the payload",
+                )?;
+            }
             self.diagnostics.push(diagnostic);
             self.rollback_facts(fact_lengths);
             self.nullable_whens = nullable_when_checkpoint;

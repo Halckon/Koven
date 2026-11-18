@@ -130,8 +130,8 @@ initializer 保持既有入口行为。lambda 顶层 body 与内嵌普通 block 
 边界。三个 body dispatch 的分隔校验在后继 element 起点以空 Span 报 L0169；恢复保留真实
 后继，不补造分号。已有缺 operand/poison 错误不追加同根分隔诊断。
 
-when 分支体在换行后遇到真实配对的圆括号且紧接分支箭头时，把括号交还给后继 selector。
-嵌套 when 的 selector 保留跨行调用实参。
+when 分支体在换行后遇到已配对的圆括号时，只在 selector 后缀到达同层真实箭头后让出该分组。
+扫描复用类型和配对索引跳过内层箭头，遵守普通及泛型尾 lambda 换行规则。探针按 when 主体区分裸 is/in 与中缀续行，常规入口保留裸条件的类型诊断。 循环内的 break/continue 按零操作数扫描。只有已配对的括号才可覆盖 block 的普通换行边界。
 
 `return` 的同行操作数起点允许既有 control primary（含 `if` / `when`），不把 block 的
 下一 element soft stop 误用为缺值判断；已开始解析操作数后仍传递原 stops。换行、分号、

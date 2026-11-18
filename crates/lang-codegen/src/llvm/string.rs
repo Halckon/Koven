@@ -231,13 +231,43 @@ pub(super) fn clone_owner<'ctx>(
     Ok(result.as_basic_value().into_struct_value())
 }
 
+/// Map removal stores presence separately. Select a null view when the payload is absent.
+pub(super) fn map_result_view<'ctx>(
+    builder: &Builder<'ctx>,
+    result: StructValue<'ctx>,
+) -> Result<StringView<'ctx>, LlvmAdapterError> {
+    let present = builder
+        .build_extract_value(result, 0, "map.string.present")?
+        .into_int_value();
+    let payload = builder
+        .build_extract_value(result, 1, "map.string.payload")?
+        .into_struct_value();
+    let view = view(builder, payload, "map.string.view")?;
+    let bytes = builder.build_select(
+        present,
+        view.bytes,
+        view.bytes.get_type().const_null(),
+        "map.string.bytes",
+    )?;
+    let length = builder.build_select(
+        present,
+        view.length,
+        view.length.get_type().const_zero(),
+        "map.string.length",
+    )?;
+    Ok(StringView {
+        bytes: bytes.into_pointer_value(),
+        length: length.into_int_value(),
+    })
+}
+
 pub(super) fn equal<'ctx>(
     context: &'ctx Context,
     builder: &Builder<'ctx>,
     function: FunctionValue<'ctx>,
     runtime: &RuntimeAbi<'ctx>,
-    left: StringView<'ctx>,
-    right: StringView<'ctx>,
+    [left, right]: [StringView<'ctx>; 2],
+    nullable: bool,
     name: &str,
 ) -> Result<IntValue<'ctx>, LlvmAdapterError> {
     let preheader = builder
@@ -255,7 +285,19 @@ pub(super) fn equal<'ctx>(
         right.length,
         &format!("{name}.same_length"),
     )?;
-    builder.build_conditional_branch(same_length, compare, done)?;
+    let (compare_bytes, equal_without_bytes) = if nullable {
+        let left_null = builder.build_is_null(left.bytes, "string.left.null")?;
+        let right_null = builder.build_is_null(right.bytes, "string.right.null")?;
+        let either_null = builder.build_or(left_null, right_null, "string.either.null")?;
+        let both_present = builder.build_not(either_null, "string.both.present")?;
+        (
+            builder.build_and(same_length, both_present, "string.compare.bytes")?,
+            builder.build_and(left_null, right_null, "string.both.null")?,
+        )
+    } else {
+        (same_length, context.bool_type().const_zero())
+    };
+    builder.build_conditional_branch(compare_bytes, compare, done)?;
 
     builder.position_at_end(compare);
     let index = builder.build_phi(runtime.size_type(), &format!("{name}.index"))?;
@@ -313,7 +355,7 @@ pub(super) fn equal<'ctx>(
     let false_value = context.bool_type().const_zero();
     let true_value = context.bool_type().const_int(1, false);
     result.add_incoming(&[
-        (&false_value, preheader),
+        (&equal_without_bytes, preheader),
         (&true_value, equal),
         (&false_value, mismatch),
     ]);

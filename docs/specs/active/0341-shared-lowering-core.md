@@ -21586,3 +21586,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 仅当解透明 Group 后实际为 Elvis 且该参数预检查无新增诊断时，以原实参 ID、Consume parameter span 及实际正常继续路径复用 escaping-expression；其余走原链。每参数恢复门、退出流合并、evaluation_index 源码顺序、Nothing 前缀计划和 delivery/root obligation 流程不变，不扩 E3。
 - 正式 `ownership_construction_escape`4项覆盖 class Holder 新拒绝/Group、单借用分支精确一次 L0137、失败 construction plans/loans/drops 清空和 validate 失败、capture-free/owned 正控，以及位置首参 Return 和反声明顺序命名实参 Return 跳过后续闭包。原直接 If 双支同一 exclusive closure 的聚合单 L0137 保持。
 - `check_construction` 是 class/value class/enum/Box/Rc 的共享 descriptor 消费者；本片新闭包源码实测限 class Holder，不宣称逐一新增支持其他 payload。既有 `ownership_construction`10项全过，覆盖其原共享构造合同；同时 `ownership_closures`74、`ownership_elvis_escape`4、`ownership_nonnull_closure_escape`4、`ownership_nullable_alias_escape`3、`ownership_value_closure_escape`5全过。新定向4项本树重编5.92秒通过，强制本树 frontend all-targets `loan-observation-test-support` strict39.05秒通过；独立设计/实际diff审阅及docs/尺寸门禁通过。构建逐阶段全局门禁，无native/fault，不推送。
+
+### 2026-11-18：整合 main 的 Rc、构造与返回借用能力
+
+- 将已验证本地链 `182a0a00` 与 main `625f6804` 合并，保留双方历史和 SPEC-0392 记录；未纳入仍待验证的 mutable nullable alias 或 field Elvis 候选。main 的新增能力不能视为旧拒绝诊断的等价替代。
+- 保留 nominal 构造 `CallOperandFlow` 的参数源码顺序、后缀诊断和循环状态隔离，同时保 main 无正常后继的构造计划。保留 shared-capture 的具名传参和 immediate literal 两组不同 CallReturn 身份合同。Rc 原 share12、Copy24 组合保源码/布局，改验合法 effect、真实 operation/owner root 和 validate；L0131/L0132/L0134 负控保持。
+- 三个原借用返回源码/入口逐一实证 SSA/LLVM 成功，替换过时 Unit Unsupported 预期：原 caller 精确追踪全部前驱的块参数回到 BorrowCall result/source，保两次读取、唯一两级结束及 CFG 顺序；未调用 block-view 的空 entry 与实际 view-root 分开覆盖，后者返回原参数 loan。实际图没有 SharedReborrow，不能用另一 lowering 路径的假设代替真实身份。Legacy Single 拒绝及完整原输入保持。
+- 组合回归发现真实准入交互：main 的非完成 projection 快捷路径绕过本地 owned-factory 前缀清理证明。新增窄 Option 准入桥复用原完整 Copyable field/factory/source/dispatch 检查；命中失败直接拒绝，不以通用路径继续，未匹配者维持 main 路径。原 return/stop、透明 Group、双配置及其他 lender 负控全部转绿。Rc<Int>(return 9) 按 main 实际能力保同源成功正控，核唯一 Return9、无后缀0、无父 Rc 分配/retain/drop；Point/Box 禁路由负控不变。
+- 最终整合 FE 九目标共121项通过，强制本树 frontend all-target `loan-observation-test-support` strict 2m31s；最终普通 SSA 借用结果15项和临时字段11项通过，强制本树 codegen all-target `loan-observation-test-support,d10-catalog-experiment,e2-two-source-test-support` strict 2m26s。仅普通 SSA/LLVM 验证，未执行 native 或故障注入，不将这些结果扩大为完整 D10/E2 验收。经授权采用隔离 target、单编译/单测试线程及内存/磁盘监控，与只读隔离 Docker 测试受控并发。

@@ -337,6 +337,31 @@ fn nullable_handle_accepts_defined_pointer_owners_and_rejects_inline_types() {
     }));
 }
 
+#[test]
+fn nullable_handle_of_pending_owner_requires_completed_recursive_payload() {
+    let mut program = Program::default();
+    let module_id = program.add_module("recursive");
+    let module = program.module_mut(module_id).unwrap();
+    let owner = module.declare_heap_owner("Node").unwrap();
+    let nullable = module.add_nullable_handle_type(owner).unwrap();
+
+    let errors = verify_program(&program)
+        .expect_err("an undefined nullable owner cannot reach emission")
+        .errors;
+    assert!(errors.iter().any(|error| {
+        error.location == super::verify::VerifyLocation::Type(nullable)
+            && matches!(error.kind, VerifyErrorKind::InvalidTypeDefinition { .. })
+    }));
+
+    let module = program.module_mut(module_id).unwrap();
+    let payload = module
+        .add_aggregate_type("Node.payload", vec![nullable])
+        .unwrap();
+    module.define_heap_owner(owner, payload).unwrap();
+    assert_eq!(module.add_nullable_handle_type(owner), Ok(nullable));
+    verify_program(&program).expect("nullable handle breaks the inline layout cycle");
+}
+
 #[derive(Clone, Copy, Debug)]
 enum RepeatedConsumption {
     Take,

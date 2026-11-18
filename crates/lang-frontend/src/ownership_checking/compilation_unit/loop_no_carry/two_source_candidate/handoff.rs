@@ -7,7 +7,7 @@ use crate::{
     name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
     ownership_checking::{OwnedCompilationUnitViewError, handoff::validate_source_analysis},
     source::SourceMap,
-    type_checking::{TypeEnvironment, ValidatedCompilationUnitTypes},
+    type_checking::{TypeEnvironment, UnitExpressionId, ValidatedCompilationUnitTypes},
 };
 
 /// Private construction, no raw ownership getter, Deref, conversion or callback escape.
@@ -125,6 +125,9 @@ use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::*;
 impl crate::ownership_checking::preflight::sealed::Sealed for ExperimentalUnitHandoff<'_, '_> {}
 impl UnitPreflightFacts for ExperimentalUnitHandoff<'_, '_> {
+    fn nullable_when(&self, control: UnitExpressionId) -> Option<&UnitNullableWhenOwnershipPlan> {
+        self.experiment.retained.nullable_when(control)
+    }
     fn experimental_two_source_binding(
         &self,
         binding: UnitSymbolId,

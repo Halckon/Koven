@@ -98,43 +98,13 @@ impl Parser<'_> {
         receiver: ExpressionId,
         stops: Stops,
     ) -> Result<bool, ParserInternalError> {
-        if self.at_block_expression_line_break(receiver, stops)? {
-            return Ok(true);
-        }
-        if stops.when_entry_body {
-            return self.grouped_when_entry_follows(receiver);
-        }
-        Ok(false)
-    }
-
-    /// Retain the next entry's paired group without treating every newline as a call boundary.
-    fn grouped_when_entry_follows(
-        &self,
-        receiver: ExpressionId,
-    ) -> Result<bool, ParserInternalError> {
-        if !self.current_is_symbol(Symbol::LeftParen)
-            || !self.gap_has_line_break(
-                self.expression_span(receiver)?.end(),
-                self.current()?.span().start(),
-            )?
+        if let Some(body) = stops.when_entry_body
+            && let Some(next_entry) = self.grouped_when_entry_follows(receiver, body)?
         {
-            return Ok(false);
+            // Only a paired group can override the surrounding block's line break.
+            return Ok(next_entry);
         }
-        let Some(closer) = self
-            .lexical_recoveries
-            .group_closer(self.lexed, self.current_raw()?)
-        else {
-            return Ok(false);
-        };
-        let next = self.lexed.lexemes()[closer + 1..]
-            .iter()
-            .find(|lexeme| !matches!(lexeme.kind(), LexemeKind::Trivia(_)));
-        Ok(next.is_some_and(|lexeme| {
-            matches!(
-                lexeme.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow))
-            )
-        }))
+        self.at_block_expression_line_break(receiver, stops)
     }
 
     pub(super) fn is_postfix_start(&self) -> bool {
@@ -733,7 +703,7 @@ impl Parser<'_> {
         Ok(Some((arguments, self.span(opener.start(), closer.end())?)))
     }
 
-    fn typed_call_suffix_continues(
+    pub(super) fn typed_call_suffix_continues(
         &self,
         closing_raw: usize,
         suffix_raw: usize,

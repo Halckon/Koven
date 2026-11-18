@@ -222,30 +222,13 @@ fn shared_branch_transport_baseline() {
 }
 
 #[test]
-fn child_borrow_branch_remains_unsupported() {
+fn ordinary_child_borrows_end_on_their_own_branch() {
     let source = "fun view(source:String):borrow String from source=source\nfun probe(left:String,right:String,flag:Boolean):Unit {if(flag){borrow val a=view(left);println(a)}else{borrow val b=view(right);println(b)};println(left);println(right)}\nfun entry(){val a=\"a\";val b=\"b\";probe(a,b,true);probe(a,a,false)}";
-    for (lower, offset) in [
-        (
-            single as fn(&str) -> Result<Program, super::LoweringError>,
-            0,
-        ),
-        (
-            unit as fn(&str) -> Result<Program, super::LoweringError>,
-            "package p\n".len(),
-        ),
-    ] {
-        let error = lower(source).err().expect("unsupported child branch");
-        assert!(matches!(
-            error.kind,
-            super::LoweringErrorKind::UnsupportedNode
-        ));
-        // Both wrappers complete strict frontend analysis before returning this error.
-        let span = error.span.unwrap();
-        let target =
-            "if(flag){borrow val a=view(left);println(a)}else{borrow val b=view(right);println(b)}";
-        let start = source.find(target).unwrap() + offset;
-        assert_eq!((span.start(), span.end()), (start, start + target.len()));
+    for program in [single(source), unit(source)] {
+        verify_program(&program.expect("each layout has verified branch-local loans")).unwrap();
     }
+    let output = crate::native_tests::emit_link_and_run("child-borrow-branch.ko", source, "entry");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"a\na\nb\na\na\na\n");
 }
 
 #[test]
