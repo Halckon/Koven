@@ -360,6 +360,8 @@ class Planner:
             decl = self.t.types[self.ty[stmt.var]]
             if len(stmt.names) != len(decl.fields):
                 raise Rejected(line, "SYNTAX", f"{decl.name} 有 {len(decl.fields)} 个字段")
+            if len(set(stmt.names)) != len(stmt.names) or set(stmt.names).intersection(self.visible()):
+                raise Rejected(line, "SYNTAX", "open 的每个字段须绑定到不同的新局部名")
             for unit in self.units(stmt.var):
                 self.status[unit] = "G"
             for name, (_, ty) in zip(stmt.names, decl.fields):
@@ -451,6 +453,10 @@ class Leave(Exception):
         self.how = how  # return | break | fail
 
 
+class InvalidOpen(Exception):
+    """字段义务无法一一转交；后续计划没有可执行的状态。"""
+
+
 class Verifier:
     """只认程序里显式的 drop 与各操作的失败清理；自己不推断任何析构。"""
 
@@ -466,11 +472,15 @@ class Verifier:
         found, pending = {}, [[]]
         while pending:
             self.choices, self.taken = pending.pop(), []
-            self.unit, self.scopes, self.order, self.ty = {}, [], [], {}
+            self.unit, self.scopes, self.ty = {}, [], {}
             self.early_observable, self.violations = set(), []
             self.borrowed, self.cleaning, self.aborted = set(), False, False
             try:
                 self.block(body)
+            except InvalidOpen as invalid:
+                # 只去掉非法计划停止执行时栈展开产生的诊断，保留此前真实的违规。
+                del self.violations[invalid.args[0]:]
+                self.violations.append("V6 open 的字段与新绑定不一一对应")
             except Leave:
                 pass
             self.aborted_paths += self.aborted
@@ -507,7 +517,6 @@ class Verifier:
     def declare(self, var, ty):
         self.ty[var] = ty
         self.scopes[-1].append(var)
-        self.order.append(var)
         for unit in self.t.units(var, ty):
             self.unit[unit] = "O"
 
@@ -522,11 +531,12 @@ class Verifier:
         for unit in held:
             self.unit[unit] = "D"
         if self.t.observable(self.ty[var]) and not replace:
-            later = self.order[self.order.index(var) + 1:]
-            if any(w in self.active() and self.t.observable(self.ty[w])
-                   and any(self.unit[u] == "O" for u in self.t.units(w, self.ty[w])) for w in later):
+            active = self.active()  # 已退出块的同名绑定不参与本次逆序检查
+            later = active[active.index(var) + 1:] if var in active else []
+            if any(self.t.observable(self.ty[w]) and any(self.unit[u] == "O" for u in self.t.units(w, self.ty[w]))
+                   for w in later):
                 self.violations.append("V4 可观察的析构没有按声明逆序")
-            if var in self.active():
+            if var in active:
                 self.early_observable.add(var)
         return self.destruct(self.ty[var], {unit[len(var) + 1:] for unit in held if unit != var}, var in held)
 
@@ -556,8 +566,8 @@ class Verifier:
 
     def run_deinit(self, body):
         """在独立的帧里执行一个 deinit 函数体。它失败时：清理途中或政策为终止，则进程终止；否则报告失败。"""
-        frame = (self.unit, self.scopes, self.order, self.ty, self.early_observable, self.borrowed)
-        self.unit, self.scopes, self.order, self.ty, self.early_observable, self.borrowed = {}, [], [], {}, set(), set()
+        frame = (self.unit, self.scopes, self.ty, self.early_observable, self.borrowed)
+        self.unit, self.scopes, self.ty, self.early_observable, self.borrowed = {}, [], {}, set(), set()
         failed = False
         try:
             self.block(body)
@@ -566,7 +576,7 @@ class Verifier:
                 raise
             failed = leave.how == "fail"
         finally:
-            self.unit, self.scopes, self.order, self.ty, self.early_observable, self.borrowed = frame
+            self.unit, self.scopes, self.ty, self.early_observable, self.borrowed = frame
         if failed and (self.cleaning or not self.propagate):
             self.aborted = True
             raise Leave("abort")
@@ -601,6 +611,11 @@ class Verifier:
             for unit in self.t.units(stmt.var, stmt.ty):
                 self.unit[unit] = "O"
         elif kind in ("use", "move", "forget", "open"):
+            if kind == "open":
+                fields = self.t.types[self.ty[stmt.var]].fields
+                names = set(stmt.names)
+                if len(stmt.names) != len(fields) or len(names) != len(fields) or names.intersection(self.active()):
+                    raise InvalidOpen(len(self.violations))
             units = self.t.units(stmt.var, self.ty[stmt.var])
             if kind == "use" and f"{stmt.var}.{stmt.fld}" in units:  # 只用到一个字段（由借用原型写出）
                 units = [f"{stmt.var}.{stmt.fld}"]

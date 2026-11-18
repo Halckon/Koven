@@ -118,6 +118,48 @@ class DropPlanCases(unittest.TestCase):
         self.assertEqual({}, DP.Verifier(types, deinits={"Conn": body}).run_all(holder))
         self.assertEqual(["V1"], [name.split()[0] for name in DP.Verifier(types, deinits={"Conn": broken}).run_all(holder)])
 
+    def test_open_needs_one_distinct_destination_per_field(self):
+        """绕过规划器：即使上游连同清理一起漏掉字段，检验器也不能接受 open。"""
+        types, _ = DP.parse("type File deinit\ntype Conn(a: File, b: File) deinit\n")
+        for names in (["a", "b"], ["a"], ["a", "b", "extra"], ["a", "a"], ["a", "prior"]):
+            with self.subTest(names=names):
+                plan = [DP.Stmt("let", 0, var="prior", ty="File"), DP.Stmt("let", 1, var="c", ty="Conn"),
+                        DP.Stmt("open", 2, var="c", names=names)]
+                plan += [DP.Stmt("drop", 3, var=n) for n in reversed(list(dict.fromkeys(names)))]
+                plan.append(DP.Stmt("drop", 4, var="prior"))
+                found = DP.Verifier(types, explore_failure=False).run_all(plan)
+                self.assertEqual(set() if names == ["a", "b"] else {"V6"}, {v.split()[0] for v in found})
+
+    def test_open_reusing_an_expired_name_uses_its_new_drop_order(self):
+        types, _ = DP.parse("type File deinit\ntype Conn(a: File, b: File) deinit\n")
+        inner = [DP.Stmt("let", 1, var="x", ty="File"), DP.Stmt("drop", 2, var="x")]
+        plan = [DP.Stmt("block", 1, body=inner), DP.Stmt("let", 3, var="f", ty="File"),
+                DP.Stmt("let", 4, var="c", ty="Conn"), DP.Stmt("open", 5, var="c", names=["x", "b"])]
+        plan += [DP.Stmt("drop", 6, var=n) for n in ("b", "x", "f")]
+        self.assertEqual({}, DP.Verifier(types, explore_failure=False).run_all(plan))
+
+    def test_invalid_open_stops_only_its_own_path(self):
+        types, _ = DP.parse("type Buf\ntype Conn(a: Buf, b: Buf) deinit\n")
+        bad = [DP.Stmt("let", 1, var="f", ty="Buf"), DP.Stmt("drop", 2, var="f"),
+               DP.Stmt("drop", 3, var="f"), DP.Stmt("let", 4, var="c", ty="Conn"),
+               DP.Stmt("open", 5, var="c", names=["a"])]
+        other = [DP.Stmt("let", 6, var="leaked", ty="Buf")]
+        found = DP.Verifier(types, explore_failure=False).run_all([DP.Stmt("if", 1, body=bad, orelse=other)])
+        self.assertEqual({"V2": [(0, 2)], "V6": [(0, 2)], "V1": [(1, 2)]},
+                         {v.split()[0]: path for v, path in found.items()})
+
+    def test_open_transfers_field_cleanup_on_success_and_failure(self):
+        types, funs = DP.parse(read("D3_partial_and_open.dp"))
+        plan = DP.Planner(types, DP.Policy(early="none")).plan(funs["closeKeepsOrder"])
+        verify = lambda body: {v.split()[0] for v in DP.Verifier(types).run_all(body)}
+        self.assertEqual(set(), verify(plan))
+        self.assertEqual({"V1"}, verify([s for s in plan if not (s.kind == "drop" and s.var == "buf")]))
+        self.assertEqual({"V2"}, verify(plan + [DP.Stmt("drop", 0, var="c")]))
+        call = next(s for s in plan if s.kind == "call")
+        self.assertEqual(["buf", "sock", "f"], [name for name, _ in call.cleanup])
+        call.cleanup = call.cleanup[1:]  # 仅破坏失败清理，正常出口不变
+        self.assertEqual({"V1"}, verify(plan))
+
     def test_verifier_rejects_hand_written_wrong_plans(self):
         """检验器独立于规划器：手写的错误规划（顺序颠倒、重复析构）必须被它发现。"""
         types, _ = DP.parse("type File deinit\n")
