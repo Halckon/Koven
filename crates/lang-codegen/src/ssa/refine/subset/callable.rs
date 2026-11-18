@@ -114,7 +114,7 @@ impl Checker<'_, '_> {
                 }) || self.known_function(root)
             }
             Expression::Lambda { .. } => self.lambda_formation(root),
-            _ => false,
+            _ => self.callable_value_expr(root),
         };
         self.migrated |= supported;
         supported

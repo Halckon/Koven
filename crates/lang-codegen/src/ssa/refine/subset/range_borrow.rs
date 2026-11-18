@@ -639,6 +639,7 @@ impl Checker<'_, '_> {
                         | Action::EndSource(_)
                         | Action::EndCallLoan(_)
                         | Action::EndReceiverLoan(_)
+                        | Action::EndCaptureLoan { .. }
                 )
             })
         }) {

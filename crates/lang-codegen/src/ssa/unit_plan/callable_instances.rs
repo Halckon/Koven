@@ -5,7 +5,7 @@ use super::*;
 use crate::ssa::lowering_support::callable_instances::{CallableArena, CallableKey};
 use lang_frontend::{
     ownership_checking::{UnitCallableOrigin, UnitPointerCallableReturnOrigin},
-    parser::Expression,
+    parser::{Expression, Statement},
     type_checking::{ParameterMode, UnitCallDescriptor},
 };
 
@@ -494,6 +494,11 @@ impl<'a> CallablePlanner<'a> {
                     .or_insert(operand_span);
             }
             // ADR-0034: the callee receives a view; the concrete callable is the caller's.
+            if self.owned.callable_origin(expression).is_none()
+                && self.is_direct_factory_join(parsed, expression, operand_span)?
+            {
+                continue;
+            }
             if let Some(token) =
                 self.origin(caller, substitutions, expression, pending, operand_span)?
             {
@@ -522,6 +527,53 @@ impl<'a> CallablePlanner<'a> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         }
         Ok(dispatches)
+    }
+
+    /// Direct factory calls are already planned by the unit call worklist.
+    /// Refine checks the concrete join layout before borrowing the result.
+    fn is_direct_factory_join(
+        &self,
+        parsed: &ParsedFile,
+        argument: UnitExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let root = crate::ssa::borrow_result_support::ungroup(parsed, argument.expression(), span)?;
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(root)
+            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        let Expression::If {
+            then_branch,
+            else_branch: Some(else_branch),
+            ..
+        } = node.payload()
+        else {
+            return Ok(false);
+        };
+        for branch in [*then_branch, *else_branch] {
+            let node = parsed
+                .ast()
+                .statements()
+                .get(branch)
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let Statement::Expression { expression } = node.payload() else {
+                return Ok(false);
+            };
+            let root = crate::ssa::borrow_result_support::ungroup(parsed, *expression, span)?;
+            let id = UnitExpressionId::new(argument.source_unit(), root);
+            if !self.typed.call(id).is_some_and(|call| {
+                matches!(call.target(), UnitCallTarget::Declaration(_))
+                    && call.receiver().is_none()
+                    && matches!(
+                        self.typed.types().get(call.return_type()),
+                        Some(UnitTypeKind::Function { .. })
+                    )
+            }) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn origin(

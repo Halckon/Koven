@@ -511,20 +511,29 @@ impl Builder<'_, '_> {
             let lent = self.value(ROp::CallableViewOf { source: loan }, view_loan, span)?;
             return Ok((lent, vec![loan, lent], Some(value)));
         }
-        if !matches!(payload, Expression::Lambda { .. }) {
-            return Err(error(LoweringErrorKind::UnsupportedNode, root_span));
-        }
-        let owner = self.form_callable(root, root_span)?;
-        if value != root {
-            // Exit drops refer to the original argument, including any parentheses.
+        let (owner, callable, read_arg) = if matches!(payload, Expression::Lambda { .. }) {
+            let owner = self.form_callable(root, root_span)?;
+            if value != root {
+                // Exit drops refer to the original argument, including any parentheses.
+                self.register_temporary(value, owner)?;
+            }
+            let callable = self
+                .inputs
+                .callables
+                .get(&self.unit(root))
+                .map(|callable| callable.callable)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, root_span))?;
+            (owner, callable, None)
+        } else {
+            let Lowered::Value(owner) = self.expression_inner(root)? else {
+                return Err(error(LoweringErrorKind::InvalidModel, root_span));
+            };
             self.register_temporary(value, owner)?;
-        }
-        let callable = self
-            .inputs
-            .callables
-            .get(&self.unit(root))
-            .map(|callable| callable.callable)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, root_span))?;
+            let EntityType::Value(callable) = self.body.slots[owner.0] else {
+                return Err(error(LoweringErrorKind::InvalidModel, root_span));
+            };
+            (owner, callable, Some(value))
+        };
         let place = self.value(
             ROp::RootPlace { owner },
             EntityType::Place(callable),
@@ -542,7 +551,7 @@ impl Builder<'_, '_> {
             root_span,
         )?;
         let lent = self.value(ROp::CallableViewOf { source: loan }, view_loan, span)?;
-        Ok((lent, vec![loan, lent], None))
+        Ok((lent, vec![loan, lent], read_arg))
     }
 
     pub(super) fn form_known_function(
