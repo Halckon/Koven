@@ -754,10 +754,9 @@ pub(in crate::ssa) mod map_nullable_operand_unit {
             let refined = text
                 .find("fun updatingOperand")
                 .is_some_and(|at| text[at..].contains(".clone()"));
-            if !supported && refined {
-                // SPEC-0394: `updatingOperand` forms its values with `String.clone()`, which lowers
-                // only in the refinement layer; that layer also lowers the temporary nullable
-                // comparison the per-family path rejects, as a presence test at its own span.
+            if !supported && (refined || cache.is_none()) {
+                // String.clone() and the admitted temporary sequential provider route this body
+                // through refine, which lowers the nullable comparison at its own span.
                 let (program, entry) =
                     result.unwrap_or_else(|error| panic!("{name}: lower: {error:?}"));
                 let boundary = "nullableValue(item) != null";

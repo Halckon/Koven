@@ -1,5 +1,16 @@
 //! Callable control-flow joins, reassignment, and borrowed view arguments.
-use super::{lower, run_counted};
+use super::{lower, run_counted, try_lower};
+
+#[test]
+fn temporary_factory_callee_without_cleanup_is_rejected() {
+    let source = r#"class Data(val v: Int)
+    fun make(own d: Data): (Int) -> Int = move { n -> n + d.v }
+    fun main(): Unit { val result = make(Data(10))(4); if (result == 14) { println("ok") } }"#;
+    let Err(error) = try_lower(source) else {
+        panic!("direct factory callee needs frontend cleanup facts");
+    };
+    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+}
 
 #[test]
 fn callable_if_when_join_and_local_reassignment_lower_in_refine() {
