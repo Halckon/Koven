@@ -21594,3 +21594,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 三个原借用返回源码/入口逐一实证 SSA/LLVM 成功，替换过时 Unit Unsupported 预期：原 caller 精确追踪全部前驱的块参数回到 BorrowCall result/source，保两次读取、唯一两级结束及 CFG 顺序；未调用 block-view 的空 entry 与实际 view-root 分开覆盖，后者返回原参数 loan。实际图没有 SharedReborrow，不能用另一 lowering 路径的假设代替真实身份。Legacy Single 拒绝及完整原输入保持。
 - 组合回归发现真实准入交互：main 的非完成 projection 快捷路径绕过本地 owned-factory 前缀清理证明。新增窄 Option 准入桥复用原完整 Copyable field/factory/source/dispatch 检查；命中失败直接拒绝，不以通用路径继续，未匹配者维持 main 路径。原 return/stop、透明 Group、双配置及其他 lender 负控全部转绿。Rc<Int>(return 9) 按 main 实际能力保同源成功正控，核唯一 Return9、无后缀0、无父 Rc 分配/retain/drop；Point/Box 禁路由负控不变。
 - 最终整合 FE 九目标共121项通过，强制本树 frontend all-target `loan-observation-test-support` strict 2m31s；最终普通 SSA 借用结果15项和临时字段11项通过，强制本树 codegen all-target `loan-observation-test-support,d10-catalog-experiment,e2-two-source-test-support` strict 2m26s。仅普通 SSA/LLVM 验证，未执行 native 或故障注入，不将这些结果扩大为完整 D10/E2 验收。经授权采用隔离 target、单编译/单测试线程及内存/磁盘监控，与只读隔离 Docker 测试受控并发。
+
+### 2026-11-18：nullable alias 经二次控制结果断言的逃逸诊断
+
+- 独立复现基 `61d8b0e8`（PR #444 原审阅头）：`optional = if(flag) f else null` 再经 If 左/右、When、透明 Group 后 `!!` 返回时，双 Unit 八组合缺 L0137，直接 `optional!!` 原拒绝仍在；capture-free、owned 和未使用结果释放正控通过。本树原红测编译1m44s，原源与日志保留。
+- `non_null_assertion` 仅在实际 operand 正常完成、escaping 且没有新增诊断时，将既有原 operand UnitExpressionId 的结果诊断见证合入原 alias 集，再复用原拒绝器。直接控制检查先于结果聚合，先前未消费的 alias 见证因此闭合；不新增 holder、loan、capture 权限或 E3 准入，不改变释放点和原 non-null plan 发布条件。
+- 新目标3项通过：6拒绝源码双布局精确单 L0137及 non-null plans/loans/drops 清空；capture-free/owned、If/When Return 后不可达 tail、原释放点共5合法源双布局；保留误复用已移动 f 的独立双布局单 L0131 优先级负控，不通过弱化诊断修测试。原新增 mixed fixture 实测 L0131 后，改用独立直接 closure 检查混合来源的单 L0137，生产未因此变更。
+- 相关 closure75、direct-nonnull4、immutable-alias3、Value5、Elvis4、ownership28，共119项通过。独立末审无阻塞；与另线 mutable alias 摘要的整合交叉验证仍须另做，不把本基 immutable 见证自动视为 mutable 覆盖。未执行 native 或故障注入。
+- 强制本树 frontend all-target `loan-observation-test-support` strict 2m46s 通过；docs982、Rust尺寸门禁（2602文件，原两项历史例外未变）与独立设计/末审通过。单编译/单测试线程、独立于外部任务的 target 及资源监控；仅本地提交，不推送。

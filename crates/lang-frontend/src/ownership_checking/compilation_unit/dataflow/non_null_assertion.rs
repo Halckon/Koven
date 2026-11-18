@@ -48,7 +48,7 @@ impl Checker<'_> {
             self.parsed.ast().expressions().get(actual)?.payload(),
             crate::parser::Expression::If { .. } | crate::parser::Expression::When { .. }
         );
-        let alias_witnesses = if escaping && !direct_control {
+        let mut alias_witnesses = if escaping && !direct_control {
             self.expression_root_symbol(operand)?
                 .and_then(|symbol| state.escape_witnesses.bindings.get(&symbol).cloned())
                 .unwrap_or_default()
@@ -58,10 +58,21 @@ impl Checker<'_> {
         let flows =
             self.check_expression_with_escape(operand, state, usage, escaping && direct_control)?;
         if let Some(next) = &flows.next
+            && escaping
             && self.diagnostics.len() == diagnostic_count
-            && !alias_witnesses.is_empty()
         {
-            self.reject_borrowed_closure_roots(id, next, alias_witnesses)?;
+            // Control results can carry diagnostic-only alias provenance even
+            // after their real closure holders have reached their release point.
+            if let Some(witnesses) = next
+                .escape_witnesses
+                .results
+                .get(&self.unit_expression(operand))
+            {
+                alias_witnesses.extend(witnesses.iter().copied());
+            }
+            if !alias_witnesses.is_empty() {
+                self.reject_borrowed_closure_roots(id, next, alias_witnesses)?;
+            }
         }
         if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
             self.non_null_assertions
