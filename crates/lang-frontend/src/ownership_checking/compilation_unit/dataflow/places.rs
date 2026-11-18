@@ -99,20 +99,11 @@ impl Checker<'_> {
         };
         if let Some(receiver) = self.rc_value_receiver(expression)? {
             if kind == UnitValueDeliveryKind::Move {
-                let mut diagnostic = Diagnostic::new(
-                    self.sources,
-                    Severity::Error,
-                    self.codes.partial_move,
-                    "cannot move a non-Copyable payload out of Rc",
+                self.report_rc_payload_move(
+                    receiver,
                     contract.argument_span(),
+                    contract.parameter_span(),
                 )?;
-                diagnostic.add_label(
-                    self.sources,
-                    self.parsed.ast().expressions().get(receiver)?.span(),
-                    "Rc owner remains responsible for the payload",
-                )?;
-                add_parameter_label(self.sources, &mut diagnostic, contract.parameter_span())?;
-                self.diagnostics.push(diagnostic);
                 return Ok(None);
             }
             return Ok(Some((
@@ -200,7 +191,30 @@ impl Checker<'_> {
         self.place(expression)
     }
 
-    fn rc_value_receiver(
+    pub(super) fn report_rc_payload_move(
+        &mut self,
+        receiver: ExpressionId,
+        span: crate::source::Span,
+        parameter_span: Option<crate::source::Span>,
+    ) -> Result<(), OwnershipCheckingError> {
+        let mut diagnostic = Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            self.codes.partial_move,
+            "cannot move a non-Copyable payload out of Rc",
+            span,
+        )?;
+        diagnostic.add_label(
+            self.sources,
+            self.parsed.ast().expressions().get(receiver)?.span(),
+            "Rc owner remains responsible for the payload",
+        )?;
+        add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
+        self.diagnostics.push(diagnostic);
+        Ok(())
+    }
+
+    pub(super) fn rc_value_receiver(
         &self,
         expression: ExpressionId,
     ) -> Result<Option<ExpressionId>, OwnershipCheckingError> {
@@ -213,10 +227,32 @@ impl Checker<'_> {
                     expression: expression.index(),
                 });
             }
-            return Ok(Some(operation.receiver().expression()));
+            let receiver = operation.receiver().expression();
+            return Ok(Some(self.rc_value_receiver(receiver)?.unwrap_or(receiver)));
         }
         match self.parsed.ast().expressions().get(expression)?.payload() {
             Expression::Group { expression } => self.rc_value_receiver(*expression),
+            Expression::Member { .. } => {
+                let id = self.unit_expression(expression);
+                let Some(projection) = self.typed.aggregate_projection(id).filter(|projection| {
+                    projection.expression() == id
+                        && projection.kind() == UnitAggregateProjectionKind::Field
+                }) else {
+                    return Ok(None);
+                };
+                let crate::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
+                    projection.receiver()
+                else {
+                    return Ok(None);
+                };
+                if receiver.source_unit() != self.source_unit {
+                    return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
+                        source_unit: self.source_unit.index(),
+                        expression: expression.index(),
+                    });
+                }
+                self.rc_value_receiver(receiver.expression())
+            }
             _ => Ok(None),
         }
     }
@@ -261,9 +297,7 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<Option<UnitExpressionId>, OwnershipCheckingError> {
-        if let Some(receiver) = self.rc_value_receiver(expression)?
-            && let Some(owner) = self.temporary_expression_origin(receiver)?
-        {
+        if let Some(owner) = self.temporary_rc_payload_owner(expression)? {
             return Ok(Some(owner));
         }
         if let Some(projection) = self
@@ -277,6 +311,16 @@ impl Checker<'_> {
                 .or(self.temporary_projection_owner(receiver.expression())?));
         }
         self.temporary_element_owner(expression)
+    }
+
+    pub(super) fn temporary_rc_payload_owner(
+        &self,
+        expression: ExpressionId,
+    ) -> Result<Option<UnitExpressionId>, OwnershipCheckingError> {
+        match self.rc_value_receiver(expression)? {
+            Some(receiver) => self.temporary_expression_origin(receiver),
+            None => Ok(None),
+        }
     }
 
     /// Resolve only Field/Group chains to their evaluated temporary parent.

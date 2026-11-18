@@ -169,18 +169,16 @@ impl Module {
         Ok(self.intern_type(SsaTypeKind::MapContainer { kind, key, value }))
     }
 
-    /// 建立只接受已定义 pointer-like owner 的 nullable handle identity。
+    /// 建立 pointer-like owner 的可空身份。递归载荷可先引用声明，verifier 要求最终定义。
     pub(crate) fn add_nullable_handle_type(
         &mut self,
         inner: SsaTypeId,
     ) -> Result<SsaTypeId, ModelError> {
         self.check_type_id(inner)?;
-        if !self.type_is_defined(inner)
-            || !matches!(
-                self.type_kind(inner),
-                Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. })
-            )
-        {
+        if !matches!(
+            self.type_kind(inner),
+            Some(SsaTypeKind::HeapOwner { .. } | SsaTypeKind::SharedOwner { .. })
+        ) {
             return Err(ModelError::ExpectedPointerLikeOwner { ty: inner });
         }
         Ok(self.intern_type(SsaTypeKind::NullableHandle { inner }))

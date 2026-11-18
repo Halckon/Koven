@@ -151,12 +151,29 @@ owner binding。既有 loop 内 When 的退出源位置与 pending 清理顺序�
 此范围不扩 Borrow/Inout root、receiver、proof 跨 loop、nullable place/loan ABI 或 inline
 nullable；enclosing borrow/carrier-return guard 保留。候选与官方 CI 状态以 Spec 账本为准。
 
+## Inout 整值替换
+
+`LoanMutate` 向独占 loan 存储写入 Copyable 值。MoveOnly 整值替换消费所有权
+阶段的 `ReplacedInout` 析构事实。`LoanReplace` 在正式 Inout 参数的独占借用下
+析构旧值并写入新值。调用方具名根需从同一 place 取回新值，SSA 校验在写回完成前
+拒绝使用旧快照。堆后备字段保留外层 owner 的值身份。
+
 ## inline nullable 布局
 
 `SsaTypeKind::InlineNullable { inner, niche }`：String 与顺序容器用 bytes/buffer 指针 niche（空串与
 空容器使用非 null 的 `koven.zst.sentinel`），其余 inner 用 `{i1, T}`。复用 NullableWrap/Null/IsNull/
 Take 与 `NullableBranch`；drop glue 只在 present 时释放 payload。旧 `unit_lower` 的存储能力仍只到
-pointer-like nullable。
+pointer-like nullable。借入的 `String?` 按 [ADR-0041](../adr/accepted/0041-borrowed-nullable-string-payload.md)
+在同一存储地址上创建仅非空边可用的 shared `String` 子借用。校验沿 CFG
+追踪父子身份，禁止从已经结束的父借用创建视图。
+
+普通编译入口的 Copyable 整数和 Boolean nullable `when` 支持 `null` 与 `else` 两臂。
+细化层消费同次类型和所有权分析确认的主体、根及分支身份，只求值一次。
+非空边按实际 SSA 表示复制具名根的 payload，Map 查询结果沿 presence 边 unwrap。
+原 nullable 包装仍可用，写回清除已建立的窄化。
+Boolean nullable 也支持按前端覆盖边界分派 `null`、`true`、`false` 字面
+selector，包括分组、逗号 alternatives 和穷举后的续流。同一 arm 的合流
+仅保留每条入边均已建立的非空窄化。
 
 普通借用结果作为同步 Borrow 实参时，refine 按前端交接事实选择直接续借或复制。
 对 Copyable payload 的 nullable 包装，内层调用先完成无关实参清理，再读取结果、结束

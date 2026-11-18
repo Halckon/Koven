@@ -222,7 +222,7 @@ fn unit_resource_deinit_nullable_class_reaches_hidden_body_and_keeps_conditional
 }
 
 #[test]
-fn unit_resource_deinit_nullable_unsupported_wrappers_keep_null_rejection_span() {
+fn unit_resource_deinit_nullable_wrappers_preserve_admission_and_null_rejection_spans() {
     for wrapper in ["Payload", "Rc<Payload>", "Box<Payload>"] {
         let mut sources = SourceMap::new();
         let (source, parsed) = parsed(
@@ -247,7 +247,7 @@ fn unit_resource_deinit_nullable_unsupported_wrappers_keep_null_rejection_span()
             .1
             .span();
         let arena = typed.types().types().len();
-        let error = lower_scalar_unit_with_entry(
+        let result = lower_scalar_unit_with_entry(
             &sources,
             &inputs,
             &names,
@@ -255,15 +255,24 @@ fn unit_resource_deinit_nullable_unsupported_wrappers_keep_null_rejection_span()
             &typed,
             &owned,
             declaration(&names, "p", "entry"),
-        )
-        .err()
-        .expect("only existing nullable Class handles gain hidden-deinit reachability");
-        assert_eq!(
-            error.kind,
-            crate::ssa::LoweringErrorKind::UnsupportedNode,
-            "{wrapper}"
         );
-        assert_eq!(error.span, Some(null_span), "{wrapper}");
+        if matches!(wrapper, "Box<Payload>" | "Rc<Payload>") {
+            let (program, entry) = result.expect("nullable handle registers its hidden deinit");
+            assert_eq!(program.module(entry.module()).unwrap().deinits.len(), 1);
+            crate::llvm::render_verified_program(&program)
+                .expect("the absent handle verifies with conditional cleanup");
+        } else {
+            let error = match result {
+                Ok(_) => panic!("unsupported nullable layout must fail: {wrapper}"),
+                Err(error) => error,
+            };
+            assert_eq!(
+                error.kind,
+                crate::ssa::LoweringErrorKind::UnsupportedNode,
+                "{wrapper}"
+            );
+            assert_eq!(error.span, Some(null_span), "{wrapper}");
+        }
         assert_eq!(typed.types().types().len(), arena);
     }
 }

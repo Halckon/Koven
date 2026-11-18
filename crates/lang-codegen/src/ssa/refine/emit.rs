@@ -519,6 +519,9 @@ impl Emitter<'_> {
             ROp::SharedPayloadPlace { owner } => Operation::SharedPayloadPlace {
                 owner: self.get(*owner, span)?,
             },
+            ROp::SharedPayloadLoan { source } => Operation::SharedPayloadLoan {
+                source: loan(self.get(*source, span)?, span)?,
+            },
             ROp::SharedReborrow { source } => Operation::SharedReborrow {
                 source: loan(self.get(*source, span)?, span)?,
             },
@@ -788,6 +791,10 @@ impl Emitter<'_> {
                 loan: loan(self.get(*slot, span)?, span)?,
                 value: self.value(*value, span)?,
             },
+            ROp::LoanReplace { loan: slot, value } => Operation::LoanReplace {
+                loan: loan(self.get(*slot, span)?, span)?,
+                value: self.value(*value, span)?,
+            },
             ROp::ReadPlace { place: slot } => Operation::Read {
                 source: crate::ssa::model::PlaceAccess::Place(place(self.get(*slot, span)?, span)?),
             },
@@ -927,11 +934,25 @@ pub(super) fn emit(
                     .last()
                     .copied()
                     .ok_or_else(|| error(LoweringErrorKind::InvalidModel, *term_span))?;
-                TerminatorKind::NullableBranch {
-                    owner: emitter.value(*owner, *term_span)?,
-                    when_null: edge(&emitter, *when_null)?,
-                    when_non_null: edge(&emitter, *when_non_null)?,
-                    view: loan(view, *term_span)?,
+                let view = loan(view, *term_span)?;
+                let when_null = edge(&emitter, *when_null)?;
+                let when_non_null = edge(&emitter, *when_non_null)?;
+                match emitter.get(*owner, *term_span)? {
+                    EntityId::Value(owner) => TerminatorKind::NullableBranch {
+                        owner,
+                        when_null,
+                        when_non_null,
+                        view,
+                    },
+                    EntityId::Loan(source) => TerminatorKind::NullableLoanBranch {
+                        source,
+                        when_null,
+                        when_non_null,
+                        view,
+                    },
+                    EntityId::Place(_) => {
+                        return Err(error(LoweringErrorKind::InvalidModel, *term_span));
+                    }
                 }
             }
             RTerm::Return(result) => TerminatorKind::Return {

@@ -705,11 +705,11 @@ pub(in crate::ssa) fn check_guarded_original(text: &str) {
     let presence = instruction_at(
         function,
         expression_span(&unit, comparison.expression()),
-        |operation| matches!(operation, Operation::AggregateProject { field: 0, .. }),
+        |operation| matches!(operation, Operation::NullableIsNull { .. }),
     );
-    assert!(
-        matches!(presence.operation, Operation::AggregateProject { aggregate, field: 0 }
-        if aggregate == *nullable)
+    assert_eq!(
+        presence.operation,
+        Operation::NullableIsNull { owner: *nullable }
     );
     let nullable_drop = instruction_at(function, nullable_fact.value_origin(), |operation| {
         matches!(operation, Operation::Drop { .. })

@@ -119,11 +119,16 @@ impl UnitTypeLowering {
         };
         if matches!(
             typed.types().get(*inner),
-            Some(UnitTypeKind::Intrinsic {
-                constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
-                ..
-            })
+            Some(
+                UnitTypeKind::Builtin(BuiltinType::String)
+                    | UnitTypeKind::Intrinsic {
+                        constructor: IntrinsicTypeConstructor::Map
+                            | IntrinsicTypeConstructor::MutableMap,
+                        ..
+                    }
+            )
         ) {
+            // A Map producer must use the existing String? niche ABI of the Unit.
             return self.intern(module, typed, ty, span);
         }
         let inner = self.intern(module, typed, *inner, span)?;
@@ -245,7 +250,6 @@ impl UnitTypeLowering {
                 }
                 let inner_type = inner;
                 let inner = self.intern_inner(module, typed, inner_type, span)?;
-                self.define_pending_owner(module, typed, inner_type)?;
                 if is_inline_nullable_inner(typed, inner_type) {
                     // ADR-0033: non-pointer `T?` keeps its inner value inline.
                     module.add_inline_nullable_type(inner)

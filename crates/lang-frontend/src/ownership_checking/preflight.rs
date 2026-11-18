@@ -3,6 +3,7 @@
 use super::*;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::borrow_result::UnitBorrowResults;
+use crate::type_checking::UnitExpressionId;
 
 pub(crate) mod sealed {
     pub trait Sealed {}
@@ -46,6 +47,8 @@ pub trait UnitPreflightFacts: sealed::Sealed {
     fn formed_owned_locals(&self) -> &[UnitSymbolId];
     /// Original loans query; no fact reconstruction.
     fn loans(&self) -> &[UnitLoanFact];
+    /// Original nullable when query.
+    fn nullable_when(&self, control: UnitExpressionId) -> Option<&UnitNullableWhenOwnershipPlan>;
     /// Original map iterations query; no fact reconstruction.
     fn map_iterations(&self) -> &[UnitMapIterationOwnershipPlan];
     /// Original no carry branches query; no fact reconstruction.
@@ -111,6 +114,9 @@ impl UnitPreflightFacts for CompilationUnitOwnership {
     }
     fn loans(&self) -> &[UnitLoanFact] {
         CompilationUnitOwnership::loans(self)
+    }
+    fn nullable_when(&self, control: UnitExpressionId) -> Option<&UnitNullableWhenOwnershipPlan> {
+        CompilationUnitOwnership::nullable_when(self, control)
     }
     fn map_iterations(&self) -> &[UnitMapIterationOwnershipPlan] {
         CompilationUnitOwnership::map_iterations(self)

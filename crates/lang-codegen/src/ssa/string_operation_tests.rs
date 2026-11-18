@@ -1,4 +1,5 @@
 use crate::test_support::diagnostics::{assert_diagnostic, assert_text_eq};
+mod nullable_equality;
 mod text_reads {
     use super::*;
     use crate::ssa::model::ScalarConstant;

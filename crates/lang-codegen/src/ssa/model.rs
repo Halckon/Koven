@@ -387,6 +387,13 @@ pub(crate) enum TerminatorKind {
         when_non_null: Edge,
         view: LoanId,
     },
+    /// Create a shared payload loan on the proven non-null edge of a nullable source loan.
+    NullableLoanBranch {
+        source: LoanId,
+        when_null: Edge,
+        when_non_null: Edge,
+        view: LoanId,
+    },
     Return {
         values: Vec<ValueId>,
     },
@@ -427,6 +434,17 @@ impl TerminatorKind {
                 entities.extend(when_non_null.arguments.iter().copied());
                 entities
             }
+            Self::NullableLoanBranch {
+                source,
+                when_null,
+                when_non_null,
+                ..
+            } => {
+                let mut entities = vec![EntityId::Loan(*source)];
+                entities.extend(when_null.arguments.iter().copied());
+                entities.extend(when_non_null.arguments.iter().copied());
+                entities
+            }
             Self::Return { values } => values.iter().copied().map(EntityId::Value).collect(),
             Self::BorrowReturn { loan } => vec![EntityId::Loan(*loan)],
             Self::RangeReturn { view, source } => {
@@ -445,6 +463,11 @@ impl TerminatorKind {
                 ..
             } => vec![when_true.target, when_false.target],
             Self::NullableBranch {
+                when_null,
+                when_non_null,
+                ..
+            }
+            | Self::NullableLoanBranch {
                 when_null,
                 when_non_null,
                 ..
@@ -645,7 +668,9 @@ impl Function {
         for entity in kind.entities() {
             self.check_entity(entity)?;
         }
-        if let TerminatorKind::NullableBranch { view, .. } = kind {
+        if let TerminatorKind::NullableBranch { view, .. }
+        | TerminatorKind::NullableLoanBranch { view, .. } = kind
+        {
             self.check_entity(EntityId::Loan(view))?;
         }
         self.blocks[block.index()].terminator = Some(Terminator {

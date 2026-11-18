@@ -1,14 +1,21 @@
 //! 普通 Borrow/Value 参数 shared 结果的准入，以及非 refine 路径的 Map 借用 root 绑定。
+mod entry_string;
+mod nullable_presence;
+
+pub(in crate::ssa) use entry_string::forwards_string_entry;
+use entry_string::string_entry_block_return;
+
 use crate::ssa::borrow_result_support::{CallAccess, local_if, ordinary_local};
 use crate::ssa::unit_lower::*;
 use lang_frontend::ownership_checking::UnitPreflightFacts;
 use lang_frontend::{
     ownership_checking::{
-        BorrowBindingFact, BorrowBindingStorage, OwnershipBindingKind, UnitLoanTarget,
+        BorrowBindingFact, BorrowBindingStorage, BorrowSourceLoan, OwnershipBindingKind,
+        UnitLoanTarget,
     },
     type_checking::{
         BorrowReturnOrigin, CallableResultSource, IntrinsicTypeConstructor,
-        UnitAggregateProjectionReceiver,
+        UnitAggregateProjectionReceiver, UnitCallTarget, UnitCallableSignature,
     },
 };
 
@@ -41,7 +48,8 @@ pub(in crate::ssa) fn validate_declarations(
                 .ok_or_else(|| {
                     lowering_error(LoweringErrorKind::MissingFact, contract.marker_span())
                 })?;
-            if !branch_declaration::allows(file, names, typed, owned, callable)
+            if string_entry_block_return(file, names, typed, owned, callable).is_none()
+                && !branch_declaration::allows(file, names, typed, owned, callable)
                 && !nested_declaration::allows(file, names, typed, owned, callable)
                 && !bounded_declaration::allows(file, names, typed, owned, callable)
                 && !single_continuation_declaration::allows(file, names, typed, owned, callable)
@@ -114,7 +122,9 @@ fn has_dedicated_binding_path(
             || matches!(
                 owned.binding_kind(root),
                 Some(OwnershipBindingKind::Owned | OwnershipBindingKind::Shared)
-            ))
+            )
+            || (parent.is_some()
+                && owned.binding_kind(root) == Some(OwnershipBindingKind::Exclusive)))
     {
         let expression = crate::ssa::borrow_result_support::ungroup(
             file,
@@ -245,9 +255,8 @@ fn admit_string_result_observers(
     file: &lang_frontend::parser::ParsedFile,
     names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
-    owned: &dyn UnitPreflightFacts,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
-) -> std::collections::BTreeSet<usize> {
+) -> Option<std::collections::BTreeSet<usize>> {
     use lang_frontend::parser::{BinaryOperator, WhenCondition};
 
     let mut allowed = std::collections::BTreeSet::new();
@@ -261,12 +270,13 @@ fn admit_string_result_observers(
             _ => None,
         }
     };
-    if fact.storage() != BorrowBindingStorage::BorrowedStorage
-        || fact.source_loan().is_none()
-        || builtin(fact.initializer().expression()) != Some(BuiltinType::String)
-        || !matches!(fact.origin(), UnitLoanTarget::Place(place) if place.is_root())
-    {
-        return allowed;
+    if fact.storage() != BorrowBindingStorage::BorrowedStorage || fact.source_loan().is_none() {
+        return None;
+    }
+    let string = builtin(fact.initializer().expression()) == Some(BuiltinType::String)
+        && matches!(fact.origin(), UnitLoanTarget::Place(place) if place.is_root());
+    if !string {
+        return None;
     }
     let expressions = file.ast().expressions();
     let root = |expression| {
@@ -330,6 +340,15 @@ fn admit_string_result_observers(
             allowed.insert(expression.index());
         }
     }
+    Some(allowed)
+}
+
+fn extend_observer_returns(
+    file: &lang_frontend::parser::ParsedFile,
+    owned: &dyn UnitPreflightFacts,
+    fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+    allowed: &mut std::collections::BTreeSet<usize>,
+) {
     if !allowed.is_empty() {
         allowed.extend(
             owned
@@ -340,9 +359,13 @@ fn admit_string_result_observers(
                 .filter_map(|end| match end.point() {
                     UnitDropPoint::ControlTransfer(expression)
                         if expression.source_unit() == fact.binding().source_unit()
-                            && expressions.get(expression.expression()).is_ok_and(|node| {
-                                matches!(node.payload(), Expression::Return { .. })
-                            }) =>
+                            && file
+                                .ast()
+                                .expressions()
+                                .get(expression.expression())
+                                .is_ok_and(|node| {
+                                    matches!(node.payload(), Expression::Return { .. })
+                                }) =>
                     {
                         Some(expression.expression().index())
                     }
@@ -350,7 +373,6 @@ fn admit_string_result_observers(
                 }),
         );
     }
-    allowed
 }
 
 fn validate_binding(
@@ -360,6 +382,7 @@ fn validate_binding(
     owned: &dyn UnitPreflightFacts,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
     mut allowed_controls: Option<std::collections::BTreeSet<usize>>,
+    observer_whiles: &std::collections::BTreeSet<usize>,
 ) -> Result<(), LoweringError> {
     if file.source_id() != fact.marker_span().source_id() {
         return Err(lowering_error(
@@ -595,7 +618,8 @@ fn validate_binding(
             if experimental.is_some_and(|(_, approved)| approved == statement) {
                 return true;
             }
-            if closed_whiles.contains(&statement)
+            if observer_whiles.contains(&statement.index())
+                || closed_whiles.contains(&statement)
                 || invariant == Some(statement)
                 || no_carry == Some(statement)
                 || branch_no_carry.is_some_and(|(s, _)| s == statement)
@@ -645,7 +669,15 @@ impl UnitExpressionLowerer<'_> {
             }
             _ => {
                 // Preserve the legacy diagnostic for shapes that cannot lower on this route.
-                validate_binding(self.parsed, self.names, self.typed, self.owned, fact, None)?;
+                validate_binding(
+                    self.parsed,
+                    self.names,
+                    self.typed,
+                    self.owned,
+                    fact,
+                    None,
+                    &Default::default(),
+                )?;
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
             }
         };
@@ -748,24 +780,32 @@ pub(crate) fn validate_bindings(
             if policy != Some(ordinary_local::Policy::Scoped) {
                 return None;
             }
-            let controls = ordinary_local::argument_returns(file?, typed, owned, fact)?;
+            let controls = ordinary_local::argument_returns(file?, typed, owned, fact, false)?;
             Some((fact.initializer(), controls))
         })
         .collect();
+    let mut nullable = nullable_presence::Observers::new(typed, owned, &bindings);
     for (fact, file, policy) in bindings {
         let file =
             file.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
         match policy {
             Some(ordinary_local::Policy::Scoped) => {
-                let observers = admit_string_result_observers(file, names, typed, owned, fact);
+                let (mut observers, loops) = nullable
+                    .take(file, names, typed, owned, fact)
+                    .unwrap_or_default();
+                extend_observer_returns(file, owned, fact, &mut observers);
                 let allowed = ordinary_local::allowed_controls(
                     file,
+                    typed,
                     owned,
                     fact,
                     &argument_controls,
                     &observers,
                 );
-                validate_binding(file, names, typed, owned, fact, Some(allowed))?;
+                validate_binding(file, names, typed, owned, fact, Some(allowed), &loops)?;
+            }
+            Some(ordinary_local::Policy::NarrowedWhen) => {
+                ordinary_local::validate_narrowed_when_initializer(file, typed, owned, fact)?;
             }
             None if legacy_gate
                 && !has_dedicated_binding_path(file, names, typed, owned, fact)? =>
@@ -773,13 +813,22 @@ pub(crate) fn validate_bindings(
                 let allowed = is_local_range_binding(file, names, typed, owned, fact).then(|| {
                     ordinary_local::allowed_controls(
                         file,
+                        typed,
                         owned,
                         fact,
                         &argument_controls,
                         &Default::default(),
                     )
                 });
-                validate_binding(file, names, typed, owned, fact, allowed)?;
+                validate_binding(
+                    file,
+                    names,
+                    typed,
+                    owned,
+                    fact,
+                    allowed,
+                    &Default::default(),
+                )?;
             }
             _ => {}
         }

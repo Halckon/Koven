@@ -531,6 +531,43 @@ impl Builder<'_, '_> {
             ) {
                 return Ok(None);
             }
+            let field = self.ungrouped_expr(operand)?;
+            if self.inputs.is_nullable_string(operand_ty)
+                && self
+                    .inputs
+                    .typed
+                    .aggregate_projection(self.unit(field))
+                    .is_some_and(|projection| {
+                        projection.kind()
+                            == lang_frontend::type_checking::UnitAggregateProjectionKind::Field
+                            && self.c(projection.ty()) == operand_ty
+                    })
+            {
+                let (source, loans, receivers) = self.field_projection_loan(field, span)?;
+                let bool_ty = self.ssa_type(self.expression_type(expression)?, span)?;
+                let mut result = self.value(
+                    ROp::NullableLoanIsNull { source },
+                    EntityType::Value(bool_ty),
+                    span,
+                )?;
+                for loan in loans.into_iter().rev() {
+                    self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+                }
+                let mut reads = vec![operand];
+                let mut grouped = operand;
+                while let (Expression::Group { expression: inner }, _) = self.node(grouped)? {
+                    grouped = inner;
+                    reads.push(grouped);
+                }
+                for read in receivers.into_iter().chain(reads.into_iter().rev()) {
+                    self.drops(UnitDropPoint::AfterExpression(self.unit(read)))?;
+                }
+                self.drops(UnitDropPoint::AfterBinaryOperands(self.unit(expression)))?;
+                if operator == BinaryOperator::NotEqual {
+                    result = self.typed_value(ROp::BooleanNot { operand: result }, expression)?;
+                }
+                return Ok(Some(Lowered::Value(result)));
+            }
             let Some(owner) = self.required(operand)? else {
                 return Ok(Some(Lowered::Diverged));
             };
@@ -565,6 +602,9 @@ impl Builder<'_, '_> {
         }
         let left_ty = self.expression_type(left)?;
         let right_ty = self.expression_type(right)?;
+        if self.inputs.is_nullable_string_equality(left_ty, right_ty) {
+            return Ok(None);
+        }
         let left_map_res = self.map_result_ssa(left_ty)?;
         let right_map_res = self.map_result_ssa(right_ty)?;
         if left_map_res.is_none() && right_map_res.is_none() {
@@ -616,7 +656,7 @@ impl Builder<'_, '_> {
 
     /// Evaluates a value-form named `null_comparison` on a local binding using
     /// `AggregateProject { field: 0 }` (for `$map.result.tX`) or `NullableIsNull`.
-    pub(super) fn map_result_null_comparison_value(
+    pub(super) fn named_null_comparison_value(
         &mut self,
         expression: ExpressionId,
         span: Span,
@@ -629,19 +669,26 @@ impl Builder<'_, '_> {
             return Ok(None);
         };
         let nullable_ssa = self.ssa_type(self.c(fact.nullable_type()), span)?;
-        if !self.types.map_results.contains_key(&nullable_ssa) {
+        let (presence, true_on_present) = if self.types.map_results.contains_key(&nullable_ssa) {
+            (
+                ROp::AggregateProject {
+                    aggregate: owner,
+                    field: 0,
+                },
+                true,
+            )
+        } else if matches!(
+            self.types.ssa_types.get(nullable_ssa.index()),
+            Some(crate::ssa::model::SsaTypeKind::InlineNullable { inner, niche: true })
+                if matches!(self.types.ssa_types.get(inner.index()), Some(crate::ssa::model::SsaTypeKind::StringOwner))
+        ) {
+            (ROp::NullableIsNull { owner }, false)
+        } else {
             return Ok(None);
-        }
+        };
         let bool_ty = self.ssa_type(self.expression_type(expression)?, span)?;
-        let mut result = self.value(
-            ROp::AggregateProject {
-                aggregate: owner,
-                field: 0,
-            },
-            EntityType::Value(bool_ty),
-            span,
-        )?;
-        if !fact.non_null_when_true() {
+        let mut result = self.value(presence, EntityType::Value(bool_ty), span)?;
+        if fact.non_null_when_true() != true_on_present {
             result = self.value(
                 ROp::BooleanNot { operand: result },
                 EntityType::Value(bool_ty),

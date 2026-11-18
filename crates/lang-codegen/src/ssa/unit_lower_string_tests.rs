@@ -448,8 +448,8 @@ pub(in crate::ssa) mod lower_frontend_nullable_unit_comparison_tests {
                 assert!(!views.is_empty(), "original nullable proof exists");
                 for instruction in &function.instructions {
                     match instruction.operation {
-                        Operation::SharedRetain { owner }
-                        | Operation::SharedPayloadPlace { owner } => {
+                        Operation::SharedPayloadLoan { source } => assert!(views.contains(&source)),
+                        Operation::SharedRetain { owner } => {
                             let EntityId::Loan(loan) = owner else {
                                 panic!("Rc uses the original non-null view")
                             };
@@ -633,9 +633,7 @@ pub(in crate::ssa) mod lower_frontend_nullable_unit_comparison_tests {
             Operation::SharedRetain {
                 owner: EntityId::Loan(*view),
             },
-            Operation::SharedPayloadPlace {
-                owner: EntityId::Loan(*view),
-            },
+            Operation::SharedPayloadLoan { source: *view },
         ] {
             assert_eq!(
                 function
@@ -649,7 +647,7 @@ pub(in crate::ssa) mod lower_frontend_nullable_unit_comparison_tests {
         }
         let ssa = render_program(&program);
         assert_diagnostic!(ssa.contains("shared.retain %l"), "{ssa}");
-        assert_diagnostic!(ssa.contains("shared.payload_place %l"), "{ssa}");
+        assert_diagnostic!(ssa.contains("shared.payload_loan %l"), "{ssa}");
         assert_diagnostic!(ssa.contains("end_borrow"), "{ssa}");
         let llvm = render_verified_program(&program).expect("nullable Rc view LLVM");
         assert_diagnostic!(llvm.contains("icmp eq ptr"), "{llvm}");

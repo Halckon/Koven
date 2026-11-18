@@ -1,6 +1,7 @@
 //! Typed SSA operation 的局部类型契约。
 
 mod storage;
+mod text;
 pub(in crate::ssa) use storage::aggregate_explode_contract;
 use storage::{
     aggregate_construct_contract, aggregate_copy_explode_contract, aggregate_project_contract,
@@ -9,6 +10,8 @@ use storage::{
     shared_allocate_contract, shared_payload_place_contract, tagged_construct_contract,
     tagged_payload_place_contract,
 };
+
+use text::string_binary_contract;
 
 use super::borrow_result_support::verify_range as range;
 use super::verify_ownership::root_exchange::integer;
@@ -294,6 +297,15 @@ pub(super) fn verify_operation(
         Operation::SharedPayloadPlace { owner } => {
             shared_payload_place_contract(module, function, *owner, &results)
         }
+        Operation::SharedPayloadLoan { source } => {
+            matches!(
+                entity_type(function, EntityId::Loan(*source)),
+                EntityType::Loan { kind: LoanKind::Shared, target }
+                    if module.shared_payload(target).is_some_and(|payload| {
+                        results == [EntityType::Loan { kind: LoanKind::Shared, target: payload }]
+                    })
+            )
+        }
         Operation::NullableWrap { nullable, owner } => {
             module.nullable_inner(*nullable) == value_type(function, *owner)
                 && single_value_result(&results) == Some(*nullable)
@@ -307,11 +319,7 @@ pub(super) fn verify_operation(
                 && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
         }
         Operation::NullableLoanIsNull { source } => {
-            matches!(function.entity(EntityId::Loan(*source)).map(|e| e.ty),
-                Some(EntityType::Loan {kind:LoanKind::Shared,target})
-                    if matches!(module.type_kind(target), Some(SsaTypeKind::NullableHandle { .. } | SsaTypeKind::InlineNullable { .. }))
-                        || module.map_result_value(target).is_some())
-                && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
+            storage::nullable_loan_presence_contract(module, function, *source, &results)
         }
         Operation::NullableTake { owner, proof } => {
             nullable_take_contract(module, function, *owner, *proof, &results)
@@ -432,13 +440,30 @@ pub(super) fn verify_operation(
             })
         }
         Operation::SharedReborrow { source } => {
-            matches!(
-                function.entity(EntityId::Loan(*source)).map(|entity| entity.ty),
-                Some(EntityType::Loan { target, .. }) if results == [EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target,
-                }]
-            )
+            match (
+                function
+                    .entity(EntityId::Loan(*source))
+                    .map(|entity| entity.ty),
+                results.as_slice(),
+            ) {
+                (
+                    Some(EntityType::Loan { target: actual, .. }),
+                    [
+                        EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target: expected,
+                        },
+                    ],
+                ) => {
+                    actual == *expected
+                        || (matches!(module.type_kind(actual), Some(SsaTypeKind::StringOwner))
+                            && matches!(
+                                module.type_kind(*expected),
+                                Some(SsaTypeKind::InlineNullable { inner, niche: true }) if *inner == actual
+                            ))
+                }
+                _ => false,
+            }
         }
         Operation::SharedReferenceFollow { source } => {
             matches!(
@@ -516,6 +541,16 @@ pub(super) fn verify_operation(
                             && module.type_ownership(target) == Some(super::model::Ownership::Copyable)
                 )
         }
+        Operation::LoanReplace { loan, value } => {
+            results.is_empty()
+                && matches!(
+                    entity_type(function, EntityId::Loan(*loan)),
+                    EntityType::Loan { kind: LoanKind::Exclusive, target }
+                        if value_type(function, *value) == Some(target)
+                            && is_first_class(module, target)
+                            && module.type_ownership(target) == Some(super::model::Ownership::MoveOnly)
+                )
+        }
     };
     if !valid || !callable::call_termination_contract(module, function, instruction) {
         errors.push(VerifyError {
@@ -526,39 +561,6 @@ pub(super) fn verify_operation(
             origin: Some(instruction.origin.clone()),
         });
     }
-}
-
-fn string_binary_contract(
-    module: &Module,
-    function: &Function,
-    left: EntityId,
-    right: EntityId,
-    results: &[EntityType],
-    returns_boolean: bool,
-) -> bool {
-    let Some(left) = string_view_type(module, function, left) else {
-        return false;
-    };
-    if string_view_type(module, function, right) != Some(left) {
-        return false;
-    }
-    if returns_boolean {
-        single_value_result(results).is_some_and(|ty| is_boolean(module, ty))
-    } else {
-        single_value_result(results) == Some(left)
-    }
-}
-
-fn string_view_type(module: &Module, function: &Function, operand: EntityId) -> Option<SsaTypeId> {
-    let ty = match entity_type(function, operand) {
-        EntityType::Value(ty) => ty,
-        EntityType::Loan {
-            kind: LoanKind::Shared,
-            target,
-        } => target,
-        EntityType::Place(_) | EntityType::Loan { .. } => return None,
-    };
-    is_string_owner(module, ty).then_some(ty)
 }
 
 fn shared_string_loan_type(

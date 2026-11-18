@@ -4,6 +4,28 @@ use super::super::*;
 impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources>
 {
+    fn string_equality_view(
+        &self,
+        operand: EntityId,
+    ) -> Result<(string::StringView<'ctx>, bool), LlvmAdapterError> {
+        let ty = self
+            .function
+            .entity(operand)
+            .ok_or_else(|| LlvmAdapterError::InvalidSsa("missing String equality operand".into()))?
+            .ty
+            .semantic_type();
+        if self.module.map_result_value(ty).is_some() {
+            return Ok((
+                string::map_result_view(&self.builder, self.string_storage(operand)?)?,
+                true,
+            ));
+        }
+        Ok((
+            self.string_view(operand)?,
+            self.module.inline_nullable(ty).is_some(),
+        ))
+    }
+
     pub(super) fn lower_instruction_text(
         &mut self,
         instruction: &Instruction,
@@ -70,13 +92,15 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("string equal", 1, results.len()));
                 };
+                let (left, left_nullable) = self.string_equality_view(*left)?;
+                let (right, right_nullable) = self.string_equality_view(*right)?;
                 let value = string::equal(
                     self.context,
                     &self.builder,
                     self.llvm_function,
                     self.dependencies.runtime,
-                    self.string_view(*left)?,
-                    self.string_view(*right)?,
+                    [left, right],
+                    left_nullable || right_nullable,
                     &value_name(*result),
                 )?;
                 self.values.insert(*result, value.into());

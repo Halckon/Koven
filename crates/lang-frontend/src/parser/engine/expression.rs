@@ -25,7 +25,7 @@ impl Parser<'_> {
             if stops.contains(current) || self.at_block_expression_line_break(left, stops)? {
                 break;
             }
-            if stops.when_entry_body
+            if stops.when_entry_body.is_some()
                 && matches!(
                     current.kind(),
                     LexemeKind::Token(TokenKind::Keyword(Keyword::Is | Keyword::In))
@@ -432,7 +432,7 @@ impl Parser<'_> {
             && !matches!(self.current()?.kind(), LexemeKind::Eof)
         {
             let before = self.index;
-            entries.push(self.parse_when_entry(outer_stops)?);
+            entries.push(self.parse_when_entry(outer_stops, subject.is_some())?);
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
@@ -471,9 +471,10 @@ impl Parser<'_> {
         )
     }
 
-    pub(super) fn parse_when_entry(
+    fn parse_when_entry(
         &mut self,
         outer_stops: Stops,
+        has_subject: bool,
     ) -> Result<WhenEntry, ParserInternalError> {
         let start = self.current()?.span().start();
         let (conditions, else_span) = if self.current_is_keyword(Keyword::Else) {
@@ -497,8 +498,11 @@ impl Parser<'_> {
             self.emit(codes::EXPECTED_WHEN_ARROW, "expected when arrow", span)?;
             self.empty_at(self.previous_significant_end())?
         };
-        let body =
-            self.parse_control_body(outer_stops.with(Stops::RIGHT_BRACE).as_when_entry_body())?;
+        let body = self.parse_control_body(
+            outer_stops
+                .with(Stops::RIGHT_BRACE)
+                .as_when_entry_body(has_subject),
+        )?;
         let end = self.statement_span(body)?.end().max(arrow_span.end());
         Ok(WhenEntry {
             span: self.span(start, end)?,
@@ -514,7 +518,7 @@ impl Parser<'_> {
         outer_stops: Stops,
     ) -> Result<WhenCondition, ParserInternalError> {
         let condition_stops = Stops {
-            when_entry_body: false,
+            when_entry_body: None,
             ..outer_stops
                 .without_lambda_body_soft_stops()
                 .with(Stops::COMMA)

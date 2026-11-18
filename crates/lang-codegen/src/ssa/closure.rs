@@ -406,6 +406,16 @@ impl Module {
         self.map_results.get(&result).copied()
     }
 
+    /// Payload identity for the two supported String? storage representations.
+    pub(crate) fn nullable_string_payload(&self, ty: SsaTypeId) -> Option<SsaTypeId> {
+        self.map_result_value(ty)
+            .or_else(|| {
+                self.inline_nullable(ty)
+                    .and_then(|(inner, niche)| niche.then_some(inner))
+            })
+            .filter(|inner| matches!(self.type_kind(*inner), Some(SsaTypeKind::StringOwner)))
+    }
+
     pub(crate) fn add_nullable_map_type(
         &mut self,
         inner: SsaTypeId,

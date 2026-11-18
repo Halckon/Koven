@@ -365,7 +365,7 @@ impl Builder<'_, '_> {
             &fact,
         );
         let Some((loan, created)) =
-            self.lower_result_call(initializer, source, span, local_policy)?
+            self.lower_result_call(initializer, source, span, local_policy, None)?
         else {
             return Ok(Lowered::Diverged);
         };
@@ -416,6 +416,18 @@ impl Builder<'_, '_> {
             .child_plans
             .commit(symbol, &self.borrowed, &self.result_source_loans, span)?;
         Ok(Lowered::Unit)
+    }
+
+    pub(super) fn finish_return_drops(
+        &mut self,
+        point: UnitDropPoint,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        // End pending calls and lexical child loans before their nullable views.
+        self.end_pending_call_loans(span)?;
+        self.end_result_bindings(point)?;
+        self.end_all_views(span)?;
+        self.drops_after_result_bindings(point)
     }
 
     pub(super) fn end_result_bindings(
@@ -525,6 +537,9 @@ impl Builder<'_, '_> {
                 .iter()
                 .find(|b| b.binding() == fact.binding())
                 .map_or(self.inputs.span, |b| b.marker_span());
+            // The nullable proof borrows this lexical loan's slot. Keep the
+            // producer alive until its active proof has been retired on this path.
+            self.end_views_of(fact.binding(), span)?;
             let view = if transfer {
                 self.range_views.get(&fact.binding()).copied()
             } else {

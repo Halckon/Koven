@@ -28,7 +28,7 @@ fn short_circuit_skipped_rhs_has_no_constant_materialization_or_cleanup() {
 }
 
 #[test]
-fn short_circuit_empty_constant_entry_keeps_base_behavior_separate() {
+fn short_circuit_empty_constant_and_basic_entries_skip_literal_rhs() {
     with_unit(
         "package a\nfun view(text: String): Boolean = true\nfun read(): Boolean = false && view(\"hi\")",
         "package b",
@@ -51,11 +51,8 @@ fn short_circuit_empty_constant_entry_keeps_base_behavior_separate() {
             .unwrap()
             .validate()
             .unwrap();
-            assert_eq!(
-                base.ownership().loans().len(),
-                1,
-                "old SSA contract remains explicit"
-            );
+            assert!(base.ownership().loans().is_empty());
+            assert!(base.ownership().drops().is_empty());
         },
     );
 }

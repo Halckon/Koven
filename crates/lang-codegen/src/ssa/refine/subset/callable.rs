@@ -57,28 +57,28 @@ impl Checker<'_, '_> {
             return false;
         };
         let callee = self.ungrouped(*callee);
-        let named = matches!(
-            self.inputs
-                .parsed
-                .ast()
-                .expressions()
-                .get(callee)
-                .map(|node| node.payload()),
-            Ok(Expression::Name)
-        );
+        let supported_callee = match self
+            .inputs
+            .parsed
+            .ast()
+            .expressions()
+            .get(callee)
+            .map(|node| node.payload())
+        {
+            Ok(Expression::Name) => self.reference(callee).is_some_and(|symbol| {
+                self.known.contains(&symbol)
+                    && (self.view_parameter(symbol) || self.callables.contains(&symbol))
+            }),
+            Ok(Expression::Lambda { .. }) => self.lambda_formation(callee),
+            _ => false,
+        };
         let supported = descriptor.target() == UnitCallTarget::FunctionValue
             && descriptor.receiver().is_none()
-            && named
+            && supported_callee
             // A loop jump out of an argument stays on the per-family path unless the scope
             // forms a capturing closure, which lowers only here.
             && (self.scope_requires_refine()
-                || !values
-                    .iter()
-                    .any(|value| self.argument_has_bare_loop_jump(*value)))
-            && self.reference(callee).is_some_and(|symbol| {
-                self.known.contains(&symbol)
-                    && (self.view_parameter(symbol) || self.callables.contains(&symbol))
-            });
+                || !values.iter().any(|value| self.argument_has_bare_loop_jump(*value)));
         self.migrated |= supported;
         supported
     }
@@ -281,7 +281,10 @@ impl Checker<'_, '_> {
         match node.payload() {
             Expression::Name => self.reference(root).is_some_and(|symbol| {
                 self.known.contains(&symbol)
-                    && self.parameter_mode(symbol) == Some(ParameterMode::Borrow)
+                    && matches!(
+                        self.parameter_mode(symbol),
+                        Some(ParameterMode::Borrow | ParameterMode::Inout)
+                    )
                     && self.symbol_type(symbol) == Some(parameter)
             }),
             Expression::This => {
@@ -328,7 +331,8 @@ impl Checker<'_, '_> {
                 Ok(lang_frontend::parser::Item::Deinit { .. })
             )
         });
-        if (self.span_has_control_transfer(call_node.span())
+        // A terminal abort uses its message after operand evaluation, with no normal cleanup.
+        if (self.span_has_control_transfer_except(call_node.span(), Some(call))
             && !self.call_has_field_replace(call)
             && !is_extension
             && !is_deinit
@@ -535,7 +539,7 @@ impl Checker<'_, '_> {
     /// Resolves the projected field type of a single- or multi-hop class/value-class field
     /// projection `r.f1.f2...` that can be borrowed in place.
     pub(super) fn field_loan_receiver(
-        &self,
+        &mut self,
         expression: ExpressionId,
         allow_local_root: bool,
     ) -> Option<UnitTypeId> {
@@ -565,6 +569,14 @@ impl Checker<'_, '_> {
                     .is_some()
                 {
                     let parent = self.field_loan_receiver(receiver_expr, allow_local_root)?;
+                    if !self.class(parent) {
+                        return None;
+                    }
+                    parent
+                } else if let Some(rc) = self.rc_operation_on_owner(self.ungrouped(receiver_expr))
+                    && rc.kind() == lang_frontend::type_checking::RcOperationKind::Value
+                {
+                    let parent = self.c(rc.payload_type());
                     if !self.class(parent) {
                         return None;
                     }
@@ -712,28 +724,6 @@ impl Checker<'_, '_> {
             && self.nothing(self.c(call.return_type()))
     }
 
-    pub(super) fn abandoned_borrow_result_call(&self, id: UnitExpressionId) -> bool {
-        // Ordinary exits already unwind pending call loans. The dedicated
-        // borrow/carrier return routes keep their existing admission boundary.
-        self.inputs.borrow_return.is_none()
-            && self.inputs.carrier_return.is_none()
-            && self.inputs.typed.expression_falls_through(id) == Some(false)
-            && self.inputs.owned.call_may_dispatch(id) == Some(false)
-            && self.inputs.typed.call(id).is_some_and(|descriptor| {
-                descriptor.borrow_return().is_some()
-                    && descriptor.receiver().is_none()
-                    && matches!(
-                        descriptor.target(),
-                        UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
-                    )
-            })
-            && self
-                .inputs
-                .source_plan
-                .call_site(self.inputs.source_token, id)
-                .is_some_and(|site| site.dispatch_key().is_none())
-    }
-
     pub(super) fn call(&mut self, expression: ExpressionId, values: &[ExpressionId]) -> bool {
         let id = self.id(expression);
         let Some(descriptor) = self.inputs.typed.call(id) else {
@@ -745,7 +735,7 @@ impl Checker<'_, '_> {
             .call_site(self.inputs.source_token, id);
         let prefix_only = site.is_some_and(|site| site.dispatch_key().is_none());
         let borrow_prefix =
-            descriptor.borrow_return().is_some() && self.abandoned_borrow_result_call(id);
+            descriptor.borrow_return().is_some() && self.inputs.abandoned_borrow_result_call(id);
         let is_extension = self.is_extension_call(descriptor);
         let simple = (descriptor.receiver().is_none()
             || is_extension
@@ -767,12 +757,7 @@ impl Checker<'_, '_> {
                         self.storage_type(self.c(argument.parameter_type()))
                             || self.view_function(self.c(argument.parameter_type()))
                     }
-                    ParameterMode::Inout => {
-                        let param = self.c(argument.parameter_type());
-                        (self.storage_type(param)
-                            && self.copyability_of(param) == Copyability::Copyable)
-                            || self.class(param)
-                    }
+                    ParameterMode::Inout => self.storage_type(self.c(argument.parameter_type())),
                 });
         // A call through a function value is further restricted to view parameters.
         let target = descriptor.prints_line()
@@ -845,6 +830,15 @@ impl Checker<'_, '_> {
         }
     }
 
+    pub(super) fn wraps_string_borrow_argument(
+        &self,
+        value: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> bool {
+        self.inputs
+            .string_borrow_adaptation(self.id(value), parameter)
+    }
+
     /// Arguments are plain expressions, except that a Borrow argument may be a MoveOnly
     /// non-null name read through its proof view.
     pub(super) fn arguments(&mut self, call: ExpressionId, values: &[ExpressionId]) -> bool {
@@ -882,11 +876,18 @@ impl Checker<'_, '_> {
             let Some(value) = index.map_or(extension_rec, |i| values.get(i).copied()) else {
                 return false;
             };
+            if descriptor.prints_line()
+                && mode == ParameterMode::Borrow
+                && self.string(parameter)
+                && let Some(admitted) = self.string_proof_operand(value)
+            {
+                return admitted;
+            }
             if let Some(admitted) = self.nullable_when_argument(call, value, mode, parameter) {
                 return admitted;
             }
             if mode == ParameterMode::Inout {
-                return self.inout_argument(call, value);
+                return self.inout_argument(call, value, parameter);
             }
             if self.inputs.typed.expression_falls_through(self.id(value)) == Some(false) {
                 reaches_operand = false;
@@ -923,6 +924,29 @@ impl Checker<'_, '_> {
             {
                 return true;
             }
+            if mode == ParameterMode::Borrow
+                && let Some(symbol) = self.direct_place_symbol(value)
+                && self.known.contains(&symbol)
+                && self.symbol_type(symbol).is_some_and(|ty| {
+                    self.string(ty)
+                        || (ty == parameter
+                            && self.view_symbols.contains(&symbol)
+                            && self
+                                .inputs
+                                .typed
+                                .non_null_use(self.id(self.ungrouped(value)))
+                                .is_some_and(|fact| fact.symbol() == symbol))
+                })
+                && self.inputs.string_nullable_place_borrow(
+                    self.id(call),
+                    self.id(value),
+                    symbol,
+                    parameter,
+                )
+            {
+                self.note_nullable(parameter);
+                return true;
+            }
             // A borrowed MoveOnly value is wrapped for a nullable parameter only when it is
             // a temporary whose drop obligation can move to the wrapper.
             if mode == ParameterMode::Borrow
@@ -939,18 +963,36 @@ impl Checker<'_, '_> {
                 return false;
             }
             if mode == ParameterMode::Borrow
-                && let Some(fact) = self.inputs.typed.non_null_use(self.id(value))
+                && let Some(fact) = self
+                    .inputs
+                    .typed
+                    .non_null_use(self.id(self.ungrouped(value)))
                 && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
             {
                 let root = self.ungrouped(value);
-                return self.rc_payload(self.c(fact.narrowed_type())).is_none()
+                return self.c(fact.narrowed_type()) == parameter
                     && self.reference(root) == Some(fact.symbol())
                     && self.known.contains(&fact.symbol())
                     && self.view_symbols.contains(&fact.symbol())
                     && (!self.is_map_remove_symbol(fact.symbol())
                         || self.is_direct_statement_call(call));
             }
-            self.expression(value)
+            if mode == ParameterMode::Value
+                && let Some(symbol) =
+                    self.inputs
+                        .narrowed_string_delivery(self.id(call), self.id(value), parameter)
+            {
+                return self.known.contains(&symbol) && self.view_symbols.remove(&symbol);
+            }
+            let admitted = self.expression(value);
+            if admitted
+                && mode == ParameterMode::Borrow
+                && self.wraps_string_borrow_argument(value, parameter)
+            {
+                // The caller creates the nullable wrapper for this temporary String.
+                self.note_nullable(parameter);
+            }
+            admitted
         })
     }
 }

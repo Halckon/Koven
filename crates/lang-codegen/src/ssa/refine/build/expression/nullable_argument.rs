@@ -17,13 +17,108 @@ use lang_frontend::{
     parser::Expression,
     source::Span,
     type_checking::{
-        CallableResultSource, ExpressionCategory, ParameterMode, UnitCallTarget,
-        UnitCallableTarget, UnitTypeId,
+        CallableResultSource, Copyability, ExpressionCategory, ParameterMode, UnitCallTarget,
+        UnitCallableTarget, UnitExpressionId, UnitTypeId,
     },
 };
 
+pub(super) enum WhenArgument {
+    Shared(Slot),
+    SharedReborrow(Slot),
+    Taken(Slot),
+}
+
 impl Builder<'_, '_> {
-    /// The bool distinguishes a shared view from an already-extracted pending Value.
+    /// Lend the original String storage as a non-null String? without creating an owner.
+    pub(in crate::ssa::refine::build) fn nullable_string_place_argument(
+        &mut self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> Result<Option<(Slot, Option<Slot>)>, LoweringError> {
+        let parameter = self.c(parameter);
+        if !self
+            .inputs
+            .string_borrow_adaptation(self.unit(argument), parameter)
+        {
+            return Ok(None);
+        }
+        let root = self.ungrouped_expr(argument)?;
+        let (payload, root_span) = self.node(root)?;
+        if !matches!(payload, Expression::Name) {
+            return Ok(None);
+        }
+        let symbol = self.reference(root_span)?;
+        if !self.inputs.string_nullable_place_borrow(
+            self.unit(call),
+            self.unit(argument),
+            symbol,
+            parameter,
+        ) {
+            return Ok(None);
+        }
+        let span = self.span(argument);
+        let target = self.ssa_type(parameter, span)?;
+        let (source, local) = if let Some(proof) = self.narrowed_view(argument)? {
+            (proof, None)
+        } else if let Some(&loan) = self.borrowed.get(&symbol) {
+            (loan, None)
+        } else {
+            let owner = self.owner_name(root, root_span)?;
+            let loan = self
+                .lend(owner, crate::ssa::model::LoanKind::Shared, span)?
+                .loan;
+            (loan, Some(loan))
+        };
+        let view = self.value(
+            ROp::SharedReborrow { source },
+            EntityType::Loan {
+                kind: crate::ssa::model::LoanKind::Shared,
+                target,
+            },
+            span,
+        )?;
+        Ok(Some((view, local)))
+    }
+
+    pub(super) fn narrowed_string_argument(
+        &mut self,
+        call: UnitExpressionId,
+        argument: ExpressionId,
+        parameter: UnitTypeId,
+        span: Span,
+    ) -> Result<Option<Slot>, LoweringError> {
+        let parameter = self.c(parameter);
+        let Some(symbol) =
+            self.inputs
+                .narrowed_string_delivery(call, self.unit(argument), parameter)
+        else {
+            return Ok(None);
+        };
+        self.sync_dead();
+        let owner = self
+            .bindings
+            .get(&symbol)
+            .copied()
+            .filter(|_| !self.dead.contains(&symbol))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let proof = self
+            .narrowed_view(argument)?
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let inner = self.ssa_type(parameter, span)?;
+        let value = self.take_nullable_argument(argument, symbol, owner, proof, inner, span)?;
+        let mut operand = argument;
+        let mut operands = vec![operand];
+        while let (Expression::Group { expression }, _) = self.node(operand)? {
+            operand = expression;
+            operands.push(operand);
+        }
+        for operand in operands.into_iter().rev() {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(operand)))?;
+        }
+        Ok(Some(value))
+    }
+
     pub(super) fn nullable_when_argument(
         &mut self,
         call_expression: ExpressionId,
@@ -31,13 +126,17 @@ impl Builder<'_, '_> {
         mode: ParameterMode,
         parameter: UnitTypeId,
         span: Span,
-    ) -> Result<Option<(Slot, bool)>, LoweringError> {
+    ) -> Result<Option<WhenArgument>, LoweringError> {
         let inputs = self.inputs;
         let call = self.unit(call_expression);
         let argument_id = self.unit(argument);
         let Some(witness) = inputs.typed.nullable_when_use(argument_id) else {
             return Ok(None);
         };
+        // The ordinary call path uses the Copyable value already narrowed on this edge.
+        if self.copyability_of(self.c(witness.inner_type())) == Copyability::Copyable {
+            return Ok(None);
+        }
         let missing = || error(LoweringErrorKind::MissingFact, span);
         let fact = inputs
             .owned
@@ -54,7 +153,8 @@ impl Builder<'_, '_> {
             .call_site(inputs.source_token, call)
             .ok_or_else(missing)?;
         if call_descriptor.receiver().is_some()
-            || call_descriptor.result_source() != CallableResultSource::Owned
+            || (call_descriptor.result_source() != CallableResultSource::Owned
+                && !inputs.abandoned_borrow_result_call(call))
             || call_descriptor.aborts()
             || call_descriptor.prints_line()
             || !route.delegation().is_empty()
@@ -97,6 +197,8 @@ impl Builder<'_, '_> {
             ParameterMode::Inout => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
         let node_span = self.span(argument);
+        let parameter = self.c(parameter);
+        let widened = nullable_when::widens_string_argument(inputs, witness, mode, parameter);
         if fact.call() != call
             || fact.argument() != argument_id
             || fact.witness() != witness
@@ -125,7 +227,7 @@ impl Builder<'_, '_> {
             || contract.kind() != expected
             || contract.call_span() != call_span
             || contract.argument_span() != node_span
-            || self.c(parameter) != self.c(witness.inner_type())
+            || (parameter != self.c(witness.inner_type()) && !widened)
         {
             return Err(missing());
         }
@@ -159,7 +261,16 @@ impl Builder<'_, '_> {
                 _ => return Err(missing()),
             }
         }
-        let owner = *self.bindings.get(&witness.symbol()).ok_or_else(missing)?;
+        let owner = if source.loan_kind.is_some() {
+            if mode != ParameterMode::Borrow {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            self.borrowed.get(&witness.symbol())
+        } else {
+            self.bindings.get(&witness.symbol())
+        }
+        .copied()
+        .ok_or_else(missing)?;
         let view = self
             .active_views
             .iter()
@@ -187,7 +298,10 @@ impl Builder<'_, '_> {
                 || loan.begin_span() != contract.loan_begin_span()
                 || loan.end_span() != call_span
                 || loan.parameter_span() != contract.parameter_span()
-                || !matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == witness.symbol())
+                || !source.lexical_origin.map_or_else(
+                    || matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == witness.symbol()),
+                    |origin| loan.target() == origin,
+                )
                 || inputs
                     .owned
                     .value_deliveries()
@@ -196,7 +310,19 @@ impl Builder<'_, '_> {
             {
                 return Err(missing());
             }
-            return Ok(Some((view.slot, true)));
+            if widened {
+                let target = self.ssa_type(parameter, span)?;
+                let reborrow = self.value(
+                    ROp::SharedReborrow { source: view.slot },
+                    EntityType::Loan {
+                        kind: crate::ssa::model::LoanKind::Shared,
+                        target,
+                    },
+                    span,
+                )?;
+                return Ok(Some(WhenArgument::SharedReborrow(reborrow)));
+            }
+            return Ok(Some(WhenArgument::Shared(view.slot)));
         }
         let delivery = fact.delivery().ok_or_else(missing)?;
         let deliveries = inputs
@@ -247,21 +373,42 @@ impl Builder<'_, '_> {
                 return Err(missing());
             }
         }
+        self.take_nullable_argument(argument, witness.symbol(), owner, view.slot, inner, span)
+            .map(|value| Some(WhenArgument::Taken(value)))
+    }
+
+    fn take_nullable_argument(
+        &mut self,
+        argument: ExpressionId,
+        symbol: lang_frontend::name_resolution::UnitSymbolId,
+        owner: Slot,
+        proof: Slot,
+        inner: crate::ssa::model::SsaTypeId,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
+        // Only the selected proof is consumed by NullableTake.
+        let other_proofs: Vec<_> = self
+            .active_views
+            .iter()
+            .rev()
+            .filter(|view| view.symbol == symbol && view.slot != proof)
+            .map(|view| view.slot)
+            .collect();
+        for loan in other_proofs {
+            self.end_short_call_loan(loan, span)?;
+        }
         let value = self.value(
-            ROp::NullableTake {
-                owner,
-                proof: view.slot,
-            },
+            ROp::NullableTake { owner, proof },
             EntityType::Value(inner),
             span,
         )?;
-        self.consume_views_of(witness.symbol());
-        // The mapping also names the owner on the mutually exclusive null path.
-        // Consumption is path-local, like ordinary moves; do not erase that mapping.
-        self.dead.insert(witness.symbol());
+        self.consume_views_of(symbol);
+        // The mapping still names the owner on the mutually exclusive null path.
+        self.dead.insert(symbol);
         self.temporaries.retain(|_, actual| *actual != owner);
         self.register_temporary(argument, value)?;
-        Ok(Some((value, false)))
+        self.taken_arguments.insert(self.unit(argument));
+        Ok(value)
     }
 
     /// Observe cleanup follows the actual transparent chain, leaf first, after the call.

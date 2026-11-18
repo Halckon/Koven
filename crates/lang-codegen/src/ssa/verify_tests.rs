@@ -649,13 +649,14 @@ fn multiple_return_program() -> Program {
 }
 
 #[test]
-fn borrowed_map_result_presence_requires_registered_shape_and_shared_loan() {
+fn borrowed_map_result_presence_requires_registered_shape_and_exclusive_string_layout() {
     use super::model::LoanKind;
 
-    for (registered, kind, expected) in [
-        (true, LoanKind::Shared, true),
-        (false, LoanKind::Shared, false),
-        (true, LoanKind::Exclusive, false),
+    for (registered, string_payload, kind, expected) in [
+        (true, true, LoanKind::Shared, true),
+        (false, true, LoanKind::Shared, false),
+        (true, true, LoanKind::Exclusive, true),
+        (true, false, LoanKind::Exclusive, false),
     ] {
         let origin = origin();
         let mut program = Program::default();
@@ -664,7 +665,9 @@ fn borrowed_map_result_presence_requires_registered_shape_and_shared_loan() {
         let boolean = module.intern_type(SsaTypeKind::Boolean);
         let string = module.add_string_owner_type();
         let target = if registered {
-            module.add_map_result_type(string).expect("Map result")
+            module
+                .add_map_result_type(if string_payload { string } else { boolean })
+                .expect("Map result")
         } else {
             module
                 .add_aggregate_type("same-layout", vec![boolean, string])
@@ -699,7 +702,7 @@ fn borrowed_map_result_presence_requires_registered_shape_and_shared_loan() {
             .expect("return");
         let verified = verify_program(&program);
         if expected {
-            verified.expect("registered Map result presence through a shared loan");
+            verified.expect("valid loan of a registered Map result");
         } else {
             let error = verified.expect_err("invalid borrowed presence");
             assert!(

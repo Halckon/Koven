@@ -2,6 +2,34 @@
 use super::*;
 
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
+    /// Keep the temporary handle through a field chain or its consuming shared call.
+    fn read_temporary_rc_projection(
+        &mut self,
+        expression: ExpressionId,
+        receiver: ExpressionId,
+        owner: UnitExpressionId,
+        usage: DropExpressionUse,
+        state: &mut ValueState,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let continues = self.expression(receiver, DropExpressionUse::Place, state)?;
+        if continues && usage != DropExpressionUse::Place {
+            let origin = self
+                .checker
+                .parsed
+                .ast()
+                .expressions()
+                .get(owner.expression())?
+                .span();
+            self.register_rc_projection_temporary(
+                self.rc_projection_scope.unwrap_or(expression),
+                owner.expression(),
+                origin,
+                state,
+            );
+        }
+        Ok(continues)
+    }
+
     pub(super) fn expression_inner(
         &mut self,
         id: ExpressionId,
@@ -86,12 +114,38 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 });
             }
             let receiver = operation.receiver().expression();
-            if let Some(place) = self.checker.place(receiver)? {
+            if let Some(place) = self.checker.loan_place(receiver)? {
                 let root = place.root();
                 if !self.liveness.expression_after[id.index()].contains(&root) {
                     self.drop_named_asap(PlannerDropPoint::AfterExpression(id), root, state);
                 }
                 return Ok(true);
+            }
+            if let Some(owner) = self.checker.temporary_rc_payload_owner(id)? {
+                return self.read_temporary_rc_projection(id, receiver, owner, usage, state);
+            }
+            if operation.kind() == crate::type_checking::RcOperationKind::Share
+                && let Some(owner) = self
+                    .checker
+                    .temporary_expression_origin(receiver)?
+                    .or(self.checker.temporary_rc_payload_owner(receiver)?)
+            {
+                let continues = self.expression(receiver, DropExpressionUse::Place, state)?;
+                if continues {
+                    let origin = self
+                        .checker
+                        .parsed
+                        .ast()
+                        .expressions()
+                        .get(owner.expression())?
+                        .span();
+                    self.push_fact(PlannerDropFact::new(
+                        PlannerDropPoint::AfterExpression(id),
+                        PlannerDropTarget::Temporary(owner.expression()),
+                        origin,
+                    ));
+                }
+                return Ok(continues);
             }
             return self.expression(receiver, DropExpressionUse::Read, state);
         }
@@ -105,7 +159,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         }
         if let Some(plan) = self.checker.short_circuit_plan(id)? {
             use super::super::super::constant::UnitShortCircuitRhs;
-            if !self.checker.constant_control
+            if (!self.checker.constant_control || plan.rhs == UnitShortCircuitRhs::Conditional)
                 && self
                     .checker
                     .typed
@@ -256,7 +310,10 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 operator,
                 right,
                 ..
-            } if self.uses_string_binary_operands(left, operator, right) => {
+            } if self
+                .checker
+                .uses_string_binary_operands(left, operator, right) =>
+            {
                 let continues = self.string_binary(left, right, id, state)?;
                 if continues {
                     *owner_result = self.completed_entry_concat(id);
@@ -294,6 +351,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         self.drop_named_asap(PlannerDropPoint::AfterExpression(id), root, state);
                     }
                     Ok(true)
+                } else if let Some(owner) = self.checker.temporary_rc_payload_owner(id)? {
+                    self.read_temporary_rc_projection(id, receiver, owner, usage, state)
                 } else {
                     let receiver_use = if usage == DropExpressionUse::Place {
                         DropExpressionUse::Place
@@ -319,6 +378,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     .checker
                     .contracts_by_call
                     .get(&self.checker.unit_expression(id));
+                let function_value = self
+                    .checker
+                    .typed
+                    .call(self.checker.unit_expression(id))
+                    .is_some_and(|call| {
+                        call.target() == crate::type_checking::UnitCallTarget::FunctionValue
+                    });
                 let mut borrowed_roots = Vec::new();
                 if let Some(contract) = receiver_contract {
                     match contract.source() {
@@ -412,15 +478,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                     }
                     self.register_iteration_receiver_loan(id, state);
-                } else if self
-                    .checker
-                    .typed
-                    .call(self.checker.unit_expression(id))
-                    .is_some_and(|call| {
-                        call.target() == crate::type_checking::UnitCallTarget::FunctionValue
-                    })
-                    && let Some(place) = self.checker.place(callee)?
-                {
+                } else if function_value && let Some(place) = self.checker.place(callee)? {
                     if !self.expression(callee, DropExpressionUse::Place, state)? {
                         return Ok(false);
                     }
@@ -434,7 +492,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     if !self.expression(callee, DropExpressionUse::Read, state)? {
                         return Ok(false);
                     }
-                    if self.capture_sources_at_call(id, callee).is_some() {
+                    if function_value && let Some(lambda) = self.closure_origin(callee, state)? {
+                        let origin = self.checker.parsed.ast().expressions().get(lambda)?.span();
+                        self.hold_literal_capture_borrows(id, callee, lambda, state);
+                        self.register_pending_temporary(id, lambda, origin, false, state)?;
+                    } else if self.capture_sources_at_call(id, callee).is_some() {
                         self.register_borrow_temporary_argument(
                             id,
                             callee,
@@ -469,6 +531,21 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                         UnitCallArgumentOwnershipKind::SharedLoan
                         | UnitCallArgumentOwnershipKind::ExclusiveLoan => {
+                            // Rc operations can schedule the final handle release during
+                            // operand evaluation. A borrowed payload keeps it through the call.
+                            if kind == UnitCallArgumentOwnershipKind::SharedLoan
+                                && contracts.and_then(|items| items.get(index)).is_some_and(
+                                    |contract| !self.checker.copy_to_nullable_borrow(*contract),
+                                )
+                                && let Some(receiver) =
+                                    self.checker.rc_value_receiver(argument.value)?
+                                && let Some(place) = self.checker.place(receiver)?
+                                && state.position(place.root()).is_some()
+                                && !borrowed_roots.contains(&place.root())
+                            {
+                                borrowed_roots.push(place.root());
+                                state.pending_borrows.push((id, place.root()));
+                            }
                             if let Some(place) = self.checker.place(argument.value)? {
                                 let root = place.root();
                                 if !self.expression(

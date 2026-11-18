@@ -840,26 +840,14 @@ import p.Holder
     }
 
     #[test]
-    fn string_clone_unit_borrowed_rc_payload_is_rejected_before_native_emission() {
+    fn string_clone_unit_borrowed_rc_payload_crosses_the_call_slot() {
         let analysis = analyze_sources(
             "package p\nfun duplicate(shared: Rc<String>): String = shared.value.clone()",
             r#"package q
         fun entry(): Unit { val shared = Rc("text"); println(p.duplicate(shared)) }
     "#,
         );
-        let inputs = analysis.inputs();
-        let error = lower_scalar_unit_with_entry(
-            &analysis.sources,
-            &inputs,
-            &analysis.names,
-            &analysis.environment,
-            &analysis.typed,
-            &analysis.owned,
-            analysis.declaration("q", "entry"),
-        )
-        .err()
-        .expect("Borrow Rc payload must not reinterpret a handle-slot pointer as a control block");
-        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+        super::emit_link_run(&analysis, b"text\n");
     }
 
     #[test]

@@ -432,15 +432,24 @@ pub(in crate::ssa) mod return_control_tests {
     }
 
     #[test]
-    fn enum_tag_slice_does_not_claim_general_payload_grouped_or_move_only_equality() {
+    fn grouped_copyable_enum_case_uses_the_same_tag_match() {
+        let source = r#"
+enum class Flag { On, Off }
+fun score(s: Flag): Int = when (s) { (Flag.On) -> 1; else -> 0 }
+fun main(): Unit {
+    if (score(Flag.On) == 1 && score(Flag.Off) == 0) { println("match") }
+}
+"#;
+        let output = crate::native_tests::emit_link_and_run("grouped-enum-case.ko", source, "main");
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"match\n");
+    }
+
+    #[test]
+    fn enum_tag_slice_does_not_claim_general_payload_or_move_only_equality() {
         for (source, condition) in [
             (
                 "enum class Flag { On, Off }\nfun score(s: Flag, other: Flag): Int = when (s) { other -> 1; else -> 0 }",
                 "other",
-            ),
-            (
-                "enum class Flag { On, Off }\nfun score(s: Flag): Int = when (s) { (Flag.On) -> 1; else -> 0 }",
-                "(Flag.On)",
             ),
             (
                 "enum class Flag { On(item: Int), Off }\nfun score(s: Flag): Int = when (s) { Flag.On(1) -> 1; else -> 0 }",

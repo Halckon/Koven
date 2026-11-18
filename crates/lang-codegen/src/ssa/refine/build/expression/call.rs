@@ -1,5 +1,6 @@
 //! Call evaluation, delivery and cleanup in the refined CFG.
-use super::*;
+use super::{nullable_argument::WhenArgument, *};
+use crate::ssa::model::LoanKind;
 
 impl Builder<'_, '_> {
     pub(super) fn call(
@@ -32,6 +33,11 @@ impl Builder<'_, '_> {
             }
             return Ok(Lowered::Diverged);
         }
+        let literal_callee = if descriptor.target() == UnitCallTarget::FunctionValue {
+            self.form_literal_callee(expression, span)?
+        } else {
+            None
+        };
         let is_extension = match descriptor.target() {
             UnitCallTarget::Declaration(id) => self
                 .inputs
@@ -85,28 +91,62 @@ impl Builder<'_, '_> {
         let mut lowered_slots: Vec<Option<Slot>> = vec![None; call_args.len()];
         let mut loans = Vec::new();
         let mut writebacks = Vec::new();
+        let mut reserved_inout = Vec::new();
         let mut view_reads = Vec::new();
         let mut delivered = Vec::new();
         let mut call_args = call_args.into_iter();
         while let Some((param_slot, value_expression, call_arg_span, mode, parameter_type)) =
             call_args.next()
         {
-            if let Some((slot, borrowed)) = self.nullable_when_argument(
-                expression,
-                value_expression,
-                mode,
-                parameter_type,
-                call_arg_span,
-            )? {
-                lowered_slots[param_slot] = Some(slot);
-                if borrowed {
-                    view_reads.push(value_expression);
-                } else {
-                    delivered.push(value_expression);
+            if self
+                .inputs
+                .typed
+                .expression_falls_through(self.unit(value_expression))
+                == Some(false)
+            {
+                if self.expression(value_expression)? != Lowered::Diverged {
+                    return Err(error(LoweringErrorKind::InvalidModel, call_arg_span));
                 }
+                for (_, skipped, ..) in call_args {
+                    self.unreachable_drop_scopes.push(self.span(skipped));
+                }
+                return Ok(Lowered::Diverged);
+            }
+            if !descriptor.prints_line()
+                && let Some(argument) = self.nullable_when_argument(
+                    expression,
+                    value_expression,
+                    mode,
+                    parameter_type,
+                    call_arg_span,
+                )?
+            {
+                let slot = match argument {
+                    WhenArgument::Shared(loan) => {
+                        view_reads.push(value_expression);
+                        loan
+                    }
+                    WhenArgument::SharedReborrow(loan) => {
+                        view_reads.push(value_expression);
+                        loans.push(loan);
+                        self.pending_call_loans.push(loan);
+                        loan
+                    }
+                    WhenArgument::Taken(value) => {
+                        delivered.push(value_expression);
+                        value
+                    }
+                };
+                lowered_slots[param_slot] = Some(slot);
                 continue;
             }
             if mode == ParameterMode::Inout {
+                if self.move_only(self.c(parameter_type)) {
+                    // Frontend facts already prove exclusive access during the remaining
+                    // arguments. Materialize storage only in the actual call block.
+                    reserved_inout.push((param_slot, value_expression, parameter_type));
+                    continue;
+                }
                 let (loan, writeback) = self.inout_argument(value_expression)?;
                 lowered_slots[param_slot] = Some(loan);
                 if let Some(writeback) = writeback {
@@ -159,11 +199,6 @@ impl Builder<'_, '_> {
             }
             if mode == ParameterMode::Borrow
                 && let Some(&view) = self.inputs.views.get(&self.c(parameter_type))
-                && self
-                    .inputs
-                    .typed
-                    .expression_falls_through(self.unit(value_expression))
-                    != Some(false)
             {
                 // ADR-0034: a Borrow function parameter receives a callable view.
                 let (lent, created, read_argument) =
@@ -220,6 +255,21 @@ impl Builder<'_, '_> {
                 continue;
             }
             if mode == ParameterMode::Borrow
+                && let Some((view, local)) = self.nullable_string_place_argument(
+                    expression,
+                    value_expression,
+                    parameter_type,
+                )?
+            {
+                loans.extend(local);
+                loans.push(view);
+                self.pending_call_loans.extend(local);
+                self.pending_call_loans.push(view);
+                lowered_slots[param_slot] = Some(view);
+                view_reads.push(value_expression);
+                continue;
+            }
+            if mode == ParameterMode::Borrow
                 && let Some(view) = self.narrowed_view(value_expression)?
             {
                 // A MoveOnly non-null use borrows through the condition's proof view.
@@ -234,6 +284,18 @@ impl Builder<'_, '_> {
                 loans.push(loan);
                 self.pending_call_loans.push(loan);
                 lowered_slots[param_slot] = Some(loan);
+                continue;
+            }
+            if mode == ParameterMode::Value
+                && let Some(value) = self.narrowed_string_argument(
+                    call,
+                    value_expression,
+                    parameter_type,
+                    call_arg_span,
+                )?
+            {
+                lowered_slots[param_slot] = Some(value);
+                delivered.push(value_expression);
                 continue;
             }
             let saved_expected = self.expected_nullable;
@@ -280,6 +342,20 @@ impl Builder<'_, '_> {
                 }
             }
         }
+        for (param_slot, expression, parameter) in reserved_inout {
+            if let Some(field) = self.inputs.inout_field(call, expression, parameter) {
+                let loan = self.borrow_inout_field(field)?;
+                lowered_slots[param_slot] = Some(loan);
+                loans.push(loan);
+                continue;
+            }
+            let (loan, writeback) = self.inout_argument(expression)?;
+            lowered_slots[param_slot] = Some(loan);
+            if let Some(writeback) = writeback {
+                loans.push(loan);
+                writebacks.push(writeback);
+            }
+        }
         let lowered = lowered_slots
             .into_iter()
             .collect::<Option<Vec<_>>>()
@@ -291,7 +367,8 @@ impl Builder<'_, '_> {
         let mut invoked_callee = None;
         let return_type = self.c(descriptor.return_type());
         let result = if descriptor.target() == UnitCallTarget::FunctionValue {
-            let (result, callee) = self.invoke_callable(expression, lowered, return_type, span)?;
+            let (result, callee) =
+                self.invoke_callable(expression, lowered, literal_callee, return_type, span)?;
             if result == Lowered::Diverged {
                 return Ok(result);
             }
@@ -389,5 +466,52 @@ impl Builder<'_, '_> {
             }
         }
         Ok(result)
+    }
+
+    /// Direct heap fields are already stored in place and need no local snapshot writeback.
+    fn borrow_inout_field(
+        &mut self,
+        field: crate::ssa::refine::inout_field::InoutField,
+    ) -> Result<Slot, LoweringError> {
+        let span = field.begin;
+        self.end_views_of(field.owner, span)?;
+        self.forget_narrowing(field.owner);
+        let owner = *self
+            .bindings
+            .get(&field.owner)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let owner_ty = self.ssa_type(field.owner_ty, span)?;
+        let payload = *self
+            .types
+            .heap_payloads
+            .get(&owner_ty)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let index = *self
+            .types
+            .field_indices
+            .get(&(field.owner_ty, field.field))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let target = self.ssa_type(field.target, span)?;
+        let base = self.value(
+            ROp::HeapPayloadPlace { owner },
+            EntityType::Place(payload),
+            span,
+        )?;
+        let place = self.value(
+            ROp::FieldPlace { base, field: index },
+            EntityType::Place(target),
+            span,
+        )?;
+        self.value(
+            ROp::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+            EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target,
+            },
+            span,
+        )
     }
 }

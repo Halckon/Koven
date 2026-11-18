@@ -109,14 +109,14 @@ Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参�
 通过 LLVM pointer phi 保留同一存储。return/break/continue 结束 loan 后沿原 drop facts 清理，
 Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
 MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回。
-常量入口的 named function-value callee pending frame 保留原规则：先移除alias，再按frontend owner事实清理，Abort不展开。
+常量入口的 named function-value callee pending frame 保留原规则：先移除alias，再按frontend owner事实清理，Abort不展开。 普通 Unit 中直接或分组调用 lambda 字面量时，在实参前形成 callable，按内层 lambda 身份消费 CallReturn 清理。共享捕获的纯内存来源在闭包环境之后、最后使用后清理。
 lambda Borrow storage仍复用Shared Loan ABI；普通Unit direct declaration call为无receiver及canonical文本String Borrow receiver开放已证root/temporary实参前缀的控制退出，
 逐项核真实typed/owned/call route与frame身份；String非空If中的Unit／Copyable及独立owner return允许空调用帧，或先结束文本实参调用loan、取消两帧，再按原ControlTransfer drop退休父proof；独立owner先走原transfer／nullable wrap。已有String If proof且无pending槽时，根的Name/Group返回以NullableTake交付String，或结束view后保留String?；沿每条CFG边同步验证owner/proof配对，循环必须可追溯真实birth。直接Name/Group return也可用原非空使用事实建立proof，排除lambda作用域；Nothing类型的双臂return复用同一入口。实参求值期间移动已借用receiver根由前端L0135拒绝；函数值、普通receiver、field/element实参或借用结果不由此获得新能力，Borrow Unit/Inout callback仍拒绝。
 Map callback通用storage与capture见 [Map当前边界](map-native-execution.md)；contains/get/put/remove在后续参数CFG后读取重绑定owner/loan，
 MapPut自行收集K/V drop glue，MapRemove收集K并交付owned V，不依赖scope Drop。已证ownership primitive优先于普通prefix gate分派。
 常量入口允许外层pending temporary穿过内层loop/while，header、回边和break/false出口携完整owner/loan/pending状态；
 内层跳转仅结束本循环内frame与prefix槽，return清理退出frame，Abort不展开；Copyable binding与已求值实参快照分列，owner/loan alias去重。
-普通 Unit while 从实际条件出口分支，已生成的 SSA 布尔常量可排除不可能边；基础入口其余 temporary 循环边界保留。direct nullable while仅将HeapOwner送专用proof，
+普通 Unit while 从实际条件出口分支，已生成的 SSA 布尔常量可排除不可能边；基础入口其余 temporary 循环边界保留。普通 `String?` 借用结果可跨判空 while。顺序块及已准入语句分支中的其他 `String` 或 `String?` 结果各消费自己的正常结束点或精确 return 边，回边及退出由 SSA 资源验证覆盖。无载荷使用的自有 String? when 以已核对的 typed／owned 计划生成判空分支，保留 subject 的原清理点。direct nullable while仅将HeapOwner送专用proof，
 SharedOwner Rc继续普通while，缺映射不回退。[0332](../archive/specs/0332-rc-nullable-while-regression.md)原有bounded done/archive历史不变；
 其§5四Unit payload-reader及体内原owner返回包装债仍OPEN，presence成功或阶段表expected reject不关闭能力债。
 隐式具体 MoveOnly Value `this` 在 frontend pending 队列中保留既有 `This(owner)` target，
@@ -130,7 +130,7 @@ receiver 析构。该索引计数普通 fact，包含由专用路径处理的 ca
 显式 Value receiver 的循环退出另有常量/literal、
 Borrow/Value 实参对照，通过动态分配/释放、String drop 计数与循环后输出检查清理和跳转。
 
-String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。
+String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。`StringEqual` 接受 `String?` 的指针 niche 与 Map result 的显式存在字段，只有两侧都存在且长度相同才比较字节。所有权检查在右操作数求值期间保持左侧具名读取，临时 owner 依原求值与退出点清理。 对 `String?` 字段直接判空时，Refine 从原槽建立短共享借用，使用 `NullableLoanIsNull`，先结束投影链上的借用，再按分析产物清理临时接收者。 借用返回的 `String?` 及其词法子绑定可在所借槽上判空，非空 String 子借用沿活动证明建立。借用结果只延续 `from` 实参所需的共享重借用，活动证明和结果借用先于其来源退役。 非空 If 和 When 臂可从活动 String 证明建立短期 String? 共享重借用，普通调用结束或后续实参提前返回时先结束子借用。 非空 If 臂可将同一个原 String? 槽作为借用返回调用的唯一来源。结果沿活动证明延续源共享重借用，结果和源重借用先于该证明结束。 自有 String? 的非空载荷作 own String 实参时，Refine 使用原整根 Move 事实和活动证明，在求值该实参时执行 NullableTake。待交付载荷和同槽后写入的新 owner 独立清理。 词法借用作为 When 主体时，同一调用已完成的共享观察与绑定的退出事实共同证明后续实参的直接 return 或条件 return 可以准入。 生产 Unit 的 Map.remove 返回 String? 时复用普通 String? 的数据指针 niche，缺失值使用全零 String 布局，命中原样交付 payload。具名 owned String? 的布尔判空在清理前执行 NullableIsNull。SSA 带标记结果保留显式字段合同，借用判空读字段 0，非空边取字段 1 的地址形成共享子借用。 同一借用绑定用作 while 判空条件时，每轮在条件成立边建立 payload 证明，在回边或离开循环体前结束，父结果按词法结束事实清理。
 操作数退出向上传播；正常路径仍消费 `AfterBinaryOperands`，控制退出沿用 frontend drop
 事实，Abort 不展开。嵌套二元操作只移除自己的 pending 槽，保留外层调用前缀。
 Temporary drop 与 transfer 共享精确 origin 校验，清除同一 owner 的全部透明 Group alias，
@@ -174,9 +174,9 @@ concrete 表示返回带 source origin 的 typed error，而不是生成猜测�
 当前 ABI 要点：
 
 - Borrow/Inout 以 pointer-like loan operand 传递，Value 按具体表示传递；instance receiver 位于显式
-  argument 之前；`LoanMutate`（细化层 `Inout` 替换）向 exclusive loan 指针 store Copyable target。
+  argument 之前，整值替换见[细化层的 Inout 整值替换](ownership-refinement.md#inout-整值替换)。
 - ordinary class、Box、Rc 和 String 使用明确的 owner/runtime 表示；value class 和 enum 使用 concrete
-  aggregate/tagged 表示。HeapOwner payload 已接受 tagged union；单文件 Box 延迟定义 payload，与 unit 路径一样打断非 nullable enum 递归。两入口的具体非泛型 Box enum 已验证构造/运输/递归释放：简单 cases 2 次、四层树与 inline root 共 45 次分配/释放，逐指针计数；不证明解引用、generic 或 nullable 递归。
+  aggregate/tagged 表示。Unit 规划沿资源枚举各 case、Box 和 Rc（含可空句柄）的具体载荷登记隐藏 deinit，运行时跳过 null，只清理活动 tag 对应的载荷；Rc 仅在最后一个强引用释放时清理载荷。 Rc 的调用借用与可空证明均指向句柄槽；owned Rc? 在直接判空或取反的非空 If 臂可转交同一证明。空臂提前退出且后续有非空使用时，合流可保留唯一正常前驱的活跃证明槽；写入或消费 owner 时先结束证明。共享借入的 Rc? 从父 loan 指向的原始句柄槽判空，非空边建立同槽的共享子 loan；短路及正常分支合流只保留仍可用的非空证明。独占借入的 Rc? 和 String? 也从原槽建立共享子证明，其中 String? 使用原有指针 niche；RHS 上的共享读取完成后，替换或转交 inout 前先结束该证明。短路和布尔值合流按各边实际失效情况清理。以共享借入的 Rc? 或 String? 参数及具名 borrow val 作主体的 nullable when 也从原 loan 槽判空，分支内经已验证的 Observe 事实转交非空子 loan；String 的拼接、等值比较、println 和 clone 由各自的只读操作消费活动证明。若 String 运算左操作数取自非空证明，所有权检查在右操作数求值期间保持该读取，拒绝同槽的修改和独占转交。具名 nullable 绑定的子证明先于其词法 loan 结束；从非空证明建立的直接或调用返回子借用先于证明结束。借用返回调用的来源实参先建立共享子 loan；后续实参提前 return 时，按前端已求值的来源结束事实释放调用借用，再结束证明并按转移点清理资源。同一调用更早的 Rc 共享临时实参可沿该转移点清理；正常调用按 CallReturn 释放该临时 owner。载荷子借用和非空子 loan 均由 verifier 追踪父来源。多层 Rc 及字段投影按访问顺序建立共享 loan，读取、retain 或调用完成后按逆序结束。临时 Rc 的载荷复制、字段链和共享实参复用已有 payload place，沿前端清理点先结束借用，再释放句柄。接收者终止的边只执行已验证的前缀；正常 `share()` 路径先 retain，再结束临时接收者的所有权。短路两条正常边按前端条件清理事实交付同一可空 SSA 句柄槽，未形成句柄的边交付 null。HeapOwner payload 已接受 tagged union；Box 延迟定义 payload；可空指针可先引用已声明的 owner，SSA verifier 仍要求最终定义。Refine 从已验证的 MoveOnly 值类或枚举检查递归 Box 布局。两入口的具体非泛型 Box enum 已验证构造/运输/递归释放：简单 cases 2 次、四层树与 inline root 共 45 次分配/释放，逐指针计数；不证明解引用、generic 或 nullable 递归。
 - drop glue 由 concrete type 递归生成；Rc retain/release、String allocation/free、container buffer、
   abort 和 stdout 通过集中 runtime helper 发出。
 - nullable handle 使用 null niche 和条件 drop；[inline nullable](ownership-refinement.md#inline-nullable-布局)不强制成 pointer。

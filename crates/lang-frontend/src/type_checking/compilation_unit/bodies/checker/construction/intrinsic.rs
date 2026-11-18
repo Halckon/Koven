@@ -212,7 +212,7 @@ impl BodyChecker<'_> {
             self.note_pending_storage_value(UnitExpressionId::new(source, expression), result_type);
             return Ok(ExpressionCheck {
                 ty: result_type,
-                falls_through: true,
+                falls_through: checked.falls_through,
             });
         }
         let parameter_index = mapping[0];
@@ -235,7 +235,7 @@ impl BodyChecker<'_> {
         });
         Ok(ExpressionCheck {
             ty: result_type,
-            falls_through: true,
+            falls_through: checked.falls_through,
         })
     }
 

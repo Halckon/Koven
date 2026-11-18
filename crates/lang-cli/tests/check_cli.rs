@@ -292,6 +292,27 @@ fn reviewed_frontend_contracts_reach_both_public_check_entries() {
             include_str!("fixtures/simple-assignment-0325/assignment_capture_conflict.ko"),
             Some("L0135"),
         ),
+        (
+            r#"fun clear(inout slot: String?): String { slot = null; return "text".clone() }
+fun compare(inout slot: String?): Unit {
+    when (slot) { null -> {}; else -> { if ((slot) == clear(&slot)) { println("same") } } }
+}"#,
+            Some("L0135"),
+        ),
+        (
+            r#"fun clear(inout slot: String?): String { slot = null; return "text".clone() }
+fun compare(inout slot: String?): Boolean { return (slot) == clear(&slot) }"#,
+            Some("L0135"),
+        ),
+        (
+            r#"fun view(borrow source: String?): borrow String? from source = source
+fun conflict(inout slot: String?): Boolean {
+    borrow val result = view(slot)
+    slot = null
+    return result != null
+}"#,
+            Some("L0135"),
+        ),
         ("class R { own fun noop(): Unit {} }", None),
     ] {
         let directory = TestDirectory::create();

@@ -758,6 +758,11 @@ impl Checker<'_, '_> {
         if self.inputs.borrow_return.is_none() {
             return false;
         }
+        let actual = self.ungrouped(value_expr);
+        let id = self.id(actual);
+        if self.inputs.abandoned_borrow_result_call(id) {
+            return self.expression(value_expr);
+        }
         let return_id = self.id(control_expr);
         let value_id = self.id(value_expr);
         let Some(fact) = self
@@ -775,8 +780,6 @@ impl Checker<'_, '_> {
         if place.element().is_some() {
             return false;
         }
-        let actual = self.ungrouped(value_expr);
-        let id = self.id(actual);
         let Ok(node) = self.inputs.parsed.ast().expressions().get(actual) else {
             return false;
         };

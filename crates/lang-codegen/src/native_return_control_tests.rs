@@ -397,6 +397,38 @@ fun main(): Unit {
 }
 
 #[test]
+fn an_abandoned_borrow_result_call_cleans_up_a_nullable_when_argument() {
+    let source = r#"
+class Node { deinit() { println("drop") } }
+fun dormant(MODE value: Node, source: String, stop: Boolean): borrow String from source {
+    println("dispatched")
+    return source
+}
+fun choose(source: String, own subject: Node?): borrow String from source {
+    when (subject) {
+        null -> { return source };
+        else -> { return dormant((subject), source, return source) }
+    }
+    return source
+}
+fun main(): Unit {
+    val source = "owner".clone()
+    val present: Node? = Node()
+    { borrow val result = choose(source, present); println(result) }
+    { borrow val result = choose(source, null); println(result) }
+    println(source)
+}
+"#;
+    for (name, mode) in [("observe", ""), ("consume", "own ")] {
+        let source = source.replace("MODE ", mode);
+        assert_success(
+            &emit_link_and_run(&format!("abandoned-borrow-when-{name}.ko"), &source, "main"),
+            b"drop\nowner\nowner\nowner\n",
+        );
+    }
+}
+
+#[test]
 fn exhaustive_when_inside_loop_has_no_phantom_resource_exit() {
     let source = r#"
 class Ticket {
@@ -509,4 +541,126 @@ fun main(): Unit {
     };
     check();
     crate::ssa::with_per_family_lowering(check);
+}
+
+#[test]
+fn boxed_enum_when_skips_closed_selectors_with_arm_local_borrow() {
+    let source = r#"
+enum class Packet { Full(text: String), Empty }
+fun never(own packet: Packet): Packet { println("unexpected selector"); return packet }
+fun view(source: String): borrow String from source = source
+fun probe(own packet: Packet, stop: Boolean): Unit {
+    val source = "owner".clone()
+    when ((packet)) {
+        is Packet.Full -> {
+            borrow val item = view(source)
+            if (stop) { println(item); return }
+            println(item)
+        };
+        !is Packet.Full, never(Packet.Empty) -> { println("empty") }
+    }
+    println("joined")
+    return
+}
+fun main(): Unit {
+    probe(Packet.Full("payload".clone()), true)
+    probe(Packet.Full("payload".clone()), false)
+    probe(Packet.Empty, false)
+}
+"#;
+    assert_success(
+        &emit_link_and_run("lexical-borrow-boxed-enum-when.ko", source, "main"),
+        b"owner\nowner\njoined\nempty\njoined\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_terminal_constructor_and_rc_members_keep_only_completed_prefixes() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println(name) } }
+class Outer(val first: Leaf, val second: Leaf, val code: Int, val suffix: Leaf) {
+    deinit() { println("outer") }
+}
+fun inspect(borrow first: Leaf, borrow second: Leaf): Unit { println("unreachable") }
+fun constructor(): Unit {
+    val owner = Rc(Outer(Leaf("first".clone()), Leaf("second".clone()),
+        if (true) { println("return"); return } else { return },
+        Leaf("suffix".clone()))).share()
+}
+fun borrowPrefix(): Unit {
+    inspect(Rc(Leaf("prefix".clone())).value, Rc<Leaf>(return).value)
+}
+fun fields(): Unit {
+    val name = Rc<Leaf>(return).value.name.clone()
+    println(name)
+}
+fun entry(): Unit {
+    constructor(); borrowPrefix(); fields()
+    println("done")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("terminal-rc-member-prefixes.ko", source);
+    let output =
+        super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[2, 3, 0, 1, 4, 5, 6]);
+    super::boxed_enum_tests::assert_success(&output, b"return\nsecond\nfirst\nprefix\ndone\n");
+}
+
+#[test]
+fn resource_deinit_native_nested_rc_loans_end_before_release() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println("leaf") } }
+class Holder(val inner: Rc<Leaf>) { deinit() { println("holder") } }
+fun show(borrow leaf: Leaf, ready: Boolean): Unit { if (ready) { println(leaf.name) } }
+fun lend(stop: Boolean): Unit {
+    show(Rc(Rc(Leaf("payload".clone()))).value.value,
+        if (stop) { println("return"); return } else { true })
+    println("tail")
+}
+fun share(): Unit {
+    val retained = Rc(Holder(Rc(Leaf("kept".clone())))).value.inner.share()
+    println(retained.value.name)
+    println("held")
+}
+fun entry(): Unit { lend(true); lend(false); share(); println("done") }
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("nested-rc-loans.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(
+        &ir,
+        &[0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 8, 9, 10],
+    );
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"return\nleaf\npayload\nleaf\ntail\nholder\nkept\nheld\nleaf\ndone\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_borrowed_nullable_rc_preserves_the_parent_through_short_circuit() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println("drop") } }
+fun read(borrow owner: Rc<Leaf>): Unit { println(owner.value.name) }
+fun test(borrow owner: Rc<Leaf>?, gate: Boolean): Unit {
+    if (!(owner != null)) { println("null"); return }
+    if ((gate && owner != null) || owner != null) {
+        read((owner))
+        val retained = owner.share()
+        read(retained)
+    }
+    println("tail")
+}
+fun entry(): Unit {
+    val absent: Rc<Leaf>? = null
+    val present: Rc<Leaf>? = Rc(Leaf("leaf".clone()))
+    test(absent, false)
+    test(present, false)
+    test(present, true)
+    println("done")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("borrowed-nullable-rc.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2]);
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"null\nleaf\nleaf\ntail\nleaf\nleaf\ntail\ndone\ndrop\n",
+    );
 }

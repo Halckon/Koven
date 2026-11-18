@@ -346,6 +346,7 @@ impl UnitExpressionLowerer<'_> {
             UnitDropTarget::Captured { .. } => return Ok(()),
             UnitDropTarget::ReplacedElement(_)
             | UnitDropTarget::ReplacedField { .. }
+            | UnitDropTarget::ReplacedInout { .. }
             | UnitDropTarget::ReplacedCapture { .. } => {
                 return Err(lowering_error(
                     LoweringErrorKind::UnsupportedNode,
@@ -493,6 +494,7 @@ impl UnitExpressionLowerer<'_> {
                 | UnitDropTarget::Temporary(_)
                 | UnitDropTarget::ReplacedElement(_)
                 | UnitDropTarget::ReplacedField { .. }
+                | UnitDropTarget::ReplacedInout { .. }
                 | UnitDropTarget::ReplacedCapture { .. } => {
                     return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                 }

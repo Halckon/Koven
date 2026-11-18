@@ -18,7 +18,7 @@ fn origin() -> Origin {
 }
 
 /// `fun f(<loan> x: T, own v: U) { mutate x, v }` where the loan is `kind` of `target`.
-fn program(kind: LoanKind, target: SsaTypeKind, value: SsaTypeKind) -> Program {
+fn program(kind: LoanKind, target: SsaTypeKind, value: SsaTypeKind, replace: bool) -> Program {
     let origin = origin();
     let mut program = Program::default();
     let module = program.add_module("main");
@@ -42,7 +42,11 @@ fn program(kind: LoanKind, target: SsaTypeKind, value: SsaTypeKind) -> Program {
     function
         .append_instruction(
             entry,
-            Operation::LoanMutate { loan, value },
+            if replace {
+                Operation::LoanReplace { loan, value }
+            } else {
+                Operation::LoanMutate { loan, value }
+            },
             Vec::new(),
             origin.clone(),
         )
@@ -70,18 +74,19 @@ fn contract_error(program: &Program) -> bool {
 #[test]
 fn loan_mutate_replaces_a_copyable_target_of_an_exclusive_loan() {
     assert_eq!(
-        verify_program(&program(LoanKind::Exclusive, INT, INT)),
+        verify_program(&program(LoanKind::Exclusive, INT, INT, false)),
         Ok(())
     );
 }
 
 #[test]
 fn loan_mutate_rejects_shared_loans_mismatched_and_move_only_targets() {
-    assert!(contract_error(&program(LoanKind::Shared, INT, INT)));
+    assert!(contract_error(&program(LoanKind::Shared, INT, INT, false)));
     assert!(contract_error(&program(
         LoanKind::Exclusive,
         INT,
-        SsaTypeKind::Boolean
+        SsaTypeKind::Boolean,
+        false,
     )));
     let move_only = || SsaTypeKind::Opaque {
         name: "Endpoint".to_owned(),
@@ -90,8 +95,201 @@ fn loan_mutate_rejects_shared_loans_mismatched_and_move_only_targets() {
     assert!(contract_error(&program(
         LoanKind::Exclusive,
         move_only(),
-        move_only()
+        move_only(),
+        false,
     )));
+}
+
+#[test]
+fn loan_replace_consumes_a_move_only_operand_under_an_exclusive_loan() {
+    let source = SsaTypeKind::StringOwner;
+    assert_eq!(
+        verify_program(&program(
+            LoanKind::Exclusive,
+            source.clone(),
+            source.clone(),
+            true
+        )),
+        Ok(())
+    );
+    assert!(contract_error(&program(
+        LoanKind::Shared,
+        source.clone(),
+        source.clone(),
+        true
+    )));
+    assert!(contract_error(&program(
+        LoanKind::Exclusive,
+        source,
+        INT,
+        true
+    )));
+    assert!(contract_error(&program(
+        LoanKind::Exclusive,
+        INT,
+        INT,
+        true
+    )));
+}
+
+fn inout_replacement_caller(writeback: bool, replace_locally: bool, heap_field: bool) -> Program {
+    let mut program = program(
+        LoanKind::Exclusive,
+        SsaTypeKind::StringOwner,
+        SsaTypeKind::StringOwner,
+        true,
+    );
+    let module_id = program.modules[0].id;
+    let module = program.module_mut(module_id).unwrap();
+    let callee = module.functions[0].id;
+    let ty = module.intern_type(SsaTypeKind::StringOwner);
+    let payload = module
+        .add_aggregate_type("holder.fields", vec![ty])
+        .unwrap();
+    let heap = module.declare_heap_owner("holder").unwrap();
+    module.define_heap_owner(heap, payload).unwrap();
+    let owner_ty = if heap_field { heap } else { ty };
+    let origin = origin();
+    let caller = module
+        .add_function("caller", Vec::new(), origin.clone())
+        .unwrap();
+    let function = module.function_mut(caller).unwrap();
+    let entry = function
+        .add_block(
+            vec![EntityType::Value(owner_ty), EntityType::Value(ty)],
+            origin.clone(),
+        )
+        .unwrap();
+    let [EntityId::Value(owner), EntityId::Value(value)] =
+        function.block(entry).unwrap().parameters[..]
+    else {
+        panic!("owned inputs")
+    };
+    let (_, place) = function
+        .append_instruction(
+            entry,
+            if heap_field {
+                Operation::HeapPayloadPlace { owner }
+            } else {
+                Operation::RootPlace { owner }
+            },
+            vec![EntityType::Place(if heap_field { payload } else { ty })],
+            origin.clone(),
+        )
+        .unwrap();
+    let EntityId::Place(mut place) = place[0] else {
+        panic!("root place")
+    };
+    if heap_field {
+        let (_, field) = function
+            .append_instruction(
+                entry,
+                Operation::FieldPlace {
+                    base: place,
+                    field: 0,
+                },
+                vec![EntityType::Place(ty)],
+                origin.clone(),
+            )
+            .unwrap();
+        let EntityId::Place(field) = field[0] else {
+            panic!("field place")
+        };
+        place = field;
+    }
+    let (_, loan) = function
+        .append_instruction(
+            entry,
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+            vec![EntityType::Loan {
+                target: ty,
+                kind: LoanKind::Exclusive,
+            }],
+            origin.clone(),
+        )
+        .unwrap();
+    let EntityId::Loan(loan) = loan[0] else {
+        panic!("exclusive loan")
+    };
+    function
+        .append_instruction(
+            entry,
+            if replace_locally {
+                Operation::LoanReplace { loan, value }
+            } else {
+                Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    arguments: vec![EntityId::Loan(loan), EntityId::Value(value)],
+                }
+            },
+            Vec::new(),
+            origin.clone(),
+        )
+        .unwrap();
+    function
+        .append_instruction(
+            entry,
+            Operation::BorrowEnd { loan },
+            Vec::new(),
+            origin.clone(),
+        )
+        .unwrap();
+    let final_value = if writeback {
+        let (_, new) = function
+            .append_instruction(
+                entry,
+                Operation::RootPlaceTake { owner, place },
+                vec![EntityType::Value(ty)],
+                origin.clone(),
+            )
+            .unwrap();
+        let EntityId::Value(new) = new[0] else {
+            panic!("writeback owner")
+        };
+        new
+    } else {
+        owner
+    };
+    function
+        .append_instruction(
+            entry,
+            Operation::Drop { owner: final_value },
+            Vec::new(),
+            origin.clone(),
+        )
+        .unwrap();
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: vec![] }, origin)
+        .unwrap();
+    program
+}
+
+#[test]
+fn move_only_inout_call_requires_the_replacement_place_to_be_taken_back() {
+    assert_eq!(
+        verify_program(&inout_replacement_caller(true, false, false)),
+        Ok(())
+    );
+    let failure = verify_program(&inout_replacement_caller(false, false, false)).unwrap_err();
+    assert!(
+        failure
+            .errors
+            .iter()
+            .any(|error| matches!(error.kind, VerifyErrorKind::ValueUnavailable { .. }))
+    );
+    assert!(contract_error(&inout_replacement_caller(true, true, false)));
+}
+
+#[test]
+fn move_only_inout_heap_field_keeps_the_enclosing_handle_available() {
+    assert_eq!(
+        verify_program(&inout_replacement_caller(false, false, true)),
+        Ok(())
+    );
 }
 
 mod root_exchange_tests {

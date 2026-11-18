@@ -614,18 +614,18 @@ fun entry(): Unit {
         let (name_environment, type_environment) = standard_environments();
         let (names, typed, owned) =
             analyze(&sources, &inputs, &name_environment, &type_environment);
-        let short_expression = consumer
+        let short_expressions = consumer
             .ast()
             .expressions()
             .iter()
-            .find_map(|(expression, node)| match node.payload() {
+            .filter_map(|(expression, node)| match node.payload() {
                 Expression::Binary {
                     operator: BinaryOperator::LogicalOr,
                     ..
                 } => Some(expression),
                 _ => None,
             })
-            .expect("logical-or expression exists");
+            .collect::<Vec<_>>();
 
         let consumer_unit = names
             .names()
@@ -635,13 +635,70 @@ fun entry(): Unit {
             .find(|item| item.name() == "original")
             .unwrap()
             .source_unit();
+        let [original, dynamic] = short_expressions.as_slice() else {
+            panic!("one static and one dynamic logical-or in the fixture");
+        };
+        let original = UnitExpressionId::new(consumer_unit, *original);
+        let dynamic = UnitExpressionId::new(consumer_unit, *dynamic);
+        let expressions = consumer.ast().expressions();
+        let rhs = |control: UnitExpressionId| {
+            let Expression::Binary { right, .. } =
+                expressions.get(control.expression()).unwrap().payload()
+            else {
+                panic!("expected short-circuit expression");
+            };
+            UnitExpressionId::new(consumer_unit, *right)
+        };
+        assert!(typed.types().ordinary_rhs_bypassed(original));
         assert!(
-            owned.ownership().drops().iter().any(|fact| matches!(
-                fact.point(), UnitDropPoint::BranchExit { control, branch: 1 }
-                if control == UnitExpressionId::new(consumer_unit, short_expression)
-            )),
-            "the original skip edge must carry a frontend owner cleanup fact"
+            !owned
+                .ownership()
+                .value_deliveries()
+                .iter()
+                .any(|fact| fact.call() == rhs(original))
         );
+        let dynamic_and = expressions
+            .iter()
+            .find_map(|(id, node)| {
+                (sources.slice(node.span()) == Ok("flag && p.consume(owner)"))
+                    .then_some(UnitExpressionId::new(consumer_unit, id))
+            })
+            .expect("dynamic and expression");
+        for control in [dynamic, dynamic_and] {
+            assert!(!typed.types().ordinary_rhs_bypassed(control));
+            let call = rhs(control);
+            let loaned = owned
+                .ownership()
+                .value_deliveries()
+                .iter()
+                .find(|delivery| delivery.call() == call)
+                .expect("RHS transfers its owner");
+            let argument = expressions.get(loaned.argument().expression()).unwrap();
+            let root = names
+                .names()
+                .references()
+                .iter()
+                .find_map(|reference| {
+                    if reference.source_unit() != consumer_unit
+                        || reference.span() != argument.span()
+                    {
+                        return None;
+                    }
+                    match reference.target() {
+                        lang_frontend::name_resolution::UnitReferenceTarget::Symbol(symbol) => {
+                            Some(*symbol)
+                        }
+                        _ => None,
+                    }
+                })
+                .expect("the RHS argument names its owner");
+            assert_eq!(owned.ownership().drops().iter().filter(|fact| {
+                matches!(fact.point(), UnitDropPoint::BranchExit { control: at, .. } if at == control)
+                    && fact.target() == lang_frontend::ownership_checking::UnitDropTarget::Named(root)
+            }).map(|fact| fact.point()).collect::<Vec<_>>(), [
+                UnitDropPoint::BranchExit { control, branch: 1 },
+            ]);
+        }
         let (program, entry) = lower_scalar_unit_with_entry(
             &sources,
             &inputs,

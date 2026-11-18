@@ -231,6 +231,19 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                         .build_store(self.place(*place)?, self.value(*value)?)?;
                 }
             }
+            Operation::LoanReplace { loan, value } => {
+                let ty = value_type(self.function, *value)?;
+                let pointer = self.access(PlaceAccess::Loan(*loan))?;
+                let old = self.builder.build_load(
+                    self.dependencies.type_map.basic_type(ty)?,
+                    pointer,
+                    &format!("replace.i{}.old", instruction.id.index()),
+                )?;
+                self.dependencies
+                    .runtime
+                    .emit_drop(&self.builder, ty, old)?;
+                self.builder.build_store(pointer, self.value(*value)?)?;
+            }
             Operation::LoanMutate { loan, value } => {
                 if !self.zero_sized_loans.contains_key(loan) {
                     self.builder

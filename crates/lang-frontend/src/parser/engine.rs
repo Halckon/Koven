@@ -17,11 +17,13 @@ mod separator_tests;
 #[cfg(test)]
 mod tests;
 mod type_ref;
+mod when_boundary;
 
 use block::unsupported_block_element_kind;
 use boundary::*;
 use recovery::LexicalRecoveryIndex;
 pub(super) use recovery::{TerminalOwnerEvent, TerminalOwnerKind};
+use when_boundary::WhenEntryBody;
 
 use crate::{
     ast::{ExpressionId, ItemId, StatementId, TypeRefId},

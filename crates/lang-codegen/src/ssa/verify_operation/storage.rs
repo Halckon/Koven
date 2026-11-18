@@ -1,8 +1,7 @@
 //! Typed storage construction, exchange, extraction, and projection contracts.
 
 use super::{
-    entity_type, is_first_class, nullable, place_type, shared_owner_type, single_value_result,
-    value_type,
+    entity_type, is_boolean, is_first_class, nullable, place_type, single_value_result, value_type,
 };
 use crate::ssa::model::{
     self, EntityId, EntityType, Function, LoanKind, Module, Operation, Ownership, SsaTypeId,
@@ -78,6 +77,35 @@ pub(super) fn aggregate_construct_contract(
             .iter()
             .zip(expected_fields)
             .all(|(field, expected)| value_type(function, *field) == Some(*expected))
+}
+
+pub(super) fn nullable_loan_presence_contract(
+    module: &Module,
+    function: &Function,
+    source: model::LoanId,
+    results: &[EntityType],
+) -> bool {
+    let nullable = match function.entity(EntityId::Loan(source)).map(|e| e.ty) {
+        Some(EntityType::Loan {
+            kind: LoanKind::Shared,
+            target,
+        }) => {
+            matches!(
+                module.type_kind(target),
+                Some(SsaTypeKind::NullableHandle { .. } | SsaTypeKind::InlineNullable { .. })
+            ) || module.map_result_value(target).is_some()
+        }
+        Some(EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            target,
+        }) => {
+            matches!(module.type_kind(target), Some(SsaTypeKind::NullableHandle { inner })
+                if matches!(module.type_kind(*inner), Some(SsaTypeKind::SharedOwner { .. })))
+                || module.nullable_string_payload(target).is_some()
+        }
+        _ => false,
+    };
+    nullable && single_value_result(results).is_some_and(|ty| is_boolean(module, ty))
 }
 
 pub(super) fn nullable_take_contract(
@@ -272,7 +300,10 @@ pub(super) fn shared_payload_place_contract(
     owner: EntityId,
     results: &[EntityType],
 ) -> bool {
-    shared_owner_type(function, owner)
+    let EntityId::Value(owner) = owner else {
+        return false;
+    };
+    value_type(function, owner)
         .and_then(|owner| module.shared_payload(owner))
         .is_some_and(|payload| results == [EntityType::Place(payload)])
 }

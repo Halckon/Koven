@@ -352,6 +352,26 @@ pub(crate) mod abort_output_tests {
     }
 
     #[test]
+    fn immediate_lambda_native_abort_does_not_unwind_the_capture() {
+        assert_abort(
+            "immediate-lambda-abort",
+            r#"
+class Marker(val label: String) {
+    deinit() { println(label) }
+}
+fun entry(): Unit {
+    val owner = Marker("immediate stop".clone())
+    (move { -> println("inside"); error(owner.label) })()
+    println("unexpected continuation")
+}
+"#,
+            "inside\n",
+            "immediate stop",
+            "error(",
+        );
+    }
+
+    #[test]
     fn named_nothing_call_enters_the_callee_and_aborts_during_an_argument_prefix() {
         let check = || {
             assert_abort(
@@ -586,4 +606,43 @@ fun entry(): Unit {{ work(false); println("done") }}
             "ages.get(3)!!",
         );
     }
+}
+
+#[test]
+fn immediate_lambda_native_plain_and_grouped() {
+    let source = r#"fun plain(): Unit = { -> println("plain") }()
+fun entry(): Unit {
+    plain()
+    (({ -> println("grouped") }))()
+    val text = "shared String".clone()
+    ({ -> println(text) })()
+}
+"#;
+    assert_success(
+        &emit_link_and_run("immediate-lambda.ko", source, "entry"),
+        b"plain\ngrouped\nshared String\n",
+    );
+}
+
+#[test]
+fn immediate_lambda_native_captures_retire_at_call_return() {
+    let source = r#"class Marker(val label: String) {
+    deinit() { println(label) }
+}
+fun shared(): Unit {
+    val owner = Marker("shared drop".clone())
+    ({ -> println(owner.label); println("shared body") })()
+    println("shared returned")
+}
+fun moved(): Unit {
+    val owner = Marker("moved drop".clone())
+    (move { -> println(owner.label); println("moved body") })()
+    println("moved returned")
+}
+fun entry(): Unit { shared(); moved() }
+"#;
+    assert_success(
+        &emit_link_and_run("immediate-lambda-captures.ko", source, "entry"),
+        b"shared drop\nshared body\nshared returned\nshared drop\nmoved drop\nmoved body\nmoved drop\nmoved returned\n",
+    );
 }

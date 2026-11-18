@@ -105,17 +105,17 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 
 ## 7. 当前阶段结果与未覆盖
 
-本轮主线基线为 [#432](https://github.com/Halckon/Koven/pull/432) 合并提交
-`50f12468`。具体输入身份以各节为准。阶段退出条件仍以 §3 为准。
+本轮合批基线为 [#442](https://github.com/Halckon/Koven/pull/442) 合并提交
+`cc2d15d6`。此前各节证据保留各自输入身份。阶段退出条件仍以 §3 为准。
 
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
 | R0 | 已定位公共流水线和准入。§151、§224–225 清点生产依赖及保留对照，§236、§238–241 迁移跳转、名义类型、nullable when 和常量测试 | 旧入口仍有真实消费者，尚需逐个核对保留或迁移理由。仓外 API 与间接调用另记边界 |
-| R1 | UTF-8、模式栈、Pratt、strict trial、lambda DFA 有独立抽查。§208、§242–244 补齐已复现的调用、下标及 else 恢复，覆盖红绿、扫描计数及公开入口 | 缺少明确分隔证据的错误恢复仍需继续复审，见 §255 |
+| R1 | UTF-8、模式栈、Pratt、strict trial、lambda DFA 有独立抽查。§208、§242–244 补齐已复现的调用、下标及 else 恢复，覆盖红绿、扫描计数及公开入口 | §316 修复 §255 已复现的复合条件，其他缺少分隔证据输入继续按恢复矩阵复审 |
 | R2 | F1/F2/F8–F11 的已列复现有修复与验证。§214–223、§227 核对条件写回、循环退出及后继读取 | 剩余流事实组合与 Unit/Single 差异仍需验收，旧测试消费者处置与 R0 同步 |
 | R3 | basic/const、临时父 owner、两阶段借用已独审。§209、§213 核对部分构造退出，§245 复跑交接身份及失败原子性 | 继续分流旧事件见证，核对剩余循环与退出组合。本机和 CI 的资源矩阵分别按各自输入记账 |
-| R4 | #429 的写回、SSA 负例、双宿主 conformance 与 Linux 资源证据见 §228–235、§245。§246 补验 refine 与 Compatibility 共存 | 生产 Unit 仍有兼容路由，须对齐各家族迁移及接线。第一轮冻结 SHA 纵向复审尚未完成。目标机仍为 `OptimizationLevel::None` |
-| R5 | §240、§245 已核验合并树及同 SHA 双宿主 conformance，137/154 探针通过，综合程序 0/6 | 第一轮等待阶段出口及冻结候选的全链路证据。v1 尚未冻结，第二轮发布验收待启动 |
+| R4 | #429 的写回、SSA 负例、双宿主 conformance 与 Linux 资源证据见 §228–235、§245。§246 补验 refine 与 Compatibility 共存。§305–319 验证可空 String 读取、while 独立借用、Map 移出 ABI、分支借用、返回借用来源及自有载荷交付 | 生产 Unit 仍有兼容路由，须对齐各家族迁移及接线。第一轮冻结 SHA 纵向复审尚未完成。目标机仍为 `OptimizationLevel::None` |
+| R5 | §240、§245 已核验合并树及同 SHA 双宿主 conformance。§311–312、§314、§318 在源码候选复验 137/154 探针、综合程序 0/6 | 第一轮等待阶段出口及冻结候选的全链路证据。v1 尚未冻结，第二轮发布验收待启动 |
 
 ## 8. 验收账本
 
@@ -6224,3 +6224,2125 @@ macOS arm64 与本机 CI 工具链容器内 Linux x86_64 在同一代码
 20 个公开入口产物退出 0，stderr 为空，10 对 stdout 逐字节
 一致。四个对照均在前端拒绝借用期间的 owner 消费，给出 L0135。
 两个持久原生回归另覆盖实际指针分配与释放计数。
+
+## 259. R4 Copyable nullable 主体的 null 和 else
+
+基线 `cc2d15d6` 的 `Int?` 主体可通过前端，单文件和项目构建
+均报 `UnsupportedNode`。持久回归先在同一基线上复现。
+本批消费同源类型描述与所有权计划，按原绑定类别核对根，主体只
+求值一次。非空边复制整数或 Boolean payload，原 nullable 包装
+仍可用。Map 查询的 present 边沿用该表示的 unwrap；写回清除
+分支的窄化，旧 MoveOnly 路径沿用原有所有权校验。
+
+独立复审复现将窄化名作为普通 `own` 或 `Borrow` 实参时被
+MoveOnly 门禁截获。Copyable 交由普通实参路径准备，已验证的
+分支 payload 可供 Borrow 使用，避免从原 nullable 参数 loan
+直接借用不同 ABI 的 inner。回归覆盖分组 Borrow、临时主体、
+提前返回后的后继、inout 写回、Map 的 present/missing 和外层
+MoveOnly view 在不同分支中的恢复。
+
+最终候选的 macOS arm64 与 Linux x86_64 CI 工具链容器各运行
+两组源码的单文件和项目入口。8 个产物均退出 0 且 stderr 为空，
+4 对跨宿主 stdout 逐字节一致。macOS 的 nullable when 和
+Refine 路由套件分别通过 41、54 项，Linux 的默认配置 nullable
+when 套件通过 41 项。严格 Clippy、格式、尺寸及文档结构检查通过。
+
+另用最终 macOS 二进制在两种入口复现 `Boolean?` 的 `null`、
+`true`、`false` 三 selector 分支构建报 `UnsupportedNode`，
+前端检查均通过。前端现有 nullable when 描述只发布两臂形状，
+普通标量 when 的准入也没有覆盖该 nullable 类型。该用例继续留在 R4。
+
+## 260. R4 Boolean nullable 穷举和混合 selector
+
+§259 留下的三臂例在已有两臂修复上仍可通过前端但无法构建，
+新增原生回归首先复现 `UnsupportedNode`。本批沿用前端记录的
+穷举范围及分组 selector 边界，读取已检查字面量并复用原 when
+CFG、nullable presence 检查及 Map result 表示。主体始终只求值
+一次。非空边可读取原主体的已复制 payload，混合 null/non-null
+入边在合流时失去窄化。普通 Borrow 实参按已发布的非空使用事实，
+从当前边的 payload 建立同步借用。
+
+独立复审以两轮循环复现初版错编。循环前判定非空，第一轮在
+`when` 后写空，第二轮曾错误输出 `present`。修补后仅同一个
+`when` 的 null 未匹配边保存该次主体的 payload，循环回边和
+不同分支上的旧符号窄化无法替代实际检查。回归断言按顺序输出
+`present`、`null`。另一个回归覆盖首实参借用窄化值、次实参
+提前返回及正常后继，观察四次调用各析构一次。独立复核未发现
+新的阻断项。
+
+macOS arm64 和 Linux x86_64 CI 工具链容器各实跑五组的
+单文件与项目入口。20 个产物均退出 0，stderr 为空，10 对
+跨宿主 stdout 逐字节一致。两端各通过 44 项 nullable when
+回归，macOS 另通过 54 项 Refine 路由回归与严格 Clippy。
+格式、尺寸和文档结构检查通过。
+
+用最终 macOS CLI 再核对两个待处理的 MoveOnly inout 用例。
+`String` 整值替换和带 deinit 的类整值替换，单文件及项目
+入口前端均通过，构建均报 `UnsupportedNode`。下一项需验证
+RHS 完成后旧值析构、新值写入以及返回调用方后的使用与析构。
+
+## 261. R4 MoveOnly inout 整值替换
+
+基线的 `String` 与带 `deinit` 的类整值替换均通过前端检查，
+构建报 `UnsupportedNode`。回归先复现失败，再覆盖 RHS 读取
+旧字段、提前 return 保留调用方原值、经转发正常替换和析构顺序。
+
+所有权阶段在 RHS 正常完成后按同次赋值与参数身份发布
+`ReplacedInout`。细化层消费该事实，通过 `LoanReplace` 在
+独占参数存储中析构原值并写入新值。Copyable 保留原操作。
+复审发现原 verifier 可继续使用被替换的旧 SSA 值。修补要求
+callee 的替换基于正式 Inout 参数的 loan，调用方从原 place
+取回替换后的值再继续。持久负例覆盖旧值消费、非参数 loan
+替换、共享 loan 与不匹配的类型。
+
+具名 MoveOnly 参数的独占访问由前端检查，SSA 在实参求值完毕
+后的调用块中才物化根存储。后续实参提前退出时，从正常清理路径
+析构原 owner。堆后备字段在原地址更新，调用结束后外层 handle
+仍可用。复审覆盖分块实参、转发、重叠借用和堆字段兼容路径。
+
+macOS arm64 与 Linux x86_64 CI 工具链容器各实跑六组，均覆盖
+单文件和项目入口。24 个产物均退出 0，stderr 为空，12 对跨
+宿主 stdout 逐字节一致。RHS 标记位于旧值析构之前，调用方读取
+新值后再析构新值。后续实参提前退出只析构当时的原 owner。
+另用重叠实参确认前端给出 L0135。两端分别通过 46 项 Inout
+回归和 18 项 SSA 替换校验，macOS 另通过 44 项 nullable when
+及 54 项细化路由回归。前端的多文件所有权与构造测试分别通过
+164、8 项，覆盖正常 MoveOnly 替换发布唯一旧值事实、Copyable
+与 RHS 无正常出口时的事实边界。前后端严格 Clippy、格式、
+尺寸和文档结构门禁通过。
+
+本候选的 macOS CLI 在两种入口复验借入 temporary 后的后参
+return、普通借用 String 返回，两者输出符合预期。借入 String?
+后判空读取在两种入口仍报 `MissingFact`，借入 Rc 参数读取
+payload 在两种入口仍报 `UnsupportedNode`。这两组已通过前端
+检查，继续列入 R4。
+
+## 262. R4 借入 String? 判空后的只读 payload
+
+§261 的候选在判空成功后缺少 payload 视图，新增原生成对回归首先
+在 `println(value)` 上报 `MissingFact`。本批按已接受的
+[ADR-0041](../../adr/accepted/0041-borrowed-nullable-string-payload.md)
+接入 `NullableStringLoanBranch`。非空边产生依赖原 shared loan 的
+`String` 子借用。LLVM 的判别和后续读取继续使用原地址。
+
+SSA 校验要求共享的 niche `String?`、唯一的非空前驱和可用的父
+借用。借用来源随 CFG 参数保留。负例覆盖 exclusive 来源、先结束
+父借用、以及跨基本块使用已结束父借用建立新视图。
+
+复审发现纯判空路径也生成了非空借用，影响 Map 返回值的封装表示。
+现在仅在存在同一符号的窄化使用、实际存储为 String niche 时生成
+子借用。Map presence 的原有两条回归继续通过。另补齐祖先来源
+经 CFG 重绑的追踪，并对 `BorrowCall`、`MapRequireValue` 验证
+父借用活跃性。每个来源回归先验证合法图，再在前一块结束父借用，
+精确核对派生指令的拒绝。独立复核通过这些修补。
+
+macOS 与 Linux 的 CLI 另复验了前缀 `!` 和 `||` 假边窄化的合法用例，
+两种入口当前仍报 `MissingFact`。同一 macOS CLI 补查
+`!(value != null)` 的 else 读取，以及
+`value == null || read(value)` 的右操作数和 else 读取。四个入口
+检查均通过，构建均报 `MissingFact`，未产出可执行文件。
+组合条件需分别核对短路操作数入口与最终分支入口的借用。
+借入 Rc 参数读取 payload 也已在 macOS 复现 `UnsupportedNode`。
+扩展的 macOS Map provider 套件途中结束，专项中保留真实的
+Map presence 兼容路径回归。
+
+同一生产代码在 macOS arm64 和 Linux x86_64 CI 工具链容器各运行
+11 组单文件与项目入口。44 个原生产物均退出 0，stderr 为空，
+22 对跨宿主 stdout 逐字节一致。String 组区分 null 与空字符串，
+核对反向判空、分组条件、短路 RHS 实际读取、分支内重复读取和具名
+源跨调用重用。两端分别通过 11 项 nullable String、21 项所有权
+verifier 和 44 项 nullable when 回归。macOS 另通过 54 项细化
+路由回归，严格 Clippy、格式、尺寸和文档结构检查通过。
+
+## 263. R4 借入 String? 的直接取反判空
+
+新增原生回归首先在 `!((value == null))` 的非空分支报
+`MissingFact`。Refine 准入与构建共享前端所发布的判空事实。
+分组保留极性，取反次数的奇偶决定目标交换。非空边继续使用
+ADR-0041 的子借用，原生测试覆盖 then、else、双重取反、null、
+空字符串及同一具名值的重复读取。
+
+独立静态复审核对了比较极性、非 niche presence 路由、普通分支
+收尾与普通 return 结束子借用。复审发现两种退出组合仍有缺口，
+macOS 和 Linux 的单文件与项目入口均重新复现：
+
+- 空值分支提前 return 后，在唯一正常后继读取 String 的代码通过
+  前端检查，构建报 `MissingFact`。直接判空和取反判空均可复现。
+- 分支内读取后执行 `return source`，函数签名返回
+  `borrow String from source`，构建报 `UnsupportedNode`。
+  直接判空和取反判空均可复现，当前用例尚未验证该专用返回路径的
+  借用收尾。
+
+两组问题和 §262 的 `||` 仍在 R4 范围。
+
+同一候选在 macOS arm64 与 Linux x86_64 CI 工具链容器复验
+15 组单文件和项目入口，含非空分支内普通提前 return，及返回后
+调用方再次借入同一个源。60 个产物退出 0，stderr 为空，30 对
+跨宿主 stdout 逐字节一致。
+
+## 264. R4 借入 String? 的短路右操作数与假分支
+
+原生回归首先在 `value == null || read(value, stop)` 的右操作数
+报 `MissingFact`。修补按短路前驱交接共享 String 子借用。
+对于 OR，左操作数假边进入 RHS，整体假边一定经过 RHS。子借用
+可以在这两处使用，到达同时接收旁路的整体真边前结束。
+AND 保留整体真边的对应行为。分组与取反继续按实际边交换。
+非 String 的原有窄化与类型化的常量 RHS 计划继续沿原门禁。
+
+独立复审指出，嵌套 if 收尾会把外层兄弟分支尚未激活的借用误判为
+本层遗留。单文件与项目均复现 `InvalidModel`。修补按目标块把待
+激活借用保存在所属分支，进入该分支时才激活。收尾继续拒绝本层
+未消费的记录。补丁已复核。
+
+复审另确认两条真前驱共同证实非空时依然缺少合流证明。
+`(gate && value != null) || value != null` 的真边读取在双宿主的
+单文件与项目均通过前端检查，构建报 `MissingFact`。该问题仍在
+R4 范围，与 §263 的返回路径缺口一同跟踪。
+
+最终候选在 macOS arm64 和 Linux x86_64 CI 工具链容器各实跑
+20 组单文件与项目入口。80 个产物退出 0，stderr 为空，40 对
+跨宿主 stdout 逐字节一致。新增用例核对 null 跳过 RHS、空字符串
+与非空字符串、RHS 读取后假分支重复读取、判空位于右侧、两个
+同类型的独立来源，以及兄弟分支内嵌套 if 和 while。双宿主各
+通过 12 项 nullable String，macOS 另通过 54 项细化路由和
+严格 Clippy。缺少真边证明的非法对照在 macOS 两种入口均由
+前端以 `L0084` 拒绝。
+
+## 265. R4 短路合流的共同 String 借用与验证成本
+
+`((gate && value != null) || value != null) && read(value)` 的
+持久原生回归先在 `read` 的实参上报 `MissingFact`。现在对两条
+可达前驱按有资格的 shared String 子借用和同一源符号求交。前驱
+各自结束其余借用，并以同一个合流槽传入各自的借用。单独存活的
+前驱继续使用自己的槽。短路 RHS 与最终分支消费相同的前端判空
+事实，两个同类型参数的身份不互换。
+
+独立复审发现，多组合流串联会保留每个前驱私有的借用名称。
+macOS 初版在 8 组构建耗时约 2.8 秒，12 组和 16 组均超过
+35 秒。验证器现在可以选用尚未被占用的入块参数名称，统一重命名
+已经不可见的来源及其依赖记录，在保留每条路径的关联和活跃状态
+的前提下合并等价状态。持久原生压力用例覆盖 16 组同时存在的证明。
+
+复审另用交换回边指出，SSA 参数的当前绑定不能用于反推借用的
+直属来源。每条引用现在随边保留直属来源，派生引用继续累积祖先。
+结束借用按引用携带的来源失活同源引用和后代。新增单测检查交换
+后的两条独立借用及一条派生引用，静态复核通过。
+
+最终候选在 macOS arm64 和 Linux x86_64 CI 工具链容器各实跑
+26 组单文件与项目入口。104 个产物退出 0，stderr 为空，52 对
+跨宿主 stdout 逐字节一致。新场景覆盖 OR 真边、AND 假边、外层
+短路 RHS、while 入口，以及两种同类型来源只有一个参与合流。
+macOS 的同一个 16 组输入最终三次构建为 1.35–1.64 秒，每次实跑
+输出 32 行。双宿主均通过 15 项 nullable String 和 22 项所有权
+测试，macOS 另通过 54 项细化路由、两组各 4 项的 provider 测试
+和严格 Clippy。
+
+另用普通直接判空函数核对非空字符串字面量的实参适配。
+`inspect("payload")` 传给 `inspect(value: String?)` 在 macOS 的
+单文件与项目均通过前端，构建报 `MissingFact`。该实参路径和
+§263 的返回路径仍在 R4 范围。
+
+## 266. R4 空值提前退出后的 String 借用
+
+新增原生回归首先在 `if (value == null) { return }` 后的读取位置
+报 `MissingFact`。Refine 保留有同源、控制后非空使用事实的
+shared String 子借用。正常前驱需各自能提供证明，普通显式返回按
+原清理路径结束借用，隐式返回在结束捕获来源前先结束活跃视图。
+
+独立复审给出双前驱反例。两个外层 if 分支各经一次空值提前返回，
+后继使用报 `MissingFact`。修补让 if 与短路共用同源借用合流。
+不同前驱各自传入借用，同源且已被所有前驱持有的外层槽直接保留。
+第二次复审复现了在循环内以新证明替换外层槽导致的
+`InvalidModel`。优先保留共同现有槽后，内层新增证明只在所属
+路径结束。补丁已复核并增加零次迭代、回边和循环后读取回归。
+
+无 subject 的 `when` 在唯一继续的分支内经过空值提前返回，
+随后在外层读取时，macOS 的单文件与项目仍报 `MissingFact`。
+专用 `borrow String from source` 返回组合仍报 `UnsupportedNode`。
+两项作为独立路径保留在 R4 范围。
+
+最终候选在 macOS arm64 和 Linux x86_64 CI 工具链容器各实跑
+33 组单文件与项目入口。132 个产物退出 0，stderr 为空，66 对
+跨宿主 stdout 逐字节一致。新增组覆盖直接与取反判空、两种
+前驱方向、双前驱、循环内 continue、零次迭代与循环后读取。
+双宿主各通过 18 项 nullable String 和 22 项所有权测试。macOS
+另通过 54 项细化路由和严格 Clippy，格式、尺寸和文档门禁通过。
+
+## 267. R4 无主体 when 的正常后继与选择条件
+
+原生回归先复现无主体 `when` 分支内通过空值 guard 后，在外层
+读取报 `MissingFact`。单一正常前驱直接交接证明，多个正常前驱
+通过已有的同源 String 子借用槽合流。仍可能未匹配的语句
+`when` 将该路径一同交给合流，准入按对应分支状态求交。
+
+独立复审发现，选择条件本身若执行空值 guard，内层 if 已建立
+证明，外层 when 却把匹配和未匹配路径都恢复为选择前的状态。
+旧候选的单文件和项目通过前端检查，构建报 `MissingFact`。
+修补后，每个匹配条件记录自己的前驱及借用，后续条件只继承
+实际未匹配路径。选择条件提前返回时，前面的匹配前驱保留。
+末尾未匹配边也在 BranchExit 清理前结束无后续用途的新借用。
+借用是否来自外层按槽身份判断，避免中途结束一个借用后把后续
+槽位误当作外层借用。修补已独立静态复核。
+
+直接用 `value != null` 作无主体 when 的选择条件在当前前端
+不提供对 arm 的直接 String 窄化。修补沿用此前端行为。
+
+最终候选在 macOS arm64 和 Linux x86_64 CI 工具链容器各实跑
+40 组单文件与项目入口。160 个产物退出 0，stderr 为空，80 对
+跨宿主 stdout 逐字节一致。新增场景包含唯一正常臂、各臂独立
+判空、多 selector 匹配、后续 selector 提前退出、无 else 的
+未匹配边及继承的外层借用。macOS 前端在两种入口均以
+`L0084` 拒绝缺少共同证明的两组对照。
+双宿主各通过 21 项 String、22 项所有权和 44 项 nullable when
+测试，macOS 另通过 54 项细化路由与严格 Clippy。格式、尺寸和
+文档门禁通过。
+
+## 268. R4 借入 String? 实参的临时包装与退出清理
+
+独立调用者仅执行 `inspect("payload")` 时，两种入口通过前端
+检查，构建报 `MissingFact`。混合测试中已有 nullable 值会提前
+选择细化路径，使该缺口难以观察。Refine 准入现在将借入
+`String?` 时实际发生的 `String` 临时值包装计入调用方。
+生成继续使用既有适配和临时槽更新，调用先结束借用，再消费前端
+的 CallReturn drop。
+
+独立复审确认，后续实参提前退出时，原有 pending owner 门禁也会
+拒绝包装临时值。修补只接收同源 Temporary loan、同一调用及实参
+的同步 SharedLoan 合同和已确认的 String 包装。普通返回和循环
+跳转沿既有路径在 ControlTransfer drop 前结束 loan。最终复核确认
+没有把这一准入扩至使用专用终止指令的 BorrowReturn 或
+RangeReturn。借用返回源的对照用例有无该包装均报
+`UnsupportedNode`，留由专用返回合同继续审查。
+
+字面量使用静态存储，分配身份回归使用产生动态存储的
+`.clone()` 临时值。逆序具名调用分别验证形参映射和两个堆分配
+各释放一次，顺序为 `[1, 0]`。后续实参提前 return 的用例核对
+两个调用中只有一次到达 callee，两个临时值按 `[0, 1]` 释放。
+
+最终候选在 macOS arm64 与 Linux x86_64 CI 工具链容器各实跑
+49 组单文件与项目入口。196 个产物退出 0，stderr 为空，98 对
+跨宿主 stdout 逐字节一致。新增用例含字面量、具名及分组、函数
+产生的临时值、最后一个实参阻止派发，以及提前 return、break
+和 continue。双宿主各通过 24 项 nullable String 与 22 项所有权
+测试。Linux 另通过 44 项 nullable when 回归，macOS 另通过
+54 项细化路由和严格 Clippy。格式、尺寸和文档门禁通过。
+
+另用可继续读取的具名 `String` 调用同一个借入 `String?` 参数。
+macOS 的单文件与项目均通过前端检查，原生构建报
+`UnsupportedNode`。此例需要保持具名源的所有权，留在 R4。
+
+## 269. R4 具名 String 借给 String? 参数
+
+独立原生计数回归先确认具名 `String` 调用借入 `String?` 参数
+无法生成。准入现在核对已选调用的参数类型、实参身份及同源 shared
+loan。对于 `borrow val`，前端绑定事实所记录的原来源必须与调用
+loan 相符，生成器使用该绑定对应的实际 SSA loan。
+
+这一适配使用同一存储地址。SSA 的 SharedReborrow 允许从
+StringOwner 到以同一 StringOwner 为 inner 的 niche
+InlineNullable shared loan，保留原来源和结束义务。
+同类型原路由仍适用，反向窄化继续依赖 ADR-0041 的非空边。
+验证器回归覆盖跨块转交、拒绝反向转换及父 loan 先结束。
+原生计数用例验证只有显式 clone 产生一个堆分配，调用完成后
+同一 owner 仍可移动并释放。
+
+借用别名的准入差异由独立复审指出。修补前，macOS 单文件和项目
+通过前端检查，构建报 `UnsupportedNode`。另用同一来源同时作为
+shared 与 inout 实参，macOS 两种入口均由前端报 `L0135`。
+
+最终候选在 macOS arm64 与 Linux x86_64 CI 工具链容器各实跑
+55 组单文件与项目入口。220 个产物均退出 0，stderr 为空，110 对
+跨宿主 stdout 逐字节一致。新增用例覆盖调用方继续读取或移动、
+借用形参转发、借用别名、具名空字符串、Inout 写回和后续实参
+提前返回。直接嵌套 `inspect(view(value))` 在 macOS 两种入口由
+前端报 `L0164`，本轮的原生别名路径先建立了 `borrow val`。
+
+双宿主各通过 26 项 nullable String 和 23 项所有权测试。Linux
+另通过 44 项 nullable when。Linux 首次并行测试在子进程退出后
+停在等待状态，保留该次日志。随后在相同容器对同一测试二进制
+以单线程实跑上述三组，均通过，之后终止挂起进程。macOS 另
+通过 54 项细化路由和严格 Clippy。格式、尺寸和文档门禁通过。
+
+## 270. R4 判空借用与直接借用返回的退出清理
+
+在前一批候选中，`String?` 参数判空后读取 payload，再按
+`borrow String from source` 返回另一参数，前端通过而 Unit
+预检报 `UnsupportedNode`。持久原生回归修复前在借用返回标记处
+失败。预检确认每个返回事实的源单元、函数体范围、声明指定的
+`String` 参数根及名称引用，Refine 继续验证实际函数体。
+
+独立复审发现使用词法子借用时会先结束父视图。在进入 Refine
+的前提下，直接别名和调用结果两种写法均复现 `InvalidModel`。
+返回入口 loan 的路径依次结束待调用借用、词法绑定和非空视图，
+再处理 owner 析构；返回的入口 loan 交还给调用方。复审复核了
+修正后的顺序及准入范围。持久回归同时检查空和非空分支、
+词法子借用、调用方读取结果并消费来源，以及两次动态分配的
+释放次序。
+
+不含 ownership primitive 的窄化词法绑定仍报 `UnsupportedNode`，
+由既有绑定预检拦截。同一候选另确认在借入 String 临时值后，
+下一实参的求值若直接返回入口 loan，单文件与项目构建仍报
+`UnsupportedNode`。这两个用例保留为 R4 后续。
+
+macOS arm64 与离线 CI 工具链镜像内 Linux x86_64 各实跑四组
+单文件与项目入口。两种判空形式及两种词法子借用形式共生成
+16 个产物，均退出 0 且 stderr 为空，8 对跨宿主 stdout 逐字节
+一致。原生计数按 Guide 10 的最后使用规则断言：nullable 实参
+最后一次调用结束后先释放，返回借用的来源由调用方移交给
+`take` 后释放。
+旧 nullable when 负例中的直接借用返回签名现在通过预检，组合
+函数体继续报 `UnsupportedNode`。测试核对错误所在的函数声明范围。
+
+macOS 定向套件分别通过 nullable String 27 项、borrow result
+108 项、Refine 54 项、nullable when 44 项。Linux 容器通过
+nullable String 27 项、所有权 verifier 23 项、nullable when
+44 项。上述套件均零失败、零忽略。
+
+## 271. R4 窄化词法绑定和调用实参中的借用返回
+
+复现 270 节的两个待修例。直接绑定 `borrow val item = value`
+和调用绑定 `borrow val item = view(value)` 均在前端通过，
+默认入口构建报 `UnsupportedNode`。局部放开预检后，调用绑定
+还会被生成端的旧门禁拦截，普通提前返回则复现
+`InvalidModel`。
+
+预检与生成端共用 `NarrowedString` 判定。它消费同一源单元内
+的绑定根、非空类型证明、绑定类型和调用的借用来源实参映射。
+Refine 仍需用活动 payload view 建立子借用。普通返回与直接
+返回入口借用共用清理顺序，先结束待调用借用和词法子借用，
+再结束父视图并消费前端析构事实。
+
+借入字符串临时值后，后一实参求值中直接返回 `from` 指定的
+入口借用时，准入允许该临时值走同一退出清理。原生计数用例
+同时检查跳过调用的退出路径、调用真正执行的路径，以及调用方
+读取结果后仍可消费入口来源。三个堆分配各释放一次，顺序为
+提前退出的实参、正常调用的实参、入口来源。
+
+独立复审核对了精确绑定来源、子借用先结束及返回借用的保留。
+复审提出的转发用例在前端通过后仍报 `UnsupportedNode`，
+由直接返回入口借用的声明准入边界拦截。带判空视图的
+`return view(source)` 作为 R4 后续用例。
+
+macOS arm64 和离线 CI 工具链容器内 Linux x86_64 各实跑八组的
+单文件及项目入口。32 个产物均退出 0、stderr 为空，16 对
+跨宿主 stdout 一致。macOS 上直接绑定与调用绑定两种写法
+各用单文件和项目检查了活跃子借用期间写回来源，四次均在
+前端报 `L0135`。后续转发例的活跃视图和已结束视图两种形态
+也在 macOS 两个入口复现了构建拒绝。
+
+双宿主均通过 29 项 nullable String、23 项所有权 verifier、
+44 项 nullable when，均零失败、零忽略。macOS 另通过 54 项
+Refine、严格 Clippy、格式、尺寸和文档检查。
+
+## 272. R4 判空视图与入口借用转发
+
+复现 271 节的转发用例。视图活跃、视图结束、两条返回边都转发，
+以及后续实参求值中提前转发四种形态均通过两个入口的前端检查，
+构建时在声明准入报 `UnsupportedNode`。持久原生回归在同一
+位置实际失败。
+
+声明预检、退出临时值准入和生成端共用来源核对。它匹配已验证的
+来源 loan、调用的共享来源形参和精确实参、转发结果类型，以及
+源码中对声明入口参数的名称引用。生成端在能证明是该入口的
+情况下使用现有退出顺序，结束待调用 loan 和词法子借用，再结束
+判空视图并按前端事实析构。返回的 loan 仍由 SSA verifier 核对
+是否唯一来自声明入口。
+
+独立复审核对入口来源、同一入口作为辅助实参时的依赖、以及待
+求值调用同时借用子视图和临时字符串时的退出路径。macOS arm64
+与离线工具链容器内 Linux x86_64 各实跑四组单文件和项目构建，
+其中一组项目将 provider 放到另一个源文件。16 个产物退出 0，
+stderr 为空，8 对 stdout 逐字节一致。源码将转发来源换成另一个
+参数时，两宿主两个入口均报 `L0162`。原生回归确认 nullable
+payload、提前退出的实参和返回来源的释放次数和顺序。
+
+另在 macOS 两入口复现返回调用自身的辅助实参含 `if`（两臂
+普通值或一臂提前返回）时构建报 `UnsupportedNode`。将同一
+控制流移到调用外，两入口通过。现有调用实参直线路径检查
+拦截这两种用例。复审还确认非窄化词法结果跨布尔分支受旧绑定
+预检限制。两个控制流边界留在 R4。
+
+双宿主均通过 nullable String 30 项和 nullable when 44 项。macOS
+另通过 Refine 54 项、borrow result 111 项，Linux 另通过所有权
+verifier 23 项，全部零失败、零忽略。严格 Clippy、Rust 尺寸和
+格式、文档结构及 diff 检查通过。
+
+## 273. R4 转发调用实参的分支与退出
+
+复现 272 节记录的实参分支问题。两臂正常合流和一臂提前返回
+在单文件和项目均通过前端，生成端对调用的直线路径检查报
+`UnsupportedNode`。当转发的来源经同一入口事实确认时，生成端
+核对继续边的调用来源 slot 就是入口 loan，并核对没有需要交付
+的额外来源 loan。其余转发仍走原门禁。旧直线路径测试的活动
+loan 集合不能检查 CFG 的块参数，相关测试改由 SSA verifier
+核对，并单独断言转发调用使用的参数和交付的结果 loan。
+
+早先求值的辅助临时值在后续实参提前返回时由前端事实清理。
+生成端先结束已开始的临时 Borrow，再析构 owner。独立复审
+发现将辅助形参声明为 `String?` 时，原路径会传入
+`Loan<String>`，导致 verifier 拒绝。调用路径复用既有的具名
+重借用和临时包装，仍用同一声明入口交付结果。
+原生测试覆盖正常合流、单臂提前返回、普通 Borrow 和 own 临时值，
+以及 nullable Borrow 的具名重借用和临时包装。计数断言提前
+退出与正常调用的辅助分配均各释放一次，返回来源最后释放。
+
+另以完全不会派发且没有其他入边的 provider 复现两个实参分支
+均提前返回的情形，两种入口前端检查通过，构建仍报
+`UnsupportedNode`。该用例另带最先执行的 `tick()`，作为后续
+核验参数前缀是否执行、callee 是否保持不可达的回归输入。
+
+复审复核了继续分支与提前返回边上的借用顺序、源码实参映射、
+wrapper 的临时 owner 以及旧 CFG 检查。macOS arm64 和离线
+工具链容器内 Linux x86_64 分别实跑七组的单文件与项目入口。
+28 个产物均退出 0 且 stderr 为空，14 对 stdout 逐字节一致。
+
+双宿主各通过 nullable String 32 项、所有权 verifier 23 项及
+nullable when 44 项。macOS 另通过 Refine 54 项、borrow result
+113 项及两项旧边界回归。严格 Clippy、格式、尺寸、文档及 diff
+检查通过。
+
+## 274. R4 所有实参分支提前返回时的调用前缀
+
+复现 273 节的完全不派发样例。两个公开入口均通过前端，构建报
+`UnsupportedNode`。外层 provider 没有其他入边，与返回分支中
+实际调用的 provider 使用不同的声明。
+
+Refine 的准入与生成共用判定，核对同源的类型落下事实、所有权
+派发事实和 source plan 的无 dispatch key。命中时复用已有的
+按实参源码顺序求值路径。发散之前的前缀仍执行，后继实参和
+callee 保持不可达。内层直接返回或转发仍按入口来源验证，先
+结束待调用 loan，再消费前端析构事实。对 nullable `when`
+收窄实参，独立复审发现准入与生成的结果类型边界不一致。
+观察与消费均实跑复现。生成端复用同一无派发判定，并将
+nullable when 的外层函数准入放宽至同类型 Borrow String 入口
+返回。source plan、视图和所有权事实逐项校验继续生效。旧的
+nullable when 借用返回负例改为原生验收，核对独立 owner 析构和
+返回借用持续有效。
+
+回归使用两个逆声明顺序的具名前缀检查执行顺序，核对后继
+实参和不可达 provider 未生成，并检查 Borrow、own、
+nullable Borrow 的临时资源释放次数。nullable `when` 用例
+分别核对观察和消费，资源析构先于调用方打印返回借用。
+macOS 两个入口将实际内层返回换成另一个来源时均报 `L0162`。
+
+下一项另在 macOS 两入口复现：普通 `borrow val item = view(source)`
+的词法借用跨布尔分支时，直接退出普通函数和转发借用退出均在
+构建时报 `UnsupportedNode`。在同一函数加入独立 `swap`，
+两个入口均可执行；将 `swap` 放在无关函数中，两个入口仍报
+`UnsupportedNode`。保留探针以核对普通绑定预检的函数范围。
+
+最终 macOS arm64 和离线工具链容器内 Linux x86_64 各实跑十一组
+单文件及项目入口。44 个产物均退出 0、stderr 为空，22 对
+stdout 逐字节一致。macOS 另实跑 null 臂正常合流、非空臂消费
+后从后续实参提前返回的混合形态，单文件与项目输出均符合预期。
+
+双宿主均通过 nullable String 33 项、nullable when 45 项、
+所有权 verifier 23 项和单独的 abandoned nullable when 回归。
+macOS 另通过 Refine 54 项和 borrow result 115 项，全部零失败、
+零忽略。严格 Clippy、格式、尺寸、文档及 diff 检查通过。
+
+## 275. R4 普通 String 借用结果跨布尔 if
+
+复现 274 节的两种提前返回。普通结果绑定跨语句级布尔 if 时，
+单文件和项目均通过前端，旧绑定预检在构建时报
+`UnsupportedNode`。同一函数中的无关 swap 可切换预检路径，
+另一函数中的 swap 不影响原失败。
+
+普通 String 结果绑定的预检按声明、封闭源单元内的语句作用域和
+if 父子臂关系核对。活跃路径的直接 Return 只由对应 binding 的
+`ControlTransfer` 事实准入；相邻未建立的臂、建立前和已结束后的
+后继按各自词法路径处理。只有已证明的返回结束事实时，外层
+后继无带借用的普通前驱。空结束集合不能单独提供该证明。
+条件运算符沿语法树处理，不进入调用参数、循环或另一个
+控制表达式的内部。来源绑定和 SSA 的所有权验证保持生效。
+
+先复现条件比较与短路运算、臂内声明、相邻臂嵌套控制、只有
+提前退出的臂，再用原生回归核对独立旗标、短路副作用、正常
+合流和提前返回，以及九个分配各自的释放顺序。独立复审核对
+了精确的结束事实及原有实参、循环边界。legacy
+`lower_scalar_file` 的旧拒绝用例保留，两条 Unit 入口的旧布尔
+if 用例改为 verified SSA 验收。macOS 两个入口对活跃借用期间
+改写来源均报 `L0135`。
+
+macOS arm64 和离线工具链容器内 Linux x86_64 各实跑八组的单文件
+及项目入口。32 个产物均退出 0、stderr 为空，16 对 stdout
+逐字节一致。下一项在最终 macOS 编译器的两个入口复现：普通
+String 结果绑定跨布尔主体 `when` 时，前端通过，构建仍报
+`UnsupportedNode`。
+
+双宿主分别通过 12 项借用结果合同、34 项 nullable String、
+45 项 nullable when、23 项所有权 verifier。macOS 另通过
+54 项 Refine 和 116 项 borrow result，全部零失败、零忽略。
+严格 Clippy、格式、尺寸、文档结构及 diff 检查通过。
+
+## 276. R4 普通 String 借用结果跨布尔 when
+
+复现 275 节的布尔主体 `when`。单文件和项目均通过前端，构建
+在普通绑定预检报 `UnsupportedNode`。无主体布尔条件版本也
+复现相同拒绝。
+
+普通 String 结果绑定的语句级词法扫描共用布尔 `if`、布尔主体
+和无主体 `when` 的控制结构。活跃臂直接 Return 继续匹配同一
+源单元的精确绑定结束事实；臂内声明沿语法树连接外层控制和
+其他臂。它不进入初始化器或可达调用的实参。原有循环门禁仍
+由原路径处理。
+
+独立复审发现，首臂已穷尽布尔域时，后续 nullable selector
+和死 else 的 Return 仍被旧表达式预检扫描。两种入口复现后，
+改用 typed 的同一闭域臂数和末臂选择器数。死语法只豁免表达式
+门禁；所有权分析按同一闭域边界停止发布事实，死臂不作为
+活跃作用域或返回路径遍历。复审再次核对了可达选择器内的
+Return 仍由独立门禁拒绝。
+
+原生回归覆盖主体单次求值、带副作用的选择器按序执行、首匹配
+短路、死 selector 和死 else、提前返回、臂内绑定和合流，
+核对十次分配的释放身份及次序。下一项在最终 macOS 两个入口
+复现：普通 String 结果绑定跨整数主体 `when` 仍在构建时报
+`UnsupportedNode`。
+
+macOS arm64 和离线工具链容器内 Linux x86_64 各实跑六组的单文件
+及项目入口。24 个产物均退出 0、stderr 为空，12 对 stdout
+逐字节一致。项目嵌套用例将 provider 放到另一源文件。macOS
+两个入口对 when 臂内改写活跃借用的来源仍报 `L0135`。
+去掉整数主体探针中的结果绑定后，本机对照能构建并输出预期。
+
+双宿主均通过 12 项借用结果合同、34 项 nullable String、45 项
+nullable when、23 项所有权 verifier 和新增的原生布尔 when
+回归。macOS 另通过 54 项 Refine 和 117 项 borrow result，全部
+零失败、零忽略。严格 Clippy、格式、尺寸、文档结构及 diff
+检查通过。
+
+## 277. R4 普通 String 借用结果跨整数 when
+
+复现 276 节的整数主体用例。单文件与项目均通过前端，构建报
+`UnsupportedNode`。复用 Refine 的整数类型集合，按主体的
+具体类型匹配等值选择器。`in` 和 `!in` 采用同源的前端整数
+Range 描述，核对左右端点类型及 inclusive/exclusive 运算。
+仍由原有生成端决定范围比较、边方向和实际求值顺序。
+
+整数控制中的主体调用实参或范围端点调用实参含算术表达式时，
+旧词法扫描在实参位置拒绝。整数控制继续扫描经类型检查的无
+receiver 普通直接调用中的运算符，进入条件运算符的路径仍在
+嵌套控制处停止。借用结果初始化器、实际可达的选择器内 Return
+及循环的独立门禁保持。活跃臂 Return 仍需精确的前端绑定结束
+事实，臂内声明使用同一父臂路径。
+
+独立复审核对了具体类型、Range 描述、端点求值顺序、声明
+作用域及 Return 门禁。原生回归覆盖主体求值一次、等值首匹配、
+左端点先于右端点、右开边界、`!in` 方向、臂内声明和提前
+返回，并核对三个堆分配各释放一次。外部形状覆盖全部八种
+整数宽度及带类型的等值选择器。
+
+macOS arm64 和离线工具链容器内 Linux x86_64 各实跑五组的
+单文件及项目入口。含独立的 Long 范围用例，测试端点超出 Int
+范围。20 个产物均退出 0、stderr 为空，10 对 stdout 逐字节
+一致。macOS 两个入口对臂内改写活跃借用的来源均报 `L0135`。
+另实跑确认，实际求值的普通选择器调用参数中的 Return 仍报
+`UnsupportedNode`。
+
+下一批保留两个双入口复现，分别为非观察该借用的 String 主体和
+枚举主体。保留绑定的版本前端通过而构建报 `UnsupportedNode`；
+两项按去掉结果绑定的本机对照均可构建并输出预期。
+
+双宿主均通过 12 项借用结果合同、34 项 nullable String、45 项
+nullable when、23 项所有权 verifier 和新增原生整数 when
+回归。macOS 另通过 54 项 Refine 和 118 项 borrow result，全部
+零失败、零忽略。严格 Clippy、格式、尺寸、文档结构及 diff
+检查通过。
+
+## 278. R4 借用结果跨独立 String 与枚举 when
+
+复现 277 节的独立 String 和普通枚举主体。两个公开入口均前端
+通过、构建报 `UnsupportedNode`。语句级词法预检复用现有
+作用域遍历。String 选择器核对同类型和字面量叶；枚举核对
+同一名义根及实际 case 身份。等值 case 必须是 Copyable 枚举的
+无载荷值，类型测试核对同一根下的 case type。活跃 Return 仍
+依赖对应 binding 的结束事实，互斥臂仍按语法树独立处理。
+
+独立复审触发两项邻接复现。Copyable 枚举带括号的 case 值在
+预检、Refine 准入和生成端共同展开到前端构造事实。MoveOnly
+枚举提前读取 tag 的路径只检查可达臂及末臂实际选择器，沿用
+类型阶段的闭域边界；实际运行不会执行闭域后的调用。复审
+复核了类型、来源、分组求值和闭域。
+
+原生 String/Copyable 枚举回归核对独立 owned String 主体、
+返回借用、提前退出及三个分配的释放次序。纯内存 MoveOnly
+枚举的原生回归覆盖臂内绑定、提前退出、合流和闭域死选择器。
+泛型 Copyable 枚举使用实例化后的 case 类型测试。macOS 两入口
+对异枚举根的类型测试均报 `L0106`。
+
+另确认 `Packet.Full(Node())` 的 payload 若为带 deinit 的 Node，
+即使去掉借用绑定和整个 when，单文件与项目仍前端通过且构建报
+`UnsupportedNode`。该构造路径独立留作 R4 下一项。
+
+同一代码候选在 macOS arm64 和工具链容器内 Linux x86_64
+各实跑六组单文件和项目入口。24 个产物均退出 0、stderr 为空，
+12 对 stdout 逐字节一致。两个新增原生回归及 12 项借用结果
+合同、34 项 nullable String、45 项 nullable when、23 项所有权
+verifier 在双宿主均通过，零失败、零忽略。
+
+资源枚举的 macOS 单文件对照中，即使仅构造 `Packet.Empty`，
+只要另一个 case 的 payload 带析构，构建仍失败。去掉 payload 的
+deinit 后原构造可运行，单独构造带 deinit 的 Node 也可运行并
+触发析构。
+
+macOS 另通过 54 项 Refine 与 119 项 borrow result，零失败、
+零忽略。严格 Clippy、格式、尺寸、文档结构及 diff 检查通过。
+
+## 279. R4 资源枚举的析构可达性
+
+macOS 上，包含带 deinit 载荷的 Packet 在单文件与项目入口均能
+通过前端，随后构建报 `UnsupportedNode`。单独构造 Full、
+仅构造 Empty，以及嵌套枚举分别复现失败。失败位于 Unit 的
+deinit 规划，原有路径只按 class 和 value class 的字段递归。
+
+Unit 规划将 case 类型归到其 root，复用枚举布局解析得到每个
+case 的具体载荷。隐藏析构体按载荷递归登记；LLVM 仍根据活动
+tag 选择载荷，按既有聚合 drop 路径清理字段。回归核对从未
+构造的 case 也登记其独有析构体，且运行时不执行该析构。实跑
+核对移动交付、词法逆序、载荷字段逆序及五个分配的逐指针释放。
+
+独立复审核对了分类事实、析构签名验证、活动 tag 分派、字段
+清理和测试可见性。macOS 独立探针另确认泛型函数构造和
+`Payload<T>` case 类型测试可运行，资源 enum 臂内的局部借用
+可随提前 return 和正常合流结束。
+
+macOS arm64 与工具链容器内 Linux x86_64 各实跑五组的单文件
+与项目入口，包括仅构造空 case、具体泛型、跨源嵌套载荷和
+借用控制流。20 个产物均退出 0，stderr 为空，10 对 stdout
+逐字节一致。
+
+下一项复现已隔离：`Box(Packet.Full(Leaf()))` 中的 Leaf 带
+deinit 时，macOS 两入口的前端检查通过，构建仍报
+`UnsupportedNode`。去掉 deinit 的对照在两入口均构建运行，
+输出符合预期。
+带 `Box<Tree>` 边的递归资源枚举在两入口同样复现，前端检查
+通过。该用例设定右子树先于左子树释放，作为下一批顺序回归。
+
+双宿主 `resource_deinit` 各通过 59 项，零失败、零忽略，包含
+新增的析构体登记与逐指针回归。双宿主扩大 `boxed_enum` 筛选
+各 299 项通过、7 项按属性只由专用 CI 故障注入执行、零失败。
+macOS 严格 Clippy、格式、尺寸、文档结构和 diff 检查通过。
+
+## 280. R4 Box 载荷的资源析构可达性
+
+macOS 上，普通枚举、具体泛型枚举、递归枚举树和值类作为含
+deinit 的 Box 载荷时，单文件和项目均通过前端、构建报
+`UnsupportedNode`。普通枚举的纯内存对照在两入口均能原生运行。
+
+Unit 规划将 intrinsic Box 的单个具体载荷交给已有资源遍历。
+访问集合按具体类型去重，递归边不会反复登记析构体。LLVM 的
+既有 drop 路径执行活动 case 的析构、按字段逆序清理，然后
+释放相应 Box。独立复审检查了类型身份、载荷解析、循环终止、
+SSA 定义次序、LLVM 析构调用和计数 oracle。
+
+持久原生回归覆盖内联根持有递归 Box 子树，分别核对三个
+deinit 的输出和七个指针的逐个释放顺序。双宿主各实跑五组
+单文件和项目入口，覆盖移动交付、临时与词法析构、递归、具体
+泛型及纯内存对照。20 个产物均退出 0，stderr 为空，10 对
+跨宿主 stdout 逐字节一致。普通 class 作为 Box 类型实参的
+macOS 双入口对照仍由前端以 `L0117` 拒绝。
+
+当前 macOS 两入口的后续探针中，`Box<Packet>?` 和
+`Rc(Leaf())` 后调用 `owner.share()` 使用资源载荷时分别通过前端
+检查、构建报 `UnsupportedNode`。两个去掉 deinit 的对照均原生
+运行。另有值类与枚举经 Box 相互递归的两组用例，资源和纯内存
+载荷均在构建时报同一错误，直接构造活动叶 case 的对照均原生
+运行。已登记为独立布局缺口。
+
+双宿主 `resource_deinit` 各 60 项通过，零失败、零忽略。Linux
+扩大 `boxed_enum` 筛选 300 项通过、零失败，7 项由专用 CI 故障
+注入步骤另行执行。macOS 严格 Clippy、格式、尺寸、文档结构和
+diff 检查通过。
+
+## 281. R4 可空 Box 的资源析构可达性
+
+macOS 两入口复现带资源载荷的 `Box<Packet>?` 前端通过、构建报
+`UnsupportedNode`。局部保留、移动给 own 参数、null 和空 case
+组成第二条相同失败路径；纯内存可空 Box 与非可空递归资源 Box
+对照原生运行。
+
+Unit 析构规划对可空 intrinsic Box 沿现有的内层资源路径登记
+隐藏 deinit。正常 drop 消费前端发布的所有权事实，LLVM 的
+`NullableHandle` drop 在 null 边直接返回，在存在边调用相同
+Box 析构。现有 Box 析构先清理活动载荷，再释放句柄。
+
+新增原生回归区分 null 与存在的空 case。输出验证移动送入
+callee 的资源在那里析构，调用方保留的值直到词法作用域退出
+才析构。分配计数核对两组 String、资源类、Box 和一个空 case
+Box 的七个指针均按指定顺序各释放一次。
+
+独立复审核对了前端 drop 来源、nullable handle ABI、移动交付和
+分配计数。扩大套件发现旧 SSA 对照仍要求拒绝可空 Box。原来的
+空句柄输入改为验证隐藏 deinit 唯一登记且 LLVM 通过，同一测试
+继续检查 inline value 和 Rc 的原有拒绝位置以及类型 arena 不变。
+
+另确认 `enum class Tree { Tip(value: Leaf), Link(next: Box<Tree>?) }`
+在 macOS 两入口仍通过前端、构建报 `UnsupportedNode`。去掉
+Leaf 的 deinit 也复现。递归字段形成 nullable handle 时，当前
+类型注册会同步要求完成该 Box 的 payload，并在重入时拒绝。
+该布局问题继续单独跟踪。
+
+同一生产代码在 macOS arm64 和工具链容器内 Linux x86_64 各实跑
+六组单文件与项目入口，包括跨源交付、`!!` 后转移及 `when` 判空。
+24 个产物均退出 0，stderr 为空，12 对跨宿主 stdout 逐字节一致。
+独立 macOS 探针另通过具体泛型枚举的可空 Box；普通类的可空
+自递归字段也已在两个入口复现布局拒绝。
+
+双宿主各通过 61 项资源析构、45 项 nullable when，零失败、
+零忽略，包含修订后的 SSA 对照和新增原生回归。macOS 严格
+Clippy、格式、尺寸、文档结构和 diff 检查通过。
+
+## 282. R4 可空句柄的递归布局
+
+macOS 的单文件和项目入口均复现下面两条前端通过、构建报
+`UnsupportedNode` 的路径。递归枚举字段使用 `Box<Tree>?`，带
+deinit 和纯内存两版都失败；普通资源类以同类 nullable handle
+保存后继时也失败。嵌套递归枚举另组合了活动空字段和有值字段。
+
+Unit 先登记 pointer-like owner 的身份。nullable handle 可用
+已声明的身份，完成最外层注册前再统一定义 owner 的 payload。
+SSA verifier 仍拒绝引用未完成定义或非指针类型的 nullable
+handle。SSA 对照先验证未完成定义的负例，再补上自递归载荷并
+验证相同可空身份。原生回归核对 null 字段跳过清理、资源析构
+输出逆序及六个指针的逐个释放顺序。
+
+另在相同 macOS 构建复跑值类与枚举经 Box 相互递归的独立用例，
+资源和纯内存对照在两个入口均继续报 `UnsupportedNode`，对应
+直接叶 case 对照均运行通过。
+
+独立复审核对了 Unit 待定义队列、SSA verifier 和 LLVM 入口，
+并通过已构建的测试二进制重复执行两个新增回归。保留的测试专用
+carry 布局仍同步定义 Box，本批证据适用于公开 Unit 路径。
+macOS 两入口仍以 `L0116` 拒绝无指针间接层的原地递归 enum。
+
+相同代码在 macOS arm64 和工具链容器内 Linux x86_64 各实跑
+五组单文件与项目入口。20 个产物均退出 0、stderr 为空，
+10 对 stdout 逐字节一致。用例覆盖纯内存与资源递归、跨源
+嵌套枚举、可空自引用 class 和非递归 nullable Box。
+
+双宿主各通过 62 项资源析构、45 项 nullable when、4 项 nullable
+handle，零失败、零忽略。macOS 严格 Clippy、格式、尺寸、
+文档结构和 diff 检查通过。
+
+## 283. R4 值类与枚举经 Box 互递归
+
+macOS 两入口实跑复现 `Branch → Tree → Box<Branch>`，纯内存
+或资源载荷均通过前端、构建报 `UnsupportedNode`。活动 Link
+case 同样失败，而直接构造未装箱的叶 case 正常运行。
+
+首版在 Box 处检测回边。独立复审建立反向复现
+`Branch → Box<Tree>? → Tree → Branch` 与双值类递归。两者仍
+被拒绝，显示准入依赖遍历起点。最终补丁与 MoveOnly enum 的
+处理对齐。取到已解析的具体字段并确认 MoveOnly 后，遇到正在
+检查的同一具体值类时结束该次递归，原始遍历继续检查剩余字段。
+编译仍消费前端对内联环的判定，并由 SSA verifier 检查生成布局。
+
+两条持久原生回归实际构造两种边方向的链，核对资源析构在作用域
+输出之后发生和各自三个分配的逐指针释放。macOS 两入口的直接
+内联环继续报 `L0116`；有不支持的闭包载荷旁支时继续由后端
+拒绝，活动 case 不会掩盖其他 case 的布局要求。
+
+相同生产代码在 macOS arm64 与工具链容器内 Linux x86_64 各实跑
+八组双入口用例。32 个产物均退出 0、stderr 为空，16 对 stdout
+逐字节一致。包括纯内存和资源载荷、两个值类互递归，以及
+拆为两个源文件的活动递归 case。
+
+共享的值类准入也适用于其他已验证的间接字段。macOS 独立复审
+以旧编译器作对照，另确认活动 class 递归及空 Rc 字段用例由拒绝
+转为可运行，两种公开入口均复跑。活动递归 Rc 持有资源以及
+List 自递归仍被后端拒绝。另准备普通资源 Rc 的共享转移探针，
+两入口均前端通过、构建报 `UnsupportedNode`。
+
+双宿主各通过 64 项资源析构和 54 项 Refine 准入回归，零失败、
+零忽略。macOS 严格 Clippy、格式、尺寸、文档结构和 diff
+检查通过。
+
+## 284. R4 Rc 载荷的资源析构可达性
+
+macOS 单文件和项目均复现普通资源类、资源枚举和可空 Rc
+通过前端后构建报 `UnsupportedNode`，纯内存 Rc 对照可运行。
+Unit 规划将直接和可空 intrinsic Rc 纳入已有载荷遍历，登记
+具体资源析构体。SSA 与 LLVM 继续使用已有的引用计数及前端
+发布的 drop 点；null 不递减计数，最后一个强引用的释放
+先执行载荷析构再释放 control block。
+
+原生回归分别将非可空和可空的共享副本交给 own 参数，穿插
+null 对照，并保留原句柄到词法作用域退出。断言载荷析构恰好
+一次、早于同作用域较早声明的资源。计数器还核对三个分配
+各释放一次及其顺序。旧 SSA 对照中的空 `Rc<Payload>?` 改为
+验证唯一析构体登记和 LLVM 验证，inline `Payload?` 的原
+拒绝位置保持。
+
+独立复审核对了前端析构点、nullable null guard、引用递减及末
+引用清理的顺序。macOS 独立探针另通过可空参数持有最后一个引用、
+嵌套 Rc 和具体泛型枚举载荷。活动递归 Rc 及含资源字段的泛型
+class 仍停在既有后端限制。Guide 13 的 Rc 小节仍用 ASAP
+描述释放点，Guide 10 对含资源载荷另规定词法作用域；本轮
+代码生成继续消费前端按双轨规则给出的析构点。
+
+后续 macOS 两入口探针确认，借入 `Rc<String>` 后读取 `.value`
+通过前端但原生构建报 `UnsupportedNode`，own 参数对照运行成功。
+另发现把 `owner.value.name` 交给 println 时，借入或 own
+`Rc<Leaf>` 两种参数都在所有权检查返回
+`InvalidUnitArgumentPlace`。这条复现发生在原生生成前。
+去掉 Leaf 的 deinit 仍复现该所有权错误；借入未装进 Rc 的
+Leaf 后读取相同字段则原生运行通过。Rc 内 Copyable 字段比较
+能通过前端，仍在后端构建失败。
+
+相同生产代码在 macOS arm64 和工具链容器内 Linux x86_64 各
+实跑五组单文件和项目入口。20 个产物均退出 0、stderr 为空，
+10 对 stdout 逐字节一致。双宿主各通过 65 项资源析构和
+4 项 nullable Rc，零失败、零忽略。macOS 严格 Clippy、
+格式、尺寸、文档结构和 diff 检查通过。
+
+## 285. R3/R4 Rc 载荷字段的共享借用与最后使用
+
+macOS 两入口复现 `owner.value.name` 作为共享实参时所有权检查
+返回 `InvalidUnitArgumentPlace`。具名 Rc 的 own 与 borrow 参数、
+有 deinit 和纯内存载荷均受影响。相同字段直接经普通类读取通过。
+
+前端从已发布的 Field 和 Rc intrinsic 描述符把共享借用归到
+其 Rc 句柄，保留具名根和临时根的身份。Refine 对具名 owned
+Rc 先建立 payload 的共享借用，再沿字段链生成短期子借用。
+验证后先逆序结束子借用，才消费调用返回后的清理事实。
+
+独立复审发现三个绕过入口及两条最后使用缺口。合法输入的普通
+字段读取不能转为消费。MoveOnly 字段作为按值实参、局部绑定
+或返回值时发 `L0132`；向可变字段赋值或作为 inout 实参发
+`L0134`。两类诊断均保留 Rc 根的来源。两条最后使用用例原先
+在 native build 报 `InvalidModel`，分别是可空证明后读取和
+后续实参调用同一 owner 的 `.share()`。规划现在在实际共享
+实参求值前登记根，保留既有 Copyable 转可空的临时副本路径。
+
+持久原生回归核对具名 Rc 经两层字段读取的输出、末句柄析构和
+四个指针的顺序。另核对两条最后使用路径和空值对照共六个指针
+的清理。借入 Rc 参数与临时 Rc 仍通过前端后在原生构建报
+`UnsupportedNode`。普通 Borrow ABI 传句柄存储地址，现有
+可空证明路径传 control block 指针；后续需核对两种表示再扩大
+后端准入，并覆盖临时根的返回及提前退出清理。
+
+同一生产代码在 macOS arm64 和工具链容器内 Linux x86_64 各
+实跑八组单文件与项目入口。32 个产物均退出 0、stderr 为空，
+16 对 stdout 逐字节一致。macOS 两入口另核对绑定和返回的
+`L0132`、赋值和 inout 的 `L0134`，以及后续实参直接 return
+时跳过被放弃的调用并正常退出。
+
+双宿主各通过 165 项 Unit 前端所有权和 67 项后端资源析构
+回归，零失败、零忽略。macOS 前后端严格 Clippy、格式、尺寸、
+文档结构和 diff 检查通过。
+
+## 286. R4 借入 Rc 的句柄槽 ABI
+
+单文件和项目复现借入 `Rc<String>` 后读取或 clone 载荷，
+以及借入 `Rc<Leaf>` 后读取字段，前端通过、原生构建报
+`UnsupportedNode`。具名 owned Rc 作为对照可运行。
+
+共享调用参数和可空证明的 LLVM loan 都指向句柄槽。Rc
+生产者从槽加载 control block 指针后读取载荷或共享一个
+新句柄。Refine 对借用句柄的载荷发出 `SharedPayloadLoan`，
+后续字段借用或 Copyable 读取消费该子借用。
+
+独立复审发现旧 `SharedPayloadPlace` 仍可从 loan 形成无父
+依赖的裸 place。现仅接受 Value owner，已有可空证明消费者
+和单文件兼容消费者均改用子借用。另一项发现是可空证明经
+普通 CFG 边重绑定后会丢失来源。两种非空证明的隐式参数
+都进入来源传播，反例核对重绑定父还持有子时提前结束会被
+拒绝。原生回归核对保活、末句柄析构和三个指针各释放一次。
+
+具名 Rc? 判空后的本地读取可运行；直接将证明中的 Rc
+传给另一个 Borrow 参数仍有后端 `MissingFact` 复现。
+临时 Rc 的载荷借用与提前退出清理也继续单独跟踪。
+
+macOS arm64 和工具链容器内 Linux x86_64 各实跑九组双入口。
+36 个产物均退出 0、stderr 为空，18 对 stdout 逐字节一致。
+两宿主各通过 68 项资源析构、10 项单元 String 合同、4 项
+nullable Rc、2 项 borrowed Rc clone 和 5 项 shared payload，
+零失败、零忽略。macOS 严格 Clippy、格式、尺寸、文档结构
+和 diff 检查通过。判空后转交的最小 `Rc<Int>` 即使不读载荷，
+在本机旧编译器和本轮候选均构建报 `MissingFact`。
+
+## 287. R4 owned Rc? 非空证明转交调用
+
+macOS 单文件和项目用最小 `Rc<Int>?` 复现判空后传给 Borrow
+参数的 `MissingFact`。Refine 准入曾排除 Rc 证明，虽然后端
+调用已可传共享句柄槽。准入现在核对解组后的原符号、活跃非空
+证明和参数的精确类型，构建继续使用已存在的共享 loan。
+
+另复现原子判空取反后转交失败。准入和构建共用 Group 与 !
+链的 Rc 判空识别，依据奇偶性把证明放到实际非空臂。独立
+复审指出 Borrow/Inout 可空根没有相同的证明生产者，最终
+准入按本地 owned 或 Value 参数核对根。组合逻辑仍由原先
+的短路规则负责。
+
+持久原生回归覆盖 else 非空臂、分组实参、重复读取、null
+和提前 return，核对六个指针的逐指针释放，以及两次末句柄
+析构的位置。相反边或缺少证明的调用仍由前端报 `L0084`。
+后续实参对同一 Rc 调用 share 的场景也纳入双入口实跑。
+
+独立复审另确认借入或 inout Rc?、以 return 结束空分支后在
+If 之外使用的 Rc 证明，仍有后端 `MissingFact`。临时 Rc
+的载荷字段原生生成仍报 `UnsupportedNode`。
+
+同一生产代码在 macOS arm64 与工具链容器内 Linux x86_64
+各实跑五组单文件和项目入口。20 个产物均退出 0、stderr 为空，
+10 对 stdout 逐字节一致。单次和双次取反，以及跨源资源载荷
+都纳入矩阵。扩大准入套件发现旧对照仍把借入非空 Rc 的字段
+读取当作拒绝用例。已保留其源码并改验 Refine 成功，新负例
+改用借入 Rc? 缺少 owned 非空证明的情形。
+
+双宿主资源析构 69 项、Refine 准入 54 项、nullable Rc 5 项
+均通过，零失败、零忽略。Linux 先实跑生产代码及资源套件，
+更新原路由见证后复跑两组准入与 nullable Rc 测试；两份快照
+的 crate 源码差异仅为该测试文件。macOS 严格 Clippy、
+格式、尺寸、文档结构和 diff 检查通过。
+
+## 288. R4 owned Rc? 的空臂早退与后继借用
+
+修复前，owned `Rc<Int>?` 经 `if (owner == null) { return }`
+后借传给非空参数，单文件和项目均通过前端检查，原生构建报
+`MissingFact`。
+
+准入只从唯一可继续的 If 前驱接收已有的 owned Rc 非空证明，
+并核对同源、同绑定的后继非空使用事实。构建保留该路径上活跃的
+shared owner loan，由实际 CFG 前驱按借用槽取交集。写入、消费
+或析构会先结束受影响的视图。现有 borrowed String 与 When 的
+证明规则保留。独立复审核对了合流、重赋值、转移和析构，并用
+前端负例确认两条正常分支合流后失效的证明仍报 `L0084`。
+
+macOS arm64 与工具链容器内 Linux x86_64 各实跑五组单文件和
+项目入口。20 个产物均退出 0、stderr 为空，10 对 stdout
+逐字节一致。矩阵覆盖取反、正反方向的正常前驱、两次借用、
+跨源资源载荷、赋值后重新判空。持久原生用例核对字符串缓冲区、
+Leaf 与 Rc 三个指针依次释放，并检查 Leaf 在后继借用之后、
+调用方继续之前恰好析构一次。
+
+双宿主的资源析构 70 项、Refine 准入 54 项、nullable Rc 5 项均通过。
+严格 Clippy、格式、尺寸、文档结构及 diff 检查通过。
+扩大验证中，两个宿主的默认测试线程栈均在 String? 的 16 组
+独立合流压力用例溢出。重新编译上一份 macOS 快照也复现同一失败。
+两端将测试线程栈设为 8 MiB 后，String? 套件均通过 34 项。
+同一压力源码另用 macOS CLI 实跑，32 行输出均匹配。
+
+borrow/inout Rc? 的证明生产者及临时 Rc 的载荷字段生成仍待复审。
+
+## 289. R4 临时 Rc 的载荷字段读取与共享调用
+
+修复前，临时 `Rc(Leaf(...)).value.num` 通过前端检查，原生构建报
+`UnsupportedNode`。持久回归先在修复前复现失败，后核对三组
+缓冲区、Leaf、Rc 指针按顺序释放。空的提前返回边不分派原调用，
+仍执行已求值临时句柄的清理。
+
+前端以同源的根 Rc 临时身份发布投影表达式的清理，或在共享实参
+注册成功后沿既有 pending temporary 路径发布调用返回及控制退出
+的清理。Refine 准入核对 Rc 描述符、owned effect 及可接受的临时
+接收者。构建只求值一次，经共享 payload place 形成子借用。
+借用结束后才消费发布的清理点。普通直接 field token 观测范围
+保持原样，前端回归单独核对实际 Rc 调用返回的 drop fact。
+
+独立复审发现直接 Borrow `.value` 遇后续实参提前返回仍被整体
+call 的控制退出门禁拒绝。补丁按已准入的同一临时句柄放行，
+并以原生早退复核。字段链的 `clone()` 也走同一共享载荷路径。
+前端仍以 `L0162` 拒绝不稳定来源的借用绑定。
+
+复审另复现复制字段作为按值实参或二元表达式左操作数时提前
+析构。临时句柄现在随待清理状态保留至外层表达式的清理点。
+分组与取反沿内部表达式发布条件清理点，短路根沿执行 RHS
+或跳过 RHS 的边各自清理。新增原生回归核对右侧求值和调用
+先于析构，以及进入分支前的清理。
+
+macOS arm64 与工具链容器内 Linux x86_64 各核对七组单文件
+和项目入口。28 个产物均退出 0、stderr 为空，14 对 stdout
+逐字节一致。矩阵包括分组、取反、复制字段、Copy-to-nullable、
+载荷或字段共享调用、两实参逆序清理、工厂返回及跨文件字段链 clone。
+双宿主资源析构 72 项、Refine 准入 54 项、nullable Rc 5 项、
+前端 direct call loan 348 项及 Rc 所有权 5 项通过，均为零失败、
+零忽略。macOS 的 frontend/codegen 严格 Clippy、格式、尺寸、
+文档结构与 diff 检查通过。
+
+仍有一个可观察的析构顺序缺口。短路作为外层调用的实参时，
+条件形成的 RHS 句柄只能在局部分支清理。例如
+`sink(lhs && rhs, tail())` 的 RHS 执行后，当前先析构 RHS，
+再执行 `tail()` 和 `sink`，最后析构 LHS。此边界需要能表示
+另一条边从未形成 RHS owner 的合流。Rc 载荷为 value class
+时的字段投影（具名与临时均可复现）、临时句柄构造表达式自身
+包含提前退出、借入及 inout 可空 Rc 的证明也仍开放。
+
+## 290. R4 短路右侧 Rc 的条件清理跨合流
+
+复跑 §289 的 `sink(lhs && rhs, tail())`，原输出在 RHS 执行的
+路径上先析构 RHS，再运行 `tail()` 和 `sink`。修复后两次调用
+均先完成后续实参与分派。RHS 执行路径随后按 RHS、LHS 逆序析构，
+跳过路径只析构 LHS。
+
+前端将仅一条正常边形成的 Rc 临时句柄保留在共同续行的清理计划，
+以真实 source-qualified owner ID 和条件标记发布外层清理事实。
+前端回归核对该标记仅属于 RHS，且位于同一 `CallReturn` 点的
+无条件 LHS 清理之前。后端只对已发布的条件临时身份规划可空
+句柄表示，正常边交付真实句柄或 null。RHS 内提前退出时仍按
+该路径已有的实际句柄清理；跨过合流后的控制退出使用合流槽。
+
+独立复审另复现两处路径差异。Basic 的恒跳过实参会报 `MissingFact`，
+已让所有权计划和准入共用普通 bypass 事实。Const 的恒执行和动态
+路径会提前析构，已保留其外层表达式的待清理状态，并沿 Const
+分支编号发布清理。复审实跑了 Basic/Const、嵌套短路、内外 return、
+循环 break/continue、同一条件合流的 String proof 和多实例泛型 thunk。
+
+同一候选源码在 macOS arm64 和工具链容器 Linux x86_64 各实跑
+六组单文件和项目入口。24 个产物退出 0、stderr 为空，12 对
+stdout 逐字节一致。完整资源析构 74 项、Refine 准入 54 项、
+nullable Rc 5 项、直接调用借用结束 348 项和多文件所有权
+166 项均在两端通过。macOS 严格 Clippy、格式、尺寸、文档和
+diff 检查通过。
+
+后续 R4 仍覆盖 §289 记录的其余场景，包括临时句柄形成前的
+提前退出、value class 载荷字段，以及 borrowed/inout Rc? 的证明。
+
+## 291. R4 临时 Rc 接收者与部分构造的提前退出
+
+单文件与项目首次复跑 §290 留下的接收者 `if` 反例，前端检查通过，
+原生构建均报 `UnsupportedNode`。Rc 准入现消费接收者的类型、
+正常续行及实际所有权 effect。只在有正常结果的边进行载荷借用、
+复制或 retain。临时 `share()` 在 retain 后释放原句柄，载荷在
+最后一个句柄释放时仅析构一次。
+
+普通类与 intrinsic 构造保留实参的续行事实。所有权按实际退出
+发布已完成的构造实参及终止实参，没有为未完成构造发布 root。
+Rc 与普通类的 Refine 准入验证完整交付或终止前缀。完全终止的 Rc、字段链与 String
+clone 只求值接收者前缀，普通调用先处理终止实参，再决定是否
+生成借用或分派。正常清理、提前退出和 Abort 沿既有规则执行。
+
+持久原生回归通过分配身份核对提前 return、后续实参 return、
+正常借用、Share 和部分构造。独立复审另实跑 15 组单文件与
+项目，并从所有权产物确认终止 Outer 与外层 Rc 均无 root，
+只存在已完成的 Outer 交付。命名参数按源码顺序求值，退出时
+逆序析构，后续实参与外层 retain 不执行。六个 Abort 产物均按
+预期退出 134，部分构造的 Abort 路径没有展开析构。
+
+同一候选源码在 macOS arm64 与工具链容器 Linux x86_64 各实跑
+八组单文件和项目入口。32 个产物退出 0、stderr 为空，16 对
+stdout 逐字节一致。双宿主资源析构 76 项、Refine 准入 54 项、
+nullable Rc 5 项、直接调用借用结束 348 项、多文件所有权
+166 项和构造所有权 8 项通过，零失败、零忽略。macOS 严格
+Clippy、格式、尺寸、文档与 diff 检查通过。
+
+有正常续行的嵌套 `Rc<Rc<Int>>.value.value` 仍会在所有权入口
+报 `invalid compilation-unit argument place`。终止的 Box 原生
+准入、可空 borrowed/inout Rc 的证明及 value class 载荷字段
+继续作为独立缺口跟踪。
+
+## 292. R4 嵌套 Rc 载荷的借用根与清理
+
+§291 的具名和临时 `Rc<Rc<Int>>.value.value` 在修复前的单文件
+与项目入口均于所有权检查报 `invalid compilation-unit argument place`。
+前端沿已判定的 Rc 载荷与字段链保留最外层借用根，并在每步发布同源
+操作事实。持久的前端回归确认具名、临时链分别借入外层 place 或
+临时 owner，临时 owner 随调用结束而清理。
+
+Refine 以 typed/owned 描述符逐层准入。嵌套 Rc 和字段访问复用既有
+shared payload 和 field loan，读取、retain 或共享实参的调用之后按
+逆序结束这些借用。处理提前退出时同样先结束 loan，再按前端事实
+清理。持久原生回归检查普通调用和后续实参 return，亦检查临时
+外层释放后 retain 仍保有内层载荷，最后只析构一次。
+
+同一候选在 macOS arm64 与工具链容器 Linux x86_64 各实跑八组
+单文件和项目入口。32 个产物退出 0、stderr 为空，16 对 stdout
+逐字节一致。两端资源析构 77 项、Refine 准入 54 项、nullable Rc
+5 项、直接调用借用结束 348 项、多文件所有权 167 项、构造所有权
+8 项均通过。macOS 另通过三项 payload loan verifier 对照、严格
+Clippy、格式、尺寸、文档与 diff 检查。
+
+独立复审核对借用链、混合字段、retain、同根多实参和提前退出。
+macOS 两个入口的六个负例继续拒绝移动非 Copyable 载荷、inout
+访问和共享实参建立后移动外层 owner，分别给出 `L0132`、`L0134`、
+`L0135`。
+
+普通类的字段接收者还有两处待收口。显式 own Holder 参数经普通
+字段取 Rc 原生 `MissingFact`，直接临时 Holder 字段在所有权入口
+被拒绝。复审的单层与嵌套对照均复现 Rc 载荷用作成员接收者及
+value class 载荷字段的支持缺口。可空 borrowed Rc 非空分支传递
+仍通过前端，而单文件和项目构建报 `MissingFact`。
+
+## 293. R4 共享借入 Rc? 的非空证明
+
+修复前，`borrow owner: Rc<Leaf>?` 判空后传给 `borrow Rc<Leaf>`
+形参，单文件和项目入口均通过 `check`，构建均报 `MissingFact`。
+
+Refine 在非空边复用父 loan 所指的原始句柄槽，并以共享子 loan
+交付非空参数。该路径没有隐式 retain。短路和有后续非空使用的
+合流按借用根与槽类型匹配证明，离开作用域时先结束子 loan。
+Verifier 对照覆盖活跃子 loan 阻止父 loan 结束、已结束父 loan
+无法产生证明，以及拒绝独占父 loan。
+
+原生回归覆盖 null、分组取反、重复判空、短路、提前 return、
+投影读取和显式 share。计数断言核对显式 share 的 retain 及
+最后一个 owner 释放时仅析构一次。macOS arm64 和工具链容器
+Linux x86_64 各实跑六组用例的单文件与项目入口。24 个产物均
+退出 0，stderr 为空，12 对 stdout 与预期逐字节一致。
+准入回归将共享借入从拒绝改为接受，并保留独占借入的拒绝对照。
+独立复审核对多根证明合流、短路中提前退出、循环及独占参数边界，
+另在 macOS 单文件和项目重跑五组既有字符串借用用例，输出保持一致。
+
+两端资源析构 78 项、Refine 准入 54 项、nullable Rc 7 项和
+nullable String 35 项均通过。nullable String 测试线程使用 8 MiB
+栈。Linux 另通过前端直接调用借用结束 348 项、多文件所有权 167 项
+及构造所有权 8 项。macOS 严格 Clippy、格式、尺寸和 diff 检查通过。
+
+仍待收口的路径包括 `inout Rc?` 判空后转交、以借入 Rc? 为主体的
+`when (owner)`、非空视图传入可空借参，以及从非空 Rc 视图再次建立
+具名借用。独立复审的后两种探针分别在后端报 `MissingFact` 与
+`UnsupportedNode`。
+
+## 294. R4 共享借入参数作为 nullable when 主体
+
+`when (owner) { null -> …; else -> read(owner) }` 的 `Rc?` 和
+`String?` 借入参数用例通过前端检查，原单文件和项目构建均报
+`UnsupportedNode`。持久原生用例在修改前也复现该错误。
+
+所有权阶段为 `BorrowRoot` 的共享调用实参发布原有 Observe 事实。
+Refine 核对源绑定及调用事实后，从原参数 loan 槽判空。非空子
+loan 在正常和提前离开分支时结束，分支不 retain 或 take。
+回归检查 SSA 父槽身份，并禁止额外 retain、take 或 String clone。
+
+macOS arm64 与 Linux x86_64 工具链容器均实跑直接观察、嵌套
+when 和独立借用返回三组用例的单文件与跨文件项目入口。12 个产物
+均退出 0，stderr 为空，6 对 stdout 与预期逐字节一致。覆盖 null、
+空字符串、重复读取、提前 return 和 Rc 载荷单次析构。
+
+两端 nullable when 46 项、Refine 准入 54 项、资源析构 78 项、
+多文件所有权 167 项通过。macOS 严格 Clippy、格式、尺寸、
+文档结构及 diff 检查通过。
+
+独立复审核对嵌套分支提前退出和独立 String 借用结果转发。
+共享主体保持在原有临时借参提前清理准入之外。以共享主体传给
+own 实参仍报 L0133。独占主体和具名 `borrow val` 主体当前通过
+前端检查，原生构建仍报 `UnsupportedNode`。具名借用需单独处理
+词法父 loan 与分支子 proof 的清理顺序。
+
+## 295. R4 具名借用作为 nullable when 主体
+
+`borrow val local = view(text)` 或 `borrow val local = owner` 后直接以
+`local` 作为 `when` 主体，修复前的单文件和项目均通过前端检查，
+构建报 `UnsupportedNode`。持久原生回归同样复现。
+
+类型阶段发布具名共享主体身份，并随试算状态回滚。所有权阶段
+保留语法绑定用于选取原 loan 槽，观察事实中的调用 loan 则按活跃
+绑定的真实来源核对。借用结果预检只接受该绑定或已记录的同源
+词法子绑定，提前返回仍要求该绑定的前端结束事实。
+
+Refine 在词法绑定结束前清理其活跃的非空证明。嵌套清理按已有
+前端次序交付，外层 loan 保持到子 proof 及子 loan 结束。
+
+macOS arm64 与 Linux x86_64 工具链容器均实跑四组单文件及
+跨文件项目入口。16 个产物退出 0，stderr 为空，8 对 stdout 与
+预期逐字节一致。覆盖空值、空字符串、重复读取、词法父子链、
+嵌套 when、return、break、continue 及 Rc 单次析构。
+从具名共享绑定传给 own 实参仍由前端报 L0133。
+
+两端 nullable when 47 项、nullable String 35 项、Refine 准入
+54 项、资源析构 78 项和多文件所有权 167 项通过。macOS 另通过
+nullable when 类型检查 22 项、严格 Clippy、格式、尺寸、
+文档结构及 diff 检查。
+
+独立复审确认同源但无父子关系的对照仍由原生预检拒绝，另实跑
+双层 when、提前 return 和循环退出。分支内从非空载荷另建具名
+借用仍可复现 `UnsupportedNode`，留待后续收口。
+
+## 296. R4 从 when 非空证明建立具名子借用
+
+非空臂中的 `borrow val child = subject` 与
+`borrow val child = view(subject)` 均通过前端，修复前原生构建报
+`UnsupportedNode`。新增持久回归在旧候选上复现。
+
+预检把 typed nullable When 凭据与同一具名绑定的所有权事实相连。
+调用形式另核对真实共享实参 loan、来源 lease 和签名。Refine 从
+对应控制的非空 proof 槽建立直接子 loan 或借用返回，正常退出
+与提前 return 均维持子 loan、proof、来源 loan 的先后顺序。
+
+macOS arm64 和 Linux x86_64 工具链容器各实跑三组单文件和
+跨文件项目。12 个产物均退出 0，stderr 为空，6 对 stdout 与
+预期逐字节一致。覆盖空值、空字符串、重复读取、提前 return
+及 Rc 载荷单次析构。
+
+两端 nullable when 48 项、nullable String 35 项、Refine 准入
+54 项及资源析构 78 项均通过。Linux 多文件所有权 167 项通过。
+macOS 严格 Clippy、格式、尺寸、文档结构和 diff 检查通过。
+
+独立复审核对 String 与 Rc 的两类生产者及正常、提前返回的顺序。
+无关实参的 checked unary 与缺少已发布清理事实的参数控制继续
+报 `UnsupportedNode`。循环内新建具名借用的对照仍由前端报
+L0164，泛用循环清理保持原行为。从子借用移出仍报 L0133。
+
+## 297. R4 借用返回调用的后续实参提前返回
+
+`borrow val child = view(subject, if (stop) { return } else { true })`
+在非空 `when` 臂内通过前端，修复前原生构建报 `UnsupportedNode`。
+持久回归同时覆盖具名 `String?` 借用来源以及 owned `Rc?` 来源。
+
+Drop Planner 从已注册且实际在 return 边结束的原 call loan 发布
+前缀结束事实。非空来源与同轮 Observe 核对，词法借用、共享参数或
+owned 来源在该边仍活跃。预检对 `NarrowedWhen` 接受实际为
+Copyable 临时值的默认借参，并继续核对 call、实参、lease 与转移点。
+SSA 给来源实参建立独立共享子 loan。提前退出先结束该 loan，
+成功调用则将它交给结果借用的清理路径。
+
+独立复审验证默认 Boolean 借参双入口，确认普通 Scoped 对照和
+来源求值前就 return 的负例仍报 `UnsupportedNode`。回归预期按
+Guide 资源词法析构顺序校正，区分载荷读取与真实析构输出。
+
+macOS arm64 和 Linux x86_64 工具链容器各实跑三组单文件及
+跨文件项目。12 个产物退出 0，stderr 为空，6 对 stdout 与预期
+逐字节一致。提前返回只清理已求值的来源，调用结果未建立。同一
+共享 Rc 还可由调用方再次借入，最后一个 owner 释放时只析构一次。
+
+两端 nullable when 49 项、nullable String 35 项、Refine 准入
+54 项、资源析构 78 项、多文件所有权 167 项和直接调用借用结束
+348 项通过。macOS 严格 Clippy、格式、尺寸、文档结构和 diff 检查
+通过。同一调用更早的实参另有临时 Rc 资源时，原生构建仍报
+`UnsupportedNode`，待独立核对其临时 owner 和贷款清理。
+
+## 298. R4 借用返回前缀中的临时 Rc 实参
+
+同一个调用先借入临时 `Rc`，再借入 `when` 非空来源，最后一个
+实参可能提前 return。原候选能运行没有提前退出的对照，含提前
+退出的版本通过前端却在原生构建报 `UnsupportedNode`。
+
+Refine 准入核对临时 Rc 的真实共享实参合同、同一调用的位置、
+前端发布的临时析构点与同一 return 上的来源借用结束事实。
+复用现有清理路径，提前退出逆序结束已建立的调用借用，再按
+前端转移点释放临时 Rc 和 owned 来源；正常路径在 CallReturn
+释放辅助 Rc，借用结果继续使用其独立来源。
+
+独立复审核对 BorrowCall 只出现在继续路径。原生回归以析构
+标记和载荷读取核对顺序，前端断言检查同一提前转移上先有临时
+析构事实，再有具名来源析构事实。命名实参、透明分组和两个
+提前返回点的独立探针通过。来源实参尚未求值就返回的对照保持
+原生拒绝。
+
+macOS arm64 与 Linux x86_64 工具链容器各实跑 owned、共享来源
+及双临时三组单文件和跨文件项目。12 个产物退出 0，stderr 为空，
+6 对 stdout 与预期逐字节一致。两个临时按实参求值的逆序析构，
+共享来源在调用方继续执行并再次借入，最后只析构一次。
+
+两端 nullable when 50 项、nullable String 35 项、Refine 准入
+54 项、资源析构 78 项通过。Linux 多文件所有权 167 项、
+直接调用借用结束 348 项通过。macOS 严格 Clippy、格式、尺寸、
+文档结构和 diff 检查通过。
+
+## 299. R4 inout Rc? 的非空证明与写回
+
+具名 `inout Rc?` 在判空后转交非空借参，修复前构建报
+`MissingFact`；直接作为 nullable `when` 主体报 `UnsupportedNode`。
+持久对照先通过前端检查，再复现原生失败。
+
+Refine 从独占参数所指的 Rc? 槽只读判空，非空边建立共享子
+loan。非空证明可供直接借参、投影、显式 share 和具名子借用。
+求值写回 RHS 后，在实际替换或转交 inout 之前结束旧证明。前端
+按原调用合同发布 Observe 和已求值前缀的结束事实。
+
+独立复审复现了短路跳过边仍持有已在另一边失效的证明，以及布尔
+值合流丢失单边证明清理。短路按原槽身份处理各前驱，布尔值产生
+的边沿现有视图合流结束单边证明。SSA 负例覆盖子证明活跃时替换，
+以及从下一基本块读已结束的父 loan。具名子借用结束后可以写回。
+写回后仍读取该借用，两个入口均给出 L0135。inout String?
+原生证明仍报 UnsupportedNode。
+
+macOS arm64 和 Linux x86_64 工具链容器各运行六组单文件和
+跨文件项目入口。24 个产物退出 0、stderr 为空，12 对 stdout
+与预期逐字节一致。覆盖 null、重复借入、直接替换、inout 转交、
+短路、循环、投影、retain 后替换以及借用结果前缀提前退出。
+
+行为候选两端另通过 nullable String 35 项、资源析构 78 项和
+多文件所有权 167 项。为通过尺寸门禁，将判空契约与准入归入
+对应模块。整理后的候选在双端重新完成 24 次原生运行，另通过
+nullable when 54 项、nullable Rc 12 项和 Refine 准入 54 项。
+macOS 严格 Clippy、格式、尺寸、文档结构和 diff 检查通过。
+
+## 300. R4 inout String? 的非空证明与写回
+
+基线在单文件通过前端检查，但原生构建对纯判空、if 非空
+借参和直接 nullable when 均报 `UnsupportedNode`。持久原生
+回归另复现了非空读取后克隆、写回和跨控制边继续读取失败。
+
+Refine 与 verifier 承认从独占 String? 原槽只读判空并生成
+共享子证明，沿用指针 niche。借参及局部具名子借用读取同一
+载荷。RHS 先读取，替换原槽或转交 inout 前结束证明。SSA
+对照要求有活跃子证明的替换失败，结束证明后的替换通过。
+
+独立复审核对了原槽身份、共享子证明、跨块依赖和替换前的
+清理。额外实跑表明，实参提前返回时仍可再次读取原槽；正常
+结束子借用后可以写回。同一活跃子借用之后再写回或转交
+inout 均给出 L0135，MoveOnly 提取给出 L0133。
+
+直接在 nullable when 非空臂以主体做字符串比较、打印或
+clone 仍报 `UnsupportedNode`。共享和独占参数均有此缺口。
+本批验证 when 内借参、具名子借用、顺序写回与 inout 转交。
+
+macOS arm64 与 Linux x86_64 工具链容器从相同的代码候选各
+运行三组单文件、跨文件项目入口。12 个产物退出 0，stderr
+为空，六对 stdout 与预期逐字节一致。覆盖 null、空串、重复
+读取、克隆后替换、子借用退役及短路转交。两端定向套件覆盖
+nullable when 55 项、nullable String 36 项、nullable Rc 11 项
+和 Refine 准入 54 项。macOS 另通过资源析构 78 项、严格
+Clippy、格式、尺寸、文档结构及 diff 检查。
+
+## 301. R4 nullable when 内直接读取 String 主体
+
+共享与独占 String? 参数的非空臂直接比较、打印或克隆时，
+前端接受，原生构建报 `UnsupportedNode`。持久原生回归先失败，
+修复后覆盖分组、空串、两侧比较、重复读、克隆以及克隆后写回。
+
+Refine 按实际表达式识别 String 比较、拼接、println 和 clone
+的读取点，生成沿现有活动共享证明读取原槽。编译器内建 println
+使用已有的 String 借参 lowering，普通声明仍走独立的 Observe
+合同。从非空证明取得的左操作数在右操作数求值期间保持共享读。
+
+独立复审和主验证均复现了 `slot == clear(&slot)` 曾在生成阶段
+报 `InvalidModel`。所有权检查现在在活跃读取期间拒绝同槽冲突，
+持久单文件与项目负例给出 L0135。独立槽写回、先 clone 再转交、
+比较完成后再转交及重新判空仍可运行。逆序 `clear(&slot) == slot`
+涉及 String 与 String? 的异型相等，仍报 `UnsupportedNode`。
+逆序拼接给出 L0085，转交后直接打印给出 L0084，核实前端已
+撤销原非空证明。
+
+最终代码候选在 macOS arm64 和 Linux x86_64 工具链容器各实跑
+三组单文件与跨文件项目入口，12 个产物退出 0、stderr 为空，
+六对 stdout 与预期逐字节一致。双端的 CLI 所有权诊断回归均
+确认 L0135。行为候选的两端 nullable when 套件各通过 56 项；
+macOS 另通过 nullable String 36 项、Refine 准入 54 项、
+多文件所有权 167 项，以及三个受影响 crate 的严格 Clippy。
+Linux nullable String 首跑使用默认测试线程栈，在既有跨块
+借用验证测试触发栈溢出，复跑沿用 8 MiB 栈，36 项通过。
+
+## 302. R4 String 与 String? 的等值比较
+
+基线的双可空及混合等值通过前端，原生构建报 UnsupportedNode。
+Map.remove 的可空字符串由标量比较路径处理，原生构建报 InvalidModel。
+新增持久用例分别覆盖两种布局、两侧缺席、混合顺序、空串与缺席、
+UTF-8 及内嵌 NUL、写回后读取、提前返回、具名值重复读取和临时值。
+
+Refine 将该类型组交给 StringEqual。SSA 验证可空操作数的
+StringOwner 布局和借用活跃性。LLVM 沿用原字节比较，在可空路径上
+两侧都存在且长度相同才比较字节，Map result 缺席时屏蔽 payload。
+所有权检查在求值右操作数时保持左侧具名读取，临时值沿二元运算
+以及各退出点清理。持久 SSA 对照拒绝已结束的 loan 及 Boolean?
+布局。单文件、项目的同槽写回对照均报 L0135。
+
+独立复审发现并复验了右操作数为 Nothing 的提前返回路径及有标签
+Map result。跨文件对照覆盖 String 键、Borrow、Inout 写回后读取
+当前槽以及带有标签的临时左值提前退出。后续 R4 用例已在单文件和
+项目复现，`h.label != null`（`label: String?`）及
+`borrow val a = view(slot)` 后的判空均通过前端，原生构建报
+UnsupportedNode。
+
+同一最终代码候选在 macOS arm64 和 Linux x86_64 工具链容器
+各运行三组单文件与跨文件项目入口。12 个产物退出 0、stderr
+为空，六对 stdout 与预期逐字节一致。Niche 对照另验证 8 次
+非空分配的逐指针释放。两端 nullable String 39 项、nullable when
+58 项和 CLI 所有权诊断回归均通过。
+两端扩大的 Map 原生套件各通过 148 项。macOS 另通过 Refine 准入
+54 项、多文件所有权 167 项和 frontend、codegen、CLI 严格
+Clippy。格式、尺寸、文档结构和 diff 检查通过。
+
+## 303. R4 String? 字段的直接判空
+
+基线单文件和跨文件项目对 `h.label != null` 均通过前端，但
+原生构建报 `UnsupportedNode`。普通类含闭合的 String? 字段时，
+布局 recipe 同样在构造端拒绝，即使未读取字段。
+
+布局解析复用现有 String? 的 concrete type identity。Refine
+检查实际字段身份和 receiver 类型，从原槽建立共享投影并生成
+NullableLoanIsNull。独占 receiver 经 scoped SharedReborrow。
+比较后先结束字段借用，再结束父重借用，同一字段可继续写回。
+普通临时 receiver 的清理由前端发布到 AfterBinaryOperands。
+每次比较只求值 receiver 一次。具名资源仍按词法作用域末尾析构。
+
+独立复审实跑普通／嵌套类、分组、this、Rc、own 和 inout，
+以及临时 receiver 的短路与提前 return。缺失构造实参给出
+L0121。重新求值同一字段的 String? 不从之前的判空取得
+隐式收窄，前端给出 L0084。
+
+具名泛型 receiver 依实际 owner 与具体字段类型准入。字段模板
+为 T? 时，前端临时 receiver 的清理仍沿 enclosing owner 的
+MoveOnly 事实。复审重跑了泛型局部、T=String 的临时 receiver
+和泛型字段 clone，并确认临时 receiver 准入仍需要精确清理事实。
+
+macOS arm64 和 Linux x86_64 工具链容器从同一最终代码候选
+各运行六组单文件与跨文件项目入口。24 个产物退出 0、stderr
+为空，12 对 stdout 与预期逐字节一致。两个持久资源用例分别
+逐指针核对 8 次与 6 次分配释放。单文件和项目也复验了
+L0084。
+
+后续 R4 对照包括具体 Int? 临时字段的判空及泛型资源类构造。
+借用返回的 String? 绑定后判空仍在两个入口通过前端、原生构建
+报 UnsupportedNode。
+
+最终候选的双端 nullable String 各通过 42 项，nullable when
+各通过 61 项。macOS 多文件所有权 167 项和 frontend、codegen
+严格 Clippy 通过。前一行为候选另通过资源析构 78 项和 Refine
+准入 54 项。格式、尺寸、文档结构和 diff 检查通过。
+
+## 304. R4 借用返回的 String? 绑定后判空
+
+基线上，借用返回可以绑定、转交普通借参及作为 nullable when 主体。
+绑定后的直接判空、布尔结果和非空分支读取通过前端，但原生构建报
+UnsupportedNode。单文件与跨文件项目均复现。
+
+控制准入按 typed null comparison 的符号、可空类型、词法祖先与
+同一个 place 身份核对判空及其布尔控制。Refine 对已活动的绑定槽复用
+NullableLoanIsNull 和非空边的共享证明。来源是 Inout 时，
+结果调用在共享 ABI 上使用现有 SharedReborrow，仅延续 from 实参
+的重借用。结束时先释放 payload 证明与结果借用，再结束来源。
+
+独立复审复现了短路右侧的 String 等值比较、外层 if 内的借用和
+非空分支里的词法 payload 子借用。String? 复用普通 String 的
+词法控制遍历。窄化子绑定还必须命中同源 BorrowedStorage 父绑定，
+且 typed proof 指向该绑定。复核覆盖分组、两条不同父路径、再次
+转交借用、孙级子借用及提前返回。同源的其他绑定不能复用当前
+证明，仍报告 L0084。活动子借用期间写回仍报告 L0135。
+
+同一代码候选的五组输入在 macOS arm64 与 Linux x86_64 容器各
+通过单文件与跨文件项目的检查、构建和运行。20 个产物均退出 0，
+stderr 为空，10 对 stdout 逐字节符合预期。公开 check 入口的
+L0135 回归在两端通过。循环内的这类绑定判空仍报 UnsupportedNode，
+有标签的 Map result 非空读取仍报 MissingFact，继续作为 R4 复现。
+
+双宿主的 nullable String 套件各通过 46 项，nullable when 各
+通过 65 项。macOS 的 borrow_result 套件 120 项通过，codegen
+与 CLI 的严格 Clippy 通过。格式、尺寸、文档结构和 diff 检查
+通过。两个后续复现均在单文件与跨文件项目确认。有标签的
+Map result 只判存在性时可运行，失败点是非空 payload 读取。
+
+## 305. R4 带存在标记的 Map 结果的非空借用
+
+`Map.remove` 的 `String?` 结果带显式存在标记。基线上，借用返回后的
+判空可以读取标记，非空分支读取 String 时原生构建报 MissingFact。
+Refine 复用 NullableLoanBranch。Verifier 要求注册的 Map 结果布局
+及 String payload，沿边保留原槽的父借用。在 LLVM 中，判空读取
+字段 0，非空边接收字段 1 的地址，空边不读 payload。内联指针
+niche 继续遵循 ADR-0041。独占槽可在结束子证明后写回。
+
+新增原生回归覆盖有值、空字符串和缺失值，运行 If 内的词法子借用、
+when 读取及独占写回后再次借用。独立复审核对了布局注册、字段投影、
+跨块重新绑定及父子退休顺序。Verifier 拒绝未注册的同形布局、活跃
+子借用期间父借用写回或提前结束。评审另在 macOS 跑了四组单文件与
+跨文件项目对照，覆盖转交普通借参、when 后写回和短路后继续循环。
+
+同一候选源码在 macOS arm64 和离线 Linux x86_64 容器各通过两组
+输入的单文件与跨文件项目 check、build、run。8 个本机产物均退出
+0，stderr 为空，4 对输出逐字节符合预期。两端 nullable String
+各通过 49 项，nullable when 各通过 67 项，另各通过 1 项标记布局
+准入测试。macOS codegen 严格 Clippy、格式、尺寸和文档检查通过。
+
+后续复现仍待修复。借用返回的 String? 绑定后用作 while 判空条件，
+两种公开入口均通过前端检查，原生构建报 UnsupportedNode。带
+continue、break 和循环体析构的组合也在两入口复现。直接以借参
+判空的对照在 macOS 输出 T。独立评审另复现带标记布局中的具名
+String 转交 borrow String? 报 InvalidModel。后者在被调用函数
+没有非空分支时仍可复现。
+
+## 306. R4 借用返回的可空 String 用于 while 判空
+
+借用返回绑定用于 while 判空时，单文件与跨文件项目通过前端检查，
+原生构建报 UnsupportedNode。带 continue、break 和每轮析构的新增
+原生测试先失败，错误 span 对应循环体内的 if。只有简单判空也无法
+通过旧循环准入。
+
+仅把由相同绑定或同源词法子绑定的 typed 判空事实直接证明的 while
+加入该绑定的准入。已准入循环的完整条件复用原有运算符遍历，循环体
+复用原有语句控制遍历。独立复审发现复合条件中的 Int 比较需要一同
+登记，修复后复验。条件中短路右侧的独立 inout 调用按原求值顺序执行。
+Refine 沿用原 while 的 payload proof 边界，父结果按已发布的词法
+结束事实清理。活动借用期间写回仍报 L0135。
+
+持久回归覆盖空、非空和循环内析构。公开入口额外覆盖显式标记布局、
+普通回边、条件变假、continue、break、return 和调用者再次写回。
+在同一源码快照上，macOS arm64 和离线 Linux x86_64 容器各有
+四组输入通过单文件与跨文件项目的 check、build 和 run。16 个
+进程正常退出，stderr 为空，8 对输出逐字节符合预期。
+两端 nullable String 各通过 50 项，nullable when 各通过 68 项。
+macOS borrow_result 通过 120 项，Linux 标记布局准入测试通过。
+macOS codegen 严格 Clippy、格式、尺寸、文档及 diff 检查通过。
+候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`0298b3ba3593fc05678008ddb39b63e0078551ec399dde36002fdfb2fcaa8d23`。
+
+同时存活且跨回边的独立结果借用仍触发保守准入，两种公开入口均
+复现。循环体内新建具名子借用的探针仍在前端报 L0164。两者保留
+为后续复审场景。双宿主两入口另复验了具名 String 转交 borrow
+String? 的 InvalidModel。它只在同一编译单元内存在会选择显式
+标记布局的 Map 结果时触发。在 macOS 上，两个操作位于不同函数
+时，只要 Map 所在函数可达即复现。取消该调用后可执行。
+
+## 307. R4 Map 移出 String 的可空表示一致性
+
+在旧候选上，可达 Map.remove 使同一编译单元的 String? 统一选择
+显式标记布局。具名 String 转交 borrow String? 时，复用地址的
+SharedReborrow 无法满足该目标布局，原生构建报 InvalidModel。
+新增持久回归先复现，再验证直接借入、已有借参转交及调用后复读
+同一原值。删除独立的可达 Map 操作可以消除失败。
+
+生产 Unit 的 Map.remove String 现沿 ADR-0033 复用 String? 的
+指针 niche。Verifier 仅允许 Map 的实际 String payload 匹配该
+niche 结果。LLVM 缺失边交付全零布局，命中边原样转交移出的
+String，空字符串仍使用非空 sentinel。已注册的显式标记结果
+仍有既有 SSA 校验和原始回归。具名 owned String? 的布尔判空
+直接读取 NullableIsNull 后消费原 drop 事实，控制分支仍沿真实
+证明建立视图。两处 SSA 见证继续锁定 MapRemove 的原第二结果、
+源位置与析构次序。
+
+独立复审覆盖不同生产者跨函数交付、可达与不可达 sibling、
+非空和空 Map 的 miss、空文本和空 argv、独占写回，以及原值
+生命周期。逐指针原生回归核验 9 次分配与释放。复核确认布尔
+判空的两种极性及原 owner 的清理顺序。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`4299496ca7fd32b0ae566e6045f14ab96cad5413fac2acc46bef9597cf3d0252`。macOS arm64 与离线 Linux x86_64 容器的两种公开
+入口各通过四组输入的 check、build 和 run。16 个进程正常
+退出，stderr 为空，8 对输出逐字节符合预期。两端各通过 165 项，
+涵盖 nullable String、nullable when、Map.remove、析构顺序与布局
+准入。macOS 的严格 Clippy、格式、尺寸、文档和 diff 门禁通过。
+
+下一项复现是 when 的非空臂将借入的 String? 主体转交给同步
+borrow String? 参数。macOS 两种入口的 check 通过，原生构建
+仍报 UnsupportedNode。该用例无需 Map 即可复现。
+
+## 308. R4 When 非空 String 作为可空借参
+
+前端已发布 When 的非空 use witness 和普通共享调用参数 loan。
+旧候选只允许该 witness 匹配 payload 形参。在同一非空臂先传
+borrow String、再传 borrow String? 时，第二次调用使原生构建
+报 UnsupportedNode。新增持久回归先失败，修复后覆盖有值、
+空字符串、缺失及转交后再次读取。
+
+准入与构建共享相同的同步 String Borrow 提升判断。构建在核对
+原 witness、形参与所有权调用事实后，从已活动的 payload 证明
+建立 ABI 兼容的 SharedReborrow。普通调用和后续实参提前返回
+都先结束该短借用，再结束证明或父槽借用。提前返回的持久回归
+检查调用是否被跳过，以及参数与外层资源各自的析构顺序。
+
+独立复审实跑同源双借参、逆序具名实参、后续 return 和 abort、
+独占主体写回，对共享槽的移动仍报 L0133，后续实参在同槽写入
+时两种入口均报 L0135。具名借用主体加后续实参动态 return
+仍可触发 UnsupportedNode。两个形参均为 borrow String 的旧
+路径同样复现，作为独立的词法准入问题保留。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`d6d4c8e27e5098627a3a9b7a6d218e3c9a11f0367e2a7d808185e49f5b8788ae`。macOS arm64 与离线 Linux x86_64 容器分别用
+单文件、跨文件项目验证五组输入，共 20 个正常退出的原生产物。
+stderr 为空，10 对输出逐字节符合预期。两端 nullable when
+各通过 71 项、nullable String 各通过 50 项，另各通过 1 项
+标记布局准入测试。macOS 严格 Clippy、格式、尺寸、文档和
+diff 检查通过。
+
+下一项复现是同一个 If 非空臂内依次调用 borrow String 和
+borrow String?。macOS 两种入口通过 check，构建报 MissingFact。
+单文件反转两种调用的顺序仍失败。分别只重复同一种形参类型的
+对照均构建成功并输出两次 payload。
+
+## 309. R4 If 非空臂混用 String 和 String? 借参
+
+同一 If 非空臂里混合两个 Borrow 调用时，两种调用顺序均能通过
+前端检查，但旧候选构建报 MissingFact。临时调用者追踪定位在
+Unit 兼容 lowering。Refine 准入仅允许声明类型本身为 String
+的具名借参提升，拒绝已证实非空的 String? 绑定，连带回退整个函数。
+
+准入仍核对原调用的实际共享 loan。声明为 String? 的具名实参
+还需匹配活动的同符号非空事实。构建优先从该证明创建短共享重借用，
+沿普通调用机制结束子借用。持久回归覆盖嵌套 arm 及两种调用
+次序，验证有值、空字符串、缺失和后继读取。后续实参试图写入同一
+槽时仍报 L0135。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`10c2d7d2a821a8f89bc7d821a77476733a6b0195bcd283b3c1a52ba86a6529f7`。macOS arm64 与离线 Linux x86_64 容器分别验证
+共享参数、独占参数写回、owned 参数、词法绑定和后续实参提前
+return 的单文件与跨文件项目。20 个原生产物正常退出，stderr
+为空，10 对输出逐字节符合预期。独立复审另跑同源重复借参、
+逆序具名形参、短路两侧、来源与辅助实参、赋值后重新判空、
+成员调用和循环退出，12 组两入口输出一致。双宿主各通过 72 项 nullable when、50 项
+nullable String 和 1 项标记布局准入。macOS 严格 Clippy、格式、
+尺寸、文档和 diff 检查通过。仍登记两个独立缺口：
+同根非空 String 的 owned 消费，以及将其作为 borrow String?
+返回值的唯一来源。对照隔离了本批的正常调用短借用。
+
+下一项继续核对词法借用主体的 When 调用实参提前返回。即使
+前两个调用参数同为 borrow String，macOS 的单文件与跨文件项目
+均在成功 check 后构建报 UnsupportedNode。
+
+## 310. R4 词法借用主体的 When 实参提前返回
+
+前端接受词法借用作为 When 的主体。非空臂里，直接调用先观察
+该主体，再求值可能提前 return 的实参时，原生构建报
+UnsupportedNode。持久回归先复现，错误 span 对应后续实参
+中的 return。已有词法准入遍历覆盖分支中的直接控制语句，
+但无法沿原调用定位此退出。
+
+密封 preflight 接口复用原 nullable When 所有权计划查询，生产
+与实验代理同样读取原分析结果。只有同一个 When 的真实共享
+观察、同源调用位置、其后实际实参及该词法绑定的同点结束事实
+共同成立时，才准入直接 return 或 If 臂尾 return。普通调用的
+Borrow 前缀不改用借用返回切片。Refine 原清理链先退休调用短
+借用，再结束证明及词法结果，最后按前端事实结束来源和析构。
+
+持久回归同时验证两个同型借参和真可空短重借用，覆盖有值、
+空字符串、null、后续写回及提前返回时跳过调用和后续语句。
+独立复审验证逆序具名实参、多级词法子绑定、分组、短路、带值
+return、两臂 return，以及已求值资源实参在退出时先于外层
+资源析构。L0133 和 L0135 保持；提前返回在观察实参之前、与
+观察无关的调用和另一个嵌套调用的 return 仍保留准入边界。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`43a9590d99e9442f417783c0c159afc65a6728c7bd9a35c02466cffa6e0724e0`。macOS arm64 与离线 Linux x86_64 容器用
+单文件和跨文件项目实跑五组输入，20 个原生产物正常退出，stderr
+为空，10 对输出逐字节符合预期。独立 macOS 复审另外实跑 18 个
+产物。同源独立绑定无法替代当前 When 的 Observe 事实。macOS
+的 two-source-unit 编译检查、严格 Clippy 与格式检查均通过。
+双宿主各通过 73 项 nullable when、50 项 nullable String 和
+1 项布局准入测试。
+
+下一项复现是 If 的非空 String 作为返回 borrow String? 的唯一
+来源。两种入口通过 check，构建报 UnsupportedNode。直接从原
+String? 槽调用的对照正常运行，可区分空串和缺失值。
+
+## 311. R4 If 非空 String 作为可空借用返回的来源
+
+借用返回调用以 If 非空臂的同一可空槽为唯一来源时，前端通过，
+原生构建报 UnsupportedNode。持久回归先失败。已有窄化绑定
+准入只接受返回 String，导致同一个槽的 String? 结果进入旧
+绑定门禁。
+
+扩展只接受已选 Borrow 形参类型与返回绑定类型都等于来源声明
+的 String?，且原同源非空事实和共享调用 loan 匹配。构建复用
+活动 payload proof，对唯一来源建立 ABI 兼容的 SharedReborrow。
+既有 BorrowCall 交付结果并延续来源重借用，返回或词法退出时先
+结束结果，再结束来源重借用及外层 proof。独立来源和辅助实参
+分别按既有事实清理。直接从真正的 String 存储制造 String?
+返回借用仍报 L0162。
+
+持久回归覆盖分组实参、有值、空字符串、缺失、正常离开及提前
+返回；两种路径之后均能继续访问或写回来源。独立复审额外运行
+owned local、Borrow 形参、词法父子链、相邻绑定、逆序具名参数
+及同根和异根的辅助实参。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`a7ed6bfe72e9cbcfcf41a077b3a0a9011b9dc30b5b5a9d0fa137c08c6299e289`。macOS arm64 和离线 Linux x86_64 容器分别验证
+五组单文件及跨文件项目，20 个原生产物退出 0、stderr 为空，
+10 对输出逐字节符合预期。组合覆盖 Borrow 和 Inout 参数、owned
+来源、词法父别名，以及提前退出时内外资源的析构顺序。活跃结果
+和其词法别名仍拒绝独占写入，独立复审两入口确认 L0135。
+两端各通过 74 项 nullable when、50 项 nullable String 和 1 项
+布局准入。macOS 额外通过 120 项 borrow_result、严格 Clippy、
+格式、尺寸和文档检查。
+
+同一候选沿 CI 使用的公开一致性语料及历史 baseline 实跑并验证
+双宿主证据包。两端能力探针 137/154、综合验收程序 0/6，
+23 项与已登记的未实现一致，零回归、入口差异、错误输出及
+内部错误。证据包用源码清单哈希标识候选。本轮 R4 实跑仍有
+后续阻断，R5 发布出口未闭合。
+
+下一项复现是将 If 非空臂的 owned String? payload 交给
+own String 形参。无前置借参的最小程序也在单文件和跨文件项目
+通过 check、构建报 InvalidModel；复制 payload 的对照可运行。
+
+## 312. R4 If 中的自有 String? 交付 own String
+
+If 非空臂将自有 String? 载荷交付 own String 形参时，前端
+发布整根 Move，原生构建仍失败。计数回归先失败。Refine 的
+普通 Name 准入仅按 Copyable 值或当前函数自身返回类型处理
+窄化，不能代表另一个调用的 Value 交付。
+
+准入和构建共享同一分析的非空事实、Value 参数合同和整根 Move
+核对。实参求值时从当前 owner 及活动证明执行 NullableTake；
+同根另开的证明须先结束。保留已拆出实参的身份，使旧 payload
+完成交付或在后续实参退出时清理时，不再次消费同槽的新 owner。
+旧 When 交付也使用同一提取与退休路径。
+
+两条持久原生计数回归分别核验正常调用及提前返回、同槽重填和
+二次判空。按指针核对 2 次与 4 次分配，各释放一次。独立复审
+另跑同根复证、短路、具名实参求值次序、continue、break 和
+abort。abort 跳过被调函数，遵循无栈析构语义。移动后读取和
+从共享槽移出分别保持 L0131 与 L0133。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`9274bd0bc6661994540714f1ac622585d4fb1fb9cf2c200d01daab90307a26be`。macOS arm64 与离线 Linux x86_64 容器各实跑
+六组单文件和跨文件项目，共 24 个原生产物。两端输出和跳转行为
+相同。双入口用例覆盖直接交付、嵌套同根证明、早退、循环退出、
+重新初始化及实参求值期间同槽重填。
+两端各通过 76 项 nullable when、50 项 nullable String 和
+1 项布局准入。macOS 另通过 36 项 owned_null_cleanup、严格 Clippy、
+格式、尺寸、文档及 diff 检查。完整公开一致性语料双宿主对账通过，两端均为
+137/154 能力探针、0/6 综合程序，零回归、入口差异及内部错误。
+
+同一候选重核 R0 的直接调用。CLI、LSP 与 frontend analysis 的
+生产源码没有直接调用 check_types 或 check_ownership。codegen
+命中的 15 个文件均在测试 cfg 内，包括生产文件里的旧对照。
+Unit Compatibility 路由仍由同一 Unit 类型和所有权产物驱动。
+发布的旧函数签名、仓外调用与间接函数引用仍留在 R0 清单。
+
+下一项复现是两个独立的借用结果同时跨 while 回边，其中一个
+用于条件、另一个在循环后读取。两种入口通过 check，原生构建
+仍报 UnsupportedNode。 只保留一个结果的对照可执行。把另一个
+结果放到循环前已结束的词法块，单文件仍报 UnsupportedNode，
+作为独立的作用域对照保留。
+
+## 313. R4 while 判空与独立的 String? 借用结果
+
+先用两条持久回归复现全函数准入对兄弟绑定重复拦截的问题。
+两个结果都持有到循环退出，以及另一结果先结束其词法块，均
+通过前端，在判空条件处报 UnsupportedNode。独立复审又发现
+在循环外套一层普通块仍报同错，最终持久回归保留这个嵌套
+版本及已结束的兄弟，用原生输出核对零迭代、continue、break、
+每轮析构和循环后写回。
+
+准入以源文件和单位内语句身份收集已认证的判空 while。另一
+String? 结果只能凭自己的唯一 AfterStatement 结束事实获得
+同一普通顺序块树内的循环许可。按 Block.elements 追踪作用域，
+到条件臂、循环体或嵌套 callable 停止。保留各借用身份、原有
+结束位置和 SSA 回边、退出边验证。
+
+最终候选以 `cc2d15d6` 为基线。源码清单 SHA-256 为
+`b3199efcf8cfe94073e033e28fdfafb50204f026761e286dd9b509978a40219d`。
+macOS arm64 和离线 Linux x86_64 容器各实跑原始同级、普通块嵌套、
+闭块三组单文件／跨文件用例，共 12 个产物。对账确认同源、同输出、
+无 stderr、进程退出 0，以及 Mach-O 和 ELF 目标格式。两端各通过
+78 项 nullable when、52 项 nullable String 和 1 项 Map 布局准入。
+macOS 的严格 Clippy、格式、Rust 尺寸、文档和 diff 检查通过。完整
+conformance 和 sanitizer 未随此切片重跑。
+
+独立复审在 macOS 核对直接和嵌套、同根和不同根，含闭块后在
+循环中写回独立根。覆盖原单结果路径、活动根的 L0135 冲突和
+无判空 witness、条件臂、外层循环边界原有的准入拒绝。本次
+限定两个独立 String? 结果。一个普通 String 借用结果和一个
+判空 String? 结果混用时，最终候选的单文件和项目均能复现前端通过、
+原生 UnsupportedNode，登记为下一项。
+
+## 314. R4 while 与普通 String 借用结果混用
+
+普通 String 借用结果跨 String? 判空 while，或在该循环之前
+从普通块退出，两种形态都通过双入口前端检查并在原生准入报
+UnsupportedNode。持久回归先确认判空条件处报错。跨回边的
+用例同时保留自己的字符串等值比较与循环后读取。
+
+普通 String 的观察规则公开给同一个准入收集器。循环见证仍
+来自独立 String? 结果或其同源词法子绑定的精确判空事实。
+普通 String 只凭自己的 AfterStatement 结束事实取得顺序块内
+的许可。等值和 when 消费自己的普通 String 观察规则；各身份和结束点由原所有权事实提供。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`c446f94deb573a5792f9a573906a05106185ff2dec1a6237343b7cb9dc537998`。
+本机 macOS arm64 与离线 Linux x86_64 容器实跑五组单文件与
+跨文件项目，共 20 个产物，输出逐字节吻合且无 stderr。
+两端各通过 80 项 nullable when、54 项 nullable String、1 项 Map
+布局准入和 40 条 word-frequency 公共命令。严格 Clippy、格式、
+尺寸检查在 macOS 通过。
+
+同一候选以源码清单身份运行完整公开一致性语料。双宿主对账
+通过，两端均为 137/154 能力探针和 0/6 综合程序，零回归、入口
+差异及内部错误。综合程序维持现有未实现基线。
+
+Linux sanitizer 门禁以默认测试线程配置复跑通过。标量 ASan、
+LSan 正反控、原始 Map，以及 12 个 Resource Map 历史用例均按
+预期分类。首次运行的串行 libtest 把 nocapture 日志插在测试状态
+行中，导出器通过但脚本误拒；复跑使用同一冻结源码及默认线程。
+这套门禁未对本节两个新增程序插桩，也不覆盖 Koven IR UBSan。
+
+独立复审复跑 macOS 正式双入口，同时覆盖有主语 when、plain
+等值与判空组合守卫、两个普通借用、闭块后写回来源，及活动根
+L0135、无精确见证和同文件另一个 callable 的无关循环对照。
+
+下一项是混合结果经过可达 return 退役。循环之后直接 return 和
+循环体内可选 return 的双入口均通过 check、原生拒绝。独立复审
+的单可空借用保留循环和真实 return 对照可执行，仍在正确边析构。
+条件臂里的混合判空循环亦在双入口复现准入拒绝。
+
+## 315. R1–R4 第一轮收口与合批验收
+
+R1 的 Source、AST、Lexer、Pratt、调用和恢复矩阵在本机 11 个
+suite 共 151 项通过。复验 §255 的剩余边界发现，合法的悬挂调用
+`produce
+(1)` 之后，下一臂以 `((true)) && true ->` 起始时被
+误当上一臂的 postfix call。公开单文件和项目入口均报 L0058 和
+L0065。将 selector 改成完整分组，或在上一臂末尾加显式分号，
+两种入口均通过；待补 AST 回归并修复。
+
+R2 本机标准类型、跨文件类型、循环流事实三个 suite 共 407 项
+通过。这一范围仍需随最终候选复验。
+
+R3 两条 Const/Basic 对照仍期待 Basic 给恒跳过的 RHS 发一个
+loan。测试首次失败，实际为零。已按 §290 的 typed bypass 合同
+将两条对照修正为双入口均无 RHS loans/drops。保留 Const 计划
+和材料化观测，以及原始与恢复产物拒绝进入 Basic 验证的检查。
+独立复审核对事实生产者与两条能力验证路径。本机 6 个所有权
+和交接 suite 共 77 项通过。此项只更新既有测试。
+
+合批发布等待 R1–R4 第一轮已确认阻断关闭及同一候选的相应
+阶段门禁。R4 当前包括 §314 的混合借用正常/return 退役与条件
+臂。候选通过后先发 PR，跟进双宿主 CI 并合入 main；R5 发布
+验收沿原计划继续。
+
+## 316. R1 复合 when 条件的分支归属
+
+§315 的悬挂调用加复合条件先录成 AST 红测，前一臂吞括号并触发
+L0058 和 L0065。Phase 1 从行首成对分组向后寻找同层真实箭头，
+以现有运算符规则和索引越过配对内部、字符串及类型。函数类型
+内部箭头由原严格类型预索引跳过，typed call 复用尾 lambda 的
+续行判定。控制 operand 的内层箭头仍归其所属结构。
+
+AST 回归逐项核对前一臂调用跨度、新 entry 条件和箭头跨度。
+覆盖复合与多条件、if/when operand、具名泛型调用、return/super、
+行首中缀 is/in、跨行 lambda 独立条件及 cast 函数类型的箭头。
+扫描计数测试将悬挂调用和复合运算符各从 64 加倍至 128，计数
+符合线性上限。独立复审找到控制 operand、跨行 lambda、函数类型
+和裸条件恢复欠账，修完后复跑 AST 与最终 CLI。后者在无主体
+when 的裸 is/in 负例各只报一个 L0107。
+
+最终快照以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`47d2776a157fed32c34653e24490a409a5dcc5a0662618cba25e6e85af6d595d`。
+macOS arm64 与 Linux x86_64 各通过 48 项 parser 内部测试。macOS
+另通过 155 项 R1 集成、6 项 CLI、严格 Clippy 和尺寸门禁，Linux
+通过 105 项 parser 集成。四组用例在双宿主和双入口均通过 check，
+其中三个复合条件共产生 12 个原生产物，逐字节输出符合预期。
+独立 lambda selector 的四个原生构建报 UnsupportedNode。脱离
+when 的立即 lambda 调用对照在 macOS 同样报该后端错误。本节只验
+其 AST 和前端接受。非法裸 is 的四次双宿主／双入口检查各只报
+一条 L0107。
+
+同一 Rust 源码的 macOS R2/R3 阶段回归分别通过 407 项和
+77 项，零失败、零忽略。完整候选的一致性和 sanitizer 沿合批门禁复验。
+
+R4 另读取同一工作树前端发布的两个混合结果结束点。循环后直接
+return 时两结果各只发布同一 ControlTransfer。循环内可达 return
+时两结果各有该 ControlTransfer 和词法块的 AfterStatement。循环
+位于条件臂且正常退出时两结果各有单个 AfterStatement。后续分别
+验收这些真实结束边及准入与构建一致性。
+
+## 317. R4 混合字符串借用的 while 返回边和条件臂
+
+三条持久原生回归先在判空处报 UnsupportedNode。修复读取
+§316 核对的完整 source-qualified binding end，允许带精确
+ControlTransfer 的 return 以及正常续行的 AfterStatement。
+普通控制扫描从该绑定的顺序块沿已准入的语句控制进入各自的臂。
+臂内声明的绑定留在本臂，循环体和嵌套 callable 各自核验。正常
+和提前退出使用后端既有的 path-specific 清理与 SSA 资源验证。
+
+回归覆盖循环后直接 return、循环内 continue 后真实 return，
+以及条件臂执行、空值零迭代和跳过循环。每次匹配当前迭代析构和
+外层析构顺序。独立复审复跑三条用例的单文件和跨文件入口，另
+核 Boolean when 中的循环、同名遮蔽、活跃来源的 L0135、未知
+回边与跨臂负例。真实绑定与来源各自匹配。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256 为
+`3082da841afd6a23e245dad2346fd667f6196fa6219b55ddcd1421eb3ea97484`。
+macOS arm64 与离线 Linux x86_64 容器各通过八组双入口实跑，
+共 32 个原生产物，输出逐字节符合预期，目标格式分别确认为 Mach-O 和 ELF。两端各通过
+83 项 nullable when、54 项 nullable String 和 1 项 Map 布局准入。
+macOS 另通过 111 项 SSA verifier、严格 Clippy、格式、尺寸、
+文档及 diff 检查。完整 conformance 和 sanitizer 沿合批门禁复验。
+
+下一项双入口复现是将 Boolean 主体改为独立 String? 主体的
+nullable when。正常结束事实齐备，前端通过而原生仍报
+UnsupportedNode。§316 的 lambda 缺口也已缩到直接或加括号
+调用 literal，带捕获时同样复现。局部命名后再调用的对照可运行。
+
+## 318. R4 独立 owned String? when 与词法字符串借用
+
+原始局部 owner 及参数 owner 的双入口通过 check，原生在 else
+内的判空 while 拒绝。先修读同一分析的 typed／owned 计划与
+已发布的作用域结束点。旧构造为 MoveOnly 主体在 else 建立
+payload 视图，循环边发现这个活跃 proof 又拒绝。没有 typed
+载荷读取和 owned 调用使用的自有 String? 主体改走 NullableIsNull
+布尔分支，两个消费者共享判定，按原事实清理 owner。
+
+独立复审验证了非 null 空字符串、null、正常退出、循环内
+return，以及未认证循环和真实 payload 使用的准入边界。复审
+另发现删掉不可达 while 会改变外层 when 的准入。最终让同一
+作用域中来源独立的 when 直接消费自己的 typed 与 owned 计划，
+并用已有语句控制合同处理可支持的臂内结构。原生回归同时保留
+有循环和完全无循环的用例，循环与控制分别核对其直接凭证。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256
+为 `c303fb99ed66675badc7ce3cdbf0c8f360bdddf150125c8fc5180fe8425d901b`。
+macOS arm64 与离线 Linux x86_64 各实跑 11 组单文件／跨文件
+项目，共 44 个原生产物。对账确认源码组成、逐字节输出、空
+stderr、正常退出及各自目标格式。独立复审核对 8 项正向 CLI
+探针和 3 项负向准入，含无循环与不可达循环输出相同、兄弟臂
+独立语句控制、同根与既有借用载荷视图。
+
+两端各通过 85 项 nullable when、54 项 nullable String 和
+1 项 Map 布局准入。macOS 另通过 111 项 SSA verifier、严格
+Clippy、格式、尺寸、文档及 diff 检查。
+
+最终候选的公开一致性语料通过双宿主对账。两端均为 137/154
+能力探针、0/6 综合程序，零回归、入口差异及内部错误。过渡
+候选的 Linux conformance 在固定最终树后结束，最终数据只取
+重新执行的冻结候选。sanitizer 留在合批候选验收。
+
+下一项立即调用 lambda 已复跑无捕获、共享捕获和 move 捕获。
+前端接受合法无参形式，原生生成失败。局部命名再调用的共享
+捕获对照正常运行。导出的所有权事实中，命名闭包有自身的
+CallReturn 释放；捕获 literal 的 Basic drop 计划中未检出
+闭包 temporary 清理。该组合需要同时检查所有权发布与后端调用时机。
+
+## 319. R3/R4 立即调用 lambda 的环境与调用退出
+
+无捕获、共享捕获和 move 捕获的无参字面量调用通过前端，原生
+构建先报 UnsupportedNode。Refine 从 typed FunctionValue descriptor
+和已有 thunk plan 接受直接或分组 literal，在实参前形成 callable。
+前端将内层 lambda ID 登记为调用期 owner，正常返回按 CallReturn
+清理。无捕获函数指针也有逻辑 SSA owner，首次只登记捕获环境时
+verifier 报 MissingOwnedExit。
+
+独立复审发现只读捕获的纯 String 来源缺少调用期保护。合并既有
+独占捕获调用事实和同一 lambda 发布的共享捕获来源，沿原清理
+算法先释放环境，再释放已最后使用的纯内存来源。Unit 的两个
+入口均保留后续仍被读取的来源。持久事实测试修前仅看到闭包
+temporary，修后按顺序看到 temporary 和源 binding。
+
+原生 Abort 回归另发现 `error(owner.label)` 既在具名闭包也在立即
+闭包触发 UnsupportedNode。消息字段准入只排除外层 error 本身的
+Abort，仍检查实参中的提前退出。独立复审核对正常调用、嵌套
+退出和 Abort 的边界。原生正例核对共享 Resource 的词法析构、
+move Resource 的调用返回析构、共享 String 的读取，以及
+error 的 SIGABRT、确切消息位置、无捕获析构及无续行。
+
+本机 macOS arm64 与离线 Linux x86_64 均通过 3 条新增原生
+回归。冻结源码清单 SHA-256 为
+`d2e2c71aa2b53c7c5cdce411605d8add39bee6a26da84b4276153adc2e944d7f`。
+同一编译器源码树汇集 17 组单文件及跨文件项目用例，双宿主实跑
+68 个原生产物。逐项确认输入正文一致、check/build/run 成功、
+stdout 逐字节相同、stderr 为空，目标格式分别为 Mach-O arm64
+和 ELF x86-64。§316 中直接调用 Boolean lambda 的 when 条件
+同时通过两宿主两入口。
+
+## 320. 第一轮 PR 合批扩大验证
+
+[PR #443](https://github.com/Halckon/Koven/pull/443) 将 §316–319
+已复审修复与同批积累的 R2–R4 修复提交到 main 基线 `cc2d15d6`。
+两宿主各通过 87 项闭包所有权与帧测试。§319 的候选另在公开
+conformance 矩阵达到双宿主一致，均为 137/154 能力探针和 0/6
+综合程序，原基线 23 项未实现，零回归、入口差异及内部错误。
+
+扩大验证的前端 lib 有一条旧根写入回放断言仍期望 Basic 模式
+记录恒短路右侧。本机复现 `false && ...` 实际只记录后继写入。
+按 §290 的普通 bypass 合同更新测试预期。两个模式继续核对六组
+动态、恒跳过和恒执行的条件，以及实际写入的短路与 when 分支
+归属、续行清除。独立复核确认改动限于测试。定向测试通过，macOS
+前端 lib 复跑 881 通过、0 失败、14 忽略。忽略项保留原门禁分流。
+
+## 321. R3 所有权短路检查的默认栈
+
+PR #443 的 macOS 与 Linux CI 均在 16 个独立判空证明的既有
+原生回归发生栈溢出。此前本机扩大线程栈的回归通过，未覆盖
+CI 默认栈。两宿主用默认栈复现 SIGABRT。macOS LLDB 堆栈
+显示短路链每次递归都保留通用 AST match 的大帧。
+
+将 AST 分派移到原 typed dispatch 之后的独立函数。短路直接
+复用原 planner 和 left/right 数据流，保持恒跳过、恒执行、动态
+合流与 callable 来源记录。独立复审核对原优先级和调用边界。
+原 16 段用例及 stdout 断言保持不变，macOS arm64 和离线
+Linux x86_64 均在默认栈复跑通过，Linux 启用 CI 使用的
+`loan-observation-test-support`。
+
+## 322. R1 循环内 when 条件的跳转与恢复
+
+循环块中，悬挂调用后的复合 when 条件包含 `break` 或
+`continue` 时，AST 红测显示前一臂丢失换行实参。零操作数跳转
+进入 selector 扫描，已配对的括号先由 when 同层箭头决定归属。
+普通 block 换行仍负责未配对括号。独立复审发现省略这一步会让
+调用恢复吞掉后续 else，追加 AST 回归保留原臂和末尾 else。
+
+macOS 的 parser 内部、控制流、block 续行与入口换行矩阵共
+95 项通过，覆盖前一臂调用跨度、新条件和箭头、末尾 else。
+
+## 323. R4 同一堆对象的不同 MoveOnly inout 字段
+
+直接类字段通过前端后，普通调用 lowering 先拒绝字段实参。
+接通该路径且保留旧 verifier 时，正例改报 InvalidModel。
+准入与构建共用已验证的字段投影及该实参唯一的同源独占 loan。
+MoveOnly 调用在全部实参正常完成后建立字段地址，无需回写
+局部 owner 快照。SSA 复用借用建立时使用的直接字段互斥证明。
+同一字段及未知布局的重叠保持拒绝。独立复审核对了相邻实参、
+提前退出、正常 loan 退役和无凭证路径。
+
+新 SSA 回归验证不同字段通过；将同一 loan 交给两个位置时，
+断言调用指令拒绝。macOS 4 项 move-only inout 回归通过。冻结
+候选在 macOS arm64 和 Linux x86_64 分别通过不同字段写入与
+§322 循环跳转的单文件和跨文件项目，共 8 个原生产物，逐字节
+输出一致。同字段的四次公开检查各返回一条 L0135。
+
+## 324. 第一轮扩大门禁的逐项合同核对
+
+按 [PR #443 上一轮双宿主日志](https://github.com/Halckon/Koven/actions/runs/44245165150)
+对账。基线 `cc2d15d6`，出现以下完整失败集合的 head 为
+`51845889`。原默认栈回归在该 head 已通过，两端随后各遇到
+同组 21 项代码生成测试失败。更早的 suite 提前退出，未建立
+每一项的首次失败 SHA。`c26047e6` 的两项定向修复与下表分别验收。
+
+| 组 | 原失败测试 | 原合同与当前行为 | 决议及验证入口 |
+|---|---|---|---|
+| A | `ordinary_branch_neighbors_keep_the_unit_declaration_gate` | 单层 String 转发邻例要求原 receipt；新增同根检查绕过该门 | 恢复原负例的 UnsupportedNode、marker Span、无 receipt、未进最终 verifier |
+| A | `ordinary_balanced_neighbors_keep_exact_unsupported_boundary` | 四叶树的错外层条件超出 receipt | 同上，保留全部输入和观察开关 |
+| A | `ordinary_bounded_terminal_tree_neighbors_stay_unsupported` | 深度和相邻拓扑不匹配 bounded receipt | 同上 |
+| A | `ordinary_nested_else_cascade_tail_wrong_outer_keeps_backend_unsupported` | else cascade 的外层条件无匹配 receipt | 同上 |
+| A | `ordinary_nested_else_cascade_tail_neighbors_stay_unsupported` | else cascade 相邻形状、错内层条件 | 同上 |
+| A | `ordinary_nested_then_tail_wrong_outer_keeps_backend_unsupported` | then tail 的外层条件无匹配 receipt | 同上 |
+| A | `ordinary_nested_then_tail_neighbors_stay_unsupported` | then tail 的额外语句等相邻形状 | 同上 |
+| A | `ordinary_nested_neighbor_trees_keep_exact_unsupported_boundary` | 三叶树错序等形状无匹配 receipt | 同上 |
+| A | `ordinary_nested_four_leaf_wrong_flag_stays_unsupported` | 四叶树旗标无匹配 receipt | 同上 |
+| A | `ordinary_single_continuation_neighbors_stay_unsupported` | 双空位及额外语句无 continuation receipt | 同上 |
+| A | `child_borrow_branch_remains_unsupported` | 旧门禁拒绝普通 String 臂内借用，现由与该臂相符的词法结束事实清理 | 延续 §317–318 的独立 arm 合同。保留两种 unit 输入和原调用，验证异源、同源和合流后读，原生输出逐字节核对 |
+| A | `multi_parameter_borrow_assertion_argument_remains_unsupported` | 旧门禁拒绝 `!!` 辅助实参 | 保留原输入，两种 unit 验证 SSA，原生核对返回 loan 仍读 lender；不扩展 Inout |
+| A | `mixed_value_borrow_wrapper_control_prefix_remains_lowering_unsupported` | 旧门禁拒绝辅助实参中的负号、if、加法 | 保留三例和两种 unit，按普通实参和借用结果合同验证 SSA、原生读取 |
+| A | `mixed_value_borrow_caller_cfg_remains_lowering_unsupported` | 旧门禁拒绝结果作用域跨后继分支 | 保留原两处读取及两种 unit，验证 SSA、原生输出。错误来源、活跃借用和可调用值原负例继续检查 |
+| B | `rejects_recursive_nullable_owner_until_ssa_declaration_cycles_are_supported` | 旧检查要求 Node? 回边拒绝 | §282 准许间接堆回边。验证声明完成及 LLVM，缺 payload 负测保留 |
+| B | `field_replace_single_nullable_recursive_class_layout_stays_unsupported` | 旧检查拒绝自递归和互递归普通类 nullable 参数 | §282 精确迁移，验证 SSA/LLVM 和普通类有限活动链的析构终止 |
+| B | `finite_value_class_recursion_through_a_heap_handle_lowers` | 旧检查允许布局但仅接受 fallback | §283 的 Refine 接管有限布局；核对同一入口、aggregate/heap/Rc 布局，实跑活动堆边 |
+| B | `field_replace_single_nullable_layout_keeps_nonclass_and_generic_boundaries` | 八项 recipe 中旧检查包括 String? | 仅迁移 §303 支持的 String? niche，核对 inner 为 StringOwner，另外七条和精确字段位置保持拒绝 |
+| C | `enum_tag_slice_does_not_claim_general_payload_grouped_or_move_only_equality` | 旧拒绝含分组的无载荷 case | §278 仅迁移 Copyable 分组 case，原生核对命中和未命中。普通值、带载荷、MoveOnly 三条仍在原 Span 拒绝 |
+| C | `retired_ownership_primitive_boundary_tests` | Int? when 原走自然 fallback，组合中的 replace 被拒绝 | §259 的默认入口进入 Refine。原生核对旧值、写回及选择结果；同一源和原强制旧路径均在 replace Span 拒绝 |
+| C | `rhs_only_move_uses_published_short_circuit_cleanup_on_both_exits` | 旧断言要求静态跳过分支带 owner 清理 | §290 静态跳过无 RHS 交付；动态 OR/AND 的跳过边仍有实际 owner 清理。保留跨源输出和四次分配释放 |
+
+A 组十个邻例的原只读检查保留。普通同根字符串返回入口仍要求
+每个出口来自同一参数，并检查直接返回、多实参转发，或同一个
+return 上确切的词法 String 结束事实。纯单实参转发树继续使用
+原 receipt。这项准入变更与四项自然支持场景的验收更新分别复审。
+
+同一候选还需验证最终 PR-event 双宿主 Targeted、聚合
+CI Passed 与运行 SHA。旧冻结候选的 conformance、sanitizer
+和 native 输出记录保持各自输入身份。
+
+macOS arm64 以默认栈定向复跑 42 项，涵盖上表原 21 项及相关
+原生、布局和 verifier 对照，零失败、零忽略。两个新增堆布局
+实测核对分配和释放的逐指针身份。普通类互递归为有限活动链，
+分配由内到外，各父对象先 deinit、再清理并释放其字段，最后
+释放自己的指针。value class 的普通堆边只分配和释放活动 owner。
+这两项仍依赖原内联环、非法 nullable 和缺少定义的拒绝负控。
+
+## 325. 文件恢复及字段调用的扩展验收
+
+§322 的完整函数文件回归覆盖跨行 break、continue，以及未配对
+括号后的 else 和随后的顶层声明。只追加入口验收，没有改变
+selector 实现。macOS 控制流、block 续行和入口换行共 48 项
+通过。公开诊断核对缺失括号后的单文件和项目行为。
+
+§323 新增带资源字段的调用回归。两个 Inout 字段之间及其后
+各求值一个普通实参。提前 return 只执行已求值的前缀，保留并
+清理两个原字段且不分派；正常路径按源码次序求值、替换两字段，
+调用后可以读取新值，最后完成外层析构。macOS 原生回归通过。
+同字段和 owner 与字段重叠在单文件、项目入口仍报 L0135。
+
+## 326. 文件尺寸门禁和双宿主定向对账
+
+`b8ad88fe` 的 PR-event Rust Physical Line Guard 报
+`provider/borrow_result.rs` 共 1014 行。将字符串入口与转发
+身份核对移入同模块的 `entry_string.rs`，两个函数仅改变模块
+可见性，原逻辑逐字节不变。拆分后分别为 837 和 183 行，尺寸
+检查通过。macOS workspace 严格 Clippy 和默认栈 42 项复跑通过。
+
+拆分前、与 `b8ad88fe` 一致的编译器源码清单 SHA-256 为
+`c555ca019a2150357e3e5717e48aa6cdce80fccdafdcd99d9087eec1c14e85ee`。
+macOS arm64 与 Linux x86_64 各通过 42 项定向 SSA/native 回归
+和 48 项 Parser 入口回归。双宿主的 5 组合法源码均跑过单文件和
+跨文件项目，共 20 个原生产物，退出 0、stdout 逐字节符合预期，
+stderr 为空。3 组负例共 12 次公开检查，同字段和父子重叠各报
+一条 L0135，缺失括号两入口均报 L0010、L0056、L0059。
+完整测试继续看当前 PR-event 的两个宿主及聚合检查。

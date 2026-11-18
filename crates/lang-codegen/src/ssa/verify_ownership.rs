@@ -13,6 +13,7 @@ mod closure;
 pub(in crate::ssa) mod field_exchange;
 #[cfg(test)]
 pub(in crate::ssa) mod field_exchange_tests;
+mod inout;
 mod range;
 use range::borrow_result;
 #[cfg(test)]
@@ -32,6 +33,7 @@ struct BlockState {
     values: BTreeSet<ValueId>,
     places: BTreeSet<PlaceId>,
     loans: BTreeSet<LoanId>,
+    inout_writebacks: BTreeMap<ValueId, PlaceId>,
 }
 
 pub(super) struct AliasRoots {
@@ -82,6 +84,9 @@ pub(super) fn verify_ownership(
                 &instruction.origin,
                 errors,
             );
+            if !state.inout_writebacks.is_empty() {
+                inout::check_instruction(&state, instruction, errors);
+            }
             apply_operation(
                 module,
                 function,
@@ -89,6 +94,15 @@ pub(super) fn verify_ownership(
                 &aliases,
                 &closure_loans,
                 &reborrows,
+                &mut state,
+                errors,
+            );
+            inout::record_call(
+                module,
+                function,
+                instruction,
+                &reborrows,
+                &aliases,
                 &mut state,
                 errors,
             );
@@ -108,6 +122,18 @@ pub(super) fn verify_ownership(
             &terminator.origin,
             errors,
         );
+        if !matches!(
+            terminator.kind,
+            TerminatorKind::Abort | TerminatorKind::Unreachable
+        ) {
+            for &value in state.inout_writebacks.keys() {
+                errors.push(error(
+                    VerifyErrorKind::ValueUnavailable { value },
+                    VerifyLocation::Terminator(block.id),
+                    &terminator.origin,
+                ));
+            }
+        }
         match &terminator.kind {
             TerminatorKind::Branch(edge) => verify_edge_state(
                 module,
@@ -155,26 +181,44 @@ pub(super) fn verify_ownership(
                 );
             }
             TerminatorKind::NullableBranch {
-                owner,
+                when_null,
+                when_non_null,
+                ..
+            }
+            | TerminatorKind::NullableLoanBranch {
                 when_null,
                 when_non_null,
                 ..
             } => {
-                require_value(
-                    module,
-                    function,
-                    *owner,
-                    &state,
-                    VerifyLocation::Terminator(block.id),
-                    &terminator.origin,
-                    errors,
-                );
-                if has_exclusive_value_loan(function, *owner, &aliases, &state) {
-                    errors.push(error(
-                        VerifyErrorKind::OwnerLoanConflict { value: *owner },
-                        VerifyLocation::Terminator(block.id),
-                        &terminator.origin,
-                    ));
+                match terminator.kind {
+                    TerminatorKind::NullableBranch { owner, .. } => {
+                        require_value(
+                            module,
+                            function,
+                            owner,
+                            &state,
+                            VerifyLocation::Terminator(block.id),
+                            &terminator.origin,
+                            errors,
+                        );
+                        if has_exclusive_value_loan(function, owner, &aliases, &state) {
+                            errors.push(error(
+                                VerifyErrorKind::OwnerLoanConflict { value: owner },
+                                VerifyLocation::Terminator(block.id),
+                                &terminator.origin,
+                            ));
+                        }
+                    }
+                    TerminatorKind::NullableLoanBranch { source, .. } => {
+                        if !state.loans.contains(&source) {
+                            errors.push(error(
+                                VerifyErrorKind::LoanInactive { loan: source },
+                                VerifyLocation::Terminator(block.id),
+                                &terminator.origin,
+                            ));
+                        }
+                    }
+                    _ => unreachable!(),
                 }
                 verify_edge_state(
                     module,
@@ -771,6 +815,11 @@ impl LoanFlowAliases {
         let mut incoming = BTreeMap::<LoanId, usize>::new();
         for block in &function.blocks {
             let terminator = block.terminator.as_ref().expect("terminator must exist");
+            if let TerminatorKind::NullableBranch { view, .. }
+            | TerminatorKind::NullableLoanBranch { view, .. } = terminator.kind
+            {
+                origins.entry(view).or_default().insert(view);
+            }
             for edge in edges(&terminator.kind) {
                 let target = function.block(edge.target).expect("target must exist");
                 for parameter in &target.parameters {
@@ -890,6 +939,11 @@ pub(super) fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
             ..
         } => vec![when_true, when_false],
         TerminatorKind::NullableBranch {
+            when_null,
+            when_non_null,
+            ..
+        }
+        | TerminatorKind::NullableLoanBranch {
             when_null,
             when_non_null,
             ..

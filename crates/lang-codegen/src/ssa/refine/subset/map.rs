@@ -491,6 +491,21 @@ impl Checker<'_, '_> {
                 return false;
             };
             let inner = *inner;
+            if self.string(inner) {
+                let temporary_parent = self.inputs.owned.drops().iter().find_map(|fact| {
+                    let lang_frontend::ownership_checking::UnitDropTarget::Temporary(parent) =
+                        fact.target()
+                    else {
+                        return None;
+                    };
+                    (fact.point() == point && self.id(root) != parent).then_some(parent)
+                });
+                if self.shared_field_read_type(operand, temporary_parent) == Some(ty) {
+                    self.note_nullable(ty);
+                    self.migrated = true;
+                    return true;
+                }
+            }
             if !(self.scalar(inner)
                 || self.range_type(inner)
                 || self.value_class(inner)

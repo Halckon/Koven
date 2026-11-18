@@ -46,6 +46,18 @@ impl RuntimeRequirements {
                     Operation::SharedRetain { .. } => {
                         requirements.needs_abort = true;
                     }
+                    Operation::LoanReplace { value, .. } => {
+                        let ty = function
+                            .entity(EntityId::Value(value))
+                            .ok_or_else(|| {
+                                LlvmAdapterError::InvalidSsa(
+                                    "loan replace 缺少 replacement value".to_owned(),
+                                )
+                            })?
+                            .ty
+                            .semantic_type();
+                        requirements.collect_drop_type(module, ty)?;
+                    }
                     Operation::HeapFieldReplace {
                         receiver, field, ..
                     } => {

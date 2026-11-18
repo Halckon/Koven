@@ -32,7 +32,23 @@ fn owned_null_cleanup_presence_precedes_unique_asap_drop() {
             let [EntityId::Value(_), EntityId::Value(owner)] = removed.results.as_slice() else {
                 panic!("owned result")
             };
-            let reads = function.instructions.iter().enumerate().filter_map(|(index, instruction)| matches!(instruction.operation, Operation::AggregateProject { aggregate, field: 0 } if aggregate == *owner).then_some(index)).collect::<Vec<_>>();
+            let reads = function
+                .instructions
+                .iter()
+                .enumerate()
+                .filter_map(|(index, instruction)| match instruction.operation {
+                    Operation::NullableIsNull { owner: nullable }
+                        if payload == "String" && nullable == *owner =>
+                    {
+                        Some(index)
+                    }
+                    Operation::AggregateProject {
+                        aggregate,
+                        field: 0,
+                    } if payload == "Text" && aggregate == *owner => Some(index),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
             let drops = function.instructions.iter().enumerate().filter_map(|(index, instruction)| matches!(instruction.operation, Operation::Drop { owner: dropped } if dropped == *owner).then_some(index)).collect::<Vec<_>>();
             assert_eq!(reads.len(), 1, "{label}/{payload}");
             assert_eq!(drops.len(), 1, "{label}/{payload}");

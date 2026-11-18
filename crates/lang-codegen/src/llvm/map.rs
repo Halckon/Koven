@@ -281,8 +281,8 @@ mod hash {
                     builder,
                     function,
                     runtime,
-                    left_view,
-                    right_view,
+                    [left_view, right_view],
+                    false,
                     &format!("{name}.streq"),
                 )
             }

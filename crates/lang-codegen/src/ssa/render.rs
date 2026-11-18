@@ -632,6 +632,10 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("shared.payload_place ")?;
             write_entity_id(output, *owner)
         }
+        Operation::SharedPayloadLoan { source } => {
+            output.write_str("shared.payload_loan ")?;
+            write_entity_id(output, EntityId::Loan(*source))
+        }
         Operation::NullableWrap { nullable, owner } => {
             output.write_str("nullable.wrap ")?;
             write_type_id(output, *nullable)?;
@@ -867,6 +871,12 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*value))
         }
+        Operation::LoanReplace { loan, value } => {
+            output.write_str("loan.replace ")?;
+            write_entity_id(output, EntityId::Loan(*loan))?;
+            output.write_str(", ")?;
+            write_entity_id(output, EntityId::Value(*value))
+        }
         Operation::Drop { owner } => {
             output.write_str("drop ")?;
             write_entity_id(output, EntityId::Value(*owner))
@@ -911,6 +921,21 @@ fn write_terminator(output: &mut String, terminator: &TerminatorKind) -> fmt::Re
         } => {
             output.write_str("nullable.branch ")?;
             write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", null ")?;
+            write_edge(output, when_null)?;
+            output.write_str(", non_null ")?;
+            write_edge(output, when_non_null)?;
+            output.write_str(" view ")?;
+            write_entity_id(output, EntityId::Loan(*view))
+        }
+        TerminatorKind::NullableLoanBranch {
+            source,
+            when_null,
+            when_non_null,
+            view,
+        } => {
+            output.write_str("nullable.loan.branch ")?;
+            write_entity_id(output, EntityId::Loan(*source))?;
             output.write_str(", null ")?;
             write_edge(output, when_null)?;
             output.write_str(", non_null ")?;

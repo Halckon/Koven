@@ -35,6 +35,7 @@ pub(super) struct UnitTrialState {
     flow_versions: FlowVersions,
     inactive_inout_calls: BTreeSet<UnitExpressionId>,
     pending_immutable_bindings: BTreeSet<UnitSymbolId>,
+    lexical_borrow_bindings: BTreeSet<UnitSymbolId>,
     replacement_values: BTreeMap<UnitExpressionId, bool>,
     active_nullable_whens: Vec<super::nullable_when::ActiveWhenFrame>,
     pending_loop_exits: Vec<super::while_flow::PendingLoopExits>,
@@ -113,6 +114,7 @@ impl BodyChecker<'_> {
             flow_versions: self.flow_versions.clone(),
             inactive_inout_calls: self.inactive_inout_calls.clone(),
             pending_immutable_bindings: self.pending_immutable_bindings.clone(),
+            lexical_borrow_bindings: self.lexical_borrow_bindings.clone(),
             replacement_values: self.replacement_values.clone(),
             active_nullable_whens: self.active_nullable_whens.clone(),
             pending_loop_exits: self.pending_loop_exits.clone(),
@@ -135,6 +137,7 @@ impl BodyChecker<'_> {
         self.flow_versions = state.flow_versions;
         self.inactive_inout_calls = state.inactive_inout_calls;
         self.pending_immutable_bindings = state.pending_immutable_bindings;
+        self.lexical_borrow_bindings = state.lexical_borrow_bindings;
         self.replacement_values = state.replacement_values;
         self.active_nullable_whens = state.active_nullable_whens;
         self.pending_loop_exits = state.pending_loop_exits;

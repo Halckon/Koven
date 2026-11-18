@@ -566,7 +566,26 @@ pub(in crate::ssa) fn verify_cfg_types(
                     function,
                     block.id,
                     1,
-                    *owner,
+                    EntityId::Value(*owner),
+                    when_non_null,
+                    *view,
+                    &terminator.origin,
+                    errors,
+                );
+            }
+            TerminatorKind::NullableLoanBranch {
+                source,
+                when_null,
+                when_non_null,
+                view,
+            } => {
+                verify_edge(function, block.id, 0, when_null, &terminator.origin, errors);
+                verify_non_null_edge(
+                    module,
+                    function,
+                    block.id,
+                    1,
+                    EntityId::Loan(*source),
                     when_non_null,
                     *view,
                     &terminator.origin,
@@ -703,7 +722,7 @@ fn verify_non_null_edge(
     function: &Function,
     source: BlockId,
     successor: usize,
-    owner: super::model::ValueId,
+    nullable: EntityId,
     edge: &super::model::Edge,
     view: super::model::LoanId,
     origin: &Origin,
@@ -742,13 +761,26 @@ fn verify_non_null_edge(
             });
         }
     }
-    let Some(inner) = function
-        .entity(EntityId::Value(owner))
-        .and_then(|entity| module.nullable_inner(entity.ty.semantic_type()))
-    else {
+    let inner = function
+        .entity(nullable)
+        .and_then(|entity| match entity.ty {
+            EntityType::Value(owner) => module.nullable_inner(owner),
+            EntityType::Loan { target, .. } => {
+                if let Some(SsaTypeKind::NullableHandle { inner }) = module.type_kind(target) {
+                    return matches!(
+                        module.type_kind(*inner),
+                        Some(SsaTypeKind::SharedOwner { .. })
+                    )
+                    .then_some(*inner);
+                }
+                module.nullable_string_payload(target)
+            }
+            _ => None,
+        });
+    let Some(inner) = inner else {
         errors.push(VerifyError {
             kind: VerifyErrorKind::OperationContract {
-                reason: "nullable branch owner must be a nullable handle",
+                reason: "nullable branch requires a nullable owner, a String? loan, or an Rc? loan",
             },
             location,
             origin: Some(origin.clone()),
@@ -763,7 +795,12 @@ fn verify_non_null_edge(
                     target: inner,
                 }
         });
-    if !expected_view || !non_null_target_is_proof_closed(function, edge.target, view) {
+    // The borrowed proof has one definite parent. Sharing its implicit parameter
+    // between different branch births would lose that identity.
+    let unique_source = matches!(nullable, EntityId::Loan(_)).then_some(source);
+    if !expected_view
+        || !non_null_target_is_proof_closed(function, edge.target, view, unique_source)
+    {
         errors.push(VerifyError {
             kind: VerifyErrorKind::EdgeType {
                 index: edge.arguments.len(),
@@ -778,7 +815,11 @@ fn non_null_target_is_proof_closed(
     function: &Function,
     target: BlockId,
     expected_view: super::model::LoanId,
+    unique_source: Option<BlockId>,
 ) -> bool {
+    if unique_source.is_some() && target.index() == 0 {
+        return false;
+    }
     function.blocks.iter().all(|block| {
         let Some(terminator) = &block.terminator else {
             return true;
@@ -795,9 +836,17 @@ fn non_null_target_is_proof_closed(
                 when_non_null,
                 view,
                 ..
+            }
+            | TerminatorKind::NullableLoanBranch {
+                when_null,
+                when_non_null,
+                view,
+                ..
             } => {
                 when_null.target != target
-                    && (when_non_null.target != target || *view == expected_view)
+                    && (when_non_null.target != target
+                        || (*view == expected_view
+                            && unique_source.is_none_or(|source| source == block.id)))
             }
             TerminatorKind::Return { .. }
             | TerminatorKind::RangeReturn { .. }

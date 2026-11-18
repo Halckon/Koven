@@ -5,7 +5,8 @@ use super::{DropPlanner, ValueState};
 use crate::{
     ast::ExpressionId,
     ownership_checking::{
-        LoanKind, UnitBorrowCallHandoffFact, UnitIterationCleanupAction, UnitLoanTarget,
+        LoanKind, OwnershipBindingKind, UnitBorrowCallHandoffFact, UnitIterationCleanupAction,
+        UnitLoanTarget,
     },
     type_checking::{CallableResultSource, UnitCallTarget},
 };
@@ -495,8 +496,9 @@ impl DropPlanner<'_, '_> {
                 continue;
             };
             if loan.kind() != LoanKind::Shared
-                || !place.is_root()
-                || !self.loan_provenance().formed_owned.contains(&place.root())
+                || (!(place.is_root()
+                    && self.loan_provenance().formed_owned.contains(&place.root()))
+                    && self.checker.nullable_when_loan_source(loan).is_none())
                 || call.receiver().is_some()
                 || !matches!(call.target(), UnitCallTarget::Declaration(_))
                 || !matches!(call.result_source(), CallableResultSource::Borrow(_))
@@ -570,6 +572,26 @@ impl DropPlanner<'_, '_> {
         let UnitLoanTarget::Place(place) = loan.target() else {
             return false;
         };
+        if let Some(source) = self.checker.nullable_when_loan_source(loan)
+            && self
+                .checker
+                .place(loan.argument().expression())
+                .is_ok_and(|actual| {
+                    actual.is_some_and(|actual| actual.is_root() && actual.root() == source)
+                })
+            && (state.borrow_bindings.contains(&source)
+                || (place.is_root()
+                    && place.root() == source
+                    && (state.position(source).is_some()
+                        || self.checker.bindings.get(&source).is_some_and(|binding| {
+                            matches!(
+                                binding.kind(),
+                                OwnershipBindingKind::Shared | OwnershipBindingKind::Exclusive
+                            )
+                        }))))
+        {
+            return true;
+        }
         // Typed argument mapping selects the candidate only. The actual evaluated
         // token, original operand place and still-live owner prove this observation.
         place.is_root()

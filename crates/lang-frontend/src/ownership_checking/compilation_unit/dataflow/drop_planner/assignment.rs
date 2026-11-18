@@ -147,6 +147,26 @@ impl DropPlanner<'_, '_> {
                 }
                 return Ok(true);
             }
+            if replacement
+                && self.checker.bindings.get(&symbol).is_some_and(|binding| {
+                    binding.kind() == crate::ownership_checking::OwnershipBindingKind::Exclusive
+                })
+                && self
+                    .checker
+                    .typed
+                    .symbol_type(symbol)
+                    .is_some_and(|ty| self.checker.typed.copyability(ty) == Copyability::MoveOnly)
+            {
+                self.push_fact(PlannerDropFact::new(
+                    PlannerDropPoint::BeforeReplacement(id),
+                    PlannerDropTarget::ReplacedInout {
+                        assignment: id,
+                        symbol,
+                    },
+                    self.checker.parsed.ast().expressions().get(target)?.span(),
+                ));
+                return Ok(true);
+            }
             let old = state.remove_value(symbol);
             let old_closure = state.take_closure(symbol);
             if self.checker.is_move_only_variable(symbol) {

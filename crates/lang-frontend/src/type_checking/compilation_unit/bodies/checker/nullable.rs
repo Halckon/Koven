@@ -249,6 +249,11 @@ impl BodyChecker<'_> {
         }
         let mode = match node.payload() {
             Expression::Name => match self.reference(source, node.span(), Namespace::Value) {
+                Some(UnitReferenceTarget::Symbol(symbol))
+                    if self.lexical_borrow_bindings.contains(symbol) =>
+                {
+                    return Ok(Category::BorrowRoot);
+                }
                 Some(UnitReferenceTarget::Symbol(symbol)) => {
                     self.parts.parameter_modes.get(symbol).copied().or_else(|| {
                         self.signatures
