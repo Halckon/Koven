@@ -8268,3 +8268,51 @@ MoveOnly 调用在全部实参正常完成后建立字段地址，无需回写
 候选在 macOS arm64 和 Linux x86_64 分别通过不同字段写入与
 §322 循环跳转的单文件和跨文件项目，共 8 个原生产物，逐字节
 输出一致。同字段的四次公开检查各返回一条 L0135。
+
+## 324. 第一轮扩大门禁的逐项合同核对
+
+按 [PR #443 上一轮双宿主日志](https://github.com/Halckon/Koven/actions/runs/44245165150)
+对账。基线 `cc2d15d6`，出现以下完整失败集合的 head 为
+`51845889`。原默认栈回归在该 head 已通过，两端随后各遇到
+同组 21 项代码生成测试失败。更早的 suite 提前退出，未建立
+每一项的首次失败 SHA。`c26047e6` 的两项定向修复与下表分别验收。
+
+| 组 | 原失败测试 | 原合同与当前行为 | 决议及验证入口 |
+|---|---|---|---|
+| A | `ordinary_branch_neighbors_keep_the_unit_declaration_gate` | 单层 String 转发邻例要求原 receipt；新增同根检查绕过该门 | 恢复原负例的 UnsupportedNode、marker Span、无 receipt、未进最终 verifier |
+| A | `ordinary_balanced_neighbors_keep_exact_unsupported_boundary` | 四叶树的错外层条件超出 receipt | 同上，保留全部输入和观察开关 |
+| A | `ordinary_bounded_terminal_tree_neighbors_stay_unsupported` | 深度和相邻拓扑不匹配 bounded receipt | 同上 |
+| A | `ordinary_nested_else_cascade_tail_wrong_outer_keeps_backend_unsupported` | else cascade 的外层条件无匹配 receipt | 同上 |
+| A | `ordinary_nested_else_cascade_tail_neighbors_stay_unsupported` | else cascade 相邻形状、错内层条件 | 同上 |
+| A | `ordinary_nested_then_tail_wrong_outer_keeps_backend_unsupported` | then tail 的外层条件无匹配 receipt | 同上 |
+| A | `ordinary_nested_then_tail_neighbors_stay_unsupported` | then tail 的额外语句等相邻形状 | 同上 |
+| A | `ordinary_nested_neighbor_trees_keep_exact_unsupported_boundary` | 三叶树错序等形状无匹配 receipt | 同上 |
+| A | `ordinary_nested_four_leaf_wrong_flag_stays_unsupported` | 四叶树旗标无匹配 receipt | 同上 |
+| A | `ordinary_single_continuation_neighbors_stay_unsupported` | 双空位及额外语句无 continuation receipt | 同上 |
+| A | `child_borrow_branch_remains_unsupported` | 旧门禁拒绝普通 String 臂内借用，现由与该臂相符的词法结束事实清理 | 延续 §317–318 的独立 arm 合同。保留两种 unit 输入和原调用，验证异源、同源和合流后读，原生输出逐字节核对 |
+| A | `multi_parameter_borrow_assertion_argument_remains_unsupported` | 旧门禁拒绝 `!!` 辅助实参 | 保留原输入，两种 unit 验证 SSA，原生核对返回 loan 仍读 lender；不扩展 Inout |
+| A | `mixed_value_borrow_wrapper_control_prefix_remains_lowering_unsupported` | 旧门禁拒绝辅助实参中的负号、if、加法 | 保留三例和两种 unit，按普通实参和借用结果合同验证 SSA、原生读取 |
+| A | `mixed_value_borrow_caller_cfg_remains_lowering_unsupported` | 旧门禁拒绝结果作用域跨后继分支 | 保留原两处读取及两种 unit，验证 SSA、原生输出。错误来源、活跃借用和可调用值原负例继续检查 |
+| B | `rejects_recursive_nullable_owner_until_ssa_declaration_cycles_are_supported` | 旧检查要求 Node? 回边拒绝 | §282 准许间接堆回边。验证声明完成及 LLVM，缺 payload 负测保留 |
+| B | `field_replace_single_nullable_recursive_class_layout_stays_unsupported` | 旧检查拒绝自递归和互递归普通类 nullable 参数 | §282 精确迁移，验证 SSA/LLVM 和普通类有限活动链的析构终止 |
+| B | `finite_value_class_recursion_through_a_heap_handle_lowers` | 旧检查允许布局但仅接受 fallback | §283 的 Refine 接管有限布局；核对同一入口、aggregate/heap/Rc 布局，实跑活动堆边 |
+| B | `field_replace_single_nullable_layout_keeps_nonclass_and_generic_boundaries` | 八项 recipe 中旧检查包括 String? | 仅迁移 §303 支持的 String? niche，核对 inner 为 StringOwner，另外七条和精确字段位置保持拒绝 |
+| C | `enum_tag_slice_does_not_claim_general_payload_grouped_or_move_only_equality` | 旧拒绝含分组的无载荷 case | §278 仅迁移 Copyable 分组 case，原生核对命中和未命中。普通值、带载荷、MoveOnly 三条仍在原 Span 拒绝 |
+| C | `retired_ownership_primitive_boundary_tests` | Int? when 原走自然 fallback，组合中的 replace 被拒绝 | §259 的默认入口进入 Refine。原生核对旧值、写回及选择结果；同一源和原强制旧路径均在 replace Span 拒绝 |
+| C | `rhs_only_move_uses_published_short_circuit_cleanup_on_both_exits` | 旧断言要求静态跳过分支带 owner 清理 | §290 静态跳过无 RHS 交付；动态 OR/AND 的跳过边仍有实际 owner 清理。保留跨源输出和四次分配释放 |
+
+A 组十个邻例的原只读检查保留。普通同根字符串返回入口仍要求
+每个出口来自同一参数，并检查直接返回、多实参转发，或同一个
+return 上确切的词法 String 结束事实。纯单实参转发树继续使用
+原 receipt。这项准入变更与四项自然支持场景的验收更新分别复审。
+
+同一候选还需验证最终 PR-event 双宿主 Targeted、聚合
+CI Passed 与运行 SHA。旧冻结候选的 conformance、sanitizer
+和 native 输出记录保持各自输入身份。
+
+macOS arm64 以默认栈定向复跑 42 项，涵盖上表原 21 项及相关
+原生、布局和 verifier 对照，零失败、零忽略。两个新增堆布局
+实测核对分配和释放的逐指针身份。普通类互递归为有限活动链，
+分配由内到外，各父对象先 deinit、再清理并释放其字段，最后
+释放自己的指针。value class 的普通堆边只分配和释放活动 owner。
+这两项仍依赖原内联环、非法 nullable 和缺少定义的拒绝负控。

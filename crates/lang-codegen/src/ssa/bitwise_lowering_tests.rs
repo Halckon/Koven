@@ -745,13 +745,14 @@ fun entry() {
     }
 
     #[test]
-    fn multi_parameter_borrow_assertion_argument_remains_unsupported() {
+    fn multi_parameter_borrow_assertion_argument_preserves_its_lender() {
         let text = "class Token\nfun extra(): Token? = Token()\nfun view(other: Token, source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(extra()!!, source)\nfun entry() { val source = \"kept\"; borrow val item = wrap(source); println(item) }";
         for result in [memory_unit(text), unit(text)] {
-            assert_eq!(
-                result.err().unwrap().kind,
-                super::super::LoweringErrorKind::UnsupportedNode
-            );
+            crate::ssa::verify::verify_program(&result.expect("assertion operand lowering"))
+                .unwrap();
         }
+        let output =
+            crate::native_tests::emit_link_and_run("borrow-assertion-argument.ko", text, "entry");
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"kept\n");
     }
 }

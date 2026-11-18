@@ -200,7 +200,7 @@ fn finite_value_class_recursion_through_a_heap_handle_lowers() {
     )];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let ((program, _), routed) = super::refine::observe_routing(|| {
+    let ((program, entry), routed) = super::refine::observe_routing(|| {
         lower_scalar_unit_with_entry(
             &sources,
             &inputs,
@@ -212,15 +212,10 @@ fn finite_value_class_recursion_through_a_heap_handle_lowers() {
         )
         .expect("a heap handle breaks the inline value-class recursion")
     });
-    // Record explicit boundary: value class containing heap class owner is MoveOnly,
-    // not supported by refine (which only supports Copyable value class), so it routes
-    // through the scalar lowering fallback path, not refine.
-    assert!(
-        routed.is_empty(),
-        "heap-handle recursive value class routes via fallback, not refine: {routed:?}"
-    );
-
     let module = &program.modules[0];
+    let entry = module.function(entry).unwrap();
+    assert_eq!(routed, [entry.name.as_str()]);
+
     assert_eq!(
         module
             .types
@@ -577,7 +572,7 @@ fn rejects_unauthorized_nested_generic_class_field_layouts() {
 }
 
 #[test]
-fn rejects_recursive_nullable_owner_until_ssa_declaration_cycles_are_supported() {
+fn lowers_recursive_nullable_owner_with_a_defined_heap_payload() {
     let mut sources = SourceMap::new();
     let (source, parsed) = parsed(
         &mut sources,
@@ -594,7 +589,7 @@ fn rejects_recursive_nullable_owner_until_ssa_declaration_cycles_are_supported()
     )];
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let error = match lower_scalar_unit_with_entry(
+    let (program, _) = lower_scalar_unit_with_entry(
         &sources,
         &inputs,
         &names,
@@ -602,12 +597,14 @@ fn rejects_recursive_nullable_owner_until_ssa_declaration_cycles_are_supported()
         &typed,
         &owned,
         declaration(&names, "test", "entry"),
-    ) {
-        Ok(_) => panic!("recursive nullable owner requires a separate SSA type-cycle slice"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
+    )
+    .expect("nullable field may point back to its declared heap owner");
+    let module = &program.modules[0];
+    assert!(module.types.iter().any(|kind| {
+        matches!(kind, SsaTypeKind::NullableHandle { inner }
+            if matches!(module.type_kind(*inner), Some(SsaTypeKind::HeapOwner { payload: Some(_), .. })))
+    }));
+    crate::llvm::render_verified_program(&program).expect("recursive nullable owner reaches LLVM");
 }
 
 #[test]
@@ -847,4 +844,42 @@ fn function<'a>(module: &'a super::model::Module, name: &str) -> &'a super::mode
         .iter()
         .find(|function| function.name.contains(name))
         .expect("reachable function exists")
+}
+
+#[test]
+fn nullable_heap_cycles_release_only_the_finite_active_payloads() {
+    use crate::native_tests::boxed_enum_tests::{
+        assert_success, lower_to_llvm, run_counted_allocations_in_order,
+    };
+
+    for (name, source, frees, stdout) in [
+        (
+            "mutual-nullable-class",
+            r#"class Left(val right: Right?) { deinit() { println("left") } }
+class Right(val left: Left?) { deinit() { println("right") } }
+fun entry(): Unit {
+    val value = Left(Right(Left(null)))
+    println("scope")
+}
+"#,
+            // Each parent deinitializes before its payload, then frees after the payload.
+            &[0, 1, 2][..],
+            &b"scope\nleft\nright\nleft\n"[..],
+        ),
+        (
+            "heap-edge-value-class",
+            r#"value class Branch(val child: Tree?)
+class Tree(val branch: Branch) { deinit() { println("tree") } }
+fun entry(): Unit {
+    val root = Branch(Tree(Branch(null)))
+    println("held")
+}
+"#,
+            &[0][..],
+            &b"held\ntree\n"[..],
+        ),
+    ] {
+        let llvm = lower_to_llvm(&format!("{name}.ko"), source);
+        assert_success(&run_counted_allocations_in_order(&llvm, frees), stdout);
+    }
 }

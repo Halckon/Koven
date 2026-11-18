@@ -347,11 +347,9 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
 fn retired_ownership_primitive_boundary_tests() {
     use crate::ssa::LoweringErrorKind;
 
-    // Case 1: Natural routing under default entry. A function containing replace(&x, ...)
-    // alongside an unmigrated construct (nullable subject when) naturally falls out of the
-    // refine subset into legacy lowering, which rejects ownership_primitive at the exact call span.
-    let natural_legacy_source = r#"
-    fun natural_unmigrated(): Int {
+    // A nullable Copyable when now lets the ordinary route refine the whole function.
+    let nullable_source = r#"
+    fun replace_then_select(): Int {
         var x = 10
         val old = replace(&x, 20)
         val opt: Int? = 1
@@ -359,26 +357,42 @@ fn retired_ownership_primitive_boundary_tests() {
             null -> 0
             else -> 1
         }
-        return old + res
+        return if (old == 10 && x == 20 && res == 1) 31 else 0
     }
     fun main(): Unit {
-        natural_unmigrated()
+        if (replace_then_select() == 31) { println("ok") }
     }
     "#;
     let mut sources = SourceMap::new();
-    let text = format!("package p\n{natural_legacy_source}");
+    let text = format!("package p\n{nullable_source}");
     let (id, file) = parsed(&mut sources, "p/main.ko", &text);
     let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
     let (name_env, type_env) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &type_env);
     let entry = declaration(&names, "p", "main");
-    let err =
+    let ((program, _), routed) = crate::ssa::refine::observe_routing(|| {
         lower_scalar_unit_with_entry(&sources, &inputs, &names, &type_env, &typed, &owned, entry)
-            .err()
-            .expect("natural legacy routing must reject ownership_primitive at unit lowering");
-    assert_eq!(err.kind, LoweringErrorKind::UnsupportedNode);
-    let span = err.span.expect("exact span of replace call");
-    assert_eq!(sources.slice(span).unwrap(), "replace(&x, 20)");
+            .expect("the ordinary nullable when and replace share the migrated route")
+    });
+    assert!(
+        routed
+            .iter()
+            .any(|name| name.contains(".replace_then_select."))
+    );
+    crate::llvm::render_verified_program(&program).expect("the replacement reaches verified LLVM");
+    let output = crate::native_tests::emit_link_and_run(
+        "refined-replace-select.ko",
+        nullable_source,
+        "main",
+    );
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"ok\n");
+    let error = crate::ssa::with_per_family_lowering(|| {
+        lower_scalar_unit_with_entry(&sources, &inputs, &names, &type_env, &typed, &owned, entry)
+    })
+    .err()
+    .expect("the same source still rejects the retired primitive on the forced route");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    assert_eq!(sources.slice(error.span.unwrap()), Ok("replace(&x, 20)"));
 
     // Case 2: Unit lowering with forced per-family lowering also rejects ownership_primitive at the exact call span.
     let primitive_source = r#"

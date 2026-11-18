@@ -310,7 +310,7 @@ pub(crate) fn resolve_nominal_runtime_field_types(
 
 /// SPEC-0191 的递归 recipe 仍限 `List`、单参数 ordinary class 与 direct owner parameter。
 /// 顶层 nullable 另接受 String、direct owner parameter，或非泛型 ordinary class 中的非泛型 class；
-/// 其余 nullable recipe 不因类型闭合而自动放行，递归 owner 仍由 type mapper 拒绝。
+/// 其余 nullable recipe 不因类型闭合而自动放行；可空堆句柄的 payload 定义由 type mapper 完成。
 fn supported_nested_runtime_field_recipe(
     typed: &CompilationUnitTypes,
     owner: &UnitNominalSignature,
