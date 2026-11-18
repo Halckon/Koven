@@ -502,3 +502,164 @@ fn nested_when_selectors_keep_their_own_postfix_calls() {
     };
     assert_eq!(sources.slice(selector.span()), Ok("test\n(1)"));
 }
+
+#[test]
+fn composite_grouped_when_selectors_keep_their_arrows() {
+    for condition in [
+        "((true)) && true",
+        "(true), false",
+        "(true) &&\n(true)",
+        "((true)) && if (true) true else false",
+        "((true)) && when { true -> true; else -> false }",
+        "((true)) && test<Boolean>(true)",
+        "((true)) && if (okay) return 1 else true",
+        "((true)) && super<Interface>.check()",
+        "(true)\nis Boolean",
+        "(1)\nin values",
+    ] {
+        let text = format!("when {{ false -> produce\n(1)\n{condition} -> 2\nelse -> 3 }}");
+        let (sources, parsed) = expression(&text);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{condition}: {:?}",
+            parsed.diagnostics()
+        );
+        let Expression::When { entries, .. } = expression_payload(&parsed, parsed.root()) else {
+            panic!("when expression");
+        };
+        let [call, composite, otherwise] = entries.as_slice() else {
+            panic!("three entries: {entries:?}");
+        };
+        let first = parsed.ast().statements().get(call.body).unwrap();
+        assert_eq!(sources.slice(first.span()), Ok("produce\n(1)"));
+        assert!(
+            matches!(first.payload(), Statement::Expression { expression }
+            if matches!(expression_payload(&parsed, *expression), Expression::Call { .. }))
+        );
+        let first_condition = match composite.conditions[0] {
+            WhenCondition::Expression(expression) => expression,
+            ref other => panic!("expression selector: {other:?}"),
+        };
+        match condition {
+            "(true), false" => {
+                assert_eq!(composite.conditions.len(), 2);
+                assert!(matches!(
+                    expression_payload(&parsed, first_condition),
+                    Expression::Group { .. }
+                ));
+            }
+            "(true)\nis Boolean" => {
+                assert_eq!(composite.conditions.len(), 1);
+                assert!(matches!(
+                    expression_payload(&parsed, first_condition),
+                    Expression::TypeTest { .. }
+                ));
+            }
+            _ => {
+                assert_eq!(composite.conditions.len(), 1);
+                assert!(matches!(
+                    expression_payload(&parsed, first_condition),
+                    Expression::Binary { .. }
+                ));
+            }
+        }
+        assert_eq!(
+            sources.slice(composite.span),
+            Ok(format!("{condition} -> 2").as_str())
+        );
+        assert_eq!(sources.slice(composite.arrow_span), Ok("->"));
+        assert!(otherwise.else_span.is_some());
+    }
+}
+
+#[test]
+fn when_selector_probe_ignores_arrows_inside_the_previous_arm() {
+    let text = "when { false -> produce\n(1) && (when { true -> true; else -> false })\n((true)) -> 2\nelse -> 3 }";
+    let (sources, parsed) = expression(text);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let Expression::When { entries, .. } = expression_payload(&parsed, parsed.root()) else {
+        panic!("when expression");
+    };
+    let [previous, grouped, _] = entries.as_slice() else {
+        panic!("three entries: {entries:?}");
+    };
+    let body = parsed.ast().statements().get(previous.body).unwrap();
+    assert_eq!(
+        sources.slice(body.span()),
+        Ok("produce\n(1) && (when { true -> true; else -> false })")
+    );
+    assert_eq!(sources.slice(grouped.span), Ok("((true)) -> 2"));
+}
+
+#[test]
+fn when_selector_probe_preserves_other_arrow_owners() {
+    for (tail, expected_body, expected_selector) in [
+        ("\n{ -> true }() -> 2", "produce\n(1)", "{ -> true }()"),
+        (
+            " as () -> Int\ntrue -> 2",
+            "produce\n(1) as () -> Int",
+            "true",
+        ),
+    ] {
+        let text = format!("when {{ false -> produce\n(1){tail}\nelse -> 3 }}");
+        let (sources, parsed) = expression(&text);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{tail}: {:?}",
+            parsed.diagnostics()
+        );
+        let Expression::When { entries, .. } = expression_payload(&parsed, parsed.root()) else {
+            panic!("when expression");
+        };
+        let [previous, next, _] = entries.as_slice() else {
+            panic!("three entries: {entries:?}");
+        };
+        assert_eq!(
+            sources.slice(parsed.ast().statements().get(previous.body).unwrap().span()),
+            Ok(expected_body)
+        );
+        let [WhenCondition::Expression(selector)] = next.conditions.as_slice() else {
+            panic!("one selector");
+        };
+        assert_eq!(
+            sources.slice(parsed.ast().expressions().get(*selector).unwrap().span()),
+            Ok(expected_selector)
+        );
+        assert_eq!(sources.slice(next.arrow_span), Ok("->"));
+    }
+}
+
+#[test]
+fn bare_when_type_selector_keeps_its_own_entry_for_phase_two() {
+    for (head, expected_body) in [
+        ("when (value) { null -> produce\n(1)", "produce\n(1)"),
+        ("when { false -> 1", "1"),
+    ] {
+        let text = format!("{head}\nis String -> 2\nelse -> 3 }}");
+        let (sources, parsed) = expression(&text);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{:?}",
+            parsed.diagnostics()
+        );
+        let Expression::When { entries, .. } = expression_payload(&parsed, parsed.root()) else {
+            panic!("when expression");
+        };
+        let [previous, next, _] = entries.as_slice() else {
+            panic!("three entries: {entries:?}");
+        };
+        assert_eq!(
+            sources.slice(parsed.ast().statements().get(previous.body).unwrap().span()),
+            Ok(expected_body)
+        );
+        assert!(matches!(
+            next.conditions.as_slice(),
+            [WhenCondition::TypeTest { .. }]
+        ));
+        assert_eq!(sources.slice(next.span), Ok("is String -> 2"));
+    }
+}

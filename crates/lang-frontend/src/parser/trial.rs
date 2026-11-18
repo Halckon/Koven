@@ -4,11 +4,14 @@
 //! 因而可以反向迭代求值，避免 Rust 递归及每个 `<` 候选重复扫描后缀。
 
 use std::cell::OnceCell;
+use std::num::NonZeroUsize;
 
 use crate::lexer::{InvalidKind, LexedFile, Lexeme, LexemeKind, Symbol, TokenKind};
 use crate::source::SourceMap;
 
 use super::{MAX_RECURSION_DEPTH, ParserInternalError};
+
+mod recovery;
 
 /// 一个调用点类型实参候选的严格识别结果。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,6 +51,7 @@ impl CallTrial {
 pub(super) struct StrictCallTrialIndex {
     raw_to_significant: Vec<Option<usize>>,
     trials: Vec<Option<CallTrial>>,
+    type_ends: Vec<Option<NonZeroUsize>>,
     recovered_type_closers: OnceCell<Result<Vec<Option<usize>>, ParserInternalError>>,
     #[cfg(test)]
     token_inspections: usize,
@@ -126,15 +130,30 @@ impl StrictCallTrialIndex {
             })
             .collect::<Result<Vec<Option<_>>, ParserInternalError>>()?;
 
+        let type_ends = built
+            .types
+            .iter()
+            .map(|trial| {
+                let last = trial.success?.end.checked_sub(1)?;
+                NonZeroUsize::new(significant_to_raw.get(last)? + 1)
+            })
+            .collect();
         Ok(Self {
             raw_to_significant,
             trials,
+            type_ends,
             recovered_type_closers: OnceCell::new(),
             #[cfg(test)]
             token_inspections: built.token_inspections,
             #[cfg(test)]
             evaluated_states: built.evaluated_states,
         })
+    }
+
+    /// The raw cursor after an already indexed strict type, including any function arrow.
+    pub(super) fn type_end(&self, raw_start: usize) -> Option<usize> {
+        let significant = self.raw_to_significant.get(raw_start).copied().flatten()?;
+        self.type_ends.get(significant)?.map(NonZeroUsize::get)
     }
 
     pub(super) fn trial_at_raw(
@@ -148,56 +167,6 @@ impl StrictCallTrialIndex {
             .flatten()
             .ok_or(ParserInternalError::InvalidLexemeStream)?;
         Ok(self.trials.get(significant).copied().flatten())
-    }
-
-    /// 声明恢复只消费有真实闭合证据的类型列表，不授予 typed-call 准入。
-    pub(super) fn recovery_type_list_closer(
-        &self,
-        sources: &SourceMap,
-        lexed: &LexedFile,
-        raw_start: usize,
-        allow_poison: bool,
-    ) -> Result<Option<usize>, ParserInternalError> {
-        match self.trial_at_raw(raw_start)? {
-            Some(CallTrial::Match { closing_raw, .. }) => return Ok(Some(closing_raw)),
-            Some(CallTrial::NoMatch {
-                closed_list_raw: Some(closer),
-                ..
-            }) => return Ok(Some(closer)),
-            Some(CallTrial::NoMatch { .. }) if allow_poison => {}
-            _ => return Ok(None),
-        }
-
-        // 复用严格类型结构。替代原子的结果另存，保持严格查询和预算不变。
-        let recovered = self.recovered_type_closers.get_or_init(|| {
-            let (raw, significant): (Vec<_>, Vec<_>) = lexed
-                .lexemes()
-                .iter()
-                .copied()
-                .enumerate()
-                .filter(|(_, lexeme)| !matches!(lexeme.kind(), LexemeKind::Trivia(_)))
-                .unzip();
-            let built = TrialBuilder::new(sources, &significant, true).build()?;
-            Ok(built
-                .call_trials
-                .into_iter()
-                .map(|trial| match trial {
-                    Some(SignificantCallTrial::Match {
-                        closing_significant,
-                        ..
-                    }) => raw.get(closing_significant).copied(),
-                    Some(SignificantCallTrial::NoMatch {
-                        closed_list_significant: Some(closer),
-                        ..
-                    }) => raw.get(closer).copied(),
-                    _ => None,
-                })
-                .collect())
-        });
-        let recovered = recovered.as_ref().map_err(Clone::clone)?;
-        let significant =
-            self.raw_to_significant[raw_start].ok_or(ParserInternalError::InvalidLexemeStream)?;
-        Ok(recovered.get(significant).copied().flatten())
     }
 
     /// 查询一个原始 `<` 下标；查询本身为 `O(1)`，并按当前 parser 深度重验统一预算。
@@ -276,6 +245,7 @@ enum SignificantCallTrial {
 }
 
 struct BuiltTrials {
+    types: Vec<ParseTrial>,
     call_trials: Vec<Option<SignificantCallTrial>>,
     #[cfg(test)]
     token_inspections: usize,
@@ -395,6 +365,7 @@ impl<'a> TrialBuilder<'a> {
         }
 
         Ok(BuiltTrials {
+            types,
             call_trials,
             #[cfg(test)]
             token_inspections: self.inspections,

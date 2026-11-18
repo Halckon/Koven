@@ -385,19 +385,19 @@ pub(super) fn file_construct_start_kind(kind: LexemeKind) -> bool {
 pub(super) struct Stops {
     pub(super) delimiters: u16,
     pub(super) block_elements: bool,
-    pub(super) when_entry_body: bool,
+    pub(super) when_entry_body: Option<WhenEntryBody>,
 }
 
 impl Stops {
     pub(super) const ROOT: Self = Self {
         delimiters: 0,
         block_elements: false,
-        when_entry_body: false,
+        when_entry_body: None,
     };
     pub(super) const FILE: Self = Self {
         delimiters: Self::FILE_DECLARATION,
         block_elements: false,
-        when_entry_body: false,
+        when_entry_body: None,
     };
     pub(super) const RIGHT_PAREN: u16 = 1 << 0;
     pub(super) const RIGHT_BRACKET: u16 = 1 << 1;
@@ -417,7 +417,7 @@ impl Stops {
         Self {
             delimiters: (outer_stops.delimiters & Self::HARD_DELIMITERS) | Self::RIGHT_BRACE,
             block_elements: true,
-            when_entry_body: false,
+            when_entry_body: None,
         }
     }
 
@@ -428,7 +428,7 @@ impl Stops {
                 | Self::LAMBDA_COMMA
                 | Self::ARROW,
             block_elements: true,
-            when_entry_body: false,
+            when_entry_body: None,
         }
     }
 
@@ -440,9 +440,13 @@ impl Stops {
         }
     }
 
-    pub(super) const fn as_when_entry_body(self) -> Self {
+    pub(super) const fn as_when_entry_body(self, has_subject: bool) -> Self {
         Self {
-            when_entry_body: true,
+            when_entry_body: Some(if has_subject {
+                WhenEntryBody::WithSubject
+            } else {
+                WhenEntryBody::WithoutSubject
+            }),
             ..self
         }
     }
