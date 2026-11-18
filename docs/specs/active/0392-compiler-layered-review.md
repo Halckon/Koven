@@ -8329,3 +8329,20 @@ selector 实现。macOS 控制流、block 续行和入口换行共 48 项
 清理两个原字段且不分派；正常路径按源码次序求值、替换两字段，
 调用后可以读取新值，最后完成外层析构。macOS 原生回归通过。
 同字段和 owner 与字段重叠在单文件、项目入口仍报 L0135。
+
+## 326. 文件尺寸门禁和双宿主定向对账
+
+`b8ad88fe` 的 PR-event Rust Physical Line Guard 报
+`provider/borrow_result.rs` 共 1014 行。将字符串入口与转发
+身份核对移入同模块的 `entry_string.rs`，两个函数仅改变模块
+可见性，原逻辑逐字节不变。拆分后分别为 837 和 183 行，尺寸
+检查通过。macOS workspace 严格 Clippy 和默认栈 42 项复跑通过。
+
+拆分前、与 `b8ad88fe` 一致的编译器源码清单 SHA-256 为
+`c555ca019a2150357e3e5717e48aa6cdce80fccdafdcd99d9087eec1c14e85ee`。
+macOS arm64 与 Linux x86_64 各通过 42 项定向 SSA/native 回归
+和 48 项 Parser 入口回归。双宿主的 5 组合法源码均跑过单文件和
+跨文件项目，共 20 个原生产物，退出 0、stdout 逐字节符合预期，
+stderr 为空。3 组负例共 12 次公开检查，同字段和父子重叠各报
+一条 L0135，缺失括号两入口均报 L0010、L0056、L0059。
+完整测试继续看当前 PR-event 的两个宿主及聚合检查。
