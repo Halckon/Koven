@@ -1,47 +1,69 @@
-//! Form a temporary callee before evaluating operands and invoke its concrete ABI.
+//! Form or preserve a callee before evaluating operands and invoke its concrete ABI.
 use super::*;
 use crate::ssa::refine::body::RTerm;
 
 impl Builder<'_, '_> {
-    pub(in crate::ssa::refine::build) fn form_literal_callee(
+    pub(in crate::ssa::refine::build) fn prepare_callable_callee(
         &mut self,
         expression: ExpressionId,
         span: Span,
-    ) -> Result<Option<Slot>, LoweringError> {
+    ) -> Result<Option<PreparedCallee>, LoweringError> {
         let Expression::Call { callee, .. } = self.node(expression)?.0 else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
-        let root = self.ungrouped_expr(callee)?;
-        let (payload, span) = self.node(root)?;
-        if matches!(payload, Expression::Lambda { .. }) {
-            return self.form_callable(root, span).map(Some);
+        let mut root = callee;
+        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+            root = inner;
         }
-        Ok(None)
+        if let (Expression::Name, callee_span) = self.node(root)?
+            && let Ok(symbol) = self.reference(callee_span)
+        {
+            if let Some(&view) = self.borrowed.get(&symbol) {
+                return Ok(Some(PreparedCallee::View(view)));
+            }
+            if let Some(&binding) = self.bindings.get(&symbol) {
+                return Ok(Some(PreparedCallee::Value {
+                    callable: binding,
+                    consumed_callee: None,
+                }));
+            }
+        }
+        let Lowered::Value(slot) = self.expression_inner(callee)? else {
+            return Ok(None);
+        };
+        self.register_temporary(callee, slot)?;
+        Ok(Some(PreparedCallee::Value {
+            callable: slot,
+            consumed_callee: Some(callee),
+        }))
     }
 
-    /// Calls a view parameter (`CallableInvokeView`) or a local callable (`CallableInvoke`).
-    pub(in crate::ssa::refine::build) fn invoke_callable(
+    /// Calls a previously evaluated view parameter (`CallableInvokeView`) or callable value
+    /// (`CallableInvoke`).
+    pub(in crate::ssa::refine::build) fn invoke_prepared_callable(
         &mut self,
         expression: ExpressionId,
+        prepared: PreparedCallee,
         arguments: Vec<Slot>,
-        literal_callee: Option<Slot>,
         return_type: UnitTypeId,
         span: Span,
     ) -> Result<(Lowered, Option<ExpressionId>), LoweringError> {
-        let (op, consumed_callee) = if let Some(callable) = literal_callee {
-            (
+        let (op, consumed_callee) = match prepared {
+            PreparedCallee::View(view) => (ROp::CallableInvokeView { view, arguments }, None),
+            PreparedCallee::Value {
+                callable,
+                consumed_callee,
+            } => (
                 ROp::CallableInvoke {
                     callable,
                     arguments,
                 },
-                None,
-            )
-        } else {
-            self.named_callable_operation(expression, arguments, span)?
+                consumed_callee,
+            ),
         };
         let result = if self.is_nothing(return_type) {
             self.push(op, Vec::new(), span)?;
-            self.terminate(RTerm::Unreachable, span)?;
+            self.terminate(super::RTerm::Unreachable, span)?;
             Lowered::Diverged
         } else if self.is_unit(return_type) {
             self.push(op, Vec::new(), span)?;
@@ -52,32 +74,4 @@ impl Builder<'_, '_> {
         Ok((result, consumed_callee))
     }
 
-    fn named_callable_operation(
-        &self,
-        expression: ExpressionId,
-        arguments: Vec<Slot>,
-        span: Span,
-    ) -> Result<(ROp, Option<ExpressionId>), LoweringError> {
-        let Expression::Call { callee, .. } = self.node(expression)?.0 else {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        };
-        let root = self.ungrouped_expr(callee)?;
-        let (Expression::Name, callee_span) = self.node(root)? else {
-            return Err(error(LoweringErrorKind::MissingFact, self.span(callee)));
-        };
-        let symbol = self.reference(callee_span)?;
-        if let Some(&view) = self.borrowed.get(&symbol) {
-            Ok((ROp::CallableInvokeView { view, arguments }, None))
-        } else if let Some(&callable) = self.bindings.get(&symbol) {
-            Ok((
-                ROp::CallableInvoke {
-                    callable,
-                    arguments,
-                },
-                Some(callee),
-            ))
-        } else {
-            Err(error(LoweringErrorKind::MissingFact, callee_span))
-        }
-    }
 }

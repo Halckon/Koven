@@ -168,9 +168,22 @@ impl Checker<'_, '_> {
             || descriptor.value() != value_id
             || descriptor.operator() != AssignmentOperator::Assign
             || !self.known.contains(&symbol)
-            || self.callables.contains(&symbol)
             || self.symbol_type(symbol) != Some(target_ty)
-            || !self.storage_type(target_ty)
+        {
+            return false;
+        }
+        if self.callables.contains(&symbol) {
+            let ok = self.parameter_mode(symbol).is_none()
+                && self.view_or_function(target_ty)
+                && self.callable_value_expr(value)
+                && self
+                    .callable_ssa_type(value)
+                    .is_some_and(|rhs| self.callable_ssa_types.get(&symbol).copied() == Some(rhs));
+            self.migrated |= ok;
+            self.view_symbols.remove(&symbol);
+            return ok;
+        }
+        if !self.storage_type(target_ty)
             || !self.adaptable(value, target_ty)
             || (self.loops > 0
                 && self.view_symbols.contains(&symbol)

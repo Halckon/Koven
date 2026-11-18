@@ -17,7 +17,7 @@ use scalar_text::control;
 mod tagged;
 use tagged::receiver;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -43,6 +43,8 @@ struct Checker<'i, 'a> {
     known: BTreeSet<UnitSymbolId>,
     /// Local bindings holding a concrete callable owner (function pointer or closure).
     callables: BTreeSet<UnitSymbolId>,
+    /// Concrete SSA type of each local callable binding.
+    callable_ssa_types: BTreeMap<UnitSymbolId, crate::ssa::model::SsaTypeId>,
     /// Expressions lowered in branch form, whose own drop points are never emitted.
     branch_form: BTreeSet<UnitExpressionId>,
     /// Temporary field parents whose pending loan and cleanup lower together.
@@ -81,6 +83,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         inputs,
         known,
         callables: BTreeSet::new(),
+        callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
         nullable: false,
@@ -261,6 +264,7 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         inputs,
         known: BTreeSet::new(),
         callables: BTreeSet::new(),
+        callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
         nullable: false,
@@ -608,6 +612,14 @@ impl Checker<'_, '_> {
         }
         if self.inputs.typed.nullable_when(id).is_some() {
             return self.nullable_when(expression);
+        }
+        if self.view_or_function(ty)
+            && matches!(
+                node.payload(),
+                Expression::If { .. } | Expression::When { .. }
+            )
+        {
+            return self.callable_value_expr(expression);
         }
         if !self.unspecialized(expression)
             || !(returns
