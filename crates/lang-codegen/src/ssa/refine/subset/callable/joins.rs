@@ -3,7 +3,7 @@ use super::*;
 impl Checker<'_, '_> {
     /// Resolves the concrete SSA type of a callable value expression when all continuing
     /// paths share the same representation (`FunctionPointer` or `ConcreteClosure`).
-    pub(super) fn callable_ssa_type(
+    pub(in crate::ssa::refine::subset) fn callable_ssa_type(
         &self,
         expression: ExpressionId,
     ) -> Option<crate::ssa::model::SsaTypeId> {
@@ -153,7 +153,10 @@ impl Checker<'_, '_> {
 
     /// Validates a callable value expression (lambda, local callable, known function,
     /// callable-returning call, or `if`/`when` joining matching callable SSA types).
-    pub(super) fn callable_value_expr(&mut self, expression: ExpressionId) -> bool {
+    pub(in crate::ssa::refine::subset) fn callable_value_expr(
+        &mut self,
+        expression: ExpressionId,
+    ) -> bool {
         let root = self.ungrouped(expression);
         let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
             return false;
@@ -233,7 +236,7 @@ impl Checker<'_, '_> {
 
     /// A non-lambda expression whose result is a concrete callable value (a moved local
     /// callable binding or a direct call to a function returning a concrete callable).
-    pub(super) fn callable_value(&self, expression: ExpressionId) -> bool {
+    pub(in crate::ssa::refine::subset) fn callable_value(&self, expression: ExpressionId) -> bool {
         let root = self.ungrouped(expression);
         let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
             return false;

@@ -59,22 +59,21 @@ impl Checker<'_, '_> {
             return false;
         };
         let callee = self.ungrouped(*callee);
-        let named = matches!(
-            self.inputs
-                .parsed
-                .ast()
-                .expressions()
-                .get(callee)
-                .map(|node| node.payload()),
-            Ok(Expression::Name)
-        );
-        let callee_ok = if named {
-            self.reference(callee).is_some_and(|symbol| {
+        let callee_ok = match self
+            .inputs
+            .parsed
+            .ast()
+            .expressions()
+            .get(callee)
+            .map(|node| node.payload())
+        {
+            Ok(Expression::Name) => self.reference(callee).is_some_and(|symbol| {
                 self.known.contains(&symbol)
                     && (self.view_parameter(symbol) || self.callables.contains(&symbol))
-            })
-        } else {
-            self.callable_value_expr(callee)
+            }),
+            Ok(Expression::Lambda { .. }) => self.callable_value_expr(callee),
+            // Other temporary callees lack the frontend cleanup facts a call needs.
+            _ => false,
         };
         let supported = descriptor.target() == UnitCallTarget::FunctionValue
             && descriptor.receiver().is_none()
@@ -85,7 +84,7 @@ impl Checker<'_, '_> {
                     .iter()
                     .any(|value| self.argument_has_bare_loop_jump(*value)))
             && callee_ok;
-        self.migrated |= supported || (!named && callee_ok);
+        self.migrated |= supported;
         supported
     }
 

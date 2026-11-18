@@ -33,11 +33,6 @@ impl Builder<'_, '_> {
             }
             return Ok(Lowered::Diverged);
         }
-        let literal_callee = if descriptor.target() == UnitCallTarget::FunctionValue {
-            self.form_literal_callee(expression, span)?
-        } else {
-            None
-        };
         let is_extension = match descriptor.target() {
             UnitCallTarget::Declaration(id) => self
                 .inputs

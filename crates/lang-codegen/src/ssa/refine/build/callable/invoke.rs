@@ -63,7 +63,7 @@ impl Builder<'_, '_> {
         };
         let result = if self.is_nothing(return_type) {
             self.push(op, Vec::new(), span)?;
-            self.terminate(super::RTerm::Unreachable, span)?;
+            self.terminate(RTerm::Unreachable, span)?;
             Lowered::Diverged
         } else if self.is_unit(return_type) {
             self.push(op, Vec::new(), span)?;
