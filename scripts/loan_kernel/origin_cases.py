@@ -289,6 +289,30 @@ def conditional_caller_flows():
         yield f"分支合流/调用方视图/不读回/inout 参数{HELD_BY_CALLER}/{name}", PRELUDE + function(head + signature, body, [])
 
 
+def deep_view_reads():
+    """先建完整链，再替换唯一所指的 V；读回须认新来源而非构造时的旧来源。"""
+    decls = PRELUDE + """view class Outer(inout link: H)
+fun readOuter(borrow q: Outer): borrow Int from q.link.target.a { return &q.link.target.a.len }
+"""
+    setup = ["val o = Arr(0)", "val s = Arr(1)", "val v = V(&o)", "val h = H(&mut v)",
+             "val q = Outer(&mut h)", "q.link.target = V(&s)"]
+    for hop, expr in (("直接读", "&q.link.target.a.len"), ("经调用返回", "readOuter(&q)")):
+        for access, tail in (("写新来源", ["s.len = 9  // ERR K1", "use(e)"]),
+                             ("写旧来源", ["o.len = 9", "use(e)"]),
+                             ("最后使用后写", ["use(e)", "s.len = 9"])):
+            yield f"三层借用字段/{hop}/{access}", decls + function("fun f(): Unit {", setup + [f"val e = {expr}"], tail)
+
+
+def contract_view_reads():
+    """返回视图按 from x 保守建账：x 是 W，不是 target 实际指向的 V。"""
+    decls = PRELUDE + "fun expose(borrow x: W): P from x { return P(&x.inner) }\n"
+    setup = ["val s = Arr(1)", "val o = Arr(2)", "val w = W(V(&s), &o)",
+             "val p = expose(&w)", "val e = readP(&p)"]
+    for name, tail in (("写来源", ["s.len = 9  // ERR K1", "use(e)"]),
+                       ("最后使用后写", ["use(e)", "s.len = 9"])):
+        yield f"合同来源/返回子视图/{name}", decls + function("fun f(): Unit {", setup, tail)
+
+
 def guard_failure_points():
     """所有正常路径都移走 g；只改变清理顺序，以及 mayFail 所在的路径。"""
     declarations = """class Arr(len: Int)
@@ -343,6 +367,8 @@ def cases():
     yield from branch_joins()
     yield from conditional_caller_flows()
     yield from guard_failure_points()
+    yield from deep_view_reads()
+    yield from contract_view_reads()
     yield from loop_backedges()
 
 
