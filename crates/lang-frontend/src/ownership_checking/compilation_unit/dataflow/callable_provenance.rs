@@ -186,6 +186,19 @@ impl Checker<'_> {
         } else {
             None
         };
+        let alias_witnesses = if matches!(expression, Expression::Name) {
+            self.references_by_span
+                .get(&super::span_key(span))
+                .and_then(|symbol| state.escape_witnesses.bindings.get(symbol))
+                .cloned()
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
+        state
+            .escape_witnesses
+            .results
+            .remove(&self.unit_expression(id));
         state.origins.result = Default::default();
         let is_lambda = matches!(expression, Expression::Lambda { .. });
         let previous = if is_lambda {
@@ -239,6 +252,21 @@ impl Checker<'_> {
             {
                 let roots = self.closure_result_origins(id, next)?;
                 self.reject_borrowed_closure_roots(id, next, roots)?;
+            }
+            if self.diagnostics.len() == diagnostic_count
+                && (callable || nullable_callable)
+                && !self.loop_spans.contains(self.parsed, span)
+            {
+                let roots = self.closure_result_origins(id, next)?;
+                let mut witnesses = self.freeze_escape_witnesses(roots, next);
+                if matches!(expression, Expression::Name) {
+                    witnesses.extend(alias_witnesses);
+                } else {
+                    witnesses.extend(self.escape_result_witnesses(id, next)?);
+                }
+                next.escape_witnesses
+                    .results
+                    .insert(self.unit_expression(id), witnesses);
             }
             let closure_origins = if callable {
                 self.closure_result_origins(id, next)?

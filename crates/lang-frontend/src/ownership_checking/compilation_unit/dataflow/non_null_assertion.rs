@@ -48,8 +48,21 @@ impl Checker<'_> {
             self.parsed.ast().expressions().get(actual)?.payload(),
             crate::parser::Expression::If { .. } | crate::parser::Expression::When { .. }
         );
+        let alias_witnesses = if escaping && !direct_control {
+            self.expression_root_symbol(operand)?
+                .and_then(|symbol| state.escape_witnesses.bindings.get(&symbol).cloned())
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
         let flows =
             self.check_expression_with_escape(operand, state, usage, escaping && direct_control)?;
+        if let Some(next) = &flows.next
+            && self.diagnostics.len() == diagnostic_count
+            && !alias_witnesses.is_empty()
+        {
+            self.reject_borrowed_closure_roots(id, next, alias_witnesses)?;
+        }
         if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
             self.non_null_assertions
                 .push(UnitNonNullAssertionOwnershipPlan {

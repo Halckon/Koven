@@ -89,6 +89,12 @@ impl Checker<'_> {
                     },
                 )?;
                 if let Some(next) = flows.next.as_mut() {
+                    if kind == super::VariableKind::Val
+                        && self.diagnostics.len() == diagnostic_count
+                        && let Some(symbol) = self.marker_symbol(name).copied()
+                    {
+                        self.bind_escape_witness(symbol, initializer, next)?;
+                    }
                     self.mark_available(name, next);
                     if let Some(symbol) = self.marker_symbol(name).copied() {
                         self.bind_callable_symbol(symbol, next);

@@ -21572,3 +21572,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 最终修复仅普通、非跨线程 Value 实参，且只读解透明 Group 后实际为 Elvis 时，在原预检查无新增诊断且当前路径继续的情况下复用 escaping-expression。执行仍用原实参 ID/usage，保合同/span 身份与退出流合并；已有预拒绝走原恢复，不改 SharedLoan、跨线程、construction 或其他表达式递送。
 - 初版把所有 Value 实参都接 escaping，导致原直接 If 两支同一 exclusive closure 的单 L0137 变两条（closure73过/1失败），已收窄并保原测试期望。最终直接/Group If 精确单诊断邻控通过，新 Elvis/Group Elvis 与 If/When 单借用分支拒绝、清表和 validate 失败通过；不宣称任意多借用分支都只有一个诊断。
 - 正式 `ownership_value_closure_escape`5项覆盖上述拒绝、owned/capture-free 正控、同源SharedLoan仍允许、前序Return实参使后参不可达，以及 nullable-exclusive L0164 原优先级。最终5项和原失败精确1项通过，完整 `ownership_closures`74、`ownership_containers`45、`ownership_elvis_escape`4、`ownership_iteration`221、`ownership_nonnull_closure_escape`4全部通过；强制本树 frontend all-targets `loan-observation-test-support` strict57.04秒通过。独立末审无阻塞，docs/尺寸门禁通过，构建全局串行，无native/fault，未推送。nullable alias 未解边界不因本片改变。
+
+### 2026-11-18：不可变 nullable alias 的借用闭包逃逸诊断摘要
+
+- 原生产红测覆盖七份原源、两 Unit 布局共十四组合，均无 L0137；包含 If/When、透明 Group、val 链、分支局部 Shared 与 move 包装及捕获后重绑定。本片基最新 `90ebf74f` 独立实现，不覆盖普通 Value Elvis 修复。
+- 新私有摘要冻结已形成环境图中的 Shared 叶 lambda，按 source-qualified 表达式和真实 symbol 传递，仅不可变 val；Group/If/When 读取精确结果或分支尾，作用域退出剪绑定，循环内形成不记录。逃逸 `!!` 在 operand 正常完成且无新诊断后复用原拒绝；不写真实 closure holder、不延长 loan、不增资源责任，并从资源快照中排除。不是 nullable callable 生命周期或执行支持。
+- 最终三项目标通过：十四拒绝组合核 L0137 的精确主源码位置；保 Return 前缀不可达尾、unused nullable 原释放、无捕获、同名遮蔽及原非 nullable 常量分支保守拒绝。初加 `if(false)` 接受控制不符合既有 constant-control 保守合同，未改生产/旧 oracle；改用真实无正常后继的 Return 前缀控制。mutable alias、循环内形成及专门失败初始化未计作新覆盖。
+- 相关 nonnull4、closures74、borrow-result12、no-carry1、boundaries2、evidence1、Value5 全通过；独立静审无阻塞。强制本树 frontend all-targets `loan-observation-test-support` strict 1m44s 通过；fmt、docs980 与尺寸2579（仅两处既有例外）通过。宿主/全部容器逐阶段核槽，8GiB 门限不降；本地提交，不推送，无 native/fault 执行。

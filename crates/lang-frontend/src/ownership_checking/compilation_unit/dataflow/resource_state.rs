@@ -3,6 +3,8 @@ use super::{Checker, State};
 impl Checker<'_> {
     pub(super) fn resource_snapshot(&self, state: &State) -> State {
         let mut snapshot = state.clone();
+        // Diagnostic provenance is not a resource, holder, or no-carry admission proof.
+        snapshot.escape_witnesses = Default::default();
         // Empty closure-result caches contain no captured environment obligations.
         snapshot
             .closure_results

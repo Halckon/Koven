@@ -195,6 +195,6 @@ expression temporary。
 旧 local 的清理顺序；Copyable 实例不生成 receiver 析构。
 
 function-value callee 在实参求值期间保持capture；正常CallReturn按活性清理，提前退出沿用ControlTransfer，live shared capture来源随最后closure结束后再清理。
-Unit checker保留source-qualified closure来源集合及形成时的嵌套环境图；这些检查元数据不授予availability或执行能力，escape与跨Map provider检查递归到shared capture。
+Unit checker保留source-qualified closure来源集合及形成时的嵌套环境图；这些检查元数据不授予availability或执行能力，escape与跨Map provider检查递归到shared capture。 不可变 nullable callable alias 另存形成时冻结的 Shared 叶闭包诊断摘要，按 source-qualified 表达式与真实 symbol 身份传递到逃逸 `!!`；它不登记 holder、不延长 loan，并排除资源快照比较。仅处理循环外形成的 val，作用域退出裁剪局部绑定；mutable alias、循环内形成及一般 nullable 生命周期仍未闭合。
 If/When保存实际尾值来源，交接已移动且不再活跃的局部根；释放按活跃根递归，防原binding或重绑定污染快照，并保留已求值callee与replacement保护。
 `map_closure_lifetime_matrix`核同次capture/ASAP事实，原Unit Resource/Pure邻控独立保持；这些前端事实不表示带capture的Map循环已进入native范围。[Unit owner capture 候选](unit-owner-transport.md#capture-formation)另记形成身份观察。 `ownership_map_with` 的泛型callback与loan消费者现仅用双入口Unit，保留原源码和loan数量下界，不代表新的结束事件或native证明。 `ownership_closures/capture_identity_unit` 的双 Unit 入口保留 Resource 捕获顺序、Copy/Move/Transferability、capture/named drop 责任及 nested/shadowing 原见证；不证明动态 Choice/循环传输，不替代其他 Single 生命周期见证。 对跨循环边新保存的 Shared MoveOnly owned-source 环境，Unit 现以 L0164 拒绝未证明运输；已建立环境、body-local、Borrow/Inout、无捕获/Copyable及可独立证明零轮路径保留，条件 owner/phi 和下游执行仍未完成。

@@ -15,6 +15,7 @@ use construction::collect_construction_descriptors;
 mod container;
 mod control;
 mod drop_planner;
+mod escape_witness;
 mod flow;
 mod formed_publication;
 #[cfg(test)]
