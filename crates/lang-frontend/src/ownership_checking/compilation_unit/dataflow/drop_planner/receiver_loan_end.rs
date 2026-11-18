@@ -13,23 +13,31 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+// Build once after checker rollback is complete. None permanently poisons a
+// duplicate call, even if the repeated facts are identical. Borrow the actual
+// successful transitions; never reconstruct activation from receiver descriptors.
+pub(super) fn activation_index(
+    witnesses: &[UnitReceiverOwnershipFact],
+) -> BTreeMap<crate::type_checking::UnitExpressionId, Option<&UnitReceiverOwnershipFact>> {
+    let mut index = BTreeMap::new();
+    for witness in witnesses {
+        index
+            .entry(witness.call())
+            .and_modify(|entry| *entry = None)
+            .or_insert(Some(witness));
+    }
+    index
+}
+
 impl DropPlanner<'_, '_> {
     // Bridge a real checker transition only after planner arguments completed.
     // A Nothing callee still activates before dispatch; an early-exiting argument
     // never reaches this point. This is not a dynamic execution timeline.
     pub(super) fn observe_receiver_activation(&mut self, call: ExpressionId, state: &ValueState) {
         let call = self.checker.unit_expression(call);
-        let mut witnesses = self
-            .checker
-            .receiver_activations
-            .iter()
-            .filter(|fact| fact.call() == call);
-        let Some(witness) = witnesses.next() else {
+        let Some(Some(witness)) = self.receiver_activation_index.get(&call) else {
             return;
         };
-        if witnesses.next().is_some() {
-            return;
-        }
         let mut pending =
             state
                 .pending_loans
@@ -41,7 +49,7 @@ impl DropPlanner<'_, '_> {
         let Some(receiver) = pending.next() else {
             return;
         };
-        if pending.next().is_none() && receiver == witness {
+        if pending.next().is_none() && receiver == *witness {
             self.iteration_actions.activate_receiver(receiver.clone());
         }
     }

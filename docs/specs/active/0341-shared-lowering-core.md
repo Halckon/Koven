@@ -21620,3 +21620,16 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 新目标3项通过：6拒绝源码双布局精确单 L0137及 non-null plans/loans/drops 清空；capture-free/owned、If/When Return 后不可达 tail、原释放点共5合法源双布局；保留误复用已移动 f 的独立双布局单 L0131 优先级负控，不通过弱化诊断修测试。原新增 mixed fixture 实测 L0131 后，改用独立直接 closure 检查混合来源的单 L0137，生产未因此变更。
 - 相关 closure75、direct-nonnull4、immutable-alias3、Value5、Elvis4、ownership28，共119项通过。独立末审无阻塞；与另线 mutable alias 摘要的整合交叉验证仍须另做，不把本基 immutable 见证自动视为 mutable 覆盖。未执行 native 或故障注入。
 - 强制本树 frontend all-target `loan-observation-test-support` strict 2m46s 通过；docs982、Rust尺寸门禁（2602文件，原两项历史例外未变）与独立设计/末审通过。单编译/单测试线程、独立于外部任务的 target 及资源监控；仅本地提交，不推送。
+
+### PR #444 receiver 激活见证索引（2026-11-18）
+
+- 范围：仅优化 Unit drop planner 对 checker 成功激活见证的查询，不改变 receiver 激活时机、pending token 退休、失败回滚或合法性准入。
+- 在 planner 构造时按完整 `UnitExpressionId` 一次性建立借用事实索引；同键重复（相同或不同内容）永久拒绝，仍核对唯一 pending token 与完整事实相等。见证查询由 A 项见证、C 次调用的 O(C×A) 变为 O(A log A + C log A)，不宣称整个 ownership 分析线性。
+- 回归覆盖唯一、缺失、相同事实重复两次/三次、同键不匹配事实、同键异内容重复，并混入普通函数调用；保留原 assignment rollback、冲突及跨源失败清空测试。
+- 验收：静态独立审阅未发现可操作缺陷；activation 家族 4 项（新回归含 6 模式）及 `multifile_two_phase_borrows` 27 项通过，涵盖跨源顺序、提前退出、Nothing callee、冲突和 rollback；格式、diff 和文档结构检查通过。强制本树 `loan-observation-test-support` frontend all-target strict 通过（2m48s）。复用已释放的共享 target，单编译/测试线程；未执行性能基准、native 或完整 D10/E2 验收。
+
+### 2026-11-18：PR #444 四项审阅修复组合
+
+- 保留 `3be60261`、`c7973fa0`、`7b8990ad`、`a072c390` 原提交及全部验收记录，独立树仅解决本 Spec 尾部追加冲突；独审核全部源码与测试 blob 分别等于对应父提交，无未授权候选混入。
+- 最终组合 `ownership_alias_control_result` 3、construction completion 6、私有 activation 4、multifile two-phase 27 项全部通过；强制组合树 frontend all-target `loan-observation-test-support` strict 2m54s 通过，fmt/docs982/diff 门禁通过。首次 two-phase 命令误用不存在的简写 target，未执行测试，随后用真实 target 运行上述27项，不计为通过证据。
+- 双 CI 修复在 `f5f760e8` 已通过普通 CG30 与默认 codegen all-target strict；此处新增的 nullable 来源消费与 receiver 索引尚未重跑最终四项组合 CG，也未执行 native、故障注入或全量 CI。经授权先发布这组已本地编译和 FE 验证的审阅修复，保留后续组合 CG 与远端 CI 待验边界；mutable alias 和 field Elvis 候选仍未纳入。
