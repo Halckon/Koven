@@ -876,3 +876,55 @@ fn unit_unreachable_lambdas_do_not_register_storage_or_nested_layouts() {
             .expect("reachable Unit entry verifies through LLVM");
     }
 }
+
+#[test]
+fn callable_if_when_join_and_local_reassignment_lower_in_refine() {
+    let source = r#"class Data(val v: Int)
+    fun make(own d: Data): (Int) -> Int = move { n -> n + d.v }
+    fun pick(flag: Boolean): Int {
+        val f: (Int) -> Int = if (flag) make(Data(3)) else make(Data(7))
+        val g: (Int) -> Int = when {
+            flag -> ({ n -> n + 1 })
+            else -> ({ n -> n + 2 })
+        }
+        return f(10) + g(10)
+    }
+    fun main(): Unit {
+        var h: (Int) -> Int = make(Data(4))
+        if (h(1) == 5) { println("h1") }
+        h = make(Data(9))
+        if (h(1) == 10) { println("h2") }
+        if (pick(true) == 24) { println("p1") }
+        if (pick(false) == 29) { println("p2") }
+    }"#;
+    let (program, routed, entry) = lower(source);
+    for function in ["koven.p.main.d", "koven.p.pick.d", "koven.p.make.d"] {
+        assert!(
+            routed.iter().any(|name| name.starts_with(function)),
+            "{function}: {routed:?}"
+        );
+    }
+    run_counted(&program, entry, 4, b"h1\nh2\np1\np2\n");
+}
+
+#[test]
+fn callable_invocation_preserves_evaluated_callee_across_arguments() {
+    let source = r#"class Data(val v: Int)
+    fun make(own d: Data): (Int) -> Int = move { n -> n + d.v }
+    fun arg1(): Int = 4
+    fun arg2(): Int = 6
+    fun main(): Unit {
+        val f = make(Data(10))
+        val r = f(arg1())
+        if (r == 14) { println("call") }
+        val g: (Int) -> Int = if (true) make(Data(6)) else make(Data(8))
+        val direct = g(arg2())
+        if (direct == 12) { println("direct") }
+    }"#;
+    let (program, routed, entry) = lower(source);
+    assert!(
+        routed.iter().any(|name| name.starts_with("koven.p.main.d")),
+        "{routed:?}"
+    );
+    run_counted(&program, entry, 2, b"call\ndirect\n");
+}
