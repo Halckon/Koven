@@ -1,3 +1,4 @@
+mod temporary_copy;
 use crate::test_support::diagnostics::assert_text_eq;
 use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
@@ -702,7 +703,8 @@ fn lowers_concrete_generic_nominal_but_rejects_move_only_field_reads() {
     };
     assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
 
-    let error = match lower_scalar_unit_with_entry(
+    temporary_copy::assert_frontend(&sources, &field, &typed, &owned);
+    let (program, entry) = lower_scalar_unit_with_entry(
         &sources,
         &field_inputs,
         &names,
@@ -710,11 +712,25 @@ fn lowers_concrete_generic_nominal_but_rejects_move_only_field_reads() {
         &typed,
         &owned,
         declaration(&names, "test", "temporary"),
-    ) {
-        Ok(_) => panic!("MoveOnly temporary receiver needs an exact outer drop fact"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    )
+    .expect("Copyable field read consumes its exact temporary parent cleanup");
+    let temporary = declaration(&names, "test", "temporary");
+    let source_declaration = names
+        .names()
+        .index()
+        .declarations()
+        .iter()
+        .find(|item| item.id() == temporary)
+        .unwrap();
+    let expected_span = field
+        .ast()
+        .items()
+        .get(source_declaration.root())
+        .unwrap()
+        .span();
+    let function = &program.modules[0].functions[entry.index()];
+    assert_eq!(function.origin.span(), expected_span);
+    temporary_copy::assert_ssa(&program, function);
 }
 
 #[test]

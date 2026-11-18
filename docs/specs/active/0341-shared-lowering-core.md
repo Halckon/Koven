@@ -21594,3 +21594,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 三个原借用返回源码/入口逐一实证 SSA/LLVM 成功，替换过时 Unit Unsupported 预期：原 caller 精确追踪全部前驱的块参数回到 BorrowCall result/source，保两次读取、唯一两级结束及 CFG 顺序；未调用 block-view 的空 entry 与实际 view-root 分开覆盖，后者返回原参数 loan。实际图没有 SharedReborrow，不能用另一 lowering 路径的假设代替真实身份。Legacy Single 拒绝及完整原输入保持。
 - 组合回归发现真实准入交互：main 的非完成 projection 快捷路径绕过本地 owned-factory 前缀清理证明。新增窄 Option 准入桥复用原完整 Copyable field/factory/source/dispatch 检查；命中失败直接拒绝，不以通用路径继续，未匹配者维持 main 路径。原 return/stop、透明 Group、双配置及其他 lender 负控全部转绿。Rc<Int>(return 9) 按 main 实际能力保同源成功正控，核唯一 Return9、无后缀0、无父 Rc 分配/retain/drop；Point/Box 禁路由负控不变。
 - 最终整合 FE 九目标共121项通过，强制本树 frontend all-target `loan-observation-test-support` strict 2m31s；最终普通 SSA 借用结果15项和临时字段11项通过，强制本树 codegen all-target `loan-observation-test-support,d10-catalog-experiment,e2-two-source-test-support` strict 2m26s。仅普通 SSA/LLVM 验证，未执行 native 或故障注入，不将这些结果扩大为完整 D10/E2 验收。经授权采用隔离 target、单编译/单测试线程及内存/磁盘监控，与只读隔离 Docker 测试受控并发。
+
+### 2026-11-18：PR #444 双宿主 Targeted 合同修正
+
+- 输入为 `61d8b0e8`。CI 的依赖方向门禁发现双 root 前端装配 helper 被放在 IR/verifier 物理子树。将其原84行逐字节迁至 `ssa/map_require_multiroot_test_support.rs` 并以 cfg(test) 注册；生产依赖门禁和允许边不改，原 verifier 测试 FQN、同轮 sealed Unit 两 root、slot loan/清理/LLVM oracle 全保留。
+- 原 generic aggregate 测试同时包含泛型值布局正控、MoveOnly String 字段消费拒绝、临时 class 的 Copyable 字段读取旧拒绝。仅第三段与已获准临时父清理能力对账，原源码全文及前两合同不变。FE 核实际 `Bundle("owned", 7)` 唯一 `Temporary(constructor)` drop、精确 `AfterExpression(receiver)` 和 origin；SSA 核真实声明入口、单块指令顺序、实际父 payload 两字段、count7、父 owner 的共享借用读取、唯一 BorrowEnd 后父唯一 Drop，以及 Return 使用读取结果，SSA/LLVM通过。不是删除失败断言或放宽生产准入，不虚构已转入父 payload 的 String 独立清理。
+- 默认 CI 配置本树实际重编5m30s后，完整依赖门禁14、aggregate13、原 Map 合同3 共30项通过；强制本树默认 codegen all-target strict5m13s通过。独立职责/语义审查与实际 diff 复核通过。断线前仅有 Compiling 的首次命令未计通过，恢复先核进程已不存在与未完成日志，再续执行；无 native/fault 执行，不代替远端双宿主复验。

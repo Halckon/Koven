@@ -636,10 +636,6 @@ fn check_callable_contents(
 }
 
 #[cfg(test)]
-#[path = "map_require_multiroot_contract.rs"]
-mod map_require_multiroot_contract;
-
-#[cfg(test)]
 mod map_require_tests {
     //! 正常源码生成的实际 Map slot loan 及纯合同查询，不改写 IR。
     use crate::ssa::{
@@ -801,7 +797,7 @@ mod map_require_tests {
     #[test]
     fn explicit_unit_roots_preserve_whole_file_map_require_wrapper() {
         let (program, view, entry) =
-            super::map_require_multiroot_contract::lower_original(READONLY_WRAPPER);
+            crate::ssa::map_require_multiroot_test_support::lower_original(READONLY_WRAPPER);
         verify_program(&program).unwrap();
         let module = program.module(view.module()).unwrap();
         assert_eq!(
