@@ -21579,3 +21579,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 新私有摘要冻结已形成环境图中的 Shared 叶 lambda，按 source-qualified 表达式和真实 symbol 传递，仅不可变 val；Group/If/When 读取精确结果或分支尾，作用域退出剪绑定，循环内形成不记录。逃逸 `!!` 在 operand 正常完成且无新诊断后复用原拒绝；不写真实 closure holder、不延长 loan、不增资源责任，并从资源快照中排除。不是 nullable callable 生命周期或执行支持。
 - 最终三项目标通过：十四拒绝组合核 L0137 的精确主源码位置；保 Return 前缀不可达尾、unused nullable 原释放、无捕获、同名遮蔽及原非 nullable 常量分支保守拒绝。初加 `if(false)` 接受控制不符合既有 constant-control 保守合同，未改生产/旧 oracle；改用真实无正常后继的 Return 前缀控制。mutable alias、循环内形成及专门失败初始化未计作新覆盖。
 - 相关 nonnull4、closures74、borrow-result12、no-carry1、boundaries2、evidence1、Value5 全通过；独立静审无阻塞。强制本树 frontend all-targets `loan-observation-test-support` strict 1m44s 通过；fmt、docs980 与尺寸2579（仅两处既有例外）通过。宿主/全部容器逐阶段核槽，8GiB 门限不降；本地提交，不推送，无 native/fault 执行。
+
+### 2026-11-18：构造 Value 实参的 Elvis 闭包逃逸检查
+
+- 输入基线 `44e93c05`。独立构造递送仍为原预检查/普通求值/后检查：原 direct lambda/If 拒绝对照通过，但 class Holder 的 Elvis 包裹 If/When 局部借用 closure 在双 Unit 四组合均无诊断，capture-free 正控通过；原红测本树编译24.19秒，原源码与日志保留。
+- 仅当解透明 Group 后实际为 Elvis 且该参数预检查无新增诊断时，以原实参 ID、Consume parameter span 及实际正常继续路径复用 escaping-expression；其余走原链。每参数恢复门、退出流合并、evaluation_index 源码顺序、Nothing 前缀计划和 delivery/root obligation 流程不变，不扩 E3。
+- 正式 `ownership_construction_escape`4项覆盖 class Holder 新拒绝/Group、单借用分支精确一次 L0137、失败 construction plans/loans/drops 清空和 validate 失败、capture-free/owned 正控，以及位置首参 Return 和反声明顺序命名实参 Return 跳过后续闭包。原直接 If 双支同一 exclusive closure 的聚合单 L0137 保持。
+- `check_construction` 是 class/value class/enum/Box/Rc 的共享 descriptor 消费者；本片新闭包源码实测限 class Holder，不宣称逐一新增支持其他 payload。既有 `ownership_construction`10项全过，覆盖其原共享构造合同；同时 `ownership_closures`74、`ownership_elvis_escape`4、`ownership_nonnull_closure_escape`4、`ownership_nullable_alias_escape`3、`ownership_value_closure_escape`5全过。新定向4项本树重编5.92秒通过，强制本树 frontend all-targets `loan-observation-test-support` strict39.05秒通过；独立设计/实际diff审阅及docs/尺寸门禁通过。构建逐阶段全局门禁，无native/fault，不推送。
