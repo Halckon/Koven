@@ -81,6 +81,25 @@ class OriginAccountingCases(unittest.TestCase):
                     wanted = expected(one) if access == f"写{arm}来源" else set()
                     self.assertEqual(wanted, {(r, n) for r, n, _ in CHECKER.check(one)})
 
+    def test_joined_write_updates_only_the_selected_owner_on_each_path(self):
+        prefix = "多目标写入/"
+        programs = {n.removeprefix(prefix): t for n, t in CASES.cases() if n.startswith(prefix)}
+        self.assertEqual({f"{owner}/{access}" for owner in ("left", "right") for access in
+                          ("写新来源", "写本侧旧来源", "写另一侧旧来源", "最后使用后写")}, set(programs))
+        branch = "if (*) {\n    h = H(&mut right)\n  }"
+        for name, text in programs.items():
+            owner, access = name.split("/")
+            self.assertIn(f"q.link.target = V(&s)\n  val e = readV(&{owner})\n", text)
+            self.assertEqual(1, text.count(branch))
+            marked = expected(text)
+            self.assertEqual(["K1"] if access in ("写新来源", "写本侧旧来源") else [], [r for r, _ in marked])
+            for selected, replacement in (("left", ""), ("right", "h = H(&mut right)")):
+                with self.subTest(case=name, selected=selected):
+                    one = text.replace(branch, replacement)
+                    blocked = "写新来源" if owner == selected else "写本侧旧来源"
+                    self.assertEqual(expected(one) if access == blocked else set(),
+                                     {(r, n) for r, n, _ in CHECKER.check(one)})
+
     def test_conditional_flow_survives_without_a_read_of_the_callers_holder(self):
         prefix = f"分支合流/调用方视图/不读回/{HELD_INOUT}/"
         programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
