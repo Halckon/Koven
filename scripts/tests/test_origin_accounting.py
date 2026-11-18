@@ -42,6 +42,90 @@ class OriginAccountingCases(unittest.TestCase):
         self.assertGreater(len(names), 1000)
         self.assertEqual({}, mismatches())
 
+    def test_callers_view_is_updated_through_a_returned_reborrow(self):
+        """正反例必须经过局部重借写回，而不是退化成对 h 的直接调用。"""
+        self.assert_returned_reborrow_cases("局部视图的借用字段", "h", {
+            "直接读": "&h.a.len", "经调用返回": "readV(h)", "经视图字段作实参（字段）": "lenOf(h.a)",
+        })
+
+    def test_callers_nested_view_is_updated_through_its_own_reborrow(self):
+        """只借 W 的按值字段，仍须从 W 读出新来源，包括把内层视图交给 readV。"""
+        self.assert_returned_reborrow_cases("按值嵌套的视图", "&mut h.inner", {
+            "直接读": "&h.inner.a.len", "经调用返回": "readW(h)",
+            "经视图字段作实参（字段）": "lenOf(h.inner.a)", "经视图字段作实参（内层视图）": "readV(&h.inner)",
+        })
+
+    def test_callers_exclusive_field_reborrows_the_referent(self):
+        self.assert_returned_reborrow_cases("独占字段所指的另一个视图", "h.target", {
+            "直接读": "&h.target.a.len", "经调用返回": "readH(h)",
+            "经视图字段作实参（字段）": "lenOf(h.target.a)", "经视图字段作实参（所指视图）": "readV(h.target)",
+        })
+
+    def test_owner_observes_write_through_exclusive_field_reborrow(self):
+        """直接从 v 读，不能靠 h 名下的副本保护新来源。"""
+        body = """fun f(): Unit {
+  val s = Arr(1)
+  val o = Arr(2)
+  val v = V(&o)
+  val h = H(&mut v)
+  val w = pass(h.target)
+  setV(w, &s)
+  val e = readV(&v)
+"""
+        for tail in ("  use(e)\n  s.len = 9", "  s.len = 9  // ERR K1\n  use(e)"):
+            text = CASES.PRELUDE + body + tail + "\n}\n"
+            self.assertEqual(expected(text), {(r, n) for r, n, _ in CHECKER.check(text)})
+
+    def test_callers_env_reborrow_flows_through_function_contract(self):
+        """合同读回不能被直接读字段代替，二者分别列为读法。"""
+        self.assert_returned_reborrow_cases("闭包环境", "h", {
+            "直接读": "&h.a.len", "经调用返回": "call(h, envBody)", "经视图字段作实参（字段）": "lenOf(h.a)",
+        }, reborrow="passEnv", setter="setEnv")
+
+    def test_callers_bag_is_read_through_its_contract_after_reborrow(self):
+        """不透明容器只有 from h，不要求声明一个不可见字段的返回来源。"""
+        write = "val w = passBag(h)\n  put(w, V(s))"
+        prefix = "类型参数的持有者/经借用值的流向/经调用返回/"
+        wanted = {prefix + mode + " 参数" + CASES.HELD_BY_CALLER + "/" + verdict
+                  for mode in ("borrow", "inout") for verdict in ("接受", "拒绝-未声明流向")}
+        wanted.update(prefix + HELD_INOUT + "/" + verdict for verdict in ("拒绝-写来源", "拒绝-放入后写来源"))
+        actual = {name: text for name, text in CASES.cases() if write in text}
+        self.assertEqual(wanted, set(actual))
+        for name, text in actual.items():
+            with self.subTest(case=name):
+                self.assertIn(f"{write}\n  val e = peekBag(h)\n", text)
+
+    def test_local_bag_source_stays_live_until_peek_result_last_use(self):
+        """局部 h 没有调用方的存活保证，只让 peek 的结果继续使用它。"""
+        body = """fun f(): Unit {
+  val s = Arr(1)
+  val h = Bag(0)
+  val w = passBag(&mut h)
+  put(w, V(&s))
+  val e = peekBag(&h)
+"""
+        for tail in ("  use(e)\n  s.len = 9", "  s.len = 9  // ERR K1\n  use(e)"):
+            text = CASES.PRELUDE + body + tail + "\n}\n"
+            self.assertEqual(expected(text), {(r, n) for r, n, _ in CHECKER.check(text)})
+
+    def assert_returned_reborrow_cases(self, storage, target, reads, reborrow="pass", setter="setV"):
+        wanted = set()
+        for hop in reads:
+            for mode in ("borrow", "inout"):
+                location = mode + " 参数" + CASES.HELD_BY_CALLER
+                prefix = f"{storage}/经借用值的流向/{hop}/{location}/"
+                verdicts = ["接受", "拒绝-未声明流向", "拒绝-未声明来源"]
+                if mode == "inout":
+                    verdicts += ["拒绝-写来源", "拒绝-放入后写来源"]
+                wanted.update(prefix + verdict for verdict in verdicts)
+        write = f"val w = {reborrow}({target})\n  {setter}(w, s)"
+        actual = {name: text for name, text in CASES.cases() if write in text}
+        self.assertEqual(wanted, set(actual))
+        for name, text in actual.items():
+            hop = name.split("/")[2]
+            with self.subTest(case=name):
+                self.assertIn(f"{write}\n  val e = {reads[hop]}\n", text)
+
     def test_no_axis_value_is_left_without_a_case(self):
         """不适用的组合都带着说明；任何一个轴上的取值都不能整个落空，否则那条轴等于没有枚举。"""
         names = [name for name, _ in CASES.cases()]

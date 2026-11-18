@@ -29,8 +29,11 @@ fun readP(borrow p: P): borrow Int from p.target.a { return &p.target.a.len }
 fun readH(borrow h: H): borrow Int from h.target.a { return &h.target.a.len }
 fun envBody(borrow env: Env): borrow Int from env.a { return &env.a.len }
 fun <view F> call(borrow f: F, own body: fn Body): borrow Int from f.origins { return body(f) }
+fun pass(inout v: V): inout V from v { return v }
 fun setV(inout v: V, borrow s: Arr): Unit flows s into v { *v = V(s) }
+fun passEnv(inout env: Env): inout Env from env { return env }
 fun setEnv(inout v: Env, borrow s: Arr): Unit flows s into v { *v = Env(s) }
+fun passBag(inout bag: Bag): inout Bag from bag { return bag }
 fun <view T> put(inout bag: Bag, own x: T): Unit flows x into bag trusted
 fun peekBag(borrow bag: Bag): borrow Int from bag trusted
 fun <view T> set(borrow slot: Slot, own x: T): Unit flows x into slot trusted
@@ -54,12 +57,12 @@ STORAGES = {
     "局部视图的借用字段": dict(
         cls="V", path="a", reader="readV({h})", direct=["val h = V({s})"], seed=["val h = V({o})"],
         target="&mut h", write="setV({t}, {s})", assign=["val w = &mut h", "*w = V({s})"],
-        args={"字段": "lenOf(h.a)"}, caller=dict(mode="inout", target="h", assign=["*h = V({s})"])),
+        args={"字段": "lenOf(h.a)"}, caller=dict(mode="inout", target="h", reborrow="pass(h)", assign=["*h = V({s})"])),
     "按值嵌套的视图": dict(
         cls="W", path="inner.a", reader="readW({h})", direct=["val h = W(V({s}), {o})"],
         seed=["val h = W(V({o}), {o})"], target="&mut h.inner", write="setV({t}, {s})",
         assign=["h.inner = V({s})"], args={"字段": "lenOf(h.inner.a)", "内层视图": "readV(&h.inner)"},
-        caller=dict(mode="inout", target="&mut h.inner", assign=["h.inner = V({s})"])),
+        caller=dict(mode="inout", target="&mut h.inner", reborrow="pass(&mut h.inner)", assign=["h.inner = V({s})"])),
     "共享字段所指的另一个视图": dict(
         cls="P", path="target.a", reader="readP({h})", direct=["val v = V({s})", "val h = P(&v)"],
         seed=["val v = V({o})"], tail=["val h = P(&v)"], target="&mut v", write="setV({t}, {s})",
@@ -70,14 +73,14 @@ STORAGES = {
         seed=["val v = V({o})", "val h = H(&mut v)"], target="h.target", alias_target="&mut h.target",
         write="setV({t}, {s})", assign=["h.target = V({s})"],
         args={"字段": "lenOf(h.target.a)", "所指视图": "readV(h.target)", "拥有者": "readV(&v)"},
-        caller=dict(mode="inout", target="h.target", assign=["h.target = V({s})"])),
+        caller=dict(mode="inout", target="h.target", reborrow="pass(h.target)", assign=["h.target = V({s})"])),
     "闭包环境": dict(
         cls="Env", path="a", reader="call({h}, envBody)", direct=["val h = Env({s})"], seed=["val h = Env({o})"],
         target="&mut h", write="setEnv({t}, {s})", assign=["val w = &mut h", "*w = Env({s})"],
-        args={"字段": "lenOf(h.a)"}, caller=dict(mode="inout", target="h", assign=["*h = Env({s})"])),
+        args={"字段": "lenOf(h.a)"}, caller=dict(mode="inout", target="h", reborrow="passEnv(h)", assign=["*h = Env({s})"])),
     "类型参数的持有者": dict(
         cls="Bag", path=None, reader="peekBag({h})", seed=["val h = Bag(0)"], target="&mut h",
-        write="put({t}, V({s}))", caller=dict(mode="inout", target="h")),
+        write="put({t}, V({s}))", caller=dict(mode="inout", target="h", reborrow="passBag(h)")),
     "内部可变的槽": dict(
         cls="Slot", path=None, reader="peekSlot({h})", seed=["val h = Slot(0)"], target="&h",
         write="set({t}, V({s}))", caller=dict(mode="borrow", target="h")),
@@ -108,6 +111,8 @@ def build(spec, kind, s, o, held):
     target = caller["target"] if held else spec["target"]
     if kind == "流向":
         lines = [spec["write"].format(t=target, s="{s}")]
+    elif held and "reborrow" in caller:
+        lines = [f"val w = {caller['reborrow']}", spec["write"].format(t="w", s="{s}")]
     elif held and caller["mode"] == "inout":
         return "对 inout 参数再取借用是借用的借用，演算未覆盖"
     else:
