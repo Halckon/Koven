@@ -21633,3 +21633,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 保留 `3be60261`、`c7973fa0`、`7b8990ad`、`a072c390` 原提交及全部验收记录，独立树仅解决本 Spec 尾部追加冲突；独审核全部源码与测试 blob 分别等于对应父提交，无未授权候选混入。
 - 最终组合 `ownership_alias_control_result` 3、construction completion 6、私有 activation 4、multifile two-phase 27 项全部通过；强制组合树 frontend all-target `loan-observation-test-support` strict 2m54s 通过，fmt/docs982/diff 门禁通过。首次 two-phase 命令误用不存在的简写 target，未执行测试，随后用真实 target 运行上述27项，不计为通过证据。
 - 双 CI 修复在 `f5f760e8` 已通过普通 CG30 与默认 codegen all-target strict；此处新增的 nullable 来源消费与 receiver 索引尚未重跑最终四项组合 CG，也未执行 native、故障注入或全量 CI。经授权先发布这组已本地编译和 FE 验证的审阅修复，保留后续组合 CG 与远端 CI 待验边界；mutable alias 和 field Elvis 候选仍未纳入。
+
+### 2026-11-18：PR #444 直接临时 MoveOnly 字段负控
+
+- 输入基线 `863162f7`，仅补评审要求的测试，不改变生产语义或 lowering 准入。`Bundle("owned", 7).text` 直接返回 String 已在 frontend 以 L0132 拒绝；首个探针错误地预期到达 CG UnsupportedNode，实际在 ownership validate 处失败，故按真实阶段分层，不绕过前端验证。
+- `ownership_temporary_field_consumption::direct_temporary_bundle_field_return_reports_partial_move` 覆盖直构造/一层/两层透明括号 × ordinary/constant × memory/rooted 共12组合：完整单 L0132、精确字段 primary 与声明 label、validate 拒绝及 loans/drops 清空。
+- `ssa::unit_field_replace_tests::temporary_copy_cleanup::direct_temporary_move_only_field_read_remains_unsupported` 与既有局部负控同形，使用 `.text == "owned"` 的 Boolean 比较，通过前端后验证直构造/两种括号 × scalar/constant 共6组合的 UnsupportedNode。比较读取是当前 lowering 支持边界，不将其说成语言禁止的部分移动；既有临时 `.count` Copyable 成功及精确父清理断言保持。
+- 验收：frontend 字段族10、codegen 临时字段族12、aggregate13全部通过；本树 frontend/codegen 默认 all-target strict 3m18s、fmt、docs、尺寸及独立静审通过。初次真实本树 FE/CG 编译5m57s，正式 CG 负控重编53s；隔离 worktree、已协调共享 target 单编译/测试线程。未执行 native、故障注入或远端 CI；仅本地提交，不推送。
