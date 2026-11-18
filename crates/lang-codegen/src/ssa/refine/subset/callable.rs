@@ -57,28 +57,28 @@ impl Checker<'_, '_> {
             return false;
         };
         let callee = self.ungrouped(*callee);
-        let named = matches!(
-            self.inputs
-                .parsed
-                .ast()
-                .expressions()
-                .get(callee)
-                .map(|node| node.payload()),
-            Ok(Expression::Name)
-        );
+        let supported_callee = match self
+            .inputs
+            .parsed
+            .ast()
+            .expressions()
+            .get(callee)
+            .map(|node| node.payload())
+        {
+            Ok(Expression::Name) => self.reference(callee).is_some_and(|symbol| {
+                self.known.contains(&symbol)
+                    && (self.view_parameter(symbol) || self.callables.contains(&symbol))
+            }),
+            Ok(Expression::Lambda { .. }) => self.lambda_formation(callee),
+            _ => false,
+        };
         let supported = descriptor.target() == UnitCallTarget::FunctionValue
             && descriptor.receiver().is_none()
-            && named
+            && supported_callee
             // A loop jump out of an argument stays on the per-family path unless the scope
             // forms a capturing closure, which lowers only here.
             && (self.scope_requires_refine()
-                || !values
-                    .iter()
-                    .any(|value| self.argument_has_bare_loop_jump(*value)))
-            && self.reference(callee).is_some_and(|symbol| {
-                self.known.contains(&symbol)
-                    && (self.view_parameter(symbol) || self.callables.contains(&symbol))
-            });
+                || !values.iter().any(|value| self.argument_has_bare_loop_jump(*value)));
         self.migrated |= supported;
         supported
     }
@@ -331,7 +331,8 @@ impl Checker<'_, '_> {
                 Ok(lang_frontend::parser::Item::Deinit { .. })
             )
         });
-        if (self.span_has_control_transfer(call_node.span())
+        // A terminal abort uses its message after operand evaluation, with no normal cleanup.
+        if (self.span_has_control_transfer_except(call_node.span(), Some(call))
             && !self.call_has_field_replace(call)
             && !is_extension
             && !is_deinit

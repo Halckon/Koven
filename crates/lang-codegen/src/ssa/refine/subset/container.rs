@@ -774,6 +774,14 @@ impl Checker<'_, '_> {
     }
 
     pub(super) fn span_has_control_transfer(&self, span: Span) -> bool {
+        self.span_has_control_transfer_except(span, None)
+    }
+
+    pub(super) fn span_has_control_transfer_except(
+        &self,
+        span: Span,
+        outer_call: Option<ExpressionId>,
+    ) -> bool {
         self.inputs
             .parsed
             .ast()
@@ -792,7 +800,7 @@ impl Checker<'_, '_> {
                         .inputs
                         .typed
                         .call(self.id(*id))
-                        .is_some_and(|desc| desc.aborts()))
+                        .is_some_and(|desc| desc.aborts() && Some(*id) != outer_call))
             })
             .any(|(_, candidate)| !self.inside_enclosing_lambda(span, candidate.span()))
     }

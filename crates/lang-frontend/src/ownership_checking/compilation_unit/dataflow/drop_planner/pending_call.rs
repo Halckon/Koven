@@ -6,7 +6,7 @@ use super::{
 use crate::{
     ast::ExpressionId,
     name_resolution::UnitSymbolId,
-    ownership_checking::{LoanKind, UnitLoanTarget},
+    ownership_checking::{ClosureCaptureMode, LoanKind, UnitClosureCaptureSource, UnitLoanTarget},
     source::Span,
     type_checking::{Copyability, UnitExpressionId},
 };
@@ -171,8 +171,43 @@ impl DropPlanner<'_, '_> {
         let Some(sources) = self.capture_sources_at_call(call, operand) else {
             return;
         };
+        self.protect_capture_roots(
+            call,
+            holder.into_iter().chain(sources.iter().copied()),
+            state,
+        );
+    }
+
+    pub(super) fn hold_literal_capture_borrows(
+        &self,
+        call: ExpressionId,
+        operand: ExpressionId,
+        lambda: ExpressionId,
+        state: &mut ValueState,
+    ) {
+        let shared_sources = self.checker.captures_of(lambda).filter_map(|capture| {
+            match (capture.mode(), capture.source()) {
+                (ClosureCaptureMode::Shared, UnitClosureCaptureSource::Symbol(source)) => {
+                    Some(source)
+                }
+                _ => None,
+            }
+        });
+        let call_sources = self
+            .capture_sources_at_call(call, operand)
+            .into_iter()
+            .flatten();
+        self.protect_capture_roots(call, call_sources.copied().chain(shared_sources), state);
+    }
+
+    fn protect_capture_roots(
+        &self,
+        call: ExpressionId,
+        sources: impl Iterator<Item = UnitSymbolId>,
+        state: &mut ValueState,
+    ) {
         let loop_depth = self.loop_boundaries.len();
-        for symbol in holder.into_iter().chain(sources.iter().copied()) {
+        for symbol in sources {
             if state.position(symbol).is_some()
                 && !state
                     .pending_capture_borrows

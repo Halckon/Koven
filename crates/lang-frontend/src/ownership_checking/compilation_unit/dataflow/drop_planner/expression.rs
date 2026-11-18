@@ -378,6 +378,13 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     .checker
                     .contracts_by_call
                     .get(&self.checker.unit_expression(id));
+                let function_value = self
+                    .checker
+                    .typed
+                    .call(self.checker.unit_expression(id))
+                    .is_some_and(|call| {
+                        call.target() == crate::type_checking::UnitCallTarget::FunctionValue
+                    });
                 let mut borrowed_roots = Vec::new();
                 if let Some(contract) = receiver_contract {
                     match contract.source() {
@@ -471,15 +478,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                         }
                     }
                     self.register_iteration_receiver_loan(id, state);
-                } else if self
-                    .checker
-                    .typed
-                    .call(self.checker.unit_expression(id))
-                    .is_some_and(|call| {
-                        call.target() == crate::type_checking::UnitCallTarget::FunctionValue
-                    })
-                    && let Some(place) = self.checker.place(callee)?
-                {
+                } else if function_value && let Some(place) = self.checker.place(callee)? {
                     if !self.expression(callee, DropExpressionUse::Place, state)? {
                         return Ok(false);
                     }
@@ -493,7 +492,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     if !self.expression(callee, DropExpressionUse::Read, state)? {
                         return Ok(false);
                     }
-                    if self.capture_sources_at_call(id, callee).is_some() {
+                    if function_value && let Some(lambda) = self.closure_origin(callee, state)? {
+                        let origin = self.checker.parsed.ast().expressions().get(lambda)?.span();
+                        self.hold_literal_capture_borrows(id, callee, lambda, state);
+                        self.register_pending_temporary(id, lambda, origin, false, state)?;
+                    } else if self.capture_sources_at_call(id, callee).is_some() {
                         self.register_borrow_temporary_argument(
                             id,
                             callee,

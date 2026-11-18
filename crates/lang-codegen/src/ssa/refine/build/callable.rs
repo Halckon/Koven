@@ -1,6 +1,8 @@
 //! The closure family in the refined CFG (SPEC-0364, SPEC-0365, SPEC-0370, ADR-0034):
 //! lambda thunk bodies, local callable bindings, calls through callable views or local
 //! callables, and Borrow String/field loans in closure bodies.
+mod invoke;
+
 use lang_frontend::{
     ast::ExpressionId,
     ownership_checking::{
@@ -299,51 +301,6 @@ impl Builder<'_, '_> {
         let value = self.adapt(value, tail, self.inputs.return_type)?;
         self.deliver(tail);
         self.finish_return(Some(value), false, self.inputs.span)
-    }
-
-    /// Calls a view parameter (`CallableInvokeView`) or a local callable (`CallableInvoke`).
-    pub(super) fn invoke_callable(
-        &mut self,
-        expression: ExpressionId,
-        arguments: Vec<Slot>,
-        return_type: UnitTypeId,
-        span: Span,
-    ) -> Result<(Lowered, Option<ExpressionId>), LoweringError> {
-        let Expression::Call { callee, .. } = self.node(expression)?.0 else {
-            return Err(error(LoweringErrorKind::MissingFact, span));
-        };
-        let mut root = callee;
-        while let (Expression::Group { expression: inner }, _) = self.node(root)? {
-            root = inner;
-        }
-        let (Expression::Name, callee_span) = self.node(root)? else {
-            return Err(error(LoweringErrorKind::MissingFact, self.span(callee)));
-        };
-        let symbol = self.reference(callee_span)?;
-        let (op, consumed_callee) = if let Some(&view) = self.borrowed.get(&symbol) {
-            (ROp::CallableInvokeView { view, arguments }, None)
-        } else if let Some(&callable) = self.bindings.get(&symbol) {
-            (
-                ROp::CallableInvoke {
-                    callable,
-                    arguments,
-                },
-                Some(callee),
-            )
-        } else {
-            return Err(error(LoweringErrorKind::MissingFact, callee_span));
-        };
-        let result = if self.is_nothing(return_type) {
-            self.push(op, Vec::new(), span)?;
-            self.terminate(super::RTerm::Unreachable, span)?;
-            Lowered::Diverged
-        } else if self.is_unit(return_type) {
-            self.push(op, Vec::new(), span)?;
-            Lowered::Unit
-        } else {
-            Lowered::Value(self.typed_value(op, expression)?)
-        };
-        Ok((result, consumed_callee))
     }
 
     /// Facts inside a nested lambda body belong to its thunk, not to this body.

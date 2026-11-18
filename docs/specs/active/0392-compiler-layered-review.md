@@ -105,8 +105,8 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 
 ## 7. 当前阶段结果与未覆盖
 
-本轮主线基线为 [#432](https://github.com/Halckon/Koven/pull/432) 合并提交
-`50f12468`。具体输入身份以各节为准。阶段退出条件仍以 §3 为准。
+本轮合批基线为 [#442](https://github.com/Halckon/Koven/pull/442) 合并提交
+`cc2d15d6`。此前各节证据保留各自输入身份。阶段退出条件仍以 §3 为准。
 
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
@@ -114,8 +114,8 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 | R1 | UTF-8、模式栈、Pratt、strict trial、lambda DFA 有独立抽查。§208、§242–244 补齐已复现的调用、下标及 else 恢复，覆盖红绿、扫描计数及公开入口 | §316 修复 §255 已复现的复合条件，其他缺少分隔证据输入继续按恢复矩阵复审 |
 | R2 | F1/F2/F8–F11 的已列复现有修复与验证。§214–223、§227 核对条件写回、循环退出及后继读取 | 剩余流事实组合与 Unit/Single 差异仍需验收，旧测试消费者处置与 R0 同步 |
 | R3 | basic/const、临时父 owner、两阶段借用已独审。§209、§213 核对部分构造退出，§245 复跑交接身份及失败原子性 | 继续分流旧事件见证，核对剩余循环与退出组合。本机和 CI 的资源矩阵分别按各自输入记账 |
-| R4 | #429 的写回、SSA 负例、双宿主 conformance 与 Linux 资源证据见 §228–235、§245。§246 补验 refine 与 Compatibility 共存。§305–317 验证可空 String 读取、while 独立借用、Map 移出 ABI、分支借用、返回借用来源及自有载荷交付 | 生产 Unit 仍有兼容路由，须对齐各家族迁移及接线。第一轮冻结 SHA 纵向复审尚未完成。目标机仍为 `OptimizationLevel::None` |
-| R5 | §240、§245 已核验合并树及同 SHA 双宿主 conformance。§311–312、§314 在源码候选复验 137/154 探针、综合程序 0/6 | 第一轮等待阶段出口及冻结候选的全链路证据。v1 尚未冻结，第二轮发布验收待启动 |
+| R4 | #429 的写回、SSA 负例、双宿主 conformance 与 Linux 资源证据见 §228–235、§245。§246 补验 refine 与 Compatibility 共存。§305–319 验证可空 String 读取、while 独立借用、Map 移出 ABI、分支借用、返回借用来源及自有载荷交付 | 生产 Unit 仍有兼容路由，须对齐各家族迁移及接线。第一轮冻结 SHA 纵向复审尚未完成。目标机仍为 `OptimizationLevel::None` |
+| R5 | §240、§245 已核验合并树及同 SHA 双宿主 conformance。§311–312、§314、§318 在源码候选复验 137/154 探针、综合程序 0/6 | 第一轮等待阶段出口及冻结候选的全链路证据。v1 尚未冻结，第二轮发布验收待启动 |
 
 ## 8. 验收账本
 
@@ -8142,3 +8142,73 @@ macOS 另通过 111 项 SSA verifier、严格 Clippy、格式、尺寸、
 nullable when。正常结束事实齐备，前端通过而原生仍报
 UnsupportedNode。§316 的 lambda 缺口也已缩到直接或加括号
 调用 literal，带捕获时同样复现。局部命名后再调用的对照可运行。
+
+## 318. R4 独立 owned String? when 与词法字符串借用
+
+原始局部 owner 及参数 owner 的双入口通过 check，原生在 else
+内的判空 while 拒绝。先修读同一分析的 typed／owned 计划与
+已发布的作用域结束点。旧构造为 MoveOnly 主体在 else 建立
+payload 视图，循环边发现这个活跃 proof 又拒绝。没有 typed
+载荷读取和 owned 调用使用的自有 String? 主体改走 NullableIsNull
+布尔分支，两个消费者共享判定，按原事实清理 owner。
+
+独立复审验证了非 null 空字符串、null、正常退出、循环内
+return，以及未认证循环和真实 payload 使用的准入边界。复审
+另发现删掉不可达 while 会改变外层 when 的准入。最终让同一
+作用域中来源独立的 when 直接消费自己的 typed 与 owned 计划，
+并用已有语句控制合同处理可支持的臂内结构。原生回归同时保留
+有循环和完全无循环的用例，循环与控制分别核对其直接凭证。
+
+最终候选以 `cc2d15d6` 为基线，源码清单 SHA-256
+为 `c303fb99ed66675badc7ce3cdbf0c8f360bdddf150125c8fc5180fe8425d901b`。
+macOS arm64 与离线 Linux x86_64 各实跑 11 组单文件／跨文件
+项目，共 44 个原生产物。对账确认源码组成、逐字节输出、空
+stderr、正常退出及各自目标格式。独立复审核对 8 项正向 CLI
+探针和 3 项负向准入，含无循环与不可达循环输出相同、兄弟臂
+独立语句控制、同根与既有借用载荷视图。
+
+两端各通过 85 项 nullable when、54 项 nullable String 和
+1 项 Map 布局准入。macOS 另通过 111 项 SSA verifier、严格
+Clippy、格式、尺寸、文档及 diff 检查。
+
+最终候选的公开一致性语料通过双宿主对账。两端均为 137/154
+能力探针、0/6 综合程序，零回归、入口差异及内部错误。过渡
+候选的 Linux conformance 在固定最终树后结束，最终数据只取
+重新执行的冻结候选。sanitizer 留在合批候选验收。
+
+下一项立即调用 lambda 已复跑无捕获、共享捕获和 move 捕获。
+前端接受合法无参形式，原生生成失败。局部命名再调用的共享
+捕获对照正常运行。导出的所有权事实中，命名闭包有自身的
+CallReturn 释放；捕获 literal 的 Basic drop 计划中未检出
+闭包 temporary 清理。该组合需要同时检查所有权发布与后端调用时机。
+
+## 319. R3/R4 立即调用 lambda 的环境与调用退出
+
+无捕获、共享捕获和 move 捕获的无参字面量调用通过前端，原生
+构建先报 UnsupportedNode。Refine 从 typed FunctionValue descriptor
+和已有 thunk plan 接受直接或分组 literal，在实参前形成 callable。
+前端将内层 lambda ID 登记为调用期 owner，正常返回按 CallReturn
+清理。无捕获函数指针也有逻辑 SSA owner，首次只登记捕获环境时
+verifier 报 MissingOwnedExit。
+
+独立复审发现只读捕获的纯 String 来源缺少调用期保护。合并既有
+独占捕获调用事实和同一 lambda 发布的共享捕获来源，沿原清理
+算法先释放环境，再释放已最后使用的纯内存来源。Unit 的两个
+入口均保留后续仍被读取的来源。持久事实测试修前仅看到闭包
+temporary，修后按顺序看到 temporary 和源 binding。
+
+原生 Abort 回归另发现 `error(owner.label)` 既在具名闭包也在立即
+闭包触发 UnsupportedNode。消息字段准入只排除外层 error 本身的
+Abort，仍检查实参中的提前退出。独立复审核对正常调用、嵌套
+退出和 Abort 的边界。原生正例核对共享 Resource 的词法析构、
+move Resource 的调用返回析构、共享 String 的读取，以及
+error 的 SIGABRT、确切消息位置、无捕获析构及无续行。
+
+本机 macOS arm64 与离线 Linux x86_64 均通过 3 条新增原生
+回归。冻结源码清单 SHA-256 为
+`d2e2c71aa2b53c7c5cdce411605d8add39bee6a26da84b4276153adc2e944d7f`。
+同一编译器源码树汇集 17 组单文件及跨文件项目用例，双宿主实跑
+68 个原生产物。逐项确认输入正文一致、check/build/run 成功、
+stdout 逐字节相同、stderr 为空，目标格式分别为 Mach-O arm64
+和 ELF x86-64。§316 中直接调用 Boolean lambda 的 when 条件
+同时通过两宿主两入口。

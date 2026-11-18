@@ -32,6 +32,11 @@ impl Builder<'_, '_> {
             }
             return Ok(Lowered::Diverged);
         }
+        let literal_callee = if descriptor.target() == UnitCallTarget::FunctionValue {
+            self.form_literal_callee(expression, span)?
+        } else {
+            None
+        };
         let is_extension = match descriptor.target() {
             UnitCallTarget::Declaration(id) => self
                 .inputs
@@ -355,7 +360,8 @@ impl Builder<'_, '_> {
         let mut invoked_callee = None;
         let return_type = self.c(descriptor.return_type());
         let result = if descriptor.target() == UnitCallTarget::FunctionValue {
-            let (result, callee) = self.invoke_callable(expression, lowered, return_type, span)?;
+            let (result, callee) =
+                self.invoke_callable(expression, lowered, literal_callee, return_type, span)?;
             if result == Lowered::Diverged {
                 return Ok(result);
             }

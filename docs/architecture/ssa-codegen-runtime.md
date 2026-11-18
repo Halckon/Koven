@@ -109,14 +109,14 @@ Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参�
 通过 LLVM pointer phi 保留同一存储。return/break/continue 结束 loan 后沿原 drop facts 清理，
 Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
 MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回。
-常量入口的 named function-value callee pending frame 保留原规则：先移除alias，再按frontend owner事实清理，Abort不展开。
+常量入口的 named function-value callee pending frame 保留原规则：先移除alias，再按frontend owner事实清理，Abort不展开。 普通 Unit 中直接或分组调用 lambda 字面量时，在实参前形成 callable，按内层 lambda 身份消费 CallReturn 清理。共享捕获的纯内存来源在闭包环境之后、最后使用后清理。
 lambda Borrow storage仍复用Shared Loan ABI；普通Unit direct declaration call为无receiver及canonical文本String Borrow receiver开放已证root/temporary实参前缀的控制退出，
 逐项核真实typed/owned/call route与frame身份；String非空If中的Unit／Copyable及独立owner return允许空调用帧，或先结束文本实参调用loan、取消两帧，再按原ControlTransfer drop退休父proof；独立owner先走原transfer／nullable wrap。已有String If proof且无pending槽时，根的Name/Group返回以NullableTake交付String，或结束view后保留String?；沿每条CFG边同步验证owner/proof配对，循环必须可追溯真实birth。直接Name/Group return也可用原非空使用事实建立proof，排除lambda作用域；Nothing类型的双臂return复用同一入口。实参求值期间移动已借用receiver根由前端L0135拒绝；函数值、普通receiver、field/element实参或借用结果不由此获得新能力，Borrow Unit/Inout callback仍拒绝。
 Map callback通用storage与capture见 [Map当前边界](map-native-execution.md)；contains/get/put/remove在后续参数CFG后读取重绑定owner/loan，
 MapPut自行收集K/V drop glue，MapRemove收集K并交付owned V，不依赖scope Drop。已证ownership primitive优先于普通prefix gate分派。
 常量入口允许外层pending temporary穿过内层loop/while，header、回边和break/false出口携完整owner/loan/pending状态；
 内层跳转仅结束本循环内frame与prefix槽，return清理退出frame，Abort不展开；Copyable binding与已求值实参快照分列，owner/loan alias去重。
-普通 Unit while 从实际条件出口分支，已生成的 SSA 布尔常量可排除不可能边；基础入口其余 temporary 循环边界保留。普通 `String?` 借用结果可跨判空 while。顺序块及已准入语句分支中的其他 `String` 或 `String?` 结果各消费自己的正常结束点或精确 return 边，回边及退出由 SSA 资源验证覆盖。direct nullable while仅将HeapOwner送专用proof，
+普通 Unit while 从实际条件出口分支，已生成的 SSA 布尔常量可排除不可能边；基础入口其余 temporary 循环边界保留。普通 `String?` 借用结果可跨判空 while。顺序块及已准入语句分支中的其他 `String` 或 `String?` 结果各消费自己的正常结束点或精确 return 边，回边及退出由 SSA 资源验证覆盖。无载荷使用的自有 String? when 以已核对的 typed／owned 计划生成判空分支，保留 subject 的原清理点。direct nullable while仅将HeapOwner送专用proof，
 SharedOwner Rc继续普通while，缺映射不回退。[0332](../archive/specs/0332-rc-nullable-while-regression.md)原有bounded done/archive历史不变；
 其§5四Unit payload-reader及体内原owner返回包装债仍OPEN，presence成功或阶段表expected reject不关闭能力债。
 隐式具体 MoveOnly Value `this` 在 frontend pending 队列中保留既有 `This(owner)` target，
