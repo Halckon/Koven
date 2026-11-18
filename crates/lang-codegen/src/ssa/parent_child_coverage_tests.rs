@@ -459,7 +459,7 @@ mod temporary_route {
                     .iter()
                     .find(|d| d.name() == "run")
                     .unwrap();
-                let ((lowered, routing), receipts) =
+                let ((lowered, mut routing), receipts) =
                     crate::ssa::refine::temporary_receipt::observe(|| {
                         crate::ssa::refine::observe_routing(|| {
                             crate::ssa::unit_lower::lower_scalar_unit_with_entry(
@@ -477,22 +477,21 @@ mod temporary_route {
                 verify_program(&program).unwrap();
                 crate::llvm::render_verified_program(&program).unwrap();
                 let caller = program.modules[0].function(entry).unwrap();
-                assert!(
-                    !routing.contains(&caller.name),
-                    "temporary caller must not gain admission"
-                );
                 if case == 0 {
-                    // SPEC-0454 migrates only the no-argument scalar callee, not this caller.
-                    let callees = program.modules[0]
+                    // Pure scalar caller and callee both route to refine.
+                    let mut expected = program.modules[0]
                         .functions
                         .iter()
-                        .filter(|function| function.id() != entry)
+                        .map(|function| function.name.clone())
                         .collect::<Vec<_>>();
-                    let [callee] = callees.as_slice() else {
-                        panic!("one scalar callee")
-                    };
-                    assert_eq!(routing.as_slice(), std::slice::from_ref(&callee.name));
+                    expected.sort();
+                    routing.sort();
+                    assert_eq!(routing, expected);
                 } else {
+                    assert!(
+                        !routing.contains(&caller.name),
+                        "non-scalar caller must not gain admission"
+                    );
                     assert!(routing.is_empty());
                 }
                 assert!(receipts.is_empty());

@@ -161,9 +161,11 @@ fn ordinary_existing_unit_loop_replays_actual_edges_and_rejects_nonbackedge_neig
                 .find(|d| d.name() == "run")
                 .unwrap()
                 .id();
-            let (program, _) = unit_lower::lower_scalar_unit_with_entry(
-                &sources, &inputs, &names, &types, &typed, &owned, entry,
-            )
+            let (program, _) = crate::ssa::with_per_family_lowering(|| {
+                unit_lower::lower_scalar_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                )
+            })
             .unwrap();
             verify_program(&program).unwrap();
             let functions = program

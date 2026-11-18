@@ -36,12 +36,25 @@ fn linear_scalar_functions_refine_without_another_family_trigger() {
 }
 
 #[test]
-fn scalar_trigger_preserves_existing_call_control_and_non_scalar_boundaries() {
+fn scalar_calls_and_control_flow_refine_without_another_trigger() {
     for source in [
         "fun g(): Int = 1\nfun f(): Int = g()",
         "fun f(c: Boolean): Int = if (c) 1 else 0",
         "fun f(a: Boolean, b: Boolean): Boolean = a && b",
         "fun f(): Int { var i = 0; while (i < 2) { i = i + 1 }; return i }",
+    ] {
+        let (result, routed) = route(source);
+        let program =
+            result.unwrap_or_else(|error| panic!("scalar source failed: {source}: {error:?}"));
+        assert!(routed, "scalar call/control must refine: {source}");
+        crate::ssa::verify::verify_program(&program).expect("complete SSA/ownership verifier");
+        crate::llvm::render_verified_program(&program).expect("scalar LLVM verifies");
+    }
+}
+
+#[test]
+fn scalar_trigger_preserves_non_scalar_signature_boundaries() {
+    for source in [
         "class Token()\nfun f(t: Token): Int = 1",
         "fun f(s: String): Int = 1",
         "fun f(own s: String): Int = 1",
@@ -51,7 +64,7 @@ fn scalar_trigger_preserves_existing_call_control_and_non_scalar_boundaries() {
             result.unwrap_or_else(|error| panic!("existing source failed: {source}: {error:?}"));
         assert!(
             !routed,
-            "the scalar-only trigger must not widen this body: {source}"
+            "the scalar-only trigger must not widen non-scalar signatures: {source}"
         );
         crate::llvm::render_verified_program(&program).expect("existing path still verifies");
     }
@@ -93,17 +106,62 @@ fn lower_project(
 }
 
 #[test]
-fn generic_scalar_instance_does_not_gain_the_new_trigger() {
-    let (program, _, routed) = lower_project(
-        "fun <T> identity(own x: T): T = x",
-        "fun main(): Int = identity<Int>(1)",
-        false,
-    );
-    assert!(
-        routed.is_empty(),
-        "generic instance and its caller keep their routes: {routed:?}"
-    );
-    crate::llvm::render_verified_program(&program).expect("generic fallback still verifies");
+fn generic_scalar_instance_and_caller_refine_without_another_trigger() {
+    for sibling in [
+        "",
+        "\nfun uncalled(own x: Int?): Int = if (x == null) 0 else 1",
+    ] {
+        let mut expected = None;
+        for reverse in [false, true] {
+            let (program, _, routed) = lower_project(
+                &format!("fun <T> identity(own x: T): T = x{sibling}"),
+                "fun main(): Int = identity<Int>(1)",
+                reverse,
+            );
+            assert!(
+                routed.iter().any(|name| name.contains(".identity.")),
+                "generic scalar instance must refine: {routed:?}"
+            );
+            assert!(
+                routed.iter().any(|name| name.starts_with("koven.p.main.d")),
+                "generic scalar caller must refine: {routed:?}"
+            );
+            assert!(
+                !routed
+                    .iter()
+                    .any(|name| name.starts_with("koven.p.uncalled.d"))
+            );
+            crate::ssa::verify::verify_program(&program).expect("complete SSA/ownership verifier");
+            let llvm = crate::llvm::render_verified_program(&program)
+                .expect("generic scalar LLVM verifies");
+            let actual = (render_program(&program), llvm);
+            if let Some(expected) = &expected {
+                assert_eq_diagnostic!(
+                    expected,
+                    &actual,
+                    "input order must not change generic scalar output"
+                );
+            }
+            expected = Some(actual);
+        }
+    }
+}
+
+#[test]
+fn scalar_calls_control_and_generic_execute_through_the_native_entry() {
+    let source = "fun <T> identity(own x: T): T = x\n                  fun step(n: Int): Int = if (n > 0 && n < 10) identity<Int>(n + 1) else 0\n                  fun sum_to(limit: Int): Int { var i = 0; var total = 0; while (i < limit) { i = i + 1; total = total + step(i) }; return total }\n                  fun main(): Unit { if (sum_to(3) == 9) { println(\"scalar-control-generic-ok\") } }";
+    let (run, routed) = observe_routing(|| {
+        crate::native_tests::emit_link_and_run("scalar_control_generic.ko", source, "main")
+    });
+    for name in [".identity.", ".step.d", ".sum_to.d"] {
+        assert!(
+            routed.iter().any(|entry| entry.contains(name)),
+            "expected {name} in routed: {routed:?}"
+        );
+    }
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"scalar-control-generic-ok\n");
+    assert!(run.stderr.is_empty(), "{run:?}");
 }
 
 #[test]
@@ -228,11 +286,11 @@ fn scalar_checked_arithmetic_still_aborts_instead_of_wrapping_or_dividing_by_zer
 #[test]
 fn refined_linear_and_legacy_branch_helpers_coexist_in_the_native_program() {
     let source = "fun linear(x: Int): Int = x + 1\n\
-                  fun branching(c: Boolean): Int = if (c) 1 else 0\n\
+                  fun compat_tag(s: String): Int = 1\n\
                   fun main(): Unit {\n\
                       var marker: Int = 0\n\
                       val previous = replace(&marker, 1)\n\
-                      if (previous == 0 && marker == 1 && linear(40) == 41 && branching(true) == 1) { println(\"mixed-linear-ok\") }\n\
+                      if (previous == 0 && marker == 1 && linear(40) == 41 && compat_tag(\"ok\") == 1) { println(\"mixed-linear-ok\") }\n\
                   }";
     let (run, routed) = observe_routing(|| {
         crate::native_tests::emit_link_and_run("mixed_linear.ko", source, "main")
@@ -242,7 +300,7 @@ fn refined_linear_and_legacy_branch_helpers_coexist_in_the_native_program() {
         "{routed:?}"
     );
     assert!(
-        !routed.iter().any(|name| name.contains(".branching.d")),
+        !routed.iter().any(|name| name.contains(".compat_tag.d")),
         "{routed:?}"
     );
     assert!(

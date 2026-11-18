@@ -69,9 +69,12 @@ fn lower_roots(unit: &UnitSource, names: &[&str]) -> Vec<Root> {
         .map(|&name| {
             let declaration = unit.declaration(name, SymbolKind::Function);
             let origin = Origin::Source(unit.declaration_span(declaration));
-            let (program, entry) = unit
-                .lower_entry(declaration)
-                .unwrap_or_else(|error| panic!("original {name} root failed: {error:?}"));
+            let (program, entry) = if name == "discard" {
+                unit.lower_entry(declaration)
+            } else {
+                crate::ssa::with_per_family_lowering(|| unit.lower_entry(declaration))
+            }
+            .unwrap_or_else(|error| panic!("original {name} root failed: {error:?}"));
             verify_program(&program).expect("complete original-root SSA and ownership verifier");
             render_verified_program(&program).expect("complete original-root LLVM verifier");
             let module = program.module(entry.module()).expect("actual root module");

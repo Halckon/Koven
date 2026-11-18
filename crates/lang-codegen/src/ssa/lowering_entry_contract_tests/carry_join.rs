@@ -107,13 +107,15 @@ fn paired_pending_value_joins_compare_complete_incoming_signatures() {
         };
         // This retirement requires the separate Stage A CI baseline. Both
         // original sources and their Unit relation oracle stay unchanged.
-        let rooted_events = observe_products(
-            &text,
-            false,
-            &mut failures,
-            paired_in_order_observed_entry,
-            observe,
-        );
+        let rooted_events = crate::ssa::with_per_family_lowering(|| {
+            observe_products(
+                &text,
+                false,
+                &mut failures,
+                paired_in_order_observed_entry,
+                observe,
+            )
+        });
         // Both sources use only Copyable scalar values: the complete observed
         // String/borrow/drop/abort event stream is independently fixed to empty.
         assert_eq!(rooted_events, Vec::<Event>::new());

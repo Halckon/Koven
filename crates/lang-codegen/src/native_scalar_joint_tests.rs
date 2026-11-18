@@ -283,7 +283,13 @@ fn joint_unit_preserves_reachable_targets_borrow_abi_and_complete_llvm_determini
     };
     assert_eq!(**callee, add.id);
     assert!(receiver.is_none());
-    assert_eq!(arguments.as_slice(), invoke.blocks[0].parameters.as_slice());
+    assert_eq!(arguments.len(), invoke.blocks[0].parameters.len());
+    for (argument, parameter) in arguments.iter().zip(&invoke.blocks[0].parameters) {
+        assert_eq!(
+            invoke.entity(*argument).unwrap().ty,
+            invoke.entity(*parameter).unwrap().ty
+        );
+    }
     let invoke_body = llvm_body(&llvm, invoke);
     let add_call = format!("call i32 @f{}.{}(", add.id.index(), add.name);
     assert_eq!(

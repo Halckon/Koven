@@ -403,15 +403,17 @@ fn nested_continue_targets_the_inner_while_header() {
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
-    let (program, _) = lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "p", "entry"),
-    )
+    let (program, _) = crate::ssa::with_per_family_lowering(|| {
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "p", "entry"),
+        )
+    })
     .expect("nested loop jumps target the nearest context");
     let nested = program.modules[0]
         .functions
@@ -481,15 +483,17 @@ fn nested_break_merges_with_the_inner_false_exit_before_outer_return() {
     let (name_environment, type_environment) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
 
-    let (program, _) = lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "p", "entry"),
-    )
+    let (program, _) = crate::ssa::with_per_family_lowering(|| {
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "p", "entry"),
+        )
+    })
     .expect("inner break and false exit merge before the outer body continues");
     let nested = program.modules[0]
         .functions

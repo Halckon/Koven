@@ -485,25 +485,29 @@ fn copyable_value_if_merges_results_deterministically_across_files() {
     let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
     let entry = declaration(&names, "q", "entry");
 
-    let (forward, _) = lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        entry,
-    )
+    let (forward, _) = crate::ssa::with_per_family_lowering(|| {
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+    })
     .expect("copyable value if lowers to verified SSA");
-    let (backward, _) = lower_scalar_unit_with_entry(
-        &sources,
-        &reversed,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        entry,
-    )
+    let (backward, _) = crate::ssa::with_per_family_lowering(|| {
+        lower_scalar_unit_with_entry(
+            &sources,
+            &reversed,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+    })
     .expect("input permutation preserves value-if SSA");
     assert_text_eq!(render_program(&forward), render_program(&backward));
     let select = forward.modules[0]
