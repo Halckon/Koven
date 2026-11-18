@@ -61,66 +61,58 @@ fun extract(input: Boolean?, flag: Boolean): Boolean {
 
 #[test]
 fn conditional_writes_and_lambda_creation_preserve_source_proof_boundaries() {
-    let mut observations = Vec::with_capacity(8);
+    let mut observations = Vec::with_capacity(4);
     for case in [
         ScopeCase::ShortCircuitWrite,
         ScopeCase::LoopWrite,
         ScopeCase::LambdaDoesNotPublishProof,
         ScopeCase::LambdaPreservesIncomingProof,
     ] {
-        for unit in [false, true] {
-            let mut observation = Observation {
-                label: format!("{case:?}/{}", if unit { "unit" } else { "single" }),
-                stage: "parse; names/raw/complete not reached",
-                checks: Vec::new(),
-                details: Vec::new(),
-            };
-            let result = catch_unwind(AssertUnwindSafe(|| {
-                let mut sources = SourceMap::new();
-                let source = sources
-                    .add_source("nullable_when.ko", case.source())
-                    .map_err(|error| format!("source internal: {error:?}"))?;
-                let file =
-                    parser_test_assertions::parse_file_twice(&sources, source, &observation.label);
+        let mut observation = Observation {
+            label: format!("{case:?}/unit"),
+            stage: "parse; names/raw/complete not reached",
+            checks: Vec::new(),
+            details: Vec::new(),
+        };
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            let mut sources = SourceMap::new();
+            let source = sources
+                .add_source("nullable_when.ko", case.source())
+                .map_err(|error| format!("source internal: {error:?}"))?;
+            let file =
+                parser_test_assertions::parse_file_twice(&sources, source, &observation.label);
+            observation
+                .details
+                .push(format!("parse {:?}", file.diagnostics()));
+            if !file.diagnostics().is_empty() {
+                return Err("parse diagnostics; names/raw/complete not reached".to_owned());
+            }
+            if matches!(case, ScopeCase::ShortCircuitWrite | ScopeCase::LoopWrite) {
+                // Reuse the existing negative Boolean local-var contract, not its source.
+                // It checks the actual when subject/else reference, storage and target proof.
+                observe_unit(Case::InoutCondition, &sources, &file, &mut observation)
+            } else {
+                observe_lambda_unit(case, &sources, &file, &mut observation)
+            }
+        }));
+        match result {
+            Ok(Ok(())) => observation.stage = "observed",
+            Ok(Err(error)) => observation.details.push(error),
+            Err(payload) => {
+                let message = payload
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+                    .or_else(|| payload.downcast_ref::<&str>().copied())
+                    .unwrap_or("non-string panic payload");
                 observation
                     .details
-                    .push(format!("parse {:?}", file.diagnostics()));
-                if !file.diagnostics().is_empty() {
-                    return Err("parse diagnostics; names/raw/complete not reached".to_owned());
-                }
-                if matches!(case, ScopeCase::ShortCircuitWrite | ScopeCase::LoopWrite) {
-                    // Reuse the existing negative Boolean local-var contract, not its source.
-                    // It checks the actual when subject/else reference, storage and target proof.
-                    if unit {
-                        observe_unit(Case::InoutCondition, &sources, &file, &mut observation)
-                    } else {
-                        observe_single(Case::InoutCondition, &sources, &file, &mut observation)
-                    }
-                } else if unit {
-                    observe_lambda_unit(case, &sources, &file, &mut observation)
-                } else {
-                    observe_lambda_single(case, &sources, &file, &mut observation)
-                }
-            }));
-            match result {
-                Ok(Ok(())) => observation.stage = "observed",
-                Ok(Err(error)) => observation.details.push(error),
-                Err(payload) => {
-                    let message = payload
-                        .downcast_ref::<String>()
-                        .map(String::as_str)
-                        .or_else(|| payload.downcast_ref::<&str>().copied())
-                        .unwrap_or("non-string panic payload");
-                    observation
-                        .details
-                        .push(format!("harness/compiler panic: {message}"));
-                }
+                    .push(format!("harness/compiler panic: {message}"));
             }
-            observations.push(observation);
         }
+        observations.push(observation);
     }
     eprintln!("scope boundary observations:\n{observations:#?}");
-    assert_eq!(observations.len(), 8);
+    assert_eq!(observations.len(), 4);
     assert!(
         observations.iter().all(Observation::passed),
         "{observations:#?}"
@@ -197,119 +189,6 @@ fn lambda_targets(
         inner,
         outer: *outer,
     })
-}
-
-fn observe_lambda_single(
-    case: ScopeCase,
-    sources: &SourceMap,
-    file: &ParsedFile,
-    observation: &mut Observation,
-) -> Result<(), String> {
-    let (environment, types) = standard_environments();
-    observation.stage = "names; raw/complete not reached";
-    let names =
-        resolve_names(sources, file, &environment).map_err(|e| format!("names internal: {e:?}"))?;
-    observation
-        .details
-        .push(format!("names {:?}", names.diagnostics()));
-    if !names.diagnostics().is_empty() {
-        return Err("names diagnostics; raw/complete not reached".to_owned());
-    }
-    observation.stage = "raw; complete not reached";
-    let typed =
-        check_types(sources, file, &names, &types).map_err(|e| format!("raw internal: {e:?}"))?;
-    let expressions = file
-        .ast()
-        .expressions()
-        .iter()
-        .map(|(id, node)| {
-            let ty = typed.expression_type(id);
-            (
-                id,
-                node.span(),
-                sources.slice(node.span()),
-                ty,
-                ty.and_then(|ty| typed.types().get(ty)),
-            )
-        })
-        .collect::<Vec<_>>();
-    observation.details.push(format!("raw {:?}; expressions {expressions:#?}; symbols {:?}; references {:?}; nonnull {:?}; calls {:?}",
-        typed.diagnostics(), names.symbols(), names.references(), typed.non_null_uses(), typed.calls()));
-    observation.stage = "complete";
-    record_admission(
-        if case.preserves() {
-            Case::Parameter
-        } else {
-            Case::RepeatedField
-        },
-        typed.diagnostics(),
-        complete_file_types(sources, file, &names, &types, &typed)
-            .map(|complete| complete.is_same_analysis(&typed)),
-        observation,
-    );
-    observation.stage = "fact inspection; complete recorded";
-    let targets = lambda_targets(sources, file, case)?;
-    let symbol = single_reference(file, &names, targets.inner);
-    let storage = symbol.and_then(|symbol| typed.symbol_type(symbol));
-    let inner_type = typed.types().builtin(BuiltinType::Int);
-    observation.details.push(format!("targets {targets:?}; storage {storage:?}/{:?}; inner read {:?}; outer read {:?}; lambda type {:?}",
-        storage.and_then(|ty| typed.types().get(ty)), typed.expression_type(targets.inner), typed.expression_type(targets.outer), typed.expression_type(targets.lambda)));
-    observation.check(
-        "both reads use one real value parameter",
-        symbol.is_some()
-            && single_reference(file, &names, targets.outer) == symbol
-            && names.symbols().iter().any(|candidate| {
-                Some(candidate.id()) == symbol && source_kind(file, candidate, Case::Parameter)
-            }),
-    );
-    observation.check("declared storage remains Nullable(Int)", inner_type.is_some()
-        && matches!(storage.and_then(|ty| typed.types().get(ty)), Some(TypeKind::Nullable(inner)) if Some(*inner) == inner_type));
-    for (label, expression) in [
-        ("inner read has its own valid proof", targets.inner),
-        ("outer proof equals creation-point proof", targets.outer),
-    ] {
-        let facts = typed
-            .non_null_uses()
-            .iter()
-            .filter(|fact| fact.expression() == expression)
-            .collect::<Vec<_>>();
-        let expected = expression == targets.inner || case.preserves();
-        observation.check(
-            label,
-            if expected {
-                typed.expression_type(expression) == inner_type
-                    && facts.len() == 1
-                    && facts.iter().all(|fact| {
-                        Some(fact.symbol()) == symbol
-                            && Some(fact.declared_type()) == storage
-                            && Some(fact.narrowed_type()) == inner_type
-                            && typed.non_null_use(expression) == Some(**fact)
-                    })
-            } else {
-                facts.is_empty() && typed.non_null_use(expression).is_none()
-            },
-        );
-    }
-    record_diagnostics(
-        if case.preserves() {
-            Case::Parameter
-        } else {
-            Case::RepeatedField
-        },
-        typed.diagnostics(),
-        expression_span(file, targets.outer)?,
-        observation,
-    );
-    observation.check(
-        "lambda is created and never called",
-        typed.calls().is_empty()
-            && file
-                .ast()
-                .expressions()
-                .iter()
-                .all(|(_, node)| !matches!(node.payload(), Expression::Call { .. })),
-    );
-    Ok(())
 }
 
 fn observe_lambda_unit(

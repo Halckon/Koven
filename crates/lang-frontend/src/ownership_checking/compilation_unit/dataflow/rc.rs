@@ -1,7 +1,7 @@
 //! Intrinsic Rc retain 与 payload-borrow 的 source-qualified effect。
 
 use crate::{
-    diagnostic::{Diagnostic, Severity},
+    diagnostic::{Diagnostic, Severity, codes},
     ownership_checking::RcOwnershipEffectKind,
     parser::Expression,
     type_checking::{Copyability, RcOperationKind, UnitRcOperationDescriptor},
@@ -55,6 +55,35 @@ impl Checker<'_> {
             .or(self.temporary_rc_payload_owner(receiver.expression())?)
             .is_none()
         {
+            if descriptor.kind() == RcOperationKind::Share
+                && self.rc_value_receiver(receiver.expression())?.is_some()
+            {
+                // Known payload syntax without a proven named or temporary backing owner.
+                // Main supports nested owners above; this is only the residual unproven route.
+                self.diagnostics.push(Diagnostic::new(
+                    self.sources,
+                    Severity::Error,
+                    codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
+                    "sharing an Rc payload requires unsupported backing-owner lifetime transport",
+                    primary,
+                )?);
+                return Ok(flows);
+            }
+            if descriptor.kind() == RcOperationKind::Value
+                && self.typed.copyability(descriptor.payload_type()) == Copyability::Copyable
+                && self.rc_value_receiver(receiver.expression())?.is_some()
+            {
+                // A Copyable read still needs a proven backing owner. Named/temporary
+                // nested owners were handled above; do not admit an unproven remainder.
+                self.diagnostics.push(Diagnostic::new(
+                    self.sources,
+                    Severity::Error,
+                    codes::catalog()?.resolve(codes::UNSUPPORTED_BORROW_FLOW)?,
+                    "nested Rc payload read requires unsupported backing-owner lifetime transport",
+                    primary,
+                )?);
+                return Ok(flows);
+            }
             return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
                 source_unit: self.source_unit.index(),
                 expression: receiver.expression().index(),

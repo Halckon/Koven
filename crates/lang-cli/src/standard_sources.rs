@@ -1,4 +1,6 @@
 //! 编译器自带 Koven 源码资产的加载边界；授权只绑定宿主新建的 SourceId。
+use std::collections::BTreeSet;
+
 use crate::unit_build::UnitBuildError;
 use lang_frontend::{
     analysis::UnitSourceDescriptor,
@@ -24,6 +26,7 @@ pub(crate) fn append_standard_sources(
     names: &mut NameEnvironment,
     types: &mut TypeEnvironment,
 ) -> Result<(), UnitBuildError> {
+    let root = available_standard_root(descriptors);
     let range = register(sources, descriptors.len(), RANGE_PATH, RANGE_TEXT)?;
     types
         .authorize_range_source(sources, range)
@@ -31,23 +34,42 @@ pub(crate) fn append_standard_sources(
     types
         .authorize_range_extension_source(sources, range)
         .map_err(UnitBuildError::StandardSource)?;
-    descriptors.push(UnitSourceDescriptor::new(STANDARD_ROOT, RANGE_PATH, range));
+    descriptors.push(UnitSourceDescriptor::new(&root, RANGE_PATH, range));
 
     let result = register(sources, descriptors.len(), RESULT_PATH, RESULT_TEXT)?;
     names
         .authorize_builtin_source(sources, result)
         .map_err(UnitBuildError::Source)?;
-    descriptors.push(UnitSourceDescriptor::new(
-        STANDARD_ROOT,
-        RESULT_PATH,
-        result,
-    ));
+    descriptors.push(UnitSourceDescriptor::new(&root, RESULT_PATH, result));
     let text = register(sources, descriptors.len(), TEXT_PATH, TEXT_TEXT)?;
     types
         .authorize_text_source(sources, text)
         .map_err(UnitBuildError::StandardSource)?;
-    descriptors.push(UnitSourceDescriptor::new(STANDARD_ROOT, TEXT_PATH, text));
+    descriptors.push(UnitSourceDescriptor::new(&root, TEXT_PATH, text));
     Ok(())
+}
+
+// 用户 root/path 不变；只避让实际重合的完整键，三份标准源共享同一宿主 root。
+fn available_standard_root(descriptors: &[UnitSourceDescriptor]) -> String {
+    let occupied = descriptors
+        .iter()
+        .filter(|source| {
+            matches!(
+                source.logical_path(),
+                Some(RANGE_PATH | RESULT_PATH | TEXT_PATH)
+            )
+        })
+        .filter_map(UnitSourceDescriptor::root_identity)
+        .collect::<BTreeSet<_>>();
+    let mut root = STANDARD_ROOT.to_owned();
+    // N 个占用 root 至多阻挡 N 个候选；原 root 加 N 个后缀必有空闲项。
+    for suffix in 1..=occupied.len() {
+        if !occupied.contains(root.as_str()) {
+            break;
+        }
+        root = format!("{STANDARD_ROOT}-{suffix}");
+    }
+    root
 }
 
 fn register(
@@ -70,3 +92,6 @@ fn register(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod source_identity_tests;

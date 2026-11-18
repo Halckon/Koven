@@ -6,10 +6,7 @@ use lang_frontend::{
     source::{SourceMap, Span},
 };
 
-use super::{
-    collect_memory_entry_observations, collect_shape_boundaries, collect_sources, holder,
-    verify_program,
-};
+use super::{collect_memory_entry_observations, collect_sources, holder, verify_program};
 
 #[path = "borrowed_proof_contract.rs"]
 mod borrowed_proof_contract;
@@ -87,12 +84,10 @@ fn nullable_while_preserves_the_outer_borrowed_for_access() {
 }
 
 fn observe_borrowed_sources(relation: &str, sources: &[String; 2]) {
-    let observations = if relation == "for-inside-while" {
-        collect_shape_boundaries(sources)
-    } else {
-        assert_eq!(relation, "while-inside-for");
-        collect_sources(sources)
-    };
+    assert!(matches!(relation, "for-inside-while" | "while-inside-for"));
+    // Both layouts use strict Unit; the unchanged borrowed oracle has no
+    // Legacy-specific arm. Original-layout entry identity is checked above.
+    let observations = collect_sources(sources);
     let outcomes = observations
         .into_iter()
         .enumerate()
@@ -113,7 +108,7 @@ fn observe_borrowed_sources(relation: &str, sources: &[String; 2]) {
             result
         })
         .collect::<Vec<_>>();
-    // Retain all original/Group single/unit verify/render outcomes before asserting success.
+    // Retain all original/Group MemoryDocument/Rooted outcomes before asserting success.
     assert_eq!(outcomes.len(), 4);
     for (index, outcome) in outcomes.into_iter().enumerate() {
         let program = expect(

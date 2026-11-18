@@ -171,6 +171,9 @@ impl Checker<'_> {
         let mut deliveries_complete = true;
 
         for argument in arguments {
+            if flows.next.is_none() {
+                break;
+            }
             let parameter_span = argument
                 .parameter_symbol()
                 .map(|symbol| self.symbol_span(symbol))
@@ -179,11 +182,32 @@ impl Checker<'_> {
             if let Some(next) = flows.next.as_ref() {
                 self.reject_borrowed_closure_escape(argument.argument().expression(), next)?;
             }
-            flows = self.chain_expression(
-                flows,
-                argument.argument().expression(),
-                ExpressionUse::Consume { parameter_span },
-            )?;
+            let mut actual = argument.argument().expression();
+            let elvis = loop {
+                match self.parsed.ast().expressions().get(actual)?.payload() {
+                    Expression::Group { expression } => actual = *expression,
+                    Expression::Binary {
+                        operator: crate::parser::BinaryOperator::Elvis,
+                        ..
+                    } => break true,
+                    _ => break false,
+                }
+            };
+            if elvis && self.diagnostics.len() == argument_diagnostics {
+                if let Some(next) = flows.next.take() {
+                    flows.merge(self.check_escaping_expression(
+                        argument.argument().expression(),
+                        next,
+                        ExpressionUse::Consume { parameter_span },
+                    )?);
+                }
+            } else {
+                flows = self.chain_expression(
+                    flows,
+                    argument.argument().expression(),
+                    ExpressionUse::Consume { parameter_span },
+                )?;
+            }
 
             if flows.next.is_none() || self.is_nothing_expression(argument.argument()) {
                 flows.next = None;

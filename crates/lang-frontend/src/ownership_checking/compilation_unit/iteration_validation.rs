@@ -50,18 +50,35 @@ impl CompilationUnitOwnership {
             {
                 return false;
             }
-            if plan.descriptor().provider() == crate::type_checking::IterationProvider::RangeView
-                && matches!(plan.source(), Some(UnitLoanTarget::Temporary(_)))
+            let range_provider =
+                plan.descriptor().provider() == crate::type_checking::IterationProvider::RangeView;
+            if (!range_provider && plan.range_source_call.is_some())
+                || (range_provider
+                    && matches!(plan.source(), Some(UnitLoanTarget::Temporary(_)))
+                    && plan.range_source_call.is_none())
             {
-                let Some(fact) = self.borrow_results.range_uses.iter().find(|fact| {
-                    fact.expression() == plan.descriptor().source()
+                return false;
+            }
+            if let Some(call) = plan.range_source_call {
+                if call.source_unit() != statement.source_unit()
+                    || call.source_unit() != plan.descriptor().source().source_unit()
+                {
+                    return false;
+                }
+                let mut matching = self.borrow_results.range_uses.iter().filter(|fact| {
+                    fact.expression() == call
                         && fact.site() == crate::ownership_checking::RangeUseSite::Iteration
-                }) else {
+                });
+                let Some(fact) = matching.next() else {
                     return false;
                 };
+                if matching.next().is_some() {
+                    return false;
+                }
                 let source = fact.source_loan();
                 if Some(fact.origin()) != plan.source()
-                    || source.call() != fact.expression()
+                    || source.call() != call
+                    || source.argument().source_unit() != call.source_unit()
                     || self
                         .loans
                         .iter()
@@ -89,7 +106,8 @@ impl CompilationUnitOwnership {
             else {
                 return false;
             };
-            if plan.descriptor() != template.descriptor()
+            if plan.range_source_call != template.range_source_call
+                || plan.descriptor() != template.descriptor()
                 || plan.source_kind() != template.source_kind()
                 || plan.source_access() != template.source_access()
                 || plan.bindings() != template.bindings()

@@ -49,6 +49,8 @@ struct Checker<'i, 'a> {
     branch_form: BTreeSet<UnitExpressionId>,
     /// Temporary field parents whose pending loan and cleanup lower together.
     temporary_field_parents: BTreeSet<UnitExpressionId>,
+    /// Owned field receivers whose evaluated call prefix cannot dispatch.
+    non_dispatching_field_calls: BTreeSet<UnitExpressionId>,
     /// Pilot routing gate: the function touches a nullable value.
     nullable: bool,
     /// Enclosing `while`/`loop` statements; `break`/`continue` need one.
@@ -86,6 +88,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
+        non_dispatching_field_calls: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,
@@ -267,6 +270,7 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
+        non_dispatching_field_calls: BTreeSet::new(),
         nullable: false,
         loops: 0,
         migrated: false,

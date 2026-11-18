@@ -315,6 +315,9 @@ impl Checker<'_> {
             })?;
         state.loans[index].reserved = false;
         fact.activate();
+        // Sole witness producer: the actual successful state transition, never
+        // reconstructed later by scanning final activation descriptors.
+        self.receiver_activations.push(fact.clone());
         Ok(())
     }
 
@@ -343,7 +346,12 @@ impl Checker<'_> {
             return Ok(None);
         }
         if contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
-            && let Some(fact) = self.range_use(expression)
+            && let Some(actual) = crate::ownership_checking::borrow_result::borrow_result_call(
+                self.parsed,
+                expression,
+                |actual| self.range_use(actual).is_some(),
+            )
+            && let Some(fact) = self.range_use(actual)
         {
             let target = fact.origin().clone();
             return match target {

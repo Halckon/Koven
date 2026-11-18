@@ -1,4 +1,7 @@
 //! Subset rules for class construction, field reads and `!!`; they mirror the builder.
+mod temporary_field;
+mod terminated_construction;
+
 use std::collections::BTreeSet;
 
 use lang_frontend::{
@@ -245,8 +248,11 @@ impl Checker<'_, '_> {
         ok
     }
 
-    /// A plain-class construction whose single plan delivers every field in order.
+    /// A plain-class construction with a complete root or a proven terminating prefix.
     pub(super) fn construction(&mut self, expression: ExpressionId) -> bool {
+        if self.terminated_construction(expression) {
+            return true;
+        }
         let id = self.id(expression);
         let typed = self.inputs.typed;
         let Some(descriptor) = typed
@@ -298,24 +304,21 @@ impl Checker<'_, '_> {
             && self.expression_type(expression) == Some(result)
             && instance_arguments == type_arguments
             && descriptor.arguments().len() == fields.len()
-            && plan.target() == descriptor.target();
-        let root_ok = if plan.terminating_operand().is_none() {
-            plan.deliveries().len() == fields.len()
-                && plan.root_obligation().is_some_and(|root| {
-                    root.construction() == id
-                        && self.c(root.result_type()) == result
-                        && root.kind() == ConstructionRootKind::HeapOwner
-                })
-        } else {
-            plan.root_obligation().is_none()
-        };
-        if !identity || !root_ok {
+            && plan.target() == descriptor.target()
+            && plan.terminating_operand().is_none()
+            && plan.deliveries().len() == fields.len()
+            && plan.root_obligation().is_some_and(|root| {
+                root.construction() == id
+                    && self.c(root.result_type()) == result
+                    && root.kind() == ConstructionRootKind::HeapOwner
+            });
+        if !identity {
             return false;
         }
         let mut arguments = descriptor.arguments().iter().collect::<Vec<_>>();
         arguments.sort_by_key(|argument| argument.evaluation_index());
-        let prefix = arguments
-            .iter()
+        arguments
+            .into_iter()
             .zip(plan.deliveries().to_vec())
             .enumerate()
             .all(|(index, (argument, delivery))| {
@@ -332,17 +335,6 @@ impl Checker<'_, '_> {
                     && delivery.evaluation_index() == index
                     && self.adaptable(value.expression(), parameter)
                     && self.expression(value.expression())
-            });
-        prefix
-            && plan.terminating_operand().is_none_or(|operand| {
-                arguments
-                    .get(plan.deliveries().len())
-                    .is_some_and(|argument| {
-                        argument.argument() == operand
-                            && operand.source_unit() == self.inputs.source_unit
-                            && self.inputs.typed.expression_falls_through(operand) == Some(false)
-                            && self.expression(operand.expression())
-                    })
             })
     }
 
@@ -359,6 +351,9 @@ impl Checker<'_, '_> {
     pub(super) fn projection(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
         if let Some(receiver) = self.inputs.non_completing_projection_receiver(id) {
+            if let Some(ok) = self.non_dispatching_factory_projection(expression, receiver) {
+                return ok;
+            }
             return self.expression(receiver);
         }
         let typed = self.inputs.typed;
@@ -401,6 +396,16 @@ impl Checker<'_, '_> {
                     }
                     self.migrated = true;
                     return true;
+                }
+                let constructor = self.ungrouped(receiver_expression);
+                if typed.construction(self.id(constructor)).is_some()
+                    || self.owned_factory_result(constructor)
+                {
+                    return self.temporary_field_read(
+                        receiver_expression,
+                        constructor,
+                        projection.field(),
+                    );
                 }
                 if !self.plain(receiver_expression) {
                     return false;

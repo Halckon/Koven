@@ -365,13 +365,15 @@ litmus!(
 litmus!(litmus_09_nullable_frontend, 9, []);
 litmus!(litmus_10_closure_frontend, 10, []);
 // SPEC-0265 closes unit for-body types; the callee target remains a non-value fact.
-litmus!(
-    litmus_11_iteration_frontend,
-    11,
-    [],
-    [("listOf", "Some(Deferred(Call))")],
-    [("listOf", "Some(Deferred(Call))")]
-);
+#[test]
+fn litmus_11_iteration_frontend() {
+    assert_unit_with_facts(
+        examples(GUIDE)[10],
+        Stage::Types,
+        &[],
+        &[("listOf", "Some(Deferred(Call))")],
+    );
+}
 litmus!(
     litmus_12_const_bitwise_frontend,
     12,

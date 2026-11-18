@@ -924,36 +924,4 @@ mod legacy_only {
             // in unit_diagnostic_gates; retain the legacy precedence witness here.
         }
     }
-
-    #[test]
-    fn receiver_string_borrow_keeps_existing_single_unit_capability_difference() {
-        let text = "package pair\nclass Reader { fun read(text: String): Unit { val printed = println(text) } }\nfun entry(): Unit { val reader = Reader()\nval ignored = reader.read(\"receiver\0\") }";
-        let mut sources = SourceMap::new();
-        let (_source, file) = parsed(&mut sources, "pair/entry.ko", text);
-        let (name_environment, environment) = standard_environments();
-        let names = resolve_names(&sources, &file, &name_environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &environment).unwrap();
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        assert!(typed.diagnostics().is_empty());
-        assert!(owned.diagnostics().is_empty());
-        let entry = names
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.name() == "entry")
-            .unwrap()
-            .id();
-        let error = lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
-            .err()
-            .expect("single adapter has not implemented this receiver argument");
-        let start = text.find("reader.read").unwrap();
-        assert_eq!(
-            error_key(&sources, error),
-            (
-                LoweringErrorKind::UnsupportedNode,
-                Some(SourceKey("pair/entry.ko".to_owned(), start, text.len() - 2,))
-            )
-        );
-        // The original Unit success contract now has a complete owner/loan/drop
-        // oracle in receiver.rs; retain this unique Single rejection and exact span.
-    }
 }

@@ -1,4 +1,4 @@
-//! SPEC-0332 first evidence: ordinary source, both frontends, no native execution.
+//! SPEC-0332 original source layouts and exact owner identities through strict Unit.
 //! A passing collector proves complete/ownership and a real lowering attempt only.
 use crate::test_support::diagnostics::diagnostic;
 use std::fmt::Debug;
@@ -7,21 +7,20 @@ use lang_frontend::{
     lexer::lex,
     name_resolution::{
         SourceUnitInput, SymbolKind, index_compilation_unit, resolve_compilation_unit_names,
-        resolve_names,
     },
-    ownership_checking::{check_compilation_unit_ownership, check_ownership},
+    ownership_checking::check_compilation_unit_ownership,
     parser::parse_file,
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, Copyability, IntrinsicTypeConstructor, ParameterMode, TypeKind,
-        UnitExpressionId, UnitTypeKind, check_compilation_unit_types, check_types,
-        complete_compilation_unit_types, complete_file_types, standard_environments,
+        BuiltinType, Copyability, IntrinsicTypeConstructor, ParameterMode, UnitExpressionId,
+        UnitTypeKind, check_compilation_unit_types, complete_compilation_unit_types,
+        standard_environments,
     },
 };
 
 use super::{
-    LoweringError, lower_scalar_file_with_entry, render::render_program,
-    unit_lower::lower_scalar_unit_with_entry, verify::verify_program,
+    LoweringError, render::render_program, unit_lower::lower_scalar_unit_with_entry,
+    verify::verify_program,
 };
 
 use crate::ssa::lower_frontend_tests::map_result_tests::loop_owner_tests::conditional_return::rc_nullable_while_identity_queries as identity;
@@ -72,6 +71,7 @@ fn observe_with_options(
     inspect_identity: bool,
     per_family_only: bool,
 ) -> (Observation, Result<(), String>, Vec<String>) {
+    let memory_document = !unit;
     let mut complete_ok = false;
     let mut ownership_ok = false;
     let mut frontend_anchor_ok = false;
@@ -86,7 +86,9 @@ fn observe_with_options(
         } else {
             ("inspect.ko", SOURCE.to_owned())
         };
-        diagnostic!("SPEC0332 INPUT unit={unit} path={path:?} source={text:?}");
+        diagnostic!(
+            "SPEC0332 INPUT unit={unit} memory_document={memory_document} path={path:?} source={text:?}"
+        );
         let source = sources
             .add_source(path, &text)
             .map_err(|error| failure("source-map", error))?;
@@ -116,14 +118,33 @@ fn observe_with_options(
             file.roots().len()
         );
         let (environment, types) = standard_environments();
-        let lowered = if unit {
-            let inputs = [SourceUnitInput::new("root", path, source, &file)];
+        let lowered = {
+            let inputs = [if memory_document {
+                SourceUnitInput::memory_document(source, &file)
+            } else {
+                SourceUnitInput::new("root", path, source, &file)
+            }];
             let index = index_compilation_unit(&sources, &inputs)
                 .map_err(|error| failure("index-api", error))?;
             let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
                 .map_err(|error| failure("names-api", error))?
                 .validate()
                 .map_err(|error| failure("names-validation", error))?;
+            if memory_document {
+                let [input] = names.names().index().source_units() else {
+                    return Err(failure(
+                        "source-identity",
+                        "one original MemoryDocument required",
+                    ));
+                };
+                assert_eq!(
+                    input.key(),
+                    &lang_frontend::name_resolution::SourceUnitKey::MemoryDocument
+                );
+                assert_eq!(input.source_id(), source);
+                assert_eq!(sources.source_name(source), Ok("inspect.ko"));
+                assert_eq!(sources.source_text(source), Ok(SOURCE));
+            }
             diagnostic!("SPEC0332 STAGE unit={unit} names=ok");
             let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
                 .map_err(|error| failure("types-api", error))?;
@@ -155,19 +176,21 @@ fn observe_with_options(
                 .filter(|declaration| {
                     declaration.name() == "inspect"
                         && declaration.kind() == SymbolKind::Function
-                        && names.names().index().packages()[declaration.package().index()]
-                            .name()
-                            .expect("named package")
-                            .segments()
-                            .iter()
-                            .map(String::as_str)
-                            .eq(["p"])
+                        && declaration.source_unit() == names.names().index().source_units()[0].id()
+                        && (memory_document
+                            || names.names().index().packages()[declaration.package().index()]
+                                .name()
+                                .expect("named package")
+                                .segments()
+                                .iter()
+                                .map(String::as_str)
+                                .eq(["p"]))
                 })
                 .collect::<Vec<_>>();
             let [declaration] = declarations.as_slice() else {
                 return Err(failure(
                     "entry-selection",
-                    "expected exactly one p.inspect declaration",
+                    "expected exactly one inspect declaration in its original source layout",
                 ));
             };
             let entry = declaration.id();
@@ -229,78 +252,6 @@ fn observe_with_options(
             };
             routed_functions = routed;
             lower_result
-        } else {
-            let names = resolve_names(&sources, &file, &environment)
-                .map_err(|error| failure("names-api", error))?;
-            if !names.diagnostics().is_empty() {
-                return Err(failure("names-diagnostics", names.diagnostics()));
-            }
-            diagnostic!("SPEC0332 STAGE unit={unit} names=ok");
-            let typed = check_types(&sources, &file, &names, &types)
-                .map_err(|error| failure("types-api", error))?;
-            complete_file_types(&sources, &file, &names, &types, &typed)
-                .map_err(|error| failure("complete", error))?;
-            complete_ok = true;
-            diagnostic!("SPEC0332 STAGE unit={unit} complete=ok");
-            let owned = check_ownership(&sources, &file, &names, &typed)
-                .map_err(|error| failure("ownership-api", error))?;
-            if !owned.diagnostics().is_empty() || !owned.deferred().is_empty() {
-                return Err(failure(
-                    "ownership-diagnostics-or-deferred",
-                    (owned.diagnostics(), owned.deferred()),
-                ));
-            }
-            ownership_ok = true;
-            diagnostic!("SPEC0332 STAGE unit={unit} ownership=ok");
-            let entries = names
-                .symbols()
-                .iter()
-                .filter(|symbol| {
-                    symbol.name() == "inspect" && symbol.kind() == SymbolKind::Function
-                })
-                .collect::<Vec<_>>();
-            let [entry] = entries.as_slice() else {
-                return Err(failure(
-                    "entry-selection",
-                    "expected exactly one inspect function",
-                ));
-            };
-            let entry = entry.id();
-            frontend_anchor_ok = condition.and_then(|(id, span)| {
-                let descriptor = typed.null_comparison(id)?;
-                let nullable = typed.types().get(descriptor.nullable_type())?;
-                diagnostic!(
-                    "SPEC0332 FACT unit={unit} condition={:?} descriptor={descriptor:?} parameter_mode={:?} nullable={nullable:?} copyability={:?}",
-                    span, typed.parameter_mode(descriptor.symbol()),
-                    typed.copyability(descriptor.nullable_type())
-                );
-                let TypeKind::Nullable(inner) = nullable else { return Some(false) };
-                let inner = typed.types().get(*inner)?;
-                diagnostic!("SPEC0332 INNER unit={unit} type={inner:?}");
-                let TypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::Rc, arguments,
-                } = inner else { return Some(false) };
-                let [argument] = arguments.as_slice() else { return Some(false) };
-                let payload = typed.types().get(*argument)?;
-                diagnostic!("SPEC0332 PAYLOAD unit={unit} type={payload:?}");
-                Some(source_shape_ok && descriptor.expression() == id
-                    && descriptor.non_null_when_true()
-                    && typed.parameter_mode(descriptor.symbol()) == Some(ParameterMode::Value)
-                    && typed.symbol_type(descriptor.symbol()) == Some(descriptor.nullable_type())
-                    && typed.copyability(descriptor.nullable_type()) == Some(Copyability::MoveOnly)
-                    && *payload == TypeKind::Builtin(BuiltinType::Int))
-            }).unwrap_or(false);
-            diagnostic!("SPEC0332 ANCHOR unit={unit} valid={frontend_anchor_ok}");
-            if inspect_identity {
-                source_identity = identity::single_source(&file, &names, &typed, &owned, entry);
-                diagnostic!(
-                    "SPEC0332 SOURCE OWNER QUERY unit={unit} result={:?}",
-                    source_identity.as_ref().map(|_| ())
-                );
-            }
-            lower_attempted = true;
-            diagnostic!("SPEC0332 STAGE unit={unit} lower=attempt");
-            lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
         };
         let (program, entry) = lowered.map_err(|error| Failure {
             stage: "lower",
@@ -380,7 +331,8 @@ fn rc_nullable_while_default_routing_matches_or_surpasses_per_family() {
 
 #[test]
 fn observe_rc_nullable_while_both_frontends() {
-    // Finish both actual Result pipelines before any harness assertion.
+    // Finish the original unqualified MemoryDocument and package Rooted layouts
+    // before assertions; these ordinary consumers no longer exercise Legacy.
     let observations = [observe(false), observe(true)];
     for observation in &observations {
         let unit = observation.unit;
@@ -420,7 +372,8 @@ fn observe_rc_nullable_while_both_frontends() {
 
 #[test]
 fn rc_nullable_while_both_frontends_reach_verified_llvm() {
-    // Preserve both real pipeline outcomes before applying the success oracle.
+    // Preserve both original source-layout outcomes before the success oracle;
+    // the explicit inspector separately preserves the exact owner-identity contract.
     let observations = [observe(false), observe(true)];
     for observation in &observations {
         let unit = observation.unit;

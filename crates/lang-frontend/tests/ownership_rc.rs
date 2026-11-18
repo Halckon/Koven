@@ -62,6 +62,12 @@ fn checked(text: &str) -> Vec<(usize, CompilationUnitOwnership)> {
         for effect in owned.rc_effects() {
             assert_eq!(effect.expression().source_unit(), unit);
             assert_eq!(effect.receiver().source_unit(), unit);
+            let operation = typed
+                .types()
+                .rc_operation(effect.expression())
+                .expect("same typed Rc operation");
+            assert_eq!(effect.receiver(), operation.receiver());
+            assert_eq!(effect.payload_type(), operation.payload_type());
         }
         observations.push((operations, owned));
     }
@@ -173,5 +179,102 @@ fn rc_payload_is_not_an_inout_place() {
     for (_, owned) in checked(text) {
         assert_eq!(codes(owned.diagnostics()), ["L0134"]);
         assert!(owned.rc_effects().is_empty());
+    }
+}
+
+// SPEC-0392 supplies the previously missing backing-owner transport. These
+// original sources now witness expanded support, not equivalent diagnostics.
+fn assert_nested_rc_facts(operations: usize, owned: &CompilationUnitOwnership, retains: usize) {
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert_eq!(owned.rc_effects().len(), operations);
+    assert_eq!(
+        owned
+            .rc_effects()
+            .iter()
+            .filter(|effect| effect.kind() == RcOwnershipEffectKind::Retain)
+            .count(),
+        retains
+    );
+    assert_eq!(
+        owned
+            .rc_effects()
+            .iter()
+            .filter(|effect| effect.kind() == RcOwnershipEffectKind::BorrowPayload)
+            .count(),
+        2
+    );
+    let roots = owned
+        .construction_plans()
+        .iter()
+        .filter(|plan| plan.target() == UnitConstructionTarget::IntrinsicRc)
+        .collect::<Vec<_>>();
+    assert_eq!(roots.len(), 2);
+    for plan in roots {
+        let root = plan
+            .root_obligation()
+            .expect("completed Rc construction retains its root obligation");
+        assert_eq!(root.kind(), ConstructionRootKind::SharedOwner);
+        assert_eq!(root.construction(), plan.construction());
+    }
+    assert!(owned.deferred().is_empty());
+    assert!(owned.clone().validate().is_ok());
+}
+
+#[test]
+fn nested_rc_payload_share_preserves_effects_and_owner_roots() {
+    for receiver in ["outer.value", "(outer.value)", "((outer.value))"] {
+        for prefix in ["", "val retained = outer.share()"] {
+            let call = format!("{receiver}.share()");
+            let text = format!(
+                "fun run(): Int {{
+                val outer = Rc(Rc(7))
+                {prefix}
+                val shared = {call}
+                return shared.value
+            }}"
+            );
+            for (operations, owned) in checked(&text) {
+                assert_eq!(operations, if prefix.is_empty() { 3 } else { 4 });
+                assert_nested_rc_facts(operations, &owned, if prefix.is_empty() { 1 } else { 2 });
+            }
+        }
+    }
+}
+
+#[test]
+fn nested_rc_copyable_payload_read_preserves_effects_and_owner_roots() {
+    for (ty, value) in [("Int", "7"), ("Boolean", "true")] {
+        for receiver in ["outer.value", "(outer.value)", "((outer.value))"] {
+            for prefix in ["", "val retained = outer.share()"] {
+                let read = format!("{receiver}.value");
+                let text = format!(
+                    "fun run(): {ty} {{
+                    val outer = Rc(Rc({value}))
+                    {prefix}
+                    return {read}
+                }}"
+                );
+                for (operations, owned) in checked(&text) {
+                    assert_eq!(operations, if prefix.is_empty() { 2 } else { 3 });
+                    assert_nested_rc_facts(operations, &owned, usize::from(!prefix.is_empty()));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn nested_rc_copyable_payload_read_preserves_moved_owner_diagnostic() {
+    let text = "fun run(): Int {
+        val outer = Rc(Rc(7))
+        val moved = outer
+        return outer.value.value
+    }";
+    for (_, owned) in checked(text) {
+        assert_eq!(codes(owned.diagnostics()), ["L0131"]);
+        assert!(owned.rc_effects().is_empty());
+        assert!(owned.loans().is_empty());
+        assert!(owned.drops().is_empty());
+        assert!(owned.clone().validate().is_err());
     }
 }

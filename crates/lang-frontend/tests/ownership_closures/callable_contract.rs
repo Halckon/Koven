@@ -1,6 +1,23 @@
 //! Provenance is evidence from completed analysis, never an ABI guess.
 use super::*;
-use lang_frontend::ownership_checking::{CallableOrigin, PointerCallableReturnOrigin};
+#[path = "unit_cfg_origin.rs"]
+mod unit_cfg_origin;
+use lang_frontend::ownership_checking::{
+    CallableOrigin, PointerCallableReturnOrigin, UnitCallableOrigin,
+};
+
+// Bridges only the original successful-analysis observations, not return summaries.
+pub(super) fn factory_preflight_unit(text: &str) {
+    for checked in unit_cfg_origin::preflight(text) {
+        checked.assert_factory_preflight();
+    }
+}
+
+pub(super) fn owned_return_capture_preflight_unit(text: &str) {
+    for checked in unit_cfg_origin::preflight(text) {
+        checked.assert_owned_return_capture_preflight();
+    }
+}
 
 fn expression(sources: &SourceMap, parsed: &ParsedFile, text: &str) -> ExpressionId {
     let ids = parsed
@@ -13,16 +30,8 @@ fn expression(sources: &SourceMap, parsed: &ParsedFile, text: &str) -> Expressio
     ids[0]
 }
 
-type ArgumentFactoryFixture = (
-    SourceMap,
-    ParsedFile,
-    NameResolution,
-    TypedFile,
-    OwnershipCheckedFile,
-);
-
 /// Analyze both real callers before querying summaries, so a fact failure hides no fixture error.
-fn owned_argument_factory_fixtures() -> [ArgumentFactoryFixture; 2] {
+fn owned_argument_factory_fixtures() -> [[unit_cfg_origin::Analysis; 2]; 2] {
     let int_case = format!(
         "{FUNCTIONS}\n\
         fun caller(): Unit {{ val result = factory()\ntake(result) }}\n\
@@ -35,63 +44,51 @@ fn owned_argument_factory_fixtures() -> [ArgumentFactoryFixture; 2] {
         fun consumeFn(own consumed: (Int)->Int): Unit {{}}\n\
         fun factory(): (Int)->Int {{ consumeFn({{ index -> index + 1 }})\nreturn error(\"stop\") }}"
     );
-    let fixtures = [preflight(&int_case), preflight(&abort_case)];
-    for ((_, _, names, typed, _), parameter) in fixtures.iter().zip(["number", "consumed"]) {
-        assert_eq!(
-            typed.parameter_mode(symbol(names, parameter)),
-            Some(ParameterMode::Value),
-            "the ordinary consume argument must exercise the Value delivery path"
-        );
+    let unit_fixtures = [
+        unit_cfg_origin::preflight(&int_case),
+        unit_cfg_origin::preflight(&abort_case),
+    ];
+    for (analyses, callable, parameter) in [
+        (&unit_fixtures[0], "consumeInt", "number"),
+        (&unit_fixtures[1], "consumeFn", "consumed"),
+    ] {
+        for checked in analyses {
+            checked.assert_value_parameter(callable, parameter);
+        }
     }
-    fixtures
+    unit_fixtures
 }
 
 #[test]
 fn callable_contract_return_statistics_ignore_owned_int_call_arguments() {
     let [int_case, _abort_case] = owned_argument_factory_fixtures();
-    let (sources, parsed, names, _, owned) = int_case;
-    let summary = owned
-        .pointer_callable_return(symbol(&names, "factory"))
-        .expect("consuming an Int is not a second normal factory return");
-    assert_eq!(
-        summary.return_value(),
-        expression(&sources, &parsed, "({ index -> index })")
-    );
-    assert_eq!(
-        summary.origin(),
-        PointerCallableReturnOrigin::Lambda(lambdas(&parsed)[0])
-    );
-    let call = expression(&sources, &parsed, "factory()");
-    for text in ["factory()", "result"] {
-        assert_eq!(
-            owned
-                .callable_origin(expression(&sources, &parsed, text))
-                .unwrap()
-                .origin(),
-            CallableOrigin::FactoryResult(call),
-            "a caller analyzed before the factory must receive its actual normal result"
-        );
+    for checked in &int_case {
+        checked.assert_pointer_lambda("factory", Some("({ index -> index })"), 0);
+        for text in ["factory()", "result"] {
+            assert_eq!(
+                checked.origin(text),
+                Some(UnitCallableOrigin::FactoryResult(
+                    checked.expression("factory()")
+                ))
+            );
+        }
     }
 }
 
 #[test]
 fn callable_contract_return_statistics_do_not_turn_owned_fn_argument_into_abort_result() {
     let [_int_case, abort_case] = owned_argument_factory_fixtures();
-    let (sources, parsed, names, _, owned) = abort_case;
-    assert!(
-        owned
-            .pointer_callable_return(symbol(&names, "factory"))
-            .is_none(),
-        "the consumed lambda is a call argument; this factory has no normal return"
-    );
-    assert!(owned.pointer_callable_returns().is_empty());
-    for text in ["factory()", "result"] {
+    for checked in &abort_case {
         assert!(
-            owned
-                .callable_origin(expression(&sources, &parsed, text))
-                .is_none(),
-            "an abort-only callee cannot justify FactoryResult for {text}"
+            checked
+                .owned
+                .pointer_callable_return(checked.target("factory"))
+                .is_none()
         );
+        assert!(checked.owned.pointer_callable_returns().is_empty());
+        for text in ["factory()", "result"] {
+            assert!(checked.origin(text).is_none());
+        }
     }
 }
 
@@ -104,31 +101,17 @@ fn callable_contract_return_statistics_nested_return_in_value_argument_is_a_real
         fun factory(flag: Boolean): (Int)->Int {{\n\
         consume(if(flag) return ({{ index -> index }}) else 1)\nreturn error(\"stop\") }}"
     );
-    let (sources, parsed, names, typed, owned) = preflight(&text);
-    assert_eq!(
-        typed.parameter_mode(symbol(&names, "item")),
-        Some(ParameterMode::Value)
-    );
-    let summary = owned
-        .pointer_callable_return(symbol(&names, "factory"))
-        .expect("an explicit return nested inside a Value argument exits the actual factory");
-    assert_eq!(
-        summary.return_value(),
-        expression(&sources, &parsed, "({ index -> index })")
-    );
-    assert_eq!(
-        summary.origin(),
-        PointerCallableReturnOrigin::Lambda(lambdas(&parsed)[0])
-    );
-    let call = expression(&sources, &parsed, "factory(true)");
-    for text in ["factory(true)", "result"] {
-        assert_eq!(
-            owned
-                .callable_origin(expression(&sources, &parsed, text))
-                .unwrap()
-                .origin(),
-            CallableOrigin::FactoryResult(call)
-        );
+    for checked in unit_cfg_origin::preflight(&text) {
+        checked.assert_value_parameter("consume", "item");
+        checked.assert_pointer_lambda("factory", Some("({ index -> index })"), 0);
+        for text in ["factory(true)", "result"] {
+            assert_eq!(
+                checked.origin(text),
+                Some(UnitCallableOrigin::FactoryResult(
+                    checked.expression("factory(true)")
+                ))
+            );
+        }
     }
 }
 
@@ -140,28 +123,17 @@ fn callable_contract_return_statistics_nested_actual_return_is_not_hidden_by_out
         fun factory(flag: Boolean): (Int)->Int {{\n\
         return if(flag) {{ return ({{ index -> index }}) }} else {{ error(\"stop\") }}\n }}"
     );
-    let (sources, parsed, names, _, owned) = preflight(&text);
-    let summary = owned
-        .pointer_callable_return(symbol(&names, "factory"))
-        .expect("the inner actual return completes even though the enclosing operand never does");
-    assert_eq!(
-        summary.return_value(),
-        expression(&sources, &parsed, "({ index -> index })")
-    );
-    assert_eq!(
-        summary.origin(),
-        PointerCallableReturnOrigin::Lambda(lambdas(&parsed)[0])
-    );
-    assert_eq!(owned.pointer_callable_returns().len(), 1);
-    let call = expression(&sources, &parsed, "factory(true)");
-    for text in ["factory(true)", "result"] {
-        assert_eq!(
-            owned
-                .callable_origin(expression(&sources, &parsed, text))
-                .unwrap()
-                .origin(),
-            CallableOrigin::FactoryResult(call)
-        );
+    for checked in unit_cfg_origin::preflight(&text) {
+        checked.assert_pointer_lambda("factory", Some("({ index -> index })"), 0);
+        assert_eq!(checked.owned.pointer_callable_returns().len(), 1);
+        for text in ["factory(true)", "result"] {
+            assert_eq!(
+                checked.origin(text),
+                Some(UnitCallableOrigin::FactoryResult(
+                    checked.expression("factory(true)")
+                ))
+            );
+        }
     }
 }
 
@@ -173,35 +145,8 @@ fn callable_contract_lambda_alias_group_and_recursive_parameter_forwarding() {
         fun use(): Unit {{ val first: (Int) -> Int = {{ index -> index }}\n\
         val alias = (first)\ntake((alias)) }}"
     );
-    let (sources, parsed, names, typed, owned) = preflight(&text);
-    let lambda = lambdas(&parsed)[0];
-    for value in ["first", "(first)", "alias", "(alias)"] {
-        let id = expression(&sources, &parsed, value);
-        let fact = owned
-            .callable_origin(id)
-            .expect("transparent lambda origin");
-        assert_eq!(fact.expression(), id);
-        assert_eq!(fact.origin(), CallableOrigin::Lambda(lambda));
-        assert_eq!(
-            fact.span(),
-            parsed.ast().expressions().get(id).unwrap().span()
-        );
-    }
-    for (id, node) in parsed.ast().expressions().iter() {
-        if sources.slice(node.span()).unwrap() == "forwarded" {
-            assert_eq!(
-                owned.callable_origin(id).unwrap().origin(),
-                CallableOrigin::Parameter(symbol(&names, "forwarded"))
-            );
-        }
-    }
-    for fact in owned.callable_origins() {
-        assert!(matches!(
-            typed
-                .expression_type(fact.expression())
-                .and_then(|ty| typed.types().get(ty)),
-            Some(TypeKind::Function { .. })
-        ));
+    for checked in unit_cfg_origin::preflight(&text) {
+        checked.assert_alias_and_parameter_origins();
     }
 }
 
@@ -295,18 +240,17 @@ fn callable_contract_legal_multiple_and_capturing_returns_publish_no_pointer_sum
         fun multiple(flag: Boolean): (Int) -> Int {{ if(flag) {{ return ({{ index -> index }}) }}\nreturn ({{ index -> index + 1 }}) }}\n\
         fun captured(own label: String): (Int) -> Boolean = move {{ index -> label == \"kept\" && index == 0 }}"
     );
-    let (_, _, names, _, owned) = preflight(&text);
-    assert!(
-        owned
-            .pointer_callable_return(symbol(&names, "multiple"))
-            .is_none()
-    );
-    assert!(
-        owned
-            .pointer_callable_return(symbol(&names, "captured"))
-            .is_none()
-    );
-    assert!(owned.pointer_callable_returns().is_empty());
+    for checked in unit_cfg_origin::preflight(&text) {
+        for name in ["multiple", "captured"] {
+            assert!(
+                checked
+                    .owned
+                    .pointer_callable_return(checked.target(name))
+                    .is_none()
+            );
+        }
+        assert!(checked.owned.pointer_callable_returns().is_empty());
+    }
 }
 
 #[test]
@@ -321,25 +265,18 @@ fn callable_contract_loop_fixed_point_preserves_stable_and_overwritten_origins()
         val next: (Int)->Int = {{ index -> index + 1 }}\ncallback = next\nval alias = (callback)\ntake((alias))\n\
         val again: (Int)->Int = {{ index -> index + 2 }}\ncallback = again\n }} }}"
     );
-    let stable_analysis = preflight(&stable);
-    let overwrite_analysis = preflight(&overwrite);
-    let (sources, parsed, _, _, owned) = stable_analysis;
-    assert_eq!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "callback"))
-            .unwrap()
-            .origin(),
-        CallableOrigin::Lambda(lambdas(&parsed)[0])
-    );
-    let (sources, parsed, _, _, owned) = overwrite_analysis;
-    assert_eq!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "alias"))
-            .unwrap()
-            .origin(),
-        CallableOrigin::Lambda(lambdas(&parsed)[1]),
-        "overwrite before use cuts unstable header dependency"
-    );
+    let stable_analysis = unit_cfg_origin::preflight(&stable);
+    let overwrite_analysis = unit_cfg_origin::preflight(&overwrite);
+    for checked in stable_analysis {
+        assert_eq!(checked.origin("callback").unwrap(), checked.lambda(0));
+    }
+    for checked in overwrite_analysis {
+        assert_eq!(
+            checked.origin("alias").unwrap(),
+            checked.lambda(1),
+            "overwrite before use cuts unstable header dependency"
+        );
+    }
 }
 
 #[test]
@@ -349,36 +286,26 @@ fn callable_contract_loop_backedge_and_repeated_condition_revoke_unstable_origin
         var callback: (Int) -> Int = {{ index -> index }}\nwhile(flag) {{\n\
         val alias = (callback)\ntake((alias))\nval next: (Int)->Int = {{ index -> index + 1 }}\ncallback = next\n }} }}"
     );
-    let (sources, parsed, _, _, owned) = preflight(&conflict);
-    assert!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "alias"))
-            .is_none(),
-        "next iteration sees another source through alias/Group"
-    );
+    for checked in unit_cfg_origin::preflight(&conflict) {
+        assert!(checked.origin("alias").is_none());
+    }
     let condition = format!(
         "{FUNCTIONS}\nfun decide(f: (Int) -> Int): Boolean = false\n\
         fun use(): Unit {{ var callback: (Int) -> Int = {{ index -> index }}\n\
         while(decide((callback))) {{ val next: (Int)->Int = {{ index -> index + 1 }}\ncallback = next }} }}"
     );
-    let (sources, parsed, _, _, owned) = preflight(&condition);
-    assert!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "(callback)"))
-            .is_none(),
-        "header must precede repeated condition"
-    );
+    for checked in unit_cfg_origin::preflight(&condition) {
+        assert!(checked.origin("(callback)").is_none());
+    }
 }
 
 #[test]
 fn callable_contract_p2_and_p3_errors_clear_both_public_tables() {
-    let (_, _, _, _, owned) = analyzed_with(
-        "fun bad(label: String): (Int)->Boolean = move { index -> label == \"borrowed\" && index == 0 }",
-        standard_environments(),
-    );
-    assert_eq!(codes(&owned), ["L0138"]);
-    assert!(owned.callable_origins().is_empty());
-    assert!(owned.pointer_callable_returns().is_empty());
+    let text = "fun bad(label: String): (Int)->Boolean = move { index -> label == \"borrowed\" && index == 0 }";
+    for unit in failed_unit(text) {
+        assert!(unit.callable_origins().is_empty());
+        assert!(unit.pointer_callable_returns().is_empty());
+    }
     let mut sources = SourceMap::new();
     let source = sources
         .add_source(
@@ -408,19 +335,10 @@ fn callable_contract_cfg_join_requires_the_same_origin_on_every_normal_path() {
         val first: (Int)->Int = {{ index -> index + 1 }}\nval second: (Int)->Int = {{ index -> index + 2 }}\n\
         val different: (Int)->Int = if(flag) {{ first }} else {{ second }}\ntake(different) }}"
     );
-    let (sources, parsed, _, _, owned) = preflight(&text);
-    assert_eq!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "same"))
-            .unwrap()
-            .origin(),
-        CallableOrigin::Lambda(lambdas(&parsed)[0])
-    );
-    assert!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "different"))
-            .is_none()
-    );
+    for checked in unit_cfg_origin::preflight(&text) {
+        assert_eq!(checked.origin("same").unwrap(), checked.lambda(0));
+        assert!(checked.origin("different").is_none());
+    }
 }
 
 #[test]
@@ -431,15 +349,16 @@ fn callable_contract_break_is_an_exit_but_continue_is_a_repeating_edge() {
             var callback: (Int)->Int = {{ index -> index }}\nwhile(flag) {{\n\
             take((callback))\nval next: (Int)->Int = {{ index -> index + 1 }}\ncallback = next\n{jump}\n }} }}"
         );
-        (jump, known, preflight(&text))
+        (jump, known, unit_cfg_origin::preflight(&text))
     });
-    for (jump, known, (sources, parsed, _, _, owned)) in cases {
-        let fact = owned.callable_origin(expression(&sources, &parsed, "(callback)"));
-        assert_eq!(
-            fact.is_some(),
-            known,
-            "{jump} must connect to the right loop boundary"
-        );
+    for (jump, known, analyses) in cases {
+        for checked in analyses {
+            assert_eq!(
+                checked.origin("(callback)").is_some(),
+                known,
+                "{jump} must connect to the right loop boundary"
+            );
+        }
     }
 }
 
@@ -451,26 +370,15 @@ fn callable_contract_for_source_is_not_a_repeated_header_use() {
         fun use(): Unit {{ var callback: (Int)->Int = {{ index -> index + 1 }}\n\
         for (_ in source((callback))) {{ val again: (Int)->Int = {{ index -> index + 2 }}\ncallback = again }} }}"
     );
-    let (sources, parsed, _, _, owned) = preflight(&text);
-    assert_eq!(
-        owned
-            .callable_origin(expression(&sources, &parsed, "(callback)"))
-            .unwrap()
-            .origin(),
-        CallableOrigin::Lambda(lambdas(&parsed)[1]),
-        "for source is evaluated once before body changes the callback"
-    );
+    for checked in unit_cfg_origin::preflight(&text) {
+        assert_eq!(checked.origin("(callback)").unwrap(), checked.lambda(1));
+    }
 }
 
 #[test]
 fn callable_contract_abort_return_and_lambda_inner_return_are_not_outer_deliveries() {
     let text = "fun factory(flag: Boolean): (Int)->Int { if(flag) { return error(\"stop\") }\nreturn ({ index -> return index }) }";
-    let (_, parsed, names, _, owned) = preflight(text);
-    let summary = owned
-        .pointer_callable_return(symbol(&names, "factory"))
-        .unwrap();
-    assert_eq!(
-        summary.origin(),
-        PointerCallableReturnOrigin::Lambda(lambdas(&parsed)[0])
-    );
+    for checked in unit_cfg_origin::preflight(text) {
+        checked.assert_pointer_lambda("factory", None, 0);
+    }
 }

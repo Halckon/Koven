@@ -1,12 +1,14 @@
 //! Single-source Unit resource destructors are real readonly callable bodies.
-//! Legacy rejection, direct-invoked resource closure and raw DropPoint observations
-//! retain their original pipeline.
+//! Only the remaining Legacy rejection contracts retain their original pipeline.
 
 use crate::test_support::diagnostics::assert_text_eq;
 #[path = "lower_frontend_resource_deinit_tests/direct_closure.rs"]
 pub(in crate::ssa) mod direct_closure;
 #[allow(unused_imports)]
 pub(in crate::ssa) use direct_closure::field_chain;
+
+#[path = "lower_frontend_resource_deinit_tests/nested_scope_drops.rs"]
+mod nested_scope_drops;
 
 use direct_closure::field_chain::assert_nested_this_field_chain;
 use lang_frontend::name_resolution::SymbolKind;
@@ -107,39 +109,6 @@ fn lower_resource(source: &str, entry_name: &str) -> ResourceUnit {
         program,
         entry,
     }
-}
-
-// Keep the original direct resource closure success witness beside its strict Unit counterpart.
-fn lower_resource_legacy(source: &str) -> crate::ssa::model::Program {
-    let analysis = analyze_legacy(source);
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("resource deinit body must lower")
 }
 
 #[test]
@@ -503,76 +472,10 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
 
 #[test]
 fn single_resource_deinit_inside_owned_closure_uses_body_and_environment_cleanup() {
-    // Keep the complete original body/environment oracle on the Legacy path.
-    // direct_closure independently verifies the identical source through strict Unit.
-    let program = lower_resource_legacy(
+    direct_closure::assert_cleanup(
         "class Resource { deinit() {} }\nfun run(): Unit { val text = \"keep\"; val callback = move { println(text); val resource = Resource() }; callback() }",
+        1,
     );
-    let module = &program.modules[0];
-    let thunk = module
-        .functions
-        .iter()
-        .find(|function| function.name.ends_with(".thunk"))
-        .expect("one selected owned closure thunk");
-    assert_eq!(
-        thunk
-            .instructions
-            .iter()
-            .filter(|instruction| matches!(instruction.operation, Operation::HeapAllocate { .. }))
-            .count(),
-        1
-    );
-    let body_drops = thunk
-        .instructions
-        .iter()
-        .filter_map(|instruction| {
-            if let Operation::Drop { owner } = instruction.operation {
-                Some(thunk.entity(EntityId::Value(owner)).unwrap().ty)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    let [EntityType::Value(resource)] = body_drops.as_slice() else {
-        panic!("the callback's local Resource must have one drop")
-    };
-    assert!(matches!(
-        module.type_kind(*resource),
-        Some(SsaTypeKind::HeapOwner { .. })
-    ));
-    let entry = module
-        .functions
-        .iter()
-        .find(|function| function.name == "run")
-        .expect("run");
-    assert_eq!(
-        entry
-            .instructions
-            .iter()
-            .filter(|instruction| matches!(instruction.operation, Operation::CallableInvoke { .. }))
-            .count(),
-        1
-    );
-    let entry_drops = entry
-        .instructions
-        .iter()
-        .filter_map(|instruction| {
-            if let Operation::Drop { owner } = instruction.operation {
-                Some(entry.entity(EntityId::Value(owner)).unwrap().ty)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-    let [EntityType::Value(closure)] = entry_drops.as_slice() else {
-        panic!("the closure must independently drop its owned String environment once")
-    };
-    assert!(matches!(
-        module.type_kind(*closure),
-        Some(SsaTypeKind::ConcreteClosure { .. })
-    ));
-    render_verified_program(&program)
-        .expect("body Resource and owned environment cleanup verify through LLVM");
 }
 
 #[test]
@@ -633,38 +536,43 @@ fn single_resource_deinit_registers_body_local_resource_cleanup_on_return() {
 
 #[test]
 fn single_resource_deinit_rejects_member_calls_and_nested_call_borrows() {
-    for source in [
-        "class Resource { fun observe(): Unit {}\n deinit() { this.observe() } }\nfun run(): Unit { val resource = Resource() }",
-        "fun inspect(text: String): Unit {}\nclass Inner(val text: String)\nclass Outer(val inner: Inner) { deinit() { inspect(inner.text) } }\nfun run(): Unit { val outer = Outer(Inner(\"nested\")) }",
+    // Keep the historical FQN; only the supported Unit body contract remains.
+    for (source, classifier, call) in [
+        (
+            "class Resource { fun observe(): Unit {}\n deinit() { this.observe() } }\nfun run(): Unit { val resource = Resource() }",
+            "Resource",
+            "this.observe()",
+        ),
+        (
+            "fun inspect(text: String): Unit {}\nclass Inner(val text: String)\nclass Outer(val inner: Inner) { deinit() { inspect(inner.text) } }\nfun run(): Unit { val outer = Outer(Inner(\"nested\")) }",
+            "Outer",
+            "inspect(inner.text)",
+        ),
     ] {
-        let analysis = analyze_legacy(source);
-        assert!(
-            analysis.parsed.diagnostics().is_empty(),
-            "{source}: {:?}",
-            analysis.parsed.diagnostics()
+        let unit = lower_resource(source, "run");
+        let unit_source = unit.source.parsed().source_id();
+        assert_eq!(
+            unit.source.sources().source_name(unit_source),
+            Ok("lowering.ko")
         );
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{source}: {:?}",
-            analysis.typed.diagnostics()
+        assert_eq!(unit.source.sources().source_text(unit_source), Ok(source));
+        assert!(unit.source.ownership().deferred().is_empty());
+        let destructor = unit.deinit(classifier);
+        let calls = destructor
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                matches!(instruction.operation, Operation::DirectCall { .. })
+                    && matches!(instruction.origin, Origin::Source(span)
+                    if unit.source.sources().slice(span) == Ok(call))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls.len(),
+            1,
+            "original destructor call must actually lower"
         );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{source}: {:?}",
-            analysis.owned.diagnostics()
-        );
-        let failure = match lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        ) {
-            Ok(_) => panic!("unsupported destructor body must be rejected"),
-            Err(error) => error,
-        };
-        assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode);
-        assert!(failure.span.is_some());
+        render_verified_program(&unit.program).expect("same original source Unit LLVM");
     }
 }
 
@@ -819,7 +727,6 @@ fn single_resource_deinit_local_move_chain_transports_only_current_owner() {
 
 #[test]
 fn single_resource_deinit_control_body_nested_scope_consumes_published_drops() {
-    use lang_frontend::ownership_checking::{DropPoint, DropTarget};
     let source = r#"
         class Resource { deinit() {} }
         fun work(outer: Boolean, inner: Boolean): Unit {
@@ -834,32 +741,8 @@ fn single_resource_deinit_control_body_nested_scope_consumes_published_drops() {
             println("done")
         }
     "#;
-    // Legacy observation only: keep the raw DropPoint/order oracle intact.
-    // The independent Unit lowering below receives no facts from this analysis.
-    let analysis = analyze_legacy(source);
-    let resource_drops = analysis
-        .owned
-        .drops()
-        .iter()
-        .filter_map(|fact| {
-            let DropTarget::Named(symbol) = fact.target() else {
-                return None;
-            };
-            let name = analysis
-                .names
-                .symbols()
-                .iter()
-                .find(|entry| entry.id() == symbol)?
-                .name();
-            matches!(name, "first" | "second").then_some((name, fact.point()))
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(resource_drops.len(), 2);
-    assert_eq!(resource_drops[0].0, "second");
-    assert_eq!(resource_drops[1].0, "first");
-    assert_eq!(resource_drops[0].1, resource_drops[1].1);
-    assert!(matches!(resource_drops[0].1, DropPoint::AfterStatement(_)));
     let unit = lower_resource(source, "work");
+    nested_scope_drops::assert_original_facts(&unit);
     render_verified_program(&unit.program)
         .expect("nested normal scope exits consume frontend drops");
 }

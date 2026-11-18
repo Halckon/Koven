@@ -123,7 +123,7 @@ pub(super) struct SourceProgram {
     declaration: DeclarationId,
 }
 
-fn lower_unit_source(text: &str, package_layout: bool) -> Result<SourceProgram, String> {
+pub(super) fn lower_unit_source(text: &str, package_layout: bool) -> Result<SourceProgram, String> {
     let mut sources = SourceMap::new();
     let text = if package_layout {
         format!("package p\n{text}")
@@ -310,7 +310,7 @@ fn observe_memory_entry(text: &str, case: usize) -> Result<SourceProgram, String
 }
 
 // Temporary test-only exit boundary, not a fallback from a failed Unit attempt.
-// Only the four explicit shape-boundary wholes below retain this original pipeline.
+// Only the two explicit shape-boundary wholes below retain this original pipeline.
 fn lower_legacy_shape_boundary(text: &str) -> Result<Program, String> {
     let mut sources = SourceMap::new();
     let (environment, types) = standard_environments();
@@ -364,11 +364,9 @@ pub(super) fn collect_source_functions(sources: &[String]) -> Vec<Result<SourceP
     results
 }
 
-/// Exactly four existing wholes still pin distinct Legacy/Unit SSA shapes:
-/// single_direct_nullable_while_birth_and_local_retirement_reach_llvm,
-/// unit_direct_nullable_while_birth_and_local_retirement_reach_llvm,
-/// numeric_for_preserves_the_outer_nullable_while_proof, and
-/// borrowed_for_preserves_the_outer_nullable_while_proof.
+/// Two existing wholes still pin distinct Legacy/Unit SSA shapes:
+/// single_direct_nullable_while_birth_and_local_retirement_reach_llvm and
+/// numeric_for_preserves_the_outer_nullable_while_proof.
 /// Remove this boundary only after those original loan/terminal/origin contracts
 /// receive an explicit retirement decision; do not silently rewrite their expectations.
 pub(super) fn collect_shape_boundaries(sources: &[String]) -> Vec<Result<Program, String>> {

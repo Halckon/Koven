@@ -2,6 +2,7 @@
 
 mod assignment;
 mod borrow_binding;
+mod borrow_call_admission;
 mod borrow_call_use;
 mod borrow_result;
 mod call_contract;
@@ -9,10 +10,12 @@ mod callable_provenance;
 mod closure;
 mod construction;
 mod loan_producers;
+mod loop_spans;
 use construction::collect_construction_descriptors;
 mod container;
 mod control;
 mod drop_planner;
+mod escape_witness;
 mod flow;
 mod formed_publication;
 #[cfg(test)]
@@ -614,6 +617,8 @@ struct Codes {
 
 #[allow(clippy::too_many_arguments)]
 struct Checker<'a> {
+    borrow_call_admission: std::cell::OnceCell<borrow_call_admission::AdmissionIndex>,
+    loop_spans: loop_spans::LoopSpans,
     #[cfg(feature = "d10-catalog-experiment")]
     loan_producers: loan_producers::Collection,
     #[cfg(feature = "d10-catalog-experiment")]
@@ -670,12 +675,14 @@ struct Checker<'a> {
     when_entry_live_in: BTreeMap<(usize, usize), std::collections::BTreeSet<UnitSymbolId>>,
     statement_live_after: Vec<std::collections::BTreeSet<UnitSymbolId>>,
     non_fallthrough_whiles: std::collections::BTreeSet<usize>,
+    loop_has_exit: BTreeMap<usize, bool>,
     codes: Codes,
     diagnostics: &'a mut Vec<Diagnostic>,
     formed_owned_locals: Vec<UnitSymbolId>,
     loans: &'a mut Vec<UnitLoanFact>,
     value_deliveries: &'a mut Vec<UnitValueDeliveryFact>,
     receiver_facts: &'a mut Vec<UnitReceiverOwnershipFact>,
+    receiver_activations: Vec<UnitReceiverOwnershipFact>,
     conditional_receiver_deliveries: &'a mut Vec<UnitConditionalReceiverDeliveryFact>,
     rc_effects: &'a mut Vec<UnitRcOwnershipEffect>,
     construction_plans: &'a mut Vec<UnitConstructionOwnershipPlan>,
@@ -828,6 +835,8 @@ impl<'a> Checker<'a> {
             no_carry_prefix: Default::default(),
             no_carry_proofs: Vec::new(),
             borrow_results: Default::default(),
+            borrow_call_admission: std::cell::OnceCell::new(),
+            loop_spans: loop_spans::LoopSpans::default(),
             range_producers: Vec::new(),
             current_borrow_return: None,
             borrow_return_origins: Vec::new(),
@@ -838,12 +847,14 @@ impl<'a> Checker<'a> {
             when_entry_live_in: BTreeMap::new(),
             statement_live_after: Vec::new(),
             non_fallthrough_whiles: Default::default(),
+            loop_has_exit: BTreeMap::new(),
             codes,
             diagnostics,
             formed_owned_locals: Vec::new(),
             loans,
             value_deliveries,
             receiver_facts,
+            receiver_activations: Vec::new(),
             conditional_receiver_deliveries,
             rc_effects,
             construction_plans,

@@ -443,7 +443,10 @@ fn unit_conditional_resource_move_is_deferred_instead_of_released_early_or_lost(
         "{HEADER}fun consume(own consumed: Guard): Unit {{}}\nfun run(flag: Boolean): Unit {{ val guard = Guard(); if (flag) {{ consume(guard) }}; tick() }}"
     );
     assert!(!single_resource_deferred(&text));
-    assert_eq!(unit_plans::resource_lifetime_deferrals(&text), [true, true]);
+    assert_eq!(
+        unit_plans::resource_lifetime_deferrals(&text, Some("if (flag) { consume(guard) }")),
+        [true, true]
+    );
 }
 
 #[test]
@@ -451,7 +454,10 @@ fn loop_carried_resource_consumption_is_deferred_instead_of_dropped_twice() {
     let text = format!(
         "{HEADER}fun consume(own consumed: Guard): Unit {{}}\nfun run(flag: Boolean): Unit {{ val guard = Guard(); while (flag) {{ consume(guard); break }}; tick() }}"
     );
-    assert_eq!(unit_plans::resource_lifetime_deferrals(&text), [true, true]);
+    assert_eq!(
+        unit_plans::resource_lifetime_deferrals(&text, None),
+        [true, true]
+    );
 }
 
 #[test]

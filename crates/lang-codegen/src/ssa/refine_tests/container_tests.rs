@@ -872,3 +872,92 @@ fn map_iteration_require_value_range_view_and_control_edges_lower_in_refine() {
         b"init\nheader\nouter-before\nouter-after\ne3-items-123-ok\n",
     );
 }
+
+#[test]
+fn grouped_range_call_arguments_reach_verified_ssa_and_llvm() {
+    for depth in [0, 1, 3] {
+        for backing in ["source", "listOf(3, 4)"] {
+            let argument = format!(
+                "{}rangeView({backing}, 0, 1){}",
+                "(".repeat(depth),
+                ")".repeat(depth)
+            );
+            let text = format!(
+                "package p\nfun observe(view: View<Int>): Int = view.size\nfun consume(own source: List<Int>): Int = source.size\nfun main(): Int {{ val source = listOf(1, 2); val count = observe({argument}); return count + consume(source) }}"
+            );
+            let mut sources = SourceMap::new();
+            let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+            for input in [
+                SourceUnitInput::memory_document(id, &file),
+                SourceUnitInput::new("root", "p/main.ko", id, &file),
+            ] {
+                let inputs = [input];
+                let (names_env, mut types_env) = standard_environments();
+                types_env.authorize_range_source(&sources, id).unwrap();
+                let (names, typed, owned) = analyze(&sources, &inputs, &names_env, &types_env);
+                let entry = declaration(&names, "p", "main");
+                let ((program, _), routed) = super::super::refine::observe_routing(|| {
+                    lower_scalar_unit_with_entry(
+                        &sources, &inputs, &names, &types_env, &typed, &owned, entry,
+                    )
+                    .expect("grouped range argument consumes actual call facts")
+                });
+                assert!(
+                    routed.iter().any(|name| name.starts_with("koven.p.main.d")),
+                    "{routed:?}"
+                );
+                crate::ssa::verify::verify_program(&program).unwrap();
+                crate::llvm::render_verified_program(&program).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn grouped_range_receivers_reach_verified_ssa_and_llvm() {
+    for depth in [0, 1, 3] {
+        for backing in ["source", "listOf(3, 4)"] {
+            let receiver = format!(
+                "{}{backing}.prefix(1){}",
+                "(".repeat(depth),
+                ")".repeat(depth)
+            );
+            let text = format!(
+                "package p\nborrow fun <T> List<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, count)\nborrow fun <T> View<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, count)\nfun observe(view: View<Int>): Int = view.size\nfun consume(own source: List<Int>): Int = source.size\nfun main(): Int {{ val source = listOf(1, 2); val count = observe({receiver}.prefix(1)); return count + consume(source) }}"
+            );
+            let mut sources = SourceMap::new();
+            let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+            for input in [
+                SourceUnitInput::memory_document(id, &file),
+                SourceUnitInput::new("root", "p/main.ko", id, &file),
+            ] {
+                let inputs = [input];
+                let (names_env, mut types_env) = standard_environments();
+                types_env.authorize_range_source(&sources, id).unwrap();
+                types_env
+                    .authorize_range_extension_source(&sources, id)
+                    .unwrap();
+                let (names, typed, owned) = analyze(&sources, &inputs, &names_env, &types_env);
+                let entry = declaration(&names, "p", "main");
+                let ((program, _), routed) = super::super::refine::observe_routing(|| {
+                    lower_scalar_unit_with_entry(
+                        &sources, &inputs, &names, &types_env, &typed, &owned, entry,
+                    )
+                    .expect("grouped range receiver consumes the real root")
+                });
+                assert!(
+                    routed.iter().any(|name| name.starts_with("koven.p.main.d")),
+                    "{routed:?}"
+                );
+                crate::ssa::verify::verify_program(&program).unwrap();
+                crate::llvm::render_verified_program(&program).unwrap();
+            }
+        }
+    }
+}
+
+#[path = "grouped_range_source.rs"]
+mod grouped_range_source;
+
+#[path = "grouped_range_iteration.rs"]
+mod grouped_range_iteration;

@@ -602,3 +602,250 @@ fun run(flag:Boolean,n:Int):Unit{
         );
     }
 }
+
+#[test]
+fn terminated_range_prefix_releases_source_before_outer_loop_exit() {
+    for consumer in [
+        "for (item in rangeView(source, BOUND, 1)) {}",
+        "observe(rangeView(source, BOUND, 1))",
+    ] {
+        for bound in [
+            "break",
+            "if (flag) { break } else { 0 }",
+            "continue",
+            "if (flag) { continue } else { 0 }",
+        ] {
+            let body = consumer.replace("BOUND", bound);
+            let text = format!(
+                "fun run(own source: List<String>, flag: Boolean): Unit {{ loop {{ {body}; break }}; consume(source) }}"
+            );
+            let (_, document, rooted) = checked(&text);
+            for owned in [&document, &rooted] {
+                assert!(
+                    owned.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    owned.diagnostics()
+                );
+                if matches!(bound, "break" | "continue") {
+                    assert!(owned.borrow_results().range_uses().is_empty(), "{text}");
+                    assert!(owned.iterations().is_empty(), "{text}");
+                    assert!(owned.borrow_results().bindings().is_empty(), "{text}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn completed_range_prefix_still_protects_live_source() {
+    for body in [
+        "for (item in rangeView(source, 0, 1)) { consume(source) }",
+        "borrow val part = rangeView(source, 0, 1); consume(source); observe(part)",
+        "for (item in rangeView(source, 0, 1)) { loop { observe(rangeView(source, break, 1)); break }; consume(source) }",
+    ] {
+        let text = format!("fun run(own source: List<String>): Unit {{ {body} }}");
+        let (_, document, rooted) = checked(&text);
+        for owned in [&document, &rooted] {
+            assert!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .any(|d| d.code().to_string() == "L0135"),
+                "{text}: {:?}",
+                owned.diagnostics()
+            );
+        }
+    }
+}
+
+#[test]
+fn interrupted_range_binding_keeps_existing_loop_boundary() {
+    let (_, document, rooted) = checked(
+        "fun run(own source: List<String>): Unit { loop { borrow val part = rangeView(source, break, 1); observe(part); break }; consume(source) }",
+    );
+    for owned in [&document, &rooted] {
+        assert!(
+            owned
+                .diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == "L0164"),
+            "{:?}",
+            owned.diagnostics()
+        );
+    }
+}
+
+#[test]
+fn grouped_range_arguments_keep_actual_call_identity_and_root_lifetime() {
+    for depth in [0, 1, 3] {
+        for source in ["source", "listOf(\"temporary\")"] {
+            let range = format!("rangeView({source}, 0, 1)");
+            let argument = format!("{}{range}{}", "(".repeat(depth), ")".repeat(depth));
+            let text = format!(
+                "fun run(own source: List<String>): Unit {{ observe({argument}); consume(source) }}"
+            );
+            let (sources, document, rooted) = checked(&text);
+            for owned in [&document, &rooted] {
+                assert!(
+                    owned.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    owned.diagnostics()
+                );
+                let [fact] = owned.borrow_results().range_uses() else {
+                    panic!("one actual range use: {text}")
+                };
+                let source_loan = owned
+                    .loans()
+                    .iter()
+                    .find(|loan| {
+                        loan.call() == fact.source_loan().call()
+                            && loan.argument() == fact.source_loan().argument()
+                    })
+                    .expect("original actual source loan");
+                assert_eq!(fact.expression(), source_loan.call());
+                assert_eq!(source_loan.target(), fact.origin());
+                assert_eq!(sources.slice(source_loan.begin_span()), Ok(source));
+                assert!(matches!(
+                    fact.site(),
+                    lang_frontend::ownership_checking::RangeUseSite::Call(_)
+                ));
+            }
+        }
+    }
+}
+
+#[test]
+fn grouped_range_arguments_preserve_prefix_exits_and_live_root_rejection() {
+    for bound in [
+        "break",
+        "if (flag) { break } else { 0 }",
+        "if (flag) { continue } else { 0 }",
+    ] {
+        let text = format!(
+            "fun run(own source: List<String>, flag: Boolean): Unit {{ loop {{ observe(((rangeView(source, {bound}, 1)))); break }}; consume(source) }}"
+        );
+        let (_, document, rooted) = checked(&text);
+        for owned in [&document, &rooted] {
+            assert!(
+                owned.diagnostics().is_empty(),
+                "{text}: {:?}",
+                owned.diagnostics()
+            );
+            if bound == "break" {
+                assert!(owned.borrow_results().range_uses().is_empty());
+            }
+        }
+    }
+    let (_, document, rooted) = checked(
+        "fun use(view: View<String>, own removed: List<String>): Unit {}\nfun run(own source: List<String>): Unit { use(((rangeView(source, 0, 1))), source) }",
+    );
+    for owned in [&document, &rooted] {
+        assert!(
+            owned
+                .diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == "L0135"),
+            "{:?}",
+            owned.diagnostics()
+        );
+    }
+}
+
+#[test]
+fn grouped_nested_range_source_keeps_root_protected_in_later_arguments() {
+    for depth in [0, 1, 3] {
+        let source = format!(
+            "{}rangeView(root, 0, 1){}",
+            "(".repeat(depth),
+            ")".repeat(depth)
+        );
+        let text = format!(
+            "fun move(own value: List<String>): Int = 1\nfun read(view: View<String>, number: Int): Unit {{}}\nfun run(): Unit {{ val root = listOf(\"kept\"); read(rangeView({source}, 0, 1), move(root)) }}"
+        );
+        let (sources, document, rooted) = checked(&text);
+        for owned in [&document, &rooted] {
+            let conflict = owned
+                .diagnostics()
+                .iter()
+                .find(|d| d.code().to_string() == "L0135")
+                .unwrap_or_else(|| {
+                    panic!(
+                        "live root must remain protected: {text}: {:?}",
+                        owned.diagnostics()
+                    )
+                });
+            assert_eq!(sources.slice(conflict.primary_span()), Ok("root"));
+        }
+    }
+}
+
+#[test]
+fn grouped_nested_range_source_keeps_real_root_identity_and_cleanup() {
+    use lang_frontend::ownership_checking::{RangeUseSite, UnitDropPoint, UnitDropTarget};
+    for depth in [0, 1, 3] {
+        for temporary in [false, true] {
+            let root = if temporary {
+                "listOf(\"kept\")"
+            } else {
+                "root"
+            };
+            let source = format!(
+                "{}rangeView({root}, 0, 1){}",
+                "(".repeat(depth),
+                ")".repeat(depth)
+            );
+            let setup = if temporary {
+                ""
+            } else {
+                "val root = listOf(\"kept\");"
+            };
+            let tail = if temporary { "" } else { "consume(root)" };
+            let text =
+                format!("fun run(): Unit {{ {setup} observe(rangeView({source}, 0, 1)); {tail} }}");
+            let (sources, document, rooted) = checked(&text);
+            for owned in [&document, &rooted] {
+                assert!(
+                    owned.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    owned.diagnostics()
+                );
+                let [inner, outer] = owned.borrow_results().range_uses() else {
+                    panic!("two actual ranges: {text}")
+                };
+                assert_eq!(inner.origin(), outer.origin(), "{text}");
+                for (fact, operand) in [(inner, root), (outer, source.as_str())] {
+                    let from = fact.source_loan();
+                    let loan = owned
+                        .loans()
+                        .iter()
+                        .find(|loan| {
+                            loan.call() == from.call() && loan.argument() == from.argument()
+                        })
+                        .unwrap();
+                    assert_eq!(loan.target(), inner.origin());
+                    assert_eq!(sources.slice(loan.begin_span()), Ok(operand));
+                }
+                if temporary {
+                    let UnitLoanTarget::Temporary(root) = inner.origin() else {
+                        panic!("actual temporary root")
+                    };
+                    let RangeUseSite::Call(consumer) = outer.site() else {
+                        panic!("outer consumer")
+                    };
+                    let cleanup: Vec<_> = owned
+                        .drops()
+                        .iter()
+                        .filter(|drop| drop.target() == UnitDropTarget::Temporary(*root))
+                        .collect();
+                    assert_eq!(cleanup.len(), 1);
+                    assert_eq!(cleanup[0].point(), UnitDropPoint::CallReturn(consumer));
+                } else {
+                    assert!(matches!(inner.origin(), UnitLoanTarget::Place(_)));
+                }
+            }
+        }
+    }
+}
+
+#[path = "ownership_range_construction/grouped_iteration.rs"]
+mod grouped_iteration;

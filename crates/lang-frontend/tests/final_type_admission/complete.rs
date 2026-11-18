@@ -123,6 +123,49 @@ fn complete_both(
     (sources, single, unit)
 }
 
+// Same-source final diagnostics through both production Unit source layouts.
+// Keep complete_both for the independent Single analysis identity and L0167 difference witnesses.
+fn complete_unit_layouts(
+    text: &str,
+    compare_fresh_analyses: bool,
+) -> (
+    SourceMap,
+    Result<(), FinalTypeAdmissionError>,
+    Result<(), FinalTypeAdmissionError>,
+) {
+    let mut sources = SourceMap::new();
+    sources.add_source("unselected.ko", FROZEN[3].0).unwrap();
+    let (source, file) = parsed(&mut sources, "main.ko", text);
+    let (environment, types) = standard_environments();
+    let [document, rooted] = [
+        SourceUnitInput::memory_document(source, &file),
+        SourceUnitInput::new("root", "main.ko", source, &file),
+    ]
+    .map(|input| {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        let raw_diagnostics = typed.diagnostics().to_vec();
+        let result = complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+            .map(|complete| {
+                assert!(std::ptr::eq(complete.types(), &typed));
+                assert!(complete.is_same_analysis(&typed));
+                if compare_fresh_analyses {
+                    let again =
+                        check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+                    assert!(!complete.is_same_analysis(&again));
+                }
+            });
+        assert_eq!(typed.diagnostics(), raw_diagnostics);
+        result
+    });
+    (sources, document, rooted)
+}
+
 fn assert_exact(
     sources: &SourceMap,
     source_name: &str,
@@ -151,8 +194,8 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
     for ((text, _, _), expected) in FROZEN.iter().zip(&expected) {
         let Some((code, start, end, token)) = *expected else {
             for prefix in ["", "const val PREFIX: Int = 1\n"] {
-                let (_, single, unit) = complete_both(&format!("{prefix}{text}"), false);
-                single.expect("original p34 single numeric for qualifies");
+                let (_, document, unit) = complete_unit_layouts(&format!("{prefix}{text}"), false);
+                document.expect("original p34 MemoryDocument numeric for qualifies");
                 unit.expect("original p34 unit numeric for qualifies");
                 let (_, result, ownership_started) =
                     strict_unit_ownership(&format!("{prefix}{text}"));
@@ -163,9 +206,9 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
         };
         for prefix in ["", "const val PREFIX: Int = 1\n"] {
             let text = format!("{prefix}{text}");
-            let (sources, single, unit) = complete_both(&text, false);
+            let (sources, document, unit) = complete_unit_layouts(&text, false);
             let expected = [(code, start + prefix.len(), end + prefix.len(), token)];
-            assert_exact(&sources, "main.ko", single, &expected);
+            assert_exact(&sources, "main.ko", document, &expected);
             assert_exact(&sources, "main.ko", unit, &expected);
             let (sources, result, ownership_started) = strict_unit_ownership(&text);
             assert_exact(&sources, "strict.ko", result, &expected);
@@ -174,9 +217,9 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
     }
     let invalid = include_str!("../fixtures/final-type-admission-0319/invalid_integer_for.ko");
     for prefix in ["", "const val PREFIX: Int = 1\n"] {
-        let (sources, single, unit) = complete_both(&format!("{prefix}{invalid}"), false);
+        let (sources, document, unit) = complete_unit_layouts(&format!("{prefix}{invalid}"), false);
         let expected = [("L0159", 29 + prefix.len(), 30 + prefix.len(), "1")];
-        assert_exact(&sources, "main.ko", single, &expected);
+        assert_exact(&sources, "main.ko", document, &expected);
         assert_exact(&sources, "main.ko", unit, &expected);
         let (sources, result, ownership_started) =
             strict_unit_ownership(&format!("{prefix}{invalid}"));
@@ -185,10 +228,10 @@ fn frozen_roots_reject_with_exact_source_diagnostics() {
     }
     // Nothing is bottom, so this slice does not invent a new illegal-operand rule for it.
     let text = "fun stop(): Nothing = error(\"stop\")\nfun inspect(): Int? = stop()?";
-    let (sources, single, unit) = complete_both(text, false);
+    let (sources, document, unit) = complete_unit_layouts(text, false);
     let start = text.rfind("stop()?").unwrap();
     let expected = [("L0165", start, start + "stop()?".len(), "stop()?")];
-    assert_exact(&sources, "main.ko", single, &expected);
+    assert_exact(&sources, "main.ko", document, &expected);
     assert_exact(&sources, "main.ko", unit, &expected);
     let (sources, result, ownership_started) = strict_unit_ownership(text);
     assert_exact(&sources, "strict.ko", result, &expected);
@@ -296,9 +339,9 @@ fn outer_call_recovery_preserves_illegal_argument_subtrees() {
         });
         let start = text.find(marker).unwrap();
         let token = if code == "L0085" { "?" } else { marker };
-        let (sources, single, unit) = complete_both(&text, false);
+        let (sources, document, unit) = complete_unit_layouts(&text, false);
         let expected = [(code, start, start + token.len(), token)];
-        assert_exact(&sources, "main.ko", single, &expected);
+        assert_exact(&sources, "main.ko", document, &expected);
         assert_exact(&sources, "main.ko", unit, &expected);
     }
 }
@@ -440,18 +483,18 @@ fn early_call_diagnostics_preserve_unvisited_type_arguments() {
             assert!(single.calls().is_empty());
             assert!(unit.calls().is_empty());
         });
-        let (sources, single, unit) = complete_both(text, false);
-        eprintln!("early {member} source error: single={single:?}; unit={unit:?}");
-        results.push((text, member, sources, single, unit));
+        let (sources, document, unit) = complete_unit_layouts(text, false);
+        eprintln!("early {member} source error: document={document:?}; unit={unit:?}");
+        results.push((text, member, sources, document, unit));
     }
-    for (text, member, sources, single, unit) in results {
+    for (text, member, sources, document, unit) in results {
         let start = text.find(member).unwrap();
         let independent = text.find("fooBar").unwrap();
         let expected = [
             ("L0091", start, start + member.len(), member),
             ("L0080", independent, independent + 6, "fooBar"),
         ];
-        assert_exact(&sources, "main.ko", single, &expected);
+        assert_exact(&sources, "main.ko", document, &expected);
         assert_exact(&sources, "main.ko", unit, &expected);
     }
 }
@@ -462,16 +505,16 @@ fn real_underscore_bindings_keep_their_root_while_discards_remain_valid() {
         "fun echo(_: Int): Int = _\nfun inspect(): Int { val _ = 3; return echo(_) }",
         "value class Duo(val n: Int, val flag: Boolean)\nfun inspect(xs: List<Duo>): Unit { for ((_, flag) in xs) {}; for (_ in xs) {} }",
     ] {
-        let (_, single, unit) = complete_both(text, false);
-        single.expect("real underscore values or actual discard: single");
+        let (_, document, unit) = complete_unit_layouts(text, false);
+        document.expect("real underscore values or actual discard: document");
         unit.expect("real underscore values or actual discard: unit");
     }
     let text = "fun inspect(): Int { val n = 1; val _ = n.fooBar(); return _ }";
-    let (sources, single, unit) = complete_both(text, false);
-    eprintln!("underscore root: single={single:?}; unit={unit:?}");
+    let (sources, document, unit) = complete_unit_layouts(text, false);
+    eprintln!("underscore root: document={document:?}; unit={unit:?}");
     let start = text.find("fooBar").unwrap();
     let expected = [("L0080", start, start + 6, "fooBar")];
-    assert_exact(&sources, "main.ko", single, &expected);
+    assert_exact(&sources, "main.ko", document, &expected);
     assert_exact(&sources, "main.ko", unit, &expected);
 }
 
@@ -686,11 +729,11 @@ fn selected_constant_qualifiers_do_not_hide_runtime_member_roots() {
 
 #[test]
 fn deferred_user_message_preserves_source_identity() {
-    let (sources, single, unit) = complete_both(
+    let (sources, document, unit) = complete_unit_layouts(
         include_str!("../fixtures/final-type-admission-0319/call_to_deferred.ko"),
         false,
     );
-    for result in [single, unit] {
+    for result in [document, unit] {
         let diagnostics = diagnostics(result);
         assert_eq!(diagnostics.len(), 1);
         let diagnostic = &diagnostics[0];

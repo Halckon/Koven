@@ -24,6 +24,26 @@ fn preflight(
     result
 }
 
+// Only the original clean-analysis preflight; this does not assert CFG origins.
+fn unit_preflight(text: &str) {
+    for rooted in [false, true] {
+        let (_, owned) =
+            borrow_rejection_unit::checked(text, "closures.ko", rooted, standard_environments());
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+    }
+}
+
+// These single-function fixtures prove only their selected empty fact tables.
+fn failed_unit(text: &str) -> [lang_frontend::ownership_checking::CompilationUnitOwnership; 2] {
+    [false, true].map(|rooted| {
+        let (_, owned) =
+            borrow_rejection_unit::checked(text, "closures.ko", rooted, standard_environments());
+        assert_eq!(unit_codes(&owned), ["L0138"]);
+        owned
+    })
+}
+
 const FUNCTIONS: &str = "fun identity(index: Int): Int = index\n\
                         fun other(index: Int): Int = index + 1\n\
                         fun take(callback: (Int) -> Int): Unit {}\n";
@@ -92,14 +112,8 @@ fn callable_provenance_preflight_caller_first_pointer_factories() {
         fun factory(): (Int) -> Int {{ println(\"factory\")\nreturn ({{ index -> index }}) }}\n\
         fun namedFactory(): (Int) -> Int = (identity)"
     );
-    let (_, parsed, _, typed, owned) = preflight(&text);
-    assert_eq!(lambdas(&parsed).len(), 1);
-    assert!(owned.captures().is_empty());
-    assert!(typed.calls().iter().any(|call| matches!(
-        typed.types().get(call.return_type()),
-        Some(TypeKind::Function { .. })
-    )));
-    // Future summaries keep both source identities and publish caller-first FactoryResult aliases.
+    // Preserve successful-analysis observations, not pointer return summaries.
+    contract::factory_preflight_unit(&text);
 }
 
 #[test]
@@ -112,12 +126,8 @@ fn callable_provenance_preflight_legal_returns_outside_pointer_summary() {
         fun captured(own label: String): (Int) -> Boolean =\n\
             move {{ index -> label == \"captured\" && index == 0 }}"
     );
-    let (_, parsed, _, _, owned) = preflight(&text);
-    let lambda = lambdas(&parsed)[0];
-    let captures = owned.captures_of(lambda).collect::<Vec<_>>();
-    assert_eq!(captures.len(), 1);
-    assert_eq!(captures[0].mode(), ClosureCaptureMode::Owned);
-    // Future pointer summaries are absent for two normal returns and capturing returns.
+    // Preserve successful-analysis observations, not pointer return summaries.
+    contract::owned_return_capture_preflight_unit(&text);
 }
 
 #[test]
@@ -131,8 +141,8 @@ fn callable_provenance_preflight_same_and_different_origin_cfg() {
             take(different)\n\
         }}"
     );
-    preflight(&text);
-    // Future facts retain identity for same, but publish no guessed origin for different.
+    unit_preflight(&text);
+    // This preflight checks acceptance, not same/different CFG origin facts.
 }
 
 #[test]
@@ -153,21 +163,19 @@ fn callable_provenance_preflight_loop_alias_stable_overwrite_and_conflict() {
                 }}\n\
             }}"
         );
-        preflight(&text);
-        // The third case is Unknown across the backedge; the first two remain identity.
-        // A single ownership traversal cannot itself prove these repeated-use origins.
+        unit_preflight(&text);
+        // This preflight checks acceptance, not repeated-use origin facts.
     }
 }
 
 #[test]
 fn callable_provenance_preflight_ownership_error_suppresses_executable_facts() {
     let text = "fun invalid(label: String): (Int) -> Boolean = move { index -> label == \"borrowed\" && index == 0 }";
-    let (_, _, _, _, owned) = analyzed_with(text, standard_environments());
-    assert_eq!(codes(&owned), ["L0138"]);
-    assert!(owned.captures().is_empty());
-    assert!(owned.loans().is_empty());
-    assert!(owned.drops().is_empty());
-    // Future provenance and pointer summaries must also be empty after a P3 error.
+    for unit in failed_unit(text) {
+        assert!(unit.captures().is_empty());
+        assert!(unit.loans().is_empty());
+        assert!(unit.drops().is_empty());
+    }
 }
 
 #[test]

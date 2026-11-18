@@ -26,6 +26,7 @@ use crate::{
 
 mod assignment;
 mod bindings;
+mod call_operand_flow;
 mod call_writeback;
 mod callable_body;
 mod calls;

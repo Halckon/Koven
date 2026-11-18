@@ -5,19 +5,19 @@ use lang_frontend::ownership_checking::UnitLoweringFacts;
 use lang_frontend::{
     ast::{ExpressionId, ItemId, StatementId},
     name_resolution::{
-        DeclarationId, NameResolution, ReferenceTarget, SymbolId, SymbolKind, UnitReferenceTarget,
+        DeclarationId, NameResolution, SymbolId, SymbolKind, UnitReferenceTarget,
         ValidatedCompilationUnitNames,
     },
-    ownership_checking::{DropTarget, OwnershipBindingKind, OwnershipCheckedFile, UnitDropTarget},
+    ownership_checking::{OwnershipBindingKind, UnitDropTarget},
     parser::{
         AssignmentOperator, BinaryOperator, Expression, FunctionBody, FunctionForm, Item,
         LiteralKind, NameMarker, ParameterModeMarker, ParsedFile, Statement, VariableKind,
     },
     source::{SourceMap, Span},
     type_checking::{
-        BuiltinType, CallableResultSource, CallableTarget, ConstructionTarget, Copyability,
-        IntrinsicTypeConstructor, ParameterMode, TypeKind, TypedFile, UnitCallTarget,
-        UnitConstructionTarget, UnitExpressionId, UnitTypeKind, ValidatedCompilationUnitTypes,
+        BuiltinType, CallableResultSource, Copyability, IntrinsicTypeConstructor, ParameterMode,
+        UnitCallTarget, UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
+        ValidatedCompilationUnitTypes,
     },
 };
 
@@ -528,202 +528,6 @@ fn symbol(names: &NameResolution, span: Span, kind: SymbolKind) -> Query<SymbolI
         "exact declaration symbol",
     )?
     .id())
-}
-
-fn reference(names: &NameResolution, span: Span) -> Query<SymbolId> {
-    let reference = one(
-        names
-            .references()
-            .iter()
-            .filter(|reference| reference.span() == span),
-        "exact source reference",
-    )?;
-    match reference.target() {
-        ReferenceTarget::Symbol(symbol) => Ok(*symbol),
-        ReferenceTarget::OverloadSet(symbols) => {
-            one(symbols.iter().copied(), "sole source callable reference")
-        }
-        _ => Err("source reference does not identify one source symbol".into()),
-    }
-}
-
-pub(in crate::ssa) fn single(
-    sources: &SourceMap,
-    file: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    case: &str,
-) -> Query<Facts> {
-    let source = source(sources, file, case)?;
-    let named_drops = |target| {
-        owned
-            .drops()
-            .iter()
-            .filter(move |drop| drop.target() == DropTarget::Named(target))
-    };
-    require(
-        file.source_id() == names.source_id() && owned.is_compatible_with(names, typed),
-        "single same source and FE analysis chain",
-    )?;
-    let inspect = symbol(names, source.inspect.name, SymbolKind::Function)?;
-    let reader = symbol(names, source.reader.name, SymbolKind::Function)?;
-    let signature = |id| {
-        one(
-            typed.callables().iter().filter(|s| s.symbol() == id),
-            "single callable signature",
-        )
-    };
-    let inspect_signature = signature(inspect)?;
-    let reader_signature = signature(reader)?;
-    let comparison = typed
-        .null_comparison(source.guard)
-        .ok_or("single guard descriptor absent")?;
-    let reader_comparison = typed
-        .null_comparison(source.reader_comparison)
-        .ok_or("single reader descriptor absent")?;
-    let root = comparison.symbol();
-    let input = symbol(
-        names,
-        source.inspect.parameter()?,
-        SymbolKind::ValueParameter,
-    )?;
-    let reader_input = symbol(
-        names,
-        source.reader.parameter()?,
-        SymbolKind::ValueParameter,
-    )?;
-    for drop in owned.drops().iter().filter(|drop| match drop.target() {
-        DropTarget::Named(symbol) => [root, input, reader_input].contains(&symbol),
-        _ => false,
-    }) {
-        diagnostic!("SPEC0332 PRESENCE DROP case={case} unit=false actual={drop:?}");
-    }
-    let nullable = comparison.nullable_type();
-    for (signature, input) in [(inspect_signature, input), (reader_signature, reader_input)] {
-        let parameter = one(signature.parameters().iter(), "single sole Value parameter")?;
-        require(
-            signature.parameter_symbols() == [Some(input)]
-                && parameter.mode == ParameterMode::Value
-                && parameter.ty == nullable
-                && typed.parameter_mode(input) == Some(ParameterMode::Value)
-                && typed.symbol_type(input) == Some(nullable)
-                && owned.binding_kind(input) == Some(OwnershipBindingKind::Owned)
-                && signature.receiver().is_none()
-                && signature.result_source() == CallableResultSource::Owned,
-            "single exact callable owns its sole nullable Value parameter",
-        )?;
-    }
-    require(
-        inspect_signature.return_type() == nullable
-            && typed.types().get(reader_signature.return_type())
-                == Some(&TypeKind::Builtin(BuiltinType::Boolean)),
-        "single exact function result contracts",
-    )?;
-    require(
-        comparison.non_null_when_true()
-            && reference(names, source.guard_name)? == root
-            && reference(names, source.tail_name)? == root
-            && reader_comparison.expression() == source.reader_comparison
-            && !reader_comparison.non_null_when_true()
-            && reader_comparison.symbol() == reader_input
-            && reader_comparison.nullable_type() == nullable
-            && reference(names, source.reader_name)? == reader_input
-            && typed.expression_type(source.reader_comparison)
-                == Some(reader_signature.return_type()),
-        "single guard and Boolean return reference identities",
-    )?;
-    let origin = if let Some(local) = source.local {
-        require(
-            symbol(names, local.name, SymbolKind::Variable)? == root
-                && reference(names, name(file, local.initializer)?)? == input
-                && reference(
-                    names,
-                    source.assignment_name.ok_or("assignment name absent")?,
-                )? == root
-                && typed.symbol_type(root) == Some(nullable)
-                && owned.formed_owned_locals().contains(&root)
-                && named_drops(input).next().is_none(),
-            "single local initializes from sole input and is the assigned/returned root",
-        )?;
-        local.name
-    } else {
-        require(root == input, "single guard/tail return use sole parameter")?;
-        source.inspect.parameter()?
-    };
-    let Some(TypeKind::Nullable(inner)) = typed.types().get(nullable) else {
-        return Err("single actual nullable type absent".into());
-    };
-    let Some(TypeKind::Intrinsic {
-        constructor: IntrinsicTypeConstructor::Rc,
-        arguments,
-    }) = typed.types().get(*inner)
-    else {
-        return Err("single nullable inner is not intrinsic Rc".into());
-    };
-    let payload = one(arguments.iter().copied(), "single intrinsic Rc argument")?;
-    require(
-        typed.types().get(payload) == Some(&TypeKind::Builtin(BuiltinType::Int))
-            && typed.copyability(nullable) == Some(Copyability::MoveOnly),
-        "single actual MoveOnly Rc<Int>?",
-    )?;
-    let construction = typed
-        .construction(source.construction.id)
-        .ok_or("single Rc construction descriptor absent")?;
-    require(
-        construction.target() == ConstructionTarget::IntrinsicRc
-            && construction.result_type() == *inner,
-        "single entry actual intrinsic Rc<Int> construction",
-    )?;
-    let mut entry_inputs = Vec::new();
-    for (call, variable) in source.calls.iter().zip([source.present, source.absent]) {
-        let input = symbol(names, variable.name, SymbolKind::Variable)?;
-        entry_inputs.push(input);
-        require(
-            reference(names, call.input_name)? == input
-                && typed.symbol_type(input) == Some(nullable),
-            "single entry input is the actual present/absent binding",
-        )?;
-        for (call, target, result) in [
-            (call.inspect, inspect, nullable),
-            (call.reader, reader, reader_signature.return_type()),
-        ] {
-            let descriptor = typed
-                .call(call.id)
-                .ok_or("single direct call descriptor absent")?;
-            let argument = one(descriptor.arguments().iter(), "single direct call argument")?;
-            require(
-                reference(names, call.callee)? == target
-                    && descriptor.target() == CallableTarget::Source(target)
-                    && descriptor.return_type() == result
-                    && descriptor.result_source() == CallableResultSource::Owned
-                    && argument.argument_index() == 0
-                    && argument.parameter_index() == 0
-                    && argument.mode() == ParameterMode::Value
-                    && argument.parameter_type() == nullable,
-                "single source callee, call target and owned Value delivery identity",
-            )?;
-        }
-    }
-    let inspect_drops = named_drops(root);
-    let inspect_drop_origin =
-        inspect_drop(inspect_drops.map(|drop| drop.value_origin()), origin, case)?;
-    let reader_drop = one(named_drops(reader_input), "single unique reader Named drop")?;
-    require(
-        Some(reader_drop.value_origin()) == source.reader.parameter,
-        "single reader drop origin belongs to its own parameter",
-    )?;
-    require(
-        entry_inputs
-            .iter()
-            .all(|input| named_drops(*input).next().is_none()),
-        "single entry bindings move into inspect without another Named drop",
-    )?;
-    Ok(finish(
-        source,
-        inspect_drop_origin,
-        reader_drop.value_origin(),
-    ))
 }
 
 fn declaration(

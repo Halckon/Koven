@@ -3,7 +3,9 @@ use super::{field::OwnerRef, *};
 use crate::ssa::{model::LoanKind, refine::body::RAbort};
 use lang_frontend::{
     ownership_checking::NonNullAssertionTransferKind,
-    type_checking::{RcOperationKind, UnitAggregateProjectionReceiver, UnitConstructionTarget},
+    type_checking::{
+        RcOperationKind, UnitAggregateProjectionReceiver, UnitCallTarget, UnitConstructionTarget,
+    },
 };
 
 impl Builder<'_, '_> {
@@ -141,6 +143,41 @@ impl Builder<'_, '_> {
             .typed
             .aggregate_projection(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        // A proven terminating constructor or factory has no result parent to borrow.
+        // Lower only its already-validated argument prefix, before runtime field lookup.
+        if let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            && receiver.source_unit() == self.inputs.source_unit
+            && self.inputs.typed.expression_falls_through(receiver) == Some(false)
+        {
+            let mut root = receiver.expression();
+            while let (Expression::Group { expression: inner }, _) = self.node(root)? {
+                root = inner;
+            }
+            let root_id = self.unit(root);
+            let mut plans = self
+                .inputs
+                .owned
+                .construction_plans()
+                .iter()
+                .filter(|plan| plan.construction() == root_id);
+            let terminated_construction = matches!((plans.next(), plans.next()), (Some(plan), None)
+                if plan.root_obligation().is_none() && plan.terminating_operand().is_some_and(|operand| self.inputs.typed.expression_falls_through(operand) == Some(false)))
+                && self.inputs.typed.construction(root_id).is_some();
+            if terminated_construction
+                || (self.inputs.owned.call_may_dispatch(root_id) == Some(false)
+                    && self.inputs.typed.call(root_id).is_some_and(|call| {
+                        matches!(call.target(), UnitCallTarget::Declaration(_))
+                            && call.receiver().is_none()
+                            && call.result_source()
+                                == lang_frontend::type_checking::CallableResultSource::Owned
+                    }))
+            {
+                if self.expression(receiver.expression())? != Lowered::Diverged {
+                    return Err(error(LoweringErrorKind::InvalidModel, span));
+                }
+                return Ok(Lowered::Diverged);
+            }
+        }
         let result_type = self.ssa_type(self.expression_type(expression)?, span)?;
         let is_nested = if let UnitAggregateProjectionReceiver::Expression(receiver) =
             projection.receiver()
@@ -191,10 +228,51 @@ impl Builder<'_, '_> {
             Some(receiver) if rc_payload.is_none() => self.narrowed_view(receiver)?,
             _ => None,
         };
+        // An owned temporary's receiver cleanup belongs after the field read, not
+        // to `required(receiver)`: that wrapper would consume AfterExpression early.
+        let mut constructor = receiver;
+        while let Some(expression) = constructor {
+            if let (Expression::Group { expression: inner }, _) = self.node(expression)? {
+                constructor = Some(inner);
+            } else {
+                break;
+            }
+        }
+        let constructor = constructor.filter(|expression| {
+            self.inputs
+                .typed
+                .construction(self.unit(*expression))
+                .is_some()
+                || self
+                    .inputs
+                    .typed
+                    .call(self.unit(*expression))
+                    .is_some_and(|call| {
+                        matches!(call.target(), UnitCallTarget::Declaration(_))
+                            && call.receiver().is_none()
+                            && call.result_source()
+                                == lang_frontend::type_checking::CallableResultSource::Owned
+                    })
+        });
         let (loan, created, rc_view_read) = match (view, rc_payload) {
             (Some(view), _) => (view, Vec::new(), Vec::new()),
             // `rc.value.f`: borrow the payload and any ancestors until after the read.
             (None, Some(receiver)) => self.rc_payload_loan(receiver, span)?,
+            (None, _) if constructor.is_some() => {
+                let expression = constructor.unwrap();
+                let value = match self.expression_inner(expression)? {
+                    Lowered::Value(value) => value,
+                    Lowered::Diverged => return Ok(Lowered::Diverged),
+                    Lowered::Unit => return Err(error(LoweringErrorKind::InvalidModel, span)),
+                };
+                self.register_temporary(expression, value)?;
+                let loan = self.lend(value, LoanKind::Shared, span)?;
+                (
+                    loan.loan,
+                    loan.scoped.then_some(loan.loan).into_iter().collect(),
+                    Vec::new(),
+                )
+            }
             (None, _) => {
                 let loan = self.owner_loan(owner, LoanKind::Shared, span)?;
                 (

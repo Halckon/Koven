@@ -6,17 +6,13 @@ mod loan_ends;
 use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
-    ownership_checking::{
-        LoanEndPoint, LoanKind, check_compilation_unit_ownership, check_ownership,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    ownership_checking::{LoanKind, check_compilation_unit_ownership},
     parser::parse_file,
     source::{SourceId, SourceMap},
     type_checking::{
         Copyability, ExpressionCategory, ParameterMode, StringOperationKind,
-        check_compilation_unit_types, check_types, standard_environments,
+        check_compilation_unit_types, standard_environments,
     },
 };
 
@@ -150,8 +146,8 @@ fn check_both(
                             && loan.argument() == operation.receiver()
                             && loan.kind() == LoanKind::Shared)
                 );
-                // This checks the Unit loan descriptor, not an independent end event.
-                // The legacy CallReturn event oracle is retained below.
+                // This is the loan descriptor check; assert_complete above independently
+                // checks the planner's actual normal-completion event.
                 let call_span = parsed
                     .ast()
                     .expressions()
@@ -238,39 +234,6 @@ fn check_both(
         } else {
             assert!(owned.string_effects().is_empty());
         }
-    }
-    if type_diagnostics.is_empty() && ownership_diagnostics.is_empty() {
-        assert_legacy_clone_call_return(text);
-    }
-}
-
-// Retain the original Single CallReturn witness while the new bounded Unit observer
-// is introduced. This additive checkpoint does not retire a legacy consumer.
-fn assert_legacy_clone_call_return(text: &str) {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("string-clone.ko", text).expect("source");
-    let lexed = lex(&sources, source).expect("lex");
-    let parsed = parse_file(&sources, &lexed).expect("parse");
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
-    for operation in typed.string_operations() {
-        assert!(
-            owned
-                .loan_ends()
-                .iter()
-                .any(|end| end.point() == LoanEndPoint::CallReturn(operation.expression()))
-        );
     }
 }
 

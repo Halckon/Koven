@@ -19,6 +19,7 @@ use crate::{
 
 use super::{BodyChecker, ExpressionCheck, ExpressionExpected};
 
+use super::call_operand_flow::CallOperandFlow;
 use bounds::BoundCheck;
 
 mod bounds;
@@ -410,12 +411,13 @@ impl BodyChecker<'_> {
                 .collect::<BTreeSet<_>>();
             let mut poisoned = false;
             let mut partial_operands = Vec::new();
+            let mut flow = CallOperandFlow::new(self);
             for (argument_index, argument) in arguments.iter().enumerate() {
                 if self.is_lambda_syntax(source, argument.value) {
                     continue;
                 }
-                let actual = self
-                    .check_expression(source, argument.value, None, None, return_type)?
+                let actual = flow
+                    .check(self, source, argument.value, None, None, return_type)?
                     .ty;
                 let template = shape.parameters[mapping[argument_index]].ty();
                 let span = self
@@ -516,8 +518,9 @@ impl BodyChecker<'_> {
             Some(expression),
         )? {
             let error = self.error_type();
+            let mut flow = CallOperandFlow::new(self);
             for argument in arguments {
-                self.check_expression(source, argument.value, Some(error), None, return_type)?;
+                flow.check(self, source, argument.value, Some(error), None, return_type)?;
             }
             return Ok(None);
         }
@@ -814,7 +817,7 @@ impl BodyChecker<'_> {
         deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut valid = true;
-        let mut falls_through = true;
+        let mut flow = CallOperandFlow::new(self);
         let mut pending_parameter = false;
         let mut descriptors = Vec::with_capacity(arguments.len());
         for (evaluation_index, argument) in arguments.iter().enumerate() {
@@ -826,15 +829,16 @@ impl BodyChecker<'_> {
             let parameter_poisoned = self.construction_type_contains_poison(parameter_type);
             let argument_key = UnitExpressionId::new(source, argument.value);
             let already_checked = self.parts.expression_types.contains_key(&argument_key);
-            let checked = self.check_expression(
+            let checked = flow.check(
+                self,
                 source,
                 argument.value,
                 Some(parameter_type),
                 Some(parameter.span()),
                 return_type,
             )?;
-            falls_through &= checked.falls_through;
             if already_checked
+                && checked.falls_through
                 && !(self.is_error(checked.ty)
                     || self.is_deferred(checked.ty)
                     || self.assignable(checked.ty, parameter_type)
@@ -877,8 +881,12 @@ impl BodyChecker<'_> {
                 },
             ));
         }
+        let falls_through = flow.falls_through();
         if !valid || self.diagnostics.len() != diagnostics {
-            return Ok(self.failed_construction());
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through,
+            });
         }
         let expression_span = self
             .file(source)
@@ -887,12 +895,14 @@ impl BodyChecker<'_> {
             .get(expression)
             .map_err(TypeCheckingError::from)?
             .span();
-        if !self.validate_construction_result(
-            result_type,
-            expected,
-            expression_span,
-            expected_span,
-        )? {
+        if falls_through
+            && !self.validate_construction_result(
+                result_type,
+                expected,
+                expression_span,
+                expected_span,
+            )?
+        {
             return Ok(self.failed_construction());
         }
         if instance.pending_bounds
@@ -930,10 +940,7 @@ impl BodyChecker<'_> {
         arguments: &[CallArgument],
         return_type: UnitTypeId,
     ) -> Result<(), CompilationUnitTypeError> {
-        for argument in arguments {
-            self.check_expression(source, argument.value, None, None, return_type)?;
-        }
-        Ok(())
+        self.check_call_arguments_without_expected(source, arguments, return_type)
     }
 
     pub(super) fn check_rejected_construction_operands(

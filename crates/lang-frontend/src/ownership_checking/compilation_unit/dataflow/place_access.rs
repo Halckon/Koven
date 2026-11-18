@@ -1,5 +1,6 @@
 //! Unit name use, place consumption, availability and access diagnostics.
 use super::*;
+use crate::type_checking::UnitAggregateProjectionKind;
 
 impl Checker<'_> {
     pub(super) fn use_name(
@@ -27,6 +28,41 @@ impl Checker<'_> {
                 self.ensure_available(&place, span, parameter_span, state)?;
             }
         }
+        Ok(())
+    }
+
+    /// A temporary receiver does not turn its field into an independently movable value.
+    pub(super) fn reject_unrooted_field_move(
+        &mut self,
+        expression: ExpressionId,
+        primary: Span,
+        parameter_span: Option<Span>,
+    ) -> Result<(), OwnershipCheckingError> {
+        let Some(projection) = self
+            .typed
+            .aggregate_projection(self.unit_expression(expression))
+        else {
+            return Ok(());
+        };
+        if projection.kind() != UnitAggregateProjectionKind::Field
+            || self.typed.copyability(projection.ty()) != Copyability::MoveOnly
+        {
+            return Ok(());
+        }
+        let mut diagnostic = Diagnostic::new(
+            self.sources,
+            Severity::Error,
+            self.codes.partial_move,
+            "cannot move a non-Copyable component out of its owner",
+            primary,
+        )?;
+        diagnostic.add_label(
+            self.sources,
+            self.symbol_span(projection.field())?,
+            "non-Copyable component declared here",
+        )?;
+        add_parameter_label(self.sources, &mut diagnostic, parameter_span)?;
+        self.diagnostics.push(diagnostic);
         Ok(())
     }
 

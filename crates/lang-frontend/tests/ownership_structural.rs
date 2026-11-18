@@ -4,13 +4,12 @@ use std::{fs, path::Path};
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    name_resolution::{NameEnvironment, NameResolution, resolve_names},
-    ownership_checking::{OwnershipCheckedFile, check_ownership},
+    name_resolution::{NameEnvironment, resolve_names},
     parser::ParsedFile,
     source::SourceMap,
     type_checking::{
-        AggregateProjectionKind, AggregateProjectionReceiver, BuiltinType, CallableTarget,
-        Capability, Copyability, IntrinsicTypeConstructor, TypeEnvironment, TypedFile, check_types,
+        BuiltinType, Capability, Copyability, IntrinsicTypeConstructor, TypeEnvironment,
+        check_types,
     },
 };
 
@@ -20,7 +19,10 @@ use lang_frontend::{
         resolve_compilation_unit_names,
     },
     ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
-    type_checking::{CompilationUnitTypes, check_compilation_unit_types},
+    type_checking::{
+        CompilationUnitTypes, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
+        UnitCallTarget, check_compilation_unit_types,
+    },
 };
 
 #[path = "ownership_structural/component_partial_move.rs"]
@@ -132,33 +134,7 @@ fn environments() -> (NameEnvironment, TypeEnvironment) {
     (names, types)
 }
 
-fn checked(
-    text: &str,
-) -> (
-    SourceMap,
-    ParsedFile,
-    NameResolution,
-    TypedFile,
-    OwnershipCheckedFile,
-) {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("structural.ko", text).expect("source");
-    let parsed = parse_file_twice(&sources, source, "structural ownership source");
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (environment, types) = environments();
-    let names = resolve_names(&sources, &parsed, &environment).expect("names");
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
-    (sources, parsed, names, typed, owned)
-}
-
-// Retain the Single projection oracle alongside the Unit ownership checks.
+// Inspect the original source and custom environment through both Unit layouts.
 fn checked_each(
     text: &str,
     mut inspect: impl FnMut(
@@ -207,6 +183,18 @@ fn checked_each(
         }
         inspect(&sources, names.names(), typed.types(), &owned);
     }
+}
+
+fn unit_symbol_name(
+    names: &CompilationUnitNames,
+    symbol: lang_frontend::name_resolution::UnitSymbolId,
+) -> &str {
+    let source = names
+        .source_units()
+        .iter()
+        .find(|source| source.source_unit() == symbol.source_unit())
+        .expect("symbol belongs to its real source unit");
+    source.resolution().symbols()[symbol.symbol().index()].name()
 }
 
 fn codes(diagnostics: &[Diagnostic]) -> Vec<String> {
@@ -309,96 +297,98 @@ fn field_projection_and_explicit_methods_preserve_ownership_contracts() {
                     val holderWhole = takeHolder(holder)\n\
                     val holderMoved = takeHolder(holder)\n\
                 }";
-    let (sources, _, names, typed, checked) = checked(text);
-    assert_eq!(
-        codes(checked.diagnostics()),
-        ["L0134", "L0132", "L0131", "L0132", "L0131"]
-    );
-    assert_eq!(
-        checked
+    checked_each(text, |sources, names, typed, checked| {
+        assert_eq!(
+            codes(checked.diagnostics()),
+            ["L0134", "L0132", "L0131", "L0132", "L0131"]
+        );
+        assert_eq!(
+            checked
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
+                .collect::<Vec<_>>(),
+            ["&", "payload", "bundle", "payload", "holder"]
+        );
+        for diagnostic in checked
             .diagnostics()
             .iter()
-            .map(|diagnostic| sources.slice(diagnostic.primary_span()).unwrap())
-            .collect::<Vec<_>>(),
-        ["&", "payload", "bundle", "payload", "holder"]
-    );
-    for diagnostic in checked
-        .diagnostics()
-        .iter()
-        .filter(|diagnostic| diagnostic.code().to_string() == "L0132")
-    {
-        let label = diagnostic
-            .details()
-            .iter()
-            .find_map(|detail| match detail {
-                DiagnosticDetail::Label(label) => Some(label.span()),
-                DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
-            })
-            .expect("field label");
-        assert_eq!(sources.slice(label).unwrap(), "payload");
-    }
+            .filter(|diagnostic| diagnostic.code().to_string() == "L0132")
+        {
+            let label = diagnostic
+                .details()
+                .iter()
+                .find_map(|detail| match detail {
+                    DiagnosticDetail::Label(label) => Some(label.span()),
+                    DiagnosticDetail::Note(_) | DiagnosticDetail::Help(_) => None,
+                })
+                .expect("field label");
+            assert_eq!(sources.slice(label).unwrap(), "payload");
+        }
 
-    let projections = typed.aggregate_projections();
-    assert_eq!(
-        projections
-            .iter()
-            .map(|projection| {
-                (
-                    projection.kind(),
-                    names.symbols()[projection.field().index()].name(),
-                    typed.copyability(projection.ty()).unwrap(),
-                )
-            })
-            .collect::<Vec<_>>(),
-        [
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "count",
-                Copyability::Copyable,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-            (
-                AggregateProjectionKind::Field,
-                "payload",
-                Copyability::MoveOnly,
-            ),
-        ]
-    );
-    for projection in projections {
-        let AggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
-            panic!("structural fixture only contains explicit projection receivers");
-        };
-        assert!(typed.expression_type(receiver).is_some());
+        let projections = typed.aggregate_projections();
         assert_eq!(
-            typed.expression_type(projection.expression()),
-            Some(projection.ty())
+            projections
+                .iter()
+                .map(|projection| {
+                    (
+                        projection.kind(),
+                        unit_symbol_name(names, projection.field()),
+                        typed.copyability(projection.ty()),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            [
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "count",
+                    Copyability::Copyable,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+                (
+                    UnitAggregateProjectionKind::Field,
+                    "payload",
+                    Copyability::MoveOnly,
+                ),
+            ]
         );
-    }
-    assert!(
-        typed
-            .calls()
-            .iter()
-            .any(|call| matches!(call.target(), CallableTarget::Source(_)))
-    );
+        for projection in projections {
+            let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver()
+            else {
+                panic!("structural fixture only contains explicit projection receivers");
+            };
+            assert!(typed.expression_type(receiver).is_some());
+            assert_eq!(
+                typed.expression_type(projection.expression()),
+                Some(projection.ty())
+            );
+        }
+        assert!(
+            typed
+                .calls()
+                .iter()
+                .any(|call| matches!(call.target(), UnitCallTarget::Symbol(_)))
+        );
+    });
 }
 
 #[test]
@@ -438,6 +428,49 @@ fn checked_in_phase3_structural_fixtures_execute_pass_and_fail_cases() {
     }
 }
 
+// Preserve the original raw type-recovery contract on both source layouts.
+fn inspect_raw_unit_entries(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    environment: &NameEnvironment,
+    types: &TypeEnvironment,
+    mut inspect: impl FnMut(
+        &[SourceUnitInput<'_>],
+        &lang_frontend::name_resolution::ValidatedCompilationUnitNames,
+        &CompilationUnitTypes,
+    ),
+) {
+    let source = parsed.source_id();
+    let path = sources.source_name(source).unwrap();
+    for (layout, input) in [
+        SourceUnitInput::memory_document(source, parsed),
+        SourceUnitInput::new("root", path, source, parsed),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let inputs = [input];
+        let index = index_compilation_unit(sources, &inputs).unwrap();
+        let [indexed] = index.source_units() else {
+            panic!("one original source")
+        };
+        assert_eq!(indexed.source_id(), source);
+        match (layout, indexed.key()) {
+            (0, SourceUnitKey::MemoryDocument) => {}
+            (1, SourceUnitKey::Rooted { root, logical_path }) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), path);
+            }
+            _ => panic!("requested source layout"),
+        }
+        let names = resolve_compilation_unit_names(sources, &inputs, &index, environment).unwrap();
+        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
+        let names = names.validate().unwrap();
+        let typed = check_compilation_unit_types(sources, &inputs, &names, types).unwrap();
+        inspect(&inputs, &names, &typed);
+    }
+}
+
 #[test]
 fn legacy_destructuring_keeps_named_bindings_aligned_with_their_field_types() {
     let mut sources = SourceMap::new();
@@ -451,26 +484,38 @@ fn legacy_destructuring_keeps_named_bindings_aligned_with_their_field_types() {
         .unwrap();
     let parsed = parse_file_twice(&sources, source, "legacy named split");
     let (names_env, types_env) = environments();
-    let names = resolve_names(&sources, &parsed, &names_env).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
-    assert_eq!(codes(typed.diagnostics()), ["L0080"]);
-    assert_eq!(
-        sources.slice(typed.diagnostics()[0].primary_span()),
-        Ok("arbitrary")
+    inspect_raw_unit_entries(
+        &sources,
+        &parsed,
+        &names_env,
+        &types_env,
+        |_, names, typed| {
+            assert_eq!(codes(typed.diagnostics()), ["L0080"]);
+            assert_eq!(
+                sources.slice(typed.diagnostics()[0].primary_span()),
+                Ok("arbitrary")
+            );
+            let [descriptor] = typed.destructurings() else {
+                panic!("only the complete named split publishes facts");
+            };
+            let bindings = descriptor
+                .components()
+                .iter()
+                .map(|component| {
+                    let symbol_id = component.symbol();
+                    let local = names
+                        .names()
+                        .source_units()
+                        .iter()
+                        .find(|unit| unit.source_unit() == symbol_id.source_unit())
+                        .unwrap();
+                    let symbol = &local.resolution().symbols()[symbol_id.symbol().index()];
+                    sources.slice(symbol.span()).unwrap()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(bindings, ["first", "second"]);
+        },
     );
-    let [descriptor] = typed.destructurings() else {
-        panic!("only the complete named split publishes facts");
-    };
-    let bindings = descriptor
-        .components()
-        .iter()
-        .map(|component| {
-            let symbol = &names.symbols()[component.symbol().index()];
-            sources.slice(symbol.span()).unwrap()
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(bindings, ["first", "second"]);
 }
 
 #[test]
@@ -486,27 +531,35 @@ fn legacy_private_fields_require_the_lexical_classifier() {
     let source = sources.add_source("legacy-private-field.ko", text).unwrap();
     let parsed = parse_file_twice(&sources, source, "legacy private field");
     let (names_env, types_env) = environments();
-    let names = resolve_names(&sources, &parsed, &names_env).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
-    assert_eq!(codes(typed.diagnostics()), ["L0080"; 3]);
-    assert_eq!(
-        typed
-            .diagnostics()
-            .iter()
-            .map(|d| sources.slice(d.primary_span()).unwrap())
-            .collect::<Vec<_>>(),
-        ["hidden", "hidden", "hidden"],
+    inspect_raw_unit_entries(
+        &sources,
+        &parsed,
+        &names_env,
+        &types_env,
+        |inputs, names, typed| {
+            assert_eq!(codes(typed.diagnostics()), ["L0080"; 3]);
+            assert_eq!(
+                typed
+                    .diagnostics()
+                    .iter()
+                    .map(|d| sources.slice(d.primary_span()).unwrap())
+                    .collect::<Vec<_>>(),
+                ["hidden", "hidden", "hidden"],
+            );
+            assert_eq!(typed.destructurings().len(), 1);
+            assert_eq!(typed.aggregate_projections().len(), 1);
+            assert!(typed.calls().is_empty());
+            use lang_frontend::type_checking::{
+                FinalTypeAdmissionError, complete_compilation_unit_types,
+            };
+            let admission =
+                complete_compilation_unit_types(&sources, inputs, names, &types_env, typed);
+            let Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics)) = admission else {
+                panic!("private patterns must reject with source diagnostics: {admission:?}");
+            };
+            assert_eq!(final_diagnostics, typed.diagnostics());
+        },
     );
-    assert_eq!(typed.destructurings().len(), 1);
-    assert_eq!(typed.aggregate_projections().len(), 1);
-    assert!(typed.calls().is_empty());
-    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_file_types};
-    let admission = complete_file_types(&sources, &parsed, &names, &types_env, &typed);
-    let Err(FinalTypeAdmissionError::Diagnostics(final_diagnostics)) = admission else {
-        panic!("private patterns must reject with source diagnostics: {admission:?}");
-    };
-    assert_eq!(final_diagnostics, typed.diagnostics());
 }
 
 #[test]
@@ -528,14 +581,13 @@ fn legacy_borrowed_destructuring_does_not_read_discarded_private_fields() {
         let source = sources.add_source("legacy-private-for.ko", text).unwrap();
         let parsed = parse_file_twice(&sources, source, "legacy private for");
         let (names_env, types_env) = standard_environments();
-        let names = resolve_names(&sources, &parsed, &names_env).unwrap();
-        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-        let typed = check_types(&sources, &parsed, &names, &types_env).unwrap();
-        assert_eq!(codes(typed.diagnostics()), expected);
-        assert_eq!(
-            typed.sequential_iterations().len(),
-            usize::from(expected.is_empty())
-        );
+        inspect_raw_unit_entries(&sources, &parsed, &names_env, &types_env, |_, _, typed| {
+            assert_eq!(codes(typed.diagnostics()), expected);
+            assert_eq!(
+                typed.sequential_iterations().len(),
+                usize::from(expected.is_empty())
+            );
+        });
     }
 }
 

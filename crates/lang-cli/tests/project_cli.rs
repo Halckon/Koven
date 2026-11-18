@@ -24,6 +24,9 @@ mod mutable_list_delivery;
 #[path = "project_cli/final_type_admission.rs"]
 mod final_type_admission;
 
+#[path = "project_cli/relative_output.rs"]
+mod relative_output;
+
 #[path = "project_cli/runtime_constructor.rs"]
 mod runtime_constructor;
 
@@ -489,6 +492,28 @@ fn project_frontend_diagnostics_precede_entry_and_preserve_source_key_order() {
     assert_eq!(records[1]["primary"]["source"], "zroot/z/Bad.ko");
     assert!(!json_output.exists());
     assert_no_build_temporaries(project.path());
+
+    // Root is an identity dimension even when both sources have the same package and path.
+    let project = TestProject::create("same-logical-path-diagnostics");
+    project.write(
+        "aroot/app/Bad.ko",
+        "package app\nfun alpha(): Unit { missingA }\n",
+    );
+    project.write(
+        "zroot/app/Bad.ko",
+        "package app\nfun zed(): Unit { missingZ }\n",
+    );
+    for roots in [["zroot", "aroot"], ["aroot", "zroot"]] {
+        let manifest = project.manifest(&roots);
+        assert_project_gate(
+            &project,
+            &manifest,
+            &[
+                gate_diagnostic("L0080", "aroot/app/Bad.ko", 32..40, 2, 21),
+                gate_diagnostic("L0080", "zroot/app/Bad.ko", 30..38, 2, 19),
+            ],
+        );
+    }
 }
 
 const TYPE_GATE_BODY: &str = "fun typed(): Unit { val item: String = 1 }\n";
@@ -818,7 +843,7 @@ fn project_entry_failures_preserve_complete_operational_messages() {
 }
 
 #[test]
-fn project_standard_key_collision_preserves_the_complete_operational_error() {
+fn project_standard_key_collision_preserves_valid_user_program() {
     let project = TestProject::create("standard-key-collision");
     let manifest = project.manifest(&["koven-std"]);
     project.write(
@@ -833,14 +858,16 @@ fn project_standard_key_collision_preserves_the_complete_operational_error() {
             &executable,
             Some(format),
         );
-        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
         assert!(output.stdout.is_empty(), "{output:?}");
-        assert_eq!(
-            output.stderr,
-            b"error: project build failed: compilation-unit input failed: duplicate source key (\"koven-std\", \"koven/algorithms/ranges.ko\")\n",
-            "{output:?}"
+        assert!(output.stderr.is_empty(), "{output:?}");
+        assert!(executable.is_file());
+        let launched = Command::new(&executable).output().unwrap();
+        assert_eq!(launched.status.code(), Some(0), "{launched:?}");
+        assert!(
+            launched.stdout.is_empty() && launched.stderr.is_empty(),
+            "{launched:?}"
         );
-        assert!(!executable.exists());
         assert_no_build_temporaries(project.path());
     }
 }

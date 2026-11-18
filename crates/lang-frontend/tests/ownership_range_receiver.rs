@@ -578,3 +578,84 @@ fn stable_range_root_drop_is_published_at_the_outer_consumer() {
         assert_eq!(drops[0].point(), UnitDropPoint::CallReturn(outer));
     }
 }
+
+#[test]
+fn grouped_receiver_keeps_original_range_root_and_single_cleanup() {
+    use lang_frontend::ownership_checking::{RangeUseSite, UnitDropPoint, UnitDropTarget};
+    for depth in [0, 1, 3] {
+        for temporary in [false, true] {
+            let root = if temporary {
+                "listOf(\"kept\")"
+            } else {
+                "root"
+            };
+            let grouped = format!("{}{root}.prefix(1){}", "(".repeat(depth), ")".repeat(depth));
+            let setup = if temporary {
+                ""
+            } else {
+                "val root = listOf(\"kept\");"
+            };
+            let tail = if temporary { "" } else { "consume(root)" };
+            let text = format!(
+                "{RECEIVERS}fun inspect(view: View<String>): Unit {{}}\nfun consume(own value: List<String>): Unit {{}}\nfun run(): Unit {{ {setup} inspect({grouped}.prefix(1)); {tail} }}"
+            );
+            let (sources, document, rooted) = checked(&text);
+            for owned in [&document, &rooted] {
+                assert!(
+                    owned.diagnostics().is_empty(),
+                    "{text}: {:?}",
+                    owned.diagnostics()
+                );
+                let [inner, outer] = owned.borrow_results().range_uses() else {
+                    panic!("two real range consumers: {text}")
+                };
+                assert_eq!(inner.origin(), outer.origin(), "{text}");
+                let source = outer.source_loan();
+                let loan = owned
+                    .loans()
+                    .iter()
+                    .find(|loan| {
+                        loan.call() == source.call() && loan.argument() == source.argument()
+                    })
+                    .unwrap();
+                assert_eq!(loan.target(), inner.origin());
+                assert_eq!(sources.slice(loan.begin_span()), Ok(grouped.as_str()));
+                let RangeUseSite::Call(consumer) = outer.site() else {
+                    panic!("outer consumer")
+                };
+                if temporary {
+                    let UnitLoanTarget::Temporary(root) = inner.origin() else {
+                        panic!("real temporary root")
+                    };
+                    let cleanup: Vec<_> = owned
+                        .drops()
+                        .iter()
+                        .filter(|drop| drop.target() == UnitDropTarget::Temporary(*root))
+                        .collect();
+                    assert_eq!(cleanup.len(), 1, "{text}");
+                    assert_eq!(cleanup[0].point(), UnitDropPoint::CallReturn(consumer));
+                } else {
+                    assert!(matches!(inner.origin(), UnitLoanTarget::Place(_)));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn grouped_receiver_keeps_root_protected_during_later_arguments() {
+    let text = format!(
+        "{RECEIVERS}fun consume(own value: List<String>): Int = 1\nfun inspect(view: View<String>): Unit {{}}\nfun run(): Unit {{ val root = listOf(\"kept\"); inspect(((root.prefix(1))).prefix(consume(root))) }}"
+    );
+    let (_, document, rooted) = checked(&text);
+    for owned in [&document, &rooted] {
+        assert!(
+            owned
+                .diagnostics()
+                .iter()
+                .any(|d| d.code().to_string() == "L0135"),
+            "{:?}",
+            owned.diagnostics()
+        );
+    }
+}

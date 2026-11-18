@@ -182,5 +182,7 @@ mod package_dispatch_controls;
 #[path = "multifile_type_checking/group_null_comparison.rs"]
 mod group_null_comparison;
 
+#[path = "multifile_type_checking/construction_completion.rs"]
+mod construction_completion;
 #[path = "multifile_type_checking/control_completion.rs"]
 mod control_completion;

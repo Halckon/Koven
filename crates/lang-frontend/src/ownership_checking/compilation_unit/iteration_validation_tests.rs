@@ -362,39 +362,49 @@ fn temporary_range_unit_schema_requires_the_actual_source_loan_continuation() {
         source::SourceMap,
         type_checking::{check_compilation_unit_types, standard_environments},
     };
-    let mut sources = SourceMap::new();
-    let source = sources
+    // Malformed-fact controls are prepared for CI; do not execute locally.
+    for depth in [0, 1, 3] {
+        let mut sources = SourceMap::new();
+        let source = sources
         .add_source(
             "range.ko",
-            "fun run():Unit{for(item in rangeView(listOf(\"a\"),0,1)){println(item)}}",
+            format!("fun run():Unit{{for(item in {}rangeView(listOf(\"a\"),0,1){}){{println(item)}}}}", "(".repeat(depth), ")".repeat(depth)),
         )
         .unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let inputs = [SourceUnitInput::new("std", "range.ko", source, &parsed)];
-    let (env, mut types) = standard_environments();
-    types.authorize_range_source(&sources, source).unwrap();
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let valid =
-        super::check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    assert!(valid.clone().validate().is_ok());
-    let mut missing = valid.clone();
-    missing.borrow_results.range_uses.clear();
-    assert!(missing.validate().is_err());
-    let mut missing_loan = valid.clone();
-    let source = valid.borrow_results.range_uses[0].source_loan();
-    missing_loan
-        .loans
-        .retain(|loan| loan.call() != source.call() || loan.argument() != source.argument());
-    assert!(missing_loan.validate().is_err());
-    let mut wrong = valid;
-    wrong.borrow_results.range_uses[0].origin = super::UnitLoanTarget::Temporary(source.call());
-    assert!(wrong.validate().is_err());
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        let inputs = [SourceUnitInput::new("std", "range.ko", source, &parsed)];
+        let (env, mut types) = standard_environments();
+        types.authorize_range_source(&sources, source).unwrap();
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &env)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let valid =
+            super::check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                .unwrap();
+        assert!(valid.clone().validate().is_ok());
+        let mut missing = valid.clone();
+        missing.borrow_results.range_uses.clear();
+        assert!(missing.validate().is_err());
+        let mut missing_loan = valid.clone();
+        let source = valid.borrow_results.range_uses[0].source_loan();
+        missing_loan
+            .loans
+            .retain(|loan| loan.call() != source.call() || loan.argument() != source.argument());
+        assert!(missing_loan.validate().is_err());
+        let mut missing_call = valid.clone();
+        missing_call.iterations[0].range_source_call = None;
+        assert!(missing_call.validate().is_err());
+        let mut wrong_call = valid.clone();
+        wrong_call.iterations[0].range_source_call = Some(source.argument());
+        assert!(wrong_call.validate().is_err());
+        let mut wrong = valid;
+        wrong.borrow_results.range_uses[0].origin = super::UnitLoanTarget::Temporary(source.call());
+        assert!(wrong.validate().is_err());
+    }
 }

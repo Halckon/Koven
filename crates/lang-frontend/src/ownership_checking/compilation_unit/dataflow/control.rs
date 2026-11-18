@@ -227,9 +227,17 @@ impl Checker<'_> {
                 right,
                 ..
             } => {
+                let diagnostic_count = self.diagnostics.len();
                 self.reject_borrowed_closure_escape(left, &state)?;
                 self.reject_borrowed_closure_escape(right, &state)?;
-                self.check_expression(expression, state, usage)
+                if self.diagnostics.len() != diagnostic_count {
+                    self.check_expression(expression, state, usage)
+                } else {
+                    self.check_expression_with_escape(expression, state, usage, true)
+                }
+            }
+            Expression::NonNullAssert { .. } => {
+                self.check_expression_with_escape(expression, state, usage, true)
             }
             _ => {
                 self.reject_borrowed_closure_escape(expression, &state)?;

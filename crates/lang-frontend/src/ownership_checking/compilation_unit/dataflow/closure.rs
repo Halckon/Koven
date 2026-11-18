@@ -825,10 +825,17 @@ impl Checker<'_> {
         expression: ExpressionId,
         state: &State,
     ) -> Result<(), OwnershipCheckingError> {
-        let mut pending = self
-            .closure_origins(expression, state)?
-            .into_iter()
-            .collect::<Vec<_>>();
+        let roots = self.closure_origins(expression, state)?;
+        self.reject_borrowed_closure_roots(expression, state, roots)
+    }
+
+    pub(super) fn reject_borrowed_closure_roots(
+        &mut self,
+        expression: ExpressionId,
+        state: &State,
+        roots: BTreeSet<UnitExpressionId>,
+    ) -> Result<(), OwnershipCheckingError> {
+        let mut pending = roots.into_iter().collect::<Vec<_>>();
         let mut seen = std::collections::BTreeSet::new();
         let mut borrowed = None;
         while let Some(lambda) = pending.pop() {

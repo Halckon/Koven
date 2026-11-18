@@ -153,7 +153,7 @@ OwnedSnapshot(expression) 与 BorrowedSource(target) 区分；不为数值 sourc
 具名元素是 Owned Copyable，discard 不建立 binding；各退出保留词法清理边界而没有 EndSource。
 旧借用 provider 的来源能力、temporary 延寿及 source loan 保持原路径。
 
-普通精确测试已核双入口计划、复制/返回元素、重赋原 source、外层容器 loan 拒绝与旧借用回归。
+数值快照正例由 Rooted/MemoryDocument Unit 保原计划、复制/返回元素、重赋原 source 和退出合同；外层容器 loan 负例仍保 Single/Unit 完整不同诊断，旧 helper 的条件 validator 路径保留。
 两 lower 使用独立 Value 状态：source 一次投影 first/last/empty，空值直接退出；
 normal/continue 清理后先判 current==last，仅非终值边进入增量块，不计算 length。
 break/return 沿真实退出计划保留外层 loan；当前 Linux single/project 有界 native 已核
