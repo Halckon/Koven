@@ -305,17 +305,32 @@ def deep_view_reads():
             yield f"三层借用字段/{hop}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", setup + [f"val e = {expr}"], tail)
 
 
+def joined_owner_setup(extra):
+    return ["val l = Arr(1)", "val r = Arr(2)", extra, "val left = V(&l)", "val right = V(&r)",
+            "val h = H(&mut left)", "if (*) {", "  h = H(&mut right)", "}", "val q = Outer(&mut h)"]
+
+
 def joined_owner_reads():
     """合流改变 h.target 所指的视图，不只是改变一个视图字段里的来源。"""
-    setup = ["val l = Arr(1)", "val r = Arr(2)", "val x = Arr(3)", "val left = V(&l)",
-             "val right = V(&r)", "val h = H(&mut left)", "if (*) {", "  h = H(&mut right)",
-             "}", "val q = Outer(&mut h)"]
+    setup = joined_owner_setup("val x = Arr(3)")
     for hop, expr in (("直接读", "&q.link.target.a.len"), ("经调用返回", "readOuter(&q)")):
         for access, tail in (("写左来源", ["l.len = 9  // ERR K1", "use(e)"]),
                              ("写右来源", ["r.len = 9  // ERR K1", "use(e)"]),
                              ("写无关来源", ["x.len = 9", "use(e)"]),
                              ("最后使用后写", ["use(e)", "l.len = 9", "r.len = 9"])):
             yield f"多拥有者读回/{hop}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", setup + [f"val e = {expr}"], tail)
+
+
+def joined_owner_writes():
+    """只替换实际所指的 V；从单个拥有者读回时，另一侧的旧来源不可能到达。"""
+    setup = joined_owner_setup("val s = Arr(3)") + ["q.link.target = V(&s)"]
+    for owner, old, other in (("left", "l", "r"), ("right", "r", "l")):
+        body = setup + [f"val e = readV(&{owner})"]
+        for access, tail in (("写新来源", ["s.len = 9  // ERR K1", "use(e)"]),
+                             ("写本侧旧来源", [f"{old}.len = 9  // ERR K1", "use(e)"]),
+                             ("写另一侧旧来源", [f"{other}.len = 9", "use(e)"]),
+                             ("最后使用后写", ["use(e)", "s.len = 9", f"{old}.len = 9"])):
+            yield f"多目标写入/{owner}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", body, tail)
 
 
 def contract_view_reads():
@@ -384,6 +399,7 @@ def cases():
     yield from guard_failure_points()
     yield from deep_view_reads()
     yield from joined_owner_reads()
+    yield from joined_owner_writes()
     yield from contract_view_reads()
     yield from loop_backedges()
 
