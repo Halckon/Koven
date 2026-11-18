@@ -76,6 +76,39 @@ class OriginAccountingCases(unittest.TestCase):
                 self.assertEqual(1, text.count(call))
                 self.assertEqual([], CHECKER.check(text.replace(call, "if (*) {\n  }")))
 
+    def test_deep_view_reads_the_replaced_source(self):
+        prefix = "三层借用字段/"
+        programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
+        self.assertEqual({f"{hop}/{access}" for hop in ("直接读", "经调用返回")
+                          for access in ("写新来源", "写旧来源", "最后使用后写")}, set(programs))
+        for name, text in programs.items():
+            with self.subTest(case=name):
+                errors = CHECKER.check(text)
+                self.assertEqual(["K1"] if name.endswith("/写新来源") else [], [r for r, _, _ in errors])
+                self.assertEqual(expected(text), {(r, n) for r, n, _ in errors})
+                moved = text.replace("val q = Outer(&mut h)", "val k = move h\n  val q = Outer(&mut k)")
+                self.assertEqual(expected(moved), {(r, n) for r, n, _ in CHECKER.check(moved)})
+                # 同一条链上不做替换：此时应当只保护旧来源。
+                unmodified = text.replace("q.link.target = V(&s)", "use(q.link.target.a.len)")
+                self.assertEqual(["K1"] if name.endswith("/写旧来源") else [],
+                                 [r for r, _, _ in CHECKER.check(unmodified)])
+
+    def test_folded_result_keeps_source_after_replacing_its_referent(self):
+        body = """class Arr(len: Int)
+view class N(inout next: N, borrow data: Arr)
+fun second(borrow n: N): borrow Int from n.next { return &n.next.data.len }
+fun f(inout seed: N, inout r: N): Unit {
+  val o = Arr(1)
+  val s = Arr(2)
+  val v = N(seed, &o)
+  val h = N(&mut v, &s)
+  val e = second(&h)
+  h.next = N(r, &s)
+"""
+        for tail in ("  use(e)\n  o.len = 9", "  o.len = 9  // ERR K1\n  use(e)"):
+            text = body + tail + "\n}\n"
+            self.assertEqual(expected(text), {(r, n) for r, n, _ in CHECKER.check(text)})
+
     def test_guard_cleanup_depends_on_order_and_failure_point(self):
         prefix = "失败清理/分支放入/"
         programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
@@ -239,10 +272,13 @@ class OriginAccountingCases(unittest.TestCase):
             wrong = mismatches()
         finally:
             CHECKER.Checker.current_fields = original
-        self.assertTrue(wrong)
+        deep = "三层借用字段/经调用返回/写新来源"
+        self.assertIn(deep, wrong)
+        self.assertTrue(any(name != deep for name in wrong))
         for name, (wanted, actual) in wrong.items():
             with self.subTest(case=name):
-                self.assertEqual(("独占字段所指的另一个视图", "经调用返回"), tuple(name.split("/")[::2][:2]))
+                if name != deep:
+                    self.assertEqual(("独占字段所指的另一个视图", "经调用返回"), tuple(name.split("/")[::2][:2]))
                 self.assertEqual(set(), actual, "只应少报")
 
     def test_containers_are_not_escapable_by_their_type(self):

@@ -1142,7 +1142,7 @@ class Checker:
             self.error("K8", expr.line, f"{place.root} 不可隐式复制，须写 move")
         return Value(res.ty, copy_loans(res.field_loans or {}))
 
-    def move(self, expr, state):
+    def move(self, expr, state, local_binding=False):
         """K8：移动整个变量；移动是一次与任何存活 loan 都不相容的访问。"""
         place = expr.place
         if place.fields:
@@ -1154,7 +1154,9 @@ class Checker:
         var = state[place.root]
         if var.pinned:
             self.error("S3", expr.line, f"{place.root} 已开始执行，它的帧不能再移动")
-        value = Value(var.ty, copy_loans(res.field_loans), var.payload)
+        # 移入新局部变量时转移原账；现查展开的字段供边界读出，不存成新的副本。
+        held = var.loans if local_binding and var.ty.kind == "view" else res.field_loans
+        value = Value(var.ty, copy_loans(held), var.payload)
         if self.tracked(var):
             self.emit("move", expr.line, place.root)
         var.init, var.loans = "M", {}
@@ -1533,8 +1535,19 @@ class Checker:
     def step(self, stmt, state):
         self.live = (set(stmt.live_out) - stmt_defs(stmt)) | stmt_uses(stmt)
         if stmt.kind == "val":
-            value = self.value(stmt.expr, state)
+            value = (self.move(stmt.expr, state, local_binding=True) if stmt.expr.kind == "move"
+                     else self.value(stmt.expr, state))
             var = Var(value.ty, "A", value.loans, value.payload)
+            # 直接构造的独占字段若取自 &mut local，所指视图有确切的账，不保存会过期的字段副本。
+            # 调用结果的 from 只指明来源，不一定指明所指存储；不裁剪它的合同记录。
+            if value.ty.kind == "view" and stmt.expr.kind == "call" and stmt.expr.name in self.classes:
+                for (kind, name, fty), arg in zip(self.classes[stmt.expr.name].fields, stmt.expr.args):
+                    if (kind == "inout" and arg.kind == "ref" and arg.mut and not arg.place.fields
+                            and state[arg.place.root].ty == Type("view", fty)):
+                        # 只省去外层能重新展开的键；递归折叠边界以外的记录不能重建。
+                        for _, path in self.ref_paths(value.ty.name):
+                            if path.startswith(name + "."):
+                                var.loans.pop(path, None)
             if self.tracked(var):
                 self.declare("let", stmt.line, stmt.name, value.ty, state)
             state[stmt.name] = var
