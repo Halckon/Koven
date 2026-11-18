@@ -61,6 +61,26 @@ class OriginAccountingCases(unittest.TestCase):
         finally:
             CHECKER.Checker.join = original
 
+    def test_joined_view_owners_protect_exactly_the_reachable_sources(self):
+        prefix = "多拥有者读回/"
+        programs = {n.removeprefix(prefix): t for n, t in CASES.cases() if n.startswith(prefix)}
+        hops = ("直接读", "经调用返回")
+        self.assertEqual({f"{hop}/{access}" for hop in hops for access in
+                          ("写左来源", "写右来源", "写无关来源", "最后使用后写")}, set(programs))
+        branch = "if (*) {\n    h = H(&mut right)\n  }"
+        for name, text in programs.items():
+            hop, access = name.split("/")
+            expr = "&q.link.target.a.len" if hop == "直接读" else "readOuter(&q)"
+            marked = expected(text)
+            self.assertEqual(["K1"] if access in ("写左来源", "写右来源") else [], [r for r, _ in marked])
+            self.assertIn(f"val e = {expr}\n", text)
+            self.assertEqual(1, text.count(branch))
+            for arm, replacement in (("左", ""), ("右", "h = H(&mut right)")):
+                with self.subTest(case=name, arm=arm):
+                    one = text.replace(branch, replacement)
+                    wanted = expected(one) if access == f"写{arm}来源" else set()
+                    self.assertEqual(wanted, {(r, n) for r, n, _ in CHECKER.check(one)})
+
     def test_conditional_flow_survives_without_a_read_of_the_callers_holder(self):
         prefix = f"分支合流/调用方视图/不读回/{HELD_INOUT}/"
         programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
@@ -272,12 +292,12 @@ fun f(inout seed: N, inout r: N): Unit {
             wrong = mismatches()
         finally:
             CHECKER.Checker.current_fields = original
-        deep = "三层借用字段/经调用返回/写新来源"
-        self.assertIn(deep, wrong)
-        self.assertTrue(any(name != deep for name in wrong))
+        deep = {"三层借用字段/经调用返回/写新来源", "多拥有者读回/经调用返回/写左来源", "多拥有者读回/经调用返回/写右来源"}
+        self.assertLessEqual(deep, set(wrong))
+        self.assertTrue(set(wrong) - deep)
         for name, (wanted, actual) in wrong.items():
             with self.subTest(case=name):
-                if name != deep:
+                if name not in deep:
                     self.assertEqual(("独占字段所指的另一个视图", "经调用返回"), tuple(name.split("/")[::2][:2]))
                 self.assertEqual(set(), actual, "只应少报")
 

@@ -289,18 +289,33 @@ def conditional_caller_flows():
         yield f"分支合流/调用方视图/不读回/inout 参数{HELD_BY_CALLER}/{name}", PRELUDE + function(head + signature, body, [])
 
 
-def deep_view_reads():
-    """先建完整链，再替换唯一所指的 V；读回须认新来源而非构造时的旧来源。"""
-    decls = PRELUDE + """view class Outer(inout link: H)
+DEEP_PRELUDE = PRELUDE + """view class Outer(inout link: H)
 fun readOuter(borrow q: Outer): borrow Int from q.link.target.a { return &q.link.target.a.len }
 """
+
+
+def deep_view_reads():
+    """先建完整链，再替换唯一所指的 V；读回须认新来源而非构造时的旧来源。"""
     setup = ["val o = Arr(0)", "val s = Arr(1)", "val v = V(&o)", "val h = H(&mut v)",
              "val q = Outer(&mut h)", "q.link.target = V(&s)"]
     for hop, expr in (("直接读", "&q.link.target.a.len"), ("经调用返回", "readOuter(&q)")):
         for access, tail in (("写新来源", ["s.len = 9  // ERR K1", "use(e)"]),
                              ("写旧来源", ["o.len = 9", "use(e)"]),
                              ("最后使用后写", ["use(e)", "s.len = 9"])):
-            yield f"三层借用字段/{hop}/{access}", decls + function("fun f(): Unit {", setup + [f"val e = {expr}"], tail)
+            yield f"三层借用字段/{hop}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", setup + [f"val e = {expr}"], tail)
+
+
+def joined_owner_reads():
+    """合流改变 h.target 所指的视图，不只是改变一个视图字段里的来源。"""
+    setup = ["val l = Arr(1)", "val r = Arr(2)", "val x = Arr(3)", "val left = V(&l)",
+             "val right = V(&r)", "val h = H(&mut left)", "if (*) {", "  h = H(&mut right)",
+             "}", "val q = Outer(&mut h)"]
+    for hop, expr in (("直接读", "&q.link.target.a.len"), ("经调用返回", "readOuter(&q)")):
+        for access, tail in (("写左来源", ["l.len = 9  // ERR K1", "use(e)"]),
+                             ("写右来源", ["r.len = 9  // ERR K1", "use(e)"]),
+                             ("写无关来源", ["x.len = 9", "use(e)"]),
+                             ("最后使用后写", ["use(e)", "l.len = 9", "r.len = 9"])):
+            yield f"多拥有者读回/{hop}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", setup + [f"val e = {expr}"], tail)
 
 
 def contract_view_reads():
@@ -368,6 +383,7 @@ def cases():
     yield from conditional_caller_flows()
     yield from guard_failure_points()
     yield from deep_view_reads()
+    yield from joined_owner_reads()
     yield from contract_view_reads()
     yield from loop_backedges()
 
