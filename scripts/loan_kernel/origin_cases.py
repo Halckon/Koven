@@ -321,16 +321,16 @@ def joined_owner_reads():
             yield f"多拥有者读回/{hop}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", setup + [f"val e = {expr}"], tail)
 
 
-def joined_owner_writes():
-    """只替换实际所指的 V；从单个拥有者读回时，另一侧的旧来源不可能到达。"""
-    setup = joined_owner_setup("val s = Arr(3)") + ["q.link.target = V(&s)"]
+def joined_owner_writes(group, write):
+    """合流未消除时，本地赋值与 flows 调用都须考虑本侧未被写入的路径。"""
+    setup = joined_owner_setup("val s = Arr(3)") + [write]
     for owner, old, other in (("left", "l", "r"), ("right", "r", "l")):
         body = setup + [f"val e = readV(&{owner})"]
         for access, tail in (("写新来源", ["s.len = 9  // ERR K1", "use(e)"]),
                              ("写本侧旧来源", [f"{old}.len = 9  // ERR K1", "use(e)"]),
                              ("写另一侧旧来源", [f"{other}.len = 9", "use(e)"]),
                              ("最后使用后写", ["use(e)", "s.len = 9", f"{old}.len = 9"])):
-            yield f"多目标写入/{owner}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", body, tail)
+            yield f"{group}/{owner}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", body, tail)
 
 
 def contract_view_reads():
@@ -399,7 +399,8 @@ def cases():
     yield from guard_failure_points()
     yield from deep_view_reads()
     yield from joined_owner_reads()
-    yield from joined_owner_writes()
+    yield from joined_owner_writes("多目标写入", "q.link.target = V(&s)")
+    yield from joined_owner_writes("多目标流向", "setV(q.link.target, &s)")
     yield from contract_view_reads()
     yield from loop_backedges()
 
