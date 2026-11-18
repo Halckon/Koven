@@ -25,6 +25,7 @@ pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
 #[cfg(feature = "d10-catalog-experiment")]
 pub(crate) mod identity_return;
+mod inout_field;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
 #[deny(dead_code)]

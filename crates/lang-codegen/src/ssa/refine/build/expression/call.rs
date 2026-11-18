@@ -1,5 +1,6 @@
 //! Call evaluation, delivery and cleanup in the refined CFG.
 use super::{nullable_argument::WhenArgument, *};
+use crate::ssa::model::LoanKind;
 
 impl Builder<'_, '_> {
     pub(super) fn call(
@@ -143,7 +144,7 @@ impl Builder<'_, '_> {
                 if self.move_only(self.c(parameter_type)) {
                     // Frontend facts already prove exclusive access during the remaining
                     // arguments. Materialize storage only in the actual call block.
-                    reserved_inout.push((param_slot, value_expression));
+                    reserved_inout.push((param_slot, value_expression, parameter_type));
                     continue;
                 }
                 let (loan, writeback) = self.inout_argument(value_expression)?;
@@ -341,7 +342,13 @@ impl Builder<'_, '_> {
                 }
             }
         }
-        for (param_slot, expression) in reserved_inout {
+        for (param_slot, expression, parameter) in reserved_inout {
+            if let Some(field) = self.inputs.inout_field(call, expression, parameter) {
+                let loan = self.borrow_inout_field(field)?;
+                lowered_slots[param_slot] = Some(loan);
+                loans.push(loan);
+                continue;
+            }
             let (loan, writeback) = self.inout_argument(expression)?;
             lowered_slots[param_slot] = Some(loan);
             if let Some(writeback) = writeback {
@@ -459,5 +466,52 @@ impl Builder<'_, '_> {
             }
         }
         Ok(result)
+    }
+
+    /// Direct heap fields are already stored in place and need no local snapshot writeback.
+    fn borrow_inout_field(
+        &mut self,
+        field: crate::ssa::refine::inout_field::InoutField,
+    ) -> Result<Slot, LoweringError> {
+        let span = field.begin;
+        self.end_views_of(field.owner, span)?;
+        self.forget_narrowing(field.owner);
+        let owner = *self
+            .bindings
+            .get(&field.owner)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let owner_ty = self.ssa_type(field.owner_ty, span)?;
+        let payload = *self
+            .types
+            .heap_payloads
+            .get(&owner_ty)
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let index = *self
+            .types
+            .field_indices
+            .get(&(field.owner_ty, field.field))
+            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let target = self.ssa_type(field.target, span)?;
+        let base = self.value(
+            ROp::HeapPayloadPlace { owner },
+            EntityType::Place(payload),
+            span,
+        )?;
+        let place = self.value(
+            ROp::FieldPlace { base, field: index },
+            EntityType::Place(target),
+            span,
+        )?;
+        self.value(
+            ROp::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+            EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target,
+            },
+            span,
+        )
     }
 }

@@ -479,3 +479,61 @@ fn divergent_rhs_does_not_emit_an_inout_class_payload_replace() {
         Some(TerminatorKind::Abort)
     )));
 }
+
+#[test]
+fn move_only_inout_call_can_borrow_disjoint_fields_of_the_same_heap_owner() {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use crate::ssa::verify::{VerifyErrorKind, VerifyLocation, verify_program};
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let source = r#"
+class Holder(var left: String, var right: String)
+fun replaceBoth(inout left: String, inout right: String): Unit {
+    left = "new left".clone()
+    right = "new right".clone()
+}
+fun entry(): Unit {
+    val holder = Holder("old left", "old right")
+    replaceBoth(&holder.left, &holder.right)
+    println(holder.left)
+    println(holder.right)
+}
+"#;
+    let analysis = UnitSource::analyze("disjoint-inout-fields.ko", source).unwrap();
+    analysis.assert_frontend_clean();
+    let (mut program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("different direct heap fields must lower to verified SSA");
+    let function = program
+        .module_mut(entry.module())
+        .unwrap()
+        .function_mut(entry)
+        .unwrap();
+    let (call, arguments) = function
+        .instructions
+        .iter_mut()
+        .find_map(|instruction| match &mut instruction.operation {
+            Operation::DirectCall { arguments, .. }
+                if matches!(arguments.as_slice(), [EntityId::Loan(_), EntityId::Loan(_)]) =>
+            {
+                Some((instruction.id, arguments))
+            }
+            _ => None,
+        })
+        .expect("the original call lends both fields exclusively");
+    assert_ne!(arguments[0], arguments[1]);
+    arguments[1] = arguments[0];
+    let failure = verify_program(&program).expect_err("a call cannot lend the same field twice");
+    assert!(
+        failure.errors.iter().any(|error| {
+            error.location == VerifyLocation::Instruction(call)
+                && matches!(
+                    error.kind,
+                    VerifyErrorKind::OperationContract {
+                        reason: "MoveOnly Inout arguments must be disjoint from other loans",
+                    }
+                )
+        }),
+        "{failure:?}"
+    );
+}

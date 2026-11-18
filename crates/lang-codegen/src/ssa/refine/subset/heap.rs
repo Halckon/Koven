@@ -544,8 +544,19 @@ impl Checker<'_, '_> {
 
     /// `&x` for an `Inout` parameter: a known local with supported storage, or an `Inout`
     /// parameter passed on, whose exclusive loan the ownership facts publish.
-    pub(super) fn inout_argument(&mut self, call: ExpressionId, value: ExpressionId) -> bool {
+    pub(super) fn inout_argument(
+        &mut self,
+        call: ExpressionId,
+        value: ExpressionId,
+        parameter: UnitTypeId,
+    ) -> bool {
         self.migrated = true;
+        if let Some(field) = self.inputs.inout_field(self.id(call), value, parameter) {
+            return self.known.contains(&field.owner)
+                && self.parameter_mode(field.owner).is_none()
+                && self.class_field(field.owner_ty, field.field)
+                && self.storage_type(field.target);
+        }
         let Some(symbol) = self.direct_place_symbol(value) else {
             return false;
         };

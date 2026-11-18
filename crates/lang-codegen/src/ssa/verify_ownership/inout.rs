@@ -82,10 +82,9 @@ pub(super) fn record_call(
             .copied()
             .chain(receiver)
             .filter(|entity| matches!(entity, EntityId::Loan(_)));
-        if other_loans
-            .into_iter()
-            .any(|other| aliases.overlap(*argument, other))
-        {
+        if other_loans.into_iter().any(|other| {
+            aliases.overlap(*argument, other) && !aliases.direct_fields.disjoint(*argument, other)
+        }) {
             reject(
                 instruction,
                 errors,

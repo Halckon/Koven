@@ -887,7 +887,7 @@ impl Checker<'_, '_> {
                 return admitted;
             }
             if mode == ParameterMode::Inout {
-                return self.inout_argument(call, value);
+                return self.inout_argument(call, value, parameter);
             }
             if self.inputs.typed.expression_falls_through(self.id(value)) == Some(false) {
                 reaches_operand = false;
