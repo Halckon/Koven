@@ -276,6 +276,19 @@ def branch_joins():
         yield f"分支合流/局部视图/{name}", PRELUDE + function("fun f(): Unit {", body, tail)
 
 
+def conditional_caller_flows():
+    """只有 then 放入，且之后不读 h：存活的是调用方持有者名下的来源。"""
+    head = "fun f(inout h: V, inout s: Arr, inout x: Arr): Unit"
+    placed = ["if (*) {", "  setV(h, s)", "}"]
+    for name, signature, body in (
+        ("拒绝-放入后写来源", " flows s into h {", placed + ["s.len = 9  // ERR K4"]),
+        ("拒绝-未声明流向", " {  // ERR K6", placed),
+        ("写无关来源", " flows s into h {", placed + ["x.len = 9"]),
+        ("未放入分支写来源", " flows s into h {", placed[:-1] + ["} else {", "  s.len = 9", "}"]),
+    ):
+        yield f"分支合流/调用方视图/不读回/inout 参数{HELD_BY_CALLER}/{name}", PRELUDE + function(head + signature, body, [])
+
+
 def loop_backedges():
     """先把中间视图交给 h，再替换中间视图；本轮的新来源只能在下轮到达 h。"""
     body = ["val o = Arr(1)", "val m = Arr(2)", "val s = Arr(3)", "val x = Arr(4)",
@@ -299,6 +312,7 @@ def cases():
                 yield f"{name}/{verdict}", text
     yield from escapes()
     yield from branch_joins()
+    yield from conditional_caller_flows()
     yield from loop_backedges()
 
 

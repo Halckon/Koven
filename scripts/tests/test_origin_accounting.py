@@ -61,6 +61,21 @@ class OriginAccountingCases(unittest.TestCase):
         finally:
             CHECKER.Checker.join = original
 
+    def test_conditional_flow_survives_without_a_read_of_the_callers_holder(self):
+        prefix = f"分支合流/调用方视图/不读回/{HELD_INOUT}/"
+        programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
+        self.assertEqual({"拒绝-放入后写来源", "拒绝-未声明流向", "写无关来源", "未放入分支写来源"}, set(programs))
+        for name, text in programs.items():
+            with self.subTest(case=name):
+                # 删去唯一一次放入：原来的 K4、K6 都应消失，两项接受对照仍接受。
+                call = "if (*) {\n    setV(h, s)\n  }"
+                body = text.split("fun f(")[-1].split("{", 1)[1]
+                self.assertEqual(["h"], re.findall(r"\bh\b", body), "h 只用于放入，不再读回")
+                rules = {"拒绝-放入后写来源": {"K4"}, "拒绝-未声明流向": {"K6"}}
+                self.assertEqual(rules.get(name, set()), {rule for rule, _ in expected(text)})
+                self.assertEqual(1, text.count(call))
+                self.assertEqual([], CHECKER.check(text.replace(call, "if (*) {\n  }")))
+
     def test_loop_backedge_carries_a_source_only_on_the_second_iteration(self):
         """用 if 保留零轮和一轮的出口，只剪掉回边：应恰好漏报第二轮来源。"""
         prefix = "循环回边/局部视图/"
