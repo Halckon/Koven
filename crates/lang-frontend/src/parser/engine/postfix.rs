@@ -98,13 +98,13 @@ impl Parser<'_> {
         receiver: ExpressionId,
         stops: Stops,
     ) -> Result<bool, ParserInternalError> {
-        if self.at_block_expression_line_break(receiver, stops)? {
-            return Ok(true);
+        if let Some(body) = stops.when_entry_body
+            && let Some(next_entry) = self.grouped_when_entry_follows(receiver, body)?
+        {
+            // Only a paired group can override the surrounding block's line break.
+            return Ok(next_entry);
         }
-        if let Some(body) = stops.when_entry_body {
-            return self.grouped_when_entry_follows(receiver, body);
-        }
-        Ok(false)
+        self.at_block_expression_line_break(receiver, stops)
     }
 
     pub(super) fn is_postfix_start(&self) -> bool {

@@ -573,6 +573,64 @@ fn composite_grouped_when_selectors_keep_their_arrows() {
 }
 
 #[test]
+fn grouped_when_selector_keeps_a_conditional_loop_jump_in_its_own_arm() {
+    for jump in ["break", "continue"] {
+        let condition = format!("((true)) && if (flag) {jump} else true");
+        let text = format!(
+            "{{ loop {{ when {{ false -> produce\n(1)\n{condition} -> 2\nelse -> 3 }} }} }}"
+        );
+        let (sources, parsed) = block(&text);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{jump}: {:?}",
+            parsed.diagnostics()
+        );
+        let entries = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find_map(|(_, node)| match node.payload() {
+                Expression::When { entries, .. } => Some(entries),
+                _ => None,
+            })
+            .expect("loop contains a when");
+        let [previous, jump_arm, otherwise] = entries.as_slice() else {
+            panic!("three separate entries: {entries:?}");
+        };
+        let previous_body = parsed.ast().statements().get(previous.body).unwrap();
+        assert_eq!(sources.slice(previous_body.span()), Ok("produce\n(1)"));
+        let [WhenCondition::Expression(selector)] = jump_arm.conditions.as_slice() else {
+            panic!("one conditional selector");
+        };
+        let selector = parsed.ast().expressions().get(*selector).unwrap();
+        assert_eq!(sources.slice(selector.span()), Ok(condition.as_str()));
+        assert_eq!(sources.slice(jump_arm.arrow_span), Ok("->"));
+        assert!(otherwise.else_span.is_some());
+    }
+}
+
+#[test]
+fn unpaired_when_group_keeps_the_block_recovery_boundary() {
+    let text = "{ loop { when { false -> produce\n(1\nelse -> 3 } } }";
+    let (sources, parsed) = block(text);
+    assert!(!parsed.diagnostics().is_empty());
+    let entries = parsed
+        .ast()
+        .expressions()
+        .iter()
+        .find_map(|(_, node)| match node.payload() {
+            Expression::When { entries, .. } => Some(entries),
+            _ => None,
+        })
+        .expect("loop contains a when");
+    let previous_body = parsed.ast().statements().get(entries[0].body).unwrap();
+    assert_eq!(sources.slice(previous_body.span()), Ok("produce"));
+    let otherwise = entries.last().unwrap();
+    assert!(otherwise.else_span.is_some());
+    assert_eq!(sources.slice(otherwise.span), Ok("else -> 3"));
+}
+
+#[test]
 fn when_selector_probe_ignores_arrows_inside_the_previous_arm() {
     let text = "when { false -> produce\n(1) && (when { true -> true; else -> false })\n((true)) -> 2\nelse -> 3 }";
     let (sources, parsed) = expression(text);

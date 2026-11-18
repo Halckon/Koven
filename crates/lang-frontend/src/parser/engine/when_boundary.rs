@@ -12,22 +12,22 @@ impl Parser<'_> {
         &self,
         receiver: ExpressionId,
         body: WhenEntryBody,
-    ) -> Result<bool, ParserInternalError> {
+    ) -> Result<Option<bool>, ParserInternalError> {
         if !self.current_is_symbol(Symbol::LeftParen)
             || !self.gap_has_line_break(
                 self.expression_span(receiver)?.end(),
                 self.current()?.span().start(),
             )?
         {
-            return Ok(false);
+            return Ok(None);
         }
         let Some(closer) = self
             .lexical_recoveries
             .group_closer(self.lexed, self.current_raw()?)
         else {
-            return Ok(false);
+            return Ok(None);
         };
-        self.selector_arrow_after_group(closer, body)
+        self.selector_arrow_after_group(closer, body).map(Some)
     }
 
     fn selector_arrow_after_group(
@@ -183,7 +183,12 @@ impl Parser<'_> {
                 | TokenKind::FloatLiteral(_)
                 | TokenKind::CharLiteral
                 | TokenKind::Keyword(
-                    Keyword::False | Keyword::True | Keyword::Null | Keyword::This,
+                    Keyword::False
+                    | Keyword::True
+                    | Keyword::Null
+                    | Keyword::This
+                    | Keyword::Break
+                    | Keyword::Continue,
                 ) => {}
                 _ => return Ok(false),
             }

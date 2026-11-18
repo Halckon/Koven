@@ -8241,3 +8241,14 @@ CI 默认栈。两宿主用默认栈复现 SIGABRT。macOS LLDB 堆栈
 原 16 段用例及 stdout 断言保持不变，macOS arm64 和离线
 Linux x86_64 均在默认栈复跑通过，Linux 启用 CI 使用的
 `loan-observation-test-support`。
+
+## 322. R1 循环内 when 条件的跳转与恢复
+
+循环块中，悬挂调用后的复合 when 条件包含 `break` 或
+`continue` 时，AST 红测显示前一臂丢失换行实参。零操作数跳转
+进入 selector 扫描，已配对的括号先由 when 同层箭头决定归属。
+普通 block 换行仍负责未配对括号。独立复审发现省略这一步会让
+调用恢复吞掉后续 else，追加 AST 回归保留原臂和末尾 else。
+
+macOS 的 parser 内部、控制流、block 续行与入口换行矩阵共
+95 项通过，覆盖前一臂调用跨度、新条件和箭头、末尾 else。
