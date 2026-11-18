@@ -14,6 +14,7 @@ use lang_frontend::{
         UnitAggregateProjectionReceiver, UnitCallTarget, UnitCallableSignature,
     },
 };
+use std::collections::BTreeSet;
 
 use super::{
     bounded_declaration, branch_declaration, multi_continuation_declaration, nested_declaration,
@@ -120,32 +121,69 @@ fn string_entry_block_return(
         return None;
     };
     let body = file.ast().statements().get(*block).ok()?.span();
-    let mut returns = owned
+    let mut operands = BTreeSet::new();
+    let mut needs_entry_route = false;
+    for fact in owned
         .borrow_return_origins()
         .iter()
         .filter(|fact| fact.declaration_span() == contract.marker_span())
-        .peekable();
-    returns.peek()?;
-    returns
-        .all(|fact| {
-            let expression = fact.expression();
-            expression.source_unit() == unit
-                && matches!(fact.origin(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == root)
-                && file
-                    .ast()
-                    .expressions()
-                    .get(expression.expression())
-                    .is_ok_and(|node| span_contains(body, node.span()))
-                && crate::ssa::borrow_result_support::ungroup(file, expression.expression(), body)
-                    .is_ok_and(|expression| {
-                        super::branch_declaration::is_symbol(file, names, expression, root)
-                            || forwards_string_entry(
-                                file, names, typed, owned, UnitExpressionId::new(unit, expression), root,
-                            )
-                            .is_some()
-                    })
-        })
-        .then_some(())
+    {
+        let expression = fact.expression();
+        if expression.source_unit() != unit
+            || !matches!(fact.origin(), UnitLoanTarget::Place(place)
+                if place.is_root() && place.root() == root)
+            || !file
+                .ast()
+                .expressions()
+                .get(expression.expression())
+                .is_ok_and(|node| span_contains(body, node.span()))
+        {
+            return None;
+        }
+        let operand =
+            crate::ssa::borrow_result_support::ungroup(file, expression.expression(), body).ok()?;
+        operands.insert(operand.index());
+        if super::branch_declaration::is_symbol(file, names, operand, root) {
+            needs_entry_route = true;
+        } else {
+            let call = UnitExpressionId::new(unit, operand);
+            forwards_string_entry(file, names, typed, owned, call, root)?;
+            needs_entry_route |= typed.call(call)?.arguments().len() > 1;
+        }
+    }
+    if operands.is_empty() {
+        return None;
+    }
+    // Pure one-argument forwarding trees use the existing receipt gates. A lexical
+    // borrow ending at an actual returned operand requires the ordinary entry route.
+    (needs_entry_route
+        || owned.borrow_results().ends().iter().any(|end| {
+            let UnitDropPoint::ControlTransfer(transfer) = end.point() else {
+                return false;
+            };
+            let binding = end.binding();
+            if transfer.source_unit() != unit
+                || binding.source_unit() != unit
+                || typed
+                    .symbol_type(binding)
+                    .and_then(|ty| typed.types().get(ty))
+                    != Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            {
+                return false;
+            }
+            let Ok(node) = file.ast().expressions().get(transfer.expression()) else {
+                return false;
+            };
+            let Expression::Return {
+                value: Some(value), ..
+            } = node.payload()
+            else {
+                return false;
+            };
+            crate::ssa::borrow_result_support::ungroup(file, *value, body)
+                .is_ok_and(|value| operands.contains(&value.index()))
+        }))
+    .then_some(())
 }
 
 /// The forwarded loan must come from the named entry parameter. Refine can
