@@ -883,7 +883,10 @@ impl BodyChecker<'_> {
         }
         let falls_through = flow.falls_through();
         if !valid || self.diagnostics.len() != diagnostics {
-            return Ok(self.failed_construction());
+            return Ok(ExpressionCheck {
+                ty: self.error_type(),
+                falls_through,
+            });
         }
         let expression_span = self
             .file(source)

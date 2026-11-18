@@ -21594,3 +21594,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 三个原借用返回源码/入口逐一实证 SSA/LLVM 成功，替换过时 Unit Unsupported 预期：原 caller 精确追踪全部前驱的块参数回到 BorrowCall result/source，保两次读取、唯一两级结束及 CFG 顺序；未调用 block-view 的空 entry 与实际 view-root 分开覆盖，后者返回原参数 loan。实际图没有 SharedReborrow，不能用另一 lowering 路径的假设代替真实身份。Legacy Single 拒绝及完整原输入保持。
 - 组合回归发现真实准入交互：main 的非完成 projection 快捷路径绕过本地 owned-factory 前缀清理证明。新增窄 Option 准入桥复用原完整 Copyable field/factory/source/dispatch 检查；命中失败直接拒绝，不以通用路径继续，未匹配者维持 main 路径。原 return/stop、透明 Group、双配置及其他 lender 负控全部转绿。Rc<Int>(return 9) 按 main 实际能力保同源成功正控，核唯一 Return9、无后缀0、无父 Rc 分配/retain/drop；Point/Box 禁路由负控不变。
 - 最终整合 FE 九目标共121项通过，强制本树 frontend all-target `loan-observation-test-support` strict 2m31s；最终普通 SSA 借用结果15项和临时字段11项通过，强制本树 codegen all-target `loan-observation-test-support,d10-catalog-experiment,e2-two-source-test-support` strict 2m26s。仅普通 SSA/LLVM 验证，未执行 native 或故障注入，不将这些结果扩大为完整 D10/E2 验收。经授权采用隔离 target、单编译/单测试线程及内存/磁盘监控，与只读隔离 Docker 测试受控并发。
+
+
+## 构造失败恢复保留完成性（2026-11-18）
+
+- 输入基线 `61d8b0e`；#444 P2 复现确认，`Pair(return 9, "bad")` 与 `Pair(stop(), "bad")` 的公开完成性错误为 true，无尾 return 时另误报 L0088。错误输入始终被 `validate()` 拒绝，未发布 ownership 资格。
+- 只修复 nominal `finish_construction` 已取得 operand flow 后的失败分支；保留 Error、L0084 与精确 Span、失败无构造描述符及其他早期恢复路径，不全局改 `failed_construction()`。
+- `multifile_type_checking::construction_completion::terminated_construction_still_diagnoses_invalid_suffix` 原消费者扩为双入口 24 组合，保三前缀、合法/错误后缀及有/无尾 return，核 public flow、L0088 正负控、描述符和 validate 资格。该目标基线红灯已确认，修复后 construction_completion 全族 6 项通过；frontend 默认 all-target strict、受影响 Rust 格式、docs、尺寸与独审通过。未执行 native、故障注入或新远端 CI。
