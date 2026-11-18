@@ -253,5 +253,4 @@ impl Checker<'_, '_> {
             _ => false,
         }
     }
-
 }
