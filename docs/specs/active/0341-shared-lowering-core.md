@@ -21565,3 +21565,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - **仍未解决**：nullable alias 的来源在此前形成/绑定阶段已丢失，当前 `optional!!` 漏检另列后续合同。不能用现有持有根表作为诊断缓存来修复，否则会改变 unused nullable shared 的原释放时点；本片不宣称解决一般 nullable closure 生命周期。原完整失败探针及日志保留，不把错误接受固定为成功合同。
 - 正式 `ownership_nonnull_closure_escape` 四项覆盖直接 If/When/Group、分支局部 shared 与 move 包装传递捕获、捕获后重绑定、失败 loans/drops 空和 validate 失败、直接 exclusive 精确单 L0164，以及 capture-free/owned 与 unused nullable 的原释放正控。首轮3过/1失败源于新增 owned fixture 的函数类型 L0084，改为明确普通函数类型 binding 后实际4项全过，无生产门放宽。
 - 最终定向4项、`ownership_checking`28、`ownership_closures`74、`ownership_elvis_escape`4全部通过；强制本树 frontend all-targets `loan-observation-test-support` strict35.11秒通过。独立设计/代码末审无阻塞，docs与尺寸门禁通过；构建全局串行，每步重新核宿主/容器及8GiB门限，无native/fault，未推送。
+
+### 2026-11-18：普通 Value 实参的 Elvis 闭包逃逸检查
+
+- 输入基线 `320b84df`。原直接 lambda/If Value 实参拒绝合同通过，但 Elvis 包裹 If/When 局部闭包尾值在两 Unit 布局四组合均无诊断；本树原探针编译23.86秒，capture-free 正控通过。此为 Guide07 禁止 borrowed closure 交给 Value 参数的前端漏检，不推断运行时后果。
+- 最终修复仅普通、非跨线程 Value 实参，且只读解透明 Group 后实际为 Elvis 时，在原预检查无新增诊断且当前路径继续的情况下复用 escaping-expression。执行仍用原实参 ID/usage，保合同/span 身份与退出流合并；已有预拒绝走原恢复，不改 SharedLoan、跨线程、construction 或其他表达式递送。
+- 初版把所有 Value 实参都接 escaping，导致原直接 If 两支同一 exclusive closure 的单 L0137 变两条（closure73过/1失败），已收窄并保原测试期望。最终直接/Group If 精确单诊断邻控通过，新 Elvis/Group Elvis 与 If/When 单借用分支拒绝、清表和 validate 失败通过；不宣称任意多借用分支都只有一个诊断。
+- 正式 `ownership_value_closure_escape`5项覆盖上述拒绝、owned/capture-free 正控、同源SharedLoan仍允许、前序Return实参使后参不可达，以及 nullable-exclusive L0164 原优先级。最终5项和原失败精确1项通过，完整 `ownership_closures`74、`ownership_containers`45、`ownership_elvis_escape`4、`ownership_iteration`221、`ownership_nonnull_closure_escape`4全部通过；强制本树 frontend all-targets `loan-observation-test-support` strict57.04秒通过。独立末审无阻塞，docs/尺寸门禁通过，构建全局串行，无native/fault，未推送。nullable alias 未解边界不因本片改变。

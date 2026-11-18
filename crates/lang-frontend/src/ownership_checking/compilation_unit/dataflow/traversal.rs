@@ -858,7 +858,26 @@ impl Checker<'_> {
             } else if let Some(actual) = range {
                 self.allowed_borrow_call = Some(actual);
             }
-            flows = self.chain_expression(flows, argument.value, usage)?;
+            let escaping_elvis = escaping && {
+                let mut actual = argument.value;
+                loop {
+                    match self.parsed.ast().expressions().get(actual)?.payload() {
+                        Expression::Group { expression } => actual = *expression,
+                        Expression::Binary {
+                            operator: crate::parser::BinaryOperator::Elvis,
+                            ..
+                        } => break true,
+                        _ => break false,
+                    }
+                }
+            };
+            if escaping_elvis && self.diagnostics.len() == diagnostic_count {
+                if let Some(next) = flows.next.take() {
+                    flows.merge(self.check_escaping_expression(argument.value, next, usage)?);
+                }
+            } else {
+                flows = self.chain_expression(flows, argument.value, usage)?;
+            }
             self.allowed_borrow_call = previous;
             if let Some(actual) = range
                 && self.diagnostics.len() == diagnostic_count
