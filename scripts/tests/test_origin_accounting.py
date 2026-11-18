@@ -76,6 +76,21 @@ class OriginAccountingCases(unittest.TestCase):
                 self.assertEqual(1, text.count(call))
                 self.assertEqual([], CHECKER.check(text.replace(call, "if (*) {\n  }")))
 
+    def test_guard_cleanup_depends_on_order_and_failure_point(self):
+        prefix = "失败清理/分支放入/"
+        programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
+        self.assertEqual(8, len(programs))
+        for order in ("来源先声明", "来源后声明"):
+            for point in ("写入分支", "未写分支", "合流后", "移走后"):
+                with self.subTest(order=order, point=point):
+                    text = programs[f"{order}/{point}"]
+                    diagnostics = [(rule, text.splitlines()[n - 1].strip().split("  //")[0])
+                                   for rule, n, _ in CHECKER.check(text)]
+                    wanted = [] if order == "来源先声明" else ["setGuard(&mut g, &s)"]
+                    if wanted and point in ("写入分支", "合流后"):
+                        wanted.append("mayFail()")
+                    self.assertEqual([("K22", call) for call in wanted], diagnostics)
+
     def test_loop_backedge_carries_a_source_only_on_the_second_iteration(self):
         """用 if 保留零轮和一轮的出口，只剪掉回边：应恰好漏报第二轮来源。"""
         prefix = "循环回边/局部视图/"
