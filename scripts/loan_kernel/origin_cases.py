@@ -263,6 +263,34 @@ fun plainResult(borrow s: Arr): Plain from s trusted  // ERR SIG
 """
 
 
+def branch_joins():
+    """局部直接赋值只在写入分支解除旧来源，使合流的两条边都可单独观测。"""
+    body = ["val o = Arr(1)", "val s = Arr(2)", "val x = Arr(3)", "val h = V(&o)",
+            "if (*) {", "  h = V(&s)", "}", "val e = readV(&h)"]
+    for name, tail in (
+        ("写旧来源", ["o.len = 9  // ERR K1", "use(e)"]),
+        ("写新来源", ["s.len = 9  // ERR K1", "use(e)"]),
+        ("写无关来源", ["x.len = 9", "use(e)"]),
+        ("最后使用后写", ["use(e)", "o.len = 9", "s.len = 9"]),
+    ):
+        yield f"分支合流/局部视图/{name}", PRELUDE + function("fun f(): Unit {", body, tail)
+
+
+def loop_backedges():
+    """先把中间视图交给 h，再替换中间视图；本轮的新来源只能在下轮到达 h。"""
+    body = ["val o = Arr(1)", "val m = Arr(2)", "val s = Arr(3)", "val x = Arr(4)",
+            "val h = V(&o)", "val mid = V(&m)", "while (*) {", "  h = mid", "  mid = V(&s)",
+            "}", "val e = readV(&h)"]
+    for name, tail in (
+        ("写零轮来源", ["o.len = 9  // ERR K1", "use(e)"]),
+        ("写一轮来源", ["m.len = 9  // ERR K1", "use(e)"]),
+        ("写二轮来源", ["s.len = 9  // ERR K1", "use(e)"]),
+        ("写无关来源", ["x.len = 9", "use(e)"]),
+        ("最后使用后写", ["use(e)", "o.len = 9", "m.len = 9", "s.len = 9"]),
+    ):
+        yield f"循环回边/局部视图/{name}", PRELUDE + function("fun f(): Unit {", body, tail)
+
+
 def cases():
     """生成的程序：(名字, 文本)。"""
     for name, found in enumerate_axes():
@@ -270,6 +298,8 @@ def cases():
             for verdict, text in found.items():
                 yield f"{name}/{verdict}", text
     yield from escapes()
+    yield from branch_joins()
+    yield from loop_backedges()
 
 
 def skipped():

@@ -42,6 +42,41 @@ class OriginAccountingCases(unittest.TestCase):
         self.assertGreater(len(names), 1000)
         self.assertEqual({}, mismatches())
 
+    def test_branch_join_needs_both_predecessors(self):
+        """只保留写入路径会漏掉旧来源；只保留未写路径会漏掉新来源。"""
+        prefix = "分支合流/局部视图/"
+        programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
+        self.assertEqual({"写旧来源", "写新来源", "写无关来源", "最后使用后写"}, set(programs))
+        original = CHECKER.Checker.join
+        try:
+            for side, missed in ((0, "写旧来源"), (1, "写新来源")):
+                CHECKER.Checker.join = lambda self, a, b: (a, b)[side]
+                wrong = set()
+                for name, text in programs.items():
+                    actual = {(rule, n) for rule, n, _ in CHECKER.check(text)}
+                    if actual != expected(text):
+                        self.assertFalse(actual, "只应漏报，不应产生新的诊断")
+                        wrong.add(name)
+                self.assertEqual({missed}, wrong)
+        finally:
+            CHECKER.Checker.join = original
+
+    def test_loop_backedge_carries_a_source_only_on_the_second_iteration(self):
+        """用 if 保留零轮和一轮的出口，只剪掉回边：应恰好漏报第二轮来源。"""
+        prefix = "循环回边/局部视图/"
+        programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}
+        self.assertEqual({"写零轮来源", "写一轮来源", "写二轮来源", "写无关来源", "最后使用后写"}, set(programs))
+        for name, text in programs.items():
+            with self.subTest(case=name):
+                self.assertEqual(1, text.count("while (*)"))
+                once = text.replace("while (*)", "if (*)")
+                actual = {(rule, n) for rule, n, _ in CHECKER.check(once)}
+                if name == "写二轮来源":
+                    self.assertEqual({"K1"}, {rule for rule, _ in expected(text)})
+                    self.assertEqual(set(), actual)
+                else:
+                    self.assertEqual(expected(text), actual)
+
     def test_callers_view_is_updated_through_a_returned_reborrow(self):
         """正反例必须经过局部重借写回，而不是退化成对 h 的直接调用。"""
         self.assert_returned_reborrow_cases("局部视图的借用字段", "h", {
