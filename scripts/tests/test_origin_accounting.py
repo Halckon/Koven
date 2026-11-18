@@ -106,6 +106,25 @@ class OriginAccountingCases(unittest.TestCase):
                     self.assertEqual(expected(one) if blocked else set(),
                                      {(r, n) for r, n, _ in CHECKER.check(one)})
 
+    def test_branch_local_flow_does_not_reach_the_other_owner(self):
+        prefix = "分支内流向/"
+        programs = {n.removeprefix(prefix): t for n, t in CASES.cases() if n.startswith(prefix)}
+        self.assertEqual({f"{owner}/{access}" for owner in ("left", "right") for access in
+                          ("写新来源", "写本侧旧来源", "写另一侧旧来源", "最后使用后写")}, set(programs))
+        left = "val q = Outer(&mut h)\n    setV(q.link.target, &s)"
+        right = "h = H(&mut right)"
+        branch = f"if (*) {{\n    {left}\n  }} else {{\n    {right}\n  }}"
+        for name, text in programs.items():
+            owner, access = name.split("/")
+            self.assertIn(f"{branch}\n  val e = readV(&{owner})", text)
+            for path, body in (("合流", branch), ("左", left), ("右", right)):
+                with self.subTest(case=name, path=path):
+                    one = text.replace(branch, body)
+                    blocked = access == "写本侧旧来源" or (access == "写新来源" and owner == "left" and path != "右")
+                    errors = CHECKER.check(one)
+                    self.assertEqual(["K1"] if blocked else [], [r for r, _, _ in errors])
+                    self.assertEqual(expected(one) if blocked else set(), {(r, n) for r, n, _ in errors})
+
     def test_conditional_flow_survives_without_a_read_of_the_callers_holder(self):
         prefix = f"分支合流/调用方视图/不读回/{HELD_INOUT}/"
         programs = {name.removeprefix(prefix): text for name, text in CASES.cases() if name.startswith(prefix)}

@@ -305,9 +305,13 @@ def deep_view_reads():
             yield f"三层借用字段/{hop}/{access}", DEEP_PRELUDE + function("fun f(): Unit {", setup + [f"val e = {expr}"], tail)
 
 
-def joined_owner_setup(extra):
+def owner_pair(extra):
     return ["val l = Arr(1)", "val r = Arr(2)", extra, "val left = V(&l)", "val right = V(&r)",
-            "val h = H(&mut left)", "if (*) {", "  h = H(&mut right)", "}", "val q = Outer(&mut h)"]
+            "val h = H(&mut left)"]
+
+
+def joined_owner_setup(extra):
+    return owner_pair(extra) + ["if (*) {", "  h = H(&mut right)", "}", "val q = Outer(&mut h)"]
 
 
 def joined_owner_reads():
@@ -324,9 +328,21 @@ def joined_owner_reads():
 def joined_owner_writes(group, write):
     """合流未消除时，本地赋值与 flows 调用都须考虑本侧未被写入的路径。"""
     setup = joined_owner_setup("val s = Arr(3)") + [write]
+    yield from owner_readbacks(group, setup, ("left", "right"))
+
+
+def branch_local_flow():
+    """只有仍选 left 的分支执行流向调用，不能把 s 计入 right。"""
+    setup = owner_pair("val s = Arr(3)") + ["if (*) {", "  val q = Outer(&mut h)",
+            "  setV(q.link.target, &s)", "} else {", "  h = H(&mut right)", "}"]
+    yield from owner_readbacks("分支内流向", setup, ("left",))
+
+
+def owner_readbacks(group, setup, written):
     for owner, old, other in (("left", "l", "r"), ("right", "r", "l")):
         body = setup + [f"val e = readV(&{owner})"]
-        for access, tail in (("写新来源", ["s.len = 9  // ERR K1", "use(e)"]),
+        mark = "  // ERR K1" if owner in written else ""
+        for access, tail in (("写新来源", ["s.len = 9" + mark, "use(e)"]),
                              ("写本侧旧来源", [f"{old}.len = 9  // ERR K1", "use(e)"]),
                              ("写另一侧旧来源", [f"{other}.len = 9", "use(e)"]),
                              ("最后使用后写", ["use(e)", "s.len = 9", f"{old}.len = 9"])):
@@ -401,6 +417,7 @@ def cases():
     yield from joined_owner_reads()
     yield from joined_owner_writes("多目标写入", "q.link.target = V(&s)")
     yield from joined_owner_writes("多目标流向", "setV(q.link.target, &s)")
+    yield from branch_local_flow()
     yield from contract_view_reads()
     yield from loop_backedges()
 
