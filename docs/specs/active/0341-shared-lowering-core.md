@@ -21550,3 +21550,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 最小修复保 Elvis 原左右预检查顺序；预检查已有诊断时仍走原完整恢复路径，避免重复 L0137。无新增诊断时仅向 RHS 的实际正常继续路径传播 escaping，左侧保持原检查。统一 callable provenance 包装、Read usage、退出流合并及失败清表不变，不扩展 E3 或新增 factory 准入。
 - 首版同时递归左侧使既有 nullable-exclusive L0164 邻控变成 L0137，已撤回该部分且保原测试。最终原精确邻控通过；正式 `ownership_elvis_escape` 4 项覆盖 direct/If/When/Group、双布局单次 L0137、loans/drops 清空和 validate 失败，以及 capture-free/owned 无新增 factory summary、右侧 Return 后不可达尾。直接 Nothing 左操作数在类型层不合法，未作为通过证据。
 - 最终验证：针对 4 项、`ownership_closures` 74、`ownership_containers` 45、`ownership_iteration` 221 全通过；强制本树 frontend all-targets `loan-observation-test-support` strict 51.46 秒通过，精确诊断次数增强后再次目标/strict 通过。独立设计及最终代码审阅无阻塞，docs/尺寸门禁通过；无 native/fault，不推送。此为 RHS 逃逸漏检修复，不改变左侧中断的原预检查行为。
+
+### 2026-11-18：元素赋值前缀所有权求值顺序
+
+- 输入基线 `59c269e1`。普通 FE 红测 `slots[take(value)] = value` 中 `take` 消费 String；Array/MutableList 的 MemoryDocument/Rooted 四组合原均无诊断且 validate 成功，漏掉 index 对 RHS 的移动效果。
+- Unit assignment 复用既有 element Place 遍历，先按 receiver、index 求值，仅正常后继执行 escaping RHS，保前缀跳转；不提前建立元素借用，RHS 后仍检查 owner 有效性与冲突。临时 receiver 不再在 RHS 后重复读取目标。普通非元素赋值不改。
+- 五项定向通过，覆盖四个原拒绝组合、index 一次消费、RHS 修改同容器、index return/break/continue、两容器临时 receiver→index 的顺序与重复消费拒绝、已有 index 错误的单 L0131 代码序列。临时 factory 用无体声明，仅证明 FE 检查与 validate，不证明 E3/native 清理；原 moved-RHS 断言为至少包含 L0131，不冒称完整 Diagnostic 等价。
+- 全目标 `ownership_containers` 45、`ownership_iteration` 221、`ownership_closures` 74、`ownership_elvis_escape` 4 通过；强制本树 frontend all-targets `loan-observation-test-support` strict 通过（1m57s），独审及 fmt/docs/尺寸检查通过。原红测证据保留仓外；未跑 native/fault，不推送。

@@ -48,8 +48,20 @@ impl Checker<'_> {
         };
         // A stored environment belongs to the container, not the local capture scope.
         // Check escaping control tails before their branch locals disappear.
-        let mut flows = if self.element_place_descriptor(target)?.is_some() {
-            self.check_escaping_expression(value, state, usage)?
+        let element_assignment = self.element_place_descriptor(target)?.is_some();
+        let mut flows = if element_assignment {
+            // Evaluate receiver and index once, without acquiring an element loan.
+            let mut flows = self.check_element_expression(
+                target,
+                state,
+                ExpressionUse::Place {
+                    parameter_span: None,
+                },
+            )?;
+            if let Some(next) = flows.next.take() {
+                flows.merge(self.check_escaping_expression(value, next, usage)?);
+            }
+            flows
         } else {
             self.check_expression(value, state, usage)?
         };
@@ -169,7 +181,9 @@ impl Checker<'_> {
                 self.nullable_whens = nullable_when_checkpoint;
                 return Ok(Self::restore_flow_states(flows, &entry_state));
             }
-        } else {
+        } else if !element_assignment {
+            // Element prefixes were already evaluated before the RHS, even for
+            // temporary receivers without a named place.
             flows = self.chain_expression(flows, target, ExpressionUse::Read)?;
             if self.diagnostics.len() != diagnostic_count {
                 self.rollback_facts(fact_lengths);
