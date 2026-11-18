@@ -21594,3 +21594,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 三个原借用返回源码/入口逐一实证 SSA/LLVM 成功，替换过时 Unit Unsupported 预期：原 caller 精确追踪全部前驱的块参数回到 BorrowCall result/source，保两次读取、唯一两级结束及 CFG 顺序；未调用 block-view 的空 entry 与实际 view-root 分开覆盖，后者返回原参数 loan。实际图没有 SharedReborrow，不能用另一 lowering 路径的假设代替真实身份。Legacy Single 拒绝及完整原输入保持。
 - 组合回归发现真实准入交互：main 的非完成 projection 快捷路径绕过本地 owned-factory 前缀清理证明。新增窄 Option 准入桥复用原完整 Copyable field/factory/source/dispatch 检查；命中失败直接拒绝，不以通用路径继续，未匹配者维持 main 路径。原 return/stop、透明 Group、双配置及其他 lender 负控全部转绿。Rc<Int>(return 9) 按 main 实际能力保同源成功正控，核唯一 Return9、无后缀0、无父 Rc 分配/retain/drop；Point/Box 禁路由负控不变。
 - 最终整合 FE 九目标共121项通过，强制本树 frontend all-target `loan-observation-test-support` strict 2m31s；最终普通 SSA 借用结果15项和临时字段11项通过，强制本树 codegen all-target `loan-observation-test-support,d10-catalog-experiment,e2-two-source-test-support` strict 2m26s。仅普通 SSA/LLVM 验证，未执行 native 或故障注入，不将这些结果扩大为完整 D10/E2 验收。经授权采用隔离 target、单编译/单测试线程及内存/磁盘监控，与只读隔离 Docker 测试受控并发。
+
+### PR #444 receiver 激活见证索引（2026-11-18）
+
+- 范围：仅优化 Unit drop planner 对 checker 成功激活见证的查询，不改变 receiver 激活时机、pending token 退休、失败回滚或合法性准入。
+- 在 planner 构造时按完整 `UnitExpressionId` 一次性建立借用事实索引；同键重复（相同或不同内容）永久拒绝，仍核对唯一 pending token 与完整事实相等。见证查询由 A 项见证、C 次调用的 O(C×A) 变为 O(A log A + C log A)，不宣称整个 ownership 分析线性。
+- 回归覆盖唯一、缺失、相同事实重复两次/三次、同键不匹配事实、同键异内容重复，并混入普通函数调用；保留原 assignment rollback、冲突及跨源失败清空测试。
+- 验收：静态独立审阅未发现可操作缺陷；activation 家族 4 项（新回归含 6 模式）及 `multifile_two_phase_borrows` 27 项通过，涵盖跨源顺序、提前退出、Nothing callee、冲突和 rollback；格式、diff 和文档结构检查通过。强制本树 `loan-observation-test-support` frontend all-target strict 通过（2m48s）。复用已释放的共享 target，单编译/测试线程；未执行性能基准、native 或完整 D10/E2 验收。

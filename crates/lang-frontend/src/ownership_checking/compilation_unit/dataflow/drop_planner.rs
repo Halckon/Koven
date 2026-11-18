@@ -204,6 +204,10 @@ struct DropPlanner<'a, 'checker> {
     call_return_copy_source: Option<UnitSymbolId>,
     rc_projection_scope: Option<ExpressionId>,
     checker: &'a Checker<'checker>,
+    receiver_activation_index: BTreeMap<
+        UnitExpressionId,
+        Option<&'a crate::ownership_checking::UnitReceiverOwnershipFact>,
+    >,
     loan_provenance: std::cell::OnceCell<loan_provenance::LoanProvenance>,
     loan_region_index: std::cell::OnceCell<loan_region::AdmissionIndex>,
     borrow_forward_index: std::cell::OnceCell<loan_provenance::BorrowForwardIndex>,
@@ -255,6 +259,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             call_return_copy_source: None,
             rc_projection_scope: None,
             checker,
+            receiver_activation_index: receiver_loan_end::activation_index(
+                &checker.receiver_activations,
+            ),
             loan_provenance: std::cell::OnceCell::new(),
             loan_region_index: std::cell::OnceCell::new(),
             borrow_forward_index: std::cell::OnceCell::new(),

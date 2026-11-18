@@ -84,3 +84,70 @@ fn separate_source_failure_or_deferred_revokes_raw_activation_catalog() {
         );
     }
 }
+
+#[test]
+fn receiver_activation_index_preserves_exact_unique_witness_gate() {
+    let text = "class Holder(var target:Int) { inout fun set(own next:Int):Unit {target=next} }\nfun ordinary():Unit {}\nfun run(inout cell:Holder):Unit {cell.set(1);ordinary();cell.set(2)}";
+    let fixture = Fixture::new(&[("activation_index.ko", text)]);
+    let shared = fixture.shared();
+    let parts = fixture.parts(&shared);
+    for mode in 0..6 {
+        with_checker_phase(&fixture, &parts, false, false, |checker| {
+            assert!(checker.diagnostics.is_empty());
+            assert_eq!(checker.receiver_activations.len(), 2);
+            let first = checker.receiver_activations[0].clone();
+            match mode {
+                0 => {} // Both unique witnesses remain eligible.
+                1 => {
+                    checker.receiver_activations.remove(0);
+                }
+                2 => checker.receiver_activations.push(first.clone()),
+                3 => {
+                    checker.receiver_activations.push(first.clone());
+                    checker.receiver_activations.push(first.clone());
+                }
+                4 | 5 => {
+                    // Same call key, but not the actual activated receiver token.
+                    let mismatched = UnitReceiverOwnershipFact::new(
+                        first.call(),
+                        first.source(),
+                        first.target().clone(),
+                        first.kind(),
+                        first.receiver_type(),
+                        first.begin_span(),
+                        first.end_span(),
+                        first.declaration_span(),
+                    );
+                    if mode == 4 {
+                        checker.receiver_activations[0] = mismatched;
+                    } else {
+                        checker.receiver_activations.push(mismatched);
+                    }
+                }
+                _ => unreachable!(),
+            }
+            let result = drop_planner::plan(checker).unwrap();
+            let activations: Vec<_> = result
+                .loan_action_observations
+                .iter()
+                .flat_map(|observation| observation.actions())
+                .filter_map(|action| match action {
+                    crate::ownership_checking::UnitLoanAction::ReceiverActivate(fact) => {
+                        Some(fact.call())
+                    }
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                activations.len(),
+                if mode == 0 { 2 } else { 1 },
+                "mode {mode}"
+            );
+            assert_eq!(
+                activations.contains(&first.call()),
+                mode == 0,
+                "mode {mode}"
+            );
+        });
+    }
+}

@@ -180,6 +180,7 @@ checker 的回滚记录或顺序产物，也不改变实际退出动作和事实
 转发借用单独按实际调用惰性索引已验证来源 loan 与返回来源。返回表达式沿用原有分组归一，
 同键仍取原先首项。索引只参与候选查找，token 仍由真实 pending 集合移交到实际返回边。
 
+清理规划器另在 checker 完成后一次性按完整 `UnitExpressionId` 索引成功激活见证；借用原始事实，同键重复永久标记不可用，仍要求唯一 pending token 与见证完全相等，不改变回滚或实参提前退出语义，仅消除全表重复扫描。
 索引仅改变查询成本；Shared receiver 的 Borrow/Inout、普通字段、具体 this 与首层直接
 binding 资格和实际 token 退休保持。索引在 alias 解析为 canonical source place 后查询；
 This provider 仍使用原 This 身份检查，不混入只含 Place 根的集合。
