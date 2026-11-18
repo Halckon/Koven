@@ -84,6 +84,7 @@ impl Checker<'_, '_> {
                     .iter()
                     .any(|value| self.argument_has_bare_loop_jump(*value)))
             && callee_ok;
+        self.has_function_value_call |= supported;
         self.migrated |= supported;
         supported
     }

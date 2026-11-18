@@ -28,9 +28,7 @@ impl Checker<'_, '_> {
                 .zip(&self.inputs.modes)
                 .all(|(symbol, mode)| {
                     matches!(mode, ParameterMode::Value | ParameterMode::Borrow)
-                        && self
-                            .symbol_type(*symbol)
-                            .is_some_and(|ty| self.storage_type(ty))
+                        && self.symbol_type(*symbol).is_some_and(|ty| self.scalar(ty))
                 })
             && (self.scalar(self.inputs.return_type) || self.unit(self.inputs.return_type))
             && match self.inputs.body {
@@ -100,7 +98,6 @@ impl Checker<'_, '_> {
             Statement::While {
                 condition, body, ..
             } => self.linear_scalar_expression(*condition) && self.linear_scalar_statement(*body),
-            Statement::Loop { body, .. } => self.linear_scalar_statement(*body),
             Statement::Expression { expression } => self.linear_scalar_expression(*expression),
             Statement::LocalVariable { declaration } => self
                 .inputs

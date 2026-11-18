@@ -2,6 +2,27 @@
 use super::{lower, run_counted, try_lower};
 
 #[test]
+fn temporary_iteration_keeps_callable_only_routes() {
+    let source = r#"fun repeat(action: () -> Unit): Unit {
+        for (_ in listOf(1)) { action() }
+    }
+    fun main(): Unit {
+        val run: () -> Unit = { for (item in listOf("kept")) { println(item) } }
+        repeat(run)
+    }"#;
+    let (program, routed, entry) = lower(source);
+    assert!(
+        routed
+            .iter()
+            .any(|name| name.starts_with("koven.p.repeat.d"))
+    );
+    assert!(routed.iter().any(|name| name.ends_with(".thunk")));
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = crate::native_tests::emit_link_and_run("callable_iteration.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"kept\n");
+}
+
+#[test]
 fn temporary_factory_callee_without_cleanup_is_rejected() {
     let source = r#"class Data(val v: Int)
     fun make(own d: Data): (Int) -> Int = move { n -> n + d.v }

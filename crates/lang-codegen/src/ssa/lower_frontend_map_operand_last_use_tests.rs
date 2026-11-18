@@ -1,6 +1,6 @@
 //! SPEC-0318: real-source last-use baseline; no synthesized ownership facts.
 use crate::ssa::map_unit_consumer_test_support::assert_source;
-use crate::test_support::diagnostics::diagnostic;
+use crate::test_support::diagnostics::{assert_diagnostic, diagnostic};
 
 use crate::ssa::lower_frontend_tests::constant_lowering_tests::map_operand_unit_identity as unit_identity;
 
@@ -43,11 +43,16 @@ fn source(kind: &str, live: bool) -> String {
     }
 }
 
-fn assert_unit(text: &str, constants: bool) {
-    unit(text, constants, "\nfun main(): Unit { updatingOperand(2) }");
+fn assert_unit(text: &str, constants: bool, supported: bool) {
+    unit(
+        text,
+        constants,
+        supported,
+        "\nfun main(): Unit { updatingOperand(2) }",
+    );
 }
 
-fn unit(text: &str, constants: bool, entry: &str) {
+fn unit(text: &str, constants: bool, supported: bool, entry: &str) {
     use crate::ssa::unit_lower_test_support::{declaration, parsed};
     use lang_frontend::{
         name_resolution::{
@@ -104,12 +109,28 @@ fn unit(text: &str, constants: bool, entry: &str) {
         "RESULT unit constants={constants}: {:?}",
         result.as_ref().map(|_| "VERIFIED")
     );
-    let (program, entry) = result.expect("Unit operand lowers through its admitted route");
-    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
-    assert_eq!(
-        super::operand_structure::assert_source(&program, &file),
-        expected
-    );
+    match result {
+        Ok((program, entry)) => {
+            assert!(supported);
+            crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            assert_eq!(
+                super::operand_structure::assert_source(&program, &file),
+                expected
+            );
+        }
+        Err(error) => {
+            assert_diagnostic!(!supported, "{error:?}");
+            assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+            // The factory's String? value-if now lowers; the iteration operand's
+            // temporary nullable comparison remains the actual rejected operation.
+            let span = error.span.unwrap();
+            let boundary = "nullableValue(item) != null";
+            assert_eq!(text.matches(boundary).count(), 1);
+            let start = text.find(boundary).unwrap();
+            assert_eq!((span.start(), span.end()), (start, start + boundary.len()));
+            assert_eq!(sources.slice(span).unwrap(), boundary);
+        }
+    }
 }
 
 #[test]
@@ -136,7 +157,14 @@ fn map_operand_last_use_unit_basic_baseline() {
             "no-map",
         ] {
             diagnostic!("CASE unit-basic {kind}-live={live}");
-            assert_unit(&source(kind, live), false);
+            assert_unit(
+                &source(kind, live),
+                false,
+                // SPEC-0394: the `String.clone()` puts move `updatingOperand` into the
+                // refinement layer, which lowers the temporary nullable comparison; without
+                // a Map ("no-map") the per-family boundary remains.
+                kind != "no-map",
+            );
         }
     }
 }
@@ -152,7 +180,14 @@ fn map_operand_last_use_unit_constant_baseline() {
             "no-map",
         ] {
             diagnostic!("CASE unit-constant {kind}-live={live}");
-            assert_unit(&source(kind, live), true);
+            assert_unit(
+                &source(kind, live),
+                true,
+                // SPEC-0394: the `String.clone()` puts move `updatingOperand` into the
+                // refinement layer, which lowers the temporary nullable comparison; without
+                // a Map ("no-map") the per-family boundary remains.
+                kind != "no-map",
+            );
         }
     }
 }
@@ -245,8 +280,8 @@ fn map_operand_last_use_two_maps_and_borrowed_array_are_rejected() {
 fn map_operand_last_use_cardinality_fixture_ssa() {
     let text = include_str!("../../tests/fixtures/map-return-last-use-0318/cardinality.ko");
     unit_identity::check(text, "main", 4);
-    unit(text, false, "");
-    unit(text, true, "");
+    unit(text, false, true, "");
+    unit(text, true, true, "");
 }
 
 pub(in crate::ssa) mod source_matrix {

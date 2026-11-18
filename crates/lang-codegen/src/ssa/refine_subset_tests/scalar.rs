@@ -53,7 +53,7 @@ fn scalar_calls_and_control_flow_refine_without_another_trigger() {
 }
 
 #[test]
-fn non_scalar_signatures_with_scalar_bodies_refine_without_another_trigger() {
+fn scalar_trigger_preserves_non_scalar_signature_boundaries() {
     for source in [
         "class Token()\nfun f(t: Token): Int = 1",
         "fun f(s: String): Int = 1",
@@ -61,13 +61,12 @@ fn non_scalar_signatures_with_scalar_bodies_refine_without_another_trigger() {
     ] {
         let (result, routed) = route(source);
         let program =
-            result.unwrap_or_else(|error| panic!("non-scalar source failed: {source}: {error:?}"));
+            result.unwrap_or_else(|error| panic!("existing source failed: {source}: {error:?}"));
         assert!(
-            routed,
-            "non-scalar signature with scalar body must refine: {source}"
+            !routed,
+            "the scalar-only trigger must not widen non-scalar signatures: {source}"
         );
-        crate::ssa::verify::verify_program(&program).expect("complete SSA/ownership verifier");
-        crate::llvm::render_verified_program(&program).expect("non-scalar LLVM verifies");
+        crate::llvm::render_verified_program(&program).expect("existing path still verifies");
     }
 }
 
@@ -87,7 +86,7 @@ fn non_scalar_signatures_project_routing_and_native_output_are_stable() {
             "koven.p.own_str.d",
         ] {
             assert!(
-                routed.iter().any(|r| r.starts_with(name)),
+                !routed.iter().any(|r| r.starts_with(name)),
                 "{name}: {routed:?}"
             );
         }
@@ -321,11 +320,11 @@ fn scalar_checked_arithmetic_still_aborts_instead_of_wrapping_or_dividing_by_zer
 #[test]
 fn refined_linear_and_legacy_branch_helpers_coexist_in_the_native_program() {
     let source = "fun linear(x: Int): Int = x + 1\n\
-                  fun compat_tag(x: Int): Int { var v = x; v += 1; return v }\n\
+                  fun compat_tag(s: String): Int = 1\n\
                   fun main(): Unit {\n\
                       var marker: Int = 0\n\
                       val previous = replace(&marker, 1)\n\
-                      if (previous == 0 && marker == 1 && linear(40) == 41 && compat_tag(0) == 1) { println(\"mixed-linear-ok\") }\n\
+                      if (previous == 0 && marker == 1 && linear(40) == 41 && compat_tag(\"ok\") == 1) { println(\"mixed-linear-ok\") }\n\
                   }";
     let (run, routed) = observe_routing(|| {
         crate::native_tests::emit_link_and_run("mixed_linear.ko", source, "main")
