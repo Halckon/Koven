@@ -283,3 +283,26 @@ fn field_prefix_admission_does_not_authorize_other_lenders() {
 }
 
 mod constructor_prefix;
+
+#[test]
+fn direct_temporary_move_only_field_read_remains_unsupported() {
+    for receiver in [
+        "Bundle(\"owned\", 7)",
+        "(Bundle(\"owned\", 7))",
+        "((Bundle(\"owned\", 7)))",
+    ] {
+        for constants in [false, true] {
+            let source = format!(
+                "class Bundle(val text: String, val count: Int)\nfun entry(): Boolean = {receiver}.text == \"owned\""
+            );
+            let error = lower(&source, constants)
+                .err()
+                .expect("temporary MoveOnly field read is not guessed into an owned read");
+            assert_eq!(
+                error.kind,
+                LoweringErrorKind::UnsupportedNode,
+                "{source}, constants={constants}: {error:?}"
+            );
+        }
+    }
+}

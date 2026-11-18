@@ -169,3 +169,46 @@ fn erroneous_receiver_does_not_add_a_field_move_diagnostic() {
 
 #[path = "ownership_temporary_field_consumption/factory_copy_cleanup.rs"]
 mod factory_copy_cleanup;
+
+#[test]
+fn direct_temporary_bundle_field_return_reports_partial_move() {
+    for receiver in [
+        "Bundle(\"owned\", 7)",
+        "(Bundle(\"owned\", 7))",
+        "((Bundle(\"owned\", 7)))",
+    ] {
+        let text = format!(
+            "class Bundle(val text: String, val count: Int)\nfun use(): String = {receiver}.text"
+        );
+        for constants in [false, true] {
+            for rooted in [false, true] {
+                let (sources, source, owned, _) = observe(&text, constants, rooted);
+                let start = text.rfind(".text").unwrap() + 1;
+                let field = text.find("text:").unwrap();
+                let catalog = DiagnosticCodeCatalog::try_new(&["L0132"]).unwrap();
+                let mut expected = Diagnostic::new(
+                    &sources,
+                    Severity::Error,
+                    catalog.resolve("L0132").unwrap(),
+                    "cannot move a non-Copyable component out of its owner",
+                    sources.span(source, start, start + 4).unwrap(),
+                )
+                .unwrap();
+                expected
+                    .add_label(
+                        &sources,
+                        sources.span(source, field, field + 4).unwrap(),
+                        "non-Copyable component declared here",
+                    )
+                    .unwrap();
+                assert_eq!(
+                    owned.diagnostics(),
+                    [expected],
+                    "{text}; constants={constants}; rooted={rooted}"
+                );
+                assert!(owned.drops().is_empty());
+                assert!(owned.loans().is_empty());
+            }
+        }
+    }
+}

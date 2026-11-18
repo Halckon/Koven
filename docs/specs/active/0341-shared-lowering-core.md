@@ -21640,3 +21640,16 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 每个组合保持 root/MemoryDocument 双布局。借用闭包共12次运行均为精确单 L0137，non-null plans/loans/drops 清空且 validate 拒绝；capture-free 与显式 owned closure 共24次运行诊断为空且 validate 成功，合计36次源码/布局运行。范围限 immutable、无循环，不涵盖 mutable alias 或一般 nullable 生命周期。
 - 原精准探针本树编译2m36s、两目标通过，证实现有实现已支持这些组合；无生产修改。规范化为持久目标 `ownership_alias_composition`，原源码矩阵与断言不变，独立审阅无阻塞。未执行 native 或故障注入。
 - 改名后的正式目标两项再次通过（4.42s 本树测试编译），强制本树 frontend all-target `loan-observation-test-support` strict3m26s 通过；独立末审、docs982及Rust尺寸门禁通过。本片仅测试和记录，不改生产；先本地提交，等待用户决定批次后再考虑推送。
+
+### 2026-11-18：PR #444 直接临时 MoveOnly 字段负控
+
+- 输入基线 `863162f7`，仅补评审要求的测试，不改变生产语义或 lowering 准入。`Bundle("owned", 7).text` 直接返回 String 已在 frontend 以 L0132 拒绝；首个探针错误地预期到达 CG UnsupportedNode，实际在 ownership validate 处失败，故按真实阶段分层，不绕过前端验证。
+- `ownership_temporary_field_consumption::direct_temporary_bundle_field_return_reports_partial_move` 覆盖直构造/一层/两层透明括号 × ordinary/constant × memory/rooted 共12组合：完整单 L0132、精确字段 primary 与声明 label、validate 拒绝及 loans/drops 清空。
+- `ssa::unit_field_replace_tests::temporary_copy_cleanup::direct_temporary_move_only_field_read_remains_unsupported` 与既有局部负控同形，使用 `.text == "owned"` 的 Boolean 比较，通过前端后验证直构造/两种括号 × scalar/constant 共6组合的 UnsupportedNode。比较读取是当前 lowering 支持边界，不将其说成语言禁止的部分移动；既有临时 `.count` Copyable 成功及精确父清理断言保持。
+- 验收：frontend 字段族10、codegen 临时字段族12、aggregate13全部通过；本树 frontend/codegen 默认 all-target strict 3m18s、fmt、docs、尺寸及独立静审通过。初次真实本树 FE/CG 编译5m57s，正式 CG 负控重编53s；隔离 worktree、已协调共享 target 单编译/测试线程。未执行 native、故障注入或远端 CI；仅本地提交，不推送。
+
+### 2026-11-18：复审测试证据组合
+
+- 在 `863162f7` 后保留 `19d87359` 与 `d3737352` 两侧提交，独审确认仅 Spec 追加冲突，三个测试源码逐字节等于各父提交，零生产改动；36项不可变 alias 组合与 MoveOnly 前端消费拒绝/后端借用读取未支持的阶段差异完整保留。
+- 组合树前端 alias composition 2项和 temporary field consumption 10项通过，真实本树编译2m37s；普通 codegen temporary copy cleanup 12项通过，真实本树编译9m14s。编译期间连接中断，恢复后读取原日志确认12项通过，没有重复执行或把未知状态视为成功。
+- fmt/docs982/diff 与独立合并审查通过。strict 追溯两独立父提交中完全相同的生产及各自测试输入，不宣称重跑组合 strict；未运行 native、故障注入或全量，本轮只保本地整合提交，发布由主协调线程安排。
