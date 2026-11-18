@@ -966,3 +966,21 @@ fn callable_while_loop_reassignment_and_view_argument_lower_in_refine() {
     }
     run_counted(&program, entry, 4, b"loop\nview\n");
 }
+
+#[test]
+fn callable_when_and_block_factory_joins_as_view_arguments_lower_in_refine() {
+    let source = r#"class Data(val v: Int)
+    fun make(own d: Data): (Int) -> Int = move { n -> n + d.v }
+    fun apply(f: (Int) -> Int, x: Int): Int = f(x)
+    fun main(): Unit {
+        val a = apply(if (false) { make(Data(1)) } else { make(Data(2)) }, 5)
+        val b = apply(when {
+            false -> { make(Data(3)) }
+            else -> make(Data(4))
+        }, 5)
+        if (a == 7 && b == 9) { println("ok") }
+    }"#;
+    let (program, routed, entry) = lower(source);
+    assert!(routed.iter().any(|n| n.starts_with("koven.p.main.d")));
+    run_counted(&program, entry, 2, b"ok\n");
+}
