@@ -21653,3 +21653,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 在 `863162f7` 后保留 `19d87359` 与 `d3737352` 两侧提交，独审确认仅 Spec 追加冲突，三个测试源码逐字节等于各父提交，零生产改动；36项不可变 alias 组合与 MoveOnly 前端消费拒绝/后端借用读取未支持的阶段差异完整保留。
 - 组合树前端 alias composition 2项和 temporary field consumption 10项通过，真实本树编译2m37s；普通 codegen temporary copy cleanup 12项通过，真实本树编译9m14s。编译期间连接中断，恢复后读取原日志确认12项通过，没有重复执行或把未知状态视为成功。
 - fmt/docs982/diff 与独立合并审查通过。strict 追溯两独立父提交中完全相同的生产及各自测试输入，不宣称重跑组合 strict；未运行 native、故障注入或全量，本轮只保本地整合提交，发布由主协调线程安排。
+
+### 2026-11-18：PR #444 分阶段交付收据
+
+- 输入身份：PR #444 代码头 `beeae67783f831e34e152f822162433f125431b2`，base `625f6804a9dc448832f148f6eb3d8b8bf9ad7be6`。本节仅补后续实证，不改写上文各提交当时的待验状态，不把文档后继视为已重复执行这些检查。
+- 四修复头 `863162f7` 后续已实际完成默认 CG dependency14、aggregate13、Map3，共30项通过；本树 FE/CG 重编5m59s。日志为仓库外 `main444-round2-dependency.log`、`main444-round2-aggregate.log`、`main444-round2-map-contract.log`。CG 默认 all-target strict 仍仅对应 `f5f760e8`，不宣称在863或bee重跑；863的 FE feature all-target strict2m54s及40项组合结果见原账本。
+- 当前代码头 bee 的本地组合 FE12、CG12及两父提交 strict 的精确输入追溯见上一节；未重跑组合 strict，不把旧头、本地定向或 #443 的结果替代本头远端 CI。
+- 本头 [PR-event run 44302058515](https://github.com/Halckon/Koven/actions/runs/44302058515) 已实际通过双宿主 Targeted（macOS 1h27m38s、Ubuntu35m3s）及双宿主 Workspace Check & Clippy；Docs & Spec、格式、依赖和 Rust 尺寸门禁通过。该 run attempt2 已 completed/success：双宿主 Preview Producer 与 Independent Consumer、CI Passed 及 Code CI Evidence 均成功，Editor lexical contracts 按条件 skipped。此结果绑定 bee 代码头及测试 merge `f675f27e069ccf1732503e0b795c3eedcd384749`，不冒称后续文档头重新执行全部代码测试，也不表示已经合并。
+- 未纳入：mutable nullable alias、field Elvis、left Elvis 及其本地交叉整合候选；nested Elvis 来源聚合另线探针在本头 bee 和 base625 均复现8组合漏 L0137，属已知后续缺口而非本 PR 新引入回退，尚不以候选验证替代本头能力。保留原测试与诊断证据，后续按独立提交及最新 main 对账。
+- 本地未运行 native、fault 或全量；远端 Targeted 是该 CI 配置的实际目标集合，不推断等于任意全量覆盖。SPEC-0341 §6 整体验收仍开放，按 §8 保持 in-progress，不迁 archive、不改变 inventory 或宣称 D10/E2 完成。本次仅提交该文档收据；文档后继仍须通过对应 docs 门禁与 CI 证据复用核查，合并由主协调线程另行核验执行。
