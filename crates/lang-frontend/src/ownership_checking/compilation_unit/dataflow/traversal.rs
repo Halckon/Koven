@@ -473,6 +473,16 @@ impl Checker<'_> {
         if let Some(plan) = self.short_circuit_plan(id)? {
             return self.check_short_circuit(plan, state);
         }
+        self.check_expression_ast(id, state, usage)
+    }
+
+    // Typed dispatch can recurse along a long logical chain without retaining the AST match frame.
+    fn check_expression_ast(
+        &mut self,
+        id: ExpressionId,
+        state: State,
+        usage: ExpressionUse,
+    ) -> Result<Flows, OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(id)?;
         let span = node.span();
         match node.payload().clone() {

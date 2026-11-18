@@ -8227,3 +8227,17 @@ conformance 矩阵达到双宿主一致，均为 137/154 能力探针和 0/6
 动态、恒跳过和恒执行的条件，以及实际写入的短路与 when 分支
 归属、续行清除。独立复核确认改动限于测试。定向测试通过，macOS
 前端 lib 复跑 881 通过、0 失败、14 忽略。忽略项保留原门禁分流。
+
+## 321. R3 所有权短路检查的默认栈
+
+PR #443 的 macOS 与 Linux CI 均在 16 个独立判空证明的既有
+原生回归发生栈溢出。此前本机扩大线程栈的回归通过，未覆盖
+CI 默认栈。两宿主用默认栈复现 SIGABRT。macOS LLDB 堆栈
+显示短路链每次递归都保留通用 AST match 的大帧。
+
+将 AST 分派移到原 typed dispatch 之后的独立函数。短路直接
+复用原 planner 和 left/right 数据流，保持恒跳过、恒执行、动态
+合流与 callable 来源记录。独立复审核对原优先级和调用边界。
+原 16 段用例及 stdout 断言保持不变，macOS arm64 和离线
+Linux x86_64 均在默认栈复跑通过，Linux 启用 CI 使用的
+`loan-observation-test-support`。
