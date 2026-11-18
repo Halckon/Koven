@@ -409,6 +409,7 @@ impl Checker<'_> {
         id: ExpressionId,
         state: State,
         usage: ExpressionUse,
+        escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         if let Some(descriptor) = self.constant_use(id) {
             let kind = if matches!(
@@ -568,6 +569,22 @@ impl Checker<'_> {
             }
             | Expression::Propagate { value: operand, .. } => {
                 self.check_expression(operand, state, ExpressionUse::Read)
+            }
+            Expression::Binary {
+                left,
+                operator: crate::parser::BinaryOperator::Elvis,
+                right,
+                ..
+            } if escaping => {
+                let mut flows = self.check_expression(left, state, ExpressionUse::Read)?;
+                if let Some(next) = flows.next.take() {
+                    flows.merge(self.check_escaping_expression(
+                        right,
+                        next,
+                        ExpressionUse::Read,
+                    )?);
+                }
+                Ok(flows)
             }
             Expression::Binary { left, right, .. } => {
                 let flows = self.check_expression(left, state, ExpressionUse::Read)?;

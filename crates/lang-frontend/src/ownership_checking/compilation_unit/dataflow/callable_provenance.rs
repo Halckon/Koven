@@ -151,8 +151,18 @@ impl Checker<'_> {
     pub(super) fn check_expression(
         &mut self,
         id: ExpressionId,
+        state: State,
+        usage: ExpressionUse,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        self.check_expression_with_escape(id, state, usage, false)
+    }
+
+    pub(super) fn check_expression_with_escape(
+        &mut self,
+        id: ExpressionId,
         mut state: State,
         usage: ExpressionUse,
+        escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         self.check_borrow_call_use(id, matches!(usage, ExpressionUse::Consume { .. }))?;
         state.origins.attach(&self.callable_sources.arena);
@@ -194,7 +204,7 @@ impl Checker<'_> {
             self.checking_borrow_return
         };
         let diagnostic_count = self.diagnostics.len();
-        let checked = self.check_expression_inner(id, state, usage);
+        let checked = self.check_expression_inner(id, state, usage, escaping);
         self.checking_borrow_return = previous_borrow_delivery;
         if is_lambda {
             self.current_borrow_return = previous_borrow;

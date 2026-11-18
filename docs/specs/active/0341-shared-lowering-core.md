@@ -21543,3 +21543,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Unit 赋值仅对 typed element target 的 RHS 复用既有 escaping-expression 检查，在分支局部来源退场前拒绝；沿原事务回滚。普通局部赋值、字段检查与 receiver/index 求值时序不改，不扩展 E3。
 - 保 Single 见证和双 Unit 三原源至少 L0137、全 drops/captures 空；增加 Array/MutableList 合法 owned/capture-free 十二组合、提前 return/break/continue 不可达尾六组合及普通局部借用赋值两组合。无旧消费者退休或公共 API 新增。
 - 验证：原目标基线通过，保旧 probe 真实失败；修复后 `ownership_iteration` 221、`ownership_containers` 45、`ownership_closures` 74 全通过，强制本树 frontend all-targets `loan-observation-test-support` strict 通过（1m20s）；静态独审、docs 与尺寸门禁通过。未运行 native/fault，未推送。
+
+### 2026-11-18：Elvis fallback 控制尾部的借用闭包逃逸检查
+
+- 输入基线 `b3deb0e6`。Guide 07 禁止 borrowed closure return；原直接 lambda Elvis 拒绝合同先通过，但右侧 If/When 局部 closure 尾值在 MemoryDocument/Rooted 四组合真实无诊断，去掉 Elvis 的同源四组合均拒绝。原红测与日志保留，不推断运行时后果。
+- 最小修复保 Elvis 原左右预检查顺序；预检查已有诊断时仍走原完整恢复路径，避免重复 L0137。无新增诊断时仅向 RHS 的实际正常继续路径传播 escaping，左侧保持原检查。统一 callable provenance 包装、Read usage、退出流合并及失败清表不变，不扩展 E3 或新增 factory 准入。
+- 首版同时递归左侧使既有 nullable-exclusive L0164 邻控变成 L0137，已撤回该部分且保原测试。最终原精确邻控通过；正式 `ownership_elvis_escape` 4 项覆盖 direct/If/When/Group、双布局单次 L0137、loans/drops 清空和 validate 失败，以及 capture-free/owned 无新增 factory summary、右侧 Return 后不可达尾。直接 Nothing 左操作数在类型层不合法，未作为通过证据。
+- 最终验证：针对 4 项、`ownership_closures` 74、`ownership_containers` 45、`ownership_iteration` 221 全通过；强制本树 frontend all-targets `loan-observation-test-support` strict 51.46 秒通过，精确诊断次数增强后再次目标/strict 通过。独立设计及最终代码审阅无阻塞，docs/尺寸门禁通过；无 native/fault，不推送。此为 RHS 逃逸漏检修复，不改变左侧中断的原预检查行为。
