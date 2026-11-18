@@ -46,7 +46,8 @@ pub(crate) enum Operation {
         start: ValueId,
         end: ValueId,
     },
-    /// 按 UTF-8 bytes 比较两个 String view，不进行 Unicode normalization。
+    /// Compare String views by UTF-8 bytes. Nullable String views compare equal
+    /// without reading bytes only when both are absent.
     StringEqual {
         left: EntityId,
         right: EntityId,
@@ -233,6 +234,10 @@ pub(crate) enum Operation {
     SharedPayloadPlace {
         owner: EntityId,
     },
+    /// Borrow a shared owner's payload through the live handle-slot loan.
+    SharedPayloadLoan {
+        source: LoanId,
+    },
     NullableWrap {
         nullable: SsaTypeId,
         owner: ValueId,
@@ -378,7 +383,7 @@ pub(crate) enum Operation {
         base: LoanId,
         field: usize,
     },
-    /// Narrow an active shared/exclusive loan to a call-scoped shared loan.
+    /// Reborrow the same storage as shared. A String may also use its niche String? view.
     SharedReborrow {
         source: LoanId,
     },
@@ -432,6 +437,12 @@ pub(crate) enum Operation {
     /// Replace the whole Copyable target of an active exclusive loan (an `Inout` binding);
     /// ADR-0016 lets the loan holder modify the target through `PlaceAccess::Loan`.
     LoanMutate {
+        loan: LoanId,
+        value: ValueId,
+    },
+    /// Drop the old MoveOnly value and install the replacement under an exclusive loan.
+    /// The loan remains active and the caller's place remains initialized.
+    LoanReplace {
         loan: LoanId,
         value: ValueId,
     },
@@ -645,7 +656,9 @@ impl Operation {
             Self::SharedFieldLoan { base, .. } | Self::SharedHeapFieldLoan { base, .. } => {
                 vec![EntityId::Loan(*base)]
             }
-            Self::SharedReborrow { source } | Self::SharedReferenceFollow { source } => {
+            Self::SharedReborrow { source }
+            | Self::SharedReferenceFollow { source }
+            | Self::SharedPayloadLoan { source } => {
                 vec![EntityId::Loan(*source)]
             }
             Self::BooleanNot { operand }
@@ -684,7 +697,7 @@ impl Operation {
             Self::Mutate { place, value } => {
                 vec![EntityId::Place(*place), EntityId::Value(*value)]
             }
-            Self::LoanMutate { loan, value } => {
+            Self::LoanMutate { loan, value } | Self::LoanReplace { loan, value } => {
                 vec![EntityId::Loan(*loan), EntityId::Value(*value)]
             }
         }

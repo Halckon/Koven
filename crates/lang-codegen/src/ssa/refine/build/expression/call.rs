@@ -1,5 +1,5 @@
 //! Call evaluation, delivery and cleanup in the refined CFG.
-use super::*;
+use super::{nullable_argument::WhenArgument, *};
 
 impl Builder<'_, '_> {
     pub(super) fn call(
@@ -85,28 +85,62 @@ impl Builder<'_, '_> {
         let mut lowered_slots: Vec<Option<Slot>> = vec![None; call_args.len()];
         let mut loans = Vec::new();
         let mut writebacks = Vec::new();
+        let mut reserved_inout = Vec::new();
         let mut view_reads = Vec::new();
         let mut delivered = Vec::new();
         let mut call_args = call_args.into_iter();
         while let Some((param_slot, value_expression, call_arg_span, mode, parameter_type)) =
             call_args.next()
         {
-            if let Some((slot, borrowed)) = self.nullable_when_argument(
-                expression,
-                value_expression,
-                mode,
-                parameter_type,
-                call_arg_span,
-            )? {
-                lowered_slots[param_slot] = Some(slot);
-                if borrowed {
-                    view_reads.push(value_expression);
-                } else {
-                    delivered.push(value_expression);
+            if self
+                .inputs
+                .typed
+                .expression_falls_through(self.unit(value_expression))
+                == Some(false)
+            {
+                if self.expression(value_expression)? != Lowered::Diverged {
+                    return Err(error(LoweringErrorKind::InvalidModel, call_arg_span));
                 }
+                for (_, skipped, ..) in call_args {
+                    self.unreachable_drop_scopes.push(self.span(skipped));
+                }
+                return Ok(Lowered::Diverged);
+            }
+            if !descriptor.prints_line()
+                && let Some(argument) = self.nullable_when_argument(
+                    expression,
+                    value_expression,
+                    mode,
+                    parameter_type,
+                    call_arg_span,
+                )?
+            {
+                let slot = match argument {
+                    WhenArgument::Shared(loan) => {
+                        view_reads.push(value_expression);
+                        loan
+                    }
+                    WhenArgument::SharedReborrow(loan) => {
+                        view_reads.push(value_expression);
+                        loans.push(loan);
+                        self.pending_call_loans.push(loan);
+                        loan
+                    }
+                    WhenArgument::Taken(value) => {
+                        delivered.push(value_expression);
+                        value
+                    }
+                };
+                lowered_slots[param_slot] = Some(slot);
                 continue;
             }
             if mode == ParameterMode::Inout {
+                if self.move_only(self.c(parameter_type)) {
+                    // Frontend facts already prove exclusive access during the remaining
+                    // arguments. Materialize storage only in the actual call block.
+                    reserved_inout.push((param_slot, value_expression));
+                    continue;
+                }
                 let (loan, writeback) = self.inout_argument(value_expression)?;
                 lowered_slots[param_slot] = Some(loan);
                 if let Some(writeback) = writeback {
@@ -159,11 +193,6 @@ impl Builder<'_, '_> {
             }
             if mode == ParameterMode::Borrow
                 && let Some(&view) = self.inputs.views.get(&self.c(parameter_type))
-                && self
-                    .inputs
-                    .typed
-                    .expression_falls_through(self.unit(value_expression))
-                    != Some(false)
             {
                 // ADR-0034: a Borrow function parameter receives a callable view.
                 let (lent, created, read_argument) =
@@ -220,6 +249,21 @@ impl Builder<'_, '_> {
                 continue;
             }
             if mode == ParameterMode::Borrow
+                && let Some((view, local)) = self.nullable_string_place_argument(
+                    expression,
+                    value_expression,
+                    parameter_type,
+                )?
+            {
+                loans.extend(local);
+                loans.push(view);
+                self.pending_call_loans.extend(local);
+                self.pending_call_loans.push(view);
+                lowered_slots[param_slot] = Some(view);
+                view_reads.push(value_expression);
+                continue;
+            }
+            if mode == ParameterMode::Borrow
                 && let Some(view) = self.narrowed_view(value_expression)?
             {
                 // A MoveOnly non-null use borrows through the condition's proof view.
@@ -234,6 +278,18 @@ impl Builder<'_, '_> {
                 loans.push(loan);
                 self.pending_call_loans.push(loan);
                 lowered_slots[param_slot] = Some(loan);
+                continue;
+            }
+            if mode == ParameterMode::Value
+                && let Some(value) = self.narrowed_string_argument(
+                    call,
+                    value_expression,
+                    parameter_type,
+                    call_arg_span,
+                )?
+            {
+                lowered_slots[param_slot] = Some(value);
+                delivered.push(value_expression);
                 continue;
             }
             let saved_expected = self.expected_nullable;
@@ -278,6 +334,14 @@ impl Builder<'_, '_> {
                 ParameterMode::Inout => {
                     return Err(error(LoweringErrorKind::InvalidModel, span));
                 }
+            }
+        }
+        for (param_slot, expression) in reserved_inout {
+            let (loan, writeback) = self.inout_argument(expression)?;
+            lowered_slots[param_slot] = Some(loan);
+            if let Some(writeback) = writeback {
+                loans.push(loan);
+                writebacks.push(writeback);
             }
         }
         let lowered = lowered_slots

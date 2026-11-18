@@ -465,6 +465,11 @@ fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
             when_null,
             when_non_null,
             ..
+        }
+        | TerminatorKind::NullableLoanBranch {
+            when_null,
+            when_non_null,
+            ..
         } => {
             vec![when_null, when_non_null]
         }

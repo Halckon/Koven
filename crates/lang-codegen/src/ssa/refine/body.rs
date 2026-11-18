@@ -192,6 +192,10 @@ pub(super) enum ROp {
         loan: Slot,
         value: Slot,
     },
+    LoanReplace {
+        loan: Slot,
+        value: Slot,
+    },
     /// Projects an active shared loan of an inline aggregate to one field's shared loan.
     SharedFieldLoan {
         base: Slot,
@@ -231,6 +235,9 @@ pub(super) enum ROp {
     /// The payload place of a shared owner, valid while the owner lives.
     SharedPayloadPlace {
         owner: Slot,
+    },
+    SharedPayloadLoan {
+        source: Slot,
     },
     /// Narrows an active exclusive loan to a call-scoped shared loan.
     SharedReborrow {
@@ -475,7 +482,9 @@ impl ROp {
             | Self::NullableNull { .. }
             | Self::FunctionAddress { .. }
             | Self::MapConstruct { .. } => Vec::new(),
-            Self::CallableViewOf { source } | Self::SharedReferenceFollow { source } => {
+            Self::CallableViewOf { source }
+            | Self::SharedReferenceFollow { source }
+            | Self::SharedPayloadLoan { source } => {
                 vec![*source]
             }
             Self::ClosureConstruct { captures, .. } => captures.clone(),
@@ -555,6 +564,10 @@ impl ROp {
             | Self::StringConcat { left, right }
             | Self::StringEqual { left, right }
             | Self::LoanMutate {
+                loan: left,
+                value: right,
+            }
+            | Self::LoanReplace {
                 loan: left,
                 value: right,
             }
@@ -782,7 +795,8 @@ impl ROp {
 
             Self::HeapFieldReplace { value, .. }
             | Self::InlineFieldReplace { value, .. }
-            | Self::LoanMutate { value, .. } => vec![*value],
+            | Self::LoanMutate { value, .. }
+            | Self::LoanReplace { value, .. } => vec![*value],
 
             Self::HeapFieldExchange {
                 owner,

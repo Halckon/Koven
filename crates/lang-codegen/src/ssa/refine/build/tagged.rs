@@ -262,7 +262,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<Slot, LoweringError> {
-        let id = self.unit(expression);
+        let id = self.unit(self.ungrouped_expr(expression)?);
         let descriptor = self
             .inputs
             .typed
@@ -510,6 +510,8 @@ pub(in crate::ssa::refine::build) mod inout {
             let (_, span) = self.node(expression)?;
             let symbol = self.direct_place_symbol(expression, span)?;
             if let Some(loan) = self.inout_loan(symbol) {
+                self.end_views_of(symbol, span)?;
+                self.forget_narrowing(symbol);
                 return Ok((loan, None));
             }
             let owner = *self

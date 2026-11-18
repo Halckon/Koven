@@ -567,9 +567,18 @@ impl Checker<'_> {
             | Expression::Propagate { value: operand, .. } => {
                 self.check_expression(operand, state, ExpressionUse::Read)
             }
-            Expression::Binary { left, right, .. } => {
-                let flows = self.check_expression(left, state, ExpressionUse::Read)?;
-                self.chain_expression(flows, right, ExpressionUse::Read)
+            Expression::Binary {
+                left,
+                operator,
+                right,
+                ..
+            } => {
+                if self.uses_string_binary_operands(left, operator, right) {
+                    self.check_binary_read(id, left, right, state)
+                } else {
+                    let flows = self.check_expression(left, state, ExpressionUse::Read)?;
+                    self.chain_expression(flows, right, ExpressionUse::Read)
+                }
             }
             Expression::Assignment {
                 target,
@@ -604,6 +613,23 @@ impl Checker<'_> {
                 name_span,
                 ..
             } => {
+                if let ExpressionUse::Consume { parameter_span } = usage
+                    && self
+                        .typed
+                        .expression_type(self.unit_expression(id))
+                        .is_some_and(|ty| {
+                            self.typed.copyability(ty)
+                                == crate::type_checking::Copyability::MoveOnly
+                        })
+                    && let Some(owner) = self.rc_value_receiver(id)?
+                {
+                    let diagnostic_count = self.diagnostics.len();
+                    let flows = self.check_expression(receiver, state, ExpressionUse::Read)?;
+                    if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
+                        self.report_rc_payload_move(owner, name_span, parameter_span)?;
+                    }
+                    return Ok(flows);
+                }
                 let mut state = state;
                 if let Some(place) = self.place(id)? {
                     match usage {

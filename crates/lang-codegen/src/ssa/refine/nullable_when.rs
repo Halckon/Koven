@@ -1,28 +1,65 @@
 //! Shared read-only provenance checks for nullable When admission and construction.
 //! This borrows the analysis owner's plan; it does not create frontend facts or owners.
 use lang_frontend::{
+    ast::ExpressionId,
     name_resolution::SymbolKind,
     ownership_checking::{
-        OwnershipBindingKind, UnitDropPoint, UnitDropTarget, UnitNullableWhenOwnershipPlan,
+        BorrowBindingStorage, OwnershipBindingKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+        UnitNullableWhenOwnershipPlan, UnitNullableWhenUseKind,
     },
     parser::{Expression, LiteralKind, WhenCondition},
     type_checking::{
-        ExpressionCategory, NullableWhenSubjectCategory, UnitExpressionId, UnitNullableWhenDomain,
-        UnitStatementId,
+        BuiltinType, CompilationUnitTypes, ExpressionCategory, IntrinsicTypeConstructor,
+        NullableWhenSubjectCategory, ParameterMode, UnitExpressionId, UnitNullableWhenDomain,
+        UnitNullableWhenUseWitness, UnitStatementId, UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::RefineInputs;
-use crate::ssa::lowering_support::{LoweringError, LoweringErrorKind, error};
+use crate::ssa::{
+    lowering_support::{LoweringError, LoweringErrorKind, error},
+    model::LoanKind,
+};
+
+/// A synchronous String observation can use either the payload or its niche nullable ABI.
+pub(super) fn widens_string_argument(
+    inputs: &RefineInputs<'_>,
+    witness: UnitNullableWhenUseWitness,
+    mode: ParameterMode,
+    parameter: UnitTypeId,
+) -> bool {
+    mode == ParameterMode::Borrow
+        && inputs.concrete(witness.nullable_type()) == Some(parameter)
+        && inputs.string_borrow_adaptation(witness.expression(), parameter)
+}
+
+/// An owned String slot with no payload use needs only its nullable tag test.
+pub(in crate::ssa) fn owned_string_presence_only(
+    typed: &CompilationUnitTypes,
+    plan: &UnitNullableWhenOwnershipPlan,
+) -> bool {
+    let descriptor = plan.descriptor();
+    descriptor.source_category() == NullableWhenSubjectCategory::OwnedRoot
+        && typed.types().get(descriptor.inner_type())
+            == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        && plan.uses().is_empty()
+        && !typed
+            .nullable_when_uses()
+            .iter()
+            .any(|use_| use_.control() == descriptor.expression())
+}
 
 pub(super) struct Source<'a> {
     pub(super) plan: &'a UnitNullableWhenOwnershipPlan,
+    pub(super) copyable_scalar: bool,
+    pub(super) loan_kind: Option<LoanKind>,
+    pub(super) lexical_origin: Option<&'a UnitLoanTarget>,
     /// Subject and transparent Groups in source order; drop points run leaf first.
     pub(super) operands: Vec<UnitExpressionId>,
 }
 
 /// Preserve the exact descriptor/ownership/AST identity before either consumer uses it.
-/// Concrete pointer-like types and active binding/view state are checked by the caller.
+/// The caller checks the concrete representation and active binding/view state.
 pub(super) fn source<'i, 'a>(
     inputs: &'i RefineInputs<'a>,
     control: UnitExpressionId,
@@ -30,9 +67,10 @@ pub(super) fn source<'i, 'a>(
     use UnitNullableWhenDomain::{Empty, NonNull, Null, Nullable};
     let missing = || error(LoweringErrorKind::MissingFact, inputs.span);
     let unsupported = || error(LoweringErrorKind::UnsupportedNode, inputs.span);
-    // Preserve the original enclosing-callable boundary, even if another
-    // admission check currently rejects the same combination earlier.
-    if inputs.borrow_return.is_some() || inputs.carrier_return.is_some() {
+    // The String entry return path ends local proof views before transferring the loan.
+    if inputs.carrier_return.is_some()
+        || (inputs.borrow_return.is_some() && inputs.string_entry_source().is_none())
+    {
         return Err(unsupported());
     }
     let descriptor = inputs.typed.nullable_when(control).ok_or_else(missing)?;
@@ -110,6 +148,12 @@ pub(super) fn source<'i, 'a>(
     {
         return Err(missing());
     }
+    let copyable_scalar = inputs
+        .concrete(descriptor.inner_type())
+        .is_some_and(|inner| {
+            matches!(inputs.typed.types().get(inner), Some(UnitTypeKind::Builtin(builtin))
+            if *builtin == BuiltinType::Boolean || super::subset::integer(*builtin))
+        });
     let mut operands = Vec::new();
     let mut current = descriptor.subject();
     loop {
@@ -131,8 +175,41 @@ pub(super) fn source<'i, 'a>(
             break;
         }
     }
-    match descriptor.source_category() {
-        NullableWhenSubjectCategory::OwnedRoot => {
+    use NullableWhenSubjectCategory::{BorrowRoot, InoutRoot, OwnedRoot, Temporary};
+    let category = descriptor.source_category();
+    let loan_kind = match (copyable_scalar, category) {
+        (false, BorrowRoot) => Some(LoanKind::Shared),
+        (false, InoutRoot) => Some(LoanKind::Exclusive),
+        _ => None,
+    };
+    if loan_kind.is_some()
+        && (!inputs
+            .concrete(descriptor.inner_type())
+            .is_some_and(|inner| {
+                matches!(
+                    inputs.typed.types().get(inner),
+                    Some(
+                        UnitTypeKind::Builtin(BuiltinType::String)
+                            | UnitTypeKind::Intrinsic {
+                                constructor: IntrinsicTypeConstructor::Rc,
+                                ..
+                            }
+                    )
+                )
+            })
+            || plan
+                .uses()
+                .iter()
+                .any(|fact| fact.kind() != UnitNullableWhenUseKind::Observe))
+    {
+        return Err(unsupported());
+    }
+    let mut lexical_origin = None;
+    match category {
+        OwnedRoot | BorrowRoot | InoutRoot => {
+            if !copyable_scalar && loan_kind.is_none() && category != OwnedRoot {
+                return Err(unsupported());
+            }
             let root = descriptor.stable_symbol().ok_or_else(unsupported)?;
             let leaf = inputs.parsed.ast().expressions().get(current.expression())
                 .map_err(|_| missing())?;
@@ -145,13 +222,23 @@ pub(super) fn source<'i, 'a>(
             {
                 return Err(unsupported());
             }
-            let owns = match inputs.owned.binding_kind(root) {
-                Some(OwnershipBindingKind::Owned) => true,
-                Some(OwnershipBindingKind::Shared | OwnershipBindingKind::Exclusive) => false,
-                None => symbol.kind() == SymbolKind::Variable
+            let binding_matches = match (category, inputs.owned.binding_kind(root)) {
+                (OwnedRoot, Some(OwnershipBindingKind::Owned))
+                | (BorrowRoot, Some(OwnershipBindingKind::Shared))
+                | (InoutRoot, Some(OwnershipBindingKind::Exclusive)) => true,
+                (OwnedRoot, None) => symbol.kind() == SymbolKind::Variable
                     && inputs.owned.formed_owned_locals().contains(&root),
+                (BorrowRoot, None) if symbol.kind() == SymbolKind::Variable => {
+                    let bindings = inputs.owned.borrow_results().bindings();
+                    lexical_origin = bindings.binary_search_by_key(&root, |binding| binding.binding())
+                        .ok().map(|index| &bindings[index])
+                        .filter(|binding| binding.storage() == BorrowBindingStorage::BorrowedStorage)
+                        .map(|binding| binding.origin());
+                    lexical_origin.is_some()
+                },
+                _ => false,
             };
-            if !owns {
+            if !binding_matches {
                 return Err(missing());
             }
             if !matches!(leaf.payload(), Expression::Name)
@@ -167,7 +254,7 @@ pub(super) fn source<'i, 'a>(
                 return Err(missing());
             }
         }
-        NullableWhenSubjectCategory::Temporary => {
+        Temporary => {
             if descriptor.stable_symbol().is_some() || descriptor.subject_reference().is_some()
                 || descriptor.source_generation().is_some() || plan.source_place().is_some()
                 || !plan.uses().is_empty()
@@ -182,12 +269,61 @@ pub(super) fn source<'i, 'a>(
                 || inputs.owned.drops().iter().filter(|fact| {
                     fact.point() == UnitDropPoint::AfterExpression(control)
                         && fact.target() == UnitDropTarget::Temporary(descriptor.subject())
-                }).count() != usize::from(descriptor.falls_through())
+                }).count() != usize::from(!copyable_scalar && descriptor.falls_through())
             {
                 return Err(missing());
             }
         }
         _ => return Err(unsupported()),
     }
-    Ok(Source { plan, operands })
+    Ok(Source {
+        plan,
+        operands,
+        copyable_scalar,
+        loan_kind,
+        lexical_origin,
+    })
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum CopyableWhenSelector {
+    Null,
+    Boolean(bool),
+}
+
+impl RefineInputs<'_> {
+    pub(super) fn nullable_boolean_inner(&self, subject: ExpressionId) -> Option<UnitTypeId> {
+        let nullable = self
+            .typed
+            .expression_type(UnitExpressionId::new(self.source_unit, subject))?;
+        let types = self.typed.types();
+        let UnitTypeKind::Nullable(inner) = types.get(self.concrete(nullable)?)? else {
+            return None;
+        };
+        (types.get(*inner) == Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))).then_some(*inner)
+    }
+
+    /// Decode the canonical literal for a checked finite-domain selector.
+    pub(super) fn copyable_when_selector(
+        &self,
+        mut selector: ExpressionId,
+    ) -> Option<CopyableWhenSelector> {
+        loop {
+            match self
+                .parsed
+                .ast()
+                .expressions()
+                .get(selector)
+                .ok()?
+                .payload()
+            {
+                Expression::Group { expression } => selector = *expression,
+                Expression::Literal(LiteralKind::Null) => return Some(CopyableWhenSelector::Null),
+                Expression::Literal(LiteralKind::Boolean(value)) => {
+                    return Some(CopyableWhenSelector::Boolean(*value));
+                }
+                _ => return None,
+            }
+        }
+    }
 }

@@ -26,8 +26,27 @@ use crate::ssa::{
 };
 
 pub(super) type LentArgument = (Slot, Vec<Slot>, Option<ExpressionId>);
+pub(super) type ProjectionLoan = (Slot, Vec<Slot>, Vec<ExpressionId>);
 
 impl Builder<'_, '_> {
+    /// A result call uses the shared ABI and retains any reborrow it created.
+    pub(super) fn shared_result_call_operand(
+        &mut self,
+        source: Slot,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<LentArgument, LoweringError> {
+        let operand = self.shared_operand(
+            super::field::OwnerLoan {
+                loan: source,
+                scoped: false,
+            },
+            span,
+        )?;
+        let created = operand.scoped.then_some(operand.loan).into_iter().collect();
+        Ok((operand.loan, created, Some(expression)))
+    }
+
     pub(super) fn lower_nested_borrow_argument(
         &mut self,
         call: lang_frontend::type_checking::UnitExpressionId,
@@ -58,7 +77,7 @@ impl Builder<'_, '_> {
             self.body
                 .loan_plans
                 .enter(call, argument_id, source, &self.bindings, span)?;
-            return self.lower_result_call(actual, source, span, None);
+            return self.lower_result_call(actual, source, span, None, None);
         }
 
         let payload = self.expression_type(argument)?;
@@ -74,7 +93,9 @@ impl Builder<'_, '_> {
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let Some((loan, source_loans)) = self.lower_result_call(actual, source, span, None)? else {
+        let Some((loan, source_loans)) =
+            self.lower_result_call(actual, source, span, None, None)?
+        else {
             return Ok(None);
         };
         let value = self.value(
@@ -180,6 +201,13 @@ impl Builder<'_, '_> {
                 .map(Some);
         }
         let operand_id = self.unit(operand);
+        if let Some(fact) = self.inputs.typed.non_null_use(self.unit(root))
+            && self.copyability_of(fact.narrowed_type()) == Copyability::Copyable
+            && self.narrowed_value(fact.symbol()).is_some()
+        {
+            // The original loan targets the wrapper. Borrow the copied payload instead.
+            return Ok(None);
+        }
         if self.copyability_of(self.expression_type(operand)?) == Copyability::Copyable
             && self.inputs.owned.loans().iter().any(|fact| {
                 fact.call() == self.unit(call)
@@ -561,7 +589,17 @@ impl Builder<'_, '_> {
                 }
                 Ok((self.symbol_type(symbol) == Some(parameter))
                     .then(|| self.borrowed.get(&symbol).copied())
-                    .flatten())
+                    .flatten()
+                    // An exclusive parameter uses the ordinary shared reborrow path.
+                    .filter(|slot| {
+                        matches!(
+                            self.body.slots[slot.0],
+                            EntityType::Loan {
+                                kind: LoanKind::Shared,
+                                ..
+                            }
+                        )
+                    }))
             }
             Expression::This => {
                 if !self.move_only(parameter) {
@@ -596,7 +634,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         parameter: UnitTypeId,
         span: Span,
-    ) -> Result<Option<LentArgument>, LoweringError> {
+    ) -> Result<Option<ProjectionLoan>, LoweringError> {
         let is_deinit = self.inputs.function_item.is_some_and(|item| {
             matches!(
                 self.inputs
@@ -676,14 +714,11 @@ impl Builder<'_, '_> {
                 },
                 arg_span,
             )?;
-            return Ok(Some((field_loan, vec![field_loan], Some(receiver_expr))));
+            return Ok(Some((field_loan, vec![field_loan], vec![receiver_expr])));
         }
-        let (field_loan, created, drops) =
-            self.field_projection_loan(root, self.span(expression))?;
-        for intermediate in drops.iter().skip(1) {
-            self.drops(UnitDropPoint::AfterExpression(self.unit(*intermediate)))?;
-        }
-        Ok(Some((field_loan, created, drops.first().copied())))
+        Ok(Some(
+            self.field_projection_loan(root, self.span(expression))?,
+        ))
     }
 
     /// Resolves a single- or multi-hop class field projection `r.f1.f2...` into a leaf
@@ -693,7 +728,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionId,
         span: Span,
-    ) -> Result<(Slot, Vec<Slot>, Vec<ExpressionId>), LoweringError> {
+    ) -> Result<ProjectionLoan, LoweringError> {
         let mut root = expression;
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
@@ -723,6 +758,18 @@ impl Builder<'_, '_> {
                     let owner_type = self.expression_type(ungrouped)?;
                     drops.push(receiver.expression());
                     (parent_loan, created, drops, owner_type)
+                } else if self
+                    .inputs
+                    .typed
+                    .rc_operation(self.unit(ungrouped))
+                    .is_some_and(|rc| {
+                        rc.kind() == lang_frontend::type_checking::RcOperationKind::Value
+                    })
+                {
+                    let (parent, created, mut drops) = self.rc_payload_loan(ungrouped, span)?;
+                    let owner_type = self.expression_type(ungrouped)?;
+                    drops.push(receiver.expression());
+                    (parent, created, drops, owner_type)
                 } else if let (Expression::Name, receiver_span) = self.node(ungrouped)?
                     && let Ok(symbol) = self.reference(receiver_span)
                     && !self.borrowed.contains_key(&symbol)
@@ -776,6 +823,7 @@ impl Builder<'_, '_> {
                     let (owner, owner_type, receiver_expr) =
                         self.projection_owner(projection.receiver(), span)?;
                     let owner_loan = self.owner_loan(owner, LoanKind::Shared, span)?;
+                    let owner_loan = self.shared_operand(owner_loan, span)?;
                     let mut created = Vec::new();
                     if owner_loan.scoped {
                         created.push(owner_loan.loan);
@@ -786,6 +834,7 @@ impl Builder<'_, '_> {
                     let (owner, owner_type, receiver_expr) =
                         self.projection_owner(projection.receiver(), span)?;
                     let owner_loan = self.owner_loan(owner, LoanKind::Shared, span)?;
+                    let owner_loan = self.shared_operand(owner_loan, span)?;
                     let mut created = Vec::new();
                     if owner_loan.scoped {
                         created.push(owner_loan.loan);
@@ -798,6 +847,7 @@ impl Builder<'_, '_> {
                 let (owner, owner_type, receiver_expr) =
                     self.projection_owner(projection.receiver(), span)?;
                 let owner_loan = self.owner_loan(owner, LoanKind::Shared, span)?;
+                let owner_loan = self.shared_operand(owner_loan, span)?;
                 let mut created = Vec::new();
                 if owner_loan.scoped {
                     created.push(owner_loan.loan);

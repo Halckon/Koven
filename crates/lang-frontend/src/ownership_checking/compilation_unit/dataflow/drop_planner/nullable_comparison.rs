@@ -29,23 +29,39 @@ impl DropPlanner<'_, '_> {
         } else {
             return Ok(());
         };
-        let node = expressions.get(operand)?;
         // Contextual typing can make null itself a MoveOnly nullable temporary.
-        if matches!(node.payload(), Expression::Literal(LiteralKind::Null))
-            || !self.is_move_only_temporary(operand)
-            || !matches!(
-                self.checker
-                    .typed
-                    .expression_type(self.checker.unit_expression(operand))
-                    .and_then(|ty| self.checker.typed.types().get(ty)),
-                Some(UnitTypeKind::Nullable(_))
-            )
-        {
+        if matches!(
+            expressions.get(operand)?.payload(),
+            Expression::Literal(LiteralKind::Null)
+        ) {
             return Ok(());
         }
+        let Some(UnitTypeKind::Nullable(inner)) = self
+            .checker
+            .typed
+            .expression_type(self.checker.unit_expression(operand))
+            .and_then(|ty| self.checker.typed.types().get(ty))
+        else {
+            return Ok(());
+        };
+        let mut owner = operand;
+        if matches!(
+            self.checker.typed.types().get(*inner),
+            Some(
+                UnitTypeKind::Builtin(crate::type_checking::BuiltinType::String)
+                    | UnitTypeKind::TypeParameter(_)
+            )
+        ) && let Some(parent) = self.checker.temporary_field_owner(operand)?
+        {
+            owner = self.null_comparison_leaf(parent.expression())?;
+        }
+        if !self.is_move_only_temporary(owner) {
+            return Ok(());
+        }
+        let node = expressions.get(owner)?;
         self.push_fact(PlannerDropFact::new(
             PlannerDropPoint::AfterBinaryOperands(binary),
-            PlannerDropTarget::Temporary(operand),
+            PlannerDropTarget::Temporary(owner),
             node.span(),
         ));
         Ok(())

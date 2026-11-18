@@ -213,7 +213,7 @@ impl Checker<'_, '_> {
         expression: ExpressionId,
         subject: UnitTypeId,
     ) -> bool {
-        let id = self.id(expression);
+        let id = self.id(self.ungrouped(expression));
         self.inputs
             .typed
             .construction(id)

@@ -621,6 +621,26 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.block(when_non_null.target)?,
                 )?;
             }
+            TerminatorKind::NullableLoanBranch {
+                source,
+                when_null,
+                when_non_null,
+                view,
+            } => {
+                self.add_edge_incoming(llvm_source, when_null)?;
+                self.add_edge_incoming(llvm_source, when_non_null)?;
+                let pointer = self.nullable_loan_view_pointer(*source)?;
+                let phi = self.loan_phis.get(view).ok_or_else(|| {
+                    LlvmAdapterError::InvalidSsa("non-null loan 缺少 LLVM PHI".to_owned())
+                })?;
+                phi.add_incoming(&[(&pointer, llvm_source)]);
+                let is_null = self.nullable_loan_is_null(*source, "nullable.is_null")?;
+                self.builder.build_conditional_branch(
+                    is_null,
+                    self.block(when_null.target)?,
+                    self.block(when_non_null.target)?,
+                )?;
+            }
             TerminatorKind::Return { values } => match values.as_slice() {
                 [] => {
                     self.builder.build_return(None)?;
@@ -703,7 +723,11 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     }
 
     fn string_view(&self, entity: EntityId) -> Result<string::StringView<'ctx>, LlvmAdapterError> {
-        let value = match entity {
+        string::view(&self.builder, self.string_storage(entity)?, "string.view")
+    }
+
+    fn string_storage(&self, entity: EntityId) -> Result<StructValue<'ctx>, LlvmAdapterError> {
+        Ok(match entity {
             EntityId::Value(value) => self.value(value)?.into_struct_value(),
             EntityId::Loan(loan) => {
                 let ty = access_type(self.function, PlaceAccess::Loan(loan))?;
@@ -720,8 +744,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     "string view 不能是裸 place".to_owned(),
                 ));
             }
-        };
-        string::view(&self.builder, value, "string.view")
+        })
     }
 
     fn shared_owner_type(&self, owner: EntityId) -> Result<SsaTypeId, LlvmAdapterError> {
@@ -744,9 +767,14 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     ) -> Result<PointerValue<'ctx>, LlvmAdapterError> {
         match owner {
             EntityId::Value(owner) => self.pointer_value(owner),
-            EntityId::Loan(owner) => self.loans.get(&owner).copied().ok_or_else(|| {
-                LlvmAdapterError::InvalidSsa("shared owner loan 映射缺失".to_owned())
-            }),
+            EntityId::Loan(owner) => Ok(self
+                .builder
+                .build_load(
+                    self.context.ptr_type(inkwell::AddressSpace::default()),
+                    self.access(PlaceAccess::Loan(owner))?,
+                    "shared.owner.handle",
+                )?
+                .into_pointer_value()),
             EntityId::Place(_) => Err(LlvmAdapterError::InvalidSsa(
                 "shared owner 不能是 place".to_owned(),
             )),

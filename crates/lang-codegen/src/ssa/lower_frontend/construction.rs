@@ -254,6 +254,28 @@ impl ExpressionLowerer<'_> {
                     return Err(error(LoweringErrorKind::UnsupportedNode, span));
                 }
                 let result_type = self.expression_ssa_type(expression, span)?;
+                if let EntityId::Loan(source) = owner {
+                    let (_, results) = self.append(
+                        Operation::SharedPayloadLoan { source },
+                        vec![EntityType::Loan {
+                            kind: crate::ssa::model::LoanKind::Shared,
+                            target: result_type,
+                        }],
+                        span,
+                    )?;
+                    let EntityId::Loan(loan) = results[0] else {
+                        return Err(error(LoweringErrorKind::InvalidModel, span));
+                    };
+                    let (_, results) = self.append(
+                        Operation::Read {
+                            source: crate::ssa::model::PlaceAccess::Loan(loan),
+                        },
+                        vec![EntityType::Value(result_type)],
+                        span,
+                    )?;
+                    self.append(Operation::BorrowEnd { loan }, Vec::new(), span)?;
+                    return Ok(LoweredValue::Value(value(results[0])));
+                }
                 let (_, places) = self.append(
                     Operation::SharedPayloadPlace { owner },
                     vec![EntityType::Place(result_type)],

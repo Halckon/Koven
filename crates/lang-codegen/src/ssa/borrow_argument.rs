@@ -208,6 +208,24 @@ impl ExpressionLowerer<'_> {
         if let Some(loan) = self.lower_while_proof_field_borrow(argument, fact, span)? {
             return Ok((loan, true));
         }
+        if let Some(operation) = self.typed.rc_operation(actual)
+            && operation.kind() == RcOperationKind::Value
+            && let Some(proof) = self.non_null_proof_for_expression(operation.receiver(), span)?
+        {
+            let target = self.expression_ssa_type(argument, span)?;
+            let (_, results) = self.append(
+                Operation::SharedPayloadLoan { source: proof.loan },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target,
+                }],
+                span,
+            )?;
+            let EntityId::Loan(loan) = results[0] else {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            };
+            return Ok((loan, true));
+        }
         let place = self.lower_borrow_place(argument, fact.target(), span)?;
         let target = self.expression_ssa_type(argument, span)?;
         let (_, results) = self.append(

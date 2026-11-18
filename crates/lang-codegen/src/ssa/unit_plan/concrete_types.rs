@@ -292,7 +292,10 @@ pub(in crate::ssa::unit_plan) mod deinit {
     //! Hidden resource bodies are reached by runtime storage, never by source calls.
 
     use super::super::*;
-    use lang_frontend::{parser::Expression, type_checking::ParameterMode};
+    use lang_frontend::{
+        parser::Expression,
+        type_checking::{IntrinsicTypeConstructor, ParameterMode},
+    };
 
     pub(in crate::ssa::unit_plan) fn template(
         nominal: &UnitNominalSignature,
@@ -494,7 +497,6 @@ pub(in crate::ssa::unit_plan) mod deinit {
             return Ok(());
         }
         // Existing nullable class handles own the same inner resource conditionally.
-        // Keep unsupported Rc/Box resource recipes under their old rejection.
         if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(ty)
             && let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(*inner)
             && typed
@@ -505,14 +507,15 @@ pub(in crate::ssa::unit_plan) mod deinit {
         {
             return schedule_layout(typed, *inner, pending, visited, span);
         }
-        // Map-only nullable storage conditionally owns the same inner map.
-        // Other inline nullable layouts keep their existing rejection.
+        // Nullable Box, Rc and map storage drop the inner owner only when present.
         if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(ty)
             && let Some(UnitTypeKind::Intrinsic { constructor, .. }) = typed.types().get(*inner)
             && matches!(
                 constructor,
-                lang_frontend::type_checking::IntrinsicTypeConstructor::Map
-                    | lang_frontend::type_checking::IntrinsicTypeConstructor::MutableMap
+                IntrinsicTypeConstructor::Box
+                    | IntrinsicTypeConstructor::Rc
+                    | IntrinsicTypeConstructor::Map
+                    | IntrinsicTypeConstructor::MutableMap
             )
         {
             return schedule_layout(typed, *inner, pending, visited, span);
@@ -535,21 +538,28 @@ pub(in crate::ssa::unit_plan) mod deinit {
             schedule_layout(typed, *key, pending, visited, span)?;
             return schedule_layout(typed, *value, pending, visited, span);
         }
+        // Box, Rc and sequential storage can all drop their payload.
+        // The visited set also terminates traversal through indirect edges.
         if let Some(UnitTypeKind::Intrinsic {
             constructor,
             arguments,
         }) = typed.types().get(ty)
             && matches!(
                 constructor,
-                lang_frontend::type_checking::IntrinsicTypeConstructor::Array
-                    | lang_frontend::type_checking::IntrinsicTypeConstructor::List
-                    | lang_frontend::type_checking::IntrinsicTypeConstructor::MutableList
+                IntrinsicTypeConstructor::Box
+                    | IntrinsicTypeConstructor::Rc
+                    | IntrinsicTypeConstructor::Array
+                    | IntrinsicTypeConstructor::List
+                    | IntrinsicTypeConstructor::MutableList
             )
         {
-            let [element] = arguments.as_slice() else {
+            let [payload] = arguments.as_slice() else {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             };
-            return schedule_layout(typed, *element, pending, visited, span);
+            return schedule_layout(typed, *payload, pending, visited, span);
+        }
+        if let Some(UnitTypeKind::EnumCase { root, .. }) = typed.types().get(ty) {
+            return schedule_layout(typed, *root, pending, visited, span);
         }
         let Some(UnitTypeKind::Nominal {
             declaration,
@@ -563,6 +573,17 @@ pub(in crate::ssa::unit_plan) mod deinit {
             .declaration(*declaration)
             .and_then(|signature| signature.nominal())
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if nominal.kind() == NominalKind::EnumClass {
+            // One drop routine dispatches on the active tag, so every variant's
+            // concrete storage must have its resource bodies registered.
+            for payload in resolve_enum_runtime_payload_types(typed, ty, span)?
+                .into_iter()
+                .flatten()
+            {
+                schedule_layout(typed, payload, pending, visited, span)?;
+            }
+            return Ok(());
+        }
         if !matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
             || !arguments.is_empty()
             || !nominal.type_parameters().is_empty()

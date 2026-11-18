@@ -46,12 +46,13 @@ impl Checker<'_> {
             .expressions()
             .get(descriptor.expression().expression())?
             .span();
-        if let Some(place) = self.place(receiver.expression())? {
+        if let Some(place) = self.loan_place(receiver.expression())? {
             if !self.access_place(&place, AccessKind::Read, primary, None, state)? {
                 return Ok(flows);
             }
         } else if self
             .temporary_expression_origin(receiver.expression())?
+            .or(self.temporary_rc_payload_owner(receiver.expression())?)
             .is_none()
         {
             return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {

@@ -294,8 +294,8 @@ fn const_view_reports_source_errors_before_analysis_mismatches() {
 
 #[test]
 fn empty_constant_entry_keeps_short_circuit_facts_and_cannot_bypass_basic_validation() {
-    // Frozen distinction from multifile_constant_ownership: the dedicated path skips
-    // this literal RHS, while the basic checker intentionally retains its loan.
+    // Both entry paths skip this literal RHS. The empty constant view still
+    // carries a distinct capability and cannot reopen basic validation.
     with_unit(
         "package a\nfun view(text: String): Boolean = true\nfun read(): Boolean = false && view(\"hi\")",
         "package b",
@@ -348,8 +348,8 @@ fn empty_constant_entry_keeps_short_circuit_facts_and_cannot_bypass_basic_valida
                 &basic_owned,
             )
             .expect("independent basic view");
-            assert_eq!(basic_view.ownership().loans().len(), 1);
-            assert_eq!(view.ownership().loans().len(), 0);
+            assert!(basic_view.ownership().loans().is_empty());
+            assert!(basic_view.ownership().drops().is_empty());
             assert!(std::ptr::eq(view.constant_ownership(), owned));
         },
     );

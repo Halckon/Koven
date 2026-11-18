@@ -287,7 +287,7 @@ fn expression(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId>
     Some(*expression)
 }
 
-fn is_symbol(
+pub(super) fn is_symbol(
     file: &ParsedFile,
     names: &ValidatedCompilationUnitNames,
     expression: ExpressionId,

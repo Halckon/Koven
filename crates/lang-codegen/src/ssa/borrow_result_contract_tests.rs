@@ -272,16 +272,10 @@ fn borrowed_result_source_move_stays_a_frontend_diagnostic_before_ssa() {
 }
 
 #[test]
-fn borrowed_result_caller_cfg_and_block_returns_stay_precisely_unsupported() {
+fn legacy_single_borrowed_result_caller_cfg_stays_unsupported() {
     let entry = "fun entry(flag: Boolean) { val source = \"kept\"; borrow val item = view(source); if (flag) { println((item)) }; println((item)) }";
     assert_eq!(
         single(&format!("{PROVIDER}{entry}")).err().unwrap().kind,
-        LoweringErrorKind::UnsupportedNode
-    );
-    let block =
-        "fun view(source: String): borrow String from source { return source }\nfun entry() {}";
-    assert_eq!(
-        single(block).err().unwrap().kind,
         LoweringErrorKind::UnsupportedNode
     );
 }
@@ -396,29 +390,16 @@ fn ordinary_result_local_accepts_control_after_lexical_end() {
 }
 
 #[test]
-fn ordinary_result_local_rejects_control_while_scope_still_owns_the_loan() {
+fn ordinary_result_local_preserves_control_while_scope_still_owns_the_loan() {
     for body in [
         format!("{LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_CONTROL}\n    {LOCAL_RESULT_READ}"),
         format!("{LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_READ}\n    {LOCAL_RESULT_CONTROL}"),
     ] {
-        for (variant, source) in local_result_control_sources(&body).iter().enumerate() {
-            for (lower, prefix_len) in [
-                (memory_unit as fn(&str) -> _, 0),
-                (
-                    super::borrow_storage_contract_tests::unit,
-                    "package p\n".len(),
-                ),
-            ] {
-                let error = lower(source).err().unwrap_or_else(|| {
-                    panic!("layout {variant}: the result loan has not reached its end: {body}")
-                });
-                assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-                let span = error.span.expect("control expression span");
-                let start = source.find(LOCAL_RESULT_CONTROL).unwrap() + prefix_len;
-                assert_eq!(
-                    (span.start(), span.end()),
-                    (start, start + LOCAL_RESULT_CONTROL.len())
-                );
+        for source in local_result_control_sources(&body) {
+            for lower in [memory_unit, super::borrow_storage_contract_tests::unit] {
+                let program = lower(&source).unwrap_or_else(|error| panic!("{body}: {error:?}"));
+                verify_program(&program).unwrap();
+                crate::llvm::render_verified_program(&program).unwrap();
             }
         }
     }

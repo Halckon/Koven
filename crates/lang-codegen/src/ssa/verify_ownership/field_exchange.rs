@@ -337,7 +337,8 @@ pub(in crate::ssa) mod closure_escape {
                         Operation::Mutate { place, .. } => EntityId::Place(place),
                         Operation::HeapFieldReplace { receiver, .. }
                         | Operation::InlineFieldReplace { receiver, .. }
-                        | Operation::LoanMutate { loan: receiver, .. } => EntityId::Loan(receiver),
+                        | Operation::LoanMutate { loan: receiver, .. }
+                        | Operation::LoanReplace { loan: receiver, .. } => EntityId::Loan(receiver),
                         Operation::HeapFieldExchange { owner, .. }
                         | Operation::ContainerReplace { owner, .. }
                         | Operation::ContainerAppend { owner, .. }
@@ -498,7 +499,8 @@ pub(in crate::ssa) mod closure_escape {
                     | Operation::CallableViewOf { source }
                     | Operation::RangeElementPlace { view: source, .. }
                     | Operation::SharedFieldLoan { base: source, .. }
-                    | Operation::SharedHeapFieldLoan { base: source, .. } => {
+                    | Operation::SharedHeapFieldLoan { base: source, .. }
+                    | Operation::SharedPayloadLoan { source } => {
                         Some(state[content_index(self.function, EntityId::Loan(*source))])
                     }
                     Operation::SharedReferenceFollow { .. } => None,
@@ -550,6 +552,10 @@ pub(in crate::ssa) mod closure_escape {
                         receiver, value, ..
                     }
                     | Operation::LoanMutate {
+                        loan: receiver,
+                        value,
+                    }
+                    | Operation::LoanReplace {
                         loan: receiver,
                         value,
                     } => Some((EntityId::Loan(receiver), may(value), false)),
@@ -945,7 +951,9 @@ pub(in crate::ssa) mod closure_escape {
                     | Operation::ContainerInsertAt { element: value, .. } => may(*value),
                     Operation::HeapFieldExchange { replacement, .. } => may(*replacement),
                     Operation::Mutate { place, value } => proof.is_projected(*place) && may(*value),
-                    Operation::LoanMutate { value, .. } => may(*value),
+                    Operation::LoanMutate { value, .. } | Operation::LoanReplace { value, .. } => {
+                        may(*value)
+                    }
                     _ => false,
                 };
                 if escapes {

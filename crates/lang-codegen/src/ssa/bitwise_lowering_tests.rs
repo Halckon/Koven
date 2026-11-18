@@ -607,35 +607,52 @@ pub(in crate::ssa) mod multi_borrow_tests {
     }
 
     #[test]
-    fn multi_parameter_borrow_wrapper_control_prefix_remains_unsupported() {
-        for (argument, primary) in [
-            ("-n", "-n"),
-            ("if (true) { 1 } else { 2 }", "if (true) { 1 } else { 2 }"),
-            ("n + 1", "n + 1"),
-            ("when (n) { else -> n + 1 }", "n + 1"),
+    fn multi_parameter_borrow_wrapper_control_prefix_preserves_the_entry_source() {
+        for argument in [
+            "-n",
+            "if (true) { 1 } else { 2 }",
+            "n + 1",
+            "when (n) { else -> n + 1 }",
         ] {
             let text = format!(
                 "fun view(other: Int, source: String): borrow String from source = source\nfun wrap(source: String, n: Int): borrow String from source = view({argument}, source)\nfun entry() {{ val source = \"kept\"; val n = 1; borrow val item = wrap(source, n); println(item) }}"
             );
             let with_sibling =
                 format!("{text}\nfun unrelated() {{ var a = 1; var b = 2; swap(&a, &b) }}");
-            for (lower, prefix_len) in [
-                (memory_unit as fn(&str) -> _, 0),
-                (unit, "package p\n".len()),
-            ] {
-                let start = text.find(primary).unwrap() + prefix_len;
+            for lower in [memory_unit, unit] {
                 for source in [&text, &with_sibling] {
-                    let rejection = lower(source).err().expect(argument);
-                    assert_eq!(
-                        rejection.kind,
-                        super::super::LoweringErrorKind::UnsupportedNode
-                    );
-                    let span = rejection.span.expect("argument control split");
-                    assert_eq!(
-                        (span.start(), span.end()),
-                        (start, start + primary.len()),
-                        "{argument}"
-                    );
+                    let program =
+                        lower(source).unwrap_or_else(|error| panic!("{argument}: {error:?}"));
+                    verify_program(&program).unwrap();
+                    crate::llvm::render_verified_program(&program).unwrap();
+                    let wrapper = program.modules[0]
+                        .functions
+                        .iter()
+                        .find(|function| function.name.contains(".wrap."))
+                        .expect("lowered wrapper");
+                    assert_eq!(wrapper.borrow_return, Some(0));
+                    let result = wrapper
+                        .instructions
+                        .iter()
+                        .find_map(|inst| {
+                            let Operation::BorrowCall {
+                                arguments, source, ..
+                            } = &inst.operation
+                            else {
+                                return None;
+                            };
+                            assert_eq!(arguments[1], EntityId::Loan(*source));
+                            let [EntityId::Loan(result)] = inst.results.as_slice() else {
+                                panic!("forwarded result loan")
+                            };
+                            Some(*result)
+                        })
+                        .expect("forwarding call");
+                    assert!(wrapper.blocks.iter().any(|block| {
+                        block.terminator.as_ref().is_some_and(|term| {
+                            term.kind == TerminatorKind::BorrowReturn { loan: result }
+                        })
+                    }));
                 }
             }
         }

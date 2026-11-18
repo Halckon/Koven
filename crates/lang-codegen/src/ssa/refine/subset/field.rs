@@ -4,7 +4,10 @@ use std::collections::BTreeSet;
 use lang_frontend::{
     ast::{ExpressionId, ItemId},
     name_resolution::SymbolKind,
-    ownership_checking::{UnitDropPoint, UnitDropTarget},
+    ownership_checking::{
+        LoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget, UnitLoanFact,
+        UnitLoanTarget,
+    },
     parser::{AssignmentOperator, Expression, Item, NameMarker, VariableKind},
     source::Span,
     type_checking::{
@@ -179,6 +182,15 @@ impl Checker<'_, '_> {
             Some(ParameterMode::Inout) => {
                 self.migrated = true;
                 self.copyability_of(target_ty) == Copyability::Copyable
+                    || !descriptor.falls_through()
+                    || self.inputs.owned.drops().iter().any(|fact| {
+                        fact.point() == UnitDropPoint::BeforeReplacement(assignment_id)
+                            && fact.target()
+                                == UnitDropTarget::ReplacedInout {
+                                    assignment: assignment_id,
+                                    symbol,
+                                }
+                    })
             }
             None => {
                 self.migrated |= self.copyability_of(target_ty) == Copyability::MoveOnly;
@@ -187,6 +199,13 @@ impl Checker<'_, '_> {
             Some(_) => false,
         };
         let ok = mode_ok && self.expression(value);
+        if ok
+            && self.parameter_mode(symbol) == Some(ParameterMode::Inout)
+            && self.copyability_of(target_ty) == Copyability::MoveOnly
+            && descriptor.falls_through()
+        {
+            self.replacements.insert(assignment_id);
+        }
         self.view_symbols.remove(&symbol);
         ok
     }
@@ -311,7 +330,10 @@ impl Checker<'_, '_> {
                 }
                 UnitDropPoint::BeforeReplacement(assignment) => {
                     self.replacements.contains(&assignment)
-                        && matches!(fact.target(), UnitDropTarget::ReplacedField { .. })
+                        && matches!(fact.target(),
+                            UnitDropTarget::ReplacedField { assignment: replaced, .. }
+                            | UnitDropTarget::ReplacedInout { assignment: replaced, .. }
+                                if replaced == assignment)
                 }
                 UnitDropPoint::LambdaEntry(lambda) => {
                     matches!(&self.inputs.body, RefineBody::Lambda(thunk) if thunk.expression == lambda)
@@ -331,7 +353,8 @@ impl Checker<'_, '_> {
             let target_ok = match fact.target() {
                 UnitDropTarget::Named(_)
                 | UnitDropTarget::Temporary(_)
-                | UnitDropTarget::ReplacedField { .. } => true,
+                | UnitDropTarget::ReplacedField { .. }
+                | UnitDropTarget::ReplacedInout { .. } => true,
                 UnitDropTarget::ReplacedCapture { .. } => false,
                 UnitDropTarget::This(owner) => self.inputs.receiver.is_some_and(|receiver| {
                     receiver.owner == owner && receiver.mode == ParameterMode::Value
@@ -374,10 +397,8 @@ impl Checker<'_, '_> {
     }
 
     /// A pending argument a jump may abandon: a MoveOnly named owner or non-borrowed
-    /// temporary moved into a Value argument. A borrowed temporary stays outside unless the
-    /// legacy path can no longer lower its call: a function-value call (captured closures
-    /// lower only here), a `RangeView` carrier call, or a borrow-result call proven not to
-    /// dispatch. The ordinary exit ends those loans before dropping the temporary.
+    /// temporary moved into a Value argument. Borrowed temporaries require a supported
+    /// unwind, where the ordinary exit ends the argument loans before dropping the owner.
     fn pending_owner(&self, expression: UnitExpressionId, transfer: UnitExpressionId) -> bool {
         if self.temporary_field_parents.contains(&expression) {
             return true;
@@ -409,15 +430,22 @@ impl Checker<'_, '_> {
                     .filter(|arg| {
                         arg.span().start() <= span.start() && span.end() <= arg.span().end()
                     })
-                    .map(|arg| (arg.span().end() - arg.span().start(), loan.call()))
+                    .map(|arg| (arg.span().end() - arg.span().start(), loan))
             })
             .min_by_key(|(width, _)| *width);
         let ty = self.expression_type(expression.expression());
-        let borrowed = lender.is_some_and(|(_, call)| {
+        let borrowed = lender.is_some_and(|(_, loan)| {
+            let call = loan.call();
             let abandoned_callback = ty.is_some_and(|ty| self.view_function(ty))
                 && self.inputs.owned.call_may_dispatch(call) == Some(false);
+            let abandoned_borrow_result = self.inputs.abandoned_borrow_result_call(call)
+                && (self.inputs.borrow_return.is_none()
+                    || self.returns_from_string_entry(transfer.expression()));
             !abandoned_callback
-                && !self.abandoned_borrow_result_call(call)
+                && !abandoned_borrow_result
+                && !self.pending_string_wrapper(expression, transfer, loan)
+                && !self.pending_forwarded_string_argument(expression, transfer, loan)
+                && !self.pending_nullable_when_rc_argument(expression, transfer, loan)
                 && !self.nullable_when_abandons_lender(call, transfer)
                 && !self.inputs.typed.call(call).is_some_and(|call| {
                     call.target() == UnitCallTarget::FunctionValue
@@ -425,6 +453,145 @@ impl Checker<'_, '_> {
                 })
         });
         !borrowed && ty.is_some_and(|ty| self.copyability_of(ty) == Copyability::MoveOnly)
+    }
+
+    /// The call borrows the wrapper formed from this exact temporary. Its
+    /// frontend cleanup target can refer to the ungrouped argument.
+    fn pending_string_wrapper(
+        &self,
+        expression: UnitExpressionId,
+        transfer: UnitExpressionId,
+        loan: &UnitLoanFact,
+    ) -> bool {
+        if (self.inputs.borrow_return.is_some() || self.inputs.carrier_return.is_some())
+            && self
+                .inputs
+                .parsed
+                .ast()
+                .expressions()
+                .get(transfer.expression())
+                .is_ok_and(|node| matches!(node.payload(), Expression::Return { .. }))
+            && !self.returns_from_string_entry(transfer.expression())
+        {
+            // Other returned loans do not use the entry-loan cleanup.
+            return false;
+        }
+        let UnitLoanTarget::Temporary(temporary) = loan.target() else {
+            return false;
+        };
+        let argument = loan.argument();
+        loan.kind() == LoanKind::Shared
+            && temporary.source_unit() == expression.source_unit()
+            && self.ungrouped(temporary.expression()) == self.ungrouped(expression.expression())
+            && self
+                .inputs
+                .owned
+                .call_argument_contracts()
+                .iter()
+                .any(|contract| {
+                    contract.call() == loan.call()
+                        && contract.argument() == argument
+                        && contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+                        && !contract.crosses_thread()
+                        && self.wraps_string_borrow_argument(
+                            argument.expression(),
+                            self.c(contract.parameter_type()),
+                        )
+                })
+    }
+
+    fn pending_forwarded_string_argument(
+        &self,
+        expression: UnitExpressionId,
+        transfer: UnitExpressionId,
+        loan: &UnitLoanFact,
+    ) -> bool {
+        let UnitLoanTarget::Temporary(temporary) = loan.target() else {
+            return false;
+        };
+        let call = loan.call();
+        let argument = loan.argument();
+        let Some(ty) = self.expression_type(argument.expression()) else {
+            return false;
+        };
+        if loan.kind() != LoanKind::Shared
+            || temporary.source_unit() != expression.source_unit()
+            || self.ungrouped(temporary.expression()) != self.ungrouped(expression.expression())
+            || !self.string(ty)
+            || call.source_unit() != self.inputs.source_unit
+            || transfer.source_unit() != self.inputs.source_unit
+            || !self.returns_from_string_entry(transfer.expression())
+        {
+            return false;
+        }
+        let Some(entry) = self.inputs.string_entry_source() else {
+            return false;
+        };
+        let Some(source) = crate::ssa::provider::borrow_result::forwards_string_entry(
+            self.inputs.parsed,
+            self.inputs.names,
+            self.inputs.typed,
+            self.inputs.owned,
+            call,
+            entry,
+        ) else {
+            return false;
+        };
+        if source.argument() == argument {
+            return false;
+        }
+        let expressions = self.inputs.parsed.ast().expressions();
+        let Ok(node) = expressions.get(call.expression()) else {
+            return false;
+        };
+        let Expression::Call { arguments, .. } = node.payload() else {
+            return false;
+        };
+        let Ok(transfer) = expressions.get(transfer.expression()) else {
+            return false;
+        };
+        let Some(mapping) = self.inputs.typed.call(call).and_then(|call| {
+            call.arguments().iter().find(|mapping| {
+                arguments
+                    .get(mapping.argument_index())
+                    .is_some_and(|arg| self.id(arg.value) == argument)
+            })
+        }) else {
+            return false;
+        };
+        if mapping.mode() != ParameterMode::Borrow || self.c(mapping.parameter_type()) != ty {
+            return false;
+        }
+        // This pending shared loan was established before a later argument returned.
+        arguments
+            .iter()
+            .skip(mapping.argument_index() + 1)
+            .any(|arg| crate::ssa::unit_lower::span_contains(arg.span, transfer.span()))
+    }
+
+    fn returns_from_string_entry(&self, transfer: ExpressionId) -> bool {
+        let Some(source) = self.inputs.string_entry_source() else {
+            return false;
+        };
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(transfer) else {
+            return false;
+        };
+        let Expression::Return {
+            value: Some(value), ..
+        } = node.payload()
+        else {
+            return false;
+        };
+        self.direct_place_symbol(*value) == Some(source)
+            || crate::ssa::provider::borrow_result::forwards_string_entry(
+                self.inputs.parsed,
+                self.inputs.names,
+                self.inputs.typed,
+                self.inputs.owned,
+                self.id(self.ungrouped(*value)),
+                source,
+            )
+            .is_some()
     }
 
     fn fact_in_function(&self, origin: lang_frontend::source::Span) -> bool {
@@ -516,7 +683,9 @@ impl Checker<'_, '_> {
             return false;
         };
         if !active.insert(ty) {
-            return false;
+            // Unit admission has rejected inline layout cycles. As with enums,
+            // keep checking the remaining fields in the original visit.
+            return true;
         }
         let ok = fields
             .iter()

@@ -518,8 +518,35 @@ impl DropPlanner<'_, '_> {
         }
         let mut owner = None;
         let mut replace_consumer = None;
-        let continues =
-            self.expression_inner(id, usage, state, &mut owner, &mut replace_consumer)?;
+        let outer_scope = self.rc_projection_scope;
+        let scope = outer_scope.unwrap_or(id);
+        self.rc_projection_scope = match self.checker.parsed.ast().expressions().get(id)?.payload()
+        {
+            Expression::If { .. } | Expression::When { .. } => None,
+            Expression::Group { .. }
+            | Expression::Prefix {
+                operator: crate::parser::PrefixOperator::Not,
+                ..
+            } => outer_scope,
+            Expression::Binary {
+                operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
+                ..
+            } if self.checker.constant_control
+                && scope == id
+                && self.checker.short_circuit_plan(id)?.is_some_and(|plan| {
+                    plan.rhs() != super::super::super::constant::UnitShortCircuitRhs::Conditional
+                }) =>
+            {
+                None
+            }
+            _ => Some(scope),
+        };
+        let result = self.expression_inner(id, usage, state, &mut owner, &mut replace_consumer);
+        self.rc_projection_scope = outer_scope;
+        let continues = result?;
+        if continues && scope == id {
+            self.finish_pending_temporaries(id, PlannerDropPoint::AfterExpression(id), state);
+        }
         self.scalar_entry_call_completed(id, continues);
         self.normal_assignment_completed(id, continues);
         if let Some(choice) = &mut self.owner_choice {

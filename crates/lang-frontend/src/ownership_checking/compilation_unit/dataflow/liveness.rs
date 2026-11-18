@@ -359,7 +359,7 @@ impl Builder<'_, '_> {
                     expression: id.index(),
                 });
             }
-            if let Some(place) = self.checker.place(operation.receiver().expression())? {
+            if let Some(place) = self.checker.loan_place(operation.receiver().expression())? {
                 let mut live = live_after;
                 if self.checker.is_move_only_variable(place.root()) {
                     live.insert(place.root());

@@ -726,6 +726,7 @@ pub(super) fn apply_operation(
         }
         Operation::SharedReborrow { source }
         | Operation::SharedReferenceFollow { source }
+        | Operation::SharedPayloadLoan { source }
         | Operation::CallableViewOf { source } => {
             if !state.loans.contains(source) {
                 errors.push(error(
@@ -790,6 +791,7 @@ pub(super) fn apply_operation(
                 )
             {
                 state.places.remove(place);
+                state.inout_writebacks.remove(owner);
             }
         }
         Operation::RootReplace {
@@ -890,7 +892,18 @@ pub(super) fn apply_operation(
                 ));
             }
         }
-        Operation::LoanMutate { loan, value } => {
+        Operation::LoanMutate { loan, value } | Operation::LoanReplace { loan, value } => {
+            if matches!(instruction.operation, Operation::LoanReplace { .. })
+                && !inout::is_parameter_loan(function, reborrows, *loan)
+            {
+                errors.push(error(
+                    VerifyErrorKind::OperationContract {
+                        reason: "LoanReplace requires an Inout parameter loan",
+                    },
+                    location.clone(),
+                    origin,
+                ));
+            }
             if !state.loans.contains(loan) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *loan },

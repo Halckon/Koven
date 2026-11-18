@@ -16,7 +16,7 @@ use lang_frontend::{
 
 use super::{Builder, Lowered};
 use crate::ssa::{
-    borrow_result_support::ordinary_local,
+    borrow_result_support::ordinary_local::Policy,
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind, SsaTypeKind},
     refine::body::{BlockRef, ROp, RTerm, Slot},
@@ -134,7 +134,8 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         source: BorrowSourceLoan<UnitExpressionId>,
         span: Span,
-        local_policy: Option<ordinary_local::Policy>,
+        local_policy: Option<Policy>,
+        forwarded_entry: Option<Slot>,
     ) -> Result<Option<(Slot, Vec<Slot>)>, LoweringError> {
         let actual = self.ungrouped_expr(expression)?;
         let id = self.unit(actual);
@@ -199,7 +200,11 @@ impl Builder<'_, '_> {
                 |_| false,
             )?;
         }
-        if legacy_gate || local_policy == Some(ordinary_local::Policy::Scoped) {
+        let reborrow_proof = matches!(
+            local_policy,
+            Some(Policy::NarrowedWhen | Policy::NarrowedNullableString)
+        );
+        if legacy_gate || reborrow_proof || local_policy == Some(Policy::Scoped) {
             for argument in &arguments {
                 crate::ssa::borrow_result_support::argument(self.inputs.parsed, argument.span)?;
             }
@@ -211,20 +216,33 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let target = self.ssa_type(self.expression_type(actual)?, span)?;
         let argument_entry = self.current(call_span)?;
-        let Some((lowered_args, mut arg_loans, created_loans, view_reads)) =
-            self.lower_source_call_arguments(id, &arguments, &descriptor, index, call_span)?
+        let proof_source = reborrow_proof.then_some(source.argument());
+        let Some((lowered_args, mut arg_loans, created_loans, view_reads)) = self
+            .lower_source_call_arguments(
+                id,
+                &arguments,
+                &descriptor,
+                index,
+                proof_source,
+                call_span,
+            )?
         else {
             return Ok(None);
         };
-        if self.inputs.borrow_return.is_some() {
-            self.require_straight_line_result_arguments(argument_entry, call_span)?;
-        }
         let source_loan = *lowered_args
             .get(index)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let continued = arg_loans
             .remove(&source.argument())
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if let Some(entry) = forwarded_entry {
+            // The borrowed return uses the existing entry loan on every continuing path.
+            if entry != source_loan || !continued.is_empty() {
+                return Err(error(LoweringErrorKind::InvalidModel, call_span));
+            }
+        } else if self.inputs.borrow_return.is_some() {
+            self.require_straight_line_result_arguments(argument_entry, call_span)?;
+        }
         #[cfg(feature = "d10-catalog-experiment")]
         let entry_borrow = super::super::entry_borrow_receipt::Pending::new(
             self.inputs,
@@ -393,7 +411,9 @@ impl Builder<'_, '_> {
                         .constant_owned
                         .is_none_or(|owned| owned.materialization_at(id).is_none())
                 {
-                    return Ok(Some((source_loan, Vec::new(), Some(expression))));
+                    return self
+                        .shared_result_call_operand(source_loan, expression, span)
+                        .map(Some);
                 }
             }
         }
@@ -427,6 +447,7 @@ impl Builder<'_, '_> {
         arguments: &[CallArgument],
         descriptor: &UnitCallDescriptor,
         source_index: usize,
+        proof_source: Option<UnitExpressionId>,
         span: Span,
     ) -> Result<
         Option<(
@@ -484,6 +505,21 @@ impl Builder<'_, '_> {
         for (param_slot, value_expr, call_arg_span, mode, param_ty) in call_args {
             let arg_id = self.unit(value_expr);
             if mode == ParameterMode::Borrow {
+                if param_slot != source_index
+                    && let Some((view, local)) = self.nullable_string_place_argument(
+                        call.expression(),
+                        value_expr,
+                        param_ty,
+                    )?
+                {
+                    let loans: Vec<_> = local.into_iter().chain([view]).collect();
+                    created_loans.extend(loans.iter().map(|&loan| (loan, call_arg_span)));
+                    self.pending_call_loans.extend(loans.iter().copied());
+                    arg_loans.insert(arg_id, loans);
+                    view_reads.push(value_expr);
+                    lowered_slots[param_slot] = Some(view);
+                    continue;
+                }
                 if let Some((loan, created)) =
                     self.lower_nested_borrow_argument(call, value_expr, param_ty, call_arg_span)?
                 {
@@ -521,11 +557,12 @@ impl Builder<'_, '_> {
                     Some((loan, created, None))
                 } else {
                     let parameter = self.c(param_ty);
-                    let copy_to = if param_slot != source_index
+                    let adapt_temporary_to = if param_slot != source_index
                         && let Some(UnitTypeKind::Nullable(payload)) =
                             self.inputs.typed.types().get(parameter)
                         && self.expression_type(value_expr)? == *payload
-                        && self.copyability_of(*payload) == Copyability::Copyable
+                        && (self.copyability_of(*payload) == Copyability::Copyable
+                            || self.inputs.string_borrow_adaptation(arg_id, parameter))
                         && self.inputs.owned.loans().iter().any(|loan| {
                             loan.call() == call
                                 && loan.argument() == arg_id
@@ -564,11 +601,23 @@ impl Builder<'_, '_> {
                     self.body
                         .child_plans
                         .source_operand(call, arg_id, call_arg_span)?;
-                    self.borrow_call_operand_loan(value_expr, copy_to, call_arg_span)?
+                    self.borrow_call_operand_loan(value_expr, adapt_temporary_to, call_arg_span)?
                 };
-                let Some((loan, created, read_expr)) = operand else {
+                let Some((mut loan, mut created, read_expr)) = operand else {
                     return Ok(None);
                 };
+                if proof_source == Some(arg_id) && param_slot == source_index {
+                    // The prefix owns this call loan, while the arm owns its proof.
+                    loan = self.value(
+                        ROp::SharedReborrow { source: loan },
+                        EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target: self.ssa_type(self.c(param_ty), call_arg_span)?,
+                        },
+                        call_arg_span,
+                    )?;
+                    created.push(loan);
+                }
                 for &c in &created {
                     created_loans.push((c, call_arg_span));
                     self.pending_call_loans.push(c);
@@ -626,8 +675,14 @@ impl Builder<'_, '_> {
         else {
             return Err(error(LoweringErrorKind::MissingFact, span));
         };
-        let Some((lowered_args, _, created_loans, view_reads)) =
-            self.lower_source_call_arguments(call, &arguments, &descriptor, index, call_span)?
+        let Some((lowered_args, _, created_loans, view_reads)) = self.lower_source_call_arguments(
+            call,
+            &arguments,
+            &descriptor,
+            index,
+            None,
+            call_span,
+        )?
         else {
             return Ok(None);
         };
@@ -799,6 +854,16 @@ impl Builder<'_, '_> {
         Ok(())
     }
 
+    pub(super) fn end_pending_call_loans(&mut self, span: Span) -> Result<(), LoweringError> {
+        for loan in std::mem::take(&mut self.pending_call_loans)
+            .into_iter()
+            .rev()
+        {
+            self.end_short_call_loan(loan, span)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn lower_borrow_return(
         &mut self,
         control_expr: ExpressionId,
@@ -807,6 +872,16 @@ impl Builder<'_, '_> {
     ) -> Result<Lowered, LoweringError> {
         let return_id = self.unit(control_expr);
         let value_id = self.unit(value_expr);
+        let actual = self.ungrouped_expr(value_expr)?;
+        let id = self.unit(actual);
+        if self.inputs.abandoned_borrow_result_call(id) {
+            if self.expression(value_expr)? != Lowered::Diverged {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            self.unreachable_drop_points
+                .push(UnitDropPoint::ControlTransfer(return_id));
+            return Ok(Lowered::Diverged);
+        }
         let block = self.current(span)?;
         self.body
             .branch_plans
@@ -836,36 +911,66 @@ impl Builder<'_, '_> {
         let UnitLoanTarget::Place(_) = fact.origin() else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
-        let actual = self.ungrouped_expr(value_expr)?;
-        let id = self.unit(actual);
         let (payload, node_span) = self.node(actual)?;
-        let loan = match payload {
+        let entry = self
+            .inputs
+            .borrow_return
+            .and_then(|index| self.inputs.parameters.get(index))
+            .copied();
+        let (loan, forwards_entry) = match payload {
             Expression::Name | Expression::Member { .. } => {
                 let mut created = Vec::new();
                 let Some(loan) = self.clone_field_loan(actual, &mut created, span)? else {
                     return Ok(Lowered::Diverged);
                 };
-                loan
+                (loan, false)
             }
             Expression::Call { .. } => {
-                let source = self
-                    .inputs
-                    .owned
-                    .borrow_results()
-                    .forwarded_source_loans()
-                    .iter()
-                    .find(|source| source.call() == id)
-                    .copied()
+                let forwarded_entry = entry.and_then(|entry| {
+                    crate::ssa::provider::borrow_result::forwards_string_entry(
+                        self.inputs.parsed,
+                        self.inputs.names,
+                        self.inputs.typed,
+                        self.inputs.owned,
+                        id,
+                        entry,
+                    )
+                });
+                let source = forwarded_entry
+                    .or_else(|| {
+                        self.inputs
+                            .owned
+                            .borrow_results()
+                            .forwarded_source_loans()
+                            .iter()
+                            .find(|source| source.call() == id)
+                            .copied()
+                    })
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, node_span))?;
-                let Some((loan, _)) = self.lower_result_call(actual, source, node_span, None)?
+                let entry_loan = if forwarded_entry.is_some() {
+                    Some(
+                        entry
+                            .and_then(|symbol| self.borrowed.get(&symbol).copied())
+                            .ok_or_else(|| error(LoweringErrorKind::MissingFact, node_span))?,
+                    )
+                } else {
+                    None
+                };
+                let Some((loan, _)) =
+                    self.lower_result_call(actual, source, node_span, None, entry_loan)?
                 else {
                     return Ok(Lowered::Diverged);
                 };
-                loan
+                (loan, forwarded_entry.is_some())
             }
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, node_span)),
         };
-        self.drops(UnitDropPoint::ControlTransfer(return_id))?;
+        let point = UnitDropPoint::ControlTransfer(return_id);
+        if forwards_entry || entry.and_then(|source| self.borrowed.get(&source)) == Some(&loan) {
+            self.finish_return_drops(point, span)?;
+        } else {
+            self.drops(point)?;
+        }
         self.terminate(RTerm::BorrowReturn { loan }, span)?;
         Ok(Lowered::Diverged)
     }

@@ -55,7 +55,11 @@ impl Checker<'_> {
                 } else {
                     (no, yes)
                 };
-                if !reaches_rhs {
+                if !reaches_rhs
+                    || self
+                        .typed
+                        .ordinary_rhs_bypassed(self.unit_expression(expression))
+                {
                     UnitShortCircuitRhs::Never
                 } else if !skips_rhs
                     || self

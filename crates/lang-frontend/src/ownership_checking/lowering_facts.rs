@@ -260,8 +260,6 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
         &self,
         expression: UnitExpressionId,
     ) -> Option<&UnitNonNullAssertionOwnershipPlan>;
-    /// Original nullable when query.
-    fn nullable_when(&self, control: UnitExpressionId) -> Option<&UnitNullableWhenOwnershipPlan>;
     /// Original nullable when use query.
     fn nullable_when_use(&self, argument: UnitExpressionId) -> Option<&UnitNullableWhenUseFact>;
     /// Original owner observations query.
@@ -555,9 +553,6 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
         expression: UnitExpressionId,
     ) -> Option<&UnitNonNullAssertionOwnershipPlan> {
         CompilationUnitOwnership::non_null_assertion(self, expression)
-    }
-    fn nullable_when(&self, control: UnitExpressionId) -> Option<&UnitNullableWhenOwnershipPlan> {
-        CompilationUnitOwnership::nullable_when(self, control)
     }
     fn nullable_when_use(&self, argument: UnitExpressionId) -> Option<&UnitNullableWhenUseFact> {
         CompilationUnitOwnership::nullable_when_use(self, argument)

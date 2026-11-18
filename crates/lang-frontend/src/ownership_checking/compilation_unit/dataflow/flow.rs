@@ -29,6 +29,7 @@ impl ActiveLoan {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ActiveLoanOwner {
     Call(UnitExpressionId),
+    StringBinary(UnitExpressionId),
     BorrowBinding(UnitSymbolId),
     Closure(UnitExpressionId),
     IterationSource(UnitStatementId),

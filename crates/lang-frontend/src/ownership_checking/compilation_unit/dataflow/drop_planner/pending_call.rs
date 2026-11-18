@@ -11,6 +11,12 @@ use crate::{
     type_checking::{Copyability, UnitExpressionId},
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RcProjectionLifetime {
+    Present,
+    Conditional,
+}
+
 #[derive(Clone, Debug)]
 pub(super) struct PendingTemporary {
     pub(super) owner: Option<crate::ownership_checking::UnitOwnerId>,
@@ -20,6 +26,7 @@ pub(super) struct PendingTemporary {
     target: PendingOwner,
     origin: Span,
     transfers_at_call: bool,
+    rc_projection: Option<RcProjectionLifetime>,
     pub(super) loop_depth: usize,
     prior_symbols: Vec<UnitSymbolId>,
     closure: Option<ExpressionId>,
@@ -45,7 +52,7 @@ pub(super) struct PendingCaptureBorrow {
     pub(super) loop_depth: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PendingOwner {
     Temporary(ExpressionId),
     This(OwnedThis),
@@ -123,6 +130,12 @@ impl DropPlanner<'_, '_> {
         if temporary.is_none() {
             temporary = self.call_temporary_field_parent(call, argument, kind)?;
         }
+        if temporary.is_none()
+            && kind == UnitCallArgumentOwnershipKind::SharedLoan
+            && let Some(owner) = self.checker.temporary_rc_payload_owner(argument)?
+        {
+            temporary = self.borrowed_temporary_parent(call, argument, owner);
+        }
         if let Some(temporary) = temporary {
             let origin = self
                 .checker
@@ -188,15 +201,24 @@ impl DropPlanner<'_, '_> {
         {
             return Ok(None);
         }
-        let Some(receiver) = self.checker.temporary_field_owner(argument)? else {
-            return Ok(None);
-        };
+        Ok(self
+            .checker
+            .temporary_field_owner(argument)?
+            .and_then(|owner| self.borrowed_temporary_parent(call, argument, owner)))
+    }
+
+    fn borrowed_temporary_parent(
+        &self,
+        call: ExpressionId,
+        argument: ExpressionId,
+        receiver: UnitExpressionId,
+    ) -> Option<ExpressionId> {
         if !self.is_move_only_temporary(receiver.expression()) {
-            return Ok(None);
+            return None;
         }
         let argument = self.checker.unit_expression(argument);
         let call = self.checker.unit_expression(call);
-        Ok(self.checker.loans.iter().find_map(|loan| {
+        self.checker.loans.iter().find_map(|loan| {
             if loan.call() != call || loan.argument() != argument || loan.kind() != LoanKind::Shared
             {
                 return None;
@@ -216,7 +238,7 @@ impl DropPlanner<'_, '_> {
                         })
                     });
             (*owner == receiver || copied_field).then_some(receiver.expression())
-        }))
+        })
     }
 
     pub(super) fn register_pending_temporary(
@@ -237,6 +259,46 @@ impl DropPlanner<'_, '_> {
             state,
         );
         Ok(())
+    }
+
+    pub(super) fn register_rc_projection_temporary(
+        &self,
+        control: ExpressionId,
+        expression: ExpressionId,
+        origin: Span,
+        state: &mut ValueState,
+    ) {
+        self.register_pending_owner(
+            control,
+            PendingOwner::Temporary(expression),
+            origin,
+            false,
+            None,
+            state,
+        );
+        if let Some(pending) = state.pending_temporaries.last_mut() {
+            pending.rc_projection = Some(RcProjectionLifetime::Present);
+        }
+    }
+
+    /// Preserve evaluated RHS obligations on the common continuation. Their position
+    /// after the already-pending prefix is the evaluation order on the RHS edge.
+    pub(super) fn merge_rc_projection_temporaries(
+        evaluated: &ValueState,
+        skipped: &mut ValueState,
+    ) {
+        for pending in &evaluated.pending_temporaries {
+            if pending.rc_projection.is_some()
+                && !skipped
+                    .pending_temporaries
+                    .iter()
+                    .any(|other| other.target == pending.target)
+            {
+                let mut conditional = pending.clone();
+                conditional.rc_projection = Some(RcProjectionLifetime::Conditional);
+                skipped.pending_temporaries.push(conditional);
+            }
+        }
     }
 
     pub(super) fn register_pending_this(&self, control: ExpressionId, state: &mut ValueState) {
@@ -296,11 +358,14 @@ impl DropPlanner<'_, '_> {
                         .iter()
                         .map(|statement| (*statement, target, true)),
                 );
-                self.push_fact(PlannerDropFact::new(
+                let mut fact = PlannerDropFact::new(
                     point,
                     PlannerDropTarget::Temporary(expression),
                     pending.origin,
-                ));
+                );
+                fact.conditional_temporary =
+                    pending.rc_projection == Some(RcProjectionLifetime::Conditional);
+                self.push_fact(fact);
             }
             PendingOwner::This(receiver) => {
                 self.push_this_fact_in_iteration_scopes(point, receiver, &pending.iteration_scopes)
@@ -324,6 +389,7 @@ impl DropPlanner<'_, '_> {
             target,
             origin,
             transfers_at_call,
+            rc_projection: None,
             loop_depth: self.loop_boundaries.len(),
             prior_symbols: state.values.iter().map(|value| value.symbol).collect(),
             closure,

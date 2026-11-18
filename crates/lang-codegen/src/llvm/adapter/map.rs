@@ -56,14 +56,6 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     .build_extract_value(self.struct_value(owner)?, 1, "map.payload")?,
             )
         } else if let Some(SsaTypeKind::NullableHandle { inner }) = self.module.type_kind(ty) {
-            if !matches!(
-                self.module.type_kind(*inner),
-                Some(SsaTypeKind::HeapOwner { .. })
-            ) {
-                // Existing SharedOwner view consumers (retain/payload) use the
-                // handle directly. This slice only repairs HeapOwner call storage.
-                return self.pointer_value(owner);
-            }
             // The existing Borrow ABI receives storage containing the handle, not
             // the heap payload pointer itself (heap_field_pointer loads this slot).
             (*inner, self.pointer_value(owner)?.into())
@@ -89,6 +81,30 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         )?;
         self.builder.build_store(pointer, payload)?;
         Ok(pointer)
+    }
+
+    /// Niche and handle views use the original slot. A tagged result lends field 1.
+    pub(super) fn nullable_loan_view_pointer(
+        &self,
+        source: crate::ssa::model::LoanId,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, LlvmAdapterError> {
+        let access = PlaceAccess::Loan(source);
+        let ty = access_type(self.function, access)?;
+        let slot = self.access(access)?;
+        if self.module.map_result_value(ty).is_some() {
+            let wrapper = self
+                .dependencies
+                .type_map
+                .basic_type(ty)?
+                .into_struct_type();
+            return Ok(self.builder.build_struct_gep(
+                wrapper,
+                slot,
+                1,
+                "map.borrowed.payload.slot",
+            )?);
+        }
+        Ok(slot)
     }
 
     pub(super) fn lower_map_with_operation(

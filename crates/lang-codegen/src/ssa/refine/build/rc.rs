@@ -10,10 +10,7 @@ use lang_frontend::{
     },
 };
 
-use super::{
-    Builder, Lowered,
-    field::{OwnerLoan, OwnerRef},
-};
+use super::{Builder, Lowered, callable::ProjectionLoan, field::OwnerRef};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind, SsaTypeId},
@@ -361,29 +358,56 @@ impl Builder<'_, '_> {
         )?))
     }
 
-    /// The shared owner an `Rc` operation reads: an owned binding or a proven non-null view.
-    fn rc_owner(
-        &self,
+    /// The owner value or shared handle-slot loan read by an Rc operation.
+    pub(super) fn rc_owner(
+        &mut self,
         receiver: ExpressionId,
-    ) -> Result<(Slot, Option<ExpressionId>), LoweringError> {
+    ) -> Result<ProjectionLoan, LoweringError> {
         let mut root = receiver;
         while let (Expression::Group { expression: inner }, _) = self.node(root)? {
             root = inner;
         }
         if let Some(view) = self.narrowed_view(root)? {
-            return Ok((view, Some(receiver)));
+            return Ok((view, Vec::new(), vec![receiver]));
         }
         let (payload, span) = self.node(root)?;
+        if self
+            .inputs
+            .typed
+            .rc_operation(self.unit(root))
+            .is_some_and(|operation| operation.kind() == RcOperationKind::Value)
+        {
+            return self.rc_payload_loan(root, span);
+        }
+        if self
+            .inputs
+            .typed
+            .aggregate_projection(self.unit(root))
+            .is_some()
+        {
+            return self.field_projection_loan(root, span);
+        }
+        if self.inputs.typed.expression_category(self.unit(receiver))
+            == Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+            || self.inputs.typed.expression_category(self.unit(root))
+                == Some(lang_frontend::type_checking::ExpressionCategory::Temporary)
+        {
+            let slot = self
+                .required(receiver)?
+                .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+            return Ok((slot, Vec::new(), Vec::new()));
+        }
         let Expression::Name = payload else {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         };
         let symbol = self.reference(span)?;
         let slot = self
-            .bindings
+            .borrowed
             .get(&symbol)
+            .or_else(|| self.bindings.get(&symbol))
             .copied()
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        Ok((slot, None))
+        Ok((slot, Vec::new(), Vec::new()))
     }
 
     /// `owner.share()` retains a new strong owner; `owner.value` of a Copyable payload is
@@ -402,11 +426,18 @@ impl Builder<'_, '_> {
         if receiver.source_unit() != self.inputs.source_unit {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
-        let (owner, view_read) = self.rc_owner(receiver.expression())?;
+        let (owner, mut created, view_read) = self.rc_owner(receiver.expression())?;
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
         let result = match descriptor.kind() {
             RcOperationKind::Share => {
                 self.value(ROp::SharedRetain { owner }, EntityType::Value(ty), span)?
+            }
+            RcOperationKind::Value
+                if matches!(self.body.slots[owner.0], EntityType::Loan { .. }) =>
+            {
+                let loan = self.shared_rc_payload_loan(owner, ty, span)?;
+                created.push(loan);
+                self.value(ROp::ReadLoan { loan }, EntityType::Value(ty), span)?
             }
             RcOperationKind::Value => {
                 let place = self.value(
@@ -417,44 +448,13 @@ impl Builder<'_, '_> {
                 self.value(ROp::ReadPlace { place }, EntityType::Value(ty), span)?
             }
         };
-        if let Some(read) = view_read {
+        for loan in created.into_iter().rev() {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        for read in view_read {
             self.drops(UnitDropPoint::AfterExpression(self.unit(read)))?;
         }
         Ok(Lowered::Value(result))
-    }
-
-    /// `owner.value` as a field-projection receiver: a shared loan of the payload place,
-    /// ending right after the read.
-    pub(super) fn rc_payload_loan(
-        &mut self,
-        receiver: ExpressionId,
-        span: Span,
-    ) -> Result<(OwnerLoan, Option<ExpressionId>), LoweringError> {
-        let descriptor = self
-            .inputs
-            .typed
-            .rc_operation(self.unit(receiver))
-            .filter(|descriptor| descriptor.kind() == RcOperationKind::Value)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let (owner, view_read) = self.rc_owner(descriptor.receiver().expression())?;
-        let target = self.ssa_type(self.c(descriptor.payload_type()), span)?;
-        let place = self.value(
-            ROp::SharedPayloadPlace { owner },
-            EntityType::Place(target),
-            span,
-        )?;
-        let loan = self.value(
-            ROp::BorrowBegin {
-                place,
-                kind: LoanKind::Shared,
-            },
-            EntityType::Loan {
-                kind: LoanKind::Shared,
-                target,
-            },
-            span,
-        )?;
-        Ok((OwnerLoan { loan, scoped: true }, view_read))
     }
 
     /// `owner.value` of a MoveOnly payload lent to a Borrow call parameter.
@@ -463,7 +463,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         parameter: lang_frontend::type_checking::UnitTypeId,
         span: Span,
-    ) -> Result<Option<super::callable::LentArgument>, LoweringError> {
+    ) -> Result<Option<ProjectionLoan>, LoweringError> {
         if !self.move_only(parameter) {
             return Ok(None);
         }
@@ -483,8 +483,7 @@ impl Builder<'_, '_> {
         if self.c(descriptor.payload_type()) != parameter {
             return Ok(None);
         }
-        let (owner_loan, view_read) = self.rc_payload_loan(root, span)?;
-        Ok(Some((owner_loan.loan, vec![owner_loan.loan], view_read)))
+        Ok(Some(self.rc_payload_loan(root, span)?))
     }
 }
 

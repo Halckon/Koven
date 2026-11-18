@@ -7,7 +7,7 @@ use lang_frontend::{
         Statement, VariableKind,
     },
     type_checking::{
-        BuiltinType, Copyability, IntegerOperationKind, ParameterMode, StringOperationKind,
+        BuiltinType, IntegerOperationKind, ParameterMode, StringOperationKind, UnitExpressionId,
         UnitTypeId, UnitTypeKind,
     },
 };
@@ -204,6 +204,9 @@ impl Checker<'_, '_> {
 
     pub(super) fn string_operation(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
+        if let Some(receiver) = self.inputs.non_completing_projection_receiver(id) {
+            return self.expression(receiver);
+        }
         let Some(descriptor) = self.inputs.typed.string_operation(id) else {
             return false;
         };
@@ -224,7 +227,6 @@ impl Checker<'_, '_> {
             return false;
         }
         let receiver = descriptor.receiver().expression();
-        let receiver_id = self.id(receiver);
         let receiver_ty = self.c(descriptor.receiver_type());
         if self.borrowed_string_name(receiver)
             || self.borrowed_rc_payload(expression, receiver, receiver_ty)
@@ -233,17 +235,11 @@ impl Checker<'_, '_> {
             self.migrated = true;
             return true;
         }
-        if let Some(fact) = self.inputs.typed.non_null_use(receiver_id)
-            && self.copyability_of(self.c(fact.narrowed_type())) == Copyability::MoveOnly
-        {
-            let root = self.ungrouped(receiver);
-            let ok = self.reference(root) == Some(fact.symbol())
-                && self.known.contains(&fact.symbol())
-                && self.view_symbols.contains(&fact.symbol());
+        if let Some(ok) = self.string_proof_operand(receiver) {
             self.migrated |= ok;
             return ok;
         }
-        if self.clone_field_receiver(receiver) == Some(receiver_ty) {
+        if self.shared_field_read_type(receiver, None) == Some(receiver_ty) {
             self.migrated = true;
             return true;
         }
@@ -252,7 +248,56 @@ impl Checker<'_, '_> {
         ok
     }
 
-    fn clone_field_receiver(&self, expression: ExpressionId) -> Option<UnitTypeId> {
+    pub(super) fn operand(&mut self, expression: ExpressionId, string: bool) -> bool {
+        if string {
+            if self.borrowed_string_name(expression) {
+                return true;
+            }
+            if let Some(ok) = self.string_proof_operand(expression) {
+                return ok;
+            }
+        }
+        self.expression(expression)
+    }
+
+    pub(super) fn string_equality_operand(&mut self, expression: ExpressionId) -> bool {
+        let Some(ty) = self.expression_type(expression) else {
+            return false;
+        };
+        if !self.inputs.is_nullable_string(ty) {
+            return self.operand(expression, true);
+        }
+        self.note_nullable(ty);
+        let root = self.ungrouped(expression);
+        if let Some(symbol) = self.direct_place_symbol(root)
+            && self.symbol_type(symbol) == Some(ty)
+            && self.borrowed_nullable_presence(symbol, ty) == Some(true)
+        {
+            return self.known.contains(&symbol);
+        }
+        self.expression(expression)
+    }
+
+    /// The caller has selected a String operation that reads through a shared proof.
+    pub(super) fn string_proof_operand(&mut self, expression: ExpressionId) -> Option<bool> {
+        let root = self.ungrouped(expression);
+        let id = self.id(root);
+        let fact = self.inputs.typed.non_null_use(id)?;
+        let ok = self.string(self.c(fact.narrowed_type()))
+            && self.reference(root) == Some(fact.symbol())
+            && self.known.contains(&fact.symbol())
+            && self.view_symbols.contains(&fact.symbol());
+        if ok && self.inputs.typed.nullable_when_use(id).is_some() {
+            self.string_when_reads.insert(id);
+        }
+        Some(ok)
+    }
+
+    pub(super) fn shared_field_read_type(
+        &mut self,
+        expression: ExpressionId,
+        temporary_parent: Option<UnitExpressionId>,
+    ) -> Option<UnitTypeId> {
         use super::receiver::Owner;
         use lang_frontend::type_checking::{
             UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
@@ -282,7 +327,7 @@ impl Checker<'_, '_> {
                     .aggregate_projection(self.id(self.ungrouped(receiver_expr)))
                     .is_some()
                 {
-                    let parent = self.clone_field_receiver(receiver_expr)?;
+                    let parent = self.shared_field_read_type(receiver_expr, temporary_parent)?;
                     if !(self.class(parent)
                         || self.value_class(parent)
                         || self.move_value_class(parent))
@@ -290,41 +335,38 @@ impl Checker<'_, '_> {
                         return None;
                     }
                     parent
-                } else {
-                    if !self.plain(receiver_expr) {
-                        return None;
-                    }
-                    let ungrouped = self.ungrouped(receiver_expr);
-                    let owner_ty =
-                        self.owner_type(Owner::Expression(ungrouped), ParameterMode::Borrow)?;
-                    let allowed_source = match self
+                } else if let Some(parent) = self.rc_value_owner(receiver_expr) {
+                    parent
+                } else if temporary_parent == Some(self.id(self.ungrouped(receiver_expr))) {
+                    let parent = self.expression_type(receiver_expr)?;
+                    if self
                         .inputs
-                        .parsed
-                        .ast()
-                        .expressions()
-                        .get(ungrouped)
-                        .map(|node| node.payload())
+                        .typed
+                        .expression_falls_through(self.id(receiver_expr))
+                        != Some(true)
+                        || !self.expression(receiver_expr)
                     {
-                        Ok(Expression::This) => true,
-                        Ok(Expression::Name) => self.reference(ungrouped).is_some_and(|symbol| {
-                            matches!(
-                                self.parameter_mode(symbol),
-                                Some(ParameterMode::Borrow | ParameterMode::Inout)
-                            ) || typed.non_null_use(self.id(ungrouped)).is_some()
-                                || (self.parameter_mode(symbol).is_none()
-                                    && (self
-                                        .class_signature(owner_ty)
-                                        .is_some_and(|(_, args)| args.is_empty())
-                                        || self
-                                            .value_signature(owner_ty)
-                                            .is_some_and(|(_, args)| args.is_empty())))
-                        }),
-                        _ => false,
-                    };
-                    if !allowed_source {
                         return None;
                     }
-                    owner_ty
+                    parent
+                } else {
+                    let root = self.ungrouped(receiver_expr);
+                    if !self.plain(receiver_expr)
+                        || !self.plain(root)
+                        || !matches!(
+                            self.inputs
+                                .parsed
+                                .ast()
+                                .expressions()
+                                .get(root)
+                                .ok()?
+                                .payload(),
+                            Expression::Name | Expression::This
+                        )
+                    {
+                        return None;
+                    }
+                    self.owner_type(Owner::Expression(root), ParameterMode::Borrow)?
                 }
             }
         };
@@ -445,7 +487,7 @@ pub(in crate::ssa::refine) mod control {
 
     use lang_frontend::{
         ast::{ExpressionId, StatementId},
-        name_resolution::ScopeKind,
+        name_resolution::{ScopeKind, UnitSymbolId},
         ownership_checking::UnitShortCircuitRhs,
         parser::{BinaryOperator, Expression, Item, PrefixOperator, Statement, VariableKind},
         source::Span,
@@ -577,9 +619,43 @@ pub(in crate::ssa::refine) mod control {
             expression: ExpressionId,
             views: bool,
         ) -> bool {
-            let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
+            let Some([_, when_true]) = self.condition_proofs(expression, views) else {
                 return false;
             };
+            if views {
+                self.view_symbols.extend(when_true);
+            }
+            true
+        }
+
+        pub(in crate::ssa::refine::subset) fn if_condition_proofs(
+            &mut self,
+            condition: ExpressionId,
+        ) -> Option<[BTreeSet<UnitSymbolId>; 2]> {
+            let mut proofs = self.condition_proofs(condition, true)?;
+            if let Some((symbol, edge)) = self.inputs.negated_rc_null_test(condition)
+                && matches!(
+                    self.parameter_mode(symbol),
+                    None | Some(ParameterMode::Value)
+                )
+            {
+                proofs[usize::from(edge)].insert(symbol);
+            }
+            Some(proofs)
+        }
+
+        pub(in crate::ssa::refine::subset) fn condition_proofs(
+            &mut self,
+            expression: ExpressionId,
+            views: bool,
+        ) -> Option<[BTreeSet<UnitSymbolId>; 2]> {
+            let node = self
+                .inputs
+                .parsed
+                .ast()
+                .expressions()
+                .get(expression)
+                .ok()?;
             let id = self.id(expression);
             let boolean = self.expression_type(expression).is_some_and(|ty| {
                 matches!(
@@ -587,12 +663,20 @@ pub(in crate::ssa::refine) mod control {
                     Some(UnitTypeKind::Builtin(BuiltinType::Boolean))
                 )
             });
+            let mut result = [BTreeSet::new(), BTreeSet::new()];
             if let Some(fact) = self.inputs.typed.null_comparison(id) {
                 self.branch_form.insert(id);
+                if !boolean || !self.known.contains(&fact.symbol()) {
+                    return None;
+                }
                 let nullable = self.c(fact.nullable_type());
                 self.note_nullable(nullable);
                 if let Some(supported) = self.borrowed_nullable_presence(fact.symbol(), nullable) {
-                    return boolean && supported && self.known.contains(&fact.symbol());
+                    if matches!(self.kind(nullable), Some(UnitTypeKind::Nullable(inner)) if self.string(*inner) || self.rc_payload(*inner).is_some())
+                    {
+                        result[usize::from(fact.non_null_when_true())].insert(fact.symbol());
+                    }
+                    return supported.then_some(result);
                 }
                 let inner_ok = match self.kind(nullable) {
                     Some(UnitTypeKind::Nullable(inner))
@@ -610,12 +694,13 @@ pub(in crate::ssa::refine) mod control {
                     }
                     _ => false,
                 };
-                return boolean && inner_ok && self.known.contains(&fact.symbol());
+                return inner_ok.then_some(result);
             }
             match node.payload().clone() {
                 Expression::Group { expression: inner } => {
                     self.branch_form.insert(id);
-                    boolean && self.plain(expression) && self.condition(inner, views)
+                    (boolean && self.plain(expression)).then_some(())?;
+                    self.condition_proofs(inner, views)
                 }
                 Expression::Prefix {
                     operator: PrefixOperator::Not,
@@ -623,7 +708,9 @@ pub(in crate::ssa::refine) mod control {
                     ..
                 } => {
                     self.branch_form.insert(id);
-                    boolean && self.plain(expression) && self.condition(inner, false)
+                    (boolean && self.plain(expression)).then_some(())?;
+                    let [when_false, when_true] = self.condition_proofs(inner, false)?;
+                    Some([when_true, when_false])
                 }
                 Expression::Binary {
                     left,
@@ -632,19 +719,49 @@ pub(in crate::ssa::refine) mod control {
                     ..
                 } => {
                     self.branch_form.insert(id);
-                    let views = views && operator == BinaryOperator::LogicalAnd;
+                    (boolean && self.plain(expression)).then_some(())?;
+                    let and = operator == BinaryOperator::LogicalAnd;
+                    let views = views && and;
                     let saved = self.view_symbols.clone();
-                    let ok = boolean
-                        && self.plain(expression)
-                        && self.condition(left, views)
-                        && (!self.logical_reaches_rhs(id, left, operator)
-                            || self.condition(right, views));
+                    let left_proofs = self.condition_proofs(left, views)?;
+                    let (left_true, left_false) = self.condition_outcomes(left);
+                    let bypass_possible = if and { left_false } else { left_true };
+                    let bypass = usize::from(!and);
+                    let gate = usize::from(and);
+                    if self.logical_reaches_rhs(id, left, operator) {
+                        let added = left_proofs[gate]
+                            .difference(&self.view_symbols)
+                            .copied()
+                            .collect::<Vec<_>>();
+                        self.view_symbols.extend(added.iter().copied());
+                        let mut right_proofs = self.condition_proofs(right, views)?;
+                        let (right_true, right_false) = self.condition_outcomes(right);
+                        for (outcome, reachable) in
+                            [right_false, right_true].into_iter().enumerate()
+                        {
+                            if reachable {
+                                right_proofs[outcome].extend(left_proofs[gate].iter().copied());
+                                if outcome == bypass && bypass_possible {
+                                    right_proofs[outcome]
+                                        .retain(|symbol| left_proofs[bypass].contains(symbol));
+                                }
+                            } else if outcome == bypass && bypass_possible {
+                                right_proofs[outcome].clone_from(&left_proofs[bypass]);
+                            }
+                        }
+                        result = right_proofs;
+                        for symbol in added {
+                            self.view_symbols.remove(&symbol);
+                        }
+                    } else {
+                        result[bypass].clone_from(&left_proofs[bypass]);
+                    }
                     if !views {
                         self.view_symbols = saved;
                     }
-                    ok
+                    Some(result)
                 }
-                _ => self.expression(expression),
+                _ => self.expression(expression).then_some(result),
             }
         }
 
@@ -653,9 +770,11 @@ pub(in crate::ssa::refine) mod control {
             let id = self.id(root);
             if let Some(fact) = self.inputs.typed.null_comparison(id)
                 && !fact.non_null_when_true()
-                && self.parameter_mode(fact.symbol()) != Some(ParameterMode::Borrow)
                 && self.known.contains(&fact.symbol())
                 && let Some(UnitTypeKind::Nullable(inner)) = self.kind(self.c(fact.nullable_type()))
+                && (self.parameter_mode(fact.symbol()) != Some(ParameterMode::Borrow)
+                    || self.string(*inner)
+                    || self.rc_payload(*inner).is_some())
                 && self.view_inner(*inner)
                 && (self.scope_requires_refine()
                     || self.map_kv(*inner).is_some()
@@ -675,6 +794,35 @@ pub(in crate::ssa::refine) mod control {
                     }))
             {
                 self.view_symbols.insert(fact.symbol());
+            }
+        }
+
+        pub(in crate::ssa::refine::subset) fn note_continuing_if_views(
+            &mut self,
+            span: Span,
+            [(then_continues, then_views), (else_continues, else_views)]: [(bool, &BTreeSet<UnitSymbolId>);
+                2],
+        ) {
+            let candidates = if then_continues {
+                then_views
+            } else {
+                else_views
+            };
+            for &symbol in candidates {
+                if (then_continues || else_continues)
+                    && (!else_continues || else_views.contains(&symbol))
+                    && (match self.parameter_mode(symbol) {
+                        Some(ParameterMode::Borrow | ParameterMode::Inout) => {
+                            self.inputs.borrowed_narrowing_used_after(symbol, span)
+                        }
+                        None | Some(ParameterMode::Value) if then_continues != else_continues => {
+                            self.inputs.rc_narrowing_used_after(symbol, span)
+                        }
+                        _ => false,
+                    })
+                {
+                    self.view_symbols.insert(symbol);
+                }
             }
         }
 
@@ -709,6 +857,11 @@ pub(in crate::ssa::refine) mod control {
                 .constant_owned
                 .and_then(|owned| owned.short_circuit_at(control))
                 .is_some_and(|plan| plan.rhs() == UnitShortCircuitRhs::Never)
+            {
+                return false;
+            }
+            if self.inputs.constant_owned.is_none()
+                && self.inputs.typed.ordinary_rhs_bypassed(control)
             {
                 return false;
             }

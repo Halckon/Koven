@@ -138,6 +138,7 @@ pub(super) struct BodyChecker<'a> {
     flow_versions: FlowVersions,
     inactive_inout_calls: BTreeSet<UnitExpressionId>,
     pending_immutable_bindings: BTreeSet<UnitSymbolId>,
+    lexical_borrow_bindings: BTreeSet<UnitSymbolId>,
     replacement_values: BTreeMap<UnitExpressionId, bool>,
     parts: CompilationUnitTypeParts,
     diagnostics: Vec<Diagnostic>,
@@ -237,6 +238,7 @@ impl<'a> BodyChecker<'a> {
             flow_versions: FlowVersions::default(),
             inactive_inout_calls: BTreeSet::new(),
             pending_immutable_bindings: BTreeSet::new(),
+            lexical_borrow_bindings: BTreeSet::new(),
             replacement_values: BTreeMap::new(),
             parts: CompilationUnitTypeParts::default(),
             diagnostics: Vec::new(),
@@ -659,6 +661,8 @@ impl<'a> BodyChecker<'a> {
                 self.set_immutable_binding_pending(symbol, pending);
             } else if kind == VariableKind::Var {
                 self.flow_versions.declare_mutable(symbol, pending);
+            } else if matches!(kind, VariableKind::BorrowVal(_)) {
+                self.lexical_borrow_bindings.insert(symbol);
             }
         }
         Ok(ExpressionCheck {

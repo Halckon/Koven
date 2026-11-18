@@ -558,3 +558,443 @@ fun entry(): Unit { probe(true); println("first done"); probe(false) }
     assert_eq_diagnostic!(output.stdout, expected, "{output:?}");
     assert_eq_diagnostic!(output.stderr, b"", "{output:?}");
 }
+
+#[test]
+fn resource_deinit_native_enum_drops_active_payloads_in_lexical_order() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println(this.name) } }
+class Unselected { deinit() { println("unselected must not run") } }
+enum class Payload { Pair(first: Leaf, second: Leaf), Empty }
+enum class Packet { Full(payload: Payload), Other(unused: Unselected), Empty }
+fun consume(own packet: Packet): Unit { println("consume") }
+fun main(): Unit {
+    val earlier = Leaf("earlier")
+    val held = Packet.Full(Payload.Pair(Leaf("held-first"), Leaf("held-second")))
+    consume(Packet.Empty)
+    consume(Packet.Full(Payload.Pair(Leaf("moved-first"), Leaf("moved-second"))))
+    println("body")
+}
+"#;
+    use super::{SymbolKind, boxed_enum_tests::unit_source::UnitSource};
+    let analysis = UnitSource::analyze("resource-enum.ko", source)
+        .expect("resource enum must pass strict Unit admission");
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("main", SymbolKind::Function))
+        .expect("resource enum must lower through the Unit capability");
+    let module = program.module(entry.module()).unwrap();
+    let registered_deinits = (0..module.types.len())
+        .filter(|&index| {
+            let owner = crate::ssa::model::SsaTypeId {
+                module: module.id,
+                index,
+            };
+            module.deinit(owner).is_some()
+        })
+        .count();
+    assert_eq!(
+        registered_deinits, 2,
+        "drop glue needs both resource bodies"
+    );
+    let ir = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[4, 3, 2, 1, 0]);
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"consume\nconsume\nmoved-second\nmoved-first\nbody\nheld-second\nheld-first\nearlier\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_boxed_enum_releases_descendants_before_their_handles() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println(this.name) } }
+enum class Tree { Tip(value: Leaf), Pair(left: Box<Tree>, right: Box<Tree>) }
+fun entry(): Unit {
+    val root = Tree.Pair(
+        Box(Tree.Pair(Box(Tree.Tip(Leaf("a"))), Box(Tree.Tip(Leaf("b"))))),
+        Box(Tree.Tip(Leaf("c")))
+    )
+    println("tree held")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("resource-boxed-enum.ko", source);
+    // The inline root owns two subtrees; each Box is freed after its payload.
+    let output =
+        super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[5, 6, 2, 3, 0, 1, 4]);
+    super::boxed_enum_tests::assert_success(&output, b"tree held\nc\nb\na\n");
+}
+
+#[test]
+fn resource_deinit_native_nullable_box_drops_only_present_handles() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println(this.name) } }
+enum class Packet { Full(value: Leaf), Empty }
+fun make(flag: Boolean, name: String): Box<Packet>? {
+    if (flag) { return Box(Packet.Full(Leaf(name.clone()))) }
+    return null
+}
+fun take(own option: Box<Packet>?): Unit {
+    if (option != null) { println("present") } else { println("null") }
+}
+fun entry(): Unit {
+    val earlier = make(true, "held")
+    take(make(false, "unused"))
+    take(make(true, "moved"))
+    take(Box(Packet.Empty))
+    println("scope")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("resource-nullable-box.ko", source);
+    let output =
+        super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[3, 4, 5, 6, 0, 1, 2]);
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"null\npresent\nmoved\npresent\nscope\nheld\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_recursive_nullable_box_fields_drop_their_active_tree() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println(this.name) } }
+enum class Tree { Tip(value: Leaf), Link(child: Box<Tree>?), Pair(left: Box<Tree>?, right: Box<Tree>?) }
+fun entry(): Unit {
+    val root = Tree.Pair(
+        Box(Tree.Link(Box(Tree.Tip(Leaf("left"))))),
+        Box(Tree.Pair(null, Box(Tree.Tip(Leaf("right")))))
+    )
+    println("scope")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("recursive-nullable-box.ko", source);
+    let output =
+        super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[3, 4, 5, 0, 1, 2]);
+    super::boxed_enum_tests::assert_success(&output, b"scope\nright\nleft\n");
+}
+
+#[test]
+fn resource_deinit_native_boxed_value_enum_cycle_drops_the_active_child() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println(this.name) } }
+value class Branch(val tree: Tree)
+enum class Tree { Tip(value: Leaf), Link(child: Box<Branch>), Empty }
+fun entry(): Unit {
+    val root = Box(Branch(Tree.Link(Box(Branch(Tree.Tip(Leaf("leaf")))))))
+    println("held")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("mixed-box-recursion.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2]);
+    super::boxed_enum_tests::assert_success(&output, b"held\nleaf\n");
+}
+
+#[test]
+fn resource_deinit_native_value_enum_cycle_with_nullable_box_on_the_value() {
+    let source = r#"
+class Leaf { deinit() { println("leaf") } }
+value class Branch(val child: Box<Tree>?)
+enum class Tree { Link(branch: Branch), Tip(value: Leaf), Empty }
+fun entry(): Unit {
+    val root = Branch(Box(Tree.Link(Branch(Box(Tree.Tip(Leaf()))))))
+    println("held")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("mixed-box-reverse-recursion.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2]);
+    super::boxed_enum_tests::assert_success(&output, b"held\nleaf\n");
+}
+
+#[test]
+fn resource_deinit_native_rc_drops_payload_only_after_the_last_owner() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println(this.name) } }
+fun take(own owner: Rc<Leaf>): Unit { println("consume") }
+fun takeNullable(own owner: Rc<Leaf>?): Unit {
+    if (owner == null) { println("null") } else { println("present") }
+}
+fun entry(): Unit {
+    val earlier = Leaf("earlier")
+    val original = Rc(Leaf("payload"))
+    take(original.share())
+    takeNullable(null)
+    takeNullable(original.share())
+    println("still held")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("resource-rc-last-owner.ko", source);
+    // The shared payload is dropped before its control block, then the earlier local.
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[1, 2, 0]);
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"consume\nnull\npresent\nstill held\npayload\nearlier\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_rc_field_chain_keeps_the_owner_through_reads() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println("drop") } }
+class Wrapper(val child: Leaf)
+fun observe(own owner: Rc<Wrapper>): Unit {
+    println((owner.value).child.name)
+    println(owner.value.child.name)
+}
+fun entry(): Unit {
+    val original = Rc(Wrapper(Leaf("payload".clone())))
+    observe(original.share())
+    println("held")
+    observe(original)
+    println("done")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("rc-payload-field-chain.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2, 3]);
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"payload\npayload\nheld\npayload\npayload\ndrop\ndone\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_rc_field_argument_holds_the_handle_until_call_return() {
+    let source = r#"
+class Leaf(val name: String)
+fun nullable(own owner: Rc<Leaf>?): Unit {
+    if (owner != null) { println(owner.value.name) }
+}
+fun named(name: String, own other: Rc<Leaf>): Unit { println(name) }
+fun entry(): Unit {
+    nullable(Rc(Leaf("nullable".clone())))
+    nullable(null)
+    val owner = Rc(Leaf("shared".clone()))
+    named(owner.value.name, owner.share())
+    println("done")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("rc-field-last-use.ko", source);
+    let output =
+        super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2, 3, 4, 5]);
+    super::boxed_enum_tests::assert_success(&output, b"nullable\nshared\ndone\n");
+}
+
+#[test]
+fn resource_deinit_native_borrowed_rc_and_nullable_proof_use_handle_storage() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println("drop") } }
+fun inspect(borrow source: Rc<Leaf>): Unit { println((source.value).name) }
+fun retain(borrow source: Rc<Leaf>): Rc<Leaf> = source.share()
+fun optional(own owner: Rc<Leaf>?): Unit {
+    if (owner != null) { println(owner.value.name) }
+}
+fun entry(): Unit {
+    val source = Rc(Leaf("slot".clone()))
+    inspect(source)
+    optional(retain(source))
+    optional(null)
+    println("held")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("borrowed-rc-proven-handle.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2]);
+    super::boxed_enum_tests::assert_success(&output, b"slot\nslot\nheld\ndrop\n");
+}
+
+#[test]
+fn resource_deinit_native_nullable_rc_forwards_the_live_proof_to_borrow_calls() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println("drop") } }
+fun inspect(borrow owner: Rc<Leaf>): Unit { println(owner.value.name) }
+fun forward(own owner: Rc<Leaf>?, stop: Boolean): Unit {
+    if (!(owner != null)) {
+        println("null")
+    } else {
+        inspect((owner))
+        if (stop) { return }
+        inspect(owner)
+    }
+    println("tail")
+}
+fun entry(): Unit {
+    forward(Rc(Leaf("early".clone())), true)
+    forward(null, false)
+    forward(Rc(Leaf("normal".clone())), false)
+    println("done")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("rc-proof-forward.ko", source);
+    let output =
+        super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2, 3, 4, 5]);
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"early\ndrop\nnull\ntail\nnormal\nnormal\ntail\ndrop\ndone\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_rc_guard_keeps_the_proof_on_the_continuing_edge() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println("drop") } }
+fun inspect(borrow owner: Rc<Leaf>): Unit { println(owner.value.name) }
+fun forward(own owner: Rc<Leaf>?): Unit {
+    if (owner == null) { println("null"); return }
+    inspect((owner))
+    inspect(owner)
+    println("held")
+}
+fun entry(): Unit {
+    forward(null)
+    forward(Rc(Leaf("proof".clone())))
+    println("done")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("rc-continuing-proof.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2]);
+    super::boxed_enum_tests::assert_success(&output, b"null\nproof\nproof\nheld\ndrop\ndone\n");
+}
+
+#[test]
+fn resource_deinit_native_temporary_rc_payload_fields_keep_their_handle_alive() {
+    let source = r#"
+class Leaf(val num: Int, val name: String) { deinit() { println("drop") } }
+fun inspect(borrow name: String, proceed: Boolean): Unit {
+    if (proceed) { println(name) }
+}
+fun run(stop: Boolean): Unit {
+    inspect(Rc(Leaf(17, "borrow".clone())).value.name, if (stop) { return } else { true })
+    println("resumed")
+}
+fun entry(): Unit {
+    val n = (Rc(Leaf(17, "copy".clone()))).value.num
+    if (n == 17) { println("read") }
+    run(false)
+    run(true)
+    println("done")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("temporary-rc-payload-fields.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(
+        &ir,
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8],
+    );
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"drop\nread\nborrow\ndrop\nresumed\ndrop\ndone\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_temporary_rc_copy_waits_for_the_enclosing_expression() {
+    let source = r#"
+class Leaf(val num: Int) { deinit() { println("drop") } }
+fun side(): Int { println("side"); return 17 }
+fun sink(own num: Int, other: Int): Unit { println("sink") }
+fun rhs(): Boolean { println("rhs"); return true }
+fun entry(): Unit {
+    sink(Rc(Leaf(17)).value.num, side())
+    val same = Rc(Leaf(17)).value.num == side()
+    if (same) { println("match") }
+    if ((Rc(Leaf(17)).value.num == 17) && rhs()) { println("arm") }
+    if (!(Rc(Leaf(0)).value.num == 17)) { println("not") }
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("temporary-rc-copy-order.ko", source);
+    let output =
+        super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2, 3, 4, 5, 6, 7]);
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"side\nsink\ndrop\nside\ndrop\nmatch\nrhs\ndrop\narm\ndrop\nnot\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_conditional_rc_reaches_the_enclosing_call_cleanup() {
+    let source = r#"
+class Left(val yes: Boolean) { deinit() { println("left") } }
+class Right(val yes: Boolean) { deinit() { println("right") } }
+fun side(): Int { println("side"); return 0 }
+fun sink(own yes: Boolean, other: Int): Unit { println("sink") }
+fun run(gate: Boolean, exit: Boolean): Unit {
+    sink(Rc(Left(gate)).value.yes && Rc(Right(true)).value.yes,
+        if (exit) { return } else { side() })
+    println("tail")
+}
+fun entry(): Unit {
+    run(false, false)
+    run(true, false)
+    run(false, true)
+    run(true, true)
+    sink(false && Rc(Right(true)).value.yes, side())
+    println("done")
+}
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("conditional-rc-call-cleanup.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(
+        &ir,
+        &[0, 1, 4, 5, 2, 3, 6, 7, 10, 11, 8, 9],
+    );
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"side\nsink\nleft\ntail\nside\nsink\nright\nleft\ntail\nleft\nright\nleft\nside\nsink\ndone\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_const_short_circuit_preserves_temporary_rc_cleanup() {
+    let source = r#"
+const val ENABLE = true
+class Leaf(val yes: Boolean) { deinit() { println("drop") } }
+fun side(): Int { println("side"); return 0 }
+fun sink(own yes: Boolean, other: Int): Unit { println("sink") }
+fun run(flag: Boolean): Unit {
+    sink(ENABLE && Rc(Leaf(true)).value.yes, side())
+    sink(ENABLE || Rc(Leaf(true)).value.yes, side())
+    sink(flag || Rc(Leaf(true)).value.yes, side())
+}
+fun entry(): Unit { run(true); run(false) }
+"#;
+    let ir = super::boxed_enum_tests::lower_to_llvm("const-short-circuit-rc-cleanup.ko", source);
+    let output =
+        super::boxed_enum_tests::run_counted_allocations_in_order(&ir, &[0, 1, 2, 3, 4, 5]);
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"side\nsink\ndrop\nside\nsink\nside\nsink\nside\nsink\ndrop\nside\nsink\nside\nsink\ndrop\n",
+    );
+}
+
+#[test]
+fn resource_deinit_native_rc_receiver_exits_before_forming_or_lending_an_owner() {
+    let source = r#"
+class Leaf(val name: String) { deinit() { println("drop") } }
+fun inspect(borrow leaf: Leaf, ready: Boolean): Unit {
+    if (ready) { println(leaf.name) }
+}
+fun lend(before: Boolean, after: Boolean): Unit {
+    inspect((if (before) { println("early"); return } else { Rc(Leaf("payload".clone())) }).value,
+        if (after) { println("late"); return } else { true })
+    println("tail")
+}
+fun retain(stop: Boolean): Unit {
+    val owner = (if (stop) { return } else { Rc(Leaf("held".clone())) }).share()
+    println(owner.value.name)
+    println("held-tail")
+}
+fun noOwner(): Unit { val value = Rc<Int>(return).value }
+fun entry(): Unit {
+    lend(true, false)
+    lend(false, true)
+    lend(false, false)
+    retain(true); retain(false)
+    noOwner()
+    println("done")
+}
+"#;
+    let llvm = super::boxed_enum_tests::lower_to_llvm("rc-receiver-exits.ko", source);
+    let output = super::boxed_enum_tests::run_counted_allocations_in_order(
+        &llvm,
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8],
+    );
+    super::boxed_enum_tests::assert_success(
+        &output,
+        b"early\nlate\ndrop\npayload\ndrop\ntail\nheld\nheld-tail\ndrop\ndone\n",
+    );
+}

@@ -808,6 +808,8 @@ pub(in crate::ssa) mod integer {
                                 if module.map_result_value(res_ty) == Some(val_ty)
                                     || (module.map_container(val_ty).is_some()
                                         && module.nullable_map_inner(res_ty) == Some(val_ty))
+                                    || (matches!(module.type_kind(val_ty), Some(SsaTypeKind::StringOwner))
+                                        && module.inline_nullable(res_ty) == Some((val_ty, true)))
                                     || matches!(module.type_kind(res_ty), Some(SsaTypeKind::NullableHandle { inner }) if *inner == val_ty))
                     } else {
                         false

@@ -192,7 +192,7 @@ impl Checker<'_> {
                     contract.call_span(),
                     contract.parameter_span(),
                 ));
-                self.record_nullable_when_loan(contract)?;
+                self.record_nullable_when_loan(contract, state)?;
             }
         }
         Ok(())

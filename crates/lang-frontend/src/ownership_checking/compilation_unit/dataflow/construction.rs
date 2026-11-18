@@ -185,7 +185,7 @@ impl Checker<'_> {
                 ExpressionUse::Consume { parameter_span },
             )?;
 
-            if self.is_nothing_expression(argument.argument()) {
+            if flows.next.is_none() || self.is_nothing_expression(argument.argument()) {
                 flows.next = None;
                 if deliveries_complete && self.diagnostics.len() == diagnostic_count {
                     self.construction_plans

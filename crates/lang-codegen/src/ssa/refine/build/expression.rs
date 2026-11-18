@@ -11,7 +11,7 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallTarget, UnitTypeId, UnitTypeKind},
 };
 
-use super::{Builder, Lowered};
+use super::{Builder, Lowered, when::PredecessorBranch};
 use crate::ssa::{
     integer::{bitwise_operator, checked_operator, comparison_operator},
     lowering_support::{LoweringError, LoweringErrorKind, error, string_literal},
@@ -88,6 +88,12 @@ impl Builder<'_, '_> {
         }
         if let Some(value) = self.container_operation(expression, span)? {
             return Ok(value);
+        }
+        if let Some(receiver) = self.inputs.non_completing_projection_receiver(id) {
+            return match self.expression(receiver)? {
+                Lowered::Diverged => Ok(Lowered::Diverged),
+                _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+            };
         }
         if typed.rc_operation(id).is_some() {
             return self.rc_operation(expression, span);
@@ -213,7 +219,7 @@ impl Builder<'_, '_> {
                 operator: AssignmentOperator::Assign,
                 value,
                 ..
-            } => self.assignment(target, value, span),
+            } => self.assignment(expression, target, value, span),
             Expression::Assignment {
                 target,
                 operator:
@@ -367,8 +373,21 @@ impl Builder<'_, '_> {
         if !self.move_only(self.c(fact.narrowed_type())) {
             return Ok(None);
         }
-        self.active_view(fact.symbol())
-            .map(Some)
+        let view = if let Some(witness) = self.inputs.typed.nullable_when_use(self.unit(root)) {
+            self.active_views
+                .iter()
+                .rev()
+                .find(|view| {
+                    view.symbol == witness.symbol()
+                        && view
+                            .when_scope
+                            .is_some_and(|(control, _)| control == witness.control())
+                })
+                .map(|view| view.slot)
+        } else {
+            self.active_view(fact.symbol())
+        };
+        view.map(Some)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))
     }
 
@@ -434,6 +453,21 @@ impl Builder<'_, '_> {
         }
     }
 
+    fn borrowed_nullable_string_operand(
+        &self,
+        operand: ExpressionId,
+    ) -> Result<Option<Slot>, LoweringError> {
+        let root = self.ungrouped_expr(operand)?;
+        let (payload, span) = self.node(root)?;
+        if !matches!(payload, Expression::Name) {
+            return Ok(None);
+        }
+        Ok(self
+            .reference(span)
+            .ok()
+            .and_then(|symbol| self.borrowed.get(&symbol).copied()))
+    }
+
     fn binary(
         &mut self,
         expression: ExpressionId,
@@ -473,7 +507,12 @@ impl Builder<'_, '_> {
                 lang_frontend::type_checking::BuiltinType::String
             ))
         );
-        if string {
+        let nullable_equality =
+            matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
+                && self
+                    .inputs
+                    .is_nullable_string_equality(left_type, self.expression_type(right)?);
+        if string || nullable_equality {
             // String operands are read, not consumed; a Borrow binding or non-null use reads its loan.
             let mut operands = Vec::with_capacity(2);
             let mut view_reads = Vec::new();
@@ -485,6 +524,15 @@ impl Builder<'_, '_> {
                 }
                 if let Some(view) = self.narrowed_view(operand)? {
                     operands.push(view);
+                    view_reads.push(operand);
+                    continue;
+                }
+                if self
+                    .inputs
+                    .is_nullable_string(self.expression_type(operand)?)
+                    && let Some(loan) = self.borrowed_nullable_string_operand(operand)?
+                {
+                    operands.push(loan);
                     view_reads.push(operand);
                     continue;
                 }
@@ -597,7 +645,7 @@ impl Builder<'_, '_> {
     /// Evaluates a branch-form condition into a Boolean slot.
     fn condition_value(&mut self, expression: ExpressionId) -> Result<Lowered, LoweringError> {
         let span = self.span(expression);
-        if let Some(lowered) = self.map_result_null_comparison_value(expression, span)? {
+        if let Some(lowered) = self.named_null_comparison_value(expression, span)? {
             return Ok(lowered);
         }
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
@@ -605,28 +653,32 @@ impl Builder<'_, '_> {
         let when_true = self.body.block();
         let when_false = self.body.block();
         let join = self.body.block();
+        let pending = std::mem::take(&mut self.pending_views);
         self.condition_with_views(expression, when_true, when_false, false)?;
+        let inherited = self.active_views.clone();
+        let mut predecessors = Vec::new();
         for (block, value) in [(when_true, true), (when_false, false)] {
             if !self.body.blocks[block.0].has_predecessor {
                 continue;
             }
-            self.block = Some(block);
-            self.sync_dead();
-            self.entry_dead
-                .entry(join)
-                .or_default()
-                .extend(self.dead.iter().copied());
+            self.active_views.clone_from(&inherited);
+            self.enter(block);
             self.push(
                 ROp::Constant(ScalarConstant::Boolean(value)),
                 vec![result],
                 span,
             )?;
-            self.goto(join, span)?;
+            predecessors.push(PredecessorBranch {
+                block,
+                views: self.active_views.clone(),
+                dead: self.dead.clone(),
+                this_dead: self.this_dead,
+            });
         }
-        if !self.body.blocks[join.0].has_predecessor {
+        self.pending_views = pending;
+        if !self.join_views(predecessors, join, span)? {
             return Ok(Lowered::Diverged);
         }
-        self.block = Some(join);
         self.sync_dead();
         Ok(Lowered::Value(result))
     }

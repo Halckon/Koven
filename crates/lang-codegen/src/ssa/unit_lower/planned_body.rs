@@ -131,9 +131,7 @@ impl PlannedBodyContext<'_> {
             let route = crate::ssa::refine::route(&inputs);
             compatibility = matches!(route, CallableRoute::Compatibility);
             if matches!(route, CallableRoute::Refine) {
-                for ty in crate::ssa::refine::type_demands(&inputs) {
-                    types.intern(module, typed, ty, plan.instance.span())?;
-                }
+                crate::ssa::refine::prepare_types(&inputs, types, module)?;
                 let function = module
                     .functions
                     .get_mut(plan.id.index())

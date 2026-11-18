@@ -25,6 +25,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             Operation::TaggedPayloadPlace { .. }
                 | Operation::HeapPayloadPlace { .. }
                 | Operation::SharedPayloadPlace { .. }
+                | Operation::SharedPayloadLoan { .. }
                 | Operation::FieldPlace { .. }
                 | Operation::SharedFieldLoan { .. }
                 | Operation::SharedHeapFieldLoan { .. }
@@ -103,7 +104,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::SharedAllocate { .. }
             | Operation::SharedRetain { .. }
             | Operation::SharedPayloadPlace { .. }
-            | Operation::SharedReferenceFollow { .. } => {
+            | Operation::SharedReferenceFollow { .. }
+            | Operation::SharedPayloadLoan { .. } => {
                 self.lower_instruction_heap(instruction, results)?
             }
             Operation::ContainerConstruct { .. }
@@ -155,7 +157,10 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::BorrowEnd { .. }
             | Operation::Read { .. }
             | Operation::Mutate { .. }
-            | Operation::LoanMutate { .. } => self.lower_instruction_place(instruction, results)?,
+            | Operation::LoanMutate { .. }
+            | Operation::LoanReplace { .. } => {
+                self.lower_instruction_place(instruction, results)?
+            }
         }
         Ok(())
     }

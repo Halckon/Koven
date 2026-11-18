@@ -744,23 +744,17 @@ __attribute__((destructor)) static void unexpected_return(void) { abort(); }
     }
 
     #[test]
-    fn string_clone_borrowed_rc_payload_is_rejected_at_existing_native_abi_boundary() {
-        use super::super::UnitSource;
-        use lang_frontend::name_resolution::SymbolKind;
-        let analysis = UnitSource::analyze(
+    fn string_clone_borrowed_rc_payload_reads_the_handle_slot() {
+        let output = emit_link_and_run(
             "clone-borrowed-rc.ko",
             r#"
         fun duplicate(shared: Rc<String>): String = shared.value.clone()
         fun stringCloneEntry(): Unit { val shared = Rc("text"); println(duplicate(shared)) }
     "#,
-        )
-        .expect("original source must pass strict Unit admission");
-        analysis.assert_frontend_clean();
-        let error = analysis
-            .lower_entry(analysis.declaration("stringCloneEntry", SymbolKind::Function))
-            .err()
-            .expect("Borrow Rc payload has no normalized native loan ABI yet");
-        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
+            "stringCloneEntry",
+        );
+        assert_diagnostic!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"text\n");
     }
 
     #[test]

@@ -1,10 +1,10 @@
 //! Branch-form conditions: `&&`/`||`/`!` short-circuit and null comparisons with proofs.
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
-    ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
+    ownership_checking::UnitDropPoint,
     parser::{BinaryOperator, Expression, PrefixOperator, Statement},
     source::Span,
-    type_checking::{ParameterMode, UnitTypeKind},
+    type_checking::{BuiltinType, ParameterMode, UnitTypeKind},
 };
 
 use super::{Builder, Lowered};
@@ -14,199 +14,11 @@ use crate::ssa::{
     refine::body::{BlockRef, ROp, RTerm, Slot},
 };
 
+mod logical;
+
+use logical::{BorrowedProofEdges, ConditionViews};
+
 impl Builder<'_, '_> {
-    /// Short-circuit: Basic numbers the evaluated exit 0 and the skip 1. Const
-    /// carries its own true/false edge numbering. Proof views flow only to the true target.
-    fn logical(
-        &mut self,
-        expression: ExpressionId,
-        and: bool,
-        (left, right): (ExpressionId, ExpressionId),
-        when_true: BlockRef,
-        when_false: BlockRef,
-        views: bool,
-    ) -> Result<(), LoweringError> {
-        let views = views && and;
-        let span = self.span(expression);
-        let control = self.unit(expression);
-        // A constant left operand fixes the plan: `Never` yields the left value and skips the
-        // right operand; `Always` evaluates the left operand and yields the right value.
-        let rhs_branch = if let Some(plan) = self
-            .inputs
-            .constant_owned
-            .and_then(|owned| owned.short_circuit_at(control))
-        {
-            match plan.rhs() {
-                UnitShortCircuitRhs::Never => {
-                    self.unreachable_drop_scopes.push(self.span(right));
-                    if self.required(left)?.is_some() {
-                        let target = if and { when_false } else { when_true };
-                        self.goto(target, span)?;
-                    }
-                    return Ok(());
-                }
-                UnitShortCircuitRhs::Always => {
-                    if self.required(left)?.is_none() {
-                        return Ok(());
-                    }
-                    return self
-                        .condition_internal(right, when_true, when_false, views, None, true);
-                }
-                UnitShortCircuitRhs::Conditional => plan.rhs_branch(),
-            }
-        } else {
-            0
-        };
-        if self.inputs.typed.expression_falls_through(control) == Some(false) {
-            // If the left side completes, the frontend proved the RHS is required
-            // and has no normal exit. Do not synthesize a skipped predecessor.
-            self.unreachable_drop_points.extend([
-                UnitDropPoint::BranchExit { control, branch: 0 },
-                UnitDropPoint::BranchExit { control, branch: 1 },
-            ]);
-            if self.required(left)?.is_none() {
-                self.unreachable_drop_scopes.push(self.span(right));
-            } else if self.required(right)?.is_some() {
-                return Err(error(LoweringErrorKind::MissingFact, span));
-            }
-            return Ok(());
-        }
-        let middle = self.body.block();
-        let skip = self.body.block();
-        let ordinary = self.inputs.constant_owned.is_none();
-        if ordinary && self.inputs.typed.ordinary_rhs_bypassed(control) {
-            if self.required(left)?.is_some() {
-                self.goto(skip, span)?;
-            }
-        } else if ordinary && self.inputs.typed.ordinary_rhs_required(control) {
-            if self.required(left)?.is_some() {
-                self.goto(middle, span)?;
-            }
-        } else if and {
-            self.condition_internal(left, middle, skip, views, None, true)?;
-        } else {
-            self.condition_internal(left, skip, middle, views, None, true)?;
-        }
-        // The plain branch that selects between the right operand and the skip edge is the
-        // short circuit's own control transfer.
-        for block in &mut self.body.blocks {
-            if let Some((
-                RTerm::Branch {
-                    when_true,
-                    when_false,
-                    ..
-                },
-                origin,
-            )) = &mut block.terminator
-                && ((and && *when_true == middle && *when_false == skip)
-                    || (!and && *when_true == skip && *when_false == middle))
-            {
-                *origin = span;
-            }
-        }
-        let skip_target = if and { when_false } else { when_true };
-        let skip_point = UnitDropPoint::BranchExit {
-            control,
-            branch: 1 - rhs_branch,
-        };
-        let rhs_point = UnitDropPoint::BranchExit {
-            control,
-            branch: rhs_branch,
-        };
-        let skipped = self.collect_drops(skip_point);
-        let outer_temporaries = self.temporaries.clone();
-        let outer_loans = self.pending_call_loans.clone();
-        let outer_ranges = self.short_ranges.clone();
-        let outer_views = self.active_views.clone();
-        let mut skip_state = None;
-        if self.body.blocks[skip.0].has_predecessor {
-            let mark = self.enter(skip);
-            self.sync_dead();
-            let pre_skip_dead = self.dead.clone();
-            self.emit_drops(&skipped)?;
-            self.finish_drops(&skipped);
-            self.route_views(mark, skip_target, when_true, span)?;
-            self.goto(skip_target, span)?;
-            skip_state = Some((
-                pre_skip_dead,
-                self.temporaries.clone(),
-                self.active_views.clone(),
-            ));
-        } else {
-            self.unreachable_drop_points.push(skip_point);
-        }
-
-        if !self.body.blocks[middle.0].has_predecessor {
-            self.unreachable_drop_scopes.push(self.span(right));
-            self.unreachable_drop_points.push(rhs_point);
-            return Ok(());
-        }
-        if let Some((pre_skip_dead, _, _)) = &skip_state {
-            self.dead.clone_from(pre_skip_dead);
-            self.dead_block = Some(middle);
-            self.entry_dead
-                .entry(middle)
-                .or_default()
-                .extend(self.dead.iter().copied());
-        }
-        self.temporaries = outer_temporaries;
-        self.active_views = outer_views;
-        let mark = self.enter(middle);
-        let evaluated_true = self.body.block();
-        let evaluated_false = self.body.block();
-        self.condition_internal(right, evaluated_true, evaluated_false, views, None, true)?;
-        let mark = mark.min(self.active_views.len());
-        let left_views: Vec<_> = self.active_views.drain(mark..).collect();
-        let evaluated = self.collect_drops(rhs_point);
-        let mut reached = false;
-        for (path, target) in [(evaluated_true, when_true), (evaluated_false, when_false)] {
-            if !self.body.blocks[path.0].has_predecessor {
-                continue;
-            }
-            reached = true;
-            let mark = self.enter(path);
-            self.active_views.extend(left_views.iter().copied());
-            self.emit_drops(&evaluated)?;
-            self.route_views(mark, target, when_true, span)?;
-            self.goto(target, span)?;
-        }
-        if reached {
-            self.finish_drops(&evaluated);
-        } else {
-            self.unreachable_drop_points.push(rhs_point);
-            if let Some((_, temporaries, views)) = skip_state {
-                // An exit on the evaluated edge does not consume the skipped edge's state.
-                self.temporaries = temporaries;
-                self.pending_call_loans = outer_loans;
-                self.short_ranges = outer_ranges;
-                self.active_views = views;
-            }
-        }
-        Ok(())
-    }
-
-    /// Views above `mark` continue into `target` when it is the true target; otherwise
-    /// they end here.
-    fn route_views(
-        &mut self,
-        mark: usize,
-        target: BlockRef,
-        when_true: BlockRef,
-        span: lang_frontend::source::Span,
-    ) -> Result<(), LoweringError> {
-        let mark = mark.min(self.active_views.len());
-        let views: Vec<_> = self.active_views.drain(mark..).collect();
-        if target == when_true {
-            self.pending_views
-                .extend(views.into_iter().map(|view| super::View { target, ..view }));
-            return Ok(());
-        }
-        for view in views {
-            self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
-        }
-        Ok(())
-    }
-
     /// Ends the current block with a branch to `when_true` / `when_false`.
     pub(super) fn condition(
         &mut self,
@@ -214,7 +26,14 @@ impl Builder<'_, '_> {
         when_true: BlockRef,
         when_false: BlockRef,
     ) -> Result<(), LoweringError> {
-        self.condition_internal(expression, when_true, when_false, true, None, false)
+        self.condition_internal(
+            expression,
+            when_true,
+            when_false,
+            ConditionViews::normal(true),
+            None,
+            false,
+        )
     }
 
     pub(super) fn condition_for_control(
@@ -228,7 +47,10 @@ impl Builder<'_, '_> {
             expression,
             when_true,
             when_false,
-            true,
+            ConditionViews {
+                ordinary: true,
+                borrowed: BorrowedProofEdges::Both,
+            },
             Some(control_span),
             false,
         )
@@ -241,7 +63,14 @@ impl Builder<'_, '_> {
         when_false: BlockRef,
         views: bool,
     ) -> Result<(), LoweringError> {
-        self.condition_internal(expression, when_true, when_false, views, None, false)
+        self.condition_internal(
+            expression,
+            when_true,
+            when_false,
+            ConditionViews::normal(views),
+            None,
+            false,
+        )
     }
 
     fn condition_internal(
@@ -249,7 +78,7 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
         when_true: BlockRef,
         when_false: BlockRef,
-        views: bool,
+        views: ConditionViews,
         control_span: Option<Span>,
         logical_operand: bool,
     ) -> Result<(), LoweringError> {
@@ -274,7 +103,12 @@ impl Builder<'_, '_> {
                     operand,
                     when_false,
                     when_true,
-                    false,
+                    ConditionViews {
+                        ordinary: views.ordinary
+                            && control_span.is_some()
+                            && self.inputs.negated_rc_null_test(expression).is_some(),
+                        borrowed: views.borrowed.negated(),
+                    },
                     control_span,
                     logical_operand,
                 );
@@ -340,6 +174,71 @@ impl Builder<'_, '_> {
             if self.move_only(nullable_ty)
                 && let Some(&source) = self.borrowed.get(&fact.symbol())
             {
+                if views.borrowed.allows(fact.non_null_when_true())
+                    && matches!(
+                        self.body.slots[source.0],
+                        EntityType::Loan { target, .. } if match self.types.ssa_types.get(target.index()) {
+                            Some(crate::ssa::model::SsaTypeKind::InlineNullable { inner, niche: true }) =>
+                                *inner == inner_ssa,
+                            Some(crate::ssa::model::SsaTypeKind::NullableHandle { inner }) =>
+                                *inner == inner_ssa && matches!(
+                                    self.types.ssa_types.get(inner.index()),
+                                    Some(crate::ssa::model::SsaTypeKind::SharedOwner { .. })
+                                ),
+                            _ => self.types.map_results.get(&target) == Some(&inner_ssa),
+                        }
+                    )
+                    && self
+                        .inputs
+                        .typed
+                        .non_null_uses()
+                        .iter()
+                        .any(|usage| usage.symbol() == fact.symbol())
+                    && matches!(
+                        self.inputs.typed.types().get(inner),
+                        Some(
+                            UnitTypeKind::Builtin(BuiltinType::String)
+                                | UnitTypeKind::Intrinsic {
+                                    constructor:
+                                        lang_frontend::type_checking::IntrinsicTypeConstructor::Rc,
+                                    ..
+                                }
+                        )
+                    )
+                {
+                    let view = self.body.slot(EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: inner_ssa,
+                    });
+                    let present = self.body.block();
+                    let absent = self.body.block();
+                    self.body.blocks[present.0].view = Some(view);
+                    self.terminate(
+                        RTerm::NullBranch {
+                            owner: source,
+                            when_null: absent,
+                            when_non_null: present,
+                        },
+                        control_span.unwrap_or(span),
+                    )?;
+                    for (edge, target) in [(present, on_non_null), (absent, on_null)] {
+                        self.block = Some(edge);
+                        self.emit_drops(&operand_drops)?;
+                        self.entry_dead
+                            .entry(target)
+                            .or_default()
+                            .extend(self.dead.iter().copied());
+                        self.goto(target, span)?;
+                    }
+                    self.finish_drops(&operand_drops);
+                    self.pending_views.push(super::View {
+                        symbol: fact.symbol(),
+                        slot: view,
+                        target: on_non_null,
+                        when_scope: None,
+                    });
+                    return Ok(());
+                }
                 let bool_ty = self.ssa_type(self.expression_type(expression)?, span)?;
                 let is_null = self.value(
                     ROp::NullableLoanIsNull { source },
@@ -440,7 +339,7 @@ impl Builder<'_, '_> {
                     span,
                 )?;
                 self.record_narrowing(fact.symbol(), narrowed, span)?;
-            } else if !views
+            } else if !views.ordinary
                 || (!fact.non_null_when_true() && control_span.is_none())
                 || drops_owner
             {
@@ -631,6 +530,8 @@ impl Builder<'_, '_> {
             [when_true, when_false],
             span,
         )?;
+        // A nested if cannot enter a sibling arm still pending in its enclosing control.
+        let outer_pending_views = std::mem::take(&mut self.pending_views);
         self.condition_for_control(condition, when_true, when_false, span)?;
         self.invariant_while_boundary(invariant.as_ref(), span)?;
         self.cb_split_emitted(cb, span)?;
@@ -643,6 +544,8 @@ impl Builder<'_, '_> {
         let mut continuing_temporaries = None;
         let mut predecessors = Vec::new();
         let mut branch_exits = Vec::new();
+        // Each arm owns its incoming proofs while it builds nested control flow.
+        let mut arm_views = std::mem::take(&mut self.pending_views);
         for (index, (block, branch)) in [(when_true, Some(then_branch)), (when_false, else_branch)]
             .into_iter()
             .enumerate()
@@ -663,6 +566,10 @@ impl Builder<'_, '_> {
             self.pending_call_loans = outer_pending_loans.clone();
             self.short_ranges = outer_short_ranges.clone();
             self.temporaries.clone_from(&outer_temporaries);
+            let (incoming_views, remaining_views): (Vec<_>, Vec<_>) =
+                arm_views.into_iter().partition(|view| view.target == block);
+            arm_views = remaining_views;
+            self.pending_views.extend(incoming_views);
             let mark = self.enter(block);
             let saved_expected = self.expected_nullable;
             if let Some(res) = result
@@ -682,7 +589,11 @@ impl Builder<'_, '_> {
                 None => Some(None),
             };
             self.expected_nullable = saved_expected;
-            self.leave(mark, span)?;
+            if value.is_some() {
+                self.leave_continuing_branch(&outer_views, span, true)?;
+            } else {
+                self.leave(mark, span)?;
+            }
             if arm_lease.is_some() && value.is_none() {
                 return Err(error(LoweringErrorKind::InvalidModel, span));
             }
@@ -771,16 +682,55 @@ impl Builder<'_, '_> {
         self.body
             .multi_plans
             .join(control, join, &branch_predecessors, span)?;
+        self.coalesce_borrowed_proofs(&mut predecessors, span)?;
         let reached = self.join_views(predecessors, join, span)?;
         self.cb_join(control, join, reached, span)?;
         self.cr_join(control, join, reached, span)?;
-        if !self.pending_views.is_empty() {
+        if !arm_views.is_empty() || !self.pending_views.is_empty() {
             return Err(error(LoweringErrorKind::InvalidModel, span));
         }
+        self.pending_views = outer_pending_views;
         if !reached {
             return Ok(Lowered::Diverged);
         }
         Ok(result.map_or(Lowered::Unit, Lowered::Value))
+    }
+
+    /// Keep proofs needed after this control until the join compares its actual predecessors.
+    pub(super) fn leave_continuing_branch(
+        &mut self,
+        inherited: &[super::View],
+        span: Span,
+        keep_owned_rc: bool,
+    ) -> Result<(), LoweringError> {
+        let mut views = std::mem::take(&mut self.active_views);
+        let mut ending = Vec::new();
+        views.retain(|view| {
+            if inherited.iter().any(|outer| outer.slot == view.slot)
+                || (self.shared_nullable_proof(view)
+                    && self.inputs.borrowed_narrowing_used_after(view.symbol, span))
+                || (keep_owned_rc
+                    && view.when_scope.is_none()
+                    && self.bindings.contains_key(&view.symbol)
+                    && matches!(
+                        self.body.slots[view.slot.0],
+                        EntityType::Loan { kind: LoanKind::Shared, target }
+                            if matches!(self.types.ssa_types.get(target.index()),
+                                Some(crate::ssa::model::SsaTypeKind::SharedOwner { .. }))
+                    )
+                    && self.inputs.rc_narrowing_used_after(view.symbol, span))
+            {
+                true
+            } else {
+                ending.push(view.slot);
+                false
+            }
+        });
+        self.active_views = views;
+        for loan in ending.into_iter().rev() {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        Ok(())
     }
 
     /// Lowers a branch body; `None` when it diverges, else its tail value and expression.

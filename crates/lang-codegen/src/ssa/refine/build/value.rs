@@ -2,7 +2,7 @@
 //! aggregate and a field read projects a copy out of the owner's value.
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::UnitDropPoint,
+    ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{AssignmentOperator, Expression},
     source::Span,
     type_checking::{NominalKind, UnitAggregateProjectionReceiver, UnitTypeId, UnitTypeKind},
@@ -291,6 +291,7 @@ impl Builder<'_, '_> {
 
     pub(super) fn assignment(
         &mut self,
+        assignment: ExpressionId,
         target: ExpressionId,
         value: ExpressionId,
         span: Span,
@@ -305,8 +306,22 @@ impl Builder<'_, '_> {
         let slot = self.adapt(slot, value, declared)?;
         self.deliver(value);
         if let Some(loan) = self.inout_loan(symbol) {
-            // The caller's place now holds the new value; nothing is rebound here.
-            self.push(ROp::LoanMutate { loan, value: slot }, Vec::new(), span)?;
+            self.end_views_of(symbol, span)?;
+            let op = if self.move_only(declared) {
+                let assignment = self.unit(assignment);
+                let facts = self.collect_drops(UnitDropPoint::BeforeReplacement(assignment));
+                if !matches!(facts.as_slice(), [(_, UnitDropTarget::ReplacedInout {
+                    assignment: planned, symbol: root,
+                }, _)] if *planned == assignment && *root == symbol)
+                {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+                self.finish_drops(&facts);
+                ROp::LoanReplace { loan, value: slot }
+            } else {
+                ROp::LoanMutate { loan, value: slot }
+            };
+            self.push(op, Vec::new(), span)?;
             self.forget_narrowing(symbol);
             return Ok(Lowered::Unit);
         }
@@ -576,14 +591,7 @@ impl Builder<'_, '_> {
             }
             None => None,
         };
-        for loan in std::mem::take(&mut self.pending_call_loans)
-            .into_iter()
-            .rev()
-        {
-            self.end_short_call_loan(loan, span)?;
-        }
-        self.end_all_views(span)?;
-        self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
+        self.finish_return_drops(UnitDropPoint::ControlTransfer(self.unit(expression)), span)?;
         let unit_return = self.is_unit(self.inputs.return_type);
         self.owner_return(expression, result, unit_return, span)?;
         self.invariant_return_emitted(invariant.as_ref(), span)?;
