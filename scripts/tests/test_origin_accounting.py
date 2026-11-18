@@ -82,22 +82,28 @@ class OriginAccountingCases(unittest.TestCase):
                     self.assertEqual(wanted, {(r, n) for r, n, _ in CHECKER.check(one)})
 
     def test_joined_write_updates_only_the_selected_owner_on_each_path(self):
-        prefix = "多目标写入/"
+        self.assert_joined_write_paths("多目标写入/", "q.link.target = V(&s)", flow=False)
+
+    def test_joined_flow_keeps_old_source_even_on_selected_path(self):
+        self.assert_joined_write_paths("多目标流向/", "setV(q.link.target, &s)", flow=True)
+
+    def assert_joined_write_paths(self, prefix, write, flow):
         programs = {n.removeprefix(prefix): t for n, t in CASES.cases() if n.startswith(prefix)}
         self.assertEqual({f"{owner}/{access}" for owner in ("left", "right") for access in
                           ("写新来源", "写本侧旧来源", "写另一侧旧来源", "最后使用后写")}, set(programs))
         branch = "if (*) {\n    h = H(&mut right)\n  }"
         for name, text in programs.items():
             owner, access = name.split("/")
-            self.assertIn(f"q.link.target = V(&s)\n  val e = readV(&{owner})\n", text)
+            self.assertIn(f"{write}\n  val e = readV(&{owner})\n", text)
             self.assertEqual(1, text.count(branch))
             marked = expected(text)
             self.assertEqual(["K1"] if access in ("写新来源", "写本侧旧来源") else [], [r for r, _ in marked])
             for selected, replacement in (("left", ""), ("right", "h = H(&mut right)")):
                 with self.subTest(case=name, selected=selected):
                     one = text.replace(branch, replacement)
-                    blocked = "写新来源" if owner == selected else "写本侧旧来源"
-                    self.assertEqual(expected(one) if access == blocked else set(),
+                    blocked = ((access == "写新来源" and owner == selected) or
+                               (access == "写本侧旧来源" and (flow or owner != selected)))
+                    self.assertEqual(expected(one) if blocked else set(),
                                      {(r, n) for r, n, _ in CHECKER.check(one)})
 
     def test_conditional_flow_survives_without_a_read_of_the_callers_holder(self):
