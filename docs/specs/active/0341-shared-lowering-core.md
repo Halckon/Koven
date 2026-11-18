@@ -21633,3 +21633,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 保留 `3be60261`、`c7973fa0`、`7b8990ad`、`a072c390` 原提交及全部验收记录，独立树仅解决本 Spec 尾部追加冲突；独审核全部源码与测试 blob 分别等于对应父提交，无未授权候选混入。
 - 最终组合 `ownership_alias_control_result` 3、construction completion 6、私有 activation 4、multifile two-phase 27 项全部通过；强制组合树 frontend all-target `loan-observation-test-support` strict 2m54s 通过，fmt/docs982/diff 门禁通过。首次 two-phase 命令误用不存在的简写 target，未执行测试，随后用真实 target 运行上述27项，不计为通过证据。
 - 双 CI 修复在 `f5f760e8` 已通过普通 CG30 与默认 codegen all-target strict；此处新增的 nullable 来源消费与 receiver 索引尚未重跑最终四项组合 CG，也未执行 native、故障注入或全量 CI。经授权先发布这组已本地编译和 FE 验证的审阅修复，保留后续组合 CG 与远端 CI 待验边界；mutable alias 和 field Elvis 候选仍未纳入。
+
+### 2026-11-18：immutable nullable alias 的组合回归
+
+- 针对 PR #444 `863162f7` 复审的覆盖疑问，保六个原组合：三跳 alias、If 内 When、When 内 If、If 结果先绑定、When 结果再 alias、嵌套控制结果再绑定后断言。不是新生产准入或新增生命周期能力。
+- 每个组合保持 root/MemoryDocument 双布局。借用闭包共12次运行均为精确单 L0137，non-null plans/loans/drops 清空且 validate 拒绝；capture-free 与显式 owned closure 共24次运行诊断为空且 validate 成功，合计36次源码/布局运行。范围限 immutable、无循环，不涵盖 mutable alias 或一般 nullable 生命周期。
+- 原精准探针本树编译2m36s、两目标通过，证实现有实现已支持这些组合；无生产修改。规范化为持久目标 `ownership_alias_composition`，原源码矩阵与断言不变，独立审阅无阻塞。未执行 native 或故障注入。
+- 改名后的正式目标两项再次通过（4.42s 本树测试编译），强制本树 frontend all-target `loan-observation-test-support` strict3m26s 通过；独立末审、docs982及Rust尺寸门禁通过。本片仅测试和记录，不改生产；先本地提交，等待用户决定批次后再考虑推送。
