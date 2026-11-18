@@ -492,7 +492,16 @@ mod temporary_route {
                         !routing.contains(&caller.name),
                         "non-scalar caller must not gain admission"
                     );
-                    assert!(routing.is_empty());
+                    let callees = program.modules[0]
+                        .functions
+                        .iter()
+                        .filter(|function| function.id() != entry)
+                        .map(|function| function.name.clone())
+                        .collect::<Vec<_>>();
+                    let mut expected = callees;
+                    expected.sort();
+                    routing.sort();
+                    assert_eq!(routing, expected);
                 }
                 assert!(receipts.is_empty());
             }

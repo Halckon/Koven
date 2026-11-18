@@ -53,7 +53,7 @@ fn scalar_calls_and_control_flow_refine_without_another_trigger() {
 }
 
 #[test]
-fn scalar_trigger_preserves_non_scalar_signature_boundaries() {
+fn non_scalar_signatures_with_scalar_bodies_refine_without_another_trigger() {
     for source in [
         "class Token()\nfun f(t: Token): Int = 1",
         "fun f(s: String): Int = 1",
@@ -61,13 +61,48 @@ fn scalar_trigger_preserves_non_scalar_signature_boundaries() {
     ] {
         let (result, routed) = route(source);
         let program =
-            result.unwrap_or_else(|error| panic!("existing source failed: {source}: {error:?}"));
+            result.unwrap_or_else(|error| panic!("non-scalar source failed: {source}: {error:?}"));
         assert!(
-            !routed,
-            "the scalar-only trigger must not widen non-scalar signatures: {source}"
+            routed,
+            "non-scalar signature with scalar body must refine: {source}"
         );
-        crate::llvm::render_verified_program(&program).expect("existing path still verifies");
+        crate::ssa::verify::verify_program(&program).expect("complete SSA/ownership verifier");
+        crate::llvm::render_verified_program(&program).expect("non-scalar LLVM verifies");
     }
+}
+
+#[test]
+fn non_scalar_signatures_project_routing_and_native_output_are_stable() {
+    let helper = "class Token(val id: Int)\n\
+                  fun borrow_token(t: Token): Int = 1\n\
+                  fun borrow_str(s: String): Int = 2\n\
+                  fun own_str(own s: String): Int = 3";
+    let consumer = "fun main(): Unit { if (borrow_token(Token(1)) + borrow_str(\"a\") + own_str(\"b\".clone()) == 6) { println(\"non-scalar-sig-ok\") } }";
+    let mut expected = None;
+    for reverse in [false, true] {
+        let (program, _, routed) = lower_project(helper, consumer, reverse);
+        for name in [
+            "koven.p.borrow_token.d",
+            "koven.p.borrow_str.d",
+            "koven.p.own_str.d",
+        ] {
+            assert!(
+                routed.iter().any(|r| r.starts_with(name)),
+                "{name}: {routed:?}"
+            );
+        }
+        crate::ssa::verify::verify_program(&program).expect("complete SSA/ownership verifier");
+        let llvm = crate::llvm::render_verified_program(&program).expect("non-scalar project LLVM");
+        let actual = (render_program(&program), llvm);
+        if let Some(expected) = &expected {
+            assert_eq_diagnostic!(expected, &actual, "input order must not change output");
+        }
+        expected = Some(actual);
+    }
+    let source = format!("{helper}\n{consumer}");
+    let run = crate::native_tests::emit_link_and_run("non_scalar_sig.ko", &source, "main");
+    assert!(run.status.success(), "{run:?}");
+    assert_eq!(run.stdout, b"non-scalar-sig-ok\n");
 }
 
 /// Keeps the real validated Unit boundary and ordinary routing for two source files.
@@ -286,11 +321,11 @@ fn scalar_checked_arithmetic_still_aborts_instead_of_wrapping_or_dividing_by_zer
 #[test]
 fn refined_linear_and_legacy_branch_helpers_coexist_in_the_native_program() {
     let source = "fun linear(x: Int): Int = x + 1\n\
-                  fun compat_tag(s: String): Int = 1\n\
+                  fun compat_tag(x: Int): Int { var v = x; v += 1; return v }\n\
                   fun main(): Unit {\n\
                       var marker: Int = 0\n\
                       val previous = replace(&marker, 1)\n\
-                      if (previous == 0 && marker == 1 && linear(40) == 41 && compat_tag(\"ok\") == 1) { println(\"mixed-linear-ok\") }\n\
+                      if (previous == 0 && marker == 1 && linear(40) == 41 && compat_tag(0) == 1) { println(\"mixed-linear-ok\") }\n\
                   }";
     let (run, routed) = observe_routing(|| {
         crate::native_tests::emit_link_and_run("mixed_linear.ko", source, "main")

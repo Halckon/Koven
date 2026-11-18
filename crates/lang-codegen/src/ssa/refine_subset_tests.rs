@@ -254,8 +254,8 @@ fn sequential_for_temporary_container_scope_has_field_replace_routing_pairs() {
     }"#;
     let (res, routed) = route(source_no_replace);
     assert!(
-        !routed,
-        "temporary container without field replace remains on legacy lowering: {routed}"
+        routed,
+        "temporary container for routes directly to refine: {routed}"
     );
     assert!(res.is_ok());
 
@@ -292,8 +292,8 @@ fn sequential_for_temporary_container_scope_has_field_replace_routing_pairs() {
     }"#;
     let (res, routed) = route(source_unrelated);
     assert!(
-        !routed,
-        "f has no field replace and must stay legacy even if sibling g has replace: {routed}"
+        routed,
+        "temporary container for routes to refine regardless of sibling g: {routed}"
     );
     assert!(res.is_ok());
 }

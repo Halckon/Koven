@@ -34,7 +34,10 @@ fn temporary_sequential_for_does_not_inherit_sibling_local_destructuring() {
     fun f(): Unit { for (item in listOf("kept")) { println(item) } }
     "#;
     let (result, routed) = route(source);
-    assert!(!routed, "f has no local destructuring of its own");
+    assert!(
+        routed,
+        "temporary sequential for routes to refine without local destructuring"
+    );
     crate::ssa::verify::verify_program(&result.expect("the retained route lowers"))
         .expect("program verifies");
 }
