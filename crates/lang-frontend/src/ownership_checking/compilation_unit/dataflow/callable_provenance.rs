@@ -151,8 +151,18 @@ impl Checker<'_> {
     pub(super) fn check_expression(
         &mut self,
         id: ExpressionId,
+        state: State,
+        usage: ExpressionUse,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        self.check_expression_with_escape(id, state, usage, false)
+    }
+
+    pub(super) fn check_expression_with_escape(
+        &mut self,
+        id: ExpressionId,
         mut state: State,
         usage: ExpressionUse,
+        escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         self.check_borrow_call_use(id, matches!(usage, ExpressionUse::Consume { .. }))?;
         state.origins.attach(&self.callable_sources.arena);
@@ -176,6 +186,19 @@ impl Checker<'_> {
         } else {
             None
         };
+        let alias_witnesses = if matches!(expression, Expression::Name) {
+            self.references_by_span
+                .get(&super::span_key(span))
+                .and_then(|symbol| state.escape_witnesses.bindings.get(symbol))
+                .cloned()
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
+        state
+            .escape_witnesses
+            .results
+            .remove(&self.unit_expression(id));
         state.origins.result = Default::default();
         let is_lambda = matches!(expression, Expression::Lambda { .. });
         let previous = if is_lambda {
@@ -194,7 +217,7 @@ impl Checker<'_> {
             self.checking_borrow_return
         };
         let diagnostic_count = self.diagnostics.len();
-        let checked = self.check_expression_inner(id, state, usage);
+        let checked = self.check_expression_inner(id, state, usage, escaping);
         self.checking_borrow_return = previous_borrow_delivery;
         if is_lambda {
             self.current_borrow_return = previous_borrow;
@@ -219,6 +242,31 @@ impl Checker<'_> {
                     "nullable callable cannot yet retain an exclusive closure environment",
                     span,
                 )?;
+            }
+            // Diagnose direct nullable control results before their original release step.
+            // These roots are not installed as holders or exported as callable facts.
+            if escaping
+                && nullable_callable
+                && matches!(expression, Expression::If { .. } | Expression::When { .. })
+                && self.diagnostics.len() == diagnostic_count
+            {
+                let roots = self.closure_result_origins(id, next)?;
+                self.reject_borrowed_closure_roots(id, next, roots)?;
+            }
+            if self.diagnostics.len() == diagnostic_count
+                && (callable || nullable_callable)
+                && !self.loop_spans.contains(self.parsed, span)
+            {
+                let roots = self.closure_result_origins(id, next)?;
+                let mut witnesses = self.freeze_escape_witnesses(roots, next);
+                if matches!(expression, Expression::Name) {
+                    witnesses.extend(alias_witnesses);
+                } else {
+                    witnesses.extend(self.escape_result_witnesses(id, next)?);
+                }
+                next.escape_witnesses
+                    .results
+                    .insert(self.unit_expression(id), witnesses);
             }
             let closure_origins = if callable {
                 self.closure_result_origins(id, next)?

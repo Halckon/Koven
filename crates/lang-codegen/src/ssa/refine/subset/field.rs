@@ -442,6 +442,7 @@ impl Checker<'_, '_> {
                 && (self.inputs.borrow_return.is_none()
                     || self.returns_from_string_entry(transfer.expression()));
             !abandoned_callback
+                && !self.non_dispatching_field_calls.contains(&call)
                 && !abandoned_borrow_result
                 && !self.pending_string_wrapper(expression, transfer, loan)
                 && !self.pending_forwarded_string_argument(expression, transfer, loan)

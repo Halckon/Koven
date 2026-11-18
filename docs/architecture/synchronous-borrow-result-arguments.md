@@ -17,12 +17,22 @@ Group只归一inner调用，原outer operand仍保留；没有伪造binding symb
 再发布outer operand的canonical LoanFact。该lease用于重叠权限；lowering必须用返回的真实
 payload Loan，不把source对象地址当payload。后续operand的own move或exclusive重叠仍冲突。
 错误来源/owned交付、诊断或deferred沿现有原子发布门清空call-use事实。
+失败assignment另按进入RHS前保存的call-use长度撤回新增消费，与source loan回滚同步，
+保留已完成前缀；成功赋值不截断。此局部事务修复不改变原全局失败门或语言准入。
 
 single把原source loan从inner PendingCall移入outer帧，保持原call/argument identity，
 在outer返回发布显式LoanEndFact；同帧普通operand/result先于continued祖先发布。
 其`loans_ending_at`仍限定原call，codegen另核source的精确终止事实。unit保留自身按call枚举
 的loan查询，在inner清理前将canonical owner交给outer pending borrow，防止ASAP提前drop。
 两入口不把结果当MoveOnly temporary，也不改变Resource词法析构策略。
+
+## 准入扫描复用
+
+Unit checker 私有 `OnceCell` 缓存当前 parsed/typed 输入的稀疏 span 候选：普通函数、
+原函数级与调用级禁用节点，以及精确 typed Nothing 节点。仍使用原包含关系及最短函数
+选择规则，Nothing 保留原 offset-only 判断；不推断 CFG、不扩大准入或发布权限。
+缓存不含可回滚事实，生命周期限定于同一 checker。一次建立遍历 AST，另含逐表达式
+类型查询；每次查询仅扫描候选，多个函数或大量禁用节点仍可能有二次最坏成本。
 
 ## SSA 与普通 native
 

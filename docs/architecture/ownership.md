@@ -24,7 +24,7 @@ owned。表达式/控制流清理矩阵的实际证据记录于 SPEC-0226；此�
 专用 native 已消费，六借用封闭交接见[流水线](pipeline-and-workspace.md#常量-owned-unit-交接)。
 
 unit 常量 Group 将 loan、Value delivery、temporary drop owner 与 drop Span 归一至实际常量读取，保留实参 identity、调用及清理位置。
-此归一不适用于普通 literal/variable/其他 temporary。
+此归一不适用于普通 literal/variable/其他 temporary。直接 class 构造（仅透明 Group）读 Copyable 字段时，正常完成的 parent 以 actual receiver 的 AfterExpression / 原 construction temporary 清理；Refine 精确核该唯一事实，复用构造和字段借用，在 read/end 后释放 parent，避免通用 expression 提前消费该点。Borrow 参数保持原 CallReturn，未完成构造不新增 drop；普通 factory 进一步仅接受无 receiver 的 Declaration 调用、Owned 返回和实际非 nullable class；复用原 call 参数/CallReturn 路径，成功才登记结果 owner，Borrow/Carrier及其他形态不由此准入。该 Owned field receiver 若 typed 明确无正常后继且实际 call_may_dispatch=false，则仅降低原参数前缀、强制 Diverged；无父结果drop/owner/read。私有准入集合只在完整校验后登记同一call，并按原最内层lender授权其前缀ControlTransfer，不能扩到嵌套lender或普通无字段调用。直接class构造字段receiver的终止路径另要求唯一真实construction plan、完整source-order前缀delivery、root为空及精确Nothing终止operand；typed构造/receiver均须明确无正常后继。复用原construction前缀lowering，不建立父对象、不读取字段、不执行后缀；同一完整谓词也准入普通class构造语句、initializer与return前缀，成功后才标记迁移；函数整体drop/借用检查和正常构造root门保留，非class不由此扩展，兼容层实现未改。
 
 unit String 插值将已完成求值的 MoveOnly temporary 保存到与调用共用的 pending 状态，
 按插值 expression 隔离。正常完成在 `AfterExpression` 逆序释放输入；返回的外层 String 与
@@ -34,7 +34,7 @@ Abort 不展开；常量 Group 的 drop 仍归一到实际读取。
 String 二元表达式在右操作数求值期间保留左 temporary 的 pending 清理义务，以及左 named
 owner 的借用保护；正常完成在 `AfterBinaryOperands` 逆序清理，named 是否仍 live 以整个
 binary 的后继为准。嵌套完成只解除自身保护；不继续的左/右操作数停止后续 drop traversal，
-return/break/continue 清理已求值前缀，Abort 不展开。
+return/break/continue 清理已求值前缀，Abort 不展开。Unit construction dataflow 在无正常后继后停止后续参数处理，不能把不可达的 Nothing 后缀登记为 terminating operand；已终止但保留名义类型的嵌套构造仍不据此发布外层完整 plan，现有 Nothing 事实合同不扩展。
 
 基础 Unit 共用类型产物的布尔正常结果。短路 RHS 提前退出时保留可达旁路，析构边仍为
 0=求值 RHS 后正常完成、1=旁路。专用常量入口显式启用独立短路计划，空常量 unit 也启用。
@@ -89,7 +89,7 @@ binding 能力由声明和参数 mode 决定：Owned、Shared 或 Exclusive。pl
 
 Borrow 与 Inout 调用分别建立 shared/exclusive loan。loan 在调用或 capture 生命周期的确定边界结束；
 派生 field/reborrow loan 活跃时不能提前结束父 loan。字段赋值同时检查可变性、receiver 能力和 active
-loan，普通源码违规形成所有权诊断。
+loan，普通源码违规形成所有权诊断。Unit 对无 stable place 的字段 Consume 仍按真实 Field descriptor 的 MoveOnly 能力报 L0132；仅在 receiver 正常返回且未新增错误后检查，不影响 Borrow/Read、Copyable 字段或发散前缀。
 已选EnumCase构造按实际operand建立Temporary loan；single place查询排除真实construction，真实同名binding/field仍为Place。
 MoveOnly Group保留内层构造owner与外层operand的调用期loan/CallReturn清理；`&E.C`沿类型类别报既有L0122，缺失descriptor不授予借用成功。
 
@@ -122,7 +122,7 @@ drop facts 管理；这不代表 Phase 4 lowering 已接入。
 
 ## Capture、Transferability 与 drop
 
-Single/Unit 共用 capture scope、同源 Span 包含与 Transferability 合并，保留类型求值和身份适配，按 lambda/source binding 发布。Unit 数据流按 source-qualified lambda 索引捕获，形成、逃逸、跨线程、循环检查与 factory 返回归类共用索引，保留原发布顺序。
+Single/Unit 共用 capture scope、同源 Span 包含与 Transferability 合并，保留类型求值和身份适配，按 lambda/source binding 发布。Unit 数据流按 source-qualified lambda 索引捕获，形成、逃逸、跨线程、循环检查与 factory 返回归类共用索引，保留原发布顺序。 隐式/显式 lambda 参数模式、结构化 Transferability 与编译器绑定跨线程 effect，以及隐式字段和 member-call 的原 `This` 捕获消费者使用双 Unit；Shared capture 最后使用后的原三源消费者亦经双 Unit，保完整 CallReturn drop 表的 closure/item 身份、顺序及实际调用点；这是 drop 合同，不替代 actual loan-end 见证。未标 receiver 的字段写入保留原 Single L0135 负控；同源 Unit 观察到 readonly L0134，记录拒绝检查顺序差异，不宣称该项等价。
 普通 closure 借用 capture，`move` closure 按 Copy/Move 获取 owner。跨线程检查完整环境的 `Transferability`。Unit 为可达的 Copyable 局部根和可验证的具体 MoveOnly 根建立独占 capture loan，冲突报 L0135。MoveOnly 根在 RHS 正常完成后发布 `BeforeReplacement/ReplacedCapture`，捕获根由调用者持有。未证明的环境运输由 L0164 限制，SSA 入口拒绝独占环境布局。[捕获根替换](../specs/active/0392-compiler-layered-review.md#50-r3-moveonly-捕获根替换)
 
 反向 liveness 产生 source-qualified drop plan，覆盖参数、local、temporary、replaced value、container
@@ -158,7 +158,7 @@ return cleanup。专用 unit native 已消费新增 pending Value operand，按�
 
 单文件实现位于 `crates/lang-frontend/src/ownership_checking/`，unit 实现位于其
 `compilation_unit/` 子树。对应覆盖位于 `ownership_checking`、`ownership_structural`、
-`ownership_containers`、`ownership_closures` 与 `multifile_ownership_checking` integration suites。 `ownership_structural` 的未声明 component final 消费者采用同源双 Unit，保留两个 L0165 与空 call/projection；字段、fixture 及其他 Single 恢复见证继续保留。
+`ownership_containers`、`ownership_closures` 与 `multifile_ownership_checking` integration suites。 Unit 元素赋值复用 escaping-expression 检查，在分支局部环境退场前拒绝借用闭包存储，错误沿原赋值事务撤销事实；普通局部/字段赋值不变；元素目标按 receiver、index、RHS 顺序各检查一次，仅正常前缀执行 RHS，最后检查 owner/loan 冲突，不在 RHS 前建立元素借用。 `ownership_structural` 的未声明 component final 消费者采用同源双 Unit，保留两个 L0165 与空 call/projection；综合字段投影与显式 component 方法也复用双 Unit，保投影顺序、真实字段/调用目标、类型与诊断合同；malformed Single 类型恢复见证保留，不再经旧 ownership helper。 callable CFG/loop 的五项来源消费者使用双 Unit 的真实 source-qualified origin，保唯一来源及未知来源边界；factory 的六项返回统计/摘要消费者也使用双 Unit，保真实 Value 参数、正常 return operand 与 factory-result 来源，以及 pointer 摘要为空的边界；lambda alias/group 与递归参数转发消费者采用双 Unit，保 expression/span、真实参数身份及全表 Function 类型；另四份 CFG/loop 原源的接受性前置采用双 Unit，保各阶段 clean 与无 deferred，但不把该前置称为来源事实证明；factory/owned return 两项成功前置也经双 Unit 保 lambda/capture/函数返回类型观察，不替代摘要合同；两份原 L0138 单函数拒绝消费者以双 Unit 保各自空表，不把 loans/drops 泛化为全局错误清表；裸函数 Deferred、caller-first 原始类型及 P2 recovery/身份的 Single 见证不变。
 
 单文件调用前缀同时保存尚未交付的 MoveOnly Value 实参义务。正常调用提交时移除义务，
 不发布 CallReturn drop；return 或离开当前实参求值范围的 break/continue 发布对应
@@ -194,6 +194,6 @@ expression temporary。
 旧 local 的清理顺序；Copyable 实例不生成 receiver 析构。
 
 function-value callee 在实参求值期间保持capture；正常CallReturn按活性清理，提前退出沿用ControlTransfer，live shared capture来源随最后closure结束后再清理。
-Unit checker保留source-qualified closure来源集合及形成时的嵌套环境图；这些检查元数据不授予availability或执行能力，escape与跨Map provider检查递归到shared capture。
+Unit checker保留source-qualified closure来源集合及形成时的嵌套环境图；这些检查元数据不授予availability或执行能力，escape与跨Map provider检查递归到shared capture。 不可变 nullable callable alias 另存形成时冻结的 Shared 叶闭包诊断摘要，按 source-qualified 表达式与真实 symbol 身份传递到逃逸 `!!`；它不登记 holder、不延长 loan，并排除资源快照比较。仅处理循环外形成的 val，作用域退出裁剪局部绑定；mutable alias、循环内形成及一般 nullable 生命周期仍未闭合。
 If/When保存实际尾值来源，交接已移动且不再活跃的局部根；释放按活跃根递归，防原binding或重绑定污染快照，并保留已求值callee与replacement保护。
 `map_closure_lifetime_matrix`核同次capture/ASAP事实，原Unit Resource/Pure邻控独立保持；这些前端事实不表示带capture的Map循环已进入native范围。[Unit owner capture 候选](unit-owner-transport.md#capture-formation)另记形成身份观察。 `ownership_map_with` 的泛型callback与loan消费者现仅用双入口Unit，保留原源码和loan数量下界，不代表新的结束事件或native证明。 `ownership_closures/capture_identity_unit` 的双 Unit 入口保留 Resource 捕获顺序、Copy/Move/Transferability、capture/named drop 责任及 nested/shadowing 原见证；不证明动态 Choice/循环传输，不替代其他 Single 生命周期见证。 对跨循环边新保存的 Shared MoveOnly owned-source 环境，Unit 现以 L0164 拒绝未证明运输；已建立环境、body-local、Borrow/Inout、无捕获/Copyable及可独立证明零轮路径保留，条件 owner/phi 和下游执行仍未完成。

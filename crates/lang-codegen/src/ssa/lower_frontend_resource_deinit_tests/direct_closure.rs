@@ -1,4 +1,4 @@
-//! Original direct resource closure through strict Unit, alongside the Legacy witness.
+//! Original direct resource closure and its former Legacy consumer through strict Unit.
 
 use super::{
     EntityId, EntityType, Operation, SsaTypeKind, lower_resource, render_verified_program,
@@ -18,7 +18,7 @@ fn grouped_alias_and_repeated_calls_share_the_original_resource_thunk() {
     );
 }
 
-fn assert_cleanup(source: &str, invocations: usize) {
+pub(super) fn assert_cleanup(source: &str, invocations: usize) {
     let unit = lower_resource(source, "run");
     assert!(unit.source.ownership().deferred().is_empty());
     assert_eq!(

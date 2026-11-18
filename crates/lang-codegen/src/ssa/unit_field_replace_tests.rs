@@ -543,3 +543,5 @@ fn unit_field_replace_cross_file_input_order_is_deterministic() {
         super::render::render_program(&reverse)
     );
 }
+
+mod temporary_copy_cleanup;

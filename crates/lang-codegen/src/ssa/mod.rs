@@ -211,6 +211,8 @@ pub(in crate::ssa) mod lower_frontend_borrow_unit_comparison_tests;
 pub(in crate::ssa) use unit_lower_assignment_tests::lower_frontend_string_io_unit_comparison_tests;
 
 #[cfg(test)]
+mod map_require_multiroot_test_support;
+#[cfg(test)]
 mod map_unit_consumer_test_support;
 
 #[cfg(test)]

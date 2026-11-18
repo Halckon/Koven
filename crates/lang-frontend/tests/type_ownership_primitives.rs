@@ -530,3 +530,91 @@ fn rejected_primitive_with_a_deferred_operand_does_not_kill_the_narrowing() {
         assert!(typed.ownership_primitives().is_empty());
     }
 }
+
+fn assert_rejected_primitive_recovery(text: &str, expected_codes: &[&str]) {
+    let mut sources = SourceMap::new();
+    let (_, parsed) = parse(&mut sources, "recovery.ko", text);
+    unit_with_contract(&[("recovery.ko", text)], false, |typed| {
+        let arity = typed
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.code().to_string() == "L0121")
+            .expect("original argument arity rejection");
+        let calls = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .filter(|(_, node)| {
+                // This separate parse has a different SourceMap identity.
+                // Match byte offsets only within this single-source fixture.
+                node.span().start() == arity.primary_span().start()
+                    && node.span().end() == arity.primary_span().end()
+                    && matches!(node.payload(), Expression::Call { .. })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 1, "unique reparsed rejected call");
+        let expression = typed
+            .expression_types()
+            .keys()
+            .find(|id| id.expression() == calls[0].0)
+            .copied()
+            .expect("single-source rejected expression");
+        assert_eq!(typed.expression_falls_through(expression), Some(true));
+        assert!(typed.ownership_primitives().is_empty());
+        assert!(typed.call(expression).is_none());
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            expected_codes,
+            "{text}"
+        );
+        if expected_codes.contains(&"L0084") {
+            assert_eq!(
+                text.get(
+                    typed.diagnostics()[1].primary_span().start()
+                        ..typed.diagnostics()[1].primary_span().end()
+                ),
+                Some("\"bad\"")
+            );
+        }
+    });
+}
+
+fn assert_rejected_primitive_loop_exits(primitive: &str) {
+    for (prefix, expected) in [
+        ("0", vec!["L0121", "L0088"]),
+        ("return 7", vec!["L0121"]),
+        ("stop()", vec!["L0121"]),
+        ("continue", vec!["L0121"]),
+    ] {
+        let text = format!(
+            "fun stop(): Nothing = stop()\nfun run(): Int {{ loop {{ {primitive}({prefix}, break, 0) }} }}"
+        );
+        assert_rejected_primitive_recovery(&text, &expected);
+    }
+}
+
+#[test]
+fn rejected_replace_arity_does_not_publish_unreachable_loop_exits() {
+    assert_rejected_primitive_loop_exits("replace");
+}
+
+#[test]
+fn rejected_swap_arity_does_not_publish_unreachable_loop_exits() {
+    assert_rejected_primitive_loop_exits("swap");
+}
+
+#[test]
+fn rejected_primitive_arity_keeps_unreachable_suffix_diagnostics() {
+    for primitive in ["replace", "swap"] {
+        for prefix in ["0", "return 7", "stop()"] {
+            let text = format!(
+                "fun stop(): Nothing = stop()\nfun run(): Int {{ {primitive}({prefix}, if (true) {{ val invalid: Int = \"bad\"; 0 }} else 0, 0); return 0 }}"
+            );
+            assert_rejected_primitive_recovery(&text, &["L0121", "L0084"]);
+        }
+    }
+}

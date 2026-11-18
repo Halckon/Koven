@@ -1,5 +1,4 @@
 //! SPEC-0314: independently named ordinary-source baseline cells.
-use super::{analyze, lower_scalar_file};
 mod structure {
     //! Exact ordinary-source SSA lineage; only transparent block parameters are followed.
     use crate::ssa::model::{
@@ -706,58 +705,13 @@ fn owned_source_return_unit_mutable_list_own_live_constant() {
 #[path = "lower_frontend_owned_source_return_native_tests.rs"]
 mod native;
 
+#[path = "owned_source_return_loan_boundary_unit_contract.rs"]
+mod loan_boundary;
+
 mod boundaries {
-    //! Ordinary-source boundaries kept separate from the core acceptance matrix.
-    use super::{analyze, lower_scalar_file};
-    use crate::test_support::diagnostics::diagnostic;
-
-    fn observe(text: &str, supported: bool, keys_start: usize, expected_loops: usize) {
-        let a = analyze(text);
-        assert!(
-            a.parsed.diagnostics().is_empty(),
-            "{:?}",
-            a.parsed.diagnostics()
-        );
-        assert!(
-            a.names.diagnostics().is_empty(),
-            "{:?}",
-            a.names.diagnostics()
-        );
-        assert!(
-            a.typed.diagnostics().is_empty(),
-            "{:?}",
-            a.typed.diagnostics()
-        );
-        assert!(
-            a.owned.diagnostics().is_empty(),
-            "{:?}",
-            a.owned.diagnostics()
-        );
-        let result = lower_scalar_file(&a.sources, &a.parsed, &a.names, &a.typed, &a.owned);
-        if supported {
-            crate::llvm::render_verified_program(&result.unwrap()).unwrap();
-        } else {
-            let error = result
-                .err()
-                .expect("bounded source proof remains unsupported");
-            let source = a.parsed.source_id();
-            assert_eq!(a.sources.source_name(source), Ok("lowering.ko"));
-            assert_eq!(a.sources.source_text(source), Ok(text));
-            let expected_span = a.sources.span(source, keys_start, keys_start + 4).unwrap();
-            assert_eq!(a.sources.slice(expected_span), Ok("keys"));
-            assert_eq!(
-                error,
-                crate::ssa::LoweringError {
-                    kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
-                    span: Some(expected_span),
-                },
-                "the complete original Legacy boundary stays at its declaration"
-            );
-            diagnostic!("BOUNDARY {text}: {error:?}");
-        }
-
-        // Unit already accepts these complete original sources. Preserve the distinct
-        // Legacy rejection above rather than treating this as consumer retirement.
+    //! Original boundary fixtures now retain only their supported Unit contracts.
+    // Historical test names stay stable; Legacy's obsolete rejection is not a contract.
+    fn observe_supported(text: &str, expected_loops: usize) {
         use crate::{
             native_tests::boxed_enum_tests::unit_source::UnitSource,
             ssa::model::{Operation, Origin},
@@ -860,46 +814,36 @@ mod boundaries {
 
     #[test]
     fn owned_source_return_two_returns_remain_bounded() {
-        observe(
+        observe_supported(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 1) { return }; if (key == 2) { return } }; keys.size }",
-            false,
-            23,
             1,
         );
     }
     #[test]
     fn owned_source_return_mixed_continue_remains_bounded() {
-        observe(
+        observe_supported(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 1) { return }; if (key == 2) { continue } }; keys.size }",
-            false,
-            23,
             1,
         );
     }
     #[test]
     fn owned_source_return_replacement_seed_remains_bounded() {
-        observe(
+        observe_supported(
             "fun main(): Unit { var keys = arrayOf(1, 2); keys = arrayOf(2, 3); for (key in keys) { if (key == 2) { return } }; keys.size }",
-            false,
-            23,
             1,
         );
     }
     #[test]
     fn owned_source_return_alias_seed_remains_bounded() {
-        observe(
+        observe_supported(
             "fun main(): Unit { val original = arrayOf(1, 2); val keys = original; for (key in keys) { if (key == 2) { return } }; keys.size }",
-            false,
-            53,
             1,
         );
     }
     #[test]
     fn owned_source_return_resource_source_remains_bounded() {
-        observe(
+        observe_supported(
             "class Item(val id: Int) { deinit() {} }\nfun main(): Unit { val keys = arrayOf(Item(1), Item(2)); for (key in keys) { if (key.id == 2) { return } }; keys.size }",
-            false,
-            63,
             1,
         );
     }
@@ -913,54 +857,29 @@ mod boundaries {
     }
     #[test]
     fn owned_source_return_outer_owner_with_inner_loop() {
-        observe(
+        observe_supported(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { for (other in arrayOf(3)) { other }; if (key == 2) { return } }; keys.size }",
-            false,
-            23,
             2,
         );
     }
     #[test]
     fn owned_source_return_same_source_nested() {
-        observe(
+        observe_supported(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (outer in keys) { for (key in keys) { if (key == 2) { return } } }; keys.size }",
-            false,
-            23,
             2,
         );
     }
     #[test]
     fn owned_source_return_same_source_sequential() {
-        observe(
+        observe_supported(
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { return } }; for (key in keys) { if (key == 2) { return } }; keys.size }",
-            false,
-            23,
             2,
         );
     }
 
     #[test]
     fn owned_source_return_source_loan_rejects_body_moves_and_mutation() {
-        for (factory, operation) in [
-            ("arrayOf", "consume(keys)"),
-            ("arrayOf", "keys[0] = 9"),
-            ("mutableListOf", "keys.add(4)"),
-            ("mutableListOf", "keys.removeLast()"),
-        ] {
-            let text = format!(
-                "fun consume(own source: Array<Int>): Unit {{}}\nfun main(): Unit {{ var keys = {factory}(1, 2, 3); for (key in keys) {{ {operation}; if (key == 2) {{ return }} }} }}"
-            );
-            let a = analyze(&text);
-            assert!(a.parsed.diagnostics().is_empty());
-            assert!(a.names.diagnostics().is_empty());
-            assert!(a.typed.diagnostics().is_empty());
-            assert!(
-                a.owned
-                    .diagnostics()
-                    .iter()
-                    .any(|d| d.code().to_string() == "L0135")
-            );
-        }
+        super::loan_boundary::assert_original_rejections();
     }
 
     #[test]

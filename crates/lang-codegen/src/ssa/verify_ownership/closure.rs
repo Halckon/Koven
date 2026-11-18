@@ -746,6 +746,10 @@ mod map_require_tests {
         let declaration = unit.declaration("view", SymbolKind::Function);
         let (program, view) = unit.lower_entry(declaration).unwrap();
         verify_program(&program).unwrap();
+        let llvm = crate::llvm::render_verified_program(&program).unwrap();
+        assert!(llvm.contains("declare void @abort()"));
+        assert!(llvm.contains("required.missing"));
+        assert!(llvm.contains("required.found"));
         let module = program.module(view.module()).unwrap();
         let function = module.function(view).unwrap();
         let view_origin = Origin::Source(unit.declaration_span(declaration));
@@ -791,28 +795,19 @@ mod map_require_tests {
     }
 
     #[test]
-    fn legacy_whole_file_emits_unselected_map_require_wrapper() {
-        let program = crate::ssa::borrow_result_contract_tests::single(READONLY_WRAPPER).unwrap();
+    fn explicit_unit_roots_preserve_whole_file_map_require_wrapper() {
+        let (program, view, entry) =
+            crate::ssa::map_require_multiroot_test_support::lower_original(READONLY_WRAPPER);
         verify_program(&program).unwrap();
-        let functions = &program.modules[0].functions;
+        let module = program.module(view.module()).unwrap();
         assert_eq!(
-            functions.len(),
+            module.functions.len(),
             2,
-            "whole-file admission retains both roots"
+            "both original roots share one Program"
         );
-        let wrappers = functions
-            .iter()
-            .filter(|function| function.name == "view")
-            .collect::<Vec<_>>();
-        let [wrapper] = wrappers.as_slice() else {
-            panic!("the original unselected view must be emitted exactly once");
-        };
+        let wrapper = module.function(view).unwrap();
         assert!(wrapper.borrow_return.is_some());
-        assert!(
-            functions
-                .iter()
-                .any(|function| { function.name == "entry" && function.borrow_return.is_none() })
-        );
+        assert!(module.function(entry).unwrap().borrow_return.is_none());
         let queries = wrapper
             .instructions
             .iter()
@@ -821,7 +816,7 @@ mod map_require_tests {
             })
             .collect::<Vec<_>>();
         let [query] = queries.as_slice() else {
-            panic!("the unselected wrapper must query exactly one original slot");
+            panic!("the original wrapper must query exactly one original slot");
         };
         let [EntityId::Loan(slot)] = query.results.as_slice() else {
             panic!("the original slot must remain a loan");
@@ -834,5 +829,23 @@ mod map_require_tests {
             instruction.operation,
             Operation::Copy { .. } | Operation::SharedRetain { .. }
         )));
+        let llvm = crate::llvm::render_verified_program(&program).unwrap();
+        assert!(llvm.contains("declare void @abort()"));
+        assert!(llvm.contains("required.missing"));
+        assert!(llvm.contains("required.found"));
+        assert!(!llvm.contains("@malloc("));
+        // The original temporary String key still carries its own cleanup dependency.
+        assert!(wrapper.instructions.iter().any(|instruction| {
+            let Operation::Drop { owner } = instruction.operation else {
+                return false;
+            };
+            let ty = wrapper
+                .entity(EntityId::Value(owner))
+                .unwrap()
+                .ty
+                .semantic_type();
+            module.type_kind(ty) == Some(&SsaTypeKind::StringOwner)
+        }));
+        assert!(llvm.contains("@free("));
     }
 }

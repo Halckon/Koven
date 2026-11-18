@@ -14,6 +14,7 @@ impl Checker<'_> {
         id: ExpressionId,
         operand: ExpressionId,
         state: State,
+        escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         let key = UnitExpressionId::new(self.source_unit, id);
         let descriptor = self
@@ -37,7 +38,42 @@ impl Checker<'_> {
             (ExpressionUse::Read, NonNullAssertionTransferKind::Copy)
         };
         let diagnostic_count = self.diagnostics.len();
-        let flows = self.check_expression(operand, state, usage)?;
+        let mut actual = operand;
+        while let crate::parser::Expression::Group { expression } =
+            self.parsed.ast().expressions().get(actual)?.payload()
+        {
+            actual = *expression;
+        }
+        let direct_control = matches!(
+            self.parsed.ast().expressions().get(actual)?.payload(),
+            crate::parser::Expression::If { .. } | crate::parser::Expression::When { .. }
+        );
+        let mut alias_witnesses = if escaping && !direct_control {
+            self.expression_root_symbol(operand)?
+                .and_then(|symbol| state.escape_witnesses.bindings.get(&symbol).cloned())
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
+        let flows =
+            self.check_expression_with_escape(operand, state, usage, escaping && direct_control)?;
+        if let Some(next) = &flows.next
+            && escaping
+            && self.diagnostics.len() == diagnostic_count
+        {
+            // Control results can carry diagnostic-only alias provenance even
+            // after their real closure holders have reached their release point.
+            if let Some(witnesses) = next
+                .escape_witnesses
+                .results
+                .get(&self.unit_expression(operand))
+            {
+                alias_witnesses.extend(witnesses.iter().copied());
+            }
+            if !alias_witnesses.is_empty() {
+                self.reject_borrowed_closure_roots(id, next, alias_witnesses)?;
+            }
+        }
         if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
             self.non_null_assertions
                 .push(UnitNonNullAssertionOwnershipPlan {

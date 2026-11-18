@@ -2,12 +2,14 @@
 use super::{NamedDrop, point_text};
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    name_resolution::{
+        SourceUnitId, SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+    },
     ownership_checking::{
         CompilationUnitOwnership, DropPoint, OwnershipDeferredReason, UnitDropPoint,
         UnitDropTarget, check_compilation_unit_ownership,
     },
-    parser::{ParsedFile, parse_file},
+    parser::{Expression, ParsedFile, parse_file},
     source::SourceMap,
     type_checking::{check_compilation_unit_types, standard_environments},
 };
@@ -116,7 +118,7 @@ pub(super) fn inspected_plans(
 
 // Keep the adjacent deinit capability-difference witness on its original Single path.
 pub(super) fn consume_rejection_codes(text: &str) -> [Vec<String>; 2] {
-    inspect_unit_ownership(text, "resource-readonly.ko", |owned| {
+    inspect_unit_ownership(text, "resource-readonly.ko", |_, _, _, owned| {
         assert!(owned.drops().is_empty(), "invalid body published drops");
         owned
             .diagnostics()
@@ -126,25 +128,60 @@ pub(super) fn consume_rejection_codes(text: &str) -> [Vec<String>; 2] {
     })
 }
 
-pub(super) fn resource_lifetime_deferrals(text: &str) -> [bool; 2] {
-    inspect_unit_ownership(text, "resource-deferred.ko", |owned| {
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let deferred = owned
-            .deferred()
-            .iter()
-            .any(|fact| fact.reason() == OwnershipDeferredReason::ResourceLifetime);
-        if deferred {
-            assert!(owned.drops().is_empty());
-            assert!(owned.validate().is_err());
-        }
-        deferred
-    })
+pub(super) fn resource_lifetime_deferrals(text: &str, expected_if: Option<&str>) -> [bool; 2] {
+    inspect_unit_ownership(
+        text,
+        "resource-deferred.ko",
+        |sources, parsed, source_unit, owned| {
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            let deferred = owned
+                .deferred()
+                .iter()
+                .any(|fact| fact.reason() == OwnershipDeferredReason::ResourceLifetime);
+            if deferred {
+                assert!(owned.drops().is_empty());
+                if let Some(expected_if) = expected_if {
+                    let [fact] = owned.deferred() else {
+                        panic!(
+                            "exactly one conditional resource boundary: {:?}",
+                            owned.deferred()
+                        );
+                    };
+                    assert_eq!(fact.reason(), OwnershipDeferredReason::ResourceLifetime);
+                    assert_eq!(fact.expression().source_unit(), source_unit);
+                    let expression = parsed
+                        .ast()
+                        .expressions()
+                        .get(fact.expression().expression())
+                        .unwrap();
+                    assert!(matches!(expression.payload(), Expression::If { .. }));
+                    let start = text.find(expected_if).unwrap();
+                    assert_eq!(
+                        expression.span(),
+                        sources
+                            .span(parsed.source_id(), start, start + expected_if.len())
+                            .unwrap()
+                    );
+                    assert_eq!(sources.slice(expression.span()).unwrap(), expected_if);
+                    assert!(owned.conditional_receiver_drops().is_empty());
+                    let expected = *fact;
+                    let rejected = owned
+                        .validate()
+                        .expect_err("deferred resource cannot grant a codegen capability");
+                    assert_eq!(rejected.deferred(), &[expected]);
+                } else {
+                    assert!(owned.validate().is_err());
+                }
+            }
+            deferred
+        },
+    )
 }
 
 fn inspect_unit_ownership<T>(
     text: &str,
     source_name: &str,
-    mut inspect: impl FnMut(CompilationUnitOwnership) -> T,
+    mut inspect: impl FnMut(&SourceMap, &ParsedFile, SourceUnitId, CompilationUnitOwnership) -> T,
 ) -> [T; 2] {
     let mut sources = SourceMap::new();
     let source = sources.add_source(source_name, text).unwrap();
@@ -179,7 +216,7 @@ fn inspect_unit_ownership<T>(
         let owned =
             check_compilation_unit_ownership(&sources, &inputs, &names, &type_env, &typed).unwrap();
         assert!(owned.is_compatible_with(&typed));
-        inspect(owned)
+        inspect(&sources, &parsed, entry.id(), owned)
     })
 }
 

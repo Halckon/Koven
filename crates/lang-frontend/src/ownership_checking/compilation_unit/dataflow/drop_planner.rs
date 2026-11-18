@@ -13,6 +13,7 @@ mod branch_forward_scope;
 mod call_loan_end;
 mod control;
 mod expression;
+mod field_read;
 mod item_traversal;
 mod iteration;
 mod lambda;
@@ -203,6 +204,10 @@ struct DropPlanner<'a, 'checker> {
     call_return_copy_source: Option<UnitSymbolId>,
     rc_projection_scope: Option<ExpressionId>,
     checker: &'a Checker<'checker>,
+    receiver_activation_index: BTreeMap<
+        UnitExpressionId,
+        Option<&'a crate::ownership_checking::UnitReceiverOwnershipFact>,
+    >,
     loan_provenance: std::cell::OnceCell<loan_provenance::LoanProvenance>,
     loan_region_index: std::cell::OnceCell<loan_region::AdmissionIndex>,
     borrow_forward_index: std::cell::OnceCell<loan_provenance::BorrowForwardIndex>,
@@ -254,6 +259,9 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             call_return_copy_source: None,
             rc_projection_scope: None,
             checker,
+            receiver_activation_index: receiver_loan_end::activation_index(
+                &checker.receiver_activations,
+            ),
             loan_provenance: std::cell::OnceCell::new(),
             loan_region_index: std::cell::OnceCell::new(),
             borrow_forward_index: std::cell::OnceCell::new(),
@@ -375,8 +383,16 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 self.loop_boundaries.push(self.scope_depth);
                 self.statement(body, &mut body_state)?;
                 self.loop_boundaries.pop();
-                self.drop_loop_exit(id, state);
-                Ok(true)
+                let has_exit = self
+                    .checker
+                    .loop_has_exit
+                    .get(&id.index())
+                    .copied()
+                    .unwrap_or(false);
+                if has_exit {
+                    self.drop_loop_exit(id, state);
+                }
+                Ok(has_exit)
             }
         }
     }

@@ -765,34 +765,7 @@ mod source_closure_tests {
             "val unused: ()->Unit = { val nested: ()->Unit = {} }",
         ] {
             let text = format!("fun entry(): Int {{ return 0\n{body} }}");
-            analyze(&text, |sources, parsed, names, typed, owned| {
-                for (expression, node) in parsed.ast().expressions().iter() {
-                    if matches!(
-                        node.payload(),
-                        lang_frontend::parser::Expression::Lambda { .. }
-                    ) {
-                        assert!(
-                            owned.closure(expression).is_some(),
-                            "static capture analysis still describes the AST lambda"
-                        );
-                        assert!(
-                            owned.callable_origin(expression).is_none(),
-                            "Phase 3 never evaluated this lambda after return"
-                        );
-                    }
-                }
-                let before = typed.types().len();
-                let program = lower_scalar_file(sources, parsed, names, typed, owned)
-                    .expect("unreachable lambda metadata cannot demand storage or nested layouts");
-                assert_eq!(
-                    program.modules[0].functions.len(),
-                    1,
-                    "only entry runs; no lambda thunk is declared"
-                );
-                assert_eq!(typed.types().len(), before);
-                crate::llvm::render_verified_program(&program)
-                    .expect("reachable entry verifies through LLVM");
-            });
+            super::assert_unreachable_lambda_unit(&text);
         }
     }
 
@@ -833,46 +806,91 @@ mod source_closure_tests {
     }
 }
 
-// Keep the legacy static-capture/callable-origin witness above: Unit has a different
-// fact model. This ordinary-source control checks only the production Unit outcome.
+// Both historical test identities now use the same complete strict Unit contract.
+// This is shared coverage, not an independent Legacy/Unit comparison.
 #[test]
 fn unit_unreachable_lambdas_do_not_register_storage_or_nested_layouts() {
-    use super::model::{Origin, SsaTypeKind};
-    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
-    use lang_frontend::name_resolution::SymbolKind;
-
     for body in [
         "val unused: ()->Int = { val value: Int? = 1\nvalue!! }",
         "val unused: ()->Unit = { val nested: ()->Unit = {} }",
     ] {
         let text = format!("fun entry(): Int {{ return 0\n{body} }}");
-        let unit = UnitSource::analyze("single-runtime-intent.ko", &text)
-            .expect("original unreachable lambda source passes strict Unit admission");
-        unit.assert_frontend_clean();
-        let declaration = unit.declaration("entry", SymbolKind::Function);
-        let (program, root) = unit.lower_entry(declaration).unwrap();
-        super::verify::verify_program(&program).unwrap();
-        let module = program.module(root.module()).unwrap();
-        assert_eq!(module.functions.len(), 1, "no unreachable lambda thunk");
-        let entry = module.function(root).unwrap();
-        assert_eq!(
-            entry.origin,
-            Origin::Source(unit.declaration_span(declaration))
-        );
-        assert!(
-            !module
-                .types
-                .iter()
-                .any(|ty| matches!(ty, SsaTypeKind::ConcreteClosure { .. }))
-        );
-        assert!(!entry.instructions.iter().any(|instruction| matches!(
-            instruction.operation,
-            Operation::ClosureConstruct { .. }
-                | Operation::CallableInvoke { .. }
-                | Operation::CallableInvokeView { .. }
-                | Operation::CallableViewOf { .. }
-        )));
-        crate::llvm::render_verified_program(&program)
-            .expect("reachable Unit entry verifies through LLVM");
+        assert_unreachable_lambda_unit(&text);
     }
 }
+
+fn assert_unreachable_lambda_unit(text: &str) {
+    use super::model::{Origin, SsaTypeKind};
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let unit = UnitSource::analyze("single-runtime-intent.ko", text)
+        .expect("original unreachable lambda source passes strict Unit admission");
+    unit.assert_frontend_clean();
+    let [document] = unit.names().names().index().source_units() else {
+        panic!("one original source document");
+    };
+    assert_eq!(
+        document.key(),
+        &lang_frontend::name_resolution::SourceUnitKey::MemoryDocument
+    );
+    assert_eq!(document.source_id(), unit.parsed().source_id());
+    assert_eq!(
+        unit.sources().source_name(document.source_id()),
+        Ok("single-runtime-intent.ko")
+    );
+    assert_eq!(unit.sources().source_text(document.source_id()), Ok(text));
+    assert_eq!(unit.parsed().roots().len(), 1);
+    assert!(unit.ownership().deferred().is_empty());
+    for (expression, node) in unit.parsed().ast().expressions().iter() {
+        if matches!(
+            node.payload(),
+            lang_frontend::parser::Expression::Lambda { .. }
+        ) {
+            let expression =
+                lang_frontend::type_checking::UnitExpressionId::new(document.id(), expression);
+            assert!(
+                unit.ownership().closure(expression).is_some(),
+                "static capture analysis still describes the original AST lambda"
+            );
+            assert!(
+                unit.ownership().callable_origin(expression).is_none(),
+                "Phase 3 never evaluated this lambda after return"
+            );
+        }
+    }
+    let arena = unit.types().types().len();
+    let declaration = unit.declaration("entry", SymbolKind::Function);
+    let (program, root) = unit.lower_entry(declaration).unwrap();
+    assert_eq!(
+        unit.types().types().len(),
+        arena,
+        "backend queries canonical types read-only"
+    );
+    super::verify::verify_program(&program).unwrap();
+    let module = program.module(root.module()).unwrap();
+    assert_eq!(module.functions.len(), 1, "no unreachable lambda thunk");
+    let entry = module.function(root).unwrap();
+    assert_eq!(
+        entry.origin,
+        Origin::Source(unit.declaration_span(declaration))
+    );
+    assert!(
+        !module
+            .types
+            .iter()
+            .any(|ty| matches!(ty, SsaTypeKind::ConcreteClosure { .. }))
+    );
+    assert!(!entry.instructions.iter().any(|instruction| matches!(
+        instruction.operation,
+        Operation::ClosureConstruct { .. }
+            | Operation::CallableInvoke { .. }
+            | Operation::CallableInvokeView { .. }
+            | Operation::CallableViewOf { .. }
+    )));
+    crate::llvm::render_verified_program(&program)
+        .expect("reachable Unit entry verifies through LLVM");
+}
+
+#[path = "generic_container_view_contract.rs"]
+mod generic_container_view_contract;

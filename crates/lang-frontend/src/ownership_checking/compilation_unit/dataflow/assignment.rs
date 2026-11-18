@@ -38,15 +38,33 @@ impl Checker<'_> {
             self.ownership_primitives.len(),
             self.field_replacements.len(),
             self.formed_owned_locals.len(),
+            self.receiver_activations.len(),
+            self.borrow_results.call_uses.len(),
+            self.borrow_results.range_uses.len(),
         );
         let nullable_when_checkpoint = self.nullable_whens.clone();
-        let mut flows = self.check_expression(
-            value,
-            state,
-            ExpressionUse::Consume {
-                parameter_span: None,
-            },
-        )?;
+        let usage = ExpressionUse::Consume {
+            parameter_span: None,
+        };
+        // A stored environment belongs to the container, not the local capture scope.
+        // Check escaping control tails before their branch locals disappear.
+        let element_assignment = self.element_place_descriptor(target)?.is_some();
+        let mut flows = if element_assignment {
+            // Evaluate receiver and index once, without acquiring an element loan.
+            let mut flows = self.check_element_expression(
+                target,
+                state,
+                ExpressionUse::Place {
+                    parameter_span: None,
+                },
+            )?;
+            if let Some(next) = flows.next.take() {
+                flows.merge(self.check_escaping_expression(value, next, usage)?);
+            }
+            flows
+        } else {
+            self.check_expression(value, state, usage)?
+        };
         if root.is_some() {
             for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
                 .into_iter()
@@ -170,7 +188,9 @@ impl Checker<'_> {
                 self.nullable_whens = nullable_when_checkpoint;
                 return Ok(Self::restore_flow_states(flows, &entry_state));
             }
-        } else {
+        } else if !element_assignment {
+            // Element prefixes were already evaluated before the RHS, even for
+            // temporary receivers without a named place.
             flows = self.chain_expression(flows, target, ExpressionUse::Read)?;
             if self.diagnostics.len() != diagnostic_count {
                 self.rollback_facts(fact_lengths);
@@ -193,6 +213,9 @@ impl Checker<'_> {
             usize,
             usize,
             usize,
+            usize,
+            usize,
+            usize,
         ),
     ) {
         self.loans.truncate(lengths.0);
@@ -206,6 +229,10 @@ impl Checker<'_> {
         self.ownership_primitives.truncate(lengths.6);
         self.field_replacements.truncate(lengths.7);
         self.formed_owned_locals.truncate(lengths.8);
+        self.receiver_activations.truncate(lengths.9);
+        // A consumer cannot outlive the source loan removed by this transaction.
+        self.borrow_results.call_uses.truncate(lengths.10);
+        self.borrow_results.range_uses.truncate(lengths.11);
     }
 
     fn restore_flow_states(mut flows: Flows, entry: &State) -> Flows {

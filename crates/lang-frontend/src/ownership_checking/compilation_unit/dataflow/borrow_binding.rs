@@ -9,7 +9,7 @@ use crate::{
         BorrowBindingFact, BorrowSourceLoan, LoanKind, UnitLoanTarget as LoanTarget,
         UnitOwnershipPlace as OwnershipPlace,
     },
-    parser::{Expression, NameMarker, Statement},
+    parser::{Expression, NameMarker},
     source::Span,
 };
 
@@ -43,13 +43,7 @@ impl Checker<'_> {
     ) -> Result<Flows, OwnershipCheckingError> {
         // 循环动态实例运输尚未有普通结果证明；不把静态绑定 identity 当作循环实例。
         if !self.no_carry_allows(name, initializer, marker)
-            && self.parsed.ast().statements().iter().any(|(_, node)| {
-                matches!(
-                    node.payload(),
-                    Statement::While { .. } | Statement::For { .. } | Statement::Loop { .. }
-                ) && node.span().start() <= marker.start()
-                    && marker.end() <= node.span().end()
-            })
+            && self.loop_spans.contains(self.parsed, marker)
         {
             self.emit_borrow_binding_diagnostic(
                 codes::UNSUPPORTED_BORROW_FLOW,

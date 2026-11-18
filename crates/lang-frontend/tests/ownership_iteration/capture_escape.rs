@@ -339,9 +339,10 @@ fn element_storage_cannot_keep_an_iteration_capture_past_the_element_access() {
         "if (flag) { val captured: () -> Unit = { read(n) }\ncaptured } else ({})",
         "when (flag) { true -> { val captured: () -> Unit = { read(n) }\ncaptured }\nelse -> ({}) }",
     ] {
-        let (_, _, owned) = checked(&format!(
+        let text = format!(
             "fun read(n: Int) {{}}\nfun run(inout slots: Array<() -> Unit>, xs: List<Int>, flag: Boolean) {{ for (n in xs) {{ slots[0] = {value}\nbreak }} }}"
-        ));
+        );
+        let (_, _, owned) = checked(&text);
         assert!(
             owned
                 .diagnostics()
@@ -358,6 +359,31 @@ fn element_storage_cannot_keep_an_iteration_capture_past_the_element_access() {
             owned.captures().is_empty(),
             "invalid captures must not be published"
         );
+        for rooted in [false, true] {
+            let (_, owned) = borrow_rejection_unit::checked(
+                &text,
+                "iteration.ko",
+                rooted,
+                standard_environments(),
+            );
+            assert!(
+                owned
+                    .diagnostics()
+                    .iter()
+                    .any(|d| d.code().to_string() == "L0137"),
+                "{value}/{rooted}: {:?}",
+                owned.diagnostics()
+            );
+            // Empty cleanup also preserves checked()'s Named-owner invariant.
+            assert!(
+                owned.drops().is_empty(),
+                "invalid cleanup must not be published"
+            );
+            assert!(
+                owned.captures().is_empty(),
+                "invalid captures must not be published"
+            );
+        }
     }
 }
 
@@ -381,5 +407,67 @@ fn element_storage_accepts_owned_snapshots_and_capture_free_values() {
                 owned.diagnostics()
             );
         }
+    }
+}
+
+#[test]
+fn element_storage_unit_accepts_owned_and_capture_free_environments() {
+    for container in ["Array", "MutableList"] {
+        for (ty, value) in [
+            ("() -> Unit", "({})"),
+            ("move () -> Unit", "move { read(n) }"),
+            (
+                "move () -> Unit",
+                "if (flag) { val captured: move () -> Unit = move { read(n) }\ncaptured } else move {}",
+            ),
+        ] {
+            let text = format!(
+                "fun read(n: Int) {{}}\nfun run(inout slots: {container}<{ty}>, xs: List<Int>, flag: Boolean) {{ for (n in xs) {{ slots[0] = {value}\nbreak }} }}"
+            );
+            for rooted in [false, true] {
+                let (_, owned) = borrow_rejection_unit::checked(
+                    &text,
+                    "iteration.ko",
+                    rooted,
+                    standard_environments(),
+                );
+                assert!(
+                    owned.diagnostics().is_empty(),
+                    "{container}/{value}/{rooted}: {:?}",
+                    owned.diagnostics()
+                );
+                assert!(owned.validate().is_ok());
+            }
+        }
+    }
+}
+
+#[test]
+fn element_storage_escape_check_preserves_unreachable_tails_and_local_assignments() {
+    for exit in ["return", "break", "continue"] {
+        let text = format!(
+            "fun read(n: Int) {{}}\nfun run(inout slots: Array<() -> Unit>, xs: List<Int>, flag: Boolean) {{ for (n in xs) {{ slots[0] = if (flag) {{ {exit}\n({{ read(n) }}) }} else ({{}}) }} }}"
+        );
+        for rooted in [false, true] {
+            let (_, owned) = borrow_rejection_unit::checked(
+                &text,
+                "iteration.ko",
+                rooted,
+                standard_environments(),
+            );
+            assert!(
+                owned.diagnostics().is_empty(),
+                "{exit}/{rooted}: {:?}",
+                owned.diagnostics()
+            );
+            assert!(owned.validate().is_ok());
+        }
+    }
+    let text = "fun read(n: Int) {}\nfun run(xs: List<Int>) { var f: () -> Unit = {}\nfor (n in xs) { f = ({ read(n) })\nval used = f() } }";
+    for rooted in [false, true] {
+        let (_, owned) =
+            borrow_rejection_unit::checked(text, "iteration.ko", rooted, standard_environments());
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.validate().is_ok());
     }
 }

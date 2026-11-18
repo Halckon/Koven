@@ -4,6 +4,12 @@ use super::*;
 use crate::ssa::model::{Definition, LoanKind};
 impl Emitted {
     pub(in super::super) fn inject_composition(&self, body: &RefinedBody, function: &mut Function) {
+        let (Some(child), Some(p)) = (
+            body.child_cycle_plans.0.as_ref(),
+            body.nested_resume_plans.0.as_ref(),
+        ) else {
+            return;
+        };
         let faults = [
             OwnerFault::ParentCompositionCarrySwap,
             OwnerFault::ParentCompositionUnchangedConsume,
@@ -17,8 +23,6 @@ impl Emitted {
             return;
         };
         assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
-        let child = body.child_cycle_plans.0.as_ref().unwrap();
-        let p = body.nested_resume_plans.0.as_ref().unwrap();
         let span = p.spans[0];
         self.finish(body, function, span).expect("baseline resume");
         self.compose(body, function, span)

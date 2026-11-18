@@ -21,13 +21,13 @@ member 候选只从名称阶段的可选词法查询提示取得，unit 复用�
 按 receiver 类型区分，同 receiver 的 alpha 等价重复签名仍拒绝，mode 不参与 shape。
 普通函数调用不能省略扩展的 receiver。String 与 MoveOnly 使用同一选择与实例化路径。
 
-此绑定本身仍只是签名与类型选择。Phase 3 为真实扩展声明建立合成 Borrow 参数，
+范围原语参数数量错误复用普通 call 恢复：保错误完成性，检查全部后缀诊断但不登记不可达循环出口。此绑定本身仍只是签名与类型选择。Phase 3 为真实扩展声明建立合成 Borrow 参数，
 锚定到 receiver TypeRef 的源码 Span；`this` 的名称引用指向该参数，unit 使用
 source-qualified UnitSymbolId。普通 nominal `this` 保持既有 receiver 路径。
 producer 证明从实际构造/已选择转发与返回根取得，不能仅凭 `from this` 发布来源。
-caller 用真实 receiver expression 建立 Shared source loan，View 派生续接原根；
-新描述符保持 root-flat，既有 metadata 借用保留父依赖。结果 end 与元素/provider
-结束共同约束权限恢复，临时链只延续到实际立即消费者并在其返回后清理一次。
+caller 用真实 receiver expression 建立 Shared source loan，View 派生续接原根；新 descriptor root-flat，metadata 保留父依赖。
+结果 end 与元素/provider 结束共同约束权限恢复，临时链延续到实际立即消费者返回后清理一次。
+同步 Borrow 实参及可信 range receiver 的 Group 保留原契约身份；授权、range-use、嵌套 source loan 的真实根与续借锚定内层 Call，不伪造 descriptor；立即 for 保原 source/span，以真实 Call 完成授权及同根 pending 移交，提前退出不建立 provider，私有映射经模板与 source-loan 校验后复用既有终止清理。赋值失败同步撤销本次 range-use 与 source loan 后缀，保留此前事实；最终失败门仍清空整体产品。
 
 可信扩展的来源与续接已接到 single/unit 静态 RangeCall ABI。lowering 消费已绑定的
 合成 `this` symbol 与 receiver_type，receiver 为入口参数 0，显式参数后移，
@@ -48,14 +48,14 @@ Int、String、MoveOnly 使用相同合同；Borrow metadata 不拥有或清理�
 
 ## 构造与稳定根绑定
 
-compiler-bound `rangeView(source, begin, end)` 发布元素 identity、List/View 来源种类与
-真实三操作数；只允许已授权源码调用，源码同名函数不获得原语权限。标记区分真实
+compiler-bound `rangeView(source, begin, end)` 发布元素 identity、List/View 来源与真实三操作数；仅授权源码可调用，同名函数无权限。
+合法来源的 bounds 共用私有 `CallOperandFlow`，保静态 identity、后项诊断与真实完成性，隔离不可达 loop 退出。标记区分真实
 DeclarationFrom 和 PrimitiveCall；原语没有伪造 from。无效类型输入原子撤销构造事实。
 
-Phase 3 的 BorrowBindingStorage 区分普通存储借用、既有 metadata 借用和新内联
-descriptor。稳定 List 构造续接实际 caller source loan 并发布 end；View 派生继承
-真实根而不持有父 metadata，metadata alias 仍依赖父绑定。父、子、兄弟对根的保护
-覆盖到最后使用结束，随后允许移动 owner。三组 single/unit 回归提供直接事实证据。
+Phase 3 的 BorrowBindingStorage 区分普通存储借用、metadata 借用及新内联 descriptor。
+稳定 List 续接真实 source loan/end；View 派生继承根而不持有父 metadata，alias 仍依赖父绑定。
+父、子、兄弟保护根到最后使用结束后恢复移动，三组 single/unit 回归保事实。只有正常完成分支续接 source loan；
+未 dispatch 的 break/continue 释放本 call 贷款，不发布未进入的迭代使用，混合分支仍保正常消费者及其他活贷款。
 
 ## producer 返回与标准源码
 

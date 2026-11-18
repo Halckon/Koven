@@ -89,8 +89,13 @@ impl Checker<'_> {
                             .filter(|_| !copied_borrow)
                             .map(|fact| fact.origin().clone())
                             .or_else(|| {
-                                self.range_use(contract.argument().expression())
-                                    .map(|fact| fact.origin().clone())
+                                crate::ownership_checking::borrow_result::borrow_result_call(
+                                    self.parsed,
+                                    contract.argument().expression(),
+                                    |actual| self.range_use(actual).is_some(),
+                                )
+                                .and_then(|actual| self.range_use(actual))
+                                .map(|fact| fact.origin().clone())
                             })
                     })
                     .flatten();

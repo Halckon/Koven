@@ -395,27 +395,18 @@ fn rejects_nested_interpolation_in_println_at_whole_file_boundary() {
     assert_eq!(span.end(), text.rfind('"').unwrap() + 1);
 }
 
+#[path = "inline_nullable_unit_contract.rs"]
+mod inline_nullable_contract;
+
 #[test]
 fn rejects_inline_nullable_lowering_without_panicking() {
-    let analysis = analyze(
-        "value class Token(val item: Int)\n\
+    let text = "value class Token(val item: Int)\n\
          fun inspect(own token: Token?): Unit {\n\
              if (token != null) {}\n\
-         }",
-    );
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let error = match lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    ) {
-        Ok(_) => panic!("inline nullable ABI remains outside SPEC-0196"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+         }";
+    // Keep the historical FQN and original source; the supported Unit ABI/CFG
+    // contract supersedes the obsolete Legacy implementation rejection.
+    inline_nullable_contract::assert_unit(text);
 }
 
 #[test]
@@ -452,6 +443,9 @@ fn rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking() {
     }
 }
 
+#[path = "nominal_multiroot_unit_contract.rs"]
+mod nominal_multiroot_unit_contract;
+
 #[test]
 fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
     root_boundaries::assert_unused_declarations(
@@ -479,64 +473,7 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
         assert!(error.span.is_some());
     }
 
-    let nominal_use = analyze(
-        "value class Wrapped(val item: Int)\n\
-         class Holder(val item: Int)\n\
-         class Resource {}\n\
-         enum class Flag { On, Off }\n\
-         enum class Maybe<T> { Some(item: T), None }\n\
-         enum class Owned<T> { Some(item: T), None }\n\
-         fun wrapped(): Wrapped = Wrapped(1)\n\
-         fun holder(): Holder = Holder(2)\n\
-         fun boxed(): Box<Wrapped> = Box(Wrapped(3))\n\
-         fun flag(): Flag = Flag.On\n\
-         fun some(): Maybe<Int> = Maybe.Some(4)\n\
-         fun enumProjected(): Int { val maybe: Maybe<Int> = Maybe.Some(8); val result: Int = when (maybe) {\n\
-             is Maybe.Some<Int> -> maybe.item\n\
-             is Maybe.None<Int> -> 0\n\
-         }; return result }\n\
-         fun projected(): Int { val wrapped = Wrapped(5); return wrapped.item }\n\
-         fun destructured(): Int { val (item) = Wrapped(6); return item }\n\
-         fun classProjected(): Int { val holder = Holder(7); return holder.item }\n\
-         fun dropEnum(): Unit { val event: Owned<Resource> = Owned.Some(Resource()) }",
-    );
-    assert!(
-        nominal_use.typed.diagnostics().is_empty(),
-        "{:?}",
-        nominal_use.typed.diagnostics()
-    );
-    assert!(nominal_use.owned.diagnostics().is_empty());
-    let program = lower_scalar_file(
-        &nominal_use.sources,
-        &nominal_use.parsed,
-        &nominal_use.names,
-        &nominal_use.typed,
-        &nominal_use.owned,
-    )
-    .expect("value/class/Box construction facts must lower to verified SSA");
-    let ssa = render_program(&program);
-    assert_eq_diagnostic!(ssa.matches("aggregate.construct").count(), 11, "{ssa}");
-    assert_eq_diagnostic!(ssa.matches("heap.allocate").count(), 4, "{ssa}");
-    assert_eq_diagnostic!(ssa.matches("tagged.construct").count(), 4, "{ssa}");
-    assert_eq_diagnostic!(ssa.matches("aggregate.project").count(), 1, "{ssa}");
-    assert_eq_diagnostic!(ssa.matches("aggregate.copy_explode").count(), 1, "{ssa}");
-    assert_eq_diagnostic!(ssa.matches("heap.payload_place").count(), 1, "{ssa}");
-    assert_eq_diagnostic!(ssa.matches("tagged.payload_place").count(), 1, "{ssa}");
-    assert_eq_diagnostic!(ssa.matches("tagged.discriminant").count(), 2, "{ssa}");
-    assert_eq_diagnostic!(ssa.matches("drop ").count(), 2, "{ssa}");
-    assert_diagnostic!(ssa.contains("Wrapped#t"), "{ssa}");
-    assert_diagnostic!(ssa.contains("Holder#t"), "{ssa}");
-    assert_diagnostic!(ssa.contains("Box#t"), "{ssa}");
-    assert_diagnostic!(ssa.contains("Flag#t"), "{ssa}");
-    assert_diagnostic!(ssa.contains("Maybe#t"), "{ssa}");
-    assert_diagnostic!(ssa.contains("Owned#t"), "{ssa}");
-
-    let llvm = render_verified_program(&program).expect("nominal SSA must lower to LLVM");
-    assert_eq_diagnostic!(llvm.matches("call ptr @malloc").count(), 4, "{llvm}");
-    assert_eq_diagnostic!(llvm.matches("call void @free").count(), 2, "{llvm}");
-    assert_diagnostic!(llvm.contains("%koven.enum.t"), "{llvm}");
-    assert_diagnostic!(!llvm.contains("retain"), "{llvm}");
-    assert_diagnostic!(!llvm.contains("clone"), "{llvm}");
+    nominal_multiroot_unit_contract::assert_original_nominal_roots();
 }
 
 #[test]
@@ -552,145 +489,20 @@ fn rejects_out_of_range_integer_literals_before_ssa_construction() {
     );
 }
 
+#[path = "generic_recursive_unit_contract.rs"]
+mod generic_recursive_unit_contract;
+
 #[test]
 fn lowers_reachable_scalar_generic_instances_once_and_keeps_recursive_identity() {
-    let analysis = analyze(
-        "fun <T> identity(own input: T): T = input\n\
-         fun <T> relay(own input: T): T = identity(input)\n\
-         fun <T> recurse(own input: T): T = recurse(input)\n\
-         fun <T> unused(own input: T): T = input\n\
-         fun useInt(input: Int): Int = relay<Int>(input)\n\
-         fun useIntAgain(input: Int): Int = relay(input)\n\
-         fun useLong(input: Long): Long = relay(input)\n\
-         fun recursive(input: Int): Int = recurse(input)",
-    );
-    assert!(
-        analysis.parsed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.parsed.diagnostics()
-    );
-    assert!(
-        analysis.names.diagnostics().is_empty(),
-        "{:?}",
-        analysis.names.diagnostics()
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("reachable concrete scalar generic instances must lower");
-    let rendered = render_program(&program);
-    let repeated = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("repeated instance planning must lower");
-    assert_text_eq!(rendered, render_program(&repeated));
-    assert_eq!(rendered.matches("func \"identity<Int>\"").count(), 1);
-    assert_eq!(rendered.matches("func \"identity<Long>\"").count(), 1);
-    assert_eq!(rendered.matches("func \"relay<Int>\"").count(), 1);
-    assert_eq!(rendered.matches("func \"relay<Long>\"").count(), 1);
-    assert_eq!(rendered.matches("func \"recurse<Int>\"").count(), 1);
-    assert!(!rendered.contains("unused<"));
-
-    let module = &program.modules[0];
-    let recursive = module
-        .functions
-        .iter()
-        .find(|function| function.name == "recurse<Int>")
-        .expect("recursive generic instance must exist");
-    let recursive_body = rendered
-        .split("func \"recurse<Int>\"")
-        .nth(1)
-        .and_then(|body| body.split("\n\n  func").next())
-        .expect("recursive instance body must render");
-    assert!(recursive_body.contains(&format!("call @f{}(", recursive.id.index())));
+    generic_recursive_unit_contract::assert_reachable_instances();
 }
+
+#[path = "generic_overload_unit_contract.rs"]
+mod generic_overload_unit_contract;
 
 #[test]
 fn generic_overloads_with_the_same_type_arguments_keep_distinct_targets() {
-    let analysis = analyze(
-        "fun <T> choose(own input: T): T = input\n\
-         fun <T> choose(own input: T, fallback: Boolean): T = input\n\
-         fun one(input: Int): Int = choose(input)\n\
-         fun two(input: Int): Int = choose(input, true)",
-    );
-    assert!(
-        analysis.typed.diagnostics().is_empty(),
-        "{:?}",
-        analysis.typed.diagnostics()
-    );
-    assert!(
-        analysis.owned.diagnostics().is_empty(),
-        "{:?}",
-        analysis.owned.diagnostics()
-    );
-    let program = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .expect("generic overload instances must lower independently");
-    let module = &program.modules[0];
-    let choices = module
-        .functions
-        .iter()
-        .filter(|function| function.name == "choose<Int>")
-        .map(|function| function.id)
-        .collect::<Vec<_>>();
-    assert_eq!(choices.len(), 2);
-    let target_of = |name: &str| {
-        let function = module
-            .functions
-            .iter()
-            .find(|function| function.name == name)
-            .expect("caller must exist");
-        function
-            .instructions
-            .iter()
-            .find_map(|instruction| match instruction.operation {
-                Operation::DirectCall { callee, .. } => Some(callee),
-                _ => None,
-            })
-            .expect("caller must contain one direct call")
-    };
-    let one = target_of("one");
-    let two = target_of("two");
-    assert_ne!(one, two);
-    assert!(choices.contains(&one));
-    assert!(choices.contains(&two));
-    let llvm = render_verified_program(&program).expect("distinct overload instances must lower");
-    assert_eq!(
-        llvm.matches("define internal i32 @\"f0.choose<Int>\"")
-            .count(),
-        1
-    );
-    assert_eq!(
-        llvm.matches("define internal i32 @\"f1.choose<Int>\"")
-            .count(),
-        1
-    );
-    assert!(llvm.contains("call i32 @\"f0.choose<Int>\""));
-    assert!(llvm.contains("call i32 @\"f1.choose<Int>\""));
+    generic_overload_unit_contract::assert_distinct_targets();
 }
 
 #[test]

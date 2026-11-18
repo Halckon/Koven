@@ -58,6 +58,10 @@ impl Checker<'_> {
             .into_iter()
             .flatten()
         {
+            state
+                .escape_witnesses
+                .bindings
+                .retain(|symbol, _| !locals.contains_key(symbol));
             let roots = state
                 .closures
                 .iter()

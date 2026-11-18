@@ -1,4 +1,5 @@
 //! source-qualified 范围构造；权限来自已校验 SourceId，实际操作数保持 unit identity。
+use super::call_operand_flow::CallOperandFlow;
 use super::*;
 use crate::ast::TypeRefId;
 use crate::parser::CallArgument;
@@ -80,9 +81,7 @@ impl BodyChecker<'_> {
                 "range construction requires source, begin and end",
                 span,
             )?;
-            for argument in arguments {
-                self.check_expression(source, argument.value, None, None, return_type)?;
-            }
+            self.check_call_arguments_without_expected(source, arguments, return_type)?;
             return Ok(Some(ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -106,8 +105,9 @@ impl BodyChecker<'_> {
             .get(operand)
             .map_err(TypeCheckingError::from)?
             .span();
-        let source_type = self
-            .check_expression(source, operand, None, None, return_type)?
+        let mut flow = CallOperandFlow::new(self);
+        let source_type = flow
+            .check(self, source, operand, None, None, return_type)?
             .ty;
         let (kind, element) = match self.signatures.types().get(source_type) {
             Some(UnitTypeKind::Intrinsic {
@@ -132,8 +132,14 @@ impl BodyChecker<'_> {
         };
         let int = self.builtin(BuiltinType::Int);
         for argument in &arguments[1..] {
-            let value =
-                self.check_expression(source, argument.value, Some(int), Some(span), return_type)?;
+            let value = flow.check(
+                self,
+                source,
+                argument.value,
+                Some(int),
+                Some(span),
+                return_type,
+            )?;
             valid &= self.assignable(value.ty, int)
                 && !self.is_error(value.ty)
                 && !self.is_deferred(value.ty);
@@ -141,7 +147,7 @@ impl BodyChecker<'_> {
         if !valid {
             return Ok(Some(ExpressionCheck {
                 ty: self.error_type(),
-                falls_through: true,
+                falls_through: flow.falls_through(),
             }));
         }
         let view = self.signatures.types_mut().intern(UnitTypeKind::Intrinsic {
@@ -206,7 +212,7 @@ impl BodyChecker<'_> {
         });
         Ok(Some(ExpressionCheck {
             ty: view,
-            falls_through: true,
+            falls_through: flow.falls_through(),
         }))
     }
 }

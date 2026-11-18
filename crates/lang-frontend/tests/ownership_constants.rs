@@ -2,16 +2,24 @@
 
 use lang_frontend::{
     name_resolution::resolve_names,
-    ownership_checking::{
-        ConstantMaterializationKind, DropPoint, DropTarget, LoanTarget, OwnershipCheckedFile,
-        check_ownership,
-    },
+    ownership_checking::{OwnershipCheckedFile, check_ownership},
     source::SourceMap,
     type_checking::{TypedFile, check_types, standard_environments},
 };
 
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
+
+#[path = "ownership_constants/unit_cleanup_order.rs"]
+mod unit_cleanup_order;
+#[path = "ownership_constants/unit_failure.rs"]
+mod unit_failure;
+#[path = "ownership_constants/unit_materialization.rs"]
+mod unit_materialization;
+#[path = "ownership_constants/unit_runtime_identity.rs"]
+mod unit_runtime_identity;
+#[path = "ownership_constants/unit_transfer_cleanup.rs"]
+mod unit_transfer_cleanup;
 
 fn analyzed(text: &str) -> (SourceMap, TypedFile, OwnershipCheckedFile) {
     let mut sources = SourceMap::new();
@@ -55,8 +63,7 @@ fn checked(text: &str) -> (SourceMap, OwnershipCheckedFile) {
 
 #[test]
 fn repeated_string_borrows_own_distinct_temporaries_without_declaration_loans() {
-    let (_, ownership) = checked(
-        r#"
+    let text = r#"
 object Labels { const val TEXT = "hello" }
 const val COPY = Labels.TEXT
 fun view(text: String): Unit {}
@@ -65,59 +72,22 @@ fun use(): Unit {
     val second = view(COPY)
     val third = view(Labels.TEXT)
 }
-"#,
-    );
-    // Dependency reads have no runtime effects; each executed read has its own owner.
-    assert_eq!(ownership.loans().len(), 3);
-    let mut owners = Vec::new();
-    for loan in ownership.loans() {
-        let LoanTarget::Temporary(owner) = loan.target() else {
-            panic!("constant declaration must not be borrowed: {loan:?}");
-        };
-        owners.push(*owner);
-        assert_eq!(
-            ownership
-                .drops()
-                .iter()
-                .filter(|drop| {
-                    drop.target() == DropTarget::Temporary(*owner)
-                        && drop.point() == DropPoint::CallReturn(loan.call())
-                })
-                .count(),
-            1
-        );
-    }
-    owners.sort_by_key(|owner| owner.index());
-    owners.dedup();
-    assert_eq!(owners.len(), 3);
-    assert_eq!(ownership.drops().len(), 3);
-    assert!(ownership.captures().is_empty());
+"#;
+    unit_runtime_identity::repeated(text);
 }
 
 #[test]
 fn string_binary_operands_drop_materializations_in_reverse_order() {
-    let (sources, ownership) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hello"
 fun use(): Boolean = (TEXT + TEXT) == TEXT
-"#,
-    );
-    assert_eq!(ownership.drops().len(), 4);
-    assert!(ownership.drops().iter().all(|drop| {
-        matches!(drop.target(), DropTarget::Temporary(_))
-            && matches!(drop.point(), DropPoint::AfterBinaryOperands(_))
-    }));
-    let drops = ownership.drops();
-    assert_eq!(drops[0].point(), drops[1].point());
-    assert!(drops[0].value_origin().start() > drops[1].value_origin().start());
-    assert_eq!(sources.slice(drops[0].value_origin()).unwrap(), "TEXT");
-    assert_eq!(sources.slice(drops[1].value_origin()).unwrap(), "TEXT");
+"#;
+    unit_cleanup_order::binary(text);
 }
 
 #[test]
 fn scalar_delivery_and_string_return_do_not_own_constant_declarations() {
-    let (_, ownership) = checked(
-        r#"
+    let text = r#"
 const val NUMBER = 7
 const val LETTER = '文'
 const val TEXT = "hello"
@@ -128,27 +98,21 @@ fun use(): Unit {
 }
 fun first(): String = TEXT
 fun second(): String = TEXT
-"#,
-    );
-    assert!(ownership.loans().is_empty());
-    assert!(ownership.drops().is_empty());
-    assert!(ownership.captures().is_empty());
+"#;
+    unit_runtime_identity::delivery(text);
 }
 
 #[test]
 fn closure_reads_do_not_capture_constant_or_namespace_identity() {
-    let (_, ownership) = checked(
-        r#"
+    let text = r#"
 object Labels { const val TEXT = "hello" }
 class Names { companion { const val TEXT = Labels.TEXT } }
 fun use(): Unit {
     val shared: () -> String = { Labels.TEXT }
     val owned: move () -> String = move { Names.TEXT }
 }
-"#,
-    );
-    assert!(ownership.captures().is_empty());
-    assert!(ownership.loans().is_empty());
+"#;
+    unit_runtime_identity::closure(text);
 }
 
 #[test]
@@ -174,57 +138,12 @@ fun use(): Int {
     val unreachable = view(TEXT)
 }
 "#;
-    let (sources, typed, owned) = analyzed(source);
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let facts = owned.constant_materializations().expect("validated");
-    assert!(facts.matches(&typed));
-    assert_eq!(facts.plans().len(), 3);
-    assert_eq!(owned.drops().len(), 2);
-    let (_, other, repeated) = analyzed(source);
-    assert!(!facts.matches(&other));
-    let snapshot = |owned: &OwnershipCheckedFile| {
-        owned
-            .constant_materializations()
-            .unwrap()
-            .plans()
-            .iter()
-            .map(|plan| {
-                let descriptor = plan.descriptor();
-                (
-                    descriptor.expression().index(),
-                    descriptor.target().index(),
-                    descriptor.value().clone(),
-                    plan.kind(),
-                )
-            })
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(snapshot(&owned), snapshot(&repeated));
-    for (plan, kind) in facts.plans().iter().zip([
-        ConstantMaterializationKind::StringTemporary,
-        ConstantMaterializationKind::StringTemporary,
-        ConstantMaterializationKind::InlineCopy,
-    ]) {
-        assert_eq!(plan.kind(), kind);
-        assert_eq!(
-            facts
-                .plan_at(plan.descriptor().expression())
-                .unwrap()
-                .descriptor()
-                .target(),
-            plan.descriptor().target()
-        );
-    }
-    assert_eq!(
-        sources.slice(owned.drops()[0].value_origin()).unwrap(),
-        "COPY"
-    );
+    unit_materialization::identity(source);
 }
 
 #[test]
 fn ownership_failure_clears_materialization_capability() {
-    let (_, _, owned) = analyzed(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun take(own text: String): Unit {}
 fun use(own input: String): Unit {
@@ -232,12 +151,13 @@ fun use(own input: String): Unit {
     val second = take(input)
     val third = take(input)
 }
-"#,
-    );
+"#;
+    let (sources, _, owned) = analyzed(text);
     assert!(!owned.diagnostics().is_empty());
     assert!(owned.constant_materializations().is_none());
     assert!(owned.drops().is_empty());
     assert!(owned.loans().is_empty());
+    unit_failure::check(&sources, owned.diagnostics());
 }
 
 #[test]
@@ -324,20 +244,10 @@ fn every_closed_scalar_type_repeats_value_delivery_without_runtime_owners() {
         ("ULong", "1uL"),
         ("Char", "'文'"),
     ] {
-        let (_, owned) = checked(&format!(
+        let text = format!(
             "const val VALUE: {ty} = {literal}\nfun take(own input: {ty}): Unit {{}}\nfun use(): Unit {{\nval first = take(VALUE)\nval second = take((VALUE))\n}}"
-        ));
-        let plans = owned.constant_materializations().unwrap().plans();
-        assert_eq!(plans.len(), 2, "{ty}: group must not rematerialize");
-        assert!(
-            plans
-                .iter()
-                .all(|plan| plan.kind() == ConstantMaterializationKind::InlineCopy),
-            "{ty}"
         );
-        assert!(owned.loans().is_empty(), "{ty}");
-        assert!(owned.drops().is_empty(), "{ty}");
-        assert!(owned.captures().is_empty(), "{ty}");
+        unit_materialization::scalar(&text);
     }
 }
 
@@ -382,8 +292,7 @@ fun use(): Unit {
 
 #[test]
 fn grouped_string_reads_keep_the_materialization_owner_identity() {
-    let (_, owned) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun view(text: String): Unit {}
 fun take(own text: String, own number: Int): Unit {}
@@ -392,28 +301,8 @@ fun use(flag: Boolean): Unit {
     val second = take((TEXT), if (flag) { return } else { 0 })
 }
 fun discard(): Unit { (TEXT) }
-"#,
-    );
-    let facts = owned.constant_materializations().unwrap();
-    assert_eq!(facts.plans().len(), 3);
-    assert_eq!(owned.loans().len(), 1);
-    for loan in owned.loans() {
-        if let LoanTarget::Temporary(owner) = loan.target() {
-            assert!(facts.plan_at(*owner).is_some(), "{loan:?}");
-        }
-    }
-    let temporaries = owned
-        .drops()
-        .iter()
-        .filter_map(|drop| match drop.target() {
-            DropTarget::Temporary(owner) => Some(owner),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(temporaries.len(), 3);
-    for owner in temporaries {
-        assert!(facts.plan_at(owner).is_some(), "{owner:?}");
-    }
+"#;
+    unit_materialization::grouped(text);
 }
 
 #[test]
@@ -468,100 +357,29 @@ fn string_left_temporary_cleanup_follows_right_control_transfer() {
                 "const val TEXT = \"hi\"\nfun stop(): Nothing = stop()\nfun use(flag: Boolean): Unit {{ {} }}",
                 body.replace("LEFT", left)
             );
-            let (sources, owned) = checked(&source);
-            let drops = owned
-                .drops()
-                .iter()
-                .filter(|drop| {
-                    matches!(drop.target(), DropTarget::Temporary(_))
-                        && sources.slice(drop.value_origin()).unwrap() == left
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(
-                drops
-                    .iter()
-                    .filter(|drop| matches!(drop.point(), DropPoint::ControlTransfer(_)))
-                    .count(),
-                transfers,
-                "{source}: {drops:?}"
-            );
-            assert_eq!(
-                drops
-                    .iter()
-                    .filter(|drop| matches!(drop.point(), DropPoint::AfterBinaryOperands(_)))
-                    .count(),
-                normal,
-                "{source}: {drops:?}"
-            );
-            assert_eq!(
-                drops.len(),
-                transfers + normal,
-                "{source}: no extra cleanup"
-            );
+            unit_transfer_cleanup::binary(&source, left, transfers, normal);
         }
     }
 }
 
 #[test]
 fn nested_string_left_temporaries_cleanup_in_reverse_evaluation_order() {
-    let (sources, owned) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun use(flag: Boolean): Unit {
     val result = TEXT + (TEXT + "${if (flag) { return } else { 0 }}")
 }
-"#,
-    );
-    let transfers = owned
-        .drops()
-        .iter()
-        .filter(|drop| {
-            matches!(drop.point(), DropPoint::ControlTransfer(_))
-                && sources.slice(drop.value_origin()).unwrap() == "TEXT"
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(transfers.len(), 2);
-    assert_eq!(transfers[0].point(), transfers[1].point());
-    assert!(transfers[0].value_origin().start() > transfers[1].value_origin().start());
-    for transfer in transfers {
-        assert_eq!(
-            owned
-                .drops()
-                .iter()
-                .filter(|drop| {
-                    drop.target() == transfer.target()
-                        && matches!(drop.point(), DropPoint::AfterBinaryOperands(_))
-                })
-                .count(),
-            1
-        );
-    }
+"#;
+    unit_cleanup_order::nested(text);
 }
 
 #[test]
 fn interpolated_string_constants_release_inner_owners_before_returning_outer_string() {
-    let (sources, owned) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun use(): String = "${TEXT}-${(TEXT)}"
-"#,
-    );
-    let plans = owned.constant_materializations().unwrap().plans();
-    assert_eq!(plans.len(), 2);
-    assert_eq!(owned.drops().len(), 2, "{:?}", owned.drops());
-    assert_eq!(owned.drops()[0].point(), owned.drops()[1].point());
-    assert!(owned.drops()[0].value_origin().start() > owned.drops()[1].value_origin().start());
-    for plan in plans {
-        let owner = plan.descriptor().expression();
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|drop| drop.target() == DropTarget::Temporary(owner))
-            .collect::<Vec<_>>();
-        assert_eq!(drops.len(), 1);
-        assert!(matches!(drops[0].point(), DropPoint::AfterExpression(_)));
-        assert_eq!(sources.slice(drops[0].value_origin()).unwrap(), "TEXT");
-    }
+"#;
+    unit_cleanup_order::interpolation(text);
 }
 
 #[test]
@@ -589,30 +407,9 @@ fn interpolation_prefix_temporaries_follow_control_transfer_and_abort() {
         ),
         ("val result = \"${TEXT}-${stop()}\"", 0, 0),
     ] {
-        let (sources, owned) = checked(&format!(
+        let source = format!(
             "const val TEXT = \"hi\"\nfun stop(): Nothing = stop()\nfun use(flag: Boolean): Unit {{ {body} }}"
-        ));
-        let drops = owned
-            .drops()
-            .iter()
-            .filter(|drop| sources.slice(drop.value_origin()).unwrap() == "TEXT")
-            .collect::<Vec<_>>();
-        assert_eq!(
-            drops
-                .iter()
-                .filter(|drop| matches!(drop.point(), DropPoint::ControlTransfer(_)))
-                .count(),
-            transfers,
-            "{body}: {drops:?}"
         );
-        assert_eq!(
-            drops
-                .iter()
-                .filter(|drop| matches!(drop.point(), DropPoint::AfterExpression(_)))
-                .count(),
-            normal,
-            "{body}: {drops:?}"
-        );
-        assert_eq!(drops.len(), transfers + normal);
+        unit_transfer_cleanup::interpolation(&source, transfers, normal);
     }
 }

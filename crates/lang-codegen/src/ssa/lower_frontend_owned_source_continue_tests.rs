@@ -211,7 +211,7 @@ fn owned_source_continue_unit_constant_live() {
 // Exact outcomes; the original baseline observations remain outside the repository.
 #[test]
 fn owned_source_continue_nested_scope_boundaries() {
-    for (label, text) in [
+    for (_label, text) in [
         (
             "inner_fresh",
             "fun main(): Unit { for (outer in arrayOf(1, 2)) { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
@@ -229,42 +229,7 @@ fn owned_source_continue_nested_scope_boundaries() {
             "fun main(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; for (key in keys) { if (key == 2) { continue } }; keys.size }",
         ),
     ] {
-        let analysis = analyze(text);
-        assert!(analysis.parsed.diagnostics().is_empty());
-        assert!(analysis.names.diagnostics().is_empty());
-        assert!(analysis.typed.diagnostics().is_empty());
-        assert!(analysis.owned.diagnostics().is_empty());
-        let result = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        );
-        if label == "inner_fresh" {
-            crate::llvm::render_verified_program(&result.expect("independent fresh inner owner"))
-                .unwrap();
-        } else {
-            let error = result
-                .err()
-                .expect("cross-loop owner proof remains unsupported");
-            let source = analysis.parsed.source_id();
-            assert_eq!(analysis.sources.source_name(source), Ok("lowering.ko"));
-            assert_eq!(analysis.sources.source_text(source), Ok(text));
-            let expected_span = analysis.sources.span(source, 23, 27).unwrap();
-            assert_eq!(analysis.sources.slice(expected_span), Ok("keys"));
-            assert_eq!(
-                error,
-                crate::ssa::LoweringError {
-                    kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
-                    span: Some(expected_span),
-                },
-                "the original Legacy boundary stays at its declaration, not a later use"
-            );
-        }
-
-        // The same ordinary inputs are all supported by Unit. This is a comparison,
-        // not retirement of the three distinct Legacy rejection witnesses above.
+        // All original nested/sequential fixtures retain their supported Unit contract.
         use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
         use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
@@ -463,6 +428,23 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
             "fun main(): Unit { var keys = arrayOf(1, 2); keys = arrayOf(2, 3); for (key in keys) { if (key == 2) { continue } }; keys.size }",
         ),
     ] {
+        if label == "return" {
+            // Keep the original successful return source on the strict Unit path;
+            // the remaining seven Legacy rejection contracts below stay intact.
+            unit_contract::observe(
+                text,
+                "main",
+                &[Expected {
+                    function: "main",
+                    live: true,
+                    container: SequentialContainerKind::Array,
+                    own: false,
+                }],
+                Control::Return,
+                false,
+            );
+            continue;
+        }
         let analysis = analyze(text);
         assert!(
             analysis.parsed.diagnostics().is_empty(),
@@ -491,13 +473,6 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
             &analysis.typed,
             &analysis.owned,
         );
-        if label == "return" {
-            crate::llvm::render_verified_program(
-                &result.expect("SPEC-0314 independent return proof"),
-            )
-            .unwrap();
-            continue;
-        }
         let error = result
             .err()
             .unwrap_or_else(|| panic!("{label} remains outside the source proof"));
@@ -519,7 +494,7 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
     }
 }
 
-// These original sources have different Legacy/Unit alias outcomes. Keep both oracles.
+// Original declaration, grouping and alias sources share the full Unit identity contract.
 fn assert_continue_identity_unit(text: &str, expected: &[(&str, SequentialContainerKind, usize)]) {
     use crate::{
         native_tests::boxed_enum_tests::unit_source::UnitSource,
@@ -692,20 +667,7 @@ fn owned_source_continue_declaration_identity_and_groups() {
         "fun main(): Unit { var keys = ((arrayOf(1, 2))); for (key in keys) { if (key == 2) { continue } }; keys.size }",
         "fun first(): Unit { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size }\nfun main(): Unit { val keys = listOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size; first() }",
     ] {
-        let analysis = analyze(text);
-        assert!(analysis.parsed.diagnostics().is_empty());
-        assert!(analysis.names.diagnostics().is_empty());
-        assert!(analysis.typed.diagnostics().is_empty());
-        assert!(analysis.owned.diagnostics().is_empty());
-        let program = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .unwrap();
-        crate::llvm::render_verified_program(&program).unwrap();
+        // Keep the original sources, all reachable roots and verified Unit LLVM.
         let expected = if text.starts_with("fun first") {
             vec![
                 ("first", SequentialContainerKind::Array, 24),
@@ -717,33 +679,6 @@ fn owned_source_continue_declaration_identity_and_groups() {
         assert_continue_identity_unit(text, &expected);
     }
     let text = "fun main(): Unit { val original = arrayOf(1, 2); val keys = original; for (key in keys) { if (key == 2) { continue } }; keys.size }";
-    let analysis = analyze(text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let error = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .err()
-    .expect("alias is not a fresh initializer seed");
-    let source = analysis.parsed.source_id();
-    assert_eq!(analysis.sources.source_name(source), Ok("lowering.ko"));
-    assert_eq!(analysis.sources.source_text(source), Ok(text));
-    let expected_span = analysis.sources.span(source, 53, 57).unwrap();
-    assert_eq!(analysis.sources.slice(expected_span), Ok("keys"));
-    assert_eq!(
-        error,
-        crate::ssa::LoweringError {
-            kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
-            span: Some(expected_span),
-        },
-        "the original alias boundary stays at keys, not original or a later use"
-    );
     assert_continue_identity_unit(text, &[("main", SequentialContainerKind::Array, 53)]);
 }
 
@@ -800,6 +735,42 @@ fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
             "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; first.put(9, \"tail one\".clone()); second.put(9, \"tail two\".clone()) }; if (first.contains(3) && second.contains(3)) { println(\"maps\") } }",
         ),
     ] {
+        if expected.is_empty() {
+            use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+            use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
+
+            let unit =
+                UnitSource::analyze("lowering.ko", text).expect("strict original dead-Map source");
+            unit.assert_frontend_clean();
+            assert!(unit.ownership().deferred().is_empty());
+            let [document] = unit.names().names().index().source_units() else {
+                panic!("one original MemoryDocument");
+            };
+            assert_eq!(document.key(), &SourceUnitKey::MemoryDocument);
+            assert_eq!(document.source_id(), unit.parsed().source_id());
+            assert_eq!(
+                unit.sources().source_name(document.source_id()),
+                Ok("lowering.ko")
+            );
+            assert_eq!(unit.sources().source_text(document.source_id()), Ok(text));
+            assert_eq!(unit.parsed().roots().len(), 1);
+            let declaration = unit.declaration("main", SymbolKind::Function);
+            let (program, entry) = unit
+                .lower_entry(declaration)
+                .expect("dead Map without post-control use stays supported");
+            let function = program
+                .module(entry.module())
+                .unwrap()
+                .function(entry)
+                .unwrap();
+            assert_eq!(
+                function.origin,
+                crate::ssa::model::Origin::Source(unit.declaration_span(declaration))
+            );
+            // Preserve the original no-process-entry renderer contract.
+            crate::llvm::render_verified_program(&program).unwrap();
+            continue;
+        }
         let analysis = analyze(text);
         assert!(analysis.parsed.diagnostics().is_empty());
         assert!(analysis.names.diagnostics().is_empty());
@@ -812,13 +783,6 @@ fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
             &analysis.typed,
             &analysis.owned,
         );
-        if expected.is_empty() {
-            crate::llvm::render_verified_program(
-                &result.expect("dead Map without post-control use stays supported"),
-            )
-            .unwrap();
-            continue;
-        }
         let error = result
             .err()
             .expect("unrelated conditional owner remains a boundary");

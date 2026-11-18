@@ -11,10 +11,10 @@
 - 单文件 `build` / `run`，接收显式 source、可选 source-root、entry 和输出选择；`check <source.ko> [--source-root <dir>]` 与 `check --project <manifest>` 只跑同一全部 frontend gate（不选入口、不生成 object），退出 0 干净/1 诊断/2 usage 或 operational；`help`/`--help`/`-h` 写 stdout 并退出 0；
 - `format` / `format --check`，结果写 stdout，不原地改文件；`doc` 导出 syntax-only 声明 JSON，见 [API 入口](../tutorials/api/README.md)；
 - `--message-format=json` 的版本化 JSON Lines 语言诊断；
-- 显式 `project.toml` 的本地 project build/run；`source-set --project <project.toml>` 导出 ADR-0021 v1 base JSON。
+- 显式 `project.toml` 的本地 project build/run；`source-set --project <project.toml>` 导出 ADR-0021 v1 base JSON。 project build 的裸相对 `.ko` 输出按 cwd 检查 canonical 父目录，与 `./` 拼写一致；source root 内仍拒绝，避免污染后续 discovery。
 
 project loader 校验 version 1 manifest、root/logical path、symlink/overlap 和 physical file identity，发布稳定只读 source set；导出保留完整文本与逻辑身份，以 canonical file URI 展示，不分析源码。
-std 依次登记 `ranges.ko`、`koven/core/result.ko`，后者经 `NameEnvironment::authorize_builtin_source` 按 SourceId 授权为内建 `Result`/`Ok`/`Err`；原 SourceMap 移入 `UnitNameSnapshot`，统一拥有源码、语法、环境与名称事实。
+std 依次登记 ranges、result、text；只有完整标准键碰撞时才选择首个空闲 `koven-std-N` 供三源共用，按相关占用 root 数有界避让且与输入顺序无关。用户 root/path 与显示名不改，标准显示名独立避让；所有授权只绑定宿主新建 SourceId，result 经 `NameEnvironment::authorize_builtin_source` 授予内建 `Result`/`Ok`/`Err`。原 SourceMap 移入 `UnitNameSnapshot`，拥有源码、语法、环境与名称事实。
 `project_build` 与 single bootstrap 共用 `unit_build`（`check_unit_frontend` 跑全部 frontend gate，`emit_unit_object` 其后选入口并生成 object），借 snapshot/同轮类型环境推进；标准 loader/core 共用中立错误，CLI 不从 cwd/祖先猜 manifest。
 共同链在完整 names 前缀后 gate；typed diagnostics 由宿主拦截且先于 entry，再由 `complete_compilation_unit_types`
 准入并调用 `analyze_basic_unit_ownership` 共享 basic validation→普通 ownership；宿主验证 raw ownership 后进入单 object、link 与原子 executable 发布。
@@ -51,7 +51,7 @@ L0165以私有穷尽映射呈现18项真实Deferred原因，不显示Debug名或
 未选Member的失败recovery、Deferred或本name精确L0080错误，只在真实静态限定符身份下恢复非值壳；
 Member本身的最终类型仍检查，动态receiver及实参不会因该恢复被跳过。
 源函数overload的原typed L0123/L0124、Error和无selection证明失败trial，未提交lambda body不作消费root；独立错误仍检查。
-直接覆盖在frontend `final_type_admission`（含`iteration_recovery`）与CLI同名测试模块，原能力回归保留原oracle。
+直接覆盖在frontend `final_type_admission`（含`iteration_recovery`）与CLI同名测试模块，原能力回归保留原oracle。`complete` 的五项同源final诊断消费者使用MemoryDocument/Rooted双Unit；Single资格身份负控、initializer的L0167差异及独立raw观察仍保留，不将两种布局称为旧/新实现对照。`static_recovery` 的五项 Result/真实错误诊断消费者也使用双 Unit，保留完整 raw/final 诊断及本次 Deferred 根关联；companion 与未解析静态成员的 Single 差异见证继续独立保留。
 
 ## LSP
 

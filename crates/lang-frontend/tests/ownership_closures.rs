@@ -29,6 +29,15 @@ mod callable_provenance;
 #[path = "ownership_closures/exclusive_lifetime.rs"]
 mod exclusive_lifetime;
 
+#[path = "ownership_closures/capability_unit.rs"]
+mod capability_unit;
+
+#[path = "ownership_closures/shared_lifetime_unit.rs"]
+mod shared_lifetime_unit;
+
+#[path = "ownership_closures/parameter_modes_unit.rs"]
+mod parameter_modes_unit;
+
 #[path = "ownership_closures/capture_identity_unit.rs"]
 mod capture_identity_unit;
 
@@ -252,20 +261,6 @@ fn lambdas(parsed: &ParsedFile) -> Vec<ExpressionId> {
     lambdas.into_iter().map(|(_, id)| id).collect()
 }
 
-fn ability(
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    name: &str,
-) -> Transferability {
-    let ty = typed
-        .symbol_type(symbol(names, name))
-        .unwrap_or_else(|| panic!("missing type for {name}"));
-    owned
-        .transferability(ty)
-        .unwrap_or_else(|| panic!("missing transferability for {name}"))
-}
-
 #[test]
 fn implicit_it_is_a_value_parameter_and_never_a_capture() {
     let text = "class Resource {}\n\
@@ -277,20 +272,7 @@ fn implicit_it_is_a_value_parameter_and_never_a_capture() {
                         val second = useResource(it)\n\
                     }\n\
                 }";
-    let (_, parsed, names, typed, owned) = analyzed(text);
-    let lambda = lambdas(&parsed)[0];
-    let implicit = names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "it")
-        .expect("implicit it symbol");
-
-    assert_eq!(
-        typed.parameter_mode(implicit.id()),
-        Some(ParameterMode::Value)
-    );
-    assert_eq!(owned.captures_of(lambda).count(), 0);
-    assert_eq!(codes(&owned), ["L0131"]);
+    parameter_modes_unit::check(text, &[("it", ParameterMode::Value)], &["L0131"]);
 }
 
 #[test]
@@ -303,28 +285,15 @@ fn implicit_borrow_and_inout_match_explicit_parameter_ownership() {
                     val implicitInout: (inout Int) -> Unit = { it = 2 }\n\
                     val explicitInout: (inout Int) -> Unit = { item -> item = 2 }\n\
                 }";
-    let (_, parsed, names, typed, owned) = analyzed(text);
-
-    assert!(owned.diagnostics().is_empty());
-    assert!(
-        lambdas(&parsed)
-            .into_iter()
-            .all(|lambda| owned.captures_of(lambda).count() == 0)
-    );
-    assert_eq!(
-        names
-            .symbols()
-            .iter()
-            .filter(|symbol| symbol.kind()
-                == lang_frontend::name_resolution::SymbolKind::LambdaParameter)
-            .map(|symbol| typed.parameter_mode(symbol.id()))
-            .collect::<Vec<_>>(),
-        [
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Borrow),
-            Some(ParameterMode::Inout),
-            Some(ParameterMode::Inout),
-        ]
+    parameter_modes_unit::check(
+        text,
+        &[
+            ("it", ParameterMode::Borrow),
+            ("item", ParameterMode::Borrow),
+            ("it", ParameterMode::Inout),
+            ("item", ParameterMode::Inout),
+        ],
+        &[],
     );
 }
 
@@ -333,15 +302,21 @@ fn unqualified_field_reference_normalizes_to_this_capture() {
     let text = "class Counter(val count: Int) {\n\
                     fun reader() { val closure: () -> Unit = { val result = count } }\n\
                 }";
-    let (_, parsed, _, _, owned) = checked(text);
-    let lambda = lambdas(&parsed)[0];
-    let captures = owned.captures_of(lambda).copied().collect::<Vec<_>>();
-    assert_eq!(captures.len(), 1);
-    assert_eq!(captures[0].source(), ClosureCaptureSource::This);
-    assert_eq!(captures[0].mode(), ClosureCaptureMode::Shared);
     let escaping =
         "class Counter(val count: Int) { fun reader(): () -> Unit = { val result = count } }";
-    assert_eq!(codes(&analyzed(escaping).4), ["L0137"]);
+    for (_, owned, lambdas) in capture_identity_unit::checked(text) {
+        assert_eq!(lambdas.len(), 1);
+        let captures = owned.captures_of(lambdas[0]).copied().collect::<Vec<_>>();
+        assert_eq!(captures.len(), 1);
+        assert_eq!(
+            captures[0].source(),
+            lang_frontend::ownership_checking::UnitClosureCaptureSource::This
+        );
+        assert_eq!(captures[0].mode(), ClosureCaptureMode::Shared);
+    }
+    for rooted in [false, true] {
+        assert_eq!(unit_codes(&analyzed_unit(escaping, rooted)), ["L0137"]);
+    }
 }
 
 #[test]
@@ -368,33 +343,7 @@ fn transferability_is_structural_and_independent_from_copyability() {
                     packets: List<Packet>, callbacks: List<CallbackBox>, shared: Rc<Packet>, action: () -> Unit,\n\
                     choice: Choice, proven: T, unknown: U, top: Any\n\
                 ): Unit {}";
-    let (_, _, names, typed, owned) = checked(text);
-    for name in ["packet", "text", "maybe", "packets", "choice", "proven"] {
-        assert_eq!(
-            ability(&names, &typed, &owned, name),
-            Transferability::Transferable,
-            "{name}"
-        );
-    }
-    for name in [
-        "callback",
-        "callbacks",
-        "shared",
-        "action",
-        "unknown",
-        "top",
-    ] {
-        assert_eq!(
-            ability(&names, &typed, &owned, name),
-            Transferability::NotTransferable,
-            "{name}"
-        );
-    }
-    assert_eq!(
-        ability(&names, &typed, &owned, "packet"),
-        Transferability::Transferable,
-        "ordinary classes can be transferable while remaining MoveOnly"
-    );
+    capability_unit::structural(text);
 }
 
 #[test]
@@ -451,14 +400,14 @@ fn shared_capture_cannot_supply_an_exclusive_inout_receiver() {
 
 #[test]
 fn implicit_member_call_captures_this_instead_of_creating_a_capture_free_closure() {
-    let (_, _, _, _, owned) = checked(
+    for (_, owned, _) in capture_identity_unit::checked(
         "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun keep(): Unit { val f: () -> Unit = { val x = read() } } }",
-    );
-    assert!(owned.captures().iter().any(|capture| {
-        capture.source() == ClosureCaptureSource::This
-            && capture.mode() == ClosureCaptureMode::Shared
-    }));
-
+    ) {
+        assert!(owned.captures().iter().any(|capture| {
+            capture.source() == lang_frontend::ownership_checking::UnitClosureCaptureSource::This
+                && capture.mode() == ClosureCaptureMode::Shared
+        }));
+    }
     for rooted in [false, true] {
         let owned = analyzed_unit(
             "class Counter(var n: Int) { borrow fun read(): Int = n\nborrow fun escape(): () -> Unit = { val x = read() } }",
@@ -517,7 +466,6 @@ fn shared_capture_loan_ends_after_the_closure_last_use() {
                        val invoked = run(closure)\n\
                        val moved = take(item)\n\
                    }";
-    checked(passing);
 
     let failing = "class Resource {}\n\
                    fun inspect(item: Resource): Unit {}\n\
@@ -528,7 +476,6 @@ fn shared_capture_loan_ends_after_the_closure_last_use() {
                        val moved = take(item)\n\
                        val invoked = run(closure)\n\
                    }";
-    assert_eq!(codes(&analyzed(failing).4), ["L0135"]);
 
     let dropping = "class Resource {}\n\
                     fun inspect(item: Resource): Unit {}\n\
@@ -537,26 +484,7 @@ fn shared_capture_loan_ends_after_the_closure_last_use() {
                         val closure: () -> Unit = { val read = inspect(item) }\n\
                         val invoked = run(closure)\n\
                     }";
-    let (_, _, names, _, owned) = checked(dropping);
-    let item = names
-        .symbols()
-        .iter()
-        .rfind(|candidate| candidate.name() == "item")
-        .expect("releaseOnly item")
-        .id();
-    let closure = symbol(&names, "closure");
-    let call_return_drops = owned
-        .drops()
-        .iter()
-        .filter_map(|drop| match drop.point() {
-            DropPoint::CallReturn(_) => Some(drop.target()),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        call_return_drops,
-        [DropTarget::Named(closure), DropTarget::Named(item)]
-    );
+    shared_lifetime_unit::check(passing, failing, dropping);
 }
 
 #[test]
@@ -587,22 +515,12 @@ fn only_compiler_bound_cross_thread_effect_requires_transferability() {
                     fun opaque(own callback: move () -> Unit): Unit {\n\
                         val sent = dispatch(callback)\n\
                     }";
-    let (_, _, _, typed, owned) = analyzed_with(external, cross_thread_environments());
-    assert_eq!(codes(&owned), ["L0139", "L0139"]);
-    assert!(
-        typed
-            .calls()
-            .iter()
-            .filter(|call| !call.arguments().is_empty())
-            .all(|call| call.arguments()[0].crosses_thread())
-    );
-
     let source_same_name = "class Local(val callback: () -> Unit)\n\
                             fun dispatch(own callback: move () -> Unit): Unit {}\n\
                             fun ordinary(own local: Local): Unit {\n\
                                 val sent = dispatch(move { val read = local })\n\
                             }";
-    checked(source_same_name);
+    capability_unit::cross_thread(external, source_same_name);
 }
 
 #[test]

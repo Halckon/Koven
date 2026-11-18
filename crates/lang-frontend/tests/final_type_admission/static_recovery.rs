@@ -16,13 +16,16 @@ struct Observation {
     result: Result<(), FinalTypeAdmissionError>,
 }
 
-fn collect(text: &str) -> (SourceMap, Vec<Observation>) {
-    let mut sources = SourceMap::new();
-    let (source, file) = parsed(&mut sources, "main.ko", text);
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &file, &environment).expect("single names");
+// Preserve the independent Single recovery witness only for companion differences.
+fn collect_single(
+    sources: &SourceMap,
+    file: &ParsedFile,
+    environment: &lang_frontend::name_resolution::NameEnvironment,
+    types: &lang_frontend::type_checking::TypeEnvironment,
+) -> Observation {
+    let names = resolve_names(sources, file, environment).expect("single names");
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &file, &names, &types).expect("single raw types");
+    let typed = check_types(sources, file, &names, types).expect("single raw types");
     let original = typed.diagnostics().to_vec();
     let deferred = file
         .ast()
@@ -41,23 +44,33 @@ fn collect(text: &str) -> (SourceMap, Vec<Observation>) {
             }
         })
         .collect();
-    let single = complete_file_types(&sources, &file, &names, &types, &typed).map(|_| ());
+    let single = complete_file_types(sources, file, &names, types, &typed).map(|_| ());
     assert_eq!(typed.diagnostics(), original);
-    let mut observations = vec![Observation {
+    Observation {
         mode: "single",
         original,
         deferred,
         result: single,
-    }];
-    let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
-    let index = index_compilation_unit(&sources, &inputs).expect("unit index");
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+    }
+}
+
+fn collect_unit(
+    sources: &SourceMap,
+    file: &ParsedFile,
+    environment: &lang_frontend::name_resolution::NameEnvironment,
+    types: &lang_frontend::type_checking::TypeEnvironment,
+    input: SourceUnitInput<'_>,
+    mode: &'static str,
+) -> Observation {
+    let inputs = [input];
+    let index = index_compilation_unit(sources, &inputs).expect("unit index");
+    let names = resolve_compilation_unit_names(sources, &inputs, &index, environment)
         .expect("unit names")
         .validate()
         .expect("valid unit names");
     let unit = names.names().index().source_units()[0].id();
     let typed =
-        check_compilation_unit_types(&sources, &inputs, &names, &types).expect("unit raw types");
+        check_compilation_unit_types(sources, &inputs, &names, types).expect("unit raw types");
     let original = typed.diagnostics().to_vec();
     let deferred = file
         .ast()
@@ -77,14 +90,43 @@ fn collect(text: &str) -> (SourceMap, Vec<Observation>) {
         })
         .collect();
     let result =
-        complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed).map(|_| ());
+        complete_compilation_unit_types(sources, &inputs, &names, types, &typed).map(|_| ());
     assert_eq!(typed.diagnostics(), original);
-    observations.push(Observation {
-        mode: "unit-basic",
+    Observation {
+        mode,
         original,
         deferred,
         result,
-    });
+    }
+}
+
+fn collect(text: &str, retain_single: bool) -> (SourceMap, Vec<Observation>) {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "main.ko", text);
+    let (environment, types) = standard_environments();
+    let first = if retain_single {
+        collect_single(&sources, &file, &environment, &types)
+    } else {
+        collect_unit(
+            &sources,
+            &file,
+            &environment,
+            &types,
+            SourceUnitInput::memory_document(source, &file),
+            "unit-memory",
+        )
+    };
+    let observations = vec![
+        first,
+        collect_unit(
+            &sources,
+            &file,
+            &environment,
+            &types,
+            SourceUnitInput::new("root", "main.ko", source, &file),
+            "unit-rooted",
+        ),
+    ];
     // Collect both real frontend outcomes before an expected-positive assertion can fail.
     for entry in &observations {
         eprintln!(
@@ -138,7 +180,7 @@ fn assert_deferred_source_diagnostic(
 }
 
 fn check_companion(text: &str) {
-    let (sources, entries) = collect(text);
+    let (sources, entries) = collect(text, true);
     let start = text.find("P.origin").expect("companion call");
     assert_deferred_source_diagnostic(&sources, &entries[0], (start, start + 8, "P.origin"));
     assert!(
@@ -153,7 +195,7 @@ fn check_companion(text: &str) {
 }
 
 fn check_result(text: &str, start: usize) {
-    let (sources, entries) = collect(text);
+    let (sources, entries) = collect(text, false);
     for entry in &entries {
         assert_deferred_source_diagnostic(&sources, entry, (start, start + 9, "parse(n)?"));
     }
@@ -187,7 +229,7 @@ fn minimal_result_propagation_preserves_source_rejections() {
 }
 
 fn assert_original_errors(text: &str) {
-    let (sources, entries) = collect(text);
+    let (sources, entries) = collect(text, false);
     for entry in entries {
         assert!(
             !entry.original.is_empty(),
