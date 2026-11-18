@@ -10,7 +10,7 @@ use lang_frontend::{
 #[path = "support/parser_test_assertions.rs"]
 mod parser_test_assertions;
 
-use parser_test_assertions::{parse_block_twice, parse_expression_twice};
+use parser_test_assertions::{parse_block_twice, parse_expression_twice, parse_file_twice};
 
 fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
     sources
@@ -628,6 +628,61 @@ fn unpaired_when_group_keeps_the_block_recovery_boundary() {
     let otherwise = entries.last().unwrap();
     assert!(otherwise.else_span.is_some());
     assert_eq!(sources.slice(otherwise.span), Ok("else -> 3"));
+}
+
+#[test]
+fn file_when_loop_selectors_preserve_jumps_and_recover_to_the_next_declaration() {
+    for (condition, previous, clean) in [
+        (
+            "((true)) && if (flag) break else true -> 2",
+            "produce\n(1)",
+            true,
+        ),
+        (
+            "((true)) && if (flag) continue else true -> 2",
+            "produce\n(1)",
+            true,
+        ),
+        ("", "produce", false),
+    ] {
+        let operand = if clean { "(1)" } else { "(1" };
+        let text = format!(
+            "fun probe(flag: Boolean): Unit {{ loop {{ when {{ false -> produce\n{operand}\n{condition}\nelse -> 3 }} }} }}\nfun after(): Int = 7"
+        );
+        let mut sources = SourceMap::new();
+        let source_id = add_source(&mut sources, &text);
+        let parsed = parse_file_twice(&sources, source_id, &text);
+        assert_eq!(
+            parsed.diagnostics().is_empty(),
+            clean,
+            "{:?}",
+            parsed.diagnostics()
+        );
+        let [_, after] = parsed.roots() else {
+            panic!("the next declaration remains a root")
+        };
+        assert_eq!(
+            sources.slice(parsed.ast().items().get(*after).unwrap().span()),
+            Ok("fun after(): Int = 7")
+        );
+        let entries = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find_map(|(_, node)| match node.payload() {
+                Expression::When { entries, .. } => Some(entries),
+                _ => None,
+            })
+            .expect("when appears in the first declaration");
+        let first = parsed.ast().statements().get(entries[0].body).unwrap();
+        assert_eq!(sources.slice(first.span()), Ok(previous));
+        if clean {
+            assert_eq!(sources.slice(entries[1].span), Ok(condition));
+        }
+        let last = entries.last().unwrap();
+        assert!(last.else_span.is_some());
+        assert_eq!(sources.slice(last.span), Ok("else -> 3"));
+    }
 }
 
 #[test]

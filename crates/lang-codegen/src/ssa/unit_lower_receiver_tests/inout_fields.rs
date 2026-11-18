@@ -537,3 +537,31 @@ fun entry(): Unit {
         "{failure:?}"
     );
 }
+
+#[test]
+fn move_only_inout_fields_preserve_argument_order_and_abandoned_call_cleanup() {
+    let source = r#"class Cell(val label: String) { deinit() { println(label) } }
+class Holder(var left: Cell, var right: Cell) { deinit() { println("holder drop") } }
+fun first(): Int { println("first"); return 1 }
+fun last(): Int { println("last"); return 2 }
+fun write(inout left: Cell, own prefix: Int, inout right: Cell, own suffix: Int): Unit {
+    if (prefix == 1 && suffix == 2) { println("dispatched") }
+    left = Cell("new left")
+    right = Cell("new right")
+}
+fun inspect(value: Cell): Unit { println(value.label) }
+fun probe(stop: Boolean): Unit {
+    val holder = Holder(Cell("old left"), Cell("old right"))
+    write(&holder.left, first(), &holder.right, if (stop) { return } else { last() })
+    inspect(holder.left)
+    inspect(holder.right)
+    println("after")
+}
+fun main(): Unit { probe(true); println("retry"); probe(false) }
+"#;
+    let output = crate::native_tests::emit_link_and_run("inout-field-prefix.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &output,
+        b"first\nholder drop\nold right\nold left\nretry\nfirst\nlast\ndispatched\nold left\nold right\nnew left\nnew right\nafter\nholder drop\nnew right\nnew left\n",
+    );
+}
