@@ -892,6 +892,6 @@ fn assert_unreachable_lambda_unit(text: &str) {
         .expect("reachable Unit entry verifies through LLVM");
 }
 
+mod callable_control;
 #[path = "generic_container_view_contract.rs"]
 mod generic_container_view_contract;
-mod callable_control;
