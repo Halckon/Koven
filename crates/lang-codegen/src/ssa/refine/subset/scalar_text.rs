@@ -28,7 +28,9 @@ impl Checker<'_, '_> {
                 .zip(&self.inputs.modes)
                 .all(|(symbol, mode)| {
                     matches!(mode, ParameterMode::Value | ParameterMode::Borrow)
-                        && self.symbol_type(*symbol).is_some_and(|ty| self.scalar(ty))
+                        && self
+                            .symbol_type(*symbol)
+                            .is_some_and(|ty| self.storage_type(ty))
                 })
             && (self.scalar(self.inputs.return_type) || self.unit(self.inputs.return_type))
             && match self.inputs.body {

@@ -55,8 +55,6 @@ struct Checker<'i, 'a> {
     migrated: bool,
     /// A validated local destructuring in this callable requires refinement.
     has_local_destructuring: bool,
-    /// A temporary sequential source can refine only in an already migrated scope.
-    has_temporary_sequential_for: bool,
     loop_route: LoopRoute,
     loop_route_retry: bool,
     /// Field replacements in the subset; their `BeforeReplacement` drops are consumed by
@@ -89,7 +87,6 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         loops: 0,
         migrated: false,
         has_local_destructuring: false,
-        has_temporary_sequential_for: false,
         loop_route,
         loop_route_retry: false,
         replacements: BTreeSet::new(),
@@ -221,9 +218,6 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         && body_ok
         && (loop_route == LoopRoute::Existing
             || checker.loop_route == LoopRoute::Verified && checker.has_local_destructuring)
-        && (!checker.has_temporary_sequential_for
-            || checker.has_local_destructuring
-            || checker.scope_requires_refine())
         && checker.drops_supported()
         && (checker.nullable
             || checker.migrated
@@ -273,7 +267,6 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         loops: 0,
         migrated: false,
         has_local_destructuring: false,
-        has_temporary_sequential_for: false,
         loop_route: LoopRoute::Existing,
         loop_route_retry: false,
         replacements: BTreeSet::new(),

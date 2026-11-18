@@ -765,7 +765,6 @@ impl Checker<'_, '_> {
             }
         }
         let ok = self.loop_body(body);
-        self.has_temporary_sequential_for |= ok && is_temporary;
         if ok && needs_local_destructuring {
             self.loop_route = super::LoopRoute::Verified;
         }
