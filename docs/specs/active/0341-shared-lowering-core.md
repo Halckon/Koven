@@ -21600,3 +21600,15 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 输入为 `61d8b0e8`。CI 的依赖方向门禁发现双 root 前端装配 helper 被放在 IR/verifier 物理子树。将其原84行逐字节迁至 `ssa/map_require_multiroot_test_support.rs` 并以 cfg(test) 注册；生产依赖门禁和允许边不改，原 verifier 测试 FQN、同轮 sealed Unit 两 root、slot loan/清理/LLVM oracle 全保留。
 - 原 generic aggregate 测试同时包含泛型值布局正控、MoveOnly String 字段消费拒绝、临时 class 的 Copyable 字段读取旧拒绝。仅第三段与已获准临时父清理能力对账，原源码全文及前两合同不变。FE 核实际 `Bundle("owned", 7)` 唯一 `Temporary(constructor)` drop、精确 `AfterExpression(receiver)` 和 origin；SSA 核真实声明入口、单块指令顺序、实际父 payload 两字段、count7、父 owner 的共享借用读取、唯一 BorrowEnd 后父唯一 Drop，以及 Return 使用读取结果，SSA/LLVM通过。不是删除失败断言或放宽生产准入，不虚构已转入父 payload 的 String 独立清理。
 - 默认 CI 配置本树实际重编5m30s后，完整依赖门禁14、aggregate13、原 Map 合同3 共30项通过；强制本树默认 codegen all-target strict5m13s通过。独立职责/语义审查与实际 diff 复核通过。断线前仅有 Compiling 的首次命令未计通过，恢复先核进程已不存在与未完成日志，再续执行；无 native/fault 执行，不代替远端双宿主复验。
+
+
+## 构造失败恢复保留完成性（2026-11-18）
+
+- 输入基线 `61d8b0e`；#444 P2 复现确认，`Pair(return 9, "bad")` 与 `Pair(stop(), "bad")` 的公开完成性错误为 true，无尾 return 时另误报 L0088。错误输入始终被 `validate()` 拒绝，未发布 ownership 资格。
+- 只修复 nominal `finish_construction` 已取得 operand flow 后的失败分支；保留 Error、L0084 与精确 Span、失败无构造描述符及其他早期恢复路径，不全局改 `failed_construction()`。
+- `multifile_type_checking::construction_completion::terminated_construction_still_diagnoses_invalid_suffix` 原消费者扩为双入口 24 组合，保三前缀、合法/错误后缀及有/无尾 return，核 public flow、L0088 正负控、描述符和 validate 资格。该目标基线红灯已确认，修复后 construction_completion 全族 6 项通过；frontend 默认 all-target strict、受影响 Rust 格式、docs、尺寸与独审通过。未执行 native、故障注入或新远端 CI。
+
+### 2026-11-18：PR #444 CI 合同与构造恢复修复组合复验
+
+- 同基 `61d8b0e8` 的 `3be60261`（CI 合同）和 `c7973fa0`（构造失败 completion）保双方历史整合；唯一冲突为本节前双方 SPEC 追加，按共同前缀与双方完整尾记录合并。独审核其余左右文件逐 blob 等于对应父提交，无语义冲突或遗漏。
+- 整合树实际执行默认配置 construction_completion6（本树编译1m44s）、codegen 依赖门禁14/aggregate13/Map3（本树重编3m29s）全部通过；强制整合树默认 codegen all-target strict3m49s通过。frontend 源码/测试输入与 c7973fa0 完全相同，复用该提交已过默认 all-target strict5m10s，不声称本轮重复执行。没有运行 native、故障注入或远端全量；后续新逃逸/性能评审候选不在本组合中。

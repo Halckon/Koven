@@ -72,23 +72,60 @@ fn operands_preserve_construction_type_and_completion() {
 #[test]
 fn terminated_construction_still_diagnoses_invalid_suffix() {
     for first in ["7", "return 9", "stop()"] {
-        let text = format!(
-            "class Pair(val value: Int, val tail: Int)\nfun stop(): Nothing = stop()\nfun use(): Int {{ val item = Pair({first}, \"bad\"); return 0 }}"
-        );
-        let mut sources = SourceMap::new();
-        let (source, file) = parsed(&mut sources, "suffix.ko", &text);
-        for input in [
-            SourceUnitInput::memory_document(source, &file),
-            SourceUnitInput::new("root", "suffix.ko", source, &file),
-        ] {
-            let inputs = [input];
-            let (environment, types) = standard_environments();
-            let names = validated_names(&sources, &inputs, &environment);
-            let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
-            assert_eq!(typed.diagnostics().len(), 1, "{:?}", typed.diagnostics());
-            let diagnostic = &typed.diagnostics()[0];
-            assert_eq!(diagnostic.code().to_string(), "L0084");
-            assert_eq!(sources.slice(diagnostic.primary_span()), Ok("\"bad\""));
+        for suffix in ["8", "\"bad\""] {
+            for tail in ["", "; return 0"] {
+                let expression = format!("Pair({first}, {suffix})");
+                let text = format!(
+                    "class Pair(val value: Int, val tail: Int)\nfun stop(): Nothing = stop()\nfun use(): Int {{ val item = {expression}{tail} }}"
+                );
+                let mut sources = SourceMap::new();
+                let (source, file) = parsed(&mut sources, "suffix.ko", &text);
+                for input in [
+                    SourceUnitInput::memory_document(source, &file),
+                    SourceUnitInput::new("root", "suffix.ko", source, &file),
+                ] {
+                    let inputs = [input];
+                    let (environment, types) = standard_environments();
+                    let names = validated_names(&sources, &inputs, &environment);
+                    let typed =
+                        check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+                    let id = UnitExpressionId::new(
+                        source_unit(&names, source),
+                        expression_with_text(&sources, &file, &expression),
+                    );
+                    assert_eq!(
+                        typed.expression_falls_through(id),
+                        Some(first == "7"),
+                        "{expression}; tail={tail:?}"
+                    );
+                    let actual = typed
+                        .diagnostics()
+                        .iter()
+                        .map(|diagnostic| {
+                            (
+                                diagnostic.code().to_string(),
+                                sources.slice(diagnostic.primary_span()).unwrap(),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let mut expected = Vec::new();
+                    if suffix == "\"bad\"" {
+                        expected.push(("L0084".to_owned(), "\"bad\""));
+                        assert!(
+                            !typed
+                                .constructions()
+                                .iter()
+                                .any(|item| item.expression() == id)
+                        );
+                    }
+                    // Only the genuinely completing operand requires a later return.
+                    if first == "7" && tail.is_empty() {
+                        expected.push(("L0088".to_owned(), "}"));
+                    }
+                    assert_eq!(actual, expected, "{expression}; tail={tail:?}");
+                    assert_eq!(typed.validate().is_ok(), expected.is_empty());
+                }
+            }
         }
     }
 }
