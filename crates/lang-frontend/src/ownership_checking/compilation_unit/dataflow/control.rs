@@ -236,6 +236,9 @@ impl Checker<'_> {
                     self.check_expression_with_escape(expression, state, usage, true)
                 }
             }
+            Expression::NonNullAssert { .. } => {
+                self.check_expression_with_escape(expression, state, usage, true)
+            }
             _ => {
                 self.reject_borrowed_closure_escape(expression, &state)?;
                 self.check_expression(expression, state, usage)

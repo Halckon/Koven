@@ -14,6 +14,7 @@ impl Checker<'_> {
         id: ExpressionId,
         operand: ExpressionId,
         state: State,
+        escaping: bool,
     ) -> Result<Flows, OwnershipCheckingError> {
         let key = UnitExpressionId::new(self.source_unit, id);
         let descriptor = self
@@ -37,7 +38,18 @@ impl Checker<'_> {
             (ExpressionUse::Read, NonNullAssertionTransferKind::Copy)
         };
         let diagnostic_count = self.diagnostics.len();
-        let flows = self.check_expression(operand, state, usage)?;
+        let mut actual = operand;
+        while let crate::parser::Expression::Group { expression } =
+            self.parsed.ast().expressions().get(actual)?.payload()
+        {
+            actual = *expression;
+        }
+        let direct_control = matches!(
+            self.parsed.ast().expressions().get(actual)?.payload(),
+            crate::parser::Expression::If { .. } | crate::parser::Expression::When { .. }
+        );
+        let flows =
+            self.check_expression_with_escape(operand, state, usage, escaping && direct_control)?;
         if flows.next.is_some() && self.diagnostics.len() == diagnostic_count {
             self.non_null_assertions
                 .push(UnitNonNullAssertionOwnershipPlan {

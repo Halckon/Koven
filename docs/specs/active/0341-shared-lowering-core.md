@@ -21557,3 +21557,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Unit assignment 复用既有 element Place 遍历，先按 receiver、index 求值，仅正常后继执行 escaping RHS，保前缀跳转；不提前建立元素借用，RHS 后仍检查 owner 有效性与冲突。临时 receiver 不再在 RHS 后重复读取目标。普通非元素赋值不改。
 - 五项定向通过，覆盖四个原拒绝组合、index 一次消费、RHS 修改同容器、index return/break/continue、两容器临时 receiver→index 的顺序与重复消费拒绝、已有 index 错误的单 L0131 代码序列。临时 factory 用无体声明，仅证明 FE 检查与 validate，不证明 E3/native 清理；原 moved-RHS 断言为至少包含 L0131，不冒称完整 Diagnostic 等价。
 - 全目标 `ownership_containers` 45、`ownership_iteration` 221、`ownership_closures` 74、`ownership_elvis_escape` 4 通过；强制本树 frontend all-targets `loan-observation-test-support` strict 通过（1m57s），独审及 fmt/docs/尺寸检查通过。原红测证据保留仓外；未跑 native/fault，不推送。
+
+### 2026-11-18：直接 nullable 控制表达式的非空提取逃逸检查
+
+- 原探针基 `59c269e1`，本树真实编译54.93秒：直接 `return (if (flag) f else null)!!` 与 `optional` alias 后 `return optional!!` 在双 Unit 四组合均漏 L0137；直接 return f、capture-free 及原 exclusive L0164 对照通过。Mac 断连后只读恢复日志确认结果，未重跑不确定命令。
+- 本片依授权仅修直接 If/When（透明 Group）的 `!!` 逃逸检查，已无冲突移至最新 `b93bd914` 独立树。普通求值与原 descriptor/Copy/Consume 运输保留；在既有 exclusive 检查之后、原 control release 之前，临时读取真实 closure result roots 执行原 Shared 逃逸拒绝。未将 nullable 来源登记为 holder，未延长 loan、增添 callable provenance 或修改 E3。
+- **仍未解决**：nullable alias 的来源在此前形成/绑定阶段已丢失，当前 `optional!!` 漏检另列后续合同。不能用现有持有根表作为诊断缓存来修复，否则会改变 unused nullable shared 的原释放时点；本片不宣称解决一般 nullable closure 生命周期。原完整失败探针及日志保留，不把错误接受固定为成功合同。
+- 正式 `ownership_nonnull_closure_escape` 四项覆盖直接 If/When/Group、分支局部 shared 与 move 包装传递捕获、捕获后重绑定、失败 loans/drops 空和 validate 失败、直接 exclusive 精确单 L0164，以及 capture-free/owned 与 unused nullable 的原释放正控。首轮3过/1失败源于新增 owned fixture 的函数类型 L0084，改为明确普通函数类型 binding 后实际4项全过，无生产门放宽。
+- 最终定向4项、`ownership_checking`28、`ownership_closures`74、`ownership_elvis_escape`4全部通过；强制本树 frontend all-targets `loan-observation-test-support` strict35.11秒通过。独立设计/代码末审无阻塞，docs与尺寸门禁通过；构建全局串行，每步重新核宿主/容器及8GiB门限，无native/fault，未推送。

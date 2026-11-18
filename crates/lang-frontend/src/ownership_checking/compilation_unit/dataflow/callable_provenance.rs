@@ -230,6 +230,16 @@ impl Checker<'_> {
                     span,
                 )?;
             }
+            // Diagnose direct nullable control results before their original release step.
+            // These roots are not installed as holders or exported as callable facts.
+            if escaping
+                && nullable_callable
+                && matches!(expression, Expression::If { .. } | Expression::When { .. })
+                && self.diagnostics.len() == diagnostic_count
+            {
+                let roots = self.closure_result_origins(id, next)?;
+                self.reject_borrowed_closure_roots(id, next, roots)?;
+            }
             let closure_origins = if callable {
                 self.closure_result_origins(id, next)?
             } else {

@@ -496,7 +496,9 @@ impl Checker<'_> {
                 self.use_name(id, span, usage, &mut state)?;
                 Ok(Flows::next(state))
             }
-            Expression::Group { expression } => self.check_expression(expression, state, usage),
+            Expression::Group { expression } => {
+                self.check_expression_with_escape(expression, state, usage, escaping)
+            }
             Expression::String { parts } => {
                 let mut flows = Flows::next(state);
                 for part in parts {
@@ -556,7 +558,7 @@ impl Checker<'_> {
                 ..Flows::default()
             }),
             Expression::NonNullAssert { operand, .. } => {
-                self.check_non_null_assertion(id, operand, state)
+                self.check_non_null_assertion(id, operand, state, escaping)
             }
             Expression::Prefix { operand, .. }
             | Expression::Cast {
