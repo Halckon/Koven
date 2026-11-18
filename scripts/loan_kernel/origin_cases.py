@@ -289,6 +289,35 @@ def conditional_caller_flows():
         yield f"分支合流/调用方视图/不读回/inout 参数{HELD_BY_CALLER}/{name}", PRELUDE + function(head + signature, body, [])
 
 
+def guard_failure_points():
+    """所有正常路径都移走 g；只改变清理顺序，以及 mayFail 所在的路径。"""
+    declarations = """class Arr(len: Int)
+view class Guard(borrow a: Arr) deinit
+deinit Guard { use(this.a.len) }
+fun setGuard(inout g: Guard, borrow s: Arr): Unit flows s into g trusted
+fun release(own g: Guard): Unit trusted
+fun mayFail(): Unit trusted
+"""
+    for late in (False, True):
+        order = "来源后声明" if late else "来源先声明"
+        source, holder = "val s = Arr(1)", "val g = Guard(&o)"
+        setup = ["val o = Arr(0)"] + ([holder, source] if late else [source, holder])
+        mark = "  // ERR K22" if late else ""
+        for point in ("写入分支", "未写分支", "合流后", "移走后"):
+            body = setup + ["if (*) {", "  setGuard(&mut g, &s)" + mark]
+            if point == "写入分支":
+                body.append("  mayFail()" + mark)
+            elif point == "未写分支":
+                body.extend(["} else {", "  mayFail()"])
+            body.append("}")
+            if point == "合流后":
+                body.append("mayFail()" + mark)
+            body.append("release(move g)")
+            if point == "移走后":
+                body.append("mayFail()")
+            yield f"失败清理/分支放入/{order}/{point}", declarations + function("fun f(): Unit {", body, [])
+
+
 def loop_backedges():
     """先把中间视图交给 h，再替换中间视图；本轮的新来源只能在下轮到达 h。"""
     body = ["val o = Arr(1)", "val m = Arr(2)", "val s = Arr(3)", "val x = Arr(4)",
@@ -313,6 +342,7 @@ def cases():
     yield from escapes()
     yield from branch_joins()
     yield from conditional_caller_flows()
+    yield from guard_failure_points()
     yield from loop_backedges()
 
 
