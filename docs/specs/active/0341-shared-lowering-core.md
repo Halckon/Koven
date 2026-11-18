@@ -21612,3 +21612,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 
 - 同基 `61d8b0e8` 的 `3be60261`（CI 合同）和 `c7973fa0`（构造失败 completion）保双方历史整合；唯一冲突为本节前双方 SPEC 追加，按共同前缀与双方完整尾记录合并。独审核其余左右文件逐 blob 等于对应父提交，无语义冲突或遗漏。
 - 整合树实际执行默认配置 construction_completion6（本树编译1m44s）、codegen 依赖门禁14/aggregate13/Map3（本树重编3m29s）全部通过；强制整合树默认 codegen all-target strict3m49s通过。frontend 源码/测试输入与 c7973fa0 完全相同，复用该提交已过默认 all-target strict5m10s，不声称本轮重复执行。没有运行 native、故障注入或远端全量；后续新逃逸/性能评审候选不在本组合中。
+
+### 2026-11-18：nullable alias 经二次控制结果断言的逃逸诊断
+
+- 独立复现基 `61d8b0e8`（PR #444 原审阅头）：`optional = if(flag) f else null` 再经 If 左/右、When、透明 Group 后 `!!` 返回时，双 Unit 八组合缺 L0137，直接 `optional!!` 原拒绝仍在；capture-free、owned 和未使用结果释放正控通过。本树原红测编译1m44s，原源与日志保留。
+- `non_null_assertion` 仅在实际 operand 正常完成、escaping 且没有新增诊断时，将既有原 operand UnitExpressionId 的结果诊断见证合入原 alias 集，再复用原拒绝器。直接控制检查先于结果聚合，先前未消费的 alias 见证因此闭合；不新增 holder、loan、capture 权限或 E3 准入，不改变释放点和原 non-null plan 发布条件。
+- 新目标3项通过：6拒绝源码双布局精确单 L0137及 non-null plans/loans/drops 清空；capture-free/owned、If/When Return 后不可达 tail、原释放点共5合法源双布局；保留误复用已移动 f 的独立双布局单 L0131 优先级负控，不通过弱化诊断修测试。原新增 mixed fixture 实测 L0131 后，改用独立直接 closure 检查混合来源的单 L0137，生产未因此变更。
+- 相关 closure75、direct-nonnull4、immutable-alias3、Value5、Elvis4、ownership28，共119项通过。独立末审无阻塞；与另线 mutable alias 摘要的整合交叉验证仍须另做，不把本基 immutable 见证自动视为 mutable 覆盖。未执行 native 或故障注入。
+- 强制本树 frontend all-target `loan-observation-test-support` strict 2m46s 通过；docs982、Rust尺寸门禁（2602文件，原两项历史例外未变）与独立设计/末审通过。单编译/单测试线程、独立于外部任务的 target 及资源监控；仅本地提交，不推送。
