@@ -331,8 +331,10 @@ impl UnitExpressionLowerer<'_> {
                 {
                     self.lower_aggregate_construction(expression, span)
                 }
-                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc
-                | lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
+                    self.lower_rc_construction(expression, span)
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox
                 | lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
                     Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 }
