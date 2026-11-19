@@ -509,10 +509,13 @@ impl Checker<'_, '_> {
             let Some(src_ty) = self.expression_type(src) else {
                 return false;
             };
-            // The source is the root container or a view of it (`take(view, n)`).
+            // The source is a container, a view, a nested range call, or a nested borrow call.
             return (self.container_element(src_ty) == Some(elem_ty)
                 || self.range_view_element(src_ty) == Some(elem_ty))
-                && (self.borrowed_move_only_name(src, src_ty) || self.expression(src))
+                && (self.borrowed_move_only_name(src, src_ty)
+                    || self.short_range_argument(src, src_ty)
+                    || self.nested_borrow_argument(actual, src, src_ty)
+                    || self.expression(src))
                 && self.expression(arguments[1].value)
                 && self.expression(arguments[2].value);
         } else if !self
