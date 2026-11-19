@@ -21678,3 +21678,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 附加 entry 仅在 Koven 内计算 `main() == 270` 后输出标记，预期半开区间五项之和为 50+50+70+50+50。标记不是直接整数格式化，也不是将 270 当操作系统退出码。
 - 本精确基线在 macOS/LLVM21 强制本树 frontend 与 codegen 重编 2m24 后，原 exact 1 passed、3490 filtered，测试用时 0.54s 含一次普通 native。Koven 内返回值比较成功后标记断言通过；并非直接打印整数或单独计时 native 子进程。日志保留为仓外 d10-native270-main-exact-20261119.log。
 - fmt/diff、docs 与尺寸门及独审通过；未执行其他 native、sanitizer、CI 专属故障注入或远端 CI，不推送。原 6aa 分支及证据保留。
+
+
+### 独立 main 条件根清理消费对照（2026-11-19）
+
+- 基线 `b314a857`，仅重放 `be16585d` 的原两源、双布局 SSA 消费测试；保留所有旧 FE 断言。
+- 追踪 replace/swap 的字面量来源、两个交换后根身份，以及实际两条正常路径上的先交换后各清理一次。
+- 不改生产、索引、CI 或投影准入；不以本片替代旧条件 cleanup-owner 合同。
+- 定向 exact 本树 FE/CG 重编 2m05 后 1 passed（两原源 × 两布局）；fmt/diff/docs/尺寸门与独审通过。
+- 仅普通 SSA verifier 与身份/路径断言；未执行 LLVM/native、CI 或故障注入，未退休旧合同。
