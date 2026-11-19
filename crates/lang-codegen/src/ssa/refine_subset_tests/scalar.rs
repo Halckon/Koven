@@ -472,3 +472,21 @@ fn borrowed_map_alias_and_reassigned_nullable_container_loop_route_to_refine() {
         assert!(!llvm.is_empty());
     }
 }
+
+#[test]
+fn retired_map_operations_route_directly_to_refine() {
+    for source in [
+        "fun f(): Int { val m = mapOf<String, Int>(); return m.size }",
+        "fun f(): Boolean { val m = mutableMapOf<Int, Int>(); return m.contains(1) }",
+        "fun f(): Int { var m = mutableMapOf<Int, Int>(); m[1] = 42; return m.size }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        let program = res.unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        crate::ssa::verify::verify_program(&program)
+            .unwrap_or_else(|e| panic!("SSA verify failed for {source}: {e:?}"));
+        let llvm = crate::llvm::render_verified_program(&program)
+            .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
+        assert!(!llvm.is_empty());
+    }
+}
