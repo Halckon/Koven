@@ -444,3 +444,31 @@ fn nested_primitive_range_view_consumption_routes_and_verifies_in_refine() {
         .expect("verified LLVM for nested primitive rangeView");
     assert!(!llvm.is_empty());
 }
+
+#[test]
+fn borrowed_map_alias_and_reassigned_nullable_container_loop_route_to_refine() {
+    for source in [
+        "fun f(m: Map<String, Int>): Int { borrow val m2 = m; return m2.size }",
+        // Nullable Map has an existing Unit ABI; nullable List does not.
+        r#"fun f(own xs: MutableMap<String, Int>?): Int {
+            var cur: MutableMap<String, Int>? = xs
+            if (cur != null) {
+                var i = 0
+                while (i < 1) {
+                    cur = mutableMapOf<String, Int>()
+                    i = i + 1
+                }
+            }
+            return if (cur != null) cur.size else 0
+        }"#,
+    ] {
+        let (res, routed) = route(source);
+        let program = res.unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        assert!(routed, "expected refine routing for:\n{source}");
+        crate::ssa::verify::verify_program(&program)
+            .unwrap_or_else(|e| panic!("SSA verify failed for {source}: {e:?}"));
+        let llvm = crate::llvm::render_verified_program(&program)
+            .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
+        assert!(!llvm.is_empty());
+    }
+}
