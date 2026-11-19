@@ -21670,3 +21670,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 断言同一真实 loan 注册、Return 臂 ControlTransfer 移除及正常后缀 pending 移除的身份与分支归属，并比较观察开关前后事实不变。这是静态替代路径证据，不等于同一路径两次终止、公开完整 loan-end 表或运行时证明，不据此退休旧测试。
 - 本独立输入已在受限离线 Linux 实跑：新 lib exact 1 passed（910 filtered，本树编译 1m16）；保留旧 integration exact 强制本树重编 2.74s 后 1 passed（22 filtered），list 核实共 23 tests。首次旧缓存产物的 24 filtered 结果作废，不计证据。两项均仅 FE，无 CG/native 或远端 CI。
 - fmt/diff、docs 与尺寸门及独审通过；原日志分别为仓外 new-exact.log、retained-exact-rebuilt.log 和 retained-list.log。不带 E2、索引优化、CI 或其他 Refine/native 切片，不推送。
+
+
+### 2026-11-19：独立 main 的嵌套 rangeView 值验收候选
+
+- 精确基 `b314a85770f57a72e2b530be31e45192c103370d`，仅重放 `6aa1c31a` 的 scalar 测试改动，保留原运算源码及已有 Unit 路由、SSA/LLVM 断言；不带其父分支的 E2、其他 Refine 或 CI 改动。
+- 附加 entry 仅在 Koven 内计算 `main() == 270` 后输出标记，预期半开区间五项之和为 50+50+70+50+50。标记不是直接整数格式化，也不是将 270 当操作系统退出码。
+- 本精确基线在 macOS/LLVM21 强制本树 frontend 与 codegen 重编 2m24 后，原 exact 1 passed、3490 filtered，测试用时 0.54s 含一次普通 native。Koven 内返回值比较成功后标记断言通过；并非直接打印整数或单独计时 native 子进程。日志保留为仓外 d10-native270-main-exact-20261119.log。
+- fmt/diff、docs 与尺寸门及独审通过；未执行其他 native、sanitizer、CI 专属故障注入或远端 CI，不推送。原 6aa 分支及证据保留。
