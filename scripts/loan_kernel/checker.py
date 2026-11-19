@@ -36,6 +36,10 @@ class SyntaxProblem(Exception):
     """演算程序本身不合文法；与借用规则无关。"""
 
 
+class InvalidOpen(Exception):
+    """非法拆解没有可供后续语句使用的字段绑定，停止检查当前函数。"""
+
+
 # ---------------------------------------------------------------- 语法树
 
 @dataclass
@@ -112,6 +116,7 @@ class Stmt:
     end_line: int = 0
     else_end_line: int = 0
     live_out: frozenset = frozenset()
+    names: list = field(default_factory=list)  # open 引入的新绑定，按字段声明顺序
 
 
 # ---------------------------------------------------------------- 解析
@@ -262,6 +267,8 @@ class Parser:
         while not self.accept(")"):
             mode = self.next()
             pname = self.next()
+            if any(name == pname for _, name, _ in params):
+                raise SyntaxProblem(f"第 {self.line()} 行：重复形参 {pname}")
             self.expect(":")
             params.append((mode, pname, self.type_name()))
             self.accept(",")
@@ -310,6 +317,16 @@ class Parser:
 
     def stmt(self):
         line, tok = self.line(), self.peek()
+        if tok == "open" and self.peek(2) == "as":
+            self.next()
+            source = self.next()
+            self.expect("as")
+            names = [self.next()]
+            while self.accept(","):
+                names.append(self.next())
+            if not all(re.fullmatch(r"[A-Za-z_]\w*", n) for n in names):
+                raise SyntaxProblem(f"第 {line} 行：open 需要字段绑定名")
+            return Stmt("open", line, name=source, names=names)
         if tok == "val":
             self.next()
             name = self.next()
@@ -410,12 +427,14 @@ def stmt_uses(stmt):
     uses = expr_uses(stmt.expr) if stmt.expr else set()
     if stmt.kind == "use" or (stmt.kind == "assign" and stmt.place.fields):
         uses.add(stmt.place.root)
-    if stmt.kind in ("store", "poll", "await"):
+    if stmt.kind in ("store", "poll", "await", "open"):
         uses.add(stmt.name)
     return uses
 
 
 def stmt_defs(stmt):
+    if stmt.kind == "open":
+        return set(stmt.names)
     if stmt.kind == "val":
         return {stmt.name}
     if stmt.kind == "assign" and not stmt.place.fields:
@@ -712,12 +731,19 @@ class Checker:
         declared = set(state)
         self.check_unique(fun.body, declared, fun)
         live_in(fun.body, expr_uses(fun.ret) if fun.ret else set())
-        state = self.run(fun.body, state)
+        try:
+            state = self.run(fun.body, state)
+        except InvalidOpen:
+            self.lowered[fun.name] = (self.dp_types, [], False)
+            self.out = None
+            return
         if fun.ret is not None:
             self.live = expr_uses(fun.ret)
             # 借用结果按“交出一个借用”求值：返回借用值即对它重借
-            kind = fun.result[0]
+            kind, wanted = fun.result
             returned = self.argument(fun.ret, kind, state) if kind else self.value(fun.ret, state)
+            if not kind and wanted in self.classes and wanted not in fun.tparams and returned.ty != self.type_of(wanted):
+                self.error("TYPE", fun.ret.line, f"返回值须是拥有的 {wanted}，不能返回 {returned.ty.kind} {returned.ty.name}")
             self.check_contract(returned, fun)
         self.check_flows(state, fun)
         self.check_tasks(state, list(state), fun.line)
@@ -730,10 +756,10 @@ class Checker:
     def check_unique(self, stmts, declared, fun):
         """演算不处理遮蔽：一个函数内每个名字只声明一次。"""
         for stmt in stmts:
-            if stmt.kind == "val":
-                if stmt.name in declared:
-                    raise SyntaxProblem(f"第 {stmt.line} 行：{fun.name} 内重复声明 {stmt.name}")
-                declared.add(stmt.name)
+            for name in ([stmt.name] if stmt.kind == "val" else stmt.names):
+                if name in declared:
+                    raise SyntaxProblem(f"第 {stmt.line} 行：{fun.name} 内重复声明 {name}")
+                declared.add(name)
             self.check_unique(stmt.body, declared, fun)
             self.check_unique(stmt.orelse, declared, fun)
 
@@ -952,6 +978,11 @@ class Checker:
         if [m for m, _, _ in impl.params] != [m for m, _, _ in sig.params]:
             self.error("K12", line, f"{impl.name} 的参数模式与 {sig.name} 不符")
             return
+        for (mode, name, actual), (_, _, wanted) in zip(impl.params, sig.params):
+            if mode == "own" and actual in self.classes and actual not in impl.tparams and (
+                    actual != wanted or wanted in sig.tparams):
+                self.error("K12", line, f"{impl.name} 的具体 own 参数 {name}: {actual} 与 {sig.name} 不符")
+                return
         rename = {i[1]: s[1] for i, s in zip(impl.params, sig.params)}
 
         def covered(src, allowed):
@@ -1202,8 +1233,9 @@ class Checker:
         if not fun.suspend:
             self.error("S0", expr.line, f"{expr.name} 不是 suspend 函数，不能作为任务启动")
         held, pushed = set(), 0
-        for (mode, _, _), arg in zip(fun.params, expr.args):
+        for (mode, _, wanted), arg in zip(fun.params, expr.args):
             value = self.argument(arg, mode, state)
+            self.check_owned_argument(fun, mode, wanted, value, arg.line)
             held |= value.all_loans()
             self.pending.append(value.all_loans())
             pushed += 1
@@ -1268,6 +1300,11 @@ class Checker:
         self.pending.append(entry)
         info.kind = kind
 
+    def check_owned_argument(self, fun, mode, wanted, value, line):
+        """具体类的 own 参数要取得这个类的值，而不是同名类型的借用。"""
+        if mode == "own" and wanted in self.classes and wanted not in fun.tparams and value.ty != self.type_of(wanted):
+            self.error("TYPE", line, f"own {wanted} 不能接收 {value.ty.kind} {value.ty.name}")
+
     def argument(self, expr, mode, state, stored_kind=None, reserved=False):
         """按参数模式求实参：borrow 与 inout 位置上建立（或重借出）一个 loan。"""
         if mode == "own":
@@ -1318,6 +1355,8 @@ class Checker:
         loans, pushed = {}, 0
         for (kind, name, fty), arg in zip(decl.fields, expr.args):
             val = self.argument(arg, kind or "own", state)
+            if not kind and fty in self.classes and val.ty != self.type_of(fty):
+                self.error("TYPE", arg.line, f"{decl.name}.{name} 要求拥有的 {fty}，不能接收 {val.ty.kind} {val.ty.name}")
             if kind:
                 loans[name] = set(val.loans.get("", ()))
             elif self.carrier(fty):  # 按值的容器字段：它携带的来源记在这个字段名下
@@ -1419,6 +1458,7 @@ class Checker:
             # 接收者：名为 this 的第一个参数，按 inout 传入且实参是直接的 &mut
             reserved = name == "this" and mode == "inout" and arg is expr.args[0] and arg.kind == "ref"
             values[name] = self.argument(arg, mode, state, kept, reserved)
+            self.check_owned_argument(fun, mode, ty_name, values[name], arg.line)
             self.pending.append(values[name].all_loans())
             pushed += 1
             if reserved:
@@ -1551,6 +1591,8 @@ class Checker:
             if self.tracked(var):
                 self.declare("let", stmt.line, stmt.name, value.ty, state)
             state[stmt.name] = var
+        elif stmt.kind == "open":
+            self.open_receiver(stmt, state)
         elif stmt.kind == "store":
             self.store(stmt, state)
         elif stmt.kind == "suspend":
@@ -1605,6 +1647,31 @@ class Checker:
             self.emit("loop", stmt.line, body=self.inner)  # 取到达不动点的那一遍
         return state
 
+    def open_receiver(self, stmt, state):
+        """K25：只拆类型作者的 own this。单个 open 原子转移义务，不生成 move 加若干可失败的 let。"""
+        fun = self.fun
+        decl = self.classes.get(fun.owner)
+        if fun.deinit_of:
+            self.error("K24", stmt.line, "不能在 deinit 中解除 this 的析构")
+            raise InvalidOpen
+        if (stmt.name != "this" or not fun.params or fun.params[0] != ("own", "this", fun.owner)
+                or state[stmt.name].ty != Type("cls", fun.owner)
+                or not decl or not decl.deinit or decl.is_view or decl.cell or decl.local or decl.carrier):
+            self.error("K25", stmt.line, "open 仅支持普通 deinit 类型自身的 own this 方法")
+            raise InvalidOpen
+        if len(stmt.names) != len(decl.fields) or any(
+                kind or ty not in self.classes or self.classes[ty].is_view or not self.escapable(ty)
+                for kind, _, ty in decl.fields):
+            self.error("K25", stmt.line, "此切片只支持为每个按值类字段绑定一个名字")
+            raise InvalidOpen
+        var = state[stmt.name]
+        self.resolve(state, Place(stmt.name, [], stmt.line))  # K8：完整、仍拥有的值
+        self.access(state, {(stmt.name, ())}, set(), "move", stmt.line)  # K1：仍被借用时不可拆开
+        var.init, var.loans = "M", {}
+        self.emit("open", stmt.line, stmt.name, names=stmt.names)
+        for name, (_, _, ty) in zip(stmt.names, decl.fields):
+            state[name] = Var(self.type_of(ty), "A", {})
+
     def store(self, stmt, state):
         """X1：经独占借用整体替换所指的值，要求槽位访问且新值的类型恰为所指类型。"""
         value = self.value(stmt.expr, state)
@@ -1614,8 +1681,8 @@ class Checker:
         self.resolve(state, Place(stmt.name, [], stmt.line))
         if var.payload:
             self.error("X1", stmt.line, f"{stmt.name} 是载荷访问，不能整体替换")
-        elif value.ty.name != var.ty.name:
-            self.error("X1", stmt.line, f"不能把 {value.ty.name} 写入 {var.ty.name} 的槽位")
+        elif value.ty.name != var.ty.name or value.ty.kind in ("borrow", "inout"):
+            self.error("X1", stmt.line, f"不能把 {value.ty.kind} {value.ty.name} 写入 {var.ty.name} 的槽位")
         via = set(var.loans.get("", ()))
         self.access(state, self.places(via), via, "write", stmt.line)
         incoming = {key: held for key, held in value.loans.items() if key}
@@ -1628,6 +1695,9 @@ class Checker:
         place = stmt.place
         if place.fields:
             res = self.resolve(state, place)
+            if not res.crossed and res.ty.kind in ("cls", "view") and res.ty != value.ty:
+                self.error("TYPE", stmt.line, f"字段须接收拥有的 {res.ty.name}，不能写入 {value.ty.kind} {value.ty.name}")
+                return
             if not res.writable:
                 self.error("K1", stmt.line, "不能经共享借用写入")
             self.access(state, res.targets, res.via, "write", stmt.line)
@@ -1644,6 +1714,9 @@ class Checker:
         var = state.get(place.root)
         if var is None:
             raise SyntaxProblem(f"第 {stmt.line} 行：未声明的变量 {place.root}")
+        if var.ty.kind in ("cls", "view") and value.ty != var.ty:
+            self.error("TYPE", stmt.line, f"不能把 {value.ty.kind} {value.ty.name} 赋给 {var.ty.name} 的拥有槽位")
+            return
         # 旧值正被覆盖，它持有的 loan 此刻不再算存活；新值在赋值之后仍被使用时算存活
         self.live = set(stmt.live_out) - {place.root}
         if place.root in stmt.live_out:

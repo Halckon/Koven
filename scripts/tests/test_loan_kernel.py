@@ -281,6 +281,25 @@ class LoanKernelCases(unittest.TestCase):
         types, program, _ = lowered[fun]
         return {name.split()[0] for name in CHECKER.DP.Verifier(types).run_all(program)}
 
+    def test_duplicate_parameter_cannot_overwrite_the_owned_receiver(self):
+        source = (ROOT / "cases/Z1.lk").read_text(encoding="utf-8").replace(
+            "fun close(own this: Conn)", "fun close(own this: Conn, borrow this: Conn)")
+        with self.assertRaisesRegex(CHECKER.SyntaxProblem, "第 7 行.*重复形参 this"):
+            CHECKER.check(source)
+
+    def test_open_receiver_transfers_the_cleanup_at_each_call(self):
+        lowered = {}
+        CHECKER.check((ROOT / "cases/Z1.lk").read_text(encoding="utf-8"), lowered=lowered)
+        types, program, accepted = lowered["close"]
+        self.assertTrue(accepted)
+        self.assertEqual([("this", ["sock", "buf"])], [(s.var, s.names) for s in program if s.kind == "open"])
+        calls = [s for s in program if s.kind == "call"]
+        self.assertEqual([[('buf', False), ('sock', False)], [('buf', False)]], [s.cleanup for s in calls])
+        self.assertEqual(["buf"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        calls[0].cleanup.pop()  # 只在移交 sock 前的失败出口漏掉它
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))
