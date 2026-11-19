@@ -37,6 +37,7 @@ mod loop_generation;
 mod open_loop_return;
 mod origin_probe;
 mod parameter_open_loop;
+mod range_prefix_trace;
 
 use super::super::super::*;
 use super::super::plan_with_owner_observation;

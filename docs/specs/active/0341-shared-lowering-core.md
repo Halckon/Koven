@@ -21662,3 +21662,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 本头 [PR-event run 44302058515](https://github.com/Halckon/Koven/actions/runs/44302058515) 已实际通过双宿主 Targeted（macOS 1h27m38s、Ubuntu35m3s）及双宿主 Workspace Check & Clippy；Docs & Spec、格式、依赖和 Rust 尺寸门禁通过。该 run attempt2 已 completed/success：双宿主 Preview Producer 与 Independent Consumer、CI Passed 及 Code CI Evidence 均成功，Editor lexical contracts 按条件 skipped。此结果绑定 bee 代码头及测试 merge `f675f27e069ccf1732503e0b795c3eedcd384749`，不冒称后续文档头重新执行全部代码测试，也不表示已经合并。
 - 未纳入：mutable nullable alias、field Elvis、left Elvis 及其本地交叉整合候选；nested Elvis 来源聚合另线探针在本头 bee 和 base625 均复现8组合漏 L0137，属已知后续缺口而非本 PR 新引入回退，尚不以候选验证替代本头能力。保留原测试与诊断证据，后续按独立提交及最新 main 对账。
 - 本地未运行 native、fault 或全量；远端 Targeted 是该 CI 配置的实际目标集合，不推断等于任意全量覆盖。SPEC-0341 §6 整体验收仍开放，按 §8 保持 in-progress，不迁 archive、不改变 inventory 或宣称 D10/E2 完成。本次仅提交该文档收据；文档后继仍须通过对应 docs 门禁与 CI 证据复用核查，合并由主协调线程另行核验执行。
+
+
+### 2026-11-19：独立 main 的 range-prefix 保旧观察候选
+
+- 精确基线 `b314a85770f57a72e2b530be31e45192c103370d`，仅新增私有 planner trace 与模块声明，复用 `60bfab6d` 的同字节测试；保留 `ownership_range_construction::range_call_prefix_return_publishes_only_established_outer_argument_ends` 四份原源码和全部旧断言。
+- 断言同一真实 loan 注册、Return 臂 ControlTransfer 移除及正常后缀 pending 移除的身份与分支归属，并比较观察开关前后事实不变。这是静态替代路径证据，不等于同一路径两次终止、公开完整 loan-end 表或运行时证明，不据此退休旧测试。
+- 本独立输入已在受限离线 Linux 实跑：新 lib exact 1 passed（910 filtered，本树编译 1m16）；保留旧 integration exact 强制本树重编 2.74s 后 1 passed（22 filtered），list 核实共 23 tests。首次旧缓存产物的 24 filtered 结果作废，不计证据。两项均仅 FE，无 CG/native 或远端 CI。
+- fmt/diff、docs 与尺寸门及独审通过；原日志分别为仓外 new-exact.log、retained-exact-rebuilt.log 和 retained-list.log。不带 E2、索引优化、CI 或其他 Refine/native 切片，不推送。
