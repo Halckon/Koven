@@ -5,9 +5,8 @@ use lang_frontend::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, DropPoint, DropTarget, LoanEndPoint, OwnershipCheckedFile,
-        OwnershipPrimitiveValueTransfer, UnitDropPoint, UnitDropTarget,
-        check_compilation_unit_ownership, check_ownership,
+        CompilationUnitOwnership, OwnershipCheckedFile, OwnershipPrimitiveValueTransfer,
+        UnitDropPoint, UnitDropTarget, check_compilation_unit_ownership, check_ownership,
     },
     parser::parse_file,
     source::SourceMap,
@@ -21,13 +20,21 @@ fn checked(text: &str) -> CompilationUnitOwnership {
     observe(text, false).1
 }
 
-// Only the loan-end, conditional cleanup and owner-lineage witnesses need Single.
+// Only the conditional cleanup and owner-lineage witnesses need Single.
 fn checked_legacy(text: &str) -> (OwnershipCheckedFile, CompilationUnitOwnership) {
     let (single, unit) = observe(text, true);
     (single.expect("requested legacy witness"), unit)
 }
 
 fn observe(text: &str, legacy: bool) -> (Option<OwnershipCheckedFile>, CompilationUnitOwnership) {
+    observe_with_unit_assertions(text, legacy, |_| {})
+}
+
+fn observe_with_unit_assertions(
+    text: &str,
+    legacy: bool,
+    assert_unit: impl Fn(&CompilationUnitOwnership),
+) -> (Option<OwnershipCheckedFile>, CompilationUnitOwnership) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("primitive.ko", text).unwrap();
     let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
@@ -113,6 +120,7 @@ fn observe(text: &str, legacy: bool) -> (Option<OwnershipCheckedFile>, Compilati
         for fact in owned.deferred() {
             assert_eq!(fact.expression().source_unit(), source_unit);
         }
+        assert_unit(&owned);
         observations.push((owned, complete));
     }
     let [(unit, complete), (memory, memory_complete)] = observations.as_slice() else {
@@ -269,45 +277,56 @@ fn root_copyable_temporary_has_no_unique_drop_obligation() {
 
 #[test]
 fn root_return_cleans_loan_before_original_owner_and_abort_does_not_unwind() {
-    let (single, unit) = checked_legacy(
+    observe_with_unit_assertions(
         "class Item(val n: Int)\nfun run(): Unit {\nvar a = Item(1)\nreplace(&a, return)\n}",
+        false,
+        |unit| {
+            use lang_frontend::ownership_checking::{LoanKind, UnitLoanTarget};
+            assert!(unit.diagnostics().is_empty());
+            assert!(unit.deferred().is_empty());
+            unit.clone().validate().unwrap();
+            assert!(unit.ownership_primitives().is_empty());
+            let [drop] = unit.drops() else {
+                panic!("one original owner drop")
+            };
+            let [end] = unit.exclusive_call_prefix_ends() else {
+                panic!("one actual exclusive prefix end")
+            };
+            let loan = end.loan();
+            assert!(unit.loans().contains(loan));
+            assert_eq!(loan.kind(), LoanKind::Exclusive);
+            let UnitLoanTarget::Place(place) = loan.target() else {
+                panic!("owned root")
+            };
+            assert!(place.is_root());
+            assert!(unit.formed_owned_locals().contains(&place.root()));
+            assert_eq!(loan.call().source_unit(), place.root().source_unit());
+            assert_eq!(loan.argument().source_unit(), loan.call().source_unit());
+            assert_eq!(drop.target(), UnitDropTarget::Named(place.root()));
+            assert_eq!(drop.point(), end.point());
+            let UnitDropPoint::ControlTransfer(transfer) = end.point() else {
+                panic!("actual return, not CallReturn")
+            };
+            assert_eq!(transfer.source_unit(), loan.call().source_unit());
+            assert_eq!(end.preceding_drops(), 0);
+            assert_eq!(end.preceding_call_loan_ends(), 0);
+        },
     );
-    assert!(single.diagnostics().is_empty());
-    assert!(unit.diagnostics().is_empty());
-    assert!(single.ownership_primitives().is_empty());
-    assert!(unit.ownership_primitives().is_empty());
-    assert_eq!(single.drops().len(), 1);
-    assert_eq!(unit.drops().len(), 1);
-    assert!(matches!(
-        single.drops()[0].point(),
-        DropPoint::ControlTransfer(_)
-    ));
-    assert!(matches!(
-        unit.drops()[0].point(),
-        UnitDropPoint::ControlTransfer(_)
-    ));
-    // Legacy-only: Unit has no public loan_ends table; keep this witness.
-    assert!(
-        single
-            .loan_ends()
-            .iter()
-            .any(|fact| matches!(fact.point(), LoanEndPoint::ControlTransfer(_)))
-    );
-    let (single, unit) = checked_legacy(
+    observe_with_unit_assertions(
         "class Item(val n: Int)\nfun run(): Unit {\nvar a = Item(1)\nreplace(&a, error(\"stop\"))\n}",
-    );
-    assert!(single.ownership_primitives().is_empty());
-    assert!(unit.ownership_primitives().is_empty());
-    assert!(
-        single
-            .drops()
-            .iter()
-            .all(|drop| !matches!(drop.target(), DropTarget::Named(_)))
-    );
-    assert!(
-        unit.drops()
-            .iter()
-            .all(|drop| !matches!(drop.target(), UnitDropTarget::Named(_)))
+        false,
+        |unit| {
+            assert!(unit.diagnostics().is_empty());
+            assert!(unit.deferred().is_empty());
+            unit.clone().validate().unwrap();
+            assert!(unit.ownership_primitives().is_empty());
+            assert!(unit.exclusive_call_prefix_ends().is_empty());
+            assert!(
+                unit.drops()
+                    .iter()
+                    .all(|drop| !matches!(drop.target(), UnitDropTarget::Named(_)))
+            );
+        },
     );
 }
 
@@ -382,12 +401,17 @@ fn root_unit_identity_and_order_are_source_qualified() {
 
 #[test]
 fn root_commit_coalesces_complete_nonclosure_branch_values_before_drop() {
-    for text in [
+    for (index, text) in [
         "fun run(flag: Boolean): Unit {\nvar a = \"old\"\nval old = replace(&a, if (flag) \"new\" else \"other\")\n}",
         "fun run(flag: Boolean): Unit {\nvar a = if (flag) \"old\" else \"other\"\nval old = replace(&a, \"new\")\n}",
         "fun run(flag: Boolean): Unit {\nvar a = if (flag) \"first\" else \"second\"\nvar b = \"other\"\nswap(&a, &b)\n}",
-    ] {
-        let (single, unit) = checked_legacy(text);
+    ].into_iter().enumerate() {
+        let (single, unit) = observe_with_unit_assertions(text, true, |unit| {
+            if index == 1 {
+                assert_selected_root_cleanup(unit);
+            }
+        });
+        let single = single.expect("original Single witness retained");
         assert!(
             single.diagnostics().is_empty(),
             "{:?}",
@@ -467,4 +491,82 @@ fn root_commit_transports_plain_owner_identity_before_later_capture() {
     assert!(
         matches!(single.cleanup_conditions().owner_value(owner), Some(CleanupOwnerValue::Expression { expression, .. }) if *expression == plan.descriptor().operands()[1])
     );
+}
+
+// Same source as the middle legacy case, observed in both existing Unit layouts.
+// A common suffix is replayed on both Choice edges; this is not the ordinary
+// observation's Complete contract or a general cleanup-condition projection.
+fn assert_selected_root_cleanup(unit: &CompilationUnitOwnership) {
+    use lang_frontend::ownership_checking::{
+        UnitOwnerObservationStatus, UnitOwnerOrigin, UnitOwnerValueEventV1 as Event,
+        UnitOwnerValueV1 as Value,
+    };
+    assert!(unit.diagnostics().is_empty());
+    let [plan] = unit.ownership_primitives() else {
+        panic!("one replace");
+    };
+    let call = plan.descriptor().expression();
+    let argument = plan.descriptor().operands()[1];
+    let root = plan.places()[0].root();
+    let [observation] = unit.owner_observations() else {
+        panic!("one function");
+    };
+    assert!(matches!(
+        observation.status(),
+        UnitOwnerObservationStatus::Unsupported { .. }
+    ));
+    assert!(observation.definitions().is_empty() && observation.events().is_empty());
+    let graph = observation
+        .value_observation_v1()
+        .expect("existing sealed Choice replace");
+    assert!(graph.is_consistent());
+    let choice = graph.choice().expect("original initializer If");
+    let installed = graph
+        .producers()
+        .definitions()
+        .iter()
+        .filter(|definition| definition.origin() == UnitOwnerOrigin::String(argument))
+        .collect::<Vec<_>>();
+    let [installed] = installed.as_slice() else {
+        panic!("unique incoming producer");
+    };
+    // Neither selected branch drops its value early. Both drops are in the
+    // unconditional continuation, not in either conditional branch trace.
+    assert!(
+        graph
+            .prefix()
+            .iter()
+            .chain(choice.events().iter().flatten())
+            .all(|event| !matches!(event, Event::Drop(..)))
+    );
+    let cleanup = graph
+        .suffix()
+        .iter()
+        .filter_map(|event| match event {
+            Event::Drop(point, symbol, value) => Some((*point, *symbol, value)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [
+        (installed_point, installed_root, Value::Definition(incoming)),
+        (selected_point, selected_root, Value::Choice(previous)),
+    ] = cleanup.as_slice()
+    else {
+        panic!("two real named cleanups: {cleanup:?}");
+    };
+    assert_eq!(*installed_point, UnitDropPoint::CallReturn(call));
+    assert_eq!(*installed_root, root);
+    assert_eq!(*incoming, installed.id());
+    assert_eq!(previous, choice.id());
+    assert_ne!(*selected_root, root);
+    assert!(matches!(selected_point, UnitDropPoint::AfterStatement(_)));
+    assert!(graph.suffix().iter().any(|event| matches!(event,
+        Event::Bind(symbol, expression, Value::Choice(value))
+        if symbol == selected_root && *expression == call && value == choice.id())));
+    assert_eq!(unit.drops().len(), cleanup.len());
+    for ((point, symbol, _), fact) in cleanup.into_iter().zip(unit.drops()) {
+        assert_eq!(fact.point(), point);
+        assert_eq!(fact.target(), UnitDropTarget::Named(symbol));
+    }
+    assert!(unit.clone().validate().is_ok());
 }

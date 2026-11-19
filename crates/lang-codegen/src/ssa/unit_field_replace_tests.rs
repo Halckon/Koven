@@ -544,6 +544,8 @@ fn unit_field_replace_cross_file_input_order_is_deterministic() {
 
 mod temporary_copy_cleanup;
 
+mod conditional_root_cleanup;
+
 #[test]
 fn unit_receiver_field_replace_native_keeps_receiver_and_cancels_early_exchange() {
     for constants in [false, true] {

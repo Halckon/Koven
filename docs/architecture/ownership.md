@@ -55,7 +55,8 @@ Group 决定 RHS，无需再次求值 initializer。动态计划保留可达旁�
 ## Place、binding 与 loan
 unit 前端已消费 typed provider 并验证完整清理顺序，native 仍拒绝；见[unit 事实](finite-sequential-iteration.md#compilation-unit-前端事实)。普通 loan Partial 观察见[实际动作源](unit-loan-action-source.md)。
 单文件 `for` checker 已消费 typed iteration descriptor，source 与 element 使用独立于 call 的
-loan owner；显式 `this.field` 与裸字段共用字段 owner，source loan 覆盖两种写法；字段写入与 Inout 交付受当前 receiver mode 限制，lambda 内隐式 member call 也记录 `this` capture 并按共享能力检查；unit 的 If/When 返回分支尾值和 Elvis 直接交付操作数检查 borrowed closure 逃逸；binding/component 登记为 non-owning，Copyable 字段 Value delivery 按 Read 处理；回边和退出边检查仍持有本轮 binding capture 的 closure，形成时保存被捕获的旧 closure 来源，非法存活报 L0137 且不发布清理计划。
+loan owner；显式 `this.field` 与裸字段共用字段 owner，source loan 覆盖两种写法；字段写入与 Inout 交付受当前 receiver mode 限制，lambda 内隐式 member call 也记录 `this` capture 并按共享能力检查；unit 的 If/When 返回分支尾值和 Elvis 直接交付操作数检查 borrowed closure 逃逸；可变字段的 Elvis RHS（含透明 Group）也按 escaping 交付检查，保留不可变字段 L0134 优先级和局部赋值路径；binding/component 登记为 non-owning，Copyable 字段 Value delivery 按 Read 处理；回边和退出边检查仍持有本轮 binding capture 的 closure，形成时保存被捕获的旧 closure 来源，非法存活报 L0137 且不发布清理计划。
+escaping Elvis 的 nullable 左值在正常 Read 完成后消费既有冻结借用见证，保原释放点、已有 L0164 优先级和右侧检查；该诊断补充不将见证变为 holder 或 loan。 Elvis 结果仅聚合已发布操作数借用见证供后续诊断消费，未提升完整性 Coverage 或延长持有。
 drop planner 的 iteration 生命周期与[有限图、phi state、入边职责](../archive/development/ownership-planning-milestone.md#frontend-iteration)已分离；通过 iteration frame、shared capture 和具名 pending callee 保持 owner，并保存
 临时 source 退出义务及完整结果/索引 backing container 的 owner 定义身份；索引求值期间提前退出与 provider 退出共用同一 backing 定义 ID；liveness 将 provider source root 纳入 backedge。break/return/耗尽各自
 清理，continue 保留 source；nested jump 按 loop depth 选 frame，scope/return 按 binding 原声明位置逆序清理；OwnedValue 分开保存声明 Span 与当前值来源，重绑及条件合流不改变声明顺序；有限迭代校验见[顺序迭代事实与provider](finite-sequential-iteration.md)。
@@ -185,8 +186,7 @@ String binary 的已完成左 temporary 和各插值输入进入现有 ValueStat
 return/break/continue 逆序释放，Abort 不展开。正常 binary 仍在 AfterBinaryOperands 按右左清理；
 插值在 AfterExpression(外层 String) 仅清理本次输入 temporary，不释放外层结果或仍 live 的 named owner。
 
-具体 MoveOnly Value receiver 的隐式调用没有表达式 identity；unit planner 将其作为
-`This(owner)` 加入既有 pending 队列。参数提前 return 按实参、receiver 的逆序发布 drop，
+具体 MoveOnly Value receiver 的隐式调用没有表达式 identity；unit planner 将其作为 `This(owner)` 加入既有 pending 队列。参数提前 return 按实参、receiver 的逆序发布 drop，
 正常提交移除义务，Abort 不展开。沿用既有 source-qualified receiver origin，不伪造
 expression temporary。
 条件 StaticSelf receiver 也进入该队列，并保留 OwnedThis 的模板类型；正常调用提交后恢复
@@ -195,6 +195,6 @@ expression temporary。
 旧 local 的清理顺序；Copyable 实例不生成 receiver 析构。
 
 function-value callee 在实参求值期间保持capture；正常CallReturn按活性清理，提前退出沿用ControlTransfer，live shared capture来源随最后closure结束后再清理。
-Unit checker保留source-qualified closure来源集合及形成时的嵌套环境图；这些检查元数据不授予availability或执行能力，escape与跨Map provider检查递归到shared capture。 不可变 nullable callable alias 另存形成时冻结的 Shared 叶闭包诊断摘要，按 source-qualified 表达式与真实 symbol 身份传递到逃逸 `!!`；它不登记 holder、不延长 loan，并排除资源快照比较。仅处理循环外形成的 val，作用域退出裁剪局部绑定；mutable alias、循环内形成及一般 nullable 生命周期仍未闭合。
+Unit checker保留source-qualified closure来源集合及形成时的嵌套环境图；这些检查元数据不授予availability或执行能力，escape与跨Map provider检查递归到shared capture。 不可变 nullable callable alias 另存形成时冻结的 Shared 叶闭包诊断摘要，按 source-qualified 表达式与真实 symbol 身份传递到逃逸 `!!`；它不登记 holder、不延长 loan，并排除资源快照比较。作用域退出裁剪局部绑定；循环外且无捕获、无循环写入的局部 nullable 或非空 callable var 现按提交后的根赋值强更新诊断摘要，失败 RHS 沿原事务恢复。稳定语法资格、Known/Unknown 来源完整性与已冻结的危险路径集合分离：合流对完整性取交集、对危险路径取并集；Unknown 不等于安全，也不能抹去另一可达分支或混合 RHS 的确定借用证据。未知调用自身的来源、跨 callable 写入、循环和一般 nullable 生命周期仍未闭合，不授予新 loan/holder 或后端执行能力。 非逃逸 `!!` 正常完成时，提取结果继续携带操作数的冻结正见证；其后普通逃逸交付只在真实求值正常且无新增诊断后消费该结果，保留 L0131 等原错误优先级，不把诊断来源写成真实闭包持有关系。 普通字段赋值也在原真实 roots 后检查未新增诊断时消费 RHS 的冻结正见证，保持 immutable/Rc L0134 与 moved L0131 优先，不重复原 L0137，沿用原事务回滚；不扩展字段存储的后端能力。 成功形成的非循环 move lambda 另按真实 Owned capture SymbolId 冻结形成前正诊断见证，保留到 lambda 结果以检查外层逃逸；仅非空发布，不写真实 capture graph 或 Known，也不授予跨 callable 资源能力。 普通非跨线程 Value 参数完成求值后，在原 roots 拒绝未发诊断时消费同一 operand 的冻结正见证，再决定是否 apply contract；SharedLoan、跨线程和错误优先级不变。 捕获检查成功后，非循环、Owned、不可变局部 Val 的非空形成前诊断见证可按同 symbol 传入 body 诊断绑定，供真实 Value 消费者检查；不复制 Known、mutable 资格、holder 或 loan，Shared/mutable 捕获来源仍另行闭合。 普通构造存储在参数正常求值且原 roots 检查未新增诊断时消费同一实参的冻结正见证，拒绝后不发布该 delivery 或完整构造计划；原源码求值顺序与终止参数计划不变，不新增构造类型准入。 Map 下标存储与 put 的 Value 逃逸边界一致：原 receiver/key/value 求值和 mutable/Mutation 权限检查成功后，消费 value 的真实 roots 与冻结正见证；保 L0134/L0131/L0135 及提前退出优先级，不改变持有或 loan 释放。 循环外 callable var 的诊断来源另以懒分配私有 shadow 保存：实际无 next/continue 回边的 while/loop 只对成功的 null/透明 Group(null) 写入形成空值证明，合入零轮与 break 路径后才投影；Unknown 写入、未证明回边、for 与循环内消费不获新资格，真实 holder/loan 不变。
 If/When保存实际尾值来源，交接已移动且不再活跃的局部根；释放按活跃根递归，防原binding或重绑定污染快照，并保留已求值callee与replacement保护。
 `map_closure_lifetime_matrix`核同次capture/ASAP事实，原Unit Resource/Pure邻控独立保持；这些前端事实不表示带capture的Map循环已进入native范围。[Unit owner capture 候选](unit-owner-transport.md#capture-formation)另记形成身份观察。 `ownership_map_with` 的泛型callback与loan消费者现仅用双入口Unit，保留原源码和loan数量下界，不代表新的结束事件或native证明。 `ownership_closures/capture_identity_unit` 的双 Unit 入口保留 Resource 捕获顺序、Copy/Move/Transferability、capture/named drop 责任及 nested/shadowing 原见证；不证明动态 Choice/循环传输，不替代其他 Single 生命周期见证。 对跨循环边新保存的 Shared MoveOnly owned-source 环境，Unit 现以 L0164 拒绝未证明运输；已建立环境、body-local、Borrow/Inout、无捕获/Copyable及可独立证明零轮路径保留，条件 owner/phi 和下游执行仍未完成。

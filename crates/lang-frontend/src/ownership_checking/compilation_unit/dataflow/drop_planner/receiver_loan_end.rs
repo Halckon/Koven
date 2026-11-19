@@ -124,13 +124,7 @@ impl DropPlanner<'_, '_> {
         // Direct first-level bindings retain a canonical source lease. Observe
         // the existing child token; never reinterpret the alias as an owned root
         // or infer a payload address from a callee's borrow-result source.
-        let place = if let Some(binding) = self
-            .checker
-            .borrow_results
-            .bindings
-            .iter()
-            .find(|binding| binding.binding() == operand_place.root())
-        {
+        let place = if let Some(binding) = self.borrow_binding_by_symbol(operand_place.root()) {
             if !operand_place.is_root()
                 || binding.storage() != BorrowBindingStorage::BorrowedStorage
                 || binding.parent().is_some()

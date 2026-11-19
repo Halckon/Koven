@@ -21662,3 +21662,346 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 本头 [PR-event run 44302058515](https://github.com/Halckon/Koven/actions/runs/44302058515) 已实际通过双宿主 Targeted（macOS 1h27m38s、Ubuntu35m3s）及双宿主 Workspace Check & Clippy；Docs & Spec、格式、依赖和 Rust 尺寸门禁通过。该 run attempt2 已 completed/success：双宿主 Preview Producer 与 Independent Consumer、CI Passed 及 Code CI Evidence 均成功，Editor lexical contracts 按条件 skipped。此结果绑定 bee 代码头及测试 merge `f675f27e069ccf1732503e0b795c3eedcd384749`，不冒称后续文档头重新执行全部代码测试，也不表示已经合并。
 - 未纳入：mutable nullable alias、field Elvis、left Elvis 及其本地交叉整合候选；nested Elvis 来源聚合另线探针在本头 bee 和 base625 均复现8组合漏 L0137，属已知后续缺口而非本 PR 新引入回退，尚不以候选验证替代本头能力。保留原测试与诊断证据，后续按独立提交及最新 main 对账。
 - 本地未运行 native、fault 或全量；远端 Targeted 是该 CI 配置的实际目标集合，不推断等于任意全量覆盖。SPEC-0341 §6 整体验收仍开放，按 §8 保持 in-progress，不迁 archive、不改变 inventory 或宣称 D10/E2 完成。本次仅提交该文档收据；文档后继仍须通过对应 docs 门禁与 CI 证据复用核查，合并由主协调线程另行核验执行。
+### 2026-11-18：有界 mutable nullable alias 诊断来源
+
+- 在 `beeae677` 独立树重放旧候选，原树/未验证版本完整保留，不改 #444。沿既有形成时 Shared 叶闭包摘要补局部 var 的提交更新；只纳入循环外、未被捕获且没有循环内写入的 nullable callable binding，参数/字段/元素不新增资格，资源快照仍清除全部诊断元数据。
+- 复审实证旧候选 Unknown 合流缺口：某分支以 factory 未知来源覆盖，另一分支仍可返回原 borrowed alias，却 `diag=[]`，原红测1项失败。最小修正将稳定资格、完整性与危险正证据分离：Unknown 仅撤 Known，赋值强更新为本次 RHS 已观察 witness，合流取危险路径并集；Unknown 与 borrowed 混合 RHS 的正证据不能因完整性不足被丢弃。保原 loan/closure holder、释放、错误事务和 scope 清理，不把未知解释为安全或全部 nullable 支持。
+- 最终目标5项包括原覆盖/合流/快照/失败回滚、Unknown 五源双布局及 Group/If/When 包装3×更新5×布局2共30组合；三项私有测试区分稳定资格、Unknown 完整性和 disjoint expression coverage。拒绝保代码/必要主 span、失败空表与 validate；不声称全部 Diagnostic 相等。全目标、私有与11组邻控共214项通过，强制本树 frontend all-target `loan-observation-test-support` strict 2m42s 通过，独立设计与末审通过。
+- 新包装测试初次仅 Rust validate 消耗值后的断言顺序错误，调整检查次序后通过，生产未为此改动。一次连接恢复后先核原 coverage 日志确认2项已通过，再补最终3项复验，没有重复未知任务。未执行 native、故障注入、后端能力扩展或全量测试；仅本地提交，等待主线整合安排，不推送。
+
+### 2026-11-18：可变字段 Elvis 递送的借用闭包逃逸
+
+- 原 `182a0a00` 上，本地 Holder 与 Inout Holder 的字段赋值，经 Elvis 包裹 If/When 分支内借用闭包，双 Unit 八组合均无 L0137；直接 lambda/If 拒绝与 capture-free 正控保留。原红测本树编译 23.54 秒，原源码和日志另存。修复局部重放到 `61d8b0e8`，保留 main 的 Rc 不可变诊断和既有赋值流程。
+- 只对真实可变字段、且解透明 Group 后为 Elvis 的 RHS 复用 escaping-expression，保原 expression ID、Consume 用途及赋值事务；局部赋值、element 路径、原前后拒绝、Immutable L0134 优先级不变。不扩 Inout 或 E3 准入。
+- 新目标 `ownership_field_elvis_escape` 四项通过，本树编译 3m16s：保原八组合并加 Group；原 direct/If 单 L0137、不可变字段单 L0134、capture-free/owned/local 正控，以及全退出无 field replacement 计划。失败空表只证明公开产物失效，不单独冒充原始事务 checkpoint 的动态证明。
+- 相关普通 FE 目标 closure75、element-prefix5、closure-assignment7、Elvis4、nonnull4、Rc7、construction-escape4 共106项通过。无 native 或故障注入执行。
+- 既有 `dataflow::formed_tests` 原始事实及失败清表邻控53项通过，包含 borrow-call/range-use 的失败后缀撤回、前缀保留和成功对照。这是既有事务合同邻控，不新增字段专用原始 checkpoint 见证。独审及静态尺寸门禁通过；后续资源窗口强制本树 frontend all-target `loan-observation-test-support` strict 3m20s 通过。该片仅作本地独立提交，不包含于 PR #444；待其合入后再从最新 main 整合与交叉验证。
+
+### 2026-11-18：mutable alias 与字段 Elvis 本地预整合
+
+- 独立树保留 `9a9baa4e` 与 `0d2d09b1` 的完整提交历史；唯一文本冲突为本 Spec 追加，保留双方全部记录。独审按编辑区间核 `assignment.rs` 和所有权架构的自动合并为双方非重叠修改并集，其他源码逐 blob 等父。
+- field 桥只改变可变字段 Elvis/Group 的 RHS 逃逸检查；mutable 摘要仍仅在根赋值成功提交且无诊断后更新，helper 再按局部资格过滤。失败沿原事务恢复，提前退出无正常后继不强更新，原元素前缀路径保持，不扩展 loan/holder。
+- 组合 field4、mutable5、私有合流3、closure75、nonnull4、alias-control3、alias-composition2、formed54，共150项通过；强制组合树 frontend all-target `loan-observation-test-support` strict 4m12s 通过，fmt/docs982/diff 及独审通过。仅本地预整合，不修改 #444 或推送；须待该 PR 合入后再基最新 main 对账正式整合，不把本轮视作最新主线兼容保证。
+
+### 2026-11-18：Elvis nullable 左值的借用闭包逃逸诊断
+
+- 独立于字段 Elvis 和 mutable alias 候选，基 `beeae677` 实测：If/When 左值内部形成 borrowed closure，或先绑定 immutable optional 后作为左值，三源双布局共6组合均无 L0137 且 validate 成功；同源 capture-free/owned 12组合通过。原红测本树编译1m18s，冻结原源码与日志，未改写红测来制造通过。
+- 仅在 escaping Elvis 左侧按原 Read 求值并正常完成、且未新增诊断后，消费已有 `escape_witnesses.results` 的冻结来源；复用原 L0137 生成器，不改变 holder、loan、释放点、左/右顺序或右侧检查。exclusive nullable 原 L0164 优先级保持。不扩 E3 或准入。
+- 定向三项覆盖6拒绝、12合法及8诊断优先级/非逃逸释放/部分分支 Return 后不可达尾控制；失败保持 loan/drop 清表。左右同时 borrowed 的诊断数量并未统一；嵌套 Elvis 左值的 Binary 结果聚合仍非本片范围。
+- 最终定向3项及相关邻控100项共103项通过，强制本树 frontend all-target `loan-observation-test-support` strict 4m50s 通过；独立静审、docs982、尺寸门禁和 diff-check 通过，未运行 native、故障注入或 codegen。仅本地开发，不修改 PR #444；最终从合入后的最新 main 整合时须保 mutable/field 候选并做必要交叉验证。
+
+### 2026-11-18：三条逃逸诊断路径本地交叉预整合
+
+- 在独立树保留 `66e17792`（mutable 与 field Elvis）和 `df09c805`（Elvis 左结果）全部祖先；源码无文本冲突，两份文档冲突保留双方完整语义与追加。独审逐 blob 核源码完整，禁止把摘要变为 loan/holder 的边界保持。
+- 新 `ownership_escape_combination` 两项测试覆盖5种提交更新×return/field两种交付×双布局共20组合：原借用、清空、capturefree覆盖、Unknown分支保另一可达借用、清空后重赋借用；相同 mutable alias 作为 Elvis 左结果，精确单 L0137 或合法对照、失败 loan/drop/field-replacement 清表与 validate 保持，确认三路径实际同源交互而非仅各自孤立通过。
+- 组合 cross2、left3、field4、mutable5、私有合流3、closure75、nonnull4、alias-control3、alias-composition2、formed54，共155项通过；强制组合树 frontend all-target `loan-observation-test-support` strict 4m01s 通过，fmt/docs982/diff 与独审通过。未执行 native、故障注入或后端扩展；仅本地预整合，#444 与远端不变，PR 合入后仍须对最新 main 正式对账。
+
+### 2026-11-18：嵌套 Elvis 结果的正借用证据聚合
+
+- 基三片预整合 `aae496e1` 的独立树红测，显式 `Nothing?` 左值使内层 Elvis 保持 nullable，再由外 Elvis 或绑定后的 `!!` 消费；四源双布局共8组合无诊断且 validate 成功，16同源 capture-free/owned 对照通过。本树红测编译57.29s，原源码与日志冻结，未预设普通非 nullable Elvis 可作为外层 nullable 左值。
+- 另用同一冻结原红测分别在 PR #444 精确 head `beeae677` 和 base main `625f6804` 的独立只加测试树验证，两侧均8组合漏诊/validate 成功，16合法对照通过；各自强制本树编译2m27s、1m17s。因此该组缺口已存在于 PR 之前，不归因为 #444 新回归；不把本地候选或诊断补足扩大为下游完整支持。
+- `escape_result_witnesses` 仅为 Elvis 合并左右子表达式已发布的正借用见证，复用原正常出口、无诊断、非循环和 callable/nullable 发布门。未改变 Coverage/Known、持有根、loan、求值顺序或清理；缺失证据不代表已知安全。
+- 新三个测试函数的34组合通过：8拒绝、16合法及10控制，包括 L0164 优先级、Unknown factory 一侧不擦已有借用正证据、合法 factory、非逃逸原释放与部分分支 return 后不可达尾。非 nullable 中间 selected 的见证由外 If→`!!` 消费，不声称扩展普通 return selected 的诊断入口。
+- 独审通过，最终定向及相关邻控共117个普通 FE 测试函数通过（含三片交互2项）；强制本树 frontend all-target `loan-observation-test-support` strict 2m43s 通过，docs982、尺寸2612及 diff-check 通过；仅本地、不修改 PR #444，不执行 native 或故障注入。后续仍须在 #444 合入后的最新 main 上整合并验证。
+
+### 2026-11-18：临时 String 字段比较的独立前端正控
+
+- 基线 `beeae677`，仅增强测试分层，不修复生产缺陷。既有 CG 比较负控的 `lower()` 在 scalar/constant 两入口均先验证 frontend names/types/ownership，前端失败会使测试失败，并非以 UnsupportedNode 掩盖前端拒绝。
+- 新增 `ownership_temporary_field_consumption::direct_temporary_bundle_field_comparison_is_valid`，独立锁定 `Bundle("owned", 7).text == "owned"` 的直构造/一层/两层透明括号 × ordinary/constant × memory/rooted 共12组合：无诊断、无 deferred，且 helper 在两入口均核 validate 成功。与直接返回 String 的 L0132 负控并列，不扩大 CG 准入。
+- 本树强制 frontend 编译2m08s，字段族11项通过；frontend 默认 all-target strict1m57s、fmt、docs、尺寸门禁及独立静审通过。无生产修改，未重复 CG/native/fault 或远端 CI，仅本地提交，等待合批。
+
+### 2026-11-18：合入 PR #444 后的 main 与本地逃逸修复整合
+
+- 实时核对并 fetch `main=6cc03907`（PR #444 merge），独立树保留 `e00b62c6` 的完整祖先链（mutable alias、field Elvis、左值及嵌套 Elvis）和 `d09974ad` 临时字段比较正控。两次合并仅冲突于本页追加内容，逐项独审保留 main 的阶段交付记录及双方证据；生产代码逐字节等 e00，临时字段测试逐字节等 d099，其余测试不变。未改动原工作树或他人待提交内容。
+- 组合普通 FE 目标128项、原始事实与失败清表54项、Coverage3项共185项通过；强制本树 frontend all-target `loan-observation-test-support` strict 3m44s 通过。断连恢复读取原18783日志及进程继续原队列，没有重复已完成测试或将未知状态算通过。
+- 普通 codegen 借用结果合同15项及临时字段清理12项通过，真实本树重编6m30s；强制本树 codegen 默认 all-target strict 2m20s 通过。保持比较读取前端合法与 lowering 支持边界分离，没有执行 native、故障注入、全量或远端 CI。
+- 独立合并审查、docs982、尺寸2612及 diff-check 通过，仅本地整合提交，不推送；以上是该合并输入的定向/严格验证，不声称完成 D10/E2 全部合同。
+
+
+### 2026-11-18：非逃逸 nullable callable 提取后的诊断来源
+
+- 基线 `4c7be4b4` 原生产实证：`val extracted=optional!!` 后直接返回、经 If 返回、再次 nullable 包装后断言返回，双布局6组合均缺 L0137，capture-free/owned控制通过；真实本树编译2m39s，原红测保留于仓库外 `extracted-callable-red.log`。这是前端逃逸诊断缺口，不据此宣称运行时悬挂或 E3 已支持该形态。
+- 最小修复仅两处：成功非空断言结果按精确 operand UnitExpressionId 继承冻结正见证；既有普通 escaping 分支保原真实 roots 预检查、表达式仅求值一次，只有正常后继且无新增诊断时再消费本表达式结果摘要。不更改 loan、holder、Known/Unknown、真实 callable origins、循环/捕获准入或 codegen。
+- `ownership_extracted_callable_escape` 三项24组合通过：四种借用交付（含多跳 Val）双布局单 L0137与失败清表、capture-free/owned合法、非逃逸原释放、真实 borrowed operand/extracted 已移动时仅 L0131、原 nullable 来源清空后保已提取 Val 的冻结见证。初轮控制 fixture 缺声明分隔符导致 parse L0047，修正源码分隔后重验；未弱化诊断 oracle。该矩阵核完整 code 序列，不冒称所有 Diagnostic/span 等价。
+- 相关12目标113项全部通过，含 mutable更新/回滚、immutable/control/composition、closure75、Value/field/construction及左右/嵌套Elvis与三片交互；强制本树 frontend all-target `loan-observation-test-support` strict3m41s通过。独立设计与末审通过，单编译/测试线程、资源监控；未执行 CG、native、故障注入或远端 CI，本地提交不推送。整体 D10/E2 仍在进行。
+
+
+### 2026-11-18：真实 borrow binding 消费者的同轮首匹配索引
+
+- 基线 `33af15d5`；四个实际 planner 消费者原来按 symbol 逐次线性查找：receiver 正常结束资格、binding source 观察、child 提交及 binding 退休后 owner 根聚合。现复用只借用完成 checker 的 LoanProvenance OnceCell，新增完整 UnitSymbolId→原数组首下标索引，返回原数组 fact 引用，缺失仍 None、重复键保原 `.find` 首匹配。原集合、发布次序、根聚合歧义处理与 cleanup producer 不改。
+- 独立普通双源同名 alias 测试核各自真实 symbol、原事实完整相等与指针身份、owner 缺失及纯索引重复 key 首匹配；计数证明建索引时访问原 iterator 两次、64次查询不重访该 iterator。重复 key 只用于私有索引输入，不注入或改写 ownership 产品；该计数不是生产整个 planner 构建次数或耗时基准。B项事实和C次查询由重复 O(C×B) 查找改为一次 O(B log B) 建索引及 O(C log B) 查询，不宣称整个编译器加速已测量。
+- 实际本树私有目标1项（编译3m04s）、unit_direct_call_loan_ends完整359项、ownership_borrow_result12项全部通过；强制 frontend all-target `loan-observation-test-support` strict4m18s通过。独审无阻塞。普通 `ssa::loan_region_ssa_tests::binding_lifecycle_probe::original_binding_lifecycle_records_real_actions_and_ssa` 1项通过，保真实source/result/consumer及retirement与SSA/LLVM verifier。FE/CG本树重编8m49s，首次过滤器误把文件名当模块名命中0项不计通过，随后准确FQN复用该产物真实执行1项。fmt/docs982/尺寸2613（原2项历史例外）/diff门禁通过；未执行native、故障注入或远端CI。
+- 仅私有性能路径收敛，不增加新的生命周期观察、公开API或E3准入，不扩Partial为Complete。透明Group观察扩展因下游receipt仍有独立Name合同而未实施；本片不借索引移除任何旧见证。本地交付，不推送。
+
+### 2026-11-18：常量 String 中止操作数消费者迁至双 Unit
+
+- 基 `33af15d5`，只迁 `ownership_constants::aborting_string_operand_does_not_drop_unevaluated_constants`：原源码（含 stop 递归、flag 参数、插值及后续 TEXT）不变。先保原 Single 正文与断言，再在 MemoryDocument/Rooted 两入口验证完整 materialization 与 drop 表为空；真实本树编译2m59s，精确对照1项通过后才删除该测试旧执行。
+- 复用已有 `unit_materialization::checked`，保 parse/name/type/ownership 无诊断与 deferred、常量 typed 能力、同轮身份兼容及专用 owned validate；没有新增生产/API、准入或生命周期事实。邻接 binary 中止的完整 loan/loan-end 空表合同、失败诊断差异和其他旧负控保持，不把 Partial 空表视为完整证明。
+- 退休后完整 ownership_constants 17项通过，本树编译6.07s；强制本树 frontend all-target `loan-observation-test-support` strict2m18s通过，设计及末审无阻塞。仅本地消费者迁移，未执行 codegen/native/故障注入或远端CI，不推送。
+
+### 2026-11-18：借用 binding 索引与常量中断消费者本地交叉整合
+
+- 保留 `eee3d939` 与 `cbf1f010` 的原提交和上述两份验收；共同基线 `33af15d5`，唯一重叠的本文追加按原字节保全，其他文件与所属父提交一致，独立审阅通过。
+- 整合树实跑私有索引 1、常量 17、`unit_direct_call_loan_ends` 359、`ownership_borrow_result` 12，共 389 项通过；强制本树 frontend all-targets、`loan-observation-test-support` strict 通过（4m28s），fmt、文档及 diff 检查通过。
+- 索引父提交的原 binding lifecycle 普通 SSA/LLVM 单项证据按生产及 codegen 输入一致复用，非本整合头重跑；未运行 native、故障注入、全量或新 codegen strict。此轮不扩展 Partial 能力、不改变 D10/E2 整体 in-progress 状态，仅本地整合。
+
+### 2026-11-18：已移动、Copy 与非拥有值的析构消费者迁至双 Unit
+
+- 基 `cbf1f010`，仅迁移 `ownership_checking::moved_copyable_and_non_owning_values_never_gain_unique_drop_facts`，保原源码及原环境。先保 Single，实际对照 MemoryDocument/Rooted 完整 drop value_origin 多重集合相等，四项 owned/shared/exclusive/number 排除及同源 item 参数析构正控均通过；本树编译1m59s，精确1项通过。该证据仅是 origin 多重集合，不声称完整 DropFact 身份/顺序等价。
+- 最终双 Unit 执行原四项全表排除，并明确无 ownership diagnostics/deferred、validate 成功及 item 正析构，防止空 recovery 表伪通过。仅退休该测试旧调用，不修改生产、准入或 Partial 生命周期事实；其他旧身份、loan-end、控制流及错误负控原样保留。
+- 最终 ownership_checking 全28项通过，本树编译19.08s；强制本树 frontend all-target `loan-observation-test-support` strict5m27s通过，独立预审与退休方案审查无阻塞。未执行 codegen/native/故障注入或远端 CI；仅本地提交，不推送。
+
+### 2026-11-18：非 owning-drop 消费者与索引链交叉整合
+
+- 保留 `666903dc`、`b1cb6390` 双方原提交；唯一 SPEC 冲突按左侧全文加右侧相对 `cbf1f010` 的追加保全，其余 blob/模式分别与原父一致，独立审阅通过。
+- 整合树真实复验私有 binding 索引 1、`ownership_checking` 28、`ownership_borrow_result` 12，共 41 项通过；强制本树 frontend all-targets、`loan-observation-test-support` strict 通过（5m25s），fmt、文档和 diff 检查通过。
+- 无新增生产修改；未受影响的常量与普通 SSA/LLVM 证据分别复用既有父提交记录，非本头重跑。未运行 native、故障注入、全量或 codegen strict；整体 D10/E2 仍 in-progress，不以单项测试退休推断能力完成。
+
+### 2026-11-18：提取 callable 的字段存储逃逸诊断
+
+- 基 `b1cb6390` 独立树实证：借用闭包经 nullable alias 非逃逸 `!!` 提取后，以 Name/Group/If/When 存入本地或 inout holder 字段，双布局16组合均无诊断且 validate 成功；capture-free/owned 8组合通过。原生产本树编译2m14s，原红测与日志冻结，未改写拒绝源码来制造通过。
+- 生产仅在 `assignment` 原字段 post 检查之后、正常后继且无新增诊断时，消费原 RHS UnitExpressionId 的已有冻结正见证；复用原拒绝生成器及失败 rollback/nullable checkpoint。不改变 RHS 求值、真实 closure roots、holder、loan、根赋值或 E3 准入。immutable/Rc 检查和 RHS moved 错误仍先行，已有 L0137 不重复。
+- 新3项36组合覆盖原16拒绝、8合法，以及 L0134/L0131/直接闭包单L0137、普通局部非逃逸、双分支 Return 无字段提交与原释放点12控制；拒绝核 loan/drop/field-replacement 清表，成功核 validate。全退出额外断言 field replacements 空，原红测未变。
+- 最终8个FE目标共109项通过，涵盖 field Elvis、提取 alias、field replace14、closure75、immutable/mutable alias及组合；强制本树 frontend all-target `loan-observation-test-support` strict4m39s通过。邻控脚本初次写错 mutable 目标名而停止，未计为测试结果，更正后仅续未执行项。设计/实现独审无阻塞；未执行 CG、native、故障注入或远端CI，本地提交不推送。
+
+### 2026-11-18：字段提取来源修复与消费者索引链交叉整合
+
+- 双父 `81e9dda2` 与 `86ae4443` 的共同基线为 `b1cb6390`；保留原历史和双方完整 SPEC 追加，其他文件 blob/模式与所属父一致，独审通过。字段诊断只消费 RHS 冻结正见证；只读 binding 索引与摘要状态无交叉，未改变 loan 或 Partial 能力边界。
+- 整合树实跑索引 1、字段提取 3（36 源/布局组合）、ownership checking 28、borrow result 12、nullable alias 3，共 47 项通过；强制本树 frontend all-targets、`loan-observation-test-support` strict 通过（2m15s），fmt、文档、diff 检查通过。
+- 未运行新 CG、native、故障注入、全量或远端 CI；保留父提交精确范围的既有证据，不将它们称为本头重跑。整体工作仍 in-progress，本轮仅本地整合，不推送。
+
+### 2026-11-18：提取 callable 经 move 捕获后的逃逸来源
+
+- 基 `86ae4443` 独立原生产实证：先 nullable 提取，再直接 return move、绑定 wrapper 后返回或两级 move 包装，双布局6组合均无诊断且 validate 成功；capture-free/owned 12合法及6既有合同控制通过。本树编译1m04s，原红测及日志冻结。该顺序不同于先真实嵌套捕获再 nullable 的旧覆盖。
+- 仅在 lambda 捕获和 body 全部成功后，从形成前 entry_state 按真实 Owned capture SymbolId 聚合已有冻结正诊断见证到 lambda 结果；通用结果处理保留该 Lambda 结果。只发布非空、且原 lambda span 不在循环内的证据，既有循环边界不因 producer 绕过 wrapper 而扩大。不改变 closure_captures、holder、loan、Known/Unknown 或 body_state，不授权任意跨 callable 运输及 E3 支持。
+- 新3项26组合通过：原6拒绝、12合法及8控制，覆盖局部同步使用、循环内局部形成/同步调用/break、原直接 borrowed 嵌套单 L0137与 moved 源 L0131优先；循环正控只证明原局部使用合法，不声称动态验证所有循环无摘要。独审发现并修正最初 producer 写入缺少非循环门，最终源码双门保持边界。
+- 最终9个FE目标103项全过，覆盖 closure75、字段提取、原提取、immutable/mutable alias、三片组合、Value及构造交付；强制本树 frontend all-target `loan-observation-test-support` strict2m40s通过。设计与修正版末审无阻塞。未执行 CG/native/故障注入或远端CI，仅本地提交不推送。
+
+### 2026-11-18：Owned 捕获诊断摘要与字段／索引链交叉整合
+
+- 保留 `fa8022c5` 与 `629f25e7` 双父，实际共同基线 `86ae4443`；唯一冲突的 SPEC 按左全文加右侧完整追加保全，其他 blob/模式分别与对应父一致，独立审阅通过。
+- 整合树实跑索引 1、nested extracted 3、field extracted 3、closures 75、immutable alias 3、mutable alias 5，共 90 项通过；强制本树 frontend all-targets、`loan-observation-test-support` strict 通过（3m05s），fmt、文档、diff 检查通过。
+- Owned 捕获只在成功形成且非循环边界冻结诊断正见证，不新增真实 capture 边、loan、Coverage 或 E3 准入；循环内控制不是循环逃逸支持证明。未运行新 CG、native、故障注入、全量或远端 CI，整体仍 in-progress；本轮仅本地整合，不推送。
+
+### 2026-11-18：普通 Value 参数消费提取 callable 诊断来源
+
+- 基 `629f25e7` 原生产对照：直接 borrowed f 交付仍报原 L0137，但 nullable 提取 extracted 或再绑定 alias 后交给普通 own callback 参数，双布局4组合无诊断且 validate 成功；6合法/同步调用组合通过。本树编译48.65s，保留原红测日志。由此先拆出独立 Value consumer 缺口，跨 callable body 的未决探针另存，不把两处问题混为一次实现。
+- 仅在普通非跨线程 escaping 参数的原 post roots 拒绝之后，诊断数不变且存在该 operand 非空冻结见证时再次拒绝；仍受原正常后继和 contract 门约束，拒绝后不 apply contract。没有改求值顺序、SharedLoan、crosses_thread 分支、holder、loan 或准入。
+- 新3项22组合通过，保直接 f 单 L0137、4提取漏诊、capture-free/owned合法、同步调用及真实 borrowSink SharedLoan 参数正控、moved L0131优先、全退出合法和 Group/If 交付。拒绝保loan/drop清表及validate失败；合法保validate成功。
+- 最终10个FE目标106项全过，覆盖原Value5、提取/嵌套/字段、closure75、immutable/mutable alias、组合和构造；强制本树 frontend all-target `loan-observation-test-support` strict2m10s通过。实现独审无阻塞，未执行CG/native/故障注入或远端CI；仅本地提交，不推送。
+
+### 2026-11-18：普通 Value 提取来源修复的跨片整合
+
+- 保留 `bc558abc` 与 `dd0f9321` 双父；实际共同基线 `629f25e7`，唯一 SPEC 冲突按左全文及右侧完整追加保全，其他 blob/模式与所属父一致，独审通过。
+- 整合树真实复验私有索引 1、extracted Value 3、原 Value 5、nested 3、field 3、closures 75，共 90 项通过；强制本树 frontend all-targets、`loan-observation-test-support` strict 通过（2m12s），fmt、文档及 diff 检查通过。
+- 新检查仍仅属于普通 Value 正常完成的诊断消费，SharedLoan、cross-thread、循环和 E3 边界不变；未验证跨 callable body 的后续候选。未运行新 CG、native、故障注入、全量或远端 CI，整体仍 in-progress，仅本地整合不推送。
+
+### 2026-11-18：不可变 Owned 捕获的 body 诊断来源桥
+
+- 独立基 `dd0f9321`（普通 Value 消费者已修）恢复原探针：非逃逸 move wrapper 内把 extracted 或二跳 alias 交给 own callback，双布局4组合仍无诊断且validate成功；直接 f 原L0137对照及6合法/同步调用组合通过。本树编译1m18s，原红测日志冻结，明确区别于上一片 Value consumer 缺口。
+- 仅在实际捕获可用性检查成功后，以真实 SymbolId、Owned capture、VariableKind::Val、SymbolKind::Variable、lambda原span非循环及非空形成前见证为门，把 entry_state 冻结正证据复制到 body 的诊断 bindings。没有复制 Known/Coverage、mutable资格、真实 closure graph、holder 或 loan；失败捕获仍先返回，Shared/mutable捕获和一般跨 callable 资源运输不纳入。
+- 新3项20组合通过：6原拒绝（含direct2）、6合法/同步调用与8控制；捕获前moved仍L0131、body写不可变捕获仍L0134，真实 borrowSink SharedLoan和局部别名调用保持合法，拒绝后loan/drop清表及validate失败。原红源码不变。
+- 最终11个FE目标109项全部通过，覆盖直接Value、原提取/嵌套/字段、closure75、immutable/mutable alias及组合/构造；强制本树 frontend all-target `loan-observation-test-support` strict2m16s通过。实际diff独审无阻塞，未执行CG/native/故障注入或远端CI；仅本地提交，不推送。
+
+- 提交前尺寸门发现 inline 桥使 closure.rs 达1007行，按职责将同谓词提取至既有 escape_witness 私有 helper，原成功后调用点不变，closure.rs 回到991行，无新增尺寸豁免。提取初次编译发现 capture 值/引用参数不匹配，修正调用借用后，最终源码重新通过定向3项、closure75及强制frontend strict1m47s；不将提取前109/strict冒称为最终字节复验。独立重构等价审查通过。
+
+### 2026-11-18：capture→body 诊断桥与消费者链交叉整合
+
+- 保留 `cd6ad1e5`、`dfe75014` 双父，实际共同基线 `dd0f9321`；仅 SPEC 尾冲突，按左全文加右侧完整追加保全，其他 blob/模式与所属父一致，独立审阅通过。
+- 整合树复验索引 1、captured body 3、extracted Value 3、nested 3、field 3、closures 75、mutable alias 5，共 93 项通过；强制本树 frontend all-targets、`loan-observation-test-support` strict 通过（2m14s），fmt、文档和 diff 检查通过。
+- 桥仍限真实 Owned immutable Val、非循环且非空形成前诊断见证，不复制 Known/Coverage 或真实 holder/loan；捕获失败先行，Shared/mutable 和 E3 范围未扩大。未运行新 CG、native、故障注入、全量或远端 CI；整体仍 in-progress，仅本地整合不推送。
+
+### 2026-11-18：构造参数的提取闭包诊断消费
+
+- 独立基 `dfe75014` 原生产探针本树编译44.44s，Holder存储 extracted/二跳alias 的双布局4组合无诊断且validate成功，Group亦漏L0137；直接f原拒绝、合法捕获/同步调用及moved/全退出前置控制保持原行为。保存原红源码和日志，明确区别于普通Value与capture→body已完成修复。
+- 仅在构造参数正常完成且原前后roots检查未新增诊断时，以原UnitExpressionId消费非空冻结正见证；原continue门阻止错误参数delivery及完整plan发布。没有修改loan、holder、Known、参数求值顺序或无正常后继的终止构造计划。
+- 新4项24布局组合覆盖直接/提取/alias拒绝、capturefree/owned合法、同步调用、moved L0131、Group/If、全退出，以及反声明顺序的命名参数before=return跳过callback：保留一个终止plan、delivery为空且无root。拒绝后loan/drop/construction计划清表、validate失败。
+- Box闭包payload探针被现行类型L0117拒绝，未进入所有权阶段，保留私有边界证据但不把它计作新增ownership验收，不扩大Box/Rc或enum准入。
+- 最终9个FE目标110项全过，包含原construction10/escape4、body/value/field及closure75和immutable/mutable alias邻控；强制本树frontend all-target `loan-observation-test-support` strict3m55s通过。独立末审无阻塞，fmt/docs982/size2618/diff门禁通过；未执行CG/native/故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-18：构造参数诊断消费的窄交叉整合
+
+- 保留 `31a5aec3`、`d6036f51` 双父，实际共同基线 `dfe75014`；SPEC 唯一冲突按左全文及右侧完整追加保全，其他 blob/模式与对应父一致，独审通过。
+- 磁盘预算先核约17.5GiB，独立树约70MiB，复用既有 target；每10秒监测，设12GiB提前停止线，不删除数据。最终约16.75GiB，未触停止线。
+- 整合树实跑新构造4（24布局组合）、原构造10、captured body3、字段3，共20项通过；强制本树 frontend all-targets、`loan-observation-test-support` strict 通过（2m10s），fmt、文档、diff 检查通过。
+- 参数身份、实际求值顺序及终止plan保持，诊断摘要不扩真实loan/holder或E3；未重跑无变更的索引/CG，未执行native、故障注入、全量或远端CI。整体仍in-progress，仅本地整合不推送。
+
+### 2026-11-18：Map 下标存储的闭包逃逸检查
+
+- 独立基 `d6036f51`，原生产本树编译59.46s：`put(1,f)`/`put(1,extracted)` 双布局正确报L0137，但同源下标 `m[1]=f/extracted` 的4组合无诊断且validate成功；capturefree/owned两种拼写8合法组合通过。Guide12规定下标是put的own交付语法糖，Function V现有类型准入不变。
+- 原生产先冻结12组合immutable L0134、moved L0131和key/value Return合同。最小13行仅在原receiver/key/value普通求值、mutable及Mutation权限检查成功后拒绝value真实roots和同原UnitID非空冻结正见证，同诊断计数门防重复；不提升为全域escaping，不新增状态或延长holder/loan。
+- 最终4项42布局组合通过：direct/Group/分支局部If/When/extracted的双拼写20拒绝、8合法、12错误/退出及2活receiver loan单L0135；拒绝后loans/drops清空且validate失败。新增When首轮因缺条目分隔符出现L0065，仅修正测试语法后重跑完整4项通过，不计前轮为绿。
+- 最终新目标4项及原Map13、with4、require3共24项FE通过；强制本树frontend all-target `loan-observation-test-support` strict2m29s通过。独立末审无阻塞，fmt/docs982/size2619/diff门禁通过。按13.5GiB strict启动预算及12GiB运行止线监控，未触线、未清理；未执行CG/native/故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-18：Map 存储诊断与索引链交叉整合
+
+- 保留 `face5621`、`3083a360` 双父，共同基线 `d6036f51`；唯一 SPEC 冲突按左全文及右侧完整追加保全，其他 blob/模式与所属父一致，独立静审通过。
+- 初期空间不足仅静态备存；恢复到约20GiB后，与外部独立 codegen target 受控并发，复用本线 target、`-j1`/单测试线程，并监控12GiB停止线。未清理数据，结束约18.65GiB；未以外部任务存在为全局阻塞。
+- 首项断连后仅核原进程及日志，原本树编译1m24s、Map存储4项成功，没有重复启动；随后只续 Map13、with4、require3、borrow_result12。共36项通过，强制本树 frontend all-targets、`loan-observation-test-support` strict通过（2m52s）。文档/diff静态门禁通过。
+- 未修改已审生产字节或诊断优先级；真实 loan/holder、Partial能力及E3边界保持。未运行新CG、native、故障注入、全量或远端CI，整体仍in-progress，仅本地整合不推送。
+
+### 2026-11-18：整合后闭包下游普通 SSA 验收
+
+- 精确输入 `f9d37ff1`，默认 codegen 配置、既有独立于外部任务的 target、`-j1`/单线程，实际本树 frontend/codegen 编译2m32s；`ssa::unit_lower_closure_tests::` 10项、`borrowed_closure_escape` 27项，共37项通过。
+- 前组核真实源码 callable 正向 lowering、源owner/drop与原不支持边界，相关原测试保SSA/LLVM验证；后组核既有交付 verifier 正负控，包括字段、容器、Owned捕获与CFG。它们是既有合同的下游交叉证据，不等于全部新增前端拒绝fixture均已端到端覆盖，也不增加E3能力。
+- 断连后只核原进程/日志并恢复监控，首组未重复运行；第二组复用同树二进制。全程保12GiB停止线，结束约17.1GiB，无数据清理；未执行含native的refine_closure整组、故障注入、全量或新codegen strict。仅本地验收记录，不推送。
+
+### 2026-11-18：非空局部 callable var 的冻结诊断来源
+
+- 独立基 `f9d37ff1`，原生产本树57.82s编译：`val saved=optional!!` 已拒绝，而同源普通Function var的初始化、后赋值、部分分支覆盖三形双布局6组合无诊断且validate成功，8合法覆盖/capturefree/owned组合通过。原红日志与源码保留。
+- 最小仅扩mutable诊断资格类型门到Function及原Nullable(Function)，复用真实SymbolId的强更新、合流和失败事务恢复。capture symbol、循环内initializer和循环写入排除原样；不把非空类型视为Coverage::Known，不新增holder/loan或跨callable运输，循环/捕获仅静态保全原限界而非宣称其逃逸闭合。
+- 补充危险重赋值、部分安全覆盖、Unknown分支、双分支安全覆盖、同名shadow正负控、moved L0131和失败RHS后旧L0137见证恢复；只有实际提交的安全覆盖清除正证据。
+- 最终新3项26布局组合全部通过，连同原mutable5、extracted3、immutable3、closure75及assignment safety15共104项FE回归通过；切回闲置共享缓存强制本树重编2m09s，frontend all-target `loan-observation-test-support` strict2m21s通过。独立末审无阻塞，fmt/docs982/size2620/diff通过。独立原红与初绿target未与其他构建共享锁，最终阶段低并行串行并守12GiB止线；未清理数据、未执行CG/native/故障注入或远端CI，仅本地提交、不推送。
+
+### 2026-11-18：普通 Function 可变来源与闭包下游收据整合
+
+- 共同基 `f9d37ff1`，保留 `bdad3670` 的 CG 普通验收收据与 `47af86bd` 的普通 Function 可变诊断来源修复全部历史。唯一 SPEC 尾冲突按两侧原文追加保全，其他生产、测试及架构文件逐字保留来源提交；独立静审通过。
+- 独立整合树真实执行 `ownership_mutable_extracted_escape` 3、`ownership_map_store_escape` 4、`ownership_field_extracted_escape` 3，共 10 项通过，初次本树 FE 重编 2m05s；强制本树 frontend all-targets `loan-observation-test-support` strict 4m41s/exit0。日志为仓外 `function-var-receipt-*.log`。
+- 本次仅组合验证，不改变循环/捕获排除、Coverage 或真实 loan 合同；未运行本整合头的 CG/native/fault 或全量测试，原 CG37 收据仍对应 `f9d37ff1` 代码输入，不冒称覆盖新资格门。malformed missing-closer 旧阶段见证未动。磁盘监控未触 12 GiB 止线，不清理数据；本地整合不推送，D10/E2 保持 in-progress。
+
+### 2026-11-19：root replace 提前 return / abort 的保旧双 Unit 对照
+
+- 基于 `1cc84ef5`，保留 `root_return_cleans_loan_before_original_owner_and_abort_does_not_unwind` 两份原源码、所有 Single 与原 Unit 断言。同一 SourceMap/AST 的 Rooted、MemoryDocument 各执行新增观察：诊断/deferred 为空且 validate 成功，实际 Exclusive prefix end 与原 root/drop 同身份同 ControlTransfer 点，前置 drop/end 数均为零；abort 保 primitive 空、无 Named drop 和无该有界 prefix unwind。
+- 此为既有 `exclusive_call_prefix_ends` 的消费者对照，不新增生产事实或公开 API，不把有界投影等同完整 loan-end 表或 Complete。精确 Return/replace/root 源码身份的独立见证仍在既有 `unit_direct_call_loan_ends/exclusive_prefix.rs`；条件 cleanup-owner 与 owner-lineage 的旧见证原样保留，本轮未退休 Single。
+- 原基线 exact 1 项通过（本树编译44.12s），保旧对照 exact 1 项通过（4.14s）；最终 `ownership_primitives` 全 target 14 项通过，强制本树 frontend all-targets `loan-observation-test-support` strict 3m02s/exit0。静审通过；未执行 CG/native/fault 或远端 CI，D10/E2 保持 in-progress。仅本地保存，不推送。
+
+### 2026-11-19：root-prefix 与 malformed recovery 保旧观察整合
+
+- 同基 `1cc84ef5` 的 `799d635b` 和 `e6fbf6c2` 无源码冲突整合；双方测试文件逐字保留来源提交，全部 Single 断言保留。前者是固定 return/abort 源码的有界 prefix-end 对照；后者的 Unit recovery 仍不等同旧 `complete_file_types` 最终诊断阶段，不能据此退休旧例。
+- 独立整合树强制真实 FE 重编1m27s，`ownership_primitives` 14 项及 `ownership_structural` 12 项共26项全部通过，独立静审无阻塞。此头未另跑全 all-target strict，`799d635b` 的 strict 收据不冒称覆盖新增 recovery 测试；未跑 CG/native/fault/远端 CI。仅本地整合、不推送，D10/E2 保持 in-progress。
+
+### 2026-11-19：固定 root return/abort 旧消费者退休
+
+- 基于已验 `981cebfc`，仅将 `root_return_cleans_loan_before_original_owner_and_abort_does_not_unwind` 的两源码关闭 Single 执行；删除已被双 Unit 回调完整承接的旧断言及重复断言。两份源码和两回调逐字保留，原 loan-end 存在性以真实 Exclusive prefix-end 承接，不要求有界投影代表完整表。条件 cleanup-owner、owner-lineage、missing-closer 旧用例未改，无生产/API 变化。逐断言计划与实际 diff 均独审通过。
+- 最终单例 exact 1 项、`ownership_primitives` 14 项、`unit_direct_call_loan_ends::exclusive_prefix` 6 项全部通过；初次本树重编1m40s，exclusive target重编13.70s。两受影响 test targets 的 feature Clippy strict25.73s通过，非本头全 all-target strict。保旧基线/双布局证据见前述 `799d635b` 收据，不重复执行已退休的旧路径。未运行CG/native/fault/远端CI，整体D10/E2仍in-progress，仅本地提交不推送。
+
+### 2026-11-19：有界旧消费者退休与 Targeted 选择交付整合
+
+- 双父保留 `ef66bdb3` 的固定 root return/abort 退休和 `aa8bf562` 的14个 FE target 选择补齐；两脚本逐字保留来源提交，未改 workflow、分支保护或纳入 E3。逐文件独审通过，条件 cleanup-owner、owner-lineage 与 malformed 最终阶段旧见证继续保留。
+- 最终整合树强制本树重编1m05s，退休 exact 1 项通过；选择静态3项及成功 cargo-stub composition 1项共4项通过（2.132s），没有运行故障stub。新增14个默认feature FE target实跑54项的证据属于 `aa8bf562`，选择数量149/152只对应本轮精确输入，后续 main/#446 变化需重新枚举。
+- `981cebfc + aa8bf562` 预整合已实跑普通 CG closure10及 verifier27，共37项通过。本最终树的 frontend生产、整个codegen及Cargo输入与该组合逐字相同，仅额外退休FE测试/SPEC变化，因此复用相同CG输入证据，不称再次执行。此头未另跑全量或双crate strict；未运行 native/fault/远端CI，不推送，D10/E2保持in-progress。
+
+### 2026-11-19：单一条件初始化根的同源清理对照（保旧）
+
+- 基于 `078223d4`，只对 `root_commit_coalesces_complete_nonclosure_branch_values_before_drop` 的中间原源码，在既有 Rooted/MemoryDocument 回调各补一次公开 V1 对照。三份源码及原 Single 的无条件清理/两次 Drop 断言全部保留，另两份源码不扩投影、不退休；无生产或公开 API 变化。
+- 该源码已有 sealed Choice replace：以原 primitive 的 incoming 表达式定位真实 String producer，核 suffix 中安装值 Definition 与返回旧值 Choice 的精确身份，并将恰两项 named Drop 的 root/point 逐条对应公开 UnitDropFact。prefix/两分支无提前 Drop，两清理位于两分支共用 continuation。此为固定源码的有界图映射，不把 conditional-temporary 标志当 condition 图，不把普通 Unsupported/清表观察升级 Complete，也不声称独立 AST 定位了返回绑定的 AfterStatement。
+- 原 exact 真实本树重编1m57s，1项通过；原 `ownership_primitives` 全14项通过；受影响 test target 的默认 feature Clippy strict19.47s通过。独立审阅无阻塞。未运行全 frontend strict、CG、native、fault 或远端 CI，不计新增语言能力或退休数量，仅本地提交不推送。
+
+### 2026-11-19：固定 split-project 普通 native 实跑收据
+
+- 精确执行输入 `078223d4a18e7eb523abafda2bec1f4337808210`，默认 CLI/FE/CG 配置、macOS LLVM21，`cargo test --offline --locked -j1 -p lang-cli --test d10_project_cli ordinary_split_project_executes_parent_child_zero_and_multiple_rounds -- --exact --nocapture --test-threads=1`。真实本树编译4m08s，exact 1项通过（24.84s），0失败、0忽略；内部2种父子 replace 源码形态×2种文件顺序×4种零次/多次轮数组合，共16次普通 project 构建、链接和原生执行，按原源码语义的 stdout、空 stderr 和成功退出断言全部通过。
+- 原日志保留于仓外 `unit-observations-native-20261119.log`，SHA256 `e267dd80bbb29d57203ba62676342b92a9f410130e2c6191d7c6d51f0a30f886`。本节追加于测试后继 `eacfeb69`：该后继仅改 ownership_primitives 测试及本页；frontend生产、整个codegen/CLI/标准库与Cargo输入逐字相同。此为同输入证据追溯，不称在 eacfeb69 重跑，不倒改前述尚未运行时的历史收据。
+- 仅上述普通 native 范围；未运行其他 native、sanitizer、CI专属故障注入、全量或远端CI，不以此代表完整 D10/E2 验收。整体仍 in-progress，本地收据不推送。
+
+### 2026-11-19：range call-prefix 两条终止路径的内部实证（保旧）
+
+- 基 `25292432`，保留 `ownership_range_construction::range_call_prefix_return_publishes_only_established_outer_argument_ends` 四份原源码与全部 Single 断言。新增私有 test-only planner trace，复用真实加载源授权与现有观察器，不改生产、公开API或E3。Rooted Unit先核无诊断/deferred与validate，再按实际 outer read、range argument及完整loan target唯一匹配来源。
+- 四源均实证：同一loan只注册一次且位于If之前；原Return分支产生精确ControlTransfer的UnwindBorrowRemoved，只有另一分支正常继续，合流后由finish_call_pending_loans真正移除同call/argument的pending token。两者是静态替代路径，非运行时同一路径结束两次；probe开关前后drop与conditional receiver facts相同。公共direct-call投影继续排除range，本片不是完整loan-end表、CFG或runtime证明，不能据此退休旧Single。
+- 新lib exact 1项/4原源通过（真实本树编译1m29s）；原保旧exact 1项通过（1m04s）；既有origin_probe普通邻控10项通过、1项CI-only按ignore未执行。默认feature frontend lib/tests Clippy strict2m45s通过，独立审阅无阻塞；未执行双布局新增对照、CG/native、故障注入或远端CI。监控未触12GiB止线，不清理、不推送，整体D10/E2仍in-progress。
+
+### 2026-11-19：原条件根 Replace/Swap 的 SSA 身份与路径回归
+
+- 基于 `25292432`，frontend/codegen 生产与先前 `eacfeb69` 判别输入逐字一致。仅新增 `unit_field_replace_tests::conditional_root_cleanup` 测试子模块；复用原条件 cleanup-owner 第1/3源码（RHS If Replace、Choice 初始化后 Swap），不改源码、函数名或包布局，分别走 Rooted/MemoryDocument 的现有 Unit analyze/lower。检索未发现这两份原源码的既有 CG 回归；既有人工 SSA swap/replace 及字段替换用例不是同源身份/路径证明。
+- 两源均有2项真实 FE Drop，且所有4组合 lowering/SSA verifier 通过。持久 oracle 不止计数：沿真实 literal producer/block parameter 核交换输入的来源集合，要求两 Drop 消费唯一 RootReplace/RootSwap 的两个不同输出身份；沿两条实际 CFG 正常路径核 commit 在前、两输出各清理一次然后 return。此为固定无循环源码的测试侧断言，来源集合不等于 true/false 逐边字面量映射，也不声称 LLVM/native 运行时析构验收。
+- 强化原 exact 首轮真实本树重编2m17s通过；独审去除多余借用后末轮重编40.88s、1测试（4组合）通过，codegen 默认 lib/tests Clippy strict1m21s通过；独审无阻塞。未改生产、V1 投影或任何旧条件清理断言，不计退休，未运行 native/fault/远端 CI，仅本地保存不推送。
+
+### 2026-11-19：条件 root SSA 与 range-prefix trace 本地交叉整合
+
+- 共同父 `25292432`，保留 `60bfab6d` 与 `be16585d` 双方历史和测试字节；唯一 SPEC 尾冲突按 base 加双方完整追加保全，独立静审通过。全为 test-only 与收据变化，旧 Single/条件/owner-lineage/malformed 断言不删，无生产/API/E3变化。
+- 独立整合树真实运行 range-prefix 内部 trace exact 1项/4原源（FE重编1m20s），条件 root cleanup SSA exact 1项/两源×双布局4组合（FE/CG重编3m22s），均通过。父提交 strict 证据仅按各自输入追溯，本整合未重跑 strict或全量；fmt/docs/diff检查通过。
+- 相对普通 native 执行头 `078223d4`，差异仅5个测试文件及本页，CLI/标准库/Cargo和实际生产路径字节相同；可复用此前精确1项/16次项目构建链接运行的有界证据，不称整树字节相同或在本头重跑native。本轮未执行native、sanitizer、故障注入或远端CI；12GiB监控未触线，无数据清理，仅本地整合不推送，D10/E2仍in-progress。
+
+### 2026-11-19：metadata child 最后使用前后的根重绑行为对照（保旧）
+
+- 基 `2a0d849b`，只追加 `ownership_range_construction::metadata_child_protects_root_write_until_its_last_use`，不修改生产或任何旧断言。根为可重绑的 List，range parent 再经 alias 形成 metadata child；同一 `root=listOf("changed")` 分别放在 child 最后 observe 前/后。List 元素本身只读，不用非法元素写入充当生命周期探针。
+- Single 与 Rooted/MemoryDocument 两 Unit 均核前者精确单 L0135、后者无诊断；双 Unit 拒绝侧核 binding/loan/drop 清表及validate失败，成功侧核无deferred、parent/child同origin、child先于parent结束及validate成功。Single此处仅做诊断行为对照，不宣称其完整事件表已被Unit替代。
+- 真实保护链是checker在producer返回保留获准source loan、binding形成后更换其ActiveLoanOwner，最后使用分析向父传递活性并逆序撤销；planner的pending bookkeeping不是该active loan表。行为对照未发现提前解除保护的生产缺陷，不能凭它退休旧producer CallReturn否定见证，也不扩Partial或E3。
+- 原exact 1项通过（本树FE编译1m39s），所属target24项全过；受影响test target默认Clippy strict33.94s通过，独审与fmt/docs/diff通过。未跑全workspace strict、CG/native、fault或远端CI。与独立target任务受控并发，12GiB止线未触，无数据清理；仅本地test-only提交，不推送。
+
+### 2026-11-19：缺右括号原源码的严格 CLI 用户出口
+
+- 基 `2a0d849b`，仅新增 `check_cli::missing_pattern_closer_stops_single_and_project_before_recovery_and_output`。保 ownership_structural 原源码字节和全部 Single/Unit recovery 断言，复用实际 CLI 进程与临时目录 harness，覆盖单文件/单源项目的 check/build 四组合；build 指定不存在的 entry，仍由 parser/name 严格门先拒绝。检索未发现该原源码的现有 CLI 对照，无生产/API/LSP 改动。
+- 四组合均 exit1、空 stdout、唯一结构化 L0010（无内部错误），primary 104..104、opening-delimiter label 90..91。先断单文件 source 等于调用方原绝对路径拼写，项目等于 src/broken.ko，且附加 label 同源，再仅归一这两个 source 字段并比较完整 JSON。原源码/manifest 不变，fixture 根与源目录终态无额外产物或 staging。这不把 raw recovery 额外 L0080 强行加入严格 CLI，也不声称全局无写入或 staging 曾创建后删除。
+- 初次真实本树编译3m01s，测试因附加 label 路径漏归一而失败；随后 canonicalize 的测试假设又因 macOS /var 与 /private/var 拼写差异失败。均为测试 oracle 修正，不是生产缺陷；保留日志。最终按调用方精确绝对拼写复验 exact 1项/4组合通过（重编1.12s、运行1.89s），受影响 CLI check_cli target 默认 Clippy strict29.37s通过，独审无阻塞。未跑其他 native、LSP、全 bounded composition 或远端 CI；不计退休，仅本地提交不推送。
+
+### 2026-11-19 保旧子借用保护与严格入口交叉收据
+
+- 独立整合 `c4c24c9e` 与 `08b5cf22`（共同父 `2a0d849b`），保全双方测试原字节及上述追加收据；无生产、公开 API、E3 或旧断言删除。
+- 本整合输入真实复验 `ownership_range_construction::metadata_child_protects_root_write_until_its_last_use` 与 `check_cli::missing_pattern_closer_stops_single_and_project_before_recovery_and_output` 各 1 passed；前者保旧 Single 与双 Unit 的根重绑前后合同，后者实际执行四个 check/build × single/project 失败命令，均 L0010、exit 1、无输出产物。
+- 本轮仅两个 exact，未重跑全套 strict、native、sanitizer、fault 或 CI；不扩大为完整 loan-end 表、Complete 或整个 D10/E2 验收。12 GiB 自身构建停止线未触发，未清理任何数据。
+
+### 2026-11-19 主线 callable 整合与有界交叉收据
+
+- `f9c045de` 保留 `ff6073d2` 与主线 `eb0eaa30` 双父历史；完整共同基线 `6cc03907` 上本地 48 文件与主线 30 文件无交集，逐字节保留双方内容。未纳入尚开放的 #446/#448，也未自行扩展 E3。
+- 精确该预整合输入执行 FE mutable 拒绝、extracted 合法、captured 合法/shared 三个 exact；CG `unit_lower_closure_tests` 10、`borrowed_closure_escape` 27、条件 root cleanup exact 1；普通 `native_tests::scalar_joint_tests::joint_unit_scalar_results_link_and_run` 1 全通过。初次两个错误 selector 各选择 0 项，不计通过，已核真实名称并补执行。
+- `d71f25c1` 保原完整 callback 调用源码，仅新增内部 Replace→move/shared Capture 身份对照，最终公开 Unsupported 与 definitions/events 清表仍保留；不据此前缀退休完整生命周期旧见证。`de558752` 新增同文件、同 source-root 的 single/project 普通 native 对照：两替换顺序 × 零轮/多轮 × 两入口共 8 次 build/run，输出独立按源码语义判定；不证明所有析构事件。初版误把 project qualified entry 用于 single，首 build exit 2、0 native，按 Guide 修正 single `entry`/project `app.entry` 后通过，未修改生产或输出 oracle。
+- 最终 `de558752` 上两新增 exact 再次各 1 passed（callback 本树编译 1m28；native 8 次执行共 11.23s）；fmt/diff 检查通过。使用存活独立热 p2 target、默认 profile、`-j1`/`--test-threads=1`，12 GiB 自身构建停止线未触发。
+- 本轮未运行全套 strict、sanitizer、CI-only fault 或远端 CI，未把此前旧输入 native/CG 收据冒称新头重跑；D10/E2 仍 in-progress。
+
+### 2026-11-19 同源 shared callback 的实际贷款完成边界
+
+- 基 `f95f0a01` 保留原 `replace → shared callback → callback()` 源码，私有 `cfg(test)` 快照验证最后 callee 使用已移除绑定、pending call 仍保有两根完整同身份 Shared loan，`finish_call_closures` 后该 closure 两条贷款消失；观测开关两次完整 ownership 产品相等。不推断运行时 Drop、其他调用形状或公开 Complete，也不退休 Unsupported 旧见证。
+- 默认 FE lib 精确 `ownership_checking::compilation_unit::dataflow::closure_lifecycle_probe::shared_callback_loans_survive_last_callee_use_until_call_finishes` 真实本树编译 3m25、1 passed；独审与格式/diff 检查通过。未跑全套 strict、native、CI-only fault 或远端 CI。
+
+### 2026-11-19 退休已被同源 Unit 成功合同取代的旧 borrowed-result CFG 拒绝
+
+- 基 `27fa433e` 先真实复验 `ssa::borrow_result_contract_tests::original_borrowed_result_caller_cfg_preserves_live_result_and_end_order`（1 passed，本树 FE/CG 编译 3m11），再移除唯一 `legacy_single_borrowed_result_caller_cfg_stays_unsupported` 及仅供它使用的私有 Single helper/imports。原 `PROVIDER + ORIGINAL_CALLER_ENTRY` 字节、Unit 前端干净/根身份、返回 loan 与 source loan 区分、CFG 两读取与各唯一结束顺序、SSA/LLVM 验证及其他负控均未改。
+- 这是有意退休旧实现已过时的 UnsupportedNode 限制，不是声称两入口诊断等价；公共 `check_types` / `check_ownership` API 和其他旧边界仍保留。修改后完整 `ssa::borrow_result_contract_tests::` 14 项通过（本树 CG 重编 58.45s），没有新增重复测试、native 或 CI-only fault 执行。
+- 默认 CG lib/tests Clippy `-D warnings` 通过（1m36）；独审、格式、文档结构 982 页及 Rust 尺寸门 2627 文件通过。未执行全 workspace/远端 CI，不改变生产语义或 E3。
+
+### 2026-11-19 shared replacement callback 的同源 SSA 清理身份
+
+- 基 `49cd484b` 保持前端生命周期探针的完整 `replace → shared callback → callback()` 源码字节，不增加读取或包装函数。新增普通 CG 测试查询真实 Unit SSA：两 literal 经 RootReplace 的 incoming/previous 双结果成为两 Shared capture 的借根；同一 closure 调用后唯一 Drop 隐式结束捕获贷款，再各清理一次当前源 owner，调用结果也唯一清理，禁止捕获贷款重复显式 BorrowEnd。
+- thunk 的环境字段 0/1 经 SharedReferenceFollow 精确流入原 StringConcat 左右参数并返回；顺序按唯一基本块的实际 instruction 列读取，不依赖全局存储表顺序。SSA verifier 和 LLVM renderer 均通过。此处只证明 SSA 身份、活性和清理合同；原 String literal 不分配，未声称两个 heap free、native 执行、公开 Complete、move capture 或其他 CFG 形状。
+- 原源观测 exact 通过后补齐断言，采纳独审的执行序修正后最终 `ssa::refine_closure_tests::callback_replacement_ssa_contract::shared_replacement_callback_keeps_both_sources_until_invocation_returns` 1 passed（本树 CG 重编 37.19s），默认 CG lib/tests Clippy `-D warnings` 通过（1m30）。仅新增测试，不改变生产、旧消费者或 E3；未运行 native、sanitizer、CI-only fault 或远端 CI。
+
+### 2026-11-19 numeric nullable-while 原两源的旧 SSA 形状退休
+
+- 基 `9997be80` 先执行原 `ssa::while_flow_tests::proof_cases::numeric_for_preserves_the_outer_nullable_while_proof`，六次原管线观察及 oracle 通过；随后仅去该测试两次 Legacy 执行。原始与 Group 两份源码、MemoryDocument/Rooted 共四 Unit 程序，以及 `numeric_proof_contract` 全部原路径断言均保留，修改后同 exact 1 passed。原基线重编 3m34，候选重编 3m14。
+- Legacy 的 normal/continue 双 terminal 与 Unit 的单共享 terminal 是实现表示差异，未宣称两程序动态等价。原 Unit 独立 CFG walk 继续核所有真实边的 owner/view 携带、两分支读取、空循环/continue/递增期间 loan 保活、最终读取后唯一 end→同 owner drop→return、null 路径及静态 Abort 无展开边界；未执行任何 Abort 程序、native 或 CI-only fault。
+- 共享旧 helper 与 direct nullable-while 五源组实现/断言不改；仅同步 helper 注释。未扩大 E3 或公共 API，未新增重复测试。
+- 保留的 direct 两个邻控 exact 均通过；默认 CG lib/tests Clippy `-D warnings` 通过（3m36），独审、格式/diff、文档 982 页与 Rust 尺寸 2628 文件检查通过。本轮仅本地定向验收，未运行远端 CI 或完整 workspace。
+
+### 2026-11-19 heap replacement shared callback 的独立 native 变体
+
+- 基 `9997be80` 保留原 literal `run(): Unit` 的 FE/SSA 同源测试不变，另加有参数的 heap String 变体：运行时拼接生成 old/new，replace 后 shared callback 返回 `newold`，随后分别读取 old/new。普通 emitter/link/run 精确输出 `old\nnewold\nold\nnew\n`。
+- 同一新源码再用既有 LLVM allocator substitution harness 验证：三次非空拼接按求值产生分配 ordinal old=0、new=1、result=2，replace 与 shared 环境不新增 heap owner；依据末次读取和逆声明清理独立预定释放序列 `[2,0,1]`，并核每个分配唯一释放。预定 oracle 经独审后才执行，未按实跑结果回填期望。
+- exact `ssa::refine_closure_tests::callback_replacement_ssa_contract::heap_replacement_shared_callback_preserves_contents_and_release_order` 1 passed，本树 FE/CG 编译 7m36、执行 2.68s，实际 1 次普通 native 与 1 次 allocator-instrumented native 均成功。只增加测试，未改生产或 E3；不把此变体等同原 literal 源码，不宣称静态 literal heap free、sanitizer、CI-only fault 或远端 CI 已验，本片未重跑 Clippy。
+
+### 2026-11-19 direct nullable-while 五源旧形状管线退休
+
+- 基 `60cce13f` 先运行原 `single_direct_nullable_while_birth_and_local_retirement_reach_llvm` 与 `unit_direct_nullable_while_birth_and_local_retirement_reach_llvm` 两个 exact，各 1 passed（真实 FE/CG 编译 3m19）；再仅退休五次 Legacy 执行及唯一私有 `direct_proof_observations → collect_shape_boundaries → lower_legacy_shape_boundary` 链和专用 imports。重复执行但未作 shape 断言的五次 Rooted 观察一并去掉，不计为 Legacy 退休。
+- normal、continue、grouped continue、break、return 原五源完整保留；历史 single 测试名保留，现执行 MemoryDocument 五源，另一 exact 保 Rooted 五源。两布局原 owner/view 身份、条件选路、唯一 read→同 view end→同 owner drop 顺序、NullableNull 回边和离开/return 断言全部保留；仅移除旧函数命名/闲置 flag 参数布局分支，不宣称动态程序等价。
+- 原旧/新共同 oracle 均未证明 break 最终返回 operand、return operand 与 read 相等及 null 路径完整清理/返回值；本片不补造或声称这些既有缺口已闭合。未改生产、公共 API、E3 或其他负控；无 native、Abort 执行、CI-only fault 或远端 CI。
+- 退休后两 exact 及 numeric/owner-return 两邻控各 1 passed（本树 CG 重编 2m25）；实际 diff 独审确认 Unit 全部断言及原五源保持。
+
+- 默认 CG lib/tests Clippy `-D warnings` 通过（2m32），格式/diff、文档 982 页及 Rust 物理尺寸检查通过；仅本地定向验收，未运行完整 workspace。
+
+### 2026-11-19 post-#448 本地主线预整合交叉收据
+
+- 父输入为本地 `c0d1d599` 与实际 main `15955ffb`（共同基 `eb0eaa30`），未提前混入开放 PR。唯一机械冲突保全 `unit_field_replace_tests` 双方测试；显式 expression frame 重构额外携带本地 `alias_covered` 入态快照，保留 begin 清旧 coverage、成功 next/无新诊断时在来源冻结之后和释放之前 record 的顺序。独审核 192 个非交集文件逐字节等其父，7 个交集无覆盖丢失。
+- 新输入实际通过 FE 32 项：mutable/提取/Value/Elvis 七目标 22、私有摘要代数 3、主线 logical/short-circuit 7。CG 六 exact（本树编译 6m46）全部通过：条件清理身份、receiver field replace、inout primitive、field swap、element swap 与 heap callback；包含主线四场景双 constant 的 8 次 allocator-counted native，以及 heap 变体普通 native 1 次和计数 native 1 次。不是全量或 CI 验收，未执行 sanitizer、故障注入或 abort 场景。
+- 首次 FE strict 因此前私有 `closure_lifecycle_probe` 嵌套类型触发 `type_complexity` 失败，保留失败日志；仅提取 cfg(test) 私有类型别名，无 allow、无生产行为或原断言变化。随后生命周期 exact 1 passed，FE all-target `loan-observation-test-support` Clippy `-D warnings` 29.80s 与默认 CG lib/tests Clippy `-D warnings` 1m24 均通过。前组已验生产输入与断言字节未改，未重复或冒称重跑。
+
+### 2026-11-19 shared replacement closure 未调用 return 的 native 对照
+
+- 基 `c3530cfe` 新增独立 heap callback 变体，保持既有原 literal/正常 heap 测试不变：在 replace 的两个源形成 Shared closure 后按函数参数 stop 提前 return，或落入实际调用；callback 内 `invoked` 标记使“不调用”有独立输出判别。true 输出 `old\nearly\n`，false 输出 `old\ninvoked\nnewold\nold\nnew\n`。
+- 清理顺序依据现行 [ownership](../../architecture/ownership.md) 的 scope/return 按 binding 原声明位置逆序合同，重绑不改变顺序：true 路径先 Drop closure 结束共享 loan，再释放 detached old(ordinal 0)、当前 a(ordinal 1)，没有调用结果分配；false 多 result(ordinal 2) 并按 `[2,0,1]` 清理。既有 allocator harness 同时要求每个分配恰释放一次，预期 `[0,1]` / `[2,0,1]` 经独审后才运行，未由输出反推。
+- 新 `heap_replacement_shared_callback_cleans_uninvoked_sources_on_return` exact 与原 `heap_replacement_shared_callback_preserves_contents_and_release_order` 邻控各 1 passed（本树 FE/CG 编译 2m13）。新测试实际普通 native 2 次、allocator-counted native 2 次；邻控另普通 1 次、计数 1 次，共 6 次。无生产或 E3 改动、不替代原源码证明、不新增公开 API；未执行 sanitizer、Abort、CI-only fault 或远端 CI，本片未重跑 strict。
+
+### 2026-11-19 grouped readonly borrow receiver 的旧拒绝退休
+
+- 基 `fff1dab8` 在原 `readonly_keeps_grouped_borrow_result_and_field_receiver_boundaries` 保留两旧拒绝，先加入 `((alias)).read()` 原源的严格 Unit 对照；单 exact 1 passed（本树 FE/CG 1m50）。两入口都加既有 `package app` 前缀，实际源文本不变。
+- 仅将 grouped receiver 旧 `UnsupportedNode` 拒绝替换为已通过的 Unit 支持合同；`outer.item.read()` 负控及服务其余负控的旧 helper 原样保留。私有强 oracle 只参数化精确调用 span，原 owner/place/source loan/result loan、callee/receiver 身份、唯一 result-end→source-end、无 Copy/Retain、SSA/LLVM 断言不变。
+- 这是已支持形状的旧实现限制退休，不声称两管线诊断等价，不扩公共 API 或 E3。未执行 native、CI-only fault 或远端 CI。
+
+- 退休后原 exact 与未分组 receiver 邻控各 1 passed（本树 CG 32.22s）；独审确认只移除该一次旧拒绝，格式/diff 检查通过。本片未另跑 Clippy。
+
+### 2026-11-19 callable var 无回边 null-clear 循环的诊断来源
+
+- 基 `fff1dab8` 实证原源码在 Memory/Rooted 两入口中，nullable borrowed closure 经可能零轮的 `while { optional = null; break }` 后返回 `optional!!` 漏 L0137 且 validate 成功；无循环原负控拒绝，确定执行的 `loop { optional = null; break }` 及无捕获正控合法。原始红测和诊断保持，不以扩大 loan 生命周期替代逃逸检查。
+- 私有诊断 shadow 只在循环外合格 callable var 保存既有 Known 来源。实际 `Flows.next/continues` 均无回边且未新增诊断时，while 的零轮路径和真实 break 状态才形成循环后证明；正常成功赋值仅接受 checked Nullable 的 literal null/透明 Group(null) 清空。上下文已把 null 类型赋为目标类型，不能仅按 Nothing? 判定，也不能从任意 Nullable(Function) 推出空值。外层分支保候选交集、正见证并集及 sticky Unknown；失败写保持原错误/回滚，scope/资源快照清除私有摘要。
+- 不声称一般循环 alias 修复：continue、普通回边、for、未知 RHS/循环内 alias 转移与多轮 fixed point 仍未获证；七个真实控制只核私有证据不被错误发布，缺诊断不视为安全。循环内部消费者不读取 shadow，未新增公开 API，不改变真实 holder/loan/drop 或 E3 准入。
+- 新三项在既有 `ownership_mutable_nullable_alias_escape` CI 选择目标内运行，共 32 个双布局组合，保该目标原五项；私有八项覆盖缺席/Unknown 双向合流、嵌套、克隆隔离及无候选不分配。lazy 实现移入诊断子模块前共 156 项 FE 测试通过（目标 8、私有 8、邻控 140）；未运行 CG/native、sanitizer、CI-only fault 或远端 CI。
+- 初版内联 shadow 导致既有 nested Elvis 默认栈溢出；同源干净 `f1d91066` 默认栈 exact 通过后改为仅 seed 分配的 `Option<Box<_>>`，保集合合流及撤资格元数据，原默认栈三项完整转绿，不提高线程栈。另一次共享 target 下同源 6/8 失败原因未定，保留记录；强制当前根包重编后通过，不以短编译时间断言缓存原因。最终源码独审通过，完整日志保留在本地仓库外。
+- 尺寸门拦下根 dataflow 模块新增声明造成的 1001 行，随后将新模块按职责归入 `escape_witness/loop_shadow`，根文件恢复原 1000 行，无压行或豁免。独审反向还原 import/可见性/私有测试路径后，模块 SHA256 与移动前精确相同；最终路径重新实跑 nested Elvis 3、mutable 8、私有 8，共 19 项通过，FE all-target `loan-observation-test-support` Clippy `-D warnings` 通过（48.86s）。格式/diff、文档 982 页及 Rust 尺寸 2653 文件检查通过；仅本地，整体 D10/E2 仍 in-progress。

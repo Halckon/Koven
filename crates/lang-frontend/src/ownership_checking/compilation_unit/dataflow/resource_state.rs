@@ -5,6 +5,7 @@ impl Checker<'_> {
         let mut snapshot = state.clone();
         // Diagnostic provenance is not a resource, holder, or no-carry admission proof.
         snapshot.escape_witnesses = Default::default();
+        snapshot.loop_escape_shadow = Default::default();
         // Empty closure-result caches contain no captured environment obligations.
         snapshot
             .closure_results

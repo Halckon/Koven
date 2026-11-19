@@ -78,9 +78,9 @@ impl Checker<'_> {
             crate::ownership_checking::callable_provenance::graph::NodeId,
         )],
         can_skip: bool,
-    ) -> Result<Flows, OwnershipCheckingError> {
+    ) -> Result<(Flows, bool), OwnershipCheckingError> {
         let Some(base) = prefix.next.take() else {
-            return Ok(prefix);
+            return Ok((prefix, true));
         };
         #[cfg(any(test, feature = "loan-observation-test-support"))]
         let research = self.research_loop_start(Some(repeated), body, &base);
@@ -90,6 +90,7 @@ impl Checker<'_> {
         let checked = self.check_statement(body, base.clone());
         let session = std::mem::replace(&mut self.no_carry, previous);
         let body = checked?;
+        let no_backedge = body.next.is_none() && body.continues.is_none();
         if self.diagnostics.len() == errors {
             self.check_loop_backedge(body_id, repeated, &body)?;
             self.check_loop_capture_transport(repeated, body_id, &base, &body)?;
@@ -102,7 +103,7 @@ impl Checker<'_> {
                 state.origins.backedge(headers);
             }
             prefix.next = body.breaks;
-            return Ok(prefix);
+            return Ok((prefix, no_backedge));
         }
         let origins = base.origins.loop_exit(
             headers,
@@ -119,6 +120,6 @@ impl Checker<'_> {
         }
         next.origins = origins;
         prefix.next = Some(next);
-        Ok(prefix)
+        Ok((prefix, no_backedge))
     }
 }

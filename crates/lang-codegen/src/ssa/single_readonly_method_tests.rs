@@ -706,7 +706,7 @@ mod boundaries {
 
     #[test]
     fn readonly_keeps_grouped_borrow_result_and_field_receiver_boundaries() {
-        rejected(
+        super::borrow_receiver_contract::assert_unit_with_read(
             "value class Item(val n:Int) { fun read():Int=this.n }\nfun view(item:Item):borrow Item from item=item\nfun entry() { val item=Item(7); borrow val alias=view(item); ((alias)).read() }",
             "((alias)).read()",
         );

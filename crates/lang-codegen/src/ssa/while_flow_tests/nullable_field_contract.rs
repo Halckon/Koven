@@ -562,17 +562,15 @@ pub(in crate::ssa) mod value_argument_contract {
 
 pub(in crate::ssa) mod direct_contract {
     //! Read-only identity assertions for five direct ordinary nullable while sources.
+    use std::collections::BTreeSet;
+
     use crate::ssa::model::{
-        Definition, EntityId, EntityType, Function, FunctionId, LoanKind, Module, Operation,
-        Program, SsaTypeKind, TerminatorKind,
+        BlockId, Definition, Edge, EntityId, EntityType, Function, FunctionId, LoanKind, Module,
+        Operation, Program, ScalarConstant, SsaTypeKind, TerminatorKind,
     };
 
-    pub(in crate::ssa) fn assert_direct_proof(program: &Program, case: usize) {
-        assert_proof(program, case, false);
-    }
-
     pub(in crate::ssa) fn assert_unit_direct_proof(program: &Program, case: usize) {
-        assert_proof(program, case, true);
+        assert_proof(program, case);
     }
 
     pub(in crate::ssa) fn assert_memory_unit_direct_proof(
@@ -584,35 +582,31 @@ pub(in crate::ssa) mod direct_contract {
         let function = module
             .function(entry)
             .expect("same-analysis returned entry");
-        assert_function_proof(module, function, case, true);
+        assert_function_proof(module, function, case);
     }
 
-    fn assert_proof(program: &Program, case: usize, unit: bool) {
+    fn assert_proof(program: &Program, case: usize) {
         let module = only(program.modules.iter());
         let function = only(module.functions.iter().filter(|function| {
-            if unit {
-                // Unit names include source-qualified declaration identities.
-                // This fixture has exactly one function with a nullable guard.
-                function
-                    .name
-                    .strip_prefix("koven.p.entry.d")
-                    .is_some_and(|index| {
-                        !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
-                    })
-                    && function.blocks.iter().any(|block| {
-                        matches!(
-                            block.terminator.as_ref().map(|term| &term.kind),
-                            Some(TerminatorKind::NullableBranch { .. })
-                        )
-                    })
-            } else {
-                function.name == "entry"
-            }
+            // Unit names include source-qualified declaration identities.
+            // This fixture has exactly one function with a nullable guard.
+            function
+                .name
+                .strip_prefix("koven.p.entry.d")
+                .is_some_and(|index| {
+                    !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
+                })
+                && function.blocks.iter().any(|block| {
+                    matches!(
+                        block.terminator.as_ref().map(|term| &term.kind),
+                        Some(TerminatorKind::NullableBranch { .. })
+                    )
+                })
         }));
-        assert_function_proof(module, function, case, unit);
+        assert_function_proof(module, function, case);
     }
 
-    fn assert_function_proof(module: &Module, function: &Function, case: usize, unit: bool) {
+    fn assert_function_proof(module: &Module, function: &Function, case: usize) {
         let header = only(function.blocks.iter().filter(|block| {
             matches!(
                 block.terminator.as_ref().map(|term| &term.kind),
@@ -634,43 +628,31 @@ pub(in crate::ssa) mod direct_contract {
         assert_eq!(body.parameters.last(), Some(&EntityId::Loan(*view)));
         assert_eq!(absent.parameters.len(), when_null.arguments.len());
         assert!(!when_null.arguments.contains(&EntityId::Loan(*view)));
-        if unit {
-            // All five unit cases now lower through `ssa::refine`: the unused `flag` loan stays
-            // an entry parameter, and loop headers without a backedge fold into `entry`.
-            let entry = function.block(function.entry_block().unwrap()).unwrap();
-            if case >= 3 {
-                assert_eq!(header.id, entry.id);
-            } else {
-                let TerminatorKind::Branch(initial) = &entry.terminator.as_ref().unwrap().kind
-                else {
-                    panic!("real initial header edge")
-                };
-                assert_eq!(initial.target, header.id);
-                assert!(
-                    !header
-                        .parameters
-                        .iter()
-                        .any(|entity| matches!(entity, EntityId::Loan(_)))
-                );
-            }
-            for block in [body, absent] {
-                assert!(
-                    block
-                        .parameters
-                        .iter()
-                        .all(|entity| !matches!(entity, EntityId::Loan(_))
-                            || *entity == EntityId::Loan(*view))
-                );
-            }
+        // All five unit cases now lower through `ssa::refine`: the unused `flag` loan stays
+        // an entry parameter, and loop headers without a backedge fold into `entry`.
+        let entry = function.block(function.entry_block().unwrap()).unwrap();
+        if case >= 3 {
+            assert_eq!(header.id, entry.id);
         } else {
-            for block in [header, absent] {
-                assert!(
-                    !block
-                        .parameters
-                        .iter()
-                        .any(|entity| matches!(entity, EntityId::Loan(_)))
-                );
-            }
+            let TerminatorKind::Branch(initial) = &entry.terminator.as_ref().unwrap().kind else {
+                panic!("real initial header edge")
+            };
+            assert_eq!(initial.target, header.id);
+            assert!(
+                !header
+                    .parameters
+                    .iter()
+                    .any(|entity| matches!(entity, EntityId::Loan(_)))
+            );
+        }
+        for block in [body, absent] {
+            assert!(
+                block
+                    .parameters
+                    .iter()
+                    .all(|entity| !matches!(entity, EntityId::Loan(_))
+                        || *entity == EntityId::Loan(*view))
+            );
         }
         let owner_column = only(
             when_non_null
@@ -776,10 +758,102 @@ pub(in crate::ssa) mod direct_contract {
             );
         } else {
             assert!(!terminator.targets().contains(&header.id));
+            if case == 3 {
+                assert_direct_return_origin(function, body.id, header.id, Some(result), None);
+                assert_direct_return_origin(function, header.id, body.id, None, Some(when_null));
+            }
             if case == 4 {
-                assert!(matches!(terminator, TerminatorKind::Return { .. }));
+                assert!(
+                    matches!(terminator, TerminatorKind::Return { values }
+                    if values.iter().copied().map(EntityId::Value).eq([result])),
+                    "return delivers the same field value read before proof retirement"
+                );
             }
         }
+    }
+
+    // Follow actual edge columns, not block names or a presumed join layout. Each path
+    // retains its own provenance and visited set, so reconvergence cannot hide a bad arm.
+    fn assert_direct_return_origin(
+        function: &Function,
+        start: BlockId,
+        forbidden: BlockId,
+        read: Option<EntityId>,
+        first_edge: Option<&Edge>,
+    ) {
+        let mut pending = vec![(
+            start,
+            read.into_iter().collect::<BTreeSet<_>>(),
+            BTreeSet::new(),
+        )];
+        let mut returns = 0;
+        while let Some((id, mut values, mut path)) = pending.pop() {
+            assert_ne!(
+                id, forbidden,
+                "selected continuation must not enter the other path"
+            );
+            assert!(path.insert(id), "break continuation must not cycle");
+            let block = function.block(id).unwrap();
+            for instruction in &block.instructions {
+                let instruction = function.instruction(*instruction).unwrap();
+                if read.is_none() {
+                    assert!(
+                        !matches!(instruction.operation, Operation::HeapFieldRead { .. }),
+                        "null path cannot read a payload field"
+                    );
+                    if instruction.operation == Operation::Constant(ScalarConstant::Integer(0)) {
+                        values.extend(instruction.results.iter().copied());
+                    }
+                }
+                if let Operation::Copy { source } = instruction.operation
+                    && values.contains(&EntityId::Value(source))
+                {
+                    values.extend(instruction.results.iter().copied());
+                }
+            }
+            let terminator = &block.terminator.as_ref().unwrap().kind;
+            if let TerminatorKind::Return { values: returned } = terminator {
+                assert!(
+                    matches!(returned.as_slice(), [value]
+                        if values.contains(&EntityId::Value(*value))),
+                    "return must preserve the selected field value or null-path Int zero"
+                );
+                returns += 1;
+                continue;
+            }
+            // On the initial guard follow only its actual null edge; subsequent
+            // continuations use all real edges, with the same per-path transport.
+            let edges = if id == start {
+                first_edge
+                    .map(|edge| vec![edge])
+                    .unwrap_or_else(|| crate::ssa::verify_ownership::edges(terminator))
+            } else {
+                crate::ssa::verify_ownership::edges(terminator)
+            };
+            assert!(
+                !edges.is_empty(),
+                "break continuation must reach its ordinary return"
+            );
+            for edge in edges {
+                let target = function.block(edge.target).unwrap();
+                assert!(target.parameters.len() >= edge.arguments.len());
+                let carried = edge
+                    .arguments
+                    .iter()
+                    .zip(&target.parameters)
+                    .filter_map(|(argument, parameter)| {
+                        values.contains(argument).then_some(*parameter)
+                    })
+                    .collect::<Vec<_>>();
+                let mut next = values.clone();
+                for parameter in &target.parameters {
+                    next.remove(parameter);
+                }
+                next.extend(carried);
+                pending.push((edge.target, next, path.clone()));
+            }
+        }
+        assert!(returns > 0, "break must reach a return");
     }
 
     fn only<T>(mut iterator: impl Iterator<Item = T>) -> T {

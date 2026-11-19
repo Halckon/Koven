@@ -617,3 +617,54 @@ fn legacy_private_destructuring_recovers_after_a_missing_pattern_closer() {
     };
     assert_eq!(codes(&diagnostics), ["L0080", "L0010"]);
 }
+
+#[test]
+fn missing_pattern_closer_unit_recovery_preserves_rejection_without_final_capability() {
+    use lang_frontend::analysis::{
+        UnitSourceDescriptor, analyze_unit_names, analyze_unit_recovery,
+    };
+
+    // Keep the original Single test above unchanged. This is a recovery comparison,
+    // not a claim that raw recovery types are an admitted final product.
+    let text = "value class Vault(private val hidden: Int, val open: Int)\n\
+         fun reject(v: Vault): Int { val (open, hidden = v; return open }";
+    for rooted in [false, true] {
+        let mut sources = SourceMap::new();
+        let unselected = sources.add_source("unselected.ko", "# absent").unwrap();
+        let source = sources
+            .add_source("legacy-private-missing-closer.ko", text)
+            .unwrap();
+        assert_ne!(source, unselected);
+        let descriptor = if rooted {
+            UnitSourceDescriptor::new("root", "missing-closer.ko", source)
+        } else {
+            UnitSourceDescriptor::memory_document(source)
+        };
+        let (names_env, types_env) = environments();
+        let snapshot = analyze_unit_names(sources, vec![descriptor.clone()], names_env).unwrap();
+        assert_eq!(snapshot.descriptors(), &[descriptor]);
+        assert_eq!(snapshot.parsed_files().len(), 1);
+        let parsed = &snapshot.parsed_files()[0];
+        assert_eq!(parsed.source_id(), source);
+        assert_eq!(codes(parsed.diagnostics()), ["L0010"]);
+        let units = snapshot.names().source_units();
+        assert_eq!(units.len(), 1);
+        assert!(units[0].resolution().diagnostics().is_empty());
+        assert_eq!(codes(snapshot.names().diagnostics()), ["L0010"]);
+        assert!(snapshot.validated_names().is_none());
+        let (typed, owned) = analyze_unit_recovery(&snapshot, &types_env)
+            .expect("original malformed destructuring must remain a recovery result");
+        assert_eq!(codes(typed.diagnostics()), ["L0080"]);
+        assert!(typed.destructurings().is_empty());
+        assert!(owned.loans().is_empty());
+        assert!(owned.drops().is_empty());
+        assert!(
+            typed.validate().is_err(),
+            "recovery is not strict type admission"
+        );
+        assert!(
+            owned.validate().is_err(),
+            "parser error must retain the ownership gate"
+        );
+    }
+}

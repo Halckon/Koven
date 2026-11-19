@@ -240,8 +240,20 @@ impl Checker<'_> {
                 self.check_expression_with_escape(expression, state, usage, true)
             }
             _ => {
+                let diagnostic_count = self.diagnostics.len();
                 self.reject_borrowed_closure_escape(expression, &state)?;
-                self.check_expression(expression, state, usage)
+                let flows = self.check_expression(expression, state, usage)?;
+                if self.diagnostics.len() == diagnostic_count
+                    && let Some(next) = &flows.next
+                    && let Some(witnesses) = next
+                        .escape_witnesses
+                        .results
+                        .get(&self.unit_expression(expression))
+                    && !witnesses.is_empty()
+                {
+                    self.reject_borrowed_closure_roots(expression, next, witnesses.clone())?;
+                }
+                Ok(flows)
             }
         }
     }

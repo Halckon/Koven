@@ -38,6 +38,7 @@ struct ExpressionFrame {
     expression: Expression,
     escaping: bool,
     name: Option<NodeId>,
+    alias_covered: bool,
     alias_witnesses: BTreeSet<UnitExpressionId>,
     previous: Option<ReturnFrame<UnitCallableTarget, UnitTypeId, UnitExpressionId>>,
     previous_borrow: Option<ReturnSource<UnitSymbolId>>,
@@ -294,6 +295,15 @@ impl Checker<'_> {
         } else {
             None
         };
+        let alias_covered = matches!(expression, Expression::Name)
+            && self
+                .references_by_span
+                .get(&super::span_key(span))
+                .is_some_and(|symbol| state.escape_witnesses.known_bindings.contains(symbol));
+        state
+            .escape_witnesses
+            .coverage
+            .remove(&self.unit_expression(id));
         let alias_witnesses = if matches!(expression, Expression::Name) {
             self.references_by_span
                 .get(&super::span_key(span))
@@ -330,6 +340,7 @@ impl Checker<'_> {
             expression,
             escaping,
             name,
+            alias_covered,
             alias_witnesses,
             previous,
             previous_borrow,
@@ -349,6 +360,7 @@ impl Checker<'_> {
             expression,
             escaping,
             name,
+            alias_covered,
             alias_witnesses,
             previous,
             previous_borrow,
@@ -402,6 +414,9 @@ impl Checker<'_> {
                 next.escape_witnesses
                     .results
                     .insert(self.unit_expression(id), witnesses);
+            }
+            if self.diagnostics.len() == diagnostic_count {
+                self.record_escape_coverage(id, alias_covered, next)?;
             }
             let closure_origins = if callable {
                 self.closure_result_origins(id, next)?

@@ -493,3 +493,102 @@ fn project_standard_source_key_collision_reports_user_diagnostic() {
         "error[L0080] koven-std/koven/core/result.ko:2:21-2:28: unresolved name\n"
     );
 }
+
+#[test]
+fn missing_pattern_closer_stops_single_and_project_before_recovery_and_output() {
+    // Original ownership_structural source, unchanged. Recovery may retain L0080,
+    // but both strict user entry points stop at the aggregated parser/name gate.
+    let text = "value class Vault(private val hidden: Int, val open: Int)\n\
+         fun reject(v: Vault): Int { val (open, hidden = v; return open }";
+    let directory = TestDirectory::create();
+    let root = directory.join("src");
+    fs::create_dir(&root).unwrap();
+    let source = root.join("broken.ko");
+    fs::write(&source, text).unwrap();
+    let manifest = directory.join("project.toml");
+    let manifest_text = "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"missing-closer\"\nsource-roots = [\"src\"]\n";
+    fs::write(&manifest, manifest_text).unwrap();
+    let before = directory.entries();
+    let mut common = None;
+    for project in [false, true] {
+        for build in [false, true] {
+            let output = directory.join("program");
+            let mut args = vec![
+                OsStr::new("--message-format=json"),
+                OsStr::new(if build { "build" } else { "check" }),
+            ];
+            if project {
+                args.extend([OsStr::new("--project"), manifest.as_os_str()]);
+            } else {
+                args.push(source.as_os_str());
+            }
+            if build {
+                args.extend([
+                    OsStr::new("--entry"),
+                    OsStr::new("absent"),
+                    OsStr::new("-o"),
+                    output.as_os_str(),
+                ]);
+            }
+            let result = Command::new(env!("CARGO_BIN_EXE_kovenc"))
+                .args(args)
+                .output()
+                .unwrap();
+            assert_eq!(result.status.code(), Some(1), "{result:?}");
+            assert!(result.stdout.is_empty());
+            let stderr = String::from_utf8(result.stderr).unwrap();
+            let mut records = stderr
+                .lines()
+                .map(|line| {
+                    serde_json::from_str::<serde_json::Value>(line)
+                        .expect("only structured language diagnostics, not InternalError")
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(records.len(), 1, "{stderr}");
+            assert_eq!(records[0]["schema"], "koven.diagnostic");
+            assert_eq!(records[0]["code"], "L0010");
+            assert_eq!(records[0]["severity"], "error");
+            // Primary/related source spelling differs between single/project; compare all
+            // remaining fields, including byte range and diagnostic details.
+            assert!(
+                records[0]["primary"]["source"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with("broken.ko")
+            );
+            let source_name = records[0]["primary"]["source"].clone();
+            let expected_source = if project {
+                "src/broken.ko".to_owned()
+            } else {
+                assert!(source.is_absolute());
+                source.to_string_lossy().into_owned()
+            };
+            assert_eq!(source_name, expected_source);
+
+            assert_eq!(records[0]["primary"]["byte_start"], 104);
+            assert_eq!(records[0]["primary"]["byte_end"], 104);
+            let details = records[0]["details"].as_array_mut().unwrap();
+            assert_eq!(details.len(), 1);
+            assert_eq!(details[0]["kind"], "label");
+            assert_eq!(details[0]["location"]["source"], source_name);
+            assert_eq!(details[0]["location"]["byte_start"], 90);
+            assert_eq!(details[0]["location"]["byte_end"], 91);
+            details[0]["location"]["source"] = serde_json::Value::String("broken.ko".into());
+            records[0]["primary"]["source"] = serde_json::Value::String("broken.ko".into());
+            if let Some(expected) = &common {
+                assert_eq!(&records, expected);
+            } else {
+                common = Some(records);
+            }
+            assert_eq!(
+                directory.entries(),
+                before,
+                "no final staging or output in fixture directory"
+            );
+            assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+            assert_eq!(fs::read(&source).unwrap(), text.as_bytes());
+            assert_eq!(fs::read(&manifest).unwrap(), manifest_text.as_bytes());
+            assert!(!output.exists());
+        }
+    }
+}

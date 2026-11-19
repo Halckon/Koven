@@ -200,12 +200,7 @@ impl DropPlanner<'_, '_> {
                     })
             });
             let aux_cause = aux_cause.or(use_set_cause);
-            if let Some(fact) = self
-                .checker
-                .borrow_results
-                .bindings
-                .iter()
-                .find(|fact| fact.binding == binding)
+            if let Some(fact) = self.borrow_binding_by_symbol(binding)
                 && let crate::ownership_checking::UnitLoanTarget::Place(place) = &fact.origin
             {
                 if let Some((_, existing, batch, auxiliary)) = roots

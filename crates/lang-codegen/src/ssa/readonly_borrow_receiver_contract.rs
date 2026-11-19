@@ -3,6 +3,10 @@
 use super::*;
 
 pub(super) fn assert_unit(text: &str) {
+    assert_unit_with_read(text, "alias.read()");
+}
+
+pub(super) fn assert_unit_with_read(text: &str, read_fragment: &str) {
     let source = format!("package app\n{text}");
     let analysis = UnitSource::analyze("app/readonly-method.ko", &source).unwrap();
     analysis.assert_frontend_clean();
@@ -84,7 +88,7 @@ pub(super) fn assert_unit(text: &str) {
             }
         );
     }
-    let read = at("alias.read()");
+    let read = at(read_fragment);
     let Operation::DirectCall {
         callee,
         receiver,

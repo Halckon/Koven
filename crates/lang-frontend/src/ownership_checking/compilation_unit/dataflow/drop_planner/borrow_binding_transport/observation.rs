@@ -17,13 +17,7 @@ impl DropPlanner<'_, '_> {
         source: &UnitLoanFact,
         state: &ValueState,
     ) -> bool {
-        let Some(fact) = self
-            .checker
-            .borrow_results
-            .bindings
-            .iter()
-            .find(|fact| fact.binding() == binding)
-        else {
+        let Some(fact) = self.borrow_binding_by_symbol(binding) else {
             return false;
         };
         let UnitLoanTarget::Place(place) = source.target() else {

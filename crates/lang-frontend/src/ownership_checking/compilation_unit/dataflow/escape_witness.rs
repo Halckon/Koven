@@ -1,18 +1,46 @@
-//! Diagnostic-only immutable alias provenance. Never a closure holder or loan proof.
+//! Diagnostic-only local alias provenance. Never a closure holder or loan proof.
 use super::{Checker, State};
+
+mod coverage;
+mod loop_shadow;
+pub(super) use loop_shadow::LoopEscapeShadow;
+mod mutable;
 use crate::{
     name_resolution::UnitSymbolId, ownership_checking::ClosureCaptureMode,
     type_checking::UnitExpressionId,
 };
+pub(super) use coverage::Coverage;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct EscapeWitnesses {
     pub(super) bindings: BTreeMap<UnitSymbolId, BTreeSet<UnitExpressionId>>,
+    pub(super) known_bindings: BTreeSet<UnitSymbolId>,
+    pub(super) coverage: BTreeMap<UnitExpressionId, Coverage>,
+    pub(super) mutable_locals: BTreeSet<UnitSymbolId>,
     pub(super) results: BTreeMap<UnitExpressionId, BTreeSet<UnitExpressionId>>,
 }
 impl EscapeWitnesses {
     pub(super) fn merge(&mut self, other: Self) {
+        self.known_bindings
+            .retain(|symbol| other.known_bindings.contains(symbol));
+        for (expression, coverage) in other.coverage {
+            self.coverage
+                .entry(expression)
+                .and_modify(|current| {
+                    if coverage == Coverage::Unknown {
+                        *current = Coverage::Unknown;
+                    }
+                })
+                .or_insert(coverage);
+        }
+        let mutable_symbols: BTreeSet<_> = self
+            .mutable_locals
+            .union(&other.mutable_locals)
+            .copied()
+            .collect();
+        self.mutable_locals
+            .retain(|symbol| other.mutable_locals.contains(symbol));
         for (expression, witnesses) in other.results {
             self.results
                 .entry(expression)
@@ -21,6 +49,9 @@ impl EscapeWitnesses {
         }
         for (symbol, witnesses) in other.bindings {
             self.bindings.entry(symbol).or_default().extend(witnesses);
+        }
+        for symbol in mutable_symbols.difference(&self.mutable_locals) {
+            self.bindings.remove(symbol);
         }
     }
 }
@@ -61,7 +92,19 @@ impl Checker<'_> {
         };
         Ok(
             match self.parsed.ast().expressions().get(expression)?.payload() {
+                Expression::Lambda { .. } => result(expression),
                 Expression::Group { expression } => result(*expression),
+                Expression::NonNullAssert { operand, .. } => result(*operand),
+                Expression::Binary {
+                    left,
+                    operator: crate::parser::BinaryOperator::Elvis,
+                    right,
+                    ..
+                } => {
+                    let mut witnesses = result(*left);
+                    witnesses.extend(result(*right));
+                    witnesses
+                }
                 Expression::If {
                     then_branch,
                     else_branch,
@@ -108,6 +151,36 @@ impl Checker<'_> {
             },
         )
     }
+    pub(super) fn seed_capture_body_witness(
+        &self,
+        lambda: crate::ast::ExpressionId,
+        capture: &crate::ownership_checking::UnitClosureCaptureDescriptor,
+        entry_state: &State,
+        body_state: &mut State,
+    ) -> Result<(), super::OwnershipCheckingError> {
+        use crate::{
+            name_resolution::SymbolKind, ownership_checking::UnitClosureCaptureSource,
+            parser::VariableKind,
+        };
+        if let UnitClosureCaptureSource::Symbol(symbol) = capture.source()
+            && capture.mode() == ClosureCaptureMode::Owned
+            && self.variable_kinds.get(&symbol) == Some(&VariableKind::Val)
+            && self.symbol_kind(symbol) == Some(SymbolKind::Variable)
+            && !self.loop_spans.contains(
+                self.parsed,
+                self.parsed.ast().expressions().get(lambda)?.span(),
+            )
+            && let Some(witnesses) = entry_state.escape_witnesses.bindings.get(&symbol)
+            && !witnesses.is_empty()
+        {
+            body_state
+                .escape_witnesses
+                .bindings
+                .insert(symbol, witnesses.clone());
+        }
+        Ok(())
+    }
+
     pub(super) fn bind_escape_witness(
         &self,
         symbol: UnitSymbolId,
@@ -130,3 +203,6 @@ impl Checker<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;
