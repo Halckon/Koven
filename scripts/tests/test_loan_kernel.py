@@ -331,6 +331,29 @@ class LoanKernelCases(unittest.TestCase):
         joined_call.cleanup.pop()  # 仅在未拆解臂的合流后失败出口漏掉 this
         self.assertEqual({"V1": [(0, 2), (0, 2), (1, 2), (0, 2), (1, 2)]}, verify())
 
+    def test_open_in_loop_restores_ownership_before_the_back_edge(self):
+        lowered = {}
+        CHECKER.check((ROOT / "cases/Z3.lk").read_text(encoding="utf-8"), lowered=lowered)
+        self.assertFalse(lowered["repeatWithoutRestoring"][2])
+        types, program, accepted = lowered["restoreEachTime"]
+        self.assertTrue(accepted)
+        loop = next(s for s in program if s.kind == "loop")
+        self.assertEqual([("open", "this"), ("call", ""), ("move", "sock"), ("move", "buf"), ("set", "this")],
+                         [(s.kind, s.var) for s in loop.body])
+        self.assertEqual([("buf", False), ("sock", False)], loop.body[1].cleanup)
+        self.assertEqual([("this", False)], next(s for s in program if s.kind == "call").cleanup)
+        self.assertEqual([("this", False)], [(s.var, s.if_owned) for s in program if s.kind == "drop"])
+
+        def verify(plan):
+            return {name.split()[0]: path for name, path in CHECKER.DP.Verifier(types).run_all(plan).items()}
+
+        self.assertEqual({}, verify(program))  # 检验器穷举 0、1、2 轮及各调用的成败
+        # 参数 let 成功、零轮、循环后的调用成功：去掉最终析构会漏掉原值。
+        self.assertEqual({"V1": [(0, 2), (0, 3), (0, 2)]}, verify([s for s in program if s.kind != "drop"]))
+        # 第一轮成功重建，第二轮拆解后调用失败：漏掉 sock 会泄漏。
+        loop.body[1].cleanup.pop()
+        self.assertEqual({"V1": [(0, 2), (2, 3), (0, 2), (1, 2)]}, verify(program))
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

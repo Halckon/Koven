@@ -1,0 +1,19 @@
+// 循环回边上，只有重建了 this 才能在下一轮再次拆解。
+class File(fd: Int) deinit
+class Buf(n: Int) deinit
+class Conn(sock: File, buf: Buf) deinit
+fun mayFail(): Unit trusted
+fun repeatWithoutRestoring(own this: Conn): Unit in Conn {
+  while (*) {
+    open this as sock, buf  // ERR K8
+  }
+}
+fun restoreEachTime(own this: Conn): Unit in Conn {
+  while (*) {
+    open this as sock, buf
+    mayFail()
+    this = Conn(move sock, move buf)
+  }
+  mayFail()
+  use(this)
+}
