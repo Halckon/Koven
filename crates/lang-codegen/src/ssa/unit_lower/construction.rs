@@ -5,8 +5,8 @@ use lang_frontend::{
     ownership_checking::{ConstructionDeliveryKind, ConstructionRootKind},
     source::Span,
     type_checking::{
-        Copyability, ExpressionCategory, NominalKind,
-        UnitConstructionDescriptor, UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
+        Copyability, ExpressionCategory, NominalKind, UnitConstructionDescriptor,
+        UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
     },
 };
 

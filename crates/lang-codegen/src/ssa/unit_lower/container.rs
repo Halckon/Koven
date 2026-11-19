@@ -8,10 +8,10 @@ use lang_frontend::{
     parser::Expression,
     source::Span,
     type_checking::{
-        ContainerConstructionKind, Copyability, ExpressionCategory,
-        IntrinsicTypeConstructor, NominalKind, ParameterMode, SequentialContainerKind,
-        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitElementPlaceDescriptor,
-        UnitExpressionId, UnitTypeKind,
+        ContainerConstructionKind, Copyability, ExpressionCategory, IntrinsicTypeConstructor,
+        NominalKind, ParameterMode, SequentialContainerKind, UnitAggregateProjectionKind,
+        UnitAggregateProjectionReceiver, UnitElementPlaceDescriptor, UnitExpressionId,
+        UnitTypeKind,
     },
 };
 
