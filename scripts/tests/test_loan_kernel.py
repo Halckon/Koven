@@ -269,7 +269,8 @@ class LoanKernelCases(unittest.TestCase):
                     walk(program, name)
         self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g"), ("deinit OneBranch", "this"),
                           ("openInOneArm", "this"), ("openSharedInOneArm", "this"), ("openSharedInOneArm", "f"),
-                          ("writeAfterJoinedRead", "this"), ("writeAfterJoinedRead", "f")},
+                          ("writeAfterJoinedRead", "this"), ("writeAfterJoinedRead", "f"),
+                          ("writeAfterConditionalDeliveryRead", "f")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -470,6 +471,37 @@ class LoanKernelCases(unittest.TestCase):
         call = next(s for s in program if s.kind == "call")
         self.assertEqual([("dst", False), ("b", False), ("a", False)], call.cleanup)
         self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+
+    def test_conditional_delivery_keeps_old_and_possible_new_origins(self):
+        source = (ROOT / "cases/Z9.lk").read_text(encoding="utf-8")
+        called = source.replace("  if (*) {", "  {")
+        skipped = "\n".join("" if line.startswith("    deliver(") else line for line in called.splitlines())
+        a, b = [i for i, line in enumerate(source.splitlines(), 1) if "// ERR K1" in line]
+        for path, program, lines in (("join", source, {a, b}), ("called", called, {a, b}), ("skipped", skipped, {b})):
+            with self.subTest(path=path):
+                self.assertEqual({("K1", line) for line in lines},
+                                 {(rule, line) for rule, line, _ in CHECKER.check(program)})
+
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        types, program, accepted = lowered["writeAfterConditionalDeliveryRead"]
+        self.assertTrue(accepted)
+        branch = next(s for s in program if s.kind == "if")
+        delivery = next(s for s in branch.body if s.kind == "call")
+        joined = next(s for s in program if s.kind == "call")
+        self.assertEqual([("dst", False), ("b", False), ("a", False)], delivery.cleanup)
+        self.assertEqual([("dst", False), ("f", True), ("b", False), ("a", False)], joined.cleanup)
+
+        def verify():
+            return {v.split()[0]: path for v, path in CHECKER.DP.Verifier(types).run_all(program).items()}
+
+        self.assertEqual({}, verify())
+        # 四个绑定成功。分别检查跳过移交后合流失败，以及移交调用自身失败。
+        joined.cleanup.remove(("f", True))
+        self.assertEqual({"V1": [(0, 2)] * 4 + [(1, 2), (1, 2)]}, verify())
+        joined.cleanup.insert(1, ("f", True))
+        delivery.cleanup.remove(("dst", False))
+        self.assertEqual({"V1": [(0, 2)] * 5 + [(1, 2)]}, verify())
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
