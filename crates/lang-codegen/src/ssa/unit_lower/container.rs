@@ -2,9 +2,7 @@
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::SymbolKind,
-    ownership_checking::{
-        UnitDropPoint, UnitLoanTarget, UnitOwnershipPlace, UnitValueDeliveryKind,
-    },
+    ownership_checking::{UnitLoanTarget, UnitOwnershipPlace, UnitValueDeliveryKind},
     parser::Expression,
     source::Span,
     type_checking::{

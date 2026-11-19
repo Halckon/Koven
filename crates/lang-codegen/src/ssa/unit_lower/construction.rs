@@ -6,11 +6,11 @@ use lang_frontend::{
     source::Span,
     type_checking::{
         Copyability, ExpressionCategory, NominalKind, UnitConstructionDescriptor,
-        UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
+        UnitConstructionTarget, UnitExpressionId,
     },
 };
 
-use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
+use super::{UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{EntityId, EntityType, Operation, Origin, ValueId},
