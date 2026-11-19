@@ -64,34 +64,6 @@
       "owner": "lang-frontend callable selection",
       "split_plan": "后续按成员候选收集与调用匹配的完整职责边界独立拆分，保留 canonical 身份与既有回归。",
       "review": "SPEC-0368 独立审查核对 1001→1010 的九行接线，并确认其他超限文件仅模块或模型字段增长。超过 1010 行或新增算法职责前重新审阅。"
-    },
-    "crates/lang-codegen/src/ssa/refine/build.rs": {
-      "max_lines": 1025,
-      "reason": "SPEC-0379 MoveOnly 局部可变重赋值生命周期追踪与 drop 编排；赋值前结束证明视图与重新激活死槽位。",
-      "owner": "lang-codegen refine lowering",
-      "split_plan": "后续按 statement/expression/terminator 构造职责进一步拆分独立 builder 模块。",
-      "review": "SPEC-0379 审查核对 MoveOnly 赋值与 drop 编排逻辑，锁定 1025 行；再次增长或职责变更前重新审阅。"
-    },
-    "crates/lang-codegen/src/ssa/refine/subset.rs": {
-      "max_lines": 1025,
-      "reason": "SPEC-0379 MoveOnly 局部可变重赋值准入与 extension call 准入扩展。",
-      "owner": "lang-codegen refine lowering",
-      "split_plan": "后续将 callable 与 expression subset 准入拆入专用子模块。",
-      "review": "SPEC-0379 审查核对 MoveOnly 局部重赋值准入与 extension call 检查，锁定 1025 行；再次增长或职责变更前重新审阅。"
-    },
-    "crates/lang-codegen/src/ssa/refine/build/borrow_binding.rs": {
-      "max_lines": 1304,
-      "reason": "SPEC-0425 把 build/{heap,assignment}.rs 折叠进 borrow_binding/value，叠加 main PR #412 新增凭证协议后宿主达 1304 行；无新增算法，只是搬迁后事实上的宿主体积。",
-      "owner": "lang-codegen refine builder",
-      "split_plan": "后续把 box/construction/projection 与 non_null_assertion 从 borrow_binding 拆回独立模块，恢复 <1000。",
-      "review": "SPEC-0427 冲突合并时逐 hunk 核对：仅折叠搬迁与 main 凭证接线，无逻辑改动；再次增长前重新审阅。"
-    },
-    "crates/lang-codegen/src/ssa/refine/build/callable.rs": {
-      "max_lines": 1100,
-      "reason": "feature/refine-dynamic-capture-p2: 支持 callable callee 在实参求值前预求值分发与局部 callable 绑定调用支持。",
-      "owner": "lang-codegen refine lowering",
-      "split_plan": "后续将 callable callee 预备与调用降低逻辑拆入专用子模块。",
-      "review": "feature/refine-dynamic-capture-p2 审查核对 callable 预备与调用降低逻辑，锁定 1100 行；再次增长或职责变更前重新审阅。"
     }
   },
   "generated": {}
