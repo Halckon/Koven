@@ -448,6 +448,29 @@ class LoanKernelCases(unittest.TestCase):
         found = CHECKER.DP.Verifier(types).run_all(program)
         self.assertEqual({"V1": [(0, 2)] * 6 + [(1, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
+    def test_opened_view_flows_into_the_callers_holder(self):
+        source = (ROOT / "cases/Z8.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        self.assertFalse(lowered["missingFlow"][2])
+        types, program, accepted = lowered["deliver"]
+        self.assertTrue(accepted)
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("open", "this"), ("move", "slice")],
+                         [(s.kind, s.var) for s in program[1:program.index(call)]])
+        self.assertEqual([("file", False)], call.cleanup)
+        self.assertEqual(["file"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.clear()  # slice 已移交，只有 file 还归本函数。
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
+        types, program, accepted = lowered["writeAfterDeliveredRead"]
+        self.assertTrue(accepted)
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("dst", False), ("b", False), ("a", False)], call.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))
