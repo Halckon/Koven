@@ -1,4 +1,4 @@
-//! Whole-value replacement invalidates the caller's SSA snapshot until writeback.
+//! Call-time exclusive loan checks and MoveOnly snapshot writeback.
 use super::*;
 use crate::ssa::model::{Instruction, Ownership};
 
@@ -58,6 +58,7 @@ pub(super) fn record_call(
             ..
         } => (*receiver, arguments),
         Operation::BorrowCall { arguments, .. }
+        | Operation::RangeCall { arguments, .. }
         | Operation::CallableInvoke { arguments, .. }
         | Operation::CallableInvokeView { arguments, .. } => (None, arguments),
         _ => return,
@@ -73,9 +74,6 @@ pub(super) fn record_call(
         else {
             continue;
         };
-        if module.type_ownership(target) != Some(Ownership::MoveOnly) {
-            continue;
-        }
         let other_loans = arguments[..index]
             .iter()
             .chain(&arguments[index + 1..])
@@ -83,16 +81,19 @@ pub(super) fn record_call(
             .chain(receiver)
             .filter(|entity| matches!(entity, EntityId::Loan(_)));
         if other_loans.into_iter().any(|other| {
-            aliases.overlap(*argument, other) && !aliases.direct_fields.disjoint(*argument, other)
+            *argument == other
+                || (aliases.overlap(*argument, other)
+                    && !aliases.direct_fields.disjoint(*argument, other))
         }) {
             reject(
                 instruction,
                 errors,
-                "MoveOnly Inout arguments must be disjoint from other loans",
+                "Inout arguments must be disjoint from other loans",
             );
             continue;
         }
-        if is_parameter_loan(function, reborrows, *loan)
+        if module.type_ownership(target) != Some(Ownership::MoveOnly)
+            || is_parameter_loan(function, reborrows, *loan)
             || loan_uses_heap_storage(function, reborrows, *loan)
         {
             continue;

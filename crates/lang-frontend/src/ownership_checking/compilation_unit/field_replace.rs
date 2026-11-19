@@ -1,4 +1,6 @@
-//! 字段提交必须有独立的 owned receiver/type、exclusive loan 与新值交付证明。
+//! 字段提交必须有精确 receiver、exclusive loan 与新值交付证明。
+use std::{cell::OnceCell, collections::BTreeMap};
+
 use super::{
     CompilationUnitOwnership, UnitCallArgumentOwnershipKind, UnitLoanTarget, UnitValueDeliveryKind,
 };
@@ -7,64 +9,123 @@ use crate::{
     ownership_checking::{
         LoanKind, OwnershipPrimitiveValueTransfer, UnitFieldReplaceOwnershipPlan,
     },
+    source::Span,
     type_checking::{
-        CompilationUnitTypes, NominalKind, OwnershipPrimitiveKind, UnitExpressionId, UnitTypeId,
+        CompilationUnitTypes, NominalKind, OwnershipPrimitiveKind, ParameterMode,
+        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitExpressionId, UnitTypeId,
         UnitTypeKind,
     },
 };
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FieldReplacementType {
+    call: UnitExpressionId,
+    root: UnitSymbolId,
+    owner_type: UnitTypeId,
+    field: UnitSymbolId,
+    value_type: UnitTypeId,
+    inout_receiver: Option<(UnitExpressionId, Span)>,
+}
+
+impl FieldReplacementType {
+    fn from_plan(plan: &UnitFieldReplaceOwnershipPlan) -> Option<Self> {
+        let place = plan.place();
+        let root = place.root();
+        let field = match (plan.inout_receiver(), place.fields()) {
+            (Some(_), []) => root,
+            (None, [field]) => *field,
+            _ => return None,
+        };
+        Some(Self {
+            call: plan.descriptor().expression(),
+            root,
+            owner_type: plan.owner_type(),
+            field,
+            value_type: plan.descriptor().value_type(),
+            inout_receiver: plan.inout_receiver(),
+        })
+    }
+
+    fn matches_types(
+        &self,
+        typed: &CompilationUnitTypes,
+        inout_receivers: &OnceCell<BTreeMap<(UnitTypeId, usize), Span>>,
+    ) -> bool {
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = typed.types().get(self.owner_type)
+        else {
+            return false;
+        };
+        let Some(owner) = typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|owner| owner.nominal())
+        else {
+            return false;
+        };
+        if owner.kind() != NominalKind::Class
+            || !arguments.is_empty()
+            || !owner
+                .fields()
+                .iter()
+                .any(|field| field.symbol() == self.field && field.ty() == self.value_type)
+        {
+            return false;
+        }
+        let Some((projection, receiver_span)) = self.inout_receiver else {
+            return typed.symbol_type(self.root) == Some(self.owner_type);
+        };
+        let Some(projection) = typed.aggregate_projection(projection) else {
+            return false;
+        };
+        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            return false;
+        };
+        projection.expression().source_unit() == self.call.source_unit()
+            && receiver.source_unit() == self.call.source_unit()
+            && projection.kind() == UnitAggregateProjectionKind::Field
+            && projection.field() == self.field
+            && projection.ty() == self.value_type
+            && typed.expression_type(receiver) == Some(self.owner_type)
+            && inout_receivers
+                .get_or_init(|| {
+                    typed
+                        .signatures()
+                        .declarations()
+                        .iter()
+                        .filter_map(|owner| owner.nominal())
+                        .flat_map(|owner| owner.members())
+                        .filter_map(|member| member.receiver())
+                        .filter(|receiver| receiver.mode() == ParameterMode::Inout)
+                        .map(|receiver| {
+                            let span = receiver.declaration_span();
+                            ((receiver.ty(), span.start()), span)
+                        })
+                        .collect()
+                })
+                .get(&(self.owner_type, receiver_span.start()))
+                == Some(&receiver_span)
+    }
+}
+
 impl CompilationUnitOwnership {
-    /// 保存原调用已获准的精确 target，而非同类型 class 的任意字段集合。
-    /// producer 已检查 var、local owner 与 projection；此处再用 typed descriptor/type 交叉核对。
+    /// 精确冻结 producer 已核对的字段与所有者种类，验证时拒绝变更。
     pub(super) fn field_replacement_types(
         typed: &CompilationUnitTypes,
         plans: &[UnitFieldReplaceOwnershipPlan],
-    ) -> Vec<(
-        UnitExpressionId,
-        UnitSymbolId,
-        UnitTypeId,
-        UnitSymbolId,
-        UnitTypeId,
-    )> {
-        let mut types = Vec::new();
-        for plan in plans {
-            let call = plan.descriptor().expression();
-            if typed.ownership_primitive(call) != Some(*plan.descriptor()) {
-                continue;
-            }
-            let [selected_field] = plan.place().fields() else {
-                continue;
-            };
-            let root = plan.place().root();
-            let Some(owner_type) = typed.symbol_type(root) else {
-                continue;
-            };
-            let Some(UnitTypeKind::Nominal {
-                declaration,
-                arguments,
-            }) = typed.types().get(owner_type)
-            else {
-                continue;
-            };
-            let Some(owner) = typed
-                .signatures()
-                .declaration(*declaration)
-                .and_then(|owner| owner.nominal())
-            else {
-                continue;
-            };
-            if owner.kind() != NominalKind::Class || !arguments.is_empty() {
-                continue;
-            }
-            if let Some(field) = owner.fields().iter().find(|field| {
-                field.symbol() == *selected_field && field.ty() == plan.descriptor().value_type()
-            }) {
-                types.push((call, root, owner_type, field.symbol(), field.ty()));
-            }
-        }
-        types.sort();
-        types.dedup();
-        types
+    ) -> BTreeMap<UnitExpressionId, FieldReplacementType> {
+        let inout_receivers = OnceCell::new();
+        plans
+            .iter()
+            .filter_map(|plan| {
+                let proof = FieldReplacementType::from_plan(plan)?;
+                (typed.ownership_primitive(proof.call) == Some(*plan.descriptor())
+                    && proof.matches_types(typed, &inout_receivers))
+                .then_some((proof.call, proof))
+            })
+            .collect()
     }
 
     pub(super) fn field_replacements_are_valid(&self) -> bool {
@@ -75,7 +136,6 @@ impl CompilationUnitOwnership {
             let place = plan.place();
             if !seen.insert(call)
                 || descriptor.kind() != OwnershipPrimitiveKind::Replace
-                || place.fields().len() != 1
                 || place.element().is_some()
                 || place.root().source_unit() != call.source_unit()
                 || descriptor
@@ -87,13 +147,8 @@ impl CompilationUnitOwnership {
                     .bindings
                     .iter()
                     .any(|binding| binding.symbol() == place.root())
-                || !self.field_replacement_types.contains(&(
-                    call,
-                    place.root(),
-                    plan.owner_type(),
-                    place.fields()[0],
-                    descriptor.value_type(),
-                ))
+                || FieldReplacementType::from_plan(plan)
+                    .is_none_or(|proof| self.field_replacement_types.get(&call) != Some(&proof))
             {
                 return false;
             }
@@ -171,9 +226,9 @@ mod tests {
         type_checking::{check_compilation_unit_types, standard_environments},
     };
 
-    fn checked() -> (CompilationUnitOwnership, UnitSymbolId) {
+    fn checked_source(text: &str) -> (CompilationUnitOwnership, UnitSymbolId) {
         let mut sources = SourceMap::new();
-        let source = sources.add_source("field.ko", "class Holder(var state: Int, val fixed: Int)\nfun run(): Unit {\nval holder = Holder(1, 2)\nval other = Holder(3, 4)\nval new = 2\nreplace(&holder.state, new)\nreplace(&other.state, new)\n}").unwrap();
+        let source = sources.add_source("field.ko", text).unwrap();
         let file = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
         let inputs = [SourceUnitInput::new("root", "field.ko", source, &file)];
         let (environment, types) = standard_environments();
@@ -199,6 +254,39 @@ mod tests {
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap(),
             fixed,
         )
+    }
+
+    fn checked() -> (CompilationUnitOwnership, UnitSymbolId) {
+        checked_source(
+            "class Holder(var state: Int, val fixed: Int)\nfun run(): Unit {\nval holder = Holder(1, 2)\nval other = Holder(3, 4)\nval new = 2\nreplace(&holder.state, new)\nreplace(&other.state, new)\n}",
+        )
+    }
+
+    #[test]
+    fn receiver_field_replace_validation_rejects_another_methods_projection() {
+        let (valid, _) = checked_source(
+            "class Holder(var state: Int, val fixed: Int) {\n\
+                inout fun first(): Int { return replace(&this.state, 2) }\n\
+                inout fun second(): Int { return replace(&this.state, 3) }\n\
+             }",
+        );
+        let [first, second] = valid.field_replacements.as_slice() else {
+            panic!("two valid commits with the same field identity");
+        };
+        assert_eq!(first.place(), second.place());
+        let (first_projection, first_receiver) = first.inout_receiver().unwrap();
+        let (_, second_receiver) = second.inout_receiver().unwrap();
+        assert_ne!(first_receiver, second_receiver);
+        assert!(valid.clone().validate().is_ok());
+
+        let mut wrong_method = valid.clone();
+        wrong_method.field_replacements[0].inout_receiver =
+            Some((first_projection, second_receiver));
+        assert!(wrong_method.validate().is_err());
+
+        let mut another_projection = valid.clone();
+        another_projection.field_replacements[0].inout_receiver = second.inout_receiver();
+        assert!(another_projection.validate().is_err());
     }
 
     #[test]

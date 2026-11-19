@@ -509,8 +509,8 @@ pub(in crate::ssa::refine::build) mod inout {
         ) -> Result<(Slot, Option<Writeback>), LoweringError> {
             let (_, span) = self.node(expression)?;
             let symbol = self.direct_place_symbol(expression, span)?;
+            self.end_views_of(symbol, span)?;
             if let Some(loan) = self.inout_loan(symbol) {
-                self.end_views_of(symbol, span)?;
                 self.forget_narrowing(symbol);
                 return Ok((loan, None));
             }
@@ -624,6 +624,12 @@ pub(in crate::ssa::refine::build) mod inout {
             };
             let value_ty = self.c(primitive.value_type());
             let target = self.ssa_type(value_ty, span)?;
+            if let Some(operands) = self.inputs.projected_swap(id, &arguments) {
+                return self.swap_projected(id, operands, value_ty, target, span);
+            }
+            if let Some(place) = self.inputs.borrowed_replace(id, &arguments) {
+                return self.replace_borrowed(id, place, &arguments[1], value_ty, target, span);
+            }
             let copyable = !self.move_only(value_ty);
             if primitive.kind() == lang_frontend::type_checking::OwnershipPrimitiveKind::Replace
                 && (self.inputs.owned.field_replacement(id).is_some()
@@ -657,43 +663,13 @@ pub(in crate::ssa::refine::build) mod inout {
                         .find(|loan| loan.call() == id && loan.argument() == arg_id)
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
                     let begin_span = fact.begin_span();
-                    self.end_views_of(symbol, begin_span)?;
-                    self.forget_narrowing(symbol);
-                    let binding = if is_unit {
-                        let b = self.value(
-                            ROp::Constant(crate::ssa::model::ScalarConstant::Unit),
-                            EntityType::Value(target),
-                            argument.span,
-                        )?;
-                        self.push(ROp::Copy { source: b }, vec![b], argument.span)?;
-                        b
-                    } else {
-                        let b = *self
-                            .bindings
-                            .get(&symbol)
-                            .ok_or_else(|| error(LoweringErrorKind::MissingFact, argument.span))?;
-                        if copyable {
-                            self.push(ROp::Copy { source: b }, vec![b], argument.span)?;
-                        }
-                        b
-                    };
-                    let place = self.value(
-                        ROp::RootPlace { owner: binding },
-                        EntityType::Place(target),
+                    let (binding, loan) = self.begin_primitive_root(
+                        symbol,
+                        value_ty,
+                        target,
                         begin_span,
+                        argument.span,
                     )?;
-                    let loan = self.value(
-                        ROp::BorrowBegin {
-                            place,
-                            kind: LoanKind::Exclusive,
-                        },
-                        EntityType::Loan {
-                            kind: LoanKind::Exclusive,
-                            target,
-                        },
-                        begin_span,
-                    )?;
-                    self.pending_call_loans.push(loan);
                     roots.push((symbol, binding, loan));
                 } else {
                     let value = if is_unit {
@@ -796,6 +772,16 @@ pub(in crate::ssa::refine::build) mod inout {
             copyable: bool,
             span: Span,
         ) -> Result<Lowered, LoweringError> {
+            if let Some(field) = self.inputs.receiver_field_replace(id, arguments) {
+                return self.exchange_receiver_field(
+                    id,
+                    field,
+                    &arguments[1],
+                    value_ty,
+                    target,
+                    span,
+                );
+            }
             let mut projected = arguments[0].value;
             while let (Expression::Group { expression: inner }, _) = self.node(projected)? {
                 projected = inner;

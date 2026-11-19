@@ -94,6 +94,7 @@ impl Builder<'_, '_> {
                 exit,
                 views: mark,
                 loans: self.pending_call_loans.len(),
+                index_loans: self.index_receiver_loans.len(),
                 broken: false,
                 seq_for: None,
                 map_for: None,

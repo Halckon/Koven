@@ -205,6 +205,93 @@ fn constant_while_preserves_condition_effects_and_terminating_operands_in_both_e
     );
 }
 
+#[test]
+fn long_short_circuit_chain_runs_both_results_in_both_entries() {
+    let condition = format!("flag{}", " || flag".repeat(512));
+    let source = format!(
+        r#"
+fun probe(flag: Boolean): Int {{
+    if ({condition}) {{ return 1 }}
+    return 0
+}}
+fun main(): Unit {{
+    if (probe(false) == 0) {{ println("false-ok") }}
+    if (probe(true) == 1) {{ println("true-ok") }}
+}}
+"#
+    );
+    assert_both_native_entries(&source, b"false-ok\ntrue-ok\n");
+}
+
+#[test]
+fn long_short_circuit_chain_keeps_rhs_and_outer_cleanup_in_both_entries() {
+    let condition = format!(
+        "flag{} || tested(Guard(\"drop:rhs\"))",
+        " || flag".repeat(511)
+    );
+    assert_both_native_entries(
+        &short_circuit_resource_source(&condition),
+        SHORT_CIRCUIT_RESOURCE_OUTPUT,
+    );
+}
+
+const SHORT_CIRCUIT_RESOURCE_OUTPUT: &[u8] =
+    b"case:true\ntaken\nkeep\nafter\ndrop:outer\ncase:false\nrhs\ndrop:rhs\ntaken\nkeep\nafter\ndrop:outer\n";
+
+#[test]
+fn grouped_short_circuit_chains_keep_cleanup_order_in_both_entries() {
+    let rhs = "tested(Guard(\"drop:rhs\"))";
+    let left = format!(
+        "{}flag{} || {rhs}",
+        "(".repeat(128),
+        " || flag)".repeat(128)
+    );
+    let right = format!("{}{rhs}{}", "flag || (".repeat(192), ")".repeat(192));
+    for condition in [left, right] {
+        assert_both_native_entries(
+            &short_circuit_resource_source(&condition),
+            SHORT_CIRCUIT_RESOURCE_OUTPUT,
+        );
+    }
+}
+
+#[test]
+fn long_known_short_circuit_chain_keeps_bypassed_rhs_and_outer_cleanup() {
+    let condition = format!(
+        "true{} || tested(Guard(\"drop:rhs\"))",
+        " || flag".repeat(511)
+    );
+    assert_both_native_entries(
+        &short_circuit_resource_source(&condition),
+        b"case:true\ntaken\nkeep\nafter\ndrop:outer\ncase:false\ntaken\nkeep\nafter\ndrop:outer\n",
+    );
+}
+
+fn short_circuit_resource_source(condition: &str) -> String {
+    format!(
+        r#"
+class Guard(val label: String) {{ deinit() {{ println(label) }} }}
+fun tested(guard: Guard): Boolean {{
+    println("rhs")
+    return true
+}}
+fun keep(guard: Guard): Unit {{ println("keep") }}
+fun probe(flag: Boolean): Unit {{
+    val outer = Guard("drop:outer")
+    if ({condition}) {{ println("taken") }}
+    keep(outer)
+    println("after")
+}}
+fun main(): Unit {{
+    println("case:true")
+    probe(true)
+    println("case:false")
+    probe(false)
+}}
+"#
+    )
+}
+
 fn assert_both_native_entries(source_text: &str, stdout: &[u8]) {
     let directory = TestDirectory::create();
     fs::create_dir(directory.join("src")).unwrap();

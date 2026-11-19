@@ -1,6 +1,8 @@
 //! Complete ordinary replacement + fresh If proofs, never a reused When generation.
 #[path = "replacement_if/implicit_null.rs"]
 mod implicit_null;
+#[path = "replacement_if/loop_exits.rs"]
+mod loop_exits;
 
 use super::*;
 use lang_frontend::{

@@ -5,9 +5,9 @@ use lang_frontend::{
     ownership_checking::ConstructionRootKind,
     parser::Expression,
     type_checking::{
-        Copyability, NominalKind, UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
-        UnitConstructionTarget, UnitEnumCaseSignature, UnitNominalSignature, UnitTypeId,
-        UnitTypeKind, UnitTypeRefId,
+        Copyability, NominalKind, ParameterMode, UnitAggregateProjectionDescriptor,
+        UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitConstructionTarget,
+        UnitEnumCaseSignature, UnitNominalSignature, UnitTypeId, UnitTypeKind, UnitTypeRefId,
     },
 };
 
@@ -334,6 +334,55 @@ impl Checker<'_, '_> {
         };
         self.migrated = true;
         self.payload_case(root, projection.field()).is_some()
+    }
+
+    /// A named boxed-enum owner narrowed to the case declaring this borrowed payload.
+    pub(super) fn borrowed_enum_payload(
+        &self,
+        projection: UnitAggregateProjectionDescriptor,
+    ) -> Option<bool> {
+        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            return None;
+        };
+        let typed = self.inputs.typed;
+        let UnitTypeKind::EnumCase { root, case } = typed
+            .expression_type(receiver)
+            .and_then(|ty| self.kind(ty))?
+        else {
+            return None;
+        };
+        let root = self.c(*root);
+        let expression = self.ungrouped(receiver.expression());
+        Some(
+            receiver.source_unit() == self.inputs.source_unit
+                && self.plain(receiver.expression())
+                && self.plain(expression)
+                && self
+                    .inputs
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(expression)
+                    .is_ok_and(|node| matches!(node.payload(), Expression::Name))
+                && self.box_enum_type(root)
+                && self.enum_signature(root).is_some_and(|(nominal, _)| {
+                    nominal.enum_cases().iter().any(|variant| {
+                        variant.type_symbol() == *case
+                            && variant
+                                .payloads()
+                                .iter()
+                                .any(|field| field.symbol() == projection.field())
+                    })
+                })
+                && self.reference(expression).is_some_and(|symbol| {
+                    self.known.contains(&symbol)
+                        && matches!(
+                            self.parameter_mode(symbol),
+                            None | Some(ParameterMode::Value)
+                        )
+                        && self.symbol_type(symbol) == Some(root)
+                }),
+        )
     }
 
     /// The unique case of `root` declaring payload `field`, with the field's index.

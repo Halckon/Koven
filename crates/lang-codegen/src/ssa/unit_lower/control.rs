@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
-    ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
-    parser::{Expression, LiteralKind, WhenEntry},
+    ownership_checking::{UnitDropPoint, UnitShortCircuitPlan, UnitShortCircuitRhs},
+    parser::{BinaryOperator, Expression, LiteralKind, WhenEntry},
     source::Span,
     type_checking::{BuiltinType, UnitExpressionId, UnitTypeId, UnitTypeKind},
 };
@@ -37,15 +37,25 @@ pub(in crate::ssa::unit_lower) struct ControlResult {
 
 type BooleanWhenArms = ((StatementId, usize), (StatementId, usize));
 
+pub(super) struct PreparedShortCircuit {
+    pub(super) left: ExpressionId,
+    operator: BinaryOperator,
+    right: ExpressionId,
+    control: UnitExpressionId,
+    span: Span,
+    plan: Option<UnitShortCircuitPlan>,
+    ordinary_edges: Option<(bool, bool)>,
+}
+
 impl UnitExpressionLowerer<'_> {
-    pub(in crate::ssa::unit_lower) fn lower_short_circuit(
-        &mut self,
+    pub(super) fn prepare_short_circuit(
+        &self,
         left: ExpressionId,
-        operator: lang_frontend::parser::BinaryOperator,
+        operator: BinaryOperator,
         right: ExpressionId,
         expression: ExpressionId,
         span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
+    ) -> Result<PreparedShortCircuit, LoweringError> {
         let control = UnitExpressionId::new(self.source_unit, expression);
         let plan = self
             .constant_owned
@@ -58,8 +68,8 @@ impl UnitExpressionLowerer<'_> {
             .transpose()?;
         if let Some(plan) = plan {
             let rhs_branch = match operator {
-                lang_frontend::parser::BinaryOperator::LogicalAnd => 0,
-                lang_frontend::parser::BinaryOperator::LogicalOr => 1,
+                BinaryOperator::LogicalAnd => 0,
+                BinaryOperator::LogicalOr => 1,
                 _ => return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
             };
             if plan.left() != UnitExpressionId::new(self.source_unit, left)
@@ -80,14 +90,38 @@ impl UnitExpressionLowerer<'_> {
                 .typed
                 .ordinary_boolean_outcomes(UnitExpressionId::new(self.source_unit, left));
             match operator {
-                lang_frontend::parser::BinaryOperator::LogicalAnd => (yes, no),
-                lang_frontend::parser::BinaryOperator::LogicalOr => (no, yes),
+                BinaryOperator::LogicalAnd => (yes, no),
+                BinaryOperator::LogicalOr => (no, yes),
                 _ => (true, true),
             }
         });
+        Ok(PreparedShortCircuit {
+            left,
+            operator,
+            right,
+            control,
+            span,
+            plan,
+            ordinary_edges,
+        })
+    }
+
+    pub(super) fn finish_short_circuit(
+        &mut self,
+        frame: PreparedShortCircuit,
+        value: LoweredValue,
+    ) -> Result<LoweredValue, LoweringError> {
+        let PreparedShortCircuit {
+            left,
+            operator,
+            right,
+            control,
+            span,
+            plan,
+            ordinary_edges,
+        } = frame;
         // 专用计划只决定左侧正常完成后的 RHS；左侧退出必须直接传播。
         let left = if let Some(plan) = plan {
-            let value = self.lower(left)?;
             match value {
                 LoweredValue::Diverged => return Ok(value),
                 LoweredValue::Unit => {
@@ -100,7 +134,7 @@ impl UnitExpressionLowerer<'_> {
                 },
             }
         } else {
-            let Some(left) = self.lower_optional_condition_value(left, span)? else {
+            let Some(left) = self.optional_condition_value(left, span, value)? else {
                 return Ok(LoweredValue::Diverged);
             };
             left
@@ -217,7 +251,7 @@ impl UnitExpressionLowerer<'_> {
             control,
             branch: plan.map_or(1, |plan| 1 - plan.rhs_branch()),
         })?;
-        let ty = self.expression_ssa_type(expression, span)?;
+        let ty = self.expression_ssa_type(control.expression(), span)?;
         let (_, results) = self
             .function
             .append_instruction(
@@ -250,7 +284,17 @@ impl UnitExpressionLowerer<'_> {
         expression: ExpressionId,
         span: Span,
     ) -> Result<Option<ValueId>, LoweringError> {
-        match self.lower(expression)? {
+        let value = self.lower(expression)?;
+        self.optional_condition_value(expression, span, value)
+    }
+
+    fn optional_condition_value(
+        &self,
+        expression: ExpressionId,
+        span: Span,
+        value: LoweredValue,
+    ) -> Result<Option<ValueId>, LoweringError> {
+        match value {
             LoweredValue::Value(value) => Ok(Some(value)),
             LoweredValue::Diverged => Ok(None),
             LoweredValue::Unit => {
@@ -679,12 +723,6 @@ pub(in crate::ssa::unit_lower) mod scalar {
             expression: ExpressionId,
             span: Span,
         ) -> Result<LoweredValue, LoweringError> {
-            if matches!(
-                operator,
-                BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
-            ) {
-                return self.lower_short_circuit(left, operator, right, expression, span);
-            }
             if let Some(result) = self.lower_nullable_comparison(expression, span)? {
                 return Ok(result);
             }

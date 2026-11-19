@@ -514,26 +514,22 @@ fn inline_field_replace_program(
 
 #[test]
 fn shared_heap_field_loan_tracks_the_receiver_dependency() {
-    let valid = shared_heap_field_loan_program(false, false, 0);
-    assert_eq!(verify_program(&valid), Ok(()));
+    for exclusive in [false, true] {
+        let valid = shared_heap_field_loan_program(false, exclusive, 0);
+        assert_eq!(verify_program(&valid), Ok(()));
 
-    let parent_ended_first = errors(&shared_heap_field_loan_program(true, false, 0));
-    assert!(has_kind(&parent_ended_first, |kind| matches!(
-        kind,
-        VerifyErrorKind::LoanDependencyActive { .. }
-    )));
+        let parent_ended_first = errors(&shared_heap_field_loan_program(true, exclusive, 0));
+        assert!(has_kind(&parent_ended_first, |kind| matches!(
+            kind,
+            VerifyErrorKind::LoanDependencyActive { .. }
+        )));
 
-    let exclusive_receiver = errors(&shared_heap_field_loan_program(false, true, 0));
-    assert!(has_kind(&exclusive_receiver, |kind| matches!(
-        kind,
-        VerifyErrorKind::OperationContract { .. }
-    )));
-
-    let out_of_bounds = errors(&shared_heap_field_loan_program(false, false, 1));
-    assert!(has_kind(&out_of_bounds, |kind| matches!(
-        kind,
-        VerifyErrorKind::OperationContract { .. }
-    )));
+        let out_of_bounds = errors(&shared_heap_field_loan_program(false, exclusive, 1));
+        assert!(has_kind(&out_of_bounds, |kind| matches!(
+            kind,
+            VerifyErrorKind::OperationContract { .. }
+        )));
+    }
 }
 
 #[test]

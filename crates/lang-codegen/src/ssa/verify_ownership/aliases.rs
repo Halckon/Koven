@@ -1,14 +1,16 @@
-//! SSA entity storage alias roots 与 CFG 不动点，以及 direct owned heap sibling fields 证明。
+//! SSA entity storage alias roots 与 CFG 不动点，以及 direct owned heap sibling fields 与顺序容器常量下标证明。
 use super::*;
 
 pub(in crate::ssa) mod direct_fields {
     use super::*;
+    use crate::ssa::model::{CheckedArithmeticOperator, ScalarConstant};
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     enum Path {
         Unknown,
         Payload(EntityId, SsaTypeId),
         Field(EntityId, SsaTypeId, usize),
+        Element(SsaTypeId, i32),
     }
 
     pub(in crate::ssa) struct DirectFields(BTreeMap<EntityId, BTreeSet<Path>>);
@@ -17,10 +19,24 @@ pub(in crate::ssa) mod direct_fields {
         pub(in crate::ssa) fn compute(
             function: &Function,
             roots: &BTreeMap<EntityId, BTreeSet<EntityId>>,
+            module: Option<&Module>,
         ) -> Self {
-            if !function.instructions.iter().any(|instruction| {
-                matches!(instruction.operation, Operation::HeapPayloadPlace { .. })
-            }) {
+            let element_paths = module.filter(|module| {
+                function.instructions.iter().any(|instruction| {
+                    matches!(instruction.results.as_slice(), [EntityId::Loan(loan)]
+                        if super::super::element_swap::is_mutable_element(module, function, *loan))
+                })
+            });
+            if element_paths.is_none()
+                && !function.instructions.iter().any(|instruction| {
+                    matches!(
+                        instruction.operation,
+                        Operation::HeapPayloadPlace { .. }
+                            | Operation::ExclusiveHeapFieldLoan { .. }
+                    ) || matches!(instruction.operation, Operation::SharedHeapFieldLoan { base, .. }
+                    if loan_kind(function, base) == LoanKind::Exclusive)
+                })
+            {
                 return Self(BTreeMap::new());
             }
             let incoming_blocks: BTreeSet<_> = function
@@ -32,6 +48,7 @@ pub(in crate::ssa) mod direct_fields {
                         .map(|edge| edge.target)
                 })
                 .collect();
+            let forwards = value_forwarding(function);
             let mut paths: BTreeMap<_, BTreeSet<_>> = all_entities(function)
                 .into_iter()
                 .map(|id| (id, BTreeSet::new()))
@@ -48,15 +65,34 @@ pub(in crate::ssa) mod direct_fields {
                 for instruction in &function.instructions {
                     for result in &instruction.results {
                         let incoming: BTreeSet<_> = match &instruction.operation {
-                            Operation::HeapPayloadPlace { owner } => {
-                                let owner = EntityId::Value(*owner);
-                                match roots[&owner].iter().copied().collect::<Vec<_>>().as_slice() {
-                                    [root] => [Path::Payload(
+                            Operation::HeapPayloadPlace { owner: value } => {
+                                let owner = EntityId::Value(*value);
+                                let root = roots[&owner]
+                                    .first()
+                                    .copied()
+                                    .filter(|_| roots[&owner].len() == 1)
+                                    .unwrap_or_else(|| {
+                                        EntityId::Value(forwarded_owner(&forwards, *value))
+                                    });
+                                [Path::Payload(
+                                    root,
+                                    function.entity(owner).unwrap().ty.semantic_type(),
+                                )]
+                                .into()
+                            }
+                            Operation::ExclusiveHeapFieldLoan { base, field }
+                            | Operation::SharedHeapFieldLoan { base, field }
+                                if loan_kind(function, *base) == LoanKind::Exclusive =>
+                            {
+                                let base = EntityId::Loan(*base);
+                                match roots[&base].first().filter(|_| roots[&base].len() == 1) {
+                                    Some(root) => [Path::Field(
                                         *root,
-                                        function.entity(owner).unwrap().ty.semantic_type(),
+                                        function.entity(base).unwrap().ty.semantic_type(),
+                                        *field,
                                     )]
                                     .into(),
-                                    _ => [Path::Unknown].into(),
+                                    None => [Path::Unknown].into(),
                                 }
                             }
                             Operation::FieldPlace { base, field } => paths[&EntityId::Place(*base)]
@@ -66,17 +102,29 @@ pub(in crate::ssa) mod direct_fields {
                                     _ => Path::Unknown,
                                 })
                                 .collect(),
+                            Operation::ContainerElementPlace { owner, index }
+                                if element_paths.is_some_and(|module| {
+                                    super::super::element_swap::is_mutable_owner(
+                                        module, function, *owner,
+                                    )
+                                }) =>
+                            {
+                                let ty = function.entity(*owner).unwrap().ty.semantic_type();
+                                let path = constant_index(function, &forwards, *index)
+                                    .map_or(Path::Unknown, |index| Path::Element(ty, index));
+                                [path].into()
+                            }
                             Operation::BorrowBegin { place, .. } => paths[&EntityId::Place(*place)]
                                 .iter()
                                 .map(|path| match path {
-                                    Path::Field(..) => *path,
+                                    Path::Field(..) | Path::Element(..) => *path,
                                     _ => Path::Unknown,
                                 })
                                 .collect(),
                             Operation::SharedReborrow { source } => paths[&EntityId::Loan(*source)]
                                 .iter()
                                 .map(|path| match path {
-                                    Path::Field(..) => *path,
+                                    Path::Field(..) | Path::Element(..) => *path,
                                     _ => Path::Unknown,
                                 })
                                 .collect(),
@@ -114,6 +162,21 @@ pub(in crate::ssa) mod direct_fields {
             Self(paths)
         }
 
+        pub(in crate::ssa::verify_ownership) fn disjoint_from_receiver_field(
+            &self,
+            loan: LoanId,
+            root: EntityId,
+            ty: SsaTypeId,
+            field: usize,
+        ) -> bool {
+            let Some(paths) = self.0.get(&EntityId::Loan(loan)) else {
+                return false;
+            };
+            paths.len() == 1
+                && matches!(paths.first(), Some(Path::Field(other_root, other_ty, other_field))
+                    if *other_root == root && *other_ty == ty && *other_field != field)
+        }
+
         pub(in crate::ssa) fn disjoint(&self, left: EntityId, right: EntityId) -> bool {
             let (Some(left), Some(right)) = (self.0.get(&left), self.0.get(&right)) else {
                 return false;
@@ -121,15 +184,138 @@ pub(in crate::ssa) mod direct_fields {
             if left.len() != 1 || right.len() != 1 {
                 return false;
             }
-            matches!((left.first(), right.first()),
-                (Some(Path::Field(a, ta, fa)), Some(Path::Field(b, tb, fb)))
-                    if a == b && ta == tb && fa != fb)
+            match (left.first(), right.first()) {
+                (Some(Path::Field(a, ta, fa)), Some(Path::Field(b, tb, fb))) => {
+                    a == b && ta == tb && fa != fb
+                }
+                _ => self.disjoint_elements_only(left, right),
+            }
         }
+
+        pub(in crate::ssa::verify_ownership) fn disjoint_elements(
+            &self,
+            left: EntityId,
+            right: EntityId,
+        ) -> bool {
+            self.0
+                .get(&left)
+                .zip(self.0.get(&right))
+                .is_some_and(|(left, right)| self.disjoint_elements_only(left, right))
+        }
+
+        fn disjoint_elements_only(&self, left: &BTreeSet<Path>, right: &BTreeSet<Path>) -> bool {
+            // A sequential owner represents its whole buffer. If two such views
+            // alias, their storage starts at the same element with the same stride.
+            left.len() == 1
+                && right.len() == 1
+                && matches!((left.first(), right.first()),
+                    (Some(Path::Element(ta, ia)), Some(Path::Element(tb, ib)))
+                        if ta == tb && ia != ib)
+        }
+    }
+
+    /// A CFG value parameter forwards an exact SSA value only if every
+    /// incoming edge carries that same value. Entry parameters have no proof.
+    fn value_forwarding(function: &Function) -> BTreeMap<ValueId, Option<ValueId>> {
+        let mut forwards = BTreeMap::new();
+        for block in &function.blocks {
+            for edge in edges(&block.terminator.as_ref().expect("verified terminator").kind) {
+                if edge.target.index() == 0 {
+                    continue;
+                }
+                let parameters = &function.block(edge.target).unwrap().parameters;
+                for (parameter, argument) in parameters.iter().zip(&edge.arguments) {
+                    if let (EntityId::Value(parameter), EntityId::Value(argument)) =
+                        (*parameter, *argument)
+                    {
+                        let forward = forwards.entry(parameter).or_insert(Some(argument));
+                        if *forward != Some(argument) {
+                            *forward = None;
+                        }
+                    }
+                }
+            }
+        }
+        forwards
+    }
+
+    fn forwarded_owner(forwards: &BTreeMap<ValueId, Option<ValueId>>, start: ValueId) -> ValueId {
+        let mut owner = start;
+        // Merge points with differing incoming values are identity boundaries.
+        // A cycle has no canonical predecessor.
+        for _ in 0..=forwards.len() {
+            let Some(Some(previous)) = forwards.get(&owner) else {
+                return owner;
+            };
+            owner = *previous;
+        }
+        start
+    }
+
+    fn value_definition(function: &Function, value: ValueId) -> Option<(&Operation, usize)> {
+        let Definition::InstructionResult { instruction, index } =
+            function.entity(EntityId::Value(value))?.definition
+        else {
+            return None;
+        };
+        Some((&function.instruction(instruction)?.operation, index))
+    }
+
+    fn constant_index(
+        function: &Function,
+        forwards: &BTreeMap<ValueId, Option<ValueId>>,
+        mut index: ValueId,
+    ) -> Option<i32> {
+        let mut negate = false;
+        let mut has_negation = false;
+        let mut seen = BTreeSet::new();
+        while seen.insert(index) {
+            if let Some(forward) = forwards.get(&index) {
+                index = (*forward)?;
+                continue;
+            }
+            match value_definition(function, index)? {
+                (Operation::Constant(ScalarConstant::Integer(value)), 0) => {
+                    let value = i32::try_from(*value).ok()?;
+                    // Any negation of the minimum Int would take the overflow edge.
+                    if has_negation && value == i32::MIN {
+                        return None;
+                    }
+                    return Some(if negate { -value } else { value });
+                }
+                (
+                    Operation::CheckedArithmetic {
+                        operator: CheckedArithmeticOperator::Subtract,
+                        left,
+                        right,
+                    },
+                    0,
+                ) if matches!(
+                    value_definition(function, *left),
+                    Some((Operation::Constant(ScalarConstant::Integer(0)), 0))
+                ) =>
+                {
+                    has_negation = true;
+                    negate = !negate;
+                    index = *right;
+                }
+                _ => return None,
+            }
+        }
+        None
     }
 }
 
 impl AliasRoots {
     pub(in crate::ssa) fn compute(function: &Function) -> Self {
+        Self::compute_impl(function, None)
+    }
+
+    pub(super) fn for_verifier(module: &Module, function: &Function) -> Self {
+        Self::compute_impl(function, Some(module))
+    }
+
+    fn compute_impl(function: &Function, module: Option<&Module>) -> Self {
         let mut roots = all_entities(function)
             .into_iter()
             .map(|entity| (entity, BTreeSet::new()))
@@ -208,7 +394,8 @@ impl AliasRoots {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Loan(*base));
                     }
-                    Operation::SharedHeapFieldLoan { base, .. } => {
+                    Operation::SharedHeapFieldLoan { base, .. }
+                    | Operation::ExclusiveHeapFieldLoan { base, .. } => {
                         changed |=
                             union_from(&mut roots, instruction.results[0], EntityId::Loan(*base));
                     }
@@ -224,6 +411,7 @@ impl AliasRoots {
                         }
                     }
                     Operation::SharedReborrow { source }
+                    | Operation::ExclusiveRootReborrow { source }
                     | Operation::CallableViewOf { source }
                     | Operation::SharedReferenceFollow { source }
                     | Operation::SharedPayloadLoan { source }
@@ -257,7 +445,7 @@ impl AliasRoots {
             }
         }
 
-        let direct_fields = direct_fields::DirectFields::compute(function, &roots);
+        let direct_fields = direct_fields::DirectFields::compute(function, &roots, module);
         Self {
             roots,
             direct_fields,
@@ -340,8 +528,10 @@ pub(in crate::ssa) mod map {
                             (source, true)
                         }
                         Operation::SharedReborrow { source }
+                        | Operation::ExclusiveRootReborrow { source }
                         | Operation::CallableViewOf { source }
                         | Operation::SharedHeapFieldLoan { base: source, .. }
+                        | Operation::ExclusiveHeapFieldLoan { base: source, .. }
                         | Operation::SharedPayloadLoan { source }
                         | Operation::BorrowCall { source, .. }
                         | Operation::MapIterationKeyLoan { source, .. }
@@ -394,6 +584,12 @@ pub(in crate::ssa) mod map {
                     }
                 }
                 Self {
+                    has_exclusive_root_reborrow: function.instructions.iter().any(|instruction| {
+                        matches!(
+                            instruction.operation,
+                            Operation::ExclusiveRootReborrow { .. }
+                        )
+                    }),
                     parent_by_child,
                     must_end_children,
                     flows: LoanFlowAliases::compute(function),
@@ -413,6 +609,50 @@ pub(in crate::ssa) mod map {
                 state: &BlockState,
             ) -> Option<LoanId> {
                 self.active_descendant_among(parent, state.loans.iter().copied())
+            }
+
+            fn unique_origin(&self, loan: LoanId) -> Option<LoanId> {
+                let origins = self.flows.origins.get(&loan)?;
+                (origins.len() == 1).then(|| *origins.first().expect("unique origin"))
+            }
+
+            pub(in crate::ssa::verify_ownership) fn same_origin(
+                &self,
+                left: LoanId,
+                right: LoanId,
+            ) -> bool {
+                left == right
+                    || self
+                        .unique_origin(left)
+                        .is_some_and(|origin| self.unique_origin(right) == Some(origin))
+            }
+
+            /// A unique source on each hop authorizes access through a suspended owner loan.
+            pub(in crate::ssa::verify_ownership) fn has_exact_ancestor(
+                &self,
+                child: LoanId,
+                ancestor: LoanId,
+            ) -> bool {
+                let (Some(mut child), Some(ancestor)) =
+                    (self.unique_origin(child), self.unique_origin(ancestor))
+                else {
+                    return false;
+                };
+                for _ in 0..self.parent_by_child.len() {
+                    let Some(parent) = self
+                        .parent_by_child
+                        .get(&child)
+                        .copied()
+                        .and_then(|loan| self.unique_origin(loan))
+                    else {
+                        return false;
+                    };
+                    if parent == ancestor {
+                        return true;
+                    }
+                    child = parent;
+                }
+                false
             }
 
             pub(in crate::ssa) fn active_descendant_among(

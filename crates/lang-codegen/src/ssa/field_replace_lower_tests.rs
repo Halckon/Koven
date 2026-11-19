@@ -457,13 +457,15 @@ fn field_replace_single_unclosed_projections_stay_unsupported() {
     for source in [
         "class Inner(var value: Int)\nclass Outer(val inner: Inner)\nfun test(): Unit { val holder = Outer(Inner(1))\nval old = replace(&holder.inner.value, 2) }",
         "class Holder<T>(var value: T)\nfun test(): Unit { val holder = Holder(1)\nval old = replace(&holder.value, 2) }",
-        "class Holder(var a: Int, var b: Int)\nfun test(): Unit { val holder = Holder(1, 2)\nswap(&holder.a, &holder.b) }",
         "class Holder(var a: Int, var b: Int)\nfun test(): Unit { val holder = Holder(1, 2)\nval old = replace(&holder.a, holder.b) }",
         "class Holder(var a: String, var b: String)\nfun test(): Unit { val holder = Holder(\"a\", \"b\")\nval old = replace(&holder.a, holder.b.clone()) }",
     ] {
         let analysis = analyze_field(source);
         assert_eq!(
-            lower_field(&analysis).err().expect("unsupported").kind,
+            lower_field(&analysis)
+                .err()
+                .unwrap_or_else(|| panic!("expected an unsupported projection: {source}"))
+                .kind,
             LoweringErrorKind::UnsupportedNode,
             "{source}"
         );

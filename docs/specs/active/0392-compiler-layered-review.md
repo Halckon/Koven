@@ -96,6 +96,8 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 5. 高风险模块按事实模型/验证/状态转移/诊断职责评估；只在证明重复与行为等价后共享。
 6. R0–R3 阻断项关闭后恢复增量；结构迁移收口后在同一冻结 SHA 做第一轮纵向复审。
    v1 功能冻结再做第二轮 R5；新优化等级启用前另验语义与资源一致性。
+7. 本地用真实源码和正常构建验证行为。受控故障注入、生成资源校准、检查器变异和
+   故障缩减由现有 CI 作业执行，其产物按对应候选身份记录。
 
 ## 6. 非目标与兼容边界
 
@@ -105,17 +107,18 @@ oracle 放宽。此为已确认 F5 的修复，不代表全部 grammar 与阶段
 
 ## 7. 当前阶段结果与未覆盖
 
-本轮合批基线为 [#442](https://github.com/Halckon/Koven/pull/442) 合并提交
-`cc2d15d6`。此前各节证据保留各自输入身份。阶段退出条件仍以 §3 为准。
+R1–R4 第一轮合批已合入 [#443](https://github.com/Halckon/Koven/pull/443)，
+合并提交为 `625f6804`，§327 记录该批的双宿主验收。后续候选已快进到 #444 的
+`6cc03907`，见 §347–348。各节证据保留各自的输入身份，退出条件见 §3。
 
 | 阶段 | 当前证据 | 未闭合边界 |
 |---|---|---|
-| R0 | 已定位公共流水线和准入。§151、§224–225 清点生产依赖及保留对照，§236、§238–241 迁移跳转、名义类型、nullable when 和常量测试 | 旧入口仍有真实消费者，尚需逐个核对保留或迁移理由。仓外 API 与间接调用另记边界 |
-| R1 | UTF-8、模式栈、Pratt、strict trial、lambda DFA 有独立抽查。§208、§242–244 补齐已复现的调用、下标及 else 恢复，覆盖红绿、扫描计数及公开入口 | §316 修复 §255 已复现的复合条件，其他缺少分隔证据输入继续按恢复矩阵复审 |
-| R2 | F1/F2/F8–F11 的已列复现有修复与验证。§214–223、§227 核对条件写回、循环退出及后继读取 | 剩余流事实组合与 Unit/Single 差异仍需验收，旧测试消费者处置与 R0 同步 |
-| R3 | basic/const、临时父 owner、两阶段借用已独审。§209、§213 核对部分构造退出，§245 复跑交接身份及失败原子性 | 继续分流旧事件见证，核对剩余循环与退出组合。本机和 CI 的资源矩阵分别按各自输入记账 |
-| R4 | #429 的写回、SSA 负例、双宿主 conformance 与 Linux 资源证据见 §228–235、§245。§246 补验 refine 与 Compatibility 共存。§305–319 验证可空 String 读取、while 独立借用、Map 移出 ABI、分支借用、返回借用来源及自有载荷交付 | 生产 Unit 仍有兼容路由，须对齐各家族迁移及接线。第一轮冻结 SHA 纵向复审尚未完成。目标机仍为 `OptimizationLevel::None` |
-| R5 | §240、§245 已核验合并树及同 SHA 双宿主 conformance。§311–312、§314、§318 在源码候选复验 137/154 探针、综合程序 0/6 | 第一轮等待阶段出口及冻结候选的全链路证据。v1 尚未冻结，第二轮发布验收待启动 |
+| R0 | 已定位公共流水线和准入。§151、§224–225 清点生产依赖及保留对照，§236、§238–241 迁移跳转、名义类型、nullable when 和常量测试，§347 刷新直接调用清单，§348 验证剩余两个 Single lowering 测试消费者，§349、§371 分别分类 frontend src 与 codegen src 直接调用 | §372、§378、§383 已分类旧入口的直接集成测试消费者。§395 已核对仓内显式别名与裸函数引用。宏展开、生成代码和仓外调用仍待核验 |
+| R1 | UTF-8、模式栈、Pratt、strict trial、lambda DFA 有独立抽查。§208、§242–244 补齐已复现的调用、下标及 else 恢复，覆盖红绿、扫描计数及公开入口 | §316 修复 §255 已复现的复合条件。§375 复验嵌套 if 的 else 归属，§396 对账截断跨行 when 的完整文件恢复。其余缺分隔输入仍按矩阵复审 |
+| R2 | F1/F2/F8–F11 的已列复现有修复与验证。§214–223、§227 核对条件写回、循环退出及后继读取。§405 验证 Unit 类型检查迭代遍历短路左链 | §397–401 的已知 selector 与实达布尔边修复已纳入本地分支。§402 的重复扫描与 §405 的剩余递归继续跟踪。旧测试消费者处置与 R0 同步 |
+| R3 | basic/const、临时父 owner、两阶段借用已独审。§209、§213 核对部分构造退出，§245 复跑交接身份及失败原子性，§403–405 验证析构规划、所有权流和活跃性的短路左链 | §405 定位 512 项跨阶段原生复现的剩余中止到 R4。继续核对旧事件见证和控制退出组合。本机和 CI 的资源矩阵分别按各自输入记账 |
+| R4 | #429 的写回、SSA 负例、双宿主 conformance 与 Linux 资源证据见 §228–235、§245。§246 补验 refine 与 Compatibility 共存。§305–319 验证可空 String 读取、while 独立借用、Map 移出 ABI、分支借用、返回借用来源及自有载荷交付。§328–332 核验直接字段、调用独占性及控制流写回。§333 补齐 Compatibility 中普通可空标量局部的类型需求。§360–369 验证接收者字段置换、终止型实参、容器元素交换、堆字段与直接 Inout 槽置换。§385 复验最新测试快照的 Linux codegen 全套，§389 核验双宿主公开入口的可达性，§393 修复循环内写回后重新借用 | 生产 Unit 仍有兼容路由，须对齐各家族迁移及接线。§334 核验 Map 可复制结果与普通可空局部共存。§335–336 核验泛型实例的 nullable when 写回及直接 T? 局部布局。§337 复核 RangeCall 辅助独占实参，§339 处理活跃 RangeView 跨缺省 else 的语句式 if，§340–345 补齐普通词法块和受限 if 控制体的直接 metadata 别名。第一轮冻结 SHA 纵向复审尚未完成。目标机仍为 `OptimizationLevel::None` |
+| R5 | §240、§245 已核验合并树及同 SHA 双宿主 conformance。§311–312、§314、§318 在源码候选复验 137/154 探针、综合程序 0/6，§348 对账 #444 后候选，§365 复验后续冻结源码，§370、§373 补 Linux 资源缩减与 ASan/LSan，§376 复验当前双宿主完整公开语料，§386 通过 Linux 生成资源全门禁，§388 的 macOS LSP 标准复跑通过，§394 复验集成候选的双宿主公开语料和 Linux sanitizer | 第一轮等待阶段出口及冻结候选的全链路证据。v1 尚未冻结，第二轮发布验收待启动 |
 
 ## 8. 验收账本
 
@@ -8346,3 +8349,2504 @@ macOS arm64 与 Linux x86_64 各通过 42 项定向 SSA/native 回归
 stderr 为空。3 组负例共 12 次公开检查，同字段和父子重叠各报
 一条 L0135，缺失括号两入口均报 L0010、L0056、L0059。
 完整测试继续看当前 PR-event 的两个宿主及聚合检查。
+
+
+## 327. 第一轮双宿主 PR-event 合批结果
+
+[#443](https://github.com/Halckon/Koven/pull/443) 的最终 head
+`134a72efda2fdfa543d44a92778aeb4c302571b2` 与 base
+`cc2d15d6947cf413a474484cdaf30c4e8cad5f26` 由
+[PR-event CI](https://github.com/Halckon/Koven/actions/runs/44252093643)
+验收。两个宿主的 Targeted 检查和聚合门禁通过，包含公开入口、预览、
+generated owners 与 Linux sanitizer。Conformance 为 137/154 探针、
+0/6 综合程序，精确通过范围按该轮证据保留。
+
+CI 合并候选 `cc66331b21f7881a238e1a87e01c4571a7e7ee7c` 与
+实际 main 合并提交 `625f6804a9dc448832f148f6eb3d8b8bf9ad7be6`
+具有相同父提交和树 `fd79bad731f6c177bb9f1c2813fccd8e6328c23b`。
+此次合批关闭 §321–326 记录的 PR 阻断。生产 Unit 兼容路径的处置、
+第一轮冻结候选的全阶段纵向复审以及 v1 功能冻结后的 R5 仍按 §3 执行。
+
+## 328. R4 Copyable 类字段的普通 Inout 调用
+
+基线 `625f6804` 接受同一普通类实例的两个 `var Int` 字段
+作为普通 Inout 实参。原生回归和公开单文件及跨文件项目的
+`run` 均复现 UnsupportedNode。§323 的字段凭证和构建调度
+原先仅供 MoveOnly 使用。现在基于既有同源字段投影与独占 loan
+识别两类目标；其余实参完成后才建立字段地址，callee 直接写堆
+存储。Copyable 局部根仍沿原方式写回。
+
+独立复审核对准入与构建一致性、提前退出不物化字段 loan、
+正常结束顺序，以及同字段重叠检查。独立记录的后续验证项是
+手工 SSA 将同一 Copyable 独占 LoanId 放入两个调用槽位；当前
+调用端成对重叠判定只覆盖 MoveOnly，旧 Copyable 根也有此缺口。
+
+macOS arm64 默认测试栈通过全部 58 项 `inout` 匹配用例（含 10 项
+字段定向测试）。公开单文件和跨文件项目均退出 0，输出逐字节符合
+预期，stderr 为空。后续实参提前 return 仅打印已求值的前缀；
+正常路径按源码顺序求值并读回两个新字段值。同字段负例在两入口
+各以退出 1 和唯一 L0135 拒绝。
+
+同一编译器源码清单 SHA-256
+`99a51083ee8c4bfee9a99dbf1f34c3c88db8cf76cea9d70ab1e5fb94a1d03862`
+在离线 Linux x86_64 容器通过 10 项默认栈字段测试，复用与 macOS
+相同的单文件、跨文件项目及两个同字段负例，退出码和输出逐项一致。
+macOS codegen 全 target 严格 Clippy、格式、文档与 Rust 尺寸检查通过。
+本节为定向验收，新分支尚无 PR-event CI 结果。
+
+## 329. R4 Copyable 独占借用的调用槽位
+
+先降低两个不同 `Int` 局部根的普通 Inout 调用，原始 SSA 通过。
+仅将第二个实参替换成第一个 LoanId 后，旧 verifier 仍返回成功，
+正式负例据此失败。现在独占实参先核对 LoanId 相等或别名冲突，
+再对 MoveOnly 单独登记根写回；不同直接字段继续使用既有分离证明。
+两个 SSA 回归都先核对合法输入，再断言篡改仅有的调用槽位后，在原
+调用指令上返回对应合同错误。独立复审核对转发、堆地址和根写回的
+分支，以及 CFG 合流别名集合的保守性。RangeCall 的手工 SSA 辅助
+独占实参仍需另行核验，当前源码 lowering 不生成匹配的实参 loan。
+
+同一编译器源码清单 SHA-256
+`e87a2b1df0d1641aeae0bbb6185e4dfafe797168ab909a21e2996a5d0c1bbec9`
+在 macOS arm64 与离线 Linux x86_64 各通过 59 项 Inout 定向测试。
+Linux 复验 §328 的单文件、跨文件项目、提前退出及同字段拒绝，
+stdout、stderr 与退出状态同预期。这批尚无新 PR-event CI 结果。
+同一源码的 macOS 全量默认 codegen lib 复跑随后完成，3323 通过、
+0 失败、71 ignored；该结果不覆盖 §331 及以后的源码修改。
+
+## 330. R4 Compatibility 混合体的 inline nullable 类型登记
+
+在 §328 已验收的 macOS 编译器上复用 §247 的隐式空臂与堆对象写回。
+原体通过，单独的 `val count: Int? = 1` 后判空也通过。在同一
+函数加入该局部和判空，公开单文件与跨文件项目的 check 仍为 0，
+run 分别以 2 和 1 报 UnsupportedNode。单文件额外调用独立
+`fun touch(own value: Int?): Unit {}` 后，原样的混合函数恢复
+执行，输出与原体一致。现有 Compatibility 局部包装守卫读取全局
+类型表，已有对应登记时即走原适配。§333 记录正式红测和
+基于已形成局部变量的类型需求登记。
+
+不可达的 `touch` 声明无法消除失败，只有可达调用带来的类型需求
+有该效果。相同混合体使用 `Boolean? = true` 也报 UnsupportedNode；
+改用 `Int? = null` 后报 MissingFact。正式回归应分别覆盖非空包装
+和空值材料化，并保持不可达 sibling 不影响生产路由。
+
+## 331. R4 局部 String? 的 Inout 写回
+
+PR #443 固定版本复审指出，自有局部变量在非空臂读取时保留共享
+proof，接下来的普通 Inout 实参直接借入同根，产生冲突。修复前，
+`var slot = input` 在 `if (slot != null) { println(slot); clear(&slot) }`
+后读回的公开单文件和跨文件项目均通过 check，原生入口分别以 2 和 1
+报 InvalidModel。相同回归增加尾实参条件 return 后仍能复现。
+
+直接根调用现共用既有 proof 退役步骤，先结束同根共享 proof，再转发
+Inout 参数的 loan 或建立局部根的独占 loan。MoveOnly 仍在后续实参
+完成后才执行此步骤，写回仍使用原根存储。macOS 默认栈通过 60 项
+Inout 测试和 3 项写回路径测试。同一回归的单文件与跨文件项目分别
+运行 null、空串、普通文本和后续实参提前 return，逐字节符合预期。
+额外单文件具名 Guard 探针在四条路径均执行一次析构，提前 return
+只输出前缀并析构；该探针未给字符串缓冲区加分配计数。
+
+独立复审核对该顺序、转发与实参提前退出，并提出两个相邻边界。
+修复后的 macOS 编译器上，`flag && clear(&slot)` 与
+`while (flag) { clear(&slot); break }` 两项均通过前端 check，
+原生生成仍因 InvalidModel 失败。待分别核对短路跳过边及循环
+条件为假边的 proof 退役和状态合并，阶段退出仍开放。
+
+同一编译器源码清单 SHA-256
+`0ba64bf1485afb10e78fb5ff1a94d0584348b27db4a3e1eaaeee8e7e14dae36a`
+在离线 Linux x86_64 容器通过同样的 60 项 Inout 和 3 项写回路径
+测试。两宿主公开单文件及跨文件项目的 stdout 逐字节一致，
+stderr 为空，退出 0。macOS codegen 全 target 严格 Clippy 通过。
+
+## 332. R4 局部 nullable Inout 的短路和循环边
+
+§331 仅修复实际调用边。其候选的单文件探针在
+`flag && clear(&slot)` 和 `while (flag) { clear(&slot); break }`
+上仍通过 check、在原生生成报 InvalidModel。短路 join 现按同一
+proof slot 核对实际 RHS 后继，在缺少该 proof 的合流上结束跳过边
+上仍活跃的该根共享 proof；无合流的跳过后继仍可携带原 proof。
+循环入口核对同一源单元和当前可调用体内已发布的独占根 loan，
+在条件与回边的共同入口结束可能被写回的旧 proof。
+
+独立复审发现，若 `for` 在来源求值前结束 proof，
+`0..<upper(slot)` 中的一次性借用会丢失。公开入口实际复现
+前端通过、原生报 MissingFact。更新后的数值范围、顺序容器、
+RangeView 和 Map 均先求值或取得来源，再于进入循环前清理
+受写回影响的 proof。二次独立复审核对了同根来源的冲突拒绝、
+常量短路无 loan、其他根的 proof 和临时工厂来源。
+
+同一编译器源码清单 SHA-256
+`0850d66bd90c428f8bbff29da742a5d3cd9307671e9434efe6a35618e0c232d5`
+在 macOS arm64 和离线 Linux x86_64 各通过 62 项 Inout 和 5 项
+写回测试。macOS 另通过 6 项数值 for、22 项 provider/来源退出测试
+及 codegen 全 target 严格 Clippy。macOS 的临时 List 和 Map 工厂、
+无关根保持与常量短路重复读取的原生探针均通过。直接以窄化的
+nullable List 为 provider 的探针，连同移除短路调用的对照，在
+修复前后均为 UnsupportedNode，现有 provider 边界仍开放。
+
+两宿主均由公开单文件及跨文件项目入口运行条件与值位置的
+`&&`、条件 `||`、while break、while continue 和数值 for，
+共 24 个原生产物。所有进程退出 0，stdout 逐字节符合相同 oracle，
+stderr 为空。跳过短路和零次循环保留原值，执行路径写回 null，
+有 Guard 的用例均按原顺序析构。该分支仍待自己的 PR-event CI。
+
+
+## 333. R4 已形成局部的 inline nullable 布局登记
+
+§330 的正式红测固定混合函数实际走 Compatibility，前端通过后在
+`val probe: Int? = 7` 报 UnsupportedNode。直接 null 初始化的公开
+探针另报 MissingFact。沿既有签名优先、函数体在后的类型计划，复用
+同源单元、同函数、正常形成的局部变量事实，登记 Boolean 或整数
+可空布局。删除依赖全局表偶然已含此类型的局部守卫，由原
+NullableWrap 和 NullableNull 消费已登记布局。同一作用域的 Map
+事实和 K/V 校验继续走原 mapper。独立复审核对了函数路由、
+作用域归属以及布局登记和生成的一致性。
+
+新回归对 Int 和 Boolean 分别运行 non-null 与 null，再对照无签名、
+不可达签名、可达签名三个状态。实际核对 Compatibility 路由、
+SSA verifier、源程序输出与两个 Guard 的析构次序。
+
+macOS arm64 通过 30 项 replacement-if、类型来源和标量路由用例，
+另通过 27 项 Map promotion、nullable operation 和 Unit 类型计划用例。
+公开单文件和跨文件项目用同一组预期测试 Int/Boolean 的 null 与
+非空、可达签名与无签名，16 个原生产物全部退出 0 并逐字节匹配。
+
+另有两条边界仍开放。独立 `Map<Int, Int>` 查询可以运行，加入
+该调用后，含普通 `Int?` 局部的原函数在单文件和跨文件项目均通过
+check，但原生报 UnsupportedNode。Map preregistration 先为同一
+UnitTypeId 发布 `$map.result`，普通标量包装拒绝该结果身份。
+泛型 `T?` 以 Int 实例化的探针仍在原生报 MissingFact，有无可达
+`Int?` 签名结果相同。两条边界均在本修复前后复现，需分别核对
+Map 结果身份隔离及泛型实例的类型事实。
+
+同一编译器源码清单 SHA-256
+`c54c9dd980327af57f9512bb8814e34282b0ae4a93b45c4c2184605897dc9335`
+在离线 Linux x86_64 容器通过同一组 30 项定向测试和全部 16 个原生
+产物。两宿主的 stdout 逐字节一致，stderr 为空。macOS 另验证
+可达签名单独成文件且排在目标文件前后时结果一致；严格 Clippy、
+格式、文档和 Rust 物理行数检查通过。该候选尚无 PR-event CI。
+
+
+## 334. R4 Map 查询与普通 Copyable nullable 包装共存
+
+§333 的独立 Map 查询与普通 `Int?` 局部分别通过。组合后在单文件
+和跨文件项目通过 check，正式红测定位到普通局部包装的
+UnsupportedNode。Map 类型预登记使用 `$map.result` 的存在位和载荷；
+两条路径共用该类型时，Compatibility 原来的拒绝覆盖了 Copyable。
+现复用既有 `NullableWrap`。Verifier 核对结果与实际载荷类型，
+LLVM 写入存在位和原值，直接 null 继续由 `NullableNull` 零初始化。
+独立复审核对了这条链、实际路由及所有权条件。
+
+回归在原有签名可达性矩阵上加入可达 Map 查询，明确区分 `0`、
+`false` 命中与缺键，并核对普通 Int/Boolean 可空局部初始化及 Guard
+析构。macOS 通过 57 项相关定向测试，公开入口另从 Compatibility
+把普通包装交给细化层的 `when`，核对整数和布尔载荷的实际值。
+
+§333 的泛型探针进一步缩减。只包含 `T?` 普通非空或空初始化的
+`run<Int>` 可正常运行；去掉 `T?` 和泛型值形参后，如果泛型函数包含
+owned nullable `when`，在非空臂写回并重新判空借用，仍在两个
+公开入口通过 check、原生报 MissingFact。非泛型同体、generic
+when 直接读取和移出 when 后的单独写回判空均通过。后续聚焦该
+泛型控制流消费者及写回后的证明身份。
+
+同一编译器源码清单 SHA-256
+`f445297c19234f951bb9fc905805bb0e0f842f97e085961eb52ec8d5e7dd07cf`
+在 macOS arm64 和离线 Linux x86_64 均通过 57 项定向测试。
+两宿主由公开单文件与跨文件项目运行四组命中/空值矩阵和两组
+跨路由载荷检查，共 24 个原生产物，退出 0，stdout 逐字节一致，
+stderr 为空。macOS 另通过原生 Map 28 项及 codegen 严格 Clippy。
+当前分支尚无新 PR-event CI。
+
+
+## 335. R4 泛型实例的 nullable when 写回与重新借用
+
+§334 的正式红测在前端和初始 nullable when 通过后，定位到
+写回后 `observe(x)` 的实参 `x` 报 MissingFact。Compatibility
+曾按调用者含类型替换或类型实参跳过 fresh heap If proof。现在核对
+根的 canonical nullable 类型在当前实例中保持同一身份，再用原
+source token、完整 instance key 和 FunctionId 校验所属函数。
+原窄化根、实际 owner、共享借用、目标调用和前缀边界继续验证。
+独立复审另核对了 StaticSelf 和嵌套作用域边界。
+
+回归覆盖 Int、Boolean 和两种实例共存，分别执行旧值为空、替换为空
+后 return、替换为非空后重新借用。macOS 首个候选通过 58 项相关
+测试，两个公开入口原生验证相同输出和 Guard 析构。另用实际泛型
+Abort 验证退出 134、报告 `nullable-stop` 且无 Guard 析构。
+
+## 336. R4 泛型 Compatibility 局部 T? 的存储需求
+
+§335 把泛型 fresh proof 修复后，将直接 `T?` 局部放回组合体。
+前端通过、未登记布局时再现 MissingFact；增加无关可达 `Int?`
+签名则通过。已形成局部的规划现按该 callable 实例替换直接
+类型参数，只在具体内层为 Boolean 或整数时登记 inline nullable，
+仍由原 mapper 验证实际布局。独立复审覆盖了源单元、最近函数
+作用域、实例替换及与 Map 结果边界的交接。回归在无可空标量
+签名的前提下运行 Int/Boolean 两种实例，分别核验 wrapping
+和 null 初始化，包含 Boolean 的 false 仍为 present。
+
+最终 macOS arm64 候选在默认栈通过 59 项相关测试及
+codegen 全 target 严格 Clippy。公开入口的混合实例、局部
+可空布局、Const-enabled 组合和 Abort 输出均与预期一致。
+早期 Linux 候选的并行测试进程挂起，原测试二进制以默认栈
+串行复跑 58 项均通过，已结束挂起的进程。该次串行复跑属于
+§335 首个候选，不能作为本节最终候选的验收。
+
+同一最终编译器源码清单 SHA-256
+`d338c301aa6eecc838f80f86f8619498132db89b75169484ea97c61654ae1a05`
+在离线 Linux x86_64 默认并行和默认栈通过同一组 59 项，早期挂起
+未重现。双宿主的单文件与跨文件项目共运行 24 个原生产物，20 个
+正常进程退出 0、输出逐字节一致、stderr 为空；4 个 Abort 进程
+退出 134，输出一致并核对错误报告，均未执行 Guard 析构。
+当前 GitHub main 与本轮基线 `625f6804` 一致，新候选尚未有
+PR-event CI。
+
+
+## 337. R4 RangeCall 辅助独占实参的 SSA 合同
+
+复查 §329 的 RangeCall 余项。直接构造有真实 RangeConstruct、
+RangeCall 及 RangeReturn 的 typed SSA，来源是该签名原有的
+共享容器 loan，两个辅助参数为不同独占 loan。原 verifier
+接受该控制；替换其中一个参数为另一个 LoanId 后仍返回成功。
+另一个红测让第一个独占实参持有活跃共享子借用、且在调用后
+才结束子借用，原 verifier 也返回成功。
+
+RangeCall 现复用普通调用的实参检查、独占重叠与 MoveOnly
+写回约束，原 Range 来源和精确根权限继续验证。定向回归覆盖
+Copyable/MoveOnly 两种辅助类型、独立实参到 LLVM、重复独占
+实参拒绝和活跃子借用拒绝。独立复审核对执行顺序、来源与
+结果配对。手写用例的 MoveOnly 为参数转发；本地 RootPlace
+写回由共用的其它调用测试覆盖，本节没有单独执行其 RangeCall 组合。
+
+同一编译器源码清单 SHA-256
+`adde8dd884909e625cfcd0d2b664dd4e4d8e46ebd5708f2081faee688b23f706`
+在 macOS arm64 与离线 Linux x86_64 各通过 76 项定向测试。
+公开单文件与跨文件项目均执行标准 `take` 的临时资源来源，
+两边的进程退出 0，stdout 逐字节一致、stderr 为空；先读保留的
+元素，再按既定次序析构两个对象。macOS codegen 全目标严格 Clippy
+通过。当前候选尚无新 PR-event CI。
+
+另用新旧候选复查活跃 RangeView 的分支：取 `prefix.size` 到局部
+且没有分支可运行，提前读取后再执行 `if` 则失败；条件与 View
+无关且分支后仍读取 View 的用例，也在两个公开入口 check 通过、
+原生报 UnsupportedNode。先用独立语句块结束 View，再进行分支
+的同类型对照在两个入口均成功。该源程序边界与本节负责的
+辅助独占实参验证分别记账。
+
+
+## 338. R0 直接调用清单复核
+
+按 §151 的同一口径复查当前工作树已跟踪 Rust 文件。数值为
+文件数／匹配行数，排除同一行的函数定义。包含测试及字符串，
+不涵盖间接调用、宏展开和仓外 API。
+
+| 范围 | resolve_names | check_types | check_ownership | complete_file_types | lower_scalar_file_with_entry |
+|---|---:|---:|---:|---:|---:|
+| frontend src | 43 / 53 | 40 / 50 | 22 / 23 | 3 / 3 | 0 / 0 |
+| frontend tests | 81 / 153 | 70 / 107 | 48 / 73 | 22 / 30 | 0 / 0 |
+| codegen src | 15 / 18 | 15 / 18 | 14 / 17 | 7 / 7 | 4 / 8 |
+| CLI src | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| LSP src | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+
+相关范围未检出显式 `as` 别名。复查了长枚举/深层窄化和数值
+溢出：两组生产 Unit 对照均已存在，旧 Single 分别保留旧 case
+表确定性和独立溢出诊断，见 §239。另核对 `string_clone.rs` 的
+Single CallReturn loan-end 及 `ownership_structural.rs` 的投影
+对照，两处测试明确保留旧产物。以上是静态清点，下一轮按剩余
+消费合同核对是否已有等价 Unit 证据，再决定迁移或保留。
+
+补查三项旧入口的标识符引用，覆盖 import、限定路径和直接调用。
+CLI、LSP 与 frontend analysis 源码均未引用这三个标识符。
+`lower_frontend` 模块和 `lower_scalar_file_with_entry` 重导出
+均受 `cfg(test)` 约束。真实生产模块防回流检查及其负例共
+14 项在 §346 候选的 macOS 测试二进制通过。
+`lang_frontend::type_checking::check_types` 和
+`lang_frontend::ownership_checking::check_ownership` 仍是
+公开 Rust API。该树的仓内标识符与依赖检查不能确定仓外调用，
+这两项 API 的迁移处置继续开放。
+
+与 RangeView 后续切片相邻的三个 frontend integration suite 也已复核。
+`ownership_range_producer.rs` 的来源、递归拒绝与输入顺序当前均走 Unit。
+`type_range_carrier.rs` 的非逃逸位置用 MemoryDocument 与 Project 入口覆盖，
+仅保留 §12 所记的 name-invalid raw Single 恢复对照。
+`ownership_range_receiver.rs` 保留三种元素布局下的 Single source loan
+没有在 producer CallReturn 结束的独立断言。其 Unit 同源对照独立检查
+真实根、parent/child metadata 和词法结束顺序。Unit 的
+`loans_ending_at` 只按创建点筛选，不表示实际终止事件，
+因此这处测试不能通过改用同名查询迁移。
+
+
+## 339. R4 活跃 RangeView 跨缺省 else 的语句式 if
+
+§337 的公开入口复现缩减为同一词法块内的 `take` 描述符、
+普通一臂 `if` 和合流后同步读取。前端检查通过；单文件和跨文件项目
+均在生成前报 UnsupportedNode。正式红测定位到该 if 的完整源码区间。
+带显式 else 的双臂语句早有同类运输合同，见
+[SPEC-0298](../../archive/specs/0298-range-binding-local-control-flow.md)。
+
+修复允许通过既有准入检查的 Boolean 条件、Unit 结果语句省略 else。
+同根来源、source loan、词法结束、语句位置和臂内调用检查仍生效；
+假分支仍应用已发布的 BranchExit 清理再合流。值上下文、嵌套、
+循环内 if、臂内新绑定和无终止事实的控制转移保留现有拒绝。
+独立复审核对了上述边界和短路条件的共同调用点。按复审建议，
+用真分支内及合流后均读取同一 View 的资源原生回归替代原先
+冻结的无 else 拒绝测试。该回归运行动态真假两条路径，
+并检查每个源对象的析构次数和顺序。
+
+macOS 首次扩大到整个 Range lowering 模块时，328 项通过，唯一失败为
+`scalar_counts` 仍要求拒绝 `if(true){read(part)}`。按现行语义另建常量真、假
+以及合流后的资源运行见证，其余五个非 Int 表达式、while 和独立值位置 if
+的拒绝证据保留。独立复核确认动态和常量回归的输出、析构预期及负例范围。
+两个未更新该负例的 Linux 快照随后主动停止，未用于最终验收。
+最终编译器源码清单 SHA-256 为
+`4e80582fdfdb33da16080eb5996ae1c92dc73af5ba5479757ba7c3d107ab6d82`。
+
+同一最终候选的 macOS arm64 定向测试通过 20 项，含两种新单臂回归和
+保留的准入负例。公开单文件与跨文件项目均按顺序观测真分支内读取、
+标记合流、合流后读取，然后按 `second`、`first` 各析构一次；
+假分支跳过臂内读取。两个入口退出 0 且 stderr 为空。
+原最小探针另运行成功。单文件短路条件探针只在真路径求值 RHS，
+且保留相同的合流读取和析构输出。macOS codegen 全 target 严格 Clippy 通过。
+§337 中先取 `prefix.size` 的对照换成正常调用臂后原生输出正确；
+保留 `error` 的 Abort 臂仍在前端 check 通过、生成阶段报 UnsupportedNode。
+真臂尝试 move 活跃 View 的源 owner 时，公开单文件 check 仍在实参处报 L0135。
+
+离线 Linux x86_64 对同一编译器源码清单通过相同 20 项定向测试，
+与 macOS 均用默认测试栈和默认线程。两个公开入口的进程退出 0，
+stdout 和 macOS 及预期文件逐字节一致，stderr 为空。最终候选
+没有重新执行整个 Range lowering 模块或新 PR-event CI。
+
+相邻未闭合边界已在同一 macOS 编译器重现。将描述符接到
+`borrow val child = (part)`，再让别名跨语句式 if，单臂和显式双臂
+均通过 check，但公开单文件和项目原生生成都报 UnsupportedNode。
+去掉该 if 的别名对照在两个入口均成功且输出一致。
+后续单独核对 `BorrowedCarrierMetadata` 的父描述符依赖和分支清理。
+该别名只在合流后读取时仍重现；将其换为 `take(part, 1)`
+创建新的子描述符，保留同一分支与读取位置，则单文件原生运行成功。
+
+
+## 340. R4 同块 RangeView metadata 别名跨普通 if
+
+§339 的两个公开入口复现来自同一词法块内的描述符与直接别名。
+正式红测在 Unit Lowering 报 UnsupportedNode，span 对应完整语句 if。
+原词法 scope 证明只接受新描述符，因而有别名时无法放行此控制。
+
+新分支准入复用现有类型与父引用检查。只有同块、先于子绑定、来自
+同一根且拥有新描述符的真实父绑定可以证明该直接别名。父、子和
+块内其他承载根依赖的绑定各自要求同一实际语句块结束事实。
+普通语句 if 继续要求可正常合流及有界只读调用。短路、算术、
+值位置 if、嵌套、循环及已有提前返回检查各自保持原准入入口。
+回归保留旧 metadata 标量、不同根和其他控制的拒绝见证，
+并替换正常语句 if 的旧拒绝见证为可观测原生用例。
+
+独立复审发现初版会接受 `show(-n)` 的隐式溢出边。macOS 原生
+探针确认 `n = Int.MIN` 时进程退出 134，报告整数溢出且没有析构。
+最终 gate 仅在别名的新增普通 if 准入中拒绝运行期负号，
+直接整数字面量沿用原常量路径。定向测试保留该负例。
+加固前的候选在两宿主各通过 25 项定向测试，单臂、双臂的公开
+单文件和跨文件项目都符合相同的读取和析构预期。
+加固后的首个候选编译器源码清单 SHA-256 为
+`ee53e5106d9d60b09b656526b183b571585a487e57c0d6b93cb2fe64c6a97a03`。
+尺寸门禁发现 `local_if.rs` 超出 1000 行，已将 metadata 准入函数
+原样移入子模块，最终编译器源码清单 SHA-256 为
+`c7ea25a375531023ac375f21beb5d1063a9476578527fe5974a786426955e028`。
+
+移动前的加固候选在 macOS arm64 通过 25 项定向测试及 codegen 全 target 严格 Clippy。
+单臂与双臂在单文件及跨文件项目入口均退出 0，stdout 逐字节符合
+预期，stderr 为空。真臂读子别名，随后合流再次读取；假臂分别跳过
+臂内调用或输出 else 标记。两条路径都在合流读取后按
+`second`、`first` 各析构一次。动态负号仍在 native 准入报
+UnsupportedNode，直接整数字面量 `-1` 的对照成功。
+
+同一最终 macOS 产物在父在外块、子在内块时复现下一项边界。
+两公开入口 check 均通过，原生生成均报 UnsupportedNode。
+删除内块 if 后，两入口均退出 0，输出与资源顺序符合预期。
+后续核对外层父 loan 在内层分支及内层作用域退出的运输。
+
+最终模块布局在 macOS arm64、离线 Linux x86_64 默认线程和默认栈各
+通过相同 25 项，且同一源码清单的单臂、双臂各经两个公开入口
+原生运行，两宿主共 8 个进程。输出逐字节一致，退出 0，stderr
+为空。最终 macOS 重验动态与字面量负号及嵌套作用域对照。
+codegen 全 target 严格 Clippy、格式、尺寸和文档门禁通过。
+完整 Range 模块及新 PR-event CI 待后续批次。
+
+
+## 341. R4 内块 metadata 别名与外层 RangeView 父描述符
+
+§340 的单文件和跨文件项目复现加强为合流后读子、离开内块后再读父。
+两个入口通过 check，改动前均在原生准入报 UnsupportedNode。
+正式红测在内块语句 if 的完整 span 复现。
+
+准入沿 AST 普通块的直接父链查找已解析的父绑定，遇到控制体
+即停止。子别名和真实父各自核对唯一的词法结束点、同根、来源 loan
+及先声明后借用。两份绑定合同使用同一子块的普通 if 证据。
+不为内块创建新的 transport 或改写 cleanup。现有生成器消费前端
+的结束事实，SSA 验证器仍检查实际依赖。算术、短路、Abort 和
+不相关控制不分享本次准入。
+
+独立复审核对了 AST 父链、事实身份与其他准入边界。复审指出
+原生析构输出不足以定位子 loan 的精确结束点。补加 typed SSA
+级回归，检查子借用在合流后最后一次内块读取与外块父读取之间
+结束，父描述符结束排在外块读取之后。
+
+当前编译器源码清单 SHA-256 为
+`f253426b3704b0df5e9329cd64f70964b9870350d6d17dbe3de3048cb630389c`。
+macOS 的 SSA 定向断言通过，普通内块和两层普通块的公开单文件及跨
+文件项目原生运行与预期一致。将其中一层换成外部 if 的控制体后，
+macOS 单文件仍在原生准入报 UnsupportedNode。该边界暂仍开放。
+
+同一清单的 macOS arm64 完整 Range lowering 模块 333 项通过。
+离线 Linux x86_64 的 27 项定向测试通过，含同块、嵌套块、SSA 结束
+顺序及保留的准入负例。两宿主以默认线程和栈执行。两种词法深度与
+分支形态经两个公开入口各运行，两宿主共 8 个进程，全部退出 0，
+stdout 逐字节一致，stderr 为空。macOS codegen 全 target 严格
+Clippy、格式、尺寸及文档门禁通过。Linux 全模块和新 PR-event CI
+未在这轮执行。
+
+
+## 342. R4 外层 if 控制臂中的 RangeView metadata 别名
+
+§341 的单文件探针扩展为控制体直接绑定和控制体内有一层普通块
+两种形态。各自的公开单文件与跨文件项目均通过前端 check，
+旧候选四个入口的原生准入均报 UnsupportedNode。正式红测在
+内层 if 的完整 span 重现。
+
+准入从实际 AST 父关系定位直接的外层语句式 if 及匹配的控制臂，
+核对父的唯一 scope end、真实 metadata 别名和子的唯一 scope end。
+经证明的臂按实际语句逐条核验，只接受已核实的直接别名、普通内层 if
+和只读 Unit 调用。外层条件和其他语句仍用普通 if 检查。
+现有 lowering 与 SSA verifier 继续消费实际路径上的结束事实。
+不相关的控制嵌套、Arm 退出、动态负号和其他独立准入保持原边界。
+
+独立复审核对了实际臂身份、来源与作用域、受检查的表达式和
+正常结束路径。原生回归用动态条件执行内层真、内层假及外层跳过，
+覆盖 MemoryDocument、Unit 以及重排输入的 Unit。
+候选编译器源码清单 SHA-256 为
+`03b572d704655b75618c672e230c41746a9957c52064e351de6720b1cf7fdd15`。
+
+macOS 定向 28 项与两个公开入口通过。外层假臂主动读取父并
+在外层合流后再读，真臂在内层分支和合流后读子，外层再读父，
+所有资源按 second、first 各析构一次。单文件另验证别名居于 else
+臂同样成功。另一臂含显式 Abort 的对照仍报 UnsupportedNode。
+外层控制臂到别名间若插入两层普通块，macOS 单文件和跨文件
+项目均通过前端 check，但原生准入仍报 UnsupportedNode。
+前述覆盖只代表当前控制臂证明。
+
+同一清单在 macOS arm64 完整 Range lowering 模块通过 334 项，
+在离线 Linux x86_64 通过 28 项定向测试。两宿主默认线程与栈，
+两种源码形态各走单文件和项目入口，共 8 次原生运行，均退出 0，
+stdout 与预期逐字节一致且 stderr 为空。macOS codegen 全 target
+严格 Clippy、格式、尺寸及文档门禁通过。本轮未运行 Linux
+完整 Range 模块和新 PR-event CI。
+
+
+## 343. R4 外层 if 臂的多层普通块
+
+§342 的尾项扩展为两层及四层普通块。两种源码在旧候选各经
+单文件、跨文件项目通过前端 check，原生准入均报 UnsupportedNode。
+正式红测在两层版本的内层 if span 重现。
+
+沿 AST 中实际的普通块链上行，从别名块到外层 if 臂下的最外块
+逐层核验。父块只跳过已检查的直接子块，其余语句继续受只读合同
+约束。来源事实仍核对真实父描述符、先声明、同根以及各自唯一结束点。
+外层条件和其他臂、未获准的控制与退出规则仍走现有门禁。
+独立复核了实际 parent edge、结束事实以及逐层检查后才放行外层臂。
+回归覆盖零、一、二、四层及动态真假路径，另保留中间未经证明声明
+的拒绝。候选编译器源码清单 SHA-256 为
+`537df39dd71c4d2027e94466e0876dc6166277c8ccdb0530458b5771c0ab82ff`。
+
+macOS 的 29 项定向测试通过。公开单文件和跨文件项目在两层、
+四层均执行内层真/假和外层跳过，包含中间层读父、合流读父以及
+second、first 各一次析构。对同一公开单文件只插入中间声明，
+前端仍通过，原生生成报 UnsupportedNode。再套一层外部 if 的
+独立对照在 macOS 单文件和跨文件项目仍通过 check、原生准入失败；
+额外控制臂的事实组合仍待验证。
+
+同一清单的 macOS 完整 Range lowering 模块 335 项通过。Linux
+默认并行在 165 项后无进展，最终退出 124。原二进制默认栈串行
+在 700 秒前完成 332 项，也退出 124。保存该二进制，用测试清单
+定位未完成的三个临时资源、循环清理与 verifier 用例后串行补跑，
+三项均通过。两批无重复，合计逐个通过 Linux 清单的 335 个测试，
+并与 macOS 测试身份一致。Linux 的单次默认并行验收仍未完成。
+
+双宿主定向各 29 项通过。两种深度经两个公开入口共 8 个原生进程
+均退出 0，stdout 逐字节一致，stderr 为空。Clippy、格式、尺寸与
+文档门禁通过。该候选仍无新 PR-event CI。
+
+
+## 344. R4 外层普通块父描述符跨多层 if 臂
+
+§343 的多层 if 尾项扩展为直接控制体和插入两层普通块的形态。
+四个旧候选公开入口均通过前端 check，原生准入报 UnsupportedNode。
+正式红测在内层 if 完整 span 重现。
+
+父查找遍历实际 AST 的候选包围作用域，遇控制体时只通过其实际
+所属的直接语句式 if。准入从最内侧逐层验证已核验直接子块和 if，
+每层其余语句、条件及另一臂继续满足已限定的只读控制合同。
+局部控制集合仅在整条路径通过后发布。来源、唯一结束点及后端清理
+继续用原有事实，loop、动态负号和提前退出保持原门禁。
+
+独立复审核对了实际 AST 关系、父子来源、结束事实及失败行为。
+原生回归覆盖内层真/假和两级各自跳过，父视图在跳过臂及最终
+合流后读取。父描述符仍声明于外层普通 Block。
+候选编译器源码清单 SHA-256 为
+`a1b9b33a8c787955b89c16f296500e6cfeb2d9797950e43a36d51340e663f35f`。
+
+macOS 定向 30 项通过。直接与普通块间隔的公开单文件、跨文件
+项目输出与预期一致。对同一测试形态，在中间 if 的另一臂放入 Abort，
+或在两层 if 间加未经证明的声明，均通过前端 check、原生准入拒绝。
+将父描述符移入外侧控制臂后，macOS 两公开入口仍通过前端检查，
+原生准入报 UnsupportedNode。该父作用域另待处理。
+
+同一编译器源码清单在 macOS arm64 和离线 Linux x86_64 各通过
+30 项定向测试。两形态、两个公开入口在两宿主共 8 个原生进程，
+均退出 0，stdout 逐字节一致，stderr 为空。macOS codegen 全
+target 严格 Clippy、格式、尺寸及文档门禁通过。上一候选的完整
+Range 结果见 §343，本候选未重跑全模块与新 PR-event CI。
+
+
+## 345. R4 外层 if 臂内建立父 RangeView
+
+§344 的尾项扩展为直接控制体和臂内普通块两个形态。四个旧候选
+公开入口均通过前端 check，原生准入为 UnsupportedNode。正式红测
+在内层 if 完整 span 重现。
+
+候选开始核对 ControlBody 内真实父符号与唯一词法结束点。仅当
+新描述符是所验证叶作用域中 metadata 别名的真实父时，才在该臂
+按有界合同准入其声明。初始化必须是确切的 typed Carrier 调用，
+有相符调用、实参、实际存储根的来源 loan。调用的参数与 receiver
+使用现有只读模式，操作数继续验证。外部条件和另一臂保留原门禁，
+描述符和别名现有的生成、释放和 SSA 验证路径保持一致。
+
+独立复审未发现生产逻辑阻断项，指出运行输出本身无法证明
+RangeEnd 所在边。新增 SSA 回归检查子借用结束在父读取之前，
+父 RangeEnd 在外层真正合流之前，跳过臂直接进入合流。
+原生回归使用会输出标记的计数调用，核对只在进入外层臂时
+建立父描述符及四条路径的读取和根析构顺序。
+首个候选在 SSA 回归的父位于臂体、子位于同臂普通子块形态仍误拒，
+两宿主均复现。父查找现包含实际所属的 ControlBody。逐句核验
+覆盖该臂，且只跳过前一步已验证的直接子块。独立复审补核该增量。
+最终候选编译器源码清单 SHA-256 为
+`1e20913abd3d9bf272d4f3a10eee4bdf66914cf72c2b054f995fd32090f83de6`。
+
+该清单在 macOS arm64 默认栈通过完整 Range lowering 模块 338 项。
+两个源码形态的单文件及跨文件项目原生 stdout 与预期逐字节一致，
+stderr 为空。含 `own` 或 `inout` 操作数的父描述符初始化在独立
+单文件对照仍通过前端 check、原生准入报 UnsupportedNode。
+macOS codegen 全 target 严格 Clippy、格式、尺寸和文档门禁通过。
+
+离线 Linux x86_64 在同一清单上通过默认栈 32 项定向回归。
+两种源码形态的两个公开入口共 8 个原生进程退出 0。两宿主
+输出逐字节相同，stderr 为空。该清单未重跑 Linux 完整 Range
+模块，未触发新 PR-event CI。
+
+仅把外侧条件改为 `outer && middle`，两个公开入口均通过前端
+check、原生准入报 UnsupportedNode。该条件的 CFG 是下一验证边界。
+
+## 346. R4 包住 RangeView 别名作用域的短路条件
+
+§345 冻结候选的正式红测明确拒绝 `left && rhs(right)` 的逻辑根，
+报 UnsupportedNode。该条件属于已获准的外层语句式 if，但原有
+借用绑定门禁仍检查其独立 AST 节点。单文件与跨文件项目亦复现。
+
+核验外层语句与其直接子作用域后，再以原有短路操作数合同验证
+完整条件。通过时只把该逻辑根加入当前包围链的暂存集合，各层
+全数通过后才发布。条件必须是单层 Boolean 短路，沿用已存在的
+只读调用准入，禁止 `own`、`inout`、嵌套短路及其他隐式控制流。
+已有 SSA 生成仍负责条件分支和描述符清理。
+
+独立复审核对旧门禁等价、包围链发布时点和只读调用权限。
+正式原生回归用输出确认 RHS 的跳过与求值，以及父描述符仅在
+执行臂创建、资源在合流后析构。短路测试无单独的 SSA 结束点
+断言，上一节有裸 Boolean 条件的 BorrowEnd 和 RangeEnd 断言。
+候选编译器源码清单 SHA-256 为
+`7126fc059b59a0d1f7a7491776760b274bec45cf3c0bb48b92cebc4babe1ec42`。
+
+同一清单在离线 Linux x86_64 通过默认栈 26 项定向回归。
+macOS arm64 与 Linux x86_64 的 `&&`、`||` 各使用单文件
+和跨文件项目，8 个原生进程退出 0，stdout 与逐字节预期一致，
+stderr 为空。两宿主两种入口各用 `inout` 条件和嵌套逻辑条件
+对照，均通过前端 check，原生准入保留 UnsupportedNode。
+
+拆分前 macOS 通过 `short_circuit` 的 99 项过滤测试，并通过
+严格 Clippy。尺寸门禁拒绝 1018 行的原文件。随后移出既有短路
+准入模块，未变更逻辑内容，以去除格式空白的模块文本比对核验。
+拆分后的编译器源码清单 SHA-256 为
+`ea8411906c23a68c94b00021b72d5fe811f80cd12431c36ccd83631cf6cdc78a`。
+
+拆分前编译器另通过 macOS 公开 conformance 门禁及证据复验。
+能力为 137/154，综合程序 0/6，23 项已知未实现，零回归、
+内部错误和入口差异。该 conformance 结果归拆分前二进制。
+
+最终拆分后，macOS 通过 19 项 Range carrier、7 项短路边界、
+14 项依赖防回流测试及严格 Clippy。离线 Linux 通过同范围内
+26 项 Range carrier 和短路边界测试。再跑 `&&`、`||` 两宿主
+两入口的 8 个原生进程，输出逐字节一致。两组负向输入在两个
+宿主的两入口保留上述拒绝。格式、尺寸、文档检查通过。
+未对该候选运行新 PR-event CI。
+
+## 347. R0/R4 合入 PR #444 后的基线对账
+
+本地复审分支由 `625f6804` 快进到 `6cc03907`，恢复了原有
+未提交改动和新增文件。两处相交的 architecture 文档自动合并，
+其余本地文件与合入前备份逐字节一致。§345–346 的原测试结果
+仍归各自的编译器清单。当前待验收的源码是 `6cc03907` 加本地
+差异，编译器源码清单 SHA-256 为
+`87a7c56c5100910009eba5627b2973c082d55d116545d56be65e46099e206a1a`。
+
+重新用 §338 口径数纯基线中的文件数／匹配行数，排除同一行
+的函数定义。如下变化为 PR #444 合入后这两个基线的差异。
+
+| 范围 | resolve_names | check_types | check_ownership | complete_file_types | lower_scalar_file_with_entry |
+|---|---:|---:|---:|---:|---:|
+| frontend tests | 81/153 → 73/133 | 70/107 → 62/88 | 48/73 → 45/70 | 22/30 → 21/25 | 0/0 |
+| codegen src | 15/18 → 13/15 | 15/18 → 13/15 | 14/17 → 12/14 | 7/7 → 5/5 | 4/8 → 2/5 |
+
+frontend src 计数沿用 §338，CLI 与 LSP src 对这五项仍为零。
+剩余两个旧 Single lowering 直接消费文件为
+`lowering_entry_contract_tests.rs`（入口合同）和
+`single_readonly_method_tests.rs`（旧只读方法对照）。
+仓外 API 和其余 legacy 见证分类仍待验收。
+
+合入后的同一编译器源码清单在 macOS arm64 和离线 Linux x86_64
+逐项通过相同的 50 个定向测试，覆盖 carrier、短路边界、可空
+写回和旧入口防回流。短路两形态和局部 `String?` 写回通过
+两宿主的单文件及跨文件项目入口。12 个原生进程退出 0，stdout
+逐字节相同，stderr 为空。短路嵌套和 `inout` 条件的负向入口
+仍通过前端 check 并在生成阶段拒绝。macOS 的 `check_cli`
+另通过 7 项，格式、文档、尺寸及 diff 检查均通过。
+此清单未运行完整 conformance 或新 PR-event CI。
+
+## 348. R0 保留见证与 R5 合入 #444 后的候选复验
+
+沿用 §347 的 `6cc03907` 加本地差异，复验前校对编译器源码
+清单。两个仍直接调用旧 Single lowering 的文件已逐项核对。
+`lowering_entry_contract_tests.rs` 保留 L0170 及诊断、
+分析身份、来源身份的原始拒绝顺序。其 Unit 入口诊断有独立
+见证。 `single_readonly_method_tests.rs` 保留旧只读接收者与
+结果组合的拒绝边界，同文件的正常入口对照继续走 Unit。
+macOS 的这两个模块共 70 项通过。保留范围均属于测试见证。
+
+macOS 复跑完整公开 conformance 门禁及证据复验。能力探针
+137/154，综合程序 0/6，23 项已知未实现，零回归、内部错误、
+错误输出或入口差异。标准库 Word Frequency 的 40 条公开命令
+通过。LSP 的 56 项单测和 1 项真实 stdio 格式化测试通过。
+
+离线 Linux x86_64 在相同编译器源码上完成 154 个探针及 6 个
+综合程序，证据复验通过。官方比较器核对不同宿主的输入清单、
+两入口状态和成功输出的 SHA-256，完整 SHA 字段
+`6cc03907a1bf37d3cdc9ce6e6ccba1a15326ed6b` 双宿主对账通过。
+第一次比较因 macOS 默认写短 SHA、Linux 写完整 SHA 拒绝。
+确认二者解析到同一基线后，用完整 SHA 在 macOS 重跑原矩阵，
+保留第一次证据。两宿主的 Word Frequency 公开命令各通过 40 条。
+
+综合程序两入口保留的首个失败如下，路线图依赖沿用
+`conformance/expectations.json` 的已审条目。后端两项的公开
+诊断未定位具体节点，仍需单独缩减。
+
+| 综合程序 | 首个失败 | 已登记依赖 |
+|---|---|---|
+| `config_parse` | L0080 未解析名称 | N02、N08、L1、L2 |
+| `expr_eval` | L0165 错误传播类型未完成 | N02、N05、N07、N08、L7 |
+| `linked_stack` | L0085 非空断言操作数不可空 | N01、N03、N07、L7 |
+| `raii_state_machine` | 后端 UnsupportedNode | N01、N02 |
+| `varint_codec` | 后端 UnsupportedNode | N01、N08、L3b |
+| `word_count` | L0165 调用类型未解析 | N02、N03 |
+
+Linux x86_64 的原生 ASan/LSan 门禁退出 0。实际 Koven LLVM
+通过属性开关核验、ASan 和 LSan 的 12 个动态开关对照，以及
+Map 和 12 个 provider 生命周期形态的 ASan/LSan 运行。
+
+macOS 生成资源门禁按原门限独立复跑退出 0。16 个计数用例、
+故障校准、检查器变异和故障缩减按该平台的 partial 验收通过，
+没有把 macOS 结果计为 Linux sanitizer 覆盖。此前三个运行的
+5 秒超时分别发生在两个新计数产物和一次 clean 缩减重放，
+其中第二轮正常用例已经全部通过。三件原超时产物随后各用
+原进程执行器和原门限独立重放三次，九次均通过。保留这些
+间歇性超时记录，未更改测试门限或确定其根因。
+
+Linux 生成资源套件起初两次因容器 Git 元数据不可用、临时
+worktree 目录只读退出。修正隔离工作区后，全套通过 16 个资源
+用例、故障校准和检查器红绿对照，仍在故障缩减上用尽原
+120 秒预算。随后用同一导出器单独复跑，宿主挂载产物目录与
+容器内部产物目录均在原门限返回 `minimization_incomplete`，
+完成的候选次数分别为 6 和 3，均未进入最终三次确认。
+Linux 完整生成资源门禁仍未通过，保留原门限和失败证据。
+这组结果来自离线容器，当前源码尚无新 PR-event CI。
+
+## 349. R0 frontend src 旧分析入口的直接调用归属
+
+在 §347 的源码上排除同一行的函数定义，逐一核对旧
+`check_types`、`check_ownership` 的直接调用及实际模块入口。
+两列均以文件数／匹配行数计，类型和所有权入口分别覆盖
+§347 的 40/50 与 22/23。
+
+| 调用归属 | check_types | check_ownership |
+|---|---:|---:|
+| 迭代事实测试、重放和私有迭代产物校验 | 28/38 | 12/12 |
+| no-carry 循环、两源形状及 Unit 事件对照 | 3/3 | 3/3 |
+| Unit 两源候选带相应 feature 的测试 | 1/1 | 1/1 |
+| 研究借用消费、frame、循环和零趟辅助测试 | 5/5 | 5/6 |
+| 形成产物、嵌套 origin 和借用结果来源测试 | 3/3 | 1/1 |
+
+迭代测试和 `instance_replay` 从 `cfg(test)` 模块进入。
+迭代产物校验由 `checked_file.rs` 通过测试专用的
+`#[path]` 挂载。研究模块有实验 feature 入口，统计到的
+直接调用均在各自 `cfg(test)` 子模块。Unit 两源测试另受
+`loan-observation-test-support` 约束。该静态分类说明为何
+这些直接调用计入 frontend src 但属于测试。集成测试各自的
+迁移或保留理由、间接和仓外调用仍单独追踪。
+
+同口径复查其余两个 frontend 入口。三个
+`complete_file_types` 直接调用分别来自形成产物和私有迭代
+产物验证测试。 `resolve_names` 有一个生产调用，
+`CompilationUnitNames` 的构建器逐文件调用它以取得局部名称
+事实，再由 Unit 模型组合 package/import。该共享底层求解
+仍有生产职责，清点旧类型和所有权入口时须保留。
+其余直接调用来自测试。
+
+macOS 的 Unit 单源恢复模块通过 3 项测试，其中 import-free
+原始输入对照直接验证逐文件名称事实、Unit 来源和入口身份，
+另两项核对首个真实诊断阶段与缺 return 时的范围。
+
+## 350. R4 RAII 综合程序的两个独立后端边界
+
+沿用 §347 的 `6cc03907` 加本地差异和 §348 对过 SHA-256 的
+两个编译器二进制。原程序通过前端，原生构建报 UnsupportedNode。
+取出原 `Handle` 与一个只构造它的入口，得到第一组最小输入：
+
+```ko
+class Handle(val id: Int) {
+    deinit() { println("handle #${this.id} released") }
+}
+fun main(): Unit { val item = Handle(1) }
+```
+
+把字段先读到局部，再插值，结果相同。去掉析构，把字段插值
+放到普通入口同样失败。改用纯文本文字的析构对照实际输出
+`handle released` 一次。四个输入在 macOS arm64、离线 Linux
+x86_64 的单文件和跨文件项目入口都通过 check。三个插值形态
+的 12 次原生构建报 UnsupportedNode，纯文本的四次原生运行
+输出精确匹配。这与 roadmap L2、现有 Unit 入口插值拒绝见证
+以及 refine 字符串文字的 `decode_plain` 门禁一致，归已知
+语言增量欠账。本轮未改现有 oracle 或启用 L2。
+
+将综合程序全部插值改成纯文本后，macOS 单文件仍失败。
+此时只构造 Handle、只遍历 Command 列表及只调用普通文本的
+Command.label 均可运行。只构造 Session 仍失败，但把 Session
+析构改为纯文本后可运行。移除其余字段和尾部拼接后，仍有第二组：
+
+```ko
+class Session(val name: String) {
+    deinit() { println("session " + this.name) }
+}
+fun main(): Unit { val box = Session("a") }
+```
+
+在普通函数用 `"session " + box.name` 也失败。直接打印字段、
+先显式 clone 字段再拼接、具名 String 局部拼接三个对照可运行。
+五种形态的双宿主、双入口共 20 次前端检查均通过。两种字段
+拼接的 8 次原生构建报 UnsupportedNode，三个对照共 12 次
+退出 0，两宿主 stdout 逐字节相同，stderr 为空。
+静态检查发现 refine 的 String 二元操作数准入能读取具名借用
+和判空 proof，普通投影准入要求字段可复制。已有打印和 clone
+各有字段借用路径。将它们作为后续修复的参考，核对两操作数的
+求值、字段与父对象借用结束、提前退出边和拼接产物的清理；
+仅放宽准入无法证明构建与生存期正确。此组合属于已标为交付
+的 B07 拼接合同，单独列为 R4 未关闭项。
+
+补核 §348 的 Linux 缩减耗时。容器内部磁盘的回放中，已有
+命令计时的导出共约 29.7 秒，三类原生产物的编译和链接共约 88.1 秒，
+三类原生进程本身合计约 2 秒。其他回放同样主要耗在重复导出
+和链接。这解释原 120 秒预算被消耗在哪里，尚未定位这些命令
+各自偏慢的根因。资源门禁结论和预算维持 §348。
+
+## 351. R3/R4 稳定 String 字段的共享二元读取
+
+§350 的 Field String 拼接用例在普通 Unit 与常量 Unit 共用的
+跨文件原生测试中先红测。补测还发现左字段完成读取后，前端
+误接受右操作数替换同一字段。原前端负例缺少应有 L0135。
+
+前端为有稳定 place 的 String 字段发布二元操作专用的共享借用
+来源，右侧求值期间左侧保留实际字段路径。同字段替换被拒绝，
+同一根的相邻字段可正常替换。析构规划把字段父对象纳入二元
+操作数最后使用和提前退出的合同。String when 继续使用原路径。
+
+Refine 只在同源二元操作消费匹配的共享 place 事实，复用
+String.clone 的字段准入和既有投影借用构造。按左到右顺序
+求值，正常操作后逆序结束本次新建的字段借用，随后消费
+`AfterBinaryOperands` 清理。提前退出走现有 pending loan
+清理，Abort 保持不展开。这一片覆盖具名稳定字段，包括析构
+中的 this、普通局部、own 参数读取和有证据的字段链。
+
+独立复审核对了短借用、同字段冲突和前后端合同。按复审发现
+补齐 own 参数读取。测试曾把 own 参数读取与其字段替换写在
+同一函数，后者单独执行也仍处于现有 UnsupportedNode 边界。
+拆开的正例验证具名局部的相邻字段替换与 own 参数字段读取，
+未改动原字段替换能力。既有只读方法和 nullable 字段正例纳入
+同一 macOS 筛选套件。
+
+候选编译器源码清单 SHA-256 为
+`67337df7bcc30871b18119cc20ae5257657f6b8d498cd4e36583635e8139d003`。
+macOS 通过 15 项 field replace 前端测试和 8 项 codegen 定向测试，
+两项新增原生回归分别覆盖普通和常量 Unit。两个公开入口验证
+普通拼接、右侧 continue 与 break 的析构，以及右侧 Abort 的
+退出码 134 和无析构输出。同字段冲突的两个公开入口均报 L0135。
+
+macOS 另通过 7 项 String 二元相邻清理测试、19 项 String when
+测试及 frontend/codegen 库严格 Clippy。重跑 §350 的纯文本
+Session 构造对照，已输出 `session a dropped` 一次。原 RAII
+综合程序仍报 UnsupportedNode，把所有插值换成纯文本后调用
+`Session.apply` 也仍报同一错误，尚未定位该方法内的具体节点。
+本切片不将 RAII 综合程序计为通过。
+
+离线 Linux x86_64 的同一清单也通过 15 项 field replace 前端测试。
+两宿主两个公开入口的普通、循环和 Abort 用例共 12 个原生进程，
+stdout 逐字节一致。普通和循环退出 0，Abort 退出 134，仅打印
+退出前缀并报告原错误。四个同字段冲突入口都报同一个 L0135。
+相邻字段原生写回、字段相等、own 参数拼接和分组的四个额外
+单文件探针在两宿主输出逐字节一致。文档、格式、尺寸及 diff
+检查通过。本轮未启动新 PR CI 或复跑全套 conformance。
+
+## 352. R4 RAII 接收者字段交换的缩减
+
+沿用 §351 的源码清单。纯文本版 `Session.apply` 的单操作探针
+中，空方法、打印、State 字段读取及判断、命令分支和各项普通
+字段写回均能构建。保留 `replace(&this.handle, null)` 即可
+重现 UnsupportedNode。进一步移除不相干的类型与语句后，
+可空 Handle 的清空、从 null 换入 Handle、非空 Handle 交换、
+Int 交换均复现。四种输入共 16 次 macOS/Linux 单文件与项目
+检查通过，生成阶段均报 UnsupportedNode。局部普通 class
+上同类可空交换的四个构建与运行通过，输出按先 `done` 后旧
+资源析构的顺序逐字节一致。
+
+把纯文本综合程序唯一的接收者字段 replace 换成普通赋值，
+两宿主的单文件和跨文件项目均运行。其关闭分支先析构旧
+Handle，再打印关闭标记。这只用来隔离失败，普通赋值
+没有交付旧 owner，不能作为 replace 的修复或验收。
+
+Guide 10 明确包含 `replace(&this.state, ...)`。当前 field
+replace producer 和损坏事实校验封闭在自有局部对象的一级
+字段路径，前端已有 `this` 无可执行计划的对照。
+`HeapFieldExchange` 的 owner 是自有 Value 并要求精确字段 loan，
+`HeapFieldReplace` 虽接收独占 receiver loan，但会立即析构旧值。
+此处需要能保留原接收者独占权限、交付旧字段 owner 和验证前缀
+退出的交换合同。本节记录现有边界，未扩展该 SSA 合同。
+
+## 353. R4 varint 编解码的容器字段长度读取
+
+在 §351 候选上，去掉 `varint_codec` 的字符串插值后仍报
+UnsupportedNode。ZigZag 运算、纯文本 bytesText、只构造 Reader
+可构建。单独调用 `Reader.atEnd()`、编码或解码各自失败。
+Reader 的第一个最小失败为返回 `this.bytes.size` 的只读方法，
+同一类型的 `reader.bytes.size` 局部对象对照可构建。
+新增跨文件原生测试在方法内字段投影处先红测。
+
+前端已为 `.size` 发布实际接收者的共享 loan。细化层现消费
+同轮、同表达式的稳定字段 Place 事实，复用现有字段只读准入
+和投影 loan。读取 `ContainerLength` 后逆序结束本次建立的
+借用，再按既有 `CallReturn` 与接收者表达式清理。普通
+`.size` 与 String 二元读取沿用原合同。独立静态复核通过，
+指出临时父对象的字段接收者仍走 Temporary 边界。
+
+当前编译器源码清单 SHA-256 为
+`6d57a8b879832e310781ea6b7628b6c4845f04c5f3fb163b7c380a7d4bfaef4e`。
+macOS 新增原生测试在基础 Unit 和常量 Unit 分别验证重复
+读取、析构中的字段读取及清理输出。macOS arm64 与离线 Linux x86_64
+各用单文件和项目入口验证五种访问形态，覆盖 Reader 整体方法、
+分组、局部对象对照、Inout 接收者的数组及嵌套 List 字段。
+20 次原生运行退出 0，双宿主对应 stdout 逐字节相同，stderr 为空。
+
+编码的最小失败另缩减为对 `inout MutableList` 参数调用
+`add`，Int 和 UByte 元素均通过 check、原生生成失败。
+同一个 Inout 参数无修改的调用与局部 MutableList 上的
+`toUByte()` 后 add 均可运行。这条 Inout 修改路径和完整
+解码仍待复审，本次未改变 varint 综合程序的 oracle。
+
+
+## 354. R4 MutableList 的 Inout 形参追加
+
+§353 的 UByte 最小用例扩展至九次追加，验收扩容后的长度与首尾
+元素，并用有输出的参数表达式核对求值次数。跨包 MoveOnly 资源
+用例同样通过前端、在原候选生成失败。细化层消费原有 append 类型描述
+和元素移交事实，SSA 以独立指令表达同一 Inout 地址上的 header 更新。
+LLVM 复用普通 append 的容量增长和 relocation，正常返回后由
+调用方取回更新后的 owner。局部值追加继续通过既有结果更新 owner。
+
+初次独立复审发现新指令的来源合同过宽。本地独占 loan 不能替代
+Inout 形参的写回协议，已沿用形参来源证明，并验证拒绝本地、
+共享及尚有活跃派生 loan 的输入。Provider 派生 place 的直接
+读写、借用和继续投影共用活跃性检查。Guide 10 的同根
+`list.add(list.size)` 通过短期共享重借用，在 append 前结束。
+测试从四个元素起步，检查扩容后的第五个元素仍为求值前的长度 4。
+
+扩大容器回归还发现 SPEC-0350 的旧拒绝见证，在 §336 已完成
+泛型 `T?` 布局登记后仍要求 MissingFact。原候选的现有测试可
+独立复现此断言失败。新见证保留 per-family 路由，在
+Array、List、MutableList 的 Int 实例上核对 canonical 类型、
+空容器长度、null 与 present，并保持 arena 不变。实例预算
+失败时的输出文件原子性仍由同模块既有负例覆盖。
+
+macOS arm64 的 provider 修订候选（编译器源码清单 SHA-256
+`81b41e83f46816ca5b9be3d1ab227edf1ff0c8cdc3698dabbb2842d49be39368`）
+通过 12 项容器 SSA 测试、两个新增原生 append 用例及三容器
+泛型可空见证。同一源码清单的 macOS arm64 与离线 Linux x86_64
+各运行五组单文件与跨文件项目，共 20 次原生执行退出 0，
+10 对 stdout 逐字节一致，stderr 全空。矩阵核对 UByte 扩容与
+求值、资源逆序单次析构、原 varint 编码、同根长度及元素求值
+中的提前 return。macOS 另核对 0、-1、64、Int 最小值和最大值
+的实际编码字节，并通过 codegen 测试目标的严格 Clippy。
+完整 varint 解码仍未通过。
+同一清单在两宿主两入口均可单独读取 Reader 的 pos 和容器
+字段长度。局部对象的 `reader.bytes[0]`、方法内的
+`this.bytes[0]` 和 `this.bytes[this.pos]` 共 12 次前端
+检查均通过，生成均报 UnsupportedNode。源码索引的首个
+准入限制是细化层要求具名容器 owner。这是解码的下一个复审范围。
+
+补齐 SSA 文本见证后，新清单 SHA-256 为
+`1c43a628dbdc78bf1e8535db7cf4149986f45d9e3b96876b5788b8b365b12b51`。
+macOS 上通过容器 SSA 12 项、append 3 项、泛型可空见证
+1 项和 String 字段回归 8 项。该清单的五组双宿主、双入口
+复跑中，20 次原生运行退出 0，10 对 stdout 逐字节相等，
+stderr 为空。格式、文档、尺寸和 diff 检查通过。§353
+原候选的扩大容器回归为 167 通过、1 失败，唯一失败为上述
+旧泛型 Int? 拒绝见证。最终清单的 Linux Rust 定向复跑通过
+append 3 项、派生 place 生命周期 1 项和泛型可空见证 1 项，
+macOS 测试目标严格 Clippy 通过。扩大容器回归及新 PR-event
+CI 仍需在合批候选收口。
+
+
+## 355. R3/R4 稳定容器字段的 Copyable 元素索引
+
+以 §354 的冻结源码为对照，新增跨包原生回归在
+`reader.bytes[0].toInt()` 首次报 UnsupportedNode。字段索引
+现消费原 typed element place 与字段投影描述。先建立同一稳定
+字段的共享投影，后按源码顺序求一次索引，再执行既有边界检查
+及 Copyable 元素读取。正常路径逆序结束此次建立的投影 loan。
+
+第二个最小失败为 `reader.bytes[readPos(reader)]`。普通无
+`deinit` 的 owner 在索引调用返回时被当成最后一次使用，可在
+元素读取之前收到析构事实。R3 现将 backing root 保持到整个
+索引求值结束。跳转前缀保留该根，`break` 和 `continue`
+自身仍按真实目标活性决定清理。直接具名容器
+`bytes[advance(&bytes)]` 的原 InvalidModel 随之修复。
+
+提前退出由索引表达式的词法作用域和循环边界决定。真正返回时
+先完成 payload，再结束该边上的外层索引 loan。若 payload
+先通过内部循环的 `break` 或 `continue` 跳走，保留该循环
+之外的索引。独立复审定位过 `when` selector 与共享臂的前缀
+状态，以及循环构建顺序的同类问题。最终实现独立记录索引作用域，
+避免从其它 CFG 边的 lowering 状态推断当前活跃索引。
+
+在 `inout` receiver 的 `this.bytes[this.pos]` 中，消费
+`this.pos` 时使用短期共享重借用。元素 place 的复制读取
+须绑定活跃 Shared provider。SSA 只忽略该 provider 具有
+唯一来源链的独占祖先，其余冲突及 provider 到期仍照常检查。
+独立最终静态复审核对了这些边界，未发现新的阻断。
+
+冻结编译器源码清单 SHA-256
+`b727b7212e0428598b8c7a2523c9d26fb975ad7634acd6d4f3ec148463b48360`。
+macOS arm64 与离线 Linux x86_64 各通过 13 组单文件及
+跨文件项目运行，覆盖原三项红例、索引求值一次、提前返回、
+`when` 与 `while`、返回值内走 break、循环跳转及 Inout
+receiver 的重复读取。两宿主另以两种入口验证 2 组可观察 varint
+解码，包含整数极值、截断和超长。共 60 次正常运行均退出 0，
+30 对 stdout 逐字节一致，stderr 全空。字段数组索引为负数及
+等于长度各在双宿主、双入口 SIGABRT，共 8 次，均未打印读取
+成功标记。macOS 另核验 break 前最后一次读兄弟字段。
+
+双宿主均通过新增 native 回归、11 项 Inout 字段及 45 项前端
+容器所有权测试。Linux 扩大 codegen 容器回归 173 项全过；
+macOS 另通过 22 项跨文件容器相关所有权测试及严格 Clippy。
+格式、文档、尺寸和 diff 检查通过。临时父对象、Rc payload
+路径与 index 求值中写回同一个字段接收者仍待分别审查。
+
+原 varint oracle 保持不变，综合程序仍报 UnsupportedNode。
+纯文本对照的字节列表、编码循环、往返循环和报告头分别可
+运行。剩余失败可以独立复现为 `Result.Err` 分支的
+`println("error: " + item.error)`，省略循环也失败。直接
+`println(item.error)` 的对照运行并返回正确错误文本；把
+字段赋给 owned 局部的对照因 L0132 拒绝，不能替代借用式拼接。
+本批尚无新 PR-event CI。
+
+
+## 356. R4 窄化枚举载荷的字符串二元读取
+
+§355 的公开红例在 Result.Err 臂用 `"error: " + item.error`，
+直接 `println(item.error)` 则运行。新的跨包回归用普通
+`Outcome` 独立见证，覆盖分组接收者、左右操作数、相等、不等、
+正常返回与右操作数提前 return。准入现复用 Borrow 实参的
+boxed enum 载荷检查，从原 typed receiver 核对活动 case 与
+该 case 的实际字段符号，再用同批二元表达式的 Shared Place
+事实取得载荷 loan。仅查找名字绑定时解开 Group，清理仍消费
+原接收者与原 operand 身份。
+
+lowering 复用既有 TaggedPayloadPlace、FieldPlace 和共享借用。
+完成 String 操作后逆序结束本次创建的借用，再消费
+AfterBinaryOperands。提前退出复用原 pending 借用清理。
+独立复审覆盖了 case/field 匹配、分组、正常和提前退出、
+与原 Borrow 调用的共同准入，未发现阻断。无用例将载荷移出
+enum，且同根独占写回仍由 R3 报 L0135。
+
+冻结编译器源码清单 SHA-256
+`9ab7c82d498a837bedc0a9aa368aebae4df563d014899c792f78b6b42d8ef54a`。
+macOS arm64 与离线 Linux x86_64 均通过普通和常量 Unit 的
+定向回归、String 字段 8 项及 SSA 枚举 15 项。公开单文件和
+跨文件项目各通过 7 组原生用例，28 次进程退出 0，14 对 stdout
+逐字节一致且 stderr 为空。矩阵包含不同 case 同名但不同位置的
+字段，以及带 deinit 的资源载荷在正常与提前返回时各析构一次。
+纯文本版 varint 的完整编码和解码流程均能运行，原综合程序与
+原 oracle 保持不变。macOS 严格 Clippy 及格式、文档、尺寸、
+diff 检查通过。
+
+### 字符串插值的待复审合同
+
+原版 varint 在前端检查后仍报 UnsupportedNode。分别用单个
+String 和 Int 插值重现，不依赖编解码、容器或 Result。Phase 4
+准入与 lowering 只接入纯文本。Phase 2 现遍历 interpolation
+表达式，但未完成 Guide 04 的 Display 校验与分段控制流合同。
+`${println("side effect")}` 被接受，尽管 Unit 不满足 Display。
+`fun result(): Int { println("${return 7}") }` 报 L0088，
+因为外层字符串被记为可继续。双宿主的单文件与项目入口均复现。
+Phase 3 已发布已完成的 MoveOnly 插值输入清理；后端在接入
+之前须有来源明确的格式化合同，并覆核分段求值与退出清理。
+本批尚无新 PR-event CI。
+
+## 357. R2 字符串插值的顺序完成性
+
+沿用 §356 的复现。带提前 return 的插值原先把整个字符串记为
+可继续，导致外层函数误报 L0088。Unit 复用顺序操作数检查器，
+按源码顺序发布 String 的普通完成性与暂定流可达性。即便前缀
+离开当前求值，后缀仍用于类型诊断，但不能为循环补出 break
+或为暂定流引入写入。循环体内与 while 条件中的普通调用同样
+传播实参的暂定终止。条件检查单独保存和恢复这项跟踪状态，
+原有循环跳转归属保持不变。
+
+修复前分别实证了后缀插值、调用后续实参和未分派的 inout 写回
+会使循环后的非空证明失效。流事实收集按已检查的完成性截断，
+并在调用实参全部完成后才登记 inout 效果。循环头尚无 type facts
+时，按同一 AST 节点下标记录语法上可证明的跳转，只沿分组、嵌套
+字符串与直接具名调用的实参检查。保留跳转表达式自身的求值，
+包括 return 值中的可达赋值与 break。安全成员调用和其他无法
+证明的复合表达式继续保守处理。用公开入口确认，当前首段为
+`${if (flag) { break } else { break }}` 时仍可能把后段赋值算入
+循环写入并在后继误报 L0084。只在一臂 break 的对照应保留
+L0084。此复合语法边界单独追踪。循环回归使用内存与磁盘 Unit
+模式，核对跳过写入保留证明、实际写入清除证明及诊断位置。
+
+此项补齐 §356 的 R2 控制流部分。Guide 04 的 Display 准入依赖
+路线图 L1 的预声明协议及实现身份。L2 仍缺借用调用、格式化和
+结果清理的后端接线，原版 varint 的综合程序及原 oracle 保留。
+
+冻结编译器源码清单 SHA-256
+`8a3ffe038e49e7620b5694ac09591ec2d0c865e37f7bef35d135a48874e231f8`。
+独立复核检查顺序写入、return payload 和 while 条件跟踪的
+事务边界，并实跑内层条件 break/continue 归属及顶层 L0142。
+macOS arm64 与离线 Linux x86_64 分别通过跨文件类型 297 项、
+循环流事实 17 项、常量所有权 17 项和 Unit 直接调用借用 358 项。
+两宿主各 689 项，无失败、忽略或过滤。macOS 另通过旧入口
+type_checking 的 103 项、check_cli 的 7 项以及前端严格 Clippy。格式、文档、Rust 尺寸与 diff 门禁通过。
+两宿主各运行 11 组单文件和跨文件 check，对照结果一致。
+另外确认 String、Int 的合法插值暂时停在 UnsupportedNode，
+Unit 插值仍在 check 被错误接受。三种形态各经两入口实跑，
+按 R2/R4 缺口记录。首次脚本漏传项目运行的 entry 参数，修正后
+用该冻结清单重新执行。此切片尚无新 PR-event CI。
+
+## 358. R2 循环预扫描的双臂终止与嵌套循环头
+
+§357 的两臂 break 复现在内存 Unit 回归中先失败。若另一臂
+可继续，后段赋值仍可能执行，后继 Int 读取必须报 L0084。
+修复将既有的语法跳转证明移入私有模块。每次扫描按 AST 类别和
+下标缓存，以后序工作栈合成求值序列或双分支的证明。if 在条件
+必然跳转时保留条件自身，跳过两臂。否则必须有显式 else 且两臂
+都终止，才能跳过外围求值的后缀。顺序控制块保留第一条终止
+语句及其前缀，赋值、调用和 return 值在跳转前的效果仍保留。
+
+独立复审追加了嵌套 while 条件和 for 来源的最小复现。旧 CLI
+在这两种外层跳转之后仍误报 L0084。预扫描现在只沿进入嵌套
+循环体之前求值的头部建立终止证明，保留头部本身的求值。
+循环体中的 break 或 continue 不用于证明外层终止。没有 else
+的 if 和内层循环自行 break 的可达对照仍清除被写入的事实。
+最终独立只读复核核对了上述跳转归属、仍可执行的写入、后序
+缓存和冻结文件的身份。
+
+另有一个仍开放的 R2 复现。内层 `while (cond(x, break))`
+在检查自身条件之前仍从不可达的循环体 `{ x = null }` 收集
+写入，导致条件中先求值的 `x` 误报 L0084。此处与本节修复的
+外围扫描目标不同，已用公开 CLI 独立复现。
+
+冻结编译器源码清单 SHA-256
+`d20899ec56aed14c9e12da954b86ade08645804bc67650a108bf268c28e5acad`。
+macOS arm64 与离线 Linux x86_64 各通过 793 项定向测试，包含
+18 项循环流事实、297 项跨文件类型、17 项常量所有权、358 项
+Unit 直接调用借用和 103 项旧类型入口。两宿主各运行 19 组公开
+单文件及跨文件项目检查，含本节新增 8 组，结果逐项一致。
+两宿主也都在上述自身条件缺口的两种入口得到 L0084，正常
+进入循环体的写入对照同样报 L0084。§357 的插值格式化与
+Display 缺口仍可复现。macOS 的严格 Clippy、格式、文档、
+Rust 尺寸和 diff 门禁通过。远端 main 仍为 `6cc03907`，
+此批尚未提交及触发新的 PR-event CI。
+
+## 359. R2 while 自身条件的求值前缀
+
+§358 的公开复现转为 Unit 红测。由 `x != null` 证明的 x
+在 `while (cond(x, break)) { x = null }` 首个实参位置误报
+L0084。Single 和 Unit 的旧预扫描都先把 body 与 condition
+的写入并入循环头，未核对首个 condition 是否能正常完成。
+
+两个检查器共用同一个循环预扫描入口。若既有语法证明确认
+首个 condition 必跳转，没有回边能将 body 或 condition 本身的
+写入带回首个读取。此时跳过循环头预失效，普通类型检查仍沿
+求值顺序执行写入失效与跳转记录。作为外层循环的一条 statement
+扫描时，嵌套 while 条件内可达的写入仍进入外层回边分析。
+有正常后继的条件继续作原有保守扫描。回归独立检查首个读取、
+同一条件内真实写入后的第二次读取、循环体可写入回边三项合同。
+独立复核核对了新旧入口、外层循环和真实条件前缀的处理。
+
+冻结编译器源码清单 SHA-256
+`cdd0673bc5403f21fb3a08795c95165b07444df2496244130074d54597343872`。
+macOS arm64 和离线 Linux x86_64 各通过 794 项定向测试，
+含 19 项循环、297 项跨文件类型、17 项常量所有权、358 项
+Unit 直接调用借用和 103 项类型入口测试。23 组公开 check 的
+单文件和跨文件项目结果双宿主逐项一致。macOS 的旧
+`check_types` 独立探针也确认死循环体读取得到接受、可达
+循环体的回边仍报 L0084。两宿主以两种入口实际运行提前
+return，验证非空入参返回 7、空入参返回 0。严格 Clippy、
+格式、文档、Rust 尺寸和 diff 门禁通过。当前尚无新 PR CI。
+
+## 360. R4 接收者字段交换的当前候选复现
+
+在 §359 的冻结候选复跑 §352。以方法内
+`replace(&this.value, 2)` 和 `replace(&this.value, null)`
+分别检查 Int 和可空自有资源字段。两份输入的 macOS/Linux
+单文件及跨文件项目 check 均接受，8 次原生生成均报
+UnsupportedNode。自有局部对象的相同交换在两宿主双入口
+各成功。整数对照确认旧值为 1、新值为 2。资源对照依序输出
+`old`、`cleared`、`drop old`，旧资源恰好析构一次。
+
+所有权阶段的一级字段计划仍要求普通类的自有局部对象。
+现有 SSA HeapFieldExchange 消费精确字段 loan 并交付旧值，
+底座要求自有 owner。接收者已有的 HeapFieldReplace 走独占
+loan，但会直接析构旧值。继续保留 Guide 10 的接收者交换
+合同及 §352 的综合程序，后续需同时验证字段独占权限、原有
+替换值求值的提前退出、交换后的旧值交付和析构次数。
+
+## 361. R3 接收者字段交换的独占凭证
+
+§360 的两个用例本来已经各发布一个绑定原调用和字段实参的
+独占 loan，但标准 Unit 所有权没有字段交换计划。新增回归先
+验证这个缺口，确认合法 Int 和可空资源的 loan 存在而 commit
+计划数为零。
+
+普通非泛型 class 的显式 `inout this.field` 现在发布计划。
+producer 核对当前接收者模式、声明、确切可变字段、原投影和新
+值交付。沿用同一字段符号作为 place 根。Unit gate 按调用取冻结
+凭证，复核 typed 投影、声明与字段所属，核验原 loan 和 Value
+交付。接收者声明只在首个此类计划出现时建立索引。旧 owned
+local 仍以对象为根加一级字段路径。交换计划不进入 root commit。
+
+回归覆盖分组字段、整数 Copy、可空资源 Temporary、替换值提前
+return 仍有字段 loan 但无 commit、只读接收者和共享捕获拒绝。
+内部损坏测试以相同字段和类型的另一方法替换接收者声明及投影，
+验证都被拒绝。独立复核沿原 loan 授权、闭包捕获与验证查询逐项
+核对。此切片交付所有权凭证，SSA 与 LLVM 仍待接入。
+
+冻结编译器源码清单 SHA-256
+`6bc07cc9eec361173a8e12f37fd750cbd65314ac4ffd00ef0b99654653fb4f13`。
+两宿主复跑 §360 的单文件及跨文件项目矩阵，确认合法接收者两例
+仍在原生生成报 UnsupportedNode，自有局部对象的写回、返回值
+和资源析构输出保持一致。macOS 另用 constant-enabled Unit 的
+rooted 与 MemoryDocument 入口取得相同合法凭证。补核条件式
+替换值和不同字段的嵌套交换都通过前端，同字段 RHS 读取仍报
+L0135。这三组形态留给后续 SSA 接入验证。
+
+macOS arm64 与离线 Linux x86_64 各通过 43 项定向测试，包括
+18 项字段交换、4 项接收者回边、17 项常量所有权、4 项内部验证。
+内部测试按 field_replace 过滤，其余三套无忽略或过滤。macOS
+严格 Clippy、格式、文档、尺寸及 diff 门禁通过。此批未提交，
+尚无新 PR CI。
+
+## 362. R4 接收者字段交换的 SSA 和原生生成
+
+§361 的所有权凭证接入 refine 的同一准入和构建查询。正常提交
+消费独占子 loan 及替换值，产生独立旧值，父 receiver 保持活跃。
+若替换值确定没有正常出口，准入只消费原 prefix loan。普通
+提前 return 结束子 loan，不交换字段。LLVM 复用工作树中已验证
+的旧值 load 与新值 store，不执行中间析构。
+
+验证器只允许从确切的当前 Inout receiver 建立独占字段投影。
+将其经 CFG 参数传递产生的表示与支配入口视为同一借用身份。
+不同字段的共享或独占投影允许共存。活跃的衍生借用、重叠、
+过期或来源不明的字段 loan 不能作为交换许可。对以 receiver
+为根的共享兄弟字段直接建立投影，避免先借用整个接收者。
+交换结束子 loan 时，provider 验证同步退休其派生 place。
+
+扩大验收曾在共享兄弟字段及纯文本 RAII 上得到 InvalidModel。
+前者经直接共享投影修复。后者由原 verifier 诊断定位到
+接收者在 CFG 中的两种 SSA 表示，确认为同一入口借用后修复。
+独立复核检查了同字段、兄弟字段、独立别名、过期衍生 place、
+提前返回与父借用保护。派生 Borrow 返回的组合仍在已测
+`borrow-return` 形态报 UnsupportedNode，未扩大其 ABI 准入。
+
+冻结编译器源码清单 SHA-256
+`2a927dfb9e8bd2458388f5cf2dd7683fc9067d287a4d6abd10a4d0795376c04f`。
+最终候选将字段渲染、发射和共同类型合同各自归入对应模块，
+三个文件恢复尺寸门禁，未增加例外。macOS 严格 Clippy、
+格式、文档、尺寸及 diff 检查通过。
+
+两宿主的公开单文件与项目运行核对整数、可空资源、已交付旧
+value、local 对照、兄弟字段嵌套交换、共享兄弟字段和两种
+提前 return。另实跑 break 和 continue 前缀，确认取消的交换
+没有改变原字段。Abort 前缀退出 134，仅输出进入标记及既有
+abort 诊断，未观察到交换或析构。两宿主各自匹配纯文本 RAII
+的 28 行预期，包括关闭标记后才析构旧资源。原综合程序未改，
+macOS 仍在带插值的版本得到 UnsupportedNode。
+
+最终同一源码在 macOS arm64 与离线 Linux x86_64 各通过
+20 项 field_exchange 和 28 项 unit_field_replace_tests。
+公开矩阵每个宿主有 20 次正常原生运行、2 次预期 abort，
+另有两入口各一条同字段 L0135。普通和 constant-enabled Unit
+的 native 回归另按分配指针检查唯一释放。无新 PR-event CI。
+
+## 363. R2/R4 原子置换实参终止与未建立的局部绑定
+
+从 §362 的 Borrow 返回组合移除字段交换后，普通和 inout
+方法均复现 UnsupportedNode。现有 Borrow 结果声明准入明确
+排除带 receiver 的方法，独立于字段交换。该组合暂未接入，
+本节没有放宽方法 ABI。
+
+进一步缩减到已支持的顶层 String entry Borrow 返回。
+`replace(&slot, return source)` 原误报 L0088，
+`swap(&a[return source], &b[0])` 也有同型红例。Unit 的两个
+合法原语现在取已检查实参的普通完成性合取，保留静态 String
+或 Unit 结果与描述符。暂定出口继续按原规则约束写回，错误
+恢复不改。正常 swap 继续发布描述符，含 L0088 的错误产物
+仍隐藏描述符。R2 回归同时检查条件有后继的 replace。
+
+把已终止的 replace 用作普通局部初始化器时，refine 原先仍
+查询局部绑定，从而拒绝合法前缀。准入和构建现共用 typed
+完成性事实进入只求值路径，构建要求实际终止。绑定从未建立时
+不会发布 SSA slot，死后缀不再进入 refine；替换前缀已经建立的
+借用照常先结束，再清理已有局部，原借用返回来源保持有效。
+独立复核覆盖普通与暂定完成性、描述符、正常 nullable 期望
+和缺失事实的原路径。
+
+冻结编译器源码清单 SHA-256
+`bcc65ad5fde491c8ba04e54592d050228f2a09383f10a258dee8147d37bd93ed`。
+macOS arm64 与离线 Linux x86_64 各有 352 项定向前端测试和
+29 项字段交换测试通过。六组合法公开程序各走单文件和跨文件
+项目，双宿主共 24 次原生运行均返回原 Borrow，stdout 一致，
+stderr 为空。覆盖普通语句、无后继 val、死语句后缀、局部字段
+和条件替换。两种入口均接受提前退出的元素 swap 检查。macOS
+补测在 main 调用该 probe 的原生生成仍报 UnsupportedNode。
+新增普通与 constant-enabled native 回归以分配指针核对原局部
+与借用来源各释放一次，提前退出之后的输出不会执行。
+macOS 的严格 Clippy、格式、文档、尺寸和 diff 检查通过。
+
+扩大回归使用同一候选的实际 `native_tests::borrow_result_tests`
+过滤器，两宿主各 61 项通过。首次按源文件名过滤选中零项，
+已用正确模块名复跑。公开日志逐字节对账一致。本批未提交，
+尚无新 PR-event CI。
+
+## 364. R4 具名自有顺序容器的元素 swap
+
+§363 的提前退出探针和两个正常交换探针均在原生生成报告 UnsupportedNode。
+其中正常探针分别交换同一数组的不同下标和不同容器的元素。同槽探针仍由前端报告 L0135。
+新增的 MoveOnly 交换回归在原编译器稳定复现生成失败。
+
+Refine 用同一查询核对 source-qualified 类型描述符和前端发布的独占借用。
+具名自有 Array / MutableList 的实参按源码顺序检查下标和边界，再登记元素借用。
+LLVM 先加载两个旧值，再写回两个槽。交换过程中不调用析构。提前退出沿既有
+调用 loan 清理路径结束已经登记的借用。零大小元素仍检查边界，随后结束两条借用。
+
+独立复审发现两处合法输入被 SSA 误拒。第二下标为 `-((0))` 时，
+受检负号结果经 CFG 参数交付，原排异只认直接 Constant。
+第二下标为 `return xs[1]` 时，交换不会提交，SSA 原先据此跳过
+前缀必需的元素排异。现根据实际独占元素借用启用证明，沿一致的
+SSA 入边和值定义识别确切 Int 下标，并在借用建立、读访问和提交时核对。
+整容器重排继续检查所有活跃借用。验证器负例覆盖同槽及重复 LoanId。
+增量复核核对了两项修复、零大小布局和提前退出的借用清理。
+
+此切片覆盖两个具名自有容器的直接元素。macOS 公开入口另复现
+混合元素与局部根的 `swap(&xs[0], &item)` 仍报 UnsupportedNode。
+具名借入容器和其他投影组合的准入还需核对。
+
+冻结编译器源码清单 SHA-256
+`687f346fe3341a64df2ce8756f1ad09e18b14b6f4c042cbf09a7ae92b4128789`。
+macOS arm64 和离线 Linux x86_64 采用同一清单，各通过 35 项字段与交换回归、
+12 项容器操作回归和 2 项借用下标回归。普通及常量 Unit 回归逐指针核对释放，
+覆盖正常资源交换及两侧提前 return。零大小回归还检查 LLVM 不加载对应存储。
+
+两宿主的公开单文件和跨文件项目入口各运行 12 条正常原生用例和
+4 条预期越界 abort，并各拒绝两条同槽 L0135。两端正常输出逐字节
+一致，越界诊断在规范化本地路径后相同。补充单文件在两个宿主均确认
+continue 和 break 保留原元素，重分配的独占借用由前端报告 L0135。
+首次运行因公开探针文件目录与 package 不匹配失败，已更正探针
+布局并复跑。macOS 严格 Clippy、格式、文档、尺寸及 diff 检查通过。
+本切片尚未提交，未运行新 PR-event CI 或完整 R5 矩阵。
+
+## 365. R4 容器元素与可变局部根的混合 swap
+
+在 §364 候选上，`swap(&xs[0], &item)` 通过公开 check，
+原生生成报告 UnsupportedNode。现由同一 refine 查询消费元素类型
+描述符、根绑定及两条独占借用的来源凭证。求值仍按实参顺序进行。
+正常出口消费原根身份，将元素旧值作为同一局部绑定的新 SSA 值，
+并把根旧值写入元素。Copyable 局部先隔离可借用的存储，
+已有副本不随写回改变。MoveOnly 资源只在之后的正常清理点析构。
+
+根独占借用沿用 `replace` 和根对根 `swap` 的建立路径，先结束同根
+非空证明。右侧下标的提前返回结束已经建立的借用。下标自身可执行
+其获准的写回，例如第一个下标里的 `replace(&item, ...)` 先于第二实参的借用。
+反向实参顺序由前端按存续借用拒绝。SSA 验证器核对根与借用的确切身份，
+原子交换拒绝伪造的同类型根。
+
+独立静态复审核对了正常写回、CFG 根身份、提前退出、LLVM 的两次加载
+先于写回，以及旧根原语的行为。初版未纳入借用闭包的存储逃逸规则。
+最终候选基于共同借用类型的捕获标记拒绝该类 SSA 交换，覆盖两元素及
+混合形态。新增直接 SSA 负例核对交换位置的逃逸诊断。
+
+用于公开运行的编译器源码清单 SHA-256
+`9e0a7881c969f92e3629520cb090b5f59888c255c3196d8321230da5fe2ac670`。
+后续只修正闭包负例的模拟源码位置。定向测试的最终清单 SHA-256
+`3751b7fbab90509c116e9c7ada3ba2ac5e376ee0d1cf9dcc655ab5b6767334c2`。
+两份清单只有该测试文件的摘要不同。
+
+macOS arm64 和离线 Linux x86_64 的公开单文件和跨文件项目矩阵
+逐字节一致。每宿主运行 8 条正常用例、2 条预期越界中止和 2 条前端
+L0135 拒绝。覆盖两种参数顺序、下标先写回局部、资源析构顺序、
+条件命中的提前返回、条件未命中的交换提交、判空读出后写回 null、
+以及零大小 Unit。补充单文件在两宿主确认 MutableList 的 MoveOnly
+写回和析构顺序。经 Inout 参数借入的数组元素交换、堆字段与数组元素混合交换
+也都通过 check，并在生成阶段复现 UnsupportedNode。
+
+最终清单在两宿主各通过 84 项定向测试，含 38 项字段和交换、
+18 项根交换及 28 项借用闭包逃逸。普通和常量 Unit 的资源回归
+逐分配指针核对唯一释放。macOS 严格 Clippy、格式、文档、尺寸及
+diff 检查通过。
+
+公开 conformance 在同一生产候选的两宿主各扫过 154 个探针和
+6 个综合程序。137/154 能力探针通过，综合程序为 0/6，23 项
+保持已知未实现。官方复验与双宿主比较器通过，未见新增回归、
+内部错误、错误输出或入口差异。当前源码未重新执行 R5 的资源
+生成及 sanitizer 门禁，本批尚未提交或运行 PR-event CI。
+
+## 366. R4 通过 Inout 参数交换容器元素
+
+§365 的公开探针通过前端检查，在原生生成报告 UnsupportedNode。
+具名 Inout Array 或 MutableList 现在从原形参借用投影出元素地址。
+两个独占元素借用按源码顺序建立，使用既有的同下标冲突判定。
+正常提交只结束元素借用，保留父借用供被调函数后续访问。
+调用方继续通过原参数槽观察交换结果。提前退出结束已建立的元素
+借用，保留容器原内容。
+
+独立复审发现两处 SSA 边界。控制流转发父借用后，原入口 LoanId
+与当前块参数曾被误判为彼此冲突。现只将来源唯一且相同的表示
+视为同一父借用。另一个问题是扩容或写回会使此前取到的元素
+地址失效。现按路径上的同一父借用身份标记旧 place，覆盖扩容、
+整个容器换值和普通 Inout 调用。新投影仍可通过活跃的父借用建立。
+负例验证这三种写回之后的旧 place 被拒绝，并验证子借用活跃时
+禁止结束父借用。正向回归覆盖父借用跨条件分支和循环。
+最终增量复核核对了借用身份和地址失效这两项合同。
+
+完整回归的第一轮还揭示一个旧测试假设。该用例把所有独占容器
+形参一律作为无效 provider。现区分可写 Array 的合法 Inout 参数、
+不可变 List 的独占投影、错误下标类型和已结束的父借用。
+已有共享容器读取见证仍保留。
+
+macOS 补充探针确认，堆字段分别与元素、局部根及另一堆字段交换
+均通过 check，仍在原生生成报告 UnsupportedNode。三种形态留待
+核对堆字段的共同交换准入。
+
+冻结编译器源码清单 SHA-256
+`b7b94a9f7a8a41403c81200bb99771b961320e17b98d2a973afc9ad0924d20cd`。
+macOS arm64 和离线 Linux x86_64 的公开入口证据逐字节一致。
+每宿主有 8 条正常运行、2 条预期越界中止和 4 条 L0135 拒绝。
+覆盖跨两个独立 Inout 根的动态下标、同一根的不同下标、
+循环的 continue 和 break、提前 return、重分配冲突，以及
+MoveOnly 对象的被调函数和调用方析构顺序。
+
+最终清单每宿主通过 84 项定向测试，包括 42 项字段与交换、
+12 项容器操作、2 项共享及独占 provider 对照和 28 项闭包
+逃逸测试。MoveOnly 原生回归逐指针核对唯一释放。macOS 严格
+Clippy、格式、文档、尺寸和 diff 检查通过。当前切片尚未提交，
+未重跑完整 R5 或 PR-event CI。
+
+## 367. R4 自有堆字段的原子 swap
+
+§366 的三种合法输入均通过前端检查，在原生生成报告 UnsupportedNode。
+现复用现有 Inout 字段 receipt 和直接堆字段借用，接入统一的
+`ProjectedSwap`。覆盖自有局部和 Value 形参的直接字段与另一
+直接字段、可变局部根、Array 或 MutableList 元素的交换。
+使用相同的值类型完成两次加载后再写入。可变局部的新值经原 SSA
+绑定交付。字段和容器保持各自的父所有者。MoveOnly 值由后续的
+正常清理点析构，提前退出终止当前借用前缀且跳过交换提交。
+
+独立复审发现，堆 owner 来自不同 CFG 入边时，原别名证明会丢失
+同一当前对象的字段身份。现保留合流 Value 的身份，并沿逐入边
+一致的值转发链识别同一 owner。不同入值或转发环保持保守。
+Builder 在实参借用存续时通过确切字段读取或写入自有对象的相邻
+字段。普通 MoveOnly 赋值继续先析构旧值再写入。SSA 只对来源为
+直接拥有者堆 payload 的字段独占借用开放相应赋值操作。
+正负回归覆盖合流与分支组合、此前缀内的读写、同字段重叠、越界
+及提前返回。独立增量复核核对了归一证明和析构顺序。
+
+原 replace 负例中的直接字段 swap 属于本轮新增支持，已有正向
+原生回归取代该条断言。其余嵌套、泛型及非自有 replace 限制仍由
+原测试检查。macOS 另确认经 Inout 类形参和 inout 方法接收者
+交换字段均通过前端，仍报告 UnsupportedNode。
+
+冻结编译器源码清单 SHA-256
+`7af10e4700b72578f96986b983323137a1191067a72799242725a2c0c3c4832c`。
+macOS arm64 与离线 Linux x86_64 各通过 107 项定向测试，
+含 49 项字段和交换、18 项根交换、12 项容器操作和 28 项
+闭包逃逸。单文件和类型／调用声明实际分置的跨文件项目结果逐字节
+一致，每宿主有 12 条正常运行、2 条预期越界中止和 4 条 L0135。
+MoveOnly 原生回归逐分配指针核对唯一释放和正常、早退析构顺序。
+macOS 严格 Clippy、格式、文档、尺寸和 diff 检查通过。
+
+同一候选运行 Guide 10 和 12 的双宿主 conformance，56/57
+个能力探针通过。另一个保持为已登记的未实现项，两端未出现新增
+回归、内部错误、错误输出或入口差异。证据复验和双宿主比较器
+通过。本切片未执行完整 R5 或 PR-event CI，尚未提交。
+
+## 368. R4 经 Inout 类形参和接收者交换堆字段
+
+§367 的具名 Inout 类形参与 inout 方法接收者探针均通过前端，
+在原生生成报 UnsupportedNode。现通过已核对的字段 receipt 和
+确切父借用建立独占字段重借用，支持具名形参、显式 this 和隐式
+接收者字段。ProjectedSwap 交换两个子借用指定的值并结束子借用。
+被调函数可继续使用父借用，正常结果经原参数槽对调用方可见。
+同父不同字段可以同时借用，同字段及整父冲突保持拒绝。
+
+独立复审发现，纯堆字段交换原先可能跳过路径生命周期检查。
+结束 CFG 转发的父借用后，入口身份仍出现在块状态中。现由
+共享或独占堆字段投影启用路径检查，沿实际父借用来源识别已结束
+的同一权限。负例在控制流块内结束转发父借用，再尝试通过入口
+身份投影，确认 LoanInactive。另验证活跃子借用期间不得结束
+父借用，以及两个独占子借用不得指向同一字段。独立增量复核
+核对了不同父借用的独立性、同父子借用的清理、接收者专用
+HeapReceiverFieldExchange 仍要求当前接收者。
+
+补充 macOS 探针仍复现直接 Inout 根与另一根或字段的 swap，
+以及 Inout 根和具名 Inout 参数字段的 replace。上述形态通过
+公开 check，原生生成报 UnsupportedNode。保留其初始输入，
+后续按可写槽位的共同交接审查。
+
+冻结编译器源码清单 SHA-256
+`7d019d13ceb0deee9d69d70e4956d15a54fdab8917ec825c2196cb540b557f11`。
+两宿主各通过 96 项定向测试，含字段／交换 53 项、接收者交换
+验证 1 项、容器 12 项、provider 对照 2 项及闭包逃逸 28 项。
+公开单文件和实际跨文件项目在 macOS arm64 与 Linux x86_64
+逐字节一致。每宿主有 8 条正常运行、2 条越界中止、4 条 L0135。
+正常回归核对两个独立父对象、循环退出后再次交换、调用方看到
+写回和 MoveOnly 析构顺序。普通和常量 Unit 原生测试逐指针
+核对唯一释放。macOS 严格 Clippy、格式、文档和 diff 通过。
+
+同一候选的完整公开 conformance 在两宿主各运行 154 个能力探针
+及 6 个综合程序，结果为 137/154 和 0/6。23 项保持已登记的
+未实现状态。证据复验及双宿主比较器通过，未观察到新回归、
+内部错误、输出错误或入口差异。Rust 尺寸门禁通过。本批尚未
+提交，当前切片尚未执行资源生成、sanitizer 或 PR-event CI。
+
+## 369. R4 直接 Inout 根与具名参数字段置换
+
+§368 冻结候选中，双 Inout 根交换、Inout 根与 Inout 字段
+交换、直接 Inout 根 replace 和具名 Inout 类参数字段 replace
+都通过公开 check，原生生成报 UnsupportedNode。细化层现在
+消费同轮原语、独占借用和正常交付事实。直接形参在原调用槽
+上建立临时独占子借用，具名类字段复用字段重借用。交换或
+替换提交后结束子借用，旧值由 replace 的调用方继续持有。
+RHS 提前结束时释放已建立的借用，跳过写回和旧值交付。
+
+独立复审发现可空分支终结指令遗漏了整根重借用的挂起检查。
+新 SSA 回归在两条边显式运输并清理子借用，修复前 verifier
+接受，修复后仅在分支位置报 LoanDependencyActive，普通 CFG
+边仍可转发活跃借用。另有负例拒绝结束挂起的父借用和使用交换
+前取得的元素地址。扩大检查发现旧字段 verifier 测试仍预期
+独占父借用不得建立共享子借用。按 §367 的同根兄弟字段合同，
+测试改为对共享与独占父借用均验证子借用存续、父借用提前
+结束及字段越界。同字段独占重叠保留独立拒绝见证，变更已独立复核。
+
+冻结编译器源码清单 SHA-256
+`e314d699e350a14a97d44e1118d8f016911357b2a17662ef9fa9b160de1c0f8a`。
+macOS arm64 与离线 Linux x86_64 各通过 126 项定向测试，
+含字段／置换 57 项、资源 verifier 26 项、容器 12 项、
+provider 对照 2 项、接收者交换验证 1 项及闭包逃逸 28 项。
+基础 Unit 与常量 Unit 的资源回归核对逐指针唯一释放。每个
+宿主通过单文件与声明实际分置的跨文件项目共运行 20 次，
+stdout 逐字节一致且 stderr 为空，另有 2 次同槽拒绝 L0135。
+实跑覆盖调用方写回、两种实参顺序的局部根混合交换、独占
+String? 的旧值交付、提前 return 及循环 break/continue 后
+再次提交。macOS 的 codegen all-targets 严格 Clippy、格式、
+Rust 尺寸、文档及 diff 检查通过。
+
+同一候选的 Guide 10、12 公开 conformance 在两宿主均为
+56/57，余 1 项保持已登记的未实现状态。证据复验及双宿主
+比较通过，零回归、内部错误、输出错误或入口差异。本节的
+验收范围为定向矩阵。合批 PR-event CI、完整 conformance、
+综合程序、生成资源与 sanitizer 仍按各自阶段核验。
+
+## 370. R4 自有根见证与 R5 Linux 资源缩减复验
+
+扩大 §369 的原生置换测试范围后，macOS 的旧
+`unit_root_primitive` 过滤组得到 21 通过、1 失败。唯一失败
+仍期待拒绝直接 Inout 参数的合法 `replace`。此输入现应走借入
+槽，旧见证更新为在普通和常量 Unit 均产生一次
+`ExclusiveRootReborrow`、一次 `InoutExchange`，以及零次
+`RootReplace`。原有 verifier 拒绝 Inout ABI loan 冒充 owned
+root 或 owned field 的负例继续保留。本次只改测试。更新版本的
+源码清单 SHA-256 为
+`136fad0c756e2d0d406cab28353041d6d01b591b58a5e34a5f7379519004bc5d`。
+Linux x86_64 根置换组 22 项通过，两个 owned 路由负例均通过。
+
+同时用 §369 的冻结编译器复跑 §348–350 曾超时的 Linux x86_64
+生成资源缩减阶段。首次设置因本地 Git 对象替代路径未挂入容器
+而中止，补齐独立浅层基线元数据后按原命令和预算复跑。LLVM
+21.1.8、Rust 1.96.0，导出器 SHA-256 为
+`2d72217a8618d2949362a7d41e6d5420197680ce48686b62dd83036f4fc36d6d`。
+原 120 秒、32 候选门限下，用时 69.08 秒。受控
+`drop:holder` 缺失见证保持，操作 9→5，源码 717→551 字节，
+6 次候选尝试，最终连续 3 次确认，单步最小检查通过。
+
+真实导出共 15.83 秒，三类编译链接累计 51.36 秒，原生执行
+累计 1.69 秒。该轮未复现旧超时，尚不能确定两轮耗时差异的根因。
+此结果只覆盖完整生成资源门禁中的缩减阶段，保留此前整套超时
+历史，整套验收仍须在同一候选上复跑。
+
+## 371. R0 codegen 旧分析消费者的保留用途
+
+沿用 §347 的直接调用口径，在当前工作树复查 codegen src。
+`resolve_names`、`check_types`、`check_ownership`、
+`complete_file_types`、`lower_scalar_file_with_entry` 分别为
+13/15、13/15、12/14、5/5、2/5（文件数／匹配行数）。以下
+覆盖 13 个实际消费文件，路径相对 `crates/lang-codegen/src/ssa`。
+
+| 保留用途 | 实际消费者 |
+|---|---|
+| 旧入口准入和分析身份 | `lowering_entry_contract_tests.rs`、`single_readonly_method_tests.rs`、`lower_frontend_tests.rs`。前两者也是旧具名 entry 唯一直接调用者，见 §348 |
+| 借用、退出和事件对照 | `borrow_result_contract_tests.rs`、`lower_frontend_owned_source_continue_tests.rs`、`integer_range_value_tests.rs`、`while_flow_tests/if_cleanup_observation.rs`。保留 Single 的来源、拒绝和清理事件见证 |
+| 私有规划和类型合同 | `map_source.rs` 的 Single 规范类型缺失负例、`unit_llvm_tests.rs` 的原模板交付、`lower_frontend/container.rs` 的 Single 容器类型基线、`refine_closure_tests.rs` 的旧运行时意图对照 |
+| 旧 gate 与可空 Map 的故障见证 | `unit_lower/nullable_when/source.rs`、`map_provider_exits_pipeline_tests/local_sources/deep/nullable_map_guard_support.rs`。两者使用实际 Single 类型产品验证登记或准备故障检查点 |
+
+沿模块声明核对，这些调用均在 `cfg(test)` 路径，部分还需相应
+实验或 CI 测试选择。生产 `unit_lower` 中的直接调用位于内嵌
+测试模块。此轮仅补消费者处置账本。旧入口专有的诊断、身份和
+LLVM 基线保留至被测实现退役；迁移对照者需先验证相同 oracle。
+宏、间接调用、仓外 API 与 frontend 集成测试另行追踪。
+
+## 372. R0 旧最终准入的集成测试消费者
+
+沿用 §347 的调用口径，frontend 集成测试中
+`complete_file_types` 的 21 个文件、25 处匹配均已定位。
+路径相对 `crates/lang-frontend/tests`。
+
+| 保留用途 | 直接调用文件 |
+|---|---|
+| 完成阶段的身份、诊断和事实发布 | `final_type_admission/{complete,failed_overload_trials,iteration_recovery,pending_iteration_source,primitive_arity,simple_assignment,static_recovery,unit_statement_map_write}.rs`。覆盖同一分析产品、失败候选、待定迭代、外部同名函数及保留的 Single/Unit 诊断差异 |
+| 同一输入的类型与所有权对照 | `control_branch_join.rs`、`enum_case_borrow_categories/support.rs`、`support/closure_safety.rs`。继续核对分支结果、enum 来源和闭包事实拒绝 |
+| 迭代、可空 `when` 和容器来源 | `integer_range_iteration_ownership.rs`、`integer_range_values.rs`、`multifile_type_checking/nullable_when.rs`、`ownership_iteration/map_borrowed/{ordinary_borrow_source,pipeline,unacquired}.rs`。已局部迁移的正例继续走 Unit，保留旧来源、类型和借用计划见证 |
+| 解析错误传播及残缺解构的阶段门禁 | `multifile_type_checking/destructuring.rs`、`ownership_structural.rs`。保留旧分析下的 Parser/语义诊断次序与禁止发布错误计划的断言 |
+| Map 消费身份与清理义务 | `ownership_map/consume.rs`、`ownership_map/consume/field_roots.rs`。保留旧返回交付、字段来源与失败事实对照 |
+
+`lang-frontend` 仍通过公共模块导出 `resolve_names`、
+`check_types`、`check_ownership` 和 `complete_file_types`。
+manifest 的 `publish = false` 不封闭路径依赖。仓库内 CLI、LSP
+和标准库的 src 均无这四个名称的引用。Unit 名称构建依然在
+生产逐文件调用 `resolve_names`，该求解器仍有保留职责。
+本轮只记录静态消费者处置，未改变公共 API。仓外实际使用、
+宏展开和间接调用未由这份清单证明。
+
+## 373. R5 冻结候选的 Linux ASan/LSan 实跑
+
+按 §370 的源码清单
+`136fad0c756e2d0d406cab28353041d6d01b591b58a5e34a5f7379519004bc5d`
+在离线 Linux x86_64 运行官方 `check_native_sanitizers.py --linux`。
+使用固定 LLVM/Clang 21.1.8 和独立 Cargo target，按脚本默认
+codegen 测试配置生成 LLVM。三项精确导出测试各运行一次并通过。
+门禁退出 0，覆盖 12 个检测器开关对照、一组 Map 原生程序、
+12 个 Single/Unit provider 生命周期用例。Map 和每个 provider
+用例均分别实跑 ASan、LSan，检测器命中与无报告路径按原 oracle
+验证。产物保留运行时档案哈希，UBSan 仍未覆盖。
+
+同一导出器 SHA-256
+`2a2d67378749b15e8729f5acc6b2c73bea383cc8f78065820a5c5599ff9d563c`
+另实跑 §369 的四个置换探针，对应两种混合实参顺序、循环
+break/continue 后重新提交、根及字段的资源归属、条件 RHS
+提前 return。只将公开入口名从 `main` 改成导出器使用的
+`entry`。四个用例均通过原生分配/释放计数、ASan 和 LSan，
+共 12 次执行，stdout 符合 §369 的独立预期且 stderr 为空。
+这组资源证据覆盖本轮变更路径。完整生成资源门禁、双宿主
+默认 codegen 与 PR-event CI 分别记录。
+
+## 374. R4 Linux 默认 codegen 全套的停滞诊断
+
+§370 的测试更新候选在本地离线 Linux x86_64 容器运行默认
+feature、默认线程的 codegen 全套。此进程在 523 条完成记录后
+停滞，最后两个超时报备来自 Map local-future 的 Single 与
+Unit 运行。间隔 2 秒取两次 `/proc` 样本，发现 libtest
+主线程及 10 个工作线程均处于锁等待，CPU 计数未变化。
+容器 LLDB 已分离，采到的指令地址不能展开到有效的用户态栈。
+当前证据还不能定位锁的持有者或确定根因。
+
+用同一 Linux 测试二进制在独立进程串行隔离该过滤组，
+2 项均通过，用时 23.79 秒。全套原始并发的停滞单独保留。
+另启动同一二进制的全范围四线程诊断复跑，覆盖项不变。
+该轮用来判断本机并发条件，结果与默认线程和远端 CI 分开。
+随后四线程复跑越过 523 条完成记录，在原进程已持续停滞后
+主动以 SIGTERM 结束原全套，保留失败日志。原进程的停滞线程
+执行映射包含 Rosetta，已采样的 futex 系统调用来自该映射。
+仍未定位锁的持有者。
+
+## 375. R1 跨行 when 条件中嵌套 if 的 else 归属
+
+继续核对 §316 的复合 selector 以及 #443 复审提出的
+`pending_else` 疑点。前一分支用跨行 `produce(1)`，后续
+`((true)) && if (outer) if (inner) true else false else true -> 2`。
+Guide 06 的内层 else 属于最近 if，外层 else 仍归外层 if。
+独立预期为 (true,true) 选该臂、(true,false) 落到 when 的
+else、(false,false) 选该臂。
+
+使用 §369 的生产编译器源码清单。在 macOS arm64 和离线
+Linux x86_64 的单文件、实际跨文件项目入口各通过 check 与
+原生执行，四次退出 0，stdout 均为 `2\n3\n2\n`，
+stderr 为空。该验收覆盖有两个待归属 else 的合法组合，保留
+既有实现和缺分隔恢复检查。
+
+## 376. R5 当前生产候选的双宿主完整公开语料
+
+使用 §369 的生产编译器源码清单和原 conformance baseline，
+离线 Linux x86_64 共运行 154 个能力探针和 6 个综合程序。
+CLI SHA-256 为
+`c4d45a32dab70f44239ff09612cb951ff9c69b72c207be265b316418c806ea73`。
+证据账本的编译器标识同时包含 `6cc03907` 基线与本地源码清单，
+复验产物及独立预期均通过。能力为 137/154，综合程序 0/6，
+23 项仍为已登记的未实现能力。未观察到新回归、入口差异、
+错误输出或内部错误。与 §368 的 Linux 证据逐项比较，160 项
+输入哈希、两入口状态标记及 stdout 哈希均一致。综合程序仍为
+`config_parse` L0080、`expr_eval` L0165、`linked_stack` L0085、
+`raii_state_machine` 与 `varint_codec` UnsupportedNode、
+`word_count` L0165。基础可运行门槛仍为 58/74，未达 70。
+macOS arm64 同一生产源码的 CLI SHA-256 为
+`db8bd3681703cb50dd784bae2bdb12f185391036a1afc5abfbe3520bdc2252f5`。
+同一矩阵与证据复验通过，结果也是 137/154、0/6。
+原比较器核对输入、两入口分类和成功输出，Darwin/Linux
+双宿主对账通过。该轮完整公开语料仍处于 R5 冻结候选之前的
+本地源码基线。
+
+## 377. R4 广覆盖 SSA 中的两个过期测试断言
+
+用 §370 的 Linux 二进制扩到 `ssa::` 后，分别隔离实跑两个
+失败。Elvis 用例仍以 UnsupportedNode 拒绝，但 §333 已让前面的
+`var x: Int? = 7` 具备布局，错误出现在 `left ?: return 0`。
+更新诊断片段，保留简单 Elvis 的错误种类和精确位置断言。
+
+字段组的测试名保留旧 Single 拼写，实际使用 `UnitSource`。
+其中直接兄弟字段 swap 已由 §367 支持，从负例集合移出。
+其余多级、泛型字段和两种 sibling RHS replace 仍要求
+UnsupportedNode。另复跑已有的普通／常量 Unit 原生正例，
+确认直接字段交换、混合槽写回及 Copyable 快照。
+
+仅更新两个测试文件，编译器生产源与 §376 一致。
+测试清单 SHA-256 为
+`4c5f15fa604b68765175b73256960537628cd80bdafb94a4c7e15fb172d37122`。
+Linux 依次通过 6 项 CFG／所有权、7 项直接字段 replace、
+1 项字段交换原生正例，零失败或忽略。扩大套件仍按各自输入记录。
+
+## 378. R0 旧所有权入口的前端集成测试消费者
+
+沿用 §347 的调用口径，frontend 集成测试的 `check_ownership`
+为 45 个文件、70 处直接匹配。以下分组无重复、无未分类文件，
+路径相对 `crates/lang-frontend/tests`。
+
+| 保留用途 | 文件／调用 | 直接调用文件 |
+|---|---:|---|
+| 分析身份、准入和原诊断 | 4／11 | `ownership_checking.rs`、`legacy_receiver_admission.rs`、`guide_litmus.rs`、`final_type_admission/simple_assignment.rs` |
+| 独占置换、形成、交付和析构 | 7／9 | `ownership_{constants,construction,resource_deinit,primitives,field_replace,nullable_when}.rs`、`enum_case_borrow_categories/support.rs` |
+| 调用实参和借用结束 | 4／4 | `ownership_{borrow_continuation,nested_borrow_arguments,two_phase_borrows}.rs`、`unit_direct_call_loan_ends.rs` |
+| 闭包来源和失败清除 | 4／5 | `ownership_closures.rs`、`ownership_closures/{callable_contract,callable_provenance}.rs`、`support/closure_safety.rs` |
+| 迭代、来源和退出边 | 10／12 | `final_type_admission/pending_iteration_source.rs`、`integer_range_iteration_ownership.rs`、`ownership_iteration.rs`、`ownership_iteration/control_exits.rs`、`ownership_iteration/map_borrowed/{ordinary_borrow_source,pipeline,unacquired}.rs`、`ownership_range_{receiver,carrier,construction}.rs` |
+| 借用帧、回边与零次循环见证 | 6／17 | `unit_borrow_{consumer_body,frame_closure,frame_consumers,loop_edge_evidence,zero_body,zero_loop}.rs` |
+| no-carry 对照 | 8／10 | `unit_loop_{arm_no_carry,break_arm_no_carry,counter_arm_no_carry,counter_break_arm_no_carry,no_carry,no_carry_boundaries,no_carry_evidence,prefix_counter_break}.rs` |
+| Map 消费来源与正常清理 | 2／2 | `ownership_map/consume.rs`、`ownership_map/consume/field_roots.rs` |
+
+旧产品的身份、独有诊断、只在 Single 发布的事实及观测模式对照
+保留至其各自的被测合同退役。语义和资源对照的普通正例可以在
+Unit 有同一诊断、计划、退出边和析构 oracle 后分批迁移。
+计数说明调用位置与保留依据，未对所有消费者另做实跑；
+公开可用性边界沿用 §372。
+
+## 379. R5 冻结候选的工具入口与标准库复验
+
+沿用 §376 的 Linux 生产 CLI 二进制和脚本原 byte oracle，
+`check_word_frequency.py` 的 40 条公开命令全部通过。本轮另在
+§377 的冻结源码上运行 `cargo test -p lang-lsp` 与三个 CLI
+集成目标。LSP 56 项单元测试、1 项真实 stdio 格式化测试通过。
+CLI 的 `check_cli`、`format_cli`、`project_basic_ownership_cli`
+分别通过 7、3、9 项，覆盖来源诊断、格式化和项目入口的所有权
+及常量准入顺序。两组均零失败、零忽略。使用离线 Linux x86_64
+容器的独立 Cargo target。macOS arm64 的同一生产源码也通过
+全部 40 条标准库命令。逐项比较两宿主的退出码、stdout、stderr
+和 oracle，40 条完全一致。CLI/LSP 测试计数限 Linux，
+双宿主 PR-event CI 另记。
+
+## 380. R4 稳定字段比较的 SSA 见证
+
+§377 使用的旧 Linux `ssa::` 扩大运行共选 2301 项，
+结果 2235 通过、3 失败、63 既有忽略。第三项在 macOS 隔离
+也复现，原聚合测试仍期待拒绝 `bundle.text == "owned"`。
+该表达式按 §351 使用短共享借用。更新测试，要求比较的左
+操作数是字段 0 的共享借用，并用 ownership verifier 验证整段
+SSA。原泛型聚合的布局断言、临时父对象的 Copyable 字段
+和清理断言继续执行。现有
+`direct_temporary_move_only_field_read_remains_unsupported` 及
+§351 的同字段独占冲突负例保持原样。
+
+更新后的编译器测试源码清单 SHA-256 为
+`ae8fc17479b1f438acc94c75ad4175368843d8e8b8328f5b92e448e8cd4fa843`。
+Linux `unit_lower_aggregate_tests` 的 13 项全部通过。
+§374 的旧四线程全套已得到终态，3404 通过、3 失败、71 忽略、
+零过滤，用时 1488.34 秒。失败恰为 §377 的两项和本节的聚合
+见证，三条现已各自在更新后的目标组通过。此次生产源码无差异。
+同一最新测试快照的 Linux 四线程全套与独立 frontend 全套
+仍按各自执行身份核验。
+
+## 381. R5 macOS LSP stdio 的启动超时
+
+在 §380 的前端与工具源码上独立构建 macOS arm64 LSP。
+56 项单元测试通过，Cargo 驱动的真实 stdio 格式化用例多次
+达到原 10 秒等待门限。临时诊断版定位到首个 initialize 请求。
+沙箱外及单个 Cargo job 也复现。该测试子进程 165 个样本
+均处于 `_dyld_start`，还未观察到 LSP 处理线程。进程状态
+采样为睡眠，未发现可用 SIGCONT 恢复的暂停态，启动等待的
+根因尚未确定。
+
+直接执行同一 Cargo 构建的 Rust 测试二进制通过，工作目录
+及 Cargo 日志中列出的加载环境复刻后仍通过。独立逐请求探针
+在同一 server 二进制上通过单文件及项目初始化、打开、修改、
+格式化、关闭文档及 shutdown/exit。Cargo runner 对照出现
+有通过也有超时，尚未证明会话或文件描述符是原因。
+保留 Cargo 超时记录，测试、原门限及生产 LSP 均保持原样。
+
+## 382. R1–R3 冻结候选的 Linux frontend 全套
+
+编译器测试源码清单为 §380 的
+`ae8fc17479b1f438acc94c75ad4175368843d8e8b8328f5b92e448e8cd4fa843`。
+在独立的 Linux x86_64 容器 target 上执行
+`cargo test --locked --offline -p lang-frontend --no-fail-fast -- --test-threads=4`，
+退出 0。243 个目标结果合计 3945 项通过、0 失败、15 忽略、
+0 过滤，通过数包含 15 个 doc-test。默认配置下 42 个目标
+未注册运行用例；实验能力或忽略组的验收不由这条命令证明。
+
+## 383. R0 旧类型入口和逐文件名称求解器的直接消费者
+
+复查 frontend 集成测试中 `check_types` 的 62 个文件及
+88 处直接匹配。45 个文件和 60 处匹配位于 §378 已列的所有权
+消费者文件。另 11 个文件和 14 处匹配位于 §372 最终准入的
+消费者文件。剩余六个文件和 14 处匹配如下：
+
+| 测试文件 | 保留的 Single 见证 |
+|---|---|
+| `final_type_admission.rs` | `with_types` 给子模块提供同源码 Single/Unit 原始类型，用于最终准入及分析身份对照 |
+| `type_callable.rs` | 有歧义或全失败的 lambda trial 不遗留调用、参数模式或候选符号类型，另有独立 Unit 对照 |
+| `type_checking.rs` | 来源／环境身份、重复求解确定性和未完成事实分类 |
+| `type_constants.rs` | 常量资格、实例身份和错误分析不暴露部分常量能力 |
+| `type_iteration.rs` | 已含名称错误时，旧原始类型检查不级联且不发布迭代计划；其余原八组由双 Unit 承接 |
+| `type_range_carrier.rs` | 名称失败后的旧原始类型诊断，与先完成名称准入的两个 Unit 模式分别验证 |
+
+`resolve_names` 在同一集成范围为 73 个文件、133 处直接
+匹配；其中 11 个文件、47 处未直接调用 `check_types`。
+`name_resolution.rs` 验证逐文件解析规则，
+`multifile_name_resolution/forward_enum.rs` 比较枚举成员的
+局部与 Unit 归属。其余九个文件是
+`ownership_iteration/{capture_owner_identity,loop_carried_choices,nested_instance_replay,origin_fixed_point,phi_edges,phi_layout,phi_source_replay,prior_owned_instances,sibling_source_loans}.rs`，
+保留逐文件 SymbolId 与来源重放、汇合、父子借用对照。
+Unit 的生产名称构建仍调用同一逐文件求解器，见 §349。
+
+两项清点覆盖当前集成测试的直接调用。身份、恢复顺序和旧观测
+见证保留至对应合同退役。迁移普通语义用例前需确认相同 oracle。
+间接函数引用及仓外依赖仍在清点范围之外。此次未更改公开接口；
+该树的 Linux frontend 动态证据见 §382。
+
+## 384. R5 macOS stdio 超时的主线基线对照
+
+将 `6cc03907a1bf37d3cdc9ce6e6ccba1a15326ed6b` 导出到独立
+目录，使用与 §381 一致的低调试信息 Cargo 配置编译。
+`formatting_stdio.rs` 与当前候选逐字节相同。基线同样在 Cargo
+启动时达到原 10 秒门限，临时诊断版定位到首次 initialize。
+直接运行基线的同一 Rust 试验二进制通过，用时 0.11 秒。
+逐请求协议对照也返回全部 14 个响应，单文件和项目分别正常
+退出、stderr 为空。两份源码跨度内均可复现这一启动现象，
+§381 的超时已有主线基线见证。仍待确定本机启动等待根因，
+测试门限及普通验收入口维持原样。当前候选恢复 Cargo 标准
+调试信息配置重新构建，也在原门限超时，低调试信息配置
+并非该现象的必要条件。
+
+## 385. R4 最新测试快照的 Linux codegen 全套
+
+§380 源码清单在离线 Linux x86_64 实跑
+`cargo test --locked --offline -p lang-codegen --lib -- --test-threads=4`。
+退出 0，3407 项通过、0 失败、71 忽略、0 过滤，用时
+1245.35 秒。先前受三条过期断言影响的完整四线程运行见
+§380，默认线程停滞的诊断及原日志见 §374。此次全套选择
+及默认 feature 不变，仅固定本机并发为四线程。同一测试清单
+在 macOS arm64 的聚合、CFG／所有权、字段 replace 与 Inout
+根组分别通过 13、6、7、1 项，共 27 项无失败或忽略。
+Linux 同清单的 workspace 全目标严格 Clippy 通过。
+Rust 尺寸门禁、文档及 diff 检查通过。现有忽略组、
+macOS 同版本全套与 PR-event CI 分别验收。
+
+## 386. R5 冻结候选的 Linux 生成资源全门禁
+
+使用 §380 的源码清单，在离线 Linux x86_64 的 LLVM/Clang
+21.1.8 上执行原 `check_generated_owners.py`。checker 变异
+需要从 Git HEAD 创建工作树，因此用独立临时仓库保存只用于
+测试的同源码快照。fixture 为 `12c20250c17226a7e8298a1fb4c3b73a1f406cac`，
+tree 为 `84e4ac35afeb73a440fd7291408f89298c86d7c6`。
+开发分支和远端未因该测试变更。导出器 SHA-256 为
+`dcfcd9dd3764430c0d6c89f6ae1a41bbdd4697cab86e8b3a7bee83befa937598`。
+
+门禁退出 0，`acceptance.json` 的状态为 `pass` 且
+`requirements_met=true`。全部 16 个资源或拒绝用例通过，
+检测器校准通过。checker 确认证据可杀死受控 mutant，
+恢复源码后再次验证原诊断。G5 在原 120 秒预算内用时
+101.80 秒，以 6 个候选尝试把稳定的析构省略故障从
+9 步减至 5 步，连续 3 次确认并通过单步最小化。
+本轮证据替代当前候选缺失的 Linux 整套结果，§348 的
+历史超时仍保留。macOS 平台门禁与 PR-event CI 分别验收。
+
+## 387. R5 macOS 生成资源的首次执行超时
+
+使用 §386 的独立 fixture 与 §385 同清单新编译的 macOS
+导出器实跑官方生成资源门禁。case-00 的计数产物在原 5 秒
+门限超时，整套退出 1，原证据保留。对同一个已链接产物，
+沿原进程执行器、相同门限和字节预期独立复跑三次，均退出 0，
+stdout 精确匹配、stderr 为空，各用时 0.013–0.015 秒。
+原产物 SHA-256 为
+`f57c8321fd6155146afff72326f7617a2b7978b444d39c13c99143ac3fdbb2cb`。
+隔离复跑未复现超时，不能据此替代整套验收。第二轮改用较短
+的仓外产物路径运行原门禁，保持全部测试、预算和 oracle。
+第二轮同样在 case-00 首次计数进程处超时，退出 1。
+留存产物再次执行通过；相同字节的新副本及重新链接产物
+均在首次执行复现超时。通过不依赖 Koven 或验收执行器的
+对照再缩减：使用普通 clang 编译的 `int main(void) { return 0; }`
+及相同字节计数副本，分别以普通子进程执行。两个新产物
+首次均约 5.00 秒超时，采样的 164 个栈均处于 `_dyld_start`。
+对同一文件第二次执行均通过，分别用时 2.60 和 2.79 秒。
+已存在的计数产物对照在 0.002 秒通过。当前证据将首次
+启动问题定位到本机加载阶段，仍未确定宿主根因。
+两轮整套结果保留为失败，门限及验收脚本保持原样。
+
+## 388. R5 macOS 首次加载对照与 LSP 标准配置复跑
+
+沿用 §387 的最小 C 产物，分别通过 fork/exec、显式
+posix_spawn 和新会话启动三个相同字节的新文件。本机首次执行
+分别用时 7.740、7.496、7.315 秒，均退出 0。同一文件第二次
+执行分别用时 0.005、0.028、0.005 秒；通过另一条硬链接路径的
+已执行文件用时 0.003 秒。独立探针等待上限为 30 秒，原资源
+门禁仍为 5 秒。观测到的差异随文件 inode 复现，三种启动方法均
+可复现，宿主根因仍未确定。§387 中两次整套门禁失败仍成立。
+
+§384 的未修改主线另做带计时的 stdio 对照，首次单文件
+initialize 约 7.866 秒，项目 initialize 约 2.347 毫秒，后续
+请求均不超过 5.35 毫秒。之后在当前候选用原测试、原 10 秒
+门限、Cargo 标准调试配置复跑 `lang-lsp`，56 项单元测试和
+1 项真实 stdio 格式化测试均通过，0 失败或忽略。stdio 用例
+用时 8.73 秒。保留 §381、§384 的既往超时记录。
+
+## 389. R4 生产路由与公开入口的可达性
+
+核对 `refine::route`、Unit `planned_body` 与闭包 thunk 接线。
+整函数 subset 拒绝后才进入生产 Compatibility。已选 Refine
+后，类型准备或构建错误直接返回。测试专用的强制逐家族路由仅在
+subset 接受时生效，退出时恢复线程局部状态。生产 Inout 形参、
+Inout 接收者和闭包 thunk 仍受各自的 Refine 准入保护。
+§385 的完整 Linux 运行通过八组退役家族边界 deinit、借用与
+Rc、置换与接收者、enum 与 List、共享捕获与 View、数值迭代与
+Map、String clone 与 Box、根所有权原语；这些见证覆盖相应的
+私有保护分支。
+
+用 §369 同一生产候选在 macOS arm64 和离线 Linux x86_64
+实跑公开单文件和跨文件项目入口。六种输入组合的 frontend
+check 均退出 0，stdout/stderr 为空。直接从入口调用
+`change(inout slot: String)` 时，执行输出为 `old\nnew\n`，
+退出 0、stderr 为空。加入一个含尚未支持的 Elvis 的未调用函数，
+上述结果逐字节一致。改为调用该函数后，两个入口均出现唯一的
+`UnsupportedNode`，stdout 为空，原输出目录没有残留产物。
+两个宿主结果一致。原生构建的 operational error 沿用入口现状，
+单文件退出 2，项目退出 1。此处只记录既有差异，见 Guide 13 的
+构建失败约定。仍需按家族核对可达的混合函数及其清理行为。
+
+## 390. R4 macOS 扩大验收的快照区分
+
+较早的 macOS 默认 feature 全套已结束，3400 项通过、4 项
+失败、72 项忽略，零过滤，用时 5645.86 秒。失败为 Elvis
+诊断位置、兄弟字段置换、Inout 根准入、稳定 String 字段比较
+四条过期断言。最新快照的四组定向结果见 §385，其中保留
+UnsupportedNode 范围、活跃子借用和临时父对象的负例。
+
+已在 macOS arm64 核验 §380 源码清单全量匹配后启动
+`bash scripts/run_codegen_default_tests.sh --offline -- --test-threads=4`。
+采用仓库默认 feature codegen 门禁的构建配置，与较早快照
+分开记账。待取得终态后更新通过、失败、忽略和过滤数量。
+
+## 391. R5 macOS 生成资源门禁第三次实跑
+
+使用与 §388 相同的最小 C 文件做两轮对照。新文件按原签名、
+先运行 `codesign --verify --strict`、重新 ad-hoc 签名三种方式
+分别执行两次。六个文件首次执行耗时 4.118–4.635 秒，第二次
+0.004–0.008 秒，均退出 0、无输出。校验保留原字节，重新签名
+改变字节。两种操作均未消除首次与再次执行的差异。首次耗时较
+§388 缩短，变化原因仍未确定。
+
+同一 §386 干净 fixture 及 §387 的同一 macOS exporter 以原门禁
+脚本和门限再次执行。16 个资源与拒绝用例均通过。macOS 校准
+按脚本记录平台受限，checker 变异验证通过。缩减阶段的原始
+clean 正常，受控 fault 如预期遗漏 `drop:holder`，第一个缩减
+候选仍复现该差异。第二个候选的首次计数进程在 5 秒门限处超时，
+oracle 将两种指纹的差异判定为 flaky，整套退出 1。
+在原工作目录、原执行器和原 5 秒门限下直接复跑该次留存的同一
+计数文件三次，均退出 0，输出均仍缺少受控的 `drop:holder`，
+stderr 为空。该文件 SHA-256 为
+`8c84b3a0755d40e2f3e652e81f06f6cb6b9f6923c45ae7ccbda6135e23ce1e07`。
+本机首次执行超时仍影响缩减验收。三轮整套失败均保留，脚本、
+门限和 oracle 保持原样。
+
+## 392. R4 默认 codegen 忽略项的 CI 选择范围
+
+按 §385 的 Linux 全套日志提取 71 个忽略项的完整测试名，
+逐个对照 `ci.yml` 实际调用的 runner 与 manifest。默认配置内
+每项均有唯一的显式执行入口。借用故障 manifest 覆盖 60 项，
+Unit root-set runner 覆盖 3 项，child cycle runner 覆盖 4 项，
+parent receipt 和 scalar owner entry runner 各覆盖 2 项。
+借用故障 manifest 的 codegen 清单另有 6 项 feature 专有目标，
+不在本次默认日志中。本次是选择范围对账，故障注入的实际执行
+结果仍以最终提交的双宿主 Targeted Tests 为准。
+
+同一测试源码在 macOS 最新二进制枚举 3476 个用例，Linux
+全套登记 3478 个，共有 3474 个。Linux 独有四个目标，覆盖 ELF
+行表、本机目标、非 UTF-8 输出目录和 object 写入失败重试。
+macOS 独有两个目标，覆盖 Mach-O 行表与实际 LLDB 断点。
+macOS 另有的第 72 个忽略项就是后者，需要 debugserver
+task-port 权限。本机沙箱外以最新二进制精确复跑该目标，源码
+断点命中并报告帧，1 项通过、0 失败、0 忽略，用时 5.67 秒。
+其余 71 个忽略目标与 Linux 清单完全一致。
+
+## 393. R4 循环体内 nullable when 写回后重新借用
+
+同一 §369 生产候选已在 macOS arm64、离线 Linux x86_64
+分别复现。循环体在 nullable `when` 的非空臂为局部根写回，
+随后用 `if (slot != null) { read(slot) }` 借用新值。完整程序
+覆盖 return、continue、break 和有 deinit 的迭代内外资源。
+单文件与跨文件项目均通过 frontend check，构建阶段均为
+`InvalidModel: frontend lowering failed with MissingFact`。
+
+最小复现只需一个可空类局部、一个带 break 的 while、一次
+when 内写回和一次借用。移除 Guard、return、continue 或
+末尾按计数 break，完整输入仍为 MissingFact。去掉重新借用、
+将 while 改为普通词法块，或把外层 when 改为等效判空 if，
+对应对照可以生成产物。直接在循环中反复 move 同一个外部
+replacement 的早期探针被前端正确拒绝 L0131，实际复现改用
+每次求值的构造或工厂结果。
+
+候选调查聚焦 Compatibility 的 fresh heap If 准入。
+当前在存在任一外层 loop context 时提前放弃该入口，随后普通
+条件构建无法提供窄化读所需的借用。试验修复与正式回归在隔离
+源码上执行。闭合前须核对 proof 已在本次迭代的限定借用后结束，
+不得进入回边或其他控制转移，并验证原生输出和析构次序。
+
+隔离源码上新增正式回归，基线红测定位到借用实参 `slot`。
+候选保留原 typed/owned Borrow 前缀验证，允许普通循环体内的
+fresh heap If 局部申请证明。同一次调用结束子 loan 后，仍由
+原表达式末尾结束父 proof；自然回边与显式跳转仍核对活跃证明。
+初版红转绿通过 macOS 的 SSA verifier 和 native 输出 oracle。
+独立只读复核确认作用域、回边、控制转移和活跃迭代来源守卫，
+并指出原用例的 continue 和 break 未从真实借用路径进入。
+现扩展为五种运行模式，分别验证真实重新借用后的 return、
+continue、break、自然回边，以及写回 null 的对照。扩大套件及
+双宿主公开入口的结果待记录。
+
+同一生产补丁在 macOS 初版专组通过 79 项、0 失败、0 忽略。
+五模式公开探针用 `own mode: Int` 驱动控制，同一编译器的
+单文件和跨文件项目都通过 check 和 run，退出 0，stdout
+按预先写定的 45 行 oracle 一致、stderr 为空。`mode: Int`
+默认借用会触发本来保留的非 Boolean 环境借用边界，产生
+UnsupportedNode。候选未放宽该守卫。两次非空写回产生的
+Node 在 stdout 中无独立身份，复核以源码绑定与 SSA 验证补足。
+五模式测试源码清单 SHA-256 为
+`84237f060b1791ef19ad3dd51e832d12002cd451aa4474fb3f610a76b483ad09`。
+
+同一清单的 macOS 五模式正式回归通过，SSA 验证与本机
+运行均成功，1 项通过、0 失败、0 忽略。另以两组公开入口
+补跑有 String 标签和 deinit 的载荷。两入口均通过 check、
+退出 0，stdout 与独立预期一致。可区分 `old`、`new-1`、
+`new-2`，每次写回先析构旧值，再借入当次新值。在 return、
+break 和正常循环退出中，当前值的析构也按各自路径核对。
+
+同一清单的 Linux 定向套件通过 79 项，零失败或忽略。较早的
+Linux 试跑使用默认借入的 `mode`，78 项通过、该回归在原守卫
+拒绝。换为 `own mode` 的最终清单完整复跑。离线镜像内
+`llvm-config` 显示 LLVM 21.1.8，需在一次性容器内额外为
+llvm-sys 提供同一二进制的 `llvm-config-21` 名称。macOS 的
+codegen 全目标严格 Clippy 和格式检查通过。
+
+最终 Linux 单文件与跨文件项目的五模式输出与 macOS 逐字节
+一致。带析构标签的补充探针也在双宿主、两个入口各通过，
+73 行输出与预定 oracle 一致，退出 0、stderr 为空。
+候选的三份变更已纳入本地复审分支，集成树与上述源码清单
+逐文件核验一致。GitHub 远端 main 仍为 `6cc03907`。
+基于该清单的双宿主完整公开 conformance 已启动，历史全套
+及 PR-event 证据仍按实际输入身份记录。
+
+## 394. R5 循环写回候选的完整公开 conformance 与资源复验
+
+采用 §393 的集成源码清单，核对两端编译产物及相同
+`6cc03907+84237f06` 输入身份。离线 Linux x86_64 先完成
+原完整 conformance 门禁与证据复验。CLI SHA-256 为
+`1a67f9d42b5b8b38507b8f2322ead9a4980d7865828d269a51b4ff44eaa7bc03`。
+能力探针为 137/154，综合程序 0/6，23 项已知未实现，内部错误、
+回归、入口差异及错误输出均为零。与 §376 上一 Linux 候选逐项
+核对，全部 160 个输入的源码哈希、分类、两个入口的退出和超时
+状态、诊断标记及 stdout 哈希一致。macOS arm64 的同一矩阵
+和证据复验也已通过，CLI SHA-256 为
+`d4ffdaf7edcc372398d8b62e9809c5091dcf9824d24464d9266384af1c0bd93e`。
+官方比较器在相同完整候选身份上确认 Darwin/Linux 一致，能力
+均为 137/154，综合程序均为 0/6。
+
+资源门禁需读取真实源码身份，生成资源 checker 还从 Git HEAD
+创建受控对照工作树。沿用 §386 的独立 fixture，将本轮三份变更
+写入隔离测试快照 `a2db86b4cfe57f547fbd1d3cdcaa59e2631043b0`，
+tree 为 `420e34f4a2dc53f73e9fc966a0af39128ff232c6`。
+该快照干净且逐文件符合 §393 清单，开发分支没有 fixture 提交。
+Linux 原 ASan/LSan 门禁已通过。三组真实 Koven 插桩与
+attribute-off 对照、12 种检测开关或故障组合、Map 正控和
+12 个 provider 程序全部符合预期。Linux 生成资源门禁亦
+退出 0，`status=pass`、`requirements_met=true`。16 个程序、
+校准和 checker 变异验证全部通过。缩减用时 70.41 秒，把原
+9 步的重复故障减至 5 步，连续确认三次且通过单步最小化。
+Linux exporter SHA-256 为
+`e29376704295416887c27043afac3903c56d431fcbd83cd0340763bdd5dca3c2`。
+同一 fixture 的 macOS 生成资源门禁使用 §393 正式回归的
+exporter，沿用原脚本和门限，退出 0。16 个程序、checker 和
+缩减均通过。缩减用时 102.04 秒，连续确认三次并通过单步
+最小化。校准与整套报告保留脚本定义的 `status=partial`、
+`requirements_met=false`，原因是 macOS ASan 不支持、泄漏
+仅用计数器验证。Linux ASan/LSan 另有本节完整证据。macOS
+exporter SHA-256 为
+`c901f68ad17a8b99878aa65666604724bd4e1148d16424f47fede9d0aa87dd35`。
+§387、§391 的历史首次执行失败记录继续有效。上一份 macOS
+codegen 全套仍按实际运行身份跟进。Rust 物理行数门禁通过，
+2624 个手写文件，三处已有例外。
+
+## 395. R0 旧入口的显式别名与间接引用清点
+
+复用仓库 lowering 依赖门禁的 Rust token 扫描器，在 §393
+集成树的 2624 个手写 Rust 文件查四个准确标识符。忽略注释、
+字符串和字符字面量，逐条区分定义、use 声明、调用形状和其余
+引用。统计为名称 token 次数。同一文件多次调用分别计入。
+
+| 名称 | 定义 | 导入或重导出 | 直接调用形状 | 显式别名或裸函数引用 |
+|---|---:|---:|---:|---:|
+| `resolve_names` | 1 | 80 | 201 | 0 |
+| `check_types` | 1 | 75 | 153 | 0 |
+| `check_ownership` | 1 | 64 | 107 | 0 |
+| `lower_scalar_file_with_entry` | 1 | 2 | 5 | 0 |
+
+旧 lowerer 的重导出为 `cfg(test)` 下的 `pub(crate)`。
+另外三个函数所在模块是公开的，两个 crate 都继承工作区的
+`publish=false`。Cargo manifest 中真实仓内下游为 CLI、LSP
+和 codegen，依赖位置与 §349、§371–372、§378、§383 一致。
+仓外通过 Git 或本地路径引用仍无法从本仓核销。本扫描不展开
+宏、生成文件或动态构造的引用，也不把词法计数当作 rustc
+调用图。当前未看到需要追加处置的显式别名或函数指针入口。
+
+## 396. R1 完整文件中的跨行 when 恢复对账
+
+沿 §316 和 §375，以 §393 的前端库调用真实 lex 与
+`parse_file`。为 break、continue 与 LF、CRLF 分别验两条
+合法路径及四条损坏路径。合法路径覆盖独立 selector，以及
+去掉箭头后仍能形成的合法前一臂续行。损坏输入分别缺 selector
+的右括号、缺内层 if 条件右括号、缺箭头右侧表达式、插入
+意外的 `@`。每个文件有非 ASCII 注释与两个独立后继声明。
+
+两个宿主各 24 个输入。每个输入独立解析两次，完整 Parser
+产物稳定。所有输入都保留 `else -> 3` 和两条后继声明的
+精确范围。四组合法独立 selector 保持前一臂为跨行
+`produce(1)`，四组合法续行按真实箭头边界分成两臂。
+16 个损坏输入产生诊断，输出的前臂范围和诊断码在双宿主
+逐字节一致。缺内层条件右括号和意外 token 会先吸收到前一臂
+以恢复，未吞掉后续 arm 或声明。本次为定向审查，解析器和
+正式语料无需改动。
+
+## 397. R2 subjectless when 首个已知匹配后的非空事实
+
+用 §393 的同一生产源码在 macOS 和离线 Linux 核对 17 个输入，
+单文件与实际跨文件项目共 34 个检查结果，两宿主逐字节一致。
+最小复现在 `x != null` 已成立后使用
+`when { true, clear(&x) -> { return x }; else -> { return 0 } }`，
+其中 `clear` 接收 `inout Int?` 并写入 null。两个公开入口都
+在 arm 内的 `x` 报唯一 L0084，实际未到达写回。改成等价
+`if (true || clear(&x))` 通过。把第一个条件换成 false 时，
+后续写回真实可达，L0084 符合预期。另确认首个 true arm 后
+另一 arm 的写回会污染 when 后继。旧逐文件 `check_types` 的
+最小 true、false 输入亦均报 L0084。
+
+隔离回归复用 `while_flow_facts` 的类型和位置 oracle。基线
+红测把已知匹配臂的 `x` 记录为 Error，预期 Int。Unit 已有
+布尔 pending 分边，但准备 arm 类型环境时按覆盖域复制
+可能已被后续写回清掉的 flow facts。旧 Single 在相似位置
+也沿覆盖域合并，而 pending 可达性另算。后续修复需用已
+证明的成功边与失败边约束真实事实合并，保留对不可达源码的
+诊断和原穷尽性规则。复合谓词 `flag || (clear(&x) && false)`
+在 if 和 when 内同样保守拒绝，应与已知常量首个匹配的复现
+一并核对其应有的事实边界。本次记录红测，尚无生产补丁。
+
+## 398. R2 隔离候选的复审发现
+
+§397 初版隔离候选用现有语法布尔结果排除 subjectless when
+的已知不可能匹配或未匹配边。macOS 的 `type_checking` 103 项、
+`while_flow_facts` 20 项均通过，正负回归分别保留 Int 与 L0084。
+本机 CLI 的同臂与后续臂探针均验证该局部修复。另从已构建的
+本机二进制实际运行四个集成目标，最终准入 63、所有权迭代 221、
+闭包 75、整数区间迭代 2 项均通过。整套调试构建因磁盘余量
+停止在编译阶段，回收本次生成的临时产物 2.36 GB，未计为通过。
+
+独立复审提出的两个边界已实际确认：
+
+- `flag && (when { true, clear(&x) -> true; else -> false })`
+  作为外层逻辑右操作数时，共享写入扫描会重计不可达的
+  `clear`。扩展红测确认后继 `x` 仍为 Error。原子 when
+  内的事实修复不能闭合此组合。
+- 对返回 Int 的函数，唯一正常路径在 `when { true -> return 1 }`
+  中提前返回。初版候选让前端通过，但原生生成仍为
+  InvalidModel/MissingFact。加入空 else 仍复现。Refine
+  普通 selector 生成了假边，未和前端的静态可达性对齐。
+
+另实跑旧 Single 版本见证。外层以可空 Boolean 为 subject，
+内层 `when { true, clear(&x) -> true; else -> false }`
+作为 selector 时，新 Unit 通过，旧 Single 仍杀掉外层的
+`x` 窄化并报 L0084。死备选更新了旧检查器的版本，匹配边
+只保存了事实。将首个 true 换成 false 仍应保留该错误。
+
+后继工作需让共享写入扫描尊重 selector 的有序求值，按
+实达边合并事实及版本，并协调返回完整性与 native CFG。
+保留覆盖和穷尽性规则的边界。候选、正负及组合回归仍在
+隔离目录，开发分支仅更新本账本。
+
+## 399. R2 已知 selector 的写入、版本和原生出口对齐
+
+在 §398 的隔离复审后补齐三处接线。共享写入扫描按顺序只
+扫描可求值的 selector。确定未命中的 selector 本身仍求值，
+只跳过不可达的臂；确定命中后不再扫描后面的备选或臂。旧
+Single 在每条匹配边保存 facts 与版本，只把正常出口合并。
+Refine 的 subjectless selector 启用字面量折叠，保留之前的
+nullable 视图准入。取反交换真假目标，逻辑组合复用既有短路
+与清理。独立复核先发现视图参数无法打开折叠，纠正后复审未
+发现本片阻断。
+
+macOS 四个前端定向目标共 484 项通过。新增真实写回负控
+单独重跑，20 项通过。相同前端库的旧 Single 嵌套 Boolean
+版本探针验证 true 路径无诊断，false 路径仍为 L0084。
+两个 §398 的原生 return 用例在单文件和项目出口都输出
+`ok`。额外原生探针在单文件和跨文件项目中确认已跳过的清除不输出
+`clear`，已执行但确定未命中的 selector 仍输出
+`clear\ncleared\nok\n`。全部 14 个 check 与 10 个
+native 运行符合独立预期。各入口证据按实际尝试保留。
+
+隔离候选源码清单 SHA-256 为
+`f145dd7e909541c595aeb8698870fb3a22522c6ef4c6b95fef68a9b486895717`。
+最终两宿主各通过 484 项前端定向与 6 项 codegen 定向。
+macOS 的 Refine 控制流扩大 31 项与前端、codegen 全目标
+严格 Clippy 通过。双宿主的 14 个公开 check 和 10 次 native
+运行逐字节对账一致。七份变更已纳入本地复审分支，3287 个
+源码清单条目逐文件符合冻结候选。新一轮双宿主 conformance
+已启动。未知结果的复合
+谓词仍需把真实写入按布尔成功／失败边传递。当前实跑的
+`if (flag || (clear(&x) && false))` 和同形单 selector
+`when` 仍保守报 L0084，未将本片当作全部组合已闭合。
+
+## 400. R2 运行时复合谓词两边的写入边界
+
+§399 集成候选上的失败回归复用 `while_flow_facts` 的实际
+类型和位置 oracle，将真假两条路径分别钉住。`flag ||
+(clear(&x) && false)` 的命中臂只可能来自无需执行 clear 的
+左操作数，false 路径会执行 clear。若把右操作数的 false
+改为 true，命中臂重新包含实际写回。对偶的 if 形态
+`flag && (clear(&x) || true)` 在 false 边跳过写回，改为
+`flag && (clear(&x) && false)` 后 false 边可含写回。
+
+红测精确定位到匹配臂读取 `x` 时收到 Error、预期 Int。
+后续须复用共享的布尔边写入判定及真实调用事实，恢复只在
+相反结果边上失效的旧窄化，同时禁止从漏扫或未完成的写入
+信息恢复事实。本节未更改开发分支的复合谓词行为。
+
+隔离探针直接调用现有 `collect_normal_expression_mutation_targets`
+及 `writes_on_boolean_edge`。六组真实 Parser AST 用例覆盖对偶
+短路、取反、常量结果及左侧另一根的写入。真假边的源级目标分别
+符合预期，包括“假边写 x、两边都写 y”。因此可复用现有判定，
+仍需验证类型检查中活跃调用、写回版本和 trial 回滚的连接。
+该探针未修改集成源码。
+
+§399 集成候选的 Linux 完整公开 conformance 与证据复验
+已通过，137/154 探针、0/6 综合程序，23 项已知未实现，
+零回归、入口差异、错误输出或内部错误。macOS 同一身份的
+完整门禁及证据复验也通过，官方比较器确认 Darwin/Linux 一致。
+GitHub main 已复核，仍为 `6cc03907`。
+
+## 401. R2 复合谓词的分边事实与右操作数
+
+在隔离候选中复用现有扫描器按目标身份取所有可能的写入，
+仅恢复当前结果边上所有同根写入均已排除的旧 facts 和普通
+版本。两套 checker 都接入 if 真假边及 subjectless when
+命中／未命中边。原 pending 集合仍按各自布尔边合并，没有
+新增跨表达式缓存。扫描前确认普通版本确有变化，逐键要求
+存在版本增量，并保留永久失效标记。
+
+首个候选的四个前端目标在两宿主各通过 485 项。macOS
+单文件和真实跨文件项目的 when 正控输出
+`hit\nmiss\nclear\nok\n`，对偶 if 输出
+`hit\nclear\nmiss\nok\n`，各退出 0、stderr 为空。
+独立复审确认原分支接线，另发现逻辑 RHS 自己仍会读到
+左侧合流事实。新增回归在该入口确认 NullableInt，预期 Int。
+接线后首轮 macOS 扩大至 486 项均通过；旧 Single 的逻辑
+合流保留两条路径版本的最大值。
+
+加固后的生产源码完成双宿主前端定向，各 486 项通过。
+三项原生程序的单文件和真实跨文件项目共 6 次 check、6 次
+run，两宿主的 12 行结果逐字节一致。RHS 探针在左边为真时
+保留非空读取，为假时执行 clear，输出
+`hit\nmiss\nclear\nok\n`。旧逐文件检查器直接验三项正控
+都无诊断，同根写反例仍为 L0084。独立复审确认普通版本合流、
+pending 和 trial 回滚，指出父测试文件超过 1000 行，已将新
+复合谓词用例放到现有子目录并补 `||` 和 RHS 真实写的对照。
+
+生产源码与最初加固清单一致，测试布局拆分后的最终源码清单为
+`7bd5f5631bbd23280937290bdedb839642ec9d907c14c187ce8b13723f3b782f`。
+两宿主最终流事实 suite 各 22 项通过，macOS 前端全目标
+严格 Clippy 和格式检查通过。11 份变更已纳入本地复审分支，
+3289 个源码清单条目逐文件与验收输入一致。双宿主完整公开
+conformance 已按该清单启动。复合 if／when 作为不透明布尔
+操作数仍保守处理，长左结合链的新增版本快照和重复扫描未做
+单独性能测量。
+
+## 402. R2 集成候选的一致性、尺寸和短路扫描计数
+
+§401 源码清单对应的 macOS arm64 与 Linux x86_64 公开 conformance
+经比较器确认一致。能力探针 137/154，综合程序 0/6，已知未实现
+23 项，内部错误、回归、入口差异、错误输出均为零。Linux 与前一
+候选的 160 个输入逐项核对，分类、超时和退出状态、诊断标记、
+源码及 stdout 哈希一致。
+
+Rust 尺寸门禁发现 codegen 的 `control_flow_tests.rs` 从 991
+增长至 1007 行。将新增的已知命中 selector 测试移到测试子模块后，
+父文件为 994 行，门禁通过。独立核对拆分后的清单
+`2f0108009139dd865dc7533c641c28b79be7128216d171cd62ddf528b989cdb3`
+共 3290 项，生产源码维持上述 conformance 的输入。
+拆分后的 SSA 测试随后在 macOS 以新模块注册路径定向复跑通过。
+
+在隔离候选的 unit 类型入口测量 `bypassed_result_writes`。
+追加 8、16、32、64、128 个短路项，普通版本未变时扫描和访问
+计数均为 0。链首一次写回时扫描次数分别为
+9、17、33、65、129，节点访问为 456、1340、4452、16052、60756。
+默认 Rust 测试线程在 128 项处栈溢出，上述完整计数来自仅用于
+诊断的 16 MiB 栈。重复扫描与宿主栈分别跟踪。
+
+## 403. R3 长短路左链的析构规划器栈溢出
+
+由变量 `flag` 和 130 个 `||` 写成的合法 if 条件在旧候选的
+macOS arm64、Linux x86_64 公开 `check` 上触发 SIGABRT，
+单文件和项目入口均复现。macOS LLDB 回溯反复经过
+`DropPlanner::expression_inner`、`evaluate_owner_expression`、
+`expression`、`short_circuit`。新增公开进程回归在旧二进制上失败。
+
+析构规划器改用显式栈保存直接左链的节点。左操作数完成后逐节点
+执行原有 RHS 和合流，同时完成每节点的投影作用域与 owner
+observation。独立静态复审核对普通和常量分支、作用域恢复、
+不续行与错误传播，并确认提前识别逻辑节点与由调用、成员访问
+或枚举构造发布的 typed descriptor 没有有效节点重叠。
+
+macOS arm64 和 Linux x86_64 的 `check_cli` 各通过 8 项，
+析构规划器 lib 筛选各通过 482 项，2 项既有忽略。130 个 `||`
+的单文件和项目原生运行均退出 0，输出 `false-ok\ntrue-ok\n`。
+macOS 前端 lib 严格 Clippy 通过，Rust 尺寸及文档门禁通过。
+双宿主单文件和项目的长链资源探针均通过预期输出逐字节对照。
+左侧为真时跳过 RHS 和临时构造。左侧为假时 RHS 执行一次，
+其临时资源在进入 if 之前析构一次，外层资源在函数退出时析构一次。
+
+macOS 下 256 和 512 个 `||` 的合法单文件
+`check` 仍触发 SIGABRT。256 项的 LLDB 回溯定位到
+`Checker::check_short_circuit` 与 `check_expression_with_escape`
+之间的递归。同一公开入口回归改用 256 项在隔离测试中确认失败，
+Linux 的 256 项单文件探针亦以 134 退出。
+保留 R3 阻断状态，继续检查所有权流、liveness 和
+下游阶段在扩大链长时的行为。
+
+## 404. R3 短路左链的所有权流检查
+
+以 256 个 `||` 的同一公开入口回归锁定 §403 剩余中止。
+Unit 流检查改用显式栈完成左操作数，随后按内到外顺序应用
+原有 RHS 策略和 Flows 合并。常量计划仍在访问左侧前登记，
+每节点原有 callable provenance 和借用交付上下文按原顺序恢复。
+独立静态复审检查了 typed descriptor、常量优先、正常与提前退出、
+错误回传和作用域恢复。复审发现的过时 AST 分派说明已更新。
+
+macOS arm64 与 Linux x86_64 的 `check_cli` 各 8 项通过，
+所有权 lib 筛选各 798 项通过、14 项既有忽略。macOS 前端 lib
+严格 Clippy 通过。两宿主 256 个 `||` 的
+单文件和项目原生运行均退出 0，输出 `false-ok\ntrue-ok\n`。
+
+macOS 的 512 和 1024 项变量短路链仍触发 SIGABRT。
+512 项的 LLDB 回溯定位到 R2 Unit 类型检查的
+`check_logical_binary` 与 `check_expression_with_expectation`。
+同一 CLI 回归在隔离测试中改为 512 项后验证失败。已建立 R2
+隔离候选，继续核对左链 facts、pending 退出和活跃性边界。
+
+## 405. R2/R3 的 512 项公开检查与 R4 原生边界
+
+Unit 类型检查沿未缓存的直接逻辑左链收集节点。下钻期间没有
+流状态变更，所有需恢复写回的节点共用入口快照。各节点求值后按
+原顺序发布 nullable、类型与完成性，根节点仍走外层 expected
+处理。独立复审确认缓存边界、版本、RHS 和未完成路径语义。
+`condition_facts` 仍递归读取左前缀，§402 的重复扫描尚待处理。
+
+类型候选编译后，512 项 CLI 用例仍失败，LLDB 定位到
+`liveness::Builder::expression`。活跃性改为在保留每节点
+`expression_after` 的同时按策略处理 RHS，再迭代左侧。
+独立复审核对 index roots、常量提前结束、RHS 三种可达策略、
+普通和诊断性描述符及未改的退出处理。
+
+macOS arm64 与 Linux x86_64 的 512 项单文件、项目 `check`
+回归通过，`check_cli` 各 8 项。两宿主 1024 项单文件
+`check` 退出 0。两宿主五个定向 suite 共各 535 项通过，
+覆盖 `while_flow_facts`、`multifile_type_checking`、基础 Unit
+及 multifile 普通和常量所有权。macOS 前端 lib 严格 Clippy
+通过。聚焦清单
+`a0067013e7105a7ebbc0f9358b68053cbbb81dd177ad58ccd207803e50cc66e3`
+在纳入本地分支后逐文件核对。
+
+同一候选的 512 项原生 `run` 在两个宿主的单文件、项目入口
+均以 134 退出。macOS LLDB 回溯定位到 R4 兼容路径
+`UnitExpressionLowerer::lower_short_circuit` 与 `lower_expression`
+之间的递归。保留跨阶段阻断项。下一候选须核对 SSA 合流、
+每节点 `AfterExpression` 和 `BranchExit` 清理、常量计划与
+两种公开入口的原生输出。
+
+## 406. R4 兼容 lowering 的 512 项原生回归
+
+在现有原生 CLI 套件加入 512 个 `||` 的真实 build/run。
+旧候选在单文件 build 以 SIGABRT 终止，回归首先失败。新候选在
+原 guard、常量与描述符分派后登记逻辑节点，显式栈按内到外
+恢复 SSA 生成。每个左操作数经过既有 `AfterExpression` 清理与
+非空证明退役后才交给父节点。原有 raw `lower_expression`
+入口的根清理边界、常量计划的操作数/分支身份检查、RHS 提前退出
+及 `BranchExit` 编号保持原顺序。独立静态复审批阅了上述路径。
+
+macOS arm64 与 Linux x86_64 的原生 CLI `while_flow` 各
+9 项通过，codegen `short_circuit` 筛选各 99 项通过。
+512 项单文件和项目都输出 `false-ok\ntrue-ok\n`。两宿主
+的 1024 项纯布尔单文件原生探针也逐字节匹配预期。
+
+512 项资源探针加入共享实参上的临时 Guard。双宿主单文件
+原生入口仍触发 SIGABRT，macOS LLDB 定位到 Refine 的
+`Builder::logical` 与 `condition_internal`。该路径已建立
+隔离修复和独立原生回归，跨阶段阻断项继续跟踪。
+
+## 407. R4 Refine 动态左链的资源清理
+
+Refine 动态短路先按外到内建立 middle/skip 块，完成左操作数后
+按内到外恢复原分支 span、proof、临时资源和清理合流。
+独立静态复审确认块顺序、左右入口、提前退出及 drop/loan 交付。
+512 项带 Guard 的真实 build/run 在 macOS arm64、Linux x86_64
+的单文件和项目入口均通过。短路侧不创建 RHS Guard，执行侧在
+进入 if 前析构 RHS Guard 一次，外层 Guard 在函数退出时析构一次。
+Mac 同时通过纯布尔回归，Linux 原生 CLI `while_flow` 10 项通过。
+上述候选的两份新增差异逐文件核对后纳入本地分支，R4 四文件清单为
+`87f69b5da3fbca8416e0e4037245141c1b3364ec9dbff4dc1ea5ce8078ee6164`。
+
+本次 Mac 筛选耗时 225.75 秒，Linux 九个邻接用例与资源用例共
+290.69 秒。采样显示 Mac 项目构建停留在 SSA
+`verify_dominance/compute_dominators`，记录为后续性能审查证据。
+另一个 512 项资源用例将链首改为 `true`，在同一候选的两个
+宿主上仍以 134 退出。Mac LLDB 确认
+`prepare_logical → required(left) → condition_value` 的
+递归。此形状保留为 R4 阻断项，后续核对 bool 值构建、
+`pending_views`、清理与原生退出。
+
+## 408. R4 Refine 已知短路左链与 R3 括号边界
+
+将 §407 的 `true` 起始变体加入公开原生回归。旧候选在单文件 build
+复现 SIGABRT。新候选为需要左值的短路节点保存原值合流和剩余动作，
+从内到外恢复 `pending_views`、贷款和每个表达式的清理。普通固定边、
+Const Always/Never/Conditional 和无正常出口都使用原计划和目标。
+独立静态复审批阅了各分派、发散和恢复步骤。
+
+512 项带 Guard 的已知短路用例在 macOS arm64 与 Linux x86_64
+单文件和项目入口均通过。两条运行路径都跳过 RHS，外层 Guard
+各析构一次。macOS 另实跑 512 项必经和必跳过的 `&&` 对照，分别
+确认右侧只执行一次和完全跳过，输出与析构顺序匹配。
+
+扩大形状时，两宿主的 64 层带括号左链可以通过公开 `check`，
+128 层带括号左链和 64 层带括号右链均因栈溢出中止。Mac 的
+64 层左链原生输出匹配，两个失败形状的 LLDB 回溯都在 R3
+所有权流检查，分别涉及 Group 分派和短路 RHS。合法源码复现与
+受控故障注入分别记录，R3 仍保留跨层阻断。
+
+## 409. R4 SSA 支配集合的逆后序迭代
+
+§407 的资源回归采样将编译耗时定位到 `compute_dominators`。
+以可达块的确定性逆后序替换按块 ID 扫描。入口、不可达块、
+可达前驱交集和诊断报告顺序沿用原合同。独立静态复审确认
+自环、回边、重复目标、不可归约环与原转移收敛到同一支配集合。
+独立四节点图模型遍历 65,536 份有向图，与逐一移除候选支配节点
+后做可达性检查的定义一致。模型证据与编译器实跑分别记录。
+
+两版各在两个宿主运行同一组 11 项原生 CLI `while_flow`，
+全部通过。测试阶段实测 macOS 207.94 秒降至 21.27 秒，
+Linux 289.31 秒降至 15.92 秒，均不含 Rust 构建时间。
+这些是本轮整组耗时。512 项布尔及资源用例仍逐一断言
+单文件、项目输出和析构顺序。纳入本地分支后核对四项文件清单
+`5baa3843a06e42da311b617cb28b5d78763c2f55149c46b5e920848f7b9a1c3d`。
+
+## 410. R3 括号短路链的恢复与双宿主原生验收
+
+两条公开回归在旧二进制上分别复现 128 层括号左链、64 层括号
+右链中止。Unit 所有权流检查保存 Group、短路左操作数和右操作数
+的续行状态，不再从这些节点递归进入同一检查入口。左侧完成后，
+必经 RHS 取走正常后继，条件 RHS 克隆并保留旁路，已跳过 RHS
+不进入检查。Group 保留原 typed 分派、用途和 escape 参数。
+独立复审核对了优先级、正常与跳转合流、错误传播和上下文恢复。
+
+隔离候选的 macOS arm64 两条公开回归和 Linux x86_64 的
+`check_cli` 10 项通过。随后两宿主分别运行 128 层左链、
+64 层右链的单文件和项目 Guard 程序。八次 `check`、八次
+`run` 均退出 0，stderr 为空，原生 stdout 全部为
+`19908089bed0a0c34f7f4be30828487c064f265556b06cfbd0d943ebf0b73b7b`。
+跳过边不构造 RHS Guard，执行边先输出 RHS，再析构该临时一次，
+随后进入 if，外层 Guard 在每次调用退出时析构一次。
+
+故障注入继续由 CI 承担。当前交付基线转向 #445 的
+`eb0eaa30`，以上旧基线验收保留，合并树按新身份重新验证。
+
+## 411. #445 基线与 192 层括号右链
+
+基于 #445 合并提交 `eb0eaa30` 应用本轮候选，Git 三方应用
+没有文件冲突。独立复审核对九个重叠文件，覆盖 callee 求值顺序、
+callable join 的表示、临时容器和普通路由边界。首次候选
+`dbf7077063e32d29062927716658a7d6ec6d694bc6dc2e87eb6cbf6a3fa0b011`
+两宿主定向前端各 543 项、`check_cli` 各 10 项、原生
+`while_flow` 各 12 项，公开 conformance 比较器确认
+137/154 能力探针、0/6 综合程序、23 个已知未实现，零回归。
+
+扩大到 128、192 层括号右链时，旧候选在 macOS 的公开
+`check` 再次中止，LLDB 定位到 R3 析构规划器处理 RHS。
+析构规划器保存 Group 与 RHS 的求值状态，保留普通分支在
+传播错误前的原 ValueState，并沿原顺序完成析构及 Rc 投影合流。
+独立复审核对各策略、错误恢复、Group 所有者和观察回调。
+
+R3 修复后 192 层的公开检查通过，macOS 原生入口仍在 Refine
+的 RHS 条件生成中中止。Refine 按待处理条件与分支状态迭代，
+Group 和 Not 仍传递原 span、目标与 witness；独立复审核对
+已知计划、普通分支、提前退出和资源/借用状态。两宿主在新候选
+各通过 10 项 `check_cli` 和 12 项原生 `while_flow`。
+其中 128 层左链、192 层右链都在单文件和项目入口逐字节
+核对 stdout、空 stderr、退出状态及 Guard 析构顺序。
+macOS frontend/codegen lib 严格 Clippy 通过。最终代码与
+验收工作树逐文件一致，非文档清单共 3621 项，SHA-256 为
+`d74fa1fb1090c81dc51c57dc7236dafa7274e3648eef182a879ae0f70002321f`。

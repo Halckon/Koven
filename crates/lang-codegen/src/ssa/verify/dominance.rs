@@ -119,7 +119,7 @@ pub(in crate::ssa) fn compute_dominators(function: &Function) -> Vec<BTreeSet<us
         predecessor_list.dedup();
     }
 
-    let reachable = reachable_blocks(function);
+    let (reachable, reverse_postorder) = reachable_reverse_postorder(function);
     let all_reachable = reachable
         .iter()
         .enumerate()
@@ -137,10 +137,9 @@ pub(in crate::ssa) fn compute_dominators(function: &Function) -> Vec<BTreeSet<us
 
     loop {
         let mut changed = false;
-        for block in 1..block_count {
-            if !reachable[block] {
-                continue;
-            }
+        // In this order forward predecessors have already transferred their
+        // sets in the same pass. Backedges still converge to the same fixpoint.
+        for &block in reverse_postorder.iter().skip(1) {
             let mut incoming = predecessors[block]
                 .iter()
                 .filter(|predecessor| reachable[**predecessor]);
@@ -167,14 +166,28 @@ pub(in crate::ssa) fn compute_dominators(function: &Function) -> Vec<BTreeSet<us
     dominators
 }
 
-fn reachable_blocks(function: &Function) -> Vec<bool> {
+enum Visit {
+    Enter(usize),
+    Exit(usize),
+}
+
+fn reachable_reverse_postorder(function: &Function) -> (Vec<bool>, Vec<usize>) {
     let mut reachable = vec![false; function.blocks.len()];
-    let mut pending = vec![0_usize];
-    while let Some(block_index) = pending.pop() {
+    let mut postorder = Vec::new();
+    let mut pending = vec![Visit::Enter(0)];
+    while let Some(visit) = pending.pop() {
+        let block_index = match visit {
+            Visit::Enter(index) => index,
+            Visit::Exit(index) => {
+                postorder.push(index);
+                continue;
+            }
+        };
         if reachable[block_index] {
             continue;
         }
         reachable[block_index] = true;
+        pending.push(Visit::Exit(block_index));
         let block = &function.blocks[block_index];
         let terminator = block
             .terminator
@@ -183,8 +196,9 @@ fn reachable_blocks(function: &Function) -> Vec<bool> {
         let mut targets = terminator.kind.targets();
         targets.sort_by_key(|target| target.index());
         for target in targets.into_iter().rev() {
-            pending.push(target.index());
+            pending.push(Visit::Enter(target.index()));
         }
     }
-    reachable
+    postorder.reverse();
+    (reachable, postorder)
 }

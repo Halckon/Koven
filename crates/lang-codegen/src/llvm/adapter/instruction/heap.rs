@@ -69,7 +69,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             }
             Operation::HeapFieldExchange {
                 loan, replacement, ..
-            } => {
+            }
+            | Operation::HeapReceiverFieldExchange { loan, replacement }
+            | Operation::InoutExchange { loan, replacement } => {
                 self.lower_heap_field_exchange(*loan, *replacement, &results)?;
             }
             Operation::InlineFieldReplace {

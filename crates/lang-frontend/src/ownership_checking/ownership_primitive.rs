@@ -103,6 +103,8 @@ pub struct UnitFieldReplaceOwnershipPlan {
     pub(crate) descriptor: UnitOwnershipPrimitiveDescriptor,
     pub(crate) place: UnitOwnershipPlace,
     pub(crate) owner_type: crate::type_checking::UnitTypeId,
+    pub(crate) inout_receiver:
+        Option<(crate::type_checking::UnitExpressionId, crate::source::Span)>,
     pub(crate) new_value_transfer: OwnershipPrimitiveValueTransfer,
 }
 
@@ -117,10 +119,17 @@ impl UnitFieldReplaceOwnershipPlan {
     pub const fn place(&self) -> &UnitOwnershipPlace {
         &self.place
     }
-    /// 保持 owning、完全初始化的普通 class receiver 类型。
+    /// 保持完全初始化的普通 class receiver 类型。
     #[must_use]
     pub const fn owner_type(&self) -> crate::type_checking::UnitTypeId {
         self.owner_type
+    }
+    /// 直接 Inout `this` 的已检查字段投影及 receiver 声明位置。
+    #[must_use]
+    pub const fn inout_receiver(
+        &self,
+    ) -> Option<(crate::type_checking::UnitExpressionId, crate::source::Span)> {
+        self.inout_receiver
     }
     /// 新字段值已完成的 Value 交付。
     #[must_use]

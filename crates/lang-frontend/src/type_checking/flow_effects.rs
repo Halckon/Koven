@@ -13,10 +13,18 @@ use crate::{
     },
 };
 
+pub(super) mod result_edges;
+mod syntactic_jumps;
+use syntactic_jumps::SyntacticJumps;
+
 enum Pending {
     Expression(ExpressionId),
     Statement(StatementId),
     Write(ExpressionId),
+    Repeating {
+        condition: ExpressionId,
+        body: StatementId,
+    },
     Conditional(ConditionalSite),
     DiscardNormalWrites(usize),
     SaveBranchWrites(usize),
@@ -114,7 +122,7 @@ impl<'a> SyntacticBooleanOutcomes<'a> {
         }
     }
 
-    fn possible_results(&self, expression: ExpressionId) -> (bool, bool) {
+    pub(super) fn possible_results(&self, expression: ExpressionId) -> (bool, bool) {
         let values = self.outcomes.get_or_init(|| {
             // Parser expression IDs are in child-before-parent order.
             let mut values = Vec::with_capacity(self.ast.expressions().len());
@@ -201,21 +209,6 @@ pub(super) fn structural_outcomes(
     }
 }
 
-pub(super) fn collect_expression_mutation_targets(
-    outcomes: &SyntacticBooleanOutcomes<'_>,
-    expression: ExpressionId,
-) -> Result<Vec<ExpressionId>, AstError> {
-    collect_mutation_targets(
-        outcomes,
-        Pending::Expression(expression),
-        |_| true,
-        |_| Ok(true),
-        |_| Ok(true),
-        |_| false,
-        false,
-    )
-}
-
 pub(super) fn collect_normal_expression_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
     expression: ExpressionId,
@@ -238,13 +231,18 @@ pub(super) fn collect_normal_expression_mutation_targets(
     )
 }
 
-pub(super) fn collect_statement_mutation_targets(
+pub(super) fn collect_repeating_mutation_targets(
     outcomes: &SyntacticBooleanOutcomes<'_>,
-    statement: StatementId,
+    condition: Option<ExpressionId>,
+    body: StatementId,
 ) -> Result<Vec<ExpressionId>, AstError> {
+    let root = condition.map_or(Pending::Statement(body), |condition| Pending::Repeating {
+        condition,
+        body,
+    });
     collect_mutation_targets(
         outcomes,
-        Pending::Statement(statement),
+        root,
         |_| true,
         |_| Ok(true),
         |_| Ok(true),
@@ -269,9 +267,25 @@ fn collect_mutation_targets(
     let mut branch_writes = Vec::new();
     let mut when_normal_prefixes = Vec::new();
     let mut checked_boolean_results = BTreeMap::new();
+    let mut syntactic_jumps = (!track_loop_writes).then(|| SyntacticJumps::new(ast));
+    let operand_stops = |operand, jumps: &mut Option<SyntacticJumps<'_>>| {
+        if let Some(jumps) = jumps {
+            jumps.expression_stops(operand)
+        } else {
+            Ok(!expression_completes(operand)?)
+        }
+    };
     while let Some(node) = pending.pop() {
         match node {
             Pending::Write(target) => targets.push(target),
+            Pending::Repeating { condition, body } => {
+                // If the first condition cannot complete, neither the body nor
+                // writes in the condition itself can reach a subsequent test.
+                if !operand_stops(condition, &mut syntactic_jumps)? {
+                    pending.push(Pending::Statement(body));
+                    pending.push(Pending::Expression(condition));
+                }
+            }
             Pending::Conditional(site) => {
                 let (child, completes) = match site {
                     ConditionalSite::RightOperand(rhs) => {
@@ -521,14 +535,16 @@ fn collect_mutation_targets(
                     pending.push(Pending::Expression(*value));
                 }
                 Expression::String { parts } => {
-                    for part in parts.iter().rev() {
-                        match part {
-                            StringPart::Interpolation { expression, .. } => {
-                                pending.push(Pending::Expression(*expression));
+                    let first_operand = pending.len();
+                    for part in parts {
+                        if let StringPart::Interpolation { expression, .. } = part {
+                            pending.push(Pending::Expression(*expression));
+                            if operand_stops(*expression, &mut syntactic_jumps)? {
+                                break;
                             }
-                            StringPart::Text(_) | StringPart::Error(_) => {}
                         }
                     }
+                    pending[first_operand..].reverse();
                 }
                 Expression::If {
                     condition,
@@ -536,6 +552,10 @@ fn collect_mutation_targets(
                     else_branch,
                     ..
                 } => {
+                    if !track_loop_writes && operand_stops(*condition, &mut syntactic_jumps)? {
+                        pending.push(Pending::Expression(*condition));
+                        continue;
+                    }
                     if loops.is_empty() {
                         pending.push(Pending::JoinBranchWrites(branch_writes.len()));
                         if let Some(branch) = else_branch {
@@ -559,6 +579,29 @@ fn collect_mutation_targets(
                     subject, entries, ..
                 } => {
                     pending.push(Pending::JoinBranchWrites(branch_writes.len()));
+                    // A subjectless selector stops evaluation at the first match.
+                    // Keep each evaluated operand even when only its miss can occur.
+                    let mut reachable = Vec::new();
+                    'entries: for entry in entries {
+                        if subject.is_some() || entry.else_span.is_some() {
+                            reachable.push((entry, entry.conditions.len(), true));
+                            continue;
+                        }
+                        let mut can_match = false;
+                        for (index, condition) in entry.conditions.iter().enumerate() {
+                            let (yes, no) = if let WhenCondition::Expression(operand) = condition {
+                                outcomes.possible_results(*operand)
+                            } else {
+                                (true, true)
+                            };
+                            can_match |= yes;
+                            if !no {
+                                reachable.push((entry, index + 1, can_match));
+                                break 'entries;
+                            }
+                        }
+                        reachable.push((entry, entry.conditions.len(), can_match));
+                    }
                     let mut track_prefix = !loops.is_empty()
                         && entries
                             .last()
@@ -566,7 +609,10 @@ fn collect_mutation_targets(
                     if track_prefix {
                         // An unmatched path may reach any later selector. Only trim
                         // selector effects when each selector can complete.
-                        for condition in entries.iter().flat_map(|entry| &entry.conditions) {
+                        for condition in reachable
+                            .iter()
+                            .flat_map(|(entry, count, _)| &entry.conditions[..*count])
+                        {
                             if let Some(operand) = when_operand(condition)
                                 && !expression_completes(operand)?
                             {
@@ -578,21 +624,23 @@ fn collect_mutation_targets(
                     if track_prefix {
                         pending.push(Pending::FinishWhen);
                     }
-                    for entry in entries.iter().rev() {
-                        if track_prefix
-                            && subject.is_none()
-                            && let [WhenCondition::Expression(operand)] =
-                                entry.conditions.as_slice()
-                        {
-                            pending.push(Pending::WhenSelector(*operand, entry.body));
-                            continue;
+                    for (entry, count, can_match) in reachable.into_iter().rev() {
+                        let conditions = &entry.conditions[..count];
+                        if can_match {
+                            if track_prefix
+                                && subject.is_none()
+                                && let [WhenCondition::Expression(operand)] = conditions
+                            {
+                                pending.push(Pending::WhenSelector(*operand, entry.body));
+                                continue;
+                            }
+                            pending.push(if track_prefix {
+                                Pending::WhenBranch(entry.body)
+                            } else {
+                                Pending::Conditional(ConditionalSite::Branch(entry.body))
+                            });
                         }
-                        pending.push(if track_prefix {
-                            Pending::WhenBranch(entry.body)
-                        } else {
-                            Pending::Conditional(ConditionalSite::Branch(entry.body))
-                        });
-                        for operand in entry.conditions.iter().rev().filter_map(when_operand) {
+                        for operand in conditions.iter().rev().filter_map(when_operand) {
                             pending.push(Pending::Expression(operand));
                         }
                     }
@@ -661,20 +709,23 @@ fn collect_mutation_targets(
                 Expression::Call {
                     callee, arguments, ..
                 } => {
-                    if includes_inout(expression) {
-                        targets.extend(arguments.iter().filter_map(|argument| {
-                            matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
-                                .then_some(argument.value)
-                        }));
-                    }
                     let first_operand = pending.len();
+                    let mut reaches_call = true;
                     for operand in std::iter::once(*callee)
                         .chain(arguments.iter().map(|argument| argument.value))
                     {
                         pending.push(Pending::Expression(operand));
-                        if !expression_completes(operand)? {
+                        if operand_stops(operand, &mut syntactic_jumps)? {
+                            reaches_call = false;
                             break;
                         }
+                    }
+                    // The callee can write through inout only after operand evaluation.
+                    if reaches_call && includes_inout(expression) {
+                        pending.extend(arguments.iter().filter_map(|argument| {
+                            matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
+                                .then_some(Pending::Write(argument.value))
+                        }));
                     }
                     pending[first_operand..].reverse();
                 }
@@ -695,9 +746,16 @@ fn collect_mutation_targets(
                 Statement::Block { elements }
                 | Statement::LambdaBody { elements }
                 | Statement::ControlBody { elements } => {
-                    for element in elements.iter().rev() {
-                        pending.push(Pending::Statement(*element));
+                    let first_statement = pending.len();
+                    for &element in elements {
+                        pending.push(Pending::Statement(element));
+                        if let Some(jumps) = &mut syntactic_jumps
+                            && jumps.statement_stops(element)?
+                        {
+                            break;
+                        }
                     }
+                    pending[first_statement..].reverse();
                 }
                 Statement::LocalVariable { declaration } => {
                     match ast.items().get(*declaration)?.payload() {
@@ -719,13 +777,20 @@ fn collect_mutation_targets(
                 Statement::While {
                     condition, body, ..
                 } => {
-                    if !track_loop_writes || outcomes.possible_results(*condition).0 {
+                    let enters_body = if track_loop_writes {
+                        outcomes.possible_results(*condition).0
+                    } else {
+                        !operand_stops(*condition, &mut syntactic_jumps)?
+                    };
+                    if enters_body {
                         pending.push(Pending::EnterLoop(*body));
                     }
                     pending.push(Pending::Expression(*condition));
                 }
                 Statement::For { source, body, .. } => {
-                    pending.push(Pending::EnterLoop(*body));
+                    if track_loop_writes || !operand_stops(*source, &mut syntactic_jumps)? {
+                        pending.push(Pending::EnterLoop(*body));
+                    }
                     pending.push(Pending::Expression(*source));
                 }
                 Statement::Loop { body, .. } => {

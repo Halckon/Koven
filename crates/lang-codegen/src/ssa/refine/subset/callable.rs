@@ -334,64 +334,26 @@ impl Checker<'_, '_> {
         {
             return false;
         }
-        let mut is_migrated_field = false;
-        let field_ok = match projection.receiver() {
-            UnitAggregateProjectionReceiver::Expression(receiver)
-                if receiver.source_unit() == self.inputs.source_unit
-                    && matches!(
-                        typed.expression_type(receiver).and_then(|ty| self.kind(ty)),
-                        Some(lang_frontend::type_checking::UnitTypeKind::EnumCase { .. })
-                    ) =>
-            {
-                let Some(lang_frontend::type_checking::UnitTypeKind::EnumCase { root, .. }) =
-                    typed.expression_type(receiver).and_then(|ty| self.kind(ty))
-                else {
-                    return false;
-                };
-                let receiver_expr = receiver.expression();
-                let root_ty = self.c(*root);
-                let is_name = self
-                    .inputs
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .get(receiver_expr)
-                    .is_ok_and(|node| matches!(node.payload(), Expression::Name));
-                let ok = self.plain(receiver_expr)
-                    && is_name
-                    && self.box_enum_type(root_ty)
-                    && self.payload_case(root_ty, projection.field()).is_some()
-                    && self.reference(receiver_expr).is_some_and(|symbol| {
-                        self.known.contains(&symbol)
-                            && matches!(
-                                self.parameter_mode(symbol),
-                                None | Some(ParameterMode::Value)
+        let (field_ok, is_migrated_field) = if let Some(ok) = self.borrowed_enum_payload(projection)
+        {
+            (ok, ok)
+        } else {
+            let multi_hop = matches!(
+                projection.receiver(),
+                UnitAggregateProjectionReceiver::Expression(receiver)
+                    if receiver.source_unit() == self.inputs.source_unit
+                        && typed
+                            .aggregate_projection(
+                                self.id(self.ungrouped(receiver.expression())),
                             )
-                            && self.symbol_type(symbol) == Some(root_ty)
-                    });
-                if ok {
-                    is_migrated_field = true;
-                }
-                ok
-            }
-            _ => {
-                let multi_hop = matches!(
-                    projection.receiver(),
-                    UnitAggregateProjectionReceiver::Expression(receiver)
-                        if receiver.source_unit() == self.inputs.source_unit
-                            && typed
-                                .aggregate_projection(
-                                    self.id(self.ungrouped(receiver.expression())),
-                                )
-                                .is_some()
-                );
-                let value_param =
-                    !multi_hop && self.borrowed_value_parameter_field(call, root, parameter);
-                if value_param {
-                    is_migrated_field = true;
-                }
-                self.field_loan_receiver(root, !multi_hop) == Some(parameter) || value_param
-            }
+                            .is_some()
+            );
+            let value_param =
+                !multi_hop && self.borrowed_value_parameter_field(call, root, parameter);
+            (
+                self.field_loan_receiver(root, !multi_hop) == Some(parameter) || value_param,
+                value_param,
+            )
         };
         let loans_match = self.inputs.owned.loans().iter().any(|loan| {
             loan.call() == self.id(call)

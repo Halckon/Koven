@@ -343,7 +343,6 @@ impl Builder<'_, '_> {
         loop_body: lang_frontend::ast::StatementId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
-        self.end_reassigned_loop_views(span)?;
         let statement_id =
             lang_frontend::type_checking::UnitStatementId::new(self.inputs.source_unit, statement);
         let plan = self
@@ -364,6 +363,7 @@ impl Builder<'_, '_> {
         let Some(range) = self.required(source)? else {
             return Ok(Lowered::Diverged);
         };
+        self.end_reassigned_loop_views(span)?;
         let first = self.value(
             ROp::AggregateProject {
                 aggregate: range,
@@ -423,6 +423,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             loans: self.pending_call_loans.len(),
+            index_loans: self.index_receiver_loans.len(),
             broken: false,
             seq_for: None,
             map_for: None,

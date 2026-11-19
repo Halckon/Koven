@@ -34,6 +34,14 @@ deferred 清空可执行计划，未正常继续的 operand 不发布 commit。p
 快照，防止发布后将 plan 与 loan 配对改到同类型 val 字段或另一 receiver；var/local/projection
 合法性由封闭 producer 证明，gate 复核快照、typed descriptor/type、loan 与新值交付。
 
+Unit 对普通非泛型 class 的显式 `inout this.field` 发布独立来源的字段计划。计划关联
+原字段投影、当前接收者声明、以字段符号为根的已验证独占 loan 和新值交付。发布时按调用
+冻结凭证，验证时拒绝另一方法的投影或声明。参数 receiver、裸字段名和共享捕获不获得该
+能力。SSA 用 `ExclusiveHeapFieldLoan` 从当前 Inout receiver 建立子借用，
+`HeapReceiverFieldExchange` 结束子借用并交付旧值。LLVM 复用原字段交换的 load/store。
+替换值提前离开时只清理子借用，父 receiver 与旧字段保持活跃。不同字段可在独占子借用
+期间建立共享投影或独占投影，整根访问及同字段冲突仍由 verifier 拒绝。
+
 single/unit 的 drop planner 已修复 Member 作为 Place 时将父 owner 提前 ASAP 释放的问题：
 投影不是 receiver 的完整 Value 交付，前缀期间仍保留父 owner。temporary 字段 receiver
 在 Phase 2 按非 place 报 L0122，不推迟到 ownership 或后端伪装支持。
@@ -68,7 +76,7 @@ SPEC-0263 已修复 unit 跨文件 class `var` 字段可变性误报 L0134，声
 source，仍保持本页其它 receiver/表示限制。跨文件 `make()` 产生 replacement 是既有能力，
 与本次跨文件字段声明查询分别验收。
 
-nested fields、`this` / 隐式字段、non-owning 或参数 receiver、temporary receiver、index、
+nested fields、隐式字段、非当前 receiver 的参数路径、temporary receiver、index、
 generic receiver、value-class receiver、closure/provenance、field swap 和普通 Inout ABI
 不在本片。SSA AliasRoots 仍保留共同 root 约束父 owner 的移动与析构；直接字段 loan 的
 不重叠判断见下文。字段 loan 活跃期间的 sibling Copyable read／clone 仍在 backend
@@ -126,3 +134,21 @@ Borrow/Carrier 结果来源的情况；非来源参数仍同步结束，来源�
 Resource terminal 的 field 返回与中断测试使用 MemoryDocument/Rooted Unit 完整 drop 表、
 原 AST 边界与固定顺序期望；parent owner identity、old/new owner 不同的独立 Single
 witness 仍保留。此为测试观察入口收敛，不扩张 owner transport graph 的 field/terminal 能力。
+
+## 自有堆字段交换
+
+直接堆字段可与另一直接字段、可变局部根或可变顺序容器元素交换。
+`ProjectedSwap` 消费两个精确的独占借用，加载两个旧值后完成写回。
+父对象继续持有字段。局部根接收新的 SSA 值。字段借用保持活跃时，
+后续实参可通过确切的兄弟字段借用读取或赋值。父对象经过 CFG 合流时，
+SSA 可沿每条入边都传递同一值的链保留归一后的字段身份。前缀提前
+结束时，已建立的借用沿原退出清理顺序处理。[SPEC-0392 §367](../specs/active/0392-compiler-layered-review.md#367-r4-自有堆字段的原子-swap)
+
+具名 Inout 类形参和当前 Inout 方法接收者使用同一字段重借用指令。
+交换完成后父借用继续有效。沿 CFG 转发的父借用结束时，路径检查
+会同步退休同一权限的其他表示。接收者专用字段置换保留当前
+接收者约束。[SPEC-0392 §368](../specs/active/0392-compiler-layered-review.md#368-r4-经-inout-类形参和接收者交换堆字段)
+
+Unit 具名 Inout 类形参的直接字段 replace 使用同一字段重借用，
+由 `InoutExchange` 结束子借用并交付旧字段值。父参数槽保持可用，
+RHS 提前退出时跳过提交。[SPEC-0392 §369](../specs/active/0392-compiler-layered-review.md#369-r4-直接-inout-根与具名参数字段置换)

@@ -591,6 +591,7 @@ impl Builder<'_, '_> {
             }
             None => None,
         };
+        self.end_enclosing_index_receiver_loans(span)?;
         self.finish_return_drops(UnitDropPoint::ControlTransfer(self.unit(expression)), span)?;
         let unit_return = self.is_unit(self.inputs.return_type);
         self.owner_return(expression, result, unit_return, span)?;
@@ -604,8 +605,7 @@ pub(in crate::ssa::refine::build) mod field {
     //! owner is lent for the access only; a Borrow/Inout parameter or the current receiver
     //! already arrives as a loan of the right kind.
     use lang_frontend::{
-        ast::ExpressionId, name_resolution::DeclarationId, ownership_checking::UnitDropPoint,
-        parser::Expression, source::Span,
+        ast::ExpressionId, name_resolution::DeclarationId, parser::Expression, source::Span,
     };
 
     use super::super::{Builder, Lowered};
@@ -775,58 +775,6 @@ pub(in crate::ssa::refine::build) mod field {
                 .is_some()
         }
 
-        /// `owner.f = v` on a plain class owner: a local, an Inout parameter or the Inout
-        /// receiver (explicit or implicit `this`).
-        pub(in crate::ssa::refine::build) fn field_assignment(
-            &mut self,
-            assignment: ExpressionId,
-            target: ExpressionId,
-            value: ExpressionId,
-            span: Span,
-        ) -> Result<Lowered, LoweringError> {
-            let projection = self
-                .inputs
-                .typed
-                .aggregate_projection(self.unit(target))
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            let (owner, owner_type, _) = self.projection_owner(projection.receiver(), span)?;
-            let field = self
-                .types
-                .field_indices
-                .get(&(owner_type, projection.field()))
-                .copied()
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            // Guide: the RHS is evaluated before the old value is dropped and replaced.
-            let Some(replacement) = self.required(value)? else {
-                let replaced =
-                    self.collect_drops(UnitDropPoint::BeforeReplacement(self.unit(assignment)));
-                self.finish_drops(&replaced);
-                return Ok(Lowered::Diverged);
-            };
-            let replacement = self.adapt(replacement, value, self.c(projection.ty()))?;
-            self.deliver(value);
-            let loan = self.owner_loan(owner, LoanKind::Exclusive, span)?;
-            let op = if self.is_value_class(owner_type) {
-                ROp::InlineFieldReplace {
-                    receiver: loan.loan,
-                    field,
-                    value: replacement,
-                }
-            } else {
-                ROp::HeapFieldReplace {
-                    receiver: loan.loan,
-                    field,
-                    value: replacement,
-                }
-            };
-            self.push(op, Vec::new(), span)?;
-            self.end_owner_loan(loan, span)?;
-            let replaced =
-                self.collect_drops(UnitDropPoint::BeforeReplacement(self.unit(assignment)));
-            self.finish_drops(&replaced);
-            Ok(Lowered::Unit)
-        }
-
         pub(in crate::ssa::refine::build) fn local_variable(
             &mut self,
             mut declaration: lang_frontend::ast::ItemId,
@@ -847,10 +795,7 @@ pub(in crate::ssa::refine::build) mod field {
                 .get(declaration)
                 .map_err(|_| error(LoweringErrorKind::MissingFact, span))?;
             let lang_frontend::parser::Item::Variable {
-                name,
-                initializer,
-                kind,
-                ..
+                name, initializer, ..
             } = node.payload().clone()
             else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
@@ -858,12 +803,11 @@ pub(in crate::ssa::refine::build) mod field {
             let lang_frontend::parser::NameMarker::Present(name_span) = name else {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
-            if matches!(kind, lang_frontend::parser::VariableKind::BorrowVal(_))
-                && self
-                    .inputs
-                    .typed
-                    .expression_falls_through(self.unit(initializer))
-                    == Some(false)
+            if self
+                .inputs
+                .typed
+                .expression_falls_through(self.unit(initializer))
+                == Some(false)
             {
                 if self.expression(initializer)? != Lowered::Diverged {
                     return Err(error(LoweringErrorKind::InvalidModel, span));

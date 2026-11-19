@@ -582,6 +582,7 @@ mod provider_entry_projection_tests {
         Reference {
             lineage: tokens.iter().copied().collect(),
             origin: *tokens.last().expect("reference origin"),
+            root_storage: None,
             live,
         }
     }

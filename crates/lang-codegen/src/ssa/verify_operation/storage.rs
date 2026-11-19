@@ -39,6 +39,44 @@ pub(super) fn root_exchange_contract(
         && results == [EntityType::Value(ty); 2]
 }
 
+pub(super) fn exclusive_reborrow_contract(
+    function: &Function,
+    source: model::LoanId,
+    results: &[EntityType],
+) -> bool {
+    let ty = entity_type(function, EntityId::Loan(source));
+    matches!(
+        ty,
+        EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            ..
+        }
+    ) && results == [ty]
+}
+
+pub(super) fn element_swap_contract(
+    function: &Function,
+    root: Option<ValueId>,
+    [left, right]: [model::LoanId; 2],
+    results: &[EntityType],
+) -> bool {
+    let ty = entity_type(function, EntityId::Loan(left));
+    let EntityType::Loan {
+        kind: LoanKind::Exclusive,
+        target,
+    } = ty
+    else {
+        return false;
+    };
+    ty == entity_type(function, EntityId::Loan(right))
+        && match root {
+            Some(root) => {
+                value_type(function, root) == Some(target) && results == [EntityType::Value(target)]
+            }
+            None => results.is_empty(),
+        }
+}
+
 pub(super) fn root_place_owner(
     function: &Function,
     place: model::PlaceId,
@@ -257,6 +295,28 @@ pub(super) fn heap_payload_place_contract(
     value_type(function, owner)
         .and_then(|owner| module.heap_payload(owner))
         .is_some_and(|payload| results == [EntityType::Place(payload)])
+}
+
+pub(super) fn field_exchange_contract(
+    module: &Module,
+    function: &Function,
+    field: SsaTypeId,
+    loan: model::LoanId,
+    replacement: ValueId,
+    results: &[EntityType],
+) -> bool {
+    (is_first_class(module, field) || matches!(module.type_kind(field), Some(SsaTypeKind::Unit)))
+        && !matches!(
+            module.type_kind(field),
+            Some(SsaTypeKind::ConcreteClosure { .. })
+        )
+        && value_type(function, replacement) == Some(field)
+        && entity_type(function, EntityId::Loan(loan))
+            == EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target: field,
+            }
+        && results == [EntityType::Value(field)]
 }
 
 pub(super) fn heap_field_type(

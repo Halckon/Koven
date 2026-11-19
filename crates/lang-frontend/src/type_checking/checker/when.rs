@@ -14,6 +14,9 @@ use super::{
     *,
 };
 
+use crate::type_checking::flow_effects::result_edges::{
+    bypassed_result_writes, restore_bypassed_writes, splits_boolean_writes,
+};
 use crate::type_checking::{
     NullableWhenAlternativeDescriptor, NullableWhenDescriptor, NullableWhenEntryDescriptor,
     NullableWhenSubjectCategory, WhenDomain, WhenDomainAtom,
@@ -88,6 +91,7 @@ impl Checker<'_> {
             let mut body_domain = WhenDomain::Empty;
             let mut alternative_plans = Vec::new();
             let mut entry_facts = None;
+            let mut entry_versions = None;
             let mut entry_pending = BTreeSet::new();
             let mut reaches_body = false;
             let mut entry_source_valid = subject_key.is_some_and(|key| {
@@ -98,6 +102,9 @@ impl Checker<'_> {
                 body_domain = input_domain.clone();
                 remaining_domain = WhenDomain::Empty;
                 entry_facts = Some(self.flow_facts.clone());
+                if subject.is_none() {
+                    entry_versions = Some(self.flow_versions.clone());
+                }
                 reaches_body = reaches_remaining;
                 if reaches_body {
                     entry_pending.extend(&self.iteration_recovery.bindings);
@@ -126,6 +133,19 @@ impl Checker<'_> {
             } else {
                 for condition in &entry.conditions {
                     let condition_span = self.when_condition_span(condition)?;
+                    let before = if subject.is_none()
+                        && !remaining_domain.is_empty()
+                        && let WhenCondition::Expression(operand) = condition
+                        && splits_boolean_writes(self.ast(), *operand)?
+                    {
+                        Some((
+                            *operand,
+                            self.flow_facts.clone(),
+                            self.flow_versions.clone(),
+                        ))
+                    } else {
+                        None
+                    };
                     let checked = self.check_pending_path(reaches_remaining, |checker| {
                         checker.check_when_condition(
                             subject_type,
@@ -148,16 +168,55 @@ impl Checker<'_> {
                         Some(self.flow_versions.get(&key).copied().unwrap_or_default())
                             == subject_version
                     });
-                    let (matched, missed) = split_domain(
-                        &input_domain,
+                    let (mut matched, mut missed) = split_domain(
+                        if subject.is_none() {
+                            &remaining_domain
+                        } else {
+                            &input_domain
+                        },
                         &checked.coverage,
                         checked.non_null,
                         checked.valid,
                     );
+                    if subject.is_none()
+                        && checked.valid
+                        && let WhenCondition::Expression(operand) = condition
+                    {
+                        let (yes, no) = self.syntactic_boolean_outcomes.possible_results(*operand);
+                        if !yes {
+                            matched = WhenDomain::Empty;
+                        }
+                        if !no {
+                            missed = WhenDomain::Empty;
+                        }
+                    }
                     // Alternatives are judged against the entry input, while condition effects
                     // persist along evaluation. Never restore pre-condition source proofs.
+                    let split = if checked.valid
+                        && let Some((operand, facts, versions)) = before
+                        && self.flow_versions != versions
+                    {
+                        let edges = bypassed_result_writes(
+                            self.syntactic_boolean_outcomes,
+                            operand,
+                            |target| self.stable_flow_key(target),
+                        )?;
+                        Some((facts, versions, edges))
+                    } else {
+                        None
+                    };
                     let mut matched_facts = self.flow_facts.clone();
                     if !matched.is_empty() {
+                        let mut matched_versions = self.flow_versions.clone();
+                        if let Some((facts, versions, [yes, _])) = &split {
+                            restore_bypassed_writes(
+                                &mut matched_facts,
+                                &mut matched_versions,
+                                facts,
+                                versions,
+                                yes,
+                            );
+                        }
                         entry_source_valid &= source_valid;
                         if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
                             && source_valid
@@ -174,8 +233,20 @@ impl Checker<'_> {
                             None => matched_facts,
                             Some(previous) => intersect_facts(&previous, &matched_facts),
                         });
+                        if subject.is_none() {
+                            entry_versions = Some(match entry_versions {
+                                None => matched_versions,
+                                Some(previous) => {
+                                    crate::type_checking::flow_effects::merge_flow_versions(
+                                        &previous,
+                                        &matched_versions,
+                                    )
+                                }
+                            });
+                        }
                         body_domain = union_domain(body_domain, matched.clone());
                     }
+                    let subjectless_miss = subject.is_none().then(|| missed.clone());
                     alternative_plans.push(NullableWhenAlternativeDescriptor {
                         span: condition_span,
                         match_domain: matched,
@@ -187,6 +258,7 @@ impl Checker<'_> {
                         checked.non_null,
                         checked.valid,
                     );
+                    let pending_miss = subjectless_miss.unwrap_or(pending_miss);
                     if reaches_remaining {
                         let operand = match condition {
                             WhenCondition::Expression(expression)
@@ -238,6 +310,17 @@ impl Checker<'_> {
                         self.iteration_recovery.bindings = edges.no.unwrap_or_default();
                     }
                     remaining_domain = pending_miss;
+                    if !remaining_domain.is_empty()
+                        && let Some((facts, versions, [_, no])) = split
+                    {
+                        restore_bypassed_writes(
+                            &mut self.flow_facts,
+                            &mut self.flow_versions,
+                            &facts,
+                            &versions,
+                            &no,
+                        );
+                    }
                     if checked.valid && !checked.coverage.is_empty() {
                         let mut first_previous = None;
                         let mut added = false;
@@ -273,6 +356,9 @@ impl Checker<'_> {
             remaining_pending = self.iteration_recovery.bindings.clone();
             self.iteration_recovery.bindings = entry_pending;
             self.flow_facts = entry_facts.unwrap_or_else(|| remaining_facts.clone());
+            if let Some(versions) = entry_versions {
+                self.flow_versions = versions;
+            }
             let body_type = if body_domain.is_non_null() {
                 nullable_inner
             } else {
@@ -294,6 +380,7 @@ impl Checker<'_> {
                 Some(FlowKey::Symbol(symbol)) if entry_source_valid => Some(symbol),
                 _ => None,
             };
+            let body_has_entry = subject.is_some() || !body_domain.is_empty();
             plans.push(NullableWhenEntryDescriptor {
                 span: entry.span,
                 input_domain,
@@ -319,17 +406,18 @@ impl Checker<'_> {
                     .abrupt_statements
                     .insert(entry.body.index());
             }
-            if result.falls_through {
+            if body_has_entry && result.falls_through {
                 exits.push(self.flow_facts.clone());
             }
-            for (&key, &version) in &self.flow_versions {
-                let previous = exit_versions.entry(key).or_default();
-                *previous = (*previous).max(version);
+            if subject.is_some() || (body_has_entry && result.falls_through) {
+                for (&key, &version) in &self.flow_versions {
+                    let previous = exit_versions.entry(key).or_default();
+                    *previous = (*previous).max(version);
+                }
             }
             branches.push(result);
         }
 
-        self.flow_versions = exit_versions;
         let exhaustive = has_else
             || domain
                 .as_ref()
@@ -338,9 +426,17 @@ impl Checker<'_> {
         if value_use && !exhaustive {
             self.emit_non_exhaustive_when(keyword_span, domain.as_deref(), &covered)?;
         }
-        if !exhaustive {
+        if !exhaustive && (subject.is_some() || !remaining_domain.is_empty()) {
             exits.push(remaining_facts);
+            if subject.is_none() {
+                exit_versions = crate::type_checking::flow_effects::merge_flow_versions(
+                    &exit_versions,
+                    &remaining_versions,
+                );
+            }
         }
+        self.flow_versions = exit_versions;
+        let has_normal_exit = !exits.is_empty();
         if reaches_remaining {
             pending_exits.merge(PendingBooleanEdges::unknown(&remaining_pending));
         }
@@ -350,7 +446,11 @@ impl Checker<'_> {
             .reduce(|left, right| intersect_facts(&left, &right))
             .unwrap_or(baseline);
 
-        let falls_through = !exhaustive || branches.iter().any(|branch| branch.falls_through);
+        let falls_through = if subject.is_none() {
+            has_normal_exit
+        } else {
+            !exhaustive || branches.iter().any(|branch| branch.falls_through)
+        };
         let ty = if !value_use {
             self.builtin(BuiltinType::Unit)
         } else if branches

@@ -240,6 +240,10 @@ pub(super) enum ROp {
         source: Slot,
     },
     /// Narrows an active exclusive loan to a call-scoped shared loan.
+    /// Temporary exclusive access to the entire storage of a declared Inout parameter.
+    ExclusiveRootReborrow {
+        source: Slot,
+    },
     SharedReborrow {
         source: Slot,
     },
@@ -312,6 +316,19 @@ pub(super) enum ROp {
         loan: Slot,
         replacement: Slot,
     },
+    ExclusiveHeapFieldLoan {
+        base: Slot,
+        field: usize,
+    },
+    /// Store the replacement and return the previous value under a temporary Inout loan.
+    InoutExchange {
+        loan: Slot,
+        replacement: Slot,
+    },
+    HeapReceiverFieldExchange {
+        loan: Slot,
+        replacement: Slot,
+    },
     /// Consumes `elements` into a sequential container (`Array<T>`, `List<T>`, `MutableList<T>`).
     ContainerConstruct {
         container: SsaTypeId,
@@ -327,8 +344,17 @@ pub(super) enum ROp {
         index: Slot,
     },
     /// Consumes `owner` and `element`, returning the updated `MutableList<T>` owner.
+    ProjectedSwap {
+        root: Option<Slot>,
+        loans: [Slot; 2],
+    },
     ContainerAppend {
         owner: Slot,
+        element: Slot,
+    },
+    /// Consumes the element and writes the updated header through the Inout loan.
+    ContainerAppendInout {
+        loan: Slot,
         element: Slot,
     },
     /// Consumes `owner` and clears all elements, returning the updated `MutableList<T>` owner.
@@ -524,6 +550,7 @@ impl ROp {
             | Self::FieldPlace { base: slot, .. }
             | Self::ReadPlace { place: slot }
             | Self::SharedReborrow { source: slot }
+            | Self::ExclusiveRootReborrow { source: slot }
             | Self::SharedAllocate { payload: slot, .. }
             | Self::SharedRetain { owner: slot }
             | Self::SharedPayloadPlace { owner: slot }
@@ -534,6 +561,7 @@ impl ROp {
             | Self::AggregateExplode { aggregate: slot }
             | Self::SharedFieldLoan { base: slot, .. }
             | Self::SharedHeapFieldLoan { base: slot, .. }
+            | Self::ExclusiveHeapFieldLoan { base: slot, .. }
             | Self::ContainerLength { owner: slot }
             | Self::ContainerClear { owner: slot }
             | Self::ContainerRemoveFirst { owner: slot }
@@ -591,6 +619,10 @@ impl ROp {
             }
             | Self::ContainerAppend {
                 owner: left,
+                element: right,
+            }
+            | Self::ContainerAppendInout {
+                loan: left,
                 element: right,
             }
             | Self::ContainerRemoveAt {
@@ -682,6 +714,9 @@ impl ROp {
                 replacement: end,
                 ..
             } => vec![*source, *start, *end],
+            Self::ProjectedSwap { root, loans } => root.iter().chain(loans).copied().collect(),
+            Self::HeapReceiverFieldExchange { loan, replacement }
+            | Self::InoutExchange { loan, replacement } => vec![*loan, *replacement],
             Self::RootSwap {
                 left_owner,
                 right_owner,
@@ -796,8 +831,12 @@ impl ROp {
             Self::HeapFieldReplace { value, .. }
             | Self::InlineFieldReplace { value, .. }
             | Self::LoanMutate { value, .. }
-            | Self::LoanReplace { value, .. } => vec![*value],
+            | Self::LoanReplace { value, .. }
+            | Self::ContainerAppendInout { element: value, .. } => vec![*value],
 
+            Self::ProjectedSwap { root, loans } => root.iter().chain(loans).copied().collect(),
+            Self::HeapReceiverFieldExchange { loan, replacement }
+            | Self::InoutExchange { loan, replacement } => vec![*loan, *replacement],
             Self::HeapFieldExchange {
                 owner,
                 loan,

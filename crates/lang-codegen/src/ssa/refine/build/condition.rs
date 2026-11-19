@@ -2,7 +2,7 @@
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     ownership_checking::UnitDropPoint,
-    parser::{BinaryOperator, Expression, PrefixOperator, Statement},
+    parser::{Expression, Statement},
     source::Span,
     type_checking::{BuiltinType, ParameterMode, UnitTypeKind},
 };
@@ -16,7 +16,7 @@ use crate::ssa::{
 
 mod logical;
 
-use logical::{BorrowedProofEdges, ConditionViews};
+use logical::{BorrowedProofEdges, ConditionInput, ConditionViews};
 
 impl Builder<'_, '_> {
     /// Ends the current block with a branch to `when_true` / `when_false`.
@@ -73,6 +73,22 @@ impl Builder<'_, '_> {
         )
     }
 
+    pub(super) fn condition_for_selector(
+        &mut self,
+        expression: ExpressionId,
+        matched: BlockRef,
+        missed: BlockRef,
+    ) -> Result<(), LoweringError> {
+        self.condition_internal(
+            expression,
+            matched,
+            missed,
+            ConditionViews::normal(false),
+            None,
+            true,
+        )
+    }
+
     fn condition_internal(
         &mut self,
         expression: ExpressionId,
@@ -80,56 +96,32 @@ impl Builder<'_, '_> {
         when_false: BlockRef,
         views: ConditionViews,
         control_span: Option<Span>,
-        logical_operand: bool,
+        fold_literal: bool,
     ) -> Result<(), LoweringError> {
-        let (payload, span) = self.node(expression)?;
-        match payload {
-            Expression::Group { expression: inner } => {
-                return self.condition_internal(
-                    inner,
-                    when_true,
-                    when_false,
-                    views,
-                    control_span,
-                    logical_operand,
-                );
-            }
-            Expression::Prefix {
-                operator: PrefixOperator::Not,
-                operand,
-                ..
-            } => {
-                return self.condition_internal(
-                    operand,
-                    when_false,
-                    when_true,
-                    ConditionViews {
-                        ordinary: views.ordinary
-                            && control_span.is_some()
-                            && self.inputs.negated_rc_null_test(expression).is_some(),
-                        borrowed: views.borrowed.negated(),
-                    },
-                    control_span,
-                    logical_operand,
-                );
-            }
-            Expression::Binary {
-                left,
-                operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
-                right,
-                ..
-            } => {
-                return self.logical(
-                    expression,
-                    operator == BinaryOperator::LogicalAnd,
-                    (left, right),
-                    when_true,
-                    when_false,
-                    views,
-                );
-            }
-            _ => {}
-        }
+        self.lower_condition_chain(ConditionInput {
+            expression,
+            when_true,
+            when_false,
+            views,
+            control_span,
+            fold_literal,
+        })
+    }
+
+    fn condition_atom(
+        &mut self,
+        input: ConditionInput,
+        payload: Expression,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let ConditionInput {
+            expression,
+            when_true,
+            when_false,
+            views,
+            control_span,
+            fold_literal,
+        } = input;
         if let Some(fact) = self.inputs.typed.null_comparison(self.unit(expression)) {
             // The operands are read by the branch itself; their drop points follow it on
             // both edges.
@@ -396,7 +388,7 @@ impl Builder<'_, '_> {
             .narrowed
             .get(&condition_block)
             .is_some_and(|symbols| !symbols.is_empty());
-        if (logical_operand || carries_proof)
+        if (fold_literal || carries_proof)
             && let Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(value)) = payload
         {
             self.body.blocks[condition_block.0].folded_condition = true;

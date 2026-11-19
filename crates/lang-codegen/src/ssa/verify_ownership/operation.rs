@@ -14,6 +14,9 @@ pub(super) fn apply_operation(
 ) {
     let location = VerifyLocation::Instruction(instruction.id);
     let origin = &instruction.origin;
+    if !element_swap::check_suspended_root_use(function, reborrows, state, instruction, errors) {
+        return;
+    }
     match &instruction.operation {
         Operation::Constant(_)
         | Operation::PrintLiteral { .. }
@@ -347,39 +350,15 @@ pub(super) fn apply_operation(
         Operation::HeapPayloadPlace { owner } => {
             require_value(module, function, *owner, state, location, origin, errors);
         }
-        Operation::HeapFieldRead { receiver, .. } => {
-            if !state.loans.contains(receiver) {
-                errors.push(error(
-                    VerifyErrorKind::LoanInactive { loan: *receiver },
-                    location.clone(),
-                    origin,
-                ));
-            } else if loan_kind(function, *receiver) == LoanKind::Exclusive
-                && let Some(dependent) = reborrows.active_descendant(*receiver, aliases, state)
-            {
-                errors.push(error(
-                    VerifyErrorKind::LoanDependencyActive {
-                        parent: *receiver,
-                        dependent,
-                    },
-                    location.clone(),
-                    origin,
-                ));
-            }
-            if instruction.results.first().is_some_and(|result| {
-                function
-                    .entity(*result)
-                    .is_some_and(|entity| type_is_move_only(module, entity.ty.semantic_type()))
-            }) {
-                errors.push(error(
-                    VerifyErrorKind::MoveOnlyPlaceRead {
-                        entity: EntityId::Loan(*receiver),
-                    },
-                    location,
-                    origin,
-                ));
-            }
-        }
+        Operation::HeapFieldRead { .. } => receiver_field_exchange::read_field(
+            module,
+            function,
+            instruction,
+            aliases,
+            reborrows,
+            state,
+            errors,
+        ),
         Operation::HeapFieldReplace {
             receiver, value, ..
         }
@@ -392,7 +371,14 @@ pub(super) fn apply_operation(
                     location.clone(),
                     origin,
                 ));
-            } else if let Some(dependent) = reborrows.active_descendant(*receiver, aliases, state) {
+            } else if let Some(dependent) = match instruction.operation {
+                Operation::HeapFieldReplace { field, .. } => {
+                    receiver_field_exchange::dependent_on_field(
+                        function, *receiver, field, aliases, reborrows, state,
+                    )
+                }
+                _ => reborrows.active_descendant(*receiver, aliases, state),
+            } {
                 errors.push(error(
                     VerifyErrorKind::LoanDependencyActive {
                         parent: *receiver,
@@ -415,6 +401,17 @@ pub(super) fn apply_operation(
                 errors,
             );
         }
+        Operation::ExclusiveHeapFieldLoan { .. }
+        | Operation::SharedHeapFieldLoan { .. }
+        | Operation::HeapReceiverFieldExchange { .. } => receiver_field_exchange::apply(
+            module,
+            function,
+            instruction,
+            aliases,
+            reborrows,
+            state,
+            errors,
+        ),
         Operation::HeapFieldExchange {
             owner,
             field,
@@ -528,8 +525,13 @@ pub(super) fn apply_operation(
                         location.clone(),
                         origin,
                         errors,
-                    ) && has_exclusive_value_loan(function, *owner, aliases, state)
-                    {
+                    ) && element_swap::projection_conflicts(
+                        function,
+                        *owner,
+                        instruction,
+                        aliases,
+                        state,
+                    ) {
                         errors.push(error(
                             VerifyErrorKind::OwnerLoanConflict { value: *owner },
                             location,
@@ -537,18 +539,29 @@ pub(super) fn apply_operation(
                         ));
                     }
                 }
-                EntityId::Loan(loan) => {
-                    if !state.loans.contains(loan) {
-                        errors.push(error(
-                            VerifyErrorKind::LoanInactive { loan: *loan },
-                            location,
-                            origin,
-                        ));
-                    }
-                }
+                EntityId::Loan(loan) => element_swap::check_provider(
+                    function,
+                    *loan,
+                    reborrows,
+                    state,
+                    instruction,
+                    errors,
+                ),
                 EntityId::Place(_) => unreachable!("operation contract rejects a place owner"),
             }
         }
+        Operation::ProjectedSwap { .. }
+        | Operation::InoutExchange { .. }
+        | Operation::ExclusiveRootReborrow { .. } => element_swap::apply_primitive(
+            module,
+            function,
+            aliases,
+            closure_loans,
+            reborrows,
+            state,
+            instruction,
+            errors,
+        ),
         Operation::ContainerAppend { owner, element } => {
             check_and_consume_container_owner(
                 module,
@@ -715,7 +728,7 @@ pub(super) fn apply_operation(
         Operation::FieldPlace { base, .. } => {
             require_place(*base, state, location, origin, errors);
         }
-        Operation::SharedFieldLoan { base, .. } | Operation::SharedHeapFieldLoan { base, .. } => {
+        Operation::SharedFieldLoan { base, .. } => {
             if !state.loans.contains(base) {
                 errors.push(error(
                     VerifyErrorKind::LoanInactive { loan: *base },
@@ -724,8 +737,14 @@ pub(super) fn apply_operation(
                 ));
             }
         }
-        Operation::SharedReborrow { source }
-        | Operation::SharedReferenceFollow { source }
+        Operation::SharedReborrow { .. } => receiver_field_exchange::shared_reborrow(
+            function,
+            instruction,
+            reborrows,
+            state,
+            errors,
+        ),
+        Operation::SharedReferenceFollow { source }
         | Operation::SharedPayloadLoan { source }
         | Operation::CallableViewOf { source } => {
             if !state.loans.contains(source) {
@@ -828,17 +847,15 @@ pub(super) fn apply_operation(
                 errors,
             );
         }
-        Operation::BorrowBegin { place, kind } => {
-            if require_place(*place, state, location.clone(), origin, errors)
-                && has_borrow_conflict(function, *place, *kind, aliases, state)
-            {
-                errors.push(error(
-                    VerifyErrorKind::BorrowConflict { place: *place },
-                    location,
-                    origin,
-                ));
-            }
-        }
+        Operation::BorrowBegin { place, kind } => element_swap::check_borrow(
+            function,
+            (*place, *kind),
+            aliases,
+            reborrows,
+            state,
+            instruction,
+            errors,
+        ),
         Operation::BorrowEnd { loan } => {
             reborrow::end_loan(
                 function,
@@ -856,7 +873,7 @@ pub(super) fn apply_operation(
             let entity = match source {
                 PlaceAccess::Place(place) => {
                     if require_place(*place, state, location.clone(), origin, errors)
-                        && has_exclusive_loan(function, *place, aliases, state)
+                        && has_exclusive_loan(function, *place, aliases, reborrows, state)
                     {
                         errors.push(error(
                             VerifyErrorKind::BorrowConflict { place: *place },
@@ -892,14 +909,23 @@ pub(super) fn apply_operation(
                 ));
             }
         }
-        Operation::LoanMutate { loan, value } | Operation::LoanReplace { loan, value } => {
-            if matches!(instruction.operation, Operation::LoanReplace { .. })
+        Operation::LoanMutate { loan, value }
+        | Operation::LoanReplace { loan, value }
+        | Operation::ContainerAppendInout {
+            loan,
+            element: value,
+        } => {
+            let parameter_requirement = element_swap::loan_parameter_requirement(
+                function,
+                reborrows,
+                *loan,
+                &instruction.operation,
+            );
+            if let Some(reason) = parameter_requirement
                 && !inout::is_parameter_loan(function, reborrows, *loan)
             {
                 errors.push(error(
-                    VerifyErrorKind::OperationContract {
-                        reason: "LoanReplace requires an Inout parameter loan",
-                    },
+                    VerifyErrorKind::OperationContract { reason },
                     location.clone(),
                     origin,
                 ));

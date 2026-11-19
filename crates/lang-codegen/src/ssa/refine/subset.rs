@@ -929,8 +929,8 @@ impl Checker<'_, '_> {
                 .expression_type(right)
                 .is_some_and(|right_ty| self.inputs.is_nullable_string_equality(operand, right_ty))
         {
-            let admitted =
-                self.string_equality_operand(left) && self.string_equality_operand(right);
+            let admitted = self.string_equality_operand(expression, left)
+                && self.string_equality_operand(expression, right);
             self.migrated |= admitted;
             return admitted;
         }
@@ -957,7 +957,9 @@ impl Checker<'_, '_> {
             _ => false,
         };
         let string = self.string(operand);
-        supported && self.operand(left, string) && self.operand(right, string)
+        supported
+            && self.operand(expression, left, string)
+            && self.operand(expression, right, string)
     }
 
     fn statement(&mut self, statement: StatementId) -> bool {

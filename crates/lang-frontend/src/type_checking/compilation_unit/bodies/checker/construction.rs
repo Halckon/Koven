@@ -411,7 +411,7 @@ impl BodyChecker<'_> {
                 .collect::<BTreeSet<_>>();
             let mut poisoned = false;
             let mut partial_operands = Vec::new();
-            let mut flow = CallOperandFlow::new(self);
+            let mut flow = CallOperandFlow::new(self.tracks_pending_call_flow());
             for (argument_index, argument) in arguments.iter().enumerate() {
                 if self.is_lambda_syntax(source, argument.value) {
                     continue;
@@ -518,7 +518,7 @@ impl BodyChecker<'_> {
             Some(expression),
         )? {
             let error = self.error_type();
-            let mut flow = CallOperandFlow::new(self);
+            let mut flow = CallOperandFlow::new(self.tracks_pending_call_flow());
             for argument in arguments {
                 flow.check(self, source, argument.value, Some(error), None, return_type)?;
             }
@@ -817,7 +817,7 @@ impl BodyChecker<'_> {
         deferred: usize,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let mut valid = true;
-        let mut flow = CallOperandFlow::new(self);
+        let mut flow = CallOperandFlow::new(self.tracks_pending_call_flow());
         let mut pending_parameter = false;
         let mut descriptors = Vec::with_capacity(arguments.len());
         for (evaluation_index, argument) in arguments.iter().enumerate() {

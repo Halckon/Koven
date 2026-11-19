@@ -8,11 +8,11 @@
 function、block、entity、type 和 operation；控制流通过 block parameters 与显式 edge operands 传值。
 每个 entity 保留类型、定义位置、ownership 和 source origin；[root 原子置换](root-ownership-primitives.md)记录 replace / swap 的 commit、verifier 与 native 边界。[一级字段 replace](direct-field-replace.md)使用独立 field facts 与交换操作，已有有界本地和双平台验收。完整 `ModelError` 与 Display/Error impl 位于私有 `model/error.rs`，根直接 re-export；ProgramOwner、atomic、typed ID 仍唯一留根。
 
-验证分三层执行；dominance位于私有 `verify/dominance.rs`，存储构造/投影位于 `verify_operation/storage.rs`，ownership单指令效果位于 `verify_ownership/operation.rs`，各根保留原调用门面：
+验证分三层执行。私有 `verify/dominance.rs` 按可达块逆后序迭代支配集合。存储构造/投影位于 `verify_operation/storage.rs`，ownership 单指令效果位于 `verify_ownership/operation.rs`：
 
 - 结构/类型验证：ID、block、dominance、operand/result、edge 和 terminator 契约；
 - operation 验证：构造、投影、container、nullable、String、Rc、closure、receiver 等专用约束；
-- ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop、control-flow 合并及[borrowed closure owned escape](borrowed-closure-escape.md)。闭包形成与实际析构检查同一 capture loan 的唯一活跃持有者。外部派生 loan 存活时拒绝释放父捕获或经父 loan 写入。
+- ownership 验证：Value 消费唯一性、loan 生命周期、派生 loan、drop、control-flow 合并及[borrowed closure owned escape](borrowed-closure-escape.md)。闭包形成与实际析构检查同一 capture loan 的唯一活跃持有者。外部派生 loan 存活时拒绝释放父捕获或经父 loan 写入。 `DirectCall`、`BorrowCall` 和 `RangeCall` 的独占实参都核对重复 loan、别名重叠和活跃子借用，接受有直接字段分离证明的实参对。MoveOnly 另核对正常返回的根写回。
 
 E2 native 准备先对完整 source-set（含未达声明）完成最终类型准入，`FinalTypes` 保留诊断/内部身份错误。未经验证的 SSA 不进入 LLVM adapter；adapter 的 instruction lowering 按 operation 家族分布，顶层 `lower_instruction` 只做编译期穷尽分发，家族实现位于私有 `llvm/adapter/instruction/`。SPEC-0341 的[空体标量前缀](../specs/active/0341-shared-lowering-core.md#已批准的-tail-break-独立标量前缀扩展2026-11-13)以独立事实和实际 CFG/资源参数运输证据接入有界 tail-break；另有[已批准的前缀与 counter 条件 break 组合](../specs/active/0341-shared-lowering-core.md#已批准的-scalar-prefix--counter-条件-break-组合2026-11-13)，独立证明 prefix join、实际计数初始化、header 与双出口，独立 Boolean 可按活性裁剪但共享 stop 与资源根必须保留。两者不授权一般前缀。renderer 只用于确定性调试和测试，不是稳定序列化协议。LLVM 模块已移除整模块 dead-code 豁免；仅测试消费的 IR render/smoke 入口限于测试构建，生产 object lowering 保留。SSA carry 以及整个 refine、unit_lower、unit_plan 子树恢复 dead-code 门禁，render 与仅旧路径测试消费的查询接口限制为测试构建；生产 SSA 顶层恢复 dead-code 门禁，仅保留具名模型变体及诊断载荷例外；Unit planner 测试及其五个子模块恢复 dead-code 门禁，未删减原断言或夹具；仅测试构建的 `lower_frontend` 实际子树也恢复 dead-code 门禁，别名目标不在其继承范围；其他历史测试夹具广域豁免仍待独立审计。整数位级执行见[专页](integer-operations.md)。具名 `Nothing` 调用以 `DirectCall` 和 `Unreachable` 显式结束控制流，见[无正常返回 ABI](../specs/active/0392-compiler-layered-review.md#134-r4-具名-nothing-的普通直接调用)。
 
@@ -31,7 +31,7 @@ provider builder 固定 length 快照、零 cursor 的入口运输、guard 真�
 Unit pointer-like nullable `when` 现消费真实 typed/owned 的 `null/else` descriptor与use witness，
 对 owned whole-root/temporary class、Box、Rc建立实际 `NullableBranch` proof，消费提取走 `NullableTake`。
 view/owner、来源 generation、pending 槽与分支 cleanup 逐实体绑定。非空臂内直接根替换消费同源赋值及旧根析构事实，RHS 完成后先结束旧 proof 并析构旧值，再重绑。内层提前返回沿原退出清理释放当前 owner。
-有界 fresh owned HeapOwner `If` 按当前根和真实 null 比较在非空侧建立证明。非空臂的连续直接 root Borrow 前缀按已发布窄化使用确定末次调用，调用后结束证明，后续语句与 return 使用普通 lowering。空值臂可省略或执行普通 lowering，包含 return 与 Abort。
+有界 fresh owned HeapOwner `If` 按当前根和真实 null 比较在非空侧建立证明。非空臂的连续直接 root Borrow 前缀按已发布窄化使用确定末次调用，调用后结束证明，后续语句与 return 使用普通 lowering。空值臂可省略或执行普通 lowering，包含 return 与 Abort。 Compatibility 的泛型函数按完整实例键核验当前函数，允许对类型不受特化影响的根建立该证明。
 普通 if 与 nullable when 合流前在持有单边外层 When proof 的实际前驱结束该借用，再传递各边当前 owner；当前 when 的局部 proof 仍在各臂退出时清理。可按 owner/loan 列携带其他根的 When proof；Rc、同根嵌套及 If/While proof 仍受限。String? 已支持直接statement-if的owned根借用与可信文本receiver复用父proof loan，以及if/when的owned结果交付；仅String If允许有入口资格的Shared(String)随CFG重绑定。新增类型身份复用niche表示，已有身份不变；结果使用原transfer/wrap，literal/Group Nothing?按typed结果物化并保留原清理顺序。嵌套Nothing? if/when沿显式控制身份及目标表示复用原CFG，独立Nothing?存储与nullable-subject专用路径不扩展；精确身份与范围见[文本补片](../specs/active/0368-text-byte-foundation.md#string-控制表达式结果交付2026-10-30)。
 原single路径及其三类owner 8alloc/8free、Rc retain/release计数属于历史验收；当前Unit普通SSA/LLVM/native输出
 证据不替代原mixed whole的计数/Abort验收，当前范围与待验结果见 [0341检查点](../specs/active/0341-shared-lowering-core.md#50-post054-修复与有限收尾检查点)。
@@ -83,7 +83,7 @@ String use 已生成普通 `StringLiteral` temporary，复用 loan/transfer/drop
 常量 Name/Member 不读取声明 binding。专用 Group Value delivery 的 source 归一到已发布
 物化 use，原 call/argument identity 保留。专用短路按 source-qualified 计划消费 Always/Never/Conditional，
 校验 operand 与 branch identity；LHS 退出直接传播，动态分支消费对应 BranchExit 并保留 skip
-后继。基础入口原有短路能力边界保持。String 插值按现行 guide 确定性拒绝，
+后继。兼容 lowering 迭代直接短路左链，逐节点完成 `AfterExpression` 与非空证明清理。Refine 迭代两侧条件路径及直接左链的布尔值路径，逐节点恢复前驱和资源合流。String 插值按现行 guide 确定性拒绝，
 包括含常量 use 的插值；调用前缀退出与内层循环的已支持范围见下文。
 公开 `emit_native_constant_unit_object` 将专用 typed/owned 封闭为const view；新view native
 按entry shape、SSA顺序检查，再复用sibling原子发布；[完整交接](pipeline-and-workspace.md#常量-owned-unit-交接)保留专用事实。基础入口
@@ -107,7 +107,7 @@ object 字节已有 native 证据；非法 entry、插值及分析错配在写�
 receiver 不额外登记 owner，Group alias 按同一 ValueId 清除。
 Copyable Inout receiver 的 inline writeback owner 与原始 Place 一起跨参数 CFG 传递；非 entry Place
 通过 LLVM pointer phi 保留同一存储。return/break/continue 结束 loan 后沿原 drop facts 清理，
-Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。
+Abort 不展开；正常调用后才 Read 并重绑定。函数 entry 仍不接受 Place 参数。普通调用的一级非泛型 class 局部字段在其余实参完成后，按同一投影及独占 loan 事实，对 Copyable 或 MoveOnly 字段建立地址并直接写堆存储。返回时结束调用借用。
 MoveOnly inline Inout 的跨块正常写回仍被拒绝，完全 Diverged 路径不需要写回。
 常量入口的 named function-value callee pending frame 保留原规则：先移除alias，再按frontend owner事实清理，Abort不展开。 普通 Unit 中直接或分组调用 lambda 字面量时，在实参前形成 callable，按内层 lambda 身份消费 CallReturn 清理。共享捕获的纯内存来源在闭包环境之后、最后使用后清理。
 lambda Borrow storage仍复用Shared Loan ABI；普通Unit direct declaration call为无receiver及canonical文本String Borrow receiver开放已证root/temporary实参前缀的控制退出，
@@ -130,7 +130,7 @@ receiver 析构。该索引计数普通 fact，包含由专用路径处理的 ca
 显式 Value receiver 的循环退出另有常量/literal、
 Borrow/Value 实参对照，通过动态分配/释放、String drop 计数与循环后输出检查清理和跳转。
 
-String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。`StringEqual` 接受 `String?` 的指针 niche 与 Map result 的显式存在字段，只有两侧都存在且长度相同才比较字节。所有权检查在右操作数求值期间保持左侧具名读取，临时 owner 依原求值与退出点清理。 对 `String?` 字段直接判空时，Refine 从原槽建立短共享借用，使用 `NullableLoanIsNull`，先结束投影链上的借用，再按分析产物清理临时接收者。 借用返回的 `String?` 及其词法子绑定可在所借槽上判空，非空 String 子借用沿活动证明建立。借用结果只延续 `from` 实参所需的共享重借用，活动证明和结果借用先于其来源退役。 非空 If 和 When 臂可从活动 String 证明建立短期 String? 共享重借用，普通调用结束或后续实参提前返回时先结束子借用。 非空 If 臂可将同一个原 String? 槽作为借用返回调用的唯一来源。结果沿活动证明延续源共享重借用，结果和源重借用先于该证明结束。 自有 String? 的非空载荷作 own String 实参时，Refine 使用原整根 Move 事实和活动证明，在求值该实参时执行 NullableTake。待交付载荷和同槽后写入的新 owner 独立清理。 词法借用作为 When 主体时，同一调用已完成的共享观察与绑定的退出事实共同证明后续实参的直接 return 或条件 return 可以准入。 生产 Unit 的 Map.remove 返回 String? 时复用普通 String? 的数据指针 niche，缺失值使用全零 String 布局，命中原样交付 payload。具名 owned String? 的布尔判空在清理前执行 NullableIsNull。SSA 带标记结果保留显式字段合同，借用判空读字段 0，非空边取字段 1 的地址形成共享子借用。 同一借用绑定用作 while 判空条件时，每轮在条件成立边建立 payload 证明，在回边或离开循环体前结束，父结果按词法结束事实清理。
+String 二元操作的左 view 以 pending 槽位跨越右侧 CFG，运算时读取重绑定后的 owner。`StringEqual` 接受 `String?` 的指针 niche 与 Map result 的显式存在字段，只有两侧都存在且长度相同才比较字节。所有权检查在右操作数求值期间保持左侧具名读取，临时 owner 依原求值与退出点清理。String 字段二元操作消费同轮字段共享借用事实，从原字段位置读取；已窄化的具名 boxed enum 按实际 case 与字段符号借用载荷。正常结束字段借用后才处理父对象的 `AfterBinaryOperands` 清理。 对 `String?` 字段直接判空时，Refine 从原槽建立短共享借用，使用 `NullableLoanIsNull`，先结束投影链上的借用，再按分析产物清理临时接收者。 借用返回的 `String?` 及其词法子绑定可在所借槽上判空，非空 String 子借用沿活动证明建立。借用结果只延续 `from` 实参所需的共享重借用，活动证明和结果借用先于其来源退役。 非空 If 和 When 臂可从活动 String 证明建立短期 String? 共享重借用，普通调用结束或后续实参提前返回时先结束子借用。 非空 If 臂可将同一个原 String? 槽作为借用返回调用的唯一来源。结果沿活动证明延续源共享重借用，结果和源重借用先于该证明结束。 自有 String? 的非空载荷作 own String 实参时，Refine 使用原整根 Move 事实和活动证明，在求值该实参时执行 NullableTake。待交付载荷和同槽后写入的新 owner 独立清理。 词法借用作为 When 主体时，同一调用已完成的共享观察与绑定的退出事实共同证明后续实参的直接 return 或条件 return 可以准入。 生产 Unit 的 Map.remove 返回 String? 时复用普通 String? 的数据指针 niche，缺失值使用全零 String 布局，命中原样交付 payload。具名 owned String? 的布尔判空在清理前执行 NullableIsNull。SSA 带标记结果保留显式字段合同，借用判空读字段 0，非空边取字段 1 的地址形成共享子借用。 同一借用绑定用作 while 判空条件时，每轮在条件成立边建立 payload 证明，在回边或离开循环体前结束，父结果按词法结束事实清理。
 操作数退出向上传播；正常路径仍消费 `AfterBinaryOperands`，控制退出沿用 frontend drop
 事实，Abort 不展开。嵌套二元操作只移除自己的 pending 槽，保留外层调用前缀。
 Temporary drop 与 transfer 共享精确 origin 校验，清除同一 owner 的全部透明 Group alias，

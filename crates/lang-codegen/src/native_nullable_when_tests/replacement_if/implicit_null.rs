@@ -452,3 +452,141 @@ fun entry(): Unit {
     let expected = expected.replacen("old-present\n", "old-present\ndrop-marker\n", 1);
     assert_nullable_if_writeback("nullable-if-construction-first.ko", &text, &expected);
 }
+
+#[test]
+fn compatibility_local_nullable_layout_survives_other_callable_demands() {
+    let template = r#"class Node {}
+class Guard { deinit() { println("drop guard") } }
+fun observe(node: Node): Unit { println("observe") }
+fun keep(guard: Guard): Unit {}
+fun run(own input: Node?, own replacement: Node?): Unit {
+    val guard = Guard()
+    var x = input
+    when (x) {
+        null -> {}
+        else -> {
+            x = replacement
+            if (x != null) { observe(x) }
+        }
+    }
+    val probe: TYPE? = VALUE
+    if (probe == null) { println("missing") } else { println("present") }
+    keep(guard)
+}
+SIBLING
+fun entry(): Unit {
+    CALL
+    run(Node(), null)
+    run(Node(), Node())
+}
+"#;
+    for (ty, value, status, map_payload) in [
+        ("Int", "7", "present", "0"),
+        ("Int", "null", "missing", "0"),
+        ("Boolean", "true", "present", "false"),
+        ("Boolean", "null", "missing", "false"),
+    ] {
+        let touch = format!("fun touch(own ignored: {ty}?): Unit {{}}");
+        let lookup = format!(
+            r#"fun lookup(): Unit {{
+    var items = mutableMapOf<Int, {ty}>()
+    items.put(1, {map_payload})
+    val hit = items[1]
+    val miss = items[2]
+    if (hit != null) {{ println("map hit") }} else {{ error("hit lost") }}
+    if (miss == null) {{ println("map miss") }} else {{ error("unexpected hit") }}
+}}"#
+        );
+        for (sibling, call, first_output) in [
+            ("", "", ""),
+            (&touch[..], "", ""),
+            (&touch[..], "touch(null)", ""),
+            (&lookup[..], "lookup()", "map hit\nmap miss\n"),
+        ] {
+            let path = "compatibility-inline-nullable-local.ko";
+            let text = template
+                .replace("TYPE", ty)
+                .replace("VALUE", value)
+                .replace("SIBLING", sibling)
+                .replace("CALL", call);
+            let source = checked(path, &text);
+            let entry = source.declaration("entry", SymbolKind::Function);
+            let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
+            let (program, _) = result.expect("the local must demand its own layout");
+            assert!(!routed.contains(&function(&source, &program, "run").name));
+            verify_program(&program).expect("original Unit SSA verifies");
+            let output = crate::native_tests::emit_link_and_run(path, &text, "entry");
+            let expected =
+                format!("{first_output}{status}\ndrop guard\nobserve\n{status}\ndrop guard\n");
+            crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+        }
+    }
+}
+
+#[test]
+fn generic_nullable_when_replacement_if_reborrows_the_written_root() {
+    let expected = concat!(
+        "old-null\nafter-when\n",
+        "replace\nreplacement-null\ndrop-guard\ncaller-after-return\n",
+        "replace\nobserve\nkeep-guard\nafter-if\ndrop-guard\nafter-when\ncaller-after-normal\n",
+    );
+    for (ty, replacement_ty) in [("Int", "Int"), ("Boolean", "Boolean"), ("Int", "Boolean")] {
+        let text = LIVE_GUARD
+            .replace("fun run(", "fun <T : Copyable> run(")
+            .replace(
+                "    val old:",
+                &format!("    run<{ty}>(null, Node())\n    val old:"),
+            )
+            .replace("    run(old", &format!("    run<{ty}>(old"))
+            .replace("    run(other", &format!("    run<{replacement_ty}>(other"));
+        let path = "generic-nullable-when-writeback.ko";
+        let source = checked(path, &text);
+        let entry = source.declaration("entry", SymbolKind::Function);
+        let (result, routed) = crate::ssa::observe_routing(|| source.lower_entry(entry));
+        let (program, _) = result.unwrap_or_else(|error| {
+            let location = error.span.and_then(|span| source.sources.slice(span).ok());
+            panic!("{ty}: instantiated nullable When must lower: {error:?} {location:?} {routed:?}")
+        });
+        verify_program(&program).expect("instantiated Unit SSA verifies");
+        let output = crate::native_tests::emit_link_and_run(path, &text, "entry");
+        crate::native_tests::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+    }
+}
+
+#[test]
+fn generic_compatibility_body_plans_nullable_scalar_locals_per_instance() {
+    let source = r#"class Node {}
+fun observe(node: Node): Unit { println("observe") }
+fun <T : Copyable> run(own input: Node?, own replacement: Node?, own candidate: T): Unit {
+    var x = input
+    when (x) {
+        null -> {}
+        else -> {
+            x = replacement
+            if (x != null) { observe(x) }
+        }
+    }
+    val wrapped: T? = candidate
+    val absent: T? = null
+    if (wrapped != null && absent == null) {
+        println("scalar nullable")
+    } else { error("wrong presence") }
+}
+fun entry(): Unit {
+    run<Int>(Node(), null, 7)
+    run<Boolean>(Node(), Node(), false)
+}
+"#;
+    let path = "generic-compatibility-nullable-locals.ko";
+    let analysis = checked(path, source);
+    let entry = analysis.declaration("entry", SymbolKind::Function);
+    let (program, _) = analysis
+        .lower_entry(entry)
+        .expect("each instance must plan its own canonical scalar nullable layout");
+    verify_program(&program).expect("instantiated Unit SSA verifies");
+    let output = crate::native_tests::emit_link_and_run(path, source, "entry");
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &output,
+        b"scalar nullable\nobserve\nscalar nullable\n",
+    );
+}

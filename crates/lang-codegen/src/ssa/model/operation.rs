@@ -217,6 +217,17 @@ pub(crate) enum Operation {
         loan: LoanId,
         replacement: ValueId,
     },
+    /// Exchange through an exclusive loan of a direct field of the current receiver.
+    /// Ends the field loan, consumes the replacement, and yields the previous field value.
+    /// Store the replacement and return the previous value under a temporary Inout loan.
+    InoutExchange {
+        loan: LoanId,
+        replacement: ValueId,
+    },
+    HeapReceiverFieldExchange {
+        loan: LoanId,
+        replacement: ValueId,
+    },
     /// Replace one field of an inline aggregate through an active exclusive receiver loan.
     /// MoveOnly fields implicitly drop the old value before committing the replacement.
     InlineFieldReplace {
@@ -278,8 +289,19 @@ pub(crate) enum Operation {
         owner: EntityId,
         index: ValueId,
     },
+    /// Atomically exchange two projected places, or one projection and a local root.
+    /// With a root, the first loan covers that exact root and the sole result is its new value.
+    ProjectedSwap {
+        root: Option<ValueId>,
+        loans: [LoanId; 2],
+    },
     ContainerAppend {
         owner: ValueId,
+        element: ValueId,
+    },
+    /// Append an owned element and write the updated header through an Inout parameter loan.
+    ContainerAppendInout {
+        loan: LoanId,
         element: ValueId,
     },
     ContainerClear {
@@ -378,12 +400,21 @@ pub(crate) enum Operation {
         base: LoanId,
         field: usize,
     },
-    /// Project an active shared heap-owner receiver loan to one shared payload-field loan.
+    /// Project a shared heap-owner loan, or the current Inout receiver, to a shared field.
     SharedHeapFieldLoan {
         base: LoanId,
         field: usize,
     },
+    /// Project one exclusive field loan from the current Inout heap receiver.
+    ExclusiveHeapFieldLoan {
+        base: LoanId,
+        field: usize,
+    },
     /// Reborrow the same storage as shared. A String may also use its niche String? view.
+    /// Temporary exclusive access to the entire storage of a declared Inout parameter.
+    ExclusiveRootReborrow {
+        source: LoanId,
+    },
     SharedReborrow {
         source: LoanId,
     },
@@ -572,6 +603,10 @@ impl Operation {
                 EntityId::Loan(*loan),
                 EntityId::Value(*replacement),
             ],
+            Self::HeapReceiverFieldExchange { loan, replacement }
+            | Self::InoutExchange { loan, replacement } => {
+                vec![EntityId::Loan(*loan), EntityId::Value(*replacement)]
+            }
             Self::SharedRetain { owner } | Self::SharedPayloadPlace { owner } => vec![*owner],
             Self::NullableWrap { owner, .. } | Self::NullableIsNull { owner } => {
                 vec![EntityId::Value(*owner)]
@@ -597,9 +632,18 @@ impl Operation {
                 vec![EntityId::Value(*length), EntityId::Loan(*initializer)]
             }
             Self::ContainerLength { owner } => vec![*owner],
+            Self::ProjectedSwap { root, loans } => root
+                .iter()
+                .copied()
+                .map(EntityId::Value)
+                .chain(loans.map(EntityId::Loan))
+                .collect(),
             Self::ContainerElementPlace { owner, index } => vec![*owner, EntityId::Value(*index)],
             Self::ContainerAppend { owner, element } => {
                 vec![EntityId::Value(*owner), EntityId::Value(*element)]
+            }
+            Self::ContainerAppendInout { loan, element } => {
+                vec![EntityId::Loan(*loan), EntityId::Value(*element)]
             }
             Self::ContainerClear { owner } => vec![EntityId::Value(*owner)],
             Self::ContainerRemoveAt { owner, index } => {
@@ -653,10 +697,13 @@ impl Operation {
                 vec![EntityId::Value(*owner), *key]
             }
             Self::FieldPlace { base, .. } => vec![EntityId::Place(*base)],
-            Self::SharedFieldLoan { base, .. } | Self::SharedHeapFieldLoan { base, .. } => {
+            Self::SharedFieldLoan { base, .. }
+            | Self::SharedHeapFieldLoan { base, .. }
+            | Self::ExclusiveHeapFieldLoan { base, .. } => {
                 vec![EntityId::Loan(*base)]
             }
             Self::SharedReborrow { source }
+            | Self::ExclusiveRootReborrow { source }
             | Self::SharedReferenceFollow { source }
             | Self::SharedPayloadLoan { source } => {
                 vec![EntityId::Loan(*source)]

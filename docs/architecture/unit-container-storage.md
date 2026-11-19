@@ -72,10 +72,10 @@ CompilationUnit `for`、Inout/field source 与 MoveOnly ZST 完整析构仍不�
 
 普通compilation-unit `.size` 经frontend source-qualified descriptor和同步SharedLoan生成
 `ContainerLength`，复用当前Borrow参数loan，只结束本次新建loan，再执行CallReturn清理。
-具名/Value/Borrow/group/temporary沿用同一header；unit Borrow String `==`/`!=`/`+`消费
+具名/Value/Borrow/group/temporary沿用同一header；Inout 形参以短期共享重借用读取长度。稳定字段由同次 size 的 shared Place 事实准入，读取后逆序结束字段投影链，再消费清理事实。unit Borrow String `==`/`!=`/`+`消费
 current binding，RHS CFG后使用重绑定loan，不隐式clone/消费源。前端replacement保护旧root
 至完整RHS完成；提前return仍按ControlTransfer清理。0274双宿主各37条公共命令及15项CI已通过；完整字节证据见[验收身份](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/word-frequency-0274/ci.json)。
-`||`不同路径容器last-use合流以及一般投影仍有既有拒绝边界。
+直接 Inout 形参的 `MutableList.add` 先求值并交付元素，再以独占形参 loan 写回容器头。SSA 拒绝具有活跃派生借用的 append。稳定字段的 Copyable 元素索引保留 receiver 到 index 求值结束；元素复制后结束投影 loan，提前退出按实际目标结束该次索引的借用。`||` 的 last-use 合流及其他投影仍有既有边界。 两个具名自有可变容器的元素交换按实参顺序检查下标并建立独占借用，两个旧值均加载后再写回。提前退出结束已建立的借用。与可变局部根交换时，新根值由 SSA 写回同一绑定。Inout 容器形参经父借用投影元素，父容器写回后旧元素地址失效。参见 [元素交换验收](../specs/active/0392-compiler-layered-review.md#364-r4-具名自有顺序容器的元素-swap) 和 [混合交换验收](../specs/active/0392-compiler-layered-review.md#365-r4-容器元素与可变局部根的混合-swap)。
 
 String 字段的 shared receiver 复用已有 owned 单层字段 place 校验，生成 BorrowBegin，
 不执行 MoveOnly 字段 Read；receiver 调用帧登记父 root，并沿既有 pending loan 协议清理。

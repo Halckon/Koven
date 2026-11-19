@@ -319,11 +319,12 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
+        let falls_through = arg0_result.falls_through && arg1_result.falls_through;
         if pending_operands {
             self.note_pending_storage_value(expression_id, t);
             return Ok(ExpressionCheck {
                 ty: t,
-                falls_through: true,
+                falls_through,
             });
         }
 
@@ -386,7 +387,7 @@ impl BodyChecker<'_> {
             ));
         Ok(ExpressionCheck {
             ty: t,
-            falls_through: true,
+            falls_through,
         })
     }
 
@@ -625,11 +626,12 @@ impl BodyChecker<'_> {
                 falls_through: true,
             });
         }
+        let falls_through = arg0_result.falls_through && arg1_result.falls_through;
         if pending_operands {
             self.note_pending_storage_value(expression_id, unit);
             return Ok(ExpressionCheck {
                 ty: unit,
-                falls_through: true,
+                falls_through,
             });
         }
 
@@ -691,7 +693,7 @@ impl BodyChecker<'_> {
             ));
         Ok(ExpressionCheck {
             ty: unit,
-            falls_through: true,
+            falls_through,
         })
     }
 

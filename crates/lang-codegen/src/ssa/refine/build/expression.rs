@@ -11,13 +11,22 @@ use lang_frontend::{
     type_checking::{ParameterMode, UnitCallTarget, UnitTypeId, UnitTypeKind},
 };
 
-use super::{Builder, Lowered, when::PredecessorBranch};
+use super::{Builder, Lowered, View, when::PredecessorBranch};
 use crate::ssa::{
     integer::{bitwise_operator, checked_operator, comparison_operator},
     lowering_support::{LoweringError, LoweringErrorKind, error, string_literal},
     model::{EntityType, ScalarConstant},
-    refine::body::{RAbort, ROp, RTerm, Slot},
+    refine::body::{BlockRef, RAbort, ROp, RTerm, Slot},
 };
+
+pub(super) struct ConditionValue {
+    pub(super) when_true: BlockRef,
+    pub(super) when_false: BlockRef,
+    join: BlockRef,
+    result: Slot,
+    span: Span,
+    pending: Vec<View>,
+}
 
 impl Builder<'_, '_> {
     pub(super) fn expression(
@@ -25,6 +34,14 @@ impl Builder<'_, '_> {
         expression: ExpressionId,
     ) -> Result<Lowered, LoweringError> {
         let result = self.expression_inner(expression)?;
+        self.finish_expression(expression, result)
+    }
+
+    pub(super) fn finish_expression(
+        &mut self,
+        expression: ExpressionId,
+        result: Lowered,
+    ) -> Result<Lowered, LoweringError> {
         if let Lowered::Value(slot) = result {
             self.register_temporary(expression, slot)?;
         }
@@ -68,47 +85,58 @@ impl Builder<'_, '_> {
     ) -> Result<Lowered, LoweringError> {
         let outer_loans = self.pending_call_loans.len();
         let result = self.build_expression(expression)?;
+        Ok(self.finish_expression_inner(outer_loans, result))
+    }
+
+    pub(super) fn finish_expression_inner(
+        &mut self,
+        outer_loans: usize,
+        result: Lowered,
+    ) -> Lowered {
         if result == Lowered::Diverged {
             // The terminating edge already performed its own cleanup, if any.
             // Loans formed here must not leak into a different control-flow edge.
             self.pending_call_loans.truncate(outer_loans);
         }
-        Ok(result)
+        result
     }
 
-    fn build_expression(&mut self, expression: ExpressionId) -> Result<Lowered, LoweringError> {
-        let (payload, span) = self.node(expression)?;
+    pub(super) fn special_expression(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<Option<Lowered>, LoweringError> {
         let id = self.unit(expression);
         let typed = self.inputs.typed;
         if let Some(value) = self.constant_materialization(expression, span)? {
-            return Ok(value);
+            return Ok(Some(value));
         }
         if typed.ownership_primitive(id).is_some() {
-            return self.ownership_primitive(expression, span);
+            return self.ownership_primitive(expression, span).map(Some);
         }
         if let Some(value) = self.container_operation(expression, span)? {
-            return Ok(value);
+            return Ok(Some(value));
         }
         if let Some(receiver) = self.inputs.non_completing_projection_receiver(id) {
             return match self.expression(receiver)? {
-                Lowered::Diverged => Ok(Lowered::Diverged),
+                Lowered::Diverged => Ok(Some(Lowered::Diverged)),
                 _ => Err(error(LoweringErrorKind::InvalidModel, span)),
             };
         }
         if typed.rc_operation(id).is_some() {
-            return self.rc_operation(expression, span);
+            return self.rc_operation(expression, span).map(Some);
         }
         if typed.integer_operation(id).is_some() {
-            return self.integer_operation(expression, span);
+            return self.integer_operation(expression, span).map(Some);
         }
         if typed.integer_range_operation(id).is_some() {
-            return self.integer_range_operation(expression, span);
+            return self.integer_range_operation(expression, span).map(Some);
         }
         if typed.string_operation(id).is_some() {
-            return self.string_operation(expression, span);
+            return self.string_operation(expression, span).map(Some);
         }
         if typed.range_size(id).is_some() {
-            return self.lower_range_size(expression, span);
+            return self.lower_range_size(expression, span).map(Some);
         }
         if let Some(descriptor) = typed.construction(id) {
             return match descriptor.target() {
@@ -125,19 +153,29 @@ impl Builder<'_, '_> {
                     self.value_construction(expression, span)
                 }
                 _ => self.construction(expression, span),
-            };
+            }
+            .map(Some);
         }
         if typed.aggregate_projection(id).is_some() {
             if self.is_enum_projection(expression) {
-                return self.enum_projection(expression, span);
+                return self.enum_projection(expression, span).map(Some);
             }
             if self.is_value_projection(expression) {
-                return self.value_projection(expression, span);
+                return self.value_projection(expression, span).map(Some);
             }
-            return self.projection(expression, span);
+            return self.projection(expression, span).map(Some);
         }
         if typed.non_null_assertion(id).is_some() {
-            return self.non_null_assertion(expression, span);
+            return self.non_null_assertion(expression, span).map(Some);
+        }
+        Ok(None)
+    }
+
+    fn build_expression(&mut self, expression: ExpressionId) -> Result<Lowered, LoweringError> {
+        let (payload, span) = self.node(expression)?;
+        let id = self.unit(expression);
+        if let Some(value) = self.special_expression(expression, span)? {
+            return Ok(value);
         }
         match payload {
             Expression::Group { expression: inner } => self.expression(inner),
@@ -516,7 +554,26 @@ impl Builder<'_, '_> {
             // String operands are read, not consumed; a Borrow binding or non-null use reads its loan.
             let mut operands = Vec::with_capacity(2);
             let mut view_reads = Vec::new();
+            let loan_boundary = self.pending_call_loans.len();
             for operand in [left, right] {
+                if self
+                    .inputs
+                    .has_shared_field_operand_loan(expression, operand)
+                {
+                    let operand_span = self.span(operand);
+                    let (loan, created, receivers) = self
+                        .borrowed_string_field_loan(
+                            operand,
+                            self.expression_type(operand)?,
+                            operand_span,
+                        )?
+                        .ok_or_else(|| error(LoweringErrorKind::MissingFact, operand_span))?;
+                    self.pending_call_loans.extend(created);
+                    operands.push(loan);
+                    view_reads.extend(receivers);
+                    view_reads.push(operand);
+                    continue;
+                }
                 if let Some(loan) = self.borrowed_string_loan(operand)? {
                     operands.push(loan);
                     view_reads.push(operand);
@@ -550,6 +607,16 @@ impl Builder<'_, '_> {
                 _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
             };
             let mut result = self.typed_value(op, expression)?;
+            // Only loans created by this operation end here. Early exits use
+            // the same pending-loan cleanup as an unfinished call argument.
+            for loan in self
+                .pending_call_loans
+                .split_off(loan_boundary)
+                .into_iter()
+                .rev()
+            {
+                self.end_short_call_loan(loan, span)?;
+            }
             self.drops(UnitDropPoint::AfterBinaryOperands(self.unit(expression)))?;
             // A view read completes at the operation; the name's own drop point follows it.
             for operand in view_reads {
@@ -648,13 +715,39 @@ impl Builder<'_, '_> {
         if let Some(lowered) = self.named_null_comparison_value(expression, span)? {
             return Ok(lowered);
         }
+        let value = self.prepare_condition_value(expression, span)?;
+        self.condition_with_views(expression, value.when_true, value.when_false, false)?;
+        self.finish_condition_value(value)
+    }
+
+    pub(super) fn prepare_condition_value(
+        &mut self,
+        expression: ExpressionId,
+        span: Span,
+    ) -> Result<ConditionValue, LoweringError> {
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
-        let result = self.body.slot(EntityType::Value(ty));
-        let when_true = self.body.block();
-        let when_false = self.body.block();
-        let join = self.body.block();
-        let pending = std::mem::take(&mut self.pending_views);
-        self.condition_with_views(expression, when_true, when_false, false)?;
+        Ok(ConditionValue {
+            result: self.body.slot(EntityType::Value(ty)),
+            when_true: self.body.block(),
+            when_false: self.body.block(),
+            join: self.body.block(),
+            pending: std::mem::take(&mut self.pending_views),
+            span,
+        })
+    }
+
+    pub(super) fn finish_condition_value(
+        &mut self,
+        value: ConditionValue,
+    ) -> Result<Lowered, LoweringError> {
+        let ConditionValue {
+            when_true,
+            when_false,
+            join,
+            result,
+            pending,
+            span,
+        } = value;
         let inherited = self.active_views.clone();
         let mut predecessors = Vec::new();
         for (block, value) in [(when_true, true), (when_false, false)] {
