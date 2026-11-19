@@ -446,6 +446,9 @@ impl Checker<'_, '_> {
             !abandoned_callback
                 && !self.non_dispatching_field_calls.contains(&call)
                 && !abandoned_borrow_result
+                && !self.whole_nominal_exit.is_some_and(|proof| {
+                    proof.lender == call && proof.owner == expression && proof.transfer == transfer
+                })
                 && !self.pending_string_wrapper(expression, transfer, loan)
                 && !self.pending_forwarded_string_argument(expression, transfer, loan)
                 && !self.pending_nullable_when_rc_argument(expression, transfer, loan)

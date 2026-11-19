@@ -72,3 +72,17 @@ String 源码原字节移入成功准入矩阵。这是阶段能力门的迁移�
 - 本地只做官方定向 rustfmt、文档生成/结构、尺寸/字节与 diff 静态检查。
 - exact Draft PR 的双宿主官方 CI 待发布与核验；未宣称编译/运行通过。
 - 保持 in-progress；未 Ready、未 merge、未 Slack 通知；父任务负责一次 review。
+
+## 6. 普通临时 owner 与后续实参双出口（有界补片）
+
+仅准入无 receiver、非特化的直接具名尾 `return`：第一个实参是无 runtime 字段、无
+`deinit`、无构造实参或 delivery 的普通整根 HeapOwner，按精确匹配的共享借用参数交付；
+第二个实参是动态 Boolean 参数的 `when`，`true` 臂提前返回、`else` 臂正常产生值。
+两个叶值都只读取已知 `Int` 绑定。相同 source-qualified lender、owner、transfer 必须同时具有
+正常 `CallReturn` 和提前 `ControlTransfer` 的唯一 `EndCallLoan → Drop`，无其他该 owner drop。
+准入不产生前端事实，不改变 builder、SSA verifier 或普通不匹配路径。
+
+Mac + LLVM 21.1.8：真实具名函数 Refine/SSA/LLVM 通过；表达式体、非尾位置及有 runtime 字段
+对照不进入本补片。实际 SSA 边传递同一 fresh owner 和共享 loan，两个出口均先 End 后恰好一次
+Drop，提前退出 0 次派发、正常退出 1 次。native 两个调用的数值、stdout 和按指针分配身份的
+两个释放均断言；相邻混合 Rc native 对照通过。未执行 Linux、全量测试或 CI，不关闭本 Spec。
