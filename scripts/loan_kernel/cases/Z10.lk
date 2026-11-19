@@ -1,0 +1,27 @@
+// 两臂分别移交一个 File，并向同一个 dst 并入不同来源。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Holder(slice: Slice, file: File) deinit
+fun update(inout a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+fun put(inout dst: Slice, own src: Slice): Unit flows src into dst {
+  *dst = move src
+}
+fun deliver(own this: Holder, inout dst: Slice): Unit flows this.slice.source into dst in Holder {
+  open this as slice, file
+  put(dst, move slice)
+}
+fun readAfterTwoDeliveries(own a: Arr, own b: Arr, own old: Arr, own f: File, own g: File): Unit {
+  val dst = Slice(&old)
+  if (*) {
+    deliver(Holder(Slice(&a), move f), &mut dst)
+  } else {
+    deliver(Holder(Slice(&b), move g), &mut dst)
+  }
+  mayFail()
+  use(dst.source.len)
+  update(&mut a)
+  update(&mut b)
+  update(&mut old)
+}

@@ -270,7 +270,8 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g"), ("deinit OneBranch", "this"),
                           ("openInOneArm", "this"), ("openSharedInOneArm", "this"), ("openSharedInOneArm", "f"),
                           ("writeAfterJoinedRead", "this"), ("writeAfterJoinedRead", "f"),
-                          ("writeAfterConditionalDeliveryRead", "f")},
+                          ("writeAfterConditionalDeliveryRead", "f"),
+                          ("readAfterTwoDeliveries", "f"), ("readAfterTwoDeliveries", "g")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -502,6 +503,45 @@ class LoanKernelCases(unittest.TestCase):
         joined.cleanup.insert(1, ("f", True))
         delivery.cleanup.remove(("dst", False))
         self.assertEqual({"V1": [(0, 2)] * 5 + [(1, 2)]}, verify())
+
+    def test_two_deliveries_join_distinct_sources_in_the_same_slot(self):
+        source = (ROOT / "cases/Z10.lk").read_text(encoding="utf-8")
+        read = "  use(dst.source.len)\n"
+        writes = "".join(f"  update(&mut {name})\n" for name in ("a", "b", "old"))
+        before = source.replace(read + writes, writes + read)
+        a, b, old = [i for i, line in enumerate(before.splitlines(), 1) if line.startswith("  update(")]
+        # 固定一臂时只清空控制行和另一条调用，保留写入点行号。
+        for path, skip, lines in (("join", None, {a, b, old}), ("left", "b", {a, old}), ("right", "a", {b, old})):
+            with self.subTest(path=path):
+                program = before if skip is None else "\n".join(
+                    "" if line in ("  if (*) {", "  } else {", "  }")
+                    or line.startswith(f"    deliver(Holder(Slice(&{skip})") else line
+                    for line in before.splitlines())
+                self.assertEqual({("K1", line) for line in lines},
+                                 {(rule, line) for rule, line, _ in CHECKER.check(program)})
+
+        lowered = {}
+        self.assertEqual([], CHECKER.check(source, lowered=lowered))
+        types, program, accepted = lowered["readAfterTwoDeliveries"]
+        self.assertTrue(accepted)
+        branch = next(s for s in program if s.kind == "if")
+        calls = [next(s for s in arm if s.kind == "call") for arm in (branch.body, branch.orelse)]
+        joined = next(s for s in program if s.kind == "call")
+        tail = [(name, False) for name in ("old", "b", "a")]
+        self.assertEqual([("dst", False), ("g", False)] + tail, calls[0].cleanup)
+        self.assertEqual([("dst", False), ("f", False)] + tail, calls[1].cleanup)
+        self.assertEqual([("dst", False), ("g", True), ("f", True)] + tail, joined.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        # 六个绑定成功；走被改动的臂，移交调用失败，漏掉仍由调用方拥有的 File。
+        for arm, call in enumerate(calls):
+            with self.subTest(arm=arm):
+                retained = call.cleanup.pop(1)
+                try:
+                    found = CHECKER.DP.Verifier(types).run_all(program)
+                    self.assertEqual({"V1": [(0, 2)] * 6 + [(arm, 2), (1, 2)]},
+                                     {v.split()[0]: path for v, path in found.items()})
+                finally:
+                    call.cleanup.insert(1, retained)
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
