@@ -354,6 +354,34 @@ class LoanKernelCases(unittest.TestCase):
         loop.body[1].cleanup.pop()
         self.assertEqual({"V1": [(0, 2), (2, 3), (0, 2), (1, 2)]}, verify(program))
 
+    def test_open_in_loop_requires_restoration_on_both_arms(self):
+        lowered = {}
+        CHECKER.check((ROOT / "cases/Z4.lk").read_text(encoding="utf-8"), lowered=lowered)
+        for name in ("restoreOnlyLeft", "restoreOnlyRight"):
+            self.assertFalse(lowered[name][2], name)
+        types, program, accepted = lowered["restoreEitherArm"]
+        self.assertTrue(accepted)
+        loop = next(s for s in program if s.kind == "loop")
+        branch = next(s for s in loop.body if s.kind == "if")
+        left, right = [next(s for s in arm if s.kind == "call") for arm in (branch.body, branch.orelse)]
+        self.assertEqual([("buf", False), ("sock", False)], left.cleanup)
+        self.assertEqual([("this", False)], right.cleanup)
+        self.assertEqual([("this", False)], next(s for s in program if s.kind == "call").cleanup)
+
+        def verify():
+            return {name.split()[0]: path for name, path in CHECKER.DP.Verifier(types).run_all(program).items()}
+
+        self.assertEqual({}, verify())
+        # 参数绑定成功、两轮、第一轮左臂调用成功；单独破坏第二轮所走分支的失败清理。
+        prefix = [(0, 2), (2, 3), (0, 2), (0, 2)]
+        for arm, call in enumerate((left, right)):
+            with self.subTest(arm=arm):
+                removed = call.cleanup.pop()
+                try:
+                    self.assertEqual({"V1": prefix + [(arm, 2), (1, 2)]}, verify())
+                finally:
+                    call.cleanup.append(removed)
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))
