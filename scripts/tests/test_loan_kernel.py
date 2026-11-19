@@ -268,7 +268,7 @@ class LoanKernelCases(unittest.TestCase):
                 if accepted:
                     walk(program, name)
         self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g"), ("deinit OneBranch", "this"),
-                          ("openInOneArm", "this")},
+                          ("openInOneArm", "this"), ("openSharedInOneArm", "this"), ("openSharedInOneArm", "f")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -396,6 +396,30 @@ class LoanKernelCases(unittest.TestCase):
         call.cleanup.pop()  # 只在调用失败时漏掉视图的清理
         found = CHECKER.DP.Verifier(types).run_all(program)
         self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
+    def test_one_arm_open_with_shared_origin_has_path_specific_cleanup(self):
+        lowered = {}
+        CHECKER.check((ROOT / "cases/Z6.lk").read_text(encoding="utf-8"), lowered=lowered)
+        types, program, accepted = lowered["openSharedInOneArm"]
+        self.assertTrue(accepted)
+        branch = next(s for s in program if s.kind == "if")
+        left, right, joined = [next(s for s in path if s.kind == "call")
+                               for path in (branch.body, branch.orelse, program)]
+        self.assertEqual([("file", False), ("slice", False), ("a", False)], left.cleanup)
+        self.assertEqual([("f", False), ("a", False), ("this", False)], right.cleanup)
+        self.assertEqual([("f", True), ("a", False), ("this", True)], joined.cleanup)
+
+        def verify():
+            return {v.split()[0]: path for v, path in CHECKER.DP.Verifier(types).run_all(program).items()}
+
+        self.assertEqual({}, verify())
+        left.cleanup.remove(("slice", False))
+        # 三个参数绑定成功，进入左臂，第一次调用失败。
+        self.assertEqual({"V1": [(0, 2)] * 4 + [(1, 2)]}, verify())
+        left.cleanup.insert(1, ("slice", False))
+        joined.cleanup.remove(("this", True))
+        # 三个参数绑定成功，右臂的两个调用成功，合流后的调用失败。
+        self.assertEqual({"V1": [(0, 2)] * 3 + [(1, 2), (0, 2), (0, 2), (1, 2)]}, verify())
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
