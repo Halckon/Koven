@@ -239,3 +239,129 @@ fn audit_tail_cleanup(
         "both cleanup branches must be emitted"
     );
 }
+
+#[test]
+fn direct_initializer_and_nested_initializer_keep_separate_pending_frames() {
+    use lang_frontend::{
+        ownership_checking::{LoanKind, UnitDropTarget, UnitLoanTarget},
+        type_checking::UnitExpressionId,
+    };
+    const HEADER: &str = r#"package p
+class Node()
+fun outer(node: Node, own r: Int): Int = r
+fun wrap(node: Node, own r: Int): Int = r
+fun f(s: String, flag: Boolean): Int {
+    val n = when (s) { "a" -> 1; else -> 0 }
+"#;
+    const INNER: &str = "outer(Node(), when (flag) { true -> return n\n else -> n })";
+    for (initializer, expected_pending) in
+        [(INNER.to_owned(), 1), (format!("wrap(Node(), {INNER})"), 2)]
+    {
+        let text = format!("{HEADER}    val result = {initializer}\n    return result\n}}\n");
+        let mut sources = SourceMap::new();
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (ne, te) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
+
+        // Both legal sources are characterizations: neither is admitted by the
+        // production direct-tail gate. Only the direct initializer has one frame.
+        let entry = declaration(&names, "p", "f");
+        let (_, routes) = observe_routing(|| {
+            lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
+        });
+        assert!(
+            !routes.iter().any(|n| n.starts_with("koven.p.f.d")),
+            "{routes:?}"
+        );
+
+        let span = |id: UnitExpressionId| {
+            file.ast()
+                .expressions()
+                .get(id.expression())
+                .unwrap()
+                .span()
+        };
+        let source = |id| sources.slice(span(id)).unwrap();
+        let facts = owned.ownership();
+        let loans: Vec<_> = facts
+            .loans()
+            .iter()
+            .filter(|loan| {
+                matches!(
+                    source(loan.call()).split('(').next(),
+                    Some("outer" | "wrap")
+                )
+            })
+            .collect();
+        assert_eq!(loans.len(), expected_pending);
+        let early: Vec<_> = facts.direct_call_loan_ends().iter().filter(|end| {
+            matches!(end.point(), UnitDropPoint::ControlTransfer(at) if source(at) == "return n")
+        }).collect();
+        assert_eq!(early.len(), expected_pending);
+        let inner = loans
+            .iter()
+            .copied()
+            .find(|loan| source(loan.call()) == INNER)
+            .unwrap();
+        for &loan in &loans {
+            let UnitLoanTarget::Temporary(owner) = *loan.target() else {
+                panic!("expected an actual whole temporary loan");
+            };
+            assert_eq!(loan.kind(), LoanKind::Shared);
+            assert_eq!(owner, loan.argument());
+            assert_eq!(source(owner), "Node()");
+            let ends: Vec<_> = early
+                .iter()
+                .copied()
+                .filter(|end| end.loan() == loan)
+                .collect();
+            let [end] = ends.as_slice() else {
+                panic!("one exact early End per loan");
+            };
+            let normal: Vec<_> = facts
+                .direct_call_loan_ends()
+                .iter()
+                .filter(|other| {
+                    other.point() == UnitDropPoint::CallReturn(loan.call()) && other.loan() == loan
+                })
+                .collect();
+            let [normal] = normal.as_slice() else {
+                panic!("one exact normal End per loan");
+            };
+            assert_eq!(
+                facts
+                    .drops()
+                    .iter()
+                    .filter(|drop| { drop.target() == UnitDropTarget::Temporary(owner) })
+                    .count(),
+                2,
+                "normal outer Return must not also retire the temporary"
+            );
+            for end in [*end, *normal] {
+                let positions: Vec<_> = facts
+                    .drops()
+                    .iter()
+                    .filter(|drop| drop.point() == end.point())
+                    .enumerate()
+                    .filter(|(_, drop)| drop.target() == UnitDropTarget::Temporary(owner))
+                    .collect();
+                let [(index, drop)] = positions.as_slice() else {
+                    panic!("one exact Drop per owner");
+                };
+                assert_eq!(drop.value_origin(), span(owner));
+                assert!(!drop.is_conditional_temporary());
+                assert!(end.preceding_drops() <= *index);
+            }
+            if loan != inner {
+                assert!(
+                    !facts.drops().iter().any(|drop| {
+                        drop.point() == UnitDropPoint::CallReturn(inner.call())
+                            && drop.target() == UnitDropTarget::Temporary(owner)
+                    }),
+                    "normal inner return cannot drop the wrapper's earlier temporary",
+                );
+            }
+        }
+    }
+}
