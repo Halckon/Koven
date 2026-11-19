@@ -10850,3 +10850,17 @@ Group 和 Not 仍传递原 span、目标与 witness；独立复审核对
 macOS frontend/codegen lib 严格 Clippy 通过。最终代码与
 验收工作树逐文件一致，非文档清单共 3621 项，SHA-256 为
 `d74fa1fb1090c81dc51c57dc7236dafa7274e3648eef182a879ae0f70002321f`。
+
+## 412. PR #448 的 body-only Boolean 测试输入
+
+首个 PR-event head `4cbaf35f` 的 Ubuntu Targeted Tests 在
+bounded composition 中报告 3495 项通过、1 项失败、77 项忽略。
+失败项原用字面量 `true` 作 selector，同时断言有一个
+`Conditional`。已知 selector 按本批控制流事实折叠，实际为零。
+[首轮 Ubuntu 作业](https://github.com/Halckon/Koven/actions/runs/44455505167/job/135329751111)
+
+将 selector 改为运行时 Int 参数的比较。Boolean 仍只来自函数体，
+保留跨文件输入重排、完整 SSA 类型表和恰一个动态分支的断言。
+修改限于测试输入及账本。macOS 定向复跑通过，原生
+conformance 对应的生产源码保持一致，最终门禁交给新 head 的
+PR-event 双宿主 CI。
