@@ -1,0 +1,42 @@
+// 拆出按值视图，来源随字段移交，而不是跟着已消费的 this 消失。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Holder(slice: Slice, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun cannotWriteWhileViewLives(own this: Holder, own a: Arr, own f: File): Unit in Holder {
+  this = Holder(Slice(&a), move f)
+  open this as slice, file
+  update(&mut a)  // ERR K1
+  use(slice.source.len)
+}
+fun writeAfterLastUse(own this: Holder, own a: Arr, own f: File): Unit in Holder {
+  this = Holder(Slice(&a), move f)
+  open this as slice, file
+  use(slice.source.len)
+  update(&mut a)
+}
+fun forwardsSlice(own this: Holder): borrow Int from this.slice.source in Holder {
+  open this as slice, file
+  return &slice.source.len
+}
+fun cannotOmitParameterSource(own this: Holder): borrow Int in Holder {
+  open this as slice, file
+  return &slice.source.len  // ERR K6
+}
+fun cannotReturnLocalSource(own this: Holder, own a: Arr, own f: File): borrow Int from this.slice.source in Holder {
+  this = Holder(Slice(&a), move f)
+  open this as slice, file
+  return &slice.source.len  // ERR K6
+}
+fun dropsFieldsOnFailure(own this: Holder): Unit in Holder {
+  open this as slice, file
+  mayFail()
+  use(slice.source.len)
+}
+view class MutableSlice(inout source: Arr)
+view class MutableHolder(slice: MutableSlice, file: File) deinit
+fun unsupportedExclusive(own this: MutableHolder): Unit in MutableHolder {
+  open this as slice, file  // ERR K25
+}

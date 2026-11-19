@@ -1657,22 +1657,36 @@ class Checker:
             self.error("K24", stmt.line, "不能在 deinit 中解除 this 的析构")
             raise InvalidOpen
         if (stmt.name != "this" or not fun.params or fun.params[0] != ("own", "this", fun.owner)
-                or state[stmt.name].ty != Type("cls", fun.owner)
-                or not decl or not decl.deinit or decl.is_view or decl.cell or decl.local or decl.carrier):
-            self.error("K25", stmt.line, "open 仅支持普通 deinit 类型自身的 own this 方法")
+                or not decl or not decl.deinit or decl.cell or decl.local or decl.carrier
+                or state[stmt.name].ty != self.type_of(fun.owner)):
+            self.error("K25", stmt.line, "open 仅支持具体 deinit 类型自身的 own this 方法")
             raise InvalidOpen
         if len(stmt.names) != len(decl.fields) or any(
-                kind or ty not in self.classes or self.classes[ty].is_view or not self.escapable(ty)
-                for kind, _, ty in decl.fields):
-            self.error("K25", stmt.line, "此切片只支持为每个按值类字段绑定一个名字")
+                kind or not self.open_field(ty, decl.is_view) for kind, _, ty in decl.fields):
+            self.error("K25", stmt.line, "open 只支持无来源的按值类字段或单共享借用视图字段")
             raise InvalidOpen
         var = state[stmt.name]
         self.resolve(state, Place(stmt.name, [], stmt.line))  # K8：完整、仍拥有的值
         self.access(state, {(stmt.name, ())}, set(), "move", stmt.line)  # K1：仍被借用时不可拆开
+        held = var.loans
         var.init, var.loans = "M", {}
         self.emit("open", stmt.line, stmt.name, names=stmt.names)
-        for name, (_, _, ty) in zip(stmt.names, decl.fields):
-            state[name] = Var(self.type_of(ty), "A", {})
+        for name, (_, field_name, ty) in zip(stmt.names, decl.fields):
+            prefix = field_name + "."
+            # 按值子视图的账在接收者名下；去掉字段前缀后交给新拥有者。
+            loans = {key[len(prefix):]: set(ids) for key, ids in held.items() if key.startswith(prefix)}
+            state[name] = Var(self.type_of(ty), "A", loans)
+
+    def open_field(self, ty, in_view):
+        decl = self.classes.get(ty)
+        if not decl:
+            return False
+        if not decl.is_view:
+            return self.escapable(ty)
+        if not in_view or decl.cell or decl.local or decl.carrier or decl.deinit or len(decl.fields) != 1:
+            return False
+        kind, _, target = decl.fields[0]
+        return kind == "borrow" and target in self.classes and not self.classes[target].is_view and self.escapable(target)
 
     def store(self, stmt, state):
         """X1：经独占借用整体替换所指的值，要求槽位访问且新值的类型恰为所指类型。"""

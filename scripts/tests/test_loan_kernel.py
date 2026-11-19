@@ -382,6 +382,21 @@ class LoanKernelCases(unittest.TestCase):
                 finally:
                     call.cleanup.append(removed)
 
+    def test_open_transfers_a_shared_view_and_its_cleanup(self):
+        source = (ROOT / "cases/Z5.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        types, program, accepted = lowered["dropsFieldsOnFailure"]
+        self.assertTrue(accepted)
+        self.assertTrue(lowered["forwardsSlice"][2])
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("file", False), ("slice", False)], call.cleanup)
+        self.assertEqual(["file", "slice"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.pop()  # 只在调用失败时漏掉视图的清理
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))
