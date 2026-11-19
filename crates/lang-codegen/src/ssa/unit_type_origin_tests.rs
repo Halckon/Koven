@@ -564,7 +564,7 @@ mod lambda_preflight_tests {
             };
             intern_body_scalar_types(module, self.parsed, instance, typed, &mut mapper)
                 .expect("ordinary supported body types");
-            intern_formed_nullable_map_types(
+            intern_formed_nullable_local_types(
                 module,
                 self.parsed,
                 &plan,

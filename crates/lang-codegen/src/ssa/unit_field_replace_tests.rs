@@ -477,15 +477,13 @@ fn unit_field_replace_nested_sibling_loans_preserve_both_fields() {
 }
 
 #[test]
-fn unit_field_replace_keeps_nested_generic_non_owning_and_swap_boundaries() {
+fn unit_field_replace_keeps_nested_generic_non_owning_boundaries() {
     for source in [
         "class Inner(var text: String)\nclass Outer(var inner: Inner)\nfun entry(): String {\nval outer = Outer(Inner(\"old\"))\nreturn replace(&outer.inner.text, \"new\")\n}",
         "class Holder<T>(var item: T)\nfun entry(): String {\nval holder = Holder(\"old\")\nreturn replace(&holder.item, \"new\")\n}",
         "class Holder(var item: Rc<Int>?)\nfun entry(): Rc<Int>? {\nval holder = Holder(null)\nreturn replace(&holder.item, Rc(11))\n}",
-        "class Holder(var text: String)\nfun entry(inout holder: Holder): String = replace(&holder.text, \"new\")",
         "class Holder(var first: Int, var second: Int)\nfun entry(): Int {\nval holder = Holder(1, 2)\nreturn replace(&holder.first, holder.second)\n}",
         "class Holder(var first: String, var second: String)\nfun entry(): String {\nval holder = Holder(\"old\", \"new\")\nreturn replace(&holder.first, holder.second.clone())\n}",
-        "class Holder(var first: String, var second: String)\nfun entry(): Unit {\nval holder = Holder(\"first\", \"second\")\nswap(&holder.first, &holder.second)\n}",
     ] {
         for constants in [false, true] {
             let error = lower(source, constants)
@@ -545,3 +543,116 @@ fn unit_field_replace_cross_file_input_order_is_deterministic() {
 }
 
 mod temporary_copy_cleanup;
+
+#[test]
+fn unit_receiver_field_replace_native_keeps_receiver_and_cancels_early_exchange() {
+    for constants in [false, true] {
+        run_native(
+            r#"
+            class Token(val label: String) {
+                deinit() { println(this.label) }
+            }
+            fun make(): Token? { println("make"); return Token("drop-new") }
+            class Holder(var token: Token?) {
+                inout fun take(flag: Boolean): Token? {
+                    return replace(&this.token, if (flag) { make() } else { return null })
+                }
+            }
+            fun entry(): Unit {
+                val holder = Holder(Token("drop-old"))
+                val early = holder.take(false)
+                if (early == null) { println("early") }
+                val old = holder.take(true)
+                if (old != null) { println("old-returned") }
+                println("done")
+            }
+            "#,
+            constants,
+            3,
+            b"early\nmake\nold-returned\ndone\ndrop-old\ndrop-new\n",
+        );
+    }
+}
+
+#[test]
+fn unit_receiver_field_replace_native_allows_disjoint_nested_exchange() {
+    for constants in [false, true] {
+        run_native(
+            r#"
+            class Holder(var left: Int, var right: Int) {
+                inout fun rotate(): Int {
+                    return replace(&this.left, replace(&this.right, 3))
+                }
+                fun valid(): Boolean {
+                    val left = this.left
+                    val right = this.right
+                    return left == 2 && right == 3
+                }
+            }
+            fun entry(): Unit {
+                val holder = Holder(1, 2)
+                val old = holder.rotate()
+                if (old == 1 && holder.valid()) { println("rotated") }
+            }
+            "#,
+            constants,
+            1,
+            b"rotated\n",
+        );
+    }
+}
+
+#[test]
+fn unit_receiver_field_replace_native_borrows_shared_sibling_during_replacement() {
+    for constants in [false, true] {
+        run_native(
+            r#"
+            fun make(view: String): String {
+                println(view)
+                return "new"
+            }
+            class Holder(var left: String, var right: String) {
+                inout fun change(): String {
+                    return replace(&this.left, make(this.right))
+                }
+            }
+            fun entry(): Unit {
+                val holder = Holder("old", "right")
+                val old = holder.change()
+                println(old)
+            }
+            "#,
+            constants,
+            1,
+            b"right\nold\n",
+        );
+    }
+}
+
+#[test]
+fn unit_diverging_replace_initializer_returns_the_borrow_and_drops_the_local() {
+    for constants in [false, true] {
+        run_native(
+            r#"
+            fun forward(source: String): borrow String from source {
+                var slot = "discarded".clone()
+                val never = replace(&slot, return source)
+                println("unreachable")
+                return source
+            }
+            fun entry(): Unit {
+                val source = "kept".clone()
+                borrow val result = forward(source)
+                println(result)
+            }
+            "#,
+            constants,
+            2,
+            b"kept\n",
+        );
+    }
+}
+
+mod element_swap;
+mod field_swap;
+mod inout_primitive;

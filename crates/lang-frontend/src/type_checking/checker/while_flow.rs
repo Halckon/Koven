@@ -2,8 +2,7 @@
 use super::{flow::FlowKey, *};
 use crate::parser::{Item, Statement};
 use crate::type_checking::flow_effects::{
-    collect_expression_mutation_targets, collect_normal_expression_mutation_targets,
-    collect_statement_mutation_targets,
+    collect_normal_expression_mutation_targets, collect_repeating_mutation_targets,
 };
 
 #[derive(Clone, Default)]
@@ -145,14 +144,8 @@ impl Checker<'_> {
         body: StatementId,
         can_exhaust: bool,
     ) -> Result<bool, TypeCheckingError> {
-        let mut targets =
-            collect_statement_mutation_targets(self.syntactic_boolean_outcomes, body)?;
-        if let Some(condition) = condition {
-            targets.extend(collect_expression_mutation_targets(
-                self.syntactic_boolean_outcomes,
-                condition,
-            )?);
-        }
+        let targets =
+            collect_repeating_mutation_targets(self.syntactic_boolean_outcomes, condition, body)?;
         let mut pending_writes = BTreeSet::new();
         let mut writes = BTreeSet::new();
         for target in targets {

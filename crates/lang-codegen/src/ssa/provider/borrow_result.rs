@@ -15,7 +15,7 @@ use lang_frontend::{
     },
     type_checking::{
         BorrowReturnOrigin, CallableResultSource, IntrinsicTypeConstructor,
-        UnitAggregateProjectionReceiver, UnitCallTarget, UnitCallableSignature,
+        UnitAggregateProjectionReceiver, UnitCallDescriptor, UnitCallTarget, UnitCallableSignature,
     },
 };
 
@@ -375,6 +375,18 @@ fn extend_observer_returns(
     }
 }
 
+fn scope_has_binding(
+    file: &lang_frontend::parser::ParsedFile,
+    scope: StatementId,
+    marker: Span,
+) -> bool {
+    file.ast().statements().get(scope).is_ok_and(|node| {
+        matches!(node.payload(), Statement::Block { elements } | Statement::ControlBody { elements } if elements.iter().any(|statement| {
+            local_if::binding_marker(file, *statement) == Some(marker)
+        }))
+    })
+}
+
 fn validate_binding(
     file: &lang_frontend::parser::ParsedFile,
     names: &ValidatedCompilationUnitNames,
@@ -411,35 +423,51 @@ fn validate_binding(
             .flatten()
         })
         .collect::<Vec<_>>();
+    let bindings = owned.borrow_results().bindings();
+    let ends_at = |binding: UnitSymbolId, scope| {
+        let expected_end =
+            UnitDropPoint::AfterStatement(UnitStatementId::new(binding.source_unit(), scope));
+        let mut ends = owned
+            .borrow_results()
+            .ends()
+            .iter()
+            .filter(|end| end.binding() == binding);
+        ends.next().is_some_and(|end| end.point() == expected_end) && ends.next().is_none()
+    };
+    let scope_member = |marker, scope, metadata| {
+        let Some(other) = bindings.iter().find(|other| other.marker_span() == marker) else {
+            return false;
+        };
+        if other.origin() != fact.origin() || !ends_at(other.binding(), scope) {
+            return false;
+        }
+        match other.storage() {
+            BorrowBindingStorage::NewRangeDescriptor => other.source_loan().is_some(),
+            BorrowBindingStorage::BorrowedCarrierMetadata if metadata => {
+                is_local_range_binding(file, names, typed, owned, other)
+                    && other.parent().is_some_and(|parent| {
+                        bindings
+                            .binary_search_by_key(&parent, |binding| binding.binding())
+                            .is_ok_and(|index| {
+                                let parent = &bindings[index];
+                                parent.source_loan().is_some()
+                                    && parent.marker_span().end() <= other.marker_span().start()
+                                    && local_if::metadata::enclosing_scopes(file, scope).any(
+                                        |block| {
+                                            scope_has_binding(file, block, parent.marker_span())
+                                                && ends_at(parent.binding(), block)
+                                        },
+                                    )
+                            })
+                    })
+            }
+            _ => false,
+        }
+    };
     let scope = crate::ssa::borrow_result_support::range_scope(
         file,
         fact.marker_span(),
-        |marker, scope| {
-            let expected_end =
-                UnitDropPoint::AfterStatement(lang_frontend::type_checking::UnitStatementId::new(
-                    fact.binding().source_unit(),
-                    scope,
-                ));
-            let Some(other) = owned
-                .borrow_results()
-                .bindings()
-                .iter()
-                .find(|other| other.marker_span() == marker)
-            else {
-                return false;
-            };
-            let mut ends = owned
-                .borrow_results()
-                .ends()
-                .iter()
-                .filter(|end| end.binding() == other.binding());
-            other.storage()
-                == lang_frontend::ownership_checking::BorrowBindingStorage::NewRangeDescriptor
-                && other.origin() == fact.origin()
-                && other.source_loan().is_some()
-                && ends.next().is_some_and(|end| end.point() == expected_end)
-                && ends.next().is_none()
-        },
+        |marker, scope| scope_member(marker, scope, false),
     );
     let builtin = |expression| match typed
         .expression_type(UnitExpressionId::new(
@@ -451,6 +479,22 @@ fn validate_binding(
         Some(UnitTypeKind::Builtin(builtin)) => Some(*builtin),
         _ => None,
     };
+    let readonly_call = |call: &UnitCallDescriptor| {
+        let mode_allowed = |mode, ty| {
+            mode == ParameterMode::Borrow
+                || (mode == ParameterMode::Value
+                    && typed.copyability(ty) == lang_frontend::type_checking::Copyability::Copyable)
+        };
+        !call.aborts()
+            && !matches!(call.target(), UnitCallTarget::FunctionValue)
+            && call.arguments().iter().all(|argument| {
+                !argument.crosses_thread()
+                    && mode_allowed(argument.mode(), argument.parameter_type())
+            })
+            && call
+                .receiver()
+                .is_none_or(|receiver| mode_allowed(receiver.mode(), receiver.ty()))
+    };
     let call_allowed = |expression, access| {
         typed
             .call(UnitExpressionId::new(
@@ -458,26 +502,8 @@ fn validate_binding(
                 expression,
             ))
             .is_some_and(|call| {
-                let mode_allowed = |mode, ty| {
-                    mode == ParameterMode::Borrow
-                        || (mode == ParameterMode::Value
-                            && typed.copyability(ty)
-                                == lang_frontend::type_checking::Copyability::Copyable)
-                };
-                call.result_source() == lang_frontend::type_checking::CallableResultSource::Owned
-                    && (access == CallAccess::OwnedResult
-                        || (!call.aborts()
-                            && !matches!(
-                                call.target(),
-                                lang_frontend::type_checking::UnitCallTarget::FunctionValue
-                            )
-                            && call.arguments().iter().all(|argument| {
-                                !argument.crosses_thread()
-                                    && mode_allowed(argument.mode(), argument.parameter_type())
-                            })
-                            && call.receiver().is_none_or(|receiver| {
-                                mode_allowed(receiver.mode(), receiver.ty())
-                            })))
+                call.result_source() == CallableResultSource::Owned
+                    && (access == CallAccess::OwnedResult || readonly_call(call))
             })
     };
     if let Some(allowed) = &mut allowed_controls
@@ -487,6 +513,67 @@ fn validate_binding(
                 | BorrowBindingStorage::BorrowedCarrierMetadata
         )
     {
+        // Both the alias and its descriptor must admit the branch inside the alias's block.
+        let metadata_markers = scope
+            .is_none()
+            .then_some(fact.marker_span())
+            .into_iter()
+            .chain(bindings.iter().filter_map(|child| {
+                (child.storage() == BorrowBindingStorage::BorrowedCarrierMetadata
+                    && child.parent() == Some(fact.binding()))
+                .then_some(child.marker_span())
+            }));
+        let mut metadata_scopes = std::collections::BTreeSet::new();
+        for marker in metadata_markers {
+            if let Some(scope) = local_if::metadata::scope(file, marker, |marker, scope| {
+                scope_member(marker, scope, true)
+            }) && metadata_scopes.insert(scope.index())
+            {
+                local_if::metadata::normal_controls(
+                    file,
+                    scope,
+                    &builtin,
+                    &|id| call_allowed(id, CallAccess::ReadOnly),
+                    |block, marker| {
+                        let Some(other) =
+                            bindings.iter().find(|other| other.marker_span() == marker)
+                        else {
+                            return false;
+                        };
+                        match other.storage() {
+                            BorrowBindingStorage::BorrowedCarrierMetadata => block == scope,
+                            BorrowBindingStorage::NewRangeDescriptor => {
+                                other.origin() == fact.origin()
+                                    && ends_at(other.binding(), block)
+                                    && bindings.iter().any(|child| {
+                                        child.storage()
+                                            == BorrowBindingStorage::BorrowedCarrierMetadata
+                                            && child.parent() == Some(other.binding())
+                                            && scope_has_binding(file, scope, child.marker_span())
+                                    })
+                                    && is_local_range_binding(file, names, typed, owned, other)
+                                    && other.source_loan().is_some_and(|source| {
+                                        typed.call(source.call()).is_some_and(&readonly_call)
+                                            && owned.loans().iter().any(|loan| {
+                                                loan.call() == source.call()
+                                                    && loan.argument() == source.argument()
+                                                    && loan.target() == other.origin()
+                                            })
+                                            && local_if::metadata::readonly_initializer(
+                                                file,
+                                                source.call().expression(),
+                                                &builtin,
+                                                &|id| call_allowed(id, CallAccess::ReadOnly),
+                                            )
+                                    })
+                            }
+                            BorrowBindingStorage::BorrowedStorage => false,
+                        }
+                    },
+                    allowed,
+                );
+            }
+        }
         local_if::return_controls(
             file,
             fact.marker_span(),

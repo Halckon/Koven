@@ -403,6 +403,216 @@ fun entry(): Unit { val guard = Guard(Leaf("field")); println("scope") }
     }
 
     #[test]
+    fn string_field_concat_preserves_the_parent_on_normal_and_return_edges() {
+        let provider = r#"package p
+class Guard(val name: String) {
+    deinit() { println("drop:" + this.name) }
+}
+fun run(stop: Boolean): Unit {
+    val guard = Guard("owner")
+    println(guard.name + if (stop) { println("early"); return } else { ":tail" })
+    println("done")
+}
+"#;
+        let consumer = r#"package q
+import p.run
+fun entry(): Unit { run(false); run(true) }
+"#;
+        for constants in [false, true] {
+            let (output, _) = run_unit(provider, consumer, constants);
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &output,
+                b"owner:tail\ndone\ndrop:owner\nearly\ndrop:owner\n",
+            );
+        }
+    }
+
+    #[test]
+    fn string_binary_borrows_a_narrowed_enum_payload_until_the_operation_or_exit() {
+        let provider = r#"package p
+enum class Outcome { Ready, Failed(error: String) }
+fun result(): Outcome = Outcome.Failed("payload")
+fun run(stop: Boolean): Unit {
+    val item = result()
+    when (item) {
+        is Outcome.Ready -> println("unexpected")
+        is Outcome.Failed -> {
+            println("prefix:" + (((item)).error))
+            if (item.error == "payload" && "other" != item.error) { println("matched") }
+            println(item.error + if (stop) { println("early"); return } else { ":tail" })
+        }
+    }
+    println("done")
+}
+"#;
+        let consumer = r#"package q
+import p.run
+fun entry(): Unit { run(false); run(true) }
+"#;
+        for constants in [false, true] {
+            let (output, _) = run_unit(provider, consumer, constants);
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &output,
+                b"prefix:payload\nmatched\npayload:tail\ndone\nprefix:payload\nmatched\nearly\n",
+            );
+        }
+    }
+
+    #[test]
+    fn string_field_operations_keep_disjoint_siblings_independent() {
+        let provider = r#"package p
+class Pair(var left: String, var right: String)
+fun run(): Unit {
+    val pair = Pair("left:", "old")
+    println((pair.left) + replace(&pair.right, "new"))
+    if (pair.left == pair.left) { println("equal") }
+    println(pair.left + pair.right)
+}
+fun read(own pair: Pair): Unit { println(pair.left + pair.right) }
+"#;
+        let consumer = r#"package q
+import p.Pair
+import p.read
+import p.run
+fun entry(): Unit { run(); read(Pair("own:", "field")) }
+"#;
+        for constants in [false, true] {
+            let (output, _) = run_unit(provider, consumer, constants);
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &output,
+                b"left:old\nequal\nleft:new\nown:field\n",
+            );
+        }
+    }
+
+    #[test]
+    fn unit_container_append_inout_writes_back_growth_and_drops_elements_once() {
+        let provider = r#"package p
+class Leaf(val name: String) {
+    deinit() { println(this.name) }
+}
+fun makeLeaf(): Leaf {
+    println("evaluate leaf")
+    return Leaf("second")
+}
+fun append(inout list: MutableList<Leaf>): Unit {
+    list.add(makeLeaf())
+    (list).add(Leaf("third"))
+    list.add(Leaf("fourth"))
+    list.add(Leaf("fifth"))
+}
+"#;
+        let consumer = r#"package q
+import p.Leaf
+import p.append
+fun entry(): Unit {
+    var list = mutableListOf(Leaf("first"))
+    append(&list)
+    if (list.size == 5) { println("updated") }
+    list.add(Leaf("sixth"))
+    println("scope end")
+}
+"#;
+        for constants in [false, true] {
+            let (output, _) = run_unit(provider, consumer, constants);
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &output,
+                b"evaluate leaf\nupdated\nscope end\nsixth\nfifth\nfourth\nthird\nsecond\nfirst\n",
+            );
+        }
+    }
+
+    #[test]
+    fn unit_container_field_index_copies_the_element_and_preserves_owner() {
+        let provider = r#"package p
+fun index(pos: Int): Int { println("index"); return pos }
+class Reader(val bytes: MutableList<UByte>, var pos: Int) {
+    fun read(): Int = (this.bytes)[index(this.pos)].toInt()
+    fun maybeRead(stop: Boolean): Int {
+        return this.bytes[if (stop) { return 7 } else { this.pos }].toInt()
+    }
+    inout fun step(): Int {
+        val result = this.bytes[this.pos].toInt()
+        this.pos = this.pos + 1
+        return result
+    }
+    deinit() { println("drop reader") }
+}
+class PlainReader(val bytes: List<Int>, val pos: Int)
+fun position(reader: PlainReader): Int { return reader.pos }
+fun lastRead(): Int {
+    val reader = PlainReader(listOf(1, 42), 1)
+    return reader.bytes[position(reader)]
+}
+fun returnSibling(stop: Boolean): Int {
+    val reader = PlainReader(listOf(42), 7)
+    return reader.bytes[if (stop) { return reader.pos } else { 0 }]
+}
+fun positive(value: Int): Boolean = value > 0
+fun returnFromWhen(flag: Boolean, leave: Boolean): Int {
+    val reader = PlainReader(listOf(42), 9)
+    return reader.bytes[when {
+        flag, positive(return 7) -> if (leave) { return reader.pos } else { 0 }
+        else -> 0
+    }]
+}
+"#;
+        let consumer = r#"package q
+import p.Reader
+import p.lastRead
+import p.returnSibling
+import p.returnFromWhen
+fun entry(): Unit {
+    if (lastRead() == 42) { println("last use") }
+    if (returnSibling(true) == 7 && returnSibling(false) == 42) { println("return sibling") }
+    if (returnFromWhen(false, false) == 7 && returnFromWhen(true, true) == 9 &&
+        returnFromWhen(true, false) == 42) { println("return when") }
+    var reader = Reader(mutableListOf<UByte>(1u, 42u), 1)
+    if (reader.bytes[0].toInt() == 1) { println("local") }
+    if (reader.read() == 42) { println("method") }
+    if (reader.maybeRead(true) == 7) { println("return") }
+    if (reader.maybeRead(false) == 42) { println("reused") }
+    if (reader.step() == 42) { println("inout step") }
+    println("scope end")
+}
+"#;
+        for constants in [false, true] {
+            let (output, _) = run_unit(provider, consumer, constants);
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &output,
+                b"last use\nreturn sibling\nreturn when\nlocal\nindex\nmethod\nreturn\nreused\ninout step\nscope end\ndrop reader\n",
+            );
+        }
+    }
+
+    #[test]
+    fn unit_container_field_size_reads_the_receiver_without_consuming_it() {
+        let provider = r#"package p
+class Reader(val bytes: MutableList<UByte>) {
+    fun size(): Int = (this.bytes).size
+    deinit() {
+        if (this.bytes.size == 1) { println("drop reader") }
+    }
+}
+"#;
+        let consumer = r#"package q
+import p.Reader
+fun entry(): Unit {
+    val reader = Reader(mutableListOf<UByte>(1u))
+    if (reader.size() == 1 && reader.size() == 1) { println("size ok") }
+    println("scope end")
+}
+"#;
+        for constants in [false, true] {
+            let (output, _) = run_unit(provider, consumer, constants);
+            crate::native_tests::boxed_enum_tests::assert_success(
+                &output,
+                b"size ok\nscope end\ndrop reader\n",
+            );
+        }
+    }
+
+    #[test]
     fn unit_destructuring_native_move_only_and_copyable_execution() {
         for constants in [false, true] {
             let provider = format!(

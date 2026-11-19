@@ -2,8 +2,8 @@
 use super::{flow::FlowKey, *};
 use crate::parser::{BinaryOperator, PrefixOperator};
 use crate::type_checking::flow_effects::{
-    collect_expression_mutation_targets, collect_normal_expression_mutation_targets,
-    collect_statement_mutation_targets, logical_rhs_is_required,
+    collect_normal_expression_mutation_targets, collect_repeating_mutation_targets,
+    logical_rhs_is_required,
 };
 
 #[derive(Clone, Default)]
@@ -308,14 +308,8 @@ impl BodyChecker<'_> {
         can_exhaust: bool,
     ) -> Result<LoopCompletion, CompilationUnitTypeError> {
         let outcomes = &self.syntactic_boolean_outcomes[source.index()];
-        let mut targets =
-            collect_statement_mutation_targets(outcomes, body).map_err(TypeCheckingError::from)?;
-        if let Some(condition) = condition {
-            targets.extend(
-                collect_expression_mutation_targets(outcomes, condition)
-                    .map_err(TypeCheckingError::from)?,
-            );
-        }
+        let targets = collect_repeating_mutation_targets(outcomes, condition, body)
+            .map_err(TypeCheckingError::from)?;
         let writes: BTreeSet<_> = targets
             .into_iter()
             .filter_map(|target| self.flow_root(source, target))
@@ -337,9 +331,11 @@ impl BodyChecker<'_> {
                 condition
             {
                 let boolean = self.builtin(BuiltinType::Boolean);
+                let previous = std::mem::replace(&mut self.checking_loop_condition, true);
                 let checked =
-                    self.check_expression(source, condition, Some(boolean), None, return_type)?;
-                let edges = if self.has_pending_expression_exit(source, condition, checked)? {
+                    self.check_expression(source, condition, Some(boolean), None, return_type);
+                self.checking_loop_condition = previous;
+                let edges = if self.has_pending_expression_exit(source, condition, checked?)? {
                     self.boolean_pending_edges(source, condition, &self.flow_versions)?
                 } else {
                     PendingBooleanEdges::default()

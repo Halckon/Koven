@@ -351,7 +351,7 @@ pub(super) fn declare(
             typed,
             &mut types,
         )?;
-        type_plan::intern_formed_nullable_map_types(
+        type_plan::intern_formed_nullable_local_types(
             module,
             parsed_by_source[plan.instance.source_unit().index()],
             plan,

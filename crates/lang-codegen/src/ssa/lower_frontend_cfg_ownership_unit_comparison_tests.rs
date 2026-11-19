@@ -688,7 +688,7 @@ fn unit_elvis_keeps_known_native_boundaries_out_of_missing_facts() {
                 if (x != null && (left ?: return 0)) { return x }
                 return 0
             }",
-            "var x: Int? = 7",
+            "left ?: return 0",
         ),
         ("fun choose(left: Int?): Int = left ?: 0", "left ?: 0"),
     ] {

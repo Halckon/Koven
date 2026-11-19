@@ -965,6 +965,7 @@ impl Builder<'_, '_> {
             }
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, node_span)),
         };
+        self.end_enclosing_index_receiver_loans(span)?;
         let point = UnitDropPoint::ControlTransfer(return_id);
         if forwards_entry || entry.and_then(|source| self.borrowed.get(&source)) == Some(&loan) {
             self.finish_return_drops(point, span)?;
@@ -989,6 +990,7 @@ impl Builder<'_, '_> {
         if !created.is_empty() {
             return Err(error(LoweringErrorKind::UnsupportedNode, span));
         }
+        self.end_enclosing_index_receiver_loans(span)?;
         self.drops(UnitDropPoint::ControlTransfer(return_id))?;
         self.terminate(RTerm::RangeReturn { view, source }, span)?;
         Ok(Lowered::Diverged)

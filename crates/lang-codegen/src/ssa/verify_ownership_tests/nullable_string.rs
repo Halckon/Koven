@@ -63,6 +63,96 @@ fn nullable_string_and_rc_inout_require_retiring_the_proof_before_replace() {
 }
 
 #[test]
+fn nullable_branch_cannot_observe_an_inout_root_while_its_child_is_active() {
+    use crate::ssa::verify::VerifyLocation;
+
+    let origin = origin();
+    let mut program = Program::default();
+    let module = program.add_module("nullable-exchange");
+    let module = program.module_mut(module).unwrap();
+    let string = module.add_string_owner_type();
+    let nullable = module.add_inline_nullable_type(string).unwrap();
+    let parent_type = EntityType::Loan {
+        kind: LoanKind::Exclusive,
+        target: nullable,
+    };
+    let view_type = EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: string,
+    };
+    let id = module
+        .add_function("inspect", Vec::new(), origin.clone())
+        .unwrap();
+    let function = module.function_mut(id).unwrap();
+    let entry = function
+        .add_block(vec![parent_type], origin.clone())
+        .unwrap();
+    let parent = entity_loan(function.blocks[entry.index()].parameters[0]);
+    let (_, child) = function
+        .append_instruction(
+            entry,
+            Operation::ExclusiveRootReborrow { source: parent },
+            vec![parent_type],
+            origin.clone(),
+        )
+        .unwrap();
+    let dependent = entity_loan(child[0]);
+    let absent = function
+        .add_block(vec![parent_type], origin.clone())
+        .unwrap();
+    let present = function
+        .add_block(vec![parent_type, view_type], origin.clone())
+        .unwrap();
+    let view = entity_loan(function.blocks[present.index()].parameters[1]);
+    function
+        .set_terminator(
+            entry,
+            TerminatorKind::NullableLoanBranch {
+                source: parent,
+                view,
+                when_null: Edge {
+                    target: absent,
+                    arguments: child.clone(),
+                },
+                when_non_null: Edge {
+                    target: present,
+                    arguments: child,
+                },
+            },
+            origin.clone(),
+        )
+        .unwrap();
+    for block in [absent, present] {
+        for parameter in function.blocks[block.index()].parameters.clone() {
+            function
+                .append_instruction(
+                    block,
+                    Operation::BorrowEnd {
+                        loan: entity_loan(parameter),
+                    },
+                    Vec::new(),
+                    origin.clone(),
+                )
+                .unwrap();
+        }
+        function
+            .set_terminator(
+                block,
+                TerminatorKind::Return { values: Vec::new() },
+                origin.clone(),
+            )
+            .unwrap();
+    }
+    let errors = verify_program(&program).unwrap_err().errors;
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert_eq!(errors[0].location, VerifyLocation::Terminator(entry));
+    assert_eq!(
+        errors[0].kind,
+        VerifyErrorKind::LoanDependencyActive { parent, dependent }
+    );
+}
+
+#[test]
 fn nullable_rc_inout_presence_rejects_a_parent_ended_across_blocks() {
     let origin = origin();
     let mut program = Program::default();
@@ -559,6 +649,7 @@ fn nullable_string_ending_a_swapped_parameter_uses_the_incoming_origin() {
     let reference = |origin| Reference {
         lineage: BTreeSet::from([origin]),
         origin,
+        root_storage: None,
         live: true,
     };
 

@@ -1,14 +1,16 @@
 //! Proof transport between short-circuit operands and their result edges.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
     ast::ExpressionId,
+    name_resolution::UnitSymbolId,
     ownership_checking::{UnitDropPoint, UnitShortCircuitRhs},
+    parser::{BinaryOperator, Expression, PrefixOperator},
     source::Span,
     type_checking::UnitExpressionId,
 };
 
-use super::super::{Builder, View, when::PredecessorBranch};
+use super::super::{Builder, Lowered, View, expression::ConditionValue, when::PredecessorBranch};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
     model::{EntityType, LoanKind, SsaTypeId, SsaTypeKind},
@@ -63,36 +65,276 @@ impl ConditionViews {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct ConditionInput {
+    pub(super) expression: ExpressionId,
+    pub(super) when_true: BlockRef,
+    pub(super) when_false: BlockRef,
+    pub(super) views: ConditionViews,
+    pub(super) control_span: Option<Span>,
+    pub(super) fold_literal: bool,
+}
+
+impl ConditionInput {
+    fn operand(
+        expression: ExpressionId,
+        when_true: BlockRef,
+        when_false: BlockRef,
+        views: ConditionViews,
+    ) -> Self {
+        Self {
+            expression,
+            when_true,
+            when_false,
+            views,
+            control_span: None,
+            fold_literal: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct LogicalCondition {
+    expression: ExpressionId,
+    and: bool,
+    left: ExpressionId,
+    right: ExpressionId,
+    when_true: BlockRef,
+    when_false: BlockRef,
+    views: ConditionViews,
+}
+
+#[derive(Clone, Copy)]
+struct LogicalEdges {
+    middle: BlockRef,
+    skip: BlockRef,
+    rhs_branch: usize,
+}
+
+impl LogicalEdges {
+    fn targets(self, and: bool) -> (BlockRef, BlockRef) {
+        if and {
+            (self.middle, self.skip)
+        } else {
+            (self.skip, self.middle)
+        }
+    }
+}
+
+enum LogicalLeft {
+    Branch(LogicalEdges, ConditionViews),
+    Required(RequiredLeft),
+}
+
+enum RequiredLeft {
+    Jump(BlockRef),
+    RightCondition,
+    RightMustDiverge,
+    Join(LogicalEdges, BlockRef),
+}
+
+enum ResumeCondition {
+    Branch(LogicalCondition, LogicalEdges),
+    Value {
+        condition: LogicalCondition,
+        action: RequiredLeft,
+        value: ConditionValue,
+        loan_depth: usize,
+    },
+    Right(Box<LogicalRhs>),
+}
+
+type SkippedState = (
+    BTreeSet<UnitSymbolId>,
+    BTreeMap<UnitExpressionId, Slot>,
+    Vec<View>,
+);
+
+struct LogicalRhs {
+    condition: LogicalCondition,
+    skip: BlockRef,
+    rhs_point: UnitDropPoint,
+    outer_loans: Vec<Slot>,
+    outer_ranges: BTreeMap<UnitExpressionId, (Slot, Slot, Vec<Slot>)>,
+    skip_state: Option<SkippedState>,
+    skip_bridge: Option<BlockRef>,
+    inherited: Vec<Slot>,
+    evaluated_true: BlockRef,
+    evaluated_false: BlockRef,
+    carrying_target: Option<BlockRef>,
+    carry_bypass: bool,
+}
+
 impl Builder<'_, '_> {
     /// Short-circuit: Basic numbers the evaluated exit 0 and the skip 1. Const
     /// carries its own true/false edge numbering. A joined outcome keeps only
     /// borrowed nullable proofs established on every reachable path.
-    pub(super) fn logical(
+    pub(super) fn lower_condition_chain(
         &mut self,
-        expression: ExpressionId,
-        and: bool,
-        (left, right): (ExpressionId, ExpressionId),
-        when_true: BlockRef,
-        when_false: BlockRef,
-        views: ConditionViews,
+        mut input: ConditionInput,
     ) -> Result<(), LoweringError> {
+        let mut pending = Vec::new();
+        'lower: loop {
+            loop {
+                let (payload, span) = self.node(input.expression)?;
+                let condition = match payload {
+                    Expression::Group { expression } => {
+                        input.expression = expression;
+                        continue;
+                    }
+                    Expression::Prefix {
+                        operator: PrefixOperator::Not,
+                        operand,
+                        ..
+                    } => {
+                        std::mem::swap(&mut input.when_true, &mut input.when_false);
+                        input.views = ConditionViews {
+                            ordinary: input.views.ordinary
+                                && input.control_span.is_some()
+                                && self.inputs.negated_rc_null_test(input.expression).is_some(),
+                            borrowed: input.views.borrowed.negated(),
+                        };
+                        input.expression = operand;
+                        continue;
+                    }
+                    Expression::Binary {
+                        left,
+                        operator:
+                            operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
+                        right,
+                        ..
+                    } => LogicalCondition {
+                        expression: input.expression,
+                        and: operator == BinaryOperator::LogicalAnd,
+                        left,
+                        right,
+                        when_true: input.when_true,
+                        when_false: input.when_false,
+                        views: input.views,
+                    },
+                    _ => {
+                        self.condition_atom(input, payload, span)?;
+                        break;
+                    }
+                };
+                match self.prepare_logical(condition) {
+                    LogicalLeft::Branch(edges, views) => {
+                        pending.push(ResumeCondition::Branch(condition, edges));
+                        let (yes, no) = edges.targets(condition.and);
+                        input = ConditionInput::operand(condition.left, yes, no, views);
+                    }
+                    LogicalLeft::Required(action) => {
+                        if let Some(next) =
+                            self.prepare_required_left(condition, action, &mut pending)?
+                        {
+                            input = next;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            while let Some(resume) = pending.pop() {
+                let next = match resume {
+                    ResumeCondition::Branch(condition, edges) => {
+                        self.prepare_logical_rhs(condition, edges, &mut pending)?
+                    }
+                    ResumeCondition::Value {
+                        condition,
+                        action,
+                        value,
+                        loan_depth,
+                    } => {
+                        let result = self.finish_condition_value(value)?;
+                        self.finish_required_value(
+                            condition,
+                            action,
+                            loan_depth,
+                            result,
+                            &mut pending,
+                        )?
+                    }
+                    ResumeCondition::Right(rhs) => {
+                        self.finish_logical_rhs(*rhs)?;
+                        None
+                    }
+                };
+                if let Some(next) = next {
+                    input = next;
+                    continue 'lower;
+                }
+            }
+            return Ok(());
+        }
+    }
+
+    fn prepare_required_left(
+        &mut self,
+        condition: LogicalCondition,
+        action: RequiredLeft,
+        pending: &mut Vec<ResumeCondition>,
+    ) -> Result<Option<ConditionInput>, LoweringError> {
+        let left = condition.left;
+        let (payload, span) = self.node(left)?;
+        if !matches!(
+            payload,
+            Expression::Binary {
+                operator: BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr,
+                ..
+            }
+        ) {
+            let continues = self.required(left)?.is_some();
+            return self.finish_required_logical(condition, action, continues, pending);
+        }
+        let loan_depth = self.pending_call_loans.len();
+        let value = match self.special_expression(left, span)? {
+            Some(value) => Some(value),
+            None => self.named_null_comparison_value(left, span)?,
+        };
+        if let Some(value) = value {
+            return self.finish_required_value(condition, action, loan_depth, value, pending);
+        }
+        let value = self.prepare_condition_value(left, span)?;
+        let input = ConditionInput {
+            expression: left,
+            when_true: value.when_true,
+            when_false: value.when_false,
+            views: ConditionViews::normal(false),
+            control_span: None,
+            fold_literal: false,
+        };
+        pending.push(ResumeCondition::Value {
+            condition,
+            action,
+            value,
+            loan_depth,
+        });
+        Ok(Some(input))
+    }
+
+    /// Allocate this node's exits before following its left operand.
+    fn prepare_logical(&mut self, condition: LogicalCondition) -> LogicalLeft {
+        let LogicalCondition {
+            expression,
+            and,
+            right,
+            when_true,
+            when_false,
+            views,
+            ..
+        } = condition;
         let operand_views = ConditionViews {
             ordinary: views.ordinary && and,
             borrowed: BorrowedProofEdges::edge(and),
         };
-        let carry_views = operand_views.ordinary || views.borrowed.allows(and);
-        let evaluated_target = if and { when_true } else { when_false };
-        let carrying_target = carry_views.then_some(evaluated_target);
-        let join_requested = views.borrowed.allows(!and);
         let left_views = ConditionViews {
-            borrowed: if join_requested {
+            borrowed: if views.borrowed.allows(!and) {
                 BorrowedProofEdges::Both
             } else {
                 operand_views.borrowed
             },
             ..operand_views
         };
-        let span = self.span(expression);
         let control = self.unit(expression);
         // A constant left operand fixes the plan: `Never` yields the left value and skips the
         // right operand; `Always` evaluates the left operand and yields the right value.
@@ -104,22 +346,11 @@ impl Builder<'_, '_> {
             match plan.rhs() {
                 UnitShortCircuitRhs::Never => {
                     self.unreachable_drop_scopes.push(self.span(right));
-                    if self.required(left)?.is_some() {
-                        let target = if and { when_false } else { when_true };
-                        self.goto(target, span)?;
-                    }
-                    return Ok(());
+                    let target = if and { when_false } else { when_true };
+                    return LogicalLeft::Required(RequiredLeft::Jump(target));
                 }
                 UnitShortCircuitRhs::Always => {
-                    if self.required(left)?.is_none() {
-                        return Ok(());
-                    }
-                    let views = ConditionViews {
-                        ordinary: operand_views.ordinary,
-                        ..views
-                    };
-                    return self
-                        .condition_internal(right, when_true, when_false, views, None, true);
+                    return LogicalLeft::Required(RequiredLeft::RightCondition);
                 }
                 UnitShortCircuitRhs::Conditional => plan.rhs_branch(),
             }
@@ -133,29 +364,119 @@ impl Builder<'_, '_> {
                 UnitDropPoint::BranchExit { control, branch: 0 },
                 UnitDropPoint::BranchExit { control, branch: 1 },
             ]);
-            if self.required(left)?.is_none() {
-                self.unreachable_drop_scopes.push(self.span(right));
-            } else if self.required(right)?.is_some() {
-                return Err(error(LoweringErrorKind::MissingFact, span));
-            }
-            return Ok(());
+            return LogicalLeft::Required(RequiredLeft::RightMustDiverge);
         }
-        let middle = self.body.block();
-        let skip = self.body.block();
+        let edges = LogicalEdges {
+            middle: self.body.block(),
+            skip: self.body.block(),
+            rhs_branch,
+        };
         let ordinary = self.inputs.constant_owned.is_none();
         if ordinary && self.inputs.typed.ordinary_rhs_bypassed(control) {
-            if self.required(left)?.is_some() {
-                self.goto(skip, span)?;
-            }
+            LogicalLeft::Required(RequiredLeft::Join(edges, edges.skip))
         } else if ordinary && self.inputs.typed.ordinary_rhs_required(control) {
-            if self.required(left)?.is_some() {
-                self.goto(middle, span)?;
-            }
-        } else if and {
-            self.condition_internal(left, middle, skip, left_views, None, true)?;
+            LogicalLeft::Required(RequiredLeft::Join(edges, edges.middle))
         } else {
-            self.condition_internal(left, skip, middle, left_views, None, true)?;
+            LogicalLeft::Branch(edges, left_views)
         }
+    }
+
+    fn finish_required_value(
+        &mut self,
+        condition: LogicalCondition,
+        action: RequiredLeft,
+        loan_depth: usize,
+        result: Lowered,
+        pending: &mut Vec<ResumeCondition>,
+    ) -> Result<Option<ConditionInput>, LoweringError> {
+        let result = self.finish_expression_inner(loan_depth, result);
+        let result = self.finish_expression(condition.left, result)?;
+        let continues = match result {
+            Lowered::Value(_) => true,
+            Lowered::Diverged => false,
+            Lowered::Unit => {
+                return Err(error(
+                    LoweringErrorKind::MissingFact,
+                    self.span(condition.left),
+                ));
+            }
+        };
+        self.finish_required_logical(condition, action, continues, pending)
+    }
+
+    fn finish_required_logical(
+        &mut self,
+        condition: LogicalCondition,
+        action: RequiredLeft,
+        continues: bool,
+        pending: &mut Vec<ResumeCondition>,
+    ) -> Result<Option<ConditionInput>, LoweringError> {
+        let span = self.span(condition.expression);
+        match action {
+            RequiredLeft::Jump(target) => {
+                if continues {
+                    self.goto(target, span)?;
+                }
+            }
+            RequiredLeft::RightCondition => {
+                if continues {
+                    let views = ConditionViews {
+                        ordinary: condition.views.ordinary && condition.and,
+                        ..condition.views
+                    };
+                    return Ok(Some(ConditionInput::operand(
+                        condition.right,
+                        condition.when_true,
+                        condition.when_false,
+                        views,
+                    )));
+                }
+            }
+            RequiredLeft::RightMustDiverge => {
+                if !continues {
+                    self.unreachable_drop_scopes
+                        .push(self.span(condition.right));
+                } else if self.required(condition.right)?.is_some() {
+                    return Err(error(LoweringErrorKind::MissingFact, span));
+                }
+            }
+            RequiredLeft::Join(edges, target) => {
+                if continues {
+                    self.goto(target, span)?;
+                }
+                return self.prepare_logical_rhs(condition, edges, pending);
+            }
+        }
+        Ok(None)
+    }
+
+    fn prepare_logical_rhs(
+        &mut self,
+        condition: LogicalCondition,
+        edges: LogicalEdges,
+        pending: &mut Vec<ResumeCondition>,
+    ) -> Result<Option<ConditionInput>, LoweringError> {
+        let LogicalEdges {
+            middle,
+            skip,
+            rhs_branch,
+        } = edges;
+        let LogicalCondition {
+            expression,
+            and,
+            right,
+            when_true,
+            when_false,
+            views,
+            ..
+        } = condition;
+        let span = self.span(expression);
+        let control = self.unit(expression);
+        let ordinary_views = views.ordinary && and;
+        let carry_views = ordinary_views || views.borrowed.allows(and);
+        let evaluated_target = if and { when_true } else { when_false };
+        let carrying_target = carry_views.then_some(evaluated_target);
+        let join_requested = views.borrowed.allows(!and);
         // The plain branch that selects between the right operand and the skip edge is the
         // short circuit's own control transfer.
         for block in &mut self.body.blocks {
@@ -224,7 +545,7 @@ impl Builder<'_, '_> {
             if let Some(bridge) = skip_bridge {
                 self.join_short_circuit_proofs(bridge, None, skip_target, span)?;
             }
-            return Ok(());
+            return Ok(None);
         }
         if let Some((pre_skip_dead, _, _)) = &skip_state {
             self.dead.clone_from(pre_skip_dead);
@@ -245,7 +566,7 @@ impl Builder<'_, '_> {
         let evaluated_false = self.body.block();
         let carry_bypass = join_requested && (skip_bridge.is_some() || skip_state.is_none());
         let right_views = ConditionViews {
-            ordinary: operand_views.ordinary,
+            ordinary: ordinary_views,
             borrowed: match (carry_views, carry_bypass) {
                 (true, true) => BorrowedProofEdges::Both,
                 (true, false) => BorrowedProofEdges::edge(and),
@@ -253,14 +574,52 @@ impl Builder<'_, '_> {
                 (false, false) => BorrowedProofEdges::Neither,
             },
         };
-        self.condition_internal(
+        pending.push(ResumeCondition::Right(Box::new(LogicalRhs {
+            condition,
+            skip,
+            rhs_point,
+            outer_loans,
+            outer_ranges,
+            skip_state,
+            skip_bridge,
+            inherited,
+            evaluated_true,
+            evaluated_false,
+            carrying_target,
+            carry_bypass,
+        })));
+        Ok(Some(ConditionInput::operand(
             right,
             evaluated_true,
             evaluated_false,
             right_views,
-            None,
-            true,
-        )?;
+        )))
+    }
+
+    fn finish_logical_rhs(&mut self, rhs: LogicalRhs) -> Result<(), LoweringError> {
+        let LogicalRhs {
+            condition,
+            skip,
+            rhs_point,
+            outer_loans,
+            outer_ranges,
+            skip_state,
+            skip_bridge,
+            inherited,
+            evaluated_true,
+            evaluated_false,
+            carrying_target,
+            carry_bypass,
+        } = rhs;
+        let LogicalCondition {
+            expression,
+            and,
+            when_true,
+            when_false,
+            ..
+        } = condition;
+        let span = self.span(expression);
+        let skip_target = if and { when_false } else { when_true };
         let mark = self
             .active_views
             .iter()
@@ -297,7 +656,9 @@ impl Builder<'_, '_> {
                 let skips_only =
                     !evaluated_edges.contains(&if and { evaluated_false } else { evaluated_true });
                 for view in skipped_views.iter().rev() {
-                    if self.inout_loan(view.symbol).is_none()
+                    let owned_if =
+                        view.when_scope.is_none() && self.bindings.contains_key(&view.symbol);
+                    if (!owned_if && self.inout_loan(view.symbol).is_none())
                         || self.active_views.iter().any(|rhs| rhs.slot == view.slot)
                     {
                         continue;

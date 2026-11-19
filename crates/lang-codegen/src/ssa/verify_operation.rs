@@ -5,10 +5,10 @@ mod text;
 pub(in crate::ssa) use storage::aggregate_explode_contract;
 use storage::{
     aggregate_construct_contract, aggregate_copy_explode_contract, aggregate_project_contract,
-    field_place_contract, heap_allocate_contract, heap_field_type, heap_payload_place_contract,
-    inline_field_type, nullable_take_contract, root_exchange_contract, root_place_owner,
-    shared_allocate_contract, shared_payload_place_contract, tagged_construct_contract,
-    tagged_payload_place_contract,
+    field_exchange_contract, field_place_contract, heap_allocate_contract, heap_field_type,
+    heap_payload_place_contract, inline_field_type, nullable_take_contract, root_exchange_contract,
+    root_place_owner, shared_allocate_contract, shared_payload_place_contract,
+    tagged_construct_contract, tagged_payload_place_contract,
 };
 
 use text::string_binary_contract;
@@ -250,20 +250,17 @@ pub(super) fn verify_operation(
             .and_then(|payload| module.aggregate_fields(payload))
             .and_then(|fields| fields.get(*field).copied())
             .is_some_and(|field| {
-                (is_first_class(module, field)
-                    || matches!(module.type_kind(field), Some(SsaTypeKind::Unit)))
-                    && !matches!(
-                        module.type_kind(field),
-                        Some(SsaTypeKind::ConcreteClosure { .. })
-                    )
-                    && value_type(function, *replacement) == Some(field)
-                    && entity_type(function, EntityId::Loan(*loan))
-                        == EntityType::Loan {
-                            kind: LoanKind::Exclusive,
-                            target: field,
-                        }
-                    && results == [EntityType::Value(field)]
+                field_exchange_contract(module, function, field, *loan, *replacement, &results)
             }),
+        Operation::HeapReceiverFieldExchange { loan, replacement }
+        | Operation::InoutExchange { loan, replacement } => field_exchange_contract(
+            module,
+            function,
+            entity_type(function, EntityId::Loan(*loan)).semantic_type(),
+            *loan,
+            *replacement,
+            &results,
+        ),
         Operation::InlineFieldReplace {
             receiver,
             field,
@@ -358,8 +355,21 @@ pub(super) fn verify_operation(
         Operation::ContainerElementPlace { owner, index } => {
             container_element_place_contract(module, function, *owner, *index, &results)
         }
+        Operation::ProjectedSwap { root, loans } => {
+            storage::element_swap_contract(function, *root, *loans, &results)
+        }
         Operation::ContainerAppend { owner, element } => {
             container_append_contract(module, function, *owner, *element, &results)
+        }
+        Operation::ContainerAppendInout { loan, element } => {
+            results.is_empty()
+                && matches!(
+                    entity_type(function, EntityId::Loan(*loan)),
+                    EntityType::Loan { kind: LoanKind::Exclusive, target }
+                        if module.sequential_container(target).is_some_and(|(kind, ty)|
+                            kind == super::model::SequentialContainerKind::MutableList
+                                && value_type(function, *element) == Some(ty))
+                )
         }
         Operation::ContainerClear { owner } => {
             container_clear_contract(module, function, *owner, &results)
@@ -428,7 +438,7 @@ pub(super) fn verify_operation(
                     .entity(EntityId::Loan(*base))
                     .map(|entity| entity.ty),
                 Some(EntityType::Loan {
-                    kind: LoanKind::Shared,
+                    kind: LoanKind::Shared | LoanKind::Exclusive,
                     ..
                 })
             ) && heap_field_type(module, function, *base, *field).is_some_and(|field_ty| {
@@ -438,6 +448,24 @@ pub(super) fn verify_operation(
                         target: field_ty,
                     }]
             })
+        }
+        Operation::ExclusiveHeapFieldLoan { base, field } => {
+            matches!(
+                entity_type(function, EntityId::Loan(*base)),
+                EntityType::Loan {
+                    kind: LoanKind::Exclusive,
+                    ..
+                }
+            ) && heap_field_type(module, function, *base, *field).is_some_and(|target| {
+                results
+                    == [EntityType::Loan {
+                        kind: LoanKind::Exclusive,
+                        target,
+                    }]
+            })
+        }
+        Operation::ExclusiveRootReborrow { source } => {
+            storage::exclusive_reborrow_contract(function, *source, &results)
         }
         Operation::SharedReborrow { source } => {
             match (
@@ -649,18 +677,24 @@ fn container_element_place_contract(
     results: &[EntityType],
 ) -> bool {
     let owner_type = match function.entity(owner).map(|entity| entity.ty) {
-        Some(EntityType::Value(ty))
-        | Some(EntityType::Loan {
-            kind: LoanKind::Shared,
-            target: ty,
-        }) => Some(ty),
+        Some(EntityType::Value(ty)) | Some(EntityType::Loan { target: ty, .. }) => Some(ty),
         _ => None,
     };
-    let Some((_, element)) =
+    let Some((container, element)) =
         owner_type.and_then(|container| module.sequential_container(container))
     else {
         return false;
     };
+    if matches!(
+        function.entity(owner).map(|entity| entity.ty),
+        Some(EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            ..
+        })
+    ) && container == super::model::SequentialContainerKind::List
+    {
+        return false;
+    }
     value_type(function, index).is_some_and(|ty| is_koven_int(module, ty))
         && results == [EntityType::Place(element)]
 }

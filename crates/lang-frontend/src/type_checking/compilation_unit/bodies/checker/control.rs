@@ -190,6 +190,13 @@ impl BodyChecker<'_> {
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let source = expression.source_unit();
         let boolean = self.builtin(BuiltinType::Boolean);
+        use crate::type_checking::flow_effects::result_edges::{
+            bypassed_result_writes, splits_boolean_writes,
+        };
+
+        let before = splits_boolean_writes(self.file(source).ast(), condition)
+            .map_err(TypeCheckingError::from)?
+            .then(|| (self.flow_facts.clone(), self.flow_versions.clone()));
         let deferred = self.deferred_facts.len();
         let condition_result =
             self.check_expression(source, condition, Some(boolean), None, return_type)?;
@@ -211,6 +218,26 @@ impl BodyChecker<'_> {
                 .structural_boolean_outcomes_at(source, self.file(source), condition);
         let (true_facts, false_facts) = self.condition_facts(source, condition)?;
         self.flow_facts = extend_facts(&baseline, &true_facts);
+        let mut false_path = extend_facts(&baseline, &false_facts);
+        let mut false_versions = baseline_versions.clone();
+        if let Some((facts, versions)) = before
+            && self.is_builtin(condition_result.ty, BuiltinType::Boolean)
+            && self.flow_versions.versions_changed(&versions)
+        {
+            let [yes, no] = bypassed_result_writes(
+                &self.syntactic_boolean_outcomes[source.index()],
+                condition,
+                |target| self.stable_flow_key(source, target),
+            )
+            .map_err(TypeCheckingError::from)?;
+            self.flow_versions.restore_bypassed_writes(
+                &mut self.flow_facts,
+                &facts,
+                &versions,
+                &yes,
+            );
+            false_versions.restore_bypassed_writes(&mut false_path, &facts, &versions, &no);
+        }
         if let Some(pending) = &condition_edges.yes {
             self.flow_versions.set_pending_keys(pending.iter().copied());
         }
@@ -235,16 +262,15 @@ impl BodyChecker<'_> {
         let then_falls =
             then_reachable && self.has_pending_statement_exit(source, then_branch, then_result);
         let Some(else_branch) = else_branch else {
-            let false_path = extend_facts(&baseline, &false_facts);
             self.flow_facts = if then_result.falls_through {
                 intersect_facts(&then_facts, &false_path)
             } else {
                 false_path
             };
             self.flow_versions = if then_result.falls_through {
-                merge_flow_versions(&then_versions, &baseline_versions)
+                merge_flow_versions(&then_versions, &false_versions)
             } else {
-                baseline_versions
+                false_versions
             };
             let then_pending = then_falls.then(|| then_versions.pending_keys());
             self.flow_versions.set_pending_keys(
@@ -265,8 +291,8 @@ impl BodyChecker<'_> {
                 falls_through: ordinary_else || ordinary_then && then_result.falls_through,
             });
         };
-        self.flow_facts = extend_facts(&baseline, &false_facts);
-        self.flow_versions = baseline_versions.clone();
+        self.flow_facts = false_path;
+        self.flow_versions = false_versions;
         if let Some(pending) = &condition_edges.no {
             self.flow_versions.set_pending_keys(pending.iter().copied());
         }

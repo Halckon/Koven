@@ -57,6 +57,218 @@ fn add_types(module: &mut Module) -> ContainerTypes {
     }
 }
 
+#[test]
+fn container_append_inout_requires_exclusive_access_without_a_live_reborrow() {
+    for (kind, reborrow, parameter) in [
+        (LoanKind::Exclusive, false, true),
+        (LoanKind::Shared, false, true),
+        (LoanKind::Exclusive, true, true),
+        (LoanKind::Exclusive, false, false),
+    ] {
+        let mut program = Program::default();
+        let module_id = program.add_module("main");
+        let module = program.module_mut(module_id).unwrap();
+        let types = add_types(module);
+        let origin = origin();
+        let function_id = module
+            .add_function("append", Vec::new(), origin.clone())
+            .unwrap();
+        let function = module.function_mut(function_id).unwrap();
+        let loan_type = EntityType::Loan {
+            kind,
+            target: types.mutable_list,
+        };
+        let receiver_type = if parameter {
+            loan_type
+        } else {
+            EntityType::Value(types.mutable_list)
+        };
+        let entry = function
+            .add_block(
+                vec![receiver_type, EntityType::Value(types.resource)],
+                origin.clone(),
+            )
+            .unwrap();
+        let parameters = &function.block(entry).unwrap().parameters;
+        let (receiver, element) = (parameters[0], value(parameters[1]));
+        let loan = match receiver {
+            EntityId::Loan(loan) => loan,
+            EntityId::Value(owner) => {
+                let (_, places) = function
+                    .append_instruction(
+                        entry,
+                        Operation::RootPlace { owner },
+                        vec![EntityType::Place(types.mutable_list)],
+                        origin.clone(),
+                    )
+                    .unwrap();
+                let EntityId::Place(place) = places[0] else {
+                    panic!("expected the local owner place");
+                };
+                let (_, loans) = function
+                    .append_instruction(
+                        entry,
+                        Operation::BorrowBegin { place, kind },
+                        vec![loan_type],
+                        origin.clone(),
+                    )
+                    .unwrap();
+                let EntityId::Loan(loan) = loans[0] else {
+                    panic!("expected the local owner loan");
+                };
+                loan
+            }
+            EntityId::Place(_) => unreachable!(),
+        };
+        let dependent = reborrow.then(|| {
+            let (_, results) = function
+                .append_instruction(
+                    entry,
+                    Operation::SharedReborrow { source: loan },
+                    vec![EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: types.mutable_list,
+                    }],
+                    origin.clone(),
+                )
+                .unwrap();
+            let EntityId::Loan(dependent) = results[0] else {
+                panic!("expected the shared reborrow");
+            };
+            dependent
+        });
+        function
+            .append_instruction(
+                entry,
+                Operation::ContainerAppendInout { loan, element },
+                Vec::new(),
+                origin.clone(),
+            )
+            .unwrap();
+        if let Some(dependent) = dependent {
+            function
+                .append_instruction(
+                    entry,
+                    Operation::BorrowEnd { loan: dependent },
+                    Vec::new(),
+                    origin.clone(),
+                )
+                .unwrap();
+        }
+        if let EntityId::Value(owner) = receiver {
+            function
+                .append_instruction(
+                    entry,
+                    Operation::BorrowEnd { loan },
+                    Vec::new(),
+                    origin.clone(),
+                )
+                .unwrap();
+            function
+                .append_instruction(entry, Operation::Drop { owner }, Vec::new(), origin.clone())
+                .unwrap();
+        }
+        function
+            .set_terminator(entry, TerminatorKind::Return { values: Vec::new() }, origin)
+            .unwrap();
+
+        let result = verify_program(&program);
+        match (kind, dependent, parameter) {
+            (_, _, false) => assert!(result.unwrap_err().errors.iter().any(|error| {
+                matches!(
+                    error.kind,
+                    VerifyErrorKind::OperationContract {
+                        reason: "ContainerAppendInout requires an Inout parameter loan",
+                    }
+                )
+            })),
+            (LoanKind::Exclusive, None, true) => {
+                assert_eq!(result, Ok(()));
+                assert!(render_program(&program).contains(&format!(
+                    "container.append_inout %l{}, %v{}",
+                    loan.index(),
+                    element.index()
+                )));
+            }
+            (LoanKind::Shared, _, true) => {
+                assert!(result.unwrap_err().errors.iter().any(|error| {
+                    matches!(error.kind, VerifyErrorKind::OperationContract { .. })
+                }))
+            }
+            (_, Some(dependent), true) => assert!(result.unwrap_err().errors.iter().any(|error| {
+                matches!(error.kind, VerifyErrorKind::LoanDependencyActive {
+                    parent,
+                    dependent: actual,
+                } if parent == loan && actual == dependent)
+            })),
+        }
+    }
+}
+
+#[test]
+fn container_place_read_requires_a_live_provider_loan() {
+    let origin = origin();
+    let mut program = Program::default();
+    let module_id = program.add_module("container-read");
+    let module = program.module_mut(module_id).unwrap();
+    let types = add_types(module);
+    let list = module
+        .add_sequential_container_type(SequentialContainerKind::List, types.integer)
+        .unwrap();
+    let function_id = module
+        .add_function("read", Vec::new(), origin.clone())
+        .unwrap();
+    let function = module.function_mut(function_id).unwrap();
+    let entry = function
+        .add_block(
+            vec![
+                EntityType::Loan {
+                    kind: LoanKind::Shared,
+                    target: list,
+                },
+                EntityType::Value(types.integer),
+            ],
+            origin.clone(),
+        )
+        .unwrap();
+    let parameters = &function.block(entry).unwrap().parameters;
+    let EntityId::Loan(loan) = parameters[0] else {
+        panic!("expected the list loan");
+    };
+    let index = value(parameters[1]);
+    let place = append_place(
+        function,
+        entry,
+        Operation::ContainerElementPlace {
+            owner: EntityId::Loan(loan),
+            index,
+        },
+        types.integer,
+        &origin,
+    );
+    function
+        .append_instruction(
+            entry,
+            Operation::BorrowEnd { loan },
+            Vec::new(),
+            origin.clone(),
+        )
+        .unwrap();
+    append_values(
+        function,
+        entry,
+        Operation::Read {
+            source: super::model::PlaceAccess::Place(place),
+        },
+        &[types.integer],
+        &origin,
+    );
+    terminate(function, entry, &origin);
+    assert!(has_error(&program, |kind| matches!(
+        kind, VerifyErrorKind::PlaceUnavailable { place: actual } if *actual == place
+    )));
+}
+
 fn add_function(
     module: &mut Module,
     name: &str,

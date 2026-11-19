@@ -448,6 +448,7 @@ pub(crate) mod type_map {
         aggregates: BTreeMap<SsaTypeId, StructType<'ctx>>,
         tagged_layouts: BTreeMap<SsaTypeId, TaggedLayout<'ctx>>,
         container_layouts: BTreeMap<SsaTypeId, ContainerLayout<'ctx>>,
+        zero_sized_container_elements: std::collections::BTreeSet<SsaTypeId>,
         closure_layouts: BTreeMap<SsaTypeId, ClosureLayout<'ctx>>,
         shared_controls: BTreeMap<SsaTypeId, StructType<'ctx>>,
         shared_control_sizes: BTreeMap<SsaTypeId, u64>,
@@ -726,6 +727,7 @@ pub(crate) mod type_map {
                 aggregates,
                 tagged_layouts,
                 container_layouts: BTreeMap::new(),
+                zero_sized_container_elements: Default::default(),
                 closure_layouts,
                 shared_controls,
                 shared_control_sizes,
@@ -735,6 +737,9 @@ pub(crate) mod type_map {
                     LlvmAdapterError::InvalidSsa("顺序容器类型缺少元素定义".to_owned())
                 })?;
                 let element_layout = layout_plan.layout(element)?;
+                if element_layout.size == 0 {
+                    result.zero_sized_container_elements.insert(element);
+                }
                 let element = result.container_element_type(element)?;
                 result.container_layouts.insert(
                     *id,
@@ -792,6 +797,10 @@ pub(crate) mod type_map {
                 .get(&ty)
                 .copied()
                 .map_or_else(|| self.basic_type(ty), Ok)
+        }
+
+        pub(crate) fn is_zero_sized_container_element(&self, ty: SsaTypeId) -> bool {
+            self.zero_sized_container_elements.contains(&ty)
         }
 
         pub(crate) fn int_type(&self, ty: SsaTypeId) -> Result<IntType<'ctx>, LlvmAdapterError> {

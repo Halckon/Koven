@@ -13,9 +13,12 @@ mod control_bridge;
 mod copyable_narrowing;
 mod counter_tail_receipt;
 mod drop_emission;
+mod element_swap;
 #[cfg(feature = "d10-catalog-experiment")]
 mod entry_lifecycle;
 mod expression;
+mod field_assignment;
+mod receiver_field_replace;
 
 // Main's newer receipt protocols still import the pre-fold paths; the folded
 // modules stay reachable under their historical names.
@@ -118,6 +121,8 @@ pub(super) struct Builder<'i, 'a> {
     entry_this_dead: BTreeSet<BlockRef>,
     /// Loans created for call arguments/receiver that are currently active in the AST evaluation stack.
     pending_call_loans: Vec<Slot>,
+    /// Receiver loans for the indices enclosing the AST expression being lowered.
+    index_receiver_loans: Vec<Slot>,
     /// Borrowed result/range source loans kept alive until a local `borrow val` binding ends.
     result_source_loans: BTreeMap<UnitSymbolId, Vec<Slot>>,
     /// Value slots of local `borrow val` `RangeView` descriptors (`NewRangeDescriptor`).
@@ -203,6 +208,7 @@ pub(super) fn build(
         entry_dead: BTreeMap::new(),
         entry_this_dead: BTreeSet::new(),
         pending_call_loans: Vec::new(),
+        index_receiver_loans: Vec::new(),
         result_source_loans: BTreeMap::new(),
         range_views: BTreeMap::new(),
         short_ranges: BTreeMap::new(),

@@ -17,6 +17,8 @@ use lang_frontend::{
 
 use super::{Checker, receiver::Owner};
 
+mod field_conflicts;
+
 impl Checker<'_, '_> {
     pub(super) fn view_inner_seen(
         &self,
@@ -659,6 +661,14 @@ impl Checker<'_, '_> {
                 return false;
             }
         }
+        if let Some(operands) = self.inputs.projected_swap(id, arguments) {
+            return self.swap_projected(&operands, value_ty);
+        }
+        if self.inputs.borrowed_replace(id, arguments).is_some() {
+            let supported = self.expression(arguments[1].value);
+            self.migrated |= supported;
+            return supported;
+        }
         let projected = self.ungrouped(arguments[0].value);
         let projection = self.inputs.typed.aggregate_projection(self.id(projected));
         if primitive.kind() == lang_frontend::type_checking::OwnershipPrimitiveKind::Replace
@@ -671,6 +681,11 @@ impl Checker<'_, '_> {
                     if self.rc_payload(*inner).is_some()
             ) {
                 return false;
+            }
+            if self.inputs.receiver_field_replace(id, arguments).is_some() {
+                let supported = self.expression(arguments[1].value);
+                self.migrated |= supported;
+                return supported;
             }
             let lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(receiver) =
                 projection.receiver()
@@ -863,38 +878,6 @@ impl Checker<'_, '_> {
         }
         self.migrated = true;
         true
-    }
-
-    fn field_replace_rhs_conflicts(
-        &self,
-        rhs: ExpressionId,
-        owner_symbol: lang_frontend::name_resolution::UnitSymbolId,
-        field: lang_frontend::name_resolution::UnitSymbolId,
-    ) -> bool {
-        let Ok(rhs_node) = self.inputs.parsed.ast().expressions().get(rhs) else {
-            return true;
-        };
-        let rhs_span = rhs_node.span();
-        self.inputs
-            .parsed
-            .ast()
-            .expressions()
-            .iter()
-            .any(|(expr_id, node)| {
-                let span = node.span();
-                rhs_span.source_id() == span.source_id()
-                    && rhs_span.start() <= span.start()
-                    && span.end() <= rhs_span.end()
-                    && matches!(node.payload(), Expression::Name)
-                    && self.reference(expr_id) == Some(owner_symbol)
-                    && !self.is_disjoint_nested_field_replace_receiver(
-                        rhs_span,
-                        expr_id,
-                        owner_symbol,
-                        field,
-                    )
-                    && !self.is_disjoint_sibling_field_borrow(rhs_span, expr_id, field)
-            })
     }
 
     fn is_disjoint_sibling_field_borrow(

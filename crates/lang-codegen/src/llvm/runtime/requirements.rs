@@ -144,16 +144,23 @@ impl RuntimeRequirements {
                     | Operation::MapIterationValueLoan { .. } => {
                         requirements.needs_abort = true;
                     }
-                    Operation::ContainerAppend { owner, .. }
-                    | Operation::ContainerInsertAt { owner, .. } => {
+                    Operation::ContainerAppend { .. }
+                    | Operation::ContainerAppendInout { .. }
+                    | Operation::ContainerInsertAt { .. } => {
                         requirements.needs_allocation = true;
                         requirements.needs_free = true;
                         requirements.needs_abort = true;
-                        let Some(EntityType::Value(container)) =
-                            function.entity(EntityId::Value(owner)).map(|data| data.ty)
+                        let receiver = match instruction.operation {
+                            Operation::ContainerAppend { owner, .. }
+                            | Operation::ContainerInsertAt { owner, .. } => EntityId::Value(owner),
+                            Operation::ContainerAppendInout { loan, .. } => EntityId::Loan(loan),
+                            _ => unreachable!("matched append or insert"),
+                        };
+                        let Some(container) =
+                            function.entity(receiver).map(|data| data.ty.semantic_type())
                         else {
                             return Err(LlvmAdapterError::InvalidSsa(
-                                "append owner 缺少 value type".to_owned(),
+                                "container mutation receiver type is missing".to_owned(),
                             ));
                         };
                         requirements.container_allocations.insert(container);

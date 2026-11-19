@@ -6,7 +6,7 @@ use lang_frontend::{
 
 use super::{
     LoweringErrorKind,
-    model::{EntityId, Operation, SsaTypeKind},
+    model::{EntityId, LoanKind, Operation, SsaTypeKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
     unit_lower_test_support::{analyze, declaration, parsed},
@@ -609,7 +609,7 @@ fn lowers_recursive_nullable_owner_with_a_defined_heap_payload() {
 }
 
 #[test]
-fn lowers_concrete_generic_nominal_but_rejects_move_only_field_reads() {
+fn lowers_concrete_generic_nominal_and_borrows_move_only_field_for_comparison() {
     let (name_environment, type_environment) = standard_environments();
     let mut sources = SourceMap::new();
     let (generic_source, generic) = parsed(
@@ -689,7 +689,7 @@ fn lowers_concrete_generic_nominal_but_rejects_move_only_field_reads() {
         &name_environment,
         &type_environment,
     );
-    let error = match lower_scalar_unit_with_entry(
+    let (program, entry) = lower_scalar_unit_with_entry(
         &sources,
         &field_inputs,
         &names,
@@ -697,11 +697,39 @@ fn lowers_concrete_generic_nominal_but_rejects_move_only_field_reads() {
         &typed,
         &owned,
         declaration(&names, "test", "entry"),
-    ) {
-        Ok(_) => panic!("MoveOnly field projection is not guessed into an owned read"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    )
+    .expect("String equality borrows a stable field");
+    let function = &program.modules[0].functions[entry.index()];
+    let left = function
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction.operation {
+            Operation::StringEqual {
+                left: left @ EntityId::Loan(_),
+                ..
+            } => Some(left),
+            _ => None,
+        })
+        .expect("String equality receives a loan for the field operand");
+    let place = function
+        .instructions
+        .iter()
+        .find_map(|instruction| match instruction.operation {
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Shared,
+            } if instruction.results == [left] => Some(place),
+            _ => None,
+        })
+        .expect("the comparison uses the shared field borrow");
+    assert!(function.instructions.iter().any(|instruction| {
+        instruction.results == [EntityId::Place(place)]
+            && matches!(
+                instruction.operation,
+                Operation::FieldPlace { field: 0, .. }
+            )
+    }));
+    super::verify::verify_program(&program).expect("field loan and owner cleanup verify");
 
     temporary_copy::assert_frontend(&sources, &field, &typed, &owned);
     let (program, entry) = lower_scalar_unit_with_entry(

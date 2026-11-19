@@ -280,7 +280,13 @@ impl Checker<'_> {
         expected: Option<TypeId>,
         expected_span: Option<Span>,
     ) -> Result<ExprCheck, TypeCheckingError> {
+        use crate::type_checking::flow_effects::result_edges::{
+            bypassed_result_writes, restore_bypassed_writes, splits_boolean_writes,
+        };
+
         let boolean = self.builtin(BuiltinType::Boolean);
+        let before = splits_boolean_writes(self.ast(), condition)?
+            .then(|| (self.flow_facts.clone(), self.flow_versions.clone()));
         let checked = self.check_expression(condition, Some(boolean), None)?;
         let edges = self.pending_boolean_edges(condition, checked.falls_through)?;
         let reaches_then = edges.yes.is_some();
@@ -290,6 +296,25 @@ impl Checker<'_> {
         self.iteration_recovery.bindings = edges.yes.unwrap_or_default();
         let (true_facts, false_facts) = self.condition_facts(condition)?;
         self.flow_facts = extend_facts(&baseline, &true_facts);
+        let mut false_path = extend_facts(&baseline, &false_facts);
+        let mut false_versions = baseline_versions.clone();
+        if let Some((facts, versions)) = before
+            && self.is_builtin(checked.ty, BuiltinType::Boolean)
+            && self.flow_versions != versions
+        {
+            let [yes, no] =
+                bypassed_result_writes(self.syntactic_boolean_outcomes, condition, |target| {
+                    self.stable_flow_key(target)
+                })?;
+            restore_bypassed_writes(
+                &mut self.flow_facts,
+                &mut self.flow_versions,
+                &facts,
+                &versions,
+                &yes,
+            );
+            restore_bypassed_writes(&mut false_path, &mut false_versions, &facts, &versions, &no);
+        }
         let then_expected = if else_branch.is_some() {
             self.control_branch_expected(then_branch, expected)?
         } else {
@@ -311,24 +336,23 @@ impl Checker<'_> {
                 pending_exits.merge(PendingBooleanEdges::unknown(&bindings));
             }
             self.finish_pending_boolean(expression, pending_exits);
-            let false_path = extend_facts(&baseline, &false_facts);
             self.flow_facts = if then_result.falls_through {
                 intersect_facts(&then_facts, &false_path)
             } else {
                 false_path
             };
             self.flow_versions = if then_result.falls_through {
-                merge_flow_versions(&then_versions, &baseline_versions)
+                merge_flow_versions(&then_versions, &false_versions)
             } else {
-                baseline_versions
+                false_versions
             };
             return Ok(ExprCheck {
                 ty: self.builtin(BuiltinType::Unit),
                 falls_through: true,
             });
         };
-        self.flow_facts = extend_facts(&baseline, &false_facts);
-        self.flow_versions = baseline_versions.clone();
+        self.flow_facts = false_path;
+        self.flow_versions = false_versions;
         self.iteration_recovery.bindings = edges.no.unwrap_or_default();
         let else_expected = self.control_branch_expected(else_branch, expected)?;
         let else_result = self.check_pending_path(reaches_else, |checker| {

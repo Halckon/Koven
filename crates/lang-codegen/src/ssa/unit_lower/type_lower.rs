@@ -840,8 +840,8 @@ pub(super) fn is_inline_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTyp
     }
 }
 
-/// Storage-recipe support stays pointer-like: inline nullable bodies are lowered only
-/// by the refinement layer, which interns their types itself.
+/// The broad storage recipe stays pointer-like; inline nullable layout is requested
+/// separately by signatures, refinement, and supported formed locals.
 fn is_supported_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
     match typed.types().get(ty) {
         Some(UnitTypeKind::Intrinsic {

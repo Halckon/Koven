@@ -259,7 +259,12 @@ impl Checker<'_, '_> {
         ok
     }
 
-    pub(super) fn operand(&mut self, expression: ExpressionId, string: bool) -> bool {
+    pub(super) fn operand(
+        &mut self,
+        binary: ExpressionId,
+        expression: ExpressionId,
+        string: bool,
+    ) -> bool {
         if string {
             if self.borrowed_string_name(expression) {
                 return true;
@@ -267,16 +272,41 @@ impl Checker<'_, '_> {
             if let Some(ok) = self.string_proof_operand(expression) {
                 return ok;
             }
+            if self
+                .inputs
+                .has_shared_field_operand_loan(binary, expression)
+            {
+                let projection = self
+                    .inputs
+                    .typed
+                    .aggregate_projection(self.id(self.ungrouped(expression)));
+                let admitted = if let Some(ok) =
+                    projection.and_then(|projection| self.borrowed_enum_payload(projection))
+                {
+                    ok && self
+                        .expression_type(expression)
+                        .is_some_and(|ty| self.string(ty))
+                } else {
+                    self.shared_field_read_type(expression, None)
+                        .is_some_and(|ty| self.string(ty))
+                };
+                self.migrated |= admitted;
+                return admitted;
+            }
         }
         self.expression(expression)
     }
 
-    pub(super) fn string_equality_operand(&mut self, expression: ExpressionId) -> bool {
+    pub(super) fn string_equality_operand(
+        &mut self,
+        binary: ExpressionId,
+        expression: ExpressionId,
+    ) -> bool {
         let Some(ty) = self.expression_type(expression) else {
             return false;
         };
         if !self.inputs.is_nullable_string(ty) {
-            return self.operand(expression, true);
+            return self.operand(binary, expression, true);
         }
         self.note_nullable(ty);
         let root = self.ungrouped(expression);
@@ -309,6 +339,22 @@ impl Checker<'_, '_> {
         expression: ExpressionId,
         temporary_parent: Option<UnitExpressionId>,
     ) -> Option<UnitTypeId> {
+        self.field_read_type(expression, temporary_parent, true)
+    }
+
+    pub(super) fn stable_index_field_type(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Option<UnitTypeId> {
+        self.field_read_type(expression, None, false)
+    }
+
+    fn field_read_type(
+        &mut self,
+        expression: ExpressionId,
+        temporary_parent: Option<UnitExpressionId>,
+        allow_rc_parent: bool,
+    ) -> Option<UnitTypeId> {
         use super::receiver::Owner;
         use lang_frontend::type_checking::{
             UnitAggregateProjectionKind, UnitAggregateProjectionReceiver,
@@ -338,7 +384,8 @@ impl Checker<'_, '_> {
                     .aggregate_projection(self.id(self.ungrouped(receiver_expr)))
                     .is_some()
                 {
-                    let parent = self.shared_field_read_type(receiver_expr, temporary_parent)?;
+                    let parent =
+                        self.field_read_type(receiver_expr, temporary_parent, allow_rc_parent)?;
                     if !(self.class(parent)
                         || self.value_class(parent)
                         || self.move_value_class(parent))
@@ -346,7 +393,7 @@ impl Checker<'_, '_> {
                         return None;
                     }
                     parent
-                } else if let Some(parent) = self.rc_value_owner(receiver_expr) {
+                } else if allow_rc_parent && let Some(parent) = self.rc_value_owner(receiver_expr) {
                     parent
                 } else if temporary_parent == Some(self.id(self.ungrouped(receiver_expr))) {
                     let parent = self.expression_type(receiver_expr)?;
@@ -500,7 +547,7 @@ pub(in crate::ssa::refine) mod control {
         ast::{ExpressionId, StatementId},
         name_resolution::{ScopeKind, UnitSymbolId},
         ownership_checking::UnitShortCircuitRhs,
-        parser::{BinaryOperator, Expression, Item, PrefixOperator, Statement, VariableKind},
+        parser::{BinaryOperator, Expression, Item, PrefixOperator, Statement},
         source::Span,
         type_checking::{
             BuiltinType, ParameterMode, UnitExpressionId, UnitStatementId, UnitTypeKind,
@@ -908,11 +955,9 @@ pub(in crate::ssa::refine) mod control {
                         return true;
                     };
                     match item.payload() {
-                        Item::Variable {
-                            kind: VariableKind::BorrowVal(_),
-                            initializer,
-                            ..
-                        } => self.expression_may_continue(*initializer),
+                        Item::Variable { initializer, .. } => {
+                            self.expression_may_continue(*initializer)
+                        }
                         _ => true,
                     }
                 }

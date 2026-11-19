@@ -1,3 +1,5 @@
+mod heap_fields;
+
 use std::fmt::{self, Write};
 
 use super::model::{
@@ -580,34 +582,12 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("heap.payload_place ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
-        Operation::HeapFieldRead { receiver, field } => {
-            output.write_str("heap.field_read ")?;
-            write_entity_id(output, EntityId::Loan(*receiver))?;
-            write!(output, ", {field}")
-        }
-        Operation::HeapFieldReplace {
-            receiver,
-            field,
-            value,
-        } => {
-            output.write_str("heap.field_replace ")?;
-            write_entity_id(output, EntityId::Loan(*receiver))?;
-            write!(output, ", {field}, ")?;
-            write_entity_id(output, EntityId::Value(*value))
-        }
-        Operation::HeapFieldExchange {
-            owner,
-            field,
-            loan,
-            replacement,
-        } => {
-            output.write_str("heap.field_exchange ")?;
-            write_entity_id(output, EntityId::Value(*owner))?;
-            write!(output, ", {field}, ")?;
-            write_entity_id(output, EntityId::Loan(*loan))?;
-            output.write_str(", ")?;
-            write_entity_id(output, EntityId::Value(*replacement))
-        }
+        Operation::HeapFieldRead { .. }
+        | Operation::HeapFieldReplace { .. }
+        | Operation::HeapFieldExchange { .. }
+        | Operation::HeapReceiverFieldExchange { .. }
+        | Operation::InoutExchange { .. }
+        | Operation::ExclusiveRootReborrow { .. } => heap_fields::write(output, operation),
         Operation::InlineFieldReplace {
             receiver,
             field,
@@ -703,6 +683,14 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("container.length ")?;
             write_entity_id(output, *owner)
         }
+        Operation::ProjectedSwap { root, loans } => {
+            output.write_str("swap.projected ")?;
+            if let Some(root) = root {
+                write_entity_id(output, EntityId::Value(*root))?;
+                output.write_str(", ")?;
+            }
+            write_entity_ids(output, &loans.map(EntityId::Loan))
+        }
         Operation::ContainerElementPlace { owner, index } => {
             output.write_str("container.element_place ")?;
             write_entity_id(output, *owner)?;
@@ -711,9 +699,13 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
         }
         Operation::ContainerAppend { owner, element } => {
             output.write_str("container.append ")?;
-            write_entity_id(output, EntityId::Value(*owner))?;
-            output.write_str(", ")?;
-            write_entity_id(output, EntityId::Value(*element))
+            let operands = [EntityId::Value(*owner), EntityId::Value(*element)];
+            write_entity_ids(output, &operands)
+        }
+        Operation::ContainerAppendInout { loan, element } => {
+            output.write_str("container.append_inout ")?;
+            let operands = [EntityId::Loan(*loan), EntityId::Value(*element)];
+            write_entity_ids(output, &operands)
         }
         Operation::ContainerClear { owner } => {
             output.write_str("container.clear ")?;
@@ -782,10 +774,8 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write_entity_id(output, EntityId::Loan(*base))?;
             write!(output, ", {field}")
         }
-        Operation::SharedHeapFieldLoan { base, field } => {
-            output.write_str("shared_heap_field_loan ")?;
-            write_entity_id(output, EntityId::Loan(*base))?;
-            write!(output, ", {field}")
+        Operation::SharedHeapFieldLoan { .. } | Operation::ExclusiveHeapFieldLoan { .. } => {
+            heap_fields::write(output, operation)
         }
         Operation::SharedReborrow { source } => {
             output.write_str("shared_reborrow ")?;

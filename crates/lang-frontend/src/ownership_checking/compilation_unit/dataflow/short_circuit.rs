@@ -1,6 +1,6 @@
 //! Short-circuit flow, with constant execution choices only in the constant capability.
 use super::super::constant::{UnitShortCircuitPlan, UnitShortCircuitRhs};
-use super::{Checker, ExpressionUse, Flows, OwnershipCheckingError, State};
+use super::{Checker, OwnershipCheckingError};
 use crate::{
     ast::ExpressionId,
     parser::{BinaryOperator, Expression, LiteralKind},
@@ -96,31 +96,9 @@ impl Checker<'_> {
         }
     }
 
-    pub(super) fn check_short_circuit(
-        &mut self,
-        plan: UnitShortCircuitPlan,
-        state: State,
-    ) -> Result<Flows, OwnershipCheckingError> {
+    pub(super) fn record_short_circuit_plan(&mut self, plan: UnitShortCircuitPlan) {
         if self.constant_control {
             self.short_circuits.insert(plan.expression, plan);
-        }
-        let mut flows =
-            self.check_expression(plan.left.expression(), state, ExpressionUse::Read)?;
-        match plan.rhs {
-            UnitShortCircuitRhs::Never => Ok(flows),
-            UnitShortCircuitRhs::Always => {
-                self.chain_expression(flows, plan.right.expression(), ExpressionUse::Read)
-            }
-            UnitShortCircuitRhs::Conditional => {
-                if let Some(next) = flows.next.clone() {
-                    flows.merge(self.check_expression(
-                        plan.right.expression(),
-                        next,
-                        ExpressionUse::Read,
-                    )?);
-                }
-                Ok(flows)
-            }
         }
     }
 }

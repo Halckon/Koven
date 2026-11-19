@@ -10,11 +10,13 @@ use aliases::{
     provider_lifetime,
 };
 mod closure;
+mod element_swap;
 pub(in crate::ssa) mod field_exchange;
 #[cfg(test)]
 pub(in crate::ssa) mod field_exchange_tests;
 mod inout;
 mod range;
+mod receiver_field_exchange;
 use range::borrow_result;
 #[cfg(test)]
 mod borrow_return_transport_tests;
@@ -42,6 +44,7 @@ pub(super) struct AliasRoots {
 }
 
 struct ReborrowDependencies {
+    has_exclusive_root_reborrow: bool,
     parent_by_child: BTreeMap<LoanId, LoanId>,
     must_end_children: BTreeSet<LoanId>,
     flows: LoanFlowAliases,
@@ -60,7 +63,7 @@ pub(super) fn verify_ownership(
 ) {
     provider_lifetime::verify(function, errors);
     super::verify_operation::range_verify_signature(module, function, errors);
-    let aliases = AliasRoots::compute(function);
+    let aliases = AliasRoots::for_verifier(module, function);
     let closure_loans = closure::ClosureLoans::compute(
         module,
         function,
@@ -210,9 +213,14 @@ pub(super) fn verify_ownership(
                         }
                     }
                     TerminatorKind::NullableLoanBranch { source, .. } => {
-                        if !state.loans.contains(&source) {
+                        let kind = if state.loans.contains(&source) {
+                            element_swap::suspended_root_use(function, &reborrows, &state, source)
+                        } else {
+                            Some(VerifyErrorKind::LoanInactive { loan: source })
+                        };
+                        if let Some(kind) = kind {
                             errors.push(error(
-                                VerifyErrorKind::LoanInactive { loan: source },
+                                kind,
                                 VerifyLocation::Terminator(block.id),
                                 &terminator.origin,
                             ));
@@ -710,32 +718,24 @@ fn definition_block(function: &Function, entity: EntityId) -> BlockId {
     }
 }
 
-fn has_borrow_conflict(
-    function: &Function,
-    place: PlaceId,
-    requested: LoanKind,
-    aliases: &AliasRoots,
-    state: &BlockState,
-) -> bool {
-    state.loans.iter().any(|loan| {
-        aliases.overlap(EntityId::Place(place), EntityId::Loan(*loan))
-            && !aliases
-                .direct_fields
-                .disjoint(EntityId::Place(place), EntityId::Loan(*loan))
-            && (requested == LoanKind::Exclusive
-                || loan_kind(function, *loan) == LoanKind::Exclusive)
-    })
-}
-
 fn has_exclusive_loan(
     function: &Function,
     place: PlaceId,
     aliases: &AliasRoots,
+    reborrows: &ReborrowDependencies,
     state: &BlockState,
 ) -> bool {
+    let provider = element_swap::projection_provider(function, place)
+        .filter(|loan| state.loans.contains(loan));
     state.loans.iter().any(|loan| {
         loan_kind(function, *loan) == LoanKind::Exclusive
             && aliases.overlap(EntityId::Place(place), EntityId::Loan(*loan))
+            && !aliases
+                .direct_fields
+                .disjoint_elements(EntityId::Place(place), EntityId::Loan(*loan))
+            && !provider.is_some_and(|source| {
+                reborrows.same_origin(source, *loan) || reborrows.has_exact_ancestor(source, *loan)
+            })
     })
 }
 

@@ -246,8 +246,16 @@ impl Checker<'_, '_> {
             return false;
         }
         let receiver = descriptor.receiver().expression();
+        if self
+            .inputs
+            .has_shared_field_operand_loan(expression, receiver)
+        {
+            let ok = self.shared_field_read_type(receiver, None) == Some(container_ty);
+            self.migrated |= ok;
+            return ok;
+        }
         let ok = (self
-            .named_container_owner(receiver, container_ty, true)
+            .named_container_binding(receiver, container_ty)
             .is_some()
             || self.expression(receiver))
             && self
@@ -258,6 +266,50 @@ impl Checker<'_, '_> {
                 .any(|loan| loan.call() == id && loan.kind() == LoanKind::Shared);
         self.migrated |= ok;
         ok
+    }
+
+    pub(super) fn swap_projected(
+        &mut self,
+        operands: &[crate::ssa::refine::element_swap::SwapOperand],
+        value_type: UnitTypeId,
+    ) -> bool {
+        use crate::ssa::refine::element_swap::SwapOperand;
+
+        let accepted = operands.iter().all(|operand| match operand {
+            SwapOperand::Root {
+                symbol, expression, ..
+            } => {
+                self.known.contains(symbol)
+                    && !self.callables.contains(symbol)
+                    && matches!(
+                        self.parameter_mode(*symbol),
+                        None | Some(ParameterMode::Inout)
+                    )
+                    && self.symbol_type(*symbol) == Some(value_type)
+                    && self.expression_type(*expression) == Some(value_type)
+            }
+            SwapOperand::Field(field) => {
+                self.known.contains(&field.owner)
+                    && !self.callables.contains(&field.owner)
+                    && matches!(
+                        self.parameter_mode(field.owner),
+                        None | Some(ParameterMode::Value | ParameterMode::Inout)
+                    )
+                    && self.symbol_type(field.owner) == Some(field.owner_ty)
+                    && self.class_field(field.owner_ty, field.field)
+            }
+            SwapOperand::ReceiverField(field) => self.class_field(field.owner_type, field.field),
+            SwapOperand::Element(element) => {
+                self.named_container_binding(element.receiver, element.container)
+                    == Some(element.owner)
+                    && self.parameter_mode(element.owner) != Some(ParameterMode::Borrow)
+                    && self.container_element(element.container) == Some(value_type)
+                    && self.is_int_index(element.index)
+                    && self.expression(element.index)
+            }
+        });
+        self.migrated |= accepted;
+        accepted
     }
 
     fn container_index(&mut self, expression: ExpressionId) -> bool {
@@ -276,10 +328,23 @@ impl Checker<'_, '_> {
             || self.container_element(container_ty) != Some(element_ty)
             || self.expression_type(expression) != Some(element_ty)
             || self.copyability_of(element_ty) != Copyability::Copyable
-            || self
-                .named_container_owner(descriptor.receiver().expression(), container_ty, true)
-                .is_none()
         {
+            return false;
+        }
+        let receiver = descriptor.receiver().expression();
+        let known_receiver = if self.inputs.is_field_projection(receiver) {
+            self.stable_index_field_type(receiver) == Some(container_ty)
+        } else {
+            self.named_container_owner(receiver, container_ty, true)
+                .is_some()
+                || (descriptor.is_mutable()
+                    && self
+                        .named_container_binding(receiver, container_ty)
+                        .is_some_and(|symbol| {
+                            self.parameter_mode(symbol) == Some(ParameterMode::Inout)
+                        }))
+        };
+        if !known_receiver {
             return false;
         }
         let index = descriptor.index().expression();
@@ -476,8 +541,15 @@ impl Checker<'_, '_> {
         let element_ty = self.c(descriptor.element_type());
         if descriptor.expression() != id
             || descriptor.element().source_unit() != self.inputs.source_unit
-            || !self.mutable_list_owner(descriptor.receiver(), container_ty, element_ty)
+            || !self.mutable_list_type(descriptor.receiver(), container_ty, element_ty)
         {
+            return false;
+        }
+        let receiver = descriptor.receiver().expression();
+        let Some(symbol) = self.named_container_binding(receiver, container_ty) else {
+            return false;
+        };
+        if self.parameter_mode(symbol) == Some(ParameterMode::Borrow) {
             return false;
         }
         let element = descriptor.element().expression();
@@ -577,6 +649,18 @@ impl Checker<'_, '_> {
         container_ty: UnitTypeId,
         element_ty: UnitTypeId,
     ) -> bool {
+        self.mutable_list_type(receiver, container_ty, element_ty)
+            && self
+                .named_container_owner(receiver.expression(), container_ty, false)
+                .is_some()
+    }
+
+    fn mutable_list_type(
+        &self,
+        receiver: lang_frontend::type_checking::UnitExpressionId,
+        container_ty: UnitTypeId,
+        element_ty: UnitTypeId,
+    ) -> bool {
         !self.unit(element_ty)
             && receiver.source_unit() == self.inputs.source_unit
             && self.container_element(container_ty) == Some(element_ty)
@@ -587,9 +671,6 @@ impl Checker<'_, '_> {
                     arguments,
                 }) if arguments.as_slice() == [element_ty]
             )
-            && self
-                .named_container_owner(receiver.expression(), container_ty, false)
-                .is_some()
     }
 
     pub(super) fn named_container_owner(
@@ -597,6 +678,20 @@ impl Checker<'_, '_> {
         expression: ExpressionId,
         container_ty: UnitTypeId,
         allow_borrow: bool,
+    ) -> Option<UnitSymbolId> {
+        let symbol = self.named_container_binding(expression, container_ty)?;
+        let mode_ok = match self.parameter_mode(symbol) {
+            None | Some(ParameterMode::Value) => true,
+            Some(ParameterMode::Borrow) => allow_borrow,
+            Some(ParameterMode::Inout) => false,
+        };
+        mode_ok.then_some(symbol)
+    }
+
+    fn named_container_binding(
+        &self,
+        expression: ExpressionId,
+        container_ty: UnitTypeId,
     ) -> Option<UnitSymbolId> {
         let root = self.ungrouped(expression);
         let node = self.inputs.parsed.ast().expressions().get(root).ok()?;
@@ -621,15 +716,10 @@ impl Checker<'_, '_> {
         {
             return None;
         }
-        let mode_ok = match self.parameter_mode(symbol) {
-            None | Some(ParameterMode::Value) => true,
-            Some(ParameterMode::Borrow) => allow_borrow,
-            Some(ParameterMode::Inout) => false,
-        };
-        mode_ok.then_some(symbol)
+        Some(symbol)
     }
 
-    fn is_int_index(&self, expression: ExpressionId) -> bool {
+    pub(super) fn is_int_index(&self, expression: ExpressionId) -> bool {
         self.expression_type(expression).is_some_and(|ty| {
             matches!(self.kind(ty), Some(UnitTypeKind::Builtin(BuiltinType::Int)))
                 || matches!(

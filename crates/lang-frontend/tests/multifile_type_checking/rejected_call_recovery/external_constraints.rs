@@ -627,7 +627,7 @@ fn mutable_replacement_tracks_only_reachable_when_selectors() {
 
 #[test]
 fn mutable_storage_reads_follow_loop_backedges_and_jumps() {
-    let declarations = "fun flag(): Boolean = true\nfun keep(value: Int): Int = value";
+    let declarations = "fun flag(): Boolean = true\nfun keep(value: Int): Int = value\nfun sink(value: String): Unit {}\nfun cond(value: String): Boolean = true";
     let pending = r#"listOf("${listOf<Unbound>()}")"#;
     let backedge_diagnostics = &[("L0165", "items"), ("L0165", "items"), ("L0165", "Unbound")];
     let exit_diagnostics = &[("L0165", "Unbound"), ("L0165", "items")];
@@ -683,6 +683,24 @@ fn mutable_storage_reads_follow_loop_backedges_and_jumps() {
         (
             "listOf<String>()",
             format!("loop {{ if (true) {{ break }} else {{ 0 }}; items = {pending}; break }}"),
+        ),
+        (
+            "listOf<String>()",
+            format!(
+                r#"loop {{ "${{if (true) {{ break }} else {{ 0 }}}}${{if (flag()) {{ items = {pending}; break }} else {{ 0 }}}}"; break }}"#
+            ),
+        ),
+        (
+            "listOf<String>()",
+            format!(
+                r#"loop {{ sink("${{if (true) {{ break }} else {{ 0 }}}}"); items = {pending}; break }}"#
+            ),
+        ),
+        (
+            "listOf<String>()",
+            format!(
+                r#"while (cond("${{if (true) {{ return 7 }} else {{ 0 }}}}")) {{ items = {pending}; break }}"#
+            ),
         ),
         (
             pending,

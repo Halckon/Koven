@@ -12,7 +12,6 @@ const CONTAINERS: [(&str, &str); 3] = [
 mod generic_bodies {
     //! SPEC-0276: body-only concrete identities reach real native ownership cleanup.
     use super::*;
-    use crate::NativeObjectError;
 
     const RESOURCE: &str = "class Resource(val name: String) { deinit() { println(this.name) } }";
 
@@ -179,8 +178,7 @@ mod generic_bodies {
         }
     }
 
-    /// SPEC-0350: the nongeneric `Int?` body is inside the refinement subset and now runs;
-    /// the generic `T?` body below still takes the existing path and keeps its rejection.
+    /// SPEC-0350: the nongeneric `Int?` body retains direct refinement coverage.
     #[test]
     fn unit_generic_body_native_nongeneric_nullable_int_control() {
         let analysis = analyze_sources(
@@ -201,7 +199,7 @@ mod generic_bodies {
     }
 
     #[test]
-    fn unit_generic_body_native_nullable_int_keeps_control_rejection() {
+    fn unit_generic_body_native_nullable_int_keeps_presence_with_container_layout() {
         for (container, constructor, kind) in [
             ("Array", "arrayOf", IntrinsicTypeConstructor::Array),
             ("List", "listOf", IntrinsicTypeConstructor::List),
@@ -218,11 +216,14 @@ mod generic_bodies {
                     val absent: T? = null
                     val present: T? = x
                     val empty: {container}<T> = {constructor}()
+                    if (absent != null || present == null) {{ error("nullable presence mismatch") }}
                     return empty.size
                 }}"#
                 ),
                 r#"package q
-            fun entry(): Unit { val size = p.nullable<Int>(1) }"#,
+            fun entry(): Unit {
+                if (p.nullable<Int>(1) == 0) { println("nullable-container-ok") }
+            }"#,
             );
             let arena = analysis.typed.types().types();
             let int = arena.builtin(BuiltinType::Int).unwrap();
@@ -233,11 +234,14 @@ mod generic_bodies {
                         arguments: vec![int],
                     })
                     .is_some(),
-                "{container}<Int> must exist before accepting the existing null rejection"
+                "{container}<Int> must exist in the typed arena"
             );
+            assert!(arena.find(&UnitTypeKind::Nullable(int)).is_some());
+            let arena_len = arena.len();
             crate::ssa::with_per_family_lowering(|| {
-                assert_nullable_int_rejection(&analysis);
+                run(&analysis, b"nullable-container-ok\n");
             });
+            assert_eq!(analysis.typed.types().types().len(), arena_len);
         }
     }
 
@@ -301,81 +305,6 @@ mod generic_bodies {
         let arena_len = analysis.typed.types().types().len();
         assert_native_and_counted(analysis, expected, allocations);
         assert_eq!(analysis.typed.types().types().len(), arena_len);
-    }
-
-    fn assert_nullable_int_rejection(analysis: &UnitAnalysis) {
-        let arena = analysis.typed.types().types();
-        let int = arena.builtin(BuiltinType::Int).unwrap();
-        assert!(
-            arena.find(&UnitTypeKind::Nullable(int)).is_some(),
-            "existing inline rejection cannot substitute for a missing canonical Int?"
-        );
-        let span = analysis
-            .provider
-            .ast()
-            .expressions()
-            .iter()
-            .find(|(_, node)| analysis.sources.slice(node.span()) == Ok("null"))
-            .expect("the body has the actual null literal")
-            .1
-            .span();
-        assert_eq!(span.source_id(), analysis.provider_source);
-        let error = reject_preserving_outputs(analysis);
-        // Frozen from the generic body on the existing lowering path: its type plan omits
-        // inline nullable storage, and this null literal has no SSA type mapping.
-        assert_eq!(error.kind(), NativeObjectErrorKind::InvalidModel);
-        assert_eq!(error.span(), Some(span));
-        assert_eq!(
-            error.to_string(),
-            "native object InvalidModel: frontend lowering failed with MissingFact"
-        );
-    }
-
-    fn reject_preserving_outputs(analysis: &UnitAnalysis) -> NativeObjectError {
-        let snapshot = |directory: &Path| {
-            fs::read_dir(directory)
-                .unwrap()
-                .map(|entry| {
-                    let entry = entry.unwrap();
-                    (entry.file_name(), fs::read(entry.path()).unwrap())
-                })
-                .collect::<std::collections::BTreeMap<_, _>>()
-        };
-        let arena_len = analysis.typed.types().types().len();
-        let mut previous = None;
-        for existing_target in [false, true] {
-            let directory = TestDirectory::create();
-            let object = directory.join("rejected.o");
-            fs::write(directory.join("neighbor.bin"), b"neighbor\0unchanged").unwrap();
-            if existing_target {
-                fs::write(&object, b"old-object\0bytes").unwrap();
-            }
-            let before = snapshot(&directory.0);
-            let error = emit_native_unit_object(
-                &analysis.sources,
-                &analysis.inputs(),
-                &analysis.names,
-                &analysis.environment,
-                &analysis.typed,
-                &analysis.owned,
-                analysis.declaration("q", "entry"),
-                &object,
-            )
-            .expect_err("inline nullable remains outside the native representation");
-            assert_eq!(analysis.typed.types().types().len(), arena_len);
-            assert_eq!(
-                snapshot(&directory.0),
-                before,
-                "all names and bytes survive"
-            );
-            assert_eq!(object.exists(), existing_target);
-            assert_no_sibling_temporary(&directory.0);
-            if let Some(previous) = &previous {
-                assert_eq!(&error, previous);
-            }
-            previous = Some(error);
-        }
-        previous.unwrap()
     }
 }
 

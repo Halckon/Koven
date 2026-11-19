@@ -21,6 +21,9 @@ mod literal_short_circuit;
 #[path = "while_flow_facts/null_comparison_fallback.rs"]
 mod null_comparison_fallback;
 
+#[path = "while_flow_facts/result_edges.rs"]
+mod result_edges;
+
 // Preserve both source-layout controls with the same flow contracts.
 #[derive(Clone, Copy, Debug)]
 enum SourceMode {
@@ -866,6 +869,70 @@ fn elvis_exports_only_facts_from_its_normal_predecessors() {
             }",
             marks: vec![read("use", Shape::Int)],
             rejected: None,
+        },
+    ]);
+}
+
+#[test]
+fn subjectless_when_preserves_facts_on_the_reachable_alternative() {
+    assert_cases(&[
+        Case {
+            name: "known-first-match-skips-later-inout",
+            text: "fun clear(inout value: Int?): Boolean { value = null; return true }
+            fun probe(input: Int?): Int {
+                var x = input
+                if (x == null) { return 0 }
+                when { true, clear(&x) -> { return /*use*/x }; else -> { return 0 } }
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "known-match-skips-later-arm-and-preserves-post-when-read",
+            text: "fun clear(inout value: Int?): Boolean { value = null; return true }
+            fun probe(input: Int?): Int {
+                var x = input
+                if (x == null) { return 0 }
+                when { true -> {}; clear(&x) -> {}; else -> {} }
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "known-match-is-preserved-by-the-outer-write-scan",
+            text: "fun clear(inout value: Int?): Boolean { value = null; return true }
+            fun probe(input: Int?, flag: Boolean): Int {
+                var x = input
+                if (x == null) { return 0 }
+                val ignored = flag && (when { true, clear(&x) -> true; else -> false })
+                return /*use*/x
+            }",
+            marks: vec![read("use", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "known-miss-still-evaluates-side-effects",
+            text: "fun clear(inout value: Int?): Boolean { value = null; return true }
+            fun probe(input: Int?, flag: Boolean): Int {
+                var x = input
+                if (x == null) { return 0 }
+                val ignored = flag && (when { (clear(&x) && false) -> true; else -> false })
+                return /*reject*/x
+            }",
+            marks: vec![read("reject", Shape::Error)],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "known-miss-reaches-inout",
+            text: "fun clear(inout value: Int?): Boolean { value = null; return true }
+            fun probe(input: Int?): Int {
+                var x = input
+                if (x == null) { return 0 }
+                when { false, clear(&x) -> { return /*reject*/x }; else -> { return 0 } }
+            }",
+            marks: vec![read("reject", Shape::Error)],
+            rejected: Some("reject"),
         },
     ]);
 }

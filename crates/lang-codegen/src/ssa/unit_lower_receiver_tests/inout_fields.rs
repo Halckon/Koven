@@ -482,10 +482,6 @@ fn divergent_rhs_does_not_emit_an_inout_class_payload_replace() {
 
 #[test]
 fn move_only_inout_call_can_borrow_disjoint_fields_of_the_same_heap_owner() {
-    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
-    use crate::ssa::verify::{VerifyErrorKind, VerifyLocation, verify_program};
-    use lang_frontend::name_resolution::SymbolKind;
-
     let source = r#"
 class Holder(var left: String, var right: String)
 fun replaceBoth(inout left: String, inout right: String): Unit {
@@ -499,43 +495,7 @@ fun entry(): Unit {
     println(holder.right)
 }
 "#;
-    let analysis = UnitSource::analyze("disjoint-inout-fields.ko", source).unwrap();
-    analysis.assert_frontend_clean();
-    let (mut program, entry) = analysis
-        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
-        .expect("different direct heap fields must lower to verified SSA");
-    let function = program
-        .module_mut(entry.module())
-        .unwrap()
-        .function_mut(entry)
-        .unwrap();
-    let (call, arguments) = function
-        .instructions
-        .iter_mut()
-        .find_map(|instruction| match &mut instruction.operation {
-            Operation::DirectCall { arguments, .. }
-                if matches!(arguments.as_slice(), [EntityId::Loan(_), EntityId::Loan(_)]) =>
-            {
-                Some((instruction.id, arguments))
-            }
-            _ => None,
-        })
-        .expect("the original call lends both fields exclusively");
-    assert_ne!(arguments[0], arguments[1]);
-    arguments[1] = arguments[0];
-    let failure = verify_program(&program).expect_err("a call cannot lend the same field twice");
-    assert!(
-        failure.errors.iter().any(|error| {
-            error.location == VerifyLocation::Instruction(call)
-                && matches!(
-                    error.kind,
-                    VerifyErrorKind::OperationContract {
-                        reason: "MoveOnly Inout arguments must be disjoint from other loans",
-                    }
-                )
-        }),
-        "{failure:?}"
-    );
+    assert_duplicate_inout_loan_rejected("disjoint-inout-fields.ko", source);
 }
 
 #[test]
@@ -563,5 +523,85 @@ fun main(): Unit { probe(true); println("retry"); probe(false) }
     crate::native_tests::boxed_enum_tests::assert_success(
         &output,
         b"first\nholder drop\nold right\nold left\nretry\nfirst\nlast\ndispatched\nold left\nold right\nnew left\nnew right\nafter\nholder drop\nnew right\nnew left\n",
+    );
+}
+
+#[test]
+fn copyable_inout_fields_write_through_to_the_same_heap_owner() {
+    let source = r#"
+class Holder(var left: Int, var right: Int)
+fun update(inout left: Int, inout right: Int): Unit {
+    left = left + 30
+    right = right + 40
+}
+fun main(): Unit {
+    val holder = Holder(1, 2)
+    update(&holder.left, &(holder.right))
+    if (holder.left != 31 || holder.right != 42) { error("wrong fields") }
+    println("updated")
+}
+"#;
+    let output = crate::native_tests::emit_link_and_run("copyable-inout-fields.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&output, b"updated\n");
+}
+
+#[test]
+fn ssa_rejects_one_copyable_inout_loan_in_two_call_slots() {
+    let source = r#"
+fun update(inout left: Int, inout right: Int): Unit {
+    left = left + 1
+    right = right + 2
+}
+fun entry(): Int {
+    var left = 10
+    var right = 20
+    update(&left, &right)
+    return left + right
+}
+"#;
+    assert_duplicate_inout_loan_rejected("copyable-inout-call-alias.ko", source);
+}
+
+fn assert_duplicate_inout_loan_rejected(path: &str, source: &str) {
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use crate::ssa::verify::{VerifyErrorKind, VerifyLocation, verify_program};
+    use lang_frontend::name_resolution::SymbolKind;
+
+    let analysis = UnitSource::analyze(path, source).unwrap();
+    analysis.assert_frontend_clean();
+    let (mut program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("distinct places must pass the SSA verifier");
+    let function = program
+        .module_mut(entry.module())
+        .unwrap()
+        .function_mut(entry)
+        .unwrap();
+    let (call, arguments) = function
+        .instructions
+        .iter_mut()
+        .find_map(|instruction| match &mut instruction.operation {
+            Operation::DirectCall { arguments, .. }
+                if matches!(arguments.as_slice(), [EntityId::Loan(_), EntityId::Loan(_)]) =>
+            {
+                Some((instruction.id, arguments))
+            }
+            _ => None,
+        })
+        .expect("the original call lends both places exclusively");
+    assert_ne!(arguments[0], arguments[1]);
+    arguments[1] = arguments[0];
+    let failure = verify_program(&program).expect_err("one exclusive loan cannot fill two slots");
+    assert!(
+        failure.errors.iter().any(|error| {
+            error.location == VerifyLocation::Instruction(call)
+                && matches!(
+                    error.kind,
+                    VerifyErrorKind::OperationContract {
+                        reason: "Inout arguments must be disjoint from other loans",
+                    }
+                )
+        }),
+        "{failure:?}"
     );
 }

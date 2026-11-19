@@ -32,7 +32,7 @@ unit String 插值将已完成求值的 MoveOnly temporary 保存到与调用共
 Abort 不展开；常量 Group 的 drop 仍归一到实际读取。
 
 String 二元表达式在右操作数求值期间保留左 temporary 的 pending 清理义务，以及左 named
-owner 的借用保护；正常完成在 `AfterBinaryOperands` 逆序清理，named 是否仍 live 以整个
+owner 和稳定 String 字段的借用保护；字段冲突按来源路径判定。正常完成在 `AfterBinaryOperands` 逆序清理，named 是否仍 live 以整个
 binary 的后继为准。嵌套完成只解除自身保护；不继续的左/右操作数停止后续 drop traversal，
 return/break/continue 清理已求值前缀，Abort 不展开。Unit construction dataflow 在无正常后继后停止后续参数处理，不能把不可达的 Nothing 后缀登记为 terminating operand；已终止但保留名义类型的嵌套构造仍不据此发布外层完整 plan，现有 Nothing 事实合同不扩展。
 
@@ -40,6 +40,7 @@ return/break/continue 清理已求值前缀，Abort 不展开。Unit constructio
 0=求值 RHS 后正常完成、1=旁路。专用常量入口显式启用独立短路计划，空常量 unit 也启用。
 `short_circuit_plan` 供遍历、活性和析构共用。常量模式以 Boolean literal、typed 常量值或
 Group 决定 RHS，无需再次求值 initializer。动态计划保留可达旁路，编号为 0=true、1=false。
+所有权流检查和析构规划用显式栈遍历短路两侧与 Group，逐节点恢复出口合并和清理。活跃性反向处理 RHS 后迭代推进左链。
 仅常量入口发布实际访问的 source-qualified `UnitShortCircuitPlan`，与物化计划一起通过
 错误/deferred 原子门禁。专用 owned 支持按 expression 查询，refine 与兼容 lowering 按计划编号消费清理。
 

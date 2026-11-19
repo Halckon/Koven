@@ -12,6 +12,7 @@ use crate::{
     type_checking::{DestructuringMode, UnitExpressionId, UnitStatementId},
 };
 
+use super::super::constant::UnitShortCircuitRhs;
 use super::{Checker, ExpressionUse, OwnershipCheckingError, UnitCallArgumentOwnershipKind};
 
 type LiveSet = BTreeSet<UnitSymbolId>;
@@ -34,6 +35,7 @@ struct Builder<'a, 'checker> {
     when_entry_live_in: BTreeMap<(usize, usize), LiveSet>,
     statement_after: Vec<LiveSet>,
     loop_stack: Vec<(LiveSet, LiveSet)>,
+    index_roots: Vec<UnitSymbolId>,
     skipped_functions: BTreeSet<usize>,
     function_live_in: BTreeMap<usize, LiveSet>,
     lambda_live_in: BTreeMap<usize, LiveSet>,
@@ -51,6 +53,7 @@ pub(super) fn build(
         when_entry_live_in: BTreeMap::new(),
         statement_after: vec![LiveSet::new(); checker.parsed.ast().statements().len()],
         loop_stack: Vec::new(),
+        index_roots: Vec::new(),
         skipped_functions: BTreeSet::new(),
         function_live_in: BTreeMap::new(),
         lambda_live_in: BTreeMap::new(),
@@ -160,8 +163,9 @@ impl Builder<'_, '_> {
     fn statement(
         &mut self,
         id: StatementId,
-        live_after: LiveSet,
+        mut live_after: LiveSet,
     ) -> Result<LiveSet, OwnershipCheckingError> {
+        live_after.extend(self.index_roots.iter().copied());
         self.statement_after[id.index()] = live_after.clone();
         match self
             .checker
@@ -311,14 +315,46 @@ impl Builder<'_, '_> {
 
     fn expression(
         &mut self,
+        mut id: ExpressionId,
+        mut usage: ExpressionUse,
+        mut live_after: LiveSet,
+    ) -> Result<LiveSet, OwnershipCheckingError> {
+        loop {
+            live_after.extend(self.index_roots.iter().copied());
+            self.expression_after[id.index()] = live_after.clone();
+            if self.checker.is_constant_use(id) {
+                return Ok(live_after);
+            }
+            let Some(plan) = self.checker.short_circuit_plan(id)? else {
+                return self.expression_inner(id, usage, live_after);
+            };
+            // Backward transfer visits the RHS first, then advances down the left spine.
+            live_after = match plan.rhs {
+                UnitShortCircuitRhs::Never => live_after,
+                UnitShortCircuitRhs::Always => {
+                    self.expression(plan.right.expression(), ExpressionUse::Read, live_after)?
+                }
+                UnitShortCircuitRhs::Conditional => {
+                    let mut live = self.expression(
+                        plan.right.expression(),
+                        ExpressionUse::Read,
+                        live_after.clone(),
+                    )?;
+                    live.extend(live_after);
+                    live
+                }
+            };
+            id = plan.left.expression();
+            usage = ExpressionUse::Read;
+        }
+    }
+
+    fn expression_inner(
+        &mut self,
         id: ExpressionId,
-        _usage: ExpressionUse,
+        usage: ExpressionUse,
         live_after: LiveSet,
     ) -> Result<LiveSet, OwnershipCheckingError> {
-        self.expression_after[id.index()] = live_after.clone();
-        if self.checker.is_constant_use(id) {
-            return Ok(live_after);
-        }
         if let Some(operation) = self
             .checker
             .typed
@@ -421,7 +457,7 @@ impl Builder<'_, '_> {
                 }
                 Ok(live)
             }
-            Expression::Group { expression } => self.expression(expression, _usage, live_after),
+            Expression::Group { expression } => self.expression(expression, usage, live_after),
             Expression::String { parts } => {
                 let mut live = live_after;
                 for part in parts.into_iter().rev() {
@@ -560,7 +596,7 @@ impl Builder<'_, '_> {
                         LiveSet::new(),
                     )
                 } else {
-                    Ok(LiveSet::new())
+                    Ok(self.index_roots.iter().copied().collect())
                 }
             }
             Expression::Break { .. } => {
@@ -571,7 +607,10 @@ impl Builder<'_, '_> {
                     .unwrap_or_default();
                 // ControlTransfer cleanup observes the target, not lexical fallthrough.
                 self.expression_after[id.index()] = continuation.clone();
-                Ok(continuation)
+                Ok(continuation
+                    .into_iter()
+                    .chain(self.index_roots.iter().copied())
+                    .collect())
             }
             Expression::Continue { .. } => {
                 let continuation = self
@@ -580,7 +619,10 @@ impl Builder<'_, '_> {
                     .map(|context| context.1.clone())
                     .unwrap_or_default();
                 self.expression_after[id.index()] = continuation.clone();
-                Ok(continuation)
+                Ok(continuation
+                    .into_iter()
+                    .chain(self.index_roots.iter().copied())
+                    .collect())
             }
             Expression::NonNullAssert { operand, .. } => self.expression(
                 operand,
@@ -602,22 +644,6 @@ impl Builder<'_, '_> {
                 self.expression(operand, ExpressionUse::Read, live_after)
             }
             Expression::Binary { left, right, .. } => {
-                if let Some(plan) = self.checker.short_circuit_plan(id)? {
-                    use super::super::constant::UnitShortCircuitRhs;
-                    let live = match plan.rhs {
-                        UnitShortCircuitRhs::Never => live_after,
-                        UnitShortCircuitRhs::Always => {
-                            self.expression(right, ExpressionUse::Read, live_after)?
-                        }
-                        UnitShortCircuitRhs::Conditional => {
-                            let mut live =
-                                self.expression(right, ExpressionUse::Read, live_after.clone())?;
-                            live.extend(live_after);
-                            live
-                        }
-                    };
-                    return self.expression(left, ExpressionUse::Read, live);
-                }
                 let live = self.expression(right, ExpressionUse::Read, live_after)?;
                 self.expression(left, ExpressionUse::Read, live)
             }
@@ -771,8 +797,16 @@ impl Builder<'_, '_> {
                 }
             }
             Expression::Index { receiver, index } => {
-                let live = self.expression(index, ExpressionUse::Read, live_after)?;
-                self.expression(receiver, ExpressionUse::Read, live)
+                let outer_roots = self.index_roots.len();
+                if self.checker.element_place_descriptor(id)?.is_some()
+                    && let Some(place) = self.checker.place(id)?
+                {
+                    // The actual element access follows index evaluation.
+                    self.index_roots.push(place.root());
+                }
+                let live = self.expression(index, ExpressionUse::Read, live_after);
+                self.index_roots.truncate(outer_roots);
+                self.expression(receiver, ExpressionUse::Read, live?)
             }
             Expression::CallableReference { receiver, .. } => {
                 if let Some(receiver) = receiver {

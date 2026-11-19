@@ -100,12 +100,17 @@ fn source_borrowed_array_string_index_lowers_to_checked_element_loan() {
 }
 
 #[test]
-fn verifier_accepts_active_shared_container_loan_and_rejects_wrong_or_ended_loan() {
-    for (bits, kind, end_first, expected_error) in [
-        (32, LoanKind::Shared, false, None),
-        (64, LoanKind::Shared, false, Some("contract")),
-        (32, LoanKind::Exclusive, false, Some("contract")),
-        (32, LoanKind::Shared, true, Some("inactive")),
+fn verifier_checks_container_provider_mode_kind_and_lifetime() {
+    use SequentialContainerKind::{Array, List};
+    // An exclusive Array entry loan is a writable Inout parameter. Immutable
+    // Lists cannot grant mutable element projection through the same ABI.
+    for (container, bits, kind, end_first, expected_error) in [
+        (Array, 32, LoanKind::Shared, false, None),
+        (Array, 64, LoanKind::Shared, false, Some("contract")),
+        (Array, 32, LoanKind::Exclusive, false, None),
+        (List, 32, LoanKind::Exclusive, false, Some("contract")),
+        (Array, 32, LoanKind::Shared, true, Some("inactive")),
+        (Array, 32, LoanKind::Exclusive, true, Some("inactive")),
     ] {
         let (_sources, origin, _) = origin();
         let mut program = Program::default();
@@ -114,7 +119,7 @@ fn verifier_accepts_active_shared_container_loan_and_rejects_wrong_or_ended_loan
         let integer = module.intern_type(super::model::SsaTypeKind::Integer { bits, signed: true });
         let string = module.intern_type(super::model::SsaTypeKind::StringOwner);
         let array = module
-            .add_sequential_container_type(SequentialContainerKind::Array, string)
+            .add_sequential_container_type(container, string)
             .expect("array");
         let function_id = module
             .add_function("inspect", Vec::new(), origin.clone())
@@ -169,7 +174,7 @@ fn verifier_accepts_active_shared_container_loan_and_rejects_wrong_or_ended_loan
             .expect("return");
 
         match expected_error {
-            None => verify_program(&program).expect("active shared loan must verify"),
+            None => verify_program(&program).expect("valid live container parameter must verify"),
             Some(expected) => {
                 let errors = verify_program(&program).expect_err("invalid loan must fail");
                 assert!(

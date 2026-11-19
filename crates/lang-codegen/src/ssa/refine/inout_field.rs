@@ -51,7 +51,10 @@ impl RefineInputs<'_> {
         let target = self.concrete(projection.ty())?;
         if target != self.concrete(parameter)?
             || self.concrete(self.typed.expression_type(argument)?)? != target
-            || self.typed.copyability(target) != Copyability::MoveOnly
+            || !matches!(
+                self.typed.copyability(target),
+                Copyability::Copyable | Copyability::MoveOnly
+            )
         {
             return None;
         }

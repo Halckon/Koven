@@ -480,13 +480,8 @@ pub struct CompilationUnitOwnership {
     nullable_whens: Vec<UnitNullableWhenOwnershipPlan>,
     ownership_primitives: Vec<super::UnitOwnershipPrimitiveOwnershipPlan>,
     field_replacements: Vec<super::UnitFieldReplaceOwnershipPlan>,
-    field_replacement_types: Vec<(
-        UnitExpressionId,
-        UnitSymbolId,
-        UnitTypeId,
-        UnitSymbolId,
-        UnitTypeId,
-    )>,
+    field_replacement_types:
+        std::collections::BTreeMap<UnitExpressionId, field_replace::FieldReplacementType>,
     provenance: UnitOwnershipProvenance,
     diagnostics: Vec<Diagnostic>,
     bindings: Vec<UnitOwnershipBindingDescriptor>,

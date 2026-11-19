@@ -11,16 +11,20 @@ pub(super) struct CallOperandFlow {
 }
 
 impl CallOperandFlow {
-    pub(super) fn new(checker: &BodyChecker<'_>) -> Self {
+    pub(super) fn new(track_pending: bool) -> Self {
         Self {
             ordinary: true,
             pending: true,
-            track_pending: checker.tracks_pending_call_flow(),
+            track_pending,
         }
     }
 
     pub(super) fn falls_through(&self) -> bool {
         self.ordinary
+    }
+
+    pub(super) fn has_pending_exit(&self) -> bool {
+        self.pending
     }
 
     pub(super) fn check(
@@ -36,8 +40,10 @@ impl CallOperandFlow {
             checker.check_expression(source, expression, expected, expected_span, return_type)
         })?;
         self.ordinary &= result.falls_through;
-        if self.track_pending && self.pending {
-            self.pending = checker.has_pending_expression_exit(source, expression, result)?;
+        if self.pending {
+            self.pending = result.falls_through
+                && (!self.track_pending
+                    || checker.has_pending_expression_exit(source, expression, result)?);
         }
         Ok(result)
     }

@@ -1,6 +1,9 @@
 //! Positive, normal-source probes for SPEC-0298's bounded local control flow.
 use super::*;
 
+#[path = "local_control_metadata.rs"]
+mod metadata;
+
 pub(in crate::ssa) use self::short_circuit::boundary::local_control_support as support;
 
 pub(in crate::ssa) use super::scalar_counts::local_control_assertions as assertions;
@@ -107,7 +110,7 @@ mod ownership {
         Resource
     );
 
-    fn carrier_scope_layout(case: &str, binding: &str, body: &str, expected: &[u8]) {
+    pub(super) fn carrier_scope_layout(case: &str, binding: &str, body: &str, expected: &[u8]) {
         let consumer = format!(
             r#"
     class Item(val text:String){{deinit(){{println("drop");println(this.text)}}}}
@@ -122,7 +125,7 @@ mod ownership {
         run_carrier_layouts(case, &consumer, binding, expected);
     }
 
-    fn run_carrier_layouts(case: &str, consumer: &str, binding: &str, expected: &[u8]) {
+    pub(super) fn run_carrier_layouts(case: &str, consumer: &str, binding: &str, expected: &[u8]) {
         for (variant, suffix) in [
             ("plain", ""),
             (
@@ -138,6 +141,26 @@ mod ownership {
                 run_unmodified(&program, entry, &label, expected);
             }
         }
+    }
+
+    #[test]
+    fn range_carrier_gate_descriptor_stays_live_across_one_arm_if() {
+        carrier_scope_layout(
+            "descriptor-live",
+            "if(flag){println(\"branch\");read(part)}",
+            "borrow val part=take(root,1)\nif(flag){println(\"branch\");read(part)}\nread(part)",
+            b"branch\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
+        );
+    }
+
+    #[test]
+    fn range_carrier_gate_descriptor_survives_constant_one_arm_if() {
+        carrier_scope_layout(
+            "descriptor-constant",
+            "if(true){read(part)}",
+            "borrow val part=take(root,1)\nif(false){println(\"unreached\")}\nif(true){read(part)}\nread(part)",
+            b"first\nfirst\ndrop\nsecond\ndrop\nfirst\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
+        );
     }
 
     #[test]
@@ -335,12 +358,6 @@ mod boundary {
     }
 
     #[test]
-    fn range_local_control_rejects_if_without_else() {
-        let expression = "if(flag){read(part)}";
-        reject("missing-else", &scoped(expression), expression);
-    }
-
-    #[test]
     fn range_local_control_rejects_value_context_if() {
         let expression = "if(flag){read(part)}else{read(part)}";
         let consumer = scoped(&format!("sink({expression})"));
@@ -418,17 +435,24 @@ mod boundary {
         );
 
         let metadata = "borrow val alias=part;read(alias)";
-        for (kind, statement, fragment) in [
-            ("eq", "check(n==2)", "n==2"),
-            ("lt", "check(n<3)", "n<3"),
-            ("if", branch, branch),
-        ] {
+        for (kind, statement, fragment) in
+            [("eq", "check(n==2)", "n==2"), ("lt", "check(n<3)", "n<3")]
+        {
             reject(
                 &format!("metadata-{kind}"),
                 &scoped(&format!("{metadata};{statement}")),
                 fragment,
             );
         }
+        let branch = "if(flag){show(-n);read(alias)}";
+        reject(
+            "metadata-checked-negation",
+            &format!(
+                "fun show(n:Int):Unit{{}}\n{}",
+                scoped(&format!("{metadata};{branch}"))
+            ),
+            branch,
+        );
     }
 
     #[test]

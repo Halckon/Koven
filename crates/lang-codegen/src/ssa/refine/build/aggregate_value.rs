@@ -194,7 +194,15 @@ impl Builder<'_, '_> {
         } else {
             false
         };
-        if is_nested {
+        // While an argument loan is active, a sibling read must borrow the
+        // field itself. Borrowing its entire owner would overlap the first field.
+        let direct_field = match projection.receiver() {
+            UnitAggregateProjectionReceiver::Expression(receiver) => self
+                .argument_owned_class(receiver.expression(), span)?
+                .is_some(),
+            UnitAggregateProjectionReceiver::This(_) => false,
+        };
+        if is_nested || direct_field {
             let (leaf_loan, created, drops) = self.field_projection_loan(expression, span)?;
             let result = self.value(
                 ROp::ReadLoan { loan: leaf_loan },
@@ -275,6 +283,11 @@ impl Builder<'_, '_> {
             }
             (None, _) => {
                 let loan = self.owner_loan(owner, LoanKind::Shared, span)?;
+                let loan = if self.index_receiver_loans.is_empty() {
+                    loan
+                } else {
+                    self.shared_operand(loan, span)?
+                };
                 (
                     loan.loan,
                     loan.scoped.then_some(loan.loan).into_iter().collect(),

@@ -707,3 +707,79 @@ fn borrowed_closure_escape_allows_function_pointer_signature_mentions() {
         verify_program(&program).expect("a bare function pointer does not own its signature types");
     }
 }
+
+#[test]
+fn borrowed_closure_escape_rejects_mixed_element_swap() {
+    let formation = origin();
+    let delivery = delivery_origin("consume(closure)");
+    let mut program = Program::default();
+    let module_id = program.add_module("container-swap-owned-delivery");
+    let module = program.module_mut(module_id).expect("module");
+    let (_, _, closure) = shared_closure_type(module);
+    let integer = module.intern_type(SsaTypeKind::Integer {
+        bits: 32,
+        signed: true,
+    });
+    let container = module
+        .add_sequential_container_type(SequentialContainerKind::Array, closure)
+        .expect("mutable container");
+    let (main, entry, parameters) =
+        add_function(module, "swap", &[closure, container], vec![], &formation);
+    let function = module.function_mut(main).expect("swap");
+    let [root, owner] = parameters.as_slice() else {
+        panic!("two parameters")
+    };
+    let index = append_values(
+        function,
+        entry,
+        Operation::Constant(ScalarConstant::Integer(0)),
+        &[integer],
+        &formation,
+    )[0];
+    let places = [
+        Operation::RootPlace { owner: *root },
+        Operation::ContainerElementPlace {
+            owner: EntityId::Value(*owner),
+            index,
+        },
+    ]
+    .map(|operation| append_place(function, entry, operation, closure, &formation));
+    let loans = places.map(|place| {
+        let (_, outputs) = function
+            .append_instruction(
+                entry,
+                Operation::BorrowBegin {
+                    place,
+                    kind: LoanKind::Exclusive,
+                },
+                vec![EntityType::Loan {
+                    kind: LoanKind::Exclusive,
+                    target: closure,
+                }],
+                formation.clone(),
+            )
+            .expect("exclusive operand loan");
+        let EntityId::Loan(loan) = outputs[0] else {
+            panic!("exclusive loan")
+        };
+        loan
+    });
+    let (swap, outputs) = function
+        .append_instruction(
+            entry,
+            Operation::ProjectedSwap {
+                root: Some(*root),
+                loans,
+            },
+            vec![EntityType::Value(closure)],
+            delivery.clone(),
+        )
+        .expect("otherwise valid atomic swap");
+    for owner in [*owner, value(outputs[0])] {
+        append_values(function, entry, Operation::Drop { owner }, &[], &formation);
+    }
+    function
+        .set_terminator(entry, TerminatorKind::Return { values: vec![] }, formation)
+        .expect("owners discharged");
+    assert_owned_escape_rejected((program, VerifyLocation::Instruction(swap), delivery));
+}

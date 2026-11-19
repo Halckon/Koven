@@ -17,8 +17,8 @@ fn reachable_body_only_boolean_type_is_planned_deterministically() {
         &mut sources,
         "p/provider.ko",
         "package p\n\
-         fun select(): Int = when {\n\
-             true -> 1\n\
+         fun select(own choice: Int): Int = when {\n\
+             choice == 0 -> 1\n\
              else -> 2\n\
          }\n\
          fun preserve(own amount: Long): Unit {}",
@@ -29,7 +29,7 @@ fn reachable_body_only_boolean_type_is_planned_deterministically() {
         "package q\n\
          fun entry(): Int {\n\
              val done = p.preserve(1)\n\
-             return p.select()\n\
+             return p.select(0)\n\
          }",
     );
     let inputs = [
