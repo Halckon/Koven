@@ -8,14 +8,14 @@ use lang_frontend::{
     parser::Expression,
     source::Span,
     type_checking::{
-        BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory,
+        ContainerConstructionKind, Copyability, ExpressionCategory,
         IntrinsicTypeConstructor, NominalKind, ParameterMode, SequentialContainerKind,
         UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitElementPlaceDescriptor,
         UnitExpressionId, UnitTypeKind,
     },
 };
 
-use super::{LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value};
+use super::{LoweredValue, UnitExpressionLowerer, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     model::{EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceId, SsaTypeId},
@@ -314,10 +314,8 @@ impl UnitExpressionLowerer<'_> {
                 .lower_container_construction(expression, span)
                 .map(Some);
         }
-        if self.typed.container_size(unit_expression).is_some() {
-            return self.lower_container_size(expression, span).map(Some);
-        }
-        if self.typed.element_place(unit_expression).is_some()
+        if self.typed.container_size(unit_expression).is_some()
+            || self.typed.element_place(unit_expression).is_some()
             || self.typed.container_append(unit_expression).is_some()
             || self.typed.container_clear(unit_expression).is_some()
             || self.typed.container_remove_at(unit_expression).is_some()
@@ -328,70 +326,6 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         Ok(None)
-    }
-
-    /// Read the header through the frontend's synchronous receiver loan.
-    pub(super) fn lower_container_size(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let id = UnitExpressionId::new(self.source_unit, expression);
-        let descriptor = self
-            .typed
-            .container_size(id)
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let constructor = match descriptor.container() {
-            SequentialContainerKind::Array => IntrinsicTypeConstructor::Array,
-            SequentialContainerKind::List => IntrinsicTypeConstructor::List,
-            SequentialContainerKind::MutableList => IntrinsicTypeConstructor::MutableList,
-        };
-        if descriptor.expression() != id
-            || descriptor.receiver().source_unit() != self.source_unit
-            || descriptor.span() != span
-            || self.typed.expression_type(id) != Some(descriptor.result_type())
-            || builtin_type(self.typed, descriptor.result_type()) != Some(BuiltinType::Int)
-            || self.typed.expression_type(descriptor.receiver())
-                != Some(descriptor.container_type())
-            || !matches!(
-                self.typed.types().get(descriptor.container_type()),
-                Some(UnitTypeKind::Intrinsic { constructor: actual, arguments })
-                    if *actual == constructor && arguments.as_slice() == [descriptor.element_type()]
-            )
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let receiver = descriptor.receiver().expression();
-        let receiver_span = self
-            .parsed
-            .ast()
-            .expressions()
-            .get(receiver)
-            .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?
-            .span();
-        let receiver_type = self.expression_ssa_type(receiver, receiver_span)?;
-        let result_type = self.expression_ssa_type(expression, span)?;
-        let (loan, created, _) =
-            self.lower_borrow_argument(id, receiver, receiver_type, receiver_span, span)?;
-        let result = self.append_scalar(
-            Operation::ContainerLength {
-                owner: EntityId::Loan(loan),
-            },
-            result_type,
-            span,
-        )?;
-        for loan in created.into_iter().rev() {
-            self.function
-                .append_instruction(
-                    self.block,
-                    Operation::BorrowEnd { loan },
-                    Vec::new(),
-                    Origin::Source(span),
-                )
-                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        }
-        self.emit_drops(UnitDropPoint::CallReturn(id))?;
-        Ok(result)
     }
 
     pub(super) fn element_place_descriptor(

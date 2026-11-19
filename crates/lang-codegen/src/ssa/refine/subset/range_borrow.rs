@@ -157,6 +157,7 @@ impl Checker<'_, '_> {
             || typed.map_get(id).is_some()
             || typed.map_consume(id).is_some()
             || typed.map_remove(id).is_some()
+            || typed.container_size(id).is_some()
             || typed.container_append(id).is_some()
             || typed.container_clear(id).is_some()
             || typed.container_remove_at(id).is_some()
