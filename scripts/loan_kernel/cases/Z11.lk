@@ -1,0 +1,29 @@
+// 两臂分别把拆出的视图交给不同的槽位。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Holder(slice: Slice, file: File) deinit
+fun update(inout a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+fun put(inout dst: Slice, own src: Slice): Unit flows src into dst {
+  *dst = move src
+}
+fun deliver(own this: Holder, inout dst: Slice): Unit flows this.slice.source into dst in Holder {
+  open this as slice, file
+  put(dst, move slice)
+}
+fun deliverToSeparateSlots(own a: Arr, own b: Arr, own l: Arr, own r: Arr, own f: File, own g: File): Unit {
+  val left = Slice(&l)
+  val right = Slice(&r)
+  if (*) {
+    deliver(Holder(Slice(&a), move f), &mut left)
+  } else {
+    deliver(Holder(Slice(&b), move g), &mut right)
+  }
+  mayFail()
+  use(left.source.len)
+  update(&mut a)
+  update(&mut b)
+  update(&mut l)
+  update(&mut r)
+}
