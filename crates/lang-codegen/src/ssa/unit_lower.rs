@@ -323,9 +323,6 @@ impl UnitExpressionLowerer<'_> {
         }
         if let Some(construction) = self.typed.construction(unit_expression) {
             return match construction.target() {
-                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
-                    self.lower_rc_construction(expression, span)
-                }
                 lang_frontend::type_checking::UnitConstructionTarget::Nominal(_) => {
                     self.lower_aggregate_construction(expression, span)
                 }
@@ -333,6 +330,9 @@ impl UnitExpressionLowerer<'_> {
                     if !self.typed.nullable_whens().is_empty() =>
                 {
                     self.lower_aggregate_construction(expression, span)
+                }
+                lang_frontend::type_checking::UnitConstructionTarget::IntrinsicRc => {
+                    self.lower_rc_construction(expression, span)
                 }
                 lang_frontend::type_checking::UnitConstructionTarget::IntrinsicBox
                 | lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {

@@ -264,7 +264,8 @@ pub(super) fn check(
     if !c.provider {
         let children = super::control(p, i, program)?;
         need(
-            alias_end.origin == Origin::Source(proof.declaration)
+            (alias_end.origin == Origin::Source(proof.declaration)
+                || alias_end.origin == Origin::Source(i.marker))
                 && g.position(alias_end)? + 1 == g.ops(alias_end.block)?.len()
                 && matches!(&g.term(alias_end.block)?.kind,TerminatorKind::Return{values}if values.is_empty()),
             "alias control published observe-statement lease cleanup is last before ordinary Return",

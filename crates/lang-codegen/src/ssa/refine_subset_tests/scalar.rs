@@ -381,3 +381,130 @@ fn test_only_forced_per_family_control_is_preserved() {
     let program = result.expect("the scalar legacy control remains executable");
     crate::llvm::render_verified_program(&program).expect("forced control LLVM verifies");
 }
+
+#[test]
+fn nested_primitive_range_view_consumption_routes_and_verifies_in_refine() {
+    let source = r#"
+    fun head_view(xs: List<Int>, n: Int): View<Int> from xs = rangeView(xs, 0, n)
+    fun nested_slice(parent: View<Int>): View<Int> from parent = rangeView(parent, 0, 2)
+    fun sum_view(v: View<Int>): Int {
+        var total = 0
+        for (x in v) { total = total + x }
+        return total
+    }
+    fun main(): Int {
+        val xs = listOf(10, 20, 30, 40, 50)
+        borrow val a = rangeView(rangeView(xs, 1, 4), 0, 2)
+        borrow val b = rangeView(head_view(xs, 4), 1, 3)
+        var acc = sum_view(a) + sum_view(b)
+        for (x in rangeView(rangeView(xs, 1, 5), 1, 3)) {
+            acc = acc + x
+        }
+        acc = acc + sum_view(rangeView(rangeView(xs, 0, 4), 1, 3))
+        borrow val c = nested_slice(a)
+        acc = acc + sum_view(c)
+        return acc
+    }"#;
+    let mut sources = SourceMap::new();
+    let text = format!("package p\n{source}");
+    let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+    let (name_environment, mut type_environment) = standard_environments();
+    type_environment
+        .authorize_range_source(&sources, id)
+        .unwrap();
+    type_environment
+        .authorize_range_extension_source(&sources, id)
+        .unwrap();
+    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
+    let entry = declaration(&names, "p", "main");
+    let (res, routed) = observe_routing(|| {
+        lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            entry,
+        )
+    });
+    let (program, _) = res.expect("nested primitive rangeView must lower and verify");
+    for name in [
+        "koven.p.main.d",
+        "koven.p.nested_slice.d",
+        "koven.p.head_view.d",
+    ] {
+        assert!(
+            routed.iter().any(|r| r.starts_with(name)),
+            "{name} must route to refine: {routed:?}"
+        );
+    }
+    let llvm = crate::llvm::render_verified_program(&program)
+        .expect("verified LLVM for nested primitive rangeView");
+    assert!(!llvm.is_empty());
+}
+
+#[test]
+fn borrowed_map_alias_and_reassigned_nullable_container_loop_route_to_refine() {
+    for source in [
+        "fun f(m: Map<String, Int>): Int { borrow val m2 = m; return m2.size }",
+        // Nullable Map has an existing Unit ABI; nullable List does not.
+        r#"fun f(own xs: MutableMap<String, Int>?): Int {
+            var cur: MutableMap<String, Int>? = xs
+            if (cur != null) {
+                var i = 0
+                while (i < 1) {
+                    cur = mutableMapOf<String, Int>()
+                    i = i + 1
+                }
+            }
+            return if (cur != null) cur.size else 0
+        }"#,
+    ] {
+        let (res, routed) = route(source);
+        let program = res.unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        assert!(routed, "expected refine routing for:\n{source}");
+        crate::ssa::verify::verify_program(&program)
+            .unwrap_or_else(|e| panic!("SSA verify failed for {source}: {e:?}"));
+        let llvm = crate::llvm::render_verified_program(&program)
+            .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
+        assert!(!llvm.is_empty());
+    }
+}
+
+#[test]
+fn retired_map_operations_route_directly_to_refine() {
+    for source in [
+        "fun f(): Int { val m = mapOf<String, Int>(); return m.size }",
+        "fun f(): Boolean { val m = mutableMapOf<Int, Int>(); return m.contains(1) }",
+        "fun f(): Int { var m = mutableMapOf<Int, Int>(); m[1] = 42; return m.size }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        let program = res.unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        crate::ssa::verify::verify_program(&program)
+            .unwrap_or_else(|e| panic!("SSA verify failed for {source}: {e:?}"));
+        let llvm = crate::llvm::render_verified_program(&program)
+            .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
+        assert!(!llvm.is_empty());
+    }
+}
+
+#[test]
+fn retired_rc_construction_and_container_size_route_directly_to_refine() {
+    for source in [
+        "fun f(): Int { val r = Rc(7); return r.value }",
+        "fun f(xs: List<Int>): Int = xs.size",
+        "fun f(): Int { val xs = arrayOf(1, 2, 3); return xs.size }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        let program = res.unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        crate::ssa::verify::verify_program(&program)
+            .unwrap_or_else(|e| panic!("SSA verify failed for {source}: {e:?}"));
+        let llvm = crate::llvm::render_verified_program(&program)
+            .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
+        assert!(!llvm.is_empty());
+    }
+}
