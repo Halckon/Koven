@@ -267,8 +267,9 @@ class LoanKernelCases(unittest.TestCase):
             for name, (_, program, accepted) in lowered.items():
                 if accepted:
                     walk(program, name)
-        self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g"), ("deinit OneBranch", "this")},
-                         flagged, "三处都是带 deinit 的值，或余下的字段里有这样的值")
+        self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g"), ("deinit OneBranch", "this"),
+                          ("openInOneArm", "this")},
+                         flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
         listing = [line.split("失败时")[0].strip() for line in CHECKER.DP.show(lowered["plainMovedOnOneBranch"][1])]
@@ -299,6 +300,36 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
         calls[0].cleanup.pop()  # 只在移交 sock 前的失败出口漏掉它
         self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+    def test_one_arm_open_keeps_distinct_cleanup_before_and_after_join(self):
+        lowered = {}
+        CHECKER.check((ROOT / "cases/Z2.lk").read_text(encoding="utf-8"), lowered=lowered)
+        types, program, accepted = lowered["openInOneArm"]
+        self.assertTrue(accepted)
+        branch = next(s for s in program if s.kind == "if")
+        opened = next(s for s in branch.body if s.kind == "open")
+        self.assertEqual(("this", ["sock", "buf"]), (opened.var, opened.names))
+        then_call, else_call, joined_call = [next(s for s in path if s.kind == "call")
+                                              for path in (branch.body, branch.orelse, program)]
+        then_drops = [s.var for s in branch.body if s.kind == "drop"]
+        self.assertEqual(["buf", "sock"], then_drops)
+        self.assertFalse(any(s.kind in ("open", "drop") for s in branch.orelse))
+        self.assertEqual([("buf", False), ("sock", False), ("outer", False)], then_call.cleanup)
+        self.assertEqual([("outer", False), ("this", False)], else_call.cleanup)
+        self.assertEqual([("outer", False), ("this", True)], joined_call.cleanup)
+        drops = [s for s in program if s.kind == "drop"]
+        self.assertEqual([("outer", False), ("this", True)], [(s.var, s.if_owned) for s in drops])
+
+        def verify():
+            return {name.split()[0]: path for name, path in CHECKER.DP.Verifier(types).run_all(program).items()}
+
+        # 两次 let、分支、臂内调用、合流后调用；调用选择 0 为成功，1 为失败。
+        self.assertEqual({}, verify())
+        drops[-1].if_owned = False  # 仅在拆解臂的正常出口重复析构 this
+        self.assertEqual({"V2": [(0, 2)] * 5}, verify())
+        drops[-1].if_owned = True
+        joined_call.cleanup.pop()  # 仅在未拆解臂的合流后失败出口漏掉 this
+        self.assertEqual({"V1": [(0, 2), (0, 2), (1, 2), (0, 2), (1, 2)]}, verify())
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
