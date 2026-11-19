@@ -781,35 +781,19 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
         ),
         (
             "test/inout-parameter.ko",
-            "package test\n\
-             fun entry(): Unit {\n\
-                 val action: (inout Int) -> Unit = { item -> }\n\
-             }",
+            "package test\nfun entry(): Unit { val action: (inout Int) -> Unit = { item -> } }",
         ),
         (
             "test/unit-borrow-parameter.ko",
-            "package test\n\
-             fun entry(): Unit {\n\
-                 val action: move (borrow Unit) -> Unit = move { item -> }\n\
-             }",
+            "package test\nfun entry(): Unit { val action: move (borrow Unit) -> Unit = move { item -> } }",
         ),
         (
             "test/direct-argument-return.ko",
-            "package test\n\
-             fun select(first: Int, own second: Int): Int = second\n\
-             fun entry(): Int {\n\
-                 val number = 1\n\
-                 return select(number, return 7)\n\
-             }",
+            "package test\nfun select(first: Int, own second: Int): Int = second\nfun entry(): Int { val number = 1; return select(number, return 7) }",
         ),
         (
             "test/direct-argument-break.ko",
-            "package test\n\
-             fun select(first: Int, own second: Int): Int = second\n\
-             fun entry(): Unit {\n\
-                 val number = 1\n\
-                 loop { val selected = select(number, break) }\n\
-             }",
+            "package test\nfun select(first: Int, own second: Int): Int = second\nfun entry(): Unit { val number = 1; loop { val selected = select(number, break) } }",
         ),
         (
             "test/callable-argument-continue.ko",
@@ -874,15 +858,23 @@ fn unsupported_closure_surfaces_remain_atomic_boundaries() {
             )
             .expect("the original direct source passes strict final admission");
         }
-        let result = lower_scalar_unit_with_entry(
-            &sources,
-            &inputs,
-            &names,
-            &type_environment,
-            &typed,
-            &owned,
-            declaration(&names, "test", "entry"),
-        );
+        let entry_decl = declaration(&names, "test", "entry");
+        let run_lower = || {
+            lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &type_environment,
+                &typed,
+                &owned,
+                entry_decl,
+            )
+        };
+        let result = if direct || nested_break {
+            crate::ssa::with_per_family_lowering(run_lower)
+        } else {
+            run_lower()
+        };
         if nested_break {
             let (program, entry) = result.expect("nested break exits before invoking the callee");
             direct_prefix::assert_cancelled_nested_break(&program, entry, &sources);

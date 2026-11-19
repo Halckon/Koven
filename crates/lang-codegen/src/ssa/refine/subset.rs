@@ -17,7 +17,7 @@ use scalar_text::control;
 mod tagged;
 use tagged::receiver;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
@@ -43,6 +43,8 @@ struct Checker<'i, 'a> {
     known: BTreeSet<UnitSymbolId>,
     /// Local bindings holding a concrete callable owner (function pointer or closure).
     callables: BTreeSet<UnitSymbolId>,
+    /// Concrete SSA type of each local callable binding.
+    callable_ssa_types: BTreeMap<UnitSymbolId, crate::ssa::model::SsaTypeId>,
     /// Expressions lowered in branch form, whose own drop points are never emitted.
     branch_form: BTreeSet<UnitExpressionId>,
     /// Temporary field parents whose pending loan and cleanup lower together.
@@ -59,6 +61,8 @@ struct Checker<'i, 'a> {
     has_local_destructuring: bool,
     /// A temporary sequential source can refine only in an already migrated scope.
     has_temporary_sequential_for: bool,
+    /// A validated function-value call needs the refinement callable ABI.
+    has_function_value_call: bool,
     loop_route: LoopRoute,
     loop_route_retry: bool,
     /// Field replacements in the subset; their `BeforeReplacement` drops are consumed by
@@ -85,6 +89,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         inputs,
         known,
         callables: BTreeSet::new(),
+        callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
         non_dispatching_field_calls: BTreeSet::new(),
@@ -93,6 +98,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         migrated: false,
         has_local_destructuring: false,
         has_temporary_sequential_for: false,
+        has_function_value_call: false,
         loop_route,
         loop_route_retry: false,
         replacements: BTreeSet::new(),
@@ -226,6 +232,8 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
             || checker.loop_route == LoopRoute::Verified && checker.has_local_destructuring)
         && (!checker.has_temporary_sequential_for
             || checker.has_local_destructuring
+            || checker.has_function_value_call
+            || matches!(inputs.body, RefineBody::Lambda(_))
             || checker.scope_requires_refine())
         && checker.drops_supported()
         && (checker.nullable
@@ -270,6 +278,7 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         inputs,
         known: BTreeSet::new(),
         callables: BTreeSet::new(),
+        callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
         non_dispatching_field_calls: BTreeSet::new(),
@@ -278,6 +287,7 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         migrated: false,
         has_local_destructuring: false,
         has_temporary_sequential_for: false,
+        has_function_value_call: false,
         loop_route: LoopRoute::Existing,
         loop_route_retry: false,
         replacements: BTreeSet::new(),
@@ -619,6 +629,14 @@ impl Checker<'_, '_> {
         }
         if self.inputs.typed.nullable_when(id).is_some() {
             return self.nullable_when(expression);
+        }
+        if self.view_or_function(ty)
+            && matches!(
+                node.payload(),
+                Expression::If { .. } | Expression::When { .. }
+            )
+        {
+            return self.callable_value_expr(expression);
         }
         if !self.unspecialized(expression)
             || !(returns

@@ -30,6 +30,14 @@ use crate::ssa::{
 pub(super) type LentArgument = (Slot, Vec<Slot>, Option<ExpressionId>);
 pub(super) type ProjectionLoan = (Slot, Vec<Slot>, Vec<ExpressionId>);
 
+pub(super) enum PreparedCallee {
+    View(Slot),
+    Value {
+        callable: Slot,
+        consumed_callee: Option<ExpressionId>,
+    },
+}
+
 impl Builder<'_, '_> {
     /// A result call uses the shared ABI and retains any reborrow it created.
     pub(super) fn shared_result_call_operand(
@@ -303,6 +311,106 @@ impl Builder<'_, '_> {
         self.finish_return(Some(value), false, self.inputs.span)
     }
 
+    pub(super) fn expression_ssa_type(
+        &self,
+        expression: ExpressionId,
+        ty: UnitTypeId,
+        span: Span,
+    ) -> Result<SsaTypeId, LoweringError> {
+        if matches!(
+            self.inputs.typed.types().get(ty),
+            Some(UnitTypeKind::Function { .. })
+        ) {
+            return self
+                .callable_ssa_type(expression)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span));
+        }
+        self.ssa_type(ty, span)
+    }
+
+    fn callable_ssa_type(&self, expression: ExpressionId) -> Option<SsaTypeId> {
+        let mut root = expression;
+        while let Ok((Expression::Group { expression: inner }, _)) = self.node(root) {
+            root = inner;
+        }
+        let (payload, span) = self.node(root).ok()?;
+        match payload {
+            Expression::Lambda { .. } => self
+                .inputs
+                .callables
+                .get(&self.unit(root))
+                .map(|callable| callable.callable),
+            Expression::Name => {
+                if let Ok(symbol) = self.reference(span)
+                    && let Some(&slot) = self.bindings.get(&symbol)
+                    && let EntityType::Value(ssa_ty) = self.body.slots[slot.0]
+                {
+                    return Some(ssa_ty);
+                }
+                if let Some(fact) = self.inputs.owned.callable_origin(self.unit(root))
+                    && let lang_frontend::ownership_checking::UnitCallableOrigin::KnownFunction(
+                        target,
+                    ) = fact.origin()
+                {
+                    return self.inputs.known_functions.get(&target).map(|(_, ty)| *ty);
+                }
+                None
+            }
+            Expression::Call { .. } => self
+                .inputs
+                .source_plan
+                .call_site(self.inputs.source_token, self.unit(root))
+                .and_then(|site| self.inputs.function_ids.get(site.key()))
+                .and_then(|callee| self.inputs.callable_returns.get(callee).copied()),
+            Expression::If {
+                then_branch,
+                else_branch,
+                ..
+            } => self
+                .callable_branch_tail(then_branch)
+                .and_then(|tail| self.callable_ssa_type(tail))
+                .or_else(|| {
+                    else_branch
+                        .and_then(|branch| self.callable_branch_tail(branch))
+                        .and_then(|tail| self.callable_ssa_type(tail))
+                }),
+            Expression::When { entries, .. } => entries.iter().find_map(|entry| {
+                self.callable_branch_tail(entry.body)
+                    .and_then(|tail| self.callable_ssa_type(tail))
+            }),
+            _ => None,
+        }
+    }
+
+    fn callable_branch_tail(
+        &self,
+        statement: lang_frontend::ast::StatementId,
+    ) -> Option<ExpressionId> {
+        let node = self.inputs.parsed.ast().statements().get(statement).ok()?;
+        match node.payload() {
+            lang_frontend::parser::Statement::Expression { expression } => Some(*expression),
+            lang_frontend::parser::Statement::Block { elements }
+            | lang_frontend::parser::Statement::ControlBody { elements } => {
+                let last = *elements.last()?;
+                match self
+                    .inputs
+                    .parsed
+                    .ast()
+                    .statements()
+                    .get(last)
+                    .ok()?
+                    .payload()
+                {
+                    lang_frontend::parser::Statement::Expression { expression } => {
+                        Some(*expression)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// Facts inside a nested lambda body belong to its thunk, not to this body.
     pub(super) fn inside_lambda(&self, origin: Span) -> bool {
         let current = match &self.inputs.body {
@@ -403,20 +511,29 @@ impl Builder<'_, '_> {
             let lent = self.value(ROp::CallableViewOf { source: loan }, view_loan, span)?;
             return Ok((lent, vec![loan, lent], Some(value)));
         }
-        if !matches!(payload, Expression::Lambda { .. }) {
-            return Err(error(LoweringErrorKind::UnsupportedNode, root_span));
-        }
-        let owner = self.form_callable(root, root_span)?;
-        if value != root {
-            // Exit drops refer to the original argument, including any parentheses.
+        let (owner, callable, read_arg) = if matches!(payload, Expression::Lambda { .. }) {
+            let owner = self.form_callable(root, root_span)?;
+            if value != root {
+                // Exit drops refer to the original argument, including any parentheses.
+                self.register_temporary(value, owner)?;
+            }
+            let callable = self
+                .inputs
+                .callables
+                .get(&self.unit(root))
+                .map(|callable| callable.callable)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, root_span))?;
+            (owner, callable, None)
+        } else {
+            let Lowered::Value(owner) = self.expression_inner(root)? else {
+                return Err(error(LoweringErrorKind::InvalidModel, root_span));
+            };
             self.register_temporary(value, owner)?;
-        }
-        let callable = self
-            .inputs
-            .callables
-            .get(&self.unit(root))
-            .map(|callable| callable.callable)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, root_span))?;
+            let EntityType::Value(callable) = self.body.slots[owner.0] else {
+                return Err(error(LoweringErrorKind::InvalidModel, root_span));
+            };
+            (owner, callable, Some(value))
+        };
         let place = self.value(
             ROp::RootPlace { owner },
             EntityType::Place(callable),
@@ -434,7 +551,7 @@ impl Builder<'_, '_> {
             root_span,
         )?;
         let lent = self.value(ROp::CallableViewOf { source: loan }, view_loan, span)?;
-        Ok((lent, vec![loan, lent], None))
+        Ok((lent, vec![loan, lent], read_arg))
     }
 
     pub(super) fn form_known_function(

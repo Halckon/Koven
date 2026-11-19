@@ -905,7 +905,7 @@ fn pending_call_prefix_survives_inner_loops() {
 #[test]
 fn pending_copyable_argument_keeps_its_pre_loop_snapshot() {
     let source = "fun consume(own before: Boolean, own after: Boolean): Boolean = before\nfun entry(own flag: Boolean): Unit { var once = true\nval result = consume(once, if (flag) { while (once) { once = false }\ntrue } else { false }) }";
-    let program = lower_short_circuit_fixture(source);
+    let program = crate::ssa::with_per_family_lowering(|| lower_short_circuit_fixture(source));
     let llvm = crate::llvm::render_verified_program(&program).unwrap();
     for (kind, text) in [
         ("ssa", render_program(&program)),

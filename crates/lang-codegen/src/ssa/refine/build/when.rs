@@ -82,7 +82,7 @@ impl Builder<'_, '_> {
                 self.expected_nullable
                     .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
             } else {
-                self.ssa_type(ty, span)?
+                self.expression_ssa_type(expression, ty, span)?
             };
             Some(self.body.slot(EntityType::Value(ssa_ty)))
         };

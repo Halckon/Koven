@@ -33,11 +33,6 @@ impl Builder<'_, '_> {
             }
             return Ok(Lowered::Diverged);
         }
-        let literal_callee = if descriptor.target() == UnitCallTarget::FunctionValue {
-            self.form_literal_callee(expression, span)?
-        } else {
-            None
-        };
         let is_extension = match descriptor.target() {
             UnitCallTarget::Declaration(id) => self
                 .inputs
@@ -49,6 +44,17 @@ impl Builder<'_, '_> {
                     callable.range_extension().is_some() || callable.text_extension().is_some()
                 }),
             _ => false,
+        };
+        let prepared_callee = if descriptor.target() == UnitCallTarget::FunctionValue {
+            let Some(prepared) = self.prepare_callable_callee(expression, span)? else {
+                for argument in arguments {
+                    self.unreachable_drop_scopes.push(self.span(argument.value));
+                }
+                return Ok(Lowered::Diverged);
+            };
+            Some(prepared)
+        } else {
+            None
         };
         let receiver = if is_extension {
             None
@@ -367,8 +373,10 @@ impl Builder<'_, '_> {
         let mut invoked_callee = None;
         let return_type = self.c(descriptor.return_type());
         let result = if descriptor.target() == UnitCallTarget::FunctionValue {
+            let prepared =
+                prepared_callee.ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
             let (result, callee) =
-                self.invoke_callable(expression, lowered, literal_callee, return_type, span)?;
+                self.invoke_prepared_callable(expression, prepared, lowered, return_type, span)?;
             if result == Lowered::Diverged {
                 return Ok(result);
             }

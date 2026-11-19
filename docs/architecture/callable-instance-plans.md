@@ -37,7 +37,9 @@ pointer factory 的摘要按具体 factory source memo，核对声明及调用�
 Unit 所有权发布实参正常完成和调用能否进入 callee 的事实。已进入求值的调用保留
 静态路由和委托信息，已证无法进入 callee 的路由只用于求值前缀，实例队列省略其函数体。
 返回 `Nothing` 的 callee 若能实际进入，仍需规划其实例。Borrow Fn 来源仅为完成的实参冻结，
-前缀中已经形成的 callable view 有独立 ABI 声明。refine 按源码顺序求值，沿控制转移先结束
+前缀中已经形成的 callable view 有独立 ABI 声明。Borrow Fn 实参若为两臂均直接返回 Fn 的
+工厂调用 `if`/`when`，可不冻结单一来源；可达工厂由普通调用队列规划，refine 检查合流布局后再
+构造 view。refine 按源码顺序求值，沿控制转移先结束
 已形成的借用，再消费临时 owner 的析构事实。
 
 实现位于 `ssa/lowering_support/callable_instances.rs`、`lower_frontend/instances/` 与

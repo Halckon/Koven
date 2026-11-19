@@ -3,8 +3,7 @@
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     parser::{
-        AssignmentOperator, BinaryOperator, Expression, Item, LiteralKind, PrefixOperator,
-        Statement, VariableKind,
+        AssignmentOperator, Expression, Item, LiteralKind, PrefixOperator, Statement, VariableKind,
     },
     type_checking::{
         BuiltinType, IntegerOperationKind, ParameterMode, StringOperationKind, UnitExpressionId,
@@ -20,7 +19,6 @@ impl Checker<'_, '_> {
         self.inputs.function_item.is_some()
             && self.inputs.receiver.is_none()
             && self.inputs.static_self.is_none()
-            && self.inputs.substitutions.is_empty()
             && self.inputs.borrow_return.is_none()
             && self.inputs.carrier_return.is_none()
             && self
@@ -45,26 +43,35 @@ impl Checker<'_, '_> {
         let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
             return false;
         };
-        let scalar = self
-            .expression_type(expression)
-            .is_some_and(|ty| self.scalar(ty));
+        let ty = self.expression_type(expression);
+        let scalar = ty.is_some_and(|ty| self.scalar(ty));
+        let value_or_exit =
+            ty.is_some_and(|ty| self.scalar(ty) || self.unit(ty) || self.nothing(ty));
         match node.payload() {
             Expression::Literal(_) | Expression::Name => scalar,
             Expression::Group { expression } => self.linear_scalar_expression(*expression),
             Expression::Prefix { operand, .. } => scalar && self.linear_scalar_expression(*operand),
-            Expression::Binary {
-                left,
-                operator,
-                right,
-                ..
-            } => {
+            Expression::Binary { left, right, .. } => {
                 scalar
-                    && !matches!(
-                        operator,
-                        BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
-                    )
                     && self.linear_scalar_expression(*left)
                     && self.linear_scalar_expression(*right)
+            }
+            Expression::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                value_or_exit
+                    && self.linear_scalar_expression(*condition)
+                    && self.linear_scalar_statement(*then_branch)
+                    && else_branch.is_none_or(|branch| self.linear_scalar_statement(branch))
+            }
+            Expression::Call { arguments, .. } => {
+                value_or_exit
+                    && arguments
+                        .iter()
+                        .all(|argument| self.linear_scalar_expression(argument.value))
             }
             Expression::Assignment {
                 target,
@@ -75,6 +82,7 @@ impl Checker<'_, '_> {
             Expression::Return { value, .. } => {
                 value.is_none_or(|value| self.linear_scalar_expression(value))
             }
+            Expression::Break { .. } | Expression::Continue { .. } => true,
             _ => false,
         }
     }
@@ -84,9 +92,12 @@ impl Checker<'_, '_> {
             return false;
         };
         match node.payload() {
-            Statement::Block { elements } => elements
+            Statement::Block { elements } | Statement::ControlBody { elements } => elements
                 .iter()
                 .all(|element| self.linear_scalar_statement(*element)),
+            Statement::While {
+                condition, body, ..
+            } => self.linear_scalar_expression(*condition) && self.linear_scalar_statement(*body),
             Statement::Expression { expression } => self.linear_scalar_expression(*expression),
             Statement::LocalVariable { declaration } => self
                 .inputs

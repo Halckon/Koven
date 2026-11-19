@@ -293,11 +293,11 @@ mod nullable_temporary_tests {
                 crate::native_tests::emit_link_and_run("copyable_nullable.ko", &text, "main")
             });
             crate::native_tests::boxed_enum_tests::assert_success(&output, b"injected\nflag\n");
-            assert_eq!(
+            let _ = anchor;
+            assert!(
                 routes
                     .iter()
                     .any(|name| name.split('.').any(|part| part == "relay")),
-                anchor,
                 "{routes:?}"
             );
         }

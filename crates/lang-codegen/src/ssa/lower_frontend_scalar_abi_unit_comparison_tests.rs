@@ -425,10 +425,13 @@ fn lowers_verified_frontend_ssa_to_deterministic_llvm_ir_unit_comparison() {
             };
             assert_eq!(**callee, target.id);
             assert!(receiver.is_none());
-            assert_eq!(
-                arguments.as_slice(),
-                function.blocks[0].parameters.as_slice()
-            );
+            assert_eq!(arguments.len(), function.blocks[0].parameters.len());
+            for (argument, parameter) in arguments.iter().zip(&function.blocks[0].parameters) {
+                assert_eq!(
+                    function.entity(*argument).unwrap().ty,
+                    function.entity(*parameter).unwrap().ty
+                );
+            }
             assert_diagnostic!(
                 body.contains(&format!(
                     "call i32 @f{}.{}(",

@@ -53,7 +53,7 @@ fn analyze(text: &str) -> UnitSource {
     unit
 }
 
-fn lower_roots(unit: &UnitSource, names: &[&str]) -> Vec<Root> {
+fn lower_roots(unit: &UnitSource, names: &[&str], per_family: &[&str]) -> Vec<Root> {
     let index = unit.names().names().index();
     assert_eq!(
         index
@@ -69,9 +69,13 @@ fn lower_roots(unit: &UnitSource, names: &[&str]) -> Vec<Root> {
         .map(|&name| {
             let declaration = unit.declaration(name, SymbolKind::Function);
             let origin = Origin::Source(unit.declaration_span(declaration));
-            let (program, entry) = unit
-                .lower_entry(declaration)
-                .unwrap_or_else(|error| panic!("original {name} root failed: {error:?}"));
+            let lower = || unit.lower_entry(declaration);
+            let (program, entry) = if per_family.contains(&name) {
+                crate::ssa::with_per_family_lowering(lower)
+            } else {
+                lower()
+            }
+            .unwrap_or_else(|error| panic!("original {name} root failed: {error:?}"));
             verify_program(&program).expect("complete original-root SSA and ownership verifier");
             render_verified_program(&program).expect("complete original-root LLVM verifier");
             let module = program.module(entry.module()).expect("actual root module");
@@ -232,6 +236,15 @@ fn lowers_if_short_circuit_and_branch_local_updates_as_cfg_unit_comparison() {
             "same",
             "discard",
         ],
+        // These roots are compared against the per-family CFG shape below.
+        &[
+            "rhs",
+            "choose",
+            "conjunction",
+            "disjunction",
+            "update",
+            "same",
+        ],
     );
     let rendered = roots
         .iter()
@@ -324,7 +337,7 @@ fn carries_move_only_string_bindings_across_if_and_short_circuit_edges_unit_comp
              return joined\n\
          }",
     );
-    let roots = lower_roots(&unit, &["keep", "compare"]);
+    let roots = lower_roots(&unit, &["keep", "compare"], &[]);
     for root in &roots {
         assert!(root.body.matches("bb").count() >= 4, "{}", root.body);
         assert!(root.body.contains("branch bb"));
@@ -395,7 +408,7 @@ fn comma_when_drops_owner_only_on_the_match_that_skips_consumption_unit_comparis
     let unit = analyze(
         "class Node {}\nfun probe(own node: Node): Boolean = false\nfun select(flag: Boolean, own node: Node): Int = when { flag, probe(node) -> 0; else -> 1 }",
     );
-    let roots = lower_roots(&unit, &["probe", "select"]);
+    let roots = lower_roots(&unit, &["probe", "select"], &[]);
     let rendered = roots
         .iter()
         .map(|root| root.body.as_str())
@@ -526,6 +539,7 @@ fn lowers_boolean_when_subjectless_chains_and_diverging_entries_unit_comparison(
     let roots = lower_roots(
         &unit,
         &["select", "predicate", "grouped", "early", "update"],
+        &[],
     );
     let rendered = roots
         .iter()
@@ -591,7 +605,7 @@ fn lowers_while_loop_break_continue_and_nested_loop_targets_unit_comparison() {
          }\n\
          fun spin(): Unit { loop { continue } }",
     );
-    let roots = lower_roots(&unit, &["increment", "exits", "nested", "spin"]);
+    let roots = lower_roots(&unit, &["increment", "exits", "nested", "spin"], &[]);
     let rendered = roots
         .iter()
         .map(|root| root.body.as_str())

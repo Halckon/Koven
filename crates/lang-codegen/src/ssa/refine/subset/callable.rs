@@ -1,6 +1,8 @@
 //! Subset rules for the closure family (SPEC-0364, SPEC-0365, SPEC-0370, ADR-0034):
 //! Borrow function parameters are callable views, local callable bindings hold concrete
 //! function pointers or closures, and lambda bodies lower as thunks.
+mod joins;
+
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::UnitSymbolId,
@@ -57,7 +59,7 @@ impl Checker<'_, '_> {
             return false;
         };
         let callee = self.ungrouped(*callee);
-        let supported_callee = match self
+        let callee_ok = match self
             .inputs
             .parsed
             .ast()
@@ -69,16 +71,20 @@ impl Checker<'_, '_> {
                 self.known.contains(&symbol)
                     && (self.view_parameter(symbol) || self.callables.contains(&symbol))
             }),
-            Ok(Expression::Lambda { .. }) => self.lambda_formation(callee),
+            Ok(Expression::Lambda { .. }) => self.callable_value_expr(callee),
+            // Other temporary callees lack the frontend cleanup facts a call needs.
             _ => false,
         };
         let supported = descriptor.target() == UnitCallTarget::FunctionValue
             && descriptor.receiver().is_none()
-            && supported_callee
             // A loop jump out of an argument stays on the per-family path unless the scope
             // forms a capturing closure, which lowers only here.
             && (self.scope_requires_refine()
-                || !values.iter().any(|value| self.argument_has_bare_loop_jump(*value)));
+                || !values
+                    .iter()
+                    .any(|value| self.argument_has_bare_loop_jump(*value)))
+            && callee_ok;
+        self.has_function_value_call |= supported;
         self.migrated |= supported;
         supported
     }
@@ -110,7 +116,7 @@ impl Checker<'_, '_> {
                 }) || self.known_function(root)
             }
             Expression::Lambda { .. } => self.lambda_formation(root),
-            _ => false,
+            _ => self.callable_value_expr(root),
         };
         self.migrated |= supported;
         supported
@@ -202,45 +208,18 @@ impl Checker<'_, '_> {
         matches!(self.kind(ty), Some(UnitTypeKind::Function { .. }))
     }
 
-    /// A non-lambda expression whose result is a concrete callable value (a moved local
-    /// callable binding or a direct call to a function returning a concrete callable).
-    pub(super) fn callable_value(&self, expression: ExpressionId) -> bool {
-        let root = self.ungrouped(expression);
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
-            return false;
-        };
-        match node.payload() {
-            Expression::Name => {
-                self.reference(root)
-                    .is_some_and(|symbol| self.callables.contains(&symbol))
-                    || self.known_function(root)
-            }
-            Expression::Call { .. } => self
-                .inputs
-                .source_plan
-                .call_site(self.inputs.source_token, self.id(root))
-                .and_then(|site| self.inputs.function_ids.get(site.key()))
-                .is_some_and(|callee| self.inputs.callable_returns.contains_key(callee)),
-            _ => false,
-        }
-    }
-
     /// A local variable binding initialized with a lambda literal, a moved local callable,
-    /// or a direct call returning a concrete callable.
+    /// a direct call returning a concrete callable, or a matching `if`/`when`.
     pub(super) fn callable_local(
         &mut self,
         symbol: UnitSymbolId,
         initializer: ExpressionId,
     ) -> bool {
-        let root = self.ungrouped(initializer);
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(root) else {
-            return false;
-        };
-        let supported = match node.payload() {
-            Expression::Lambda { .. } => self.lambda_formation(root),
-            _ => self.callable_value(root) && self.expression(initializer),
-        };
+        let supported = self.callable_value_expr(initializer);
         self.migrated |= supported;
+        if let Some(ssa_ty) = self.callable_ssa_type(initializer) {
+            self.callable_ssa_types.insert(symbol, ssa_ty);
+        }
         self.callables.insert(symbol);
         self.known.insert(symbol);
         supported

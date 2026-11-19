@@ -5,7 +5,7 @@ use super::*;
 use crate::ssa::lowering_support::callable_instances::{CallableArena, CallableKey};
 use lang_frontend::{
     ownership_checking::{UnitCallableOrigin, UnitPointerCallableReturnOrigin},
-    parser::Expression,
+    parser::{Expression, Statement},
     type_checking::{ParameterMode, UnitCallDescriptor},
 };
 
@@ -494,6 +494,11 @@ impl<'a> CallablePlanner<'a> {
                     .or_insert(operand_span);
             }
             // ADR-0034: the callee receives a view; the concrete callable is the caller's.
+            if self.owned.callable_origin(expression).is_none()
+                && self.is_direct_factory_join(parsed, expression, operand_span)?
+            {
+                continue;
+            }
             if let Some(token) =
                 self.origin(caller, substitutions, expression, pending, operand_span)?
             {
@@ -522,6 +527,79 @@ impl<'a> CallablePlanner<'a> {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         }
         Ok(dispatches)
+    }
+
+    /// Direct factory calls are already planned by the unit call worklist.
+    /// Refine checks the concrete join layout before borrowing the result.
+    fn is_direct_factory_join(
+        &self,
+        parsed: &ParsedFile,
+        argument: UnitExpressionId,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        let missing = || lowering_error(LoweringErrorKind::MissingFact, span);
+        let root = crate::ssa::borrow_result_support::ungroup(parsed, argument.expression(), span)?;
+        let node = parsed
+            .ast()
+            .expressions()
+            .get(root)
+            .map_err(|_| missing())?;
+        let branches: Vec<_> = match node.payload() {
+            Expression::If {
+                then_branch,
+                else_branch: Some(else_branch),
+                ..
+            } => {
+                vec![*then_branch, *else_branch]
+            }
+            Expression::When {
+                subject: None,
+                entries,
+                ..
+            } => {
+                let reachable = self
+                    .typed
+                    .when_closed_after(UnitExpressionId::new(argument.source_unit(), root))
+                    .unwrap_or(entries.len());
+                entries.iter().take(reachable).map(|e| e.body).collect()
+            }
+            _ => return Ok(false),
+        };
+        if branches.is_empty() {
+            return Ok(false);
+        }
+        for branch in branches {
+            let mut stmt = parsed
+                .ast()
+                .statements()
+                .get(branch)
+                .map_err(|_| missing())?;
+            if let Statement::Block { elements } | Statement::ControlBody { elements } =
+                stmt.payload()
+            {
+                let Some(&last) = elements.last() else {
+                    return Ok(false);
+                };
+                stmt = parsed.ast().statements().get(last).map_err(|_| missing())?;
+            }
+            let Statement::Expression { expression } = stmt.payload() else {
+                return Ok(false);
+            };
+            let tail = crate::ssa::borrow_result_support::ungroup(parsed, *expression, span)?;
+            let tail_id = UnitExpressionId::new(argument.source_unit(), tail);
+            let is_factory = self.typed.call(tail_id).is_some_and(|call| {
+                matches!(call.target(), UnitCallTarget::Declaration(_))
+                    && call.receiver().is_none()
+                    && matches!(
+                        self.typed.types().get(call.return_type()),
+                        Some(UnitTypeKind::Function { .. })
+                    )
+            });
+            if !is_factory && !self.is_direct_factory_join(parsed, tail_id, span)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn origin(
