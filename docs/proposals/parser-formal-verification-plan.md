@@ -104,11 +104,11 @@ F2b–f 每片都须对照固定基线核对受影响的既有正例与矩阵，
 | F3b | 词法机器描述；已核对[首片词法输入合同](parser-formal-verification/lexical-input-baseline.md) | token 类别、模式栈、最长匹配/覆盖/Span 有来源与独立性质案例 | 共用 lexer 的测试不算独立 lexer 证明 |
 | F3c | 表达式文法及 EBNF 映射校验；[真实词法流首片](parser-formal-verification/token-stream-probe.md)与[18 级运算符层级切片](parser-formal-verification/expression-grammar-slice.md)已实跑 | 优先级、不结合、后缀及外部依赖有规则 ID；冲突逐个登记；故意漂移时校验失败 | 未覆盖项不计入 G1；消解后无冲突不算原 CFG 无歧义 |
 | F3d | 泛型/lambda 切片 | typed-call 提交/回退、soft keyword、header、换行谓词闭合且规则已裁决 | 不通过删高风险构造达成“完整” |
-| F3e | 声明与文件切片 | 函数、类族、声明头与分隔规则来源闭合，未覆盖清单明确 | 每个语法家族可另分 Spec |
+| F3e | 声明与文件切片；[纯 CFG 与漂移校验](parser-formal-verification/declaration-file-grammar-slice.md)已实跑 | 函数、类族、声明头与分隔规则来源闭合，未覆盖清单明确 | 每个语法家族可另分 Spec |
 | F4a | 生成推导 + NormalizedSyntax；[普通块差分原型](parser-formal-verification/independent-block-diff.md)已实跑 | 运行所选切片的全部生成正例。预算充分时生产入口须给出 Accept，规范化 AST 与独立推导一致，且消费边界正确；任一不符则该切片未通过。投影能检出身份变化并忽略绝对位置平移 | 正例只覆盖完备性样例，不能据此宣布 soundness；另设规范反例 |
 | F4b | tree-sitter 差分报告；已核对[共同子集与已知漂移基线](parser-formal-verification/tree-sitter-diff-baseline.md) | 在双方支持范围核接受性/结构，差异归因明确、结果可复验 | 不是第二份规范；未支持/未解释差异不算通过 |
 | F4c | [Formatter 往返 DiffTest 首片](parser-formal-verification/difftest.md) | 已选完整文件两臂均接受、规范化 AST 相等、Span 独立验证且比较器通过正负控 | 首片不依赖 F3 或 F4a；往返同错不能视为正确性证明 |
-| F5 | 新语法增量门禁写入提案模板及评审清单 | 在新表面语法进入 Guide 前，以真实候选演练规则增量、冲突变化、软词/换行影响及正反例；CI 稳定切片单独获批后由 advisory 升 required | 只适用于新增或修改表面语法的提案；不减免既有 required 检查，不启用候选语义 |
+| F5 | 新语法增量门禁写入提案模板及评审清单；[模板草案与 D1 演练](parser-formal-verification/syntax-gate-checklist.md)已完成 | 在新表面语法进入 Guide 前，以真实候选演练规则增量、冲突变化、软词/换行影响及正反例；CI 稳定切片单独获批后由 advisory 升 required | 只适用于新增或修改表面语法的提案；不减免既有 required 检查，不启用候选语义 |
 | F6 | 一个稳定算法的机器证明 | 明确输入域、预算、命题、可信依赖及精确 Rust 对应关系；源码变化使旧证据失效 | 仅模型或有界结果不能升级为全输入生产 G4 |
 
 ## 6. 第一批建议执行包
@@ -134,7 +134,7 @@ F2b–f 每片都须对照固定基线核对受影响的既有正例与矩阵，
 - 技术选型是后续 F3a 的交付，不是本轮未完成研究的工具承诺。
 - 证据须区分 tested、validated、proved，并带具体范围；预算充分前提只用于完备性。
 - 本次文档验收与未来执行命令见 [quickstart](parser-formal-verification/quickstart.md)。
-- F0a/F0b 的归因、观察映射及本机定向结果见各自账本。F1 已记录 D1–D3 裁决与未启用的 Guide 修订草案。F3a–F3c（含真实词法流首片与 18 级表达式层级零冲突/漂移校验）与 F4a 原型/候选 Spec/Lark 审查已归档；F4b 已完成静态共同子集与 7 类漂移核对（尚未实跑 Tree-sitter 二进制差分）；未选定门禁工具，未运行机器证明。
+- F0a/F0b 的归因、观察映射及本机定向结果见各自账本。F1 已记录 D1–D3 裁决与未启用的 Guide 修订草案。F3a–F3c（含真实词法流首片与 18 级表达式层级）、F3e（声明与文件切片）及 F4a 原型/候选 Spec/Lark 审查已归档；F4b 已完成静态共同子集与 7 类漂移核对（尚未实跑 Tree-sitter 二进制差分）；F5 已完成增量门禁草案与 D1 冲突演练；未选定门禁工具，未运行机器证明。
 
 本计划优于旧评审的具体标准：保留 F0–F6 与止损条件，增加当前输入身份、可落地的数据合同、
 每阶段可验证退出条件、可运行验证指南和显式实施阻塞。须由独立上下文逐项检查，不以作者自评替代。
