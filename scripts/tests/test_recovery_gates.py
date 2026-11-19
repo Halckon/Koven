@@ -108,8 +108,9 @@ class CompositionContracts(unittest.TestCase):
             self.assertEqual(1, other_targets.count(target))
         retained_targets = [target for target in other_targets
                             if target not in added_targets]
-        self.assertEqual(135, len(retained_targets))
-        self.assertEqual(138, len(other_targets))
+        self.assertEqual(136, len(retained_targets))
+        self.assertEqual(139, len(other_targets))
+        self.assertEqual(1, retained_targets.count("formatting"))
         self.assertEqual(1, targets.count("ownership_value_api"))
         self.assertEqual(1, other_targets.count("type_text_extension"))
         self.assertEqual(1, targets.count("unit_direct_call_loan_ends"))
