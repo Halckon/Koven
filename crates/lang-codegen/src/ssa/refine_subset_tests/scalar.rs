@@ -490,3 +490,21 @@ fn retired_map_operations_route_directly_to_refine() {
         assert!(!llvm.is_empty());
     }
 }
+
+#[test]
+fn retired_rc_construction_and_container_size_route_directly_to_refine() {
+    for source in [
+        "fun f(): Int { val r = Rc(7); return r.value }",
+        "fun f(xs: List<Int>): Int = xs.size",
+        "fun f(): Int { val xs = arrayOf(1, 2, 3); return xs.size }",
+    ] {
+        let (res, routed) = route(source);
+        assert!(routed, "expected refine routing for:\n{source}");
+        let program = res.unwrap_or_else(|e| panic!("{source}: {e:?}"));
+        crate::ssa::verify::verify_program(&program)
+            .unwrap_or_else(|e| panic!("SSA verify failed for {source}: {e:?}"));
+        let llvm = crate::llvm::render_verified_program(&program)
+            .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
+        assert!(!llvm.is_empty());
+    }
+}
