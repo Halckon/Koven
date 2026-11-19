@@ -272,7 +272,8 @@ class LoanKernelCases(unittest.TestCase):
                           ("writeAfterJoinedRead", "this"), ("writeAfterJoinedRead", "f"),
                           ("writeAfterConditionalDeliveryRead", "f"),
                           ("readAfterTwoDeliveries", "f"), ("readAfterTwoDeliveries", "g"),
-                          ("deliverToSeparateSlots", "f"), ("deliverToSeparateSlots", "g")},
+                          ("deliverToSeparateSlots", "f"), ("deliverToSeparateSlots", "g"),
+                          ("deliverThroughAlias", "f"), ("deliverThroughAlias", "g")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -581,6 +582,55 @@ class LoanKernelCases(unittest.TestCase):
                                      {v.split()[0]: path for v, path in found.items()})
                 finally:
                     joined.cleanup.insert(index, retained)
+
+    def test_deliveries_through_an_alias_keep_origins_on_the_selected_slots(self):
+        source = (ROOT / "cases/Z12.lk").read_text(encoding="utf-8")
+        left_arm = "    deliver(Holder(Slice(&a), move f), target)"
+        right_arm = ("    target = &mut right", "    deliver(Holder(Slice(&b), move g), target)")
+        path_cases = (("join", (), ("a", "l"), ("b", "r")),
+                      ("left", right_arm, ("a", "l"), ("r",)),
+                      ("right", (left_arm,), ("l",), ("b", "r")))
+        writes = "".join(f"  update(&mut {name})\n" for name in ("a", "b", "l", "r"))
+        for path, omit, protects_left, protects_right in path_cases:
+            program = source
+            if omit:
+                control = ("  if (*) {", "  } else {", "  }")
+                program = "\n".join("" if line in control + omit else line for line in source.splitlines()) + "\n"
+            for slot, protected in (("left", protects_left), ("right", protects_right)):
+                with self.subTest(path=path, slot=slot):
+                    read = f"  use({slot}.source.len)\n"
+                    after = program.replace("  use(left.source.len)\n", read)
+                    before = after.replace(read + writes, writes + read)
+                    lines = {line: i for i, line in enumerate(before.splitlines(), 1)}
+                    self.assertEqual([], CHECKER.check(after))
+                    self.assertEqual({("K1", lines[f"  update(&mut {name})"]) for name in protected},
+                                     {(rule, line) for rule, line, _ in CHECKER.check(before)})
+
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        types, program, accepted = lowered["deliverThroughAlias"]
+        self.assertTrue(accepted)
+        branch = next(s for s in program if s.kind == "if")
+        calls = [next(s for s in arm if s.kind == "call") for arm in (branch.body, branch.orelse)]
+        joined = next(s for s in program if s.kind == "call")
+        slots = [("right", False), ("left", False)]
+        tail = [(name, False) for name in ("r", "l", "b", "a")]
+        self.assertEqual(slots + [("g", False)] + tail, calls[0].cleanup)
+        self.assertEqual(slots + [("f", False)] + tail, calls[1].cleanup)
+        self.assertEqual(slots + [("g", True), ("f", True)] + tail, joined.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        for arm, (call, slot) in enumerate(zip(calls, ("left", "right"))):
+            with self.subTest(omitted=slot):
+                entry = (slot, False)
+                index = call.cleanup.index(entry)
+                call.cleanup.pop(index)
+                try:
+                    found = CHECKER.DP.Verifier(types).run_all(program)
+                    # 八个拥有绑定成功，选臂，移交调用失败；别名不引入新义务。
+                    self.assertEqual({"V1": [(0, 2)] * 8 + [(arm, 2), (1, 2)]},
+                                     {v.split()[0]: path for v, path in found.items()})
+                finally:
+                    call.cleanup.insert(index, entry)
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
