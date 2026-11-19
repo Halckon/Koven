@@ -158,7 +158,8 @@ impl Builder<'_, '_> {
             }
             let root_ty = self.c(root);
             let receiver_expr = receiver.expression();
-            let (Expression::Name, receiver_span) = self.node(receiver_expr)? else {
+            let receiver_root = self.ungrouped_expr(receiver_expr)?;
+            let (Expression::Name, receiver_span) = self.node(receiver_root)? else {
                 return Err(error(LoweringErrorKind::UnsupportedNode, span));
             };
             let symbol = self.reference(receiver_span)?;
@@ -221,6 +222,9 @@ impl Builder<'_, '_> {
             .typed
             .aggregate_projection(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if let Some(result) = self.shared_current_heap_field(projection, span)? {
+            return Ok(result);
+        }
         let (base_loan, mut created, drops, owner_type) = match projection.receiver() {
             lang_frontend::type_checking::UnitAggregateProjectionReceiver::Expression(receiver)
                 if receiver.source_unit() == self.inputs.source_unit =>
@@ -368,7 +372,7 @@ impl Builder<'_, '_> {
         Ok((field_loan, created, drops))
     }
 
-    fn is_class(&self, ty: UnitTypeId) -> bool {
+    pub(in crate::ssa::refine::build) fn is_class(&self, ty: UnitTypeId) -> bool {
         let Some(UnitTypeKind::Nominal { declaration, .. }) = self.inputs.typed.types().get(ty)
         else {
             return false;

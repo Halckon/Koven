@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::super::constant::{UnitShortCircuitPlan, UnitShortCircuitRhs};
 use super::{Checker, ExpressionUse, Flows, State, closure::CaptureIndex};
 use crate::{
     ast::ExpressionId,
@@ -10,12 +11,14 @@ use crate::{
         OwnershipCheckingError, UnitCallableOrigin, UnitCallableOriginFact,
         UnitClosureCallableReturnSummary, UnitPointerCallableReturnOrigin,
         UnitPointerCallableReturnSummary,
+        borrow_result::ReturnSource,
         callable_provenance::{
             UnitCallableFacts,
-            graph::{Collector, ReturnFrame},
+            graph::{Collector, NodeId, ReturnFrame},
         },
     },
     parser::{Expression, NameMarker},
+    source::Span,
     type_checking::{
         UnitCallTarget, UnitCallableTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
@@ -28,6 +31,34 @@ pub(super) type Collection = Collector<
     UnitCallableTarget,
     UnitTypeId,
 >;
+
+struct ExpressionFrame {
+    id: ExpressionId,
+    span: Span,
+    expression: Expression,
+    escaping: bool,
+    name: Option<NodeId>,
+    alias_witnesses: BTreeSet<UnitExpressionId>,
+    previous: Option<ReturnFrame<UnitCallableTarget, UnitTypeId, UnitExpressionId>>,
+    previous_borrow: Option<ReturnSource<UnitSymbolId>>,
+    previous_borrow_delivery: bool,
+    diagnostic_count: usize,
+}
+
+#[allow(
+    clippy::large_enum_variant,
+    reason = "The cursor holds one step and keeps completed flows inline instead of allocating on every expression"
+)]
+pub(super) enum ExpressionStep {
+    Complete(Flows),
+    Group(ExpressionId, State),
+}
+
+enum ResumeExpression {
+    Group(ExpressionFrame),
+    Left(ExpressionFrame, UnitShortCircuitPlan),
+    Right(ExpressionFrame, Box<Flows>),
+}
 
 impl Checker<'_> {
     fn callable_type(&self, expression: ExpressionId) -> Option<UnitTypeId> {
@@ -159,11 +190,88 @@ impl Checker<'_> {
 
     pub(super) fn check_expression_with_escape(
         &mut self,
-        id: ExpressionId,
+        mut id: ExpressionId,
         mut state: State,
+        mut usage: ExpressionUse,
+        mut escaping: bool,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        let mut pending = Vec::new();
+        'check: loop {
+            let mut result = loop {
+                let frame = match self.begin_expression(id, &mut state, usage, escaping) {
+                    Ok(frame) => frame,
+                    Err(error) => break Err(error),
+                };
+                // Call/member/construction descriptors are keyed by their syntax node.
+                let plan = if self.is_constant_use(id) {
+                    Ok(None)
+                } else {
+                    self.short_circuit_plan(id)
+                };
+                match plan {
+                    Ok(Some(plan)) => {
+                        self.record_short_circuit_plan(plan);
+                        pending.push(ResumeExpression::Left(frame, plan));
+                        id = plan.left.expression();
+                        usage = ExpressionUse::Read;
+                        escaping = false;
+                    }
+                    Ok(None) => match self.check_expression_inner(id, state, usage, escaping) {
+                        Ok(ExpressionStep::Group(inner, incoming)) => {
+                            pending.push(ResumeExpression::Group(frame));
+                            id = inner;
+                            state = incoming;
+                        }
+                        Ok(ExpressionStep::Complete(flows)) => {
+                            break self.complete_expression(frame, Ok(flows));
+                        }
+                        Err(error) => break self.complete_expression(frame, Err(error)),
+                    },
+                    Err(error) => break self.complete_expression(frame, Err(error)),
+                }
+            };
+            while let Some(resume) = pending.pop() {
+                result = match resume {
+                    ResumeExpression::Group(frame) => self.complete_expression(frame, result),
+                    ResumeExpression::Right(frame, mut prefix) => {
+                        let joined = result.map(|rhs| {
+                            prefix.merge(rhs);
+                            *prefix
+                        });
+                        self.complete_expression(frame, joined)
+                    }
+                    ResumeExpression::Left(frame, plan) => match result {
+                        Ok(mut flows) => {
+                            let rhs = match plan.rhs() {
+                                UnitShortCircuitRhs::Never => None,
+                                UnitShortCircuitRhs::Always => flows.next.take(),
+                                UnitShortCircuitRhs::Conditional => flows.next.clone(),
+                            };
+                            if let Some(incoming) = rhs {
+                                pending.push(ResumeExpression::Right(frame, Box::new(flows)));
+                                id = plan.right.expression();
+                                state = incoming;
+                                usage = ExpressionUse::Read;
+                                escaping = false;
+                                continue 'check;
+                            }
+                            self.complete_expression(frame, Ok(flows))
+                        }
+                        Err(error) => self.complete_expression(frame, Err(error)),
+                    },
+                };
+            }
+            return result;
+        }
+    }
+
+    fn begin_expression(
+        &mut self,
+        id: ExpressionId,
+        state: &mut State,
         usage: ExpressionUse,
         escaping: bool,
-    ) -> Result<Flows, OwnershipCheckingError> {
+    ) -> Result<ExpressionFrame, OwnershipCheckingError> {
         self.check_borrow_call_use(id, matches!(usage, ExpressionUse::Consume { .. }))?;
         state.origins.attach(&self.callable_sources.arena);
         let ast = self.parsed.ast().expressions().get(id)?;
@@ -216,13 +324,40 @@ impl Checker<'_> {
         } else {
             self.checking_borrow_return
         };
-        let diagnostic_count = self.diagnostics.len();
-        let checked = self.check_expression_inner(id, state, usage, escaping);
+        Ok(ExpressionFrame {
+            id,
+            span,
+            expression,
+            escaping,
+            name,
+            alias_witnesses,
+            previous,
+            previous_borrow,
+            previous_borrow_delivery,
+            diagnostic_count: self.diagnostics.len(),
+        })
+    }
+
+    fn complete_expression(
+        &mut self,
+        frame: ExpressionFrame,
+        checked: Result<Flows, OwnershipCheckingError>,
+    ) -> Result<Flows, OwnershipCheckingError> {
+        let ExpressionFrame {
+            id,
+            span,
+            expression,
+            escaping,
+            name,
+            alias_witnesses,
+            previous,
+            previous_borrow,
+            previous_borrow_delivery,
+            diagnostic_count,
+        } = frame;
         self.checking_borrow_return = previous_borrow_delivery;
-        if is_lambda {
+        if matches!(expression, Expression::Lambda { .. }) {
             self.current_borrow_return = previous_borrow;
-        }
-        if is_lambda {
             self.callable_sources.active_return = previous;
         }
         let mut flows = checked?;

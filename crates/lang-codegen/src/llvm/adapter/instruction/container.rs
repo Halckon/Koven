@@ -168,6 +168,48 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                         .insert(result, layout.element.const_zero());
                 }
             }
+            Operation::ProjectedSwap {
+                root,
+                loans: [left, right],
+            } => {
+                let element = self
+                    .function
+                    .entity(EntityId::Loan(*left))
+                    .ok_or_else(|| {
+                        LlvmAdapterError::InvalidSsa("missing projected swap loan".to_owned())
+                    })?
+                    .ty
+                    .semantic_type();
+                let types = self.dependencies.type_map;
+                let storage = self.local_storage_type(element)?;
+                // A CFG parameter can carry a zero-stride element loan without
+                // inheriting the lowering map's sentinel marker.
+                let old_right = if types.is_zero_sized_container_element(element) {
+                    storage.const_zero()
+                } else {
+                    let left = self.access(PlaceAccess::Loan(*left))?;
+                    let right = self.access(PlaceAccess::Loan(*right))?;
+                    let old_left = self.builder.build_load(storage, left, "swap.left")?;
+                    let old_right = self.builder.build_load(storage, right, "swap.right")?;
+                    self.builder.build_store(left, old_right)?;
+                    self.builder.build_store(right, old_left)?;
+                    old_right
+                };
+                if root.is_some() {
+                    let [new_root] = results.as_slice() else {
+                        return Err(invalid_result_count(
+                            "mixed projected swap",
+                            1,
+                            results.len(),
+                        ));
+                    };
+                    self.values.insert(*new_root, old_right);
+                }
+                for loan in [left, right] {
+                    self.loans.remove(loan);
+                    self.zero_sized_loans.remove(loan);
+                }
+            }
             Operation::ContainerAppend { owner, element } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("container append", 1, results.len()));
@@ -185,6 +227,28 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     &format!("append.i{}", instruction.id.index()),
                 )?;
                 self.values.insert(*result, new_owner.into());
+            }
+            Operation::ContainerAppendInout { loan, element } => {
+                let container_type = access_type(self.function, PlaceAccess::Loan(*loan))?;
+                let pointer = self.access(PlaceAccess::Loan(*loan))?;
+                let name = format!("append.i{}", instruction.id.index());
+                let header = self.builder.build_load(
+                    self.dependencies.type_map.basic_type(container_type)?,
+                    pointer,
+                    &format!("{name}.header"),
+                )?;
+                let updated = container::append(
+                    self.llvm,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.type_map,
+                    self.dependencies.runtime,
+                    container_type,
+                    header.into_struct_value(),
+                    self.value(*element)?,
+                    &name,
+                )?;
+                self.builder.build_store(pointer, updated)?;
             }
             Operation::ContainerClear { owner } => {
                 let [result] = results.as_slice() else {

@@ -97,6 +97,67 @@ fn clean_single_file_exits_zero_without_output_or_artifacts() {
 }
 
 #[test]
+fn long_short_circuit_condition_checks_in_both_source_modes() {
+    let condition = format!("flag{}", " || flag".repeat(512));
+    assert_short_circuit_condition_in_both_source_modes(&condition);
+}
+
+#[test]
+fn grouped_left_short_circuit_condition_checks_in_both_source_modes() {
+    let condition = format!("{}flag{} || flag", "(".repeat(128), " || flag)".repeat(128));
+    assert_short_circuit_condition_in_both_source_modes(&condition);
+}
+
+#[test]
+fn grouped_right_short_circuit_condition_checks_in_both_source_modes() {
+    let condition = format!("{}flag{}", "flag || (".repeat(192), ")".repeat(192));
+    assert_short_circuit_condition_in_both_source_modes(&condition);
+}
+
+fn assert_short_circuit_condition_in_both_source_modes(condition: &str) {
+    let directory = TestDirectory::create();
+    let program =
+        format!("fun probe(flag: Boolean): Int {{ if ({condition}) {{ return 1 }}; return 0 }}\n");
+    let single = directory.join("single.ko");
+    fs::write(&single, &program).expect("single source write");
+    fs::create_dir_all(directory.join("src/app")).expect("project source root");
+    fs::write(
+        directory.join("src/app/Main.ko"),
+        format!("package app\n{program}"),
+    )
+    .expect("project source write");
+    let manifest = directory.join("project.toml");
+    fs::write(
+        &manifest,
+        "schema = \"koven.project\"\nversion = 1\n\n[project]\nname = \"short-circuit\"\nsource-roots = [\"src\"]\n",
+    )
+    .expect("project manifest write");
+    let outputs = [
+        ("single", kovenc([OsStr::new("check"), single.as_os_str()])),
+        (
+            "project",
+            kovenc([
+                OsStr::new("check"),
+                OsStr::new("--project"),
+                manifest.as_os_str(),
+            ]),
+        ),
+    ];
+    for (mode, output) in outputs {
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{mode}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            output.stdout.is_empty() && output.stderr.is_empty(),
+            "{mode}: {output:?}"
+        );
+    }
+}
+
+#[test]
 fn diagnostics_exit_one_and_render_like_build() {
     let directory = TestDirectory::create();
     let source = directory.join("broken.ko");

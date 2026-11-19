@@ -708,7 +708,7 @@ impl Builder<'_, '_> {
                 );
             }
             (None, WhenCondition::Expression(condition)) => {
-                return self.condition_with_views(*condition, matched, next, false);
+                return self.condition_for_selector(*condition, matched, next);
             }
             (
                 Some(WhenSubject::Value(subject)),

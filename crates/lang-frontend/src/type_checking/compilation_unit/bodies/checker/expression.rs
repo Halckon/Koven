@@ -9,7 +9,8 @@ use crate::{
 };
 
 use super::{
-    BodyChecker, ExpressionCheck, ExpressionExpected, UnitExpressionId, assignment, operators,
+    BodyChecker, ExpressionCheck, ExpressionExpected, UnitExpressionId, assignment,
+    call_operand_flow::CallOperandFlow, operators, while_flow::PendingControlSite,
 };
 
 impl BodyChecker<'_> {
@@ -122,14 +123,19 @@ impl BodyChecker<'_> {
                 {
                     self.diagnostics.push(diagnostic);
                 }
+                let mut flow = CallOperandFlow::new(true);
                 for part in parts {
                     if let StringPart::Interpolation { expression, .. } = part {
-                        self.check_expression(source, expression, None, None, return_type)?;
+                        flow.check(self, source, expression, None, None, return_type)?;
                     }
                 }
+                self.note_pending_exit(
+                    PendingControlSite::Expression(key),
+                    flow.has_pending_exit(),
+                );
                 ExpressionCheck {
                     ty: self.builtin(BuiltinType::String),
-                    falls_through: true,
+                    falls_through: flow.falls_through(),
                 }
             }
             Expression::Group { expression } => {
@@ -313,11 +319,19 @@ impl BodyChecker<'_> {
                 expected_span,
             )?;
         }
-        self.record_nullable_facts(source, expression, result.ty);
-        self.record_expression(source, expression, result.ty);
+        self.record_expression_check(key, result);
+        Ok(result)
+    }
+
+    pub(super) fn record_expression_check(
+        &mut self,
+        key: UnitExpressionId,
+        result: ExpressionCheck,
+    ) {
+        self.record_nullable_facts(key.source_unit(), key.expression(), result.ty);
+        self.record_expression(key.source_unit(), key.expression(), result.ty);
         self.parts
             .expression_falls_through
             .insert(key, result.falls_through);
-        Ok(result)
     }
 }

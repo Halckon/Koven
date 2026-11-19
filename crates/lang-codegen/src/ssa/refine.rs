@@ -20,6 +20,7 @@ pub(crate) use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::
 pub(crate) mod bounded_receipt;
 pub(crate) mod branch_receipt;
 pub(crate) mod child_receipt;
+mod element_swap;
 mod emit;
 pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
@@ -33,6 +34,7 @@ pub(crate) mod multi_receipt;
 #[deny(dead_code)]
 pub(crate) mod nested_receipt;
 mod nullable_when;
+mod receiver_field_replace;
 pub(in crate::ssa) use nullable_when::owned_string_presence_only;
 pub(crate) mod receiver_receipt;
 #[deny(dead_code)]
@@ -173,6 +175,27 @@ pub(in crate::ssa) struct RefineInputs<'a> {
 }
 
 impl RefineInputs<'_> {
+    fn is_field_projection(&self, expression: ExpressionId) -> bool {
+        let Ok(root) = super::borrow_result_support::ungroup(self.parsed, expression, self.span)
+        else {
+            return false;
+        };
+        self.typed
+            .aggregate_projection(UnitExpressionId::new(self.source_unit, root))
+            .is_some_and(|projection| projection.kind() == UnitAggregateProjectionKind::Field)
+    }
+
+    fn has_shared_field_operand_loan(&self, consumer: ExpressionId, operand: ExpressionId) -> bool {
+        let id = |expression| UnitExpressionId::new(self.source_unit, expression);
+        self.is_field_projection(operand)
+            && self.owned.loans().iter().any(|loan| {
+                loan.call() == id(consumer)
+                    && loan.argument() == id(operand)
+                    && loan.kind() == LoanKind::Shared
+                    && matches!(loan.target(), UnitLoanTarget::Place(_))
+            })
+    }
+
     fn is_nullable_string(&self, ty: UnitTypeId) -> bool {
         let types = self.typed.types();
         matches!(types.get(ty), Some(UnitTypeKind::Nullable(inner))

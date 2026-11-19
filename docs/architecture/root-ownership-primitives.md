@@ -48,10 +48,14 @@ payload。LLVM 定向矩阵另覆盖精确标量宽度、Char 与零大小表示
 入口或任意类型均已支持。泛型具体名义实例沿现有 storage；尚未具体化 `T` 的原语模板不
 发布执行计划。
 
-本页的 root 专用路径继续拒绝字段、index 与普通 Inout 参数原语 native。独立的
-[一级字段 replace](direct-field-replace.md)已在 SPEC-0246 完成原基线的有界本地与首轮双平台 CI
-验收，不放宽 root 操作的 exact direct-root 合同。closure 与包含 closure 的递归来源运输
-独立 deferred；raw pointer、借用返回、NLL 或跨线程共享未扩展。
+`RootReplace` 和 `RootSwap` 专用于 owned whole-root。直接 Inout 形参由 Unit 细化层建立
+`ExclusiveRootReborrow` 指向调用方原槽。子借用活跃期间，普通指令和可空分支均不得访问
+父借用，CFG 边可以继续携带借用。`ProjectedSwap` 提交两槽写回，`InoutExchange` 结束
+临时借用并交付旧值。整根写回使基于旧容器值的元素地址失效。RHS 提前退出时只结束已建立
+的子借用，原槽继续持有原值。[SPEC-0392 §369](../specs/active/0392-compiler-layered-review.md#369-r4-直接-inout-根与具名参数字段置换)
+
+[一级字段 replace](direct-field-replace.md)有独立的字段身份合同。closure 与包含 closure 的
+递归来源运输独立 deferred；raw pointer、借用返回、NLL 或跨线程共享未扩展。
 普通具体 class 资源的 deinit 与词法清理已由[资源析构](resource-deinit.md)接入 main，
 root commit 无提前 drop 的合同保持，并有该切片的组合 native / 唯一释放证据。
 field replace 已整合含资源析构的 main `e6e1100`；4 项前端与 8 项 native 资源交叉、

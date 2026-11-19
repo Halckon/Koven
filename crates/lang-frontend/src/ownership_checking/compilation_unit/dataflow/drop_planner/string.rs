@@ -45,7 +45,7 @@ impl DropPlanner<'_, '_> {
         binary: ExpressionId,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
-        let (continues, left_drop) = self.string_view_operand(left, state)?;
+        let (continues, left_drop) = self.string_binary_operand(left, state)?;
         if !continues {
             return Ok(false);
         }
@@ -56,7 +56,7 @@ impl DropPlanner<'_, '_> {
         if let Some(StringOperandDrop::Named(symbol)) = left_drop {
             state.pending_borrows.push((binary, symbol));
         }
-        let (continues, right_drop) = self.string_view_operand(right, state)?;
+        let (continues, right_drop) = self.string_binary_operand(right, state)?;
         // Transfers already clean pending owners; Abort never unwinds. Normal cleanup is below.
         state
             .pending_temporaries
@@ -81,6 +81,25 @@ impl DropPlanner<'_, '_> {
             }
         }
         Ok(true)
+    }
+
+    fn string_binary_operand(
+        &mut self,
+        expression: ExpressionId,
+        state: &mut ValueState,
+    ) -> Result<(bool, Option<StringOperandDrop>), OwnershipCheckingError> {
+        if let Some(place) = self.checker.string_binary_field_place(expression)? {
+            // The field remains borrowed through the operation, so its parent
+            // follows the binary's last-use and control-transfer cleanup.
+            let continues = self.expression(expression, DropExpressionUse::Place, state)?;
+            let root = place.root();
+            let drop = state
+                .position(root)
+                .is_some()
+                .then_some(StringOperandDrop::Named(root));
+            return Ok((continues, drop));
+        }
+        self.string_view_operand(expression, state)
     }
 
     pub(super) fn string_view_operand(

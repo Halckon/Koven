@@ -37,6 +37,7 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         state: &mut ValueState,
         owner_result: &mut Option<crate::ownership_checking::UnitOwnerId>,
         replace_consumer: &mut Option<owner_transport::replace_consumer::ReplaceConsumerCarrier>,
+        group: &mut Option<(ExpressionId, DropExpressionUse)>,
     ) -> Result<bool, OwnershipCheckingError> {
         if self.checker.is_constant_use(id) {
             return Ok(true);
@@ -157,36 +158,6 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
         {
             return self.construction_operands(id, &descriptor, state);
         }
-        if let Some(plan) = self.checker.short_circuit_plan(id)? {
-            use super::super::super::constant::UnitShortCircuitRhs;
-            if (!self.checker.constant_control || plan.rhs == UnitShortCircuitRhs::Conditional)
-                && self
-                    .checker
-                    .typed
-                    .expression_falls_through(self.checker.unit_expression(id))
-                    != Some(false)
-            {
-                return self.short_circuit(id, plan, state);
-            }
-            if !self.expression(plan.left.expression(), DropExpressionUse::Read, state)? {
-                return Ok(false);
-            }
-            return match plan.rhs {
-                UnitShortCircuitRhs::Never => Ok(true),
-                UnitShortCircuitRhs::Always => self.owner_short_circuit_rhs(plan, state),
-                UnitShortCircuitRhs::Conditional => {
-                    let mut skipped = state.clone();
-                    self.drop_branch_exit(id, 1 - plan.rhs_branch, &mut skipped);
-                    let mut branches = vec![skipped];
-                    if self.owner_short_circuit_rhs(plan, state)? {
-                        self.drop_branch_exit(id, plan.rhs_branch, state);
-                        branches.push(state.clone());
-                    }
-                    *state = self.merge_resource_states(id, branches);
-                    Ok(true)
-                }
-            };
-        }
         let usage = if self
             .checker
             .borrow_return_origins
@@ -236,9 +207,8 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(true)
             }
             Expression::Group { expression } => {
-                let result = self.evaluate_owner_expression(expression, usage, state)?;
-                *owner_result = result.owner;
-                Ok(result.continues)
+                *group = Some((expression, usage));
+                Ok(true)
             }
             Expression::String { parts } => {
                 for part in parts {

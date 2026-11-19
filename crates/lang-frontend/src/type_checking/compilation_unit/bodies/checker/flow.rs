@@ -32,6 +32,26 @@ pub(super) struct FlowVersions {
 }
 
 impl FlowVersions {
+    pub(super) fn versions_changed(&self, before: &Self) -> bool {
+        self.versions != before.versions
+    }
+
+    pub(super) fn restore_bypassed_writes(
+        &mut self,
+        facts: &mut BTreeMap<FlowKey, UnitTypeId>,
+        before_facts: &BTreeMap<FlowKey, UnitTypeId>,
+        before: &Self,
+        bypassed: &BTreeSet<FlowKey>,
+    ) {
+        crate::type_checking::flow_effects::result_edges::restore_bypassed_writes(
+            facts,
+            &mut self.versions,
+            before_facts,
+            &before.versions,
+            bypassed,
+        );
+    }
+
     pub(super) fn clear(&mut self) {
         self.versions.clear();
         self.mutable_pending.clear();

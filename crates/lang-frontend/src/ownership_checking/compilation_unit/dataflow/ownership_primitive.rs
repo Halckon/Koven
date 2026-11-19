@@ -7,8 +7,14 @@ use crate::{
         UnitOwnershipPrimitiveOwnershipPlan, UnitValueDeliveryKind,
     },
     parser::{CallArgument, VariableKind},
-    type_checking::{Copyability, OwnershipPrimitiveKind, UnitTypeId, UnitTypeKind},
+    type_checking::{Copyability, OwnershipPrimitiveKind, ParameterMode, UnitTypeId, UnitTypeKind},
 };
+
+struct FieldReplaceTarget {
+    place: crate::ownership_checking::UnitOwnershipPlace,
+    owner_type: UnitTypeId,
+    inout_receiver: Option<(crate::type_checking::UnitExpressionId, crate::source::Span)>,
+}
 
 impl Checker<'_> {
     pub(super) fn record_ownership_primitive(
@@ -54,10 +60,10 @@ impl Checker<'_> {
             2
         };
         if descriptor.kind() == OwnershipPrimitiveKind::Replace
-            && let Some((place, owner_type)) =
+            && let Some(target) =
                 self.direct_field_replace_target(arguments[0].value, descriptor.value_type())?
         {
-            if state.immutable_captures.contains_key(&place.root()) {
+            if state.immutable_captures.contains_key(&target.place.root()) {
                 self.primitive_deferred.push(UnitOwnershipDeferredFact::new(
                     call,
                     OwnershipDeferredReason::OwnershipPrimitiveClosureTransport,
@@ -68,8 +74,9 @@ impl Checker<'_> {
             self.field_replacements.push(
                 crate::ownership_checking::UnitFieldReplaceOwnershipPlan {
                     descriptor,
-                    place,
-                    owner_type,
+                    place: target.place,
+                    owner_type: target.owner_type,
+                    inout_receiver: target.inout_receiver,
                     new_value_transfer: transfer,
                 },
             );
@@ -127,10 +134,7 @@ impl Checker<'_> {
         &self,
         mut argument: ExpressionId,
         value_type: UnitTypeId,
-    ) -> Result<
-        Option<(crate::ownership_checking::UnitOwnershipPlace, UnitTypeId)>,
-        OwnershipCheckingError,
-    > {
+    ) -> Result<Option<FieldReplaceTarget>, OwnershipCheckingError> {
         use crate::{
             parser::Expression,
             type_checking::{
@@ -140,24 +144,6 @@ impl Checker<'_> {
         let Some(place) = self.place(argument)? else {
             return Ok(None);
         };
-        if place.fields().len() != 1
-            || place.element().is_some()
-            || !self.variable_kinds.contains_key(&place.root())
-            || !self
-                .names
-                .source_units()
-                .get(place.root().source_unit().index())
-                .is_some_and(|source| {
-                    crate::ownership_checking::ownership_primitive::is_local_variable(
-                        source.resolution(),
-                        place.root().symbol(),
-                    )
-                })
-            || self.bindings.contains_key(&place.root())
-            || self.field_kinds.get(&place.fields()[0]) != Some(&VariableKind::Var)
-        {
-            return Ok(None);
-        }
         while let Expression::Group { expression } =
             self.parsed.ast().expressions().get(argument)?.payload()
         {
@@ -172,8 +158,52 @@ impl Checker<'_> {
         let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
             return Ok(None);
         };
-        let Some(owner_type) = self.typed.symbol_type(place.root()) else {
+        if projection.ty() != value_type
+            || projection.kind() != UnitAggregateProjectionKind::Field
+            || receiver.source_unit() != self.source_unit
+            || self.field_kinds.get(&projection.field()) != Some(&VariableKind::Var)
+            || place.element().is_some()
+        {
             return Ok(None);
+        }
+        let (owner_type, inout_receiver) = if self.expression_is_this(receiver.expression())? {
+            let Some(current) = self.current_receiver else {
+                return Ok(None);
+            };
+            if current.mode != ParameterMode::Inout
+                || !place.is_root()
+                || place.root() != projection.field()
+            {
+                return Ok(None);
+            }
+            (
+                current.ty,
+                Some((projection.expression(), current.declaration_span)),
+            )
+        } else {
+            if place.fields() != [projection.field()]
+                || !self.variable_kinds.contains_key(&place.root())
+                || self.bindings.contains_key(&place.root())
+                || !self
+                    .names
+                    .source_units()
+                    .get(place.root().source_unit().index())
+                    .is_some_and(|source| {
+                        crate::ownership_checking::ownership_primitive::is_local_variable(
+                            source.resolution(),
+                            place.root().symbol(),
+                        )
+                    })
+                || !self
+                    .place(receiver.expression())?
+                    .is_some_and(|receiver| receiver.is_root() && receiver.root() == place.root())
+            {
+                return Ok(None);
+            }
+            let Some(owner_type) = self.typed.symbol_type(place.root()) else {
+                return Ok(None);
+            };
+            (owner_type, None)
         };
         let Some(UnitTypeKind::Nominal {
             declaration,
@@ -196,19 +226,16 @@ impl Checker<'_> {
                 .fields()
                 .iter()
                 .any(|field| field.symbol() == projection.field() && field.ty() == value_type)
-            || projection.field() != place.fields()[0]
-            || projection.ty() != value_type
-            || projection.kind() != UnitAggregateProjectionKind::Field
             || self.typed.expression_type(receiver) != Some(owner_type)
-            || receiver.source_unit() != self.source_unit
             || self.type_has_closure_storage(owner_type)
-            || !self
-                .place(receiver.expression())?
-                .is_some_and(|receiver| receiver.is_root() && receiver.root() == place.root())
         {
             return Ok(None);
         }
-        Ok(Some((place, owner_type)))
+        Ok(Some(FieldReplaceTarget {
+            place,
+            owner_type,
+            inout_receiver,
+        }))
     }
 
     // Only actual type arguments decide whether a generic instance is concrete.

@@ -145,7 +145,9 @@ impl<'a> BodyChecker<'a> {
     }
 
     pub(super) fn tracks_pending_call_flow(&self) -> bool {
-        self.pending_callable_returns.is_some()
+        self.checking_loop_condition
+            || !self.pending_loop_exits.is_empty()
+            || self.pending_callable_returns.is_some()
             || !self.call_writebacks.is_empty()
             || !self.closure_effects.is_empty()
     }

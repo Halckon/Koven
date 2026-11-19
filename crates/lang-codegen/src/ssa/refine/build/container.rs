@@ -398,11 +398,26 @@ impl Builder<'_, '_> {
         let receiver_span = self.span(receiver);
         let container_ty = self.c(descriptor.container_type());
         let target = self.ssa_type(container_ty, receiver_span)?;
-        let (loan, created) = if let Some(loan) = self.this_receiver_loan(receiver)? {
-            (loan, None)
+        let (loan, created, field_receivers) = if self
+            .inputs
+            .has_shared_field_operand_loan(expression, receiver)
+        {
+            self.field_projection_loan(receiver, receiver_span)?
+        } else if let Some(loan) = self.this_receiver_loan(receiver)? {
+            (loan, Vec::new(), Vec::new())
         } else if let Ok(symbol) = self.named_container_symbol(receiver, span) {
-            if let Some(&loan) = self.borrowed.get(&symbol) {
-                (loan, None)
+            if let Some(source) = self.inout_loan(symbol) {
+                let loan = self.value(
+                    ROp::SharedReborrow { source },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target,
+                    },
+                    receiver_span,
+                )?;
+                (loan, vec![loan], Vec::new())
+            } else if let Some(&loan) = self.borrowed.get(&symbol) {
+                (loan, Vec::new(), Vec::new())
             } else {
                 let owner = *self
                     .bindings
@@ -424,7 +439,7 @@ impl Builder<'_, '_> {
                     },
                     receiver_span,
                 )?;
-                (loan, Some(loan))
+                (loan, vec![loan], Vec::new())
             }
         } else {
             let Some(owner) = self.required(receiver)? else {
@@ -446,7 +461,7 @@ impl Builder<'_, '_> {
                 },
                 receiver_span,
             )?;
-            (loan, Some(loan))
+            (loan, vec![loan], Vec::new())
         };
         let result_ty = self.ssa_type(self.c(descriptor.result_type()), span)?;
         let result = self.value(
@@ -454,10 +469,13 @@ impl Builder<'_, '_> {
             EntityType::Value(result_ty),
             span,
         )?;
-        if let Some(loan) = created {
+        for loan in created.into_iter().rev() {
             self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
+        for parent in field_receivers {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(parent)))?;
+        }
         self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
         Ok(Lowered::Value(result))
     }
@@ -474,19 +492,28 @@ impl Builder<'_, '_> {
             .element_place(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         let receiver = descriptor.receiver().expression();
-        let owner = if let Ok(symbol) = self.named_container_symbol(receiver, span) {
-            self.borrowed
+        let field_receiver = self.inputs.is_field_projection(receiver);
+        let (owner, created, field_receivers) = if field_receiver {
+            self.field_projection_loan(receiver, self.span(receiver))?
+        } else if let Ok(symbol) = self.named_container_symbol(receiver, span) {
+            let owner = self
+                .borrowed
                 .get(&symbol)
                 .or_else(|| self.bindings.get(&symbol))
                 .copied()
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            (owner, Vec::new(), Vec::new())
         } else {
             let Some(owner) = self.required(receiver)? else {
                 return Ok(Lowered::Diverged);
             };
-            owner
+            (owner, Vec::new(), Vec::new())
         };
-        let Some(index) = self.required(descriptor.index().expression())? else {
+        let outer_loans = self.index_receiver_loans.len();
+        self.index_receiver_loans.extend(created.iter().copied());
+        let index = self.required(descriptor.index().expression());
+        self.index_receiver_loans.truncate(outer_loans);
+        let Some(index) = index? else {
             return Ok(Lowered::Diverged);
         };
         let element = self.ssa_type(self.c(descriptor.element_type()), span)?;
@@ -496,7 +523,33 @@ impl Builder<'_, '_> {
             span,
         )?;
         let value = self.value(ROp::ReadPlace { place }, EntityType::Value(element), span)?;
+        self.end_index_receiver_loans(&created, span)?;
+        for parent in field_receivers {
+            self.drops(UnitDropPoint::AfterExpression(self.unit(parent)))?;
+        }
+        if field_receiver {
+            self.drops(UnitDropPoint::AfterExpression(descriptor.receiver()))?;
+        }
         Ok(Lowered::Value(value))
+    }
+
+    pub(super) fn end_enclosing_index_receiver_loans(
+        &mut self,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        let loans = self.index_receiver_loans.clone();
+        self.end_index_receiver_loans(&loans, span)
+    }
+
+    pub(super) fn end_index_receiver_loans(
+        &mut self,
+        loans: &[Slot],
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        for &loan in loans.iter().rev() {
+            self.push(ROp::BorrowEnd { loan }, Vec::new(), span)?;
+        }
+        Ok(())
     }
 
     /// Borrows `xs[i]` as a shared loan for a `Borrow` call argument.
@@ -630,18 +683,27 @@ impl Builder<'_, '_> {
         };
         let element = self.adapt(element, element_expr, self.c(descriptor.element_type()))?;
         self.deliver(element_expr);
-        let binding = *self
-            .bindings
-            .get(&symbol)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        self.push(
-            ROp::ContainerAppend {
-                owner: binding,
-                element,
-            },
-            vec![binding],
-            span,
-        )?;
+        if let Some(loan) = self.inout_loan(symbol) {
+            self.end_views_of(symbol, span)?;
+            self.push(
+                ROp::ContainerAppendInout { loan, element },
+                Vec::new(),
+                span,
+            )?;
+        } else {
+            let binding = *self
+                .bindings
+                .get(&symbol)
+                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+            self.push(
+                ROp::ContainerAppend {
+                    owner: binding,
+                    element,
+                },
+                vec![binding],
+                span,
+            )?;
+        }
         self.drops(UnitDropPoint::AfterExpression(descriptor.element()))?;
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Lowered::Unit)

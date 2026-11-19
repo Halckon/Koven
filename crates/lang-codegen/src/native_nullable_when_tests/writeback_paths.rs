@@ -218,3 +218,106 @@ fn assert_join_proof_is_passed_on_both_edges(text: &str) {
     };
     assert_ne!(left, right);
 }
+
+#[test]
+fn move_only_nullable_local_ends_the_if_proof_before_inout_writeback() {
+    let source = r#"
+fun clear(inout slot: String?, proceed: Boolean): Unit {
+    if (proceed) { slot = null }
+}
+fun probe(own input: String?, stop: Boolean): Unit {
+    var slot = input
+    if (slot != null) {
+        println(slot)
+        clear(&slot, if (stop) { return } else { true })
+    }
+    if (slot == null) { println("cleared") } else { error("writeback lost") }
+}
+fun main(): Unit {
+    probe(null, false)
+    probe("early".clone(), true)
+    probe("".clone(), false)
+    probe("value".clone(), false)
+}
+"#;
+    let output =
+        crate::native_tests::emit_link_and_run("nullable-local-inout-proof.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &output,
+        b"cleared\nearly\n\ncleared\nvalue\ncleared\n",
+    );
+}
+
+#[test]
+fn move_only_nullable_local_inout_retires_proofs_on_short_circuit_and_loop_edges() {
+    let source = r#"
+class Guard { deinit() { println("drop guard") } }
+fun clear(inout slot: String?): Boolean { slot = null; println("wrote"); return true }
+fun probe(own input: String?, flag: Boolean): Unit {
+    val guard = Guard()
+    var slot = input
+    if (slot != null) {
+        println(slot)
+        CONTROL
+    }
+    if (slot == null) { println("cleared") } else { println("kept") }
+}
+fun main(): Unit {
+    probe(null, true)
+    probe("skip".clone(), false)
+    probe("write".clone(), true)
+}
+"#;
+    for (name, control) in [
+        ("short", "if (flag && clear(&slot)) {}"),
+        ("value", "val ran = flag && clear(&slot); if (ran) {}"),
+        ("or", "if (!flag || clear(&slot)) {}"),
+        ("loop", "while (flag) { clear(&slot); break }"),
+        (
+            "continue",
+            "var repeat = flag; while (repeat) { clear(&slot); repeat = false; continue }",
+        ),
+    ] {
+        let path = format!("nullable-local-inout-{name}.ko");
+        let output = crate::native_tests::emit_link_and_run(
+            &path,
+            &source.replace("CONTROL", control),
+            "main",
+        );
+        crate::native_tests::boxed_enum_tests::assert_success(
+            &output,
+            b"cleared\ndrop guard\nskip\nkept\ndrop guard\nwrite\nwrote\ncleared\ndrop guard\n",
+        );
+    }
+}
+
+#[test]
+fn move_only_nullable_local_inout_keeps_the_proof_for_the_once_evaluated_for_source() {
+    let source = r#"
+fun upper(borrow text: String, count: Int): Int { println(text); return count }
+fun clear(inout slot: String?): Unit { slot = null; println("wrote") }
+fun probe(own input: String?, count: Int): Unit {
+    var slot = input
+    if (slot != null) {
+        for (i in 0..<upper(slot, count)) {
+            clear(&slot)
+            break
+        }
+    }
+    if (slot == null) { println("cleared") } else { println("kept") }
+}
+fun main(): Unit {
+    probe("empty".clone(), 0)
+    probe("present".clone(), 2)
+}
+"#;
+    let output = crate::native_tests::emit_link_and_run(
+        "nullable-local-inout-for-source.ko",
+        source,
+        "main",
+    );
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &output,
+        b"empty\nkept\npresent\nwrote\ncleared\n",
+    );
+}

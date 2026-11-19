@@ -33,6 +33,32 @@ pub(super) struct EvaluatedOwner {
     pub(super) owner: Option<UnitOwnerId>,
 }
 
+impl EvaluatedOwner {
+    fn without_owner(continues: bool) -> Self {
+        Self {
+            continues,
+            owner: None,
+            replace_consumer: None,
+        }
+    }
+}
+
+struct OwnerExpressionFrame {
+    id: ExpressionId,
+    usage: DropExpressionUse,
+    outer_scope: Option<ExpressionId>,
+    scope: ExpressionId,
+}
+
+enum ResumeOwnerExpression {
+    Group(OwnerExpressionFrame),
+    Left(
+        OwnerExpressionFrame,
+        super::super::super::constant::UnitShortCircuitPlan,
+    ),
+    Right(OwnerExpressionFrame, super::short_circuit::PendingRhs),
+}
+
 impl DropPlanner<'_, '_> {
     fn owner_observation_active(&self) -> bool {
         self.owner_observation
@@ -508,6 +534,116 @@ impl DropPlanner<'_, '_> {
         usage: DropExpressionUse,
         state: &mut ValueState,
     ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
+        let outer_scope = self.rc_projection_scope;
+        let result = self.evaluate_owner_expression_chain(id, usage, state);
+        self.rc_projection_scope = outer_scope;
+        result
+    }
+
+    fn evaluate_owner_expression_chain(
+        &mut self,
+        mut id: ExpressionId,
+        mut usage: DropExpressionUse,
+        state: &mut ValueState,
+    ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
+        let mut pending = Vec::new();
+        'evaluate: loop {
+            let mut result = loop {
+                let frame = match self.begin_owner_expression(id, usage) {
+                    Ok(frame) => frame,
+                    Err(error) => break Err(error),
+                };
+                let plan = if self.checker.is_constant_use(id) {
+                    Ok(None)
+                } else {
+                    self.checker.short_circuit_plan(id)
+                };
+                match plan {
+                    Ok(Some(plan)) => {
+                        pending.push(ResumeOwnerExpression::Left(frame, plan));
+                        id = plan.left.expression();
+                        usage = DropExpressionUse::Read;
+                        continue;
+                    }
+                    Ok(None) => {}
+                    Err(error) => break self.complete_owner_expression(frame, Err(error), state),
+                }
+                let mut owner = None;
+                let mut replace_consumer = None;
+                let mut group = None;
+                let checked = self.expression_inner(
+                    id,
+                    usage,
+                    state,
+                    &mut owner,
+                    &mut replace_consumer,
+                    &mut group,
+                );
+                if let Some((inner, inner_usage)) = group {
+                    pending.push(ResumeOwnerExpression::Group(frame));
+                    id = inner;
+                    usage = inner_usage;
+                    continue;
+                }
+                break self.complete_owner_expression(
+                    frame,
+                    checked.map(|continues| EvaluatedOwner {
+                        continues,
+                        owner,
+                        replace_consumer,
+                    }),
+                    state,
+                );
+            };
+            while let Some(resume) = pending.pop() {
+                let (frame, checked) = match resume {
+                    ResumeOwnerExpression::Group(frame) => {
+                        // Groups forward the owner, not a replace consumer carried by the child.
+                        (
+                            frame,
+                            result.map(|child| EvaluatedOwner {
+                                replace_consumer: None,
+                                ..child
+                            }),
+                        )
+                    }
+                    ResumeOwnerExpression::Left(frame, plan) => {
+                        let checked = match result {
+                            Ok(left) => {
+                                if left.continues
+                                    && let Some(rhs) = self.start_short_circuit_rhs(plan, state)
+                                {
+                                    pending.push(ResumeOwnerExpression::Right(frame, rhs));
+                                    id = plan.right.expression();
+                                    usage = DropExpressionUse::Read;
+                                    continue 'evaluate;
+                                }
+                                Ok(left.continues)
+                            }
+                            Err(error) => Err(error),
+                        };
+                        (frame, checked.map(EvaluatedOwner::without_owner))
+                    }
+                    ResumeOwnerExpression::Right(frame, rhs) => {
+                        let checked = self.finish_short_circuit_rhs(
+                            rhs,
+                            result.map(|right| right.continues),
+                            state,
+                        );
+                        (frame, checked.map(EvaluatedOwner::without_owner))
+                    }
+                };
+                result = self.complete_owner_expression(frame, checked, state);
+            }
+            return result;
+        }
+    }
+
+    fn begin_owner_expression(
+        &mut self,
+        id: ExpressionId,
+        usage: DropExpressionUse,
+    ) -> Result<OwnerExpressionFrame, OwnershipCheckingError> {
         self.check_owner_expression(id)?;
         #[cfg(any(test, feature = "d10-catalog-experiment"))]
         if matches!(
@@ -516,8 +652,6 @@ impl DropPlanner<'_, '_> {
         ) {
             self.origin_call_gap(id);
         }
-        let mut owner = None;
-        let mut replace_consumer = None;
         let outer_scope = self.rc_projection_scope;
         let scope = outer_scope.unwrap_or(id);
         self.rc_projection_scope = match self.checker.parsed.ast().expressions().get(id)?.payload()
@@ -541,9 +675,32 @@ impl DropPlanner<'_, '_> {
             }
             _ => Some(scope),
         };
-        let result = self.expression_inner(id, usage, state, &mut owner, &mut replace_consumer);
+        Ok(OwnerExpressionFrame {
+            id,
+            usage,
+            outer_scope,
+            scope,
+        })
+    }
+
+    fn complete_owner_expression(
+        &mut self,
+        frame: OwnerExpressionFrame,
+        result: Result<EvaluatedOwner, OwnershipCheckingError>,
+        state: &mut ValueState,
+    ) -> Result<EvaluatedOwner, OwnershipCheckingError> {
+        let OwnerExpressionFrame {
+            id,
+            usage,
+            outer_scope,
+            scope,
+        } = frame;
         self.rc_projection_scope = outer_scope;
-        let continues = result?;
+        let EvaluatedOwner {
+            continues,
+            mut owner,
+            replace_consumer,
+        } = result?;
         if continues && scope == id {
             self.finish_pending_temporaries(id, PlannerDropPoint::AfterExpression(id), state);
         }

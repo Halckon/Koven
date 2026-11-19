@@ -54,8 +54,8 @@ pub(in crate::ssa) use lang_frontend::{
     },
     ownership_checking::{ConstEnabledOwnedUnit, UnitDropPoint},
     parser::{
-        Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item, LiteralKind, ParsedFile,
-        Statement,
+        BinaryOperator, Expression, FunctionBody, FunctionForm, IntegerLiteralKind, Item,
+        LiteralKind, ParsedFile, Statement,
     },
     source::{SourceMap, Span},
     type_checking::{
@@ -207,9 +207,22 @@ pub(in crate::ssa) struct UnitExpressionLowerer<'a> {
     return_type: UnitTypeId,
 }
 
+enum ExpressionStep {
+    Completed(LoweredValue),
+    ShortCircuit(control::PreparedShortCircuit),
+}
+
 impl UnitExpressionLowerer<'_> {
     fn lower(&mut self, expression: ExpressionId) -> Result<LoweredValue, LoweringError> {
         let result = self.lower_expression(expression)?;
+        self.complete_expression(expression, result)
+    }
+
+    fn complete_expression(
+        &mut self,
+        expression: ExpressionId,
+        result: LoweredValue,
+    ) -> Result<LoweredValue, LoweringError> {
         let unit_expression = UnitExpressionId::new(self.source_unit, expression);
         if let LoweredValue::Value(value) = result
             && self
@@ -232,8 +245,31 @@ impl UnitExpressionLowerer<'_> {
 
     fn lower_expression(
         &mut self,
-        expression: ExpressionId,
+        mut expression: ExpressionId,
     ) -> Result<LoweredValue, LoweringError> {
+        let mut pending = Vec::new();
+        let mut result = loop {
+            match self.lower_expression_step(expression)? {
+                ExpressionStep::Completed(result) => break result,
+                ExpressionStep::ShortCircuit(frame) => {
+                    expression = frame.left;
+                    pending.push(frame);
+                }
+            }
+        };
+        // The caller completes the outer expression. Complete each child before
+        // its parent consumes the value or propagates a diverging left operand.
+        for frame in pending.into_iter().rev() {
+            let left = self.complete_expression(frame.left, result)?;
+            result = self.finish_short_circuit(frame, left)?;
+        }
+        Ok(result)
+    }
+
+    fn lower_expression_step(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<ExpressionStep, LoweringError> {
         let node = self
             .parsed
             .ast()
@@ -283,7 +319,7 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if let Some(value) = self.lower_constant(unit_expression, span)? {
-            return Ok(value);
+            return Ok(ExpressionStep::Completed(value));
         }
         if let Some(construction) = self.typed.construction(unit_expression) {
             return match construction.target() {
@@ -300,16 +336,19 @@ impl UnitExpressionLowerer<'_> {
                 | lang_frontend::type_checking::UnitConstructionTarget::EnumCase(_) => {
                     Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
                 }
-            };
+            }
+            .map(ExpressionStep::Completed);
         }
         if let Some(value) = self.lower_container_expression(expression, span)? {
-            return Ok(value);
+            return Ok(ExpressionStep::Completed(value));
         }
         if let Some(value) = self.lower_map_expression(expression, span)? {
-            return Ok(value);
+            return Ok(ExpressionStep::Completed(value));
         }
         if self.typed.aggregate_projection(unit_expression).is_some() {
-            return self.lower_aggregate_projection(expression, span);
+            return self
+                .lower_aggregate_projection(expression, span)
+                .map(ExpressionStep::Completed);
         }
         match node.payload() {
             Expression::Literal(literal) => self.lower_literal(*literal, expression, span),
@@ -327,6 +366,16 @@ impl UnitExpressionLowerer<'_> {
             Expression::Prefix {
                 operator, operand, ..
             } => self.lower_prefix(*operator, *operand, expression, span),
+            Expression::Binary {
+                left,
+                operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
+                right,
+                ..
+            } => {
+                return self
+                    .prepare_short_circuit(*left, *operator, *right, expression, span)
+                    .map(ExpressionStep::ShortCircuit);
+            }
             Expression::Binary {
                 left,
                 operator,
@@ -353,6 +402,7 @@ impl UnitExpressionLowerer<'_> {
             Expression::Continue { .. } => self.lower_continue(expression, span),
             _ => Err(lowering_error(LoweringErrorKind::UnsupportedNode, span)),
         }
+        .map(ExpressionStep::Completed)
     }
 
     fn lower_literal(
@@ -650,19 +700,6 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let lowered = match lowered {
             LoweredValue::Value(value) => {
-                // Inline scalar local wraps use the refinement body recipe.
-                if self.migrated_family_compatibility
-                    && let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(declared)
-                    && builtin_type(self.typed, *inner).is_some_and(|ty| ty != BuiltinType::String)
-                    && type_lower::is_inline_nullable_inner(self.typed, *inner)
-                    && self
-                        .typed
-                        .expression_type(UnitExpressionId::new(self.source_unit, initializer))
-                        == Some(*inner)
-                    && !self.type_ids.contains_key(&declared)
-                {
-                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-                }
                 let (value, transferred) =
                     self.adapt_owned_value_to_expected(initializer, value, declared, span)?;
                 if !transferred {
@@ -816,7 +853,10 @@ impl UnitExpressionLowerer<'_> {
         {
             return Ok((value, false));
         }
-        if self.map_results.contains_key(&nullable) {
+        // Copyable values can use the Map result's existing presence/payload layout.
+        if self.map_results.contains_key(&nullable)
+            && self.typed.copyability(actual) != Copyability::Copyable
+        {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         self.transfer_owned_expression(expression, value, span)?;

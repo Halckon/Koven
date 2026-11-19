@@ -289,9 +289,9 @@ fn intern_map_iteration_types(
     Ok(())
 }
 
-/// Plan Map-only nullable storage from historical, normally formed local identities.
+/// Plan nullable Map handles and inline scalar storage from normally formed locals.
 /// The complete unit planner has already checked Resource/deinit eligibility.
-pub(in crate::ssa) fn intern_formed_nullable_map_types(
+pub(in crate::ssa) fn intern_formed_nullable_local_types(
     module: &mut Module,
     parsed: &ParsedFile,
     plan: &super::FunctionPlan,
@@ -351,13 +351,23 @@ pub(in crate::ssa) fn intern_formed_nullable_map_types(
         let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(declared) else {
             continue;
         };
-        if !matches!(
+        let map = matches!(
             typed.types().get(*inner),
             Some(UnitTypeKind::Intrinsic {
                 constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
                 ..
             })
-        ) {
+        );
+        let scalar_inner = match typed.types().get(*inner) {
+            Some(UnitTypeKind::TypeParameter(parameter)) => {
+                instance.substitutions().get(parameter).copied()
+            }
+            _ => Some(*inner),
+        };
+        let inline_scalar = scalar_inner
+            .and_then(|inner| builtin_type(typed, inner))
+            .is_some_and(|builtin| builtin == BuiltinType::Boolean || is_integer_builtin(builtin));
+        if !map && !inline_scalar {
             continue;
         }
         let declared = resolve_concrete_type(
@@ -367,7 +377,7 @@ pub(in crate::ssa) fn intern_formed_nullable_map_types(
             instance.key().static_self(),
             span,
         )?;
-        // Do not skip unsupported formed locals or replace the mapper's K/V checks.
+        // The mapper establishes the inline layout and retains its Map K/V checks.
         types.intern(module, typed, declared, span)?;
     }
     Ok(())

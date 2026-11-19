@@ -200,3 +200,228 @@ fn rooted_compound_proofs_are_qualified_by_source_unit() {
         );
     }
 }
+
+#[test]
+fn loop_prescan_keeps_the_writes_before_an_interpolation_jump() {
+    assert_cases(&[
+        Case {
+            name: "interpolation_dead_suffix_preserves_non_null_proof",
+            text: r#"fun test(initial: Int?): Unit {
+                var x = initial
+                if (x != null) {
+                    loop { val text = "${((break))}${if (true) { x = null; 1 } else { 0 }}" }
+                    val after: Int = /*after*/x
+                }
+            }"#,
+            marks: vec![read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "interpolation_nested_string_jump_stops_outer_suffix_writes",
+            text: r#"fun test(initial: Int?): Unit {
+                var x = initial
+                if (x != null) {
+                    loop { val text = "${"inner ${break}"}${if (true) { x = null; 1 } else { 0 }}" }
+                    val after: Int = /*after*/x
+                }
+            }"#,
+            marks: vec![read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "interpolation_call_argument_jump_stops_suffix_writes",
+            text: r#"fun word(value: Int): String = "ok"
+            fun test(initial: Int?): Unit {
+                var x = initial
+                if (x != null) {
+                    loop { val text = "${word(break)}${if (true) { x = null; 1 } else { 0 }}" }
+                    val after: Int = /*after*/x
+                }
+            }"#,
+            marks: vec![read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "interpolation_call_argument_jump_stops_later_arguments",
+            text: r#"fun word(first: Int, second: Int): String = "ok"
+            fun test(initial: Int?): Unit {
+                var x = initial
+                if (x != null) {
+                    loop { val text = "${word(break, if (true) { x = null; 1 } else { 0 })}" }
+                    val after: Int = /*after*/x
+                }
+            }"#,
+            marks: vec![read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "interpolation_interrupted_call_does_not_write_back",
+            text: r#"fun word(inout value: Int?, next: Int): String { value = null; return "ok" }
+            fun test(initial: Int?): Unit {
+                var x = initial
+                if (x != null) {
+                    loop { val text = "${word(&x, break)}" }
+                    val after: Int = /*after*/x
+                }
+            }"#,
+            marks: vec![read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "interpolation_completed_call_can_write_back",
+            text: r#"fun word(inout value: Int?, next: Int): String { value = null; return "ok" }
+            fun test(initial: Int?): Unit {
+                var x = initial
+                if (x != null) {
+                    loop { val text = "${word(&x, 1)}${break}" }
+                    val after: Int = /*reject*/x
+                }
+            }"#,
+            marks: vec![read("reject", Shape::Error)],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "interpolation_return_payload_retains_a_write_before_break",
+            text: r#"fun test(initial: Int?, flag: Boolean): Int {
+                var x = initial
+                if (x != null) {
+                    loop { val text = "${return if (flag) { x = null; break } else { 7 }}" }
+                    val after: Int = /*reject*/x
+                }
+                return 0
+            }"#,
+            marks: vec![read("reject", Shape::Error)],
+            rejected: Some("reject"),
+        },
+        Case {
+            name: "interpolation_write_before_jump_invalidates_non_null_proof",
+            text: r#"fun test(initial: Int?): Unit {
+                var x = initial
+                if (x != null) {
+                    loop { val text = "${if (true) { x = null; 1 } else { 0 }}${break}" }
+                    val after: Int = /*reject*/x
+                }
+            }"#,
+            marks: vec![read("reject", Shape::Error)],
+            rejected: Some("reject"),
+        },
+    ]);
+}
+
+#[test]
+fn loop_prescan_stops_after_all_if_arms_jump() {
+    macro_rules! source {
+        ($first_part:literal) => {
+            concat!(
+                r#"fun test(initial: Int?, flag: Boolean): Unit {
+                    var x = initial
+                    if (x != null) {
+                        loop { val text = "${"#,
+                $first_part,
+                r#"}${if (true) { x = null; 1 } else { 0 }}${break}" }
+                        val after: Int = /*after*/x
+                    }
+                }"#,
+            )
+        };
+    }
+    for (name, text, rejects) in [
+        (
+            "both_arms_jump",
+            source!("if (flag) { break } else { break }"),
+            false,
+        ),
+        (
+            "neither_arm_writes_after_its_jump",
+            source!("if (flag) { break; x = null } else { break; x = null }"),
+            false,
+        ),
+        (
+            "one_arm_completes",
+            source!("if (flag) { break } else { 0 }"),
+            true,
+        ),
+        (
+            "missing_else_completes",
+            source!("if (flag) { if (initial == null) { break }; 0 } else { break }"),
+            true,
+        ),
+        (
+            "condition_jumps_before_arms",
+            source!("if (if (flag) { break } else { break }) { x = null; 1 } else { x = null; 0 }"),
+            false,
+        ),
+        (
+            "reachable_write_before_jump",
+            source!("if (flag) { x = null; break } else { break }"),
+            true,
+        ),
+        (
+            "while_condition_break_exits_outer_loop",
+            source!("if (flag) { while (break) { x = null }; x = null; 0 } else { break }"),
+            false,
+        ),
+        (
+            "for_source_break_exits_outer_loop",
+            source!(
+                "if (flag) { for (ignored in listOf<Int>(break)) { x = null }; x = null; 0 } else { break }"
+            ),
+            false,
+        ),
+        (
+            "inner_loop_break_is_not_a_jump_out_of_the_interpolation",
+            source!("if (flag) { loop { break }; 0 } else { break }"),
+            true,
+        ),
+    ] {
+        assert_cases(&[Case {
+            name,
+            text,
+            marks: vec![read(
+                "after",
+                if rejects { Shape::Error } else { Shape::Int },
+            )],
+            rejected: rejects.then_some("after"),
+        }]);
+    }
+}
+
+#[test]
+fn while_condition_without_backedge_preserves_the_entry_proof() {
+    assert_cases(&[
+        Case {
+            name: "body_write_is_unreachable_from_the_condition",
+            text: "fun cond(value: Int, stop: Boolean): Boolean = stop\n\
+                   fun test(initial: Int?): Unit { var x = initial; if (x != null) {\
+                       loop { while (cond(/*condition*/x, break)) { x = null } };\
+                       val after: Int = /*after*/x\
+                   } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "body_write_can_reach_the_next_condition",
+            text: "fun cond(value: Int, stop: Boolean): Boolean = stop\n\
+                   fun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) {\
+                       while (cond(/*condition*/x, flag)) { x = null }\
+                   } }",
+            marks: vec![read("condition", Shape::Error)],
+            rejected: Some("condition"),
+        },
+        Case {
+            name: "condition_write_invalidates_later_but_not_earlier_read",
+            text: "fun cond(first: Int, effect: Boolean, later: Int, stop: Boolean): Boolean = stop\n\
+                   fun test(initial: Int?, flag: Boolean): Unit { var x = initial;\
+                       loop { if (x != null) {\
+                           while (cond(/*condition*/x, if (flag) { /*write*/x = null; true } else { true }, /*later*/x, break)) {}\
+                       } else { break } }\
+                   }",
+            marks: vec![
+                read("condition", Shape::Int),
+                write(),
+                read("later", Shape::Error),
+            ],
+            rejected: Some("later"),
+        },
+    ]);
+}

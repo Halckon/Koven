@@ -14,6 +14,10 @@ use crate::{
     },
 };
 
+use crate::type_checking::flow_effects::result_edges::{
+    bypassed_result_writes, splits_boolean_writes,
+};
+
 use super::flow::{intersect_facts, merge_flow_versions};
 use super::{
     BodyChecker, ExpressionCheck,
@@ -148,6 +152,20 @@ impl BodyChecker<'_> {
                         .set_pending_keys(remaining_pending.iter().flatten().copied());
                     let reachable = remaining_pending.is_some() && !remaining_domain.is_empty();
                     let ordinary = subject_completes && !remaining_domain.is_empty();
+                    let before = if ordinary
+                        && subject.is_none()
+                        && let WhenCondition::Expression(operand) = condition
+                        && splits_boolean_writes(self.file(source).ast(), *operand)
+                            .map_err(TypeCheckingError::from)?
+                    {
+                        Some((
+                            *operand,
+                            self.flow_facts.clone(),
+                            self.flow_versions.clone(),
+                        ))
+                    } else {
+                        None
+                    };
                     let checked = self.check_loop_paths(ordinary, reachable, |checker| {
                         checker.check_when_condition(
                             source,
@@ -163,7 +181,7 @@ impl BodyChecker<'_> {
                             || self.when_selector_pending(source, condition, deferred);
                     }
                     let source_valid = self.when_source_valid(subject_source);
-                    let (matched, missed) = if checked
+                    let (mut matched, mut missed) = if checked
                         .operand
                         .is_none_or(|(_, result)| result.falls_through)
                     {
@@ -179,6 +197,19 @@ impl BodyChecker<'_> {
                         selector_stops_miss |= !remaining_domain.is_empty();
                         (WhenFlowDomain::Empty, WhenFlowDomain::Empty)
                     };
+                    if subject.is_none()
+                        && checked.valid
+                        && let Some((operand, _)) = checked.operand
+                    {
+                        let (yes, no) = self.syntactic_boolean_outcomes[source.index()]
+                            .possible_results(operand);
+                        if !yes {
+                            matched = WhenFlowDomain::Empty;
+                        }
+                        if !no {
+                            missed = WhenFlowDomain::Empty;
+                        }
+                    }
                     let pending = if reachable {
                         self.pending_when_selector_edges(source, subject.is_none(), &checked)?
                     } else {
@@ -193,11 +224,34 @@ impl BodyChecker<'_> {
                         &matched,
                         &missed,
                     );
+                    let split = if checked.valid
+                        && let Some((operand, facts, versions)) = before
+                        && self.flow_versions.versions_changed(&versions)
+                    {
+                        let edges = bypassed_result_writes(
+                            &self.syntactic_boolean_outcomes[source.index()],
+                            operand,
+                            |target| self.stable_flow_key(source, target),
+                        )
+                        .map_err(TypeCheckingError::from)?;
+                        Some((facts, versions, edges))
+                    } else {
+                        None
+                    };
                     if !matched.is_empty() {
                         if let Some(keys) = pending.yes {
                             entry_pending.get_or_insert_default().extend(keys);
                         }
                         let mut matched_facts = self.flow_facts.clone();
+                        let mut matched_versions = self.flow_versions.clone();
+                        if let Some((facts, versions, [yes, _])) = &split {
+                            matched_versions.restore_bypassed_writes(
+                                &mut matched_facts,
+                                facts,
+                                versions,
+                                yes,
+                            );
+                        }
                         entry_source_valid &= source_valid;
                         if source_valid {
                             if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
@@ -212,13 +266,23 @@ impl BodyChecker<'_> {
                             Some(previous) => intersect_facts(&previous, &matched_facts),
                         });
                         entry_versions = Some(match entry_versions {
-                            None => self.flow_versions.clone(),
-                            Some(previous) => merge_flow_versions(&previous, &self.flow_versions),
+                            None => matched_versions,
+                            Some(previous) => merge_flow_versions(&previous, &matched_versions),
                         });
                         body_domain = union_domain(body_domain, matched);
                     }
                     // Condition effects remain on the miss edge; a selected body never runs here.
                     remaining_domain = missed;
+                    if !remaining_domain.is_empty()
+                        && let Some((facts, versions, [_, no])) = split
+                    {
+                        self.flow_versions.restore_bypassed_writes(
+                            &mut self.flow_facts,
+                            &facts,
+                            &versions,
+                            &no,
+                        );
+                    }
                     if domain.is_some() && remaining_domain.is_empty() {
                         closed_after.get_or_insert((entry_index + 1, alternative + 1));
                     }

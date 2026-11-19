@@ -338,7 +338,10 @@ pub(in crate::ssa) mod closure_escape {
                         Operation::HeapFieldReplace { receiver, .. }
                         | Operation::InlineFieldReplace { receiver, .. }
                         | Operation::LoanMutate { loan: receiver, .. }
-                        | Operation::LoanReplace { loan: receiver, .. } => EntityId::Loan(receiver),
+                        | Operation::LoanReplace { loan: receiver, .. }
+                        | Operation::ContainerAppendInout { loan: receiver, .. } => {
+                            EntityId::Loan(receiver)
+                        }
                         Operation::HeapFieldExchange { owner, .. }
                         | Operation::ContainerReplace { owner, .. }
                         | Operation::ContainerAppend { owner, .. }
@@ -558,6 +561,10 @@ pub(in crate::ssa) mod closure_escape {
                     | Operation::LoanReplace {
                         loan: receiver,
                         value,
+                    }
+                    | Operation::ContainerAppendInout {
+                        loan: receiver,
+                        element: value,
                     } => Some((EntityId::Loan(receiver), may(value), false)),
                     Operation::HeapFieldExchange {
                         owner, replacement, ..
@@ -911,6 +918,7 @@ pub(in crate::ssa) mod closure_escape {
         if !function
             .values
             .iter()
+            .chain(&function.loans)
             .any(|entity| types.contains(entity.ty.semantic_type()))
         {
             return;
@@ -948,7 +956,16 @@ pub(in crate::ssa) mod closure_escape {
                     | Operation::InlineFieldReplace { value, .. }
                     | Operation::ContainerReplace { value, .. }
                     | Operation::ContainerAppend { element: value, .. }
+                    | Operation::ContainerAppendInout { element: value, .. }
                     | Operation::ContainerInsertAt { element: value, .. } => may(*value),
+                    // Source admission defers closure storage swaps. Keep raw SSA from
+                    // moving borrowed environments into a previously clean container.
+                    Operation::ProjectedSwap {
+                        loans: [loan, _], ..
+                    }
+                    | Operation::InoutExchange { loan, .. } => function
+                        .entity(EntityId::Loan(*loan))
+                        .is_some_and(|loan| types.contains(loan.ty.semantic_type())),
                     Operation::HeapFieldExchange { replacement, .. } => may(*replacement),
                     Operation::Mutate { place, value } => proof.is_projected(*place) && may(*value),
                     Operation::LoanMutate { value, .. } | Operation::LoanReplace { value, .. } => {

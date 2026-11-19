@@ -712,14 +712,18 @@ pub(in crate::ssa) mod unit_root_primitive_tests {
     }
 
     #[test]
-    fn unit_root_primitive_inout_parameter_remains_unsupported() {
-        let error = lower(
-            "fun entry(inout target: String): String = replace(&target, \"new\")",
-            false,
-        )
-        .err()
-        .expect("Inout parameter is not an owned root");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    fn unit_root_primitive_inout_parameter_uses_the_borrowed_slot() {
+        for constants in [false, true] {
+            let program = lower(
+                "fun entry(inout target: String): String = replace(&target, \"new\")",
+                constants,
+            )
+            .expect("replace through an Inout parameter is a borrowed-slot exchange");
+            let function = entry(&program);
+            assert_eq!(count(function, "ExclusiveRootReborrow"), 1);
+            assert_eq!(count(function, "InoutExchange"), 1);
+            assert_eq!(count(function, "RootReplace"), 0);
+        }
     }
 
     #[test]

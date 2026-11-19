@@ -7,7 +7,10 @@ use crate::{
 };
 
 use super::{flow::extend_facts, *};
-use crate::type_checking::flow_effects::logical_rhs_is_required;
+use crate::type_checking::flow_effects::{
+    logical_rhs_is_required,
+    result_edges::{bypassed_result_writes, restore_bypassed_writes, splits_boolean_writes},
+};
 
 struct LambdaSyntax {
     span: Span,
@@ -722,6 +725,8 @@ impl Checker<'_> {
             operator,
             BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
         ) {
+            let before = splits_boolean_writes(self.ast(), left)?
+                .then(|| (self.flow_facts.clone(), self.flow_versions.clone()));
             let left_result = self.check_expression(left, None, None)?;
             let (left_true, left_false) = self.condition_facts(left)?;
             let mut baseline = self.flow_facts.clone();
@@ -733,6 +738,27 @@ impl Checker<'_> {
             self.flow_facts = extend_facts(&baseline, right_entry);
             let rhs_required = logical_rhs_is_required(self.ast(), left, operator)?;
             let mut baseline_versions = self.flow_versions.clone();
+            if let Some((facts, versions)) = before
+                && self.is_builtin(left_result.ty, BuiltinType::Boolean)
+                && self.flow_versions != versions
+            {
+                let [yes, no] =
+                    bypassed_result_writes(self.syntactic_boolean_outcomes, left, |target| {
+                        self.stable_flow_key(target)
+                    })?;
+                let keys = if operator == BinaryOperator::LogicalAnd {
+                    yes
+                } else {
+                    no
+                };
+                restore_bypassed_writes(
+                    &mut self.flow_facts,
+                    &mut self.flow_versions,
+                    &facts,
+                    &versions,
+                    &keys,
+                );
+            }
             let right_result =
                 self.check_pending_logical_rhs(expression, left, operator, right, left_result)?;
             if !self
@@ -742,11 +768,13 @@ impl Checker<'_> {
                 let writes = self.expression_flow_writes(right)?;
                 baseline.retain(|key, _| !writes.contains(key));
                 // Keep the RHS version only for writes that can reach this join.
-                baseline_versions.extend(
-                    writes.into_iter().filter_map(|key| {
-                        self.flow_versions.get(&key).map(|&version| (key, version))
-                    }),
-                );
+                for (key, version) in writes
+                    .into_iter()
+                    .filter_map(|key| self.flow_versions.get(&key).map(|&version| (key, version)))
+                {
+                    let baseline = baseline_versions.entry(key).or_default();
+                    *baseline = (*baseline).max(version);
+                }
             }
             self.flow_facts = baseline;
             self.flow_versions = baseline_versions;

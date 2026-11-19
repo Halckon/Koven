@@ -8,7 +8,7 @@ use lang_frontend::{
         LoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint, UnitDropTarget, UnitLoanFact,
         UnitLoanTarget,
     },
-    parser::{AssignmentOperator, Expression, Item, NameMarker, VariableKind},
+    parser::{AssignmentOperator, Expression, Item, NameMarker},
     source::Span,
     type_checking::{
         CallableResultSource, Copyability, NominalKind, ParameterMode, UnitAggregateProjectionKind,
@@ -67,16 +67,13 @@ impl Checker<'_, '_> {
         let Item::Variable {
             name: NameMarker::Present(name_span),
             initializer,
-            kind,
             ..
         } = node.payload().clone()
         else {
             return false;
         };
         let initializer_id = self.id(initializer);
-        if matches!(kind, VariableKind::BorrowVal(_))
-            && self.inputs.typed.expression_falls_through(initializer_id) == Some(false)
-        {
+        if self.inputs.typed.expression_falls_through(initializer_id) == Some(false) {
             // The initializer never establishes the binding or its result loan.
             return self.expression(initializer);
         }

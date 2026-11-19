@@ -361,6 +361,25 @@ pub(crate) mod container_append_tests {
     }
 
     #[test]
+    fn unit_container_append_inout_reads_same_list_before_mutating() {
+        let analysis = analyze_sources(
+            r#"package p
+        fun appendSize(inout list: MutableList<Int>): Unit {
+            list.add((list).size)
+        }"#,
+            r#"package q
+        import p.appendSize
+        fun entry(): Unit {
+            var list = mutableListOf(1, 2, 3, 4)
+            appendSize(&list)
+            if (list.size != 5 || list[4] != 4) { error("same-list append mismatch") }
+            println("same-root-ok")
+        }"#,
+        );
+        run(&analysis, b"same-root-ok\n");
+    }
+
+    #[test]
     fn unit_container_append_native_nonempty_start() {
         let analysis = analyze_sources(
             "package p\n",

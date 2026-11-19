@@ -418,7 +418,8 @@ impl Checker<'_> {
         state: State,
         usage: ExpressionUse,
         escaping: bool,
-    ) -> Result<Flows, OwnershipCheckingError> {
+    ) -> Result<super::callable_provenance::ExpressionStep, OwnershipCheckingError> {
+        use super::callable_provenance::ExpressionStep;
         if let Some(descriptor) = self.constant_use(id) {
             let kind = if matches!(
                 descriptor.value(),
@@ -435,56 +436,60 @@ impl Checker<'_> {
                     kind,
                 },
             );
-            return Ok(Flows::next(state));
+            return Ok(ExpressionStep::Complete(Flows::next(state)));
         }
         if let Some(descriptor) = self
             .construction_descriptors
             .get(&self.unit_expression(id))
             .cloned()
         {
-            return self.check_construction(descriptor, state, usage);
+            return self
+                .check_construction(descriptor, state, usage)
+                .map(ExpressionStep::Complete);
         }
         if let Some(descriptor) = self
             .typed
             .diagnostic_integer_operation(self.unit_expression(id))
         {
-            return self.check_expression(
-                descriptor.receiver().expression(),
-                state,
-                ExpressionUse::Read,
-            );
+            return self
+                .check_expression(
+                    descriptor.receiver().expression(),
+                    state,
+                    ExpressionUse::Read,
+                )
+                .map(ExpressionStep::Complete);
         }
         if let Some(descriptor) = self.typed.container_size(self.unit_expression(id)) {
-            return self.check_shared_receiver_read(
-                descriptor.expression(),
-                descriptor.receiver(),
-                state,
-            );
+            return self
+                .check_shared_receiver_read(descriptor.expression(), descriptor.receiver(), state)
+                .map(ExpressionStep::Complete);
         }
         if let Some(descriptor) = self.typed.diagnostic_range_size(self.unit_expression(id)) {
-            return self.check_shared_receiver_read(
-                descriptor.expression(),
-                descriptor.receiver(),
-                state,
-            );
+            return self
+                .check_shared_receiver_read(descriptor.expression(), descriptor.receiver(), state)
+                .map(ExpressionStep::Complete);
         }
         if let Some(descriptor) = self.typed.map_size(self.unit_expression(id)) {
-            return self.check_shared_receiver_read(
-                descriptor.expression(),
-                descriptor.receiver(),
-                state,
-            );
+            return self
+                .check_shared_receiver_read(descriptor.expression(), descriptor.receiver(), state)
+                .map(ExpressionStep::Complete);
         }
         if let Some(descriptor) = self.typed.string_operation(self.unit_expression(id)) {
-            return self.check_string_operation(descriptor, state);
+            return self
+                .check_string_operation(descriptor, state)
+                .map(ExpressionStep::Complete);
         }
         if let Some(descriptor) = self.typed.rc_operation(self.unit_expression(id)) {
-            return self.check_rc_operation(descriptor, state, usage);
+            return self
+                .check_rc_operation(descriptor, state, usage)
+                .map(ExpressionStep::Complete);
         }
-        if let Some(plan) = self.short_circuit_plan(id)? {
-            return self.check_short_circuit(plan, state);
+        if let Expression::Group { expression } = self.parsed.ast().expressions().get(id)?.payload()
+        {
+            return Ok(ExpressionStep::Group(*expression, state));
         }
         self.check_expression_ast(id, state, usage, escaping)
+            .map(ExpressionStep::Complete)
     }
 
     fn check_call(

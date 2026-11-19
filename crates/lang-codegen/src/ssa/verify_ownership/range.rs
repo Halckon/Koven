@@ -1,6 +1,9 @@
 //! Descriptor metadata and protecting source loan have a single explicit lifetime.
 use super::*;
 
+#[cfg(test)]
+mod exclusive_arguments;
+
 pub(super) mod pairs {
     use super::*;
 
@@ -301,39 +304,17 @@ pub(super) fn apply(
         } => {
             require_source(*source, state, location.clone(), origin, errors);
             require_root(function, *source, state, location.clone(), origin, errors);
-            for argument in arguments {
-                match argument {
-                    EntityId::Loan(loan) => {
-                        require_source(*loan, state, location.clone(), origin, errors);
-                        closure::check_borrowed_contents(
-                            *loan,
-                            closure_loans,
-                            state,
-                            instruction.id,
-                            origin,
-                            errors,
-                            "range call Borrow requires proved current callable capture contents",
-                        );
-                    }
-                    EntityId::Value(value) => {
-                        consume_value(
-                            module,
-                            function,
-                            *value,
-                            aliases,
-                            state,
-                            &BTreeSet::new(),
-                            &BTreeSet::new(),
-                            location.clone(),
-                            origin,
-                            errors,
-                        );
-                    }
-                    EntityId::Place(place) => {
-                        require_place(*place, state, location.clone(), origin, errors);
-                    }
-                }
-            }
+            borrow_result::verify_call_arguments(
+                module,
+                function,
+                instruction,
+                arguments.iter().copied(),
+                aliases,
+                closure_loans,
+                dependencies,
+                state,
+                errors,
+            );
         }
         Operation::RangeLength {
             view: EntityId::Value(view),

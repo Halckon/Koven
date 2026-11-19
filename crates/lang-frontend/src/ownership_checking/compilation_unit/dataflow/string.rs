@@ -4,9 +4,11 @@ use super::{
 };
 use crate::{
     ast::ExpressionId,
-    ownership_checking::{LoanKind, UnitLoanFact, UnitLoanTarget},
+    ownership_checking::{LoanKind, UnitLoanFact, UnitLoanTarget, UnitOwnershipPlace},
     parser::{BinaryOperator, Expression, LiteralKind},
-    type_checking::{BuiltinType, UnitStringOperationDescriptor, UnitTypeKind},
+    type_checking::{
+        BuiltinType, UnitAggregateProjectionKind, UnitStringOperationDescriptor, UnitTypeKind,
+    },
 };
 impl Checker<'_> {
     pub(super) fn check_string_operation(
@@ -64,23 +66,37 @@ impl Checker<'_> {
         let owner = ActiveLoanOwner::StringBinary(self.unit_expression(binary));
         if let Some(next) = flows.next.as_mut()
             && self.diagnostics.len() == before
-            && let Some(place) = self.place(left)?.filter(|place| place.is_root())
         {
-            // The operator reads the completed left operand after evaluating the right.
-            next.loans.push(ActiveLoan {
-                owner,
-                target: ActiveLoanTarget::Place(
-                    next.borrow_bindings
-                        .get(&place.root())
-                        .cloned()
-                        .unwrap_or(place),
-                ),
-                kind: LoanKind::Shared,
-                reserved: false,
-                origin: self.parsed.ast().expressions().get(left)?.span(),
-            });
+            let field = self.string_binary_field_place(left)?;
+            let is_field = field.is_some();
+            let place = if is_field {
+                field
+            } else {
+                self.place(left)?.filter(|place| place.is_root())
+            };
+            if let Some(place) = place {
+                // The operator reads the completed left operand after evaluating the right.
+                let target = self.canonical_borrow_place(&place, next);
+                if is_field {
+                    self.publish_string_binary_field_loan(binary, left, target.clone())?;
+                }
+                next.loans.push(ActiveLoan {
+                    owner,
+                    target: ActiveLoanTarget::Place(target),
+                    kind: LoanKind::Shared,
+                    reserved: false,
+                    origin: self.parsed.ast().expressions().get(left)?.span(),
+                });
+            }
         }
         let mut flows = self.chain_expression(flows, right, ExpressionUse::Read)?;
+        if let Some(next) = flows.next.as_ref()
+            && self.diagnostics.len() == before
+            && let Some(place) = self.string_binary_field_place(right)?
+        {
+            let target = self.canonical_borrow_place(&place, next);
+            self.publish_string_binary_field_loan(binary, right, target)?;
+        }
         for edge in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
@@ -88,6 +104,50 @@ impl Checker<'_> {
             edge.loans.retain(|loan| loan.owner != owner);
         }
         Ok(flows)
+    }
+
+    pub(super) fn string_binary_field_place(
+        &self,
+        mut operand: ExpressionId,
+    ) -> Result<Option<UnitOwnershipPlace>, OwnershipCheckingError> {
+        while let Expression::Group { expression } =
+            self.parsed.ast().expressions().get(operand)?.payload()
+        {
+            operand = *expression;
+        }
+        let id = self.unit_expression(operand);
+        let field = self
+            .typed
+            .aggregate_projection(id)
+            .is_some_and(|projection| {
+                projection.kind() == UnitAggregateProjectionKind::Field
+                    && self.typed.types().get(projection.ty())
+                        == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+            });
+        if field {
+            return Ok(self
+                .place(operand)?
+                .filter(|place| place.element().is_none()));
+        }
+        Ok(None)
+    }
+
+    fn publish_string_binary_field_loan(
+        &mut self,
+        binary: ExpressionId,
+        operand: ExpressionId,
+        place: UnitOwnershipPlace,
+    ) -> Result<(), OwnershipCheckingError> {
+        self.push_loan(UnitLoanFact::new(
+            self.unit_expression(binary),
+            self.unit_expression(operand),
+            UnitLoanTarget::Place(place),
+            LoanKind::Shared,
+            self.parsed.ast().expressions().get(operand)?.span(),
+            self.parsed.ast().expressions().get(binary)?.span(),
+            None,
+        ));
+        Ok(())
     }
 
     /// 发布同步读取的短 shared loan，复用 receiver 的既有 owner 身份。

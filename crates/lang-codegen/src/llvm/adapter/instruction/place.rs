@@ -49,10 +49,11 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.loans.insert(*result, pointer);
             }
-            Operation::SharedHeapFieldLoan { base, field } => {
+            Operation::SharedHeapFieldLoan { base, field }
+            | Operation::ExclusiveHeapFieldLoan { base, field } => {
                 let [EntityId::Loan(result)] = instruction.results.as_slice() else {
                     return Err(invalid_result_count(
-                        "shared heap field loan",
+                        "heap field loan",
                         1,
                         instruction.results.len(),
                     ));
@@ -61,7 +62,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     self.heap_field_pointer(*base, *field, &format!("l{}", result.index()))?;
                 self.loans.insert(*result, pointer);
             }
-            Operation::SharedReborrow { source } => {
+            Operation::SharedReborrow { source } | Operation::ExclusiveRootReborrow { source } => {
                 let [EntityId::Loan(result)] = instruction.results.as_slice() else {
                     return Err(invalid_result_count(
                         "shared reborrow",

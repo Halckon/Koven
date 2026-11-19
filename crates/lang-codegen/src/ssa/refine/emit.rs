@@ -1,6 +1,7 @@
 //! SSA construction: slot liveness decides block parameters; operands map mechanically.
 #[path = "folding.rs"]
 mod folding;
+mod heap_fields;
 use super::body::{BlockRef, RAbort, ROp, RTerm, RefinedBody, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
@@ -492,10 +493,9 @@ impl Emitter<'_> {
                 base: loan(self.get(*base, span)?, span)?,
                 field: *field,
             },
-            ROp::SharedHeapFieldLoan { base, field } => Operation::SharedHeapFieldLoan {
-                base: loan(self.get(*base, span)?, span)?,
-                field: *field,
-            },
+            ROp::SharedHeapFieldLoan { .. } | ROp::ExclusiveHeapFieldLoan { .. } => {
+                self.heap_field_operation(op, span)?
+            }
             ROp::SharedReferenceFollow { source } => Operation::SharedReferenceFollow {
                 source: loan(self.get(*source, span)?, span)?,
             },
@@ -616,17 +616,10 @@ impl Emitter<'_> {
             ROp::HeapPayloadPlace { owner } => Operation::HeapPayloadPlace {
                 owner: self.value(*owner, span)?,
             },
-            ROp::HeapFieldExchange {
-                owner,
-                field,
-                loan: slot,
-                replacement,
-            } => Operation::HeapFieldExchange {
-                owner: self.value(*owner, span)?,
-                field: *field,
-                loan: loan(self.get(*slot, span)?, span)?,
-                replacement: self.value(*replacement, span)?,
-            },
+            ROp::HeapFieldExchange { .. }
+            | ROp::HeapReceiverFieldExchange { .. }
+            | ROp::InoutExchange { .. }
+            | ROp::ExclusiveRootReborrow { .. } => self.heap_field_operation(op, span)?,
             ROp::ContainerConstruct {
                 container,
                 elements,
@@ -637,12 +630,29 @@ impl Emitter<'_> {
             ROp::ContainerLength { owner } => Operation::ContainerLength {
                 owner: self.get(*owner, span)?,
             },
+            ROp::ProjectedSwap {
+                root,
+                loans: [left, right],
+            } => Operation::ProjectedSwap {
+                root: root.map(|slot| self.value(slot, span)).transpose()?,
+                loans: [
+                    loan(self.get(*left, span)?, span)?,
+                    loan(self.get(*right, span)?, span)?,
+                ],
+            },
             ROp::ContainerElementPlace { owner, index } => Operation::ContainerElementPlace {
                 owner: self.get(*owner, span)?,
                 index: self.value(*index, span)?,
             },
             ROp::ContainerAppend { owner, element } => Operation::ContainerAppend {
                 owner: self.value(*owner, span)?,
+                element: self.value(*element, span)?,
+            },
+            ROp::ContainerAppendInout {
+                loan: slot,
+                element,
+            } => Operation::ContainerAppendInout {
+                loan: loan(self.get(*slot, span)?, span)?,
                 element: self.value(*element, span)?,
             },
             ROp::ContainerClear { owner } => Operation::ContainerClear {

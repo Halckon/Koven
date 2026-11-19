@@ -127,7 +127,8 @@ MoveOnly 载荷字段借用实参。`deinit` 析构体、多层字段借用、�
 编译单元启用旧前置门禁时，普通借用绑定仍有原整函数 CFG 边界。直接字段绑定核对 typed 投影与 owned 来源字段，
 交细化层消费绑定和生命周期事实。已限定到同一稳定根 `Borrow` 别名的 Map provider
 也可跳过原整函数扫描，由旧 lowering 核对直接来源、活动 shared loan 与 provider 交接。
-RangeView、carrier 别名和其他绑定保留原有前置边界。
+新 RangeView 描述符可在语句式 `if` 臂内建立，直接 metadata 别名可跨多层 if 臂和普通块。准入核对初始化、来源和各自结束事实。
+包围已验证别名作用域的 if 条件可使用单层 `&&` 或 `||`，操作数沿用只读调用和正常继续合同。SSA 校验父描述符依赖，并按分支和词法退出事实清理。
 
 临时 class 的字段实参按同源 Shared loan 与父对象清理事实进入细化层。
 精确 Borrow 传递实际字段 loan；Copyable nullable 转换读取字段并结束原借用链，
@@ -162,8 +163,8 @@ nullable；enclosing borrow/carrier-return guard 保留。候选与官方 CI 状
 
 `SsaTypeKind::InlineNullable { inner, niche }`：String 与顺序容器用 bytes/buffer 指针 niche（空串与
 空容器使用非 null 的 `koven.zst.sentinel`），其余 inner 用 `{i1, T}`。复用 NullableWrap/Null/IsNull/
-Take 与 `NullableBranch`；drop glue 只在 present 时释放 payload。旧 `unit_lower` 的存储能力仍只到
-pointer-like nullable。借入的 `String?` 按 [ADR-0041](../adr/accepted/0041-borrowed-nullable-string-payload.md)
+Take 与 `NullableBranch`；drop glue 只在 present 时释放 payload。Compatibility 也按已形成的具名局部
+登记 Boolean 和整数的 inline nullable 布局，包括本实例中替换为这些类型的直接 `T?`。与 Map 查询共用 Copyable nullable 类型时，普通包装复用其存在位和载荷。借入的 `String?` 按 [ADR-0041](../adr/accepted/0041-borrowed-nullable-string-payload.md)
 在同一存储地址上创建仅非空边可用的 shared `String` 子借用。校验沿 CFG
 追踪父子身份，禁止从已经结束的父借用创建视图。
 

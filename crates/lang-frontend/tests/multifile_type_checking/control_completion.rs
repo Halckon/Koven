@@ -484,3 +484,140 @@ fn rejected_construction_storage_keeps_loop_completion() {
         }
     }
 }
+
+#[test]
+fn unit_interpolation_completion_follows_the_evaluated_prefix() {
+    let cases = [
+        (r#"sink("before ${1} ${return 7} ${2}")"#, false, &[][..]),
+        (
+            r#"sink("before ${if (flag) { return 7 } else { 1 }} ${2}")"#,
+            true,
+            &["L0088"][..],
+        ),
+        (r#""${return 7}${true + 1}""#, false, &["L0085"][..]),
+        (r#"loop { sink("${return 7}${break}") }"#, false, &[][..]),
+        (
+            r#"loop { sink("${break}${return 7}") }"#,
+            false,
+            &["L0088"][..],
+        ),
+    ];
+    for (body, completes, expected_diagnostics) in cases {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(
+            &mut sources,
+            "interpolation.ko",
+            &format!(
+                "fun sink(value: String): Unit {{}}\nfun probe(flag: Boolean): Int {{ {body} }}"
+            ),
+        );
+        let expression = file
+            .ast()
+            .expressions()
+            .iter()
+            .find_map(|(id, node)| {
+                matches!(node.payload(), Expression::String { .. }).then_some(id)
+            })
+            .expect("the source contains an interpolated string");
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "interpolation.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let (name_environment, type_environment) = standard_environments();
+            let names = validated_names(&sources, &inputs, &name_environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+                .expect("type product");
+            let id = UnitExpressionId::new(source_unit(&names, source), expression);
+            let codes = typed
+                .diagnostics()
+                .iter()
+                .map(|diagnostic| diagnostic.code().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(codes, expected_diagnostics, "{body}");
+            assert_eq!(
+                typed.expression_falls_through(id),
+                Some(completes),
+                "{body}"
+            );
+            assert_eq!(
+                typed
+                    .types()
+                    .get(typed.expression_type(id).expect("static string type")),
+                Some(&UnitTypeKind::Builtin(BuiltinType::String)),
+                "{body}"
+            );
+        }
+    }
+}
+
+#[test]
+fn unit_ownership_primitive_completion_follows_its_operands() {
+    for (body, falls_through, result_type, expected) in [
+        (
+            r#"var slot = "old"; replace(&slot, return source)"#,
+            false,
+            BuiltinType::String,
+            &[][..],
+        ),
+        (
+            r#"var slot = "old"; replace(&slot, if (flag) { return source } else { "new" })"#,
+            true,
+            BuiltinType::String,
+            &["L0088"][..],
+        ),
+        (
+            "val a = arrayOf<Int>(0); val b = arrayOf<Int>(1); swap(&a[return source], &b[0])",
+            false,
+            BuiltinType::Unit,
+            &[][..],
+        ),
+        (
+            "val a = arrayOf<Int>(0); val b = arrayOf<Int>(1); swap(&a[0], &b[0]); return source",
+            true,
+            BuiltinType::Unit,
+            &[][..],
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(
+            &mut sources,
+            "ownership-primitive.ko",
+            &format!(
+                "fun probe(source: String, flag: Boolean): borrow String from source {{ {body} }}"
+            ),
+        );
+        let (call, _) = file
+            .ast()
+            .expressions()
+            .iter()
+            .filter(|(_, node)| matches!(node.payload(), Expression::Call { .. }))
+            .last()
+            .expect("outer ownership primitive call");
+        for input in [
+            SourceUnitInput::memory_document(source, &file),
+            SourceUnitInput::new("root", "ownership-primitive.ko", source, &file),
+        ] {
+            let inputs = [input];
+            let (name_environment, type_environment) = standard_environments();
+            let names = validated_names(&sources, &inputs, &name_environment);
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_environment)
+                .expect("type product");
+            let codes = typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(codes, expected, "{body}");
+            let id = UnitExpressionId::new(source_unit(&names, source), call);
+            assert_eq!(typed.expression_falls_through(id), Some(falls_through));
+            assert_eq!(
+                typed
+                    .types()
+                    .get(typed.expression_type(id).expect("static primitive result")),
+                Some(&UnitTypeKind::Builtin(result_type)),
+            );
+            assert_eq!(typed.ownership_primitive(id).is_some(), expected.is_empty());
+        }
+    }
+}

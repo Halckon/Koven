@@ -3,8 +3,8 @@
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
     ownership_checking::{
-        UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction as Action,
-        UnitIterationSourceAccess,
+        LoanKind as FrontendLoanKind, UnitDropPoint, UnitDropTarget,
+        UnitIterationCleanupAction as Action, UnitIterationSourceAccess, UnitLoanTarget,
     },
     parser::Expression,
     source::Span,
@@ -44,6 +44,22 @@ impl Builder<'_, '_> {
                 reassigned.push(symbol);
             }
         }
+        // A root Inout call kills the pre-loop proof just like direct reassignment.
+        for loan in self.inputs.owned.loans() {
+            let call = loan.end_span();
+            if loan.call().source_unit() == self.inputs.source_unit
+                && call.source_id() == loop_span.source_id()
+                && loop_span.start() <= call.start()
+                && call.end() <= loop_span.end()
+                && loan.kind() == FrontendLoanKind::Exclusive
+                && let UnitLoanTarget::Place(place) = loan.target()
+                && place.is_root()
+                && self.active_view(place.root()).is_some()
+                && !self.inside_lambda(call)
+            {
+                reassigned.push(place.root());
+            }
+        }
         for symbol in reassigned {
             self.end_views_of(symbol, loop_span)?;
         }
@@ -69,6 +85,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             loans: self.pending_call_loans.len(),
+            index_loans: self.index_receiver_loans.len(),
             broken: false,
             seq_for: None,
             map_for: None,
@@ -114,6 +131,12 @@ impl Builder<'_, '_> {
                 .expect("loans boundary checked");
             self.end_short_call_loan(loan, span)?;
         }
+        let abandoned_indices = self
+            .index_receiver_loans
+            .get(frame.index_loans..)
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?
+            .to_vec();
+        self.end_index_receiver_loans(&abandoned_indices, span)?;
         let views_boundary = frame.views.min(self.active_views.len());
         while self.active_views.len() > views_boundary {
             let view = self.active_views.pop().expect("views boundary checked");
@@ -258,7 +281,6 @@ impl Builder<'_, '_> {
         loop_body: StatementId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
-        self.end_reassigned_loop_views(span)?;
         let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
         let plan = self
             .inputs
@@ -368,6 +390,7 @@ impl Builder<'_, '_> {
                 _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
             }
         };
+        self.end_reassigned_loop_views(span)?;
         let length_op = if is_range_view {
             ROp::RangeLength { view: source_loan }
         } else {
@@ -471,6 +494,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             loans: self.pending_call_loans.len(),
+            index_loans: self.index_receiver_loans.len(),
             broken: false,
             seq_for: Some(SeqForFrame {
                 source_loan,
@@ -516,7 +540,6 @@ impl Builder<'_, '_> {
         loop_body: StatementId,
         span: Span,
     ) -> Result<Lowered, LoweringError> {
-        self.end_reassigned_loop_views(span)?;
         let statement_id = UnitStatementId::new(self.inputs.source_unit, statement);
         let plan = self
             .inputs
@@ -627,6 +650,7 @@ impl Builder<'_, '_> {
             }
             _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
         };
+        self.end_reassigned_loop_views(span)?;
         let cursor = self.value(
             ROp::MapIterationFirst {
                 source: source_loan,
@@ -696,6 +720,7 @@ impl Builder<'_, '_> {
             exit,
             views: mark,
             loans: self.pending_call_loans.len(),
+            index_loans: self.index_receiver_loans.len(),
             broken: false,
             seq_for: None,
             map_for: Some(MapForFrame {

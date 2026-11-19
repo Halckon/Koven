@@ -1,5 +1,7 @@
 //! SPEC-0197 compilation-unit 基础运算表达式类型检查。
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use crate::{
     diagnostic::{Diagnostic, Severity, codes},
     name_resolution::SourceUnitId,
@@ -8,11 +10,14 @@ use crate::{
     type_checking::{BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitTypeId},
 };
 
-use crate::type_checking::flow_effects::logical_rhs_is_required;
+use crate::type_checking::flow_effects::{
+    logical_rhs_is_required,
+    result_edges::{bypassed_result_writes, splits_boolean_writes},
+};
 
 use super::{
     BodyChecker, ExpressionCheck, UnitExpressionId,
-    flow::{extend_facts, intersect_facts, merge_flow_versions},
+    flow::{FlowKey, FlowVersions, extend_facts, intersect_facts, merge_flow_versions},
     while_flow::{PendingBooleanEdges, PendingControlSite},
 };
 
@@ -22,6 +27,16 @@ pub(super) struct BinaryExpression {
     pub(super) operator: BinaryOperator,
     pub(super) operator_span: Span,
     pub(super) right: crate::ast::ExpressionId,
+}
+
+struct LogicalLhsSnapshot {
+    facts: BTreeMap<FlowKey, UnitTypeId>,
+    versions: FlowVersions,
+}
+
+struct BypassedWrites<'a> {
+    before: &'a LogicalLhsSnapshot,
+    keys: BTreeSet<FlowKey>,
 }
 
 impl BodyChecker<'_> {
@@ -154,17 +169,110 @@ impl BodyChecker<'_> {
         )
     }
 
-    // Keep non-logical operator temporaries out of the recursive short-circuit path.
     fn check_logical_binary(
         &mut self,
         source: SourceUnitId,
         expression: BinaryExpression,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        // The left-associated chain must not retain right-side flow temporaries.
-        let left_result =
-            self.check_expression(source, expression.left, None, None, return_type)?;
-        self.check_logical_binary_after_left(source, expression, left_result, return_type)
+        let ast = self.file(source).ast();
+        let root_has_split =
+            splits_boolean_writes(ast, expression.left).map_err(TypeCheckingError::from)?;
+        let mut pending = Vec::new();
+        let mut left = expression.left;
+        while !self
+            .parts
+            .expression_types
+            .contains_key(&UnitExpressionId::new(source, left))
+        {
+            let node = ast
+                .expressions()
+                .get(left)
+                .map_err(TypeCheckingError::from)?;
+            let &Expression::Binary {
+                left: child,
+                operator,
+                operator_span,
+                right,
+            } = node.payload()
+            else {
+                break;
+            };
+            if !matches!(
+                operator,
+                BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr
+            ) {
+                break;
+            }
+            let has_split = splits_boolean_writes(ast, child).map_err(TypeCheckingError::from)?;
+            pending.push((
+                BinaryExpression {
+                    expression: left,
+                    left: child,
+                    operator,
+                    operator_span,
+                    right,
+                },
+                has_split,
+            ));
+            left = child;
+        }
+        // Descending through a direct left spine performs no flow transitions.
+        let before = (root_has_split || pending.iter().any(|(_, split)| *split)).then(|| {
+            LogicalLhsSnapshot {
+                facts: self.flow_facts.clone(),
+                versions: self.flow_versions.clone(),
+            }
+        });
+        let mut left_result = self.check_expression(source, left, None, None, return_type)?;
+        for (nested, has_split) in pending.into_iter().rev() {
+            let id = nested.expression;
+            left_result = self.complete_logical_binary(
+                source,
+                nested,
+                left_result,
+                return_type,
+                before.as_ref().filter(|_| has_split),
+            )?;
+            self.record_expression_check(UnitExpressionId::new(source, id), left_result);
+        }
+        self.complete_logical_binary(
+            source,
+            expression,
+            left_result,
+            return_type,
+            before.as_ref().filter(|_| root_has_split),
+        )
+    }
+
+    fn complete_logical_binary(
+        &mut self,
+        source: SourceUnitId,
+        expression: BinaryExpression,
+        left_result: ExpressionCheck,
+        return_type: UnitTypeId,
+        before: Option<&LogicalLhsSnapshot>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let bypassed = if let Some(before) = before
+            && self.is_builtin(left_result.ty, BuiltinType::Boolean)
+            && self.flow_versions.versions_changed(&before.versions)
+        {
+            let [yes, no] = bypassed_result_writes(
+                &self.syntactic_boolean_outcomes[source.index()],
+                expression.left,
+                |target| self.stable_flow_key(source, target),
+            )
+            .map_err(TypeCheckingError::from)?;
+            let keys = if expression.operator == BinaryOperator::LogicalAnd {
+                yes
+            } else {
+                no
+            };
+            Some(BypassedWrites { before, keys })
+        } else {
+            None
+        };
+        self.check_logical_binary_after_left(source, expression, left_result, return_type, bypassed)
     }
 
     fn check_logical_binary_after_left(
@@ -173,6 +281,7 @@ impl BodyChecker<'_> {
         expression: BinaryExpression,
         left_result: ExpressionCheck,
         return_type: UnitTypeId,
+        bypassed: Option<BypassedWrites<'_>>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let BinaryExpression {
             expression,
@@ -200,6 +309,14 @@ impl BodyChecker<'_> {
             (&left_false, left_edges.no, left_edges.yes)
         };
         self.flow_facts = extend_facts(&baseline, right_entry);
+        if let Some(BypassedWrites { before, keys }) = bypassed {
+            self.flow_versions.restore_bypassed_writes(
+                &mut self.flow_facts,
+                &before.facts,
+                &before.versions,
+                &keys,
+            );
+        }
         if let Some(pending) = &rhs_pending {
             self.flow_versions.set_pending_keys(pending.iter().copied());
         }

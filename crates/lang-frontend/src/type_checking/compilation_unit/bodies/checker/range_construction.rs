@@ -105,7 +105,7 @@ impl BodyChecker<'_> {
             .get(operand)
             .map_err(TypeCheckingError::from)?
             .span();
-        let mut flow = CallOperandFlow::new(self);
+        let mut flow = CallOperandFlow::new(self.tracks_pending_call_flow());
         let source_type = flow
             .check(self, source, operand, None, None, return_type)?
             .ty;

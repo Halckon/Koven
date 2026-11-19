@@ -516,12 +516,12 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             condition: ExpressionId,
             span: Span,
         ) -> Result<Option<NullableIfEntry>, LoweringError> {
-            if !self.loops.is_empty()
-                || !self.substitutions.is_empty()
-                || self
-                    .nullable_proofs
-                    .values()
-                    .any(|proof| proof.when_scope().is_none())
+            // The qualified Borrow prefix retires this proof before a local
+            // loop jump. Existing guards still reject a live proof at loop edges.
+            if self
+                .nullable_proofs
+                .values()
+                .any(|proof| proof.when_scope().is_none())
             {
                 return Ok(None);
             }
@@ -549,6 +549,20 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             let Some(comparison) = self.map_borrow_condition(condition, span)? else {
                 return Ok(None);
             };
+            // The prefix matches the source facts by type identity. A generic
+            // caller can use it when this particular nullable root is concrete.
+            if !self.substitutions.is_empty()
+                && !resolve_concrete_type(
+                    self.typed,
+                    comparison.nullable_type(),
+                    self.substitutions,
+                    self.static_self,
+                    span,
+                )
+                .is_ok_and(|ty| ty == comparison.nullable_type())
+            {
+                return Ok(None);
+            }
             let root = comparison.symbol();
             // A fresh proof may coexist with carried When proofs for other roots.
             if self.nullable_proofs.contains_key(&root) {
@@ -678,7 +692,7 @@ pub(in crate::ssa::unit_lower) mod heap_nullable_if {
             if self.function_ids.get(key) != Some(&self.function.id()) {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));
             }
-            if key.deinit_owner().is_some() || !key.type_arguments().is_empty() {
+            if key.deinit_owner().is_some() {
                 return Ok(false);
             }
             let UnitCallableTarget::Declaration(target) = key.target() else {

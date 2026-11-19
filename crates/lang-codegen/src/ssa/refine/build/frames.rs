@@ -16,6 +16,7 @@ pub(super) struct LoopFrame {
     pub(super) exit: BlockRef,
     pub(super) views: usize,
     pub(super) loans: usize,
+    pub(super) index_loans: usize,
     pub(super) broken: bool,
     pub(super) seq_for: Option<SeqForFrame>,
     pub(super) map_for: Option<MapForFrame>,

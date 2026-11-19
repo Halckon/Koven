@@ -1,6 +1,9 @@
 use super::*;
 use crate::test_support::diagnostics::assert_diagnostic;
 
+#[path = "control_flow_tests/known_when_return.rs"]
+mod known_when_return;
+
 #[test]
 fn skipped_short_circuit_write_keeps_the_existing_nonnull_proof() {
     let source = r#"fun clear(inout target: Int?): Boolean {

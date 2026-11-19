@@ -169,7 +169,6 @@ fn range_scalar_counts_keep_non_int_binary_and_wider_cfg_gates() {
         ("val other=true==false", "true==false"),
         ("val other=1L==2L", "1L==2L"),
         ("val other=n shl 1", "n shl 1"),
-        ("if(true){read(part)}", "if(true){read(part)}"),
         ("while(false){read(part)}", "while(false){read(part)}"),
     ] {
         let consumer = format!(

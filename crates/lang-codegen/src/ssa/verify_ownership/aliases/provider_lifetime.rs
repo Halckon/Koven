@@ -1,8 +1,8 @@
 //! Bounded path-correlated loan provenance for provider places; no may-origin union.
 use super::super::super::{
     model::{
-        BlockId, Definition, EntityId, Function, LoanId, Operation, PlaceId, TerminatorKind,
-        ValueId,
+        BlockId, Definition, EntityId, EntityType, Function, LoanId, LoanKind, Operation,
+        PlaceAccess, PlaceId, TerminatorKind, ValueId,
     },
     verify::{VerifyError, VerifyErrorKind, VerifyLocation, compute_dominators},
 };
@@ -82,6 +82,7 @@ impl EntryProjection {
 pub(in crate::ssa) struct Reference {
     pub(in crate::ssa) lineage: BTreeSet<LoanId>,
     pub(in crate::ssa) origin: LoanId,
+    pub(in crate::ssa) root_storage: Option<LoanId>,
     pub(in crate::ssa) live: bool,
 }
 
@@ -143,12 +144,40 @@ impl State {
             if let Some(&origin) = names.get(&reference.origin) {
                 reference.origin = origin;
             }
+            if let Some(root) = reference.root_storage {
+                reference.root_storage = Some(names.get(&root).copied().unwrap_or(root));
+            }
             reference.lineage = reference
                 .lineage
                 .iter()
                 .map(|token| names.get(token).copied().unwrap_or(*token))
                 .collect();
         }
+    }
+
+    fn invalidate_places(&mut self, loan: LoanId) {
+        if let Some(reference) = self.loans.get(&loan) {
+            self.invalidate_places_of(reference.root_storage.unwrap_or(reference.origin));
+        }
+    }
+
+    fn invalidate_places_of(&mut self, origin: LoanId) {
+        for place in self.places.values_mut() {
+            if place.lineage.contains(&origin) {
+                place.live = false;
+            }
+        }
+    }
+
+    fn commit_exchange(&mut self, loan: LoanId) {
+        if let Some(root) = self
+            .loans
+            .get(&loan)
+            .and_then(|reference| reference.root_storage)
+        {
+            self.invalidate_places_of(root);
+        }
+        self.end(loan);
     }
 
     pub(in crate::ssa) fn end(&mut self, loan: LoanId) {
@@ -180,6 +209,9 @@ pub(in crate::ssa) fn verify(function: &Function, errors: &mut Vec<VerifyError>)
             matches!(
                 instruction.operation,
                 Operation::ContainerElementPlace { .. }
+                    | Operation::ExclusiveHeapFieldLoan { .. }
+                    | Operation::ExclusiveRootReborrow { .. }
+                    | Operation::SharedHeapFieldLoan { .. }
                     | Operation::NullableLoanIsNull { .. }
                     | Operation::RangeElementPlace { .. }
                     | Operation::MapIterationFirst { .. }
@@ -203,6 +235,7 @@ pub(in crate::ssa) fn verify(function: &Function, errors: &mut Vec<VerifyError>)
                 Reference {
                     lineage: BTreeSet::from([*loan]),
                     origin: *loan,
+                    root_storage: None,
                     live: true,
                 },
             );
@@ -234,6 +267,28 @@ pub(in crate::ssa) fn verify(function: &Function, errors: &mut Vec<VerifyError>)
         for id in &block.instructions {
             let instruction = function.instruction(*id).expect("verified instruction");
             let result = instruction.results.first().copied();
+            if matches!(
+                instruction.operation,
+                Operation::DirectCall { .. }
+                    | Operation::BorrowCall { .. }
+                    | Operation::RangeCall { .. }
+                    | Operation::CallableInvoke { .. }
+                    | Operation::CallableInvokeView { .. }
+            ) {
+                for entity in instruction.operation.entities() {
+                    if let EntityId::Loan(loan) = entity
+                        && matches!(
+                            function.entity(entity).map(|entity| entity.ty),
+                            Some(EntityType::Loan {
+                                kind: LoanKind::Exclusive,
+                                ..
+                            })
+                        )
+                    {
+                        state.invalidate_places(loan);
+                    }
+                }
+            }
             let inherited = match instruction.operation {
                 Operation::MapIterationFirst { source } => {
                     match map_reference(&state, source, None) {
@@ -271,11 +326,13 @@ pub(in crate::ssa) fn verify(function: &Function, errors: &mut Vec<VerifyError>)
                 | Operation::RangeElementPlace { view: loan, .. }
                 | Operation::NullableLoanIsNull { source: loan }
                 | Operation::SharedReborrow { source: loan }
+                | Operation::ExclusiveRootReborrow { source: loan }
                 | Operation::BorrowCall { source: loan, .. }
                 | Operation::MapRequireValue { source: loan, .. }
                 | Operation::SharedReferenceFollow { source: loan }
                 | Operation::SharedFieldLoan { base: loan, .. }
-                | Operation::SharedHeapFieldLoan { base: loan, .. } => {
+                | Operation::SharedHeapFieldLoan { base: loan, .. }
+                | Operation::ExclusiveHeapFieldLoan { base: loan, .. } => {
                     let reference = state.loans.get(&loan).cloned();
                     if reference.as_ref().is_some_and(|reference| !reference.live) {
                         errors.push(VerifyError {
@@ -287,7 +344,12 @@ pub(in crate::ssa) fn verify(function: &Function, errors: &mut Vec<VerifyError>)
                     }
                     reference
                 }
-                Operation::BorrowBegin { place, .. } => {
+                Operation::BorrowBegin { place, .. }
+                | Operation::FieldPlace { base: place, .. }
+                | Operation::Mutate { place, .. }
+                | Operation::Read {
+                    source: PlaceAccess::Place(place),
+                } => {
                     let reference = state.places.get(&place).cloned();
                     if reference.as_ref().is_some_and(|reference| !reference.live) {
                         errors.push(VerifyError {
@@ -299,7 +361,24 @@ pub(in crate::ssa) fn verify(function: &Function, errors: &mut Vec<VerifyError>)
                     }
                     reference
                 }
-                Operation::BorrowEnd { loan } => {
+                Operation::LoanReplace { loan, .. }
+                | Operation::LoanMutate { loan, .. }
+                | Operation::ContainerAppendInout { loan, .. } => {
+                    state.invalidate_places(loan);
+                    None
+                }
+                Operation::ProjectedSwap { loans, .. } => {
+                    for loan in loans {
+                        state.commit_exchange(loan);
+                    }
+                    None
+                }
+                Operation::InoutExchange { loan, .. } => {
+                    state.commit_exchange(loan);
+                    None
+                }
+                Operation::BorrowEnd { loan }
+                | Operation::HeapReceiverFieldExchange { loan, .. } => {
                     state.end(loan);
                     None
                 }
@@ -320,8 +399,14 @@ pub(in crate::ssa) fn verify(function: &Function, errors: &mut Vec<VerifyError>)
                     let mut reference = inherited.unwrap_or(Reference {
                         lineage: BTreeSet::new(),
                         origin: loan,
+                        root_storage: None,
                         live: true,
                     });
+                    reference.root_storage = matches!(
+                        instruction.operation,
+                        Operation::ExclusiveRootReborrow { .. }
+                    )
+                    .then_some(reference.origin);
                     reference.lineage.insert(loan);
                     reference.origin = loan;
                     state.loans.insert(loan, reference);
@@ -388,6 +473,7 @@ pub(in crate::ssa) fn verify(function: &Function, errors: &mut Vec<VerifyError>)
                     Reference {
                         lineage: BTreeSet::from([*view]),
                         origin: *view,
+                        root_storage: None,
                         live: true,
                     },
                 );

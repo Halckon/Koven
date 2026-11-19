@@ -29,7 +29,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 | Operation::FieldPlace { .. }
                 | Operation::SharedFieldLoan { .. }
                 | Operation::SharedHeapFieldLoan { .. }
+                | Operation::ExclusiveHeapFieldLoan { .. }
                 | Operation::SharedReborrow { .. }
+                | Operation::ExclusiveRootReborrow { .. }
                 | Operation::CallableViewOf { .. }
                 | Operation::SharedReferenceFollow { .. }
                 | Operation::ContainerElementPlace { .. }
@@ -100,6 +102,8 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::HeapFieldRead { .. }
             | Operation::HeapFieldReplace { .. }
             | Operation::HeapFieldExchange { .. }
+            | Operation::HeapReceiverFieldExchange { .. }
+            | Operation::InoutExchange { .. }
             | Operation::InlineFieldReplace { .. }
             | Operation::SharedAllocate { .. }
             | Operation::SharedRetain { .. }
@@ -113,7 +117,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::ContainerGenerateBorrowed { .. }
             | Operation::ContainerLength { .. }
             | Operation::ContainerElementPlace { .. }
+            | Operation::ProjectedSwap { .. }
             | Operation::ContainerAppend { .. }
+            | Operation::ContainerAppendInout { .. }
             | Operation::ContainerClear { .. }
             | Operation::ContainerRemoveAt { .. }
             | Operation::ContainerRemoveFirst { .. }
@@ -140,7 +146,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             Operation::FieldPlace { .. }
             | Operation::SharedFieldLoan { .. }
             | Operation::SharedHeapFieldLoan { .. }
+            | Operation::ExclusiveHeapFieldLoan { .. }
             | Operation::SharedReborrow { .. }
+            | Operation::ExclusiveRootReborrow { .. }
             | Operation::NullableWrap { .. }
             | Operation::NullableNull { .. }
             | Operation::NullableIsNull { .. }

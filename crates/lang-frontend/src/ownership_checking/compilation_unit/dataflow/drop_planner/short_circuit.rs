@@ -3,71 +3,124 @@ use crate::ownership_checking::compilation_unit::constant::{
     UnitShortCircuitPlan, UnitShortCircuitRhs,
 };
 
-use super::{DropExpressionUse, DropPlanner, ExpressionId, OwnershipCheckingError, ValueState};
+use super::{DropPlanner, ExpressionId, OwnershipCheckingError, PlannerDropPoint, ValueState};
+
+pub(super) struct PendingRhs {
+    plan: UnitShortCircuitPlan,
+    cleanup: RhsCleanup,
+}
+
+enum RhsCleanup {
+    Direct,
+    EarlyExit(Box<ValueState>),
+    Normal {
+        original: Box<ValueState>,
+        evaluated_branch: usize,
+    },
+}
 
 impl DropPlanner<'_, '_> {
-    // An evaluated RHS edge, not a history of the left operand or dynamic executions.
-    pub(super) fn owner_short_circuit_rhs(
+    pub(super) fn start_short_circuit_rhs(
         &mut self,
         plan: UnitShortCircuitPlan,
         state: &mut ValueState,
-    ) -> Result<bool, OwnershipCheckingError> {
+    ) -> Option<PendingRhs> {
         let control = plan.expression.expression();
+        let early = (self.checker.constant_control && plan.rhs != UnitShortCircuitRhs::Conditional)
+            || self
+                .checker
+                .typed
+                .expression_falls_through(self.checker.unit_expression(control))
+                == Some(false);
+        let cleanup = if early {
+            match plan.rhs {
+                UnitShortCircuitRhs::Never => return None,
+                UnitShortCircuitRhs::Always => RhsCleanup::Direct,
+                UnitShortCircuitRhs::Conditional => {
+                    let mut skipped = state.clone();
+                    self.drop_branch_exit(control, 1 - plan.rhs_branch, &mut skipped);
+                    RhsCleanup::EarlyExit(Box::new(skipped))
+                }
+            }
+        } else {
+            let evaluated_branch = if self.checker.constant_control {
+                plan.rhs_branch()
+            } else {
+                0
+            };
+            let copy = state.clone();
+            if plan.rhs == UnitShortCircuitRhs::Never {
+                let mut skipped = copy;
+                self.finish_short_circuit_branch(control, 1 - evaluated_branch, &mut skipped);
+                *state = self.merge_resource_states(control, vec![skipped]);
+                return None;
+            }
+            RhsCleanup::Normal {
+                original: Box::new(std::mem::replace(state, copy)),
+                evaluated_branch,
+            }
+        };
+        // The active arm is the evaluated RHS edge.
         self.enter_root_branch_arm(control, plan.rhs_branch);
-        let result = self.expression(plan.right.expression(), DropExpressionUse::Read, state);
-        self.leave_root_branch_arm(control, plan.rhs_branch);
-        result
+        Some(PendingRhs { plan, cleanup })
     }
 
-    pub(super) fn short_circuit(
+    pub(super) fn finish_short_circuit_rhs(
         &mut self,
-        control: ExpressionId,
-        plan: UnitShortCircuitPlan,
+        pending: PendingRhs,
+        result: Result<bool, OwnershipCheckingError>,
         state: &mut ValueState,
     ) -> Result<bool, OwnershipCheckingError> {
-        if !self.expression(plan.left.expression(), DropExpressionUse::Read, state)? {
-            return Ok(false);
-        }
-        let evaluated_branch = if self.checker.constant_control {
-            plan.rhs_branch()
-        } else {
-            0
-        };
-        let skipped_branch = 1 - evaluated_branch;
-        let mut evaluated = state.clone();
-        let mut exits = Vec::with_capacity(2);
-        if plan.rhs != UnitShortCircuitRhs::Never
-            && self.owner_short_circuit_rhs(plan, &mut evaluated)?
-        {
-            self.finish_pending_temporaries(
-                control,
-                super::PlannerDropPoint::BranchExit {
-                    control,
-                    branch: evaluated_branch,
-                },
-                &mut evaluated,
-            );
-            self.drop_branch_exit(control, evaluated_branch, &mut evaluated);
-            exits.push(evaluated);
-        }
-        if plan.rhs != UnitShortCircuitRhs::Always {
-            let mut skipped = state.clone();
-            self.finish_pending_temporaries(
-                control,
-                super::PlannerDropPoint::BranchExit {
-                    control,
-                    branch: skipped_branch,
-                },
-                &mut skipped,
-            );
-            self.drop_branch_exit(control, skipped_branch, &mut skipped);
-            if let Some(evaluated) = exits.last() {
-                Self::merge_rc_projection_temporaries(evaluated, &mut skipped);
+        let PendingRhs { plan, cleanup } = pending;
+        let control = plan.expression.expression();
+        self.leave_root_branch_arm(control, plan.rhs_branch);
+        match cleanup {
+            RhsCleanup::Direct => result,
+            RhsCleanup::EarlyExit(skipped) => {
+                let mut branches = vec![*skipped];
+                if result? {
+                    self.drop_branch_exit(control, plan.rhs_branch, state);
+                    branches.push(state.clone());
+                }
+                *state = self.merge_resource_states(control, branches);
+                Ok(true)
             }
-            exits.push(skipped);
+            RhsCleanup::Normal {
+                original,
+                evaluated_branch,
+            } => {
+                let mut evaluated = std::mem::replace(state, *original);
+                let mut exits = Vec::with_capacity(2);
+                if result? {
+                    self.finish_short_circuit_branch(control, evaluated_branch, &mut evaluated);
+                    exits.push(evaluated);
+                }
+                if plan.rhs != UnitShortCircuitRhs::Always {
+                    let mut skipped = state.clone();
+                    self.finish_short_circuit_branch(control, 1 - evaluated_branch, &mut skipped);
+                    if let Some(evaluated) = exits.last() {
+                        Self::merge_rc_projection_temporaries(evaluated, &mut skipped);
+                    }
+                    exits.push(skipped);
+                }
+                let continues = !exits.is_empty();
+                *state = self.merge_resource_states(control, exits);
+                Ok(continues)
+            }
         }
-        let continues = !exits.is_empty();
-        *state = self.merge_resource_states(control, exits);
-        Ok(continues)
+    }
+
+    fn finish_short_circuit_branch(
+        &mut self,
+        control: ExpressionId,
+        branch: usize,
+        state: &mut ValueState,
+    ) {
+        self.finish_pending_temporaries(
+            control,
+            PlannerDropPoint::BranchExit { control, branch },
+            state,
+        );
+        self.drop_branch_exit(control, branch, state);
     }
 }

@@ -198,6 +198,27 @@ fn direct_field_replace_rejects_self_read_self_move_and_overlapping_loan() {
 }
 
 #[test]
+fn string_binary_field_read_blocks_only_overlapping_replace() {
+    for (field, conflict) in [("left", true), ("right", false)] {
+        let unit = checked(&format!(
+            r#"
+class Holder(var left: String, var right: String)
+fun run(): Unit {{
+    val holder = Holder("left", "right")
+    println(holder.left + replace(&holder.{field}, "new"))
+}}
+"#
+        ));
+        let diagnostics: Vec<_> = unit
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect();
+        assert_eq!(diagnostics, if conflict { vec!["L0135"] } else { vec![] });
+    }
+}
+
+#[test]
 fn direct_field_replace_rejects_val_field_and_clears_prior_commit() {
     let unit = checked(
         "class Holder(var state: Int, val fixed: Int)\nfun run(): Unit {\nval holder = Holder(1, 2)\nreplace(&holder.state, 3)\nreplace(&holder.fixed, 4)\n}",
@@ -271,13 +292,109 @@ fn direct_field_replace_control_exit_never_commits() {
 }
 
 #[test]
+fn receiver_field_replace_keeps_the_exclusive_field_and_value_delivery() {
+    let unit = checked(
+        r#"
+        class Token(val label: String) {
+            deinit() { println(label) }
+        }
+        class Holder(var count: Int, var token: Token?) {
+            inout fun exchange(next: Int): Int { return replace(&(this.count), next) }
+            inout fun clear(): Token? { return replace(&this.token, null) }
+        }
+        "#,
+    );
+    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+    assert!(unit.ownership_primitives().is_empty());
+    assert_eq!(unit.field_replacements().len(), 2, "{:?}", unit.loans());
+    assert_eq!(
+        unit.field_replacements()[0].new_value_transfer(),
+        OwnershipPrimitiveValueTransfer::Copy
+    );
+    assert_eq!(
+        unit.field_replacements()[1].new_value_transfer(),
+        OwnershipPrimitiveValueTransfer::Temporary
+    );
+    for plan in unit.field_replacements() {
+        assert!(plan.place().is_root());
+        assert!(plan.inout_receiver().is_some());
+        let descriptor = plan.descriptor();
+        let matching: Vec<_> = unit
+            .loans()
+            .iter()
+            .filter(|loan| {
+                loan.call() == descriptor.expression()
+                    && loan.argument() == descriptor.operands()[0]
+            })
+            .collect();
+        let [loan] = matching.as_slice() else {
+            panic!("one validated field loan: {matching:?}");
+        };
+        assert_eq!(
+            loan.kind(),
+            lang_frontend::ownership_checking::LoanKind::Exclusive
+        );
+        assert_eq!(
+            loan.target(),
+            &lang_frontend::ownership_checking::UnitLoanTarget::Place(plan.place().clone())
+        );
+    }
+    assert!(unit.validate().is_ok());
+}
+
+#[test]
+fn receiver_field_replace_return_prefix_has_a_loan_without_commit() {
+    let unit = checked(
+        "class Holder(var state: Int) {\n\
+             inout fun update(): Int { return replace(&this.state, return 3) }\n\
+         }",
+    );
+    assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+    assert!(unit.field_replacements().is_empty());
+    assert!(unit.ownership_primitives().is_empty());
+    let [loan] = unit.loans() else {
+        panic!("the pending field loan still has a source identity");
+    };
+    assert_eq!(
+        loan.kind(),
+        lang_frontend::ownership_checking::LoanKind::Exclusive
+    );
+    assert!(unit.validate().is_ok());
+}
+
+#[test]
+fn receiver_field_replace_cannot_upgrade_readonly_or_captured_this() {
+    for (text, code) in [
+        (
+            "class Holder(var state: Int) { fun update(): Int { return replace(&this.state, 2) } }",
+            "L0134",
+        ),
+        (
+            "class Holder(var state: Int) { inout fun update(): Unit { val act = { replace(&this.state, 2) }; act() } }",
+            "L0135",
+        ),
+    ] {
+        let unit = checked(text);
+        let [diagnostic] = unit.diagnostics() else {
+            panic!(
+                "expected a single receiver diagnostic: {:?}",
+                unit.diagnostics()
+            );
+        };
+        assert_eq!(diagnostic.code().to_string(), code);
+        assert!(unit.field_replacements().is_empty());
+        assert!(unit.ownership_primitives().is_empty());
+        assert!(unit.validate().is_err());
+    }
+}
+
+#[test]
 fn direct_field_replace_retains_explicit_unsupported_boundaries() {
     for text in [
         "class Holder(var state: Int)\nclass Outer(val inner: Holder)\nfun run(): Unit {\nval outer = Outer(Holder(1))\nreplace(&outer.inner.state, 2)\n}",
         "class Holder(var state: Int)\nfun run(inout holder: Holder): Unit { replace(&holder.state, 2) }",
         "value class Holder(var state: Int)\nfun run(): Unit {\nvar holder = Holder(1)\nreplace(&holder.state, 2)\n}",
         "fun run(): Unit {\nval values = arrayOf<Int>(1)\nreplace(&values[0], 2)\n}",
-        "class Holder(var state: Int) { inout fun update(): Unit { replace(&this.state, 2) } }",
         "class Holder<T>(var state: Int, val other: T)\nfun <T> run(own value: T): Unit {\nval holder = Holder<T>(1, value)\nreplace(&holder.state, 2)\n}",
         "class Holder(var state: () -> Int)\nfun run(): Unit {\nval holder = Holder({ 1 })\nreplace(&holder.state, { 2 })\n}",
     ] {

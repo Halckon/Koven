@@ -1,4 +1,4 @@
-//! AST dispatch is separate from recursive typed short-circuit dispatch.
+//! AST dispatch after typed operations and the direct short-circuit chain.
 use super::{
     AccessKind, Checker, Expression, ExpressionId, ExpressionUse, Flows, OwnershipCheckingError,
     State,
@@ -6,7 +6,6 @@ use super::{
 use crate::parser::StringPart;
 
 impl Checker<'_> {
-    // Typed dispatch can recurse along a long logical chain without retaining the AST match frame.
     pub(super) fn check_expression_ast(
         &mut self,
         id: ExpressionId,
