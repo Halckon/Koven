@@ -206,10 +206,6 @@ impl Checker<'_, '_> {
             return false;
         }
         let uses_local_route = local_route && self.loop_route != super::LoopRoute::Existing;
-        if !uses_local_route && !self.scope_requires_refine() {
-            self.loop_route_retry |= local_route;
-            return false;
-        }
         let mut reassigned = Vec::new();
         for (_, node) in self.inputs.parsed.ast().expressions().iter() {
             let span = node.span();
@@ -276,24 +272,6 @@ impl Checker<'_, '_> {
             return false;
         };
         if place.element().is_some() {
-            return false;
-        }
-        // Borrowed Map aliases share the per-family iteration path when the
-        // scope does not already require refinement.
-        if fact.storage() == BorrowBindingStorage::BorrowedStorage
-            && fact.source_loan().is_none()
-            && place.is_root()
-            && self.parameter_mode(place.root()) == Some(ParameterMode::Borrow)
-            && matches!(
-                self.symbol_type(place.root()).and_then(|ty| self.kind(ty)),
-                Some(UnitTypeKind::Intrinsic {
-                    constructor: IntrinsicTypeConstructor::Map
-                        | IntrinsicTypeConstructor::MutableMap,
-                    ..
-                })
-            )
-            && !self.scope_requires_refine()
-        {
             return false;
         }
         if fact.storage() == BorrowBindingStorage::NewRangeDescriptor {
