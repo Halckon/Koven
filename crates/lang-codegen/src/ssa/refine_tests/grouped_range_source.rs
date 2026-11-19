@@ -1,8 +1,8 @@
-//! Nested primitive sources retain the existing default-refine boundary.
+//! Nested primitive sources now lower and verify through default refine (P1-3).
 use super::*;
 
 #[test]
-fn nested_range_sources_keep_existing_default_refine_boundary() {
+fn nested_range_sources_lower_and_verify_in_default_refine() {
     for depth in [0, 1, 3] {
         for backing in ["source", "listOf(3, 4)"] {
             let source = format!(
@@ -24,16 +24,15 @@ fn nested_range_sources_keep_existing_default_refine_boundary() {
                 types_env.authorize_range_source(&sources, id).unwrap();
                 let (names, typed, owned) = analyze(&sources, &inputs, &names_env, &types_env);
                 let entry = declaration(&names, "p", "main");
-                let Err(error) = lower_scalar_unit_with_entry(
+                let (program, _) = lower_scalar_unit_with_entry(
                     &sources, &inputs, &names, &types_env, &typed, &owned, entry,
-                ) else {
-                    panic!("nested primitive source remains outside default refine");
-                };
-                assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-                assert_eq!(
-                    sources.slice(error.span.expect("original range expression")),
-                    Ok(format!("rangeView({source}, 0, 1)").as_str()),
-                );
+                )
+                .unwrap_or_else(|error| {
+                    panic!("nested primitive source must lower in default refine: {error:?}")
+                });
+                let llvm = crate::llvm::render_verified_program(&program)
+                    .unwrap_or_else(|error| panic!("verified LLVM failed: {error:?}"));
+                assert!(!llvm.is_empty());
             }
         }
     }
