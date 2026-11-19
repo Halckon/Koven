@@ -268,7 +268,8 @@ class LoanKernelCases(unittest.TestCase):
                 if accepted:
                     walk(program, name)
         self.assertEqual({("movedOnOneBranch", "f"), ("destroyedWhileSuspended", "g"), ("deinit OneBranch", "this"),
-                          ("openInOneArm", "this"), ("openSharedInOneArm", "this"), ("openSharedInOneArm", "f")},
+                          ("openInOneArm", "this"), ("openSharedInOneArm", "this"), ("openSharedInOneArm", "f"),
+                          ("writeAfterJoinedRead", "this"), ("writeAfterJoinedRead", "f")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -420,6 +421,32 @@ class LoanKernelCases(unittest.TestCase):
         joined.cleanup.remove(("this", True))
         # 三个参数绑定成功，右臂的两个调用成功，合流后的调用失败。
         self.assertEqual({"V1": [(0, 2)] * 3 + [(1, 2), (0, 2), (0, 2), (1, 2)]}, verify())
+
+    def test_opened_view_keeps_its_source_after_leaving_the_arm(self):
+        source = (ROOT / "cases/Z7.lk").read_text(encoding="utf-8")
+        left_only = source.replace("  if (*) {", "  {")
+        # 删除左臂的语句但保留行号，便于与合流用例核对同一写入点。
+        right_only = "\n".join("" if line.startswith("    ") else line
+                               for line in left_only.splitlines())
+        a, b = [i for i, line in enumerate(source.splitlines(), 1) if "// ERR K1" in line]
+        for program, lines in ((source, {a, b}), (left_only, {a}), (right_only, {b})):
+            self.assertEqual({("K1", line) for line in lines},
+                             {(rule, line) for rule, line, _ in CHECKER.check(program)})
+
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        types, program, accepted = lowered["writeAfterJoinedRead"]
+        self.assertTrue(accepted)
+        branch = next(s for s in program if s.kind == "if")
+        inside = next(s for s in branch.body if s.kind == "call")
+        joined = next(s for s in program if s.kind == "call")
+        self.assertEqual([("file", False), ("out", False), ("b", False), ("a", False)], inside.cleanup)
+        self.assertEqual([("out", False), ("f", True), ("b", False), ("a", False), ("this", True)], joined.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        inside.cleanup.remove(("out", False))
+        # 五个绑定成功，进入拆解臂，转移后调用失败。
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2)] * 6 + [(1, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
