@@ -36,6 +36,8 @@ macOS AArch64，仓库 Rust 1.96.0、Python 3.15.2 / Lark 1.2.2；探针未入�
 
 ## 后续决策
 
-若要持久化，先在独立 Spec 中固定这四个模板、两条拒绝边界、四条词法故障和三条差分故障，
+[候选 Spec 草案](independent-block-diff-spec-draft.md)已固定四个模板、两条拒绝边界、四条词法故障和三条差分故障。
+运行方式的证据与限制见 [Lark 离线接入审查](lark-offline-audit.md)。
+若要持久化，先批准独立 Spec，
 并决定离线参考运行方式与跨宿主复现合同。未完成依赖治理前不装入 required CI；不把临时本机路径
 当作复现入口。F4b 的 Tree-sitter 支持交集及证据要求仍是独立切片。
