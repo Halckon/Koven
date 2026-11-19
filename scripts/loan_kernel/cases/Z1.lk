@@ -77,6 +77,21 @@ fun fieldFromBorrow(own this: Conn, own f: File): Unit in Conn {
 fun storeFromBorrow(inout dst: Conn, borrow src: Conn): Unit {
   *dst = src  // ERR X1
 }
+sig Conn(): Unit
+fun storeFromSameNamedFunction(inout dst: Conn, own src: fn Conn): Unit {
+  *dst = src  // ERR X1
+}
+fun storeFunctionIntoFunction(own dst: fn Conn, own src: fn Conn): Unit {
+  val r = &mut dst
+  *r = src
+}
+fun storeClassIntoFunction(own dst: fn Conn, own src: Conn): Unit {
+  val r = &mut dst
+  *r = move src  // ERR X1
+}
+fun storeFromOwned(inout dst: Conn, own src: Conn): Unit {
+  *dst = move src
+}
 fun wrongResult(own x: File): Conn {
   return move x  // ERR TYPE
 }

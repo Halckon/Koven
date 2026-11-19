@@ -1289,7 +1289,9 @@ class Checker:
             loans.update(copy_loans({k: v for k, v in (res.field_loans or {}).items() if k}))
         # 视图里存放的存在类型借用是载荷访问，经它重借出来的仍是
         payload = bool(res.crossed) and res.ty.kind == "any"
-        return Value(Type("inout" if mut else "borrow", res.ty.name), loans, payload)
+        # 借用类型名沿用签名拼写，区分同名的类 C 与函数类型 fn C。
+        referent = f"fn {res.ty.name}" if res.ty.kind == "fn" else res.ty.name
+        return Value(Type("inout" if mut else "borrow", referent), loans, payload)
 
     def activate(self, value, kind, entry, state, line):
         """K21：其余实参求值完毕，接收者的借用转为独占；此刻与它重叠的存活 loan 都是冲突。"""
@@ -1679,9 +1681,15 @@ class Checker:
         if var is None or var.ty.kind != "inout":
             raise SyntaxProblem(f"第 {stmt.line} 行：*{stmt.name} 须是独占借用")
         self.resolve(state, Place(stmt.name, [], stmt.line))
+        wanted = var.ty.name
+        concrete = wanted in self.classes and wanted not in self.fun.tparams
+        if concrete or wanted.startswith("fn "):
+            matches = value.ty == self.type_in(self.fun, wanted)
+        else:
+            matches = value.ty.name == wanted and value.ty.kind not in ("borrow", "inout")
         if var.payload:
             self.error("X1", stmt.line, f"{stmt.name} 是载荷访问，不能整体替换")
-        elif value.ty.name != var.ty.name or value.ty.kind in ("borrow", "inout"):
+        elif not matches:
             self.error("X1", stmt.line, f"不能把 {value.ty.kind} {value.ty.name} 写入 {var.ty.name} 的槽位")
         via = set(var.loans.get("", ()))
         self.access(state, self.places(via), via, "write", stmt.line)
