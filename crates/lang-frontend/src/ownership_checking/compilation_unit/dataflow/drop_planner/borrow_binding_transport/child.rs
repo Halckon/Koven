@@ -97,13 +97,7 @@ impl DropPlanner<'_, '_> {
         initializer: ExpressionId,
         state: &mut ValueState,
     ) {
-        let Some(fact) = self
-            .checker
-            .borrow_results
-            .bindings
-            .iter()
-            .find(|fact| fact.binding() == binding)
-        else {
+        let Some(fact) = self.borrow_binding_by_symbol(binding) else {
             return;
         };
         let Some(parent) = fact.parent() else {

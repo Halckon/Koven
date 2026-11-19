@@ -1,5 +1,6 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
 mod branch_boundaries;
+mod callback_replacement_lineage;
 mod carry_probe;
 mod choice_admission;
 mod choice_alias_chain;
@@ -37,6 +38,7 @@ mod loop_generation;
 mod open_loop_return;
 mod origin_probe;
 mod parameter_open_loop;
+mod range_prefix_trace;
 
 use super::super::super::*;
 use super::super::plan_with_owner_observation;

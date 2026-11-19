@@ -1,5 +1,4 @@
 //! Source-qualified body-local call ownership dataflow.
-
 mod assignment;
 mod borrow_binding;
 mod borrow_call_admission;
@@ -8,6 +7,8 @@ mod borrow_result;
 mod call_contract;
 mod callable_provenance;
 mod closure;
+#[cfg(test)]
+mod closure_lifecycle_probe;
 mod construction;
 mod loan_producers;
 mod loop_spans;
@@ -53,7 +54,6 @@ mod short_circuit;
 mod source_collection;
 mod string;
 mod traversal;
-
 use std::collections::BTreeMap;
 
 use crate::{

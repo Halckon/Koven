@@ -59,6 +59,19 @@ impl Checker<'_> {
         if let Some(place) = self.place(receiver)? {
             self.access_place(&place, AccessKind::Mutation, span, None, state)?;
         }
+        if self.diagnostics.len() == diagnostic_count {
+            self.reject_borrowed_closure_escape(put.value().expression(), state)?;
+            if self.diagnostics.len() == diagnostic_count
+                && let Some(witnesses) = state.escape_witnesses.results.get(&put.value())
+                && !witnesses.is_empty()
+            {
+                self.reject_borrowed_closure_roots(
+                    put.value().expression(),
+                    state,
+                    witnesses.clone(),
+                )?;
+            }
+        }
         Ok(flows)
     }
 }

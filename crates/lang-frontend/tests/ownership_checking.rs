@@ -612,17 +612,23 @@ fn moved_copyable_and_non_owning_values_never_gain_unique_drop_facts() {
                     val exclusiveRead = inspect(exclusive)\n\
                     val copied = number\n\
                 }";
-    let (sources, _, checked) = checked(text);
-    assert!(checked.diagnostics().is_empty());
-    let origins = checked
-        .drops()
-        .iter()
-        .map(|fact| sources.slice(fact.value_origin()).unwrap())
-        .collect::<Vec<_>>();
-    assert!(!origins.contains(&"owned"));
-    assert!(!origins.contains(&"shared"));
-    assert!(!origins.contains(&"exclusive"));
-    assert!(!origins.contains(&"number"));
+    for rooted in [false, true] {
+        let (unit_sources, _, unit) =
+            nullable_unit::checked(text, "ownership.ko", rooted, environments());
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let actual = unit
+            .drops()
+            .iter()
+            .map(|fact| unit_sources.slice(fact.value_origin()).unwrap())
+            .collect::<Vec<_>>();
+        assert!(!actual.contains(&"owned"));
+        assert!(!actual.contains(&"shared"));
+        assert!(!actual.contains(&"exclusive"));
+        assert!(!actual.contains(&"number"));
+        assert!(actual.contains(&"item"), "positive owned parameter drop");
+        assert!(unit.validate().is_ok(), "complete owned capability");
+    }
 }
 
 #[test]

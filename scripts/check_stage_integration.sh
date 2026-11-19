@@ -42,6 +42,13 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test resource_deinit_type_facts --test ownership_resource_deinit \
   --test ownership_checking --test ownership_containers --test ownership_value_api \
   --test ownership_construction --test ownership_closures \
+  --test ownership_captured_body_escape --test ownership_construction_extracted_escape \
+  --test ownership_elvis_left_escape --test ownership_escape_combination \
+  --test ownership_extracted_callable_escape --test ownership_extracted_value_escape \
+  --test ownership_field_elvis_escape --test ownership_field_extracted_escape \
+  --test ownership_map_store_escape --test ownership_mutable_extracted_escape \
+  --test ownership_mutable_nullable_alias_escape --test ownership_nested_elvis_escape \
+  --test ownership_nested_extracted_escape --test ownership_temporary_field_consumption \
   --test ownership_constants --test ownership_structural --test ownership_nullable_when \
   --test unit_closure_assignment_recovery --test closure_assignment_safety_rebuild \
   --test map_closure_lifetime_matrix \

@@ -56,6 +56,7 @@ pub(super) struct CaptureRestriction {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct State {
+    pub(super) loop_escape_shadow: super::escape_witness::LoopEscapeShadow,
     pub(super) escape_witnesses: super::escape_witness::EscapeWitnesses,
     pub(super) origins: crate::ownership_checking::callable_provenance::graph::OriginState<
         UnitSymbolId,
@@ -137,6 +138,8 @@ pub(super) fn merge_optional_state(target: &mut Option<State>, source: Option<St
 pub(super) fn merge_state(target: &mut State, source: State) {
     target.origins.merge(&source.origins);
     target.escape_witnesses.merge(source.escape_witnesses);
+    target.loop_escape_shadow.merge(source.loop_escape_shadow);
+    target.publish_loop_escape_shadow();
     for (closure, captured) in source.closure_captures {
         target
             .closure_captures
