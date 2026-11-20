@@ -21717,3 +21717,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `2a99536a`。`ownership_borrow_continuation` 的具名参数用例保留正反两份原始源码，在 MemoryDocument 与 Rooted 上执行；提前移动来源的 L0135 反例不变。
 - Unit 的实际 handoff 在同一 CallReturn 移除唯一辅助参数 token，精确核对 source/auxiliary 的实参身份、地点、跨度与两个已知调用 loan。独立 binding transport 把原 source token 从初始化返回携至同一结果的实际 later end，并明确断言两个位置不同，不用 descriptor 或空表推导非终止。
 - macOS 离线定点 1/1（两个布局），本集成目标全 14 passed。其他旧 Single 独立事件测试仍保留；不改生产、API 或 CI，未运行 Linux、native 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：普通 wrapper 借用转发与析构测试迁移
+
+- 基于 `3231fb5f`。原始 String wrapper 用例与公共源码前缀逐字节保留；该集成测试目标最后一项 Single 依赖迁到 MemoryDocument / Rooted 双 Unit。
+- 独立锚定 wrapper 内层 `view(source)` 和调用者 `wrap(source)`。真实 planner 记录关联原 acquisition 与 wrapper 交接而非结束；调用者原 source token 跨 initializer CallReturn 保留，结果真实结束与 named owner 唯一析构同点，结果绑定和初始化表达式不析构 payload。保持相关观察流无提前 End 的断言，但不把部分流的缺项当全局无结束证明。
+- macOS 离线定点 1/1（两个布局），`ownership_borrow_continuation` 全 14 passed。未运行 Linux、native 或远端 CI；无生产、API、CI 变化，SPEC-0341 仍 in-progress。
