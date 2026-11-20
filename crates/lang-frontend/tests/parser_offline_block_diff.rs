@@ -102,6 +102,7 @@ fn newline_contract(events: &[Event<'_>], expected: &[Event<'_>]) -> Result<(), 
 }
 
 fn within(parent: Span, child: Span) {
+    assert_eq!(parent.source_id(), child.source_id());
     assert!(
         parent.start() <= child.start()
             && child.start() < child.end()
@@ -160,6 +161,7 @@ fn production(sources: &SourceMap, lexed: &LexedFile, text: &str) -> String {
     let ast = parsed.ast();
     assert_eq!(ast.source_id(), lexed.source_id());
     let block = ast.statements().get(parsed.root()).unwrap();
+    assert_eq!(block.span().source_id(), lexed.source_id());
     assert_eq!(sources.slice(block.span()).unwrap(), text);
     let Statement::Block { elements } = block.payload() else {
         panic!("not a block")

@@ -205,9 +205,17 @@ fn first_difference<'a>(original: &'a [Field], formatted: &'a [Field]) -> Option
 
 #[test]
 fn formatting_preserves_the_selected_file_syntax() {
-    let (sources, id) = loaded_source(CASE, FILE);
+    let unformatted = FILE
+        .replace("package ", "  package   ")
+        .replace(" = ", "   =   ");
+    let (sources, id) = loaded_source(CASE, &unformatted);
     let formatted = format_source(&sources, id).expect("fixture formats");
-    let original = project(FILE).unwrap_or_else(|error| panic!("{CASE} original: {error}"));
+    assert_ne!(
+        formatted, unformatted,
+        "{CASE}: formatter must change input with redundant horizontal whitespace"
+    );
+    let original =
+        project(&unformatted).unwrap_or_else(|error| panic!("{CASE} original: {error}"));
     let formatted = project(&formatted).unwrap_or_else(|error| panic!("{CASE} formatted: {error}"));
     if let Some((before, after)) = first_difference(&original, &formatted) {
         panic!("{CASE}: first syntax difference: original {before:?}, formatted {after:?}");
