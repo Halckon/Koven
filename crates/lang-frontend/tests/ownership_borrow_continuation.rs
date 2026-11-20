@@ -383,28 +383,62 @@ fn nullable_generic_and_copyable_bindings_keep_shared_capability() {
 #[test]
 fn named_source_continues_only_its_loan_and_other_arguments_end_at_call_return() {
     for rooted in [false, true] {
-        use lang_frontend::ownership_checking::LoanEndPoint;
-        let (_, single, unit) = checked_with_legacy_loan_ends(
+        use lang_frontend::ownership_checking::{LoanKind, UnitDropPoint};
+        let (sources, unit) = checked_entry(
             "fun select(other: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val other = \"other\"; borrow val item = select(source = source, other = other); println(item) }",
             rooted,
         );
-        assert!(
-            single.diagnostics().is_empty(),
-            "{:?}",
-            single.diagnostics()
-        );
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let source = single.borrow_results().bindings()[0].source_loan().unwrap();
-        let ends = single
-            .loan_ends()
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let [binding] = unit.borrow_results().bindings() else {
+            panic!("one initialized result binding");
+        };
+        let source = binding.source_loan().unwrap();
+        let [handoff] = unit.borrow_call_handoffs() else {
+            panic!("one actual initializer handoff");
+        };
+        let [auxiliary] = handoff.auxiliary_loan_ends() else {
+            panic!("only the other argument ends at the initializer return");
+        };
+        let source_loan = handoff.source_loan();
+        assert_eq!(handoff.binding(), binding.binding());
+        assert_eq!(source_loan.call(), source.call());
+        assert_eq!(source_loan.argument(), source.argument());
+        assert_eq!(source_loan.target(), binding.origin());
+        assert_ne!(auxiliary.argument(), source.argument());
+        assert_eq!(auxiliary.call(), source.call());
+        assert_eq!(source_loan.kind(), LoanKind::Shared);
+        assert_eq!(auxiliary.kind(), LoanKind::Shared);
+        assert_eq!(sources.slice(source_loan.begin_span()), Ok("source"));
+        assert_eq!(sources.slice(auxiliary.begin_span()), Ok("other"));
+        assert_eq!(handoff.point(), UnitDropPoint::CallReturn(source.call()));
+        let call_loans = unit
+            .loans()
             .iter()
-            .filter(|end| end.call() == source.call())
+            .filter(|loan| loan.call() == source.call())
             .collect::<Vec<_>>();
-        assert_eq!(ends.len(), 1);
-        assert_ne!(ends[0].argument(), source.argument());
-        assert_eq!(ends[0].point(), LoanEndPoint::CallReturn(source.call()));
-        assert_eq!(single.borrow_results().ends().len(), 1);
-        assert_eq!(unit.borrow_results().ends().len(), 1);
+        assert_eq!(call_loans, [source_loan, auxiliary]);
+        assert!(
+            unit.direct_call_loan_ends()
+                .iter()
+                .all(|end| end.loan().call() != source.call())
+        );
+
+        // The handoff really removes the auxiliary pending token at CallReturn. The
+        // source is instead carried intact to the actual later result termination.
+        let [transport] = unit.borrow_binding_transports() else {
+            panic!("one actual source-token transport");
+        };
+        let [end] = unit.borrow_results().ends() else {
+            panic!("one actual result end");
+        };
+        assert_eq!(transport.source_loan(), source_loan);
+        assert_eq!(end.binding(), binding.binding());
+        assert_eq!(transport.binding(), end.binding());
+        assert_eq!(transport.handoff_point(), handoff.point());
+        assert_eq!(transport.point(), end.point());
+        assert_ne!(transport.point(), handoff.point());
+        assert!(unit.validate().is_ok());
         let (_, unit) = checked_entry(
             "fun select(other: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val other = \"other\"; borrow val item = select(source = source, other = other); consume(source); println(item) }",
             rooted,

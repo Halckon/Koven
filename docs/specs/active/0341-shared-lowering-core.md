@@ -21711,3 +21711,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `c9293c7b`。`ownership_checking` 的参数 binding/loan 查询与嵌套实参 loan end 两项原源码逐字节保留，复用同一 SPEC-0027 自建环境，在 MemoryDocument 与 Rooted 分别检查。
 - 保留 binding/loan kinds、Place 和确切 call Span。每个 source-qualified loan 在实际 planner trace 中必须恰有一对 Begin/CallReturn；将实际 DirectBorrowEnded 与 PendingBorrowRemoved 同构为返回结束，不接受 unwind、重复或换序。内层 Shared 结束必须早于外层 Exclusive 建立；不以 Unit 的 `loans_ending_at` 描述符筛选替代。
 - 本批仅测试与账本；没有新增 trace hook、生产 API、CI 或发布改动。macOS 离线定点 2/2（各两布局）、FE lib 899 passed / 14 ignored、ownership_checking 26 passed；未运行 Linux、native 或远端 CI。旧 Single 边界/恢复及混合 deferred 合同仍保留；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：具名借用返回的辅助结束与结果迁移
+
+- 基于 `2a99536a`。`ownership_borrow_continuation` 的具名参数用例保留正反两份原始源码，在 MemoryDocument 与 Rooted 上执行；提前移动来源的 L0135 反例不变。
+- Unit 的实际 handoff 在同一 CallReturn 移除唯一辅助参数 token，精确核对 source/auxiliary 的实参身份、地点、跨度与两个已知调用 loan。独立 binding transport 把原 source token 从初始化返回携至同一结果的实际 later end，并明确断言两个位置不同，不用 descriptor 或空表推导非终止。
+- macOS 离线定点 1/1（两个布局），本集成目标全 14 passed。其他旧 Single 独立事件测试仍保留；不改生产、API 或 CI，未运行 Linux、native 或远端 CI；SPEC-0341 仍 in-progress。
