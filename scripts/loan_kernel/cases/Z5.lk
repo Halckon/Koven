@@ -35,8 +35,8 @@ fun dropsFieldsOnFailure(own this: Holder): Unit in Holder {
   mayFail()
   use(slice.source.len)
 }
-view class MutableSlice(inout source: Arr)
-view class MutableHolder(slice: MutableSlice, file: File) deinit
-fun unsupportedExclusive(own this: MutableHolder): Unit in MutableHolder {
+view class PairSlice(borrow first: Arr, borrow second: Arr)
+view class PairHolder(slice: PairSlice, file: File) deinit
+fun unsupportedMultiField(own this: PairHolder): Unit in PairHolder {
   open this as slice, file  // ERR K25
 }

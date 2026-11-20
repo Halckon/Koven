@@ -675,6 +675,23 @@ class LoanKernelCases(unittest.TestCase):
                 finally:
                     delivery.cleanup.insert(index, entry)
 
+    def test_open_transfers_an_exclusive_view_and_its_cleanup(self):
+        source = (ROOT / "cases/Z14.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        self.assertTrue(lowered["forwardsExclusiveRef"][2])
+        self.assertTrue(lowered["extractMutSlice"][2])
+        self.assertTrue(lowered["callerWritesAfterReturnedExclusiveViewEnds"][2])
+        types, program, accepted = lowered["dropsExclusiveFieldsOnFailure"]
+        self.assertTrue(accepted)
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("file", False), ("slice", False)], call.cleanup)
+        self.assertEqual(["file", "slice"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.pop()  # 只在调用失败时漏掉独占视图的清理
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

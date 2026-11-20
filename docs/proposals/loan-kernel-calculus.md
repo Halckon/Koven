@@ -1094,4 +1094,10 @@ fun probe(borrow h: A): Unit {
 
 `Z13.lk` 先经分支让独占借用 `target` 在合流后可能指向 `left` 或 `right`，再在合流后把拆出的共享视图 `Slice(&a)` 经 `deliver(..., target)` 移交。合流后读 `left` 保护 `{a, l}` 而不保护 `r`，读 `right` 保护 `{a, r}` 而不保护 `l`；固定不改指（只指 `left`）时 `right` 只保护 `r`，固定改指（只指 `right`）时 `left` 只保护 `l`。三种路径在最后一次读完后写入三个来源均接受。
 
-合流后无条件调用 `deliver`，消费 `f` 不需要析构标志；`deliver` 与随后的 `mayFail` 在失败时均按 `right, left, r, l, a` 清理。在 `deliver` 的失败清单中分别漏掉 `left` 或 `right`，检验器在经过分支后该调用失败的路径报 V1。无需修改检查器；至此单共享借用视图的 `open` 移交已覆盖直线、分支与合流后别名，独占与更深层子视图仍未验证。
+合流后无条件调用 `deliver`，消费 `f` 不需要析构标志；`deliver` 与随后的 `mayFail` 在失败时均按 `right, left, r, l, a` 清理。在 `deliver` 的失败清单中分别漏掉 `left` 或 `right`，检验器在经过分支后该调用失败的路径报 V1。无需修改检查器；至此单共享借用视图的 `open` 移交已覆盖直线、分支与合流后别名，独占子视图见 §52。
+
+## 52. 按值拆出携带独占借用的单字段视图
+
+`Z14.lk` 的 `MutHolder` 是带 `deinit` 的视图，按值持有 `MutSlice(inout source: Arr)` 和 `File`。放开 `open` 接受单 `inout` 借用字段的非递归普通子视图（多字段视图仍在 `Z5.lk` 报 K25）：`open this as slice, file` 把 `this` 名下的独占来源转移到新绑定 `slice.source` 下，不新建 loan 也不留在已消费的 `this` 名下。
+
+用本地 `a` 构造接收者并拆解后，在最后一次使用 `slice` 前读 `a` 或写 `a` 均报 K1，经 `slice.source` 写 `a` 接受；最后一次使用后读、写 `a` 均接受。对拆出的独占视图做隐式复制报 K8。原接收者的独占来源既可按 `from this.slice.source` 转发 `inout Int`，也可按值返回 `move slice` 并由调用方继续保护原存储；省略 `from` 或换成本地来源后返回均报 K6。正常退出与调用失败均按 `file, slice` 清理；只漏掉失败清单中的 `slice`，检验器在调用失败时报 V1。未验证独占子视图的分支/循环拆解与 `flows` 移交，也未验证多字段、递归、容器或带 `deinit` 的子视图。

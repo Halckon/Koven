@@ -1663,7 +1663,7 @@ class Checker:
             raise InvalidOpen
         if len(stmt.names) != len(decl.fields) or any(
                 kind or not self.open_field(ty, decl.is_view) for kind, _, ty in decl.fields):
-            self.error("K25", stmt.line, "open 只支持无来源的按值类字段或单共享借用视图字段")
+            self.error("K25", stmt.line, "open 只支持无来源的按值类字段或单借用视图字段")
             raise InvalidOpen
         var = state[stmt.name]
         self.resolve(state, Place(stmt.name, [], stmt.line))  # K8：完整、仍拥有的值
@@ -1686,7 +1686,8 @@ class Checker:
         if not in_view or decl.cell or decl.local or decl.carrier or decl.deinit or len(decl.fields) != 1:
             return False
         kind, _, target = decl.fields[0]
-        return kind == "borrow" and target in self.classes and not self.classes[target].is_view and self.escapable(target)
+        return (kind in ("borrow", "inout") and target in self.classes
+                and not self.classes[target].is_view and self.escapable(target))
 
     def store(self, stmt, state):
         """X1：经独占借用整体替换所指的值，要求槽位访问且新值的类型恰为所指类型。"""
