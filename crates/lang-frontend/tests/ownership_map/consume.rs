@@ -707,7 +707,7 @@ fn map_consume_complete_local_roots_transfer_one_cleanup() {
             r#"fun run(): Unit {
   var source = mutableMapOf<String, String>()
   source.put("key", "value");
-  { borrow val item = source.requireValue("key"); println(item) }
+  block { borrow val item = source.requireValue("key"); println(item) }
   val result = source.consume()
 }"#,
             Str,

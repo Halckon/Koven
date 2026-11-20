@@ -109,7 +109,7 @@ postfix_suffix = ".", Identifier
 
 call_suffix       = "(", [ call_argument,
                             { ",", call_argument } ], ")" ;
-typed_call_suffix = call_type_arguments, call_suffix ;
+typed_call_suffix = call_type_arguments, ( call_suffix | lambda_expression ) ;
 call_type_arguments = "<", type_ref, { ",", type_ref }, ">" ;
 index_suffix      = "[", expression, "]" ;
 ```

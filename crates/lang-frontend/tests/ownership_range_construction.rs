@@ -186,7 +186,7 @@ fn range_iteration_keeps_root_and_noncopyable_element_read_only_in_single_and_un
 fn range_descriptor_iteration_never_publishes_an_owned_metadata_drop() {
     use lang_frontend::ownership_checking::UnitDropTarget;
     let (_, single, unit) = checked(
-        "fun run():Unit{val source=listOf(\"kept\");{borrow val part=rangeView(source,0,1);for(item in part){println(item)}};consume(source)}",
+        "fun run():Unit{val source=listOf(\"kept\");block {borrow val part=rangeView(source,0,1);for(item in part){println(item)}};consume(source)}",
     );
     assert!(
         single.diagnostics().is_empty(),
@@ -344,7 +344,7 @@ fn range_call_prefix_return_publishes_only_established_outer_argument_ends() {
     for body in [
         "val root=listOf(\"kept\");read(rangeView(root,0,1),if(flag){return}else{0});consume(root)",
         "read(rangeView(listOf(\"kept\"),0,1),if(flag){return}else{0})",
-        "val root=listOf(\"kept\");{borrow val parent=rangeView(root,0,1);read(rangeView(parent,0,1),if(flag){return}else{0})};consume(root)",
+        "val root=listOf(\"kept\");block {borrow val parent=rangeView(root,0,1);read(rangeView(parent,0,1),if(flag){return}else{0})};consume(root)",
         "read(rangeView(rangeView(listOf(\"kept\"),0,1),0,1),if(flag){return}else{0})",
     ] {
         let (_, single, unit) = legacy_checked(&format!(
@@ -529,7 +529,7 @@ fun run(flag:Boolean):Unit{
         r#"
 fun run(flag:Boolean):Unit{
     val source=listOf("kept")
-    {
+    block {
         borrow val part=rangeView(source,0,1)
         if(flag){observe(part)}else{observe(part)}
         observe(part)
@@ -582,7 +582,7 @@ fun scalar(source:Int):borrow Int from source=source
 fun readInt(value:Int):Unit{}
 fun run(flag:Boolean,n:Int):Unit{
     val source=listOf("kept")
-    {
+    block {
         borrow val part=rangeView(source,0,1)
         if(flag){readInt(scalar(n))}else{observe(part)}
         observe(part)

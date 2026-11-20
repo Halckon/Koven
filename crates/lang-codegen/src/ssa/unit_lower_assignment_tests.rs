@@ -27,7 +27,7 @@ fn replaces_a_string_owner_only_after_the_rhs_finishes() {
         "package q\n\
          fun entry(): String {\n\
              var current = \"old\"\n\
-             { current = current + p.suffix() }\n\
+             block { current = current + p.suffix() }\n\
              return p.identity(current)\n\
          }",
     );

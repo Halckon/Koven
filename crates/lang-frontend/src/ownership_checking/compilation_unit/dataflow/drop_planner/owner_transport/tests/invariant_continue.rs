@@ -81,7 +81,7 @@ fn invariant_continue_rejects_unwitnessed_control_and_open_inputs() {
         r#"val local = "inner"; if(flag) { continue } else { continue }"#,
         r#"val local = "inner"; if(flag) { } else { continue }"#,
         r#"val local = "inner"; while(flag) { continue }; continue"#,
-        r#"val local = "inner"; { continue }"#,
+        r#"val local = "inner"; block { continue }"#,
         r#"continue"#,
         r#"val local = held + "inner"; continue"#,
         r#"val local: String? = "inner"; continue"#,

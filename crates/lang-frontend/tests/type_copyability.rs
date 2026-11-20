@@ -367,7 +367,7 @@ fn a_source_class_named_box_never_gains_intrinsic_rules() {
 #[test]
 fn value_class_destructuring_records_copy_and_consume_after_forward_declaration() {
     let text = "fun split(copy: Pair<Int, Int>, moved: Pair<Int, String>, ref: Ref): Unit {\n\
-                    { val (first, second) = copy }\n\
+                    block { val (first, second) = copy }\n\
                     val (second, first) = moved\n\
                     val (e, f) = ref\n\
                 }\n\
@@ -430,7 +430,7 @@ fn value_class_destructuring_records_copy_and_consume_after_forward_declaration(
 fn destructuring_arity_keeps_only_named_field_types_for_recovery() {
     let text = "value class Pair(val first: Int, val second: String)\n\
                 fun split(pair: Pair): Unit {\n\
-                    { val (second) = pair }\n\
+                    block { val (second) = pair }\n\
                     val (first, second, extra) = pair\n\
                 }";
     let (sources, _, entries) = checked_entries(text, false);

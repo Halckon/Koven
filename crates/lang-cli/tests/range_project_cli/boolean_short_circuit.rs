@@ -88,7 +88,7 @@ fun read(view:View<{element}>):Unit{{for(item in view){{{read}}}}}
 fun consume(own root:List<{element}>):Unit{{println("consume")}}
 fun scan(lhs:Boolean,rhs:Boolean):Unit{{
     val root=listOf({values})
-    {{
+    block {{
         borrow val parent=take(root,{count})
         {bindings}
         {statement}
@@ -181,7 +181,7 @@ fun read(view:View<String>):Unit{{for(item in view){{println(item)}}}}
 fun consume(own root:List<String>):Unit{{println("consume")}}
 fun scan(rhs:Boolean):Unit{{
     val root=listOf("kept","excluded")
-    {{
+    block {{
         borrow val parent=take(root,1)
         val neverAnd={off} && right(rhs)
         show(neverAnd)
@@ -210,7 +210,8 @@ fun main():Unit{{scan(false);scan(true)}}
 #[test]
 fn public_std_range_boolean_short_circuit_bounded_source_rejections() {
     let expression = "left(lhs) && right(rhs)";
-    let scoped = |body: &str| format!("{{borrow val parent=take(root,1);{body};read(parent)}}");
+    let scoped =
+        |body: &str| format!("block {{borrow val parent=take(root,1);{body};read(parent)}}");
     let cases = [
         (
             "nested-left",
@@ -241,16 +242,16 @@ fn public_std_range_boolean_short_circuit_bounded_source_rejections() {
         (
             "different-roots",
             format!(
-                "val other=listOf(\"other\");{{borrow val parent=take(root,1);borrow val sibling=take(other,1);show({expression});read(parent);read(sibling)}};consume(other)"
+                "val other=listOf(\"other\");block {{borrow val parent=take(root,1);borrow val sibling=take(other,1);show({expression});read(parent);read(sibling)}};consume(other)"
             ),
         ),
         (
             "before-binding",
-            format!("show({expression});{{borrow val parent=take(root,1);read(parent)}}"),
+            format!("show({expression});block {{borrow val parent=take(root,1);read(parent)}}"),
         ),
         (
             "after-scope",
-            format!("{{borrow val parent=take(root,1);read(parent)}};show({expression})"),
+            format!("block {{borrow val parent=take(root,1);read(parent)}};show({expression})"),
         ),
         (
             "value-if",

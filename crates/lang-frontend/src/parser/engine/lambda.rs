@@ -94,11 +94,13 @@ impl Parser<'_> {
             }
             let before = self.index;
             let diagnostics_before = self.diagnostics.len();
-            let element = if matches!(
+            let element = if self.explicit_block_start(current)? {
+                self.parse_explicit_block_statement(outer_stops)?
+            } else if matches!(
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
             ) {
-                self.parse_block_statement(outer_stops)?
+                self.parse_bare_block_error(codes::UNSUPPORTED_LAMBDA_BODY_FORM, outer_stops)?
             } else if self.borrow_local_start()? {
                 self.parse_borrow_local(expression_stops)?
             } else if self.local_destructuring_start(Keyword::Val) {

@@ -22,7 +22,7 @@ fn range_carrier_gate_metadata_alias_crosses_normal_if() {
 fn range_carrier_gate_nested_alias_ends_before_the_parent() {
     let branch = "if(flag){read(child)}else{println(\"else\")}";
     let body = format!(
-        "borrow val parent=take(root,1)\n{{borrow val child=(parent);{branch};println(\"joined\");read(child)}}\nprintln(\"outer\");read(parent)"
+        "borrow val parent=take(root,1)\nblock {{borrow val child=(parent);{branch};println(\"joined\");read(child)}}\nprintln(\"outer\");read(parent)"
     );
     carrier_scope_layout(
         "nested-alias",
@@ -42,7 +42,7 @@ fun read(view:View<String>):Unit{}
 fun scan(flag:Boolean):Unit {
     val root=listOf("first","second")
     borrow val parent=take(root,1)
-    {
+    block {
         borrow val child=(parent)
         if(flag){read(child)}
         read((child))
@@ -131,8 +131,7 @@ fn range_carrier_gate_deep_arm_checks_intermediate_statements() {
     use super::{Pipeline, lower};
     use crate::ssa::LoweringErrorKind;
 
-    let outer =
-        "if(flag){{val unproved=0;{borrow val child=(parent);if(flag){read(child)};read(child)}}}";
+    let outer = "if(flag){{val unproved=0;block {borrow val child=(parent);if(flag){read(child)};read(child)}}}";
     let source = format!(
         r#"
 fun read(view:View<String>):Unit{{}}
@@ -233,7 +232,7 @@ fun scan(outer:Boolean,inner:Boolean):Unit {
     val root=listOf("first")
     if(outer) {
         borrow val parent=take(root,1)
-        {
+        block {
             borrow val child=(parent)
             if(inner){read(child)}
             read((child))
@@ -317,7 +316,7 @@ fun scan(left:Boolean,right:Boolean):Unit {
     val root=listOf(Item("item"))
     if(left && rhs(right)) {
         borrow val parent=take(root,count())
-        {
+        block {
             borrow val child=(parent)
             if(right){read(child)}
             read((child))

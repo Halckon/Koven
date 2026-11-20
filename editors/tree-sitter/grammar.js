@@ -329,9 +329,11 @@ module.exports = grammar({
         $.while_statement,
         $.for_statement,
         $.loop_statement,
-        $.block,
+        $.nested_block_statement,
         $.expression_statement,
       ),
+
+    nested_block_statement: ($) => seq("block", $.block),
 
     local_variable_statement: ($) => $.variable_declaration,
 
@@ -554,7 +556,7 @@ module.exports = grammar({
       choice(
         $.local_variable_statement,
         $.local_destructuring_statement,
-        $.block,
+        $.nested_block_statement,
         $.expression_statement,
       ),
 

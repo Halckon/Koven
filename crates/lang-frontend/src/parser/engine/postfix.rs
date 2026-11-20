@@ -443,7 +443,13 @@ impl Parser<'_> {
             }
             (last_consumed_end, false)
         };
-        if closed && self.trailing_lambda_follows(end)? {
+        let next_when_entry = match outer_stops.when_entry_body {
+            Some(body) if closed && self.current_is_symbol(Symbol::LeftBrace) => {
+                self.brace_when_entry_follows(end, body)?
+            }
+            _ => false,
+        };
+        if closed && self.current_is_symbol(Symbol::LeftBrace) && !next_when_entry {
             let argument = self.parse_trailing_lambda_argument(outer_stops)?;
             end = argument.span.end();
             arguments.push(argument);
@@ -768,7 +774,9 @@ impl Parser<'_> {
                 LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
             );
             let at_proven_separator = self.at_block_statement_separator(current, outer_stops)?;
-            let caller_boundary = outer_stops.contains(current) || at_proven_separator;
+            let caller_boundary = outer_stops.contains(current)
+                || (outer_stops.block_elements && self.explicit_block_start(current)?)
+                || at_proven_separator;
             let preserve_separator =
                 outer_stops.delimiters & (Stops::SEMICOLON | Stops::BLOCK_STATEMENT_SEPARATOR) != 0;
             let at_block_separator = at_proven_separator

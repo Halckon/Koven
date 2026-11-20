@@ -125,7 +125,7 @@ fun show(value:Boolean):Unit{{if(value){{println("true")}}else{{println("false")
 fun consume(own root:List<String>):Unit{{println("consume")}}
 fun scan(n:Int):Unit{{
     val root=listOf("kept")
-    {{borrow val parent=take(root,1);val other={expression};show(other);read(parent)}}
+    block {{borrow val parent=take(root,1);val other={expression};show(other);read(parent)}}
     consume(root)
 }}
 fun main():Unit{{scan(2)}}"#
@@ -148,17 +148,19 @@ fn check_int_comparison_at_binding_positions(expression: &str) {
     for (position, body, expected) in [
         (
             "before",
-            format!("{comparison};{{borrow val parent=take(root,1);read(parent)}}"),
+            format!("{comparison};block {{borrow val parent=take(root,1);read(parent)}}"),
             "true\nkept\nconsume\nfalse\nkept\nconsume\n",
         ),
         (
             "live",
-            format!("{{borrow val parent=take(root,1);read(parent);{comparison};read(parent)}}"),
+            format!(
+                "block {{borrow val parent=take(root,1);read(parent);{comparison};read(parent)}}"
+            ),
             "kept\ntrue\nkept\nconsume\nkept\nfalse\nkept\nconsume\n",
         ),
         (
             "after",
-            format!("{{borrow val parent=take(root,1);read(parent)}};{comparison}"),
+            format!("block {{borrow val parent=take(root,1);read(parent)}};{comparison}"),
             "kept\ntrue\nconsume\nkept\nfalse\nconsume\n",
         ),
     ] {
@@ -207,7 +209,7 @@ fun read(view:View<Item>):Unit{{for(item in view){{println(item.text)}}}}
 fun consume(own root:List<Item>):Unit{{println("consume")}}
 fun scan(n:Int):Unit{{
     val root=listOf(Item("kept"),Item("excluded"))
-    {{
+    block {{
         borrow val parent=take(root,1)
         if({condition}){{println("then");read(parent)}}else{{println("else");read(parent)}}
         read(parent)

@@ -939,6 +939,10 @@ impl DeclarationStops {
         Self(self.0 | other.0)
     }
 
+    pub(super) const fn stops_at_left_brace(self) -> bool {
+        self.0 & Self::LEFT_BRACE != 0
+    }
+
     pub(super) fn contains_hard(self, lexeme: Lexeme, symbol: Option<Symbol>) -> bool {
         matches!(
             symbol,

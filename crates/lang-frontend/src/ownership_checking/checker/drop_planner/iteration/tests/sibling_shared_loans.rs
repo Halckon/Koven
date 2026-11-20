@@ -12,7 +12,7 @@ fn sibling_shared_capture_loans_keep_distinct_instance_paths() {
                     var second: () -> Unit = {}
                     for (_ in flags) {
                         second = first
-                        { first = { read(xs) } }
+                        block { first = { read(xs) } }
                     }
                     var outer: move () -> Unit = move { val a = first()\nval b = second() }
                     for (_ in next) {}

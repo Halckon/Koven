@@ -192,7 +192,7 @@ fn first_loop_forms_two_instances_before_outer_capture() {
             for (_ in flags) {
                 second = first
                 val xs = listOf(1)
-                { first = move { read(xs) } }
+                block { first = move { read(xs) } }
             }
             var outer: move () -> Unit = move { val a = first()\nval b = second() }
             val used = outer()

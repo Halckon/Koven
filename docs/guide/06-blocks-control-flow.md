@@ -30,7 +30,7 @@ ordinary_local_variable_statement
                           = ( "val" | "var" ), Identifier,
                             [ type_annotation ], "=", expression ;
 expression_statement      = expression ;
-nested_block_statement    = block ;
+nested_block_statement    = "block", block ;
 
 function_declaration      = "fun", [ type_parameter_list ], Identifier,
                             "(", [ value_parameter,
@@ -46,6 +46,8 @@ function_body             = /* empty */
 implicit_unit_body        = /* empty */
                           | block ;
 ```
+
+语句位置不再接受独立裸 `{ ... }` 执行块；显式词法作用域块写作 `block { ... }`（按形状保留，不设全局硬关键字：仅未限定名 `block` 与 `{` 同行且位于语句起点时解析为 `Statement::Block`，不建闭包、不改变原有跳转归属与析构边界；表达式位置的 `block { ... }` 明确报语法错且不回退成调用，`val block`、`block(...)`、`obj.block { ... }` 与 `block({ ... })` 保持合法）。
 
 产生式中的 `{ block_element }` 重复由换行（LF / CRLF）或显式分号 `;` 分隔；在不存在换行续行条件时，行末换行自然开启下一个 element。在同一行内连续书写多个 element 时必须显式使用 `;` 分隔。
 

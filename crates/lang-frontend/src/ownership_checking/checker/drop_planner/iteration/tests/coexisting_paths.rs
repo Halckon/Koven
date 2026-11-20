@@ -24,7 +24,7 @@ fn coexisting_same_lambda_paths_replay_two_rounds_and_release() {
                     for (_ in flags) {
                         second = first
                         val xs = listOf(1)
-                        { first = move { read(xs) } }
+                        block { first = move { read(xs) } }
                     }
                     var outer: move () -> Unit = move { val a = first()\nval b = second() }
                     for (_ in next) {}

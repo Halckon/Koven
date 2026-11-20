@@ -55,7 +55,7 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
         ),
         (
             "active-sibling",
-            "borrow val live = view(source); { borrow val item = view(source); consume(item) }; while (flag) { consume(live); break }",
+            "borrow val live = view(source); block { borrow val item = view(source); consume(item) }; while (flag) { consume(live); break }",
         ),
         (
             "non-last-end",

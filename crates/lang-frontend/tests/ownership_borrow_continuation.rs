@@ -113,9 +113,9 @@ fn checked_with_legacy_loan_ends(
 fn nested_reborrow_and_alias_scopes_restore_owner_permission() {
     for rooted in [false, true] {
         for body in [
-            "fun run() { val source = \"kept\"; { borrow val item = wrap(source); println(item) }; consume(source) }",
-            "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val alias = item; println(alias) }; println(item) }; consume(source) }",
-            "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val child = view(item); println(child) }; println(item) }; consume(source) }",
+            "fun run() { val source = \"kept\"; block { borrow val item = wrap(source); println(item) }; consume(source) }",
+            "fun run() { val source = \"kept\"; block { borrow val item = view(source); block { borrow val alias = item; println(alias) }; println(item) }; consume(source) }",
+            "fun run() { val source = \"kept\"; block { borrow val item = view(source); block { borrow val child = view(item); println(child) }; println(item) }; consume(source) }",
             "fun run(flag: Boolean) { val source = \"kept\"; if (flag) { borrow val item = view(source); println(item) } else { borrow val item = source; println(item) }; consume(source) }",
         ] {
             let (_, unit) = checked_entry(body, rooted);
@@ -134,9 +134,9 @@ fn live_results_and_children_block_source_move_on_every_branch() {
     for rooted in [false, true] {
         for body in [
             "fun run() { val source = \"kept\"; borrow val item = view(source); consume(source); println(item) }",
-            "fun run() { val source = \"kept\"; borrow val item = view(source); { borrow val child = view(item); consume(source); println(child) }; println(item) }",
+            "fun run() { val source = \"kept\"; borrow val item = view(source); block { borrow val child = view(item); consume(source); println(child) }; println(item) }",
             "fun run(flag: Boolean) { val source = \"kept\"; borrow val item = view(source); if (flag) { consume(source) }; println(item) }",
-            "fun run() { val source = \"kept\"; borrow val item = source; { borrow val alias = item; println(alias) }; consume(source); println(item) }",
+            "fun run() { val source = \"kept\"; borrow val item = source; block { borrow val alias = item; println(alias) }; consume(source); println(item) }",
         ] {
             let (_, unit) = checked_entry(body, rooted);
             {
@@ -157,7 +157,7 @@ fn results_continue_original_source_loans_and_never_own_the_payload() {
             DropTarget, LoanEndPoint, LoanTarget, UnitDropTarget, UnitLoanTarget,
         };
         let (_, single, unit) = checked_with_legacy_loan_ends(
-            "fun run() { val source = \"kept\"; { borrow val item = wrap(source); println(item) } }",
+            "fun run() { val source = \"kept\"; block { borrow val item = wrap(source); println(item) } }",
             rooted,
         );
         assert!(single.diagnostics().is_empty());
@@ -365,7 +365,7 @@ fn nullable_generic_and_copyable_bindings_keep_shared_capability() {
     for rooted in [false, true] {
         for body in [
             "fun nullableView(source: String?): borrow String? from source = source\nfun observe(source: String?) {}\nfun run(source: String?) { borrow val item = nullableView(source); observe(item) }",
-            "fun <T> genericView(source: T): borrow T from source = source\nclass Resource { deinit() {} }\nfun run() { val source = Resource(); { borrow val item = genericView(source) } }",
+            "fun <T> genericView(source: T): borrow T from source = source\nclass Resource { deinit() {} }\nfun run() { val source = Resource(); block { borrow val item = genericView(source) } }",
             "fun intView(source: Int): borrow Int from source = source\nfun observe(own item: Int) {}\nfun run(source: Int) { borrow val item = intView(source); observe(item) }",
         ] {
             let (_, unit) = checked_entry(body, rooted);

@@ -30,6 +30,25 @@ impl Parser<'_> {
         self.selector_arrow_after_group(closer, body).map(Some)
     }
 
+    pub(super) fn brace_when_entry_follows(
+        &self,
+        previous_end: usize,
+        body: WhenEntryBody,
+    ) -> Result<bool, ParserInternalError> {
+        if !self.current_is_symbol(Symbol::LeftBrace)
+            || !self.gap_has_line_break(previous_end, self.current()?.span().start())?
+        {
+            return Ok(false);
+        }
+        let Some(closer) = self
+            .lexical_recoveries
+            .group_closer(self.lexed, self.current_raw()?)
+        else {
+            return Ok(false);
+        };
+        self.selector_arrow_after_group(closer, body)
+    }
+
     fn selector_arrow_after_group(
         &self,
         closer: usize,
