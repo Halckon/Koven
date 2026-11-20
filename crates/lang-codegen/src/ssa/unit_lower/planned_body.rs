@@ -130,6 +130,20 @@ impl PlannedBodyContext<'_> {
             };
             let route = crate::ssa::refine::route(&inputs);
             compatibility = matches!(route, CallableRoute::Compatibility);
+            #[cfg(test)]
+            if compatibility && crate::ssa::refine::initializer_probe::requested(inputs.span) {
+                crate::ssa::refine::prepare_types(&inputs, types, module)?;
+                let refine_types = crate::ssa::refine::RefineTypes {
+                    type_ids: types.type_ids(),
+                    heap_payloads: types.heap_payloads(),
+                    field_indices: types.field_indices(),
+                    enum_payloads: types.enum_payloads(),
+                    map_results: &module.map_results,
+                    nullable_maps: &module.nullable_maps,
+                    ssa_types: &module.types,
+                };
+                crate::ssa::refine::initializer_probe::inspect(&inputs, &entities, &refine_types);
+            }
             if matches!(route, CallableRoute::Refine) {
                 crate::ssa::refine::prepare_types(&inputs, types, module)?;
                 let function = module

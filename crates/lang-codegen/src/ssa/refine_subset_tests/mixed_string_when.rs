@@ -300,6 +300,21 @@ fun f(s: String, flag: Boolean): Int {
             r#"when (s) { "a" -> 1; else -> 0 }"#,
         );
 
+        let function_span = file
+            .ast()
+            .items()
+            .iter()
+            .find(|(_, item)| sources.slice(item.span()).unwrap().starts_with("fun f("))
+            .expect("fixture entry")
+            .1
+            .span();
+        // Keep the public-route assertion above independent of this test-only
+        // probe. Inspect the existing builder, not the admitted route or emitter.
+        crate::ssa::refine::initializer_probe::run(function_span, expected_pending == 2, || {
+            let _ =
+                lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry);
+        });
+
         let source = |id| sources.slice(span(id)).unwrap();
         let (name, init) = file
             .ast()

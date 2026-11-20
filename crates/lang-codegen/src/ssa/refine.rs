@@ -10,6 +10,8 @@ mod body;
 pub(in crate::ssa) mod build;
 mod child_cycle_receipt;
 mod control_bridge_receipt;
+#[cfg(test)]
+pub(in crate::ssa) mod initializer_probe;
 mod nested_body_receipt;
 mod nested_exit_receipt;
 mod nested_resume_receipt;
