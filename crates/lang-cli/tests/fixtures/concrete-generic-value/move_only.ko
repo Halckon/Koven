@@ -12,7 +12,7 @@ fun main(): Unit {
     println(item)
     if (stamp == 9) println("move-and-destructure") else println("bad-stamp")
     val resource = Packet(Token(4), 3)
-    {
+    block {
         val (stamp, item) = resource
         if (stamp == 3 && item.id == 4) println("resource-destructure") else println("bad-index")
     }

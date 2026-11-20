@@ -533,7 +533,7 @@ pub(crate) mod field_replace_tests {
             val snapshot = holder.state
             var replacement = 2
             val old = replace(&holder.state, replacement)
-            { replacement = 3 }
+            block { replacement = 3 }
             val current = holder.state
             if (old == 1 && snapshot == 1 && current == 2 && replacement == 3) println("snapshots")
             val returned = oldNode()

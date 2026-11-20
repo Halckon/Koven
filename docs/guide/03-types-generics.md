@@ -418,8 +418,9 @@ v1 的 `type_arguments` 每一项都必须是 `type_ref`，不接受整数常量
 `factory()<T>()` 都按同一规则成立；`f<T>` 不成立为带类型实参的值。
 
 看到 postfix 位置的 `<` 时，parser 必须先做**无副作用试探**：从该 `<` 起若能按本节
-`call_type_arguments` 完整、合法地读到匹配 `>`，且下一个**非 trivia token** 是 `(`，才提交
-为 `typed_call_suffix`。这里不要求 `>` 与 `(` 字节相邻，因此 `f<T> /* comment */ ()` 合法，
+`call_type_arguments` 完整、合法地读到匹配 `>`，且下一个**非 trivia token** 是 `(`，或为同一行的 `{`，
+才提交为 `typed_call_suffix`（已闭合圆括号的 `f<T>()\n{ ... }` 按[尾 lambda 调用糖](07-calls-lambdas-closures.md#尾-lambda-调用糖)规则允许跨换行附着，无圆括号的 `f<T>\n{ ... }` 首版不跨行附着）。
+这里不要求 `>` 与 `(` 字节相邻，因此 `f<T> /* comment */ ()` 与同行 `f<T> { ... }` 合法，
 而 `a < b > (c)` 也确定地按 typed call 解析；需要比较含义时必须用括号建立不同结构。
 试探失败时，parser 不得留下 AST 节点、诊断或已消费状态，而应从原 `<` 按普通比较运算符
 继续。因而 `f<T>`、`a < b > c` 及不完整的 `<...` 不会仅凭“看起来像泛型调用”获得专用诊断。

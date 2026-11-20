@@ -232,7 +232,7 @@ fn assert_contract(text: &str, last_use: &str, consume_owner: bool) {
 fn original_mutable_map_results_end_at_last_use_before_owner_delivery() {
     for value in ["String", "Packet", "Resource", "Token?"] {
         let text = format!(
-            "value class Packet(val text: String)\nclass Resource {{ deinit() {{}} }}\nclass Token(val n: Int)\nfun observe(item: {value}) {{}}\nfun consume(own m: MutableMap<String, {value}>) {{}}\nfun run() {{ var m = mutableMapOf<String, {value}>(); val key = \"key\"; {{ borrow val item = m.requireValue(key); observe(item); println(key) }}; consume(m) }}"
+            "value class Packet(val text: String)\nclass Resource {{ deinit() {{}} }}\nclass Token(val n: Int)\nfun observe(item: {value}) {{}}\nfun consume(own m: MutableMap<String, {value}>) {{}}\nfun run() {{ var m = mutableMapOf<String, {value}>(); val key = \"key\"; block {{ borrow val item = m.requireValue(key); observe(item); println(key) }}; consume(m) }}"
         );
         assert_contract(&text, "observe(item)", true);
     }

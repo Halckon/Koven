@@ -95,9 +95,9 @@ fn missing_separator_is_an_error_and_keeps_both_real_elements() {
             ("x", "y"),
             ("val x = 1", "x"),
             ("val x = 1", "val y = 2"),
-            ("{}", "loop { break }"),
-            ("{}", "while (true) {}"),
-            ("{}", "for (x in xs) {}"),
+            ("block {}", "loop { break }"),
+            ("block {}", "while (true) {}"),
+            ("block {}", "for (x in xs) {}"),
         ] {
             let result = observe(owner, &format!("{left} {right}"));
             let offset = result.source.rfind(right).unwrap();

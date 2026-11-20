@@ -728,8 +728,8 @@ fn loop_carried_hidden_sources_keep_separate_cleanup_for_prior_and_current_envir
             for (_ in flags) {
                 val prior = f
                 val xs = listOf(1)
-                { g = prior }
-                { f = ({ read(xs) }) }
+                block { g = prior }
+                block { f = ({ read(xs) }) }
             }
             val first = g()
             val second = f()

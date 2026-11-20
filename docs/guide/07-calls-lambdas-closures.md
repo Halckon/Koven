@@ -254,17 +254,20 @@ lambda_element     = local_variable_statement
 ```
 
 Lambda 是 expression primary，可以继续接受 call、member、index 等 postfix。expression 已经
-要求一个 primary 时，`{` 提交 lambda；block dispatch 在 element 起点直接看到 `{` 时仍提交
-nested block。因而 `val f = { x }` 的 initializer 是零参数 lambda，body 尾值为 `x`；`{ x }`
-作为外层 block 的直接 element 则是 nested block。需要在 statement 位置强制表达 lambda 时可写
-`({ x })`。`move { ... }` 只能是 lambda。同行的 trailing lambda
-（`f { ... }`）；跨换行仍把 `{ ... }` 留给后续 nested block element。
+要求一个 primary 时，`{` 提交 lambda；语句位置的独立词法作用域块统一写作 `block { ... }`，
+block / lambda body dispatch 在 element 起点直接看到独立裸 `{` 时不再提交 nested block，而是报
+`L0030` / `L0032` 并提示改用 `block { ... }`。因而 `val f = { x }` 的 initializer 是零参数 lambda，
+body 尾值为 `x`；需要在 statement 位置强制表达 lambda 时可写 `({ x })`。`move { ... }` 只能是
+lambda，绝不与裸执行块混为一谈。同行无括号 trailing lambda（`f { ... }`、`f<T> { ... }`）保持合法；
+已闭合圆括号实参列表的调用（`f()`、`f<T>()`、`obj.m()`）允许跨换行附着唯一一个尾 lambda `{ ... }`；
+未带圆括号的裸名跨行 `f\n{ ... }` 与 `f<T>\n{ ... }` 不附着。
 
-[block 与控制流规则](06-blocks-control-flow.md)的 `{` soft element stop 因此是 parser-state-sensitive 的：已有完整左表达式且没有运算符
-要求右 operand 时，顶层 `{` 留给下一 nested-block element；initializer 起点、prefix / binary
-右 operand、grouped expression 或 call argument 等正在等待 primary 的位置则必须让 `{` 进入
-lambda parser。`x { y }` 是一个尾 lambda call，`x\n{ y }` 才是 expression
-statement `x` 后接 nested block；`x + { y }` 的右侧仍是 lambda。该判定只依赖语法状态和
+[block 与控制流规则](06-blocks-control-flow.md)的 `{` soft element stop 因此是 parser-state-sensitive 的：
+已有完整左表达式且不满足同行或已闭合圆括号跨行尾 lambda 条件、也没有运算符要求右 operand 时，
+顶层 `{` 交回外层 dispatch（在语句起点按裸块报错）；initializer 起点、prefix / binary 右 operand、
+grouped expression 或 call argument 等正在等待 primary 的位置则必须让 `{` 进入 lambda parser。
+`x { y }` 与 `f()\n{ y }` 均为尾 lambda call，`x\n{ y }` 则是 expression statement `x` 后接非法裸块
+（若需独立作用域块须写作 `x\nblock { y }`）；`x + { y }` 的右侧仍是 lambda。该判定只依赖语法状态和
 尾 lambda 的换行边界，不依赖名称或推测类型。
 
 `->` 前允许零个或多个逗号分隔的普通 Identifier；`{ -> e }` 是显式零参数形式。参数不接受
@@ -313,11 +316,13 @@ Lambda payload 与 header 状态见[Lambda AST 工程合同](../compiler-specs/p
 lambda 规则 从 L0031 开始分配自身专用的 expected lambda body element 与 unsupported lambda
 body form 类别，不复用声明列表的 L0024–L0026。前者只用于 `}` / 调用方 hard stop 之前真实
 存在且不能开始任何合法 element 的普通 token。后者由 body dispatch 发出：无论 strict header
-是否成功，当前 lambda-body baseline 的 `,` / `->`，以及 `return`、局部 `fun`、`const val`、
-控制流或 class-family 等本阶段明确延后的 element introducer，都使用 unsupported lambda body
-form；普通 token 每次精确消费一个，`const val` 可消费固定前缀，并形成同范围 Error statement。
+是否成功，当前 lambda-body baseline 的 `,` / `->`，以及局部 `fun`、`const val`、
+class-family 等本阶段明确延后的 element introducer，都使用 unsupported lambda body
+form（无标签本地 `return` 合法，按[return 边界](06-blocks-control-flow.md#return-边界)退出最近的 lambda callable，`return@label` 仍拒绝；语句位置独立裸 `{ ... }` 同样拒绝并提示改用 `block { ... }`，独立 `move { ... }` 不与裸执行块混为一谈）。
+普通 token 每次精确消费一个，`const val` 可消费固定前缀，并形成同范围 Error statement。
 `L0030 unsupported block element` 只用于普通 `Statement::Block`，不能在 LambdaBody 复用；
-`move` 未后接 `{` 仍按既有 expected-expression 根因处理。`{}` 与 `{ -> }` 都是合法空 body，
+在等待 primary 的表达式位置，仅当 `move` 后的下一个非 trivia token 为 `{`（允许换行）时提交 move lambda，
+否则 `move` 继续按[词法规则](01-lexical.md#上下文关键字与软关键字)作为普通 Identifier 处理，由所在入口诊断后续非法 token。`{}` 与 `{ -> }` 都是合法空 body，
 绝不发 body 诊断。缺 `}` 复用通用 expected closing delimiter。body 恢复保留当前 lambda 的
 `}`；nested block、调用、索引、字符串和插值各消费自己的 closer。同形 `}` 必须先关闭当前
 最内层 lambda / block，不能越过未闭合 lambda 交给父 block；只有局部栈顶为 `)`、`]` 等异形
@@ -341,16 +346,17 @@ consume<Int> { item -> item }     // 等价于 consume<Int>({ item -> item })
 receiver.consume(1) { item -> item }
 ```
 
-- `{ ... }` 必须在没有换行的 trivia gap 后紧随可调用 postfix；因此 `f {}` 是尾 lambda，
-  `f\n{}` 是 expression statement `f` 后接 nested block。LF、CRLF 或含换行 comment 都形成
-  该边界；尾 lambda 的附着规则与 [block element 分隔及续行规则](06-blocks-control-flow.md)
-  同时适用，不能跨越已经终止的 block element。
+- 已闭合圆括号实参列表 `(...)` 的调用（含 `f()`、`f(a)`、`f<T>()`、`obj.m()`）允许跨换行
+  （LF、CRLF、注释与空行）附着唯一一个尾 lambda `{ ... }`，在块元素、变量初始化式、`return` 与
+  控制体中均按同一规则附着，不看返回类型，类型检查失败也不改 AST；不得越过 `;`、调用方 hard stop
+  或其他 owner。未出现圆括号的同行无括号调用 `html { ... }` 与 `f<T> { ... }` 保持不变；裸名跨行
+  `f\n{ ... }` 与无圆括号泛型跨行 `f<T>\n{ ... }` 首版均不附着。独立词法作用域块统一写作 `block { ... }`。
 - callee 尚无圆括号 call suffix 时，Parser 建立一个只有该 lambda 的 `Expression::Call`；已有
   `(...)` 时，把 lambda 追加为同一个 call 的最后一个普通 `CallArgument`，并把 call span 扩到
   lambda 的 `}`。不得把 `f() {}` 表示成“先调用 `f()`、再调用其结果”的第二个 call。
 - 尾 lambda 的 `CallArgument` 没有 name 或显式 mode；需要命名或 `&` 标注时仍写在
-  圆括号内。每个 call 最多接受一个同行尾 lambda，第二个同行的 `{ ... }` 继续形成
-  trailing-input 语法错误，而不是隐式调用前一个 call 的结果。
+  圆括号内。每个 call 最多接受一个尾 lambda（同行或已闭合 `(...)` 后跨行），第二个 `{ ... }`
+  继续形成语法错误，而不是隐式调用前一个 call 的结果。
 - typed/member/chained callee 复用同一规则；失败的 `<...>` call-type-argument 试探仍必须零状态
   回退，不能仅因后方存在 `{` 就把比较表达式重解释为 typed call。
 - 尾 lambda 本身不增加新的 lambda body 语义；下一节为全部无显式 header lambda 定义隐式

@@ -6,7 +6,7 @@ fn alternating_recursive_capture_releases_the_formed_instance_chain() {
     let source = sources
             .add_source(
                 "alternating-recursive-capture.ko",
-                "fun run(flags: List<Int>) { var f: move () -> Unit = move {}\nvar g: move () -> Unit = move {}\nfor (_ in flags) { { f = move { g() } }\ng = move { f() } }\nval used = g() }",
+                "fun run(flags: List<Int>) { var f: move () -> Unit = move {}\nvar g: move () -> Unit = move {}\nfor (_ in flags) { block { f = move { g() } }\ng = move { f() } }\nval used = g() }",
             )
             .unwrap();
     let parsed =

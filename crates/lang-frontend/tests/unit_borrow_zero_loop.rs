@@ -130,7 +130,7 @@ fn check_case(
 fn ordinary_preceding_complete_frame_proves_zero_loop_boundary() {
     for count in [1, 3] {
         let body = format!(
-            "{{borrow val item=view(source);{}}};while(flag){{}}",
+            "block {{borrow val item=view(source);{}}};while(flag){{}}",
             "observe(item);".repeat(count)
         );
         check_case("preceding-complete", &body, false, |loops| {
@@ -149,7 +149,7 @@ fn ordinary_preceding_complete_frame_proves_zero_loop_boundary() {
 
 #[test]
 fn ordinary_zero_loop_rejects_nonadjacent_nonempty_and_nonzero_boundaries() {
-    let frame = "{borrow val item=view(source);observe(item)}";
+    let frame = "block {borrow val item=view(source);observe(item)}";
     for (case, body, rejected) in [
         ("no-frame", "while(flag){}".to_owned(), false),
         (
@@ -159,7 +159,7 @@ fn ordinary_zero_loop_rejects_nonadjacent_nonempty_and_nonzero_boundaries() {
         ),
         (
             "different-parent",
-            format!("{{{frame}}};while(flag){{}}"),
+            format!("block {{{frame}}};while(flag){{}}"),
             false,
         ),
         (
@@ -198,7 +198,7 @@ fn ordinary_zero_loop_rejects_nonadjacent_nonempty_and_nonzero_boundaries() {
 }
 #[test]
 fn ordinary_zero_loop_tokens_are_invocation_specific_and_single_use() {
-    let frame = "{borrow val item=view(source);observe(item)}";
+    let frame = "block {borrow val item=view(source);observe(item)}";
     check_case(
         "siblings",
         &format!("{frame};while(flag){{}};{frame};while(flag){{}}"),

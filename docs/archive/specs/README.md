@@ -11,6 +11,7 @@
 - [SPEC-0474](0474-single-ownership-lifecycle-and-declarations.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
 - [SPEC-0475](0475-fixture-discovery-execution-and-contracts.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
 - [SPEC-0476](0476-conditional-leaf-instance-replay-domain.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
+- [SPEC-0479](0479-explicit-block-and-crossline-lambda.md)：显式词法块与带括号调用跨行尾 lambda，验收见 PR #453。
 
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文

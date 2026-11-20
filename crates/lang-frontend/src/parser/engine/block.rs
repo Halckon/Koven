@@ -128,18 +128,72 @@ impl Parser<'_> {
         self.add_statement(self.span(start, end)?, Statement::Error)
     }
 
+    pub(super) fn explicit_block_start(
+        &self,
+        current: Lexeme,
+    ) -> Result<bool, ParserInternalError> {
+        if !matches!(current.kind(), LexemeKind::Token(TokenKind::Identifier))
+            || self.sources.slice(current.span())? != "block"
+        {
+            return Ok(false);
+        }
+        let Some(next) = self.peek(1) else {
+            return Ok(false);
+        };
+        if !matches!(
+            next.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+        ) {
+            return Ok(false);
+        }
+        Ok(!self.gap_has_line_break(current.span().end(), next.span().start())?)
+    }
+
+    pub(super) fn parse_explicit_block_statement(
+        &mut self,
+        outer_stops: Stops,
+    ) -> Result<StatementId, ParserInternalError> {
+        let keyword = self.bump()?.span();
+        self.parse_block_statement_with_keyword(Some(keyword), outer_stops)
+    }
+
+    pub(super) fn parse_bare_block_error(
+        &mut self,
+        code: &'static str,
+        outer_stops: Stops,
+    ) -> Result<StatementId, ParserInternalError> {
+        let brace = self.current()?.span();
+        self.emit(
+            code,
+            "bare block statement is not allowed; use `block { ... }`",
+            brace,
+        )?;
+        let recovered = self.parse_block_statement(outer_stops)?;
+        let span = self.statement_span(recovered)?;
+        self.add_statement(span, Statement::Error)
+    }
+
     pub(super) fn parse_block_statement(
         &mut self,
         outer_stops: Stops,
     ) -> Result<StatementId, ParserInternalError> {
+        self.parse_block_statement_with_keyword(None, outer_stops)
+    }
+
+    pub(super) fn parse_block_statement_with_keyword(
+        &mut self,
+        keyword: Option<Span>,
+        outer_stops: Stops,
+    ) -> Result<StatementId, ParserInternalError> {
         self.enter_recursion()?;
-        let result = self.parse_block_statement_inner(outer_stops);
+        let result = self.parse_block_statement_inner(keyword, outer_stops);
         self.recursion_depth -= 1;
         result
     }
 
     pub(super) fn parse_block_statement_inner(
         &mut self,
+        keyword: Option<Span>,
         outer_stops: Stops,
     ) -> Result<StatementId, ParserInternalError> {
         let opener = self.bump()?.span();
@@ -192,10 +246,8 @@ impl Parser<'_> {
                 Some(recovery),
             )
         };
-        let block = self.add_statement(
-            self.span(opener.start(), end)?,
-            Statement::Block { elements },
-        )?;
+        let start = keyword.map_or(opener.start(), Span::start);
+        let block = self.add_statement(self.span(start, end)?, Statement::Block { elements })?;
         if let Some(recovery) = recovery {
             self.missing_block_closers.push((block, recovery));
         }
@@ -262,11 +314,14 @@ impl Parser<'_> {
         outer_stops: Stops,
     ) -> Result<StatementId, ParserInternalError> {
         let current = self.current()?;
+        if self.explicit_block_start(current)? {
+            return self.parse_explicit_block_statement(outer_stops);
+        }
         if matches!(
             current.kind(),
             LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
         ) {
-            return self.parse_block_statement(outer_stops);
+            return self.parse_bare_block_error(codes::UNSUPPORTED_BLOCK_ELEMENT, outer_stops);
         }
         let expression_stops = Stops::block_expression(outer_stops);
         if self.borrow_local_start()? {

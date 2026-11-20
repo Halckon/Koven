@@ -53,7 +53,7 @@ mod selection {
     fun consume(own root:List<{element}>):Unit{{println("consume")}}
     fun scan(n:Int):Unit{{
         val root=listOf({values})
-        {{
+        block {{
             borrow val parent=take(root,2)
             borrow val child=take(parent,1)
             borrow val sibling=take(parent,2)
@@ -450,15 +450,17 @@ pub(in crate::ssa) fn comparison_with_use(
     let comparison = format!("check({expression})");
     let body = match position {
         Position::BeforeBinding => {
-            format!("{comparison}\n{{borrow val part=take(root,1);read(part)}}")
+            format!("{comparison}\nblock {{borrow val part=take(root,1);read(part)}}")
         }
         Position::WhileLive if after_last_read => {
-            format!("{{borrow val part=take(root,1);read(part);{comparison}}}")
+            format!("block {{borrow val part=take(root,1);read(part);{comparison}}}")
         }
         Position::WhileLive => {
-            format!("{{borrow val part=take(root,1);read(part);{comparison};read(part)}}")
+            format!("block {{borrow val part=take(root,1);read(part);{comparison};read(part)}}")
         }
-        Position::AfterEnds => format!("{{borrow val part=take(root,1);read(part)}}\n{comparison}"),
+        Position::AfterEnds => {
+            format!("block {{borrow val part=take(root,1);read(part)}}\n{comparison}")
+        }
     };
     let source = format!(
         r#"

@@ -808,10 +808,12 @@ impl Parser<'_> {
             let hard_stop = outside_owner
                 && !nested_greater
                 && !protected_suffix
-                && stops.contains_hard(current, symbol)
-                && !(proven_groups
-                    && symbol == Some(Symbol::LeftBrace)
-                    && self.has_paired_lambda_header(raw_index)?);
+                && ((stops.contains_hard(current, symbol)
+                    && !(proven_groups
+                        && symbol == Some(Symbol::LeftBrace)
+                        && self.has_paired_lambda_header(raw_index)?))
+                    || (stops.0 & DeclarationStops::LEFT_BRACE != 0
+                        && self.explicit_block_start(current)?));
             if hard_stop
                 || (outside_owner
                     && !protected_suffix

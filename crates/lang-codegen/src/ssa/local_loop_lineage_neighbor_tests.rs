@@ -54,7 +54,7 @@ fn ordinary_local_loop_lineage_neighbors_remain_unsupported() {
             "nested-consumer",
             "val source=\"value\"",
             "flag",
-            "{consume(item)}",
+            "block {consume(item)}",
         ),
         (
             "nested-loop",

@@ -50,7 +50,7 @@ fn actual(fault: u8) -> Vec<BorrowFrameObservation> {
     }
     let _reset = Reset;
     let mut sources = SourceMap::new();
-    let text = "fun view(source: String): borrow String from source = source\nfun pair(left: String,right: String): Unit {}\nfun run(source: String): Unit {{borrow val item=view(source);pair(item,item);pair(item,item)}}";
+    let text = "fun view(source: String): borrow String from source = source\nfun pair(left: String,right: String): Unit {}\nfun run(source: String): Unit { block { borrow val item=view(source);pair(item,item);pair(item,item) } }";
     let source = sources.add_source("frame-consumer-ci.ko", text).unwrap();
     let foreign = sources
         .add_source("foreign-frame.ko", "fun unused(): Unit {}")

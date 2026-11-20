@@ -932,8 +932,8 @@ fun view(source: String, own subject: Node?): borrow String from source {
 fun entry(): Unit {
     val source = "kept".clone()
     val subject: Node? = Node()
-    { borrow val result = view(source, subject); println(result) }
-    { borrow val result = view(source, null); println(result) }
+    block { borrow val result = view(source, subject); println(result) }
+    block { borrow val result = view(source, null); println(result) }
     println(source)
 }
 "#;

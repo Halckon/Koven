@@ -23,8 +23,8 @@ fn assert_loop_carried_sibling_release(call_order: [&str; 2]) {
             var g: () -> Unit = {{}}
             for (_ in flags) {{
                 val xs = listOf(1)
-                {{ f = ({{ read(xs) }}) }}
-                {{ g = ({{ read(xs) }}) }}
+                block {{ f = ({{ read(xs) }}) }}
+                block {{ g = ({{ read(xs) }}) }}
                 break
             }}
             val first = {}()
@@ -395,7 +395,7 @@ fn sibling_phi_sources_test_last_loan_before_the_next_alias_ends() {
         }
     }
     let (sources, parsed, owned) = checked(
-        "fun read(xs: List<Int>) {}\nfun run(flags: List<Boolean>) {\nvar g: () -> Unit = {}\nvar h: () -> Unit = {}\nfor (_ in flags) { val xs = listOf(1)\n{ g = ({ read(xs) }) }\n{ h = ({ read(xs) }) }\nbreak }\nval f: move () -> Unit = move { val first = g()\nval second = h() }\nval used = f() }",
+        "fun read(xs: List<Int>) {}\nfun run(flags: List<Boolean>) {\nvar g: () -> Unit = {}\nvar h: () -> Unit = {}\nfor (_ in flags) { val xs = listOf(1)\nblock { g = ({ read(xs) }) }\nblock { h = ({ read(xs) }) }\nbreak }\nval f: move () -> Unit = move { val first = g()\nval second = h() }\nval used = f() }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());

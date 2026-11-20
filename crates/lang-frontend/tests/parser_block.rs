@@ -79,12 +79,21 @@ fn empty_and_nested_blocks_preserve_typed_roots_and_exact_spans() {
     assert_eq!((empty_root.span().start(), empty_root.span().end()), (0, 2));
     assert!(root_elements(&empty).is_empty());
 
-    let (_, nested) = parsed_ok("{{}}");
+    let (_, nested) = parsed_ok("{block {}}");
     let elements = root_elements(&nested);
     assert_eq!(elements.len(), 1);
     let child = nested.ast().statements().get(elements[0]).expect("nested");
-    assert_eq!((child.span().start(), child.span().end()), (1, 3));
+    assert_eq!((child.span().start(), child.span().end()), (1, 9));
     assert!(matches!(child.payload(), Statement::Block { elements } if elements.is_empty()));
+
+    let (_, bare) = parsed("{{}}");
+    assert_eq!(
+        bare.diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code().to_string())
+            .collect::<Vec<_>>(),
+        ["L0030"]
+    );
 }
 
 #[test]
@@ -110,7 +119,7 @@ fn call_argument_lambda_is_not_mistaken_for_a_nested_block() {
 
 #[test]
 fn local_variables_expressions_and_nested_blocks_keep_source_order() {
-    let text = "{ x + y; val x = 1; var y: Int = 2\n{} }";
+    let text = "{ x + y; val x = 1; var y: Int = 2\nblock {} }";
     let (_, parsed) = parsed_ok(text);
     let elements = root_elements(&parsed);
     assert_eq!(elements.len(), 4);
@@ -524,23 +533,20 @@ fn left_brace_after_cast_operator_stays_owned_by_block_dispatch() {
         statement(&parsed, elements[0]),
         Statement::Expression { .. }
     ));
-    assert!(matches!(
-        statement(&parsed, elements[1]),
-        Statement::Block { .. }
-    ));
+    assert!(matches!(statement(&parsed, elements[1]), Statement::Error));
     assert_eq!(
         parsed
             .diagnostics()
             .iter()
             .map(|diagnostic| diagnostic.code().to_string())
             .collect::<Vec<_>>(),
-        ["L0014"]
+        ["L0014", "L0030"]
     );
 }
 
 #[test]
 fn nested_closer_belongs_to_the_innermost_owner() {
-    let text = "{{}";
+    let text = "{block {}";
     let (_, parsed) = parsed(text);
     assert_eq!(
         fingerprints(text),
@@ -548,15 +554,15 @@ fn nested_closer_belongs_to_the_innermost_owner() {
             "L0010".to_owned(),
             Severity::Error,
             "expected closing delimiter".to_owned(),
-            3,
-            3
+            9,
+            9
         )]
     );
     let outer = parsed.ast().statements().get(parsed.root()).expect("outer");
-    assert_eq!((outer.span().start(), outer.span().end()), (0, 3));
+    assert_eq!((outer.span().start(), outer.span().end()), (0, 9));
     let inner_id = root_elements(&parsed)[0];
     let inner = parsed.ast().statements().get(inner_id).expect("inner");
-    assert_eq!((inner.span().start(), inner.span().end()), (1, 3));
+    assert_eq!((inner.span().start(), inner.span().end()), (1, 9));
 }
 
 #[test]
@@ -607,7 +613,7 @@ fn source_identity_and_nested_block_budget_are_internal_boundaries() {
         parse_block,
     );
 
-    let deep = format!("{}{}", "{".repeat(1_100), "}".repeat(1_100));
+    let deep = format!("{{ {}{}", "block {".repeat(1_100), "}".repeat(1_101));
     let mut sources = SourceMap::new();
     let id = add_source(&mut sources, &deep);
     let lexed = lex_parser_source_twice(&sources, id, "block nesting budget");

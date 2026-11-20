@@ -421,7 +421,7 @@ fn receiver_element_loans_protect_root_and_end_before_scope_restores_permission(
         }
     }
     let text = format!(
-        "{RECEIVERS}class Resource {{ deinit() {{}} }}\nfun inspect(source: Resource): Unit {{}}\nfun consume(own source: List<Resource>): Unit {{}}\nfun run(): Unit {{ val root = listOf(Resource()); {{ borrow val part = root.prefix(1); for(item in part) {{ inspect(item) }} }}; consume(root) }}"
+        "{RECEIVERS}class Resource {{ deinit() {{}} }}\nfun inspect(source: Resource): Unit {{}}\nfun consume(own source: List<Resource>): Unit {{}}\nfun run(): Unit {{ val root = listOf(Resource()); block {{ borrow val part = root.prefix(1); for(item in part) {{ inspect(item) }} }}; consume(root) }}"
     );
     let (_, single, unit) = checked(&text);
     for diagnostics in [single.diagnostics(), unit.diagnostics()] {

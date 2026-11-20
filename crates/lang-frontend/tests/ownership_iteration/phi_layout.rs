@@ -106,8 +106,8 @@ fn loop_phi_layout_keeps_opaque_owned_parameters_and_bindings() {
             var g = second
             for (_ in flags) {
                 val saved = f
-                { f = g }
-                { g = saved }
+                block { f = g }
+                block { g = saved }
             }
             val a = f()
             val b = g()
@@ -302,8 +302,8 @@ fn loop_phi_layout_separates_captured_owner_slots_for_prior_and_current_environm
             for (_ in flags) {
                 val prior = f
                 val xs = listOf(1)
-                { g = prior }
-                { f = ({ read(xs) }) }
+                block { g = prior }
+                block { f = ({ read(xs) }) }
             }
             val first = g()
             val second = f()
@@ -665,7 +665,7 @@ fn nested_phi_capture_drop_uses_the_root_layout_slot() {
             var f: move () -> Unit = move {}
             for (_ in flags) { val xs = listOf(1)
                 val g: move () -> Unit = move { read(xs) }
-                { f = move { g() } } }
+                block { f = move { g() } } }
             val used = f()
         }",
     );

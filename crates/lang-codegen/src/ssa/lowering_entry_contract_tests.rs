@@ -422,8 +422,8 @@ fn paired_statement_sequences_keep_empty_nested_blocks_and_cleanup_order() {
         };
         let text = format!(
             "package pair\n{declaration}fun entry(): Unit {{\n\
-             {{}}\nval unused = \"unused\"\nprintln(\"first\")\n\
-             {{ {{}}; println(\"nested\"); 7 }}\n\
+             block {{}}\nval unused = \"unused\"\nprintln(\"first\")\n\
+             block {{ block {{}}; println(\"nested\"); 7 }}\n\
              println(\"last\")\n}}"
         );
         let events = paired(&text, constants);
@@ -446,7 +446,7 @@ fn paired_statement_return_stops_inner_and_outer_sequences() {
         let text = format!(
             "package pair\n{declaration}fun entry(): Unit {{\n\
              println(\"before\")\n\
-             {{ return; println(\"inner-unreachable\") }}\n\
+             block {{ return; println(\"inner-unreachable\") }}\n\
              println(\"outer-unreachable\")\n}}"
         );
         assert_statement_events(&paired(&text, constants), &[b"before"]);

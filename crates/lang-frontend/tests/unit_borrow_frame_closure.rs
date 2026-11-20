@@ -19,22 +19,22 @@ fn ordinary_frame_end_does_not_prove_external_obligation_restoration() {
     for (case, body, restored) in [
         (
             "closed",
-            "{ borrow val item = view(source); observe(item) }",
+            "block { borrow val item = view(source); observe(item) }",
             true,
         ),
         (
             "external-live-binding",
-            "borrow val parent = view(source); { borrow val item = view(source); observe(item) }; observe(parent)",
+            "borrow val parent = view(source); block { borrow val item = view(source); observe(item) }; observe(parent)",
             true,
         ),
         (
             "sibling-frames",
-            "{ borrow val item = view(source); observe(item) }; { borrow val item = view(source); observe(item) }",
+            "block { borrow val item = view(source); observe(item) }; block { borrow val item = view(source); observe(item) }",
             true,
         ),
         (
             "source-moved-after-end",
-            "{ borrow val item = view(source); observe(item); take(source) }",
+            "block { borrow val item = view(source); observe(item); take(source) }",
             false,
         ),
     ] {
@@ -142,15 +142,15 @@ fn ordinary_research_frame_cannot_certify_gated_iteration_bindings() {
             false,
         ),
         (
-            "while (flag) { { borrow val item = view(source); observe(item) } }",
+            "while (flag) { block { borrow val item = view(source); observe(item) } }",
             true,
         ),
         (
-            "{ borrow val item = view(source); make(source); observe(item) }",
+            "block { borrow val item = view(source); make(source); observe(item) }",
             false,
         ),
         (
-            "{ borrow val item = view(source); observe(view(source)); observe(item) }",
+            "block { borrow val item = view(source); observe(view(source)); observe(item) }",
             false,
         ),
     ] {

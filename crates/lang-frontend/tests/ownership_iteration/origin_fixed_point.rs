@@ -8,9 +8,9 @@ fn loop_origin_fixed_point_reaches_prior_bindings_after_multiple_backedges() {
             var g: () -> Unit = {}
             var h: () -> Unit = {}
             for (_ in flags) {
-                { h = g }
-                { g = f }
-                { f = ({ val marker = 7 }) }
+                block { h = g }
+                block { g = f }
+                block { f = ({ val marker = 7 }) }
             }
             val first = h()
             val second = g()
@@ -52,9 +52,9 @@ fn loop_origin_fixed_point_keeps_jump_edges_and_unreachable_tail_separate() {
             "fun run(flags: List<Boolean>) {{
                 var f: () -> Unit = {{}}
                 for (_ in flags) {{
-                    {{ f = ({{ val selected = 1 }}) }}
+                    block {{ f = ({{ val selected = 1 }}) }}
                     {transfer}
-                    {{ f = ({{ val unreachable = 2 }}) }}
+                    block {{ f = ({{ val unreachable = 2 }}) }}
                 }}
                 val used = f()
             }}"
@@ -95,7 +95,7 @@ fn loop_origin_fixed_point_preserves_elvis_value_and_non_null_continuation() {
             "fun run(flags: List<Boolean>) {
                 var f: () -> Unit = {}
                 val none: Nothing? = null
-                for (_ in flags) { { f = (none ?: ({ val selected = 1 })) }\nbreak }
+                for (_ in flags) { block { f = (none ?: ({ val selected = 1 })) }\nbreak }
                 val used = f()
             }",
         );
@@ -120,7 +120,7 @@ fn loop_origin_fixed_point_preserves_elvis_value_and_non_null_continuation() {
                 val none: Nothing? = null
                 for (_ in flags) {{
                     val observed = {operand} ?: return
-                    {{ f = ({{ val selected = 1 }}) }}
+                    block {{ f = ({{ val selected = 1 }}) }}
                 }}
                 val used = f()
             }}"
@@ -148,9 +148,9 @@ fn loop_origin_fixed_point_propagates_outer_backedges_into_nested_and_later_loop
             for (_ in outer) {
                 for (_ in inner) {
                     val g = f
-                    { f = g }
+                    block { f = g }
                 }
-                { f = ({ val later = 1 }) }
+                block { f = ({ val later = 1 }) }
             }
             for (_ in after) { val used = f() }
             val used = f()
@@ -184,9 +184,9 @@ fn loop_origin_fixed_point_consumes_inner_jumps_and_drops_lexical_aliases() {
             var f: () -> Unit = {}
             for (_ in flags) {
                 val alias = f
-                { f = alias }
+                block { f = alias }
                 loop { break }
-                { f = ({ val reached = 1 }) }
+                block { f = ({ val reached = 1 }) }
             }
             val used = f()
         }",
@@ -223,7 +223,7 @@ fn loop_origin_fixed_point_isolates_nested_callable_bindings_and_jumps() {
             for (_ in flags) {
                 val action: () -> Unit = { for (_ in flags) { break } }
                 val invoked = action()
-                { f = ({ val continued = 1 }) }
+                block { f = ({ val continued = 1 }) }
             }
             val used = f()
         }",
@@ -275,7 +275,7 @@ fn loop_origin_fixed_point_keeps_while_condition_effects_on_exhaustion() {
     let (sources, parsed, owned) = checked(
         "fun run(flags: List<Boolean>, flag: Boolean) {
             var f: () -> Unit = {}
-            while (if (flag) { { f = ({ val selected = 1 }) }\nfalse } else false) { return }
+            while (if (flag) { block { f = ({ val selected = 1 }) }\nfalse } else false) { return }
             for (_ in flags) { val invoked = f() }
             val used = f()
         }",

@@ -21,7 +21,7 @@ fn assignment_and_capture_invalidate_mutable_smart_casts_and_invalid_tests_are_p
                 }\n\
                 fun shadowed(initial: Shape): Int {\n\
                     var current = initial\n\
-                    {\n\
+                    block {\n\
                         var current = initial\n\
                         val callback = { current }\n\
                     }\n\

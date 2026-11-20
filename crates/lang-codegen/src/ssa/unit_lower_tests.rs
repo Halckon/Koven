@@ -348,7 +348,7 @@ fn implicit_else_drops_an_owner_not_consumed_on_that_path() {
              val outerCopy = flag\n\
              if (flag) {\n\
                  val branchCopy = outerCopy\n\
-                 { val done = sink(text) }\n\
+                 block { val done = sink(text) }\n\
              }\n\
          }",
     );

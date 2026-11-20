@@ -1,6 +1,6 @@
 fun main(): Unit {
     var xs = mutableListOf<String>()
-    {
+    block {
         val retained = "keep"
         xs.add("x")
         println(retained)

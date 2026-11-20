@@ -47,7 +47,7 @@ fn actual(fault: u8) -> Vec<BorrowZeroLoopObservation> {
     }
     let _reset = Reset;
     let mut sources = SourceMap::new();
-    let text = "fun view(source:String):borrow String from source=source\nfun observe(item:String):Unit {}\nfun run(source:String,flag:Boolean):Unit {{borrow val item=view(source);observe(item)};while(flag){}}";
+    let text = "fun view(source:String):borrow String from source=source\nfun observe(item:String):Unit {}\nfun run(source:String,flag:Boolean):Unit {block {borrow val item=view(source);observe(item)};while(flag){}}";
     let source = sources.add_source("zero-loop-ci.ko", text).unwrap();
     let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
     assert!(parsed.diagnostics().is_empty());

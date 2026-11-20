@@ -448,7 +448,7 @@ fn loop_phi_exhaustion_preserves_the_old_owner_during_replacement_rhs() {
     let (sources, parsed, owned) = checked(
         "fun read(xs: List<Int>) {}\nfun run(flags: List<Boolean>) {
             var target = listOf(1)
-            { target = if (true) { val observed = read(target)\nfor (_ in flags) {}\nlistOf(2) } else listOf(3) }
+            block { target = if (true) { val observed = read(target)\nfor (_ in flags) {}\nlistOf(2) } else listOf(3) }
         }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
@@ -495,8 +495,8 @@ fn loop_phi_backedge_reads_the_previous_header_environment() {
             var g: () -> Unit = {}
             for (_ in flags) {
                 val prior = f
-                { g = prior }
-                { f = ({ val marker = 1 }) }
+                block { g = prior }
+                block { f = ({ val marker = 1 }) }
             }
             val first = g()
             val second = f()

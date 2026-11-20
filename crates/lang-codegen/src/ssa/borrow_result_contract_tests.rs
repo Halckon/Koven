@@ -13,7 +13,7 @@ use lang_frontend::{
 };
 
 const PROVIDER: &str = "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) { println(source) }\n";
-const ENTRY: &str = "fun entry() { val source = \"kept\".clone(); { borrow val item = wrap(source); println((item)) }; consume(source) }";
+const ENTRY: &str = "fun entry() { val source = \"kept\".clone(); block { borrow val item = wrap(source); println((item)) }; consume(source) }";
 
 // The main-branch Legacy-only negative control requires its actual Single frontend.
 pub(super) fn single(text: &str) -> Result<Program, super::LoweringError> {
@@ -676,9 +676,11 @@ fn assert_local_result_order(program: &Program, branch_before_borrow: bool) {
 fn ordinary_result_local_accepts_control_before_acquisition() {
     for body in [
         format!("{LOCAL_RESULT_CONTROL}\n    {LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_READ}"),
-        format!("{LOCAL_RESULT_CONTROL}\n    {{ {LOCAL_RESULT_BINDING}; {LOCAL_RESULT_READ} }}"),
         format!(
-            "{{ {LOCAL_RESULT_CONTROL} }}\n    {LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_READ}"
+            "{LOCAL_RESULT_CONTROL}\n    block {{ {LOCAL_RESULT_BINDING}; {LOCAL_RESULT_READ} }}"
+        ),
+        format!(
+            "block {{ {LOCAL_RESULT_CONTROL} }}\n    {LOCAL_RESULT_BINDING}\n    {LOCAL_RESULT_READ}"
         ),
     ] {
         assert_disjoint_local_result_control(&body, true);
@@ -689,10 +691,10 @@ fn ordinary_result_local_accepts_control_before_acquisition() {
 fn ordinary_result_local_accepts_control_after_lexical_end() {
     for following in [
         LOCAL_RESULT_CONTROL.to_owned(),
-        format!("{{ {LOCAL_RESULT_CONTROL} }}"),
+        format!("block {{ {LOCAL_RESULT_CONTROL} }}"),
     ] {
         assert_disjoint_local_result_control(
-            &format!("{{ {LOCAL_RESULT_BINDING}; {LOCAL_RESULT_READ} }}\n    {following}"),
+            &format!("block {{ {LOCAL_RESULT_BINDING}; {LOCAL_RESULT_READ} }}\n    {following}"),
             false,
         );
     }
@@ -805,13 +807,13 @@ fn ordinary_result_argument_return_shares_only_proved_disjoint_controls() {
     let conditional =
         "borrow val item = view(source, if (flag) { return } else { 1 }); println(item)";
     let disjoint = format!(
-        "{{ borrow val before = view(source, 0); println(before) }}\n    {{ {conditional} }}\n    {{ borrow val after = view(source, 2); println(after) }}"
+        "block {{ borrow val before = view(source, 0); println(before) }}\n    block {{ {conditional} }}\n    block {{ borrow val after = view(source, 2); println(after) }}"
     );
     let overlapping = format!(
-        "borrow val before = view(source, 0)\n    {{ {conditional} }}\n    println(before)"
+        "borrow val before = view(source, 0)\n    block {{ {conditional} }}\n    println(before)"
     );
     let missing_prefix = format!(
-        "{{ {conditional} }}\n    {{ borrow val unproved = view(extra = if (flag) {{ return }} else {{ 1 }}, source = source); println(unproved) }}"
+        "block {{ {conditional} }}\n    block {{ borrow val unproved = view(extra = if (flag) {{ return }} else {{ 1 }}, source = source); println(unproved) }}"
     );
     for (body, accepted) in [
         (disjoint, true),
