@@ -406,7 +406,9 @@ fn nested_primitive_range_view_consumption_routes_and_verifies_in_refine() {
         return acc
     }"#;
     let mut sources = SourceMap::new();
-    let text = format!("package p\n{source}");
+    let text = format!(
+        "package p\n{source}\nfun native_entry(): Unit {{ if (main() == 270) {{ println(\"270\") }} else {{ println(\"wrong range value\") }} }}"
+    );
     let (id, file) = parsed(&mut sources, "p/main.ko", &text);
     let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
     let (name_environment, mut type_environment) = standard_environments();
@@ -443,6 +445,37 @@ fn nested_primitive_range_view_consumption_routes_and_verifies_in_refine() {
     let llvm = crate::llvm::render_verified_program(&program)
         .expect("verified LLVM for nested primitive rangeView");
     assert!(!llvm.is_empty());
+
+    // Half-open slices: a=20+30, b=20+30, loop=30+40,
+    // direct argument=20+30, c=20+30; total=270, not a truncated exit code.
+    let native_entry = declaration(&names, "p", "native_entry");
+    let (native_program, root) = lower_scalar_unit_with_entry(
+        &sources,
+        &inputs,
+        &names,
+        &type_environment,
+        &typed,
+        &owned,
+        native_entry,
+    )
+    .expect("the unchanged range computation reaches a value-checking entry");
+    let native_llvm = crate::llvm::render_verified_program_with_entry(&native_program, root)
+        .expect("native range result SSA and LLVM verify");
+    let directory = crate::native_tests::TestDirectory::create();
+    let ir = directory.join("program.ll");
+    let executable = directory.join("program");
+    std::fs::write(&ir, native_llvm).expect("write verified LLVM");
+    let linked = std::process::Command::new(crate::test_support::clang())
+        .arg(&ir)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .expect("clang launches");
+    assert!(linked.status.success(), "{linked:?}");
+    let run = std::process::Command::new(&executable)
+        .output()
+        .expect("nested range executable launches");
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"270\n");
 }
 
 #[test]
