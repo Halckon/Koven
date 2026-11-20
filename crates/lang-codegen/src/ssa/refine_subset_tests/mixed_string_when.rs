@@ -243,8 +243,12 @@ fn audit_tail_cleanup(
 #[test]
 fn direct_initializer_and_nested_initializer_keep_separate_pending_frames() {
     use lang_frontend::{
+        name_resolution::UnitReferenceTarget,
         ownership_checking::{LoanKind, UnitDropTarget, UnitLoanTarget},
-        type_checking::UnitExpressionId,
+        parser::{Item, NameMarker, VariableKind},
+        type_checking::{
+            BuiltinType, CallableResultSource, UnitCallTarget, UnitExpressionId, UnitTypeKind,
+        },
     };
     const HEADER: &str = r#"package p
 class Node()
@@ -267,7 +271,7 @@ fun f(s: String, flag: Boolean): Int {
         // Both legal sources are characterizations: neither is admitted by the
         // production direct-tail gate. Only the direct initializer has one frame.
         let entry = declaration(&names, "p", "f");
-        let (_, routes) = observe_routing(|| {
+        let (result, routes) = observe_routing(|| {
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
         });
         assert!(
@@ -282,7 +286,91 @@ fun f(s: String, flag: Boolean): Int {
                 .unwrap()
                 .span()
         };
+        // Absence from the observer alone would also allow a failed Refine. Pin the
+        // actual fallback failure at its String comparison, not at the local binding.
+        let Err(error) = result else {
+            panic!("initializer fixture currently has no successful compatibility lowering");
+        };
+        assert_eq!(
+            error.kind,
+            crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
+        );
+        assert_eq!(
+            sources.slice(error.span.unwrap()).unwrap(),
+            r#"when (s) { "a" -> 1; else -> 0 }"#,
+        );
+
         let source = |id| sources.slice(span(id)).unwrap();
+        let (name, init) = file
+            .ast()
+            .items()
+            .iter()
+            .find_map(|(_, item)| match *item.payload() {
+                Item::Variable {
+                    kind: VariableKind::Val,
+                    name: NameMarker::Present(name),
+                    initializer,
+                    ..
+                } if sources.slice(name).unwrap() == "result" => Some((name, initializer)),
+                _ => None,
+            })
+            .expect("actual immutable initializer");
+        let unit = names.names().source_units()[0].source_unit();
+        let init = UnitExpressionId::new(unit, init);
+        assert_eq!(source(init), initializer);
+        let typed = typed.types();
+        let call = typed.call(init).expect("no initializer adapter");
+        let callee = if expected_pending == 1 {
+            "outer"
+        } else {
+            "wrap"
+        };
+        assert_eq!(
+            call.target(),
+            UnitCallTarget::Declaration(declaration(&names, "p", callee))
+        );
+        assert!(call.receiver().is_none());
+        assert_eq!(call.result_source(), CallableResultSource::Owned);
+        assert_eq!(
+            typed.types().get(call.return_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int)),
+        );
+        let distinct_expression = |text| {
+            let found: Vec<_> = typed
+                .expression_types()
+                .keys()
+                .copied()
+                .filter(|&id| source(id) == text)
+                .collect();
+            let [id] = found[..] else {
+                panic!("one typed expression {text:?}: {found:?}")
+            };
+            id
+        };
+        assert_eq!(typed.expression_falls_through(init), Some(true));
+        assert_eq!(
+            typed.expression_falls_through(distinct_expression("return n")),
+            Some(false),
+        );
+        let use_id = distinct_expression("result");
+        let use_span = span(use_id);
+        let reference = names
+            .names()
+            .references()
+            .iter()
+            .find(|refer| refer.source_unit() == unit && refer.span() == use_span)
+            .expect("exact return name reference");
+        let UnitReferenceTarget::Symbol(symbol) = *reference.target() else {
+            panic!("return must reference a local symbol");
+        };
+        assert_eq!(symbol.source_unit(), unit);
+        assert_eq!(
+            names.names().source_units()[0].resolution().symbols()[symbol.symbol().index()].span(),
+            name
+        );
+        assert_eq!(typed.symbol_type(symbol), Some(call.return_type()));
+        assert_eq!(typed.expression_type(use_id), Some(call.return_type()));
+
         let facts = owned.ownership();
         let loans: Vec<_> = facts
             .loans()
