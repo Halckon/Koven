@@ -294,6 +294,10 @@
         {
           "type": "call_type_arguments",
           "named": true
+        },
+        {
+          "type": "lambda_expression",
+          "named": true
         }
       ]
     }

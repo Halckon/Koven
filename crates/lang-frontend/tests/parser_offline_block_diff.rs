@@ -127,6 +127,8 @@ fn expression(ast: &SyntaxAst, sources: &SourceMap, id: ExpressionId, parent: Sp
             operand,
         } => {
             assert_eq!(literal(*operator_span), "-");
+            let operand_span = ast.expressions().get(*operand).unwrap().span();
+            assert!(operator_span.end() <= operand_span.start());
             format!("(neg {})", child(*operand))
         }
         Expression::Binary {
@@ -136,6 +138,10 @@ fn expression(ast: &SyntaxAst, sources: &SourceMap, id: ExpressionId, parent: Sp
             right,
         } => {
             assert_eq!(literal(*operator_span), "-");
+            let left_span = ast.expressions().get(*left).unwrap().span();
+            let right_span = ast.expressions().get(*right).unwrap().span();
+            assert!(left_span.end() <= operator_span.start());
+            assert!(operator_span.end() <= right_span.start());
             format!("(sub {} {})", child(*left), child(*right))
         }
         Expression::Member {
@@ -145,6 +151,9 @@ fn expression(ast: &SyntaxAst, sources: &SourceMap, id: ExpressionId, parent: Sp
             safe: false,
         } => {
             assert_eq!(literal(*operator_span), ".");
+            let receiver_span = ast.expressions().get(*receiver).unwrap().span();
+            assert!(receiver_span.end() <= operator_span.start());
+            assert!(operator_span.end() <= name_span.start());
             format!("(member {} (id {}))", child(*receiver), literal(*name_span))
         }
         other => panic!("out-of-scope AST expression {other:?}"),
@@ -622,7 +631,29 @@ fn fixed_and_generated_corpus() {
     }
     let lexed = lex(&sources, *ids.last().unwrap()).unwrap();
     assert_eq!(production(&sources, &lexed, "{\n a\n-b}"), SPLIT);
-    batches.push(events(&sources, &lexed).unwrap());
+    let shifted_rows = events(&sources, &lexed).unwrap();
+    assert_eq!(
+        newline_contract(
+            &shifted_rows,
+            &[
+                Event {
+                    kind: "_NL",
+                    spelling: "\n",
+                    bytes: (1, 2),
+                    owner: (1, 1, 2),
+                },
+                Event {
+                    kind: "_NL",
+                    spelling: "\n",
+                    bytes: (4, 5),
+                    owner: (4, 4, 5),
+                },
+            ],
+        ),
+        Ok(()),
+        "{{\n a\n-b}}: {shifted_rows:?}"
+    );
+    batches.push(shifted_rows);
     expected.push(SPLIT);
     let output = reference(&batches);
     assert_eq!(output.len(), expected.len());

@@ -366,7 +366,16 @@ jobs:
             --output "$KOVEN_LARK_WHEEL" \
             https://files.pythonhosted.org/packages/2d/00/d90b10b962b4277f5e64a78b6609968859ff86889f5b898c1a778c06ec00/lark-1.2.2-py3-none-any.whl
           # The offline reference verifies the pinned SHA-256 before importing.
-          cargo test --locked -p lang-frontend --test parser_offline_block_diff -- --ignored
+          for test_name in \
+            ci_fault_reference_deadline_covers_startup_without_output \
+            ci_fault_block_boundary_and_event_projection \
+            ci_fault_ambiguous_reference_rejects_without_a_tree \
+            ci_fault_reference_event_limit \
+            fixed_and_generated_corpus; do
+            out="$(cargo test --locked -p lang-frontend --test parser_offline_block_diff -- --ignored --exact "$test_name")"
+            printf '%s\n' "$out"
+            printf '%s\n' "$out" | grep -q '1 passed; 0 failed; 0 ignored;'
+          done
       - name: Experimental Unit root-set budget and rollback (CI only)
         run: bash scripts/check_unit_root_set_ci.sh
       - name: Run exact borrowing fault contracts

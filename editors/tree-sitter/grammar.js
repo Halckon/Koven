@@ -22,7 +22,7 @@ module.exports = grammar({
 
   externals: ($) => [
     $.identifier, $._destructuring_identifier,
-    $._own, $._borrow, $._inout, $._loop, $._move_lambda, $._move_type,
+    $._own, $._borrow, $._inout, $._loop, $._block, $._lambda_lbrace, $._trailing_lambda_lbrace, $._move_lambda, $._move_type,
     $._to, $._by, $._in, $._is, $._as, $._not_in, $._not_is,
   ],
 
@@ -31,8 +31,6 @@ module.exports = grammar({
   conflicts: ($) => [
     [$.binary_expression, $.prefix_expression, $.call_expression],
     [$.binary_expression, $.call_expression],
-    [$._statement, $._lambda_element],
-    [$.control_block, $.lambda_expression],
     [$.qualified_name, $._primary_expression],
     [$._file_content],
     [$._imports_and_declarations],
@@ -333,7 +331,7 @@ module.exports = grammar({
         $.expression_statement,
       ),
 
-    nested_block_statement: ($) => seq("block", $.block),
+    nested_block_statement: ($) => seq(alias($._block, "block"), $.block),
 
     local_variable_statement: ($) => $.variable_declaration,
 
@@ -453,6 +451,7 @@ module.exports = grammar({
           field("function", $.expression),
           optional($.call_type_arguments),
           $.argument_list,
+          optional(alias($.trailing_lambda_expression, $.lambda_expression)),
         ),
       ),
 
@@ -542,9 +541,25 @@ module.exports = grammar({
     interpolation: ($) => seq(token.immediate("${"), $.expression, "}"),
 
     lambda_expression: ($) =>
+      choice(
+        seq(
+          alias($._move_lambda, "move"),
+          "{",
+          optional($.lambda_header),
+          repeat(choice($._newline, $._lambda_element)),
+          "}",
+        ),
+        seq(
+          alias($._lambda_lbrace, "{"),
+          optional($.lambda_header),
+          repeat(choice($._newline, $._lambda_element)),
+          "}",
+        ),
+      ),
+
+    trailing_lambda_expression: ($) =>
       seq(
-        optional(alias($._move_lambda, "move")),
-        "{",
+        alias($._trailing_lambda_lbrace, "{"),
         optional($.lambda_header),
         repeat(choice($._newline, $._lambda_element)),
         "}",

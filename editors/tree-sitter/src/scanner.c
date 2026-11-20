@@ -11,6 +11,9 @@ enum TokenType {
   BORROW,
   INOUT,
   LOOP,
+  BLOCK,
+  LAMBDA_LBRACE,
+  TRAILING_LAMBDA_LBRACE,
   MOVE_LAMBDA,
   MOVE_TYPE,
   TO,
@@ -58,19 +61,21 @@ static bool is_reserved_word(const char *text, size_t length) {
 
 // Look ahead across the same horizontal/comment extras as grammar.js. Never skip
 // bytes here: the token start/end must remain the identifier already marked.
-static void peek_context(TSLexer *lexer) {
+static bool peek_context(TSLexer *lexer) {
+  bool same_line = true;
   for (;;) {
     while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
            lexer->lookahead == '\r' || lexer->lookahead == '\f') {
       lexer->advance(lexer, false);
     }
-    if (lexer->lookahead != '/') return;
+    if (lexer->lookahead != '/') return same_line;
     lexer->advance(lexer, false);
-    if (lexer->lookahead != '*') return;
+    if (lexer->lookahead != '*') return same_line;
     lexer->advance(lexer, false);
     bool star = false;
     while (!lexer->eof(lexer)) {
       const int32_t character = lexer->lookahead;
+      if (character == '\n') same_line = false;
       lexer->advance(lexer, false);
       if (star && character == '/') break;
       star = character == '*';
@@ -105,6 +110,62 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
   while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
          lexer->lookahead == '\r' || lexer->lookahead == '\f') {
     lexer->advance(lexer, true);
+  }
+  // After a closed parenthesized call, `{` may attach across newlines/comments (SPEC-0479).
+  // Guard with !valid_symbols[NOT_IN] to avoid firing during error recovery.
+  if (valid_symbols[TRAILING_LAMBDA_LBRACE] && !valid_symbols[DESTRUCTURING_IDENTIFIER]) {
+    if (lexer->lookahead == '{') {
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      lexer->result_symbol = TRAILING_LAMBDA_LBRACE;
+      return true;
+    }
+    if (lexer->lookahead == '\n' || lexer->lookahead == '/') {
+      // Peek across newlines, whitespace, and comments for a trailing `{`.
+      for (;;) {
+        while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
+               lexer->lookahead == '\r' || lexer->lookahead == '\f' ||
+               lexer->lookahead == '\n') {
+          lexer->advance(lexer, true);
+        }
+        if (lexer->lookahead == '/') {
+          lexer->advance(lexer, true);
+          if (lexer->lookahead == '/') {
+            while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+              lexer->advance(lexer, true);
+            }
+            continue;
+          }
+          if (lexer->lookahead == '*') {
+            lexer->advance(lexer, true);
+            bool star = false;
+            while (!lexer->eof(lexer)) {
+              const int32_t ch = lexer->lookahead;
+              lexer->advance(lexer, true);
+              if (star && ch == '/') break;
+              star = ch == '*';
+            }
+            continue;
+          }
+          return false;
+        }
+        break;
+      }
+      if (lexer->lookahead == '{') {
+        lexer->advance(lexer, false);
+        lexer->mark_end(lexer);
+        lexer->result_symbol = TRAILING_LAMBDA_LBRACE;
+        return true;
+      }
+      return false;
+    }
+  }
+  // Bare `{ ... }` is a lambda only outside statement-start positions (SPEC-0479).
+  if (lexer->lookahead == '{' && valid_symbols[LAMBDA_LBRACE] && !valid_symbols[BLOCK]) {
+    lexer->advance(lexer, false);
+    lexer->mark_end(lexer);
+    lexer->result_symbol = LAMBDA_LBRACE;
+    return true;
   }
   const bool negated = lexer->lookahead == '!';
   if (negated) lexer->advance(lexer, false);
@@ -143,7 +204,7 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
   // Select soft keywords only in grammar states and lookahead contexts that own
   // them; e.g. `own: Int` and ordinary `move()` calls remain identifiers.
   const bool safe_cast = lexer->lookahead == '?';
-  peek_context(lexer);
+  const bool same_line = peek_context(lexer);
   const bool next_name = is_identifier_start(lexer->lookahead);
   const struct {
     const char *word;
@@ -154,6 +215,7 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
       {"borrow", BORROW, next_name || lexer->lookahead == '('},
       {"inout", INOUT, next_name || lexer->lookahead == '('},
       {"loop", LOOP, lexer->lookahead == '{'},
+      {"block", BLOCK, same_line && lexer->lookahead == '{'},
       {"move", MOVE_LAMBDA, lexer->lookahead == '{'},
       {"move", MOVE_TYPE, lexer->lookahead == '('},
       {"to", TO, true},
