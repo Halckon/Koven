@@ -82,10 +82,11 @@ fn ordinary_entry(body: &str, rooted: bool) -> Checked {
     )
 }
 
-// Negative-source consumers have no legacy-only loan-end oracle. Keep the original
-// positive Single analysis and its independent event checks below.
+// Unit-only cases use the original source in both layouts. Other positive cases
+// retain independent Single event checks until Unit equivalents are proved.
 struct UnitChecked {
     sources: SourceMap,
+    parsed: ParsedFile,
     memory: CompilationUnitOwnership,
     rooted: CompilationUnitOwnership,
 }
@@ -130,6 +131,7 @@ fn ordinary_unit(body: &str) -> UnitChecked {
     });
     UnitChecked {
         sources,
+        parsed,
         memory,
         rooted,
     }
@@ -153,14 +155,100 @@ fn assert_accepted(checked: &Checked) {
 
 #[test]
 fn direct_and_grouped_results_are_synchronous_borrow_operands() {
-    for rooted in [false, true] {
-        for operand in ["view(source)", "((view((source))))"] {
-            assert_accepted(&ordinary_entry(
-                &format!(
-                    "fun run() {{ val source = \"kept\"; observe({operand}); consume(source) }}"
-                ),
-                rooted,
-            ));
+    use lang_frontend::{
+        ownership_checking::{LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget},
+        parser::Expression,
+        type_checking::UnitExpressionId,
+    };
+    for (operand, inner, inner_argument) in [
+        ("view(source)", "view(source)", "source"),
+        ("((view((source))))", "view((source))", "(source)"),
+    ] {
+        let checked = ordinary_unit(&format!(
+            "fun run() {{ val source = \"kept\"; observe({operand}); consume(source) }}"
+        ));
+        for unit in [checked.memory, checked.rooted] {
+            assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+            assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+            let [usage] = unit.borrow_results().call_uses() else {
+                panic!("one verified synchronous borrow operand");
+            };
+            let [transport] = unit.borrow_call_transports() else {
+                panic!("one actual inner-to-outer continuation");
+            };
+            let [consumer, source] = transport.ended_loans();
+            let source_unit = usage.call().source_unit();
+            let text = |id: UnitExpressionId| {
+                assert_eq!(id.source_unit(), source_unit);
+                let span = checked
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(id.expression())
+                    .unwrap()
+                    .span();
+                assert_eq!(span.source_id(), checked.parsed.source_id());
+                checked.sources.slice(span).unwrap()
+            };
+            assert_eq!(text(source.call()), inner);
+            assert_eq!(text(source.argument()), inner_argument);
+            assert_eq!(text(consumer.call()), format!("observe({operand})"));
+            assert_eq!(text(consumer.argument()), operand);
+            assert_eq!(consumer.kind(), LoanKind::Shared);
+            assert_eq!(source.kind(), LoanKind::Shared);
+            assert_eq!(usage.expression(), source.call());
+            assert_eq!(usage.source_loan().call(), source.call());
+            assert_eq!(usage.source_loan().argument(), source.argument());
+            assert_eq!(usage.call(), consumer.call());
+            assert_eq!(usage.argument(), consumer.argument());
+            let node = checked
+                .parsed
+                .ast()
+                .expressions()
+                .get(usage.call().expression())
+                .unwrap();
+            let Expression::Call { arguments, .. } = node.payload() else {
+                panic!("actual outer call");
+            };
+            assert!(
+                arguments
+                    .iter()
+                    .any(|arg| arg.value == usage.argument().expression())
+            );
+            for loan in [source, consumer] {
+                assert_eq!(loan.target(), usage.origin());
+                assert!(unit.loans().contains(loan));
+            }
+            let UnitLoanTarget::Place(root) = usage.origin() else {
+                panic!("actual named source");
+            };
+            assert_eq!(
+                transport.handoff_point(),
+                UnitDropPoint::CallReturn(source.call())
+            );
+            assert_eq!(
+                transport.point(),
+                UnitDropPoint::CallReturn(consumer.call())
+            );
+            assert_ne!(transport.handoff_point(), transport.point());
+            assert_eq!(usage.end_point(), transport.point());
+            assert!(
+                !unit
+                    .direct_call_loan_ends()
+                    .iter()
+                    .any(|end| end.loan() == source || end.loan() == consumer)
+            );
+            assert!(!unit.drops().iter().any(|drop| drop.target()
+                == UnitDropTarget::Temporary(usage.expression())
+                || drop.target() == UnitDropTarget::Temporary(usage.argument())));
+            assert!(
+                !unit
+                    .drops()
+                    .iter()
+                    .any(|drop| drop.target() == UnitDropTarget::Named(root.root())
+                        && drop.point() == transport.point())
+            );
+            assert!(unit.validate().is_ok());
         }
     }
 }

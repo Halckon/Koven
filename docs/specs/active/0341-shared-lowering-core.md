@@ -21723,3 +21723,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `3231fb5f`。原始 String wrapper 用例与公共源码前缀逐字节保留；该集成测试目标最后一项 Single 依赖迁到 MemoryDocument / Rooted 双 Unit。
 - 独立锚定 wrapper 内层 `view(source)` 和调用者 `wrap(source)`。真实 planner 记录关联原 acquisition 与 wrapper 交接而非结束；调用者原 source token 跨 initializer CallReturn 保留，结果真实结束与 named owner 唯一析构同点，结果绑定和初始化表达式不析构 payload。保持相关观察流无提前 End 的断言，但不把部分流的缺项当全局无结束证明。
 - macOS 离线定点 1/1（两个布局），`ownership_borrow_continuation` 全 14 passed。未运行 Linux、native 或远端 CI；无生产、API、CI 变化，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：直接与 Group 普通借用结果调用测试迁移
+
+- 基于 `95710ddd`，只迁移 `direct_and_grouped_results_are_synchronous_borrow_operands`。直接、内外 Group 两种原源码及之后 `consume(source)` 不变，在 MemoryDocument / Rooted 双布局验证。
+- 原 AST 调用与最外实参链接、source/consumer 同一根、真实内层 CallReturn handoff、外层 CallReturn 有序实际结束（consumer 后才 source）均保留。借用 payload 不被析构，仍需后续消费的 named root 不在外层返回提前析构。只用真 transport 证明结束，不用 call descriptor 筛选当作事件。
+- macOS 离线定点通过，`ownership_nested_borrow_arguments` 14 passed、`unit_direct_call_loan_ends` 358 passed。相邻需旧 Single 独立证据的其他形状未迁；不改生产、API、CI，未运行 Linux、native 或远端 CI；SPEC-0341 仍 in-progress。
