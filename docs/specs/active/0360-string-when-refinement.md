@@ -133,3 +133,9 @@ Refine 并通过 SSA/LLVM；`return (直接调用)`、双层括号初始化、`r
 不拥有调用描述。这个矩阵只刻画当前降低覆盖，不新增语法或生产准入。
 Mac 使用 Targeted CI 同一 feature 的 `mixed_string_when` 定向 8/8，含原 native 正控；
 该矩阵没有在 Linux 或 hosted CI 运行。
+
+九形态矩阵另以同一源码字节通过真实 `MemoryDocument` 和 rooted Unit 共 18 个格子。
+Mac 定向 8/8，两种 Unit 布局的路由与内层清理事实一致。若单独补齐尾部
+`return (直接调用)`，最小候选仅在既有末尾 Return 匹配处复用单层透明 Group
+核验，并继续用内层调用身份匹配 §6 的全部事实；不以递归去括号同时准入双层、
+括号包裹绑定读取或其他位置。本轮未改变生产通路。

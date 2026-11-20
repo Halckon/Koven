@@ -712,6 +712,7 @@ fun f(s: String, flag: Boolean): Int {
 #[test]
 fn terminal_call_group_position_matrix_keeps_exact_cleanup_and_route_boundary() {
     use lang_frontend::{
+        name_resolution::SourceUnitKey,
         ownership_checking::{LoanKind, UnitDropTarget, UnitLoanTarget},
         parser::Expression,
         type_checking::{BuiltinType, CallableResultSource, UnitExpressionId, UnitTypeKind},
@@ -723,7 +724,7 @@ fun f(s: String, flag: Boolean): Int {
     val n = when (s) { "a" -> 1; else -> 0 }
 "#;
     const CALL: &str = "outer(Node(), when (flag) { true -> return n\n else -> n })";
-    for (shape, body, refined) in [
+    for ((shape, body, refined), rooted) in [
         ("bare tail", format!("return {CALL}"), true),
         ("grouped tail", format!("return ({CALL})"), false),
         (
@@ -761,13 +762,35 @@ fun f(s: String, flag: Boolean): Int {
             format!("val result = {CALL}\n    val extra = 3\n    return result"),
             false,
         ),
-    ] {
+    ]
+    .into_iter()
+    .flat_map(|shape| {
+        [false, true]
+            .into_iter()
+            .map(move |rooted| (shape.clone(), rooted))
+    }) {
+        let layout = if rooted { "Rooted" } else { "MemoryDocument" };
+        let shape = format!("{layout}/{shape}");
         let text = format!("{PREFIX}    {body}\n}}\n");
         let mut sources = SourceMap::new();
         let (id, file) = parsed(&mut sources, "p/main.ko", &text);
-        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        assert_eq!(sources.source_text(id), Ok(text.as_str()));
+        let inputs = [if rooted {
+            SourceUnitInput::new("root", "p/main.ko", id, &file)
+        } else {
+            SourceUnitInput::memory_document(id, &file)
+        }];
         let (ne, te) = standard_environments();
         let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
+        let [document] = names.names().index().source_units() else {
+            panic!("{shape}: expected one unchanged source");
+        };
+        assert_eq!(document.source_id(), id, "{shape}");
+        assert_eq!(
+            matches!(document.key(), SourceUnitKey::MemoryDocument),
+            !rooted,
+            "{shape}"
+        );
         let types = typed.types();
         let span = |expr: UnitExpressionId| {
             file.ast()
