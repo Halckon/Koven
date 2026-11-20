@@ -21705,3 +21705,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `1f8d3141`。原 `ownership_range_construction` 仍有且仅有一项调用旧 Single：四份 Range 前缀源码逐字节保留，迁到已有的私有 Unit planner trace，并在原 Rooted `std` 与 MemoryDocument 独立验证。
 - 同一 source-qualified 外层调用、实参与借用来源先建立相同 loan；提前 `return` 的臂只在该实际 ControlTransfer 卸载，继续臂不提前卸载，正常后续只在实际 CallReturn 卸载。断言不接受其他结束事件；没有用调用描述符筛选替代结束证明。两个清理位置不是同一运行路径上的双重结束。
 - 仅测试及账本变化。默认 FE lib 测试目标属于现有 CI 的有界组合，不改 CI、生产行为或 API；私有 trace 不是公开全表，也不证明 native/LLVM 或全部旧 Single 借用合同。macOS 离线定点通过；FE lib 897 passed / 14 ignored、Range 集成目标 22 passed。未运行 Linux、native 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：参数与嵌套调用的真实 loan end 迁移
+
+- 基于 `c9293c7b`。`ownership_checking` 的参数 binding/loan 查询与嵌套实参 loan end 两项原源码逐字节保留，复用同一 SPEC-0027 自建环境，在 MemoryDocument 与 Rooted 分别检查。
+- 保留 binding/loan kinds、Place 和确切 call Span。每个 source-qualified loan 在实际 planner trace 中必须恰有一对 Begin/CallReturn；将实际 DirectBorrowEnded 与 PendingBorrowRemoved 同构为返回结束，不接受 unwind、重复或换序。内层 Shared 结束必须早于外层 Exclusive 建立；不以 Unit 的 `loans_ending_at` 描述符筛选替代。
+- 本批仅测试与账本；没有新增 trace hook、生产 API、CI 或发布改动。macOS 离线定点 2/2（各两布局）、FE lib 899 passed / 14 ignored、ownership_checking 26 passed；未运行 Linux、native 或远端 CI。旧 Single 边界/恢复及混合 deferred 合同仍保留；SPEC-0341 仍 in-progress。

@@ -11,6 +11,11 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+mod ownership_environment {
+    use crate as lang_frontend;
+    include!("../../../tests/support/ownership_environment.rs");
+}
+
 const BODY: &str = r#"
 fun identity(own item: String): String = item
 fun run(): Unit {
@@ -33,21 +38,36 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) fn new(texts: &[(&str, &str)]) -> Self {
-        Self::with_range_sources(texts, &[], Some("root"))
+        Self::with_setup(texts, &[], Some("root"), standard_environments())
     }
 
     pub(super) fn range_source(texts: &[(&str, &str)], index: usize) -> Self {
-        Self::with_range_sources(texts, &[index], Some("root"))
+        Self::with_setup(texts, &[index], Some("root"), standard_environments())
     }
 
     pub(super) fn range_prefix_source(path: &str, text: &str, rooted: bool) -> Self {
-        Self::with_range_sources(&[(path, text)], &[0], rooted.then_some("std"))
+        Self::with_setup(
+            &[(path, text)],
+            &[0],
+            rooted.then_some("std"),
+            standard_environments(),
+        )
     }
 
-    fn with_range_sources(
+    pub(super) fn ownership_source(text: &str, rooted: bool) -> Self {
+        Self::with_setup(
+            &[("ownership.ko", text)],
+            &[],
+            rooted.then_some("root"),
+            ownership_environment::environments(),
+        )
+    }
+
+    fn with_setup(
         texts: &[(&str, &str)],
         range_sources: &[usize],
         source_root: Option<&'static str>,
+        (ne, mut environment): (crate::name_resolution::NameEnvironment, TypeEnvironment),
     ) -> Self {
         let mut sources = SourceMap::new();
         let parsed = texts
@@ -70,7 +90,6 @@ impl Fixture {
             .map(|(path, _)| (*path).to_owned())
             .collect::<Vec<_>>();
         let inputs = Self::fixture_inputs(&parsed, &paths, source_root);
-        let (ne, mut environment) = standard_environments();
         for &index in range_sources {
             // Authorize the actual loaded SourceId, never a package or path spelling.
             environment

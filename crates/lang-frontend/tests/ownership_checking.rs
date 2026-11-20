@@ -4,16 +4,14 @@ use std::{fs, path::Path};
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    name_resolution::{NameEnvironment, resolve_names},
+    name_resolution::resolve_names,
     ownership_checking::{
-        LoanKind, LoanTarget, OwnershipBindingKind, OwnershipCheckedFile, OwnershipCheckingError,
-        OwnershipDeferredReason, UnitDropPoint, UnitDropTarget, check_ownership,
+        OwnershipCheckedFile, OwnershipCheckingError, OwnershipDeferredReason, UnitDropPoint,
+        UnitDropTarget, check_ownership,
     },
     parser::ParsedFile,
     source::SourceMap,
-    type_checking::{
-        BuiltinType, IntrinsicCallable, IntrinsicTypeConstructor, TypeEnvironment, check_types,
-    },
+    type_checking::check_types,
 };
 
 #[path = "support/parser_test_assertions.rs"]
@@ -29,79 +27,9 @@ mod nullable_unit;
 
 use parser_test_assertions::parse_file_twice;
 
-const BUILTINS: [BuiltinType; 16] = [
-    BuiltinType::Byte,
-    BuiltinType::Short,
-    BuiltinType::Int,
-    BuiltinType::Long,
-    BuiltinType::UByte,
-    BuiltinType::UShort,
-    BuiltinType::UInt,
-    BuiltinType::ULong,
-    BuiltinType::Float,
-    BuiltinType::Double,
-    BuiltinType::Boolean,
-    BuiltinType::Char,
-    BuiltinType::String,
-    BuiltinType::Unit,
-    BuiltinType::Nothing,
-    BuiltinType::Any,
-];
-
-fn environments() -> (NameEnvironment, TypeEnvironment) {
-    let mut names = NameEnvironment::new();
-    let declarations = BUILTINS.map(|builtin| {
-        (
-            names.declare_type(builtin.name()).expect("builtin"),
-            builtin,
-        )
-    });
-    let containers = [
-        (
-            names.declare_type("Array").expect("Array"),
-            IntrinsicTypeConstructor::Array,
-        ),
-        (
-            names.declare_type("List").expect("List"),
-            IntrinsicTypeConstructor::List,
-        ),
-        (
-            names.declare_type("MutableList").expect("MutableList"),
-            IntrinsicTypeConstructor::MutableList,
-        ),
-    ];
-    let constructors = [
-        (
-            names.declare_function("arrayOf").expect("arrayOf"),
-            IntrinsicCallable::ArrayOf,
-        ),
-        (
-            names.declare_function("listOf").expect("listOf"),
-            IntrinsicCallable::ListOf,
-        ),
-        (
-            names
-                .declare_function("mutableListOf")
-                .expect("mutableListOf"),
-            IntrinsicCallable::MutableListOf,
-        ),
-    ];
-    let mut types = TypeEnvironment::new(&names);
-    for (symbol, builtin) in declarations {
-        types.bind_builtin(symbol, builtin).expect("binding");
-    }
-    for (symbol, container) in containers {
-        types
-            .bind_intrinsic(symbol, container)
-            .expect("container binding");
-    }
-    for (symbol, constructor) in constructors {
-        types
-            .bind_intrinsic_callable(symbol, constructor)
-            .expect("constructor binding");
-    }
-    (names, types)
-}
+#[path = "support/ownership_environment.rs"]
+mod ownership_environment;
+use ownership_environment::environments;
 
 fn checked(text: &str) -> (SourceMap, ParsedFile, OwnershipCheckedFile) {
     let mut sources = SourceMap::new();
@@ -366,59 +294,6 @@ fn shadowed_symbols_keep_independent_move_origins() {
             );
             assert_eq!(sources.slice(label).unwrap(), "input");
         }
-    }
-}
-
-#[test]
-fn parameter_bindings_and_successful_call_loans_are_queryable() {
-    let text = "class Resource {}\n\
-                fun inspect(item: Resource): Unit {}\n\
-                fun mutate(inout item: Resource): Unit {}\n\
-                fun exercise(own owned: Resource, shared: Resource, inout exclusive: Resource): Unit {\n\
-                    val first = inspect(owned)\n\
-                    val second = inspect(shared)\n\
-                    val third = mutate(&exclusive)\n\
-                }";
-    let (_, parsed, checked) = checked(text);
-    assert!(checked.diagnostics().is_empty());
-
-    let parameter_kinds = checked
-        .bindings()
-        .iter()
-        .map(|binding| binding.kind())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        parameter_kinds,
-        [
-            OwnershipBindingKind::Shared,
-            OwnershipBindingKind::Exclusive,
-            OwnershipBindingKind::Owned,
-            OwnershipBindingKind::Shared,
-            OwnershipBindingKind::Exclusive,
-        ]
-    );
-    assert_eq!(checked.loans().len(), 3);
-    assert_eq!(
-        checked
-            .loans()
-            .iter()
-            .map(|loan| loan.kind())
-            .collect::<Vec<_>>(),
-        [LoanKind::Shared, LoanKind::Shared, LoanKind::Exclusive]
-    );
-    assert!(
-        checked
-            .loans()
-            .iter()
-            .all(|loan| matches!(loan.target(), LoanTarget::Place(_)))
-    );
-    for loan in checked.loans() {
-        assert_eq!(checked.loan_begin(loan.argument()), Some(loan));
-        assert_eq!(checked.loans_ending_at(loan.call()).count(), 1);
-        assert_eq!(
-            parsed.ast().expressions().get(loan.call()).unwrap().span(),
-            loan.end_span()
-        );
     }
 }
 
@@ -803,34 +678,4 @@ fn nullable_when_unselected_condition_does_not_move_first_branch_owner() {
             owned.diagnostics()
         );
     }
-}
-
-#[test]
-fn nested_argument_loan_ends_at_its_own_call_before_outer_inout() {
-    let text = "class Resource {}\n\
-                fun read(item: Resource): Int = 1\n\
-                fun accept(own count: Int, inout item: Resource): Unit {}\n\
-                fun valid(own input: Resource): Unit {\n\
-                    var local = input\n\
-                    val result = accept(read(local), &local)\n\
-                }";
-    let (sources, _, ownership) = checked(text);
-    assert!(
-        ownership.diagnostics().is_empty(),
-        "{:?}",
-        ownership.diagnostics()
-    );
-    assert!(ownership.deferred().is_empty());
-    let loans = ownership.loans();
-    assert_eq!(loans.len(), 2);
-    assert_eq!(loans[0].kind(), LoanKind::Shared);
-    assert_eq!(loans[1].kind(), LoanKind::Exclusive);
-    assert_ne!(loans[0].call(), loans[1].call());
-    assert_eq!(sources.slice(loans[0].end_span()).unwrap(), "read(local)");
-    assert_eq!(
-        sources.slice(loans[1].end_span()).unwrap(),
-        "accept(read(local), &local)"
-    );
-    assert_eq!(ownership.loans_ending_at(loans[0].call()).count(), 1);
-    assert_eq!(ownership.loans_ending_at(loans[1].call()).count(), 1);
 }
