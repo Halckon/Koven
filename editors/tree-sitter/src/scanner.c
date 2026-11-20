@@ -180,43 +180,87 @@ static bool skip_balanced(TSLexer *lexer, int32_t open, int32_t close) {
   return depth == 0;
 }
 
-// Mirror the Rust parser's `brace_when_entry_follows`: if `{ ... }` (plus any
-// same-line postfix chain like `()`) is followed by `->`, it starts a `when`
-// entry condition rather than a cross-line trailing lambda.
+// Mirror the Rust parser's `brace_when_entry_follows`: if `{ ... }` is
+// followed on the same `when` condition (including postfix chains, binary
+// operators like `&& flag`, or `,` condition lists, and line-continuations) by
+// a top-level `->`, it starts a `when` entry rather than a cross-line trailing
+// lambda.
+static bool is_line_continuation_char(int32_t ch) {
+  return ch == '&' || ch == '|' || ch == ',' || ch == '+' || ch == '-' ||
+         ch == '*' || ch == '/' || ch == '%' || ch == '=' || ch == '!' ||
+         ch == '<' || ch == '>' || ch == ':' || ch == '?' || ch == '.';
+}
+
 static bool brace_starts_when_entry(TSLexer *lexer) {
   if (!skip_balanced(lexer, '{', '}')) return false;
-  for (;;) {
+  int32_t last_sig = '}';
+  while (!lexer->eof(lexer)) {
     peek_trivia(lexer, false);
-    if (lexer->lookahead == '(') {
+    if (lexer->eof(lexer)) return false;
+    const int32_t ch = lexer->lookahead;
+    if (ch == '\n') {
+      peek_trivia(lexer, true);
+      if (lexer->eof(lexer)) return false;
+      const int32_t next = lexer->lookahead;
+      if (!is_line_continuation_char(last_sig) && next != '.' && next != '?') {
+        return false;
+      }
+      continue;
+    }
+    if (ch == ';' || ch == '}') return false;
+    if (ch == '(') {
       if (!skip_balanced(lexer, '(', ')')) return false;
+      last_sig = ')';
       continue;
     }
-    if (lexer->lookahead == '[') {
+    if (ch == '[') {
       if (!skip_balanced(lexer, '[', ']')) return false;
+      last_sig = ']';
       continue;
     }
-    if (lexer->lookahead == '.' || lexer->lookahead == '?') {
-      lexer->advance(lexer, false);
-      if (lexer->lookahead == '.') lexer->advance(lexer, false);
-      peek_trivia(lexer, false);
-      while (is_identifier_continue(lexer->lookahead)) {
-        lexer->advance(lexer, false);
-      }
+    if (ch == '{') {
+      if (!skip_balanced(lexer, '{', '}')) return false;
+      last_sig = '}';
       continue;
     }
-    if (lexer->lookahead == '!') {
+    if (ch == '"') {
       lexer->advance(lexer, false);
-      if (lexer->lookahead == '!') {
-        lexer->advance(lexer, false);
-        continue;
+      while (!lexer->eof(lexer) && lexer->lookahead != '"' &&
+             lexer->lookahead != '\n') {
+        if (lexer->lookahead == '\\') {
+          lexer->advance(lexer, false);
+          if (!lexer->eof(lexer)) lexer->advance(lexer, false);
+        } else {
+          lexer->advance(lexer, false);
+        }
       }
-      return false;
+      if (lexer->lookahead == '"') lexer->advance(lexer, false);
+      last_sig = '"';
+      continue;
     }
-    break;
-  }
-  if (lexer->lookahead == '-') {
+    if (ch == '\'') {
+      lexer->advance(lexer, false);
+      while (!lexer->eof(lexer) && lexer->lookahead != '\'' &&
+             lexer->lookahead != '\n') {
+        if (lexer->lookahead == '\\') {
+          lexer->advance(lexer, false);
+          if (!lexer->eof(lexer)) lexer->advance(lexer, false);
+        } else {
+          lexer->advance(lexer, false);
+        }
+      }
+      if (lexer->lookahead == '\'') lexer->advance(lexer, false);
+      last_sig = '\'';
+      continue;
+    }
+    if (ch == '-') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == '>') return true;
+      last_sig = '-';
+      continue;
+    }
+    last_sig = ch;
     lexer->advance(lexer, false);
-    return lexer->lookahead == '>';
   }
   return false;
 }

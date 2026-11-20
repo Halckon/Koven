@@ -174,9 +174,19 @@ class EditorContractTests(unittest.TestCase):
         with_block_comment = self.parse("fun a() { val b = f() /* reason */\n{ work() } }\n")
         self.assertEqual(len(list(with_block_comment.findall(".//call_expression/lambda_expression"))), 1)
         self.assertEqual(len(list(with_block_comment.iter("block_comment"))), 1)
-        when_tree = self.parse("fun a(flag: Boolean) { when { flag -> f()\n{ -> true }() -> g() } }\n")
-        self.assertEqual(len(list(when_tree.iter("when_entry"))), 2)
-        self.assertEqual(list(when_tree.findall(".//call_expression/lambda_expression")), [])
+        for source in (
+            "fun a(flag: Boolean) { when { flag -> f()\n{ -> true }() -> g() } }\n",
+            "fun a(flag: Boolean) { when { flag -> f()\n{ -> true }() && flag -> g() } }\n",
+            "fun a(flag: Boolean) { when { flag -> f()\n{ -> true }(), flag -> g() } }\n",
+            "fun a(flag: Boolean, other: Boolean) { when { flag -> f()\n{ -> true }() && !flag || other -> g() } }\n",
+        ):
+            with self.subTest(source=source):
+                when_tree = self.parse(source)
+                self.assertEqual(len(list(when_tree.iter("when_entry"))), 2)
+                self.assertEqual(list(when_tree.findall(".//call_expression/lambda_expression")), [])
+        attached_in_when = self.parse("fun a(flag: Boolean, other: Boolean) { when { flag -> f()\n{ work() }\nother -> g() } }\n")
+        self.assertEqual(len(list(attached_in_when.iter("when_entry"))), 2)
+        self.assertEqual(len(list(attached_in_when.findall(".//call_expression/lambda_expression"))), 1)
 
 
 if __name__ == "__main__":
