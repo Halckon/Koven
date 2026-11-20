@@ -21783,3 +21783,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `1cfbc1be`，只迁移 `ownership_failure_clears_materialization_capability`。原常量与三次交付源码未改。在原 AST 独立选两次 `take(input)` 的 operand：后者为 L0131 主范围，前者为已移动标签；固定 Error、完整消息和有序标签曾与尚未移除的 Single 诊断逐字段相等。
 - MemoryDocument / Rooted 对照完整固定诊断，额外标签指向真实 `own text: String` 声明；保留 validated constant type 身份、原子撤销 materializations/loans/drops 及拒绝 ownership capability。未碰同套其它 Single 见证或有意差异。
 - Mac Rust 1.96.0 离线定点 1/1；`ownership_constants` 17、`multifile_constant_ownership` 23、`const_owned_compilation_unit_view` 4 通过。未跑 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：与 #453 主干整合和常量插值终止证据
+
+- 本地主干整合 `e83aed1d` 的第二父提交为已合入 #453 的 `8207b212`。冲突处仅采用显式 `block {}` 样式，延续 D10 逐 token 断言；已由测试内实际四输入证据取代的 Range Prefix Single 测试不复活。整合树在 Mac 的 FE lib 901/14 ignored、9 个集成套件 512 passed 和 codegen 3 passed（含根资源双布局 native）通过。
+- `"${stop()}" + TEXT` 已走原 Unit 双布局，不重复计算为新迁移。在不改源的前提下补全固定见证：真实插值 AST 绑定到返回 `Nothing` 的已选择调用，两个 `TEXT`（RHS/后续语句）保有各自 source-qualified typed use、值和声明身份；两处无 runtime materialization、delivery、loan 或 drop。同一 const capability 可验证，保留相邻旧全 loan-end 断言。
+- Mac Rust 1.96.0 离线定点 1/1（双布局），相关常量三集成套件复验。未跑 Linux 或远端 CI；无本轮生产、API、CI 改动，SPEC-0341 仍 in-progress。

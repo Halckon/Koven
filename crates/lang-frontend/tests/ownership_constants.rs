@@ -310,15 +310,7 @@ fun use(flag: Boolean): Unit {
     val unreachable = TEXT
 }
 "#;
-    for rooted in [false, true] {
-        let (_, _, owned) = unit_materialization::checked(text, rooted);
-        assert!(owned.materializations().is_empty());
-        assert!(
-            owned.ownership().drops().is_empty(),
-            "{:?}",
-            owned.ownership().drops()
-        );
-    }
+    unit_materialization::aborting_string(text);
 }
 
 #[test]
