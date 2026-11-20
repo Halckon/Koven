@@ -54,7 +54,7 @@ impl Fixture {
         )
     }
 
-    pub(super) fn nullable_copy_source(path: &str, text: &str, rooted: bool) -> Self {
+    pub(super) fn standard_source(path: &str, text: &str, rooted: bool) -> Self {
         Self::with_setup(
             &[(path, text)],
             &[],

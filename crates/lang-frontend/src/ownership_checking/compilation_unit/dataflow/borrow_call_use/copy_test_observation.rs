@@ -86,7 +86,7 @@ pub(in crate::ownership_checking::compilation_unit::dataflow) fn exclusive_inser
 fn nullable_copy_ends_nested_source_before_the_next_operand() {
     let text = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun run() { var n: Int = 7; observe(value = ((view(n))), changed = &n) }";
     for rooted in [false, true] {
-        let fixture = Fixture::nullable_copy_source("nested_borrow.ko", text, rooted);
+        let fixture = Fixture::standard_source("nested_borrow.ko", text, rooted);
         let [entry] = fixture.names.names().index().source_units() else {
             panic!("one original source");
         };

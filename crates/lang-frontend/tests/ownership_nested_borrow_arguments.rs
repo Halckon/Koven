@@ -406,14 +406,6 @@ fn reversed_named_same_owner_chains_end_before_consume() {
 }
 
 #[test]
-fn named_borrowed_auxiliary_keeps_independent_single_witness() {
-    let body = "fun select(aux: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val aux = \"aux\"; observe(select(source = source, aux = aux)); consume(source) }";
-    for rooted in [false, true] {
-        assert_accepted(&ordinary_entry(body, rooted));
-    }
-}
-
-#[test]
 fn generic_field_wrapper_and_existing_parent_sources_keep_their_identity() {
     for rooted in [false, true] {
         for body in [

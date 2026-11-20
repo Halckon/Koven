@@ -21771,3 +21771,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `ba22d88c`，反序具名 `own aux: Int` 与临时 `Resource()` 的原 fixture 字节不变，各经 MemoryDocument / Rooted。保留来源参数真实身份、正常同步 transport 的 source/consumer 实际 acquisition 及 handoff 到逐链退休，后续原根 Move；不推断跨表全生命周期。
 - 核对辅助 Value 的原 AST operand、callee 参数及实际 Temporary 交付。Int 无清理；Resource 的真实参数符号在原表达式体返回边恰有一项无条件 cleanup，caller 不重复清理临时或借用结果。没有以诊断位置冒充 drop owner 身份。
 - Mac Rust 1.96.0 离线定向 2/2（双布局），`ownership_nested_borrow_arguments` 18 passed、`unit_direct_call_loan_ends` 358 passed。未跑 Linux、native 或远端 CI，生产/API/CI 不变。原矩阵唯一借用辅助项继续保留 Single：普通借用结果同步实参不应套用显式 borrow initializer 的辅助退休表，后续可核真实 pending removal 的私有测试观测。SPEC-0341 仍 in-progress。
+
+### 2026-11-20：同步借用结果的具名借用辅助实参迁移
+
+- 基于 `67cefb18`，原 `observe(select(source = source, aux = aux)); consume(source)` 完整源码逐字节保留，MemoryDocument / Rooted 各证明原源码参数次序、独立两个局部 owner 及同一外层同步使用。仅退役混合六形态矩阵最后一项 Single 对账；其他泛型、父借用、nullable 专项旧证据不变。
+- 复用已有私有 `cfg(test)` pending-token 探针，不新增生产/feature 观测。逐相同全字段 loan 核实真实注册顺序、inner CallReturn 实际移除辅助 token、只析构独立 aux owner、再注册外层 consumer；on/off facts、catalog 与运输产物相同。公开 catalog 另核实 source/consumer 的真实 acquisition/handoff ID 及本链 consumer→source 退休，源根最后 Move；不把两类表冒充跨路径或一般完整流。
+- Mac Rust 1.96.0 离线定点 1/1（双布局），FE lib 901 passed / 14 ignored、`ownership_nested_borrow_arguments` 17 passed、`unit_direct_call_loan_ends` 358 passed。未跑 Linux、native、远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
