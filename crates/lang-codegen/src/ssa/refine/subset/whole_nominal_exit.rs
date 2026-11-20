@@ -47,7 +47,7 @@ impl Checker<'_, '_> {
         else {
             return None;
         };
-        if (*tail != call && self.terminal_direct_val(elements, call, *tail).is_none())
+        if (*tail != call && self.terminal_local_val(elements, call, *tail).is_none())
             || self.inputs.function_item.is_none()
             || self.inputs.receiver.is_some()
             || self.inputs.borrow_return.is_some()
@@ -280,9 +280,9 @@ impl Checker<'_, '_> {
         })
     }
 
-    /// Match only the top-level final pair, with no wrapper or result adaptation.
-    /// The usual local binding/return builder still handles both statements.
-    fn terminal_direct_val(
+    /// Match only the top-level final pair. The normal builder still handles both
+    /// statements; a single proven transparent initializer Group is not a call.
+    fn terminal_local_val(
         &self,
         statements: &[StatementId],
         call: ExpressionId,
@@ -311,7 +311,7 @@ impl Checker<'_, '_> {
         else {
             return None;
         };
-        if *initializer != call
+        if (*initializer != call && !self.transparent_initializer_group(*initializer, call))
             || !matches!(
                 ast.expressions().get(returned).ok()?.payload(),
                 Expression::Name
@@ -345,6 +345,34 @@ impl Checker<'_, '_> {
             && typed.expression_falls_through(self.id(call)) == Some(true)
             && typed.expression_falls_through(self.id(returned)) == Some(true))
         .then_some(())
+    }
+
+    /// Accept exactly one Group around the original call, never new cleanup
+    /// or dispatch evidence at the wrapper. Call admission checks its own facts.
+    fn transparent_initializer_group(&self, group: ExpressionId, call: ExpressionId) -> bool {
+        let ast = self.inputs.parsed.ast();
+        let Ok(node) = ast.expressions().get(group) else {
+            return false;
+        };
+        let Expression::Group { expression } = node.payload() else {
+            return false;
+        };
+        if *expression != call || !self.plain(group) {
+            return false;
+        }
+        let typed = self.inputs.typed;
+        let group_id = self.id(group);
+        let call_id = self.id(call);
+        let Some(ty) = self.expression_type(call) else {
+            return false;
+        };
+        self.kind(ty) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+            && self.expression_type(group) == Some(ty)
+            && typed.call(group_id).is_none()
+            && typed.non_null_use(group_id).is_none()
+            && typed.non_null_use(call_id).is_none()
+            && typed.expression_falls_through(group_id) == Some(true)
+            && typed.expression_falls_through(call_id) == Some(true)
     }
 
     fn exit_expression(&self, statement: StatementId) -> Option<ExpressionId> {

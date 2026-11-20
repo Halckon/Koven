@@ -97,10 +97,7 @@ fun main(): Unit {
     audit_bounded_native(source, "tail");
 }
 
-#[test]
-fn direct_local_val_returns_exact_call_result_through_native_entry() {
-    audit_bounded_native(
-        r#"package p
+const LOCAL_VAL_NATIVE: &str = r#"package p
 class Node()
 fun outer(node: Node, own r: Int): Int = r + 9
 fun f(s: String, flag: Boolean): Int {
@@ -116,9 +113,25 @@ fun main(): Unit {
     if (f("b", false) != 9) { error("unmatched normal path lost result") }
     println("ok")
 }
-"#,
-        "val",
-    );
+"#;
+
+#[test]
+fn direct_local_val_returns_exact_call_result_through_native_entry() {
+    audit_bounded_native(LOCAL_VAL_NATIVE, "val");
+}
+
+#[test]
+fn grouped_local_val_returns_exact_call_result_through_native_entry() {
+    let source = LOCAL_VAL_NATIVE
+        .replacen("val result = outer(", "val result = (outer(", 1)
+        .replacen(
+            "else -> n })\n    return result",
+            "else -> n }))\n    return result",
+            1,
+        );
+    assert!(source.contains("val result = (outer("));
+    assert!(source.contains("else -> n }))\n    return result"));
+    audit_bounded_native(&source, "grouped val");
 }
 
 fn audit_bounded_native(source: &str, case: &str) {
@@ -534,7 +547,7 @@ fun f(s: String, flag: Boolean): Int {
 }
 
 #[test]
-fn grouped_terminal_initializer_keeps_exact_inner_call_cleanup_but_still_rejects() {
+fn grouped_terminal_initializer_keeps_exact_inner_call_cleanup() {
     use lang_frontend::{
         name_resolution::UnitReferenceTarget,
         ownership_checking::{LoanKind, UnitDropTarget, UnitLoanTarget},
@@ -686,27 +699,13 @@ fun f(s: String, flag: Boolean): Int {
         let (result, routes) = observe_routing(|| {
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
         });
-        assert_eq!(
+        assert!(
             routes.iter().any(|name| name.starts_with("koven.p.f.d")),
-            !grouped
+            "{initializer}: {routes:?}",
         );
-        if grouped {
-            let Err(error) = result else {
-                panic!("grouped compatibility lowering is not currently supported");
-            };
-            assert_eq!(
-                error.kind,
-                crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
-            );
-            assert_eq!(
-                sources.slice(error.span.unwrap()).unwrap(),
-                r#"when (s) { "a" -> 1; else -> 0 }"#
-            );
-        } else {
-            let (program, _) = result.expect("direct initializer must lower");
-            crate::ssa::verify::verify_program(&program).expect("direct initializer must verify");
-            crate::llvm::render_verified_program(&program).expect("direct initializer LLVM");
-        }
+        let (program, _) = result.expect("both admitted initializers must lower");
+        crate::ssa::verify::verify_program(&program).expect("initializer must verify");
+        crate::llvm::render_verified_program(&program).expect("initializer LLVM");
     }
 }
 
@@ -728,6 +727,10 @@ fun f(s: String, flag: Boolean): Int {
         (
             "double group adapter",
             format!("val result = (({CALL}))\n    return result"),
+        ),
+        (
+            "grouped return",
+            format!("val result = ({CALL})\n    return (result)"),
         ),
         (
             "intervening declaration",

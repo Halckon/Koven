@@ -104,3 +104,19 @@ Mac / Rust 1.96 / LLVM 21：基线新增阳性在原 String when 处得到 Unsup
 准入后 `mixed_string_when` 定向 6/6（含原尾调用、Rc native 对照、嵌套和近邻拒绝）。
 同一观测 Program 的 SSA、LLVM 与链接执行通过，精确各释放四次分配身份中的一次。
 Linux、全量和 hosted CI 未执行。
+
+
+## 8. 单层括号初始化（同一尾部局部结果）
+
+在 §7 的限制内，初始化式可为 `val result = (直接调用)`，最后仍为裸
+`return result`。只接受一层 Group，Group 与真实内层调用同为非空 `Int` 且各有正常边，
+无窄化或独立 Group 调用描述。原验证仍要求内层调用返回 Owned、匹配同一不可变声明与
+函数结果，并仍以该内层调用的身份核对唯一的两条 End → Drop；不在 Group 制造清理点。
+生成普通 Group、绑定和返回的 builder 不变。
+
+Mac / Rust 1.96 / LLVM 21：原实现对该阳性用例在前置 String `when` 处报
+`UnsupportedNode`。本片准入后，`mixed_string_when` 定向 8/8；同一经过路由记录的
+Program 验证 SSA、渲染 LLVM 并链接执行，真实入口四条分支分别返回 `1/10/0/9`，
+正常调用只派发一次、提前返回不派发，两路均在结束同一 loan 后只释放自己的 Node 一次。
+双层括号、返回式括号、其他语法位置及其他近邻仍待单独核对 Refine 覆盖，不表示
+括号语法非法。全量、hosted CI 与 sanitizer 未执行。
