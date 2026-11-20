@@ -2,8 +2,8 @@
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        SourceUnitId, SourceUnitInput, SourceUnitKey, index_compilation_unit,
-        resolve_compilation_unit_names, resolve_names,
+        SourceUnitId, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
         CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
@@ -21,6 +21,8 @@ use lang_frontend::{
 mod distinct_roots;
 #[path = "ownership_nested_borrow_arguments/later_scalar.rs"]
 mod later_scalar;
+#[path = "ownership_nested_borrow_arguments/owned_auxiliary.rs"]
+mod owned_auxiliary;
 
 struct Checked {
     sources: SourceMap,
@@ -94,6 +96,7 @@ struct UnitChecked {
     sources: SourceMap,
     parsed: ParsedFile,
     source_units: [SourceUnitId; 2],
+    unit_names: [ValidatedCompilationUnitNames; 2],
     memory: CompilationUnitOwnership,
     rooted: CompilationUnitOwnership,
 }
@@ -113,7 +116,10 @@ fn ordinary_unit(body: &str) -> UnitChecked {
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let [(memory, memory_id), (rooted, rooted_id)] = [
+    let [
+        (memory, memory_id, memory_names),
+        (rooted, rooted_id, rooted_names),
+    ] = [
         (false, SourceUnitInput::memory_document(source, &parsed)),
         (
             true,
@@ -149,12 +155,13 @@ fn ordinary_unit(body: &str) -> UnitChecked {
         let owned =
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
         assert!(owned.is_compatible_with(&typed));
-        (owned, indexed.id())
+        (owned, indexed.id(), names)
     });
     UnitChecked {
         sources,
         parsed,
         source_units: [memory_id, rooted_id],
+        unit_names: [memory_names, rooted_names],
         memory,
         rooted,
     }
@@ -399,15 +406,10 @@ fn reversed_named_same_owner_chains_end_before_consume() {
 }
 
 #[test]
-fn named_mixed_arguments_and_multiple_result_chains_follow_source_order() {
+fn named_borrowed_auxiliary_keeps_independent_single_witness() {
+    let body = "fun select(aux: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val aux = \"aux\"; observe(select(source = source, aux = aux)); consume(source) }";
     for rooted in [false, true] {
-        for body in [
-            "fun select(aux: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val aux = \"aux\"; observe(select(source = source, aux = aux)); consume(source) }",
-            "fun select(own aux: Int, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source = source, aux = 7)); consume(source) }",
-            "class Resource { deinit() {} }\nfun select(source: String, own aux: Resource): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source, Resource())); consume(source) }",
-        ] {
-            assert_accepted(&ordinary_entry(body, rooted));
-        }
+        assert_accepted(&ordinary_entry(body, rooted));
     }
 }
 
