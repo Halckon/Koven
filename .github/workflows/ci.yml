@@ -614,6 +614,8 @@ jobs:
 
   preview-linux-produce:
     name: Preview Producer (ubuntu-24.04)
+    env:
+      KOVEN_PREVIEW_CI_SYNC_GLIBC: '1'
     needs: [changes, docs, fmt]
     if: |
       needs.changes.outputs.reuse != 'true' &&
@@ -664,6 +666,8 @@ jobs:
 
   preview-linux-consume:
     name: Preview Independent Consumer (ubuntu-24.04)
+    env:
+      KOVEN_PREVIEW_CI_SYNC_GLIBC: '1'
     needs: preview-linux-produce
     if: always() && needs.preview-linux-produce.result == 'success'
     runs-on: ubuntu-24.04

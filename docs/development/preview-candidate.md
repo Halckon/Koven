@@ -36,6 +36,9 @@ python3 check_preview_install.py \
 
 归档名以实际产物为准。`--prepare-dependencies` 使用包内说明对应的正常外部安装工具；
 已按同一说明准备依赖的本机预检可以省略该参数。
+Ubuntu preview 的两个 CI job 都在准备 LLVM 时将 `libc6:amd64` 更新到各自 apt 索引的候选版本，
+包括分阶段发布的更新，以减少 runner 镜像滚动期间的差异。本地默认不执行此额外更新；
+`libc`、`libm` 和动态加载器的哈希仍须一致。
 bootstrap 必须与包内消费脚本同源；归档、完整 manifest、目标/宿主及示例合同通过预检后才执行包内工具。
 
 工具创建自己拥有的中文与空格安装/项目目录，对四组 argv 各执行 build、直接运行产物、run，
