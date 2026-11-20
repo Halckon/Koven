@@ -21753,3 +21753,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `090e4587`，迁移余下三个资源实例用例。根与字段的两组 Return/Abort，以及字段的 val/var × temporary/named 四个原渲染源共 8 份，逐字节保留；共用模板同时供两个 Unit 前端布局与真正 SSA 消费。
 - FE 保持根/字段交换事实、词法顺序、精确 Return 清理点及 Abort 不退栈。SSA 以原构造产物的 ValueId 绑定实际 RootReplace / HeapFieldExchange：外层 accept 不派发，Return 按旧值、当前根/原父 owner 顺序各一次 Drop，Abort 无 Drop；字段正常调用保留原父构造，以独立旧字段结果、sibling、原父的顺序在 tick 后各 Drop 一次。
 - Mac FE 31/31，相关 codegen 3/3（本批 8 原输入各双布局；上一片根交换继续双布局链接 native）。本批 8 形态未运行 native，未跑 Linux 或远端 CI。仅保留原 L0135/L0134 与资源条件 deferral 两项故意差异的 Single 见证；生产、API、CI 不变，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：不同具名 owner 的两条同步借用链测试迁移
+
+- 基于 `8f702e7b`，仅替换原混合测试矩阵的 `pair(view(first), view(second)); consume(first); consume(second)`。原 fixture 逐字节不变；原矩阵其余四项、两项资源语义的有意 Single 差异均保留。
+- 两个 Unit 布局按原 AST 的实参次序和 source-qualified 身份区分两个内层 source token、两个消费者及各自不同的根；分别核对真实内层 CallReturn 交接、外层 CallReturn 的本链 consumer→source 退休、之后对同一根的独立 Move、无借用 payload 或已交付根的 caller drop。未声称两链共享全局执行顺序。
+- Mac Rust 1.96.0 离线定点 1/1（双布局），`ownership_nested_borrow_arguments` 15 passed、`unit_direct_call_loan_ends` 358 passed；未运行 Linux、native 或远端 CI。不改生产、API、CI，SPEC-0341 仍 in-progress。
