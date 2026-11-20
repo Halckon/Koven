@@ -103,7 +103,7 @@ fn range_carrier_gate_alias_inside_if_arm_keeps_the_outer_parent() {
         ("two-arm-blocks", 2),
         ("four-arm-blocks", 4),
     ] {
-        let arm = format!("{}{arm}{}", "{".repeat(depth), "}".repeat(depth));
+        let arm = format!("{}{arm}{}", "block {".repeat(depth), "}".repeat(depth));
         let source = format!(
             r#"
 class Item(val text:String){{deinit(){{println("drop");println(this.text)}}}}
@@ -131,7 +131,7 @@ fn range_carrier_gate_deep_arm_checks_intermediate_statements() {
     use super::{Pipeline, lower};
     use crate::ssa::LoweringErrorKind;
 
-    let outer = "if(flag){{val unproved=0;block {borrow val child=(parent);if(flag){read(child)};read(child)}}}";
+    let outer = "if(flag){val unproved=0;block {borrow val child=(parent);if(flag){read(child)};read(child)}}";
     let source = format!(
         r#"
 fun read(view:View<String>):Unit{{}}
@@ -158,12 +158,12 @@ fn range_carrier_gate_if_chain_keeps_live_parent_on_each_edge() {
     for depth in [0, 2] {
         let middle = format!(
             "if(middle){{{}{arm}{}}}else{{println(\"skip-middle\");read(parent)}}",
-            "{".repeat(depth),
+            "block {".repeat(depth),
             "}".repeat(depth),
         );
         let outer = format!(
             "if(outer){{{}{middle}{}}}else{{println(\"skip-outer\");read(parent)}}",
-            "{".repeat(depth),
+            "block {".repeat(depth),
             "}".repeat(depth),
         );
         let source = format!(
@@ -207,7 +207,7 @@ fun scan(outer:Boolean,middle:Boolean,inner:Boolean):Unit{{
 }}
 fun main():Unit{{scan(true,true,true);scan(true,true,false);scan(true,false,true);scan(false,true,true)}}
 "#,
-            "{".repeat(depth),
+            "block {".repeat(depth),
             "}".repeat(depth),
         );
         run_carrier_layouts(

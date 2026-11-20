@@ -28,7 +28,7 @@ fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
         ),
         (
             "nested-block",
-            "borrow val item = view(source); while (flag) { { consume(item) } }",
+            "borrow val item = view(source); while (flag) { block { consume(item) } }",
         ),
         (
             "wrong-consumer-root",

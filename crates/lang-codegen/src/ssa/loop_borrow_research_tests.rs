@@ -27,19 +27,19 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
         ),
         (
             "lexical-end-before-loop",
-            "{ borrow val item = view(source); consume(item) }; while (flag) { consume(source); break }",
+            "block { borrow val item = view(source); consume(item) }; while (flag) { consume(source); break }",
         ),
         (
             "lexical-end-before-loop-continue",
-            "{ borrow val item = view(source); consume(item) }; while (flag) { consume(source); continue }",
+            "block { borrow val item = view(source); consume(item) }; while (flag) { consume(source); continue }",
         ),
         (
             "lexical-end-before-loop-zero",
-            "{ borrow val item = view(source); consume(item) }; while (false) { consume(source); break }",
+            "block { borrow val item = view(source); consume(item) }; while (false) { consume(source); break }",
         ),
         (
             "lexical-end-before-loop-owned",
-            "{ borrow val item = view(source); consume(item) }; while (flag) { consume(source); break }",
+            "block { borrow val item = view(source); consume(item) }; while (flag) { consume(source); break }",
         ),
         (
             "temporary-in-loop",
@@ -51,7 +51,7 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
         ),
         (
             "different-parent",
-            "{{ borrow val item = view(source); consume(item) }}; while (flag) { consume(source); break }",
+            "block { block { borrow val item = view(source); consume(item) } }; while (flag) { consume(source); break }",
         ),
         (
             "active-sibling",
@@ -59,7 +59,7 @@ fn ordinary_loop_borrow_neighbors_preserve_phase_boundary() {
         ),
         (
             "non-last-end",
-            "{ borrow val item = view(source); consume(item); consume(source) }; while (flag) { consume(source); break }",
+            "block { borrow val item = view(source); consume(item); consume(source) }; while (flag) { consume(source); break }",
         ),
         ("plain-call-loop", "while (flag) { consume(source); break }"),
     ] {
