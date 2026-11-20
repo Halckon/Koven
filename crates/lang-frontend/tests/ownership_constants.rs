@@ -307,24 +307,23 @@ fun discard(): Unit { (TEXT) }
 
 #[test]
 fn aborting_string_operand_does_not_drop_unevaluated_constants() {
-    let (_, owned) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun stop(): Nothing = stop()
 fun use(flag: Boolean): Unit {
     val stopped = "${stop()}" + TEXT
     val unreachable = TEXT
 }
-"#,
-    );
-    assert!(
-        owned
-            .constant_materializations()
-            .unwrap()
-            .plans()
-            .is_empty()
-    );
-    assert!(owned.drops().is_empty(), "{:?}", owned.drops());
+"#;
+    for rooted in [false, true] {
+        let (_, _, owned) = unit_materialization::checked(text, rooted);
+        assert!(owned.materializations().is_empty());
+        assert!(
+            owned.ownership().drops().is_empty(),
+            "{:?}",
+            owned.ownership().drops()
+        );
+    }
 }
 
 #[test]

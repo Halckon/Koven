@@ -21693,3 +21693,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基线 `5958c06b`。`ownership_checking` 的 ASAP cleanup、非拥有值无 drop、独立重复分析确定性三项保留原始源码，两个 Unit 布局逐一复用原断言；额外要求无 deferred 且可验证，确定性正控保留 loans/drops 非空。
 - 保留仍依赖 Single 的其他合同。特别是两入口同名 `loans_ending_at` 含义不同：Single 检查实际 CallReturn 结束，Unit 只按调用筛选 loan 描述符。不能据此退休真实结束断言。未改变生产、公开入口、实验 CLI 或 CI。
 - macOS 固定工具链独立目标目录离线执行 `lang-frontend --test ownership_checking`：28 passed；三测试原始源码字面量逐字节对照一致。未运行 native、Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：旧 Single 常量 Abort 与 Range 双布局断言
+
+- 基于 `12d52832`。字符串左操作数在插值中 Abort 时，`ownership_constants` 原源码由旧 Single 改为专用常量 Unit（MemoryDocument / Rooted）：两个布局均必须取得同次 validated capability，且未求值的常量不物化、不析构。
+- `ownership_range_construction` 的五项原已通过两 Unit 布局执行；现将较强原断言统一用于两边：实际 root/loan 来源与 begin Span、RangeView provider 与 metadata 不析构、L0133/L0135。此处不是额外五项 Single 迁移；保留需要 Single 独立 loan-end 表的 range prefix 用例。
+- macOS Rust 1.96.0 离线全目标：`ownership_range_construction` 23 passed，`ownership_constants` 17 passed。逐字节复核源码字面量；仅测试与本账本改动。未运行 native、Linux 或远端 CI；SPEC-0341 仍 in-progress。
