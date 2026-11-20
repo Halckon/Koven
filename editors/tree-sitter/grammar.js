@@ -22,7 +22,9 @@ module.exports = grammar({
 
   externals: ($) => [
     $.identifier, $._destructuring_identifier,
-    $._own, $._borrow, $._inout, $._loop, $._block, $._lambda_lbrace, $._trailing_lambda_lbrace, $._move_lambda, $._move_type,
+    $._own, $._borrow, $._inout, $._loop, $._block,
+    $._control_lbrace, $._lambda_lbrace, $._same_line_trailing_lbrace, $._crossline_lambda_nl,
+    $._move_lambda, $._move_type,
     $._to, $._by, $._in, $._is, $._as, $._not_in, $._not_is,
   ],
 
@@ -447,15 +449,22 @@ module.exports = grammar({
     call_expression: ($) =>
       prec.left(
         PREC.POSTFIX,
-        seq(
-          field("function", $.expression),
-          optional($.call_type_arguments),
-          $.argument_list,
-          optional(alias($.trailing_lambda_expression, $.lambda_expression)),
+        choice(
+          seq(
+            field("function", $.expression),
+            optional($.call_type_arguments),
+            $.argument_list,
+            optional(alias($.trailing_lambda_expression, $.lambda_expression)),
+          ),
+          seq(
+            field("function", $.expression),
+            optional($.call_type_arguments),
+            alias($.same_line_trailing_lambda_expression, $.lambda_expression),
+          ),
         ),
       ),
 
-    call_type_arguments: ($) => seq("<", commaSep1($._type), ">"),
+    call_type_arguments: ($) => prec.dynamic(1, seq("<", commaSep1($._type), ">")),
 
     argument_list: ($) => seq("(", optional(commaSep1($.call_argument)), ")"),
 
@@ -559,7 +568,16 @@ module.exports = grammar({
 
     trailing_lambda_expression: ($) =>
       seq(
-        alias($._trailing_lambda_lbrace, "{"),
+        repeat($._crossline_lambda_nl),
+        alias($._same_line_trailing_lbrace, "{"),
+        optional($.lambda_header),
+        repeat(choice($._newline, $._lambda_element)),
+        "}",
+      ),
+
+    same_line_trailing_lambda_expression: ($) =>
+      seq(
+        alias($._same_line_trailing_lbrace, "{"),
         optional($.lambda_header),
         repeat(choice($._newline, $._lambda_element)),
         "}",
@@ -616,7 +634,7 @@ module.exports = grammar({
     control_body: ($) => choice($.expression, $.control_block),
 
     control_block: ($) =>
-      prec(2, seq("{", repeat(choice($._newline, $._statement)), "}")),
+      prec(2, seq(alias($._control_lbrace, "{"), repeat(choice($._newline, $._statement)), "}")),
 
     jump_expression: ($) =>
       choice(

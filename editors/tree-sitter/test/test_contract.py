@@ -149,6 +149,35 @@ class EditorContractTests(unittest.TestCase):
         moved = self.parse("fun a() { move { x() } }\n")
         self.assertEqual(len(list(moved.iter("lambda_expression"))), 1)
 
+    def test_if_control_block_is_not_misread_as_lambda(self):
+        tree = self.parse("fun a(ok: Boolean) { if (ok) { work() } }\n")
+        self.assertEqual(len(list(tree.iter("control_block"))), 1)
+        self.assertEqual(list(tree.iter("lambda_expression")), [])
+        loop_branch = self.parse("fun a(ok: Boolean, ready: Boolean) { if (ok) { while (ready) {} } }\n")
+        self.assertEqual(len(list(loop_branch.iter("control_block"))), 1)
+        self.assertEqual(len(list(loop_branch.iter("while_statement"))), 1)
+
+    def test_same_line_unparenthesized_trailing_lambda_calls(self):
+        for source in (
+            "fun f() { html { render() } }\n",
+            "fun f() { obj.block { render() } }\n",
+            "fun f() { build<Int> { render() } }\n",
+        ):
+            with self.subTest(source=source):
+                tree = self.parse(source)
+                self.assertEqual(len(list(tree.findall(".//call_expression/lambda_expression"))), 1)
+
+    def test_crossline_trailing_lambda_preserves_comments_and_when_entry_boundary(self):
+        with_line_comment = self.parse("fun a() { val b = f() // reason\n{ work() } }\n")
+        self.assertEqual(len(list(with_line_comment.findall(".//call_expression/lambda_expression"))), 1)
+        self.assertEqual(len(list(with_line_comment.iter("line_comment"))), 1)
+        with_block_comment = self.parse("fun a() { val b = f() /* reason */\n{ work() } }\n")
+        self.assertEqual(len(list(with_block_comment.findall(".//call_expression/lambda_expression"))), 1)
+        self.assertEqual(len(list(with_block_comment.iter("block_comment"))), 1)
+        when_tree = self.parse("fun a(flag: Boolean) { when { flag -> f()\n{ -> true }() -> g() } }\n")
+        self.assertEqual(len(list(when_tree.iter("when_entry"))), 2)
+        self.assertEqual(list(when_tree.findall(".//call_expression/lambda_expression")), [])
+
 
 if __name__ == "__main__":
     unittest.main()
