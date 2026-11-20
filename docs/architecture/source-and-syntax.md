@@ -154,7 +154,8 @@ Error 接收者的后缀恢复共享这些边界。块分号留给块分派，�
 缺右方括号在外层起点使用零宽范围，同行左花括号不作为这条恢复的归属证据。
 
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
-边界。测试选择规则见[开发测试指南](../development/testing.md)。
+边界。测试选择规则见[开发测试指南](../development/testing.md)。[SPEC-0478](../specs/active/0478-independent-block-difftest.md)
+的可选离线目标已能对两个普通块输入比较独立文法结构及换行事件；默认测试不启动外部解释器。
 
 `parse_super` 在 interface、dot、member-name 的 Lexer poison 处消费并保存 Error，不追加同根
 语法诊断。共享 error-postfix 恢复保留 caller stops 与显式分号；`parser_super_recovery` 逐值核对

@@ -117,7 +117,7 @@ class CheckCiResultsTests(unittest.TestCase):
             self.assertTrue((root / "crates" / path).is_file())
         stage = (root / "scripts/check_stage_integration.sh").read_text()
         for target in (
-                "parser_file", "unit_name_snapshot", "compilation_unit_memory_document",
+                "parser_file", "formatting", "unit_name_snapshot", "compilation_unit_memory_document",
                 "unit_recovery", "unit_recovery_missing_names", "unit_recovery_rejected_headers",
                 "unit_recovery_this", "unit_recovery_this_context", "unit_recovery_nominal_error",
                 "unit_single_source_analysis", "single_file_fact_compile_contracts"):

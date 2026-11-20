@@ -355,6 +355,18 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
+      - name: Parser block differential and fault contracts (SPEC-0478)
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          KOVEN_LARK_WHEEL="$(mktemp "${RUNNER_TEMP}/koven-lark.XXXXXXXX")"
+          export KOVEN_LARK_WHEEL
+          trap 'rm -f "$KOVEN_LARK_WHEEL"' EXIT
+          curl --fail --silent --show-error --location --max-time 60 \
+            --output "$KOVEN_LARK_WHEEL" \
+            https://files.pythonhosted.org/packages/2d/00/d90b10b962b4277f5e64a78b6609968859ff86889f5b898c1a778c06ec00/lark-1.2.2-py3-none-any.whl
+          # The offline reference verifies the pinned SHA-256 before importing.
+          cargo test --locked -p lang-frontend --test parser_offline_block_diff -- --ignored
       - name: Experimental Unit root-set budget and rollback (CI only)
         run: bash scripts/check_unit_root_set_ci.sh
       - name: Run exact borrowing fault contracts
