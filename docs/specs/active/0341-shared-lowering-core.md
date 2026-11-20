@@ -21759,3 +21759,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `8f702e7b`，仅替换原混合测试矩阵的 `pair(view(first), view(second)); consume(first); consume(second)`。原 fixture 逐字节不变；原矩阵其余四项、两项资源语义的有意 Single 差异均保留。
 - 两个 Unit 布局按原 AST 的实参次序和 source-qualified 身份区分两个内层 source token、两个消费者及各自不同的根；分别核对真实内层 CallReturn 交接、外层 CallReturn 的本链 consumer→source 退休、之后对同一根的独立 Move、无借用 payload 或已交付根的 caller drop。未声称两链共享全局执行顺序。
 - Mac Rust 1.96.0 离线定点 1/1（双布局），`ownership_nested_borrow_arguments` 15 passed、`unit_direct_call_loan_ends` 358 passed；未运行 Linux、native 或远端 CI。不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：后序标量实参在同步借用链存活时完成
+
+- 基于 `0171401c`。原样保留 `pair(view(source), length(source)); consume(source)`；仅移除旧混合矩阵这一行，三种辅助实参形态仍走 Single/Unit 对账。
+- 在两个 Unit 布局中，按实际 source-qualified AST 实参、共享根、真实 acquisition ID 与 handoff ID 核对同一无分支 catalog：来源 Begin → handoff → 消费者 Begin → 后序 length Begin、CallReturn End → 外层 consumer→source 退休。后序标量值独立交付给外层，原具名根之后才能 Move，无 borrowed payload 或已交付根的 caller drop。本证据不声称完整生命周期或一般 CFG/动态跨路径排序。
+- Mac Rust 1.96.0 离线定点 1/1（双布局）；`ownership_nested_borrow_arguments` 16 passed、`unit_direct_call_loan_ends` 358 passed。未跑 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。

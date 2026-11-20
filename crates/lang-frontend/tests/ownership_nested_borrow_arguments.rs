@@ -19,6 +19,8 @@ use lang_frontend::{
 
 #[path = "ownership_nested_borrow_arguments/distinct_roots.rs"]
 mod distinct_roots;
+#[path = "ownership_nested_borrow_arguments/later_scalar.rs"]
+mod later_scalar;
 
 struct Checked {
     sources: SourceMap,
@@ -403,7 +405,6 @@ fn named_mixed_arguments_and_multiple_result_chains_follow_source_order() {
             "fun select(aux: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val aux = \"aux\"; observe(select(source = source, aux = aux)); consume(source) }",
             "fun select(own aux: Int, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source = source, aux = 7)); consume(source) }",
             "class Resource { deinit() {} }\nfun select(source: String, own aux: Resource): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source, Resource())); consume(source) }",
-            "fun pair(first: String, own count: Int) {}\nfun length(source: String): Int = 1\nfun run() { val source = \"kept\"; pair(view(source), length(source)); consume(source) }",
         ] {
             assert_accepted(&ordinary_entry(body, rooted));
         }
