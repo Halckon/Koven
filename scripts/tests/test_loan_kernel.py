@@ -632,6 +632,49 @@ class LoanKernelCases(unittest.TestCase):
                 finally:
                     call.cleanup.insert(index, entry)
 
+    def test_delivery_through_a_joined_alias_flows_to_each_possible_slot(self):
+        source = (ROOT / "cases/Z13.lk").read_text(encoding="utf-8")
+        writes = "".join(f"  update(&mut {name})\n" for name in ("a", "l", "r"))
+        left_only = "\n".join(
+            "" if line in ("  if (*) {", "    target = &mut right", "  }") else line
+            for line in source.splitlines()) + "\n"
+        right_only = source.replace("  if (*) {", "  {")
+        path_cases = (("join", source, ("a", "l"), ("a", "r")),
+                      ("left", left_only, ("a", "l"), ("r",)),
+                      ("right", right_only, ("l",), ("a", "r")))
+        for path, program, protects_left, protects_right in path_cases:
+            for slot, protected in (("left", protects_left), ("right", protects_right)):
+                with self.subTest(path=path, slot=slot):
+                    read = f"  use({slot}.source.len)\n"
+                    after = program.replace("  use(left.source.len)\n", read)
+                    before = after.replace(read + writes, writes + read)
+                    lines = {line: i for i, line in enumerate(before.splitlines(), 1)}
+                    self.assertEqual([], CHECKER.check(after))
+                    self.assertEqual({("K1", lines[f"  update(&mut {name})"]) for name in protected},
+                                     {(rule, line) for rule, line, _ in CHECKER.check(before)})
+
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        types, program, accepted = lowered["deliverThroughJoinedAlias"]
+        self.assertTrue(accepted)
+        delivery, after_delivery = [s for s in program if s.kind == "call"][:2]
+        expected_cleanup = [(name, False) for name in ("right", "left", "r", "l", "a")]
+        self.assertEqual(expected_cleanup, delivery.cleanup)
+        self.assertEqual(expected_cleanup, after_delivery.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        for slot in ("left", "right"):
+            with self.subTest(omitted=slot):
+                entry = (slot, False)
+                index = delivery.cleanup.index(entry)
+                delivery.cleanup.pop(index)
+                try:
+                    found = CHECKER.DP.Verifier(types).run_all(program)
+                    # 六个拥有绑定成功，经过选别名的分支，合流后移交调用失败。
+                    self.assertEqual({"V1": [(0, 2)] * 7 + [(1, 2)]},
+                                     {v.split()[0]: path for v, path in found.items()})
+                finally:
+                    delivery.cleanup.insert(index, entry)
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

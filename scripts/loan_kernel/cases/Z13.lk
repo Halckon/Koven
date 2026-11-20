@@ -1,0 +1,28 @@
+// 先合流选定别名，再经别名把拆出的视图交给可能被选中的槽位。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Holder(slice: Slice, file: File) deinit
+fun update(inout a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+fun put(inout dst: Slice, own src: Slice): Unit flows src into dst {
+  *dst = move src
+}
+fun deliver(own this: Holder, inout dst: Slice): Unit flows this.slice.source into dst in Holder {
+  open this as slice, file
+  put(dst, move slice)
+}
+fun deliverThroughJoinedAlias(own a: Arr, own l: Arr, own r: Arr, own f: File): Unit {
+  val left = Slice(&l)
+  val right = Slice(&r)
+  val target = &mut left
+  if (*) {
+    target = &mut right
+  }
+  deliver(Holder(Slice(&a), move f), target)
+  mayFail()
+  use(left.source.len)
+  update(&mut a)
+  update(&mut l)
+  update(&mut r)
+}
