@@ -214,8 +214,7 @@ fn formatting_preserves_the_selected_file_syntax() {
         formatted, unformatted,
         "{CASE}: formatter must change input with redundant horizontal whitespace"
     );
-    let original =
-        project(&unformatted).unwrap_or_else(|error| panic!("{CASE} original: {error}"));
+    let original = project(&unformatted).unwrap_or_else(|error| panic!("{CASE} original: {error}"));
     let formatted = project(&formatted).unwrap_or_else(|error| panic!("{CASE} formatted: {error}"));
     if let Some((before, after)) = first_difference(&original, &formatted) {
         panic!("{CASE}: first syntax difference: original {before:?}, formatted {after:?}");
