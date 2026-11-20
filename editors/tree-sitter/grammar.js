@@ -32,7 +32,7 @@ module.exports = grammar({
     [$.binary_expression, $.prefix_expression, $.call_expression],
     [$.binary_expression, $.call_expression],
     [$._statement, $._lambda_element],
-    [$.block, $.lambda_expression],
+    [$.control_block, $.lambda_expression],
     [$.qualified_name, $._primary_expression],
     [$._file_content],
     [$._imports_and_declarations],

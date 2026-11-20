@@ -773,10 +773,8 @@ impl Parser<'_> {
                 current.kind(),
                 LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
             );
-            let at_proven_separator = self.at_block_statement_separator(current, outer_stops)?;
-            let caller_boundary = outer_stops.contains(current)
-                || (outer_stops.block_elements && self.explicit_block_start(current)?)
-                || at_proven_separator;
+            let (at_proven_separator, caller_boundary) =
+                self.index_caller_boundary(current, outer_stops)?;
             let preserve_separator =
                 outer_stops.delimiters & (Stops::SEMICOLON | Stops::BLOCK_STATEMENT_SEPARATOR) != 0;
             let at_block_separator = at_proven_separator
@@ -864,6 +862,18 @@ impl Parser<'_> {
         self.emit_closing(self.empty_at(boundary.span().start())?, opener)?;
         self.index = boundary_raw;
         Ok(Some(end))
+    }
+
+    fn index_caller_boundary(
+        &self,
+        current: Lexeme,
+        outer_stops: Stops,
+    ) -> Result<(bool, bool), ParserInternalError> {
+        let at_proven_separator = self.at_block_statement_separator(current, outer_stops)?;
+        let caller_boundary = outer_stops.contains(current)
+            || (outer_stops.block_elements && self.explicit_block_start(current)?)
+            || at_proven_separator;
+        Ok((at_proven_separator, caller_boundary))
     }
 
     fn is_index_block_separator(&self, stops: Stops, raw: usize) -> bool {

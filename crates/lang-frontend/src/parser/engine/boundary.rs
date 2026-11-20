@@ -815,7 +815,7 @@ impl NameContext {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct DeclarationStops(u32);
+pub(super) struct DeclarationStops(pub(super) u32);
 
 impl DeclarationStops {
     pub(super) const EMPTY: Self = Self(0);
@@ -937,10 +937,6 @@ impl DeclarationStops {
 
     pub(super) const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
-    }
-
-    pub(super) const fn stops_at_left_brace(self) -> bool {
-        self.0 & Self::LEFT_BRACE != 0
     }
 
     pub(super) fn contains_hard(self, lexeme: Lexeme, symbol: Option<Symbol>) -> bool {

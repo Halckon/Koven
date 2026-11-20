@@ -812,7 +812,8 @@ impl Parser<'_> {
                     && !(proven_groups
                         && symbol == Some(Symbol::LeftBrace)
                         && self.has_paired_lambda_header(raw_index)?))
-                    || (stops.stops_at_left_brace() && self.explicit_block_start(current)?));
+                    || (stops.0 & DeclarationStops::LEFT_BRACE != 0
+                        && self.explicit_block_start(current)?));
             if hard_stop
                 || (outside_owner
                     && !protected_suffix
