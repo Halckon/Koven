@@ -25,6 +25,7 @@ pub(super) struct Fixture {
     pub(super) sources: SourceMap,
     pub(super) parsed: Vec<ParsedFile>,
     paths: Vec<String>,
+    source_root: Option<&'static str>,
     pub(super) names: ValidatedCompilationUnitNames,
     pub(super) typed: ValidatedCompilationUnitTypes,
     environment: TypeEnvironment,
@@ -32,14 +33,22 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) fn new(texts: &[(&str, &str)]) -> Self {
-        Self::with_range_sources(texts, &[])
+        Self::with_range_sources(texts, &[], Some("root"))
     }
 
     pub(super) fn range_source(texts: &[(&str, &str)], index: usize) -> Self {
-        Self::with_range_sources(texts, &[index])
+        Self::with_range_sources(texts, &[index], Some("root"))
     }
 
-    fn with_range_sources(texts: &[(&str, &str)], range_sources: &[usize]) -> Self {
+    pub(super) fn range_prefix_source(path: &str, text: &str, rooted: bool) -> Self {
+        Self::with_range_sources(&[(path, text)], &[0], rooted.then_some("std"))
+    }
+
+    fn with_range_sources(
+        texts: &[(&str, &str)],
+        range_sources: &[usize],
+        source_root: Option<&'static str>,
+    ) -> Self {
         let mut sources = SourceMap::new();
         let parsed = texts
             .iter()
@@ -60,13 +69,7 @@ impl Fixture {
             .iter()
             .map(|(path, _)| (*path).to_owned())
             .collect::<Vec<_>>();
-        let inputs = parsed
-            .iter()
-            .zip(&paths)
-            .map(|(parsed, path)| {
-                SourceUnitInput::new("root", path.as_str(), parsed.source_id(), parsed)
-            })
-            .collect::<Vec<_>>();
+        let inputs = Self::fixture_inputs(&parsed, &paths, source_root);
         let (ne, mut environment) = standard_environments();
         for &index in range_sources {
             // Authorize the actual loaded SourceId, never a package or path spelling.
@@ -89,6 +92,7 @@ impl Fixture {
             sources,
             parsed,
             paths,
+            source_root,
             names,
             typed,
             environment,
@@ -96,11 +100,21 @@ impl Fixture {
     }
 
     pub(super) fn inputs(&self) -> Vec<SourceUnitInput<'_>> {
-        self.parsed
+        Self::fixture_inputs(&self.parsed, &self.paths, self.source_root)
+    }
+
+    fn fixture_inputs<'a>(
+        parsed: &'a [ParsedFile],
+        paths: &'a [String],
+        source_root: Option<&'static str>,
+    ) -> Vec<SourceUnitInput<'a>> {
+        assert!(source_root.is_some() || parsed.len() == 1);
+        parsed
             .iter()
-            .zip(&self.paths)
-            .map(|(parsed, path)| {
-                SourceUnitInput::new("root", path.as_str(), parsed.source_id(), parsed)
+            .zip(paths)
+            .map(|(parsed, path)| match source_root {
+                Some(root) => SourceUnitInput::new(root, path, parsed.source_id(), parsed),
+                None => SourceUnitInput::memory_document(parsed.source_id(), parsed),
             })
             .collect()
     }

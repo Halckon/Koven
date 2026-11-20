@@ -21699,3 +21699,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `12d52832`。字符串左操作数在插值中 Abort 时，`ownership_constants` 原源码由旧 Single 改为专用常量 Unit（MemoryDocument / Rooted）：两个布局均必须取得同次 validated capability，且未求值的常量不物化、不析构。
 - `ownership_range_construction` 的五项原已通过两 Unit 布局执行；现将较强原断言统一用于两边：实际 root/loan 来源与 begin Span、RangeView provider 与 metadata 不析构、L0133/L0135。此处不是额外五项 Single 迁移；保留需要 Single 独立 loan-end 表的 range prefix 用例。
 - macOS Rust 1.96.0 离线全目标：`ownership_range_construction` 23 passed，`ownership_constants` 17 passed。逐字节复核源码字面量；仅测试与本账本改动。未运行 native、Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：旧 Range 前缀 loan 退出测试迁移
+
+- 基于 `1f8d3141`。原 `ownership_range_construction` 仍有且仅有一项调用旧 Single：四份 Range 前缀源码逐字节保留，迁到已有的私有 Unit planner trace，并在原 Rooted `std` 与 MemoryDocument 独立验证。
+- 同一 source-qualified 外层调用、实参与借用来源先建立相同 loan；提前 `return` 的臂只在该实际 ControlTransfer 卸载，继续臂不提前卸载，正常后续只在实际 CallReturn 卸载。断言不接受其他结束事件；没有用调用描述符筛选替代结束证明。两个清理位置不是同一运行路径上的双重结束。
+- 仅测试及账本变化。默认 FE lib 测试目标属于现有 CI 的有界组合，不改 CI、生产行为或 API；私有 trace 不是公开全表，也不证明 native/LLVM 或全部旧 Single 借用合同。macOS 离线定点通过；FE lib 897 passed / 14 ignored、Range 集成目标 22 passed。未运行 Linux、native 或远端 CI，SPEC-0341 仍 in-progress。

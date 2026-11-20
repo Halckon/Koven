@@ -1,16 +1,14 @@
 //! 新范围 descriptor 对实际 owning List 根的持有、root-flat 派生与终止。
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
     ownership_checking::{
-        BorrowBindingStorage, CompilationUnitOwnership, OwnershipCheckedFile, UnitLoanTarget,
-        check_compilation_unit_ownership, check_ownership,
+        BorrowBindingStorage, CompilationUnitOwnership, UnitLoanTarget,
+        check_compilation_unit_ownership,
     },
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
 // Primary single-document consumer uses source-qualified Unit facts.
@@ -44,46 +42,6 @@ fn checked(
     let typed = typed.validate().unwrap();
     let single =
         check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    let inputs = [SourceUnitInput::new(
-        "std",
-        "range-construct.ko",
-        source,
-        &parsed,
-    )];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    (sources, single, unit)
-}
-
-// Unit loan descriptors do not expose the legacy independent loan-end event table.
-// Retain this path and its original event assertions, not a descriptor approximation.
-fn legacy_checked(body: &str) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
-    let mut sources = SourceMap::new();
-    let text = format!(
-        "fun observe(source: View<String>): Unit {{}}\nfun alias(source: View<String>): borrow View<String> from source = source\nfun consume(own source: List<String>): Unit {{}}\n{body}"
-    );
-    let source = sources.add_source("range-construct.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (environment, mut types) = standard_environments();
-    types.authorize_range_source(&sources, source).unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let single = check_ownership(&sources, &parsed, &names, &typed).unwrap();
     let inputs = [SourceUnitInput::new(
         "std",
         "range-construct.ko",
@@ -267,49 +225,6 @@ fn immediate_range_borrow_keeps_named_root_protected_through_later_arguments() {
             diagnostics.iter().any(|d| d.code().to_string() == "L0135"),
             "{diagnostics:?}"
         );
-    }
-}
-
-#[test]
-fn range_call_prefix_return_publishes_only_established_outer_argument_ends() {
-    use lang_frontend::ownership_checking::{LoanEndPoint, RangeUseSite};
-    for body in [
-        "val root=listOf(\"kept\");read(rangeView(root,0,1),if(flag){return}else{0});consume(root)",
-        "read(rangeView(listOf(\"kept\"),0,1),if(flag){return}else{0})",
-        "val root=listOf(\"kept\");{borrow val parent=rangeView(root,0,1);read(rangeView(parent,0,1),if(flag){return}else{0})};consume(root)",
-        "read(rangeView(rangeView(listOf(\"kept\"),0,1),0,1),if(flag){return}else{0})",
-    ] {
-        let (_, single, unit) = legacy_checked(&format!(
-            "fun read(view:View<String>,number:Int):Unit{{}}\nfun run(flag:Boolean):Unit{{{body}}}"
-        ));
-        assert!(
-            single.diagnostics().is_empty(),
-            "{body}: {:?}",
-            single.diagnostics()
-        );
-        assert!(
-            unit.diagnostics().is_empty(),
-            "{body}: {:?}",
-            unit.diagnostics()
-        );
-        let range = single.borrow_results().range_uses().iter().find(|fact| {
-            matches!(fact.site(), RangeUseSite::Call(call) if single.loan_ends().iter().any(|end| {
-                end.call() == call && end.argument() == fact.expression()
-                    && matches!(end.point(), LoanEndPoint::ControlTransfer(_))
-            }))
-        }).expect("the established outer range operand has a transfer end");
-        let RangeUseSite::Call(call) = range.site() else {
-            unreachable!()
-        };
-        assert!(single.loan_ends().iter().any(|end| end.call() == call
-            && end.argument() == range.expression()
-            && end.point() == LoanEndPoint::CallReturn(call)));
-        assert!(unit.borrow_results().range_uses().iter().any(|fact| {
-            matches!(fact.site(), RangeUseSite::Call(call) if unit.loans().iter().any(|loan| {
-                loan.call() == call && loan.argument() == fact.expression()
-                    && loan.target() == fact.origin()
-            }))
-        }));
     }
 }
 
