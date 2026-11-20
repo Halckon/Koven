@@ -20,7 +20,7 @@ fn ordinary_local_frame_consumers_complete_closure() {
         let case = "local-consumers";
         let restored = true;
         let body = format!(
-            "{{ borrow val item=view(source); {} }}",
+            "block {{ borrow val item=view(source); {} }}",
             "observe(item);".repeat(count)
         );
         let text = format!(
@@ -344,19 +344,19 @@ fn ordinary_frame_operand_and_binding_matrix() {
     for (case, body, locals, counts) in [
         (
             "same-binding-pair",
-            "{borrow val item=view(source);pair(item,item)}",
+            "block {borrow val item=view(source);pair(item,item)}",
             1,
             vec![2],
         ),
         (
             "two-bindings-pair",
-            "{borrow val left=view(source);borrow val right=view(source);pair(left,right)}",
+            "block {borrow val left=view(source);borrow val right=view(source);pair(left,right)}",
             2,
             vec![2],
         ),
         (
             "interleaved-bindings",
-            "{borrow val left=view(source);borrow val right=view(source);observe(left);observe(right);observe(left);observe(right)}",
+            "block {borrow val left=view(source);borrow val right=view(source);observe(left);observe(right);observe(left);observe(right)}",
             2,
             vec![1, 1, 1, 1],
         ),
@@ -386,7 +386,7 @@ fn ordinary_frame_operand_and_binding_matrix() {
 fn ordinary_frame_siblings_and_inherited_binding_do_not_share_local_proof() {
     check_case(
         "siblings",
-        "{borrow val item=view(source);observe(item)};{borrow val item=view(source);observe(item)}",
+        "block {borrow val item=view(source);observe(item)};block {borrow val item=view(source);observe(item)}",
         false,
         |frames| {
             let local = frames
@@ -405,7 +405,7 @@ fn ordinary_frame_siblings_and_inherited_binding_do_not_share_local_proof() {
     );
     check_case(
         "inherited",
-        "borrow val parent=view(source);{observe(parent)};observe(parent)",
+        "borrow val parent=view(source);block {observe(parent)};observe(parent)",
         false,
         |frames| {
             assert!(!frames.iter().any(|f| f.complete_closure()));
@@ -416,7 +416,7 @@ fn ordinary_frame_siblings_and_inherited_binding_do_not_share_local_proof() {
 fn ordinary_local_closure_preserves_live_parent_obligations() {
     check_case(
         "parent-live",
-        "borrow val parent=view(source);{borrow val item=view(source);observe(item)};observe(parent)",
+        "borrow val parent=view(source);block {borrow val item=view(source);observe(item)};observe(parent)",
         false,
         |frames| {
             let frame = frames
@@ -436,7 +436,7 @@ fn ordinary_complete_frame_preserves_rejection_boundaries() {
     for (case, body, rejected) in [
         (
             "moved",
-            "{borrow val item=view(source);observe(item);take(source)}",
+            "block {borrow val item=view(source);observe(item);take(source)}",
             false,
         ),
         (
@@ -446,7 +446,7 @@ fn ordinary_complete_frame_preserves_rejection_boundaries() {
         ),
         (
             "complex",
-            "{borrow val item=view(source);observe(view(source));observe(item)}",
+            "block {borrow val item=view(source);observe(view(source));observe(item)}",
             false,
         ),
     ] {
