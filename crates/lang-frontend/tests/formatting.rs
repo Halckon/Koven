@@ -1,5 +1,8 @@
 //! SPEC-0057 formatter corpus 与语义保持不变量。
 
+#[path = "formatting/roundtrip.rs"]
+mod roundtrip;
+
 use std::{fs, path::Path};
 
 use lang_frontend::{
