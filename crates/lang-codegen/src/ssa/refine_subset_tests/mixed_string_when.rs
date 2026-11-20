@@ -18,17 +18,17 @@ fn string_when_with_bounded_tail_temporary_borrow_refines() {
     let with_runtime_field = mixed
         .replace("class Node()", "class Node(val value: Int)")
         .replace("outer(Node(),", "outer(Node(0),");
-    let non_tail = mixed
+    let direct_local = mixed
         .replace("return outer(Node(),", "val result = outer(Node(),")
         .replace("else -> n }) }", "else -> n }); return result }");
-    assert_ne!(non_tail, mixed);
+    assert_ne!(direct_local, mixed);
     let mut comparison_counts = Vec::new();
     for (source, expected_refine, has_string_when) in [
         (green.as_str(), true, true),
         (TERMINAL, false, false),
         (mixed.as_str(), true, true),
         (with_runtime_field.as_str(), false, true),
-        (non_tail.as_str(), false, true),
+        (direct_local.as_str(), true, true),
     ] {
         let mut sources = SourceMap::new();
         let (id, file) = parsed(&mut sources, "p/main.ko", &format!("package p\n{source}"));
@@ -94,6 +94,34 @@ fun main(): Unit {
     println("ok")
 }
 "#;
+    audit_bounded_native(source, "tail");
+}
+
+#[test]
+fn direct_local_val_returns_exact_call_result_through_native_entry() {
+    audit_bounded_native(
+        r#"package p
+class Node()
+fun outer(node: Node, own r: Int): Int = r + 9
+fun f(s: String, flag: Boolean): Int {
+    val n = when (s) { "a" -> 1; else -> 0 }
+    val result = outer(Node(), when (flag) { true -> return n
+        else -> n })
+    return result
+}
+fun main(): Unit {
+    if (f("a", true) != 1) { error("matched early path lost prefix") }
+    if (f("a", false) != 10) { error("matched normal path lost result") }
+    if (f("b", true) != 0) { error("unmatched early path lost prefix") }
+    if (f("b", false) != 9) { error("unmatched normal path lost result") }
+    println("ok")
+}
+"#,
+        "val",
+    );
+}
+
+fn audit_bounded_native(source: &str, case: &str) {
     let mut sources = SourceMap::new();
     let (id, file) = parsed(&mut sources, "p/main.ko", source);
     let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
@@ -103,18 +131,36 @@ fun main(): Unit {
     let (result, routes) = observe_routing(|| {
         lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
     });
-    assert!(
-        routes.iter().any(|n| n.starts_with("koven.p.f.d")),
-        "{routes:?}"
-    );
-    let (program, entry) = result.expect("exact bounded call lowers");
+    let (program, entry) = result.unwrap_or_else(|error| panic!("{case}: {error:?}"));
     crate::ssa::verify::verify_program(&program).expect("valid transported ownership");
     let module = &program.modules[0];
-    let f = module
-        .functions
+    let main = module.functions.iter().find(|f| f.id == entry).unwrap();
+    assert!(main.name.starts_with("koven.p.main.d"));
+    let called: Vec<_> = main
+        .instructions
         .iter()
-        .find(|f| f.name.starts_with("koven.p.f."))
-        .unwrap();
+        .filter_map(|i| {
+            let Operation::DirectCall { callee, .. } = i.operation else {
+                return None;
+            };
+            module
+                .functions
+                .iter()
+                .find(|f| f.id == callee && f.name.starts_with("koven.p.f.d"))
+        })
+        .collect();
+    assert_eq!(
+        called.len(),
+        4,
+        "{case}: all native cases must call the candidate"
+    );
+    let f = called[0];
+    assert!(called.iter().all(|called| called.id == f.id));
+    assert_eq!(
+        routes.iter().filter(|name| **name == f.name).count(),
+        1,
+        "{case}: {routes:?}"
+    );
     let outer = module
         .functions
         .iter()
@@ -148,6 +194,7 @@ fn audit_tail_cleanup(
         ended: bool,
         dropped: bool,
         dispatches: usize,
+        call_result: Option<EntityId>,
     }
     let mut pending = vec![(f.blocks[0].id, State::default())];
     let (mut visits, mut early, mut normal) = (0, 0, 0);
@@ -195,6 +242,10 @@ fn audit_tail_cleanup(
                     assert_eq!(Some(canonical(arguments[0])), state.loan);
                     assert!(state.loan.is_some() && !state.ended && !state.dropped);
                     state.dispatches += 1;
+                    let [result] = i.results[..] else {
+                        panic!("Int call has one result")
+                    };
+                    assert!(state.call_result.replace(result).is_none());
                 }
                 _ => {}
             }
@@ -211,8 +262,12 @@ fn audit_tail_cleanup(
                         assert_eq!(state.dispatches, 0);
                         early += 1;
                     }
-                    outer if outer.starts_with("return outer(") => {
+                    outer if outer == "return result" || outer.starts_with("return outer(") => {
                         assert_eq!(state.dispatches, 1);
+                        let returned = EntityId::Value(values[0]);
+
+                        let returned = state.aliases.get(&returned).copied().unwrap_or(returned);
+                        assert_eq!(Some(returned), state.call_result);
                         normal += 1;
                     }
                     other => panic!("unexpected Return source: {other:?}"),
@@ -272,14 +327,15 @@ fun f(s: String, flag: Boolean): Int {
         let (ne, te) = standard_environments();
         let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
 
-        // Both legal sources are characterizations: neither is admitted by the
-        // production direct-tail gate. Only the direct initializer has one frame.
+        // Only the direct initializer with one frame is admitted by production.
         let entry = declaration(&names, "p", "f");
         let (result, routes) = observe_routing(|| {
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
         });
-        assert!(
-            !routes.iter().any(|n| n.starts_with("koven.p.f.d")),
+        let nested = expected_pending == 2;
+        assert_eq!(
+            routes.iter().any(|n| n.starts_with("koven.p.f.d")),
+            !nested,
             "{routes:?}"
         );
 
@@ -292,17 +348,21 @@ fun f(s: String, flag: Boolean): Int {
         };
         // Absence from the observer alone would also allow a failed Refine. Pin the
         // actual fallback failure at its String comparison, not at the local binding.
-        let Err(error) = result else {
-            panic!("initializer fixture currently has no successful compatibility lowering");
-        };
-        assert_eq!(
-            error.kind,
-            crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
-        );
-        assert_eq!(
-            sources.slice(error.span.unwrap()).unwrap(),
-            r#"when (s) { "a" -> 1; else -> 0 }"#,
-        );
+        if nested {
+            let Err(error) = result else {
+                panic!("nested initializer has no successful compatibility lowering");
+            };
+            assert_eq!(
+                error.kind,
+                crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
+            );
+            assert_eq!(
+                sources.slice(error.span.unwrap()).unwrap(),
+                r#"when (s) { "a" -> 1; else -> 0 }"#,
+            );
+        } else {
+            result.expect("direct local initializer must lower");
+        }
 
         let function_span = file
             .ast()
@@ -314,7 +374,7 @@ fun f(s: String, flag: Boolean): Int {
             .span();
         // Keep the public-route assertion above independent of this test-only
         // probe. Inspect the existing builder, not the admitted route or emitter.
-        crate::ssa::refine::initializer_probe::run(function_span, expected_pending == 2, || {
+        crate::ssa::refine::initializer_probe::run(function_span, nested, || {
             let _ =
                 lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry);
         });

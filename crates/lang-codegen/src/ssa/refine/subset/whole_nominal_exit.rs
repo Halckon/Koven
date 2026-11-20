@@ -1,12 +1,13 @@
-//! Exact cleanup admission for a whole temporary lent by a direct tail call.
+//! Exact cleanup admission for a whole temporary in a bounded terminal call.
 //! The existing builder still emits, transports and verifies all cleanup.
 use lang_frontend::{
     ast::{ExpressionId, StatementId},
+    name_resolution::SymbolKind,
     ownership_checking::{
         ConstructionRootKind, LoanKind, UnitCallArgumentOwnershipKind, UnitDropPoint,
         UnitDropTarget, UnitLoanTarget,
     },
-    parser::{Expression, LiteralKind, Statement, WhenCondition},
+    parser::{Expression, Item, LiteralKind, NameMarker, Statement, VariableKind, WhenCondition},
     type_checking::{
         BuiltinType, CallableResultSource, ExpressionCategory, ParameterMode, UnitCallTarget,
         UnitCallableTarget, UnitConstructionTarget, UnitExpressionId, UnitTypeKind,
@@ -46,7 +47,7 @@ impl Checker<'_, '_> {
         else {
             return None;
         };
-        if *tail != call
+        if (*tail != call && self.terminal_direct_val(elements, call, *tail).is_none())
             || self.inputs.function_item.is_none()
             || self.inputs.receiver.is_some()
             || self.inputs.borrow_return.is_some()
@@ -277,6 +278,73 @@ impl Checker<'_, '_> {
             owner,
             transfer,
         })
+    }
+
+    /// Match only the top-level final pair, with no wrapper or result adaptation.
+    /// The usual local binding/return builder still handles both statements.
+    fn terminal_direct_val(
+        &self,
+        statements: &[StatementId],
+        call: ExpressionId,
+        returned: ExpressionId,
+    ) -> Option<()> {
+        let [.., local, terminal] = statements else {
+            return None;
+        };
+        let ast = self.inputs.parsed.ast();
+        if !matches!(
+            ast.statements().get(*terminal).ok()?.payload(),
+            Statement::Expression { .. }
+        ) {
+            return None;
+        }
+        let Statement::LocalVariable { declaration } = ast.statements().get(*local).ok()?.payload()
+        else {
+            return None;
+        };
+        let Item::Variable {
+            kind: VariableKind::Val,
+            name: NameMarker::Present(name),
+            initializer,
+            ..
+        } = ast.items().get(*declaration).ok()?.payload()
+        else {
+            return None;
+        };
+        if *initializer != call
+            || !matches!(
+                ast.expressions().get(returned).ok()?.payload(),
+                Expression::Name
+            )
+            || !self.plain(returned)
+        {
+            return None;
+        }
+
+        let symbol = self.reference(returned)?;
+        if symbol.source_unit() != self.inputs.source_unit {
+            return None;
+        }
+        let source = self
+            .inputs
+            .names
+            .names()
+            .source_units()
+            .get(symbol.source_unit().index())?;
+        let declared = source.resolution().symbols().get(symbol.symbol().index())?;
+        let int = self.expression_type(call)?;
+        let typed = self.inputs.typed;
+        (declared.kind() == SymbolKind::Variable
+            && declared.span() == *name
+            && self.kind(int) == Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+            && self.c(typed.call(self.id(call))?.return_type()) == int
+            && self.symbol_type(symbol) == Some(int)
+            && self.expression_type(returned) == Some(int)
+            && self.inputs.return_type == int
+            && typed.non_null_use(self.id(returned)).is_none()
+            && typed.expression_falls_through(self.id(call)) == Some(true)
+            && typed.expression_falls_through(self.id(returned)) == Some(true))
+        .then_some(())
     }
 
     fn exit_expression(&self, statement: StatementId) -> Option<ExpressionId> {

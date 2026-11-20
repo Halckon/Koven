@@ -159,6 +159,14 @@ impl PlannedBodyContext<'_> {
                     nullable_maps: &module.nullable_maps,
                     ssa_types: &module.types,
                 };
+                #[cfg(test)]
+                if crate::ssa::refine::initializer_probe::requested(inputs.span) {
+                    crate::ssa::refine::initializer_probe::inspect(
+                        &inputs,
+                        &entities,
+                        &refine_types,
+                    );
+                }
                 crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
                 return Ok(());
             }

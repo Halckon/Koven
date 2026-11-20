@@ -86,3 +86,21 @@ Mac + LLVM 21.1.8：真实具名函数 Refine/SSA/LLVM 通过；表达式体、�
 对照不进入本补片。实际 SSA 边传递同一 fresh owner 和共享 loan，两个出口均先 End 后恰好一次
 Drop，提前退出 0 次派发、正常退出 1 次。native 两个调用的数值、stdout 和按指针分配身份的
 两个释放均断言；相邻混合 Rc native 对照通过。未执行 Linux、全量测试或 CI，不关闭本 Spec。
+
+## 7. 直接不可变局部结果（限函数体末尾）
+
+在 §6 的所有证明照常成立时，另准入函数体最后两句为无修饰 `val result = 直接调用`
+和 `return result` 的形态。初始化调用、绑定、返回引用和函数返回类型均为同一非空 Owned
+`Int`，返回引用绑定到同源声明，且正常路径可完成初始化。带包装或括号的初始化、`var`、
+返回其他符号或两句不相邻均不由本补片支持。前端事实、普通绑定/返回 builder 和 verifier
+保持不变。
+
+验收使用带 native 入口的同一源码，只观察一次实际 lowering；入口调用的具体函数必须匹配
+Refine 记录，从该 Program 同时验证 SSA、LLVM 和 native。String 命中/不命中与 Boolean
+提前/正常双轴的结果为 `1/10/0/9`。提前出口不派发调用；两个出口都依次结束同一
+loan、恰好释放同一 Node；正常返回的是调用结果实体。
+
+Mac / Rust 1.96 / LLVM 21：基线新增阳性在原 String when 处得到 UnsupportedNode；限定
+准入后 `mixed_string_when` 定向 6/6（含原尾调用、Rc native 对照、嵌套和近邻拒绝）。
+同一观测 Program 的 SSA、LLVM 与链接执行通过，精确各释放四次分配身份中的一次。
+Linux、全量和 hosted CI 未执行。
