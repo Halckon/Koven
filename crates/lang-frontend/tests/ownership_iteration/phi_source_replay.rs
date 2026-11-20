@@ -24,8 +24,8 @@ fn assert_loop_phi_source_replay(transfer: &str) {
             for (_ in flags) {{
                 val prior = f
                 val xs = listOf(1)
-                {{ g = prior }}
-                {{ f = ({{ read(xs) }}) }}
+                block {{ g = prior }}
+                block {{ f = ({{ read(xs) }}) }}
                 {transfer}
             }}
             val first = g()

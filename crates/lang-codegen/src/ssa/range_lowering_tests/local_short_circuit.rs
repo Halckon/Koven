@@ -32,7 +32,7 @@ mod receiver {
         val root=listOf("a","b","c")
         val leftGate=Gate(left{payload})
         val rightGate=Gate(right{payload})
-        {{
+        block {{
             borrow val parent=take(root,2)
             borrow val child=take(parent,1)
             borrow val sibling=take(parent,2)
@@ -130,7 +130,7 @@ fun pending(view:View<{element}>,result:Boolean):Unit{{show(result)}}
 fun consume(own root:List<{element}>):Unit{{println("consume")}}
 fun scan(left:Boolean,right:Boolean,n:Int):Unit{{
     val root=listOf({values})
-    {{
+    block {{
         borrow val parent=take(root,2)
         borrow val child=take(parent,1)
         borrow val sibling=take(parent,2)
@@ -261,7 +261,7 @@ fn scalar_operands(pipeline: Pipeline) {
             r#"
 fun show(flag:Boolean):Unit{{if(flag){{println("true")}}else{{println("false")}}}}
 fun read(view:View<String>):Unit{{}}
-fun scan(left:Boolean,right:Boolean,n:Int):Unit{{val root=listOf("a");{{borrow val part=take(root,1);show({expression});read(part)}}}}
+fun scan(left:Boolean,right:Boolean,n:Int):Unit{{val root=listOf("a");block {{borrow val part=take(root,1);show({expression});read(part)}}}}
 fun main():Unit{{scan(true,true,1);scan(true,false,1);scan(false,true,1);scan(false,false,1)}}
 "#
         );
@@ -488,7 +488,7 @@ fn range_short_circuit_migrated_plain_operands() {
     ] {
         for expression in ["flag && flag", "flag || flag"] {
             let source = format!(
-                "fun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun read(view:View<String>):Unit{{}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");{{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
+                "fun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun read(view:View<String>):Unit{{}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");block {{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
             );
             let label = format!("0317-migrated-{pipeline:?}-{expression}");
             let (program, entry) =
@@ -509,7 +509,7 @@ fn range_short_circuit_readonly_receiver_and_copyable_value_argument() {
     ] {
         let expression = "gate.test() && identity(flag)";
         let source = format!(
-            "class Gate(val flag:Boolean){{fun test():Boolean{{println(\"receiver\");return flag}}}}\nfun identity(own flag:Boolean):Boolean{{println(\"own-copyable\");return flag}}\nfun read(view:View<String>):Unit{{}}\nfun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");val gate=Gate(flag);{{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
+            "class Gate(val flag:Boolean){{fun test():Boolean{{println(\"receiver\");return flag}}}}\nfun identity(own flag:Boolean):Boolean{{println(\"own-copyable\");return flag}}\nfun read(view:View<String>):Unit{{}}\nfun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");val gate=Gate(flag);block {{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
         );
         let label = format!("0317-receiver-{pipeline:?}");
         if matches!(pipeline, Pipeline::Single) {
@@ -537,7 +537,7 @@ fn range_short_circuit_readonly_receiver_and_copyable_value_argument() {
 fn range_short_circuit_copyable_value_argument_single() {
     let expression = "identity(flag) && identity(flag)";
     let source = format!(
-        "fun identity(own flag:Boolean):Boolean{{println(\"copyable\");return flag}}\nfun read(view:View<String>):Unit{{}}\nfun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");{{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
+        "fun identity(own flag:Boolean):Boolean{{println(\"copyable\");return flag}}\nfun read(view:View<String>):Unit{{}}\nfun show(flag:Boolean):Unit{{if(flag){{println(\"true\")}}else{{println(\"false\")}}}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");block {{borrow val part=take(root,1);show({expression});read(part)}}}}\nfun main():Unit{{scan(true);scan(false)}}"
     );
     let (program, entry) = lower_positive(&source, expression, Pipeline::Single)
         .require_success("0317-copyable-single");
@@ -600,7 +600,7 @@ pub(in crate::ssa) mod comparison_boundary {
     fun consume(own root:List<String>):Unit{{}}
     fun scan(n:Int,flag:Boolean):Unit{{
         val root=listOf("kept")
-        {{borrow val part=take(root,1);{statement};read(part)}}
+        block {{borrow val part=take(root,1);{statement};read(part)}}
         consume(root)
     }}
     fun main():Unit{{scan(0,true)}}

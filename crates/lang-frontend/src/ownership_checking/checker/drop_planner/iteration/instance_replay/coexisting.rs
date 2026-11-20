@@ -118,7 +118,7 @@ var second: CAPTURE() -> Unit = CAPTURE{}
 for (stop in flags) {
     second = first
     OWNED_SOURCE
-    { first = CAPTURE{ read(xs) } }
+    block { first = CAPTURE{ read(xs) } }
     FIRST_TAIL
 }
 var outer: move () -> Unit = move { val a = first()\nval b = second() }

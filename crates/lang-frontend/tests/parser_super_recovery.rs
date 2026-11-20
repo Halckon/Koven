@@ -259,7 +259,7 @@ fn unclosed_error_postfix_keeps_the_interpolation_closer_and_tail() {
 #[test]
 fn unpaired_error_postfix_preserves_a_caller_block_without_lambda_header() {
     let mut sources = SourceMap::new();
-    let text = "{ a.async[x\n{ nested }; next }";
+    let text = "{ a.async[x\nblock { nested }; next }";
     let id = sources.add_source("error-postfix.ko", text).unwrap();
     let parsed = parse_block(&sources, &lex(&sources, id).unwrap()).unwrap();
     let ast = parsed.ast();
@@ -276,7 +276,7 @@ fn unpaired_error_postfix_preserves_a_caller_block_without_lambda_header() {
     );
     let nested = ast.statements().get(*nested).unwrap();
     assert!(matches!(nested.payload(), Statement::Block { .. }));
-    assert_eq!(sources.slice(nested.span()), Ok("{ nested }"));
+    assert_eq!(sources.slice(nested.span()), Ok("block { nested }"));
     assert_eq!(
         sources.slice(ast.statements().get(*next).unwrap().span()),
         Ok("next")

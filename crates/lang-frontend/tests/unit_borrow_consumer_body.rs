@@ -273,7 +273,7 @@ fn ordinary_consumer_body_strict_neighbors_remain_ineligible() {
         ("continue", "while(flag){observe(source);continue}", false),
         ("break", "while(flag){observe(source);break}", false),
         ("return", "while(flag){observe(source);return}", false),
-        ("nested", "while(flag){{observe(source)}}", false),
+        ("nested", "while(flag){block {observe(source)}}", false),
         ("empty", "while(flag){}", false),
         ("nonunit", "while(flag){make(source)}", false),
         ("wrong-operand", "while(flag){observe(\"literal\")}", false),

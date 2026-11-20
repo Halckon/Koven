@@ -278,7 +278,7 @@ fn when_first_alternative_does_not_read_a_skipped_later_alternative() {
         }
     }
     let (sources, parsed, owned) = checked(
-        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>, own ys: List<Int>, first: Boolean, gate: Boolean) { var f: () -> Unit = { read(xs) }\nval g: () -> Unit = when { first, if (gate) { { f = ({ read(ys) }) }\ntrue } else false -> f\nelse -> f }\nval used = g() }",
+        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>, own ys: List<Int>, first: Boolean, gate: Boolean) { var f: () -> Unit = { read(xs) }\nval g: () -> Unit = when { first, if (gate) { block { f = ({ read(ys) }) }\ntrue } else false -> f\nelse -> f }\nval used = g() }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     let control = parsed

@@ -139,7 +139,7 @@ mock_clang() {
 
 
 class PreviewDependencyInstaller(unittest.TestCase):
-    def run_installer(self, mode='success'):
+    def run_installer(self, mode='success', *, sync_glibc=False):
         script = INSTALLER.read_text(encoding='utf-8')
         # Redirect only the two absolute LLVM probes to test-owned functions.
         for tool, replacement in (('llvm-config', 'mock_llvm_config'), ('clang', 'mock_clang')):
@@ -166,6 +166,8 @@ class PreviewDependencyInstaller(unittest.TestCase):
                            'MOCK_BEFORE': '99:1' if mode == 'newer' else '5.6.1+really5.4.5-1',
                            'MOCK_LIBRARY': LIBRARY, 'MOCK_DEB_SHA': DEB_SHA256,
                            'MOCK_LIB_SHA': LIB_SHA256, 'MOCK_FINGERPRINT': FINGERPRINT}
+            if sync_glibc:
+                environment['KOVEN_PREVIEW_CI_SYNC_GLIBC'] = '1'
             bash = shutil.which('bash')
             self.assertIsNotNone(bash)
             result = subprocess.run([bash, '--noprofile', '--norc'], input=MOCKS + '\n' + script,
@@ -199,6 +201,14 @@ class PreviewDependencyInstaller(unittest.TestCase):
         self.assertIn('liblzma before:', result.stdout)
         self.assertIn('liblzma after:', result.stdout)
         self.assertIn(LIB_SHA256, result.stdout)
+
+    def test_preview_ci_refreshes_preinstalled_glibc_even_during_phased_rollout(self):
+        result, calls = self.run_installer(sync_glibc=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        install, = self.installs(calls)
+        self.assertIn('libc6:amd64', install)
+        self.assertIn('APT::Get::Always-Include-Phased-Updates=true', install)
+        self.assertNotIn('--allow-downgrades', install)
 
     def test_newer_installed_version_cannot_be_downgraded(self):
         result, calls = self.run_installer('newer')

@@ -20,12 +20,12 @@ fn local_destructuring_reachability_stays_with_its_callable() {
         value class Pair(val first: Int, val second: Int)
         fun f(flag: Boolean): Unit {
             while (false) {
-                { val (first, second) = Pair(1, 2) }
+                block { val (first, second) = Pair(1, 2) }
                 val nested: () -> Unit = { val (first, second) = Pair(3, 4) }
                 val (second, first) = Pair(5, 6)
             }
             loop { if (flag) { break } }
-            { val (first, second) = Pair(7, 8) }
+            block { val (first, second) = Pair(7, 8) }
             loop {}
             val (second, first) = Pair(9, 10)
         }
@@ -77,7 +77,7 @@ fn local_destructuring_reachability_respects_abrupt_initializers_and_sources() {
         let text = format!(
             "value class Pair(val first: Int, val second: Int)\n\
              fun f(flag: Boolean, entries: Map<Int, Int>): Unit {{\n\
-                {{ {header} }}\n\
+                block {{ {header} }}\n\
                 val (first, second) = Pair(3, 4)\n\
              }}"
         );
@@ -121,7 +121,7 @@ fn cross_file_value_class_destructuring_publishes_copy_and_consume_facts() {
         "uses.ko",
         "package p\n\
          fun split(copy: Pair<Int, Int>, moved: Pair<Int, String>, ref: Ref): Unit {\n\
-             { val (first, second) = echo(copy) }\n\
+             block { val (first, second) = echo(copy) }\n\
              val (second, first) = moved\n\
              val (e, f) = ref\n\
          }\n\
@@ -263,7 +263,7 @@ fn cross_file_destructuring_arity_reports_l0118_and_keeps_recovery_types() {
         "uses.ko",
         "package p\n\
          fun split(pair: Pair<Int, String>): Unit {\n\
-             { val (second) = pair }\n\
+             block { val (second) = pair }\n\
              val (first, second, extra) = pair\n\
          }",
     );

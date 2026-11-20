@@ -51,7 +51,7 @@ fn checked(text: &str) -> [CompilationUnitOwnership; 2] {
 #[test]
 fn ordinary_borrow_wrapper_and_local_scope_restore_source_permission() {
     for result in checked(
-        "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {}\nfun run() { val source = \"kept\"; { borrow val item = wrap(source); println(item) }; consume(source) }",
+        "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {}\nfun run() { val source = \"kept\"; block { borrow val item = wrap(source); println(item) }; consume(source) }",
     ) {
         assert!(
             result.diagnostics().is_empty(),

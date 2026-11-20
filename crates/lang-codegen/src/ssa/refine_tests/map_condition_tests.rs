@@ -244,7 +244,7 @@ fn refine_and_legacy_validation_gate_matrix_tests() {
     fun scan(flag: Boolean): Unit {
         val root = Holder("a")
         var n = 1
-        {
+        block {
             borrow val part = borrow_part(root)
             show(flag || change(&n))
             read(part)

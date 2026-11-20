@@ -20,7 +20,7 @@ fun run(flags: List<Boolean>, xs: List<Int>, ys: List<Int>) {
         }
         if (flag) { saved = current } else {
             val old = saved!!
-            { val used = old() }
+            block { val used = old() }
             saved = current
         }
     }

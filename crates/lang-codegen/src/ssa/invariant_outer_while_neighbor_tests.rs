@@ -28,7 +28,7 @@ fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
         ),
         (
             "nested-block",
-            "borrow val item = view(source); while (flag) { { consume(item) } }",
+            "borrow val item = view(source); while (flag) { block { consume(item) } }",
         ),
         (
             "wrong-consumer-root",
@@ -52,7 +52,7 @@ fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
         ),
         (
             "nested-continue",
-            "borrow val item = view(source); while (flag) { consume(item); { continue } }",
+            "borrow val item = view(source); while (flag) { consume(item); block { continue } }",
         ),
         (
             "break-without-consumer",
@@ -60,7 +60,7 @@ fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
         ),
         (
             "nested-break",
-            "borrow val item = view(source); while (flag) { consume(item); { break } }",
+            "borrow val item = view(source); while (flag) { consume(item); block { break } }",
         ),
         (
             "conditional-break-else",
@@ -84,7 +84,7 @@ fn ordinary_invariant_outer_while_neighbors_stay_unsupported() {
         ),
         (
             "nested-return",
-            "borrow val item = view(source); while (flag) { consume(item); { return } }",
+            "borrow val item = view(source); while (flag) { consume(item); block { return } }",
         ),
         (
             "return-call-value",

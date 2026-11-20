@@ -130,7 +130,7 @@ fn native_borrow_storage_single_generic_projection_and_nullable() {
 fn native_borrow_result_single_direct_and_wrapper_keep_source_until_scope_end() {
     for callable in ["view", "wrap"] {
         let text = format!(
-            "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {{ println(source) }}\nfun entry() {{ val source = \"kept\".clone(); {{ borrow val item = {callable}(source); println((item)) }}; consume(source) }}"
+            "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {{ println(source) }}\nfun entry() {{ val source = \"kept\".clone(); block {{ borrow val item = {callable}(source); println((item)) }}; consume(source) }}"
         );
         let run = emit_link_and_run("borrow_result.ko", &text, "entry");
         assert!(run.status.success(), "{run:?}");
@@ -144,7 +144,7 @@ fn native_borrow_result_string_observers_preserve_lexical_lifetime() {
 fun view(source: String): borrow String from source = source
 fun consume(own source: String): Unit { println(source) }
 fun inspect(own owner: String): Unit {
-    {
+    block {
         borrow val s = view(owner)
         OBSERVE
     }
@@ -181,7 +181,7 @@ fn native_borrow_result_string_observers_end_the_loan_on_return_paths() {
     let source = r#"
 fun view(source: String): borrow String from source = source
 fun choose(own owner: String, flag: Boolean): Int {
-    {
+    block {
         borrow val s = view(owner)
         if ("alpha" != (s)) { return 1 }
         println(s)
@@ -213,7 +213,7 @@ fun entry(): Unit {
 
 #[test]
 fn native_borrow_result_single_scalar_pointer_reads_copyable_storage() {
-    let text = "fun view(source: Int): borrow Int from source = source\nfun wrap(source: Int): borrow Int from source = view(source)\nfun observe(own source: Int) { if (source == 7) { println(\"seven\") } else { error(\"wrong value\") } }\nfun entry() { val source = 7; { borrow val item = wrap(source); observe(item) }; observe(source) }";
+    let text = "fun view(source: Int): borrow Int from source = source\nfun wrap(source: Int): borrow Int from source = view(source)\nfun observe(own source: Int) { if (source == 7) { println(\"seven\") } else { error(\"wrong value\") } }\nfun entry() { val source = 7; block { borrow val item = wrap(source); observe(item) }; observe(source) }";
     let run = emit_link_and_run("borrow_int.ko", text, "entry");
     assert!(run.status.success(), "{run:?}");
     assert_eq!(run.stdout, b"seven\nseven\n");

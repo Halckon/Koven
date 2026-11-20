@@ -236,10 +236,10 @@ fn value_delivery_moves_only_once_while_copy_and_borrow_preserve_sources() {
                 fun reset(own input: Resource, own replacement: Resource): Unit {\n\
                     var local = input\n\
                     val first = take(local)\n\
-                    { local = replacement }\n\
+                    block { local = replacement }\n\
                     val second = take(local)\n\
                     val third = take(local)\n\
-                    { local = local }\n\
+                    block { local = local }\n\
                     val fourth = take(local)\n\
                 }";
         let (sources, _, checked) = checked(text);
@@ -324,7 +324,7 @@ fn shadowed_symbols_keep_independent_move_origins() {
     let text = "class Resource {}\n\
                 fun take(own item: Resource): Unit {}\n\
                 fun shadow(own input: Resource): Unit {\n\
-                    {\n\
+                    block {\n\
                         val input = input\n\
                         val first = take(input)\n\
                         val second = take(input)\n\
@@ -511,7 +511,7 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
                     val used = create()\n\
                     val first = inspect(used)\n\
                     var replaced = create()\n\
-                    { replaced = create() }\n\
+                    block { replaced = create() }\n\
                     val temporary = inspect(create())\n\
                     if (flag) {\n\
                         val branchRead = inspect(branchOwner)\n\
@@ -636,7 +636,7 @@ fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
                    value class Inline(var payload: Resource)\n\
                    fun mutate(inout item: Resource): Unit {}\n\
                    fun replace(inout target: Resource, own replacement: Resource): Unit {\n\
-                       { target = replacement }\n\
+                       block { target = replacement }\n\
                        val check = mutate(&target)\n\
                    }\n\
                    fun fields(own holder: Holder, own replacement: Resource): Unit {\n\

@@ -718,8 +718,8 @@ fn rejects_loop_carried_last_capture_loan_before_lowering_bindings() {
             var g: () -> Unit = {}
             for (_ in flags) {
                 val xs = listOf(1)
-                { f = ({ read(xs) }) }
-                { g = ({ read(xs) }) }
+                block { f = ({ read(xs) }) }
+                block { g = ({ read(xs) }) }
                 break
             }
             val first = f()

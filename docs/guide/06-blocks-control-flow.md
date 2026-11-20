@@ -30,7 +30,7 @@ ordinary_local_variable_statement
                           = ( "val" | "var" ), Identifier,
                             [ type_annotation ], "=", expression ;
 expression_statement      = expression ;
-nested_block_statement    = block ;
+nested_block_statement    = "block", block ;
 
 function_declaration      = "fun", [ type_parameter_list ], Identifier,
                             "(", [ value_parameter,
@@ -46,6 +46,8 @@ function_body             = /* empty */
 implicit_unit_body        = /* empty */
                           | block ;
 ```
+
+语句位置不再接受独立裸 `{ ... }` 执行块；显式词法作用域块写作 `block { ... }`（按形状保留，不设全局硬关键字：仅未限定名 `block` 与 `{` 同行且位于语句起点时解析为 `Statement::Block`，不建闭包、不改变原有跳转归属与析构边界；表达式位置的 `block { ... }` 明确报语法错且不回退成调用，`val block`、`block(...)`、`obj.block { ... }` 与 `block({ ... })` 保持合法）。
 
 产生式中的 `{ block_element }` 重复由换行（LF / CRLF）或显式分号 `;` 分隔；在不存在换行续行条件时，行末换行自然开启下一个 element。在同一行内连续书写多个 element 时必须显式使用 `;` 分隔。
 
@@ -76,13 +78,15 @@ block 并要求 EOF；函数 block body 由本节完整 `standalone_declaration`
   expression-start token 且中间既无换行也无分号（如 `{ x y }`），parser 报告缺少语句分隔符诊断，
   而不是无说明地当作尾随未知 token。
 - parser 先按适用产生式消费当前 element。当前 block owner 的 `}` 始终是 hard stop；
-  在没有续行的情况下，换行、`;`、`val`、`var` 以及循环引导关键字均作为当前 element 的边界，
-  将控制权归还给 block dispatch 开始下一局部声明或语句。`{` 只有在左侧最大 expression 已完整、
-  parser 不再等待 operand 时才是下一 nested block 的 soft stop；正在等待 primary 时，必须按
+  在没有续行的情况下，换行、`;`、`val`、`var`、同行 `block {` 以及循环引导关键字均作为当前 element 的边界，
+  将控制权归还给 block dispatch 开始下一局部声明或语句。语句起点看到独立裸 `{` 时不再提交
+  nested block，而是按 `L0030` 报错并提示改用 `block { ... }`；正在等待 primary 时，必须按
   [Lambda 规则](07-calls-lambdas-closures.md#lambda-literal)把 `{` 解析为 lambda。
-- `{}` 是合法空 block；`{{}}` 是包含一个 nested block statement 的合法 block。block dispatch
-  在 element 起点直接看到 `{` 时提交 nested block；只有 expression parser 正在等待 primary
-  时，同一个 token 才按 [Lambda 规则](07-calls-lambdas-closures.md#lambda-literal)提交 lambda。每个 `{`
+- `{}` 是合法空 block；`{ block {} }` 是包含一个 nested block statement 的合法 block（旧写法 `{{}}`
+  中的内层裸 `{}` 在语句位置已禁止，报 `L0030`）。block dispatch
+  在 element 起点看到未限定 `block` 与 `{` 同行时提交 `Statement::Block`；只有 expression parser
+  正在等待 primary 时，裸 `{` 才按 [Lambda 规则](07-calls-lambdas-closures.md#lambda-literal)提交 lambda。
+  表达式位置的 `block { ... }` 明确报语法错（`L0009`）且不回退为尾随 lambda 调用。每个 block
   都建立独立 block owner，由对应层的 `}` 关闭。block 不是 expression primary；`f({})`、
   `val x = {}` 或把 block 用在二元运算符任一侧，不能作为 block expression 成功。lambda
   字面量由[Lambda 规则](07-calls-lambdas-closures.md#lambda-literal)定义，不能反向改变本节
@@ -118,7 +122,7 @@ statement table 与函数 body 的封闭表示见[Statement AST 工程合同](..
 
 | 节点 | 合成范围 |
 |---|---|
-| 完整 block / `Statement::Block` | 从真实 `{` 起至匹配 `}` 终；缺 `}` 时到该 block 最后实际消费位置，空 block 仍覆盖真实 `{}` |
+| 完整 block / `Statement::Block` | 函数体 / 控制体 block 从真实 `{` 起至匹配 `}` 终；显式嵌套块 `block { ... }` 从真实 `block` 起至匹配 `}` 终；缺 `}` 时到该 block 最后实际消费位置，空 block 仍覆盖真实 `{}`（或 `block {}`） |
 | local-variable statement | 与其引用的[变量声明](05-declarations-callables.md)范围完全相同 |
 | expression statement | 与其引用的 expression 范围完全相同 |
 | error statement | 只覆盖实际消费的错误区域；没有消费 token 时只能是在 owner closer / EOF 的空范围，且不得插入会使循环停滞的零宽 error element |
@@ -146,14 +150,14 @@ delimiter，并至少增加下列稳定错误类别；具体 `L` 码和固定消
 - 当前 block 的 `}` 和 EOF 是 hard stop，只能由当前 block 正常闭合路径消费 `}`；expression、
   局部声明或 error-element 恢复都必须把它保留给 block owner。嵌套 block 调用建立子 owner，
   子 parser 正常消费自己的 `}` 后父 parser 才继续。同形 `}` 总是关闭当前最内层 block，
-  parser 不能猜测它“本来属于父 block”；因此 `{{}` 中唯一的 `}` 关闭内层 block，外层在
+  parser 不能猜测它“本来属于父 block”；因此 `{ block {}` 中唯一的 `}` 关闭内层 block，外层在
   EOF 报缺 closer。子 block 的普通恢复不得越过其下一 block-level `}`，所有未被真实 `}`
   关闭的剩余 owner 最终各在 EOF / 异类调用方 hard stop 按由内到外的确定顺序结束。
 - expression statement 和局部 initializer 调用既有 expression parser 时显式加入当前 `}`
-  作为 hard stop。`val`、`var` 及本节列出的 unsupported element 引导关键字若出现在一个
+  作为 hard stop。`val`、`var`、同行 `block {` 及本节列出的 unsupported element 引导关键字若出现在一个
   element 已完整结束之后，是下一 element 的结构边界。对 `{`，正在等待 primary 的 initializer
   起点必须按[调用、lambda 与 closure 规则](07-calls-lambdas-closures.md)提交 lambda；只有一个 element 已经完整结束
-  且 parser 不再等待 operand 时，顶层 `{` 才作为下一 nested block 的结构边界。若在 owner
+  且 parser 不再等待 operand 时，非跨行尾 lambda 位置的顶层 `{` 才交回 block dispatch 按裸块（`L0030`）诊断。若在 owner
   `}` 前没有可消费 expression，同样复用 expected expression，不再追加同根因的 expected
   block element；局部 `val` / `var`
   的名称、类型、`=` 与 initializer 恢复继续复用[声明规则](05-declarations-callables.md)类别，但 stop 集合增加这些 element

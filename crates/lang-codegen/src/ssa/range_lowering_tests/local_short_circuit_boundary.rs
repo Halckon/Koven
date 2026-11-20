@@ -10,7 +10,7 @@ fn scoped(declaration: &str, setup: &str, statement: &str) -> String {
 {declaration}
 fun read(view:View<String>):Unit{{}}
 fun show(flag:Boolean):Unit{{}}
-fun scan(flag:Boolean):Unit{{val root=listOf("a");{setup};{{borrow val part=take(root,1);{statement};read(part)}}}}
+fun scan(flag:Boolean):Unit{{val root=listOf("a");{setup};block {{borrow val part=take(root,1);{statement};read(part)}}}}
 fun main():Unit{{scan(true)}}
 "#
     )
@@ -120,10 +120,10 @@ fn range_short_circuit_boundary_range_creation_and_aliases() {
 #[test]
 fn range_short_circuit_boundary_scope_and_roots() {
     for body in [
-        "show(flag && flag);{borrow val part=take(root,1);read(part)}",
-        "{borrow val part=take(root,1);read(part)};show(flag && flag)",
-        "{borrow val part=take(root,1);show(flag && flag);borrow val child=take(part,1);read(child);read(part)}",
-        "{borrow val part=take(root,1);borrow val second=take(other,1);show(flag && flag);read(part);read(second)}",
+        "show(flag && flag);block {borrow val part=take(root,1);read(part)}",
+        "block {borrow val part=take(root,1);read(part)};show(flag && flag)",
+        "block {borrow val part=take(root,1);show(flag && flag);borrow val child=take(part,1);read(child);read(part)}",
+        "block {borrow val part=take(root,1);borrow val second=take(other,1);show(flag && flag);read(part);read(second)}",
     ] {
         let source = format!(
             "fun show(flag:Boolean):Unit{{}}\nfun read(view:View<String>):Unit{{}}\nfun scan(flag:Boolean):Unit{{val root=listOf(\"a\");val other=listOf(\"b\");{body}}}\nfun main():Unit{{scan(true)}}"

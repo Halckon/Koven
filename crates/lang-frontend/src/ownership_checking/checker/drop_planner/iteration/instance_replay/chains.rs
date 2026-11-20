@@ -189,7 +189,7 @@ fn replay_seed_chain(
     let (extra_seed, body, final_call) = if alternating {
         (
             "var g: move () -> Unit = move {}\n",
-            "{ f = move { g() } }\ng = move { f() }",
+            "block { f = move { g() } }\ng = move { f() }",
             "g()",
         )
     } else {
@@ -208,7 +208,7 @@ fn replay_seed_chain(
     let body = if shared {
         if alternating {
             format!(
-                "{{ val b: () -> Unit = {{ read(xs) }}\nf = {g_body} }}\n{{ val b: () -> Unit = {{ read(xs) }}\ng = {f_body} }}"
+                "block {{ val b: () -> Unit = {{ read(xs) }}\nf = {g_body} }}\nblock {{ val b: () -> Unit = {{ read(xs) }}\ng = {f_body} }}"
             )
         } else {
             format!("val b: () -> Unit = {{ read(xs) }}\nf = {f_body}")

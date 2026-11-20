@@ -8,7 +8,7 @@ use lang_frontend::type_checking::check_compilation_unit_types;
 
 #[test]
 fn ordinary_closed_binding_does_not_restore_moved_loop_source() {
-    let text = "fun view(source: String): borrow String from source = source\nfun observe(item: String): Unit {}\nfun take(own item: String): Unit {}\nfun run(flag: Boolean): Unit { val source = \"owned\"; { borrow val item = view(source); observe(item) }; take(source); while (flag) { observe(source); break } }";
+    let text = "fun view(source: String): borrow String from source = source\nfun observe(item: String): Unit {}\nfun take(own item: String): Unit {}\nfun run(flag: Boolean): Unit { val source = \"owned\"; block { borrow val item = view(source); observe(item) }; take(source); while (flag) { observe(source); break } }";
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "closed-moved.ko", text);
     let (environment, types) = standard_environments();

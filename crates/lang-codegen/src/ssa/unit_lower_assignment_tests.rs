@@ -27,7 +27,7 @@ fn replaces_a_string_owner_only_after_the_rhs_finishes() {
         "package q\n\
          fun entry(): String {\n\
              var current = \"old\"\n\
-             { current = current + p.suffix() }\n\
+             block { current = current + p.suffix() }\n\
              return p.identity(current)\n\
          }",
     );
@@ -178,11 +178,11 @@ fn updates_the_binding_after_each_checked_compound_assignment() {
         "package p\n\
          fun update(own input: Int): Int {\n\
              var total = input\n\
-             { total += 2 }\n\
-             { total -= 3 }\n\
-             { total *= 4 }\n\
-             { total /= 5 }\n\
-             { total %= 6 }\n\
+             block { total += 2 }\n\
+             block { total -= 3 }\n\
+             block { total *= 4 }\n\
+             block { total /= 5 }\n\
+             block { total %= 6 }\n\
              return total\n\
          }",
     );
@@ -329,7 +329,7 @@ fn keeps_undefined_compound_assignment_types_outside_this_slice() {
     let source_text = "package p\n\
          fun entry(): Unit {\n\
              var text = \"left\"\n\
-             { text += \"right\" }\n\
+             block { text += \"right\" }\n\
          }";
     let mut sources = SourceMap::new();
     let (source, file) = parsed(&mut sources, "p/main.ko", source_text);

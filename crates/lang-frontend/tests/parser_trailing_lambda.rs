@@ -137,12 +137,12 @@ fn normalizes_plain_parenthesized_typed_member_and_chained_calls() {
 }
 
 #[test]
-fn line_breaks_split_nested_blocks_while_same_line_trivia_attaches() {
+fn line_breaks_split_explicit_blocks_while_same_line_trivia_attaches() {
     for text in [
-        "{ f\n{} }",
-        "{ f\r\n{} }",
-        "{ f // line comment\n{} }",
-        "{ f /* line\ncomment */ {} }",
+        "{ f\nblock {} }",
+        "{ f\r\nblock {} }",
+        "{ f // line comment\nblock {} }",
+        "{ f /* line\ncomment */ block {} }",
     ] {
         let (_, parsed) = parsed_block(text);
         assert!(
@@ -268,4 +268,93 @@ fn typed_trailing_lambda_does_not_cross_a_line_break() {
         ));
         assert!(parsed.ast().type_refs().is_empty());
     }
+}
+
+#[test]
+fn explicit_block_and_parenthesized_cross_line_trailing_lambda_contract() {
+    // 1. Parenthesized calls (including f<T>()) attach trailing lambda across newlines
+    for (text, expected_types) in [
+        ("f()\n{}", 0),
+        ("f()\r\n{}", 0),
+        ("f() /* line\ncomment */ {}", 0),
+        ("f<T>()\n{}", 1),
+        ("obj.m(1)\n{ x -> x }", 0),
+    ] {
+        let (_, parsed) = parsed_expression(text);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{text:?}: {:?}",
+            parsed.diagnostics()
+        );
+        let (type_arguments, arguments) = root_call(&parsed);
+        assert_eq!(type_arguments.len(), expected_types, "{text:?}");
+        assert_last_argument_is_plain_lambda(&parsed, arguments);
+    }
+
+    // 2. Parenthesized call followed by explicit `block {}` stays two elements
+    for text in [
+        "{ configure()\nblock { setup() } }",
+        "{ val xs = listOf(1)\nblock { use(xs) } }",
+        "{ if (ok) configure()\nblock { cleanup() } }",
+    ] {
+        let (_, block) = parsed_block(text);
+        assert!(
+            block.diagnostics().is_empty(),
+            "{text:?}: {:?}",
+            block.diagnostics()
+        );
+        let Statement::Block { elements } = block_statement(&block, block.root()) else {
+            panic!("block root");
+        };
+        assert_eq!(elements.len(), 2, "{text:?}");
+        assert!(matches!(
+            block_statement(&block, elements[1]),
+            Statement::Block { .. }
+        ));
+    }
+
+    // 3. Bare `{ ... }` statement in block/lambda is rejected with `block { ... }` guidance
+    let (_, bare_block) = parsed_block("{ { setup() } }");
+    assert_eq!(bare_block.diagnostics().len(), 1);
+    assert_eq!(bare_block.diagnostics()[0].code().to_string(), "L0030");
+    assert!(
+        bare_block.diagnostics()[0]
+            .message()
+            .contains("block { ... }")
+    );
+
+    let (_, bare_in_lambda) = parsed_expression("{ { setup() } }");
+    assert_eq!(bare_in_lambda.diagnostics().len(), 1);
+    assert_eq!(bare_in_lambda.diagnostics()[0].code().to_string(), "L0032");
+    assert!(
+        bare_in_lambda.diagnostics()[0]
+            .message()
+            .contains("block { ... }")
+    );
+
+    // 4. Expression-position `block { ... }` is rejected without falling back to a call
+    let (_, expr_block) = parsed_block("{ val x = block { 1 } }");
+    assert!(!expr_block.diagnostics().is_empty());
+    assert_eq!(expr_block.diagnostics()[0].code().to_string(), "L0009");
+
+    // 5. `block` stays usable as ordinary identifier, call, member trailing lambda, and `block({})`
+    for text in [
+        "{ val block = 1\nblock(2)\nobj.block { x -> x }\nblock({ x -> x }) }",
+        "{ val x = block({ 1 }) }",
+    ] {
+        let (_, ok) = parsed_block(text);
+        assert!(
+            ok.diagnostics().is_empty(),
+            "{text:?}: {:?}",
+            ok.diagnostics()
+        );
+    }
+
+    // 6. Standalone `move { ... }` is not conflated with bare block statements
+    let (_, move_stmt) = parsed_block("{ move { x } }");
+    assert!(
+        move_stmt.diagnostics().is_empty(),
+        "{:?}",
+        move_stmt.diagnostics()
+    );
 }

@@ -123,7 +123,7 @@ mod tests {
     fn loop_free_borrow_bindings_scan_statements_only_once() {
         for count in [8, 32, 128] {
             let body = (0..count)
-                .map(|i| format!("{{ borrow val item{i} = source; println(item{i}) }};"))
+                .map(|i| format!("block {{ borrow val item{i} = source; println(item{i}) }};"))
                 .collect::<String>();
             let parsed = parse(&format!("fun run(source:String) {{ {body} }}"));
             let cache = LoopSpans::default();

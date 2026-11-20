@@ -1,5 +1,6 @@
 """Shared setup must refresh the runtime closure, not inherit runner image drift."""
 from pathlib import Path
+import re
 import shlex
 import unittest
 
@@ -16,6 +17,14 @@ class PreviewDependencySetup(unittest.TestCase):
         self.assertIn('liblzma5:amd64=$lzma_version', installs[0],
                       'LLVM dependency satisfaction alone retains different preinstalled liblzma builds')
         self.assertNotIn('--allow-unauthenticated', installs[0])
+
+    def test_only_linux_preview_jobs_opt_into_glibc_sync(self):
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        jobs = dict(section.split(':', 1) for section in re.split(r'\n  (?=\S)', workflow))
+        opt_in = "\n    env:\n      KOVEN_PREVIEW_CI_SYNC_GLIBC: '1'\n"
+        self.assertEqual(workflow.count('KOVEN_PREVIEW_CI_SYNC_GLIBC'), 2)
+        for job in ('preview-linux-produce', 'preview-linux-consume'):
+            self.assertIn(opt_in, jobs[job])
 
     def test_producer_and_consumer_share_the_same_setup(self):
         producer = (ROOT / '.github/actions/setup-llvm/action.yml').read_text()

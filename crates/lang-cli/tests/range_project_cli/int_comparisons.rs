@@ -25,13 +25,13 @@ fn comparisons(operator: &str, limit: i32, outcomes: [bool; 6]) {
         for position in [Position::Before, Position::Live, Position::After] {
             let body = match position {
                 Position::Before => {
-                    format!("{comparison};{{borrow val parent=take(root,1);read(parent)}}")
+                    format!("{comparison};block {{borrow val parent=take(root,1);read(parent)}}")
                 }
                 Position::Live => format!(
-                    "{{borrow val parent=take(root,1);read(parent);{comparison};read(parent)}}"
+                    "block {{borrow val parent=take(root,1);read(parent);{comparison};read(parent)}}"
                 ),
                 Position::After => {
-                    format!("{{borrow val parent=take(root,1);read(parent)}};{comparison}")
+                    format!("block {{borrow val parent=take(root,1);read(parent)}};{comparison}")
                 }
             };
             let project = Project::new();

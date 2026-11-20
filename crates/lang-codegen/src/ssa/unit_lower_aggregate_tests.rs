@@ -457,7 +457,7 @@ fn adapts_pointer_like_nullable_storage_at_each_owned_value_boundary() {
          fun pass(own input: Node?): Node? = input\n\
          fun entry(): Unit {\n\
              var current: Node? = Node()\n\
-             { current = Node() }\n\
+             block { current = Node() }\n\
              val source = Node()\n\
              val passed = pass(source)\n\
              val made = make()\n\

@@ -414,8 +414,8 @@ fun choose(source: String, own subject: Node?): borrow String from source {
 fun main(): Unit {
     val source = "owner".clone()
     val present: Node? = Node()
-    { borrow val result = choose(source, present); println(result) }
-    { borrow val result = choose(source, null); println(result) }
+    block { borrow val result = choose(source, present); println(result) }
+    block { borrow val result = choose(source, null); println(result) }
     println(source)
 }
 "#;

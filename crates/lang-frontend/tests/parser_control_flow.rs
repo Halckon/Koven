@@ -402,8 +402,8 @@ fn missing_for_pattern_closer_leaves_in_source_body_and_following_statement() {
 #[test]
 fn unfinished_for_binding_preserves_block_and_index_closers() {
     for (text, boundary) in [
-        ("{ { for ((first, /* gap */ }; sentinel() }", '}'),
-        ("{ { for ((first, /* gap */ ; }; sentinel() }", ';'),
+        ("{ block { for ((first, /* gap */ }; sentinel() }", '}'),
+        ("{ block { for ((first, /* gap */ ; }; sentinel() }", ';'),
     ] {
         let (sources, parsed) = block(text);
         let [inner, sentinel] = root_elements(&parsed) else {

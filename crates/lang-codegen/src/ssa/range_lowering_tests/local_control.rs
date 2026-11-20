@@ -51,7 +51,7 @@ mod ownership {
     fun consume(own root:List<{element}>):Unit{{println("consume")}}
     fun scan(flag:Boolean):Unit{{
         val root=listOf({values})
-        {{
+        block {{
             borrow val parent=take(root,2)
             borrow val child=take(parent,1)
             borrow val sibling=take(parent,2)
@@ -168,7 +168,7 @@ mod ownership {
         carrier_scope_layout(
             "descriptor-ended",
             "if(flag){println(\"after\")}",
-            "{borrow val parent=take(root,1);read(parent)}\nif(flag){println(\"after\")}",
+            "block {borrow val parent=take(root,1);read(parent)}\nif(flag){println(\"after\")}",
             b"first\nafter\ndrop\nsecond\ndrop\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
         );
     }
@@ -178,7 +178,7 @@ mod ownership {
         carrier_scope_layout(
             "child-ended",
             "if(flag){println(\"after\")}",
-            "{borrow val parent=take(root,1);borrow val child=(parent);read(child)}\nif(flag){println(\"after\")}",
+            "block {borrow val parent=take(root,1);borrow val child=(parent);read(child)}\nif(flag){println(\"after\")}",
             b"first\nafter\ndrop\nsecond\ndrop\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
         );
     }
@@ -188,7 +188,7 @@ mod ownership {
         carrier_scope_layout(
             "descriptor-before",
             "if(flag){println(\"left\")}else{println(\"right\")}",
-            "if(flag){println(\"left\")}else{println(\"right\")}\n{borrow val parent=take(root,1);read(parent)}",
+            "if(flag){println(\"left\")}else{println(\"right\")}\nblock {borrow val parent=take(root,1);read(parent)}",
             b"left\nfirst\ndrop\nsecond\ndrop\nfirst\nright\nfirst\ndrop\nsecond\ndrop\nfirst\n",
         );
     }
@@ -208,7 +208,7 @@ mod ownership {
         carrier_scope_layout(
             "descriptor-return",
             "if(flag){read(part);return}else{read(part)}",
-            "{borrow val part=take(root,1);if(flag){read(part);return}else{read(part)};read(part)}",
+            "block {borrow val part=take(root,1);if(flag){read(part);return}else{read(part)};read(part)}",
             b"first\ndrop\nsecond\ndrop\nfirst\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
         );
     }
@@ -218,7 +218,7 @@ mod ownership {
         carrier_scope_layout(
             "return-and-scope-end",
             "if(flag){read(child);return}",
-            "{borrow val parent=take(root,1);borrow val child=(parent);if(flag){read(child);return};read(child)}\nif(!flag){println(\"after\")}",
+            "block {borrow val parent=take(root,1);borrow val child=(parent);if(flag){read(child);return};read(child)}\nif(!flag){println(\"after\")}",
             b"first\ndrop\nsecond\ndrop\nfirst\nfirst\nafter\ndrop\nsecond\ndrop\nfirst\n",
         );
     }
@@ -248,7 +248,7 @@ mod ownership {
         carrier_scope_layout(
             "direct-return-after-scope",
             "return",
-            "{borrow val parent=take(root,1);borrow val child=(parent);read(child)}\nreturn",
+            "block {borrow val parent=take(root,1);borrow val child=(parent);read(child)}\nreturn",
             b"first\ndrop\nsecond\ndrop\nfirst\nfirst\ndrop\nsecond\ndrop\nfirst\n",
         );
     }
@@ -345,7 +345,7 @@ mod boundary {
     fun consume(own root:List<String>):Unit{{}}
     fun scan(flag:Boolean,n:Int):Unit{{
         val root=listOf("kept")
-        {{
+        block {{
             borrow val part=take(root,1)
             {statement}
             read(part)
@@ -408,7 +408,7 @@ mod boundary {
     fun scan(flag:Boolean):Unit{{
         val root=listOf("first")
         val other=listOf("second")
-        {{
+        block {{
             borrow val part=take(root,1)
             borrow val sibling=take(other,1)
             {expression}
@@ -503,7 +503,7 @@ mod boundary {
     fun consume(own root:List<String>):Unit{{}}
     fun scan(n:Int?):Unit{{
         val root=listOf("kept")
-        {{
+        block {{
             borrow val part=take(root,1)
             {nullable_if}
             read(part)
@@ -558,7 +558,7 @@ mod selection {
     fun consume(own root:List<String>):Unit{println("consume")}
     fun scan(flag:Boolean):Unit{
         val root=listOf("kept","excluded")
-        {
+        block {
             borrow val part=take(root,1)
             if(mark(flag)){println("then");read(part)}else{println("else");read(part)}
             read(part)
@@ -792,15 +792,15 @@ pub(in crate::ssa) fn comparison_case(
     let comparison = format!("check({expression})");
     let (body, expected): (String, &[u8]) = match position {
         Position::BeforeBinding => (
-            format!("{comparison}\n{{borrow val part=take(root,1);read(part)}}"),
+            format!("{comparison}\nblock {{borrow val part=take(root,1);read(part)}}"),
             b"true\nkept\nconsume\nfalse\nkept\nconsume\n",
         ),
         Position::WhileLive => (
-            format!("{{borrow val part=take(root,1);read(part);{comparison};read(part)}}"),
+            format!("block {{borrow val part=take(root,1);read(part);{comparison};read(part)}}"),
             b"kept\ntrue\nkept\nconsume\nkept\nfalse\nkept\nconsume\n",
         ),
         Position::AfterEnds => (
-            format!("{{borrow val part=take(root,1);read(part)}}\n{comparison}"),
+            format!("block {{borrow val part=take(root,1);read(part)}}\n{comparison}"),
             b"kept\ntrue\nconsume\nkept\nfalse\nconsume\n",
         ),
     };
@@ -944,7 +944,7 @@ fun read(view:View<String>):Unit{for(item in view){println(item)}}
 fun consume(own root:List<String>):Unit{println("consume")}
 fun scan(flag:Boolean):Unit{
     val root=listOf("kept","excluded")
-    {
+    block {
         borrow val part=take(root,1)
         if(flag){read(part)}else{read(part)}
         read(part)
