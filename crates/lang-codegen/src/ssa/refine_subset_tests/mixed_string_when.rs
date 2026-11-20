@@ -122,6 +122,10 @@ fn direct_local_val_returns_exact_call_result_through_native_entry() {
 
 #[test]
 fn grouped_local_val_returns_exact_call_result_through_native_entry() {
+    audit_local_val_in_both_unit_layouts(&grouped_local_val_native_source(), "grouped val");
+}
+
+fn grouped_local_val_native_source() -> String {
     let source = LOCAL_VAL_NATIVE
         .replacen("val result = outer(", "val result = (outer(", 1)
         .replacen(
@@ -131,7 +135,23 @@ fn grouped_local_val_returns_exact_call_result_through_native_entry() {
         );
     assert!(source.contains("val result = (outer("));
     assert!(source.contains("else -> n }))\n    return result"));
-    audit_local_val_in_both_unit_layouts(&source, "grouped val");
+    source
+}
+
+#[test]
+fn explicit_prefix_block_preserves_grouped_local_val_native_cleanup() {
+    let source = grouped_local_val_native_source()
+        .replacen(
+            "    val result =",
+            "    var normal = 17\n    block { normal = n }\n    val result =",
+            1,
+        )
+        .replacen("else -> n }))", "else -> normal }))", 1);
+    assert!(source.contains("block { normal = n }"));
+    assert!(source.contains("else -> normal }))"));
+    // If the block's write is lost, the native normal branches see 17 rather
+    // than the matched/unmatched value from the String when.
+    audit_local_val_in_both_unit_layouts(&source, "explicit prefix block");
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -766,6 +786,11 @@ fun f(s: String, flag: Boolean): Int {
             "single-group initializer",
             format!("val result = ({CALL})\n    return result"),
             true,
+        ),
+        (
+            "grouped pair inside explicit block",
+            format!("block {{ val result = ({CALL})\n        return result }}"),
+            false,
         ),
         (
             "double-group initializer",

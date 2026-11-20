@@ -144,3 +144,10 @@ Mac 定向 8/8，两种 Unit 布局的路由与内层清理事实一致。若单
 及 rooted Unit，共四个实际 Program。每格从同一次实际路由得到的产物验 SSA、渲染 LLVM、
 链接并运行；入口四次调用各得 `1/10/0/9`，按各自分配身份恰好释放一次。
 Mac 的 `mixed_string_when` 定向（同 Targeted feature）8/8；本次未运行 Linux 或 hosted CI。
+
+同步 `8207b212` 主线后，Mac 同 Targeted feature 的原 8 项仍通过。新增显式前缀块
+`block { normal = n }` 的 native 正例：块写入影响后续正常实参，仍由既有顶层尾部
+局部初始化和 Return 匹配消费同一借用与析构事实；两种 Unit 布局都保持原四种结果和
+逐身份一次释放。若将这对尾部语句一起移入显式块，前端仍发布精确的两条清理事实，
+但不满足现行顶层范围，现有混合降低仍报 `UnsupportedNode`。Mac 定向 9/9，
+未改变语法或生产准入，未运行 Linux 或 hosted CI。
