@@ -21687,3 +21687,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 不改生产、索引、CI 或投影准入；不以本片替代旧条件 cleanup-owner 合同。
 - 定向 exact 本树 FE/CG 重编 2m05 后 1 passed（两原源 × 两布局）；fmt/diff/docs/尺寸门与独审通过。
 - 仅普通 SSA verifier 与身份/路径断言；未执行 LLVM/native、CI 或故障注入，未退休旧合同。
+
+### 2026-11-20：旧 Single 所有权测试迁移首批
+
+- 基线 `5958c06b`。`ownership_checking` 的 ASAP cleanup、非拥有值无 drop、独立重复分析确定性三项保留原始源码，两个 Unit 布局逐一复用原断言；额外要求无 deferred 且可验证，确定性正控保留 loans/drops 非空。
+- 保留仍依赖 Single 的其他合同。特别是两入口同名 `loans_ending_at` 含义不同：Single 检查实际 CallReturn 结束，Unit 只按调用筛选 loan 描述符。不能据此退休真实结束断言。未改变生产、公开入口、实验 CLI 或 CI。
+- macOS 固定工具链独立目标目录离线执行 `lang-frontend --test ownership_checking`：28 passed；三测试原始源码字面量逐字节对照一致。未运行 native、Linux 或远端 CI；SPEC-0341 仍 in-progress。

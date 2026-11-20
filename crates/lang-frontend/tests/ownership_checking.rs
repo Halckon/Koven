@@ -6,8 +6,8 @@ use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
     name_resolution::{NameEnvironment, resolve_names},
     ownership_checking::{
-        DropPoint, DropTarget, LoanKind, LoanTarget, OwnershipBindingKind, OwnershipCheckedFile,
-        OwnershipCheckingError, OwnershipDeferredReason, check_ownership,
+        LoanKind, LoanTarget, OwnershipBindingKind, OwnershipCheckedFile, OwnershipCheckingError,
+        OwnershipDeferredReason, UnitDropPoint, UnitDropTarget, check_ownership,
     },
     parser::ParsedFile,
     source::SourceMap,
@@ -526,79 +526,79 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
                         break\n\
                     }\n\
                 }";
-    let (sources, _, checked) = checked(text);
-    assert!(
-        checked.diagnostics().is_empty(),
-        "{:?}",
-        checked.diagnostics()
-    );
-
-    let named_origins = checked
-        .drops()
-        .iter()
-        .filter_map(|fact| match fact.target() {
-            DropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
-            DropTarget::Temporary(_)
-            | DropTarget::ReplacedElement(_)
-            | DropTarget::Captured { .. }
-            | DropTarget::RetainedSource(_) => None,
-        })
-        .collect::<Vec<_>>();
-    for expected in [
-        "unusedParameter",
-        "unused",
-        "used",
-        "replaced",
-        "early",
-        "branch",
-    ] {
+    for rooted in [false, true] {
+        let (sources, _, checked) =
+            nullable_unit::checked(text, "ownership.ko", rooted, environments());
         assert!(
-            named_origins.contains(&expected),
-            "missing {expected}: {named_origins:?}"
+            checked.diagnostics().is_empty(),
+            "{:?}",
+            checked.diagnostics()
+        );
+
+        assert!(checked.deferred().is_empty(), "{:?}", checked.deferred());
+        assert!(checked.clone().validate().is_ok());
+
+        let named_origins = checked
+            .drops()
+            .iter()
+            .filter_map(|fact| match fact.target() {
+                UnitDropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for expected in [
+            "unusedParameter",
+            "unused",
+            "used",
+            "replaced",
+            "early",
+            "branch",
+        ] {
+            assert!(
+                named_origins.contains(&expected),
+                "missing {expected}: {named_origins:?}"
+            );
+        }
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::FunctionEntry(_)))
+        );
+        assert!(checked.drops().iter().any(|fact| matches!(
+            fact.point(),
+            UnitDropPoint::CallReturn(_)
+        ) && matches!(
+            fact.target(),
+            UnitDropTarget::Named(_) | UnitDropTarget::Temporary(_)
+        )));
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::ControlTransfer(_)))
+        );
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::BranchExit { .. }))
+        );
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::LoopExit(_))),
+            "{:?}",
+            checked.drops()
+        );
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.target(), UnitDropTarget::Temporary(_)))
         );
     }
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::FunctionEntry(_)))
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::CallReturn(_))
-                && matches!(
-                    fact.target(),
-                    DropTarget::Named(_) | DropTarget::Temporary(_)
-                ))
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::ControlTransfer(_)))
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::BranchExit { .. }))
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::LoopExit(_))),
-        "{:?}",
-        checked.drops()
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.target(), DropTarget::Temporary(_)))
-    );
 }
 
 #[test]
@@ -612,17 +612,22 @@ fn moved_copyable_and_non_owning_values_never_gain_unique_drop_facts() {
                     val exclusiveRead = inspect(exclusive)\n\
                     val copied = number\n\
                 }";
-    let (sources, _, checked) = checked(text);
-    assert!(checked.diagnostics().is_empty());
-    let origins = checked
-        .drops()
-        .iter()
-        .map(|fact| sources.slice(fact.value_origin()).unwrap())
-        .collect::<Vec<_>>();
-    assert!(!origins.contains(&"owned"));
-    assert!(!origins.contains(&"shared"));
-    assert!(!origins.contains(&"exclusive"));
-    assert!(!origins.contains(&"number"));
+    for rooted in [false, true] {
+        let (sources, _, checked) =
+            nullable_unit::checked(text, "ownership.ko", rooted, environments());
+        assert!(checked.diagnostics().is_empty());
+        assert!(checked.deferred().is_empty());
+        assert!(checked.clone().validate().is_ok());
+        let origins = checked
+            .drops()
+            .iter()
+            .map(|fact| sources.slice(fact.value_origin()).unwrap())
+            .collect::<Vec<_>>();
+        assert!(!origins.contains(&"owned"));
+        assert!(!origins.contains(&"shared"));
+        assert!(!origins.contains(&"exclusive"));
+        assert!(!origins.contains(&"number"));
+    }
 }
 
 #[test]
@@ -700,25 +705,45 @@ fn ownership_facts_are_deterministic_across_repeated_checks() {
                     val first = inspect(input)\n\
                     val second = inspect(local)\n\
                 }";
-    let (_, _, first) = checked(text);
-    let (_, _, second) = checked(text);
+    for rooted in [false, true] {
+        let (_, _, first) = nullable_unit::checked(text, "ownership.ko", rooted, environments());
+        let (_, _, second) = nullable_unit::checked(text, "ownership.ko", rooted, environments());
+        assert!(first.diagnostics().is_empty() && second.diagnostics().is_empty());
+        assert!(first.deferred().is_empty() && second.deferred().is_empty());
+        assert!(first.clone().validate().is_ok() && second.clone().validate().is_ok());
+        assert_eq!(first.loans().len(), 2);
+        assert!(first.drops().len() >= 2);
 
-    assert_eq!(first.bindings(), second.bindings());
-    // Span 保留所属 SourceMap 的 owner identity，跨 map 不直接相等；稳定 debug 只暴露
-    // 可复现的 map-local SourceId、byte offset 与 AST/symbol identity。
-    assert_eq!(
-        format!("{:?}", first.loans()),
-        format!("{:?}", second.loans())
-    );
-    assert_eq!(
-        format!("{:?}", first.drops()),
-        format!("{:?}", second.drops())
-    );
-    assert_eq!(first.deferred(), second.deferred());
-    assert_eq!(
-        format!("{:?}", first.diagnostics()),
-        format!("{:?}", second.diagnostics())
-    );
+        let bindings = |owned: &lang_frontend::ownership_checking::CompilationUnitOwnership| {
+            owned
+                .bindings()
+                .iter()
+                .map(|binding| {
+                    (
+                        binding.symbol(),
+                        binding.kind(),
+                        format!("{:?}", binding.declaration_span()),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(bindings(&first), bindings(&second));
+        // Span 保留所属 SourceMap 的 owner identity，跨 map 不直接相等；稳定 debug 只暴露
+        // 可复现的 map-local SourceId、byte offset 与 AST/symbol identity。
+        assert_eq!(
+            format!("{:?}", first.loans()),
+            format!("{:?}", second.loans())
+        );
+        assert_eq!(
+            format!("{:?}", first.drops()),
+            format!("{:?}", second.drops())
+        );
+        assert_eq!(first.deferred(), second.deferred());
+        assert_eq!(
+            format!("{:?}", first.diagnostics()),
+            format!("{:?}", second.diagnostics())
+        );
+    }
 }
 
 #[test]
