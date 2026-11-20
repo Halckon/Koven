@@ -1,0 +1,53 @@
+// 经 flows 把拆出的独占视图移交到调用方槽位（直线与合流后别名）。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class MutSlice(inout source: Arr)
+view class MutHolder(slice: MutSlice, file: File) deinit
+fun update(inout a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+fun putMut(inout dst: MutSlice, own src: MutSlice): Unit flows src into dst {
+  *dst = move src
+}
+fun deliverMut(own this: MutHolder, inout dst: MutSlice): Unit flows this.slice.source into dst in MutHolder {
+  open this as slice, file
+  putMut(dst, move slice)
+}
+fun missingExclusiveFlow(own this: MutHolder, inout dst: MutSlice): Unit in MutHolder {  // ERR K6
+  open this as slice, file
+  putMut(dst, move slice)
+}
+fun deliverExclusiveStraight(own a: Arr, own b: Arr, own f: File): Unit {
+  val dst = MutSlice(&mut b)
+  deliverMut(MutHolder(MutSlice(&mut a), move f), &mut dst)
+  use(a.len)  // ERR K1
+  update(&mut a)  // ERR K1
+  use(b.len)  // ERR K1
+  update(&mut b)  // ERR K1
+  update(dst.source)
+}
+fun deliverExclusiveAfterRead(own a: Arr, own b: Arr, own f: File): Unit {
+  val dst = MutSlice(&mut b)
+  deliverMut(MutHolder(MutSlice(&mut a), move f), &mut dst)
+  update(dst.source)
+  use(a.len)
+  update(&mut a)
+  use(b.len)
+  update(&mut b)
+}
+fun deliverExclusiveThroughJoinedAlias(own a: Arr, own l: Arr, own r: Arr, own f: File): Unit {
+  val left = MutSlice(&mut l)
+  val right = MutSlice(&mut r)
+  val target = &mut left
+  if (*) {
+    target = &mut right
+  }
+  deliverMut(MutHolder(MutSlice(&mut a), move f), target)
+  mayFail()
+  update(left.source)
+  use(a.len)
+  update(&mut a)
+  use(l.len)
+  update(&mut l)
+  use(r.len)
+  update(&mut r)
+}

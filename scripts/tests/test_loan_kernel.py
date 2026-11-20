@@ -747,6 +747,64 @@ class LoanKernelCases(unittest.TestCase):
         found = CHECKER.DP.Verifier(types).run_all(program)
         self.assertEqual({"V1": [(0, 2)] * 6 + [(1, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
+    def test_opened_exclusive_view_flows_into_direct_and_joined_alias_slots(self):
+        source = (ROOT / "cases/Z16.lk").read_text(encoding="utf-8")
+        # 仅取 deliverExclusiveThroughJoinedAlias 构造合流、固定左、固定右三条路径的读写对照。
+        head = source.split("fun missingExclusiveFlow")[0]
+        alias_fun = "fun deliverExclusiveThroughJoinedAlias" + source.split("fun deliverExclusiveThroughJoinedAlias")[1]
+        base = head + alias_fun
+        probes = "".join(f"  use({n}.len)\n  update(&mut {n})\n" for n in ("a", "l", "r"))
+        left_only = "\n".join(
+            "" if line in ("  if (*) {", "    target = &mut right", "  }") else line
+            for line in base.splitlines()) + "\n"
+        right_only = base.replace("  if (*) {", "  {")
+        path_cases = (("join", base, ("a", "l"), ("a", "r")),
+                      ("left", left_only, ("a", "l"), ("r",)),
+                      ("right", right_only, ("l",), ("a", "r")))
+        for path, program, protects_left, protects_right in path_cases:
+            for slot, protected in (("left", protects_left), ("right", protects_right)):
+                with self.subTest(path=path, slot=slot):
+                    use_slot = f"  update({slot}.source)\n"
+                    after = program.replace("  update(left.source)\n", use_slot)
+                    before = after.replace(use_slot + probes, probes + use_slot)
+                    lines = {line: i for i, line in enumerate(before.splitlines(), 1)}
+                    wanted = {lines[f"  use({n}.len)"] for n in protected} | {lines[f"  update(&mut {n})"] for n in protected}
+                    self.assertEqual([], CHECKER.check(after))
+                    self.assertEqual({("K1", line) for line in wanted},
+                                     {(rule, line) for rule, line, _ in CHECKER.check(before)})
+
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        self.assertFalse(lowered["missingExclusiveFlow"][2])
+        self.assertTrue(lowered["deliverExclusiveAfterRead"][2])
+        types, program, accepted = lowered["deliverMut"]
+        self.assertTrue(accepted)
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("file", False)], call.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.clear()
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
+        types, program, accepted = lowered["deliverExclusiveThroughJoinedAlias"]
+        self.assertTrue(accepted)
+        delivery, after_delivery = [s for s in program if s.kind == "call"][:2]
+        expected_cleanup = [(name, False) for name in ("right", "left", "r", "l", "a")]
+        self.assertEqual(expected_cleanup, delivery.cleanup)
+        self.assertEqual(expected_cleanup, after_delivery.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        for slot in ("left", "right"):
+            with self.subTest(omitted=slot):
+                entry = (slot, False)
+                index = delivery.cleanup.index(entry)
+                delivery.cleanup.pop(index)
+                try:
+                    found = CHECKER.DP.Verifier(types).run_all(program)
+                    self.assertEqual({"V1": [(0, 2)] * 7 + [(1, 2)]},
+                                     {v.split()[0]: path for v, path in found.items()})
+                finally:
+                    delivery.cleanup.insert(index, entry)
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

@@ -1106,4 +1106,10 @@ fun probe(borrow h: A): Unit {
 
 `Z15.lk` 检验两类本地分支场景。其一，只在左臂用本地 `a` 重建 `MutHolder` 并拆出 `slice` 与 `file`：臂内最后一次使用 `slice` 前，读 `a` 与写 `a` 均报 K1，之后可读写；右臂保留原接收者，不限制对无关本地 `a` 的读写；合流后同样可读写 `a`。臂内与合流后的失败清理分别为 `file, slice, a`、`f, a, this` 与 `f?, a, this?`；漏掉左臂的 `slice` 或合流后的 `this`，检验器在对应路径报 V1。
 
-其二，外层 `out` 初始独占借用 `b`，左臂拆出携带 `a` 的 `slice` 并经 `out = move slice` 移到分支外。合流后在最后一次使用 `out` 前，读、写 `a` 与读、写 `b` 均报 K1；固定走左臂时整体赋值解除旧来源 `b`，仅读、写 `a` 报 K1；固定走右臂时仅读、写 `b` 报 K1；使用完 `out` 后四处均接受。臂内移交后的失败清单为 `file, out, b, a`（不再清理已移走的 `slice`），合流后为 `out, f?, b, a, this?`；漏掉臂内清单的 `out` 报 V1。无需修改检查器；独占子视图经 `flows` 移交调用方槽位仍未验证。
+其二，外层 `out` 初始独占借用 `b`，左臂拆出携带 `a` 的 `slice` 并经 `out = move slice` 移到分支外。合流后在最后一次使用 `out` 前，读、写 `a` 与读、写 `b` 均报 K1；固定走左臂时整体赋值解除旧来源 `b`，仅读、写 `a` 报 K1；固定走右臂时仅读、写 `b` 报 K1；使用完 `out` 后四处均接受。臂内移交后的失败清单为 `file, out, b, a`（不再清理已移走的 `slice`），合流后为 `out, f?, b, a, this?`；漏掉臂内清单的 `out` 报 V1。无需修改检查器；独占子视图经 `flows` 移交调用方槽位见 §54。
+
+## 54. 独占子视图经 `flows` 移交到调用方槽位与合流别名
+
+`Z16.lk` 的 `deliverMut` 拆出 `MutSlice` 后按值交给 `putMut`，声明 `flows this.slice.source into dst` 时接受，省略声明在签名处报 K6。直线移交后，`flows` 合同只并入来源、不解除旧独占来源 `b`：在最后一次使用 `dst` 前，对 `a` 与 `b` 的读、写均报 K1；使用完后四处均接受。
+
+在合流后经独占别名 `target` 移交的场景中，`target` 在分支后可能指向 `left` 或 `right`。合流后使用 `left` 前读、写 `a` 与 `l` 均报 K1，读、写 `r` 接受；使用 `right` 前读、写 `a` 与 `r` 均报 K1，读、写 `l` 接受。固定只指 `left` 时 `right` 仅保护 `r`，固定只指 `right` 时 `left` 仅保护 `l`；最后一次使用后均接受。`deliverMut` 失败时仅清理 `file`（漏掉报 V1）；调用者中 `deliverMut` 与随后的 `mayFail` 失败时均按 `right, left, r, l, a` 清理（漏掉 `left` 或 `right` 报 V1）。无需修改检查器；至此单借用字段（共享与独占）子视图的 `open` 主线已覆盖，多字段、嵌套、递归、容器或带 `deinit` 的子视图仍未验证。
