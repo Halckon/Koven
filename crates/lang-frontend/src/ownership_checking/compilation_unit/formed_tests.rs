@@ -54,6 +54,15 @@ impl Fixture {
         )
     }
 
+    pub(super) fn nullable_copy_source(path: &str, text: &str, rooted: bool) -> Self {
+        Self::with_setup(
+            &[(path, text)],
+            &[],
+            rooted.then_some("root"),
+            standard_environments(),
+        )
+    }
+
     pub(super) fn ownership_source(text: &str, rooted: bool) -> Self {
         Self::with_setup(
             &[("ownership.ko", text)],

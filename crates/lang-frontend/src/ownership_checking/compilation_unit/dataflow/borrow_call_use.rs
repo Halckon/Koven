@@ -13,6 +13,9 @@ use crate::{
     },
 };
 
+#[cfg(test)]
+pub(super) mod copy_test_observation;
+
 impl Checker<'_> {
     pub(super) fn borrow_call_argument(
         &self,
@@ -140,6 +143,13 @@ impl Checker<'_> {
             }
             transferred = true;
             if copies {
+                #[cfg(test)]
+                copy_test_observation::copy_removing(
+                    loan,
+                    self.unit_expression(call),
+                    self.unit_expression(argument),
+                    source_loan.argument(),
+                );
                 return false;
             }
             loan.owner = ActiveLoanOwner::Call(self.unit_expression(call));

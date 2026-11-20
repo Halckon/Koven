@@ -686,59 +686,6 @@ fn inout_receiver_and_nonreturning_sources_do_not_publish_call_uses() {
 }
 
 #[test]
-fn nullable_copy_ends_nested_source_before_the_next_operand() {
-    use lang_frontend::ownership_checking::{
-        DropPoint, LoanEndPoint, LoanKind, LoanTarget, UnitDropPoint, UnitLoanTarget,
-    };
-    let text = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun run() { var n: Int = 7; observe(value = ((view(n))), changed = &n) }";
-    for rooted in [false, true] {
-        let Checked { single, unit, .. } = checked(text, rooted);
-        assert!(
-            single.diagnostics().is_empty(),
-            "{:?}",
-            single.diagnostics()
-        );
-        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let [single_use] = single.borrow_results().call_uses() else {
-            panic!("expected one copy")
-        };
-        assert_eq!(
-            single_use.end_point(),
-            DropPoint::AfterExpression(single_use.argument())
-        );
-        assert!(
-            single
-                .loans()
-                .iter()
-                .any(|loan| loan.call() == single_use.call()
-                    && loan.kind() == LoanKind::Shared
-                    && loan.target() == &LoanTarget::Temporary(single_use.argument()))
-        );
-        let source = single_use.source_loan();
-        assert!(single.loan_ends().iter().any(|end| {
-            end.call() == source.call()
-                && end.argument() == source.argument()
-                && end.point() == LoanEndPoint::AfterExpression(single_use.argument())
-        }));
-        let [unit_use] = unit.borrow_results().call_uses() else {
-            panic!("expected one copy")
-        };
-        assert_eq!(
-            unit_use.end_point(),
-            UnitDropPoint::AfterExpression(unit_use.argument())
-        );
-        assert!(
-            unit.loans()
-                .iter()
-                .any(|loan| loan.call() == unit_use.call()
-                    && loan.kind() == LoanKind::Shared
-                    && loan.target() == &UnitLoanTarget::Temporary(unit_use.argument()))
-        );
-        assert!(unit.borrow_call_transports().is_empty());
-    }
-}
-
-#[test]
 fn nullable_copy_does_not_create_ownership_of_a_move_only_result() {
     let text = "fun view(source: String): borrow String from source = source\nfun observe(value: String?): Unit {}\nfun run() { val n = \"resource\"; observe(view(n)) }";
     for rooted in [false, true] {
