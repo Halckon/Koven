@@ -21735,3 +21735,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `0564374e`。原始源码逐字节保留，两个 Unit 布局均要求实际内层 Shared 在外层 Group 实参 AfterExpression 的 `retain_mut` 分支移除，随后同一 place 的外层第二个显式 inout 确实建立 Exclusive。核对原 call/argument/Span、同一外层调用与两事件顺序。
 - 外层 Shared 的目标仍为复制的 nullable temporary，不发普通借用转运。私有作用域探针仅 `cfg(test)`、无产物/API 变化；同一输入开关前后核对借用结果、loans、drops。只退休这一项旧 Single 测试，不外推为其他 nullable-copy 或全部 loan 结束等价。
 - macOS Rust 1.96.0 离线定点 1/1（两布局）；FE lib 900 passed / 14 ignored、`ownership_nested_borrow_arguments` 13 passed、`unit_direct_call_loan_ends` 358 passed。未运行 Linux、native 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：反序具名实参的同根双借用链测试迁移
+
+- 基于 `36c7ad95`，仅替换混合测试矩阵中的 `pair(second = view(source), first = view(source)); consume(source)`。原源码逐字节保留，源身份及布局经真实索引验证；其他五种形状仍走 Single/Unit 对账。
+- 由 AST 具名实参的源码次序锚定两份不同的 inner call/argument，逐一核对共享根与真实 source token 的 inner CallReturn handoff、outer CallReturn 中本链 consumer→source 的结束次序；不外推跨链全局顺序。原后续 `consume` 必须成功 Move 同一 place，既不析构借用 payload，也不由 caller 析构已交付根。
+- macOS Rust 1.96.0 离线定点 1/1（MemoryDocument / Rooted），`ownership_nested_borrow_arguments` 14 passed、`unit_direct_call_loan_ends` 358 passed。未运行 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。

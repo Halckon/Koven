@@ -2,7 +2,8 @@
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitId, SourceUnitInput, SourceUnitKey, index_compilation_unit,
+        resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
         CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
@@ -87,6 +88,7 @@ fn ordinary_entry(body: &str, rooted: bool) -> Checked {
 struct UnitChecked {
     sources: SourceMap,
     parsed: ParsedFile,
+    source_units: [SourceUnitId; 2],
     memory: CompilationUnitOwnership,
     rooted: CompilationUnitOwnership,
 }
@@ -106,14 +108,29 @@ fn ordinary_unit(body: &str) -> UnitChecked {
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let [memory, rooted] = [
-        SourceUnitInput::memory_document(source, &parsed),
-        SourceUnitInput::new("root", "nested_borrow.ko", source, &parsed),
+    let [(memory, memory_id), (rooted, rooted_id)] = [
+        (false, SourceUnitInput::memory_document(source, &parsed)),
+        (
+            true,
+            SourceUnitInput::new("root", "nested_borrow.ko", source, &parsed),
+        ),
     ]
-    .map(|input| {
+    .map(|(rooted, input)| {
         let inputs = [input];
         let index = index_compilation_unit(&sources, &inputs).unwrap();
         assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let [indexed] = index.source_units() else {
+            panic!("one original source");
+        };
+        assert_eq!(indexed.source_id(), source);
+        match (rooted, indexed.key()) {
+            (false, SourceUnitKey::MemoryDocument) => {}
+            (true, SourceUnitKey::Rooted { root, logical_path }) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), "nested_borrow.ko");
+            }
+            _ => panic!("expected requested Unit layout"),
+        }
         let names =
             resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
         assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
@@ -127,11 +144,12 @@ fn ordinary_unit(body: &str) -> UnitChecked {
         let owned =
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
         assert!(owned.is_compatible_with(&typed));
-        owned
+        (owned, indexed.id())
     });
     UnitChecked {
         sources,
         parsed,
+        source_units: [memory_id, rooted_id],
         memory,
         rooted,
     }
@@ -254,13 +272,134 @@ fn direct_and_grouped_results_are_synchronous_borrow_operands() {
 }
 
 #[test]
+fn reversed_named_same_owner_chains_end_before_consume() {
+    use lang_frontend::{
+        ownership_checking::{
+            LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind,
+        },
+        parser::Expression,
+        type_checking::UnitExpressionId,
+    };
+
+    let checked = ordinary_unit(
+        "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = view(source), first = view(source)); consume(source) }",
+    );
+    let expressions = checked.parsed.ast().expressions();
+    let node = |id| expressions.get(id).unwrap();
+    let text = |span| checked.sources.slice(span).unwrap();
+    let call_id = |spelling| {
+        let matches: Vec<_> = expressions
+            .iter()
+            .filter_map(|(id, node)| (text(node.span()) == spelling).then_some(id))
+            .collect();
+        let [id] = matches.as_slice() else {
+            panic!("expected one expression spelling {spelling}");
+        };
+        *id
+    };
+    let pair_id = call_id("pair(second = view(source), first = view(source))");
+    let consume_id = call_id("consume(source)");
+    let arguments = |id| {
+        let Expression::Call { arguments, .. } = node(id).payload() else {
+            panic!("expected an ordinary call");
+        };
+        arguments.as_slice()
+    };
+    let [second, first] = arguments(pair_id) else {
+        panic!("expected two named arguments in source order");
+    };
+    let [consume] = arguments(consume_id) else {
+        panic!("expected the original consuming argument");
+    };
+    assert_eq!(text(second.named_prefix.unwrap().name_span), "second");
+    assert_eq!(text(first.named_prefix.unwrap().name_span), "first");
+    assert_ne!(second.value, first.value);
+    assert!(node(pair_id).span().end() < node(consume_id).span().start());
+
+    for (unit, source_unit) in [checked.memory, checked.rooted]
+        .into_iter()
+        .zip(checked.source_units)
+    {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let [second_use, first_use] = unit.borrow_results().call_uses() else {
+            panic!("expected two borrow uses in source order");
+        };
+        let [end_a, end_b] = unit.borrow_call_transports() else {
+            panic!("expected each same-root chain to retire at the consumer");
+        };
+        let [delivery] = unit.value_deliveries() else {
+            panic!("expected the later ownership transfer");
+        };
+        let qualified = |id| UnitExpressionId::new(source_unit, id);
+        let pair = qualified(pair_id);
+        let root = delivery.place().expect("consume must move the named owner");
+        assert_eq!(delivery.call(), qualified(consume_id));
+        assert_eq!(delivery.argument(), qualified(consume.value));
+        assert_eq!(delivery.kind(), UnitValueDeliveryKind::Move);
+        assert_eq!(delivery.span(), node(consume.value).span());
+        assert_eq!(text(delivery.span()), "source");
+
+        // Match by exact operand identity, not just the shared owner root.
+        // The API proves consumer-before-source in each separate transaction.
+        for (argument, usage) in [(second, second_use), (first, first_use)] {
+            let [source_argument] = arguments(argument.value) else {
+                panic!("expected one source operand to view");
+            };
+            let inner = qualified(argument.value);
+            let operand = qualified(source_argument.value);
+            assert_eq!(text(node(argument.value).span()), "view(source)");
+            assert_eq!(text(node(source_argument.value).span()), "source");
+            let end = [end_a, end_b]
+                .into_iter()
+                .find(|end| end.ended_loans()[0].argument() == inner)
+                .expect("unique real transport for this source operand");
+            let [consumer, source] = end.ended_loans();
+            assert_eq!((consumer.call(), consumer.argument()), (pair, inner));
+            assert_eq!((source.call(), source.argument()), (inner, operand));
+            assert_eq!((usage.call(), usage.argument()), (pair, inner));
+            assert_eq!(usage.expression(), inner);
+            assert_eq!(usage.source_loan().call(), inner);
+            assert_eq!(usage.source_loan().argument(), operand);
+            assert_eq!(usage.origin(), &UnitLoanTarget::Place(root.clone()));
+            for loan in [consumer, source] {
+                assert_eq!(loan.kind(), LoanKind::Shared);
+                assert_eq!(loan.target(), usage.origin());
+                assert!(unit.loans().contains(loan));
+                assert!(
+                    !unit
+                        .direct_call_loan_ends()
+                        .iter()
+                        .any(|direct| direct.loan() == loan)
+                );
+            }
+            assert_eq!(end.handoff_point(), UnitDropPoint::CallReturn(inner));
+            assert_eq!(end.point(), UnitDropPoint::CallReturn(pair));
+            assert_eq!(usage.end_point(), end.point());
+            assert!(
+                !unit
+                    .drops()
+                    .iter()
+                    .any(|drop| drop.target() == UnitDropTarget::Temporary(inner))
+            );
+        }
+        assert!(
+            !unit
+                .drops()
+                .iter()
+                .any(|drop| drop.target() == UnitDropTarget::Named(root.root()))
+        );
+        assert!(unit.validate().is_ok());
+    }
+}
+
+#[test]
 fn named_mixed_arguments_and_multiple_result_chains_follow_source_order() {
     for rooted in [false, true] {
         for body in [
             "fun select(aux: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val aux = \"aux\"; observe(select(source = source, aux = aux)); consume(source) }",
             "fun select(own aux: Int, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source = source, aux = 7)); consume(source) }",
             "class Resource { deinit() {} }\nfun select(source: String, own aux: Resource): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source, Resource())); consume(source) }",
-            "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = view(source), first = view(source)); consume(source) }",
             "fun pair(first: String, second: String) {}\nfun run() { val first = \"one\"; val second = \"two\"; pair(view(first), view(second)); consume(first); consume(second) }",
             "fun pair(first: String, own count: Int) {}\nfun length(source: String): Int = 1\nfun run() { val source = \"kept\"; pair(view(source), length(source)); consume(source) }",
         ] {
