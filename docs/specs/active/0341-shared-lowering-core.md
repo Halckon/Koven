@@ -21741,3 +21741,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `36c7ad95`，仅替换混合测试矩阵中的 `pair(second = view(source), first = view(source)); consume(source)`。原源码逐字节保留，源身份及布局经真实索引验证；其他五种形状仍走 Single/Unit 对账。
 - 由 AST 具名实参的源码次序锚定两份不同的 inner call/argument，逐一核对共享根与真实 source token 的 inner CallReturn handoff、outer CallReturn 中本链 consumer→source 的结束次序；不外推跨链全局顺序。原后续 `consume` 必须成功 Move 同一 place，既不析构借用 payload，也不由 caller 析构已交付根。
 - macOS Rust 1.96.0 离线定点 1/1（MemoryDocument / Rooted），`ownership_nested_borrow_arguments` 14 passed、`unit_direct_call_loan_ends` 358 passed。未运行 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：根资源 replace/swap 的实例身份测试迁移
+
+- 基于 `c2249969`。原 `resource_replace_and_swap_transport_distinct_owner_definitions_once` 源码逐字节保存为共享 fixture。MemoryDocument / Rooted 均检查两次原子操作、严格三个非条件词法具名析构（old、second、first）及无隐藏临时/旧根析构；保留 FE 测试，移除本项 Single 调用。
+- 同一原源码的 Unit typed SSA 以根 replace→swap→tick→三次 Drop→Return 验证实际边界；同一已验证产物转 LLVM、链接运行，三个实际活分配地址以 Resource(1)→Resource(3)→Resource(2) 逐地址唯一释放。诊断 span 不用作 owner token。
+- macOS Rust 1.96.0 / LLVM 21，FE `ownership_resource_deinit` 31 passed、codegen 定点 1/1（两布局含 native）。未运行 Linux 或远端 CI；生产、API、CI 未改，SPEC-0341 仍 in-progress。其余 Return/Abort、字段实例身份与有意差异见证维持旧路径。

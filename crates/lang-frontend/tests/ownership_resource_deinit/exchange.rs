@@ -151,41 +151,37 @@ fn aborting_resource_replacement_does_not_unwind_lexical_owners() {
 }
 
 #[test]
-fn resource_replace_and_swap_transport_distinct_owner_definitions_once() {
-    use lang_frontend::ownership_checking::CleanupOwnerValue;
-    let text = "class Resource(val id: Int) { deinit() {} }\nfun tick(): Unit {}\nfun run(): Unit { var first = Resource(1); var second = Resource(2); val old = replace(&first, Resource(3)); swap(&first, &second); tick() }";
-    inspected_plans(text, |sources, parsed, single, unit| {
-        assert_eq!(single.ownership_primitives().len(), 2);
+fn resource_replace_and_swap_keep_three_named_lexical_drops() {
+    let text = include_str!("fixtures/root-resource-exchange.ko");
+    // Exact instance identity is tested on the same source by the Unit SSA/native consumer.
+    let plans = unit_plans::inspected_plans(text, |_, _, unit| {
         assert_eq!(unit.ownership_primitives().len(), 2);
-        assert_eq!(
-            single.drops().len(),
-            3,
-            "no hidden temporary or old-place drop"
-        );
         assert_eq!(
             unit.drops().len(),
             3,
             "no hidden temporary or old-place drop"
         );
-        let origins = single
-            .drops()
-            .iter()
-            .map(|drop| {
-                assert!(drop.condition().is_none());
-                let owner = drop.owner().expect("named resource has an owner identity");
-                let Some(CleanupOwnerValue::Expression { expression, .. }) =
-                    single.cleanup_conditions().owner_value(owner)
-                else {
-                    panic!("resource must keep its original expression identity");
-                };
-                sources
-                    .slice(parsed.ast().expressions().get(*expression).unwrap().span())
-                    .unwrap()
-            })
-            .collect::<Vec<_>>();
-        // old receives Resource(1); swap sends Resource(3) to second and Resource(2) to first.
-        assert_eq!(origins, ["Resource(1)", "Resource(3)", "Resource(2)"]);
+        assert!(
+            unit.drops()
+                .iter()
+                .all(|drop| !drop.is_conditional_temporary())
+        );
+        assert!(unit.clone().validate().is_ok());
     });
+    for drops in plans {
+        assert_eq!(
+            drops
+                .iter()
+                .map(|drop| drop.name.as_str())
+                .collect::<Vec<_>>(),
+            ["old", "second", "first"]
+        );
+        assert!(
+            drops
+                .iter()
+                .all(|drop| drop.boundary == "statement" && text.ends_with(&drop.text))
+        );
+    }
 }
 
 #[test]

@@ -260,6 +260,8 @@ pub(in crate::ssa) use rc_nullable_while_bounded_tests::unit_root_primitive_test
 pub(in crate::ssa) mod unit_field_borrow_tests;
 #[cfg(test)]
 mod unit_field_replace_tests;
+#[cfg(test)]
+mod unit_resource_exchange_owner_tests;
 
 #[cfg(test)]
 pub(in crate::ssa) mod lowering_support_tests;
