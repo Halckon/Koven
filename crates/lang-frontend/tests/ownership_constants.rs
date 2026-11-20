@@ -152,12 +152,7 @@ fun use(own input: String): Unit {
     val third = take(input)
 }
 "#;
-    let (sources, _, owned) = analyzed(text);
-    assert!(!owned.diagnostics().is_empty());
-    assert!(owned.constant_materializations().is_none());
-    assert!(owned.drops().is_empty());
-    assert!(owned.loans().is_empty());
-    unit_failure::check(&sources, owned.diagnostics());
+    unit_failure::check(text);
 }
 
 #[test]

@@ -21777,3 +21777,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `67cefb18`，原 `observe(select(source = source, aux = aux)); consume(source)` 完整源码逐字节保留，MemoryDocument / Rooted 各证明原源码参数次序、独立两个局部 owner 及同一外层同步使用。仅退役混合六形态矩阵最后一项 Single 对账；其他泛型、父借用、nullable 专项旧证据不变。
 - 复用已有私有 `cfg(test)` pending-token 探针，不新增生产/feature 观测。逐相同全字段 loan 核实真实注册顺序、inner CallReturn 实际移除辅助 token、只析构独立 aux owner、再注册外层 consumer；on/off facts、catalog 与运输产物相同。公开 catalog 另核实 source/consumer 的真实 acquisition/handoff ID 及本链 consumer→source 退休，源根最后 Move；不把两类表冒充跨路径或一般完整流。
 - Mac Rust 1.96.0 离线定点 1/1（双布局），FE lib 901 passed / 14 ignored、`ownership_nested_borrow_arguments` 17 passed、`unit_direct_call_loan_ends` 358 passed。未跑 Linux、native、远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：常量物化失败的完整诊断固定 oracle
+
+- 基于 `1cfbc1be`，只迁移 `ownership_failure_clears_materialization_capability`。原常量与三次交付源码未改。在原 AST 独立选两次 `take(input)` 的 operand：后者为 L0131 主范围，前者为已移动标签；固定 Error、完整消息和有序标签曾与尚未移除的 Single 诊断逐字段相等。
+- MemoryDocument / Rooted 对照完整固定诊断，额外标签指向真实 `own text: String` 声明；保留 validated constant type 身份、原子撤销 materializations/loans/drops 及拒绝 ownership capability。未碰同套其它 Single 见证或有意差异。
+- Mac Rust 1.96.0 离线定点 1/1；`ownership_constants` 17、`multifile_constant_ownership` 23、`const_owned_compilation_unit_view` 4 通过。未跑 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
