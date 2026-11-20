@@ -273,7 +273,9 @@ class LoanKernelCases(unittest.TestCase):
                           ("writeAfterConditionalDeliveryRead", "f"),
                           ("readAfterTwoDeliveries", "f"), ("readAfterTwoDeliveries", "g"),
                           ("deliverToSeparateSlots", "f"), ("deliverToSeparateSlots", "g"),
-                          ("deliverThroughAlias", "f"), ("deliverThroughAlias", "g")},
+                          ("deliverThroughAlias", "f"), ("deliverThroughAlias", "g"),
+                          ("openExclusiveInOneArm", "this"), ("openExclusiveInOneArm", "f"),
+                          ("moveExclusiveOutOfArm", "this"), ("moveExclusiveOutOfArm", "f")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -691,6 +693,59 @@ class LoanKernelCases(unittest.TestCase):
         call.cleanup.pop()  # 只在调用失败时漏掉独占视图的清理
         found = CHECKER.DP.Verifier(types).run_all(program)
         self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
+    def test_one_arm_open_and_branch_exit_for_exclusive_view(self):
+        source = (ROOT / "cases/Z15.lk").read_text(encoding="utf-8")
+        # 仅取 moveExclusiveOutOfArm 构造合流、固定左臂、固定右臂对照。
+        head = source.split("fun openExclusiveInOneArm")[0]
+        move_fun = "fun moveExclusiveOutOfArm" + source.split("fun moveExclusiveOutOfArm")[1]
+        base = head + move_fun
+        use_out = "  update(out.source)\n"
+        probes = "  use(a.len)\n  update(&mut a)\n  use(b.len)\n  update(&mut b)\n"
+        before = base.replace(use_out + probes, probes + use_out)
+        left_only = before.replace("  if (*) {", "  {")
+        right_only = "\n".join("" if line.startswith("    ") else line for line in left_only.splitlines()) + "\n"
+        lines = {line: i for i, line in enumerate(before.splitlines(), 1)}
+        a_lines = {lines["  use(a.len)"], lines["  update(&mut a)"]}
+        b_lines = {lines["  use(b.len)"], lines["  update(&mut b)"]}
+        for path, program, wanted in (("join", before, a_lines | b_lines),
+                                      ("left", left_only, a_lines),
+                                      ("right", right_only, b_lines)):
+            with self.subTest(path=path):
+                self.assertEqual({("K1", line) for line in wanted},
+                                 {(rule, line) for rule, line, _ in CHECKER.check(program)})
+
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        types, program, accepted = lowered["openExclusiveInOneArm"]
+        self.assertTrue(accepted)
+        branch = next(s for s in program if s.kind == "if")
+        left, right, joined = [next(s for s in path if s.kind == "call")
+                               for path in (branch.body, branch.orelse, program)]
+        self.assertEqual([("file", False), ("slice", False), ("a", False)], left.cleanup)
+        self.assertEqual([("f", False), ("a", False), ("this", False)], right.cleanup)
+        self.assertEqual([("f", True), ("a", False), ("this", True)], joined.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        left.cleanup.remove(("slice", False))
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2)] * 4 + [(1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+        left.cleanup.insert(1, ("slice", False))
+        joined.cleanup.remove(("this", True))
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2)] * 3 + [(1, 2), (0, 2), (0, 2), (1, 2)]},
+                         {v.split()[0]: path for v, path in found.items()})
+
+        types, program, accepted = lowered["moveExclusiveOutOfArm"]
+        self.assertTrue(accepted)
+        branch = next(s for s in program if s.kind == "if")
+        inside = next(s for s in branch.body if s.kind == "call")
+        joined = next(s for s in program if s.kind == "call")
+        self.assertEqual([("file", False), ("out", False), ("b", False), ("a", False)], inside.cleanup)
+        self.assertEqual([("out", False), ("f", True), ("b", False), ("a", False), ("this", True)], joined.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        inside.cleanup.remove(("out", False))
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2)] * 6 + [(1, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

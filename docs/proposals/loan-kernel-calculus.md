@@ -1100,4 +1100,10 @@ fun probe(borrow h: A): Unit {
 
 `Z14.lk` 的 `MutHolder` 是带 `deinit` 的视图，按值持有 `MutSlice(inout source: Arr)` 和 `File`。放开 `open` 接受单 `inout` 借用字段的非递归普通子视图（多字段视图仍在 `Z5.lk` 报 K25）：`open this as slice, file` 把 `this` 名下的独占来源转移到新绑定 `slice.source` 下，不新建 loan 也不留在已消费的 `this` 名下。
 
-用本地 `a` 构造接收者并拆解后，在最后一次使用 `slice` 前读 `a` 或写 `a` 均报 K1，经 `slice.source` 写 `a` 接受；最后一次使用后读、写 `a` 均接受。对拆出的独占视图做隐式复制报 K8。原接收者的独占来源既可按 `from this.slice.source` 转发 `inout Int`，也可按值返回 `move slice` 并由调用方继续保护原存储；省略 `from` 或换成本地来源后返回均报 K6。正常退出与调用失败均按 `file, slice` 清理；只漏掉失败清单中的 `slice`，检验器在调用失败时报 V1。未验证独占子视图的分支/循环拆解与 `flows` 移交，也未验证多字段、递归、容器或带 `deinit` 的子视图。
+用本地 `a` 构造接收者并拆解后，在最后一次使用 `slice` 前读 `a` 或写 `a` 均报 K1，经 `slice.source` 写 `a` 接受；最后一次使用后读、写 `a` 均接受。对拆出的独占视图做隐式复制报 K8。原接收者的独占来源既可按 `from this.slice.source` 转发 `inout Int`，也可按值返回 `move slice` 并由调用方继续保护原存储；省略 `from` 或换成本地来源后返回均报 K6。正常退出与调用失败均按 `file, slice` 清理；只漏掉失败清单中的 `slice`，检验器在调用失败时报 V1。单臂拆解与移出分支见 §53。
+
+## 53. 独占子视图的单臂拆解与移出分支
+
+`Z15.lk` 检验两类本地分支场景。其一，只在左臂用本地 `a` 重建 `MutHolder` 并拆出 `slice` 与 `file`：臂内最后一次使用 `slice` 前，读 `a` 与写 `a` 均报 K1，之后可读写；右臂保留原接收者，不限制对无关本地 `a` 的读写；合流后同样可读写 `a`。臂内与合流后的失败清理分别为 `file, slice, a`、`f, a, this` 与 `f?, a, this?`；漏掉左臂的 `slice` 或合流后的 `this`，检验器在对应路径报 V1。
+
+其二，外层 `out` 初始独占借用 `b`，左臂拆出携带 `a` 的 `slice` 并经 `out = move slice` 移到分支外。合流后在最后一次使用 `out` 前，读、写 `a` 与读、写 `b` 均报 K1；固定走左臂时整体赋值解除旧来源 `b`，仅读、写 `a` 报 K1；固定走右臂时仅读、写 `b` 报 K1；使用完 `out` 后四处均接受。臂内移交后的失败清单为 `file, out, b, a`（不再清理已移走的 `slice`），合流后为 `out, f?, b, a, this?`；漏掉臂内清单的 `out` 报 V1。无需修改检查器；独占子视图经 `flows` 移交调用方槽位仍未验证。
