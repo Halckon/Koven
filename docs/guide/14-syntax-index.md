@@ -24,10 +24,10 @@
 | 声明 | `val`、`var`、`const val`、`fun` | [声明语法](05-declarations-callables.md#声明语法) |
 | 声明 | callable 参数 marker 与函数返回标注 | [Callable 与函数值](05-declarations-callables.md#callable-与函数值) |
 | 声明 | 无体、表达式体与 block body | [函数 Body 三形态](06-blocks-control-flow.md#函数-body-三形态) |
-| 控制流 | block 与 block element | [Block 与函数 Body](06-blocks-control-flow.md#block-与函数-body) |
+| 控制流 | 显式块 `block { ... }` 与 block element | [Block 与函数 Body](06-blocks-control-flow.md#block-与函数-body) |
 | 控制流 | `if`、`when`、`while`、`for`、`loop`、jump | [控制流语法与语义](06-blocks-control-flow.md#控制流语法与语义) |
 | 调用与 Lambda | lambda literal、header 与 `return` 边界 | [Lambda literal](07-calls-lambdas-closures.md#lambda-literal) |
-| 调用与 Lambda | 尾 lambda | [尾 lambda 调用糖](07-calls-lambdas-closures.md#尾-lambda-调用糖) |
+| 调用与 Lambda | 尾 lambda（含闭合 `(...)` 后跨行） | [尾 lambda 调用糖](07-calls-lambdas-closures.md#尾-lambda-调用糖) |
 | 调用与 Lambda | 隐式 `it` | [无显式 header lambda 的隐式 `it`](07-calls-lambdas-closures.md#无显式-header-lambda-的隐式-it) |
 | 调用与 Lambda | named、自动 Borrow、`&` 调用实参 | [Typed call argument](07-calls-lambdas-closures.md#typed-call-argument) |
 | 类型声明 | class/value/interface/enum/object/companion | [Class Family 声明](08-class-family-members.md#class-family-声明) |

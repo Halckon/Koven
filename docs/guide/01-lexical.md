@@ -74,11 +74,12 @@ super       this        true
 ### 声明修饰与控制流上下文关键字
 
 ```
-value       loop        own         borrow      inout       move
+value       loop        block       own         borrow      inout       move
 ```
 
 - `value`：仅在类型声明起始处修饰 `value class` 时作为关键字；在成员名（如 `node.value`、`owner.value`）、函数参数名（如 `println(value: String)`、`Ok(value: T)`）或局部变量名时均为普通 `Identifier`。
 - `loop`：仅在无条件循环语句（`loop { ... }`）起始处识别为控制流关键字；在成员名或变量名处为普通 `Identifier`。
+- `block`：按形状保留而非全局硬关键字；仅当未限定名 `block` 与 `{` 同行且位于语句起点时解析为显式词法作用域块 `Statement::Block`（表达式位置的 `block { ... }` 明确报 `L0009`，不回退为尾 lambda 调用）；在变量名（`val block`）、普通调用（`block(...)`、`block({ ... })`）与成员访问/调用（`obj.block { ... }`）中均为普通 `Identifier`（见[Block 与函数 Body](06-blocks-control-flow.md#block-与函数-body)）。
 - `own` / `borrow` / `inout`：仅在具名函数参数模式（如 `own x: T`、`borrow y: T`、`inout z: T`）、函数类型签名（如 `(own T) -> R`）或实例方法 receiver 声明的模式位置识别为模式关键字；在调用表达式或标识符位置（如 `borrow(x)`、`cell.borrow()`、`own()`）均为普通 `Identifier`。调用处不识别 `borrow` 模式标记。
 - `move`：仅在 lambda 表达式前缀（`move { ... }`）或逃逸函数类型前缀（`move () -> R`）识别为逃逸/移动捕获关键字；在成员名或方法调用位置（如 `player.move()`）均为普通 `Identifier`。
 

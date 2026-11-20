@@ -254,17 +254,20 @@ lambda_element     = local_variable_statement
 ```
 
 Lambda 是 expression primary，可以继续接受 call、member、index 等 postfix。expression 已经
-要求一个 primary 时，`{` 提交 lambda；block dispatch 在 element 起点直接看到 `{` 时仍提交
-nested block。因而 `val f = { x }` 的 initializer 是零参数 lambda，body 尾值为 `x`；`{ x }`
-作为外层 block 的直接 element 则是 nested block。需要在 statement 位置强制表达 lambda 时可写
-`({ x })`。`move { ... }` 只能是 lambda。同行的 trailing lambda
-（`f { ... }`）；跨换行仍把 `{ ... }` 留给后续 nested block element。
+要求一个 primary 时，`{` 提交 lambda；语句位置的独立词法作用域块统一写作 `block { ... }`，
+block / lambda body dispatch 在 element 起点直接看到独立裸 `{` 时不再提交 nested block，而是报
+`L0030` / `L0032` 并提示改用 `block { ... }`。因而 `val f = { x }` 的 initializer 是零参数 lambda，
+body 尾值为 `x`；需要在 statement 位置强制表达 lambda 时可写 `({ x })`。`move { ... }` 只能是
+lambda，绝不与裸执行块混为一谈。同行无括号 trailing lambda（`f { ... }`、`f<T> { ... }`）保持合法；
+已闭合圆括号实参列表的调用（`f()`、`f<T>()`、`obj.m()`）允许跨换行附着唯一一个尾 lambda `{ ... }`；
+未带圆括号的裸名跨行 `f\n{ ... }` 与 `f<T>\n{ ... }` 不附着。
 
-[block 与控制流规则](06-blocks-control-flow.md)的 `{` soft element stop 因此是 parser-state-sensitive 的：已有完整左表达式且没有运算符
-要求右 operand 时，顶层 `{` 留给下一 nested-block element；initializer 起点、prefix / binary
-右 operand、grouped expression 或 call argument 等正在等待 primary 的位置则必须让 `{` 进入
-lambda parser。`x { y }` 是一个尾 lambda call，`x\n{ y }` 才是 expression
-statement `x` 后接 nested block；`x + { y }` 的右侧仍是 lambda。该判定只依赖语法状态和
+[block 与控制流规则](06-blocks-control-flow.md)的 `{` soft element stop 因此是 parser-state-sensitive 的：
+已有完整左表达式且不满足同行或已闭合圆括号跨行尾 lambda 条件、也没有运算符要求右 operand 时，
+顶层 `{` 交回外层 dispatch（在语句起点按裸块报错）；initializer 起点、prefix / binary 右 operand、
+grouped expression 或 call argument 等正在等待 primary 的位置则必须让 `{` 进入 lambda parser。
+`x { y }` 与 `f()\n{ y }` 均为尾 lambda call，`x\n{ y }` 则是 expression statement `x` 后接非法裸块
+（若需独立作用域块须写作 `x\nblock { y }`）；`x + { y }` 的右侧仍是 lambda。该判定只依赖语法状态和
 尾 lambda 的换行边界，不依赖名称或推测类型。
 
 `->` 前允许零个或多个逗号分隔的普通 Identifier；`{ -> e }` 是显式零参数形式。参数不接受
@@ -352,8 +355,8 @@ receiver.consume(1) { item -> item }
   `(...)` 时，把 lambda 追加为同一个 call 的最后一个普通 `CallArgument`，并把 call span 扩到
   lambda 的 `}`。不得把 `f() {}` 表示成“先调用 `f()`、再调用其结果”的第二个 call。
 - 尾 lambda 的 `CallArgument` 没有 name 或显式 mode；需要命名或 `&` 标注时仍写在
-  圆括号内。每个 call 最多接受一个同行尾 lambda，第二个同行的 `{ ... }` 继续形成
-  trailing-input 语法错误，而不是隐式调用前一个 call 的结果。
+  圆括号内。每个 call 最多接受一个尾 lambda（同行或已闭合 `(...)` 后跨行），第二个 `{ ... }`
+  继续形成语法错误，而不是隐式调用前一个 call 的结果。
 - typed/member/chained callee 复用同一规则；失败的 `<...>` call-type-argument 试探仍必须零状态
   回退，不能仅因后方存在 `{` 就把比较表达式重解释为 typed call。
 - 尾 lambda 本身不增加新的 lambda body 语义；下一节为全部无显式 header lambda 定义隐式
