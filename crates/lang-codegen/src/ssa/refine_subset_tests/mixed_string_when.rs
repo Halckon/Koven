@@ -94,7 +94,7 @@ fun main(): Unit {
     println("ok")
 }
 "#;
-    audit_bounded_native(source, "tail");
+    audit_bounded_native(source, "tail", NativeUnitLayout::Rooted);
 }
 
 const LOCAL_VAL_NATIVE: &str = r#"package p
@@ -117,7 +117,7 @@ fun main(): Unit {
 
 #[test]
 fn direct_local_val_returns_exact_call_result_through_native_entry() {
-    audit_bounded_native(LOCAL_VAL_NATIVE, "val");
+    audit_local_val_in_both_unit_layouts(LOCAL_VAL_NATIVE, "val");
 }
 
 #[test]
@@ -131,15 +131,45 @@ fn grouped_local_val_returns_exact_call_result_through_native_entry() {
         );
     assert!(source.contains("val result = (outer("));
     assert!(source.contains("else -> n }))\n    return result"));
-    audit_bounded_native(&source, "grouped val");
+    audit_local_val_in_both_unit_layouts(&source, "grouped val");
 }
 
-fn audit_bounded_native(source: &str, case: &str) {
+#[derive(Clone, Copy, Debug)]
+enum NativeUnitLayout {
+    MemoryDocument,
+    Rooted,
+}
+
+fn audit_local_val_in_both_unit_layouts(source: &str, case: &str) {
+    for layout in [NativeUnitLayout::MemoryDocument, NativeUnitLayout::Rooted] {
+        audit_bounded_native(source, case, layout);
+    }
+}
+
+fn audit_bounded_native(source: &str, case: &str, layout: NativeUnitLayout) {
+    use lang_frontend::name_resolution::SourceUnitKey;
+    let case = format!("{layout:?}/{case}");
     let mut sources = SourceMap::new();
     let (id, file) = parsed(&mut sources, "p/main.ko", source);
-    let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+    assert_eq!(sources.source_text(id), Ok(source), "{case}");
+    let inputs = [match layout {
+        NativeUnitLayout::MemoryDocument => SourceUnitInput::memory_document(id, &file),
+        NativeUnitLayout::Rooted => SourceUnitInput::new("root", "p/main.ko", id, &file),
+    }];
     let (ne, te) = standard_environments();
     let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
+    let [document] = names.names().index().source_units() else {
+        panic!("{case}: one unchanged source");
+    };
+    assert_eq!(document.source_id(), id, "{case}");
+    match (layout, document.key()) {
+        (NativeUnitLayout::MemoryDocument, SourceUnitKey::MemoryDocument) => {}
+        (NativeUnitLayout::Rooted, SourceUnitKey::Rooted { root, logical_path }) => {
+            assert_eq!(root.as_str(), "root", "{case}");
+            assert_eq!(logical_path.as_str(), "p/main.ko", "{case}");
+        }
+        (_, key) => panic!("{case}: unexpected source key {key:?}"),
+    }
     let entry = declaration(&names, "p", "main");
     let (result, routes) = observe_routing(|| {
         lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)

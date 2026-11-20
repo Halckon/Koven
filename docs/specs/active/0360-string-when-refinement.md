@@ -139,3 +139,8 @@ Mac 定向 8/8，两种 Unit 布局的路由与内层清理事实一致。若单
 `return (直接调用)`，最小候选仅在既有末尾 Return 匹配处复用单层透明 Group
 核验，并继续用内层调用身份匹配 §6 的全部事实；不以递归去括号同时准入双层、
 括号包裹绑定读取或其他位置。本轮未改变生产通路。
+
+裸初始化与单层括号初始化的原 native 入口另以同一夹具字节通过真实 `MemoryDocument`
+及 rooted Unit，共四个实际 Program。每格从同一次实际路由得到的产物验 SSA、渲染 LLVM、
+链接并运行；入口四次调用各得 `1/10/0/9`，按各自分配身份恰好释放一次。
+Mac 的 `mixed_string_when` 定向（同 Targeted feature）8/8；本次未运行 Linux 或 hosted CI。
