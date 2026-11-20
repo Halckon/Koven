@@ -710,7 +710,12 @@ fun f(s: String, flag: Boolean): Int {
 }
 
 #[test]
-fn local_initializer_neighbor_shapes_keep_string_when_fallback_rejection() {
+fn terminal_call_group_position_matrix_keeps_exact_cleanup_and_route_boundary() {
+    use lang_frontend::{
+        ownership_checking::{LoanKind, UnitDropTarget, UnitLoanTarget},
+        parser::Expression,
+        type_checking::{BuiltinType, CallableResultSource, UnitExpressionId, UnitTypeKind},
+    };
     const PREFIX: &str = r#"package p
 class Node()
 fun outer(node: Node, own r: Int): Int = r + 9
@@ -718,23 +723,43 @@ fun f(s: String, flag: Boolean): Int {
     val n = when (s) { "a" -> 1; else -> 0 }
 "#;
     const CALL: &str = "outer(Node(), when (flag) { true -> return n\n else -> n })";
-    for (shape, body) in [
-        ("mutable", format!("var result = {CALL}\n    return result")),
+    for (shape, body, refined) in [
+        ("bare tail", format!("return {CALL}"), true),
+        ("grouped tail", format!("return ({CALL})"), false),
+        (
+            "bare initializer",
+            format!("val result = {CALL}\n    return result"),
+            true,
+        ),
+        (
+            "single-group initializer",
+            format!("val result = ({CALL})\n    return result"),
+            true,
+        ),
+        (
+            "double-group initializer",
+            format!("val result = (({CALL}))\n    return result"),
+            false,
+        ),
+        (
+            "grouped binder use",
+            format!("val result = ({CALL})\n    return (result)"),
+            false,
+        ),
+        (
+            "mutable",
+            format!("var result = {CALL}\n    return result"),
+            false,
+        ),
         (
             "different symbol",
             format!("val result = {CALL}\n    return n"),
-        ),
-        (
-            "double group adapter",
-            format!("val result = (({CALL}))\n    return result"),
-        ),
-        (
-            "grouped return",
-            format!("val result = ({CALL})\n    return (result)"),
+            false,
         ),
         (
             "intervening declaration",
             format!("val result = {CALL}\n    val extra = 3\n    return result"),
+            false,
         ),
     ] {
         let text = format!("{PREFIX}    {body}\n}}\n");
@@ -743,34 +768,114 @@ fun f(s: String, flag: Boolean): Int {
         let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
         let (ne, te) = standard_environments();
         let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
-        let facts = owned.ownership();
-        let pending = facts.direct_call_loan_ends();
-        let has_point = |accept: fn(UnitDropPoint) -> bool| {
-            pending.iter().any(|end| {
-                accept(end.point())
-                    && facts.drops().iter().any(|drop| {
-                        drop.point() == end.point()
-                            && drop.target()
-                                == lang_frontend::ownership_checking::UnitDropTarget::Temporary(
-                                    end.loan().argument(),
-                                )
-                            && sources.slice(drop.value_origin()).unwrap() == "Node()"
-                    })
-            })
+        let types = typed.types();
+        let span = |expr: UnitExpressionId| {
+            file.ast()
+                .expressions()
+                .get(expr.expression())
+                .unwrap()
+                .span()
         };
-        assert!(
-            has_point(|point| matches!(point, UnitDropPoint::CallReturn(_)))
-                && has_point(|point| matches!(point, UnitDropPoint::ControlTransfer(_))),
-            "{shape}: front end must publish both real cleanup paths"
+        let distinct = |source: &str, inside: Option<UnitExpressionId>| -> UnitExpressionId {
+            let mut matches = types.expression_types().keys().copied().filter(|&expr| {
+                let expr_span = span(expr);
+                sources.slice(expr_span).unwrap() == source
+                    && inside.is_none_or(|parent| {
+                        let container = span(parent);
+                        container.start() <= expr_span.start() && expr_span.end() <= container.end()
+                    })
+            });
+            let expression = matches.next().expect("original typed source");
+            assert!(matches.next().is_none(), "{shape}: ambiguous {source}");
+            expression
+        };
+        let lender = distinct(CALL, None);
+        let transfer = distinct("return n", Some(lender));
+        let owner = distinct("Node()", Some(lender));
+        let descriptor = types.call(lender).expect("original call");
+        assert_eq!(descriptor.result_source(), CallableResultSource::Owned);
+        let result_type = descriptor.return_type();
+        assert_eq!(
+            types.types().get(result_type),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
         );
+        assert_eq!(types.expression_falls_through(lender), Some(true));
+        assert_eq!(types.expression_falls_through(transfer), Some(false));
+
+        for group_source in [
+            format!("({CALL})"),
+            format!("(({CALL}))"),
+            "(result)".to_owned(),
+        ] {
+            if !body.contains(&group_source) {
+                continue;
+            }
+            let group = distinct(group_source.as_str(), None);
+            assert!(matches!(
+                file.ast()
+                    .expressions()
+                    .get(group.expression())
+                    .unwrap()
+                    .payload(),
+                Expression::Group { .. }
+            ));
+            assert_eq!(types.expression_type(group), Some(result_type), "{shape}");
+            assert_eq!(types.expression_falls_through(group), Some(true), "{shape}");
+            assert!(types.call(group).is_none(), "{shape}: no wrapper call fact");
+        }
+
+        let facts = owned.ownership();
+        let mut loans = facts.loans().iter().filter(|loan| loan.call() == lender);
+        let loan = loans.next().expect("original shared loan");
+        assert!(loans.next().is_none());
+        assert_eq!(loan.argument(), owner);
+        assert_eq!(loan.kind(), LoanKind::Shared);
+        assert_eq!(loan.target(), &UnitLoanTarget::Temporary(owner));
+        let normal = UnitDropPoint::CallReturn(lender);
+        let early = UnitDropPoint::ControlTransfer(transfer);
+        let ends = facts
+            .direct_call_loan_ends()
+            .iter()
+            .filter(|end| end.loan() == loan)
+            .collect::<Vec<_>>();
+        let [first, second] = ends.as_slice() else {
+            panic!("{shape}: {ends:?}")
+        };
+        assert_ne!(first.point(), second.point(), "{shape}");
+        for end in ends {
+            assert!([normal, early].contains(&end.point()), "{shape}");
+            assert_eq!(end.preceding_call_loan_ends(), 0, "{shape}");
+            assert_eq!(end.preceding_drops(), 0, "{shape}");
+        }
+        let drops = facts
+            .drops()
+            .iter()
+            .filter(|drop| drop.target() == UnitDropTarget::Temporary(owner))
+            .collect::<Vec<_>>();
+        let [first, second] = drops.as_slice() else {
+            panic!("{shape}: {drops:?}")
+        };
+        assert_ne!(first.point(), second.point(), "{shape}");
+        for drop in drops {
+            assert!([normal, early].contains(&drop.point()), "{shape}");
+            assert_eq!(drop.value_origin(), span(owner), "{shape}");
+            assert!(!drop.is_conditional_temporary(), "{shape}");
+        }
         let entry = declaration(&names, "p", "f");
         let (result, routes) = observe_routing(|| {
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
         });
-        assert!(
-            !routes.iter().any(|n| n.starts_with("koven.p.f.d")),
+        assert_eq!(
+            routes.iter().any(|n| n.starts_with("koven.p.f.d")),
+            refined,
             "{shape}: {routes:?}"
         );
+        if refined {
+            let (program, _) = result.unwrap_or_else(|error| panic!("{shape}: {error:?}"));
+            crate::ssa::verify::verify_program(&program).expect("admitted SSA verifies");
+            crate::llvm::render_verified_program(&program).expect("admitted LLVM verifies");
+            continue;
+        }
         let Err(error) = result else {
             panic!("{shape}: boundary must not successfully lower")
         };

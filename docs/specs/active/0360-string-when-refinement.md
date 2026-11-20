@@ -120,3 +120,16 @@ Program 验证 SSA、渲染 LLVM 并链接执行，真实入口四条分支分�
 正常调用只派发一次、提前返回不派发，两路均在结束同一 loan 后只释放自己的 Node 一次。
 双层括号、返回式括号、其他语法位置及其他近邻仍待单独核对 Refine 覆盖，不表示
 括号语法非法。全量、hosted CI 与 sanitizer 未执行。
+
+### 括号位置的通路审计
+
+同一混合 String `when` 夹具记录九种尾部写法：裸尾调用、裸局部初始化和单层括号初始化进入
+Refine 并通过 SSA/LLVM；`return (直接调用)`、双层括号初始化、`return (result)`，
+以及可变绑定、不同返回符号、非连续语句在当前通路落到原 String `when` 上的
+`UnsupportedNode`。后两类括号返回位置不要和已交付的单层括号初始化混同。
+
+每个用例先通过前端检查，逐个核对真实内层调用、同一临时 owner 与提前返回的语义身份，
+以及两个精确出口各一次的 End → Drop；括号表达式和内层值同为非空 `Int`，
+不拥有调用描述。这个矩阵只刻画当前降低覆盖，不新增语法或生产准入。
+Mac 使用 Targeted CI 同一 feature 的 `mixed_string_when` 定向 8/8，含原 native 正控；
+该矩阵没有在 Linux 或 hosted CI 运行。
