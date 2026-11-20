@@ -524,7 +524,7 @@ fn untracked_copyable_shared_capture_keeps_loan_ends() {
                     var second: () -> Unit = {}
                     for (_ in flags) {
                         second = first
-                        { first = { read(n) } }
+                        block { first = { read(n) } }
                     }
                     var outer: move () -> Unit = move { val a = first()\nval b = second() }
                     for (_ in next) {}

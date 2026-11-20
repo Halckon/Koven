@@ -9,13 +9,13 @@ fun pass(own input: Resource, own replacement: Resource): Unit {
     var local = input
     val viewed = inspect(local)
     val moved = take(local)
-    { local = replacement }
+    block { local = replacement }
     val movedAgain = take(local)
 }
 fun loans(own pair: Pair, inout target: Resource): Unit {
     val shared = inspectPair(pair.left, pair.left)
     val distinct = mutatePair(&pair.left, &pair.right)
-    { target = create() }
+    block { target = create() }
     val temporary = inspect(create())
 }
 fun containerPass(own first: Resource, own second: Resource, own replacement: Resource): Unit {

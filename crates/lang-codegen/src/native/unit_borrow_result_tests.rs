@@ -76,12 +76,12 @@ fn native_borrow_initializer_return_composes_with_disjoint_bindings() {
         source: r#"fun view(source: String, own n: Int): borrow String from source = source
 fun probe(own flag: Boolean): Unit {
     val owner = "kept".clone()
-    { borrow val before = view(owner, 0); println(before) }
-    {
+    block { borrow val before = view(owner, 0); println(before) }
+    block {
         borrow val item = view(owner, if (flag) { return } else { 1 })
         println(item)
     }
-    { borrow val after = view(owner, 2); println(after) }
+    block { borrow val after = view(owner, 2); println(after) }
 }
 fun entry() {
     probe(true)
@@ -104,7 +104,7 @@ fn native_stable_root_alias_can_end_before_or_cross_a_branch() {
         name: "stable-root-alias-branch",
         source: r#"fun ended(own flag: Boolean): Unit {
     val owner = "kept".clone()
-    { borrow val item = owner; println(item) }
+    block { borrow val item = owner; println(item) }
     if (flag) { println("after") }
 }
 fun live(own owner: String, own flag: Boolean): Unit {
@@ -137,7 +137,7 @@ fn native_stable_child_aliases_release_before_the_parent() {
         source: r#"fun view(source: String): borrow String from source = source
 fun ended(own flag: Boolean): Unit {
     val owner = "kept".clone()
-    {
+    block {
         borrow val parent = view(owner)
         borrow val item = ((parent))
         println(item)
@@ -313,7 +313,7 @@ fn native_borrow_result_unit_direct_and_wrapper_keep_source_until_scope_end() {
     for callable in ["view", "wrap"] {
         let provider = "package p\nfun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) { println(source) }";
         let consumer = format!(
-            "package q\nfun entry() {{ val source = \"kept\".clone(); {{ borrow val item = p.{callable}(source); println((item)) }}; p.consume(source) }}"
+            "package q\nfun entry() {{ val source = \"kept\".clone(); block {{ borrow val item = p.{callable}(source); println((item)) }}; p.consume(source) }}"
         );
         let analysis = analyze_sources(provider, &consumer);
         let directory = TestDirectory::create();
@@ -347,7 +347,7 @@ fn native_borrow_result_unit_direct_and_wrapper_keep_source_until_scope_end() {
 fn native_borrow_result_unit_scalar_pointer_reads_copyable_storage() {
     let analysis = analyze_sources(
         "package p\nfun view(source: Int): borrow Int from source = source\nfun wrap(source: Int): borrow Int from source = view(source)\nfun observe(own source: Int) { if (source == 7) { println(\"seven\") } else { error(\"wrong value\") } }",
-        "package q\nfun entry() { val source = 7; { borrow val item = p.wrap(source); p.observe(item) }; p.observe(source) }",
+        "package q\nfun entry() { val source = 7; block { borrow val item = p.wrap(source); p.observe(item) }; p.observe(source) }",
     );
     let directory = TestDirectory::create();
     let object = directory.join("borrow-int.o");

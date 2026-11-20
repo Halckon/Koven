@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，444 份）"]
+subgraph Garchive["已完成（archive，445 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -453,6 +453,7 @@ subgraph Garchive["已完成（archive，444 份）"]
   S0474["S0474<br/>Single ownership运行与声明职责归位"]
   S0475["S0475<br/>Fixture发现、执行与合同测试归位"]
   S0476["S0476<br/>Conditional leaf实例回放器归位"]
+  S0479["S0479<br/>显式词法块 block { ... } 与带括号调用跨行尾 lambda 附着"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -465,6 +466,9 @@ subgraph Gactive["现行 active"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
+  S0477["S0477<br/>Parser 与 Formatter 往返差分首片"]
+  S0478["S0478<br/>普通块表达式离线差分"]
+  S0480["S0480<br/>新表面语法增量门禁接入提案与 Spec 模板（F5）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1993,6 +1997,7 @@ S0456 --> S0457
 | SPEC-0474 | archive | [0474-single-ownership-lifecycle-and-declarations.md](0474-single-ownership-lifecycle-and-declarations.md) |
 | SPEC-0475 | archive | [0475-fixture-discovery-execution-and-contracts.md](0475-fixture-discovery-execution-and-contracts.md) |
 | SPEC-0476 | archive | [0476-conditional-leaf-instance-replay-domain.md](0476-conditional-leaf-instance-replay-domain.md) |
+| SPEC-0479 | archive | [0479-explicit-block-and-crossline-lambda.md](0479-explicit-block-and-crossline-lambda.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -2003,6 +2008,9 @@ S0456 --> S0457
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |
+| SPEC-0477 | active | [0477-parser-formatter-difftest.md](../../specs/active/0477-parser-formatter-difftest.md) |
+| SPEC-0478 | active | [0478-independent-block-difftest.md](../../specs/active/0478-independent-block-difftest.md) |
+| SPEC-0480 | active | [0480-surface-syntax-incremental-gate.md](../../specs/active/0480-surface-syntax-incremental-gate.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

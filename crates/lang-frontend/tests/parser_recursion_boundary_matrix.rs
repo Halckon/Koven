@@ -377,7 +377,7 @@ fn declaration_block_and_file_entries_lock_exact_recursion_boundaries() {
         parse_declaration,
     );
 
-    let block_source = |depth| format!("{}{}", "{".repeat(depth), "}".repeat(depth));
+    let block_source = |depth| format!("{{ {}{}", "block {".repeat(depth - 1), "}".repeat(depth));
     let (sources, source_id) = add_source(block_source(1_024));
     let parsed = parse_block_twice(&sources, source_id, "block accepted boundary");
     assert!(parsed.diagnostics().is_empty());
@@ -393,7 +393,13 @@ fn declaration_block_and_file_entries_lock_exact_recursion_boundaries() {
         parse_block,
     );
 
-    let file_source = |depth| format!("fun boundary() {}{}", "{".repeat(depth), "}".repeat(depth));
+    let file_source = |depth| {
+        format!(
+            "fun boundary() {{ {}{}",
+            "block {".repeat(depth - 1),
+            "}".repeat(depth)
+        )
+    };
     let (sources, source_id) = add_source(file_source(1_024));
     let parsed = parse_file_twice(&sources, source_id, "file block accepted boundary");
     assert!(parsed.diagnostics().is_empty());

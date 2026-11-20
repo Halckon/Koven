@@ -10,7 +10,7 @@ fn range_prefix_same_operand_has_actual_transfer_and_normal_removal() {
     for body in [
         "val root=listOf(\"kept\");read(rangeView(root,0,1),if(flag){return}else{0});consume(root)",
         "read(rangeView(listOf(\"kept\"),0,1),if(flag){return}else{0})",
-        "val root=listOf(\"kept\");{borrow val parent=rangeView(root,0,1);read(rangeView(parent,0,1),if(flag){return}else{0})};consume(root)",
+        "val root=listOf(\"kept\");block {borrow val parent=rangeView(root,0,1);read(rangeView(parent,0,1),if(flag){return}else{0})};consume(root)",
         "read(rangeView(rangeView(listOf(\"kept\"),0,1),0,1),if(flag){return}else{0})",
     ] {
         // Preserve the full sources from the former ownership_range_construction case.

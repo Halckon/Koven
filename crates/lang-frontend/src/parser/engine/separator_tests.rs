@@ -99,7 +99,7 @@ fn block_dispatch_legal_error_and_nested_families_stay_linear() {
         (|count| format!("{{ {} }}", "return\n".repeat(count)), 0),
         (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
         (
-            |count| format!("{}{}", "{".repeat(count), "}".repeat(count)),
+            |count| format!("{{ {}{}", "block {".repeat(count - 1), "}".repeat(count)),
             0,
         ),
     ] as [(fn(usize) -> String, usize); 4]

@@ -183,7 +183,7 @@ fn replay_scoped_source_with_warmup_tail(
             format!(
         "fun read(xs: List<Int>) {{}}\nfun run(first: List<Boolean>, flags: List<Boolean>) {{
 var f: move () -> Unit = move {{}}
-{{
+block {{
     {declarations}
     val borrowed: () -> Unit = {borrowed_text}
     {other_decl}

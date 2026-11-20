@@ -27,7 +27,7 @@ fn stable_root_alias_cfg_is_independent_of_unrelated_ownership_primitives() {
     for probe in [
         r#"fun probe(own flag: Boolean): Unit {
     val owner = "kept".clone()
-    { borrow val item = owner; println(item) }
+    block { borrow val item = owner; println(item) }
     if (flag) { println("after") }
 }
 fun entry() { probe(true); probe(false) }"#,
@@ -88,7 +88,7 @@ fn stable_child_aliases_keep_their_parent_across_cfg_layouts() {
             r#"fun view(source: String): borrow String from source = source
 fun probe(own flag: Boolean): Unit {
     val owner = "kept".clone()
-    {
+    block {
         borrow val parent = view(owner)
         borrow val item = ((parent))
         println(item)

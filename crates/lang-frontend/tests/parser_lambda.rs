@@ -143,7 +143,7 @@ fn header_three_states_and_move_preserve_only_real_spans() {
 
 #[test]
 fn lambda_body_has_ordered_elements_without_duplicate_tail_or_block_mode() {
-    let (_, parsed) = parsed_expression("{ {}; x }");
+    let (_, parsed) = parsed_expression("{ block {}; x }");
     assert!(
         parsed.diagnostics().is_empty(),
         "{:?}",
@@ -263,7 +263,7 @@ fn expression_contexts_commit_lambda_while_block_dispatch_keeps_nested_block() {
         Expression::Lambda { .. }
     ));
 
-    let (_, nested_block) = parsed_block("{{ x }}");
+    let (_, nested_block) = parsed_block("{ block { x } }");
     assert!(
         nested_block.diagnostics().is_empty(),
         "{:?}",
@@ -324,7 +324,7 @@ fn expression_contexts_commit_lambda_while_block_dispatch_keeps_nested_block() {
         Expression::Group { .. }
     ));
 
-    let (_, split) = parsed_block("{ x\n{ y } }");
+    let (_, split) = parsed_block("{ x\nblock { y } }");
     assert!(split.diagnostics().is_empty(), "{:?}", split.diagnostics());
     let Statement::Block { elements } = split
         .ast()
@@ -673,7 +673,7 @@ fn owner_recovery_keeps_lambda_commas_and_closers_at_the_correct_level() {
         Expression::Name
     ));
 
-    let (_, shared) = parsed_block("{{ x }");
+    let (_, shared) = parsed_block("{ block { x }");
     assert!(
         shared
             .diagnostics()
@@ -689,7 +689,11 @@ fn owner_recovery_keeps_lambda_commas_and_closers_at_the_correct_level() {
             .any(|diagnostic| diagnostic.code().to_string() == "L0010")
     );
 
-    for (text, expected_closers) in [("f({ a[x )", 2), ("f({ { x )", 2), ("f({ val x = 1 )", 1)] {
+    for (text, expected_closers) in [
+        ("f({ a[x )", 2),
+        ("f({ block { x )", 2),
+        ("f({ val x = 1 )", 1),
+    ] {
         let (_, inherited) = parsed_expression(text);
         let closer_spans = inherited
             .diagnostics()
@@ -754,7 +758,7 @@ fn semicolon_runs_preserve_lambda_body_closer_and_eof_spans() {
 
 #[test]
 fn semicolon_runs_leave_inherited_hard_closers_for_the_caller() {
-    for (text, expected_closers) in [("f({; ; )", 1), ("a[{; ; ]", 1), ("f({{; ; )", 2)] {
+    for (text, expected_closers) in [("f({; ; )", 1), ("a[{; ; ]", 1), ("f({block {; ; )", 2)] {
         let (_, parsed) = parsed_expression(text);
         let boundary = text.len() - 1;
         assert_eq!(
@@ -847,7 +851,7 @@ fn lambda_and_nested_blocks_use_the_shared_recursion_budget_without_panicking() 
         .join()
         .expect("parser must isolate recursive work from the caller stack");
 
-    let text = format!("{}x{}", "{ ".repeat(1_100), " }".repeat(1_100));
+    let text = format!("{{ {}x{}", "block { ".repeat(1_100), " }".repeat(1_101));
     let mut sources = SourceMap::new();
     let id = source(&mut sources, "deep.ko", &text);
     let lexed = lex_parser_source_twice(&sources, id, "lambda nesting budget");

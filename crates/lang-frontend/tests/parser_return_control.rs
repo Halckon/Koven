@@ -72,7 +72,7 @@ fn return_when_is_one_operand_in_a_function_block() {
 #[test]
 fn return_control_values_work_in_nested_blocks_and_lambdas() {
     let (_, parsed) = parse(
-        "fun choose(): Unit { { return if (true) 1 else 0 }; val action = { return when { true -> 1; else -> 0 } } }",
+        "fun choose(): Unit { block { return if (true) 1 else 0 }; val action = { return when { true -> 1; else -> 0 } } }",
     );
     assert!(
         parsed.diagnostics().is_empty(),

@@ -8,7 +8,7 @@ fn owned_capture_reads_the_prior_phi_environment_before_replacement() {
     };
 
     let (sources, parsed, owned) = checked(
-        "fun run(flags: List<Int>) { var g: move () -> Unit = move {}\nvar f: move () -> Unit = move {}\nfor (_ in flags) { { f = move { g() } }\ng = move {} }\nval used = f() }",
+        "fun run(flags: List<Int>) { var g: move () -> Unit = move {}\nvar f: move () -> Unit = move {}\nfor (_ in flags) { block { f = move { g() } }\ng = move {} }\nval used = f() }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
@@ -302,7 +302,7 @@ fn two_round_owned_capture_keeps_each_prior_environment_instance() {
     }
 
     let (sources, parsed, owned) = checked(
-        "fun run(flags: List<Int>) { var g: move () -> Unit = move {}\nvar f: move () -> Unit = move {}\nfor (_ in flags) { { f = move { g() } }\ng = move {} }\nval used = f() }",
+        "fun run(flags: List<Int>) { var g: move () -> Unit = move {}\nvar f: move () -> Unit = move {}\nfor (_ in flags) { block { f = move { g() } }\ng = move {} }\nval used = f() }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());

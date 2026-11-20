@@ -355,6 +355,27 @@ jobs:
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
+      - name: Parser block differential and fault contracts (SPEC-0478)
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          KOVEN_LARK_WHEEL="$(mktemp "${RUNNER_TEMP}/koven-lark.XXXXXXXX")"
+          export KOVEN_LARK_WHEEL
+          trap 'rm -f "$KOVEN_LARK_WHEEL"' EXIT
+          curl --fail --silent --show-error --location --max-time 60 \
+            --output "$KOVEN_LARK_WHEEL" \
+            https://files.pythonhosted.org/packages/2d/00/d90b10b962b4277f5e64a78b6609968859ff86889f5b898c1a778c06ec00/lark-1.2.2-py3-none-any.whl
+          # The offline reference verifies the pinned SHA-256 before importing.
+          for test_name in \
+            ci_fault_reference_deadline_covers_startup_without_output \
+            ci_fault_block_boundary_and_event_projection \
+            ci_fault_ambiguous_reference_rejects_without_a_tree \
+            ci_fault_reference_event_limit \
+            fixed_and_generated_corpus; do
+            out="$(cargo test --locked -p lang-frontend --test parser_offline_block_diff -- --ignored --exact "$test_name")"
+            printf '%s\n' "$out"
+            printf '%s\n' "$out" | grep -q '1 passed; 0 failed; 0 ignored;'
+          done
       - name: Experimental Unit root-set budget and rollback (CI only)
         run: bash scripts/check_unit_root_set_ci.sh
       - name: Run exact borrowing fault contracts
@@ -593,6 +614,8 @@ jobs:
 
   preview-linux-produce:
     name: Preview Producer (ubuntu-24.04)
+    env:
+      KOVEN_PREVIEW_CI_SYNC_GLIBC: '1'
     needs: [changes, docs, fmt]
     if: |
       needs.changes.outputs.reuse != 'true' &&
@@ -643,6 +666,8 @@ jobs:
 
   preview-linux-consume:
     name: Preview Independent Consumer (ubuntu-24.04)
+    env:
+      KOVEN_PREVIEW_CI_SYNC_GLIBC: '1'
     needs: preview-linux-produce
     if: always() && needs.preview-linux-produce.result == 'success'
     runs-on: ubuntu-24.04

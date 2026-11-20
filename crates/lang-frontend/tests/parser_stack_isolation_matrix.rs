@@ -79,7 +79,7 @@ fn every_public_parser_entry_isolates_boundary_work_from_a_small_caller_stack() 
     });
 
     run_on_small_caller("block", || {
-        let block = |depth| format!("{}{}", "{".repeat(depth), "}".repeat(depth));
+        let block = |depth| format!("{{ {}{}", "block {".repeat(depth - 1), "}".repeat(depth));
         let (sources, source_id) = add_source(block(1_024));
         let parsed = parse_block_twice(&sources, source_id, "small-stack block success");
         assert!(parsed.diagnostics().is_empty());
@@ -98,7 +98,13 @@ fn every_public_parser_entry_isolates_boundary_work_from_a_small_caller_stack() 
     });
 
     run_on_small_caller("file", || {
-        let file = |depth| format!("fun boundary() {}{}", "{".repeat(depth), "}".repeat(depth));
+        let file = |depth| {
+            format!(
+                "fun boundary() {{ {}{}",
+                "block {".repeat(depth - 1),
+                "}".repeat(depth)
+            )
+        };
         let (sources, source_id) = add_source(file(1_024));
         let parsed = parse_file_twice(&sources, source_id, "small-stack file success");
         assert!(parsed.diagnostics().is_empty());

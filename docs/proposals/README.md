@@ -28,6 +28,9 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [D10 独立 loop 证明候选](d10-independent-loop-proof.md)：独立 catalog、结构边和 SSA replay 的架构约束，未启用
 - [D10 child 未修改根最窄候选](d10-child-pass-through-root.md)：两根、单根更新的隔离设计，未启用
 
+- [Parser 分阶段形式化验证计划](parser-formal-verification-plan.md)：Phase 1，待评审
+- [Parser 文法与验证路径评审](parser-grammar-verification-review.md)：路线 F 的来源评审
+
 ## 候选依赖与推进顺序
 
 2026-10-08 的 collection r3.1 小修保留核心规划方向；候选正文不启用新能力。
@@ -76,6 +79,28 @@ String Copyable、Map 转换与 v2 interface 值不由此获得启用
 5. 按各版本 Spec 索引推进 Phase 产物，逐项记录定向验收；规范启用不代表实现已经完成。
 
 验收命令和测试并行仅由[测试与分层验收](../development/testing.md)定义；候选正文不复制工程门禁。
+
+## 表面语法提案增量门禁（仅限新增或修改表面语法）
+
+本节仅适用于新增或修改 Koven 表面语法的提案；不适用于纯语义、类型、所有权、codegen 或文案改动，
+不减免既有 required 检查，也不启用任何候选语义。此类提案在进入 Guide 前须补齐以下 6 项内容：
+
+1. **受影响入口与规则映射**：列明涉及 `parse_file` / `parse_expression` / `parse_declaration` / `parse_block` 中的哪些入口及目标 Guide 章节，禁止在多章复制互相矛盾的允许条件。
+2. **纯 CFG 与原始冲突变化**：给出改动前后的离线参考文法增量；若引入新的 shift/reduce、reduce/reduce 或 Earley 双树，必须逐条登记原始冲突与消解规则，不得用优先级指令或词法吞换行静默掩盖。
+3. **软词、词法与换行影响**：明确是否新增上下文关键字或改变 `NL` / CRLF / 块注释内换行 / `;` 的续行与分隔判定，以及必要的外部谓词（邻接 Span、无副作用 trial 等）。
+4. **恢复边界与资源合同（R1–R5）**：说明非法或未闭合输入是否影响 caller hard stop、soft declaration boundary、owner stack、诊断锚点或线性扫描/递归预算。
+5. **独立正反例与边界见证**：覆盖正常接受、跨行/注释/分号边界、未闭合回退及与相近语法的互斥对照；预期从拟议条文独立写出，不从现有实现回填。
+6. **下游同步范围**：列明受影响的 Formatter 往返投影、独立参考差分语料与 Tree-sitter 已知漂移清单；未同步项显式登记为范围外。
+
+进入 Guide 前，评审者须逐项核验以下 5 项放行检查（完整清单与演练记录见[F5 增量门禁清单](parser-formal-verification/syntax-gate-checklist.md#2-评审放行清单与-advisory--required-升级条件)）：
+
+- [ ] 规则增量已回链唯一 Guide 章节，未在多章复制互相矛盾的允许条件。
+- [ ] 冲突变化已由离线参考工具实测并保留原始报告；任何真正的多重推导（如换行后的附着 vs 独立元素）已在条文中规定唯一消解规则。
+- [ ] 软词、换行与邻接谓词均未破坏既有普通 `Identifier` 或词法错误交接（R4）。
+- [ ] 正反例覆盖跨行（LF/CRLF/含换行块注释）、分号阻断、未闭合回退与调用方边界。
+- [ ] 未将离线参考工具或 Tree-sitter 提升为第二规范，未夸称有限用例为全语言证明。
+
+离线文法或差分切片若需从 advisory 升为 required CI，必须另案获批，并满足依赖治理、双宿主（macOS AArch64 与 Linux x86_64）干净 checkout 可复现及连续观察窗零环境误报。
 
 ## 历史
 

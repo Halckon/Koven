@@ -724,7 +724,7 @@ fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
     for (expected, text) in [
         (
             "keys",
-            "fun main(): Unit { val keys = arrayOf(9); keys.size; { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
+            "fun main(): Unit { val keys = arrayOf(9); keys.size; block { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
         ),
         (
             "",

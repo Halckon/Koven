@@ -119,18 +119,17 @@ owner，成员分号仍交给外层。分段字符串沿用 Lexer 的终止事�
 父类型内部的泛型实参与函数类型参数按自身 delimiter 恢复，原 TypeRef 与消费的错误区
 分别保存。已证明的函数参数 closer 约束错误扫描和跳转，显式分号保留给声明调用方。
 
-Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
-在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
+Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop、分号与同行 `block {` 显式词法作用域块起点（`explicit_block_start`），避免在同一 trivia 区域重复扫描；语句位置独立裸 `{ ... }` 分别报 `L0030` / `L0032` 并提示改用 `block { ... }`，表达式位置 `block { ... }` 报 `L0009` 且不回退为调用；分号不生成 statement，caller hard closer 保留给外层 owner。
 
 普通/control/nested block 与 lambda body 的顶层 Pratt/postfix 在完整左表达式之后遇换行的 `(`、`+`、`-`
-时归还 block dispatch。局部解构的真实 `=` 后允许 control/lambda primary，并将外层分号交给 body owner。group/call/index 内的 block soft stop
+时归还 block dispatch；已闭合圆括号实参列表 `(...)` 的调用允许跨换行附着唯一一个尾 lambda `{ ... }`，裸名跨行 `f\n{ ... }` 与无括号泛型跨行 `f<T>\n{ ... }` 不附着。局部解构的真实 `=` 后允许 control/lambda primary，并将外层分号交给 body owner。group/call/index 内的 block soft stop
 已清除；for header 只在真实 opener 存在时清软 stop，因此未闭合 delimiter 内继续解析。解构缺内层 `)` 时保留 `in` 和外层停止 token，外层边界上的错误节点使用空 Span。
 typed-call 试探、独立 expression 与顶层
 initializer 保持既有入口行为。lambda 顶层 body 与内嵌普通 block 保留独立 owner，但共用换行
 边界。三个 body dispatch 的分隔校验在后继 element 起点以空 Span 报 L0169；恢复保留真实
 后继，不补造分号。已有缺 operand/poison 错误不追加同根分隔诊断。
 
-when 分支体在换行后遇到已配对的圆括号时，只在 selector 后缀到达同层真实箭头后让出该分组。
+when 分支体在换行后遇到已配对的圆括号或花括号 lambda 条件时，只在 selector 后缀到达同层真实箭头后让出该分组（`brace_when_entry_follows` 防止前一条分支的闭合调用把下一条 `{ -> ... } -> ...` 吞作跨行尾 lambda）。
 扫描复用类型和配对索引跳过内层箭头，遵守普通及泛型尾 lambda 换行规则。探针按 when 主体区分裸 is/in 与中缀续行，常规入口保留裸条件的类型诊断。 循环内的 break/continue 按零操作数扫描。只有已配对的括号才可覆盖 block 的普通换行边界。
 
 `return` 的同行操作数起点允许既有 control primary（含 `if` / `when`），不把 block 的
@@ -155,7 +154,8 @@ Error 接收者的后缀恢复共享这些边界。块分号留给块分派，�
 缺右方括号在外层起点使用零宽范围，同行左花括号不作为这条恢复的归属证据。
 
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
-边界。测试选择规则见[开发测试指南](../development/testing.md)。
+边界。测试选择规则见[开发测试指南](../development/testing.md)。[SPEC-0478](../specs/active/0478-independent-block-difftest.md)
+的可选离线目标已能对两个普通块输入比较独立文法结构及换行事件；默认测试不启动外部解释器。
 
 `parse_super` 在 interface、dot、member-name 的 Lexer poison 处消费并保存 Error，不追加同根
 语法诊断。共享 error-postfix 恢复保留 caller stops 与显式分号；`parser_super_recovery` 逐值核对

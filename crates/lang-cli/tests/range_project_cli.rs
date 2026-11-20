@@ -115,7 +115,7 @@ fn public_std_take_for_reads_string_move_only_and_resource_elements() {
 #[test]
 fn public_std_take_named_view_for_keeps_root_until_provider_finishes() {
     let project = Project::new();
-    let built=project.build("package app\nimport koven.algorithms.take\nclass Token(val text:String){deinit(){println(this.text)}}\nfun consume(own source:List<Token>):Unit{}\nfun main():Unit{val source=listOf(Token(\"first\"),Token(\"excluded\"));{borrow val part=take(source,1);for(item in part){println(item.text)}};println(\"after\");consume(source);println(\"done\")}");
+    let built=project.build("package app\nimport koven.algorithms.take\nclass Token(val text:String){deinit(){println(this.text)}}\nfun consume(own source:List<Token>):Unit{}\nfun main():Unit{val source=listOf(Token(\"first\"),Token(\"excluded\"));block {borrow val part=take(source,1);for(item in part){println(item.text)}};println(\"after\");consume(source);println(\"done\")}");
     assert!(built.status.success(), "{built:?}");
     let run = Command::new(project.0.join("program")).output().unwrap();
     assert_eq!(run.status.code(), Some(0), "{run:?}");
@@ -477,7 +477,7 @@ fn public_std_take_call_prefix_return_restores_named_and_temporary_roots() {
             ),
             ("", "take(source(),1)", "", "", false),
             (
-                "val root=source();{borrow val parent=take(root,2)",
+                "val root=source();block {borrow val parent=take(root,2)",
                 "take(parent,1)",
                 "};",
                 "consume(root)",
@@ -555,7 +555,7 @@ fn public_std_take_call_prefix_owned_arguments_remain_with_caller_until_commit()
             ),
             ("", "take(source(),1)", "", "", false),
             (
-                "val root=source();{borrow val parent=take(root,2)",
+                "val root=source();block {borrow val parent=take(root,2)",
                 "take(parent,1)",
                 "};",
                 "consume(root)",

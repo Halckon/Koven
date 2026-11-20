@@ -47,7 +47,7 @@ fn recursive_chain_keeps_scoped_shared_source_atomically_deferred() {
     let (_, _, owned) = checked(
         "fun read(xs: List<Int>) {}\nfun run(first: List<Int>, flags: List<Int>) {
 var f: move () -> Unit = move {}
-{
+block {
     val xs = listOf(1)
     val borrowed: () -> Unit = { read(xs) }
     for (_ in first) { f = move { f() } }
@@ -119,7 +119,7 @@ fn mutually_recursive_loop_captures_do_not_publish_a_truncated_phi() {
     use lang_frontend::ownership_checking::OwnershipDeferredReason;
 
     let (_, _, owned) = checked(
-        "fun run(flags: List<Int>) { var f: move () -> Unit = move {}\nvar g: move () -> Unit = move {}\nfor (_ in flags) { { f = move { g() } }\ng = move { f() } }\nval used = g() }",
+        "fun run(flags: List<Int>) { var f: move () -> Unit = move {}\nvar g: move () -> Unit = move {}\nfor (_ in flags) { block { f = move { g() } }\ng = move { f() } }\nval used = g() }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert_eq!(owned.deferred().len(), 1);
@@ -157,7 +157,7 @@ fn iteration_plan_exposes_finite_owned_capture_graph() {
     use lang_frontend::ownership_checking::{ClosureCaptureMode, ClosureCaptureSource};
 
     let (sources, parsed, owned) = checked(
-        "fun run(flags: List<Int>) { var g: move () -> Unit = move {}\nvar f: move () -> Unit = move {}\nfor (_ in flags) { { f = move { g() } }\ng = move {} }\nval used = f() }",
+        "fun run(flags: List<Int>) { var g: move () -> Unit = move {}\nvar f: move () -> Unit = move {}\nfor (_ in flags) { block { f = move { g() } }\ng = move {} }\nval used = f() }",
     );
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
@@ -374,7 +374,7 @@ fn same_lambda_parent_paths_defer_until_instance_transport() {
             for (_ in flags) {
                 second = first
                 val xs = listOf(1)
-                { first = move { read(xs) } }
+                block { first = move { read(xs) } }
             }
             var outer: move () -> Unit = move { val a = first()\nval b = second() }
             for (_ in next) {}
@@ -417,7 +417,7 @@ fn same_lambda_shared_capture_paths_defer_until_instance_loan_ends() {
             var second: () -> Unit = {}
             for (_ in flags) {
                 second = first
-                { first = { read(xs) } }
+                block { first = { read(xs) } }
             }
             var outer: move () -> Unit = move { val a = first()\nval b = second() }
             for (_ in next) {}

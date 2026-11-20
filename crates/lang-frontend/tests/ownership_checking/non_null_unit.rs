@@ -334,9 +334,9 @@ fn non_null_assertion_loop_allows_single_exit_and_replenished_owner() {
             "while (flag) { val item = source!!\nbreak }",
             "loop { val item = source!!\nreturn 0 }",
             "while (flag) { val local: Resource? = Resource()\nval item = local!! }",
-            "var local = source\nwhile (flag) { val item = local!!\n{ local = Resource() } }",
-            "var local = source\nwhile (flag) { { local = Resource() }\nval item = local!! }",
-            "var local = source\nloop { { local = Resource() }\nif (flag) { break }\nval item = local!! }\nval result = local!!",
+            "var local = source\nwhile (flag) { val item = local!!\nblock { local = Resource() } }",
+            "var local = source\nwhile (flag) { block { local = Resource() }\nval item = local!! }",
+            "var local = source\nloop { block { local = Resource() }\nif (flag) { break }\nval item = local!! }\nval result = local!!",
         ] {
             let text = format!(
                 "class Resource {{}}\nfun test(flag: Boolean, own source: Resource?): Int {{ {body}\nreturn 0 }}"

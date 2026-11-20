@@ -161,7 +161,7 @@ fn unit_non_null_assertion_plans_clear_after_later_assignment_failure() {
     let (source, file) = parsed(
         &mut sources,
         "assert-assignment.ko",
-        "class Resource {}\nfun copied(source: Int?): Int = source!!\nfun invalid(own source: Resource?): Unit { val target = Resource()\n{ target = source!! } }",
+        "class Resource {}\nfun copied(source: Int?): Int = source!!\nfun invalid(own source: Resource?): Unit { val target = Resource()\nblock { target = source!! } }",
     );
     let inputs = [SourceUnitInput::new(
         "root",
@@ -187,7 +187,7 @@ fn unit_non_null_assertion_plans_preserve_nested_and_assignment_transfers() {
     let (source, file) = parsed(
         &mut sources,
         "assert-control.ko",
-        "class Resource {}\nfun selected(flag: Boolean, own left: Resource?, own right: Resource?): Resource = (if (flag) { left } else { right })!!\nfun replaced(own source: Resource?): Resource { var target = Resource()\n{ target = source!! }\nreturn target }",
+        "class Resource {}\nfun selected(flag: Boolean, own left: Resource?, own right: Resource?): Resource = (if (flag) { left } else { right })!!\nfun replaced(own source: Resource?): Resource { var target = Resource()\nblock { target = source!! }\nreturn target }",
     );
     let inputs = [SourceUnitInput::new(
         "root",
@@ -252,15 +252,15 @@ fn unit_non_null_assertion_loop_consumption_checks_only_reachable_backedges() {
             vec![],
         ),
         (
-            "var local = source\nwhile (flag) { val item = local!!\n{ local = Resource() } }",
+            "var local = source\nwhile (flag) { val item = local!!\nblock { local = Resource() } }",
             vec![],
         ),
         (
-            "var local = source\nwhile (flag) { { local = Resource() }\nval item = local!! }",
+            "var local = source\nwhile (flag) { block { local = Resource() }\nval item = local!! }",
             vec![],
         ),
         (
-            "var local = source\nloop { { local = Resource() }\nif (flag) { break }\nval item = local!! }\nval result = local!!",
+            "var local = source\nloop { block { local = Resource() }\nif (flag) { break }\nval item = local!! }\nval result = local!!",
             vec![],
         ),
     ] {

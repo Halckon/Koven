@@ -9,6 +9,7 @@ Archive 不参与现行语言语义、实现授权或默认 Agent 路由。历�
 - [完成 Specs](specs/README.md)
 - [历史 Guides](guides/README.md)
 - [冻结审计与路线材料](audits/README.md)
+- [Parser 文法与验证实施建议原文（2026-11-08）](designs/parser-grammar-implementation-2026-11-08.md)
 - [过时教程](tutorials/README.md)
 - [重组前 Architecture](architecture/v0.34-pre-restructure.md)
 - [v0.34 文档结构迁移账本](migrations/v0.34-document-restructure.md)

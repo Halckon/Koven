@@ -49,11 +49,16 @@ indexed_sha256="$(apt-cache show "liblzma5:amd64=$lzma_version" | awk '$1 == "SH
   echo 'Pinned liblzma5 package is unavailable or its indexed SHA256 differs' >&2
   exit 1
 }
+glibc_args=()
+if [[ "${KOVEN_PREVIEW_CI_SYNC_GLIBC:-}" == 1 ]]; then
+  # Preview jobs can land on different runner images during an Ubuntu rollout.
+  glibc_args=(-o APT::Get::Always-Include-Phased-Updates=true libc6:amd64)
+fi
 sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
   install --yes --no-install-recommends \
   "llvm-21-dev=$version" "clang-21=$version" "libclang-cpp21=$version" "libclang-rt-21-dev=$version" \
   "lldb-21=$version" "liblldb-21=$version" "python3-lldb-21=$version" \
-  "liblzma5:amd64=$lzma_version" build-essential
+  "liblzma5:amd64=$lzma_version" build-essential "${glibc_args[@]}"
 installed_lzma="$(dpkg-query -W -f='${Version} ${Architecture}' liblzma5:amd64)"
 [[ "$installed_lzma" == "$lzma_version amd64" ]] || {
   echo "Unexpected installed liblzma5 version/architecture: $installed_lzma" >&2

@@ -507,7 +507,7 @@ pub(crate) mod root_primitive_tests {
             var b = a
             val snapshot = a
             val old = replace(&a, b)
-            { b = 2 }
+            block { b = 2 }
             swap(&a, &b)
             if (a == 2 && b == 1 && old == 1 && snapshot == 1) { println("copied") }
             swap(&a, &b)

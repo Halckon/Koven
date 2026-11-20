@@ -815,7 +815,7 @@ impl NameContext {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct DeclarationStops(u32);
+pub(super) struct DeclarationStops(pub(super) u32);
 
 impl DeclarationStops {
     pub(super) const EMPTY: Self = Self(0);

@@ -247,7 +247,7 @@ fn local_initializers_stop_before_the_next_group_or_unary_statement() {
 #[test]
 fn nested_and_control_blocks_apply_the_same_boundary_without_swallowing_owners() {
     for (prefix, suffix) in [
-        ("{ { ", " }\nsentinel }"),
+        ("{ block { ", " }\nsentinel }"),
         ("{ if (ready) { ", " }\nsentinel }"),
         ("{ while (ready) { ", " }\nsentinel }"),
     ] {
@@ -417,7 +417,7 @@ fn semicolons_and_existing_trailing_lambda_boundaries_remain_intact() {
             "{text:?}"
         );
     }
-    let (_, parsed) = parsed_ok("{ run { value }\n{ other } }");
+    let (_, parsed) = parsed_ok("{ run { value }\nblock { other } }");
     let elements = block_elements(parsed.ast(), parsed.root());
     assert_eq!(elements.len(), 2);
     assert!(matches!(
@@ -576,7 +576,7 @@ fn lambda_and_nested_block_bodies_share_the_same_newline_boundary() {
             body.split('\n').next().unwrap(),
         );
     }
-    let text = "{ -> { foo\n(bar) } }";
+    let text = "{ -> block { foo\n(bar) } }";
     let mut sources = SourceMap::new();
     let id = sources
         .add_source("lambda-nested-block.ko", text)
@@ -601,13 +601,13 @@ fn lambda_and_nested_block_bodies_share_the_same_newline_boundary() {
     assert_name(
         parsed.ast(),
         expression(parsed.ast(), blocks[0][0]),
-        7,
+        13,
         "foo",
     );
     assert_separate_tail(
         parsed.ast(),
         expression(parsed.ast(), blocks[0][1]),
-        11,
+        17,
         "(bar)",
     );
 }

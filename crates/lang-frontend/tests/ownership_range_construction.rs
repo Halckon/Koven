@@ -125,7 +125,7 @@ fn range_iteration_keeps_root_and_noncopyable_element_read_only_in_both_unit_lay
 fn range_descriptor_iteration_never_publishes_an_owned_metadata_drop() {
     use lang_frontend::ownership_checking::UnitDropTarget;
     let (_, memory, rooted) = checked(
-        "fun run():Unit{val source=listOf(\"kept\");{borrow val part=rangeView(source,0,1);for(item in part){println(item)}};consume(source)}",
+        "fun run():Unit{val source=listOf(\"kept\");block {borrow val part=rangeView(source,0,1);for(item in part){println(item)}};consume(source)}",
     );
     for owned in [memory, rooted] {
         assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
@@ -376,7 +376,7 @@ fun run(flag:Boolean):Unit{
         r#"
 fun run(flag:Boolean):Unit{
     val source=listOf("kept")
-    {
+    block {
         borrow val part=rangeView(source,0,1)
         if(flag){observe(part)}else{observe(part)}
         observe(part)
@@ -429,7 +429,7 @@ fun scalar(source:Int):borrow Int from source=source
 fun readInt(value:Int):Unit{}
 fun run(flag:Boolean,n:Int):Unit{
     val source=listOf("kept")
-    {
+    block {
         borrow val part=rangeView(source,0,1)
         if(flag){readInt(scalar(n))}else{observe(part)}
         observe(part)

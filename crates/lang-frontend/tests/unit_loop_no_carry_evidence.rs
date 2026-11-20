@@ -21,7 +21,7 @@ fn ordinary_no_carry_scope_needs_real_end_in_both_checkers() {
         let consumers = vec!["observe(item)"; count].join("; ");
         let body = format!("borrow val item = view(source); {consumers}");
         for (name, statement, rejected) in [
-            ("straight-scope", format!("{{ {body} }}"), false),
+            ("straight-scope", format!("block {{ {body} }}"), false),
             (
                 "iteration-body",
                 format!("while (flag) {{ {body} }}"),
@@ -29,7 +29,7 @@ fn ordinary_no_carry_scope_needs_real_end_in_both_checkers() {
             ),
             (
                 "iteration-inner-scope",
-                format!("while (flag) {{ {{ {body} }} }}"),
+                format!("while (flag) {{ block {{ {body} }} }}"),
                 true,
             ),
         ] {

@@ -95,7 +95,7 @@ for (flag in flags) {{
 val chosen: () -> Unit = if (flag) ({{ read(xs) }}) else ({{ read(ys) }})
 val current: move () -> Unit = {outer_text}
 val old = saved
-{{ val used = old() }}
+block {{ val used = old() }}
 saved = current
 }}
 val final = saved

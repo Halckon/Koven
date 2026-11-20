@@ -169,6 +169,17 @@ impl Parser<'_> {
             let move_span = self.bump()?.span();
             return self.parse_lambda(Some(move_span), stops);
         }
+        if self.explicit_block_start(current)? {
+            let block_span = self.bump()?.span();
+            self.emit(
+                codes::EXPECTED_EXPRESSION,
+                "explicit `block { ... }` is a statement, not an expression",
+                block_span,
+            )?;
+            let body = self.parse_block_statement(stops)?;
+            let end = self.statement_span(body)?.end();
+            return self.add_expression(self.span(block_span.start(), end)?, Expression::Error);
+        }
         if (stops.contains(current) && !control_expression_start_kind(current.kind()))
             || self.at_block_statement_separator(current, stops)?
         {

@@ -897,7 +897,7 @@ fn abort_predecessor_borrow_call_consume_then_both_abort() {
         replace(&marker, 20)
         if (opt != null) {
             val source = "source-text".clone()
-            {
+            block {
                 borrow val item = borrow_and_consume(source, extra)
                 println(item)
             }
@@ -936,7 +936,7 @@ fn abort_predecessor_range_call_consume_then_both_abort() {
         replace(&marker, 20)
         if (opt != null) {
             val list = listOf("elem-10".clone(), "elem-20".clone(), "elem-30".clone())
-            {
+            block {
                 borrow val item = head_and_consume(list, 1, extra)
                 for (x in item) {
                     println(x)

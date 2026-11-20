@@ -176,7 +176,7 @@ val used = h() }"
                 .replace("FIRST_BODY", if mixed {
                     "val next: move () -> Unit = move {}\nf = F_BODY\nif (stop) { g = next } else { f = next }"
                 } else {
-                    "{ BORROW_X\nf = F_BODY }\n{ BORROW_Y\ng = G_BODY }"
+                    "block { BORROW_X\nf = F_BODY }\nblock { BORROW_Y\ng = G_BODY }"
                 })
                 .replace("FIRST_TAIL", if tail_loop == 0 { &jump_tail } else { "" })
                 .replace("SECOND_TAIL", if tail_loop == 1 { tail } else { "" })

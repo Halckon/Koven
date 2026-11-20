@@ -261,6 +261,12 @@ fn starts_block_statement(source: &str, tail: &[Lexeme]) -> bool {
         Some("loop") => tokens.next().is_some_and(|second| {
             second.kind() == LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
         }),
+        Some("block") => tokens.next().is_some_and(|second| {
+            second.kind() == LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+                && !source
+                    .get(first.span().end()..second.span().start())
+                    .is_some_and(|gap| gap.contains('\n'))
+        }),
         _ => false,
     }
 }
