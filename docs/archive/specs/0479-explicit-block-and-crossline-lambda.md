@@ -1,18 +1,18 @@
 # SPEC-0479: 显式词法块 `block { ... }` 与带括号调用跨行尾 lambda 附着
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：实施或验收 `block { ... }` 显式词法块、取消独立裸 `{ ... }` 语句与带括号调用跨行尾 lambda 附着时 · **唯一真源**：本 Spec 的范围、边界与验收；语言语义归 Guide
+> **性质**：变更合同 · **状态**：done · **读取时机**：实施或验收 `block { ... }` 显式词法块、取消独立裸 `{ ... }` 语句与带括号调用跨行尾 lambda 附着时 · **唯一真源**：本 Spec 的范围、边界与验收；语言语义归 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0479` |
 | 所属 Phase | Phase 1 |
-| 语言规范 | 现行 [Guide v0.47](../../guide/README.md)（待本分支同步启用） |
+| 语言规范 | 现行 [Guide v0.47](../../guide/README.md) |
 | 批准依据 | 2026-11-19 `#koven-design` 全员共识（Halckon、Claude、Cooper、Grok、Dot、Gemini） |
 | 前置 Spec | 无 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 待本分支完成 Guide、Parser/诊断、Formatter、Tree-sitter 及全仓夹具迁移并通过双宿主 CI |
+| 阻塞项 | 无 |
 | 影响范围 | `docs/guide/03-types-generics.md`、`docs/guide/04-expressions-operators.md`、`docs/guide/06-blocks-control-flow.md`、`docs/guide/07-calls-lambdas-closures.md`、`crates/lang-frontend/`、`editors/tree-sitter/`、全仓 `.ko` 与测试夹具 |
 | 语言语义变更 | 是 |
 
@@ -42,8 +42,15 @@
 
 ## 3. 实施计划与验收清单
 
-1. [ ] **Guide 同步**：更新 `03`/`04`/`06`/`07` 正文与 EBNF，消除旧裸块与同行限制冲突 → 验证：`python3 scripts/check_docs.py`
-2. [ ] **Parser 与诊断实现**：在 `lang-frontend` 落地 `block { ... }` 语句识别、`val x = block { ... }` 显式拒绝、取消语句位置裸 `{ ... }`、`parse_call` 跨行尾 lambda 附着（保持 `f<T>\n{}` 不附着）与 `move { ... }` 隔离诊断 → 验证：`parser_block`、`parser_trailing_lambda`、`parser_block_line_continuation`、`parser_lambda`、`parser_return_control`、`parser_expression`
-3. [ ] **Formatter 与 Tree-sitter 同步**：更新 `lang-frontend` Formatter 输出 `block { ... }` 并保证 SPEC-0477 往返等价；同步 `editors/tree-sitter/grammar.js` 与 `scanner.c` → 验证：`formatting` 目标与 Tree-sitter 契约测试
-4. [ ] **全仓 `.ko` 与测试夹具迁移**：将 `lang-frontend`、`lang-codegen`、`lang-cli` 中既有独立裸执行块统一迁移为 `block { ... }`（含 `coexisting.rs`、`coexisting_paths.rs` 及 6 个 `.ko` fixture 等） → 验证：全量受影响测试与双宿主 CI
-5. [ ] **表面语法增量门禁（F5）**：核对规则归属、离线冲突变化、软词/换行谓词、R1–R5 恢复边界与独立正反例
+1. [x] **Guide 同步**：更新 `03`/`04`/`06`/`07` 正文与 EBNF，消除旧裸块与同行限制冲突 → 验证：`python3 scripts/check_docs.py`
+2. [x] **Parser 与诊断实现**：在 `lang-frontend` 落地 `block { ... }` 语句识别、`val x = block { ... }` 显式拒绝、取消语句位置裸 `{ ... }`、`parse_call` 跨行尾 lambda 附着（保持 `f<T>\n{}` 不附着）与 `move { ... }` 隔离诊断 → 验证：`parser_block`、`parser_trailing_lambda`、`parser_block_line_continuation`、`parser_lambda`、`parser_return_control`、`parser_expression`
+3. [x] **Formatter 与 Tree-sitter 同步**：更新 `lang-frontend` Formatter 输出 `block { ... }` 并保证 SPEC-0477 往返等价；同步 `editors/tree-sitter/grammar.js` 与 `scanner.c` → 验证：`formatting` 目标与 Tree-sitter 契约测试
+4. [x] **全仓 `.ko` 与测试夹具迁移**：将 `lang-frontend`、`lang-codegen`、`lang-cli` 中既有独立裸执行块统一迁移为 `block { ... }`（含 `coexisting.rs`、`coexisting_paths.rs` 及 6 个 `.ko` fixture 等） → 验证：全量受影响测试与双宿主 CI
+5. [x] **表面语法增量门禁（F5）**：核对规则归属、离线冲突变化、软词/换行谓词、R1–R5 恢复边界与独立正反例
+
+## 4. 验收记录
+
+- 验收提交 `7398e2ee`（PR #453）。本地执行 §3 的六个 Parser 目标和 `formatting`：154 项通过。
+- F5 核对：Guide 将显式块归入语句，将跨行附着归入调用；软词仅在未限定名同行接 `{` 时特殊处理，跨行只接已闭合的圆括号调用。既有离线块差分作为回归证据；新增语法由 Parser 与独立 Tree-sitter 正反例覆盖，不将现有离线语料视为新增语法的完整证明。
+- 恢复回归覆盖次级 lambda、caller 终止符、未闭合和 lexer 错误的根诊断、owner 归属及共享资源预算。
+- [PR CI 第 2 次尝试](https://github.com/Halckon/Koven/actions/runs/44755356932/attempts/2)：文档结构、Tree-sitter 词法合同、macOS/Ubuntu 的 Clippy 和定向测试均通过；双平台 Preview 构建与独立安装通过，`CI Passed` 与 `Code CI Evidence` 均通过。

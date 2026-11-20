@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 444 份"))
+ARCH(("已完成<br/>archive 445 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -22,7 +22,6 @@ subgraph Gactive["现行 active"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0477["S0477<br/>Parser 与 Formatter 往返差分首片"]
   S0478["S0478<br/>普通块表达式离线差分"]
-  S0479["S0479<br/>显式词法块 block { ... } 与带括号调用跨行尾 lambda 附着"]
   S0480["S0480<br/>新表面语法增量门禁接入提案与 Spec 模板（F5）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -65,7 +64,6 @@ ARCH --> S0341
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
 | SPEC-0477 | active | [0477-parser-formatter-difftest.md](active/0477-parser-formatter-difftest.md) |
 | SPEC-0478 | active | [0478-independent-block-difftest.md](active/0478-independent-block-difftest.md) |
-| SPEC-0479 | active | [0479-explicit-block-and-crossline-lambda.md](active/0479-explicit-block-and-crossline-lambda.md) |
 | SPEC-0480 | active | [0480-surface-syntax-incremental-gate.md](active/0480-surface-syntax-incremental-gate.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
@@ -75,4 +73,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（444 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（445 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
