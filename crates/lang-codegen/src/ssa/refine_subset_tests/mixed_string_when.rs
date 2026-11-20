@@ -534,6 +534,183 @@ fun f(s: String, flag: Boolean): Int {
 }
 
 #[test]
+fn grouped_terminal_initializer_keeps_exact_inner_call_cleanup_but_still_rejects() {
+    use lang_frontend::{
+        name_resolution::UnitReferenceTarget,
+        ownership_checking::{LoanKind, UnitDropTarget, UnitLoanTarget},
+        parser::{Expression, Item, NameMarker, VariableKind},
+        type_checking::{BuiltinType, CallableResultSource, UnitExpressionId, UnitTypeKind},
+    };
+    const PREFIX: &str = r#"package p
+class Node()
+fun outer(node: Node, own r: Int): Int = r + 9
+fun f(s: String, flag: Boolean): Int {
+    val n = when (s) { "a" -> 1; else -> 0 }
+"#;
+    const CALL: &str = "outer(Node(), when (flag) { true -> return n\n else -> n })";
+    for (initializer, grouped) in [(CALL.to_owned(), false), (format!("({CALL})"), true)] {
+        let text = format!("{PREFIX}    val result = {initializer}\n    return result\n}}\n");
+        let mut sources = SourceMap::new();
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (ne, te) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
+        let unit = names.names().source_units()[0].source_unit();
+        let (binder, initializer_id) = file
+            .ast()
+            .items()
+            .iter()
+            .find_map(|(_, item)| match *item.payload() {
+                Item::Variable {
+                    kind: VariableKind::Val,
+                    name: NameMarker::Present(name),
+                    initializer,
+                    ..
+                } if sources.slice(name).unwrap() == "result" => Some((name, initializer)),
+                _ => None,
+            })
+            .expect("exact immutable binder");
+        let expressions = file.ast().expressions();
+        let inner = match expressions.get(initializer_id).unwrap().payload() {
+            Expression::Group { expression } if grouped => *expression,
+            Expression::Call { .. } if !grouped => initializer_id,
+            other => panic!("unexpected initializer: {other:?}"),
+        };
+        assert!(matches!(
+            expressions.get(inner).unwrap().payload(),
+            Expression::Call { .. }
+        ));
+        let span = |id: UnitExpressionId| expressions.get(id.expression()).unwrap().span();
+        let source = |id| sources.slice(span(id)).unwrap();
+        let init = UnitExpressionId::new(unit, initializer_id);
+        let inner = UnitExpressionId::new(unit, inner);
+        assert_eq!(source(init), initializer);
+        assert_eq!(source(inner), CALL);
+        let types = typed.types();
+        let descriptor = types.call(inner).expect("direct inner call");
+        assert_eq!(descriptor.result_source(), CallableResultSource::Owned);
+        assert_eq!(
+            types.types().get(descriptor.return_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Int))
+        );
+        if grouped {
+            assert!(types.call(init).is_none(), "Group must not own call facts");
+        }
+        for id in [init, inner] {
+            assert_eq!(types.expression_type(id), Some(descriptor.return_type()));
+            assert_eq!(types.expression_falls_through(id), Some(true));
+        }
+        let named = |text| {
+            let ids: Vec<_> = types
+                .expression_types()
+                .keys()
+                .copied()
+                .filter(|&id| source(id) == text)
+                .collect();
+            let [id] = ids[..] else {
+                panic!("one exact expression {text:?}: {ids:?}")
+            };
+            id
+        };
+        let returned = named("result");
+        let reference = names
+            .names()
+            .references()
+            .iter()
+            .find(|r| r.source_unit() == unit && r.span() == span(returned))
+            .expect("exact return reference");
+        let UnitReferenceTarget::Symbol(symbol) = *reference.target() else {
+            panic!("return must read a symbol");
+        };
+        assert_eq!(symbol.source_unit(), unit);
+        assert_eq!(
+            names.names().source_units()[0].resolution().symbols()[symbol.symbol().index()].span(),
+            binder
+        );
+        assert_eq!(types.symbol_type(symbol), Some(descriptor.return_type()));
+        assert_eq!(
+            types.expression_type(returned),
+            Some(descriptor.return_type())
+        );
+
+        let facts = owned.ownership();
+        let owner = named("Node()");
+        let transfer = named("return n");
+        assert_eq!(types.expression_falls_through(transfer), Some(false));
+        let loans: Vec<_> = facts
+            .loans()
+            .iter()
+            .filter(|loan| loan.call() == inner)
+            .collect();
+        let [loan] = loans[..] else {
+            panic!("one inner loan: {loans:?}")
+        };
+        assert_eq!(loan.argument(), owner);
+        assert_eq!(loan.kind(), LoanKind::Shared);
+        assert_eq!(loan.target(), &UnitLoanTarget::Temporary(owner));
+
+        let points = [
+            UnitDropPoint::CallReturn(inner),
+            UnitDropPoint::ControlTransfer(transfer),
+        ];
+        for point in points {
+            let ends: Vec<_> = facts
+                .direct_call_loan_ends()
+                .iter()
+                .filter(|end| end.point() == point)
+                .collect();
+            let drops: Vec<_> = facts
+                .drops()
+                .iter()
+                .filter(|drop| drop.point() == point)
+                .collect();
+            let ([end], [drop]) = (ends.as_slice(), drops.as_slice()) else {
+                panic!("one cleanup pair at {point:?}: {ends:?} / {drops:?}");
+            };
+            assert_eq!(end.loan(), loan);
+            assert_eq!(end.preceding_call_loan_ends(), 0);
+            assert_eq!(end.preceding_drops(), 0, "end precedes drop");
+            assert_eq!(drop.target(), UnitDropTarget::Temporary(owner));
+            assert_eq!(drop.value_origin(), span(owner));
+            assert!(!drop.is_conditional_temporary());
+        }
+        assert!(
+            facts
+                .drops()
+                .iter()
+                .filter(|drop| drop.target() == UnitDropTarget::Temporary(owner))
+                .all(|drop| points.contains(&drop.point()))
+        );
+
+        let entry = declaration(&names, "p", "f");
+        let (result, routes) = observe_routing(|| {
+            lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
+        });
+        assert_eq!(
+            routes.iter().any(|name| name.starts_with("koven.p.f.d")),
+            !grouped
+        );
+        if grouped {
+            let Err(error) = result else {
+                panic!("grouped compatibility lowering is not currently supported");
+            };
+            assert_eq!(
+                error.kind,
+                crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
+            );
+            assert_eq!(
+                sources.slice(error.span.unwrap()).unwrap(),
+                r#"when (s) { "a" -> 1; else -> 0 }"#
+            );
+        } else {
+            let (program, _) = result.expect("direct initializer must lower");
+            crate::ssa::verify::verify_program(&program).expect("direct initializer must verify");
+            crate::llvm::render_verified_program(&program).expect("direct initializer LLVM");
+        }
+    }
+}
+
+#[test]
 fn local_initializer_neighbor_shapes_keep_string_when_fallback_rejection() {
     const PREFIX: &str = r#"package p
 class Node()
@@ -549,8 +726,8 @@ fun f(s: String, flag: Boolean): Int {
             format!("val result = {CALL}\n    return n"),
         ),
         (
-            "group adapter",
-            format!("val result = ({CALL})\n    return result"),
+            "double group adapter",
+            format!("val result = (({CALL}))\n    return result"),
         ),
         (
             "intervening declaration",
