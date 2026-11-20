@@ -89,6 +89,8 @@ fun f(s: String, flag: Boolean): Int {
 fun main(): Unit {
     if (f("a", true) != 1) { error("abandoned call dispatched") }
     if (f("a", false) != 10) { error("normal call did not dispatch") }
+    if (f("b", true) != 0) { error("unmatched early path lost prefix") }
+    if (f("b", false) != 9) { error("unmatched normal path lost result") }
     println("ok")
 }
 "#;
@@ -122,8 +124,10 @@ fun main(): Unit {
 
     let llvm = crate::llvm::render_verified_program_with_entry(&program, entry)
         .expect("bounded call verifies in LLVM");
-    let output =
-        crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0, 1]);
+    let output = crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(
+        &llvm,
+        &[0, 1, 2, 3],
+    );
     crate::native_tests::boxed_enum_tests::assert_success(&output, b"ok\n");
 }
 
@@ -466,5 +470,79 @@ fun f(s: String, flag: Boolean): Int {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn local_initializer_neighbor_shapes_keep_string_when_fallback_rejection() {
+    const PREFIX: &str = r#"package p
+class Node()
+fun outer(node: Node, own r: Int): Int = r + 9
+fun f(s: String, flag: Boolean): Int {
+    val n = when (s) { "a" -> 1; else -> 0 }
+"#;
+    const CALL: &str = "outer(Node(), when (flag) { true -> return n\n else -> n })";
+    for (shape, body) in [
+        ("mutable", format!("var result = {CALL}\n    return result")),
+        (
+            "different symbol",
+            format!("val result = {CALL}\n    return n"),
+        ),
+        (
+            "group adapter",
+            format!("val result = ({CALL})\n    return result"),
+        ),
+        (
+            "intervening declaration",
+            format!("val result = {CALL}\n    val extra = 3\n    return result"),
+        ),
+    ] {
+        let text = format!("{PREFIX}    {body}\n}}\n");
+        let mut sources = SourceMap::new();
+        let (id, file) = parsed(&mut sources, "p/main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (ne, te) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
+        let facts = owned.ownership();
+        let pending = facts.direct_call_loan_ends();
+        let has_point = |accept: fn(UnitDropPoint) -> bool| {
+            pending.iter().any(|end| {
+                accept(end.point())
+                    && facts.drops().iter().any(|drop| {
+                        drop.point() == end.point()
+                            && drop.target()
+                                == lang_frontend::ownership_checking::UnitDropTarget::Temporary(
+                                    end.loan().argument(),
+                                )
+                            && sources.slice(drop.value_origin()).unwrap() == "Node()"
+                    })
+            })
+        };
+        assert!(
+            has_point(|point| matches!(point, UnitDropPoint::CallReturn(_)))
+                && has_point(|point| matches!(point, UnitDropPoint::ControlTransfer(_))),
+            "{shape}: front end must publish both real cleanup paths"
+        );
+        let entry = declaration(&names, "p", "f");
+        let (result, routes) = observe_routing(|| {
+            lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
+        });
+        assert!(
+            !routes.iter().any(|n| n.starts_with("koven.p.f.d")),
+            "{shape}: {routes:?}"
+        );
+        let Err(error) = result else {
+            panic!("{shape}: boundary must not successfully lower")
+        };
+        assert_eq!(
+            error.kind,
+            crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode,
+            "{shape}"
+        );
+        assert_eq!(
+            sources.slice(error.span.unwrap()).unwrap(),
+            r#"when (s) { "a" -> 1; else -> 0 }"#,
+            "{shape}: actual rejection remains at the shared fallback boundary",
+        );
     }
 }
