@@ -21747,3 +21747,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `c2249969`。原 `resource_replace_and_swap_transport_distinct_owner_definitions_once` 源码逐字节保存为共享 fixture。MemoryDocument / Rooted 均检查两次原子操作、严格三个非条件词法具名析构（old、second、first）及无隐藏临时/旧根析构；保留 FE 测试，移除本项 Single 调用。
 - 同一原源码的 Unit typed SSA 以根 replace→swap→tick→三次 Drop→Return 验证实际边界；同一已验证产物转 LLVM、链接运行，三个实际活分配地址以 Resource(1)→Resource(3)→Resource(2) 逐地址唯一释放。诊断 span 不用作 owner token。
 - macOS Rust 1.96.0 / LLVM 21，FE `ownership_resource_deinit` 31 passed、codegen 定点 1/1（两布局含 native）。未运行 Linux 或远端 CI；生产、API、CI 未改，SPEC-0341 仍 in-progress。其余 Return/Abort、字段实例身份与有意差异见证维持旧路径。
+
+### 2026-11-20：字段资源与外层调用放弃的 owner 身份迁移
+
+- 基于 `090e4587`，迁移余下三个资源实例用例。根与字段的两组 Return/Abort，以及字段的 val/var × temporary/named 四个原渲染源共 8 份，逐字节保留；共用模板同时供两个 Unit 前端布局与真正 SSA 消费。
+- FE 保持根/字段交换事实、词法顺序、精确 Return 清理点及 Abort 不退栈。SSA 以原构造产物的 ValueId 绑定实际 RootReplace / HeapFieldExchange：外层 accept 不派发，Return 按旧值、当前根/原父 owner 顺序各一次 Drop，Abort 无 Drop；字段正常调用保留原父构造，以独立旧字段结果、sibling、原父的顺序在 tick 后各 Drop 一次。
+- Mac FE 31/31，相关 codegen 3/3（本批 8 原输入各双布局；上一片根交换继续双布局链接 native）。本批 8 形态未运行 native，未跑 Linux 或远端 CI。仅保留原 L0135/L0134 与资源条件 deferral 两项故意差异的 Single 见证；生产、API、CI 不变，SPEC-0341 仍 in-progress。

@@ -6,8 +6,8 @@ use lang_frontend::{
         SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, DropPoint, DropTarget, OwnershipCheckedFile, UnitDropPoint,
-        UnitDropTarget, check_compilation_unit_ownership, check_ownership,
+        CompilationUnitOwnership, DropPoint, UnitDropPoint, UnitDropTarget,
+        check_compilation_unit_ownership, check_ownership,
     },
     parser::{ParsedFile, parse_file},
     source::SourceMap,
@@ -26,111 +26,6 @@ mod exchange;
 #[path = "ownership_resource_deinit/unit_plans.rs"]
 mod unit_plans;
 use unit_plans::plans;
-
-fn inspected_plans(
-    text: &str,
-    inspect: impl FnOnce(&SourceMap, &ParsedFile, &OwnershipCheckedFile, &CompilationUnitOwnership),
-) -> [Vec<NamedDrop>; 2] {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("resource-drop.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (name_env, type_env) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &name_env).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &type_env).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let single_owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(
-        single_owned.diagnostics().is_empty(),
-        "{:?}",
-        single_owned.diagnostics()
-    );
-    assert!(
-        single_owned.deferred().is_empty(),
-        "{:?}",
-        single_owned.deferred()
-    );
-    let single = single_owned
-        .drops()
-        .iter()
-        .filter_map(|drop| {
-            let DropTarget::Named(symbol) = drop.target() else {
-                return None;
-            };
-            let name = names.symbols()[symbol.index()].name().to_string();
-            let (boundary, text) = point(&sources, &parsed, drop.point());
-            Some(NamedDrop {
-                name,
-                boundary,
-                text,
-            })
-        })
-        .collect();
-
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "resource-drop.ko",
-        source,
-        &parsed,
-    )];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_env)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &type_env)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let owned =
-        check_compilation_unit_ownership(&sources, &inputs, &names, &type_env, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
-    let unit = owned
-        .drops()
-        .iter()
-        .filter_map(|drop| {
-            let UnitDropTarget::Named(symbol) = drop.target() else {
-                return None;
-            };
-            let name = names.names().source_units()[symbol.source_unit().index()]
-                .resolution()
-                .symbols()[symbol.symbol().index()]
-            .name()
-            .to_string();
-            let point = match drop.point() {
-                UnitDropPoint::AfterStatement(id) => DropPoint::AfterStatement(id.statement()),
-                UnitDropPoint::AfterExpression(id) => DropPoint::AfterExpression(id.expression()),
-                UnitDropPoint::ControlTransfer(id) => DropPoint::ControlTransfer(id.expression()),
-                UnitDropPoint::FunctionEntry(id) => DropPoint::FunctionEntry(id.item()),
-                UnitDropPoint::CallReturn(id) => DropPoint::CallReturn(id.expression()),
-                UnitDropPoint::BranchExit { control, branch } => DropPoint::BranchExit {
-                    control: control.expression(),
-                    branch,
-                },
-                UnitDropPoint::LoopExit(id) => DropPoint::LoopExit(id.statement()),
-                other => panic!("unexpected drop boundary: {other:?}"),
-            };
-            let (boundary, text) = point_text(&sources, &parsed, point);
-            Some(NamedDrop {
-                name,
-                boundary,
-                text,
-            })
-        })
-        .collect();
-    inspect(&sources, &parsed, &single_owned, &owned);
-    [single, unit]
-}
-
-fn point(sources: &SourceMap, parsed: &ParsedFile, point: DropPoint) -> (&'static str, String) {
-    point_text(sources, parsed, point)
-}
 
 fn point_text(
     sources: &SourceMap,

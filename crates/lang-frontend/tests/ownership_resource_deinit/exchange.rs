@@ -186,56 +186,70 @@ fn resource_replace_and_swap_keep_three_named_lexical_drops() {
 
 #[test]
 fn abandoned_outer_call_cleans_replaced_old_value_and_current_resource_once() {
+    let fixture = include_str!("fixtures/abandoned-root-resource-exchange.ko.in");
     for exit in ["return", "error(\"stop\")"] {
-        let text = format!(
-            "{HEADER}fun accept(own first: Guard, last: Int): Unit {{}}\nfun run(): Unit {{ var root = Guard(); accept(replace(&root, Guard()), {exit}) }}"
-        );
-        inspected_plans(&text, |sources, parsed, single, unit| {
-            assert_eq!(single.ownership_primitives().len(), 1);
-            assert_eq!(unit.ownership_primitives().len(), 1);
-            // accept's owned parameter has its own lexical drop in its body.
-            let single_drops = single
-                .drops()
-                .iter()
-                .filter(|drop| !matches!(drop.point(), DropPoint::AfterStatement(_)))
-                .collect::<Vec<_>>();
-            let unit_drops = unit
-                .drops()
-                .iter()
-                .filter(|drop| !matches!(drop.point(), UnitDropPoint::AfterStatement(_)))
-                .collect::<Vec<_>>();
-            if exit == "return" {
-                assert_eq!(single_drops.len(), 2, "{single_drops:?}");
-                assert_eq!(unit_drops.len(), 2, "{unit_drops:?}");
-                assert!(matches!(single_drops[0].target(), DropTarget::Temporary(_)));
-                assert!(matches!(single_drops[1].target(), DropTarget::Named(_)));
-                assert!(matches!(
-                    unit_drops[0].target(),
-                    UnitDropTarget::Temporary(_)
-                ));
-                assert!(matches!(unit_drops[1].target(), UnitDropTarget::Named(_)));
-                assert_ne!(
-                    single_drops[0].owner(),
-                    single_drops[1].owner(),
-                    "old and new must remain distinct owners"
-                );
-                for drop in single_drops {
-                    let DropPoint::ControlTransfer(jump) = drop.point() else {
-                        panic!("{drop:?}");
-                    };
-                    assert_eq!(
-                        sources
-                            .slice(parsed.ast().expressions().get(jump).unwrap().span())
-                            .unwrap(),
-                        "return"
-                    );
-                }
-            } else {
-                assert!(single_drops.is_empty(), "{single_drops:?}");
-                assert!(unit_drops.is_empty(), "{unit_drops:?}");
-            }
+        unit_plans::inspected_plans(&fixture.replace("$EXIT", exit), |sources, parsed, unit| {
+            let [exchange] = unit.ownership_primitives() else {
+                panic!("one committed root exchange");
+            };
+            assert!(unit.field_replacements().is_empty());
+            let [place] = exchange.places() else {
+                panic!("one root place");
+            };
+            assert!(place.is_root());
+            assert_abandoned_drops(
+                sources,
+                parsed,
+                unit,
+                exchange.descriptor().expression(),
+                place.root(),
+                exit,
+            );
         });
     }
+}
+
+fn assert_abandoned_drops(
+    sources: &SourceMap,
+    parsed: &ParsedFile,
+    unit: &CompilationUnitOwnership,
+    exchange: lang_frontend::type_checking::UnitExpressionId,
+    parent: lang_frontend::name_resolution::UnitSymbolId,
+    exit: &str,
+) {
+    // The unused owned parameter of accept has its own independent lexical drop.
+    let deferred_call_drops = unit
+        .drops()
+        .iter()
+        .filter(|drop| !matches!(drop.point(), UnitDropPoint::AfterStatement(_)))
+        .collect::<Vec<_>>();
+    if exit != "return" {
+        assert!(deferred_call_drops.is_empty(), "{deferred_call_drops:?}");
+        return;
+    }
+    let [old, live] = deferred_call_drops.as_slice() else {
+        panic!("two abandon-time cleanup obligations: {deferred_call_drops:?}");
+    };
+    assert_eq!(old.target(), UnitDropTarget::Temporary(exchange));
+    assert_eq!(live.target(), UnitDropTarget::Named(parent));
+    let UnitDropPoint::ControlTransfer(transfer) = old.point() else {
+        panic!("the original return relinquishes the pending argument");
+    };
+    assert_eq!(transfer.source_unit(), exchange.source_unit());
+    assert_eq!(
+        sources.slice(
+            parsed
+                .ast()
+                .expressions()
+                .get(transfer.expression())
+                .unwrap()
+                .span()
+        ),
+        Ok("return"),
+    );
+    assert_eq!(live.point(), old.point());
+    assert!(!old.is_conditional_temporary());
+    // The identical original source is independently checked against actual Unit SSA owners.
 }
 
 #[test]
@@ -256,6 +270,7 @@ fn returning_replaced_old_resource_transfers_it_without_a_second_drop() {
 
 #[test]
 fn direct_field_resource_replace_keeps_parent_and_old_result_until_lexical_exit() {
+    let fixture = include_str!("fixtures/lexical-field-resource-exchange.ko.in");
     for binding in ["val", "var"] {
         for new in ["Guard()", "incoming"] {
             let incoming = if new == "incoming" {
@@ -263,44 +278,22 @@ fn direct_field_resource_replace_keeps_parent_and_old_result_until_lexical_exit(
             } else {
                 ""
             };
-            let body = format!(
-                "{{ {binding} holder = Holder(Guard()); val sibling = Guard(); {incoming}val old = replace(&holder.state, {new}); inspect(holder.state); inspect(old); tick() }}"
-            );
-            let text = format!("{HEADER}class Holder(var state: Guard)\nfun run(): Unit {body}");
-            let plans = inspected_plans(&text, |sources, parsed, single, unit| {
-                assert_eq!(single.field_replacements().len(), 1);
-                assert_eq!(unit.field_replacements().len(), 1);
-                assert!(single.ownership_primitives().is_empty());
+            let text = fixture
+                .replace("$BINDING", binding)
+                .replace("$INCOMING", incoming)
+                .replace("$NEW", new);
+            let plans = unit_plans::inspected_plans(&text, |_, _, unit| {
+                let [exchange] = unit.field_replacements() else {
+                    panic!("one committed single field exchange");
+                };
+                assert_eq!(exchange.place().fields().len(), 1);
                 assert!(unit.ownership_primitives().is_empty());
-                assert_eq!(single.drops().len(), 3, "no old-field drop at commit");
-                assert_eq!(unit.drops().len(), 3, "no old-field drop at commit");
-                let parent = single.field_replacements()[0].place().root();
-                let parent_drop = single
-                    .drops()
-                    .iter()
-                    .find(|drop| drop.target() == DropTarget::Named(parent))
-                    .unwrap();
-                let owner = parent_drop
-                    .owner()
-                    .expect("parent retains its owner identity");
-                let Some(lang_frontend::ownership_checking::CleanupOwnerValue::Expression {
-                    expression,
-                    ..
-                }) = single.cleanup_conditions().owner_value(owner)
-                else {
-                    panic!("parent must retain its constructor owner definition");
+                let [_, _, parent] = unit.drops() else {
+                    panic!("no old-field drop at commit");
                 };
                 assert_eq!(
-                    sources
-                        .slice(parsed.ast().expressions().get(*expression).unwrap().span())
-                        .unwrap(),
-                    "Holder(Guard())",
-                    "field exchange does not replace the parent owner"
-                );
-                assert_ne!(
-                    single.drops()[0].owner(),
-                    parent_drop.owner(),
-                    "old field result has an independent owner"
+                    parent.target(),
+                    UnitDropTarget::Named(exchange.place().root())
                 );
                 assert!(unit.clone().validate().is_ok());
             });
@@ -312,6 +305,7 @@ fn direct_field_resource_replace_keeps_parent_and_old_result_until_lexical_exit(
                         .collect::<Vec<_>>(),
                     ["old", "sibling", "holder"]
                 );
+                let body = text.rsplit_once("fun run(): Unit ").unwrap().1;
                 assert!(
                     drops
                         .iter()
@@ -410,48 +404,22 @@ fn direct_field_resource_interrupted_replacement_never_commits_or_unwinds_abort(
 
 #[test]
 fn direct_field_resource_abandoned_result_and_parent_have_unique_cleanup() {
+    let fixture = include_str!("fixtures/abandoned-field-resource-exchange.ko.in");
     for exit in ["return", "error(\"stop\")"] {
-        let text = format!(
-            "{HEADER}class Holder(var state: Guard)\nfun accept(own first: Guard, last: Int): Unit {{}}\nfun run(): Unit {{ val holder = Holder(Guard()); accept(replace(&holder.state, Guard()), {exit}) }}"
-        );
-        inspected_plans(&text, |_, _, single, unit| {
-            assert_eq!(single.field_replacements().len(), 1);
-            assert_eq!(unit.field_replacements().len(), 1);
-            let single_drops = single
-                .drops()
-                .iter()
-                .filter(|drop| !matches!(drop.point(), DropPoint::AfterStatement(_)))
-                .collect::<Vec<_>>();
-            let unit_drops = unit
-                .drops()
-                .iter()
-                .filter(|drop| !matches!(drop.point(), UnitDropPoint::AfterStatement(_)))
-                .collect::<Vec<_>>();
-            if exit == "return" {
-                assert_eq!(single_drops.len(), 2, "{single_drops:?}");
-                assert_eq!(unit_drops.len(), 2, "{unit_drops:?}");
-                assert!(matches!(single_drops[0].target(), DropTarget::Temporary(_)));
-                assert!(matches!(single_drops[1].target(), DropTarget::Named(_)));
-                assert!(matches!(
-                    unit_drops[0].target(),
-                    UnitDropTarget::Temporary(_)
-                ));
-                assert!(matches!(unit_drops[1].target(), UnitDropTarget::Named(_)));
-                assert!(
-                    single_drops
-                        .iter()
-                        .all(|drop| matches!(drop.point(), DropPoint::ControlTransfer(_)))
-                );
-                assert!(
-                    unit_drops
-                        .iter()
-                        .all(|drop| matches!(drop.point(), UnitDropPoint::ControlTransfer(_)))
-                );
-                assert_ne!(single_drops[0].owner(), single_drops[1].owner());
-            } else {
-                assert!(single_drops.is_empty(), "{single_drops:?}");
-                assert!(unit_drops.is_empty(), "{unit_drops:?}");
-            }
+        unit_plans::inspected_plans(&fixture.replace("$EXIT", exit), |sources, parsed, unit| {
+            let [exchange] = unit.field_replacements() else {
+                panic!("one committed field exchange");
+            };
+            assert!(unit.ownership_primitives().is_empty());
+            assert_eq!(exchange.place().fields().len(), 1);
+            assert_abandoned_drops(
+                sources,
+                parsed,
+                unit,
+                exchange.descriptor().expression(),
+                exchange.place().root(),
+                exit,
+            );
         });
     }
 }
