@@ -252,8 +252,8 @@ fn direct_initializer_and_nested_initializer_keep_separate_pending_frames() {
     };
     const HEADER: &str = r#"package p
 class Node()
-fun outer(node: Node, own r: Int): Int = r
-fun wrap(node: Node, own r: Int): Int = r
+fun outer(node: Node, own r: Int): Int = r + 9
+fun wrap(node: Node, own r: Int): Int = r + 17
 fun f(s: String, flag: Boolean): Int {
     val n = when (s) { "a" -> 1; else -> 0 }
 "#;
