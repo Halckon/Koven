@@ -21921,3 +21921,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 两布局核实际 transports，不把空有限 end 表当作终止证明：同一具名 root、两枚真实 Shared loan、generic/observe 的原 AST 与参数 span，handoff 到实际 observe 回来才按 child→lender 结束；后续实际 Value delivery 移动同一个 root，没有误造 temporary/caller Drop。
 - 同源真 Unit SSA/LLVM 验证顺序和身份：具体 String 实例由 `BorrowCall` 返回自己的真实 lender 参数，原 `observe` 得到 child，先结束 child 再结束 lender，最后原 ValueId 交给 `consume` 的 own 参数且被调方只做一次 SSA Drop。两个布局 native 都输出 `kept\n`；原 String 是静态字面量，不拿 native 输出声称它分配或释放 heap buffer。
 - Mac 前端 `ownership_nested_borrow_arguments` 18/18、codegen 定点 1/1（两布局），格式、diff、docs 和对 main `8207b212` 的 Rust size guard 通过；不改生产、API 或 CI。未与 E2 合并、未跑 Linux/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 wrapper 的嵌套借用同步运输
+
+- 基于 `c35de787`。只拆换同一旧混合组中的 `wrap(source)` 子项：真实 `fun wrap(source: String): borrow String from source = view(source)` 与 `observe(wrap(source)); consume(source)` 连同旧前置声明一共 278 字节不变。原 Single 的端点先实跑通过，再迁本条；field、parent、measure 三个旧子项不动。
+- 双 Unit 布局验证真实 source/consumer 共享根、caller handoff/按 child→lender 结束，再发生同根的 own Move。实际 Unit SSA 另追 `wrap` 内自己的 Shared 参数到原 `view` 的 BorrowCall 与返回 child，再返回同一 child；外层 observe 使用实际子借用，两个贷款在原调用结束位置退休，最终同一 ValueId 到 `consume` 且只在该被调方有 SSA Drop。不是用泛型直接返回测试推论 wrapper 链。
+- Mac 原样 native 两布局均 `kept\n`，只证行为和 SSA 所有权，不声称静态字面量在 heap 分配；前端 19/19，codegen 2/2（含前项 generic 复验，两布局）。fmt、diff、docs 和对 main 的 Rust size guard 均通过。保留原验证候选 `3843a810`，未改 production/API/CI、未合 E2、未推送或跑 Docker/Linux，SPEC-0341 仍 in-progress。

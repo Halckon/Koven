@@ -7,7 +7,7 @@ use lang_frontend::{
     type_checking::UnitExpressionId,
 };
 
-pub(super) fn assert_transport(text: &str) {
+pub(super) fn assert_transport(text: &str, lender_name: &str, lender_parameter: &str) {
     let checked = super::unit_checked(text);
     let source = checked.parsed.source_id();
     assert_eq!(checked.sources.source_text(source), Ok(text));
@@ -19,7 +19,7 @@ pub(super) fn assert_transport(text: &str) {
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
         assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
         let [usage] = unit.borrow_results().call_uses() else {
-            panic!("one actual generic synchronous borrow")
+            panic!("one actual synchronous borrow")
         };
         let [transport] = unit.borrow_call_transports() else {
             panic!("one actual transport")
@@ -38,9 +38,12 @@ pub(super) fn assert_transport(text: &str) {
             span
         };
         let token = |id| checked.sources.slice(span(id)).unwrap();
-        assert_eq!(token(lender.call()), "genericView(source)");
+        assert_eq!(token(lender.call()), format!("{lender_name}(source)"));
         assert_eq!(token(lender.argument()), "source");
-        assert_eq!(token(consumer.call()), "observe(genericView(source))");
+        assert_eq!(
+            token(consumer.call()),
+            format!("observe({lender_name}(source))")
+        );
         assert_eq!(consumer.argument(), lender.call());
         assert_eq!(
             (usage.call(), usage.argument()),
@@ -70,7 +73,7 @@ pub(super) fn assert_transport(text: &str) {
         assert_eq!(root.root().source_unit(), unit_id);
         assert_eq!(
             checked.sources.slice(lender.parameter_span().unwrap()),
-            Ok("source: T")
+            Ok(lender_parameter)
         );
         assert_eq!(
             checked.sources.slice(consumer.parameter_span().unwrap()),

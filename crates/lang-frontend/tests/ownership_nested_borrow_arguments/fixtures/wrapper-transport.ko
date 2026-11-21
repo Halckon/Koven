@@ -1,0 +1,5 @@
+fun view(source: String): borrow String from source = source
+fun observe(item: String) { println(item) }
+fun consume(own item: String) {}
+fun wrap(source: String): borrow String from source = view(source)
+fun run() { val source = "kept"; observe(wrap(source)); consume(source) }

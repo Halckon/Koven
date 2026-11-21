@@ -413,9 +413,20 @@ fn reversed_named_same_owner_chains_end_before_consume() {
 
 #[test]
 fn generic_synchronous_borrow_has_the_exact_unit_transport() {
-    generic_transport::assert_transport(include_str!(
-        "ownership_nested_borrow_arguments/fixtures/generic-transport.ko"
-    ));
+    generic_transport::assert_transport(
+        include_str!("ownership_nested_borrow_arguments/fixtures/generic-transport.ko"),
+        "genericView",
+        "source: T",
+    );
+}
+
+#[test]
+fn wrapper_synchronous_borrow_has_the_exact_unit_transport() {
+    generic_transport::assert_transport(
+        include_str!("ownership_nested_borrow_arguments/fixtures/wrapper-transport.ko"),
+        "wrap",
+        "source: String",
+    );
 }
 
 #[test]
@@ -423,7 +434,6 @@ fn generic_field_wrapper_and_existing_parent_sources_keep_their_identity() {
     for rooted in [false, true] {
         for body in [
             "class Record(val text: String)\nfun field(source: Record): borrow String from source = source.text\nfun run() { val source = Record(\"kept\"); observe(field(source)) }",
-            "fun wrap(source: String): borrow String from source = view(source)\nfun run() { val source = \"kept\"; observe(wrap(source)); consume(source) }",
             "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent); consume(source) }",
             "fun measure(source: String): Int = 1\nfun run() { val source = \"kept\"; val count = measure(view(source)); consume(source) }",
         ] {

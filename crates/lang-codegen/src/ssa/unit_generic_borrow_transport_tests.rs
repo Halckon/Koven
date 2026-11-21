@@ -1,4 +1,4 @@
-//! Exact generic borrow-result fixture: child and lender retire before the later move.
+//! Exact synchronous borrow-result fixtures: child and lender retire before the later move.
 use lang_frontend::{
     name_resolution::{SourceUnitInput, SourceUnitKey},
     source::SourceMap,
@@ -16,6 +16,28 @@ fn original_generic_synchronous_borrow_transports_then_moves_the_same_owner() {
     let text = include_str!(
         "../../../lang-frontend/tests/ownership_nested_borrow_arguments/fixtures/generic-transport.ko"
     );
+    assert_original_transport(text, Lender::Generic);
+}
+
+#[test]
+fn original_wrapper_synchronous_borrow_forwards_before_moving_the_original_owner() {
+    let text = include_str!(
+        "../../../lang-frontend/tests/ownership_nested_borrow_arguments/fixtures/wrapper-transport.ko"
+    );
+    assert_original_transport(text, Lender::Wrapper);
+}
+
+#[derive(Clone, Copy)]
+enum Lender {
+    Generic,
+    Wrapper,
+}
+
+fn assert_original_transport(text: &str, lender_kind: Lender) {
+    let (call_text, declaration_prefix) = match lender_kind {
+        Lender::Generic => ("genericView(source)", "fun <T> genericView("),
+        Lender::Wrapper => ("wrap(source)", "fun wrap("),
+    };
     let path = "nested_borrow.ko";
     let mut sources = SourceMap::new();
     let (source, file) = parsed(&mut sources, path, text);
@@ -108,10 +130,7 @@ fn original_generic_synchronous_borrow_transports_then_moves_the_same_owner() {
         else {
             panic!("real generic borrow transport")
         };
-        assert_eq!(
-            sources.slice(generic.origin.span()),
-            Ok("genericView(source)")
-        );
+        assert_eq!(sources.slice(generic.origin.span()), Ok(call_text));
         assert_eq!(*witness, *lender);
         assert_eq!(arguments.as_slice(), [EntityId::Loan(*lender)]);
         let actual = module.function(*callee).unwrap();
@@ -119,7 +138,7 @@ fn original_generic_synchronous_borrow_transports_then_moves_the_same_owner() {
             sources
                 .slice(actual.origin.span())
                 .unwrap()
-                .starts_with("fun <T> genericView(")
+                .starts_with(declaration_prefix)
         );
         let generic_entry = actual.block(actual.entry_block().unwrap()).unwrap();
         let [EntityId::Loan(argument)] = generic_entry.parameters.as_slice() else {
@@ -132,8 +151,63 @@ fn original_generic_synchronous_borrow_transports_then_moves_the_same_owner() {
                 target: owner_type
             }
         );
+        let forwarded = match lender_kind {
+            Lender::Generic => {
+                assert!(actual.instructions.is_empty());
+                *argument
+            }
+            Lender::Wrapper => {
+                let [forward] = actual.instructions.as_slice() else {
+                    panic!("wrapper must forward the original parameter, not copy or replace it")
+                };
+                assert_eq!(sources.slice(forward.origin.span()), Ok("view(source)"));
+                let Operation::BorrowCall {
+                    callee,
+                    arguments,
+                    source,
+                } = &forward.operation
+                else {
+                    panic!("real inner borrow call")
+                };
+                assert_eq!(*source, *argument);
+                assert_eq!(arguments.as_slice(), [EntityId::Loan(*argument)]);
+                let inner = module.function(*callee).unwrap();
+                assert!(
+                    sources
+                        .slice(inner.origin.span())
+                        .unwrap()
+                        .starts_with("fun view(")
+                );
+                let inner_entry = inner.block(inner.entry_block().unwrap()).unwrap();
+                let [EntityId::Loan(inner_argument)] = inner_entry.parameters.as_slice() else {
+                    panic!("actual borrowed String ABI")
+                };
+                assert_eq!(
+                    inner.entity(EntityId::Loan(*inner_argument)).unwrap().ty,
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target: owner_type
+                    }
+                );
+                assert!(inner.instructions.is_empty());
+                assert!(matches!(inner_entry.terminator.as_ref().unwrap().kind,
+                    TerminatorKind::BorrowReturn { loan } if loan == *inner_argument));
+                let [EntityId::Loan(returned)] = forward.results.as_slice() else {
+                    panic!("the wrapper receives a distinct child to forward")
+                };
+                assert_ne!(returned, argument);
+                *returned
+            }
+        };
+        assert_eq!(
+            actual.entity(EntityId::Loan(forwarded)).unwrap().ty,
+            EntityType::Loan {
+                kind: LoanKind::Shared,
+                target: owner_type
+            }
+        );
         assert!(matches!(generic_entry.terminator.as_ref().unwrap().kind,
-            TerminatorKind::BorrowReturn { loan } if loan == *argument));
+            TerminatorKind::BorrowReturn { loan } if loan == forwarded));
         let [EntityId::Loan(child)] = generic.results.as_slice() else {
             panic!("actual borrow result")
         };
