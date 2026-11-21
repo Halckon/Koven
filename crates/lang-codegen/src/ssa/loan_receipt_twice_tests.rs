@@ -49,13 +49,16 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             .find(|declaration| declaration.name() == "entry")
             .unwrap()
             .id();
-        let ((lowered, routed), receipts) = crate::ssa::refine::receiver_receipt::observe(|| {
-            crate::ssa::refine::observe_routing(|| {
-                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                    &sources, &inputs, &names, &types, &typed, &owned, entry,
-                )
-            })
-        });
+        let (((lowered, routed), receipts), planned) =
+            crate::ssa::refine::two_receiver_plan_test_support::observe(|| {
+                crate::ssa::refine::receiver_receipt::observe(|| {
+                    crate::ssa::refine::observe_routing(|| {
+                        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                            &sources, &inputs, &names, &types, &typed, &owned, entry,
+                        )
+                    })
+                })
+            });
         let (program, entry) = lowered.unwrap();
         let [module] = program.modules.as_slice() else {
             panic!("one module");
@@ -105,6 +108,7 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             "two-call caller route with source {source_text}: {routed:?}"
         );
         let mut raw_intervals = Vec::new();
+        let mut receiver_facts = Vec::new();
         for (index, call_span) in call_offsets.iter().copied().enumerate() {
             let mut regions = owned
                 .ownership()
@@ -128,6 +132,7 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
                 .expect("a region for this exact receiver call");
             assert!(regions.next().is_none());
             assert_eq!(region.protocol_version(), 2);
+            receiver_facts.push(owned.ownership().receiver_fact(region.call()).unwrap());
             let expected = if expect_refine {
                 // The declaration anchor is outside the flat expression-only observation gate.
                 UnitLoanActionCoverage::Unsupported
@@ -229,6 +234,7 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
         );
         let mut actual_loans = Vec::new();
         let mut callees = Vec::new();
+        let mut plan_expectations = Vec::new();
         for (at, call_span) in call_offsets.iter().copied().enumerate() {
             let (begin_at, begin) = begins[at];
             let (call_at, call) = calls[at];
@@ -264,11 +270,47 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             assert_span(end.origin.span(), source, call_span);
             actual_loans.push(*loan);
             callees.push(*callee);
+            let checked = receiver_facts[at];
+            assert_eq!(checked.end_span(), call.origin.span());
+            plan_expectations.push((checked.begin_span(), checked.end_span(), *callee));
         }
         assert_ne!(actual_loans[0], actual_loans[1]);
         assert_eq!(callees[0], callees[1]);
         assert!(ends[0].0 < begins[1].0 && ends[1].0 < drops[0].0);
         assert_eq!(drops[0].1.operation, Operation::Drop { owner: *owner });
+
+        let for_run = planned
+            .iter()
+            .filter(|plan| plan.function == *callee)
+            .collect::<Vec<_>>();
+        if expect_refine {
+            let [plan] = for_run.as_slice() else {
+                panic!("actual planned Refine body for run")
+            };
+            let drop_span = plan
+                .check_two_calls(plan_expectations.as_slice().try_into().unwrap())
+                .expect("actual two-lifecycle ROp plan with one terminal drop");
+            let UnitReceiverOwnershipTarget::Place(place) = receiver_facts[1].target() else {
+                panic!("receiver root");
+            };
+            let source_drops = owned
+                .ownership()
+                .drops()
+                .iter()
+                .filter(|drop| drop.target() == UnitDropTarget::Named(place.root()))
+                .collect::<Vec<_>>();
+            let [source_drop] = source_drops.as_slice() else {
+                panic!("one source same-root drop")
+            };
+            assert_eq!(
+                source_drop.point(),
+                UnitDropPoint::CallReturn(receiver_facts[1].call())
+            );
+            assert_eq!(drop_span, source_drop.value_origin());
+            assert_eq!(drop_span, drops[0].1.origin.span());
+        } else {
+            assert!(for_run.is_empty(), "fallback has no same-layer ROp plan");
+        }
 
         verify_program(&program).unwrap();
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();

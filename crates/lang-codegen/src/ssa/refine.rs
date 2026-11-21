@@ -780,6 +780,8 @@ pub(in crate::ssa) fn lower(
     #[cfg(feature = "d10-catalog-experiment")]
     crate::ssa::d10_project_audit::interleaved_aux_consumption::expect(inputs, types);
     let body = build::build(inputs, parameters, types)?;
+    #[cfg(test)]
+    two_receiver_plan_test_support::record(function.id(), &body);
     emit::emit(&body, function, entry, parameters, inputs.span)?;
     #[cfg(feature = "d10-catalog-experiment")]
     if let Some(receipt) = identity_return::certify(inputs, function, types) {
@@ -929,3 +931,6 @@ pub(in crate::ssa::refine) mod temporary_ci_tests;
 pub(crate) mod entry_borrow_receipt;
 #[cfg(feature = "d10-catalog-experiment")]
 pub(crate) mod entry_lifecycle;
+
+#[cfg(test)]
+pub(in crate::ssa) mod two_receiver_plan_test_support;
