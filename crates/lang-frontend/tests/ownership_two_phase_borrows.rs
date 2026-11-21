@@ -218,6 +218,96 @@ fn phase_facts_activate_only_on_reachable_call_entry() {
 }
 
 #[test]
+fn original_receiver_reservation_records_normal_and_return_retirement_on_unit() {
+    use lang_frontend::ownership_checking::{
+        UnitIterationCleanupAction, UnitLoanAction, UnitReceiverOwnershipTarget,
+    };
+
+    for operand in ["worker.read()", "return"] {
+        let call_text = format!("worker.update({operand})");
+        let body = format!("fun run(own worker: Worker): Unit {{ {call_text} }}");
+        for rooted in [false, true] {
+            let (sources, unit) = checked_unit(&body, rooted);
+            assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+            assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+            assert!(unit.clone().validate().is_ok());
+
+            let [observation] = unit.loan_action_observations() else {
+                panic!("actual action catalog for the one source");
+            };
+            let mut events = Vec::new();
+            let mut reserved = None;
+            for action in observation.actions() {
+                match action {
+                    UnitLoanAction::ReceiverReserve(receiver) => {
+                        assert!(reserved.replace(receiver).is_none());
+                        assert_eq!(unit.receiver_fact(receiver.call()), Some(receiver));
+                        assert_eq!(receiver.kind(), UnitReceiverOwnershipKind::ExclusiveLoan);
+                        assert!(receiver.is_receiver_reservation());
+                        assert_eq!(sources.slice(receiver.begin_span()), Ok("worker"));
+                        assert_eq!(sources.slice(receiver.end_span()), Ok(call_text.as_str()));
+                        assert_eq!(
+                            receiver.activation_point(),
+                            (operand != "return").then_some(receiver.call()),
+                        );
+                        let UnitReceiverOwnershipTarget::Place(place) = receiver.target() else {
+                            panic!("actual named receiver place");
+                        };
+                        assert!(place.elements().is_empty());
+                        let binding = unit
+                            .bindings()
+                            .iter()
+                            .find(|b| b.symbol() == place.root())
+                            .unwrap();
+                        assert_eq!(
+                            sources.slice(binding.declaration_span()),
+                            Ok("own worker: Worker")
+                        );
+                        assert_eq!(place.root().source_unit(), receiver.call().source_unit());
+                        events.push("reserve");
+                    }
+                    UnitLoanAction::ReceiverActivate(receiver) => {
+                        assert_eq!(Some(receiver), reserved);
+                        events.push("activate");
+                    }
+                    UnitLoanAction::ReceiverEnd(end)
+                        if end.receiver().kind() == UnitReceiverOwnershipKind::ExclusiveLoan =>
+                    {
+                        assert_eq!(Some(end.receiver()), reserved);
+                        events.push("normal-end");
+                    }
+                    UnitLoanAction::Cleanup {
+                        point,
+                        action: UnitIterationCleanupAction::EndReceiverLoan(receiver),
+                    } if receiver.kind() == UnitReceiverOwnershipKind::ExclusiveLoan => {
+                        assert_eq!(Some(receiver), reserved);
+                        let UnitDropPoint::ControlTransfer(transfer) = *point else {
+                            panic!("the exact receiver was retired on return");
+                        };
+                        assert_eq!(transfer.source_unit(), receiver.call().source_unit());
+                        let source = receiver.begin_span().source_id();
+                        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+                        let node = parsed
+                            .ast()
+                            .expressions()
+                            .get(transfer.expression())
+                            .unwrap();
+                        assert_eq!(sources.slice(node.span()), Ok("return"));
+                        events.push("prefix-end");
+                    }
+                    _ => {}
+                }
+            }
+            if operand == "return" {
+                assert_eq!(events, ["reserve", "prefix-end"]);
+            } else {
+                assert_eq!(events, ["reserve", "activate", "normal-end"]);
+            }
+        }
+    }
+}
+
+#[test]
 fn loop_exits_and_branch_returns_do_not_leak_reservations() {
     for rooted in [false, true] {
         for exit in ["break", "continue"] {

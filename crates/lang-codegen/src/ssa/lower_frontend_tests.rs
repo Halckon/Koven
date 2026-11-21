@@ -298,14 +298,7 @@ pub(in crate::ssa) use map_result_tests::return_control_tests;
 #[path = "lower_frontend_root_boundary_tests.rs"]
 pub(in crate::ssa) mod root_boundaries;
 
-use lang_frontend::{
-    lexer::lex,
-    name_resolution::{DeclarationId, NameResolution, SourceUnitKey, SymbolKind, resolve_names},
-    ownership_checking::{OwnershipCheckedFile, check_ownership},
-    parser::{ParsedFile, parse_file},
-    source::SourceMap,
-    type_checking::{TypedFile, check_types, standard_environments},
-};
+use lang_frontend::name_resolution::{DeclarationId, SourceUnitKey, SymbolKind};
 
 use super::{LoweringErrorKind, model::Operation, render::render_program};
 use crate::{
@@ -314,37 +307,6 @@ use crate::{
 
 #[path = "call_lifetimes_tests.rs"]
 mod call_lifetimes_tests;
-
-struct Analysis {
-    sources: SourceMap,
-    parsed: ParsedFile,
-    names: NameResolution,
-    typed: TypedFile,
-    owned: OwnershipCheckedFile,
-}
-
-fn analyze(text: &str) -> Analysis {
-    let mut sources = SourceMap::new();
-    let source = sources
-        .add_source("lowering.ko", text)
-        .expect("source must be unique");
-    let lexed = lex(&sources, source).expect("lexing must succeed internally");
-    let parsed = parse_file(&sources, &lexed).expect("parsing must succeed internally");
-    let (environment, types) = standard_environments();
-    let names =
-        resolve_names(&sources, &parsed, &environment).expect("names must resolve internally");
-    let typed =
-        check_types(&sources, &parsed, &names, &types).expect("types must check internally");
-    let owned = check_ownership(&sources, &parsed, &names, &typed)
-        .expect("ownership must check internally");
-    Analysis {
-        sources,
-        parsed,
-        names,
-        typed,
-        owned,
-    }
-}
 
 // These complete single-root sources retain their original test identities through Unit.
 fn analyze_single_root(text: &str, name: &str) -> (UnitSource, DeclarationId) {

@@ -123,16 +123,75 @@ fn borrowed_move_diagnostic_is_not_replaced_by_the_legacy_capability_gate() {
 
 #[test]
 fn copyable_own_and_borrow_receivers_keep_their_existing_contracts() {
-    inspect(
-        "value class R(val count: Int) { own fun read(): Int = count }",
-        &[],
-        true,
-    );
-    inspect(
-        "class R(val count: Int) { fun read(): Int = count }",
-        &[],
-        true,
-    );
+    use lang_frontend::type_checking::{ParameterMode, complete_compilation_unit_types};
+
+    for (text, mode) in [
+        (
+            "value class R(val count: Int) { own fun read(): Int = count }",
+            ParameterMode::Value,
+        ),
+        (
+            "class R(val count: Int) { fun read(): Int = count }",
+            ParameterMode::Borrow,
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("main.ko", text).unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        assert_eq!(sources.source_text(source), Ok(text));
+        let (ne, te) = standard_environments();
+        for input in [
+            SourceUnitInput::new("root", "main.ko", source, &parsed),
+            SourceUnitInput::memory_document(source, &parsed),
+        ] {
+            let inputs = [input];
+            let index = index_compilation_unit(&sources, &inputs).unwrap();
+            let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne)
+                .unwrap()
+                .validate()
+                .unwrap();
+            let typed = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{text}: {:?}",
+                typed.diagnostics()
+            );
+            complete_compilation_unit_types(&sources, &inputs, &names, &te, &typed).unwrap();
+            let nominal = typed
+                .signatures()
+                .declarations()
+                .iter()
+                .find_map(|declaration| declaration.nominal())
+                .expect("original receiver declaration");
+            let [read] = nominal.members() else {
+                panic!("one original instance member");
+            };
+            assert_eq!(read.name(), "read");
+            let receiver = read.receiver().expect("instance receiver");
+            assert_eq!(receiver.mode(), mode);
+            assert_eq!(
+                receiver
+                    .marker_span()
+                    .map(|span| sources.slice(span).unwrap()),
+                (mode == ParameterMode::Value).then_some("own"),
+            );
+            let typed = typed.validate().unwrap();
+            let owned =
+                check_compilation_unit_ownership(&sources, &inputs, &names, &te, &typed).unwrap();
+            assert!(
+                owned.diagnostics().is_empty(),
+                "{text}: {:?}",
+                owned.diagnostics()
+            );
+            assert!(
+                owned.deferred().is_empty(),
+                "{text}: {:?}",
+                owned.deferred()
+            );
+            assert!(owned.validate().is_ok(), "{text}");
+        }
+    }
 }
 
 #[test]

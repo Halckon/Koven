@@ -2,6 +2,8 @@
 
 mod assignment;
 mod borrow_binding;
+#[cfg(test)]
+mod borrow_binding_origin_probe;
 mod borrow_call_admission;
 mod borrow_call_use;
 mod borrow_result;

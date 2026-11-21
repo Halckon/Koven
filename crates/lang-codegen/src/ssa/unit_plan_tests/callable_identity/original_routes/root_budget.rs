@@ -109,3 +109,203 @@ fn original_generic_dedup_uses_only_explicitly_selected_roots() {
         assert_eq!(recursive_call.key(), recursive.key());
     }
 }
+
+#[test]
+#[ignore = "CI-only exact 1025-call source; use the normal Unit source budget"]
+fn original_repeated_callback_origin_deduplicates_before_standard_budget() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    // Exact historical generator expanded 0..=1024; keep the source stable if the Unit limit changes.
+    const ORIGINAL_REPEAT_COUNT: usize = 1025;
+    let calls = "helper<Int>(1, callback)\n".repeat(ORIGINAL_REPEAT_COUNT);
+    let text = format!(
+        "fun <T> helper(own value: T, forwarded: (Int)->Int): Unit {{}}\n\
+             fun entry(): Unit {{ val callback: (Int)->Int = {{ index -> index }}\n{calls}}}"
+    );
+    with_original(&text, |sources, file, names, typed, owned, plan| {
+        let entry = UnitCallableTarget::Declaration(declaration(names, "entry"));
+        let helper = declaration(names, "helper");
+        let source = plan
+            .iter()
+            .find(|item| item.key().target() == entry)
+            .unwrap();
+        let mut helpers = plan
+            .iter()
+            .filter(|item| item.key().target() == UnitCallableTarget::Declaration(helper));
+        let callee = helpers.next().expect("one generic helper<Int>");
+        assert!(helpers.next().is_none());
+        assert_eq!(plan.len(), 2);
+        assert_eq!(
+            callee.key().type_arguments(),
+            [typed.types().types().builtin(BuiltinType::Int).unwrap()]
+        );
+        assert!(callee.key().callable_arguments().is_empty());
+
+        let mut observed_calls = BTreeSet::new();
+        let mut observed_operands = BTreeSet::new();
+        let mut origins = BTreeSet::new();
+        let mut tokens = BTreeSet::new();
+        for call in typed
+            .types()
+            .calls()
+            .iter()
+            .filter(|call| call.target() == UnitCallTarget::Declaration(helper))
+        {
+            let span = file
+                .ast()
+                .expressions()
+                .get(call.expression().expression())
+                .unwrap()
+                .span();
+            assert_eq!(sources.slice(span), Ok("helper<Int>(1, callback)"));
+            assert!(observed_calls.insert(call.expression()));
+            let route = plan
+                .callable_plan()
+                .call_site(source.source_token(), call.expression())
+                .unwrap();
+            assert_eq!(route.key(), callee.key());
+            let [(slot, operand)]: [_; 1] =
+                function_operands(file, typed, call).try_into().unwrap();
+            assert_eq!(slot, 1);
+            assert!(observed_operands.insert(operand));
+            let (origin, token) = frozen_lambda(plan, owned, source.source_token(), operand);
+            origins.insert(origin);
+            tokens.insert(token);
+        }
+        assert_eq!(observed_calls.len(), ORIGINAL_REPEAT_COUNT);
+        assert_eq!(observed_operands.len(), ORIGINAL_REPEAT_COUNT);
+        assert_eq!(origins.len(), 1);
+        assert_eq!(tokens.len(), 1);
+    });
+}
+
+#[test]
+#[ignore = "CI-only exact former recursive owner pressure; use the normal Unit source budget"]
+fn original_recursive_borrow_view_closes_before_standard_budget() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    let text = "fun relay(callback: (Int)->Int): Unit { relay({ index -> index }) }\n\
+             fun entry(): Unit { relay({ index -> index }) }";
+    with_original(text, |sources, file, names, typed, owned, plan| {
+        let relay = declaration(names, "relay");
+        let (entry, callee) = quota_instances(names, plan, relay);
+        assert!(callee.key().type_arguments().is_empty());
+        assert!(owned.ownership().captures().is_empty());
+
+        let mut operands = BTreeSet::new();
+        let mut origins = BTreeSet::new();
+        let mut tokens = BTreeSet::new();
+        let mut calls = BTreeSet::new();
+        for owner in [entry, callee] {
+            let routes: Vec<_> = typed
+                .types()
+                .calls()
+                .iter()
+                .filter(|call| call.target() == UnitCallTarget::Declaration(relay))
+                .filter_map(|call| {
+                    plan.callable_plan()
+                        .call_site(owner.source_token(), call.expression())
+                        .map(|route| (call, route))
+                })
+                .collect();
+            let [(call, route)] = routes.as_slice() else {
+                panic!("one original call per reachable source instance");
+            };
+            assert_eq!(route.key(), callee.key());
+            assert_eq!(
+                sources.slice(
+                    file.ast()
+                        .expressions()
+                        .get(call.expression().expression())
+                        .unwrap()
+                        .span()
+                ),
+                Ok("relay({ index -> index })"),
+            );
+            assert!(calls.insert(call.expression()));
+            let [(slot, operand)]: [_; 1] =
+                function_operands(file, typed, call).try_into().unwrap();
+            assert_eq!(slot, 0);
+            assert!(operands.insert(operand));
+            let (origin, token) = frozen_lambda(plan, owned, owner.source_token(), operand);
+            assert!(origins.insert(origin));
+            assert!(tokens.insert(token));
+        }
+        assert_eq!(calls.len(), 2);
+    });
+}
+
+#[test]
+#[ignore = "CI-only exact 1024-call source; use the normal Unit source budget"]
+fn original_distinct_callback_operands_share_one_standard_budget_key() {
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    const ORIGINAL_COUNT: usize = 1024;
+    let calls = "helper<Int>(1, { index -> index })\n".repeat(ORIGINAL_COUNT);
+    let text = format!(
+        "fun <T> helper(own value: T, callback: (Int)->Int): Unit {{}}\nfun entry(): Unit {{\n{calls}}}"
+    );
+    with_original(&text, |sources, file, names, typed, owned, plan| {
+        let helper = declaration(names, "helper");
+        let (entry, callee) = quota_instances(names, plan, helper);
+        assert_eq!(
+            callee.key().type_arguments(),
+            [typed.types().types().builtin(BuiltinType::Int).unwrap()],
+        );
+        assert!(owned.ownership().captures().is_empty());
+        let mut calls = BTreeSet::new();
+        let mut operands = BTreeSet::new();
+        let mut origins = BTreeSet::new();
+        let mut tokens = BTreeSet::new();
+        for call in typed
+            .types()
+            .calls()
+            .iter()
+            .filter(|call| call.target() == UnitCallTarget::Declaration(helper))
+        {
+            assert_eq!(
+                sources.slice(
+                    file.ast()
+                        .expressions()
+                        .get(call.expression().expression())
+                        .unwrap()
+                        .span()
+                ),
+                Ok("helper<Int>(1, { index -> index })"),
+            );
+            assert!(calls.insert(call.expression()));
+            let route = plan
+                .callable_plan()
+                .call_site(entry.source_token(), call.expression())
+                .unwrap();
+            assert_eq!(route.key(), callee.key());
+            let [(slot, operand)]: [_; 1] =
+                function_operands(file, typed, call).try_into().unwrap();
+            assert_eq!(slot, 1);
+            assert!(operands.insert(operand));
+            let (origin, token) = frozen_lambda(plan, owned, entry.source_token(), operand);
+            assert!(origins.insert(origin));
+            assert!(tokens.insert(token));
+        }
+        assert_eq!(calls.len(), ORIGINAL_COUNT);
+    });
+}
+
+fn quota_instances<'a>(
+    names: &ValidatedCompilationUnitNames,
+    plan: &'a UnitInstancePlan,
+    target: lang_frontend::name_resolution::DeclarationId,
+) -> (
+    &'a crate::ssa::unit_plan::UnitPlannedInstance,
+    &'a crate::ssa::unit_plan::UnitPlannedInstance,
+) {
+    use crate::ssa::unit_plan::UnitFunctionInstanceKey;
+
+    assert_eq!(plan.len(), 2);
+    let entry_key = UnitFunctionInstanceKey::for_entry(declaration(names, "entry"));
+    let entry = plan.iter().find(|item| item.key() == &entry_key).unwrap();
+    let callee = plan
+        .iter()
+        .find(|item| item.key().target() == UnitCallableTarget::Declaration(target))
+        .unwrap();
+    assert_ne!(entry.key(), callee.key());
+    assert!(callee.key().callable_arguments().is_empty());
+    (entry, callee)
+}

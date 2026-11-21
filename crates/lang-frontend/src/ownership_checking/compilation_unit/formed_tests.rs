@@ -54,6 +54,16 @@ impl Fixture {
         )
     }
 
+    pub(super) fn range_receiver_source(path: &str, text: &str, rooted: bool) -> Self {
+        Self::with_range_setup(
+            &[(path, text)],
+            &[0],
+            &[0],
+            rooted.then_some("root"),
+            standard_environments(),
+        )
+    }
+
     pub(super) fn standard_source(path: &str, text: &str, rooted: bool) -> Self {
         Self::with_setup(
             &[(path, text)],
@@ -75,6 +85,16 @@ impl Fixture {
     fn with_setup(
         texts: &[(&str, &str)],
         range_sources: &[usize],
+        source_root: Option<&'static str>,
+        environments: (crate::name_resolution::NameEnvironment, TypeEnvironment),
+    ) -> Self {
+        Self::with_range_setup(texts, range_sources, &[], source_root, environments)
+    }
+
+    fn with_range_setup(
+        texts: &[(&str, &str)],
+        range_sources: &[usize],
+        extension_sources: &[usize],
         source_root: Option<&'static str>,
         (ne, mut environment): (crate::name_resolution::NameEnvironment, TypeEnvironment),
     ) -> Self {
@@ -103,6 +123,11 @@ impl Fixture {
             // Authorize the actual loaded SourceId, never a package or path spelling.
             environment
                 .authorize_range_source(&sources, parsed[index].source_id())
+                .unwrap();
+        }
+        for &index in extension_sources {
+            environment
+                .authorize_range_extension_source(&sources, parsed[index].source_id())
                 .unwrap();
         }
         let index = index_compilation_unit(&sources, &inputs).unwrap();
