@@ -21789,3 +21789,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 本地主干整合 `e83aed1d` 的第二父提交为已合入 #453 的 `8207b212`。冲突处仅采用显式 `block {}` 样式，延续 D10 逐 token 断言；已由测试内实际四输入证据取代的 Range Prefix Single 测试不复活。整合树在 Mac 的 FE lib 901/14 ignored、9 个集成套件 512 passed 和 codegen 3 passed（含根资源双布局 native）通过。
 - `"${stop()}" + TEXT` 已走原 Unit 双布局，不重复计算为新迁移。在不改源的前提下补全固定见证：真实插值 AST 绑定到返回 `Nothing` 的已选择调用，两个 `TEXT`（RHS/后续语句）保有各自 source-qualified typed use、值和声明身份；两处无 runtime materialization、delivery、loan 或 drop。同一 const capability 可验证，保留相邻旧全 loan-end 断言。
 - Mac Rust 1.96.0 离线定点 1/1（双布局），相关常量三集成套件复验。未跑 Linux 或远端 CI；无本轮生产、API、CI 改动，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：条件构造实参提前退出的清理证据
+
+- 基于 D10 `cdc5ff12`，远端 `main` 仍为 `8207b212`。原 `Holder(if (select) { "a" } else { "b" }, if (early) { return } else { 1 })` fixture 不改；Single 在提前返回上具有两条 guarded owner definitions。
+- MemoryDocument / Rooted 实证 Unit 合并先完成的条件表达式结果，以同一 source-qualified 实参在实际 `return` 处发布一条非条件临时析构；正常路径两实参按源码顺序交付，具名 `holder` 仅析构一次。两套事实形状不同，保留该唯一本文件的 Single 断言，不能用这条 flat drop 推断两个分支的 owner 身份。
+- Mac Rust 1.96.0 复用同生产树已有前端 rlib 编译测试 harness，原 Single 定点及加固后双布局定点均通过，`ownership_construction` 10/10。未运行 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。

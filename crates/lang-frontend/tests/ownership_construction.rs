@@ -468,6 +468,70 @@ fn conditional_construction_input_keeps_distinct_guarded_exit_owners() {
     assert_eq!(guarded.len(), 2);
     assert!(guarded.iter().all(|fact| fact.condition().is_some()));
     assert_ne!(guarded[0].owner(), guarded[1].owner());
+    // Unit coalesces the completed branch result; keep the earlier Single oracle
+    // for the two guarded definitions rather than inferring them from the flat fact.
+    check_each(text, |sources, parsed, owned| {
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        let [plan] = owned.construction_plans() else {
+            panic!("one construction plan");
+        };
+        let origin = |id: lang_frontend::type_checking::UnitExpressionId| {
+            sources
+                .slice(
+                    parsed
+                        .ast()
+                        .expressions()
+                        .get(id.expression())
+                        .unwrap()
+                        .span(),
+                )
+                .unwrap()
+        };
+        let [first, second] = plan.deliveries() else {
+            panic!("both operands are delivered on the normal path");
+        };
+        assert_eq!(first.evaluation_index(), 0);
+        assert_eq!(second.evaluation_index(), 1);
+        assert_eq!(
+            origin(first.argument()),
+            "if (select) { \"a\" } else { \"b\" }"
+        );
+        assert_eq!(
+            origin(second.argument()),
+            "if (early) { return } else { 1 }"
+        );
+        assert_eq!(
+            plan.root_obligation().unwrap().kind(),
+            ConstructionRootKind::HeapOwner
+        );
+        let [on_return, on_completion] = owned.drops() else {
+            panic!(
+                "one early operand cleanup and one normal holder cleanup: {:?}",
+                owned.drops()
+            );
+        };
+        let UnitDropPoint::ControlTransfer(exit) = on_return.point() else {
+            panic!("first cleanup must occur on the early return");
+        };
+        assert_eq!(exit.source_unit(), plan.construction().source_unit());
+        assert_eq!(origin(exit), "return");
+        assert_eq!(
+            on_return.target(),
+            UnitDropTarget::Temporary(first.argument())
+        );
+        assert_eq!(
+            sources.slice(on_return.value_origin()),
+            Ok(origin(first.argument()))
+        );
+        assert!(!on_return.is_conditional_temporary());
+        assert!(matches!(
+            on_completion.point(),
+            UnitDropPoint::AfterStatement(_)
+        ));
+        assert!(matches!(on_completion.target(), UnitDropTarget::Named(_)));
+        assert_eq!(sources.slice(on_completion.value_origin()), Ok("holder"));
+    });
 }
 
 #[test]
