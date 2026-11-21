@@ -2,10 +2,10 @@
 
 use lang_frontend::{
     ast::ExpressionId,
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
     name_resolution::{
-        NameResolution, SourceUnitId, SourceUnitInput, SymbolId, SymbolKind, UnitSymbolId,
-        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        NameResolution, SourceUnitId, SourceUnitInput, SourceUnitKey, SymbolId, SymbolKind,
+        UnitSymbolId, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
         CompilationUnitOwnership, DropTarget, NullableWhenExtractionKind, OwnershipCheckedFile,
@@ -89,7 +89,7 @@ fn assert_matrix(cases: &[Case], expected_observations: usize) {
             .expect("fixed source");
         let file = parser_test_assertions::parse_file_twice(&sources, source, case.label);
         observations.push(observe_single(case, &sources, &file));
-        observations.push(observe_unit(case, &sources, &file));
+        observations.push(observe_unit(case, &sources, &file, true, None));
     }
     assert_eq!(observations.len(), expected_observations);
     assert!(
@@ -318,20 +318,25 @@ fn observe_single(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observ
     observation
 }
 
-fn observe_unit(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observation {
-    let mut observation = Observation::new(case, "unit");
+fn observe_unit(
+    case: &Case,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    rooted: bool,
+    exact_rejection: Option<&Diagnostic>,
+) -> Observation {
+    let mut observation = Observation::new(case, if rooted { "unit" } else { "memory" });
     observation.record("parse", file.diagnostics().is_empty(), file.diagnostics());
     if !file.diagnostics().is_empty() {
         observation.blocked("names/raw/complete/ownership: parser diagnostics");
         return observation;
     }
     let (environment, types) = standard_environments();
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "consume.ko",
-        file.source_id(),
-        file,
-    )];
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", "consume.ko", file.source_id(), file)
+    } else {
+        SourceUnitInput::memory_document(file.source_id(), file)
+    }];
     let index = match index_compilation_unit(sources, &inputs) {
         Ok(index) => index,
         Err(error) => {
@@ -340,6 +345,23 @@ fn observe_unit(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observat
             return observation;
         }
     };
+    if exact_rejection.is_some() {
+        let [indexed] = index.source_units() else {
+            panic!("one exact input source")
+        };
+        let matching_layout = match (rooted, indexed.key()) {
+            (false, SourceUnitKey::MemoryDocument) => true,
+            (true, SourceUnitKey::Rooted { root, logical_path }) => {
+                root.as_str() == "root" && logical_path.as_str() == "consume.ko"
+            }
+            _ => false,
+        };
+        observation.record(
+            "exact layout source identity",
+            matching_layout && indexed.source_id() == file.source_id(),
+            indexed.key(),
+        );
+    }
     let names = match resolve_compilation_unit_names(sources, &inputs, &index, &environment) {
         Ok(names) => match names.validate() {
             Ok(names) => names,
@@ -458,7 +480,27 @@ fn observe_unit(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observat
     };
     match check_compilation_unit_ownership(sources, &inputs, &names, &types, &typed) {
         Ok(owned) => {
-            observe_unit_ownership(case, source, root, result, &calls, &owned, &mut observation)
+            observe_unit_ownership(case, source, root, result, &calls, &owned, &mut observation);
+            if let Some(expected) = exact_rejection {
+                observation.record(
+                    "exact ownership diagnostic",
+                    owned.diagnostics() == std::slice::from_ref(expected),
+                    owned.diagnostics(),
+                );
+                let no_executable_ownership = owned.loans().is_empty()
+                    && owned.direct_call_loan_ends().is_empty()
+                    && owned.borrow_results().call_uses().is_empty()
+                    && owned.borrow_results().bindings().is_empty()
+                    && owned.borrow_call_transports().is_empty()
+                    && owned.construction_plans().is_empty()
+                    && owned.formed_owned_locals().is_empty();
+                observation.record(
+                    "no executable loan or construction",
+                    no_executable_ownership,
+                    (),
+                );
+                observation.record("rejected Unit capability", owned.validate().is_err(), ());
+            }
         }
         Err(error) => observation.record("ownership internal", false, error),
     }
@@ -804,11 +846,6 @@ fn map_consume_complete_rejects_receiver_move_and_live_loan_boundaries() {
   borrow val source = input
   val result = source.consume()
 }"#, Int, Expected::Rejected("L0133"), 1),
-        ("stable-field", r#"class Holder(val source: MutableMap<Int, Int>)
-fun run(): Unit {
-  val holder = Holder(mutableMapOf<Int, Int>())
-  val result = holder.source.consume()
-}"#, Int, Expected::Rejected("L0132"), 1),
         ("stable-element", r#"fun run(): Unit {
   val maps = listOf(mutableMapOf<Int, Int>())
   val result = maps[0].consume()
@@ -844,5 +881,49 @@ fun run(): Unit {
   val result = identity(source).consume()
 }"#, Int, Expected::Rejected("L0131"), 1),
     ].map(|(label, text, element, expected, calls)| Case { label, text, key: element, value: element, expected, calls });
-    assert_matrix(&cases, 24);
+    assert_matrix(&cases, 22);
+    exact_stable_field_rejection();
+}
+
+fn exact_stable_field_rejection() {
+    // Exact source of the former "stable-field" Single/Rooted matrix row.
+    let case = Case {
+        label: "stable-field",
+        text: r#"class Holder(val source: MutableMap<Int, Int>)
+fun run(): Unit {
+  val holder = Holder(mutableMapOf<Int, Int>())
+  val result = holder.source.consume()
+}"#,
+        key: BuiltinType::Int,
+        value: BuiltinType::Int,
+        expected: Expected::Rejected("L0132"),
+        calls: 1,
+    };
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("consume.ko", case.text).unwrap();
+    let file = parser_test_assertions::parse_file_twice(&sources, source, case.label);
+    assert_eq!(sources.source_text(source), Ok(case.text));
+    let field = |start| {
+        let span = sources.span(source, start, start + "source".len()).unwrap();
+        assert_eq!(sources.slice(span), Ok("source"));
+        span
+    };
+    let catalog = DiagnosticCodeCatalog::try_new(&["L0132"]).unwrap();
+    let mut diagnostic = Diagnostic::new(
+        &sources,
+        Severity::Error,
+        catalog.resolve("L0132").unwrap(),
+        "cannot move a non-Copyable component out of its owner",
+        field(135),
+    )
+    .unwrap();
+    diagnostic
+        .add_label(&sources, field(17), "non-Copyable component declared here")
+        .unwrap();
+    let observations =
+        [false, true].map(|rooted| observe_unit(&case, &sources, &file, rooted, Some(&diagnostic)));
+    assert!(
+        observations.iter().all(Observation::accepted),
+        "{observations:#?}"
+    );
 }
