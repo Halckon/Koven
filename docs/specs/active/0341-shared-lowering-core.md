@@ -21908,3 +21908,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双布局分别经完整 Unit 名称/类型/所有权、真实 sealed public native object 和链接子进程；空对照 exit 0，stdout/stderr 皆空，原例仍输出 `retest\n`。对经验证的 LLVM 另做原生分配钩子：空对照中任何 malloc/free 都会失败，原例继续检查唯一实际 Node 地址恰好释放一次。空 wrapper 的 SSA Drop 不等于释放堆对象。
 - 保留原 exact 的顶级 FQN，新增空对照也在同层，将 x01 实现拆入 `unit_lower_nullable_tests/x01.rs`，使主文件 689 行、模块 400 行，不修改 Rust size policy。未改生产、API、范围 metadata 对照或 CI，SPEC-0341 仍 in-progress。
 - Mac nullable codegen 10/10，格式和文档检查通过。against main `8207b212` 的整体物理行数 guard 仍因此前前端 `ownership_nullable_when.rs` 1102 行而红；另案做仅测试拆分，不能把本次 x01 测试通过视为全体门禁通过。
+
+### 2026-11-21：nullable ownership 测试通过物理行数门槛
+
+- 基于 `39ec2e99`，只下沉 `named_nullable_read_borrows_without_extracting`、`owned_nullable_node_moves_the_original_root` 的原断言到 `retained_boundaries.rs`。顶级测试入口、Single 与双 Unit 分析、fixture 字节及所有断言保持；前后 test list 排序比较逐行一致。
+- 根测试从 1102 缩至 945 行，新子模块 176 行；上一片 x01 的 689/400 拆分保持。只移动测试代码，不修改 production/公开 API、CI 选测或 size policy。Mac `ownership_nullable_when` 30/30，SPEC-0341 仍 in-progress。
+- 官方 `python3 scripts/check_rust_sizes.py --base 8207b212` 实际通过，只报告既有两个批准例外；fmt/diff/docs 检查通过。
