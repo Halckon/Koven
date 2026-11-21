@@ -396,20 +396,8 @@ fn owned_source_continue_fresh_inner_owner_structure() {
 fn owned_source_continue_existing_boundaries_remain_explicit() {
     for (label, text) in [
         (
-            "index_without_loop",
-            "fun main(): Unit { var keys = arrayOf(1, 2, 3); keys[0] = 9 }",
-        ),
-        (
             "resource_source",
             "class Item(val id: Int) { deinit() {} }\nfun main(): Unit { val keys = arrayOf(Item(1), Item(2)); for (key in keys) { if (key.id == 2) { continue } }; keys.size }",
-        ),
-        (
-            "two_continue",
-            "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 1) { continue }; if (key == 2) { continue } }; keys.size }",
-        ),
-        (
-            "break",
-            "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 2) { break } }; keys.size }",
         ),
         (
             "return",
@@ -430,7 +418,7 @@ fn owned_source_continue_existing_boundaries_remain_explicit() {
     ] {
         if label == "return" {
             // Keep the original successful return source on the strict Unit path;
-            // the remaining seven Legacy rejection contracts below stay intact.
+            // the four unconverted Legacy rejection contracts below stay intact.
             unit_contract::observe(
                 text,
                 "main",
@@ -720,6 +708,9 @@ fn owned_source_continue_borrowed_element_cannot_be_owned() {
 }
 
 const ORIGINAL_SHADOW_ARRAYS: &str = "fun main(): Unit { val keys = arrayOf(9); keys.size; block { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }";
+#[path = "lower_frontend_owned_source_continue_tests/array_control_unit.rs"]
+mod array_control_unit;
+
 #[path = "lower_frontend_owned_source_continue_tests/external_owner_unit.rs"]
 mod external_owner_unit;
 
