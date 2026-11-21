@@ -100,8 +100,13 @@ fn original_metadata_alias_keeps_semantic_loan_until_reverse_binding_ends() {
             let [parent, child] = owned.borrow_results().bindings() else {
                 panic!("two original bindings");
             };
+            assert!(
+                parent.parent().is_none(),
+                "original source is not a borrow binding"
+            );
             assert_eq!(child.parent(), Some(parent.binding()));
             assert_eq!(child.origin(), parent.origin());
+            assert!(owned.drops().is_empty(), "borrow metadata owns no payload");
             let [child_end, parent_end] = owned.borrow_results().ends() else {
                 panic!("exact reverse endpoint pair");
             };
