@@ -13,11 +13,23 @@ pub(in crate::ssa::refine) struct Counts {
     pub(in crate::ssa::refine) precheck_ends: usize,
     pub(in crate::ssa::refine) receiver_rows: usize,
     pub(in crate::ssa::refine) receiver_probes: usize,
+    pub(in crate::ssa::refine) subset_drop_rows: usize,
+    pub(in crate::ssa::refine) subset_conditional_drop_rows: usize,
     pub(in crate::ssa::refine) declaration_rows: usize,
     pub(in crate::ssa::refine) region_rows: usize,
     pub(in crate::ssa::refine) drop_rows: usize,
     pub(in crate::ssa::refine) region_candidates: usize,
     pub(in crate::ssa::refine) drop_candidates: usize,
+}
+
+impl Counts {
+    fn without_subset_drops(self) -> Self {
+        Self {
+            subset_drop_rows: 0,
+            subset_conditional_drop_rows: 0,
+            ..self
+        }
+    }
 }
 
 thread_local! {
@@ -118,7 +130,7 @@ fn count(n: usize) -> Counts {
         });
         eprintln!("OFF N={n}: {off_counts:?}");
         assert_eq!(
-            off_counts,
+            off_counts.without_subset_drops(),
             Counts {
                 region_rows: 0,
                 drop_rows: 0,
@@ -127,7 +139,7 @@ fn count(n: usize) -> Counts {
                 precheck_ends: 0,
                 declaration_rows: 0,
                 receiver_probes: 2 * n,
-                ..counts
+                ..counts.without_subset_drops()
             }
         );
         assert!(off_receipts.is_empty());
@@ -170,13 +182,13 @@ fn count(n: usize) -> Counts {
 #[test]
 fn default_single_receiver_receipt_scan_work_8_and_16() {
     let n = 8;
-    assert_eq!(count(0), Counts::default());
+    assert_eq!(count(0).without_subset_drops(), Counts::default());
     let small = count(n);
     let large = count(2 * n);
     eprintln!("N={n}: {small:?}; 2N: {large:?}");
     for (callers, counts) in [(n, small), (2 * n, large)] {
         assert_eq!(
-            counts,
+            counts.without_subset_drops(),
             Counts {
                 region_rows: 2 * callers,
                 drop_rows: callers,
@@ -189,8 +201,24 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
                 declaration_rows: callers,
                 receiver_rows: callers,
                 receiver_probes: 3 * callers,
+                subset_drop_rows: 0,
+                subset_conditional_drop_rows: 0,
             }
         );
+    }
+}
+
+/// Characterize the full scan, not overall compilation work or latency.
+#[test]
+fn current_refine_subset_drop_scan_work_8_and_16() {
+    for callers in [8, 16] {
+        let counts = count(callers);
+        eprintln!(
+            "N={callers}: ordinary visits={}, conditional visits={}",
+            counts.subset_drop_rows, counts.subset_conditional_drop_rows
+        );
+        assert!(counts.subset_drop_rows >= callers * callers, "{counts:?}");
+        assert_eq!(counts.subset_conditional_drop_rows, 0, "{counts:?}");
     }
 }
 

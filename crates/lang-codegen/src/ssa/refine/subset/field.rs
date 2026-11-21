@@ -323,6 +323,8 @@ impl Checker<'_, '_> {
     /// Drop facts must name plain bindings or temporaries at points the builder emits.
     pub(super) fn drops_supported(&self) -> bool {
         self.inputs.owned.drops().iter().all(|fact| {
+            #[cfg(test)]
+            super::super::receiver_receipt::work_count::visit(|c| c.subset_drop_rows += 1);
             let point_ok = match fact.point() {
                 // This cleanup must run before the selected arm starts.
                 UnitDropPoint::BranchEntry { .. } => false,
@@ -382,6 +384,8 @@ impl Checker<'_, '_> {
             .conditional_receiver_drops()
             .iter()
             .all(|fact| {
+                #[cfg(test)]
+                super::super::receiver_receipt::work_count::visit(|c| c.subset_conditional_drop_rows += 1);
                 !self.fact_in_function(fact.value_origin())
                     || self.inside_lambda(fact.value_origin())
                     || (!match fact.point() {
