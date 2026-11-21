@@ -21877,3 +21877,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit 布局完整 type/ownership 准入、SSA 与 LLVM 验证；外数组做真实 `size` Shared read、结束借用并 Drop 后才构造内数组；进入循环时只携带实际内数组 owner，continue/正常边以真实对应参数保留同一内 owner/源 loan，退出后结束这条 loan，再对内数组最后一次 `size` read，结束短借用并仅 Drop 一次。
 - 原样 native 的验证只包装本用例已验 LLVM 的 allocator calls：实际 4 字节数组先分配、写入 9 并释放同一指针，再分配 8 字节、写入 1/2 并释放该指针；严格计数和顺序独立于地址能否恰好复用。这是原源码的正常执行证据，不声称对其他异常路径或平台给出释放证明。
 - 不改生产、API、CI，不以 Unit 允许来否定 Single 的旧入口合同，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：实验 object CLI 与普通 project 的退役边界审计
+
+- 基于 `7e9abcfd`。CLI feature `d10-catalog-experiment` 默认关闭，`main::run` 在同一 cfg 下才追加帮助和 dispatch 单源 `experimental-d10-object` / 双源 `experimental-d10-split-object`；feature-off 的两定点验证拒绝、无目录变化、帮助不列命令。它们不是普通 `build`、`run` 或 `--project` 的 fallback。
+- Feature-on 的两个独立实验路径均使用原完整 source snapshot / Unit names/types；分别调用 `prepare[_selected]_named_entry` 和 `prepare[_selected]_split_named_entry`，先完成 final type 与一次 ownership，再查 sealed wrapper/source identity。同名 selector 可能预先查找，但未找到不会覆盖真正的源码 admission 错误；CLI output preflight 属独立、更早的操作检查。Prepared capability / codegen 检查原声明与原 owned view，不把已验证事实转成旧 Single。
+- 既有实验回归 `both_orders_emit_real_objects_only_for_the_exact_source_entry`、`split_cli_objects_preserve_sources_selectors_and_existing_targets` 验证合格对象、错误 selector、源文件/已有目标不被覆盖；单源还有 hard link/dangling alias；split 验证物理路径重复和 symlink aliases，`split_cli_native_zero_and_multiple_rounds` 验证可链接对象。新增 `split_cli_rejects_unreachable_bad_member_in_other_source_before_selector` 与既有破坏 wrapper 的测试不同：被选择 wrapper 和实际 `run` 不变，仅另一文件不可达函数出错，物理排序及 CLI 参数顺序对换时，同一 `L0080` 保持 callee source 和精确 `fooBar` span，找到/找不到 selector 均同输出、不新建对象、原文件逐字节保持。
+- 普通 CLI 的 `unit_build::check_unit_frontend` 完成全部用户/标准源码的 names/final-types/ownership，之后普通 `select_project_entry` 用包路径和 process shape 选择声明，走 ordinary 或 const sealed view；实验的 builtin-only scope、单/双文件封装及 object no-overwrite 不是普通 project 的定义。既有 `d10_project_cli` 同时覆盖真实标准库加载下的正常单/双多轮项目；`project_basic_ownership_cli` 固定 source validation 与 entry 的优先级及 stdout/stderr、output accounting。无需复制这些普通路径测试。
+- 此审计不等价于退役两个命令，不删除/改名 feature、公开 API 或生产路由，SPEC-0341 仍 in-progress。
+- Mac Rust 1.96.0 / LLVM 21.1.8：feature-off 2/2，feature-on 单源 3/3、split 4/4、普通 D10 project 2/2、普通 project ownership CLI 9/9；fmt/diff/docs 检查通过。未运行 Linux、sanitizer 或远端 CI。
