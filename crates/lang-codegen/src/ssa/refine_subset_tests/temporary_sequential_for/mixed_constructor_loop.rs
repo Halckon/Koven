@@ -14,6 +14,15 @@ use std::process::Command;
 
 #[test]
 fn mixed_structural_loop_constructor_only_allocates_on_continuing_arm() {
+    check_mixed_constructor(false);
+}
+
+#[test]
+fn independently_anchored_mixed_constructor_preserves_both_native_edges_on_refine() {
+    check_mixed_constructor(true);
+}
+
+fn check_mixed_constructor(anchored: bool) {
     assert_eq!(
         TERMINATING_CONSTRUCTOR_PREFIX
             .matches("while (true) { return }")
@@ -28,6 +37,17 @@ fn mixed_structural_loop_constructor_only_allocates_on_continuing_arm() {
             "            })\n            println(\"constructed\")\n        }",
         );
     assert_eq!(original.matches("println(\"constructed\")").count(), 1);
+    let original = if anchored {
+        let marked = original.replacen(
+            "fun f(flag: Boolean): Unit {",
+            "fun f(flag: Boolean): Unit {\n            val routeAnchor = 1.inv()",
+            1,
+        );
+        assert_ne!(marked, original);
+        marked
+    } else {
+        original
+    };
     let text = format!("{original}\nfun main(): Unit {{ f(true); f(false) }}");
 
     let mut sources = SourceMap::new();
@@ -132,6 +152,12 @@ fn mixed_structural_loop_constructor_only_allocates_on_continuing_arm() {
         let refines = routes.contains(&callable.name);
         eprintln!("mixed constructor actual Refine={refines}; routes={routes:?}");
         routed_modes.push(refines);
+        if anchored {
+            assert!(
+                refines,
+                "independent integer trigger should distinguish route admission; {routes:?}"
+            );
+        }
         assert_eq!(callable.instructions.iter().filter(|op| matches!(op.operation, Operation::DirectCall { callee, .. } if callee==prefix_function.id)).count(),1);
         let mut allocations = callable
             .instructions
