@@ -21830,3 +21830,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 两种 Unit 布局核真实 MoveOnly Node 的 else typed use 仍绑定到同一具名 subject/root/entry/generation。唯一前端 Drop 义务是 null 边空 nullable wrapper 的逻辑退休；非空边无 Drop、无额外 loan/Rc effect。此事实不证明已生成实际 Move 或释放任何 heap 地址。
 - 同一原源不改入口声明，只加可达 wrapper。实际普通 Unit SSA 对整个 When 给出 `UnsupportedNode`：MoveOnly 结果未获准做隐式 owner extraction。回归固定两种布局及 null/Node 两个 wrapper 输入的真实失败位置；没有 SSA、LLVM 或 native 产物。不改生产、API、CI，也不迁移其他 MoveOnly、Rc、条件消费或 field/index 合同。后续应优先选已有真实 direct-owned-call 的 Move 用例，而不是把此受限尾值改成不同源码后宣称等价。
 - Mac Rust 1.96.0：前端 `ownership_nullable_when` 28/28，codegen `unit_lower_nullable_tests` 5/5，格式、diff 与文档结构检查通过；未运行 Linux、sanitizer 或远端 CI。
+
+### 2026-11-21：nullable 具名根的条件 direct-owned-call
+
+- 基于 `c9ba859b`。原 `when (x) { null -> {}; else -> if (flag) { take(x) } else {} }` 的源码字节不改。同源 Single `MayConsume` 与双布局 Unit 定点均通过后，仅退休本项 Single：真实 call/argument/参数声明、nullable subject/entry/generation、Place Move 与具名根相接；只有 null 或跳过 call 的分支各有该具名根的退休义务。
+- 实际 Unit SSA 逐边运输同一 root/proof，flag 真从非空根提取同一 ValueId 交给原 `take` 并由被调方释放；假分支先结束 proof 再清理原根；null 分支只退休空 wrapper。Mac native 在 MemoryDocument/Rooted 各验证四组实际输入：null 分支不得发起物理分配/释放，Node 两条路径释放唯一相同的实际分配地址一次。SSA/LLVM verifier 均通过。
+- 退役分档：此前的 Copy-under-loan、普通 body Copy、这里的 direct call 条件 Move 都有同源对应证据；明确保留 MoveOnly When tail（SSA 拒绝）、later 条件 Copy（缺 subject/alternative 证明）、旧 guarded construction 分支 owners（Unit FE 提供合并事实）。其他 MoveOnly/Rc 及 field/index 身份与 Read 仍逐原 fixture 核对；不能由此项或近似替代源码一并退役。下一候选优先原具名 `read(x)` 的 Shared loan/同根与无 Move，与非稳定 field/index 分开审计。
+- Mac Rust 1.96.0 / LLVM 21.1.8：前端 28/28、codegen 6/6，fmt/diff/docs 通过；未运行 Linux、sanitizer 或远端 CI。生产、API、CI 不变，SPEC-0341 仍 in-progress。

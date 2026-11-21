@@ -811,3 +811,6 @@ fn original_nullable_node_tail_move_stops_at_unsupported_result() {
         }
     }
 }
+
+#[path = "unit_lower_nullable_tests/partial_owned_call.rs"]
+mod partial_owned_call;

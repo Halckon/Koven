@@ -1,11 +1,14 @@
 //! SPEC-0203 nullable branch views preserve the original owner's capabilities.
 
+#[path = "ownership_nullable_when/partial_own_call.rs"]
+mod partial_own_call;
+
 use lang_frontend::{
     name_resolution::resolve_names,
     ownership_checking::{
-        CompilationUnitOwnership, DropPoint, DropTarget, LoanKind, NullableWhenBranchOutcome,
-        NullableWhenExtractionKind, OwnershipBindingKind, OwnershipCheckedFile, UnitDropPoint,
-        UnitDropTarget, UnitLoanTarget, check_ownership,
+        CompilationUnitOwnership, DropPoint, DropTarget, LoanKind, NullableWhenExtractionKind,
+        OwnershipBindingKind, OwnershipCheckedFile, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+        check_ownership,
     },
     parser::{Expression, ParsedFile},
     source::SourceMap,
@@ -536,21 +539,8 @@ fn aborting_nullable_branch_has_no_normal_outcome() {
 
 #[test]
 fn branch_summary_retains_partial_consumption_without_claiming_every_path_moves() {
-    let owned = checked(
-        "class Node {}\nfun take(own x: Node): Unit {}\nfun test(flag: Boolean, own x: Node?): Unit = when (x) { null -> {}; else -> if (flag) { take(x) } else {} }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let plan = &owned.nullable_whens()[0];
-    assert_eq!(
-        plan.branches()[0].outcome(),
-        NullableWhenBranchOutcome::Null
-    );
-    assert_eq!(
-        plan.branches()[1].outcome(),
-        NullableWhenBranchOutcome::MayConsume
-    );
-    assert_eq!(plan.extractions().len(), 1);
-    assert_eq!(plan.extractions()[0].entry(), 1);
+    let text = include_str!("ownership_nullable_when/fixtures/partial-own-call.ko");
+    partial_own_call::assert_partial_own_call(text);
 }
 
 #[test]
