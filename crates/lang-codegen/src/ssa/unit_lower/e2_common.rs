@@ -150,6 +150,7 @@ pub(in crate::ssa) fn publish<'a>(
         owned: handoff,
         two_receiver_facts: Default::default(),
         single_receiver_receipts: Default::default(),
+        single_receiver_facts: Default::default(),
         constant_owned: None,
         function_ids: &function_ids,
         callable_returns: &callable_returns,

@@ -283,23 +283,16 @@ impl Plans {
             if begin.call() != call
                 || end.receiver() != begin
                 || inputs.owned.receiver_fact(call) != Some(begin)
-                || !{
-                    #[cfg(test)]
-                    {
-                        inputs
-                            .owned
-                            .receiver_call_return_ends()
-                            .iter()
-                            .any(|candidate| {
-                                work_count::visit(|counts| counts.precheck_ends += 1);
-                                candidate == end
-                            })
-                    }
-                    #[cfg(not(test))]
-                    {
-                        inputs.owned.receiver_call_return_ends().contains(end)
-                    }
-                }
+                || !inputs.single_receiver_facts.map_or_else(
+                    || inputs.owned.receiver_call_return_ends().contains(end),
+                    |facts| {
+                        facts.has_end(inputs.owned, call, |candidate| {
+                            #[cfg(test)]
+                            work_count::visit(|counts| counts.precheck_ends += 1);
+                            candidate == end
+                        })
+                    },
+                )
                 || !root.is_root()
                 || root.root().source_unit() != inputs.source_unit
                 || *point != UnitDropPoint::CallReturn(call)

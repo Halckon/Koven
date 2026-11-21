@@ -255,11 +255,15 @@ impl Checker<'_, '_> {
         {
             return None;
         }
-        let binding = inputs.owned.bindings().iter().find(|b| {
-            #[cfg(test)]
-            super::super::receiver_receipt::work_count::visit(|c| c.route_bindings += 1);
-            b.symbol() == *symbol
-        })?;
+        let binding = if let Some(index) = inputs.single_receiver_facts {
+            index.binding(inputs.owned, *symbol)
+        } else {
+            inputs
+                .owned
+                .bindings()
+                .iter()
+                .find(|b| b.symbol() == *symbol)
+        }?;
         if binding.kind() != OwnershipBindingKind::Owned {
             return None;
         }
@@ -301,17 +305,22 @@ impl Checker<'_, '_> {
             return None;
         }
         let point = UnitDropPoint::CallReturn(id);
-        Some(
-            inputs.owned.receiver_call_return_ends().iter().any(|end| {
-                #[cfg(test)]
-                super::super::receiver_receipt::work_count::visit(|c| c.route_ends += 1);
-                end.receiver() == fact && end.point() == point
-            }) && inputs.owned.drops().iter().any(|drop| {
-                #[cfg(test)]
-                super::super::receiver_receipt::work_count::visit(|c| c.route_drops += 1);
-                drop.point() == point && drop.target() == UnitDropTarget::Named(*symbol)
-            }),
-        )
+        let exact_end = |end: &lang_frontend::ownership_checking::UnitReceiverCallReturnEndFact| {
+            end.receiver() == fact && end.point() == point
+        };
+        Some(if let Some(index) = inputs.single_receiver_facts {
+            index.has_end(inputs.owned, id, exact_end)
+                && index.has_named_drop(inputs.owned, id, *symbol)
+        } else {
+            inputs
+                .owned
+                .receiver_call_return_ends()
+                .iter()
+                .any(exact_end)
+                && inputs.owned.drops().iter().any(|drop| {
+                    drop.point() == point && drop.target() == UnitDropTarget::Named(*symbol)
+                })
+        })
     }
 
     pub(super) fn bounded_temporary_call(&self) -> Option<UnitExpressionId> {

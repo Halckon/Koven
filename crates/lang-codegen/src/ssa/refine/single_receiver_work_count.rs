@@ -177,7 +177,10 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
                 drop_rows: callers,
                 region_candidates: callers,
                 drop_candidates: callers,
-                ..counts
+                route_bindings: callers,
+                route_ends: callers,
+                route_drops: callers,
+                precheck_ends: callers,
             }
         );
     }
