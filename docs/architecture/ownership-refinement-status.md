@@ -108,3 +108,20 @@ Protocol 2 的三个动作和五个 SSA 生命周期指令。
 未纳入旧的整对象退出、nullable 写回和 pending-argument 探针：它们是未验收的研究，
 不算生产修复。两个旧 post445 快照共有的 30 个暂存文件中有 18 个与当前候选逐字相同，
 其余含后继拆分或路由差异，不用旧快照覆盖新实现。原工作树、分支和研究均保留。
+
+## 局部组合候选验收（2026-11-22）
+
+本地组合实测 `de7bc251b38a27cd0b80bdec3887425e6ffa656c`，树
+`167c2c23307721481f12f2c5d147c37a6f7ad79f`，以 `8207b212` 为共同基点。
+纳入 D10 `958149cf`、E3 `3d9a7fdf` 以及单独通过定向验证的一文件 E2 函数 ABI
+注册 `aa7cc7a8`。未纳入旧 E2 聚合分支、#451 变更或 DirectRange 实验。
+
+Mac 默认配置一次构建，两条精确测试均通过：
+
+- `ssa::refine_subset_tests::temporary_sequential_for::mixed_constructor_loop::independently_anchored_mixed_constructor_preserves_both_native_edges_on_refine`：
+  两种 Unit 布局中的实际调用者 `f` 走 Refine，SSA、LLVM 和 native 均确认只在继续分支构造并释放。
+- `ssa::loan_region_ssa_tests::receipts::receiver_route::neighboring_receiver_shapes_keep_existing_routes`：
+  15 份固定近邻源码 × 两种 Unit 布局均成功生成并验证 SSA/LLVM；未触发新的 Refine 路由或收据。
+
+这只验证了此次组合范围内的路由正反例，不替代最终同一候选上的四项 A2、
+默认／观察开关、Mac/Linux 与发布 CI 的验收，也不退役 Compatibility。
