@@ -1,9 +1,11 @@
 //! 字段根沿真实 Value 对照检查；不把旧 single 裸字段缺口伪装成既有拒绝。
 use super::*;
 use lang_frontend::{
-    diagnostic::DiagnosticDetail,
+    diagnostic::{DiagnosticCodeCatalog, DiagnosticDetail, Severity},
     name_resolution::{Namespace, ReferenceTarget, UnitReferenceTarget},
-    type_checking::{CallableTarget, UnitCallTarget},
+    type_checking::{
+        CallableTarget, ParameterMode, UnitAggregateProjectionReceiver, UnitCallTarget,
+    },
 };
 
 struct FieldCase {
@@ -242,19 +244,24 @@ fn single(case: &FieldCase, sources: &SourceMap, file: &ParsedFile) -> FieldObse
     (observation, Some(codes))
 }
 
-fn unit(case: &FieldCase, sources: &SourceMap, file: &ParsedFile) -> FieldObservation {
-    let mut observation = observation(case, "unit");
+fn unit(
+    case: &FieldCase,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    rooted: bool,
+) -> FieldObservation {
+    let mut observation = observation(case, if rooted { "unit" } else { "memory" });
+    let exact = case.label == "this-consume";
     observation.record("parse", file.diagnostics().is_empty(), file.diagnostics());
     if !file.diagnostics().is_empty() {
         return (observation, None);
     }
     let (environment, types) = standard_environments();
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "consume-field.ko",
-        file.source_id(),
-        file,
-    )];
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", "consume-field.ko", file.source_id(), file)
+    } else {
+        SourceUnitInput::memory_document(file.source_id(), file)
+    }];
     let index = stage!(
         observation,
         "index internal",
@@ -273,6 +280,14 @@ fn unit(case: &FieldCase, sources: &SourceMap, file: &ParsedFile) -> FieldObserv
         }
     };
     observation.record("names", true, names.names().diagnostics());
+    if exact {
+        let key = names.names().index().source_units()[0].key();
+        assert!(match key {
+            SourceUnitKey::MemoryDocument => !rooted,
+            SourceUnitKey::Rooted { root, logical_path } =>
+                rooted && root.as_str() == "root" && logical_path.as_str() == "consume-field.ko",
+        });
+    }
     let source = names.names().source_units()[0].source_unit();
     let local_names = names.names().source_units()[0].resolution();
     let typed = stage!(
@@ -384,6 +399,32 @@ fn unit(case: &FieldCase, sources: &SourceMap, file: &ParsedFile) -> FieldObserv
             descriptor,
         );
     }
+    if exact {
+        let projection = typed
+            .aggregate_projection(operand)
+            .expect("real explicit projection");
+        let UnitAggregateProjectionReceiver::Expression(receiver) = projection.receiver() else {
+            panic!("the field root is the explicit this expression")
+        };
+        assert_eq!(receiver.source_unit(), source);
+        let actual = file.ast().expressions().get(receiver.expression()).unwrap();
+        assert!(matches!(actual.payload(), Expression::This));
+        assert_eq!(sources.slice(actual.span()), Ok("this"));
+        assert_eq!(projection.expression(), operand);
+        assert_eq!(Some(projection.field()), field);
+        let nominals = typed
+            .signatures()
+            .declarations()
+            .iter()
+            .filter_map(|d| d.nominal());
+        let member = nominals
+            .flat_map(|nominal| nominal.members())
+            .find(|member| member.name() == "f")
+            .expect("original Holder.f");
+        let signature = member.receiver().expect("declared method receiver");
+        assert_eq!(signature.mode(), ParameterMode::Borrow);
+        assert_eq!(typed.expression_type(receiver), Some(signature.ty()));
+    }
     let complete = stage!(
         observation,
         "complete",
@@ -430,6 +471,37 @@ fn unit(case: &FieldCase, sources: &SourceMap, file: &ParsedFile) -> FieldObserv
             ),
         );
     }
+    if exact {
+        let source = file.source_id();
+        let text = |start, end| {
+            let span = sources.span(source, start, end).unwrap();
+            assert_eq!(sources.slice(span), Ok("source"));
+            span
+        };
+        let catalog = DiagnosticCodeCatalog::try_new(&["L0132"]).unwrap();
+        let mut expected = Diagnostic::new(
+            sources,
+            Severity::Error,
+            catalog.resolve("L0132").unwrap(),
+            "cannot move a non-Copyable component out of its owner",
+            text(85, 91),
+        )
+        .unwrap();
+        expected
+            .add_label(
+                sources,
+                text(17, 23),
+                "non-Copyable component declared here",
+            )
+            .unwrap();
+        assert_eq!(owned.diagnostics(), std::slice::from_ref(&expected));
+        assert!(owned.loans().is_empty());
+        assert!(owned.direct_call_loan_ends().is_empty());
+        assert!(owned.borrow_results().bindings().is_empty());
+        assert!(owned.borrow_results().call_uses().is_empty());
+        assert!(owned.construction_plans().is_empty());
+        assert!(owned.clone().validate().is_err());
+    }
     let codes = owned
         .diagnostics()
         .iter()
@@ -473,8 +545,14 @@ fn map_consume_field_roots_preserve_old_value_rejection() {
             .expect("fixed source");
         // Parser harness invariant failures remain separate from an observed language rejection.
         let file = parser_test_assertions::parse_file_twice(&sources, source, case.label);
-        observations.push(single(case, &sources, &file));
-        observations.push(unit(case, &sources, &file));
+        // Preserve this-take as the old per-entry priority control; replace only the
+        // equivalent this-consume Single diagnostic with its pinned MemoryDocument case.
+        if case.label == "this-consume" {
+            observations.push(unit(case, &sources, &file, false));
+        } else {
+            observations.push(single(case, &sources, &file));
+        }
+        observations.push(unit(case, &sources, &file, true));
     }
     for (consume, ordinary) in [(2, 0), (3, 1), (5, 4)] {
         for entry in 0..2 {

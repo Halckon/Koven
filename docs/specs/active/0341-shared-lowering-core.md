@@ -22067,3 +22067,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - Unit 实际绑定借用交付的 List iteration：真实 `for` statement 与 source expression 对齐；已解析的 `maps` 是容器变量，当前轮 `source` 是不同的 ForBinding symbol，并采用 ListForm 的实际元素类型 `MutableMap<Int, Int>`。实际 MapConsume 指向同一当前轮 binder，未指向 List owner。拒绝无可执行借用、清理或交付事实。
 - 原十二行中九条完整等价准入/拒绝合同已迁到双 Unit 布局，保留三条不同诊断的 Single/Rooted 对照：`borrow-parameter`、`inout-parameter` 的关联声明跨度不同，`temporary-preserves-child-error` 的 Unit 多出一个选中参数标签。若退役这三个旧断言，要先明确是否接受 Unit 的诊断合同作为唯一长期合同，而不是继续按等价测试迁移。
 - Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map 显式借用 receiver 字段消费测试迁移
+
+- 基于 `203cfbbc`，只迁默认借用 receiver 的原 `this-consume` 行（`this.source.consume()`）。源码及 `consume::field_roots::map_consume_field_roots_preserve_old_value_rejection` FQN 不变；普通 `this-take` 仍按原入口做诊断优先级对照，bare 与 own-this 组及原三条不同诊断的 Map 阴性矩阵保持。
+- 同源原 Single、MemoryDocument 与 Rooted 的完整 ownership 诊断相同：唯一 L0132，主为访问处字段 `source`（85..91），唯一声明标签为 17..23。两种 Unit 以已选择的 MapConsume receiver 作为实际字段投影；根为解析和类型检查过的显式 `this`，与 `Holder.f` 的 Borrow receiver 同类型，投影字段与同一 source-qualified 主构造器字段一致。完成最终类型准入，拒绝后不发布可执行所有权事实，不能 validate 出能力。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未修改生产/API/CI，未重建 Cargo 或验证本片 Linux/native，SPEC-0341 仍 in-progress。
