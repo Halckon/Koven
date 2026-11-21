@@ -6,7 +6,21 @@ pub(super) const SOURCE: &str =
 
 #[test]
 fn borrowed_receiver_fallback_forwards_entry_loan_without_owning_release() {
-    let text = format!("{SOURCE}\nfun entry(): Unit {{ val node = Node(); run(node) }}");
+    verify_borrowed_receiver(SOURCE, false);
+}
+
+#[test]
+fn borrowed_receiver_refine_anchor_forwards_entry_loan_without_owning_release() {
+    let anchored = SOURCE.replace(
+        "{ node.touch() }",
+        "{ val anchor: Int? = null; node.touch() }",
+    );
+    assert_ne!(anchored, SOURCE);
+    verify_borrowed_receiver(&anchored, true);
+}
+
+fn verify_borrowed_receiver(source_text: &str, expect_refine: bool) {
+    let text = format!("{source_text}\nfun entry(): Unit {{ val node = Node(); run(node) }}");
     let mut sources = SourceMap::new();
     let (source, parsed) =
         unit_lower_test_support::parsed(&mut sources, "borrowed_receiver.ko", &text);
@@ -91,14 +105,15 @@ fn borrowed_receiver_fallback_forwards_entry_loan_without_owning_release() {
         assert!(call_at < end_at && end_at < drop_at);
 
         let run = module.function(*callee).unwrap();
-        assert!(
-            !routed.contains(&run.name),
-            "borrowed run must stay on Compatibility"
+        assert_eq!(
+            routed.contains(&run.name),
+            expect_refine,
+            "borrowed caller route with source {source_text}: {routed:?}"
         );
         assert!(receipts.iter().all(|receipt| receipt.caller != *callee));
         assert_eq!(
             sources.slice(run.origin.span()).unwrap(),
-            SOURCE.split_once('\n').unwrap().1
+            source_text.split_once('\n').unwrap().1
         );
         let [run_block] = run.blocks.as_slice() else {
             panic!("straight-line borrowed caller");
@@ -111,8 +126,20 @@ fn borrowed_receiver_fallback_forwards_entry_loan_without_owning_release() {
             outer.entity(EntityId::Loan(*loan)).unwrap().ty,
             run.entity(EntityId::Loan(*imported)).unwrap().ty
         );
-        let [forward] = run.instructions.as_slice() else {
-            panic!("the borrowed caller must not create or retire a loan or drop an owner");
+        if !expect_refine {
+            assert_eq!(run.instructions.len(), 1);
+        }
+        assert!(run.instructions.iter().all(|instruction| !matches!(
+            instruction.operation,
+            Operation::BorrowBegin { .. } | Operation::BorrowEnd { .. } | Operation::Drop { .. }
+        )));
+        let forwards = run
+            .instructions
+            .iter()
+            .filter(|instruction| matches!(instruction.operation, Operation::DirectCall { .. }))
+            .collect::<Vec<_>>();
+        let [forward] = forwards.as_slice() else {
+            panic!("exactly one forwarding call");
         };
         let Operation::DirectCall {
             callee: method,
