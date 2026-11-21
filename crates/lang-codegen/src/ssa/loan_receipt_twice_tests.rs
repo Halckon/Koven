@@ -28,15 +28,37 @@ fn two_shared_receiver_calls_refine_anchor_preserves_order_and_single_owner_rele
     verify_two_shared_receiver_calls(&anchored, true);
 }
 
+#[test]
+fn independently_anchored_distinct_shared_methods_keep_per_call_dispatch_and_owner_release() {
+    // Preserve the exact negative's declarations and two calls. The local nullable
+    // anchor selects the existing Refine route, not the bounded two-call trigger.
+    let source = "class Node { fun touch(): Int = 1; fun other(): Int = 2 }\nfun run(own node: Node): Unit { val anchor: Int? = null; node.touch(); node.other() }";
+    verify_shared_receiver_calls(source, true, true);
+}
+
 fn verify_two_shared_receiver_calls(source_text: &str, anchored: bool) {
+    verify_shared_receiver_calls(source_text, anchored, false);
+}
+
+fn verify_shared_receiver_calls(source_text: &str, anchored: bool, distinct: bool) {
     let text = format!("{source_text}\nfun entry(): Unit {{ run(Node()) }}");
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two_receiver.ko", &text);
     let (environment, types) = standard_environments();
-    let call_offsets = source_text
-        .match_indices("node.touch()")
-        .map(|(offset, token)| (offset, offset + token.len()))
-        .collect::<Vec<_>>();
+    let call_offsets = if distinct {
+        ["node.touch()", "node.other()"]
+            .into_iter()
+            .map(|token| {
+                let offset = source_text.find(token).unwrap();
+                (offset, offset + token.len())
+            })
+            .collect::<Vec<_>>()
+    } else {
+        source_text
+            .match_indices("node.touch()")
+            .map(|(offset, token)| (offset, offset + token.len()))
+            .collect::<Vec<_>>()
+    };
     for input in [
         SourceUnitInput::new("root", "two_receiver.ko", source, &parsed),
         SourceUnitInput::memory_document(source, &parsed),
@@ -52,6 +74,54 @@ fn verify_two_shared_receiver_calls(source_text: &str, anchored: bool) {
             .find(|declaration| declaration.name() == "entry")
             .unwrap()
             .id();
+        if distinct {
+            use lang_frontend::type_checking::{UnitCallTarget, UnitCallableTarget};
+
+            let plan = crate::ssa::unit_plan::plan_unit_instances(
+                &sources, &inputs, &names, &types, &typed, &owned, entry,
+            )
+            .unwrap();
+            let run = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "run")
+                .unwrap();
+            let caller = plan
+                .iter()
+                .find(|instance| {
+                    instance.key().target() == UnitCallableTarget::Declaration(run.id())
+                })
+                .unwrap();
+            let mut dispatches = Vec::new();
+            for &(start, end) in &call_offsets {
+                let mut calls = typed.types().calls().iter().filter(|call| {
+                    let span = parsed
+                        .ast()
+                        .expressions()
+                        .get(call.expression().expression())
+                        .unwrap()
+                        .span();
+                    span.source_id() == source && (span.start(), span.end()) == (start, end)
+                });
+                let call = calls.next().expect("exact original typed call");
+                assert!(calls.next().is_none());
+                let UnitCallTarget::Symbol(target) = call.target() else {
+                    panic!("each site selects its actual member symbol");
+                };
+                let route = plan
+                    .callable_plan()
+                    .call_site(caller.source_token(), call.expression())
+                    .unwrap();
+                assert!(route.delegation().is_empty());
+                let dispatch = route.dispatch_key().expect("direct selected member");
+                assert_eq!(dispatch.target(), UnitCallableTarget::Symbol(target));
+                assert!(plan.iter().any(|instance| instance.key() == dispatch));
+                dispatches.push(dispatch);
+            }
+            assert_ne!(dispatches[0], dispatches[1]);
+        }
         let (((lowered, routed), receipts), planned) =
             crate::ssa::refine::two_receiver_plan_test_support::observe(|| {
                 crate::ssa::refine::receiver_receipt::observe(|| {
@@ -277,7 +347,18 @@ fn verify_two_shared_receiver_calls(source_text: &str, anchored: bool) {
             plan_expectations.push((checked.begin_span(), checked.end_span(), *callee));
         }
         assert_ne!(actual_loans[0], actual_loans[1]);
-        assert_eq!(callees[0], callees[1]);
+        if distinct {
+            assert_ne!(callees[0], callees[1]);
+            for (actual, expected) in callees
+                .into_iter()
+                .zip(["fun touch(): Int = 1", "fun other(): Int = 2"])
+            {
+                let actual = module.function(actual).unwrap();
+                assert_eq!(sources.slice(actual.origin.span()).unwrap(), expected);
+            }
+        } else {
+            assert_eq!(callees[0], callees[1]);
+        }
         assert!(ends[0].0 < begins[1].0 && ends[1].0 < drops[0].0);
         assert_eq!(drops[0].1.operation, Operation::Drop { owner: *owner });
 
