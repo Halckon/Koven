@@ -33,3 +33,13 @@ receipt。实际借用起止和 owner 释放仍归外层调用者；此处不能
 NamedDrop，不依赖可选观察。原样观察第一段 Partial、末次段局部 Complete2；末次不证明
 第一条借用，整组不产生后端 receipt。两种 Unit 布局分别核对实际 ROp、SSA、LLVM 与
 按分配身份唯一释放，不增加或迁移单调用 receipt 的生产职责。
+
+本地候选 `11886bf3` 的普通构建默认开启观察；测试 feature 才允许显式关闭。Mac/Linux
+定向各为默认 68、带测试开关 70 项。默认也核 Boolean 与单 Int 字面量的真实 receipt；
+显式关闭核路由与 SSA/LLVM 不变，且不发布 receipt。这不是远端 CI 或全量验收。
+
+仅测试后继 `825670ee`：同一真 Resource 对照在主干与候选均沿既有 Refine 路由、
+无 receiver receipt，两个 Unit 布局各次分配只释放一次；这不是窄非 Resource
+触发器的新准入。该精确 Mac 树另通过不重复的 46/48 项（默认/带开关）：具名
+receiver 与字面量 6/8、Range receiver 10、native Resource 析构 30。未运行
+CI-only 故障注入，也未将这批相邻用例计入 Linux 结果。
