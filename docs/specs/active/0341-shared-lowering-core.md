@@ -21984,3 +21984,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit FE 核独立 Named source/aux、两条 Shared 输入以及外层对临时 nullable Copy 的借用而不是原 source 的借用；aux 在内层 CallReturn，boxed 在同一内层实参 AfterExpression Drop。无 Move 或临时 Drop。实际 Unit SSA 中两不同构造 ValueId 和借用身份明确：callee 从实际 boxed ABI 参数投影，aux 结束并 Drop 后沿真实 field loan Read，结束结果与 boxed lender 后 Drop boxed，把同一复制的 Int 值包装为 nullable，外层 observe 用独立临时槽位。
 - 两布局原始 LLVM native 均链接运行且保持静默；独立观察保留原 call 与 return，在真实 observe ABI 检查 presence 和 copied Int，同时核真实不同地址按 aux(9)→boxed(7) 各物理释放一次后才观察到 present 7。观察不改原 Koven 程序；该正例不声称覆盖 OOM 或其他退出边。
 - Mac FE 23 项、SSA/native 9 项，fmt/diff/docs、相对 main Rust size guard 通过。没有生产/API/CI 改动；未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原递归 capture cleanup 暂不迁旧 oracle
+
+- 基于 `4e32033f`。保留 `nullable_copy_protects_the_source_from_recursive_call_return_cleanup` 原 Single/Unit 比较及 240 字节源码。原测试 Mac 实跑通过；独立 Unit 探针两布局均完成 names/final types/validated ownership，证实 `{ boxed.value }` closure 捕获的 Shared/Borrow 是同一个 boxed root，aux 的 Named Drop 在 `CallReturn(view(boxed, aux))`，boxed 的在该实参 `AfterExpression`，外层借用的是权属独立的 nullable Copy 临时槽。此前无捕获的 Boxed/Boxed 源 last-use 正例不能代替此合同。
+- 普通 Unit lowering 两布局均返回 `InvalidModel`、无公开 span。复跑既有 `loan-observation-test-support` final-verifier observer，在同一个真实最终验证里定位到唯一错误 `InvalidTypeDefinition: a callable view is only a shared loan target`；位置为 `view(boxed, aux)` 的 `aux`（233..236）所生成的 Place。其来自真实 concrete closure 的 `RootPlace`/ `BorrowBegin`，该 Place 却被赋予 CallableView 类型，并非先借真实 closure 再做 callable-view reborrow。已知阻塞是参数 ABI 适配；不能根据未验证 SSA 断言任何真实释放或顺序。
+- 后续若处理，先审查 borrowed-result call 的 callable 参数应如何从具体 closure 的真实 loan 形成并结束 `CallableViewOf`，不放松 verifier；修正后用原 240 字节、双布局验证 capture/closure/boxed 身份、复制值与实际清理。此次仅记录诊断，不冻结预期失败为新退役验收，也未渲染无效 SSA 或跑 native/远端 CI；SPEC-0341 仍 in-progress。
