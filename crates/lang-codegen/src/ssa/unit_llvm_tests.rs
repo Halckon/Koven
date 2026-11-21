@@ -358,60 +358,152 @@ pub(in crate::ssa) mod callable_plan_tests {
         fixture.assert_count(&plan, "helper", 3);
     }
 
-    #[test]
-    fn single_callable_plan_alias_and_group_reuse_one_origin() {
-        let fixture = Fixture::analyze(&format!(
+    fn alias_source() -> String {
+        format!(
             "{HELPER}fun entry(): Unit {{ val original: (Int)->Int = {{ index -> index }}\n\
              helper(original)\nval alias = (original)\nhelper((alias)) }}"
-        ));
-        let lambda = fixture.lambdas()[0];
-        let mut uses = 0;
-        for (id, node) in fixture.parsed.ast().expressions().iter() {
-            if matches!(
-                fixture.sources.slice(node.span()).unwrap(),
-                "original" | "(original)" | "(alias)"
-            ) {
-                assert_eq!(
-                    fixture.owned.callable_origin(id).unwrap().origin(),
-                    CallableOrigin::Lambda(lambda)
-                );
-                uses += 1;
-            }
-        }
-        assert_eq!(
-            uses, 4,
-            "both original uses and their transparent groups are checked"
-        );
-        let plan = fixture.plan().unwrap();
-        fixture.assert_count(&plan, "helper", 1);
+        )
     }
 
-    #[test]
-    fn single_callable_plan_parameter_forwarding_and_recursion_reuse_complete_keys() {
-        let fixture = Fixture::analyze(&format!(
+    fn forwarding_source() -> String {
+        format!(
             "{HELPER}\
              fun middle(forwarded: (Int)->Int): Unit {{ helper((forwarded)) }}\n\
              fun relay(input: (Int)->Int): Unit {{ middle(input)\nrelay(input) }}\n\
              fun entry(): Unit {{ relay({{ index -> index }}) }}"
-        ));
-        for (id, node) in fixture.parsed.ast().expressions().iter() {
-            let text = fixture.sources.slice(node.span()).unwrap();
-            if matches!(text, "input" | "forwarded") {
-                assert_eq!(
-                    fixture.owned.callable_origin(id).unwrap().origin(),
-                    CallableOrigin::Parameter(fixture.symbol(text))
-                );
-                assert_eq!(
-                    fixture.typed.parameter_mode(fixture.symbol(text)),
-                    Some(ParameterMode::Borrow)
-                );
+        )
+    }
+
+    #[test]
+    fn exact_legacy_alias_and_forwarding_sources_keep_unit_callable_views() {
+        use crate::ssa::unit_lower_test_support::{analyze, parsed};
+        use lang_frontend::{
+            name_resolution::SourceUnitInput,
+            ownership_checking::UnitCallableOrigin,
+            type_checking::{UnitCallableTarget, UnitExpressionId},
+        };
+        const PATH: &str = "single-callable-plan.ko";
+        for (text, expected_functions, forwarding) in [
+            (alias_source(), &["entry", "helper"][..], false),
+            (
+                forwarding_source(),
+                &["entry", "helper", "middle", "relay"][..],
+                true,
+            ),
+        ] {
+            for rooted in [false, true] {
+                let mut sources = SourceMap::new();
+                let (source, file) = parsed(&mut sources, PATH, &text);
+                assert_eq!(sources.source_text(source), Ok(text.as_str()));
+                let inputs = [if rooted {
+                    SourceUnitInput::new("root", PATH, source, &file)
+                } else {
+                    SourceUnitInput::memory_document(source, &file)
+                }];
+                let (name_env, env) = standard_environments();
+                let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &env);
+                let [indexed] = names.names().index().source_units() else {
+                    panic!("one original physical source");
+                };
+                let unit = indexed.id();
+                let declared = |name| {
+                    let ids = names
+                        .names()
+                        .index()
+                        .declarations()
+                        .iter()
+                        .filter(|d| {
+                            d.name() == name
+                                && d.source_unit() == unit
+                                && d.kind() == lang_frontend::name_resolution::SymbolKind::Function
+                        })
+                        .collect::<Vec<_>>();
+                    let [d] = ids.as_slice() else {
+                        panic!("one same-source declaration {name}");
+                    };
+                    d.id()
+                };
+                let target = |name| UnitCallableTarget::Declaration(declared(name));
+                let type_count = typed.types().types().len();
+                let plan = crate::ssa::unit_plan::plan_unit_instances(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &env,
+                    &typed,
+                    &owned,
+                    declared("entry"),
+                )
+                .unwrap_or_else(|error| {
+                    panic!("forwarding={forwarding}, rooted={rooted}: {error:?}")
+                });
+                assert_eq!(typed.types().types().len(), type_count);
+                assert_eq!(plan.len(), expected_functions.len());
+                for &name in expected_functions {
+                    let mut instances = plan
+                        .iter()
+                        .filter(|instance| instance.key().target() == target(name));
+                    let instance = instances.next().expect("reachable original instance");
+                    assert!(instances.next().is_none());
+                    assert!(
+                        instance.key().callable_arguments().is_empty(),
+                        "ADR-0034 borrowed callback is a view"
+                    );
+                }
+                let origins = |text| {
+                    file.ast()
+                        .expressions()
+                        .iter()
+                        .filter_map(|(id, node)| {
+                            (sources.slice(node.span()).ok() == Some(text)).then(|| {
+                                owned
+                                    .ownership()
+                                    .callable_origin(UnitExpressionId::new(unit, id))
+                                    .expect("actual qualified origin")
+                                    .origin()
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                };
+                if forwarding {
+                    for name in ["forwarded", "input"] {
+                        let ids = origins(name);
+                        assert!(!ids.is_empty());
+                        let UnitCallableOrigin::Parameter(symbol) = ids[0] else {
+                            panic!("real parameter source");
+                        };
+                        assert!(
+                            ids.iter()
+                                .all(|origin| *origin == UnitCallableOrigin::Parameter(symbol))
+                        );
+                        assert_eq!(symbol.source_unit(), unit);
+                        assert_eq!(
+                            names.names().source_units()[unit.index()]
+                                .resolution()
+                                .symbols()
+                                .get(symbol.symbol().index())
+                                .unwrap()
+                                .name(),
+                            name,
+                        );
+                    }
+                } else {
+                    let occurrences = ["original", "(original)", "(alias)"]
+                        .into_iter()
+                        .flat_map(origins)
+                        .collect::<Vec<_>>();
+                    assert_eq!(occurrences.len(), 4);
+                    let UnitCallableOrigin::Lambda(lambda) = occurrences[0] else {
+                        panic!("alias resolves to the original lambda");
+                    };
+                    assert_eq!(lambda.source_unit(), unit);
+                    assert!(
+                        occurrences
+                            .iter()
+                            .all(|origin| *origin == UnitCallableOrigin::Lambda(lambda))
+                    );
+                }
             }
-        }
-        let plan = fixture
-            .plan()
-            .expect("parameter forwarding does not create an instance chain");
-        for name in ["helper", "middle", "relay", "entry"] {
-            fixture.assert_count(&plan, name, 1);
         }
     }
 

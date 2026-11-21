@@ -10,6 +10,21 @@ const RECURSIVE: &str = "fun leaf(callback: (Int)->Int): Unit {}\n\
              fun relay(forwarded: (Int)->Int): Unit { leaf((forwarded))\nrelay(forwarded) }\n\
              fun entry(): Unit { relay({ index -> index }) }";
 
+const CONCRETE_OWNERS: &str = "fun leaf(callback: (Int)->Int): Unit {}\n\
+             fun <T> relay(own value: T): Unit { leaf({ index -> index }) }\n\
+             fun entry(): Unit { relay<Int>(1)\nrelay<Boolean>(true) }";
+
+const FACTORY: &str = "fun leaf(callback: (Int)->Int): Unit {}\n\
+             fun first(): Unit { val result = factory()\nval alias = (result)\nleaf(alias) }\n\
+             fun second(): Unit { leaf(factory()) }\n\
+             fun factory(): (Int)->Int = ({ index -> index })";
+
+const ENVIRONMENTS: &str = "fun leaf(callback: (Int)->Boolean): Unit {}\n\
+             fun entry(label: String, own taken: String): Unit {\n\
+             leaf({ index -> index == 0 })\n\
+             leaf({ index -> label == \"shared\" && index == 0 })\n\
+             leaf(move { index -> taken == \"owned\" && index == 0 }) }";
+
 type Inspect = fn(
     &SourceMap,
     &ParsedFile,
@@ -20,6 +35,21 @@ type Inspect = fn(
 );
 
 fn with_original(text: &str, inspect: Inspect) {
+    with_selected_original(text, "entry", inspect);
+}
+
+fn with_selected_original(
+    text: &str,
+    entry: &str,
+    inspect: impl Fn(
+        &SourceMap,
+        &ParsedFile,
+        &ValidatedCompilationUnitNames,
+        &ValidatedCompilationUnitTypes,
+        &ValidatedCompilationUnitOwnership,
+        &UnitInstancePlan,
+    ),
+) {
     const PATH: &str = "original-callable-routes.ko";
     for rooted in [false, true] {
         let mut sources = SourceMap::new();
@@ -38,7 +68,7 @@ fn with_original(text: &str, inspect: Inspect) {
             &environment,
             &typed,
             &owned,
-            declaration(&names, "entry"),
+            declaration(&names, entry),
         )
         .unwrap_or_else(|error| panic!("rooted={rooted}: original source planning: {error:?}"));
         inspect(&sources, &file, &names, &typed, &owned, &plan);
@@ -240,5 +270,206 @@ fn original_recursive_forwarding_keeps_parameter_origin_and_one_route() {
             origins[0], origins[1],
             "grouping and recursion re-borrow the same parameter"
         );
+    });
+}
+
+#[test]
+fn original_same_lambda_belongs_to_each_concrete_relay() {
+    with_original(
+        CONCRETE_OWNERS,
+        |sources, file, names, typed, owned, plan| {
+            let target = |name| UnitCallableTarget::Declaration(declaration(names, name));
+            let entry = plan
+                .iter()
+                .find(|item| item.key().target() == target("entry"))
+                .unwrap();
+            let leaf = plan
+                .iter()
+                .find(|item| item.key().target() == target("leaf"))
+                .unwrap();
+            assert_eq!(
+                plan.iter()
+                    .filter(|item| item.key().target() == target("relay"))
+                    .count(),
+                2
+            );
+
+            let callback_call = call_at(sources, file, typed, "leaf({ index -> index })");
+            let [(slot, operand)]: [_; 1] = function_operands(file, typed, callback_call)
+                .try_into()
+                .unwrap();
+            assert_eq!(slot, 0);
+            let UnitCallableOrigin::Lambda(expression) =
+                owned.ownership().callable_origin(operand).unwrap().origin()
+            else {
+                panic!("one actual lambda operand within the generic declaration");
+            };
+            let callables = plan.callable_plan();
+            let routes = ["relay<Int>(1)", "relay<Boolean>(true)"].map(|text| {
+                let call = call_at(sources, file, typed, text);
+                let route = callables
+                    .call_site(entry.source_token(), call.expression())
+                    .unwrap();
+                let relay = plan.iter().find(|item| item.key() == route.key()).unwrap();
+                assert_eq!(relay.key().target(), target("relay"));
+                let leaf_route = callables
+                    .call_site(relay.source_token(), callback_call.expression())
+                    .unwrap();
+                assert_eq!(leaf_route.key(), leaf.key());
+                assert!(leaf_route.key().callable_arguments().is_empty());
+                let token = callables
+                    .borrowed_argument(relay.source_token(), operand)
+                    .unwrap();
+                assert_eq!(
+                    callables.callable(token),
+                    Some(&CallableKey::Lambda {
+                        owner: relay.source_token(),
+                        expression
+                    }),
+                );
+                (relay.source_token(), token)
+            });
+            assert_ne!(routes[0].0, routes[1].0, "separate concrete generic owners");
+            assert_ne!(
+                routes[0].1, routes[1].1,
+                "same AST does not imply the same closure token"
+            );
+        },
+    );
+}
+
+#[test]
+fn original_factory_memo_feeds_each_selected_real_caller() {
+    // No artificial wrapper: each original callable is independently selected as a real root.
+    for (selected, unselected, leaf_call) in [
+        ("first", "second", "leaf(alias)"),
+        ("second", "first", "leaf(factory())"),
+    ] {
+        with_selected_original(
+            FACTORY,
+            selected,
+            |sources, file, names, typed, owned, plan| {
+                let target = |name| UnitCallableTarget::Declaration(declaration(names, name));
+                let caller = plan
+                    .iter()
+                    .find(|item| item.key().target() == target(selected))
+                    .unwrap();
+                assert!(
+                    plan.iter()
+                        .all(|item| item.key().target() != target(unselected))
+                );
+                let factory = plan
+                    .iter()
+                    .find(|item| item.key().target() == target("factory"))
+                    .unwrap();
+                let leaf = plan
+                    .iter()
+                    .find(|item| item.key().target() == target("leaf"))
+                    .unwrap();
+                let callables = plan.callable_plan();
+                let returned = callables
+                    .callable_return(factory.source_token())
+                    .expect("factory return ABI");
+                assert!(callables.callable_return(caller.source_token()).is_none());
+                let summary = owned
+                    .ownership()
+                    .pointer_callable_return(target("factory"))
+                    .unwrap();
+                assert_eq!(returned.function_type(), summary.function_type());
+                let UnitPointerCallableReturnOrigin::Lambda(expression) = summary.origin() else {
+                    panic!("the selected factory actually returns a lambda");
+                };
+                assert_eq!(
+                    callables.callable(returned.callable()),
+                    Some(&CallableKey::Lambda {
+                        owner: factory.source_token(),
+                        expression
+                    })
+                );
+                let call = call_at(sources, file, typed, leaf_call);
+                let [(slot, operand)]: [_; 1] =
+                    function_operands(file, typed, call).try_into().unwrap();
+                assert_eq!(slot, 0);
+                let route = callables
+                    .call_site(caller.source_token(), call.expression())
+                    .unwrap();
+                assert_eq!(route.key(), leaf.key());
+                assert!(route.key().callable_arguments().is_empty());
+                assert_eq!(
+                    callables.borrowed_argument(caller.source_token(), operand),
+                    Some(returned.callable()),
+                    "actual direct or alias caller shares this plan's factory memo"
+                );
+            },
+        );
+    }
+}
+
+#[test]
+fn original_three_capture_modes_keep_distinct_operands_and_one_borrow_callee() {
+    with_original(ENVIRONMENTS, |sources, file, names, typed, owned, plan| {
+        let target = |name| UnitCallableTarget::Declaration(declaration(names, name));
+        let entry = plan
+            .iter()
+            .find(|item| item.key().target() == target("entry"))
+            .unwrap();
+        let leaf = plan
+            .iter()
+            .find(|item| item.key().target() == target("leaf"))
+            .unwrap();
+        assert_eq!(
+            plan.iter()
+                .filter(|item| item.key().target() == target("leaf"))
+                .count(),
+            1
+        );
+        let callables = plan.callable_plan();
+        let mut tokens = BTreeSet::new();
+        for (text, expected) in [
+            ("leaf({ index -> index == 0 })", None),
+            (
+                "leaf({ index -> label == \"shared\" && index == 0 })",
+                Some(ClosureCaptureMode::Shared),
+            ),
+            (
+                "leaf(move { index -> taken == \"owned\" && index == 0 })",
+                Some(ClosureCaptureMode::Owned),
+            ),
+        ] {
+            let call = call_at(sources, file, typed, text);
+            let route = callables
+                .call_site(entry.source_token(), call.expression())
+                .unwrap();
+            assert_eq!(route.key(), leaf.key());
+            assert!(route.key().callable_arguments().is_empty());
+            let [(slot, operand)]: [_; 1] =
+                function_operands(file, typed, call).try_into().unwrap();
+            assert_eq!(slot, 0);
+            let UnitCallableOrigin::Lambda(expression) =
+                owned.ownership().callable_origin(operand).unwrap().origin()
+            else {
+                panic!("actual lambda at {text}");
+            };
+            let captures = owned
+                .ownership()
+                .captures_of(expression)
+                .map(|capture| capture.mode())
+                .collect::<Vec<_>>();
+            assert_eq!(captures, expected.into_iter().collect::<Vec<_>>());
+            let token = callables
+                .borrowed_argument(entry.source_token(), operand)
+                .unwrap();
+            assert!(
+                tokens.insert(token),
+                "pointer/shared/owned retain distinct tokens"
+            );
+            assert_eq!(
+                callables.callable(token),
+                Some(&CallableKey::Lambda {
+                    owner: entry.source_token(),
+                    expression
+                })
+            );
+        }
     });
 }
