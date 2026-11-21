@@ -642,15 +642,92 @@ mod boundaries {
         );
     }
 
+    // This exact source is intentionally accepted by Unit, unlike the old path.
+    #[test]
+    fn readonly_inout_uses_unit_exclusive_receiver_storage() {
+        let source = "package app\nvalue class Item(var n:Int) { inout fun read():Int=this.n }\nfun entry() { var item=Item(7); item.read() }";
+        let analysis = UnitSource::analyze("app/readonly-method.ko", source).unwrap();
+        analysis.assert_frontend_clean();
+        let entry_decl = analysis.declaration("entry", SymbolKind::Function);
+        let (program, entry_id) = analysis.lower_entry(entry_decl).unwrap();
+        verify_program(&program).unwrap();
+        let module = program.module(entry_id.module()).unwrap();
+        let entry = module.function(entry_id).unwrap();
+        let [call] = entry
+            .instructions
+            .iter()
+            .filter(|instruction| {
+                analysis.sources().slice(instruction.origin.span()).ok() == Some("item.read()")
+                    && matches!(instruction.operation, Operation::DirectCall { .. })
+            })
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("expected one real call on the inline Item receiver");
+        };
+        let Operation::DirectCall {
+            callee,
+            receiver: Some(EntityId::Loan(loan)),
+            arguments,
+        } = &call.operation
+        else {
+            panic!("expected original call to deliver a receiver loan");
+        };
+        assert!(arguments.is_empty());
+        let method = module.function(*callee).unwrap();
+        let Some(EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            target,
+        }) = method.receiver
+        else {
+            panic!("inout method must keep exclusive receiver ABI");
+        };
+        assert!(matches!(
+            module.types.get(target.index()),
+            Some(SsaTypeKind::Aggregate { .. })
+        ));
+        assert_eq!(
+            entry.entity(EntityId::Loan(*loan)).unwrap().ty,
+            EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target,
+            }
+        );
+        let block = entry.block(call.block).unwrap();
+        let before_call = block.instructions.iter().take_while(|id| **id != call.id);
+        assert!(before_call.clone().any(|id| {
+            entry.instructions.iter().any(|instruction| {
+                instruction.id == *id
+                    && matches!(
+                        instruction.operation,
+                        Operation::BorrowBegin {
+                            kind: LoanKind::Exclusive,
+                            ..
+                        }
+                    )
+                    && instruction.results.as_slice() == [EntityId::Loan(*loan)]
+            })
+        }));
+        let after_call = block
+            .instructions
+            .iter()
+            .skip_while(|id| **id != call.id)
+            .skip(1);
+        assert_eq!(
+            after_call
+                .filter(|id| entry.instructions.iter().any(|i| {
+                    i.id == **id && matches!(i.operation, Operation::BorrowEnd { loan: ended } if ended == *loan)
+                }))
+                .count(),
+            1
+        );
+        crate::llvm::render_verified_program_with_entry(&program, entry_id).unwrap();
+    }
+
     #[test]
     fn readonly_keeps_receiver_and_result_boundaries() {
         for (declaration, call) in [
             (
                 "value class Item(val n:Int) { own fun read():Int=this.n }",
-                "item.read()",
-            ),
-            (
-                "value class Item(var n:Int) { inout fun read():Int=this.n }",
                 "item.read()",
             ),
             (
