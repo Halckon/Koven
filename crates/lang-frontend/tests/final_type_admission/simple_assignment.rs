@@ -319,21 +319,121 @@ fn grouped_variable_matches_plain_assignment() {
 
 #[test]
 fn compound_assignment_keeps_deferred_boundary() {
+    use lang_frontend::{
+        diagnostic::{DiagnosticCodeCatalog, Severity},
+        name_resolution::{ReferenceTarget, SourceUnitKey, SymbolKind},
+        parser::{AssignmentOperator, Item, NameMarker, VariableKind},
+    };
+
     let text = "fun test(): Unit { val f: () -> Unit = { var number = 1; number += 2 } }";
-    for entry in observe(text) {
-        assert_eq!(entry.assignments.len(), 1);
-        assert_eq!(
-            entry.assignments[0].2,
-            Shape::AssignmentDeferred,
-            "{entry:?}"
-        );
-        let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) = &entry.complete else {
-            panic!("{entry:?}");
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "main.ko", text);
+    assert_eq!(sources.source_text(source), Ok(text));
+    let (environment, types) = standard_environments();
+    let assignment = expression(&sources, &file, "number += 2");
+    let node = file.ast().expressions().get(assignment).unwrap();
+    let Expression::Assignment {
+        target,
+        operator,
+        operator_span,
+        value,
+    } = *node.payload()
+    else {
+        panic!("the original compound assignment")
+    };
+    assert_eq!(operator, AssignmentOperator::AddAssign);
+    assert_eq!(sources.slice(operator_span), Ok("+="));
+    let target_span = file.ast().expressions().get(target).unwrap().span();
+    assert_eq!(sources.slice(target_span), Ok("number"));
+    assert_eq!(value, expression(&sources, &file, "2"));
+    let catalog = DiagnosticCodeCatalog::try_new(&["L0165"]).unwrap();
+    assert_eq!(node.span(), sources.span(source, 57, 68).unwrap());
+    let expected = Diagnostic::new(
+        &sources,
+        Severity::Error,
+        catalog.resolve("L0165").unwrap(),
+        "type checking could not complete: assignment type checking is unresolved",
+        node.span(),
+    )
+    .unwrap();
+
+    for (rooted, input) in [
+        (false, SourceUnitInput::memory_document(source, &file)),
+        (true, SourceUnitInput::new("root", "main.ko", source, &file)),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty());
+        let [entry] = index.source_units() else {
+            panic!("one original source")
         };
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].code().to_string(), "L0165");
-        assert_eq!(diagnostics[0].primary_span(), entry.assignments[0].0);
-        assert!(entry.ownership.is_none());
+        assert_eq!(entry.source_id(), source);
+        assert!(match (rooted, entry.key()) {
+            (false, SourceUnitKey::MemoryDocument) => true,
+            (true, SourceUnitKey::Rooted { root, logical_path }) =>
+                root.as_str() == "root" && logical_path.as_str() == "main.ko",
+            _ => false,
+        });
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let local = names.names().source_units()[0].resolution();
+        let binding = local
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "number")
+            .unwrap();
+        assert_eq!(binding.kind(), SymbolKind::Variable);
+        assert!(file.ast().items().iter().any(|(_, item)| matches!(
+            item.payload(), Item::Variable {
+                kind: VariableKind::Var, name: NameMarker::Present(name), ..
+            } if *name == binding.span()
+        )));
+        assert!(
+            local
+                .references()
+                .iter()
+                .any(|reference| reference.span() == target_span
+                    && reference.target() == &ReferenceTarget::Symbol(binding.id()))
+        );
+
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(typed.diagnostics().is_empty());
+        let unit = entry.id();
+        let typed_assignment = UnitExpressionId::new(unit, assignment);
+        assert_eq!(
+            unit_shape(
+                typed
+                    .expression_type(typed_assignment)
+                    .and_then(|ty| typed.types().get(ty))
+            ),
+            Shape::AssignmentDeferred
+        );
+        assert!(
+            typed.assignments().is_empty(),
+            "no successful typed write descriptor"
+        );
+        let int = typed.types().builtin(BuiltinType::Int).unwrap();
+        assert!(
+            typed
+                .body_symbol_types()
+                .iter()
+                .any(|(symbol, ty)| symbol.source_unit() == unit
+                    && symbol.symbol() == binding.id()
+                    && *ty == int)
+        );
+
+        let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+        else {
+            panic!("final type admission, not ownership, must reject the source")
+        };
+        assert_eq!(diagnostics, std::slice::from_ref(&expected));
+        assert!(
+            typed.validate().is_ok(),
+            "basic shape alone is not final type admission"
+        );
     }
 }
 
