@@ -15,6 +15,16 @@ struct FieldCase {
     bare: bool,
 }
 
+impl FieldCase {
+    fn exact_this_consume(&self) -> Option<(ParameterMode, usize)> {
+        match self.label {
+            "this-consume" => Some((ParameterMode::Borrow, 85)),
+            "own-this-consume" => Some((ParameterMode::Value, 89)),
+            _ => None,
+        }
+    }
+}
+
 type FieldObservation = (Observation, Option<Vec<String>>);
 
 macro_rules! stage {
@@ -251,7 +261,7 @@ fn unit(
     rooted: bool,
 ) -> FieldObservation {
     let mut observation = observation(case, if rooted { "unit" } else { "memory" });
-    let exact = case.label == "this-consume";
+    let exact = case.exact_this_consume();
     observation.record("parse", file.diagnostics().is_empty(), file.diagnostics());
     if !file.diagnostics().is_empty() {
         return (observation, None);
@@ -280,7 +290,7 @@ fn unit(
         }
     };
     observation.record("names", true, names.names().diagnostics());
-    if exact {
+    if exact.is_some() {
         let key = names.names().index().source_units()[0].key();
         assert!(match key {
             SourceUnitKey::MemoryDocument => !rooted,
@@ -399,7 +409,7 @@ fn unit(
             descriptor,
         );
     }
-    if exact {
+    if let Some((expected_mode, _)) = exact {
         let projection = typed
             .aggregate_projection(operand)
             .expect("real explicit projection");
@@ -422,7 +432,15 @@ fn unit(
             .find(|member| member.name() == "f")
             .expect("original Holder.f");
         let signature = member.receiver().expect("declared method receiver");
-        assert_eq!(signature.mode(), ParameterMode::Borrow);
+        assert_eq!(signature.mode(), expected_mode);
+        match expected_mode {
+            ParameterMode::Value => assert_eq!(
+                sources.slice(signature.marker_span().expect("original own marker")),
+                Ok("own")
+            ),
+            ParameterMode::Borrow => assert!(signature.marker_span().is_none()),
+            ParameterMode::Inout => unreachable!("only the original Borrow and Value receivers"),
+        }
         assert_eq!(typed.expression_type(receiver), Some(signature.ty()));
     }
     let complete = stage!(
@@ -471,7 +489,7 @@ fn unit(
             ),
         );
     }
-    if exact {
+    if let Some((_, start)) = exact {
         let source = file.source_id();
         let text = |start, end| {
             let span = sources.span(source, start, end).unwrap();
@@ -484,7 +502,7 @@ fn unit(
             Severity::Error,
             catalog.resolve("L0132").unwrap(),
             "cannot move a non-Copyable component out of its owner",
-            text(85, 91),
+            text(start, start + "source".len()),
         )
         .unwrap();
         expected
@@ -545,9 +563,9 @@ fn map_consume_field_roots_preserve_old_value_rejection() {
             .expect("fixed source");
         // Parser harness invariant failures remain separate from an observed language rejection.
         let file = parser_test_assertions::parse_file_twice(&sources, source, case.label);
-        // Preserve this-take as the old per-entry priority control; replace only the
-        // equivalent this-consume Single diagnostic with its pinned MemoryDocument case.
-        if case.label == "this-consume" {
+        // Keep the ordinary Value controls, including their original Single lanes.
+        // Only the two explicitly projected consume diagnostics have full parity.
+        if case.exact_this_consume().is_some() {
             observations.push(unit(case, &sources, &file, false));
         } else {
             observations.push(single(case, &sources, &file));

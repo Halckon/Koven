@@ -22073,3 +22073,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `203cfbbc`，只迁默认借用 receiver 的原 `this-consume` 行（`this.source.consume()`）。源码及 `consume::field_roots::map_consume_field_roots_preserve_old_value_rejection` FQN 不变；普通 `this-take` 仍按原入口做诊断优先级对照，bare 与 own-this 组及原三条不同诊断的 Map 阴性矩阵保持。
 - 同源原 Single、MemoryDocument 与 Rooted 的完整 ownership 诊断相同：唯一 L0132，主为访问处字段 `source`（85..91），唯一声明标签为 17..23。两种 Unit 以已选择的 MapConsume receiver 作为实际字段投影；根为解析和类型检查过的显式 `this`，与 `Holder.f` 的 Borrow receiver 同类型，投影字段与同一 source-qualified 主构造器字段一致。完成最终类型准入，拒绝后不发布可执行所有权事实，不能 validate 出能力。
 - Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未修改生产/API/CI，未重建 Cargo 或验证本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map 自有 receiver 字段消费与遗留诊断决策
+
+- 基于 `38a1b745`，只迁原 `own-this-consume` 行，源码和 field-root 测试 FQN 不变。原 Single 与两种 Unit 的完整 L0132 相同，主为字段 `source`（89..95），唯一关联为原字段声明（17..23）。Unit 真实 MapConsume 投影指向同一字段；其显式 `this` 根类型与 `Holder.f` 签名中的 `ParameterMode::Value` receiver 相同，保留并检查真实 `own` marker。拒绝不发布执行事实；原默认 Borrow receiver 仍按各自诊断位置和无 marker 检查。
+- 尚保留的 Map 诊断合同：`borrow-parameter` / `inout-parameter` 的关联范围不同；`temporary-preserves-child-error`、`this-take` 与 `own-this-take` 的 Unit 另带选中参数声明标签。若选择 Unit 作为长期诊断合同，以上可以单独定稿，不属于等价迁移。裸字段 `bare-take`（Single 无错误，Unit L0132）及 `bare-consume`（Single L0130，Unit L0132）则需明确是否采用 Unit 的字段移动规则及优先级，不能仅按诊断格式处理。所有这些原对照仍在。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo，未跑本片 Linux/native，SPEC-0341 仍 in-progress。
