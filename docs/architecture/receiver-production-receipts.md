@@ -24,3 +24,6 @@ SSA/LLVM 对照和逐分配身份一次释放的定向 native 验证。人工破
 这些定向证据不代表旧 oracle 退休或完整借用流验收。
 
 范围与验收见[SPEC-0341](../specs/active/0341-shared-lowering-core.md#已批准的-protocol-2-receiver-生产核验2026-11-10)；路由前置见[有界 caller](receiver-borrows.md#有界-owned-参数-caller-的-refine-路由)。
+
+独立的有界借用参数转发路由复用入口 Shared loan，从未拥有或释放该对象，不产生 Protocol 2
+receipt。实际借用起止和 owner 释放仍归外层调用者；此处不能套用 owned receiver 的三动作证明。

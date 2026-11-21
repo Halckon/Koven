@@ -197,4 +197,4 @@ SPEC-0341 的有界路由现使单一显式 `own` 非 Resource 普通 class 参�
 RootPlace、BorrowBegin、DirectCall、BorrowEnd 与 NamedDrop；受限核验见[生产 receipt](receiver-production-receipts.md)。
 真实 frontend off 重分析后原样 lowering 的等价性与原实体顺序 oracle 保留；不扩大
 implicit this、temporary、projection、two-phase、borrow-result、控制流或 replacement。
-这不是全体 receiver 迁移或旧 Compatibility/oracle 退休；其它既有迁移触发仍独立生效。
+另有独立的借用转发路由：单一默认 Borrow、非 Resource 普通 class 参数，仅零实参 Shared 方法、owned Int 结果的单语句，直接传入 entry loan；caller 无本地借用起止或 Drop，无 Protocol 2 receipt。其余形态不随这两条窄路由迁移。
