@@ -342,23 +342,8 @@ fn element_storage_cannot_keep_an_iteration_capture_past_the_element_access() {
         let text = format!(
             "fun read(n: Int) {{}}\nfun run(inout slots: Array<() -> Unit>, xs: List<Int>, flag: Boolean) {{ for (n in xs) {{ slots[0] = {value}\nbreak }} }}"
         );
-        let (_, _, owned) = checked(&text);
-        assert!(
-            owned
-                .diagnostics()
-                .iter()
-                .any(|diagnostic| diagnostic.code().to_string() == "L0137"),
-            "{value}: an outer container must not retain the iteration's borrowed environment: {:?}",
-            owned.diagnostics()
-        );
-        assert!(
-            owned.drops().is_empty(),
-            "invalid cleanup must not be published"
-        );
-        assert!(
-            owned.captures().is_empty(),
-            "invalid captures must not be published"
-        );
+        // The original three source literals already run through both real Unit inputs.
+        // Retain the rejection and nonpublication oracles, not the obsolete Single run.
         for rooted in [false, true] {
             let (_, owned) = borrow_rejection_unit::checked(
                 &text,
