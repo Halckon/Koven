@@ -200,6 +200,14 @@ fn loop_successor_cleanup_requires_a_reachable_break() {
 }
 
 pub(super) fn aborting_string(text: &str) {
+    aborting_binary(text, BinaryOperator::Add);
+}
+
+pub(super) fn aborting_equality(text: &str) {
+    aborting_binary(text, BinaryOperator::Equal);
+}
+
+fn aborting_binary(text: &str, expected_operator: BinaryOperator) {
     for rooted in [false, true] {
         let (sources, typed, owned) = checked(text, rooted);
         assert!(owned.is_compatible_with(&typed));
@@ -250,31 +258,34 @@ pub(super) fn aborting_string(text: &str) {
         let expression = |id| ast.expressions().get(id).unwrap();
         let Expression::Binary {
             left,
-            operator: BinaryOperator::Add,
+            operator,
             right,
             ..
         } = expression(stopped).payload()
         else {
-            panic!("original concatenation");
+            panic!("original binary expression");
         };
-        let Expression::String { parts } = expression(*left).payload() else {
-            panic!("original interpolated LHS");
+        assert_eq!(*operator, expected_operator);
+        let stop = match expected_operator {
+            BinaryOperator::Equal => *left,
+            BinaryOperator::Add => {
+                let Expression::String { parts } = expression(*left).payload() else {
+                    panic!("original interpolated LHS")
+                };
+                let [StringPart::Interpolation { expression, .. }] = parts.as_slice() else {
+                    panic!("the original Nothing call is the only interpolation part")
+                };
+                *expression
+            }
+            _ => unreachable!("only the original tested operators"),
         };
-        let [
-            StringPart::Interpolation {
-                expression: stop, ..
-            },
-        ] = parts.as_slice()
-        else {
-            panic!("the original Nothing call is the only interpolation part");
-        };
-        assert_eq!(sources.slice(expression(*stop).span()), Ok("stop()"));
+        assert_eq!(sources.slice(expression(stop).span()), Ok("stop()"));
         let qualify = |id| UnitExpressionId::new(declaration.symbol().source_unit(), id);
-        let stop = qualify(*stop);
+        let stop = qualify(stop);
         let actual_call = typed
             .types()
             .call(stop)
-            .expect("the actual interpolation call");
+            .expect("the actual non-returning call");
         assert_eq!(actual_call.expression(), stop);
         assert!(actual_call.arguments().is_empty());
         assert_eq!(
@@ -300,6 +311,9 @@ pub(super) fn aborting_string(text: &str) {
             owned.ownership().drops()
         );
         assert!(owned.ownership().loans().is_empty());
+        if expected_operator == BinaryOperator::Equal {
+            assert!(owned.ownership().direct_call_loan_ends().is_empty());
+        }
         assert!(owned.ownership().value_deliveries().is_empty());
     }
 }

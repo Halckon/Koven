@@ -22109,3 +22109,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `e6e467c9`，只迁原 `expected_non_unit_lambda_rejects_assignment_result`，源码字节及 FQN 保持。原 Single、MemoryDocument、Rooted 的原始类型与最终准入诊断完整相同：仅 L0084，主为原 lambda 尾赋值（56..66），唯一标签指向 `() -> Int`（26..35，`expected Int, found Unit`）。
 - 实际解析的 callable 注解与 Unit lambda 上下文都为无参数返回 Int；真实末尾的是普通赋值，目标为 Int Place、RHS 为 Int。区别于上一片 RHS 类型问题，此处报告赋值结果与 lambda 上下文不匹配。错误恢复后的尾表达式为 Error，无成功赋值 descriptor，也不能取得 Basic 或最终类型能力，未进入 ownership。捕获输入不匹配的同族旧对照未改。
 - Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：不返回的等号左操作数与未执行常量读取
+
+- 基于 `514b2c28`，保持原 `aborting_binary_left_has_no_right_or_following_materialization_cleanup` 源码、FQN 和 Single 断言，增补 MemoryDocument/Rooted 验证。该原源码的真实选中 `stop()` 是返回 Nothing 的等号左操作数，不是已覆盖的插值后拼接。右操作数和后续语句仍各有精确的 typed `TEXT` 读取，指向同一原声明及值，但在同一已验证常量所有权产物中均无运行时物化。没有借用、清理、价值交付或直接调用借用结束。
+- Unit 的直接调用借用结束不是 Single 全类别 `loan_ends()` 的等价查询，因此保留旧断言。本片不声称新增 native 证明或完整退役。
+- Mac 使用现有生产 rlib 直接链接测试，两个 abort 定点各通过，`ownership_constants` 18/18；格式、diff、docs、Rust size guard 通过。未改生产/API/CI，未跑本片 Linux 或远端 CI。

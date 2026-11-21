@@ -263,8 +263,7 @@ fun use(): String = Holder(TEXT).text
 
 #[test]
 fn aborting_binary_left_has_no_right_or_following_materialization_cleanup() {
-    let (_, owned) = checked(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 fun stop(): Nothing = stop()
 fun view(text: String): Unit {}
@@ -272,8 +271,8 @@ fun use(): Unit {
     val stopped = stop() == TEXT
     val unreachable = TEXT
 }
-"#,
-    );
+"#;
+    let (_, owned) = checked(text);
     assert!(
         owned
             .constant_materializations()
@@ -284,6 +283,8 @@ fun use(): Unit {
     assert!(owned.loans().is_empty());
     assert!(owned.loan_ends().is_empty());
     assert!(owned.drops().is_empty(), "{:?}", owned.drops());
+    // Keep the historical Single oracle until the new layouts have been verified.
+    unit_materialization::aborting_equality(text);
 }
 
 #[test]
