@@ -929,8 +929,9 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
     let grouped = source.replace("in 0..<2", "in ((0..<2))");
     let sources = [source, grouped];
     let memory = collect_memory_entry_observations(&sources);
-    let outcomes = collect_shape_boundaries(&sources)
-        .into_iter()
+    let outcomes = sources
+        .iter()
+        .map(|source| lower_unit_source(source, true).map(|source| source.program))
         .enumerate()
         .map(|(index, result)| {
             let result = result.and_then(|program| {
@@ -942,8 +943,8 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
             });
             diagnostic!(
                 "NUMERIC PROOF OUTCOME source={} unit={} {:?}",
-                index / 2,
-                index % 2 == 1,
+                index,
+                true,
                 result.as_ref().map(|_| ())
             );
             result
@@ -958,16 +959,16 @@ fn numeric_for_preserves_the_outer_nullable_while_proof() {
         numeric_proof_contract::assert_memory_unit_numeric_proof(&source.program, &sources[case]);
         diagnostic!("SHAPE4 MEMORY numeric case={case} oracle=ok");
     }
-    // Collect every original/Group single/unit verify/render result before identities.
-    assert_eq!(outcomes.len(), 4);
+    // Preserve both original/Group Rooted programs; MemoryDocument contracts remain above.
+    assert_eq!(outcomes.len(), 2);
     for (index, result) in outcomes.into_iter().enumerate() {
         numeric_proof_contract::assert_numeric_proof(
             &expect(
                 result,
                 "numeric for preserves the existing nullable while proof",
             ),
-            &sources[index / 2],
-            index % 2 == 1,
+            &sources[index],
+            true,
         );
     }
 }

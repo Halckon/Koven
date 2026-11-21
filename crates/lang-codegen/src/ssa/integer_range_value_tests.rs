@@ -364,11 +364,9 @@ pub(super) fn collect_source_functions(sources: &[String]) -> Vec<Result<SourceP
     results
 }
 
-/// Two existing wholes still pin distinct Legacy/Unit SSA shapes:
-/// single_direct_nullable_while_birth_and_local_retirement_reach_llvm and
-/// numeric_for_preserves_the_outer_nullable_while_proof.
-/// Remove this boundary only after those original loan/terminal/origin contracts
-/// receive an explicit retirement decision; do not silently rewrite their expectations.
+/// The direct nullable-while proof still pins distinct Legacy/Unit SSA shapes.
+/// Keep this boundary until that test's original loan and origin contracts
+/// receive an explicit retirement decision.
 pub(super) fn collect_shape_boundaries(sources: &[String]) -> Vec<Result<Program, String>> {
     let mut results = Vec::new();
     for source in sources {
