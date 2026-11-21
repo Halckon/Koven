@@ -93,3 +93,53 @@ pub(super) fn assert_copy_while_shared(text: &str) {
         assert!(owned.validate().is_ok());
     }
 }
+
+pub(super) fn assert_body_copy(text: &str) {
+    for rooted in [false, true] {
+        let (sources, parsed, owned, _, typed) = super::nullable_unit::checked_with_evidence(
+            text,
+            "copy-when-body.ko",
+            rooted,
+            standard_environments(),
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+        let [when] = owned.nullable_whens() else {
+            panic!("original stable nullable when");
+        };
+        let descriptor = when.descriptor();
+        let typed = typed.types();
+        let [proof] = typed.nullable_when_uses() else {
+            panic!("one actual typed use");
+        };
+        assert_eq!(proof.control(), descriptor.expression());
+        assert_eq!(proof.subject(), descriptor.subject());
+        assert_eq!(Some(proof.symbol()), descriptor.stable_symbol());
+        assert_eq!(proof.symbol(), when.source_place().unwrap().root());
+        assert_eq!(
+            Some(proof.source_generation()),
+            descriptor.source_generation()
+        );
+        assert_eq!(proof.entry_index(), 1);
+        assert_eq!(proof.body(), when.entries()[1].body());
+        let [_, non_null] = descriptor.entries() else {
+            panic!("actual null then else arms");
+        };
+        assert!(non_null.alternatives().is_empty());
+        let reference = proof.reference();
+        assert_eq!(proof.expression(), reference);
+        assert_ne!(reference, descriptor.subject());
+        assert_eq!(reference.source_unit(), descriptor.subject().source_unit());
+        let exprs = parsed.ast().expressions();
+        let node = exprs.get(reference.expression()).unwrap();
+        assert!(matches!(node.payload(), Expression::Name { .. }));
+        assert_eq!(sources.slice(node.span()), Ok("x"));
+        let subject = exprs.get(descriptor.subject().expression()).unwrap();
+        assert!(subject.span().end() < node.span().start());
+        assert_eq!(typed.expression_type(reference), Some(proof.inner_type()));
+        assert_eq!(typed.copyability(proof.inner_type()), Copyability::Copyable);
+        assert!(owned.loans().is_empty());
+        assert!(owned.drops().is_empty());
+        assert!(owned.validate().is_ok());
+    }
+}

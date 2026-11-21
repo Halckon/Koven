@@ -21814,3 +21814,12 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - MemoryDocument / Rooted 均将第一个 Shared 实参的 call、AST argument 及 place root 绑定到同轮 When 稳定 symbol，唯一 else typed use 精确匹配 subject、entry、body、generation，结果为 Copyable Int；外层 Value 只有 When 实参本身。原根是借入参数，不用本例空的有限 direct-call-end 表推断实际退休。
 - 同一实际 Unit SSA 先建立外层 reborrow，再由同一根读取 Copyable `Int?` 快照。两条边逐实体传递同一次 reborrow；非空边的 NullableTake 只提取快照 payload，不移动借入存储；和 null 边的 0 合流后真实调用原 combine，再结束同次 reborrow。经 SSA verifier 与 LLVM verifier 的产物在两个布局各链接运行原 test，分别验证 `null -> 0`、`9 -> 9`。
 - Mac Rust 1.96.0 / LLVM 21.1.8：FE 定点及 `ownership_nullable_when` 26/26、codegen 定点 1/1（两布局，含原生）、相邻 `unit_lower_nullable_tests` 4/4。未运行 Linux、sanitizer 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：单纯 nullable When body Copy 对账
+
+- 基于 `2c4e84e8`。只拆出原 Copy/Consume/Read 三联中的 Copy；原 `fun test(x: Int?): Int = when (x) { null -> 0; else -> x }` 输入字节不变。实际 Unit 的唯一 typed use 对应原稳定 subject/place/generation 和 else body，而非条件 alternative；产物读取借入根为 inline `Int?` 快照，只在 non-null 边用同一 proof 提取该副本的 payload，两边返回的分别是 0 和该 payload。保留剩余 Consume/Read 原 Single 断言。
+- 当前这个前端测试文件的剩余 Single 合同，按观测分组：
+  - 条件位置：原 later `identity(x)` 双布局均发布实际 Place Copy delivery，但没有带 original subject/entry/alternative 的 nullable typed-use；不能用普通 Copy 或编译成功代替旧 `entry=1, alternative=0`。
+  - 条件消费与全根 Move：`MayConsume` 必须区别实际未走移动的路径；六类 MoveOnly 值的全根 Consume 还须证明不伪造 Rc retain/share。优先选确定有真实 Unit delivery/edge Move 的原 fixture；带条件的 Drop/Move 不从 flat 数据反推。
+  - Borrow/Read 与非稳定源：保留“Read 没有 extraction”和 repeated field/index 的“内部 view 保留 place identity、不是可安定 smart-cast 的 symbol”合同；只有真实相同 borrowed subject、投影及来源能替换，而不能用两个拼写相同的 AST 节点代替。
+- Mac Rust 1.96.0 / LLVM 21.1.8：原 Single 与双布局 Unit 并列定点 1/1 后移除仅该 Copy 调用；前端 `ownership_nullable_when` 27/27、codegen 2/2（各自两种布局通过 SSA verifier、LLVM verifier 与 native null/9），未跑 Linux、sanitizer 或远端 CI。未改生产、API 或 CI，SPEC-0341 仍 in-progress。

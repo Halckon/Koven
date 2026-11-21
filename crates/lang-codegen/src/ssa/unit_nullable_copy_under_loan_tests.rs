@@ -1,4 +1,4 @@
-//! Borrow the original nullable root through the call while copying only its scalar payload.
+//! Original nullable scalar Copy contracts, with and without an additional call loan.
 use lang_frontend::{
     name_resolution::{SourceUnitInput, SourceUnitKey},
     source::SourceMap,
@@ -19,11 +19,35 @@ fn original_nullable_when_copy_under_shared_loan() {
     let original = include_str!(
         "../../../lang-frontend/tests/ownership_nullable_when/fixtures/copy-while-shared.ko"
     );
+    check_original_copy(
+        original,
+        "nullable-copy-while-shared.ko",
+        |module, test, sources| {
+            assert_scalar_copy_during_call_loan(
+                module,
+                test,
+                function(module, sources, "fun combine("),
+            );
+        },
+    );
+}
+
+#[test]
+fn original_nullable_when_body_copy_reaches_native() {
+    let original = include_str!(
+        "../../../lang-frontend/tests/ownership_nullable_when/fixtures/copy-when-body.ko"
+    );
+    check_original_copy(original, "copy-when-body.ko", |module, test, _| {
+        assert_body_copy(module, test)
+    });
+}
+
+fn check_original_copy(original: &str, path: &str, check: impl Fn(&Module, &Function, &SourceMap)) {
     let text = format!(
         "{original}\nfun entry(): Unit {{ val absent: Int? = null; val present: Int? = 9; if (test(absent) == 0 && test(present) == 9) {{ println(\"ok\") }} else {{ error(\"wrong result\") }} }}"
     );
     let mut sources = SourceMap::new();
-    let (source, file) = parsed(&mut sources, "nullable-copy-while-shared.ko", &text);
+    let (source, file) = parsed(&mut sources, path, &text);
     assert_eq!(
         sources.source_text(source).unwrap().get(..original.len()),
         Some(original)
@@ -31,10 +55,7 @@ fn original_nullable_when_copy_under_shared_loan() {
     let (name_environment, environment) = standard_environments();
     for (input, rooted) in [
         (SourceUnitInput::memory_document(source, &file), false),
-        (
-            SourceUnitInput::new("root", "nullable-copy-while-shared.ko", source, &file),
-            true,
-        ),
+        (SourceUnitInput::new("root", path, source, &file), true),
     ] {
         let inputs = [input];
         let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
@@ -62,19 +83,7 @@ fn original_nullable_when_copy_under_shared_loan() {
         .expect("exact nullable source");
         super::verify::verify_program(&program).unwrap();
         let module = &program.modules[entry.module().index()];
-        let function = |prefix: &str| {
-            let mut functions = module.functions.iter().filter(|function| {
-                sources
-                    .slice(function.origin.span())
-                    .unwrap()
-                    .starts_with(prefix)
-            });
-            let result = functions.next().expect("original reachable declaration");
-            assert!(functions.next().is_none());
-            result
-        };
-        let combine = function("fun combine(");
-        let test = function("fun test(");
+        let test = function(module, &sources, "fun test(");
         let wrapper = module.function(entry).unwrap();
         assert_eq!(
             wrapper.instructions.iter().filter(|instruction| {
@@ -82,10 +91,118 @@ fn original_nullable_when_copy_under_shared_loan() {
             }).count(),
             2,
         );
-        assert_scalar_copy_during_call_loan(module, test, combine);
+        check(module, test, &sources);
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
         super::unit_field_replace_tests::link_and_run(&llvm, "", b"ok\n");
     }
+}
+
+fn function<'a>(module: &'a Module, sources: &SourceMap, prefix: &str) -> &'a Function {
+    let mut functions = module.functions.iter().filter(|function| {
+        sources
+            .slice(function.origin.span())
+            .unwrap()
+            .starts_with(prefix)
+    });
+    let result = functions.next().expect("original reachable declaration");
+    assert!(functions.next().is_none());
+    result
+}
+
+fn assert_body_copy(module: &Module, test: &Function) {
+    let enter = test.block(test.entry_block().unwrap()).unwrap();
+    let [EntityId::Loan(root)] = enter.parameters.as_slice() else {
+        panic!("the original parameter is a borrow");
+    };
+    let EntityType::Loan {
+        kind: LoanKind::Shared,
+        target: nullable,
+    } = test.entity(EntityId::Loan(*root)).unwrap().ty
+    else {
+        panic!("the original parameter remains shared")
+    };
+    let SsaTypeKind::InlineNullable {
+        inner,
+        niche: false,
+    } = module.types[nullable.index()]
+    else {
+        panic!("the original Int? is an inline scalar")
+    };
+    assert_eq!(
+        module.types[inner.index()],
+        SsaTypeKind::Integer {
+            bits: 32,
+            signed: true
+        }
+    );
+    let [read]: [_; 1] = operations(test, enter).try_into().expect("one root read");
+    assert_eq!(
+        read.operation,
+        Operation::Read {
+            source: PlaceAccess::Loan(*root)
+        }
+    );
+    let snapshot = value_result(read);
+    assert_eq!(
+        test.entity(EntityId::Value(snapshot)).unwrap().ty,
+        EntityType::Value(nullable)
+    );
+
+    let TerminatorKind::NullableBranch {
+        owner,
+        when_null,
+        when_non_null,
+        view,
+    } = &enter.terminator.as_ref().unwrap().kind
+    else {
+        panic!("the nullable snapshot controls the split")
+    };
+    assert_eq!(*owner, snapshot);
+    assert_ne!(when_null.target, when_non_null.target);
+    let absent = test.block(when_null.target).unwrap();
+    let [zero]: [_; 1] = operations(test, absent).try_into().expect("one zero");
+    assert_eq!(
+        zero.operation,
+        Operation::Constant(ScalarConstant::Integer(0))
+    );
+    let present = test.block(when_non_null.target).unwrap();
+    let [copy]: [_; 1] = operations(test, present)
+        .try_into()
+        .expect("one payload extraction");
+    let EntityId::Value(copied_owner) = carried(test, when_non_null, EntityId::Value(snapshot))
+    else {
+        panic!("the present arm operates on the copied value, never its borrowed source")
+    };
+    assert_eq!(
+        copy.operation,
+        Operation::NullableTake {
+            owner: copied_owner,
+            proof: *view
+        }
+    );
+    assert_eq!(
+        test.entity(EntityId::Value(value_result(copy))).unwrap().ty,
+        EntityType::Value(inner)
+    );
+
+    let absent_exit = next(absent);
+    let present_exit = next(present);
+    assert_eq!(absent_exit.target, present_exit.target);
+    let result = carried(test, present_exit, EntityId::Value(value_result(copy)));
+    assert_eq!(
+        carried(test, absent_exit, EntityId::Value(value_result(zero))),
+        result
+    );
+    let EntityId::Value(result) = result else {
+        panic!("the scalar return is a value")
+    };
+    let join = test.block(present_exit.target).unwrap();
+    assert!(join.instructions.is_empty());
+    assert!(matches!(
+        &join.terminator.as_ref().unwrap().kind,
+        TerminatorKind::Return { values } if values.as_slice() == [result]
+    ));
+    assert_eq!(test.blocks.len(), 4);
 }
 
 fn assert_scalar_copy_during_call_loan(module: &Module, test: &Function, combine: &Function) {

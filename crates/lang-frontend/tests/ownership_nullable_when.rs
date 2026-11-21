@@ -570,12 +570,14 @@ fn replacement_does_not_inherit_the_original_subject_extraction_proof() {
 }
 
 #[test]
-fn inner_value_delivery_records_copy_or_consume_but_read_records_neither() {
+fn inner_value_delivery_copies_original_nullable_body_payload() {
+    let text = include_str!("ownership_nullable_when/fixtures/copy-when-body.ko");
+    copy_while_shared::assert_body_copy(text);
+}
+
+#[test]
+fn inner_value_delivery_records_consume_but_read_does_not() {
     for (text, kind) in [
-        (
-            "fun test(x: Int?): Int = when (x) { null -> 0; else -> x }",
-            Some(NullableWhenExtractionKind::Copy),
-        ),
         (
             "class Node {}\nfun test(own x: Node?): Node = when (x) { null -> Node(); else -> x }",
             Some(NullableWhenExtractionKind::Consume),
