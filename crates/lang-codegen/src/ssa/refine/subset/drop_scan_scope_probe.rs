@@ -133,6 +133,7 @@ fn same_offset_cleanup_facts_obey_the_real_scoped_refine_predicate() {
             two_receiver_facts: None,
             single_receiver_receipts: None,
             single_receiver_facts: None,
+            subset_drop_index: Some(&Default::default()),
             constant_owned: None,
             function_ids: &Default::default(),
             source_plan: &Default::default(), // not queried by these verified drop shapes
@@ -165,7 +166,8 @@ fn same_offset_cleanup_facts_obey_the_real_scoped_refine_predicate() {
             "scoped predicate expected={should_accept}, decision={decision}, counts={counts:?}"
         );
         assert_eq!(decision, should_accept);
-        assert!(counts.subset_drop_rows > 0);
+        assert_eq!(counts.subset_drop_index_rows, 0);
+        assert_eq!(counts.subset_drop_rows, 4);
 
         // This is *not* a public Refine success: ordinary lowering refuses the mutable
         // capture before the cleanup query. Its separately observed result must stay so.

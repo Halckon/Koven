@@ -322,7 +322,7 @@ impl Checker<'_, '_> {
 
     /// Drop facts must name plain bindings or temporaries at points the builder emits.
     pub(super) fn drops_supported(&self) -> bool {
-        self.inputs.owned.drops().iter().all(|fact| {
+        let supported = |fact: &lang_frontend::ownership_checking::UnitDropFact| {
             #[cfg(test)]
             super::super::receiver_receipt::work_count::visit(|c| c.subset_drop_rows += 1);
             let point_ok = match fact.point() {
@@ -349,7 +349,9 @@ impl Checker<'_, '_> {
                 // A jump out of a call argument drops the earlier MoveOnly arguments it
                 // abandons; temporaries holding loans stay outside.
                 UnitDropPoint::ControlTransfer(transfer) => match fact.target() {
-                    UnitDropTarget::Temporary(expression) => self.pending_owner(expression, transfer),
+                    UnitDropTarget::Temporary(expression) => {
+                        self.pending_owner(expression, transfer)
+                    }
                     _ => true,
                 },
                 _ => true,
@@ -378,28 +380,48 @@ impl Checker<'_, '_> {
             !self.fact_in_function(fact.value_origin())
                 || self.inside_lambda(fact.value_origin())
                 || (point_ok && target_ok)
-        }) && self
-            .inputs
-            .owned
-            .conditional_receiver_drops()
-            .iter()
-            .all(|fact| {
-                #[cfg(test)]
-                super::super::receiver_receipt::work_count::visit(|c| c.subset_conditional_drop_rows += 1);
-                !self.fact_in_function(fact.value_origin())
-                    || self.inside_lambda(fact.value_origin())
-                    || (!match fact.point() {
-                        UnitDropPoint::AfterExpression(expression)
-                        | UnitDropPoint::AfterBinaryOperands(expression) => {
-                            self.branch_form.contains(&expression)
-                        }
-                        _ => false,
-                    } && self.inputs.receiver.is_some_and(|receiver| {
-                        receiver.owner == fact.owner()
-                            && receiver.mode == ParameterMode::Value
-                            && receiver.ty == self.c(fact.receiver_type())
-                    }))
-            })
+        };
+        let drops = self.inputs.owned.drops();
+        let selected = self.inputs.subset_drop_index.and_then(|index| {
+            index.candidates(
+                self.inputs.names,
+                self.inputs.source_unit,
+                self.inputs.scope_span()?,
+                drops,
+            )
+        });
+        let ordinary = if let Some(ordinals) = selected {
+            ordinals
+                .into_iter()
+                .all(|ordinal| supported(&drops[ordinal]))
+        } else {
+            drops.iter().all(supported)
+        };
+        ordinary
+            && self
+                .inputs
+                .owned
+                .conditional_receiver_drops()
+                .iter()
+                .all(|fact| {
+                    #[cfg(test)]
+                    super::super::receiver_receipt::work_count::visit(|c| {
+                        c.subset_conditional_drop_rows += 1
+                    });
+                    !self.fact_in_function(fact.value_origin())
+                        || self.inside_lambda(fact.value_origin())
+                        || (!match fact.point() {
+                            UnitDropPoint::AfterExpression(expression)
+                            | UnitDropPoint::AfterBinaryOperands(expression) => {
+                                self.branch_form.contains(&expression)
+                            }
+                            _ => false,
+                        } && self.inputs.receiver.is_some_and(|receiver| {
+                            receiver.owner == fact.owner()
+                                && receiver.mode == ParameterMode::Value
+                                && receiver.ty == self.c(fact.receiver_type())
+                        }))
+                })
     }
 
     /// A pending argument a jump may abandon: a MoveOnly named owner or non-borrowed

@@ -13,6 +13,7 @@ pub(in crate::ssa::refine) struct Counts {
     pub(in crate::ssa::refine) precheck_ends: usize,
     pub(in crate::ssa::refine) receiver_rows: usize,
     pub(in crate::ssa::refine) receiver_probes: usize,
+    pub(in crate::ssa::refine) subset_drop_index_rows: usize,
     pub(in crate::ssa::refine) subset_drop_rows: usize,
     pub(in crate::ssa::refine) subset_conditional_drop_rows: usize,
     pub(in crate::ssa::refine) declaration_rows: usize,
@@ -25,6 +26,7 @@ pub(in crate::ssa::refine) struct Counts {
 impl Counts {
     fn without_subset_drops(self) -> Self {
         Self {
+            subset_drop_index_rows: 0,
             subset_drop_rows: 0,
             subset_conditional_drop_rows: 0,
             ..self
@@ -201,6 +203,7 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
                 declaration_rows: callers,
                 receiver_rows: callers,
                 receiver_probes: 3 * callers,
+                subset_drop_index_rows: 0,
                 subset_drop_rows: 0,
                 subset_conditional_drop_rows: 0,
             }
@@ -208,16 +211,17 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
     }
 }
 
-/// Characterize the full scan, not overall compilation work or latency.
+/// Prior full scans visited 80/288 rows; count setup and in-scope visits separately.
 #[test]
-fn current_refine_subset_drop_scan_work_8_and_16() {
+fn single_source_refine_subset_drop_prefilter_work_8_and_16() {
     for callers in [8, 16] {
         let counts = count(callers);
         eprintln!(
             "N={callers}: ordinary visits={}, conditional visits={}",
             counts.subset_drop_rows, counts.subset_conditional_drop_rows
         );
-        assert!(counts.subset_drop_rows >= callers * callers, "{counts:?}");
+        assert_eq!(counts.subset_drop_index_rows, callers, "{counts:?}");
+        assert_eq!(counts.subset_drop_rows, callers, "{counts:?}");
         assert_eq!(counts.subset_conditional_drop_rows, 0, "{counts:?}");
     }
 }

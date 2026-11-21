@@ -151,6 +151,7 @@ pub(in crate::ssa) fn publish<'a>(
         two_receiver_facts: Default::default(),
         single_receiver_receipts: Default::default(),
         single_receiver_facts: Default::default(),
+        subset_drop_index: None,
         constant_owned: None,
         function_ids: &function_ids,
         callable_returns: &callable_returns,
