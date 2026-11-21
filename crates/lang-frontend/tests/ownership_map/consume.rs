@@ -459,16 +459,22 @@ fn observe_unit(
             observation.record("ordinary take target", selected, target);
         }
     }
-    if exact_rejection.is_some() && case.label == "stable-element" {
-        exact_rejections::assert_indexed_consume_selection(
-            case,
-            sources,
-            file,
-            source,
-            local_names,
-            &typed,
-            &calls,
-        );
+    if exact_rejection.is_some() {
+        match case.label {
+            "stable-element" => exact_rejections::assert_indexed_consume_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
+            "temporary" => exact_rejections::assert_temporary_consume_selection(
+                case, sources, file, source, &typed, &calls,
+            ),
+            _ => {}
+        }
     }
     match complete_compilation_unit_types(sources, &inputs, &names, &types, &typed) {
         Ok(complete) => observation.record(
@@ -848,7 +854,6 @@ fn map_consume_complete_rejects_receiver_move_and_live_loan_boundaries() {
     // Existing subtree/access diagnostics still take priority; no new span is frozen here.
     use BuiltinType::{Int, String as Str};
     let cases = [
-        ("temporary", r#"fun run(): Unit { val result = mutableMapOf<Int, Int>().consume() }"#, Int, Expected::Rejected("L0130"), 1),
         // Guide v0.46: a top-level runtime root is L0167 before ownership, so no global-root case.
         ("own-parameter", r#"fun run(own source: MutableMap<Int, Int>): Unit {
   val result = source.consume()
@@ -891,7 +896,8 @@ fun run(): Unit {
   val result = identity(source).consume()
 }"#, Int, Expected::Rejected("L0131"), 1),
     ].map(|(label, text, element, expected, calls)| Case { label, text, key: element, value: element, expected, calls });
-    assert_matrix(&cases, 20);
+    assert_matrix(&cases, 18);
+    exact_rejections::temporary();
     exact_rejections::stable_field();
     exact_rejections::stable_element();
 }

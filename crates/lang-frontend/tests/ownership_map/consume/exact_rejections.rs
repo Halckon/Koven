@@ -1,4 +1,4 @@
-//! Exact diagnostic and selected operand contracts for two former Single matrix rows.
+//! Exact diagnostic and selected operand contracts for former Single matrix rows.
 use super::{
     BuiltinType, Case, CompilationUnitTypes, Expected, ExpressionId, IntrinsicTypeConstructor,
     NameResolution, Observation, ParsedFile, SourceMap, SourceUnitId, SymbolKind, UnitExpressionId,
@@ -8,7 +8,9 @@ use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
     name_resolution::ReferenceTarget,
     type_checking::ParameterMode,
-    type_checking::{ContainerConstructionKind, ExpressionCategory, SequentialContainerKind},
+    type_checking::{
+        ContainerConstructionKind, ExpressionCategory, IntrinsicCallable, SequentialContainerKind,
+    },
 };
 
 pub(super) fn stable_field() {
@@ -30,7 +32,7 @@ fun run(): Unit {
         &case,
         "cannot move a non-Copyable component out of its owner",
         (135, "source"),
-        (17, "source", "non-Copyable component declared here"),
+        Some((17, "source", "non-Copyable component declared here")),
     );
 }
 
@@ -50,11 +52,28 @@ pub(super) fn stable_element() {
         &case,
         "cannot move a non-Copyable element out of a sequential container",
         (79, "maps[0]"),
-        (
+        Some((
             24,
             "maps",
             "container owner remains responsible for every initialized element",
-        ),
+        )),
+    );
+}
+
+pub(super) fn temporary() {
+    let case = Case {
+        label: "temporary",
+        text: r#"fun run(): Unit { val result = mutableMapOf<Int, Int>().consume() }"#,
+        key: BuiltinType::Int,
+        value: BuiltinType::Int,
+        expected: Expected::Rejected("L0130"),
+        calls: 1,
+    };
+    assert_rejection(
+        &case,
+        "MutableMap.consume requires an owned local val/var root",
+        (31, "mutableMapOf<Int, Int>()"),
+        None,
     );
 }
 
@@ -62,7 +81,7 @@ fn assert_rejection(
     case: &Case,
     message: &str,
     primary: (usize, &str),
-    secondary: (usize, &str, &str),
+    secondary: Option<(usize, &str, &str)>,
 ) {
     let Expected::Rejected(code) = case.expected else {
         panic!("exact checker expects rejection")
@@ -85,9 +104,11 @@ fn assert_rejection(
         token(primary.0, primary.1),
     )
     .unwrap();
-    diagnostic
-        .add_label(&sources, token(secondary.0, secondary.1), secondary.2)
-        .unwrap();
+    if let Some((start, name, message)) = secondary {
+        diagnostic
+            .add_label(&sources, token(start, name), message)
+            .unwrap();
+    }
     let observations =
         [false, true].map(|rooted| observe_unit(case, &sources, &file, rooted, Some(&diagnostic)));
     assert!(
@@ -186,4 +207,66 @@ pub(super) fn assert_indexed_consume_selection(
         == expression_span(slot.receiver())
         && reference.target() == &ReferenceTarget::Symbol(maps.symbol())));
     assert_eq!(types.symbol_type(maps), Some(list.container_type()));
+}
+
+pub(super) fn assert_temporary_consume_selection(
+    case: &Case,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    unit: SourceUnitId,
+    types: &CompilationUnitTypes,
+    calls: &[(ExpressionId, ExpressionId)],
+) {
+    let [(call, operand)] = calls else {
+        panic!("one exact consume selection")
+    };
+    let spell = |expression| {
+        sources
+            .slice(file.ast().expressions().get(expression).unwrap().span())
+            .unwrap()
+    };
+    assert_eq!(spell(*call), "mutableMapOf<Int, Int>().consume()");
+    assert_eq!(spell(*operand), "mutableMapOf<Int, Int>()");
+    let call = UnitExpressionId::new(unit, *call);
+    let operand = UnitExpressionId::new(unit, *operand);
+    let [selected] = types.map_consumes() else {
+        panic!("one selected MapConsume")
+    };
+    let [created] = types.map_constructions() else {
+        panic!("one actual MutableMapOf")
+    };
+    assert_eq!(selected.expression(), call);
+    assert_eq!(selected.receiver(), operand);
+    assert!(selected.source().is_none());
+    assert_eq!(created.expression(), operand);
+    assert_eq!(created.callable(), IntrinsicCallable::MutableMapOf);
+    assert_eq!(created.map_type(), selected.receiver_type());
+    assert_eq!(types.expression_type(operand), Some(created.map_type()));
+    assert_eq!(
+        types.expression_category(operand),
+        Some(ExpressionCategory::Temporary)
+    );
+    assert!(unit_map(
+        types,
+        Some(created.map_type()),
+        IntrinsicTypeConstructor::MutableMap,
+        case
+    ));
+    assert!(unit_map(
+        types,
+        Some(selected.result_type()),
+        IntrinsicTypeConstructor::Map,
+        case
+    ));
+    assert_eq!(types.expression_type(call), Some(selected.result_type()));
+    assert_eq!(created.key_type(), selected.key_type());
+    assert_eq!(created.value_type(), selected.value_type());
+    assert_eq!(
+        Some(selected.key_type()),
+        types.types().builtin(BuiltinType::Int)
+    );
+    assert_eq!(
+        Some(selected.value_type()),
+        types.types().builtin(BuiltinType::Int)
+    );
 }

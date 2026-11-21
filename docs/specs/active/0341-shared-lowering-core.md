@@ -22016,3 +22016,23 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 原 Single 与两种 Unit 布局同选一个内建 MapConsume，绑定同一 `maps[0]` place、局部 `maps` 与常量索引 (0)。它是由 ListForm 的唯一 Value operand 形成的 `List<MutableMap<Int, Int>>` 槽，不是可移走的 standalone name root；选中调用仍有 `Map<Int, Int>` 类型结果。拒绝产物不发布实际 ownership binding 或其他可执行事实。
 - 两布局在 parse/name/raw/final admission 通过，ownership 唯一 Error L0136；`cannot move a non-Copyable element out of a sequential container`，主 `maps[0]`（79..86），原 `maps` 声明标签 24..28（`container owner remains responsible for every initialized element`）。完整诊断与 Single 相等。Unit 不能 seal 成可执行能力，无部分借用、Drop、构造或交付。
 - Mac 复用生产源码不变的已构建 rlib 校验 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未重建 Cargo、未改生产/API/CI、未跑本片 Linux/native 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：Map consume 旧拒绝矩阵盘点与原匿名临时值
+
+- 基于 `4400d606`。冻结旧矩阵的十个精确原源码、旧 FQN 与所属阶段；十项在 Single 与双 Unit 都通过解析、名称、基础与最终类型准入，再由 ownership 拒绝。只迁本次 `temporary` 行，其他九项保持，已迁字段/索引行不重复。完整诊断快照的主位置与关联详情如下（字节半开区间）：
+
+| 原行 | 错误及主位置 | Single / MemoryDocument / Rooted 完整诊断对照 |
+| --- | --- | --- |
+| `temporary` | L0130 31..55 | 相同；无关联详情；本片迁移 |
+| `own-parameter` | L0130 65..71 | 相同；无关联详情 |
+| `borrow-parameter` | L0133 59..65 | 不同；原声明标签 Single 8..14，Unit 8..36 |
+| `inout-parameter` | L0133 65..71 | 不同；原声明标签 Single 14..20，Unit 8..42 |
+| `explicit-borrow-local` | L0133 88..94 | 相同；非持有声明标签 47..53 |
+| `read-after-move` | L0131 104..110 | 相同；移动点标签 73..79 |
+| `consume-twice` | L0131 104..110 | 相同；移动点标签 72..78 |
+| `active-loan` | L0135 155..161 | 相同；冲突起点标签 113..119 |
+| `for-binding` | L0133 106..112 | 相同；非持有声明标签 71..77 |
+| `temporary-preserves-child-error` | L0131 186..192 | 都有移动点标签 155..161；Unit 另有参数声明标签 13..43，不等价 |
+
+- 原 `temporary` 67 字节和旧测试名保持。实际 Single 与两布局选择相同内建 `MutableMapOf` 形成临时接收者，随后选择真实 MapConsume，接收者类型 `MutableMap<Int, Int>`、结果类型 `Map<Int, Int>`，没有具名根。仅 ownership 唯一 Error L0130：`MutableMap.consume requires an owned local val/var root`，主为原工厂调用，无标签、说明或建议。拒绝不能 seal，且不发布部分可执行借用、构造、接收者或交付事实。
+- Mac 复用生产源码不变的已有 rlib 验证 `ownership_map` 13/13，静态格式、diff、docs 和 size guard 通过。未重新构建 Cargo、未改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
