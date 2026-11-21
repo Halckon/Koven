@@ -22060,3 +22060,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `9bf4ff6f`，只迁同一旧 FQN 的 `active-loan` 原源码；余四项继续由原 Single/Rooted 矩阵检查，包括三项诊断不等价。
 - Single 与两种 Unit 都通过完整类型准入，完整 ownership 诊断相同：唯一 L0135 `move conflicts with an active loan`，主为消费处 `source`（155..161），唯一关联 `conflicting loan starts here` 为原借用调用的 receiver（113..119）。Unit 实际 MapRequireValue 有唯一 receiver 借用来源和 String key/value，接收者与真实 MapConsume 指向同一个 source-qualified Map 根。原 `borrow val item` 的 initializer 指向该调用；消费之后的实际编译器绑定 println 选择 String Borrow 参数，实参解析到同一个 `item`。这证明冲突场景的类型来源和原后续使用，不把拒绝产物当作 executable loan 或可执行交付。
 - Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 循环绑定拒绝测试与矩阵收口
+
+- 基于 `a457de07`，只迁原 `for-binding`，源码和测试 FQN 不变。原 Single 与两种 Unit 都通过完整类型准入，ownership 唯一 L0133：`cannot move a non-Copyable value out of a borrowed binding`。主为消费处 `source`（106..112），唯一标签为原循环 binder `source`（71..77，`non-owning binding established here`）。三者完整诊断相同。
+- Unit 实际绑定借用交付的 List iteration：真实 `for` statement 与 source expression 对齐；已解析的 `maps` 是容器变量，当前轮 `source` 是不同的 ForBinding symbol，并采用 ListForm 的实际元素类型 `MutableMap<Int, Int>`。实际 MapConsume 指向同一当前轮 binder，未指向 List owner。拒绝无可执行借用、清理或交付事实。
+- 原十二行中九条完整等价准入/拒绝合同已迁到双 Unit 布局，保留三条不同诊断的 Single/Rooted 对照：`borrow-parameter`、`inout-parameter` 的关联声明跨度不同，`temporary-preserves-child-error` 的 Unit 多出一个选中参数标签。若退役这三个旧断言，要先明确是否接受 Unit 的诊断合同作为唯一长期合同，而不是继续按等价测试迁移。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。

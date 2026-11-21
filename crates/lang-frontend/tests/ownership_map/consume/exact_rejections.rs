@@ -180,6 +180,29 @@ pub(super) fn active_loan() {
     );
 }
 
+pub(super) fn for_binding() {
+    let case = Case {
+        label: "for-binding",
+        text: r#"fun run(): Unit {
+  val maps = listOf(mutableMapOf<Int, Int>())
+  for (source in maps) {
+    val result = source.consume()
+    break
+  }
+}"#,
+        key: BuiltinType::Int,
+        value: BuiltinType::Int,
+        expected: Expected::Rejected("L0133"),
+        calls: 1,
+    };
+    assert_rejection(
+        &case,
+        "cannot move a non-Copyable value out of a borrowed binding",
+        (106, "source"),
+        Some((71, "source", "non-owning binding established here")),
+    );
+}
+
 fn assert_rejection(
     case: &Case,
     message: &str,
@@ -792,4 +815,120 @@ pub(super) fn assert_active_loan_selection(
     }
     assert_eq!(span(query.receiver()).start(), 113);
     assert_eq!(span(selected.receiver()).start(), 155);
+}
+
+pub(super) fn assert_for_binding_selection(
+    case: &Case,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    unit: SourceUnitId,
+    names: &NameResolution,
+    types: &CompilationUnitTypes,
+    calls: &[(ExpressionId, ExpressionId)],
+) {
+    use lang_frontend::{
+        parser::{ForBinding, NameMarker, Statement},
+        type_checking::{IterationProvider, UnitSequentialIterationBinding},
+    };
+
+    let ast = file.ast();
+    let [iteration] = types.sequential_iterations() else {
+        panic!("one actual sequential iteration")
+    };
+    assert_eq!(iteration.statement().source_unit(), unit);
+    let Statement::For {
+        binding: ForBinding::Name(NameMarker::Present(binding_span)),
+        source: iterated,
+        ..
+    } = ast
+        .statements()
+        .get(iteration.statement().statement())
+        .unwrap()
+        .payload()
+    else {
+        panic!("original parsed named for loop")
+    };
+    assert_eq!(iteration.source(), UnitExpressionId::new(unit, *iterated));
+    assert_eq!(
+        iteration.provider(),
+        IterationProvider::Sequential(SequentialContainerKind::List)
+    );
+    assert_eq!(iteration.delivery(), ParameterMode::Borrow);
+
+    let [list] = types.container_constructions() else {
+        panic!("original actual ListForm construction")
+    };
+    assert_eq!(list.kind(), ContainerConstructionKind::ListForm);
+    assert_eq!(list.container(), SequentialContainerKind::List);
+    assert_eq!(list.parameter_modes(), [ParameterMode::Value]);
+    assert_eq!(list.container_type(), iteration.source_type());
+    assert_eq!(list.element_type(), iteration.element_type());
+
+    let maps = unit_symbol_named(types, names, unit, "maps").expect("actual owning list variable");
+    let UnitSequentialIterationBinding::Name(binder) = *iteration.binding() else {
+        panic!("actual current borrowed element binder")
+    };
+    assert_eq!(binder.source_unit(), unit);
+    assert_ne!(maps, binder);
+    assert_eq!(types.symbol_type(maps), Some(iteration.source_type()));
+    assert_eq!(types.symbol_type(binder), Some(iteration.element_type()));
+    let symbol = |id| names.symbols().get(id).unwrap();
+    assert_eq!(symbol(maps.symbol().index()).kind(), SymbolKind::Variable);
+    assert_eq!(
+        symbol(binder.symbol().index()).kind(),
+        SymbolKind::ForBinding
+    );
+    assert_eq!(symbol(binder.symbol().index()).span(), *binding_span);
+    assert_eq!(sources.slice(*binding_span), Ok("source"));
+    assert_eq!(binding_span.start(), 71);
+
+    let [(call, operand)] = calls else {
+        panic!("one resolved consume call")
+    };
+    let [selected] = types.map_consumes() else {
+        panic!("one actual MapConsume")
+    };
+    assert_eq!(selected.expression(), UnitExpressionId::new(unit, *call));
+    assert_eq!(selected.receiver(), UnitExpressionId::new(unit, *operand));
+    assert_eq!(selected.source(), Some((binder, iteration.element_type())));
+    assert_eq!(selected.receiver_type(), iteration.element_type());
+    assert!(unit_map(
+        types,
+        Some(selected.receiver_type()),
+        IntrinsicTypeConstructor::MutableMap,
+        case
+    ));
+    assert!(unit_map(
+        types,
+        Some(selected.result_type()),
+        IntrinsicTypeConstructor::Map,
+        case
+    ));
+    assert_eq!(
+        types.expression_type(selected.expression()),
+        Some(selected.result_type())
+    );
+
+    for (id, name, target, ty) in [
+        (iteration.source(), "maps", maps, iteration.source_type()),
+        (
+            selected.receiver(),
+            "source",
+            binder,
+            selected.receiver_type(),
+        ),
+    ] {
+        assert_eq!(id.source_unit(), unit);
+        let span = ast.expressions().get(id.expression()).unwrap().span();
+        assert_eq!(sources.slice(span), Ok(name));
+        assert_eq!(types.expression_type(id), Some(ty));
+        assert_eq!(
+            types.expression_category(id),
+            Some(ExpressionCategory::Place)
+        );
+        assert!(names.references().iter().any(|reference| {
+            reference.span() == span
+                && reference.target() == &ReferenceTarget::Symbol(target.symbol())
+        }));
+    }
 }

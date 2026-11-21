@@ -481,6 +481,15 @@ fn observe_unit(
                     &calls,
                 )
             }
+            "for-binding" => exact_rejections::assert_for_binding_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
             "active-loan" => exact_rejections::assert_active_loan_selection(
                 case,
                 sources,
@@ -895,13 +904,6 @@ fn map_consume_complete_rejects_receiver_move_and_live_loan_boundaries() {
         // Guide v0.46: a top-level runtime root is L0167 before ownership, so no global-root case.
         ("borrow-parameter", r#"fun run(source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
         ("inout-parameter", r#"fun run(inout source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
-        ("for-binding", r#"fun run(): Unit {
-  val maps = listOf(mutableMapOf<Int, Int>())
-  for (source in maps) {
-    val result = source.consume()
-    break
-  }
-}"#, Int, Expected::Rejected("L0133"), 1),
         ("temporary-preserves-child-error", r#"fun identity(own item: MutableMap<Int, Int>): MutableMap<Int, Int> { return item }
 fun run(): Unit {
   val source = mutableMapOf<Int, Int>()
@@ -909,7 +911,8 @@ fun run(): Unit {
   val result = identity(source).consume()
 }"#, Int, Expected::Rejected("L0131"), 1),
     ].map(|(label, text, element, expected, calls)| Case { label, text, key: element, value: element, expected, calls });
-    assert_matrix(&cases, 8);
+    assert_matrix(&cases, 6);
+    exact_rejections::for_binding();
     exact_rejections::active_loan();
     exact_rejections::after_consume();
     exact_rejections::explicit_borrow_local();
