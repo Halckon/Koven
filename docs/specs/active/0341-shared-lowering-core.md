@@ -22127,3 +22127,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `b4b752ff`，只迁 `pending_iteration_source::resolved_forward_constant_keeps_single_iteration_plan` 的原正例，源码字节和历史 FQN 不变。同源旧 Single 与双 Unit 实际通过最终类型准入、各有唯一真实迭代类型描述符。Unit 不把常量专用能力误当基础 capability。
 - 两种 Unit 明确验证 `FIRST` 通过后定义的 `SECOND` 获得 true，条件引用到精确的 `FIRST` 符号，两个分支读取原 `p`，同一真实 for 获得 List Borrow provider、Int 元素和精确 `item` binder。邻接 pending、嵌套跳转及旧分阶段边界不变。该旧用例只验证类型，不要求新所有权/SSA 证据。
 - Mac 缓存 rlib 定点通过，`final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过。未改生产/API/CI，未重建 Cargo，未跑本片 Linux 或远端 CI。
+
+### 2026-11-21：合法 nullable 写入后不复用非空精化
+
+- 基于 `18f703b7`，只迁原 `nullable_storage_rhs_clears_target_refinement` 的拒绝分支，保留 FQN 和原成功分支的 Single/Unit。原 Single 与双 Unit 的原始类型、最终准入完整诊断相同：唯一 L0084，主为后续 `current`（98..105），标签为 `Int`（92..95，`expected Int, found Int?`）。
+- Unit 用同一局部变量的实际引用证明：guard 的读为 nullable 类型，赋值目标表达式已被 guard 精化到 Int，但实际 `current = null` 写入仍使用 nullable 存储类型，RHS 合法；后续读不得沿用非空精化。存在真实 raw assignment descriptor，不代表整个失败产物取得 Basic 或最终类型能力，不进入 ownership。
+- 仅测试树 `06daee610ee793980d2e0ba28d172c3d0e274bdf` 在隔离 Linux 直接链接同一生产 rlib，定点 1/1、`final_type_admission` 63/63。格式、diff、docs、Rust size guard 通过，Mac 仅运行用于检查旧等价性的缓存探针，未跑本片完整 Mac harness、未改生产/API/CI 或推送。
