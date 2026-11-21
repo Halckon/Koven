@@ -2,7 +2,7 @@
 
 use lang_frontend::{
     ast::ExpressionId,
-    diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
+    diagnostic::Diagnostic,
     name_resolution::{
         NameResolution, SourceUnitId, SourceUnitInput, SourceUnitKey, SymbolId, SymbolKind,
         UnitSymbolId, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
@@ -26,6 +26,9 @@ mod parser_test_assertions;
 
 #[path = "consume/field_roots.rs"]
 mod field_roots;
+
+#[path = "consume/exact_rejections.rs"]
+mod exact_rejections;
 
 #[derive(Clone, Copy)]
 enum Expected {
@@ -456,6 +459,17 @@ fn observe_unit(
             observation.record("ordinary take target", selected, target);
         }
     }
+    if exact_rejection.is_some() && case.label == "stable-element" {
+        exact_rejections::assert_indexed_consume_selection(
+            case,
+            sources,
+            file,
+            source,
+            local_names,
+            &typed,
+            &calls,
+        );
+    }
     match complete_compilation_unit_types(sources, &inputs, &names, &types, &typed) {
         Ok(complete) => observation.record(
             "complete same analysis",
@@ -846,10 +860,6 @@ fn map_consume_complete_rejects_receiver_move_and_live_loan_boundaries() {
   borrow val source = input
   val result = source.consume()
 }"#, Int, Expected::Rejected("L0133"), 1),
-        ("stable-element", r#"fun run(): Unit {
-  val maps = listOf(mutableMapOf<Int, Int>())
-  val result = maps[0].consume()
-}"#, Int, Expected::Rejected("L0136"), 1),
         ("read-after-move", r#"fun run(): Unit {
   val source = mutableMapOf<Int, Int>()
   val result = source.consume()
@@ -881,49 +891,7 @@ fun run(): Unit {
   val result = identity(source).consume()
 }"#, Int, Expected::Rejected("L0131"), 1),
     ].map(|(label, text, element, expected, calls)| Case { label, text, key: element, value: element, expected, calls });
-    assert_matrix(&cases, 22);
-    exact_stable_field_rejection();
-}
-
-fn exact_stable_field_rejection() {
-    // Exact source of the former "stable-field" Single/Rooted matrix row.
-    let case = Case {
-        label: "stable-field",
-        text: r#"class Holder(val source: MutableMap<Int, Int>)
-fun run(): Unit {
-  val holder = Holder(mutableMapOf<Int, Int>())
-  val result = holder.source.consume()
-}"#,
-        key: BuiltinType::Int,
-        value: BuiltinType::Int,
-        expected: Expected::Rejected("L0132"),
-        calls: 1,
-    };
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("consume.ko", case.text).unwrap();
-    let file = parser_test_assertions::parse_file_twice(&sources, source, case.label);
-    assert_eq!(sources.source_text(source), Ok(case.text));
-    let field = |start| {
-        let span = sources.span(source, start, start + "source".len()).unwrap();
-        assert_eq!(sources.slice(span), Ok("source"));
-        span
-    };
-    let catalog = DiagnosticCodeCatalog::try_new(&["L0132"]).unwrap();
-    let mut diagnostic = Diagnostic::new(
-        &sources,
-        Severity::Error,
-        catalog.resolve("L0132").unwrap(),
-        "cannot move a non-Copyable component out of its owner",
-        field(135),
-    )
-    .unwrap();
-    diagnostic
-        .add_label(&sources, field(17), "non-Copyable component declared here")
-        .unwrap();
-    let observations =
-        [false, true].map(|rooted| observe_unit(&case, &sources, &file, rooted, Some(&diagnostic)));
-    assert!(
-        observations.iter().all(Observation::accepted),
-        "{observations:#?}"
-    );
+    assert_matrix(&cases, 20);
+    exact_rejections::stable_field();
+    exact_rejections::stable_element();
 }

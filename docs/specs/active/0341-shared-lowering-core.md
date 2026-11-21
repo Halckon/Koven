@@ -22009,3 +22009,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `bf82575c`。只迁 `consume::map_consume_complete_rejects_receiver_move_and_live_loan_boundaries` 内的 stable-field 原子项。旧矩阵/FQN 先实跑，`holder.source.consume()` 的 153 字节完全不变；其他十一项依旧各走原 Single/Rooted。旧接收者激活与闭包捕获排查发现完整诊断不等价，未改。
 - 独立实际对照确认 Single/MemoryDocument/Rooted 的完整错误相同：所有权唯一 Error L0132，消息 `cannot move a non-Copyable component out of its owner`，主 `source`（135..141），唯一关联原字段声明 `source`（17..23，`non-Copyable component declared here`）。移除本项旧入口后，双 Unit 沿原测试的 parse/name/raw/final admission、实际选中调用与 typed Map 结果检查，再断言完整错误。
 - 失败的两布局均不授权可执行所有权，无借用/终止、Drop、接收者事实、构造计划、具名形成或交付。Mac 复用生产源码未变的 rlib 编译并完整运行 `ownership_map` 13/13，未重建 Cargo、未改生产/API/CI，也未跑 Linux/native 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 顺序容器元素拒绝
+
+- 基于 `6b9a3858`。只迁同一原 FQN 的 stable-element 子项：原 `maps[0].consume()` 全部 98 字节不变，先实跑原 Single 矩阵及完整诊断对照。更新后 stable-field 复用同一诊断 harness，自身源码、断言与原 FQN 不变；其余十项旧矩阵原样。
+- 原 Single 与两种 Unit 布局同选一个内建 MapConsume，绑定同一 `maps[0]` place、局部 `maps` 与常量索引 (0)。它是由 ListForm 的唯一 Value operand 形成的 `List<MutableMap<Int, Int>>` 槽，不是可移走的 standalone name root；选中调用仍有 `Map<Int, Int>` 类型结果。拒绝产物不发布实际 ownership binding 或其他可执行事实。
+- 两布局在 parse/name/raw/final admission 通过，ownership 唯一 Error L0136；`cannot move a non-Copyable element out of a sequential container`，主 `maps[0]`（79..86），原 `maps` 声明标签 24..28（`container owner remains responsible for every initialized element`）。完整诊断与 Single 相等。Unit 不能 seal 成可执行能力，无部分借用、Drop、构造或交付。
+- Mac 复用生产源码不变的已构建 rlib 校验 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未重建 Cargo、未改生产/API/CI、未跑本片 Linux/native 或远端 CI，SPEC-0341 仍 in-progress。
