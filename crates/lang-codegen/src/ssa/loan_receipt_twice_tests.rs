@@ -1,9 +1,12 @@
 //! Ordered receiver loans and one owner drop under fallback and independently anchored Refine.
 use crate::ssa::loan_region_ssa_tests::*;
 use lang_frontend::ownership_checking::{
-    UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanAction,
-    UnitLoanActionCoverage, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+    CompilationUnitOwnership, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction,
+    UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
+    UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
+
+use lang_frontend::type_checking::UnitExpressionId;
 
 pub(super) const SOURCE: &str = "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }";
 
@@ -149,60 +152,51 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             else {
                 panic!("exactly two source-qualified caller intervals");
             };
-            assert_ne!(first, second);
-            let ordered = first_ids.iter().chain(second_ids).collect::<Vec<_>>();
-            let actual_index = (0..observation.actions().len())
-                .find(|index| observation.action_id(*index).as_ref() == Some(ordered[0]))
-                .unwrap();
-            assert!(ordered.iter().enumerate().all(|(offset, id)| {
-                observation.action_id(actual_index + offset).as_ref() == Some(*id)
-            }));
-            let actions = ordered
-                .iter()
-                .map(|id| observation.action(id).unwrap())
-                .collect::<Vec<_>>();
-            let [
-                UnitLoanAction::ReceiverBegin(first_begin),
-                UnitLoanAction::ReceiverEnd(first_end),
-                UnitLoanAction::ReceiverBegin(second_begin),
-                UnitLoanAction::ReceiverEnd(second_end),
-                UnitLoanAction::Cleanup {
-                    point,
-                    action: UnitIterationCleanupAction::Drop(drop),
-                },
-            ] = actions.as_slice()
-            else {
-                panic!("first pair, second pair, then one terminal cleanup");
-            };
-            for (call, begin, end) in [
-                (first, first_begin, first_end),
-                (second, second_begin, second_end),
-            ] {
-                assert_eq!(begin.call(), *call);
-                assert_eq!(owned.ownership().receiver_fact(*call), Some(begin));
-                assert_eq!(begin.kind(), UnitReceiverOwnershipKind::SharedLoan);
-                assert_eq!(end.receiver(), begin);
-                assert_eq!(end.point(), UnitDropPoint::CallReturn(*call));
-                assert!(owned.ownership().receiver_call_return_ends().contains(end));
-            }
-            let UnitReceiverOwnershipTarget::Place(place) = first_begin.target() else {
-                panic!("stable source root");
-            };
-            assert!(place.is_root());
-            assert_eq!(first_begin.target(), second_begin.target());
-            assert_eq!(*point, UnitDropPoint::CallReturn(*second));
-            assert_eq!(drop.point(), *point);
-            assert_eq!(drop.target(), UnitDropTarget::Named(place.root()));
-            let drops = owned
+            let args = [
+                (*first, first_ids.as_slice()),
+                (*second, second_ids.as_slice()),
+            ];
+            let ownership = owned.ownership();
+            let audit = |candidate| audit_raw_intervals(ownership, observation, candidate);
+            assert_eq!(audit(args), Ok(()));
+            let reversed = [first_ids[1].clone(), first_ids[0].clone()];
+            assert_eq!(
+                audit([(*first, &reversed), args[1]]),
+                Err(IntervalFault::Order)
+            );
+            assert_eq!(
+                audit([(*second, first_ids), (*first, second_ids)]),
+                Err(IntervalFault::Receiver)
+            );
+            let mut early_drop = first_ids.clone();
+            early_drop.push(second_ids[2].clone());
+            assert_eq!(
+                audit([(*first, &early_drop), args[1]]),
+                Err(IntervalFault::Shape)
+            );
+            let displaced_drop = [first_ids[0].clone(), second_ids[2].clone()];
+            assert_eq!(
+                audit([(*first, &displaced_drop), args[1]]),
+                Err(IntervalFault::Order)
+            );
+            // Reanalysis of the same sources keeps source/item keys, not catalog identity.
+            let (_, _, independent) =
+                unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+            let foreign_ids = independent
                 .ownership()
-                .drops()
+                .loan_action_observations()
                 .iter()
-                .filter(|row| row.target() == drop.target())
+                .flat_map(|o| o.regions())
+                .find(|region| region.call() == *second)
+                .unwrap()
+                .action_ids()
                 .collect::<Vec<_>>();
-            let [actual_drop] = drops.as_slice() else {
-                panic!("exactly one same-root drop in the ownership product");
-            };
-            assert_eq!(*actual_drop, drop);
+            assert_eq!(foreign_ids.len(), 3);
+            assert_ne!(&foreign_ids, second_ids);
+            assert_eq!(
+                audit([args[0], (*second, &foreign_ids)]),
+                Err(IntervalFault::Catalog)
+            );
         }
         assert!(receipts.iter().all(|receipt| receipt.caller != *callee));
         let [block] = run.blocks.as_slice() else {
@@ -282,4 +276,91 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
         crate::native_tests::boxed_enum_tests::assert_success(&output, b"");
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum IntervalFault {
+    Shape,
+    Catalog,
+    Order,
+    Receiver,
+    Cleanup,
+}
+
+// Test-only contract shape: the copied candidate must resolve to actual records,
+// never a fabricated frontend product or a new published certificate.
+fn audit_raw_intervals(
+    owned: &CompilationUnitOwnership,
+    observation: &UnitLoanActionObservation,
+    [(first, first_ids), (second, second_ids)]: [(UnitExpressionId, &[UnitLoanActionId]); 2],
+) -> Result<(), IntervalFault> {
+    if first_ids.len() != 2 || second_ids.len() != 3 || first == second {
+        return Err(IntervalFault::Shape);
+    }
+    if first.source_unit() != observation.source() || second.source_unit() != observation.source() {
+        return Err(IntervalFault::Catalog);
+    }
+    let ordered = first_ids.iter().chain(second_ids).collect::<Vec<_>>();
+    let actions = ordered
+        .iter()
+        .map(|id| observation.action(id).ok_or(IntervalFault::Catalog))
+        .collect::<Result<Vec<_>, _>>()?;
+    let actual_index = (0..observation.actions().len())
+        .find(|index| observation.action_id(*index).as_ref() == Some(ordered[0]))
+        .ok_or(IntervalFault::Catalog)?;
+    if !ordered
+        .iter()
+        .enumerate()
+        .all(|(offset, id)| observation.action_id(actual_index + offset).as_ref() == Some(*id))
+    {
+        return Err(IntervalFault::Order);
+    }
+    let [
+        UnitLoanAction::ReceiverBegin(first_begin),
+        UnitLoanAction::ReceiverEnd(first_end),
+        UnitLoanAction::ReceiverBegin(second_begin),
+        UnitLoanAction::ReceiverEnd(second_end),
+        UnitLoanAction::Cleanup {
+            point,
+            action: UnitIterationCleanupAction::Drop(drop),
+        },
+    ] = actions.as_slice()
+    else {
+        return Err(IntervalFault::Shape);
+    };
+    for (call, begin, end) in [
+        (first, first_begin, first_end),
+        (second, second_begin, second_end),
+    ] {
+        if begin.call() != call
+            || owned.receiver_fact(call) != Some(begin)
+            || begin.kind() != UnitReceiverOwnershipKind::SharedLoan
+            || begin.is_receiver_reservation()
+            || begin.activation_point().is_some()
+            || end.receiver() != begin
+            || end.point() != UnitDropPoint::CallReturn(call)
+            || !owned.receiver_call_return_ends().contains(end)
+        {
+            return Err(IntervalFault::Receiver);
+        }
+    }
+    let UnitReceiverOwnershipTarget::Place(place) = first_begin.target() else {
+        return Err(IntervalFault::Receiver);
+    };
+    if !place.is_root() || first_begin.target() != second_begin.target() {
+        return Err(IntervalFault::Receiver);
+    }
+    let mut drops = owned
+        .drops()
+        .iter()
+        .filter(|row| row.target() == drop.target());
+    if *point != UnitDropPoint::CallReturn(second)
+        || drop.point() != *point
+        || drop.target() != UnitDropTarget::Named(place.root())
+        || drops.next() != Some(drop)
+        || drops.next().is_some()
+    {
+        return Err(IntervalFault::Cleanup);
+    }
+    Ok(())
 }
