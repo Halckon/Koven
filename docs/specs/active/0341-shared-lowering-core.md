@@ -21901,3 +21901,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双布局保完整前端与 sealed view/构建/真实 native object 流程。SSA 精确核对 `use(n)` 接收该非空边实际 Shared loan，原 `use` 只用这个 ABI 参数读 `n.v`；调用方结束同一 loan、放掉同一 nullable owner 后，才用返回的标量与原字面量 3 做内层条件。空边只退休空 wrapper、不执行 `use`；原用例动态输入非空，不声称运行覆盖空边。
 - 两布局的 public native 对象都保持 `retest\n`/exit 0/空 stderr。独立的 verified LLVM 视图只包装实际分配/释放，确认同一唯一 Node 地址恰释放一次且保持相同输出，不以该包装替代 public object 的已验证路径。无生产或 API 改动；旧 API、实验 CLI 及 E2 range 合作边界仍分别决策，SPEC-0341 仍 in-progress。
 - Mac Rust 1.96.0 / LLVM 21.1.8：`ssa::unit_lower_nullable_tests::` 9/9，格式、diff 和文档检查通过，本次未复跑 Linux 或远端 CI。
+
+### 2026-11-21：x01 独立空输入 native 对照
+
+- 基于 `6beb9fda`。原 163 字节 fixture 和原 exact FQN 原样保留。独立 `derived_nullable_class_null_path_skips_read_and_physical_release` 只把 `Node(3)` 改成 `null`；逆替换断言其余源码完全相同。两布局从实际 `NullableNull` 分支，与 unchanged positive 的真实构造/包裹相区分；SSA 上空边不会调用 `use`，只退休空 nullable wrapper。
+- 双布局分别经完整 Unit 名称/类型/所有权、真实 sealed public native object 和链接子进程；空对照 exit 0，stdout/stderr 皆空，原例仍输出 `retest\n`。对经验证的 LLVM 另做原生分配钩子：空对照中任何 malloc/free 都会失败，原例继续检查唯一实际 Node 地址恰好释放一次。空 wrapper 的 SSA Drop 不等于释放堆对象。
+- 保留原 exact 的顶级 FQN，新增空对照也在同层，将 x01 实现拆入 `unit_lower_nullable_tests/x01.rs`，使主文件 689 行、模块 400 行，不修改 Rust size policy。未改生产、API、范围 metadata 对照或 CI，SPEC-0341 仍 in-progress。
+- Mac nullable codegen 10/10，格式和文档检查通过。against main `8207b212` 的整体物理行数 guard 仍因此前前端 `ownership_nullable_when.rs` 1102 行而红；另案做仅测试拆分，不能把本次 x01 测试通过视为全体门禁通过。
