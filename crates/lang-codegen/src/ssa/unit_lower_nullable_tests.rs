@@ -740,3 +740,74 @@ fn assert_original_assertion_semantics(case: &str, text: &str, function: &super:
         );
     }
 }
+
+#[test]
+fn original_nullable_node_tail_move_stops_at_unsupported_result() {
+    use super::{
+        lowering_support::LoweringErrorKind,
+        unit_lower::lower_scalar_unit_with_entry,
+        unit_lower_test_support::{analyze, parsed},
+    };
+    use lang_frontend::name_resolution::SourceUnitKey;
+
+    let original = include_str!(
+        "../../../lang-frontend/tests/ownership_nullable_when/fixtures/move-node-root.ko"
+    );
+    // Keep the accepted original declaration untouched. The wrapper only makes it reachable.
+    let path = "nullable-node-move.ko";
+    for rooted in [false, true] {
+        for initializer in ["null", "Node()"] {
+            let text = format!(
+                "{original}\nfun entry(): Unit {{ val item: Node? = {initializer}; val result = extract(item) }}"
+            );
+            let mut sources = SourceMap::new();
+            let (source, file) = parsed(&mut sources, path, &text);
+            assert_eq!(
+                sources.source_text(source).unwrap().get(..original.len()),
+                Some(original)
+            );
+            let inputs = [if rooted {
+                SourceUnitInput::new("root", path, source, &file)
+            } else {
+                SourceUnitInput::memory_document(source, &file)
+            }];
+            let (name_environment, environment) = standard_environments();
+            let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+            let index = names.names().index();
+            let [source_entry] = index.source_units() else {
+                panic!("one original source");
+            };
+            assert_eq!(source_entry.source_id(), source);
+            assert_eq!(
+                matches!(source_entry.key(), SourceUnitKey::MemoryDocument),
+                !rooted
+            );
+            let entry = index
+                .declarations()
+                .iter()
+                .find(|declaration| declaration.name() == "entry")
+                .expect("real reachable entry")
+                .id();
+            let error = lower_scalar_unit_with_entry(
+                &sources,
+                &inputs,
+                &names,
+                &environment,
+                &typed,
+                &owned,
+                entry,
+            )
+            .err()
+            .expect("MoveOnly When result has no implicit owner extraction in Unit SSA");
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+            let span = error.span.expect("the exact original expression");
+            assert_eq!(span.source_id(), source);
+            assert_eq!(span.start(), original.find("when").unwrap());
+            assert_eq!(span.end(), original.len());
+            assert_eq!(
+                sources.slice(span),
+                Ok("when (x) { null -> Node(); else -> x }")
+            );
+        }
+    }
+}

@@ -21823,3 +21823,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
   - 条件消费与全根 Move：`MayConsume` 必须区别实际未走移动的路径；六类 MoveOnly 值的全根 Consume 还须证明不伪造 Rc retain/share。优先选确定有真实 Unit delivery/edge Move 的原 fixture；带条件的 Drop/Move 不从 flat 数据反推。
   - Borrow/Read 与非稳定源：保留“Read 没有 extraction”和 repeated field/index 的“内部 view 保留 place identity、不是可安定 smart-cast 的 symbol”合同；只有真实相同 borrowed subject、投影及来源能替换，而不能用两个拼写相同的 AST 节点代替。
 - Mac Rust 1.96.0 / LLVM 21.1.8：原 Single 与双布局 Unit 并列定点 1/1 后移除仅该 Copy 调用；前端 `ownership_nullable_when` 27/27、codegen 2/2（各自两种布局通过 SSA verifier、LLVM verifier 与 native null/9），未跑 Linux、sanitizer 或远端 CI。未改生产、API 或 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Node? When tail 整体移动的下游边界
+
+- 基于 `25e2d428`。保留原 `fun extract(own x: Node?): Node = when (x) { null -> Node(); else -> x }` 的 Single Consume/no-Rc 断言，按原输入字节抽为共享 fixture，不用前端通过替代实际移动。
+- 两种 Unit 布局核真实 MoveOnly Node 的 else typed use 仍绑定到同一具名 subject/root/entry/generation。唯一前端 Drop 义务是 null 边空 nullable wrapper 的逻辑退休；非空边无 Drop、无额外 loan/Rc effect。此事实不证明已生成实际 Move 或释放任何 heap 地址。
+- 同一原源不改入口声明，只加可达 wrapper。实际普通 Unit SSA 对整个 When 给出 `UnsupportedNode`：MoveOnly 结果未获准做隐式 owner extraction。回归固定两种布局及 null/Node 两个 wrapper 输入的真实失败位置；没有 SSA、LLVM 或 native 产物。不改生产、API、CI，也不迁移其他 MoveOnly、Rc、条件消费或 field/index 合同。后续应优先选已有真实 direct-owned-call 的 Move 用例，而不是把此受限尾值改成不同源码后宣称等价。
+- Mac Rust 1.96.0：前端 `ownership_nullable_when` 28/28，codegen `unit_lower_nullable_tests` 5/5，格式、diff 与文档结构检查通过；未运行 Linux、sanitizer 或远端 CI。
