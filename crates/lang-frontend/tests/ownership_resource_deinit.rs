@@ -252,17 +252,16 @@ fn deinit_cannot_consume_this_or_move_a_field() {
 }
 
 #[test]
-fn deinit_cannot_mutate_fields_or_establish_exclusive_reborrows() {
-    for body in ["this.value = 3", "update(&this.value)"] {
-        for (entry, codes) in ownership_codes(&format!(
-            "fun update(inout value: Int): Unit {{}}\nclass Guard(var value: Int) {{ deinit() {{ {body} }} }}"
-        )).into_iter().enumerate() {
-            // Single-file field mutation uses shared-capability L0135. Unit receiver
-            // validation uses its established L0134 capability diagnostic; & is L0134 in both.
-            let expected = if entry == 0 && body.starts_with("this.") { "L0135" } else { "L0134" };
-            assert_eq!(codes, [expected], "entry={entry}, body={body}");
-        }
-    }
+fn deinit_field_mutation_keeps_the_single_unit_diagnostic_difference() {
+    // The same exclusive reborrow is covered with full diagnostics and both
+    // layouts by unit_plans::readonly_deinit_rejection_keeps_exact_diagnostics_in_both_unit_entries.
+    // Retain the assignment-only comparison until the old diagnostic surface retires.
+    let body = "this.value = 3";
+    let [single, unit] = ownership_codes(&format!(
+        "fun update(inout value: Int): Unit {{}}\nclass Guard(var value: Int) {{ deinit() {{ {body} }} }}"
+    ));
+    assert_eq!(single, ["L0135"]);
+    assert_eq!(unit, ["L0134"]);
 }
 
 #[test]
