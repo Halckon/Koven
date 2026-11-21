@@ -22054,3 +22054,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `96a76227`，只迁同一旧 FQN 的 `read-after-move`、`consume-twice` 两行，原源码字节不变。余五项保持原 Single/Rooted 矩阵，包括三项完整诊断不等价场景。
 - 原 Single 与两种 Unit 的完整 ownership 诊断相同：一条 L0131 `use of moved value`，主均为第二次使用的 `source`（104..110）；唯一标签 `value was moved here` 分别锚定原首个 consume 接收者（73..79 / 72..78）。两布局均通过最终类型准入，解析至同一由真实 `MutableMapOf` 初始化的本地 `val source`。第一例后续选中真实 Map size 读取 (`Int`)，第二例选中两个不同的 MapConsume 调用 ID，而非将一次调用重复计数；两次接收者各自解析至同一个 source-qualified 符号。只 pin 类型选择和诊断，不把拒绝产物当作可执行 Move 或其他事实。
 - Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未修改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 活跃借用拒绝测试迁移
+
+- 基于 `9bf4ff6f`，只迁同一旧 FQN 的 `active-loan` 原源码；余四项继续由原 Single/Rooted 矩阵检查，包括三项诊断不等价。
+- Single 与两种 Unit 都通过完整类型准入，完整 ownership 诊断相同：唯一 L0135 `move conflicts with an active loan`，主为消费处 `source`（155..161），唯一关联 `conflicting loan starts here` 为原借用调用的 receiver（113..119）。Unit 实际 MapRequireValue 有唯一 receiver 借用来源和 String key/value，接收者与真实 MapConsume 指向同一个 source-qualified Map 根。原 `borrow val item` 的 initializer 指向该调用；消费之后的实际编译器绑定 println 选择 String Borrow 参数，实参解析到同一个 `item`。这证明冲突场景的类型来源和原后续使用，不把拒绝产物当作 executable loan 或可执行交付。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。

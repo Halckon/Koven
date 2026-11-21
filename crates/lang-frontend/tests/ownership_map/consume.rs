@@ -481,6 +481,15 @@ fn observe_unit(
                     &calls,
                 )
             }
+            "active-loan" => exact_rejections::assert_active_loan_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
             "explicit-borrow-local" => exact_rejections::assert_explicit_borrow_local_selection(
                 case,
                 sources,
@@ -881,18 +890,11 @@ fun run(own input: MutableMap<Int, Int>?): Unit {
 fn map_consume_complete_rejects_receiver_move_and_live_loan_boundaries() {
     // SPEC-0291 e94b938f chooses L0130 for the extra root eligibility failures.
     // Existing subtree/access diagnostics still take priority; no new span is frozen here.
-    use BuiltinType::{Int, String as Str};
+    use BuiltinType::Int;
     let cases = [
         // Guide v0.46: a top-level runtime root is L0167 before ownership, so no global-root case.
         ("borrow-parameter", r#"fun run(source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
         ("inout-parameter", r#"fun run(inout source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
-        ("active-loan", r#"fun run(): Unit {
-  var source = mutableMapOf<String, String>()
-  source.put("key", "value")
-  borrow val item = source.requireValue("key")
-  val result = source.consume()
-  println(item)
-}"#, Str, Expected::Rejected("L0135"), 1),
         ("for-binding", r#"fun run(): Unit {
   val maps = listOf(mutableMapOf<Int, Int>())
   for (source in maps) {
@@ -907,7 +909,8 @@ fun run(): Unit {
   val result = identity(source).consume()
 }"#, Int, Expected::Rejected("L0131"), 1),
     ].map(|(label, text, element, expected, calls)| Case { label, text, key: element, value: element, expected, calls });
-    assert_matrix(&cases, 10);
+    assert_matrix(&cases, 8);
+    exact_rejections::active_loan();
     exact_rejections::after_consume();
     exact_rejections::explicit_borrow_local();
     exact_rejections::own_parameter();

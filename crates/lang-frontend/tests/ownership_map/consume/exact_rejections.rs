@@ -157,6 +157,29 @@ pub(super) fn after_consume() {
     }
 }
 
+pub(super) fn active_loan() {
+    let case = Case {
+        label: "active-loan",
+        text: r#"fun run(): Unit {
+  var source = mutableMapOf<String, String>()
+  source.put("key", "value")
+  borrow val item = source.requireValue("key")
+  val result = source.consume()
+  println(item)
+}"#,
+        key: BuiltinType::String,
+        value: BuiltinType::String,
+        expected: Expected::Rejected("L0135"),
+        calls: 1,
+    };
+    assert_rejection(
+        &case,
+        "move conflicts with an active loan",
+        (155, "source"),
+        Some((113, "source", "conflicting loan starts here")),
+    );
+}
+
 fn assert_rejection(
     case: &Case,
     message: &str,
@@ -641,4 +664,132 @@ pub(super) fn assert_after_consume_selection(
             types.map_sizes()
         ),
     }
+}
+
+pub(super) fn assert_active_loan_selection(
+    case: &Case,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    unit: SourceUnitId,
+    names: &NameResolution,
+    types: &CompilationUnitTypes,
+    calls: &[(ExpressionId, ExpressionId)],
+) {
+    use lang_frontend::{
+        parser::{Expression, Item, NameMarker, VariableKind},
+        type_checking::BorrowReturnOrigin,
+    };
+
+    let ast = file.ast();
+    let span = |id: UnitExpressionId| {
+        assert_eq!(id.source_unit(), unit);
+        ast.expressions().get(id.expression()).unwrap().span()
+    };
+    let spell = |id| sources.slice(span(id)).unwrap();
+    let [selected] = types.map_consumes() else {
+        panic!("one actual MapConsume")
+    };
+    let [query] = types.map_require_values() else {
+        panic!("one actual MapRequireValue")
+    };
+    let [(consume, receiver)] = calls else {
+        panic!("one parsed consume")
+    };
+    assert_eq!(selected.expression(), UnitExpressionId::new(unit, *consume));
+    assert_eq!(selected.receiver(), UnitExpressionId::new(unit, *receiver));
+    assert_eq!(spell(selected.expression()), "source.consume()");
+    assert_eq!(spell(query.expression()), "source.requireValue(\"key\")");
+    assert_eq!(spell(query.key()), "\"key\"");
+    assert_eq!(query.borrow_return().origin(), BorrowReturnOrigin::Receiver);
+    let string = types.types().builtin(BuiltinType::String).unwrap();
+    assert_eq!(query.key_type(), string);
+    assert_eq!(query.value_type(), string);
+    for id in [query.expression(), query.key()] {
+        assert_eq!(types.expression_type(id), Some(string));
+    }
+
+    let (root, root_type) = selected.source().expect("named map root");
+    assert_eq!(Some(root), unit_symbol_named(types, names, unit, "source"));
+    assert!(unit_map(
+        types,
+        Some(root_type),
+        IntrinsicTypeConstructor::MutableMap,
+        case
+    ));
+    assert_eq!(selected.receiver_type(), root_type);
+    assert!(unit_map(
+        types,
+        Some(selected.result_type()),
+        IntrinsicTypeConstructor::Map,
+        case
+    ));
+    assert_eq!(
+        types.expression_type(selected.expression()),
+        Some(selected.result_type())
+    );
+    let item = unit_symbol_named(types, names, unit, "item").expect("original borrowed local");
+    assert_ne!(item, root);
+    let local = names.symbols().get(item.symbol().index()).unwrap();
+    assert_eq!(local.kind(), SymbolKind::Variable);
+    let mut bindings = ast
+        .items()
+        .iter()
+        .filter_map(|(_, node)| match node.payload() {
+            Item::Variable {
+                kind: VariableKind::BorrowVal(marker),
+                name: NameMarker::Present(name),
+                initializer,
+                ..
+            } if *name == local.span() => Some((*marker, *initializer)),
+            _ => None,
+        });
+    let (marker, initializer) = bindings.next().expect("actual borrow val item");
+    assert!(bindings.next().is_none());
+    assert_eq!(sources.slice(marker), Ok("borrow"));
+    assert_eq!(query.expression(), UnitExpressionId::new(unit, initializer));
+
+    let mut prints = types.calls().iter().filter(|call| call.prints_line());
+    let print = prints.next().expect("actual println selection");
+    assert!(prints.next().is_none());
+    let print_id = print.expression();
+    assert_eq!(spell(print_id), "println(item)");
+    assert!(span(print_id).start() > span(selected.expression()).start());
+    let [print_param] = print.arguments() else {
+        panic!("one typed println parameter")
+    };
+    assert_eq!(print_param.argument_index(), 0);
+    assert_eq!(print_param.parameter_type(), string);
+    assert_eq!(print_param.mode(), ParameterMode::Borrow);
+    let Expression::Call { arguments, .. } = ast
+        .expressions()
+        .get(print_id.expression())
+        .unwrap()
+        .payload()
+    else {
+        panic!("actual println AST call")
+    };
+    let [argument] = arguments.as_slice() else {
+        panic!("one source argument")
+    };
+    let arg = UnitExpressionId::new(unit, argument.value);
+
+    for (id, name, symbol, ty) in [
+        (query.receiver(), "source", root, root_type),
+        (selected.receiver(), "source", root, root_type),
+        (arg, "item", item, string),
+    ] {
+        let range = span(id);
+        assert_eq!(spell(id), name);
+        assert_eq!(types.expression_type(id), Some(ty));
+        assert_eq!(
+            types.expression_category(id),
+            Some(ExpressionCategory::Place)
+        );
+        assert!(names.references().iter().any(|reference| {
+            reference.span() == range
+                && reference.target() == &ReferenceTarget::Symbol(symbol.symbol())
+        }));
+    }
+    assert_eq!(span(query.receiver()).start(), 113);
+    assert_eq!(span(selected.receiver()).start(), 155);
 }
