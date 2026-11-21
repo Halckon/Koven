@@ -515,3 +515,6 @@ pub(in crate::ssa) mod control_completion {
         crate::llvm::render_verified_program(&program.unwrap()).expect("verified while control");
     }
 }
+
+#[path = "temporary_sequential_for/structural_constructor_sibling.rs"]
+mod structural_constructor_sibling;
