@@ -19,6 +19,8 @@ use lang_frontend::{
 
 #[path = "ownership_nested_borrow_arguments/distinct_roots.rs"]
 mod distinct_roots;
+#[path = "ownership_nested_borrow_arguments/generic_transport.rs"]
+mod generic_transport;
 #[path = "ownership_nested_borrow_arguments/later_scalar.rs"]
 mod later_scalar;
 #[path = "ownership_nested_borrow_arguments/owned_auxiliary.rs"]
@@ -105,6 +107,10 @@ fn ordinary_unit(body: &str) -> UnitChecked {
     let text = format!(
         "fun view(source: String): borrow String from source = source\nfun observe(item: String) {{ println(item) }}\nfun consume(own item: String) {{}}\n{body}"
     );
+    unit_checked(&text)
+}
+
+fn unit_checked(text: &str) -> UnitChecked {
     let mut sources = SourceMap::new();
     let source = sources.add_source("nested_borrow.ko", text).unwrap();
     let lexed = lex(&sources, source).unwrap();
@@ -406,10 +412,16 @@ fn reversed_named_same_owner_chains_end_before_consume() {
 }
 
 #[test]
+fn generic_synchronous_borrow_has_the_exact_unit_transport() {
+    generic_transport::assert_transport(include_str!(
+        "ownership_nested_borrow_arguments/fixtures/generic-transport.ko"
+    ));
+}
+
+#[test]
 fn generic_field_wrapper_and_existing_parent_sources_keep_their_identity() {
     for rooted in [false, true] {
         for body in [
-            "fun <T> genericView(source: T): borrow T from source = source\nfun run() { val source = \"kept\"; observe(genericView(source)); consume(source) }",
             "class Record(val text: String)\nfun field(source: Record): borrow String from source = source.text\nfun run() { val source = Record(\"kept\"); observe(field(source)) }",
             "fun wrap(source: String): borrow String from source = view(source)\nfun run() { val source = \"kept\"; observe(wrap(source)); consume(source) }",
             "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent); consume(source) }",

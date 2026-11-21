@@ -21914,3 +21914,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `39ec2e99`，只下沉 `named_nullable_read_borrows_without_extracting`、`owned_nullable_node_moves_the_original_root` 的原断言到 `retained_boundaries.rs`。顶级测试入口、Single 与双 Unit 分析、fixture 字节及所有断言保持；前后 test list 排序比较逐行一致。
 - 根测试从 1102 缩至 945 行，新子模块 176 行；上一片 x01 的 689/400 拆分保持。只移动测试代码，不修改 production/公开 API、CI 选测或 size policy。Mac `ownership_nullable_when` 30/30，SPEC-0341 仍 in-progress。
 - 官方 `python3 scripts/check_rust_sizes.py --base 8207b212` 实际通过，只报告既有两个批准例外；fmt/diff/docs 检查通过。
+
+### 2026-11-21：普通泛型借用结果的同步运输
+
+- 基于已验证候选 `3843a810` 的独立测试线。原 `generic_field_wrapper_and_existing_parent_sources_keep_their_identity` 五个子项只迁首个 `observe(genericView(source)); consume(source)`；原 helper 前缀与 body 重建后和共享 fixture 逐字节相同。同源 Single 的原独立 loan-end 断言先复验，再删除这一子项的旧入口调用，其他 field/wrapper/parent/measure 四项保留。
+- 两布局核实际 transports，不把空有限 end 表当作终止证明：同一具名 root、两枚真实 Shared loan、generic/observe 的原 AST 与参数 span，handoff 到实际 observe 回来才按 child→lender 结束；后续实际 Value delivery 移动同一个 root，没有误造 temporary/caller Drop。
+- 同源真 Unit SSA/LLVM 验证顺序和身份：具体 String 实例由 `BorrowCall` 返回自己的真实 lender 参数，原 `observe` 得到 child，先结束 child 再结束 lender，最后原 ValueId 交给 `consume` 的 own 参数且被调方只做一次 SSA Drop。两个布局 native 都输出 `kept\n`；原 String 是静态字面量，不拿 native 输出声称它分配或释放 heap buffer。
+- Mac 前端 `ownership_nested_borrow_arguments` 18/18、codegen 定点 1/1（两布局），格式、diff、docs 和对 main `8207b212` 的 Rust size guard 通过；不改生产、API 或 CI。未与 E2 合并、未跑 Linux/远端 CI，SPEC-0341 仍 in-progress。
