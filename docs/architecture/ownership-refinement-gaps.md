@@ -4,6 +4,8 @@
 
 ## 输入与结论边界
 
+**查当前进度请先看[E3 对账](ownership-refinement-status.md)。** 第 2 节是初次审计，不能直接当作待办。
+
 首轮代码输入：`89b57bb81556d0a52e6e02a43469830dba29dfd1`，已包含 main
 `51a3aad36bd754c268a05c26c8dd0b80940286cb`；对应 Draft PR #423 的初始候选。
 本页是第一轮路由与代表性源码审计，不是全部合法程序的穷尽证明，也不代替后续 head 验收。
@@ -37,9 +39,9 @@
 
 本节是初审的历史快照，不是当前剩余工作表。A3 和 A4 的原始固定见证已在普通入口使用
 Refine；A2 四项受限迁移已有本地候选，但尚未合入所核对的主干 `8207b212`。
-详见 [§8 固定见证复核](#8-a2a4-固定见证复核2026-11-21)，不要按本节旧路径判断当前状态。
+详见 [E3 对账的固定见证复核](ownership-refinement-status.md#早期固定见证复核2026-11-21)，不要按本节旧路径判断当前状态。
 
-下表保留首轮审计的路由结论，后继固定用例的状态见 §7–§8。
+下表保留首轮审计的路由结论，后继固定用例的状态见 §7 及 E3 对账。
 
 | ID | 精确见证与当前行为 | 生产落点 / 分类依据 |
 |---|---|---|
@@ -153,54 +155,3 @@ loan 身份：`run` 只把导入的共享 loan 传给方法，不建立或释放
 在双 Unit 布局证明先取得接收者共享 loan，后求出 `1` 并送入独立的标量参数槽；
 方法返回该参数，调用返回后结束 loan 并释放原 owner。外层 native 包装转交
 同一分配，实际只释放一次，不增加 Refine 准入。
-
-
-## 8. A2–A4 固定见证复核（2026-11-21）
-
-以下只重分类列出的固定源码，不把相邻语法、借用或 owner 形态一并标成完成。
-A3、A4 两个测试模块在主干同步点 `8207b212` 与本地复核树 `570a3633` 中无差异。
-
-| 见证 | 复核后的路径与证据 |
-|---|---|
-| A2 | 本地候选 `0620936c` 只将既定的 owned Boolean 零参数 caller 迁到 Refine。复核树 `570a3633` 为借用参数、同 owner 两次共享调用、一个显式标量实参三项保留原 Compatibility 路由，并补了两种 Unit 布局中的 SSA/LLVM 及 native owner 释放见证（§7）；其余形态不推论。 |
-| A3 | [原始 owned nullable 源的路由与验证](../../crates/lang-codegen/src/ssa/refine_subset_tests/nullable_when.rs)：原普通入口验证 `Node` 12 个、`Box` 6 个、`Rc` 6 个函数实际走 Refine，完整 SSA/LLVM 通过；另一项测试复核三份源的两种 Unit 布局。不覆盖借用位置或其他更宽的组合。 |
-| A4 | [原 inline `Int?` + `replace`](../../crates/lang-codegen/src/ssa/refine_tests/map_condition_tests.rs)：普通入口下 `replace_then_select` 实际走 Refine，LLVM 通过，native 输出 `ok`。定点 `UnsupportedNode` 仍保留，仅在测试强制 per-family 路由时被观测；不再将此固定源码的普通路径算作未实现。 |
-
-在 macOS 上使用复核树 `570a3633` 的 `lang-codegen --lib`、feature
-`loan-observation-test-support` 精确复跑 A3 两项和 A4 一项，均通过。
-这是定向本地复核，不代表生产路径已全部退役或远端 CI 已验收。
-
-另有一项独立可行性探针：仅在显式标量实参见证的 caller 里加入空的
-`Int?` 局部绑定作为既有 Refine 路由条件。两种 Unit 布局实际由通用 Refine
-实现完成原接收者、实参与每个释放动作，无 Protocol 2 receipt。
-在探针基线 `461256d4` 上，原始无附加条件的源码仍走 Compatibility。这证明基本
-lowering 能力，不是该形态直接准入或实际 receipt 所需证明的替代。
-
-### A2 单个显式 Int 字面量本地迁移
-
-候选提交为 `8d639f4b`。
-
-以 `461256d4` 为基线保留原一条语句的 owned 非 resource caller，仅给
-无名称、无模式标记、无括号的单个无后缀 `Int` 字面量补 Refine 准入；调用的
-唯一直达参数须为 `own Int`，返回类型仍是 `Int`。基线对同一源码接受但不进入
-Refine，作为红测。新路径不改变借用开始/结束或 owner drop 的产生，不增加
-Protocol 2 的三个动作和五个 SSA 生命周期指令。
-
-私有校验记录跟踪原字面量范围、值、已降低的 Slot 和实际 SSA 定义/Value，验证
-该 Value 紧邻调用且是真实实参。双布局的观察 ON 核对原 Complete2 和 SSA
-生命周期端点，真实 OFF 核对同一路由与等价 SSA/LLVM，native 核对同一 owner
-唯一释放。独立 anchor 正控仍无 receipt；命名、借用形参、带括号及计算表达式
-负控不继承此直达准入。本次标量迁移未改变借用接收者和多调用路由。
-
-### A2 借用转发与双调用的独立 Refine 对照
-
-本地测试提交 `62263079`、`a798dd97` 保留原始源码作 Compatibility 对照；
-各只增加 `val anchor: Int? = null` 便经普通入口选中 Refine，不改变原样准入。
-借用参数 caller 只用导入的 loan 作方法接收者，不创建或退休本地 loan，也不 Drop；
-外层才建立、退休借用并释放原 owner。两路径均无后端 receiver receipt。
-双调用依序使用同一 owner 的两条不同 loan，中间无 Drop，第二条退休后才唯一 Drop。
-原样前端按调用范围分别为 Partial、Complete2，末次局部证书不覆盖第一次；
-带声明的对照不符合「仅调用表达式」观察门槛，两条为 Unsupported，均无后端 receipt。
-两种 Unit 布局的实际 SSA、LLVM 和按分配身份唯一释放均在 Mac 验证。
-本地候选 `63973d9d` 迁移原样借用转发；`38828620` 迁移原样同 owner、同一直达方法的两次零实参 Shared Int 调用。两者均无后端 receipt，真实观察 ON/OFF 路由及 SSA/LLVM 等价。
-双调用候选实际 ROp 和 SSA 分别核验两条独立 loan、只在第二条结束后释放原 owner，保留双布局 native 唯一释放与反例。Mac 和 Linux 定向各 70 项通过；末次 Complete2 仍不覆盖首条借用，不主张远端验收或整体退役。
