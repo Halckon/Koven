@@ -18,6 +18,9 @@ mod parser_test_assertions;
 #[path = "support/nullable_ownership_unit.rs"]
 mod nullable_unit;
 
+#[path = "ownership_nullable_when/replacement_proof.rs"]
+mod replacement_proof;
+
 fn checked(text: &str) -> OwnershipCheckedFile {
     let mut sources = SourceMap::new();
     let source = sources
@@ -562,15 +565,12 @@ fn copyable_inner_copy_is_legal_while_subject_has_a_shared_loan() {
 
 #[test]
 fn replacement_does_not_inherit_the_original_subject_extraction_proof() {
-    let owned = checked(
-        "fun test(input: Int?, replacement: Int?): Int? { var x = input; return (when (x) { null -> null; else -> { x = replacement; if (true) { x } else { x } } }) }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.nullable_whens().len(), 1);
-    assert!(
-        owned.nullable_whens()[0].extractions().is_empty(),
-        "a new nullable value is not the old subject's inner value"
-    );
+    let text = "fun test(input: Int?, replacement: Int?): Int? { var x = input; return (when (x) { null -> null; else -> { x = replacement; if (true) { x } else { x } } }) }";
+    replacement_proof::assert_nullable_subject(text, true);
+    let block = text.replace("x = replacement;", "block { x = replacement };");
+    replacement_proof::assert_nullable_subject(&block, true);
+    let no_write = text.replace("x = replacement; ", "");
+    replacement_proof::assert_nullable_subject(&no_write, false);
 }
 
 #[test]

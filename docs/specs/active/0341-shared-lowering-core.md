@@ -21801,3 +21801,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `922791cd`，将原条件构造 fixture 按原输入字节抽为共享测试文件；前端保留 Single 的独立 guarded owners。下游仅追加测试入口，MemoryDocument / Rooted 分别以实际布尔参数运行选择真/假和早退真/假的四种组合。
 - SSA verifier 后核实际 shared Bool 实参、条件读取、两臂各自产生不同的 String ValueId，以及真实边实参到同一合流参数再到早退 Drop 或正常第一字段的运输；正常分支的 aggregate、HeapAllocate 与最终 Drop 逐 ValueId 相接。原字面量为静态字节，不声称分配可释放 String buffer；同一 LLVM 产物的 native 计数验证早退无 heap allocation、正常仅 Holder 恰一次分配并释放。
 - 单独的 `.clone()` 派生对照只验证动态存储，不替换旧 fixture：两布局四路径检查释放的首个实际地址及其 a/b 字节、正常路径才有第二个 Holder 地址并按序各释放一次。Mac Rust 1.96.0 / LLVM 21.1.8，`ownership_construction` 10/10、codegen 定向 2/2（各自双布局四路径）；未运行 Linux、sanitizer 或远端 CI。未改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：nullable When 替换后不继承旧 subject 证明
+
+- 基于 `4c26e31b`。原 `x = replacement` 后两次读取 `x` 的 fixture 字节不变，原 Single 定点和同源码双 Unit 对照均实际通过后，仅退役其旧入口调用；仍保留 Copyable-under-loan 等独立 Single 见证。
+- MemoryDocument / Rooted 上用实际赋值 descriptor、原稳定 subject symbol、两项后续 AST Name 和实际名称解析证明：同一 `x` 完成原赋值，读取回到 `Int?`，没有原 generation 的 When 或非空证明，且未发布借用或析构事实；只包裹赋值的显式 `block { ... }` 对照同样失效。去掉写入时两项读取必须保留原 subject、symbol、entry 和 generation 的真实见证并收窄为 `Int`，不以空表当成证明。
+- Mac Rust 1.96.0 使用同生产树已有前端 rlib 单独构建定向测试 harness，原定点 1/1、替换定点 1/1（原样及两对照各双布局），`ownership_nullable_when`、共享 helper 的 `ownership_checking` 各 26/26。未运行 Linux、native 或远端 CI；生产、API、CI 不变，SPEC-0341 仍 in-progress。
