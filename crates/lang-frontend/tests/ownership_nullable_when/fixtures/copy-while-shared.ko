@@ -1,0 +1,2 @@
+fun combine(x: Int?, own y: Int): Int = y
+fun test(x: Int?): Int = combine(x, when (x) { null -> 0; else -> x })

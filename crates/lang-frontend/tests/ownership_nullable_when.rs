@@ -21,6 +21,9 @@ mod nullable_unit;
 #[path = "ownership_nullable_when/replacement_proof.rs"]
 mod replacement_proof;
 
+#[path = "ownership_nullable_when/copy_while_shared.rs"]
+mod copy_while_shared;
+
 fn checked(text: &str) -> OwnershipCheckedFile {
     let mut sources = SourceMap::new();
     let source = sources
@@ -552,15 +555,8 @@ fn branch_summary_retains_partial_consumption_without_claiming_every_path_moves(
 
 #[test]
 fn copyable_inner_copy_is_legal_while_subject_has_a_shared_loan() {
-    let owned = checked(
-        "fun combine(x: Int?, own y: Int): Int = y\nfun test(x: Int?): Int = combine(x, when (x) { null -> 0; else -> x })",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.nullable_whens()[0].extractions().len(), 1);
-    assert_eq!(
-        owned.nullable_whens()[0].extractions()[0].kind(),
-        NullableWhenExtractionKind::Copy
-    );
+    let text = include_str!("ownership_nullable_when/fixtures/copy-while-shared.ko");
+    copy_while_shared::assert_copy_while_shared(text);
 }
 
 #[test]

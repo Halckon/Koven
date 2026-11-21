@@ -263,6 +263,8 @@ pub(in crate::ssa) mod unit_field_borrow_tests;
 #[cfg(test)]
 mod unit_field_replace_tests;
 #[cfg(test)]
+mod unit_nullable_copy_under_loan_tests;
+#[cfg(test)]
 mod unit_resource_exchange_owner_tests;
 
 #[cfg(test)]

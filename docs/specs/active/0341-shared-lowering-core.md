@@ -21807,3 +21807,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `4c26e31b`。原 `x = replacement` 后两次读取 `x` 的 fixture 字节不变，原 Single 定点和同源码双 Unit 对照均实际通过后，仅退役其旧入口调用；仍保留 Copyable-under-loan 等独立 Single 见证。
 - MemoryDocument / Rooted 上用实际赋值 descriptor、原稳定 subject symbol、两项后续 AST Name 和实际名称解析证明：同一 `x` 完成原赋值，读取回到 `Int?`，没有原 generation 的 When 或非空证明，且未发布借用或析构事实；只包裹赋值的显式 `block { ... }` 对照同样失效。去掉写入时两项读取必须保留原 subject、symbol、entry 和 generation 的真实见证并收窄为 `Int`，不以空表当成证明。
 - Mac Rust 1.96.0 使用同生产树已有前端 rlib 单独构建定向测试 harness，原定点 1/1、替换定点 1/1（原样及两对照各双布局），`ownership_nullable_when`、共享 helper 的 `ownership_checking` 各 26/26。未运行 Linux、native 或远端 CI；生产、API、CI 不变，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：共享实参借用期间复制 nullable When payload
+
+- 基于 `f5b3832d`。原 `combine(x, when (x) { null -> 0; else -> x })` 源码按输入字节抽为共享 fixture。原 Single 验收与同源 Unit 同时通过后，仅退休这项旧入口调用；其他 nullable extraction 见证不动。
+- MemoryDocument / Rooted 均将第一个 Shared 实参的 call、AST argument 及 place root 绑定到同轮 When 稳定 symbol，唯一 else typed use 精确匹配 subject、entry、body、generation，结果为 Copyable Int；外层 Value 只有 When 实参本身。原根是借入参数，不用本例空的有限 direct-call-end 表推断实际退休。
+- 同一实际 Unit SSA 先建立外层 reborrow，再由同一根读取 Copyable `Int?` 快照。两条边逐实体传递同一次 reborrow；非空边的 NullableTake 只提取快照 payload，不移动借入存储；和 null 边的 0 合流后真实调用原 combine，再结束同次 reborrow。经 SSA verifier 与 LLVM verifier 的产物在两个布局各链接运行原 test，分别验证 `null -> 0`、`9 -> 9`。
+- Mac Rust 1.96.0 / LLVM 21.1.8：FE 定点及 `ownership_nullable_when` 26/26、codegen 定点 1/1（两布局，含原生）、相邻 `unit_lower_nullable_tests` 4/4。未运行 Linux、sanitizer 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
