@@ -22085,3 +22085,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `5632585d`，仅迁 `readonly_variable_assignments_remain_ownership_errors` 中原局部 `val number = 1; number = 2`，保留 FQN、原源码字节和 own/Borrow 形参对照。原 Single 与两种 Unit 通过解析、名称、基础与最终类型；均在 ownership 唯一报 L0134，主 `number`（35..41），唯一原声明标签 23..29（`immutable binding declared here`），完整相同。Borrow 形参仍保留旧 Single L0135 与 Unit L0134 差异。
 - Unit 验证实际 typed plain assignment、Int 存储与 RHS、Unit 结果和 Place，引用解析到同一文件内解析出的不可变局部声明；所有权拒绝后不发布 replacement、可执行交付、借用或清理，不能取得能力。
 - Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs 和 Rust size guard 通过；无生产/API/CI 改动，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：不可变 own 形参赋值拒绝迁移
+
+- 基于 `bbaa9554`，只迁 `readonly_variable_assignments_remain_ownership_errors` 的原 `own number: Int` 源码，FQN 不变。Single 与两种 Unit 都通过完整类型准入，ownership 完整诊断一致：唯一 L0134 `assignment target is not a mutable place`，主 `number` 34..40，唯一不可变声明标签 13..19。原 Borrow 形参仍保留 Single L0135/Unit L0134 的不等价对照。
+- 双 Unit 验证真正选中普通赋值 descriptor，目标 Place 与 RHS 均为 Int，赋值自身为 Unit；目标引用精确绑定到带 `own` 的 source-qualified Value-mode 形参，而不是已迁的局部 `val`。所有权拒绝不发布可执行 replacement、交付、借用或清理事实，也不能取得能力。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。

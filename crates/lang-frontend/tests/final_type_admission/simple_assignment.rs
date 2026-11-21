@@ -402,29 +402,34 @@ fn field_assignment_retains_existing_entry_difference() {
 
 #[test]
 fn readonly_variable_assignments_remain_ownership_errors() {
-    readonly_local_assignment_unit();
+    let original_own_parameter = "fun test(own number: Int): Unit { number = 2 }";
+    for (text, formal, decl, target) in [
+        (
+            "fun test(): Unit { val number = 1; number = 2 }",
+            false,
+            23,
+            35,
+        ),
+        (original_own_parameter, true, 13, 34),
+    ] {
+        readonly_assignment_unit(text, formal, decl, target);
+    }
 
-    for (text, shared_parameter, observations) in [
-        ("fun test(own number: Int): Unit { number = 2 }", false),
-        ("fun test(number: Int): Unit { number = 2 }", true),
-    ]
-    .map(|(text, shared)| (text, shared, observe(text)))
-    {
-        for entry in observations {
-            assert_unit_assignment(&entry, "number = 2");
-            let diagnostics = entry.ownership.as_ref().unwrap();
-            assert_eq!(diagnostics.len(), 1, "{entry:?}");
-            // Preserve the pre-existing single shared-parameter loan priority.
-            let code = if shared_parameter && entry.mode == "single" {
-                "L0135"
-            } else {
-                "L0134"
-            };
-            assert_eq!(diagnostics[0].code().to_string(), code);
-            let start = text.rfind("number").unwrap();
-            let span = diagnostics[0].primary_span();
-            assert_eq!((span.start(), span.end()), (start, start + "number".len()));
-        }
+    let text = "fun test(number: Int): Unit { number = 2 }";
+    for entry in observe(text) {
+        assert_unit_assignment(&entry, "number = 2");
+        let diagnostics = entry.ownership.as_ref().unwrap();
+        assert_eq!(diagnostics.len(), 1, "{entry:?}");
+        // Preserve the pre-existing single shared-parameter loan priority.
+        let code = if entry.mode == "single" {
+            "L0135"
+        } else {
+            "L0134"
+        };
+        assert_eq!(diagnostics[0].code().to_string(), code);
+        let start = text.rfind("number").unwrap();
+        let span = diagnostics[0].primary_span();
+        assert_eq!((span.start(), span.end()), (start, start + "number".len()));
     }
 }
 
@@ -450,20 +455,19 @@ fn unit_value_context_and_right_associative_chain_use_storage_types() {
     }
 }
 
-fn readonly_local_assignment_unit() {
+fn readonly_assignment_unit(text: &str, own_parameter: bool, declaration: usize, target: usize) {
     use lang_frontend::{
         diagnostic::{DiagnosticCodeCatalog, Severity},
         name_resolution::{ReferenceTarget, SourceUnitKey, SymbolKind},
         parser::{AssignmentOperator, Item, NameMarker, VariableKind},
-        type_checking::ExpressionCategory,
+        type_checking::{ExpressionCategory, ParameterMode},
     };
     let mut sources = SourceMap::new();
-    let text = "fun test(): Unit { val number = 1; number = 2 }";
     let (source, file) = parsed(&mut sources, "main.ko", text);
     assert_eq!(sources.source_text(source), Ok(text));
     let (environment, types) = standard_environments();
     let span = |start| sources.span(source, start, start + "number".len()).unwrap();
-    let (declaration, use_site) = (span(23), span(35));
+    let (declaration, use_site) = (span(declaration), span(target));
     assert_eq!(sources.slice(declaration), Ok("number"));
     assert_eq!(sources.slice(use_site), Ok("number"));
     let catalog = DiagnosticCodeCatalog::try_new(&["L0134"]).unwrap();
@@ -533,7 +537,41 @@ fn readonly_local_assignment_unit() {
             Ok("number = 2")
         );
         assert_eq!(sources.slice(spell(assignment.value())), Ok("2"));
-        assert_eq!(
+        let local = names.names().source_units()[0].resolution();
+        let binding = local
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.span() == declaration)
+            .unwrap();
+
+        assert!(
+            local
+                .references()
+                .iter()
+                .any(|reference| reference.span() == use_site
+                    && reference.target() == &ReferenceTarget::Symbol(binding.id()))
+        );
+        if own_parameter {
+            assert_eq!(binding.kind(), SymbolKind::ValueParameter);
+            let [function] = typed.signatures().declarations() else {
+                panic!("one original top-level signature")
+            };
+            let function = function.callable().expect("original test function");
+            assert_eq!(function.name(), "test");
+            let [parameter] = function.parameters() else {
+                panic!("one original formal")
+            };
+            assert_eq!(parameter.name(), Some("number"));
+            assert_eq!(parameter.mode(), ParameterMode::Value);
+            assert_eq!(parameter.ty(), int);
+            assert_eq!(sources.slice(parameter.span()), Ok("own number: Int"));
+            let symbol = parameter.symbol().expect("source-qualified formal");
+            assert_eq!(symbol.source_unit(), unit);
+            assert_eq!(symbol.symbol(), binding.id());
+            assert_eq!(typed.symbol_type(symbol), Some(int));
+        } else {
+            assert_eq!(binding.kind(), SymbolKind::Variable);
+            assert_eq!(
             file.ast()
                 .items()
                 .iter()
@@ -545,28 +583,15 @@ fn readonly_local_assignment_unit() {
                 .count(),
             1
         );
-        let local = names.names().source_units()[0].resolution();
-        let binding = local
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.span() == declaration)
-            .unwrap();
-        assert_eq!(binding.kind(), SymbolKind::Variable);
-        assert!(
-            local
-                .references()
-                .iter()
-                .any(|reference| reference.span() == use_site
-                    && reference.target() == &ReferenceTarget::Symbol(binding.id()))
-        );
-        assert!(
-            typed
-                .body_symbol_types()
-                .iter()
-                .any(|(symbol, ty)| symbol.source_unit() == unit
-                    && symbol.symbol() == binding.id()
-                    && *ty == int)
-        );
+            assert!(
+                typed
+                    .body_symbol_types()
+                    .iter()
+                    .any(|(symbol, ty)| symbol.source_unit() == unit
+                        && symbol.symbol() == binding.id()
+                        && *ty == int)
+            );
+        }
 
         let complete = complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
             .expect("assignment types are fully admissible before ownership");
