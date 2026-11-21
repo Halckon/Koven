@@ -373,29 +373,6 @@ fn element_storage_cannot_keep_an_iteration_capture_past_the_element_access() {
 }
 
 #[test]
-fn element_storage_accepts_owned_snapshots_and_capture_free_values() {
-    for container in ["Array", "MutableList"] {
-        for (ty, value) in [
-            ("() -> Unit", "({})"),
-            ("move () -> Unit", "move { read(n) }"),
-            (
-                "move () -> Unit",
-                "if (flag) { val captured: move () -> Unit = move { read(n) }\ncaptured } else move {}",
-            ),
-        ] {
-            let (_, _, owned) = checked(&format!(
-                "fun read(n: Int) {{}}\nfun run(inout slots: {container}<{ty}>, xs: List<Int>, flag: Boolean) {{ for (n in xs) {{ slots[0] = {value}\nbreak }} }}"
-            ));
-            assert!(
-                owned.diagnostics().is_empty(),
-                "{container}/{value}: storage owns its environment: {:?}",
-                owned.diagnostics()
-            );
-        }
-    }
-}
-
-#[test]
 fn element_storage_unit_accepts_owned_and_capture_free_environments() {
     for container in ["Array", "MutableList"] {
         for (ty, value) in [
