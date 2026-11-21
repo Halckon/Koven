@@ -2,6 +2,7 @@
 use super::*;
 
 mod admission;
+mod root_budget;
 
 const SPARSE: &str = "fun helper(first: (Int)->Int, size: Int, last: (Int)->Int): Unit {}\n\
              fun entry(): Unit { val a: (Int)->Int = { index -> index }\n\

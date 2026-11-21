@@ -422,45 +422,6 @@ pub(in crate::ssa) mod callable_plan_tests {
     }
 
     #[test]
-    fn single_callable_plan_preserves_plain_roots_and_scalar_generic_deduplication() {
-        let fixture = Fixture::analyze(
-            "fun <T> identity(own value: T): T = value\n\
-             fun <T> recurse(own input: T): T = recurse(input)\n\
-             fun <T> unused(own item: T): T = item\n\
-             fun uncalled(): Unit {}\n\
-             fun first(input: Int): Int = identity(input)\n\
-             fun second(input: Int): Int = identity<Int>(input)\n\
-             fun third(input: Long): Long = identity(input)\n\
-             fun recursive(input: Int): Int = recurse(input)",
-        );
-        let plan = fixture.plan().unwrap();
-        for name in [
-            "uncalled",
-            "first",
-            "second",
-            "third",
-            "recursive",
-            "recurse",
-        ] {
-            fixture.assert_count(&plan, name, 1);
-        }
-        fixture.assert_count(&plan, "identity", 2);
-        fixture.assert_count(&plan, "unused", 0);
-        let repeated = fixture.plan().unwrap();
-        assert_eq!(
-            plan.instances()
-                .iter()
-                .map(|instance| &instance.key)
-                .collect::<Vec<_>>(),
-            repeated
-                .instances()
-                .iter()
-                .map(|instance| &instance.key)
-                .collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
     fn single_callable_plan_ordinary_nullable_generic_argument_keeps_existing_frontier() {
         use crate::ssa::unit_lower_test_support::{analyze, parsed};
         use lang_frontend::name_resolution::SourceUnitInput;
