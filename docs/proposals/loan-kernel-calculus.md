@@ -1130,4 +1130,12 @@ fun probe(borrow h: A): Unit {
 
 `Z19.lk` 放开 `open` 接受借用字段指向另一非递归非容器视图的子视图（递归子视图仍在 `Z5.lk` 报 K25，容器子视图在 `Z17.lk` 报 K25）。`RoLink(borrow inner: Slice)` 拆出后同时保护外层借用的 `s` 与内层借用的 `a`（写任一者均报 K1，读 `a` 接受，使用后均放行）；经 `RoOverMut(borrow inner: MutSlice)` 写内层独占字段报 K1；合同转发 `from this.link.inner.source` 接受，省略报 K6。
 
-`RwLink(inout inner: Slice)` 拆出后，经 `link.inner = Slice(&b)` 整体替换唯一本地底层视图 `v` 时，按 K20 清掉 `link` 上的过期副本并从 `v` 现查：随后经 `readRwLink(&link)` 读回只保护新来源 `b`（K1），旧来源 `a` 已解除。若 `own this` 的参数来源经 `open` 后执行 `link.inner = Slice(s)`，流向记在 `this.link.inner.source` 下：声明 `flows s into this.link.inner` 时接受且调用方直接从原 `v` 读回保护 `a` 与 `b`（K1），省略流向在签名处报 K6。调用失败与正常退出按 `file, link` 清理，漏掉 `link` 报 V1。递归子视图与容器子视图仍未验证。
+`RwLink(inout inner: Slice)` 拆出后，经 `link.inner = Slice(&b)` 整体替换唯一本地底层视图 `v` 时，按 K20 清掉 `link` 上的过期副本并从 `v` 现查：随后经 `readRwLink(&link)` 读回只保护新来源 `b`（K1），旧来源 `a` 已解除。若 `own this` 的参数来源经 `open` 后执行 `link.inner = Slice(s)`，流向记在 `this.link.inner.source` 下：声明 `flows s into this.link.inner` 时接受且调用方直接从原 `v` 读回保护 `a` 与 `b`（K1），省略流向在签名处报 K6。调用失败与正常退出按 `file, link` 清理，漏掉 `link` 报 V1。容器子视图与递归子视图见 §58。
+
+## 58. 按值拆出容器子视图与递归子视图
+
+`Z20.lk` 放开 `open` 接受非内部可变、非线程绑定的按值容器子视图（`view class Bag<view T>`）与递归子视图（`view class Node(borrow next: Node, borrow data: Arr)`）；顶层直接借用字段（`Z5.lk`）与内部可变子视图（`Z17.lk`）仍报 K25。
+
+**发现并修掉两处容器记账边界。** 其一，容器作为外层视图的按值字段时来源记在字段名下（`held["bag"]`），拆成独立变量后必须放回 `"*"`，否则拆出的容器丢账；其二，`Checker.borrow` 此前只对 `kind in ("view", "opaque")` 复制携带来源，因容器的 `type_of` 为 `cls`，经 `&bag` 调用声明 `from bag.origins` 的函数时会丢掉 `"*"` 来源，已一并补上 `self.carrier(res.ty.name)`。
+
+容器侧：拆出 `bag` 后，经 `peekBag(&bag)`（`from bag.origins`）读出的借用在最后一次使用前写原来源 `a` 报 K1，使用后可写；按 `from this.bag` 转发 `peekBag(&bag)` 接受，省略 `from`、返回本地来源，或返回依赖局部容器自身的 `peekBagSelf(&bag)`（`from bag`）均报 K6。递归侧：拆出三层链 `node` 后，`third(&node)`（`from n.next`）保护深层来源 `a`（K1）而不误保护顶层 `c`，使用后可写；按折叠边界 `from this.node.next` 转发 `&node.next.data.len` 接受，错声明 `from this.node.data` 报 K6。两类子视图的调用失败与正常退出均按 `file, bag` / `file, node` 清理，漏掉子视图均报 V1。内部可变/线程绑定子视图、顶层直接借用字段以及留下空值的 `replace` 仍未验证。

@@ -1285,7 +1285,7 @@ class Checker:
         loan = self.new_loan(f"L{expr.site}", kind, res.targets, res.via, expr.line)
         self.loans[loan].kind = kind
         loans = {"": {loan}}
-        if res.ty.kind in ("view", "opaque"):
+        if res.ty.kind in ("view", "opaque") or self.carrier(res.ty.name):
             loans.update(copy_loans({k: v for k, v in (res.field_loans or {}).items() if k}))
         # 视图里存放的存在类型借用是载荷访问，经它重借出来的仍是
         payload = bool(res.crossed) and res.ty.kind == "any"
@@ -1663,7 +1663,7 @@ class Checker:
             raise InvalidOpen
         if len(stmt.names) != len(decl.fields) or any(
                 kind or not self.open_field(ty, decl.is_view) for kind, _, ty in decl.fields):
-            self.error("K25", stmt.line, "open 只支持无来源的按值类字段或非递归非容器的按值子视图")
+            self.error("K25", stmt.line, "open 只支持无来源的按值类字段或非内部可变非线程绑定的按值子视图")
             raise InvalidOpen
         var = state[stmt.name]
         self.resolve(state, Place(stmt.name, [], stmt.line))  # K8：完整、仍拥有的值
@@ -1672,9 +1672,13 @@ class Checker:
         var.init, var.loans = "M", {}
         self.emit("open", stmt.line, stmt.name, names=stmt.names)
         for name, (_, field_name, ty) in zip(stmt.names, decl.fields):
-            prefix = field_name + "."
-            # 按值子视图的账在接收者名下；去掉字段前缀后交给新拥有者。
-            loans = {key[len(prefix):]: set(ids) for key, ids in held.items() if key.startswith(prefix)}
+            if self.carrier(ty):
+                # 容器作为按值字段时记在字段名下；拆成独立变量后放回 "*"。
+                loans = {"*": set(held.get(field_name, ()))} if field_name in held else {}
+            else:
+                prefix = field_name + "."
+                # 按值子视图的账在接收者名下；去掉字段前缀后交给新拥有者。
+                loans = {key[len(prefix):]: set(ids) for key, ids in held.items() if key.startswith(prefix)}
             state[name] = Var(self.type_of(ty), "A", loans)
 
     def open_field(self, ty, in_view, visiting=frozenset()):
@@ -1683,8 +1687,10 @@ class Checker:
             return False
         if not decl.is_view:
             return self.escapable(ty)
-        if not in_view or ty in visiting or decl.cell or decl.local or decl.carrier or not decl.fields:
+        if not in_view or decl.cell or decl.local or not decl.fields:
             return False
+        if decl.carrier or ty in visiting:
+            return True
         seen = visiting | {ty}
         return all(self.open_field(target, True, seen) for _, _, target in decl.fields)
 
