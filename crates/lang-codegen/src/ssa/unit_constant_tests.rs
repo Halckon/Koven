@@ -15,6 +15,7 @@ use super::{
 };
 
 pub(in crate::ssa) mod control_completion;
+mod owned_return;
 
 #[path = "unit_receiver_two_phase_control_tests.rs"]
 pub(in crate::ssa) mod receiver_two_phase_control;

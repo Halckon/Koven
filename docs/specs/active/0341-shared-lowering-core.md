@@ -21996,3 +21996,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `434c7009`。保留 `nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source` 的历史 FQN、原 Single 对照与原源码；另加同一源码的双 Unit 完整诊断，原递归 cleanup 测试不动。仓内没有这个 exact Unit 两标签断言，不能用其他 selected-parameter 场景代替。
 - 两布局的 lex/parse/names/final types 均通过，ownership 唯一 Error L0135、主消息 `new loan conflicts with an active loan` 指向 `&`（231..232）。两个有序关联标签依次为原冲突 `n`（205..206，`conflicting loan starts here`）、`inout changed: Int`（80..98，`selected parameter declared here`）；无其他 notes/help。同源 Single 缺少第二标签，因此不是等价迁移。
 - Unit 验证明确拒绝且无实际可执行借用、传递、结束、形成、Move 或 Drop；与既有 L0164 复用同一无所有权能力断言，并不要求删除前置语法分类。Mac 前端 24 项、fmt、diff、docs、相对 main Rust size guard 通过；不改生产/API/CI，未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原常量/字面量 owned 参数在提前 return 上的清理
+
+- 基于 `28c3d959`。只迁 `constant_cleanup_matches_literal_on_control_flow_edges` 的 `take(VALUE, if (flag) { return } else { 0 })` 子项。先实跑原 Single 七项矩阵，提取时复原原生成模板与两条替换后的完整源码；另六项及有意保留的 Single 专有边界原样保留。
+- 原 TEXT 和 literal 两源码具四个 Unit FE/SSA 配对，分别走 MemoryDocument 和 Rooted。只 TEXT 有一个真实 StringTemporary 物化，两者相同的临时值身份用于 early ControlTransfer Drop 和 normal own 参数传递，后一条只有被调方 FunctionEntry Drop；第二实参只在正常调用路径形成独立标量借用。
+- 实际 Unit SSA 先构造同一个 `hi` owner 再读取 flag，两互斥边携带同一原 ValueId，true 只由 caller Drop；false 才构造标量 0、传递正常边 owner，只有 take 内的 own 参数被 Drop。字面量路径可显式携带已有 flag 借用，不将内部表示差异误当作语义差异。真实 LLVM 以独立 native ABI 驱动覆盖两旗值：`early/drop` 与 `normal/take/drop`，两源码与两布局均一致。静态字面量的逻辑 Drop 不等于堆释放。
+- Mac FE 18 项、codegen/native 定点 1 项（四配对、各两条边），fmt/diff/docs、相对 main Rust size guard 通过。未改生产/API/CI，未跑本片 Linux 或远端 CI；SPEC-0341 仍 in-progress。

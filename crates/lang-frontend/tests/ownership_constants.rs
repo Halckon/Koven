@@ -16,6 +16,8 @@ mod unit_cleanup_order;
 mod unit_failure;
 #[path = "ownership_constants/unit_materialization.rs"]
 mod unit_materialization;
+#[path = "ownership_constants/unit_owned_return.rs"]
+mod unit_owned_return;
 #[path = "ownership_constants/unit_runtime_identity.rs"]
 mod unit_runtime_identity;
 #[path = "ownership_constants/unit_transfer_cleanup.rs"]
@@ -163,7 +165,6 @@ fn constant_cleanup_matches_literal_on_control_flow_edges() {
         "loop { val result = view(VALUE, if (flag) { break } else { 0 })\nbreak }",
         "loop { val result = view(VALUE, if (flag) { continue } else { 0 })\nbreak }",
         "val result = view(if (flag) { VALUE } else { VALUE }, 0)",
-        "val result = take(VALUE, if (flag) { return } else { 0 })",
         "val result = take(VALUE, if (flag) { stop() } else { 0 })",
     ] {
         let source = format!(
