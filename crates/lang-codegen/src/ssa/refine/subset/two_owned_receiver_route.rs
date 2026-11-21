@@ -1,10 +1,7 @@
 //! Narrow same-owner two-call route; independent of optional observer and single-call receipts.
 use super::{Checker, RefineBody};
 use lang_frontend::{
-    ownership_checking::{
-        OwnershipBindingKind, UnitDropPoint, UnitDropTarget, UnitReceiverOwnershipKind,
-        UnitReceiverOwnershipTarget,
-    },
+    ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
     parser::{Expression, Item, ParameterModeMarker, Statement},
     type_checking::{
         BuiltinType, CallableResultSource, Copyability, ExpressionCategory, ParameterMode,
@@ -51,9 +48,6 @@ impl Checker<'_, '_> {
             || !matches!(self.kind(ty), Some(UnitTypeKind::Nominal { arguments, .. }) if arguments.is_empty())
             || self.copyability_of(ty) != Copyability::MoveOnly
             || inputs.typed.is_resource_type(ty) != Some(false)
-            || !inputs.owned.bindings().iter().any(|binding| {
-                binding.symbol() == *symbol && binding.kind() == OwnershipBindingKind::Owned
-            })
         {
             return None;
         }
@@ -68,7 +62,8 @@ impl Checker<'_, '_> {
         };
         let caller = inputs.source_plan.source(inputs.source_token)?;
         let mut previous = None;
-        for statement in [first, second] {
+        let mut checks = [None; 2];
+        for (index, statement) in [first, second].into_iter().enumerate() {
             let Statement::Expression { expression } =
                 ast.statements().get(*statement).ok()?.payload()
             else {
@@ -150,24 +145,12 @@ impl Checker<'_, '_> {
                 return None;
             }
 
-            let point = UnitDropPoint::CallReturn(id);
-            let mut endings = inputs
-                .owned
-                .receiver_call_return_ends()
-                .iter()
-                .filter(|end| end.point() == point);
-            if endings.next()?.receiver() != fact || endings.next().is_some() {
-                return None;
-            }
+            checks[index] = Some((id, fact));
             previous = Some((id, node.span(), call.target(), dispatch));
         }
-        let (terminal, _, _, _) = previous?;
-        let mut drops = inputs
-            .owned
-            .drops()
-            .iter()
-            .filter(|drop| drop.target() == UnitDropTarget::Named(*symbol));
-        (drops.next()?.point() == UnitDropPoint::CallReturn(terminal) && drops.next().is_none())
+        inputs
+            .two_receiver_facts?
+            .validates(inputs.owned, *symbol, checks[0]?, checks[1]?)
             .then_some(())
     }
 }

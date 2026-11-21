@@ -541,3 +541,78 @@ fun entry(): Unit {
         crate::native_tests::boxed_enum_tests::assert_success(&output, b"release\nrelease\n");
     }
 }
+
+#[test]
+fn two_receiver_route_work_scales_by_indexed_facts_and_callers() {
+    use crate::ssa::refine::two_receiver_route_metrics;
+    use std::fmt::Write;
+    fn count(n: usize) -> two_receiver_route_metrics::Counts {
+        let mut text = String::from("class Node() { fun touch(): Int = 1 }\n");
+        for i in 0..n {
+            writeln!(
+                text,
+                "fun run{i}(own node: Node): Unit {{ node.touch(); node.touch() }}"
+            )
+            .unwrap();
+        }
+        if n == 0 {
+            text.push_str("fun neighbor(own node: Node): Unit { node.touch() }\n");
+        }
+        text.push_str("fun entry(): Unit {\n");
+        if n == 0 {
+            text.push_str("neighbor(Node())\n");
+        }
+        for i in 0..n {
+            writeln!(text, "run{i}(Node())").unwrap();
+        }
+        text.push_str("}\n");
+        let mut sources = SourceMap::new();
+        let (source, parsed) =
+            unit_lower_test_support::parsed(&mut sources, "route_scaling.ko", &text);
+        let inputs = [SourceUnitInput::memory_document(source, &parsed)];
+        let (environment, types) = standard_environments();
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "entry")
+            .unwrap()
+            .id();
+        let ((lowered, routes), counts) = two_receiver_route_metrics::observe(|| {
+            crate::ssa::refine::observe_routing(|| {
+                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                )
+            })
+        });
+        assert_eq!(
+            routes
+                .iter()
+                .filter(|route| route.starts_with("koven.run"))
+                .count(),
+            n,
+            "{routes:?}"
+        );
+        verify_program(&lowered.unwrap().0).unwrap();
+        counts
+    }
+    let n = 8;
+    let first = count(n);
+    let second = count(2 * n);
+    eprintln!("N={n}: {first:?}; 2N: {second:?}");
+    assert_eq!(count(0), two_receiver_route_metrics::Counts::default());
+    for (callers, counts) in [(n, first), (2 * n, second)] {
+        assert_eq!(
+            counts,
+            two_receiver_route_metrics::Counts {
+                bindings: callers,
+                ends: 2 * callers,
+                drops: callers,
+                probes: 4 * callers,
+            }
+        );
+    }
+}

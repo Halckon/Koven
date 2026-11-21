@@ -140,6 +140,7 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
     pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
+    pub(in crate::ssa) two_receiver_facts: Option<&'a TwoReceiverFacts>,
     /// Present for the constant capability; const uses stay on the existing path.
     pub(in crate::ssa) constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     pub(in crate::ssa) function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
@@ -934,3 +935,9 @@ pub(crate) mod entry_lifecycle;
 
 #[cfg(test)]
 pub(in crate::ssa) mod two_receiver_plan_test_support;
+
+#[cfg(test)]
+pub(in crate::ssa) mod two_receiver_route_metrics;
+
+mod two_receiver_facts;
+pub(in crate::ssa) use two_receiver_facts::TwoReceiverFacts;
