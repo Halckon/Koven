@@ -542,9 +542,7 @@ fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
     }
 }
 
-#[test]
-fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
-    let text = "class Resource {}\n\
+const SOURCE_WITH_UNKNOWN_INDEX: &str = "class Resource {}\n\
                 class Worker { fun inspect(item: Resource): Unit {} }\n\
                 fun mutate(inout item: Resource): Unit {}\n\
                 fun deferred(own worker: Worker, own list: MutableList<Resource>, own captured: Resource): Unit {\n\
@@ -553,6 +551,10 @@ fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
                     val member = worker.inspect(captured)\n\
                     val callback: (own Resource) -> Unit = { input -> val nested = worker.inspect(captured) }\n\
                 }";
+
+#[test]
+fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
+    let text = SOURCE_WITH_UNKNOWN_INDEX;
     let (_, _, checked) = checked(text);
     assert!(
         checked.diagnostics().is_empty(),
@@ -568,6 +570,56 @@ fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
     assert!(!reasons.contains(&OwnershipDeferredReason::MemberReceiver));
     assert_eq!(checked.captures().len(), 2);
     assert!(!checked.drops().is_empty());
+}
+
+#[test]
+fn original_unknown_index_is_rejected_before_unit_ownership() {
+    use lang_frontend::{
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        type_checking::{
+            FinalTypeAdmissionError, check_compilation_unit_types, complete_compilation_unit_types,
+        },
+    };
+
+    // Single inspected incomplete types here. An actual Unit consumer must not
+    // proceed to ownership on the same deferred index.
+    let text = SOURCE_WITH_UNKNOWN_INDEX;
+    let (ne, te) = environments();
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("ownership.ko", text).unwrap();
+    let parsed = parse_file_twice(&sources, source, "original index and receiver source");
+    assert!(parsed.diagnostics().is_empty());
+    for input in [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("root", "ownership.ko", source, &parsed),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let raw = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
+        assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+        let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+            complete_compilation_unit_types(&sources, &inputs, &names, &te, &raw)
+        else {
+            panic!("non-container subscript must fail Unit final admission");
+        };
+        let at = text.find("worker[0]").unwrap();
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                let span = diagnostic.primary_span();
+                diagnostic.code().to_string() == "L0165"
+                    && span.source_id() == source
+                    && span.start() <= at
+                    && span.end() >= at + "worker[0]".len()
+            }),
+            "the final failure must actually be tied to the unsupported subscript: {diagnostics:?}"
+        );
+    }
 }
 
 #[test]
