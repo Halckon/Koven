@@ -986,6 +986,25 @@ class LoanKernelCases(unittest.TestCase):
                 finally:
                     call.cleanup.insert(index, entry)
 
+    def test_deinit_cannot_suspend_directly_indirectly_or_via_contract(self):
+        source = (ROOT / "cases/Z24.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("deinit SyncGuard", "syncRefinesSuspendSig", "syncDeinitWorksAcrossSuspend"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("deinit BadDecl", "deinit BadDirect", "deinit BadCall", "deinit BadAwait",
+                     "deinit BadIndirect", "cannotPassSuspendToSyncSig"):
+            self.assertFalse(lowered[name][2], name)
+        deinits = {"SyncGuard": lowered["deinit SyncGuard"][:2]}
+        types, program, accepted = lowered["syncDeinitWorksAcrossSuspend"]
+        self.assertTrue(accepted)
+        self.assertEqual({}, self.verify(types, program, "syncDeinitWorksAcrossSuspend", deinits))
+        susp = next(s for s in program if s.kind == "suspend")
+        self.assertEqual([("g", False)], susp.cleanup)
+        susp.cleanup.clear()  # 挂起点销毁帧时漏掉带 deinit 的 SyncGuard
+        found = self.verify(types, program, "syncDeinitWorksAcrossSuspend", deinits)
+        self.assertEqual({"V1"}, {v.split()[0] for v in found})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

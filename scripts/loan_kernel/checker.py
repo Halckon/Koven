@@ -197,6 +197,15 @@ class Parser:
                 mods = set()
                 while self.peek() in ("suspend", "parallel"):
                     mods.add(self.next())
+                if self.peek() == "deinit":
+                    self.next()
+                    name = self.next()
+                    body, _ = self.block()
+                    fun = Fun(f"deinit {name}", [("own", "this", name)], ("", "Unit"), [], False, body,
+                              None, line, owner=name, deinit_of=name)
+                    fun.suspend, fun.parallel = bool(mods), "parallel" in mods
+                    funs[fun.name] = fun
+                    continue
                 table = funs if self.peek() == "fun" else sigs
                 fun = self.fun(self.peek())
                 fun.suspend, fun.parallel = bool(mods), "parallel" in mods
@@ -597,6 +606,10 @@ class Checker:
             return UNIT
         if name.startswith("any "):
             return Type("any", name)
+        if name.startswith("fn "):
+            if name[3:] not in self.sigs:
+                raise SyntaxProblem(f"未声明的签名 {name[3:]}")
+            return Type("fn", name[3:])
         decl = self.classes.get(name)
         if decl is None:
             raise SyntaxProblem(f"未声明的类型 {name}")
@@ -720,6 +733,8 @@ class Checker:
         self.live = set()
         self.leaving = False  # 正在离开函数（返回或失败）：调用方的持有者不会指向本函数的局部存储（K6）
         self.out, self.dp_types, known = [], {}, len(self.errors)
+        if fun.deinit_of and fun.suspend:
+            self.error("S0", fun.line, f"deinit {fun.deinit_of} 不得声明为 suspend")
         state = {}
         for mode, name, ty_name in fun.params:
             ty = self.type_in(fun, ty_name)
@@ -986,7 +1001,10 @@ class Checker:
         return False
 
     def refines(self, impl, sig, line):
-        """K12：把函数当作合同为 sig 的值使用时，它声明的来源与流向都须被 sig 覆盖。"""
+        """K12：把函数当作合同为 sig 的值使用时，它声明的来源、流向与挂起性都须被 sig 覆盖。"""
+        if impl.suspend and not sig.suspend:
+            self.error("K12", line, f"suspend 函数 {impl.name} 不能充当非 suspend 签名 {sig.name}")
+            return
         if [m for m, _, _ in impl.params] != [m for m, _, _ in sig.params]:
             self.error("K12", line, f"{impl.name} 的参数模式与 {sig.name} 不符")
             return
@@ -1286,8 +1304,8 @@ class Checker:
 
     def suspend_point(self, state, line):
         """S0.3 状态守恒：挂起不是一次访问，loan 集合不变。这里记录并检查留在帧里的东西。"""
-        if not self.fun.suspend:
-            self.error("S0", line, "挂起点只能出现在 suspend 函数里")
+        if not self.fun.suspend or self.fun.deinit_of:
+            self.error("S0", line, "deinit 不得包含挂起点" if self.fun.deinit_of else "挂起点只能出现在 suspend 函数里")
             return
         if self.drop_before_suspend:  # S6：不再需要、析构不可观察的值不带过挂起点
             self.drop_unneeded(state, line, set())

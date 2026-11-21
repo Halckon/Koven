@@ -1156,4 +1156,15 @@ fun probe(borrow h: A): Unit {
 
 `Z23.lk` 将 `replace p`（K26）扩展到非 `cell`、非 `local`、非 `carrier` 的 `empty` 视图字段（如 `OptSlice`、`OptMutSlice`、`OptGuardSlice deinit`）。`replace` 将该字段的来源账随取出值移交；当被替换的存储目标唯一（`len(targets) == 1`）时，按 K20 清空原槽位在该字段路径下的来源账（经借用到达时同时清除借用上的过期副本），否则（如合流后的多目标别名）保守保留各可能拥有者的旧来源。
 
-在带 `deinit` 的 `DualHolder` 上，`val taken = replace h.first` 后：`taken` 存活期间保护 `a`（K1），用完后即使 `h` 仍活到作用域结束，`a` 也已解除、可写，而 `h.second` 仍保护 `b`（K1）。对独占视图 `OptMutSlice`，`taken` 存活期间对 `a` 的读与写均报 K1，用完后均放行。对带 `deinit` 的 `OptGuardSlice`，`taken` 活到析构点，用完后写 `a` 仍报 K1，经 `releaseOptGuard(move taken)` 移走后可写；失败清单为 `taken, h, a`，漏掉 `taken` 报 V1 与 V4，漏掉 `h` 报 V1。经 `inout` 参数 `replace h.first` 转发来源时，声明 `from h.first` 接受，错声明 `from h.second` 报 K6。合流别名 `target` 可能指向 `left` 或 `right` 时，`taken` 用完后两侧旧来源仍受保护；固定单目标时只解除被替换侧。`cell`/`local` 子视图的 `open` 仍未验证。
+在带 `deinit` 的 `DualHolder` 上，`val taken = replace h.first` 后：`taken` 存活期间保护 `a`（K1），用完后即使 `h` 仍活到作用域结束，`a` 也已解除、可写，而 `h.second` 仍保护 `b`（K1）。对独占视图 `OptMutSlice`，`taken` 存活期间对 `a` 的读与写均报 K1，用完后均放行。对带 `deinit` 的 `OptGuardSlice`，`taken` 活到析构点，用完后写 `a` 仍报 K1，经 `releaseOptGuard(move taken)` 移走后可写；失败清单为 `taken, h, a`，漏掉 `taken` 报 V1 与 V4，漏掉 `h` 报 V1。经 `inout` 参数 `replace h.first` 转发来源时，声明 `from h.first` 接受，错声明 `from h.second` 报 K6。合流别名 `target` 可能指向 `left` 或 `right` 时，`taken` 用完后两侧旧来源仍受保护；固定单目标时只解除被替换侧。`deinit` 禁止挂起见 §62。
+
+## 62. `deinit` 函数体不得挂起与 `suspend` 合同细化（KB8 × KB1）
+
+`Z24.lk` 检验 `deinit` 与挂起的边界（S0）及函数类型合同细化（K12）对 `suspend` 的约束：
+
+- `deinit` 声明本身不得带 `suspend` / `parallel`（`suspend deinit BadDecl` 报 S0）；
+- `deinit` 函数体内不得出现 `suspend` 语句、不得调用 `suspend fun`、不得 `await` 任务、也不得经类型为 `suspend sig` 的回调字段调用挂起函数（四者均报 S0，其中解析类字段上的 `fn` 签名类型已补进 `Checker.type_of`）；
+- K12 合同细化新增挂起性检查：把 `suspend fun` 当作非 `suspend` 签名 `fn SyncWork` 的实参传入报 K12（堵住经同步回调把挂起偷渡进 `deinit` 或普通函数的路径），反之非 `suspend` 函数满足 `suspend sig`（接受）；
+- 同步 `deinit` 的 `SyncGuard` 跨挂起点持有合法，检验器在正常退出与挂起点帧被销毁两条路径上真实执行 `deinit SyncGuard`；漏掉挂起点清理清单中的 `g` 报 V1。
+
+至此“挂起、析构、能力”欠账中的“`deinit` 不得挂起”与“合同细化检查 `suspend`”（§25.2 第 7 条）已验证；`cell`/`local` 子视图的 `open` 仍未验证。
