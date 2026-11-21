@@ -91,7 +91,16 @@ fn assert_matrix(cases: &[Case], expected_observations: usize) {
             .add_source("consume.ko", case.text)
             .expect("fixed source");
         let file = parser_test_assertions::parse_file_twice(&sources, source, case.label);
-        observations.push(observe_single(case, &sources, &file));
+        // The original basic owned roots have the same observable move and
+        // result-cleanup contract. Keep richer or differing Legacy lanes distinct.
+        if matches!(
+            case.label,
+            "grouped-val-bound" | "populated-var-bound" | "discarded-result"
+        ) {
+            observations.push(observe_unit(case, &sources, &file, false, None));
+        } else {
+            observations.push(observe_single(case, &sources, &file));
+        }
         observations.push(observe_unit(case, &sources, &file, true, None));
     }
     assert_eq!(observations.len(), expected_observations);
