@@ -887,6 +887,26 @@ class LoanKernelCases(unittest.TestCase):
                 found = CHECKER.DP.Verifier(types).run_all(program)
                 self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
+    def test_open_transfers_direct_borrow_fields_without_owning_cleanup(self):
+        source = (ROOT / "cases/Z21.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("forwardRoDirect", "forwardRwDirect", "writeCallerThroughOpenedViewDirect",
+                     "dropsOnlyOwnedFileOnFailure"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("missingRoDirectContract", "localRwDirectEscape", "missingFlowThroughOpenedViewDirect"):
+            self.assertFalse(lowered[name][2], name)
+        types, program, accepted = lowered["dropsOnlyOwnedFileOnFailure"]
+        self.assertTrue(accepted)
+        call = next(s for s in program if s.kind == "call")
+        # 借用绑定 source 不带析构义务，失败与正常出口均只清理 file。
+        self.assertEqual([("file", False)], call.cleanup)
+        self.assertEqual(["file"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.clear()
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

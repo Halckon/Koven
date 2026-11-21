@@ -1662,8 +1662,9 @@ class Checker:
             self.error("K25", stmt.line, "open 仅支持具体 deinit 类型自身的 own this 方法")
             raise InvalidOpen
         if len(stmt.names) != len(decl.fields) or any(
-                kind or not self.open_field(ty, decl.is_view) for kind, _, ty in decl.fields):
-            self.error("K25", stmt.line, "open 只支持无来源的按值类字段或非内部可变非线程绑定的按值子视图")
+                (kind and self.carrier(ty)) or not self.open_field(ty, decl.is_view or bool(kind))
+                for kind, _, ty in decl.fields):
+            self.error("K25", stmt.line, "open 只支持无来源的按值类字段、直接借用字段或非内部可变非线程绑定的按值子视图")
             raise InvalidOpen
         var = state[stmt.name]
         self.resolve(state, Place(stmt.name, [], stmt.line))  # K8：完整、仍拥有的值
@@ -1671,15 +1672,21 @@ class Checker:
         held = var.loans
         var.init, var.loans = "M", {}
         self.emit("open", stmt.line, stmt.name, names=stmt.names)
-        for name, (_, field_name, ty) in zip(stmt.names, decl.fields):
-            if self.carrier(ty):
+        for name, (kind, field_name, ty) in zip(stmt.names, decl.fields):
+            if kind:
+                prefix = field_name + "."
+                loans = {"": set(held.get(field_name, ()))}
+                loans.update({key[len(prefix):]: set(ids) for key, ids in held.items() if key.startswith(prefix)})
+                state[name] = Var(Type(kind, ty), "A", loans)
+            elif self.carrier(ty):
                 # 容器作为按值字段时记在字段名下；拆成独立变量后放回 "*"。
                 loans = {"*": set(held.get(field_name, ()))} if field_name in held else {}
+                state[name] = Var(self.type_of(ty), "A", loans)
             else:
                 prefix = field_name + "."
                 # 按值子视图的账在接收者名下；去掉字段前缀后交给新拥有者。
                 loans = {key[len(prefix):]: set(ids) for key, ids in held.items() if key.startswith(prefix)}
-            state[name] = Var(self.type_of(ty), "A", loans)
+                state[name] = Var(self.type_of(ty), "A", loans)
 
     def open_field(self, ty, in_view, visiting=frozenset()):
         decl = self.classes.get(ty)

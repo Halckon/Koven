@@ -627,6 +627,8 @@ class Verifier:
             if kind == "open":
                 for name, (_, ty) in zip(stmt.names, self.t.types[self.ty[stmt.var]].fields):
                     self.declare(name, ty)
+                    if ty == "&":  # 拆出的借用或无析构义务字段不产生新的析构义务
+                        self.borrowed.add(name)
         elif kind == "take":
             unit = f"{stmt.ty}.{stmt.fld}"
             if self.unit[unit] != "O":

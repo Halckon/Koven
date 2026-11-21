@@ -1138,4 +1138,10 @@ fun probe(borrow h: A): Unit {
 
 **发现并修掉两处容器记账边界。** 其一，容器作为外层视图的按值字段时来源记在字段名下（`held["bag"]`），拆成独立变量后必须放回 `"*"`，否则拆出的容器丢账；其二，`Checker.borrow` 此前只对 `kind in ("view", "opaque")` 复制携带来源，因容器的 `type_of` 为 `cls`，经 `&bag` 调用声明 `from bag.origins` 的函数时会丢掉 `"*"` 来源，已一并补上 `self.carrier(res.ty.name)`。
 
-容器侧：拆出 `bag` 后，经 `peekBag(&bag)`（`from bag.origins`）读出的借用在最后一次使用前写原来源 `a` 报 K1，使用后可写；按 `from this.bag` 转发 `peekBag(&bag)` 接受，省略 `from`、返回本地来源，或返回依赖局部容器自身的 `peekBagSelf(&bag)`（`from bag`）均报 K6。递归侧：拆出三层链 `node` 后，`third(&node)`（`from n.next`）保护深层来源 `a`（K1）而不误保护顶层 `c`，使用后可写；按折叠边界 `from this.node.next` 转发 `&node.next.data.len` 接受，错声明 `from this.node.data` 报 K6。两类子视图的调用失败与正常退出均按 `file, bag` / `file, node` 清理，漏掉子视图均报 V1。内部可变/线程绑定子视图、顶层直接借用字段以及留下空值的 `replace` 仍未验证。
+容器侧：拆出 `bag` 后，经 `peekBag(&bag)`（`from bag.origins`）读出的借用在最后一次使用前写原来源 `a` 报 K1，使用后可写；按 `from this.bag` 转发 `peekBag(&bag)` 接受，省略 `from`、返回本地来源，或返回依赖局部容器自身的 `peekBagSelf(&bag)`（`from bag`）均报 K6。递归侧：拆出三层链 `node` 后，`third(&node)`（`from n.next`）保护深层来源 `a`（K1）而不误保护顶层 `c`，使用后可写；按折叠边界 `from this.node.next` 转发 `&node.next.data.len` 接受，错声明 `from this.node.data` 报 K6。两类子视图的调用失败与正常退出均按 `file, bag` / `file, node` 清理，漏掉子视图均报 V1。顶层直接借用字段见 §59。
+
+## 59. 按值拆出顶层直接借用字段
+
+`Z21.lk` 放开 `open` 接受视图的顶层直接 `borrow` / `inout` 字段（顶层借用容器及 `local`/`cell` 子视图分别仍在规则、`Z5.lk` 与 `Z17.lk` 报 K25）：`open this as source, file` 将直接借用字段绑定为 `borrow T` / `inout T` 局部，并把字段自身的 loan 放到 `""` 下、把指向另一视图时的子字段账剥离前缀后一并带入。在析构义务检验器一侧（`drop_plan.py`），`open` 拆出的无析构义务占位字段（`"&"`）记为 `borrowed`，不产生虚假的 V1 泄漏，其余拥有字段仍须履行析构义务。
+
+`RoDirect(borrow source: Arr, file: File)` 拆出后，最后一次使用 `source` 前写 `a` 报 K1、读 `a` 接受，使用后可写；按 `from this.source` 转发接受，省略报 K6。`RwDirect(inout source: Arr, file: File)` 拆出后，使用前读、写 `a` 均报 K1，经 `source` 写及使用后读写均接受；转发 `inout Arr` 须声明 `from this.source`，返回本地来源报 K6。`ViewDirect(inout inner: Slice, file: File)` 拆出后，经 `*inner = Slice(&b)` 替换唯一本地视图 `v` 时解除旧来源 `a`、保护新来源 `b`（K1）；改写调用方视图时须声明 `flows s into this.inner`（省略报 K6），调用方从原 `v` 读回保护新旧来源（K1）。调用失败与正常退出仅清理拥有字段 `file`，漏掉 `file` 报 V1。内部可变/线程绑定子视图与留下空值的 `replace` 仍未验证。
