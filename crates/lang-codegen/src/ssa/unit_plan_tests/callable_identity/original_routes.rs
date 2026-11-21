@@ -1,6 +1,8 @@
 //! Exact former Single sources through current Unit callable routing.
 use super::*;
 
+mod admission;
+
 const SPARSE: &str = "fun helper(first: (Int)->Int, size: Int, last: (Int)->Int): Unit {}\n\
              fun entry(): Unit { val a: (Int)->Int = { index -> index }\n\
              val b: (Int)->Int = { index -> index + 1 }\n\

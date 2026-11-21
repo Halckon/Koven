@@ -159,7 +159,6 @@ pub(in crate::ssa) mod callable_plan_tests {
     use std::collections::BTreeSet;
 
     pub(in crate::ssa) struct Fixture {
-        pub(in crate::ssa) sources: SourceMap,
         pub(in crate::ssa) parsed: ParsedFile,
         pub(in crate::ssa) names: NameResolution,
         pub(in crate::ssa) typed: TypedFile,
@@ -215,7 +214,6 @@ pub(in crate::ssa) mod callable_plan_tests {
                 })
                 .collect();
             Self {
-                sources,
                 parsed,
                 names,
                 typed,
@@ -234,20 +232,6 @@ pub(in crate::ssa) mod callable_plan_tests {
                 .collect::<Vec<_>>();
             assert_eq!(symbols.len(), 1, "unique fixture symbol {name}");
             symbols[0]
-        }
-
-        pub(in crate::ssa) fn expression(&self, text: &str) -> ExpressionId {
-            let ids = self
-                .parsed
-                .ast()
-                .expressions()
-                .iter()
-                .filter_map(|(id, node)| {
-                    (self.sources.slice(node.span()).unwrap() == text).then_some(id)
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(ids.len(), 1, "unique fixture expression {text}: {ids:?}");
-            ids[0]
         }
 
         pub(in crate::ssa) fn lambdas(&self) -> Vec<ExpressionId> {
@@ -283,26 +267,6 @@ pub(in crate::ssa) mod callable_plan_tests {
                 count,
                 "complete distinct source keys for {name}: {keys:?}"
             );
-        }
-
-        pub(in crate::ssa) fn assert_unsupported(&self, argument: &str) {
-            let expected = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(self.expression(argument))
-                .unwrap()
-                .span();
-            match self.plan() {
-                Ok(plan) => panic!(
-                    "unsupported callback at {expected:?} was accepted as {} source instances",
-                    plan.instances().len()
-                ),
-                Err(error) => {
-                    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-                    assert_eq!(error.span, Some(expected));
-                }
-            }
         }
     }
 
@@ -455,59 +419,6 @@ pub(in crate::ssa) mod callable_plan_tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn single_callable_plan_deferred_named_operand_cannot_supply_callback_abi() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun identity(index: Int): Int = index\n\
-             fun entry(): Unit {{ val annotated: (Int)->Int = identity\nhelper(annotated) }}"
-        ));
-        assert!(matches!(
-            fixture
-                .typed
-                .symbol_type(fixture.symbol("annotated"))
-                .and_then(|ty| fixture.typed.types().get(ty)),
-            Some(TypeKind::Function { .. })
-        ));
-        assert!(matches!(
-            fixture
-                .typed
-                .expression_type(fixture.expression("identity"))
-                .and_then(|ty| fixture.typed.types().get(ty)),
-            Some(TypeKind::Deferred(_))
-        ));
-        assert!(
-            fixture
-                .owned
-                .callable_origin(fixture.expression("annotated"))
-                .is_none()
-        );
-        fixture.assert_unsupported("annotated");
-    }
-
-    #[test]
-    fn single_callable_plan_unknown_cfg_origin_is_rejected_at_argument() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun entry(flag: Boolean): Unit {{\n\
-             val first: (Int)->Int = {{ index -> index }}\n\
-             val second: (Int)->Int = {{ index -> index + 1 }}\n\
-             val selected: (Int)->Int = if(flag) {{ first }} else {{ second }}\nhelper(selected) }}"
-        ));
-        assert!(matches!(
-            fixture
-                .typed
-                .expression_type(fixture.expression("selected"))
-                .and_then(|ty| fixture.typed.types().get(ty)),
-            Some(TypeKind::Function { .. })
-        ));
-        assert!(
-            fixture
-                .owned
-                .callable_origin(fixture.expression("selected"))
-                .is_none()
-        );
-        fixture.assert_unsupported("selected");
     }
 
     #[test]
