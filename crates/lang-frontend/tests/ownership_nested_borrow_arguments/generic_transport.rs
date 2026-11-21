@@ -14,11 +14,36 @@ pub(super) fn assert_transport(text: &str, lender_name: &str, lender_parameter: 
         lender_parameter,
         "observe",
         "item: String",
+        Cleanup::Move,
     );
 }
 
+pub(super) fn assert_root_drop_transport(text: &str, lender_name: &str, lender_parameter: &str) {
+    assert_call_transport(
+        text,
+        lender_name,
+        lender_parameter,
+        "observe",
+        "item: String",
+        Cleanup::DropAtReturn,
+    );
+}
+
+#[derive(Clone, Copy)]
+enum Cleanup {
+    Move,
+    DropAtReturn,
+}
+
 pub(super) fn assert_scalar_transport(text: &str) {
-    assert_call_transport(text, "view", "source: String", "measure", "source: String");
+    assert_call_transport(
+        text,
+        "view",
+        "source: String",
+        "measure",
+        "source: String",
+        Cleanup::Move,
+    );
 }
 
 fn assert_call_transport(
@@ -27,6 +52,7 @@ fn assert_call_transport(
     lender_parameter: &str,
     consumer_name: &str,
     consumer_parameter: &str,
+    cleanup: Cleanup,
 ) {
     let checked = super::unit_checked(text);
     let source = checked.parsed.source_id();
@@ -127,9 +153,7 @@ fn assert_call_transport(
         );
         assert_eq!(usage.end_point(), transport.point());
         assert!(unit.direct_call_loan_ends().is_empty());
-        if lender_name == "field" {
-            // At the calling boundary both Shared loans lock the Record root:
-            // the callee's interior String projection must be checked in SSA.
+        if matches!(cleanup, Cleanup::DropAtReturn) {
             assert!(unit.value_deliveries().is_empty());
             let drops: Vec<_> = unit
                 .drops()
@@ -137,9 +161,10 @@ fn assert_call_transport(
                 .filter(|fact| fact.target() == UnitDropTarget::Named(root.root()))
                 .collect();
             let [drop] = drops.as_slice() else {
-                panic!("the Record owner is released exactly once");
+                panic!("the named owner is released exactly once");
             };
             assert_eq!(drop.point(), transport.point());
+            assert!(!drop.is_conditional_temporary());
             assert_eq!(drop.value_origin(), symbol.span());
             assert!(
                 unit.drops()

@@ -21948,3 +21948,11 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit FE 核实际 `measure` consumer、同根 Shared child→lender 终止顺序及后续 Move。真实 Unit SSA 分别验证 `measure` 的 ABI 接收实际 child，原函数返回同一真实 Int 常量 1（signed 32-bit），caller 有独立 scalar Value；两条实际借用在原调用端点结束后才交付同一个 owner ValueId，Drop 只在 consume 被调方。
 - 两布局的原 LLVM 均直接链接执行并保持无输出；不把“无输出”用作标量证明。测试另在该 LLVM 中匹配唯一已生成的 `measure` 调用，给原 i32 结果增加一个 C 观察者；不新建 `measure` 调用，不替换 return，也不改 Koven 源码。两布局的观察执行均验证实际值是 1 并精确输出一次 `measure=1\n`。这不是静态 String 字面量内存分配证据。
 - Mac 前端 21 项、codegen 定点 5 项，fmt、diff、docs 及相对 main 的 Rust size guard 通过。未改生产/API/CI、未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：普通具名根在同步借用的外层返回处自行 Drop
+
+- 基于 `aefa8833`，该父提交的五个原混合组回归在 Linux AMD64 Rust 1.96.0 / LLVM 21.1.8 已实际跑过：前端 21/21、SSA/native 5/5，均为默认 feature。不是本片的 Linux 验证。
+- 精确迁移旧 `existing_parent_survives_call_and_memory_owner_drops_at_outer_return` 的第二个原子项 `observe(view(source))`（无 `consume`）；原 194 字节重建等同。原 Single 和 Unit 布局先实跑，另一个无 consume 的 parent 子项保留原 FQN 和断言，不用前片有 consume 的 parent 代替。
+- 双 Unit FE 证同一原具名 String 根、实际 child→lender 的终止顺序、外层 observe 返回处唯一非临时 Named Drop，且无 Move 或临时 Drop；这不是字段投影或被调方回收。实际 Unit SSA 强化：两实际 loan IDs 依次结束，原 String owner 的同一 ValueId 在 caller 被 Drop；随后才返回。SSA Drop 的源位置归属原局部声明。
+- 两布局原样 LLVM native 均输出 `kept\n`。另在唯一既有逻辑 drop 调用之后加入独立测试观察者，验证真实顺序 `kept\ndrop\n`；不改变原 Koven 源码，也不把静态字面量的逻辑 Drop 误报为 heap 释放。
+- Mac 前端 22 项、codegen 定点 6 项，fmt/diff/docs 与相对 main 的 Rust size guard 通过；未改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。

@@ -30,16 +30,26 @@ fn original_wrapper_synchronous_borrow_forwards_before_moving_the_original_owner
     assert_original_transport(text, Lender::Wrapper);
 }
 
+#[test]
+fn original_named_root_drops_only_after_the_outer_observer_returns() {
+    let text = include_str!(
+        "../../../lang-frontend/tests/ownership_nested_borrow_arguments/fixtures/root-drop-transport.ko"
+    );
+    assert_original_transport(text, Lender::DirectDrop);
+}
+
 #[derive(Clone, Copy)]
 enum Lender {
     Generic,
     Wrapper,
+    DirectDrop,
 }
 
 fn assert_original_transport(text: &str, lender_kind: Lender) {
     let (call_text, declaration_prefix) = match lender_kind {
         Lender::Generic => ("genericView(source)", "fun <T> genericView("),
         Lender::Wrapper => ("wrap(source)", "fun wrap("),
+        Lender::DirectDrop => ("view(source)", "fun view("),
     };
     let path = "nested_borrow.ko";
     let mut sources = SourceMap::new();
@@ -93,7 +103,7 @@ fn assert_original_transport(text: &str, lender_kind: Lender) {
             observe,
             end_child,
             end_lender,
-            consume,
+            finish,
         ] = caller.instructions.as_slice()
         else {
             panic!("exact caller actions")
@@ -155,7 +165,7 @@ fn assert_original_transport(text: &str, lender_kind: Lender) {
             }
         );
         let forwarded = match lender_kind {
-            Lender::Generic => {
+            Lender::Generic | Lender::DirectDrop => {
                 assert!(actual.instructions.is_empty());
                 *argument
             }
@@ -235,34 +245,72 @@ fn assert_original_transport(text: &str, lender_kind: Lender) {
         }
         assert_eq!(end_child.operation, Operation::BorrowEnd { loan: *child });
         assert_eq!(end_lender.operation, Operation::BorrowEnd { loan: *lender });
-        let Operation::DirectCall {
-            callee: consumer,
-            arguments,
-            receiver: None,
-        } = &consume.operation
-        else {
-            panic!("subsequent own delivery")
-        };
-        assert_eq!(sources.slice(consume.origin.span()), Ok("consume(source)"));
-        assert_eq!(arguments.as_slice(), [EntityId::Value(*owner)]);
-        let consumer = module.function(*consumer).unwrap();
-        assert!(
-            sources
-                .slice(consumer.origin.span())
-                .unwrap()
-                .starts_with("fun consume(")
-        );
-        let consume_entry = consumer.block(consumer.entry_block().unwrap()).unwrap();
-        let [EntityId::Value(received)] = consume_entry.parameters.as_slice() else {
-            panic!("real own parameter")
-        };
-        let [drop] = consumer.instructions.as_slice() else {
-            panic!("one retirement of transferred owner")
-        };
-        assert_eq!(drop.operation, Operation::Drop { owner: *received });
+        if matches!(lender_kind, Lender::DirectDrop) {
+            assert_eq!(finish.operation, Operation::Drop { owner: *owner });
+            assert_eq!(sources.slice(finish.origin.span()), Ok("source"));
+            assert_eq!(
+                finish.origin.span().start(),
+                text.find("val source").unwrap() + "val ".len()
+            );
+        } else {
+            let Operation::DirectCall {
+                callee: consumer,
+                arguments,
+                receiver: None,
+            } = &finish.operation
+            else {
+                panic!("subsequent own delivery")
+            };
+            assert_eq!(sources.slice(finish.origin.span()), Ok("consume(source)"));
+            assert_eq!(arguments.as_slice(), [EntityId::Value(*owner)]);
+            let consumer = module.function(*consumer).unwrap();
+            assert!(
+                sources
+                    .slice(consumer.origin.span())
+                    .unwrap()
+                    .starts_with("fun consume(")
+            );
+            let consume_entry = consumer.block(consumer.entry_block().unwrap()).unwrap();
+            let [EntityId::Value(received)] = consume_entry.parameters.as_slice() else {
+                panic!("real own parameter")
+            };
+            let [drop] = consumer.instructions.as_slice() else {
+                panic!("one retirement of transferred owner")
+            };
+            assert_eq!(drop.operation, Operation::Drop { owner: *received });
+        }
         assert!(matches!(&block.terminator.as_ref().unwrap().kind,
             TerminatorKind::Return { values } if values.is_empty()));
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
         super::unit_field_replace_tests::link_and_run(&llvm, "", b"kept\n");
+        if matches!(lender_kind, Lender::DirectDrop) {
+            watch_native_caller_cleanup(&llvm, owner_type.index());
+        }
     }
+}
+
+fn watch_native_caller_cleanup(llvm: &str, owner_type: usize) {
+    let marker = format!("call void @koven.drop.t{owner_type}(");
+    let mut observed = String::with_capacity(llvm.len() + 100);
+    let mut drops = 0;
+    for line in llvm.lines() {
+        observed.push_str(line);
+        observed.push('\n');
+        if line.trim().starts_with(&marker) {
+            observed.push_str("  call void @koven_test_watch_root_drop()\n");
+            drops += 1;
+        }
+    }
+    assert_eq!(drops, 1, "one emitted logical caller drop call");
+    observed.push_str("\ndeclare void @koven_test_watch_root_drop()\n");
+    // A static literal has no heap address to free. Observe only the original
+    // logical drop call completing, after the actual observe call prints.
+    super::unit_field_replace_tests::link_and_run(
+        &observed,
+        r#"
+#include <stdio.h>
+void koven_test_watch_root_drop(void) { puts("drop"); }
+"#,
+        b"kept\ndrop\n",
+    );
 }
