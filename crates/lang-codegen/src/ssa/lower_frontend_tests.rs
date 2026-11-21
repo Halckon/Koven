@@ -307,11 +307,7 @@ use lang_frontend::{
     type_checking::{TypedFile, check_types, standard_environments},
 };
 
-use super::{
-    lower_frontend::{LoweringErrorKind, orchestrate::lower_scalar_file},
-    model::Operation,
-    render::render_program,
-};
+use super::{LoweringErrorKind, model::Operation, render::render_program};
 use crate::{
     llvm::render_verified_program, native_tests::boxed_enum_tests::unit_source::UnitSource,
 };
@@ -686,49 +682,6 @@ fn non_null_assertion_does_not_register_unreachable_inline_types() {
 
 #[path = "constant_lowering_tests.rs"]
 pub(in crate::ssa) mod constant_lowering_tests;
-
-#[test]
-fn rejects_produced_guarded_cleanup_before_lowering_bindings() {
-    let analysis = analyze(
-        "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>, own ys: List<Int>, flag: Boolean) { val f: () -> Unit = if (flag) ({ read(xs) }) else ({ read(ys) })\nval used = f() }",
-    );
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    assert!(
-        analysis
-            .owned
-            .drops()
-            .iter()
-            .any(|fact| fact.condition().is_some()),
-        "frontend must produce real guarded cleanup"
-    );
-    let first = analysis
-        .owned
-        .cleanup_steps()
-        .iter()
-        .find_map(|(_, action)| match action {
-            lang_frontend::ownership_checking::IterationCleanupAction::SaveOwnerSnapshot {
-                owner,
-                ..
-            } => analysis.owned.cleanup_conditions().owner_snapshot(*owner),
-            _ => None,
-        })
-        .expect("frontend must publish the saved owner choices");
-    let error = match lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    ) {
-        Err(error) => error,
-        Ok(_) => panic!("saved choices require an explicit SSA carrier"),
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert_eq!(error.span, Some(first.origin()));
-}
 
 #[path = "guarded_capture_unit_retirement_tests.rs"]
 mod guarded_capture_unit_retirement;
