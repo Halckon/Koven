@@ -134,8 +134,8 @@ fn original_elvis_stops_at_the_exact_ordinary_unit_expression() {
     assert_eq!(unit.sources().slice(origin), Ok("input ?: 0"));
 }
 
-// Temporary characterization: the frontend contract is checked in both cases;
-// the real Unit backend outcome must be observed before choosing the final oracle.
+// Single rejected both calls. Unit lowers the two exact source members;
+// the spelling `inv` must not change target selection or produce an intrinsic.
 #[test]
 fn original_ordinary_and_inv_are_source_members_not_integer_intrinsics() {
     for method in ["ordinary", "inv"] {
@@ -160,54 +160,40 @@ fn original_ordinary_and_inv_are_source_members_not_integer_intrinsics() {
             .unwrap();
         assert_eq!(declaration.name(), method);
         let entry = unit.declaration("entry", SymbolKind::Function);
-        match unit.lower_entry(entry) {
-            Err(error) => {
-                assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-                let origin = error.span.expect("real backend rejection location");
-                assert_eq!(origin.source_id(), unit.parsed().source_id());
-                eprintln!(
-                    "{method}: Unit rejected at {:?}",
-                    unit.sources().slice(origin)
-                );
-            }
-            Ok((program, entry)) => {
-                verify_program(&program).unwrap();
-                render_verified_program(&program).unwrap();
-                let module = program.module(entry.module()).unwrap();
-                let function = module.function(entry).unwrap();
-                assert!(!function.instructions.iter().any(|instruction| {
-                    matches!(
-                        instruction.operation,
-                        Operation::IntegerNot { .. } | Operation::IntegerBitwise { .. }
-                    )
-                }));
-                let calls = function
-                    .instructions
-                    .iter()
-                    .filter_map(|instruction| match instruction.operation {
-                        Operation::DirectCall {
-                            callee,
-                            receiver: Some(_),
-                            ..
-                        } => Some(callee),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                let [target] = calls.as_slice() else {
-                    panic!("one actual method call");
-                };
-                let member = module.function(*target).unwrap();
-                assert!(
-                    unit.sources()
-                        .slice(member.origin.span())
-                        .unwrap()
-                        .contains(&format!("fun {method}()"))
-                );
-                eprintln!(
-                    "{method}: Unit calls the selected source member {}",
-                    member.name
-                );
-            }
-        }
+        let (program, entry) = unit
+            .lower_entry(entry)
+            .expect("the exact source member call lowers through Unit");
+        verify_program(&program).unwrap();
+        render_verified_program(&program).unwrap();
+        let module = program.module(entry.module()).unwrap();
+        let function = module.function(entry).unwrap();
+        assert!(!function.instructions.iter().any(|instruction| {
+            matches!(
+                instruction.operation,
+                Operation::IntegerNot { .. } | Operation::IntegerBitwise { .. }
+            )
+        }));
+        let calls = function
+            .instructions
+            .iter()
+            .filter_map(|instruction| match instruction.operation {
+                Operation::DirectCall {
+                    callee,
+                    receiver: Some(_),
+                    ..
+                } => Some(callee),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [target] = calls.as_slice() else {
+            panic!("one actual method call");
+        };
+        let member = module.function(*target).unwrap();
+        assert!(
+            unit.sources()
+                .slice(member.origin.span())
+                .unwrap()
+                .contains(&format!("fun {method}()"))
+        );
     }
 }

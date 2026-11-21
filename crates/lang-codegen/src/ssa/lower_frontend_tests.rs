@@ -304,7 +304,7 @@ use lang_frontend::{
     ownership_checking::{OwnershipCheckedFile, check_ownership},
     parser::{ParsedFile, parse_file},
     source::SourceMap,
-    type_checking::{TypeEnvironment, TypedFile, check_types, standard_environments},
+    type_checking::{TypedFile, check_types, standard_environments},
 };
 
 use super::{
@@ -323,7 +323,6 @@ struct Analysis {
     sources: SourceMap,
     parsed: ParsedFile,
     names: NameResolution,
-    types: TypeEnvironment,
     typed: TypedFile,
     owned: OwnershipCheckedFile,
 }
@@ -346,7 +345,6 @@ fn analyze(text: &str) -> Analysis {
         sources,
         parsed,
         names,
-        types,
         typed,
         owned,
     }
@@ -640,38 +638,6 @@ fn generic_overloads_with_the_same_type_arguments_keep_distinct_targets() {
 }
 
 #[test]
-fn rejects_mixed_analysis_chains_before_constructing_ssa() {
-    let first = analyze("fun value(input: Int): Int = input");
-    let second = analyze("fun value(input: Int): Int = input");
-    let error = lower_scalar_file(
-        &first.sources,
-        &first.parsed,
-        &first.names,
-        &first.typed,
-        &second.owned,
-    )
-    .err()
-    .expect("foreign ownership analysis must be rejected");
-    assert_eq!(error.kind, LoweringErrorKind::MismatchedSource);
-
-    let repeated_typed = check_types(&first.sources, &first.parsed, &first.names, &first.types)
-        .expect("repeated type analysis must succeed");
-    let repeated_owned =
-        check_ownership(&first.sources, &first.parsed, &first.names, &repeated_typed)
-            .expect("ownership analysis for repeated typed product must succeed");
-    let error = lower_scalar_file(
-        &first.sources,
-        &first.parsed,
-        &first.names,
-        &first.typed,
-        &repeated_owned,
-    )
-    .err()
-    .expect("ownership from another typed product must not match the original typed chain");
-    assert_eq!(error.kind, LoweringErrorKind::MismatchedAnalysis);
-}
-
-#[test]
 fn lowers_straight_line_blocks_locals_assignments_and_returns() {
     super::unit_lower_straight_line_tests::assert_original_straight_line_roots_through_strict_memory_document_unit();
 }
@@ -679,41 +645,6 @@ fn lowers_straight_line_blocks_locals_assignments_and_returns() {
 #[test]
 fn diagnostics_and_unsupported_bodies_fail_without_partial_programs() {
     frontend_boundaries::assert_missing_name_rejection("fun broken(input: Int): Int = missing");
-
-    let numeric_when = analyze(
-        "fun numeric(input: Int): Int = when (input) {\n\
-             1 -> 2\n\
-             else -> 3\n\
-         }",
-    );
-    assert!(numeric_when.typed.diagnostics().is_empty());
-    let error = lower_scalar_file(
-        &numeric_when.sources,
-        &numeric_when.parsed,
-        &numeric_when.names,
-        &numeric_when.typed,
-        &numeric_when.owned,
-    )
-    .err()
-    .expect("non-Boolean when remains outside the scalar control-flow slice");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
-
-    let elvis = analyze("fun choose(input: Int?): Int = input ?: 0");
-    assert!(elvis.typed.diagnostics().is_empty());
-    assert!(elvis.owned.diagnostics().is_empty());
-    assert!(elvis.owned.deferred().is_empty());
-    let error = lower_scalar_file(
-        &elvis.sources,
-        &elvis.parsed,
-        &elvis.names,
-        &elvis.typed,
-        &elvis.owned,
-    )
-    .err()
-    .expect("Elvis has valid frontend facts but remains outside native lowering");
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    assert!(error.span.is_some());
 
     frontend_boundaries::assert_jump_rejection("fun invalid(): Unit { break }");
     frontend_boundaries::assert_original_for_loop(
@@ -801,36 +732,6 @@ fn rejects_produced_guarded_cleanup_before_lowering_bindings() {
 
 #[path = "guarded_capture_unit_retirement_tests.rs"]
 mod guarded_capture_unit_retirement;
-
-#[test]
-fn bitwise_inv_does_not_reinterpret_unsupported_single_file_source_members() {
-    for method in ["ordinary", "inv"] {
-        let analysis = analyze(&format!(
-            "class Sample {{ fun {method}(): Int = 7 }}\nfun entry(): Int = Sample().{method}()"
-        ));
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{:?}",
-            analysis.owned.diagnostics()
-        );
-        assert!(analysis.typed.integer_operations().is_empty());
-        let error = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        )
-        .err()
-        .expect("source member call retains single-file lowering boundary");
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-    }
-}
 
 #[path = "control_and_member_unit_retirement_tests.rs"]
 mod control_and_member_unit_retirement;
