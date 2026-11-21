@@ -25,6 +25,17 @@ const ENVIRONMENTS: &str = "fun leaf(callback: (Int)->Boolean): Unit {}\n\
              leaf({ index -> label == \"shared\" && index == 0 })\n\
              leaf(move { index -> taken == \"owned\" && index == 0 }) }";
 
+const NAMED_ENVIRONMENTS: &str = "fun helper(callback: (Int)->Boolean): Unit {}\n\
+             fun entry(sharedLabel: String, own ownedLabel: String): Unit {\n\
+             val pointer: (Int)->Boolean = { index -> index == 0 }\n\
+             val shared: (Int)->Boolean = { index -> sharedLabel == \"shared\" && index == 0 }\n\
+             val ownedCallback: (Int)->Boolean = move { index -> ownedLabel == \"owned\" && index == 0 }\n\
+             helper(pointer)\nhelper(shared)\nhelper(ownedCallback)\n }";
+
+const SAME_ROOT_FACTORY: &str = "fun helper(callback: (Int)->Int): Unit {}\nfun entry(): Unit { val first = factory()\n\
+             val alias = (first)\nhelper(alias)\nval second = factory()\nhelper(second) }\n\
+             fun factory(): (Int)->Int = ({ index -> index })";
+
 type Inspect = fn(
     &SourceMap,
     &ParsedFile,
@@ -472,4 +483,165 @@ fn original_three_capture_modes_keep_distinct_operands_and_one_borrow_callee() {
             );
         }
     });
+}
+
+#[test]
+fn original_named_three_environments_keep_one_fn_type_and_distinct_operands() {
+    with_original(
+        NAMED_ENVIRONMENTS,
+        |sources, file, names, typed, owned, plan| {
+            let target = |name| UnitCallableTarget::Declaration(declaration(names, name));
+            let entry = plan
+                .iter()
+                .find(|item| item.key().target() == target("entry"))
+                .unwrap();
+            let mut helpers = plan
+                .iter()
+                .filter(|item| item.key().target() == target("helper"));
+            let helper = helpers.next().expect("real borrowed callee");
+            assert!(
+                helpers.next().is_none(),
+                "ADR-0034: one Borrow callback ABI"
+            );
+            let callables = plan.callable_plan();
+            let mut tokens = BTreeSet::new();
+            let mut types = BTreeSet::new();
+            for (text, capture_mode) in [
+                ("helper(pointer)", None),
+                ("helper(shared)", Some(ClosureCaptureMode::Shared)),
+                ("helper(ownedCallback)", Some(ClosureCaptureMode::Owned)),
+            ] {
+                let call = call_at(sources, file, typed, text);
+                let route = callables
+                    .call_site(entry.source_token(), call.expression())
+                    .unwrap();
+                assert_eq!(route.key(), helper.key());
+                assert!(route.key().callable_arguments().is_empty());
+                let [(slot, operand)]: [_; 1] =
+                    function_operands(file, typed, call).try_into().unwrap();
+                assert_eq!(slot, 0);
+                types.insert(
+                    typed
+                        .types()
+                        .expression_type(operand)
+                        .expect("actual Fn operand type"),
+                );
+                let UnitCallableOrigin::Lambda(expression) =
+                    owned.ownership().callable_origin(operand).unwrap().origin()
+                else {
+                    panic!("{text} must preserve its bound lambda origin");
+                };
+                assert_eq!(
+                    owned
+                        .ownership()
+                        .captures_of(expression)
+                        .map(|capture| capture.mode())
+                        .collect::<Vec<_>>(),
+                    capture_mode.into_iter().collect::<Vec<_>>()
+                );
+                let token = callables
+                    .borrowed_argument(entry.source_token(), operand)
+                    .unwrap();
+                assert!(
+                    tokens.insert(token),
+                    "{text} retains its own callable token"
+                );
+                assert_eq!(
+                    callables.callable(token),
+                    Some(&CallableKey::Lambda {
+                        owner: entry.source_token(),
+                        expression,
+                    })
+                );
+            }
+            assert_eq!(
+                types.len(),
+                1,
+                "one static Fn type does not erase environment identity"
+            );
+        },
+    );
+}
+
+#[test]
+fn original_same_root_factory_calls_are_distinct_but_share_one_memo() {
+    with_original(
+        SAME_ROOT_FACTORY,
+        |sources, file, names, typed, owned, plan| {
+            let target = |name| UnitCallableTarget::Declaration(declaration(names, name));
+            let selected = |name| {
+                let mut instances = plan
+                    .iter()
+                    .filter(|item| item.key().target() == target(name));
+                let instance = instances.next().unwrap();
+                assert!(
+                    instances.next().is_none(),
+                    "one planned source instance for {name}"
+                );
+                instance
+            };
+            let entry = selected("entry");
+            let helper = selected("helper");
+            let factory = selected("factory");
+            let callables = plan.callable_plan();
+            let memo = callables.callable_return(factory.source_token()).unwrap();
+            let summary = owned
+                .ownership()
+                .pointer_callable_return(target("factory"))
+                .unwrap();
+            assert_eq!(memo.function_type(), summary.function_type());
+            let UnitPointerCallableReturnOrigin::Lambda(expression) = summary.origin() else {
+                panic!("actual factory lambda");
+            };
+            assert_eq!(owned.ownership().captures_of(expression).count(), 0);
+            assert_eq!(
+                callables.callable(memo.callable()),
+                Some(&CallableKey::Lambda {
+                    owner: factory.source_token(),
+                    expression,
+                })
+            );
+
+            let operands = ["helper(alias)", "helper(second)"].map(|text| {
+                let call = call_at(sources, file, typed, text);
+                let route = callables
+                    .call_site(entry.source_token(), call.expression())
+                    .unwrap();
+                assert_eq!(route.key(), helper.key());
+                assert!(route.key().callable_arguments().is_empty());
+                let [(slot, operand)]: [_; 1] =
+                    function_operands(file, typed, call).try_into().unwrap();
+                assert_eq!(slot, 0);
+                let UnitCallableOrigin::FactoryResult(origin) =
+                    owned.ownership().callable_origin(operand).unwrap().origin()
+                else {
+                    panic!("{text} must keep its original factory evaluation");
+                };
+                let factory_call = typed
+                    .types()
+                    .call(origin)
+                    .expect("actual typed factory call");
+                assert_eq!(
+                    factory_call.target(),
+                    UnitCallTarget::Declaration(declaration(names, "factory"))
+                );
+                assert_eq!(
+                    callables
+                        .call_site(entry.source_token(), origin)
+                        .unwrap()
+                        .key(),
+                    factory.key()
+                );
+                assert_eq!(
+                    callables.borrowed_argument(entry.source_token(), operand),
+                    Some(memo.callable())
+                );
+                origin
+            });
+            assert_ne!(
+                operands[0], operands[1],
+                "do not merge the two real factory evaluations"
+            );
+        },
+    );
 }

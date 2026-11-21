@@ -311,53 +311,6 @@ pub(in crate::ssa) mod callable_plan_tests {
 
     const HELPER: &str = "fun helper(callback: (Int)->Int): Unit {}\n";
 
-    #[test]
-    fn single_callable_plan_three_environments_keep_three_complete_helper_keys() {
-        let fixture = Fixture::analyze(
-            "fun helper(callback: (Int)->Boolean): Unit {}\n\
-             fun entry(sharedLabel: String, own ownedLabel: String): Unit {\n\
-             val pointer: (Int)->Boolean = { index -> index == 0 }\n\
-             val shared: (Int)->Boolean = { index -> sharedLabel == \"shared\" && index == 0 }\n\
-             val ownedCallback: (Int)->Boolean = move { index -> ownedLabel == \"owned\" && index == 0 }\n\
-             helper(pointer)\nhelper(shared)\nhelper(ownedCallback)\n }",
-        );
-        let lambdas = fixture.lambdas();
-        assert_eq!(lambdas.len(), 3);
-        for (lambda, expected) in lambdas.iter().zip([
-            None,
-            Some(ClosureCaptureMode::Shared),
-            Some(ClosureCaptureMode::Owned),
-        ]) {
-            let modes = fixture
-                .owned
-                .captures_of(*lambda)
-                .map(|capture| capture.mode())
-                .collect::<Vec<_>>();
-            assert_eq!(modes, expected.into_iter().collect::<Vec<_>>());
-        }
-        let mut types = BTreeSet::new();
-        for (name, lambda) in ["pointer", "shared", "ownedCallback"]
-            .into_iter()
-            .zip(lambdas)
-        {
-            let expression = fixture.expression(name);
-            assert_eq!(
-                fixture.owned.callable_origin(expression).unwrap().origin(),
-                CallableOrigin::Lambda(lambda)
-            );
-            types.insert(fixture.typed.expression_type(expression).unwrap());
-        }
-        assert_eq!(
-            types.len(),
-            1,
-            "one static Fn type must not merge three environments"
-        );
-        let plan = fixture
-            .plan()
-            .expect("all three concrete callback origins are supported");
-        fixture.assert_count(&plan, "helper", 3);
-    }
-
     fn alias_source() -> String {
         format!(
             "{HELPER}fun entry(): Unit {{ val original: (Int)->Int = {{ index -> index }}\n\
@@ -625,43 +578,6 @@ pub(in crate::ssa) mod callable_plan_tests {
                 .is_none()
         );
         fixture.assert_unsupported("selected");
-    }
-
-    #[test]
-    fn single_callable_plan_pointer_factory_result_reuses_factory_owned_origin() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun entry(): Unit {{ val first = factory()\n\
-             val alias = (first)\nhelper(alias)\nval second = factory()\nhelper(second) }}\n\
-             fun factory(): (Int)->Int = ({{ index -> index }})"
-        ));
-        let summary = fixture
-            .owned
-            .pointer_callable_return(fixture.symbol("factory"))
-            .unwrap();
-        assert_eq!(
-            summary.origin(),
-            PointerCallableReturnOrigin::Lambda(fixture.lambdas()[0])
-        );
-        let mut results = BTreeSet::new();
-        for text in ["alias", "second"] {
-            let CallableOrigin::FactoryResult(call) = fixture
-                .owned
-                .callable_origin(fixture.expression(text))
-                .unwrap()
-                .origin()
-            else {
-                panic!("validated pointer factory origin");
-            };
-            results.insert(call.index());
-        }
-        assert_eq!(
-            results.len(),
-            2,
-            "two actual calls still share one factory return source"
-        );
-        let plan = fixture.plan().unwrap();
-        fixture.assert_count(&plan, "factory", 1);
-        fixture.assert_count(&plan, "helper", 1);
     }
 
     #[test]
