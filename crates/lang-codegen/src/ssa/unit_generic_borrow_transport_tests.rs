@@ -1,6 +1,7 @@
 //! Exact synchronous borrow results: child and lender retire before Move or owner cleanup.
 mod field;
 mod parent;
+mod scalar;
 use lang_frontend::{
     name_resolution::{SourceUnitInput, SourceUnitKey},
     source::SourceMap,

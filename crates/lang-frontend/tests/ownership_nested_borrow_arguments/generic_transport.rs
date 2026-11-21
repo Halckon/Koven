@@ -8,6 +8,26 @@ use lang_frontend::{
 };
 
 pub(super) fn assert_transport(text: &str, lender_name: &str, lender_parameter: &str) {
+    assert_call_transport(
+        text,
+        lender_name,
+        lender_parameter,
+        "observe",
+        "item: String",
+    );
+}
+
+pub(super) fn assert_scalar_transport(text: &str) {
+    assert_call_transport(text, "view", "source: String", "measure", "source: String");
+}
+
+fn assert_call_transport(
+    text: &str,
+    lender_name: &str,
+    lender_parameter: &str,
+    consumer_name: &str,
+    consumer_parameter: &str,
+) {
     let checked = super::unit_checked(text);
     let source = checked.parsed.source_id();
     assert_eq!(checked.sources.source_text(source), Ok(text));
@@ -42,7 +62,7 @@ pub(super) fn assert_transport(text: &str, lender_name: &str, lender_parameter: 
         assert_eq!(token(lender.argument()), "source");
         assert_eq!(
             token(consumer.call()),
-            format!("observe({lender_name}(source))")
+            format!("{consumer_name}({lender_name}(source))")
         );
         assert_eq!(consumer.argument(), lender.call());
         assert_eq!(
@@ -77,7 +97,7 @@ pub(super) fn assert_transport(text: &str, lender_name: &str, lender_parameter: 
         );
         assert_eq!(
             checked.sources.slice(consumer.parameter_span().unwrap()),
-            Ok("item: String")
+            Ok(consumer_parameter)
         );
         for loan in [consumer, lender] {
             assert_eq!(loan.kind(), LoanKind::Shared);

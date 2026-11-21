@@ -441,14 +441,10 @@ fn field_borrow_ends_before_releasing_the_exact_record_owner() {
 }
 
 #[test]
-fn generic_field_wrapper_and_existing_parent_sources_keep_their_identity() {
-    for rooted in [false, true] {
-        for body in [
-            "fun measure(source: String): Int = 1\nfun run() { val source = \"kept\"; val count = measure(view(source)); consume(source) }",
-        ] {
-            assert_accepted(&ordinary_entry(body, rooted));
-        }
-    }
+fn scalar_synchronous_borrow_ends_before_moving_the_original_owner() {
+    generic_transport::assert_scalar_transport(include_str!(
+        "ownership_nested_borrow_arguments/fixtures/scalar-transport.ko"
+    ));
 }
 
 #[test]

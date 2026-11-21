@@ -21941,3 +21941,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit FE 固定同一具名源、实际 parent 绑定和同步使用的来源，绑定直到原 `println(parent)` statement 之后才结束，此后有同根实际 Move 而无 caller/temporary Drop。该形状的前端不会产出平面的 `borrow_call_transports`，不以空表声称证明 child 的结束；另核实实际 SSA。
 - 双布局 Unit SSA 证明实际 Shared 根借用经原 `view` 成为持续 parent，再从同一 parent 借出新的 child；observe 只使用并结束 child，println 仍使用同一 parent loan，随后依次结束 parent/root，原 ValueId 才交给 `consume` 的 own 参数且仅被调方执行 SSA Drop。双布局由真实 LLVM 链接执行为 `kept\nkept\n`；原静态字面量不主张 heap 分配证据。
 - Mac 前端 21 项、codegen 定点 4 项，fmt、diff、docs 及相对 main 的 Rust size guard 通过。代码、CI、公开 API 的生产行为不变，未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原标量同步调用的返回值与 owner 后续移动
+
+- 基于 `d5a4e475`。只迁旧混合组最后一个 `val count = measure(view(source)); consume(source)` 子项，原前置声明、未使用局部及原源码 260 字节完全相同；两布局原 Single 独立 loan-end oracle 先实跑通过。移除的是该空下来的混合组入口，未移除邻近无 consume 的 parent 见证或其他 Single 合同。
+- 双 Unit FE 核实际 `measure` consumer、同根 Shared child→lender 终止顺序及后续 Move。真实 Unit SSA 分别验证 `measure` 的 ABI 接收实际 child，原函数返回同一真实 Int 常量 1（signed 32-bit），caller 有独立 scalar Value；两条实际借用在原调用端点结束后才交付同一个 owner ValueId，Drop 只在 consume 被调方。
+- 两布局的原 LLVM 均直接链接执行并保持无输出；不把“无输出”用作标量证明。测试另在该 LLVM 中匹配唯一已生成的 `measure` 调用，给原 i32 结果增加一个 C 观察者；不新建 `measure` 调用，不替换 return，也不改 Koven 源码。两布局的观察执行均验证实际值是 1 并精确输出一次 `measure=1\n`。这不是静态 String 字面量内存分配证据。
+- Mac 前端 21 项、codegen 定点 5 项，fmt、diff、docs 及相对 main 的 Rust size guard 通过。未改生产/API/CI、未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。
