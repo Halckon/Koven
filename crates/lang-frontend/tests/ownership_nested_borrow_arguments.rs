@@ -430,10 +430,18 @@ fn wrapper_synchronous_borrow_has_the_exact_unit_transport() {
 }
 
 #[test]
+fn field_borrow_ends_before_releasing_the_exact_record_owner() {
+    generic_transport::assert_transport(
+        include_str!("ownership_nested_borrow_arguments/fixtures/field-transport.ko"),
+        "field",
+        "source: Record",
+    );
+}
+
+#[test]
 fn generic_field_wrapper_and_existing_parent_sources_keep_their_identity() {
     for rooted in [false, true] {
         for body in [
-            "class Record(val text: String)\nfun field(source: Record): borrow String from source = source.text\nfun run() { val source = Record(\"kept\"); observe(field(source)) }",
             "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent); consume(source) }",
             "fun measure(source: String): Int = 1\nfun run() { val source = \"kept\"; val count = measure(view(source)); consume(source) }",
         ] {

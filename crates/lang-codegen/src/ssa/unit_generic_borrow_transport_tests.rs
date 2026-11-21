@@ -1,4 +1,5 @@
-//! Exact synchronous borrow-result fixtures: child and lender retire before the later move.
+//! Exact synchronous borrow results: child and lender retire before Move or owner cleanup.
+mod field;
 use lang_frontend::{
     name_resolution::{SourceUnitInput, SourceUnitKey},
     source::SourceMap,

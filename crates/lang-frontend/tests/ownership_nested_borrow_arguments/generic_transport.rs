@@ -107,21 +107,42 @@ pub(super) fn assert_transport(text: &str, lender_name: &str, lender_parameter: 
         );
         assert_eq!(usage.end_point(), transport.point());
         assert!(unit.direct_call_loan_ends().is_empty());
-        let [delivery] = unit.value_deliveries() else {
-            panic!("one actual subsequent Move")
-        };
-        assert_eq!(token(delivery.call()), "consume(source)");
-        assert_eq!(
-            delivery.source(),
-            &UnitValueDeliverySource::Place(root.clone())
-        );
-        assert_eq!(delivery.kind(), UnitValueDeliveryKind::Move);
-        assert!(span(consumer.call()).end() < span(delivery.argument()).start());
-        assert!(unit.drops().iter().all(|fact| !matches!(
-            fact.target(),
-            UnitDropTarget::Temporary(_)
-        ) && fact.target()
-            != UnitDropTarget::Named(root.root())));
+        if lender_name == "field" {
+            // At the calling boundary both Shared loans lock the Record root:
+            // the callee's interior String projection must be checked in SSA.
+            assert!(unit.value_deliveries().is_empty());
+            let drops: Vec<_> = unit
+                .drops()
+                .iter()
+                .filter(|fact| fact.target() == UnitDropTarget::Named(root.root()))
+                .collect();
+            let [drop] = drops.as_slice() else {
+                panic!("the Record owner is released exactly once");
+            };
+            assert_eq!(drop.point(), transport.point());
+            assert_eq!(drop.value_origin(), symbol.span());
+            assert!(
+                unit.drops()
+                    .iter()
+                    .all(|fact| !matches!(fact.target(), UnitDropTarget::Temporary(_)))
+            );
+        } else {
+            let [delivery] = unit.value_deliveries() else {
+                panic!("one actual subsequent Move")
+            };
+            assert_eq!(token(delivery.call()), "consume(source)");
+            assert_eq!(
+                delivery.source(),
+                &UnitValueDeliverySource::Place(root.clone())
+            );
+            assert_eq!(delivery.kind(), UnitValueDeliveryKind::Move);
+            assert!(span(consumer.call()).end() < span(delivery.argument()).start());
+            assert!(unit.drops().iter().all(|fact| !matches!(
+                fact.target(),
+                UnitDropTarget::Temporary(_)
+            ) && fact.target()
+                != UnitDropTarget::Named(root.root())));
+        }
         assert!(unit.clone().validate().is_ok());
     }
 }

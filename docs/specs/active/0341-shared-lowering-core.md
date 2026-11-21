@@ -21927,3 +21927,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `c35de787`。只拆换同一旧混合组中的 `wrap(source)` 子项：真实 `fun wrap(source: String): borrow String from source = view(source)` 与 `observe(wrap(source)); consume(source)` 连同旧前置声明一共 278 字节不变。原 Single 的端点先实跑通过，再迁本条；field、parent、measure 三个旧子项不动。
 - 双 Unit 布局验证真实 source/consumer 共享根、caller handoff/按 child→lender 结束，再发生同根的 own Move。实际 Unit SSA 另追 `wrap` 内自己的 Shared 参数到原 `view` 的 BorrowCall 与返回 child，再返回同一 child；外层 observe 使用实际子借用，两个贷款在原调用结束位置退休，最终同一 ValueId 到 `consume` 且只在该被调方有 SSA Drop。不是用泛型直接返回测试推论 wrapper 链。
 - Mac 原样 native 两布局均 `kept\n`，只证行为和 SSA 所有权，不声称静态字面量在 heap 分配；前端 19/19，codegen 2/2（含前项 generic 复验，两布局）。fmt、diff、docs 和对 main 的 Rust size guard 均通过。保留原验证候选 `3843a810`，未改 production/API/CI、未合 E2、未推送或跑 Docker/Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Record 字段借用的同步运输与释放
+
+- 基于 `0527087a`。只迁旧混合组 `observe(field(source))` 子项；原前置声明、`Record` 定义及 `source.text` 借用返回逐字节保留。两布局的原 Single 独立 loan-end 断言先实跑通过，再迁本项；parent、measure 两个原 Single 子项保持。
+- 双 Unit FE 核同一具名 Record 根、真实 child/lender 的结束顺序及外层 observe 返回处唯一 Named Drop，无临时 Drop 或 Move。前端运输的两个 Shared 事实同样会锁根，单凭它不能证明返回了字段而不是整个 Record。
+- 双布局的 Unit SSA 证明实际共享 Record ABI 参数经字段 0 的 `SharedHeapFieldLoan` 投影到独立 String loan，且被调方返回这个实际投影；外层 observe 消费这个子借用后，按 child→Record lender 的次序结束，再 Drop 最初构造的同一 Record ValueId。由同一验证过的 LLVM 链接执行，输出 `kept\n`，分配跟踪要求唯一真实 Record 地址恰好释放一次；不把静态 String 字面量算作独立分配。
+- Mac 前端 20 项，codegen 定点 3 项（含前两片的复验），fmt、diff、docs 与相对 main 的 Rust size guard 通过。未改生产/API/CI，未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。
