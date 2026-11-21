@@ -719,6 +719,11 @@ fn owned_source_continue_borrowed_element_cannot_be_owned() {
     );
 }
 
+const ORIGINAL_LIVE_MAP_SHORT_CIRCUIT: &str = "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; first.put(9, \"tail one\".clone()); second.put(9, \"tail two\".clone()) }; if (first.contains(3) && second.contains(3)) { println(\"maps\") } }";
+
+#[path = "lower_frontend_owned_source_continue_tests/short_circuit_unit.rs"]
+mod short_circuit_unit;
+
 #[test]
 fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
     for (expected, text) in [
@@ -730,10 +735,7 @@ fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
             "",
             "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; println(\"tail\") } }",
         ),
-        (
-            "second",
-            "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; first.put(9, \"tail one\".clone()); second.put(9, \"tail two\".clone()) }; if (first.contains(3) && second.contains(3)) { println(\"maps\") } }",
-        ),
+        ("second", ORIGINAL_LIVE_MAP_SHORT_CIRCUIT),
     ] {
         if expected.is_empty() {
             use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;

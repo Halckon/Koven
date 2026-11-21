@@ -21857,3 +21857,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 保留 API 合同：Single 的 `ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs` 前置拒绝顺序是 foreign names 的 `MismatchedNameSource`、foreign typed 的 `MismatchedTypedSource`、同 SourceId 但重跑 names/换环境的 `MismatchedAnalysisIdentity`；空 map 原链保留 `Source(_)`。同 names 重跑 type 则可通过 names 兼容检查，但旧 owned product 拒绝新 typed owner。Unit `basic_provenance_rejections_keep_the_original_checker_error` 将换环境、重建 names、foreign map、换 root 和重复 input 统一返回 `MismatchedCompilationUnitTypes`；`cloned_chain_and_rechecked_ownership_keep_view_identity_but_fresh_typed_does_not` 证明 Unit 自身的产品链隔离。没有找到复刻两段原 `val first = 1` / `val second = 2` 及全部错误变体的 Unit ownership test；同文字的 index/name snapshot 测试不经过 ownership。
 - 准确的反例：`error_nodes_do_not_create_ownership_cascades` 原文件缺 initializer，Single 仍推进到所有权且无 ownership 诊断；用完全相同字节探测 MemoryDocument、Rooted，两者都在验证 names 阶段拒绝，未进入 ownership。不能以 Unit 的“不产生 ownership 诊断”替代 Single 的“检查恢复 AST 但不级联”。保留这两项旧 API/恢复入口，不迁移、不删公开 API 或 producer。下一步应选原诊断有效、能进入两种 Unit ownership 的子项；删除 API 本身另需明确的仓外兼容和诊断契约决策。
 - Mac Rust 1.96.0 用同生产树缓存单独构建两个定向 harness：两项 Single 定点均过、`basic_unit_ownership` 25/25；同源恢复探针两布局均重现 names 阶段拒绝。只改本记录，不改生产、测试或 CI；未跑 Linux/native/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原双 Map 短路的真实 Unit 分岔
+
+- 基于 `60c94c46`。`owned_source_continue_external_owner_and_short_circuit_boundaries` 的死 Map 不重复：原 fixture 已走严格 MemoryDocument，保持原 entry、无 deferred 和无进程入口 LLVM 合同。原另外两条 Single negative（外部 shadow owner 的 `keys` 与双 Map 的 `second`）仍精确报 `UnsupportedNode`。同字节 MemoryDocument 探针实际能降低这两条；不以生产 Unit 支持否定 Single 的原准入合同。
+- 从原 Single test 只抽出逐字节一致的双 Map 正/负共享源，不更改函数和字面量。两种 Unit 布局完整 final type admission 后，真实 `first.contains(3)` 控制短路分支；左 Map 在查询后退休，同一 `second` owner 通过两条 edge 实参传输；仅真边查询右 Map 再 Drop，假边跳过整个查询并 Drop 同一 owner。该测试断言 SSA Drop identity，不将其表述为真实 heap 地址计数。 已存在 `owned_source_continue_native_map_and_source_liveness`，但它分别写两个 if，不经过 `&&` 的 RHS 跳过边，不能代替本断言。
+- 原输入运行只经过 lhs 为真的路径；运行输出验证成功案例，lhs 为假的无查询/Drop 由实际 CFG 证明，不宣称原生运行覆盖两边。保留既有旧断言，不改生产、API 或 CI，SPEC-0341 仍 in-progress。
+- Mac Rust 1.96.0 / LLVM 21.1.8：原混合旧断言与新增 Unit 正例各定点 1/1，格式、diff 和文档检查通过；未运行 Linux、sanitizer 或远端 CI。
