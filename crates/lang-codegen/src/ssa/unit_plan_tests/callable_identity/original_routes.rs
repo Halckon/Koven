@@ -36,6 +36,17 @@ const SAME_ROOT_FACTORY: &str = "fun helper(callback: (Int)->Int): Unit {}\nfun 
              val alias = (first)\nhelper(alias)\nval second = factory()\nhelper(second) }\n\
              fun factory(): (Int)->Int = ({ index -> index })";
 
+const EQUAL_SHAPES: &str = "fun helper(callback: (Int)->Int): Unit {}\nfun entry(): Unit { helper({ index -> index })\nhelper({ index -> index }) }";
+
+const GENERIC_HELPER: &str = "fun helper(callback: (Int)->Int): Unit {}\nfun <T> relay(own value: T): Unit { helper({ index -> index }) }\n\
+             fun entry(): Unit { relay<Int>(1)\nrelay<Boolean>(true) }";
+
+const NAMED_SWAPPED: &str = "fun helper(first: (Int)->Int, count: Int, last: (Int)->Int): Unit {}\n\
+             fun entry(): Unit { val a: (Int)->Int = { index -> index }\n\
+             val b: (Int)->Int = { index -> index + 1 }\n\
+             helper(a, 1, b)\nhelper(last = b, count = 2, first = a)\n\
+             helper(last = a, count = 3, first = b) }";
+
 type Inspect = fn(
     &SourceMap,
     &ParsedFile,
@@ -644,4 +655,186 @@ fn original_same_root_factory_calls_are_distinct_but_share_one_memo() {
             );
         },
     );
+}
+
+fn frozen_lambda(
+    plan: &UnitInstancePlan,
+    owned: &ValidatedCompilationUnitOwnership,
+    owner: crate::ssa::lowering_support::callable_instances::SourceToken,
+    operand: UnitExpressionId,
+) -> (
+    UnitExpressionId,
+    crate::ssa::lowering_support::callable_instances::CallableToken,
+) {
+    let UnitCallableOrigin::Lambda(expression) =
+        owned.ownership().callable_origin(operand).unwrap().origin()
+    else {
+        panic!("real original lambda operand");
+    };
+    let callables = plan.callable_plan();
+    let token = callables.borrowed_argument(owner, operand).unwrap();
+    assert_eq!(
+        callables.callable(token),
+        Some(&CallableKey::Lambda { owner, expression })
+    );
+    (expression, token)
+}
+
+#[test]
+fn original_equal_shaped_lambdas_keep_distinct_callsite_origins() {
+    with_original(EQUAL_SHAPES, |sources, file, names, typed, owned, plan| {
+        let entry = UnitCallableTarget::Declaration(declaration(names, "entry"));
+        let helper = declaration(names, "helper");
+        let mut instances = plan
+            .iter()
+            .filter(|item| item.key().target() == UnitCallableTarget::Declaration(helper));
+        let callee = instances.next().expect("one borrowed helper");
+        assert!(instances.next().is_none());
+        let owner = plan
+            .iter()
+            .find(|item| item.key().target() == entry)
+            .unwrap()
+            .source_token();
+        let mut observations = Vec::new();
+        for call in typed
+            .types()
+            .calls()
+            .iter()
+            .filter(|call| call.target() == UnitCallTarget::Declaration(helper))
+        {
+            let span = file
+                .ast()
+                .expressions()
+                .get(call.expression().expression())
+                .unwrap()
+                .span();
+            assert_eq!(sources.slice(span), Ok("helper({ index -> index })"));
+            let route = plan
+                .callable_plan()
+                .call_site(owner, call.expression())
+                .unwrap();
+            assert_eq!(route.key(), callee.key());
+            assert!(route.key().callable_arguments().is_empty());
+            let [(slot, operand)]: [_; 1] =
+                function_operands(file, typed, call).try_into().unwrap();
+            assert_eq!(slot, 0);
+            observations.push((
+                call.expression(),
+                frozen_lambda(plan, owned, owner, operand),
+            ));
+        }
+        let [first, second] = observations.as_slice() else {
+            panic!("exactly two real same-spelled calls");
+        };
+        assert_ne!(first.0, second.0);
+        assert_ne!(
+            first.1.0, second.1.0,
+            "equal bodies still have distinct AST nodes"
+        );
+        assert_ne!(
+            first.1.1, second.1.1,
+            "equal bodies still carry different tokens"
+        );
+    });
+}
+
+#[test]
+fn original_generic_helper_routes_keep_owner_qualified_same_ast_lambda() {
+    with_original(
+        GENERIC_HELPER,
+        |sources, file, names, typed, owned, plan| {
+            let target = |name| UnitCallableTarget::Declaration(declaration(names, name));
+            let entry = plan
+                .iter()
+                .find(|item| item.key().target() == target("entry"))
+                .unwrap();
+            let mut helpers = plan
+                .iter()
+                .filter(|item| item.key().target() == target("helper"));
+            let helper = helpers.next().expect("one borrowed helper");
+            assert!(helpers.next().is_none());
+            assert_eq!(
+                plan.iter()
+                    .filter(|item| item.key().target() == target("relay"))
+                    .count(),
+                2
+            );
+            let actual = call_at(sources, file, typed, "helper({ index -> index })");
+            let [(slot, operand)]: [_; 1] =
+                function_operands(file, typed, actual).try_into().unwrap();
+            assert_eq!(slot, 0);
+            let callables = plan.callable_plan();
+            let result = ["relay<Int>(1)", "relay<Boolean>(true)"].map(|text| {
+                let call = call_at(sources, file, typed, text);
+                let key = callables
+                    .call_site(entry.source_token(), call.expression())
+                    .unwrap()
+                    .key();
+                let relay = plan.iter().find(|item| item.key() == key).unwrap();
+                assert_eq!(relay.key().target(), target("relay"));
+                let owner = relay.source_token();
+                let helper_route = callables.call_site(owner, actual.expression()).unwrap();
+                assert_eq!(helper_route.key(), helper.key());
+                assert!(helper_route.key().callable_arguments().is_empty());
+                (owner, frozen_lambda(plan, owned, owner, operand))
+            });
+            assert_ne!(result[0].0, result[1].0);
+            assert_eq!(result[0].1.0, result[1].1.0, "same lambda AST");
+            assert_ne!(
+                result[0].1.1, result[1].1.1,
+                "different concrete relay owners"
+            );
+        },
+    );
+}
+
+#[test]
+fn original_named_swapped_calls_keep_source_order_and_declaration_slots() {
+    with_original(NAMED_SWAPPED, |sources, file, names, typed, owned, plan| {
+        let target = |name| UnitCallableTarget::Declaration(declaration(names, name));
+        let entry = plan
+            .iter()
+            .find(|item| item.key().target() == target("entry"))
+            .unwrap();
+        let mut helpers = plan
+            .iter()
+            .filter(|item| item.key().target() == target("helper"));
+        let helper = helpers.next().expect("one borrowed helper");
+        assert!(helpers.next().is_none());
+        let callables = plan.callable_plan();
+        let routes = [
+            "helper(a, 1, b)",
+            "helper(last = b, count = 2, first = a)",
+            "helper(last = a, count = 3, first = b)",
+        ]
+        .map(|text| {
+            let call = call_at(sources, file, typed, text);
+            let mapping = call
+                .arguments()
+                .iter()
+                .map(|argument| (argument.argument_index(), argument.parameter_index()))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                mapping,
+                if text.contains("last =") {
+                    [(0, 2), (1, 1), (2, 0)]
+                } else {
+                    [(0, 0), (1, 1), (2, 2)]
+                }
+            );
+            let route = callables
+                .call_site(entry.source_token(), call.expression())
+                .unwrap();
+            assert_eq!(route.key(), helper.key());
+            assert!(route.key().callable_arguments().is_empty());
+            let mut operands = function_operands(file, typed, call);
+            operands.sort_by_key(|(slot, _)| *slot);
+            let [(first, a), (last, b)]: [_; 2] = operands.try_into().unwrap();
+            assert_eq!([first, last], [0, 2]);
+            [a, b].map(|operand| frozen_lambda(plan, owned, entry.source_token(), operand).1)
+        });
+        assert_ne!(routes[0][0], routes[0][1]);
+        assert_eq!(routes[0], routes[1]);
+        assert_eq!(routes[2], [routes[0][1], routes[0][0]]);
+    });
 }

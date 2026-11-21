@@ -151,10 +151,7 @@ pub(in crate::ssa) mod callable_plan_tests {
         ast::ExpressionId,
         lexer::lex,
         name_resolution::{NameResolution, resolve_names},
-        ownership_checking::{
-            CallableOrigin, ClosureCaptureMode, OwnershipCheckedFile, PointerCallableReturnOrigin,
-            check_ownership,
-        },
+        ownership_checking::{OwnershipCheckedFile, check_ownership},
         parser::{Expression, Item, parse_file},
         source::SourceMap,
         type_checking::{check_types, standard_environments},
@@ -458,73 +455,6 @@ pub(in crate::ssa) mod callable_plan_tests {
                 }
             }
         }
-    }
-
-    #[test]
-    fn single_callable_plan_distinct_lambda_expressions_do_not_merge_equal_shapes() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun entry(): Unit {{ helper({{ index -> index }})\nhelper({{ index -> index }}) }}"
-        ));
-        assert_eq!(fixture.lambdas().len(), 2);
-        assert_ne!(fixture.lambdas()[0], fixture.lambdas()[1]);
-        fixture.assert_count(&fixture.plan().unwrap(), "helper", 2);
-    }
-
-    #[test]
-    fn single_callable_plan_lambda_owner_includes_concrete_generic_instance() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun <T> relay(own value: T): Unit {{ helper({{ index -> index }}) }}\n\
-             fun entry(): Unit {{ relay<Int>(1)\nrelay<Boolean>(true) }}"
-        ));
-        assert_eq!(
-            fixture.lambdas().len(),
-            1,
-            "same source expression in two owners"
-        );
-        let plan = fixture.plan().unwrap();
-        fixture.assert_count(&plan, "relay", 2);
-        fixture.assert_count(&plan, "helper", 2);
-    }
-
-    #[test]
-    fn single_callable_plan_named_reordering_uses_sparse_declaration_slots() {
-        let fixture = Fixture::analyze(
-            "fun helper(first: (Int)->Int, count: Int, last: (Int)->Int): Unit {}\n\
-             fun entry(): Unit { val a: (Int)->Int = { index -> index }\n\
-             val b: (Int)->Int = { index -> index + 1 }\n\
-             helper(a, 1, b)\nhelper(last = b, count = 2, first = a)\n\
-             helper(last = a, count = 3, first = b) }",
-        );
-        for text in [
-            "helper(last = b, count = 2, first = a)",
-            "helper(last = a, count = 3, first = b)",
-        ] {
-            let call = fixture
-                .typed
-                .calls()
-                .iter()
-                .find(|call| call.expression() == fixture.expression(text))
-                .unwrap();
-            assert_eq!(
-                call.arguments()
-                    .iter()
-                    .map(|mapping| (mapping.argument_index(), mapping.parameter_index()))
-                    .collect::<Vec<_>>(),
-                [(0, 2), (1, 1), (2, 0)]
-            );
-            assert_eq!(
-                call.arguments()
-                    .iter()
-                    .filter(|argument| matches!(
-                        fixture.typed.types().get(argument.parameter_type()),
-                        Some(TypeKind::Function { .. })
-                    ))
-                    .map(|argument| argument.parameter_index())
-                    .collect::<BTreeSet<_>>(),
-                BTreeSet::from([0, 2])
-            );
-        }
-        fixture.assert_count(&fixture.plan().unwrap(), "helper", 2);
     }
 
     #[test]
