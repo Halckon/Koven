@@ -1,22 +1,15 @@
 //! 已完成 frontend 产物到 typed SSA 的标量 lowering。
 #![deny(dead_code)]
 
-pub(in crate::ssa) use map_consume::resource_deinit;
 pub(in crate::ssa) mod container;
 pub(in crate::ssa) mod control;
-pub(in crate::ssa) mod field_replace;
-pub(in crate::ssa) use super::carry::frontend_nominal as nominal;
 pub(in crate::ssa) use super::integer_range_contract_tests::nullable_borrowed_cleanup;
-pub(in crate::ssa) use super::loan_region_ssa_tests::binding_lifecycle_probe::map_consume;
 pub(in crate::ssa) use super::loan_region_ssa_tests::multi_temporary::instances;
 pub(in crate::ssa) use super::loan_region_ssa_tests::receiver_receipt_siblings::map_iteration;
 pub(in crate::ssa) mod nullable_if_cleanup;
 pub(in crate::ssa) use nullable_if_cleanup::constant_presence;
 pub(in crate::ssa) use super::map_provider_exits_pipeline_tests::temporary_exits::query_inputs::query_cleanup::nullable_numeric_cleanup;
 pub(in crate::ssa) use super::checked_integer_conversion_contract_tests::outer_borrowed_while;
-pub(in crate::ssa) use super::map_unit_consumer_test_support::string_clone;
-pub(in crate::ssa) use field_replace::readonly_receiver;
-pub(in crate::ssa) use string_clone::declarations;
 
 pub(in crate::ssa) use std::collections::BTreeMap;
 
@@ -41,10 +34,7 @@ pub(in crate::ssa) use super::model::{
 };
 
 pub(crate) use super::lowering_support::{LoweringError, LoweringErrorKind};
-pub(in crate::ssa) use super::{
-    expression_core::LoweredValue,
-    lowering_support::{error, present_name},
-};
+pub(in crate::ssa) use super::{expression_core::LoweredValue, lowering_support::error};
 
 pub(in crate::ssa) fn builtin_type(typed: &TypedFile, ty: TypeId) -> Option<BuiltinType> {
     match typed.types().get(ty) {
