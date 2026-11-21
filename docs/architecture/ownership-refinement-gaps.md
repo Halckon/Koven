@@ -165,3 +165,9 @@ A3、A4 两个测试模块在主干同步点 `8207b212` 与本地复核树 `570a
 在 macOS 上使用复核树 `570a3633` 的 `lang-codegen --lib`、feature
 `loan-observation-test-support` 精确复跑 A3 两项和 A4 一项，均通过。
 这是定向本地复核，不代表生产路径已全部退役或远端 CI 已验收。
+
+另有一项独立可行性探针：仅在显式标量实参见证的 caller 里加入空的
+`Int?` 局部绑定作为既有 Refine 路由条件。两种 Unit 布局实际由通用 Refine
+实现完成原接收者、实参与每个释放动作，无 Protocol 2 receipt。
+原始无附加条件的源码仍走 Compatibility。这证明基本 lowering 能力，不是
+该形态直接准入或实际 receipt 所需证明的替代。

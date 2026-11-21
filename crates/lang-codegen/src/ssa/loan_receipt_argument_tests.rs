@@ -179,3 +179,112 @@ fn explicit_scalar_receiver_fallback_preserves_callee_argument_and_owner_release
         crate::native_tests::boxed_enum_tests::assert_success(&output, b"");
     }
 }
+
+#[test]
+fn scalar_receiver_argument_already_lowers_in_refine_with_independent_anchor() {
+    // The original fallback fixture is unchanged. This neighbor makes Refine eligible
+    // independently of the receiver, without changing its call or cleanup operations.
+    let text = SOURCE.replace(
+        "{ node.touch(1) }",
+        "{ val anchor: Int? = null; node.touch(1) }",
+    );
+    assert_ne!(text, SOURCE);
+    let text = format!("{text}\nfun entry(): Unit {{ run(Node()) }}");
+    let mut sources = SourceMap::new();
+    let (source, parsed) =
+        unit_lower_test_support::parsed(&mut sources, "argument_anchor.ko", &text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "argument_anchor.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.name() == "entry")
+            .unwrap()
+            .id();
+        let ((lowered, routes), receipts) = crate::ssa::refine::receiver_receipt::observe(|| {
+            crate::ssa::refine::observe_routing(|| {
+                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                )
+            })
+        });
+        let (program, entry) = lowered.unwrap();
+        let module = &program.modules[0];
+        let outer = module.function(entry).unwrap();
+        let run = outer
+            .instructions
+            .iter()
+            .find_map(|i| {
+                if let Operation::DirectCall {
+                    callee,
+                    receiver: None,
+                    ..
+                } = i.operation
+                {
+                    return module.function(callee);
+                }
+                None
+            })
+            .unwrap();
+        assert!(routes.contains(&run.name), "{routes:?}");
+        assert!(receipts.iter().all(|receipt| receipt.caller != run.id()));
+        let [EntityId::Value(owner)] = run.blocks[0].parameters.as_slice() else {
+            panic!("one original parameter owner");
+        };
+        let exact = run
+            .instructions
+            .iter()
+            .filter(|i| {
+                matches!(
+                    i.operation,
+                    Operation::RootPlace { .. }
+                        | Operation::BorrowBegin { .. }
+                        | Operation::Constant(ScalarConstant::Integer(1))
+                        | Operation::DirectCall { .. }
+                        | Operation::BorrowEnd { .. }
+                        | Operation::Drop { .. },
+                )
+            })
+            .collect::<Vec<_>>();
+        let [root, begin, scalar, call, end, drop] = exact.as_slice() else {
+            panic!("only the original receiver lifecycle and scalar evaluation: {exact:?}");
+        };
+        assert_eq!(root.operation, Operation::RootPlace { owner: *owner });
+        let [EntityId::Place(place)] = root.results.as_slice() else {
+            panic!("one root");
+        };
+        let [EntityId::Loan(loan)] = begin.results.as_slice() else {
+            panic!("one loan");
+        };
+        assert_eq!(
+            begin.operation,
+            Operation::BorrowBegin {
+                place: *place,
+                kind: LoanKind::Shared
+            }
+        );
+        let [EntityId::Value(arg)] = scalar.results.as_slice() else {
+            panic!("one literal");
+        };
+        assert!(matches!(
+            &call.operation,
+            Operation::DirectCall { receiver: Some(EntityId::Loan(actual)), arguments, .. }
+                if actual == loan && arguments == &[EntityId::Value(*arg)]
+        ));
+        assert_eq!(end.operation, Operation::BorrowEnd { loan: *loan });
+        assert_eq!(drop.operation, Operation::Drop { owner: *owner });
+        verify_program(&program).unwrap();
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let output =
+            crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"");
+    }
+}
