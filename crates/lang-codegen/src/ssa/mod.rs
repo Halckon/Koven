@@ -38,8 +38,6 @@ mod refine_subset_tests;
 #[cfg(test)]
 mod refine_tests;
 #[cfg(test)]
-pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
-#[cfg(test)]
 pub(crate) use refine::{observe_routing, with_per_family_lowering};
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};

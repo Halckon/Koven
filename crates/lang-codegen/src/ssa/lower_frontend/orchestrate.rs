@@ -75,26 +75,6 @@ pub(in crate::ssa) fn lower_scalar_file(
     Ok(lower_scalar_file_product(sources, parsed, names, typed, owned)?.program)
 }
 
-pub(crate) fn lower_scalar_file_with_entry(
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-    entry: SymbolId,
-) -> Result<(Program, FunctionId), LoweringError> {
-    let lowered = lower_scalar_file_product(sources, parsed, names, typed, owned)?;
-    let entry = lowered
-        .function_ids
-        .get(&FunctionInstanceKey::new(entry, Vec::new()))
-        .copied()
-        .ok_or(LoweringError {
-            kind: LoweringErrorKind::MissingFact,
-            span: None,
-        })?;
-    Ok((lowered.program, entry))
-}
-
 pub(in crate::ssa) struct LoweredFile {
     pub(in crate::ssa) program: Program,
     pub(in crate::ssa) function_ids: BTreeMap<FunctionInstanceKey, FunctionId>,

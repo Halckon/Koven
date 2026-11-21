@@ -739,20 +739,17 @@ fn string_relations(
     relations
 }
 
-// Remaining old contracts retain Single analysis/lowering; interpolation keeps its
-// original test identity here but compares only MemoryDocument and package/root Unit.
-// Migrated products never call the Single entry or fall back to it.
+// Preserve the interpolation test identity for the two ordinary Unit layouts.
 mod legacy_only {
     use super::*;
     use crate::ssa::{
-        LoweringError, LoweringErrorKind, lower_scalar_file_with_entry,
+        LoweringError, LoweringErrorKind,
         unit_lower::lower_scalar_unit_with_entry,
         unit_lower_test_support::{analyze, declaration, parsed},
     };
     use lang_frontend::{
-        name_resolution::{SourceUnitInput, SymbolKind, resolve_names},
-        ownership_checking::check_ownership,
-        type_checking::{check_types, standard_environments},
+        name_resolution::{SourceUnitInput, SymbolKind},
+        type_checking::standard_environments,
     };
 
     fn error_key(
@@ -819,82 +816,6 @@ mod legacy_only {
                 )),
             );
             assert_eq!(error_key(&sources, unit), expected);
-        }
-    }
-
-    #[test]
-    fn recovery_stops_at_each_original_validation_boundary() {
-        for (body, code) in [("missing", "L0080"), ("17", "L0084")] {
-            let mut sources = SourceMap::new();
-            let text = format!("package pair\nfun entry(): String = {body}");
-            let (source, file) = parsed(&mut sources, "pair/entry.ko", &text);
-            let (name_environment, environment) = standard_environments();
-            let names = resolve_names(&sources, &file, &name_environment).unwrap();
-            let typed = check_types(&sources, &file, &names, &environment).unwrap();
-            let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-            let entry = names
-                .symbols()
-                .iter()
-                .find(|symbol| symbol.name() == "entry")
-                .unwrap()
-                .id();
-            let expected_span = SourceKey(
-                "pair/entry.ko".to_owned(),
-                text.len() - body.len(),
-                text.len(),
-            );
-            let diagnostic = if body == "missing" {
-                &names.diagnostics()[0]
-            } else {
-                &typed.diagnostics()[0]
-            };
-            assert_eq!(diagnostic.code().to_string(), code);
-            assert_eq!(
-                source_key(&sources, diagnostic.primary_span()),
-                expected_span
-            );
-            let error =
-                lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
-                    .err()
-                    .expect("single-file diagnostics gate");
-            assert_eq!(
-                error_key(&sources, error),
-                (LoweringErrorKind::FrontendDiagnostics, None)
-            );
-            // Even when diagnostics are present, mismatched analysis is rejected first.
-            let foreign_names = resolve_names(&sources, &file, &name_environment).unwrap();
-            let error = lower_scalar_file_with_entry(
-                &sources,
-                &file,
-                &foreign_names,
-                &typed,
-                &owned,
-                entry,
-            )
-            .err()
-            .expect("analysis mismatch precedes diagnostics");
-            assert_eq!(
-                error_key(&sources, error),
-                (LoweringErrorKind::MismatchedAnalysis, None)
-            );
-            let (foreign_source, foreign_file) = parsed(&mut sources, "foreign.ko", &text);
-            assert_ne!(source, foreign_source);
-            let error = lower_scalar_file_with_entry(
-                &sources,
-                &foreign_file,
-                &foreign_names,
-                &typed,
-                &owned,
-                entry,
-            )
-            .err()
-            .expect("source mismatch precedes analysis and diagnostics");
-            assert_eq!(
-                error_key(&sources, error),
-                (LoweringErrorKind::MismatchedSource, None)
-            );
-            // Unit diagnostic gates are independently exercised without foreign products
-            // in unit_diagnostic_gates; retain the legacy precedence witness here.
         }
     }
 }
