@@ -172,7 +172,6 @@ A3、A4 两个测试模块在主干同步点 `8207b212` 与本地复核树 `570a
 在探针基线 `461256d4` 上，原始无附加条件的源码仍走 Compatibility。这证明基本
 lowering 能力，不是该形态直接准入或实际 receipt 所需证明的替代。
 
-
 ### A2 单个显式 Int 字面量本地迁移
 
 以 `461256d4` 为基线保留原一条语句的 owned 非 resource caller，仅给
@@ -186,3 +185,16 @@ Protocol 2 的三个动作和五个 SSA 生命周期指令。
 生命周期端点，真实 OFF 核对同一路由与等价 SSA/LLVM，native 核对同一 owner
 唯一释放。独立 anchor 正控仍无 receipt；命名、借用形参、带括号及计算表达式
 负控不继承此直达准入。借用接收者和多调用的旧路径不变，未扩大为任意实参。
+
+### A2 借用转发与双调用的独立 Refine 对照
+
+本地测试提交 `62263079`、`a798dd97` 保留原始源码作 Compatibility 对照；
+各只增加 `val anchor: Int? = null` 便经普通入口选中 Refine，不改变原样准入。
+借用参数 caller 只用导入的 loan 作方法接收者，不创建或退休本地 loan，也不 Drop；
+外层才建立、退休借用并释放原 owner。两路径均无后端 receiver receipt。
+双调用依序使用同一 owner 的两条不同 loan，中间无 Drop，第二条退休后才唯一 Drop。
+原样前端按调用范围分别为 Partial、Complete2，末次局部证书不覆盖第一次；
+带声明的对照不符合「仅调用表达式」观察门槛，两条为 Unsupported，均无后端 receipt。
+两种 Unit 布局的实际 SSA、LLVM 和按分配身份唯一释放均在 Mac 验证。
+前者需要导入 loan 的转发证明，后者需要贯穿两条借用的顺序及唯一 Drop 证明；
+都不能以单个局部 Complete2 取代，也不计作生产迁移或兼容退役。
