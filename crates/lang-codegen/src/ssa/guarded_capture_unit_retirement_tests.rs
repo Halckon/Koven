@@ -176,3 +176,52 @@ fn loop_carried_capture_reports_both_source_lifetimes_before_lowering() {
         assert_eq!(rejected.sources.slice(label), Ok("xs"));
     }
 }
+
+#[test]
+fn guarded_owner_choice_remains_a_source_qualified_unit_lowering_boundary() {
+    use crate::ssa::LoweringErrorKind;
+    use lang_frontend::ownership_checking::UnitClosureCaptureSource;
+
+    let text = "fun read(xs: List<Int>) {}\nfun run(own xs: List<Int>, own ys: List<Int>, flag: Boolean) { val f: () -> Unit = if (flag) ({ read(xs) }) else ({ read(ys) })\nval used = f() }";
+    let unit = UnitSource::analyze("lowering.ko", text).expect("original strict Unit source");
+    unit.assert_frontend_clean();
+    let source = unit.parsed().source_id();
+    assert_eq!(unit.sources().source_text(source), Ok(text));
+    let captures = unit.ownership().captures();
+    let [left, right] = captures else {
+        panic!("two actual original branch captures");
+    };
+    assert_ne!(left.lambda(), right.lambda());
+    assert_ne!(left.source(), right.source());
+    for (fact, name) in [(left, "xs"), (right, "ys")] {
+        assert_eq!(fact.mode(), ClosureCaptureMode::Shared);
+        assert_eq!(fact.effect(), ClosureCaptureEffect::Borrow);
+        let UnitClosureCaptureSource::Symbol(symbol) = fact.source() else {
+            panic!("the real enclosing parameter, not an inferred temporary");
+        };
+        let context = &unit.names().names().source_units()[symbol.source_unit().index()];
+        let declaration = context
+            .resolution()
+            .symbols()
+            .get(symbol.symbol().index())
+            .unwrap();
+        assert_eq!(declaration.kind(), SymbolKind::ValueParameter);
+        assert_eq!(declaration.name(), name);
+        assert_eq!(fact.reference_span().source_id(), source);
+        assert_eq!(unit.sources().slice(fact.reference_span()), Ok(name));
+    }
+
+    let entry = unit.declaration("run", SymbolKind::Function);
+    let Err(error) = unit.lower_entry(entry) else {
+        panic!("the exact guarded selector cannot publish a partial ordinary Unit program");
+    };
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    let span = error.span.expect("source-qualified whole selector");
+    assert_eq!(span.source_id(), source);
+    assert_eq!((span.start(), span.end()), (110, 154));
+    assert_eq!(
+        unit.sources().slice(span),
+        Ok("if (flag) ({ read(xs) }) else ({ read(ys) })")
+    );
+    // This checks the ordinary compiler boundary, not the Single-only SaveOwnerSnapshot encoding.
+}
