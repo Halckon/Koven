@@ -21870,3 +21870,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `ee6506e2`。原代码、Single 拒绝和 Unit 同源正例均保留。另有派生用例明确增加 `drive(probe: Int)` 和 `right(own map)`：左侧真实查动态传入的 3 或 8，右侧 helper 先输出 `rhs` 再查询接到的同一 Map，不改变原用例作为基线。
 - 两布局均核实际 SSA：wrapper 把对应常量经共享 loan 传到 `drive`；左查询结果控制 CFG，假边直接 Drop 同一传输 owner、没有 helper call；真边将该 owner 交给 `right`，真实查询后由 helper 对收到的参数恰做一次 SSA Drop，并返回真实结果。没有替换 allocator，也不声称有 heap 地址计数。
 - 派生 native 四次（双布局各两值）验证 3 输出 `rhs / maps / done`，8 仅输出 `done`；原 fixture 仍只声称覆盖其实际真路。上一轮完整 `owned_source_continue` 套件最终 33/33（含 54 个 provider 子用例），不是超时。未改生产、API 或 CI；不退役旧入口断言，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原外部同名 keys 与内层循环 owner
+
+- 基于 `d147c4b7`。原 `Array[9]` 的外部 `keys` 与局部 `Array[1,2]` 的同名 `keys` 源按字节抽为共用 fixture，不修改原普通源；保留 Single 的 `UnsupportedNode` 与 `keys` span。既有相邻独立/同源循环正例不包含这个已退休的同名外部 owner 对照。
+- 双 Unit 布局完整 type/ownership 准入、SSA 与 LLVM 验证；外数组做真实 `size` Shared read、结束借用并 Drop 后才构造内数组；进入循环时只携带实际内数组 owner，continue/正常边以真实对应参数保留同一内 owner/源 loan，退出后结束这条 loan，再对内数组最后一次 `size` read，结束短借用并仅 Drop 一次。
+- 原样 native 的验证只包装本用例已验 LLVM 的 allocator calls：实际 4 字节数组先分配、写入 9 并释放同一指针，再分配 8 字节、写入 1/2 并释放该指针；严格计数和顺序独立于地址能否恰好复用。这是原源码的正常执行证据，不声称对其他异常路径或平台给出释放证明。
+- 不改生产、API、CI，不以 Unit 允许来否定 Single 的旧入口合同，SPEC-0341 仍 in-progress。

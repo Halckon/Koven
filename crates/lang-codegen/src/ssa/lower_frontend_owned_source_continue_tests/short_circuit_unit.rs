@@ -115,7 +115,7 @@ fn original_live_maps_short_circuit_and_release_on_both_unit_edges() {
     });
 }
 
-fn with_verified_unit(
+pub(super) fn with_verified_unit(
     text: &str,
     path: &str,
     mut assert_layout: impl FnMut(&SourceMap, &Program, FunctionId),
