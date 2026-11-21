@@ -22103,3 +22103,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `e7c92195`，只迁 `invalid_rhs_preserves_storage_type_diagnostic` 的原 lambda 局部 `var number: Int = 1; number = true`，原字节和 FQN 不变；保留该测试内从外层捕获的相邻源码及其原对照。
 - Single 与两种 Unit 的原始类型诊断及完整准入拒绝完全相同：唯一 L0084 `expression type does not match the expected type`，主为 Boolean 字面量 `true`（71..75），唯一标签为原声明 `number`（45..51，`expected Int, found Boolean`）。Unit 真实目标为 source-qualified 局部 `var` 的 Int Place；RHS 语法是 Boolean，遭拒绝后的 typed 结果为 Error，不发布成功的 assignment descriptor，也不能取得 Basic 或最终类型能力，不进入 ownership。
 - Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：lambda 尾赋值的上下文返回类型拒绝迁移
+
+- 基于 `e6e467c9`，只迁原 `expected_non_unit_lambda_rejects_assignment_result`，源码字节及 FQN 保持。原 Single、MemoryDocument、Rooted 的原始类型与最终准入诊断完整相同：仅 L0084，主为原 lambda 尾赋值（56..66），唯一标签指向 `() -> Int`（26..35，`expected Int, found Unit`）。
+- 实际解析的 callable 注解与 Unit lambda 上下文都为无参数返回 Int；真实末尾的是普通赋值，目标为 Int Place、RHS 为 Int。区别于上一片 RHS 类型问题，此处报告赋值结果与 lambda 上下文不匹配。错误恢复后的尾表达式为 Error，无成功赋值 descriptor，也不能取得 Basic 或最终类型能力，未进入 ownership。捕获输入不匹配的同族旧对照未改。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。

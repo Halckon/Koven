@@ -288,9 +288,145 @@ fn exclusive_capture_boundary_distinguishes_write_demands_from_immutable_capture
 
 #[test]
 fn expected_non_unit_lambda_rejects_assignment_result() {
+    use lang_frontend::{
+        diagnostic::{DiagnosticCodeCatalog, Severity},
+        name_resolution::SourceUnitKey,
+        parser::{AssignmentOperator, Item, NameMarker, Statement, TypeRef},
+        type_checking::{ExpressionCategory, UnitTypeRefId},
+    };
+
     let text = "fun test(): Unit { val f: () -> Int = { var number = 1; number = 2 } }";
-    for entry in observe(text) {
-        assert_raw_rejection(&entry, "L0084", text, "number = 2");
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "main.ko", text);
+    assert_eq!(sources.source_text(source), Ok(text));
+    let (environment, types) = standard_environments();
+    let ast = file.ast();
+    let start = sources.span(source, 26, 35).unwrap();
+    let primary = sources.span(source, 56, 66).unwrap();
+    assert_eq!(sources.slice(start), Ok("() -> Int"));
+    let (annotation, lambda) = ast
+        .items()
+        .iter()
+        .find_map(|(_, item)| match item.payload() {
+            Item::Variable {
+                name: NameMarker::Present(name),
+                type_ref: Some(annotation),
+                initializer,
+                ..
+            } if sources.slice(*name) == Ok("f") => Some((*annotation, *initializer)),
+            _ => None,
+        })
+        .expect("the original context-bearing variable");
+    let annotation_node = ast.type_refs().get(annotation).unwrap();
+    assert_eq!(annotation_node.span(), start);
+    let TypeRef::Function {
+        parameters,
+        return_type,
+        ..
+    } = annotation_node.payload()
+    else {
+        panic!("callable context is a real function annotation")
+    };
+    assert!(parameters.is_empty());
+    assert_eq!(
+        sources.slice(ast.type_refs().get(*return_type).unwrap().span()),
+        Ok("Int")
+    );
+
+    let Expression::Lambda { body, .. } = *ast.expressions().get(lambda).unwrap().payload() else {
+        panic!("the original lambda")
+    };
+    let Statement::LambdaBody { elements } = ast.statements().get(body).unwrap().payload() else {
+        panic!("lambda tail scope")
+    };
+    let Statement::Expression { expression: tail } = *ast
+        .statements()
+        .get(*elements.last().unwrap())
+        .unwrap()
+        .payload()
+    else {
+        panic!("the contextual tail value")
+    };
+    let tail_node = ast.expressions().get(tail).unwrap();
+    assert_eq!(tail_node.span(), primary);
+    assert_eq!(sources.slice(primary), Ok("number = 2"));
+    let Expression::Assignment {
+        operator: AssignmentOperator::Assign,
+        target,
+        value,
+        ..
+    } = *tail_node.payload()
+    else {
+        panic!("original plain assignment")
+    };
+    let catalog = DiagnosticCodeCatalog::try_new(&["L0084"]).unwrap();
+    let mut expected = Diagnostic::new(
+        &sources,
+        Severity::Error,
+        catalog.resolve("L0084").unwrap(),
+        "expression type does not match the expected type",
+        primary,
+    )
+    .unwrap();
+    expected
+        .add_label(&sources, start, "expected Int, found Unit")
+        .unwrap();
+
+    for (rooted, input) in [
+        (false, SourceUnitInput::memory_document(source, &file)),
+        (true, SourceUnitInput::new("root", "main.ko", source, &file)),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty());
+        let [entry] = index.source_units() else {
+            panic!("one original source")
+        };
+        assert_eq!(entry.source_id(), source);
+        assert!(match (rooted, entry.key()) {
+            (false, SourceUnitKey::MemoryDocument) => true,
+            (true, SourceUnitKey::Rooted { root, logical_path }) =>
+                root.as_str() == "root" && logical_path.as_str() == "main.ko",
+            _ => false,
+        });
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert_eq!(typed.diagnostics(), std::slice::from_ref(&expected));
+        let unit = entry.id();
+        let int = typed.types().builtin(BuiltinType::Int).unwrap();
+        let annotation = typed
+            .type_ref_type(UnitTypeRefId::new(unit, annotation))
+            .expect("resolved callable type");
+        assert!(
+            matches!(typed.types().get(annotation), Some(UnitTypeKind::Function {
+            move_only: false, parameters, return_type
+        }) if parameters.is_empty() && *return_type == int)
+        );
+        let expr = |id| UnitExpressionId::new(unit, id);
+        assert_eq!(typed.expression_type(expr(lambda)), Some(annotation));
+        assert_eq!(typed.expression_type(expr(target)), Some(int));
+        assert_eq!(typed.expression_type(expr(value)), Some(int));
+        assert_eq!(
+            typed.expression_category(expr(target)),
+            Some(ExpressionCategory::Place)
+        );
+        assert_eq!(
+            typed
+                .expression_type(expr(tail))
+                .and_then(|ty| typed.types().get(ty)),
+            Some(&UnitTypeKind::Error)
+        );
+        assert!(typed.assignments().is_empty());
+        let Err(FinalTypeAdmissionError::Diagnostics(complete)) =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+        else {
+            panic!("the contextual mismatch rejects final type admission before ownership")
+        };
+        assert_eq!(complete.as_slice(), typed.diagnostics());
+        assert!(typed.validate().is_err());
     }
 }
 
