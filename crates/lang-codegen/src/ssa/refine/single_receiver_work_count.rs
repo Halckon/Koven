@@ -45,7 +45,7 @@ pub(in crate::ssa::refine) fn visit(record: impl FnOnce(&mut Counts)) {
     });
 }
 
-fn observe<T>(run: impl FnOnce() -> T) -> (T, Counts) {
+pub(in crate::ssa::refine) fn observe<T>(run: impl FnOnce() -> T) -> (T, Counts) {
     struct Reset;
     impl Drop for Reset {
         fn drop(&mut self) {

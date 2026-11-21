@@ -3,6 +3,8 @@
 //! the subset keeps the existing per-family path.
 mod callable;
 mod container;
+#[cfg(test)]
+mod drop_scan_scope_probe;
 mod expression;
 mod field;
 mod heap;
