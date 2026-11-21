@@ -107,74 +107,10 @@ fn original_metadata_alias_keeps_semantic_loan_until_reverse_binding_ends() {
             };
             assert_eq!(child_end.binding(), child.binding());
             assert_eq!(parent_end.binding(), parent.binding());
-            let mut indexed = Vec::new();
-            for (binding, end) in [(parent, parent_end), (child, child_end)] {
-                let source = binding.source_loan().unwrap();
-                let actual = owned
-                    .loans()
-                    .iter()
-                    .find(|loan| {
-                        loan.call() == source.call() && loan.argument() == source.argument()
-                    })
-                    .unwrap();
-                assert_eq!(actual.target(), binding.origin());
-                assert_eq!(source.call().source_unit(), binding.binding().source_unit());
-                let found = events
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, event)| match event {
-                        Event::Handoff(argument, before, after)
-                            if *argument == source.argument() =>
-                        {
-                            assert_eq!(before.owner, ActiveLoanOwner::Call(source.call()));
-                            assert_eq!(before.origin, actual.begin_span());
-                            let mut expected = ActiveLoan::clone(before);
-                            expected.owner = ActiveLoanOwner::BorrowBinding(binding.binding());
-                            assert_eq!(&expected, after);
-                            Some((index, before, after))
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                let [(handoff, before, after)] = found.as_slice() else {
-                    panic!("exactly one actual semantic handoff");
-                };
-                let retained = events
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, e)| match e {
-                        Event::Call(loan, retained) if loan == *before => {
-                            assert!(*retained, "the semantic loan did not end with its producer");
-                            Some(i)
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                let [normal_return] = retained.as_slice() else {
-                    panic!("exactly one completed source call");
-                };
-                let crate::ownership_checking::UnitDropPoint::AfterStatement(statement) =
-                    end.point()
-                else {
-                    panic!("exact normal last use");
-                };
-                let removal = events
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, e)| match e {
-                        Event::BindingEnd(actual_end, loan) if loan == *after => {
-                            assert_eq!(*actual_end, statement);
-                            Some(i)
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                let [removed] = removal.as_slice() else {
-                    panic!("exactly one actual removal of that source loan");
-                };
-                assert!(normal_return < handoff && handoff < removed);
-                indexed.push(*removed);
-            }
+            let indexed = [
+                removal_index(&owned, &events, parent, parent_end),
+                removal_index(&owned, &events, child, child_end),
+            ];
             assert!(indexed[1] < indexed[0], "child ends before parent");
             // An active observer must also see both ordinary calls release their own loans.
             let ordinary = ["observe(child)", "observe(parent)"]
@@ -190,6 +126,123 @@ fn original_metadata_alias_keeps_semantic_loan_until_reverse_binding_ends() {
                 })
                 .collect();
             assert_eq!(actual, ordinary);
+        }
+    }
+}
+
+fn removal_index(
+    owned: &crate::ownership_checking::CompilationUnitOwnership,
+    events: &[Event],
+    binding: &crate::ownership_checking::BorrowBindingFact<
+        UnitExpressionId,
+        crate::name_resolution::UnitSymbolId,
+        crate::ownership_checking::UnitLoanTarget,
+    >,
+    end: &crate::ownership_checking::BorrowBindingEndFact<
+        crate::name_resolution::UnitSymbolId,
+        crate::ownership_checking::UnitDropPoint,
+    >,
+) -> usize {
+    let source = binding.source_loan().unwrap();
+    let actual = owned
+        .loans()
+        .iter()
+        .find(|loan| loan.call() == source.call() && loan.argument() == source.argument())
+        .unwrap();
+    assert_eq!(actual.target(), binding.origin());
+    assert_eq!(source.call().source_unit(), binding.binding().source_unit());
+    let found = events
+        .iter()
+        .enumerate()
+        .filter_map(|(index, event)| match event {
+            Event::Handoff(argument, before, after) if *argument == source.argument() => {
+                assert_eq!(before.owner, ActiveLoanOwner::Call(source.call()));
+                assert_eq!(before.origin, actual.begin_span());
+                let mut expected = ActiveLoan::clone(before);
+                expected.owner = ActiveLoanOwner::BorrowBinding(binding.binding());
+                assert_eq!(&expected, after);
+                Some((index, before, after))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(handoff, before, after)] = found.as_slice() else {
+        panic!("exactly one actual semantic handoff");
+    };
+    let retained = events
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| match e {
+            Event::Call(loan, retained) if loan == *before => {
+                assert!(*retained, "the semantic loan did not end with its producer");
+                Some(i)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [normal_return] = retained.as_slice() else {
+        panic!("exactly one completed source call");
+    };
+    let crate::ownership_checking::UnitDropPoint::AfterStatement(statement) = end.point() else {
+        panic!("exact normal last use");
+    };
+    let removal = events
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| match e {
+            Event::BindingEnd(actual_end, loan) if loan == *after => {
+                assert_eq!(*actual_end, statement);
+                Some(i)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [removed] = removal.as_slice() else {
+        panic!("exactly one actual removal of that source loan");
+    };
+    assert!(normal_return < handoff && handoff < removed);
+    *removed
+}
+
+#[test]
+fn original_named_range_receivers_preserve_each_semantic_loan_until_its_own_end() {
+    const RECEIVERS: &str = "borrow fun <T> List<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, count)\nborrow fun <T> View<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, count)\n";
+    for (element, value) in [
+        ("String", "\"kept\""),
+        ("Item", "Item(1)"),
+        ("Resource", "Resource()"),
+    ] {
+        let text = format!(
+            "{RECEIVERS}class Item(val value: Int) {{}}\nclass Resource {{ deinit() {{}} }}\nfun alias(source: View<{element}>): borrow View<{element}> from source = source\nfun inspect(source: View<{element}>): Unit {{}}\nfun consume(own source: List<{element}>): Unit {{}}\nfun run(): Unit {{ val root = listOf({value}); borrow val parent = root.prefix(1); borrow val child = parent.prefix(1); borrow val metadata = alias(child); inspect(metadata); inspect(parent); consume(root) }}"
+        );
+        for rooted in [false, true] {
+            let fixture = Fixture::range_receiver_source("receiver.ko", &text, rooted);
+            let (owned, events) = capture(|| fixture.shared());
+            assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+            assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+            assert!(owned.clone().validate().is_ok());
+            assert_eq!(
+                fixture.sources.source_text(fixture.parsed[0].source_id()),
+                Ok(text.as_str())
+            );
+            let [parent, child, metadata] = owned.borrow_results().bindings() else {
+                panic!("three original semantic bindings");
+            };
+            assert!(parent.parent().is_none());
+            assert!(child.parent().is_none(), "new descriptor remains root-flat");
+            assert_eq!(metadata.parent(), Some(child.binding()));
+            assert_eq!(parent.origin(), child.origin());
+            assert_eq!(parent.origin(), metadata.origin());
+            let [metadata_end, child_end, parent_end] = owned.borrow_results().ends() else {
+                panic!("three original semantic ends");
+            };
+            assert_eq!(metadata_end.binding(), metadata.binding());
+            assert_eq!(child_end.binding(), child.binding());
+            assert_eq!(parent_end.binding(), parent.binding());
+            let metadata_removed = removal_index(&owned, &events, metadata, metadata_end);
+            let child_removed = removal_index(&owned, &events, child, child_end);
+            let parent_removed = removal_index(&owned, &events, parent, parent_end);
+            assert!(metadata_removed < child_removed && child_removed < parent_removed);
         }
     }
 }
