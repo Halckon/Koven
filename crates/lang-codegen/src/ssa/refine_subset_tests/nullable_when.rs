@@ -2,6 +2,9 @@
 use super::route;
 use crate::{llvm::render_verified_program, ssa::verify::verify_program};
 
+#[path = "owned_nullable_root_identity.rs"]
+mod owned_nullable_root_identity;
+
 #[test]
 fn owned_pointer_nullable_when_views_and_takes_refine_through_the_normal_unit_entry() {
     for (family, declarations, inner) in [
