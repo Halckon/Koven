@@ -156,41 +156,39 @@ fn boolean_receiver_refines_and_preserves_identity_and_owner_release() {
             ] {
                 assert_eq!(instruction.origin, Origin::Source(origin));
             }
+            let regions = owned
+                .ownership()
+                .loan_action_observations()
+                .iter()
+                .flat_map(|o| o.regions())
+                .filter(|r| {
+                    r.protocol_version() == 2 && r.coverage() == UnitLoanActionCoverage::Complete
+                })
+                .collect::<Vec<_>>();
+            let [region] = regions.as_slice() else {
+                panic!("one real Boolean Complete2");
+            };
+            let [receipt] = receipts.as_slice() else {
+                panic!("one actual Boolean receiver receipt");
+            };
+            assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+            assert_eq!(Some(receipt.callable), region.callable());
+            assert_eq!(receipt.call, region.call());
+            assert_eq!(receipt.caller, caller);
+            assert_eq!(receipt.instructions, block.instructions);
+            assert_eq!(
+                receipt.entities,
+                [
+                    EntityId::Value(*owner),
+                    EntityId::Place(*place),
+                    EntityId::Loan(*loan),
+                ]
+            );
             #[cfg(feature = "loan-observation-test-support")]
             {
                 use lang_frontend::ownership_checking::{
                     check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
                 };
-                let regions = owned
-                    .ownership()
-                    .loan_action_observations()
-                    .iter()
-                    .flat_map(|o| o.regions())
-                    .filter(|r| {
-                        r.protocol_version() == 2
-                            && r.coverage() == UnitLoanActionCoverage::Complete
-                    })
-                    .collect::<Vec<_>>();
-                let [region] = regions.as_slice() else {
-                    panic!("one real Boolean Complete2");
-                };
-                let [receipt] = receipts.as_slice() else {
-                    panic!("one actual Boolean receiver receipt");
-                };
-                assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
-                assert_eq!(Some(receipt.callable), region.callable());
-                assert_eq!(receipt.call, region.call());
-                assert_eq!(receipt.caller, caller);
-                assert_eq!(receipt.instructions, block.instructions);
-                assert_eq!(
-                    receipt.entities,
-                    [
-                        EntityId::Value(*owner),
-                        EntityId::Place(*place),
-                        EntityId::Loan(*loan),
-                    ]
-                );
-
                 let off = with_loan_observation(false, || {
                     check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
                         .unwrap()
@@ -239,8 +237,6 @@ fn boolean_receiver_refines_and_preserves_identity_and_owner_release() {
                     );
                 }
             }
-            #[cfg(not(feature = "loan-observation-test-support"))]
-            assert!(receipts.is_empty());
             verify_program(&program).unwrap();
             if native {
                 let llvm =

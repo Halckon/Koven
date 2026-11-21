@@ -81,8 +81,6 @@ fn explicit_scalar_receiver_refine_preserves_callee_argument_and_owner_release()
             SOURCE.split_once('\n').unwrap().1
         );
         assert_eq!(routed.as_slice(), std::slice::from_ref(&run.name));
-        #[cfg(not(feature = "loan-observation-test-support"))]
-        assert!(receipts.is_empty());
         let [block] = run.blocks.as_slice() else {
             panic!("straight-line receiver caller");
         };
@@ -181,42 +179,42 @@ fn explicit_scalar_receiver_refine_preserves_callee_argument_and_owner_release()
 
         verify_program(&program).unwrap();
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let regions = owned
+            .ownership()
+            .loan_action_observations()
+            .iter()
+            .flat_map(|o| o.regions())
+            .filter(|r| {
+                r.protocol_version() == 2 && r.coverage() == UnitLoanActionCoverage::Complete
+            })
+            .collect::<Vec<_>>();
+        let [region] = regions.as_slice() else {
+            panic!("one actual Complete2 receiver region");
+        };
+        let [receipt] = receipts.as_slice() else {
+            panic!("one real scalar receiver receipt");
+        };
+        assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+        assert_eq!(Some(receipt.callable), region.callable());
+        assert_eq!(receipt.call, region.call());
+        assert_eq!(receipt.caller, run.id());
+        assert_eq!(
+            receipt.instructions,
+            [root.id, begin.id, call.id, end.id, drop.id]
+        );
+        assert_eq!(
+            receipt.entities,
+            [
+                EntityId::Value(*owner),
+                EntityId::Place(*place),
+                EntityId::Loan(*loan),
+            ]
+        );
         #[cfg(feature = "loan-observation-test-support")]
         {
             use lang_frontend::ownership_checking::{
                 check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
             };
-            let regions = owned
-                .ownership()
-                .loan_action_observations()
-                .iter()
-                .flat_map(|o| o.regions())
-                .filter(|r| {
-                    r.protocol_version() == 2 && r.coverage() == UnitLoanActionCoverage::Complete
-                })
-                .collect::<Vec<_>>();
-            let [region] = regions.as_slice() else {
-                panic!("one actual Complete2 receiver region");
-            };
-            let [receipt] = receipts.as_slice() else {
-                panic!("one real scalar receiver receipt");
-            };
-            assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
-            assert_eq!(Some(receipt.callable), region.callable());
-            assert_eq!(receipt.call, region.call());
-            assert_eq!(receipt.caller, run.id());
-            assert_eq!(
-                receipt.instructions,
-                [root.id, begin.id, call.id, end.id, drop.id]
-            );
-            assert_eq!(
-                receipt.entities,
-                [
-                    EntityId::Value(*owner),
-                    EntityId::Place(*place),
-                    EntityId::Loan(*loan),
-                ]
-            );
             let off = with_loan_observation(false, || {
                 check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
                     .unwrap()
