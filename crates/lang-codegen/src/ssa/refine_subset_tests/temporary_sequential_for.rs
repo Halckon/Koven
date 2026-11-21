@@ -135,6 +135,9 @@ const TERMINATING_CONSTRUCTOR_PREFIX: &str = r#"
         }
     "#;
 
+#[path = "temporary_sequential_for/mixed_constructor_loop.rs"]
+mod mixed_constructor_loop;
+
 #[test]
 fn terminating_constructor_prefix_lowers_on_the_retained_route() {
     let source = TERMINATING_CONSTRUCTOR_PREFIX;
