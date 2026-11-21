@@ -28,7 +28,7 @@ fn two_shared_receiver_calls_refine_anchor_preserves_order_and_single_owner_rele
     verify_two_shared_receiver_calls(&anchored, true);
 }
 
-fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
+fn verify_two_shared_receiver_calls(source_text: &str, anchored: bool) {
     let text = format!("{source_text}\nfun entry(): Unit {{ run(Node()) }}");
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two_receiver.ko", &text);
@@ -105,9 +105,8 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             sources.slice(run.origin.span()).unwrap(),
             source_text.split_once('\n').unwrap().1
         );
-        assert_eq!(
+        assert!(
             routed.contains(&run.name),
-            expect_refine,
             "two-call caller route with source {source_text}: {routed:?}"
         );
         let mut raw_intervals = Vec::new();
@@ -136,7 +135,7 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             assert!(regions.next().is_none());
             assert_eq!(region.protocol_version(), 2);
             receiver_facts.push(owned.ownership().receiver_fact(region.call()).unwrap());
-            let expected = if expect_refine {
+            let expected = if anchored {
                 // The declaration anchor is outside the flat expression-only observation gate.
                 UnitLoanActionCoverage::Unsupported
             } else if index == 0 {
@@ -147,14 +146,14 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
                 UnitLoanActionCoverage::Complete
             };
             assert_eq!(region.coverage(), expected, "receiver call {index}");
-            if !expect_refine {
+            if !anchored {
                 assert!(observation.owns_region(region));
                 let ids = region.action_ids().collect::<Vec<_>>();
                 assert_eq!(ids.len(), 2 + usize::from(index == 1));
                 raw_intervals.push((observation, region.call(), ids));
             }
         }
-        if !expect_refine {
+        if !anchored {
             let [(observation, first, first_ids), (_, second, second_ids)] =
                 raw_intervals.as_slice()
             else {
@@ -286,7 +285,7 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             .iter()
             .filter(|plan| plan.function == *callee)
             .collect::<Vec<_>>();
-        if expect_refine {
+        {
             let [plan] = for_run.as_slice() else {
                 panic!("actual planned Refine body for run")
             };
@@ -311,14 +310,12 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             );
             assert_eq!(drop_span, source_drop.value_origin());
             assert_eq!(drop_span, drops[0].1.origin.span());
-        } else {
-            assert!(for_run.is_empty(), "fallback has no same-layer ROp plan");
         }
 
         verify_program(&program).unwrap();
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
         #[cfg(feature = "loan-observation-test-support")]
-        if !expect_refine {
+        if !anchored {
             use lang_frontend::ownership_checking::{
                 check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
             };
