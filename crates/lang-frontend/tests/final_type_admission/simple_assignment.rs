@@ -402,8 +402,9 @@ fn field_assignment_retains_existing_entry_difference() {
 
 #[test]
 fn readonly_variable_assignments_remain_ownership_errors() {
+    readonly_local_assignment_unit();
+
     for (text, shared_parameter, observations) in [
-        ("fun test(): Unit { val number = 1; number = 2 }", false),
         ("fun test(own number: Int): Unit { number = 2 }", false),
         ("fun test(number: Int): Unit { number = 2 }", true),
     ]
@@ -446,5 +447,140 @@ fn unit_value_context_and_right_associative_chain_use_storage_types() {
     let rejected = "fun test(): Unit { var left = 1; var right = 2; left = right = 3 }";
     for entry in observe(rejected) {
         assert_raw_rejection(&entry, "L0084", rejected, "right = 3");
+    }
+}
+
+fn readonly_local_assignment_unit() {
+    use lang_frontend::{
+        diagnostic::{DiagnosticCodeCatalog, Severity},
+        name_resolution::{ReferenceTarget, SourceUnitKey, SymbolKind},
+        parser::{AssignmentOperator, Item, NameMarker, VariableKind},
+        type_checking::ExpressionCategory,
+    };
+    let mut sources = SourceMap::new();
+    let text = "fun test(): Unit { val number = 1; number = 2 }";
+    let (source, file) = parsed(&mut sources, "main.ko", text);
+    assert_eq!(sources.source_text(source), Ok(text));
+    let (environment, types) = standard_environments();
+    let span = |start| sources.span(source, start, start + "number".len()).unwrap();
+    let (declaration, use_site) = (span(23), span(35));
+    assert_eq!(sources.slice(declaration), Ok("number"));
+    assert_eq!(sources.slice(use_site), Ok("number"));
+    let catalog = DiagnosticCodeCatalog::try_new(&["L0134"]).unwrap();
+    let mut expected = Diagnostic::new(
+        &sources,
+        Severity::Error,
+        catalog.resolve("L0134").unwrap(),
+        "assignment target is not a mutable place",
+        use_site,
+    )
+    .unwrap();
+    expected
+        .add_label(&sources, declaration, "immutable binding declared here")
+        .unwrap();
+    for rooted in [false, true] {
+        let inputs = [if rooted {
+            SourceUnitInput::new("root", "main.ko", source, &file)
+        } else {
+            SourceUnitInput::memory_document(source, &file)
+        }];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let [indexed] = index.source_units() else {
+            panic!("one original source")
+        };
+        assert!(index.diagnostics().is_empty());
+        assert_eq!(indexed.source_id(), source);
+        assert!(match (rooted, indexed.key()) {
+            (false, SourceUnitKey::MemoryDocument) => true,
+            (true, SourceUnitKey::Rooted { root, logical_path }) =>
+                root.as_str() == "root" && logical_path.as_str() == "main.ko",
+            _ => false,
+        });
+        let unit = indexed.id();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert!(typed.diagnostics().is_empty());
+        let [assignment] = typed.assignments() else {
+            panic!("one actual typed assignment")
+        };
+        assert_eq!(assignment.operator(), AssignmentOperator::Assign);
+        assert!(assignment.falls_through());
+        let int = typed.types().builtin(BuiltinType::Int).unwrap();
+        assert_eq!(assignment.target_type(), int);
+        assert_eq!(typed.expression_type(assignment.value()), Some(int));
+        assert_eq!(
+            typed.expression_type(assignment.expression()),
+            typed.types().builtin(BuiltinType::Unit)
+        );
+        assert_eq!(
+            typed.expression_category(assignment.target()),
+            Some(ExpressionCategory::Place)
+        );
+        let spell = |id: UnitExpressionId| {
+            assert_eq!(id.source_unit(), unit);
+            file.ast()
+                .expressions()
+                .get(id.expression())
+                .unwrap()
+                .span()
+        };
+        assert_eq!(spell(assignment.target()), use_site);
+        assert_eq!(
+            sources.slice(spell(assignment.expression())),
+            Ok("number = 2")
+        );
+        assert_eq!(sources.slice(spell(assignment.value())), Ok("2"));
+        assert_eq!(
+            file.ast()
+                .items()
+                .iter()
+                .filter(|(_, node)| matches!(
+                    node.payload(),
+                    Item::Variable { kind: VariableKind::Val, name: NameMarker::Present(name), .. }
+                        if *name == declaration
+                ))
+                .count(),
+            1
+        );
+        let local = names.names().source_units()[0].resolution();
+        let binding = local
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.span() == declaration)
+            .unwrap();
+        assert_eq!(binding.kind(), SymbolKind::Variable);
+        assert!(
+            local
+                .references()
+                .iter()
+                .any(|reference| reference.span() == use_site
+                    && reference.target() == &ReferenceTarget::Symbol(binding.id()))
+        );
+        assert!(
+            typed
+                .body_symbol_types()
+                .iter()
+                .any(|(symbol, ty)| symbol.source_unit() == unit
+                    && symbol.symbol() == binding.id()
+                    && *ty == int)
+        );
+
+        let complete = complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+            .expect("assignment types are fully admissible before ownership");
+        assert!(complete.is_same_analysis(&typed));
+        let typed = typed.validate().unwrap();
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
+        assert_eq!(owned.diagnostics(), std::slice::from_ref(&expected));
+        assert!(owned.deferred().is_empty());
+        assert!(owned.field_replacements().is_empty());
+        assert!(owned.ownership_primitives().is_empty());
+        assert!(owned.value_deliveries().is_empty());
+        assert!(owned.loans().is_empty());
+        assert!(owned.drops().is_empty());
+        assert!(owned.validate().is_err());
     }
 }

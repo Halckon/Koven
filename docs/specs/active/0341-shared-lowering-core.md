@@ -22079,3 +22079,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `38a1b745`，只迁原 `own-this-consume` 行，源码和 field-root 测试 FQN 不变。原 Single 与两种 Unit 的完整 L0132 相同，主为字段 `source`（89..95），唯一关联为原字段声明（17..23）。Unit 真实 MapConsume 投影指向同一字段；其显式 `this` 根类型与 `Holder.f` 签名中的 `ParameterMode::Value` receiver 相同，保留并检查真实 `own` marker。拒绝不发布执行事实；原默认 Borrow receiver 仍按各自诊断位置和无 marker 检查。
 - 尚保留的 Map 诊断合同：`borrow-parameter` / `inout-parameter` 的关联范围不同；`temporary-preserves-child-error`、`this-take` 与 `own-this-take` 的 Unit 另带选中参数声明标签。若选择 Unit 作为长期诊断合同，以上可以单独定稿，不属于等价迁移。裸字段 `bare-take`（Single 无错误，Unit L0132）及 `bare-consume`（Single L0130，Unit L0132）则需明确是否采用 Unit 的字段移动规则及优先级，不能仅按诊断格式处理。所有这些原对照仍在。
 - Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo，未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：局部不可变 val 赋值拒绝迁移
+
+- 基于 `5632585d`，仅迁 `readonly_variable_assignments_remain_ownership_errors` 中原局部 `val number = 1; number = 2`，保留 FQN、原源码字节和 own/Borrow 形参对照。原 Single 与两种 Unit 通过解析、名称、基础与最终类型；均在 ownership 唯一报 L0134，主 `number`（35..41），唯一原声明标签 23..29（`immutable binding declared here`），完整相同。Borrow 形参仍保留旧 Single L0135 与 Unit L0134 差异。
+- Unit 验证实际 typed plain assignment、Int 存储与 RHS、Unit 结果和 Place，引用解析到同一文件内解析出的不可变局部声明；所有权拒绝后不发布 replacement、可执行交付、借用或清理，不能取得能力。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs 和 Rust size guard 通过；无生产/API/CI 改动，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
