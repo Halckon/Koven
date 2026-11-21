@@ -1,4 +1,4 @@
-//! 普通借用结果直接交付同步 Borrow 实参；成功见证保留旧独立 loan-end，拒绝组走双 Unit 入口。
+//! 同步借用结果的双 Unit 合同及仍独立比较的 Single nullable 对照。
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -21,6 +21,8 @@ use lang_frontend::{
 mod distinct_roots;
 #[path = "ownership_nested_borrow_arguments/generic_transport.rs"]
 mod generic_transport;
+#[path = "ownership_nested_borrow_arguments/grouped_transport.rs"]
+mod grouped_transport;
 #[path = "ownership_nested_borrow_arguments/later_scalar.rs"]
 mod later_scalar;
 #[path = "ownership_nested_borrow_arguments/owned_auxiliary.rs"]
@@ -29,8 +31,6 @@ mod owned_auxiliary;
 mod parent_transport;
 
 struct Checked {
-    sources: SourceMap,
-    parsed: ParsedFile,
     single: OwnershipCheckedFile,
     unit: CompilationUnitOwnership,
 }
@@ -77,21 +77,7 @@ fn checked(text: &str, rooted: bool) -> Checked {
         .validate()
         .unwrap();
     let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    Checked {
-        sources,
-        parsed,
-        single,
-        unit,
-    }
-}
-
-fn ordinary_entry(body: &str, rooted: bool) -> Checked {
-    checked(
-        &format!(
-            "fun view(source: String): borrow String from source = source\nfun observe(item: String) {{ println(item) }}\nfun consume(own item: String) {{}}\n{body}"
-        ),
-        rooted,
-    )
+    Checked { single, unit }
 }
 
 // Unit-only cases use the original source in both layouts. Other positive cases
@@ -173,22 +159,6 @@ fn unit_checked(text: &str) -> UnitChecked {
         memory,
         rooted,
     }
-}
-
-fn assert_accepted(checked: &Checked) {
-    assert!(
-        checked.single.diagnostics().is_empty(),
-        "{:?}",
-        checked.single.diagnostics()
-    );
-    assert!(
-        checked.unit.diagnostics().is_empty(),
-        "{:?}",
-        checked.unit.diagnostics()
-    );
-    assert!(checked.single.deferred().is_empty());
-    assert!(checked.unit.deferred().is_empty());
-    assert_call_use_contracts(checked);
 }
 
 #[test]
@@ -486,121 +456,6 @@ fn later_move_and_exclusive_access_conflict_before_outer_return() {
     }
 }
 
-fn assert_call_use_contracts(checked: &Checked) {
-    use lang_frontend::{
-        ownership_checking::{DropPoint, DropTarget, LoanEndPoint, UnitDropPoint, UnitDropTarget},
-        parser::Expression,
-    };
-    let single = checked.single.borrow_results().call_uses();
-    let unit = checked.unit.borrow_results().call_uses();
-    assert_eq!(single.len(), unit.len());
-    for (fact, unit_fact) in single.iter().zip(unit) {
-        assert_eq!(fact.expression(), unit_fact.expression().expression());
-        assert_eq!(fact.call(), unit_fact.call().expression());
-        assert_eq!(fact.argument(), unit_fact.argument().expression());
-        assert_eq!(fact.end_point(), DropPoint::CallReturn(fact.call()));
-        assert_eq!(
-            unit_fact.end_point(),
-            UnitDropPoint::CallReturn(unit_fact.call())
-        );
-        let Expression::Call { arguments, .. } = checked
-            .parsed
-            .ast()
-            .expressions()
-            .get(fact.call())
-            .unwrap()
-            .payload()
-        else {
-            panic!("outer call");
-        };
-        assert!(
-            arguments
-                .iter()
-                .any(|argument| argument.value == fact.argument())
-        );
-        let source = fact.source_loan();
-        assert_eq!(source.call(), fact.expression());
-        assert_eq!(source.call(), unit_fact.source_loan().call().expression());
-        assert_eq!(
-            source.argument(),
-            unit_fact.source_loan().argument().expression()
-        );
-        let source_loan = checked
-            .single
-            .loans()
-            .iter()
-            .find(|loan| loan.call() == source.call() && loan.argument() == source.argument())
-            .unwrap();
-        assert_eq!(source_loan.target(), fact.origin());
-        let outer_loan = checked
-            .single
-            .loans()
-            .iter()
-            .find(|loan| loan.call() == fact.call() && loan.argument() == fact.argument())
-            .unwrap();
-        assert_eq!(outer_loan.target(), fact.origin());
-        let source_ends: Vec<_> = checked
-            .single
-            .loan_ends()
-            .iter()
-            .filter(|end| end.call() == source.call() && end.argument() == source.argument())
-            .collect();
-        assert_eq!(source_ends.len(), 1);
-        assert_eq!(
-            source_ends[0].point(),
-            LoanEndPoint::CallReturn(fact.call())
-        );
-        let ends = checked.single.loan_ends();
-        let outer_end = ends
-            .iter()
-            .position(|end| end.call() == fact.call() && end.argument() == fact.argument())
-            .unwrap();
-        let source_end = ends
-            .iter()
-            .position(|end| end.call() == source.call() && end.argument() == source.argument())
-            .unwrap();
-        assert!(
-            outer_end < source_end,
-            "result must end before its source ancestor"
-        );
-        assert!(
-            !checked
-                .single
-                .loans_ending_at(source.call())
-                .any(|loan| loan.argument() == source.argument())
-        );
-        assert!(
-            checked
-                .single
-                .loans_ending_at(fact.call())
-                .any(|loan| loan.argument() == fact.argument())
-        );
-        let source_loan = checked
-            .unit
-            .loans()
-            .iter()
-            .find(|loan| {
-                loan.call() == unit_fact.source_loan().call()
-                    && loan.argument() == unit_fact.source_loan().argument()
-            })
-            .unwrap();
-        assert_eq!(source_loan.target(), unit_fact.origin());
-        let outer_loan = checked
-            .unit
-            .loans()
-            .iter()
-            .find(|loan| loan.call() == unit_fact.call() && loan.argument() == unit_fact.argument())
-            .unwrap();
-        assert_eq!(outer_loan.target(), unit_fact.origin());
-        assert!(!checked.single.drops().iter().any(|drop| drop.target()
-            == DropTarget::Temporary(fact.expression())
-            || drop.target() == DropTarget::Temporary(fact.argument())));
-        assert!(!checked.unit.drops().iter().any(|drop| drop.target()
-            == UnitDropTarget::Temporary(unit_fact.expression())
-            || drop.target() == UnitDropTarget::Temporary(unit_fact.argument())));
-    }
-}
-
 fn assert_atomic_empty(checked: &UnitChecked) {
     for owned in [&checked.memory, &checked.rooted] {
         assert!(owned.borrow_results().call_uses().is_empty());
@@ -611,39 +466,7 @@ fn assert_atomic_empty(checked: &UnitChecked) {
 
 #[test]
 fn grouped_named_operands_and_same_root_chains_are_not_collapsed() {
-    for rooted in [false, true] {
-        let checked = ordinary_entry(
-            "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = ((view((source)))), first = view(source)) }",
-            rooted,
-        );
-        assert_accepted(&checked);
-        let facts = checked.single.borrow_results().call_uses();
-        assert_eq!(facts.len(), 2);
-        assert_eq!(facts[0].call(), facts[1].call());
-        assert_ne!(facts[0].expression(), facts[1].expression());
-        assert_ne!(facts[0].argument(), facts[1].argument());
-        assert_eq!(facts[0].origin(), facts[1].origin());
-        assert_ne!(facts[0].argument(), facts[0].expression());
-        assert_eq!(facts[1].argument(), facts[1].expression());
-        let text = |expression| {
-            checked
-                .sources
-                .slice(
-                    checked
-                        .parsed
-                        .ast()
-                        .expressions()
-                        .get(expression)
-                        .unwrap()
-                        .span(),
-                )
-                .unwrap()
-        };
-        assert_eq!(text(facts[0].argument()), "((view((source))))");
-        assert_eq!(text(facts[0].expression()), "view((source))");
-        assert_eq!(text(facts[0].source_loan().argument()), "(source)");
-        assert_eq!(text(facts[1].source_loan().argument()), "source");
-    }
+    grouped_transport::assert_grouped_same_root_transport();
 }
 
 #[test]

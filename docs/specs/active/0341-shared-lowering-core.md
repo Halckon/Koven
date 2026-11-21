@@ -21963,3 +21963,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit FE 核原 `view(source)` 绑定自己的 parent、`observe(view(parent))` 回来并未结束 parent，实际最后 `println(parent)` 后同一 statement 上结束 parent 并有唯一原具名 String 根 Drop，无 Move 或临时对象 Drop。FE 同 statement 不自行证明两者顺序；Unit SSA 明确 observe 只 End child、原 parent loan 被后续 PrintString 读取，然后依次 End parent、End root，最终 caller Drop 原构造的同一 ValueId。
 - 双布局原 LLVM native 实跑均输出 `kept\nkept\n`；独立观察在唯一真实逻辑 drop 调用返回后输出第三行 `drop`，没有替换原调用，也不把静态 String 字面量的逻辑 Drop 说成 heap 释放。
 - Mac FE 22 项、codegen/native 7 项，fmt、diff、docs、相对 main 的 Rust size guard 通过。未改生产/API/CI、未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原具名 pair 同根借用的源码顺序与参数顺序
+
+- 基于 `1038e2ac`。只迁原 `grouped_named_operands_and_same_root_chains_are_not_collapsed`，保留 FQN、原括号及旧 helper 重建的 271 字节。先实跑原 Single 的每条 child→lender 端点。仅清理本测试最后使用的 ordinary/assert helper，仍保留三组独立 nullable 对照的 Single 检查入口和原断言。
+- 双 Unit FE 核 `second = ((view((source))))` 在 AST 与借用 use 中先于 `first = view(source)`；真实 typed 参数对应的 transport 却为 first、second，单独保全圆括号 operand、规范内层调用、同一具名根及互不相同的四个 loan witness。每条在真实 pair 返回点按 child→lender 结束，没有 Move 或临时 Drop，调用方只 Drop 原具名 root 一次。
+- 实际 Unit SSA 验证两条链按 source order 求值，各有独立 lender 与 child IDs，分别发起同根的真实 view；pair 接收的参数 ID 为 first-child、second-child。四条 loan 在 outer return 按相应 child→lender 结束后再 Drop 原 owner ValueId。真实 LLVM 也把第二个计算所得临时放到第一个参数位置；无输出 native 仅确认原样链接和执行，不用同根指针值相等或不等判定两条链身份，也不主张静态字面量的 heap 释放。
+- Mac FE 22 项、codegen/native 8 项，fmt、diff、docs、相对 main 的 Rust size guard 通过。没有改 E3 grouped 生产实现、任何 API 或 CI；未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。
