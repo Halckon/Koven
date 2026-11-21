@@ -464,3 +464,80 @@ fn audit_raw_intervals(
     }
     Ok(())
 }
+
+#[test]
+fn resource_receiver_pair_and_imported_forwarding_preserve_existing_native_route() {
+    const RESOURCE: &str = r#"class Node() {
+    fun touch(): Int = 1
+    deinit() { println("release") }
+}
+fun runPair(own node: Node): Unit { node.touch(); node.touch() }
+fun runBorrowed(node: Node): Unit { node.touch() }
+fun entry(): Unit {
+    runPair(Node())
+    val allocated = Node()
+    runBorrowed(allocated)
+}
+"#;
+    let mut sources = SourceMap::new();
+    let (source, parsed) =
+        unit_lower_test_support::parsed(&mut sources, "resource_pair.ko", RESOURCE);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "resource_pair.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "entry")
+            .unwrap()
+            .id();
+        let facts = owned.ownership();
+        assert_eq!(facts.receiver_facts().len(), 3);
+        for receiver in facts.receiver_facts() {
+            assert_eq!(
+                typed.types().is_resource_type(receiver.receiver_type()),
+                Some(true)
+            );
+            assert_eq!(receiver.kind(), UnitReceiverOwnershipKind::SharedLoan);
+        }
+        let ((lowered, routes), receipts) = crate::ssa::refine::receiver_receipt::observe(|| {
+            crate::ssa::refine::observe_routing(|| {
+                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                )
+            })
+        });
+        let (program, entry) = lowered.unwrap();
+        let module = &program.modules[0];
+        for name in ["runPair", "runBorrowed"] {
+            let run = module
+                .functions
+                .iter()
+                .find(|function| {
+                    let source = sources.slice(function.origin.span()).unwrap();
+                    source.starts_with(&format!("fun {name}("))
+                })
+                .expect("resource caller in emitted program");
+            // The identical Resource source already selected Refine on the
+            // pre-candidate main baseline; the bounded non-Resource triggers
+            // should not change this routed behavior or add a receipt.
+            assert!(
+                routes.contains(&run.name),
+                "{name}: existing Resource route"
+            );
+            assert!(receipts.iter().all(|receipt| receipt.caller != run.id()));
+        }
+        verify_program(&program).unwrap();
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let output =
+            crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0, 1]);
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"release\nrelease\n");
+    }
+}
