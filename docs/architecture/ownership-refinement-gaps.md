@@ -131,20 +131,20 @@ resource 的 `Node` 参数，仅一次零参数共享接收者调用，丢弃 `B
 其余 A2 三种写法以及相应的 Boolean 结果变体仍由原普通入口负控固定在兼容路径。
 这不关闭 A2 其余兼容项，不涉及括号路由，也不代表远端或 Linux 验收。
 
-A2 的借用参数见证继续走 Compatibility。新增
+在该轮基线，A2 的借用参数见证仍走 Compatibility。新增
 `borrowed_receiver_fallback_forwards_entry_loan_without_owning_release` 保留原
 `run(node: Node)` 并附一层 native 调用者，双 Unit 布局中跟踪不同函数内的
 loan 身份：`run` 只把导入的共享 loan 传给方法，不建立或释放 owner；外层
 调用者在返回后结束原 loan，再释放最初分配的同一个 owner。该测试同时检查
 真实 SSA、LLVM 和 native 计数，不扩大 Refine 准入。
 
-A2 的同一 owner 两次共享调用仍留在 Compatibility。
+在该轮基线，A2 的同一 owner 两次共享调用仍走 Compatibility。
 `two_shared_receiver_calls_release_one_owner_after_both_loans_end` 在两个 Unit 布局
 分别按原始调用的源码范围跟踪两条不同 loan：第一条结束后才开始第二条，两条都
 指向同一参数 owner，且第二条结束后才产生唯一 Drop。外层 native 入口只创建并
 转交该 owner，实际执行按分配身份验证只释放一次，不增加 Refine 准入。
 
-A2 的单个显式标量实参也仍走 Compatibility。
+在该轮基线，A2 的单个显式标量实参也仍走 Compatibility。
 `explicit_scalar_receiver_fallback_preserves_callee_argument_and_owner_release`
 在双 Unit 布局证明先取得接收者共享 loan，后求出 `1` 并送入独立的标量参数槽；
 方法返回该参数，调用返回后结束 loan 并释放原 owner。外层 native 包装转交
@@ -184,7 +184,7 @@ Protocol 2 的三个动作和五个 SSA 生命周期指令。
 该 Value 紧邻调用且是真实实参。双布局的观察 ON 核对原 Complete2 和 SSA
 生命周期端点，真实 OFF 核对同一路由与等价 SSA/LLVM，native 核对同一 owner
 唯一释放。独立 anchor 正控仍无 receipt；命名、借用形参、带括号及计算表达式
-负控不继承此直达准入。借用接收者和多调用的旧路径不变，未扩大为任意实参。
+负控不继承此直达准入。本次标量迁移未改变借用接收者和多调用路由。
 
 ### A2 借用转发与双调用的独立 Refine 对照
 
@@ -196,5 +196,5 @@ Protocol 2 的三个动作和五个 SSA 生命周期指令。
 原样前端按调用范围分别为 Partial、Complete2，末次局部证书不覆盖第一次；
 带声明的对照不符合「仅调用表达式」观察门槛，两条为 Unsupported，均无后端 receipt。
 两种 Unit 布局的实际 SSA、LLVM 和按分配身份唯一释放均在 Mac 验证。
-前者需要导入 loan 的转发证明，后者需要贯穿两条借用的顺序及唯一 Drop 证明；
-这些探针本身不计作生产迁移；随后本地候选 `63973d9d` 只迁移单个借用参数的原样零实参 Int 用例，仍无 receipt，实际观察开关下路由及 SSA/LLVM 等价。原样双调用仍走 Compatibility，不能用末次局部 Complete2 取代两调用证明。
+本地候选 `63973d9d` 迁移原样借用转发；`38828620` 迁移原样同 owner、同一直达方法的两次零实参 Shared Int 调用。两者均无后端 receipt，真实观察 ON/OFF 路由及 SSA/LLVM 等价。
+双调用候选实际 ROp 和 SSA 分别核验两条独立 loan、只在第二条结束后释放原 owner，保留双布局 native 唯一释放与反例。Mac 和 Linux 定向各 70 项通过；末次 Complete2 仍不覆盖首条借用，不主张远端验收或整体退役。

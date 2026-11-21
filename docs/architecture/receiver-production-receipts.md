@@ -27,3 +27,9 @@ SSA/LLVM 对照和逐分配身份一次释放的定向 native 验证。人工破
 
 独立的有界借用参数转发路由复用入口 Shared loan，从未拥有或释放该对象，不产生 Protocol 2
 receipt。实际借用起止和 owner 释放仍归外层调用者；此处不能套用 owned receiver 的三动作证明。
+
+
+本地候选的同 owner 双调用是独立路由，依赖两个既有调用及其精确 End、唯一末次
+NamedDrop，不依赖可选观察。原样观察第一段 Partial、末次段局部 Complete2；末次不证明
+第一条借用，整组不产生后端 receipt。两种 Unit 布局分别核对实际 ROp、SSA、LLVM 与
+按分配身份唯一释放，不增加或迁移单调用 receipt 的生产职责。

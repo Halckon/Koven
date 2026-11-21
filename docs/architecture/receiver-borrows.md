@@ -195,6 +195,6 @@ SPEC-0341 的有界路由现使单一显式 `own` 非 Resource 普通 class 参�
 迁移触发不读取 loan observation 或 protocol 2 Complete；caller/callee 各自选路，
 原样 Node/run 中 run 迁移而 touch 保持原路径。已有 refine producer 唯一生成
 RootPlace、BorrowBegin、DirectCall、BorrowEnd 与 NamedDrop；受限核验见[生产 receipt](receiver-production-receipts.md)。
-真实 frontend off 重分析后原样 lowering 的等价性与原实体顺序 oracle 保留；不扩大
-implicit this、temporary、projection、two-phase、borrow-result、控制流或 replacement。
-另有独立的借用转发路由：单一默认 Borrow、非 Resource 普通 class 参数，仅零实参 Shared 方法、owned Int 结果的单语句，直接传入 entry loan；caller 无本地借用起止或 Drop，无 Protocol 2 receipt。其余形态不随这两条窄路由迁移。
+真实 frontend off 的路由与 lowering 等价性保留；不扩大 implicit this、temporary、projection、two-phase、borrow-result、控制流或 replacement。
+本地候选另准入同一 `own` 非 Resource class 参数的恰好两条零实参 Shared Int 调用，限同一直达方法、每次按原 token 结束、仅末次同根 Drop；不依赖可选观察，不产生 Protocol 2 receipt。
+另有独立的借用转发路由：单一默认 Borrow、非 Resource 普通 class 参数，仅零实参 Shared 方法、owned Int 结果的单语句，直接传入 entry loan；caller 无本地借用起止或 Drop，无 Protocol 2 receipt。其余形态不因这些窄路由而迁移。
