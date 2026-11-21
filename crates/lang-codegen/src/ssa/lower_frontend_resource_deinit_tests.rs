@@ -1,5 +1,5 @@
 //! Single-source Unit resource destructors are real readonly callable bodies.
-//! Only the remaining Legacy rejection contracts retain their original pipeline.
+//! Source-specific Resource admission and backend-boundary contracts use ordinary Unit.
 
 use crate::test_support::diagnostics::assert_text_eq;
 #[path = "lower_frontend_resource_deinit_tests/direct_closure.rs"]
@@ -13,10 +13,7 @@ mod nested_scope_drops;
 use direct_closure::field_chain::assert_nested_this_field_chain;
 use lang_frontend::name_resolution::SymbolKind;
 
-use super::{
-    LoweringErrorKind, analyze as analyze_legacy, lower_scalar_file, render_program,
-    render_verified_program,
-};
+use super::{LoweringErrorKind, render_program, render_verified_program};
 use crate::{
     native_tests::boxed_enum_tests::unit_source::UnitSource,
     ssa::model::{
@@ -409,34 +406,90 @@ fn single_resource_deinit_body_return_and_abort_are_explicit() {
 }
 
 #[test]
-fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
-    {
-        let source = "class Resource { deinit() {} }\nfun inspect(value: Resource?): Unit {}";
-        let analysis = analyze_legacy(source);
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{source}: {:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{source}: {:?}",
-            analysis.owned.diagnostics()
-        );
-        let failure = match lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        ) {
-            Ok(_) => panic!("unsupported resource representation must fail: {source}"),
-            Err(error) => error,
-        };
-        assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode, "{source}");
-        assert!(failure.span.is_some());
-    }
+fn original_borrowed_nullable_resource_keeps_readonly_formal_without_cleanup() {
+    use crate::ssa::model::TerminatorKind;
+    use lang_frontend::{
+        name_resolution::SourceUnitKey,
+        type_checking::{ParameterMode, UnitTypeKind},
+    };
 
+    // Single rejected the representation. Ordinary Unit accepts an unused
+    // borrowed nullable formal without owning or destroying its argument.
+    let text = "class Resource { deinit() {} }\nfun inspect(value: Resource?): Unit {}";
+    let unit = lower_resource(text, "inspect");
+    let [document] = unit.source.names().names().index().source_units() else {
+        panic!("one original MemoryDocument");
+    };
+    assert_eq!(document.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(document.source_id(), unit.source.parsed().source_id());
+    assert_eq!(
+        unit.source.sources().source_name(document.source_id()),
+        Ok("lowering.ko")
+    );
+    assert_eq!(
+        unit.source.sources().source_text(document.source_id()),
+        Ok(text)
+    );
+    let resource = unit.source.declaration("Resource", SymbolKind::Classifier);
+    let inspect = unit.source.declaration("inspect", SymbolKind::Function);
+    let signatures = unit.source.types().signatures();
+    let nominal = signatures.declaration(resource).unwrap().nominal().unwrap();
+    let destructor = nominal
+        .deinit()
+        .expect("actual original deinit declaration");
+    assert_eq!(destructor.owner(), resource);
+    assert_eq!(destructor.receiver_mode(), ParameterMode::Borrow);
+    let callable = signatures.declaration(inspect).unwrap().callable().unwrap();
+    let [parameter] = callable.parameters() else {
+        panic!("original formal");
+    };
+    assert_eq!(parameter.mode(), ParameterMode::Borrow);
+    let Some(UnitTypeKind::Nullable(inner)) = unit.source.types().types().get(parameter.ty())
+    else {
+        panic!("original nullable formal");
+    };
+    assert!(matches!(unit.source.types().types().get(*inner),
+        Some(UnitTypeKind::Nominal { declaration, arguments })
+            if *declaration == resource && arguments.is_empty()));
+    assert!(unit.source.ownership().drops().is_empty());
+
+    crate::ssa::verify::verify_program(&unit.program).unwrap();
+    render_verified_program(&unit.program).unwrap();
+    let entry = unit.entry();
+    let [block] = entry.blocks.as_slice() else {
+        panic!("one original empty body");
+    };
+    let [formal @ EntityId::Loan(_)] = block.parameters.as_slice() else {
+        panic!("actual borrowed SSA formal");
+    };
+    let EntityType::Loan {
+        kind: LoanKind::Shared,
+        target,
+    } = entry.entity(*formal).unwrap().ty
+    else {
+        panic!("nullable formal never becomes owned");
+    };
+    let module = unit.module();
+    let Some(SsaTypeKind::NullableHandle { inner }) = module.type_kind(target) else {
+        panic!("actual nullable heap handle ABI");
+    };
+    assert!(matches!(
+        module.type_kind(*inner),
+        Some(SsaTypeKind::HeapOwner { .. })
+    ));
+    let actual_deinit = unit.deinit("Resource");
+    assert_eq!(module.deinit(*inner), Some(actual_deinit.id()));
+    assert_eq!(module.deinits.len(), 1);
+    assert!(entry.instructions.is_empty());
+    assert!(matches!(
+        &block.terminator.as_ref().unwrap().kind,
+        TerminatorKind::Return { values } if values.is_empty()
+    ));
+    // This inspects the real static registration; it does not execute a destructor.
+}
+
+#[test]
+fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
     let generic = "class Resource<T>(val value: T) { deinit() {} }\nfun run(): Unit { val resource = Resource(1) }";
     let unit = UnitSource::analyze("lowering.ko", generic)
         .expect("generic deinit is a real declaration in the validated frontend");
@@ -465,7 +518,6 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
     assert!(!unit.sources().slice(origin).unwrap().is_empty());
 
     // This original generic wrapper has the same complete rejection on both routes.
-    // The borrowed nullable signature above retains its separate Legacy witness.
     let source = "class Resource { deinit() {} }\nclass Holder<T>(val value: T)\nfun run(): Unit { val wrapped = Holder(Resource()) }";
     let unit = UnitSource::analyze("lowering.ko", source)
         .expect("the original resource wrapper passes strict Unit frontend admission");
