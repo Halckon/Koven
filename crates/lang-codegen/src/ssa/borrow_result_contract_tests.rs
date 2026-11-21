@@ -881,3 +881,6 @@ fn ordinary_result_local_preserves_argument_boundary() {
         }
     }
 }
+
+#[path = "recursive_callable_view_probe.rs"]
+mod recursive_callable_view_probe;
