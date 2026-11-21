@@ -97,6 +97,26 @@ pub(super) fn own_parameter() {
     );
 }
 
+pub(super) fn explicit_borrow_local() {
+    let case = Case {
+        label: "explicit-borrow-local",
+        text: r#"fun run(input: MutableMap<Int, Int>): Unit {
+  borrow val source = input
+  val result = source.consume()
+}"#,
+        key: BuiltinType::Int,
+        value: BuiltinType::Int,
+        expected: Expected::Rejected("L0133"),
+        calls: 1,
+    };
+    assert_rejection(
+        &case,
+        "cannot move a non-Copyable value out of a borrowed binding",
+        (88, "source"),
+        Some((47, "borrow", "non-owning binding established here")),
+    );
+}
+
 fn assert_rejection(
     case: &Case,
     message: &str,
@@ -370,6 +390,103 @@ pub(super) fn assert_own_parameter_consume_selection(
         assert!(names.references().iter().any(|reference| {
             reference.span() == span(id)
                 && reference.target() == &ReferenceTarget::Symbol(root.symbol())
+        }));
+    }
+}
+
+pub(super) fn assert_explicit_borrow_local_selection(
+    case: &Case,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    unit: SourceUnitId,
+    names: &NameResolution,
+    types: &CompilationUnitTypes,
+    calls: &[(ExpressionId, ExpressionId)],
+) {
+    use lang_frontend::parser::{Item, NameMarker, VariableKind};
+
+    let [(call, receiver)] = calls else {
+        panic!("one exact consume selection")
+    };
+    let call = UnitExpressionId::new(unit, *call);
+    let receiver = UnitExpressionId::new(unit, *receiver);
+    let [selected] = types.map_consumes() else {
+        panic!("one selected MapConsume")
+    };
+    assert_eq!(selected.expression(), call);
+    assert_eq!(selected.receiver(), receiver);
+    let (local, local_type) = selected.source().expect("named local receiver");
+    assert_eq!(local.source_unit(), unit);
+    let symbol = |id| names.symbols().get(id).unwrap();
+    let local_declaration = symbol(local.symbol().index());
+    assert_eq!(local_declaration.kind(), SymbolKind::Variable);
+    assert_eq!(sources.slice(local_declaration.span()), Ok("source"));
+    assert_eq!(local_type, selected.receiver_type());
+    assert!(unit_map(
+        types,
+        Some(local_type),
+        IntrinsicTypeConstructor::MutableMap,
+        case
+    ));
+    assert!(unit_map(
+        types,
+        Some(selected.result_type()),
+        IntrinsicTypeConstructor::Map,
+        case
+    ));
+    assert_eq!(types.expression_type(call), Some(selected.result_type()));
+
+    let mut initializers = file
+        .ast()
+        .items()
+        .iter()
+        .filter_map(|(_, item)| match item.payload() {
+            Item::Variable {
+                kind: VariableKind::BorrowVal(borrow),
+                name: NameMarker::Present(name),
+                initializer,
+                ..
+            } if *name == local_declaration.span() => Some((*borrow, *initializer)),
+            _ => None,
+        });
+    let (borrow, initializer) = initializers.next().expect("actual borrow val declaration");
+    assert!(initializers.next().is_none());
+    assert_eq!(sources.slice(borrow), Ok("borrow"));
+    assert_eq!(borrow.start(), 47);
+    let initializer = UnitExpressionId::new(unit, initializer);
+
+    let [run] = types.signatures().declarations() else {
+        panic!("exact one top-level run")
+    };
+    let [parameter] = run.callable().unwrap().parameters() else {
+        panic!("exact one parameter")
+    };
+    let input = parameter.symbol().expect("original borrowed parameter");
+    assert_ne!(input, local);
+    assert_eq!(input.source_unit(), unit);
+    assert_eq!(parameter.name(), Some("input"));
+    assert_eq!(parameter.mode(), ParameterMode::Borrow);
+    assert_eq!(parameter.ty(), local_type);
+    let input_declaration = symbol(input.symbol().index());
+    assert_eq!(input_declaration.kind(), SymbolKind::ValueParameter);
+    assert_eq!(sources.slice(input_declaration.span()), Ok("input"));
+
+    for (id, name, target) in [(receiver, "source", local), (initializer, "input", input)] {
+        let span = file
+            .ast()
+            .expressions()
+            .get(id.expression())
+            .unwrap()
+            .span();
+        assert_eq!(sources.slice(span), Ok(name));
+        assert_eq!(types.expression_type(id), Some(local_type));
+        assert_eq!(
+            types.expression_category(id),
+            Some(ExpressionCategory::Place)
+        );
+        assert!(names.references().iter().any(|reference| {
+            reference.span() == span
+                && reference.target() == &ReferenceTarget::Symbol(target.symbol())
         }));
     }
 }

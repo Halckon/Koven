@@ -22042,3 +22042,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `2c579121`，只迁同一旧 FQN 的 `own-parameter` 行，109 字节原源码原样，包括 `source.consume()` 之后的 `source.size`。剩余八项仍保留在原 Single/Rooted 矩阵。
 - 原 Single 与两种 Unit 完整类型检查均选择一个 MapConsume 和独立的后续 Map size 读取。Unit 两处读取指向同一个真实 `ValueParameter` 符号，签名明确为 `own`（`ParameterMode::Value`）；不是无根的临时值，也不是允许消费的本地 `val/var`。分析只在 ownership 拒绝：唯一 L0130 主为消费处的原 `source`（65..71），完整诊断与 Single 相等且无附加详情；既不误报后续读取为 use-after-move，也不发布部分所有权事实或 seal 可执行能力。
 - Mac 复用生产源码不变的 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 显式局部借用拒绝测试迁移
+
+- 基于 `3442cb25`，只迁同一旧 FQN 的 `explicit-borrow-local` 原源码。剩余七项仍在原 Single/Rooted 矩阵，包括三项已知完整诊断不等价的场景。
+- 原 Single 与两种 Unit 均通过完整类型准入，ownership 唯一 L0133：`cannot move a non-Copyable value out of a borrowed binding`；主为消费处的 `source`（88..94），原声明真实 `borrow` 标记（47..53）为唯一关联标签 `non-owning binding established here`。完整诊断相同。Unit 真实 MapConsume 的 typed Place 和选择到的具名接收者均指向本地 `source`；该符号来自解析出的 `borrow val`，其初始化表达式另行解析到签名中 Borrow 模式的 `input` 形参。拒绝不会发布可执行借用、交付或清理事实。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未修改生产/API/CI，未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
