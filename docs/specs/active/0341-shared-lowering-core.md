@@ -22115,3 +22115,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `514b2c28`，保持原 `aborting_binary_left_has_no_right_or_following_materialization_cleanup` 源码、FQN 和 Single 断言，增补 MemoryDocument/Rooted 验证。该原源码的真实选中 `stop()` 是返回 Nothing 的等号左操作数，不是已覆盖的插值后拼接。右操作数和后续语句仍各有精确的 typed `TEXT` 读取，指向同一原声明及值，但在同一已验证常量所有权产物中均无运行时物化。没有借用、清理、价值交付或直接调用借用结束。
 - Unit 的直接调用借用结束不是 Single 全类别 `loan_ends()` 的等价查询，因此保留旧断言。本片不声称新增 native 证明或完整退役。
 - Mac 使用现有生产 rlib 直接链接测试，两个 abort 定点各通过，`ownership_constants` 18/18；格式、diff、docs、Rust size guard 通过。未改生产/API/CI，未跑本片 Linux 或远端 CI。
+
+### 2026-11-21：原常量相等比较的终止型 Unit SSA
+
+- 基于 `d83b1e7d`，前端与新 codegen 测试共用原 164 字节文件（SHA-256 `e9d28c10c6d4cb73725be073d8f62bc432281455f9e05440a14707b9eb876ac5`），前端旧 FQN 和 Single 全类别结束动作断言原样保留。
+- 两种布局下从原 `use` entry 降低并验证实际 SSA：唯一调用方 block 只含原 `stop()` 对本源声明的 DirectCall，callee 为无正常返回的 Nothing ABI，调用无实参或结果；同位置的 Unreachable 无任何后继。调用方没有常量物化、BorrowEnd、Drop 或其他可执行指令。该证据只证明已验证 SSA，不等同公开 Single planner 事件流；不运行故意不终止的递归。
+- Mac 现有缓存 offline 单 job codegen exact 1/1、常量前端 18/18，静态检查通过。未改生产/API/CI、未做本片 Linux 或远程验证，SPEC-0341 仍 in-progress。

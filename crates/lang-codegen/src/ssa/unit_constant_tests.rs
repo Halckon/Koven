@@ -14,6 +14,7 @@ use super::{
     unit_lower_test_support::{declaration, parsed},
 };
 
+mod aborting_binary_left;
 pub(in crate::ssa) mod control_completion;
 mod owned_return;
 

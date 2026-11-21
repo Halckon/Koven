@@ -263,15 +263,7 @@ fun use(): String = Holder(TEXT).text
 
 #[test]
 fn aborting_binary_left_has_no_right_or_following_materialization_cleanup() {
-    let text = r#"
-const val TEXT = "hi"
-fun stop(): Nothing = stop()
-fun view(text: String): Unit {}
-fun use(): Unit {
-    val stopped = stop() == TEXT
-    val unreachable = TEXT
-}
-"#;
+    let text = include_str!("ownership_constants/fixtures/aborting-binary-left.ko");
     let (_, owned) = checked(text);
     assert!(
         owned
