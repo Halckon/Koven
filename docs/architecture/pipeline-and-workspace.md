@@ -97,6 +97,10 @@ source-set 仍保留 validated_names gate、typed recovery、NotBasic 无 owned 
 严格流程封装成单个公开 API。[Unit recovery](../../crates/lang-frontend/src/analysis/unit_recovery.rs)
 用于继续收集诊断，不能替代严格准入或提供可执行后端输入。
 
+旧 Single 测试中的顶层普通 `val first = 1` 可以到达所有权阶段；同样源码在 Unit 的最终类型准入阶段
+会以 `L0167` 拒绝。迁移这类运行时值时，应在入口或函数内构造，再显式传递；若值本来就是编译期常量，
+可改为 `const val` 并走常量能力分支。不要用跳过最终准入的方式保留旧行为。
+
 ## 普通 owned-unit 交接
 
 frontend `ownership_checking::owned_compilation_unit_view` 接收 sources、inputs、validated names、
