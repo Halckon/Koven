@@ -7,6 +7,10 @@ use std::{cell::Cell, collections::HashSet, fmt::Write};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::ssa::refine) struct Counts {
+    pub(in crate::ssa::refine) route_bindings: usize,
+    pub(in crate::ssa::refine) route_ends: usize,
+    pub(in crate::ssa::refine) route_drops: usize,
+    pub(in crate::ssa::refine) precheck_ends: usize,
     pub(in crate::ssa::refine) region_rows: usize,
     pub(in crate::ssa::refine) drop_rows: usize,
     pub(in crate::ssa::refine) region_candidates: usize,
@@ -109,7 +113,18 @@ fn count(n: usize) -> Counts {
                 })
             })
         });
-        assert_eq!(off_counts, Counts::default());
+        eprintln!("OFF N={n}: {off_counts:?}");
+        assert_eq!(
+            off_counts,
+            Counts {
+                region_rows: 0,
+                drop_rows: 0,
+                region_candidates: 0,
+                drop_candidates: 0,
+                precheck_ends: 0,
+                ..counts
+            }
+        );
         assert!(off_receipts.is_empty());
         assert_eq!(
             off_routes
@@ -162,6 +177,7 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
                 drop_rows: callers,
                 region_candidates: callers,
                 drop_candidates: callers,
+                ..counts
             }
         );
     }

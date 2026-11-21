@@ -255,11 +255,11 @@ impl Checker<'_, '_> {
         {
             return None;
         }
-        let binding = inputs
-            .owned
-            .bindings()
-            .iter()
-            .find(|b| b.symbol() == *symbol)?;
+        let binding = inputs.owned.bindings().iter().find(|b| {
+            #[cfg(test)]
+            super::super::receiver_receipt::work_count::visit(|c| c.route_bindings += 1);
+            b.symbol() == *symbol
+        })?;
         if binding.kind() != OwnershipBindingKind::Owned {
             return None;
         }
@@ -302,14 +302,15 @@ impl Checker<'_, '_> {
         }
         let point = UnitDropPoint::CallReturn(id);
         Some(
-            inputs
-                .owned
-                .receiver_call_return_ends()
-                .iter()
-                .any(|end| end.receiver() == fact && end.point() == point)
-                && inputs.owned.drops().iter().any(|drop| {
-                    drop.point() == point && drop.target() == UnitDropTarget::Named(*symbol)
-                }),
+            inputs.owned.receiver_call_return_ends().iter().any(|end| {
+                #[cfg(test)]
+                super::super::receiver_receipt::work_count::visit(|c| c.route_ends += 1);
+                end.receiver() == fact && end.point() == point
+            }) && inputs.owned.drops().iter().any(|drop| {
+                #[cfg(test)]
+                super::super::receiver_receipt::work_count::visit(|c| c.route_drops += 1);
+                drop.point() == point && drop.target() == UnitDropTarget::Named(*symbol)
+            }),
         )
     }
 
