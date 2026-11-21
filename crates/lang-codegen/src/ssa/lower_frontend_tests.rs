@@ -412,10 +412,32 @@ fn rejects_inline_nullable_lowering_without_panicking() {
 #[test]
 fn rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking() {
     for source in [
-        "class Node {}\nfun inspect(inout node: Node?): Unit { when (node) { null -> {}; else -> {} } }",
         "class Node {}\nclass Holder(val item: Node?)\nfun inspect(holder: Holder): Unit { when (holder.item) { null -> {}; else -> {} } }",
         "class Node {}\nfun inspect(items: List<Node?>): Unit { when (items[0]) { null -> {}; else -> {} } }",
         "value class Token(val item: Int)\nfun inspect(own token: Token?): Unit { when (token) { null -> {}; else -> {} } }",
+    ] {
+        // These original source forms stay valid in the frontend and fail at the
+        // same whole When boundary as the corresponding strict Unit negative set.
+        let unit = UnitSource::analyze("lowering.ko", source)
+            .expect("original nullable When source passes strict Unit admission");
+        unit.assert_frontend_clean();
+        let document = unit.parsed().source_id();
+        assert_eq!(unit.sources().source_text(document), Ok(source));
+        let entry = unit.declaration("inspect", SymbolKind::Function);
+        let error = unit
+            .lower_entry(entry)
+            .err()
+            .expect("ordinary Unit still refuses this subject category");
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        let origin = error.span.expect("exact source-qualified backend boundary");
+        let start = source.find("when (").unwrap();
+        let end = source.strip_suffix(" }").unwrap().len();
+        assert_eq!(origin.source_id(), document);
+        assert_eq!((origin.start(), origin.end()), (start, end));
+        assert_eq!(unit.sources().slice(origin), Ok(&source[start..end]));
+    }
+    for source in [
+        "class Node {}\nfun inspect(inout node: Node?): Unit { when (node) { null -> {}; else -> {} } }",
         "class Node {}\n\
          fun inspect(node: Node?): Unit {\n\
              when (node) { null -> {}; else -> {} }\n\
