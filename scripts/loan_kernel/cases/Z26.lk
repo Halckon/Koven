@@ -1,0 +1,79 @@
+// 嵌套复合类型的逐层部分移出：兄弟字段照常，祖先不可整体使用，中间层带 deinit 不可拆出。
+class Arr(len: Int)
+class File(fd: Int) deinit
+class Pair(a: File, b: File)
+class Outer(mid: Pair, tail: File)
+class GuardPair(a: File, b: File) deinit
+class WrapDeinit(mid: GuardPair, tail: File)
+view class Slice(borrow source: Arr)
+view class SlicePair(first: Slice, second: Slice)
+view class NestedSlices(pair: SlicePair, tail: Slice)
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun closeFile(own f: File): Unit trusted
+fun closePair(own p: GuardPair): Unit trusted
+fun moveNestedLeafKeepSiblings(own o: Outer): Unit {
+  val x = move o.mid.a
+  mayFail()
+  use(o.mid.b.fd)
+  use(o.tail.fd)
+  closeFile(move x)
+  closeFile(move o.mid.b)
+  closeFile(move o.tail)
+}
+fun cannotUseMovedLeaf(own o: Outer): Unit {
+  val x = move o.mid.a
+  use(o.mid.a.fd)  // ERR K8
+  closeFile(move x)
+}
+fun cannotMoveParentAfterNestedMove(own o: Outer): Unit {
+  val x = move o.mid.a
+  val p = move o.mid  // ERR K8
+  closeFile(move x)
+  use(p.b.fd)
+}
+fun cannotMoveRootAfterNestedMove(own o: Outer): Unit {
+  val x = move o.mid.a
+  val r = move o  // ERR K8
+  closeFile(move x)
+  use(r.tail.fd)
+}
+fun cannotMoveOutOfNestedDeinit(own w: WrapDeinit): Unit {
+  val x = move w.mid.a  // ERR K23
+  closeFile(move x)
+}
+fun canMoveWholeNestedDeinit(own w: WrapDeinit): Unit {
+  val p = move w.mid
+  use(w.tail.fd)
+  closePair(move p)
+}
+fun cannotMoveBorrowedNestedLeaf(own o: Outer): Unit {
+  val r = &o.mid.a.fd
+  val x = move o.mid.a  // ERR K1
+  use(r)
+  closeFile(move x)
+}
+fun canMoveSiblingWhileOtherNestedLeafBorrowed(own o: Outer): Unit {
+  val r = &o.mid.b.fd
+  val x = move o.mid.a
+  use(r)
+  closeFile(move x)
+}
+fun nestedViewMoveTransfersOnlyLeafOrigin(own a: Arr, own b: Arr, own c: Arr): Unit {
+  val ns = NestedSlices(SlicePair(Slice(&a), Slice(&b)), Slice(&c))
+  val taken = move ns.pair.first
+  update(&mut a)  // ERR K1
+  use(taken.source.len)
+  update(&mut a)
+  update(&mut b)  // ERR K1
+  update(&mut c)  // ERR K1
+  use(ns.pair.second.source.len)
+  use(ns.tail.source.len)
+}
+fun conditionalNestedMoveKeepsDropFlag(own o: Outer): Unit {
+  if (*) {
+    closeFile(move o.mid.a)
+  }
+  mayFail()
+  use(o.mid.b.fd)
+}

@@ -276,7 +276,8 @@ class LoanKernelCases(unittest.TestCase):
                           ("deliverThroughAlias", "f"), ("deliverThroughAlias", "g"),
                           ("openExclusiveInOneArm", "this"), ("openExclusiveInOneArm", "f"),
                           ("moveExclusiveOutOfArm", "this"), ("moveExclusiveOutOfArm", "f"),
-                          ("conditionalReleaseKeepsDropFlag", "guard")},
+                          ("conditionalReleaseKeepsDropFlag", "guard"),
+                          ("conditionalNestedMoveKeepsDropFlag", "o")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -1033,6 +1034,36 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual(3, len(lost))
         self.assertEqual({"K1"}, {rule for rule, _ in lost})
         self.assertEqual(set(), mutated - expected(source))
+
+    def test_nested_partial_move_tracks_leaf_obligations_and_origins(self):
+        source = (ROOT / "cases/Z26.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("moveNestedLeafKeepSiblings", "canMoveWholeNestedDeinit",
+                     "canMoveSiblingWhileOtherNestedLeafBorrowed", "conditionalNestedMoveKeepsDropFlag"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("cannotUseMovedLeaf", "cannotMoveParentAfterNestedMove",
+                     "cannotMoveRootAfterNestedMove", "cannotMoveOutOfNestedDeinit",
+                     "cannotMoveBorrowedNestedLeaf"):
+            self.assertFalse(lowered[name][2], name)
+        # 全部叶字段移出后不再析构 o；中途 mayFail 失败时须同时清理 x 与剩余的 o。
+        types, program, accepted = lowered["moveNestedLeafKeepSiblings"]
+        self.assertTrue(accepted)
+        self.assertEqual([], [s for s in program if s.kind == "drop"])
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("x", False), ("o", False)], call.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.pop()  # 漏掉仍持有 o.mid.b 与 o.tail 的 o
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+        # 单臂移出嵌套叶字段后，合流清理与退出均保留 o?；漏掉 o? 报 V1。
+        types, program, accepted = lowered["conditionalNestedMoveKeepsDropFlag"]
+        self.assertTrue(accepted)
+        joined = next(s for s in program if s.kind == "call")
+        self.assertEqual([("o", True)], joined.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        joined.cleanup.clear()
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

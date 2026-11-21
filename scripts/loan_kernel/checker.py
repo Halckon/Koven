@@ -638,10 +638,17 @@ class Checker:
             stmt.cleanup = [(n, self.flagged(v)) for n, v in reversed(list(state.items())) if self.owes(v)]
         self.out.append(stmt)
 
+    def all_moved(self, ty_name, gone, prefix=(), ignore_deinit=False):
+        if gone.get(prefix) == "M":
+            return True
+        decl = self.classes.get(ty_name)
+        if decl is None or not decl.fields or (decl.deinit and not ignore_deinit) or decl.cell or decl.local or decl.carrier:
+            return False
+        return all(not kind and self.all_moved(fty, gone, prefix + (fname,)) for kind, fname, fty in decl.fields)
+
     def owes(self, var):
-        """变量名下是否还有析构义务：拥有的值，没有被整体移走，字段也没有全部移出。"""
-        decl = self.classes.get(var.ty.name)
-        emptied = decl is not None and decl.fields and all(var.gone.get((f,)) == "M" for _, f, _ in decl.fields)
+        """变量名下是否还有析构义务：拥有的值，没有被整体移走，叶字段也没有全部移出。"""
+        emptied = bool(var.gone) and self.all_moved(var.ty.name, var.gone, ignore_deinit=self.fun.deinit_of == var.ty.name)
         return self.tracked(var) and var.init != "M" and not emptied
 
     @staticmethod
@@ -1105,9 +1112,9 @@ class Checker:
         说明父持有者正被子借用暂停，记为 K4；作用域结束时的析构冲突记为 K9；其余记为 K1。
         """
         if kind not in ("move", "kill", "fail") and not self.quiet:
-            for root, path in sorted(targets):  # 经借用访问也是对 owner 的一次使用；带上用到的是哪个字段
+            for root, path in sorted(targets):  # 经借用访问也是对 owner 的一次使用；带上用到的字段路径
                 if self.tracked(state.get(root)):
-                    self.emit("use", line, root, fld=path[0] if path else "")
+                    self.emit("use", line, root, fld=".".join(path))
         skip = set(via) | self.ancestors(via)
         for loan in sorted(self.live_loans(state) - skip):
             info = self.loans[loan]
@@ -1159,8 +1166,8 @@ class Checker:
             raise SyntaxProblem(f"第 {place.line} 行：未声明的变量 {place.root}")
         if var.init != "A":
             self.error("K8", place.line, f"{place.root} 已被移动或可能已被移动")
-        elif var.gone and (not place.fields or (place.fields[0],) in var.gone):
-            self.error("K8", place.line, f"{'.'.join([place.root] + place.fields[:1])} 已被部分移出")
+        elif var.gone and any(prefix_related(tuple(place.fields), g) for g in var.gone):
+            self.error("K8", place.line, f"{'.'.join([place.root] + place.fields)} 已被部分移出")
         here = {(place.root, ())}
         if not place.fields:
             held = self.current_fields(state, here, {}, var.ty.name) if var.ty.kind == "view" else var.loans
@@ -1259,32 +1266,34 @@ class Checker:
         return value
 
     def take(self, expr, state):
-        """K23：从拥有的变量里移出一个按值字段。此后这个字段不可再用，变量不可再整体使用，其余字段照常。
+        """K23：从拥有的变量里逐层移出一个按值字段。此后该路径及其祖先不可整体使用，兄弟字段照常。
 
-        声明了 deinit 的类型不能被移出字段：它的 deinit 要看到完整的值。
+        路径上任一外层或中间层声明了 deinit 都不能从它内部移出字段：它的 deinit 要看到完整的值。
         """
         place = expr.place
-        if len(place.fields) != 1:
-            raise SyntaxProblem(f"第 {expr.line} 行：演算只支持移出一层字段")
         res = self.resolve(state, place)
-        var, name = state[place.root], place.fields[0]
+        var, path_str = state[place.root], ".".join(place.fields)
         if res.ty.kind == "int":  # 整数没有可移走的东西，只是一次读
             self.access(state, res.targets, res.via, "read", expr.line)
             return Value(INT)
-        decl = self.classes.get(var.ty.name)
-        if var.ty.kind not in ("cls", "view") or res.crossed:
-            self.error("K8", expr.line, f"{place.root}.{name} 不在这个变量自己的存储里，不能移出")
+        if var.ty.kind not in ("cls", "view") or res.crossed or self.crosses_borrow_field(var.ty.name, place.fields):
+            self.error("K8", expr.line, f"{place.root}.{path_str} 不在这个变量自己的存储里，不能移出")
             return Value(res.ty)
-        if decl.deinit and not (self.fun.deinit_of and place.root == "this"):
-            self.error("K23", expr.line, f"{var.ty.name} 声明了 deinit，不能从它里面移出字段")
+        cur = var.ty.name
+        for depth, fname in enumerate(place.fields):
+            decl = self.classes.get(cur)
+            if decl.deinit and not (depth == 0 and self.fun.deinit_of and place.root == "this"):
+                self.error("K23", expr.line, f"{cur} 声明了 deinit，不能从它里面移出字段")
+                break
+            _, _, cur = decl.field(fname)
         self.access(state, res.targets, set(), "move", expr.line)
         value = Value(res.ty, copy_loans(res.field_loans or {}))
-        var.loans = {key: held for key, held in var.loans.items() if not self.within(key, name)}
-        var.gone[(name,)] = "M"
+        var.loans = {key: held for key, held in var.loans.items() if not self.within(key, path_str)}
+        var.gone[tuple(place.fields)] = "M"
         if self.tracked(Var(res.ty, "A", {})):
-            taken = f"{place.root}#{name}"
+            taken = f"{place.root}#{path_str}#{expr.site}"
             self.dp_type(res.ty)
-            self.emit("take", expr.line, taken, ty=place.root, fld=name)
+            self.emit("take", expr.line, taken, ty=place.root, fld=path_str)
             self.emit("move", expr.line, taken)
         return value
 

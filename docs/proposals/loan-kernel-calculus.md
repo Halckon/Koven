@@ -1176,4 +1176,11 @@ fun probe(borrow h: A): Unit {
 1. **互相递归折叠边界丢账（`current_fields` / `folded`）。** `current_fields` 沿借用字段现查时，此前即使未查到来源也会向 `fields` 写入空集合 `set()`；当路径走到互相递归的折叠边界（`e.next.next.data`）时，`folded` 以 `name not in fields` 判定字段缺失，结果被空集合挡住、漏掉 `P(e.next.next)`，导致 `wrongMutualBranch` 与 `undeclaredMutual` 均漏报 K6。现改为只在查到非空来源时写入 `fields`，并在 `folded` 中按 `not fields.get(name)` 补入折叠来源。
 2. **递归视图上的流向未穿透折叠边界（`flow_into`）。** 声明 `flows s into n.next`（或互相递归 `flows s into e.next.next`）时，`ref_paths` 在折叠边界停止展开，旧 `flow_into` 只把 `s` 记在顶层节点的 `next` 键上，没有继续传播到链上更深层的本地拥有者（`n1`、`n0`、`e1`），导致调用方从底层拥有者读回后写 `s` 漏报 K1。现改为在遇到折叠借用字段时沿指向同家族视图的链传播到所有可达的本地拥有者（带访问集防环），且不误污染未落入目标路径的节点（如 `n2.slice` 与 `o1.slice`）。
 
-`Z25.lk` 覆盖 2/3/4 层互相递归读回、`while` 沿链遍历、错声明/漏声明 K6、直接与互相递归的 `flows` 及调用方顶层/中层/深层读写隔离；变异检验确认去掉折叠边界传播后恰好漏报 `n1`、`n0`、`e1` 三处 K1。
+`Z25.lk` 覆盖 2/3/4 层互相递归读回、`while` 沿链遍历、错声明/漏声明 K6、直接与互相递归的 `flows` 及调用方顶层/中层/深层读写隔离；变异检验确认去掉折叠边界传播后恰好漏报 `n1`、`n0`、`e1` 三处 K1。嵌套复合类型的逐层部分移出见 §64。
+
+## 64. 嵌套复合类型的逐层部分移出（KB1 × KB2）
+
+`Z26.lk` 将部分移出（K23）从单层字段扩展到嵌套复合类型的任意深度按值字段路径（如 `move o.mid.a`），并同步扩展析构义务检验器（`drop_plan.py`）的义务单元与按子树析构：
+
+- **借用与初始化（`checker.py`）**：`var.gone` 记录完整字段路径元组；`resolve` 以 `prefix_related` 检查访问路径与已移出路径的前缀关系——移出 `o.mid.a` 后，再访问 `o.mid.a` 或整体使用/移动祖先 `o.mid`、`o` 均报 K8，同层兄弟 `o.mid.b` 与外层兄弟 `o.tail` 照常可用。路径上任一外层或中间层类型声明了 `deinit`（如 `WrapDeinit.mid: GuardPair deinit`）时，`move w.mid.a` 报 K23，整体移走 `move w.mid` 接受。借用冲突按叶字段精确判定：借着 `o.mid.a` 时移出报 K1，借着兄弟 `o.mid.b` 时移出 `o.mid.a` 接受。嵌套视图移出叶字段（`move ns.pair.first`）时，来源随叶字段转移且仅清空该路径下的旧账。
+- **析构义务（`drop_plan.py`）**：`Types.units` 递归展开复合字段至叶单元，`Verifier` 支持多层路径的 `use`、`take`、`replace` 与按剩余子树逆序析构。全部叶字段逐一移出后不再析构 `o`；中途 `mayFail` 失败清理 `x, o`（漏掉 `o` 报 V1）；单臂移出嵌套叶字段后合流保留析构标志 `o?`（漏掉 `o?` 报 V1）。

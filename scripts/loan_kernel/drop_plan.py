@@ -138,10 +138,19 @@ class Types:
         return not self.has(name, "EarlyDrop")
 
     def units(self, var, name):
-        """一个变量名下的义务单元：每个字段一份，声明了 deinit 的类型自身另有一份。"""
+        """一个变量名下的义务单元：递归展开到每个叶字段，声明了 deinit 的类型自身另有一份。"""
         decl = self.types[name]
-        units = [f"{var}.{fld}" for fld, _ in decl.fields]
-        return units + [var] if decl.deinit or not decl.fields else units
+        if not decl.fields:
+            return [var]
+        units = []
+        for fld, fty in decl.fields:
+            units.extend(self.units(f"{var}.{fld}", fty))
+        return units + [var] if decl.deinit else units
+
+    def field_type(self, name, path):
+        for fld in path.split("."):
+            name = dict(self.types[name].fields)[fld]
+        return name
 
     def fields_of(self, name):
         """deinit 拥有 this 时它的类型：同样的字段，但 deinit 这份义务已经在履行，不再另算。"""
@@ -329,30 +338,34 @@ class Planner:
                 self.status[unit] = "O"
             return out + [stmt]
         if kind == "take":  # take y = x.a：从 x 移出一个字段
-            source, unit = stmt.ty, f"{stmt.ty}.{stmt.fld}"
-            if source not in self.ty or unit not in self.status:
+            source = stmt.ty
+            if source not in self.ty or stmt.fld not in dict(self.t.types[self.ty[source]].fields):
                 raise Rejected(line, "SYNTAX", f"{source} 没有字段 {stmt.fld}")
             decl = self.t.types[self.ty[source]]
+            fty = dict(decl.fields)[stmt.fld]
+            sub_units = self.t.units(f"{source}.{stmt.fld}", fty)
             if source in self.borrowed:
                 raise Rejected(line, "D7", f"{source} 是借用，不能移出它的字段")
             if decl.deinit:
                 raise Rejected(line, "D2", f"{source} 的类型声明了 deinit，不能部分移出；须用 open")
-            if self.status[unit] != "O":
-                raise Rejected(line, "D1", f"{unit} 已被移走或可能已被移走")
-            self.status[unit] = "G"
-            self.declare(stmt.var, dict(decl.fields)[stmt.fld])
+            if any(self.status[u] != "O" for u in sub_units):
+                raise Rejected(line, "D1", f"{source}.{stmt.fld} 已被移走或可能已被移走")
+            for u in sub_units:
+                self.status[u] = "G"
+            self.declare(stmt.var, fty)
             return [stmt]
         if kind == "replace":  # replace y = x.a：取出字段，原处留下空值；x 仍然完整
-            source, unit = stmt.ty, f"{stmt.ty}.{stmt.fld}"
-            if source not in self.ty or unit not in self.status:
+            source = stmt.ty
+            if source not in self.ty or stmt.fld not in dict(self.t.types[self.ty[source]].fields):
                 raise Rejected(line, "SYNTAX", f"{source} 没有字段 {stmt.fld}")
             if source in self.borrowed and self.policy.this_access == "borrow":
                 raise Rejected(line, "D7", f"{source} 是只读借用，不能改写它的字段")
             fty = dict(self.t.types[self.ty[source]].fields)[stmt.fld]
+            sub_units = self.t.units(f"{source}.{stmt.fld}", fty)
             if not self.t.types[fty].empty:
                 raise Rejected(line, "D8", f"{fty} 没有可以留在原处的空值")
-            if self.status[unit] != "O":
-                raise Rejected(line, "D1", f"{unit} 已被移走或可能已被移走")
+            if any(self.status[u] != "O" for u in sub_units):
+                raise Rejected(line, "D1", f"{source}.{stmt.fld} 已被移走或可能已被移走")
             self.declare(stmt.var, fty)
             return [stmt]
         if kind == "open":  # 消费并解除析构：字段成为局部变量，不运行 deinit
@@ -552,9 +565,9 @@ class Verifier:
             if not body[0].if_owned:
                 return failed
         for name, fty in reversed(decl.fields):
-            if name in fields:
-                inner = self.t.types[fty]
-                failed |= self.guarded(failed, lambda: self.destruct(fty, {f for f, _ in inner.fields}))
+            sub = {f[len(name) + 1:] for f in fields if f.startswith(name + ".")}
+            if name in fields or sub:
+                failed |= self.guarded(failed, lambda: self.destruct(fty, sub, name in fields))
         return failed
 
     def guarded(self, cleaning, action):
@@ -617,8 +630,11 @@ class Verifier:
                 if len(stmt.names) != len(fields) or len(names) != len(fields) or names.intersection(self.active()):
                     raise InvalidOpen(len(self.violations))
             units = self.t.units(stmt.var, self.ty[stmt.var])
-            if kind == "use" and f"{stmt.var}.{stmt.fld}" in units:  # 只用到一个字段（由借用原型写出）
-                units = [f"{stmt.var}.{stmt.fld}"]
+            if kind == "use" and stmt.fld:  # 只用到某个字段或其子树（由借用原型写出）
+                prefix = f"{stmt.var}.{stmt.fld}"
+                matched = [u for u in units if u == prefix or u.startswith(prefix + ".")]
+                if matched:
+                    units = matched
             if any(self.unit[u] != "O" for u in units):
                 self.violations.append("V5 使用了已析构或已移走的值")
             if kind != "use":
@@ -630,15 +646,19 @@ class Verifier:
                     if ty == "&":  # 拆出的借用或无析构义务字段不产生新的析构义务
                         self.borrowed.add(name)
         elif kind == "take":
-            unit = f"{stmt.ty}.{stmt.fld}"
-            if self.unit[unit] != "O":
+            fty = self.t.field_type(self.ty[stmt.ty], stmt.fld)
+            sub_units = self.t.units(f"{stmt.ty}.{stmt.fld}", fty)
+            if any(self.unit[u] != "O" for u in sub_units):
                 self.violations.append("V5 使用了已析构或已移走的值")
-            self.unit[unit] = "M"
-            self.declare(stmt.var, dict(self.t.types[self.ty[stmt.ty]].fields)[stmt.fld])
+            for u in sub_units:
+                self.unit[u] = "M"
+            self.declare(stmt.var, fty)
         elif kind == "replace":
-            if self.unit[f"{stmt.ty}.{stmt.fld}"] != "O":
+            fty = self.t.field_type(self.ty[stmt.ty], stmt.fld)
+            sub_units = self.t.units(f"{stmt.ty}.{stmt.fld}", fty)
+            if any(self.unit[u] != "O" for u in sub_units):
                 self.violations.append("V5 使用了已析构或已移走的值")
-            self.declare(stmt.var, dict(self.t.types[self.ty[stmt.ty]].fields)[stmt.fld])
+            self.declare(stmt.var, fty)
         elif kind == "block":
             self.block(stmt.body)
         elif kind == "if":
