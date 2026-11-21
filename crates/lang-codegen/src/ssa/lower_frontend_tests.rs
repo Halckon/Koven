@@ -121,6 +121,23 @@ mod frontend_boundaries {
         );
     }
 
+    #[test]
+    fn top_level_runtime_value_stops_before_unit_lowering() {
+        // Single parsed and typed this source, then reported UnsupportedNode in lowering.
+        // Ordinary Unit rejects the exact same source during type checking.
+        assert_rejected(
+            "val state = 1\nfun entry(): Unit {}",
+            &[("parse", 0), ("names", 0), ("types", 1)],
+            &[ExpectedDiagnostic {
+                stage: "types",
+                code: "L0167",
+                message: "top-level runtime values are not supported; use `const val` or construct the value in `main` and pass it as an argument",
+                range: (0, 3),
+                label: None,
+            }],
+        );
+    }
+
     fn analyze_original(source: &str) -> UnitSource {
         let unit = UnitSource::analyze("lowering.ko", source).expect("strict original Unit source");
         unit.assert_frontend_clean();
@@ -477,24 +494,6 @@ fn declarative_type_roots_do_not_enter_the_scalar_instance_graph() {
          enum class Outcome<T, E> { Ok(item: T), Err(failure: E) }\n\
          fun entry(): Unit {}",
     );
-    {
-        let rejected = analyze("val state = 1\nfun entry(): Unit {}");
-        assert!(rejected.names.diagnostics().is_empty());
-        assert!(rejected.typed.diagnostics().is_empty());
-        let error = match lower_scalar_file(
-            &rejected.sources,
-            &rejected.parsed,
-            &rejected.names,
-            &rejected.typed,
-            &rejected.owned,
-        ) {
-            Ok(_) => panic!("runtime-bearing roots remain outside this lowering slice"),
-            Err(error) => error,
-        };
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-        assert!(error.span.is_some());
-    }
-
     nominal_multiroot_unit_contract::assert_original_nominal_roots();
 }
 
