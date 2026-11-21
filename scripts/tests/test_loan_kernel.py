@@ -812,7 +812,7 @@ class LoanKernelCases(unittest.TestCase):
         CHECKER.check(source, lowered=lowered)
         for name in ("nestedReleasedAfterLastUse", "forwardNestedRo", "forwardNestedRw", "deliverOnlyRo"):
             self.assertTrue(lowered[name][2], name)
-        for name in ("wrongFieldContractRejected", "localNestedEscapeRejected", "unsupportedBorrowedSubView"):
+        for name in ("wrongFieldContractRejected", "localNestedEscapeRejected", "unsupportedCarrierSubView"):
             self.assertFalse(lowered[name][2], name)
         types, program, accepted = lowered["dropsNestedFieldsOnFailure"]
         self.assertTrue(accepted)
@@ -848,6 +848,24 @@ class LoanKernelCases(unittest.TestCase):
         drops[-1].if_owned = False  # 已移走路径在正常退出时重复析构 guard
         found = self.verify(types, program, "conditionalReleaseKeepsDropFlag", deinits)
         self.assertEqual({"V2": [(0, 2), (0, 2), (0, 2), (0, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
+    def test_open_transfers_views_nested_across_borrow_fields(self):
+        source = (ROOT / "cases/Z19.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("forwardRoLink", "writeCallerViewThroughOpenedRwLink", "dropsRwLinkFieldsOnFailure"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("roOverMutCannotWriteInner", "missingRoLinkContract", "missingFlowThroughOpenedRwLink"):
+            self.assertFalse(lowered[name][2], name)
+        types, program, accepted = lowered["dropsRwLinkFieldsOnFailure"]
+        self.assertTrue(accepted)
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("file", False), ("link", False)], call.cleanup)
+        self.assertEqual(["file", "link"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.pop()  # 仅在失败清单中漏掉借用嵌套子视图
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

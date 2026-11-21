@@ -1,0 +1,73 @@
+// 拆出经借用字段指向另一视图的子视图：两层来源保护、K20 现查替换与跨调用方流向。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class MutSlice(inout source: Arr)
+view class RoLink(borrow inner: Slice)
+view class RoLinkHolder(link: RoLink, file: File) deinit
+view class RoOverMut(borrow inner: MutSlice)
+view class RoOverMutHolder(link: RoOverMut, file: File) deinit
+view class RwLink(inout inner: Slice)
+view class RwLinkHolder(link: RwLink, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun readRwLink(borrow link: RwLink): borrow Int from link.inner.source {
+  return &link.inner.source.len
+}
+fun roLinkProtectsBothLayers(own this: RoLinkHolder, own a: Arr, own b: Arr, own f: File): Unit in RoLinkHolder {
+  val s = Slice(&a)
+  this = RoLinkHolder(RoLink(&s), move f)
+  open this as link, file
+  s = Slice(&b)  // ERR K1
+  update(&mut a)  // ERR K1
+  use(a.len)
+  use(link.inner.source.len)
+  s = Slice(&b)
+  update(&mut a)
+}
+fun roOverMutCannotWriteInner(own this: RoOverMutHolder): Unit in RoOverMutHolder {
+  open this as link, file
+  update(link.inner.source)  // ERR K1
+}
+fun forwardRoLink(own this: RoLinkHolder): borrow Int from this.link.inner.source in RoLinkHolder {
+  open this as link, file
+  return &link.inner.source.len
+}
+fun missingRoLinkContract(own this: RoLinkHolder): borrow Int in RoLinkHolder {
+  open this as link, file
+  return &link.inner.source.len  // ERR K6
+}
+fun rwLinkLocalReplaceReleasesOldSource(own this: RwLinkHolder, own a: Arr, own b: Arr, own f: File): Unit in RwLinkHolder {
+  val v = Slice(&a)
+  this = RwLinkHolder(RwLink(&mut v), move f)
+  open this as link, file
+  link.inner = Slice(&b)
+  val e = readRwLink(&link)
+  update(&mut a)
+  update(&mut b)  // ERR K1
+  use(e)
+  update(&mut b)
+}
+fun writeCallerViewThroughOpenedRwLink(own this: RwLinkHolder, borrow s: Arr): Unit flows s into this.link.inner in RwLinkHolder {
+  open this as link, file
+  link.inner = Slice(s)
+}
+fun missingFlowThroughOpenedRwLink(own this: RwLinkHolder, borrow s: Arr): Unit in RwLinkHolder {  // ERR K6
+  open this as link, file
+  link.inner = Slice(s)
+}
+fun callerSeesFlowedOriginOnOriginalOwner(own a: Arr, own b: Arr, own f: File): Unit {
+  val v = Slice(&a)
+  writeCallerViewThroughOpenedRwLink(RwLinkHolder(RwLink(&mut v), move f), &b)
+  val e = &v.source.len
+  update(&mut a)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(e)
+  update(&mut a)
+  update(&mut b)
+}
+fun dropsRwLinkFieldsOnFailure(own this: RwLinkHolder): Unit in RwLinkHolder {
+  open this as link, file
+  mayFail()
+  use(link.inner.source.len)
+}

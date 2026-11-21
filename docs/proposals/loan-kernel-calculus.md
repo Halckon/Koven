@@ -1124,4 +1124,10 @@ fun probe(borrow h: A): Unit {
 
 `Z18.lk` 的 `GuardHolder` 按值持有带 `deinit` 的子视图 `GuardSlice(borrow source: Arr) deinit`（且写出 `deinit GuardSlice` 函数体）与 `File`。放开 `open` 接受带 `deinit` 的非递归按值子视图后，`open this as guard, file` 只解除外层 `GuardHolder.deinit`，拆出的 `guard` 仍保留自身的 `GuardSlice.deinit` 义务。
 
-因 `GuardSlice` 析构可观察，拆出后即使不再使用 `guard`，写其本地来源 `a` 仍报 K1；先经 `releaseGuard(move guard)` 移走后则可写 `a`。本地 `a` 先于 `open` 声明时，`guard` 在逆序清理中先于 `a` 析构，正常退出与 `mayFail` 均接受；若把借用较晚局部 `late` 的 `guard` 移入更早声明的 `out`，则在 `mayFail` 报 K22、函数出口报 K9。只在一条分支移走 `guard` 时，合流后保留析构标志 `guard?`，正常退出与 `mayFail` 的清理清单均为 `file, guard?`。检验器真实执行 `deinit GuardSlice`：在合流失败清单中漏掉 `guard?` 报 V1，在正常退出去掉条件标志报 V2。越过借用字段嵌套、递归与容器子视图仍未验证。
+因 `GuardSlice` 析构可观察，拆出后即使不再使用 `guard`，写其本地来源 `a` 仍报 K1；先经 `releaseGuard(move guard)` 移走后则可写 `a`。本地 `a` 先于 `open` 声明时，`guard` 在逆序清理中先于 `a` 析构，正常退出与 `mayFail` 均接受；若把借用较晚局部 `late` 的 `guard` 移入更早声明的 `out`，则在 `mayFail` 报 K22、函数出口报 K9。只在一条分支移走 `guard` 时，合流后保留析构标志 `guard?`，正常退出与 `mayFail` 的清理清单均为 `file, guard?`。检验器真实执行 `deinit GuardSlice`：在合流失败清单中漏掉 `guard?` 报 V1，在正常退出去掉条件标志报 V2。越过借用字段嵌套的子视图见 §57。
+
+## 57. 按值拆出越过借用字段嵌套的非递归子视图
+
+`Z19.lk` 放开 `open` 接受借用字段指向另一非递归非容器视图的子视图（递归子视图仍在 `Z5.lk` 报 K25，容器子视图在 `Z17.lk` 报 K25）。`RoLink(borrow inner: Slice)` 拆出后同时保护外层借用的 `s` 与内层借用的 `a`（写任一者均报 K1，读 `a` 接受，使用后均放行）；经 `RoOverMut(borrow inner: MutSlice)` 写内层独占字段报 K1；合同转发 `from this.link.inner.source` 接受，省略报 K6。
+
+`RwLink(inout inner: Slice)` 拆出后，经 `link.inner = Slice(&b)` 整体替换唯一本地底层视图 `v` 时，按 K20 清掉 `link` 上的过期副本并从 `v` 现查：随后经 `readRwLink(&link)` 读回只保护新来源 `b`（K1），旧来源 `a` 已解除。若 `own this` 的参数来源经 `open` 后执行 `link.inner = Slice(s)`，流向记在 `this.link.inner.source` 下：声明 `flows s into this.link.inner` 时接受且调用方直接从原 `v` 读回保护 `a` 与 `b`（K1），省略流向在签名处报 K6。调用失败与正常退出按 `file, link` 清理，漏掉 `link` 报 V1。递归子视图与容器子视图仍未验证。
