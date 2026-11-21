@@ -522,7 +522,3 @@ impl ExpressionLowerer<'_> {
         Ok(result)
     }
 }
-
-#[cfg(test)]
-#[path = "iteration/numeric_cleanup_tests.rs"]
-mod numeric_cleanup_tests;

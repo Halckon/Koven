@@ -65,16 +65,6 @@ pub(in crate::ssa) enum FunctionPlanBody {
     Block(StatementId),
 }
 
-pub(in crate::ssa) fn lower_scalar_file(
-    sources: &SourceMap,
-    parsed: &ParsedFile,
-    names: &NameResolution,
-    typed: &TypedFile,
-    owned: &OwnershipCheckedFile,
-) -> Result<Program, LoweringError> {
-    Ok(lower_scalar_file_product(sources, parsed, names, typed, owned)?.program)
-}
-
 pub(in crate::ssa) struct LoweredFile {
     pub(in crate::ssa) program: Program,
     pub(in crate::ssa) function_ids: BTreeMap<FunctionInstanceKey, FunctionId>,

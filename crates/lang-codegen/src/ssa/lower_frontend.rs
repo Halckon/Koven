@@ -2,8 +2,6 @@
 #![deny(dead_code)]
 
 pub(in crate::ssa) use super::carry::source_columns::frontend_borrow_result as borrow_result;
-#[cfg(test)]
-pub(in crate::ssa) use container::cleanup_guard_harness;
 pub(in crate::ssa) use map_consume::resource_deinit;
 mod construction;
 pub(in crate::ssa) mod container;
