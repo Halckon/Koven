@@ -169,3 +169,113 @@ fn original_resource_and_replacement_arrays_keep_unit_continue_owner() {
         }
     }
 }
+
+#[test]
+fn original_member_field_array_has_unit_provider_but_no_entry_declaration() {
+    use lang_frontend::{name_resolution::SourceUnitKey, type_checking::UnitCallableTarget};
+    let text = super::ARRAY_FIELD_MEMBER_SOURCE;
+    let unit = UnitSource::analyze("lowering.ko", text).unwrap();
+    unit.assert_frontend_clean();
+    let index = unit.names().names().index();
+    let source_id = unit.parsed().source_id();
+    let [document] = index.source_units() else {
+        panic!("one actual source");
+    };
+    assert_eq!(document.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(document.source_id(), source_id);
+    assert_eq!(unit.sources().source_name(source_id), Ok("lowering.ko"));
+    assert_eq!(unit.sources().source_text(source_id), Ok(text));
+
+    let [holder] = index.declarations() else {
+        panic!("only the classifier is indexed as a declaration");
+    };
+    assert_eq!(holder.name(), "Holder");
+    assert_eq!(holder.kind(), SymbolKind::Classifier);
+    let signature = unit.types().signatures().declaration(holder.id()).unwrap();
+    assert!(signature.callable().is_none());
+    let [member] = signature.nominal().unwrap().members() else {
+        panic!("actual lone instance member");
+    };
+    assert_eq!(member.name(), "scan");
+    assert!(member.receiver().is_some());
+    assert_eq!(unit.sources().slice(member.name_span()), Ok("scan"));
+    let UnitCallableTarget::Symbol(method) = member.target() else {
+        panic!("member must not become a declaration entry");
+    };
+    assert_eq!(method.source_unit(), document.id());
+    let names = &unit.names().names().source_units()[method.source_unit().index()];
+    let symbol = names
+        .resolution()
+        .symbols()
+        .get(method.symbol().index())
+        .unwrap();
+    assert_eq!(symbol.name(), "scan");
+
+    let [typed] = unit.types().sequential_iterations() else {
+        panic!("same provider");
+    };
+    let [plan] = unit.ownership().iterations() else {
+        panic!("same ownership plan");
+    };
+    assert_eq!(
+        typed.provider(),
+        IterationProvider::Sequential(SequentialContainerKind::Array)
+    );
+    assert_eq!(plan.descriptor(), typed);
+    assert_eq!(plan.source_access(), UnitIterationSourceAccess::Shared);
+    let expression_span = |id| unit.parsed().ast().expressions().get(id).unwrap().span();
+    let span = expression_span(typed.source().expression());
+    assert_eq!(span, unit.sources().span(source_id, 68, 77).unwrap());
+    assert_eq!(unit.sources().slice(span), Ok("this.keys"));
+    let Some(UnitLoanTarget::Place(place)) = plan.source() else {
+        panic!("borrow real keys field");
+    };
+    assert!(
+        place.is_root(),
+        "named field represented by its own Unit symbol"
+    );
+    let root = place.root();
+    assert_eq!(root.source_unit(), document.id());
+    assert_eq!(
+        names
+            .resolution()
+            .symbols()
+            .get(root.symbol().index())
+            .unwrap()
+            .name(),
+        "keys"
+    );
+    let continue_exit = plan
+        .exits()
+        .iter()
+        .find_map(|exit| {
+            let UnitIterationExitKind::Continue(id) = exit.kind() else {
+                return None;
+            };
+            Some((exit, id))
+        })
+        .unwrap();
+    assert_eq!(continue_exit.1.source_unit(), document.id());
+    assert_eq!(
+        unit.sources()
+            .slice(expression_span(continue_exit.1.expression())),
+        Ok("continue")
+    );
+    let statement = typed.statement();
+    assert!(matches!(continue_exit.0.actions(),
+        [Action::EndBinding { statement: bound, .. }, Action::EndElement(element)]
+        if *bound == statement && *element == statement));
+    assert_eq!(
+        unit.ownership()
+            .iteration_cleanup_at(continue_exit.0.point()),
+        Some(continue_exit.0.actions())
+    );
+    assert!(
+        unit.ownership().drops().is_empty(),
+        "receiver field belongs to the caller"
+    );
+
+    // The ordinary entry planner requires a top-level DeclarationId. This exact
+    // source publishes only Holder's Symbol-target method, so there is no Unit
+    // backend invocation or SSA claim, and no new synthetic top-level caller.
+}

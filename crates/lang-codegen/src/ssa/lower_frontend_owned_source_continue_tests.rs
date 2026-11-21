@@ -1,8 +1,8 @@
 //! SPEC-0312: real ordinary source, no Map and no synthetic facts.
 #[path = "lower_frontend_owned_source_structure_tests.rs"]
 mod structure;
+use super::analyze;
 use super::owned_source_return_tests::unit_contract::{self, Control, Expected};
-use super::{analyze, lower_scalar_file};
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
     source::SourceMap,
@@ -396,34 +396,7 @@ mod array_unit_boundaries {
     include!("lower_frontend_owned_source_continue_tests/array_unit_boundaries.rs");
 }
 
-// Only this member-only source retains its old entry witness. Public Unit test
-// admission observed the provider, but this exact source has no callable entry.
-#[test]
-fn owned_source_continue_existing_boundaries_remain_explicit() {
-    let text = "class Holder(val keys: Array<Int>) { fun scan(): Unit { for (key in this.keys) { if (key == 2) { continue } } } }";
-    let analysis = analyze(text);
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let error = lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    )
-    .err()
-    .expect("original Legacy member-only provider boundary");
-    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::MissingFact);
-    assert!(
-        analysis
-            .sources
-            .slice(error.span.unwrap())
-            .unwrap()
-            .starts_with("for (key in this.keys)")
-    );
-}
+const ARRAY_FIELD_MEMBER_SOURCE: &str = "class Holder(val keys: Array<Int>) { fun scan(): Unit { for (key in this.keys) { if (key == 2) { continue } } } }";
 
 #[test]
 fn original_owned_source_return_boundary_uses_unit() {
