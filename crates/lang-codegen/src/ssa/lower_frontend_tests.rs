@@ -832,6 +832,9 @@ fn bitwise_inv_does_not_reinterpret_unsupported_single_file_source_members() {
     }
 }
 
+#[path = "control_and_member_unit_retirement_tests.rs"]
+mod control_and_member_unit_retirement;
+
 #[path = "root_primitive_lower_tests.rs"]
 pub(in crate::ssa) mod root_primitive_tests;
 

@@ -410,10 +410,8 @@ fn single_resource_deinit_body_return_and_abort_are_explicit() {
 
 #[test]
 fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
-    for source in [
-        "class Resource { deinit() {} }\nfun inspect(value: Resource?): Unit {}",
-        "class Resource<T>(val value: T) { deinit() {} }\nfun run(): Unit { val resource = Resource(1) }",
-    ] {
+    {
+        let source = "class Resource { deinit() {} }\nfun inspect(value: Resource?): Unit {}";
         let analysis = analyze_legacy(source);
         assert!(
             analysis.typed.diagnostics().is_empty(),
@@ -439,8 +437,35 @@ fn single_resource_deinit_rejects_unsupported_resource_wrappers() {
         assert!(failure.span.is_some());
     }
 
+    let generic = "class Resource<T>(val value: T) { deinit() {} }\nfun run(): Unit { val resource = Resource(1) }";
+    let unit = UnitSource::analyze("lowering.ko", generic)
+        .expect("generic deinit is a real declaration in the validated frontend");
+    unit.assert_frontend_clean();
+    let source = unit.parsed().source_id();
+    assert_eq!(unit.sources().source_text(source), Ok(generic));
+    let declaration = unit.declaration("Resource", SymbolKind::Classifier);
+    let resource = unit
+        .types()
+        .signatures()
+        .declaration(declaration)
+        .unwrap()
+        .nominal()
+        .unwrap();
+    assert_eq!(resource.type_parameters().len(), 1);
+    assert!(resource.deinit().is_some());
+    let run = unit.declaration("run", SymbolKind::Function);
+    let Err(failure) = unit.lower_entry(run) else {
+        panic!("generic deinit still cannot produce an executable Unit program");
+    };
+    assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode);
+    let origin = failure
+        .span
+        .expect("reported resource occurrence remains source qualified");
+    assert_eq!(origin.source_id(), source);
+    assert!(!unit.sources().slice(origin).unwrap().is_empty());
+
     // This original generic wrapper has the same complete rejection on both routes.
-    // Nullable resources and generic deinit declarations above retain their Legacy witnesses.
+    // The borrowed nullable signature above retains its separate Legacy witness.
     let source = "class Resource { deinit() {} }\nclass Holder<T>(val value: T)\nfun run(): Unit { val wrapped = Holder(Resource()) }";
     let unit = UnitSource::analyze("lowering.ko", source)
         .expect("the original resource wrapper passes strict Unit frontend admission");
@@ -577,10 +602,15 @@ fn single_resource_deinit_rejects_member_calls_and_nested_call_borrows() {
 }
 
 #[test]
-fn single_resource_deinit_rejects_partial_move_at_the_conditional_owner_origin() {
-    use lang_frontend::ownership_checking::{DropPoint, DropTarget};
-    let analysis = analyze_legacy(
-        r#"
+fn unit_resource_deinit_defers_original_partial_move_at_ownership_boundary() {
+    use crate::native_tests::boxed_enum_tests::unit_source::SourceRejectionKind;
+    use lang_frontend::{
+        name_resolution::{SourceUnitInput, SourceUnitKey},
+        ownership_checking::OwnershipDeferredReason,
+        parser::Expression,
+    };
+
+    let text = r#"
         class Resource { deinit() { println("released") } }
         fun consume(own value: Resource): Unit {}
         fun run(flag: Boolean): Unit {
@@ -588,50 +618,63 @@ fn single_resource_deinit_rejects_partial_move_at_the_conditional_owner_origin()
             if (flag) { consume(resource) }
             println("after branch")
         }
-    "#,
-    );
-    assert!(analysis.parsed.diagnostics().is_empty());
-    assert!(analysis.names.diagnostics().is_empty());
-    assert!(analysis.typed.diagnostics().is_empty());
-    assert!(analysis.owned.diagnostics().is_empty());
-    let resource = analysis
-        .names
-        .symbols()
-        .iter()
-        .find(|symbol| symbol.name() == "resource")
-        .expect("named resource binding")
-        .id();
-    let facts = analysis
-        .owned
-        .drops()
-        .iter()
-        .filter(|fact| fact.target() == DropTarget::Named(resource))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        facts.len(),
-        1,
-        "resource must remain live on the non-consuming path"
-    );
-    assert!(
-        facts[0].condition().is_some(),
-        "scope cleanup needs the saved branch choice"
-    );
-    assert!(
-        matches!(facts[0].point(), DropPoint::AfterStatement(_)),
-        "moving cleanup to the branch exit would violate lexical resource lifetime"
-    );
-    let failure = match lower_scalar_file(
-        &analysis.sources,
-        &analysis.parsed,
-        &analysis.names,
-        &analysis.typed,
-        &analysis.owned,
-    ) {
-        Ok(_) => panic!("conditional owner transport is outside this native slice"),
-        Err(error) => error,
+    "#;
+    // Unit cannot publish executable owner transport for the original branch. Its
+    // earlier recovery boundary supersedes the Legacy lowerer error, not the old
+    // conditional-drop representation.
+    let Err(rejection) = UnitSource::analyze("lowering.ko", text) else {
+        panic!("conditional resource transport must not publish an executable UnitSource");
     };
-    assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode);
-    assert_eq!(failure.span, Some(facts[0].value_origin()));
+    assert_eq!(
+        rejection.report.stages,
+        [("parse", 0), ("names", 0), ("types", 0), ("ownership", 0)]
+    );
+    assert!(rejection.report.diagnostics.is_empty());
+    let SourceRejectionKind::IncompleteBasicOwnership(recovery) = rejection.kind else {
+        panic!("the real ownership product must carry a recovery obligation");
+    };
+    let [unit] = recovery.names.names().index().source_units() else {
+        panic!("the original memory document");
+    };
+    let id = recovery.parsed.source_id();
+    assert_eq!(unit.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(unit.source_id(), id);
+    assert_eq!(rejection.sources.source_text(id), Ok(text));
+    let inputs = [SourceUnitInput::memory_document(id, &recovery.parsed)];
+    assert!(recovery.typed.types().is_compatible_with(
+        &rejection.sources,
+        &inputs,
+        &recovery.names,
+        &recovery.environment
+    ));
+    assert!(recovery.owned.is_compatible_with(&recovery.typed));
+    assert!(recovery.owned.diagnostics().is_empty());
+    let [deferred] = recovery.owned.deferred() else {
+        panic!("one real resource transport obligation")
+    };
+    assert_eq!(deferred.reason(), OwnershipDeferredReason::ResourceLifetime);
+    assert_eq!(deferred.expression().source_unit(), unit.id());
+    let node = recovery
+        .parsed
+        .ast()
+        .expressions()
+        .get(deferred.expression().expression())
+        .unwrap();
+    assert!(matches!(node.payload(), Expression::If { .. }));
+    let expected = "if (flag) { consume(resource) }";
+    let start = text.find(expected).unwrap();
+    let origin = node.span();
+    assert_eq!(origin.source_id(), id);
+    assert_eq!(
+        (origin.start(), origin.end()),
+        (start, start + expected.len())
+    );
+    assert_eq!(rejection.sources.slice(origin), Ok(expected));
+    let expected_deferred = recovery.owned.deferred().to_vec();
+    let still_rejected = (*recovery.owned)
+        .validate()
+        .expect_err("no executable ownership authority");
+    assert_eq!(still_rejected.deferred(), expected_deferred);
 }
 
 #[test]
