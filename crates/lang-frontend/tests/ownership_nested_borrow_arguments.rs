@@ -627,18 +627,60 @@ fn inout_receiver_and_nonreturning_sources_do_not_publish_call_uses() {
 
 #[test]
 fn nullable_copy_does_not_create_ownership_of_a_move_only_result() {
+    use lang_frontend::diagnostic::{DiagnosticDetail, Severity};
+
     let text = "fun view(source: String): borrow String from source = source\nfun observe(value: String?): Unit {}\nfun run() { val n = \"resource\"; observe(view(n)) }";
-    for rooted in [false, true] {
-        let Checked { single, unit, .. } = checked(text, rooted);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-            let [diagnostic] = diagnostics else {
-                panic!("{diagnostics:?}")
-            };
-            assert_eq!(diagnostic.code().to_string(), "L0164");
-        }
-        assert!(single.borrow_results().call_uses().is_empty());
-        assert!(unit.borrow_results().call_uses().is_empty());
+    // This harness admits lexing, parsing, names and complete types before
+    // collecting the ownership diagnostic from each real Unit layout.
+    let checked = unit_checked(text);
+    let source = checked.parsed.source_id();
+    assert_eq!(checked.memory.diagnostics(), checked.rooted.diagnostics());
+    for unit in [&checked.memory, &checked.rooted] {
+        let [diagnostic] = unit.diagnostics() else {
+            panic!("one ownership error only: {:?}", unit.diagnostics());
+        };
+        assert_eq!(diagnostic.severity(), Severity::Error);
+        assert_eq!(diagnostic.code().to_string(), "L0164");
+        assert_eq!(
+            diagnostic.message(),
+            "caller borrow result continuation is not yet proven"
+        );
+        let primary = diagnostic.primary_span();
+        assert_eq!(primary.source_id(), source);
+        assert_eq!((primary.start(), primary.end()), (138, 145));
+        assert_eq!(checked.sources.slice(primary), Ok("view(n)"));
+        let [DiagnosticDetail::Label(declaration)] = diagnostic.details() else {
+            panic!(
+                "exact ordered label and no notes/help: {:?}",
+                diagnostic.details()
+            );
+        };
+        assert_eq!(declaration.message(), "borrow result declared here");
+        let label = declaration.span();
+        assert_eq!(label.source_id(), source);
+        assert_eq!((label.start(), label.end()), (26, 32));
+        assert_eq!(checked.sources.slice(label), Ok("borrow"));
+
+        // Merely classifying the syntactic arguments is not a sealed ownership
+        // capability. Rejection must not publish an executable loan or cleanup.
+        assert!(unit.deferred().is_empty());
+        let results = unit.borrow_results();
+        assert!(results.forwarded_source_loans().is_empty());
+        assert!(results.range_return_origins().is_empty());
+        assert!(results.range_uses().is_empty());
+        assert!(unit.borrow_call_transports().is_empty());
+        assert!(unit.borrow_binding_transports().is_empty());
+        assert!(unit.borrow_forward_transports().is_empty());
+        assert!(unit.borrow_call_handoffs().is_empty());
+        assert!(unit.borrow_call_prefix_ends().is_empty());
+        assert!(unit.direct_call_loan_ends().is_empty());
+        assert!(unit.loans().is_empty());
+        assert!(unit.drops().is_empty());
+        assert!(unit.formed_owned_locals().is_empty());
+        assert!(unit.value_deliveries().is_empty());
+        assert!(unit.clone().validate().is_err());
     }
+    assert_atomic_empty(&checked);
 }
 
 #[test]

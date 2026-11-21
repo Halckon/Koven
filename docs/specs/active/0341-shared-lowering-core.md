@@ -21970,3 +21970,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit FE 核 `second = ((view((source))))` 在 AST 与借用 use 中先于 `first = view(source)`；真实 typed 参数对应的 transport 却为 first、second，单独保全圆括号 operand、规范内层调用、同一具名根及互不相同的四个 loan witness。每条在真实 pair 返回点按 child→lender 结束，没有 Move 或临时 Drop，调用方只 Drop 原具名 root 一次。
 - 实际 Unit SSA 验证两条链按 source order 求值，各有独立 lender 与 child IDs，分别发起同根的真实 view；pair 接收的参数 ID 为 first-child、second-child。四条 loan 在 outer return 按相应 child→lender 结束后再 Drop 原 owner ValueId。真实 LLVM 也把第二个计算所得临时放到第一个参数位置；无输出 native 仅确认原样链接和执行，不用同根指针值相等或不等判定两条链身份，也不主张静态字面量的 heap 释放。
 - Mac FE 22 项、codegen/native 8 项，fmt、diff、docs、相对 main 的 Rust size guard 通过。没有改 E3 grouped 生产实现、任何 API 或 CI；未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：nullable Copy 拒绝 MoveOnly 借用结果的完整诊断
+
+- 基于 `f921e43c`，只迁 `nullable_copy_does_not_create_ownership_of_a_move_only_result`，保持原 FQN 和原 inline 源码。先在原源码、两个 Unit 布局实跑 Single/Unit 结构化诊断数组相等，且零实际 loan/end/drop/交付。其他 Single nullable Copy 用例（包括 L0135、源 last-use、递归 cleanup）及其比较入口保留。
+- 双 Unit 从 lex、parse、index/names 到 final types 均无诊断，错误由 ownership 产生：唯一 Error L0164，主消息 `caller borrow result continuation is not yet proven`，原主 `view(n)` span 138..145，唯一有序关联 `borrow` span 26..32、消息 `borrow result declared here`，无额外 notes/help 或 deferred。
+- 两布局均不能验证成可用的 ownership 能力，也不发布 borrow-result binding/use/forward/range、transport/handoff/end、任何实际 loan/drop、具名 owned formation 或 value delivery。原有语法/类型参数分类不是成功的 borrow capability，不要求清除它。本用例专门验证前端拒绝，未尝试 SSA/native。
+- Mac 前端 22 项、fmt、diff、docs 及相对 main 的 Rust size guard 通过。未修改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
