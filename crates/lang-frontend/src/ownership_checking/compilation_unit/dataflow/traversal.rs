@@ -755,10 +755,19 @@ impl Checker<'_> {
             (&mut flows.continues, false),
         ] {
             if let Some(state) = flow {
+                #[cfg(test)]
+                let before = super::borrow_binding_origin_probe::before(
+                    &state.loans,
+                    super::ActiveLoanOwner::Call(call),
+                );
                 state.loans.retain(|loan| {
                     loan.owner != super::ActiveLoanOwner::Call(call)
                         || completes && source_origin == Some(loan.origin)
                 });
+                #[cfg(test)]
+                if completes {
+                    super::borrow_binding_origin_probe::after_call(before, &state.loans);
+                }
             }
         }
         #[cfg(any(test, feature = "loan-observation-test-support"))]
