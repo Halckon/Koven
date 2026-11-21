@@ -43,3 +43,10 @@ NamedDrop，不依赖可选观察。原样观察第一段 Partial、末次段局
 触发器的新准入。该精确 Mac 树另通过不重复的 46/48 项（默认/带开关）：具名
 receiver 与字面量 6/8、Range receiver 10、native Resource 析构 30。未运行
 CI-only 故障注入，也未将这批相邻用例计入 Linux 结果。
+
+本地候选 `64eb75d0` 只给同 owner 双调用的准入增加每 Unit 惰性索引：
+以完整表达式/符号身份查真实 binding、End、NamedDrop 槽，重复或缺失即拒绝；
+没有合格形态时不建索引。它不索引同轮 Complete2 catalog、不更改单调用 receipt
+计划构造或消费。8→16 个双调用 caller 的 End 行访问由旧 256→1024 降为
+16→32，NamedDrop 由 64→256 降为 8→16；是访问计数而非编译耗时。
+该精确树 Mac/Linux 定向各为默认 71、带观察开关 73、E2 构造器 8 项。

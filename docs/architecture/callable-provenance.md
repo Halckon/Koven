@@ -23,3 +23,18 @@ Abort、lambda 内层返回、多个正常返回、未知或 capturing 来源不
 [收据](https://github.com/Halckon/Koven/blob/8c6907c238cc0e040bed4541203e450a5f53552b/docs/development/evidence/runtime-constructor-0279/callable-provenance/receipt.json)。
 这些来源事实不证明 capture loan 仍活跃，也不代表 source helper ABI、LLVM/native 或
 SPEC-0279 的 PR/main 验收已经完成。
+
+## 借用返回调用的辅助闭包实参
+
+本地候选 `36f088c7` 仅修复普通直达非泛型 BorrowCall：两项位置实参，
+第一项是 Int 借用返回的来源，第二项是普通 Name 局部闭包。第二项须有同次分析的
+精确 Shared 根事实，实际闭包只有一个 Shared capture，且 `() -> Int` ABI
+与已定的 callable view 一致。先对真实闭包 owner 建 Shared loan，再用
+`CallableViewOf` 生成 view loan；view 不是值、Place 或可写借用，不放宽 verifier。
+
+原样用例中内层调用先结束 view、再结束它的闭包 loan，之后才释放闭包。
+从原结果 loan 读值后，依原顺序结束结果与来源 loan，再释放原 Boxed；
+未另造捕获或返回来源事实，其他实参形态和 Range 路径不随之改动。
+Mac/Linux 默认与带观察开关构建的定向各 39 项通过。双布局核实际 SSA、
+LLVM 与原生的同分配唯一释放。原用例的 `observe` 是空函数，native 结果只证明
+执行与释放，不是对包装后的 Int 做外部输出验收。
