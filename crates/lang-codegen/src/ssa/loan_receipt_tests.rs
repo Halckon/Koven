@@ -277,6 +277,9 @@ mod receiver_borrowed;
 #[path = "loan_receipt_twice_tests.rs"]
 mod receiver_twice;
 
+#[path = "loan_receipt_argument_tests.rs"]
+mod receiver_argument;
+
 mod receiver_route {
     //! Ordinary source-only bounded routing checks; no native execution or fault injection.
     use crate::ssa::loan_region_ssa_tests::*;
@@ -373,7 +376,7 @@ mod receiver_route {
         for text in [
             super::receiver_borrowed::SOURCE,
             super::receiver_twice::SOURCE,
-            "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1) }",
+            super::receiver_argument::SOURCE,
             "class Node { fun touch(): Boolean = true }\nfun run(node: Node): Unit { node.touch() }",
             "class Node { fun touch(): Boolean = true }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
             "class Node { fun touch(own x: Int): Boolean = true }\nfun run(own node: Node): Unit { node.touch(1) }",

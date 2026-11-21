@@ -141,3 +141,9 @@ A2 的同一 owner 两次共享调用仍留在 Compatibility。
 分别按原始调用的源码范围跟踪两条不同 loan：第一条结束后才开始第二条，两条都
 指向同一参数 owner，且第二条结束后才产生唯一 Drop。外层 native 入口只创建并
 转交该 owner，实际执行按分配身份验证只释放一次，不增加 Refine 准入。
+
+A2 的单个显式标量实参也仍走 Compatibility。
+`explicit_scalar_receiver_fallback_preserves_callee_argument_and_owner_release`
+在双 Unit 布局证明先取得接收者共享 loan，后求出 `1` 并送入独立的标量参数槽；
+方法返回该参数，调用返回后结束 loan 并释放原 owner。外层 native 包装转交
+同一分配，实际只释放一次，不增加 Refine 准入。
