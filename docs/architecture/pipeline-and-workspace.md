@@ -66,6 +66,41 @@ source-set 仍保留 validated_names gate、typed recovery、NotBasic 无 owned 
 资源/故障/校准验收仍在原 CI 合同，不以普通 native 正控替代。对应合同为 `unit_single_source_analysis`、
 `single_file_fact_compile_contracts`、Unit 私有 recovery 测试和既有 Unit capability/lifetime contracts。
 
+## Rust 调用方：从 Single 迁移到 Unit
+
+普通编译或生成对象的调用方可按下列顺序迁移。旧 Single API 仍在；这不是一次函数改名，也不承诺
+旧诊断顺序、恢复产物或阶段身份错误与 Unit 完全相同。
+
+1. **名称**：将 `resolve_names` 的单文件调用替换为
+   [`index_compilation_unit`](../../crates/lang-frontend/src/name_resolution/compilation_unit/index.rs) →
+   [`resolve_compilation_unit_names`](../../crates/lang-frontend/src/name_resolution/compilation_unit/names.rs)，并检查名称诊断及
+   `names.validate()`。宿主持有原 SourceMap、明确列出的源码以及与 SourceId 配对的原 ParsedFile。
+   真正的内存文档用 `SourceUnitInput::memory_document`；有根路径的输入用
+   `SourceUnitInput::new` 并保留根身份与逻辑路径，不从 package 猜路径或隐式发现其他文件。
+   也可用 [`analyze_unit_names` 或 `analyze_parsed_unit_names`](../../crates/lang-frontend/src/analysis/unit_names.rs)
+   取得拥有这些输入的 `UnitNameSnapshot`，并在使用借用视图时保留投影出的 inputs。
+2. **类型**：用 [`check_compilation_unit_types`](../../crates/lang-frontend/src/type_checking/compilation_unit/bodies/checker.rs)
+   取代 `check_types` 并检查诊断；再对同一产物执行
+   [`complete_compilation_unit_types`](../../crates/lang-frontend/src/type_checking/final_admission.rs)
+   （对应 `complete_file_types`）。原始类型结果无诊断，或随后能通过 Basic 验证，都不等于完成最终类型准入。
+   普通源码诊断与身份不匹配等内部错误分别处理；不要用重新解析相同文本替代这一步。
+3. **所有权**：替换 `check_ownership` 时，Basic 路径先做 `typed.validate()`，再调用
+   [`check_compilation_unit_ownership`](../../crates/lang-frontend/src/ownership_checking/compilation_unit/analysis.rs)；
+   [`analyze_basic_unit_ownership`](../../crates/lang-frontend/src/analysis/unit_basic_ownership.rs)
+   只合并这两步，不做最终类型准入、诊断处理或常量回退。
+   `BasicOwnershipOutcome::into_result()` 的 `NotBasic` 分支仅表示未获得 Basic 能力，并返回原类型产物；需要常量支持时，对该产物显式做 `validate_constants()`，再调用
+   [`check_compilation_unit_constant_ownership`](../../crates/lang-frontend/src/ownership_checking/compilation_unit/constant.rs)。
+   两路都须检查所有权诊断并验证 ownership 产物，再用同一组来源、名称、类型环境和分析产物建立对应的
+   [普通](#普通-owned-unit-交接)或[常量](#常量-owned-unit-交接)视图，交给后端。
+
+完整顺序见 CLI 内部的 [`check_unit_frontend`](../../crates/lang-cli/src/unit_build.rs)；目前没有把上述
+严格流程封装成单个公开 API。[Unit recovery](../../crates/lang-frontend/src/analysis/unit_recovery.rs)
+用于继续收集诊断，不能替代严格准入或提供可执行后端输入。
+
+旧 Single 测试中的顶层普通 `val first = 1` 可以到达所有权阶段；同样源码在 Unit 的最终类型准入阶段
+会以 `L0167` 拒绝。迁移这类运行时值时，应在入口或函数内构造，再显式传递；若值本来就是编译期常量，
+可改为 `const val` 并走常量能力分支。不要用跳过最终准入的方式保留旧行为。
+
 ## 普通 owned-unit 交接
 
 frontend `ownership_checking::owned_compilation_unit_view` 接收 sources、inputs、validated names、

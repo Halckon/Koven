@@ -587,113 +587,254 @@ mod borrow_receiver_contract;
 
 mod boundaries {
     //! Scope controls use only original frontend-produced source facts.
-    use super::super::*;
     use super::*;
-    use crate::test_support::diagnostics::assert_eq_diagnostic;
-    use lang_frontend::{
-        name_resolution::resolve_names, ownership_checking::check_ownership,
-        type_checking::check_types,
-    };
 
-    // These old negative controls intentionally retain the independent legacy path.
-    // They are not positive MemoryDocument consumers and do not select a fallback.
-    fn lower_legacy_single(
-        text: &str,
-    ) -> (SourceMap, Result<(Program, FunctionId), LoweringError>) {
-        let mut sources = SourceMap::new();
-        let (_, parsed) = super::super::unit_lower_test_support::parsed(
-            &mut sources,
-            "app/readonly-method.ko",
-            &format!("package app\n{text}"),
-        );
-        let (environment, types) = standard_environments();
-        let names = resolve_names(&sources, &parsed, &environment).unwrap();
-        assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-        let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-        let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let entry = names
-            .symbols()
+    // This exact source is intentionally accepted by Unit, unlike the old path.
+    #[test]
+    fn readonly_inout_uses_unit_exclusive_receiver_storage() {
+        let source = "package app\nvalue class Item(var n:Int) { inout fun read():Int=this.n }\nfun entry() { var item=Item(7); item.read() }";
+        let analysis = UnitSource::analyze("app/readonly-method.ko", source).unwrap();
+        analysis.assert_frontend_clean();
+        let entry_decl = analysis.declaration("entry", SymbolKind::Function);
+        let (program, entry_id) = analysis.lower_entry(entry_decl).unwrap();
+        verify_program(&program).unwrap();
+        let module = program.module(entry_id.module()).unwrap();
+        let entry = module.function(entry_id).unwrap();
+        let [call] = entry
+            .instructions
             .iter()
-            .find(|s| s.name() == "entry")
-            .unwrap()
-            .id();
-        let result = super::super::lower_frontend::orchestrate::lower_scalar_file_with_entry(
-            &sources, &parsed, &names, &typed, &owned, entry,
+            .filter(|instruction| {
+                analysis.sources().slice(instruction.origin.span()).ok() == Some("item.read()")
+                    && matches!(instruction.operation, Operation::DirectCall { .. })
+            })
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("expected one real call on the inline Item receiver");
+        };
+        let Operation::DirectCall {
+            callee,
+            receiver: Some(EntityId::Loan(loan)),
+            arguments,
+        } = &call.operation
+        else {
+            panic!("expected original call to deliver a receiver loan");
+        };
+        assert!(arguments.is_empty());
+        let method = module.function(*callee).unwrap();
+        let Some(EntityType::Loan {
+            kind: LoanKind::Exclusive,
+            target,
+        }) = method.receiver
+        else {
+            panic!("inout method must keep exclusive receiver ABI");
+        };
+        assert!(matches!(
+            module.types.get(target.index()),
+            Some(SsaTypeKind::Aggregate { .. })
+        ));
+        assert_eq!(
+            entry.entity(EntityId::Loan(*loan)).unwrap().ty,
+            EntityType::Loan {
+                kind: LoanKind::Exclusive,
+                target,
+            }
         );
-        (sources, result)
-    }
-
-    fn rejected(source: &str, fragment: &str) {
-        let (sources, result) = lower_legacy_single(source);
-        let error = result
-            .err()
-            .expect("unselected single receiver slice remains rejected");
-        assert_eq_diagnostic!(
-            error.kind,
-            LoweringErrorKind::UnsupportedNode,
-            "{source}: {error:?}"
+        let block = entry.block(call.block).unwrap();
+        let before_call = block.instructions.iter().take_while(|id| **id != call.id);
+        assert!(before_call.clone().any(|id| {
+            entry.instructions.iter().any(|instruction| {
+                instruction.id == *id
+                    && matches!(
+                        instruction.operation,
+                        Operation::BorrowBegin {
+                            kind: LoanKind::Exclusive,
+                            ..
+                        }
+                    )
+                    && instruction.results.as_slice() == [EntityId::Loan(*loan)]
+            })
+        }));
+        let after_call = block
+            .instructions
+            .iter()
+            .skip_while(|id| **id != call.id)
+            .skip(1);
+        assert_eq!(
+            after_call
+                .filter(|id| entry.instructions.iter().any(|i| {
+                    i.id == **id && matches!(i.operation, Operation::BorrowEnd { loan: ended } if ended == *loan)
+                }))
+                .count(),
+            1
         );
-        assert_eq_diagnostic!(
-            error.span.and_then(|span| sources.slice(span).ok()),
-            Some(fragment),
-            "{source}: {error:?}"
-        );
+        crate::llvm::render_verified_program_with_entry(&program, entry_id).unwrap();
     }
 
     #[test]
-    fn readonly_keeps_receiver_and_result_boundaries() {
-        for (declaration, call) in [
+    fn readonly_unit_preserves_original_receiver_and_result_abis() {
+        // The same original sources support both ordinary Unit layouts.
+        // Only the obsolete Single rejection is retired here.
+        let cases = [
             (
                 "value class Item(val n:Int) { own fun read():Int=this.n }",
                 "item.read()",
-            ),
-            (
-                "value class Item(var n:Int) { inout fun read():Int=this.n }",
-                "item.read()",
+                "fun read():Int=this.n",
+                true,
+                false,
+                Some(32),
             ),
             (
                 "value class Item(val n:Int) { fun <T> read(own value:T):T=value }",
                 "item.read(7)",
+                "fun <T> read(own value:T):T=value",
+                false,
+                true,
+                Some(32),
             ),
             (
                 "value class Item<T>(val n:T) { fun read():Int=7 }",
                 "item.read()",
+                "fun read():Int=7",
+                false,
+                false,
+                Some(32),
             ),
             (
                 "value class Item(val n:Int) { fun read():Long=7 }",
                 "item.read()",
+                "fun read():Long=7",
+                false,
+                false,
+                Some(64),
             ),
             (
                 "value class Item(val n:Int) { fun read():Unit {} }",
                 "item.read()",
+                "fun read():Unit {}",
+                false,
+                false,
+                None,
             ),
             (
                 "class Item(val n:Int) { fun read():Int=this.n }",
                 "item.read()",
+                "fun read():Int=this.n",
+                false,
+                false,
+                Some(32),
             ),
-        ] {
-            rejected(
-                &format!("{declaration}\nfun entry() {{ var item=Item(7); {call} }}"),
-                call,
-            );
+        ];
+        for (declaration, call_text, method_text, by_value, has_argument, result_bits) in cases {
+            let text = format!("{declaration}\nfun entry() {{ var item=Item(7); {call_text} }}");
+            let original = format!("package app\n{text}");
+            for layout in [Pipeline::Single, Pipeline::Unit] {
+                let (program, entry_id) = lower(&text, layout, declaration, call_text);
+                verify_program(&program).unwrap();
+                crate::llvm::render_verified_program_with_entry(&program, entry_id).unwrap();
+                let module = program.module(entry_id.module()).unwrap();
+                let entry = module.function(entry_id).unwrap();
+                let slice = |span: lang_frontend::source::Span| {
+                    assert_eq!(span.source_id(), entry.origin.span().source_id());
+                    &original[span.start()..span.end()]
+                };
+                let calls = entry
+                    .instructions
+                    .iter()
+                    .filter(|i| {
+                        matches!(i.operation, Operation::DirectCall { .. })
+                            && slice(i.origin.span()) == call_text
+                    })
+                    .collect::<Vec<_>>();
+                let [call] = calls.as_slice() else {
+                    panic!("{layout:?} {declaration}: unique real original call");
+                };
+                let Operation::DirectCall {
+                    callee,
+                    receiver: Some(receiver),
+                    arguments,
+                } = &call.operation
+                else {
+                    panic!("{layout:?} {declaration}: original call with actual receiver");
+                };
+                let method = module.function(*callee).unwrap();
+                assert_eq!(slice(method.origin.span()), method_text);
+                let actual = entry.entity(*receiver).unwrap().ty;
+                assert_eq!(Some(actual), method.receiver);
+                if by_value {
+                    assert!(matches!(
+                        (receiver, actual),
+                        (EntityId::Value(_), EntityType::Value(_))
+                    ));
+                } else {
+                    assert!(matches!(
+                        (receiver, actual),
+                        (
+                            EntityId::Loan(_),
+                            EntityType::Loan {
+                                kind: LoanKind::Shared,
+                                ..
+                            }
+                        )
+                    ));
+                }
+                assert_eq!(arguments.len(), usize::from(has_argument));
+                if has_argument {
+                    let EntityId::Value(argument) = arguments[0] else {
+                        panic!("generic method accepts an actual owned argument");
+                    };
+                    let EntityType::Value(argument_ty) =
+                        entry.entity(EntityId::Value(argument)).unwrap().ty
+                    else {
+                        panic!("the observed generic argument is a scalar value");
+                    };
+                    assert_eq!(
+                        module.types[argument_ty.index()],
+                        SsaTypeKind::Integer {
+                            bits: 32,
+                            signed: true
+                        }
+                    );
+                }
+                match result_bits {
+                    Some(bits) => {
+                        let [result_ty] = method.return_types.as_slice() else {
+                            panic!("the selected method returns one scalar");
+                        };
+                        let [EntityId::Value(result)] = call.results.as_slice() else {
+                            panic!("the actual call produces one scalar value");
+                        };
+                        assert_eq!(
+                            entry.entity(EntityId::Value(*result)).unwrap().ty,
+                            EntityType::Value(*result_ty)
+                        );
+                        assert_eq!(
+                            module.types[result_ty.index()],
+                            SsaTypeKind::Integer { bits, signed: true }
+                        );
+                    }
+                    None => {
+                        assert!(method.return_types.is_empty());
+                        assert!(call.results.is_empty());
+                    }
+                }
+            }
         }
     }
 
-    #[test]
-    fn readonly_keeps_string_field_operations_outside_new_this_slice() {
-        for body in [
-            "println(this.text); return 7",
-            "println(this.text.clone()); return 7",
-        ] {
-            rejected(
-                &format!(
-                    "value class Item(val text:String) {{ fun read():Int {{ {body} }} }}\nfun entry() {{ val item=Item(\"text\"); item.read() }}"
-                ),
-                "this.text",
-            );
-        }
+    fn string_field(body: &str) -> String {
+        format!(
+            "value class Item(val text:String) {{ fun read():Int {{ {body} }} }}\nfun entry() {{ val item=Item(\"text\"); item.read() }}"
+        )
+    }
+
+    const GROUPED_ALIAS: &str = "value class Item(val n:Int) { fun read():Int=this.n }\nfun view(item:Item):borrow Item from item=item\nfun entry() { val item=Item(7); borrow val alias=view(item); ((alias)).read() }";
+    const FIELD_RECEIVER: &str = "value class Item(val n:Int) { fun read():Int=this.n }\nvalue class Outer(val item:Item)\nfun entry() { val outer=Outer(Item(7)); outer.item.read() }";
+    const ITERATION_RECEIVER: &str = "value class Item(val n:Int) { fun read():Int=this.n }\nfun entry() { val items=listOf(Item(7)); for(item in items) { item.read() } }";
+
+    fn nullable_receiver_source(call: &str) -> String {
+        format!(
+            "value class Item(val n:Int, val text:String) {{ fun read():Int=this.n }}\nfun entry() {{ var values=mutableMapOf<Int,Item>(); values.put(1,Item(7,\"text\")); val removed=values.remove(1); if(removed!=null) {{ {call} }} }}"
+        )
     }
 
     #[test]
@@ -704,44 +845,8 @@ mod boundaries {
         super::borrow_receiver_contract::assert_unit(text);
     }
 
-    #[test]
-    fn readonly_keeps_grouped_borrow_result_and_field_receiver_boundaries() {
-        rejected(
-            "value class Item(val n:Int) { fun read():Int=this.n }\nfun view(item:Item):borrow Item from item=item\nfun entry() { val item=Item(7); borrow val alias=view(item); ((alias)).read() }",
-            "((alias)).read()",
-        );
-        rejected(
-            "value class Item(val n:Int) { fun read():Int=this.n }\nvalue class Outer(val item:Item)\nfun entry() { val outer=Outer(Item(7)); outer.item.read() }",
-            "outer.item.read()",
-        );
-    }
-
-    fn nullable_receiver(receiver: &str) {
-        let call = format!("{receiver}.read()");
-        rejected(
-            &format!(
-                "value class Item(val n:Int, val text:String) {{ fun read():Int=this.n }}\nfun entry() {{ var values=mutableMapOf<Int,Item>(); values.put(1,Item(7,\"text\")); val removed=values.remove(1); if(removed!=null) {{ {call} }} }}"
-            ),
-            &call,
-        );
-    }
-
-    #[test]
-    fn readonly_keeps_nullable_receiver_boundary() {
-        nullable_receiver("removed");
-    }
-
-    #[test]
-    fn readonly_keeps_grouped_nullable_receiver_boundary() {
-        nullable_receiver("((removed))");
-    }
-
-    #[test]
-    fn readonly_keeps_iteration_receiver_boundary() {
-        rejected(
-            "value class Item(val n:Int) { fun read():Int=this.n }\nfun entry() { val items=listOf(Item(7)); for(item in items) { item.read() } }",
-            "item.read()",
-        );
+    mod unit_boundaries {
+        include!("readonly_unit_boundaries.rs");
     }
 }
 

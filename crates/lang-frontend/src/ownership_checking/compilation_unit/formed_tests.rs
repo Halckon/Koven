@@ -11,6 +11,11 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+mod ownership_environment {
+    use crate as lang_frontend;
+    include!("../../../tests/support/ownership_environment.rs");
+}
+
 const BODY: &str = r#"
 fun identity(own item: String): String = item
 fun run(): Unit {
@@ -25,6 +30,7 @@ pub(super) struct Fixture {
     pub(super) sources: SourceMap,
     pub(super) parsed: Vec<ParsedFile>,
     paths: Vec<String>,
+    source_root: Option<&'static str>,
     pub(super) names: ValidatedCompilationUnitNames,
     pub(super) typed: ValidatedCompilationUnitTypes,
     environment: TypeEnvironment,
@@ -32,14 +38,46 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) fn new(texts: &[(&str, &str)]) -> Self {
-        Self::with_range_sources(texts, &[])
+        Self::with_setup(texts, &[], Some("root"), standard_environments())
     }
 
     pub(super) fn range_source(texts: &[(&str, &str)], index: usize) -> Self {
-        Self::with_range_sources(texts, &[index])
+        Self::with_setup(texts, &[index], Some("root"), standard_environments())
     }
 
-    fn with_range_sources(texts: &[(&str, &str)], range_sources: &[usize]) -> Self {
+    pub(super) fn range_prefix_source(path: &str, text: &str, rooted: bool) -> Self {
+        Self::with_setup(
+            &[(path, text)],
+            &[0],
+            rooted.then_some("std"),
+            standard_environments(),
+        )
+    }
+
+    pub(super) fn standard_source(path: &str, text: &str, rooted: bool) -> Self {
+        Self::with_setup(
+            &[(path, text)],
+            &[],
+            rooted.then_some("root"),
+            standard_environments(),
+        )
+    }
+
+    pub(super) fn ownership_source(text: &str, rooted: bool) -> Self {
+        Self::with_setup(
+            &[("ownership.ko", text)],
+            &[],
+            rooted.then_some("root"),
+            ownership_environment::environments(),
+        )
+    }
+
+    fn with_setup(
+        texts: &[(&str, &str)],
+        range_sources: &[usize],
+        source_root: Option<&'static str>,
+        (ne, mut environment): (crate::name_resolution::NameEnvironment, TypeEnvironment),
+    ) -> Self {
         let mut sources = SourceMap::new();
         let parsed = texts
             .iter()
@@ -60,14 +98,7 @@ impl Fixture {
             .iter()
             .map(|(path, _)| (*path).to_owned())
             .collect::<Vec<_>>();
-        let inputs = parsed
-            .iter()
-            .zip(&paths)
-            .map(|(parsed, path)| {
-                SourceUnitInput::new("root", path.as_str(), parsed.source_id(), parsed)
-            })
-            .collect::<Vec<_>>();
-        let (ne, mut environment) = standard_environments();
+        let inputs = Self::fixture_inputs(&parsed, &paths, source_root);
         for &index in range_sources {
             // Authorize the actual loaded SourceId, never a package or path spelling.
             environment
@@ -89,6 +120,7 @@ impl Fixture {
             sources,
             parsed,
             paths,
+            source_root,
             names,
             typed,
             environment,
@@ -96,11 +128,21 @@ impl Fixture {
     }
 
     pub(super) fn inputs(&self) -> Vec<SourceUnitInput<'_>> {
-        self.parsed
+        Self::fixture_inputs(&self.parsed, &self.paths, self.source_root)
+    }
+
+    fn fixture_inputs<'a>(
+        parsed: &'a [ParsedFile],
+        paths: &'a [String],
+        source_root: Option<&'static str>,
+    ) -> Vec<SourceUnitInput<'a>> {
+        assert!(source_root.is_some() || parsed.len() == 1);
+        parsed
             .iter()
-            .zip(&self.paths)
-            .map(|(parsed, path)| {
-                SourceUnitInput::new("root", path.as_str(), parsed.source_id(), parsed)
+            .zip(paths)
+            .map(|(parsed, path)| match source_root {
+                Some(root) => SourceUnitInput::new(root, path, parsed.source_id(), parsed),
+                None => SourceUnitInput::memory_document(parsed.source_id(), parsed),
             })
             .collect()
     }

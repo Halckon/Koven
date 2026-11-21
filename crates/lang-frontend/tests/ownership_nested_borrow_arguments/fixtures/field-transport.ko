@@ -1,0 +1,6 @@
+fun view(source: String): borrow String from source = source
+fun observe(item: String) { println(item) }
+fun consume(own item: String) {}
+class Record(val text: String)
+fun field(source: Record): borrow String from source = source.text
+fun run() { val source = Record("kept"); observe(field(source)) }

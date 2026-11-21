@@ -421,6 +421,9 @@ jobs:
         run: |
           cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_objects_preserve_sources_selectors_and_existing_targets -- --exact
           cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_language_errors_precede_selector_and_publish_nothing -- --exact
+          split_unreachable_member="$(cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_rejects_unreachable_bad_member_in_other_source_before_selector -- --exact)"
+          printf '%s\n' "$split_unreachable_member"
+          printf '%s\n' "$split_unreachable_member" | grep -Fq '1 passed; 0 failed; 0 ignored;'
           cargo test --locked -j1 -p lang-cli --test d10_split_object_cli
       - name: Explicit D10 split CLI native behavior
         timeout-minutes: 5

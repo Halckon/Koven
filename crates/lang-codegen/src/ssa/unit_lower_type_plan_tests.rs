@@ -369,21 +369,54 @@ mod registration_tests {
         parsed
     }
 
+    #[derive(Clone, Copy)]
+    enum Layout<'a> {
+        Split {
+            consumer_text: &'a str,
+            reverse_sources: bool,
+        },
+        Single {
+            rooted: bool,
+        },
+    }
+
     fn observe(
         provider_text: &str,
-        consumer_text: &str,
+        provider_path: &str,
+        layout: Layout<'_>,
         cases: &[Case],
         ordinary_first: bool,
-        reverse_sources: bool,
     ) -> Vec<String> {
         let mut sources = SourceMap::new();
-        let provider = parsed(&mut sources, "p/provider.ko", provider_text);
-        let consumer = parsed(&mut sources, "q/consumer.ko", consumer_text);
-        let mut inputs = [
-            SourceUnitInput::new("root", "p/provider.ko", provider.source_id(), &provider),
-            SourceUnitInput::new("root", "q/consumer.ko", consumer.source_id(), &consumer),
-        ];
-        if reverse_sources {
+        let provider = parsed(&mut sources, provider_path, provider_text);
+        assert_eq!(sources.source_text(provider.source_id()), Ok(provider_text));
+        let consumer = match layout {
+            Layout::Split { consumer_text, .. } => {
+                Some(parsed(&mut sources, "q/consumer.ko", consumer_text))
+            }
+            Layout::Single { .. } => None,
+        };
+        let mut inputs = vec![match layout {
+            Layout::Single { rooted: false } => {
+                SourceUnitInput::memory_document(provider.source_id(), &provider)
+            }
+            _ => SourceUnitInput::new("root", provider_path, provider.source_id(), &provider),
+        }];
+        if let Some(consumer) = &consumer {
+            inputs.push(SourceUnitInput::new(
+                "root",
+                "q/consumer.ko",
+                consumer.source_id(),
+                consumer,
+            ));
+        }
+        if matches!(
+            layout,
+            Layout::Split {
+                reverse_sources: true,
+                ..
+            }
+        ) {
             inputs.reverse();
         }
         let (environment, types) = standard_environments();
@@ -393,7 +426,10 @@ mod registration_tests {
         assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
         let names = names.validate().expect("validated names");
         let index = names.names().index();
-        assert_eq!(index.source_units().len(), 2);
+        assert_eq!(
+            index.source_units().len(),
+            if consumer.is_some() { 2 } else { 1 }
+        );
         let source_unit = |parsed: &ParsedFile, path: &str, package: &str| {
             let matches = index
                 .source_units()
@@ -410,9 +446,18 @@ mod registration_tests {
             assert_eq!(matches.len(), 1, "unique source/package {path}");
             matches[0].id()
         };
-        let p = source_unit(&provider, "p/provider.ko", "p");
-        let q = source_unit(&consumer, "q/consumer.ko", "q");
-        assert_ne!(p, q);
+        let (p, q) = if let Some(consumer) = &consumer {
+            let p = source_unit(&provider, provider_path, "p");
+            let q = source_unit(consumer, "q/consumer.ko", "q");
+            assert_ne!(p, q);
+            (p, Some(q))
+        } else {
+            let [unit] = index.source_units() else {
+                panic!("one original unchanged source");
+            };
+            assert_eq!(unit.source_id(), provider.source_id());
+            (unit.id(), None)
+        };
         let declaration = |source_unit, name: &str| {
             let matches = index
                 .declarations()
@@ -427,7 +472,7 @@ mod registration_tests {
             matches[0].id()
         };
         let main = declaration(p, "main");
-        let entry = declaration(q, "entry");
+        let entry = q.map_or(main, |id| declaration(id, "entry"));
         let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).expect("types");
         assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
         let complete = complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
@@ -442,22 +487,24 @@ mod registration_tests {
         assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
         let owned = owned.validate().expect("validated ownership");
         let raw = typed.types();
-        let consumer_calls = raw
-            .calls()
-            .iter()
-            .filter(|call| call.expression().source_unit() == q)
-            .collect::<Vec<_>>();
-        assert_eq!(consumer_calls.len(), 1);
-        assert_eq!(
-            consumer_calls[0].target(),
-            UnitCallTarget::Declaration(main)
-        );
-        assert!(consumer_calls[0].receiver().is_none());
-        assert!(consumer_calls[0].arguments().is_empty());
-        assert_eq!(
-            Some(consumer_calls[0].return_type()),
-            raw.types().builtin(BuiltinType::Unit)
-        );
+        if let Some(q) = q {
+            let consumer_calls = raw
+                .calls()
+                .iter()
+                .filter(|call| call.expression().source_unit() == q)
+                .collect::<Vec<_>>();
+            assert_eq!(consumer_calls.len(), 1);
+            assert_eq!(
+                consumer_calls[0].target(),
+                UnitCallTarget::Declaration(main)
+            );
+            assert!(consumer_calls[0].receiver().is_none());
+            assert!(consumer_calls[0].arguments().is_empty());
+            assert_eq!(
+                Some(consumer_calls[0].return_type()),
+                raw.types().builtin(BuiltinType::Unit)
+            );
+        }
         assert_eq!(raw.map_removes().len(), cases.len());
 
         let resolution = names
@@ -578,8 +625,10 @@ mod registration_tests {
             .map(|plan| {
                 assert!(plan.iter().any(|instance| instance.source_unit() == p
                     && instance.key() == &UnitFunctionInstanceKey::for_entry(main)));
-                assert!(plan.iter().any(|instance| instance.source_unit() == q
-                    && instance.key() == &UnitFunctionInstanceKey::for_entry(entry)));
+                if let Some(q) = q {
+                    assert!(plan.iter().any(|instance| instance.source_unit() == q
+                        && instance.key() == &UnitFunctionInstanceKey::for_entry(entry)));
+                }
                 mapper_creations += 1;
                 let mut program = Program::default();
                 let module_id = program.add_module("registration");
@@ -672,7 +721,7 @@ mod registration_tests {
                     );
                     assert_eq!(module.nullable_maps.len(), wrappers.len());
                     summaries.push(format!(
-                        "p/provider.ko:{}:{}..{}:{semantic}:{call}",
+                        "{provider_path}:{}:{}..{}:{semantic}:{call}",
                         case.local,
                         local_span.start(),
                         local_span.end(),
@@ -702,13 +751,25 @@ mod registration_tests {
         for ordinary_first in [true, false] {
             for reverse_sources in [false, true] {
                 // Every (registration direction, input order) gets its own complete FE analysis.
-                let ordinary = observe(&provider, consumer, CASES, ordinary_first, reverse_sources);
+                let ordinary = observe(
+                    &provider,
+                    "p/provider.ko",
+                    Layout::Split {
+                        consumer_text: consumer,
+                        reverse_sources,
+                    },
+                    CASES,
+                    ordinary_first,
+                );
                 let resource = observe(
                     resource_provider,
-                    resource_consumer,
+                    "p/provider.ko",
+                    Layout::Split {
+                        consumer_text: resource_consumer,
+                        reverse_sources,
+                    },
                     &[RESOURCE],
                     ordinary_first,
-                    reverse_sources,
                 );
                 if let Some(baseline) = &ordinary_baseline {
                     assert_eq!(baseline, &ordinary);
@@ -718,6 +779,32 @@ mod registration_tests {
                 }
                 ordinary_baseline = Some(ordinary);
                 resource_baseline = Some(resource);
+            }
+        }
+    }
+
+    #[test]
+    fn original_single_source_map_registration_preserves_identity_and_resource_deinit() {
+        let (path, resource, _, _) = registration_r1_source();
+        assert_eq!(path, "r1_ordinary_source_before_remove.ko");
+        for (text, path, cases) in [
+            (ORDINARY, "ordinary.ko", CASES),
+            (resource, path, &[RESOURCE][..]),
+        ] {
+            let mut baseline = None;
+            for rooted in [false, true] {
+                for ordinary_first in [false, true] {
+                    let actual =
+                        observe(text, path, Layout::Single { rooted }, cases, ordinary_first);
+                    if let Some(expected) = &baseline {
+                        assert_eq!(
+                            expected, &actual,
+                            "exact source and mapper identity in both orders/layouts"
+                        );
+                    } else {
+                        baseline = Some(actual);
+                    }
+                }
             }
         }
     }

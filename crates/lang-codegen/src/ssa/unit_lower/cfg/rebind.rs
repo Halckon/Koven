@@ -221,11 +221,6 @@ impl SourceSlot for CarriedBinding {
         EntityId::Value(source)
     }
 
-    #[cfg(test)]
-    fn ty(&self) -> EntityType {
-        self.ty
-    }
-
     fn empty(source: ValueId, ty: EntityType) -> Self {
         Self {
             symbol: None,
@@ -247,11 +242,6 @@ impl SourceSlot for CarriedAccess {
 
     fn entity(source: EntityId) -> EntityId {
         source
-    }
-
-    #[cfg(test)]
-    fn ty(&self) -> EntityType {
-        self.ty
     }
 
     fn empty(source: EntityId, ty: EntityType) -> Self {

@@ -151,18 +151,14 @@ pub(in crate::ssa) mod callable_plan_tests {
         ast::ExpressionId,
         lexer::lex,
         name_resolution::{NameResolution, resolve_names},
-        ownership_checking::{
-            CallableOrigin, ClosureCaptureMode, OwnershipCheckedFile, PointerCallableReturnOrigin,
-            check_ownership,
-        },
+        ownership_checking::{OwnershipCheckedFile, check_ownership},
         parser::{Expression, Item, parse_file},
         source::SourceMap,
-        type_checking::{ParameterMode, check_types, standard_environments},
+        type_checking::{check_types, standard_environments},
     };
     use std::collections::BTreeSet;
 
     pub(in crate::ssa) struct Fixture {
-        pub(in crate::ssa) sources: SourceMap,
         pub(in crate::ssa) parsed: ParsedFile,
         pub(in crate::ssa) names: NameResolution,
         pub(in crate::ssa) typed: TypedFile,
@@ -218,7 +214,6 @@ pub(in crate::ssa) mod callable_plan_tests {
                 })
                 .collect();
             Self {
-                sources,
                 parsed,
                 names,
                 typed,
@@ -237,20 +232,6 @@ pub(in crate::ssa) mod callable_plan_tests {
                 .collect::<Vec<_>>();
             assert_eq!(symbols.len(), 1, "unique fixture symbol {name}");
             symbols[0]
-        }
-
-        pub(in crate::ssa) fn expression(&self, text: &str) -> ExpressionId {
-            let ids = self
-                .parsed
-                .ast()
-                .expressions()
-                .iter()
-                .filter_map(|(id, node)| {
-                    (self.sources.slice(node.span()).unwrap() == text).then_some(id)
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(ids.len(), 1, "unique fixture expression {text}: {ids:?}");
-            ids[0]
         }
 
         pub(in crate::ssa) fn lambdas(&self) -> Vec<ExpressionId> {
@@ -287,328 +268,157 @@ pub(in crate::ssa) mod callable_plan_tests {
                 "complete distinct source keys for {name}: {keys:?}"
             );
         }
-
-        pub(in crate::ssa) fn assert_unsupported(&self, argument: &str) {
-            let expected = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(self.expression(argument))
-                .unwrap()
-                .span();
-            match self.plan() {
-                Ok(plan) => panic!(
-                    "unsupported callback at {expected:?} was accepted as {} source instances",
-                    plan.instances().len()
-                ),
-                Err(error) => {
-                    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
-                    assert_eq!(error.span, Some(expected));
-                }
-            }
-        }
     }
 
     const HELPER: &str = "fun helper(callback: (Int)->Int): Unit {}\n";
 
-    #[test]
-    fn single_callable_plan_three_environments_keep_three_complete_helper_keys() {
-        let fixture = Fixture::analyze(
-            "fun helper(callback: (Int)->Boolean): Unit {}\n\
-             fun entry(sharedLabel: String, own ownedLabel: String): Unit {\n\
-             val pointer: (Int)->Boolean = { index -> index == 0 }\n\
-             val shared: (Int)->Boolean = { index -> sharedLabel == \"shared\" && index == 0 }\n\
-             val ownedCallback: (Int)->Boolean = move { index -> ownedLabel == \"owned\" && index == 0 }\n\
-             helper(pointer)\nhelper(shared)\nhelper(ownedCallback)\n }",
-        );
-        let lambdas = fixture.lambdas();
-        assert_eq!(lambdas.len(), 3);
-        for (lambda, expected) in lambdas.iter().zip([
-            None,
-            Some(ClosureCaptureMode::Shared),
-            Some(ClosureCaptureMode::Owned),
-        ]) {
-            let modes = fixture
-                .owned
-                .captures_of(*lambda)
-                .map(|capture| capture.mode())
-                .collect::<Vec<_>>();
-            assert_eq!(modes, expected.into_iter().collect::<Vec<_>>());
-        }
-        let mut types = BTreeSet::new();
-        for (name, lambda) in ["pointer", "shared", "ownedCallback"]
-            .into_iter()
-            .zip(lambdas)
-        {
-            let expression = fixture.expression(name);
-            assert_eq!(
-                fixture.owned.callable_origin(expression).unwrap().origin(),
-                CallableOrigin::Lambda(lambda)
-            );
-            types.insert(fixture.typed.expression_type(expression).unwrap());
-        }
-        assert_eq!(
-            types.len(),
-            1,
-            "one static Fn type must not merge three environments"
-        );
-        let plan = fixture
-            .plan()
-            .expect("all three concrete callback origins are supported");
-        fixture.assert_count(&plan, "helper", 3);
-    }
-
-    #[test]
-    fn single_callable_plan_alias_and_group_reuse_one_origin() {
-        let fixture = Fixture::analyze(&format!(
+    fn alias_source() -> String {
+        format!(
             "{HELPER}fun entry(): Unit {{ val original: (Int)->Int = {{ index -> index }}\n\
              helper(original)\nval alias = (original)\nhelper((alias)) }}"
-        ));
-        let lambda = fixture.lambdas()[0];
-        let mut uses = 0;
-        for (id, node) in fixture.parsed.ast().expressions().iter() {
-            if matches!(
-                fixture.sources.slice(node.span()).unwrap(),
-                "original" | "(original)" | "(alias)"
-            ) {
-                assert_eq!(
-                    fixture.owned.callable_origin(id).unwrap().origin(),
-                    CallableOrigin::Lambda(lambda)
-                );
-                uses += 1;
-            }
-        }
-        assert_eq!(
-            uses, 4,
-            "both original uses and their transparent groups are checked"
-        );
-        let plan = fixture.plan().unwrap();
-        fixture.assert_count(&plan, "helper", 1);
+        )
     }
 
-    #[test]
-    fn single_callable_plan_parameter_forwarding_and_recursion_reuse_complete_keys() {
-        let fixture = Fixture::analyze(&format!(
+    fn forwarding_source() -> String {
+        format!(
             "{HELPER}\
              fun middle(forwarded: (Int)->Int): Unit {{ helper((forwarded)) }}\n\
              fun relay(input: (Int)->Int): Unit {{ middle(input)\nrelay(input) }}\n\
              fun entry(): Unit {{ relay({{ index -> index }}) }}"
-        ));
-        for (id, node) in fixture.parsed.ast().expressions().iter() {
-            let text = fixture.sources.slice(node.span()).unwrap();
-            if matches!(text, "input" | "forwarded") {
-                assert_eq!(
-                    fixture.owned.callable_origin(id).unwrap().origin(),
-                    CallableOrigin::Parameter(fixture.symbol(text))
-                );
-                assert_eq!(
-                    fixture.typed.parameter_mode(fixture.symbol(text)),
-                    Some(ParameterMode::Borrow)
-                );
+        )
+    }
+
+    #[test]
+    fn exact_legacy_alias_and_forwarding_sources_keep_unit_callable_views() {
+        use crate::ssa::unit_lower_test_support::{analyze, parsed};
+        use lang_frontend::{
+            name_resolution::SourceUnitInput,
+            ownership_checking::UnitCallableOrigin,
+            type_checking::{UnitCallableTarget, UnitExpressionId},
+        };
+        const PATH: &str = "single-callable-plan.ko";
+        for (text, expected_functions, forwarding) in [
+            (alias_source(), &["entry", "helper"][..], false),
+            (
+                forwarding_source(),
+                &["entry", "helper", "middle", "relay"][..],
+                true,
+            ),
+        ] {
+            for rooted in [false, true] {
+                let mut sources = SourceMap::new();
+                let (source, file) = parsed(&mut sources, PATH, &text);
+                assert_eq!(sources.source_text(source), Ok(text.as_str()));
+                let inputs = [if rooted {
+                    SourceUnitInput::new("root", PATH, source, &file)
+                } else {
+                    SourceUnitInput::memory_document(source, &file)
+                }];
+                let (name_env, env) = standard_environments();
+                let (names, typed, owned) = analyze(&sources, &inputs, &name_env, &env);
+                let [indexed] = names.names().index().source_units() else {
+                    panic!("one original physical source");
+                };
+                let unit = indexed.id();
+                let declared = |name| {
+                    let ids = names
+                        .names()
+                        .index()
+                        .declarations()
+                        .iter()
+                        .filter(|d| {
+                            d.name() == name
+                                && d.source_unit() == unit
+                                && d.kind() == lang_frontend::name_resolution::SymbolKind::Function
+                        })
+                        .collect::<Vec<_>>();
+                    let [d] = ids.as_slice() else {
+                        panic!("one same-source declaration {name}");
+                    };
+                    d.id()
+                };
+                let target = |name| UnitCallableTarget::Declaration(declared(name));
+                let type_count = typed.types().types().len();
+                let plan = crate::ssa::unit_plan::plan_unit_instances(
+                    &sources,
+                    &inputs,
+                    &names,
+                    &env,
+                    &typed,
+                    &owned,
+                    declared("entry"),
+                )
+                .unwrap_or_else(|error| {
+                    panic!("forwarding={forwarding}, rooted={rooted}: {error:?}")
+                });
+                assert_eq!(typed.types().types().len(), type_count);
+                assert_eq!(plan.len(), expected_functions.len());
+                for &name in expected_functions {
+                    let mut instances = plan
+                        .iter()
+                        .filter(|instance| instance.key().target() == target(name));
+                    let instance = instances.next().expect("reachable original instance");
+                    assert!(instances.next().is_none());
+                    assert!(
+                        instance.key().callable_arguments().is_empty(),
+                        "ADR-0034 borrowed callback is a view"
+                    );
+                }
+                let origins = |text| {
+                    file.ast()
+                        .expressions()
+                        .iter()
+                        .filter_map(|(id, node)| {
+                            (sources.slice(node.span()).ok() == Some(text)).then(|| {
+                                owned
+                                    .ownership()
+                                    .callable_origin(UnitExpressionId::new(unit, id))
+                                    .expect("actual qualified origin")
+                                    .origin()
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                };
+                if forwarding {
+                    for name in ["forwarded", "input"] {
+                        let ids = origins(name);
+                        assert!(!ids.is_empty());
+                        let UnitCallableOrigin::Parameter(symbol) = ids[0] else {
+                            panic!("real parameter source");
+                        };
+                        assert!(
+                            ids.iter()
+                                .all(|origin| *origin == UnitCallableOrigin::Parameter(symbol))
+                        );
+                        assert_eq!(symbol.source_unit(), unit);
+                        assert_eq!(
+                            names.names().source_units()[unit.index()]
+                                .resolution()
+                                .symbols()
+                                .get(symbol.symbol().index())
+                                .unwrap()
+                                .name(),
+                            name,
+                        );
+                    }
+                } else {
+                    let occurrences = ["original", "(original)", "(alias)"]
+                        .into_iter()
+                        .flat_map(origins)
+                        .collect::<Vec<_>>();
+                    assert_eq!(occurrences.len(), 4);
+                    let UnitCallableOrigin::Lambda(lambda) = occurrences[0] else {
+                        panic!("alias resolves to the original lambda");
+                    };
+                    assert_eq!(lambda.source_unit(), unit);
+                    assert!(
+                        occurrences
+                            .iter()
+                            .all(|origin| *origin == UnitCallableOrigin::Lambda(lambda))
+                    );
+                }
             }
         }
-        let plan = fixture
-            .plan()
-            .expect("parameter forwarding does not create an instance chain");
-        for name in ["helper", "middle", "relay", "entry"] {
-            fixture.assert_count(&plan, name, 1);
-        }
-    }
-
-    #[test]
-    fn single_callable_plan_distinct_lambda_expressions_do_not_merge_equal_shapes() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun entry(): Unit {{ helper({{ index -> index }})\nhelper({{ index -> index }}) }}"
-        ));
-        assert_eq!(fixture.lambdas().len(), 2);
-        assert_ne!(fixture.lambdas()[0], fixture.lambdas()[1]);
-        fixture.assert_count(&fixture.plan().unwrap(), "helper", 2);
-    }
-
-    #[test]
-    fn single_callable_plan_lambda_owner_includes_concrete_generic_instance() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun <T> relay(own value: T): Unit {{ helper({{ index -> index }}) }}\n\
-             fun entry(): Unit {{ relay<Int>(1)\nrelay<Boolean>(true) }}"
-        ));
-        assert_eq!(
-            fixture.lambdas().len(),
-            1,
-            "same source expression in two owners"
-        );
-        let plan = fixture.plan().unwrap();
-        fixture.assert_count(&plan, "relay", 2);
-        fixture.assert_count(&plan, "helper", 2);
-    }
-
-    #[test]
-    fn single_callable_plan_named_reordering_uses_sparse_declaration_slots() {
-        let fixture = Fixture::analyze(
-            "fun helper(first: (Int)->Int, count: Int, last: (Int)->Int): Unit {}\n\
-             fun entry(): Unit { val a: (Int)->Int = { index -> index }\n\
-             val b: (Int)->Int = { index -> index + 1 }\n\
-             helper(a, 1, b)\nhelper(last = b, count = 2, first = a)\n\
-             helper(last = a, count = 3, first = b) }",
-        );
-        for text in [
-            "helper(last = b, count = 2, first = a)",
-            "helper(last = a, count = 3, first = b)",
-        ] {
-            let call = fixture
-                .typed
-                .calls()
-                .iter()
-                .find(|call| call.expression() == fixture.expression(text))
-                .unwrap();
-            assert_eq!(
-                call.arguments()
-                    .iter()
-                    .map(|mapping| (mapping.argument_index(), mapping.parameter_index()))
-                    .collect::<Vec<_>>(),
-                [(0, 2), (1, 1), (2, 0)]
-            );
-            assert_eq!(
-                call.arguments()
-                    .iter()
-                    .filter(|argument| matches!(
-                        fixture.typed.types().get(argument.parameter_type()),
-                        Some(TypeKind::Function { .. })
-                    ))
-                    .map(|argument| argument.parameter_index())
-                    .collect::<BTreeSet<_>>(),
-                BTreeSet::from([0, 2])
-            );
-        }
-        fixture.assert_count(&fixture.plan().unwrap(), "helper", 2);
-    }
-
-    #[test]
-    fn single_callable_plan_deferred_named_operand_cannot_supply_callback_abi() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun identity(index: Int): Int = index\n\
-             fun entry(): Unit {{ val annotated: (Int)->Int = identity\nhelper(annotated) }}"
-        ));
-        assert!(matches!(
-            fixture
-                .typed
-                .symbol_type(fixture.symbol("annotated"))
-                .and_then(|ty| fixture.typed.types().get(ty)),
-            Some(TypeKind::Function { .. })
-        ));
-        assert!(matches!(
-            fixture
-                .typed
-                .expression_type(fixture.expression("identity"))
-                .and_then(|ty| fixture.typed.types().get(ty)),
-            Some(TypeKind::Deferred(_))
-        ));
-        assert!(
-            fixture
-                .owned
-                .callable_origin(fixture.expression("annotated"))
-                .is_none()
-        );
-        fixture.assert_unsupported("annotated");
-    }
-
-    #[test]
-    fn single_callable_plan_unknown_cfg_origin_is_rejected_at_argument() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun entry(flag: Boolean): Unit {{\n\
-             val first: (Int)->Int = {{ index -> index }}\n\
-             val second: (Int)->Int = {{ index -> index + 1 }}\n\
-             val selected: (Int)->Int = if(flag) {{ first }} else {{ second }}\nhelper(selected) }}"
-        ));
-        assert!(matches!(
-            fixture
-                .typed
-                .expression_type(fixture.expression("selected"))
-                .and_then(|ty| fixture.typed.types().get(ty)),
-            Some(TypeKind::Function { .. })
-        ));
-        assert!(
-            fixture
-                .owned
-                .callable_origin(fixture.expression("selected"))
-                .is_none()
-        );
-        fixture.assert_unsupported("selected");
-    }
-
-    #[test]
-    fn single_callable_plan_pointer_factory_result_reuses_factory_owned_origin() {
-        let fixture = Fixture::analyze(&format!(
-            "{HELPER}fun entry(): Unit {{ val first = factory()\n\
-             val alias = (first)\nhelper(alias)\nval second = factory()\nhelper(second) }}\n\
-             fun factory(): (Int)->Int = ({{ index -> index }})"
-        ));
-        let summary = fixture
-            .owned
-            .pointer_callable_return(fixture.symbol("factory"))
-            .unwrap();
-        assert_eq!(
-            summary.origin(),
-            PointerCallableReturnOrigin::Lambda(fixture.lambdas()[0])
-        );
-        let mut results = BTreeSet::new();
-        for text in ["alias", "second"] {
-            let CallableOrigin::FactoryResult(call) = fixture
-                .owned
-                .callable_origin(fixture.expression(text))
-                .unwrap()
-                .origin()
-            else {
-                panic!("validated pointer factory origin");
-            };
-            results.insert(call.index());
-        }
-        assert_eq!(
-            results.len(),
-            2,
-            "two actual calls still share one factory return source"
-        );
-        let plan = fixture.plan().unwrap();
-        fixture.assert_count(&plan, "factory", 1);
-        fixture.assert_count(&plan, "helper", 1);
-    }
-
-    #[test]
-    fn single_callable_plan_preserves_plain_roots_and_scalar_generic_deduplication() {
-        let fixture = Fixture::analyze(
-            "fun <T> identity(own value: T): T = value\n\
-             fun <T> recurse(own input: T): T = recurse(input)\n\
-             fun <T> unused(own item: T): T = item\n\
-             fun uncalled(): Unit {}\n\
-             fun first(input: Int): Int = identity(input)\n\
-             fun second(input: Int): Int = identity<Int>(input)\n\
-             fun third(input: Long): Long = identity(input)\n\
-             fun recursive(input: Int): Int = recurse(input)",
-        );
-        let plan = fixture.plan().unwrap();
-        for name in [
-            "uncalled",
-            "first",
-            "second",
-            "third",
-            "recursive",
-            "recurse",
-        ] {
-            fixture.assert_count(&plan, name, 1);
-        }
-        fixture.assert_count(&plan, "identity", 2);
-        fixture.assert_count(&plan, "unused", 0);
-        let repeated = fixture.plan().unwrap();
-        assert_eq!(
-            plan.instances()
-                .iter()
-                .map(|instance| &instance.key)
-                .collect::<Vec<_>>(),
-            repeated
-                .instances()
-                .iter()
-                .map(|instance| &instance.key)
-                .collect::<Vec<_>>()
-        );
     }
 
     #[test]

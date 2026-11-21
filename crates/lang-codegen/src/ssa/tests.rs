@@ -395,7 +395,7 @@ pub(in crate::ssa) mod source_owner {
     //! A source facts were first collected by the ordinary 12-path run on 9244391b.
     //! No shape is inferred from Sequential loops or accepted from a presence bit alone.
     pub(in crate::ssa) use crate::ssa::lower_frontend::map_iteration::*;
-    pub(in crate::ssa) use crate::ssa::lower_frontend::orchestrate::nullable_map_guard_support::provenance;
+    pub(in crate::ssa) use crate::ssa::map_provider_exits_pipeline_tests::local_sources::deep::nullable_map_guard_support::provenance;
     pub(in crate::ssa) use crate::ssa::ordered_map_storage_tests::source_owner_handoff as handoff;
     pub(in crate::ssa) use delivery::Delivery;
     use delivery::future;
