@@ -35,6 +35,8 @@
 
 ## 2. 分类 A：E3 终态迁移差距及组合缺口
 
+下表保留首轮审计的路由结论，后继固定用例的状态见 §7–§8。
+
 | ID | 精确见证与当前行为 | 生产落点 / 分类依据 |
 |---|---|---|
 | A1 | `refine_tests::container_tests::map_cross_function_routing_is_isolated`：初始仅简单标量 helper 不在 refine 集合；合入 SPEC-0454 后，该 helper 也进入 refine，保留 Map/Inout sibling 隔离 | 原有界缺口已由主干 `cc83d9ec` 闭合；仅限已批准的直线标量，不代表取消全部迁移门或完成统一路由 |
@@ -42,7 +44,7 @@
 | A3 | `unit_lower_string_tests::lower_frontend_nullable_unit_comparison_tests::nullable_when_read_views_preserve_owned_subject_for_reuse_unit_comparison` 与 `nullable_when_consumes_inner_without_duplicate_owner_unit_comparison`：owned `Node?`、`Box<Token>?`、`Rc<Int>?` 保留 view 或唯一 take，SSA/LLVM 验证成功 | refine `subject_when` 尚不接受 nullable subject；旧 `control.rs` 分派至 `nullable_when.rs`。这是已支持 pointer-like owned nullable 的迁移，不要求新增 loan/place branch ABI |
 | A4 | `refine_tests::map_condition_tests::retired_ownership_primitive_boundary_tests` 第一例：nullable `Int?` subject when 与 replace 组合自然进入兼容路径，在真实 replace span 报 UnsupportedNode | 已确认组合拒绝，不把它写成“原来已能成功的程序退化”。inline nullable when 的阶段/ABI与允许范围须先核合同；不能直接扩大为所有 nullable、删除负控或重启旧 replace 实现 |
 
-A1 是初始差距及已落地主干的有界修复，A2–A3 仍是 ADR-0032 终态尚未收口的具体证据；
+在该历史基线上，A1 是初始差距及已落地主干的有界修复，A2–A3 是 ADR-0032 终态尚未收口的具体证据；
 它们不等于已批准无限扩展 caller/控制流组合。
 每个实施切片仍须独立 Spec、失败测试及现有能力/清理负控；A4 尤其需要先明确能力范围。
 本轮只识别这些差距，不据总合同自动开放任何新前端事实或后端准入。
@@ -147,3 +149,19 @@ A2 的单个显式标量实参也仍走 Compatibility。
 在双 Unit 布局证明先取得接收者共享 loan，后求出 `1` 并送入独立的标量参数槽；
 方法返回该参数，调用返回后结束 loan 并释放原 owner。外层 native 包装转交
 同一分配，实际只释放一次，不增加 Refine 准入。
+
+
+## 8. A2–A4 固定见证复核（2026-11-21）
+
+以下只重分类列出的固定源码，不把相邻语法、借用或 owner 形态一并标成完成。
+A3、A4 两个测试模块在主干同步点 `8207b212` 与本地复核树 `570a3633` 中无差异。
+
+| 见证 | 复核后的路径与证据 |
+|---|---|
+| A2 | 本地候选 `0620936c` 只将既定的 owned Boolean 零参数 caller 迁到 Refine。复核树 `570a3633` 为借用参数、同 owner 两次共享调用、一个显式标量实参三项保留原 Compatibility 路由，并补了两种 Unit 布局中的 SSA/LLVM 及 native owner 释放见证（§7）；其余形态不推论。 |
+| A3 | [原始 owned nullable 源的路由与验证](../../crates/lang-codegen/src/ssa/refine_subset_tests/nullable_when.rs)：原普通入口验证 `Node` 12 个、`Box` 6 个、`Rc` 6 个函数实际走 Refine，完整 SSA/LLVM 通过；另一项测试复核三份源的两种 Unit 布局。不覆盖借用位置或其他更宽的组合。 |
+| A4 | [原 inline `Int?` + `replace`](../../crates/lang-codegen/src/ssa/refine_tests/map_condition_tests.rs)：普通入口下 `replace_then_select` 实际走 Refine，LLVM 通过，native 输出 `ok`。定点 `UnsupportedNode` 仍保留，仅在测试强制 per-family 路由时被观测；不再将此固定源码的普通路径算作未实现。 |
+
+在 macOS 上使用复核树 `570a3633` 的 `lang-codegen --lib`、feature
+`loan-observation-test-support` 精确复跑 A3 两项和 A4 一项，均通过。
+这是定向本地复核，不代表生产路径已全部退役或远端 CI 已验收。
