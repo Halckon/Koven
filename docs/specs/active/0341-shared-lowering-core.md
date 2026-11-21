@@ -21990,3 +21990,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `4e32033f`。保留 `nullable_copy_protects_the_source_from_recursive_call_return_cleanup` 原 Single/Unit 比较及 240 字节源码。原测试 Mac 实跑通过；独立 Unit 探针两布局均完成 names/final types/validated ownership，证实 `{ boxed.value }` closure 捕获的 Shared/Borrow 是同一个 boxed root，aux 的 Named Drop 在 `CallReturn(view(boxed, aux))`，boxed 的在该实参 `AfterExpression`，外层借用的是权属独立的 nullable Copy 临时槽。此前无捕获的 Boxed/Boxed 源 last-use 正例不能代替此合同。
 - 普通 Unit lowering 两布局均返回 `InvalidModel`、无公开 span。复跑既有 `loan-observation-test-support` final-verifier observer，在同一个真实最终验证里定位到唯一错误 `InvalidTypeDefinition: a callable view is only a shared loan target`；位置为 `view(boxed, aux)` 的 `aux`（233..236）所生成的 Place。其来自真实 concrete closure 的 `RootPlace`/ `BorrowBegin`，该 Place 却被赋予 CallableView 类型，并非先借真实 closure 再做 callable-view reborrow。已知阻塞是参数 ABI 适配；不能根据未验证 SSA 断言任何真实释放或顺序。
 - 后续若处理，先审查 borrowed-result call 的 callable 参数应如何从具体 closure 的真实 loan 形成并结束 `CallableViewOf`，不放松 verifier；修正后用原 240 字节、双布局验证 capture/closure/boxed 身份、复制值与实际清理。此次仅记录诊断，不冻结预期失败为新退役验收，也未渲染无效 SSA 或跑 native/远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 nullable parent/inout 冲突的 Unit 专属诊断
+
+- 基于 `434c7009`。保留 `nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source` 的历史 FQN、原 Single 对照与原源码；另加同一源码的双 Unit 完整诊断，原递归 cleanup 测试不动。仓内没有这个 exact Unit 两标签断言，不能用其他 selected-parameter 场景代替。
+- 两布局的 lex/parse/names/final types 均通过，ownership 唯一 Error L0135、主消息 `new loan conflicts with an active loan` 指向 `&`（231..232）。两个有序关联标签依次为原冲突 `n`（205..206，`conflicting loan starts here`）、`inout changed: Int`（80..98，`selected parameter declared here`）；无其他 notes/help。同源 Single 缺少第二标签，因此不是等价迁移。
+- Unit 验证明确拒绝且无实际可执行借用、传递、结束、形成、Move 或 Drop；与既有 L0164 复用同一无所有权能力断言，并不要求删除前置语法分类。Mac 前端 24 项、fmt、diff、docs、相对 main Rust size guard 通过；不改生产/API/CI，未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。

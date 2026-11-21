@@ -662,7 +662,12 @@ fn nullable_copy_does_not_create_ownership_of_a_move_only_result() {
         assert_eq!(label.source_id(), source);
         assert_eq!((label.start(), label.end()), (26, 32));
         assert_eq!(checked.sources.slice(label), Ok("borrow"));
+    }
+    assert_rejected_without_executable_ownership(&checked);
+}
 
+fn assert_rejected_without_executable_ownership(checked: &UnitChecked) {
+    for unit in [&checked.memory, &checked.rooted] {
         // Merely classifying the syntactic arguments is not a sealed ownership
         // capability. Rejection must not publish an executable loan or cleanup.
         assert!(unit.deferred().is_empty());
@@ -682,17 +687,63 @@ fn nullable_copy_does_not_create_ownership_of_a_move_only_result() {
         assert!(unit.value_deliveries().is_empty());
         assert!(unit.clone().validate().is_err());
     }
-    assert_atomic_empty(&checked);
+    assert_atomic_empty(checked);
+}
+
+const NULLABLE_PARENT_OVERLAP: &str = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun keep(value: Int): Unit {}\nfun run() { var n: Int = 7; borrow val parent = view(n); observe(view(parent), &n); keep(parent) }";
+
+#[test]
+fn nullable_parent_conflict_reports_the_unit_selected_inout_parameter() {
+    use lang_frontend::{
+        diagnostic::{DiagnosticDetail, Severity},
+        source::Span,
+    };
+
+    // unit_checked requires a clean parse, names and complete type pass.
+    let checked = unit_checked(NULLABLE_PARENT_OVERLAP);
+    let source = checked.parsed.source_id();
+    let expect_span = |span: Span, offsets: (usize, usize), token| {
+        assert_eq!(span.source_id(), source);
+        assert_eq!((span.start(), span.end()), offsets);
+        assert_eq!(checked.sources.slice(span), Ok(token));
+    };
+    assert_eq!(checked.memory.diagnostics(), checked.rooted.diagnostics());
+    for unit in [&checked.memory, &checked.rooted] {
+        let [diagnostic] = unit.diagnostics() else {
+            panic!("one ownership error: {:?}", unit.diagnostics());
+        };
+        assert_eq!(diagnostic.severity(), Severity::Error);
+        assert_eq!(diagnostic.code().to_string(), "L0135");
+        assert_eq!(
+            diagnostic.message(),
+            "new loan conflicts with an active loan"
+        );
+        expect_span(diagnostic.primary_span(), (231, 232), "&");
+        let [
+            DiagnosticDetail::Label(conflict),
+            DiagnosticDetail::Label(parameter),
+        ] = diagnostic.details()
+        else {
+            panic!(
+                "conflict then selected parameter: {:?}",
+                diagnostic.details()
+            );
+        };
+        assert_eq!(conflict.message(), "conflicting loan starts here");
+        expect_span(conflict.span(), (205, 206), "n");
+        assert_eq!(parameter.message(), "selected parameter declared here");
+        expect_span(parameter.span(), (80, 98), "inout changed: Int");
+    }
+    assert_rejected_without_executable_ownership(&checked);
 }
 
 #[test]
 fn nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source() {
     // Keep the historical Single/Unit test identity for the L0135 rejection.
     // The independent source-last-use positive now has its own Unit fixture.
-    let overlapping = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun keep(value: Int): Unit {}\nfun run() { var n: Int = 7; borrow val parent = view(n); observe(view(parent), &n); keep(parent) }";
 
     for rooted in [false, true] {
-        let Checked { single, unit, .. } = checked(overlapping, rooted);
+        let Checked { single, unit, .. } = checked(NULLABLE_PARENT_OVERLAP, rooted);
         for diagnostics in [single.diagnostics(), unit.diagnostics()] {
             let [diagnostic] = diagnostics else {
                 panic!("{diagnostics:?}")
