@@ -470,6 +470,15 @@ fn observe_unit(
                 &typed,
                 &calls,
             ),
+            "own-parameter" => exact_rejections::assert_own_parameter_consume_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
             "temporary" => exact_rejections::assert_temporary_consume_selection(
                 case, sources, file, source, &typed, &calls,
             ),
@@ -855,10 +864,6 @@ fn map_consume_complete_rejects_receiver_move_and_live_loan_boundaries() {
     use BuiltinType::{Int, String as Str};
     let cases = [
         // Guide v0.46: a top-level runtime root is L0167 before ownership, so no global-root case.
-        ("own-parameter", r#"fun run(own source: MutableMap<Int, Int>): Unit {
-  val result = source.consume()
-  val count = source.size
-}"#, Int, Expected::Rejected("L0130"), 1),
         ("borrow-parameter", r#"fun run(source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
         ("inout-parameter", r#"fun run(inout source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
         ("explicit-borrow-local", r#"fun run(input: MutableMap<Int, Int>): Unit {
@@ -896,7 +901,8 @@ fun run(): Unit {
   val result = identity(source).consume()
 }"#, Int, Expected::Rejected("L0131"), 1),
     ].map(|(label, text, element, expected, calls)| Case { label, text, key: element, value: element, expected, calls });
-    assert_matrix(&cases, 18);
+    assert_matrix(&cases, 16);
+    exact_rejections::own_parameter();
     exact_rejections::temporary();
     exact_rejections::stable_field();
     exact_rejections::stable_element();

@@ -77,6 +77,26 @@ pub(super) fn temporary() {
     );
 }
 
+pub(super) fn own_parameter() {
+    let case = Case {
+        label: "own-parameter",
+        text: r#"fun run(own source: MutableMap<Int, Int>): Unit {
+  val result = source.consume()
+  val count = source.size
+}"#,
+        key: BuiltinType::Int,
+        value: BuiltinType::Int,
+        expected: Expected::Rejected("L0130"),
+        calls: 1,
+    };
+    assert_rejection(
+        &case,
+        "MutableMap.consume requires an owned local val/var root",
+        (65, "source"),
+        None,
+    );
+}
+
 fn assert_rejection(
     case: &Case,
     message: &str,
@@ -269,4 +289,87 @@ pub(super) fn assert_temporary_consume_selection(
         Some(selected.value_type()),
         types.types().builtin(BuiltinType::Int)
     );
+}
+
+pub(super) fn assert_own_parameter_consume_selection(
+    case: &Case,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    unit: SourceUnitId,
+    names: &NameResolution,
+    types: &CompilationUnitTypes,
+    calls: &[(ExpressionId, ExpressionId)],
+) {
+    let [(call, operand)] = calls else {
+        panic!("one exact consume selection")
+    };
+    let span = |id: UnitExpressionId| {
+        assert_eq!(id.source_unit(), unit);
+        file.ast()
+            .expressions()
+            .get(id.expression())
+            .unwrap()
+            .span()
+    };
+    let spell = |id| sources.slice(span(id)).unwrap();
+    let call = UnitExpressionId::new(unit, *call);
+    let operand = UnitExpressionId::new(unit, *operand);
+    let [selected] = types.map_consumes() else {
+        panic!("one actual MapConsume selection")
+    };
+    let [read] = types.map_sizes() else {
+        panic!("the original trailing size read must resolve")
+    };
+    assert_eq!(selected.expression(), call);
+    assert_eq!(selected.receiver(), operand);
+    assert_eq!(spell(call), "source.consume()");
+    assert_eq!(spell(read.expression()), "source.size");
+    let (root, root_type) = selected.source().expect("named receiver, not a temporary");
+    assert_eq!(root.source_unit(), unit);
+    assert_eq!(root_type, selected.receiver_type());
+    assert!(unit_map(
+        types,
+        Some(root_type),
+        IntrinsicTypeConstructor::MutableMap,
+        case
+    ));
+    assert!(unit_map(
+        types,
+        Some(selected.result_type()),
+        IntrinsicTypeConstructor::Map,
+        case
+    ));
+    assert_eq!(types.expression_type(call), Some(selected.result_type()));
+    assert_eq!(read.map_type(), root_type);
+    assert_ne!(read.receiver(), operand);
+    assert!(span(read.receiver()).start() > span(operand).start());
+
+    let [run] = types.signatures().declarations() else {
+        panic!("exact original top-level run function")
+    };
+    let run = run.callable().unwrap();
+    assert_eq!(run.name(), "run");
+    let [parameter] = run.parameters() else {
+        panic!("one declared parameter")
+    };
+    assert_eq!(parameter.symbol(), Some(root));
+    assert_eq!(parameter.name(), Some("source"));
+    assert_eq!(parameter.mode(), ParameterMode::Value);
+    assert_eq!(parameter.ty(), root_type);
+    let declaration = names.symbols().get(root.symbol().index()).unwrap();
+    assert_eq!(declaration.kind(), SymbolKind::ValueParameter);
+    assert_eq!(sources.slice(declaration.span()), Ok("source"));
+    assert_eq!(declaration.span().start(), 12);
+    for id in [operand, read.receiver()] {
+        assert_eq!(spell(id), "source");
+        assert_eq!(types.expression_type(id), Some(root_type));
+        assert_eq!(
+            types.expression_category(id),
+            Some(ExpressionCategory::Place)
+        );
+        assert!(names.references().iter().any(|reference| {
+            reference.span() == span(id)
+                && reference.target() == &ReferenceTarget::Symbol(root.symbol())
+        }));
+    }
 }

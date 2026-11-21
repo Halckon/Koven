@@ -22036,3 +22036,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 
 - 原 `temporary` 67 字节和旧测试名保持。实际 Single 与两布局选择相同内建 `MutableMapOf` 形成临时接收者，随后选择真实 MapConsume，接收者类型 `MutableMap<Int, Int>`、结果类型 `Map<Int, Int>`，没有具名根。仅 ownership 唯一 Error L0130：`MutableMap.consume requires an owned local val/var root`，主为原工厂调用，无标签、说明或建议。拒绝不能 seal，且不发布部分可执行借用、构造、接收者或交付事实。
 - Mac 复用生产源码不变的已有 rlib 验证 `ownership_map` 13/13，静态格式、diff、docs 和 size guard 通过。未重新构建 Cargo、未改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 自有形参拒绝测试迁移
+
+- 基于 `2c579121`，只迁同一旧 FQN 的 `own-parameter` 行，109 字节原源码原样，包括 `source.consume()` 之后的 `source.size`。剩余八项仍保留在原 Single/Rooted 矩阵。
+- 原 Single 与两种 Unit 完整类型检查均选择一个 MapConsume 和独立的后续 Map size 读取。Unit 两处读取指向同一个真实 `ValueParameter` 符号，签名明确为 `own`（`ParameterMode::Value`）；不是无根的临时值，也不是允许消费的本地 `val/var`。分析只在 ownership 拒绝：唯一 L0130 主为消费处的原 `source`（65..71），完整诊断与 Single 相等且无附加详情；既不误报后续读取为 use-after-move，也不发布部分所有权事实或 seal 可执行能力。
+- Mac 复用生产源码不变的 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux/native，SPEC-0341 仍 in-progress。
