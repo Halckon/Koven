@@ -21795,3 +21795,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 D10 `cdc5ff12`，远端 `main` 仍为 `8207b212`。原 `Holder(if (select) { "a" } else { "b" }, if (early) { return } else { 1 })` fixture 不改；Single 在提前返回上具有两条 guarded owner definitions。
 - MemoryDocument / Rooted 实证 Unit 合并先完成的条件表达式结果，以同一 source-qualified 实参在实际 `return` 处发布一条非条件临时析构；正常路径两实参按源码顺序交付，具名 `holder` 仅析构一次。两套事实形状不同，保留该唯一本文件的 Single 断言，不能用这条 flat drop 推断两个分支的 owner 身份。
 - Mac Rust 1.96.0 复用同生产树已有前端 rlib 编译测试 harness，原 Single 定点及加固后双布局定点均通过，`ownership_construction` 10/10。未运行 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：条件构造原始 fixture 的 Unit CFG 与原生清理
+
+- 基于 `922791cd`，将原条件构造 fixture 按原输入字节抽为共享测试文件；前端保留 Single 的独立 guarded owners。下游仅追加测试入口，MemoryDocument / Rooted 分别以实际布尔参数运行选择真/假和早退真/假的四种组合。
+- SSA verifier 后核实际 shared Bool 实参、条件读取、两臂各自产生不同的 String ValueId，以及真实边实参到同一合流参数再到早退 Drop 或正常第一字段的运输；正常分支的 aggregate、HeapAllocate 与最终 Drop 逐 ValueId 相接。原字面量为静态字节，不声称分配可释放 String buffer；同一 LLVM 产物的 native 计数验证早退无 heap allocation、正常仅 Holder 恰一次分配并释放。
+- 单独的 `.clone()` 派生对照只验证动态存储，不替换旧 fixture：两布局四路径检查释放的首个实际地址及其 a/b 字节、正常路径才有第二个 Holder 地址并按序各释放一次。Mac Rust 1.96.0 / LLVM 21.1.8，`ownership_construction` 10/10、codegen 定向 2/2（各自双布局四路径）；未运行 Linux、sanitizer 或远端 CI。未改生产、API、CI，SPEC-0341 仍 in-progress。

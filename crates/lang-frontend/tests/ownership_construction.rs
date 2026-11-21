@@ -449,10 +449,7 @@ fn construction_value_inputs_remain_cleanup_obligations_until_delivery() {
 
 #[test]
 fn conditional_construction_input_keeps_distinct_guarded_exit_owners() {
-    let text = "class Holder(val first: String, val second: Int)
-                fun hold(select: Boolean, early: Boolean): Unit {
-                    val holder = Holder(if (select) { \"a\" } else { \"b\" }, if (early) { return } else { 1 })
-                }";
+    let text = include_str!("ownership_construction/fixtures/conditional-argument-return.ko");
     let (sources, parsed, owned) = checked(text);
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     let guarded = owned
