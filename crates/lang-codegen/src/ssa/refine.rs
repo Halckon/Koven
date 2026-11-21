@@ -141,6 +141,7 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
     pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
     pub(in crate::ssa) two_receiver_facts: Option<&'a TwoReceiverFacts>,
+    pub(in crate::ssa) single_receiver_receipts: Option<&'a SingleReceiverReceiptIndex>,
     /// Present for the constant capability; const uses stay on the existing path.
     pub(in crate::ssa) constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     pub(in crate::ssa) function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
@@ -941,3 +942,6 @@ pub(in crate::ssa) mod two_receiver_route_metrics;
 
 mod two_receiver_facts;
 pub(in crate::ssa) use two_receiver_facts::TwoReceiverFacts;
+
+mod single_receiver_receipt_index;
+pub(in crate::ssa) use single_receiver_receipt_index::SingleReceiverReceiptIndex;
