@@ -21894,3 +21894,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 找到一个真实缺口：开启 feature 的 split CLI normal step 之前只执行两个旧 exact FQN，新 `enabled::split_cli_rejects_unreachable_bad_member_in_other_source_before_selector` 不会被选中。仅在既有 `Explicit D10 split CLI normal contract` step 增加该 exact 调用及 `1 passed; 0 failed; 0 ignored;` 校验，避免不存在的 FQN 以 0 tests 误绿。不改默认 feature、全局测试入口、现有 native 矩阵或普通使用者路由。
 - 复核命令（Mac 额外用 `--offline`）：`cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_rejects_unreachable_bad_member_in_other_source_before_selector -- --exact` 实际 1/1；不存在 FQN 实为 0 tests 且 guard 拒绝。此前同代码测试：`cargo test --locked -p lang-cli --no-default-features --test d10_object_cli --test d10_split_object_cli` 2/2；`cargo test --locked -p lang-cli --features d10-catalog-experiment --test d10_object_cli --test d10_split_object_cli --test d10_project_cli --test project_basic_ownership_cli` 18/18。CI 组合脚本的 Python 合同 45/45；没有声称重新运行整套 `check_integration` 或远端双宿主。
 - 下一实质退役决定：先明确是否保留公开 Single `check_ownership` 的细粒度来源错误与恢复 AST 合同（仓外客户端仍未知），另行决定是否停用两个 opt-in CLI 命令及各自 sealed/create-only 约束；ordinary Unit project 证据不能代替这两项兼容决策。本片只改现有 CI 选测和记录，未改生产/API，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：x01 原 nullable class 读取的两种 Unit 布局
+
+- 基于 `e96111f8`。保留原有 test FQN 与 163 字节 `x01_nullable_class_retest.ko`；与 conformance 原 probe 逐字节相同（SHA-256 `b3ef9dad60dd36ca1abf3992a7cc55bfed7865fb9831c97daad8355b134a7342`）。已有 exact 只验证 Rooted，现另执行真实 MemoryDocument；不是用 if 替代 BorrowRoot When，也不重写 §28 的历史失败记录。
+- 双布局保完整前端与 sealed view/构建/真实 native object 流程。SSA 精确核对 `use(n)` 接收该非空边实际 Shared loan，原 `use` 只用这个 ABI 参数读 `n.v`；调用方结束同一 loan、放掉同一 nullable owner 后，才用返回的标量与原字面量 3 做内层条件。空边只退休空 wrapper、不执行 `use`；原用例动态输入非空，不声称运行覆盖空边。
+- 两布局的 public native 对象都保持 `retest\n`/exit 0/空 stderr。独立的 verified LLVM 视图只包装实际分配/释放，确认同一唯一 Node 地址恰释放一次且保持相同输出，不以该包装替代 public object 的已验证路径。无生产或 API 改动；旧 API、实验 CLI 及 E2 range 合作边界仍分别决策，SPEC-0341 仍 in-progress。
+- Mac Rust 1.96.0 / LLVM 21.1.8：`ssa::unit_lower_nullable_tests::` 9/9，格式、diff 和文档检查通过，本次未复跑 Linux 或远端 CI。

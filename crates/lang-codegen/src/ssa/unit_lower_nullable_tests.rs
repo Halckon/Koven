@@ -19,7 +19,8 @@ use lang_frontend::{
 
 use super::{
     model::{
-        EntityId, EntityType, FunctionId, LoanKind, Operation, Program, SsaTypeKind, TerminatorKind,
+        EntityId, EntityType, FunctionId, LoanKind, Operation, Program, ScalarConstant,
+        SsaTypeKind, TerminatorKind,
     },
     unit_lower::lower_owned_unit_with_entry,
 };
@@ -29,6 +30,12 @@ const SOURCE: &str =
 
 #[test]
 fn original_nullable_class_borrow_nested_if_reaches_verified_native() {
+    for rooted in [false, true] {
+        run_original_nullable_class_borrow(rooted);
+    }
+}
+
+fn run_original_nullable_class_borrow(rooted: bool) {
     let path = "x01_nullable_class_retest.ko";
     let mut sources = SourceMap::new();
     let source = sources.add_source(path, SOURCE).expect("original source");
@@ -40,10 +47,20 @@ fn original_nullable_class_borrow_nested_if_reaches_verified_native() {
         "{:?}",
         parsed.diagnostics()
     );
-    let inputs = [SourceUnitInput::new("root", path, source, &parsed)];
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", path, source, &parsed)
+    } else {
+        SourceUnitInput::memory_document(source, &parsed)
+    }];
     let (name_environment, environment) = standard_environments();
     let index = index_compilation_unit(&sources, &inputs).expect("original unit index");
     assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+    let [unit] = index.source_units() else {
+        panic!("one exact original source");
+    };
+    assert_eq!(unit.source_id(), source);
+    assert_eq!(matches!(unit.key(), SourceUnitKey::MemoryDocument), !rooted);
+    assert_eq!(sources.source_text(source), Ok(SOURCE));
     let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)
         .expect("real names");
     assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
@@ -99,7 +116,7 @@ fn original_nullable_class_borrow_nested_if_reaches_verified_native() {
     assert_original_borrow(&program, entry, use_span);
     let ssa = super::render_program(&program);
     let llvm = crate::llvm::render_verified_program(&program).expect("complete verified LLVM");
-    diagnostic!("x01 queried SSA:\n{ssa}\nx01 queried LLVM:\n{llvm}");
+    diagnostic!("x01 rooted={rooted} queried SSA:\n{ssa}\nx01 queried LLVM:\n{llvm}");
 
     // The public native chain lowers the same sealed view again, not this queried Program.
     let directory = crate::native_tests::TestDirectory::create();
@@ -124,6 +141,14 @@ fn original_nullable_class_borrow_nested_if_reaches_verified_native() {
     assert_eq!(run.status.code(), Some(0), "{run:?}");
     assert_eq!(run.stdout, b"retest\n", "{run:?}");
     assert!(run.stderr.is_empty(), "{run:?}");
+
+    // A second native execution instruments only the verified LLVM's allocation calls.
+    use crate::native_tests::boxed_enum_tests::{assert_success, run_counted_allocations_in_order};
+    let executable_llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert_success(
+        &run_counted_allocations_in_order(&executable_llvm, &[0]),
+        b"retest\n",
+    );
 }
 
 fn assert_original_borrow(program: &Program, entry: FunctionId, use_span: Span) {
@@ -240,8 +265,77 @@ fn assert_original_borrow(program: &Program, entry: FunctionId, use_span: Span) 
     assert_eq!(arguments, &[EntityId::Loan(*view)]);
     assert_eq!(
         call.block, non_null.id,
-        "use consumes the original non-null successor view"
+        "use observes the original non-null successor view"
     );
+    let EntityId::Value(rebound) = non_null.parameters[*owner_column] else {
+        panic!("the original nullable owner survives into the proof block")
+    };
+    let operations = non_null
+        .instructions
+        .iter()
+        .map(|id| main.instruction(*id).unwrap())
+        .collect::<Vec<_>>();
+    let [borrow_call, end, drop, three, compare] = operations.as_slice() else {
+        panic!("field read result, proof end, owner retirement, then scalar nested test")
+    };
+    assert_eq!(borrow_call.id, call.id);
+    assert_eq!(end.operation, Operation::BorrowEnd { loan: *view });
+    assert_eq!(drop.operation, Operation::Drop { owner: rebound });
+    assert_eq!(original(drop.origin.span()), "n");
+    assert_eq!(
+        three.operation,
+        Operation::Constant(ScalarConstant::Integer(3))
+    );
+    let [EntityId::Value(field)] = call.results.as_slice() else {
+        panic!("actual field result")
+    };
+    let [EntityId::Value(expected)] = three.results.as_slice() else {
+        panic!("actual comparator literal")
+    };
+    let Operation::Compare { left, right, .. } = compare.operation else {
+        panic!("nested compare")
+    };
+    assert_eq!((left, right), (*field, *expected));
+    let TerminatorKind::Conditional { condition, .. } = &non_null.terminator.as_ref().unwrap().kind
+    else {
+        panic!("the nested If uses the comparison")
+    };
+    assert_eq!(compare.results.as_slice(), [EntityId::Value(*condition)]);
+
+    let null = main.block(when_null.target).unwrap();
+    assert_eq!(when_null.arguments.as_slice(), [EntityId::Value(*owner)]);
+    let [EntityId::Value(empty)] = null.parameters.as_slice() else {
+        panic!("only the empty wrapper crosses the null edge")
+    };
+    let [drop] = null.instructions.as_slice() else {
+        panic!("null skips use and retires only the wrapper")
+    };
+    assert_eq!(
+        main.instruction(*drop).unwrap().operation,
+        Operation::Drop { owner: *empty }
+    );
+
+    let callee = module.function(*callee).unwrap();
+    let block = callee.block(callee.entry_block().unwrap()).unwrap();
+    let [EntityId::Loan(argument)] = block.parameters.as_slice() else {
+        panic!("use accepts the actual Shared ABI")
+    };
+    let [read] = callee.instructions.as_slice() else {
+        panic!("only read the original v field")
+    };
+    assert_eq!(original(read.origin.span()), "n.v");
+    assert_eq!(
+        read.operation,
+        Operation::HeapFieldRead {
+            receiver: *argument,
+            field: 0
+        }
+    );
+    let [EntityId::Value(result)] = read.results.as_slice() else {
+        panic!("read result")
+    };
+    assert!(matches!(&block.terminator.as_ref().unwrap().kind,
+        TerminatorKind::Return { values } if values.as_slice() == [*result]));
 }
 
 // Ten unchanged lowering.ko sources retain the historical compiler-success oracle
