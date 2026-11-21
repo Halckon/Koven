@@ -743,6 +743,36 @@ fn assert_original_assertion_semantics(case: &str, text: &str, function: &super:
 
 #[test]
 fn original_nullable_node_tail_move_stops_at_unsupported_result() {
+    let original = include_str!(
+        "../../../lang-frontend/tests/ownership_nullable_when/fixtures/move-node-root.ko"
+    );
+    assert_original_nullable_boundary(
+        original,
+        "nullable-node-move.ko",
+        "extract(item)",
+        "when (x) { null -> Node(); else -> x }",
+    );
+}
+
+#[test]
+fn original_nullable_named_borrow_stops_at_unsupported_subject() {
+    let original = include_str!(
+        "../../../lang-frontend/tests/ownership_nullable_when/fixtures/named-borrow-read.ko"
+    );
+    assert_original_nullable_boundary(
+        original,
+        "named-borrow-read.ko",
+        "test(item)",
+        "when (x) { null -> {}; else -> read(x) }",
+    );
+}
+
+fn assert_original_nullable_boundary(
+    original: &str,
+    path: &str,
+    invocation: &str,
+    expected_expression: &str,
+) {
     use super::{
         lowering_support::LoweringErrorKind,
         unit_lower::lower_scalar_unit_with_entry,
@@ -750,15 +780,11 @@ fn original_nullable_node_tail_move_stops_at_unsupported_result() {
     };
     use lang_frontend::name_resolution::SourceUnitKey;
 
-    let original = include_str!(
-        "../../../lang-frontend/tests/ownership_nullable_when/fixtures/move-node-root.ko"
-    );
     // Keep the accepted original declaration untouched. The wrapper only makes it reachable.
-    let path = "nullable-node-move.ko";
     for rooted in [false, true] {
         for initializer in ["null", "Node()"] {
             let text = format!(
-                "{original}\nfun entry(): Unit {{ val item: Node? = {initializer}; val result = extract(item) }}"
+                "{original}\nfun entry(): Unit {{ val item: Node? = {initializer}; val result = {invocation} }}"
             );
             let mut sources = SourceMap::new();
             let (source, file) = parsed(&mut sources, path, &text);
@@ -798,16 +824,13 @@ fn original_nullable_node_tail_move_stops_at_unsupported_result() {
                 entry,
             )
             .err()
-            .expect("MoveOnly When result has no implicit owner extraction in Unit SSA");
+            .expect("boxed nullable When shape is not admitted to Unit SSA");
             assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
             let span = error.span.expect("the exact original expression");
             assert_eq!(span.source_id(), source);
             assert_eq!(span.start(), original.find("when").unwrap());
             assert_eq!(span.end(), original.len());
-            assert_eq!(
-                sources.slice(span),
-                Ok("when (x) { null -> Node(); else -> x }")
-            );
+            assert_eq!(sources.slice(span), Ok(expected_expression));
         }
     }
 }

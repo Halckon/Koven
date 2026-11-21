@@ -21837,3 +21837,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 实际 Unit SSA 逐边运输同一 root/proof，flag 真从非空根提取同一 ValueId 交给原 `take` 并由被调方释放；假分支先结束 proof 再清理原根；null 分支只退休空 wrapper。Mac native 在 MemoryDocument/Rooted 各验证四组实际输入：null 分支不得发起物理分配/释放，Node 两条路径释放唯一相同的实际分配地址一次。SSA/LLVM verifier 均通过。
 - 退役分档：此前的 Copy-under-loan、普通 body Copy、这里的 direct call 条件 Move 都有同源对应证据；明确保留 MoveOnly When tail（SSA 拒绝）、later 条件 Copy（缺 subject/alternative 证明）、旧 guarded construction 分支 owners（Unit FE 提供合并事实）。其他 MoveOnly/Rc 及 field/index 身份与 Read 仍逐原 fixture 核对；不能由此项或近似替代源码一并退役。下一候选优先原具名 `read(x)` 的 Shared loan/同根与无 Move，与非稳定 field/index 分开审计。
 - Mac Rust 1.96.0 / LLVM 21.1.8：前端 28/28、codegen 6/6，fmt/diff/docs 通过；未运行 Linux、sanitizer 或远端 CI。生产、API、CI 不变，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：nullable 具名根的 Shared read 下游边界
+
+- 基于 `ab9b8ffd`。原 `fun test(x: Node?): Unit = when (x) { null -> {}; else -> read(x) }` 源码字节不变，保留 Single 无 extraction 的断言。Unit 双布局的 `BorrowRoot`、原 subject/root/entry/generation、实际 `Observe` 和唯一 Shared call loan 相接；该 loan 的开始引用、结束调用及 `x: Node` 参数身份真实一致。无 Move/delivery、Drop 或 Rc effect，不拿 Copy 的证据替代借用。
+- 普通 sealed Unit SSA 同源输出 `UnsupportedNode`，span 精确指向整个 nullable When；回归验证两布局和空/非空入口，不产生可验证 SSA、LLVM 或 native，未退休该旧断言。先前的 x01 `if` 证据以及已支持 direct-owned-call 不能覆盖这个 BorrowRoot When。
+- 后续单独拆查非稳定 field/index 的真实投影与重复读取，各自需同源 identity 证据。生产、API、CI 不变，SPEC-0341 仍 in-progress。
