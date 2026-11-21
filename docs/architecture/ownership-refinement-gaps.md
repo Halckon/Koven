@@ -128,3 +128,10 @@ resource 的 `Node` 参数，仅一次零参数共享接收者调用，丢弃 `B
 同一个 `run`，计数器按分配身份检查它的唯一 owner 释放一次。
 其余 A2 三种写法以及相应的 Boolean 结果变体仍由原普通入口负控固定在兼容路径。
 这不关闭 A2 其余兼容项，不涉及括号路由，也不代表远端或 Linux 验收。
+
+A2 的借用参数见证继续走 Compatibility。新增
+`borrowed_receiver_fallback_forwards_entry_loan_without_owning_release` 保留原
+`run(node: Node)` 并附一层 native 调用者，双 Unit 布局中跟踪不同函数内的
+loan 身份：`run` 只把导入的共享 loan 传给方法，不建立或释放 owner；外层
+调用者在返回后结束原 loan，再释放最初分配的同一个 owner。该测试同时检查
+真实 SSA、LLVM 和 native 计数，不扩大 Refine 准入。

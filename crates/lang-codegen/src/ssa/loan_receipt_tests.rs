@@ -271,6 +271,9 @@ mod observer_off {
 #[path = "loan_receipt_boolean_tests.rs"]
 mod receiver_boolean;
 
+#[path = "loan_receipt_borrowed_tests.rs"]
+mod receiver_borrowed;
+
 mod receiver_route {
     //! Ordinary source-only bounded routing checks; no native execution or fault injection.
     use crate::ssa::loan_region_ssa_tests::*;
@@ -365,7 +368,7 @@ mod receiver_route {
     #[test]
     fn neighboring_receiver_shapes_keep_existing_routes() {
         for text in [
-            "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { node.touch() }",
+            super::receiver_borrowed::SOURCE,
             "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
             "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1) }",
             "class Node { fun touch(): Boolean = true }\nfun run(node: Node): Unit { node.touch() }",

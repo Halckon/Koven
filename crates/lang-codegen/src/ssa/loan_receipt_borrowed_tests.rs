@@ -1,0 +1,145 @@
+//! A borrowed receiver caller forwards a loan, while its outer caller owns cleanup.
+use crate::ssa::loan_region_ssa_tests::*;
+
+pub(super) const SOURCE: &str =
+    "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { node.touch() }";
+
+#[test]
+fn borrowed_receiver_fallback_forwards_entry_loan_without_owning_release() {
+    let text = format!("{SOURCE}\nfun entry(): Unit {{ val node = Node(); run(node) }}");
+    let mut sources = SourceMap::new();
+    let (source, parsed) =
+        unit_lower_test_support::parsed(&mut sources, "borrowed_receiver.ko", &text);
+    let (environment, types) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "borrowed_receiver.ko", source, &parsed),
+        SourceUnitInput::memory_document(source, &parsed),
+    ] {
+        let inputs = [input];
+        let (names, typed, owned) =
+            unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+        let entry = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.name() == "entry")
+            .unwrap()
+            .id();
+        let ((lowered, routed), receipts) = crate::ssa::refine::receiver_receipt::observe(|| {
+            crate::ssa::refine::observe_routing(|| {
+                crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                )
+            })
+        });
+        let (program, entry) = lowered.unwrap();
+        let [module] = program.modules.as_slice() else {
+            panic!("one module");
+        };
+        let outer = module.function(entry).unwrap();
+        let [block] = outer.blocks.as_slice() else {
+            panic!("straight-line outer caller");
+        };
+        let unique = |predicate: fn(&Operation) -> bool| {
+            let selected = block
+                .instructions
+                .iter()
+                .enumerate()
+                .map(|(index, id)| (index, outer.instruction(*id).unwrap()))
+                .filter(|(_, instruction)| predicate(&instruction.operation))
+                .collect::<Vec<_>>();
+            assert_eq!(selected.len(), 1, "{:?}", outer.instructions);
+            selected[0]
+        };
+        let (allocate_at, allocate) = unique(|op| matches!(op, Operation::HeapAllocate { .. }));
+        let [EntityId::Value(owner)] = allocate.results.as_slice() else {
+            panic!("one allocated owner");
+        };
+        let (root_at, root) = unique(|op| matches!(op, Operation::RootPlace { .. }));
+        assert_eq!(root.operation, Operation::RootPlace { owner: *owner });
+        let [EntityId::Place(place)] = root.results.as_slice() else {
+            panic!("place rooted in this owner");
+        };
+        let (begin_at, begin) = unique(|op| matches!(op, Operation::BorrowBegin { .. }));
+        assert_eq!(
+            begin.operation,
+            Operation::BorrowBegin {
+                place: *place,
+                kind: LoanKind::Shared
+            }
+        );
+        let [EntityId::Loan(loan)] = begin.results.as_slice() else {
+            panic!("fresh outer shared loan");
+        };
+        let (call_at, call) = unique(|op| matches!(op, Operation::DirectCall { .. }));
+        let Operation::DirectCall {
+            callee,
+            receiver: None,
+            arguments,
+        } = &call.operation
+        else {
+            panic!("plain call to run");
+        };
+        assert_eq!(arguments, &[EntityId::Loan(*loan)]);
+        assert_eq!(sources.slice(call.origin.span()).unwrap(), "run(node)");
+        let (end_at, end) = unique(|op| matches!(op, Operation::BorrowEnd { .. }));
+        assert_eq!(end.operation, Operation::BorrowEnd { loan: *loan });
+        let (drop_at, drop) = unique(|op| matches!(op, Operation::Drop { .. }));
+        assert_eq!(drop.operation, Operation::Drop { owner: *owner });
+        assert!(allocate_at < root_at && root_at < begin_at && begin_at < call_at);
+        assert!(call_at < end_at && end_at < drop_at);
+
+        let run = module.function(*callee).unwrap();
+        assert!(
+            !routed.contains(&run.name),
+            "borrowed run must stay on Compatibility"
+        );
+        assert!(receipts.iter().all(|receipt| receipt.caller != *callee));
+        assert_eq!(
+            sources.slice(run.origin.span()).unwrap(),
+            SOURCE.split_once('\n').unwrap().1
+        );
+        let [run_block] = run.blocks.as_slice() else {
+            panic!("straight-line borrowed caller");
+        };
+        let [EntityId::Loan(imported)] = run_block.parameters.as_slice() else {
+            panic!("imported shared loan, not an owned argument");
+        };
+        assert_ne!(loan.function(), imported.function());
+        assert_eq!(
+            outer.entity(EntityId::Loan(*loan)).unwrap().ty,
+            run.entity(EntityId::Loan(*imported)).unwrap().ty
+        );
+        let [forward] = run.instructions.as_slice() else {
+            panic!("the borrowed caller must not create or retire a loan or drop an owner");
+        };
+        let Operation::DirectCall {
+            callee: method,
+            receiver,
+            arguments,
+        } = &forward.operation
+        else {
+            panic!("forwarding member call");
+        };
+        assert_eq!(*receiver, Some(EntityId::Loan(*imported)));
+        assert!(arguments.is_empty());
+        assert_eq!(
+            sources.slice(forward.origin.span()).unwrap(),
+            "node.touch()"
+        );
+        let method = module.function(*method).unwrap();
+        assert!(
+            method
+                .instructions
+                .iter()
+                .all(|instruction| !matches!(instruction.operation, Operation::Drop { .. }))
+        );
+
+        verify_program(&program).unwrap();
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        let output =
+            crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
+        crate::native_tests::boxed_enum_tests::assert_success(&output, b"");
+    }
+}
