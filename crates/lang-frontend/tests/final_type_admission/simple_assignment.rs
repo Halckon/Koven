@@ -296,13 +296,136 @@ fn expected_non_unit_lambda_rejects_assignment_result() {
 
 #[test]
 fn invalid_rhs_preserves_storage_type_diagnostic() {
-    for text in [
-        "fun test(): Unit { var number: Int = 1; val f: () -> Unit = { number = true } }",
-        "fun test(): Unit { val f: () -> Unit = { var number: Int = 1; number = true } }",
+    let captured =
+        "fun test(): Unit { var number: Int = 1; val f: () -> Unit = { number = true } }";
+    for entry in observe(captured) {
+        assert_raw_rejection(&entry, "L0084", captured, "true");
+    }
+    invalid_local_rhs_unit();
+}
+
+fn invalid_local_rhs_unit() {
+    use lang_frontend::{
+        diagnostic::{DiagnosticCodeCatalog, Severity},
+        name_resolution::{ReferenceTarget, SourceUnitKey, SymbolKind},
+        parser::{AssignmentOperator, Item, LiteralKind, NameMarker, VariableKind},
+        type_checking::ExpressionCategory,
+    };
+
+    let text = "fun test(): Unit { val f: () -> Unit = { var number: Int = 1; number = true } }";
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "main.ko", text);
+    assert_eq!(sources.source_text(source), Ok(text));
+    let (environment, types) = standard_environments();
+    let ast = file.ast();
+    let assignment = expression(&sources, &file, "number = true");
+    let Expression::Assignment {
+        operator: AssignmentOperator::Assign,
+        target,
+        value,
+        ..
+    } = *ast.expressions().get(assignment).unwrap().payload()
+    else {
+        panic!("original plain assignment")
+    };
+    let target_span = ast.expressions().get(target).unwrap().span();
+    let rhs = ast.expressions().get(value).unwrap();
+    let primary = sources.span(source, 71, 75).unwrap();
+    let declaration = sources.span(source, 45, 51).unwrap();
+    assert_eq!(rhs.span(), primary);
+    assert!(matches!(
+        rhs.payload(),
+        Expression::Literal(LiteralKind::Boolean(true))
+    ));
+    assert_eq!(sources.slice(declaration), Ok("number"));
+
+    let catalog = DiagnosticCodeCatalog::try_new(&["L0084"]).unwrap();
+    let mut expected = Diagnostic::new(
+        &sources,
+        Severity::Error,
+        catalog.resolve("L0084").unwrap(),
+        "expression type does not match the expected type",
+        primary,
+    )
+    .unwrap();
+    expected
+        .add_label(&sources, declaration, "expected Int, found Boolean")
+        .unwrap();
+
+    for (rooted, input) in [
+        (false, SourceUnitInput::memory_document(source, &file)),
+        (true, SourceUnitInput::new("root", "main.ko", source, &file)),
     ] {
-        for entry in observe(text) {
-            assert_raw_rejection(&entry, "L0084", text, "true");
-        }
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty());
+        let [entry] = index.source_units() else {
+            panic!("one original source")
+        };
+        assert_eq!(entry.source_id(), source);
+        assert!(match (rooted, entry.key()) {
+            (false, SourceUnitKey::MemoryDocument) => true,
+            (true, SourceUnitKey::Rooted { root, logical_path }) =>
+                root.as_str() == "root" && logical_path.as_str() == "main.ko",
+            _ => false,
+        });
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+        assert_eq!(typed.diagnostics(), std::slice::from_ref(&expected));
+        let unit = entry.id();
+        let target = UnitExpressionId::new(unit, target);
+        let int = typed.types().builtin(BuiltinType::Int).unwrap();
+        assert_eq!(typed.expression_type(target), Some(int));
+        assert_eq!(
+            typed.expression_category(target),
+            Some(ExpressionCategory::Place)
+        );
+        let rhs_kind = typed
+            .expression_type(UnitExpressionId::new(unit, value))
+            .and_then(|ty| typed.types().get(ty));
+        assert_eq!(rhs_kind, Some(&UnitTypeKind::Error));
+
+        let local = names.names().source_units()[0].resolution();
+        let binding = local
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.span() == declaration)
+            .unwrap();
+        assert_eq!(binding.kind(), SymbolKind::Variable);
+        assert!(ast.items().iter().any(|(_, item)| matches!(
+            item.payload(), Item::Variable { kind: VariableKind::Var, name: NameMarker::Present(name), .. }
+                if *name == declaration
+        )));
+        assert!(
+            local
+                .references()
+                .iter()
+                .any(|reference| reference.span() == target_span
+                    && reference.target() == &ReferenceTarget::Symbol(binding.id()))
+        );
+        assert!(
+            typed
+                .body_symbol_types()
+                .iter()
+                .any(|(symbol, ty)| symbol.source_unit() == unit
+                    && symbol.symbol() == binding.id()
+                    && *ty == int)
+        );
+
+        assert!(typed.assignments().is_empty());
+        let Err(FinalTypeAdmissionError::Diagnostics(complete)) =
+            complete_compilation_unit_types(&sources, &inputs, &names, &types, &typed)
+        else {
+            panic!("the raw mismatch must fail final type admission")
+        };
+        assert_eq!(complete.as_slice(), typed.diagnostics());
+        assert!(
+            typed.validate().is_err(),
+            "raw type failure must not grant Basic capability"
+        );
     }
 }
 

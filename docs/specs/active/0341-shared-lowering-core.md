@@ -22097,3 +22097,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `41362f66`，只迁 `compound_assignment_keeps_deferred_boundary` 原 lambda 内 `number += 2`，源码字节和 FQN 不变；当前 frontend 仍不接受这个形状，不扩展生产能力。
 - 原 Single 和两种 Unit 解析及原始类型检查均无诊断，表达式保留 Assignment deferred，而最终类型准入产生完全相同的唯一 L0165，主为原赋值表达式 57..68，无附加详情。Unit 同文件名绑定解析到真实 `var number: Int`（类型由 initializer 推导），AST 为原 `+=`；无成功 assignment descriptor。Basic 校验虽成功，但不能替代最终准入，此测试未调用 ownership。
 - Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：lambda 局部赋值 RHS 类型错误迁移
+
+- 基于 `e7c92195`，只迁 `invalid_rhs_preserves_storage_type_diagnostic` 的原 lambda 局部 `var number: Int = 1; number = true`，原字节和 FQN 不变；保留该测试内从外层捕获的相邻源码及其原对照。
+- Single 与两种 Unit 的原始类型诊断及完整准入拒绝完全相同：唯一 L0084 `expression type does not match the expected type`，主为 Boolean 字面量 `true`（71..75），唯一标签为原声明 `number`（45..51，`expected Int, found Boolean`）。Unit 真实目标为 source-qualified 局部 `var` 的 Int Place；RHS 语法是 Boolean，遭拒绝后的 typed 结果为 Error，不发布成功的 assignment descriptor，也不能取得 Basic 或最终类型能力，不进入 ownership。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
