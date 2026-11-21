@@ -1,4 +1,4 @@
-//! Independent Unit view ABI contract; the original Legacy concrete helper contract is retained.
+//! Exact original generic callback sources with concrete-to-Unit-view ABI transport.
 use crate::ssa::model::{Operation, SsaTypeKind};
 use crate::test_support::diagnostics::assert_diagnostic;
 #[test]

@@ -724,37 +724,153 @@ mod boundaries {
     }
 
     #[test]
-    fn readonly_keeps_receiver_and_result_boundaries() {
-        for (declaration, call) in [
+    fn readonly_unit_preserves_original_receiver_and_result_abis() {
+        // The same original sources support both ordinary Unit layouts.
+        // Only the obsolete Single rejection is retired here.
+        let cases = [
             (
                 "value class Item(val n:Int) { own fun read():Int=this.n }",
                 "item.read()",
+                "fun read():Int=this.n",
+                true,
+                false,
+                Some(32),
             ),
             (
                 "value class Item(val n:Int) { fun <T> read(own value:T):T=value }",
                 "item.read(7)",
+                "fun <T> read(own value:T):T=value",
+                false,
+                true,
+                Some(32),
             ),
             (
                 "value class Item<T>(val n:T) { fun read():Int=7 }",
                 "item.read()",
+                "fun read():Int=7",
+                false,
+                false,
+                Some(32),
             ),
             (
                 "value class Item(val n:Int) { fun read():Long=7 }",
                 "item.read()",
+                "fun read():Long=7",
+                false,
+                false,
+                Some(64),
             ),
             (
                 "value class Item(val n:Int) { fun read():Unit {} }",
                 "item.read()",
+                "fun read():Unit {}",
+                false,
+                false,
+                None,
             ),
             (
                 "class Item(val n:Int) { fun read():Int=this.n }",
                 "item.read()",
+                "fun read():Int=this.n",
+                false,
+                false,
+                Some(32),
             ),
-        ] {
-            rejected(
-                &format!("{declaration}\nfun entry() {{ var item=Item(7); {call} }}"),
-                call,
-            );
+        ];
+        for (declaration, call_text, method_text, by_value, has_argument, result_bits) in cases {
+            let text = format!("{declaration}\nfun entry() {{ var item=Item(7); {call_text} }}");
+            let original = format!("package app\n{text}");
+            for layout in [Pipeline::Single, Pipeline::Unit] {
+                let (program, entry_id) = lower(&text, layout, declaration, call_text);
+                verify_program(&program).unwrap();
+                crate::llvm::render_verified_program_with_entry(&program, entry_id).unwrap();
+                let module = program.module(entry_id.module()).unwrap();
+                let entry = module.function(entry_id).unwrap();
+                let slice = |span: lang_frontend::source::Span| {
+                    assert_eq!(span.source_id(), entry.origin.span().source_id());
+                    &original[span.start()..span.end()]
+                };
+                let calls = entry
+                    .instructions
+                    .iter()
+                    .filter(|i| {
+                        matches!(i.operation, Operation::DirectCall { .. })
+                            && slice(i.origin.span()) == call_text
+                    })
+                    .collect::<Vec<_>>();
+                let [call] = calls.as_slice() else {
+                    panic!("{layout:?} {declaration}: unique real original call");
+                };
+                let Operation::DirectCall {
+                    callee,
+                    receiver: Some(receiver),
+                    arguments,
+                } = &call.operation
+                else {
+                    panic!("{layout:?} {declaration}: original call with actual receiver");
+                };
+                let method = module.function(*callee).unwrap();
+                assert_eq!(slice(method.origin.span()), method_text);
+                let actual = entry.entity(*receiver).unwrap().ty;
+                assert_eq!(Some(actual), method.receiver);
+                if by_value {
+                    assert!(matches!(
+                        (receiver, actual),
+                        (EntityId::Value(_), EntityType::Value(_))
+                    ));
+                } else {
+                    assert!(matches!(
+                        (receiver, actual),
+                        (
+                            EntityId::Loan(_),
+                            EntityType::Loan {
+                                kind: LoanKind::Shared,
+                                ..
+                            }
+                        )
+                    ));
+                }
+                assert_eq!(arguments.len(), usize::from(has_argument));
+                if has_argument {
+                    let EntityId::Value(argument) = arguments[0] else {
+                        panic!("generic method accepts an actual owned argument");
+                    };
+                    let EntityType::Value(argument_ty) =
+                        entry.entity(EntityId::Value(argument)).unwrap().ty
+                    else {
+                        panic!("the observed generic argument is a scalar value");
+                    };
+                    assert_eq!(
+                        module.types[argument_ty.index()],
+                        SsaTypeKind::Integer {
+                            bits: 32,
+                            signed: true
+                        }
+                    );
+                }
+                match result_bits {
+                    Some(bits) => {
+                        let [result_ty] = method.return_types.as_slice() else {
+                            panic!("the selected method returns one scalar");
+                        };
+                        let [EntityId::Value(result)] = call.results.as_slice() else {
+                            panic!("the actual call produces one scalar value");
+                        };
+                        assert_eq!(
+                            entry.entity(EntityId::Value(*result)).unwrap().ty,
+                            EntityType::Value(*result_ty)
+                        );
+                        assert_eq!(
+                            module.types[result_ty.index()],
+                            SsaTypeKind::Integer { bits, signed: true }
+                        );
+                    }
+                    None => {
+                        assert!(method.return_types.is_empty());
+                        assert!(call.results.is_empty());
+                    }
+                }
+            }
         }
     }
 
