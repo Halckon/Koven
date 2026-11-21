@@ -1,0 +1,4 @@
+class Boxed(val value: Int)
+fun view(source: Boxed, aux: Boxed): borrow Int from source = source.value
+fun observe(value: Int?): Unit {}
+fun run() { val boxed = Boxed(7); val aux = Boxed(9); observe(view(boxed, aux)) }

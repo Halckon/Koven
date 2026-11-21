@@ -25,6 +25,8 @@ mod generic_transport;
 mod grouped_transport;
 #[path = "ownership_nested_borrow_arguments/later_scalar.rs"]
 mod later_scalar;
+#[path = "ownership_nested_borrow_arguments/nullable_last_use.rs"]
+mod nullable_last_use;
 #[path = "ownership_nested_borrow_arguments/owned_auxiliary.rs"]
 mod owned_auxiliary;
 #[path = "ownership_nested_borrow_arguments/parent_transport.rs"]
@@ -685,12 +687,9 @@ fn nullable_copy_does_not_create_ownership_of_a_move_only_result() {
 
 #[test]
 fn nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source() {
-    use lang_frontend::ownership_checking::{
-        DropPoint, DropTarget, LoanTarget, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
-    };
-
+    // Keep the historical Single/Unit test identity for the L0135 rejection.
+    // The independent source-last-use positive now has its own Unit fixture.
     let overlapping = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun keep(value: Int): Unit {}\nfun run() { var n: Int = 7; borrow val parent = view(n); observe(view(parent), &n); keep(parent) }";
-    let last_use = "class Boxed(val value: Int)\nfun view(source: Boxed, aux: Boxed): borrow Int from source = source.value\nfun observe(value: Int?): Unit {}\nfun run() { val boxed = Boxed(7); val aux = Boxed(9); observe(view(boxed, aux)) }";
 
     for rooted in [false, true] {
         let Checked { single, unit, .. } = checked(overlapping, rooted);
@@ -700,58 +699,6 @@ fn nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source() {
             };
             assert_eq!(diagnostic.code().to_string(), "L0135");
         }
-
-        let accepted = checked(last_use, rooted);
-        assert!(
-            accepted.single.diagnostics().is_empty(),
-            "{:?}",
-            accepted.single.diagnostics()
-        );
-        assert!(
-            accepted.unit.diagnostics().is_empty(),
-            "{:?}",
-            accepted.unit.diagnostics()
-        );
-        let single = &accepted.single;
-        let [usage] = single.borrow_results().call_uses() else {
-            panic!("expected one copy")
-        };
-        let LoanTarget::Place(place) = usage.origin() else {
-            panic!("expected owned source place")
-        };
-        let drops = single
-            .drops()
-            .iter()
-            .filter(|fact| matches!(fact.target(), DropTarget::Named(_)))
-            .collect::<Vec<_>>();
-        let [aux, drop] = drops.as_slice() else {
-            panic!("{drops:?}")
-        };
-        assert_eq!(aux.point(), DropPoint::CallReturn(usage.expression()));
-        assert_eq!(drop.target(), DropTarget::Named(place.root()));
-        assert_eq!(drop.point(), DropPoint::AfterExpression(usage.argument()));
-
-        let unit = &accepted.unit;
-        let [usage] = unit.borrow_results().call_uses() else {
-            panic!("expected one copy")
-        };
-        let UnitLoanTarget::Place(place) = usage.origin() else {
-            panic!("expected owned source place")
-        };
-        let drops = unit
-            .drops()
-            .iter()
-            .filter(|fact| matches!(fact.target(), UnitDropTarget::Named(_)))
-            .collect::<Vec<_>>();
-        let [aux, drop] = drops.as_slice() else {
-            panic!("{drops:?}")
-        };
-        assert_eq!(aux.point(), UnitDropPoint::CallReturn(usage.expression()));
-        assert_eq!(drop.target(), UnitDropTarget::Named(place.root()));
-        assert_eq!(
-            drop.point(),
-            UnitDropPoint::AfterExpression(usage.argument())
-        );
     }
 }
 

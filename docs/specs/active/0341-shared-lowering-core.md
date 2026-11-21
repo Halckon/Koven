@@ -21977,3 +21977,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit 从 lex、parse、index/names 到 final types 均无诊断，错误由 ownership 产生：唯一 Error L0164，主消息 `caller borrow result continuation is not yet proven`，原主 `view(n)` span 138..145，唯一有序关联 `borrow` span 26..32、消息 `borrow result declared here`，无额外 notes/help 或 deferred。
 - 两布局均不能验证成可用的 ownership 能力，也不发布 borrow-result binding/use/forward/range、transport/handoff/end、任何实际 loan/drop、具名 owned formation 或 value delivery。原有语法/类型参数分类不是成功的 borrow capability，不要求清除它。本用例专门验证前端拒绝，未尝试 SSA/native。
 - Mac 前端 22 项、fmt、diff、docs 及相对 main 的 Rust size guard 通过。未修改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 nullable Copy 的源与辅助 owner 最后使用
+
+- 基于 `6bd53cad`。只迁原 `nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source` 的独立正例，原 inline source 的 218 字节保持。原 Single 与双 Unit 的两个 Drop 端点先实跑；同 FQN 的 L0135 对照仍留（Unit 比 Single 多一个参数声明标签，诊断不等价），递归捕获 cleanup 对照不动。
+- 双 Unit FE 核独立 Named source/aux、两条 Shared 输入以及外层对临时 nullable Copy 的借用而不是原 source 的借用；aux 在内层 CallReturn，boxed 在同一内层实参 AfterExpression Drop。无 Move 或临时 Drop。实际 Unit SSA 中两不同构造 ValueId 和借用身份明确：callee 从实际 boxed ABI 参数投影，aux 结束并 Drop 后沿真实 field loan Read，结束结果与 boxed lender 后 Drop boxed，把同一复制的 Int 值包装为 nullable，外层 observe 用独立临时槽位。
+- 两布局原始 LLVM native 均链接运行且保持静默；独立观察保留原 call 与 return，在真实 observe ABI 检查 presence 和 copied Int，同时核真实不同地址按 aux(9)→boxed(7) 各物理释放一次后才观察到 present 7。观察不改原 Koven 程序；该正例不声称覆盖 OOM 或其他退出边。
+- Mac FE 23 项、SSA/native 9 项，fmt/diff/docs、相对 main Rust size guard 通过。没有生产/API/CI 改动；未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。
