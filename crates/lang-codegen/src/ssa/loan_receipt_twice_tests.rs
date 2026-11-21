@@ -1,5 +1,8 @@
 //! Ordered receiver loans and one owner drop under fallback and independently anchored Refine.
 use crate::ssa::loan_region_ssa_tests::*;
+#[cfg(feature = "loan-observation-test-support")]
+#[path = "loan_twice_mandatory_test.rs"]
+mod mandatory;
 use lang_frontend::ownership_checking::{
     CompilationUnitOwnership, UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction,
     UnitLoanAction, UnitLoanActionCoverage, UnitLoanActionId, UnitLoanActionObservation,
@@ -314,6 +317,64 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
 
         verify_program(&program).unwrap();
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        #[cfg(feature = "loan-observation-test-support")]
+        if !expect_refine {
+            use lang_frontend::ownership_checking::{
+                check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
+            };
+            let off = with_loan_observation(false, || {
+                check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap()
+            });
+            assert!(off.ownership().loan_action_observations().is_empty());
+            assert!(legacy_ownership_eq(owned.ownership(), off.ownership()));
+            let run_decl = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "run")
+                .unwrap();
+            let [first, second] = mandatory::ordered_calls(&parsed, run_decl).unwrap();
+            for product in [owned.ownership(), off.ownership()] {
+                let audit =
+                    |calls| mandatory::audit(&parsed, run_decl, typed.types(), product, calls);
+                assert_eq!(audit([first, second]), Some(()));
+                assert!(audit([second, first]).is_none());
+                assert!(audit([first, first]).is_none());
+            }
+            let entry_decl = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.name() == "entry")
+                .unwrap()
+                .id();
+            let ((off_lowered, off_routed), off_receipts) =
+                crate::ssa::refine::receiver_receipt::observe(|| {
+                    crate::ssa::refine::observe_routing(|| {
+                        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                            &sources, &inputs, &names, &types, &typed, &off, entry_decl,
+                        )
+                    })
+                });
+            let (off_program, off_entry) = off_lowered.unwrap();
+            assert_eq!(routed, off_routed);
+            assert!(off_receipts.is_empty());
+            verify_program(&off_program).unwrap();
+            assert_eq!(
+                crate::ssa::render_program(&program),
+                crate::ssa::render_program(&off_program)
+            );
+            assert_eq!(
+                llvm,
+                crate::llvm::render_verified_program_with_entry(&off_program, off_entry).unwrap()
+            );
+        }
+
         let output =
             crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
         crate::native_tests::boxed_enum_tests::assert_success(&output, b"");
