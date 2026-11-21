@@ -322,17 +322,15 @@ impl Plans {
             let UnitCallableTarget::Declaration(id) = caller_key.target() else {
                 return Err(fail());
             };
+            #[cfg(test)]
+            work_count::visit(|counts| counts.declaration_rows += 1);
             let declaration = inputs
                 .names
                 .names()
                 .index()
                 .declarations()
-                .iter()
-                .find(|d| {
-                    #[cfg(test)]
-                    work_count::visit(|counts| counts.declaration_rows += 1);
-                    d.id() == id
-                })
+                .get(id.index())
+                .filter(|d| d.id() == id)
                 .ok_or_else(fail)?;
             if UnitItemId::new(declaration.source_unit(), declaration.root()) != callable {
                 return Err(fail());

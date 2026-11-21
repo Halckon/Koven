@@ -171,7 +171,6 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
     let small = count(n);
     let large = count(2 * n);
     eprintln!("N={n}: {small:?}; 2N: {large:?}");
-    assert!(small.declaration_rows >= n && large.declaration_rows >= 2 * n);
     for (callers, counts) in [(n, small), (2 * n, large)] {
         assert_eq!(
             counts,
@@ -184,9 +183,82 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
                 route_ends: callers,
                 route_drops: callers,
                 precheck_ends: callers,
-                // Count only; do not turn the existing expensive work into a required oracle.
-                declaration_rows: counts.declaration_rows,
+                declaration_rows: callers,
             }
         );
     }
+}
+
+#[test]
+fn single_receiver_receipt_decl_lookup_preserves_cross_source_item_identity() {
+    let mut sources = SourceMap::new();
+    let receiver = "class Node() { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch() }\nfun probe(): Unit { run(Node()) }";
+    let (left, left_unit) = unit_lower_test_support::parsed(
+        &mut sources,
+        "left/receiver.ko",
+        &format!("package left\n{receiver}"),
+    );
+    let (right, right_unit) = unit_lower_test_support::parsed(
+        &mut sources,
+        "right/receiver.ko",
+        &format!("package right\n{receiver}"),
+    );
+    let (main, main_unit) = unit_lower_test_support::parsed(
+        &mut sources,
+        "app/main.ko",
+        "package app\nimport left.probe as leftProbe\nimport right.probe as rightProbe\nfun entry(): Unit { leftProbe(); rightProbe() }",
+    );
+    let inputs = [
+        SourceUnitInput::new("root", "right/receiver.ko", right, &right_unit),
+        SourceUnitInput::new("root", "app/main.ko", main, &main_unit),
+        SourceUnitInput::new("root", "left/receiver.ko", left, &left_unit),
+    ];
+    let (environment, types) = standard_environments();
+    let (names, typed, owned) =
+        unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
+    let declarations = names.names().index().declarations();
+    assert!(
+        declarations
+            .iter()
+            .enumerate()
+            .all(|(slot, d)| d.id().index() == slot)
+    );
+    let runs = declarations
+        .iter()
+        .filter(|d| d.name() == "run")
+        .collect::<Vec<_>>();
+    let [left, right] = runs.as_slice() else {
+        panic!("two declarations, one per source");
+    };
+    assert_eq!(left.root(), right.root(), "same parsed local ItemId");
+    assert_ne!(left.id(), right.id(), "different global DeclarationId");
+    assert_ne!(left.source_unit(), right.source_unit());
+    let entry = declarations
+        .iter()
+        .find(|d| d.name() == "entry")
+        .unwrap()
+        .id();
+    let ((lowered, receipts), counts) = observe(|| {
+        super::observe(|| {
+            crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                &sources, &inputs, &names, &types, &typed, &owned, entry,
+            )
+        })
+    });
+    let (program, entry) = lowered.unwrap();
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    assert_eq!(counts.declaration_rows, 2);
+    assert_eq!(receipts.len(), 2);
+    let expected: HashSet<_> = [left, right]
+        .into_iter()
+        .map(|d| lang_frontend::type_checking::UnitItemId::new(d.source_unit(), d.root()))
+        .collect();
+    assert_eq!(
+        receipts.iter().map(|r| r.callable).collect::<HashSet<_>>(),
+        expected
+    );
+    assert_ne!(receipts[0].caller, receipts[1].caller);
+    assert_eq!(receipts[0].call.expression(), receipts[1].call.expression());
+    assert_ne!(receipts[0].call, receipts[1].call);
 }
