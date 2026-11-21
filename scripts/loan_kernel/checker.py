@@ -374,6 +374,9 @@ class Parser:
         if tok == "suspend":  # 一个挂起点
             self.next()
             return Stmt("suspend", line)
+        if tok == "break":
+            self.next()
+            return Stmt("break", line)
         if tok in ("poll", "await") and self.peek(1) != "(":  # 推进一个任务但不等它结束；等它结束并消费它
             self.next()
             return Stmt(tok, line, name=self.next())
@@ -462,19 +465,22 @@ def stmt_defs(stmt):
     return set()
 
 
-def live_in(stmts, out):
+def live_in(stmts, out, loop_exit=frozenset()):
     """后向计算一串语句入口处的活变量，并把每条语句出口处的结果记在 live_out 上。"""
     live = set(out)
     for stmt in reversed(stmts):
-        stmt.live_out = frozenset(live)
-        if stmt.kind == "block":
-            live = live_in(stmt.body, live)
+        stmt.live_out = frozenset(loop_exit if stmt.kind == "break" else live)
+        if stmt.kind == "break":
+            live = set(loop_exit)
+        elif stmt.kind == "block":
+            live = live_in(stmt.body, live, loop_exit)
         elif stmt.kind == "if":
-            live = live_in(stmt.body, live) | live_in(stmt.orelse, live)
+            live = live_in(stmt.body, live, loop_exit) | live_in(stmt.orelse, live, loop_exit)
         elif stmt.kind == "while":
+            exit_live = frozenset(live)
             head = set(live)
             while True:
-                grown = head | live_in(stmt.body, head)
+                grown = head | live_in(stmt.body, head, exit_live)
                 if grown == head:
                     break
                 head = grown
@@ -739,6 +745,7 @@ class Checker:
         self.pending = []
         self.live = set()
         self.leaving = False  # 正在离开函数（返回或失败）：调用方的持有者不会指向本函数的局部存储（K6）
+        self.loop_stack = []  # 正在检查的 while 循环栈，用于 break 时清理循环内局部并收集退出状态
         self.out, self.dp_types, known = [], {}, len(self.errors)
         if fun.deinit_of and fun.suspend:
             self.error("S0", fun.line, f"deinit {fun.deinit_of} 不得声明为 suspend")
@@ -1628,6 +1635,8 @@ class Checker:
     def run(self, stmts, state):
         for stmt in stmts:
             state = self.step(stmt, state)
+            if state is None:
+                return None
             if self.early_drop:
                 self.drop_dead(stmt, state)
         return state
@@ -1726,6 +1735,21 @@ class Checker:
                 self.access(state, self.places(via), via, "read", stmt.line)
         elif stmt.kind == "assign":
             self.assign(stmt, state)
+        elif stmt.kind == "break":
+            if not self.loop_stack:
+                raise SyntaxProblem(f"第 {stmt.line} 行：break 只能在 while 循环内使用")
+            loop = self.loop_stack[-1]
+            inside = [n for n in state if n not in loop["outer"]]
+            self.live = set(loop["exit_live"])
+            self.check_tasks(state, inside, stmt.line)
+            for name in reversed(inside):
+                if state[name].init != "M":
+                    self.access(state, {(name, ())}, set(), "kill", stmt.line)
+                self.destroy(stmt.line, name, state[name])
+                del state[name]
+            self.emit("break", stmt.line)
+            loop["breaks"].append(copy_state(state))
+            return None
         elif stmt.kind == "block":
             state = self.scope(stmt.body, state, stmt.live_out, stmt.end_line)
             self.emit("block", stmt.line, body=self.inner)
@@ -1733,24 +1757,36 @@ class Checker:
             then = self.scope(stmt.body, copy_state(state), stmt.live_out, stmt.end_line)
             body = self.inner
             other = self.scope(stmt.orelse, copy_state(state), stmt.live_out, stmt.else_end_line)
-            if self.early_drop:
-                self.settle(then, body, other, self.inner, stmt)
+            if then is not None and other is not None:
+                if self.early_drop:
+                    self.settle(then, body, other, self.inner, stmt)
+                state = self.join(then, other)
+            else:
+                state = then if other is None else other
             self.emit("if", stmt.line, body=body, orelse=self.inner)
-            state = self.join(then, other)
         elif stmt.kind == "while":
+            exit_live = frozenset(stmt.live_out)
             head = set(stmt.live_out)
             while True:  # 循环入口处的活变量；最后一次调用把循环体内各语句的出口活性重新记好
-                grown = head | live_in(stmt.body, head)
+                grown = head | live_in(stmt.body, head, exit_live)
                 if grown == head:
                     break
                 head = grown
-            while True:  # K10：迭代到不动点
-                before = self.version
-                after = self.scope(stmt.body, copy_state(state), head, stmt.end_line)
-                merged = self.join(state, after)
-                if merged == state and before == self.version:
-                    break
-                state = merged
+            loop = {"outer": set(state), "exit_live": exit_live, "breaks": []}
+            self.loop_stack.append(loop)
+            try:
+                while True:  # K10：迭代到不动点（仅未 break 的路径回到循环头）
+                    before = self.version
+                    loop["breaks"] = []
+                    after = self.scope(stmt.body, copy_state(state), head, stmt.end_line)
+                    merged = self.join(state, after) if after is not None else state
+                    if merged == state and before == self.version:
+                        break
+                    state = merged
+            finally:
+                self.loop_stack.pop()
+            for broken in loop["breaks"]:  # 循环退出状态合流：正常退出与各 break 路径
+                state = self.join(state, broken)
             self.emit("loop", stmt.line, body=self.inner)  # 取到达不动点的那一遍
         return state
 
@@ -1878,13 +1914,14 @@ class Checker:
         outer = set(state)
         enclosing, self.out = self.out, [] if self.out is not None else None
         state = self.run(stmts, state)
-        self.live = set(live_after)
-        self.check_tasks(state, [n for n in state if n not in outer], end_line)
-        for name in reversed([n for n in state if n not in outer]):
-            if state[name].init != "M":
-                self.access(state, {(name, ())}, set(), "kill", end_line)
-            self.destroy(end_line, name, state[name])
-            del state[name]
+        if state is not None:
+            self.live = set(live_after)
+            self.check_tasks(state, [n for n in state if n not in outer], end_line)
+            for name in reversed([n for n in state if n not in outer]):
+                if state[name].init != "M":
+                    self.access(state, {(name, ())}, set(), "kill", end_line)
+                self.destroy(end_line, name, state[name])
+                del state[name]
         self.inner, self.out = self.out, enclosing
         return state
 

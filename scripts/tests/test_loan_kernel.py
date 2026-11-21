@@ -277,7 +277,8 @@ class LoanKernelCases(unittest.TestCase):
                           ("openExclusiveInOneArm", "this"), ("openExclusiveInOneArm", "f"),
                           ("moveExclusiveOutOfArm", "this"), ("moveExclusiveOutOfArm", "f"),
                           ("conditionalReleaseKeepsDropFlag", "guard"),
-                          ("conditionalNestedMoveKeepsDropFlag", "o")},
+                          ("conditionalNestedMoveKeepsDropFlag", "o"),
+                          ("moveAndBreakInLoop", "f"), ("breakCleansInnerLocal", "f")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -1080,6 +1081,31 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual(8, len(added))
         self.assertEqual({"K4"}, {rule for rule, _ in added})
         self.assertEqual(set(), expected(text) - mutated)
+
+    def test_move_then_break_and_drop_flags_in_loops(self):
+        source = (ROOT / "cases/Z28.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("moveAndBreakInLoop", "breakCleansInnerLocal"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("cannotUseAfterMoveAndBreak", "cannotMoveWithoutBreakInLoop",
+                     "breakRejectsEscapingLocalLoan"):
+            self.assertFalse(lowered[name][2], name)
+        for fun in ("moveAndBreakInLoop", "breakCleansInnerLocal"):
+            with self.subTest(fun=fun):
+                types, program, accepted = lowered[fun]
+                self.assertTrue(accepted)
+                call = next(s for s in program if s.kind == "call")
+                drop = next(s for s in program if s.kind == "drop")
+                self.assertEqual([("f", True)], call.cleanup)
+                self.assertEqual(("f", True), (drop.var, drop.if_owned))
+                self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+                # 去掉退出析构标志：经 break 移走后重复析构报 V2；清空合流失败清理：未移走路径泄漏报 V1。
+                drop.if_owned = False
+                self.assertEqual({"V2"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+                drop.if_owned = True
+                call.cleanup.clear()
+                self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

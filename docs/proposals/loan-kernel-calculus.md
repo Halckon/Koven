@@ -1189,4 +1189,13 @@ fun probe(borrow h: A): Unit {
 
 `Z27.lk` 将两阶段借用（K21）从直接 `&mut v` 接收者扩展到经借用值（`inout` 参数或局部 `val r = &mut v`）以及经视图的独占借用字段（`s.source`）传入的 `inout this` 接收者：在 `argument` 的两处重借路径中按 `reserved` 先建立共享子 loan（循环不动点迭代每次重新重置为共享），待其余实参求值完毕再由 `activate` 转为独占。
 
-`push(r, size(r))`、`push(r, r.len)`、`push(s.source, size(s.source))`、`push(s.source, s.source.len)` 及循环内调用均接受；非接收者普通参数 `plain(r, size(r))`、预留期间再次独占借用（`bump(r)` / `bump(s.source)`）、共享借用流进被调方（`update(r, r)` / `update(s.source, s.source)`）以及更早的出借子借用仍存活均按 K4 拒绝；经局部借用值 `r = &mut v` 预留不会削弱 `r` 自身对原变量 `v` 的既有独占借用，`push(r, size(&v))` 仍按 K1 拒绝。变异检验确认去掉 `place` 实参预留后恰好新增 8 处 K4 拒绝。
+`push(r, size(r))`、`push(r, r.len)`、`push(s.source, size(s.source))`、`push(s.source, s.source.len)` 及循环内调用均接受；非接收者普通参数 `plain(r, size(r))`、预留期间再次独占借用（`bump(r)` / `bump(s.source)`）、共享借用流进被调方（`update(r, r)` / `update(s.source, s.source)`）以及更早的出借子借用仍存活均按 K4 拒绝；经局部借用值 `r = &mut v` 预留不会削弱 `r` 自身对原变量 `v` 的既有独占借用，`push(r, size(&v))` 仍按 K1 拒绝。变异检验确认去掉 `place` 实参预留后恰好新增 8 处 K4 拒绝。循环里“移走后立即 `break`”与析构标志见 §66。
+
+## 66. 循环里“移走后立即 `break`”与析构标志在循环中的配合（KB1 × KB2）
+
+`Z28.lk` 在借用原型中补齐 `break` 语句及其与活性分析（`live_in` 传入循环出口活性 `loop_exit`）、作用域清理（K9 / S4）和析构义务检验器（`DP.Stmt("break")`）的配合：
+
+- `break` 仅在 `while` 循环内合法，离开时按声明逆序析构当前循环体内声明的全部局部并检查 K9 与 S4，随后将外部状态并入循环退出状态而不回到循环头；
+- 循环内“条件移走外层 `f` 后立即 `break`”时，未 `break` 的路径与回边仍完整拥有 `f`（循环体剩余语句与下一轮可继续使用 `f`），而循环退出后 `f` 成为可能已移走（循环外再用 `f` 报 K8，退出与 `mayFail` 清理均带析构标志 `f?`）；不加 `break` 则合流后立即报 K8；
+- 循环内局部 `inner: File` 在 `break` 处正确析构；循环内局部 `local` 若被循环外 `out` 借用则在 `break` 处报 K9；`break` 路径带出的外层视图新来源（`b`）与正常退出路径的旧来源（`a`）在循环外共同受保护（K1）；
+- 独立检验器穷举 0、1、2 轮及分支与失败路径全部通过；去掉 `drop? f` 标志在经 `break` 移走路径报 V2，清空合流失败清单在未移走路径报 V1。
