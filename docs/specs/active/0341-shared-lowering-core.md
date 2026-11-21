@@ -21934,3 +21934,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit FE 核同一具名 Record 根、真实 child/lender 的结束顺序及外层 observe 返回处唯一 Named Drop，无临时 Drop 或 Move。前端运输的两个 Shared 事实同样会锁根，单凭它不能证明返回了字段而不是整个 Record。
 - 双布局的 Unit SSA 证明实际共享 Record ABI 参数经字段 0 的 `SharedHeapFieldLoan` 投影到独立 String loan，且被调方返回这个实际投影；外层 observe 消费这个子借用后，按 child→Record lender 的次序结束，再 Drop 最初构造的同一 Record ValueId。由同一验证过的 LLVM 链接执行，输出 `kept\n`，分配跟踪要求唯一真实 Record 地址恰好释放一次；不把静态 String 字面量算作独立分配。
 - Mac 前端 20 项，codegen 定点 3 项（含前两片的复验），fmt、diff、docs 与相对 main 的 Rust size guard 通过。未改生产/API/CI，未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 parent 借用跨同步调用后再移动 owner
+
+- 基于 `1723a4a3`。只迁旧混合组 `observe(view(parent)); println(parent); consume(source)` 子项，保留原前置声明和 262 字节源码。两布局原 Single 独立 loan-end 先实跑；无最后 `consume` 的邻近旧用例整体不动，旧 measure 子项也保留。
+- 双 Unit FE 固定同一具名源、实际 parent 绑定和同步使用的来源，绑定直到原 `println(parent)` statement 之后才结束，此后有同根实际 Move 而无 caller/temporary Drop。该形状的前端不会产出平面的 `borrow_call_transports`，不以空表声称证明 child 的结束；另核实实际 SSA。
+- 双布局 Unit SSA 证明实际 Shared 根借用经原 `view` 成为持续 parent，再从同一 parent 借出新的 child；observe 只使用并结束 child，println 仍使用同一 parent loan，随后依次结束 parent/root，原 ValueId 才交给 `consume` 的 own 参数且仅被调方执行 SSA Drop。双布局由真实 LLVM 链接执行为 `kept\nkept\n`；原静态字面量不主张 heap 分配证据。
+- Mac 前端 21 项、codegen 定点 4 项，fmt、diff、docs 及相对 main 的 Rust size guard 通过。代码、CI、公开 API 的生产行为不变，未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。

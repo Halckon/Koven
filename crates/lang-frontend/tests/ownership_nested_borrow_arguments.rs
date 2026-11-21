@@ -25,6 +25,8 @@ mod generic_transport;
 mod later_scalar;
 #[path = "ownership_nested_borrow_arguments/owned_auxiliary.rs"]
 mod owned_auxiliary;
+#[path = "ownership_nested_borrow_arguments/parent_transport.rs"]
+mod parent_transport;
 
 struct Checked {
     sources: SourceMap,
@@ -442,7 +444,6 @@ fn field_borrow_ends_before_releasing_the_exact_record_owner() {
 fn generic_field_wrapper_and_existing_parent_sources_keep_their_identity() {
     for rooted in [false, true] {
         for body in [
-            "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent); consume(source) }",
             "fun measure(source: String): Int = 1\nfun run() { val source = \"kept\"; val count = measure(view(source)); consume(source) }",
         ] {
             assert_accepted(&ordinary_entry(body, rooted));
