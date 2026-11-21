@@ -1,13 +1,48 @@
 //! SPEC-0312: real ordinary source, no Map and no synthetic facts.
 #[path = "lower_frontend_owned_source_structure_tests.rs"]
 mod structure;
-use super::analyze;
 use super::owned_source_return_tests::unit_contract::{self, Control, Expected};
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
+    lexer::lex,
+    name_resolution::{NameResolution, resolve_names},
+    ownership_checking::{OwnershipCheckedFile, check_ownership},
+    parser::{ParsedFile, parse_file},
     source::SourceMap,
-    type_checking::SequentialContainerKind,
+    type_checking::{SequentialContainerKind, TypedFile, check_types, standard_environments},
 };
+
+// Keep the historical Single comparison local to the two diagnostics that still use it.
+struct Analysis {
+    sources: SourceMap,
+    parsed: ParsedFile,
+    names: NameResolution,
+    typed: TypedFile,
+    owned: OwnershipCheckedFile,
+}
+
+fn analyze(text: &str) -> Analysis {
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source("lowering.ko", text)
+        .expect("source must be unique");
+    let lexed = lex(&sources, source).expect("lexing must succeed internally");
+    let parsed = parse_file(&sources, &lexed).expect("parsing must succeed internally");
+    let (environment, types) = standard_environments();
+    let names =
+        resolve_names(&sources, &parsed, &environment).expect("names must resolve internally");
+    let typed =
+        check_types(&sources, &parsed, &names, &types).expect("types must check internally");
+    let owned = check_ownership(&sources, &parsed, &names, &typed)
+        .expect("ownership must check internally");
+    Analysis {
+        sources,
+        parsed,
+        names,
+        typed,
+        owned,
+    }
+}
 
 struct ExpectedDiagnostic<'a> {
     code: &'a str,
