@@ -188,9 +188,9 @@ This provider 仍使用原 This 身份检查，不混入只含 Place 根的集�
 ## 有界 owned 参数 caller 的 refine 路由
 
 SPEC-0341 的有界路由现使单一显式 `own` 非 Resource 普通 class 参数、Unit block
-仅一条零实参 Shared receiver 调用的 caller 进入 refine。首片仅非泛型 caller、
-无类型实参的 class/call instance，方法 owned 结果限 Int/Unit。来源必须为原始 Name 根与
-非 safe Member；typed descriptor、Owned binding、真实 CallReturn receiver end 及
+仅一条 Shared receiver 调用的 caller 进入 refine。caller 非泛型，class/call instance 无类型实参。
+零实参允许 owned Int/Boolean/Unit；单实参仅限无名称、无模式标记、无括号的无后缀 Int 字面量，传给唯一的 own Int 参数，结果为 owned Int。
+接收者须为原始 Name 根与非 safe Member；typed descriptor、Owned binding、真实 CallReturn receiver end 及
 同根 Drop 均匹配，且整个函数仍通过原 signature/body/drop subset。
 迁移触发不读取 loan observation 或 protocol 2 Complete；caller/callee 各自选路，
 原样 Node/run 中 run 迁移而 touch 保持原路径。已有 refine producer 唯一生成

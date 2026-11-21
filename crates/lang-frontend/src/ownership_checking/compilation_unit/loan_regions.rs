@@ -22,9 +22,12 @@ pub enum UnitLoanRegionFamily {
 /// protocol 2 covers a Shared explicit receiver backed by an owned class parameter.
 /// Complete covers only the listed local families: it does not prove the callee returns,
 /// callee-internal/Abort paths, outer loans, unrelated handoffs or the callable.
-/// Admission requires independent calls in a flat ordinary function, with Int/Unit results
-/// and, for protocol 1, plain String literal Borrow arguments (including zero arguments).
-/// Protocol 2 requires zero arguments and an explicit owned non-Resource class parameter.
+/// Protocol 1 requires independent calls in a flat ordinary function, with Int/Unit results
+/// and plain String literal Borrow arguments (including zero arguments).
+/// Protocol 2 requires an explicit owned non-Resource class parameter. Its bounded receiver
+/// calls allow no arguments and an owned Int/Boolean/Unit result, or one plain positional,
+/// unsuffixed Int literal for an own Int parameter and an owned Int result in a one-statement
+/// caller. Both shapes certify the same SharedReceiver/NamedSourceDrop action families.
 /// Protocol 3 requires one Shared String argument backed by an explicit owned caller parameter.
 /// Protocol 4 covers one nested borrowed result from a formed local String into a synchronous
 /// consumer, including both acquisitions, continuation, retirement and actual source destruction.
