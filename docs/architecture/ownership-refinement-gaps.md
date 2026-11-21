@@ -135,3 +135,9 @@ A2 的借用参数见证继续走 Compatibility。新增
 loan 身份：`run` 只把导入的共享 loan 传给方法，不建立或释放 owner；外层
 调用者在返回后结束原 loan，再释放最初分配的同一个 owner。该测试同时检查
 真实 SSA、LLVM 和 native 计数，不扩大 Refine 准入。
+
+A2 的同一 owner 两次共享调用仍留在 Compatibility。
+`two_shared_receiver_calls_release_one_owner_after_both_loans_end` 在两个 Unit 布局
+分别按原始调用的源码范围跟踪两条不同 loan：第一条结束后才开始第二条，两条都
+指向同一参数 owner，且第二条结束后才产生唯一 Drop。外层 native 入口只创建并
+转交该 owner，实际执行按分配身份验证只释放一次，不增加 Refine 准入。
