@@ -1,0 +1,51 @@
+// replace：取出声明了 empty 的按值字段并在原处留下空值，原对象保持完整。
+class Buf(n: Int)
+class Link(n: Int) empty deinit
+class Unlinker(next: Link, b: Buf) deinit
+view class ViewWithRef(borrow link: Link)
+fun mayFail(): Unit trusted
+fun consumeLink(own l: Link): Unit trusted
+deinit Unlinker {
+  val n = replace this.next
+  use(this.b.n)
+  consumeLink(move n)
+}
+fun replaceKeepsOwnerAndTakesNewObligation(own u: Unlinker): Unit {
+  val n = replace u.next
+  use(u.b.n)
+  mayFail()
+  consumeLink(move n)
+}
+fun replaceInLoopKeepsOwnerComplete(own u: Unlinker): Unit {
+  while (*) {
+    val n = replace u.next
+    consumeLink(move n)
+  }
+  use(u.b.n)
+}
+fun replaceViaInout(inout u: Unlinker): Link {
+  return replace u.next
+}
+fun cannotReplaceViaBorrow(borrow u: Unlinker): Link {
+  return replace u.next  // ERR K1
+}
+fun cannotReplaceWhileFieldBorrowed(own u: Unlinker): Unit {
+  val r = &u.next.n
+  val n = replace u.next  // ERR K1
+  use(r)
+  consumeLink(move n)
+}
+fun replaceAllowedWhileOtherFieldBorrowed(own u: Unlinker): Unit {
+  val r = &u.b.n
+  val n = replace u.next
+  use(r)
+  consumeLink(move n)
+}
+fun cannotReplaceNonEmptyField(own u: Unlinker): Unit {
+  val b = replace u.b  // ERR K26
+  use(b.n)
+}
+fun cannotReplaceBorrowField(borrow v: ViewWithRef): Unit {
+  val l = replace v.link  // ERR K26
+  consumeLink(move l)
+}

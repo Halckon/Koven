@@ -907,6 +907,38 @@ class LoanKernelCases(unittest.TestCase):
         found = CHECKER.DP.Verifier(types).run_all(program)
         self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
+    def test_replace_leaves_empty_value_and_keeps_owner_drop_obligation(self):
+        source = (ROOT / "cases/Z22.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("deinit Unlinker", "replaceKeepsOwnerAndTakesNewObligation",
+                     "replaceInLoopKeepsOwnerComplete", "replaceViaInout",
+                     "replaceAllowedWhileOtherFieldBorrowed"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("cannotReplaceViaBorrow", "cannotReplaceWhileFieldBorrowed",
+                     "cannotReplaceNonEmptyField", "cannotReplaceBorrowField"):
+            self.assertFalse(lowered[name][2], name)
+        deinits = {"Unlinker": lowered["deinit Unlinker"][:2]}
+        types, program, accepted = lowered["replaceKeepsOwnerAndTakesNewObligation"]
+        self.assertTrue(accepted)
+        self.assertEqual({}, self.verify(types, program, "replaceKeepsOwnerAndTakesNewObligation", deinits))
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("n", False), ("u", False)], call.cleanup)
+        # 两个 let（u 与 n）成功后，mayFail 失败：漏掉较晚的 n 同时违背逆序（V4）与泄漏（V1），且失败清理真实执行 deinit Unlinker；
+        # 漏掉较早的 u 则仅报泄漏（V1）。
+        for name, expected_violations in (("n", {"V1": [(0, 2), (0, 2), (1, 2), (0, 2), (0, 2)],
+                                                 "V4": [(0, 2), (0, 2), (1, 2), (0, 2), (0, 2)]}),
+                                          ("u", {"V1": [(0, 2), (0, 2), (1, 2)]})):
+            with self.subTest(omitted=name):
+                entry = (name, False)
+                index = call.cleanup.index(entry)
+                call.cleanup.pop(index)
+                try:
+                    found = self.verify(types, program, "replaceKeepsOwnerAndTakesNewObligation", deinits)
+                    self.assertEqual(expected_violations, {v.split()[0]: path for v, path in found.items()})
+                finally:
+                    call.cleanup.insert(index, entry)
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

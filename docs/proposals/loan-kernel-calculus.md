@@ -1144,4 +1144,10 @@ fun probe(borrow h: A): Unit {
 
 `Z21.lk` 放开 `open` 接受视图的顶层直接 `borrow` / `inout` 字段（顶层借用容器及 `local`/`cell` 子视图分别仍在规则、`Z5.lk` 与 `Z17.lk` 报 K25）：`open this as source, file` 将直接借用字段绑定为 `borrow T` / `inout T` 局部，并把字段自身的 loan 放到 `""` 下、把指向另一视图时的子字段账剥离前缀后一并带入。在析构义务检验器一侧（`drop_plan.py`），`open` 拆出的无析构义务占位字段（`"&"`）记为 `borrowed`，不产生虚假的 V1 泄漏，其余拥有字段仍须履行析构义务。
 
-`RoDirect(borrow source: Arr, file: File)` 拆出后，最后一次使用 `source` 前写 `a` 报 K1、读 `a` 接受，使用后可写；按 `from this.source` 转发接受，省略报 K6。`RwDirect(inout source: Arr, file: File)` 拆出后，使用前读、写 `a` 均报 K1，经 `source` 写及使用后读写均接受；转发 `inout Arr` 须声明 `from this.source`，返回本地来源报 K6。`ViewDirect(inout inner: Slice, file: File)` 拆出后，经 `*inner = Slice(&b)` 替换唯一本地视图 `v` 时解除旧来源 `a`、保护新来源 `b`（K1）；改写调用方视图时须声明 `flows s into this.inner`（省略报 K6），调用方从原 `v` 读回保护新旧来源（K1）。调用失败与正常退出仅清理拥有字段 `file`，漏掉 `file` 报 V1。内部可变/线程绑定子视图与留下空值的 `replace` 仍未验证。
+`RoDirect(borrow source: Arr, file: File)` 拆出后，最后一次使用 `source` 前写 `a` 报 K1、读 `a` 接受，使用后可写；按 `from this.source` 转发接受，省略报 K6。`RwDirect(inout source: Arr, file: File)` 拆出后，使用前读、写 `a` 均报 K1，经 `source` 写及使用后读写均接受；转发 `inout Arr` 须声明 `from this.source`，返回本地来源报 K6。`ViewDirect(inout inner: Slice, file: File)` 拆出后，经 `*inner = Slice(&b)` 替换唯一本地视图 `v` 时解除旧来源 `a`、保护新来源 `b`（K1）；改写调用方视图时须声明 `flows s into this.inner`（省略报 K6），调用方从原 `v` 读回保护新旧来源（K1）。调用失败与正常退出仅清理拥有字段 `file`，漏掉 `file` 报 V1。留下空值的 `replace` 见 §60。
+
+## 60. 留下空值的 `replace`（K26）
+
+`Z22.lk` 在借用原型中接通 `empty` 类型标记与 `replace p`（规则 K26），与析构义务检验器（`drop_plan.py`）的 `replace` / D8 对齐。`replace p` 要求 `p` 为一层按值字段且字段类型声明了 `empty`（无来源普通类）；对未声明 `empty` 的字段或借用字段均报 K26。`replace p` 对 `p` 按写访问判借用冲突：经共享借用调用报 K1，字段被借用期间报 K1，同对象上不相交的另一字段被借用时接受，经 `inout` 参数调用接受。
+
+与部分移出（K23）不同，`replace` 在原处留下空值，原对象保持完整且不记入 `gone`：既可用于带 `deinit` 的类型（包括普通函数与 `deinit` 函数体），也可在循环中反复执行而不触发回边 K8。对本函数拥有的对象，检查器发射 `DP.Stmt("replace")` 与移交，使新绑定 `n` 与原对象 `u` 各自保有独立析构义务；`mayFail` 失败清单为 `n, u`，检验器真实执行 `deinit Unlinker`：漏掉较晚的 `n` 同时报 V4（逆序违规）与 V1（泄漏），漏掉较早的 `u` 报 V1。携带来源的 `empty` 视图字段及 `cell`/`local` 子视图的 `open` 仍未验证。

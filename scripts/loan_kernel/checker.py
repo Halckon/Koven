@@ -55,6 +55,7 @@ class ClassDecl:
     local: bool = False  # 绑定在创建它的线程上，不可转移（例如非原子的共享计数）
     carrier: bool = False  # 写作 view class C<view T>：泛型容器。演算不写类型实参，它一律代表以携带来源的类型
     #                        实例化的 C<T>；内容只经受信任函数访问，携带的来源整体记在值名下
+    empty: bool = False  # 有一个可以留在原处的空值（例如可空类型的 null），可供 replace 取出字段
 
     def field(self, name):
         return next((f for f in self.fields if f[1] == name), None)
@@ -225,9 +226,16 @@ class Parser:
                 implements = []
                 while self.accept("is"):
                     implements.append(self.next())
-                has_deinit = self.peek() == "deinit" and self.peek(2) != "{" and self.accept("deinit")
+                has_deinit, is_empty = False, False
+                while True:
+                    if self.accept("empty"):
+                        is_empty = True
+                    elif self.peek() == "deinit" and self.peek(2) != "{" and self.accept("deinit"):
+                        has_deinit = True
+                    else:
+                        break
                 classes[name] = ClassDecl(name, fields, is_view, has_deinit, line, implements, private, is_cell,
-                                          is_local, is_carrier)
+                                          is_local, is_carrier, is_empty)
         return classes, funs, sigs
 
     def type_name(self):
@@ -388,6 +396,9 @@ class Parser:
         if tok == "move":
             self.next()
             return Expr("move", line, site, place=self.place())
+        if tok == "replace":
+            self.next()
+            return Expr("replace", line, site, place=self.place())
         if tok == "start":  # 创建一个任务：实参已求值并存进它的帧，函数体尚未开始执行
             self.next()
             inner = self.expr()
@@ -417,7 +428,7 @@ class Parser:
 # ---------------------------------------------------------------- 活性（K3 的“还会被使用”）
 
 def expr_uses(expr):
-    if expr.kind in ("place", "move", "ref"):
+    if expr.kind in ("place", "move", "ref", "replace"):
         return {expr.place.root}
     return set().union(*(expr_uses(a) for a in expr.args)) if expr.args else set()
 
@@ -634,9 +645,10 @@ class Checker:
                 plain = kind or fty in ("Int", "Unit") or fty.startswith("fn ")  # 没有析构义务的字段
                 fields.append((name, "&" if plain else self.dp_type(self.type_of(fty))))
             self.dp_types.setdefault("&", DP.TypeDecl("&", []))
-            self.dp_types[ty.name] = DP.TypeDecl(ty.name, fields, deinit=decl.deinit)
+            self.dp_types[ty.name] = DP.TypeDecl(ty.name, fields, deinit=decl.deinit, empty=decl.empty)
         else:  # 析构是否可观察取自能力推导
-            self.dp_types[ty.name] = DP.TypeDecl(ty.name, [], deinit=not self.has("EarlyDrop", ty))
+            self.dp_types[ty.name] = DP.TypeDecl(ty.name, [], deinit=not self.has("EarlyDrop", ty),
+                                                 empty=decl is not None and decl.empty)
         return ty.name
 
     def declare_this(self, line, ty):
@@ -1148,6 +1160,8 @@ class Checker:
             return Value(INT)
         if expr.kind == "move":
             return self.move(expr, state)
+        if expr.kind == "replace":
+            return self.replace_field(expr, state)
         if expr.kind == "ref":
             return self.borrow(expr, expr.place, expr.mut, state)
         if expr.kind == "call":
@@ -1222,6 +1236,27 @@ class Checker:
             self.emit("take", expr.line, taken, ty=place.root, fld=name)
             self.emit("move", expr.line, taken)
         return value
+
+    def replace_field(self, expr, state):
+        """K26：取出带 empty 标记的按值字段并在原处留下空值；原对象保持完整，不产生部分移出。"""
+        place = expr.place
+        if len(place.fields) != 1:
+            raise SyntaxProblem(f"第 {expr.line} 行：演算只支持替换一层字段")
+        res = self.resolve(state, place)
+        name = place.fields[0]
+        decl = self.classes.get(res.ty.name)
+        if res.crossed or res.ty.kind != "cls" or decl is None or not decl.empty or not self.escapable(res.ty.name):
+            self.error("K26", expr.line, f"{place.root}.{name} 的类型 {res.ty.name} 没有可以留在原处的空值")
+            return Value(res.ty)
+        if not res.writable:
+            self.error("K1", expr.line, "不能经共享借用替换字段")
+        self.access(state, res.targets, res.via, "write", expr.line)
+        if self.tracked(state[place.root]):
+            taken = f"{place.root}#{name}#{expr.site}"
+            self.dp_type(res.ty)
+            self.emit("replace", expr.line, taken, ty=place.root, fld=name)
+            self.emit("move", expr.line, taken)
+        return Value(res.ty)
 
     # ---- 挂起（内核基底 KB8）
 
