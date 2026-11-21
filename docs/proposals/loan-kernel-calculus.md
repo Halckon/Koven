@@ -1167,4 +1167,13 @@ fun probe(borrow h: A): Unit {
 - K12 合同细化新增挂起性检查：把 `suspend fun` 当作非 `suspend` 签名 `fn SyncWork` 的实参传入报 K12（堵住经同步回调把挂起偷渡进 `deinit` 或普通函数的路径），反之非 `suspend` 函数满足 `suspend sig`（接受）；
 - 同步 `deinit` 的 `SyncGuard` 跨挂起点持有合法，检验器在正常退出与挂起点帧被销毁两条路径上真实执行 `deinit SyncGuard`；漏掉挂起点清理清单中的 `g` 报 V1。
 
-至此“挂起、析构、能力”欠账中的“`deinit` 不得挂起”与“合同细化检查 `suspend`”（§25.2 第 7 条）已验证；`cell`/`local` 子视图的 `open` 仍未验证。
+至此“挂起、析构、能力”欠账中的“`deinit` 不得挂起”与“合同细化检查 `suspend`”（§25.2 第 7 条）已验证；互相递归视图与递归视图上的流向见 §63。
+
+## 63. 互相递归的视图类型与递归视图上的流向（KB3）
+
+`Z25.lk` 检验互相递归的视图（`Even` ↔ `Odd`）以及经独占递归字段的 `flows`（直接递归 `MutNode` 与互相递归 `MutEven` ↔ `MutOdd`），并在测试中发现并修掉两处原型漏洞：
+
+1. **互相递归折叠边界丢账（`current_fields` / `folded`）。** `current_fields` 沿借用字段现查时，此前即使未查到来源也会向 `fields` 写入空集合 `set()`；当路径走到互相递归的折叠边界（`e.next.next.data`）时，`folded` 以 `name not in fields` 判定字段缺失，结果被空集合挡住、漏掉 `P(e.next.next)`，导致 `wrongMutualBranch` 与 `undeclaredMutual` 均漏报 K6。现改为只在查到非空来源时写入 `fields`，并在 `folded` 中按 `not fields.get(name)` 补入折叠来源。
+2. **递归视图上的流向未穿透折叠边界（`flow_into`）。** 声明 `flows s into n.next`（或互相递归 `flows s into e.next.next`）时，`ref_paths` 在折叠边界停止展开，旧 `flow_into` 只把 `s` 记在顶层节点的 `next` 键上，没有继续传播到链上更深层的本地拥有者（`n1`、`n0`、`e1`），导致调用方从底层拥有者读回后写 `s` 漏报 K1。现改为在遇到折叠借用字段时沿指向同家族视图的链传播到所有可达的本地拥有者（带访问集防环），且不误污染未落入目标路径的节点（如 `n2.slice` 与 `o1.slice`）。
+
+`Z25.lk` 覆盖 2/3/4 层互相递归读回、`while` 沿链遍历、错声明/漏声明 K6、直接与互相递归的 `flows` 及调用方顶层/中层/深层读写隔离；变异检验确认去掉折叠边界传播后恰好漏报 `n1`、`n0`、`e1` 三处 K1。

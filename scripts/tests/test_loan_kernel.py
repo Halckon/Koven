@@ -1005,6 +1005,35 @@ class LoanKernelCases(unittest.TestCase):
         found = self.verify(types, program, "syncDeinitWorksAcrossSuspend", deinits)
         self.assertEqual({"V1"}, {v.split()[0] for v in found})
 
+    def test_mutually_recursive_views_and_flows_across_folded_links(self):
+        source = (ROOT / "cases/Z25.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("secondMutual", "thirdMutual", "fourthMutual", "walkMutual",
+                     "writeNextSlice", "writeMutualCycle"):
+            self.assertTrue(lowered[name][2], name)
+        # 变异检验：若 flow_into 不沿递归折叠边界传播，n1、n0 与 e1 读回后写 s 的三处 K1 必须漏报。
+        original = CHECKER.Checker.flow_into
+
+        def shallow_flow_into(checker, state, targets, fields, class_name, declared, flowing):
+            for _, path in checker.ref_paths(class_name):
+                if not checker.within(path, declared):
+                    continue
+                *through, last = path.split(".")
+                at, _ = checker.walk(state, targets, fields, class_name, through)
+                checker.record_flow(state, at, {last: flowing})
+
+        CHECKER.Checker.flow_into = shallow_flow_into
+        try:
+            mutated = {(rule, line) for rule, line, _ in CHECKER.check(source)}
+        finally:
+            CHECKER.Checker.flow_into = original
+        lost = expected(source) - mutated
+        self.assertEqual(3, len(lost))
+        self.assertEqual({"K1"}, {rule for rule, _ in lost})
+        self.assertEqual(set(), mutated - expected(source))
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

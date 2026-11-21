@@ -953,21 +953,54 @@ class Checker:
             *through, last = path.split(".")
             if self.crosses_borrow_field(class_name, through):
                 _, held = self.walk(state, targets, fields, class_name, through)
-                fields.setdefault(path, set()).update(held.get(last, ()))
+                if held.get(last):
+                    fields.setdefault(path, set()).update(held[last])
         return fields
+
+    def field_type(self, class_name, path):
+        for name in path.split("."):
+            _, _, class_name = self.classes[class_name].field(name)
+        return class_name
 
     def flow_into(self, state, targets, fields, class_name, declared, flowing):
         """K20 调用：来源并入视图 class_name 在 declared 之下的每个借用字段。
 
         targets 是这个视图所在的存储（按值传入时为空），fields 是它各借用字段持有的 loan。
-        字段路径越过借用字段时，账记到那个字段所指的视图的拥有者上。
+        字段路径越过借用字段时，账记到那个字段所指的视图的拥有者上；遇到递归折叠的借用字段时，
+        继续沿指向同家族视图的链传播到所有可达的本地拥有者。
         """
-        for _, path in self.ref_paths(class_name):
+        folded_roots = []
+        paths = self.ref_paths(class_name)
+        for _, path in paths:
             if not self.within(path, declared):
                 continue
             *through, last = path.split(".")
-            at, _ = self.walk(state, targets, fields, class_name, through)
+            at, held = self.walk(state, targets, fields, class_name, through)
             self.record_flow(state, at, {last: flowing})
+            target_ty = self.field_type(class_name, path)
+            if (target_ty in self.classes and self.classes[target_ty].is_view
+                    and not any(other.startswith(path + ".") for _, other in paths)):
+                folded_roots.append((self.places(held.get(last, ())), target_ty))
+        seen = set()
+        while folded_roots:
+            at, ty = folded_roots.pop()
+            for root, base in sorted(at):
+                if (root, base, ty) in seen:
+                    continue
+                seen.add((root, base, ty))
+                var = state.get(root)
+                if var is None or base or var.ty != Type("view", ty):
+                    continue
+                sub_fields = self.current_fields(state, {(root, ())}, {}, ty)
+                sub_paths = self.ref_paths(ty)
+                for _, path in sub_paths:
+                    *through, last = path.split(".")
+                    sub_at, sub_held = self.walk(state, {(root, ())}, sub_fields, ty, through)
+                    self.record_flow(state, sub_at, {last: flowing})
+                    sub_ty = self.field_type(ty, path)
+                    if (sub_ty in self.classes and self.classes[sub_ty].is_view
+                            and not any(other.startswith(path + ".") for _, other in sub_paths)):
+                        folded_roots.append((self.places(sub_held.get(last, ())), sub_ty))
 
     def reaches_exclusively(self, class_name, fields):
         """字段路径是否越过借用字段，且越过的都是独占字段。"""
@@ -984,7 +1017,7 @@ class Checker:
         """
         decl = self.classes.get(class_name)
         for kind, name, _ in decl.fields if decl is not None and decl.is_view else ():
-            if kind and name not in fields:
+            if kind and not fields.get(name):
                 fields[name] = set(reached)
         return fields
 
