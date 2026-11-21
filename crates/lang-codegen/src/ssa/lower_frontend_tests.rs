@@ -454,7 +454,6 @@ fn rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking() {
         assert_eq!(unit.sources().slice(origin), Ok(&source[start..end]));
     }
     for source in [
-        "class Node {}\nfun inspect(inout node: Node?): Unit { when (node) { null -> {}; else -> {} } }",
         "class Node {}\n\
          fun inspect(node: Node?): Unit {\n\
              when (node) { null -> {}; else -> {} }\n\
@@ -480,6 +479,39 @@ fn rejects_borrowed_nullable_when_and_non_null_assertion_without_panicking() {
         };
         assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
     }
+}
+
+#[test]
+fn nullable_when_inout_class_subject_rejects_at_unit_parameter() {
+    use lang_frontend::type_checking::NullableWhenSubjectCategory::InoutRoot;
+    let source = "class Node {}\nfun inspect(inout node: Node?): Unit { when (node) { null -> {}; else -> {} } }";
+    assert_class_loan_subject(source, InoutRoot, "inout node: Node?");
+}
+
+fn assert_class_loan_subject(
+    source: &str,
+    category: lang_frontend::type_checking::NullableWhenSubjectCategory,
+    rejected_origin: &str,
+) {
+    // A named class loan can have a real Unit ownership plan while its
+    // representation remains unsupported by the backend.
+    let unit = UnitSource::analyze("lowering.ko", source).expect("strict Unit admission");
+    unit.assert_frontend_clean();
+    let [plan] = unit.ownership().nullable_whens() else {
+        panic!("one original nullable When ownership plan");
+    };
+    assert_eq!(plan.descriptor().source_category(), category);
+    let entry = unit.declaration("inspect", SymbolKind::Function);
+    let error = unit
+        .lower_entry(entry)
+        .err()
+        .expect("unsupported class loan root");
+    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+    let span = error
+        .span
+        .expect("source-qualified Unit lowering rejection");
+    assert_eq!(span.source_id(), unit.parsed().source_id());
+    assert_eq!(unit.sources().slice(span), Ok(rejected_origin));
 }
 
 #[path = "nominal_multiroot_unit_contract.rs"]
