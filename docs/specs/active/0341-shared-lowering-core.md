@@ -21843,3 +21843,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `ab9b8ffd`。原 `fun test(x: Node?): Unit = when (x) { null -> {}; else -> read(x) }` 源码字节不变，保留 Single 无 extraction 的断言。Unit 双布局的 `BorrowRoot`、原 subject/root/entry/generation、实际 `Observe` 和唯一 Shared call loan 相接；该 loan 的开始引用、结束调用及 `x: Node` 参数身份真实一致。无 Move/delivery、Drop 或 Rc effect，不拿 Copy 的证据替代借用。
 - 普通 sealed Unit SSA 同源输出 `UnsupportedNode`，span 精确指向整个 nullable When；回归验证两布局和空/非空入口，不产生可验证 SSA、LLVM 或 native，未退休该旧断言。先前的 x01 `if` 证据以及已支持 direct-owned-call 不能覆盖这个 BorrowRoot When。
 - 后续单独拆查非稳定 field/index 的真实投影与重复读取，各自需同源 identity 证据。生产、API、CI 不变，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：nullable When 的非稳定字段与索引分开核对
+
+- 基于 `e7567a75`。原 `h.item` 与 `xs[0]` 两段保留准确输入字节及各自 Single 内部 non-null view 查证。两种 Unit 布局完整最终类型准入通过：字段为 `OrdinaryField`，绑定 `h` 与已解析 `item` 声明；索引为 `ContainerElement`，保留 `xs` 根与真实逻辑 `Known(0)`。不能用字段测试代替索引身份。
+- 两条原源码的 subject 与重复读取是不同 AST identity，均有原 nullable 类型；后一次只是针对同一具体 place 的普通 Shared call loan，无稳定 symbol/reference/generation、nullable extraction、Move 或 Drop。不把同一 place 误解为重复读取继承第一次的 non-null 结论。
+- 追加独立可达 wrapper 后，普通 sealed Unit SSA 仍各在原完整 When 返回 `UnsupportedNode`，两种布局一致，未产生 SSA/LLVM/native；两条旧 Single 均不退役。未改生产、API 或 CI，SPEC-0341 仍 in-progress。

@@ -3,6 +3,9 @@
 #[path = "ownership_nullable_when/partial_own_call.rs"]
 mod partial_own_call;
 
+#[path = "ownership_nullable_when/projection_proof.rs"]
+mod projection_proof;
+
 use lang_frontend::{
     name_resolution::resolve_names,
     ownership_checking::{
@@ -673,33 +676,41 @@ fn named_nullable_read_borrows_without_extracting() {
 }
 
 #[test]
-fn nullable_proof_keeps_the_single_subject_identity() {
-    for text in [
-        "class Node {}\nclass Holder(val item: Node?)\nfun read(x: Node?): Unit {}\nfun test(h: Holder): Unit = when (h.item) { null -> {}; else -> read(h.item) }",
-        "class Node {}\nfun read(x: Node?): Unit {}\nfun test(xs: List<Node?>): Unit = when (xs[0]) { null -> {}; else -> read(xs[0]) }",
-    ] {
-        let owned = checked(text);
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        assert_eq!(owned.nullable_whens().len(), 1);
-        let plan = &owned.nullable_whens()[0];
-        assert!(owned.nullable_when(plan.expression()).is_some());
-        let view = plan.branches()[1]
-            .view()
-            .expect("non-null internal subject view");
-        assert_eq!(view.subject(), plan.subject());
-        assert!(
-            view.stable_symbol().is_none(),
-            "repeated field/index reads are not stable smart-cast keys"
-        );
-        assert!(
-            view.place().is_some(),
-            "proof must retain the existing place identity"
-        );
-        assert!(
-            plan.extractions().is_empty(),
-            "borrowing the repeated read is not inner extraction"
-        );
-    }
+fn nullable_field_keeps_place_but_does_not_narrow_a_repeated_read() {
+    let text = include_str!("ownership_nullable_when/fixtures/unstable-field.ko");
+    assert_legacy_projection(text);
+    projection_proof::assert_unit_projection(text, true);
+}
+
+#[test]
+fn nullable_index_keeps_place_but_does_not_narrow_a_repeated_read() {
+    let text = include_str!("ownership_nullable_when/fixtures/unstable-index.ko");
+    assert_legacy_projection(text);
+    projection_proof::assert_unit_projection(text, false);
+}
+
+fn assert_legacy_projection(text: &str) {
+    let owned = checked(text);
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert_eq!(owned.nullable_whens().len(), 1);
+    let plan = &owned.nullable_whens()[0];
+    assert!(owned.nullable_when(plan.expression()).is_some());
+    let view = plan.branches()[1]
+        .view()
+        .expect("non-null internal subject view");
+    assert_eq!(view.subject(), plan.subject());
+    assert!(
+        view.stable_symbol().is_none(),
+        "repeated field/index reads are not stable smart-cast keys"
+    );
+    assert!(
+        view.place().is_some(),
+        "proof must retain the existing place identity"
+    );
+    assert!(
+        plan.extractions().is_empty(),
+        "borrowing the repeated read is not inner extraction"
+    );
 }
 
 #[test]

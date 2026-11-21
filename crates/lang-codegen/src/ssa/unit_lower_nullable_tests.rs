@@ -837,3 +837,77 @@ fn assert_original_nullable_boundary(
 
 #[path = "unit_lower_nullable_tests/partial_owned_call.rs"]
 mod partial_owned_call;
+
+#[test]
+fn original_nullable_field_projection_stops_at_unsupported_subject() {
+    let text = include_str!(
+        "../../../lang-frontend/tests/ownership_nullable_when/fixtures/unstable-field.ko"
+    );
+    assert_projected_when_boundary(text, "unstable-field.ko", "test(Holder(null))");
+}
+
+#[test]
+fn original_nullable_index_projection_stops_at_unsupported_subject() {
+    let text = include_str!(
+        "../../../lang-frontend/tests/ownership_nullable_when/fixtures/unstable-index.ko"
+    );
+    assert_projected_when_boundary(text, "unstable-index.ko", "test(listOf<Node?>(null))");
+}
+
+fn assert_projected_when_boundary(original: &str, path: &str, invoke: &str) {
+    use super::{
+        LoweringErrorKind,
+        unit_lower::lower_scalar_unit_with_entry,
+        unit_lower_test_support::{analyze, parsed},
+    };
+    use lang_frontend::{
+        name_resolution::SourceUnitKey, type_checking::complete_compilation_unit_types,
+    };
+
+    let text = format!("{original}\nfun entry(): Unit {{ {invoke} }}");
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, path, &text);
+    assert_eq!(
+        sources.source_text(source).unwrap().get(..original.len()),
+        Some(original)
+    );
+    let (name_environment, environment) = standard_environments();
+    for rooted in [false, true] {
+        let inputs = [if rooted {
+            SourceUnitInput::new("root", path, source, &file)
+        } else {
+            SourceUnitInput::memory_document(source, &file)
+        }];
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+        complete_compilation_unit_types(&sources, &inputs, &names, &environment, typed.types())
+            .unwrap();
+        let index = names.names().index();
+        let [unit] = index.source_units() else {
+            panic!("one real source")
+        };
+        assert_eq!(unit.source_id(), source);
+        assert_eq!(matches!(unit.key(), SourceUnitKey::MemoryDocument), !rooted);
+        let entry = index
+            .declarations()
+            .iter()
+            .find(|d| d.name() == "entry")
+            .unwrap()
+            .id();
+        let error = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &environment,
+            &typed,
+            &owned,
+            entry,
+        )
+        .err()
+        .unwrap_or_else(|| panic!("requires an actual Unit witness for {path}, rooted={rooted}"));
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode);
+        let span = error.span.unwrap();
+        let start = original.find("when (").unwrap();
+        assert_eq!(span.source_id(), source);
+        assert_eq!(sources.slice(span), Ok(&original[start..]));
+    }
+}
