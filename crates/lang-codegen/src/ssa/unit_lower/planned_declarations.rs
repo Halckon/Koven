@@ -41,7 +41,7 @@ fn register_checked_function_signature(
         .expect("new unit function must exist");
     function.never_returns = signature.result_builtin == Some(BuiltinType::Nothing);
     function
-        .add_block(signature.parameter_types, origin)
+        .add_block(signature.parameter_types, Origin::Source(signature.span))
         .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, signature.span))?;
     if let Some(borrow) = signature.borrow_return {
         function.borrow_return = Some(crate::ssa::borrow_result_support::source_index(
