@@ -21956,3 +21956,10 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 双 Unit FE 证同一原具名 String 根、实际 child→lender 的终止顺序、外层 observe 返回处唯一非临时 Named Drop，且无 Move 或临时 Drop；这不是字段投影或被调方回收。实际 Unit SSA 强化：两实际 loan IDs 依次结束，原 String owner 的同一 ValueId 在 caller 被 Drop；随后才返回。SSA Drop 的源位置归属原局部声明。
 - 两布局原样 LLVM native 均输出 `kept\n`。另在唯一既有逻辑 drop 调用之后加入独立测试观察者，验证真实顺序 `kept\ndrop\n`；不改变原 Koven 源码，也不把静态字面量的逻辑 Drop 误报为 heap 释放。
 - Mac 前端 22 项、codegen 定点 6 项，fmt/diff/docs 与相对 main 的 Rust size guard 通过；未改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原无 consume 的 parent 在最后读取后由 caller 清理
+
+- 基于 `985bda8d`，只迁留存旧入口 `existing_parent_survives_call_and_memory_owner_drops_at_outer_return` 的剩余子项，保留历史 FQN。同原 helper 重建的 245 字节完全相同，旧 Single/原 Unit 独立端点先双布局实跑；有 `consume` 的 262 字节 sibling 与不含 parent 的外层返回处 Drop 用例保持。
+- 双 Unit FE 核原 `view(source)` 绑定自己的 parent、`observe(view(parent))` 回来并未结束 parent，实际最后 `println(parent)` 后同一 statement 上结束 parent 并有唯一原具名 String 根 Drop，无 Move 或临时对象 Drop。FE 同 statement 不自行证明两者顺序；Unit SSA 明确 observe 只 End child、原 parent loan 被后续 PrintString 读取，然后依次 End parent、End root，最终 caller Drop 原构造的同一 ValueId。
+- 双布局原 LLVM native 实跑均输出 `kept\nkept\n`；独立观察在唯一真实逻辑 drop 调用返回后输出第三行 `drop`，没有替换原调用，也不把静态 String 字面量的逻辑 Drop 说成 heap 释放。
+- Mac FE 22 项、codegen/native 7 项，fmt、diff、docs、相对 main 的 Rust size guard 通过。未改生产/API/CI、未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。

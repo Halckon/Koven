@@ -8,7 +8,23 @@ use lang_frontend::{
 
 #[test]
 fn exact_parent_borrow_survives_observe_until_its_own_last_read_and_then_moves_the_root() {
-    let text = include_str!("fixtures/parent-transport.ko");
+    assert_parent_transport(include_str!("fixtures/parent-transport.ko"), Finish::Move);
+}
+
+pub(super) fn assert_parent_drop_transport() {
+    assert_parent_transport(
+        include_str!("fixtures/parent-drop-transport.ko"),
+        Finish::Drop,
+    );
+}
+
+#[derive(Clone, Copy)]
+enum Finish {
+    Move,
+    Drop,
+}
+
+fn assert_parent_transport(text: &str, finish: Finish) {
     let c = super::unit_checked(text);
     let id = c.parsed.source_id();
     assert_eq!(c.sources.source_text(id), Ok(text));
@@ -91,24 +107,43 @@ fn exact_parent_borrow_survives_observe_until_its_own_last_read_and_then_moves_t
             .unwrap()
             .span();
         assert_eq!(c.sources.slice(last_span), Ok("println(parent)"));
-        let [moved] = unit.value_deliveries() else {
-            panic!("one eventual root Move")
-        };
-        assert_eq!(token(moved.call()), "consume(source)");
-        assert_eq!(token(moved.argument()), "source");
-        assert_eq!(moved.kind(), UnitValueDeliveryKind::Move);
-        assert_eq!(
-            moved.source(),
-            &UnitValueDeliverySource::Place(root.clone())
-        );
         assert!(span(use_fact.call()).end() < last_span.start());
-        assert!(last_span.end() < span(moved.call()).start());
         assert!(
             unit.drops()
                 .iter()
-                .all(|f| f.target() != UnitDropTarget::Named(root.root())
-                    && !matches!(f.target(), UnitDropTarget::Temporary(_)))
+                .all(|f| !matches!(f.target(), UnitDropTarget::Temporary(_)))
         );
+        if matches!(finish, Finish::Drop) {
+            assert!(unit.value_deliveries().is_empty());
+            let drops: Vec<_> = unit
+                .drops()
+                .iter()
+                .filter(|f| f.target() == UnitDropTarget::Named(root.root()))
+                .collect();
+            let [drop] = drops.as_slice() else {
+                panic!("exactly one Drop of the original named root")
+            };
+            assert_eq!(drop.point(), end.point());
+            assert_eq!(drop.value_origin(), owner);
+            assert!(!drop.is_conditional_temporary());
+        } else {
+            let [moved] = unit.value_deliveries() else {
+                panic!("one eventual root Move")
+            };
+            assert_eq!(token(moved.call()), "consume(source)");
+            assert_eq!(token(moved.argument()), "source");
+            assert_eq!(moved.kind(), UnitValueDeliveryKind::Move);
+            assert_eq!(
+                moved.source(),
+                &UnitValueDeliverySource::Place(root.clone())
+            );
+            assert!(last_span.end() < span(moved.call()).start());
+            assert!(
+                unit.drops()
+                    .iter()
+                    .all(|f| f.target() != UnitDropTarget::Named(root.root()))
+            );
+        }
         assert!(unit.clone().validate().is_ok());
     }
 }

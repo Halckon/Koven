@@ -648,30 +648,8 @@ fn grouped_named_operands_and_same_root_chains_are_not_collapsed() {
 
 #[test]
 fn existing_parent_survives_call_and_memory_owner_drops_at_outer_return() {
-    for rooted in [false, true] {
-        let checked = ordinary_entry(
-            "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent) }",
-            rooted,
-        );
-        assert_accepted(&checked);
-        let fact = &checked.single.borrow_results().call_uses()[0];
-        let parent = &checked.single.borrow_results().bindings()[0];
-        assert_eq!(fact.parent(), Some(parent.binding()));
-        assert_eq!(fact.origin(), parent.origin());
-        assert_ne!(
-            checked.single.borrow_results().ends()[0].point(),
-            fact.end_point()
-        );
-        let fact = &checked.unit.borrow_results().call_uses()[0];
-        assert_eq!(
-            fact.parent(),
-            Some(checked.unit.borrow_results().bindings()[0].binding())
-        );
-        assert_ne!(
-            checked.unit.borrow_results().ends()[0].point(),
-            fact.end_point()
-        );
-    }
+    // Keep the historical test identity; the direct no-parent case now runs separately.
+    parent_transport::assert_parent_drop_transport();
 }
 
 #[test]

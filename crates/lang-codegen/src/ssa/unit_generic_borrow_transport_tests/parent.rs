@@ -9,6 +9,24 @@ fn original_parent_borrow_survives_child_and_ends_before_consuming_same_owner() 
     let text = include_str!(
         "../../../../lang-frontend/tests/ownership_nested_borrow_arguments/fixtures/parent-transport.ko"
     );
+    assert_original_parent(text, Finish::Move);
+}
+
+#[test]
+fn original_parent_borrow_last_read_precedes_dropping_the_same_caller_owner() {
+    let text = include_str!(
+        "../../../../lang-frontend/tests/ownership_nested_borrow_arguments/fixtures/parent-drop-transport.ko"
+    );
+    assert_original_parent(text, Finish::Drop);
+}
+
+#[derive(Clone, Copy)]
+enum Finish {
+    Move,
+    Drop,
+}
+
+fn assert_original_parent(text: &str, finish_kind: Finish) {
     let path = "nested_borrow.ko";
     let mut sources = SourceMap::new();
     let (source, file) = parsed(&mut sources, path, text);
@@ -49,7 +67,7 @@ fn original_parent_borrow_survives_child_and_ends_before_consuming_same_owner() 
             print,
             end_parent,
             end_root,
-            consume,
+            finish,
         ] = caller.instructions.as_slice()
         else {
             panic!("expected children, later parent use, then delivery of the owner");
@@ -153,36 +171,48 @@ fn original_parent_borrow_survives_child_and_ends_before_consuming_same_owner() 
         assert_eq!(sources.slice(print.origin.span()), Ok("println(parent)"));
         assert_eq!(end_parent.operation, Operation::BorrowEnd { loan: *parent });
         assert_eq!(end_root.operation, Operation::BorrowEnd { loan: *lender });
-        let Operation::DirectCall {
-            callee: consumer,
-            arguments,
-            receiver: None,
-        } = &consume.operation
-        else {
-            panic!("subsequent own delivery");
-        };
-        assert_eq!(sources.slice(consume.origin.span()), Ok("consume(source)"));
-        assert_eq!(arguments.as_slice(), [EntityId::Value(*owner)]);
-        let consumer = module.function(*consumer).unwrap();
-        assert!(
-            sources
-                .slice(consumer.origin.span())
-                .unwrap()
-                .starts_with("fun consume(")
-        );
-        let [consumer_entry] = consumer.blocks.as_slice() else {
-            panic!("simple consume")
-        };
-        let [EntityId::Value(received)] = consumer_entry.parameters.as_slice() else {
-            panic!("actual own ABI")
-        };
-        let [drop] = consumer.instructions.as_slice() else {
-            panic!("one Drop in the consumer only")
-        };
-        assert_eq!(drop.operation, Operation::Drop { owner: *received });
+        if matches!(finish_kind, Finish::Drop) {
+            assert_eq!(finish.operation, Operation::Drop { owner: *owner });
+            assert_eq!(sources.slice(finish.origin.span()), Ok("source"));
+            assert_eq!(
+                finish.origin.span().start(),
+                text.find("val source").unwrap() + "val ".len()
+            );
+        } else {
+            let Operation::DirectCall {
+                callee: consumer,
+                arguments,
+                receiver: None,
+            } = &finish.operation
+            else {
+                panic!("subsequent own delivery");
+            };
+            assert_eq!(sources.slice(finish.origin.span()), Ok("consume(source)"));
+            assert_eq!(arguments.as_slice(), [EntityId::Value(*owner)]);
+            let consumer = module.function(*consumer).unwrap();
+            assert!(
+                sources
+                    .slice(consumer.origin.span())
+                    .unwrap()
+                    .starts_with("fun consume(")
+            );
+            let [consumer_entry] = consumer.blocks.as_slice() else {
+                panic!("simple consume")
+            };
+            let [EntityId::Value(received)] = consumer_entry.parameters.as_slice() else {
+                panic!("actual own ABI")
+            };
+            let [drop] = consumer.instructions.as_slice() else {
+                panic!("one Drop in the consumer only")
+            };
+            assert_eq!(drop.operation, Operation::Drop { owner: *received });
+        }
         assert!(matches!(&block.terminator.as_ref().unwrap().kind,
             TerminatorKind::Return { values } if values.is_empty()));
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
         super::super::unit_field_replace_tests::link_and_run(&llvm, "", b"kept\nkept\n");
+        if matches!(finish_kind, Finish::Drop) {
+            super::watch_native_caller_cleanup(&llvm, owner_type.index(), b"kept\nkept\ndrop\n");
+        }
     }
 }

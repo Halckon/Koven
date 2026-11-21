@@ -284,12 +284,12 @@ fn assert_original_transport(text: &str, lender_kind: Lender) {
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
         super::unit_field_replace_tests::link_and_run(&llvm, "", b"kept\n");
         if matches!(lender_kind, Lender::DirectDrop) {
-            watch_native_caller_cleanup(&llvm, owner_type.index());
+            watch_native_caller_cleanup(&llvm, owner_type.index(), b"kept\ndrop\n");
         }
     }
 }
 
-fn watch_native_caller_cleanup(llvm: &str, owner_type: usize) {
+fn watch_native_caller_cleanup(llvm: &str, owner_type: usize, stdout: &[u8]) {
     let marker = format!("call void @koven.drop.t{owner_type}(");
     let mut observed = String::with_capacity(llvm.len() + 100);
     let mut drops = 0;
@@ -311,6 +311,6 @@ fn watch_native_caller_cleanup(llvm: &str, owner_type: usize) {
 #include <stdio.h>
 void koven_test_watch_root_drop(void) { puts("drop"); }
 "#,
-        b"kept\ndrop\n",
+        stdout,
     );
 }
