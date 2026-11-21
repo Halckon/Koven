@@ -1432,9 +1432,10 @@ class Checker:
             if mut and var.ty.kind != "inout":
                 self.error("K1", expr.line, "不能把共享借用交给 inout 位置")
             targets = self.places(via)
-            self.access(state, targets, via, "excl" if mut else "shared", expr.line)
-            kind = stored_kind or ("excl" if mut else "shared")
+            self.access(state, targets, via, "excl" if mut and not reserved else "shared", expr.line)
+            kind = "shared" if reserved else stored_kind or ("excl" if mut else "shared")
             loan = self.new_loan(f"L{expr.site}", kind, targets, via, expr.line)
+            self.loans[loan].kind = kind
             loans = {"": {loan}}
             loans.update({k: v for k, v in self.current_fields(state, targets, var.loans, var.ty.name).items() if k})
             return Value(Type(mode, var.ty.name), loans, var.payload)
@@ -1444,9 +1445,11 @@ class Checker:
             return Value(Type(mode, res.ty.name), {"": set()})
         if mut and not res.writable:
             self.error("K1", expr.line, "不能经共享借用建立独占借用")
-        self.access(state, res.targets, res.via, "excl" if mut else "shared", expr.line)
-        kind = stored_kind or ("excl" if mut else "shared")
-        loans = {"": {self.new_loan(f"L{expr.site}", kind, res.targets, res.via, expr.line)}}
+        self.access(state, res.targets, res.via, "excl" if mut and not reserved else "shared", expr.line)
+        kind = "shared" if reserved else stored_kind or ("excl" if mut else "shared")
+        loan = self.new_loan(f"L{expr.site}", kind, res.targets, res.via, expr.line)
+        self.loans[loan].kind = kind
+        loans = {"": {loan}}
         if res.ty.kind == "view":  # 交出的是指向另一个视图的借用：带上那个视图各借用字段的来源
             loans.update(copy_loans({k: v for k, v in (res.field_loans or {}).items() if k}))
         return Value(Type(mode, res.ty.name), loans, res.ty.kind == "any")
@@ -1559,13 +1562,13 @@ class Checker:
                     results[self.sigs[ty_name[3:]].result[1]] = " ".join(filter(None, impl.result))
                 continue
             kept = ("excl" if name in exclusive else "shared") if name in into_result | into_holder else None
-            # 接收者：名为 this 的第一个参数，按 inout 传入且实参是直接的 &mut
-            reserved = name == "this" and mode == "inout" and arg is expr.args[0] and arg.kind == "ref"
+            # 接收者：名为 this 的第一个参数，按 inout 传入且实参是 &mut、借用值或独占借用字段
+            reserved = name == "this" and mode == "inout" and arg is expr.args[0] and arg.kind in ("ref", "place")
             values[name] = self.argument(arg, mode, state, kept, reserved)
             self.check_owned_argument(fun, mode, ty_name, values[name], arg.line)
             self.pending.append(values[name].all_loans())
             pushed += 1
-            if reserved:
+            if reserved and values[name].loans.get(""):
                 receiver = (values[name], kept or "excl", self.pending[-1])
         if receiver:
             self.activate(*receiver, state, expr.line)

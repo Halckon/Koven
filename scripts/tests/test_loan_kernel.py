@@ -1065,6 +1065,22 @@ class LoanKernelCases(unittest.TestCase):
         joined.cleanup.clear()
         self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
+    def test_two_phase_borrows_extend_to_borrow_values_and_exclusive_fields(self):
+        text = (ROOT / "cases/Z27.lk").read_text(encoding="utf-8")
+        self.assertEqual(expected(text), {(rule, line) for rule, line, _ in CHECKER.check(text)})
+        # 变异检验：去掉对 place 实参的预留后，借用值与独占字段上的 8 处两阶段调用均应报 K4，其余不变。
+        original = CHECKER.Checker.argument
+        CHECKER.Checker.argument = lambda self, expr, mode, state, stored_kind=None, reserved=False: original(
+            self, expr, mode, state, stored_kind, reserved and expr.kind == "ref")
+        try:
+            mutated = {(rule, line) for rule, line, _ in CHECKER.check(text)}
+        finally:
+            CHECKER.Checker.argument = original
+        added = mutated - expected(text)
+        self.assertEqual(8, len(added))
+        self.assertEqual({"K4"}, {rule for rule, _ in added})
+        self.assertEqual(set(), expected(text) - mutated)
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

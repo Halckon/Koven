@@ -1183,4 +1183,10 @@ fun probe(borrow h: A): Unit {
 `Z26.lk` 将部分移出（K23）从单层字段扩展到嵌套复合类型的任意深度按值字段路径（如 `move o.mid.a`），并同步扩展析构义务检验器（`drop_plan.py`）的义务单元与按子树析构：
 
 - **借用与初始化（`checker.py`）**：`var.gone` 记录完整字段路径元组；`resolve` 以 `prefix_related` 检查访问路径与已移出路径的前缀关系——移出 `o.mid.a` 后，再访问 `o.mid.a` 或整体使用/移动祖先 `o.mid`、`o` 均报 K8，同层兄弟 `o.mid.b` 与外层兄弟 `o.tail` 照常可用。路径上任一外层或中间层类型声明了 `deinit`（如 `WrapDeinit.mid: GuardPair deinit`）时，`move w.mid.a` 报 K23，整体移走 `move w.mid` 接受。借用冲突按叶字段精确判定：借着 `o.mid.a` 时移出报 K1，借着兄弟 `o.mid.b` 时移出 `o.mid.a` 接受。嵌套视图移出叶字段（`move ns.pair.first`）时，来源随叶字段转移且仅清空该路径下的旧账。
-- **析构义务（`drop_plan.py`）**：`Types.units` 递归展开复合字段至叶单元，`Verifier` 支持多层路径的 `use`、`take`、`replace` 与按剩余子树逆序析构。全部叶字段逐一移出后不再析构 `o`；中途 `mayFail` 失败清理 `x, o`（漏掉 `o` 报 V1）；单臂移出嵌套叶字段后合流保留析构标志 `o?`（漏掉 `o?` 报 V1）。
+- **析构义务（`drop_plan.py`）**：`Types.units` 递归展开复合字段至叶单元，`Verifier` 支持多层路径的 `use`、`take`、`replace` 与按剩余子树逆序析构。全部叶字段逐一移出后不再析构 `o`；中途 `mayFail` 失败清理 `x, o`（漏掉 `o` 报 V1）；单臂移出嵌套叶字段后合流保留析构标志 `o?`（漏掉 `o?` 报 V1）。接收者经借用值与独占字段传入的两阶段借用见 §65。
+
+## 65. 接收者经借用值与独占借用字段传入时的两阶段借用（KB2）
+
+`Z27.lk` 将两阶段借用（K21）从直接 `&mut v` 接收者扩展到经借用值（`inout` 参数或局部 `val r = &mut v`）以及经视图的独占借用字段（`s.source`）传入的 `inout this` 接收者：在 `argument` 的两处重借路径中按 `reserved` 先建立共享子 loan（循环不动点迭代每次重新重置为共享），待其余实参求值完毕再由 `activate` 转为独占。
+
+`push(r, size(r))`、`push(r, r.len)`、`push(s.source, size(s.source))`、`push(s.source, s.source.len)` 及循环内调用均接受；非接收者普通参数 `plain(r, size(r))`、预留期间再次独占借用（`bump(r)` / `bump(s.source)`）、共享借用流进被调方（`update(r, r)` / `update(s.source, s.source)`）以及更早的出借子借用仍存活均按 K4 拒绝；经局部借用值 `r = &mut v` 预留不会削弱 `r` 自身对原变量 `v` 的既有独占借用，`push(r, size(&v))` 仍按 K1 拒绝。变异检验确认去掉 `place` 实参预留后恰好新增 8 处 K4 拒绝。

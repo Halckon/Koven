@@ -1,0 +1,54 @@
+// 两阶段借用（K21）：接收者经借用值或视图的独占借用字段传入时同样先按共享预留、求值完再激活。
+class Arr(len: Int)
+view class MutSlice(inout source: Arr)
+fun push(inout this: Arr, own n: Int): Unit trusted
+fun size(borrow this: Arr): Int trusted
+fun bump(inout this: Arr): Int trusted
+fun update(inout this: Arr, borrow other: Arr): Unit trusted
+fun last(inout this: Arr): inout Int from this trusted
+fun plain(inout a: Arr, own n: Int): Unit trusted
+fun borrowParamReceiver(inout r: Arr): Unit {
+  push(r, size(r))
+  push(r, r.len)
+}
+fun localBorrowVarReceiver(): Unit {
+  val v = Arr(1)
+  val r = &mut v
+  push(r, size(r))
+  push(r, r.len)
+}
+fun borrowFieldReceiver(inout s: MutSlice): Unit {
+  push(s.source, size(s.source))
+  push(s.source, s.source.len)
+}
+fun insideLoopViaBorrowAndField(inout r: Arr, inout s: MutSlice): Unit {
+  while (*) {
+    push(r, size(r))
+    push(s.source, size(s.source))
+  }
+}
+fun plainNonReceiverRejected(inout r: Arr): Unit {
+  plain(r, size(r))  // ERR K4
+}
+fun sharedReachesCalleeViaBorrow(inout r: Arr): Unit {
+  update(r, r)  // ERR K4
+}
+fun writeWhileReservedViaBorrow(inout r: Arr): Unit {
+  push(r, bump(r))  // ERR K4
+}
+fun writeWhileReservedViaField(inout s: MutSlice): Unit {
+  push(s.source, bump(s.source))  // ERR K4
+}
+fun sharedReachesCalleeViaField(inout s: MutSlice): Unit {
+  update(s.source, s.source)  // ERR K4
+}
+fun olderChildLoanStillLive(inout r: Arr): Unit {
+  val e = last(r)
+  push(r, size(r))  // ERR K4
+  use(e)
+}
+fun ownerStillBlockedWhileBorrowVarLives(): Unit {
+  val v = Arr(1)
+  val r = &mut v
+  push(r, size(&v))  // ERR K1
+}
