@@ -1118,4 +1118,10 @@ fun probe(borrow h: A): Unit {
 
 `Z17.lk` 的 `DeepHolder` 按值持有 `Nested(inner: MixPair, borrow tail: Arr)` 和 `File`，其中 `MixPair(borrow ro: Arr, inout rw: Arr)` 同时携带共享与独占借用字段。放开 `open` 接受非递归、无 `deinit` 的多借用字段及按值嵌套子视图（递归子视图在 `Z5.lk` 报 K25，带 `deinit` 的子视图在 `Z17.lk` 报 K25）：`open this as nested, file` 剥离顶层字段前缀 `nested.` 后，把 `inner.ro`、`inner.rw`、`tail` 三条路径各自的来源账独立移交给 `nested`。
 
-本地构造并拆解后，在最后一次使用 `nested` 前：`a` 与 `c` 可读不可写（K1），`b` 不可读也不可写（K1），使用完后三者均放行；因按值含独占子视图，对 `nested` 隐式复制报 K8。合同转发精确到字段路径：`from this.nested.inner.ro` 与 `from this.nested.inner.rw` 分别接受，跨字段错声明或返回本地来源均报 K6。经 `flows this.nested.inner.ro into dst` 仅移交共享子字段时，调用方只保护 `a` 与旧来源 `old`，不误保护无关字段 `b` 与 `c`。调用失败与正常退出按 `file, nested` 清理；漏掉失败清单中的 `nested`，检验器报 V1。带 `deinit` 的子视图、越过借用字段嵌套的子视图与递归/容器子视图仍未验证。
+本地构造并拆解后，在最后一次使用 `nested` 前：`a` 与 `c` 可读不可写（K1），`b` 不可读也不可写（K1），使用完后三者均放行；因按值含独占子视图，对 `nested` 隐式复制报 K8。合同转发精确到字段路径：`from this.nested.inner.ro` 与 `from this.nested.inner.rw` 分别接受，跨字段错声明或返回本地来源均报 K6。经 `flows this.nested.inner.ro into dst` 仅移交共享子字段时，调用方只保护 `a` 与旧来源 `old`，不误保护无关字段 `b` 与 `c`。调用失败与正常退出按 `file, nested` 清理；漏掉失败清单中的 `nested`，检验器报 V1。越过借用字段嵌套的子视图在 `Z17.lk` 报 K25；带 `deinit` 的子视图见 §56。
+
+## 56. 按值拆出带 `deinit` 的非递归子视图
+
+`Z18.lk` 的 `GuardHolder` 按值持有带 `deinit` 的子视图 `GuardSlice(borrow source: Arr) deinit`（且写出 `deinit GuardSlice` 函数体）与 `File`。放开 `open` 接受带 `deinit` 的非递归按值子视图后，`open this as guard, file` 只解除外层 `GuardHolder.deinit`，拆出的 `guard` 仍保留自身的 `GuardSlice.deinit` 义务。
+
+因 `GuardSlice` 析构可观察，拆出后即使不再使用 `guard`，写其本地来源 `a` 仍报 K1；先经 `releaseGuard(move guard)` 移走后则可写 `a`。本地 `a` 先于 `open` 声明时，`guard` 在逆序清理中先于 `a` 析构，正常退出与 `mayFail` 均接受；若把借用较晚局部 `late` 的 `guard` 移入更早声明的 `out`，则在 `mayFail` 报 K22、函数出口报 K9。只在一条分支移走 `guard` 时，合流后保留析构标志 `guard?`，正常退出与 `mayFail` 的清理清单均为 `file, guard?`。检验器真实执行 `deinit GuardSlice`：在合流失败清单中漏掉 `guard?` 报 V1，在正常退出去掉条件标志报 V2。越过借用字段嵌套、递归与容器子视图仍未验证。

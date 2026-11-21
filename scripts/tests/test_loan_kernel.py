@@ -275,7 +275,8 @@ class LoanKernelCases(unittest.TestCase):
                           ("deliverToSeparateSlots", "f"), ("deliverToSeparateSlots", "g"),
                           ("deliverThroughAlias", "f"), ("deliverThroughAlias", "g"),
                           ("openExclusiveInOneArm", "this"), ("openExclusiveInOneArm", "f"),
-                          ("moveExclusiveOutOfArm", "this"), ("moveExclusiveOutOfArm", "f")},
+                          ("moveExclusiveOutOfArm", "this"), ("moveExclusiveOutOfArm", "f"),
+                          ("conditionalReleaseKeepsDropFlag", "guard")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -811,7 +812,7 @@ class LoanKernelCases(unittest.TestCase):
         CHECKER.check(source, lowered=lowered)
         for name in ("nestedReleasedAfterLastUse", "forwardNestedRo", "forwardNestedRw", "deliverOnlyRo"):
             self.assertTrue(lowered[name][2], name)
-        for name in ("wrongFieldContractRejected", "localNestedEscapeRejected", "unsupportedDeinitSubView"):
+        for name in ("wrongFieldContractRejected", "localNestedEscapeRejected", "unsupportedBorrowedSubView"):
             self.assertFalse(lowered[name][2], name)
         types, program, accepted = lowered["dropsNestedFieldsOnFailure"]
         self.assertTrue(accepted)
@@ -822,6 +823,31 @@ class LoanKernelCases(unittest.TestCase):
         call.cleanup.pop()  # 仅在失败清单中漏掉嵌套子视图
         found = CHECKER.DP.Verifier(types).run_all(program)
         self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
+    def test_open_preserves_deinit_subview_observability_and_cleanup(self):
+        source = (ROOT / "cases/Z18.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("writeAfterReleasingOpenedDeinitSubView", "openedDeinitSubViewDropsBeforeEarlierSource",
+                     "conditionalReleaseKeepsDropFlag"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("openedDeinitSubViewStaysAliveUntilDrop", "moveOpenedDeinitSubViewToOlderSlotRejected"):
+            self.assertFalse(lowered[name][2], name)
+        types, program, accepted = lowered["conditionalReleaseKeepsDropFlag"]
+        self.assertTrue(accepted)
+        deinits = {"GuardSlice": lowered["deinit GuardSlice"][:2]}
+        self.assertEqual({}, self.verify(types, program, "conditionalReleaseKeepsDropFlag", deinits))
+        joined = next(s for s in program if s.kind == "call")
+        drops = [s for s in program if s.kind == "drop"]
+        self.assertEqual([("file", False), ("guard", True)], joined.cleanup)
+        self.assertEqual([("file", False), ("guard", True)], [(s.var, s.if_owned) for s in drops])
+        joined.cleanup.pop()  # 未移走路径在合流后失败时漏掉 guard
+        found = self.verify(types, program, "conditionalReleaseKeepsDropFlag", deinits)
+        self.assertEqual({"V1": [(0, 2), (1, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+        joined.cleanup.append(("guard", True))
+        drops[-1].if_owned = False  # 已移走路径在正常退出时重复析构 guard
+        found = self.verify(types, program, "conditionalReleaseKeepsDropFlag", deinits)
+        self.assertEqual({"V2": [(0, 2), (0, 2), (0, 2), (0, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

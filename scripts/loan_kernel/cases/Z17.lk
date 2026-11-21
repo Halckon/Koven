@@ -77,8 +77,8 @@ fun dropsNestedFieldsOnFailure(own this: DeepHolder): Unit in DeepHolder {
   mayFail()
   update(nested.inner.rw)
 }
-view class DeinitSlice(borrow source: Arr) deinit
-view class DeinitSubHolder(slice: DeinitSlice, file: File) deinit
-fun unsupportedDeinitSubView(own this: DeinitSubHolder): Unit in DeinitSubHolder {
-  open this as slice, file  // ERR K25
+view class IndirectSub(borrow inner: Slice)
+view class IndirectHolder(sub: IndirectSub, file: File) deinit
+fun unsupportedBorrowedSubView(own this: IndirectHolder): Unit in IndirectHolder {
+  open this as sub, file  // ERR K25
 }
