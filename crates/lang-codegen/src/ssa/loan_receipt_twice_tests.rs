@@ -1,6 +1,9 @@
 //! Ordered receiver loans and one owner drop under fallback and independently anchored Refine.
 use crate::ssa::loan_region_ssa_tests::*;
-use lang_frontend::ownership_checking::UnitLoanActionCoverage;
+use lang_frontend::ownership_checking::{
+    UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanAction,
+    UnitLoanActionCoverage, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+};
 
 pub(super) const SOURCE: &str = "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }";
 
@@ -98,22 +101,26 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
             expect_refine,
             "two-call caller route with source {source_text}: {routed:?}"
         );
+        let mut raw_intervals = Vec::new();
         for (index, call_span) in call_offsets.iter().copied().enumerate() {
             let mut regions = owned
                 .ownership()
                 .loan_action_observations()
                 .iter()
-                .flat_map(|o| o.regions())
-                .filter(|region| {
-                    let span = parsed
-                        .ast()
-                        .expressions()
-                        .get(region.call().expression())
-                        .unwrap()
-                        .span();
-                    span.source_id() == source && (span.start(), span.end()) == call_span
+                .flat_map(|obs| obs.regions().iter().map(move |region| (obs, region)))
+                .filter(|(obs, region)| {
+                    obs.source() == region.call().source_unit()
+                        && parsed
+                            .ast()
+                            .expressions()
+                            .get(region.call().expression())
+                            .is_ok_and(|node| {
+                                let span = node.span();
+                                span.source_id() == source
+                                    && (span.start(), span.end()) == call_span
+                            })
                 });
-            let region = regions
+            let (observation, region) = regions
                 .next()
                 .expect("a region for this exact receiver call");
             assert!(regions.next().is_none());
@@ -129,6 +136,73 @@ fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
                 UnitLoanActionCoverage::Complete
             };
             assert_eq!(region.coverage(), expected, "receiver call {index}");
+            if !expect_refine {
+                assert!(observation.owns_region(region));
+                let ids = region.action_ids().collect::<Vec<_>>();
+                assert_eq!(ids.len(), 2 + usize::from(index == 1));
+                raw_intervals.push((observation, region.call(), ids));
+            }
+        }
+        if !expect_refine {
+            let [(observation, first, first_ids), (_, second, second_ids)] =
+                raw_intervals.as_slice()
+            else {
+                panic!("exactly two source-qualified caller intervals");
+            };
+            assert_ne!(first, second);
+            let ordered = first_ids.iter().chain(second_ids).collect::<Vec<_>>();
+            let actual_index = (0..observation.actions().len())
+                .find(|index| observation.action_id(*index).as_ref() == Some(ordered[0]))
+                .unwrap();
+            assert!(ordered.iter().enumerate().all(|(offset, id)| {
+                observation.action_id(actual_index + offset).as_ref() == Some(*id)
+            }));
+            let actions = ordered
+                .iter()
+                .map(|id| observation.action(id).unwrap())
+                .collect::<Vec<_>>();
+            let [
+                UnitLoanAction::ReceiverBegin(first_begin),
+                UnitLoanAction::ReceiverEnd(first_end),
+                UnitLoanAction::ReceiverBegin(second_begin),
+                UnitLoanAction::ReceiverEnd(second_end),
+                UnitLoanAction::Cleanup {
+                    point,
+                    action: UnitIterationCleanupAction::Drop(drop),
+                },
+            ] = actions.as_slice()
+            else {
+                panic!("first pair, second pair, then one terminal cleanup");
+            };
+            for (call, begin, end) in [
+                (first, first_begin, first_end),
+                (second, second_begin, second_end),
+            ] {
+                assert_eq!(begin.call(), *call);
+                assert_eq!(owned.ownership().receiver_fact(*call), Some(begin));
+                assert_eq!(begin.kind(), UnitReceiverOwnershipKind::SharedLoan);
+                assert_eq!(end.receiver(), begin);
+                assert_eq!(end.point(), UnitDropPoint::CallReturn(*call));
+                assert!(owned.ownership().receiver_call_return_ends().contains(end));
+            }
+            let UnitReceiverOwnershipTarget::Place(place) = first_begin.target() else {
+                panic!("stable source root");
+            };
+            assert!(place.is_root());
+            assert_eq!(first_begin.target(), second_begin.target());
+            assert_eq!(*point, UnitDropPoint::CallReturn(*second));
+            assert_eq!(drop.point(), *point);
+            assert_eq!(drop.target(), UnitDropTarget::Named(place.root()));
+            let drops = owned
+                .ownership()
+                .drops()
+                .iter()
+                .filter(|row| row.target() == drop.target())
+                .collect::<Vec<_>>();
+            let [actual_drop] = drops.as_slice() else {
+                panic!("exactly one same-root drop in the ownership product");
+            };
+            assert_eq!(*actual_drop, drop);
         }
         assert!(receipts.iter().all(|receipt| receipt.caller != *callee));
         let [block] = run.blocks.as_slice() else {
