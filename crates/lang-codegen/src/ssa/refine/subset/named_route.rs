@@ -272,7 +272,9 @@ impl Checker<'_, '_> {
             || !call.instance().type_arguments().is_empty()
             || !matches!(
                 self.kind(self.c(call.return_type())),
-                Some(UnitTypeKind::Builtin(BuiltinType::Int | BuiltinType::Unit))
+                Some(UnitTypeKind::Builtin(
+                    BuiltinType::Int | BuiltinType::Boolean | BuiltinType::Unit
+                ))
             )
             || receiver.mode() != ParameterMode::Borrow
             || self.c(receiver.ty()) != ty

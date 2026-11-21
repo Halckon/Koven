@@ -327,7 +327,7 @@ impl Plans {
                     .concrete(inputs.typed.call(call).ok_or_else(fail)?.return_type())
                     .ok_or_else(fail)?;
                 let returns_value = match inputs.typed.types().get(ty) {
-                    Some(UnitTypeKind::Builtin(BuiltinType::Int)) => true,
+                    Some(UnitTypeKind::Builtin(BuiltinType::Int | BuiltinType::Boolean)) => true,
                     Some(UnitTypeKind::Builtin(BuiltinType::Unit)) => false,
                     _ => return Err(fail()),
                 };

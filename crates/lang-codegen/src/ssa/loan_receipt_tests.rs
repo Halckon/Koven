@@ -273,7 +273,6 @@ mod receiver_boolean;
 
 mod receiver_route {
     //! Ordinary source-only bounded routing checks; no native execution or fault injection.
-    use super::receiver_boolean;
     use crate::ssa::loan_region_ssa_tests::*;
 
     #[cfg(feature = "loan-observation-test-support")]
@@ -366,10 +365,12 @@ mod receiver_route {
     #[test]
     fn neighboring_receiver_shapes_keep_existing_routes() {
         for text in [
-            receiver_boolean::SOURCE,
             "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { node.touch() }",
             "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
             "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1) }",
+            "class Node { fun touch(): Boolean = true }\nfun run(node: Node): Unit { node.touch() }",
+            "class Node { fun touch(): Boolean = true }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
+            "class Node { fun touch(own x: Int): Boolean = true }\nfun run(own node: Node): Unit { node.touch(1) }",
         ] {
             let mut sources = SourceMap::new();
             let (source, parsed) =

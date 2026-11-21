@@ -36,7 +36,9 @@ impl DropPlanner<'_, '_> {
             || typed.mode() != ParameterMode::Borrow
             || !matches!(
                 self.checker.typed.types().get(call.return_type()),
-                Some(UnitTypeKind::Builtin(BuiltinType::Int | BuiltinType::Unit))
+                Some(UnitTypeKind::Builtin(
+                    BuiltinType::Int | BuiltinType::Boolean | BuiltinType::Unit
+                ))
             )
         {
             return None;

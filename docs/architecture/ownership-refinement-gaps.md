@@ -114,3 +114,17 @@ frontend 全量或完整 codegen lib；这些九项不证明无限源码空间�
 双配置 codegen all-target Clippy 通过。未重跑完整 LLVM/feature、frontend 全量或
 CI-only fault；[SPEC-0453 §4.5](../archive/specs/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#45-runtime-abort-的-map-result--string-职责恢复)
 的 feature 基线观察期限仍不是通过，最新合并候选 CI 另验。
+
+### A2 的 Boolean 结果本地候选
+
+在已同步 `8207b212` 的 E3 局部候选中，只迁移原 A2 见证里「独占持有非
+resource 的 `Node` 参数，仅一次零参数共享接收者调用，丢弃 `Boolean` 结果」
+的形态。首次回归要求该原始 caller 进入 Refine，原实现返回空路由集合而失败。
+最小实现只在原有前端 Protocol 2 观察、Refine 准入和 receipt 结果判断中接纳
+`Boolean`，不新增借用或清理事实，也不重写动作生成。
+
+`boolean_receiver_refines_and_preserves_identity_and_owner_release` 在双 Unit 布局
+核对原始调用源码、有/无观察产品、真实 SSA 指令及实体身份。独立 native 入口仍调用
+同一个 `run`，计数器按分配身份检查它的唯一 owner 释放一次。
+其余 A2 三种写法以及相应的 Boolean 结果变体仍由原普通入口负控固定在兼容路径。
+这不关闭 A2 其余兼容项，不涉及括号路由，也不代表远端或 Linux 验收。
