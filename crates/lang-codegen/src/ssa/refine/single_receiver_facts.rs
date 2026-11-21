@@ -3,7 +3,7 @@ use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::{
         UnitDropPoint, UnitDropTarget, UnitLoweringFacts, UnitOwnershipBindingDescriptor,
-        UnitReceiverCallReturnEndFact,
+        UnitReceiverCallReturnEndFact, UnitReceiverOwnershipFact,
     },
     type_checking::UnitExpressionId,
 };
@@ -15,6 +15,7 @@ use std::{
 #[derive(Default)]
 pub(in crate::ssa) struct SingleReceiverFacts {
     bindings: OnceCell<HashMap<UnitSymbolId, usize>>,
+    receivers: OnceCell<HashMap<UnitExpressionId, usize>>,
     ends: OnceCell<HashMap<UnitExpressionId, Vec<usize>>>,
     named_drops: OnceCell<HashSet<(UnitExpressionId, UnitSymbolId)>>,
 }
@@ -26,7 +27,7 @@ impl SingleReceiverFacts {
         symbol: UnitSymbolId,
     ) -> Option<&'a UnitOwnershipBindingDescriptor> {
         let index = self.bindings.get_or_init(|| {
-            first_binding_slots(owned.bindings().iter().map(|binding| {
+            first_slots(owned.bindings().iter().map(|binding| {
                 #[cfg(test)]
                 super::receiver_receipt::work_count::visit(|c| c.route_bindings += 1);
                 binding.symbol()
@@ -36,6 +37,26 @@ impl SingleReceiverFacts {
             .get(&symbol)
             .and_then(|&slot| owned.bindings().get(slot))?;
         (matched.symbol() == symbol).then_some(matched)
+    }
+
+    pub(super) fn receiver<'a>(
+        &self,
+        owned: &'a dyn UnitLoweringFacts,
+        call: UnitExpressionId,
+    ) -> Option<&'a UnitReceiverOwnershipFact> {
+        let index = self.receivers.get_or_init(|| {
+            first_slots(owned.receiver_facts().iter().map(|fact| {
+                #[cfg(test)]
+                super::receiver_receipt::work_count::visit(|c| c.receiver_rows += 1);
+                fact.call()
+            }))
+        });
+        #[cfg(test)]
+        super::receiver_receipt::work_count::visit(|c| c.receiver_probes += 1);
+        let fact = index
+            .get(&call)
+            .and_then(|&slot| owned.receiver_facts().get(slot))?;
+        (fact.call() == call).then_some(fact)
     }
 
     pub(super) fn has_end(
@@ -87,13 +108,11 @@ impl SingleReceiverFacts {
     }
 }
 
-fn first_binding_slots(
-    symbols: impl Iterator<Item = UnitSymbolId>,
-) -> HashMap<UnitSymbolId, usize> {
+// Use the first row as the linear query does; duplicates cannot replace that row.
+fn first_slots<K: Eq + std::hash::Hash>(keys: impl Iterator<Item = K>) -> HashMap<K, usize> {
     let mut index = HashMap::new();
-    for (slot, symbol) in symbols.enumerate() {
-        // Retain the first match, even when it is not Owned.
-        index.entry(symbol).or_insert(slot);
+    for (slot, key) in keys.enumerate() {
+        index.entry(key).or_insert(slot);
     }
     index
 }
@@ -150,7 +169,7 @@ mod tests {
         assert_ne!(wrong_source, call);
         assert_eq!(wrong_source.expression(), call.expression());
         assert_eq!(
-            first_binding_slots([root, other_place.root(), root].into_iter())[&root],
+            first_slots([root, other_place.root(), root].into_iter())[&root],
             0,
         );
 
@@ -165,6 +184,19 @@ mod tests {
 
         // Mutate only the private copied lookup, not the actual front-end records.
         let mut index = index;
+        assert_eq!(index.receiver(owned, call), owned.receiver_fact(call));
+        assert!(index.receiver(owned, wrong_source).is_none());
+        let other_call = other.receiver().call();
+        assert_eq!(first_slots([call, other_call, call].into_iter())[&call], 0);
+        let wrong_slot = owned
+            .receiver_facts()
+            .iter()
+            .position(|f| f.call() == other_call)
+            .unwrap();
+        let receivers = index.receivers.get_mut().unwrap();
+        receivers.insert(call, wrong_slot);
+        assert!(index.receiver(owned, call).is_none());
+
         let slot = owned
             .bindings()
             .iter()

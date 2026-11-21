@@ -11,6 +11,8 @@ pub(in crate::ssa::refine) struct Counts {
     pub(in crate::ssa::refine) route_ends: usize,
     pub(in crate::ssa::refine) route_drops: usize,
     pub(in crate::ssa::refine) precheck_ends: usize,
+    pub(in crate::ssa::refine) receiver_rows: usize,
+    pub(in crate::ssa::refine) receiver_probes: usize,
     pub(in crate::ssa::refine) declaration_rows: usize,
     pub(in crate::ssa::refine) region_rows: usize,
     pub(in crate::ssa::refine) drop_rows: usize,
@@ -124,6 +126,7 @@ fn count(n: usize) -> Counts {
                 drop_candidates: 0,
                 precheck_ends: 0,
                 declaration_rows: 0,
+                receiver_probes: 2 * n,
                 ..counts
             }
         );
@@ -184,6 +187,8 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
                 route_drops: callers,
                 precheck_ends: callers,
                 declaration_rows: callers,
+                receiver_rows: callers,
+                receiver_probes: 3 * callers,
             }
         );
     }

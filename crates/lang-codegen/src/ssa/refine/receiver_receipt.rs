@@ -282,7 +282,10 @@ impl Plans {
             };
             if begin.call() != call
                 || end.receiver() != begin
-                || inputs.owned.receiver_fact(call) != Some(begin)
+                || inputs.single_receiver_facts.map_or_else(
+                    || inputs.owned.receiver_fact(call),
+                    |facts| facts.receiver(inputs.owned, call),
+                ) != Some(begin)
                 || !inputs.single_receiver_facts.map_or_else(
                     || inputs.owned.receiver_call_return_ends().contains(end),
                     |facts| {

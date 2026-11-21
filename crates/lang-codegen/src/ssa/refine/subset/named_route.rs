@@ -290,7 +290,10 @@ impl Checker<'_, '_> {
         if site.dispatch_key().is_none() || !site.delegation().is_empty() {
             return None;
         }
-        let fact = inputs.owned.receiver_fact(id)?;
+        let fact = inputs.single_receiver_facts.map_or_else(
+            || inputs.owned.receiver_fact(id),
+            |facts| facts.receiver(inputs.owned, id),
+        )?;
         let UnitReceiverOwnershipTarget::Place(place) = fact.target() else {
             return None;
         };
