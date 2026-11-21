@@ -1150,4 +1150,10 @@ fun probe(borrow h: A): Unit {
 
 `Z22.lk` 在借用原型中接通 `empty` 类型标记与 `replace p`（规则 K26），与析构义务检验器（`drop_plan.py`）的 `replace` / D8 对齐。`replace p` 要求 `p` 为一层按值字段且字段类型声明了 `empty`（无来源普通类）；对未声明 `empty` 的字段或借用字段均报 K26。`replace p` 对 `p` 按写访问判借用冲突：经共享借用调用报 K1，字段被借用期间报 K1，同对象上不相交的另一字段被借用时接受，经 `inout` 参数调用接受。
 
-与部分移出（K23）不同，`replace` 在原处留下空值，原对象保持完整且不记入 `gone`：既可用于带 `deinit` 的类型（包括普通函数与 `deinit` 函数体），也可在循环中反复执行而不触发回边 K8。对本函数拥有的对象，检查器发射 `DP.Stmt("replace")` 与移交，使新绑定 `n` 与原对象 `u` 各自保有独立析构义务；`mayFail` 失败清单为 `n, u`，检验器真实执行 `deinit Unlinker`：漏掉较晚的 `n` 同时报 V4（逆序违规）与 V1（泄漏），漏掉较早的 `u` 报 V1。携带来源的 `empty` 视图字段及 `cell`/`local` 子视图的 `open` 仍未验证。
+与部分移出（K23）不同，`replace` 在原处留下空值，原对象保持完整且不记入 `gone`：既可用于带 `deinit` 的类型（包括普通函数与 `deinit` 函数体），也可在循环中反复执行而不触发回边 K8。对本函数拥有的对象，检查器发射 `DP.Stmt("replace")` 与移交，使新绑定 `n` 与原对象 `u` 各自保有独立析构义务；`mayFail` 失败清单为 `n, u`，检验器真实执行 `deinit Unlinker`：漏掉较晚的 `n` 同时报 V4（逆序违规）与 V1（泄漏），漏掉较早的 `u` 报 V1。携带来源的 `empty` 视图字段见 §61。
+
+## 61. 携带来源的 `empty` 视图字段 `replace`
+
+`Z23.lk` 将 `replace p`（K26）扩展到非 `cell`、非 `local`、非 `carrier` 的 `empty` 视图字段（如 `OptSlice`、`OptMutSlice`、`OptGuardSlice deinit`）。`replace` 将该字段的来源账随取出值移交；当被替换的存储目标唯一（`len(targets) == 1`）时，按 K20 清空原槽位在该字段路径下的来源账（经借用到达时同时清除借用上的过期副本），否则（如合流后的多目标别名）保守保留各可能拥有者的旧来源。
+
+在带 `deinit` 的 `DualHolder` 上，`val taken = replace h.first` 后：`taken` 存活期间保护 `a`（K1），用完后即使 `h` 仍活到作用域结束，`a` 也已解除、可写，而 `h.second` 仍保护 `b`（K1）。对独占视图 `OptMutSlice`，`taken` 存活期间对 `a` 的读与写均报 K1，用完后均放行。对带 `deinit` 的 `OptGuardSlice`，`taken` 活到析构点，用完后写 `a` 仍报 K1，经 `releaseOptGuard(move taken)` 移走后可写；失败清单为 `taken, h, a`，漏掉 `taken` 报 V1 与 V4，漏掉 `h` 报 V1。经 `inout` 参数 `replace h.first` 转发来源时，声明 `from h.first` 接受，错声明 `from h.second` 报 K6。合流别名 `target` 可能指向 `left` 或 `right` 时，`taken` 用完后两侧旧来源仍受保护；固定单目标时只解除被替换侧。`cell`/`local` 子视图的 `open` 仍未验证。

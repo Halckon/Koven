@@ -939,6 +939,53 @@ class LoanKernelCases(unittest.TestCase):
                 finally:
                     call.cleanup.insert(index, entry)
 
+    def test_replace_on_view_fields_transfers_origins_and_clears_unique_slot(self):
+        source = (ROOT / "cases/Z23.lk").read_text(encoding="utf-8")
+        # 仅取 replaceThroughJoinedAlias 构造合流、固定左、固定右对照：
+        # taken 用完后，合流版因目标不唯一仍保留 left 与 right 的旧来源；固定单目标则解除被替换侧。
+        head = source.split("fun replaceSharedViewReleasesUniqueSlot")[0]
+        alias_fun = "fun replaceThroughJoinedAlias" + source.split("fun replaceThroughJoinedAlias")[1]
+        base = head + alias_fun
+        marker = "  use(taken.source.len)\n"
+        probes = "  update(&mut a)\n  update(&mut b)\n"
+        after_taken = base.replace(marker, marker + probes)
+        left_only = "\n".join(
+            "" if line in ("  if (*) {", "    target = &mut right", "  }") else line
+            for line in after_taken.splitlines()) + "\n"
+        right_only = after_taken.replace("  if (*) {", "  {")
+        lines = {line: i for i, line in enumerate(after_taken.splitlines(), 1)}
+        for path, program, protected in (("join", after_taken, ("a", "b")),
+                                         ("left", left_only, ("b",)),
+                                         ("right", right_only, ("a",))):
+            with self.subTest(path=path):
+                self.assertEqual({("K1", lines[f"  update(&mut {n})"]) for n in protected},
+                                 {(rule, line) for rule, line, _ in CHECKER.check(program)})
+
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("replaceDeinitViewReleasedAfterMove", "replaceDeinitViewFailureCleanup",
+                     "replaceViaInoutForwardsFirst", "replaceThroughJoinedAlias"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("replaceDeinitViewStaysAliveUntilDrop", "replaceViaInoutWrongContract"):
+            self.assertFalse(lowered[name][2], name)
+        types, program, accepted = lowered["replaceDeinitViewFailureCleanup"]
+        self.assertTrue(accepted)
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("taken", False), ("h", False), ("a", False)], call.cleanup)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        # 参数 a、f 绑定 + let h + let taken（共 4 个 let）成功后，mayFail 失败：
+        # 漏掉较晚的可观察 taken 报 V1 + V4，漏掉较早的 h 报 V1。
+        for name, expected_violations in (("taken", {"V1", "V4"}), ("h", {"V1"})):
+            with self.subTest(omitted=name):
+                entry = (name, False)
+                index = call.cleanup.index(entry)
+                call.cleanup.pop(index)
+                try:
+                    found = CHECKER.DP.Verifier(types).run_all(program)
+                    self.assertEqual(expected_violations, {v.split()[0] for v in found})
+                finally:
+                    call.cleanup.insert(index, entry)
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

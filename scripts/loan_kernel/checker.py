@@ -1245,18 +1245,25 @@ class Checker:
         res = self.resolve(state, place)
         name = place.fields[0]
         decl = self.classes.get(res.ty.name)
-        if res.crossed or res.ty.kind != "cls" or decl is None or not decl.empty or not self.escapable(res.ty.name):
+        if (res.crossed or res.ty.kind not in ("cls", "view") or decl is None or not decl.empty
+                or decl.cell or decl.local or decl.carrier):
             self.error("K26", expr.line, f"{place.root}.{name} 的类型 {res.ty.name} 没有可以留在原处的空值")
             return Value(res.ty)
         if not res.writable:
             self.error("K1", expr.line, "不能经共享借用替换字段")
         self.access(state, res.targets, res.via, "write", expr.line)
+        carried = copy_loans(res.field_loans or {}) if res.ty.kind == "view" else {}
+        if res.ty.kind == "view" and len(res.targets) == 1:
+            var = state[place.root]
+            if var.ty.kind in ("borrow", "inout"):
+                var.loans = {k: held for k, held in var.loans.items() if not k.startswith(name + ".")}
+            self.record_flow(state, res.targets, {}, replace=True)
         if self.tracked(state[place.root]):
             taken = f"{place.root}#{name}#{expr.site}"
             self.dp_type(res.ty)
             self.emit("replace", expr.line, taken, ty=place.root, fld=name)
             self.emit("move", expr.line, taken)
-        return Value(res.ty)
+        return Value(res.ty, carried)
 
     # ---- 挂起（内核基底 KB8）
 
