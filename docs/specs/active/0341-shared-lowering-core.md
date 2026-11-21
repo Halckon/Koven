@@ -22121,3 +22121,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `d83b1e7d`，前端与新 codegen 测试共用原 164 字节文件（SHA-256 `e9d28c10c6d4cb73725be073d8f62bc432281455f9e05440a14707b9eb876ac5`），前端旧 FQN 和 Single 全类别结束动作断言原样保留。
 - 两种布局下从原 `use` entry 降低并验证实际 SSA：唯一调用方 block 只含原 `stop()` 对本源声明的 DirectCall，callee 为无正常返回的 Nothing ABI，调用无实参或结果；同位置的 Unreachable 无任何后继。调用方没有常量物化、BorrowEnd、Drop 或其他可执行指令。该证据只证明已验证 SSA，不等同公开 Single planner 事件流；不运行故意不终止的递归。
 - Mac 现有缓存 offline 单 job codegen exact 1/1、常量前端 18/18，静态检查通过。未改生产/API/CI、未做本片 Linux 或远程验证，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：前向常量解析后的迭代类型准入迁移
+
+- 基于 `b4b752ff`，只迁 `pending_iteration_source::resolved_forward_constant_keeps_single_iteration_plan` 的原正例，源码字节和历史 FQN 不变。同源旧 Single 与双 Unit 实际通过最终类型准入、各有唯一真实迭代类型描述符。Unit 不把常量专用能力误当基础 capability。
+- 两种 Unit 明确验证 `FIRST` 通过后定义的 `SECOND` 获得 true，条件引用到精确的 `FIRST` 符号，两个分支读取原 `p`，同一真实 for 获得 List Borrow provider、Int 元素和精确 `item` binder。邻接 pending、嵌套跳转及旧分阶段边界不变。该旧用例只验证类型，不要求新所有权/SSA 证据。
+- Mac 缓存 rlib 定点通过，`final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过。未改生产/API/CI，未重建 Cargo，未跑本片 Linux 或远端 CI。
