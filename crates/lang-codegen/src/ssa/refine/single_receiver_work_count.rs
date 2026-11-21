@@ -11,6 +11,7 @@ pub(in crate::ssa::refine) struct Counts {
     pub(in crate::ssa::refine) route_ends: usize,
     pub(in crate::ssa::refine) route_drops: usize,
     pub(in crate::ssa::refine) precheck_ends: usize,
+    pub(in crate::ssa::refine) declaration_rows: usize,
     pub(in crate::ssa::refine) region_rows: usize,
     pub(in crate::ssa::refine) drop_rows: usize,
     pub(in crate::ssa::refine) region_candidates: usize,
@@ -122,6 +123,7 @@ fn count(n: usize) -> Counts {
                 region_candidates: 0,
                 drop_candidates: 0,
                 precheck_ends: 0,
+                declaration_rows: 0,
                 ..counts
             }
         );
@@ -169,6 +171,7 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
     let small = count(n);
     let large = count(2 * n);
     eprintln!("N={n}: {small:?}; 2N: {large:?}");
+    assert!(small.declaration_rows >= n && large.declaration_rows >= 2 * n);
     for (callers, counts) in [(n, small), (2 * n, large)] {
         assert_eq!(
             counts,
@@ -181,6 +184,8 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
                 route_ends: callers,
                 route_drops: callers,
                 precheck_ends: callers,
+                // Count only; do not turn the existing expensive work into a required oracle.
+                declaration_rows: counts.declaration_rows,
             }
         );
     }

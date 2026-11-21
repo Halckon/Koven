@@ -328,7 +328,11 @@ impl Plans {
                 .index()
                 .declarations()
                 .iter()
-                .find(|d| d.id() == id)
+                .find(|d| {
+                    #[cfg(test)]
+                    work_count::visit(|counts| counts.declaration_rows += 1);
+                    d.id() == id
+                })
                 .ok_or_else(fail)?;
             if UnitItemId::new(declaration.source_unit(), declaration.root()) != callable {
                 return Err(fail());
