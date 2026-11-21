@@ -5,7 +5,7 @@ use crate::ownership_checking::compilation_unit::loan_region_validation::Expecte
 use crate::ownership_checking::{
     OwnershipBindingKind, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
 };
-use crate::parser::ParameterModeMarker;
+use crate::parser::{IntegerLiteralKind, LiteralKind, ParameterModeMarker};
 use crate::type_checking::{CallableResultSource, UnitCallTarget, UnitItemId};
 
 impl DropPlanner<'_, '_> {
@@ -32,7 +32,6 @@ impl DropPlanner<'_, '_> {
             || call.result_source() != CallableResultSource::Owned
             || call.aborts()
             || !call.instance().type_arguments().is_empty()
-            || !call.arguments().is_empty()
             || typed.mode() != ParameterMode::Borrow
             || !matches!(
                 self.checker.typed.types().get(call.return_type()),
@@ -56,9 +55,40 @@ impl DropPlanner<'_, '_> {
         else {
             return None;
         };
-        if !arguments.is_empty() {
-            return None;
-        }
+        let scalar = match (arguments.as_slice(), call.arguments()) {
+            ([], []) => false,
+            ([argument], [typed]) => {
+                let int = self.checker.typed.types().builtin(BuiltinType::Int)?;
+                let value = self
+                    .checker
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(argument.value)
+                    .ok()?;
+                if argument.named_prefix.is_some()
+                    || argument.mode_marker.is_some()
+                    || !matches!(
+                        value.payload(),
+                        Expression::Literal(LiteralKind::Integer(IntegerLiteralKind::Unsuffixed))
+                    )
+                    || typed.argument_index() != 0
+                    || typed.parameter_index() != 0
+                    || typed.mode() != ParameterMode::Value
+                    || typed.parameter_type() != int
+                    || self
+                        .checker
+                        .typed
+                        .expression_type(self.checker.unit_expression(argument.value))
+                        != Some(int)
+                    || call.return_type() != int
+                {
+                    return None;
+                }
+                true
+            }
+            _ => return None,
+        };
         let Expression::Member {
             receiver,
             safe: false,
@@ -104,7 +134,13 @@ impl DropPlanner<'_, '_> {
         {
             return None;
         }
-        let Item::Function { parameters, .. } = self
+        let Item::Function {
+            parameters,
+            form,
+            type_parameters,
+            extension_receiver,
+            ..
+        } = self
             .checker
             .parsed
             .ast()
@@ -115,6 +151,40 @@ impl DropPlanner<'_, '_> {
         else {
             return None;
         };
+        if scalar {
+            let body = match form {
+                FunctionForm::ImplicitUnitBlock(body)
+                | FunctionForm::Explicit {
+                    body: FunctionBody::Block(body),
+                    ..
+                } => body,
+                _ => return None,
+            };
+            let Statement::Block { elements } = self
+                .checker
+                .parsed
+                .ast()
+                .statements()
+                .get(*body)
+                .ok()?
+                .payload()
+            else {
+                return None;
+            };
+            let [statement] = elements.as_slice() else {
+                return None;
+            };
+            if parameters.len() != 1
+                || !type_parameters.is_empty()
+                || extension_receiver.is_some()
+                || !matches!(
+                    self.checker.parsed.ast().statements().get(*statement).ok()?.payload(),
+                    Statement::Expression { expression: only } if *only == expression
+                )
+            {
+                return None;
+            }
+        }
         let parameter = parameters
             .iter()
             .find(|parameter| self.checker.marker_symbol(parameter.name).copied() == Some(root))?;

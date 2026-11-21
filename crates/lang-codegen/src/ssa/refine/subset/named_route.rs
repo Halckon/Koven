@@ -1,5 +1,8 @@
 //! SPEC-0341 bounded caller routing triggers: owned String argument calls, owned-class
 //! receiver calls, and literal String temporary calls. The complete subset precheck remains mandatory.
+#[path = "named_receiver_argument.rs"]
+mod receiver_argument;
+
 use super::{Checker, RefineBody};
 use lang_frontend::{
     ownership_checking::{
@@ -232,9 +235,6 @@ impl Checker<'_, '_> {
         else {
             return None;
         };
-        if !arguments.is_empty() {
-            return None;
-        }
         let Expression::Member {
             receiver: source,
             safe: false,
@@ -266,7 +266,7 @@ impl Checker<'_, '_> {
         let id = self.id(*expression);
         let call = inputs.typed.call(id)?;
         let receiver = call.receiver()?;
-        if !call.arguments().is_empty()
+        if !self.receiver_arguments_fit(arguments, call)?
             || call.aborts()
             || call.result_source() != CallableResultSource::Owned
             || !call.instance().type_arguments().is_empty()

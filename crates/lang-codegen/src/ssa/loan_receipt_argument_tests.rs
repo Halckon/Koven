@@ -1,10 +1,10 @@
 //! Ordinary receiver fallback with one real explicit scalar argument.
 use crate::ssa::loan_region_ssa_tests::*;
 
-pub(super) const SOURCE: &str = "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1) }";
+const SOURCE: &str = "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1) }";
 
 #[test]
-fn explicit_scalar_receiver_fallback_preserves_callee_argument_and_owner_release() {
+fn explicit_scalar_receiver_refine_preserves_callee_argument_and_owner_release() {
     let text = format!("{SOURCE}\nfun entry(): Unit {{ run(Node()) }}");
     let mut sources = SourceMap::new();
     let (source, parsed) =
@@ -17,7 +17,7 @@ fn explicit_scalar_receiver_fallback_preserves_callee_argument_and_owner_release
         let inputs = [input];
         let (names, typed, owned) =
             unit_lower_test_support::analyze(&sources, &inputs, &environment, &types);
-        let entry = names
+        let entry_declaration = names
             .names()
             .index()
             .declarations()
@@ -28,7 +28,13 @@ fn explicit_scalar_receiver_fallback_preserves_callee_argument_and_owner_release
         let ((lowered, routed), receipts) = crate::ssa::refine::receiver_receipt::observe(|| {
             crate::ssa::refine::observe_routing(|| {
                 crate::ssa::unit_lower::lower_scalar_unit_with_entry(
-                    &sources, &inputs, &names, &types, &typed, &owned, entry,
+                    &sources,
+                    &inputs,
+                    &names,
+                    &types,
+                    &typed,
+                    &owned,
+                    entry_declaration,
                 )
             })
         });
@@ -74,8 +80,9 @@ fn explicit_scalar_receiver_fallback_preserves_callee_argument_and_owner_release
             sources.slice(run.origin.span()).unwrap(),
             SOURCE.split_once('\n').unwrap().1
         );
-        assert!(!routed.contains(&run.name));
-        assert!(receipts.iter().all(|receipt| receipt.caller != *callee));
+        assert_eq!(routed.as_slice(), std::slice::from_ref(&run.name));
+        #[cfg(not(feature = "loan-observation-test-support"))]
+        assert!(receipts.is_empty());
         let [block] = run.blocks.as_slice() else {
             panic!("straight-line receiver caller");
         };
@@ -174,6 +181,77 @@ fn explicit_scalar_receiver_fallback_preserves_callee_argument_and_owner_release
 
         verify_program(&program).unwrap();
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        #[cfg(feature = "loan-observation-test-support")]
+        {
+            use lang_frontend::ownership_checking::{
+                check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
+            };
+            let regions = owned
+                .ownership()
+                .loan_action_observations()
+                .iter()
+                .flat_map(|o| o.regions())
+                .filter(|r| {
+                    r.protocol_version() == 2 && r.coverage() == UnitLoanActionCoverage::Complete
+                })
+                .collect::<Vec<_>>();
+            let [region] = regions.as_slice() else {
+                panic!("one actual Complete2 receiver region");
+            };
+            let [receipt] = receipts.as_slice() else {
+                panic!("one real scalar receiver receipt");
+            };
+            assert_eq!(receipt.ids, region.action_ids().collect::<Vec<_>>());
+            assert_eq!(Some(receipt.callable), region.callable());
+            assert_eq!(receipt.call, region.call());
+            assert_eq!(receipt.caller, run.id());
+            assert_eq!(
+                receipt.instructions,
+                [root.id, begin.id, call.id, end.id, drop.id]
+            );
+            assert_eq!(
+                receipt.entities,
+                [
+                    EntityId::Value(*owner),
+                    EntityId::Place(*place),
+                    EntityId::Loan(*loan),
+                ]
+            );
+            let off = with_loan_observation(false, || {
+                check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap()
+            });
+            assert!(legacy_ownership_eq(owned.ownership(), off.ownership()));
+            assert!(off.ownership().loan_action_observations().is_empty());
+            let ((off_program, off_routes), off_receipts) =
+                crate::ssa::refine::receiver_receipt::observe(|| {
+                    crate::ssa::refine::observe_routing(|| {
+                        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                            &sources,
+                            &inputs,
+                            &names,
+                            &types,
+                            &typed,
+                            &off,
+                            entry_declaration,
+                        )
+                    })
+                });
+            let (off_program, off_entry) = off_program.unwrap();
+            assert_eq!(off_routes, routed);
+            assert!(off_receipts.is_empty());
+            verify_program(&off_program).unwrap();
+            assert_eq!(
+                crate::ssa::render_program(&off_program),
+                crate::ssa::render_program(&program)
+            );
+            assert_eq!(
+                crate::llvm::render_verified_program_with_entry(&off_program, off_entry).unwrap(),
+                llvm
+            );
+        }
         let output =
             crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
         crate::native_tests::boxed_enum_tests::assert_success(&output, b"");

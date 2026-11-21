@@ -169,5 +169,20 @@ A3、A4 两个测试模块在主干同步点 `8207b212` 与本地复核树 `570a
 另有一项独立可行性探针：仅在显式标量实参见证的 caller 里加入空的
 `Int?` 局部绑定作为既有 Refine 路由条件。两种 Unit 布局实际由通用 Refine
 实现完成原接收者、实参与每个释放动作，无 Protocol 2 receipt。
-原始无附加条件的源码仍走 Compatibility。这证明基本 lowering 能力，不是
-该形态直接准入或实际 receipt 所需证明的替代。
+在探针基线 `461256d4` 上，原始无附加条件的源码仍走 Compatibility。这证明基本
+lowering 能力，不是该形态直接准入或实际 receipt 所需证明的替代。
+
+
+### A2 单个显式 Int 字面量本地迁移
+
+以 `461256d4` 为基线保留原一条语句的 owned 非 resource caller，仅给
+无名称、无模式标记、无括号的单个无后缀 `Int` 字面量补 Refine 准入；调用的
+唯一直达参数须为 `own Int`，返回类型仍是 `Int`。基线对同一源码接受但不进入
+Refine，作为红测。新路径不改变借用开始/结束或 owner drop 的产生，不增加
+Protocol 2 的三个动作和五个 SSA 生命周期指令。
+
+私有校验记录跟踪原字面量范围、值、已降低的 Slot 和实际 SSA 定义/Value，验证
+该 Value 紧邻调用且是真实实参。双布局的观察 ON 核对原 Complete2 和 SSA
+生命周期端点，真实 OFF 核对同一路由与等价 SSA/LLVM，native 核对同一 owner
+唯一释放。独立 anchor 正控仍无 receipt；命名、借用形参、带括号及计算表达式
+负控不继承此直达准入。借用接收者和多调用的旧路径不变，未扩大为任意实参。

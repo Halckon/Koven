@@ -119,7 +119,13 @@ pub(in crate::ssa::refine) mod emitted {
                     },
                 ) if *callee == p.callee
                     && *receiver == Some(entity(p.loan)?)
-                    && arguments.is_empty()
+                    && super::scalar_argument::matches_emitted(
+                        p.argument.as_ref(),
+                        function,
+                        data,
+                        arguments,
+                        &entity,
+                    )?
                     && data.results.len() == usize::from(p.returns_value)
                     && data.results.iter().all(|e| matches!(e, EntityId::Value(_))) => {}
                 (3, Operation::BorrowEnd { loan })
@@ -176,10 +182,13 @@ pub(in crate::ssa::refine) mod emitted {
     }
 }
 
+#[path = "receiver_scalar_argument.rs"]
+mod scalar_argument;
+
 use super::body::{BlockRef, ROp, Slot};
 use crate::ssa::{
     lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::{FunctionId, LoanKind},
+    model::{FunctionId, LoanKind, ScalarConstant},
 };
 pub(in crate::ssa::refine) use emitted::Emitted;
 use lang_frontend::{
@@ -192,6 +201,7 @@ use lang_frontend::{
     source::Span,
     type_checking::{BuiltinType, UnitCallableTarget, UnitExpressionId, UnitItemId, UnitTypeKind},
 };
+use scalar_argument::IntArgument;
 
 #[derive(Clone, Copy, Debug)]
 pub(in crate::ssa::refine) struct Tag {
@@ -215,6 +225,7 @@ pub(in crate::ssa::refine) struct Plan {
     pub(in crate::ssa::refine) root: UnitSymbolId,
     pub(in crate::ssa::refine) drop_index: usize,
     pub(in crate::ssa::refine) returns_value: bool,
+    argument: Option<IntArgument>,
     pub(in crate::ssa::refine) owner: Option<Slot>,
     pub(in crate::ssa::refine) place: Option<Slot>,
     pub(in crate::ssa::refine) loan: Option<Slot>,
@@ -331,6 +342,7 @@ impl Plans {
                     Some(UnitTypeKind::Builtin(BuiltinType::Unit)) => false,
                     _ => return Err(fail()),
                 };
+                let argument = IntArgument::try_for_call(inputs, call)?;
                 result.entries.push(Plan {
                     ids,
                     callable,
@@ -341,6 +353,7 @@ impl Plans {
                     root: root.root(),
                     drop_index: *drop_index,
                     returns_value,
+                    argument,
                     owner: None,
                     place: None,
                     loan: None,
@@ -404,6 +417,21 @@ impl Plans {
             let Some(owner) = plan.owner else {
                 continue;
             };
+            if let Some(argument) = plan.argument.as_mut()
+                && argument.span == span
+            {
+                let [slot] = results else {
+                    return Err(invalid(span));
+                };
+                if plan.stage != 2
+                    || plan.block != Some(block)
+                    || !matches!(op, ROp::Constant(ScalarConstant::Integer(value)) if *value == argument.value)
+                    || argument.slot.replace(*slot).is_some()
+                {
+                    return Err(invalid(span));
+                }
+                continue;
+            }
             let involved = match op {
                 ROp::RootPlace { owner: actual } | ROp::Drop { owner: actual } => *actual == owner,
                 ROp::BorrowBegin { place, .. } => Some(*place) == plan.place,
@@ -439,7 +467,12 @@ impl Plans {
                     },
                 ) if *callee == plan.callee
                     && *receiver == plan.loan
-                    && arguments.is_empty()
+                    && match &plan.argument {
+                        None => arguments.is_empty(),
+                        Some(argument) => {
+                            argument.slot.is_some_and(|s| arguments.as_slice() == [s])
+                        }
+                    }
                     && results.len() == usize::from(plan.returns_value) => {}
                 (3, ROp::BorrowEnd { .. }) if results.is_empty() => {}
                 (4, ROp::Drop { .. }) if plan.drop_authorized && results.is_empty() => {}
