@@ -22048,3 +22048,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `3442cb25`，只迁同一旧 FQN 的 `explicit-borrow-local` 原源码。剩余七项仍在原 Single/Rooted 矩阵，包括三项已知完整诊断不等价的场景。
 - 原 Single 与两种 Unit 均通过完整类型准入，ownership 唯一 L0133：`cannot move a non-Copyable value out of a borrowed binding`；主为消费处的 `source`（88..94），原声明真实 `borrow` 标记（47..53）为唯一关联标签 `non-owning binding established here`。完整诊断相同。Unit 真实 MapConsume 的 typed Place 和选择到的具名接收者均指向本地 `source`；该符号来自解析出的 `borrow val`，其初始化表达式另行解析到签名中 Borrow 模式的 `input` 形参。拒绝不会发布可执行借用、交付或清理事实。
 - Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未修改生产/API/CI，未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 使用已移动值的两个拒绝测试
+
+- 基于 `96a76227`，只迁同一旧 FQN 的 `read-after-move`、`consume-twice` 两行，原源码字节不变。余五项保持原 Single/Rooted 矩阵，包括三项完整诊断不等价场景。
+- 原 Single 与两种 Unit 的完整 ownership 诊断相同：一条 L0131 `use of moved value`，主均为第二次使用的 `source`（104..110）；唯一标签 `value was moved here` 分别锚定原首个 consume 接收者（73..79 / 72..78）。两布局均通过最终类型准入，解析至同一由真实 `MutableMapOf` 初始化的本地 `val source`。第一例后续选中真实 Map size 读取 (`Int`)，第二例选中两个不同的 MapConsume 调用 ID，而非将一次调用重复计数；两次接收者各自解析至同一个 source-qualified 符号。只 pin 类型选择和诊断，不把拒绝产物当作可执行 Move 或其他事实。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未修改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。

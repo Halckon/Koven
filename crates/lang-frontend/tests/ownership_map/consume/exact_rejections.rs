@@ -117,6 +117,46 @@ pub(super) fn explicit_borrow_local() {
     );
 }
 
+pub(super) fn after_consume() {
+    for (label, text, calls, first) in [
+        (
+            "read-after-move",
+            r#"fun run(): Unit {
+  val source = mutableMapOf<Int, Int>()
+  val result = source.consume()
+  val count = source.size
+}"#,
+            1,
+            73,
+        ),
+        (
+            "consume-twice",
+            r#"fun run(): Unit {
+  val source = mutableMapOf<Int, Int>()
+  val first = source.consume()
+  val second = source.consume()
+}"#,
+            2,
+            72,
+        ),
+    ] {
+        let case = Case {
+            label,
+            text,
+            key: BuiltinType::Int,
+            value: BuiltinType::Int,
+            expected: Expected::Rejected("L0131"),
+            calls,
+        };
+        assert_rejection(
+            &case,
+            "use of moved value",
+            (104, "source"),
+            Some((first, "source", "value was moved here")),
+        );
+    }
+}
+
 fn assert_rejection(
     case: &Case,
     message: &str,
@@ -488,5 +528,117 @@ pub(super) fn assert_explicit_borrow_local_selection(
             reference.span() == span
                 && reference.target() == &ReferenceTarget::Symbol(target.symbol())
         }));
+    }
+}
+
+pub(super) fn assert_after_consume_selection(
+    case: &Case,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    unit: SourceUnitId,
+    names: &NameResolution,
+    types: &CompilationUnitTypes,
+    calls: &[(ExpressionId, ExpressionId)],
+) {
+    use lang_frontend::parser::{Item, NameMarker, VariableKind};
+
+    let span = |id: UnitExpressionId| {
+        assert_eq!(id.source_unit(), unit);
+        file.ast()
+            .expressions()
+            .get(id.expression())
+            .unwrap()
+            .span()
+    };
+    let spell = |id| sources.slice(span(id)).unwrap();
+    let root = unit_symbol_named(types, names, unit, "source").expect("declared local Map owner");
+    let declaration = names.symbols().get(root.symbol().index()).unwrap();
+    assert_eq!(declaration.kind(), SymbolKind::Variable);
+    assert_eq!(sources.slice(declaration.span()), Ok("source"));
+    let mut initializers = file
+        .ast()
+        .items()
+        .iter()
+        .filter_map(|(_, item)| match item.payload() {
+            Item::Variable {
+                kind: VariableKind::Val,
+                name: NameMarker::Present(name),
+                initializer,
+                ..
+            } if *name == declaration.span() => Some(UnitExpressionId::new(unit, *initializer)),
+            _ => None,
+        });
+    let [factory] = types.map_constructions() else {
+        panic!("one actual default MutableMap factory")
+    };
+    assert_eq!(initializers.next(), Some(factory.expression()));
+    assert!(initializers.next().is_none());
+    assert_eq!(factory.callable(), IntrinsicCallable::MutableMapOf);
+    let root_type = factory.map_type();
+    assert_eq!(types.symbol_type(root), Some(root_type));
+    assert!(unit_map(
+        types,
+        Some(root_type),
+        IntrinsicTypeConstructor::MutableMap,
+        case
+    ));
+
+    let assert_reference = |id| {
+        let range = span(id);
+        assert_eq!(spell(id), "source");
+        assert_eq!(types.expression_type(id), Some(root_type));
+        assert_eq!(
+            types.expression_category(id),
+            Some(ExpressionCategory::Place)
+        );
+        assert!(names.references().iter().any(|reference| {
+            reference.span() == range
+                && reference.target() == &ReferenceTarget::Symbol(root.symbol())
+        }));
+        range.start()
+    };
+    assert_eq!(types.map_consumes().len(), calls.len());
+    let mut selected_calls = calls
+        .iter()
+        .map(|(id, receiver)| {
+            let id = UnitExpressionId::new(unit, *id);
+            let receiver = UnitExpressionId::new(unit, *receiver);
+            let selected = types
+                .map_consumes()
+                .iter()
+                .find(|fact| fact.expression() == id)
+                .unwrap();
+            assert_eq!(spell(id), "source.consume()");
+            assert_eq!(selected.receiver(), receiver);
+            assert_eq!(selected.source(), Some((root, root_type)));
+            assert_eq!(selected.receiver_type(), root_type);
+            assert_eq!(types.expression_type(id), Some(selected.result_type()));
+            assert!(unit_map(
+                types,
+                Some(selected.result_type()),
+                IntrinsicTypeConstructor::Map,
+                case
+            ));
+            (id, assert_reference(receiver))
+        })
+        .collect::<Vec<_>>();
+    selected_calls.sort_unstable_by_key(|(_, offset)| *offset);
+    match (case.label, selected_calls.as_slice(), types.map_sizes()) {
+        ("read-after-move", [(_, 73)], [read]) => {
+            assert_eq!(spell(read.expression()), "source.size");
+            assert_eq!(read.map_type(), root_type);
+            assert_eq!(
+                types.expression_type(read.expression()),
+                types.types().builtin(BuiltinType::Int)
+            );
+            assert_eq!(assert_reference(read.receiver()), 104);
+        }
+        ("consume-twice", [(first, 72), (second, 104)], []) => {
+            assert_ne!(first, second);
+        }
+        _ => panic!(
+            "unexpected operation shapes: {selected_calls:?}, {:?}",
+            types.map_sizes()
+        ),
     }
 }

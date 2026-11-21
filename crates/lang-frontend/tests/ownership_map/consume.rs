@@ -470,6 +470,17 @@ fn observe_unit(
                 &typed,
                 &calls,
             ),
+            "read-after-move" | "consume-twice" => {
+                exact_rejections::assert_after_consume_selection(
+                    case,
+                    sources,
+                    file,
+                    source,
+                    local_names,
+                    &typed,
+                    &calls,
+                )
+            }
             "explicit-borrow-local" => exact_rejections::assert_explicit_borrow_local_selection(
                 case,
                 sources,
@@ -875,16 +886,6 @@ fn map_consume_complete_rejects_receiver_move_and_live_loan_boundaries() {
         // Guide v0.46: a top-level runtime root is L0167 before ownership, so no global-root case.
         ("borrow-parameter", r#"fun run(source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
         ("inout-parameter", r#"fun run(inout source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
-        ("read-after-move", r#"fun run(): Unit {
-  val source = mutableMapOf<Int, Int>()
-  val result = source.consume()
-  val count = source.size
-}"#, Int, Expected::Rejected("L0131"), 1),
-        ("consume-twice", r#"fun run(): Unit {
-  val source = mutableMapOf<Int, Int>()
-  val first = source.consume()
-  val second = source.consume()
-}"#, Int, Expected::Rejected("L0131"), 2),
         ("active-loan", r#"fun run(): Unit {
   var source = mutableMapOf<String, String>()
   source.put("key", "value")
@@ -906,7 +907,8 @@ fun run(): Unit {
   val result = identity(source).consume()
 }"#, Int, Expected::Rejected("L0131"), 1),
     ].map(|(label, text, element, expected, calls)| Case { label, text, key: element, value: element, expected, calls });
-    assert_matrix(&cases, 14);
+    assert_matrix(&cases, 10);
+    exact_rejections::after_consume();
     exact_rejections::explicit_borrow_local();
     exact_rejections::own_parameter();
     exact_rejections::temporary();
