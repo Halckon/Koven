@@ -7,10 +7,9 @@ pub(super) use unit_cleanup::check as unit;
 pub(in crate::ssa) mod nullable_numeric_cleanup {
     pub(in crate::ssa) use crate::ssa::bitwise_operation_tests::nullable_numeric_carrier as carrier;
 
-    use carrier::{Pair, numeric_exit, source, transport};
+    use carrier::source;
 
     use crate::ssa::lower_frontend::*;
-    use crate::ssa::model::SsaTypeKind;
     use lang_frontend::{
         ownership_checking::{
             CleanupCondition, CleanupConditionId, CleanupConditions, CleanupOwnerValue,
@@ -349,156 +348,6 @@ pub(in crate::ssa) mod nullable_numeric_cleanup {
             && binding.root_sources().is_empty()
             && binding.selector_writes().is_empty()
             && binding.origins().is_empty()
-    }
-
-    impl ExpressionLowerer<'_> {
-        /// Presence admits only this checked readonly path. No proof is installed here.
-        pub(in crate::ssa) fn qualify_numeric_while_entry(
-            &self,
-            statement: StatementId,
-            span: Span,
-        ) -> Result<Option<(SymbolId, NonNullProof)>, LoweringError> {
-            let Some((&root, &proof)) = self
-                .non_null_bindings
-                .iter()
-                .find(|(_, proof)| proof.is_while_origin())
-            else {
-                return Ok(None);
-            };
-            let mut candidates = self
-                .owned
-                .drops()
-                .iter()
-                .copied()
-                .filter_map(|fact| candidate(self.parsed, self.names, self.typed, self.owned, fact))
-                .filter(|plan| plan.statement == statement && plan.root == root);
-            let plan = candidates
-                .next()
-                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-            if candidates.next().is_some()
-                || proof.while_origin().map(|(scope, _)| scope) != Some(plan.outer)
-            {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
-            self.validate_numeric_while_pair(Some((root, proof)), span)?;
-            self.numeric_while_birth(root, proof)
-                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-            Ok(Some((root, proof)))
-        }
-
-        /// Revalidate the actual state at every edge; the inherited value supplies only
-        /// immutable provenance, never an owner or loan to put back into the state.
-        pub(in crate::ssa) fn validate_numeric_while_pair(
-            &self,
-            inherited: Option<(SymbolId, NonNullProof)>,
-            span: Span,
-        ) -> Result<(), LoweringError> {
-            let Some((root, inherited)) = inherited else {
-                return Ok(());
-            };
-            self.validate_readonly_while_exit(
-                root,
-                inherited,
-                &self.branch_exit(LoweredValue::Unit),
-                span,
-            )?;
-            self.ensure_no_unresolved_while_proof_carriers(span)?;
-            let proof = self.non_null_bindings[&root];
-            let storage = self
-                .typed
-                .symbol_type(root)
-                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-            let storage = self.resolve_type(storage, span)?;
-            let Some(TypeKind::Nullable(inner)) = self.typed.types().get(storage) else {
-                return Err(error(LoweringErrorKind::MissingFact, span));
-            };
-            if !self.temporaries.is_empty()
-                || self.borrow_bindings.contains_key(&root)
-                || self.typed.copyability(storage) != Some(Copyability::MoveOnly)
-                || self.typed.copyability(*inner) != Some(Copyability::MoveOnly)
-                || self.type_ids.get(inner) != Some(&proof.inner)
-                || !matches!(
-                    self.ssa_types.get(proof.inner.index()),
-                    Some(SsaTypeKind::HeapOwner { .. })
-                )
-                || self
-                    .type_ids
-                    .get(&storage)
-                    .and_then(|id| self.ssa_types.get(id.index()))
-                    != Some(&SsaTypeKind::NullableHandle { inner: proof.inner })
-                || self.numeric_while_birth(root, proof).is_none()
-            {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
-            Ok(())
-        }
-
-        /// Read-only before end_result_bindings can retire a child or alter a pair.
-        pub(in crate::ssa) fn preflight_nullable_numeric_cleanup(
-            &self,
-            facts: &[DropFact],
-        ) -> Result<(), LoweringError> {
-            for &fact in facts {
-                if let Some(plan) = candidate(self.parsed, self.names, self.typed, self.owned, fact)
-                {
-                    self.checked_nullable_numeric_owner(&plan)?;
-                }
-            }
-            Ok(())
-        }
-
-        pub(in crate::ssa) fn emit_nullable_numeric_cleanup(
-            &mut self,
-            fact: DropFact,
-        ) -> Result<bool, LoweringError> {
-            let Some(plan) = candidate(self.parsed, self.names, self.typed, self.owned, fact)
-            else {
-                return Ok(false);
-            };
-            let owner = self.checked_nullable_numeric_owner(&plan)?;
-            self.end_non_null_proof(plan.root, fact.value_origin())?;
-            if self.bindings.remove(&plan.root) != Some(LoweredValue::Value(owner)) {
-                return Err(error(LoweringErrorKind::MissingFact, fact.value_origin()));
-            }
-            self.append(Operation::Drop { owner }, Vec::new(), fact.value_origin())?;
-            self.release_owner_capture_loans(owner, fact.value_origin())?;
-            Ok(true)
-        }
-
-        pub(in crate::ssa) fn checked_nullable_numeric_owner(
-            &self,
-            plan: &Plan,
-        ) -> Result<ValueId, LoweringError> {
-            let span = plan.fact.value_origin();
-            let proof = self
-                .non_null_bindings
-                .get(&plan.root)
-                .copied()
-                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-            self.validate_numeric_while_pair(Some((plan.root, proof)), span)?;
-            let anchor = self
-                .numeric_while_birth(plan.root, proof)
-                .ok_or_else(|| error(LoweringErrorKind::UnsupportedNode, span))?;
-            let current = Pair {
-                block: self.block,
-                owner: proof.owner,
-                loan: proof.loan,
-            };
-            if self.loops.len() != 1
-                || self.thunk_expression.is_some()
-                || proof.while_origin().map(|(scope, _)| scope) != Some(plan.outer)
-                || self.typed.symbol_type(plan.root) != Some(plan.storage)
-                || self
-                    .function
-                    .block(self.block)
-                    .is_none_or(|block| block.terminator.is_some())
-                || !numeric_exit(self, plan, current, anchor)
-                || !transport(self.function, current, anchor, proof.inner, self.ssa_types)
-            {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
-            }
-            Ok(proof.owner)
-        }
     }
 
     pub(in crate::ssa) mod formation {

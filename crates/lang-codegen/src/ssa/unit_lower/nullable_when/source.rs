@@ -585,9 +585,12 @@ mod frontend_registration_tests {
         },
     };
 
-    use crate::ssa::lower_frontend::orchestrate::*;
     use crate::ssa::lower_frontend::*;
     use crate::ssa::model::{MapContainerKind, Module, Ownership, SsaTypeId, SsaTypeKind};
+    use lang_frontend::{
+        name_resolution::NameResolution, ownership_checking::OwnershipCheckedFile,
+        parser::ParsedFile, type_checking::TypedFile,
+    };
 
     use crate::ssa::nullable_map_consume_lowering_tests::registration_r1_source;
 
@@ -739,6 +742,77 @@ mod frontend_registration_tests {
                 .all(|&ty| module.map_container(ty).is_none())
         );
         format!("{kind:?}<{key_name},{value_name}>?")
+    }
+
+    fn validate_inputs(
+        sources: &SourceMap,
+        parsed: &ParsedFile,
+        names: &NameResolution,
+        typed: &TypedFile,
+        owned: &OwnershipCheckedFile,
+    ) -> Result<(), LoweringError> {
+        let source = parsed.source_id();
+        if names.source_id() != source || typed.source_id() != source || owned.source_id() != source
+        {
+            return Err(LoweringError {
+                kind: LoweringErrorKind::MismatchedSource,
+                span: None,
+            });
+        }
+        sources.source_text(source).map_err(|_| LoweringError {
+            kind: LoweringErrorKind::MismatchedSource,
+            span: None,
+        })?;
+        if !typed.is_compatible_with_names(names) || !owned.is_compatible_with(names, typed) {
+            return Err(LoweringError {
+                kind: LoweringErrorKind::MismatchedAnalysis,
+                span: None,
+            });
+        }
+        if !parsed.diagnostics().is_empty()
+            || !names.diagnostics().is_empty()
+            || !typed.diagnostics().is_empty()
+            || !owned.diagnostics().is_empty()
+        {
+            return Err(LoweringError {
+                kind: LoweringErrorKind::FrontendDiagnostics,
+                span: None,
+            });
+        }
+        if let Some(deferred) = owned.deferred().first() {
+            return Err(error(
+                LoweringErrorKind::BlockingDeferred,
+                parsed
+                    .ast()
+                    .expressions()
+                    .get(deferred.expression())
+                    .map_err(|_| LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?
+                    .span(),
+            ));
+        }
+        let constants = typed.constants().ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+        let materializations = owned.constant_materializations().ok_or(LoweringError {
+            kind: LoweringErrorKind::MissingFact,
+            span: None,
+        })?;
+        if !constants.matches(typed) || !materializations.matches(typed) {
+            return Err(LoweringError {
+                kind: LoweringErrorKind::MismatchedAnalysis,
+                span: None,
+            });
+        }
+        lang_frontend::ownership_checking::validate_iteration_facts(parsed, names, typed, owned)
+            .map_err(|failure| LoweringError {
+                kind: LoweringErrorKind::MissingFact,
+                span: failure.span(),
+            })?;
+        Ok(())
     }
 
     fn observe(text: &str, path: &str, cases: &[Case], ordinary_first: bool) -> Vec<String> {

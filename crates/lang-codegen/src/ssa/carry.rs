@@ -2,11 +2,7 @@
 pub(in crate::ssa) mod columns;
 pub(in crate::ssa) mod source_columns;
 
-#[cfg(test)]
-pub(in crate::ssa) use columns::record_type;
 pub(in crate::ssa) use columns::{ColumnId, ColumnMatch, IncomingColumns, IncomingRole};
-#[cfg(test)]
-pub(in crate::ssa) use source_columns::require_column_type;
 pub(in crate::ssa) use source_columns::{SourceSlot, TypeAtMiss, associate_source, seed_slot};
 
 use std::collections::BTreeMap;
@@ -95,36 +91,6 @@ pub(in crate::ssa) fn apply_alias_column<K: Copy + Ord, Id: Copy>(
     }
 }
 
-/// Preserve symbol order and each saved vector position without inspecting entities.
-#[cfg(test)]
-pub(in crate::ssa) fn indexed_aliases<K: Copy, Id: Copy>(
-    aliases: &BTreeMap<K, Vec<Id>>,
-) -> impl Iterator<Item = ((K, usize), Id)> + '_ {
-    aliases.iter().flat_map(|(&key, values)| {
-        values
-            .iter()
-            .copied()
-            .enumerate()
-            .map(move |(index, id)| ((key, index), id))
-    })
-}
-
-/// Restore this physical column into the original symbol-qualified vector positions.
-#[cfg(test)]
-pub(in crate::ssa) fn apply_indexed_alias_column<K: Copy + Ord, Id: Copy>(
-    keys: &[(K, usize)],
-    current: Id,
-    aliases: &mut BTreeMap<K, Vec<Id>>,
-) {
-    for &(key, index) in keys {
-        let values = aliases.entry(key).or_default();
-        if values.len() <= index {
-            values.resize(index + 1, current);
-        }
-        values[index] = current;
-    }
-}
-
 #[cfg(test)]
 pub(in crate::ssa) mod frontend_nominal {
     //! Frontend concrete nominal instances to target-independent SSA storage types.
@@ -140,8 +106,8 @@ pub(in crate::ssa) mod frontend_nominal {
         },
     };
 
-    use crate::ssa::lower_frontend::{LoweringError, LoweringErrorKind, error};
-    use crate::ssa::model::{Module, SsaTypeId, SsaTypeKind, TypeOrigin};
+    use crate::ssa::lower_frontend::{LoweringError, LoweringErrorKind, error, resource_deinit};
+    use crate::ssa::model::{MapContainerKind, Module, SsaTypeId, SsaTypeKind, TypeOrigin};
 
     type FrontendTypeMap = BTreeMap<TypeId, SsaTypeId>;
     type HeapPayloadMap = BTreeMap<SsaTypeId, SsaTypeId>;
@@ -165,6 +131,51 @@ pub(in crate::ssa) mod frontend_nominal {
     }
 
     impl NominalTypeMapper {
+        pub(in crate::ssa) fn intern_map(
+            &mut self,
+            module: &mut Module,
+            names: &NameResolution,
+            typed: &TypedFile,
+            constructor: IntrinsicTypeConstructor,
+            arguments: &[TypeId],
+            span: Span,
+        ) -> Result<SsaTypeId, LoweringError> {
+            let [key, val] = arguments else {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            };
+            let kind = match constructor {
+                IntrinsicTypeConstructor::Map => MapContainerKind::Map,
+                IntrinsicTypeConstructor::MutableMap => MapContainerKind::MutableMap,
+                _ => return Err(error(LoweringErrorKind::MissingFact, span)),
+            };
+            let nullable_value = matches!(
+                typed.types().get(*val),
+                Some(lang_frontend::type_checking::TypeKind::Nullable(_))
+            );
+            let key = self.intern_inner(module, names, typed, *key, span)?;
+            let val = if matches!(
+                typed.types().get(*val),
+                Some(lang_frontend::type_checking::TypeKind::Nullable(_))
+            ) && typed.is_resource_type(*val) == Some(true)
+            {
+                resource_deinit::validate_map_value_type(typed, *val, span)?;
+                self.intern_map_result(module, names, typed, *val, span)?
+            } else {
+                self.intern_inner(module, names, typed, *val, span)?
+            };
+            // A planned query result aggregate is not a nullable Map storage representation.
+            if nullable_value
+                && !matches!(
+                    module.type_kind(val),
+                    Some(crate::ssa::model::SsaTypeKind::NullableHandle { .. })
+                )
+            {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            module
+                .add_map_container_type(kind, key, val)
+                .map_err(|_| error(LoweringErrorKind::InvalidModel, span))
+        }
         pub(in crate::ssa) fn intern_map_result(
             &mut self,
             module: &mut Module,

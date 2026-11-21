@@ -16,7 +16,7 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
     //! Read-only simultaneous CFG-column checks, grounded in the actual outer branch.
     use crate::ssa::lower_frontend::nullable_borrowed_cleanup::*;
     use crate::ssa::lower_frontend::*;
-    use crate::ssa::model::{Definition, Instruction, SsaTypeKind};
+    use crate::ssa::model::{Definition, Instruction};
     use std::collections::BTreeSet;
 
     #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,127 +112,6 @@ pub(in crate::ssa) mod borrowed_cleanup_carrier {
         Some(Columns {
             block: edge.target,
             entities,
-        })
-    }
-
-    pub(in crate::ssa) fn birth(
-        lowerer: &ExpressionLowerer<'_>,
-        plan: &Plan,
-        proof: NonNullProof,
-    ) -> Option<Birth> {
-        let (statement, view) = proof.while_origin()?;
-        let [outer, rest @ ..] = lowerer.loops.as_slice() else {
-            return None;
-        };
-        if statement != plan.outer
-            || rest.len() > 1
-            || rest.iter().any(|context| {
-                context.numeric_loop.is_some()
-                    || context
-                        .for_loop
-                        .as_ref()
-                        .is_none_or(|data| data.statement != plan.statement)
-            })
-            || outer.for_loop.is_some()
-            || outer.numeric_loop.is_some()
-            || !outer.entry_views.is_empty()
-            || !outer.breaks.is_empty()
-            || !outer.continues.is_empty()
-        {
-            return None;
-        }
-        let term = lowerer.function.block(outer.header)?.terminator.as_ref()?;
-        let TerminatorKind::NullableBranch {
-            owner,
-            view: actual_view,
-            when_non_null,
-            when_null,
-        } = &term.kind
-        else {
-            return None;
-        };
-        let span = lowerer
-            .parsed
-            .ast()
-            .statements()
-            .get(statement)
-            .ok()?
-            .span();
-        let (block, owner_column) = parameter(lowerer.function, EntityId::Value(*owner))?;
-        let source_column = unique(
-            outer
-                .carried
-                .slots
-                .iter()
-                .enumerate()
-                .filter_map(|(index, slot)| {
-                    (slot.symbol == Some(plan.source_root)).then_some(index)
-                }),
-        )?;
-        let slot = outer.carried.slots.get(owner_column)?;
-        if *actual_view != view
-            || term.origin != Origin::Source(span)
-            || when_non_null.target == when_null.target
-            || incoming(lowerer.function, when_non_null.target).as_slice()
-                != [(outer.header, when_non_null)]
-            || block != outer.header
-            || slot.symbol != Some(plan.root)
-            || outer
-                .carried
-                .slots
-                .iter()
-                .filter(|slot| slot.symbol == Some(plan.root))
-                .count()
-                != 1
-            || when_non_null.arguments.get(owner_column) != Some(&EntityId::Value(*owner))
-            || source_column == owner_column
-        {
-            return None;
-        }
-        let header_source = *lowerer
-            .function
-            .block(outer.header)?
-            .parameters
-            .get(source_column)?;
-        if when_non_null.arguments.get(source_column) != Some(&header_source) {
-            return None;
-        }
-        let target = lowerer.function.block(when_non_null.target)?;
-        let EntityId::Value(owner) = *target.parameters.get(owner_column)? else {
-            return None;
-        };
-        let EntityId::Value(source_owner) = *target.parameters.get(source_column)? else {
-            return None;
-        };
-        let source_type = *lowerer
-            .type_ids
-            .get(&lowerer.typed.symbol_type(plan.source_root)?)?;
-        let nullable = *lowerer.type_ids.get(&plan.storage)?;
-        if owner == source_owner
-            || lowerer.ssa_types.get(nullable.index())
-                != Some(&SsaTypeKind::NullableHandle { inner: proof.inner })
-            || !matches!(
-                lowerer.ssa_types.get(proof.inner.index()),
-                Some(SsaTypeKind::HeapOwner { .. })
-            )
-            || lowerer.function.entity(EntityId::Value(owner))?.ty != EntityType::Value(nullable)
-            || lowerer.function.entity(EntityId::Value(source_owner))?.ty
-                != EntityType::Value(source_type)
-            || lowerer.function.entity(EntityId::Loan(view))?.ty
-                != (EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target: proof.inner,
-                })
-            || parameter(lowerer.function, EntityId::Loan(view))?.0 != target.id
-        {
-            return None;
-        }
-        Some(Birth {
-            pair: Columns {
-                block: target.id,
-                entities: vec![EntityId::Value(owner), EntityId::Loan(view)],
-            },
-            source_owner,
         })
     }
 

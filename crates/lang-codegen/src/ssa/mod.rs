@@ -358,9 +358,6 @@ mod unit_lower_nullable_neighbor_tests;
 mod unit_enum_regression_tests;
 
 #[cfg(test)]
-mod borrow_argument;
-
-#[cfg(test)]
 mod e2_two_source_transport_tests;
 
 #[cfg(all(test, feature = "e2-two-source-test-support"))]
