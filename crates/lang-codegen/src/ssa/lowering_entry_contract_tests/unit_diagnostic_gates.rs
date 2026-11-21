@@ -56,3 +56,58 @@ fn original_recovery_diagnostics_stop_at_unit_capability_gates() {
         }
     }
 }
+
+#[test]
+fn original_own_receiver_source_admits_the_empty_unit_entry() {
+    use crate::ssa::{
+        model::TerminatorKind, unit_lower::lower_scalar_unit_with_entry,
+        unit_lower_test_support::declaration, verify::verify_program,
+    };
+
+    use lang_frontend::{
+        ownership_checking::check_compilation_unit_ownership,
+        type_checking::complete_compilation_unit_types,
+    };
+
+    let text = include_str!("../../../../lang-frontend/tests/fixtures/legacy-receiver-entry.ko");
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "pair/entry.ko", text);
+    assert_eq!(sources.source_text(source), Ok(text));
+    let (ne, te) = standard_environments();
+    for input in [
+        SourceUnitInput::new("root", "pair/entry.ko", source, &file),
+        SourceUnitInput::memory_document(source, &file),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
+        complete_compilation_unit_types(&sources, &inputs, &names, &te, &typed).unwrap();
+        let typed = typed.validate().unwrap();
+        let owned = check_compilation_unit_ownership(&sources, &inputs, &names, &te, &typed)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let (program, id) = lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &te,
+            &typed,
+            &owned,
+            declaration(&names, "pair", "entry"),
+        )
+        .expect("original entry is admitted by normal Unit lowering");
+        verify_program(&program).unwrap();
+        let function = program.module(id.module()).unwrap().function(id).unwrap();
+        let [entry] = function.blocks.as_slice() else {
+            panic!("one empty entry block")
+        };
+        assert!(entry.instructions.is_empty());
+        assert!(matches!(&entry.terminator.as_ref().unwrap().kind,
+            TerminatorKind::Return { values } if values.is_empty()));
+    }
+}

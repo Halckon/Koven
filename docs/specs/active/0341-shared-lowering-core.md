@@ -22133,3 +22133,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 基于 `18f703b7`，只迁原 `nullable_storage_rhs_clears_target_refinement` 的拒绝分支，保留 FQN 和原成功分支的 Single/Unit。原 Single 与双 Unit 的原始类型、最终准入完整诊断相同：唯一 L0084，主为后续 `current`（98..105），标签为 `Int`（92..95，`expected Int, found Int?`）。
 - Unit 用同一局部变量的实际引用证明：guard 的读为 nullable 类型，赋值目标表达式已被 guard 精化到 Int，但实际 `current = null` 写入仍使用 nullable 存储类型，RHS 合法；后续读不得沿用非空精化。存在真实 raw assignment descriptor，不代表整个失败产物取得 Basic 或最终类型能力，不进入 ownership。
 - 仅测试树 `06daee610ee793980d2e0ba28d172c3d0e274bdf` 在隔离 Linux 直接链接同一生产 rlib，定点 1/1、`final_type_admission` 63/63。格式、diff、docs、Rust size guard 通过，Mac 仅运行用于检查旧等价性的缓存探针，未跑本片完整 Mac harness、未改生产/API/CI 或推送。
+
+### D10：移除旧 own receiver 私有 lowering 转译见证
+
+- 原 `unsupported_own_receiver_cannot_enter_legacy_lowering` 在 Mac 旧二进制定点通过。仅退役这个 test-only 适配器把真实 Single L0170 转译为 `FrontendDiagnostics` 的见证；复用逐字不变的原 76 字节源码，保留公开 Single 完整 L0170 和 fail-closed 事实于 frontend 正式目标。原 source/analysis/diagnostics 先后顺序和其他旧调用不动。
+- 同源两种 Unit 布局通过最终类型准入与所有权资格，拥有实际 `noop` Value receiver 清理事实；另一独立测试用普通 Unit lowering 选择原空 `entry`，其已验证 SSA 直接返回。空入口不会执行 `noop`，不据此声称 native 调用或所有 Single 消费者退役。
+- Mac 前端受影响目标 4/4、codegen 新定点 1/1；未重复运行其他目标或本片 Linux/远端 CI。只改测试和记录，不改公开 API 或普通/实验命令。

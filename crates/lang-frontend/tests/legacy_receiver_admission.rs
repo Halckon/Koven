@@ -134,3 +134,95 @@ fn copyable_own_and_borrow_receivers_keep_their_existing_contracts() {
         true,
     );
 }
+
+#[test]
+fn original_own_receiver_reports_legacy_gate_and_unit_keeps_receiver_cleanup() {
+    use lang_frontend::{
+        diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
+        type_checking::{ParameterMode, complete_compilation_unit_types, complete_file_types},
+    };
+
+    let text = include_str!("fixtures/legacy-receiver-entry.ko");
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("pair/entry.ko", text).unwrap();
+    let lexed = lex(&sources, source).unwrap();
+    assert!(lexed.diagnostics().is_empty());
+    let file = parse_file(&sources, &lexed).unwrap();
+    assert!(file.diagnostics().is_empty());
+    assert_eq!(sources.source_text(source), Ok(text));
+    let (ne, te) = standard_environments();
+    let names = resolve_names(&sources, &file, &ne).unwrap();
+    assert!(names.diagnostics().is_empty());
+    let typed = check_types(&sources, &file, &names, &te).unwrap();
+    assert!(typed.diagnostics().is_empty());
+    complete_file_types(&sources, &file, &names, &te, &typed).unwrap();
+    let old = check_ownership(&sources, &file, &names, &typed).unwrap();
+    let start = text.find("own fun noop").unwrap();
+    let marker = sources.span(source, start, start + "own".len()).unwrap();
+    let catalog = DiagnosticCodeCatalog::try_new(&["L0170"]).unwrap();
+    let diagnostic = Diagnostic::new(
+        &sources,
+        Severity::Error,
+        catalog.resolve("L0170").unwrap(),
+        "legacy single-file ownership cannot validate this own receiver; use compilation-unit analysis",
+        marker,
+    ).unwrap();
+    assert_eq!(old.diagnostics(), std::slice::from_ref(&diagnostic));
+    assert!(old.drops().is_empty());
+    assert!(old.loans().is_empty());
+    assert!(old.captures().is_empty());
+    assert!(old.formed_owned_locals().is_empty());
+    assert!(old.construction_plans().is_empty());
+    assert!(old.constant_materializations().is_none());
+
+    for input in [
+        SourceUnitInput::new("root", "pair/entry.ko", source, &file),
+        SourceUnitInput::memory_document(source, &file),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
+        assert!(typed.diagnostics().is_empty());
+        complete_compilation_unit_types(&sources, &inputs, &names, &te, &typed).unwrap();
+        let resource = typed
+            .signatures()
+            .declarations()
+            .iter()
+            .find_map(|declaration| declaration.nominal())
+            .expect("original Resource class");
+        let [noop] = resource.members() else {
+            panic!("one original instance member")
+        };
+        assert_eq!(noop.name(), "noop");
+        let receiver = noop.receiver().expect("own receiver signature");
+        assert_eq!(receiver.mode(), ParameterMode::Value);
+        assert_eq!(receiver.marker_span(), Some(marker));
+        let typed = typed.validate().unwrap();
+        let owned =
+            check_compilation_unit_ownership(&sources, &inputs, &names, &te, &typed).unwrap();
+        assert!(owned.diagnostics().is_empty());
+        assert!(owned.deferred().is_empty());
+        let [drop] = owned.drops() else {
+            panic!(
+                "the empty own method has one receiver cleanup: {:?}",
+                owned.drops()
+            )
+        };
+        let UnitDropTarget::This(owner) = drop.target() else {
+            panic!("cleanup is for the actual own receiver")
+        };
+        let declaration = names
+            .names()
+            .index()
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.id() == owner)
+            .unwrap();
+        assert_eq!(declaration.name(), "Resource");
+        assert!(owned.validate().is_ok());
+    }
+}
