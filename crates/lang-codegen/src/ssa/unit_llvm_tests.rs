@@ -157,7 +157,7 @@ pub(in crate::ssa) mod callable_plan_tests {
         },
         parser::{Expression, Item, parse_file},
         source::SourceMap,
-        type_checking::{ParameterMode, check_types, standard_environments},
+        type_checking::{check_types, standard_environments},
     };
     use std::collections::BTreeSet;
 
