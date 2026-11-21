@@ -374,7 +374,10 @@ mod receiver_route {
     #[test]
     fn neighboring_receiver_shapes_keep_existing_routes() {
         for text in [
-            super::receiver_borrowed::SOURCE,
+            "class Node { fun touch(own x: Int): Int = x }\nfun run(node: Node): Unit { node.touch(1) }",
+            "class Node { fun touch(): Unit {} }\nfun run(node: Node): Unit { node.touch() }",
+            "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { (node).touch() }",
+            "class Node { fun touch(): Int = 1 }\nfun run(node: Node, unused: Int): Unit { node.touch() }",
             super::receiver_twice::SOURCE,
             "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1 + 0) }",
             "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch((1)) }",

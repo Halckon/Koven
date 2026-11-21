@@ -5,8 +5,8 @@ pub(super) const SOURCE: &str =
     "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { node.touch() }";
 
 #[test]
-fn borrowed_receiver_fallback_forwards_entry_loan_without_owning_release() {
-    verify_borrowed_receiver(SOURCE, false);
+fn borrowed_receiver_refines_and_forwards_entry_loan_without_owning_release() {
+    verify_borrowed_receiver(SOURCE);
 }
 
 #[test]
@@ -16,10 +16,10 @@ fn borrowed_receiver_refine_anchor_forwards_entry_loan_without_owning_release() 
         "{ val anchor: Int? = null; node.touch() }",
     );
     assert_ne!(anchored, SOURCE);
-    verify_borrowed_receiver(&anchored, true);
+    verify_borrowed_receiver(&anchored);
 }
 
-fn verify_borrowed_receiver(source_text: &str, expect_refine: bool) {
+fn verify_borrowed_receiver(source_text: &str) {
     let text = format!("{source_text}\nfun entry(): Unit {{ val node = Node(); run(node) }}");
     let mut sources = SourceMap::new();
     let (source, parsed) =
@@ -105,9 +105,8 @@ fn verify_borrowed_receiver(source_text: &str, expect_refine: bool) {
         assert!(call_at < end_at && end_at < drop_at);
 
         let run = module.function(*callee).unwrap();
-        assert_eq!(
+        assert!(
             routed.contains(&run.name),
-            expect_refine,
             "borrowed caller route with source {source_text}: {routed:?}"
         );
         assert!(receipts.iter().all(|receipt| receipt.caller != *callee));
@@ -126,7 +125,7 @@ fn verify_borrowed_receiver(source_text: &str, expect_refine: bool) {
             outer.entity(EntityId::Loan(*loan)).unwrap().ty,
             run.entity(EntityId::Loan(*imported)).unwrap().ty
         );
-        if !expect_refine {
+        if source_text == SOURCE {
             assert_eq!(run.instructions.len(), 1);
         }
         assert!(run.instructions.iter().all(|instruction| !matches!(
@@ -165,6 +164,60 @@ fn verify_borrowed_receiver(source_text: &str, expect_refine: bool) {
 
         verify_program(&program).unwrap();
         let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        #[cfg(feature = "loan-observation-test-support")]
+        {
+            use lang_frontend::ownership_checking::{
+                check_compilation_unit_ownership, legacy_ownership_eq, with_loan_observation,
+            };
+            assert!(!owned.ownership().loan_action_observations().is_empty());
+            let off = with_loan_observation(false, || {
+                check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed)
+                    .unwrap()
+                    .validate()
+                    .unwrap()
+            });
+            assert!(legacy_ownership_eq(owned.ownership(), off.ownership()));
+            assert!(off.ownership().loan_action_observations().is_empty());
+            let entry_declaration = names
+                .names()
+                .index()
+                .declarations()
+                .iter()
+                .find(|declaration| declaration.name() == "entry")
+                .unwrap()
+                .id();
+            let ((off_lowered, off_routed), off_receipts) =
+                crate::ssa::refine::receiver_receipt::observe(|| {
+                    crate::ssa::refine::observe_routing(|| {
+                        crate::ssa::unit_lower::lower_scalar_unit_with_entry(
+                            &sources,
+                            &inputs,
+                            &names,
+                            &types,
+                            &typed,
+                            &off,
+                            entry_declaration,
+                        )
+                    })
+                });
+            let (off_program, off_entry) = off_lowered.unwrap();
+            assert_eq!(
+                outer.name,
+                off_program.modules[0].function(off_entry).unwrap().name
+            );
+            assert_eq!(routed, off_routed);
+            assert!(off_receipts.is_empty());
+            verify_program(&off_program).unwrap();
+            assert_eq!(
+                crate::ssa::render_program(&program),
+                crate::ssa::render_program(&off_program)
+            );
+            assert_eq!(
+                llvm,
+                crate::llvm::render_verified_program_with_entry(&off_program, off_entry).unwrap()
+            );
+        }
+
         let output =
             crate::native_tests::boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[0]);
         crate::native_tests::boxed_enum_tests::assert_success(&output, b"");

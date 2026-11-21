@@ -6,6 +6,7 @@ mod container;
 mod expression;
 mod field;
 mod heap;
+mod imported_receiver_route;
 mod map;
 pub(super) mod named_route;
 mod nullable_when;
@@ -243,6 +244,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         && (checker.nullable
             || checker.migrated
             || checker.bounded_receiver_route()
+            || checker.imported_receiver_route().is_some()
             || checker.bounded_named_call().is_some()
             || checker.bounded_temporary_call().is_some()
             || checker.linear_scalar_body());
