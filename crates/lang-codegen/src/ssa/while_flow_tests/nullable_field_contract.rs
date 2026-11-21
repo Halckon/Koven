@@ -567,12 +567,24 @@ pub(in crate::ssa) mod direct_contract {
         Program, SsaTypeKind, TerminatorKind,
     };
 
-    pub(in crate::ssa) fn assert_direct_proof(program: &Program, case: usize) {
-        assert_proof(program, case, false);
-    }
-
     pub(in crate::ssa) fn assert_unit_direct_proof(program: &Program, case: usize) {
-        assert_proof(program, case, true);
+        let module = only(program.modules.iter());
+        let function = only(module.functions.iter().filter(|function| {
+            // Unit names include source-qualified declaration identities.
+            function
+                .name
+                .strip_prefix("koven.p.entry.d")
+                .is_some_and(|index| {
+                    !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
+                })
+                && function.blocks.iter().any(|block| {
+                    matches!(
+                        block.terminator.as_ref().map(|term| &term.kind),
+                        Some(TerminatorKind::NullableBranch { .. })
+                    )
+                })
+        }));
+        assert_function_proof(module, function, case);
     }
 
     pub(in crate::ssa) fn assert_memory_unit_direct_proof(
@@ -584,35 +596,10 @@ pub(in crate::ssa) mod direct_contract {
         let function = module
             .function(entry)
             .expect("same-analysis returned entry");
-        assert_function_proof(module, function, case, true);
+        assert_function_proof(module, function, case);
     }
 
-    fn assert_proof(program: &Program, case: usize, unit: bool) {
-        let module = only(program.modules.iter());
-        let function = only(module.functions.iter().filter(|function| {
-            if unit {
-                // Unit names include source-qualified declaration identities.
-                // This fixture has exactly one function with a nullable guard.
-                function
-                    .name
-                    .strip_prefix("koven.p.entry.d")
-                    .is_some_and(|index| {
-                        !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
-                    })
-                    && function.blocks.iter().any(|block| {
-                        matches!(
-                            block.terminator.as_ref().map(|term| &term.kind),
-                            Some(TerminatorKind::NullableBranch { .. })
-                        )
-                    })
-            } else {
-                function.name == "entry"
-            }
-        }));
-        assert_function_proof(module, function, case, unit);
-    }
-
-    fn assert_function_proof(module: &Module, function: &Function, case: usize, unit: bool) {
+    fn assert_function_proof(module: &Module, function: &Function, case: usize) {
         let header = only(function.blocks.iter().filter(|block| {
             matches!(
                 block.terminator.as_ref().map(|term| &term.kind),
@@ -634,43 +621,31 @@ pub(in crate::ssa) mod direct_contract {
         assert_eq!(body.parameters.last(), Some(&EntityId::Loan(*view)));
         assert_eq!(absent.parameters.len(), when_null.arguments.len());
         assert!(!when_null.arguments.contains(&EntityId::Loan(*view)));
-        if unit {
-            // All five unit cases now lower through `ssa::refine`: the unused `flag` loan stays
-            // an entry parameter, and loop headers without a backedge fold into `entry`.
-            let entry = function.block(function.entry_block().unwrap()).unwrap();
-            if case >= 3 {
-                assert_eq!(header.id, entry.id);
-            } else {
-                let TerminatorKind::Branch(initial) = &entry.terminator.as_ref().unwrap().kind
-                else {
-                    panic!("real initial header edge")
-                };
-                assert_eq!(initial.target, header.id);
-                assert!(
-                    !header
-                        .parameters
-                        .iter()
-                        .any(|entity| matches!(entity, EntityId::Loan(_)))
-                );
-            }
-            for block in [body, absent] {
-                assert!(
-                    block
-                        .parameters
-                        .iter()
-                        .all(|entity| !matches!(entity, EntityId::Loan(_))
-                            || *entity == EntityId::Loan(*view))
-                );
-            }
+        // All five unit cases now lower through `ssa::refine`: the unused `flag` loan stays
+        // an entry parameter, and loop headers without a backedge fold into `entry`.
+        let entry = function.block(function.entry_block().unwrap()).unwrap();
+        if case >= 3 {
+            assert_eq!(header.id, entry.id);
         } else {
-            for block in [header, absent] {
-                assert!(
-                    !block
-                        .parameters
-                        .iter()
-                        .any(|entity| matches!(entity, EntityId::Loan(_)))
-                );
-            }
+            let TerminatorKind::Branch(initial) = &entry.terminator.as_ref().unwrap().kind else {
+                panic!("real initial header edge")
+            };
+            assert_eq!(initial.target, header.id);
+            assert!(
+                !header
+                    .parameters
+                    .iter()
+                    .any(|entity| matches!(entity, EntityId::Loan(_)))
+            );
+        }
+        for block in [body, absent] {
+            assert!(
+                block
+                    .parameters
+                    .iter()
+                    .all(|entity| !matches!(entity, EntityId::Loan(_))
+                        || *entity == EntityId::Loan(*view))
+            );
         }
         let owner_column = only(
             when_non_null

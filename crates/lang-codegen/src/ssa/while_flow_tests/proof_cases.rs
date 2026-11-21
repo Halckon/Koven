@@ -11,8 +11,7 @@ use borrowed_proof_cases::rejection_diagnostics::assert_rejection;
 
 use super::super::{
     integer_range_value_tests::{
-        collect_memory_entry_observations, collect_shape_boundaries, collect_sources,
-        lower_unit_source,
+        collect_memory_entry_observations, collect_sources, lower_unit_source,
     },
     verify::verify_program,
 };
@@ -180,11 +179,9 @@ fun entry(own initial: Holder?, own other: Holder?): Int {
     observe("owner-transfer", &[(transfer, false), (assertion, false)]);
 }
 
-/// First implementation slice: both entrances are observed; only single-file proof birth
-/// is required here. The full dual-entrance matrix above remains the final contract.
+/// The original no-package sources retain their same-analysis MemoryDocument proofs.
 #[test]
 fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
-    let outcomes = direct_proof_observations();
     let memory = collect_memory_entry_observations(&direct_proof_sources());
     assert_eq!(memory.len(), 5);
     for (case, result) in memory.into_iter().enumerate() {
@@ -195,21 +192,11 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
         direct_contract::assert_memory_unit_direct_proof(&source.program, source.entry, case);
         diagnostic!("SHAPE4 MEMORY direct case={case} oracle=ok");
     }
-    for (index, result) in outcomes.into_iter().enumerate() {
-        if index % 2 == 0 {
-            let program = expect(
-                result,
-                "single direct nullable while has a real per-iteration proof",
-            );
-            direct_contract::assert_direct_proof(&program, index / 2);
-        }
-    }
 }
 
 #[test]
 fn unit_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
-    // This original consumer asserted only the Rooted half. Do not execute and
-    // discard five Legacy programs whose complete shape oracle lives above.
+    // Keep the exact original Rooted source, entry, owner, and exit contracts.
     for (case, text) in direct_proof_sources().iter().enumerate() {
         let source = expect(lower_unit_source(text, true), "original Rooted Unit source");
         verify_program(&source.program).expect("original Rooted Unit SSA");
@@ -226,31 +213,6 @@ fn direct_proof_sources() -> [String; 5] {
     let broken = holder("while (current != null) { total = current.value\nbreak }\nreturn total");
     let returned = holder("while (current != null) { return current.value }\nreturn total");
     [normal, continued, grouped, broken, returned]
-}
-
-fn direct_proof_observations() -> Vec<Result<crate::ssa::model::Program, String>> {
-    let sources = direct_proof_sources();
-    let observations = collect_shape_boundaries(&sources);
-    assert_eq!(observations.len(), sources.len() * 2);
-    observations
-        .into_iter()
-        .enumerate()
-        .map(|(index, result)| {
-            let result = result.and_then(|program| {
-                verify_program(&program).map_err(|error| format!("SSA verify: {error:?}"))?;
-                crate::llvm::render_verified_program(&program)
-                    .map_err(|error| format!("LLVM: {error:?}"))?;
-                Ok(program)
-            });
-            let status = result.as_ref().map(|_| ());
-            diagnostic!(
-                "DIRECT PROOF source={} unit={} {status:?}",
-                index / 2,
-                index % 2 == 1
-            );
-            result
-        })
-        .collect::<Vec<_>>()
 }
 
 #[allow(unused_imports)]

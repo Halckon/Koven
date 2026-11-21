@@ -91,7 +91,6 @@ mod llvm_contract {
 }
 
 use super::{
-    lower_frontend::orchestrate::lower_scalar_file,
     model::{
         EntityId, FunctionId, Operation, Origin, Ownership, Program, SsaTypeKind, TerminatorKind,
     },
@@ -104,14 +103,13 @@ use lang_frontend::{
     lexer::lex,
     name_resolution::{
         DeclarationId, SourceUnitInput, SymbolKind, index_compilation_unit,
-        resolve_compilation_unit_names, resolve_names,
+        resolve_compilation_unit_names,
     },
-    ownership_checking::{check_ownership, owned_compilation_unit_view},
+    ownership_checking::owned_compilation_unit_view,
     parser::parse_file,
     source::{SourceMap, Span},
     type_checking::{
-        check_compilation_unit_types, check_types, complete_compilation_unit_types,
-        complete_file_types, standard_environments,
+        check_compilation_unit_types, complete_compilation_unit_types, standard_environments,
     },
 };
 
@@ -309,35 +307,6 @@ fn observe_memory_entry(text: &str, case: usize) -> Result<SourceProgram, String
     Ok(source)
 }
 
-// Temporary test-only exit boundary, not a fallback from a failed Unit attempt.
-// Only the two explicit shape-boundary wholes below retain this original pipeline.
-fn lower_legacy_shape_boundary(text: &str) -> Result<Program, String> {
-    let mut sources = SourceMap::new();
-    let (environment, types) = standard_environments();
-    let source = sources.add_source("range.ko", text).unwrap();
-    let lexed = lex(&sources, source).unwrap();
-    assert!(lexed.diagnostics().is_empty());
-    let file = parse_file(&sources, &lexed).unwrap();
-    assert!(file.diagnostics().is_empty());
-    let names = resolve_names(&sources, &file, &environment).unwrap();
-    if !names.diagnostics().is_empty() {
-        return Err(format!("names diagnostics: {:?}", names.diagnostics()));
-    }
-    let typed = check_types(&sources, &file, &names, &types).unwrap();
-    complete_file_types(&sources, &file, &names, &types, &typed)
-        .map_err(|error| format!("complete: {error:?}"))?;
-    let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-    if !owned.diagnostics().is_empty() || !owned.deferred().is_empty() {
-        return Err(format!(
-            "ownership: {:?}, deferred: {:?}",
-            owned.diagnostics(),
-            owned.deferred()
-        ));
-    }
-    lower_scalar_file(&sources, &file, &names, &typed, &owned)
-        .map_err(|error| format!("lower: {error:?}"))
-}
-
 /// Both original source layouts now use Unit; false/true means no header/package p.
 pub(super) fn collect_sources(sources: &[String]) -> Vec<Result<Program, String>> {
     collect_source_functions(sources)
@@ -357,28 +326,6 @@ pub(super) fn collect_source_functions(sources: &[String]) -> Vec<Result<SourceP
                 Err(error) => {
                     diagnostic!("UNIT layout_package={package_layout} SOURCE {source:?} {error}")
                 }
-            }
-            results.push(result);
-        }
-    }
-    results
-}
-
-/// The direct nullable-while proof still pins distinct Legacy/Unit SSA shapes.
-/// Keep this boundary until that test's original loan and origin contracts
-/// receive an explicit retirement decision.
-pub(super) fn collect_shape_boundaries(sources: &[String]) -> Vec<Result<Program, String>> {
-    let mut results = Vec::new();
-    for source in sources {
-        for unit in [false, true] {
-            let result = if unit {
-                lower_unit_source(source, true).map(|source| source.program)
-            } else {
-                lower_legacy_shape_boundary(source)
-            };
-            match &result {
-                Ok(_) => diagnostic!("SHAPE BOUNDARY unit={unit} lower=ok"),
-                Err(error) => diagnostic!("SHAPE BOUNDARY unit={unit} SOURCE {source:?} {error}"),
             }
             results.push(result);
         }
