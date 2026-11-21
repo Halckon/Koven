@@ -805,6 +805,24 @@ class LoanKernelCases(unittest.TestCase):
                 finally:
                     delivery.cleanup.insert(index, entry)
 
+    def test_open_transfers_multi_field_and_nested_views(self):
+        source = (ROOT / "cases/Z17.lk").read_text(encoding="utf-8")
+        lowered = {}
+        CHECKER.check(source, lowered=lowered)
+        for name in ("nestedReleasedAfterLastUse", "forwardNestedRo", "forwardNestedRw", "deliverOnlyRo"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("wrongFieldContractRejected", "localNestedEscapeRejected", "unsupportedDeinitSubView"):
+            self.assertFalse(lowered[name][2], name)
+        types, program, accepted = lowered["dropsNestedFieldsOnFailure"]
+        self.assertTrue(accepted)
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("file", False), ("nested", False)], call.cleanup)
+        self.assertEqual(["file", "nested"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.pop()  # 仅在失败清单中漏掉嵌套子视图
+        found = CHECKER.DP.Verifier(types).run_all(program)
+        self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

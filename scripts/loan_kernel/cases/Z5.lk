@@ -35,8 +35,8 @@ fun dropsFieldsOnFailure(own this: Holder): Unit in Holder {
   mayFail()
   use(slice.source.len)
 }
-view class PairSlice(borrow first: Arr, borrow second: Arr)
-view class PairHolder(slice: PairSlice, file: File) deinit
-fun unsupportedMultiField(own this: PairHolder): Unit in PairHolder {
+view class RecSlice(borrow next: RecSlice, borrow source: Arr)
+view class RecHolder(slice: RecSlice, file: File) deinit
+fun unsupportedRecursive(own this: RecHolder): Unit in RecHolder {
   open this as slice, file  // ERR K25
 }

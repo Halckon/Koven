@@ -1112,4 +1112,10 @@ fun probe(borrow h: A): Unit {
 
 `Z16.lk` 的 `deliverMut` 拆出 `MutSlice` 后按值交给 `putMut`，声明 `flows this.slice.source into dst` 时接受，省略声明在签名处报 K6。直线移交后，`flows` 合同只并入来源、不解除旧独占来源 `b`：在最后一次使用 `dst` 前，对 `a` 与 `b` 的读、写均报 K1；使用完后四处均接受。
 
-在合流后经独占别名 `target` 移交的场景中，`target` 在分支后可能指向 `left` 或 `right`。合流后使用 `left` 前读、写 `a` 与 `l` 均报 K1，读、写 `r` 接受；使用 `right` 前读、写 `a` 与 `r` 均报 K1，读、写 `l` 接受。固定只指 `left` 时 `right` 仅保护 `r`，固定只指 `right` 时 `left` 仅保护 `l`；最后一次使用后均接受。`deliverMut` 失败时仅清理 `file`（漏掉报 V1）；调用者中 `deliverMut` 与随后的 `mayFail` 失败时均按 `right, left, r, l, a` 清理（漏掉 `left` 或 `right` 报 V1）。无需修改检查器；至此单借用字段（共享与独占）子视图的 `open` 主线已覆盖，多字段、嵌套、递归、容器或带 `deinit` 的子视图仍未验证。
+在合流后经独占别名 `target` 移交的场景中，`target` 在分支后可能指向 `left` 或 `right`。合流后使用 `left` 前读、写 `a` 与 `l` 均报 K1，读、写 `r` 接受；使用 `right` 前读、写 `a` 与 `r` 均报 K1，读、写 `l` 接受。固定只指 `left` 时 `right` 仅保护 `r`，固定只指 `right` 时 `left` 仅保护 `l`；最后一次使用后均接受。`deliverMut` 失败时仅清理 `file`（漏掉报 V1）；调用者中 `deliverMut` 与随后的 `mayFail` 失败时均按 `right, left, r, l, a` 清理（漏掉 `left` 或 `right` 报 V1）。无需修改检查器；至此单借用字段（共享与独占）子视图的 `open` 主线已覆盖，多字段与按值嵌套子视图见 §55。
+
+## 55. 按值拆出多借用字段与按值嵌套的非递归子视图
+
+`Z17.lk` 的 `DeepHolder` 按值持有 `Nested(inner: MixPair, borrow tail: Arr)` 和 `File`，其中 `MixPair(borrow ro: Arr, inout rw: Arr)` 同时携带共享与独占借用字段。放开 `open` 接受非递归、无 `deinit` 的多借用字段及按值嵌套子视图（递归子视图在 `Z5.lk` 报 K25，带 `deinit` 的子视图在 `Z17.lk` 报 K25）：`open this as nested, file` 剥离顶层字段前缀 `nested.` 后，把 `inner.ro`、`inner.rw`、`tail` 三条路径各自的来源账独立移交给 `nested`。
+
+本地构造并拆解后，在最后一次使用 `nested` 前：`a` 与 `c` 可读不可写（K1），`b` 不可读也不可写（K1），使用完后三者均放行；因按值含独占子视图，对 `nested` 隐式复制报 K8。合同转发精确到字段路径：`from this.nested.inner.ro` 与 `from this.nested.inner.rw` 分别接受，跨字段错声明或返回本地来源均报 K6。经 `flows this.nested.inner.ro into dst` 仅移交共享子字段时，调用方只保护 `a` 与旧来源 `old`，不误保护无关字段 `b` 与 `c`。调用失败与正常退出按 `file, nested` 清理；漏掉失败清单中的 `nested`，检验器报 V1。带 `deinit` 的子视图、越过借用字段嵌套的子视图与递归/容器子视图仍未验证。

@@ -1663,7 +1663,7 @@ class Checker:
             raise InvalidOpen
         if len(stmt.names) != len(decl.fields) or any(
                 kind or not self.open_field(ty, decl.is_view) for kind, _, ty in decl.fields):
-            self.error("K25", stmt.line, "open 只支持无来源的按值类字段或单借用视图字段")
+            self.error("K25", stmt.line, "open 只支持无来源的按值类字段或非递归无 deinit 的按值子视图")
             raise InvalidOpen
         var = state[stmt.name]
         self.resolve(state, Place(stmt.name, [], stmt.line))  # K8：完整、仍拥有的值
@@ -1677,17 +1677,23 @@ class Checker:
             loans = {key[len(prefix):]: set(ids) for key, ids in held.items() if key.startswith(prefix)}
             state[name] = Var(self.type_of(ty), "A", loans)
 
-    def open_field(self, ty, in_view):
+    def open_field(self, ty, in_view, visiting=frozenset()):
         decl = self.classes.get(ty)
         if not decl:
             return False
         if not decl.is_view:
             return self.escapable(ty)
-        if not in_view or decl.cell or decl.local or decl.carrier or decl.deinit or len(decl.fields) != 1:
+        if (not in_view or ty in visiting or decl.cell or decl.local or decl.carrier
+                or decl.deinit or not decl.fields):
             return False
-        kind, _, target = decl.fields[0]
-        return (kind in ("borrow", "inout") and target in self.classes
-                and not self.classes[target].is_view and self.escapable(target))
+        seen = visiting | {ty}
+        for kind, _, target in decl.fields:
+            if kind in ("borrow", "inout"):
+                if target not in self.classes or self.classes[target].is_view or not self.escapable(target):
+                    return False
+            elif not self.open_field(target, True, seen):
+                return False
+        return True
 
     def store(self, stmt, state):
         """X1：经独占借用整体替换所指的值，要求槽位访问且新值的类型恰为所指类型。"""
