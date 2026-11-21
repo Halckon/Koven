@@ -1,15 +1,30 @@
-//! Ordered loan and owner identities in the ordinary two-shared-calls fallback.
+//! Ordered receiver loans and one owner drop under fallback and independently anchored Refine.
 use crate::ssa::loan_region_ssa_tests::*;
+use lang_frontend::ownership_checking::UnitLoanActionCoverage;
 
 pub(super) const SOURCE: &str = "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }";
 
 #[test]
 fn two_shared_receiver_calls_release_one_owner_after_both_loans_end() {
-    let text = format!("{SOURCE}\nfun entry(): Unit {{ run(Node()) }}");
+    verify_two_shared_receiver_calls(SOURCE, false);
+}
+
+#[test]
+fn two_shared_receiver_calls_refine_anchor_preserves_order_and_single_owner_release() {
+    let anchored = SOURCE.replace(
+        "{ node.touch(); node.touch() }",
+        "{ val anchor: Int? = null; node.touch(); node.touch() }",
+    );
+    assert_ne!(anchored, SOURCE);
+    verify_two_shared_receiver_calls(&anchored, true);
+}
+
+fn verify_two_shared_receiver_calls(source_text: &str, expect_refine: bool) {
+    let text = format!("{source_text}\nfun entry(): Unit {{ run(Node()) }}");
     let mut sources = SourceMap::new();
     let (source, parsed) = unit_lower_test_support::parsed(&mut sources, "two_receiver.ko", &text);
     let (environment, types) = standard_environments();
-    let call_offsets = SOURCE
+    let call_offsets = source_text
         .match_indices("node.touch()")
         .map(|(offset, token)| (offset, offset + token.len()))
         .collect::<Vec<_>>();
@@ -76,9 +91,45 @@ fn two_shared_receiver_calls_release_one_owner_after_both_loans_end() {
         let run = module.function(*callee).unwrap();
         assert_eq!(
             sources.slice(run.origin.span()).unwrap(),
-            SOURCE.split_once('\n').unwrap().1
+            source_text.split_once('\n').unwrap().1
         );
-        assert!(!routed.contains(&run.name));
+        assert_eq!(
+            routed.contains(&run.name),
+            expect_refine,
+            "two-call caller route with source {source_text}: {routed:?}"
+        );
+        for (index, call_span) in call_offsets.iter().copied().enumerate() {
+            let mut regions = owned
+                .ownership()
+                .loan_action_observations()
+                .iter()
+                .flat_map(|o| o.regions())
+                .filter(|region| {
+                    let span = parsed
+                        .ast()
+                        .expressions()
+                        .get(region.call().expression())
+                        .unwrap()
+                        .span();
+                    span.source_id() == source && (span.start(), span.end()) == call_span
+                });
+            let region = regions
+                .next()
+                .expect("a region for this exact receiver call");
+            assert!(regions.next().is_none());
+            assert_eq!(region.protocol_version(), 2);
+            let expected = if expect_refine {
+                // The declaration anchor is outside the flat expression-only observation gate.
+                UnitLoanActionCoverage::Unsupported
+            } else if index == 0 {
+                // The first call retires its loan, but does not drop the owner.
+                UnitLoanActionCoverage::Partial
+            } else {
+                // The final call has its own local certificate, not one for both calls.
+                UnitLoanActionCoverage::Complete
+            };
+            assert_eq!(region.coverage(), expected, "receiver call {index}");
+        }
         assert!(receipts.iter().all(|receipt| receipt.caller != *callee));
         let [block] = run.blocks.as_slice() else {
             panic!("one caller block");
