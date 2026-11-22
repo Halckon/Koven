@@ -59,9 +59,8 @@
 
 ## 5. 没有覆盖的
 
-- 实现的判定结果是四值的（满足、不满足、未知、错误），原型只有前两种加条件；错误恢复没有建模。
-- interface 上界（`T : SomeInterface`）、`Equatable` / `Hashable` 这类“可推导也可声明”的能力、闭包环境的能力。
-- enum 的各个 case 没有分开；`value class` 的布局约束不在其内。
-- 存在类型只用一个叶子代表，没有建模打包时的检查，也没有建模 interface 声明所带的能力上界。
-- 只抽查了 Guide 的规则，没有逐条对照；对照实现的只有资源分类这一张表，`Copyable` 与 `Transferable` 的实现测试没有移植。
+- 闭包环境的能力（原型仅以不透明类型模拟逃逸闭包，未把捕获集合直接接入 `capability.py`）。
+- `enum` 的各个 case 没有分开；`value class` 的布局约束不在其内。
+- 存在类型的打包检查未建模（`C8` 已覆盖 `any I` 对 `interface` 能力上界的继承，但未覆盖打包点实参检查）。
+- Guide 10、11 的条文尚未逐条对照（`C6`、`C9` 已移植 `lang-frontend` 的资源分类与 `Copyable`/`Transferable` 实现测试表）。
 - 原型的规则是否正确，没有证明。
