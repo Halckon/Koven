@@ -3,15 +3,20 @@
 //! the subset keeps the existing per-family path.
 mod callable;
 mod container;
+#[cfg(test)]
+mod drop_scan_scope_probe;
 mod expression;
 mod field;
 mod heap;
+mod imported_receiver_route;
 mod map;
 pub(super) mod named_route;
 mod nullable_when;
 mod range_borrow;
 mod scalar_text;
+mod two_owned_receiver_route;
 mod when_control;
+mod whole_nominal_exit;
 use control::LoopRoute;
 pub(super) use control::accepts;
 use scalar_text::control;
@@ -50,6 +55,7 @@ struct Checker<'i, 'a> {
     branch_form: BTreeSet<UnitExpressionId>,
     /// Temporary field parents whose pending loan and cleanup lower together.
     temporary_field_parents: BTreeSet<UnitExpressionId>,
+    whole_nominal_exit: Option<whole_nominal_exit::WholeNominalExit>,
     /// Owned field receivers whose evaluated call prefix cannot dispatch.
     non_dispatching_field_calls: BTreeSet<UnitExpressionId>,
     /// Pilot routing gate: the function touches a nullable value.
@@ -93,6 +99,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
+        whole_nominal_exit: None,
         non_dispatching_field_calls: BTreeSet::new(),
         nullable: false,
         loops: 0,
@@ -240,6 +247,8 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         && (checker.nullable
             || checker.migrated
             || checker.bounded_receiver_route()
+            || checker.imported_receiver_route().is_some()
+            || checker.two_owned_receiver_route().is_some()
             || checker.bounded_named_call().is_some()
             || checker.bounded_temporary_call().is_some()
             || checker.linear_scalar_body());
@@ -282,6 +291,7 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
+        whole_nominal_exit: None,
         non_dispatching_field_calls: BTreeSet::new(),
         nullable: false,
         loops: 0,

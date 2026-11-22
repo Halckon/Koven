@@ -1,5 +1,8 @@
 //! SPEC-0341 bounded caller routing triggers: owned String argument calls, owned-class
 //! receiver calls, and literal String temporary calls. The complete subset precheck remains mandatory.
+#[path = "named_receiver_argument.rs"]
+mod receiver_argument;
+
 use super::{Checker, RefineBody};
 use lang_frontend::{
     ownership_checking::{
@@ -232,9 +235,6 @@ impl Checker<'_, '_> {
         else {
             return None;
         };
-        if !arguments.is_empty() {
-            return None;
-        }
         let Expression::Member {
             receiver: source,
             safe: false,
@@ -255,24 +255,30 @@ impl Checker<'_, '_> {
         {
             return None;
         }
-        let binding = inputs
-            .owned
-            .bindings()
-            .iter()
-            .find(|b| b.symbol() == *symbol)?;
+        let binding = if let Some(index) = inputs.single_receiver_facts {
+            index.binding(inputs.owned, *symbol)
+        } else {
+            inputs
+                .owned
+                .bindings()
+                .iter()
+                .find(|b| b.symbol() == *symbol)
+        }?;
         if binding.kind() != OwnershipBindingKind::Owned {
             return None;
         }
         let id = self.id(*expression);
         let call = inputs.typed.call(id)?;
         let receiver = call.receiver()?;
-        if !call.arguments().is_empty()
+        if !self.receiver_arguments_fit(arguments, call)?
             || call.aborts()
             || call.result_source() != CallableResultSource::Owned
             || !call.instance().type_arguments().is_empty()
             || !matches!(
                 self.kind(self.c(call.return_type())),
-                Some(UnitTypeKind::Builtin(BuiltinType::Int | BuiltinType::Unit))
+                Some(UnitTypeKind::Builtin(
+                    BuiltinType::Int | BuiltinType::Boolean | BuiltinType::Unit
+                ))
             )
             || receiver.mode() != ParameterMode::Borrow
             || self.c(receiver.ty()) != ty
@@ -284,7 +290,10 @@ impl Checker<'_, '_> {
         if site.dispatch_key().is_none() || !site.delegation().is_empty() {
             return None;
         }
-        let fact = inputs.owned.receiver_fact(id)?;
+        let fact = inputs.single_receiver_facts.map_or_else(
+            || inputs.owned.receiver_fact(id),
+            |facts| facts.receiver(inputs.owned, id),
+        )?;
         let UnitReceiverOwnershipTarget::Place(place) = fact.target() else {
             return None;
         };
@@ -299,16 +308,22 @@ impl Checker<'_, '_> {
             return None;
         }
         let point = UnitDropPoint::CallReturn(id);
-        Some(
+        let exact_end = |end: &lang_frontend::ownership_checking::UnitReceiverCallReturnEndFact| {
+            end.receiver() == fact && end.point() == point
+        };
+        Some(if let Some(index) = inputs.single_receiver_facts {
+            index.has_end(inputs.owned, id, exact_end)
+                && index.has_named_drop(inputs.owned, id, *symbol)
+        } else {
             inputs
                 .owned
                 .receiver_call_return_ends()
                 .iter()
-                .any(|end| end.receiver() == fact && end.point() == point)
+                .any(exact_end)
                 && inputs.owned.drops().iter().any(|drop| {
                     drop.point() == point && drop.target() == UnitDropTarget::Named(*symbol)
-                }),
-        )
+                })
+        })
     }
 
     pub(super) fn bounded_temporary_call(&self) -> Option<UnitExpressionId> {

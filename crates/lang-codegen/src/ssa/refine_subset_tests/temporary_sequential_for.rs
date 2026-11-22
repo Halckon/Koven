@@ -121,9 +121,7 @@ fn constant_while_edges_cannot_lend_destructuring_route() {
     }
 }
 
-#[test]
-fn terminating_constructor_prefix_lowers_on_the_retained_route() {
-    let source = r#"
+const TERMINATING_CONSTRUCTOR_PREFIX: &str = r#"
         class Plain(val first: Int, val second: Int)
         fun firstArgument(): Int { println("first argument"); return 1 }
         fun f(flag: Boolean): Unit {
@@ -136,6 +134,13 @@ fn terminating_constructor_prefix_lowers_on_the_retained_route() {
             })
         }
     "#;
+
+#[path = "temporary_sequential_for/mixed_constructor_loop.rs"]
+mod mixed_constructor_loop;
+
+#[test]
+fn terminating_constructor_prefix_lowers_on_the_retained_route() {
+    let source = TERMINATING_CONSTRUCTOR_PREFIX;
     let (result, routed) = route(source);
     assert!(
         !routed,
@@ -143,6 +148,159 @@ fn terminating_constructor_prefix_lowers_on_the_retained_route() {
     );
     crate::ssa::verify::verify_program(&result.expect("the abandoned constructor lowers"))
         .expect("both return edges and the evaluated prefix verify");
+}
+
+#[test]
+fn observe_terminating_constructor_prefix_frontend_boundary() {
+    use lang_frontend::{
+        name_resolution::SourceUnitInput,
+        parser::{Expression, Statement},
+        source::SourceMap,
+        type_checking::{UnitExpressionId, UnitStatementId, standard_environments},
+    };
+
+    let source = TERMINATING_CONSTRUCTOR_PREFIX;
+    let continuing = source.replace("while (true) { return }\n                2", "2");
+    assert_ne!(continuing, source);
+    for (text, terminating) in [(source, true), (&continuing, false)] {
+        let mut sources = SourceMap::new();
+        let source_text = format!("package p\n{text}");
+        let (id, file) =
+            crate::ssa::unit_lower_test_support::parsed(&mut sources, "p/main.ko", &source_text);
+        let inputs = [SourceUnitInput::new("root", "p/main.ko", id, &file)];
+        let (env, types) = standard_environments();
+        let (names, typed, owned) =
+            crate::ssa::unit_lower_test_support::analyze(&sources, &inputs, &env, &types);
+        let [unit] = names.names().index().source_units() else {
+            panic!("single source");
+        };
+        let (expr, call) = file
+            .ast()
+            .expressions()
+            .iter()
+            .find(|(_, expr)| {
+                matches!(expr.payload(), Expression::Call { .. })
+                    && sources
+                        .slice(expr.span())
+                        .unwrap()
+                        .starts_with("Plain(firstArgument(),")
+            })
+            .expect("exact original constructor expression");
+        let Expression::Call { arguments, .. } = call.payload() else {
+            unreachable!()
+        };
+        let [first, conditional] = arguments.as_slice() else {
+            panic!("two exact arguments");
+        };
+        let [call, first, conditional] = [expr, first.value, conditional.value]
+            .map(|expr| UnitExpressionId::new(unit.id(), expr));
+        let facts = typed.types();
+        let loops: Vec<_> = file
+            .ast()
+            .statements()
+            .iter()
+            .filter(|(_, node)| matches!(node.payload(), Statement::While { .. }))
+            .map(|(id, node)| {
+                (
+                    node.span(),
+                    facts.loop_falls_through(UnitStatementId::new(unit.id(), id)),
+                )
+            })
+            .collect();
+        let returns: Vec<_> = file
+            .ast()
+            .expressions()
+            .iter()
+            .filter(|(_, node)| matches!(node.payload(), Expression::Return { .. }))
+            .map(|(id, node)| {
+                (
+                    node.span(),
+                    facts.expression_falls_through(UnitExpressionId::new(unit.id(), id)),
+                )
+            })
+            .collect();
+        assert_eq!(facts.expression_falls_through(first), Some(true));
+        assert_eq!(loops.len(), if terminating { 2 } else { 1 });
+        assert!(returns.iter().all(|(_, flow)| *flow == Some(false)));
+        let plans = owned
+            .ownership()
+            .construction_plans()
+            .iter()
+            .filter(|plan| plan.construction() == call)
+            .collect::<Vec<_>>();
+        // The existing ordinary producer describes both syntactic operands and a root;
+        // it does not issue the runtime-only termination proof for the literal loop.
+        assert_eq!(facts.expression_falls_through(conditional), Some(true));
+        assert!(loops.iter().all(|(_, flow)| *flow == Some(true)));
+        assert!(facts.construction(call).is_some() && facts.call(call).is_none());
+        let [plan] = plans.as_slice() else {
+            panic!("one existing construction plan");
+        };
+        assert!(plan.terminating_operand().is_none());
+        assert!(plan.root_obligation().is_some());
+        assert_eq!(plan.deliveries().len(), 2);
+
+        // This deliberately records the current conservative parent completion. The
+        // desired never-allocates claim is a separate RED, not a new admission rule.
+        assert_eq!(facts.expression_falls_through(call), Some(true));
+    }
+}
+
+#[test]
+fn terminating_constructor_prefix_retains_both_native_exits() {
+    use crate::ssa::model::{Operation, TerminatorKind};
+
+    let source = TERMINATING_CONSTRUCTOR_PREFIX;
+    let continuing = source.replace("while (true) { return }\n                2", "2");
+    assert_ne!(continuing, source);
+    for (text, terminating) in [(source, true), (&continuing, false)] {
+        let (lowered, refined) = route(text);
+        let program = lowered.expect("retained lowering still accepts both valid programs");
+        crate::ssa::verify::verify_program(&program).unwrap();
+        let [module] = program.modules.as_slice() else {
+            panic!("one source module");
+        };
+        let function = module
+            .functions
+            .iter()
+            .find(|f| f.name.starts_with("koven.p.f.d"))
+            .unwrap();
+        let prefix = module
+            .functions
+            .iter()
+            .find(|f| f.name.starts_with("koven.p.firstArgument.d"))
+            .unwrap();
+        assert_eq!(function.instructions.iter().filter(|op| matches!(op.operation, Operation::DirectCall { callee, .. } if callee == prefix.id)).count(), 1);
+        if terminating {
+            assert!(
+                !refined,
+                "preserve the verified original Compatibility boundary"
+            );
+            assert!(!function.instructions.iter().any(|op| matches!(
+                op.operation,
+                Operation::HeapAllocate { .. }
+                    | Operation::HeapFieldRead { .. }
+                    | Operation::Drop { .. }
+            )));
+            assert_eq!(function.blocks.iter().filter_map(|b| b.terminator.as_ref()).filter(|t| matches!(&t.kind, TerminatorKind::Return { values } if values.is_empty())).count(), 2);
+        } else {
+            // A continuing alternative must not acquire a never-allocates certificate.
+            assert!(
+                function
+                    .instructions
+                    .iter()
+                    .any(|op| matches!(op.operation, Operation::HeapAllocate { .. }))
+            );
+        }
+        crate::llvm::render_verified_program(&program).unwrap();
+    }
+    let executable = crate::native_tests::emit_link_and_run(
+        "terminated-constructor-compatibility.ko",
+        &format!("{source}\nfun main(): Unit {{ f(true); f(false) }}"),
+        "main",
+    );
+    assert!(executable.status.success(), "{executable:?}");
+    assert_eq!(executable.stdout, b"first argument\nfirst argument\n");
 }
 
 #[test]
@@ -357,3 +515,6 @@ pub(in crate::ssa) mod control_completion {
         crate::llvm::render_verified_program(&program.unwrap()).expect("verified while control");
     }
 }
+
+#[path = "temporary_sequential_for/structural_constructor_sibling.rs"]
+mod structural_constructor_sibling;

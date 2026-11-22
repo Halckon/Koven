@@ -378,6 +378,26 @@ jobs:
           done
       - name: Experimental Unit root-set budget and rollback (CI only)
         run: bash scripts/check_unit_root_set_ci.sh
+      - name: D10 standard callable quota (CI only)
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_ACTIONS:-}" == true ]]
+          prefix=ssa::unit_plan_tests::callable_identity::original_routes::root_budget
+          for name in \
+            original_recursive_borrow_view_closes_before_standard_budget \
+            original_distinct_callback_operands_share_one_standard_budget_key \
+            original_repeated_callback_origin_deduplicates_before_standard_budget \
+            standard_budget_rejects_one_extra_specialized_key; do
+            target="$prefix::$name"
+            if ! result=$(cargo test --locked -j1 -p lang-codegen --lib --features loan-observation-test-support "$target" -- --exact --ignored); then
+              printf '%s\n' "$result"
+              exit 1
+            fi
+            printf '%s\n' "$result"
+            grep -Fxq "test $target ... ok" <<< "$result"
+            grep -Eq '^test result: ok\. 1 passed; 0 failed; 0 ignored;' <<< "$result"
+          done
       - name: Run exact borrowing fault contracts
         run: python3 scripts/check_borrow_faults.py
       - name: Independent parent receipt CI-only fault contracts
@@ -421,6 +441,9 @@ jobs:
         run: |
           cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_objects_preserve_sources_selectors_and_existing_targets -- --exact
           cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_language_errors_precede_selector_and_publish_nothing -- --exact
+          split_unreachable_member="$(cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_rejects_unreachable_bad_member_in_other_source_before_selector -- --exact)"
+          printf '%s\n' "$split_unreachable_member"
+          printf '%s\n' "$split_unreachable_member" | grep -Fq '1 passed; 0 failed; 0 ignored;'
           cargo test --locked -j1 -p lang-cli --test d10_split_object_cli
       - name: Explicit D10 split CLI native behavior
         timeout-minutes: 5

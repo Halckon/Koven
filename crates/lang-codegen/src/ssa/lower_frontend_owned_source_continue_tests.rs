@@ -2,12 +2,47 @@
 #[path = "lower_frontend_owned_source_structure_tests.rs"]
 mod structure;
 use super::owned_source_return_tests::unit_contract::{self, Control, Expected};
-use super::{analyze, lower_scalar_file};
 use lang_frontend::{
     diagnostic::{Diagnostic, Severity, codes},
+    lexer::lex,
+    name_resolution::{NameResolution, resolve_names},
+    ownership_checking::{OwnershipCheckedFile, check_ownership},
+    parser::{ParsedFile, parse_file},
     source::SourceMap,
-    type_checking::SequentialContainerKind,
+    type_checking::{SequentialContainerKind, TypedFile, check_types, standard_environments},
 };
+
+// Keep the historical Single comparison local to the two diagnostics that still use it.
+struct Analysis {
+    sources: SourceMap,
+    parsed: ParsedFile,
+    names: NameResolution,
+    typed: TypedFile,
+    owned: OwnershipCheckedFile,
+}
+
+fn analyze(text: &str) -> Analysis {
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source("lowering.ko", text)
+        .expect("source must be unique");
+    let lexed = lex(&sources, source).expect("lexing must succeed internally");
+    let parsed = parse_file(&sources, &lexed).expect("parsing must succeed internally");
+    let (environment, types) = standard_environments();
+    let names =
+        resolve_names(&sources, &parsed, &environment).expect("names must resolve internally");
+    let typed =
+        check_types(&sources, &parsed, &names, &types).expect("types must check internally");
+    let owned = check_ownership(&sources, &parsed, &names, &typed)
+        .expect("ownership must check internally");
+    Analysis {
+        sources,
+        parsed,
+        names,
+        typed,
+        owned,
+    }
+}
 
 struct ExpectedDiagnostic<'a> {
     code: &'a str,
@@ -392,106 +427,26 @@ fn owned_source_continue_fresh_inner_owner_structure() {
     }
 }
 
+mod array_unit_boundaries {
+    include!("lower_frontend_owned_source_continue_tests/array_unit_boundaries.rs");
+}
+
+const ARRAY_FIELD_MEMBER_SOURCE: &str = "class Holder(val keys: Array<Int>) { fun scan(): Unit { for (key in this.keys) { if (key == 2) { continue } } } }";
+
 #[test]
-fn owned_source_continue_existing_boundaries_remain_explicit() {
-    for (label, text) in [
-        (
-            "index_without_loop",
-            "fun main(): Unit { var keys = arrayOf(1, 2, 3); keys[0] = 9 }",
-        ),
-        (
-            "resource_source",
-            "class Item(val id: Int) { deinit() {} }\nfun main(): Unit { val keys = arrayOf(Item(1), Item(2)); for (key in keys) { if (key.id == 2) { continue } }; keys.size }",
-        ),
-        (
-            "two_continue",
-            "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 1) { continue }; if (key == 2) { continue } }; keys.size }",
-        ),
-        (
-            "break",
-            "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 2) { break } }; keys.size }",
-        ),
-        (
-            "return",
-            "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 2) { return } }; keys.size }",
-        ),
-        (
-            "inout",
-            "fun scan(inout keys: Array<Int>): Unit { for (key in keys) { if (key == 2) { continue } }; keys.size }",
-        ),
-        (
-            "field",
-            "class Holder(val keys: Array<Int>) { fun scan(): Unit { for (key in this.keys) { if (key == 2) { continue } } } }",
-        ),
-        (
-            "replacement_seed",
-            "fun main(): Unit { var keys = arrayOf(1, 2); keys = arrayOf(2, 3); for (key in keys) { if (key == 2) { continue } }; keys.size }",
-        ),
-    ] {
-        if label == "return" {
-            // Keep the original successful return source on the strict Unit path;
-            // the remaining seven Legacy rejection contracts below stay intact.
-            unit_contract::observe(
-                text,
-                "main",
-                &[Expected {
-                    function: "main",
-                    live: true,
-                    container: SequentialContainerKind::Array,
-                    own: false,
-                }],
-                Control::Return,
-                false,
-            );
-            continue;
-        }
-        let analysis = analyze(text);
-        assert!(
-            analysis.parsed.diagnostics().is_empty(),
-            "{label}: {:?}",
-            analysis.parsed.diagnostics()
-        );
-        assert!(
-            analysis.names.diagnostics().is_empty(),
-            "{label}: {:?}",
-            analysis.names.diagnostics()
-        );
-        assert!(
-            analysis.typed.diagnostics().is_empty(),
-            "{label}: {:?}",
-            analysis.typed.diagnostics()
-        );
-        assert!(
-            analysis.owned.diagnostics().is_empty(),
-            "{label}: {:?}",
-            analysis.owned.diagnostics()
-        );
-        let result = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        );
-        let error = result
-            .err()
-            .unwrap_or_else(|| panic!("{label} remains outside the source proof"));
-        assert_eq!(
-            error.kind,
-            if label == "field" {
-                crate::ssa::LoweringErrorKind::MissingFact
-            } else {
-                crate::ssa::LoweringErrorKind::UnsupportedNode
-            }
-        );
-        let actual = analysis.sources.slice(error.span.unwrap()).unwrap();
-        match label {
-            "index_without_loop" => assert_eq!(actual, "keys[0]"),
-            "inout" => assert_eq!(actual, text),
-            "field" => assert!(actual.starts_with("for (key in this.keys)")),
-            _ => assert_eq!(actual, "keys"),
-        }
-    }
+fn original_owned_source_return_boundary_uses_unit() {
+    unit_contract::observe(
+        "fun main(): Unit { val keys = arrayOf(1, 2, 3); for (key in keys) { if (key == 2) { return } }; keys.size }",
+        "main",
+        &[Expected {
+            function: "main",
+            live: true,
+            container: SequentialContainerKind::Array,
+            own: false,
+        }],
+        Control::Return,
+        false,
+    );
 }
 
 // Original declaration, grouping and alias sources share the full Unit identity contract.
@@ -719,113 +674,65 @@ fn owned_source_continue_borrowed_element_cannot_be_owned() {
     );
 }
 
+const ORIGINAL_SHADOW_ARRAYS: &str = "fun main(): Unit { val keys = arrayOf(9); keys.size; block { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }";
+#[path = "lower_frontend_owned_source_continue_tests/array_control_unit.rs"]
+mod array_control_unit;
+
+#[path = "lower_frontend_owned_source_continue_tests/external_owner_unit.rs"]
+mod external_owner_unit;
+
+const ORIGINAL_LIVE_MAP_SHORT_CIRCUIT: &str = "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; first.put(9, \"tail one\".clone()); second.put(9, \"tail two\".clone()) }; if (first.contains(3) && second.contains(3)) { println(\"maps\") } }";
+
+#[path = "lower_frontend_owned_source_continue_tests/short_circuit_unit.rs"]
+mod short_circuit_unit;
+
 #[test]
 fn owned_source_continue_external_owner_and_short_circuit_boundaries() {
-    for (expected, text) in [
-        (
-            "keys",
-            "fun main(): Unit { val keys = arrayOf(9); keys.size; block { val keys = arrayOf(1, 2); for (key in keys) { if (key == 2) { continue } }; keys.size } }",
-        ),
-        (
-            "",
-            "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; println(\"tail\") } }",
-        ),
-        (
-            "second",
-            "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; first.put(9, \"tail one\".clone()); second.put(9, \"tail two\".clone()) }; if (first.contains(3) && second.contains(3)) { println(\"maps\") } }",
-        ),
-    ] {
-        if expected.is_empty() {
-            use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
-            use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
+    // The two former Single-only negative rows are exercised by the exact-source
+    // external_owner_unit and short_circuit_unit regressions above.
+    let text = "fun main(): Unit { val keys = arrayOf(1, 2, 3); var first = mutableMapOf<Int, String>(); var second = mutableMapOf<Int, String>(); for (key in keys) { first.put(key, \"first\".clone()); second.put(key, \"second\".clone()); if (key == 2) { continue }; println(\"tail\") } }";
+    use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
+    use lang_frontend::name_resolution::{SourceUnitKey, SymbolKind};
 
-            let unit =
-                UnitSource::analyze("lowering.ko", text).expect("strict original dead-Map source");
-            unit.assert_frontend_clean();
-            assert!(unit.ownership().deferred().is_empty());
-            let [document] = unit.names().names().index().source_units() else {
-                panic!("one original MemoryDocument");
-            };
-            assert_eq!(document.key(), &SourceUnitKey::MemoryDocument);
-            assert_eq!(document.source_id(), unit.parsed().source_id());
-            assert_eq!(
-                unit.sources().source_name(document.source_id()),
-                Ok("lowering.ko")
-            );
-            assert_eq!(unit.sources().source_text(document.source_id()), Ok(text));
-            assert_eq!(unit.parsed().roots().len(), 1);
-            let declaration = unit.declaration("main", SymbolKind::Function);
-            let (program, entry) = unit
-                .lower_entry(declaration)
-                .expect("dead Map without post-control use stays supported");
-            let function = program
-                .module(entry.module())
-                .unwrap()
-                .function(entry)
-                .unwrap();
-            assert_eq!(
-                function.origin,
-                crate::ssa::model::Origin::Source(unit.declaration_span(declaration))
-            );
-            // Preserve the original no-process-entry renderer contract.
-            crate::llvm::render_verified_program(&program).unwrap();
-            continue;
-        }
-        let analysis = analyze(text);
-        assert!(analysis.parsed.diagnostics().is_empty());
-        assert!(analysis.names.diagnostics().is_empty());
-        assert!(analysis.typed.diagnostics().is_empty());
-        assert!(analysis.owned.diagnostics().is_empty());
-        let result = lower_scalar_file(
-            &analysis.sources,
-            &analysis.parsed,
-            &analysis.names,
-            &analysis.typed,
-            &analysis.owned,
-        );
-        let error = result
-            .err()
-            .expect("unrelated conditional owner remains a boundary");
-        assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-        assert_eq!(
-            analysis.sources.slice(error.span.unwrap()).unwrap(),
-            expected
-        );
-    }
+    let unit = UnitSource::analyze("lowering.ko", text).expect("strict original dead-Map source");
+    unit.assert_frontend_clean();
+    assert!(unit.ownership().deferred().is_empty());
+    let [document] = unit.names().names().index().source_units() else {
+        panic!("one original MemoryDocument");
+    };
+    assert_eq!(document.key(), &SourceUnitKey::MemoryDocument);
+    assert_eq!(document.source_id(), unit.parsed().source_id());
+    assert_eq!(
+        unit.sources().source_name(document.source_id()),
+        Ok("lowering.ko")
+    );
+    assert_eq!(unit.sources().source_text(document.source_id()), Ok(text));
+    assert_eq!(unit.parsed().roots().len(), 1);
+    let declaration = unit.declaration("main", SymbolKind::Function);
+    let (program, entry) = unit
+        .lower_entry(declaration)
+        .expect("dead Map without post-control use stays supported");
+    let function = program
+        .module(entry.module())
+        .unwrap()
+        .function(entry)
+        .unwrap();
+    assert_eq!(
+        function.origin,
+        crate::ssa::model::Origin::Source(unit.declaration_span(declaration))
+    );
+    // Preserve the original no-process-entry renderer contract.
+    crate::llvm::render_verified_program(&program).unwrap();
 }
 
-#[test]
-fn owned_source_continue_range_view_remains_explicit() {
-    use lang_frontend::{
-        lexer::lex,
-        name_resolution::resolve_names,
-        ownership_checking::check_ownership,
-        parser::parse_file,
-        source::SourceMap,
-        type_checking::{check_types, standard_environments},
-    };
-    let mut sources = SourceMap::new();
-    let text = format!(
+#[path = "lower_frontend_owned_source_continue_tests/range_view_unit.rs"]
+mod range_view_unit;
+
+fn trusted_range_view_continue_source() -> String {
+    format!(
         "{}\nfun main(): Unit {{ val keys = listOf(1, 2); for (key in take(keys, 1)) {{ if (key == 2) {{ continue }} }}; keys.size }}",
         include_str!("../../../lang-std/koven/algorithms/ranges.ko")
             .strip_prefix("package koven.algorithms\n")
             .unwrap()
-    );
-    let source = sources.add_source("trusted.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    let (environment, mut types) = standard_environments();
-    types.authorize_range_source(&sources, source).unwrap();
-    types
-        .authorize_range_extension_source(&sources, source)
-        .unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let owned = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let error = lower_scalar_file(&sources, &parsed, &names, &typed, &owned)
-        .err()
-        .expect("RangeView is not a Sequential source proof");
-    assert_eq!(error.kind, crate::ssa::LoweringErrorKind::UnsupportedNode);
-    assert_eq!(sources.slice(error.span.unwrap()).unwrap(), "keys");
+    )
 }

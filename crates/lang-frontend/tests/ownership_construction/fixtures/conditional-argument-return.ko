@@ -1,0 +1,4 @@
+class Holder(val first: String, val second: Int)
+                fun hold(select: Boolean, early: Boolean): Unit {
+                    val holder = Holder(if (select) { "a" } else { "b" }, if (early) { return } else { 1 })
+                }

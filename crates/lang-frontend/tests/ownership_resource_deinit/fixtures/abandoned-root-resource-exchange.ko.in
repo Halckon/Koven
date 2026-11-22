@@ -1,0 +1,6 @@
+class Guard { deinit() {} }
+class Memory {}
+fun tick(): Unit {}
+fun inspect(value: Guard): Unit {}
+fun accept(own first: Guard, last: Int): Unit {}
+fun run(): Unit { var root = Guard(); accept(replace(&root, Guard()), $EXIT) }

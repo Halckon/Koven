@@ -188,13 +188,13 @@ This provider 仍使用原 This 身份检查，不混入只含 Place 根的集�
 ## 有界 owned 参数 caller 的 refine 路由
 
 SPEC-0341 的有界路由现使单一显式 `own` 非 Resource 普通 class 参数、Unit block
-仅一条零实参 Shared receiver 调用的 caller 进入 refine。首片仅非泛型 caller、
-无类型实参的 class/call instance，方法 owned 结果限 Int/Unit。来源必须为原始 Name 根与
-非 safe Member；typed descriptor、Owned binding、真实 CallReturn receiver end 及
+仅一条 Shared receiver 调用的 caller 进入 refine。caller 非泛型，class/call instance 无类型实参。
+零实参允许 owned Int/Boolean/Unit；单实参仅限无名称、无模式标记、无括号的无后缀 Int 字面量，传给唯一的 own Int 参数，结果为 owned Int。
+接收者须为原始 Name 根与非 safe Member；typed descriptor、Owned binding、真实 CallReturn receiver end 及
 同根 Drop 均匹配，且整个函数仍通过原 signature/body/drop subset。
 迁移触发不读取 loan observation 或 protocol 2 Complete；caller/callee 各自选路，
 原样 Node/run 中 run 迁移而 touch 保持原路径。已有 refine producer 唯一生成
 RootPlace、BorrowBegin、DirectCall、BorrowEnd 与 NamedDrop；受限核验见[生产 receipt](receiver-production-receipts.md)。
-真实 frontend off 重分析后原样 lowering 的等价性与原实体顺序 oracle 保留；不扩大
-implicit this、temporary、projection、two-phase、borrow-result、控制流或 replacement。
-这不是全体 receiver 迁移或旧 Compatibility/oracle 退休；其它既有迁移触发仍独立生效。
+真实 frontend off 的路由与 lowering 等价性保留；不扩大 implicit this、temporary、projection、two-phase、borrow-result、控制流或 replacement。
+本地候选另准入同一 `own` 非 Resource class 参数的恰好两条零实参 Shared Int 调用，限同一直达方法、每次按原 token 结束、仅末次同根 Drop；不依赖可选观察，不产生 Protocol 2 receipt。
+另有独立的借用转发路由：单一默认 Borrow、非 Resource 普通 class 参数，仅零实参 Shared 方法、owned Int 结果的单语句，直接传入 entry loan；caller 无本地借用起止或 Drop，无 Protocol 2 receipt。其余形态不因这些窄路由而迁移。

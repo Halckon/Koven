@@ -15,6 +15,8 @@ use super::{
     unit_lower_test_support::{analyze, declaration, parsed},
 };
 
+mod mixed_rc_contract;
+mod mixed_string_when;
 mod nullable_when;
 mod routing;
 mod scalar;

@@ -7,8 +7,12 @@ use lang_frontend::{
         ConstEnabledOwnedUnit, ConstantMaterializationKind, UnitDropTarget, UnitLoanTarget,
         check_compilation_unit_constant_ownership,
     },
+    parser::{BinaryOperator, Expression, Item, NameMarker, StringPart},
     source::SourceMap,
-    type_checking::{ConstEnabledTypedUnit, check_compilation_unit_types, standard_environments},
+    type_checking::{
+        BuiltinType, ConstEnabledTypedUnit, ConstValue, UnitExpressionId,
+        check_compilation_unit_types, standard_environments,
+    },
 };
 
 pub(super) fn checked(
@@ -192,5 +196,124 @@ fn loop_successor_cleanup_requires_a_reachable_break() {
                 assert_eq!(sources.slice(drop.value_origin()), Ok("TEXT"));
             }
         }
+    }
+}
+
+pub(super) fn aborting_string(text: &str) {
+    aborting_binary(text, BinaryOperator::Add);
+}
+
+pub(super) fn aborting_equality(text: &str) {
+    aborting_binary(text, BinaryOperator::Equal);
+}
+
+fn aborting_binary(text: &str, expected_operator: BinaryOperator) {
+    for rooted in [false, true] {
+        let (sources, typed, owned) = checked(text, rooted);
+        assert!(owned.is_compatible_with(&typed));
+
+        // The two reads must be real, resolved constants, not missing typed
+        // facts incidentally making the materialization assertions pass.
+        let [declaration] = typed.constants().declarations() else {
+            panic!("one original TEXT constant");
+        };
+        let source = declaration.declaration_span().source_id();
+        assert_eq!(sources.source_text(source), Ok(text));
+        assert_eq!(sources.slice(declaration.declaration_span()), Ok("TEXT"));
+        let ConstValue::String(bytes) = declaration.value() else {
+            panic!("expected String constant");
+        };
+        assert_eq!(bytes.as_ref(), b"hi");
+        let parsed = super::parser_test_assertions::parse_file_twice(
+            &sources,
+            source,
+            "aborting string original input",
+        );
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{:?}",
+            parsed.diagnostics()
+        );
+        let ast = parsed.ast();
+        let initializer = |name| {
+            let matching: Vec<_> = ast
+                .items()
+                .iter()
+                .filter_map(|(_, node)| match node.payload() {
+                    Item::Variable {
+                        name: NameMarker::Present(marker),
+                        initializer,
+                        ..
+                    } if sources.slice(*marker) == Ok(name) => Some(*initializer),
+                    _ => None,
+                })
+                .collect();
+            let [expression] = matching.as_slice() else {
+                panic!("one original initializer: {name}");
+            };
+            *expression
+        };
+        let stopped = initializer("stopped");
+        let unreachable = initializer("unreachable");
+        let expression = |id| ast.expressions().get(id).unwrap();
+        let Expression::Binary {
+            left,
+            operator,
+            right,
+            ..
+        } = expression(stopped).payload()
+        else {
+            panic!("original binary expression");
+        };
+        assert_eq!(*operator, expected_operator);
+        let stop = match expected_operator {
+            BinaryOperator::Equal => *left,
+            BinaryOperator::Add => {
+                let Expression::String { parts } = expression(*left).payload() else {
+                    panic!("original interpolated LHS")
+                };
+                let [StringPart::Interpolation { expression, .. }] = parts.as_slice() else {
+                    panic!("the original Nothing call is the only interpolation part")
+                };
+                *expression
+            }
+            _ => unreachable!("only the original tested operators"),
+        };
+        assert_eq!(sources.slice(expression(stop).span()), Ok("stop()"));
+        let qualify = |id| UnitExpressionId::new(declaration.symbol().source_unit(), id);
+        let stop = qualify(stop);
+        let actual_call = typed
+            .types()
+            .call(stop)
+            .expect("the actual non-returning call");
+        assert_eq!(actual_call.expression(), stop);
+        assert!(actual_call.arguments().is_empty());
+        assert_eq!(
+            Some(actual_call.return_type()),
+            typed.types().types().builtin(BuiltinType::Nothing)
+        );
+
+        let [rhs, following] = typed.constants().uses() else {
+            panic!("both original TEXT occurrences have typed constant facts");
+        };
+        for (read, expected) in [(rhs, *right), (following, unreachable)] {
+            assert_eq!(read.expression(), qualify(expected));
+            assert_eq!(sources.slice(expression(expected).span()), Ok("TEXT"));
+            assert_eq!(read.target(), declaration.symbol());
+            assert_eq!(read.value(), declaration.value());
+            assert_eq!(read.ty(), declaration.ty());
+            assert!(owned.materialization_at(qualify(expected)).is_none());
+        }
+        assert!(owned.materializations().is_empty());
+        assert!(
+            owned.ownership().drops().is_empty(),
+            "{:?}",
+            owned.ownership().drops()
+        );
+        assert!(owned.ownership().loans().is_empty());
+        if expected_operator == BinaryOperator::Equal {
+            assert!(owned.ownership().direct_call_loan_ends().is_empty());
+        }
+        assert!(owned.ownership().value_deliveries().is_empty());
     }
 }

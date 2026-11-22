@@ -38,8 +38,6 @@ mod refine_subset_tests;
 #[cfg(test)]
 mod refine_tests;
 #[cfg(test)]
-pub(crate) use lower_frontend::orchestrate::lower_scalar_file_with_entry;
-#[cfg(test)]
 pub(crate) use refine::{observe_routing, with_per_family_lowering};
 mod lowering_support;
 pub(crate) use lowering_support::{LoweringError, LoweringErrorKind};
@@ -257,9 +255,17 @@ pub(in crate::ssa) mod deinit_tests;
 pub(in crate::ssa) use rc_nullable_while_bounded_tests::unit_root_primitive_tests;
 
 #[cfg(test)]
+mod unit_conditional_construction_tests;
+#[cfg(test)]
 pub(in crate::ssa) mod unit_field_borrow_tests;
 #[cfg(test)]
 mod unit_field_replace_tests;
+#[cfg(test)]
+mod unit_generic_borrow_transport_tests;
+#[cfg(test)]
+mod unit_nullable_copy_under_loan_tests;
+#[cfg(test)]
+mod unit_resource_exchange_owner_tests;
 
 #[cfg(test)]
 pub(in crate::ssa) mod lowering_support_tests;
@@ -350,9 +356,6 @@ mod unit_lower_nullable_neighbor_tests;
 
 #[cfg(test)]
 mod unit_enum_regression_tests;
-
-#[cfg(test)]
-mod borrow_argument;
 
 #[cfg(test)]
 mod e2_two_source_transport_tests;

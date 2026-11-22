@@ -1,0 +1,7 @@
+class Guard { deinit() {} }
+class Memory {}
+fun tick(): Unit {}
+fun inspect(value: Guard): Unit {}
+class Holder(var state: Guard)
+fun accept(own first: Guard, last: Int): Unit {}
+fun run(): Unit { val holder = Holder(Guard()); accept(replace(&holder.state, Guard()), $EXIT) }

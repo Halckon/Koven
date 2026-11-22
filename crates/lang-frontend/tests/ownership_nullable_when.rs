@@ -1,11 +1,20 @@
 //! SPEC-0203 nullable branch views preserve the original owner's capabilities.
 
+#[path = "ownership_nullable_when/partial_own_call.rs"]
+mod partial_own_call;
+
+#[path = "ownership_nullable_when/projection_proof.rs"]
+mod projection_proof;
+
+#[path = "ownership_nullable_when/retained_boundaries.rs"]
+mod retained_boundaries;
+
 use lang_frontend::{
     name_resolution::resolve_names,
     ownership_checking::{
-        CompilationUnitOwnership, DropPoint, DropTarget, LoanKind, NullableWhenBranchOutcome,
-        NullableWhenExtractionKind, OwnershipBindingKind, OwnershipCheckedFile, UnitDropPoint,
-        UnitDropTarget, UnitLoanTarget, check_ownership,
+        CompilationUnitOwnership, DropPoint, DropTarget, LoanKind, NullableWhenExtractionKind,
+        OwnershipBindingKind, OwnershipCheckedFile, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+        check_ownership,
     },
     parser::{Expression, ParsedFile},
     source::SourceMap,
@@ -17,6 +26,12 @@ mod parser_test_assertions;
 
 #[path = "support/nullable_ownership_unit.rs"]
 mod nullable_unit;
+
+#[path = "ownership_nullable_when/replacement_proof.rs"]
+mod replacement_proof;
+
+#[path = "ownership_nullable_when/copy_while_shared.rs"]
+mod copy_while_shared;
 
 fn checked(text: &str) -> OwnershipCheckedFile {
     let mut sources = SourceMap::new();
@@ -530,108 +545,90 @@ fn aborting_nullable_branch_has_no_normal_outcome() {
 
 #[test]
 fn branch_summary_retains_partial_consumption_without_claiming_every_path_moves() {
-    let owned = checked(
-        "class Node {}\nfun take(own x: Node): Unit {}\nfun test(flag: Boolean, own x: Node?): Unit = when (x) { null -> {}; else -> if (flag) { take(x) } else {} }",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    let plan = &owned.nullable_whens()[0];
-    assert_eq!(
-        plan.branches()[0].outcome(),
-        NullableWhenBranchOutcome::Null
-    );
-    assert_eq!(
-        plan.branches()[1].outcome(),
-        NullableWhenBranchOutcome::MayConsume
-    );
-    assert_eq!(plan.extractions().len(), 1);
-    assert_eq!(plan.extractions()[0].entry(), 1);
+    let text = include_str!("ownership_nullable_when/fixtures/partial-own-call.ko");
+    partial_own_call::assert_partial_own_call(text);
 }
 
 #[test]
 fn copyable_inner_copy_is_legal_while_subject_has_a_shared_loan() {
-    let owned = checked(
-        "fun combine(x: Int?, own y: Int): Int = y\nfun test(x: Int?): Int = combine(x, when (x) { null -> 0; else -> x })",
-    );
-    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-    assert_eq!(owned.nullable_whens()[0].extractions().len(), 1);
-    assert_eq!(
-        owned.nullable_whens()[0].extractions()[0].kind(),
-        NullableWhenExtractionKind::Copy
-    );
+    let text = include_str!("ownership_nullable_when/fixtures/copy-while-shared.ko");
+    copy_while_shared::assert_copy_while_shared(text);
 }
 
 #[test]
 fn replacement_does_not_inherit_the_original_subject_extraction_proof() {
-    let owned = checked(
-        "fun test(input: Int?, replacement: Int?): Int? { var x = input; return (when (x) { null -> null; else -> { x = replacement; if (true) { x } else { x } } }) }",
-    );
+    let text = "fun test(input: Int?, replacement: Int?): Int? { var x = input; return (when (x) { null -> null; else -> { x = replacement; if (true) { x } else { x } } }) }";
+    replacement_proof::assert_nullable_subject(text, true);
+    let block = text.replace("x = replacement;", "block { x = replacement };");
+    replacement_proof::assert_nullable_subject(&block, true);
+    let no_write = text.replace("x = replacement; ", "");
+    replacement_proof::assert_nullable_subject(&no_write, false);
+}
+
+#[test]
+fn inner_value_delivery_copies_original_nullable_body_payload() {
+    let text = include_str!("ownership_nullable_when/fixtures/copy-when-body.ko");
+    copy_while_shared::assert_body_copy(text);
+}
+
+#[test]
+fn inner_value_delivery_records_consume() {
+    let text =
+        "class Node {}\nfun test(own x: Node?): Node = when (x) { null -> Node(); else -> x }";
+    let owned = checked(text);
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    let [plan] = owned.nullable_whens() else {
+        panic!("one original nullable when")
+    };
+    let [extraction] = plan.extractions() else {
+        panic!("one original consume")
+    };
+    assert_eq!(extraction.kind(), NullableWhenExtractionKind::Consume);
+    assert_eq!((extraction.entry(), extraction.alternative()), (1, None));
+    assert_ne!(extraction.expression(), plan.subject());
+}
+
+#[test]
+fn named_nullable_read_borrows_without_extracting() {
+    retained_boundaries::named_nullable_read_borrows_without_extracting();
+}
+
+#[test]
+fn nullable_field_keeps_place_but_does_not_narrow_a_repeated_read() {
+    let text = include_str!("ownership_nullable_when/fixtures/unstable-field.ko");
+    assert_legacy_projection(text);
+    projection_proof::assert_unit_projection(text, true);
+}
+
+#[test]
+fn nullable_index_keeps_place_but_does_not_narrow_a_repeated_read() {
+    let text = include_str!("ownership_nullable_when/fixtures/unstable-index.ko");
+    assert_legacy_projection(text);
+    projection_proof::assert_unit_projection(text, false);
+}
+
+fn assert_legacy_projection(text: &str) {
+    let owned = checked(text);
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert_eq!(owned.nullable_whens().len(), 1);
+    let plan = &owned.nullable_whens()[0];
+    assert!(owned.nullable_when(plan.expression()).is_some());
+    let view = plan.branches()[1]
+        .view()
+        .expect("non-null internal subject view");
+    assert_eq!(view.subject(), plan.subject());
     assert!(
-        owned.nullable_whens()[0].extractions().is_empty(),
-        "a new nullable value is not the old subject's inner value"
+        view.stable_symbol().is_none(),
+        "repeated field/index reads are not stable smart-cast keys"
     );
-}
-
-#[test]
-fn inner_value_delivery_records_copy_or_consume_but_read_records_neither() {
-    for (text, kind) in [
-        (
-            "fun test(x: Int?): Int = when (x) { null -> 0; else -> x }",
-            Some(NullableWhenExtractionKind::Copy),
-        ),
-        (
-            "class Node {}\nfun test(own x: Node?): Node = when (x) { null -> Node(); else -> x }",
-            Some(NullableWhenExtractionKind::Consume),
-        ),
-        (
-            "class Node {}\nfun read(x: Node): Unit {}\nfun test(x: Node?): Unit = when (x) { null -> {}; else -> read(x) }",
-            None,
-        ),
-    ] {
-        let owned = checked(text);
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        let plans = owned.nullable_whens();
-        assert_eq!(plans.len(), 1);
-        let extractions = plans[0].extractions();
-        assert_eq!(extractions.len(), usize::from(kind.is_some()));
-        if let Some(kind) = kind {
-            assert_eq!(extractions[0].kind(), kind);
-            assert_eq!(extractions[0].entry(), 1);
-            assert_eq!(extractions[0].alternative(), None);
-            assert_ne!(extractions[0].expression(), plans[0].subject());
-        }
-    }
-}
-
-#[test]
-fn nullable_proof_keeps_the_single_subject_identity() {
-    for text in [
-        "class Node {}\nclass Holder(val item: Node?)\nfun read(x: Node?): Unit {}\nfun test(h: Holder): Unit = when (h.item) { null -> {}; else -> read(h.item) }",
-        "class Node {}\nfun read(x: Node?): Unit {}\nfun test(xs: List<Node?>): Unit = when (xs[0]) { null -> {}; else -> read(xs[0]) }",
-    ] {
-        let owned = checked(text);
-        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
-        assert_eq!(owned.nullable_whens().len(), 1);
-        let plan = &owned.nullable_whens()[0];
-        assert!(owned.nullable_when(plan.expression()).is_some());
-        let view = plan.branches()[1]
-            .view()
-            .expect("non-null internal subject view");
-        assert_eq!(view.subject(), plan.subject());
-        assert!(
-            view.stable_symbol().is_none(),
-            "repeated field/index reads are not stable smart-cast keys"
-        );
-        assert!(
-            view.place().is_some(),
-            "proof must retain the existing place identity"
-        );
-        assert!(
-            plan.extractions().is_empty(),
-            "borrowing the repeated read is not inner extraction"
-        );
-    }
+    assert!(
+        view.place().is_some(),
+        "proof must retain the existing place identity"
+    );
+    assert!(
+        plan.extractions().is_empty(),
+        "borrowing the repeated read is not inner extraction"
+    );
 }
 
 #[test]
@@ -755,12 +752,16 @@ fn copyable_inner_preserves_borrow_and_inout_capabilities() {
 }
 
 #[test]
+fn owned_nullable_node_moves_the_original_root() {
+    retained_boundaries::owned_nullable_node_moves_the_original_root();
+}
+
+#[test]
 fn owned_move_only_inner_can_transfer_the_whole_root() {
     for text in [
         "class Node {}\nvalue class Wrapped(val node: Node)\nfun extract(own x: Wrapped?): Wrapped = when (x) { null -> Wrapped(Node()); else -> x }",
         "class Node {}\nenum class Event { Empty, Full(node: Node) }\nfun extract(own x: Event?): Event = when (x) { null -> Event.Empty; else -> x }",
         "fun extract(own x: String?): String = when (x) { null -> \"\"; else -> x }",
-        "class Node {}\nfun extract(own x: Node?): Node = when (x) { null -> Node(); else -> x }",
         "value class Token(val item: Int)\nfun extract(own x: Box<Token>?, own fallback: Box<Token>): Box<Token> = when (x) { null -> fallback; else -> x }",
         "fun extract(own x: Rc<Int>?, own fallback: Rc<Int>): Rc<Int> = when (x) { null -> fallback; else -> x }",
     ] {

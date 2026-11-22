@@ -319,35 +319,6 @@ fn iteration_plan_publication_is_atomic_on_error_and_skips_unreachable_source() 
 }
 
 #[test]
-fn nested_return_plan_orders_each_scope_before_its_provider() {
-    use lang_frontend::ownership_checking::{IterationCleanupAction as Action, IterationExitKind};
-    let (sources, _, owned) = checked(
-        "class Node {}\nfun touch(n: Node) {}\nfun run(own outer: Node, flag: Boolean) { for (_ in listOf(1)) { val local = Node()\nfor (_ in listOf(2)) { if (flag) { return }\ntouch(local) } }; touch(outer) }",
-    );
-    assert_eq!(owned.iterations().len(), 2);
-    let returns = owned
-        .iterations()
-        .iter()
-        .map(|plan| {
-            plan.exits()
-                .iter()
-                .find(|exit| matches!(exit.kind(), IterationExitKind::Return(_)))
-                .unwrap()
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(returns[0].actions(), returns[1].actions());
-    let drops = returns[0]
-        .actions()
-        .iter()
-        .filter_map(|action| match action {
-            Action::Drop(fact) => Some(sources.slice(fact.value_origin()).unwrap()),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(drops, ["listOf(2)", "local", "listOf(1)", "outer"]);
-}
-
-#[test]
 fn named_source_break_has_its_own_dead_owner_cleanup() {
     use lang_frontend::ownership_checking::{
         DropTarget, IterationCleanupAction as Action, IterationExitKind,

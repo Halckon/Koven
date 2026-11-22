@@ -21,7 +21,12 @@ fn edges(function: &Function) -> Vec<(BlockId, &Edge)> {
         })
         .collect()
 }
-fn forwards(function: &Function, value: EntityId, expected: EntityId, _depth: usize) -> bool {
+pub(super) fn forwards(
+    function: &Function,
+    value: EntityId,
+    expected: EntityId,
+    _depth: usize,
+) -> bool {
     fn check(
         function: &Function,
         value: EntityId,
@@ -56,6 +61,15 @@ fn forwards(function: &Function, value: EntityId, expected: EntityId, _depth: us
     check(function, value, expected, &mut visited, &mut found) && found
 }
 pub(super) fn check(program: &Program, live: bool, seed_span: lang_frontend::source::Span) {
+    check_with_backedges(program, live, seed_span, 2);
+}
+
+pub(super) fn check_with_backedges(
+    program: &Program,
+    live: bool,
+    seed_span: lang_frontend::source::Span,
+    expected_backedges: usize,
+) {
     let f = program.modules[0]
         .functions
         .iter()
@@ -191,8 +205,8 @@ pub(super) fn check(program: &Program, live: bool, seed_span: lang_frontend::sou
         .collect::<Vec<_>>();
     assert_eq!(
         back.len(),
-        2,
-        "continue and normal fallthrough both transport"
+        expected_backedges,
+        "each continue and normal fallthrough transport the same owner"
     );
     for (block, edge) in back {
         for (slot, expected) in [(owner_slot, body_owner), (source_slot, body_source)] {

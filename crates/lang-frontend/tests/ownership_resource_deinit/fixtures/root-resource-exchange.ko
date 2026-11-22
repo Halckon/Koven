@@ -1,0 +1,3 @@
+class Resource(val id: Int) { deinit() {} }
+fun tick(): Unit {}
+fun run(): Unit { var first = Resource(1); var second = Resource(2); val old = replace(&first, Resource(3)); swap(&first, &second); tick() }
