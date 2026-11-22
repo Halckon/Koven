@@ -814,7 +814,7 @@ class LoanKernelCases(unittest.TestCase):
         CHECKER.check(source, lowered=lowered)
         for name in ("nestedReleasedAfterLastUse", "forwardNestedRo", "forwardNestedRw", "deliverOnlyRo"):
             self.assertTrue(lowered[name][2], name)
-        for name in ("wrongFieldContractRejected", "localNestedEscapeRejected", "unsupportedCellSubView"):
+        for name in ("wrongFieldContractRejected", "localNestedEscapeRejected", "unsupportedCellReceiver"):
             self.assertFalse(lowered[name][2], name)
         types, program, accepted = lowered["dropsNestedFieldsOnFailure"]
         self.assertTrue(accepted)
@@ -1176,6 +1176,31 @@ class LoanKernelCases(unittest.TestCase):
         i, j = temp_block.body.index(drops[0]), temp_block.body.index(drops[1])
         temp_block.body[i], temp_block.body[j] = temp_block.body[j], temp_block.body[i]
         self.assertEqual({"V4"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+    def test_open_transfers_cell_and_local_sub_views(self):
+        source = (ROOT / "cases/Z31.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("forwardOpenedCellBag", "openCellBagDropsOnFailure",
+                     "openDeinitCellSubViewReleasedAfterMove", "openLocalSubViewAllowedAcrossNormalSuspend",
+                     "openLocalSubViewDropsOnFailure"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("missingOpenedCellBagContract", "openCellBagRejectsDirectFieldAccess",
+                     "openCellBagSharedRefCannotCrossParallelSuspend", "openDeinitCellSubViewStaysAliveUntilDrop",
+                     "openLocalSubViewCannotCrossParallelSuspend", "openLocalSubViewRejectedByTransferableBound"):
+            self.assertFalse(lowered[name][2], name)
+        for fun, sub in (("openCellBagDropsOnFailure", "bag"), ("openLocalSubViewDropsOnFailure", "loc")):
+            with self.subTest(fun=fun):
+                types, program, accepted = lowered[fun]
+                self.assertTrue(accepted)
+                call = next(s for s in program if s.kind == "call")
+                self.assertEqual([("file", False), (sub, False)], call.cleanup)
+                self.assertEqual(["file", sub], [s.var for s in program if s.kind == "drop"])
+                self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+                call.cleanup.pop()  # 漏掉拆出的 cell / local 子视图
+                found = CHECKER.DP.Verifier(types).run_all(program)
+                self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

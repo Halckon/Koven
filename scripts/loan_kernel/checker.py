@@ -1900,7 +1900,7 @@ class Checker:
         if len(stmt.names) != len(decl.fields) or any(
                 (kind and self.carrier(ty)) or not self.open_field(ty, decl.is_view or bool(kind))
                 for kind, _, ty in decl.fields):
-            self.error("K25", stmt.line, "open 只支持无来源的按值类字段、直接借用字段或非内部可变非线程绑定的按值子视图")
+            self.error("K25", stmt.line, "open 只支持无来源的按值类字段、直接借用字段或按值子视图")
             raise InvalidOpen
         var = state[stmt.name]
         self.resolve(state, Place(stmt.name, [], stmt.line))  # K8：完整、仍拥有的值
@@ -1930,7 +1930,7 @@ class Checker:
             return False
         if not decl.is_view:
             return self.escapable(ty)
-        if not in_view or decl.cell or decl.local or not decl.fields:
+        if not in_view or not decl.fields:
             return False
         if decl.carrier or ty in visiting:
             return True

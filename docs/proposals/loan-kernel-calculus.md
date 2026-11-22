@@ -1214,4 +1214,13 @@ fun probe(borrow h: A): Unit {
 
 - **语法与物化（`checker.py`）**：允许对调用或构造表达式直接取借用（`&expr` / `&mut expr`），在语句内将未立即移交的拥有临时值（被借用的临时值、独立语句中丢弃的返回值，以及多实参调用/构造中后续实参包含可失败调用的早期 `own` 实参）物化为语句级临时绑定 `#tmpN`，并放入语句局部的 `DP.Stmt("block")` 中；
 - **语句末析构与借用边界（K9 / K6）**：语句结束时按构造逆序析构仍拥有的临时值，并按 K9 检验是否有借用逃出本语句。独立丢弃的带 `deinit` 临时视图（`makeGuard(&a)`）在语句末运行 `deinit Guard` 并解除对 `a` 的借用（下一行可写 `a`）；借用临时值本身（`val r = peekFile(&makeFile())` 或 `val r = peekSliceSelf(&Slice(&a))`）在语句末报 K9，直接返回报 K6；转发外部来源的临时视图（`val r = peekSlice(&Slice(&a))`）在语句末安全析构，而 `r` 继续保护底层 `a`（K1）；
-- **中途失败清理与逆序（V1 / V4）**：`consumeTwo(makeFile(), makeFile())`、`Pair(makeFile(), makeFile())` 与 `consumeTwo(move f, makeFile())` 中，第 1 个实参物化为 `#tmp1` 并在第 2 个实参的失败清理清单中保留（成功后统一移交），漏掉清理报 V1；`readTwo(&makeFile(), &makeFile())` 的失败清单与语句末析构均按 `#tmp2, #tmp1` 逆序执行，颠倒顺序报 V4。
+- **中途失败清理与逆序（V1 / V4）**：`consumeTwo(makeFile(), makeFile())`、`Pair(makeFile(), makeFile())` 与 `consumeTwo(move f, makeFile())` 中，第 1 个实参物化为 `#tmp1` 并在第 2 个实参的失败清理清单中保留（成功后统一移交），漏掉清理报 V1；`readTwo(&makeFile(), &makeFile())` 的失败清单与语句末析构均按 `#tmp2, #tmp1` 逆序执行，颠倒顺序报 V4。内部可变与线程绑定子视图的 `open` 见 §69。
+
+## 69. 按值拆出内部可变（`cell`）与线程绑定（`local`）子视图（KB1 × KB6 × KB8）
+
+`Z31.lk` 放开 `open` 接受 `cell` 与 `local` 按值子视图（`cell`/`local` 接收者自身仍在 `Z17.lk` 与 `Z5.lk` 报 K25）：`open_field` 不再拒绝 `decl.cell` 或 `decl.local`，拆出后各子视图的来源账、能力推导约束与析构义务原样保留：
+
+- **内部可变容器子视图（`cell view class CellBag<view T>`）**：拆出 `bag` 后，经共享借用 `putCell(&bag, Slice(&b))`（K19）并入的新来源 `b` 与既有来源 `a` 共同受 `peekCell(&bag)` 保护（K1），用完后均放行；`from this.bag` 合同转发接受、省略报 K6；直接访问 `bag.n` 仍报 K19；在 `parallel suspend fun` 中持有 `&bag` 跨 `suspend` 报 S5（`cell` 不可共享，故共享借用不可转移）。
+- **带 `deinit` 的内部可变子视图（`cell view class ScopeBox<view T> deinit`）**：拆出 `sc` 后因析构可观察而活到作用域结束，写其来源 `a` 报 K1；经 `releaseScope(move sc)` 移走后可写 `a`。
+- **线程绑定子视图（`local view class LocalSlice`）**：拆出 `loc` 后来源保护与最后一次使用后解除与普通视图一致；在普通 `suspend fun` 中跨 `suspend` 接受，在 `parallel suspend fun` 中跨 `suspend` 报 S5；交给 `<view T: Transferable>` 报 CAP。
+- **失败清理**：`CellBagHolder` 与 `LocalHolder` 拆解后在 `mayFail()` 失败与正常出口均按 `file, bag` / `file, loc` 清理，漏掉子视图均报 V1。

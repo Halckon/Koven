@@ -77,8 +77,7 @@ fun dropsNestedFieldsOnFailure(own this: DeepHolder): Unit in DeepHolder {
   mayFail()
   update(nested.inner.rw)
 }
-cell view class CellBag<view T>(n: Int)
-view class CellBagHolder(bag: CellBag, file: File) deinit
-fun unsupportedCellSubView(own this: CellBagHolder): Unit in CellBagHolder {
-  open this as bag, file  // ERR K25
+cell view class CellReceiver(n: Int) deinit
+fun unsupportedCellReceiver(own this: CellReceiver): Unit in CellReceiver {
+  open this as n  // ERR K25
 }
