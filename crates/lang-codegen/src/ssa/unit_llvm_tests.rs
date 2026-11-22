@@ -368,14 +368,13 @@ pub(in crate::ssa) mod callable_plan_tests {
                     file.ast()
                         .expressions()
                         .iter()
-                        .filter_map(|(id, node)| {
-                            (sources.slice(node.span()).ok() == Some(text)).then(|| {
-                                owned
-                                    .ownership()
-                                    .callable_origin(UnitExpressionId::new(unit, id))
-                                    .expect("actual qualified origin")
-                                    .origin()
-                            })
+                        .filter(|(_, node)| sources.slice(node.span()).ok() == Some(text))
+                        .map(|(id, _)| {
+                            owned
+                                .ownership()
+                                .callable_origin(UnitExpressionId::new(unit, id))
+                                .expect("actual qualified origin")
+                                .origin()
                         })
                         .collect::<Vec<_>>()
                 };

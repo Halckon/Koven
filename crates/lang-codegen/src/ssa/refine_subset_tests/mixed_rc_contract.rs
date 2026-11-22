@@ -202,23 +202,21 @@ fn audit_return_paths(
                     callee,
                     ref arguments,
                     ..
-                } => {
-                    if module
-                        .functions
-                        .iter()
-                        .any(|f| f.id == callee && f.name.starts_with("koven.p.show."))
-                    {
-                        state.dispatches += 1;
-                        let borrowed = state.canonical(arguments[0]);
-                        assert!(
-                            state.active.contains(&borrowed),
-                            "show receives the tracked live derived payload loan"
-                        );
-                        assert!(
-                            state.loans[&borrowed].1.is_some(),
-                            "show receives child loan, not parent handle"
-                        );
-                    }
+                } if module
+                    .functions
+                    .iter()
+                    .any(|f| f.id == callee && f.name.starts_with("koven.p.show.")) =>
+                {
+                    state.dispatches += 1;
+                    let borrowed = state.canonical(arguments[0]);
+                    assert!(
+                        state.active.contains(&borrowed),
+                        "show receives the tracked live derived payload loan"
+                    );
+                    assert!(
+                        state.loans[&borrowed].1.is_some(),
+                        "show receives child loan, not parent handle"
+                    );
                 }
                 _ => {}
             }

@@ -43,10 +43,8 @@ fn original_named_function_is_completed_and_demands_its_selected_body() {
                 .ast()
                 .expressions()
                 .iter()
-                .filter_map(|(id, expression)| {
-                    (sources.slice(expression.span()) == Ok("identity"))
-                        .then(|| UnitExpressionId::new(operand.source_unit(), id))
-                })
+                .filter(|(_, expression)| sources.slice(expression.span()) == Ok("identity"))
+                .map(|(id, _)| UnitExpressionId::new(operand.source_unit(), id))
                 .collect::<Vec<_>>();
             let [initializer] = initializers.as_slice() else {
                 panic!("one actual identity initializer");
