@@ -1,0 +1,174 @@
+// suspend 闭包与间接帧（KB8 × KB3 × KB5）：
+// 手工去糖的 suspend 闭包（只读、可变、返回借用、递归、parallel 下 Transferable 约束）及经存在类型的间接挂起帧。
+class Arr(len: Int)
+class File(fd: Int) deinit
+cell class Counter(n: Int)
+local class LocalToken(id: Int)
+view class ReadEnv(borrow a: Arr)
+view class WriteEnv(inout a: Arr)
+view class CellEnv(borrow c: Counter)
+view class CellGuard(borrow c: Counter) deinit
+view class LocalEnv(borrow a: Arr, loc: LocalToken)
+interface AsyncTask
+class FileTask(f: File) is AsyncTask
+
+fun syncReadBody(borrow env: ReadEnv): Int { return env.a.len }
+suspend fun suspendReadBody(borrow env: ReadEnv): Int {
+  suspend
+  return env.a.len
+}
+suspend fun suspendWriteBody(inout env: WriteEnv): Unit {
+  suspend
+  env.a.len = 1
+}
+suspend fun suspendPeekBody(borrow env: ReadEnv): borrow Int from env.a {
+  suspend
+  return &env.a.len
+}
+suspend fun suspendCellBody(borrow env: CellEnv): Int {
+  suspend
+  return 1
+}
+suspend fun suspendLocalBody(borrow env: LocalEnv): Int {
+  suspend
+  return env.a.len
+}
+
+suspend sig <view F> SuspendCall(borrow f: F): Int
+suspend sig <view F> SuspendCallMut(inout f: F): Unit
+suspend sig <view F> SuspendPeek(borrow f: F): borrow Int from f.origins
+sig <view F> SyncCall(borrow f: F): Int
+
+suspend fun <view F> runSuspendTwice(borrow f: F, own call: fn SuspendCall): Int {
+  val x = call(f)
+  val y = call(f)
+  return y
+}
+suspend fun <view F> runSuspendMut(inout f: F, own call: fn SuspendCallMut): Unit {
+  call(f)
+  call(f)
+}
+suspend fun <view F> runSuspendPeek(borrow f: F, own call: fn SuspendPeek): borrow Int from f.origins {
+  return call(f)
+}
+fun <view F> runSync(borrow f: F, own call: fn SyncCall): Int {
+  return call(f)
+}
+parallel suspend fun <view F: Shareable> runParallelSuspend(borrow f: F, own call: fn SuspendCall): Int {
+  suspend
+  return call(f)
+}
+suspend fun runAnyTask(inout t: any AsyncTask): Unit trusted
+
+// 一、suspend 闭包：只读、可变、返回借用与 K12/S0 边界
+suspend fun suspendReadClosureWorks(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val n = runSuspendTwice(&f, suspendReadBody)
+  a.len = 2
+  use(n)
+}
+suspend fun writeWhileSuspendClosureAlive(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  suspend
+  a.len = 2  // ERR K1
+  val n = runSuspendTwice(&f, suspendReadBody)
+}
+suspend fun suspendMutClosureWorks(): Unit {
+  val a = Arr(1)
+  val f = WriteEnv(&mut a)
+  runSuspendMut(&mut f, suspendWriteBody)
+  use(a.len)
+}
+suspend fun readWhileSuspendMutClosureAlive(): Unit {
+  val a = Arr(1)
+  val f = WriteEnv(&mut a)
+  use(a.len)  // ERR K1
+  runSuspendMut(&mut f, suspendWriteBody)
+}
+suspend fun suspendPeekClosureProtectsAcrossSuspend(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val e = runSuspendPeek(&f, suspendPeekBody)
+  suspend
+  a.len = 2  // ERR K1
+  use(e)
+}
+suspend fun syncClosureRefinesSuspendSig(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val n = runSuspendTwice(&f, syncReadBody)
+  use(n)
+}
+fun suspendClosureRejectedBySyncSig(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val n = runSync(&f, suspendReadBody)  // ERR K12
+  use(n)
+}
+fun plainCannotCallSuspendClosure(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val n = runSuspendTwice(&f, suspendReadBody)  // ERR S0
+  use(n)
+}
+
+// 二、parallel suspend 下的 Transferable 约束（含不再使用但带 deinit 的不可转移视图守卫）
+parallel suspend fun parallelSuspendReadClosureWorks(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val n = runParallelSuspend(&f, suspendReadBody)
+  use(n)
+}
+suspend fun parallelSuspendCellClosureRejected(): Unit {
+  val c = Counter(0)
+  val f = CellEnv(&c)
+  val n = runParallelSuspend(&f, suspendCellBody)  // ERR CAP
+  use(n)
+}
+suspend fun parallelSuspendLocalClosureRejected(): Unit {
+  val a = Arr(1)
+  val f = LocalEnv(&a, LocalToken(1))
+  val n = runParallelSuspend(&f, suspendLocalBody)  // ERR CAP
+  use(n)
+}
+parallel suspend fun deadCellGuardAcrossParallelSuspendRejected(): Unit {
+  val c = Counter(0)
+  val g = CellGuard(&c)
+  suspend  // ERR S5
+}
+suspend fun normalSuspendAllowsCellAndLocalClosures(): Unit {
+  val a = Arr(1)
+  val c = Counter(0)
+  val fc = CellEnv(&c)
+  val fl = LocalEnv(&a, LocalToken(1))
+  suspend
+  val n = runSuspendTwice(&fc, suspendCellBody)
+  val m = runSuspendTwice(&fl, suspendLocalBody)
+  use(n)
+  use(m)
+}
+
+// 三、间接帧：递归 suspend 闭包（含子借用 K4 与失败/挂起清理）及经存在类型 any AsyncTask 的间接挂起调用
+suspend fun suspendRecMut(inout env: WriteEnv): Unit {
+  val log = File(1)
+  env.a.len = 1
+  if (*) {
+    suspendRecMut(env)
+  }
+  use(log.fd)
+}
+suspend fun suspendRecMutWhileChildBorrowAlive(inout env: WriteEnv): Unit {
+  val r = &env.a.len
+  if (*) {
+    suspendRecMut(env)  // ERR K4
+  }
+  use(r)
+}
+suspend fun indirectExistentialSuspendCallKeepsCleanup(): Unit {
+  val g = File(1)
+  val task = pack AsyncTask(FileTask(File(2)))
+  runAnyTask(&mut task)
+  use(g.fd)
+}

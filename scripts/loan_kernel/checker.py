@@ -1382,8 +1382,9 @@ class Checker:
             self.drop_unneeded(state, line, set())
         loans = self.live_loans(state)
         inside = sorted({root for loan in loans for root, _ in self.loans[loan].places if root in state})
-        # 留在帧里的：还会用到的、被存活的借用指向的，以及此刻仍拥有的每个值（它们等着在作用域结束时析构）
-        owned = [n for n, v in state.items() if v.ty.kind in ("cls", "any", "opaque") and v.init != "M"]
+        # 留在帧里的：还会用到的、被存活的借用指向的，以及此刻仍拥有的每个值（含带 deinit 的视图，它们等着在作用域结束时析构）
+        owned = [n for n, v in state.items() if v.init != "M" and (
+            v.ty.kind in ("cls", "any", "opaque") or (v.ty.kind == "view" and not self.has("EarlyDrop", v.ty)))]
         names = sorted({n for n in self.live if n in state and state[n].init != "M"} | set(inside) | set(owned))
         self.frames[self.fun.name, line] = (names, inside)
         # 帧若在这里被销毁而不再恢复（所在执行器异常终止），按此刻的状态析构：与失败出口是同一份清单

@@ -1395,6 +1395,47 @@ class LoanKernelCases(unittest.TestCase):
         join_call.cleanup.remove(("sc", False))
         self.assertIn("V1", {v.split()[0] for v in self.verify(types, program, "joinFailureAndSuspendDestroyRunScopeDeinit", deinits)})
 
+    def test_suspend_closures_and_indirect_frames(self):
+        source = (ROOT / "cases/Z38.lk").read_text(encoding="utf-8")
+        lowered, frames = {}, {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, frames=frames, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("suspendReadClosureWorks", "suspendMutClosureWorks", "syncClosureRefinesSuspendSig",
+                     "parallelSuspendReadClosureWorks", "normalSuspendAllowsCellAndLocalClosures",
+                     "suspendRecMut", "indirectExistentialSuspendCallKeepsCleanup"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("writeWhileSuspendClosureAlive", "readWhileSuspendMutClosureAlive",
+                     "suspendPeekClosureProtectsAcrossSuspend", "suspendClosureRejectedBySyncSig",
+                     "plainCannotCallSuspendClosure", "parallelSuspendCellClosureRejected",
+                     "parallelSuspendLocalClosureRejected", "deadCellGuardAcrossParallelSuspendRejected",
+                     "suspendRecMutWhileChildBorrowAlive"):
+            self.assertFalse(lowered[name][2], name)
+
+        # 帧地址稳定（S0.1）同样作用于 suspend 闭包与经存在类型的间接帧：假定帧可移动时须新增 S1。
+        movable = {(rule, line) for rule, line, _ in CHECKER.check(source, frames_movable=True)}
+        added = movable - actual
+        self.assertTrue(added and {rule for rule, _ in added} == {"S1"})
+
+        # 递归 suspend 闭包与存在类型间接挂起调用在挂起点销毁帧或调用失败时均清理局部 File；漏掉报 V1。
+        for fun, var in (("suspendRecMut", "log"), ("indirectExistentialSuspendCallKeepsCleanup", "g")):
+            with self.subTest(fun=fun):
+                types, program, _ = lowered[fun]
+                self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+                # 找到该挂起点的 suspend 语句（可能在 if 臂内）
+                def find_susp(stmts):
+                    for s in stmts:
+                        if s.kind == "suspend":
+                            return s
+                        for sub in (s.body, s.orelse):
+                            hit = find_susp(sub)
+                            if hit is not None:
+                                return hit
+                    return None
+                susp = find_susp(program)
+                self.assertIn((var, False), susp.cleanup)
+                susp.cleanup.remove((var, False))
+                self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

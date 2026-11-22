@@ -1271,4 +1271,12 @@ fun probe(borrow h: A): Unit {
 
 - **挂起作用域体与合同细化（K12 / S0）**：`suspendScoped` 接受 `suspend sig SuspendBody`，同步体 `syncReaderBody` 与挂起体 `suspendReaderBody` 均可传入；反之把 `suspendReaderBody` 交给非挂起的 `syncScoped` 报 K12；非 `suspend` 函数调用 `suspend fun join` 报 S0。
 - **动态数量任务与句柄容器（`JobList` / `GuardJobList`）**：循环内持续 `launch` 并将 `Job` 句柄收集进 `JobList`、随后循环 `popJob` 并 `join` 接受，作用域结束后外部 `a`/`b` 可写；普通 `JobList` 在 `Scope` 内层块退出后仍被使用在块末尾报 K9，带 `deinit` 的 `GuardJobList` 声明在 `Scope` 之前则在 `pushGuardJob` 处报 K22、函数出口报 K9。
-- **§17 任务用例改写与 `join` 失败/帧销毁清理**：无需用户可见任务值与 S3/S4，`Scope` 借用来源并在 `deinit Scope { waitAll(&this) }` 兜底等待——未 `join` 的 `j2` 可安全丢弃，重复 `join(move j)` 报 K8，持写任务期间写来源报 K1，读写并发报 K4，跨 `parallel suspend` 持有 `Job` 报 S5；`join(move j1)` 既是挂起点也是可失败调用，其 `suspend.cleanup` 与 `call.cleanup` 均为 `j2, sc, a`，检验器在正常出口、`join` 失败与挂起点帧销毁三条路径上真实执行 `deinit Scope`，任一清单漏掉 `sc` 均报 V1。
+- **§17 任务用例改写与 `join` 失败/帧销毁清理**：无需用户可见任务值与 S3/S4，`Scope` 借用来源并在 `deinit Scope { waitAll(&this) }` 兜底等待——未 `join` 的 `j2` 可安全丢弃，重复 `join(move j)` 报 K8，持写任务期间写来源报 K1，读写并发报 K4，跨 `parallel suspend` 持有 `Job` 报 S5；`join(move j1)` 既是挂起点也是可失败调用，其 `suspend.cleanup` 与 `call.cleanup` 均为 `j2, sc, a`，检验器在正常出口、`join` 失败与挂起点帧销毁三条路径上真实执行 `deinit Scope`，任一清单漏掉 `sc` 均报 V1。`suspend` 闭包与间接帧见 §76。
+
+## 76. `suspend` 闭包与间接帧（KB8 × KB3 × KB5）
+
+`Z38.lk` 以手工去糖形式检验捕获借用的 `suspend` 闭包（配 `suspend sig`）以及递归/经存在类型的间接挂起帧，并在测试中发现并修掉一处 S5 漏洞：
+
+- **发现并修掉的原型漏洞（`suspend_point`）**：此前 `suspend_point` 收集“不再使用但等着在作用域结束时析构”的帧内变量时，只包含 `ty.kind in ("cls", "any", "opaque")`，漏掉了带 `deinit` 的视图（`ty.kind == "view"` 且不满足 `EarlyDrop`）。结果在 `parallel suspend fun` 中，不再使用但带 `deinit` 的不可转移视图守卫（如 `CellGuard(borrow c: Counter) deinit`）跨过 `suspend` 时漏报 S5。现已将其纳入帧内待析构集合。
+- **`suspend` 闭包与并行上界**：只读、可变与返回借用的 `suspend` 闭包均按 K1/K4/K12/S0 正常工作（同步闭包可细化 `suspend sig`，`suspend` 闭包不可交给同步 `sig` 报 K12，普通函数调用报 S0）；按 `borrow f: F` 跨并行挂起点须要求 `<view F: Shareable>`，`ReadEnv` 接受，含 `cell` 或 `local` 的 `CellEnv` / `LocalEnv` 报 CAP，在默认非并行 `suspend fun` 中两者均接受。
+- **间接帧与帧地址稳定（S0.1 / V1）**：递归 `suspend` 闭包（`suspendRecMut`）在子借用存活期间递归调用报 K4；递归 `suspend` 闭包与经存在类型 `any AsyncTask` 的间接挂起调用在挂起点帧销毁与失败出口均正确清理局部 `File`（漏掉报 V1），且在 `frames_movable=True` 下均触发 S1，确认 S0.1 对间接帧与闭包帧同样成立。
