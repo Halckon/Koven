@@ -1128,6 +1128,55 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual({"K4"}, {rule for rule, _ in lost})
         self.assertEqual(set(), mutated - expected(source))
 
+    def test_temporary_value_drops_and_partial_eval_cleanup(self):
+        source = (ROOT / "cases/Z30.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("discardTempGuard", "borrowTempInCall", "borrowTempForwardedOriginSurvivesStatement",
+                     "partialEvalCallFailureCleanup", "partialEvalConstructFailureCleanup",
+                     "twoBorrowedTempsDropInLifoOrder", "moveArgThenFallibleArgCleanup"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("borrowTempCannotEscapeStatement", "borrowTempSelfViewCannotEscapeStatement",
+                     "borrowTempForwardedOriginProtectsSource", "returnBorrowFromTempRejected"):
+            self.assertFalse(lowered[name][2], name)
+
+        # 独立丢弃的带 deinit 临时值在语句块内析构，且真实执行 deinit Guard；删去该 drop 报 V1。
+        deinits = {"Guard": lowered["deinit Guard"][:2]}
+        types, program, _ = lowered["discardTempGuard"]
+        self.assertEqual({}, self.verify(types, program, "discardTempGuard", deinits))
+        temp_block = next(s for s in program if s.kind == "block")
+        self.assertEqual(["#tmp1"], [s.var for s in temp_block.body if s.kind == "drop"])
+        saved = temp_block.body.pop()
+        try:
+            self.assertEqual({"V1"}, {v.split()[0] for v in self.verify(types, program, "discardTempGuard", deinits)})
+        finally:
+            temp_block.body.append(saved)
+
+        # 多实参求值：第 2 个实参失败时必须清理已构造的第 1 个实参临时值；漏掉报 V1。
+        for fun in ("partialEvalCallFailureCleanup", "partialEvalConstructFailureCleanup",
+                    "moveArgThenFallibleArgCleanup"):
+            with self.subTest(fun=fun):
+                types, program, _ = lowered[fun]
+                self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+                temp_block = next(s for s in program if s.kind == "block")
+                second_call = [s for s in temp_block.body if s.kind == "call"][1 if fun != "moveArgThenFallibleArgCleanup" else 0]
+                self.assertEqual([("#tmp1", False)], second_call.cleanup)
+                second_call.cleanup.clear()
+                self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+        # 两个借用临时值按逆序析构（#tmp2 先于 #tmp1），且 readTwo 失败清单同样按逆序；颠倒析构顺序报 V4。
+        types, program, _ = lowered["twoBorrowedTempsDropInLifoOrder"]
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        temp_block = next(s for s in program if s.kind == "block")
+        drops = [s for s in temp_block.body if s.kind == "drop"]
+        self.assertEqual(["#tmp2", "#tmp1"], [s.var for s in drops])
+        outer_call = [s for s in temp_block.body if s.kind == "call"][-1]
+        self.assertEqual([("#tmp2", False), ("#tmp1", False)], outer_call.cleanup)
+        i, j = temp_block.body.index(drops[0]), temp_block.body.index(drops[1])
+        temp_block.body[i], temp_block.body[j] = temp_block.body[j], temp_block.body[i]
+        self.assertEqual({"V4"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

@@ -1206,4 +1206,12 @@ fun probe(borrow h: A): Unit {
 
 - **发现并修掉的原型漏洞（`check_exclusive_fields`）**：此前借用或重借一个含 `inout` 字段的视图（如 `&mut f`、`&f`、或直接重借 `inout env: WriteEnv`）时，检查器只比对视图自身存储（`("f", ())` 或 `("*env", ())`）上的存活 loan，没有同时检查该视图经独占字段指向的底层存储（`("a", ())` 或 `("*env.a", ())`）上是否存在存活的子借用。结果在可变闭包或嵌套可变闭包的递归调用中，即使已从捕获字段借出 `r = &env.a.len` 或 `r = &env.inner.a.len` 并且 `r` 仍然存活，递归调用 `recMut(env)` / `recOuterMut(env)`、或本地 `recMut(&mut f)` 与独占子借用存活期间的 `peekMutEnv(&f)` 均未被拒绝。现补上 `Checker.check_exclusive_fields`（接入 `borrow`、`argument` 与两阶段 `activate`）：借用或重借视图时，对其 `ref_paths` 中每条独占路径所指存储按本次访问种类补做 K4 冲突检查（共享子借用下共享重借 `&f` 仍接受）。
 - **捕获闭包的闭包（嵌套闭包）**：按值嵌套（`OuterReadVal`、`OuterMutVal`）与按借用嵌套（`OuterReadRef`、`OuterMutRef`）均同时保护内外层捕获来源（K1）；只读嵌套闭包保持 `Copyable`，含可变内层闭包的嵌套闭包不可复制（K8），外层只读借用内层可变闭包（`OuterRoOverMut`）不可调用可变函数体（K1）；精确转发 `from env.inner.a` 不误保护外层无关捕获 `b`，错声明报 K6，经泛型高阶 `from f.origins` 保守保护全部捕获；全所有权嵌套闭包（`OuterOwned`）可逃逸并交给 `spawn`，含借用捕获的嵌套闭包交给 `<F>` 报 K17、返回局部捕获报 K6。
-- **递归闭包**：只读递归（`recRead`）、返回捕获借用的递归（`recPeek`，漏 `from` 报 K6，按 `from env` 传入 `Peek` 报 K12）、可变递归（`recMut`）、互相递归（`recEven` ↔ `recOdd`）及递归嵌套可变闭包（`recOuterMut`）均与 `twice` / `twiceMut` / `runPeek` 配合通过；子借用存活期间递归重借可变环境均按 K4 拒绝。变异检验确认去掉 `check_exclusive_fields` 后恰好漏报 4 处 K4。
+- **递归闭包**：只读递归（`recRead`）、返回捕获借用的递归（`recPeek`，漏 `from` 报 K6，按 `from env` 传入 `Peek` 报 K12）、可变递归（`recMut`）、互相递归（`recEven` ↔ `recOdd`）及递归嵌套可变闭包（`recOuterMut`）均与 `twice` / `twiceMut` / `runPeek` 配合通过；子借用存活期间递归重借可变环境均按 K4 拒绝。变异检验确认去掉 `check_exclusive_fields` 后恰好漏报 4 处 K4。临时值的析构见 §68。
+
+## 68. 临时值的析构与表达式中途失败清理（KB1 × KB2）
+
+`Z30.lk` 在借用原型与析构义务检验器之间补齐表达式级临时值的生命周期、语句末逆序析构与多实参求值中途失败清理：
+
+- **语法与物化（`checker.py`）**：允许对调用或构造表达式直接取借用（`&expr` / `&mut expr`），在语句内将未立即移交的拥有临时值（被借用的临时值、独立语句中丢弃的返回值，以及多实参调用/构造中后续实参包含可失败调用的早期 `own` 实参）物化为语句级临时绑定 `#tmpN`，并放入语句局部的 `DP.Stmt("block")` 中；
+- **语句末析构与借用边界（K9 / K6）**：语句结束时按构造逆序析构仍拥有的临时值，并按 K9 检验是否有借用逃出本语句。独立丢弃的带 `deinit` 临时视图（`makeGuard(&a)`）在语句末运行 `deinit Guard` 并解除对 `a` 的借用（下一行可写 `a`）；借用临时值本身（`val r = peekFile(&makeFile())` 或 `val r = peekSliceSelf(&Slice(&a))`）在语句末报 K9，直接返回报 K6；转发外部来源的临时视图（`val r = peekSlice(&Slice(&a))`）在语句末安全析构，而 `r` 继续保护底层 `a`（K1）；
+- **中途失败清理与逆序（V1 / V4）**：`consumeTwo(makeFile(), makeFile())`、`Pair(makeFile(), makeFile())` 与 `consumeTwo(move f, makeFile())` 中，第 1 个实参物化为 `#tmp1` 并在第 2 个实参的失败清理清单中保留（成功后统一移交），漏掉清理报 V1；`readTwo(&makeFile(), &makeFile())` 的失败清单与语句末析构均按 `#tmp2, #tmp1` 逆序执行，颠倒顺序报 V4。
