@@ -309,3 +309,120 @@ fn quota_instances<'a>(
     assert!(callee.key().callable_arguments().is_empty());
     (entry, callee)
 }
+
+#[test]
+#[ignore = "CI-only exact standard-quota positive and negative controls"]
+fn standard_budget_rejects_one_extra_specialized_key() {
+    use crate::ssa::unit_plan::MAX_UNIT_GENERIC_INSTANCES;
+    use std::fmt::Write as _;
+
+    assert_eq!(std::env::var("GITHUB_ACTIONS").as_deref(), Ok("true"));
+    const SLOTS: usize = 11;
+    const LIMIT: usize = 1024;
+    assert_eq!(MAX_UNIT_GENERIC_INSTANCES, LIMIT);
+    let parameters = (0..SLOTS)
+        .map(|slot| format!("T{slot}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let type_slots = |bits: usize| (0..SLOTS).map(move |slot| bits & (1 << slot) != 0);
+    let call_text = |bits| {
+        let arguments = type_slots(bits)
+            .map(|long| if long { "Long" } else { "Int" })
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("helper<{arguments}>()")
+    };
+    let mut text = format!("fun <{parameters}> helper(): Unit {{}}\nfun atLimit(): Unit {{\n");
+    for bits in 0..LIMIT {
+        writeln!(text, "{}", call_text(bits)).unwrap();
+    }
+    writeln!(
+        text,
+        "}}\nfun overLimit(): Unit {{\natLimit()\n{}\n}}",
+        call_text(LIMIT)
+    )
+    .unwrap();
+
+    const PATH: &str = "standard-specialized-quota.ko";
+    for rooted in [false, true] {
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, PATH, &text);
+        let inputs = [if rooted {
+            SourceUnitInput::new("root", PATH, source, &file)
+        } else {
+            SourceUnitInput::memory_document(source, &file)
+        }];
+        let (name_environment, environment) = standard_environments();
+        let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &environment);
+        let helper = declaration(&names, "helper");
+        let at_limit = declaration(&names, "atLimit");
+        let over_limit = declaration(&names, "overLimit");
+        let types = typed.types().types();
+        let int = types.builtin(BuiltinType::Int).unwrap();
+        let long = types.builtin(BuiltinType::Long).unwrap();
+        let expected = |bits| {
+            type_slots(bits)
+                .map(|is_long| if is_long { long } else { int })
+                .collect::<Vec<_>>()
+        };
+        let all_expected = (0..=LIMIT).map(expected).collect::<BTreeSet<_>>();
+        assert_eq!(all_expected.len(), LIMIT + 1);
+        let calls = typed
+            .types()
+            .calls()
+            .iter()
+            .filter(|call| call.target() == UnitCallTarget::Declaration(helper))
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), LIMIT + 1);
+        let actual = calls
+            .iter()
+            .map(|call| call.instance().type_arguments().to_vec())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(actual, all_expected, "distinct qualified source call types");
+        let size = types.len();
+        let plan = |entry| {
+            plan_unit_instances(
+                &sources,
+                &inputs,
+                &names,
+                &environment,
+                &typed,
+                &owned,
+                entry,
+            )
+        };
+
+        let admitted = plan(at_limit).expect("exactly 1024 real specialized keys fit");
+        assert_eq!(admitted.len(), LIMIT + 1, "root is uncharged");
+        let admitted_keys = admitted
+            .iter()
+            .filter(|instance| instance.key().is_specialized())
+            .map(|instance| {
+                assert_eq!(
+                    instance.key().target(),
+                    UnitCallableTarget::Declaration(helper)
+                );
+                assert!(instance.key().static_self().is_none());
+                assert!(instance.key().callable_arguments().is_empty());
+                instance.key().type_arguments().to_vec()
+            })
+            .collect::<BTreeSet<_>>();
+        let prefix = (0..LIMIT).map(expected).collect::<BTreeSet<_>>();
+        assert_eq!(admitted_keys, prefix);
+
+        let template_span = file
+            .ast()
+            .items()
+            .get(names.names().index().declarations()[helper.index()].root())
+            .unwrap()
+            .span();
+        let error = plan(over_limit).expect_err("1025 real specialized keys exceed the quota");
+        assert_eq!(error.kind, LoweringErrorKind::InstanceLimitExceeded);
+        assert_eq!(error.span, Some(template_span));
+        assert_eq!(
+            types.len(),
+            size,
+            "planning cannot change the admitted type arena"
+        );
+    }
+}

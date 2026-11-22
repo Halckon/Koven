@@ -22139,3 +22139,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 原 `unsupported_own_receiver_cannot_enter_legacy_lowering` 在 Mac 旧二进制定点通过。仅退役这个 test-only 适配器把真实 Single L0170 转译为 `FrontendDiagnostics` 的见证；复用逐字不变的原 76 字节源码，保留公开 Single 完整 L0170 和 fail-closed 事实于 frontend 正式目标。原 source/analysis/diagnostics 先后顺序和其他旧调用不动。
 - 同源两种 Unit 布局通过最终类型准入与所有权资格，拥有实际 `noop` Value receiver 清理事实；另一独立测试用普通 Unit lowering 选择原空 `entry`，其已验证 SSA 直接返回。空入口不会执行 `noop`，不据此声称 native 调用或所有 Single 消费者退役。
 - Mac 前端受影响目标 4/4、codegen 新定点 1/1；未重复运行其他目标或本片 Linux/远端 CI。只改测试和记录，不改公开 API 或普通/实验命令。
+
+### D10：标准实例配额的三类对照
+
+- **有意改变**：按 [ADR-0034 §3 与方案 A](../../adr/accepted/0034-refine-closures-and-callable-views.md)，Borrow 函数参数通过不拥有的 callable view 传递，不把具体闭包加入被调函数的专门化键。相同递归 `relay` 源码不再重演 Single 的 owner-qualified 实例增长；1024 个互异借用闭包仍有各自的来源和操作数，但只调用一个 `helper<Int>` 实例。两者不是 Single 配额等价。
+- **保持不变**：1025 次使用同一个 callback 来源仍去重，只占一个实际 helper 键。前三条用例已在首轮 [#454 PR CI](https://github.com/Halckon/Koven/actions/runs/44965660554) 的 Linux 和 macOS 物理日志逐条确认，通过不代表标准上限的拒绝分支已验证。
+- **独立的标准上限验证**：Unit 的 `plan_unit_instances` 以 `MAX_UNIT_GENERIC_INSTANCES` 为上限，只对真实专门化键记账（类型实参、静态 self 或 owned callable 实参），普通根不记账。新增 `standard_budget_rejects_one_extra_specialized_key` 用相同的已验证源码分别选根，双布局对照 1024 个真实类型参数组合成功、加一后在原 helper span 报 `InstanceLimitExceeded` 且不改动类型表。只在真实 CI 执行；此记录不预填通过。旧压力断言保留，SPEC-0341 仍 in-progress。
