@@ -684,7 +684,15 @@ fn two_receiver_route_work_scales_by_indexed_facts_and_callers() {
     let first = count(n);
     let second = count(2 * n);
     eprintln!("N={n}: {first:?}; 2N: {second:?}");
-    assert_eq!(count(0), two_receiver_route_metrics::Counts::default());
+    // A single-call neighbor may use the shared receiver index, but never the paired indices.
+    assert_eq!(
+        two_receiver_route_metrics::Counts {
+            receiver_rows: 0,
+            receiver_probes: 0,
+            ..count(0)
+        },
+        two_receiver_route_metrics::Counts::default()
+    );
     for (callers, counts) in [(n, first), (2 * n, second)] {
         assert_eq!(
             counts,
@@ -693,6 +701,8 @@ fn two_receiver_route_work_scales_by_indexed_facts_and_callers() {
                 ends: 2 * callers,
                 drops: callers,
                 probes: 4 * callers,
+                receiver_rows: 2 * callers,
+                receiver_probes: 2 * callers,
             }
         );
     }

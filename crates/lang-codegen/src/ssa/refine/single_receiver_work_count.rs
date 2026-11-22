@@ -184,7 +184,15 @@ fn count(n: usize) -> Counts {
 #[test]
 fn default_single_receiver_receipt_scan_work_8_and_16() {
     let n = 8;
-    assert_eq!(count(0).without_subset_drops(), Counts::default());
+    // The two-call neighbor shares receiver lookups but cannot publish a single-call receipt.
+    assert_eq!(
+        count(0).without_subset_drops(),
+        Counts {
+            receiver_rows: 2,
+            receiver_probes: 2,
+            ..Default::default()
+        }
+    );
     let small = count(n);
     let large = count(2 * n);
     eprintln!("N={n}: {small:?}; 2N: {large:?}");

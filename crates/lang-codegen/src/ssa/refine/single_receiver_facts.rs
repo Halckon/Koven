@@ -1,4 +1,4 @@
-//! Legacy fact lookup for the bounded single owned receiver route only.
+//! Shared receiver lookup for bounded routes, with single-call binding, end and drop indices.
 use lang_frontend::{
     name_resolution::UnitSymbolId,
     ownership_checking::{

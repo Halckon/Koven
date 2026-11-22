@@ -61,6 +61,8 @@ impl Checker<'_, '_> {
             return None;
         };
         let caller = inputs.source_plan.source(inputs.source_token)?;
+        let receivers = inputs.single_receiver_facts?;
+        let paired_facts = inputs.two_receiver_facts?;
         let mut previous = None;
         let mut checks = [None; 2];
         for (index, statement) in [first, second].into_iter().enumerate() {
@@ -127,7 +129,7 @@ impl Checker<'_, '_> {
                 return None;
             }
 
-            let fact = inputs.owned.receiver_fact(id)?;
+            let fact = receivers.receiver(inputs.owned, id)?;
             let UnitReceiverOwnershipTarget::Place(place) = fact.target() else {
                 return None;
             };
@@ -148,8 +150,7 @@ impl Checker<'_, '_> {
             checks[index] = Some((id, fact));
             previous = Some((id, node.span(), call.target(), dispatch));
         }
-        inputs
-            .two_receiver_facts?
+        paired_facts
             .validates(inputs.owned, *symbol, checks[0]?, checks[1]?)
             .then_some(())
     }
