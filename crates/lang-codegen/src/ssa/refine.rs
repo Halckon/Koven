@@ -10,6 +10,8 @@ mod body;
 pub(in crate::ssa) mod build;
 mod child_cycle_receipt;
 mod control_bridge_receipt;
+#[cfg(test)]
+pub(in crate::ssa) mod initializer_probe;
 mod nested_body_receipt;
 mod nested_exit_receipt;
 mod nested_resume_receipt;
@@ -138,6 +140,10 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
     pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
+    pub(in crate::ssa) two_receiver_facts: Option<&'a TwoReceiverFacts>,
+    pub(in crate::ssa) single_receiver_receipts: Option<&'a SingleReceiverReceiptIndex>,
+    pub(in crate::ssa) subset_drop_index: Option<&'a SubsetDropIndex>,
+    pub(in crate::ssa) single_receiver_facts: Option<&'a SingleReceiverFacts>,
     /// Present for the constant capability; const uses stay on the existing path.
     pub(in crate::ssa) constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     pub(in crate::ssa) function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
@@ -778,6 +784,8 @@ pub(in crate::ssa) fn lower(
     #[cfg(feature = "d10-catalog-experiment")]
     crate::ssa::d10_project_audit::interleaved_aux_consumption::expect(inputs, types);
     let body = build::build(inputs, parameters, types)?;
+    #[cfg(test)]
+    two_receiver_plan_test_support::record(function.id(), &body);
     emit::emit(&body, function, entry, parameters, inputs.span)?;
     #[cfg(feature = "d10-catalog-experiment")]
     if let Some(receipt) = identity_return::certify(inputs, function, types) {
@@ -927,3 +935,21 @@ pub(in crate::ssa::refine) mod temporary_ci_tests;
 pub(crate) mod entry_borrow_receipt;
 #[cfg(feature = "d10-catalog-experiment")]
 pub(crate) mod entry_lifecycle;
+
+#[cfg(test)]
+pub(in crate::ssa) mod two_receiver_plan_test_support;
+
+#[cfg(test)]
+pub(in crate::ssa) mod two_receiver_route_metrics;
+
+mod two_receiver_facts;
+pub(in crate::ssa) use two_receiver_facts::TwoReceiverFacts;
+
+mod single_receiver_receipt_index;
+pub(in crate::ssa) use single_receiver_receipt_index::SingleReceiverReceiptIndex;
+
+mod single_receiver_facts;
+pub(in crate::ssa) use single_receiver_facts::SingleReceiverFacts;
+
+mod subset_drop_index;
+pub(in crate::ssa) use subset_drop_index::SubsetDropIndex;

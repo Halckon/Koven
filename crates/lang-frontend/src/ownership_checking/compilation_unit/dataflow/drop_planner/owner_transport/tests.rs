@@ -1,5 +1,8 @@
 //! Compare the exact same admitted checker with observation enabled/disabled.
+mod borrowed_auxiliary_migration;
 mod branch_boundaries;
+mod call_loan_end_migration;
+mod callback_replacement_lineage;
 mod carry_probe;
 mod choice_admission;
 mod choice_alias_chain;

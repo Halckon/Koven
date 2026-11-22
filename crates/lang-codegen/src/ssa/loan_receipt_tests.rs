@@ -268,6 +268,18 @@ mod observer_off {
     }
 }
 
+#[path = "loan_receipt_boolean_tests.rs"]
+mod receiver_boolean;
+
+#[path = "loan_receipt_borrowed_tests.rs"]
+mod receiver_borrowed;
+
+#[path = "loan_receipt_twice_tests.rs"]
+mod receiver_twice;
+
+#[path = "loan_receipt_argument_tests.rs"]
+mod receiver_argument;
+
 mod receiver_route {
     //! Ordinary source-only bounded routing checks; no native execution or fault injection.
     use crate::ssa::loan_region_ssa_tests::*;
@@ -362,10 +374,21 @@ mod receiver_route {
     #[test]
     fn neighboring_receiver_shapes_keep_existing_routes() {
         for text in [
-            "class Node { fun touch(): Boolean = true }\nfun run(own node: Node): Unit { node.touch() }",
-            "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { node.touch() }",
-            "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
-            "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1) }",
+            "class Node { fun touch(own x: Int): Int = x }\nfun run(node: Node): Unit { node.touch(1) }",
+            "class Node { fun touch(): Unit {} }\nfun run(node: Node): Unit { node.touch() }",
+            "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { (node).touch() }",
+            "class Node { fun touch(): Int = 1 }\nfun run(node: Node, unused: Int): Unit { node.touch() }",
+            "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); node.touch(); node.touch() }",
+            "class Node { fun touch(): Int = 1 }\nfun run(own node: Node): Unit { node.touch(); (node).touch() }",
+            "class Node { fun touch(): Int = 1; fun other(): Int = 2 }\nfun run(own node: Node): Unit { node.touch(); node.other() }",
+            "class Node { fun touch(): Int = 1 }\nfun run(node: Node): Unit { node.touch(); node.touch() }",
+            "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1 + 0) }",
+            "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch((1)) }",
+            "class Node { fun touch(own x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(x = 1) }",
+            "class Node { fun touch(x: Int): Int = x }\nfun run(own node: Node): Unit { node.touch(1) }",
+            "class Node { fun touch(): Boolean = true }\nfun run(node: Node): Unit { node.touch() }",
+            "class Node { fun touch(): Boolean = true }\nfun run(own node: Node): Unit { node.touch(); node.touch() }",
+            "class Node { fun touch(own x: Int): Boolean = true }\nfun run(own node: Node): Unit { node.touch(1) }",
         ] {
             let mut sources = SourceMap::new();
             let (source, parsed) =

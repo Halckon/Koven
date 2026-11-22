@@ -3,6 +3,7 @@
 //! callables, and Borrow String/field loans in closure bodies.
 mod invoke;
 mod loans;
+mod result_auxiliary;
 
 use lang_frontend::{
     ast::ExpressionId,

@@ -1,0 +1,3 @@
+class Node {}
+fun read(x: Node): Unit {}
+fun test(x: Node?): Unit = when (x) { null -> {}; else -> read(x) }

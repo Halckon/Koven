@@ -40,8 +40,8 @@ clone保留归属，重分析即使source/call下标相同也不接受。原始�
 
 ## Owned 参数 Shared receiver 正常返回区域
 
-protocol 2与protocol 1分开声明SharedReceiver/NamedSourceDrop两族，只准入上述flat caller
-中的零实参普通Symbol方法、Owned Int/Unit结果。receiver须为无Group/字段的直接Name，
+protocol 2与protocol 1分开声明SharedReceiver/NamedSourceDrop两族。上述flat caller的普通Symbol方法允许零实参、Owned Int/Boolean/Unit结果。
+同一版本与动作结构也适用于单语句caller传一个无名称、无模式标记、无括号的无后缀Int字面量给唯一的own Int参数，结果须为Owned Int。receiver须为无Group/字段的直接Name，
 对应本caller显式Own参数、Owned binding与仍在ValueState中的真实OwnedValue；类型须为
 无泛型、已判定非Resource的MoveOnly普通Class。typed receiver、契约、静态fact、place
 及独立AST使用span逐项一致，Named Drop origin另取参数形成marker，不借receiver End推断owner。

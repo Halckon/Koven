@@ -1,0 +1,3 @@
+class Node {}
+fun take(own x: Node): Unit {}
+fun test(flag: Boolean, own x: Node?): Unit = when (x) { null -> {}; else -> if (flag) { take(x) } else {} }

@@ -1,55 +1,12 @@
 //! 可信 receiver 的实际来源事实与所有权检查交付；仅使用正常源码验证。
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
-    ownership_checking::{UnitLoanTarget, check_compilation_unit_ownership, check_ownership},
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    ownership_checking::{UnitLoanTarget, check_compilation_unit_ownership},
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
-
-// Unit loan descriptors do not expose the legacy independent loan-end event table.
-// Retain this path and its original event assertions, not a descriptor approximation.
-fn legacy_checked(
-    text: &str,
-) -> (
-    SourceMap,
-    lang_frontend::ownership_checking::OwnershipCheckedFile,
-    lang_frontend::ownership_checking::CompilationUnitOwnership,
-) {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("receiver.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (environment, mut types) = standard_environments();
-    types.authorize_range_source(&sources, source).unwrap();
-    types
-        .authorize_range_extension_source(&sources, source)
-        .unwrap();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let single = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    let inputs = [SourceUnitInput::new("root", "receiver.ko", source, &parsed)];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    (sources, single, unit)
-}
 
 #[test]
 fn trusted_list_receiver_return_publishes_an_actual_source_qualified_root() {
@@ -170,98 +127,6 @@ fn checked(
 }
 
 const RECEIVERS: &str = "borrow fun <T> List<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, count)\nborrow fun <T> View<T>.prefix(count: Int): View<T> from this = rangeView(this, 0, count)\n";
-
-#[test]
-fn named_receiver_continues_each_real_root_loan_until_dependent_bindings_end() {
-    for (element, value) in [
-        ("String", "\"kept\""),
-        ("Item", "Item(1)"),
-        ("Resource", "Resource()"),
-    ] {
-        let text = format!(
-            "{RECEIVERS}class Item(val value: Int) {{}}\nclass Resource {{ deinit() {{}} }}\nfun alias(source: View<{element}>): borrow View<{element}> from source = source\nfun inspect(source: View<{element}>): Unit {{}}\nfun consume(own source: List<{element}>): Unit {{}}\nfun run(): Unit {{ val root = listOf({value}); borrow val parent = root.prefix(1); borrow val child = parent.prefix(1); borrow val metadata = alias(child); inspect(metadata); inspect(parent); consume(root) }}"
-        );
-        let (_, single, unit) = legacy_checked(&text);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-            assert!(diagnostics.is_empty(), "{diagnostics:?}");
-        }
-        assert_eq!(single.borrow_results().bindings().len(), 3);
-        assert_eq!(unit.borrow_results().bindings().len(), 3);
-        let [parent, child, metadata] = single.borrow_results().bindings() else {
-            unreachable!()
-        };
-        assert!(child.parent().is_none(), "new descriptor is root-flat");
-        assert_eq!(metadata.parent(), Some(child.binding()));
-        assert_eq!(
-            single
-                .borrow_results()
-                .ends()
-                .iter()
-                .map(|end| end.binding())
-                .collect::<Vec<_>>(),
-            [metadata.binding(), child.binding(), parent.binding()]
-        );
-        let [parent, child, metadata] = unit.borrow_results().bindings() else {
-            unreachable!()
-        };
-        assert!(child.parent().is_none(), "unit new descriptor is root-flat");
-        assert_eq!(metadata.parent(), Some(child.binding()));
-        assert_eq!(
-            unit.borrow_results()
-                .ends()
-                .iter()
-                .map(|end| end.binding())
-                .collect::<Vec<_>>(),
-            [metadata.binding(), child.binding(), parent.binding()]
-        );
-        for binding in single.borrow_results().bindings() {
-            let source = binding
-                .source_loan()
-                .expect("real receiver/argument source loan");
-            let loan = single
-                .loans()
-                .iter()
-                .find(|loan| loan.call() == source.call() && loan.argument() == source.argument())
-                .unwrap();
-            assert_eq!(loan.target(), binding.origin());
-            assert!(
-                !single
-                    .loan_ends()
-                    .iter()
-                    .any(|end| end.call() == source.call()
-                        && end.argument() == source.argument()
-                        && end.point()
-                            == lang_frontend::ownership_checking::LoanEndPoint::CallReturn(
-                                source.call()
-                            )),
-                "source loan survives producer return"
-            );
-            assert_eq!(
-                binding.origin(),
-                single.borrow_results().bindings()[0].origin()
-            );
-        }
-        for binding in unit.borrow_results().bindings() {
-            let source = binding
-                .source_loan()
-                .expect("unit receiver/argument source loan");
-            let loan = unit
-                .loans()
-                .iter()
-                .find(|loan| loan.call() == source.call() && loan.argument() == source.argument())
-                .unwrap();
-            assert_eq!(loan.target(), binding.origin());
-            assert_eq!(
-                binding.origin(),
-                unit.borrow_results().bindings()[0].origin()
-            );
-        }
-        assert_eq!(single.borrow_results().ends().len(), 3);
-        assert_eq!(unit.borrow_results().ends().len(), 3);
-        assert!(single.deferred().is_empty(), "{:?}", single.deferred());
-        assert!(unit.validate().is_ok());
-    }
-}
 
 #[test]
 fn temporary_receiver_chain_publishes_source_loans_for_the_actual_immediate_consumer() {

@@ -227,9 +227,13 @@ impl Checker<'_, '_> {
                     .typed
                     .call(self.id(expression))
                     .is_some_and(|descriptor| descriptor.target() == UnitCallTarget::FunctionValue);
-                self.call(expression, &values)
+                let accepted = self.call(expression, &values)
                     && (!function_value || self.function_callee(expression, &values))
-                    && self.arguments(expression, &values)
+                    && self.arguments(expression, &values);
+                if accepted && let Some(proof) = self.whole_nominal_exit(expression, &values) {
+                    self.whole_nominal_exit = Some(proof);
+                }
+                accepted
             }
             Expression::Assignment {
                 target,

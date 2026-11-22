@@ -3,20 +3,38 @@
 //! of complete cross-entry facts or a replacement for Single owner/loan witnesses.
 use lang_frontend::{
     name_resolution::{
-        NameEnvironment, SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        NameEnvironment, SourceUnitInput, ValidatedCompilationUnitNames, index_compilation_unit,
+        resolve_compilation_unit_names,
     },
     ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
     parser::ParsedFile,
     source::SourceMap,
-    type_checking::{TypeEnvironment, check_compilation_unit_types},
+    type_checking::{TypeEnvironment, ValidatedCompilationUnitTypes, check_compilation_unit_types},
 };
 
 pub(super) fn checked(
     text: &str,
     file_name: &str,
     rooted: bool,
-    (environment, types): (NameEnvironment, TypeEnvironment),
+    environments: (NameEnvironment, TypeEnvironment),
 ) -> (SourceMap, ParsedFile, CompilationUnitOwnership) {
+    let (sources, parsed, owned, _, _) =
+        checked_with_evidence(text, file_name, rooted, environments);
+    (sources, parsed, owned)
+}
+
+pub(super) fn checked_with_evidence(
+    text: &str,
+    file_name: &str,
+    rooted: bool,
+    (environment, types): (NameEnvironment, TypeEnvironment),
+) -> (
+    SourceMap,
+    ParsedFile,
+    CompilationUnitOwnership,
+    ValidatedCompilationUnitNames,
+    ValidatedCompilationUnitTypes,
+) {
     let mut sources = SourceMap::new();
     let source = sources.add_source(file_name, text).unwrap();
     let parsed = super::parser_test_assertions::parse_file_twice(
@@ -72,5 +90,5 @@ pub(super) fn checked(
             Some(plan)
         );
     }
-    (sources, parsed, owned)
+    (sources, parsed, owned, names, typed)
 }

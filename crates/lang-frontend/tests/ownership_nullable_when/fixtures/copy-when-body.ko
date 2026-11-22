@@ -1,0 +1,1 @@
+fun test(x: Int?): Int = when (x) { null -> 0; else -> x }

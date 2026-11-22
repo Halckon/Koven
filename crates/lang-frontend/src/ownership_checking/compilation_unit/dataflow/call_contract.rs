@@ -169,6 +169,13 @@ impl Checker<'_> {
                                     reserved: false,
                                     origin: contract.loan_begin_span(),
                                 });
+                                #[cfg(test)]
+                                if kind == LoanKind::Exclusive {
+                                    super::borrow_call_use::copy_test_observation::exclusive_inserted(
+                                        state.loans.last().unwrap(),
+                                        contract.argument(),
+                                    );
+                                }
                                 UnitLoanTarget::Place(place)
                             } else if kind == LoanKind::Shared
                                 && let Some(owner) =

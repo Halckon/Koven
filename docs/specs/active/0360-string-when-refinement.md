@@ -72,3 +72,82 @@ String 源码原字节移入成功准入矩阵。这是阶段能力门的迁移�
 - 本地只做官方定向 rustfmt、文档生成/结构、尺寸/字节与 diff 静态检查。
 - exact Draft PR 的双宿主官方 CI 待发布与核验；未宣称编译/运行通过。
 - 保持 in-progress；未 Ready、未 merge、未 Slack 通知；父任务负责一次 review。
+
+## 6. 普通临时 owner 与后续实参双出口（有界补片）
+
+仅准入无 receiver、非特化的直接具名尾 `return`：第一个实参是无 runtime 字段、无
+`deinit`、无构造实参或 delivery 的普通整根 HeapOwner，按精确匹配的共享借用参数交付；
+第二个实参是动态 Boolean 参数的 `when`，`true` 臂提前返回、`else` 臂正常产生值。
+两个叶值都只读取已知 `Int` 绑定。相同 source-qualified lender、owner、transfer 必须同时具有
+正常 `CallReturn` 和提前 `ControlTransfer` 的唯一 `EndCallLoan → Drop`，无其他该 owner drop。
+准入不产生前端事实，不改变 builder、SSA verifier 或普通不匹配路径。
+
+Mac + LLVM 21.1.8：真实具名函数 Refine/SSA/LLVM 通过；表达式体、非尾位置及有 runtime 字段
+对照不进入本补片。实际 SSA 边传递同一 fresh owner 和共享 loan，两个出口均先 End 后恰好一次
+Drop，提前退出 0 次派发、正常退出 1 次。native 两个调用的数值、stdout 和按指针分配身份的
+两个释放均断言；相邻混合 Rc native 对照通过。未执行 Linux、全量测试或 CI，不关闭本 Spec。
+
+## 7. 直接不可变局部结果（限函数体末尾）
+
+在 §6 的所有证明照常成立时，另准入函数体最后两句为无修饰 `val result = 直接调用`
+和 `return result` 的形态。初始化调用、绑定、返回引用和函数返回类型均为同一非空 Owned
+`Int`，返回引用绑定到同源声明，且正常路径可完成初始化。带包装或括号的初始化、`var`、
+返回其他符号或两句不相邻均不由本补片支持。前端事实、普通绑定/返回 builder 和 verifier
+保持不变。
+
+验收使用带 native 入口的同一源码，只观察一次实际 lowering；入口调用的具体函数必须匹配
+Refine 记录，从该 Program 同时验证 SSA、LLVM 和 native。String 命中/不命中与 Boolean
+提前/正常双轴的结果为 `1/10/0/9`。提前出口不派发调用；两个出口都依次结束同一
+loan、恰好释放同一 Node；正常返回的是调用结果实体。
+
+Mac / Rust 1.96 / LLVM 21：基线新增阳性在原 String when 处得到 UnsupportedNode；限定
+准入后 `mixed_string_when` 定向 6/6（含原尾调用、Rc native 对照、嵌套和近邻拒绝）。
+同一观测 Program 的 SSA、LLVM 与链接执行通过，精确各释放四次分配身份中的一次。
+Linux、全量和 hosted CI 未执行。
+
+
+## 8. 单层括号初始化（同一尾部局部结果）
+
+在 §7 的限制内，初始化式可为 `val result = (直接调用)`，最后仍为裸
+`return result`。只接受一层 Group，Group 与真实内层调用同为非空 `Int` 且各有正常边，
+无窄化或独立 Group 调用描述。原验证仍要求内层调用返回 Owned、匹配同一不可变声明与
+函数结果，并仍以该内层调用的身份核对唯一的两条 End → Drop；不在 Group 制造清理点。
+生成普通 Group、绑定和返回的 builder 不变。
+
+Mac / Rust 1.96 / LLVM 21：原实现对该阳性用例在前置 String `when` 处报
+`UnsupportedNode`。本片准入后，`mixed_string_when` 定向 8/8；同一经过路由记录的
+Program 验证 SSA、渲染 LLVM 并链接执行，真实入口四条分支分别返回 `1/10/0/9`，
+正常调用只派发一次、提前返回不派发，两路均在结束同一 loan 后只释放自己的 Node 一次。
+双层括号、返回式括号、其他语法位置及其他近邻仍待单独核对 Refine 覆盖，不表示
+括号语法非法。全量、hosted CI 与 sanitizer 未执行。
+
+### 括号位置的通路审计
+
+同一混合 String `when` 夹具记录九种尾部写法：裸尾调用、裸局部初始化和单层括号初始化进入
+Refine 并通过 SSA/LLVM；`return (直接调用)`、双层括号初始化、`return (result)`，
+以及可变绑定、不同返回符号、非连续语句在当前通路落到原 String `when` 上的
+`UnsupportedNode`。后两类括号返回位置不要和已交付的单层括号初始化混同。
+
+每个用例先通过前端检查，逐个核对真实内层调用、同一临时 owner 与提前返回的语义身份，
+以及两个精确出口各一次的 End → Drop；括号表达式和内层值同为非空 `Int`，
+不拥有调用描述。这个矩阵只刻画当前降低覆盖，不新增语法或生产准入。
+Mac 使用 Targeted CI 同一 feature 的 `mixed_string_when` 定向 8/8，含原 native 正控；
+该矩阵没有在 Linux 或 hosted CI 运行。
+
+九形态矩阵另以同一源码字节通过真实 `MemoryDocument` 和 rooted Unit 共 18 个格子。
+Mac 定向 8/8，两种 Unit 布局的路由与内层清理事实一致。若单独补齐尾部
+`return (直接调用)`，最小候选仅在既有末尾 Return 匹配处复用单层透明 Group
+核验，并继续用内层调用身份匹配 §6 的全部事实；不以递归去括号同时准入双层、
+括号包裹绑定读取或其他位置。本轮未改变生产通路。
+
+裸初始化与单层括号初始化的原 native 入口另以同一夹具字节通过真实 `MemoryDocument`
+及 rooted Unit，共四个实际 Program。每格从同一次实际路由得到的产物验 SSA、渲染 LLVM、
+链接并运行；入口四次调用各得 `1/10/0/9`，按各自分配身份恰好释放一次。
+Mac 的 `mixed_string_when` 定向（同 Targeted feature）8/8；本次未运行 Linux 或 hosted CI。
+
+同步 `8207b212` 主线后，Mac 同 Targeted feature 的原 8 项仍通过。新增显式前缀块
+`block { normal = n }` 的 native 正例：块写入影响后续正常实参，仍由既有顶层尾部
+局部初始化和 Return 匹配消费同一借用与析构事实；两种 Unit 布局都保持原四种结果和
+逐身份一次释放。若将这对尾部语句一起移入显式块，前端仍发布精确的两条清理事实，
+但不满足现行顶层范围，现有混合降低仍报 `UnsupportedNode`。Mac 定向 9/9，
+未改变语法或生产准入，未运行 Linux 或 hosted CI。

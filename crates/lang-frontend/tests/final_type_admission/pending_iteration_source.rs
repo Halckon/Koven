@@ -447,19 +447,143 @@ fn single_pending_iteration_sources_keep_types_without_publishing_provider_plans
 
 #[test]
 fn resolved_forward_constant_keeps_single_iteration_plan() {
-    let mut sources = SourceMap::new();
-    let (_, file) = parsed(
-        &mut sources,
-        "forward-constant.ko",
-        "const val FIRST = SECOND
+    use lang_frontend::{
+        name_resolution::{ReferenceTarget, SourceUnitKey, SymbolKind},
+        parser::{ForBinding, NameMarker},
+        type_checking::{
+            ConstValue, IterationProvider, ParameterMode, SequentialContainerKind,
+            UnitSequentialIterationBinding, complete_compilation_unit_types,
+        },
+    };
+
+    let text = "const val FIRST = SECOND
          const val SECOND = true
-         fun test(p: List<Int>): Unit { for (item in if (FIRST) p else p) {} }",
-    );
-    let (names_env, types_env) = standard_environments();
-    let names = resolve_names(&sources, &file, &names_env).unwrap();
-    let typed = check_types(&sources, &file, &names, &types_env).unwrap();
-    complete_file_types(&sources, &file, &names, &types_env, &typed).unwrap();
-    assert_eq!(typed.sequential_iterations().len(), 1);
+         fun test(p: List<Int>): Unit { for (item in if (FIRST) p else p) {} }";
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "forward-constant.ko", text);
+    assert_eq!(sources.source_text(source), Ok(text));
+    let ast = file.ast();
+    let (ne, te) = standard_environments();
+    for (rooted, input) in [
+        (false, SourceUnitInput::memory_document(source, &file)),
+        (
+            true,
+            SourceUnitInput::new("root", "forward-constant.ko", source, &file),
+        ),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        assert!(index.diagnostics().is_empty());
+        let [entry] = index.source_units() else {
+            panic!("one original source")
+        };
+        assert_eq!(entry.source_id(), source);
+        assert!(match (rooted, entry.key()) {
+            (false, SourceUnitKey::MemoryDocument) => true,
+            (true, SourceUnitKey::Rooted { root, logical_path }) =>
+                root.as_str() == "root" && logical_path.as_str() == "forward-constant.ko",
+            _ => false,
+        });
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
+        assert!(typed.diagnostics().is_empty());
+        assert!(
+            complete_compilation_unit_types(&sources, &inputs, &names, &te, &typed)
+                .unwrap()
+                .is_same_analysis(&typed)
+        );
+        let typed = typed.validate_constants().unwrap();
+        let raw = typed.types();
+        let [iteration] = raw.sequential_iterations() else {
+            panic!("one genuine typed iteration descriptor")
+        };
+        let unit = entry.id();
+        let qualify = |id| UnitExpressionId::new(unit, id);
+        assert_eq!(iteration.statement().source_unit(), unit);
+        let Statement::For {
+            source: iterated,
+            binding: ForBinding::Name(NameMarker::Present(binder)),
+            ..
+        } = ast
+            .statements()
+            .get(iteration.statement().statement())
+            .unwrap()
+            .payload()
+        else {
+            panic!("the original named for")
+        };
+        assert_eq!(iteration.source(), qualify(*iterated));
+        assert_eq!(
+            iteration.provider(),
+            IterationProvider::Sequential(SequentialContainerKind::List)
+        );
+        assert_eq!(iteration.delivery(), ParameterMode::Borrow);
+        let int = raw.types().builtin(BuiltinType::Int).unwrap();
+        assert_eq!(iteration.element_type(), int);
+        assert_eq!(
+            raw.expression_type(iteration.source()),
+            Some(iteration.source_type())
+        );
+        let UnitSequentialIterationBinding::Name(item) = *iteration.binding() else {
+            panic!("actual named iteration binding")
+        };
+        assert_eq!(item.source_unit(), unit);
+        let local = names.names().source_units()[0].resolution();
+        let symbol = local.symbols().get(item.symbol().index()).unwrap();
+        assert_eq!(symbol.kind(), SymbolKind::ForBinding);
+        assert_eq!(symbol.span(), *binder);
+        assert_eq!(sources.slice(*binder), Ok("item"));
+        assert_eq!(raw.symbol_type(item), Some(int));
+
+        let Expression::If { condition, .. } = ast.expressions().get(*iterated).unwrap().payload()
+        else {
+            panic!("the original conditional iterator source")
+        };
+        let condition_span = ast.expressions().get(*condition).unwrap().span();
+        assert_eq!(sources.slice(condition_span), Ok("FIRST"));
+        let declarations = typed.constants().declarations();
+        let first = declarations
+            .iter()
+            .find(|d| sources.slice(d.declaration_span()) == Ok("FIRST"))
+            .unwrap();
+        let second = declarations
+            .iter()
+            .find(|d| sources.slice(d.declaration_span()) == Ok("SECOND"))
+            .unwrap();
+        assert_ne!(first.symbol(), second.symbol());
+        assert_eq!(first.value(), &ConstValue::Boolean(true));
+        assert_eq!(second.value(), first.value());
+        let condition = typed
+            .constants()
+            .uses()
+            .iter()
+            .find(|read| read.expression() == qualify(*condition))
+            .unwrap();
+        assert_eq!(condition.target(), first.symbol());
+        assert_eq!(condition.value(), first.value());
+
+        let p = local
+            .symbols()
+            .iter()
+            .find(|symbol| symbol.name() == "p")
+            .unwrap();
+        let iterated_span = ast.expressions().get(*iterated).unwrap().span();
+        assert_eq!(
+            local
+                .references()
+                .iter()
+                .filter(
+                    |reference| reference.span().start() >= iterated_span.start()
+                        && reference.span().end() <= iterated_span.end()
+                        && reference.target() == &ReferenceTarget::Symbol(p.id())
+                )
+                .count(),
+            2
+        );
+    }
 }
 
 #[test]

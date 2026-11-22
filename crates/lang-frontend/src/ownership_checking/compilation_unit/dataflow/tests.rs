@@ -6,6 +6,8 @@ use crate::{
     type_checking::{check_compilation_unit_types, standard_environments},
 };
 
+pub(super) mod borrow_binding_origin_probe;
+
 use super::{OwnershipCheckingError, collect_construction_descriptors};
 
 fn parsed(sources: &mut SourceMap, name: &str, text: &str) -> (SourceId, ParsedFile) {

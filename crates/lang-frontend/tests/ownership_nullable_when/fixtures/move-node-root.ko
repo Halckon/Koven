@@ -1,0 +1,2 @@
+class Node {}
+fun extract(own x: Node?): Node = when (x) { null -> Node(); else -> x }

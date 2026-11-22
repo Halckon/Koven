@@ -507,6 +507,44 @@ impl Builder<'_, '_> {
         for (param_slot, value_expr, call_arg_span, mode, param_ty) in call_args {
             let arg_id = self.unit(value_expr);
             if mode == ParameterMode::Borrow {
+                if source_index == 0
+                    && param_slot == 1
+                    && arguments.len() == 2
+                    && arguments
+                        .iter()
+                        .all(|arg| arg.named_prefix.is_none() && arg.mode_marker.is_none())
+                    && matches!(
+                        descriptor.target(),
+                        lang_frontend::type_checking::UnitCallTarget::Declaration(_)
+                    )
+                    && descriptor.receiver().is_none()
+                    && descriptor.instance().type_arguments().is_empty()
+                    && descriptor.borrow_return().is_some_and(|contract| {
+                        contract.origin() == BorrowReturnOrigin::Parameter(0)
+                    })
+                    && self
+                        .inputs
+                        .typed
+                        .types()
+                        .get(self.c(descriptor.return_type()))
+                        == Some(&UnitTypeKind::Builtin(
+                            lang_frontend::type_checking::BuiltinType::Int,
+                        ))
+                    && let Some((operand, created, read)) = self
+                        .borrowed_result_callable_auxiliary(
+                            call,
+                            value_expr,
+                            param_ty,
+                            call_arg_span,
+                        )?
+                {
+                    created_loans.extend(created.iter().map(|&loan| (loan, call_arg_span)));
+                    self.pending_call_loans.extend(created.iter().copied());
+                    arg_loans.insert(arg_id, created);
+                    view_reads.extend(read);
+                    lowered_slots[param_slot] = Some(operand);
+                    continue;
+                }
                 if param_slot != source_index
                     && let Some((view, local)) = self.nullable_string_place_argument(
                         call.expression(),

@@ -1,0 +1,6 @@
+class Guard { deinit() {} }
+class Memory {}
+fun tick(): Unit {}
+fun inspect(value: Guard): Unit {}
+class Holder(var state: Guard)
+fun run(): Unit { $BINDING holder = Holder(Guard()); val sibling = Guard(); $INCOMINGval old = replace(&holder.state, $NEW); inspect(holder.state); inspect(old); tick() }
