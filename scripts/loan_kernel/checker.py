@@ -1894,9 +1894,9 @@ class Checker:
             self.error("K24", stmt.line, "不能在 deinit 中解除 this 的析构")
             raise InvalidOpen
         if (stmt.name != "this" or not fun.params or fun.params[0] != ("own", "this", fun.owner)
-                or not decl or not decl.deinit or decl.cell or decl.local or decl.carrier
+                or not decl or not decl.deinit or decl.cell or decl.carrier
                 or state[stmt.name].ty != self.type_of(fun.owner)):
-            self.error("K25", stmt.line, "open 仅支持具体 deinit 类型自身的 own this 方法")
+            self.error("K25", stmt.line, "open 仅支持非内部可变非容器的具体 deinit 类型自身的 own this 方法")
             raise InvalidOpen
         if len(stmt.names) != len(decl.fields) or any(
                 (kind and self.carrier(ty)) or not self.open_field(ty, decl.is_view or bool(kind))

@@ -35,7 +35,7 @@ fun dropsFieldsOnFailure(own this: Holder): Unit in Holder {
   mayFail()
   use(slice.source.len)
 }
-local view class LocalReceiver(borrow source: Arr, file: File) deinit
-fun unsupportedLocalReceiver(own this: LocalReceiver): Unit in LocalReceiver {
-  open this as source, file  // ERR K25
+view class CarrierReceiver<view T>(file: File) deinit
+fun unsupportedCarrierReceiver(own this: CarrierReceiver): Unit in CarrierReceiver {
+  open this as file  // ERR K25
 }

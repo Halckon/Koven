@@ -1334,6 +1334,38 @@ class LoanKernelCases(unittest.TestCase):
                 finally:
                     call.cleanup.insert(idx, entry)
 
+    def test_open_local_receiver_and_reject_cell_and_carrier_receivers(self):
+        source = (ROOT / "cases/Z36.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("openLocalConnTransfersCleanup", "openLocalWrapAcrossNormalSuspend",
+                     "openLocalViewForwardsOrigin", "openLocalViewDropsOnlyOwnedFileOnFailure"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("openLocalConnBlocksUseAfterOpen", "deinit LocalConn",
+                     "openLocalWrapCannotCrossParallelSuspend", "openLocalWrapRejectedByTransferableBound",
+                     "openLocalViewMissingContract", "cannotOpenCellReceiver", "cannotOpenCarrierReceiver"):
+            self.assertFalse(lowered[name][2], name)
+
+        # local 普通类拆解：首调用失败清理 buf, sock，移交 sock 后次调用仅清理 buf；漏掉 sock 报 V1。
+        types, program, _ = lowered["openLocalConnTransfersCleanup"]
+        calls = [s for s in program if s.kind == "call"]
+        self.assertEqual([[("buf", False), ("sock", False)], [("buf", False)], [("buf", False)]],
+                         [s.cleanup for s in calls])
+        self.assertEqual(["buf"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        calls[0].cleanup.pop()
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+        # local view 拆解：直接借用字段 source 不带析构义务，仅清理 file；漏掉 file 报 V1。
+        types, program, _ = lowered["openLocalViewDropsOnlyOwnedFileOnFailure"]
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("file", False)], call.cleanup)
+        self.assertEqual(["file"], [s.var for s in program if s.kind == "drop"])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call.cleanup.clear()
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

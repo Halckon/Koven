@@ -1255,4 +1255,12 @@ fun probe(borrow h: A): Unit {
 
 - **借用与义务（`checker.py` / `drop_plan.py`）**：`replace_field` 改为使用完整字段路径 `path_str`；当路径未越过借用字段时向检验器发射带多层 `fld=path_str` 的 `DP.Stmt("replace")`（复用于 §64 扩展的多层叶单元检验），当路径越过独占借用字段到达另一拥有者时仅在底层拥有者上记录写访问并清除该叶路径账（含清除中间借用视图的过期副本），不向中间借用视图发虚假的 `replace`；
 - **普通嵌套 `empty` 类字段与 `deinit`**：`deinit Outer` 内可 `replace this.mid.item`；循环内反复 `replace o.mid.item` 保持 `o` 完整（无 K8）；借着兄弟字段 `o.mid.keep` 时允许 `replace o.mid.item`，借着自身报 K1，经共享借用报 K1，对非 `empty` 嵌套字段报 K26；`mayFail` 清理清单为 `x, o`（漏掉 `x` 报 V1 + V4 且真实执行 `deinit Outer`，漏掉 `o` 报 V1）；
-- **嵌套 `empty` 视图字段与跨独占字段**：`replace h.mid.first` 与跨独占字段 `replace link.inner.first` 将来源随取出值移交并在唯一目标下仅清空该叶路径（`taken` 用完后 `a` 解除而兄弟字段 `b` 仍受保护），经 `inout` 参数转发须匹配精确路径（错声明报 K6），跨共享借用字段 `RoLinkHolder` 报 K1。
+- **嵌套 `empty` 视图字段与跨独占字段**：`replace h.mid.first` 与跨独占字段 `replace link.inner.first` 将来源随取出值移交并在唯一目标下仅清空该叶路径（`taken` 用完后 `a` 解除而兄弟字段 `b` 仍受保护），经 `inout` 参数转发须匹配精确路径（错声明报 K6），跨共享借用字段 `RoLinkHolder` 报 K1。`local` 接收者自身的 `open` 与 `cell`/容器接收者的边界见 §74。
+
+## 74. `local` 接收者自身的 `open` 与 `cell`/容器接收者的 K25 边界（KB1 × KB6 × KB8）
+
+`Z36.lk` 放开 `Checker.open_receiver` 接受线程绑定（`local`）的具体 `deinit` 接收者（因 §72 已在 `dp_type` 保留 `local` 类型的字段义务，且 `open` 在当前线程原地拆解而不跨线程转移），同时明确保留 `cell` 接收者（K19 禁止非受信任代码直接拆解内部可变字段）与容器接收者（含隐含的 `T` 元素义务）按 K25 拒绝：
+
+- **`local` 普通类接收者（`LocalConn` / `LocalWrap`）**：`open this as sock, buf` 消费 `this` 后禁止再用 `this`（K8），`deinit LocalConn` 内仍禁止 `open`（K24）；首调用失败清理 `buf, sock`，移交 `sock` 后次调用仅清理 `buf`（漏掉 `sock` 报 V1）；拆出内层 `local` 字段 `inner: InnerLocal` 后，跨普通 `suspend` 接受、跨 `parallel suspend` 报 S5、交给 `<T: Transferable>` 报 CAP。
+- **`local` 视图接收者（`LocalView`）**：`open this as source, file` 转移 `source` 的借用来源并按 K1/K6 检查，直接借用字段不带析构义务，失败与正常退出均仅清理 `file`（漏掉 `file` 报 V1）。
+- **`cell` 与容器接收者**：`CellConn` 与 `CarrierConn` 的 `open` 均按 K25 拒绝（`Z17.lk` 与 `Z5.lk` 亦分别保留这两项 K25 对照）。

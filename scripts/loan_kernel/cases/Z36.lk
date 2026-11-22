@@ -1,0 +1,80 @@
+// local 接收者自身的 open 与 cell/容器接收者的 K25 边界（KB1 × KB6 × KB8）
+class Arr(len: Int)
+class Sock(fd: Int) deinit
+class Buf(fd: Int) deinit
+class File(fd: Int) deinit
+local class InnerLocal(fd: Int) deinit
+local class LocalConn(sock: Sock, buf: Buf) deinit
+local class LocalWrap(inner: InnerLocal, file: File) deinit
+local view class LocalView(borrow source: Arr, file: File) deinit
+cell class CellConn(sock: Sock, buf: Buf) deinit
+view class CarrierConn<view T>(file: File) deinit
+
+fun closeSock(own s: Sock): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+fun <T: Transferable> send(own x: T): Unit trusted
+
+// 一、local 普通 deinit 类的 own this 拆解：逐字段转移失败清理与正常析构义务
+fun openLocalConnTransfersCleanup(own this: LocalConn): Unit in LocalConn {
+  open this as sock, buf
+  mayFail()
+  closeSock(move sock)
+  mayFail()
+  use(buf.fd)
+}
+fun openLocalConnBlocksUseAfterOpen(own this: LocalConn): Unit in LocalConn {
+  open this as sock, buf
+  use(this.sock.fd)  // ERR K8
+  use(buf.fd)
+}
+deinit LocalConn {
+  open this as sock, buf  // ERR K24
+}
+
+// 二、拆出含 local 字段的 local 接收者：内层 local 仍受 S5 与 CAP 约束
+suspend fun openLocalWrapAcrossNormalSuspend(own this: LocalWrap): Unit in LocalWrap {
+  open this as inner, file
+  suspend
+  use(inner.fd)
+}
+parallel suspend fun openLocalWrapCannotCrossParallelSuspend(own this: LocalWrap): Unit in LocalWrap {
+  open this as inner, file
+  suspend  // ERR S5
+  use(inner.fd)
+}
+fun openLocalWrapRejectedByTransferableBound(own this: LocalWrap): Unit in LocalWrap {
+  open this as inner, file
+  send(move inner)  // ERR CAP
+}
+
+// 三、local view 接收者自身的拆解：直接借用字段不带析构义务，来源与合同照常转发
+fun openLocalViewProtectsSourceAndReleases(own this: LocalView, own a: Arr, own f: File): Unit in LocalView {
+  this = LocalView(&a, move f)
+  open this as source, file
+  use(a.len)
+  update(&mut a)  // ERR K1
+  use(source.len)
+  update(&mut a)
+}
+fun openLocalViewForwardsOrigin(own this: LocalView): borrow Int from this.source in LocalView {
+  open this as source, file
+  return &source.len
+}
+fun openLocalViewMissingContract(own this: LocalView): borrow Int in LocalView {
+  open this as source, file
+  return &source.len  // ERR K6
+}
+fun openLocalViewDropsOnlyOwnedFileOnFailure(own this: LocalView): Unit in LocalView {
+  open this as source, file
+  mayFail()
+  use(source.len)
+}
+
+// 四、cell 接收者（K19 禁止非受信任拆解内部可变字段）与容器接收者（含隐含元素义务）仍按 K25 拒绝
+fun cannotOpenCellReceiver(own this: CellConn): Unit in CellConn {
+  open this as sock, buf  // ERR K25
+}
+fun cannotOpenCarrierReceiver(own this: CarrierConn): Unit in CarrierConn {
+  open this as file  // ERR K25
+}
