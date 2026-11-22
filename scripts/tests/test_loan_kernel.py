@@ -279,7 +279,9 @@ class LoanKernelCases(unittest.TestCase):
                           ("conditionalReleaseKeepsDropFlag", "guard"),
                           ("conditionalNestedMoveKeepsDropFlag", "o"),
                           ("moveAndBreakInLoop", "f"), ("breakCleansInnerLocal", "f"),
-                          ("conditionalReleaseRcKeepsDropFlag", "r")},
+                          ("conditionalReleaseRcKeepsDropFlag", "r"),
+                          ("conditionalReleaseGuardKeepsDropFlag", "g"),
+                          ("conditionalReleaseGuardKeepsDropFlag", "c")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -1239,6 +1241,36 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual([("p", False), ("w2", False), ("w1", False), ("r2", False), ("r1", False)], may_fail.cleanup)
         may_fail.cleanup.remove(("r2", False))
         self.assertEqual({"V1", "V4"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+    def test_refcell_runtime_borrow_guards(self):
+        source = (ROOT / "cases/Z33.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("guardReleasedAllowsCellMutationAndMove", "derefMutReusableAfterLastUse",
+                     "twoGuardsDropInLifoOrder", "conditionalReleaseGuardKeepsDropFlag",
+                     "guardAllowedAcrossNormalSuspend"):
+            self.assertTrue(lowered[name][2], name)
+        # 两个守卫与 RefCell 的失败清理按声明逆序（g2, g1, c）；颠倒守卫析构顺序报 V4，漏掉 g2 报 V1+V4。
+        types, program, _ = lowered["twoGuardsDropInLifoOrder"]
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        may_fail = [s for s in program if s.kind == "call"][-1]
+        self.assertEqual([("g2", False), ("g1", False), ("c", False)], may_fail.cleanup)
+        may_fail.cleanup.remove(("g2", False))
+        self.assertEqual({"V1", "V4"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+        # 条件释放守卫保留析构标志 g?；去标志报 V2，漏清理 g? 报 V1。
+        types, program, _ = lowered["conditionalReleaseGuardKeepsDropFlag"]
+        may_fail = [s for s in program if s.kind == "call"][-1]
+        self.assertEqual([("g", True), ("c", False)], may_fail.cleanup)
+        drops = [s for s in program if s.kind == "drop"]
+        self.assertEqual([("g", True), ("c", False)], [(s.var, s.if_owned) for s in drops])
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        drops[0].if_owned = False
+        self.assertEqual({"V2"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+        drops[0].if_owned = True
+        may_fail.cleanup.remove(("g", True))
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

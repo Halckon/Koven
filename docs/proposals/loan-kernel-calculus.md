@@ -1231,4 +1231,12 @@ fun probe(borrow h: A): Unit {
 
 - **能力推导（`capability.py` / `C7.cap`）**：新增 `Weak` 内建叶子公理——不可隐式复制、不可跨线程转移或共享（与 `Rc` 一致），`Escapable` 随载荷；因析构只递减弱计数、不运行载荷 `deinit`，故 `EarlyDrop`、`Forgettable` 与 `ImplicitDrop` 恒成立（`Weak<File>` 仍可提前析构）。`Weak` 与 `Rc` 一样不放开默认上界，装入 `unforgettable`、`consume` 或 `view` 载荷均判为良构错误（`wf = no`）；含 `Weak<Node>?` 与 `Rc<Node>?` 的递归节点正确收敛。
 - **析构义务与 `deinit` 屏障（`Z32.lk`）**：在 `Weak` 存在时强引用（`StrongRef` / `OptStrong`）带 `deinit` 屏障留到词法作用域结束，而弱引用（`WeakRef`）不带 `deinit` 屏障可在 `upgrade` 之后提前析构；两者均不可隐式复制（K8）、须显式 `cloneRc`/`cloneWeak`，借出引用保护强引用不被移走（K1）且不可逃逸（K6）。单臂移走时强引用保留析构标志 `r?`（去标志报 V2，漏清理报 V1），弱引用不可观察而在另一臂末尾补偿析构（无标志）；多份 `clone` 与 `downgrade` 的失败清理按声明逆序执行（漏掉较晚的 `r2` 同时报 V1 与 V4）。
-- **线程绑定与可空替换**：`StrongRef` 与 `WeakRef` 在普通 `suspend fun` 中跨挂起点接受，在 `parallel suspend fun` 中跨 `suspend` 均报 S5，交给 `<T: Transferable>` 均报 CAP；放开 `replace_field` 支持线程绑定（`local`）的 `empty` 字段后，`replace slot.cached` 可安全取出 `upgrade` 返回的可空强引用并转移其析构义务。
+- **线程绑定与可空替换**：`StrongRef` 与 `WeakRef` 在普通 `suspend fun` 中跨挂起点接受，在 `parallel suspend fun` 中跨 `suspend` 均报 S5，交给 `<T: Transferable>` 均报 CAP；放开 `replace_field` 支持线程绑定（`local`）的 `empty` 字段后，`replace slot.cached` 可安全取出 `upgrade` 返回的可空强引用并转移其析构义务。带运行时借用标志的单元交出的守卫见 §71。
+
+## 71. 带运行时借用标志的单元交出的守卫（`RefCell` 风格，KB6 × KB1 × KB2 × KB8）
+
+`Z33.lk` 检验内部可变单元（`cell class RefCell`）经共享借用交出带 `deinit` 的借用守卫（`view class Ref(borrow cell: RefCell) deinit` 与 `view class RefMut(borrow cell: RefCell) deinit`），不需要任何新借用或析构规则：
+
+- **借用与封装（K19 / K1 / K6 / K8 / K17）**：非受信任代码直接访问 `c.v` 报 K19；`borrowCell(&c)` 与 `borrowMutCell(&c)` 均经共享借用交出带 `deinit` 的守卫，守卫因析构可观察而活到词法作用域结束（期间独占改写或移动 `c` 报 K1，显式 `releaseRef(move g)` 释放后接受）；解引用结果 `deref(&g)` 保护守卫不被提前移走（K1）；`RefMut` 上的 `derefMut(&mut gm)` 与二次 `derefMut` / `derefFromMut` 互斥（K1），最后一次使用后可再次借出；守卫不可隐式复制（K8）、不可返回逃逸（K6）、不可实例化可逃逸 `<T>`（K17）。
+- **析构顺序与析构标志（V1 / V2 / V4）**：两个守卫与 `RefCell` 在 `mayFail()` 处按 `g2, g1, c` 逆序清理（漏掉 `g2` 同时报 V1 与 V4）；单臂释放守卫后合流保留 `g?` 标志（去标志报 V2，漏清理 `g?` 报 V1），在打开提前析构时 `c` 也在释放臂提前析构、另一臂被可观察守卫保活而自动带标志 `c?`。
+- **挂起与能力推导（S5 / CAP）**：因 `RefCell` 是 `cell`（不可共享），持有 `borrow RefCell` 的 `Ref` / `RefMut` 由能力推导自动判为不可转移：普通 `suspend fun` 跨 `suspend` 接受，`parallel suspend fun` 跨 `suspend` 报 S5，交给 `<view T: Transferable>` 报 CAP。
