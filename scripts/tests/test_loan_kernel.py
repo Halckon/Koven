@@ -1366,6 +1366,35 @@ class LoanKernelCases(unittest.TestCase):
         call.cleanup.clear()
         self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
+    def test_suspend_scope_library_dynamic_jobs_and_join_cleanup(self):
+        source = (ROOT / "cases/Z37.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("deinit Scope", "suspendScoped", "suspendScopedAcceptsSyncAndSuspend",
+                     "dynamicJobsCollectedAndJoined", "dynamicJobsParentRunsAndWritesAfter",
+                     "scopeUnjoinedJobIsSafeViaScopeDeinit", "joinFailureAndSuspendDestroyRunScopeDeinit"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("syncScopedRejectsSuspendBody", "jobListOutlivingScopeBlockRejected",
+                     "observableJobListDeclaredBeforeScopeRejected",
+                     "scopeTaskHoldsLoanUntilScopeDrop", "scopeReaderAndWriterConflict",
+                     "scopeJobCannotBeJoinedTwice", "plainCannotCallSuspendJoin",
+                     "jobCannotCrossParallelSuspend"):
+            self.assertFalse(lowered[name][2], name)
+        deinits = {"Scope": lowered["deinit Scope"][:2]}
+        # join 既是挂起点也是可失败调用：帧在挂起点被销毁或 join 失败时均清理 j2, sc, a 并真实执行 deinit Scope。
+        types, program, _ = lowered["joinFailureAndSuspendDestroyRunScopeDeinit"]
+        self.assertEqual({}, self.verify(types, program, "joinFailureAndSuspendDestroyRunScopeDeinit", deinits))
+        susp = next(s for s in program if s.kind == "suspend")
+        self.assertEqual([("j2", False), ("sc", False), ("a", False)], susp.cleanup)
+        susp.cleanup.remove(("sc", False))
+        self.assertIn("V1", {v.split()[0] for v in self.verify(types, program, "joinFailureAndSuspendDestroyRunScopeDeinit", deinits)})
+        susp.cleanup.insert(1, ("sc", False))
+        join_call = [s for s in program if s.kind == "call"][-2]
+        self.assertEqual([("j2", False), ("sc", False), ("a", False)], join_call.cleanup)
+        join_call.cleanup.remove(("sc", False))
+        self.assertIn("V1", {v.split()[0] for v in self.verify(types, program, "joinFailureAndSuspendDestroyRunScopeDeinit", deinits)})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

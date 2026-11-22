@@ -1263,4 +1263,12 @@ fun probe(borrow h: A): Unit {
 
 - **`local` 普通类接收者（`LocalConn` / `LocalWrap`）**：`open this as sock, buf` 消费 `this` 后禁止再用 `this`（K8），`deinit LocalConn` 内仍禁止 `open`（K24）；首调用失败清理 `buf, sock`，移交 `sock` 后次调用仅清理 `buf`（漏掉 `sock` 报 V1）；拆出内层 `local` 字段 `inner: InnerLocal` 后，跨普通 `suspend` 接受、跨 `parallel suspend` 报 S5、交给 `<T: Transferable>` 报 CAP。
 - **`local` 视图接收者（`LocalView`）**：`open this as source, file` 转移 `source` 的借用来源并按 K1/K6 检查，直接借用字段不带析构义务，失败与正常退出均仅清理 `file`（漏掉 `file` 报 V1）。
-- **`cell` 与容器接收者**：`CellConn` 与 `CarrierConn` 的 `open` 均按 K25 拒绝（`Z17.lk` 与 `Z5.lk` 亦分别保留这两项 K25 对照）。
+- **`cell` 与容器接收者**：`CellConn` 与 `CarrierConn` 的 `open` 均按 K25 拒绝（`Z17.lk` 与 `Z5.lk` 亦分别保留这两项 K25 对照）。挂起作用域库、动态任务句柄与 `join` 失败出口见 §75。
+
+## 75. 挂起版作用域库、动态数量任务句柄与 `join` 失败出口（KB8 × KB1）
+
+`Z37.lk` 结合 §62（`suspend` 合同细化）与 §72（`cell` 容器可执行的 `deinit Scope`），将 §17（`P2.lk`）的任务用例与 §25（`W1.lk`）的作用域库统一为挂起版作用域库形态，不需要任何新借用或析构规则：
+
+- **挂起作用域体与合同细化（K12 / S0）**：`suspendScoped` 接受 `suspend sig SuspendBody`，同步体 `syncReaderBody` 与挂起体 `suspendReaderBody` 均可传入；反之把 `suspendReaderBody` 交给非挂起的 `syncScoped` 报 K12；非 `suspend` 函数调用 `suspend fun join` 报 S0。
+- **动态数量任务与句柄容器（`JobList` / `GuardJobList`）**：循环内持续 `launch` 并将 `Job` 句柄收集进 `JobList`、随后循环 `popJob` 并 `join` 接受，作用域结束后外部 `a`/`b` 可写；普通 `JobList` 在 `Scope` 内层块退出后仍被使用在块末尾报 K9，带 `deinit` 的 `GuardJobList` 声明在 `Scope` 之前则在 `pushGuardJob` 处报 K22、函数出口报 K9。
+- **§17 任务用例改写与 `join` 失败/帧销毁清理**：无需用户可见任务值与 S3/S4，`Scope` 借用来源并在 `deinit Scope { waitAll(&this) }` 兜底等待——未 `join` 的 `j2` 可安全丢弃，重复 `join(move j)` 报 K8，持写任务期间写来源报 K1，读写并发报 K4，跨 `parallel suspend` 持有 `Job` 报 S5；`join(move j1)` 既是挂起点也是可失败调用，其 `suspend.cleanup` 与 `call.cleanup` 均为 `j2, sc, a`，检验器在正常出口、`join` 失败与挂起点帧销毁三条路径上真实执行 `deinit Scope`，任一清单漏掉 `sc` 均报 V1。

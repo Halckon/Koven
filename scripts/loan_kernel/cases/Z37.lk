@@ -1,0 +1,163 @@
+// 挂起版作用域库、动态数量任务句柄、取消/join 失败出口，以及 §17 任务用例的作用域库改写（KB8 × KB1）
+class Arr(len: Int)
+class File(fd: Int) deinit
+cell view class Scope<view T>(file: File) deinit
+view class Job(borrow scope: Scope)
+view class JobList<view T>(n: Int)
+view class Reader(borrow a: Arr)
+view class Writer(inout a: Arr)
+view class Env(borrow a: Arr, inout b: Arr)
+
+fun waitAll(borrow sc: Scope): Unit trusted
+fun <view F> launch(borrow sc: Scope, own f: F): Job from sc flows f into sc trusted
+suspend fun join(own j: Job): Int trusted
+fun pushJob(inout list: JobList, own j: Job): Unit flows j into list trusted
+fun popJob(inout list: JobList): Job from list.origins trusted
+fun mayFail(): Unit trusted
+
+deinit Scope {
+  waitAll(&this)
+}
+
+suspend sig <view E> SuspendBody(borrow sc: Scope, inout env: E): Unit flows env into sc
+sig <view E> SyncBody(borrow sc: Scope, inout env: E): Unit flows env into sc
+
+suspend fun <view E> suspendScoped(inout env: E, own body: fn SuspendBody): Unit {
+  val sc = Scope(File(0))
+  body(&sc, env)
+}
+fun <view E> syncScoped(inout env: E, own body: fn SyncBody): Unit {
+  val sc = Scope(File(0))
+  body(&sc, env)
+}
+
+// 一、挂起作用域体与 K12 细化：同步体可交给 suspendScoped，suspend 体不可交给 syncScoped
+fun syncReaderBody(borrow sc: Scope, inout env: Env): Unit flows env.a into sc {
+  launch(sc, Reader(env.a))
+}
+suspend fun suspendReaderBody(borrow sc: Scope, inout env: Env): Unit flows env.a into sc {
+  val j1 = launch(sc, Reader(env.a))
+  val j2 = launch(sc, Reader(env.a))
+  use(env.a.len)
+  val n1 = join(move j1)
+  val n2 = join(move j2)
+  use(n1)
+  use(n2)
+}
+suspend fun suspendScopedAcceptsSyncAndSuspend(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val env = Env(&a, &mut b)
+  suspendScoped(&mut env, syncReaderBody)
+  suspendScoped(&mut env, suspendReaderBody)
+  a.len = 3
+  b.len = 4
+}
+fun syncScopedRejectsSuspendBody(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val env = Env(&a, &mut b)
+  syncScoped(&mut env, suspendReaderBody)  // ERR K12
+}
+
+// 二、动态数量的任务交给作用域持有，并将句柄收集到 JobList 后循环 join
+suspend fun dynamicJobsCollectedAndJoined(borrow sc: Scope, inout env: Env): Unit flows env.a into sc {
+  val jobs = JobList(0)
+  while (*) {
+    val j = launch(sc, Reader(env.a))
+    pushJob(&mut jobs, move j)
+  }
+  while (*) {
+    val nextJob = popJob(&mut jobs)
+    val n = join(move nextJob)
+    use(n)
+  }
+}
+suspend fun dynamicJobsParentRunsAndWritesAfter(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val env = Env(&a, &mut b)
+  suspendScoped(&mut env, dynamicJobsCollectedAndJoined)
+  a.len = 3
+  b.len = 4
+}
+view class GuardJobList<view T>(n: Int) deinit
+fun pushGuardJob(inout list: GuardJobList, own j: Job): Unit flows j into list trusted
+suspend fun jobListOutlivingScopeBlockRejected(): Unit {
+  val a = Arr(1)
+  val jobs = JobList(0)
+  {
+    val sc = Scope(File(0))
+    val j = launch(&sc, Reader(&a))
+    pushJob(&mut jobs, move j)
+  }  // ERR K9
+  val popped = popJob(&mut jobs)
+  val n = join(move popped)
+  use(n)
+}
+suspend fun observableJobListDeclaredBeforeScopeRejected(): Unit {  // ERR K9
+  val a = Arr(1)
+  val jobs = GuardJobList(0)
+  val sc = Scope(File(0))
+  val j = launch(&sc, Reader(&a))
+  pushGuardJob(&mut jobs, move j)  // ERR K22
+}
+
+// 三、§17 任务用例的作用域库改写（无需任务值与 S3/S4；未 join 的句柄由 Scope.deinit 兜底）
+suspend fun scopeTaskHoldsLoanUntilScopeDrop(): Unit {
+  val a = Arr(1)
+  val sc = Scope(File(0))
+  val j = launch(&sc, Writer(&mut a))
+  a.len = 2  // ERR K1
+  val n = join(move j)
+  use(n)
+}
+suspend fun scopeReaderAndWriterConflict(borrow sc: Scope, inout env: Env): Unit flows env into sc {
+  launch(sc, Reader(env.b))
+  launch(sc, Writer(env.b))  // ERR K4
+}
+suspend fun scopeUnjoinedJobIsSafeViaScopeDeinit(): Unit {
+  val a = Arr(1)
+  val sc = Scope(File(0))
+  val j1 = launch(&sc, Reader(&a))
+  val j2 = launch(&sc, Reader(&a))
+  val n = join(move j1)
+  use(n)
+  mayFail()
+}
+suspend fun scopeJobCannotBeJoinedTwice(): Unit {
+  val a = Arr(1)
+  val sc = Scope(File(0))
+  val j = launch(&sc, Reader(&a))
+  val n = join(move j)
+  val m = join(move j)  // ERR K8
+  use(n)
+  use(m)
+}
+fun plainCannotCallSuspendJoin(): Unit {
+  val a = Arr(1)
+  val sc = Scope(File(0))
+  val j = launch(&sc, Reader(&a))
+  val n = join(move j)  // ERR S0
+  use(n)
+}
+
+// 四、取消/join 失败出口与挂起点帧销毁：Scope.deinit 必须在来源释放前运行
+suspend fun joinFailureAndSuspendDestroyRunScopeDeinit(): Unit {
+  val a = Arr(1)
+  val sc = Scope(File(0))
+  val j1 = launch(&sc, Reader(&a))
+  val j2 = launch(&sc, Reader(&a))
+  val n1 = join(move j1)
+  val n2 = join(move j2)
+  use(n1)
+  use(n2)
+}
+parallel suspend fun jobCannotCrossParallelSuspend(): Unit {
+  val a = Arr(1)
+  val sc = Scope(File(0))
+  val j = launch(&sc, Reader(&a))
+  suspend  // ERR S5
+  val n = join(move j)
+  use(n)
+}
