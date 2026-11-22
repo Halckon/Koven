@@ -1,6 +1,6 @@
 # F3d：泛型调用、Lambda 与完整 TypeRef 切片（冲突登记与外部谓词合同）
 
-> **性质**：非规范试验账本 · **状态**：高风险构造原始冲突与外部谓词已实测登记，待 F1 Guide 分支正式启用 D1–D3 后锁定最终 golden · **读取时机**：实施 F1/D1–D3 Guide 同步或扩展 F4a 独立参考文法至泛型与 lambda 前 · **唯一真源**：本页维护 F3d 规则 ID、原始 LALR(1) 冲突清单与四类必选外部谓词
+> **性质**：非规范试验账本 · **状态**：高风险构造原始冲突与外部谓词已实测登记，随 [SPEC-0479](../../archive/specs/0479-explicit-block-and-crossline-lambda.md) 合入后由 [SPEC-0483](../../specs/active/0483-f3d-reference-difftest.md) 承接独立参考解析差分 · **读取时机**：实施 F1/D1–D3 Guide 同步或扩展 F4a 独立参考文法至泛型与 lambda 前 · **唯一真源**：本页维护 F3d 规则 ID、原始 LALR(1) 冲突清单与四类必选外部谓词
 
 基点 `main@6cc03907a1bf37d3cdc9ce6e6ccba1a15326ed6b`，现行规范 Guide v0.47，拟启用方向见
 [F1 Guide 修订草案](guide-amendment-draft.md)（D1–D3 已获维护者同意，须在独立 `feature/spec-<id>` 分支同步 Guide 与生产实现）。
