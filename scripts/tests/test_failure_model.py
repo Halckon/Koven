@@ -58,5 +58,40 @@ class IoModel(unittest.TestCase):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.io_model(policy)))
 
 
+class MultiIoModel(unittest.TestCase):
+    """多请求、证据丢失与代际校验：按 (id, gen) 逐项回收，无证据则保留不误释放。"""
+
+    EXPECTED = {
+        "不核对代际": ({MODEL.STALE_RECLAIM}, set(), set()),
+        "任一终结即整批回收": ({MODEL.WRITE_AFTER_FREE}, set(), set()),
+        "证据丢失后超时回收": ({MODEL.WRITE_AFTER_FREE}, set(), set()),
+        "按身份与代际逐项回收（证据不丢失）": (set(), set(), set()),
+        "按身份与代际逐项回收（证据可丢失，丢失即保留）": (set(), set(), {MODEL.LEAK}),
+    }
+
+    def test_each_policy_has_the_expected_outcome(self):
+        self.assertEqual(set(self.EXPECTED), set(MODEL.MULTI_IO_POLICIES))
+        for name, policy in MODEL.MULTI_IO_POLICIES.items():
+            with self.subTest(policy=name):
+                self.assertEqual(self.EXPECTED[name], outcome(MODEL.multi_io_model(policy)))
+
+
+class SupervisionModel(unittest.TestCase):
+    """监督边界与多线程终止窗口：边界须隔离可变状态，终止窗口须冻结所有线程的释放。"""
+
+    EXPECTED = {
+        "边界共享可变状态": ({MODEL.CORRUPT_STATE}, set(), set()),
+        "隔离边界但终止窗口未冻结他线程": ({MODEL.WRITE_AFTER_FREE}, set(), set()),
+        "隔离边界、监督恢复且全线程冻结": (set(), set(), set()),
+        "隔离边界、升级终止且全线程冻结": (set(), set(), set()),
+    }
+
+    def test_each_policy_has_the_expected_outcome(self):
+        self.assertEqual(set(self.EXPECTED), set(MODEL.SUPERVISION_POLICIES))
+        for name, policy in MODEL.SUPERVISION_POLICIES.items():
+            with self.subTest(policy=name):
+                self.assertEqual(self.EXPECTED[name], outcome(MODEL.supervision_model(policy)))
+
+
 if __name__ == "__main__":
     unittest.main()

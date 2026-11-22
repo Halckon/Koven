@@ -207,6 +207,130 @@ def io_model(policy):
     return explore(initial, events, violations, final_notes)
 
 
+# ---- 模型 C：多请求、证据丢失/迟到与请求代际
+
+STALE_RECLAIM = "凭旧代际的迟到证据误释放新请求缓冲区"
+
+
+@dataclass(frozen=True)
+class MultiIoPolicy:
+    check_generation: bool  # 回收时是否核对请求身份与代际 (id, gen)
+    reclaim_without_evidence: bool  # 证据丢失后是否凭超时直接回收
+    batch_reclaim_on_any: bool  # 任一请求终结时是否整批回收全部缓冲区
+    evidence_can_lose: bool = False  # 完成队列溢出或执行器崩溃是否可能丢失终结证据
+
+
+def multi_io_model(policy):
+    """状态：(槽0状态, 槽0代际, 槽1状态, 槽0是否有来自代际1的迟到证据)。
+
+    槽状态：inflight（外部可能访问）| terminal（已收到本代终结证据）| lost（证据丢失，外部状态未知）| freed
+    """
+    initial = ("inflight", 1, "inflight", False)
+
+    def events(state):
+        s0, g0, s1, stale = state
+        if s0 == "inflight":
+            yield f"槽0(g{g0}):收到终结证据", ("terminal", g0, s1, stale)
+            if policy.evidence_can_lose:
+                yield f"槽0(g{g0}):终结证据丢失", ("lost", g0, s1, stale)
+        if s1 == "inflight":
+            yield "槽1:收到终结证据", (s0, g0, "terminal", stale)
+            if policy.evidence_can_lose:
+                yield "槽1:终结证据丢失", (s0, g0, "lost", stale)
+        if s0 == "terminal":
+            if policy.batch_reclaim_on_any:
+                ns1 = "freed_lost" if s1 == "inflight" else "freed"
+                yield f"槽0(g{g0}):整批回收全部槽位", ("freed", g0, ns1, stale)
+            else:
+                yield f"槽0(g{g0}):按身份回收", ("freed", g0, s1, stale)
+        if s1 == "terminal":
+            if policy.batch_reclaim_on_any:
+                ns0 = "freed_lost" if s0 == "inflight" else "freed"
+                yield "槽1:整批回收全部槽位", (ns0, g0, "freed", stale)
+            else:
+                yield "槽1:按身份回收", (s0, g0, "freed", stale)
+        if s0 == "freed" and g0 == 1:
+            # 槽 0 复用为第 2 代请求，同时可能残留一条来自第 1 代的迟到/重复完成事件
+            yield "槽0:复用提交g2(带g1迟到事件)", ("inflight", 2, s1, True)
+        if stale and g0 == 2 and s0 == "inflight":
+            if policy.check_generation:
+                yield "槽0:核对代际后丢弃g1迟到证据", (s0, g0, s1, False)
+            else:
+                yield "槽0:未核对代际凭g1迟到证据误释放g2", ("freed_stale", g0, s1, False)
+        if policy.reclaim_without_evidence:
+            if s0 == "lost":
+                yield f"槽0(g{g0}):无证据超时回收", ("freed_lost", g0, s1, stale)
+            if s1 == "lost":
+                yield "槽1:无证据超时回收", (s0, g0, "freed_lost", stale)
+
+    def violations(state):
+        s0, _, s1, _ = state
+        found = []
+        if s0 == "freed_stale":
+            found.append(STALE_RECLAIM)
+        if s0 == "freed_lost" or s1 == "freed_lost":
+            found.append(WRITE_AFTER_FREE)
+        return found
+
+    def final_notes(state):
+        s0, _, s1, _ = state
+        return "notes", LEAK if (s0 == "lost" or s1 == "lost") else ""
+
+    return explore(initial, events, violations, final_notes)
+
+
+# ---- 模型 D：监督边界与多线程终止窗口
+
+CORRUPT_STATE = "监督边界外观察到未恢复的共享状态"
+
+
+@dataclass(frozen=True)
+class SupervisionPolicy:
+    isolated_state: bool  # 监督边界内外是否隔离可变状态
+    supervisor_restarts: bool  # 监督者捕获子失败后恢复/重启，还是升级为进程终止
+    abort_freezes_all_threads: bool  # 终止窗口内是否冻结其他线程的析构释放
+
+
+def supervision_model(policy):
+    """状态：(子单元, 边界外共享状态, 监督者, 同伴线程, 同伴在途缓冲区)。"""
+    initial = ("run", "clean", "watching", "run", "inflight")
+
+    def events(state):
+        child, shared, sup, peer, buf = state
+        if sup == "dead":
+            return
+        if sup == "aborting":
+            yield "进程:终止生效", (child, shared, "dead", "stopped", buf)
+            if not policy.abort_freezes_all_threads and peer == "run" and buf == "inflight":
+                yield "终止窗口内同伴线程继续展开并释放缓冲区", (child, shared, sup, "stopped", "freed_early")
+            return
+        if child == "run":
+            yield "子单元:正常结束", ("stopped", shared, sup, peer, buf)
+            next_shared = shared if policy.isolated_state else "dirty"
+            yield "子单元:失败到达监督边界", ("failed", next_shared, sup, peer, buf)
+        if child == "failed" and sup == "watching":
+            if policy.supervisor_restarts:
+                yield "监督者:捕获失败并继续运行", ("stopped", shared, "recovered", peer, buf)
+            else:
+                yield "监督者:升级为进程终止", ("stopped", shared, "aborting", peer, buf)
+        if peer == "run" and buf == "inflight":
+            yield "同伴线程:收到终结证据并释放缓冲区", (child, shared, sup, "stopped", "freed_safe")
+
+    def violations(state):
+        _, shared, sup, _, buf = state
+        found = []
+        if sup == "recovered" and shared == "dirty":
+            found.append(CORRUPT_STATE)
+        if sup == "aborting" and buf == "freed_early":
+            found.append(WRITE_AFTER_FREE)
+        return found
+
+    def final_notes(state):
+        return "notes", ""
+
+    return explore(initial, events, violations, final_notes)
+
+
 SCOPE_POLICIES = {
     "立即展开": ScopePolicy(wait_all=False, propagate=True, cancel_wakes=False),
     "等齐但不传播": ScopePolicy(wait_all=True, propagate=False, cancel_wakes=False),
@@ -227,10 +351,33 @@ IO_POLICIES = {
     "操作持有缓冲区，且有后继回收": IoPolicy("wait", "destroy_all", True, "parent", "operation", True),
 }
 
+MULTI_IO_POLICIES = {
+    "不核对代际": MultiIoPolicy(check_generation=False, reclaim_without_evidence=False, batch_reclaim_on_any=False),
+    "任一终结即整批回收": MultiIoPolicy(check_generation=True, reclaim_without_evidence=False, batch_reclaim_on_any=True),
+    "证据丢失后超时回收": MultiIoPolicy(check_generation=True, reclaim_without_evidence=True, batch_reclaim_on_any=False,
+                                  evidence_can_lose=True),
+    "按身份与代际逐项回收（证据不丢失）": MultiIoPolicy(check_generation=True, reclaim_without_evidence=False,
+                                         batch_reclaim_on_any=False, evidence_can_lose=False),
+    "按身份与代际逐项回收（证据可丢失，丢失即保留）": MultiIoPolicy(check_generation=True, reclaim_without_evidence=False,
+                                                 batch_reclaim_on_any=False, evidence_can_lose=True),
+}
+
+SUPERVISION_POLICIES = {
+    "边界共享可变状态": SupervisionPolicy(isolated_state=False, supervisor_restarts=True, abort_freezes_all_threads=True),
+    "隔离边界但终止窗口未冻结他线程": SupervisionPolicy(isolated_state=True, supervisor_restarts=False,
+                                          abort_freezes_all_threads=False),
+    "隔离边界、监督恢复且全线程冻结": SupervisionPolicy(isolated_state=True, supervisor_restarts=True,
+                                          abort_freezes_all_threads=True),
+    "隔离边界、升级终止且全线程冻结": SupervisionPolicy(isolated_state=True, supervisor_restarts=False,
+                                          abort_freezes_all_threads=True),
+}
+
 
 def main():
     for title, model, policies in (("模型 A：借用型子任务", scope_model, SCOPE_POLICIES),
-                                   ("模型 B：在途 IO", io_model, IO_POLICIES)):
+                                   ("模型 B：在途 IO", io_model, IO_POLICIES),
+                                   ("模型 C：多请求、证据丢失与代际", multi_io_model, MULTI_IO_POLICIES),
+                                   ("模型 D：监督边界与多线程终止窗口", supervision_model, SUPERVISION_POLICIES)):
         print(title)
         for name, policy in policies.items():
             report = model(policy)
