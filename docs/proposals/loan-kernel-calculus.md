@@ -1223,4 +1223,12 @@ fun probe(borrow h: A): Unit {
 - **内部可变容器子视图（`cell view class CellBag<view T>`）**：拆出 `bag` 后，经共享借用 `putCell(&bag, Slice(&b))`（K19）并入的新来源 `b` 与既有来源 `a` 共同受 `peekCell(&bag)` 保护（K1），用完后均放行；`from this.bag` 合同转发接受、省略报 K6；直接访问 `bag.n` 仍报 K19；在 `parallel suspend fun` 中持有 `&bag` 跨 `suspend` 报 S5（`cell` 不可共享，故共享借用不可转移）。
 - **带 `deinit` 的内部可变子视图（`cell view class ScopeBox<view T> deinit`）**：拆出 `sc` 后因析构可观察而活到作用域结束，写其来源 `a` 报 K1；经 `releaseScope(move sc)` 移走后可写 `a`。
 - **线程绑定子视图（`local view class LocalSlice`）**：拆出 `loc` 后来源保护与最后一次使用后解除与普通视图一致；在普通 `suspend fun` 中跨 `suspend` 接受，在 `parallel suspend fun` 中跨 `suspend` 报 S5；交给 `<view T: Transferable>` 报 CAP。
-- **失败清理**：`CellBagHolder` 与 `LocalHolder` 拆解后在 `mayFail()` 失败与正常出口均按 `file, bag` / `file, loc` 清理，漏掉子视图均报 V1。
+- **失败清理**：`CellBagHolder` 与 `LocalHolder` 拆解后在 `mayFail()` 失败与正常出口均按 `file, bag` / `file, loc` 清理，漏掉子视图均报 V1。`Rc` 与 `Weak` 的析构义务与能力边界见 §70。
+
+## 70. `Rc` 与 `Weak` 的析构义务与能力边界（KB1 × KB4 × KB8）
+
+`C7.cap` 与 `Z32.lk` 联合检验共享引用计数（`Rc`）与弱引用（`Weak`）在能力推导、析构时机屏障与线程绑定上的配合：
+
+- **能力推导（`capability.py` / `C7.cap`）**：新增 `Weak` 内建叶子公理——不可隐式复制、不可跨线程转移或共享（与 `Rc` 一致），`Escapable` 随载荷；因析构只递减弱计数、不运行载荷 `deinit`，故 `EarlyDrop`、`Forgettable` 与 `ImplicitDrop` 恒成立（`Weak<File>` 仍可提前析构）。`Weak` 与 `Rc` 一样不放开默认上界，装入 `unforgettable`、`consume` 或 `view` 载荷均判为良构错误（`wf = no`）；含 `Weak<Node>?` 与 `Rc<Node>?` 的递归节点正确收敛。
+- **析构义务与 `deinit` 屏障（`Z32.lk`）**：在 `Weak` 存在时强引用（`StrongRef` / `OptStrong`）带 `deinit` 屏障留到词法作用域结束，而弱引用（`WeakRef`）不带 `deinit` 屏障可在 `upgrade` 之后提前析构；两者均不可隐式复制（K8）、须显式 `cloneRc`/`cloneWeak`，借出引用保护强引用不被移走（K1）且不可逃逸（K6）。单臂移走时强引用保留析构标志 `r?`（去标志报 V2，漏清理报 V1），弱引用不可观察而在另一臂末尾补偿析构（无标志）；多份 `clone` 与 `downgrade` 的失败清理按声明逆序执行（漏掉较晚的 `r2` 同时报 V1 与 V4）。
+- **线程绑定与可空替换**：`StrongRef` 与 `WeakRef` 在普通 `suspend fun` 中跨挂起点接受，在 `parallel suspend fun` 中跨 `suspend` 均报 S5，交给 `<T: Transferable>` 均报 CAP；放开 `replace_field` 支持线程绑定（`local`）的 `empty` 字段后，`replace slot.cached` 可安全取出 `upgrade` 返回的可空强引用并转移其析构义务。

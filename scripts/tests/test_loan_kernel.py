@@ -278,7 +278,8 @@ class LoanKernelCases(unittest.TestCase):
                           ("moveExclusiveOutOfArm", "this"), ("moveExclusiveOutOfArm", "f"),
                           ("conditionalReleaseKeepsDropFlag", "guard"),
                           ("conditionalNestedMoveKeepsDropFlag", "o"),
-                          ("moveAndBreakInLoop", "f"), ("breakCleansInnerLocal", "f")},
+                          ("moveAndBreakInLoop", "f"), ("breakCleansInnerLocal", "f"),
+                          ("conditionalReleaseRcKeepsDropFlag", "r")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -1201,6 +1202,43 @@ class LoanKernelCases(unittest.TestCase):
                 call.cleanup.pop()  # 漏掉拆出的 cell / local 子视图
                 found = CHECKER.DP.Verifier(types).run_all(program)
                 self.assertEqual({"V1": [(0, 2), (1, 2)]}, {v.split()[0]: path for v, path in found.items()})
+
+    def test_rc_and_weak_drop_obligations_and_capabilities(self):
+        source = (ROOT / "cases/Z32.lk").read_text(encoding="utf-8")
+        lowered, drops = {}, []
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, early_drop=True, drops=drops, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("rcWaitsForScopeWhileWeakDropsEarly", "explicitCloneAndDowngradeWork",
+                     "borrowFromRcReleasedAfterLastUse", "conditionalReleaseRcKeepsDropFlag",
+                     "conditionalMoveWeakNeedsNoDropFlag", "rcAndWeakAllowedAcrossNormalSuspend",
+                     "replaceUpgradedOptRc"):
+            self.assertTrue(lowered[name][2], name)
+        # deinit 屏障：Weak 可提前析构，Rc 与 OptRc 留到词法作用域结束。
+        early_vars = {var for fun, var, _ in drops if fun == "rcWaitsForScopeWhileWeakDropsEarly"}
+        self.assertEqual({"w"}, early_vars)
+
+        # 条件移走 Rc 保留析构标志；去掉标志报 V2，清空失败清理报 V1。
+        types, program, _ = lowered["conditionalReleaseRcKeepsDropFlag"]
+        call = [s for s in program if s.kind == "call"][-1]
+        drop = next(s for s in program if s.kind == "drop")
+        self.assertEqual([("r", True)], call.cleanup)
+        self.assertEqual(("r", True), (drop.var, drop.if_owned))
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        drop.if_owned = False
+        self.assertEqual({"V2"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+        drop.if_owned = True
+        call.cleanup.clear()
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+        # clone 与 downgrade 的失败清理按声明逆序：漏掉较晚的可观察 r2 同时报 V1 与 V4。
+        lexical = {}
+        CHECKER.check(source, early_drop=False, lowered=lexical)
+        types, program, _ = lexical["explicitCloneAndDowngradeWork"]
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        may_fail = [s for s in program if s.kind == "call"][-1]
+        self.assertEqual([("p", False), ("w2", False), ("w1", False), ("r2", False), ("r1", False)], may_fail.cleanup)
+        may_fail.cleanup.remove(("r2", False))
+        self.assertEqual({"V1", "V4"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

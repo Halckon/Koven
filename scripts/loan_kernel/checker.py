@@ -1334,7 +1334,7 @@ class Checker:
         name = place.fields[0]
         decl = self.classes.get(res.ty.name)
         if (res.crossed or res.ty.kind not in ("cls", "view") or decl is None or not decl.empty
-                or decl.cell or decl.local or decl.carrier):
+                or decl.cell or decl.carrier):
             self.error("K26", expr.line, f"{place.root}.{name} 的类型 {res.ty.name} 没有可以留在原处的空值")
             return Value(res.ty)
         if not res.writable:

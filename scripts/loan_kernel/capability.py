@@ -83,11 +83,12 @@ CAPABILITIES = {cap.name: cap for cap in (
     capability("Shareable", SCALARS + ("String",), CONTAINERS,
                borrow=follows("Shareable"), inout=follows("Shareable")),
     # Any 代表载荷被擦除的存在类型：打包时要求载荷满足默认上界，所以这三项恒成立；其余一律未知
-    capability("Escapable", SCALARS + ("String", "RawPtr", "Any"), OWNERS),
+    capability("Escapable", SCALARS + ("String", "RawPtr", "Any"), OWNERS + ("Weak",)),
     # 析构的三项性质（评审 R3）：可否提前、可否遗忘、可否隐式析构
-    capability("EarlyDrop", PLAIN, OWNERS, deinit_ok=False),
-    capability("Forgettable", PLAIN + ("Any",), OWNERS),
-    capability("ImplicitDrop", PLAIN + ("Any",), OWNERS),
+    # Weak 的析构只递减弱计数、不运行载荷的 deinit，所以恒可提前析构、可遗忘、可隐式析构
+    capability("EarlyDrop", PLAIN + ("Weak",), OWNERS, deinit_ok=False),
+    capability("Forgettable", PLAIN + ("Any", "Weak"), OWNERS),
+    capability("ImplicitDrop", PLAIN + ("Any", "Weak"), OWNERS),
 )}
 
 # 内建类型对类型实参的要求：共享 owner 可能成环而永不析构，所以载荷必须可遗忘
