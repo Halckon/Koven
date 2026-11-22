@@ -1436,6 +1436,40 @@ class LoanKernelCases(unittest.TestCase):
                 susp.cleanup.remove((var, False))
                 self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
+    def test_guide_07_closure_restrictions_rule_by_rule(self):
+        """§77：现行 Guide 07 闭包限制逐条对照，验证接受/拒绝集合与 move closure 拥有捕获的清理义务。"""
+        source = (ROOT / "cases/Z39.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("emptyClosureCanReturn", "emptyClosureCanStoreAndSpawn",
+                     "borrowedClosureSyncAndRelease", "borrowedClosureFromBorrowAndInoutParams",
+                     "borrowedClosureCanReturnParamWithFrom", "borrowedClosureCanStoreInViewField",
+                     "captureThisReadOnly", "mutatingClosureExclusiveAndRelease",
+                     "mutatingClosureOnInoutParamAllowedInKernel", "moveClosureCopiesScalarSnapshot",
+                     "moveClosureCanReturnStoreAndDeliver", "moveClosureDropsOwnedCapturesInReverseOrder",
+                     "transferableMoveClosureCanSpawn", "shareableBorrowedClosureAcceptedByScopedParallel"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("borrowWriteRejected", "borrowMoveOutRejected", "borrowThisWriteRejected",
+                     "borrowedClosureBlocksWriteAndMoveWhileAlive", "borrowedClosureCannotReturnLocal",
+                     "borrowedClosureCannotDeliverToEscapingValueParam", "mutatingClosureBlocksOuterReadAndWrite",
+                     "mutatingClosureIsNotCopyable", "mutatingClosureCannotEscape",
+                     "mutatingClosureCannotDeliverToEscapingValueParam", "mixMutClosureKeepsOtherCaptureShared",
+                     "mutatingClosureOnInoutParamRespectsK4", "moveClosureMovesOwnedAndBlocksReuse",
+                     "moveClosureCannotMoveFromBorrowOrInout", "nonTransferableMoveClosureRejected",
+                     "cellBorrowedClosureRejectedByScopedParallel", "localBorrowedClosureRejectedByScopedParallel",
+                     "localMutClosureRejectedByScopedParallel"):
+            self.assertFalse(lowered[name][2], name)
+
+        # move closure 析构时清理其拥有的 MoveOnly 字段（MoveTwoFiles 含两份 File 义务）；
+        # 漏掉 mayFail 处的 env 清理报 V1。
+        types, program, _ = lowered["moveClosureDropsOwnedCapturesInReverseOrder"]
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("env", False)], call.cleanup)
+        call.cleanup.clear()
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

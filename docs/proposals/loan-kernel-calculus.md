@@ -1279,4 +1279,17 @@ fun probe(borrow h: A): Unit {
 
 - **发现并修掉的原型漏洞（`suspend_point`）**：此前 `suspend_point` 收集“不再使用但等着在作用域结束时析构”的帧内变量时，只包含 `ty.kind in ("cls", "any", "opaque")`，漏掉了带 `deinit` 的视图（`ty.kind == "view"` 且不满足 `EarlyDrop`）。结果在 `parallel suspend fun` 中，不再使用但带 `deinit` 的不可转移视图守卫（如 `CellGuard(borrow c: Counter) deinit`）跨过 `suspend` 时漏报 S5。现已将其纳入帧内待析构集合。
 - **`suspend` 闭包与并行上界**：只读、可变与返回借用的 `suspend` 闭包均按 K1/K4/K12/S0 正常工作（同步闭包可细化 `suspend sig`，`suspend` 闭包不可交给同步 `sig` 报 K12，普通函数调用报 S0）；按 `borrow f: F` 跨并行挂起点须要求 `<view F: Shareable>`，`ReadEnv` 接受，含 `cell` 或 `local` 的 `CellEnv` / `LocalEnv` 报 CAP，在默认非并行 `suspend fun` 中两者均接受。
-- **间接帧与帧地址稳定（S0.1 / V1）**：递归 `suspend` 闭包（`suspendRecMut`）在子借用存活期间递归调用报 K4；递归 `suspend` 闭包与经存在类型 `any AsyncTask` 的间接挂起调用在挂起点帧销毁与失败出口均正确清理局部 `File`（漏掉报 V1），且在 `frames_movable=True` 下均触发 S1，确认 S0.1 对间接帧与闭包帧同样成立。
+- **间接帧与帧地址稳定（S0.1 / V1）**：递归 `suspend` 闭包（`suspendRecMut`）在子借用存活期间递归调用报 K4；递归 `suspend` 闭包与经存在类型 `any AsyncTask` 的间接挂起调用在挂起点帧销毁与失败出口均正确清理局部 `File`（漏掉报 V1），且在 `frames_movable=True` 下均触发 S1，确认 S0.1 对间接帧与闭包帧同样成立。现行 Guide 07 闭包限制逐条对照见 §77。
+
+## 77. 现行 Guide 07 闭包限制逐条对照（KB2 × KB3 × KB4 × KB5）
+
+`Z39.lk` 以手工去糖形式逐条核对现行 [Guide 07](../guide/07-calls-lambdas-closures.md) “Closure Capture 与跨线程转移”一节的全部限制与内核推导结果（含一致项与 v1 表面收紧差异），不需要新增借用或能力规则：
+
+| Guide 07 条款 | 现行 v0.47 行为 | 借用内核推导结果（`Z39.lk`） | 结论 |
+|---|---|---|---|
+| 无 capture 普通 lambda | 无 loan、可逃逸、`Transferable` | 普通类 `EmptyEnv` 可返回、存普通字段、交 `<F>` 与 `<F: Transferable>` | 一致 |
+| borrowed closure 共享捕获（owned/`borrow`/`inout`/`this`） | 不可赋值、不可移出 `MoveOnly`、存活期阻断写/移（L0135）、ASAP 后恢复 | `BorrowEnv` / `BorrowThisEnv` 写报 K1、移出报 K8、存活期写报 K1、用完恢复（K3） | 一致 |
+| borrowed closure 逃逸禁止（L0137） | 禁 `return`、禁写字段、禁交 `Value` 参数、禁被 escaping `move` closure 捕获 | 返回局部捕获报 K6、普通类字段与 `MoveEnv` 字段报 CAP、交 `<F>` 报 K17；**放宽**：捕获参数可带 `from` 返回、可存入 `view class` 字段、可交 `<view F>` | 退化一致；L3/L5 按类型系统自然放宽 |
+| mutating closure | 独占捕获局部 `var`（外部不可读写）、不可复制、不可逃逸、其余捕获保持 shared；v1 禁写 `inout` 参数/`this`/字段 | 外部读写报 K1、复制报 K8、逃逸报 K6/K17、混合捕获 `other` 可读不可写；**放宽**：内核允许捕获 `inout` 参数并受 K4 约束 | 核心一致；禁写 `inout`/字段属 v1 表面收紧 |
+| move closure（L0138） | `Copyable` 复制快照、`MoveOnly` 移动后源不可用；禁从 `Borrow`/`Inout` 移入 `MoveOnly`；可逃逸；析构时逆序清理 owned 字段 | 快照不消费源、移动后源报 K8、借用移入普通类字段报 TYPE、可返回/存字段/交 `<F>`、`MoveTwoFiles` 失败与退出均清理两份 `File`（漏清报 V1） | 一致（v1 禁直接捕获 `this`/字段与禁写快照属表面收紧） |
+| `Transferable` 与跨线程转移（L0139） | 无捕获与全 `Transferable` `move` closure 满足；含 `Rc` 等不满足；v1 任何 borrowed closure 均不满足 | 无捕获与 `MoveOwnedEnv` 满足、`MoveLocalEnv` 报 CAP；**放宽**：只读捕获 `Shareable` 数据的视图满足 `<view F: Transferable>`（供作用域并行），捕获 `cell`/`local` 或可变捕获 `local` 仍报 CAP | 退化一致；C3 `Shareable` 自然放宽只读作用域并行 |
