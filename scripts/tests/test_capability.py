@@ -45,6 +45,20 @@ class CapabilityCases(unittest.TestCase):
                                            early.deinit_ok, early.kinds)
         self.assertIs(CAP.NEVER, engine(text, caps).conds["Cache", "EarlyDrop"])
 
+    def test_four_valued_judge_interface_bounds_and_declarable_caps(self):
+        """四值判定（yes/no/unknown/error）、interface 上界与可推导可声明能力（Equatable）。"""
+        text = (ROOT / "capability_cases/C8.cap").read_text(encoding="utf-8")
+        self.assertEqual([], CAP.check(text))
+        parser = CAP.Parser(text)
+        decls, _ = parser.program()
+        eng = CAP.Engine(decls, interfaces=parser.interfaces)
+        self.assertEqual("yes", eng.judge(CAP.Ty("Point"), "Transferable"))
+        self.assertEqual("no", eng.judge(CAP.Ty("LocalTask"), "Transferable"))
+        self.assertEqual("unknown", eng.judge(CAP.Ty("Box", (CAP.Ty("T"),)), "Transferable", ("T",)))
+        self.assertEqual("yes", eng.judge(CAP.Ty("Box", (CAP.Ty("T"),)), "Transferable", ("T",), {"T": {"Sendable"}}))
+        self.assertEqual("error", eng.judge(CAP.Ty("Box", (CAP.Ty("NoSuch"),)), "Transferable"))
+        self.assertEqual("error", eng.judge(CAP.Ty("List", (CAP.Ty("Int"), CAP.Ty("Int"))), "Transferable"))
+
 
 if __name__ == "__main__":
     unittest.main()
