@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 445 份"))
+ARCH(("已完成<br/>archive 446 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -23,7 +23,6 @@ subgraph Gactive["现行 active"]
   S0477["S0477<br/>Parser 与 Formatter 往返差分首片"]
   S0478["S0478<br/>普通块表达式离线差分"]
   S0480["S0480<br/>新表面语法增量门禁接入提案与 Spec 模板（F5）"]
-  S0483["S0483<br/>F3d 泛型调用、Lambda 与 SPEC-0479 独立参考解析差分（F3d→F4a）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -66,7 +65,6 @@ ARCH --> S0341
 | SPEC-0477 | active | [0477-parser-formatter-difftest.md](active/0477-parser-formatter-difftest.md) |
 | SPEC-0478 | active | [0478-independent-block-difftest.md](active/0478-independent-block-difftest.md) |
 | SPEC-0480 | active | [0480-surface-syntax-incremental-gate.md](active/0480-surface-syntax-incremental-gate.md) |
-| SPEC-0483 | active | [0483-f3d-reference-difftest.md](active/0483-f3d-reference-difftest.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -75,4 +73,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（445 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（446 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
