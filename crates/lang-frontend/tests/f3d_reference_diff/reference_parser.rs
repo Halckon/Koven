@@ -45,6 +45,12 @@ enum Tok<'a> {
     Eof,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct ExprCtx {
+    in_when_body: bool,
+    in_paren: bool,
+}
+
 fn to_stream<'a>(sources: &'a SourceMap, lexed: &LexedFile) -> Option<Vec<Tok<'a>>> {
     if !lexed.diagnostics().is_empty() {
         return None;
@@ -186,6 +192,10 @@ impl<'a> RefParser<'a> {
     }
 
     fn parse_statement(&mut self, in_when_body: bool) -> Result<String, ()> {
+        let ctx = ExprCtx {
+            in_when_body,
+            in_paren: false,
+        };
         match self.peek() {
             Tok::Val => {
                 self.pos += 1;
@@ -197,7 +207,7 @@ impl<'a> RefParser<'a> {
                 self.skip_nl();
                 self.expect(Tok::Eq)?;
                 self.skip_nl();
-                let init = self.parse_expr(in_when_body)?;
+                let init = self.parse_expr(ctx)?;
                 Ok(format!("(val {name} {init})"))
             }
             Tok::LBrace => Err(()),
@@ -205,23 +215,23 @@ impl<'a> RefParser<'a> {
                 self.pos += 1;
                 self.parse_braced_body("nested-block")
             }
-            _ => self.parse_expr(in_when_body),
+            _ => self.parse_expr(ctx),
         }
     }
 
-    fn parse_expr(&mut self, in_when_body: bool) -> Result<String, ()> {
-        self.parse_or(in_when_body)
+    fn parse_expr(&mut self, ctx: ExprCtx) -> Result<String, ()> {
+        self.parse_or(ctx)
     }
 
-    fn parse_or(&mut self, in_when_body: bool) -> Result<String, ()> {
-        let mut lhs = self.parse_and(in_when_body)?;
+    fn parse_or(&mut self, ctx: ExprCtx) -> Result<String, ()> {
+        let mut lhs = self.parse_and(ctx)?;
         loop {
             let saved = self.pos;
             self.skip_nl();
             if self.peek() == Tok::OrOr {
                 self.pos += 1;
                 self.skip_nl();
-                let rhs = self.parse_and(in_when_body)?;
+                let rhs = self.parse_and(ctx)?;
                 lhs = format!("(or {lhs} {rhs})");
             } else {
                 self.pos = saved;
@@ -231,15 +241,15 @@ impl<'a> RefParser<'a> {
         Ok(lhs)
     }
 
-    fn parse_and(&mut self, in_when_body: bool) -> Result<String, ()> {
-        let mut lhs = self.parse_cmp(in_when_body)?;
+    fn parse_and(&mut self, ctx: ExprCtx) -> Result<String, ()> {
+        let mut lhs = self.parse_cmp(ctx)?;
         loop {
             let saved = self.pos;
             self.skip_nl();
             if self.peek() == Tok::AndAnd {
                 self.pos += 1;
                 self.skip_nl();
-                let rhs = self.parse_cmp(in_when_body)?;
+                let rhs = self.parse_cmp(ctx)?;
                 lhs = format!("(and {lhs} {rhs})");
             } else {
                 self.pos = saved;
@@ -249,8 +259,8 @@ impl<'a> RefParser<'a> {
         Ok(lhs)
     }
 
-    fn parse_cmp(&mut self, in_when_body: bool) -> Result<String, ()> {
-        let lhs = self.parse_add(in_when_body)?;
+    fn parse_cmp(&mut self, ctx: ExprCtx) -> Result<String, ()> {
+        let lhs = self.parse_add(ctx)?;
         let saved = self.pos;
         self.skip_nl();
         let op = match self.peek() {
@@ -263,7 +273,7 @@ impl<'a> RefParser<'a> {
         };
         self.pos += 1;
         self.skip_nl();
-        let rhs = self.parse_add(in_when_body)?;
+        let rhs = self.parse_add(ctx)?;
         let after = self.pos;
         self.skip_nl();
         if matches!(self.peek(), Tok::Lt | Tok::Gt) {
@@ -273,47 +283,55 @@ impl<'a> RefParser<'a> {
         Ok(format!("({op} {lhs} {rhs})"))
     }
 
-    fn parse_add(&mut self, in_when_body: bool) -> Result<String, ()> {
-        let mut lhs = self.parse_prefix(in_when_body)?;
+    fn parse_add(&mut self, ctx: ExprCtx) -> Result<String, ()> {
+        let mut lhs = self.parse_prefix(ctx)?;
         loop {
+            let saved = self.pos;
+            if ctx.in_paren {
+                self.skip_nl();
+            }
             match self.peek() {
                 Tok::Plus => {
                     self.pos += 1;
                     self.skip_nl();
-                    let rhs = self.parse_prefix(in_when_body)?;
+                    let rhs = self.parse_prefix(ctx)?;
                     lhs = format!("(add {lhs} {rhs})");
                 }
                 Tok::Minus => {
                     self.pos += 1;
                     self.skip_nl();
-                    let rhs = self.parse_prefix(in_when_body)?;
+                    let rhs = self.parse_prefix(ctx)?;
                     lhs = format!("(sub {lhs} {rhs})");
                 }
-                _ => break,
+                _ => {
+                    self.pos = saved;
+                    break;
+                }
             }
         }
         Ok(lhs)
     }
 
-    fn parse_prefix(&mut self, in_when_body: bool) -> Result<String, ()> {
+    fn parse_prefix(&mut self, ctx: ExprCtx) -> Result<String, ()> {
         match self.peek() {
             Tok::Minus => {
                 self.pos += 1;
-                let operand = self.parse_prefix(in_when_body)?;
+                let operand = self.parse_prefix(ctx)?;
                 Ok(format!("(neg {operand})"))
             }
             Tok::Bang => {
                 self.pos += 1;
-                let operand = self.parse_prefix(in_when_body)?;
+                let operand = self.parse_prefix(ctx)?;
                 Ok(format!("(not {operand})"))
             }
-            _ => self.parse_postfix(in_when_body),
+            _ => self.parse_postfix(ctx),
         }
     }
 
-    fn parse_postfix(&mut self, in_when_body: bool) -> Result<String, ()> {
-        let mut expr = self.parse_primary()?;
+    fn parse_postfix(&mut self, ctx: ExprCtx) -> Result<String, ()> {
+        let mut expr = self.parse_primary(ctx)?;
         let mut is_bare_block_name = expr == "(id block)";
+        let mut last_call_had_trailing_lambda = false;
         loop {
             let saved = self.pos;
             self.skip_nl();
@@ -326,6 +344,7 @@ impl<'a> RefParser<'a> {
                 self.pos += 1;
                 expr = format!("(member {expr} (id {name}))");
                 is_bare_block_name = false;
+                last_call_had_trailing_lambda = false;
                 continue;
             }
             self.pos = saved;
@@ -333,45 +352,69 @@ impl<'a> RefParser<'a> {
             if self.peek() == Tok::Lt
                 && let Some((type_args, after_gt)) = self.try_type_args()
             {
-                let next_after_gt = self.tokens[after_gt];
-                if next_after_gt == Tok::LParen {
-                    self.pos = after_gt;
-                    let mut args = self.parse_arg_list()?;
-                    if self.should_attach_crossline_trailing_lambda(in_when_body) {
-                        self.skip_nl();
-                        args.push(self.parse_lambda(false)?);
-                    }
-                    expr = format_call(&expr, &type_args, &args);
-                    is_bare_block_name = false;
-                    continue;
-                }
-                if next_after_gt == Tok::LBrace {
+                // Same-line `{` commits as parenless typed trailing-lambda call.
+                if self.tokens[after_gt] == Tok::LBrace {
                     self.pos = after_gt;
                     let lambda = self.parse_lambda(false)?;
                     expr = format_call(&expr, &type_args, &[lambda]);
                     is_bare_block_name = false;
+                    last_call_had_trailing_lambda = true;
+                    continue;
+                }
+                // `(` may follow `<TypeArgs>` on the same line or across a newline.
+                let mut paren_idx = after_gt;
+                while matches!(self.tokens.get(paren_idx), Some(Tok::Nl)) {
+                    paren_idx += 1;
+                }
+                if self.tokens.get(paren_idx) == Some(&Tok::LParen) {
+                    self.pos = paren_idx;
+                    let mut args = self.parse_arg_list()?;
+                    let mut attached_lambda = false;
+                    if self.should_attach_crossline_trailing_lambda(ctx.in_when_body) {
+                        self.skip_nl();
+                        args.push(self.parse_lambda(false)?);
+                        attached_lambda = true;
+                    }
+                    expr = format_call(&expr, &type_args, &args);
+                    is_bare_block_name = false;
+                    last_call_had_trailing_lambda = attached_lambda;
                     continue;
                 }
             }
 
-            if self.peek() == Tok::LParen {
+            // Same-line `(...)` call, or cross-line `(...)` call inside unclosed parens.
+            let call_paren = if self.peek() == Tok::LParen {
+                Some(self.pos)
+            } else if ctx.in_paren {
+                let (idx, tok) = self.next_non_nl();
+                (tok == Tok::LParen).then_some(idx)
+            } else {
+                None
+            };
+            if let Some(paren_pos) = call_paren {
+                self.pos = paren_pos;
                 let mut args = self.parse_arg_list()?;
-                if self.should_attach_crossline_trailing_lambda(in_when_body) {
+                let mut attached_lambda = false;
+                if self.should_attach_crossline_trailing_lambda(ctx.in_when_body) {
                     self.skip_nl();
                     args.push(self.parse_lambda(false)?);
+                    attached_lambda = true;
                 }
                 expr = format_call(&expr, &[], &args);
                 is_bare_block_name = false;
+                last_call_had_trailing_lambda = attached_lambda;
                 continue;
             }
 
+            // Same-line parenless trailing lambda; forbidden on bare `block` or a second lambda.
             if self.peek() == Tok::LBrace {
-                if is_bare_block_name {
+                if is_bare_block_name || last_call_had_trailing_lambda {
                     return Err(());
                 }
                 let lambda = self.parse_lambda(false)?;
                 expr = format_call(&expr, &[], &[lambda]);
                 is_bare_block_name = false;
+                last_call_had_trailing_lambda = true;
                 continue;
             }
 
@@ -397,17 +440,54 @@ impl<'a> RefParser<'a> {
     fn line_starts_when_condition(&self, start: usize) -> bool {
         let mut i = start;
         let mut depth = 0usize;
+        let mut needs_operand = false;
         while i < self.tokens.len() {
             match self.tokens[i] {
-                Tok::LBrace | Tok::LParen => depth += 1,
+                Tok::LBrace | Tok::LParen => {
+                    depth += 1;
+                    needs_operand = false;
+                }
                 Tok::RBrace | Tok::RParen => {
                     if depth == 0 {
                         return false;
                     }
                     depth -= 1;
+                    if depth == 0 {
+                        needs_operand = false;
+                    }
                 }
-                Tok::Arrow if depth == 0 => return true,
-                Tok::Nl | Tok::Semi | Tok::Eof if depth == 0 => return false,
+                Tok::Arrow if depth == 0 => return !needs_operand,
+                Tok::Semi | Tok::Eof if depth == 0 => return false,
+                Tok::Nl if depth == 0 => {
+                    if !needs_operand {
+                        let mut next = i + 1;
+                        while matches!(self.tokens.get(next), Some(Tok::Nl)) {
+                            next += 1;
+                        }
+                        if !matches!(
+                            self.tokens.get(next),
+                            Some(Tok::AndAnd | Tok::OrOr | Tok::Comma | Tok::Dot)
+                        ) {
+                            return false;
+                        }
+                    }
+                }
+                Tok::AndAnd
+                | Tok::OrOr
+                | Tok::Comma
+                | Tok::Dot
+                | Tok::Plus
+                | Tok::Minus
+                | Tok::Lt
+                | Tok::Gt
+                | Tok::Bang
+                    if depth == 0 =>
+                {
+                    needs_operand = true;
+                }
+                Tok::Ident(_) | Tok::Int(_) | Tok::Bool(_) if depth == 0 => {
+                    needs_operand = false;
+                }
                 _ => {}
             }
             i += 1;
@@ -469,6 +549,10 @@ impl<'a> RefParser<'a> {
     fn parse_arg_list(&mut self) -> Result<Vec<String>, ()> {
         self.expect(Tok::LParen)?;
         let mut args = Vec::new();
+        let arg_ctx = ExprCtx {
+            in_when_body: false,
+            in_paren: true,
+        };
         self.skip_nl();
         if self.peek() == Tok::RParen {
             self.pos += 1;
@@ -476,15 +560,10 @@ impl<'a> RefParser<'a> {
         }
         loop {
             self.skip_nl();
-            args.push(self.parse_expr(false)?);
+            args.push(self.parse_expr(arg_ctx)?);
             self.skip_nl();
             if self.peek() == Tok::Comma {
                 self.pos += 1;
-                self.skip_nl();
-                if self.peek() == Tok::RParen {
-                    self.pos += 1;
-                    break;
-                }
                 continue;
             }
             self.expect(Tok::RParen)?;
@@ -493,7 +572,7 @@ impl<'a> RefParser<'a> {
         Ok(args)
     }
 
-    fn parse_primary(&mut self) -> Result<String, ()> {
+    fn parse_primary(&mut self, ctx: ExprCtx) -> Result<String, ()> {
         match self.peek() {
             Tok::Ident("move") if self.next_after_one_is_lbrace() => {
                 self.pos += 1;
@@ -515,7 +594,10 @@ impl<'a> RefParser<'a> {
             Tok::LParen => {
                 self.pos += 1;
                 self.skip_nl();
-                let inner = self.parse_expr(false)?;
+                let inner = self.parse_expr(ExprCtx {
+                    in_when_body: false,
+                    in_paren: true,
+                })?;
                 self.skip_nl();
                 self.expect(Tok::RParen)?;
                 Ok(format!("(group {inner})"))
@@ -529,7 +611,7 @@ impl<'a> RefParser<'a> {
                 ) {
                     Ok("(return)".to_owned())
                 } else {
-                    let val = self.parse_expr(false)?;
+                    let val = self.parse_expr(ctx)?;
                     Ok(format!("(return {val})"))
                 }
             }
@@ -538,7 +620,10 @@ impl<'a> RefParser<'a> {
                 self.skip_nl();
                 self.expect(Tok::LParen)?;
                 self.skip_nl();
-                let cond = self.parse_expr(false)?;
+                let cond = self.parse_expr(ExprCtx {
+                    in_when_body: false,
+                    in_paren: true,
+                })?;
                 self.skip_nl();
                 self.expect(Tok::RParen)?;
                 self.skip_nl();
@@ -655,7 +740,7 @@ impl<'a> RefParser<'a> {
                 let mut list = Vec::new();
                 loop {
                     self.skip_nl();
-                    list.push(self.parse_expr(false)?);
+                    list.push(self.parse_expr(ExprCtx::default())?);
                     self.skip_nl();
                     if self.peek() == Tok::Comma {
                         self.pos += 1;
@@ -671,7 +756,10 @@ impl<'a> RefParser<'a> {
             let body = if self.peek() == Tok::LBrace {
                 self.parse_braced_body("control")?
             } else {
-                self.parse_expr(true)?
+                self.parse_expr(ExprCtx {
+                    in_when_body: true,
+                    in_paren: false,
+                })?
             };
             entries.push(format!("(entry ({conds}) {body})"));
             let mut separated = false;

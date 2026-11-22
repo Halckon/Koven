@@ -33,24 +33,29 @@ fn within(parent: Span, child: Span) {
     );
 }
 
-fn prod_type(ast: &SyntaxAst, sources: &SourceMap, id: TypeRefId) -> String {
-    match ast.type_refs().get(id).unwrap().payload() {
+fn prod_type(ast: &SyntaxAst, sources: &SourceMap, id: TypeRefId, parent: Span) -> String {
+    let node = ast.type_refs().get(id).unwrap();
+    let span = node.span();
+    within(parent, span);
+    match node.payload() {
         TypeRef::Qualified {
             segments,
             nullable_span,
         } => {
             assert_eq!(segments.len(), 1);
             let seg = &segments[0];
+            within(span, seg.name_span);
             let mut out = sources.slice(seg.name_span).unwrap().to_owned();
             if !seg.arguments.is_empty() {
                 let inner: Vec<_> = seg
                     .arguments
                     .iter()
-                    .map(|&arg| prod_type(ast, sources, arg))
+                    .map(|&arg| prod_type(ast, sources, arg, span))
                     .collect();
                 out = format!("{out}<{}>", inner.join(","));
             }
-            if nullable_span.is_some() {
+            if let Some(q_span) = nullable_span {
+                within(span, *q_span);
                 out.push('?');
             }
             out
@@ -198,13 +203,21 @@ fn prod_expr(ast: &SyntaxAst, sources: &SourceMap, id: ExpressionId, parent: Spa
         Expression::Call {
             callee,
             type_arguments,
+            type_arguments_span,
             arguments,
             ..
         } => {
             let c = prod_expr(ast, sources, *callee, span);
+            let targs_parent = if type_arguments.is_empty() {
+                span
+            } else {
+                let tspan = type_arguments_span.expect("typed call must record <...> span");
+                within(span, tspan);
+                tspan
+            };
             let targs: Vec<_> = type_arguments
                 .iter()
-                .map(|&t| prod_type(ast, sources, t))
+                .map(|&t| prod_type(ast, sources, t, targs_parent))
                 .collect();
             let args: Vec<_> = arguments
                 .iter()
@@ -383,9 +396,11 @@ fn fault_controls_detect_f3d_structural_and_predicate_drift() {
 fn f3d_typed_calls_and_comparison_fallbacks_match_reference() {
     let accepted = [
         ("simple-typed-call", "{ f<T>(x) }"),
+        ("typed-call-crossline-paren", "{\n f<T>\n (x)\n}"),
         ("nested-generic-typed-call", "{ f<Outer<Inner?>>(x, y) }"),
         ("typed-call-same-line-lambda", "{ f<T> { x() } }"),
         ("typed-call-crossline-lambda", "{\n f<T>()\n { x() }\n}"),
+        ("crossline-call-inside-parens", "{\n f(g\n (x)) { y() }\n}"),
         ("comparison-less-fallback", "{ a < b }"),
         ("comparison-add-fallback", "{ a < b + c }"),
         ("grouped-comparisons", "{ (a < b) && (b > c) }"),
@@ -396,6 +411,7 @@ fn f3d_typed_calls_and_comparison_fallbacks_match_reference() {
     }
 
     assert_rejected_match("chained-comparison", "{ a < b > c }", "L0012");
+    assert_rejected_match("trailing-comma-in-args", "{ f<T>(x,) { y() } }", "L0036");
     let (prod, _) = run_production("{ f<T> move { x } }");
     assert_eq!(prod, Outcome::Rejected);
     assert_eq!(run_reference("{ f<T> move { x } }"), Outcome::Rejected);
@@ -445,6 +461,14 @@ fn spec_0479_blocks_trailing_lambdas_move_and_when_match_reference() {
             "{\n when {\n  flag -> f()\n  { -> true }() && flag -> g()\n }\n}",
         ),
         (
+            "when-next-entry-multiline-and",
+            "{\n when {\n  flag -> f()\n  { -> true }() &&\n  flag -> g()\n }\n}",
+        ),
+        (
+            "when-next-entry-after-return-call",
+            "{\n when {\n  flag -> return f()\n  { -> true }() -> g()\n }\n}",
+        ),
+        (
             "when-next-entry-comma-list",
             "{\n when {\n  flag -> f()\n  { -> true }(), other -> g()\n }\n}",
         ),
@@ -461,6 +485,9 @@ fn spec_0479_blocks_trailing_lambdas_move_and_when_match_reference() {
     assert_rejected_match("bare-block-in-lambda", "{ f { { x() } } }", "L0032");
     assert_rejected_match("expr-position-block", "{ val x = block { 1 } }", "L0009");
     assert_rejected_match("open-call-crossline-lambda", "{\n f\n { x() }\n}", "L0030");
+    let (prod, _) = run_production("{ f() { x() } { y() } }");
+    assert_eq!(prod, Outcome::Rejected);
+    assert_eq!(run_reference("{ f() { x() } { y() } }"), Outcome::Rejected);
 }
 
 #[test]
