@@ -221,7 +221,7 @@ fn borrowed_auxiliary_retires_before_its_owner_and_outer_consumer() {
             );
             assert_eq!(
                 traced.iteration_actions.consumer_transports(),
-                [transport.clone()]
+                std::slice::from_ref(transport)
             );
             assert_eq!(
                 baseline

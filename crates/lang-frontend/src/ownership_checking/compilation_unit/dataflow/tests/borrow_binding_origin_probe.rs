@@ -1,7 +1,7 @@
 //! Exact semantic-state observations; no interpretation of the separate planner queue.
 use std::cell::RefCell;
 
-use super::{ActiveLoan, ActiveLoanOwner};
+use super::super::{ActiveLoan, ActiveLoanOwner};
 use crate::{
     ownership_checking::compilation_unit::formed_tests::Fixture,
     type_checking::{UnitExpressionId, UnitStatementId},
@@ -35,7 +35,7 @@ fn capture<T>(run: impl FnOnce() -> T) -> (T, Vec<Event>) {
     (value, events)
 }
 
-pub(super) fn before(loans: &[ActiveLoan], owner: ActiveLoanOwner) -> Vec<ActiveLoan> {
+pub(in super::super) fn before(loans: &[ActiveLoan], owner: ActiveLoanOwner) -> Vec<ActiveLoan> {
     EVENTS.with_borrow(|events| {
         if events.is_some() {
             loans
@@ -49,7 +49,7 @@ pub(super) fn before(loans: &[ActiveLoan], owner: ActiveLoanOwner) -> Vec<Active
     })
 }
 
-pub(super) fn after_call(before: Vec<ActiveLoan>, loans: &[ActiveLoan]) {
+pub(in super::super) fn after_call(before: Vec<ActiveLoan>, loans: &[ActiveLoan]) {
     EVENTS.with_borrow_mut(|events| {
         if let Some(events) = events {
             events.extend(before.into_iter().map(|loan| {
@@ -60,7 +60,11 @@ pub(super) fn after_call(before: Vec<ActiveLoan>, loans: &[ActiveLoan]) {
     });
 }
 
-pub(super) fn handoff(argument: UnitExpressionId, before: ActiveLoan, after: &ActiveLoan) {
+pub(in super::super) fn handoff(
+    argument: UnitExpressionId,
+    before: ActiveLoan,
+    after: &ActiveLoan,
+) {
     EVENTS.with_borrow_mut(|events| {
         if let Some(events) = events {
             events.push(Event::Handoff(argument, before, after.clone()));
@@ -68,7 +72,7 @@ pub(super) fn handoff(argument: UnitExpressionId, before: ActiveLoan, after: &Ac
     });
 }
 
-pub(super) fn after_binding_end(
+pub(in super::super) fn after_binding_end(
     before: Vec<ActiveLoan>,
     loans: &[ActiveLoan],
     end: UnitStatementId,

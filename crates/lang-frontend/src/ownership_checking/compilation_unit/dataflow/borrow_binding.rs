@@ -176,7 +176,11 @@ impl Checker<'_> {
                     let call_loan = loan.clone();
                     loan.owner = ActiveLoanOwner::BorrowBinding(binding);
                     #[cfg(test)]
-                    super::borrow_binding_origin_probe::handoff(source.argument(), call_loan, loan);
+                    super::tests::borrow_binding_origin_probe::handoff(
+                        source.argument(),
+                        call_loan,
+                        loan,
+                    );
                     transferred = true;
                 }
             }
@@ -286,7 +290,7 @@ impl Checker<'_> {
             state.borrow_bindings.remove(&binding);
             state.non_owning.remove(&binding);
             #[cfg(test)]
-            let before = super::borrow_binding_origin_probe::before(
+            let before = super::tests::borrow_binding_origin_probe::before(
                 &state.loans,
                 ActiveLoanOwner::BorrowBinding(binding),
             );
@@ -294,7 +298,7 @@ impl Checker<'_> {
                 .loans
                 .retain(|loan| loan.owner != ActiveLoanOwner::BorrowBinding(binding));
             #[cfg(test)]
-            super::borrow_binding_origin_probe::after_binding_end(
+            super::tests::borrow_binding_origin_probe::after_binding_end(
                 before,
                 &state.loans,
                 crate::type_checking::UnitStatementId::new(self.source_unit, statement),

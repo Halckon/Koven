@@ -756,7 +756,7 @@ impl Checker<'_> {
         ] {
             if let Some(state) = flow {
                 #[cfg(test)]
-                let before = super::borrow_binding_origin_probe::before(
+                let before = super::tests::borrow_binding_origin_probe::before(
                     &state.loans,
                     super::ActiveLoanOwner::Call(call),
                 );
@@ -766,7 +766,7 @@ impl Checker<'_> {
                 });
                 #[cfg(test)]
                 if completes {
-                    super::borrow_binding_origin_probe::after_call(before, &state.loans);
+                    super::tests::borrow_binding_origin_probe::after_call(before, &state.loans);
                 }
             }
         }

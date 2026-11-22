@@ -132,7 +132,7 @@ pub(super) fn assert_body_copy(text: &str) {
         assert_eq!(reference.source_unit(), descriptor.subject().source_unit());
         let exprs = parsed.ast().expressions();
         let node = exprs.get(reference.expression()).unwrap();
-        assert!(matches!(node.payload(), Expression::Name { .. }));
+        assert!(matches!(node.payload(), Expression::Name));
         assert_eq!(sources.slice(node.span()), Ok("x"));
         let subject = exprs.get(descriptor.subject().expression()).unwrap();
         assert!(subject.span().end() < node.span().start());
