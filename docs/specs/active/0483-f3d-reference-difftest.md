@@ -13,7 +13,8 @@
 本 Spec 承接 [Parser 分阶段形式化验证计划](../../proposals/parser-formal-verification-plan.md) 的 **F3d→F4a 扩展切片**与
 [F3d 冲突与外部谓词合同](../../proposals/parser-formal-verification/generic-lambda-grammar-slice.md)。
 在 `SPEC-0479` 合入 `main@8207b212` 后，本片为 F3d 四类必选外部谓词建立不共享生产 Parser 内部逻辑的独立参考解析器差分测试，
-不修改生产 Parser/Lexer、Guide 或 CI，不新增 Cargo 依赖，默认随 `cargo test` 在双宿主运行。
+不修改生产 Parser/Lexer 或 Guide，不新增 Cargo 依赖。双宿主 Targeted Tests 显式运行本 Spec 的
+`parser_f3d_reference_diff`，不依赖工作区编译检查或 SPEC-0478 的差分测试覆盖本目标。
 
 ## 交付合同
 
@@ -39,4 +40,4 @@ cargo test --locked -p lang-frontend --test parser_f3d_reference_diff
 
 - [x] F3d + SPEC-0479 独立参考解析器、故障负对照与 80 组组合矩阵实现
 - [x] 本地门禁（fmt / clippy / test / check_docs / check_rust_sizes）实跑验收
-- [ ] PR CI 验收与归档
+- [ ] PR CI：同一个针对当前合并候选的 run，在 macOS / Linux 均实际执行此目标的全部测试（含 80 组组合样本与故障负对照）并通过；记录 run 后归档。

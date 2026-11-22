@@ -376,6 +376,9 @@ jobs:
             printf '%s\n' "$out"
             printf '%s\n' "$out" | grep -q '1 passed; 0 failed; 0 ignored;'
           done
+      - name: F3d independent parser differential (SPEC-0483)
+        timeout-minutes: 5
+        run: cargo test --locked -j1 -p lang-frontend --test parser_f3d_reference_diff
       - name: Experimental Unit root-set budget and rollback (CI only)
         run: bash scripts/check_unit_root_set_ci.sh
       - name: D10 standard callable quota (CI only)
