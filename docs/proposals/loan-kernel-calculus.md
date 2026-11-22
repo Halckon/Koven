@@ -1198,4 +1198,12 @@ fun probe(borrow h: A): Unit {
 - `break` 仅在 `while` 循环内合法，离开时按声明逆序析构当前循环体内声明的全部局部并检查 K9 与 S4，随后将外部状态并入循环退出状态而不回到循环头；
 - 循环内“条件移走外层 `f` 后立即 `break`”时，未 `break` 的路径与回边仍完整拥有 `f`（循环体剩余语句与下一轮可继续使用 `f`），而循环退出后 `f` 成为可能已移走（循环外再用 `f` 报 K8，退出与 `mayFail` 清理均带析构标志 `f?`）；不加 `break` 则合流后立即报 K8；
 - 循环内局部 `inner: File` 在 `break` 处正确析构；循环内局部 `local` 若被循环外 `out` 借用则在 `break` 处报 K9；`break` 路径带出的外层视图新来源（`b`）与正常退出路径的旧来源（`a`）在循环外共同受保护（K1）；
-- 独立检验器穷举 0、1、2 轮及分支与失败路径全部通过；去掉 `drop? f` 标志在经 `break` 移走路径报 V2，清空合流失败清单在未移走路径报 V1。
+- 独立检验器穷举 0、1、2 轮及分支与失败路径全部通过；去掉 `drop? f` 标志在经 `break` 移走路径报 V2，清空合流失败清单在未移走路径报 V1。递归闭包与捕获闭包的闭包见 §67。
+
+## 67. 递归闭包与捕获闭包的闭包（KB3 × KB5）
+
+`Z29.lk` 沿用 §16（`N1.lk`）的手工去糖形式（环境视图 + 函数体 + `sig`），不引入新语法与新借用规则，检验递归闭包与嵌套闭包，并在测试中发现并修掉一处独占视图重借的 K4 漏洞：
+
+- **发现并修掉的原型漏洞（`check_exclusive_fields`）**：此前借用或重借一个含 `inout` 字段的视图（如 `&mut f`、`&f`、或直接重借 `inout env: WriteEnv`）时，检查器只比对视图自身存储（`("f", ())` 或 `("*env", ())`）上的存活 loan，没有同时检查该视图经独占字段指向的底层存储（`("a", ())` 或 `("*env.a", ())`）上是否存在存活的子借用。结果在可变闭包或嵌套可变闭包的递归调用中，即使已从捕获字段借出 `r = &env.a.len` 或 `r = &env.inner.a.len` 并且 `r` 仍然存活，递归调用 `recMut(env)` / `recOuterMut(env)`、或本地 `recMut(&mut f)` 与独占子借用存活期间的 `peekMutEnv(&f)` 均未被拒绝。现补上 `Checker.check_exclusive_fields`（接入 `borrow`、`argument` 与两阶段 `activate`）：借用或重借视图时，对其 `ref_paths` 中每条独占路径所指存储按本次访问种类补做 K4 冲突检查（共享子借用下共享重借 `&f` 仍接受）。
+- **捕获闭包的闭包（嵌套闭包）**：按值嵌套（`OuterReadVal`、`OuterMutVal`）与按借用嵌套（`OuterReadRef`、`OuterMutRef`）均同时保护内外层捕获来源（K1）；只读嵌套闭包保持 `Copyable`，含可变内层闭包的嵌套闭包不可复制（K8），外层只读借用内层可变闭包（`OuterRoOverMut`）不可调用可变函数体（K1）；精确转发 `from env.inner.a` 不误保护外层无关捕获 `b`，错声明报 K6，经泛型高阶 `from f.origins` 保守保护全部捕获；全所有权嵌套闭包（`OuterOwned`）可逃逸并交给 `spawn`，含借用捕获的嵌套闭包交给 `<F>` 报 K17、返回局部捕获报 K6。
+- **递归闭包**：只读递归（`recRead`）、返回捕获借用的递归（`recPeek`，漏 `from` 报 K6，按 `from env` 传入 `Peek` 报 K12）、可变递归（`recMut`）、互相递归（`recEven` ↔ `recOdd`）及递归嵌套可变闭包（`recOuterMut`）均与 `twice` / `twiceMut` / `runPeek` 配合通过；子借用存活期间递归重借可变环境均按 K4 拒绝。变异检验确认去掉 `check_exclusive_fields` 后恰好漏报 4 处 K4。

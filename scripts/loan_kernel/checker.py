@@ -1132,6 +1132,21 @@ class Checker:
             rule = "K4" if via & self.ancestors({loan}) else {"kill": "K9", "fail": "K22"}.get(kind, "K1")
             self.error(rule, line, f"{kind} 与第 {info.line} 行建立的 {info.kind} loan 冲突")
 
+    def check_exclusive_fields(self, state, class_name, field_loans, via, kind, line):
+        """借用或重借视图时，检查它经独占字段持有的存储是否被子借用暂停（K4）。"""
+        if class_name not in self.classes or self.type_of(class_name).kind != "view":
+            return
+        saved, self.quiet = self.quiet, True
+        try:
+            for fkind, path in self.ref_paths(class_name):
+                if fkind != "inout":
+                    continue
+                held = set((field_loans or {}).get(path, ()))
+                if held:
+                    self.access(state, self.places(held), via | held, kind, line)
+        finally:
+            self.quiet = saved
+
     def leave(self, state, kind, line):
         """离开函数时的析构：仍拥有的值自内向外、声明逆序析构，此后本函数没有别的代码再运行。
 
@@ -1389,7 +1404,9 @@ class Checker:
         res = self.resolve(state, place)
         if mut and not res.writable:
             self.error("K1", expr.line, "不能经共享借用建立独占借用")
-        self.access(state, res.targets, res.via, "excl" if mut and not reserved else "shared", expr.line)
+        access_kind = "excl" if mut and not reserved else "shared"
+        self.access(state, res.targets, res.via, access_kind, expr.line)
+        self.check_exclusive_fields(state, res.ty.name, res.field_loans, res.via, access_kind, expr.line)
         kind = "shared" if reserved else stored_kind or ("excl" if mut else "shared")
         loan = self.new_loan(f"L{expr.site}", kind, res.targets, res.via, expr.line)
         self.loans[loan].kind = kind
@@ -1408,6 +1425,7 @@ class Checker:
         info = self.loans[loan]
         self.pending.remove(entry)
         self.access(state, info.places, info.parents, "excl", line)
+        self.check_exclusive_fields(state, value.ty.name, value.loans, info.parents, "excl", line)
         self.pending.append(entry)
         info.kind = kind
 
@@ -1439,12 +1457,15 @@ class Checker:
             if mut and var.ty.kind != "inout":
                 self.error("K1", expr.line, "不能把共享借用交给 inout 位置")
             targets = self.places(via)
-            self.access(state, targets, via, "excl" if mut and not reserved else "shared", expr.line)
+            access_kind = "excl" if mut and not reserved else "shared"
+            self.access(state, targets, via, access_kind, expr.line)
+            fields = self.current_fields(state, targets, var.loans, var.ty.name)
+            self.check_exclusive_fields(state, var.ty.name, fields, via, access_kind, expr.line)
             kind = "shared" if reserved else stored_kind or ("excl" if mut else "shared")
             loan = self.new_loan(f"L{expr.site}", kind, targets, via, expr.line)
             self.loans[loan].kind = kind
             loans = {"": {loan}}
-            loans.update({k: v for k, v in self.current_fields(state, targets, var.loans, var.ty.name).items() if k})
+            loans.update({k: v for k, v in fields.items() if k})
             return Value(Type(mode, var.ty.name), loans, var.payload)
         res = self.resolve(state, expr.place)
         if not res.crossed:
@@ -1452,7 +1473,9 @@ class Checker:
             return Value(Type(mode, res.ty.name), {"": set()})
         if mut and not res.writable:
             self.error("K1", expr.line, "不能经共享借用建立独占借用")
-        self.access(state, res.targets, res.via, "excl" if mut and not reserved else "shared", expr.line)
+        access_kind = "excl" if mut and not reserved else "shared"
+        self.access(state, res.targets, res.via, access_kind, expr.line)
+        self.check_exclusive_fields(state, res.ty.name, res.field_loans, res.via, access_kind, expr.line)
         kind = "shared" if reserved else stored_kind or ("excl" if mut else "shared")
         loan = self.new_loan(f"L{expr.site}", kind, res.targets, res.via, expr.line)
         self.loans[loan].kind = kind

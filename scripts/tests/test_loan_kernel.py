@@ -1107,6 +1107,27 @@ class LoanKernelCases(unittest.TestCase):
                 call.cleanup.clear()
                 self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
+    def test_recursive_and_nested_closures_check_exclusive_field_reborrows(self):
+        source = (ROOT / "cases/Z29.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("nestedReadValWorks", "nestedReadValIsCopyable", "nestedMutValWorks", "nestedMutRefWorks",
+                     "nestedOwnedCanBeSpawned", "useRecRead", "useRecMut", "useMutualRecMut", "useRecOuterMut",
+                     "localMutClosureReadWhileSharedChildAlive"):
+            self.assertTrue(lowered[name][2], name)
+        # 变异检验：去掉视图借用/重借时的独占字段 K4 检查后，4 处子借用存活期间重借可变闭包环境的 K4 必须漏报。
+        original = CHECKER.Checker.check_exclusive_fields
+        CHECKER.Checker.check_exclusive_fields = lambda self, *args: None
+        try:
+            mutated = {(rule, line) for rule, line, _ in CHECKER.check(source)}
+        finally:
+            CHECKER.Checker.check_exclusive_fields = original
+        lost = expected(source) - mutated
+        self.assertEqual(4, len(lost))
+        self.assertEqual({"K4"}, {rule for rule, _ in lost})
+        self.assertEqual(set(), mutated - expected(source))
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))
