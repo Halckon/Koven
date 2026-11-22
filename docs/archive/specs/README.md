@@ -1,5 +1,6 @@
 # 完成 Specs
 
+- [SPEC-0483](0483-f3d-reference-difftest.md)：F3d 与 SPEC-0479 独立参考解析差分，双宿主验收见 PR #455。
 - [SPEC-0466](0466-name-resolver-expression-domain.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
 - [SPEC-0467](0467-type-container-and-lambda-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
 - [SPEC-0468](0468-lexer-and-call-recovery-test-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。

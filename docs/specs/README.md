@@ -81,6 +81,8 @@ A/B/C三个核心缺陷仅按各自合同有界闭合，不表示整份review或
 
 ### 近期交付
 
+- [SPEC-0483](../archive/specs/0483-f3d-reference-difftest.md)：F3d 与 SPEC-0479 独立参考解析差分的组合矩阵和负对照已通过双宿主 CI，验收见 PR #455。
+
 - [0451–0453 批次有界交付](../archive/specs/0453-lang-codegen-remaining-leaf-and-llvm-shells-batch-retirement.md#5-修订验收与有界收尾)：用户批准保留34个职责模块，原全部删除/固定文件数目标未达成、不再作为本次验收条件；代码 `4de26bdc` 的 PR CI 43617727147 已全绿。归档 head 检查及合并另验，不关闭整个 E3。
 
 - [0454 直线标量默认路由](../archive/specs/0454-refine-untriggered-linear-scalars.md)：最终代码 `81864b03` 的 [PR #424 CI](https://github.com/Halckon/Koven/actions/runs/43605797887) 已通过双宿主及 Preview 独立消费验收，按用户授权有界归档；归档 head CI 与实际合并另验，不表示整个 E3 完成。
