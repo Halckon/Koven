@@ -650,7 +650,7 @@ class Checker:
         if gone.get(prefix) == "M":
             return True
         decl = self.classes.get(ty_name)
-        if decl is None or not decl.fields or (decl.deinit and not ignore_deinit) or decl.cell or decl.local or decl.carrier:
+        if decl is None or not decl.fields or (decl.deinit and not ignore_deinit):
             return False
         return all(not kind and self.all_moved(fty, gone, prefix + (fname,)) for kind, fname, fty in decl.fields)
 
@@ -665,9 +665,9 @@ class Checker:
         return var.init == "MM" or "MM" in var.gone.values()
 
     def dp_type(self, ty):
-        """析构义务一侧的类型。普通的类与视图带着字段，可以逐字段移出；其余只有“析构是否可观察”一个标记。"""
+        """析构义务一侧的类型。类与视图带着字段，可以逐字段移出；其余只有“析构是否可观察”一个标记。"""
         decl = self.classes.get(ty.name)
-        if ty.kind in ("cls", "view") and decl is not None and not (decl.cell or decl.local or decl.carrier):
+        if ty.kind in ("cls", "view") and decl is not None:
             fields = []
             for kind, name, fty in decl.fields:
                 plain = kind or fty in ("Int", "Unit") or fty.startswith("fn ")  # 没有析构义务的字段

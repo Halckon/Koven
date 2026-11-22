@@ -1239,4 +1239,12 @@ fun probe(borrow h: A): Unit {
 
 - **借用与封装（K19 / K1 / K6 / K8 / K17）**：非受信任代码直接访问 `c.v` 报 K19；`borrowCell(&c)` 与 `borrowMutCell(&c)` 均经共享借用交出带 `deinit` 的守卫，守卫因析构可观察而活到词法作用域结束（期间独占改写或移动 `c` 报 K1，显式 `releaseRef(move g)` 释放后接受）；解引用结果 `deref(&g)` 保护守卫不被提前移走（K1）；`RefMut` 上的 `derefMut(&mut gm)` 与二次 `derefMut` / `derefFromMut` 互斥（K1），最后一次使用后可再次借出；守卫不可隐式复制（K8）、不可返回逃逸（K6）、不可实例化可逃逸 `<T>`（K17）。
 - **析构顺序与析构标志（V1 / V2 / V4）**：两个守卫与 `RefCell` 在 `mayFail()` 处按 `g2, g1, c` 逆序清理（漏掉 `g2` 同时报 V1 与 V4）；单臂释放守卫后合流保留 `g?` 标志（去标志报 V2，漏清理 `g?` 报 V1），在打开提前析构时 `c` 也在释放臂提前析构、另一臂被可观察守卫保活而自动带标志 `c?`。
-- **挂起与能力推导（S5 / CAP）**：因 `RefCell` 是 `cell`（不可共享），持有 `borrow RefCell` 的 `Ref` / `RefMut` 由能力推导自动判为不可转移：普通 `suspend fun` 跨 `suspend` 接受，`parallel suspend fun` 跨 `suspend` 报 S5，交给 `<view T: Transferable>` 报 CAP。
+- **挂起与能力推导（S5 / CAP）**：因 `RefCell` 是 `cell`（不可共享），持有 `borrow RefCell` 的 `Ref` / `RefMut` 由能力推导自动判为不可转移：普通 `suspend fun` 跨 `suspend` 接受，`parallel suspend fun` 跨 `suspend` 报 S5，交给 `<view T: Transferable>` 报 CAP。`cell`、`local` 与容器类型的 `deinit` 函数体见 §72。
+
+## 72. 内部可变（`cell`）、线程绑定（`local`）与容器类型的 `deinit` 函数体（KB1 × KB6）
+
+`Z34.lk` 在借用原型与析构义务检验器之间放开 `cell`、`local` 与容器（`carrier`）类型的字段义务建模（`Checker.dp_type` 与 `Checker.all_moved` 不再清空这三类类型的字段），使它们能够像普通类型一样写出 `deinit C { ... }` 函数体并由检验器真实执行：
+
+- **线程绑定类型（`local class`）**：`deinit LocalRes` 可从 `this` 部分移出 `this.sock`、跨 `mayFail()` 失败清理剩余字段 `this.file`；`deinit LocalAllMoved` 全部移出后 `all_moved` 成立，不再重复析构 `this`；`deinit LocalBranch` 单臂移出后保留析构标志 `this?`；函数体外部分移出仍报 K23，跨普通 `suspend` 接受、跨 `parallel suspend` 报 S5。
+- **内部可变类型（`cell class`）**：`deinit CellRes` 经受信任函数 `flushCell(&this)` 收尾并在末尾自动按逆序析构 `sock, file`；非受信任 `deinit BadCellDeinit` 直接访问 `this.file` 仍受 K19 拦截，整体移走 `this` 报 K24。
+- **容器与内部可变容器（`view class Bag<view T> deinit` / `cell view class Scope<view T> deinit`）**：`deinit Bag` 可部分移出 `this.sock` 并清理剩余 `this.file`，调用方持有 `Bag` 时来源受 `deinit` 保活（K1）、移走后解除；`deinit Scope` 经受信任 `waitAll(&this)` 收尾并自动清理 `file`；调用方在 `mayFail()` 失败路径上均真实执行各 `deinit` 函数体，漏掉 `r`/`c`/`sc` 清理均报 V1。

@@ -281,7 +281,8 @@ class LoanKernelCases(unittest.TestCase):
                           ("moveAndBreakInLoop", "f"), ("breakCleansInnerLocal", "f"),
                           ("conditionalReleaseRcKeepsDropFlag", "r"),
                           ("conditionalReleaseGuardKeepsDropFlag", "g"),
-                          ("conditionalReleaseGuardKeepsDropFlag", "c")},
+                          ("conditionalReleaseGuardKeepsDropFlag", "c"),
+                          ("deinit LocalBranch", "this")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -1271,6 +1272,37 @@ class LoanKernelCases(unittest.TestCase):
         drops[0].if_owned = True
         may_fail.cleanup.remove(("g", True))
         self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+    def test_cell_local_and_carrier_deinit_bodies(self):
+        source = (ROOT / "cases/Z34.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("deinit LocalRes", "deinit LocalAllMoved", "deinit LocalBranch",
+                     "deinit CellRes", "deinit Bag", "deinit Scope",
+                     "useLocalResMayFail", "localResAllowedAcrossNormalSuspend",
+                     "useCellResMayFail", "useBagReleasesOriginAfterMove",
+                     "useScopeRunsDeinitOnFailure"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("deinit BadCellDeinit", "deinit BadCellMoveThis",
+                     "localResCannotCrossParallelSuspend", "cannotPartialMoveLocalResOutsideDeinit",
+                     "useBagProtectsOriginUntilDrop", "cannotPartialMoveBagOutsideDeinit"):
+            self.assertFalse(lowered[name][2], name)
+        deinits = {name[len("deinit "):]: lowered[name][:2] for name in lowered
+                   if name.startswith("deinit ") and lowered[name][2]}
+        # 全部移出字段的 LocalAllMoved.deinit 不再析构 this；单臂移出的 LocalBranch.deinit 保留 this?。
+        self.assertEqual([], [s for s in lowered["deinit LocalAllMoved"][1] if s.kind == "drop"])
+        branch_drop = next(s for s in lowered["deinit LocalBranch"][1] if s.kind == "drop")
+        self.assertEqual(("this", True), (branch_drop.var, branch_drop.if_owned))
+        # 调用方在失败出口真实执行 LocalRes / CellRes / Bag / Scope 的 deinit 函数体；漏掉清理报 V1。
+        for fun, var in (("useLocalResMayFail", "r"), ("useCellResMayFail", "c"),
+                         ("useScopeRunsDeinitOnFailure", "sc")):
+            with self.subTest(fun=fun):
+                types, program, _ = lowered[fun]
+                self.assertEqual({}, self.verify(types, program, fun, deinits))
+                call = [s for s in program if s.kind == "call"][-1]
+                call.cleanup.remove((var, False))
+                self.assertIn("V1", {v.split()[0] for v in self.verify(types, program, fun, deinits)})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
