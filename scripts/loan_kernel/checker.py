@@ -1326,30 +1326,31 @@ class Checker:
         return value
 
     def replace_field(self, expr, state):
-        """K26：取出带 empty 标记的按值字段并在原处留下空值；原对象保持完整，不产生部分移出。"""
+        """K26：取出带 empty 标记的按值字段（支持多层路径）并在原处留下空值；原对象保持完整，不产生部分移出。"""
         place = expr.place
-        if len(place.fields) != 1:
-            raise SyntaxProblem(f"第 {expr.line} 行：演算只支持替换一层字段")
+        if not place.fields:
+            raise SyntaxProblem(f"第 {expr.line} 行：replace 需要指定字段路径")
         res = self.resolve(state, place)
-        name = place.fields[0]
+        path_str = ".".join(place.fields)
         decl = self.classes.get(res.ty.name)
         if (res.crossed or res.ty.kind not in ("cls", "view") or decl is None or not decl.empty
                 or decl.cell or decl.carrier):
-            self.error("K26", expr.line, f"{place.root}.{name} 的类型 {res.ty.name} 没有可以留在原处的空值")
+            self.error("K26", expr.line, f"{place.root}.{path_str} 的类型 {res.ty.name} 没有可以留在原处的空值")
             return Value(res.ty)
         if not res.writable:
             self.error("K1", expr.line, "不能经共享借用替换字段")
         self.access(state, res.targets, res.via, "write", expr.line)
         carried = copy_loans(res.field_loans or {}) if res.ty.kind == "view" else {}
+        var = state[place.root]
+        crossed = self.crosses_borrow_field(var.ty.name, place.fields)
         if res.ty.kind == "view" and len(res.targets) == 1:
-            var = state[place.root]
-            if var.ty.kind in ("borrow", "inout"):
-                var.loans = {k: held for k, held in var.loans.items() if not k.startswith(name + ".")}
+            if var.ty.kind in ("borrow", "inout") or crossed:
+                var.loans = {k: held for k, held in var.loans.items() if not k.startswith(path_str + ".")}
             self.record_flow(state, res.targets, {}, replace=True)
-        if self.tracked(state[place.root]):
-            taken = f"{place.root}#{name}#{expr.site}"
+        if self.tracked(var) and not crossed:
+            taken = f"{place.root}#{path_str}#{expr.site}"
             self.dp_type(res.ty)
-            self.emit("replace", expr.line, taken, ty=place.root, fld=name)
+            self.emit("replace", expr.line, taken, ty=place.root, fld=path_str)
             self.emit("move", expr.line, taken)
         return Value(res.ty, carried)
 

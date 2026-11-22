@@ -1304,6 +1304,36 @@ class LoanKernelCases(unittest.TestCase):
                 call.cleanup.remove((var, False))
                 self.assertIn("V1", {v.split()[0] for v in self.verify(types, program, fun, deinits)})
 
+    def test_nested_replace_transfers_obligations_and_origins(self):
+        source = (ROOT / "cases/Z35.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("deinit Outer", "replaceNestedKeepsOuterAndSiblings",
+                     "replaceNestedInLoopKeepsOuterComplete", "replaceNestedAllowedWhileSiblingBorrowed",
+                     "takeNestedFirstViaInout"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("cannotReplaceNestedWhileBorrowed", "cannotReplaceNestedNonEmptyField",
+                     "cannotReplaceNestedViaBorrow", "takeNestedWrongContract",
+                     "cannotReplaceNestedAcrossSharedField"):
+            self.assertFalse(lowered[name][2], name)
+        deinits = {"Outer": lowered["deinit Outer"][:2]}
+        types, program, _ = lowered["replaceNestedKeepsOuterAndSiblings"]
+        self.assertEqual({}, self.verify(types, program, "replaceNestedKeepsOuterAndSiblings", deinits))
+        call = next(s for s in program if s.kind == "call")
+        self.assertEqual([("x", False), ("o", False)], call.cleanup)
+        # 漏掉较晚的 x 报 V1 + V4（且真实执行 deinit Outer），漏掉较早的 o 报 V1。
+        for omitted, wanted in (("x", {"V1", "V4"}), ("o", {"V1"})):
+            with self.subTest(omitted=omitted):
+                entry = (omitted, False)
+                idx = call.cleanup.index(entry)
+                call.cleanup.pop(idx)
+                try:
+                    found = self.verify(types, program, "replaceNestedKeepsOuterAndSiblings", deinits)
+                    self.assertEqual(wanted, {v.split()[0] for v in found})
+                finally:
+                    call.cleanup.insert(idx, entry)
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

@@ -1247,4 +1247,12 @@ fun probe(borrow h: A): Unit {
 
 - **线程绑定类型（`local class`）**：`deinit LocalRes` 可从 `this` 部分移出 `this.sock`、跨 `mayFail()` 失败清理剩余字段 `this.file`；`deinit LocalAllMoved` 全部移出后 `all_moved` 成立，不再重复析构 `this`；`deinit LocalBranch` 单臂移出后保留析构标志 `this?`；函数体外部分移出仍报 K23，跨普通 `suspend` 接受、跨 `parallel suspend` 报 S5。
 - **内部可变类型（`cell class`）**：`deinit CellRes` 经受信任函数 `flushCell(&this)` 收尾并在末尾自动按逆序析构 `sock, file`；非受信任 `deinit BadCellDeinit` 直接访问 `this.file` 仍受 K19 拦截，整体移走 `this` 报 K24。
-- **容器与内部可变容器（`view class Bag<view T> deinit` / `cell view class Scope<view T> deinit`）**：`deinit Bag` 可部分移出 `this.sock` 并清理剩余 `this.file`，调用方持有 `Bag` 时来源受 `deinit` 保活（K1）、移走后解除；`deinit Scope` 经受信任 `waitAll(&this)` 收尾并自动清理 `file`；调用方在 `mayFail()` 失败路径上均真实执行各 `deinit` 函数体，漏掉 `r`/`c`/`sc` 清理均报 V1。
+- **容器与内部可变容器（`view class Bag<view T> deinit` / `cell view class Scope<view T> deinit`）**：`deinit Bag` 可部分移出 `this.sock` 并清理剩余 `this.file`，调用方持有 `Bag` 时来源受 `deinit` 保活（K1）、移走后解除；`deinit Scope` 经受信任 `waitAll(&this)` 收尾并自动清理 `file`；调用方在 `mayFail()` 失败路径上均真实执行各 `deinit` 函数体，漏掉 `r`/`c`/`sc` 清理均报 V1。多层 `replace` 见 §73。
+
+## 73. 嵌套复合类型的多层 `replace`（K26，KB1 × KB2）
+
+`Z35.lk` 将 `replace p`（K26）从单层字段推广到任意深度的按值 `empty` 字段路径（如 `replace o.mid.item`、`replace h.mid.first` 及跨独占借用字段 `replace link.inner.first`）：
+
+- **借用与义务（`checker.py` / `drop_plan.py`）**：`replace_field` 改为使用完整字段路径 `path_str`；当路径未越过借用字段时向检验器发射带多层 `fld=path_str` 的 `DP.Stmt("replace")`（复用于 §64 扩展的多层叶单元检验），当路径越过独占借用字段到达另一拥有者时仅在底层拥有者上记录写访问并清除该叶路径账（含清除中间借用视图的过期副本），不向中间借用视图发虚假的 `replace`；
+- **普通嵌套 `empty` 类字段与 `deinit`**：`deinit Outer` 内可 `replace this.mid.item`；循环内反复 `replace o.mid.item` 保持 `o` 完整（无 K8）；借着兄弟字段 `o.mid.keep` 时允许 `replace o.mid.item`，借着自身报 K1，经共享借用报 K1，对非 `empty` 嵌套字段报 K26；`mayFail` 清理清单为 `x, o`（漏掉 `x` 报 V1 + V4 且真实执行 `deinit Outer`，漏掉 `o` 报 V1）；
+- **嵌套 `empty` 视图字段与跨独占字段**：`replace h.mid.first` 与跨独占字段 `replace link.inner.first` 将来源随取出值移交并在唯一目标下仅清空该叶路径（`taken` 用完后 `a` 解除而兄弟字段 `b` 仍受保护），经 `inout` 参数转发须匹配精确路径（错声明报 K6），跨共享借用字段 `RoLinkHolder` 报 K1。
