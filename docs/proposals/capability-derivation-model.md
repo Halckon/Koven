@@ -39,6 +39,7 @@
 | C6 | 把 `lang-frontend` 的资源分类测试表（`resource_deinit_type_facts`，20 行）逐行移植，对照现行实现 |
 | C7 | `Rc` 与 `Weak` 的能力公理与良构上界（`Weak` 恒可提前析构、不可复制/转移/共享、不放开默认载荷上界） |
 | C8 | 四值判定（`yes`/`no`/`unknown`/`error` 与错误恢复）、`interface` 能力上界与 `any I` 存在类型、可推导也可声明的能力（`Equatable`） |
+| C9 | 移植 `lang-frontend` 的 `Copyable` 与 `Transferable` 实现测试表（`type_copyability.rs`、`ownership_closures.rs`、`multifile_type_capability_graph.rs`），对照 Guide 10 / 11 |
 
 测试另有四条：把一条预期写反必须被报告；新增一项虚构能力只需一行（C0 的验收）；改 `Rc` 的一条叶子公理即可表达“`Weak` 出现后 `Rc` 的析构可被观察”；直接调用 `Engine.judge` 检验四值判定与错误恢复。
 

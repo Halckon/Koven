@@ -63,7 +63,7 @@ class Capability:
     declarable: bool = False  # 可推导也可由普通代码安全声明（如 Equatable）；False 表示只能推导或 trusted
 
 
-SCALARS = ("Int", "Boolean", "Char", "Unit")
+SCALARS = ("Int", "Boolean", "Char", "Unit", "Nothing")
 CONTAINERS = ("Box", "List", "Array", "Nullable")
 
 

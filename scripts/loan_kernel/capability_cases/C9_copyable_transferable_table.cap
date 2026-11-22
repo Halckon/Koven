@@ -1,0 +1,83 @@
+// C9：移植 lang-frontend 的 Copyable 与 Transferable 实现测试表，与 Guide 10 / 11 对照：
+// - crates/lang-frontend/tests/type_copyability.rs
+// - crates/lang-frontend/tests/ownership_closures.rs
+// - crates/lang-frontend/tests/multifile_type_capability_graph.rs
+value class Pair<A, B>(first: A, second: B)
+enum Flag
+enum Maybe<T>(payload: T)
+enum ResourceEnum(payload: String)
+class Ref
+value class Holder<T: Copyable>(payload: T)
+value class Link(next: Box<Link>?)
+enum Expr(left: Box<Expr>, right: Box<Expr>)
+
+value class Point(x: Int)
+class Packet(point: Point)
+// 模拟逃逸函数类型 () -> Unit：可逃逸、可遗忘、可隐式析构，但既不可复制也不可跨线程转移
+opaque class Callback trusted Escapable trusted Forgettable trusted ImplicitDrop
+class CallbackBox(callback: Callback)
+enum Choice(packet: Packet)
+
+value class NeedsCopy<T: Copyable>(item: T)
+value class NeedsTransfer<T: Transferable>(item: T)
+value class CopyValue(item: Int)
+class TransferRef(text: String)
+value class BadCopyWithParam<A>(pending: A, known: String)
+value class BadTransferWithParam<A>(pending: A, known: Rc<Int>)
+value class OkCopyWithParam<A>(pending: A, known: Int)
+value class OkTransferWithParam<A>(pending: A, known: String)
+
+// 一、type_copyability.rs：内建标量、泛型、enum、普通类与 Box 递归
+expect Copyable Int = yes
+expect Copyable Nothing = yes
+expect Copyable Int? = yes
+expect Copyable String = no
+expect Copyable Any = no
+expect Copyable Pair = if A: Copyable, B: Copyable
+expect Copyable Pair<Int, Int> = yes
+expect Copyable Pair<Int, String> = no
+expect Copyable Flag = yes
+expect Copyable Maybe = if T: Copyable
+expect Copyable Maybe<Int> = yes
+expect Copyable Maybe<String> = no
+expect Copyable Ref = no
+expect Copyable Link = no
+expect Copyable Expr = no
+expect wf Holder<Int> = yes
+expect wf Holder<Flag> = yes
+expect wf Holder<Ref> = no
+expect wf Holder<ResourceEnum> = no
+expect judge Copyable <C: Copyable> C = yes
+expect judge Copyable <U> U = unknown
+
+// 二、ownership_closures.rs：Transferable 与 Copyable 正交（普通类可转移但不可复制）
+expect Copyable Packet = no
+expect Transferable Packet = yes
+expect Transferable String = yes
+expect Transferable Packet? = yes
+expect Transferable List<Packet> = yes
+expect Transferable Choice = yes
+expect Transferable CallbackBox = no
+expect Transferable List<CallbackBox> = no
+expect Transferable Rc<Packet> = no
+expect Transferable Callback = no
+expect Transferable Any = no
+expect Transferable Link = yes
+expect Transferable Expr = yes
+expect judge Transferable <T: Transferable> T = yes
+expect judge Transferable <U> U = unknown
+
+// 三、multifile_type_capability_graph.rs：跨声明上界，以及已知失败字段压过未约束参数（no 而非 unknown）
+expect wf NeedsCopy<CopyValue> = yes
+expect wf NeedsCopy<Ref> = no
+expect wf NeedsTransfer<TransferRef> = yes
+expect wf NeedsTransfer<Callback> = no
+expect wf NeedsTransfer<Rc<Int>> = no
+expect Copyable BadCopyWithParam = no
+expect Transferable BadTransferWithParam = no
+expect judge Copyable <A> BadCopyWithParam<A> = no
+expect judge Transferable <A> BadTransferWithParam<A> = no
+expect judge Copyable <A> OkCopyWithParam<A> = unknown
+expect judge Copyable <A: Copyable> OkCopyWithParam<A> = yes
+expect judge Transferable <A> OkTransferWithParam<A> = unknown
+expect judge Transferable <A: Transferable> OkTransferWithParam<A> = yes
