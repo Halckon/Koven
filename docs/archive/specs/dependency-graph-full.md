@@ -470,6 +470,11 @@ subgraph Gactive["现行 active"]
   S0477["S0477<br/>Parser 与 Formatter 往返差分首片"]
   S0478["S0478<br/>普通块表达式离线差分"]
   S0480["S0480<br/>新表面语法增量门禁接入提案与 Spec 模板（F5）"]
+  S0481["S0481<br/>Tree-sitter 与 parse_file 完整文件差分首片（F4b）"]
+  S0482["S0482<br/>独立参考词法机差分验证（F3b）"]
+  S0484["S0484<br/>F3e 声明、类族与完整文件独立参考解析差分（F3e→F4a）"]
+  S0485["S0485<br/>F3c 18 级表达式运算符层级独立参考解析差分（F3c→F4a）"]
+  S0486["S0486<br/>四入口统一观察适配器与恢复/边界契约矩阵（F0b）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -2013,6 +2018,11 @@ S0456 --> S0457
 | SPEC-0477 | active | [0477-parser-formatter-difftest.md](../../specs/active/0477-parser-formatter-difftest.md) |
 | SPEC-0478 | active | [0478-independent-block-difftest.md](../../specs/active/0478-independent-block-difftest.md) |
 | SPEC-0480 | active | [0480-surface-syntax-incremental-gate.md](../../specs/active/0480-surface-syntax-incremental-gate.md) |
+| SPEC-0481 | active | [0481-tree-sitter-difftest.md](../../specs/active/0481-tree-sitter-difftest.md) |
+| SPEC-0482 | active | [0482-lexer-reference-difftest.md](../../specs/active/0482-lexer-reference-difftest.md) |
+| SPEC-0484 | active | [0484-f3e-file-difftest.md](../../specs/active/0484-f3e-file-difftest.md) |
+| SPEC-0485 | active | [0485-f3c-expression-difftest.md](../../specs/active/0485-f3c-expression-difftest.md) |
+| SPEC-0486 | active | [0486-parser-observation-adapter.md](../../specs/active/0486-parser-observation-adapter.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
