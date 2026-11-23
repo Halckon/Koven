@@ -53,24 +53,27 @@
 
 | 工具 | 能证明的性质 | 生产 Rust 对应方式 | 成本与局限 | 证据等级 |
 |---|---|---|---|---|
-| **Lean 4** | P1–P4 的**无限长（`∀ n ≥ 0`）**机器检查定理 | 独立数学模型（`formal/parser/f6_angle_groups/`）+ 源码规范哈希锚定 | 无法自动验证生产 Rust 编译器语义，存在“模型 ↔ Rust 源码”的人工精化审查间隙 | `proved (model, unbounded)`（**非**生产 G4） |
+| **Lean 4** | P1–P4 的**无限长（`∀ n ≥ 0`）**机器检查定理 | 独立数学模型（`formal/parser/f6_angle_groups/`，零 Mathlib）+ 路径触发 CI 校验 | 无法自动验证生产 Rust 编译器语义，存在“模型 ↔ Rust 源码”的人工精化审查间隙 | `proved (model, unbounded)`（**非**生产 G4） |
 | **Kani** | 直接对生产 Rust 函数验证无 panic、无越界、无溢出及 P3 等价性 | `#[cfg(kani)]` harness 直接调用生产 `angle_group_closers` 与 `OrdinaryGroups` | 受 CBMC 展开深度限制，仅能覆盖有界长度（如 `n ≤ 8` 或 `n ≤ 12`） | `validated (bounded Rust, n ≤ K)` |
 | **Verus / Creusot** | 直接在 Rust 源码或其翻译层做无限长演绎证明 | 需按工具注解重写 Rust 子集或维护专用工具链镜像 | 对现有 `rustc 1.96.0` 与 workspace 依赖治理侵入过高，首片维护成本过大 | 暂不推荐用于首片 |
 
-### 推荐策略：Lean 4（无限长算法定理）+ Kani（有界生产 Rust 校验）+ 源码漂移失效门禁
+### 推荐策略：Lean 4 + Kani 双轨并行 + 路径触发的轻量真实 CI
+
+不采用“原始源码文本哈希失效门禁”（注释、格式调整或变量重命名都会引发高频误报，且无法提供语义验证）；改为由 **路径触发的轻量真实 CI** 直接运行双轨校验：
 
 1. **目录与依赖隔离**：
-   - Lean 4 证明工程放在独立顶层目录 `formal/parser/f6_angle_groups/`（不加入 `Cargo.toml` workspace，零 Cargo 依赖变更）。
+   - Lean 4 证明工程放在独立顶层目录 `formal/parser/f6_angle_groups/`，**仅依赖 Lean 4 核心库（零 Mathlib）**，不加入 `Cargo.toml` workspace，零 Cargo 依赖变更。
    - Kani harness 仅放在 `#[cfg(kani)]` 条件编译块内，不影响常规 `cargo build` / `cargo test` / `cargo clippy`。
-   - 两者均不进入默认必需 PR CI，先以独立手工/advisory workflow 验证可复现性。
-2. **源码漂移自动失效合同（零证明器依赖）**：
-   - 在 `scripts/` 下登记一个轻量校验（或复用文档检查），对 `recovery.rs` 的 `angle_group_closers` 与 `ordinary_groups.rs` 的 `OrdinaryGroups::visit_group` 计算精确文本切片 SHA-256，并与证明账本中的锚定哈希比对。
-   - 一旦生产源码修改导致哈希不匹配，旧证明账本立即失效，禁止继续宣称该切片已验证。
+2. **路径触发的轻量真实 CI（独立 workflow，先 advisory）**：
+   - 新建独立 workflow（如 `.github/workflows/parser-formal-f6.yml`），仅在 `formal/parser/f6_angle_groups/**`、`crates/lang-frontend/src/parser/engine/recovery.rs` 或 `crates/lang-frontend/src/parser/engine/recovery/ordinary_groups.rs` 发生变化时触发，对无关 PR 耗时为 **0**。
+   - **Lean 4 轨**：因零 Mathlib 依赖且仅 ~200–300 行纯归纳证明，缓存固定版本工具链后单次 `lake build` 仅需数秒，负责验证 `∀ n ≥ 0` 的无限长算法定理（P1–P4）。
+   - **Kani 轨**：固定有界长度（如 `n ≤ 6` 或 `n ≤ 8`），直接对生产 Rust 函数做符号模型检验，**语义级捕获生产实现漂移**（注释与 `rustfmt` 不误报，逻辑改动即真实验证无 panic、无越界与等价性）。
+   - 先以 **advisory** 运行，待双轨工具链缓存与运行时间稳定后，再按 F5 升级门槛评估是否升为 path-filtered required。
 
-## 4. 进入 F6 实施 Spec 前的待确认决策
+## 4. 已确认决策与下一步实施切片
 
-本设计文档完成前置方案整理，正式开立实施 Spec 前需确认以下 3 项选择：
+本设计已与维护者确认以下 3 项方向，后续直接进入独立 F6 实施 Spec（按 `main` 最新库存分配编号）：
 
-1. **首片范围**：是否确认以 **候选 A（`angle_group_closers` 8 状态 DP ↔ 前向 `OrdinaryGroups` 等价性）** 作为 F6 首片？
-2. **工具路线**：选择 **仅 Lean 4**（无限长模型定理）、**仅 Kani**（有界直接 Rust 校验），还是 **Lean 4 + Kani 双轨**？
-3. **运行与门禁边界**：是否保持 F6 为 **本地/独立 advisory workflow**，仅将轻量“源码哈希失效检查”纳入常规门禁，避免拉长常规 PR CI 时长？
+1. **首片范围**：已确认 **候选 A（`angle_group_closers` 8 状态 DP ↔ 前向 `OrdinaryGroups` 等价性）**。
+2. **工具路线**：已确认 **Lean 4（零 Mathlib 无限长定理）+ Kani（有界生产 Rust 符号检验）双轨并行**。
+3. **CI 策略**：不采用源码文本哈希门禁；采用 **路径触发的独立轻量 CI workflow** 直接运行双轨验证（先 advisory，对无关 PR 零开销）。
