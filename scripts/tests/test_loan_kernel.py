@@ -1470,6 +1470,33 @@ class LoanKernelCases(unittest.TestCase):
         call.cleanup.clear()
         self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
+    def test_existential_slot_return_and_open_vs_mono_dispatch(self):
+        """§78：返回 inout 存在类型区分载荷与槽位，以及隐式打开（open）与单态化（mono）分流。"""
+        source = (ROOT / "cases/Z40.lk").read_text(encoding="utf-8")
+        lowered, dispatches = {}, {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered, dispatches=dispatches)}
+        self.assertEqual(expected(source), actual)
+        for name in ("shapePayload", "shapeSlot", "forwardSlot", "callerCanOverwriteReturnedSlot",
+                     "callerCanSwapTwoReturnedSlots", "monoSlotPreservesSlotThroughGeneric",
+                     "openPayloadSatisfiesInterfaceBound"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("returnPayloadAsSlot", "returnConcreteAsSlot", "returnPayloadCallAsSlot",
+                     "callerCannotWriteUnpackedConcreteToSlot", "callerSlotStillProtectsCanvas",
+                     "callerCannotOverwriteReturnedPayload", "refinementBetweenSlotAndPayload",
+                     "openPayloadStaysPayloadThroughGeneric", "openPayloadRejectsUnrelatedInterfaceAndExtraCap",
+                     "monoUnopenedSlotCannotSatisfyInterfaceBound", "openPayloadStillRejectsOverwriteAndSwap"):
+            self.assertFalse(lowered[name][2], name)
+        # 核对单态化（mono）与隐式打开（open）分流记录
+        by_fun = {}
+        for (fun, _), kind in dispatches.items():
+            by_fun.setdefault(fun, set()).add(kind)
+        self.assertEqual({("mono", "any Shape")}, by_fun["monoSlotPreservesSlotThroughGeneric"])
+        self.assertEqual({("mono", "any Shape")}, by_fun["callerCanSwapTwoReturnedSlots"])
+        self.assertEqual({("mono", "any Shape")}, by_fun["monoUnopenedSlotCannotSatisfyInterfaceBound"])
+        self.assertEqual({("open", "any Shape")}, by_fun["openPayloadStaysPayloadThroughGeneric"])
+        self.assertEqual({("open", "any Shape")}, by_fun["openPayloadSatisfiesInterfaceBound"])
+        self.assertEqual({("open", "any Shape")}, by_fun["openPayloadStillRejectsOverwriteAndSwap"])
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

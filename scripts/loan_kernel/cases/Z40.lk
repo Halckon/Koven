@@ -1,0 +1,127 @@
+// §78：返回 inout 存在类型区分载荷与槽位，以及隐式打开与单态化两条路径的分流（KB5 × KB2）
+interface Shape
+interface Drawable
+class Circle(r: Int) is Shape
+class Square(s: Int) is Shape
+class Point(x: Int)
+class Canvas(shape: any Shape)
+
+fun scale(inout this: any Shape): Unit trusted
+fun <T> same(inout x: T): inout T from x { return x }
+fun <T> overwrite(inout dst: T, own value: T): Unit { *dst = move value }
+fun <T> swap(inout a: T, inout b: T): Unit trusted
+fun <T: Shape> inspectShape(borrow x: T): Int trusted
+fun <T: Shape> mutateShape(inout x: T): Unit trusted
+fun <T: Drawable> inspectDrawable(borrow x: T): Int trusted
+fun <T: Copyable> requireCopy(inout x: T): Unit trusted
+
+// 一、返回 inout 存在类型时区分载荷（默认）与槽位（inout slot any I）
+fun badBorrowSlot(borrow this: Canvas): borrow slot any Shape from this trusted  // ERR SIG
+fun badConcreteSlot(inout c: Circle): inout slot Circle from c trusted  // ERR SIG
+
+fun shapePayload(inout this: Canvas): inout any Shape from this {
+  return &mut this.shape
+}
+fun shapeSlot(inout this: Canvas): inout slot any Shape from this {
+  return &mut this.shape
+}
+fun forwardSlot(inout this: Canvas): inout slot any Shape from this {
+  return shapeSlot(this)
+}
+fun returnPayloadAsSlot(inout s: any Shape): inout slot any Shape from s {
+  return s  // ERR X1
+}
+fun returnConcreteAsSlot(inout c: Circle): inout slot any Shape from c {
+  return c  // ERR X1
+}
+fun returnPayloadCallAsSlot(inout cv: Canvas): inout slot any Shape from cv {
+  return shapePayload(cv)  // ERR X1
+}
+
+fun callerCanOverwriteReturnedSlot(): Unit {
+  val cv = Canvas(pack Shape(Circle(1)))
+  val r = shapeSlot(&mut cv)
+  *r = pack Shape(Square(2))
+  overwrite(r, pack Shape(Circle(3)))
+  val r2 = forwardSlot(&mut cv)
+  *r2 = pack Shape(Square(4))
+}
+fun callerCanSwapTwoReturnedSlots(): Unit {
+  val c1 = Canvas(pack Shape(Circle(1)))
+  val c2 = Canvas(pack Shape(Square(2)))
+  val r1 = shapeSlot(&mut c1)
+  val r2 = shapeSlot(&mut c2)
+  swap(r1, r2)
+}
+fun callerCannotWriteUnpackedConcreteToSlot(): Unit {
+  val cv = Canvas(pack Shape(Circle(1)))
+  val r = shapeSlot(&mut cv)
+  *r = Square(2)  // ERR X1
+}
+fun callerSlotStillProtectsCanvas(): Unit {
+  val cv = Canvas(pack Shape(Circle(1)))
+  val r = shapeSlot(&mut cv)
+  cv.shape = pack Shape(Square(2))  // ERR K1
+  *r = pack Shape(Circle(3))
+}
+fun callerCannotOverwriteReturnedPayload(): Unit {
+  val cv = Canvas(pack Shape(Circle(1)))
+  val r = shapePayload(&mut cv)
+  scale(r)
+  *r = pack Shape(Square(2))  // ERR X1
+}
+
+// K12 合同细化：槽位返回可细化载荷返回签名，反之拒绝
+sig PayloadGetter(inout cv: Canvas): inout any Shape from cv
+sig SlotGetter(inout cv: Canvas): inout slot any Shape from cv
+fun usePayloadGetter(inout cv: Canvas, own get: fn PayloadGetter): Unit {
+  val r = get(cv)
+  scale(r)
+}
+fun useSlotGetter(inout cv: Canvas, own get: fn SlotGetter): Unit {
+  val r = get(cv)
+  *r = pack Shape(Square(2))
+}
+fun refinementBetweenSlotAndPayload(): Unit {
+  val cv = Canvas(pack Shape(Circle(1)))
+  usePayloadGetter(&mut cv, shapeSlot)
+  useSlotGetter(&mut cv, shapeSlot)
+  useSlotGetter(&mut cv, shapePayload)  // ERR K12
+}
+
+// 二、隐式打开（open）与单态化（mono）两条路径的分流
+fun monoSlotPreservesSlotThroughGeneric(): Unit {
+  val s = pack Shape(Circle(1))
+  val t = same(&mut s)
+  *t = pack Shape(Square(2))
+  val cv = Canvas(pack Shape(Circle(3)))
+  val u = same(shapeSlot(&mut cv))
+  *u = pack Shape(Square(4))
+}
+fun openPayloadStaysPayloadThroughGeneric(inout s: any Shape): Unit {
+  val t = same(s)
+  scale(t)
+  *t = pack Shape(Square(2))  // ERR X1
+}
+fun openPayloadSatisfiesInterfaceBound(borrow ro: any Shape, inout rw: any Shape): Unit {
+  val n = inspectShape(ro)
+  mutateShape(rw)
+  use(n)
+}
+fun openPayloadRejectsUnrelatedInterfaceAndExtraCap(borrow ro: any Shape, inout rw: any Shape): Unit {
+  val n = inspectDrawable(ro)  // ERR CAP
+  requireCopy(rw)  // ERR CAP
+  use(n)
+}
+fun monoUnopenedSlotCannotSatisfyInterfaceBound(): Unit {
+  val s = pack Shape(Circle(1))
+  mutateShape(&mut s)  // ERR CAP
+  val c = Circle(2)
+  mutateShape(&mut c)
+  val p = Point(3)
+  mutateShape(&mut p)  // ERR CAP
+}
+fun openPayloadStillRejectsOverwriteAndSwap(inout a: any Shape, inout b: any Shape): Unit {
+  overwrite(a, pack Shape(Square(2)))  // ERR X2
+  swap(a, b)  // ERR X2
+}

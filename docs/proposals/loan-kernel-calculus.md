@@ -1293,3 +1293,10 @@ fun probe(borrow h: A): Unit {
 | mutating closure | 独占捕获局部 `var`（外部不可读写）、不可复制、不可逃逸、其余捕获保持 shared；v1 禁写 `inout` 参数/`this`/字段 | 外部读写报 K1、复制报 K8、逃逸报 K6/K17、混合捕获 `other` 可读不可写；**放宽**：内核允许捕获 `inout` 参数并受 K4 约束 | 核心一致；禁写 `inout`/字段属 v1 表面收紧 |
 | move closure（L0138） | `Copyable` 复制快照、`MoveOnly` 移动后源不可用；禁从 `Borrow`/`Inout` 移入 `MoveOnly`；可逃逸；析构时逆序清理 owned 字段 | 快照不消费源、移动后源报 K8、借用移入普通类字段报 TYPE、可返回/存字段/交 `<F>`、`MoveTwoFiles` 失败与退出均清理两份 `File`（漏清报 V1） | 一致（v1 禁直接捕获 `this`/字段与禁写快照属表面收紧） |
 | `Transferable` 与跨线程转移（L0139） | 无捕获与全 `Transferable` `move` closure 满足；含 `Rc` 等不满足；v1 任何 borrowed closure 均不满足 | 无捕获与 `MoveOwnedEnv` 满足、`MoveLocalEnv` 报 CAP；**放宽**：只读捕获 `Shareable` 数据的视图满足 `<view F: Transferable>`（供作用域并行），捕获 `cell`/`local` 或可变捕获 `local` 仍报 CAP | 退化一致；C3 `Shareable` 自然放宽只读作用域并行 |
+
+## 78. 返回 `inout` 存在类型的槽位区分与隐式打开/单态化分流（KB5 × KB2）
+
+`Z40.lk` 补齐 §10.3 第 4 条与 §11 第 2 条留下的两处 KB5 边界，并在实现中发现并修掉一处单态化槽位降级漏洞：
+
+- **返回 `inout` 存在类型区分载荷与槽位（`inout any I` vs `inout slot any I`）**：默认 `inout any I` 仍返回载荷访问（保住 `I3.lk` 的保守默认）；原型新增 `inout slot any I` 标注（仅允许用于 `inout any I`，用于 `borrow` 或具体类型报 SIG）。定义处返回载荷参数、具体类型或普通载荷函数结果均报 X1，返回拥有存在类型字段（`&mut this.shape`）或转发另一 `inout slot` 接受；调用处可整体替换打包值（`*r = pack Shape(...)`）、`overwrite` 与 `swap`，仍拒绝未打包具体类型（X1）并受 K1 借用保护。K12 合同细化允许 `inout slot` 实现细化载荷签名，反之报 K12。
+- **隐式打开（`open`）与单态化（`mono`）分流及修掉的漏洞**：存在类型进入泛型函数时按实参访问性质分流——拥有值与槽位访问走单态化路径（`T = any Shape`，支持 `overwrite`/`swap`，未打开的 `any Shape` 不直接满足具体接口上界 `<T: Shape>`，报 CAP）；`borrow`/`inout` 载荷访问走隐式打开路径（`T = opened(any Shape, param)`，满足对应接口上界 `<T: Shape>`、拒绝无关接口与未保证的能力上界 CAP，仍拒绝 `overwrite`/`swap` X2）。此前 `Checker.call` 在返回 `inout T` 时以 `actual.startswith("any ")` 一律标为载荷访问，误把单态化槽位 `same(&mut s)` 降级为载荷；现改为仅在非泛型返回且未标 `slot` 时标为载荷，单态化 `same(&mut s)` / `same(shapeSlot(&mut cv))` 保持槽位，而隐式打开 `same(s)` 仍保持载荷访问。

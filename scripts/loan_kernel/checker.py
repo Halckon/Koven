@@ -83,8 +83,9 @@ class Fun:
     views: set = field(default_factory=set)  # 写作 view T 的类型参数：可以实例化为携带来源的类型
     suspend: bool = False  # 可以包含挂起点
     parallel: bool = False  # 可能在另一个线程上恢复：跨挂起点存活的值须可转移
-    bounds: dict = field(default_factory=dict)  # 类型参数 -> 它声明的能力上界（T: Cap + Cap）
+    bounds: dict = field(default_factory=dict)  # 类型参数 -> 它声明的能力或接口上界（T: Cap + I）
     deinit_of: str = ""  # deinit C { … }：类型 C 的析构函数体，this 拥有各字段
+    result_slot: bool = False  # inout slot any I：显式声明返回存在类型的槽位访问而非载荷访问
 
 
 @dataclass
@@ -291,6 +292,7 @@ class Parser:
             self.accept(",")
         self.expect(":")
         kind = self.next() if self.peek() in ("borrow", "inout") else ""
+        result_slot = self.accept("slot") if kind else False
         result = (kind, self.type_name())
         sources, flows = [], []
         if self.accept("from"):
@@ -316,7 +318,7 @@ class Parser:
                 ret = self.expr()
             self.expect("}")
         return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows, owner, views,
-                   bounds=bounds)
+                   bounds=bounds, result_slot=result_slot)
 
     def block(self):
         self.expect("{")
@@ -561,6 +563,10 @@ class Checker:
         self.out = None  # 正在生成的析构义务程序（DP.Stmt 列表）
         self.quiet = False  # 为真时访问不记为使用（整体赋值的目标）
         self.lowered = {}  # 函数名 -> (类型表, 带显式析构的程序, 是否被接受)
+        self.dispatches = {}  # (函数名, 行号) -> ("open" | "mono", 实参类型名)：存在类型进入泛型的分流记录
+        self.interfaces = {i for d in classes.values() for i in d.implements} | {
+            t[4:] for f in list(funs.values()) + list(sigs.values())
+            for t in [f.result[1]] + [ty for _, _, ty in f.params] if t.startswith("any ")}
         self.caps = CAP.Engine({name: self.cap_decl(decl) for name, decl in classes.items()})
         for line, message in self.caps.check_declarations():
             self.error("CAP", line, message)
@@ -716,6 +722,8 @@ class Checker:
                 if not any(path == fld or path.startswith(fld + ".") for path in paths):
                     self.error("SIG", fun.line, f"{fun.name}：{param}.{fld} 之下没有视图的借用字段")
         kind, ty = fun.result
+        if fun.result_slot and not (kind == "inout" and ty.startswith("any ")):
+            self.error("SIG", fun.line, f"{fun.name}：slot 标注仅可用于 inout any I 返回类型")
         if fun.sources and not kind and (ty in ("Int", "Unit") or ty in self.classes and self.escapable_in(fun, ty)):
             self.error("SIG", fun.line, f"{fun.name}：结果类型 {ty} 不能携带来源，不能声明 from")
         for _, (target, path) in fun.flows:
@@ -787,6 +795,8 @@ class Checker:
             # 借用结果按“交出一个借用”求值：返回借用值即对它重借
             kind, wanted = fun.result
             returned = self.argument(fun.ret, kind, state) if kind else self.value(fun.ret, state)
+            if fun.result_slot and (returned.payload or returned.ty.name != wanted):
+                self.error("X1", fun.ret.line, f"声明返回槽位访问 {wanted}，不能返回载荷访问或具体类型 {returned.ty.name}")
             if not kind and wanted in self.classes and wanted not in fun.tparams and returned.ty != self.type_of(wanted):
                 self.error("TYPE", fun.ret.line, f"返回值须是拥有的 {wanted}，不能返回 {returned.ty.kind} {returned.ty.name}")
             self.check_contract(returned, fun)
@@ -1057,6 +1067,9 @@ class Checker:
         """K12：把函数当作合同为 sig 的值使用时，它声明的来源、流向与挂起性都须被 sig 覆盖。"""
         if impl.suspend and not sig.suspend:
             self.error("K12", line, f"suspend 函数 {impl.name} 不能充当非 suspend 签名 {sig.name}")
+            return
+        if sig.result_slot and not impl.result_slot:
+            self.error("K12", line, f"{impl.name} 返回载荷访问，不能充当返回槽位访问的签名 {sig.name}")
             return
         if [m for m, _, _ in impl.params] != [m for m, _, _ in sig.params]:
             self.error("K12", line, f"{impl.name} 的参数模式与 {sig.name} 不符")
@@ -1576,15 +1589,22 @@ class Checker:
             if wanted in fun.tparams and wanted not in fun.views and not self.escapable(actual):
                 self.error("K17", line, f"{name}：{actual} 可能携带来源，不能实例化可逃逸的类型参数 {wanted}")
             if wanted in fun.tparams:
-                if mode == "inout" and value.payload:
+                if mode in ("borrow", "inout") and value.payload:
                     actual = ("opened", actual, name)
                 if bound.setdefault(wanted, actual) != actual:
                     shown = [b[1] + "（经 " + b[2] + " 打开的未知类型）" if isinstance(b, tuple) else b
                              for b in (bound[wanted], actual)]
                     self.error("X2", line, f"类型参数 {wanted} 被同时实例化为 {shown[0]} 与 {shown[1]}")
-                for cap in sorted(fun.bounds.get(wanted, ())):  # 实参的类型须满足类型参数声明的上界
-                    if isinstance(actual, tuple):
-                        known = False  # 打开得到的未知类型：没有上界可依据
+                for cap in sorted(fun.bounds.get(wanted, ())):  # 实参的类型须满足类型参数声明的能力或接口上界
+                    if cap in self.interfaces:
+                        if isinstance(actual, tuple):
+                            known = actual[1] == f"any {cap}"
+                        elif actual in self.classes:
+                            known = cap in self.classes[actual].implements
+                        else:
+                            known = False  # 未打开的 any I 槽位/值不直接满足具体接口上界
+                    elif isinstance(actual, tuple):
+                        known = False  # 打开得到的未知类型：没有额外能力上界可依据
                     elif actual.startswith(("borrow ", "inout ")):
                         known = self.has(cap, Type(*actual.split(" ", 1)))
                     else:
@@ -1598,6 +1618,12 @@ class Checker:
                     self.error("TYPE", line, f"{name}：{actual} 不能当作 {wanted}")
             elif mode == "inout" and value.payload:
                 self.error("X2", line, f"{name}：载荷访问不能充当 {wanted} 的槽位")
+        for actual in bound.values():
+            if isinstance(actual, tuple):
+                self.dispatches[self.fun.name, line] = ("open", actual[1])
+                break
+            if isinstance(actual, str) and actual.startswith("any "):
+                self.dispatches[self.fun.name, line] = ("mono", actual)
         return bound
 
     def carried(self, value, mode, fld):
@@ -1696,7 +1722,8 @@ class Checker:
             actual = bound.get(ty_name, ty_name)  # 类型参数换成本次调用的实例
             if isinstance(actual, tuple):  # 打开得到的未知类型：结果仍是载荷访问
                 return Value(Type(kind, actual[1]), {"": result}, True)
-            return Value(Type(kind, actual), {"": result}, actual.startswith("any "))
+            is_payload = actual.startswith("any ") and not fun.result_slot and ty_name not in fun.tparams
+            return Value(Type(kind, actual), {"": result}, is_payload)
         ty = self.type_in(fun, ty_name)
         if ty.kind == "opaque" and isinstance(bound.get(ty_name), str):  # 类型参数换成本次调用的实例
             ty_name = bound[ty_name]
@@ -2038,11 +2065,12 @@ class Checker:
         return merged
 
 
-def check(text, early_drop=False, drops=None, frames_movable=False, frames=None, lowered=None):
+def check(text, early_drop=False, drops=None, frames_movable=False, frames=None, lowered=None, dispatches=None):
     """检查一段演算程序，返回按行排序的 (规则, 行号, 说明)。空列表表示接受。
 
     early_drop 打开提前析构；drops 若给出，收到各处提前析构的 (函数名, 变量名, 行号)。
     lowered 若给出，收到各函数的 (类型表, 带显式析构的程序, 是否被接受)，可交给 DP.Verifier。
+    dispatches 若给出，收到存在类型进入泛型时的分流记录 ("open" | "mono", 实参类型名)。
     """
     classes, funs, sigs = parse(text)
     checker = Checker(classes, funs, sigs, early_drop, frames_movable)
@@ -2054,6 +2082,8 @@ def check(text, early_drop=False, drops=None, frames_movable=False, frames=None,
         frames.update(checker.frames)
     if lowered is not None:
         lowered.update(checker.lowered)
+    if dispatches is not None:
+        dispatches.update(checker.dispatches)
     return sorted(checker.errors, key=lambda e: (e[1], e[0], e[2]))
 
 
