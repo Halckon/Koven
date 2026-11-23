@@ -330,7 +330,7 @@ impl<'a> RefParser<'a> {
             return Ok(format!("(deinit {body})"));
         }
 
-        // `companion { ... }` only in class/value class/interface/enum class, no modifiers.
+        // `companion { ... }` only in class/value class/interface/enum class; visibility allowed.
         if self.peek() == Tok::Companion {
             if !matches!(
                 owner,
@@ -338,8 +338,7 @@ impl<'a> RefParser<'a> {
                     | OwnerKind::ValueClass
                     | OwnerKind::Interface
                     | OwnerKind::EnumClass
-            ) || vis.is_some()
-                || has_override
+            ) || has_override
                 || receiver_mode.is_some()
             {
                 return Err(());
@@ -347,7 +346,12 @@ impl<'a> RefParser<'a> {
             self.pos += 1;
             self.skip_nl();
             let members = self.parse_member_body(OwnerKind::Companion)?;
-            return Ok(format!("(companion {members})"));
+            return Ok(wrap_mods(
+                vis,
+                false,
+                None,
+                format!("(companion {members})"),
+            ));
         }
 
         // Class-family declarations (top-level only in this slice; no override/receiver mode).
@@ -422,9 +426,10 @@ impl<'a> RefParser<'a> {
             if owner == OwnerKind::TopLevel && (has_override || receiver_mode.is_some()) {
                 return Err(());
             }
-            if matches!(owner, OwnerKind::Object | OwnerKind::Companion)
-                && (has_override || receiver_mode.is_some())
-            {
+            if owner == OwnerKind::Object && has_override {
+                return Err(());
+            }
+            if owner == OwnerKind::Companion && (has_override || receiver_mode.is_some()) {
                 return Err(());
             }
             if owner == OwnerKind::Interface
@@ -432,7 +437,7 @@ impl<'a> RefParser<'a> {
             {
                 return Err(());
             }
-            let decl = self.parse_function(owner)?;
+            let decl = self.parse_function()?;
             return Ok(wrap_mods(vis, has_override, receiver_mode, decl));
         }
 
@@ -474,7 +479,7 @@ impl<'a> RefParser<'a> {
         Ok(out)
     }
 
-    fn parse_function(&mut self, owner: OwnerKind) -> Result<String, ()> {
+    fn parse_function(&mut self) -> Result<String, ()> {
         self.expect(Tok::Fun)?;
         self.skip_nl();
         let tparams = if self.peek() == Tok::Lt {
@@ -554,12 +559,7 @@ impl<'a> RefParser<'a> {
                 format!("= {}", self.parse_simple_expr()?)
             }
             Tok::LBrace => self.parse_simple_block()?,
-            _ => {
-                if owner != OwnerKind::Interface {
-                    return Err(());
-                }
-                "absent".to_owned()
-            }
+            _ => "absent".to_owned(),
         };
 
         let mut head = format!("fun {name}");
@@ -616,9 +616,6 @@ impl<'a> RefParser<'a> {
         };
 
         let supers = if self.peek() == Tok::Colon {
-            if owner_kind == OwnerKind::EnumClass {
-                return Err(());
-            }
             self.pos += 1;
             let mut list = Vec::new();
             loop {
@@ -637,11 +634,13 @@ impl<'a> RefParser<'a> {
                     Some(target) => format!("{ty} by {target}"),
                     None => ty,
                 });
+                let saved = self.pos;
                 self.skip_nl();
                 if self.peek() == Tok::Comma {
                     self.pos += 1;
                     continue;
                 }
+                self.pos = saved;
                 break;
             }
             Some(format!("(supers {})", list.join(", ")))
@@ -789,9 +788,6 @@ impl<'a> RefParser<'a> {
             if self.peek() == Tok::Comma {
                 self.pos += 1;
                 self.skip_nl();
-                if matches!(self.peek(), Tok::RBrace | Tok::Semi) {
-                    break;
-                }
                 continue;
             }
             break;

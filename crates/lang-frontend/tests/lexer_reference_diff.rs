@@ -741,9 +741,12 @@ fn project_production(sources: &SourceMap, lexed: &LexedFile) -> LexProjection {
 
 fn project_reference(source: &str) -> LexProjection {
     let (lexemes, diags) = reference_lex(source);
+    let mut diag_spans: Vec<_> = diags.into_iter().map(|d| (d.start, d.end)).collect();
+    // Production diagnostics are sorted deterministically by primary source span.
+    diag_spans.sort_unstable();
     LexProjection {
         lexemes,
-        diag_spans: diags.into_iter().map(|d| (d.start, d.end)).collect(),
+        diag_spans,
     }
 }
 
@@ -897,6 +900,7 @@ fn strings_nested_interpolations_and_recovery_match_reference() {
             "\"x=${ /* } */ '}' + \"}\" + a }\"",
         ),
         ("invalid-escape-continues", r#""a\qb\zc""#),
+        ("invalid-escape-and-unterminated-string", "\"\\q"),
         ("unterminated-string-lf", "\"abc\nnext"),
         ("unterminated-string-crlf", "\"abc\r\nnext"),
         ("unterminated-inner-string-lf", "\"${ \"abc\nnext }\""),

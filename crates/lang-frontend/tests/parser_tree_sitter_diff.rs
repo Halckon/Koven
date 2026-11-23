@@ -26,6 +26,7 @@ struct StructuralCounts {
     control_blocks: usize,
     lambdas: usize,
     calls: usize,
+    call_lambdas: usize,
     when_entries: usize,
     while_loops: usize,
     for_loops: usize,
@@ -339,6 +340,12 @@ fn visit_expr(parsed: &ParsedFile, expr_id: ExpressionId, counts: &mut Structura
             counts.calls += 1;
             visit_expr(parsed, *callee, counts);
             for arg in arguments {
+                if matches!(
+                    parsed.ast().expressions().get(arg.value).unwrap().payload(),
+                    Expression::Lambda { .. }
+                ) {
+                    counts.call_lambdas += 1;
+                }
                 visit_expr(parsed, arg.value, counts);
             }
         }
@@ -537,7 +544,26 @@ fn walk_xml_counts(node: &XmlNode, counts: &mut StructuralCounts) {
         "nested_block_statement" => counts.nested_blocks += 1,
         "control_block" => counts.control_blocks += 1,
         "lambda_expression" => counts.lambdas += 1,
-        "call_expression" => counts.calls += 1,
+        "call_expression" => {
+            counts.calls += 1;
+            for child in &node.children {
+                if child.tag == "lambda_expression" && child.field.as_deref() != Some("function") {
+                    counts.call_lambdas += 1;
+                } else if child.tag == "argument_list" {
+                    for arg in &child.children {
+                        if arg.tag == "call_argument"
+                            && arg.children.iter().any(|c| {
+                                c.tag == "lambda_expression"
+                                    || (c.tag == "expression"
+                                        && c.children.iter().any(|g| g.tag == "lambda_expression"))
+                            })
+                        {
+                            counts.call_lambdas += 1;
+                        }
+                    }
+                }
+            }
+        }
         "when_entry" => counts.when_entries += 1,
         "while_statement" => counts.while_loops += 1,
         "for_statement" => counts.for_loops += 1,
@@ -655,57 +681,24 @@ fun run(flag: Boolean): Unit {
     assert_eq!(baseline.counts.control_blocks, 1);
     assert_eq!(baseline.counts.lambdas, 1);
     assert_eq!(baseline.counts.calls, 3);
+    assert_eq!(baseline.counts.call_lambdas, 1);
 
-    // Acceptance mismatch must fail comparison.
-    assert!(
-        compare_outcomes(
-            &ParseOutcome::Accepted(baseline.clone()),
-            &ParseOutcome::Rejected
-        )
-        .is_err()
-    );
-
-    // Structural mutations across every tracked dimension must fail comparison.
-    let mut mutated = baseline.clone();
-    mutated.package.push("extra".to_owned());
-    assert!(
-        compare_outcomes(
-            &ParseOutcome::Accepted(baseline.clone()),
-            &ParseOutcome::Accepted(mutated)
-        )
-        .is_err()
-    );
-
-    let mut mutated = baseline.clone();
-    mutated.counts.control_blocks = 0;
-    mutated.counts.lambdas += 1;
-    assert!(
-        compare_outcomes(
-            &ParseOutcome::Accepted(baseline.clone()),
-            &ParseOutcome::Accepted(mutated)
-        )
-        .is_err()
-    );
-
-    let mut mutated = baseline.clone();
-    mutated.counts.nested_blocks = 0;
-    assert!(
-        compare_outcomes(
-            &ParseOutcome::Accepted(baseline.clone()),
-            &ParseOutcome::Accepted(mutated)
-        )
-        .is_err()
-    );
-
-    let mut mutated = baseline.clone();
-    mutated.counts.when_entries = 1;
-    assert!(
-        compare_outcomes(
-            &ParseOutcome::Accepted(baseline),
-            &ParseOutcome::Accepted(mutated)
-        )
-        .is_err()
-    );
+    let base_out = ParseOutcome::Accepted(baseline.clone());
+    let assert_drift = |mutate: fn(&mut FileSummary)| {
+        let mut m = baseline.clone();
+        mutate(&mut m);
+        assert!(compare_outcomes(&base_out, &ParseOutcome::Accepted(m)).is_err());
+    };
+    // Acceptance mismatch and structural mutations (including detached trailing lambda) must fail.
+    assert!(compare_outcomes(&base_out, &ParseOutcome::Rejected).is_err());
+    assert_drift(|m| m.counts.call_lambdas = 0);
+    assert_drift(|m| m.package.push("extra".to_owned()));
+    assert_drift(|m| {
+        m.counts.control_blocks = 0;
+        m.counts.lambdas += 1;
+    });
+    assert_drift(|m| m.counts.nested_blocks = 0);
+    assert_drift(|m| m.counts.when_entries = 1);
 
     // Bare block must be rejected by Rust parse_file.
     assert_eq!(

@@ -422,6 +422,7 @@ fn f3c_sixteen_positive_and_ten_negative_witnesses_match_reference() {
         ("grouped-range-chain", "(a..b)..<c"),
         ("unbound-callable-ref-call", "::top()"),
         ("named-and-inout-call-args", "f(name = a, &b, other = &c)"),
+        ("inout-grouped-assign", "f(&(x = y))"),
         ("atoms", "this.x ?: null ?: true"),
     ];
     for (label, src) in positive {
@@ -440,6 +441,7 @@ fn f3c_sixteen_positive_and_ten_negative_witnesses_match_reference() {
         ("dangling-plus", "a +"),
         ("missing-operator", "a b"),
         ("trailing-comma-in-call", "f(a,)"),
+        ("inout-ungrouped-assign", "f(&x = y)"),
     ];
     for (label, src) in negative {
         assert_expr_rejected(label, src);

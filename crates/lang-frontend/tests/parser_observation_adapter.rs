@@ -11,11 +11,12 @@ use lang_frontend::{
     diagnostic::Diagnostic,
     lexer::lex,
     parser::{
-        Expression, ForBinding, FunctionBody, FunctionForm, Item, NameMarker, ParserInternalError,
-        Statement, StringPart, SyntaxAst, TypeRef, WhenCondition, parse_block, parse_declaration,
-        parse_expression, parse_file,
+        BorrowReturnSource, Expression, ForBinding, FunctionBody, FunctionForm,
+        FunctionResultSource, Item, NameMarker, ParserInternalError, Statement, StringPart,
+        SyntaxAst, TypeRef, WhenCondition, parse_block, parse_declaration, parse_expression,
+        parse_file,
     },
-    source::{SourceId, SourceMap, Span},
+    source::{SourceError, SourceId, SourceMap, Span},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -194,8 +195,32 @@ impl AstAudit {
                     FunctionForm::ImplicitUnitBlock(body) => {
                         self.walk_stmt(ast, id, len, *body)?;
                     }
-                    FunctionForm::Explicit { type_ref, body, .. } => {
+                    FunctionForm::Explicit {
+                        type_ref,
+                        result_source,
+                        body,
+                        ..
+                    } => {
                         self.walk_type(ast, id, len, *type_ref)?;
+                        if let Some(rs) = result_source {
+                            let src = match rs {
+                                FunctionResultSource::Borrow(b) => {
+                                    self.check_span(id, len, b.borrow_span)?;
+                                    self.check_span(id, len, b.from_span)?;
+                                    b.source
+                                }
+                                FunctionResultSource::Carrier(c) => {
+                                    self.check_span(id, len, c.from_span)?;
+                                    c.source
+                                }
+                            };
+                            match src {
+                                BorrowReturnSource::Parameter(m) => {
+                                    self.check_marker(id, len, m)?
+                                }
+                                BorrowReturnSource::Receiver(s) => self.check_span(id, len, s)?,
+                            }
+                        }
                         match body {
                             FunctionBody::Absent => {}
                             FunctionBody::Expression { expression, .. } => {
@@ -621,12 +646,27 @@ fn four_entries_classify_accept_and_syntax_error_deterministically() {
             first, second,
             "{entry:?} {src:?}: non-deterministic outcome"
         );
-        assert_eq!(
-            matches!(first, ObservedOutcome::Accept { .. }),
-            expect_accept,
-            "{entry:?} {src:?}: got {first:?}"
-        );
+        if expect_accept {
+            assert!(
+                matches!(first, ObservedOutcome::Accept { .. }),
+                "{entry:?} {src:?}: expected Accept, got {first:?}"
+            );
+        } else {
+            assert!(
+                matches!(first, ObservedOutcome::SyntaxError { .. }),
+                "{entry:?} {src:?}: expected SyntaxError, got {first:?}"
+            );
+        }
     }
+
+    let borrow_missing = observe(Entry::Declaration, "fun f(x: Int): borrow Int from ").unwrap();
+    assert!(
+        matches!(
+            borrow_missing,
+            ObservedOutcome::SyntaxError { recovery_nodes, .. } if recovery_nodes > 0
+        ),
+        "missing borrow return source must count as recovery_nodes > 0, got {borrow_missing:?}"
+    );
 }
 
 #[test]
@@ -635,39 +675,37 @@ fn all_four_entries_reject_foreign_source_map_as_internal_failure() {
     let id = producer_map.add_source("a.ko", "val x = 1").unwrap();
     let lexed = lex(&producer_map, id).unwrap();
 
-    let foreign_map = SourceMap::new();
+    let mut foreign_map = SourceMap::new();
+    foreign_map.add_source("a.ko", "val x = 1").unwrap();
 
-    let outcomes = [
-        (
-            Entry::File,
-            parse_file(&foreign_map, &lexed)
-                .err()
-                .map(classify_internal_error),
-        ),
+    let results = [
+        (Entry::File, parse_file(&foreign_map, &lexed).err()),
         (
             Entry::Expression,
-            parse_expression(&foreign_map, &lexed)
-                .err()
-                .map(classify_internal_error),
+            parse_expression(&foreign_map, &lexed).err(),
         ),
         (
             Entry::Declaration,
-            parse_declaration(&foreign_map, &lexed)
-                .err()
-                .map(classify_internal_error),
+            parse_declaration(&foreign_map, &lexed).err(),
         ),
-        (
-            Entry::Block,
-            parse_block(&foreign_map, &lexed)
-                .err()
-                .map(classify_internal_error),
-        ),
+        (Entry::Block, parse_block(&foreign_map, &lexed).err()),
     ];
 
-    for (entry, outcome) in outcomes {
+    for (entry, err) in results {
+        let err = err.unwrap_or_else(|| panic!("{entry:?}: must reject foreign SourceMap"));
         assert!(
-            matches!(outcome, Some(ObservedOutcome::InternalFailure(_))),
-            "{entry:?}: expected InternalFailure on foreign SourceMap, got {outcome:?}"
+            matches!(
+                err,
+                ParserInternalError::Source(SourceError::InvalidSourceId { .. })
+            ),
+            "{entry:?}: expected InvalidSourceId, got {err:?}"
+        );
+        assert!(
+            matches!(
+                classify_internal_error(err),
+                ObservedOutcome::InternalFailure(_)
+            ),
+            "{entry:?}: expected InternalFailure on foreign SourceMap"
         );
     }
 }
@@ -726,18 +764,46 @@ fn parse_file_adversarial_corpus_satisfies_determinism_integrity_and_r4_r5() {
                 let id = sources.add_source("adv.ko", &src).unwrap();
                 let lexed = lex(&sources, id).unwrap();
                 let parsed = parse_file(&sources, &lexed).unwrap();
+                if t == "\nfun sentinel() {}" && b != "val x = /* unclosed" {
+                    let sentinel_start = src.len() - "fun sentinel() {}".len();
+                    let retained = parsed.roots().iter().any(|&rid| {
+                        let node = parsed.ast().items().get(rid).unwrap();
+                        matches!(
+                            node.payload(),
+                            Item::Function {
+                                name: NameMarker::Present(ns),
+                                ..
+                            } if sources.slice(*ns).unwrap() == "sentinel"
+                        ) && node.span().start() == sentinel_start
+                            && sources.slice(node.span()).unwrap() == "fun sentinel() {}"
+                    });
+                    assert!(
+                        retained,
+                        "R5 violation: sentinel declaration lost after recovery in {src:?}"
+                    );
+                }
                 for ldiag in lexed.diagnostics() {
                     let lspan = (ldiag.primary_span().start(), ldiag.primary_span().end());
-                    let same_span_count = parsed
+                    let matching: Vec<_> = parsed
                         .diagnostics()
                         .iter()
                         .filter(|d| (d.primary_span().start(), d.primary_span().end()) == lspan)
-                        .count();
+                        .collect();
                     assert_eq!(
-                        same_span_count,
+                        matching.len(),
                         1,
                         "R4 violation: lexer diagnostic at {lspan:?} duplicated in {src:?}: {:?}",
                         parsed.diagnostics()
+                    );
+                    assert_eq!(
+                        matching[0].code(),
+                        ldiag.code(),
+                        "R4 code mismatch in {src:?}"
+                    );
+                    assert_eq!(
+                        matching[0].message(),
+                        ldiag.message(),
+                        "R4 message mismatch in {src:?}"
                     );
                 }
                 total += 1;

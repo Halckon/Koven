@@ -522,7 +522,12 @@ impl<'a> RefParser<'a> {
             } else {
                 false
             };
-            let val = self.parse_p18_assignment()?;
+            let val = if is_inout {
+                // Guide 07: `&` binds below assignment; `f(&x = y)` is rejected while `f(&(x = y))` is valid.
+                self.parse_p17_or()?
+            } else {
+                self.parse_p18_assignment()?
+            };
             let mut rendered = if is_inout { format!("&{val}") } else { val };
             if let Some(n) = named {
                 rendered = format!("(named {n} {rendered})");

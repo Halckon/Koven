@@ -618,6 +618,11 @@ class Adapter(val inner: Shape) : Shape by inner {
             "interface-default-method",
             "interface Greeter {\n    fun hi()\n    public fun hello(): Int = 1\n}\n",
         ),
+        ("private-companion", "class C { private companion {} }\n"),
+        ("object-borrow-method", "object O { borrow fun f() {} }\n"),
+        ("class-bodyless-method", "class C { fun f() }\n"),
+        ("enum-with-supertype", "enum class E : I { A }\n"),
+        ("supertype-followed-by-decl", "class C : I\nval x = 1\n"),
     ];
 
     for (label, src) in cases {
@@ -649,6 +654,7 @@ fn f3e_fourteen_negative_witnesses_match_reference() {
         ),
         ("object-val-member", "object O { val x = 1 }\n"),
         ("enum-semicolon-without-member", "enum class E { A; }\n"),
+        ("enum-trailing-comma", "enum class E { A, }\n"),
         ("leading-semicolon", ";\n"),
         ("double-semicolon", "val a = 1;; val b = 2\n"),
     ];
