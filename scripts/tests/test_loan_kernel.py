@@ -1497,6 +1497,43 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual({("open", "any Shape")}, by_fun["openPayloadSatisfiesInterfaceBound"])
         self.assertEqual({("open", "any Shape")}, by_fun["openPayloadStillRejectsOverwriteAndSwap"])
 
+    def test_generators_yield_and_borrows_into_destroyed_frames(self):
+        """§79（S3 / KB8）：生成器 yield 挂起点、帧提前销毁清理与“帧被销毁时指向它的借用”。"""
+        source = (ROOT / "cases/Z41.lk").read_text(encoding="utf-8")
+        lowered, frames = {}, {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, frames=frames, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("genForwardLoop", "genSelfRefAcrossYield", "genMutLoop", "parallelGenOk",
+                     "fwdGenAllowsMultipleItemsAndReleasesSource", "mutGenReleasesSourceAfterFrameDestroyed",
+                     "lendingGenSequentialStepOk"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("genYieldLocalRejected", "genYieldUndeclaredParamRejected", "genYieldInPlainFunRejected",
+                     "deinit BadYieldDeinit", "genMutConflictAcrossYield", "parallelGenLocalRejected",
+                     "parallelGenCellRefRejected", "fwdGenProtectsSourceWhileFrameAlive",
+                     "lendingGenCannotStepWhileItemAlive", "lendingGenItemCannotOutliveDestroyedFrame",
+                     "lendingGenCannotMoveOrDestroyWhileItemAlive",
+                     "lendingGenItemIntoOlderObservableHolderRejected", "genDeclaredBeforeSourceRejected"):
+            self.assertFalse(lowered[name][2], name)
+
+        # 帧地址稳定（S0.1）：genSelfRefAcrossYield 在 yield 处保留帧内借用 r -> local；假定帧可移动时新增 S1。
+        self_ref_entries = [(line, info) for (fun, line), info in frames.items() if fun == "genSelfRefAcrossYield"]
+        self.assertEqual(1, len(self_ref_entries))
+        yield_line, (kept, inside) = self_ref_entries[0]
+        self.assertEqual(["local"], inside)
+        self.assertIn("r", kept)
+        movable = {(rule, line) for rule, line, _ in CHECKER.check(source, frames_movable=True)}
+        self.assertEqual({("S1", yield_line)}, movable - actual)
+        self.assertEqual(set(), actual - movable)
+
+        # S6 + 提前销毁清理：genForwardLoop 在 yield 前已析构不可观察的 tmp，挂起帧清理清单仅剩 f；漏掉报 V1。
+        types, program, _ = lowered["genForwardLoop"]
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        loop = next(s for s in program if s.kind == "loop")
+        susp = next(s for s in loop.body if s.kind == "suspend")
+        self.assertEqual([("f", False)], susp.cleanup)
+        susp.cleanup.clear()
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

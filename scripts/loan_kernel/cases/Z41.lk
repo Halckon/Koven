@@ -1,0 +1,175 @@
+// §79（S3 / KB8）：生成器 yield 与“帧被销毁时指向它的借用”
+
+class Arr(len: Int)
+class File(fd: Int) deinit
+class Buf(n: Int)
+local class LocalTok(id: Int)
+cell class Counter(n: Int)
+class BadYieldDeinit(n: Int) deinit
+
+view class Gen(borrow source: Arr) deinit
+view class LendingGen(borrow source: Arr) deinit
+view class MutGen(inout source: Arr) deinit
+view class ElemHolder(borrow item: Int) deinit
+
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun writeInt(inout x: Int): Unit trusted
+fun consumeGen(own g: LendingGen): Unit trusted
+fun nextFwd(inout g: Gen): borrow Int from g.source trusted
+fun nextLending(inout g: LendingGen): borrow Int from g trusted
+fun nextMut(inout g: MutGen): inout Int from g.source trusted
+fun storeElem(borrow x: Int, inout h: ElemHolder): Unit flows x into h.item trusted
+fun rebindGen(borrow s: Arr, inout g: Gen): Unit flows s into g.source trusted
+
+// ---- 1. 生成器函数体：yield 挂起点、from 合同（K6）、S0/S1/S5/S6 与提前销毁清理
+
+suspend fun genForwardLoop(borrow xs: Arr): borrow Int from xs {
+  val f = File(1)
+  while (*) {
+    val tmp = Buf(2)
+    use(tmp.n)
+    yield &xs.len
+    use(f.fd)
+  }
+}
+
+suspend fun genYieldLocalRejected(borrow xs: Arr): borrow Int from xs {
+  val local = Arr(1)
+  yield &local.len // ERR K6
+}
+
+suspend fun genYieldUndeclaredParamRejected(borrow a: Arr, borrow b: Arr): borrow Int from a {
+  yield &b.len // ERR K6
+}
+
+fun genYieldInPlainFunRejected(borrow xs: Arr): borrow Int from xs {
+  yield &xs.len // ERR S0
+}
+
+deinit BadYieldDeinit {
+  yield 1 // ERR S0
+}
+
+suspend fun genSelfRefAcrossYield(borrow xs: Arr): borrow Int from xs {
+  val local = Arr(1)
+  val r = &local.len
+  yield &xs.len
+  use(r)
+}
+
+suspend fun genMutLoop(inout xs: Arr): inout Int from xs {
+  while (*) {
+    yield &mut xs.len
+    xs.len = 2
+  }
+}
+
+suspend fun genMutConflictAcrossYield(inout xs: Arr): inout Int from xs {
+  val r = &xs.len
+  yield &mut xs.len // ERR K4
+  use(r)
+}
+
+parallel suspend fun parallelGenOk(borrow xs: Arr): borrow Int from xs {
+  val a = Arr(1)
+  yield &xs.len
+  use(a.len)
+}
+
+parallel suspend fun parallelGenLocalRejected(borrow xs: Arr): borrow Int from xs {
+  val tok = LocalTok(1)
+  yield &xs.len // ERR S5
+  use(tok.id)
+}
+
+parallel suspend fun parallelGenCellRefRejected(borrow xs: Arr, borrow c: Counter): borrow Int from xs {
+  yield &xs.len // ERR S5
+  use(c)
+}
+
+// ---- 2. 消费端与帧被销毁时指向它的借用：转发型 vs 出借型生成器
+
+fun fwdGenAllowsMultipleItemsAndReleasesSource(): Unit {
+  val a = Arr(1)
+  {
+    val g = Gen(&a)
+    val x = nextFwd(&mut g)
+    val y = nextFwd(&mut g)
+    use(x)
+    use(y)
+  }
+  update(&mut a)
+}
+
+fun fwdGenProtectsSourceWhileFrameAlive(): Unit {
+  val a = Arr(1)
+  val g = Gen(&a)
+  val x = nextFwd(&mut g)
+  use(x)
+  update(&mut a) // ERR K1
+}
+
+fun mutGenReleasesSourceAfterFrameDestroyed(): Unit {
+  val a = Arr(1)
+  {
+    val g = MutGen(&mut a)
+    val x = nextMut(&mut g)
+    writeInt(x)
+  }
+  update(&mut a)
+}
+
+fun lendingGenSequentialStepOk(): Unit {
+  val a = Arr(1)
+  val g = LendingGen(&a)
+  val x = nextLending(&mut g)
+  use(x)
+  val y = nextLending(&mut g)
+  use(y)
+}
+
+fun lendingGenCannotStepWhileItemAlive(): Unit {
+  val a = Arr(1)
+  val g = LendingGen(&a)
+  val x = nextLending(&mut g)
+  val y = nextLending(&mut g) // ERR K1
+  use(x)
+  use(y)
+}
+
+fun lendingGenItemCannotOutliveDestroyedFrame(): Unit {
+  val a = Arr(1)
+  val fallback = Arr(2)
+  val out = &fallback.len
+  {
+    val g = LendingGen(&a)
+    out = nextLending(&mut g)
+  } // ERR K9
+  use(out)
+}
+
+fun lendingGenCannotMoveOrDestroyWhileItemAlive(): Unit {
+  val a = Arr(1)
+  val g = LendingGen(&a)
+  val x = nextLending(&mut g)
+  consumeGen(move g) // ERR K1
+  use(x)
+}
+
+fun lendingGenItemIntoOlderObservableHolderRejected(): Unit { // ERR K9
+  val a = Arr(1)
+  val base = Arr(2)
+  val h = ElemHolder(&base.len)
+  val g = LendingGen(&a)
+  val x = nextLending(&mut g)
+  storeElem(x, &mut h) // ERR K22
+  mayFail() // ERR K22
+}
+
+fun genDeclaredBeforeSourceRejected(): Unit { // ERR K9
+  val init = Arr(1)
+  val g = Gen(&init)
+  val late = Arr(2)
+  rebindGen(&late, &mut g) // ERR K22
+}

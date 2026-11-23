@@ -376,6 +376,9 @@ class Parser:
         if tok == "suspend":  # 一个挂起点
             self.next()
             return Stmt("suspend", line)
+        if tok == "yield":  # 生成器挂起点：产出一个值并暂停，合同按函数返回类型与 from 检查
+            self.next()
+            return Stmt("yield", line, expr=self.expr())
         if tok == "break":
             self.next()
             return Stmt("break", line)
@@ -884,10 +887,11 @@ class Checker:
                     missing.append(ancestor[2:-1])
         return missing
 
-    def check_contract(self, value, fun):
-        """K6：返回值持有的每个 loan 都要被签名的 from 覆盖。"""
+    def check_contract(self, value, fun, line=None):
+        """K6：返回值或 yield 产出的值持有的每个 loan 都要被签名的 from 覆盖。"""
+        err_line = fun.ret.line if line is None else line
         for name in self.uncovered(value.all_loans(), set(fun.sources)):
-            self.error("K6", fun.ret.line, "返回值依赖局部变量的存储" if name is None
+            self.error("K6", err_line, "返回值依赖局部变量的存储" if name is None
                        else f"返回值的来源 {name.replace('.*', '.origins')} 没有在 from 中声明")
 
     def check_flows(self, state, fun):
@@ -1828,6 +1832,19 @@ class Checker:
             self.drop_temps(state, stmt.live_out, stmt.line)
             self.flush_temps(prev_out, stmt.line)
         elif stmt.kind == "suspend":
+            self.suspend_point(state, stmt.line)
+        elif stmt.kind == "yield":
+            prev_out, self.out, self.temps = self.out, [] if self.out is not None else None, []
+            kind, wanted = self.fun.result
+            yielded = self.argument(stmt.expr, kind, state) if kind else self.value(stmt.expr, state)
+            if self.fun.result_slot and (yielded.payload or yielded.ty.name != wanted):
+                self.error("X1", stmt.line, f"声明返回槽位访问 {wanted}，不能返回载荷访问或具体类型 {yielded.ty.name}")
+            if not kind and wanted in self.classes and wanted not in self.fun.tparams and yielded.ty != self.type_of(wanted):
+                self.error("TYPE", stmt.line, f"yield 须产出拥有的 {wanted}，不能产出 {yielded.ty.kind} {yielded.ty.name}")
+            self.check_contract(yielded, self.fun, line=stmt.line)
+            self.drop_temps(state, stmt.live_out, stmt.line)
+            self.flush_temps(prev_out, stmt.line)
+            self.live = set(stmt.live_out)
             self.suspend_point(state, stmt.line)
         elif stmt.kind in ("poll", "await"):
             var = state.get(stmt.name)

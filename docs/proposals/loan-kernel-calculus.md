@@ -1300,3 +1300,13 @@ fun probe(borrow h: A): Unit {
 
 - **返回 `inout` 存在类型区分载荷与槽位（`inout any I` vs `inout slot any I`）**：默认 `inout any I` 仍返回载荷访问（保住 `I3.lk` 的保守默认）；原型新增 `inout slot any I` 标注（仅允许用于 `inout any I`，用于 `borrow` 或具体类型报 SIG）。定义处返回载荷参数、具体类型或普通载荷函数结果均报 X1，返回拥有存在类型字段（`&mut this.shape`）或转发另一 `inout slot` 接受；调用处可整体替换打包值（`*r = pack Shape(...)`）、`overwrite` 与 `swap`，仍拒绝未打包具体类型（X1）并受 K1 借用保护。K12 合同细化允许 `inout slot` 实现细化载荷签名，反之报 K12。
 - **隐式打开（`open`）与单态化（`mono`）分流及修掉的漏洞**：存在类型进入泛型函数时按实参访问性质分流——拥有值与槽位访问走单态化路径（`T = any Shape`，支持 `overwrite`/`swap`，未打开的 `any Shape` 不直接满足具体接口上界 `<T: Shape>`，报 CAP）；`borrow`/`inout` 载荷访问走隐式打开路径（`T = opened(any Shape, param)`，满足对应接口上界 `<T: Shape>`、拒绝无关接口与未保证的能力上界 CAP，仍拒绝 `overwrite`/`swap` X2）。此前 `Checker.call` 在返回 `inout T` 时以 `actual.startswith("any ")` 一律标为载荷访问，误把单态化槽位 `same(&mut s)` 降级为载荷；现改为仅在非泛型返回且未标 `slot` 时标为载荷，单态化 `same(&mut s)` / `same(shapeSlot(&mut cv))` 保持槽位，而隐式打开 `same(s)` 仍保持载荷访问。
+
+## 79. 生成器 `yield` 与“帧被销毁时指向它的借用”（KB8 × KB1 × KB2）
+
+`Z41.lk` 在借用原型中接通生成器语句 `yield e`（解析为挂起点语句、按函数返回类型与 `from` 合同检查、随后执行 `suspend_point`），并在消费端以转发型与出借型生成器视图检验“帧被销毁时指向它的借用”，不需要新增借用或析构规则：
+
+- **生成器函数体（`yield` 作为挂起点）**：`yield` 受 `S0` 限制（普通函数与 `deinit` 中使用均报 S0），产出的值按 K6 核对 `from` 合同（产出帧内局部借用 `&local.len` 或未声明参数均报 K6，借用不能在帧销毁后逃逸）。循环内产出 `&xs.len` 或 `&mut xs.len`（恢复后可继续改写 `xs.len`）均接受；跨 `yield` 持有冲突借用按 K4 拒绝。帧内自引用 `r = &local.len` 跨 `yield` 在稳定帧下接受，在 `frames_movable=True` 下精确触发 S1。S6 在 `yield` 前析构不再使用的不可观察局部 `tmp: Buf`，`suspend.cleanup` 仅保留可观察局部 `f: File`（帧在挂起点被提前销毁时运行清理，漏掉 `f` 报 V1）。`parallel suspend fun` 生成器跨 `yield` 持有普通值接受，持有 `local` 值或指向 `cell` 的共享借用均报 S5。
+- **消费端与帧被销毁时指向它的借用**：
+  - 转发型生成器（`Gen` / `MutGen`，`next` 声明 `from g.source`）：允许同时持有多个产出元素，内层作用域销毁生成器帧后源 `a` 恢复可写；帧仍存活（带 `deinit`）期间写 `a` 报 K1。
+  - 出借型生成器（`LendingGen`，`next` 声明 `from g`，产出指向帧自身的借用）：逐个消费并再次推进接受；上一产出仍存活时再次推进（`&mut g`）或移动/提前销毁帧（`consumeGen(move g)`）均报 K1；产出活出内层块（块尾销毁 `g` 的帧）报 K9；将产出写入更早声明的可观察容器 `ElemHolder` 在调用与 `mayFail` 处报 K22、函数出口报 K9；生成器自身声明在被借用源之前则在 `flows` 调用处报 K22、函数出口报 K9。
+
