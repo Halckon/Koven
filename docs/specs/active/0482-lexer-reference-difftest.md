@@ -13,7 +13,8 @@
 本 Spec 承接 [Parser 分阶段形式化验证计划](../../proposals/parser-formal-verification-plan.md) 的 **F3b** 阶段与
 [F3b 词法输入合同](../../proposals/parser-formal-verification/lexical-input-baseline.md)。
 F4a（`SPEC-0478`）共享生产 Lexer，不能替代独立词法验证；本片依据 [Guide 01](../../guide/01-lexical.md)
-独立编写状态机参考词法器，不复用 `scanner.rs`，不修改生产 Lexer/Parser、Guide 或 CI，不新增 Cargo 依赖。
+独立编写状态机参考词法器，不复用 `scanner.rs`，不修改生产 Lexer/Parser 或 Guide，不新增 Cargo 依赖。
+双宿主 Targeted Tests 显式运行本 Spec 的 `lexer_reference_diff`。
 
 ## 交付合同
 

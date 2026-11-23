@@ -379,6 +379,15 @@ jobs:
       - name: F3d independent parser differential (SPEC-0483)
         timeout-minutes: 5
         run: cargo test --locked -j1 -p lang-frontend --test parser_f3d_reference_diff
+      - name: Parser formal differential and observation contracts (SPEC-0481, 0482, 0484, 0485, 0486)
+        timeout-minutes: 5
+        run: |
+          cargo test --locked -j1 -p lang-frontend \
+            --test lexer_reference_diff \
+            --test parser_f3c_expression_diff \
+            --test parser_f3e_file_diff \
+            --test parser_observation_adapter \
+            --test parser_tree_sitter_diff
       - name: Experimental Unit root-set budget and rollback (CI only)
         run: bash scripts/check_unit_root_set_ci.sh
       - name: D10 standard callable quota (CI only)

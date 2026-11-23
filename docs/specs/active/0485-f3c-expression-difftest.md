@@ -14,7 +14,7 @@
 [F3c 18 级表达式运算符层级基线](../../proposals/parser-formal-verification/expression-grammar-slice.md)。
 本片针对独立表达式入口 `parse_expression` 建立不共享生产 Parser 内部逻辑的 18 级参考解析器，
 覆盖全部优先级、左右结合性、四组不结合运算符、调用实参上下文谓词与 Span 邻接禁符拒绝，
-不修改生产 Parser/Lexer、Guide 或 CI，不新增 Cargo 依赖，默认随 `cargo test` 在双宿主运行。
+不修改生产 Parser/Lexer 或 Guide，不新增 Cargo 依赖。双宿主 Targeted Tests 显式运行本 Spec 的 `parser_f3c_expression_diff`。
 
 ## 交付合同
 
