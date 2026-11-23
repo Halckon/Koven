@@ -69,10 +69,11 @@
 **回写总纲。**
 - 2026-11-17：演算页 §18–§27 与析构义务页 §6–§7 的结论并回之二 §2（第三次修订）、之四 C1 与之七 §2.5。
 - 2026-11-22（阶段收口）：演算页 §28–§76、失败与清理模型 C–D、能力推导 `C7`–`C9` 的结论并回[之二](evolution-02-route-loan-kernel.md) §2（第四次修订）、[之四](evolution-04-route-capability-unsafe-suspend.md) C0/C1/C2/§4、[之七](evolution-07-concurrency-async-io-ffi.md) §2.5/§2.7 与[之十一](evolution-11-failure-interfaces-units.md) §1.4/§2.4。
+- 2026-11-22（阶段收口续）：演算页 §77–§81（Guide 07/10/11 逐条对照、存在类型槽位返回与 `open`/`mono` 分流、生成器 `yield` 与帧销毁借用、语句级之下活性精度与两阶段父 loan 保活）、析构义务原型 `D5`（单值字段析构次序与泛型 `deinit`）以及失败与清理模型 E–F（清理进度恢复与锁中毒/channel 关闭）的结论并回[之二](evolution-02-route-loan-kernel.md) §2、[之三](evolution-03-route-existential.md) §2.4/§5、[之四](evolution-04-route-capability-unsafe-suspend.md) C1/§4、[之七](evolution-07-concurrency-async-io-ffi.md) §2.5 与[之十一](evolution-11-failure-interfaces-units.md) §1.4。至此 §4 全部非待裁决覆盖项均已清零。
 
 **当前待裁决项清单（截至 2026-11-22）：**
 
 1. **裸借用变量显式取址（借用的借用作为值）**：[演算 §28](loan-kernel-calculus.md) 指出将借用参数 `h` 交给 `inout` 是重借，而对裸变量 `h` 显式取址借的是持有者自身；是否直接禁止或要求二层借用类型待裁决。
-2. **正式语法拼写占位**：流向子句占位 `flows … into`（候选 `from s into v`）、类型参数放弃可逃逸上界占位 `view T`、泛型转发占位 `p.origins`，均留待进入具体语法提案时定名。
+2. **正式语法拼写占位**：流向子句占位 `flows … into`（候选 `from s into v`）、类型参数放弃可逃逸上界占位 `view T`、泛型转发占位 `p.origins`，以及存在类型返回槽位访问占位 `inout slot any I`（§78），均留待进入具体语法提案时定名。
 3. **任务句柄是否暴露给用户代码**：[之四 §4](evolution-04-route-capability-unsafe-suspend.md) 建议已开始的任务只由受信任的结构化作用域库创建与等待，不迫使 C1 预留的 `ExplicitConsume` 提前定案（§25、§75 已验证作用域库形态，最终形态待决）。
-4. **存在类型与 `deinit` 的余下边界**：[之四 §6](evolution-04-route-capability-unsafe-suspend.md) 所列“析构不可观察”能力是否向用户开放（以及演算 §24.3 暂不开放的“可提前析构”上界日后是否放开）、`deinit` 正常路径首次失败是否继续定为终止进程（定稿监督边界 J48 时复评）、一个值内部各字段的析构次序与泛型 `deinit`。
+4. **存在类型与 `deinit` 的余下裁决边界**：[之四 §6](evolution-04-route-capability-unsafe-suspend.md) 所列“析构不可观察”能力是否向用户开放（以及演算 §24.3 暂不开放的“可提前析构”上界日后是否放开）、`deinit` 正常路径首次失败是否继续定为终止进程（定稿监督边界 J48 时复评）。
