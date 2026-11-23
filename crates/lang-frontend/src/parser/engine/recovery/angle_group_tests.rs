@@ -42,3 +42,45 @@ fn angle_group_index_agrees_with_a_fresh_forward_owner_for_each_opener() {
         }
     }
 }
+
+#[test]
+fn match_angle_group_delimiters_agrees_with_ordinary_groups_up_to_len_6() {
+    const SYMBOLS: [Symbol; 6] = [
+        Symbol::LeftParen,
+        Symbol::RightParen,
+        Symbol::LeftBracket,
+        Symbol::RightBracket,
+        Symbol::LeftBrace,
+        Symbol::RightBrace,
+    ];
+    let mut seq = Vec::with_capacity(6);
+    for len in 0..=6usize {
+        let total = 6usize.pow(len as u32);
+        for mut case in 0..total {
+            seq.clear();
+            for i in 0..len {
+                let sym = SYMBOLS[case % 6];
+                case /= 6;
+                let (kind, opening) = group_delimiter(sym).unwrap();
+                seq.push((i, kind, opening));
+            }
+            let indexed = angle_groups::match_angle_group_delimiters(&seq, len);
+            for (i, &(raw_i, _, opening)) in seq.iter().enumerate() {
+                if !opening {
+                    assert_eq!(indexed[raw_i], None);
+                    continue;
+                }
+                let mut groups = OrdinaryGroups::default();
+                let expected = seq[i..].iter().find_map(|&(raw_j, k, op)| {
+                    let sym = SYMBOLS[k * 2 + usize::from(!op)];
+                    (groups.visit(raw_j, sym) == Some(raw_i)).then_some(raw_j)
+                });
+                let got = indexed[raw_i].map(NonZeroUsize::get);
+                assert_eq!(got, expected, "len={len} seq={seq:?} opener={i}");
+                if let Some(c) = got {
+                    assert!(c > raw_i && c < len && c >= 1);
+                }
+            }
+        }
+    }
+}

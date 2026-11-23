@@ -31,6 +31,7 @@ subgraph Gactive["现行 active"]
   S0487["S0487<br/>F4c Formatter 全 AST 往返差分扩展"]
   S0488["S0488<br/>收口 editors/tree-sitter 已知文法漂移（TS-03 / TS-05 / TS-07）"]
   S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
+  S0490["S0490<br/>F6 首片 angle_group_closers 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -81,6 +82,7 @@ ARCH --> S0341
 | SPEC-0487 | active | [0487-f4c-formatter-roundtrip-expansion.md](active/0487-f4c-formatter-roundtrip-expansion.md) |
 | SPEC-0488 | active | [0488-tree-sitter-drift-closure.md](active/0488-tree-sitter-drift-closure.md) |
 | SPEC-0489 | active | [0489-f2a-paired-paren-recovery-prototype.md](active/0489-f2a-paired-paren-recovery-prototype.md) |
+| SPEC-0490 | active | [0490-f6-angle-group-machine-proof.md](active/0490-f6-angle-group-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
