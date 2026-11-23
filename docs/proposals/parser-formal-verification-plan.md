@@ -109,7 +109,7 @@ F2b–f 每片都须对照固定基线核对受影响的既有正例与矩阵，
 | F4b | tree-sitter 差分报告；已核对[共同子集与已知漂移基线](parser-formal-verification/tree-sitter-diff-baseline.md) | 在双方支持范围核接受性/结构，差异归因明确、结果可复验 | 不是第二份规范；未支持/未解释差异不算通过 |
 | F4c | [Formatter 往返 DiffTest 首片](parser-formal-verification/difftest.md) | 已选完整文件两臂均接受、规范化 AST 相等、Span 独立验证且比较器通过正负控 | 首片不依赖 F3 或 F4a；往返同错不能视为正确性证明 |
 | F5 | 新语法增量门禁写入提案模板及评审清单；[模板草案与 D1 演练](parser-formal-verification/syntax-gate-checklist.md)已完成 | 在新表面语法进入 Guide 前，以真实候选演练规则增量、冲突变化、软词/换行影响及正反例；CI 稳定切片单独获批后由 advisory 升 required | 只适用于新增或修改表面语法的提案；不减免既有 required 检查，不启用候选语义 |
-| F6 | 一个稳定算法的机器证明 | 明确输入域、预算、命题、可信依赖及精确 Rust 对应关系；源码变化使旧证据失效 | 仅模型或有界结果不能升级为全输入生产 G4 |
+| F6 | 一个稳定算法的机器证明；已整理[前置设计与首片选型](parser-formal-verification/f6-machine-proof-design.md) | 明确输入域、预算、命题、可信依赖及精确 Rust 对应关系；源码变化使旧证据失效 | 仅模型或有界结果不能升级为全输入生产 G4 |
 
 ## 6. 第一批建议执行包
 
