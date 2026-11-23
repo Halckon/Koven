@@ -93,5 +93,39 @@ class SupervisionModel(unittest.TestCase):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.supervision_model(policy)))
 
 
+class CleanupProgressModel(unittest.TestCase):
+    """清理进度的记录与恢复：中途崩溃时须由后继凭持久化进度或幂等步骤续作，否则遗漏或重复释放。"""
+
+    EXPECTED = {
+        "无后继恢复": ({MODEL.UNDISCHARGED}, set(), set()),
+        "无进度记录且非幂等": ({MODEL.DOUBLE_CLEANUP}, set(), set()),
+        "持久化进度记录（非幂等步骤）": (set(), set(), set()),
+        "无进度记录但步骤幂等": (set(), set(), set()),
+    }
+
+    def test_each_policy_has_the_expected_outcome(self):
+        self.assertEqual(set(self.EXPECTED), set(MODEL.CLEANUP_PROGRESS_POLICIES))
+        for name, policy in MODEL.CLEANUP_PROGRESS_POLICIES.items():
+            with self.subTest(policy=name):
+                self.assertEqual(self.EXPECTED[name], outcome(MODEL.cleanup_progress_model(policy)))
+
+
+class LockChannelModel(unittest.TestCase):
+    """锁中毒与 channel 对端关闭：展开须同时释放锁、标记中毒并关闭发送端，否则损坏共享状态或永久阻塞。"""
+
+    EXPECTED = {
+        "不展开（原地停住）": (set(), {MODEL.LOCK_OR_CHAN_HANG}, set()),
+        "展开释放并关通道但不标中毒": ({MODEL.CORRUPT_STATE}, set(), set()),
+        "展开释放并标中毒但不关通道": (set(), {MODEL.LOCK_OR_CHAN_HANG}, set()),
+        "展开释放、标中毒并关闭通道": (set(), set(), set()),
+    }
+
+    def test_each_policy_has_the_expected_outcome(self):
+        self.assertEqual(set(self.EXPECTED), set(MODEL.LOCK_CHANNEL_POLICIES))
+        for name, policy in MODEL.LOCK_CHANNEL_POLICIES.items():
+            with self.subTest(policy=name):
+                self.assertEqual(self.EXPECTED[name], outcome(MODEL.lock_channel_model(policy)))
+
+
 if __name__ == "__main__":
     unittest.main()

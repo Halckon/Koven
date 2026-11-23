@@ -331,6 +331,131 @@ def supervision_model(policy):
     return explore(initial, events, violations, final_notes)
 
 
+# ---- 模型 E：清理进度的记录与恢复（IO 原则页 §2.4）
+
+DOUBLE_CLEANUP = "重复清理同一资源"
+
+
+@dataclass(frozen=True)
+class CleanupProgressPolicy:
+    persist_checkpoint: bool  # 每完成一步清理是否持久化记录进度
+    idempotent_steps: bool  # 重放已完成步骤是否幂等（否则导致重复释放）
+    has_successor: bool  # 主清理者中途崩溃后是否有后继接管
+
+
+def cleanup_progress_model(policy):
+    """状态：(清理者, 资源1, 资源2, 已持久化进度)。
+
+    清理者：primary | crashed | successor | done
+    资源：held | freed | double_freed
+    进度：0 未开始 | 1 已记录资源1完成 | 2 已记录资源2完成
+    """
+    initial = ("primary", "held", "held", 0)
+
+    def step_r1(cleaner, r1, r2, cp):
+        nr1 = "freed" if r1 == "held" else ("freed" if policy.idempotent_steps else "double_freed")
+        ncp = 1 if policy.persist_checkpoint else cp
+        return (cleaner, nr1, r2, ncp)
+
+    def step_r2(cleaner, r1, r2, cp):
+        nr2 = "freed" if r2 == "held" else ("freed" if policy.idempotent_steps else "double_freed")
+        ncp = 2 if policy.persist_checkpoint else cp
+        return ("done", r1, nr2, ncp)
+
+    def events(state):
+        cleaner, r1, r2, cp = state
+        if cleaner == "done":
+            return
+        if cleaner == "primary":
+            if r1 == "held":
+                yield "主清理者:清理资源1", step_r1("primary", r1, r2, cp)
+                yield "主清理者:在资源1前崩溃", ("crashed", r1, r2, cp)
+            elif r2 == "held":
+                yield "主清理者:清理资源2", step_r2("primary", r1, r2, cp)
+                yield "主清理者:在资源1之后崩溃", ("crashed", r1, r2, cp)
+        elif cleaner == "crashed":
+            if policy.has_successor:
+                yield "后继:接管清理", ("successor", r1, r2, cp)
+        elif cleaner == "successor":
+            if cp < 1:
+                yield "后继:执行资源1清理", step_r1("successor", r1, r2, 1)
+            elif cp < 2:
+                yield "后继:执行资源2清理", step_r2("successor", r1, r2, 2)
+
+    def violations(state):
+        cleaner, r1, r2, _ = state
+        found = []
+        if r1 == "double_freed" or r2 == "double_freed":
+            found.append(DOUBLE_CLEANUP)
+        if cleaner == "crashed" and not policy.has_successor and (r1 == "held" or r2 == "held"):
+            found.append(UNDISCHARGED)
+        return found
+
+    def final_notes(state):
+        return "notes", ""
+
+    return explore(initial, events, violations, final_notes)
+
+
+# ---- 模型 F：锁中毒与 channel 对端关闭（之十一 §1.2、§1.4）
+
+LOCK_OR_CHAN_HANG = "同伴因锁未释放或 channel 未关闭而永久阻塞"
+
+
+@dataclass(frozen=True)
+class LockChannelPolicy:
+    release_on_unwind: bool  # 展开时是否释放锁
+    poison_on_unwind: bool  # 展开释放锁时是否标记为中毒
+    close_channel_on_unwind: bool  # 展开时是否析构发送端并关闭 channel
+
+
+def lock_channel_model(policy):
+    """状态：(工作单元, 锁, 共享数据, channel, 同伴角色, 同伴状态)。
+
+    工作单元：holding | unwound | done
+    锁：locked | unlocked | poisoned
+    共享数据：clean | dirty | observed_dirty
+    channel：open | closed
+    同伴角色：lock（等锁）| recv（等消息）
+    同伴状态：waiting | done
+    """
+    initial = ("holding", "locked", "dirty", "open", "choose", "waiting")
+
+    def events(state):
+        worker, mutex, shared, chan, role, peer = state
+        if role == "choose":
+            yield "同伴:尝试加锁", (worker, mutex, shared, chan, "lock", peer)
+            yield "同伴:等待接收消息", (worker, mutex, shared, chan, "recv", peer)
+            return
+        if worker == "holding":
+            yield "工作单元:正常完成并提交", ("done", "unlocked", "clean", "closed", role, peer)
+            nmutex = ("poisoned" if policy.poison_on_unwind else "unlocked") if policy.release_on_unwind else "locked"
+            nchan = "closed" if policy.close_channel_on_unwind else "open"
+            yield "工作单元:失败并展开至监督边界", ("unwound", nmutex, shared, nchan, role, peer)
+        if peer == "waiting":
+            if role == "lock":
+                if mutex == "unlocked":
+                    nshared = "observed_dirty" if shared == "dirty" else shared
+                    yield "同伴:获得锁并读取共享数据", (worker, "unlocked", nshared, chan, role, "done")
+                elif mutex == "poisoned":
+                    yield "同伴:收到锁中毒结果", (worker, mutex, shared, chan, role, "done")
+            elif role == "recv":
+                if chan == "closed":
+                    yield "同伴:收到通道关闭(null)", (worker, mutex, shared, chan, role, "done")
+
+    def violations(state):
+        _, _, shared, _, _, _ = state
+        return [CORRUPT_STATE] if shared == "observed_dirty" else []
+
+    def final_notes(state):
+        _, _, _, _, role, peer = state
+        if role != "choose" and peer == "waiting":
+            return "stuck", LOCK_OR_CHAN_HANG
+        return "notes", ""
+
+    return explore(initial, events, violations, final_notes)
+
+
 SCOPE_POLICIES = {
     "立即展开": ScopePolicy(wait_all=False, propagate=True, cancel_wakes=False),
     "等齐但不传播": ScopePolicy(wait_all=True, propagate=False, cancel_wakes=False),
@@ -372,12 +497,28 @@ SUPERVISION_POLICIES = {
                                           abort_freezes_all_threads=True),
 }
 
+CLEANUP_PROGRESS_POLICIES = {
+    "无后继恢复": CleanupProgressPolicy(persist_checkpoint=True, idempotent_steps=False, has_successor=False),
+    "无进度记录且非幂等": CleanupProgressPolicy(persist_checkpoint=False, idempotent_steps=False, has_successor=True),
+    "持久化进度记录（非幂等步骤）": CleanupProgressPolicy(persist_checkpoint=True, idempotent_steps=False, has_successor=True),
+    "无进度记录但步骤幂等": CleanupProgressPolicy(persist_checkpoint=False, idempotent_steps=True, has_successor=True),
+}
+
+LOCK_CHANNEL_POLICIES = {
+    "不展开（原地停住）": LockChannelPolicy(release_on_unwind=False, poison_on_unwind=False, close_channel_on_unwind=False),
+    "展开释放并关通道但不标中毒": LockChannelPolicy(release_on_unwind=True, poison_on_unwind=False, close_channel_on_unwind=True),
+    "展开释放并标中毒但不关通道": LockChannelPolicy(release_on_unwind=True, poison_on_unwind=True, close_channel_on_unwind=False),
+    "展开释放、标中毒并关闭通道": LockChannelPolicy(release_on_unwind=True, poison_on_unwind=True, close_channel_on_unwind=True),
+}
+
 
 def main():
     for title, model, policies in (("模型 A：借用型子任务", scope_model, SCOPE_POLICIES),
                                    ("模型 B：在途 IO", io_model, IO_POLICIES),
                                    ("模型 C：多请求、证据丢失与代际", multi_io_model, MULTI_IO_POLICIES),
-                                   ("模型 D：监督边界与多线程终止窗口", supervision_model, SUPERVISION_POLICIES)):
+                                   ("模型 D：监督边界与多线程终止窗口", supervision_model, SUPERVISION_POLICIES),
+                                   ("模型 E：清理进度的记录与恢复", cleanup_progress_model, CLEANUP_PROGRESS_POLICIES),
+                                   ("模型 F：锁中毒与 channel 对端关闭", lock_channel_model, LOCK_CHANNEL_POLICIES)):
         print(title)
         for name, policy in policies.items():
             report = model(policy)
