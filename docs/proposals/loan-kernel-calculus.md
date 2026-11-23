@@ -1310,3 +1310,20 @@ fun probe(borrow h: A): Unit {
   - 转发型生成器（`Gen` / `MutGen`，`next` 声明 `from g.source`）：允许同时持有多个产出元素，内层作用域销毁生成器帧后源 `a` 恢复可写；帧仍存活（带 `deinit`）期间写 `a` 报 K1。
   - 出借型生成器（`LendingGen`，`next` 声明 `from g`，产出指向帧自身的借用）：逐个消费并再次推进接受；上一产出仍存活时再次推进（`&mut g`）或移动/提前销毁帧（`consumeGen(move g)`）均报 K1；产出活出内层块（块尾销毁 `g` 的帧）报 K9；将产出写入更早声明的可观察容器 `ElemHolder` 在调用与 `mayFail` 处报 K22、函数出口报 K9；生成器自身声明在被借用源之前则在 `flows` 调用处报 K22、函数出口报 K9。
 
+## 80. 现行 Guide 10 与 Guide 11 条款逐条对照（KB1 × KB2 × KB4）
+
+`Z42.lk`（与能力推导 `C9_copyable_transferable_table.cap` 互补）逐条核对现行 [Guide 10](../guide/10-ownership-borrowing-drop.md)（`Transferable`、调用期借用、Two-Phase Borrows、参数模式能力、普通借用结果、`replace`/`swap`、Place 重叠冲突矩阵、双轨析构与 ASAP）以及 [Guide 11](../guide/11-copyability-layout-construction.md)（`Copyable` 上界、构造求值与 `Box` 拆箱/结构移动）的全部核心条款：
+
+| Guide 10 / 11 条款 | 现行 v0.47 行为 | 借用内核与能力原型推导结果（`Z42.lk` / `C9`） | 结论 |
+|---|---|---|---|
+| `Transferable` 与 `Copyable` 上界 | 结构递归推导；`Rc`/`Thread` 恒不 `Transferable`（L0141）；`Obj` 非 `Copyable`（L0115） | `Obj` 满足 `<T: Transferable>`，`RcHandle` 报 CAP；标量与无拥有字段 `RoView` 满足 `Copyable`，`Obj` 报 CAP / 隐式复制报 K8；`C9` 覆盖全量表 | 一致（v2 另增 `Shareable`） |
+| 调用期借用与源码顺序实参 | 较早实参 loan 在较晚实参求值期有效（L0135）；`own` 转移后不可用（L0131）；`Borrow temporary` 合法 | `twoArgsMutFirst(&mut a, &a)` 与 `twoArgsSharedFirst(&a, &mut a)` 报 K1；`consumeObj(move a)` 后用 `a` 报 K8；`&Obj(2)` 合法 | 一致（内核另允许 `Inout temporary` 于语句末析构） |
+| Two-Phase Borrows | 仅方法 `this` 接收者在实参求值期 Reserved（允许只读、禁写/独占/移走，交付 callee 的共享借用激活时冲突）；普通实参立即独占 | `pushThis(&mut a, readObj(&a))` / `a.n` 接受；`updateThis(&mut a, &a)` 与普通实参 `plainInout(&mut a, readObj(&a))` 均报 K1 | 一致（§65 另扩展至借用值与独占字段接收者） |
+| `Value`/`Borrow`/`Inout` 参数体内能力 | `borrow` 禁写/禁 `inout`/禁移出（L0133）；`inout` 可读写与整体替换、禁移出留空洞（L0133） | `b.n = 1`、`writeObj(b)` 报 K1；`move b` / `move m` 交 `own` 报 TYPE，`move p.left` 报 K8；`*m = move o` 接受 | 一致 |
+| 普通借用结果与唯一 `from` | `from source` 转发合法，`inout` 可交只读借用；禁局部/错来源（L0162）；存活期阻断写/移（L0135），用完恢复 | `forwardBorrowResult` / `forwardReadOnlyFromInout` 接受；写来源报 K1，用完恢复；局部/错参数返回报 K6 | 一致（内核自然放宽至 `inout` 返回与 `view class` 存储） |
+| 原地置换 `replace` / `swap` | `swap` 要求不重叠（重叠报 L0135）；`replace` 原子置换 `inout` 槽位豁免 L0133 | `swapObjs(&mut a, &mut b)` 与 `replaceObj` / `replace h.opt` 接受；`swapObjs(&mut a, &mut a)` 报 K1 | 一致 |
+| Place 重叠与冲突矩阵 | 同 root 不同字段不相交；同路径/前缀冲突矩阵（shared+shared 合法，其余含 excl/write/move 均冲突） | `swapObjs(&mut p.left, &mut p.right)` 接受；同字段 shared+excl / excl+shared 均报 K1 | 一致 |
+| 双轨析构与 ASAP | 纯内存类型（含未使用者）ASAP 析构且受存活 loan 保活；资源类型（`deinit`）严格词法作用域逆序析构；`var` 替换先求值 RHS 再析构旧值 | `early_drop=True` 下 `unused`/`mem`/`after` 提前析构、`res2`/`res1` 留到块末逆序析构；条件移走时 `mem` 无标志补偿、`g` 保留 `g?`（去标志报 V2，漏清报 V1） | 一致 |
+| Guide 11 构造、`Box` 拆箱与结构移动 | `Box.value` 只读借用、`unbox` 消费拆箱；v1 普通字段禁部分移动（L0132），`value class` 仅整值解构 | `bx.inner` 借用存活期禁 `unbox(move bx)`（K1），用完后接受；非 `deinit` 类支持逐字段移出（内核放宽），`deinit` 类仍禁部分移出（K23） | 核心一致（普通非 `deinit` 字段部分移出属内核放宽） |
+
+

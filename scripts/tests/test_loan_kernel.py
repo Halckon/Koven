@@ -282,7 +282,8 @@ class LoanKernelCases(unittest.TestCase):
                           ("conditionalReleaseRcKeepsDropFlag", "r"),
                           ("conditionalReleaseGuardKeepsDropFlag", "g"),
                           ("conditionalReleaseGuardKeepsDropFlag", "c"),
-                          ("deinit LocalBranch", "this")},
+                          ("deinit LocalBranch", "this"),
+                          ("dualTrackConditionalDropFlag", "g")},
                          flagged, "带标志的都是带 deinit 的值，或余下的字段里有这样的值")
         lowered = {}
         CHECKER.check((ROOT / "cases" / "S1.lk").read_text(encoding="utf-8"), True, lowered=lowered)
@@ -1532,6 +1533,48 @@ class LoanKernelCases(unittest.TestCase):
         susp = next(s for s in loop.body if s.kind == "suspend")
         self.assertEqual([("f", False)], susp.cleanup)
         susp.cleanup.clear()
+        self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+
+    def test_guide_10_and_11_rules_rule_by_rule(self):
+        """§80：现行 Guide 10（所有权/借用/析构/Transferable）与 Guide 11（Copyable/构造/Box）逐条对照。"""
+        source = (ROOT / "cases/Z42.lk").read_text(encoding="utf-8")
+        lowered, drops = {}, []
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, early_drop=True, drops=drops, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("transferableAndCopyableBoundsOk", "callArgOrderAndTempBorrowOk", "twoPhaseReceiverOk",
+                     "paramModesValid", "forwardBorrowResult", "forwardReadOnlyFromInout",
+                     "borrowResultProtectsSourceThenReleases", "replaceAndSwapOk",
+                     "disjointFieldsCanBeExclusivelyBorrowed", "dualTrackAsapVsLexical",
+                     "dualTrackConditionalDropFlag", "varReassignEvaluatesRhsBeforeDropOld",
+                     "constructPartialEvalAndBoxUnbox"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("nonTransferableAndMoveOnlyRejected", "earlierArgLoanBlocksLaterArg",
+                     "useAfterMoveToOwnParamRejected", "twoPhaseBoundariesRejected",
+                     "borrowParamRejectsWriteInoutAndMove", "inoutParamRejectsMoveOut",
+                     "borrowResultBlocksWriteAndOwnDelivery", "borrowResultCannotReturnLocal",
+                     "borrowResultCannotReturnWrongSource", "swapOverlappingRejected",
+                     "overlappingPrefixConflictMatrix", "boxUnboxBlockedByBorrowAndDeinitBlocksPartialMove"):
+            self.assertFalse(lowered[name][2], name)
+
+        # 双轨析构策略：纯内存值（unused/mem/after）提前析构，资源类型（res1/res2）留到词法作用域末逆序析构。
+        early_vars = {var for fun, var, _ in drops if fun == "dualTrackAsapVsLexical"}
+        self.assertEqual({"unused", "mem", "after"}, early_vars)
+        types, program, _ = lowered["dualTrackAsapVsLexical"]
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        tail_drops = [s.var for s in program[-2:] if s.kind == "drop"]
+        self.assertEqual(["res2", "res1"], tail_drops)
+
+        # 条件移走双轨对照：纯内存 mem 在 else 臂补偿析构无标志，资源 g 保留析构标志（去标志报 V2，漏清报 V1）。
+        types, program, _ = lowered["dualTrackConditionalDropFlag"]
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        call = next(s for s in program if s.kind == "call")
+        drop = next(s for s in program if s.kind == "drop")
+        self.assertEqual([("g", True)], call.cleanup)
+        self.assertEqual(("g", True), (drop.var, drop.if_owned))
+        drop.if_owned = False
+        self.assertEqual({"V2"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
+        drop.if_owned = True
+        call.cleanup.clear()
         self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
