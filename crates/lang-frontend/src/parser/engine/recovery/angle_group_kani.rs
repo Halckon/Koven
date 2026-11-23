@@ -1,9 +1,10 @@
 //! SPEC-0490 (F6 Kani track): Bounded direct-Rust symbolic verification harnesses
 //! for `match_angle_group_delimiters` vs. `OrdinaryGroups::visit`.
 //!
-//! Evidence level: `validated (bounded Rust, n <= 6)` — directly checks panic-freedom,
-//! bounds safety, `NonZeroUsize` non-lossiness, and exact equivalence on the production
-//! Rust implementation for all delimiter sequences up to length 6.
+//! Evidence level: `validated (bounded Rust, delimiters.len() <= 6, lexeme_len <= 12)`
+//! — directly checks panic-freedom, bounds safety, `NonZeroUsize` non-lossiness, and
+//! exact equivalence on the production Rust implementation across all strictly
+//! increasing delimiter index layouts (including the final slot `lexeme_len - 1`).
 
 use super::angle_groups::match_angle_group_delimiters;
 use super::ordinary_groups::OrdinaryGroups;
@@ -11,6 +12,7 @@ use crate::lexer::Symbol;
 use std::num::NonZeroUsize;
 
 const MAX_LEN: usize = 6;
+const MAX_LEXEME_LEN: usize = 12;
 
 fn symbol_from_pair(kind: usize, opening: bool) -> Symbol {
     match (kind, opening) {
@@ -25,15 +27,17 @@ fn symbol_from_pair(kind: usize, opening: bool) -> Symbol {
 }
 
 fn symbolic_delimiters() -> (Vec<(usize, usize, bool)>, usize) {
+    let lexeme_len: usize = kani::any();
+    kani::assume(lexeme_len <= MAX_LEXEME_LEN);
     let len: usize = kani::any();
-    kani::assume(len <= MAX_LEN);
+    kani::assume(len <= MAX_LEN && len <= lexeme_len);
     let mut delimiters = Vec::with_capacity(len);
     let mut next_raw = 0usize;
     let mut i = 0usize;
     while i < len {
-        let gap: usize = kani::any();
-        kani::assume(gap <= 1);
-        let raw = next_raw + gap;
+        let raw: usize = kani::any();
+        let remaining = len - i;
+        kani::assume(raw >= next_raw && raw + remaining <= lexeme_len);
         next_raw = raw + 1;
         let kind: usize = kani::any();
         kani::assume(kind < 3);
@@ -41,11 +45,11 @@ fn symbolic_delimiters() -> (Vec<(usize, usize, bool)>, usize) {
         delimiters.push((raw, kind, opening));
         i += 1;
     }
-    (delimiters, next_raw + 1)
+    (delimiters, lexeme_len)
 }
 
 #[kani::proof]
-#[kani::unwind(8)]
+#[kani::unwind(14)]
 fn verify_angle_group_closers_equivalence_bounded() {
     let (delimiters, lexeme_len) = symbolic_delimiters();
     let indexed = match_angle_group_delimiters(&delimiters, lexeme_len);
@@ -75,7 +79,7 @@ fn verify_angle_group_closers_equivalence_bounded() {
 }
 
 #[kani::proof]
-#[kani::unwind(8)]
+#[kani::unwind(14)]
 fn verify_angle_group_closer_strictly_after_opener_and_nonzero() {
     let (delimiters, lexeme_len) = symbolic_delimiters();
     let indexed = match_angle_group_delimiters(&delimiters, lexeme_len);

@@ -18,9 +18,9 @@
    - [angle_groups.rs](../../../crates/lang-frontend/src/parser/engine/recovery/angle_groups.rs) 从 [recovery.rs](../../../crates/lang-frontend/src/parser/engine/recovery.rs) 原样抽离 `match_angle_group_delimiters`，供生产 `angle_group_closers`、Kani harness 与穷举单测共用。
    - [angle_group_tests.rs](../../../crates/lang-frontend/src/parser/engine/recovery/angle_group_tests.rs) 在保留原有词法流 `n = 5` 穷举基础上，新增 `match_angle_group_delimiters_agrees_with_ordinary_groups_up_to_len_6`（覆盖长度 `0..=6` 共 55,987 组序列及 P4 `NonZeroUsize` 非零性）。
 2. **轨道 1（Lean 4 无限长模型定理，`proved (model, unbounded)`）**：
-   - [formal/parser/f6_angle_groups/F6AngleGroups.lean](../../../formal/parser/f6_angle_groups/F6AngleGroups.lean)（零 Mathlib 依赖，仅用 Lean 4 核心 `Init`，固定 `leanprover/lean4:v4.14.0`）形式化 `OrdinaryGroups` 前向模型与 8 状态反向 DP，证明 P1（边界表有界与无越界）、P2（`dpBoundary_eq_forwardStop` 强归纳主引理）、P3（`dpMatch_eq_forwardMatch` 无限长等价）与 P4（`dpMatch_some_pos`）。
-3. **轨道 2（Kani 有界生产 Rust 符号检验，`validated (bounded Rust, n <= 6)`）**：
-   - [angle_group_kani.rs](../../../crates/lang-frontend/src/parser/engine/recovery/angle_group_kani.rs)（`#[cfg(kani)]` 隔离）直接调用生产 `match_angle_group_delimiters` 与 `OrdinaryGroups::visit`，提供 `verify_angle_group_closers_equivalence_bounded` 与 `verify_angle_group_closer_strictly_after_opener_and_nonzero` 两个证明入口。
+   - [formal/parser/f6_angle_groups/F6AngleGroups.lean](../../../formal/parser/f6_angle_groups/F6AngleGroups.lean)（零 Mathlib 依赖，仅用 Lean 4 核心 `Init`，固定 `leanprover/lean4:v4.14.0`）形式化返回被弹出 opener 身份的 `ordinaryVisitMatch` 与 8 状态反向 DP，证明 P1（边界表有界与无越界）、P2（`dpBoundary_eq_forwardStop` 强归纳主引理）、P3（`dpMatch_eq_ordinaryVisitMatch` 无限长等价）与 P4（`dpMatch_some_pos`）。
+3. **轨道 2（Kani 有界生产 Rust 符号检验，`validated (bounded Rust, delimiters.len() <= 6, lexeme_len <= 12)`）**：
+   - [angle_group_kani.rs](../../../crates/lang-frontend/src/parser/engine/recovery/angle_group_kani.rs)（`#[cfg(kani)]` 隔离）直接调用生产 `match_angle_group_delimiters` 与 `OrdinaryGroups::visit`，在 `delimiters.len() <= 6` 与 `lexeme_len <= 12` 预算内覆盖任意严格递增下标（含末槽 `lexeme_len - 1`），提供 `verify_angle_group_closers_equivalence_bounded` 与 `verify_angle_group_closer_strictly_after_opener_and_nonzero` 两个证明入口。
 4. **路径触发的独立轻量 CI（advisory）**：
    - [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 仅在 `formal/parser/f6_angle_groups/**`、`recovery.rs`、`angle_groups.rs`、`angle_group_kani.rs`、`ordinary_groups.rs` 或自身变更时触发，对其他 PR 零耗时影响。
 

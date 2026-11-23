@@ -50,16 +50,31 @@ jobs:
             curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
           fi
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      - name: Verify zero sorry or axiom escapes
+      - name: Build Lean 4 proof library with warnings as errors
         working-directory: formal/parser/f6_angle_groups
         run: |
-          ! grep -rnE '\b(sorry|axiom)\b' F6AngleGroups.lean
-      - name: Build Lean 4 proof library
+          lake build
+          lake env lean -DwarningAsError=true F6AngleGroups.lean
+      - name: Verify theorem axiom dependencies (no sorryAx or custom axioms)
         working-directory: formal/parser/f6_angle_groups
-        run: lake build
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6AngleGroups
+          #print axioms F6AngleGroups.dpBoundary_eq_forwardStop
+          #print axioms F6AngleGroups.dpMatch_eq_forwardMatch
+          #print axioms F6AngleGroups.dpMatch_eq_ordinaryVisitMatch
+          #print axioms F6AngleGroups.dpMatch_some_pos
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          if printf '%s\n' "$axioms_out" | grep -q 'sorryAx'; then
+            echo "error: theorem depends on sorryAx" >&2
+            exit 1
+          fi
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proof (n <= 6)
+    name: F6 Kani Bounded Rust Proof (n <= 6, lexeme_len <= 12)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -67,18 +82,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.96.0'
-      - name: Cache Kani installation
+      - name: Cache Kani 0.68.0 installation
         uses: actions/cache@v4
         with:
           path: |
             ~/.kani
             ~/.cargo/bin/cargo-kani
             ~/.cargo/bin/kani
-          key: f6-kani-0.61.0-${{ runner.os }}-${{ runner.arch }}
-      - name: Install pinned Kani if missing
+          key: f6-kani-0.68.0-${{ runner.os }}-${{ runner.arch }}
+      - name: Install pinned Kani 0.68.0 if missing
         run: |
           if ! command -v cargo-kani >/dev/null 2>&1; then
-            cargo install --locked kani-verifier --version 0.61.0
+            cargo install --locked kani-verifier --version 0.68.0
             cargo kani setup
           fi
       - name: Run bounded angle-group Kani harnesses
