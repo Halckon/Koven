@@ -1,5 +1,9 @@
 //! SPEC-0057 formatter corpus 与语义保持不变量。
 
+#[path = "formatting/full_projector.rs"]
+mod full_projector;
+#[path = "formatting/full_roundtrip.rs"]
+mod full_roundtrip;
 #[path = "formatting/roundtrip.rs"]
 mod roundtrip;
 

@@ -25,6 +25,12 @@ enum TokenType {
   AS,
   NOT_IN,
   NOT_IS,
+  SHL,
+  SHR,
+  USHR,
+  BIT_AND,
+  BIT_XOR,
+  BIT_OR,
 };
 
 static const char *const RESERVED_WORDS[] = {
@@ -72,6 +78,12 @@ static bool peek_context(TSLexer *lexer) {
     }
     if (lexer->lookahead != '/') return same_line;
     lexer->advance(lexer, false);
+    if (lexer->lookahead == '/') {
+      while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+        lexer->advance(lexer, false);
+      }
+      return false;
+    }
     if (lexer->lookahead != '*') return same_line;
     lexer->advance(lexer, false);
     bool star = false;
@@ -375,24 +387,33 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
   // them; e.g. `own: Int` and ordinary `move()` calls remain identifiers.
   const bool safe_cast = lexer->lookahead == '?';
   const bool same_line = peek_context(lexer);
-  const bool next_name = is_identifier_start(lexer->lookahead);
+  const int32_t same_line_next = lexer->lookahead;
+  const bool next_name = is_identifier_start(same_line_next);
+  peek_trivia(lexer, true);
+  const int32_t crossline_next = lexer->lookahead;
   const struct {
     const char *word;
     enum TokenType symbol;
     bool context;
   } contextual[] = {
-      {"own", OWN, next_name || lexer->lookahead == '('},
-      {"borrow", BORROW, next_name || lexer->lookahead == '('},
-      {"inout", INOUT, next_name || lexer->lookahead == '('},
-      {"loop", LOOP, lexer->lookahead == '{'},
-      {"block", BLOCK, same_line && lexer->lookahead == '{'},
-      {"move", MOVE_LAMBDA, lexer->lookahead == '{'},
-      {"move", MOVE_TYPE, lexer->lookahead == '('},
+      {"own", OWN, next_name || same_line_next == '('},
+      {"borrow", BORROW, next_name || same_line_next == '('},
+      {"inout", INOUT, next_name || same_line_next == '('},
+      {"loop", LOOP, same_line_next == '{'},
+      {"block", BLOCK, same_line && same_line_next == '{'},
+      {"move", MOVE_LAMBDA, crossline_next == '{'},
+      {"move", MOVE_TYPE, crossline_next == '('},
       {"to", TO, true},
       {"by", BY, true},
       {"in", IN, true},
       {"is", IS, true},
       {"as", AS, !safe_cast},
+      {"shl", SHL, true},
+      {"shr", SHR, true},
+      {"ushr", USHR, true},
+      {"and", BIT_AND, true},
+      {"xor", BIT_XOR, true},
+      {"or", BIT_OR, true},
   };
   for (size_t index = 0; index < sizeof(contextual) / sizeof(contextual[0]); index++) {
     if (!overflow && valid_symbols[contextual[index].symbol] &&

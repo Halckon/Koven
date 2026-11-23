@@ -188,6 +188,24 @@ class EditorContractTests(unittest.TestCase):
         self.assertEqual(len(list(attached_in_when.iter("when_entry"))), 2)
         self.assertEqual(len(list(attached_in_when.findall(".//call_expression/lambda_expression"))), 1)
 
+    def test_named_bitwise_operators_and_identifier_survival(self):
+        tree = self.parse("val x = a shl 1 shr 2 ushr 3 and b xor c or d\n")
+        self.assertEqual(len(list(tree.iter("binary_expression"))), 6)
+        for word in ("shl", "shr", "ushr", "and", "xor", "or"):
+            with self.subTest(word=word):
+                ident = self.parse(f"fun {word}({word}: Int): Int = {word}\nval v = {word}({word})\n")
+                self.assertEqual(list(ident.iter("binary_expression")), [])
+
+    def test_block_and_lambda_semicolons(self):
+        tree = self.parse("fun f(ok: Boolean) { a(); b(); if (ok) { c(); d() }; val g = { x(); y() } }\n")
+        self.assertEqual(len(list(tree.iter("call_expression"))), 6)
+        self.assertEqual(len(list(tree.iter("control_block"))), 1)
+        self.assertEqual(len(list(tree.iter("lambda_expression"))), 1)
+
+    def test_crossline_move_lambda_and_function_type(self):
+        tree = self.parse("val f = move\n{ 1 }\nval g: move (own Int) -> Int = move // cap\n{ n -> n }\n")
+        self.assertEqual(len(list(tree.iter("lambda_expression"))), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

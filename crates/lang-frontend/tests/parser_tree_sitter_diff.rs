@@ -858,6 +858,18 @@ fun closures() {
 }
 ",
         ),
+        (
+            "spec-0488-closed-drifts-ts03-ts05-ts07",
+            "\
+fun closedDrifts(a: Int, b: Int, c: Int) {
+    val bits = a shl 1 shr 2 ushr 3 and b xor c or 4
+    a(); b()
+    val f = move
+    { 1 }
+    val g = { a(); b() }
+}
+",
+        ),
     ];
 
     for (name, source) in accepted_cases {
@@ -896,28 +908,15 @@ fn known_drift_witnesses_match_documented_baseline() {
     let cli = tree_sitter_cli();
     let grammar = grammar_dir();
 
-    // Each documented F4b drift witness asserts the exact current divergence direction
-    // (TS-06 was closed by SPEC-0479 and is verified in `common_subset_and_spec_0479_differential`).
+    // Each remaining documented F4b drift witness asserts the exact current divergence direction
+    // (TS-06 closed by SPEC-0479; TS-03, TS-05, TS-07 closed by SPEC-0488).
     let drifts = [
         ("TS-01-bare-cr", "val x =\r 1\n", false, true),
-        ("TS-03-named-bitwise", "val x = 1 shl 2\n", true, false),
         (
             "TS-04-chained-comparison",
             "val x = a < b <= c\n",
             false,
             true,
-        ),
-        (
-            "TS-05-block-semicolon",
-            "fun f() { a(); b() }\n",
-            true,
-            false,
-        ),
-        (
-            "TS-07-crossline-move-lambda",
-            "val f = move\n{ 1 }\n",
-            true,
-            false,
         ),
     ];
 
