@@ -14,7 +14,7 @@
 [F3e 声明与完整文件切片基线](../../proposals/parser-formal-verification/declaration-file-grammar-slice.md)。
 接续已归档的 [SPEC-0483](../../archive/specs/0483-f3d-reference-difftest.md)（`parse_block` / F3d），
 本片为 `parse_file` 与 `parse_declaration` 的 `D-FILE`、`D-VAL`、`D-FUN`、`D-CLASS`、`D-MEMBER` 建立独立参考解析器差分测试，
-不修改生产 Parser/Lexer、Guide 或 CI，不新增 Cargo 依赖，默认随 `cargo test` 在双宿主运行。
+不修改生产 Parser/Lexer 或 Guide，不新增 Cargo 依赖。双宿主 Targeted Tests 显式运行本 Spec 的 `parser_f3e_file_diff`。
 
 ## 交付合同
 
