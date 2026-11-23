@@ -861,11 +861,20 @@ fun closures() {
         (
             "spec-0488-closed-drifts-ts03-ts05-ts07",
             "\
-fun closedDrifts(a: Int, b: Int, c: Int) {
+fun closedDrifts(a: Int, b: Int, c: Int, move: Int) {
     val bits = a shl 1 shr 2 ushr 3 and b xor c or 4
+    val cont = a shl
+      1
+    val prec = a or b and c
     a(); b()
     val f = move
     { 1 }
+    val f2 = move
+    // comment
+    { 1 }
+    val ft: move
+    (own Int) -> Int = move { n -> n }
+    val div = move / { 2 }()
     val g = { a(); b() }
 }
 ",

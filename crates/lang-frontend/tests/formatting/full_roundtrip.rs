@@ -189,6 +189,14 @@ public class Box(val inner: Shape) : Shape by inner {
     let grouped_separate = project_full("fun f() { g()\n({ x() }) }\n").unwrap();
     assert!(first_difference(&attached, &grouped_separate).is_some());
 
+    // `class C`, `class C()`, and `class C {}` must produce pairwise distinct projections.
+    let bare_class = project_full("class C\n").unwrap();
+    let empty_ctor_class = project_full("class C()\n").unwrap();
+    let empty_body_class = project_full("class C {}\n").unwrap();
+    assert!(first_difference(&bare_class, &empty_ctor_class).is_some());
+    assert!(first_difference(&bare_class, &empty_body_class).is_some());
+    assert!(first_difference(&empty_ctor_class, &empty_body_class).is_some());
+
     // Error/recovery input must be rejected by project_full.
     assert!(project_full("fun f() { { x() } }\n").is_err());
 }

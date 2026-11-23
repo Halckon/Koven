@@ -431,6 +431,14 @@ impl<'a> Projector<'a> {
                 self.project_type(b, tp.span, &format!("{path}.tparam[{i}].bound"))?;
             }
         }
+        self.push(
+            format!("{path}.has_ctor"),
+            if c.primary_constructor.is_some() {
+                "true"
+            } else {
+                "false"
+            },
+        );
         if let Some(ctor) = &c.primary_constructor {
             self.check_span(ctor.left_paren_span, Some(span))?;
             let rp = ctor
@@ -439,6 +447,8 @@ impl<'a> Projector<'a> {
             self.check_span(rp, Some(span))?;
             for (i, f) in ctor.fields.iter().enumerate() {
                 self.check_span(f.span, Some(span))?;
+                self.check_span(f.keyword_span, Some(f.span))?;
+                self.check_span(f.colon_span, Some(f.span))?;
                 if let Some(v) = f.visibility {
                     let vl = self.vis(v, f.span)?;
                     self.push(format!("{path}.ctor[{i}].vis"), vl);
@@ -468,6 +478,10 @@ impl<'a> Projector<'a> {
                 self.push(format!("{path}.super[{i}].by"), target);
             }
         }
+        self.push(
+            format!("{path}.has_body"),
+            if c.body.is_some() { "true" } else { "false" },
+        );
         if let Some(body) = &c.body {
             self.check_span(body.left_brace_span, Some(span))?;
             let rb = body

@@ -84,9 +84,18 @@ fn f2a_c2_ambiguous_single_right_paren_preserves_caller_comma_and_two_arguments(
     let codes: Vec<_> = parsed
         .diagnostics()
         .iter()
-        .map(|d| (d.code().to_string(), d.primary_span().is_empty()))
+        .map(|d| {
+            (
+                d.code().to_string(),
+                d.primary_span().is_empty(),
+                d.primary_span().start(),
+            )
+        })
         .collect();
-    assert_eq!(codes, vec![("L0010".to_owned(), true)]);
+    assert_eq!(
+        codes,
+        vec![("L0010".to_owned(), true, text.find(',').unwrap())]
+    );
 
     let ast = parsed.ast();
     let root = ast.expressions().get(parsed.root()).unwrap();

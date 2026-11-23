@@ -191,6 +191,16 @@ class EditorContractTests(unittest.TestCase):
     def test_named_bitwise_operators_and_identifier_survival(self):
         tree = self.parse("val x = a shl 1 shr 2 ushr 3 and b xor c or d\n")
         self.assertEqual(len(list(tree.iter("binary_expression"))), 6)
+        cont = self.parse("val bits = a shl\n  1\n")
+        self.assertEqual(len(list(cont.iter("binary_expression"))), 1)
+        prec = self.parse("val p = a or b and c\n")
+        outer = prec.find(".//variable_declaration/expression/binary_expression")
+        self.assertIsNotNone(outer)
+        self.assertIn("or", "".join(outer.itertext()).split())
+        right_bin = outer.find("expression[@field='right']/binary_expression")
+        self.assertIsNotNone(right_bin)
+        self.assertIn("and", "".join(right_bin.itertext()).split())
+        self.assertIsNone(outer.find("expression[@field='left']/binary_expression"))
         for word in ("shl", "shr", "ushr", "and", "xor", "or"):
             with self.subTest(word=word):
                 ident = self.parse(f"fun {word}({word}: Int): Int = {word}\nval v = {word}({word})\n")
@@ -203,8 +213,18 @@ class EditorContractTests(unittest.TestCase):
         self.assertEqual(len(list(tree.iter("lambda_expression"))), 1)
 
     def test_crossline_move_lambda_and_function_type(self):
-        tree = self.parse("val f = move\n{ 1 }\nval g: move (own Int) -> Int = move // cap\n{ n -> n }\n")
-        self.assertEqual(len(list(tree.iter("lambda_expression"))), 2)
+        tree = self.parse(
+            "val f = move\n{ 1 }\n"
+            "val f2 = move\n// comment\n{ 1 }\n"
+            "val g: move\n(own Int) -> Int = move // cap\n{ n -> n }\n"
+        )
+        self.assertEqual(len(list(tree.iter("lambda_expression"))), 3)
+        div = self.parse("val d = move / { 2 }()\n")
+        self.assertEqual(len(list(div.iter("binary_expression"))), 1)
+        self.assertEqual(len(list(div.iter("lambda_expression"))), 1)
+        left_id = div.find(".//binary_expression/expression[@field='left']/identifier")
+        self.assertIsNotNone(left_id)
+        self.assertEqual(left_id.text, "move")
 
 
 if __name__ == "__main__":
