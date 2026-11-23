@@ -86,6 +86,7 @@ class Fun:
     bounds: dict = field(default_factory=dict)  # 类型参数 -> 它声明的能力或接口上界（T: Cap + I）
     deinit_of: str = ""  # deinit C { … }：类型 C 的析构函数体，this 拥有各字段
     result_slot: bool = False  # inout slot any I：显式声明返回存在类型的槽位访问而非载荷访问
+    origins_selectors: set = field(default_factory=set)  # 合同中以字面 .origins 写出的 (位置, 参数名)
 
 
 @dataclass
@@ -254,14 +255,14 @@ class Parser:
         return f"{tok} {self.next()}" if tok in ("fn", "any") else tok
 
     def source(self):
-        """来源：x、x.f、x.f.g（多级字段路径）或 x.origins（x 携带的全部来源）。"""
+        """来源：x、x.f、x.f.g（多级字段路径）、x.* 或 x.origins（x 携带的全部来源）。"""
         param = self.next()
         path = []
         while self.accept("."):
             path.append(self.next())
         if path == ["origins"]:
-            return (param, "*")
-        return (param, ".".join(path) or None)
+            return (param, "*"), True
+        return (param, ".".join(path) or None), False
 
     def fun(self, keyword):
         """函数或抽象签名（sig）；sig 没有函数体，用作函数类型与接口方法的合同。"""
@@ -294,17 +295,25 @@ class Parser:
         kind = self.next() if self.peek() in ("borrow", "inout") else ""
         result_slot = self.accept("slot") if kind else False
         result = (kind, self.type_name())
-        sources, flows = [], []
+        sources, flows, origins_selectors = [], [], set()
         if self.accept("from"):
             while True:
-                sources.append(self.source())
+                src, is_lit = self.source()
+                sources.append(src)
+                if is_lit:
+                    origins_selectors.add(("from", src[0]))
                 if not self.accept(","):
                     break
         if self.accept("flows"):
             while True:
-                src = self.source()
+                src, is_src_lit = self.source()
+                if is_src_lit:
+                    origins_selectors.add(("flow_src", src[0]))
                 self.expect("into")
-                flows.append((src, self.source()))
+                dst, is_dst_lit = self.source()
+                if is_dst_lit:
+                    origins_selectors.add(("flow_dst", dst[0]))
+                flows.append((src, dst))
                 if not self.accept(","):
                     break
         owner = self.next() if self.accept("in") else ""
@@ -318,7 +327,7 @@ class Parser:
                 ret = self.expr()
             self.expect("}")
         return Fun(name, params, result, sources, trusted, body, ret, line, tparams, flows, owner, views,
-                   bounds=bounds, result_slot=result_slot)
+                   bounds=bounds, result_slot=result_slot, origins_selectors=origins_selectors)
 
     def block(self):
         self.expect("{")
@@ -711,17 +720,19 @@ class Checker:
     def check_signature(self, fun):
         """来源与流向声明须指向参数；字段形式须是视图的借用字段；流向的目标须是 inout 参数。"""
         params = {name: (mode, ty) for mode, name, ty in fun.params}
-        named = fun.sources + [src for src, _ in fun.flows] + [target for _, target in fun.flows if target[1]]
-        for param, fld in named:
+        named = ([("from", src) for src in fun.sources]
+                 + [("flow_src", src) for src, _ in fun.flows]
+                 + [("flow_dst", target) for _, target in fun.flows if target[1] and target[1] != "*"])
+        for role, (param, fld) in named:
             if param not in params:
                 self.error("SIG", fun.line, f"{fun.name}：来源指向不存在的参数 {param}")
                 continue
             mode, ty = params[param]
             if fld is None:
-                if fun.result[0] == "inout" and mode == "borrow" and (param, fld) in fun.sources:
+                if fun.result[0] == "inout" and mode == "borrow" and role == "from":
                     self.error("SIG", fun.line, f"{fun.name}：inout 结果不能依赖 borrow 参数 {param}")
             elif fld == "*":
-                if ty in self.classes and self.classes[ty].field("origins") is not None:
+                if (role, param) in fun.origins_selectors and ty in self.classes and self.classes[ty].field("origins") is not None:
                     self.error("SIG", fun.line, f"{fun.name}：{param}.origins 与类型 {ty} 的同名字段 origins 产生歧义")
             else:
                 decl = self.classes.get(ty)
@@ -734,7 +745,13 @@ class Checker:
         if fun.sources and not kind and (ty in ("Int", "Unit") or ty in self.classes and self.escapable_in(fun, ty)):
             self.error("SIG", fun.line, f"{fun.name}：结果类型 {ty} 不能携带来源，不能声明 from")
         for _, (target, path) in fun.flows:
-            mode, ty = params.get(target, ("", ""))
+            if target not in params:
+                self.error("SIG", fun.line, f"{fun.name}：流向的目标指向不存在的参数 {target}")
+                continue
+            if path == "*":
+                self.error("SIG", fun.line, f"{fun.name}：全来源选择器不能作为 flows 写入目标 {target}")
+                continue
+            mode, ty = params[target]
             cell = mode == "borrow" and ty in self.classes and self.classes[ty].cell
             # 按值的视图参数：流向只能经它的独占字段落到另一个视图里
             beyond = mode == "own" and ty in self.classes and self.classes[ty].is_view and any(
@@ -1475,8 +1492,9 @@ class Checker:
             tmp = self.materialize_temp(self.value(expr.args[0], state), state, expr.line)
             place = Place(tmp, [], expr.line)
         res = self.resolve(state, place)
-        if not place.fields and res.ty.kind in ("borrow", "inout"):
-            self.error("TYPE", expr.line, f"不能对裸 {res.ty.kind} 变量 {place.root} 显式取址")
+        bare_borrow_params = {name for mode, name, _ in self.fun.params if mode in ("borrow", "inout")}
+        if not place.fields and res.ty.kind in ("borrow", "inout") and place.root in bare_borrow_params:
+            self.error("TYPE", expr.line, f"不能对裸 {res.ty.kind} 参数 {place.root} 显式取址")
             return Value(Type("inout" if mut else "borrow", res.ty.name), {"": set()})
         if mut and not res.writable:
             self.error("K1", expr.line, "不能经共享借用建立独占借用")

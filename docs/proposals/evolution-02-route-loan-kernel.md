@@ -343,6 +343,7 @@ fun first(xs: Array<Int>): borrow Int from xs {
 - 视图的 `Transferable`/`Shareable`：只读视图在其指向类型 `Shareable` 时理应可进入作用域线程，规则归路线 C 的 C3。
 - 视图是否允许声明 `deinit` 之外的资源语义（例如必须显式消费），与决断 D11 一并考虑。
 - 多来源结果的调用方冻结粒度：是否需要让调用方知道“实际只来自其中之一”（会引入路径敏感，倾向不做）。
+- **2026-11-23 `#koven-design` 讨论共识（非正式 Spec/Guide 批准，不改现行 Guide；详见[演算 §82](loan-kernel-calculus.md)与[覆盖与欠账 §6](kernel-prototype-coverage.md)）**：1A 禁止对裸 `borrow`/`inout` 参数显式取址（仅允许实参重借与字段投影，确需槽位用显式 `view class`；局部借用变量如 `val fa = &hb.a; &fa` 单列为待定范围决定）；合同层 `p.origins` 仅作来源位置选择器，禁止作为 `flows ... into` 写入目标，且与具体类型的真实 `origins` 字段撞名时直接报错拒绝（`any I` 同名成员消歧与精确选中真实字段留给正式拼写提案）。
 
 ## 7. 之六至之八带来的增补
 

@@ -395,6 +395,8 @@ K2 与 K1/K3 互不阻塞，可并行评审；K5 的句柄库只依赖 K0，视�
 | Q8 | ASAP 析构是否对 `Weak` 观察点与 `RawPtr` 来源让步 | 未涉及 | 让步，纳入 `DropPolicy` | K5/K6 |
 | Q9 | dyn 与视图的先后 | roadmap 将 dyn 与 Shareable 同列 v2 | dyn 先行，Shareable 移到 K5 | 排期 |
 
+**2026-11-23 `#koven-design` 讨论收口记录（讨论共识，非正式 Spec/Guide 批准，不修改现行 Guide）**：围绕内核原型四项待裁决边界已形成讨论共识并按「讨论共识 / 拼写待定 / 待验收或复评」三类登记于[内核原型的覆盖与欠账 §6](kernel-prototype-coverage.md)——① 1A 仅限定禁止对裸 `borrow`/`inout` 参数显式取址（局部借用变量单列范围决定）；② 3A 仅经受信任作用域库暴露不可逃逸 `Job`，失败时先协作取消并等全部子任务实际终止再释放父帧、经 `scoped` 普通失败出口传播确切首错，子任务 `deinit` 失败仍终止进程；③ `EarlyDrop` 暂不对外开放，正常路径 `deinit` 首次失败维持终止进程（不提前放宽 J48，待 J48 监督边界落地后复评）；④ `flows … into`、`view T`、`p.origins` 与 `inout slot any I` 留待各自语法提案或重开条件。
+
 ## 13. 明确不做
 
 - 命名生命周期、生命周期泛型参数、生命周期约束与型变；

@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import re
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1] / "loan_kernel"
@@ -10,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1] / "loan_kernel"
 def load(name):
     spec = importlib.util.spec_from_file_location(f"loan_kernel_{name}", ROOT / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 

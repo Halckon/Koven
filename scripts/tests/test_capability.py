@@ -1,11 +1,13 @@
 """能力推导原型：.cap 文件里的 expect 与 `// ERR` 即预期；另验证“加一行即得一项能力”。"""
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1] / "loan_kernel"
 SPEC = importlib.util.spec_from_file_location("capability", ROOT / "capability.py")
 CAP = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = CAP
 SPEC.loader.exec_module(CAP)
 
 

@@ -2,11 +2,13 @@
 import importlib.util
 from pathlib import Path
 import re
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1] / "loan_kernel"
 SPEC = importlib.util.spec_from_file_location("drop_plan", ROOT / "drop_plan.py")
 DP = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = DP
 SPEC.loader.exec_module(DP)
 
 EXPECT = re.compile(r"(?:fun|deinit) (\w+) \{\s*// => (.+)")

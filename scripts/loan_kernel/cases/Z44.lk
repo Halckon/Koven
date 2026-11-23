@@ -1,13 +1,13 @@
-// Z44（§82）：1A 裸借用变量显式取址禁止、p.origins 同名字段歧义，以及 1A 闭包捕获两栏验收。
+// Z44（§82）：1A 裸借用参数显式取址禁止、into v.origins 拒绝与 .origins/.* 区分，以及 1A 闭包捕获两栏对照。
 
 class Item(x: Int)
 class Pair(a: Item, b: Item)
 
 view class Slot(inout p: Item)
+view class DualView(borrow a: Item, borrow b: Item)
 view class NamedOrigins(borrow origins: Item)
 
-// 1A 闭包捕获建模（按现行 Guide 07 共享捕获与未来内核独占捕获拆为两栏）：
-// 闭包捕获裸 borrow/inout 参数 = 创建时对所指对象重借，不借参数槽本身。
+// 1A 闭包捕获建模（SharedCap 仅验证持有者权限；真实普通闭包返回报 L0137 须独立测试，未在本文件覆盖）：
 view class SharedCap(borrow target: Item)
 view class ExclCap(inout target: Item)
 
@@ -15,8 +15,10 @@ fun read_item(borrow x: Item): Unit trusted
 fun write_item(inout x: Item): Unit trusted
 fun write_slot(inout s: Slot): Unit trusted
 fun <view T> take_view_mut(inout x: T): Unit trusted
+fun copy_all_origins(borrow src: DualView, inout out: DualView): Unit flows src.origins into out trusted
+fun set_field_a(borrow src: Item, inout out: DualView): Unit flows src into out.a trusted
 
-// ---- 1. 裸借用变量显式取址（1A）vs 重借与字段投影
+// ---- 1. 裸借用参数显式取址（1A）vs 实参重借、字段投影与显式槽位
 
 fun bare_borrow_ref_rejected(borrow h: Item): Unit {
     val r1 = &h           // ERR TYPE
@@ -46,13 +48,19 @@ fun bare_reborrow_and_field_projection_ok(borrow hb: Pair, inout hm: Pair): Unit
     write_item(&mut hm.a)
 }
 
+fun bare_param_reborrow_ok(borrow hb: Item, inout hm: Item): Unit {
+    read_item(hb)
+    read_item(hm)
+    write_item(hm)
+}
+
 fun explicit_view_slot_ok(inout h: Item): Unit {
     val s = Slot(h)
     write_slot(&mut s)
     write_item(h)
 }
 
-// ---- 2. 封堵 <view T> 后门：不能用裸 borrow/inout 绕过 1A
+// ---- 2. 封堵 <view T> 后门：不能用裸 borrow/inout 参数绕过 1A
 
 fun generic_view_t_backdoor_rejected(borrow hb: Item, inout hm: Item): Unit {
     take_view_mut(&mut hb) // ERR TYPE
@@ -61,9 +69,13 @@ fun generic_view_t_backdoor_rejected(borrow hb: Item, inout hm: Item): Unit {
     take_view_mut(hm)
 }
 
-// ---- 3. p.origins 合同选择器与真实 origins 字段撞名歧义
+// ---- 3. p.origins vs .* 区分、真实 origins 字段撞名与禁止 into v.origins 静默漏记
 
 fun origins_selector_ambiguous(borrow v: NamedOrigins): borrow Item from v.origins { // ERR SIG
+    return v.origins
+}
+
+fun star_selector_no_origins_collision_ok(borrow v: NamedOrigins): borrow Item from v.* {
     return v.origins
 }
 
@@ -71,10 +83,41 @@ fun origins_field_normal_access_ok(borrow v: NamedOrigins): borrow Item from v {
     return v.origins
 }
 
-// ---- 4A. 1A 闭包捕获（现行 Guide 07 共享捕获语义）
+fun flow_into_origins_target_rejected(borrow s: Item, inout v: DualView): Unit flows s into v.origins { // ERR SIG
+    use(s)
+    use(v.a)
+}
+
+fun flow_into_star_target_rejected(borrow s: Item, inout v: NamedOrigins): Unit flows s into v.* { // ERR SIG
+    use(s)
+    use(v.origins)
+}
+
+fun flows_origins_source_blocks_conflicting_write(): Unit {
+    val x = Item(1)
+    val y = Item(2)
+    val z = Item(3)
+    val src = DualView(&x, &y)
+    val out = DualView(&z, &z)
+    copy_all_origins(&src, &mut out)
+    write_item(&mut x)    // ERR K1
+    read_item(out.a)
+}
+
+fun flows_real_field_target_blocks_conflicting_write(): Unit {
+    val x = Item(1)
+    val y = Item(2)
+    val out = DualView(&y, &y)
+    set_field_a(&x, &mut out)
+    write_item(&mut x)    // ERR K1
+    read_item(out.a)
+}
+
+// ---- 4A. 1A 闭包捕获（现行 Guide 07 共享捕获持有者权限对照）
 
 fun closure_capture_guide07_shared_ok(inout h: Item): Unit {
     val cap = SharedCap(h)
+    read_item(h)          // 捕获活跃时外部共享读仍合法
     read_item(cap.target)
     write_item(h)
 }
@@ -90,7 +133,7 @@ fun closure_capture_guide07_shared_conflict(inout h: Item): Unit {
     read_item(cap.target)
 }
 
-// ---- 4B. 1A 闭包捕获（未来内核独占捕获语义）
+// ---- 4B. 1A 闭包捕获（未来内核独占捕获持有者权限对照）
 
 fun closure_capture_future_excl_ok(inout h: Item): Unit {
     val cap = ExclCap(h)

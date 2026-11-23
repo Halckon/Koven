@@ -124,12 +124,15 @@ def scope_model(policy, children=2):
 
 WRONG_ERROR = "作用域传播了错误的失败原因（未保留确切 err_A）"
 DEINIT_FAIL_SUPPRESSED = "子任务 deinit 失败被首错优先覆盖而未终止进程"
+DRAINED_PROPAGATED_ERR_A = "子B排空后父帧已释放且普通出口传播确切 err_A"
+DEINIT_FAIL_ABORTED = "子B的 deinit 失败触发进程终止且不走普通出口"
 
 
 @dataclass(frozen=True)
 class ScopeCancelDrainPolicy:
     wake_is_done: bool  # 唤醒阻塞子任务即视作已完成（未等 cleaning 排空）
-    timeout_releases_parent: bool  # 超时假装子任务结束并释放父帧借用
+    timeout_in_blocked: bool  # 阻塞中超时假装子任务结束并释放父帧借用
+    timeout_in_cleaning: bool  # cleaning 期间超时假装子任务结束并释放父帧借用
     cancel_overwrites_err: bool  # 取消信号或被取消子的结果覆盖先发 err_A
     suppress_deinit_fail: bool  # 子任务 deinit 自身失败被首错优先吞掉而不终止进程
 
@@ -160,8 +163,8 @@ def scope_cancel_drain_model(policy):
             if b == "blocked":
                 next_err = "cancelled" if policy.cancel_overwrites_err else first_err
                 yield "取消唤醒子B(进入cleaning)", (par, data, a, "cleaning", next_err, par_err, proc)
-                if policy.timeout_releases_parent and par == "join":
-                    yield "超时假装子B结束并释放父帧", ("failed", "freed", a, b, first_err, first_err, proc)
+                if policy.timeout_in_blocked and par == "join":
+                    yield "阻塞中超时假装子B结束并释放父帧", ("failed", "freed", a, b, first_err, first_err, proc)
             elif b == "cleaning":
                 yield "子B:完成清理并实际终止", (par, data, a, "done", first_err, par_err, proc)
                 if policy.suppress_deinit_fail:
@@ -170,6 +173,8 @@ def scope_cancel_drain_model(policy):
                     yield "子B:deinit失败触发进程终止", ("aborted", data, a, "deinit_failed", first_err, None, "aborted")
                 if policy.wake_is_done and par == "join":
                     yield "父:误把唤醒当作已结束并释放父帧", ("failed", "freed", a, b, first_err, first_err, proc)
+                if policy.timeout_in_cleaning and par == "join":
+                    yield "清理中超时假装子B结束并释放父帧", ("failed", "freed", a, b, first_err, first_err, proc)
             elif par == "join":
                 yield "父:子全部终止后释放父帧并经普通失败出口传播错误", ("failed", "freed", a, b, first_err, first_err, proc)
 
@@ -185,9 +190,11 @@ def scope_cancel_drain_model(policy):
         return found
 
     def final_notes(state):
-        par, _, _, _, _, _, proc = state
-        if proc == "aborted" or par == "failed":
-            return "notes", ""
+        par, data, _, b, _, par_err, proc = state
+        if par == "failed" and data == "freed" and b == "done" and par_err == "err_A" and proc == "alive":
+            return "notes", DRAINED_PROPAGATED_ERR_A
+        if proc == "aborted" and b == "deinit_failed" and par != "failed" and par_err is None:
+            return "notes", DEINIT_FAIL_ABORTED
         return "stuck", HANG
 
     return explore(initial, events, violations, final_notes)
@@ -417,14 +424,13 @@ class CleanupProgressPolicy:
     atomic_checkpoint: bool = True  # 释放资源与写进度是否原子（False 表示两者之间可能崩溃）
 
 
-def cleanup_progress_model(policy):
+def cleanup_progress_model(policy, initial=("primary", "held", "held", 0)):
     """状态：(清理者, 资源1, 资源2, 已持久化进度)。
 
-    清理者：primary | primary_r1_unrecorded | crashed | successor | done
+    清理者：primary | primary_r1_unrecorded | primary_r2_unrecorded | crashed | successor | done
     资源：held | freed | double_freed
     进度：0 未开始 | 1 已记录资源1完成 | 2 已记录资源2完成
     """
-    initial = ("primary", "held", "held", 0)
 
     def step_r1(cleaner, r1, r2, cp):
         nr1 = "freed" if r1 == "held" else ("freed" if policy.idempotent_steps else "double_freed")
@@ -448,12 +454,19 @@ def cleanup_progress_model(policy):
                     yield "主清理者:释放资源1(进度未落盘)", ("primary_r1_unrecorded", "freed", r2, cp)
                 yield "主清理者:在资源1前崩溃", ("crashed", r1, r2, cp)
             elif r2 == "held":
-                yield "主清理者:清理资源2", step_r2("primary", r1, r2, cp)
+                if policy.atomic_checkpoint:
+                    yield "主清理者:清理资源2", step_r2("primary", r1, r2, cp)
+                else:
+                    yield "主清理者:释放资源2(进度未落盘)", ("primary_r2_unrecorded", r1, "freed", cp)
                 yield "主清理者:在资源1之后崩溃", ("crashed", r1, r2, cp)
         elif cleaner == "primary_r1_unrecorded":
             ncp = 1 if policy.persist_checkpoint else cp
             yield "主清理者:写入资源1进度", ("primary", r1, r2, ncp)
             yield "主清理者:释放资源1后写进度前崩溃", ("crashed", r1, r2, cp)
+        elif cleaner == "primary_r2_unrecorded":
+            ncp = 2 if policy.persist_checkpoint else cp
+            yield "主清理者:写入资源2进度", ("done", r1, r2, ncp)
+            yield "主清理者:释放资源2后写进度前崩溃", ("crashed", r1, r2, cp)
         elif cleaner == "crashed":
             if policy.has_successor:
                 yield "后继:接管清理", ("successor", r1, r2, cp)
@@ -545,16 +558,23 @@ SCOPE_POLICIES = {
 }
 
 SCOPE_CANCEL_DRAIN_POLICIES = {
-    "唤醒即视作结束": ScopeCancelDrainPolicy(wake_is_done=True, timeout_releases_parent=False,
-                                       cancel_overwrites_err=False, suppress_deinit_fail=False),
-    "超时释放父帧": ScopeCancelDrainPolicy(wake_is_done=False, timeout_releases_parent=True,
-                                      cancel_overwrites_err=False, suppress_deinit_fail=False),
-    "取消结果覆盖首错": ScopeCancelDrainPolicy(wake_is_done=False, timeout_releases_parent=False,
-                                        cancel_overwrites_err=True, suppress_deinit_fail=False),
-    "首错覆盖子deinit失败": ScopeCancelDrainPolicy(wake_is_done=False, timeout_releases_parent=False,
-                                            cancel_overwrites_err=False, suppress_deinit_fail=True),
+    "唤醒即视作结束": ScopeCancelDrainPolicy(wake_is_done=True, timeout_in_blocked=False,
+                                       timeout_in_cleaning=False, cancel_overwrites_err=False,
+                                       suppress_deinit_fail=False),
+    "阻塞中超时释放父帧": ScopeCancelDrainPolicy(wake_is_done=False, timeout_in_blocked=True,
+                                         timeout_in_cleaning=False, cancel_overwrites_err=False,
+                                         suppress_deinit_fail=False),
+    "清理中超时释放父帧": ScopeCancelDrainPolicy(wake_is_done=False, timeout_in_blocked=False,
+                                         timeout_in_cleaning=True, cancel_overwrites_err=False,
+                                         suppress_deinit_fail=False),
+    "取消结果覆盖首错": ScopeCancelDrainPolicy(wake_is_done=False, timeout_in_blocked=False,
+                                        timeout_in_cleaning=False, cancel_overwrites_err=True,
+                                        suppress_deinit_fail=False),
+    "首错覆盖子deinit失败": ScopeCancelDrainPolicy(wake_is_done=False, timeout_in_blocked=False,
+                                            timeout_in_cleaning=False, cancel_overwrites_err=False,
+                                            suppress_deinit_fail=True),
     "等子实际终止、保留err_A、deinit失败终止进程": ScopeCancelDrainPolicy(
-        wake_is_done=False, timeout_releases_parent=False,
+        wake_is_done=False, timeout_in_blocked=False, timeout_in_cleaning=False,
         cancel_overwrites_err=False, suppress_deinit_fail=False),
 }
 

@@ -1,11 +1,13 @@
 """失败与清理模型：每种候选政策违反哪些不变量是预期的一部分，政策改动后须同步这里。"""
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
 
 PATH = Path(__file__).resolve().parents[1] / "loan_kernel" / "failure_model.py"
 SPEC = importlib.util.spec_from_file_location("failure_model", PATH)
 MODEL = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODEL
 SPEC.loader.exec_module(MODEL)
 
 
@@ -38,12 +40,14 @@ class ScopeModel(unittest.TestCase):
 class ScopeCancelDrainModel(unittest.TestCase):
     """3A 确定场景：丢弃 Job_A 后子 A 失败产生 err_A，子 B 显式经 blocked -> cleaning -> done/deinit_failed。"""
 
+    BOTH_TERMINALS = {MODEL.DRAINED_PROPAGATED_ERR_A, MODEL.DEINIT_FAIL_ABORTED}
     EXPECTED = {
-        "唤醒即视作结束": ({MODEL.UAF}, set(), set()),
-        "超时释放父帧": ({MODEL.UAF}, set(), set()),
-        "取消结果覆盖首错": ({MODEL.WRONG_ERROR}, set(), set()),
-        "首错覆盖子deinit失败": ({MODEL.DEINIT_FAIL_SUPPRESSED}, set(), set()),
-        "等子实际终止、保留err_A、deinit失败终止进程": (set(), set(), set()),
+        "唤醒即视作结束": ({MODEL.UAF}, set(), BOTH_TERMINALS),
+        "阻塞中超时释放父帧": ({MODEL.UAF}, set(), BOTH_TERMINALS),
+        "清理中超时释放父帧": ({MODEL.UAF}, set(), BOTH_TERMINALS),
+        "取消结果覆盖首错": ({MODEL.WRONG_ERROR}, set(), {MODEL.DEINIT_FAIL_ABORTED}),
+        "首错覆盖子deinit失败": ({MODEL.DEINIT_FAIL_SUPPRESSED}, set(), {MODEL.DRAINED_PROPAGATED_ERR_A}),
+        "等子实际终止、保留err_A、deinit失败终止进程": (set(), set(), BOTH_TERMINALS),
     }
 
     def test_each_policy_has_the_expected_outcome(self):
@@ -128,6 +132,17 @@ class CleanupProgressModel(unittest.TestCase):
         for name, policy in MODEL.CLEANUP_PROGRESS_POLICIES.items():
             with self.subTest(policy=name):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.cleanup_progress_model(policy)))
+
+    def test_non_atomic_checkpoint_covers_both_resource_steps(self):
+        """非原子写进度间隙同时覆盖资源 1 与资源 2：任一步释放后写进度前崩溃，非幂等重放均触发重复清理。"""
+        non_idem = MODEL.CLEANUP_PROGRESS_POLICIES["非原子写进度且非幂等"]
+        idem = MODEL.CLEANUP_PROGRESS_POLICIES["非原子写进度但步骤幂等"]
+        r1_report = MODEL.cleanup_progress_model(non_idem)
+        self.assertIn("主清理者:释放资源1后写进度前崩溃", r1_report.violations[MODEL.DOUBLE_CLEANUP])
+        r2_report = MODEL.cleanup_progress_model(non_idem, initial=("primary", "freed", "held", 1))
+        self.assertIn("主清理者:释放资源2后写进度前崩溃", r2_report.violations[MODEL.DOUBLE_CLEANUP])
+        self.assertEqual((set(), set(), set()), outcome(MODEL.cleanup_progress_model(idem)))
+        self.assertEqual((set(), set(), set()), outcome(MODEL.cleanup_progress_model(idem, initial=("primary", "freed", "held", 1))))
 
 
 class LockChannelModel(unittest.TestCase):
