@@ -475,6 +475,7 @@ subgraph Gactive["现行 active"]
   S0484["S0484<br/>F3e 声明、类族与完整文件独立参考解析差分（F3e→F4a）"]
   S0485["S0485<br/>F3c 18 级表达式运算符层级独立参考解析差分（F3c→F4a）"]
   S0486["S0486<br/>四入口统一观察适配器与恢复/边界契约矩阵（F0b）"]
+  S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -2023,6 +2024,7 @@ S0456 --> S0457
 | SPEC-0484 | active | [0484-f3e-file-difftest.md](../../specs/active/0484-f3e-file-difftest.md) |
 | SPEC-0485 | active | [0485-f3c-expression-difftest.md](../../specs/active/0485-f3c-expression-difftest.md) |
 | SPEC-0486 | active | [0486-parser-observation-adapter.md](../../specs/active/0486-parser-observation-adapter.md) |
+| SPEC-0489 | active | [0489-f2a-paired-paren-recovery-prototype.md](../../specs/active/0489-f2a-paired-paren-recovery-prototype.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
