@@ -8,11 +8,15 @@ const PREC = {
   ELVIS: 7,
   TO: 8,
   RANGE: 9,
-  ADDITIVE: 10,
-  MULTIPLICATIVE: 11,
-  CAST: 12,
-  PREFIX: 13,
-  POSTFIX: 14,
+  BITWISE_OR: 10,
+  BITWISE_XOR: 11,
+  BITWISE_AND: 12,
+  SHIFT: 13,
+  ADDITIVE: 14,
+  MULTIPLICATIVE: 15,
+  CAST: 16,
+  PREFIX: 17,
+  POSTFIX: 18,
 };
 
 module.exports = grammar({
@@ -26,6 +30,7 @@ module.exports = grammar({
     $._control_lbrace, $._lambda_lbrace, $._same_line_trailing_lbrace, $._crossline_lambda_nl,
     $._move_lambda, $._move_type,
     $._to, $._by, $._in, $._is, $._as, $._not_in, $._not_is,
+    $._shl, $._shr, $._ushr, $._bit_and, $._bit_xor, $._bit_or,
   ],
 
   extras: ($) => [/[ \t\r\f]/, $.line_comment, $.block_comment],
@@ -320,7 +325,7 @@ module.exports = grammar({
       choice($.method_declaration, $.companion_object),
 
     block: ($) =>
-      prec(1, seq("{", repeat(choice($._newline, $._statement)), "}")),
+      prec(1, seq("{", repeat(choice($._newline, ";", $._statement)), "}")),
 
     _statement: ($) =>
       choice(
@@ -397,26 +402,37 @@ module.exports = grammar({
 
     binary_expression: ($) => {
       const table = [
-        [PREC.OR, "||"],
-        [PREC.AND, "&&"],
-        [PREC.EQUALITY, choice("==", "!=")],
-        [PREC.COMPARISON, choice("<", ">", "<=", ">=" )],
-        [PREC.MEMBERSHIP, choice(alias($._in, "in"), alias($._not_in, "!in"))],
-        [PREC.ELVIS, "?:"],
-        [PREC.TO, alias($._to, $.to_operator)],
-        [PREC.RANGE, choice("..", "..<")],
-        [PREC.ADDITIVE, choice("+", "-")],
-        [PREC.MULTIPLICATIVE, choice("*", "/", "%")],
+        [PREC.OR, "||", false],
+        [PREC.AND, "&&", false],
+        [PREC.EQUALITY, choice("==", "!="), false],
+        [PREC.COMPARISON, choice("<", ">", "<=", ">="), false],
+        [PREC.MEMBERSHIP, choice(alias($._in, "in"), alias($._not_in, "!in")), false],
+        [PREC.ELVIS, "?:", false],
+        [PREC.TO, alias($._to, $.to_operator), false],
+        [PREC.RANGE, choice("..", "..<"), false],
+        [PREC.BITWISE_OR, alias($._bit_or, "or"), true],
+        [PREC.BITWISE_XOR, alias($._bit_xor, "xor"), true],
+        [PREC.BITWISE_AND, alias($._bit_and, "and"), true],
+        [PREC.SHIFT, choice(alias($._shl, "shl"), alias($._shr, "shr"), alias($._ushr, "ushr")), true],
+        [PREC.ADDITIVE, choice("+", "-"), false],
+        [PREC.MULTIPLICATIVE, choice("*", "/", "%"), false],
       ];
       return choice(
-        ...table.map(([precedence, operator]) =>
+        ...table.map(([precedence, operator, allowLineBreak]) =>
           (operator === "?:" ? prec.right : prec.left)(
             precedence,
-            seq(
-              field("left", $.expression),
-              field("operator", operator),
-              field("right", $.expression),
-            ),
+            allowLineBreak
+              ? seq(
+                  field("left", $.expression),
+                  field("operator", operator),
+                  repeat($._newline),
+                  field("right", $.expression),
+                )
+              : seq(
+                  field("left", $.expression),
+                  field("operator", operator),
+                  field("right", $.expression),
+                ),
           ),
         ),
         prec.left(
@@ -553,15 +569,16 @@ module.exports = grammar({
       choice(
         seq(
           alias($._move_lambda, "move"),
+          repeat($._newline),
           "{",
           optional($.lambda_header),
-          repeat(choice($._newline, $._lambda_element)),
+          repeat(choice($._newline, ";", $._lambda_element)),
           "}",
         ),
         seq(
           alias($._lambda_lbrace, "{"),
           optional($.lambda_header),
-          repeat(choice($._newline, $._lambda_element)),
+          repeat(choice($._newline, ";", $._lambda_element)),
           "}",
         ),
       ),
@@ -571,7 +588,7 @@ module.exports = grammar({
         repeat($._crossline_lambda_nl),
         alias($._same_line_trailing_lbrace, "{"),
         optional($.lambda_header),
-        repeat(choice($._newline, $._lambda_element)),
+        repeat(choice($._newline, ";", $._lambda_element)),
         "}",
       ),
 
@@ -579,7 +596,7 @@ module.exports = grammar({
       seq(
         alias($._same_line_trailing_lbrace, "{"),
         optional($.lambda_header),
-        repeat(choice($._newline, $._lambda_element)),
+        repeat(choice($._newline, ";", $._lambda_element)),
         "}",
       ),
 
@@ -634,7 +651,7 @@ module.exports = grammar({
     control_body: ($) => choice($.expression, $.control_block),
 
     control_block: ($) =>
-      prec(2, seq(alias($._control_lbrace, "{"), repeat(choice($._newline, $._statement)), "}")),
+      prec(2, seq(alias($._control_lbrace, "{"), repeat(choice($._newline, ";", $._statement)), "}")),
 
     jump_expression: ($) =>
       choice(
@@ -659,7 +676,7 @@ module.exports = grammar({
 
     function_type: ($) =>
       seq(
-        optional(alias($._move_type, "move")),
+        optional(seq(alias($._move_type, "move"), repeat($._newline))),
         "(",
         optional(commaSep1($.function_type_parameter)),
         ")",

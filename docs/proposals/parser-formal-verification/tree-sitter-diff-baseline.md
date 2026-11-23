@@ -1,6 +1,6 @@
 # F4b：Tree-sitter 共同子集、已知漂移与差分基线
 
-> **性质**：非规范验证账本 · **状态**：静态交集与漂移基线已核对，首片实跑差分由 [SPEC-0481](../../specs/active/0481-tree-sitter-difftest.md) 承接（TS-06 已随 [SPEC-0479](../../archive/specs/0479-explicit-block-and-crossline-lambda.md) 合入闭环） · **读取时机**：设计 F4b Tree-sitter 差分切片或同步编辑器文法前 · **唯一真源**：本页维护 Tree-sitter 共同子集、已核对漂移清单与差分验收边界
+> **性质**：非规范验证账本 · **状态**：静态交集与漂移基线已核对，首片实跑差分由 [SPEC-0481](../../specs/active/0481-tree-sitter-difftest.md) 承接（TS-06 已随 [SPEC-0479](../../archive/specs/0479-explicit-block-and-crossline-lambda.md) 闭环；TS-03/TS-05/TS-07 已随 [SPEC-0488](../../specs/active/0488-tree-sitter-drift-closure.md) 闭环） · **读取时机**：设计 F4b Tree-sitter 差分切片或同步编辑器文法前 · **唯一真源**：本页维护 Tree-sitter 共同子集、已核对漂移清单与差分验收边界
 
 基点 `main@6cc03907a1bf37d3cdc9ce6e6ccba1a15326ed6b`，Guide v0.47（后续随 `SPEC-0479` 合入 `main@8207b212`，TS-06 尾 lambda 已同步纳入 `editors/tree-sitter` 与共同子集，首片实跑验证见 [SPEC-0481](../../specs/active/0481-tree-sitter-difftest.md)）。
 核对对象为仓库既有资产 `editors/tree-sitter/grammar.js`、`editors/tree-sitter/src/scanner.c`、
