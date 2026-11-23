@@ -1577,6 +1577,33 @@ class LoanKernelCases(unittest.TestCase):
         call.cleanup.clear()
         self.assertEqual({"V1"}, {v.split()[0] for v in CHECKER.DP.Verifier(types).run_all(program)})
 
+    def test_sub_statement_liveness_precision(self):
+        """§81：语句级之下的活性精度（多实参、构造器、字段赋值与槽位替换）及关闭时的保守退化对照。"""
+        source = (ROOT / "cases/Z43.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("callArgLastUseThenMutOk", "nestedCallArgLastUseThenMutOk",
+                     "constructLastUseThenMoveOrMutOk", "fieldAssignAndStoreAfterRhsLastUseOk",
+                     "guardDestroyedInEarlierArgReleasesForLaterArg"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("callArgStillLiveAfterStmtRejected", "callArgUsedInThirdArgRejected",
+                     "callArgMutBeforeLastUseRejected", "callArgForwardedLoanStillBlocksMutRejected",
+                     "constructStillLiveAfterRejected", "fieldAssignAndStoreStillLiveRejected",
+                     "observableGuardStillBlocksLaterArg", "guardPassedIntoSameCallStillBlocksMut"):
+            self.assertFalse(lowered[name][2], name)
+
+        # 变异对照：关闭语句内活性精度（退回整条语句统一存活）后，6 处“前序子表达式最后一次使用”均转为误拒绝。
+        CHECKER.Checker.sub_stmt_liveness = False
+        try:
+            coarse = {(rule, line) for rule, line, _ in CHECKER.check(source)}
+        finally:
+            CHECKER.Checker.sub_stmt_liveness = True
+        added = coarse - actual
+        self.assertEqual(6, len(added))
+        self.assertEqual({"K1", "K4"}, {rule for rule, _ in added})
+        self.assertEqual(set(), actual - coarse)
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

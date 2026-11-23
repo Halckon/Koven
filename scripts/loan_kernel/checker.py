@@ -555,6 +555,7 @@ def prefix_related(a, b):
 
 class Checker:
     drop_before_suspend = True  # S6；置为 False 仅用于对照
+    sub_stmt_liveness = True  # 语句级之下的活性精度；置为 False 仅用于对照
 
     def __init__(self, classes, funs, sigs, early_drop=False, frames_movable=False):
         self.classes, self.funs, self.sigs = classes, funs, sigs
@@ -757,6 +758,7 @@ class Checker:
         self.version = 0
         self.pending = []
         self.live = set()
+        self.after = set()
         self.leaving = False  # 正在离开函数（返回或失败）：调用方的持有者不会指向本函数的局部存储（K6）
         self.loop_stack = []  # 正在检查的 while 循环栈，用于 break 时清理循环内局部并收集退出状态
         self.temps, self.temp_id = [], 0  # 当前语句中产生的临时值（语句末按逆序析构）
@@ -793,6 +795,7 @@ class Checker:
             self.out = None
             return
         if fun.ret is not None:
+            self.after = set()
             self.live = expr_uses(fun.ret)
             prev_out, self.out, self.temps = self.out, [] if self.out is not None else None, []
             # 借用结果按“交出一个借用”求值：返回借用值即对它重借
@@ -1381,12 +1384,15 @@ class Checker:
         if not fun.suspend:
             self.error("S0", expr.line, f"{expr.name} 不是 suspend 函数，不能作为任务启动")
         held, pushed = set(), 0
-        for (mode, _, wanted), arg in zip(fun.params, expr.args):
+        outer_after, outer_live = self.after, self.live
+        for index, ((mode, _, wanted), arg) in enumerate(zip(fun.params, expr.args)):
+            self.arg_liveness(expr.args, index, outer_after)
             value = self.argument(arg, mode, state)
             self.check_owned_argument(fun, mode, wanted, value, arg.line)
             held |= value.all_loans()
             self.pending.append(value.all_loans())
             pushed += 1
+        self.after, self.live = outer_after, set(outer_after) if self.sub_stmt_liveness else outer_live
         del self.pending[len(self.pending) - pushed:]
         return Value(Type("task", expr.name), {"*": held})
 
@@ -1548,13 +1554,25 @@ class Checker:
             loans.update(copy_loans({k: v for k, v in (res.field_loans or {}).items() if k}))
         return Value(Type(mode, res.ty.name), loans, res.ty.kind == "any")
 
+    def arg_liveness(self, args, index, outer_after):
+        """语句级之下的活性精度：按源码顺序求第 index 个实参时，其后仍会被使用的变量。"""
+        if not self.sub_stmt_liveness:
+            return
+        after = set(outer_after)
+        for later in args[index + 1:]:
+            after |= expr_uses(later)
+        self.after = after
+        self.live = after | expr_uses(args[index])
+
     def construct(self, expr, state):
         """K7：视图实例在每个借用字段上持有实参处建立的 loan。"""
         decl = self.classes[expr.name]
         if len(expr.args) != len(decl.fields):
             raise SyntaxProblem(f"第 {expr.line} 行：{expr.name} 的实参个数不符")
         loans, pushed, staged = {}, 0, []
+        outer_after, outer_live = self.after, self.live
         for index, ((kind, name, fty), arg) in enumerate(zip(decl.fields, expr.args)):
+            self.arg_liveness(expr.args, index, outer_after)
             val = self.argument(arg, kind or "own", state)
             if not kind and fty in self.classes and val.ty != self.type_of(fty):
                 self.error("TYPE", arg.line, f"{decl.name}.{name} 要求拥有的 {fty}，不能接收 {val.ty.kind} {val.ty.name}")
@@ -1568,6 +1586,7 @@ class Checker:
             loans.update({f"{name}.{key}": set(held) for key, held in val.loans.items() if key and key != "*"})
             self.pending.append(val.all_loans())
             pushed += 1
+        self.after, self.live = outer_after, set(outer_after) if self.sub_stmt_liveness else outer_live
         for tmp in staged:
             self.emit("move", expr.line, tmp)
             state[tmp].init, state[tmp].loans = "M", {}
@@ -1666,7 +1685,9 @@ class Checker:
         exclusive = {name for name in into_result if self.result_exclusive(fun)} | {
             name for name in into_holder if modes[name] == "inout"}
         values, pushed, receiver, results, staged = {}, 0, None, {}, []
+        outer_after, outer_live = self.after, self.live
         for index, ((mode, name, ty_name), arg) in enumerate(zip(fun.params, expr.args)):
+            self.arg_liveness(expr.args, index, outer_after)
             if ty_name.startswith("fn "):
                 values[name], impl = self.callable_argument(arg, ty_name[3:], state)
                 # 合同的结果是类型参数、实参函数的结果是具体类型时，这个类型参数就此确定（同名即同一个）
@@ -1685,6 +1706,11 @@ class Checker:
             pushed += 1
             if reserved and values[name].loans.get(""):
                 receiver = (values[name], kept or "excl", self.pending[-1])
+                parents = self.loans[next(iter(values[name].loans[""]))].parents
+                if parents:  # 两阶段预留只放宽经接收者自身的读，不解除父独占借用对原 owner 的保护
+                    self.pending.append(parents)
+                    pushed += 1
+        self.after, self.live = outer_after, set(outer_after) if self.sub_stmt_liveness else outer_live
         if receiver:
             self.activate(*receiver, state, expr.line)
         if suspends:  # 调用 suspend 函数本身是调用方的一个挂起点；实参的 loan 在此期间保持
@@ -1801,7 +1827,14 @@ class Checker:
         return any(root == name for loan in self.live_loans(state) for root, _ in self.loans[loan].places)
 
     def step(self, stmt, state):
-        self.live = (set(stmt.live_out) - stmt_defs(stmt)) | stmt_uses(stmt)
+        base_out = set(stmt.live_out) - stmt_defs(stmt)
+        if stmt.kind == "assign" and stmt.place.fields:
+            self.after = base_out | {stmt.place.root}
+        elif stmt.kind == "store":
+            self.after = base_out | {stmt.name}
+        else:
+            self.after = base_out
+        self.live = base_out | stmt_uses(stmt)
         if stmt.kind == "val":
             prev_out, self.out, self.temps = self.out, [] if self.out is not None else None, []
             value = (self.move(stmt.expr, state, local_binding=True) if stmt.expr.kind == "move"
@@ -1986,6 +2019,8 @@ class Checker:
     def store(self, stmt, state):
         """X1：经独占借用整体替换所指的值，要求槽位访问且新值的类型恰为所指类型。"""
         value = self.value(stmt.expr, state)
+        if self.sub_stmt_liveness:
+            self.live = set(self.after)
         var = state.get(stmt.name)
         if var is None or var.ty.kind != "inout":
             raise SyntaxProblem(f"第 {stmt.line} 行：*{stmt.name} 须是独占借用")
@@ -2011,6 +2046,8 @@ class Checker:
         value = self.value(stmt.expr, state)
         place = stmt.place
         if place.fields:
+            if self.sub_stmt_liveness:
+                self.live = set(self.after)
             res = self.resolve(state, place)
             if not res.crossed and res.ty.kind in ("cls", "view") and res.ty != value.ty:
                 self.error("TYPE", stmt.line, f"字段须接收拥有的 {res.ty.name}，不能写入 {value.ty.kind} {value.ty.name}")

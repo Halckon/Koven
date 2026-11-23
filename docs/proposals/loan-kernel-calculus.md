@@ -1326,4 +1326,13 @@ fun probe(borrow h: A): Unit {
 | 双轨析构与 ASAP | 纯内存类型（含未使用者）ASAP 析构且受存活 loan 保活；资源类型（`deinit`）严格词法作用域逆序析构；`var` 替换先求值 RHS 再析构旧值 | `early_drop=True` 下 `unused`/`mem`/`after` 提前析构、`res2`/`res1` 留到块末逆序析构；条件移走时 `mem` 无标志补偿、`g` 保留 `g?`（去标志报 V2，漏清报 V1） | 一致 |
 | Guide 11 构造、`Box` 拆箱与结构移动 | `Box.value` 只读借用、`unbox` 消费拆箱；v1 普通字段禁部分移动（L0132），`value class` 仅整值解构 | `bx.inner` 借用存活期禁 `unbox(move bx)`（K1），用完后接受；非 `deinit` 类支持逐字段移出（内核放宽），`deinit` 类仍禁部分移出（K23） | 核心一致（普通非 `deinit` 字段部分移出属内核放宽） |
 
+## 81. 语句级之下的活性精度（KB2）
+
+`Z43.lk` 消除 §8 记下的“一条语句之内不区分先后”保守近似，在不新增借用规则的前提下，按源码求值顺序在语句内部精细化 `self.live`（`Checker.sub_stmt_liveness = True`）：
+
+- **实参列表（`call` / `construct` / `start`）**：按源码顺序求值第 `i` 个实参时，仅将“语句出口活性 + 后续实参 `args[i+1:]` 用到的变量 + 当前实参自身”视为存活；前序实参中已完成且未转发 loan 的借用（如 `consumeIntAndMut(readRef(r), &mut a)`、嵌套调用 `consumeIntAndMut(wrapInt(readRef(r)), &mut a)`、构造器 `IntPair(readRef(r), move a)` 与 `MutPair(readRef(r2), &mut b)`）在后续实参求值时已结束，不再产生假冲突。若借用在语句后仍被使用、在更晚实参中再次使用（`threeArgs(readRef(r), &mut a, readRef(r))`）、顺序颠倒（`mutThenInt(&mut a, readRef(r))`），或通过 `passRef(r)` 转发进 `self.pending` 实参列表，均仍按 K1 拒绝。
+- **字段赋值与解引用槽位替换（`assign` / `store`）**：先完整求值右值表达式，再将活性收缩为语句出口活性加左值根变量后再执行写访问——`a.len = readRef(r)` 与 `*w = Arr(readRef(r2))` 在 `r`/`r2` 于右值最后一次使用时接受；若语句后仍使用 `r`/`r2` 则分别报 K1 / K4。
+- **可观察析构与同调用传参守恒**：带 `deinit` 的持有者 `Guard` 仍遵守 R1.2，`consumeIntAndMut(readGuard(&g), &mut a)` 虽不再使用 `g` 仍报 K1；将 `move g` 与 `&mut a` 传入同一调用（`consumeGuardAndMut(move g, &mut a)`）因 `g` 的 loan 留在 `self.pending` 仍报 K1；仅当 `g` 在前序调用中已被消费销毁（`consumeIntAndMut(dropGuard(move g), &mut a)`）时后续 `&mut a` 接受。变异对照关闭 `sub_stmt_liveness` 后，6 处前序最后一次使用均退化为 K1/K4 误拒绝，且其余全部用例不变。
+- **附带发现并修掉的两阶段预留边界（`Z27.lk`）**：打开语句内活性后，`push(r, size(&v))` 中 `r` 在第 1 个实参后不再活跃，原先依赖整条语句统一存活才保住的父独占 loan `L_r` 会提前失效，导致绕过 `r` 直接访问 `&v` 漏报 K1；现将两阶段预留接收者的父 loan（`parents`）一并压入 `self.pending` 直至激活，既允许经 `r` 自身读（`size(r)`），又阻止绕过 `r` 直接借用原 owner（`size(&v)`）。
+
 

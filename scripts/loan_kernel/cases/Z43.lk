@@ -1,0 +1,120 @@
+// §81：语句级之下的活性精度（同一语句内按源码求值顺序区分先读后写、多实参与字段赋值/槽位替换）
+
+class Arr(len: Int)
+class IntPair(n: Int, arr: Arr)
+view class MutPair(n: Int, inout arr: Arr)
+view class Guard(borrow src: Arr) deinit
+
+fun readRef(borrow x: Int): Int trusted
+fun wrapInt(own n: Int): Int trusted
+fun passRef(borrow x: Int): borrow Int from x trusted
+fun consumeIntAndMut(own n: Int, inout a: Arr): Unit trusted
+fun mutThenInt(inout a: Arr, own n: Int): Unit trusted
+fun threeArgs(own n: Int, inout a: Arr, own m: Int): Unit trusted
+fun keepBorrowAndMut(borrow x: Int, inout a: Arr): Unit trusted
+fun readGuard(borrow g: Guard): Int trusted
+fun dropGuard(own g: Guard): Int trusted
+fun consumeGuardAndMut(own g: Guard, inout a: Arr): Unit trusted
+
+// ---- 1. 多实参调用：前序实参是借用的最后一次使用，后续实参可独占借用或移动
+
+fun callArgLastUseThenMutOk(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  consumeIntAndMut(readRef(r), &mut a)
+}
+
+fun nestedCallArgLastUseThenMutOk(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  consumeIntAndMut(wrapInt(readRef(r)), &mut a)
+}
+
+fun callArgStillLiveAfterStmtRejected(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  consumeIntAndMut(readRef(r), &mut a) // ERR K1
+  use(r)
+}
+
+fun callArgUsedInThirdArgRejected(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  threeArgs(readRef(r), &mut a, readRef(r)) // ERR K1
+}
+
+fun callArgMutBeforeLastUseRejected(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  mutThenInt(&mut a, readRef(r)) // ERR K1
+}
+
+fun callArgForwardedLoanStillBlocksMutRejected(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  keepBorrowAndMut(passRef(r), &mut a) // ERR K1
+}
+
+// ---- 2. 构造器：前序实参用完借用后，后续实参可移动或独占借用源对象
+
+fun constructLastUseThenMoveOrMutOk(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  val p = IntPair(readRef(r), move a)
+  use(p.arr.len)
+  val b = Arr(2)
+  val r2 = &b.len
+  val mp = MutPair(readRef(r2), &mut b)
+  use(mp.arr.len)
+}
+
+fun constructStillLiveAfterRejected(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  val p = IntPair(readRef(r), move a) // ERR K1
+  use(r)
+  use(p.arr.len)
+}
+
+// ---- 3. 字段赋值与解引用槽位替换：右值用完借用后再写入左值
+
+fun fieldAssignAndStoreAfterRhsLastUseOk(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  a.len = readRef(r)
+  val w = &mut a
+  val r2 = &w.len
+  *w = Arr(readRef(r2))
+  use(a.len)
+}
+
+fun fieldAssignAndStoreStillLiveRejected(): Unit {
+  val a = Arr(1)
+  val r = &a.len
+  a.len = readRef(r) // ERR K1
+  use(r)
+  val w = &mut a
+  val r2 = &w.len
+  *w = Arr(readRef(r2)) // ERR K4
+  use(r2)
+}
+
+// ---- 4. 可观察析构（deinit）持有者仍遵守 R1.2，不因语句内最后一次使用提前释放
+
+fun observableGuardStillBlocksLaterArg(): Unit {
+  val a = Arr(1)
+  val g = Guard(&a)
+  consumeIntAndMut(readGuard(&g), &mut a) // ERR K1
+}
+
+fun guardPassedIntoSameCallStillBlocksMut(): Unit {
+  val a = Arr(1)
+  val g = Guard(&a)
+  consumeGuardAndMut(move g, &mut a) // ERR K1
+}
+
+fun guardDestroyedInEarlierArgReleasesForLaterArg(): Unit {
+  val a = Arr(1)
+  val g = Guard(&a)
+  consumeIntAndMut(dropGuard(move g), &mut a)
+}
