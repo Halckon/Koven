@@ -12,7 +12,7 @@
 
 本 Spec 承接 [F0b 结果分类与恢复验收基线](../../proposals/parser-formal-verification/observation-baseline.md) 中登记的两项未实现缺口：
 四入口统一观察适配器（含 `parse_file` 的 foreign-`SourceMap` `InternalFailure` 见证）以及 `parse_file` 对抗性确定性/产物完整性/R4 扫描。
-不修改生产 Parser/Lexer、公开 API、Guide 或 CI，不新增 Cargo 依赖，默认随 `cargo test` 在双宿主运行。
+不修改生产 Parser/Lexer、公开 API 或 Guide，不新增 Cargo 依赖。双宿主 Targeted Tests 显式运行本 Spec 的 `parser_observation_adapter`。
 
 ## 交付合同
 

@@ -12,7 +12,8 @@
 
 本 Spec 承接 [Parser 分阶段形式化验证计划](../../proposals/parser-formal-verification-plan.md) 的 **F4b** 阶段与
 [F4b 差分基线](../../proposals/parser-formal-verification/tree-sitter-diff-baseline.md)。不修改生产 Parser、
-Lexer、Guide、Tree-sitter 文法或现有 CI 门禁，不新增 Cargo 依赖。Tree-sitter 仅作交叉观察信号，不是第二份语言规范。
+Lexer、Guide 或 Tree-sitter 文法，不新增 Cargo 依赖。双宿主 Targeted Tests 显式运行默认故障负对照目标
+`parser_tree_sitter_diff`；完整 Tree-sitter CLI 差分保持 `--ignored` 显式运行。Tree-sitter 仅作交叉观察信号，不是第二份语言规范。
 
 ## 交付合同
 
