@@ -41,19 +41,21 @@ def emptyActive : Fin 8 :=
 theorem hasActive_addActive (a : Fin 8) (k k' : Kind) :
     hasActive (addActive a k) k' = (hasActive a k' || (k == k')) := by
   rcases a with ⟨v, hv⟩
+  simp only [hasActive, addActive]
   cases k <;> cases k' <;> (
     match v, hv with
-    | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ => decide
+    | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ => rfl
     | _ + 8, hv => omega)
 
 theorem hasActive_empty (k : Kind) :
     hasActive emptyActive k = false := by
-  cases k <;> decide
+  cases k <;> rfl
 
 /-! ### Forward `OrdinaryGroups` stack model -/
 
-def stackHasKind (s : List (Nat × Kind)) (k : Kind) : Bool :=
-  s.any (fun p => p.2 == k)
+def stackHasKind : List (Nat × Kind) → Kind → Bool
+  | [], _ => false
+  | (_, k') :: rest, k => (k' == k) || stackHasKind rest k
 
 def popUntilKind : List (Nat × Kind) → Kind → List (Nat × Kind)
   | [], _ => []
@@ -86,6 +88,7 @@ theorem stackHasKind_append (s1 s2 : List (Nat × Kind)) (k : Kind) :
   induction s1 with
   | nil => simp [stackHasKind]
   | cons hd tl ih =>
+    rcases hd with ⟨r, k'⟩
     simp [stackHasKind, ih, Bool.or_assoc]
 
 theorem popUntilKind_append_left (s1 s2 : List (Nat × Kind)) (k : Kind)
@@ -99,8 +102,9 @@ theorem popUntilKind_append_left (s1 s2 : List (Nat × Kind)) (k : Kind)
     by_cases heq : (k' == k) = true
     · simp [heq]
     · simp only [heq, Bool.false_eq_true, ↓reduceIte]
+      have hne : (k' == k) = false := Bool.eq_false_iff.mpr heq
       have htl : stackHasKind tl k = true := by
-        simp [stackHasKind, heq] at h
+        simp [stackHasKind, hne] at h
         exact h
       exact ih htl
 
@@ -112,13 +116,8 @@ theorem popUntilKind_append_right (s1 : List (Nat × Kind)) (r : Nat) (k : Kind)
   | cons hd tl ih =>
     rcases hd with ⟨r', k'⟩
     simp only [List.cons_append, popUntilKind]
-    have hne : (k' == k) = false := by
-      simp [stackHasKind] at h
-      exact h.1
-    have htl : stackHasKind tl k = false := by
-      simp [stackHasKind] at h
-      exact h.2
-    simp [hne, ih htl]
+    simp only [stackHasKind, Bool.or_eq_false_iff] at h
+    simp [h.1, ih h.2]
 
 def AllRawGt (s : List (Nat × Kind)) (target : Nat) : Prop :=
   ∀ p ∈ s, target < p.1
@@ -139,13 +138,14 @@ theorem popUntilKindWithOpener_some_of_hasKind (s : List (Nat × Kind)) (k : Kin
       refine ⟨hall (r0, k0) (List.Mem.head _), ?_⟩
       intro p hp
       exact hall p (List.Mem.tail _ hp)
-    · have htl : stackHasKind tl k = true := by
-        simp [stackHasKind, heq] at h
+    · have hne : (k0 == k) = false := Bool.eq_false_iff.mpr heq
+      have htl : stackHasKind tl k = true := by
+        simp [stackHasKind, hne] at h
         exact h
       rcases ih htl with ⟨r, hpop, hgt⟩
-      refine ⟨r, by simp [heq, hpop], ?_⟩
+      refine ⟨r, by simp [hne, hpop], ?_⟩
       intro target hall
-      simp only [heq, Bool.false_eq_true, ↓reduceIte]
+      simp only [hne, Bool.false_eq_true, ↓reduceIte]
       have hall_tl : AllRawGt tl target := fun p hp => hall p (List.Mem.tail _ hp)
       exact hgt target hall_tl
 
@@ -165,13 +165,14 @@ theorem popUntilKindWithOpener_append_left (s1 s2 : List (Nat × Kind)) (k : Kin
       refine ⟨hall (r0, k0) (List.Mem.head _), ?_⟩
       intro p hp
       exact hall p (List.Mem.tail _ hp)
-    · have htl : stackHasKind tl k = true := by
-        simp [stackHasKind, heq] at h
+    · have hne : (k0 == k) = false := Bool.eq_false_iff.mpr heq
+      have htl : stackHasKind tl k = true := by
+        simp [stackHasKind, hne] at h
         exact h
       rcases ih htl with ⟨r, hpop, hgt⟩
-      refine ⟨r, by simp [heq, hpop], ?_⟩
+      refine ⟨r, by simp [hne, hpop], ?_⟩
       intro target hall
-      simp only [heq, Bool.false_eq_true, ↓reduceIte]
+      simp only [hne, Bool.false_eq_true, ↓reduceIte]
       have hall_tl : AllRawGt tl target := fun p hp => hall p (List.Mem.tail _ hp)
       exact hgt target hall_tl
 
@@ -183,18 +184,13 @@ theorem popUntilKindWithOpener_append_right (s1 : List (Nat × Kind)) (r : Nat) 
   | cons hd tl ih =>
     rcases hd with ⟨r', k'⟩
     simp only [List.cons_append, popUntilKindWithOpener]
-    have hne : (k' == k) = false := by
-      simp [stackHasKind] at h
-      exact h.1
-    have htl : stackHasKind tl k = false := by
-      simp [stackHasKind] at h
-      exact h.2
-    simp [hne, ih htl]
+    simp only [stackHasKind, Bool.or_eq_false_iff] at h
+    simp [h.1, ih h.2]
 
 /-- Forward boundary scanner matching `OrdinaryGroups::visit` under an external
 ancestor active mask `active`. Stops at the first closer belonging to `active`
 or an unmatched right brace (`Kind.brace`), or at EOF (`D.length`). -/
-def forwardStop (D : List Delim) (i : Nat) (hi : i ≤ D.length)
+def forwardStop (D : List Delim) (i : Nat) (_hi : i ≤ D.length)
     (localStack : List (Nat × Kind)) (active : Fin 8) : Nat :=
   if hlt : i < D.length then
     let d := D[i]
@@ -212,7 +208,7 @@ termination_by D.length - i
 
 /-- Exact forward scan mirroring `OrdinaryGroups::visit` starting from state `s` at `j`,
 returning the `raw` of the first closer whose `ordinaryVisitStep` pops `some targetRaw`. -/
-def ordinaryVisitFind (D : List Delim) (j : Nat) (hj : j ≤ D.length)
+def ordinaryVisitFind (D : List Delim) (j : Nat) (_hj : j ≤ D.length)
     (s : List (Nat × Kind)) (targetRaw : Nat) : Option Nat :=
   if hlt : j < D.length then
     let d := D[j]
@@ -242,27 +238,24 @@ def dpBoundary (D : List Delim) (i : Nat) (hi : i ≤ D.length) (active : Fin 8)
   if hlt : i < D.length then
     let d := D[i]
     if d.opening then
-      let r1 := dpBoundary D (i + 1) hlt (addActive active d.kind)
-      if hlt1 : r1.val < D.length then
-        if !D[r1.val].opening && (D[r1.val].kind == d.kind) then
-          let r2 := dpBoundary D (r1.val + 1) hlt1 active
-          ⟨r2.val, by have := r1.property.1; have := r2.property.1; omega, r2.property.2⟩
+      match dpBoundary D (i + 1) hlt (addActive active d.kind) with
+      | ⟨endIdx, hge, hle⟩ =>
+        if hlt1 : endIdx < D.length then
+          if !D[endIdx].opening && (D[endIdx].kind == d.kind) then
+            match dpBoundary D (endIdx + 1) hlt1 active with
+            | ⟨end2, hge2, hle2⟩ => ⟨end2, by omega, hle2⟩
+          else
+            ⟨endIdx, by omega, hle⟩
         else
-          ⟨r1.val, by have := r1.property.1; omega, r1.property.2⟩
-      else
-        ⟨r1.val, by have := r1.property.1; omega, r1.property.2⟩
+          ⟨endIdx, by omega, hle⟩
     else if hasActive active d.kind || (d.kind == .brace) then
       ⟨i, Nat.le_refl i, hi⟩
     else
-      let r1 := dpBoundary D (i + 1) hlt active
-      ⟨r1.val, by have := r1.property.1; omega, r1.property.2⟩
+      match dpBoundary D (i + 1) hlt active with
+      | ⟨endIdx, hge, hle⟩ => ⟨endIdx, by omega, hle⟩
   else
     ⟨D.length, by omega, Nat.le_refl _⟩
 termination_by D.length - i
-decreasing_by
-  · omega
-  · have := r1.property.1; omega
-  · omega
 
 def dpMatch (D : List Delim) (i : Nat) (hi : i < D.length) : Option Nat :=
   let d := D[i]
@@ -422,36 +415,32 @@ theorem dpBoundary_eq_forwardStop (D : List Delim) (i : Nat) (hi : i ≤ D.lengt
         simp [hlt, hop]
       rw [hfwd, forwardStop_append_singleton]
       have ih1 := dpBoundary_eq_forwardStop D (i + 1) hlt (addActive active D[i].kind)
+      have hge1 := (dpBoundary D (i + 1) hlt (addActive active D[i].kind)).property.1
       conv => lhs; unfold dpBoundary
-      simp only [hlt, ↓reduceDIte, hop, ← ih1]
-      split
-      · rename_i hlt1
-        split
-        · have ih2 :=
-            dpBoundary_eq_forwardStop D
-              ((dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val + 1)
-              hlt1 active
-          exact ih2
-        · rfl
-      · rfl
+      simp only [hlt, ↓reduceDIte, hop, ↓reduceIte, ← ih1]
+      by_cases hlt1 : (dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val < D.length
+      · simp only [hlt1, ↓reduceDIte]
+        by_cases hcl : (!D[(dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val].opening &&
+            (D[(dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val].kind == D[i].kind)) = true
+        · simp only [hcl, ↓reduceIte]
+          exact dpBoundary_eq_forwardStop D
+            ((dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val + 1)
+            hlt1 active
+        · simp only [hcl, ↓reduceIte]
+      · simp only [hlt1, ↓reduceDIte]
   · unfold dpBoundary forwardStop
     simp [hlt]
 termination_by D.length - i
-decreasing_by
-  · omega
-  · omega
-  · have := (dpBoundary D (i + 1) hlt (addActive active D[i].kind)).property.1; omega
 
 /-- P3a: `dpMatch` equals the ancestor-mask forward matcher `forwardMatch`. -/
 theorem dpMatch_eq_forwardMatch (D : List Delim) (i : Nat) (hi : i < D.length) :
     dpMatch D i hi = forwardMatch D i hi := by
   unfold dpMatch forwardMatch
-  split
-  · rw [dpBoundary_eq_forwardStop]
-  · rfl
+  dsimp only
+  rw [dpBoundary_eq_forwardStop]
 
 def StrictlyIncreasingRaw (D : List Delim) : Prop :=
-  ∀ a b, a < b → (hb : b < D.length) → D[a].raw < D[b].raw
+  ∀ a b, a < b → (ha : a < D.length) → (hb : b < D.length) → D[a].raw < D[b].raw
 
 def AllFutureRawGt (D : List Delim) (j target : Nat) : Prop :=
   ∀ m, j ≤ m → (hm : m < D.length) → target < D[m].raw
@@ -575,7 +564,8 @@ theorem ordinaryVisitFind_append_singleton (D : List Delim) (j : Nat) (hj : j �
           have hact : hasActive (addActive emptyActive k) D[j].kind = false := by
             rw [hasActive_addActive, hasActive_empty, hbeq]; rfl
           by_cases hbrace : D[j].kind = .brace
-          · have hbr_app : (D[j].kind == .brace && !stackHasKind (s ++ [(r, k)]) .brace) = true := by
+          · have hhas_br : stackHasKind s .brace = false := hbrace ▸ hhas_f
+            have hbr_app : (D[j].kind == .brace && !stackHasKind (s ++ [(r, k)]) .brace) = true := by
               rw [hbrace]; simp [hbrace ▸ hhas_app]
             have hstepL : ordinaryVisitFind D j hj (s ++ [(r, k)]) r =
                 ordinaryVisitFind D (j + 1) hlt [] r := by
@@ -583,7 +573,7 @@ theorem ordinaryVisitFind_append_singleton (D : List Delim) (j : Nat) (hj : j �
               simp [hlt, ordinaryVisitStep, hop, hbr_app]
             have hstepR : forwardStop D j hj s (addActive emptyActive k) = j := by
               conv => lhs; unfold forwardStop
-              simp [hlt, hop, hhas_f, hbrace]
+              simp [hlt, hop, hbrace, hhas_br]
             rw [hstepL, ordinaryVisitFind_none_of_all_gt D (j + 1) hlt [] r (fun _ hp => nomatch hp) hfut_next]
             simp [hstepR, hlt, hop, hbeq']
           · have hbr_eq : (D[j].kind == .brace) = false := by
@@ -631,6 +621,7 @@ theorem ordinaryVisitMatch_eq_forwardMatch (D : List Delim)
     (hinc : StrictlyIncreasingRaw D) (i : Nat) (hi : i < D.length) :
     ordinaryVisitMatch D i hi = forwardMatch D i hi := by
   unfold ordinaryVisitMatch forwardMatch
+  dsimp only
   cases hop : D[i].opening
   · simp
   · simp only [↓reduceIte]
@@ -640,7 +631,7 @@ theorem ordinaryVisitMatch_eq_forwardMatch (D : List Delim)
       simp [hi, ordinaryVisitStep, hop]
     rw [hfirst]
     have hfut : AllFutureRawGt D (i + 1) D[i].raw :=
-      fun m hm hml => hinc i m (by omega) hml
+      fun m hm hml => hinc i m (by omega) hi hml
     exact ordinaryVisitFind_append_singleton D (i + 1) hi [] D[i].raw D[i].kind
       (fun _ hp => nomatch hp) hfut
 
@@ -660,18 +651,23 @@ theorem dpMatch_some_pos (D : List Delim) (hinc : StrictlyIncreasingRaw D)
     (i : Nat) (hi : i < D.length) (c : Nat) (hm : dpMatch D i hi = some c) :
     1 ≤ c := by
   unfold dpMatch at hm
-  split at hm
-  · rename_i hop
-    set r1 := dpBoundary D (i + 1) hi (addActive emptyActive D[i].kind)
-    have hge : i + 1 ≤ r1.val := r1.property.1
-    split at hm
-    · rename_i hlt1
-      split at hm
-      · cases hm
-        have hlt_raw : D[i].raw < D[r1.val].raw := hinc i r1.val (by omega) hlt1
+  dsimp only at hm
+  cases hop : D[i].opening
+  · simp [hop] at hm
+  · simp only [hop, ↓reduceIte] at hm
+    have hge := (dpBoundary D (i + 1) hi (addActive emptyActive D[i].kind)).property.1
+    by_cases hlt1 : (dpBoundary D (i + 1) hi (addActive emptyActive D[i].kind)).val < D.length
+    · simp only [hlt1, ↓reduceDIte] at hm
+      by_cases hcl : (!D[(dpBoundary D (i + 1) hi (addActive emptyActive D[i].kind)).val].opening &&
+          (D[(dpBoundary D (i + 1) hi (addActive emptyActive D[i].kind)).val].kind == D[i].kind)) = true
+      · simp only [hcl, ↓reduceIte] at hm
+        cases hm
+        have hlt_raw : D[i].raw < D[(dpBoundary D (i + 1) hi (addActive emptyActive D[i].kind)).val].raw :=
+          hinc i _ (by omega) hi hlt1
         omega
-      · cases hm
-    · cases hm
-  · cases hm
+      · simp only [hcl, ↓reduceIte] at hm
+        cases hm
+    · simp only [hlt1, ↓reduceDIte] at hm
+      cases hm
 
 end F6AngleGroups
