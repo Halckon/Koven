@@ -157,6 +157,10 @@
             "named": false
           },
           {
+            "type": "and",
+            "named": false
+          },
+          {
             "type": "in",
             "named": false
           },
@@ -165,8 +169,28 @@
             "named": false
           },
           {
+            "type": "or",
+            "named": false
+          },
+          {
+            "type": "shl",
+            "named": false
+          },
+          {
+            "type": "shr",
+            "named": false
+          },
+          {
             "type": "to_operator",
             "named": true
+          },
+          {
+            "type": "ushr",
+            "named": false
+          },
+          {
+            "type": "xor",
+            "named": false
           },
           {
             "type": "||",
@@ -2371,6 +2395,10 @@
     "named": false
   },
   {
+    "type": "and",
+    "named": false
+  },
+  {
     "type": "argument_mode",
     "named": true
   },
@@ -2509,6 +2537,10 @@
     "named": false
   },
   {
+    "type": "or",
+    "named": false
+  },
+  {
     "type": "override",
     "named": false
   },
@@ -2533,6 +2565,14 @@
     "named": false
   },
   {
+    "type": "shl",
+    "named": false
+  },
+  {
+    "type": "shr",
+    "named": false
+  },
+  {
     "type": "string_content",
     "named": true
   },
@@ -2553,6 +2593,10 @@
     "named": false
   },
   {
+    "type": "ushr",
+    "named": false
+  },
+  {
     "type": "val",
     "named": false
   },
@@ -2570,6 +2614,10 @@
   },
   {
     "type": "while",
+    "named": false
+  },
+  {
+    "type": "xor",
     "named": false
   },
   {
