@@ -1604,6 +1604,26 @@ class LoanKernelCases(unittest.TestCase):
         self.assertEqual({"K1", "K4"}, {rule for rule, _ in added})
         self.assertEqual(set(), actual - coarse)
 
+    def test_bare_borrow_address_of_origins_ambiguity_and_closure_capture(self):
+        """§82：1A 裸借用变量显式取址禁止、p.origins 同名字段歧义，以及 1A 闭包捕获两栏对照。"""
+        source = (ROOT / "cases/Z44.lk").read_text(encoding="utf-8")
+        lowered = {}
+        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        self.assertEqual(expected(source), actual)
+        for name in ("bare_reborrow_and_field_projection_ok", "explicit_view_slot_ok",
+                     "origins_field_normal_access_ok", "closure_capture_guide07_shared_ok",
+                     "closure_capture_future_excl_ok"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("bare_borrow_ref_rejected", "bare_inout_ref_rejected",
+                     "write_bare_vs_ref_distinct_diagnostics", "generic_view_t_backdoor_rejected",
+                     "closure_capture_guide07_shared_mut_rejected",
+                     "closure_capture_guide07_shared_conflict", "closure_capture_future_excl_conflict",
+                     "closure_capture_future_excl_from_borrow_rejected"):
+            self.assertFalse(lowered[name][2], name)
+        sig_errors = [msg for rule, _, msg in CHECKER.check(source) if rule == "SIG"]
+        self.assertEqual(1, len(sig_errors))
+        self.assertIn("origins_selector_ambiguous", sig_errors[0])
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))

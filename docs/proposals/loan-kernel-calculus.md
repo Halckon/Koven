@@ -1335,4 +1335,16 @@ fun probe(borrow h: A): Unit {
 - **可观察析构与同调用传参守恒**：带 `deinit` 的持有者 `Guard` 仍遵守 R1.2，`consumeIntAndMut(readGuard(&g), &mut a)` 虽不再使用 `g` 仍报 K1；将 `move g` 与 `&mut a` 传入同一调用（`consumeGuardAndMut(move g, &mut a)`）因 `g` 的 loan 留在 `self.pending` 仍报 K1；仅当 `g` 在前序调用中已被消费销毁（`consumeIntAndMut(dropGuard(move g), &mut a)`）时后续 `&mut a` 接受。变异对照关闭 `sub_stmt_liveness` 后，6 处前序最后一次使用均退化为 K1/K4 误拒绝，且其余全部用例不变。
 - **附带发现并修掉的两阶段预留边界（`Z27.lk`）**：打开语句内活性后，`push(r, size(&v))` 中 `r` 在第 1 个实参后不再活跃，原先依赖整条语句统一存活才保住的父独占 loan `L_r` 会提前失效，导致绕过 `r` 直接访问 `&v` 漏报 K1；现将两阶段预留接收者的父 loan（`parents`）一并压入 `self.pending` 直至激活，既允许经 `r` 自身读（`size(r)`），又阻止绕过 `r` 直接借用原 owner（`size(&v)`）。
 
+## 82. 裸借用变量显式取址禁止、`p.origins` 同名歧义与闭包捕获两栏验收（1A 封口）
+
+`Z44.lk` 落地 2026-11-23 `#koven-design` 关于 1A 与 `p.origins` 的原型验收项（讨论共识，非正式 Spec/Guide 批准）：
+
+- **1A 裸借用变量显式取址禁止（`Checker.borrow`）**：禁止对裸 `borrow` / `inout` 参数或局部变量显式取址（`&h` / `&mut h` 一律报 `TYPE`）；由此 `write_item(h)`（实参重借路径，共享借用交给 `inout` 报 `K1`）与 `write_item(&mut h)`（显式取址裸借用变量报 `TYPE`）均拒绝但诊断原因区分清晰。仅允许实参重借与字段投影（`&hb.a` / `&mut hm.b`）；确需可重绑定槽位时用显式 `view class Slot(inout p: Item)` 字段。
+- **封堵 `<view T>` 后门**：`<view T> fun take_view_mut(inout x: T)` 不能经 `&mut hb` / `&mut hm`（`TYPE`）或裸 `borrow` 重借 `take_view_mut(hb)`（`K1`）绕过 1A；仅允许裸 `inout` 参数经实参重借传入（`take_view_mut(hm)`）。
+- **`p.origins` 合同选择器与真实 `origins` 字段撞名歧义（`Checker.check_signature`）**：`origins` 仅作 `from`/`flows` 合同位置的专用选择器、不作全局保留字；但若具体类型声明了真实字段 `origins`（如 `view class NamedOrigins(borrow origins: Item)`），则在合同中写 `from v.origins` 报 `SIG` 拒绝歧义，而普通代码访问 `v.origins`（配合 `from v`）仍合法。
+- **1A 闭包捕获裸借用参数（两栏验收）**：闭包捕获裸 `borrow` / `inout` 参数等于创建时对所指对象做重借，不借参数槽本身。按讨论意见拆为两栏、不反推现行 Guide 07 语义：
+  - **现行 Guide 07 共享捕获栏（`SharedCap`）**：普通闭包捕获 `inout h` 只获共享重借——只读合法，用完后 `h` 恢复可写；试图经闭包写入（`write_item(cap.target)`）报 `K1`；闭包存活期间写 `h` 报 `K4`。
+  - **未来内核独占捕获栏（`ExclCap`）**：若未来放开对 `inout h` 的独占捕获，仍是对所指对象的重借——经闭包写入合法，用完后 `h` 恢复可用；存活期间读 `h` 报 `K4`；裸 `borrow h` 仍不能被独占捕获（`K1`）。
+
+
 

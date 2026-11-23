@@ -35,6 +35,24 @@ class ScopeModel(unittest.TestCase):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.scope_model(policy, children=3)))
 
 
+class ScopeCancelDrainModel(unittest.TestCase):
+    """3A 确定场景：丢弃 Job_A 后子 A 失败产生 err_A，子 B 显式经 blocked -> cleaning -> done/deinit_failed。"""
+
+    EXPECTED = {
+        "唤醒即视作结束": ({MODEL.UAF}, set(), set()),
+        "超时释放父帧": ({MODEL.UAF}, set(), set()),
+        "取消结果覆盖首错": ({MODEL.WRONG_ERROR}, set(), set()),
+        "首错覆盖子deinit失败": ({MODEL.DEINIT_FAIL_SUPPRESSED}, set(), set()),
+        "等子实际终止、保留err_A、deinit失败终止进程": (set(), set(), set()),
+    }
+
+    def test_each_policy_has_the_expected_outcome(self):
+        self.assertEqual(set(self.EXPECTED), set(MODEL.SCOPE_CANCEL_DRAIN_POLICIES))
+        for name, policy in MODEL.SCOPE_CANCEL_DRAIN_POLICIES.items():
+            with self.subTest(policy=name):
+                self.assertEqual(self.EXPECTED[name], outcome(MODEL.scope_cancel_drain_model(policy)))
+
+
 class IoModel(unittest.TestCase):
     """失败政策：无终结证据时保留资源；保留不了时终止进程，且终止生效前不再释放。"""
 
@@ -101,6 +119,8 @@ class CleanupProgressModel(unittest.TestCase):
         "无进度记录且非幂等": ({MODEL.DOUBLE_CLEANUP}, set(), set()),
         "持久化进度记录（非幂等步骤）": (set(), set(), set()),
         "无进度记录但步骤幂等": (set(), set(), set()),
+        "非原子写进度且非幂等": ({MODEL.DOUBLE_CLEANUP}, set(), set()),
+        "非原子写进度但步骤幂等": (set(), set(), set()),
     }
 
     def test_each_policy_has_the_expected_outcome(self):

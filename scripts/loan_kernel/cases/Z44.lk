@@ -1,0 +1,110 @@
+// Z44（§82）：1A 裸借用变量显式取址禁止、p.origins 同名字段歧义，以及 1A 闭包捕获两栏验收。
+
+class Item(x: Int)
+class Pair(a: Item, b: Item)
+
+view class Slot(inout p: Item)
+view class NamedOrigins(borrow origins: Item)
+
+// 1A 闭包捕获建模（按现行 Guide 07 共享捕获与未来内核独占捕获拆为两栏）：
+// 闭包捕获裸 borrow/inout 参数 = 创建时对所指对象重借，不借参数槽本身。
+view class SharedCap(borrow target: Item)
+view class ExclCap(inout target: Item)
+
+fun read_item(borrow x: Item): Unit trusted
+fun write_item(inout x: Item): Unit trusted
+fun write_slot(inout s: Slot): Unit trusted
+fun <view T> take_view_mut(inout x: T): Unit trusted
+
+// ---- 1. 裸借用变量显式取址（1A）vs 重借与字段投影
+
+fun bare_borrow_ref_rejected(borrow h: Item): Unit {
+    val r1 = &h           // ERR TYPE
+    val r2 = &mut h       // ERR TYPE
+    use(r1)
+    use(r2)
+}
+
+fun bare_inout_ref_rejected(inout h: Item): Unit {
+    val r1 = &h           // ERR TYPE
+    val r2 = &mut h       // ERR TYPE
+    use(r1)
+    use(r2)
+}
+
+fun write_bare_vs_ref_distinct_diagnostics(borrow h: Item): Unit {
+    write_item(h)         // ERR K1
+    write_item(&mut h)    // ERR TYPE
+}
+
+fun bare_reborrow_and_field_projection_ok(borrow hb: Pair, inout hm: Pair): Unit {
+    val fa = &hb.a
+    val fb = &mut hm.b
+    read_item(fa)
+    write_item(fb)
+    read_item(&hb.b)
+    write_item(&mut hm.a)
+}
+
+fun explicit_view_slot_ok(inout h: Item): Unit {
+    val s = Slot(h)
+    write_slot(&mut s)
+    write_item(h)
+}
+
+// ---- 2. 封堵 <view T> 后门：不能用裸 borrow/inout 绕过 1A
+
+fun generic_view_t_backdoor_rejected(borrow hb: Item, inout hm: Item): Unit {
+    take_view_mut(&mut hb) // ERR TYPE
+    take_view_mut(&mut hm) // ERR TYPE
+    take_view_mut(hb)      // ERR K1
+    take_view_mut(hm)
+}
+
+// ---- 3. p.origins 合同选择器与真实 origins 字段撞名歧义
+
+fun origins_selector_ambiguous(borrow v: NamedOrigins): borrow Item from v.origins { // ERR SIG
+    return v.origins
+}
+
+fun origins_field_normal_access_ok(borrow v: NamedOrigins): borrow Item from v {
+    return v.origins
+}
+
+// ---- 4A. 1A 闭包捕获（现行 Guide 07 共享捕获语义）
+
+fun closure_capture_guide07_shared_ok(inout h: Item): Unit {
+    val cap = SharedCap(h)
+    read_item(cap.target)
+    write_item(h)
+}
+
+fun closure_capture_guide07_shared_mut_rejected(inout h: Item): Unit {
+    val cap = SharedCap(h)
+    write_item(cap.target) // ERR K1
+}
+
+fun closure_capture_guide07_shared_conflict(inout h: Item): Unit {
+    val cap = SharedCap(h)
+    write_item(h)          // ERR K4
+    read_item(cap.target)
+}
+
+// ---- 4B. 1A 闭包捕获（未来内核独占捕获语义）
+
+fun closure_capture_future_excl_ok(inout h: Item): Unit {
+    val cap = ExclCap(h)
+    write_item(cap.target)
+    write_item(h)
+}
+
+fun closure_capture_future_excl_conflict(inout h: Item): Unit {
+    val cap = ExclCap(h)
+    read_item(h)           // ERR K4
+    write_item(cap.target)
+}
+
+fun closure_capture_future_excl_from_borrow_rejected(borrow h: Item): Unit {
+    val cap = ExclCap(h)   // ERR K1
+    use(cap)
+}

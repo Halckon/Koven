@@ -720,7 +720,10 @@ class Checker:
             if fld is None:
                 if fun.result[0] == "inout" and mode == "borrow" and (param, fld) in fun.sources:
                     self.error("SIG", fun.line, f"{fun.name}：inout 结果不能依赖 borrow 参数 {param}")
-            elif fld != "*":
+            elif fld == "*":
+                if ty in self.classes and self.classes[ty].field("origins") is not None:
+                    self.error("SIG", fun.line, f"{fun.name}：{param}.origins 与类型 {ty} 的同名字段 origins 产生歧义")
+            else:
                 decl = self.classes.get(ty)
                 paths = [path for _, path in self.ref_paths(ty)] if decl is not None and decl.is_view else []
                 if not any(path == fld or path.startswith(fld + ".") for path in paths):
@@ -1472,6 +1475,9 @@ class Checker:
             tmp = self.materialize_temp(self.value(expr.args[0], state), state, expr.line)
             place = Place(tmp, [], expr.line)
         res = self.resolve(state, place)
+        if not place.fields and res.ty.kind in ("borrow", "inout"):
+            self.error("TYPE", expr.line, f"不能对裸 {res.ty.kind} 变量 {place.root} 显式取址")
+            return Value(Type("inout" if mut else "borrow", res.ty.name), {"": set()})
         if mut and not res.writable:
             self.error("K1", expr.line, "不能经共享借用建立独占借用")
         access_kind = "excl" if mut and not reserved else "shared"
