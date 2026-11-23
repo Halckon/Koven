@@ -55,7 +55,7 @@ jobs:
         run: |
           lake build
           lake env lean -DwarningAsError=true F6AngleGroups.lean
-      - name: Verify theorem axiom dependencies (no sorryAx or custom axioms)
+      - name: Verify theorem axiom dependencies (only core Lean axioms)
         working-directory: formal/parser/f6_angle_groups
         run: |
           set -euo pipefail
@@ -68,10 +68,42 @@ jobs:
           EOF
           )"
           printf '%s\n' "$axioms_out"
-          if printf '%s\n' "$axioms_out" | grep -q 'sorryAx'; then
-            echo "error: theorem depends on sorryAx" >&2
-            exit 1
-          fi
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6AngleGroups.dpBoundary_eq_forwardStop",
+              "F6AngleGroups.dpMatch_eq_forwardMatch",
+              "F6AngleGroups.dpMatch_eq_ordinaryVisitMatch",
+              "F6AngleGroups.dpMatch_some_pos",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 4 theorems depend only on allowed core Lean axioms")
+          PY
 
   kani-bounded-rust:
     name: F6 Kani Bounded Rust Proof (n <= 6, lexeme_len <= 12)

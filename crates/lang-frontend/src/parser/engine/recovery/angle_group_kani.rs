@@ -4,7 +4,8 @@
 //! Evidence level: `validated (bounded Rust, delimiters.len() <= 6, lexeme_len <= 12)`
 //! — directly checks panic-freedom, bounds safety, `NonZeroUsize` non-lossiness, and
 //! exact equivalence on the production Rust implementation across all strictly
-//! increasing delimiter index layouts (including the final slot `lexeme_len - 1`).
+//! increasing delimiter index layouts (including the final slot `lexeme_len - 1`)
+//! and across all non-delimiter slots in `0..lexeme_len`.
 
 use super::angle_groups::match_angle_group_delimiters;
 use super::ordinary_groups::OrdinaryGroups;
@@ -37,7 +38,7 @@ fn symbolic_delimiters() -> (Vec<(usize, usize, bool)>, usize) {
     while i < len {
         let raw: usize = kani::any();
         let remaining = len - i;
-        kani::assume(raw >= next_raw && raw + remaining <= lexeme_len);
+        kani::assume(raw >= next_raw && raw <= lexeme_len - remaining);
         next_raw = raw + 1;
         let kind: usize = kani::any();
         kani::assume(kind < 3);
@@ -55,6 +56,7 @@ fn verify_angle_group_closers_equivalence_bounded() {
     let indexed = match_angle_group_delimiters(&delimiters, lexeme_len);
     assert_eq!(indexed.len(), lexeme_len);
 
+    let mut expected_all: Vec<Option<usize>> = vec![None; lexeme_len];
     let mut i = 0usize;
     while i < delimiters.len() {
         let (opener_raw, _kind, opening) = delimiters[i];
@@ -70,11 +72,15 @@ fn verify_angle_group_closers_equivalence_bounded() {
                 }
                 j += 1;
             }
-            assert_eq!(indexed[opener_raw].map(NonZeroUsize::get), expected);
-        } else {
-            assert_eq!(indexed[opener_raw], None);
+            expected_all[opener_raw] = expected;
         }
         i += 1;
+    }
+
+    let mut slot = 0usize;
+    while slot < lexeme_len {
+        assert_eq!(indexed[slot].map(NonZeroUsize::get), expected_all[slot]);
+        slot += 1;
     }
 }
 
@@ -83,17 +89,25 @@ fn verify_angle_group_closers_equivalence_bounded() {
 fn verify_angle_group_closer_strictly_after_opener_and_nonzero() {
     let (delimiters, lexeme_len) = symbolic_delimiters();
     let indexed = match_angle_group_delimiters(&delimiters, lexeme_len);
+    assert_eq!(indexed.len(), lexeme_len);
 
+    let mut is_opener = vec![false; lexeme_len];
     let mut i = 0usize;
     while i < delimiters.len() {
         let (raw, _, opening) = delimiters[i];
-        if let Some(closer) = indexed[raw] {
-            assert!(opening);
+        is_opener[raw] = opening;
+        i += 1;
+    }
+
+    let mut slot = 0usize;
+    while slot < lexeme_len {
+        if let Some(closer) = indexed[slot] {
+            assert!(is_opener[slot]);
             let closer_raw = closer.get();
-            assert!(closer_raw > raw);
+            assert!(closer_raw > slot);
             assert!(closer_raw < lexeme_len);
             assert!(closer_raw >= 1);
         }
-        i += 1;
+        slot += 1;
     }
 }
