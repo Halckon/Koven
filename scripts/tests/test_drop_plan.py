@@ -51,7 +51,8 @@ class DropPlanCases(unittest.TestCase):
 
     def test_keeping_everything_until_scope_end_is_also_valid(self):
         """统一规则只“允许”提前析构：一律留到作用域结束的规划同样满足全部不变量。"""
-        for name in ("D1_basics.dp", "D2_conditional_move.dp", "D3_partial_and_open.dp", "D4_deinit_body.dp"):
+        for name in ("D1_basics.dp", "D2_conditional_move.dp", "D3_partial_and_open.dp", "D4_deinit_body.dp",
+                     "D5_field_order_and_generic_deinit.dp"):
             lexical = outcomes(read(name), DP.Policy(early="none"))
             self.assertEqual(outcomes(read(name)), lexical, name)
 
@@ -172,6 +173,56 @@ class DropPlanCases(unittest.TestCase):
         self.assertEqual({"V4"}, run(("let", "f"), ("let", "g"), ("drop", "f"), ("drop", "g")))
         self.assertEqual({"V2"}, run(("let", "f"), ("drop", "f"), ("drop", "f")))
         self.assertEqual({"V5"}, run(("let", "f"), ("move", "f"), ("use", "f")))
+
+    def traces_of(self, filename, fun, explore_failure=False):
+        types, funs = DP.parse(read(filename))
+        policy = DP.Policy()
+        deinits, _, _ = DP.plan_deinits(types, policy)
+        planned = DP.Planner(types, policy).plan(funs[fun])
+        DP.sync_instantiated_deinits(types, deinits, policy)
+        verifier = DP.Verifier(types, explore_failure=explore_failure, deinits=deinits)
+        self.assertEqual({}, verifier.run_all(planned))
+        return [trace for _, trace in verifier.traces]
+
+    def test_single_value_field_drop_order_and_partial_move_traces(self):
+        """单个值内部字段按声明逆序析构；带 deinit 时先跑本体再按逆序析构剩余字段。"""
+        f = "D5_field_order_and_generic_deinit.dp"
+        self.assertEqual([["p.second:drop(FileB)", "p.first:drop(FileA)"]],
+                         self.traces_of(f, "pairDropsFieldsInReverseOrder"))
+        self.assertEqual([["o.right:drop(FileC)", "o.left.second:drop(FileB)", "o.left.first:drop(FileA)"]],
+                         self.traces_of(f, "nestedDropsFieldsInReverseOrder"))
+        self.assertEqual([["x:drop(FileB)", "p.first:drop(FileA)"]],
+                         self.traces_of(f, "partialMoveSecondDropsTakenThenFirst"))
+        self.assertEqual([["x:drop(FileA)", "p.second:drop(FileB)"]],
+                         self.traces_of(f, "partialMoveFirstDropsTakenThenSecond"))
+        self.assertEqual([["d:deinit(OrderedDeinit)", "this.second:drop(FileB)", "this.first:drop(FileA)"]],
+                         self.traces_of(f, "deinitRunsBeforeRemainingFields"))
+        self.assertEqual([["d:deinit(MoveSecondDeinit)", "this.first:drop(FileA)"]],
+                         self.traces_of(f, "deinitMovesSecondThenDropsFirst"))
+        self.assertEqual([
+            ["d:deinit(BranchDeinit)", "this.second:drop(FileB)"],
+            ["d:deinit(BranchDeinit)", "this.second:drop(FileB)", "this.first:drop(FileA)"],
+        ], self.traces_of(f, "deinitBranchMovesFirst"))
+
+    def test_generic_deinit_instantiation_traces_and_drop_flags(self):
+        """泛型 deinit 按未约束可观察参数规划，并在实例化后按声明逆序析构载荷与字段。"""
+        f = "D5_field_order_and_generic_deinit.dp"
+        self.assertEqual([
+            ["b2:deinit(Box<FileA>)", "this.value:drop(FileA)", "b1:deinit(Box<Buf>)"],
+        ], self.traces_of(f, "genericBoxWithBufAndFile"))
+        self.assertEqual([
+            ["w:deinit(Wrapper<FileB>)", "this.payload:drop(FileB)", "this.first:drop(FileA)"],
+        ], self.traces_of(f, "genericWrapperDropsPayloadBeforeFirst"))
+        self.assertEqual([
+            ["b:deinit(BranchBox<FileA>)"],
+            ["b:deinit(BranchBox<FileA>)", "this.value:drop(FileA)"],
+        ], self.traces_of(f, "genericBranchBoxWithFile"))
+        self.assertEqual([
+            ["g:deinit(ScopeGuard<FileA, FileB>)"],
+        ], self.traces_of(f, "genericScopeGuardMovesPayloadAndAction"))
+        # ScopeGuard.deinit 中 call 失败时，析构尚未移交的 act 与 v（按逆序）
+        failure_traces = self.traces_of(f, "genericScopeGuardMovesPayloadAndAction", explore_failure=True)
+        self.assertIn(["g:deinit(ScopeGuard<FileA, FileB>)"], failure_traces)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@
 
 规格见 docs/proposals/drop-obligation-model.md。用法：python3 scripts/loan_kernel/drop_plan.py 文件.dp ...
 """
+import copy
 from dataclasses import dataclass, field
 import importlib.util
 from pathlib import Path
@@ -35,6 +36,7 @@ class TypeDecl:
     unforgettable: bool = False
     empty: bool = False  # 有一个可以留在原处的空值（例如可空类型的 null）
     body: list = None  # deinit 的函数体；None 表示没有写出来
+    params: list = field(default_factory=list)  # 泛型类型参数，例如 ["T"]
 
 
 @dataclass
@@ -80,18 +82,50 @@ def parse(text):
         line = raw.split("//")[0].strip()
         if not line:
             continue
+        if line.startswith("type "):
+            m = re.match(r"^type\s+(\w+)(?:<([^>]+)>)?(?:\(([^)]*)\))?(.*)$", line)
+            if not m:
+                raise Rejected(number, "SYNTAX", f"无法解析类型声明 {line}")
+            name, raw_params, raw_fields, raw_flags = m.groups()
+            params = [p.strip() for p in raw_params.split(",")] if raw_params else []
+            flds = []
+            if raw_fields and raw_fields.strip():
+                depth, buf, parts = 0, [], []
+                for ch in raw_fields:
+                    if ch == "<":
+                        depth += 1
+                    elif ch == ">":
+                        depth -= 1
+                    if ch == "," and depth == 0:
+                        parts.append("".join(buf))
+                        buf = []
+                    else:
+                        buf.append(ch)
+                if buf:
+                    parts.append("".join(buf))
+                for part in parts:
+                    fname, fty = [x.strip() for x in part.split(":", 1)]
+                    flds.append((fname, fty))
+            flags = set(raw_flags.split())
+            types[name] = TypeDecl(name, flds, "deinit" in flags, "consume" in flags,
+                                   "unforgettable" in flags, "empty" in flags, params=params)
+            continue
+        if line.startswith("deinit "):
+            m = re.match(r"^deinit\s+(\w+)(?:<[^>]+>)?\s*\{$", line)
+            if not m or m.group(1) not in types or not types[m.group(1)].deinit:
+                raise Rejected(number, "SYNTAX", f"{line} 没有对应的 deinit 声明")
+            types[m.group(1)].body = []
+            stack = [types[m.group(1)].body]
+            continue
+        if line.startswith(("let ", "set ")):
+            m = re.match(r"^(let|set)\s+(\w+)\s*=\s*(.+)$", line)
+            if not m:
+                raise Rejected(number, "SYNTAX", f"无法解析声明 {line}")
+            stack[-1].append(Stmt(m.group(1), number, var=m.group(2), ty=m.group(3)))
+            continue
         words = re.findall(r"[A-Za-z_]\w*|[{}().=,:]", line)
         head = words[0]
-        if head == "type":
-            flds = re.findall(r"(\w+)\s*:\s*(\w+)", line)
-            types[words[1]] = TypeDecl(words[1], flds, "deinit" in words[2:], "consume" in words[2:],
-                                       "unforgettable" in words[2:], "empty" in words[2:])
-        elif head == "deinit":  # deinit T {：类型 T 的析构函数体
-            if words[1] not in types or not types[words[1]].deinit:
-                raise Rejected(number, "SYNTAX", f"{words[1]} 没有声明 deinit")
-            types[words[1]].body = []
-            stack = [types[words[1]].body]
-        elif head == "fun":
+        if head == "fun":
             funs[words[1]] = []
             stack = [funs[words[1]]]
         elif head == "}":
@@ -102,8 +136,6 @@ def parse(text):
             stmt = Stmt({"{": "block"}.get(head, head), number)
             stack[-1].append(stmt)
             stack.append(stmt.body)
-        elif head in ("let", "set"):
-            stack[-1].append(Stmt(head, number, var=words[1], ty=words[3]))
         elif head in ("take", "replace"):  # take y = x.a；replace y = x.a 取出字段并在原处留下空值
             stack[-1].append(Stmt(head, number, var=words[1], ty=words[3], fld=words[5]))
         elif head == "open":  # open x as a, b
@@ -119,17 +151,70 @@ def parse(text):
 
 # ---- 类型的性质
 
+def split_generic(name):
+    if "<" not in name or not name.endswith(">"):
+        return name, []
+    head, rest = name.split("<", 1)
+    inner = rest[:-1]
+    depth, buf, args = 0, [], []
+    for ch in inner:
+        if ch == "<":
+            depth += 1
+        elif ch == ">":
+            depth -= 1
+        if ch == "," and depth == 0:
+            args.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        args.append("".join(buf).strip())
+    return head, args
+
+
 class Types:
     def __init__(self, types):
         self.types = types
         self.known = None
 
+    def ensure(self, name):
+        """按需实例化泛型类型（如 Box<File>），将类型实参替换进字段声明。"""
+        if name in self.types:
+            return self.types[name]
+        head, args = split_generic(name)
+        if not args or head not in self.types:
+            raise KeyError(name)
+        tmpl = self.types[head]
+        if len(args) != len(tmpl.params):
+            raise Rejected(0, "SYNTAX", f"{head} 期望 {len(tmpl.params)} 个类型实参，得到 {len(args)} 个")
+        binding = dict(zip(tmpl.params, args))
+        for arg in args:
+            self.ensure(arg)
+        def subst(ty):
+            if ty in binding:
+                return binding[ty]
+            h, a = split_generic(ty)
+            return f"{h}<{', '.join(subst(x) for x in a)}>" if a else ty
+        fields = [(fld, subst(fty)) for fld, fty in tmpl.fields]
+        for _, fty in fields:
+            self.ensure(fty)
+        decl = TypeDecl(name, fields, tmpl.deinit, tmpl.consume, tmpl.unforgettable, tmpl.empty, tmpl.body)
+        self.types[name] = decl
+        return decl
+
     def has(self, name, cap):
         """类型是否满足一项析构能力。类型标记翻译成能力推导的声明，结论由它按字段推导。"""
-        if self.known != len(self.types):  # deinit 拥有 this 时会补进新的类型
+        self.ensure(name)
+        for decl in list(self.types.values()):
+            if not decl.params:
+                for _, fty in decl.fields:
+                    if fty != "&":
+                        self.ensure(fty)
+        if self.known != len(self.types):  # deinit 拥有 this 或泛型实例化时会补进新的类型
+            concrete = {d.name: d for d in self.types.values() if not d.params}
             self.engine = CAP.Engine({decl.name: CAP.Decl(
                 decl.name, [], [(fld, CAP.Ty(ty)) for fld, ty in decl.fields], "class", deinit=decl.deinit,
-                unforgettable=decl.unforgettable, must_consume=decl.consume) for decl in self.types.values()})
+                unforgettable=decl.unforgettable, must_consume=decl.consume) for decl in concrete.values()})
             self.known = len(self.types)
         return self.engine.requires(CAP.Ty(name), cap) is not CAP.NEVER
 
@@ -139,7 +224,7 @@ class Types:
 
     def units(self, var, name):
         """一个变量名下的义务单元：递归展开到每个叶字段，声明了 deinit 的类型自身另有一份。"""
-        decl = self.types[name]
+        decl = self.ensure(name)
         if not decl.fields:
             return [var]
         units = []
@@ -149,13 +234,14 @@ class Types:
 
     def field_type(self, name, path):
         for fld in path.split("."):
-            name = dict(self.types[name].fields)[fld]
+            name = dict(self.ensure(name).fields)[fld]
         return name
 
     def fields_of(self, name):
         """deinit 拥有 this 时它的类型：同样的字段，但 deinit 这份义务已经在履行，不再另算。"""
+        decl = self.ensure(name)
         shadow = f"{name}.fields"
-        self.types.setdefault(shadow, TypeDecl(shadow, self.types[name].fields))
+        self.types.setdefault(shadow, TypeDecl(shadow, decl.fields))
         return shadow
 
 
@@ -479,15 +565,18 @@ class Verifier:
         self.deinits = deinits or {}  # 类型名 -> 规划后的 deinit 函数体
         self.propagate = propagate  # deinit 在正常路径上失败时当作普通失败；否则终止进程
         self.aborted_paths = 0
+        self.traces = []  # 每条已完成路径的可观察析构顺序（含 deinit 本体与字段逆序）
 
     def run_all(self, body):
         """穷举选择序列：分支走哪边、循环几次、哪个操作失败。返回违反的不变量集合。"""
         found, pending = {}, [[]]
+        self.traces = []
         while pending:
             self.choices, self.taken = pending.pop(), []
             self.unit, self.scopes, self.ty = {}, [], {}
             self.early_observable, self.violations = set(), []
             self.borrowed, self.cleaning, self.aborted = set(), False, False
+            self.trace = []
             try:
                 self.block(body)
             except InvalidOpen as invalid:
@@ -497,6 +586,8 @@ class Verifier:
             except Leave:
                 pass
             self.aborted_paths += self.aborted
+            if not self.aborted:
+                self.traces.append((list(self.taken), list(self.trace)))
             for name in self.violations:
                 found.setdefault(name, list(self.taken))
             for index in range(len(self.choices), len(self.taken)):
@@ -551,23 +642,27 @@ class Verifier:
                 self.violations.append("V4 可观察的析构没有按声明逆序")
             if var in active:
                 self.early_observable.add(var)
-        return self.destruct(self.ty[var], {unit[len(var) + 1:] for unit in held if unit != var}, var in held)
+        return self.destruct(self.ty[var], {unit[len(var) + 1:] for unit in held if unit != var}, var in held, var)
 
-    def destruct(self, ty, fields, whole=True):
+    def destruct(self, ty, fields, whole=True, prefix=""):
         """运行析构的用户代码：先是这个类型的 deinit 函数体，再按声明逆序是各字段的。返回是否失败过。
 
         deinit 拥有 this 时，字段由函数体自己负责。第一次失败之后余下的都算清理途中。
         """
-        decl, body = self.t.types[ty], self.deinits.get(ty)
+        decl, body = self.t.ensure(ty), self.deinits.get(ty)
         failed = False
         if body is not None and whole:
+            self.trace.append(f"{prefix}:deinit({ty})")
             failed = self.run_deinit(body)
             if not body[0].if_owned:
                 return failed
+        elif decl.deinit and whole and not decl.fields:
+            self.trace.append(f"{prefix}:drop({ty})")
         for name, fty in reversed(decl.fields):
             sub = {f[len(name) + 1:] for f in fields if f.startswith(name + ".")}
             if name in fields or sub:
-                failed |= self.guarded(failed, lambda: self.destruct(fty, sub, name in fields))
+                child = f"{prefix}.{name}" if prefix else name
+                failed |= self.guarded(failed, lambda fty=fty, sub=sub, whole_f=name in fields, child=child: self.destruct(fty, sub, whole_f, child))
         return failed
 
     def guarded(self, cleaning, action):
@@ -694,29 +789,64 @@ def show(stmts, depth=1):
     return lines
 
 
+def plan_deinits(types, policy):
+    """规划所有具名与已实例化泛型类型的 deinit 函数体；泛型体按未约束可观察参数单独检查一次。"""
+    deinits, generic_deinits, rejected_bodies = {}, {}, []
+    for name, decl in list(types.items()):
+        if decl.body is None:
+            continue
+        if decl.params:
+            env = dict(types)
+            for p in decl.params:
+                env[p] = TypeDecl(p, [], deinit=True)
+            env[name] = TypeDecl(name, decl.fields, decl.deinit, decl.consume, decl.unforgettable, decl.empty, decl.body)
+            try:
+                generic_deinits[name] = (env, Planner(env, policy).plan(copy.deepcopy(decl.body), this=name))
+            except Rejected as rejected:
+                rejected_bodies.append((name, rejected.rule, set(), [str(rejected)]))
+        else:
+            try:
+                deinits[name] = Planner(types, policy).plan(copy.deepcopy(decl.body), this=name)
+            except Rejected as rejected:
+                rejected_bodies.append((name, rejected.rule, set(), [str(rejected)]))
+    return deinits, generic_deinits, rejected_bodies
+
+
+def sync_instantiated_deinits(types, deinits, policy):
+    """为按需新实例化的泛型类型（如 Box<File>）规划对应的 deinit 函数体。
+
+    若实例化后的类型不可隐式析构（例如 Box<Ticket>），正常路径只能经 open 消费而不会进入 deinit，
+    不在此按正常路径规则 D5 规划其 deinit 本体。
+    """
+    t = Types(types)
+    for name, decl in list(types.items()):
+        if "<" in name and not decl.params and decl.body is not None and name not in deinits:
+            if t.has(name, "ImplicitDrop"):
+                deinits[name] = Planner(types, policy).plan(copy.deepcopy(decl.body), this=name)
+
+
 def check(text, policy=Policy()):
     """对每个函数与每个 deinit 函数体：返回 (名字, 拒绝的规则 | None, 检验器发现的违反集合, 规划后的程序)。
 
     deinit 函数体以类型名为名字，检验时放进“声明一个该类型的值然后离开作用域”的函数里执行。
     """
     types, funs = parse(text)
-    results, deinits, rejected_bodies = [], {}, []
-    for name, decl in list(types.items()):
-        if decl.body is None:
-            continue
-        try:
-            deinits[name] = Planner(types, policy).plan(decl.body, this=name)
-        except Rejected as rejected:
-            rejected_bodies.append((name, rejected.rule, set(), [str(rejected)]))
+    results = []
+    deinits, generic_deinits, rejected_bodies = plan_deinits(types, policy)
     propagate = policy.deinit_failure == "propagate"
     for name in deinits:
         holder = Planner(types, policy).plan([Stmt("let", 0, var="value", ty=name)])
         found = Verifier(types, deinits=deinits, propagate=propagate).run_all(holder)
         results.append((name, None, set(found), show(deinits[name])))
+    for name, (env, body) in generic_deinits.items():
+        holder = Planner(env, policy).plan([Stmt("let", 0, var="value", ty=name)])
+        found = Verifier(env, deinits={**deinits, name: body}, propagate=propagate).run_all(holder)
+        results.append((name, None, set(found), show(body)))
     results += rejected_bodies
     for name, body in funs.items():
         try:
-            planned = Planner(types, policy).plan(body)
+            planned = Planner(types, policy).plan(copy.deepcopy(body))
+            sync_instantiated_deinits(types, deinits, policy)
         except Rejected as rejected:
             results.append((name, rejected.rule, set(), [str(rejected)]))
             continue
