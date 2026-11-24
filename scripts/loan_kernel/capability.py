@@ -413,14 +413,20 @@ class Engine:
 
     def judge(self, ty, cap, params=(), assumed=None):
         """四值判定：yes（满足）| no（不满足）| unknown（依赖未约束类型参数）| error（类型或能力错误）。"""
-        if cap not in self.caps or self.type_error(ty, params):
+        assumed = assumed or {}
+        defaults = {c for c in DEFAULT_BOUNDS if c in self.caps}
+        wf_assumed, wf_ifaces = {}, {}
+        for p in params:
+            caps, ifaces = self.expand_bounds(assumed.get(p, ()))
+            wf_assumed[p] = caps | defaults
+            wf_ifaces[p] = ifaces
+        if cap not in self.caps or self.well_formed(ty, params, wf_assumed, wf_ifaces):
             return "error"
         needs = self.requires(ty, cap, params)
         if needs is NEVER:
             return "no"
         if not needs:
             return "yes"
-        assumed = assumed or {}
         for index, wanted in needs:
             caps, _ = self.expand_bounds(assumed.get(params[index], ()))
             if wanted not in caps:

@@ -319,13 +319,13 @@ def multi_io_model(policy):
                 yield "槽1:终结证据丢失", (s0, g0, "lost", stale)
         if s0 == "terminal":
             if policy.batch_reclaim_on_any:
-                ns1 = "freed_lost" if s1 == "inflight" else "freed"
+                ns1 = "freed_lost" if s1 in ("inflight", "lost") else "freed"
                 yield f"槽0(g{g0}):整批回收全部槽位", ("freed", g0, ns1, stale)
             else:
                 yield f"槽0(g{g0}):按身份回收", ("freed", g0, s1, stale)
         if s1 == "terminal":
             if policy.batch_reclaim_on_any:
-                ns0 = "freed_lost" if s0 == "inflight" else "freed"
+                ns0 = "freed_lost" if s0 in ("inflight", "lost") else "freed"
                 yield "槽1:整批回收全部槽位", (ns0, g0, "freed", stale)
             else:
                 yield "槽1:按身份回收", (s0, g0, "freed", stale)

@@ -60,6 +60,11 @@ class CapabilityCases(unittest.TestCase):
         self.assertEqual("yes", eng.judge(CAP.Ty("Box", (CAP.Ty("T"),)), "Transferable", ("T",), {"T": {"Sendable"}}))
         self.assertEqual("error", eng.judge(CAP.Ty("Box", (CAP.Ty("NoSuch"),)), "Transferable"))
         self.assertEqual("error", eng.judge(CAP.Ty("List", (CAP.Ty("Int"), CAP.Ty("Int"))), "Transferable"))
+        self.assertEqual("error", eng.judge(CAP.Ty("Runner", (CAP.Ty("LocalTask"),)), "Transferable"))
+        self.assertEqual("error", eng.judge(CAP.Ty("Runner", (CAP.Ty("T"),)), "Transferable", ("T",)))
+        self.assertEqual("yes", eng.judge(CAP.Ty("Runner", (CAP.Ty("T"),)), "Transferable", ("T",), {"T": {"Sendable"}}))
+        ticket_eng = engine("class Ticket(id: Int) consume\n")
+        self.assertEqual("error", ticket_eng.judge(CAP.Ty("Weak", (CAP.Ty("Ticket"),)), "EarlyDrop"))
 
 
 if __name__ == "__main__":

@@ -1745,6 +1745,116 @@ class LoanKernelCases(unittest.TestCase):
         text = (ROOT / "cases" / "P3.lk").read_text(encoding="utf-8")
         self.assertEqual([], CHECKER.check(text.replace("parallel suspend fun", "suspend fun")))
 
+    def test_pr460_review_regressions(self):
+        """PR #460 审阅回归：循环临时值收敛、分支 payload 对称合流、覆盖已 poll 任务、flows 临时目标、调用借用模式与 start 暂存清理。"""
+        # 1. P1：循环内借用临时值复用语法位置槽名，不动点分析必须收敛且通过析构检验。
+        loop_temp = """
+class Item(x: Int) deinit
+fun read_item(borrow x: Item): Unit trusted
+fun loop_temp_borrow(): Unit {
+    while (*) {
+        read_item(&Item(1))
+    }
+}
+"""
+        lowered = {}
+        self.assertEqual([], CHECKER.check(loop_temp, lowered=lowered))
+        types, program, accepted = lowered["loop_temp_borrow"]
+        self.assertTrue(accepted)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+
+        # 2. P2：分支合流对称保留 payload（任一臂为载荷访问时，合流后均禁止 *r 整体替换）。
+        join_payload_tmpl = """
+interface Shape
+class Circle(r: Int) is Shape
+class Canvas(s: any Shape)
+fun shapeSlot(inout c: Canvas): inout slot any Shape from c trusted
+fun shapePayload(inout c: Canvas): inout any Shape from c trusted
+fun joined(inout c: Canvas): Unit {
+    val r = %s(c)
+    if (*) {
+        r = %s(c)
+    } else {
+        r = %s(c)
+    }
+    *r = pack Shape(Circle(1))
+}
+"""
+        for then_fn, else_fn in (("shapeSlot", "shapePayload"), ("shapePayload", "shapeSlot")):
+            src = join_payload_tmpl % ("shapeSlot", then_fn, else_fn)
+            errs = [(rule, line) for rule, line, _ in CHECKER.check(src)]
+            self.assertEqual([("X1", 14)], errs, (then_fn, else_fn))
+
+        # 3. P2：用新任务覆盖已 poll 任务必须报 S4；覆盖未 poll 任务后正常 await 允许。
+        task_overwrite = """
+class Item(x: Int)
+suspend fun worker(borrow x: Item): Unit {
+    suspend
+}
+suspend fun overwrite_polled(borrow a: Item): Unit {
+    val t = start worker(a)
+    poll t
+    t = start worker(a)
+    await t
+}
+suspend fun overwrite_unpolled(borrow a: Item): Unit {
+    val t = start worker(a)
+    t = start worker(a)
+    poll t
+    await t
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(task_overwrite)]
+        self.assertEqual([("S4", 9)], errs)
+
+        # 4. P2：带 flows 的调用以 &mut 临时值作为目标实参不抛 AttributeError。
+        flows_temp = """
+class Item(x: Int)
+view class Holder(borrow a: Item)
+fun put(borrow s: Item, inout out: Holder): Unit flows s into out trusted
+fun flows_into_temp(): Unit {
+    val x = Item(1)
+    val y = Item(2)
+    put(&x, &mut Holder(&y))
+}
+"""
+        self.assertEqual([], CHECKER.check(flows_temp))
+
+        # 5. P2：返回 borrow Item 的调用直接传给 inout Item 参数须报 K1（与先绑定局部变量一致）。
+        call_mode = """
+class Item(x: Int)
+fun get_ro(borrow x: Item): borrow Item from x trusted
+fun write_item(inout x: Item): Unit trusted
+fun pass_ro_call_to_inout(borrow x: Item): Unit {
+    write_item(get_ro(x))
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(call_mode)]
+        self.assertEqual([("K1", 6)], errs)
+
+        # 6. P2：start worker(move file, mayFail()) 第二个实参失败时须清理已移出的 file。
+        start_cleanup = """
+class File(fd: Int) deinit
+fun mayFail(): Int trusted
+suspend fun worker(own f: File, own n: Int): Unit {
+    suspend
+}
+suspend fun start_partial_eval_cleanup(): Unit {
+    val file = File(1)
+    val t = start worker(move file, mayFail())
+    poll t
+    await t
+}
+"""
+        lowered = {}
+        self.assertEqual([], CHECKER.check(start_cleanup, lowered=lowered))
+        types, program, accepted = lowered["start_partial_eval_cleanup"]
+        self.assertTrue(accepted)
+        self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program))
+        temp_block = next(s for s in program if s.kind == "block")
+        may_fail_call = next(s for s in temp_block.body if s.kind == "call")
+        self.assertIn(("#tmp1", False), may_fail_call.cleanup)
+
 
 if __name__ == "__main__":
     unittest.main()

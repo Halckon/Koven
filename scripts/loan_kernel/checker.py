@@ -781,7 +781,7 @@ class Checker:
         self.after = set()
         self.leaving = False  # 正在离开函数（返回或失败）：调用方的持有者不会指向本函数的局部存储（K6）
         self.loop_stack = []  # 正在检查的 while 循环栈，用于 break 时清理循环内局部并收集退出状态
-        self.temps, self.temp_id = [], 0  # 当前语句中产生的临时值（语句末按逆序析构）
+        self.temps, self.temp_id, self.temp_names = [], 0, {}  # 当前语句中产生的临时值（语句末按逆序析构；按语法位置复用槽名）
         self.out, self.dp_types, known = [], {}, len(self.errors)
         if fun.deinit_of and fun.suspend:
             self.error("S0", fun.line, f"deinit {fun.deinit_of} 不得声明为 suspend")
@@ -1403,16 +1403,22 @@ class Checker:
             raise SyntaxProblem(f"第 {expr.line} 行：start {expr.name} 的目标或实参个数不符")
         if not fun.suspend:
             self.error("S0", expr.line, f"{expr.name} 不是 suspend 函数，不能作为任务启动")
-        held, pushed = set(), 0
+        held, pushed, staged = set(), 0, []
         outer_after, outer_live = self.after, self.live
         for index, ((mode, _, wanted), arg) in enumerate(zip(fun.params, expr.args)):
             self.arg_liveness(expr.args, index, outer_after)
             value = self.argument(arg, mode, state)
             self.check_owned_argument(fun, mode, wanted, value, arg.line)
+            if mode == "own" and self.tracked(Var(value.ty, "A", {})) and any(
+                    self.has_call(later) for later in expr.args[index + 1:]):
+                staged.append(self.materialize_temp(value, state, arg.line, site=arg.site))
             held |= value.all_loans()
             self.pending.append(value.all_loans())
             pushed += 1
         self.after, self.live = outer_after, set(outer_after) if self.sub_stmt_liveness else outer_live
+        for tmp in staged:
+            self.emit("move", expr.line, tmp)
+            state[tmp].init, state[tmp].loans = "M", {}
         del self.pending[len(self.pending) - pushed:]
         return Value(Type("task", expr.name), {"*": held})
 
@@ -1450,10 +1456,15 @@ class Checker:
     def has_call(self, expr):
         return (expr.kind == "call" and expr.name not in self.classes) or any(self.has_call(a) for a in expr.args)
 
-    def materialize_temp(self, value, state, line):
+    def materialize_temp(self, value, state, line, site=None):
         """把表达式产生的拥有临时值落成语句级临时绑定，纳入失败清理与语句末析构。"""
-        self.temp_id += 1
-        name = f"#tmp{self.temp_id}"
+        if site is not None and site in self.temp_names:
+            name = self.temp_names[site]
+        else:
+            self.temp_id += 1
+            name = f"#tmp{self.temp_id}"
+            if site is not None:
+                self.temp_names[site] = name
         var = Var(value.ty, "A", copy_loans(value.loans), value.payload)
         if self.tracked(var):
             self.declare("let", line, name, value.ty, state)
@@ -1489,7 +1500,7 @@ class Checker:
         reserved：接收者位置的独占借用先按共享建立（K21），等其余实参求值完再由 activate 转为独占。
         """
         if place is None:
-            tmp = self.materialize_temp(self.value(expr.args[0], state), state, expr.line)
+            tmp = self.materialize_temp(self.value(expr.args[0], state), state, expr.line, site=expr.site)
             place = Place(tmp, [], expr.line)
         res = self.resolve(state, place)
         bare_borrow_params = {name for mode, name, _ in self.fun.params if mode in ("borrow", "inout")}
@@ -1538,7 +1549,12 @@ class Checker:
                 self.error("TYPE", expr.line, f"{mode} 位置的实参写法不符")
             return self.borrow(expr, expr.place, mut, state, stored_kind, reserved)
         if expr.kind in ("call", "move"):  # 调用结果或移入的借用值本身就是持有者
-            return self.value(expr, state)
+            value = self.value(expr, state)
+            if value.ty.kind not in ("borrow", "inout"):
+                self.error("TYPE", expr.line, f"{mode} 位置需要 & 表达式或一个借用值")
+            elif mut and value.ty.kind != "inout":
+                self.error("K1", expr.line, "不能把共享借用交给 inout 位置")
+            return value
         if expr.kind != "place":
             self.error("TYPE", expr.line, f"{mode} 位置需要 & 表达式或一个借用值")
             return Value(Type(mode, "Int"), {"": set()})
@@ -1601,7 +1617,7 @@ class Checker:
             if not kind and fty in self.classes and val.ty != self.type_of(fty):
                 self.error("TYPE", arg.line, f"{decl.name}.{name} 要求拥有的 {fty}，不能接收 {val.ty.kind} {val.ty.name}")
             if not kind and self.tracked(Var(val.ty, "A", {})) and any(self.has_call(later) for later in expr.args[index + 1:]):
-                staged.append(self.materialize_temp(val, state, arg.line))
+                staged.append(self.materialize_temp(val, state, arg.line, site=arg.site))
             if kind:
                 loans[name] = set(val.loans.get("", ()))
             elif self.carrier(fty):  # 按值的容器字段：它携带的来源记在这个字段名下
@@ -1725,7 +1741,7 @@ class Checker:
             self.check_owned_argument(fun, mode, ty_name, values[name], arg.line)
             if mode == "own" and self.tracked(Var(values[name].ty, "A", {})) and any(
                     self.has_call(later) for later in expr.args[index + 1:]):
-                staged.append(self.materialize_temp(values[name], state, arg.line))
+                staged.append(self.materialize_temp(values[name], state, arg.line, site=arg.site))
             self.pending.append(values[name].all_loans())
             pushed += 1
             if reserved and values[name].loans.get(""):
@@ -1751,6 +1767,8 @@ class Checker:
             given = values[target]
             if modes[target] == "own":  # 按值交出的视图：它自己的存储归被调方，流向只能经它的借用字段落到别处
                 targets = set()
+            elif arg.kind == "ref" and arg.place is None:
+                targets = self.places(given.loans.get("", ()))
             elif arg.kind == "ref" or (arg.kind == "place" and arg.place.fields):
                 targets = self.resolve(state, arg.place).targets  # 含经视图的借用字段到达的另一个视图
             elif arg.kind == "place":
@@ -1918,7 +1936,7 @@ class Checker:
             prev_out, self.out, self.temps = self.out, [] if self.out is not None else None, []
             value = self.value(stmt.expr, state)
             if self.tracked(Var(value.ty, "A", {})):
-                self.materialize_temp(value, state, stmt.line)
+                self.materialize_temp(value, state, stmt.line, site=stmt.expr.site)
             self.drop_temps(state, stmt.live_out, stmt.line)
             self.flush_temps(prev_out, stmt.line)
         elif stmt.kind == "use":
@@ -2104,12 +2122,13 @@ class Checker:
         self.quiet = False
         if place.root in stmt.live_out:
             self.pending.pop()
+        self.check_tasks(state, [place.root], stmt.line)
         if self.tracked(var):  # 先求值新值，再析构旧值，再提交
             self.destroy(stmt.line, place.root, var, replace=True)
             self.declare("set", stmt.line, place.root, value.ty, state)
         if var.ty.kind == "any" and value.ty.name != var.ty.name:  # X3：槽位里只能放同一存在类型的值
             self.error("X1", stmt.line, f"不能把 {value.ty.name} 赋给 {var.ty.name}")
-        var.init, var.loans, var.payload, var.gone = "A", value.loans, value.payload, {}
+        var.init, var.loans, var.payload, var.pinned, var.gone = "A", value.loans, value.payload, False, {}
 
     def scope(self, stmts, state, live_after, end_line):
         """K9：作用域结束时按声明逆序析构；析构与仍存活的 loan 冲突即拒绝。"""
@@ -2139,7 +2158,7 @@ class Checker:
                 loans.setdefault(key, set()).update(held)
             gone = {path: x.gone[path] if x.gone.get(path) == y.gone.get(path) else "MM"
                     for path in sorted(set(x.gone) | set(y.gone))}
-            merged[name] = Var(x.ty, x.init if x.init == y.init else "MM", loans, x.payload, x.pinned or y.pinned, gone)
+            merged[name] = Var(x.ty, x.init if x.init == y.init else "MM", loans, x.payload or y.payload, x.pinned or y.pinned, gone)
         return merged
 
 

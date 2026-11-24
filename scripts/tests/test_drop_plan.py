@@ -226,6 +226,49 @@ class DropPlanCases(unittest.TestCase):
         failure_traces = self.traces_of(f, "genericScopeGuardMovesPayloadAndAction", explore_failure=True)
         self.assertIn(["g:deinit(ScopeGuard<FileA, FileB>)"], failure_traces)
 
+    def test_consume_generic_and_nongeneric_deinit_verification(self):
+        """必须显式消费的类型（含泛型实例 Box<Ticket> 与非泛型 Ticket）的 deinit 本体均须注册并可检验。"""
+        generic_src = "\n".join([
+            "type Ticket consume",
+            "type Box<T>(value: T) deinit",
+            "deinit Box {",
+            "  call",
+            "}",
+            "fun failBeforeOpen {",
+            "  let b = Box<Ticket>",
+            "  call",
+            "  open b as t",
+            "  move t",
+            "}",
+        ])
+        types, funs = DP.parse(generic_src)
+        policy = DP.Policy()
+        deinits, _, _ = DP.plan_deinits(types, policy)
+        planned = DP.Planner(types, policy).plan(funs["failBeforeOpen"])
+        DP.sync_instantiated_deinits(types, deinits, policy)
+        self.assertIn("Box<Ticket>", deinits)
+        verifier = DP.Verifier(types, explore_failure=True, deinits=deinits)
+        self.assertEqual({}, verifier.run_all(planned))
+        traces = [trace for _, trace in verifier.traces]
+        self.assertIn(["b:deinit(Box<Ticket>)"], traces)
+        self.assertGreater(verifier.aborted_paths, 0)
+
+        nongeneric_src = "\n".join([
+            "type Ticket deinit consume",
+            "deinit Ticket {",
+            "  call",
+            "}",
+            "fun consumed {",
+            "  let t = Ticket",
+            "  move t",
+            "}",
+            "fun dropped {",
+            "  let t = Ticket",
+            "}",
+        ])
+        got = outcomes(nongeneric_src)
+        self.assertEqual({"Ticket": "ok", "consumed": "ok", "dropped": "reject D5"}, got)
+
 
 if __name__ == "__main__":
     unittest.main()

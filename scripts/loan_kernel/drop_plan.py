@@ -298,6 +298,7 @@ class Planner:
         self.ty = {}
         self.status = {}  # 义务单元 -> O 拥有 | G 已不归本函数（移走、析构、遗忘、拆开）| ? 可能已移走
         self.borrowed = set()  # 只是借来的变量：可以使用，不由本函数析构
+        self.deinit_this = this
         if this is None:
             return self.block(body, loop_depth=None)
         owns = self.policy.this_access == "own"
@@ -322,7 +323,8 @@ class Planner:
             self.policy.early == "eligible" and not self.t.observable(self.ty[var]))
 
     def drop(self, var, line, **tags):
-        if not self.t.has(self.ty[var], "ImplicitDrop"):  # 任何隐式析构都不允许，无论由哪条规则引出
+        allow_consume = self.deinit_this is not None and var == "this"
+        if not allow_consume and not self.t.has(self.ty[var], "ImplicitDrop"):  # 任何隐式析构都不允许，无论由哪条规则引出
             raise Rejected(line, "D5", f"{var} 必须显式消费，不能被隐式析构")
         flagged = any(self.status[u] == "?" for u in self.units(var))
         for unit in self.units(var):
@@ -343,7 +345,8 @@ class Planner:
             for var in reversed(names):
                 if not self.owned(var):
                     continue
-                if not self.t.has(self.ty[var], "ImplicitDrop"):
+                allow_consume = self.deinit_this is not None and var == "this"
+                if not allow_consume and not self.t.has(self.ty[var], "ImplicitDrop"):
                     raise Rejected(line, "D5", f"{var} 必须显式消费，不能留到作用域结束")
                 out.append(self.drop(var, line))
         if not commit:
@@ -813,33 +816,30 @@ def plan_deinits(types, policy):
 
 
 def sync_instantiated_deinits(types, deinits, policy):
-    """为按需新实例化的泛型类型（如 Box<File>）规划对应的 deinit 函数体。
+    """为按需新实例化的泛型类型（如 Box<File>、Box<Ticket>）规划对应的 deinit 函数体。
 
-    若实例化后的类型不可隐式析构（例如 Box<Ticket>），正常路径只能经 open 消费而不会进入 deinit，
-    不在此按正常路径规则 D5 规划其 deinit 本体。
+    即使实例化后的类型必须显式消费（如 Box<Ticket>），在消费前发生失败清理时仍须执行其 deinit 本体。
     """
-    t = Types(types)
     for name, decl in list(types.items()):
         if "<" in name and not decl.params and decl.body is not None and name not in deinits:
-            if t.has(name, "ImplicitDrop"):
-                deinits[name] = Planner(types, policy).plan(copy.deepcopy(decl.body), this=name)
+            deinits[name] = Planner(types, policy).plan(copy.deepcopy(decl.body), this=name)
 
 
 def check(text, policy=Policy()):
     """对每个函数与每个 deinit 函数体：返回 (名字, 拒绝的规则 | None, 检验器发现的违反集合, 规划后的程序)。
 
-    deinit 函数体以类型名为名字，检验时放进“声明一个该类型的值然后离开作用域”的函数里执行。
+    deinit 函数体以类型名为名字，检验时放进“声明一个该类型的值然后析构它”的函数里执行。
     """
     types, funs = parse(text)
     results = []
     deinits, generic_deinits, rejected_bodies = plan_deinits(types, policy)
     propagate = policy.deinit_failure == "propagate"
     for name in deinits:
-        holder = Planner(types, policy).plan([Stmt("let", 0, var="value", ty=name)])
+        holder = [Stmt("let", 0, var="value", ty=name), Stmt("drop", 0, var="value")]
         found = Verifier(types, deinits=deinits, propagate=propagate).run_all(holder)
         results.append((name, None, set(found), show(deinits[name])))
     for name, (env, body) in generic_deinits.items():
-        holder = Planner(env, policy).plan([Stmt("let", 0, var="value", ty=name)])
+        holder = [Stmt("let", 0, var="value", ty=name), Stmt("drop", 0, var="value")]
         found = Verifier(env, deinits={**deinits, name: body}, propagate=propagate).run_all(holder)
         results.append((name, None, set(found), show(body)))
     results += rejected_bodies

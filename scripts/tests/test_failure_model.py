@@ -97,6 +97,33 @@ class MultiIoModel(unittest.TestCase):
             with self.subTest(policy=name):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.multi_io_model(policy)))
 
+    def test_batch_reclaim_flags_lost_peer_slot_on_both_branches(self):
+        """任一槽终结触发整批回收时，另一侧已丢失终结证据（lost）的槽同样须报 WRITE_AFTER_FREE。"""
+        policy = MODEL.MultiIoPolicy(check_generation=True, reclaim_without_evidence=False,
+                                     batch_reclaim_on_any=True, evidence_can_lose=True)
+        captured = {}
+        original_explore = MODEL.explore
+
+        def capture(initial, events, violations, final_notes):
+            captured["events"] = events
+            captured["violations"] = violations
+            return original_explore(initial, events, violations, final_notes)
+
+        MODEL.explore = capture
+        try:
+            MODEL.multi_io_model(policy)
+        finally:
+            MODEL.explore = original_explore
+
+        for start, event_name in (
+            (("terminal", 1, "lost", False), "槽0(g1):整批回收全部槽位"),
+            (("lost", 1, "terminal", False), "槽1:整批回收全部槽位"),
+        ):
+            with self.subTest(start=start):
+                transitions = dict(captured["events"](start))
+                self.assertIn(event_name, transitions)
+                self.assertIn(MODEL.WRITE_AFTER_FREE, captured["violations"](transitions[event_name]))
+
 
 class SupervisionModel(unittest.TestCase):
     """监督边界与多线程终止窗口：边界须隔离可变状态，终止窗口须冻结所有线程的释放。"""
