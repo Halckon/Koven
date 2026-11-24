@@ -1,0 +1,110 @@
+// cell、local 与容器（carrier）类型的 deinit 函数体（KB1 × KB6）：
+// 三类类型在析构义务检验器中保留字段义务，deinit 中 this 拥有各字段；cell 类型仍受 K19 约束只能经受信任函数访问。
+class Arr(len: Int)
+class File(fd: Int) deinit
+class Sock(fd: Int) deinit
+view class Slice(borrow source: Arr)
+
+local class LocalRes(sock: Sock, file: File) deinit
+local class LocalAllMoved(sock: Sock, file: File) deinit
+local class LocalBranch(sock: Sock, file: File) deinit
+cell class CellRes(file: File, sock: Sock) deinit
+cell class BadCellDeinit(file: File) deinit
+cell class BadCellMoveThis(file: File) deinit
+view class Bag<view T>(file: File, sock: Sock) deinit
+cell view class Scope<view T>(file: File) deinit
+
+fun closeSock(own s: Sock): Unit trusted
+fun closeFile(own f: File): Unit trusted
+fun flushCell(borrow c: CellRes): Unit trusted
+fun consumeCell(own c: BadCellMoveThis): Unit trusted
+fun putBag(inout b: Bag, own s: Slice): Unit flows s into b trusted
+fun releaseBag(own b: Bag): Unit trusted
+fun putScope(borrow sc: Scope, own s: Slice): Unit flows s into sc trusted
+fun waitAll(borrow sc: Scope): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+
+// 一、local 类型的 deinit 函数体：部分移出、全部移出、单臂移出（带析构标志）与线程绑定
+deinit LocalRes {
+  closeSock(move this.sock)
+  mayFail()
+}
+deinit LocalAllMoved {
+  closeSock(move this.sock)
+  closeFile(move this.file)
+}
+deinit LocalBranch {
+  if (*) {
+    closeSock(move this.sock)
+  }
+  mayFail()
+}
+fun useLocalResMayFail(): Unit {
+  val r = LocalRes(Sock(1), File(2))
+  val a = LocalAllMoved(Sock(3), File(4))
+  val b = LocalBranch(Sock(5), File(6))
+  mayFail()
+}
+suspend fun localResAllowedAcrossNormalSuspend(): Unit {
+  val r = LocalRes(Sock(1), File(2))
+  suspend
+}
+parallel suspend fun localResCannotCrossParallelSuspend(): Unit {
+  val r = LocalRes(Sock(1), File(2))
+  suspend  // ERR S5
+}
+fun cannotPartialMoveLocalResOutsideDeinit(): Unit {
+  val r = LocalRes(Sock(1), File(2))
+  val s = move r.sock  // ERR K23
+  closeSock(move s)
+}
+
+// 二、cell 类型的 deinit 函数体：经受信任函数收尾、直接访问字段仍报 K19、整体移走 this 报 K24
+deinit CellRes {
+  flushCell(&this)
+  mayFail()
+}
+deinit BadCellDeinit {
+  closeFile(move this.file)  // ERR K19
+}
+deinit BadCellMoveThis {
+  consumeCell(move this)  // ERR K24
+}
+fun useCellResMayFail(): Unit {
+  val c = CellRes(File(1), Sock(2))
+  mayFail()
+}
+
+// 三、容器类型（Bag 与 cell 容器 Scope）的 deinit 函数体：字段清理、来源保活与 K19/K23 边界
+deinit Bag {
+  closeSock(move this.sock)
+  mayFail()
+}
+deinit Scope {
+  waitAll(&this)
+}
+fun useBagProtectsOriginUntilDrop(): Unit {
+  val a = Arr(1)
+  val b = Bag(File(1), Sock(2))
+  putBag(&mut b, Slice(&a))
+  update(&mut a)  // ERR K1
+}
+fun useBagReleasesOriginAfterMove(): Unit {
+  val a = Arr(1)
+  val b = Bag(File(1), Sock(2))
+  putBag(&mut b, Slice(&a))
+  releaseBag(move b)
+  update(&mut a)
+}
+fun useScopeRunsDeinitOnFailure(): Unit {
+  val a = Arr(1)
+  val sc = Scope(File(1))
+  putScope(&sc, Slice(&a))
+  mayFail()
+}
+fun cannotPartialMoveBagOutsideDeinit(): Unit {
+  val b = Bag(File(1), Sock(2))
+  val s = move b.sock  // ERR K23
+  closeSock(move s)
+}

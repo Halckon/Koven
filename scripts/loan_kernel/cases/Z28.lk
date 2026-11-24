@@ -1,0 +1,70 @@
+// 循环里“移走后立即 break”、循环内局部在 break 处清理、以及析构标志在循环中的配合。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun closeFile(own f: File): Unit trusted
+fun moveAndBreakInLoop(own f: File): Unit {
+  while (*) {
+    if (*) {
+      closeFile(move f)
+      break
+    }
+    use(f.fd)
+  }
+  mayFail()
+}
+fun cannotUseAfterMoveAndBreak(own f: File): Unit {
+  while (*) {
+    if (*) {
+      closeFile(move f)
+      break
+    }
+    use(f.fd)
+  }
+  use(f.fd)  // ERR K8
+}
+fun cannotMoveWithoutBreakInLoop(own f: File): Unit {
+  while (*) {
+    if (*) {
+      closeFile(move f)  // ERR K8
+    }
+    use(f.fd)  // ERR K8
+  }
+}
+fun breakCleansInnerLocal(own f: File): Unit {
+  while (*) {
+    val inner = File(1)
+    if (*) {
+      closeFile(move f)
+      break
+    }
+    use(inner.fd)
+    use(f.fd)
+  }
+  mayFail()
+}
+fun breakRejectsEscapingLocalLoan(own old: Arr): Unit {
+  val out = Slice(&old)
+  while (*) {
+    val local = Arr(1)
+    out = Slice(&local)
+    break  // ERR K9
+  }
+  use(out.source.len)
+}
+fun breakJoinsOriginsWithLoopExit(own a: Arr, own b: Arr): Unit {
+  val out = Slice(&a)
+  while (*) {
+    if (*) {
+      out = Slice(&b)
+      break
+    }
+  }
+  update(&mut a)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(out.source.len)
+  update(&mut a)
+  update(&mut b)
+}

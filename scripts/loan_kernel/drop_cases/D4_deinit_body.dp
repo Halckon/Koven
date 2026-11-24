@@ -1,0 +1,72 @@
+// deinit 函数体：this 的访问方式、在析构里取走字段、析构中失败
+type File deinit
+type Buf
+type Link empty
+type Conn(sock: File, buf: Buf) deinit
+type Guard(action: Buf) deinit
+type Taker(a: File, b: Buf) deinit
+type UseAfterTake(a: File, b: Buf) deinit
+type Escaper(a: File) deinit
+type Unlinker(next: Link, b: Buf) deinit
+type NoEmpty(sock: File) deinit
+type OneBranch(a: File, b: Buf) deinit
+type Outer(inner: Conn, b: Buf)
+deinit Conn {            // => ok
+  use this
+  call
+}
+deinit Guard {           // => ok
+  take f = this.action
+  move f
+}
+deinit Taker {           // => ok
+  take a = this.a
+  call
+  move a
+}
+deinit UseAfterTake {    // => reject D1
+  take a = this.a
+  use this
+}
+deinit Escaper {         // => reject D9
+  move this
+}
+deinit Unlinker {        // => ok
+  replace n = this.next
+  use this
+  move n
+}
+deinit NoEmpty {         // => reject D8
+  replace s = this.sock
+}
+deinit OneBranch {       // => ok
+  if {
+    take a = this.a
+    move a
+  }
+  call
+}
+fun dropsOne {           // => ok
+  let f = File
+  let c = Conn
+  call
+}
+fun dropsTwo {           // => ok
+  let c = Conn
+  let d = Conn
+  call
+}
+fun dropsNested {        // => ok
+  let f = File
+  let o = Outer
+}
+fun replacesValue {      // => ok
+  let f = File
+  let c = Conn
+  set c = Conn
+}
+fun takerAcrossFailure { // => ok
+  let t = Taker
+  let g = Guard
+  call
+}

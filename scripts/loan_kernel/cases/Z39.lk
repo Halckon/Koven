@@ -1,0 +1,257 @@
+// §77：现行 Guide 07（Closure Capture 与跨线程转移）限制逐条对照（KB2 × KB3 × KB4 × KB5）
+// 以手工去糖形式（环境类/视图 + 函数体 + sig）逐条核对 Guide 07 的普通闭包、mutating closure、
+// move closure、L0137/L0138/L0139 与内核推导结果的一致处及 v1 表面收紧差异。
+class Arr(len: Int)
+class File(fd: Int) deinit
+class Host(n: Int)
+cell class Counter(n: Int)
+local class RcBox(n: Int)
+
+// 无捕获闭包环境（普通类，可逃逸且 Transferable）
+class EmptyEnv(tag: Int)
+class BoxedEmpty(cb: EmptyEnv)
+
+// 普通 borrowed closure 环境（共享捕获 owned / borrow / inout / this）
+view class BorrowEnv(borrow a: Arr)
+view class BorrowThisEnv(borrow host: Host)
+view class BorrowCellEnv(borrow c: Counter)
+view class BorrowLocalEnv(borrow r: RcBox)
+view class ViewHolder(cb: BorrowEnv)
+class BadFieldHolder(cb: BorrowEnv)  // ERR CAP
+class BadEscapingMoveCapture(cb: BorrowEnv)  // ERR CAP
+
+// mutating closure 环境（独占捕获 + 混合捕获）
+view class MutEnv(inout a: Arr)
+view class MutLocalEnv(inout r: RcBox)
+view class MixMutEnv(inout target: Arr, borrow other: Arr)
+
+// move closure 环境（owned capture：Copyable 快照、MoveOnly 移动、逆序析构、含不可转移捕获）
+class MoveSnapEnv(n: Int)
+class MoveOwnedEnv(a: Arr)
+class BoxedMove(cb: MoveOwnedEnv)
+class MoveTwoFiles(first: File, second: File)
+class MoveLocalEnv(r: RcBox)
+
+sig <view F> CallRo(borrow f: F): Int
+sig <view F> CallMut(inout f: F): Unit
+sig <F> CallEscaping(borrow f: F): Int
+sig <F: Transferable> CallTransfer(borrow f: F): Int
+
+fun emptyBody(borrow env: EmptyEnv): Int { return env.tag }
+fun borrowBody(borrow env: BorrowEnv): Int { return env.a.len }
+fun borrowWriteRejected(borrow env: BorrowEnv): Unit {
+  env.a.len = 1  // ERR K1
+}
+fun borrowMoveOutRejected(borrow env: BorrowEnv): Arr {
+  return move env.a  // ERR K8
+}
+fun borrowThisRead(borrow env: BorrowThisEnv): Int { return env.host.n }
+fun borrowThisWriteRejected(borrow env: BorrowThisEnv): Unit {
+  env.host.n = 1  // ERR K1
+}
+fun mutBody(inout env: MutEnv): Unit { env.a.len = 1 }
+fun mixMutBody(inout env: MixMutEnv): Unit {
+  env.target.len = env.other.len
+}
+fun moveSnapBody(borrow env: MoveSnapEnv): Int { return env.n }
+fun moveOwnedBody(borrow env: MoveOwnedEnv): Int { return env.a.len }
+fun moveFilesBody(borrow env: MoveTwoFiles): Int { return env.first.fd }
+fun moveLocalBody(borrow env: MoveLocalEnv): Int { return env.r.n }
+
+fun <view F> applySync(borrow f: F, own call: fn CallRo): Int {
+  val x = call(f)
+  val y = call(f)
+  return y
+}
+fun <view F> applySyncMut(inout f: F, own call: fn CallMut): Unit {
+  call(f)
+  call(f)
+}
+fun <F> deliverValue(own f: F, own call: fn CallEscaping): Unit trusted
+fun <F: Transferable> spawnTransfer(own f: F, own call: fn CallTransfer): Unit trusted
+fun <view F: Transferable> launchScopedParallel(own f: F): Unit trusted
+fun mayFail(): Unit trusted
+fun consumeArr(own a: Arr): Unit trusted
+
+// 一、无 capture 普通 lambda：无 loan、可返回、可存普通类字段、可交给 Value 与跨线程入口
+fun emptyClosureCanReturn(): EmptyEnv {
+  val f = EmptyEnv(1)
+  return move f
+}
+fun emptyClosureCanStoreAndSpawn(): Unit {
+  val f = EmptyEnv(1)
+  val box = BoxedEmpty(move f)
+  use(box.cb.tag)
+  val g = EmptyEnv(2)
+  deliverValue(move g, emptyBody)
+  spawnTransfer(EmptyEnv(3), emptyBody)
+}
+
+// 二、borrowed closure：共享捕获（owned/borrow/inout/this）、ASAP 释放与 L0137 逃逸矩阵
+fun borrowedClosureSyncAndRelease(): Unit {
+  val a = Arr(1)
+  val f = BorrowEnv(&a)
+  val n = applySync(&f, borrowBody)
+  // 最后一次使用 f 后 loan 结束，可写也可移动源绑定
+  a.len = 2
+  consumeArr(move a)
+  use(n)
+}
+fun borrowedClosureBlocksWriteAndMoveWhileAlive(): Unit {
+  val a = Arr(1)
+  val f = BorrowEnv(&a)
+  a.len = 2  // ERR K1
+  val n = applySync(&f, borrowBody)
+  use(n)
+}
+fun borrowedClosureFromBorrowAndInoutParams(borrow ro: Arr, inout rw: Arr): Int {
+  val f1 = BorrowEnv(ro)
+  val f2 = BorrowEnv(rw)
+  val x = applySync(&f1, borrowBody)
+  val y = applySync(&f2, borrowBody)
+  rw.len = x
+  return y
+}
+fun borrowedClosureCannotReturnLocal(): BorrowEnv {
+  val a = Arr(1)
+  return BorrowEnv(&a)  // ERR K6
+}
+// 对照（内核比 v1 更松）：捕获参数并声明 from 时允许返回（L3/L5）
+fun borrowedClosureCanReturnParamWithFrom(borrow a: Arr): BorrowEnv from a {
+  return BorrowEnv(a)
+}
+fun borrowedClosureCannotDeliverToEscapingValueParam(): Unit {
+  val a = Arr(1)
+  val f = BorrowEnv(&a)
+  deliverValue(f, borrowBody)  // ERR K17
+}
+// 对照（内核比 v1 更松）：可存入 view class 字段（但不能存入普通 class 字段，见 BadFieldHolder）
+fun borrowedClosureCanStoreInViewField(): Unit {
+  val a = Arr(1)
+  val h = ViewHolder(BorrowEnv(&a))
+  val n = applySync(&h.cb, borrowBody)
+  a.len = 2
+  use(n)
+}
+fun captureThisReadOnly(borrow this: Host): Int in Host {
+  val f = BorrowThisEnv(this)
+  return applySync(&f, borrowThisRead)
+}
+
+// 三、mutating closure：独占捕获、不可复制、混合捕获，以及 v1 收紧 vs 内核放宽对照
+fun mutatingClosureExclusiveAndRelease(): Unit {
+  val a = Arr(1)
+  val f = MutEnv(&mut a)
+  applySyncMut(&mut f, mutBody)
+  use(a.len)
+  a.len = 2
+}
+fun mutatingClosureBlocksOuterReadAndWrite(): Unit {
+  val a = Arr(1)
+  val f = MutEnv(&mut a)
+  use(a.len)  // ERR K1
+  a.len = 2  // ERR K1
+  applySyncMut(&mut f, mutBody)
+}
+fun mutatingClosureIsNotCopyable(): Unit {
+  val a = Arr(1)
+  val f = MutEnv(&mut a)
+  val copy = f  // ERR K8
+}
+fun mutatingClosureCannotEscape(): MutEnv {
+  val a = Arr(1)
+  return MutEnv(&mut a)  // ERR K6
+}
+fun mutatingClosureCannotDeliverToEscapingValueParam(): Unit {
+  val a = Arr(1)
+  val f = MutEnv(&mut a)
+  deliverValue(move f, borrowBody)  // ERR K17
+}
+fun mixMutClosureKeepsOtherCaptureShared(): Unit {
+  val target = Arr(1)
+  val other = Arr(2)
+  val f = MixMutEnv(&mut target, &other)
+  // other 为共享捕获，闭包存活期间仍可读但不可写；target 不可读也不可写
+  use(other.len)
+  other.len = 3  // ERR K1
+  use(target.len)  // ERR K1
+  applySyncMut(&mut f, mixMutBody)
+  target.len = 4
+  other.len = 5
+}
+// 对照（内核比 v1 更松）：v1 禁止 mutating closure 写 inout 参数；内核允许，仅受 K4 约束
+fun mutatingClosureOnInoutParamAllowedInKernel(inout a: Arr): Unit {
+  val f = MutEnv(a)
+  applySyncMut(&mut f, mutBody)
+  a.len = 3
+}
+fun mutatingClosureOnInoutParamRespectsK4(inout a: Arr): Unit {
+  val f = MutEnv(a)
+  use(a.len)  // ERR K4
+  applySyncMut(&mut f, mutBody)
+}
+
+// 四、move closure：Copyable 快照、MoveOnly 移动、L0138 拒绝借用移入、可逃逸与逆序析构
+fun moveClosureCopiesScalarSnapshot(): Int {
+  val n = 7
+  val f = MoveSnapEnv(n)
+  use(n)
+  return moveSnapBody(&f)
+}
+fun moveClosureMovesOwnedAndBlocksReuse(): Unit {
+  val a = Arr(1)
+  val f = MoveOwnedEnv(move a)
+  use(a.len)  // ERR K8
+  val n = moveOwnedBody(&f)
+  use(n)
+}
+fun moveClosureCannotMoveFromBorrowOrInout(borrow ro: Arr, inout rw: Arr): Unit {
+  val f1 = MoveOwnedEnv(move ro)  // ERR TYPE
+  val f2 = MoveOwnedEnv(move rw)  // ERR TYPE
+}
+fun moveClosureCanReturnStoreAndDeliver(): MoveOwnedEnv {
+  val a = Arr(1)
+  val box = BoxedMove(MoveOwnedEnv(move a))
+  deliverValue(MoveOwnedEnv(Arr(2)), moveOwnedBody)
+  return MoveOwnedEnv(Arr(3))
+}
+fun moveClosureDropsOwnedCapturesInReverseOrder(): Unit {
+  val f1 = File(1)
+  val f2 = File(2)
+  val env = MoveTwoFiles(move f1, move f2)
+  mayFail()
+  val n = moveFilesBody(&env)
+  use(n)
+}
+
+// 五、Transferable 与跨线程转移（L0139 对照 + 内核 Shareable 作用域并发放宽对照）
+fun transferableMoveClosureCanSpawn(): Unit {
+  val a = Arr(1)
+  spawnTransfer(MoveOwnedEnv(move a), moveOwnedBody)
+}
+fun nonTransferableMoveClosureRejected(): Unit {
+  val r = RcBox(1)
+  spawnTransfer(MoveLocalEnv(move r), moveLocalBody)  // ERR CAP
+}
+// 对照（内核比 v1 更松）：只读捕获 Shareable 数据的视图满足 Transferable，可进入作用域并行入口；
+// 但捕获 cell（不可共享）或 local（Rc）的借用闭包，以及捕获 local 的可变闭包仍不满足 Transferable
+fun shareableBorrowedClosureAcceptedByScopedParallel(): Unit {
+  val a = Arr(1)
+  val f = BorrowEnv(&a)
+  launchScopedParallel(f)
+}
+fun cellBorrowedClosureRejectedByScopedParallel(): Unit {
+  val c = Counter(1)
+  val f = BorrowCellEnv(&c)
+  launchScopedParallel(f)  // ERR CAP
+}
+fun localBorrowedClosureRejectedByScopedParallel(): Unit {
+  val r = RcBox(1)
+  val f = BorrowLocalEnv(&r)
+  launchScopedParallel(f)  // ERR CAP
+}
+fun localMutClosureRejectedByScopedParallel(): Unit {
+  val r = RcBox(1)
+  val f = MutLocalEnv(&mut r)
+  launchScopedParallel(move f)  // ERR CAP
+}

@@ -1,0 +1,123 @@
+// 互相递归的视图类型（Even <-> Odd）与递归视图上的流向（直接递归与互相递归）。
+class Arr(len: Int)
+view class Slice(borrow source: Arr)
+view class Even(borrow next: Odd, borrow data: Arr)
+view class Odd(borrow next: Even, borrow data: Arr)
+fun leafEven(borrow a: Arr): Even from a trusted
+fun update(inout a: Arr): Unit trusted
+fun secondMutual(borrow e: Even): borrow Int from e.next.data {
+  return &e.next.data.len
+}
+fun thirdMutual(borrow e: Even): borrow Int from e.next.next {
+  return &e.next.next.data.len
+}
+fun fourthMutual(borrow o: Odd): borrow Int from o.next.next {
+  return &o.next.next.next.data.len
+}
+fun walkMutual(borrow e: Even): borrow Int from e.next.next {
+  val cur = &e.next.next
+  while (*) {
+    cur = &cur.next.next
+  }
+  return &cur.data.len
+}
+fun wrongMutualBranch(borrow e: Even): borrow Int from e.next.data {
+  return &e.next.next.data.len  // ERR K6
+}
+fun undeclaredMutual(borrow e: Even): borrow Int {
+  return &e.next.next.data.len  // ERR K6
+}
+fun mutualSecondOnlyProtectsMid(own a: Arr, own b: Arr, own c: Arr): Unit {
+  val e1 = leafEven(&a)
+  val o1 = Odd(&e1, &b)
+  val e2 = Even(&o1, &c)
+  val mid = secondMutual(&e2)
+  update(&mut a)
+  update(&mut c)
+  update(&mut b)  // ERR K1
+  use(mid)
+}
+fun mutualThirdProtectsDeep(own a: Arr, own b: Arr, own c: Arr): Unit {
+  val e1 = leafEven(&a)
+  val o1 = Odd(&e1, &b)
+  val e2 = Even(&o1, &c)
+  val deep = thirdMutual(&e2)
+  update(&mut c)
+  update(&mut a)  // ERR K1
+  use(deep)
+}
+fun mutualFourHopsProtected(own a: Arr, own b: Arr, own c: Arr, own d: Arr): Unit {
+  val e1 = leafEven(&a)
+  val o1 = Odd(&e1, &b)
+  val e2 = Even(&o1, &c)
+  val o2 = Odd(&e2, &d)
+  val deep = fourthMutual(&o2)
+  update(&mut d)
+  update(&mut a)  // ERR K1
+  use(deep)
+  update(&mut a)
+}
+view class MutNode(inout next: MutNode, slice: Slice)
+fun leafMut(borrow a: Arr): MutNode from a trusted
+fun writeNextSlice(inout n: MutNode, borrow s: Arr): Unit flows s into n.next {
+  n.next.slice = Slice(s)
+}
+fun missingRecursiveFlow(inout n: MutNode, borrow s: Arr): Unit {  // ERR K6
+  n.next.slice = Slice(s)
+}
+fun wrongRecursiveFlowTarget(inout n: MutNode, borrow s: Arr): Unit flows s into n.slice {  // ERR K6
+  n.next.slice = Slice(s)
+}
+fun callerTopUnpollutedByRecursiveFlow(own a: Arr, own b: Arr, own c: Arr, own s: Arr): Unit {
+  val n0 = leafMut(&a)
+  val n1 = MutNode(&mut n0, Slice(&b))
+  val n2 = MutNode(&mut n1, Slice(&c))
+  writeNextSlice(&mut n2, &s)
+  val top = &n2.slice.source.len
+  update(&mut s)
+  update(&mut c)  // ERR K1
+  use(top)
+}
+fun callerSeesRecursiveFlowOnInnerOwners(own a: Arr, own b: Arr, own c: Arr, own s: Arr): Unit {
+  val n0 = leafMut(&a)
+  val n1 = MutNode(&mut n0, Slice(&b))
+  val n2 = MutNode(&mut n1, Slice(&c))
+  writeNextSlice(&mut n2, &s)
+  val mid = &n1.slice.source.len
+  update(&mut s)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(mid)
+  val deep = &n0.slice.source.len
+  update(&mut s)  // ERR K1
+  use(deep)
+  update(&mut s)
+}
+view class MutEven(inout next: MutOdd, slice: Slice)
+view class MutOdd(inout next: MutEven, slice: Slice)
+fun leafMutEven(borrow a: Arr): MutEven from a trusted
+fun writeMutualCycle(inout e: MutEven, borrow s: Arr): Unit flows s into e.next.next {
+  e.next.next.slice = Slice(s)
+}
+fun wrongMutualFlowTarget(inout e: MutEven, borrow s: Arr): Unit flows s into e.next.slice {  // ERR K6
+  e.next.next.slice = Slice(s)
+}
+fun callerMidUnpollutedByMutualFlow(own a: Arr, own b: Arr, own c: Arr, own s: Arr): Unit {
+  val e1 = leafMutEven(&a)
+  val o1 = MutOdd(&mut e1, Slice(&b))
+  val e2 = MutEven(&mut o1, Slice(&c))
+  writeMutualCycle(&mut e2, &s)
+  val mid = &o1.slice.source.len
+  update(&mut s)
+  update(&mut b)  // ERR K1
+  use(mid)
+}
+fun callerSeesMutualRecursiveFlow(own a: Arr, own b: Arr, own c: Arr, own s: Arr): Unit {
+  val e1 = leafMutEven(&a)
+  val o1 = MutOdd(&mut e1, Slice(&b))
+  val e2 = MutEven(&mut o1, Slice(&c))
+  writeMutualCycle(&mut e2, &s)
+  val inner = &e1.slice.source.len
+  update(&mut s)  // ERR K1
+  use(inner)
+  update(&mut s)
+}

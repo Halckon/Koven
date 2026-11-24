@@ -1,0 +1,33 @@
+// 只有左臂调用 deliver；调用本身只能并入来源，不能解除旧来源。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Holder(slice: Slice, file: File) deinit
+fun update(inout a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+fun put(inout dst: Slice, own src: Slice): Unit flows src into dst {
+  *dst = move src
+}
+fun deliver(own this: Holder, inout dst: Slice): Unit flows this.slice.source into dst in Holder {
+  open this as slice, file
+  put(dst, move slice)
+}
+fun writeBeforeConditionalDeliveryRead(own a: Arr, own b: Arr, own f: File): Unit {
+  val dst = Slice(&b)
+  if (*) {
+    deliver(Holder(Slice(&a), move f), &mut dst)
+  }
+  update(&mut a)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(dst.source.len)
+}
+fun writeAfterConditionalDeliveryRead(own a: Arr, own b: Arr, own f: File): Unit {
+  val dst = Slice(&b)
+  if (*) {
+    deliver(Holder(Slice(&a), move f), &mut dst)
+  }
+  mayFail()
+  use(dst.source.len)
+  update(&mut a)
+  update(&mut b)
+}

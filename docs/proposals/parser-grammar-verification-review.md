@@ -125,7 +125,7 @@ F5 ──> 演进路线中带新语法的步骤
 
 ### 5.1 F5 需要把关的近期语法
 
-来自[演进总纲](https://github.com/Halckon/koven/blob/e00bc60bf2eec035634e005e93242745f5e333b3/docs/proposals/ownership-references-dyn-evolution.md)各路线，按出现先后：
+来自[演进总纲](ownership-references-dyn-evolution.md)各路线，按出现先后：
 
 | 语法 | 来源步骤 | 主要文法风险 |
 |---|---|---|
@@ -137,10 +137,10 @@ F5 ──> 演进路线中带新语法的步骤
 | 匿名对象 `object : I { … }` | X4 | 表达式位置的 `object` 与声明位置的具名 object |
 | `sealed` | X4 | 已是保留字，风险低 |
 | `unsafe { … }`、`extern "C"` | U1、U3 | `unsafe` 块与尾 lambda、普通 block 的区分；字符串字面量出现在声明头 |
-| `from` 指名静态声明 | [之六](https://github.com/Halckon/koven/blob/e00bc60bf2eec035634e005e93242745f5e333b3/docs/proposals/evolution-06-text-globals-extensions-metadata.md) J5 | `from` 之后由参数名扩展为限定名；与多来源的逗号列表叠加 |
+| `from` 指名静态声明 | [之六](evolution-06-text-globals-extensions-metadata.md) J5 | `from` 之后由参数名扩展为限定名；与多来源的逗号列表叠加 |
 | 扩展函数声明 `fun <T> a.b.C<T>.name(…)` | 之六 J9 | 最后一个 `.Identifier` 才是函数名；接收者类型的泛型实参与限定名、函数自身的类型参数表相邻 |
 | 通用注解 `@Name(实参)` | 之六 AT0 | 注解可出现的位置集合；与现行“拒绝任何 `@`”条款的衔接；实参表与其后声明头的分界 |
-| `yield`、`suspend` 修饰与 `suspend` 函数类型 | [之七](https://github.com/Halckon/koven/blob/e00bc60bf2eec035634e005e93242745f5e333b3/docs/proposals/evolution-07-concurrency-async-io-ffi.md) S3、S4 | 已是保留字；`suspend` 在函数类型前缀位置与 `move` 前缀的次序；`yield` 作为表达式还是语句 |
+| `yield`、`suspend` 修饰与 `suspend` 函数类型 | [之七](evolution-07-concurrency-async-io-ffi.md) S3、S4 | 已是保留字；`suspend` 在函数类型前缀位置与 `move` 前缀的次序；`yield` 作为表达式还是语句 |
 
 这些语法都还没有定稿。F5 的意义在于：在它们进入 Guide 之前，用机器文法检查一遍，而不是等 parser 实现后再以修复的形式发现问题。
 
@@ -209,4 +209,4 @@ F2 是否值得做、做多大，取决于 F0 的归因结果，所以现在能�
 - F2（序 3–8）改动生产 parser。v1 期间是否启动，取决于两件事：序 1 是否支持 §4，以及 parser 修复是否仍在以近期的速度出现。
   2026-11-11 核对：标题为 `fix(parser)` 的提交仍是 33 个，最后一批在 11-10；但本地 HEAD 的日期是 11-11，只隔一天，据此无法判断修复流是否已经停止。
   若修复已经明显减少，F2 可以推迟到 v1 之后；若没有，推迟只会让 v1 的 P3（其中多项需要新语法）继续承受返工。
-- F3–F5（序 9–17）的时限是[演进总纲之十三](https://github.com/Halckon/koven/blob/e00bc60bf2eec035634e005e93242745f5e333b3/docs/proposals/evolution-13-implementation-roadmap.md)的阶段二：第一批新表面语法进入 Guide 之前。
+- F3–F5（序 9–17）的时限是[演进总纲之十三](evolution-13-implementation-roadmap.md)的阶段二：第一批新表面语法进入 Guide 之前。

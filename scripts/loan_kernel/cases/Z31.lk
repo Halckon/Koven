@@ -1,0 +1,103 @@
+// 拆出内部可变（cell）与线程绑定（local）按值子视图：保留 K19、S5、CAP、可观察 deinit 与失败清理
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+cell view class CellBag<view T>(n: Int)
+view class CellBagHolder(bag: CellBag, file: File) deinit
+cell view class ScopeBox<view T>(n: Int) deinit
+view class ScopeHolder(sc: ScopeBox, file: File) deinit
+local view class LocalSlice(borrow source: Arr)
+view class LocalHolder(loc: LocalSlice, file: File) deinit
+
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun putCell(borrow bag: CellBag, own s: Slice): Unit flows s into bag trusted
+fun peekCell(borrow bag: CellBag): borrow Int from bag.origins trusted
+fun putScope(borrow sc: ScopeBox, own s: Slice): Unit flows s into sc trusted
+fun releaseScope(own sc: ScopeBox): Unit trusted
+fun <view T: Transferable> sendView(own x: T): Unit trusted
+
+// 一、内部可变容器子视图（cell view class CellBag<view T>）
+fun openCellBagProtectsOldAndSharedFlow(own this: CellBagHolder, own a: Arr, own b: Arr, own f: File): Unit in CellBagHolder {
+  val b0 = CellBag(0)
+  putCell(&b0, Slice(&a))
+  this = CellBagHolder(move b0, move f)
+  open this as bag, file
+  putCell(&bag, Slice(&b))
+  val e = peekCell(&bag)
+  update(&mut a)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(e)
+  update(&mut a)
+  update(&mut b)
+}
+fun forwardOpenedCellBag(own this: CellBagHolder): borrow Int from this.bag in CellBagHolder {
+  open this as bag, file
+  return peekCell(&bag)
+}
+fun missingOpenedCellBagContract(own this: CellBagHolder): borrow Int in CellBagHolder {
+  open this as bag, file
+  return peekCell(&bag)  // ERR K6
+}
+fun openCellBagRejectsDirectFieldAccess(own this: CellBagHolder): Unit in CellBagHolder {
+  open this as bag, file
+  use(bag.n)  // ERR K19
+}
+parallel suspend fun openCellBagSharedRefCannotCrossParallelSuspend(own this: CellBagHolder): Unit in CellBagHolder {
+  open this as bag, file
+  val r = &bag
+  suspend  // ERR S5
+  use(r)
+}
+fun openCellBagDropsOnFailure(own this: CellBagHolder): Unit in CellBagHolder {
+  open this as bag, file
+  mayFail()
+  val e = peekCell(&bag)
+  use(e)
+}
+
+// 二、带 deinit 的内部可变子视图（类似 Scope）
+fun openDeinitCellSubViewStaysAliveUntilDrop(own this: ScopeHolder, own a: Arr, own f: File): Unit in ScopeHolder {
+  val s0 = ScopeBox(0)
+  putScope(&s0, Slice(&a))
+  this = ScopeHolder(move s0, move f)
+  open this as sc, file
+  update(&mut a)  // ERR K1
+}
+fun openDeinitCellSubViewReleasedAfterMove(own this: ScopeHolder, own a: Arr, own f: File): Unit in ScopeHolder {
+  val s0 = ScopeBox(0)
+  putScope(&s0, Slice(&a))
+  this = ScopeHolder(move s0, move f)
+  open this as sc, file
+  releaseScope(move sc)
+  update(&mut a)
+}
+
+// 三、线程绑定子视图（local view class LocalSlice）
+fun openLocalSubViewProtectsSourceAndReleases(own this: LocalHolder, own a: Arr, own f: File): Unit in LocalHolder {
+  this = LocalHolder(LocalSlice(&a), move f)
+  open this as loc, file
+  use(a.len)
+  update(&mut a)  // ERR K1
+  use(loc.source.len)
+  update(&mut a)
+}
+parallel suspend fun openLocalSubViewCannotCrossParallelSuspend(own this: LocalHolder): Unit in LocalHolder {
+  open this as loc, file
+  suspend  // ERR S5
+  use(loc.source.len)
+}
+suspend fun openLocalSubViewAllowedAcrossNormalSuspend(own this: LocalHolder): Unit in LocalHolder {
+  open this as loc, file
+  suspend
+  use(loc.source.len)
+}
+fun openLocalSubViewRejectedByTransferableBound(own this: LocalHolder): Unit in LocalHolder {
+  open this as loc, file
+  sendView(move loc)  // ERR CAP
+}
+fun openLocalSubViewDropsOnFailure(own this: LocalHolder): Unit in LocalHolder {
+  open this as loc, file
+  mayFail()
+  use(loc.source.len)
+}

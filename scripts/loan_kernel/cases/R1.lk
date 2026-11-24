@@ -1,0 +1,73 @@
+// 能力判定取自能力推导（KB4）：可复制、可逃逸、可转移、可提前析构不再由借用检查器各自近似
+interface Shape
+class Arr(len: Int)
+class File(fd: Int) deinit
+class Circle(r: Int) is Shape
+view class Window(borrow source: Arr, pos: Int)
+view class Owning(borrow source: Arr, scratch: Arr)
+view class Tagged(tag: Int)
+class Hidden(borrow source: Arr)  // ERR CAP
+cell class Counter(n: Int)
+local class Session(id: Int)
+view class Watch(borrow counter: Counter)
+view class Pinned(borrow source: Arr, session: Session)
+fun <T> keep(own x: T): T { return move x }
+fun copyReadOnlyView(): Unit {
+  val a = Arr(1)
+  val w = Window(&a, 0)
+  val x = w
+  use(x.pos)
+  use(w.pos)
+}
+fun copyViewThatOwns(): Unit {
+  val a = Arr(1)
+  val w = Owning(&a, Arr(2))
+  val x = w  // ERR K8
+  use(x.source.len)
+}
+fun viewWithoutBorrowsEscapes(): Tagged {
+  val t = Tagged(1)
+  val k = keep(move t)
+  return move k
+}
+fun viewWithBorrowsDoesNot(): Unit {
+  val a = Arr(1)
+  val w = Window(&a, 0)
+  val k = keep(move w)  // ERR K17
+}
+parallel suspend fun crossThreads(): Unit {
+  val a = Arr(1)
+  val c = Counter(0)
+  val s = Session(1)
+  val w = Window(&a, 0)
+  val watch = Watch(&c)
+  val p = Pinned(&a, move s)
+  suspend  // ERR S5
+  use(w.pos)
+  use(watch.counter)
+  use(p.source.len)
+  use(c)
+}
+parallel suspend fun <T: Transferable> carry(own x: T): T {
+  suspend
+  return move x
+}
+parallel suspend fun <T> carryUnbounded(own x: T): T {
+  suspend  // ERR S5
+  return move x
+}
+suspend fun <U: Transferable> forwardBounded(own u: U): U {
+  val r = carry(move u)
+  return move r
+}
+suspend fun <U> forwardUnbounded(own u: U): U {
+  val r = carry(move u)  // ERR CAP
+  return move r
+}
+suspend fun instantiate(): Unit {
+  val a = carry(Arr(1))
+  val f = carry(File(3))
+  val s = carry(Session(1))  // ERR CAP
+  use(a.len)
+  use(f.fd)
+}

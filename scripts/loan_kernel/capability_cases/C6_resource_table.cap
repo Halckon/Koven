@@ -1,0 +1,42 @@
+// 与现行实现对照：lang-frontend 的 resource_deinit_type_facts 分类表逐行移植。
+// 实现的“是资源类型”对应这里的 EarlyDrop = no；实现对未实例化泛型给出的“未知”对应一个条件
+class Resource deinit
+class Inner(resource: Resource)
+class Outer(inner: Inner)
+class Plain(value: Int)
+class ResourceCycle(next: ResourceCycle?, item: Resource)
+class PlainCycle(next: PlainCycle?)
+enum Choice(Resource)
+class Nullable1(item: Resource?)
+class Boxed(item: Box<Choice>)
+class Generic<T>(item: T)
+value class Wrapped(item: Resource)
+class ArrayOwner(item: Array<Resource>)
+class ListOwner(item: List<Resource>)
+class RcOwner(item: Rc<Resource>)
+class DeclaredGeneric<T> deinit
+class GenericInstance(item: Generic<Resource>)
+class DeclaredGenericInstance(item: DeclaredGeneric<Int>)
+class MutualA(next: MutualB?)
+class MutualB(next: MutualA?, item: Resource)
+class ResourceFirst(item: Resource, next: ResourceFirst?)
+expect EarlyDrop Resource = no
+expect EarlyDrop Inner = no
+expect EarlyDrop Outer = no
+expect EarlyDrop Plain = yes
+expect EarlyDrop ResourceCycle = no
+expect EarlyDrop PlainCycle = yes
+expect EarlyDrop Choice = no
+expect EarlyDrop Nullable1 = no
+expect EarlyDrop Boxed = no
+expect EarlyDrop Generic = if T: EarlyDrop
+expect EarlyDrop Wrapped = no
+expect EarlyDrop ArrayOwner = no
+expect EarlyDrop ListOwner = no
+expect EarlyDrop RcOwner = no
+expect EarlyDrop DeclaredGeneric = no
+expect EarlyDrop GenericInstance = no
+expect EarlyDrop DeclaredGenericInstance = no
+expect EarlyDrop MutualA = no
+expect EarlyDrop MutualB = no
+expect EarlyDrop ResourceFirst = no

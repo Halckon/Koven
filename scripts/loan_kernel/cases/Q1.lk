@@ -1,0 +1,157 @@
+// 经借用把来源写进视图：流向的目标写到字段路径；来源只记在拥有该存储的变量上
+class Arr(len: Int)
+view class L3(borrow a: Arr)
+view class L2(deep: L3, borrow b: Arr)
+view class L1(mid: L2, borrow c: Arr)
+view class Holder(inout target: L1)
+fun getA(borrow x: L3): borrow Int from x.a { return &x.a.len }
+fun deepest(borrow x: L1): borrow Int from x.mid.deep.a { return &x.mid.deep.a.len }
+fun rebind(inout v: L1, borrow s: Arr): Unit flows s into v.mid.deep {
+  v.mid.deep = L3(s)
+}
+fun rebindCoarse(inout v: L1, borrow s: Arr): Unit flows s into v {
+  v.mid.deep = L3(s)
+}
+fun rebindWrongBranch(inout v: L1, borrow s: Arr): Unit flows s into v.c {  // ERR K6
+  v.mid.deep = L3(s)
+}
+fun rebindToLocal(inout v: L1): Unit {  // ERR K6
+  val t = Arr(1)
+  v.mid.deep = L3(&t)
+}
+fun rebindMaybe(inout v: L1, borrow s: Arr): Unit {  // ERR K6
+  if (*) {
+    v.mid.deep = L3(s)
+  }
+}
+fun forward(inout v: L1, borrow s: Arr): Unit flows s into v.mid {
+  rebind(v, s)
+}
+fun forwardUndeclared(inout v: L1, borrow s: Arr): Unit {  // ERR K6
+  rebind(v, s)
+}
+fun setA(inout x: L3, borrow s: Arr): Unit flows s into x {
+  *x = L3(s)
+}
+fun setUndeclared(inout x: L3, borrow s: Arr): Unit {  // ERR K6
+  *x = L3(s)
+}
+fun setToLocal(inout x: L3): Unit {  // ERR K6
+  val t = Arr(1)
+  *x = L3(&t)
+}
+fun <view T> putInto(inout out: T, own x: T): Unit flows x into out {
+  *out = move x
+}
+fun <view T> putUndeclared(inout out: T, own x: T): Unit {  // ERR K6
+  *out = move x
+}
+fun crossing(own h: Holder, borrow s: Arr): Unit {  // ERR K6
+  h.target.mid.deep = L3(s)
+}
+fun holderProtectsNewSource(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  rebind(&mut v, &s)
+  val e = deepest(&v)
+  q.len = 5
+  use(s.len)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun callerKeepsOldSource(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  rebind(&mut v, &s)
+  val e = deepest(&v)
+  p.len = 7  // ERR K1
+  use(e)
+}
+fun holderOutlivesSource(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val v = L1(L2(L3(&p), &q), &r)
+  {
+    val s = Arr(4)
+    rebind(&mut v, &s)
+  }  // ERR K9
+  use(v.c.len)
+}
+fun throughAlias(): Unit {
+  val p = Arr(1)
+  val s = Arr(4)
+  val v = L3(&p)
+  val r = &mut v
+  setA(r, &s)
+  val e = getA(r)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun eitherTarget(): Unit {
+  val p = Arr(1)
+  val s = Arr(4)
+  val v1 = L3(&p)
+  val v2 = L3(&p)
+  val r = &mut v1
+  if (*) {
+    r = &mut v2
+  }
+  setA(r, &s)
+  val e = getA(&v1)
+  val f = getA(&v2)
+  s.len = 6  // ERR K1
+  use(e)
+  use(f)
+}
+fun nestedFieldAsTarget(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  setA(&mut v.mid.deep, &s)
+  val e = deepest(&v)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun genericIntoView(): Unit {
+  val p = Arr(1)
+  val s = Arr(4)
+  val v = L3(&p)
+  putInto(&mut v, L3(&s))
+  val e = getA(&v)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun localWholeReplace(): Unit {
+  val p = Arr(1)
+  val s = Arr(4)
+  val v = L3(&p)
+  val r = &mut v
+  *r = L3(&s)
+  p.len = 2
+  val e = getA(r)
+  s.len = 6  // ERR K1
+  use(e)
+}
+sig Rebinder(inout v: L1, borrow s: Arr): Unit flows s into v.mid
+fun apply(inout v: L1, borrow s: Arr, own f: fn Rebinder): Unit flows s into v.mid {
+  f(v, s)
+}
+fun refinement(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  apply(&mut v, &s, rebind)
+  apply(&mut v, &s, rebindCoarse)  // ERR K12
+  use(v.c.len)
+}

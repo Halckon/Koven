@@ -1,0 +1,31 @@
+// open 的按值字段经 flows 交给调用方；调用点保守地并入来源。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Holder(slice: Slice, file: File) deinit
+fun update(inout a: Arr): Unit trusted
+fun put(inout dst: Slice, own src: Slice): Unit flows src into dst {
+  *dst = move src
+}
+fun deliver(own this: Holder, inout dst: Slice): Unit flows this.slice.source into dst in Holder {
+  open this as slice, file
+  put(dst, move slice)
+}
+fun missingFlow(own this: Holder, inout dst: Slice): Unit in Holder {  // ERR K6
+  open this as slice, file
+  put(dst, move slice)
+}
+fun writeBeforeDeliveredRead(own a: Arr, own b: Arr, own f: File): Unit {
+  val dst = Slice(&b)
+  deliver(Holder(Slice(&a), move f), &mut dst)
+  update(&mut a)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(dst.source.len)
+}
+fun writeAfterDeliveredRead(own a: Arr, own b: Arr, own f: File): Unit {
+  val dst = Slice(&b)
+  deliver(Holder(Slice(&a), move f), &mut dst)
+  use(dst.source.len)
+  update(&mut a)
+  update(&mut b)
+}

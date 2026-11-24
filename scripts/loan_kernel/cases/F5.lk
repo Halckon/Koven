@@ -1,0 +1,12 @@
+// 循环：旧借用在被覆盖之前不再使用，写来源成立
+class Arr(len: Int)
+fun f(): Unit {
+  val z = 0
+  val arr = Arr(1)
+  val r = &z
+  while (*) {
+    arr.len = 2
+    r = &arr.len
+  }
+  use(r)
+}

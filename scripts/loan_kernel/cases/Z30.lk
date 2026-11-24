@@ -1,0 +1,80 @@
+// 临时值的析构（KB1 × KB2）：丢弃的临时值、借用临时值的语句级寿命、转发外部来源，以及多实参求值中途失败的逆序清理
+class Arr(len: Int)
+class File(id: Int) deinit
+class Pair(first: File, second: File)
+view class Slice(borrow source: Arr)
+view class Guard(borrow source: Arr) deinit
+
+deinit Guard {
+  use(this.source.len)
+}
+
+fun makeFile(): File trusted
+fun makeGuard(borrow a: Arr): Guard from a trusted
+fun readFile(borrow f: File): Int { return f.id }
+fun touchFile(inout f: File): Unit { f.id = 2 }
+fun readGuard(borrow g: Guard): Int { return g.source.len }
+fun peekFile(borrow f: File): borrow Int from f { return &f.id }
+fun peekSlice(borrow s: Slice): borrow Int from s.source { return &s.source.len }
+fun peekSliceSelf(borrow s: Slice): borrow Int from s { return &s.source.len }
+fun consumeTwo(own x: File, own y: File): Unit trusted
+fun readTwo(borrow x: File, borrow y: File): Int { return x.id }
+
+// 一、独立语句中丢弃的临时值：语句末运行 deinit 并解除对来源的借用
+fun discardTempGuard(): Unit {
+  val a = Arr(1)
+  makeGuard(&a)
+  a.len = 2
+}
+
+// 二、借用临时值：语句内使用合法，借用依赖临时值本身时不能逃出本语句（K9 / K6）
+fun borrowTempInCall(): Unit {
+  val a = Arr(1)
+  val n = readFile(&makeFile())
+  touchFile(&mut makeFile())
+  val m = readGuard(&Guard(&a))
+  a.len = 2
+  use(n)
+  use(m)
+}
+fun borrowTempCannotEscapeStatement(): Unit {
+  val r = peekFile(&makeFile())  // ERR K9
+  use(r)
+}
+fun borrowTempSelfViewCannotEscapeStatement(): Unit {
+  val a = Arr(1)
+  val r = peekSliceSelf(&Slice(&a))  // ERR K9
+  use(r)
+}
+fun borrowTempForwardedOriginSurvivesStatement(): Unit {
+  val a = Arr(1)
+  val r = peekSlice(&Slice(&a))
+  use(r)
+  a.len = 2
+}
+fun borrowTempForwardedOriginProtectsSource(): Unit {
+  val a = Arr(1)
+  val r = peekSlice(&Slice(&a))
+  a.len = 2  // ERR K1
+  use(r)
+}
+fun returnBorrowFromTempRejected(): borrow Int {
+  return peekFile(&makeFile())  // ERR K6
+}
+
+// 三、多实参求值中途失败的清理与多个临时值的逆序析构（LIFO）
+fun partialEvalCallFailureCleanup(): Unit {
+  consumeTwo(makeFile(), makeFile())
+}
+fun partialEvalConstructFailureCleanup(): Unit {
+  val p = Pair(makeFile(), makeFile())
+  use(p.first.id)
+}
+fun twoBorrowedTempsDropInLifoOrder(): Unit {
+  val n = readTwo(&makeFile(), &makeFile())
+  use(n)
+}
+fun moveArgThenFallibleArgCleanup(): Unit {
+  val f = File(1)
+  consumeTwo(move f, makeFile())
+}

@@ -1,0 +1,85 @@
+// deinit 函数体：this 拥有各字段；函数体结束时仍拥有的字段按声明逆序析构
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow a: Arr)
+class Conn(sock: File, buf: Arr) deinit
+class Guard(f: File) deinit
+class Taker(a: File, b: Arr) deinit
+class UseAfterTake(a: File, b: Arr) deinit
+class Escaper(a: File) deinit
+class OneBranch(a: File, b: Arr) deinit
+class Lender(a: File, b: Arr) deinit
+class LendsThenTakes(a: File, b: Arr) deinit
+class Keeper(a: File, b: Arr) deinit
+class Fails(a: File, b: Arr) deinit
+view class Watcher(borrow log: Arr, f: File) deinit
+view class Leaker(inout slot: Slice, borrow mine: Arr, n: Int) deinit
+fun release(own f: File): Unit trusted
+fun flush(borrow c: Conn): Unit trusted
+fun peek(borrow u: UseAfterTake): Unit trusted
+fun sink(own e: Escaper): Unit trusted
+fun mayFail(): Unit trusted
+fun view(borrow a: Arr): Slice from a trusted
+deinit Conn {
+  flush(&this)
+  mayFail()
+}
+deinit Guard {
+  release(move this.f)
+}
+deinit Taker {
+  val a = move this.a
+  mayFail()
+  release(move a)
+  use(this.b.len)
+}
+deinit UseAfterTake {
+  release(move this.a)
+  peek(&this)  // ERR K8
+}
+deinit Escaper {
+  sink(move this)  // ERR K24
+}
+deinit OneBranch {
+  if (*) {
+    release(move this.a)
+  }
+  mayFail()
+}
+deinit Lender {
+  val r = &this.b
+  mayFail()
+  use(r.len)
+}
+deinit LendsThenTakes {
+  val r = &this.a.fd
+  release(move this.a)  // ERR K1
+  use(r)
+}
+deinit Keeper {
+  val s = view(&this.b)
+  release(move this.a)
+  use(s.a.len)
+}
+deinit Fails {
+  val r = &this.b.len
+  mayFail()
+  use(r)
+}
+deinit Watcher {
+  use(this.log.len)
+  release(move this.f)
+}
+deinit Leaker {  // ERR K6
+  this.slot = view(&this.mine)
+}
+fun dropsThem(): Unit {
+  val c = Conn(File(1), Arr(2))
+  val t = Taker(File(3), Arr(4))
+  val o = OneBranch(File(5), Arr(6))
+  mayFail()
+}
+fun stillNoFieldsFromOutside(): Unit {
+  val c = Conn(File(1), Arr(2))
+  val s = move c.sock  // ERR K23
+}

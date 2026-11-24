@@ -1,0 +1,57 @@
+// 挂起点两侧的析构义务：留在帧里的不只是还会用到的值，还有等着在作用域结束时析构的值
+class Arr(len: Int)
+local class Session(id: Int)
+local class Guard(id: Int) deinit
+class File(fd: Int) deinit
+suspend fun pause(): Unit {
+  suspend
+}
+parallel suspend fun plainDeadBeforeSuspend(): Unit {
+  val s = Session(1)
+  use(s.id)
+  suspend
+}
+parallel suspend fun guardWaitsAcrossSuspend(): Unit {
+  val g = Guard(1)
+  use(g.id)
+  suspend  // ERR S5
+}
+parallel suspend fun guardScopedBeforeSuspend(): Unit {
+  {
+    val g = Guard(1)
+    use(g.id)
+  }
+  suspend
+}
+parallel suspend fun guardMovedBeforeSuspend(): Unit {
+  val g = Guard(1)
+  release(move g)
+  suspend
+}
+parallel suspend fun guardAcrossCall(): Unit {
+  val g = Guard(1)
+  pause()  // ERR S5
+}
+parallel suspend fun transferableWaits(): Unit {
+  val f = File(1)
+  suspend
+}
+suspend fun sameThreadIsFine(): Unit {
+  val g = Guard(1)
+  val f = File(2)
+  suspend
+  val a = Arr(1)
+  pause()
+  use(a.len)
+}
+suspend fun destroyedWhileSuspended(own f: File): Unit {
+  val g = File(2)
+  if (*) {
+    release2(move g)
+  }
+  suspend
+  val h = File(3)
+  pause()
+}
+fun release(own g: Guard): Unit trusted
+fun release2(own f: File): Unit trusted

@@ -1,0 +1,50 @@
+// deinit 函数体不得挂起（直接挂起、调用 suspend 函数、await、经 suspend 签名回调及声明 suspend deinit 均拒绝）。
+class File(fd: Int) deinit
+sig SyncWork(): Unit
+suspend sig AsyncWork(): Unit
+fun syncClose(): Unit trusted
+suspend fun asyncClose(): Unit trusted
+fun runSync(own f: fn SyncWork): Unit {
+  f()
+}
+suspend fun runAsync(own f: fn AsyncWork): Unit {
+  f()
+}
+class SyncGuard(file: File) deinit
+deinit SyncGuard {
+  syncClose()
+}
+class BadDecl(n: Int) deinit
+suspend deinit BadDecl {  // ERR S0
+  syncClose()
+}
+class BadDirect(n: Int) deinit
+deinit BadDirect {
+  suspend  // ERR S0
+}
+class BadCall(n: Int) deinit
+deinit BadCall {
+  asyncClose()  // ERR S0
+}
+class BadAwait(n: Int) deinit
+deinit BadAwait {
+  val t = start asyncClose()
+  poll t
+  await t  // ERR S0
+}
+class BadIndirect(cb: fn AsyncWork) deinit
+deinit BadIndirect {
+  val cb = move this.cb
+  cb()  // ERR S0
+}
+fun cannotPassSuspendToSyncSig(): Unit {
+  runSync(asyncClose)  // ERR K12
+}
+suspend fun syncRefinesSuspendSig(): Unit {
+  runAsync(syncClose)
+}
+suspend fun syncDeinitWorksAcrossSuspend(own f: File): Unit {
+  val g = SyncGuard(move f)
+  suspend
+  use(g.file.fd)
+}

@@ -1,0 +1,32 @@
+// 左臂把拆出的视图移到外层 out；右臂保留 out 的初值。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Holder(slice: Slice, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun writeBeforeJoinedRead(own this: Holder, own a: Arr, own b: Arr, own f: File): Unit in Holder {
+  val out = Slice(&b)
+  if (*) {
+    this = Holder(Slice(&a), move f)
+    open this as slice, file
+    out = move slice
+    mayFail()
+  }
+  update(&mut a)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(out.source.len)
+}
+fun writeAfterJoinedRead(own this: Holder, own a: Arr, own b: Arr, own f: File): Unit in Holder {
+  val out = Slice(&b)
+  if (*) {
+    this = Holder(Slice(&a), move f)
+    open this as slice, file
+    out = move slice
+    mayFail()
+  }
+  mayFail()
+  use(out.source.len)
+  update(&mut a)
+  update(&mut b)
+}

@@ -1,0 +1,21 @@
+// 拆解仅发生在一臂：臂内知道是否仍拥有 this，合流后用析构标志。
+class File(fd: Int) deinit
+class Buf(n: Int) deinit
+class Conn(sock: File, buf: Buf) deinit
+fun mayFail(): Unit trusted
+fun observe(borrow c: Conn): Unit trusted
+fun openInOneArm(own this: Conn, own outer: File): Unit in Conn {
+  if (*) {
+    open this as sock, buf
+    mayFail()
+  } else {
+    observe(&this)
+  }
+  mayFail()
+}
+fun readAfterJoin(own this: Conn): Unit in Conn {
+  if (*) {
+    open this as sock, buf
+  }
+  use(this)  // ERR K8
+}

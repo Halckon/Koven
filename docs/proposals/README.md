@@ -17,6 +17,30 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [借用结果声明与类型合同比较](borrow-access-contract-comparison.md)
 - [Map / MutableMap 所有权候选](map-ownership.md)
 - [v2 interface 值与动态分发](v2-interface-values-and-dynamic-dispatch.md)
+- [所有权、可存储引用与 dyn 的中后期演进总纲](ownership-references-dyn-evolution.md)：v1.x–v4 方向、K0–K8 分阶段与待决问题
+  - [之一：调研、基底能力内核与决断](evolution-01-kernel-and-decisions.md)
+  - [之二：路线 L 借用内核](evolution-02-route-loan-kernel.md)
+  - [之三：路线 X 抽象打包（dyn 与 callable）](evolution-03-route-existential.md)
+  - [之四：路线 C/U/S 能力与共享、裸内存、挂起](evolution-04-route-capability-unsafe-suspend.md)
+  - [之五：数据结构适配性检验](evolution-05-data-structure-fitness.md)
+  - [之六：文本、全局状态、扩展函数与元数据](evolution-06-text-globals-extensions-metadata.md)
+  - [之七：并发与异步模型、IO 与外部函数边界](evolution-07-concurrency-async-io-ffi.md)
+  - [之八：中间表示、逃逸分析、向量化与自举条件](evolution-08-compiler-ir-escape-simd-selfhost.md)
+  - [之九：总体架构——内核与扩展的分层、接口与原则](evolution-09-architecture.md)
+  - [之十：尚未覆盖的领域](evolution-10-coverage-gaps.md)
+  - [之十一：失败模型、通用接口清单、编译单元依赖](evolution-11-failure-interfaces-units.md)
+  - [之十二：标准库清单与平台适配](evolution-12-stdlib-platform.md)
+  - [之十三：实施路线——从当前到 v1，从 v1 到之后](evolution-13-implementation-roadmap.md)
+- [v1 冻结前的兼容性约束（Z1–Z11）](v1-freeze-decisions.md)：可并入 v1 条目 Spec 的条款，已登记为路线图决策 D16
+- [unsafe 合同提纲（U0）](unsafe-aliasing-contract-outline.md)：章节结构、失败安全条款草案与内存模型取向
+- [借用内核演算（内核 MVP 第 1–3 步）](loan-kernel-calculus.md)：参考检查器原型的语法、规则、用例清单与原型得到的发现
+- [内核原型的覆盖与欠账](kernel-prototype-coverage.md)：各内核基底的原型覆盖状态，未覆盖项按“先做 / 记账后集中做”排期
+- [析构义务的原型（内核基底 KB1）](drop-obligation-model.md)：析构规划器与独立检验器、条件移动与失败出口的清理、“消费并解除析构”与必须消费的发现
+- [结构能力推导的原型（内核基底 KB4）](capability-derivation-model.md)：能力引擎的模型、与现行规则和实现的对照用例、析构性质拆分与默认上界的发现
+- [失败出口与清理义务的状态模型（内核 MVP 第 4 步）](failure-cleanup-model.md)：借用型子任务的失败传播与在途 IO 两个状态模型，各候选政策违反的不变量与发现
+- [析构时机：两个方案的对比](drop-timing-comparison.md)：最早析构加屏障，对比词法析构加允许的提前释放；方向已裁决为后者
+- [IO 资源借用、责任交接与清理：设计安全原则](io-resource-handoff-cleanup.md)：在途 IO 的保活、责任交接与清理进度；失败政策与后端证明未决
+- [Parser 文法与验证实施建议：评审与路径分解](parser-grammar-verification-review.md)：恢复先行、机器文法为新语法把关的路线 F
 - [顶层状态、静态存储与全局生命周期](global-and-static-state.md)：G1 接纳面收窄已决（v0.46 C），G2–G5 分层候选
 - [String Copyable 候选取舍](string-copyability.md)
 - [显式 clone() 候选设计](explicit-clone.md)
@@ -27,9 +51,8 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [Unit 函数根集合工程候选](unit-function-root-set.md)：D10 whole-file 身份见证退出路径，未启用
 - [D10 独立 loop 证明候选](d10-independent-loop-proof.md)：独立 catalog、结构边和 SSA replay 的架构约束，未启用
 - [D10 child 未修改根最窄候选](d10-child-pass-through-root.md)：两根、单根更新的隔离设计，未启用
-
 - [Parser 分阶段形式化验证计划](parser-formal-verification-plan.md)：Phase 1，待评审
-- [Parser 文法与验证路径评审](parser-grammar-verification-review.md)：路线 F 的来源评审
+- [Origin / IO 讨论审计与候选基线](origin-io-candidate-baseline.md)：安全不变量、六项验收矩阵与未决实施门槛，非完整定稿
 
 ## 候选依赖与推进顺序
 

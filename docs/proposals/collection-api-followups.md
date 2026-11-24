@@ -25,3 +25,8 @@ Spec只选其Goal相关项，不将整张旧矩阵视为全部完成或重跑。
 [clone候选](explicit-clone.md)；r3未承接Map算法或迭代器协议。
 consume、只读Map转换和已有具体正确性缺口由[Spec索引](../specs/README.md)定位，不因本页激活。
 Set、开放Iterator/Iterable与视图分别选定，不捆入Map基础能力。
+
+## 元素对换（2026-11-10 增补）
+
+用户已同意为 `Array` 与 `MutableList` 增加成员 `swap(i, j)`，用于 `MoveOnly` 元素的堆调整与原地排序（来源：[数据结构适配性检验](evolution-05-data-structure-fitness.md) §4 的 G5）。
+倾向：两下标相等时为空操作；越界按现行元素访问的规则处理。签名、诊断与验收由对应 Spec 确定，本条不构成启用。

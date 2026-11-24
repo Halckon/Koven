@@ -1,0 +1,106 @@
+// 部分移出：从拥有的变量里移出一个按值字段；其余字段照常使用，各自在作用域结束时析构
+class Arr(len: Int)
+class File(fd: Int) deinit
+class Pair(a: Arr, b: Arr)
+class Conn(sock: File, buf: Arr) deinit
+class Res(f: File, buf: Arr)
+view class Slice(borrow a: Arr)
+view class Outer(inner: Slice, borrow c: Arr)
+fun release(own f: File): Unit trusted
+fun takeArr(own a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+fun oneField(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  val a = move p.a
+  mayFail()
+  use(a.len)
+  use(p.b.len)
+}
+fun movedFieldIsGone(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  val a = move p.a
+  use(p.a.len)  // ERR K8
+}
+fun wholeAfterPartial(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  val a = move p.a
+  val q = move p  // ERR K8
+}
+fun borrowWholeAfterPartial(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  takeArr(move p.a)
+  val r = &p  // ERR K8
+}
+fun bothFields(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  val a = move p.a
+  val b = move p.b
+  mayFail()
+  use(a.len)
+  use(b.len)
+}
+fun twice(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  takeArr(move p.a)
+  takeArr(move p.a)  // ERR K8
+}
+fun insideLoop(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  while (*) {
+    takeArr(move p.a)  // ERR K8
+  }
+}
+fun reassignedWhole(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  takeArr(move p.a)
+  p = Pair(Arr(3), Arr(4))
+  use(p.a.len)
+}
+fun outOfDeinitType(): Unit {
+  val c = Conn(File(1), Arr(2))
+  val s = move c.sock  // ERR K23
+}
+fun observableField(): Unit {
+  val r = Res(File(1), Arr(2))
+  val f = move r.f
+  mayFail()
+  release(move f)
+  use(r.buf.len)
+}
+fun whileBorrowed(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  val r = &p.a.len
+  val a = move p.a  // ERR K1
+  use(r)
+}
+fun otherFieldBorrowed(): Unit {
+  val p = Pair(Arr(1), Arr(2))
+  val r = &p.b.len
+  val a = move p.a
+  use(r)
+  use(a.len)
+}
+fun throughBorrow(inout p: Pair): Unit {
+  val a = move p.a  // ERR K8
+}
+fun fromParameter(own p: Pair): Arr {
+  return move p.a
+}
+fun originsMoveWithTheField(): Unit {
+  val x = Arr(1)
+  val y = Arr(2)
+  val o = Outer(Slice(&x), &y)
+  val s = move o.inner
+  y.len = 3
+  x.len = 4  // ERR K1
+  use(s.a.len)
+}
+fun restKeepsItsOrigins(): Unit {
+  val x = Arr(1)
+  val y = Arr(2)
+  val o = Outer(Slice(&x), &y)
+  val s = move o.inner
+  x.len = 4
+  y.len = 3  // ERR K1
+  use(o.c.len)
+}

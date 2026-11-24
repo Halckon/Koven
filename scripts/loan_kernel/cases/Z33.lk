@@ -1,0 +1,139 @@
+// 带运行时借用标志的单元交出的守卫（RefCell 风格，KB6 × KB1 × KB2 × KB8）：
+// 共享借用交出带 deinit 的守卫；守卫活到析构点以在运行时释放标志，且继承 RefCell 不可共享导致的不可转移性。
+cell class RefCell(v: Int)
+view class Ref(borrow cell: RefCell) deinit
+view class RefMut(borrow cell: RefCell) deinit
+
+fun borrowCell(borrow c: RefCell): Ref from c trusted
+fun borrowMutCell(borrow c: RefCell): RefMut from c trusted
+fun deref(borrow g: Ref): borrow Int from g trusted
+fun derefFromMut(borrow g: RefMut): borrow Int from g trusted
+fun derefMut(inout g: RefMut): inout Int from g trusted
+fun releaseRef(own g: Ref): Unit trusted
+fun releaseRefMut(own g: RefMut): Unit trusted
+fun consumeCell(own c: RefCell): Unit trusted
+fun replaceCell(inout c: RefCell): Unit trusted
+fun mayFail(): Unit trusted
+fun <T> escapeAny(own x: T): Unit trusted
+fun <view T: Transferable> sendView(own x: T): Unit trusted
+
+// 一、K19：非受信任代码不能直接访问 RefCell 字段
+fun cannotAccessCellDirectly(): Unit {
+  val c = RefCell(1)
+  use(c.v)  // ERR K19
+}
+
+// 二、守卫保护 RefCell 直到析构点或显式释放；解引用保护守卫不被提前移走
+fun guardProtectsCellUntilDrop(): Unit {
+  val c = RefCell(1)
+  val g = borrowCell(&c)
+  val x = deref(&g)
+  use(x)
+  replaceCell(&mut c)  // ERR K1
+}
+fun guardReleasedAllowsCellMutationAndMove(): Unit {
+  val c = RefCell(1)
+  val g = borrowCell(&c)
+  val x = deref(&g)
+  use(x)
+  releaseRef(move g)
+  replaceCell(&mut c)
+  consumeCell(move c)
+}
+fun derefProtectsGuardFromMove(): Unit {
+  val c = RefCell(1)
+  val g = borrowCell(&c)
+  val x = deref(&g)
+  releaseRef(move g)  // ERR K1
+  use(x)
+}
+fun derefCannotOutliveGuardBlock(): Unit {
+  val c = RefCell(1)
+  val r = &c.v  // ERR K19
+  use(r)
+}
+fun derefMutEnforcesExclusivityOnGuard(): Unit {
+  val c = RefCell(1)
+  val gm = borrowMutCell(&c)
+  val x = derefMut(&mut gm)
+  val y = derefMut(&mut gm)  // ERR K1
+  use(x)
+}
+fun derefMutBlocksSharedDerefOnSameGuard(): Unit {
+  val c = RefCell(1)
+  val gm = borrowMutCell(&c)
+  val x = derefMut(&mut gm)
+  val y = derefFromMut(&gm)  // ERR K1
+  use(x)
+  use(y)
+}
+fun derefMutReusableAfterLastUse(): Unit {
+  val c = RefCell(1)
+  val gm = borrowMutCell(&c)
+  val x = derefMut(&mut gm)
+  use(x)
+  val y = derefMut(&mut gm)
+  use(y)
+  releaseRefMut(move gm)
+  replaceCell(&mut c)
+}
+
+// 三、不可隐式复制（K8）、不可逃逸（K6 / K17），多个守卫按逆序析构
+fun refGuardIsNotCopyable(): Unit {
+  val c = RefCell(1)
+  val g = borrowCell(&c)
+  val g2 = g  // ERR K8
+}
+fun guardCannotEscapeLocal(): Ref {
+  val c = RefCell(1)
+  return borrowCell(&c)  // ERR K6
+}
+fun guardCannotInstantiateEscapable(): Unit {
+  val c = RefCell(1)
+  val g = borrowCell(&c)
+  escapeAny(move g)  // ERR K17
+}
+fun twoGuardsDropInLifoOrder(): Unit {
+  val c = RefCell(1)
+  val g1 = borrowCell(&c)
+  val g2 = borrowCell(&c)
+  mayFail()
+}
+
+// 四、单臂释放守卫保留析构标志（V1 / V2），失败路径先析构守卫再析构 RefCell
+fun conditionalReleaseGuardKeepsDropFlag(): Unit {
+  val c = RefCell(1)
+  val g = borrowMutCell(&c)
+  if (*) {
+    releaseRefMut(move g)
+  }
+  mayFail()
+}
+
+// 五、与挂起和能力上界的配合：普通 suspend 接受，parallel suspend 报 S5，Transferable 报 CAP
+suspend fun guardAllowedAcrossNormalSuspend(): Unit {
+  val c = RefCell(1)
+  val g = borrowCell(&c)
+  suspend
+  val x = deref(&g)
+  use(x)
+}
+parallel suspend fun guardCannotCrossParallelSuspend(): Unit {
+  val c = RefCell(1)
+  val g = borrowCell(&c)
+  suspend  // ERR S5
+  val x = deref(&g)
+  use(x)
+}
+parallel suspend fun mutGuardCannotCrossParallelSuspend(): Unit {
+  val c = RefCell(1)
+  val gm = borrowMutCell(&c)
+  suspend  // ERR S5
+  val x = derefMut(&mut gm)
+  use(x)
+}
+fun guardRejectedByTransferableBound(): Unit {
+  val c = RefCell(1)
+  val g = borrowCell(&c)
+  sendView(move g)  // ERR CAP
+}

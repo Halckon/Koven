@@ -1,0 +1,70 @@
+// 基本规则：可观察的值留到作用域结束、按声明逆序；不可观察的值可以在最后一次使用后析构
+type File deinit
+type Buf
+type Pair(a: File, b: Buf)
+fun lexical {            // => ok
+  let f = File
+  let g = File
+  let b = Buf
+  use b
+  call
+  use f
+}
+fun moved {              // => ok
+  let f = File
+  move f
+  call
+}
+fun useAfterMove {       // => reject D1
+  let f = File
+  move f
+  use f
+}
+fun nested {             // => ok
+  let f = File
+  {
+    let g = File
+    call
+  }
+  call
+}
+fun earlyReturn {        // => ok
+  let f = File
+  if {
+    let g = File
+    return
+  }
+  let h = File
+  call
+}
+fun loopBody {           // => ok
+  let f = File
+  loop {
+    let g = File
+    let b = Buf
+    use b
+    if {
+      break
+    }
+    call
+  }
+  use f
+}
+fun movedInLoop {        // => reject D4
+  let f = File
+  loop {
+    move f
+  }
+}
+fun assign {             // => ok
+  let f = File
+  set f = File
+  call
+  set f = File
+}
+fun composite {          // => ok
+  let p = Pair
+  let b = Buf
+  call
+  use b
+}

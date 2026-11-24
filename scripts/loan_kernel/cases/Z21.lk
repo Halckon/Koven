@@ -1,0 +1,77 @@
+// 直接拆出顶层 borrow / inout 字段：拆出的借用绑定保留来源，不引入析构义务。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class RoDirect(borrow source: Arr, file: File) deinit
+view class RwDirect(inout source: Arr, file: File) deinit
+view class ViewDirect(inout inner: Slice, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun roDirectProtectsSource(own this: RoDirect, own a: Arr, own f: File): Unit in RoDirect {
+  this = RoDirect(&a, move f)
+  open this as source, file
+  use(a.len)
+  update(&mut a)  // ERR K1
+  use(source.len)
+  update(&mut a)
+}
+fun forwardRoDirect(own this: RoDirect): borrow Int from this.source in RoDirect {
+  open this as source, file
+  return &source.len
+}
+fun missingRoDirectContract(own this: RoDirect): borrow Int in RoDirect {
+  open this as source, file
+  return &source.len  // ERR K6
+}
+fun rwDirectProtectsReadAndWrite(own this: RwDirect, own a: Arr, own f: File): Unit in RwDirect {
+  this = RwDirect(&mut a, move f)
+  open this as source, file
+  use(a.len)  // ERR K1
+  update(&mut a)  // ERR K1
+  update(source)
+  use(a.len)
+  update(&mut a)
+}
+fun forwardRwDirect(own this: RwDirect): inout Arr from this.source in RwDirect {
+  open this as source, file
+  return source
+}
+fun localRwDirectEscape(own this: RwDirect, own a: Arr, own f: File): inout Arr from this.source in RwDirect {
+  this = RwDirect(&mut a, move f)
+  open this as source, file
+  return source  // ERR K6
+}
+fun viewDirectLocalReplaceReleasesOldSource(own this: ViewDirect, own a: Arr, own b: Arr, own f: File): Unit in ViewDirect {
+  val v = Slice(&a)
+  this = ViewDirect(&mut v, move f)
+  open this as inner, file
+  *inner = Slice(&b)
+  val e = &inner.source.len
+  update(&mut a)
+  update(&mut b)  // ERR K1
+  use(e)
+  update(&mut b)
+}
+fun writeCallerThroughOpenedViewDirect(own this: ViewDirect, borrow s: Arr): Unit flows s into this.inner in ViewDirect {
+  open this as inner, file
+  *inner = Slice(s)
+}
+fun missingFlowThroughOpenedViewDirect(own this: ViewDirect, borrow s: Arr): Unit in ViewDirect {  // ERR K6
+  open this as inner, file
+  *inner = Slice(s)
+}
+fun callerSeesFlowedOriginOnViewDirect(own a: Arr, own b: Arr, own f: File): Unit {
+  val v = Slice(&a)
+  writeCallerThroughOpenedViewDirect(ViewDirect(&mut v, move f), &b)
+  val e = &v.source.len
+  update(&mut a)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(e)
+  update(&mut a)
+  update(&mut b)
+}
+fun dropsOnlyOwnedFileOnFailure(own this: RwDirect): Unit in RwDirect {
+  open this as source, file
+  mayFail()
+  update(source)
+}

@@ -1,0 +1,124 @@
+// 流向越过借用字段：经视图的独占字段改写另一个视图，账记在那个视图的拥有者上
+class Arr(len: Int)
+view class L3(borrow a: Arr)
+view class L2(deep: L3, borrow b: Arr)
+view class L1(mid: L2, borrow c: Arr)
+view class Holder(inout target: L1)
+view class Peek(borrow target: L1)
+fun deepest(borrow x: L1): borrow Int from x.mid.deep.a { return &x.mid.deep.a.len }
+fun same(inout x: L3): inout L3 from x { return x }
+fun rebind(inout v: L1, borrow s: Arr): Unit flows s into v.mid.deep {
+  v.mid.deep = L3(s)
+}
+fun viaHolder(own h: Holder, borrow s: Arr): Unit flows s into h.target.mid.deep {
+  h.target.mid.deep = L3(s)
+}
+fun viaHolderCoarse(own h: Holder, borrow s: Arr): Unit flows s into h {
+  h.target.mid.deep = L3(s)
+}
+fun viaHolderUndeclared(own h: Holder, borrow s: Arr): Unit {  // ERR K6
+  h.target.mid.deep = L3(s)
+}
+fun viaBorrowedHolder(inout h: Holder, borrow s: Arr): Unit flows s into h.target.mid {
+  h.target.mid.deep = L3(s)
+}
+fun viaReadOnly(own p: Peek, borrow s: Arr): Unit flows s into p {  // ERR SIG
+  p.target.mid.deep = L3(s)  // ERR K1
+}
+fun forward(own h: Holder, borrow s: Arr): Unit flows s into h.target.mid.deep {
+  viaHolder(move h, s)
+}
+fun forwardUndeclared(own h: Holder, borrow s: Arr): Unit {  // ERR K6
+  viaHolder(move h, s)
+}
+fun readThroughReborrow(inout v: L3): borrow Int from v.a {
+  val r = same(v)
+  return &r.a.len
+}
+fun readThroughReborrowUndeclared(inout v: L3): borrow Int {
+  val r = same(v)
+  return &r.a.len  // ERR K6
+}
+fun localHolder(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  val h = Holder(&mut v)
+  h.target.mid.deep = L3(&s)
+  val e = deepest(h.target)
+  p.len = 7
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun ownerSeesWhatTheHolderWrote(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  val h = Holder(&mut v)
+  h.target.mid.deep = L3(&s)
+  val e = deepest(&v)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun callByValue(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  viaHolder(Holder(&mut v), &s)
+  val e = deepest(&v)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun callByMove(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  val h = Holder(&mut v)
+  viaHolderCoarse(move h, &s)
+  val e = deepest(&v)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun callThroughBorrowedHolder(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  val h = Holder(&mut v)
+  viaBorrowedHolder(&mut h, &s)
+  val e = deepest(&v)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun fieldAsTarget(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val s = Arr(4)
+  val v = L1(L2(L3(&p), &q), &r)
+  val h = Holder(&mut v)
+  rebind(h.target, &s)
+  val e = deepest(&v)
+  s.len = 6  // ERR K1
+  use(e)
+}
+fun ownerOutlivesSource(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val r = Arr(3)
+  val v = L1(L2(L3(&p), &q), &r)
+  {
+    val s = Arr(4)
+    viaHolder(Holder(&mut v), &s)
+  }  // ERR K9
+  use(v.c.len)
+}

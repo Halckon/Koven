@@ -1,0 +1,87 @@
+// 作用域库的形态：任务只由作用域持有，用户拿到句柄；子任务的来源流进作用域，作用域的析构等齐全部子任务
+class Arr(len: Int)
+cell class Counter(n: Int)
+cell view class Scope<view T>(n: Int) deinit
+view class Job(borrow scope: Scope)
+view class Reader(borrow a: Arr)
+view class Writer(inout a: Arr)
+view class Bumper(borrow c: Counter)
+view class Env(borrow a: Arr, inout b: Arr, borrow c: Counter)
+fun <view F> launch(borrow sc: Scope, own f: F): Job from sc flows f into sc trusted
+fun <view F: Transferable> launchParallel(borrow sc: Scope, own f: F): Job from sc flows f into sc trusted
+fun join(own j: Job): Int trusted
+fun <T> id(own x: T): T { return move x }
+sig <view E> Body(borrow sc: Scope, inout env: E): Unit flows env into sc
+fun <view E> scoped(inout env: E, own body: fn Body): Unit {
+  val sc = Scope(0)
+  body(&sc, env)
+}
+fun twoReaders(borrow sc: Scope, inout env: Env): Unit flows env.a into sc {
+  launch(sc, Reader(env.a))
+  launch(sc, Reader(env.a))
+}
+fun dynamicCount(borrow sc: Scope, inout env: Env): Unit flows env.a into sc {
+  while (*) {
+    launch(sc, Reader(env.a))
+  }
+}
+fun joinInside(borrow sc: Scope, inout env: Env): Unit flows env.a into sc {
+  val j = launch(sc, Reader(env.a))
+  val n = join(move j)
+  use(n)
+}
+fun writerThenReader(borrow sc: Scope, inout env: Env): Unit flows env into sc {
+  launch(sc, Writer(env.b))
+  launch(sc, Reader(env.b))  // ERR K4
+}
+fun writerThenParentWrites(borrow sc: Scope, inout env: Env): Unit flows env into sc {
+  launch(sc, Writer(env.b))
+  env.b.len = 2  // ERR K4
+}
+fun readerThenParentReads(borrow sc: Scope, inout env: Env): Unit flows env.a into sc {
+  launch(sc, Reader(env.a))
+  use(env.a.len)
+}
+fun writerDeclaredAsField(borrow sc: Scope, inout env: Env): Unit flows env.b into sc {  // ERR K6
+  launch(sc, Writer(env.b))
+}
+fun undeclared(borrow sc: Scope, inout env: Env): Unit {  // ERR K6
+  launch(sc, Reader(env.a))
+}
+fun childBorrowsBodyLocal(borrow sc: Scope, inout env: Env): Unit {  // ERR K6
+  val t = Arr(1)
+  launch(sc, Reader(&t))
+}
+fun jobEscapes(borrow sc: Scope, inout env: Env): Job flows env.a into sc {
+  return launch(sc, Reader(env.a))  // ERR K6
+}
+fun parallelChildren(borrow sc: Scope, inout env: Env): Unit flows env into sc {
+  launchParallel(sc, Reader(env.a))
+  launchParallel(sc, Bumper(env.c))  // ERR CAP
+  launch(sc, Bumper(env.c))
+}
+fun parent(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val c = Counter(0)
+  val env = Env(&a, &mut b, &c)
+  scoped(&mut env, twoReaders)
+  scoped(&mut env, dynamicCount)
+  a.len = 3
+  b.len = 4
+}
+fun userOwnedScope(): Unit {
+  val a = Arr(1)
+  val sc = Scope(0)
+  launch(&sc, Reader(&a))
+  a.len = 2  // ERR K1
+}
+fun sourceDeclaredAfterScope(): Unit {  // ERR K9
+  val sc = Scope(0)
+  val a = Arr(1)
+  launch(&sc, Reader(&a))  // ERR K22
+}
+fun scopeCannotEscape(): Unit {
+  val sc = Scope(0)
+  val g = id(move sc)  // ERR K17
+}

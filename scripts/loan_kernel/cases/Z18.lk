@@ -1,0 +1,45 @@
+// 拆出带 deinit 的按值子视图：子视图保留可观察析构义务，活到被移走或析构点。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class GuardSlice(borrow source: Arr) deinit
+deinit GuardSlice {
+  use(this.source.len)
+}
+view class GuardHolder(guard: GuardSlice, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun releaseGuard(own g: GuardSlice): Unit trusted
+fun openedDeinitSubViewStaysAliveUntilDrop(own this: GuardHolder, own a: Arr, own f: File): Unit in GuardHolder {
+  this = GuardHolder(GuardSlice(&a), move f)
+  open this as guard, file
+  use(guard.source.len)
+  update(&mut a)  // ERR K1
+}
+fun writeAfterReleasingOpenedDeinitSubView(own this: GuardHolder, own a: Arr, own f: File): Unit in GuardHolder {
+  this = GuardHolder(GuardSlice(&a), move f)
+  open this as guard, file
+  use(guard.source.len)
+  releaseGuard(move guard)
+  update(&mut a)
+}
+fun openedDeinitSubViewDropsBeforeEarlierSource(own this: GuardHolder, own a: Arr, own f: File): Unit in GuardHolder {
+  this = GuardHolder(GuardSlice(&a), move f)
+  open this as guard, file
+  mayFail()
+  use(guard.source.len)
+}
+fun moveOpenedDeinitSubViewToOlderSlotRejected(own this: GuardHolder, own o: Arr, own f: File): Unit in GuardHolder {  // ERR K9
+  val out = GuardSlice(&o)
+  val late = Arr(1)
+  this = GuardHolder(GuardSlice(&late), move f)
+  open this as guard, file
+  out = move guard
+  mayFail()  // ERR K22
+}
+fun conditionalReleaseKeepsDropFlag(own this: GuardHolder): Unit in GuardHolder {
+  open this as guard, file
+  if (*) {
+    releaseGuard(move guard)
+  }
+  mayFail()
+}
