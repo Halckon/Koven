@@ -1,0 +1,125 @@
+// Z45（§83）：真实普通闭包与可变闭包的 L0137 逃逸禁止及捕获权限对照（补齐 Z44 SharedCap 未覆盖项）。
+
+class Item(x: Int)
+class BoxedClosure(cb: Closure)
+view class ViewClosureBox(cb: Closure)
+
+fun read_item(borrow x: Item): Unit trusted
+fun write_item(inout x: Item): Unit trusted
+fun apply_sync(borrow f: Closure): Unit trusted
+fun apply_sync_mut(inout f: Closure): Unit trusted
+fun deliver_owned(own f: Closure): Unit trusted
+
+// ---- 1. 无捕获普通闭包：无 loan，可返回、可存字段、可交给 own（Value）参数
+
+fun empty_closure_can_escape(): Closure {
+    val f = closure()
+    val b = BoxedClosure(f)
+    use(b)
+    deliver_owned(closure())
+    return closure()
+}
+
+// ---- 2. 真实普通闭包（borrowed closure）：本地同步消费、存活期外部共享读与 ASAP 释放
+
+fun real_borrowed_closure_sync_and_shared_read_ok(inout h: Item): Unit {
+    val f = closure(h)
+    read_item(h)          // 捕获活跃时外部共享读仍合法
+    apply_sync(&f)
+    write_item(h)         // f 最后一次使用后 ASAP 释放，外部可写
+}
+
+fun real_borrowed_closure_direct_sync_arg_ok(inout h: Item): Unit {
+    apply_sync(closure(h))
+    write_item(h)
+}
+
+fun real_borrowed_closure_local_blocks_write(inout h: Item): Unit {
+    val a = Item(1)
+    val f = closure(&a)
+    write_item(&mut a)    // ERR K1
+    apply_sync(&f)
+    val g = closure(h)
+    write_item(h)         // ERR K4
+    apply_sync(&g)
+}
+
+// ---- 3. 真实普通闭包逃逸一律报 L0137（即使声明 from 也不得返回，与 view class 区分）
+
+fun real_borrowed_closure_return_local_l0137(): Closure {
+    val a = Item(1)
+    return closure(&a)    // ERR L0137
+}
+
+fun real_borrowed_closure_return_param_with_from_l0137(borrow h: Item): Closure from h {
+    return closure(h)     // ERR L0137
+}
+
+fun real_borrowed_closure_rebound_move_return_l0137(borrow h: Item): Closure from h {
+    val f = closure(h)
+    val g = move f
+    return move g         // ERR L0137
+}
+
+fun real_borrowed_closure_store_in_class_field_l0137(borrow h: Item): Unit {
+    val b = BoxedClosure(closure(h))  // ERR L0137
+    use(b)
+}
+
+fun real_borrowed_closure_assign_field_l0137(borrow h: Item): Unit {
+    val b = BoxedClosure(closure())
+    b.cb = closure(h)     // ERR L0137
+    use(b)
+}
+
+fun real_borrowed_closure_store_in_view_field_l0137(borrow h: Item): Unit {
+    val v = ViewClosureBox(closure(h)) // ERR L0137
+    use(v)
+}
+
+fun real_borrowed_closure_deliver_own_l0137(borrow h: Item): Unit {
+    deliver_owned(closure(h)) // ERR L0137
+}
+
+suspend fun real_borrowed_closure_yield_l0137(borrow h: Item): Closure from h {
+    yield closure(h)      // ERR L0137
+    return closure()
+}
+
+// ---- 4. 真实可变闭包（mutating closure）：独占捕获、不可复制、逃逸同样报 L0137
+
+fun real_mut_closure_sync_and_release_ok(inout h: Item): Unit {
+    val a = Item(1)
+    val f = mut_closure(&mut a)
+    apply_sync_mut(&mut f)
+    read_item(&a)
+    write_item(&mut a)
+    val g = mut_closure(h)
+    apply_sync_mut(&mut g)
+    write_item(h)
+}
+
+fun real_mut_closure_blocks_read_and_write(inout h: Item): Unit {
+    val a = Item(1)
+    val f = mut_closure(&mut a)
+    read_item(&a)         // ERR K1
+    apply_sync_mut(&mut f)
+    val g = mut_closure(h)
+    read_item(h)          // ERR K4
+    apply_sync_mut(&mut g)
+}
+
+fun real_mut_closure_not_copyable(): Unit {
+    val a = Item(1)
+    val f = mut_closure(&mut a)
+    val copy = f          // ERR K8
+    use(copy)
+}
+
+fun real_mut_closure_return_with_from_l0137(inout h: Item): Closure from h {
+    return mut_closure(h) // ERR L0137
+}
+
+fun real_mut_closure_deliver_own_l0137(inout h: Item): Unit {
+    deliver_owned(mut_closure(h)) // ERR L0137
+}

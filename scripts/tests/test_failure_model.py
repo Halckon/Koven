@@ -57,6 +57,28 @@ class ScopeCancelDrainModel(unittest.TestCase):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.scope_cancel_drain_model(policy)))
 
 
+class ScopeCancelDrainExtendedModel(unittest.TestCase):
+    """3A 更广覆盖：丢 Job_A 不取消作为独立事件、子 B 清理期重新阻塞、子 B 产生额外普通失败 err_B 的多错仲裁对照。"""
+
+    SAFE_FIRST = {MODEL.DRAINED_PROPAGATED_ERR_A, MODEL.MULTI_ERR_KEPT_FIRST, MODEL.DEINIT_FAIL_ABORTED}
+    SAFE_AGG = {MODEL.DRAINED_PROPAGATED_ERR_A, MODEL.MULTI_ERR_AGGREGATED, MODEL.DEINIT_FAIL_ABORTED}
+    EXPECTED = {
+        "丢Job即取消子任务": ({MODEL.DROP_JOB_CANCELLED}, set(), SAFE_FIRST),
+        "清理期重新阻塞不可唤醒": (set(), {MODEL.HANG}, SAFE_FIRST),
+        "清理期重新阻塞超时释放父帧": ({MODEL.UAF}, set(), SAFE_FIRST),
+        "多错仲裁用后发错误覆盖首错": ({MODEL.LOST_FIRST_ERROR}, set(), {MODEL.DRAINED_PROPAGATED_ERR_A, MODEL.DEINIT_FAIL_ABORTED}),
+        "多错仲裁吞掉子deinit失败": ({MODEL.DEINIT_FAIL_SUPPRESSED}, set(), {MODEL.DRAINED_PROPAGATED_ERR_A, MODEL.MULTI_ERR_KEPT_FIRST}),
+        "候选策略1：丢Job不取消、重阻塞可唤醒、多错保留首错、deinit失败终止": (set(), set(), SAFE_FIRST),
+        "候选策略2：丢Job不取消、重阻塞可唤醒、多错聚合err_A+err_B、deinit失败终止": (set(), set(), SAFE_AGG),
+    }
+
+    def test_each_policy_has_the_expected_outcome(self):
+        self.assertEqual(set(self.EXPECTED), set(MODEL.SCOPE_CANCEL_DRAIN_EXTENDED_POLICIES))
+        for name, policy in MODEL.SCOPE_CANCEL_DRAIN_EXTENDED_POLICIES.items():
+            with self.subTest(policy=name):
+                self.assertEqual(self.EXPECTED[name], outcome(MODEL.scope_cancel_drain_extended_model(policy)))
+
+
 class IoModel(unittest.TestCase):
     """失败政策：无终结证据时保留资源；保留不了时终止进程，且终止生效前不再释放。"""
 

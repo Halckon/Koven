@@ -1639,6 +1639,33 @@ class LoanKernelCases(unittest.TestCase):
         self.assertFalse(any("star_selector_no_origins_collision_ok" in m for m in sig_errors))
         self.assertFalse(any("flow_into_star_target_rejected" in m and "同名字段" in m for m in sig_errors))
 
+    def test_real_ordinary_closure_l0137_escape_and_capture(self):
+        """§83：真实普通闭包与可变闭包的 L0137 逃逸禁止（含声明 from 仍报 L0137）及捕获权限对照。"""
+        source = (ROOT / "cases/Z45.lk").read_text(encoding="utf-8")
+        lowered = {}
+        diags = CHECKER.check(source, lowered=lowered)
+        actual = {(rule, line) for rule, line, _ in diags}
+        self.assertEqual(expected(source), actual)
+        for name in ("empty_closure_can_escape", "real_borrowed_closure_sync_and_shared_read_ok",
+                     "real_borrowed_closure_direct_sync_arg_ok", "real_mut_closure_sync_and_release_ok"):
+            self.assertTrue(lowered[name][2], name)
+        for name in ("real_borrowed_closure_local_blocks_write",
+                     "real_borrowed_closure_return_local_l0137",
+                     "real_borrowed_closure_return_param_with_from_l0137",
+                     "real_borrowed_closure_rebound_move_return_l0137",
+                     "real_borrowed_closure_store_in_class_field_l0137",
+                     "real_borrowed_closure_assign_field_l0137",
+                     "real_borrowed_closure_store_in_view_field_l0137",
+                     "real_borrowed_closure_deliver_own_l0137",
+                     "real_borrowed_closure_yield_l0137",
+                     "real_mut_closure_blocks_read_and_write",
+                     "real_mut_closure_not_copyable",
+                     "real_mut_closure_return_with_from_l0137",
+                     "real_mut_closure_deliver_own_l0137"):
+            self.assertFalse(lowered[name][2], name)
+        l0137 = [line for rule, line, _ in diags if rule == "L0137"]
+        self.assertEqual(10, len(l0137))
+
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
         self.assertEqual(set(), self.violations("X1.lk", "bothFields"))
