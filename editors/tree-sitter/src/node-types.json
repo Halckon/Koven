@@ -216,6 +216,16 @@
           }
         ]
       }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "block_comment",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -226,6 +236,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "block_comment",
+          "named": true
+        },
         {
           "type": "expression_statement",
           "named": true
@@ -424,6 +438,10 @@
       "required": false,
       "types": [
         {
+          "type": "block_comment",
+          "named": true
+        },
+        {
           "type": "companion_object",
           "named": true
         },
@@ -581,6 +599,10 @@
       "required": false,
       "types": [
         {
+          "type": "block_comment",
+          "named": true
+        },
+        {
           "type": "constant_declaration",
           "named": true
         },
@@ -659,6 +681,10 @@
       "required": false,
       "types": [
         {
+          "type": "block_comment",
+          "named": true
+        },
+        {
           "type": "expression_statement",
           "named": true
         },
@@ -716,6 +742,10 @@
       "multiple": true,
       "required": true,
       "types": [
+        {
+          "type": "block_comment",
+          "named": true
+        },
         {
           "type": "enum_member",
           "named": true
@@ -1108,6 +1138,10 @@
       "required": false,
       "types": [
         {
+          "type": "block_comment",
+          "named": true
+        },
+        {
           "type": "function_type_parameter",
           "named": true
         }
@@ -1271,6 +1305,10 @@
       "required": false,
       "types": [
         {
+          "type": "block_comment",
+          "named": true
+        },
+        {
           "type": "companion_object",
           "named": true
         },
@@ -1372,6 +1410,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "block_comment",
+          "named": true
+        },
         {
           "type": "expression_statement",
           "named": true
@@ -1569,6 +1611,10 @@
       "required": false,
       "types": [
         {
+          "type": "block_comment",
+          "named": true
+        },
+        {
           "type": "constant_declaration",
           "named": true
         },
@@ -1747,6 +1793,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "block_comment",
+          "named": true
+        },
         {
           "type": "classifier_declaration",
           "named": true
@@ -2201,6 +2251,10 @@
       "multiple": true,
       "required": false,
       "types": [
+        {
+          "type": "block_comment",
+          "named": true
+        },
         {
           "type": "when_entry",
           "named": true

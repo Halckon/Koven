@@ -363,7 +363,8 @@ struct XmlNode {
 fn parse_xml_element(input: &str) -> Result<XmlNode, String> {
     let start = input
         .find("<source_file")
-        .ok_or_else(|| "missing <source_file> in tree-sitter XML".to_owned())?;
+        .or_else(|| input.find("<ERROR"))
+        .ok_or_else(|| "missing <source_file> or <ERROR> in tree-sitter XML".to_owned())?;
     let bytes = &input.as_bytes()[start..];
     let mut pos = 0usize;
     let mut stack: Vec<XmlNode> = Vec::new();
@@ -897,6 +898,12 @@ fun closedDrifts(a: Int, b: Int, c: Int, move: Int) {
         ("reserved-word-binding", "val async = 1\n"),
         ("own-at-call-site", "fun f() { consume(own x) }\n"),
         ("wildcard-destructuring", "fun f() { val (a, _) = pair }\n"),
+        ("TS-01-bare-cr", "val x =\r 1\n"),
+        ("TS-01-form-feed", "val x =\x0c 1\n"),
+        ("TS-04-chained-range", "val x = a..b..<c\n"),
+        ("TS-04-chained-membership", "val x = a in b in c\n"),
+        ("TS-04-chained-comparison", "val x = a < b <= c\n"),
+        ("TS-04-chained-equality", "val x = a == b != c\n"),
     ];
 
     for (name, source) in rejected_cases {
@@ -913,53 +920,52 @@ fun closedDrifts(a: Int, b: Int, c: Int, move: Int) {
 
 #[test]
 #[ignore = "requires locked tree-sitter CLI; see SPEC-0481"]
-fn known_drift_witnesses_match_documented_baseline() {
+fn spec_0491_closed_drifts_ts01_ts02_ts04_match_rust() {
     let cli = tree_sitter_cli();
     let grammar = grammar_dir();
 
-    // Each remaining documented F4b drift witness asserts the exact current divergence direction
-    // (TS-06 closed by SPEC-0479; TS-03, TS-05, TS-07 closed by SPEC-0488).
-    let drifts = [
-        ("TS-01-bare-cr", "val x =\r 1\n", false, true),
+    // All 7 documented F4b drifts (TS-01..TS-07) are now closed across SPEC-0479, SPEC-0488, and SPEC-0491.
+    let accepted_checks = [
+        ("TS-01-valid-crlf", "val x = 1\r\nval y = 2\r\n"),
         (
-            "TS-04-chained-comparison",
-            "val x = a < b <= c\n",
-            false,
-            true,
+            "TS-02-multiline-block-comment",
+            "fun f() {\n    a/*\n*/-b\n}\n",
+        ),
+        (
+            "TS-02-inline-block-comment",
+            "fun f() {\n    a/* inline */-b\n}\n",
+        ),
+        (
+            "TS-04-parenthesized-and-cross-group",
+            "fun f(a: Int, b: Int, c: Int, items: List<Int>) {\n    val r1 = (a < b) < c\n    val r2 = a in 1..10\n    val r3 = a < b == true\n    val r4 = a ?: b to c\n}\n",
         ),
     ];
-
-    for (id, source, rust_accepts, ts_accepts) in drifts {
+    for (id, source) in accepted_checks {
         let rust = project_rust(source);
-        let ts = project_tree_sitter(&cli, &grammar, source);
-        assert_eq!(
+        assert!(
             matches!(rust, ParseOutcome::Accepted(_)),
-            rust_accepts,
-            "{id}: Rust acceptance changed from documented drift baseline"
+            "{id}: Rust must accept"
         );
-        assert_eq!(
-            matches!(ts, ParseOutcome::Accepted(_)),
-            ts_accepts,
-            "{id}: Tree-sitter acceptance changed from documented drift baseline"
-        );
+        let ts = project_tree_sitter(&cli, &grammar, source);
+        compare_outcomes(&rust, &ts).unwrap_or_else(|err| panic!("{id}: {err}"));
     }
 
-    // TS-02: block comment containing newline splits statements in Rust (prefix `-b`) but stays binary `-` in Tree-sitter.
-    let ts02 = "fun f() {\n    a/*\n*/-b\n}\n";
-    let ParseOutcome::Accepted(rust) = project_rust(ts02) else {
-        panic!("TS-02: Rust must accept");
-    };
-    let ParseOutcome::Accepted(ts) = project_tree_sitter(&cli, &grammar, ts02) else {
-        panic!("TS-02: Tree-sitter must accept");
+    let ParseOutcome::Accepted(ts02_multi) =
+        project_tree_sitter(&cli, &grammar, "fun f() {\n    a/*\n*/-b\n}\n")
+    else {
+        panic!("TS-02 multiline must be accepted");
     };
     assert_eq!(
-        (rust.counts.prefixes, rust.counts.binaries),
-        (1, 0),
-        "TS-02: Rust should split into prefix `-b`"
+        (ts02_multi.counts.prefixes, ts02_multi.counts.binaries),
+        (1, 0)
     );
+    let ParseOutcome::Accepted(ts02_inline) =
+        project_tree_sitter(&cli, &grammar, "fun f() {\n    a/* inline */-b\n}\n")
+    else {
+        panic!("TS-02 inline must be accepted");
+    };
     assert_eq!(
-        (ts.counts.prefixes, ts.counts.binaries),
-        (0, 1),
-        "TS-02: Tree-sitter should keep binary `a - b`"
+        (ts02_inline.counts.prefixes, ts02_inline.counts.binaries),
+        (0, 1)
     );
 }

@@ -21,11 +21,17 @@ class EditorContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0 if valid else 1, result.stdout + result.stderr)
         start = result.stdout.index("<?xml")
         end = result.stdout.index("</sources>") + len("</sources>")
-        tree = ET.fromstring(result.stdout[start:end]).find("source/source_file")
-        self.assertIsNotNone(tree)
+        xml_text = result.stdout[start:end].replace("\x0c", "")
+        source_node = ET.fromstring(xml_text).find("source")
+        self.assertIsNotNone(source_node)
+        tree = source_node.find("source_file")
         if valid:
+            self.assertIsNotNone(tree)
             self.assertEqual(list(tree.iter("ERROR")), [])
         else:
+            if tree is None:
+                tree = source_node.find("ERROR")
+            self.assertIsNotNone(tree)
             self.assertTrue(list(tree.iter("ERROR")), result.stdout)
         return tree
 
@@ -225,6 +231,63 @@ class EditorContractTests(unittest.TestCase):
         left_id = div.find(".//binary_expression/expression[@field='left']/identifier")
         self.assertIsNotNone(left_id)
         self.assertEqual(left_id.text, "move")
+
+    def test_bare_cr_and_form_feed_rejected_while_crlf_accepted(self):
+        for invalid in ("val x =\r 1\n", "val x =\f 1\n", "// comment\rval x = 1\n"):
+            with self.subTest(invalid=invalid):
+                self.parse(invalid, valid=False)
+        crlf = self.parse("val x = 1\r\nval y = 2\r\n")
+        self.assertEqual(len(list(crlf.iter("variable_declaration"))), 2)
+        comment_crlf = self.parse("// comment\r\nval x = 1\n")
+        self.assertEqual(len(list(comment_crlf.iter("variable_declaration"))), 1)
+
+    def test_multiline_block_comment_splits_statements_while_inline_stays_horizontal(self):
+        for multiline in ("fun f() {\n    a/*\n*/-b\n}\n", "fun f() {\n    a/*\r\n*/-b\n}\n"):
+            with self.subTest(multiline=multiline):
+                tree = self.parse(multiline)
+                self.assertEqual(len(list(tree.iter("prefix_expression"))), 1)
+                self.assertEqual(list(tree.iter("binary_expression")), [])
+                self.assertEqual(len(list(tree.iter("block_comment"))), 1)
+        inline = self.parse("fun f() {\n    a/* inline */-b\n}\n")
+        self.assertEqual(list(inline.iter("prefix_expression")), [])
+        self.assertEqual(len(list(inline.iter("binary_expression"))), 1)
+        self.assertEqual(len(list(inline.iter("block_comment"))), 1)
+
+    def test_non_associative_operator_groups_reject_unparenthesized_chains(self):
+        for invalid in (
+            "val x = a..b..c\n",
+            "val x = a..b..<c\n",
+            "val x = a..<b..c\n",
+            "val x = a in b in c\n",
+            "val x = a in b !in c\n",
+            "val x = a in b is Int\n",
+            "val x = a is Int is Any\n",
+            "val x = a < b <= c\n",
+            "val x = a < b < c\n",
+            "val x = a >= b > c\n",
+            "val x = a == b != c\n",
+            "val x = a == b == c\n",
+        ):
+            with self.subTest(invalid=invalid):
+                self.parse(invalid, valid=False)
+        for valid in (
+            "val x = (a < b) < c\n",
+            "val x = (a == b) != c\n",
+            "val x = (a..b)..<c\n",
+            "val x = (a in b) in c\n",
+            "val x = a in 1..10\n",
+            "val x = a < b == true\n",
+            "val x = a in items == true\n",
+            "val x = a is Int == true\n",
+            "val x = a < b && b < c\n",
+            "val x = f<Int>(a)\n",
+        ):
+            with self.subTest(valid=valid):
+                self.parse(valid)
+        elvis_to = self.parse("val x = a ?: b to c\n")
+        outer = elvis_to.find(".//variable_declaration/expression/binary_expression")
+        self.assertIsNotNone(outer)
+        self.assertIsNotNone(outer.find("expression[@field='right']/binary_expression/to_operator"))
 
 
 if __name__ == "__main__":

@@ -33,12 +33,10 @@ module.exports = grammar({
     $._shl, $._shr, $._ushr, $._bit_and, $._bit_xor, $._bit_or,
   ],
 
-  extras: ($) => [/[ \t\r\f]/, $.line_comment, $.block_comment],
+  extras: ($) => [/[ \t]/, $.line_comment, $.block_comment],
 
   conflicts: ($) => [
-    [$.binary_expression, $.prefix_expression, $.call_expression],
-    [$.binary_expression, $.call_expression],
-    [$.qualified_name, $._primary_expression],
+    [$._prefix_operand, $.call_expression],
     [$._file_content],
     [$._imports_and_declarations],
     [$._declarations],
@@ -380,8 +378,60 @@ module.exports = grammar({
       choice(
         $.assignment_expression,
         $.binary_expression,
+        alias($._equality_binary, $.binary_expression),
+        $._expr_above_equality,
+      ),
+
+    _expr_above_equality: ($) =>
+      choice(
+        alias($._comparison_binary, $.binary_expression),
+        $._expr_above_comparison,
+      ),
+
+    _expr_above_comparison: ($) =>
+      choice(
+        alias($._membership_binary, $.binary_expression),
+        $._expr_above_membership,
+      ),
+
+    _expr_above_membership: ($) =>
+      choice(
+        alias($._elvis_binary, $.binary_expression),
+        $._expr_above_elvis,
+      ),
+
+    _expr_above_elvis: ($) =>
+      choice(
+        alias($._to_binary, $.binary_expression),
+        $._expr_above_to,
+      ),
+
+    _expr_above_to: ($) =>
+      choice(
+        alias($._range_binary, $.binary_expression),
+        $._expr_above_range,
+      ),
+
+    _expr_above_range: ($) =>
+      choice(
+        alias($._bitwise_or_higher_binary, $.binary_expression),
+        $._cast_operand,
+      ),
+
+    _cast_operand: ($) =>
+      choice(
         $.cast_expression,
+        $._prefix_operand,
+      ),
+
+    _prefix_operand: ($) =>
+      choice(
         $.prefix_expression,
+        $._postfix_operand,
+      ),
+
+    _postfix_operand: ($) =>
+      choice(
         $.call_expression,
         $.index_expression,
         $.member_expression,
@@ -400,16 +450,98 @@ module.exports = grammar({
         ),
       ),
 
-    binary_expression: ($) => {
+    binary_expression: ($) =>
+      choice(
+        prec.left(
+          PREC.OR,
+          seq(
+            field("left", $.expression),
+            field("operator", "||"),
+            field("right", $.expression),
+          ),
+        ),
+        prec.left(
+          PREC.AND,
+          seq(
+            field("left", $.expression),
+            field("operator", "&&"),
+            field("right", $.expression),
+          ),
+        ),
+      ),
+
+    _equality_binary: ($) =>
+      prec(
+        PREC.EQUALITY,
+        seq(
+          field("left", alias($._expr_above_equality, $.expression)),
+          field("operator", choice("==", "!=")),
+          field("right", alias($._expr_above_equality, $.expression)),
+        ),
+      ),
+
+    _comparison_binary: ($) =>
+      prec(
+        PREC.COMPARISON,
+        seq(
+          field("left", alias($._expr_above_comparison, $.expression)),
+          field("operator", choice("<", ">", "<=", ">=")),
+          field("right", alias($._expr_above_comparison, $.expression)),
+        ),
+      ),
+
+    _membership_binary: ($) =>
+      choice(
+        prec(
+          PREC.MEMBERSHIP,
+          seq(
+            field("left", alias($._expr_above_membership, $.expression)),
+            field("operator", choice(alias($._in, "in"), alias($._not_in, "!in"))),
+            field("right", alias($._expr_above_membership, $.expression)),
+          ),
+        ),
+        prec(
+          PREC.MEMBERSHIP,
+          seq(
+            field("left", alias($._expr_above_membership, $.expression)),
+            field("operator", choice(alias($._is, "is"), alias($._not_is, "!is"))),
+            field("right", $._type),
+          ),
+        ),
+      ),
+
+    _elvis_binary: ($) =>
+      prec.right(
+        PREC.ELVIS,
+        seq(
+          field("left", alias($._expr_above_elvis, $.expression)),
+          field("operator", "?:"),
+          field("right", alias($._expr_above_membership, $.expression)),
+        ),
+      ),
+
+    _to_binary: ($) =>
+      prec.left(
+        PREC.TO,
+        seq(
+          field("left", alias($._expr_above_elvis, $.expression)),
+          field("operator", alias($._to, $.to_operator)),
+          field("right", alias($._expr_above_to, $.expression)),
+        ),
+      ),
+
+    _range_binary: ($) =>
+      prec(
+        PREC.RANGE,
+        seq(
+          field("left", alias($._expr_above_range, $.expression)),
+          field("operator", choice("..", "..<")),
+          field("right", alias($._expr_above_range, $.expression)),
+        ),
+      ),
+
+    _bitwise_or_higher_binary: ($) => {
       const table = [
-        [PREC.OR, "||", false],
-        [PREC.AND, "&&", false],
-        [PREC.EQUALITY, choice("==", "!="), false],
-        [PREC.COMPARISON, choice("<", ">", "<=", ">="), false],
-        [PREC.MEMBERSHIP, choice(alias($._in, "in"), alias($._not_in, "!in")), false],
-        [PREC.ELVIS, "?:", false],
-        [PREC.TO, alias($._to, $.to_operator), false],
-        [PREC.RANGE, choice("..", "..<"), false],
         [PREC.BITWISE_OR, alias($._bit_or, "or"), true],
         [PREC.BITWISE_XOR, alias($._bit_xor, "xor"), true],
         [PREC.BITWISE_AND, alias($._bit_and, "and"), true],
@@ -419,28 +551,20 @@ module.exports = grammar({
       ];
       return choice(
         ...table.map(([precedence, operator, allowLineBreak]) =>
-          (operator === "?:" ? prec.right : prec.left)(
+          prec.left(
             precedence,
             allowLineBreak
               ? seq(
-                  field("left", $.expression),
+                  field("left", alias($._expr_above_range, $.expression)),
                   field("operator", operator),
                   repeat($._newline),
-                  field("right", $.expression),
+                  field("right", alias($._expr_above_range, $.expression)),
                 )
               : seq(
-                  field("left", $.expression),
+                  field("left", alias($._expr_above_range, $.expression)),
                   field("operator", operator),
-                  field("right", $.expression),
+                  field("right", alias($._expr_above_range, $.expression)),
                 ),
-          ),
-        ),
-        prec.left(
-          PREC.MEMBERSHIP,
-          seq(
-            field("left", $.expression),
-            field("operator", choice(alias($._is, "is"), alias($._not_is, "!is"))),
-            field("right", $._type),
           ),
         ),
       );
@@ -450,7 +574,7 @@ module.exports = grammar({
       prec.left(
         PREC.CAST,
         seq(
-          field("value", $.expression),
+          field("value", alias($._cast_operand, $.expression)),
           field("operator", choice(alias($._as, "as"), "as?")),
           field("type", $._type),
         ),
@@ -459,22 +583,41 @@ module.exports = grammar({
     prefix_expression: ($) =>
       prec.right(
         PREC.PREFIX,
-        seq(field("operator", choice("!", "+", "-")), field("value", $.expression)),
+        seq(
+          field("operator", choice("!", "+", "-")),
+          field("value", alias($._prefix_operand, $.expression)),
+        ),
       ),
 
     call_expression: ($) =>
-      prec.left(
-        PREC.POSTFIX,
-        choice(
+      choice(
+        prec.left(
+          PREC.POSTFIX,
           seq(
-            field("function", $.expression),
-            optional($.call_type_arguments),
+            field("function", alias($._postfix_operand, $.expression)),
             $.argument_list,
             optional(alias($.trailing_lambda_expression, $.lambda_expression)),
           ),
+        ),
+        prec.left(
+          PREC.POSTFIX,
           seq(
-            field("function", $.expression),
-            optional($.call_type_arguments),
+            field("function", alias($._postfix_operand, $.expression)),
+            alias($.same_line_trailing_lambda_expression, $.lambda_expression),
+          ),
+        ),
+        prec.left(
+          seq(
+            field("function", alias($._postfix_operand, $.expression)),
+            $.call_type_arguments,
+            $.argument_list,
+            optional(alias($.trailing_lambda_expression, $.lambda_expression)),
+          ),
+        ),
+        prec.left(
+          seq(
+            field("function", alias($._postfix_operand, $.expression)),
+            $.call_type_arguments,
             alias($.same_line_trailing_lambda_expression, $.lambda_expression),
           ),
         ),
@@ -499,14 +642,19 @@ module.exports = grammar({
     index_expression: ($) =>
       prec.left(
         PREC.POSTFIX,
-        seq(field("value", $.expression), "[", field("index", $.expression), "]"),
+        seq(
+          field("value", alias($._postfix_operand, $.expression)),
+          "[",
+          field("index", $.expression),
+          "]",
+        ),
       ),
 
     member_expression: ($) =>
       prec.left(
         PREC.POSTFIX,
         seq(
-          field("value", $.expression),
+          field("value", alias($._postfix_operand, $.expression)),
           field("operator", choice(".", "?.")),
           field("name", $.identifier),
         ),
@@ -515,7 +663,10 @@ module.exports = grammar({
     postfix_expression: ($) =>
       prec.left(
         PREC.POSTFIX,
-        seq(field("value", $.expression), field("operator", choice("!!", "?"))),
+        seq(
+          field("value", alias($._postfix_operand, $.expression)),
+          field("operator", choice("!!", "?")),
+        ),
       ),
 
     callable_reference: ($) =>
@@ -523,7 +674,11 @@ module.exports = grammar({
         PREC.POSTFIX,
         choice(
           seq("::", field("name", $.identifier)),
-          seq(field("value", $.expression), "::", field("name", $.identifier)),
+          seq(
+            field("value", alias($._postfix_operand, $.expression)),
+            "::",
+            field("name", $.identifier),
+          ),
         ),
       ),
 
@@ -695,9 +850,12 @@ module.exports = grammar({
     this_expression: () => "this",
 
     line_comment: () => token(seq("//", /[^\r\n]*/)),
-    block_comment: () => token(seq("/*", /[^*]*\*+([^/*][^*]*\*+)*/, "/")),
+    block_comment: () => token(seq("/*", /[^*\n]*\*+([^/*\n][^*\n]*\*+)*/, "/")),
+    multiline_block_comment: () =>
+      token(seq("/*", /([^*\n]|\*+[^/*\n])*\**\n([^*]|\*+[^/*])*\*+/, "/")),
 
-    _newline: () => /\n+/,
+    _newline: ($) =>
+      choice(/(?:\r?\n)+/, alias($.multiline_block_comment, $.block_comment)),
     _file_separator: ($) =>
       choice($._newline, prec.right(seq(";", optional($._newline)))),
     _member_separator: ($) =>
