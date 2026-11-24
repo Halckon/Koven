@@ -106,7 +106,7 @@ jobs:
           PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proof (n <= 6, lexeme_len <= 12)
+    name: F6 Kani Bounded Rust Proof (sharded n <= 3 equiv + n = 4 P4)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -131,5 +131,9 @@ jobs:
       - name: Run bounded angle-group Kani harnesses
         run: |
           cargo kani -p lang-frontend --lib \
-            --harness verify_angle_group_closers_equivalence_bounded \
-            --harness verify_angle_group_closer_strictly_after_opener_and_nonzero
+            --harness verify_angle_group_closers_equivalence_len_0 \
+            --harness verify_angle_group_closers_equivalence_len_1 \
+            --harness verify_angle_group_closers_equivalence_len_2 \
+            --harness verify_angle_group_closers_equivalence_len_3_dense \
+            --harness verify_angle_group_closers_equivalence_len_3_sparse \
+            --harness verify_angle_group_closer_strictly_after_opener_and_nonzero_len_4
