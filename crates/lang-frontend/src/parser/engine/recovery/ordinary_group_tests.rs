@@ -195,23 +195,21 @@ fn confirmed_closer_satisfies_monotonicity_and_boundary_safety() {
                                             if let Some(cl) = r1_s1 {
                                                 assert_eq!(cl, 9);
                                                 assert!(!has_enclosing || enclosing_closed);
-                                                assert!(!local.is_some_and(|raw| raw.get() >= c1));
+                                                assert!(local.is_none_or(|raw| raw.get() < c1));
                                                 if f1.0 {
                                                     assert!(
-                                                        !caller_else
-                                                            .is_some_and(|raw| raw.get() >= c1)
+                                                        caller_else
+                                                            .is_none_or(|raw| raw.get() < c1)
                                                     );
                                                 }
                                                 if f1.1 {
                                                     assert!(
-                                                        !caller_block
-                                                            .is_some_and(|raw| raw.get() >= c1)
+                                                        caller_block
+                                                            .is_none_or(|raw| raw.get() < c1)
                                                     );
                                                 }
                                                 if f1.2 {
-                                                    assert!(
-                                                        !sep.is_some_and(|raw| raw.get() >= c1)
-                                                    );
+                                                    assert!(sep.is_none_or(|raw| raw.get() < c1));
                                                 }
                                             }
                                         }
