@@ -6,22 +6,22 @@ use super::{
     unsupported_block_element_kind,
 };
 
-struct GroupClose {
-    closer: usize,
-    enclosing: Option<NonZeroUsize>,
-    boundaries: RecoveryBoundaries,
+pub(super) struct GroupClose {
+    pub(super) closer: usize,
+    pub(super) enclosing: Option<NonZeroUsize>,
+    pub(super) boundaries: RecoveryBoundaries,
 }
 
-#[derive(Clone, Copy, Default)]
-struct RecoveryBoundaries {
-    local: Option<NonZeroUsize>,
-    caller_else: Option<NonZeroUsize>,
-    caller_block: Option<NonZeroUsize>,
-    block_statement_separator: Option<NonZeroUsize>,
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) struct RecoveryBoundaries {
+    pub(super) local: Option<NonZeroUsize>,
+    pub(super) caller_else: Option<NonZeroUsize>,
+    pub(super) caller_block: Option<NonZeroUsize>,
+    pub(super) block_statement_separator: Option<NonZeroUsize>,
 }
 
 impl RecoveryBoundaries {
-    fn include_unclosed(&mut self, child: Self) {
+    pub(super) fn include_unclosed(&mut self, child: Self) {
         self.local = self.local.max(child.local);
         self.caller_else = self.caller_else.max(child.caller_else);
         self.caller_block = self.caller_block.max(child.caller_block);
@@ -46,7 +46,17 @@ impl GroupClosers {
         Some(self.pair(opener)?.closer)
     }
 
-    fn confirmed_closer(&self, opener: usize, cursor: usize, outer_stops: Stops) -> Option<usize> {
+    #[cfg(any(test, kani))]
+    pub(super) fn from_parts(by_opener: Vec<Option<NonZeroUsize>>, pairs: Vec<GroupClose>) -> Self {
+        Self { by_opener, pairs }
+    }
+
+    pub(super) fn confirmed_closer(
+        &self,
+        opener: usize,
+        cursor: usize,
+        outer_stops: Stops,
+    ) -> Option<usize> {
         let close = self.pair(opener)?;
         // A sole right parenthesis may be the caller's intended closer.
         if let Some(enclosing) = close.enclosing {
@@ -185,12 +195,26 @@ struct OpenGroup {
 }
 
 impl OrdinaryGroups {
-    #[cfg(kani)]
+    #[cfg(any(test, kani))]
     pub(super) fn with_capacity(capacity: usize) -> Self {
         Self {
             groups: Vec::with_capacity(capacity),
             active: [0; 3],
         }
+    }
+
+    #[cfg(any(test, kani))]
+    pub(super) fn active_counts(&self) -> [usize; 3] {
+        self.active
+    }
+
+    #[cfg(any(test, kani))]
+    pub(super) fn stack_kind_counts(&self) -> [usize; 3] {
+        let mut counts = [0usize; 3];
+        for group in &self.groups {
+            counts[group.kind] += 1;
+        }
+        counts
     }
 
     pub(super) fn is_empty(&self) -> bool {

@@ -963,3 +963,7 @@ impl Parser<'_> {
 mod angle_group_kani;
 #[cfg(test)]
 mod angle_group_tests;
+#[cfg(kani)]
+mod ordinary_group_kani;
+#[cfg(test)]
+mod ordinary_group_tests;
