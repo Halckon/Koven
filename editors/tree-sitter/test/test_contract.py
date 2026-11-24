@@ -252,6 +252,13 @@ class EditorContractTests(unittest.TestCase):
         self.assertEqual(list(inline.iter("prefix_expression")), [])
         self.assertEqual(len(list(inline.iter("binary_expression"))), 1)
         self.assertEqual(len(list(inline.iter("block_comment"))), 1)
+        # Operator line continuation across a multiline block comment (Guide 04/06)
+        cont = self.parse("val x = a +/*\n*/b\n")
+        self.assertEqual(len(list(cont.iter("binary_expression"))), 1)
+        self.assertEqual(len(list(cont.iter("block_comment"))), 1)
+        # Cross-line trailing lambda across a multiline block comment (Guide 07)
+        trailing = self.parse("val x = f()/*\n*/{ 1 }\n")
+        self.assertEqual(len(list(trailing.findall(".//call_expression/lambda_expression"))), 1)
 
     def test_non_associative_operator_groups_reject_unparenthesized_chains(self):
         for invalid in (

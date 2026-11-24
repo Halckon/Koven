@@ -123,6 +123,10 @@ jobs:
           #print axioms F6OrdinaryGroups.includeUnclosed_assoc
           #print axioms F6OrdinaryGroups.includeUnclosed_comm
           #print axioms F6OrdinaryGroups.includeUnclosed_idem
+          #print axioms F6OrdinaryGroups.includeUnclosed_preserves_child_local
+          #print axioms F6OrdinaryGroups.includeUnclosed_preserves_child_else
+          #print axioms F6OrdinaryGroups.includeUnclosed_preserves_child_block
+          #print axioms F6OrdinaryGroups.includeUnclosed_preserves_child_sep
           #print axioms F6OrdinaryGroups.popUntil_complete_and_wf
           #print axioms F6OrdinaryGroups.visitGroup_preserves_wf
           #print axioms F6OrdinaryGroups.visitGroup_close_matches_iff
@@ -140,6 +144,10 @@ jobs:
               "F6OrdinaryGroups.includeUnclosed_assoc",
               "F6OrdinaryGroups.includeUnclosed_comm",
               "F6OrdinaryGroups.includeUnclosed_idem",
+              "F6OrdinaryGroups.includeUnclosed_preserves_child_local",
+              "F6OrdinaryGroups.includeUnclosed_preserves_child_else",
+              "F6OrdinaryGroups.includeUnclosed_preserves_child_block",
+              "F6OrdinaryGroups.includeUnclosed_preserves_child_sep",
               "F6OrdinaryGroups.popUntil_complete_and_wf",
               "F6OrdinaryGroups.visitGroup_preserves_wf",
               "F6OrdinaryGroups.visitGroup_close_matches_iff",
@@ -173,7 +181,7 @@ jobs:
           missing = expected - seen
           if missing:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
-          print("all 10 F6OrdinaryGroups theorems depend only on allowed core Lean axioms")
+          print("all 14 F6OrdinaryGroups theorems depend only on allowed core Lean axioms")
           PY
 
   kani-bounded-rust:

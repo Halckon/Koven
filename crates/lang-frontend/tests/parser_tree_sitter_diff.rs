@@ -924,7 +924,7 @@ fn spec_0491_closed_drifts_ts01_ts02_ts04_match_rust() {
     let cli = tree_sitter_cli();
     let grammar = grammar_dir();
 
-    // All 7 documented F4b drifts (TS-01..TS-07) are now closed across SPEC-0479, SPEC-0488, and SPEC-0491.
+    // TS-01, TS-02, TS-04 are closed by SPEC-0491 (TS-05 same-line unseparated statements e.g. `{ 1 2 }` remain tracked).
     let accepted_checks = [
         ("TS-01-valid-crlf", "val x = 1\r\nval y = 2\r\n"),
         (
@@ -934,6 +934,10 @@ fn spec_0491_closed_drifts_ts01_ts02_ts04_match_rust() {
         (
             "TS-02-inline-block-comment",
             "fun f() {\n    a/* inline */-b\n}\n",
+        ),
+        (
+            "TS-02-operator-continuation-and-trailing-lambda",
+            "fun f(a: Int, b: Int) {\n    val x = a +/*\n*/b\n    val y = g()/*\n*/{ 1 }\n}\n",
         ),
         (
             "TS-04-parenthesized-and-cross-group",

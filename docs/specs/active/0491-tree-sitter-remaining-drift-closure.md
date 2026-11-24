@@ -12,10 +12,10 @@
 
 本 Spec 承接 [SPEC-0481](0481-tree-sitter-difftest.md)、[SPEC-0488](0488-tree-sitter-drift-closure.md) 与
 [F4b 漂移基线](../../proposals/parser-formal-verification/tree-sitter-diff-baseline.md)，在不修改生产 Parser/Lexer、Guide 或新增 Cargo 依赖的前提下，
-在 `editors/tree-sitter` 中收口最后 3 项已登记文法漂移——**TS-01**（拒绝裸 `\r` 与 `\f` 空白，保留合法 LF/CRLF）、
-**TS-02**（跨行块注释 `/* ... \n ... */` 作为换行语句分隔符，单行块注释保持水平 `extras`）与
-**TS-04**（四组不结合运算符 `..`/`..<`、`in`/`!in`/`is`/`!is`、`<`/`>`/`<=`/`>=`、`==`/`!=` 禁止无括号链式拼接）——
-至此 F4b 基线登记的 **TS-01 至 TS-07 全部 7 项已知漂移闭环**。
+在 `editors/tree-sitter` 中收口 3 项已登记文法漂移——**TS-01**（拒绝裸 `\r` 与 `\f` 空白，保留合法 LF/CRLF）、
+**TS-02**（跨行块注释 `/* ... \n ... */` 作为换行语句分隔符，单行块注释保持水平 `extras`，同时保留运算符后与跨行尾随 lambda 的跨行块注释续行）与
+**TS-04**（四组不结合运算符 `..`/`..<`、`in`/`!in`/`is`/`!is`、`<`/`>`/`<=`/`>=`、`==`/`!=` 禁止无括号链式拼接）；
+TS-05 中同行无分隔符语句拒绝（如 `fun f() { 1 2 }`）仍作为显式登记的编辑器文法开放项保留。
 
 ## 交付合同
 

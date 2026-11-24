@@ -329,21 +329,48 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
                                  valid_symbols[NOT_IN] &&
                                  valid_symbols[CONTROL_LBRACE];
 
-  // Cross-line trailing lambda after closed `(...)`: consume only LF or CRLF
-  // so intervening comments stay regular `extras` nodes in the syntax tree.
-  if (!in_error_recovery && valid_symbols[CROSSLINE_LAMBDA_NL] &&
-      (lexer->lookahead == '\n' || lexer->lookahead == '\r')) {
-    if (lexer->lookahead == '\r') {
+  // Cross-line trailing lambda after closed `(...)`: consume LF, CRLF, or a
+  // multiline block comment containing `\n` so intervening single-line comments
+  // stay regular `extras` nodes in the syntax tree.
+  if (!in_error_recovery && valid_symbols[CROSSLINE_LAMBDA_NL]) {
+    if (lexer->lookahead == '\n' || lexer->lookahead == '\r') {
+      if (lexer->lookahead == '\r') {
+        lexer->advance(lexer, false);
+        if (lexer->lookahead != '\n') return false;
+      }
       lexer->advance(lexer, false);
-      if (lexer->lookahead != '\n') return false;
+      lexer->mark_end(lexer);
+      if (peek_trivia(lexer, true) == '{' && !brace_starts_when_entry(lexer)) {
+        lexer->result_symbol = CROSSLINE_LAMBDA_NL;
+        return true;
+      }
+      return false;
     }
-    lexer->advance(lexer, false);
-    lexer->mark_end(lexer);
-    if (peek_trivia(lexer, true) == '{' && !brace_starts_when_entry(lexer)) {
-      lexer->result_symbol = CROSSLINE_LAMBDA_NL;
-      return true;
+    if (lexer->lookahead == '/') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == '*') {
+        lexer->advance(lexer, false);
+        bool star = false;
+        bool saw_newline = false;
+        while (!lexer->eof(lexer)) {
+          const int32_t ch = lexer->lookahead;
+          if (ch == '\n') saw_newline = true;
+          lexer->advance(lexer, false);
+          if (star && ch == '/') {
+            if (saw_newline) {
+              lexer->mark_end(lexer);
+              if (peek_trivia(lexer, true) == '{' && !brace_starts_when_entry(lexer)) {
+                lexer->result_symbol = CROSSLINE_LAMBDA_NL;
+                return true;
+              }
+            }
+            return false;
+          }
+          star = ch == '*';
+        }
+      }
+      return false;
     }
-    return false;
   }
 
   // `{` disambiguation: control_block > trailing lambda > value lambda.

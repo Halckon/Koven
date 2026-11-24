@@ -29,15 +29,15 @@
 3. **轨道 2（Kani 有界生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [ordinary_group_kani.rs](../../../crates/lang-frontend/src/parser/engine/recovery/ordinary_group_kani.rs)（`#[cfg(kani)]` 隔离）提供 4 个直接调用生产 Rust 实现的证明入口：`verify_recovery_boundaries_monoid_and_non_shielding`、`verify_ordinary_groups_active_invariant_len_{1,2}` 与 `verify_confirmed_closer_monotonicity_and_safety`。
 4. **路径触发轻量 CI 扩展**：
-   - [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 同步触发 `formal/parser/f6_ordinary_groups/**` 与 `ordinary_group_kani.rs`，统一校验 `F6AngleGroups`（4 条定理）与 `F6OrdinaryGroups`（10 条定理）的零告警构建与核心公理白名单，并运行全部 10 个 Kani harness。
+   - [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 同步触发 `formal/parser/f6_ordinary_groups/**` 与 `ordinary_group_kani.rs`，统一校验 `F6AngleGroups`（4 条定理）与 `F6OrdinaryGroups`（14 条定理）的零告警构建与核心公理白名单，并运行全部 10 个 Kani harness。
 
 ## 2. 证据边界声明
 
-- 本机已使用 `leanprover/lean4:v4.14.0` 与 `kani-verifier 0.68.0` 实跑完成：`F6OrdinaryGroups.lean` 零告警构建与 10 条定理核心公理白名单校验、全部 4 个新增 Kani harness 符号验证（总计约 13s）、`ordinary_group_tests` 全部 3 项穷举单测（含长度 `0..=5` 共 9,331 组序列）、`cargo fmt`/`clippy` 与 `scripts/check_docs.py`。
+- 本机已使用 `leanprover/lean4:v4.14.0` 与 `kani-verifier 0.68.0` 实跑完成：`F6OrdinaryGroups.lean` 零告警构建与 14 条定理核心公理白名单校验、全部 4 个新增 Kani harness 符号验证（总计约 13s）、`ordinary_group_tests` 全部 3 项穷举单测（含长度 `0..=5` 共 9,331 组序列）、`cargo fmt`/`clippy` 与 `scripts/check_docs.py`。
 - 最终交付仍以 PR 触发的 `Parser Formal F6 (Lean 4 + Kani)` workflow 实跑结果为准；二者均不升级为全输入生产 G4。
 
 ## 3. 检查点
 
 - [x] `ordinary_groups.rs` 零行为变化接口、`ordinary_group_tests.rs`（3/3 穷举单测通过）与 `ordinary_group_kani.rs`（3 个 harness）落地
 - [x] `formal/parser/f6_ordinary_groups/` Lean 4 零 Mathlib 工程（O1–O5）与 `.github/workflows/parser-formal-f6.yml` 扩展落地
-- [ ] PR CI 中 Lean 4（10 条定理）与 Kani（9 个 harness）双轨实跑验收与归档
+- [ ] PR CI 中 Lean 4（14 条定理）与 Kani（9 个 harness）双轨实跑验收与归档

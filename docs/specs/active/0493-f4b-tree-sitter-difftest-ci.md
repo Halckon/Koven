@@ -11,7 +11,7 @@
 | 分支 | `feature/spec-0493-f4b-difftest-ci` |
 
 本 Spec 承接 [SPEC-0481](0481-tree-sitter-difftest.md)、[SPEC-0488](0488-tree-sitter-drift-closure.md) 与 [SPEC-0491](0491-tree-sitter-remaining-drift-closure.md)：
-在全部 7 项 F4b 基线漂移（TS-01 至 TS-07）完成收口后，新增独立的路径触发轻量 workflow [.github/workflows/parser-formal-f4b.yml](../../../.github/workflows/parser-formal-f4b.yml)，
+在 TS-01/TS-02/TS-03/TS-04/TS-05（分号部分）/TS-06/TS-07 完成收口后，新增独立的路径触发轻量 workflow [.github/workflows/parser-formal-f4b.yml](../../../.github/workflows/parser-formal-f4b.yml)，
 在每次修改 `editors/tree-sitter/**`、`crates/lang-frontend/src/lexer/**`、`crates/lang-frontend/src/parser/**` 或 `crates/lang-frontend/tests/parser_tree_sitter_diff.rs` 时，
 使用锁定 `editors/tree-sitter` CLI 实跑 `parser_tree_sitter_diff -- --ignored`，防止编辑器文法与生产 Parser 再次产生静默漂移。
 本 Spec 不修改主 `.github/workflows/ci.yml` 的 job 名称与复用合同，对无关 PR 零耗时影响。

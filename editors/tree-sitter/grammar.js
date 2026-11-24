@@ -446,6 +446,7 @@ module.exports = grammar({
         seq(
           field("left", $.expression),
           field("operator", choice("=", "+=", "-=", "*=", "/=", "%=")),
+          repeat($._newline),
           field("right", $.expression),
         ),
       ),
@@ -457,6 +458,7 @@ module.exports = grammar({
           seq(
             field("left", $.expression),
             field("operator", "||"),
+            repeat($._newline),
             field("right", $.expression),
           ),
         ),
@@ -465,6 +467,7 @@ module.exports = grammar({
           seq(
             field("left", $.expression),
             field("operator", "&&"),
+            repeat($._newline),
             field("right", $.expression),
           ),
         ),
@@ -476,6 +479,7 @@ module.exports = grammar({
         seq(
           field("left", alias($._expr_above_equality, $.expression)),
           field("operator", choice("==", "!=")),
+          repeat($._newline),
           field("right", alias($._expr_above_equality, $.expression)),
         ),
       ),
@@ -486,6 +490,7 @@ module.exports = grammar({
         seq(
           field("left", alias($._expr_above_comparison, $.expression)),
           field("operator", choice("<", ">", "<=", ">=")),
+          repeat($._newline),
           field("right", alias($._expr_above_comparison, $.expression)),
         ),
       ),
@@ -497,6 +502,7 @@ module.exports = grammar({
           seq(
             field("left", alias($._expr_above_membership, $.expression)),
             field("operator", choice(alias($._in, "in"), alias($._not_in, "!in"))),
+            repeat($._newline),
             field("right", alias($._expr_above_membership, $.expression)),
           ),
         ),
@@ -516,6 +522,7 @@ module.exports = grammar({
         seq(
           field("left", alias($._expr_above_elvis, $.expression)),
           field("operator", "?:"),
+          repeat($._newline),
           field("right", alias($._expr_above_membership, $.expression)),
         ),
       ),
@@ -526,6 +533,7 @@ module.exports = grammar({
         seq(
           field("left", alias($._expr_above_elvis, $.expression)),
           field("operator", alias($._to, $.to_operator)),
+          repeat($._newline),
           field("right", alias($._expr_above_to, $.expression)),
         ),
       ),
@@ -536,35 +544,30 @@ module.exports = grammar({
         seq(
           field("left", alias($._expr_above_range, $.expression)),
           field("operator", choice("..", "..<")),
+          repeat($._newline),
           field("right", alias($._expr_above_range, $.expression)),
         ),
       ),
 
     _bitwise_or_higher_binary: ($) => {
       const table = [
-        [PREC.BITWISE_OR, alias($._bit_or, "or"), true],
-        [PREC.BITWISE_XOR, alias($._bit_xor, "xor"), true],
-        [PREC.BITWISE_AND, alias($._bit_and, "and"), true],
-        [PREC.SHIFT, choice(alias($._shl, "shl"), alias($._shr, "shr"), alias($._ushr, "ushr")), true],
-        [PREC.ADDITIVE, choice("+", "-"), false],
-        [PREC.MULTIPLICATIVE, choice("*", "/", "%"), false],
+        [PREC.BITWISE_OR, alias($._bit_or, "or")],
+        [PREC.BITWISE_XOR, alias($._bit_xor, "xor")],
+        [PREC.BITWISE_AND, alias($._bit_and, "and")],
+        [PREC.SHIFT, choice(alias($._shl, "shl"), alias($._shr, "shr"), alias($._ushr, "ushr"))],
+        [PREC.ADDITIVE, choice("+", "-")],
+        [PREC.MULTIPLICATIVE, choice("*", "/", "%")],
       ];
       return choice(
-        ...table.map(([precedence, operator, allowLineBreak]) =>
+        ...table.map(([precedence, operator]) =>
           prec.left(
             precedence,
-            allowLineBreak
-              ? seq(
-                  field("left", alias($._expr_above_range, $.expression)),
-                  field("operator", operator),
-                  repeat($._newline),
-                  field("right", alias($._expr_above_range, $.expression)),
-                )
-              : seq(
-                  field("left", alias($._expr_above_range, $.expression)),
-                  field("operator", operator),
-                  field("right", alias($._expr_above_range, $.expression)),
-                ),
+            seq(
+              field("left", alias($._expr_above_range, $.expression)),
+              field("operator", operator),
+              repeat($._newline),
+              field("right", alias($._expr_above_range, $.expression)),
+            ),
           ),
         ),
       );
