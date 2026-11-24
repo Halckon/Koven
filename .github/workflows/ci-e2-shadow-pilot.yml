@@ -56,8 +56,8 @@ jobs:
     # One-click kill switch: set repository variable KOVEN_E2_SHADOW_PILOT_DISABLED=true in GitHub UI
     if: |
       vars.KOVEN_E2_SHADOW_PILOT_DISABLED != 'true' &&
-      (github.event_name != 'workflow_dispatch' || inputs.enabled == true)
-    timeout-minutes: 90
+      (github.event_name != 'workflow_dispatch' || (inputs.enabled != false && inputs.enabled != 'false'))
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -110,6 +110,14 @@ jobs:
         with:
           toolchain: '1.96.0'
 
+      - name: Verify isolated target directory starts empty before cache restore
+        run: |
+          set -euo pipefail
+          if [[ -e "$CARGO_TARGET_DIR" ]]; then
+            echo "unexpected pre-existing CARGO_TARGET_DIR before cache restore: $CARGO_TARGET_DIR" >&2
+            exit 1
+          fi
+
       - name: Compute isolated exact A/B cache key
         id: cache-key
         env:
@@ -137,10 +145,11 @@ jobs:
       - name: Enforce cold-miss or warm-hit contract
         env:
           CACHE_HIT: ${{ steps.shadow-cache.outputs.cache-hit || 'false' }}
+          REQUESTED_PHASE: ${{ inputs.cache_phase || 'auto' }}
         run: |
           set -euo pipefail
           echo "KOVEN_SHADOW_CACHE_HIT=$CACHE_HIT" >> "$GITHUB_ENV"
-          if [[ "$KOVEN_SHADOW_CACHE_PHASE" == "cold" ]]; then
+          if [[ "$REQUESTED_PHASE" == "cold" ]]; then
             if [[ "$CACHE_HIT" == "true" ]]; then
               echo "cold phase requires cache miss, but exact key hit occurred; bump cache_epoch" >&2
               exit 1
@@ -149,10 +158,22 @@ jobs:
               echo "cold phase requires nonexistent CARGO_TARGET_DIR before build: $CARGO_TARGET_DIR" >&2
               exit 1
             fi
-          elif [[ "$KOVEN_SHADOW_CACHE_PHASE" == "warm" ]]; then
+            echo "KOVEN_SHADOW_CACHE_PHASE=cold" >> "$GITHUB_ENV"
+          elif [[ "$REQUESTED_PHASE" == "warm" ]]; then
             if [[ "$CACHE_HIT" != "true" ]]; then
               echo "warm phase requires exact cache key hit, got cache-hit=$CACHE_HIT" >&2
               exit 1
+            fi
+            echo "KOVEN_SHADOW_CACHE_PHASE=warm" >> "$GITHUB_ENV"
+          else
+            if [[ "$CACHE_HIT" == "true" ]]; then
+              echo "KOVEN_SHADOW_CACHE_PHASE=warm" >> "$GITHUB_ENV"
+            else
+              if [[ -e "$CARGO_TARGET_DIR" ]]; then
+                echo "cold auto-run requires nonexistent CARGO_TARGET_DIR after cache miss: $CARGO_TARGET_DIR" >&2
+                exit 1
+              fi
+              echo "KOVEN_SHADOW_CACHE_PHASE=cold" >> "$GITHUB_ENV"
             fi
           fi
 
@@ -187,7 +208,7 @@ jobs:
     if: |
       always() &&
       vars.KOVEN_E2_SHADOW_PILOT_DISABLED != 'true' &&
-      (github.event_name != 'workflow_dispatch' || inputs.enabled == true)
+      (github.event_name != 'workflow_dispatch' || (inputs.enabled != false && inputs.enabled != 'false'))
     permissions:
       contents: read
       actions: read
@@ -238,7 +259,7 @@ jobs:
           python3 scripts/e2_two_source_shadow_pilot.py collect-workflow-metrics \
             --repo "$GITHUB_REPOSITORY" \
             --shadow-run-id "$GITHUB_RUN_ID" \
-            --head-sha "$GITHUB_SHA" \
+            --head-sha "${{ github.event.pull_request.head.sha || github.sha }}" \
             "${ref_args[@]}" \
             --comparisons "$out_dir/comparison-ubuntu-26.04.json" "$out_dir/comparison-macos-15.json" \
             --output "$out_dir/workflow-metrics.json" \

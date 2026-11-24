@@ -1073,7 +1073,7 @@ def run_pilot(
                     "--no-run",
                     "--message-format=json",
                 ]
-                build_proc = run_monitored_process(build_cmd, cwd=root, env=effective_env, timeout_seconds=2400.0)
+                build_proc = run_monitored_process(build_cmd, cwd=root, env=effective_env, timeout_seconds=5400.0)
                 cfg_build_seconds += build_proc["elapsed_seconds"]
                 cfg_peak_rss = max(cfg_peak_rss, build_proc["peak_rss_bytes"])
                 oom_events += int(build_proc["oom_suspected"])
@@ -1227,7 +1227,7 @@ def run_pilot(
                     list_cwd = direct_cwd
                     list_env = direct_env
 
-                list_timeout = 2400.0 if (mode == "baseline" and local_idx == 0) else 300.0
+                list_timeout = 5400.0 if (mode == "baseline" and local_idx == 0) else 300.0
                 list_proc = run_monitored_process(list_cmd, cwd=list_cwd, env=list_env, timeout_seconds=list_timeout)
                 cfg_list_seconds += list_proc["elapsed_seconds"]
                 cfg_peak_rss = max(cfg_peak_rss, list_proc["peak_rss_bytes"])
