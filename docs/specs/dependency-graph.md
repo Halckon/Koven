@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 446 份"))
+ARCH(("已完成<br/>archive 450 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -32,10 +32,6 @@ subgraph Gactive["现行 active"]
   S0488["S0488<br/>收口 editors/tree-sitter 已知文法漂移（TS-03 / TS-05 / TS-07）"]
   S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
   S0490["S0490<br/>F6 首片 angle_group_closers 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI"]
-  S0491["S0491<br/>收口 editors/tree-sitter 剩余已知文法漂移（TS-01 / TS-02 / TS-04）"]
-  S0492["S0492<br/>F6 第二片 OrdinaryGroups 栈计数不变量与 GroupClosers::confirmed_closer 水位单调性双轨证明"]
-  S0493["S0493<br/>F4b 完整文件 Tree-sitter 差分路径触发轻量 CI 接入"]
-  S0494["S0494<br/>F5 表面语法增量门禁脚本化校验与单测"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -87,10 +83,6 @@ ARCH --> S0341
 | SPEC-0488 | active | [0488-tree-sitter-drift-closure.md](active/0488-tree-sitter-drift-closure.md) |
 | SPEC-0489 | active | [0489-f2a-paired-paren-recovery-prototype.md](active/0489-f2a-paired-paren-recovery-prototype.md) |
 | SPEC-0490 | active | [0490-f6-angle-group-machine-proof.md](active/0490-f6-angle-group-machine-proof.md) |
-| SPEC-0491 | active | [0491-tree-sitter-remaining-drift-closure.md](active/0491-tree-sitter-remaining-drift-closure.md) |
-| SPEC-0492 | active | [0492-f6-ordinary-groups-machine-proof.md](active/0492-f6-ordinary-groups-machine-proof.md) |
-| SPEC-0493 | active | [0493-f4b-tree-sitter-difftest-ci.md](active/0493-f4b-tree-sitter-difftest-ci.md) |
-| SPEC-0494 | active | [0494-f5-syntax-gate-script.md](active/0494-f5-syntax-gate-script.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -99,4 +91,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（446 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（450 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

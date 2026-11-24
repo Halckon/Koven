@@ -1,16 +1,16 @@
 # SPEC-0491：收口 `editors/tree-sitter` 剩余已知文法漂移（TS-01 / TS-02 / TS-04）
 
-> **性质**：编辑器文法对齐合同 · **状态**：in-progress · **读取时机**：收口 F4b 剩余 Tree-sitter 已知文法漂移时 · **唯一真源**：本页验收账本
+> **性质**：编辑器文法对齐合同 · **状态**：done · **读取时机**：收口 F4b 剩余 Tree-sitter 已知文法漂移时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 编辑器文法与差分测试；不改变生产 Parser 或语言规范 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@e2e5cc26` |
 | 分支 | `feature/spec-0491-tree-sitter-remaining-drifts` |
 
-本 Spec 承接 [SPEC-0481](0481-tree-sitter-difftest.md)、[SPEC-0488](0488-tree-sitter-drift-closure.md) 与
+本 Spec 承接 [SPEC-0481](../../specs/active/0481-tree-sitter-difftest.md)、[SPEC-0488](../../specs/active/0488-tree-sitter-drift-closure.md) 与
 [F4b 漂移基线](../../proposals/parser-formal-verification/tree-sitter-diff-baseline.md)，在不修改生产 Parser/Lexer、Guide 或新增 Cargo 依赖的前提下，
 在 `editors/tree-sitter` 中收口 3 项已登记文法漂移——**TS-01**（拒绝裸 `\r` 与 `\f` 空白，保留合法 LF/CRLF）、
 **TS-02**（跨行块注释 `/* ... \n ... */` 作为换行语句分隔符，单行块注释保持水平 `extras`，同时保留运算符后与跨行尾随 lambda 的跨行块注释续行）与
@@ -40,5 +40,5 @@ KOVEN_TREE_SITTER=/absolute/path/to/tree-sitter \
 ## 检查点
 
 - [x] `grammar.js`、`src/scanner.c` 与生成产物同步更新并通过语料（10/10）及契约测试（21/21）
-- [x] `parser_tree_sitter_diff`（默认 1/1 + 锁定 CLI `--ignored` 2/2）实跑通过，TS-01–TS-07 全部闭环
-- [ ] PR 双宿主与 `editors` CI 验收与归档
+- [x] `parser_tree_sitter_diff`（默认 1/1 + 锁定 CLI `--ignored` 2/2）实跑通过，TS-01/TS-02/TS-04 收口闭环（TS-05 同行无分隔符语句拒绝保留为显式登记的开放漂移）
+- [x] PR #461（`4d753908`）双宿主 `CI`（run `45385947066`，含 `Editor lexical contracts`）与 `Parser Formal F4b (Tree-sitter Differential)`（run `45385946851`）全绿验收并归档
