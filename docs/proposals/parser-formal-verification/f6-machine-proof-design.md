@@ -41,7 +41,7 @@
 | 编号 | 命题名称 | 数学陈述（对任意长度 `n = D.length` 与任意 `D`） | 对应 Rust 源码位置 |
 |---|---|---|---|
 | **P1** | **边界表有界与无越界** | `∀ i ≤ n, ∀ active < 8, i ≤ boundaries[i][active] ≤ n`；且当 `closes(end, kind)` 为真时必有 `end < n`，从而 `delimiters[end]` 与 `matched[raw]` 永不越界 | `recovery.rs:610–642` |
-| **P2** | **8 状态祖先转移主引理** | 对任意起点 `i ≤ n` 与任意祖先位掩码 `active < 8`（等于某个外层栈 `S` 的非零计数集合），`boundaries[i][active]` 精确等于：从 `i` 起以空局部栈在祖先掩码 `active` 下向前扫描，首次遇到「属于祖先的闭合符（`!opening ∧ (active & (1 << kind) ≠ 0)`）或孤立右花括号（`!opening ∧ kind == 2`）」时的下标（若始终未遇则为 `n`） | `recovery.rs:616–635` |
+| **P2** | **8 状态祖先转移主引理** | 对任意起点 `i ≤ n` 与任意祖先位掩码 `active < 8`（等于某个外层栈 `S` 的非零计数集合），`boundaries[i][active]` 精确等于：从 `i` 起以空局部栈在祖先掩码 `active` 下向前扫描（遇到 opener 压入局部栈；遇到 closer 时若局部栈中存在同类 opener 则先按栈规则弹出直至闭合该同类 opener），首次遇到「局部栈中不存在同类 opener，且为属于祖先的闭合符（`!opening ∧ (active & (1 << kind) ≠ 0)`）或孤立右花括号（`!opening ∧ kind == 2`）」时的下标（若始终未遇则为 `n`） | `recovery.rs:616–635` |
 | **P3** | **反向 DP 与前向 `OrdinaryGroups` 无限长等价（主定理）** | 对任意 `i < n`，若 `D[i] = (raw_i, kind_i, true)`，则反向 DP 写入的 `matched[raw_i]` 等于从 `i` 起新建空 `OrdinaryGroups::default()` 逐个执行 `visit(raw, symbol)` 后首次返回 `Some(raw_i)` 时的闭合符 `raw`（若从未返回则为 `None`） | `recovery.rs:636–642` ↔ `ordinary_groups.rs:177–207` |
 | **P4** | **`NonZeroUsize` 编码无损性** | 若 `D[i]` 为 opener 且存在匹配 closer `D[end]`，则必有 `i < end`；结合 `raw` 严格单调递增可得 `D[end].raw ≥ 1`，故 `NonZeroUsize::new(delimiters[end].0)` 永不返回 `None` | `recovery.rs:639` |
 

@@ -4,8 +4,9 @@
 //! Evidence level:
 //! - Exact equivalence (`match_angle_group_delimiters` vs. `OrdinaryGroups::visit`):
 //!   `validated (bounded Rust, delimiters.len() in 0..=2 with lexeme_len <= 6, plus delimiters.len() == 3 with lexeme_len in {3, 6})`
-//! - P4 strict-successor / non-zero closer & bounds safety:
-//!   `validated (bounded Rust, delimiters.len() == 4, lexeme_len == 8)`
+//! - P4 strict-successor / non-zero closer, non-dropping completeness & bounds safety:
+//!   `validated (bounded Rust, delimiters.len() == 4, lexeme_len == 8)` against an
+//!   independent fixed-stack forward oracle matching `OrdinaryGroups::visit` semantics.
 //!
 //! Each delimiter count `N` is verified as a separate compile-time constant harness so
 //! CBMC can constant-fold the `boundaries` table dimensions and avoid symbolic-length
@@ -128,6 +129,63 @@ fn verify_angle_group_closers_equivalence_len_3_sparse() {
     check_equivalence_with_len::<3>(MAX_LEXEME_LEN);
 }
 
+/// Independent fixed-stack forward matcher with identical semantics to
+/// `OrdinaryGroups::visit`, avoiding `Vec` reallocation overhead so `N = 4`
+/// can verify both non-dropping completeness (`Some` vs `None`) and exact
+/// closer identity within CI memory budgets.
+fn forward_match_fixed_stack<const N: usize>(
+    delimiters: &[(usize, usize, bool); N],
+    slot: usize,
+) -> Option<usize> {
+    let mut opener_idx = None;
+    let mut i = 0usize;
+    while i < N {
+        if delimiters[i].0 == slot && delimiters[i].2 {
+            opener_idx = Some(i);
+        }
+        i += 1;
+    }
+    let start = opener_idx?;
+
+    let mut stack = [(0usize, 0usize); N];
+    let mut top = 0usize;
+    let mut active = [0usize; 3];
+    let mut found = None;
+    let mut j = 0usize;
+    while j < N {
+        if j >= start && found.is_none() {
+            let (raw, kind, opening) = delimiters[j];
+            if opening {
+                stack[top] = (raw, kind);
+                top += 1;
+                active[kind] += 1;
+            } else if kind == 2 && active[2] == 0 {
+                top = 0;
+                active = [0; 3];
+            } else if active[kind] != 0 {
+                let mut popped_match = false;
+                let mut k = 0usize;
+                while k < N {
+                    if !popped_match && top > 0 {
+                        top -= 1;
+                        let (g_raw, g_kind) = stack[top];
+                        active[g_kind] -= 1;
+                        if g_kind == kind {
+                            popped_match = true;
+                            if g_raw == slot {
+                                found = Some(raw);
+                            }
+                        }
+                    }
+                    k += 1;
+                }
+            }
+        }
+        j += 1;
+    }
+    found
+}
+
 #[kani::proof]
 #[kani::unwind(9)]
 fn verify_angle_group_closer_strictly_after_opener_and_nonzero_len_4() {
@@ -139,6 +197,9 @@ fn verify_angle_group_closer_strictly_after_opener_and_nonzero_len_4() {
 
     let slot: usize = kani::any();
     kani::assume(slot < L);
+
+    let expected = forward_match_fixed_stack(&delimiters, slot);
+    assert_eq!(indexed[slot].map(NonZeroUsize::get), expected);
 
     if let Some(closer) = indexed[slot] {
         let mut is_opener = false;

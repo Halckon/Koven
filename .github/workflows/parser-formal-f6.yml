@@ -122,10 +122,12 @@ jobs:
             ~/.cargo/bin/cargo-kani
             ~/.cargo/bin/kani
           key: f6-kani-0.68.0-${{ runner.os }}-${{ runner.arch }}
-      - name: Install pinned Kani 0.68.0 if missing
+      - name: Install pinned Kani 0.68.0 and matching nightly toolchain if missing
         run: |
           if ! command -v cargo-kani >/dev/null 2>&1; then
             cargo install --locked kani-verifier --version 0.68.0
+          fi
+          if [ ! -x "$HOME/.kani/kani-0.68.0/toolchain/bin/rustc" ]; then
             cargo kani setup
           fi
       - name: Run bounded angle-group Kani harnesses
