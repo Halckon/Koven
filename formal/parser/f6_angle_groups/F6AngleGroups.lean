@@ -407,7 +407,10 @@ theorem dpBoundary_eq_forwardStop (D : List Delim) (i : Nat) (hi : i ≤ D.lengt
         have ih := dpBoundary_eq_forwardStop D (i + 1) hlt active
         conv => lhs; unfold dpBoundary
         conv => rhs; unfold forwardStop
-        simp [hlt, hop, hstop_f, stackHasKind, ih]
+        simp only [hlt, ↓reduceDIte, hop, Bool.false_eq_true, ↓reduceIte, hstop_f, stackHasKind]
+        cases hr : dpBoundary D (i + 1) hlt active with
+        | mk endIdx _ =>
+          simpa [hr] using ih
     · -- Opener at `i`
       have hfwd : forwardStop D i hi [] active =
           forwardStop D (i + 1) hlt ([] ++ [(D[i].raw, D[i].kind)]) active := by
@@ -415,19 +418,24 @@ theorem dpBoundary_eq_forwardStop (D : List Delim) (i : Nat) (hi : i ≤ D.lengt
         simp [hlt, hop]
       rw [hfwd, forwardStop_append_singleton]
       have ih1 := dpBoundary_eq_forwardStop D (i + 1) hlt (addActive active D[i].kind)
-      have hge1 := (dpBoundary D (i + 1) hlt (addActive active D[i].kind)).property.1
       conv => lhs; unfold dpBoundary
       simp only [hlt, ↓reduceDIte, hop, ↓reduceIte, ← ih1]
-      by_cases hlt1 : (dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val < D.length
-      · simp only [hlt1, ↓reduceDIte]
-        by_cases hcl : (!D[(dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val].opening &&
-            (D[(dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val].kind == D[i].kind)) = true
-        · simp only [hcl, ↓reduceIte]
-          exact dpBoundary_eq_forwardStop D
-            ((dpBoundary D (i + 1) hlt (addActive active D[i].kind)).val + 1)
-            hlt1 active
-        · simp only [hcl, ↓reduceIte]
-      · simp only [hlt1, ↓reduceDIte]
+      cases hr1 : dpBoundary D (i + 1) hlt (addActive active D[i].kind) with
+      | mk endIdx hprop1 =>
+        simp only
+        by_cases hlt1 : endIdx < D.length
+        · simp only [hlt1, ↓reduceDIte]
+          by_cases hcl : (!D[endIdx].opening && (D[endIdx].kind == D[i].kind)) = true
+          · simp only [hcl, ↓reduceIte]
+            have hge1 : i + 1 ≤ endIdx := hprop1.1
+            have ih2 := dpBoundary_eq_forwardStop D (endIdx + 1) hlt1 active
+            cases hr2 : dpBoundary D (endIdx + 1) hlt1 active with
+            | mk end2 _ =>
+              simpa [hr2] using ih2
+          · have hcl_f : (!D[endIdx].opening && (D[endIdx].kind == D[i].kind)) = false :=
+              Bool.eq_false_iff.mpr hcl
+            simp only [hcl_f, Bool.false_eq_true, ↓reduceIte]
+        · simp only [hlt1, ↓reduceDIte]
   · unfold dpBoundary forwardStop
     simp [hlt]
 termination_by D.length - i
