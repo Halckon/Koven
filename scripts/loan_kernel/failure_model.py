@@ -200,6 +200,102 @@ def scope_cancel_drain_model(policy):
     return explore(initial, events, violations, final_notes)
 
 
+# ---- 模型 A2-ext：3A 更广覆盖（丢 Job 不取消、清理期重新阻塞与多错误仲裁对照）
+
+DROP_JOB_CANCELLED = "丢弃 Job 误取消了仍在运行的子任务"
+LOST_FIRST_ERROR = "多错误仲裁丢失了先发首错 err_A"
+MULTI_ERR_KEPT_FIRST = "子B清理期产生普通失败err_B时保留首错err_A"
+MULTI_ERR_AGGREGATED = "子B清理期产生普通失败err_B时聚合err_A与err_B"
+
+
+@dataclass(frozen=True)
+class ScopeCancelExtendedPolicy:
+    drop_job_cancels: bool  # 丢弃 Job_A 是否误取消子 A（3A 要求丢 Job 不取消）
+    reblock_wakes: bool  # 子 B 清理期重新阻塞后，取消信号是否仍可再次唤醒
+    timeout_in_reblocked: bool  # 子 B 清理期重新阻塞时是否超时释放父帧
+    multi_error_policy: str  # first_error | aggregate | overwrite_with_latest（候选多错仲裁对比，不写死单一策略）
+    suppress_deinit_fail: bool  # 多错误仲裁是否误吞掉子 B 的 deinit 失败
+
+
+def scope_cancel_drain_extended_model(policy):
+    """状态：(父, 父借出数据, Job_A, 子A, 子B, 首错, 子B附加普通错, 父传播结果, 进程)。
+
+    显式将“丢弃 Job_A”作为独立事件分支，并覆盖子 B 清理期重新阻塞与产生额外普通失败 err_B。
+    """
+    initial = ("body", "live", "held", "run", "blocked", None, None, None, "alive")
+
+    def any_alive(a, b):
+        return a == "run" or b in ("blocked", "cleaning", "reblocked")
+
+    def events(state):
+        par, data, job_a, a, b, first_err, extra_err, par_err, proc = state
+        if proc != "alive" or par == "failed":
+            return
+        if job_a == "held" and a == "run":
+            if policy.drop_job_cancels:
+                yield "父:丢弃Job_A(误取消子A)", (par, data, "dropped", "cancelled_early", b, first_err, extra_err, par_err, proc)
+            else:
+                yield "父:丢弃Job_A(不取消子A)", (par, data, "dropped", a, b, first_err, extra_err, par_err, proc)
+        if a == "run":
+            yield "子A:失败(err_A)", (par, data, job_a, "failed_err_A", b, first_err or "err_A", extra_err, par_err, proc)
+        if par == "body":
+            yield "父:到达作用域出口(等待子任务)", ("join", data, job_a, a, b, first_err, extra_err, par_err, proc)
+        if a == "failed_err_A":
+            if b == "blocked":
+                yield "取消唤醒子B(进入cleaning)", (par, data, job_a, a, "cleaning", first_err, extra_err, par_err, proc)
+            elif b == "cleaning":
+                yield "子B:清理期重新阻塞", (par, data, job_a, a, "reblocked", first_err, extra_err, par_err, proc)
+                yield "子B:完成清理并实际终止", (par, data, job_a, a, "done", first_err, extra_err, par_err, proc)
+                yield "子B:清理期产生普通失败(err_B)", (par, data, job_a, a, "failed_err_B", first_err, "err_B", par_err, proc)
+                if policy.suppress_deinit_fail:
+                    yield "子B:deinit失败但被多错仲裁覆盖", (par, data, job_a, a, "deinit_failed", first_err, extra_err, par_err, proc)
+                else:
+                    yield "子B:deinit失败触发进程终止", ("aborted", data, job_a, a, "deinit_failed", first_err, extra_err, None, "aborted")
+            elif b == "reblocked":
+                if policy.reblock_wakes:
+                    yield "取消再次唤醒重阻塞的子B", (par, data, job_a, a, "cleaning", first_err, extra_err, par_err, proc)
+                if policy.timeout_in_reblocked and par == "join":
+                    yield "重阻塞超时假装子B结束并释放父帧", ("failed", "freed", job_a, a, b, first_err, extra_err, first_err, proc)
+            elif par == "join":
+                if extra_err is None:
+                    out_err = first_err
+                elif policy.multi_error_policy == "first_error":
+                    out_err = "err_A"
+                elif policy.multi_error_policy == "aggregate":
+                    out_err = "err_A+err_B"
+                else:
+                    out_err = "err_B"
+                yield "父:子全部终止后释放父帧并经普通失败出口传播错误", ("failed", "freed", job_a, a, b, first_err, extra_err, out_err, proc)
+
+    def violations(state):
+        par, data, _, a, b, _, extra_err, par_err, proc = state
+        found = []
+        if a == "cancelled_early":
+            found.append(DROP_JOB_CANCELLED)
+        if data == "freed" and any_alive(a, b) and proc == "alive":
+            found.append(UAF)
+        if b == "deinit_failed" and proc == "alive":
+            found.append(DEINIT_FAIL_SUPPRESSED)
+        if par == "failed" and extra_err == "err_B" and par_err not in ("err_A", "err_A+err_B"):
+            found.append(LOST_FIRST_ERROR)
+        return found
+
+    def final_notes(state):
+        par, data, _, _, b, _, extra_err, par_err, proc = state
+        if par == "failed" and data == "freed" and b == "done" and par_err == "err_A" and proc == "alive":
+            return "notes", DRAINED_PROPAGATED_ERR_A
+        if par == "failed" and data == "freed" and b == "failed_err_B" and extra_err == "err_B" and proc == "alive":
+            if par_err == "err_A":
+                return "notes", MULTI_ERR_KEPT_FIRST
+            if par_err == "err_A+err_B":
+                return "notes", MULTI_ERR_AGGREGATED
+        if proc == "aborted" and b == "deinit_failed" and par != "failed" and par_err is None:
+            return "notes", DEINIT_FAIL_ABORTED
+        return "stuck", HANG
+
+    return explore(initial, events, violations, final_notes)
+
+
 # ---- 模型 B：在途 IO
 
 WRITE_AFTER_FREE = "外部仍可访问时缓冲区已释放"
@@ -578,6 +674,30 @@ SCOPE_CANCEL_DRAIN_POLICIES = {
         cancel_overwrites_err=False, suppress_deinit_fail=False),
 }
 
+SCOPE_CANCEL_DRAIN_EXTENDED_POLICIES = {
+    "丢Job即取消子任务": ScopeCancelExtendedPolicy(
+        drop_job_cancels=True, reblock_wakes=True, timeout_in_reblocked=False,
+        multi_error_policy="first_error", suppress_deinit_fail=False),
+    "清理期重新阻塞不可唤醒": ScopeCancelExtendedPolicy(
+        drop_job_cancels=False, reblock_wakes=False, timeout_in_reblocked=False,
+        multi_error_policy="first_error", suppress_deinit_fail=False),
+    "清理期重新阻塞超时释放父帧": ScopeCancelExtendedPolicy(
+        drop_job_cancels=False, reblock_wakes=False, timeout_in_reblocked=True,
+        multi_error_policy="first_error", suppress_deinit_fail=False),
+    "多错仲裁用后发错误覆盖首错": ScopeCancelExtendedPolicy(
+        drop_job_cancels=False, reblock_wakes=True, timeout_in_reblocked=False,
+        multi_error_policy="overwrite_with_latest", suppress_deinit_fail=False),
+    "多错仲裁吞掉子deinit失败": ScopeCancelExtendedPolicy(
+        drop_job_cancels=False, reblock_wakes=True, timeout_in_reblocked=False,
+        multi_error_policy="first_error", suppress_deinit_fail=True),
+    "候选策略1：丢Job不取消、重阻塞可唤醒、多错保留首错、deinit失败终止": ScopeCancelExtendedPolicy(
+        drop_job_cancels=False, reblock_wakes=True, timeout_in_reblocked=False,
+        multi_error_policy="first_error", suppress_deinit_fail=False),
+    "候选策略2：丢Job不取消、重阻塞可唤醒、多错聚合err_A+err_B、deinit失败终止": ScopeCancelExtendedPolicy(
+        drop_job_cancels=False, reblock_wakes=True, timeout_in_reblocked=False,
+        multi_error_policy="aggregate", suppress_deinit_fail=False),
+}
+
 IO_POLICIES = {
     "取消即返回": IoPolicy("early", "partial", True),
     "随帧销毁": IoPolicy("wait", "destroy_all", True),
@@ -635,6 +755,8 @@ def main():
     for title, model, policies in (("模型 A：借用型子任务", scope_model, SCOPE_POLICIES),
                                    ("模型 A2：作用域取消排空与确切错误归属", scope_cancel_drain_model,
                                     SCOPE_CANCEL_DRAIN_POLICIES),
+                                   ("模型 A2-ext：丢 Job 不取消、清理期重阻塞与多错仲裁", scope_cancel_drain_extended_model,
+                                    SCOPE_CANCEL_DRAIN_EXTENDED_POLICIES),
                                    ("模型 B：在途 IO", io_model, IO_POLICIES),
                                    ("模型 C：多请求、证据丢失与代际", multi_io_model, MULTI_IO_POLICIES),
                                    ("模型 D：监督边界与多线程终止窗口", supervision_model, SUPERVISION_POLICIES),

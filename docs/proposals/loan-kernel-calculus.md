@@ -1346,8 +1346,17 @@ fun probe(borrow h: A): Unit {
   - 区分字面 `.origins`、`.*` 与真实字段路径：具体类型声明真实字段 `origins`（`NamedOrigins`）时，仅字面 `from v.origins` 报 `SIG` 拒绝歧义；`from v.*` 不触发 `.origins` 撞名诊断；普通代码访问 `v.origins`（配合 `from v`）仍合法。
   - 保留 `flows src.origins into out` 与真实字段目标 `flows src into out.a` 正例，并验证调用方后续对流入来源的冲突写均被 `K1` 拒绝。`any I` 同名成员如何消歧、如何精确选中真实字段 `origins`，留给正式拼写提案。
 - **1A 闭包捕获持有者权限对照（两栏；未覆盖真实闭包 `L0137`）**：
-  - **现行 Guide 07 共享捕获持有者权限栏（`SharedCap`）**：创建时对 `inout h` 所指对象做共享重借——捕获活跃时外部共享读（`read_item(h)`）仍合法，用完后 `h` 恢复可写；经捕获写入（`write_item(cap.target)`）报 `K1`；捕获活跃时写 `h` 报 `K4`。**未覆盖项**：`SharedCap` 仅验证持有者权限，真实普通闭包返回报 `L0137` 需独立测试（视图的 `from h` / 无 `from` 对照不能替代），本批明确标为未覆盖。
+  - **现行 Guide 07 共享捕获持有者权限栏（`SharedCap`）**：创建时对 `inout h` 所指对象做共享重借——捕获活跃时外部共享读（`read_item(h)`）仍合法，用完后 `h` 恢复可写；经捕获写入（`write_item(cap.target)`）报 `K1`；捕获活跃时写 `h` 报 `K4`。真实普通闭包返回报 `L0137` 的独立验证见 §83（`Z45.lk`）。
   - **未来内核独占捕获持有者权限栏（`ExclCap`）**：对 `inout h` 所指对象做独占重借——经捕获写入合法，用完后 `h` 恢复可用；活跃期读 `h` 报 `K4`；裸 `borrow h` 不能被独占捕获（`K1`）。
+
+## 83. 真实普通闭包与可变闭包的 `L0137` 逃逸禁止（2026-11-24 补充）
+
+`Z45.lk` 在借用原型中引入一等闭包表达式 `closure(...)` / `mut_closure(...)` 与 `Closure` 类型，专门补齐 §82 中 `SharedCap` 视图无法替代的 **Guide 07 真实闭包 `L0137` 逃逸检验**（不修改现行 Guide，非正式批准）：
+
+- **无捕获普通闭包（`closure()`）**：不携带 loan，满足 `Copyable`、`Escapable` 与 `Transferable`，可直接 `return`、存入类字段或交给 `own`（`Value`）参数。
+- **真实普通闭包（`closure(h)` / `closure(&a)`）与 1A 重借配合**：捕获裸 `borrow`/`inout` 参数时直接对所指对象建立共享重借（不取参数槽地址）；在定义函数内支持局部绑定、`apply_sync(&f)` 与直接 `apply_sync(closure(h))` 同步调用，活跃期允许外部共享读 `read_item(h)`、阻断外部写（`K1`/`K4`），最后一次使用后 ASAP 释放。
+- **全逃逸路径一律报 `L0137`（与 `view class ... from h` 明确区分）**：带任意捕获的普通闭包或可变闭包在以下位置均固定报 `L0137`——① `return`（**即使函数签名显式声明了 `from h` 或经局部 `move` 重绑后返回，仍报 `L0137`**）；② 存入普通类或视图字段（构造器与字段赋值均报 `L0137`）；③ 交给 `own`（`Value`）参数；④ 经生成器 `yield` 产出。
+- **真实可变闭包（`mut_closure(&mut a)` / `mut_closure(h)`）**：建立独占 loan，活跃期阻断外部读与写（`K1`/`K4`），不可隐式复制（`K8`），同步消费后释放，逃逸同样报 `L0137`。
 
 
 
