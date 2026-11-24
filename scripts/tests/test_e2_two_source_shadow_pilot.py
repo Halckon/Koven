@@ -333,7 +333,8 @@ class AntiSkipExpectedFailureAndComparisonContracts(unittest.TestCase):
             "if argv[0] == 'metadata':\n"
             f"    print(json.dumps({{'packages': [{{'name': 'lang-codegen', 'id': {pkg_codegen!r}, 'manifest_path': {manifest_codegen!r}, 'version': '0.1.0', 'authors': [], 'description': '', 'homepage': None, 'repository': None, 'license': 'MIT OR Apache-2.0', 'license_file': None, 'rust_version': '1.96.0', 'readme': None}}]}}))\n"
             "    sys.exit(0)\n"
-            "assert argv[0] == 'test' and '-j1' in argv, f'missing -j1 in {argv}'\n"
+            # Drop -j1 assertion in stub when KOVEN_ALLOW_DEFAULT_JOBS=1 so we can test default 4-core candidate mode
+            "assert argv[0] == 'test' and (os.environ.get('KOVEN_ALLOW_DEFAULT_JOBS') == '1' or '-j1' in argv), f'missing -j1 in {argv}'\n"
             "feat = argv[argv.index('--features') + 1].split()\n"
             "target_dir = os.environ['CARGO_TARGET_DIR']\n"
             "deps_dir = target_dir + '/debug/deps'\n"
@@ -508,6 +509,53 @@ class AntiSkipExpectedFailureAndComparisonContracts(unittest.TestCase):
             self.assertEqual(ctx.exception.kind, "ab_mismatch")
             self.assertEqual(ctx.exception.config_id, "cfg1-synthetic")
             self.assertEqual(ctx.exception.test_name, "ssa::two_source_unit::tests::expected_red")
+
+    def test_candidate_default_jobs_omits_j1_while_baseline_keeps_j1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            manifest, base_env, target_a, target_b, call_log = self._make_synthetic_harness(tmp_path)
+            base_env["KOVEN_ALLOW_DEFAULT_JOBS"] = "1"
+
+            env_a = {**base_env, "CARGO_TARGET_DIR": str(target_a), "PILOT_MODE_TAG": "baseline"}
+            ledger_a = self.pilot.run_pilot(
+                manifest=manifest,
+                root=ROOT,
+                mode="baseline",
+                list_only=False,
+                artifacts_dir=tmp_path / "artifacts-a",
+                env=env_a,
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+                candidate_jobs="default",
+            )
+            baseline_calls = [json.loads(l) for l in call_log.read_text().splitlines() if json.loads(l)[0] == "test"]
+            self.assertTrue(all("-j1" in c for c in baseline_calls))
+            self.assertEqual(ledger_a["build_flags"]["cargo_jobs"], "-j1")
+
+            call_log.write_text("", encoding="utf-8")
+            env_b = {**base_env, "CARGO_TARGET_DIR": str(target_b), "PILOT_MODE_TAG": "candidate"}
+            ledger_b = self.pilot.run_pilot(
+                manifest=manifest,
+                root=ROOT,
+                mode="candidate",
+                list_only=False,
+                artifacts_dir=tmp_path / "artifacts-b",
+                env=env_b,
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+                candidate_jobs="default",
+            )
+            candidate_calls = [json.loads(l) for l in call_log.read_text().splitlines() if json.loads(l)[0] == "test"]
+            self.assertEqual(len(candidate_calls), 2)
+            self.assertTrue(all("-j1" not in c for c in candidate_calls))
+            self.assertEqual(ledger_b["build_flags"]["cargo_jobs"], "default")
+            self.assertGreater(ledger_b["host_resources"]["cpu_count"], 0)
+            self.assertGreater(ledger_b["host_resources"]["total_ram_bytes"], 0)
+
+            comp = self.pilot.compare_ledgers(ledger_a, ledger_b)
+            self.assertTrue(comp["equivalent"])
 
     def test_anti_skip_and_expected_failure_faults_fail_closed_with_exact_identity(self):
         cases = [

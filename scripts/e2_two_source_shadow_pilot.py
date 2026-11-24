@@ -964,6 +964,38 @@ def detect_git_sha(root: Path, env: dict[str, str]) -> str:
     return res.stdout.strip() if res.returncode == 0 else "unknown"
 
 
+def detect_host_resources() -> dict[str, int]:
+    cpus = os.cpu_count() or 1
+    ram_bytes = 0
+    try:
+        if sys.platform == "darwin":
+            out = subprocess.run(
+                ["/usr/sbin/sysctl", "-n", "hw.memsize"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if out.returncode == 0 and out.stdout.strip().isdigit():
+                ram_bytes = int(out.stdout.strip())
+        elif hasattr(os, "sysconf"):
+            ram_bytes = int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
+    except (OSError, ValueError):
+        ram_bytes = 0
+    return {"cpu_count": cpus, "total_ram_bytes": ram_bytes}
+
+
+def resolve_candidate_jobs_args(candidate_jobs: str) -> tuple[list[str], str]:
+    if candidate_jobs in ("manifest", "1"):
+        return ["-j1"], "-j1"
+    if candidate_jobs == "default":
+        return [], "default"
+    if candidate_jobs.isdigit() and int(candidate_jobs) > 0:
+        flag = f"-j{int(candidate_jobs)}"
+        return [flag], flag
+    raise ShadowPilotError("invalid_argument", f"unsupported candidate_jobs={candidate_jobs!r}")
+
+
 def run_pilot(
     *,
     manifest: dict[str, Any],
@@ -975,6 +1007,7 @@ def run_pilot(
     verify_shell_parity: bool = True,
     allow_script_test_binary: bool = False,
     inspect_dylibs: bool = True,
+    candidate_jobs: str = "manifest",
 ) -> dict[str, Any]:
     """Execute either 'baseline' (358 Cargo calls) or 'candidate' (5 builds + probes + direct calls)."""
     if mode not in ("baseline", "candidate"):
@@ -1011,6 +1044,13 @@ def run_pilot(
     raw_test_debug = effective_env.get("CARGO_PROFILE_TEST_DEBUG")
     expected_debuginfo = int(raw_test_debug) if raw_test_debug in ("0", "1", "2") else None
 
+    if mode == "baseline":
+        cargo_jobs_args, cargo_jobs_label = ["-j1"], "-j1"
+    else:
+        cargo_jobs_args, cargo_jobs_label = resolve_candidate_jobs_args(candidate_jobs)
+
+    host_resources = detect_host_resources()
+
     build_flags_snapshot = {
         key: effective_env.get(key)
         for key in (
@@ -1022,7 +1062,7 @@ def run_pilot(
             "LLVM_SYS_211_PREFIX",
         )
     }
-    build_flags_snapshot["cargo_jobs"] = "-j1"
+    build_flags_snapshot["cargo_jobs"] = cargo_jobs_label
 
     initial_disk = disk_snapshot(root, target_dir)
     min_free_bytes = initial_disk["fs_free_bytes"]
@@ -1059,12 +1099,12 @@ def run_pilot(
             direct_env: dict[str, str] | None = None
 
             if mode == "candidate":
-                # 1. Build once with --no-run --message-format=json (preserving -j1)
+                # 1. Build once with --no-run --message-format=json
                 build_cmd = [
                     "cargo",
                     "test",
                     "--locked",
-                    "-j1",
+                    *cargo_jobs_args,
                     "-p",
                     pkg_name,
                     *cfg["cargo_target_args"],
@@ -1123,7 +1163,7 @@ def run_pilot(
                     "cargo",
                     "test",
                     "--locked",
-                    "-j1",
+                    *cargo_jobs_args,
                     "--config",
                     f"target.{host_triple}.runner={runner_spec}",
                     "-p",
@@ -1368,6 +1408,7 @@ def run_pilot(
             "host": host_label,
             "host_triple": host_triple,
             "rustc_release": rustc_release,
+            "host_resources": host_resources,
             "manifest_sha256": manifest_sha256,
             "shell_parity": parity_report,
             "build_flags": build_flags_snapshot,
@@ -1527,6 +1568,14 @@ def compare_ledgers(
             "baseline": baseline.get("cache_hit"),
             "candidate": candidate.get("cache_hit"),
         },
+        "cargo_jobs": {
+            "baseline": (baseline.get("build_flags") or {}).get("cargo_jobs", "-j1"),
+            "candidate": (candidate.get("build_flags") or {}).get("cargo_jobs", "-j1"),
+        },
+        "host_resources": {
+            "baseline": baseline.get("host_resources"),
+            "candidate": candidate.get("host_resources"),
+        },
         "compared_configs": len(b_cfgs),
         "compared_entries": len(b_entries),
         "classifications": classifications,
@@ -1626,7 +1675,7 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
     lines = [
         "## SPEC-0495 E2 Two-Source Unit Shadow A/B Report",
         "",
-        "| Host | Scope | Cache Phase (A/B) | Cache Hit (A/B) | Entries | Equivalence | Baseline Wall (s) | Candidate Build+Probe (s) | Candidate List+Run (s) | Candidate Wall (s) | Peak Child RSS MiB (A / B) | Max Target GiB (A / B) | OOM / Retries |",
+        "| Host (CPUs / RAM) | Jobs (A/B) | Cache Phase (A/B) | Hit (A/B) | Entries | Equiv | Baseline Wall (s) | Cand Build+Probe (s) | Cand List+Run (s) | Cand Wall (s) | Peak Child RSS MiB (A / B) | Max Target GiB (A / B) | OOM / Retries |",
         "|---|---|---|---|---:|---|---:|---:|---:|---:|---|---|---|",
     ]
     for comp in comparisons:
@@ -1639,8 +1688,12 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
         c_bp = ct["build_seconds"] + ct["probe_seconds"]
         c_lr = ct["list_seconds"] + ct["run_seconds"]
         oom_str = f"{bt['oom_suspected_count']}+{ct['oom_suspected_count']} / {bt['retry_count']}+{ct['retry_count']}"
+        hr = (comp.get("host_resources") or {}).get("candidate") or {}
+        cpus = hr.get("cpu_count", "?")
+        ram_gib = f"{hr['total_ram_bytes'] / (1024**3):.1f}G" if hr.get("total_ram_bytes") else "?G"
+        jobs = comp.get("cargo_jobs") or {"baseline": "-j1", "candidate": "-j1"}
         lines.append(
-            f"| `{comp['host']}` (`{comp['host_triple']}`) | `{comp['execution_scope']}` | "
+            f"| `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
             f"`{comp['cache_phase']['baseline']}` / `{comp['cache_phase']['candidate']}` | "
             f"`{comp['cache_hit']['baseline']}` / `{comp['cache_hit']['candidate']}` | "
             f"{comp['compared_entries']} | `PASS` | "
@@ -1709,6 +1762,11 @@ def main(argv: list[str] | None = None) -> int:
     p_run = sub.add_parser("run", help="run baseline or candidate arm")
     p_run.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     p_run.add_argument("--mode", choices=("baseline", "candidate"), required=True)
+    p_run.add_argument(
+        "--candidate-jobs",
+        default="manifest",
+        help="Cargo build jobs for candidate arm: 'manifest' (-j1), 'default' (all runner cores), or positive int",
+    )
     p_run.add_argument("--list-only", action="store_true")
     p_run.add_argument("--artifacts", type=Path, required=True)
 
@@ -1743,6 +1801,7 @@ def main(argv: list[str] | None = None) -> int:
                 mode=args.mode,
                 list_only=args.list_only,
                 artifacts_dir=args.artifacts,
+                candidate_jobs=args.candidate_jobs,
             )
             print(
                 f"shadow-pilot {args.mode} ({ledger['execution_scope']}): "

@@ -22,7 +22,17 @@ on:
         description: 'Isolated cache namespace epoch (bump for a guaranteed fresh cold/warm pair)'
         required: false
         type: string
-        default: v1
+        default: v2
+      candidate_jobs:
+        description: 'Candidate Cargo parallelism: default (all runner cores), manifest (-j1), 2, or 4'
+        required: false
+        type: choice
+        options:
+          - default
+          - manifest
+          - '2'
+          - '4'
+        default: default
       reference_ci_run_id:
         description: 'Optional ci.yml workflow run ID on the same SHA for reference step wall-clock'
         required: false
@@ -113,22 +123,29 @@ jobs:
       - name: Verify isolated target directory starts empty before cache restore
         run: |
           set -euo pipefail
-          if [[ -e "$CARGO_TARGET_DIR" ]]; then
-            echo "unexpected pre-existing CARGO_TARGET_DIR before cache restore: $CARGO_TARGET_DIR" >&2
+          target_path="$GITHUB_WORKSPACE/target-e2-shadow-${{ matrix.arm }}"
+          echo "CARGO_TARGET_DIR=$target_path" >> "$GITHUB_ENV"
+          if [[ -e "$target_path" ]]; then
+            echo "unexpected pre-existing CARGO_TARGET_DIR before cache restore: $target_path" >&2
             exit 1
           fi
 
       - name: Compute isolated exact A/B cache key
         id: cache-key
         env:
-          CACHE_EPOCH: ${{ inputs.cache_epoch || format('pr-{0}', github.event.pull_request.number || 'branch') }}
+          CAND_JOBS: ${{ inputs.candidate_jobs || 'default' }}
+          CACHE_EPOCH: ${{ inputs.cache_epoch || format('pr-{0}-v2', github.event.pull_request.number || 'branch') }}
           LLVM_VER: ${{ steps.llvm.outputs.version || '21.1.8' }}
           IMAGE_REF: ${{ matrix.container.image || 'host-macos' }}
           LOCK_HASH: ${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml', 'scripts/verify_ci_toolchain_image.sh') }}
         run: |
           set -euo pipefail
           sanitized_image="${IMAGE_REF//[^A-Za-z0-9._-]/-}"
-          key="e2-shadow-pilot-v1-epoch-${CACHE_EPOCH}-arm-${{ matrix.arm }}-os-${{ matrix.os }}-arch-${{ runner.arch }}-rust-1.96.0-llvm-${LLVM_VER}-img-${sanitized_image}-lock-${LOCK_HASH}"
+          arm_jobs="j1"
+          if [[ "${{ matrix.arm }}" == "candidate" ]]; then
+            arm_jobs="$CAND_JOBS"
+          fi
+          key="e2-shadow-pilot-v2-epoch-${CACHE_EPOCH}-arm-${{ matrix.arm }}-jobs-${arm_jobs}-os-${{ matrix.os }}-arch-${{ runner.arch }}-rust-1.96.0-llvm-${LLVM_VER}-img-${sanitized_image}-lock-${LOCK_HASH}"
           echo "key=$key" >> "$GITHUB_OUTPUT"
 
       - name: Restore isolated arm cache (exact key only, no prefix fallback)
@@ -139,7 +156,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            ${{ github.workspace }}/target-e2-shadow-${{ matrix.arm }}
+            target-e2-shadow-${{ matrix.arm }}
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Enforce cold-miss or warm-hit contract
@@ -181,6 +198,7 @@ jobs:
         run: |
           python3 scripts/e2_two_source_shadow_pilot.py run \
             --mode "${{ matrix.arm }}" \
+            --candidate-jobs "${{ inputs.candidate_jobs || 'default' }}" \
             --artifacts "$RUNNER_TEMP/e2-shadow-${{ matrix.os }}-${{ matrix.arm }}"
 
       - name: Save isolated arm cache after cold miss
@@ -191,7 +209,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            ${{ github.workspace }}/target-e2-shadow-${{ matrix.arm }}
+            target-e2-shadow-${{ matrix.arm }}
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Upload shadow arm ledger and probe evidence
