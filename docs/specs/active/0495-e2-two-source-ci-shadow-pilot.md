@@ -63,7 +63,7 @@
 ## 6. 技术方案与边界
 
 - **清单层**：`scripts/e2_two_source_unit_manifest.json` 声明 5 个配置及 179 条用例元数据（含 `expected_outcome` 与 `expected_failure_evidence`）。
-- **执行与探针层**：`scripts/e2_two_source_shadow_pilot.py` 提供 `verify-manifest`、`run --mode {baseline,candidate}`、`compare` 与 `collect-workflow-metrics` 子命令，内置 Cargo `target.<triple>.runner` 探针模式（仅采集白名单键、工作目录、动态库路径与 `llvm-config`/`clang` 版本身份）。
+- **执行与探针层**：`scripts/e2_two_source_shadow_pilot.py` 提供 `verify-manifest`、`run --mode {baseline,candidate} --candidate-jobs {manifest,default,<N>}`、`compare` 与 `collect-workflow-metrics` 子命令，内置 Cargo `target.<triple>.runner` 探针模式（仅采集白名单键、工作目录、动态库路径与 `llvm-config`/`clang` 版本身份）与宿主机 CPU/RAM 配额采样。
 - **工作流层**：`.github/workflows/ci-e2-shadow-pilot.yml` 运行双宿主 `arm: [baseline, candidate]` 隔离矩阵及汇总 `compare` 任务，使用 `actions/cache/restore@v4` + `actions/cache/save@v4` 精确键隔离冷/热阶段。
 
 ## 7. 实施计划
@@ -89,20 +89,24 @@
 | 验收项 / 命令（目标与过滤器） | 结果（实际测试数） | 未运行原因 / 复用证据 |
 |---|---|---|
 | `python3 scripts/e2_two_source_shadow_pilot.py verify-manifest` | 通过：精确校验 5 个配置、179 个有序条目与 `scripts/check_e2_two_source_unit_ci.sh`（SHA256 `a5e0c95e0e5e5173...`）逐项一致 | 无伪造 `CI` / `GITHUB_ACTIONS` |
-| `python3 -m unittest discover -s scripts/tests -p test_e2_two_source_shadow_pilot.py -v` | 通过：9 组测试全绿（覆盖清单漂移、非 CI 拒绝、秘密过滤、环境探针失配、0/多产物拒绝、0/多 list 命中拒绝、退出 0 未执行拒绝、预期失败分类与 witness 校验、A/B 对账与工作流隔离） | 先红后绿（TDD） |
+| `python3 -m unittest discover -s scripts/tests -p test_e2_two_source_shadow_pilot.py -v` | 通过：10 组测试全绿（覆盖清单漂移、非 CI 拒绝、秘密过滤、环境探针失配、0/多产物拒绝、0/多 list 命中拒绝、退出 0 未执行拒绝、预期失败分类与 witness 校验、`--candidate-jobs` 并发度参数切换、A/B 对账与工作流隔离） | 先红后绿（TDD） |
 | 本机真实工具链隔离 target `--list-only` A/B 实跑（macOS arm64，Rust 1.96.0，LLVM 21.1.8，`cfg2-codegen-test-two-source-unit` 7 项 + `cfg5-frontend-lib-e2-support` 3 项） | 通过：10 项 `compare` 等价 `PASS`；候选臂真实锁定 Mach-O 产物（`389f877562f1c5ee`、`5fc921c2b27db8c2`）并通过 Cargo 启动探针核验 `cwd`、`CARGO_*`、`DYLD_FALLBACK_LIBRARY_PATH` 与 `libLLVM.dylib 21.1.8`；10 次直调 `--list` 共 0.07s，峰值子进程 RSS 3433.3 / 3435.4 MiB，target 1.61 GiB，OOM/重试 0 | 临时目录 `/tmp/koven-spec-0495-local-ab` 验证后已清理，不入库 |
 | 现有工作流与门禁策略单测（`test_llvm_install_bounds`、`test_ubuntu26_ci`、`test_pr_ci_reuse`、`test_check_ci_results`、`test_ci_debug_profile`） | 通过：96 项通过，确认正式 `ci.yml` 合同零受影响 | `test_ci_toolchain_image` 中 7/8 通过，1 项因本机 macOS 缺 GNU `sha256sum` 失败（与本分支无关，Ubuntu runner 原生提供） |
 | `python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`git diff --check` | 全部通过：1052 份 Markdown 结构与库存一致，2712 个手写 Rust 文件无新增尺寸债 | 无 Rust 源码改动 |
 | 远端双宿主首轮隔离冷跑 A/B（[Draft PR #463](https://github.com/Halckon/Koven/pull/463)，head `0aff2819`，merge `3b48a47c`，[run 45392390454 attempt 1](https://github.com/Halckon/Koven/actions/runs/45392390454/attempts/1)） | **全部通过（双宿主各 5 配置 / 179 条目 `PASS`，`equivalent=true`）**：两臂均验证空 target（`0 B`）与 `cache_hit=false`（`cold`）。Linux：A 总墙钟 `432.25s`（整 job `477s`、排队 `2s`）vs B 总墙钟 `407.50s`（`build+probe 386.55s`、`list+run 18.73s`，整 job `452s`、排队 `3s`），峰值 RSS `4839.9 / 4840.8 MiB`，target `2.42 / 2.42 GiB`，OOM/重试 `0`。macOS：A 总墙钟 `1127.71s`（整 job `1268s`、排队 `5s`）vs B 总墙钟 `931.90s`（`build+probe 895.39s`、`list+run 35.03s`，整 job `1009s`、排队 `6s`），峰值 RSS `3570.9 / 3418.5 MiB`，target `4.19 / 4.19 GiB`，OOM/重试 `0` | 单轮墙钟差值仅供参考，不作稳定提速结论 |
 | 远端双宿主同 SHA 第二轮热跑 A/B（同 head `0aff2819` / merge `3b48a47c`，[run 45392390454 attempt 2](https://github.com/Halckon/Koven/actions/runs/45392390454/attempts/2)） | **全部通过（双宿主各 5 配置 / 179 条目 `PASS`，`equivalent=true`）**：四臂均精确命中本臂缓存键（`cache_hit=true`，`warm`）。Linux：A `444.93s`（整 job `475s`、排队 `3s`）vs B `531.50s`（`build+probe 503.14s`、`list+run 25.62s`，整 job `570s`、排队 `3s`），峰值 RSS `4839.6 / 4832.2 MiB`，target `2.42 / 2.42 GiB`，OOM/重试 `0`。macOS：A `1264.16s`（整 job `1373s`、排队 `258s`）vs B `1212.58s`（`build+probe 1168.35s`、`list+run 42.52s`，整 job `1316s`、排队 `3s`），峰值 RSS `3416.8 / 3419.0 MiB`，target `4.19 / 4.19 GiB`，OOM/重试 `0` | 见下方实测机制记录 |
 | 同 SHA 正式 `ci.yml` 参考运行（[run 45392389988](https://github.com/Halckon/Koven/actions/runs/45392389988)） | **全部通过（`CI Passed`）**：`Targeted Tests (ubuntu-26.04)` 排队 `3s`、整 job `2141.0s`（`35m41s`）、原 E2 步骤 `488.0s`；`Targeted Tests (macos-15)` 排队 `15s`、整 job `3705.0s`（`61m45s`）、原 E2 步骤 `722.0s` | 共享预热 target 参考值，不与隔离冷/热跑直接相减 |
+| 远端双宿主候选臂默认多核（`--candidate-jobs default` vs 基线 `-j1`）隔离冷跑 A/B（head `ea7b39fd`，merge `cde72aa5`，[run 45414108436](https://github.com/Halckon/Koven/actions/runs/45414108436)） | **全部通过（双宿主各 5 配置 / 179 条目 `PASS`，`equivalent=true`）**：两臂均验证空 target（`0 B`）与 `cache_hit=false`（`cold`），且 `v2` 容器相对路径修复后双宿主均完整保存隔离 target 缓存（Linux `425 MiB`、macOS `783 MiB`）。**Linux（`4 vCPU / 15.6 GiB RAM`）**：A（`-j1`）总墙钟 `565.97s`（整 job `665s`、排队 `3s`）vs B（`default` 4 核）总墙钟 **`312.96s`**（`build 284.74s` + `probe 3.65s` + `list 2.34s` + `run 20.02s`，整 job `414s`、排队 `3s`，同轮缩短 `253.00s` / **`-44.7%`**），峰值子进程 RSS `4833.7 / 5597.1 MiB`，target `2.42 / 2.42 GiB`，OOM/重试 `0`。**macOS（`3 vCPU / 7.0 GiB RAM`）**：A（`-j1`）总墙钟 `1047.26s`（整 job `1129s`、排队 `3s`）vs B（`default` 3 核）总墙钟 **`870.27s`**（`build 816.55s` + `probe 11.20s` + `list 5.22s` + `run 35.66s`，整 job `951s`、排队 `640s`，同轮缩短 `176.99s` / **`-16.9%`**），峰值子进程 RSS `3416.4 / 3173.0 MiB`，target `4.19 / 4.19 GiB`，OOM/重试 `0` | 验证默认多核构建下无 OOM 且内存余量充裕 |
 
 ### 10.1 双宿主实测归因与边界记录
 
-1. **覆盖与语义等价成立**：双宿主冷/热共 4 轮 A/B（合计 `4 × 2 × 179 = 1,432` 次条目验证）全部 `179/179 PASS`，零漏跑、零错产物、零环境探针失配、零额外 OOM 或磁盘超限（target 稳定在 Linux `2.42 GiB` / macOS `4.19 GiB`）。
+1. **覆盖与语义等价成立**：双宿主共 3 组 6 轮 A/B（`-j1` 冷跑、`-j1` 热跑、`default` 多核冷跑，合计 `6 × 2 × 179 = 2,148` 次条目验证）全部 `179/179 PASS`，零漏跑、零错产物、零环境探针失配、零额外 OOM 或磁盘超限（target 稳定在 Linux `2.42 GiB` / macOS `4.19 GiB`）。
 2. **进程派生开销 vs 单核重编主导占比**：
-   - 去除 353 次冗余 Cargo 包装调用后，候选臂纯 `list + run` 179 条用例仅需 **Linux `18.7s～25.6s`、macOS `35.0s～42.5s`**（对比基线臂仅 `run` 阶段即需 Linux `27.9s～36.1s`、macOS `74.7s～94.9s`，外加 macOS 上百秒 `--list` Cargo 进程启动开销）。
-   - 但总耗时的 **93%～96%**（Linux `383s～499s`、macOS `886s～1160s`）花在 `-j1` 单核编译 5 套异构 feature/target 配置；且云端 Runner 宿主机 CPU 波动显著（如 Linux 候选臂同一源码构建耗时在两次运行间从 `383.2s` 波动至 `499.0s`，反超基线臂 `86.6s`），证实单轮墙钟差不能直接当成稳定提速结论。
-3. **热跑缓存行为实测记录**：
-   - `macos-15` 精确恢复了 `783.5 MiB` 压缩缓存（启动时 `target_dir_bytes = 4.19 GiB`），但因 `actions/checkout@v7` 刷新了工作区 `.rs` 源码 `mtime` 且 `CARGO_INCREMENTAL=0`，Cargo 仅复用了第三方依赖，仍对自有 workspace（`lang-frontend` / `lang-codegen`）执行了重编。
-   - `ubuntu-26.04` 容器任务中 YAML `${{ github.workspace }}` 解析为宿主机路径 `/home/runner/work/Koven/Koven` 而容器内挂载点为 `/__w/Koven/Koven`，因此缓存仅命中 `~/.cargo`（`2.18 MiB`）；即便恢复完整 `target`（如 macOS 所示），Cargo 在新 checkout `mtime` 下同样会重编自有 crate。后续若需跨 run 复用编译产物，需从编译并发度（去除 `-j1`）或收敛异构 feature 组合入手，而非依赖 `target/` 目录缓存。
+   - 去除 353 次冗余 Cargo 包装调用后，候选臂纯 `list + run` 179 条用例仅需 **Linux `18.7s～25.6s`、macOS `35.0s～42.5s`**（对比基线臂仅 `run` 阶段即需 Linux `27.9s～46.1s`、macOS `74.7s～94.9s`，外加 macOS 上百秒 `--list` Cargo 进程启动开销）。
+   - 在 `-j1` 约束下，总耗时的 **93%～96%**（Linux `383s～520s`、macOS `886s～1160s`）花在单核编译 5 套异构 feature/target 配置；且云端 Runner 宿主机性能存在明显波动，证实单轮墙钟差不能脱离并发配置单独解读。
+3. **候选臂启用 Cargo 默认多核（`default`）后的扩展性与内存安全**：
+   - **Linux（`ubuntu-26.04` 标准 Runner：`4 vCPU / 15.6 GiB RAM`）**：候选臂放开默认 4 核构建后，5 套配置总构建耗时降至 `284.74s`，总墙钟从同轮基线 `565.97s` 降至 **`312.96s`（`-44.7%` / `1.81x`）**；子进程峰值 RSS 从 `4.72 GiB` 小幅升至 `5.47 GiB`（约占整机 `15.6 GiB` 内存的 `35%`），零 OOM。
+   - **macOS（`macos-15` 标准 M1 Runner：`3 vCPU / 7.0 GiB RAM`）**：实测宿主机配额为 **3 核 / 7 GiB RAM**（而非 4 核），候选臂总墙钟从同轮基线 `1047.26s` 降至 **`870.27s`（`-16.9%` / `1.20x`）**，峰值单子进程 RSS `3.10 GiB`，零 OOM；同时观测到 macOS Runner 池并发槽位排队可达 `640s`（`10m40s`）。macOS 多核加速比低于 Linux 的直接原因是：(a) 物理核心数仅为 3 核且整机内存 7 GiB；(b) 每套配置均串行受限于 `lang-frontend`（`27.5 万`行单 `lib.rs`）→ `lang-codegen`（`52.8 万`行单 `lib.rs`）两条巨型单体 crate 编译链，`rustc` 前端解析/类型/借用检查阶段为单线程，仅后端 LLVM codegen units 可吃满多核。
+4. **热跑缓存行为与容器路径实测记录**：
+   - 首轮容器缓存因 YAML `${{ github.workspace }}`（宿主机 `/home/runner/work/...`）与容器内挂载点（`/__w/...`）不一致仅命中 `~/.cargo`（`2.18 MiB`）；在 `v2` 改用工作区相对路径 `target-e2-shadow-${{ matrix.arm }}` 后，Linux 与 macOS 均已完整保存隔离 target 缓存（分别为 `425 MiB` 与 `783 MiB`）。
+   - 同时由首轮 macOS 热跑（精确恢复 `783.5 MiB` 缓存 / `4.19 GiB` target）已证实：因 `actions/checkout@v7` 刷新 `.rs` 源码 `mtime` 且 `CARGO_INCREMENTAL=0`，`target/` 缓存仅能跳过第三方依赖重编，自有巨型 crate 仍会重编；真正决定编译墙钟的杠杆是**放开多核构建**与后续**收敛异构 feature 重编次数 / 拆分巨型单体测试目标**。
