@@ -141,6 +141,41 @@ class CleanupProgressModel(unittest.TestCase):
         self.assertIn("主清理者:释放资源1后写进度前崩溃", r1_report.violations[MODEL.DOUBLE_CLEANUP])
         r2_report = MODEL.cleanup_progress_model(non_idem, initial=("primary", "freed", "held", 1))
         self.assertIn("主清理者:释放资源2后写进度前崩溃", r2_report.violations[MODEL.DOUBLE_CLEANUP])
+
+        # 从默认初态 cp=0 出发，钉住资源 2 写进度前崩溃的完整 6 步可达路径（不改动模型政策与 explore()）。
+        captured = {}
+        original_explore = MODEL.explore
+
+        def capture(initial, events, violations, final_notes):
+            captured["initial"] = initial
+            captured["events"] = events
+            captured["violations"] = violations
+            return original_explore(initial, events, violations, final_notes)
+
+        MODEL.explore = capture
+        try:
+            MODEL.cleanup_progress_model(non_idem)
+        finally:
+            MODEL.explore = original_explore
+
+        state = captured["initial"]
+        self.assertEqual(("primary", "held", "held", 0), state)
+        expected_r2_path = [
+            "主清理者:释放资源1(进度未落盘)",
+            "主清理者:写入资源1进度",
+            "主清理者:释放资源2(进度未落盘)",
+            "主清理者:释放资源2后写进度前崩溃",
+            "后继:接管清理",
+            "后继:执行资源2清理",
+        ]
+        for step in expected_r2_path:
+            self.assertEqual([], captured["violations"](state))
+            transitions = dict(captured["events"](state))
+            self.assertIn(step, transitions)
+            state = transitions[step]
+        self.assertEqual(("done", "freed", "double_freed", 2), state)
+        self.assertIn(MODEL.DOUBLE_CLEANUP, captured["violations"](state))
+
         self.assertEqual((set(), set(), set()), outcome(MODEL.cleanup_progress_model(idem)))
         self.assertEqual((set(), set(), set()), outcome(MODEL.cleanup_progress_model(idem, initial=("primary", "freed", "held", 1))))
 

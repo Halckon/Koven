@@ -1610,13 +1610,19 @@ class LoanKernelCases(unittest.TestCase):
         """§82：1A 裸借用参数显式取址禁止、into v.origins 拒绝、.origins/.* 区分与闭包捕获两栏对照。"""
         source = (ROOT / "cases/Z44.lk").read_text(encoding="utf-8")
         lowered = {}
-        actual = {(rule, line) for rule, line, _ in CHECKER.check(source, lowered=lowered)}
+        diags = CHECKER.check(source, lowered=lowered)
+        actual = {(rule, line) for rule, line, _ in diags}
         self.assertEqual(expected(source), actual)
         for name in ("bare_reborrow_and_field_projection_ok", "bare_param_reborrow_ok",
                      "explicit_view_slot_ok", "star_selector_no_origins_collision_ok",
                      "origins_field_normal_access_ok", "closure_capture_guide07_shared_ok",
                      "closure_capture_future_excl_ok"):
             self.assertTrue(lowered[name][2], name)
+        # 范围未决对照（不作为语言承诺或正例）：局部借用别名 &fa / &mut fb 当前实现不触发 1A 的 TYPE 规则；
+        # 裸 borrow/inout 形参 &h / &mut h 仍报 TYPE；同名遮蔽已由 check_unique 拒绝，不改检查器。
+        self.assertTrue(lowered["local_borrow_alias_ref_scope_undecided"][2])
+        self.assertFalse(any(rule == "TYPE" and "local_borrow_alias_ref_scope_undecided" in msg
+                             for rule, _, msg in diags))
         for name in ("bare_borrow_ref_rejected", "bare_inout_ref_rejected",
                      "write_bare_vs_ref_distinct_diagnostics", "generic_view_t_backdoor_rejected",
                      "flows_origins_source_blocks_conflicting_write",
@@ -1625,7 +1631,7 @@ class LoanKernelCases(unittest.TestCase):
                      "closure_capture_guide07_shared_conflict", "closure_capture_future_excl_conflict",
                      "closure_capture_future_excl_from_borrow_rejected"):
             self.assertFalse(lowered[name][2], name)
-        sig_errors = [msg for rule, _, msg in CHECKER.check(source) if rule == "SIG"]
+        sig_errors = [msg for rule, _, msg in diags if rule == "SIG"]
         self.assertEqual(3, len(sig_errors))
         self.assertTrue(any("origins_selector_ambiguous" in m and "同名字段 origins" in m for m in sig_errors))
         self.assertTrue(any("flow_into_origins_target_rejected" in m and "写入目标" in m for m in sig_errors))

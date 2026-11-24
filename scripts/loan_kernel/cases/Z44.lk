@@ -60,6 +60,17 @@ fun explicit_view_slot_ok(inout h: Item): Unit {
     write_item(h)
 }
 
+// 局部借用别名的取址规则未裁决（范围未决，当前原型不拒绝），不作为语言承诺或正例；
+// 当前原型按 check_unique 禁止同名遮蔽，不改检查器。
+fun local_borrow_alias_ref_scope_undecided(borrow hb: Pair, inout hm: Pair): Unit {
+    val fa = &hb.a
+    val fb = &mut hm.b
+    val ra = &fa
+    val rb = &mut fb
+    use(ra)
+    use(rb)
+}
+
 // ---- 2. 封堵 <view T> 后门：不能用裸 borrow/inout 参数绕过 1A
 
 fun generic_view_t_backdoor_rejected(borrow hb: Item, inout hm: Item): Unit {
