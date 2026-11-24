@@ -1367,14 +1367,17 @@ fun probe(borrow h: A): Unit {
 | `val fa = &hb.a; write_item(&mut fa)` | **漏报（接受）**（扁平化为 `inout Item`） | `TYPE`（禁止局部借用取址） | `TYPE`（`inout (borrow Item)` 不匹配 `inout Item`） |
 | `val fa = &hb.a; take_escapable_mut(&mut fa)` | **漏报（接受）**（扁平化为 `Item` 绕过 `<T>`） | `TYPE` | `K17`（`borrow Item` 不可逃逸） |
 | `val rb = &mut fa; *rb = Item(9)` | **漏报（接受）**（扁平化为 `inout Item`） | `TYPE`（`&mut fa` 已拒） | `X1`（不能将 `Item` 写入 `borrow Item` 槽） |
+| `val n = 1; val r = &n; write_int(&mut r)`（标量形参） | **漏报（接受）**（扁平化为 `inout Int`） | `TYPE` | `TYPE`（`inout (borrow Int)` 不匹配 `inout Int`） |
+| `val fa = &a; val s = Slot(&mut fa); write_item(s.p)`（视图构造器） | **漏报（接受）**（扁平化消除一层借用） | `TYPE` | `TYPE`（`Slot.p` 拒绝二层借用） |
+| `val g = copy_inner(&fa)`（`T from x.origins`）后写 `&mut a` | **漏报（接受）**（`T = Item` 丢弃内层来源） | `TYPE`（`&fa` 已拒） | `K1`（`&fa` 同时保留 `fa` 槽位与内层 `a` 来源） |
 | `val fm = &mut hm.b; write_item(&mut fm)` / `read_item(&fa)` | 接受（误扁平化） | `TYPE` | `TYPE`（二层借用不匹配一层形参） |
 | `take_view_mut(&mut fa)`（`<view T>`） | 接受（`T = Item`） | `TYPE`（封堵后门） | 接受（`T = borrow Item`） |
 | `val rb = &mut fa; *rb = &b` 重绑并追踪新来源 `b` | `X1`（扁平化拒绝） | `TYPE` + `X1` | 接受；写新来源 `b` 报 `K1`，旧来源 `a` 可写 |
-| `val ra = &fa; fa = &b; write_item(&mut a); use(ra)` | 两处 `K1` | `TYPE`（`&fa` 已拒） | 两处 `K1`（K3 传递保活 `fa` 与底层 `a`） |
+| `val ra = &fa; fa = &b` / `write_item(&mut a)`（K3 保活） | 各报 `K1` | `TYPE`（`&fa` 已拒） | 各报 `K1`（K3 传递保活 `fa` 与底层 `a`） |
 | `return &fa`（签名声明 `from hb`） | `K6` | `TYPE` | `TYPE` + `K6` |
 | 实参重借、字段投影、显式 `Slot(fm)` 与 `write_item(fa)` | 接受 / `K1` | 接受 / `K1` | 接受 / `K1` |
 
-结论：当前 `undecided` 的扁平化实现在局部借用变量上存在三处可复现的类型/借用漏洞（共享借用经 `&mut fa` 提权为可写、绕过 `<T>` 可逃逸上界、经 `*rb = Item(9)` 写入非借用值）。后续裁决须在 **1A-ext（`forbid`，零新增类型语法，直接把 1A 扩展到所有局部借用变量）** 与 **显式二层借用（`second_order`，须引入一等 `borrow (borrow T)` / `inout (borrow T)` 类型与 `*rb = &b` 槽位来源更新）** 之间二选一，不可长期停留在扁平化状态。
+结论：当前 `undecided` 的扁平化实现在局部借用变量上存在多处可复现的类型/借用漏洞（共享借用经 `&mut fa` / `write_int(&mut r)` / `Slot(&mut fa)` 提权为可写、绕过 `<T>` 可逃逸上界、经 `*rb = Item(9)` 写入非借用值、以及 `from x.origins` 丢失内层来源）。后续裁决须在 **1A-ext（`forbid`，零新增类型语法，直接把 1A 扩展到所有局部借用变量）** 与 **显式二层借用（`second_order`，须引入一等 `borrow (borrow T)` / `inout (borrow T)` 类型、视图构造器/标量层级校验、`*rb = &b` 槽位来源更新及 `.origins` 内层来源保留）** 之间二选一，不可长期停留在扁平化状态。
 
 
 

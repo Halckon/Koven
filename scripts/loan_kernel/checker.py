@@ -30,6 +30,8 @@ DP = sibling("drop_plan")  # 析构义务（KB1）：本检查器定下的析构
 Type = namedtuple("Type", "kind name")  # kind: int | unit | cls | view | borrow | inout
 INT = Type("int", "Int")
 UNIT = Type("unit", "Unit")
+BORROWED_CLOSURE = "#BorrowedClosure"  # 内部捕获闭包名，带 # 前缀不与合法源码类名冲突
+MUT_CLOSURE = "#MutClosure"
 
 
 class SyntaxProblem(Exception):
@@ -603,7 +605,7 @@ class Checker:
             return CAP.Ty("Any")
         if self.carrier(name):
             return CAP.Ty(name, (CAP.Ty("inout", (CAP.Ty("Unit"),)),))  # 实参取一个携带来源、不可复制的代表
-        return CAP.Ty("Unit" if name.startswith("fn ") or name in ("Closure", "BorrowedClosure", "MutClosure") else name)
+        return CAP.Ty("Unit" if name.startswith("fn ") or name in ("Closure", BORROWED_CLOSURE, MUT_CLOSURE) else name)
 
     def carrier(self, name):
         return name in self.classes and self.classes[name].carrier
@@ -623,15 +625,15 @@ class Checker:
 
     @staticmethod
     def is_capturing_closure(ty):
-        return ty.kind == "closure" and ty.name in ("BorrowedClosure", "MutClosure")
+        return ty.kind == "closure" and ty.name in (BORROWED_CLOSURE, MUT_CLOSURE)
 
     @staticmethod
     def merge_closure_ty(ty1, ty2):
         if ty1.kind == "closure" and ty2.kind == "closure":
-            if "MutClosure" in (ty1.name, ty2.name):
-                return Type("closure", "MutClosure")
-            if "BorrowedClosure" in (ty1.name, ty2.name):
-                return Type("closure", "BorrowedClosure")
+            if MUT_CLOSURE in (ty1.name, ty2.name):
+                return Type("closure", MUT_CLOSURE)
+            if BORROWED_CLOSURE in (ty1.name, ty2.name):
+                return Type("closure", BORROWED_CLOSURE)
             return Type("closure", "Closure")
         return ty1
 
@@ -642,8 +644,13 @@ class Checker:
         if ty.kind == "closure":
             if ty.name == "Closure":
                 return True
-            if ty.name == "BorrowedClosure":
+            if ty.name == BORROWED_CLOSURE:
                 return cap in ("Copyable", "EarlyDrop", "Forgettable", "ImplicitDrop")
+            return cap in ("EarlyDrop", "Forgettable", "ImplicitDrop")
+        if ty.kind in ("borrow", "inout") and ty.name in (BORROWED_CLOSURE, MUT_CLOSURE):
+            # 带捕获闭包的共享/独占引用：所指不可共享/不可跨线程转移，不退化为 Unit。
+            if ty.kind == "borrow" and cap == "Copyable":
+                return True
             return cap in ("EarlyDrop", "Forgettable", "ImplicitDrop")
         if ty.kind == "task":
             return False
@@ -663,7 +670,7 @@ class Checker:
             return INT
         if name == "Unit":
             return UNIT
-        if name in ("Closure", "BorrowedClosure", "MutClosure"):
+        if name in ("Closure", BORROWED_CLOSURE, MUT_CLOSURE):
             return Type("closure", name)
         if name.startswith("any "):
             return Type("any", name)
@@ -857,7 +864,7 @@ class Checker:
             returned = self.argument(fun.ret, kind, state) if kind else self.value(fun.ret, state)
             if fun.result_slot and (returned.payload or returned.ty.name != wanted):
                 self.error("X1", fun.ret.line, f"声明返回槽位访问 {wanted}，不能返回载荷访问或具体类型 {returned.ty.name}")
-            if kind in ("borrow", "inout") and wanted in self.classes and returned.ty.name.startswith(("borrow ", "inout ")):
+            if kind in ("borrow", "inout") and wanted not in fun.tparams and returned.ty.name.startswith(("borrow ", "inout ")):
                 self.error("TYPE", fun.ret.line, f"返回值须是 {kind} {wanted}，不能返回二层借用 {kind} ({returned.ty.name})")
             if not kind and wanted == "Closure" and returned.ty.kind != "closure":
                 self.error("TYPE", fun.ret.line, f"返回值须是拥有的 Closure，不能返回 {returned.ty.kind} {returned.ty.name}")
@@ -910,7 +917,7 @@ class Checker:
         """类型的值是否一定不携带来源：含借用字段的视图、借用值与 view T 不是，其余都是。"""
         if ty_name in self.classes:
             return self.has("Escapable", self.type_of(ty_name))
-        return ty_name not in self.fun.views and ty_name not in ("BorrowedClosure", "MutClosure") and not ty_name.startswith(("borrow ", "inout "))
+        return ty_name not in self.fun.views and ty_name not in (BORROWED_CLOSURE, MUT_CLOSURE) and not ty_name.startswith(("borrow ", "inout "))
 
     def escapable_in(self, fun, ty_name):
         """签名检查时函数体还没有开始，能力判定里的类型参数取这个签名的。"""
@@ -1563,8 +1570,12 @@ class Checker:
         loan = self.new_loan(f"L{expr.site}", kind, res.targets, res.via, expr.line)
         self.loans[loan].kind = kind
         loans = {"": {loan}}
-        if res.ty.kind in ("view", "opaque") or self.carrier(res.ty.name):
+        if res.ty.kind in ("view", "opaque") or self.carrier(res.ty.name) or self.is_capturing_closure(res.ty):
             loans.update(copy_loans({k: v for k, v in (res.field_loans or {}).items() if k}))
+        if not place.fields and res.ty.kind in ("borrow", "inout") and self.local_borrow_ref_policy == "second_order":
+            inner_loans = set().union(*(res.field_loans or {}).values()) if res.field_loans else set()
+            if inner_loans:
+                loans["*"] = inner_loans
         # 视图里存放的存在类型借用是载荷访问，经它重借出来的仍是
         payload = bool(res.crossed) and res.ty.kind == "any"
         # 借用类型名沿用签名拼写，区分同名的类 C 与函数类型 fn C；二层借用对照模式下保留内层借用种类。
@@ -1586,8 +1597,27 @@ class Checker:
         self.pending.append(entry)
         info.kind = kind
 
+    def place_borrow_mode(self, place, state):
+        """无副作用判断 place 在可变闭包捕获列表中属于共享借用还是独占借用。"""
+        var = state.get(place.root)
+        if var is None:
+            return "inout"
+        if not place.fields:
+            return "borrow" if var.ty.kind == "borrow" else "inout"
+        ty_name, writable, crossed = var.ty.name, var.ty.kind != "borrow", ""
+        for fname in place.fields:
+            decl = self.classes.get(ty_name)
+            fld = decl.field(fname) if decl else None
+            if fld is None:
+                return "inout"
+            kind, _, ty_name = fld
+            if kind:
+                writable = writable and kind == "inout"
+            crossed = kind
+        return "borrow" if crossed and not writable else "inout"
+
     def closure(self, expr, state):
-        """Guide 07 真实普通/可变闭包：捕获借用逐项建立 shared/excl loan，非空捕获不得逃出定义函数（L0137）。"""
+        """Guide 07 真实普通/可变闭包：捕获借用逐项按实际借用模式建立 shared/excl loan，非空捕获不得逃出定义函数（L0137）。"""
         held, pushed = set(), 0
         outer_after, outer_live = self.after, self.live
         for index, arg in enumerate(expr.args):
@@ -1595,14 +1625,22 @@ class Checker:
             if expr.mut:
                 if arg.kind == "ref":
                     arg_mode = "inout" if arg.mut else "borrow"
-                elif arg.kind == "place" and not arg.place.fields and state.get(arg.place.root) is not None and state[arg.place.root].ty.kind == "borrow":
-                    arg_mode = "borrow"
+                    val = self.argument(arg, arg_mode, state, stored_kind="excl" if arg_mode == "inout" else "shared")
+                elif arg.kind in ("call", "move"):
+                    val = self.value(arg, state)
+                    if val.ty.kind not in ("borrow", "inout"):
+                        self.error("TYPE", arg.line, "可变闭包捕获需要 & 表达式或一个借用值")
+                    elif val.ty.kind == "inout" and val.loans.get(""):
+                        via = set(val.loans.get("", ()))
+                        targets = self.places(via)
+                        self.access(state, targets, via, "excl", arg.line)
+                        fields = self.current_fields(state, targets, val.loans, val.ty.name)
+                        self.check_exclusive_fields(state, val.ty.name, fields, via, "excl", arg.line)
                 else:
-                    arg_mode = "inout"
+                    arg_mode = self.place_borrow_mode(arg.place, state) if arg.kind == "place" else "inout"
+                    val = self.argument(arg, arg_mode, state, stored_kind="excl" if arg_mode == "inout" else "shared")
             else:
-                arg_mode = "borrow"
-            stored_kind = "excl" if arg_mode == "inout" else "shared"
-            val = self.argument(arg, arg_mode, state, stored_kind=stored_kind)
+                val = self.argument(arg, "borrow", state, stored_kind="shared")
             held |= val.all_loans()
             self.pending.append(val.all_loans())
             pushed += 1
@@ -1610,7 +1648,7 @@ class Checker:
         del self.pending[len(self.pending) - pushed:]
         if not expr.args:
             return Value(Type("closure", "Closure"))
-        return Value(Type("closure", "MutClosure" if expr.mut else "BorrowedClosure"), {"*": held})
+        return Value(Type("closure", MUT_CLOSURE if expr.mut else BORROWED_CLOSURE), {"*": held})
 
     def check_owned_argument(self, fun, mode, wanted, value, line):
         """具体类或 Closure 的 own 参数要取得拥有值；带捕获闭包不得交给 own 参数（L0137）。"""
@@ -1646,10 +1684,13 @@ class Checker:
             if not mut and value.ty.kind == "inout" and value.loans.get(""):
                 via = set(value.loans.get("", ()))
                 targets = self.places(via)
+                self.access(state, targets, via, "shared", expr.line)
+                fields = self.current_fields(state, targets, value.loans, value.ty.name)
+                self.check_exclusive_fields(state, value.ty.name, fields, via, "shared", expr.line)
                 loan = self.new_loan(f"L{expr.site}", "shared", targets, via, expr.line)
                 self.loans[loan].kind = "shared"
                 loans = {"": {loan}}
-                loans.update({k: set(v) for k, v in value.loans.items() if k})
+                loans.update({k: set(v) for k, v in fields.items() if k})
                 return Value(Type("borrow", value.ty.name), loans, value.payload)
             return value
         if expr.kind != "place":
@@ -1717,6 +1758,8 @@ class Checker:
                 self.error("TYPE", arg.line, f"{decl.name}.{name} 要求拥有的 Closure，不能接收 {val.ty.kind} {val.ty.name}")
             elif not kind and fty in self.classes and val.ty != self.type_of(fty):
                 self.error("TYPE", arg.line, f"{decl.name}.{name} 要求拥有的 {fty}，不能接收 {val.ty.kind} {val.ty.name}")
+            elif kind and val.ty.name.startswith(("borrow ", "inout ")):
+                self.error("TYPE", arg.line, f"{decl.name}.{name} 要求 {kind} {fty}，不能接收二层借用 {val.ty.kind} ({val.ty.name})")
             if not kind and self.tracked(Var(val.ty, "A", {})) and any(self.has_call(later) for later in expr.args[index + 1:]):
                 staged.append(self.materialize_temp(val, state, arg.line, site=arg.site))
             if kind:
@@ -1780,7 +1823,7 @@ class Checker:
                 decl = self.classes.get(actual)
                 if actual != wanted and (decl is None or wanted[4:] not in decl.implements):
                     self.error("TYPE", line, f"{name}：{actual} 不能当作 {wanted}")
-            elif mode in ("borrow", "inout") and wanted in self.classes and actual.startswith(("borrow ", "inout ")):
+            elif mode in ("borrow", "inout") and wanted not in fun.tparams and actual.startswith(("borrow ", "inout ")):
                 self.error("TYPE", line, f"{name}：二层借用 {mode} ({actual}) 不能充当 {mode} {wanted}")
             elif mode == "inout" and value.payload:
                 self.error("X2", line, f"{name}：载荷访问不能充当 {wanted} 的槽位")
@@ -1909,7 +1952,7 @@ class Checker:
             return Value(ty, {"*": result})
         if ty.kind == "view":  # K11：含多个借用字段的结果共同持有这些 loan
             return Value(ty, {path: set(result) for _, path in self.ref_paths(ty_name)})
-        if self.carrier(ty_name):  # 容器：它携带的来源整体记在值名下
+        if self.carrier(ty_name) or self.is_capturing_closure(ty):  # 容器与捕获闭包：携带的来源整体记在值名下
             return Value(ty, {"*": result})
         return Value(ty)
 
@@ -2017,6 +2060,8 @@ class Checker:
             yielded = self.argument(stmt.expr, kind, state) if kind else self.value(stmt.expr, state)
             if self.fun.result_slot and (yielded.payload or yielded.ty.name != wanted):
                 self.error("X1", stmt.line, f"声明返回槽位访问 {wanted}，不能返回载荷访问或具体类型 {yielded.ty.name}")
+            if kind in ("borrow", "inout") and wanted not in self.fun.tparams and yielded.ty.name.startswith(("borrow ", "inout ")):
+                self.error("TYPE", stmt.line, f"yield 须产出 {kind} {wanted}，不能产出二层借用 {kind} ({yielded.ty.name})")
             if not kind and wanted == "Closure" and yielded.ty.kind != "closure":
                 self.error("TYPE", stmt.line, f"yield 须产出拥有的 Closure，不能产出 {yielded.ty.kind} {yielded.ty.name}")
             elif not kind and wanted in self.classes and wanted not in self.fun.tparams and yielded.ty != self.type_of(wanted):

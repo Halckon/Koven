@@ -3,14 +3,20 @@
 class Item(x: Int)
 class BoxedClosure(cb: Closure)
 view class ViewClosureBox(cb: Closure)
+class BorrowedClosure(x: Int)
+class MutClosure(x: Int)
 
 fun read_item(borrow x: Item): Unit trusted
 fun write_item(inout x: Item): Unit trusted
+fun get_shared(borrow x: Item): borrow Item from x trusted
 fun get_mut(inout x: Item): inout Item from x trusted
 fun apply_sync(borrow f: Closure): Unit trusted
 fun apply_sync_mut(inout f: Closure): Unit trusted
 fun deliver_owned(own f: Closure): Unit trusted
 fun <view T: Copyable> inspect_copyable(borrow x: T): Unit trusted
+fun <view T: Copyable> duplicate_closure(borrow x: T): T from x trusted
+fun <view T: Copyable> duplicate_closure_origins(borrow x: T): T from x.origins trusted
+fun <view T: Transferable> send_transferable(own x: T): Unit trusted
 
 // ---- 1. 无捕获普通闭包：无 loan，可返回、可存字段、可交给 own（Value）参数
 
@@ -190,4 +196,66 @@ fun real_mut_closure_return_with_from_l0137(inout h: Item): Closure from h {
 
 fun real_mut_closure_deliver_own_l0137(inout h: Item): Unit {
     deliver_owned(mut_closure(h)) // ERR L0137
+}
+
+// ---- 5. PR #464 审阅回归：泛型返回闭包来源、move r 活跃子借用冲突、共享引用 Transferable、用户同名类与直接调用捕获
+
+fun generic_duplicate_closure_preserves_origin_k1(): Unit {
+    val a = Item(1)
+    val f = closure(&a)
+    val g = duplicate_closure(&f)
+    write_item(&mut a)    // ERR K1
+    apply_sync(&g)
+}
+
+fun generic_duplicate_closure_origins_preserves_origin_k1(): Unit {
+    val a = Item(1)
+    val f = closure(&a)
+    val g = duplicate_closure_origins(&f)
+    write_item(&mut a)    // ERR K1
+    apply_sync(&g)
+}
+
+fun closure_move_r_with_active_exclusive_child_k4(): Unit {
+    val a = Item(1)
+    val r = &mut a
+    val child = get_mut(r)
+    val f = closure(move r) // ERR K4
+    apply_sync(&f)
+    write_item(child)
+}
+
+fun mut_closure_shared_ref_not_transferable_cap(): Unit {
+    val a = Item(1)
+    val f = mut_closure(&mut a)
+    send_transferable(&f) // ERR CAP
+}
+
+fun borrowed_closure_shared_ref_not_transferable_cap(): Unit {
+    val a = Item(1)
+    val f = closure(&a)
+    send_transferable(&f) // ERR CAP
+}
+
+fun user_classes_named_like_internal_closures_ok(): BorrowedClosure {
+    val m = MutClosure(2)
+    use(m)
+    return BorrowedClosure(1)
+}
+
+fun mut_closure_direct_shared_call_capture_ok(): Unit {
+    val a = Item(1)
+    val b = Item(2)
+    val f = mut_closure(&mut a, get_shared(&b))
+    read_item(&b)
+    apply_sync_mut(&mut f)
+    write_item(&mut b)
+}
+
+fun mut_closure_direct_shared_call_blocks_write_k1(): Unit {
+    val a = Item(1)
+    val b = Item(2)
+    val f = mut_closure(&mut a, get_shared(&b))
+    write_item(&mut b)    // ERR K1
+    apply_sync_mut(&mut f)
 }

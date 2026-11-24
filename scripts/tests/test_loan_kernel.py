@@ -1651,7 +1651,9 @@ class LoanKernelCases(unittest.TestCase):
                      "real_borrowed_closure_from_moved_mut_ref_allows_shared_read",
                      "real_borrowed_closure_from_mut_call_allows_shared_read",
                      "real_mut_closure_local_sync_and_mixed_capture_ok",
-                     "real_mut_closure_on_inout_param_kernel_extension_ok"):
+                     "real_mut_closure_on_inout_param_kernel_extension_ok",
+                     "user_classes_named_like_internal_closures_ok",
+                     "mut_closure_direct_shared_call_capture_ok"):
             self.assertTrue(lowered[name][2], name)
         for name in ("real_borrowed_closure_local_blocks_write",
                      "real_borrowed_closure_return_local_l0137",
@@ -1670,7 +1672,13 @@ class LoanKernelCases(unittest.TestCase):
                      "real_mut_closure_not_copyable",
                      "real_mut_closure_generic_copyable_rejected",
                      "real_mut_closure_return_with_from_l0137",
-                     "real_mut_closure_deliver_own_l0137"):
+                     "real_mut_closure_deliver_own_l0137",
+                     "generic_duplicate_closure_preserves_origin_k1",
+                     "generic_duplicate_closure_origins_preserves_origin_k1",
+                     "closure_move_r_with_active_exclusive_child_k4",
+                     "mut_closure_shared_ref_not_transferable_cap",
+                     "borrowed_closure_shared_ref_not_transferable_cap",
+                     "mut_closure_direct_shared_call_blocks_write_k1"):
             self.assertFalse(lowered[name][2], name)
         l0137 = [line for rule, line, _ in diags if rule == "L0137"]
         self.assertEqual(13, len(l0137))
@@ -1707,6 +1715,10 @@ class LoanKernelCases(unittest.TestCase):
             ("TYPE", find_line("local_borrow_write_via_mut_ref_hole", "write_item(&mut fa)")),
             ("TYPE", find_line("local_borrow_escapable_t_hole", "take_escapable_mut(&mut fa)")),
             ("TYPE", find_line("local_borrow_store_concrete_into_borrow_slot", "val rb = &mut fa")),
+            ("TYPE", find_line("local_borrow_scalar_write_via_mut_ref_hole", "write_int(&mut r)")),
+            ("TYPE", find_line("local_borrow_view_constructor_peel_hole", "val s = Slot(&mut fa)")),
+            ("TYPE", find_line("local_borrow_origins_preserves_inner_loan", "val g = copy_inner(&fa)")),
+            ("TYPE", find_line("local_borrow_origins_preserves_inner_loan", "read_item(g)")),
             ("TYPE", find_line("local_inout_write_via_mut_ref", "write_item(&mut fm)")),
             ("TYPE", find_line("local_borrow_read_via_ref", "read_item(&fa)")),
             ("TYPE", find_line("local_borrow_view_t_contrast", "take_view_mut(&mut fa)")),
@@ -1724,6 +1736,8 @@ class LoanKernelCases(unittest.TestCase):
         self.assertTrue(forbid_lowered["local_borrow_reborrow_and_field_proj_ok"][2])
         self.assertFalse(forbid_lowered["local_borrow_write_via_mut_ref_hole"][2])
         self.assertFalse(forbid_lowered["local_borrow_escapable_t_hole"][2])
+        self.assertFalse(forbid_lowered["local_borrow_scalar_write_via_mut_ref_hole"][2])
+        self.assertFalse(forbid_lowered["local_borrow_view_constructor_peel_hole"][2])
 
         # 3. 候选策略 second_order：保留内层借用类型，堵住扁平化漏洞并支持 *rb = &b 重绑定且追踪新来源。
         second_lowered = {}
@@ -1733,6 +1747,9 @@ class LoanKernelCases(unittest.TestCase):
             ("TYPE", find_line("local_borrow_write_via_mut_ref_hole", "write_item(&mut fa)")),
             ("K17", find_line("local_borrow_escapable_t_hole", "take_escapable_mut(&mut fa)")),
             ("X1", find_line("local_borrow_store_concrete_into_borrow_slot", "*rb = Item(9)")),
+            ("TYPE", find_line("local_borrow_scalar_write_via_mut_ref_hole", "write_int(&mut r)")),
+            ("TYPE", find_line("local_borrow_view_constructor_peel_hole", "val s = Slot(&mut fa)")),
+            ("K1", find_line("local_borrow_origins_preserves_inner_loan", "write_item(&mut a)")),
             ("TYPE", find_line("local_inout_write_via_mut_ref", "write_item(&mut fm)")),
             ("TYPE", find_line("local_borrow_read_via_ref", "read_item(&fa)")),
             ("K1", find_line("local_borrow_rebind_protects_new_source", "write_item(&mut b)")),
@@ -1748,8 +1765,11 @@ class LoanKernelCases(unittest.TestCase):
         self.assertTrue(second_lowered["local_borrow_reborrow_and_field_proj_ok"][2])
         self.assertFalse(second_lowered["local_borrow_write_via_mut_ref_hole"][2])
         self.assertFalse(second_lowered["local_borrow_escapable_t_hole"][2])
-        self.assertFalse(second_lowered["local_borrow_rebind_protects_new_source"][2])
         self.assertFalse(second_lowered["local_borrow_store_concrete_into_borrow_slot"][2])
+        self.assertFalse(second_lowered["local_borrow_scalar_write_via_mut_ref_hole"][2])
+        self.assertFalse(second_lowered["local_borrow_view_constructor_peel_hole"][2])
+        self.assertFalse(second_lowered["local_borrow_origins_preserves_inner_loan"][2])
+        self.assertFalse(second_lowered["local_borrow_rebind_protects_new_source"][2])
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
