@@ -1354,9 +1354,27 @@ fun probe(borrow h: A): Unit {
 `Z45.lk` 在借用原型中引入一等闭包表达式 `closure(...)` / `mut_closure(...)` 与 `Closure` 类型，专门补齐 §82 中 `SharedCap` 视图无法替代的 **Guide 07 真实闭包 `L0137` 逃逸检验**（不修改现行 Guide，非正式批准）：
 
 - **无捕获普通闭包（`closure()`）**：不携带 loan，满足 `Copyable`、`Escapable` 与 `Transferable`，可直接 `return`、存入类字段或交给 `own`（`Value`）参数。
-- **真实普通闭包（`closure(h)` / `closure(&a)`）与 1A 重借配合**：捕获裸 `borrow`/`inout` 参数时直接对所指对象建立共享重借（不取参数槽地址）；在定义函数内支持局部绑定、`apply_sync(&f)` 与直接 `apply_sync(closure(h))` 同步调用，活跃期允许外部共享读 `read_item(h)`、阻断外部写（`K1`/`K4`），最后一次使用后 ASAP 释放。
-- **全逃逸路径一律报 `L0137`（与 `view class ... from h` 明确区分）**：带任意捕获的普通闭包或可变闭包在以下位置均固定报 `L0137`——① `return`（**即使函数签名显式声明了 `from h` 或经局部 `move` 重绑后返回，仍报 `L0137`**）；② 存入普通类或视图字段（构造器与字段赋值均报 `L0137`）；③ 交给 `own`（`Value`）参数；④ 经生成器 `yield` 产出。
-- **真实可变闭包（`mut_closure(&mut a)` / `mut_closure(h)`）**：建立独占 loan，活跃期阻断外部读与写（`K1`/`K4`），不可隐式复制（`K8`），同步消费后释放，逃逸同样报 `L0137`。
+- **真实普通闭包（`closure(h)` / `closure(&a)`）与 1A 重借配合**：捕获裸 `borrow`/`inout` 参数、移动进来的独占引用（`closure(move r)`）或返回 `inout` 借用的调用表达式（`closure(get_mut(&mut a))`）时，均对所指对象建立共享重借（不取参数槽地址）；在定义函数内支持局部绑定、`apply_sync(&f)`、`inspect_copyable(&f)`（泛型能力检查保留内部 `BorrowedClosure`/`MutClosure` 类型）与直接 `apply_sync(closure(h))` 同步调用，活跃期允许外部共享读 `read_item(h)`、阻断外部写（`K1`/`K4`），最后一次使用后 ASAP 释放。
+- **全逃逸路径一律报 `L0137`（与 `view class ... from h` 明确区分）**：带任意捕获的普通闭包或可变闭包在以下位置均固定报 `L0137`——① `return`（**即使函数签名显式声明了 `from h`、经局部 `move` 重绑，或由空捕获 `Closure` 经重新赋值 / 分支合流变为带捕获闭包后再返回，仍报 `L0137`**）；② 存入普通类或视图字段（构造器与字段赋值均报 `L0137`）；③ 交给 `own`（`Value`）参数；④ 经生成器 `yield` 产出。同时按值 `Closure` 槽位（构造器、字段赋值、`own` 参数、`return` 与 `yield`）均核对拥有值类型，拒绝将局部闭包引用 `&f` 装入 `BoxedClosure(&f)`（报 `TYPE`）。
+- **真实可变闭包（`mut_closure(&mut a, &b)`）**：按实参逐项决定借用模式——`&mut a` 建立独占 loan（活跃期阻断外部读与写，`K1`/`K4`），同一闭包中的只读捕获 `&b` 保持共享读权限（外部可读不可写）；不可隐式复制（`K8`），同步消费后释放，逃逸同样报 `L0137`。现行 Guide 07 将可变捕获限定于定义函数的局部 `var`（`real_mut_closure_local_sync_and_mixed_capture_ok`）；对裸 `inout` 参数的可变捕获（`real_mut_closure_on_inout_param_kernel_extension_ok`）仅在用例中单列为候选内核扩展对照，不作为现行 Guide 07 规则。
+
+## 84. 局部借用变量显式取址的三策略对照实验（2026-11-24 补充）
+
+§82 的 1A 讨论共识仅限定禁止对裸 `borrow` / `inout` **参数**显式取址，局部借用变量（如 `val fa = &hb.a; &fa` / `&mut fa`）单列为待定范围决定。`Z46.lk` 与 `Checker(..., local_borrow_ref_policy=...)` 提供三策略对照（默认仍保持 `undecided`，不改变 `Z44.lk` 现有行为，不构成正式裁决）：
+
+| 对照用例（`Z46.lk`） | 当前默认 `undecided` | 候选 1A-ext `forbid` | 候选二层借用 `second_order` |
+|---|---|---|---|
+| `val fa = &hb.a; write_item(&mut fa)` | **漏报（接受）**（扁平化为 `inout Item`） | `TYPE`（禁止局部借用取址） | `TYPE`（`inout (borrow Item)` 不匹配 `inout Item`） |
+| `val fa = &hb.a; take_escapable_mut(&mut fa)` | **漏报（接受）**（扁平化为 `Item` 绕过 `<T>`） | `TYPE` | `K17`（`borrow Item` 不可逃逸） |
+| `val rb = &mut fa; *rb = Item(9)` | **漏报（接受）**（扁平化为 `inout Item`） | `TYPE`（`&mut fa` 已拒） | `X1`（不能将 `Item` 写入 `borrow Item` 槽） |
+| `val fm = &mut hm.b; write_item(&mut fm)` / `read_item(&fa)` | 接受（误扁平化） | `TYPE` | `TYPE`（二层借用不匹配一层形参） |
+| `take_view_mut(&mut fa)`（`<view T>`） | 接受（`T = Item`） | `TYPE`（封堵后门） | 接受（`T = borrow Item`） |
+| `val rb = &mut fa; *rb = &b` 重绑并追踪新来源 `b` | `X1`（扁平化拒绝） | `TYPE` + `X1` | 接受；写新来源 `b` 报 `K1`，旧来源 `a` 可写 |
+| `val ra = &fa; fa = &b; write_item(&mut a); use(ra)` | 两处 `K1` | `TYPE`（`&fa` 已拒） | 两处 `K1`（K3 传递保活 `fa` 与底层 `a`） |
+| `return &fa`（签名声明 `from hb`） | `K6` | `TYPE` | `TYPE` + `K6` |
+| 实参重借、字段投影、显式 `Slot(fm)` 与 `write_item(fa)` | 接受 / `K1` | 接受 / `K1` | 接受 / `K1` |
+
+结论：当前 `undecided` 的扁平化实现在局部借用变量上存在三处可复现的类型/借用漏洞（共享借用经 `&mut fa` 提权为可写、绕过 `<T>` 可逃逸上界、经 `*rb = Item(9)` 写入非借用值）。后续裁决须在 **1A-ext（`forbid`，零新增类型语法，直接把 1A 扩展到所有局部借用变量）** 与 **显式二层借用（`second_order`，须引入一等 `borrow (borrow T)` / `inout (borrow T)` 类型与 `*rb = &b` 槽位来源更新）** 之间二选一，不可长期停留在扁平化状态。
 
 
 

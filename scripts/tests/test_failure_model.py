@@ -78,6 +78,36 @@ class ScopeCancelDrainExtendedModel(unittest.TestCase):
             with self.subTest(policy=name):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.scope_cancel_drain_extended_model(policy)))
 
+    def test_reblock_bounded_state_graph_is_acyclic(self):
+        """reblocked_once 有界化后，安全候选策略的状态转移图严格无环（不存在 cleaning <-> reblocked 无限循环）。"""
+        policy = MODEL.SCOPE_CANCEL_DRAIN_EXTENDED_POLICIES["候选策略1：丢Job不取消、重阻塞可唤醒、多错保留首错、deinit失败终止"]
+        captured = {}
+        original_explore = MODEL.explore
+
+        def capture(initial, events, violations, final_notes):
+            captured["initial"] = initial
+            captured["events"] = events
+            return original_explore(initial, events, violations, final_notes)
+
+        MODEL.explore = capture
+        try:
+            MODEL.scope_cancel_drain_extended_model(policy)
+        finally:
+            MODEL.explore = original_explore
+
+        visiting, visited = set(), set()
+
+        def dfs(state):
+            visiting.add(state)
+            for _, nxt in captured["events"](state):
+                self.assertNotIn(nxt, visiting, f"发现状态环：{state} -> {nxt}")
+                if nxt not in visited:
+                    dfs(nxt)
+            visiting.remove(state)
+            visited.add(state)
+
+        dfs(captured["initial"])
+
 
 class IoModel(unittest.TestCase):
     """失败政策：无终结证据时保留资源；保留不了时终止进程，且终止生效前不再释放。"""

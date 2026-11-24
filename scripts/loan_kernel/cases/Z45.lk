@@ -6,9 +6,11 @@ view class ViewClosureBox(cb: Closure)
 
 fun read_item(borrow x: Item): Unit trusted
 fun write_item(inout x: Item): Unit trusted
+fun get_mut(inout x: Item): inout Item from x trusted
 fun apply_sync(borrow f: Closure): Unit trusted
 fun apply_sync_mut(inout f: Closure): Unit trusted
 fun deliver_owned(own f: Closure): Unit trusted
+fun <view T: Copyable> inspect_copyable(borrow x: T): Unit trusted
 
 // ---- 1. 无捕获普通闭包：无 loan，可返回、可存字段、可交给 own（Value）参数
 
@@ -20,7 +22,7 @@ fun empty_closure_can_escape(): Closure {
     return closure()
 }
 
-// ---- 2. 真实普通闭包（borrowed closure）：本地同步消费、存活期外部共享读与 ASAP 释放
+// ---- 2. 真实普通闭包（borrowed closure）：本地同步消费、存活期外部共享读、ASAP 释放与泛型能力检查
 
 fun real_borrowed_closure_sync_and_shared_read_ok(inout h: Item): Unit {
     val f = closure(h)
@@ -34,6 +36,28 @@ fun real_borrowed_closure_direct_sync_arg_ok(inout h: Item): Unit {
     write_item(h)
 }
 
+fun real_borrowed_closure_generic_copyable_ok(borrow h: Item): Unit {
+    val f = closure(h)
+    inspect_copyable(&f)  // 泛型能力检查识别 BorrowedClosure 为 Copyable，不抛 SyntaxProblem
+}
+
+fun real_borrowed_closure_from_moved_mut_ref_allows_shared_read(): Unit {
+    val a = Item(1)
+    val r = &mut a
+    val f = closure(move r) // move 进普通闭包时降级为共享重借，不阻塞外部共享读
+    read_item(&a)
+    apply_sync(&f)
+    write_item(&mut a)
+}
+
+fun real_borrowed_closure_from_mut_call_allows_shared_read(): Unit {
+    val a = Item(1)
+    val f = closure(get_mut(&mut a)) // 返回 inout 的调用进入普通闭包同样建立共享重借
+    read_item(&a)
+    apply_sync(&f)
+    write_item(&mut a)
+}
+
 fun real_borrowed_closure_local_blocks_write(inout h: Item): Unit {
     val a = Item(1)
     val f = closure(&a)
@@ -44,7 +68,7 @@ fun real_borrowed_closure_local_blocks_write(inout h: Item): Unit {
     apply_sync(&g)
 }
 
-// ---- 3. 真实普通闭包逃逸一律报 L0137（即使声明 from 也不得返回，与 view class 区分）
+// ---- 3. 真实普通闭包逃逸一律报 L0137（即使声明 from、重新赋值或分支合流，也不得绕过）
 
 fun real_borrowed_closure_return_local_l0137(): Closure {
     val a = Item(1)
@@ -61,9 +85,31 @@ fun real_borrowed_closure_rebound_move_return_l0137(borrow h: Item): Closure fro
     return move g         // ERR L0137
 }
 
+fun real_borrowed_closure_reassign_escape_l0137(borrow h: Item): Closure from h {
+    val f = closure()
+    f = closure(h)        // 从空捕获重赋为带捕获闭包，须保留捕获状态
+    deliver_owned(f)      // ERR L0137
+    return f              // ERR L0137
+}
+
+fun real_borrowed_closure_branch_join_escape_l0137(borrow h: Item): Closure from h {
+    val f = closure()
+    if (*) {
+        f = closure()
+    } else {
+        f = closure(h)    // 任一分支带捕获，合流后均须按带捕获闭包拦截 L0137
+    }
+    return f              // ERR L0137
+}
+
 fun real_borrowed_closure_store_in_class_field_l0137(borrow h: Item): Unit {
     val b = BoxedClosure(closure(h))  // ERR L0137
     use(b)
+}
+
+fun real_borrowed_closure_ref_into_owned_field_rejected(borrow h: Item): BoxedClosure {
+    val f = closure(h)
+    return BoxedClosure(&f) // ERR TYPE
 }
 
 fun real_borrowed_closure_assign_field_l0137(borrow h: Item): Unit {
@@ -86,14 +132,30 @@ suspend fun real_borrowed_closure_yield_l0137(borrow h: Item): Closure from h {
     return closure()
 }
 
-// ---- 4. 真实可变闭包（mutating closure）：独占捕获、不可复制、逃逸同样报 L0137
+// ---- 4. 真实可变闭包（mutating closure）：Guide 07 局部 var 与混合捕获、不可复制、L0137 逃逸
 
-fun real_mut_closure_sync_and_release_ok(inout h: Item): Unit {
+fun real_mut_closure_local_sync_and_mixed_capture_ok(): Unit {
     val a = Item(1)
-    val f = mut_closure(&mut a)
+    val b = Item(2)
+    val f = mut_closure(&mut a, &b) // 逐项决定模式：a 为独占捕获，b 保持共享捕获
+    read_item(&b)                   // 共享捕获在可变闭包存活期仍可读
     apply_sync_mut(&mut f)
     read_item(&a)
     write_item(&mut a)
+    write_item(&mut b)
+}
+
+fun real_mut_closure_mixed_capture_blocks_shared_write(): Unit {
+    val a = Item(1)
+    val b = Item(2)
+    val f = mut_closure(&mut a, &b)
+    write_item(&mut b)    // ERR K1
+    apply_sync_mut(&mut f)
+}
+
+// 候选内核扩展对照（非现行 Guide 07：Guide 07 仅允许可变闭包写入定义函数的局部 var，禁止写 inout 参数；
+// 此处检验未来内核放宽至 inout 参数时仍受 K4 与 L0137 约束）。
+fun real_mut_closure_on_inout_param_kernel_extension_ok(inout h: Item): Unit {
     val g = mut_closure(h)
     apply_sync_mut(&mut g)
     write_item(h)
@@ -114,6 +176,12 @@ fun real_mut_closure_not_copyable(): Unit {
     val f = mut_closure(&mut a)
     val copy = f          // ERR K8
     use(copy)
+}
+
+fun real_mut_closure_generic_copyable_rejected(): Unit {
+    val a = Item(1)
+    val f = mut_closure(&mut a)
+    inspect_copyable(&f)  // ERR CAP
 }
 
 fun real_mut_closure_return_with_from_l0137(inout h: Item): Closure from h {
