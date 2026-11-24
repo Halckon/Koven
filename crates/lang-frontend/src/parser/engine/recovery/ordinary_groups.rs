@@ -185,6 +185,14 @@ struct OpenGroup {
 }
 
 impl OrdinaryGroups {
+    #[cfg(kani)]
+    pub(super) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            groups: Vec::with_capacity(capacity),
+            active: [0; 3],
+        }
+    }
+
     pub(super) fn is_empty(&self) -> bool {
         self.groups.is_empty()
     }

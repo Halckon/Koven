@@ -1,0 +1,6 @@
+name = "f6_angle_groups"
+version = "0.1.0"
+defaultTargets = ["F6AngleGroups"]
+
+[[lean_lib]]
+name = "F6AngleGroups"

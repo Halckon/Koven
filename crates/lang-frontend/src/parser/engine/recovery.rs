@@ -1,8 +1,11 @@
+#![allow(unexpected_cfgs)]
+
 use super::{class::ClassifierHeaderOwner, *};
 use std::cell::{Cell, OnceCell};
 use std::num::NonZeroUsize;
 
 mod adjacent_poison;
+mod angle_groups;
 mod ordinary_groups;
 
 use adjacent_poison::{AdjacentPoisonTail, ElsePoisonTail};
@@ -607,39 +610,7 @@ fn angle_group_closers(
             Some((raw, kind, opening))
         })
         .collect();
-    let eof = delimiters.len();
-    let mut boundaries = vec![[eof; 8]; eof + 1];
-    let mut matched = vec![None; lexed.lexemes().len()];
-    let closes = |boundary: usize, kind: usize| {
-        delimiters
-            .get(boundary)
-            .is_some_and(|&(_, found, opening)| !opening && found == kind)
-    };
-    for (index, &(raw, kind, opening)) in delimiters.iter().enumerate().rev() {
-        let shape = 1 << kind;
-        for active in 0..8 {
-            boundaries[index][active] = if opening {
-                let end = boundaries[index + 1][active | shape];
-                if closes(end, kind) {
-                    boundaries[end + 1][active]
-                } else {
-                    // 异形 closer 仍交给实际拥有它的祖先，孤立右花括号是硬边界。
-                    end
-                }
-            } else if active & shape != 0 || kind == 2 {
-                index
-            } else {
-                boundaries[index + 1][active]
-            };
-        }
-        if opening {
-            let end = boundaries[index + 1][shape];
-            if closes(end, kind) {
-                matched[raw] = NonZeroUsize::new(delimiters[end].0);
-            }
-        }
-    }
-    matched
+    angle_groups::match_angle_group_delimiters(&delimiters, lexed.lexemes().len())
 }
 
 impl Parser<'_> {
@@ -988,5 +959,7 @@ impl Parser<'_> {
     }
 }
 
+#[cfg(kani)]
+mod angle_group_kani;
 #[cfg(test)]
 mod angle_group_tests;
