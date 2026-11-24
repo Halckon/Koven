@@ -211,8 +211,10 @@ impl OrdinaryGroups {
     #[cfg(any(test, kani))]
     pub(super) fn stack_kind_counts(&self) -> [usize; 3] {
         let mut counts = [0usize; 3];
-        for group in &self.groups {
-            counts[group.kind] += 1;
+        let mut idx = 0usize;
+        while idx < self.groups.len() {
+            counts[self.groups[idx].kind] += 1;
+            idx += 1;
         }
         counts
     }

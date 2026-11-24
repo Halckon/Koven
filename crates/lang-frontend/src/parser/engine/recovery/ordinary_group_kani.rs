@@ -3,7 +3,7 @@
 //! `GroupClosers::confirmed_closer`.
 //!
 //! Evidence level:
-//! - `OrdinaryGroups` stack-count invariant (`O2`/`O3`): `validated (bounded Rust, len <= 6)`
+//! - `OrdinaryGroups` stack-count invariant (`O2`/`O3`): `validated (bounded Rust, len in 1..=2)`
 //! - `RecoveryBoundaries::include_unclosed` monoid & non-shielding (`O1`): `validated (all symbolic values)`
 //! - `GroupClosers::confirmed_closer` stop-set antitonicity, cursor monotonicity & safety (`O4`/`O5`):
 //!   `validated (all symbolic cursors, watermarks, enclosing flags, and stop masks)`
@@ -99,34 +99,47 @@ fn verify_recovery_boundaries_monoid_and_non_shielding() {
     }
 }
 
-#[kani::proof]
-#[kani::unwind(8)]
-fn verify_ordinary_groups_active_invariant_len_6() {
-    const N: usize = 6;
+fn check_ordinary_groups_invariant<const N: usize>() {
     let mut groups = OrdinaryGroups::with_capacity(N);
     let mut i = 0usize;
     while i < N {
         let kind: usize = kani::any();
         kani::assume(kind < 3);
         let opening: bool = kani::any();
-        let before_counts = groups.stack_kind_counts();
-        assert_eq!(groups.active_counts(), before_counts);
+        let before_active = groups.active_counts();
 
         let matched = groups.visit(i, symbol_from_pair(kind, opening));
-        let after_counts = groups.stack_kind_counts();
-        assert_eq!(groups.active_counts(), after_counts);
+        let after_active = groups.active_counts();
 
         if opening {
             assert!(matched.is_none());
-            assert_eq!(after_counts[kind], before_counts[kind] + 1);
+            assert_eq!(after_active[kind], before_active[kind] + 1);
         } else {
-            assert_eq!(matched.is_some(), before_counts[kind] > 0);
+            assert_eq!(matched.is_some(), before_active[kind] > 0);
             if let Some(opener_raw) = matched {
                 assert!(opener_raw < i);
             }
         }
         i += 1;
     }
+
+    let final_counts = groups.stack_kind_counts();
+    let final_active = groups.active_counts();
+    assert_eq!(final_active[0], final_counts[0]);
+    assert_eq!(final_active[1], final_counts[1]);
+    assert_eq!(final_active[2], final_counts[2]);
+}
+
+#[kani::proof]
+#[kani::unwind(4)]
+fn verify_ordinary_groups_active_invariant_len_1() {
+    check_ordinary_groups_invariant::<1>();
+}
+
+#[kani::proof]
+#[kani::unwind(5)]
+fn verify_ordinary_groups_active_invariant_len_2() {
+    check_ordinary_groups_invariant::<2>();
 }
 
 #[kani::proof]

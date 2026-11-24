@@ -67,7 +67,7 @@ theorem maxOpt_atOrAfter_left (cursor : Nat) (a b : Option Nat)
     | some y =>
       simp only [atOrAfter, decide_eq_true_eq] at h
       simp only [maxOpt, atOrAfter, decide_eq_true_eq]
-      omega
+      exact Nat.le_trans h (Nat.le_max_left x y)
 
 theorem maxOpt_atOrAfter_right (cursor : Nat) (a b : Option Nat)
     (h : atOrAfter cursor b = true) :

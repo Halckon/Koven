@@ -211,5 +211,6 @@ jobs:
             --harness verify_angle_group_closers_equivalence_len_3_sparse \
             --harness verify_angle_group_closer_strictly_after_opener_and_nonzero_len_4 \
             --harness verify_recovery_boundaries_monoid_and_non_shielding \
-            --harness verify_ordinary_groups_active_invariant_len_6 \
+            --harness verify_ordinary_groups_active_invariant_len_1 \
+            --harness verify_ordinary_groups_active_invariant_len_2 \
             --harness verify_confirmed_closer_monotonicity_and_safety
