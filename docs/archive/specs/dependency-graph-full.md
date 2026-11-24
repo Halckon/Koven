@@ -482,6 +482,7 @@ subgraph Gactive["现行 active"]
   S0491["S0491<br/>收口 editors/tree-sitter 剩余已知文法漂移（TS-01 / TS-02 / TS-04）"]
   S0492["S0492<br/>F6 第二片 OrdinaryGroups 栈计数不变量与 GroupClosers::confirmed_closer 水位单调性双轨证明"]
   S0493["S0493<br/>F4b 完整文件 Tree-sitter 差分路径触发轻量 CI 接入"]
+  S0494["S0494<br/>F5 表面语法增量门禁脚本化校验与单测"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -2037,6 +2038,7 @@ S0456 --> S0457
 | SPEC-0491 | active | [0491-tree-sitter-remaining-drift-closure.md](../../specs/active/0491-tree-sitter-remaining-drift-closure.md) |
 | SPEC-0492 | active | [0492-f6-ordinary-groups-machine-proof.md](../../specs/active/0492-f6-ordinary-groups-machine-proof.md) |
 | SPEC-0493 | active | [0493-f4b-tree-sitter-difftest-ci.md](../../specs/active/0493-f4b-tree-sitter-difftest-ci.md) |
+| SPEC-0494 | active | [0494-f5-syntax-gate-script.md](../../specs/active/0494-f5-syntax-gate-script.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
