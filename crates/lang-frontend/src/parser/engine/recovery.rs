@@ -555,19 +555,38 @@ struct GroupOwners {
 }
 
 impl GroupOwners {
+    #[cfg(any(test, kani))]
+    fn lexical_depth(&self) -> usize {
+        self.lexical_depth
+    }
+
+    #[cfg(any(test, kani))]
+    fn next_terminal_index(&self) -> usize {
+        self.next_terminal
+    }
+
     fn outside_lexical_symbol(
         &mut self,
         lexeme: Lexeme,
         terminals: &[TerminalOwnerEvent],
     ) -> Option<Symbol> {
+        self.outside_lexical_symbol_parts(lexeme.span().start(), lexeme.kind(), terminals)
+    }
+
+    fn outside_lexical_symbol_parts(
+        &mut self,
+        start: usize,
+        kind: LexemeKind,
+        terminals: &[TerminalOwnerEvent],
+    ) -> Option<Symbol> {
         while terminals
             .get(self.next_terminal)
-            .is_some_and(|event| event.offset <= lexeme.span().start())
+            .is_some_and(|event| event.offset <= start)
         {
             self.lexical_depth -= 1;
             self.next_terminal += 1;
         }
-        match lexeme.kind() {
+        match kind {
             LexemeKind::Token(TokenKind::StringStart | TokenKind::InterpolationStart) => {
                 self.lexical_depth += 1;
                 None
@@ -960,9 +979,17 @@ impl Parser<'_> {
 }
 
 #[cfg(kani)]
+mod adjacent_poison_kani;
+#[cfg(test)]
+mod adjacent_poison_tests;
+#[cfg(kani)]
 mod angle_group_kani;
 #[cfg(test)]
 mod angle_group_tests;
+#[cfg(kani)]
+mod group_owner_kani;
+#[cfg(test)]
+mod group_owner_tests;
 #[cfg(kani)]
 mod ordinary_group_kani;
 #[cfg(test)]
