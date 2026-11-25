@@ -1987,6 +1987,118 @@ suspend fun start_partial_eval_cleanup(): Unit {
         may_fail_call = next(s for s in temp_block.body if s.kind == "call")
         self.assertIn(("#tmp1", False), may_fail_call.cleanup)
 
+    def test_pr464_review3_regressions(self):
+        """PR #464 审阅 3 的 6 项 P2 回归：泛型转发闭包捕获来源、Closure 类型参数、二层存储更新 .origins、借用变量赋值层级、start 二层校验、二层借用 Transferable。"""
+        # 1. 默认策略 P2：泛型转发 borrow T from x 须保留闭包的捕获来源。
+        generic_forward_closure = """
+class Item(x: Int)
+view class Holder(borrow a: Item)
+fun <view T> ident(borrow x: T): borrow T from x {
+    return x
+}
+fun <view T> duplicate(borrow x: T): Holder from x.origins trusted
+fun write_item(inout x: Item): Unit trusted
+fun via_ident(): Unit {
+    val a = Item(1)
+    val f = closure(&a)
+    val g = duplicate(ident(&f))
+    write_item(&mut a)
+    use(g)
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(generic_forward_closure)]
+        self.assertEqual([("K1", 13)], errs)
+
+        # 2. 默认策略 P2：名为 Closure 的泛型类型参数不得被当成内建闭包类型（return / own 实参 / yield）。
+        tparam_named_closure = """
+class Item(x: Int)
+fun <Closure> id(own x: Closure): Closure {
+    return move x
+}
+suspend fun <Closure> gen(own x: Closure): Closure {
+    yield move x
+}
+fun call_tparam_closure(): Unit {
+    val a = id(Item(1))
+    use(a)
+}
+"""
+        self.assertEqual([], CHECKER.check(tparam_named_closure))
+
+        # 3. 候选 second_order P2：经二层引用 *rb = &b 重新赋值后，再经 rb 查询 .origins 须反映 b。
+        second_order_store_origins = """
+class Item(x: Int)
+view class Holder(borrow a: Item)
+fun <view T> copy_inner(borrow x: T): Holder from x.origins trusted
+fun write_item(inout x: Item): Unit trusted
+fun reassign_via_second_order(): Unit {
+    val a = Item(1)
+    val b = Item(2)
+    val fa = &a
+    val rb = &mut fa
+    *rb = &b
+    val g = copy_inner(rb)
+    write_item(&mut b)
+    use(g)
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(
+            second_order_store_origins, local_borrow_ref_policy="second_order")]
+        self.assertEqual([("K1", 13)], errs)
+
+        # 4. 候选 second_order P2：局部借用变量赋值须校验完整借用类型，禁止用 &mut r 覆盖 inout Item 槽位。
+        local_borrow_assign = """
+class Item(x: Int)
+fun write_item(inout x: Item): Unit trusted
+fun bypass_via_assign(): Unit {
+    val a = Item(1)
+    val b = Item(2)
+    val p = &mut a
+    val r = &b
+    p = &mut r
+    write_item(p)
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(
+            local_borrow_assign, local_borrow_ref_policy="second_order")]
+        self.assertEqual([("TYPE", 9)], errs)
+
+        # 5. 候选 second_order P2：start 任务创建须复用 bind_types() 的二层实参校验。
+        start_second_order = """
+class Item(x: Int)
+suspend fun write_item(inout x: Item): Unit {
+    suspend
+}
+suspend fun bypass_via_start(): Unit {
+    val a = Item(1)
+    val r = &a
+    val t = start write_item(&mut r)
+    await t
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(
+            start_second_order, local_borrow_ref_policy="second_order")]
+        self.assertEqual([("TYPE", 9)], errs)
+
+        # 6. 候选 second_order P2：查询二层借用的 Transferable 能力须递归构造内层借用类型，不得抛 Problem。
+        second_order_transferable = """
+cell class Cell(x: Int)
+fun <view T: Transferable> send(own x: T): Unit trusted
+fun check_second_order_caps(): Unit {
+    val n = 1
+    val r = &n
+    val rr = &r
+    send(rr)
+    val c = Cell(1)
+    val rc = &c
+    val rrc = &rc
+    send(rrc)
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(
+            second_order_transferable, local_borrow_ref_policy="second_order")]
+        self.assertEqual([("CAP", 12)], errs)
+
 
 if __name__ == "__main__":
     unittest.main()
