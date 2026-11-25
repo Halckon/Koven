@@ -323,7 +323,7 @@ module.exports = grammar({
       choice($.method_declaration, $.companion_object),
 
     block: ($) =>
-      prec(1, seq("{", repeat(choice($._newline, ";", $._statement)), "}")),
+      prec(1, seq("{", separatedBody($, $._statement), "}")),
 
     _statement: ($) =>
       choice(
@@ -730,13 +730,13 @@ module.exports = grammar({
           repeat($._newline),
           "{",
           optional($.lambda_header),
-          repeat(choice($._newline, ";", $._lambda_element)),
+          separatedBody($, $._lambda_element),
           "}",
         ),
         seq(
           alias($._lambda_lbrace, "{"),
           optional($.lambda_header),
-          repeat(choice($._newline, ";", $._lambda_element)),
+          separatedBody($, $._lambda_element),
           "}",
         ),
       ),
@@ -746,7 +746,7 @@ module.exports = grammar({
         repeat($._crossline_lambda_nl),
         alias($._same_line_trailing_lbrace, "{"),
         optional($.lambda_header),
-        repeat(choice($._newline, ";", $._lambda_element)),
+        separatedBody($, $._lambda_element),
         "}",
       ),
 
@@ -754,7 +754,7 @@ module.exports = grammar({
       seq(
         alias($._same_line_trailing_lbrace, "{"),
         optional($.lambda_header),
-        repeat(choice($._newline, ";", $._lambda_element)),
+        separatedBody($, $._lambda_element),
         "}",
       ),
 
@@ -809,7 +809,7 @@ module.exports = grammar({
     control_body: ($) => choice($.expression, $.control_block),
 
     control_block: ($) =>
-      prec(2, seq(alias($._control_lbrace, "{"), repeat(choice($._newline, ";", $._statement)), "}")),
+      prec(2, seq(alias($._control_lbrace, "{"), separatedBody($, $._statement), "}")),
 
     jump_expression: ($) =>
       choice(
@@ -859,12 +859,26 @@ module.exports = grammar({
 
     _newline: ($) =>
       choice(/(?:\r?\n)+/, alias($.multiline_block_comment, $.block_comment)),
+    _block_separator: ($) => choice($._newline, ";"),
     _file_separator: ($) =>
       choice($._newline, prec.right(seq(";", optional($._newline)))),
     _member_separator: ($) =>
       choice($._newline, prec.right(seq(";", optional($._newline)))),
   },
 });
+
+function separatedBody($, elem) {
+  return seq(
+    repeat($._block_separator),
+    optional(
+      seq(
+        elem,
+        repeat(seq(repeat1($._block_separator), elem)),
+        repeat($._block_separator),
+      ),
+    ),
+  );
+}
 
 function commaSep1(rule) {
   return seq(rule, repeat(seq(",", rule)));
