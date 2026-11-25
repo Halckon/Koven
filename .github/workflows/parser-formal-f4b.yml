@@ -1,0 +1,63 @@
+name: Parser Formal F4b (Tree-sitter Differential)
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'editors/tree-sitter/**'
+      - 'crates/lang-frontend/src/lexer/**'
+      - 'crates/lang-frontend/src/parser/**'
+      - 'crates/lang-frontend/tests/parser_tree_sitter_diff.rs'
+      - '.github/workflows/parser-formal-f4b.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'editors/tree-sitter/**'
+      - 'crates/lang-frontend/src/lexer/**'
+      - 'crates/lang-frontend/src/parser/**'
+      - 'crates/lang-frontend/tests/parser_tree_sitter_diff.rs'
+      - '.github/workflows/parser-formal-f4b.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tree-sitter-differential:
+    name: F4b Rust <-> Tree-sitter Complete-File Differential
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.96.0'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: f4b-ubuntu-24.04-rust-1.96.0-${{ hashFiles('Cargo.lock') }}
+      - name: Install locked Tree-sitter CLI and verify grammar contracts
+        run: |
+          npm ci --prefix editors/tree-sitter
+          npm run generate --prefix editors/tree-sitter
+          git diff --exit-code -- editors/tree-sitter/src
+          npm test --prefix editors/tree-sitter
+      - name: Run Rust <-> Tree-sitter differential suite (fault controls + full CLI diff)
+        run: |
+          set -euo pipefail
+          export KOVEN_TREE_SITTER="$PWD/editors/tree-sitter/node_modules/.bin/tree-sitter"
+          cargo test --locked -p lang-frontend --test parser_tree_sitter_diff -- --nocapture
+          out="$(cargo test --locked -p lang-frontend --test parser_tree_sitter_diff -- --ignored --nocapture)"
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -Eq '^test result: ok\. 2 passed; 0 failed; 0 ignored;'

@@ -6,20 +6,24 @@ on:
       - main
     paths:
       - 'formal/parser/f6_angle_groups/**'
+      - 'formal/parser/f6_ordinary_groups/**'
       - 'crates/lang-frontend/src/parser/engine/recovery.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/angle_groups.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/angle_group_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/ordinary_groups.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/ordinary_group_kani.rs'
       - '.github/workflows/parser-formal-f6.yml'
   push:
     branches:
       - main
     paths:
       - 'formal/parser/f6_angle_groups/**'
+      - 'formal/parser/f6_ordinary_groups/**'
       - 'crates/lang-frontend/src/parser/engine/recovery.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/angle_groups.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/angle_group_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/ordinary_groups.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/ordinary_group_kani.rs'
       - '.github/workflows/parser-formal-f6.yml'
   workflow_dispatch:
 
@@ -32,7 +36,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proof (unbounded P1-P4)
+    name: F6 Lean 4 Model Proofs (unbounded P1-P4 & O1-O5)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -43,19 +47,20 @@ jobs:
           path: |
             ~/.elan
             formal/parser/f6_angle_groups/.lake
-          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain') }}
+            formal/parser/f6_ordinary_groups/.lake
+          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain') }}
       - name: Install elan if missing
         run: |
           if ! command -v elan >/dev/null 2>&1; then
             curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
           fi
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      - name: Build Lean 4 proof library with warnings as errors
+      - name: Build F6AngleGroups with warnings as errors
         working-directory: formal/parser/f6_angle_groups
         run: |
           lake build
           lake env lean -DwarningAsError=true F6AngleGroups.lean
-      - name: Verify theorem axiom dependencies (only core Lean axioms)
+      - name: Verify F6AngleGroups theorem axiom dependencies
         working-directory: formal/parser/f6_angle_groups
         run: |
           set -euo pipefail
@@ -102,11 +107,85 @@ jobs:
           missing = expected - seen
           if missing:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
-          print("all 4 theorems depend only on allowed core Lean axioms")
+          print("all 4 F6AngleGroups theorems depend only on allowed core Lean axioms")
+          PY
+      - name: Build F6OrdinaryGroups with warnings as errors
+        working-directory: formal/parser/f6_ordinary_groups
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6OrdinaryGroups.lean
+      - name: Verify F6OrdinaryGroups theorem axiom dependencies
+        working-directory: formal/parser/f6_ordinary_groups
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6OrdinaryGroups
+          #print axioms F6OrdinaryGroups.includeUnclosed_assoc
+          #print axioms F6OrdinaryGroups.includeUnclosed_comm
+          #print axioms F6OrdinaryGroups.includeUnclosed_idem
+          #print axioms F6OrdinaryGroups.includeUnclosed_preserves_child_local
+          #print axioms F6OrdinaryGroups.includeUnclosed_preserves_child_else
+          #print axioms F6OrdinaryGroups.includeUnclosed_preserves_child_block
+          #print axioms F6OrdinaryGroups.includeUnclosed_preserves_child_sep
+          #print axioms F6OrdinaryGroups.popUntil_complete_and_wf
+          #print axioms F6OrdinaryGroups.visitGroup_preserves_wf
+          #print axioms F6OrdinaryGroups.visitGroup_close_matches_iff
+          #print axioms F6OrdinaryGroups.runEvents_preserves_wf
+          #print axioms F6OrdinaryGroups.confirmedCloser_antitone_stops
+          #print axioms F6OrdinaryGroups.confirmedCloser_monotone_cursor
+          #print axioms F6OrdinaryGroups.confirmedCloser_boundary_safety
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6OrdinaryGroups.includeUnclosed_assoc",
+              "F6OrdinaryGroups.includeUnclosed_comm",
+              "F6OrdinaryGroups.includeUnclosed_idem",
+              "F6OrdinaryGroups.includeUnclosed_preserves_child_local",
+              "F6OrdinaryGroups.includeUnclosed_preserves_child_else",
+              "F6OrdinaryGroups.includeUnclosed_preserves_child_block",
+              "F6OrdinaryGroups.includeUnclosed_preserves_child_sep",
+              "F6OrdinaryGroups.popUntil_complete_and_wf",
+              "F6OrdinaryGroups.visitGroup_preserves_wf",
+              "F6OrdinaryGroups.visitGroup_close_matches_iff",
+              "F6OrdinaryGroups.runEvents_preserves_wf",
+              "F6OrdinaryGroups.confirmedCloser_antitone_stops",
+              "F6OrdinaryGroups.confirmedCloser_monotone_cursor",
+              "F6OrdinaryGroups.confirmedCloser_boundary_safety",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 14 F6OrdinaryGroups theorems depend only on allowed core Lean axioms")
           PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proof (sharded n <= 3 equiv + n = 4 P4)
+    name: F6 Kani Bounded Rust Proofs (angle_groups & ordinary_groups)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -130,7 +209,7 @@ jobs:
           if [ ! -x "$HOME/.kani/kani-0.68.0/toolchain/bin/rustc" ]; then
             cargo kani setup
           fi
-      - name: Run bounded angle-group Kani harnesses
+      - name: Run bounded F6 Kani harnesses
         run: |
           cargo kani -p lang-frontend --lib \
             --harness verify_angle_group_closers_equivalence_len_0 \
@@ -138,4 +217,8 @@ jobs:
             --harness verify_angle_group_closers_equivalence_len_2 \
             --harness verify_angle_group_closers_equivalence_len_3_dense \
             --harness verify_angle_group_closers_equivalence_len_3_sparse \
-            --harness verify_angle_group_closer_strictly_after_opener_and_nonzero_len_4
+            --harness verify_angle_group_closer_strictly_after_opener_and_nonzero_len_4 \
+            --harness verify_recovery_boundaries_monoid_and_non_shielding \
+            --harness verify_ordinary_groups_active_invariant_len_1 \
+            --harness verify_ordinary_groups_active_invariant_len_2 \
+            --harness verify_confirmed_closer_monotonicity_and_safety

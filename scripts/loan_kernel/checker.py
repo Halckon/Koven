@@ -436,6 +436,14 @@ class Parser:
             inner = self.expr()
             self.expect(")")
             return Expr("pack", line, site, name=name, args=[inner])
+        if tok in ("closure", "mut_closure") and self.peek(1) == "(":
+            self.next()
+            self.expect("(")
+            args = []
+            while not self.accept(")"):
+                args.append(self.expr())
+                self.accept(",")
+            return Expr("closure", line, site, mut=(tok == "mut_closure"), args=args)
         if tok == "&":
             self.next()
             mut = self.accept("mut")
@@ -591,7 +599,7 @@ class Checker:
             return CAP.Ty("Any")
         if self.carrier(name):
             return CAP.Ty(name, (CAP.Ty("inout", (CAP.Ty("Unit"),)),))  # 实参取一个携带来源、不可复制的代表
-        return CAP.Ty("Unit" if name.startswith("fn ") else name)
+        return CAP.Ty("Unit" if name.startswith("fn ") or name == "Closure" else name)
 
     def carrier(self, name):
         return name in self.classes and self.classes[name].carrier
@@ -609,10 +617,20 @@ class Checker:
         return CAP.Decl(decl.name, params, fields, "view" if decl.is_view else "class", deinit=decl.deinit,
                         bounds={p: set() for p in params}, relaxed={p: {"Escapable"} for p in params}, line=decl.line)
 
+    @staticmethod
+    def is_capturing_closure(ty):
+        return ty.kind == "closure" and ty.name in ("BorrowedClosure", "MutClosure")
+
     def has(self, cap, ty):
         """类型 ty 的值是否满足能力 cap。类型参数只凭它声明的上界；任务一律不满足。"""
         if ty.kind in ("int", "unit", "fn"):
             return True
+        if ty.kind == "closure":
+            if ty.name == "Closure":
+                return True
+            if ty.name == "BorrowedClosure":
+                return cap in ("Copyable", "EarlyDrop", "Forgettable", "ImplicitDrop")
+            return cap in ("EarlyDrop", "Forgettable", "ImplicitDrop")
         if ty.kind == "task":
             return False
         if ty.kind == "opaque" or ty.name in self.fun.tparams:
@@ -631,6 +649,8 @@ class Checker:
             return INT
         if name == "Unit":
             return UNIT
+        if name == "Closure":
+            return Type("closure", "Closure")
         if name.startswith("any "):
             return Type("any", name)
         if name.startswith("fn "):
@@ -825,7 +845,10 @@ class Checker:
                 self.error("X1", fun.ret.line, f"声明返回槽位访问 {wanted}，不能返回载荷访问或具体类型 {returned.ty.name}")
             if not kind and wanted in self.classes and wanted not in fun.tparams and returned.ty != self.type_of(wanted):
                 self.error("TYPE", fun.ret.line, f"返回值须是拥有的 {wanted}，不能返回 {returned.ty.kind} {returned.ty.name}")
-            self.check_contract(returned, fun)
+            if self.is_capturing_closure(returned.ty):
+                self.error("L0137", fun.ret.line, "带借用捕获的普通闭包不得逃出定义函数（即使声明 from 也不得返回）")
+            else:
+                self.check_contract(returned, fun)
             self.drop_temps(state, set(), fun.ret.line)
             self.flush_temps(prev_out, fun.ret.line)
         self.check_flows(state, fun)
@@ -869,7 +892,7 @@ class Checker:
         """类型的值是否一定不携带来源：含借用字段的视图、借用值与 view T 不是，其余都是。"""
         if ty_name in self.classes:
             return self.has("Escapable", self.type_of(ty_name))
-        return ty_name not in self.fun.views and not ty_name.startswith(("borrow ", "inout "))
+        return ty_name not in self.fun.views and ty_name not in ("BorrowedClosure", "MutClosure") and not ty_name.startswith(("borrow ", "inout "))
 
     def escapable_in(self, fun, ty_name):
         """签名检查时函数体还没有开始，能力判定里的类型参数取这个签名的。"""
@@ -1292,6 +1315,8 @@ class Checker:
             return self.borrow(expr, expr.place, expr.mut, state)
         if expr.kind == "call":
             return self.construct(expr, state) if expr.name in self.classes else self.call(expr, state)
+        if expr.kind == "closure":
+            return self.closure(expr, state)
         if expr.kind == "start":
             return self.start(expr, state)
         if expr.kind == "pack":
@@ -1534,8 +1559,29 @@ class Checker:
         self.pending.append(entry)
         info.kind = kind
 
+    def closure(self, expr, state):
+        """Guide 07 真实普通/可变闭包：捕获借用建立 shared/excl loan，非空捕获不得逃出定义函数（L0137）。"""
+        held, pushed = set(), 0
+        mode = "inout" if expr.mut else "borrow"
+        stored_kind = "excl" if expr.mut else "shared"
+        outer_after, outer_live = self.after, self.live
+        for index, arg in enumerate(expr.args):
+            self.arg_liveness(expr.args, index, outer_after)
+            val = self.argument(arg, mode, state, stored_kind=stored_kind)
+            held |= val.all_loans()
+            self.pending.append(val.all_loans())
+            pushed += 1
+        self.after, self.live = outer_after, set(outer_after) if self.sub_stmt_liveness else outer_live
+        del self.pending[len(self.pending) - pushed:]
+        if not expr.args:
+            return Value(Type("closure", "Closure"))
+        return Value(Type("closure", "MutClosure" if expr.mut else "BorrowedClosure"), {"*": held})
+
     def check_owned_argument(self, fun, mode, wanted, value, line):
-        """具体类的 own 参数要取得这个类的值，而不是同名类型的借用。"""
+        """具体类的 own 参数要取得这个类的值，而不是同名类型的借用；带捕获闭包不得交给 own 参数（L0137）。"""
+        if mode == "own" and self.is_capturing_closure(value.ty):
+            self.error("L0137", line, "带借用捕获的普通闭包不得交给 own（Value）参数")
+            return
         if mode == "own" and wanted in self.classes and wanted not in fun.tparams and value.ty != self.type_of(wanted):
             self.error("TYPE", line, f"own {wanted} 不能接收 {value.ty.kind} {value.ty.name}")
 
@@ -1544,6 +1590,9 @@ class Checker:
         if mode == "own":
             return self.value(expr, state)
         mut = mode == "inout"
+        if expr.kind == "closure":
+            tmp = self.materialize_temp(self.closure(expr, state), state, expr.line, site=expr.site)
+            return self.borrow(expr, Place(tmp, [], expr.line), mut, state, stored_kind, reserved)
         if expr.kind == "ref":
             if expr.mut != mut:
                 self.error("TYPE", expr.line, f"{mode} 位置的实参写法不符")
@@ -1614,7 +1663,9 @@ class Checker:
         for index, ((kind, name, fty), arg) in enumerate(zip(decl.fields, expr.args)):
             self.arg_liveness(expr.args, index, outer_after)
             val = self.argument(arg, kind or "own", state)
-            if not kind and fty in self.classes and val.ty != self.type_of(fty):
+            if not kind and self.is_capturing_closure(val.ty):
+                self.error("L0137", arg.line, "带借用捕获的普通闭包不得存入类或视图字段")
+            elif not kind and fty in self.classes and val.ty != self.type_of(fty):
                 self.error("TYPE", arg.line, f"{decl.name}.{name} 要求拥有的 {fty}，不能接收 {val.ty.kind} {val.ty.name}")
             if not kind and self.tracked(Var(val.ty, "A", {})) and any(self.has_call(later) for later in expr.args[index + 1:]):
                 staged.append(self.materialize_temp(val, state, arg.line, site=arg.site))
@@ -1916,7 +1967,10 @@ class Checker:
                 self.error("X1", stmt.line, f"声明返回槽位访问 {wanted}，不能返回载荷访问或具体类型 {yielded.ty.name}")
             if not kind and wanted in self.classes and wanted not in self.fun.tparams and yielded.ty != self.type_of(wanted):
                 self.error("TYPE", stmt.line, f"yield 须产出拥有的 {wanted}，不能产出 {yielded.ty.kind} {yielded.ty.name}")
-            self.check_contract(yielded, self.fun, line=stmt.line)
+            if self.is_capturing_closure(yielded.ty):
+                self.error("L0137", stmt.line, "带借用捕获的普通闭包不得经 yield 逃出定义函数")
+            else:
+                self.check_contract(yielded, self.fun, line=stmt.line)
             self.drop_temps(state, stmt.live_out, stmt.line)
             self.flush_temps(prev_out, stmt.line)
             self.live = set(stmt.live_out)
@@ -1942,8 +1996,8 @@ class Checker:
         elif stmt.kind == "use":
             res = self.resolve(state, stmt.place)
             self.access(state, res.targets, res.via, "read", stmt.line)
-            if not stmt.place.fields and res.ty.kind in ("borrow", "inout", "opaque"):
-                key = "*" if res.ty.kind == "opaque" else ""
+            if not stmt.place.fields and res.ty.kind in ("borrow", "inout", "opaque", "closure"):
+                key = "*" if res.ty.kind in ("opaque", "closure") else ""
                 via = set(state[stmt.place.root].loans.get(key, ()))
                 self.access(state, self.places(via), via, "read", stmt.line)
         elif stmt.kind == "assign":
@@ -2091,6 +2145,9 @@ class Checker:
             if self.sub_stmt_liveness:
                 self.live = set(self.after)
             res = self.resolve(state, place)
+            if self.is_capturing_closure(value.ty):
+                self.error("L0137", stmt.line, "带借用捕获的普通闭包不得存入类或视图字段")
+                return
             if not res.crossed and res.ty.kind in ("cls", "view") and res.ty != value.ty:
                 self.error("TYPE", stmt.line, f"字段须接收拥有的 {res.ty.name}，不能写入 {value.ty.kind} {value.ty.name}")
                 return
