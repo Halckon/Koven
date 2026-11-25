@@ -1,0 +1,6 @@
+name = "f6_ordinary_groups"
+version = "0.1.0"
+defaultTargets = ["F6OrdinaryGroups"]
+
+[[lean_lib]]
+name = "F6OrdinaryGroups"

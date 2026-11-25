@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，446 份）"]
+subgraph Garchive["已完成（archive，450 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -455,6 +455,10 @@ subgraph Garchive["已完成（archive，446 份）"]
   S0476["S0476<br/>Conditional leaf实例回放器归位"]
   S0479["S0479<br/>显式词法块 block { ... } 与带括号调用跨行尾 lambda 附着"]
   S0483["S0483<br/>F3d 泛型调用、Lambda 与 SPEC-0479 独立参考解析差分（F3d→F4a）"]
+  S0491["S0491<br/>收口 editors/tree-sitter 剩余已知文法漂移（TS-01 / TS-02 / TS-04）"]
+  S0492["S0492<br/>F6 第二片 OrdinaryGroups 栈计数不变量与 GroupClosers::confirmed_closer 水位单调性双轨证明"]
+  S0493["S0493<br/>F4b 完整文件 Tree-sitter 差分路径触发轻量 CI 接入"]
+  S0494["S0494<br/>F5 表面语法增量门禁脚本化校验与单测"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -2009,6 +2013,10 @@ S0456 --> S0457
 | SPEC-0476 | archive | [0476-conditional-leaf-instance-replay-domain.md](0476-conditional-leaf-instance-replay-domain.md) |
 | SPEC-0479 | archive | [0479-explicit-block-and-crossline-lambda.md](0479-explicit-block-and-crossline-lambda.md) |
 | SPEC-0483 | archive | [0483-f3d-reference-difftest.md](0483-f3d-reference-difftest.md) |
+| SPEC-0491 | archive | [0491-tree-sitter-remaining-drift-closure.md](0491-tree-sitter-remaining-drift-closure.md) |
+| SPEC-0492 | archive | [0492-f6-ordinary-groups-machine-proof.md](0492-f6-ordinary-groups-machine-proof.md) |
+| SPEC-0493 | archive | [0493-f4b-tree-sitter-difftest-ci.md](0493-f4b-tree-sitter-difftest-ci.md) |
+| SPEC-0494 | archive | [0494-f5-syntax-gate-script.md](0494-f5-syntax-gate-script.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |

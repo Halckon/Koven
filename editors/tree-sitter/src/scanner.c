@@ -72,8 +72,7 @@ static bool is_reserved_word(const char *text, size_t length) {
 static int32_t peek_context(TSLexer *lexer, bool *same_line_out) {
   bool same_line = true;
   for (;;) {
-    while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
-           lexer->lookahead == '\r' || lexer->lookahead == '\f') {
+    while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
       lexer->advance(lexer, false);
     }
     if (lexer->lookahead != '/') {
@@ -82,7 +81,8 @@ static int32_t peek_context(TSLexer *lexer, bool *same_line_out) {
     }
     lexer->advance(lexer, false);
     if (lexer->lookahead == '/') {
-      while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+      while (!lexer->eof(lexer) && lexer->lookahead != '\n' &&
+             lexer->lookahead != '\r') {
         lexer->advance(lexer, false);
       }
       *same_line_out = false;
@@ -104,15 +104,26 @@ static int32_t peek_context(TSLexer *lexer, bool *same_line_out) {
   }
 }
 
-// Advance past whitespace and comments (optionally including newlines) during
-// pure lookahead (after mark_end has already been placed). Returns the first
-// non-trivia character, or '/' if a bare '/' (not starting a comment) was seen.
+// Advance past whitespace and comments (optionally including LF/CRLF newlines)
+// during pure lookahead (after mark_end has already been placed). Returns the
+// first non-trivia character, or '/' if a bare '/' (not a comment) was seen.
 static int32_t peek_trivia(TSLexer *lexer, bool allow_newlines) {
   for (;;) {
-    while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
-           lexer->lookahead == '\r' || lexer->lookahead == '\f' ||
-           (allow_newlines && lexer->lookahead == '\n')) {
-      lexer->advance(lexer, false);
+    for (;;) {
+      if (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
+          (allow_newlines && lexer->lookahead == '\n')) {
+        lexer->advance(lexer, false);
+        continue;
+      }
+      if (allow_newlines && lexer->lookahead == '\r') {
+        lexer->advance(lexer, false);
+        if (lexer->lookahead == '\n') {
+          lexer->advance(lexer, false);
+          continue;
+        }
+        return '\r';
+      }
+      break;
     }
     if (lexer->lookahead != '/') return lexer->lookahead;
     lexer->advance(lexer, false);
@@ -309,8 +320,7 @@ void tree_sitter_koven_external_scanner_deserialize(void *payload,
 bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
                                              const bool *valid_symbols) {
   (void)payload;
-  while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
-         lexer->lookahead == '\r' || lexer->lookahead == '\f') {
+  while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
     lexer->advance(lexer, true);
   }
 
@@ -319,17 +329,48 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
                                  valid_symbols[NOT_IN] &&
                                  valid_symbols[CONTROL_LBRACE];
 
-  // Cross-line trailing lambda after closed `(...)`: consume only `\n` so
-  // intervening comments stay regular `extras` nodes in the syntax tree.
-  if (!in_error_recovery && valid_symbols[CROSSLINE_LAMBDA_NL] &&
-      lexer->lookahead == '\n') {
-    lexer->advance(lexer, false);
-    lexer->mark_end(lexer);
-    if (peek_trivia(lexer, true) == '{' && !brace_starts_when_entry(lexer)) {
-      lexer->result_symbol = CROSSLINE_LAMBDA_NL;
-      return true;
+  // Cross-line trailing lambda after closed `(...)`: consume LF, CRLF, or a
+  // multiline block comment containing `\n` so intervening single-line comments
+  // stay regular `extras` nodes in the syntax tree.
+  if (!in_error_recovery && valid_symbols[CROSSLINE_LAMBDA_NL]) {
+    if (lexer->lookahead == '\n' || lexer->lookahead == '\r') {
+      if (lexer->lookahead == '\r') {
+        lexer->advance(lexer, false);
+        if (lexer->lookahead != '\n') return false;
+      }
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      if (peek_trivia(lexer, true) == '{' && !brace_starts_when_entry(lexer)) {
+        lexer->result_symbol = CROSSLINE_LAMBDA_NL;
+        return true;
+      }
+      return false;
     }
-    return false;
+    if (lexer->lookahead == '/') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == '*') {
+        lexer->advance(lexer, false);
+        bool star = false;
+        bool saw_newline = false;
+        while (!lexer->eof(lexer)) {
+          const int32_t ch = lexer->lookahead;
+          if (ch == '\n') saw_newline = true;
+          lexer->advance(lexer, false);
+          if (star && ch == '/') {
+            if (saw_newline) {
+              lexer->mark_end(lexer);
+              if (peek_trivia(lexer, true) == '{' && !brace_starts_when_entry(lexer)) {
+                lexer->result_symbol = CROSSLINE_LAMBDA_NL;
+                return true;
+              }
+            }
+            return false;
+          }
+          star = ch == '*';
+        }
+      }
+      return false;
+    }
   }
 
   // `{` disambiguation: control_block > trailing lambda > value lambda.

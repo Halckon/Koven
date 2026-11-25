@@ -1,5 +1,9 @@
 # 完成 Specs
 
+- [SPEC-0494](0494-f5-syntax-gate-script.md)：F5 表面语法增量门禁脚本化校验与单测（9/9），双宿主 CI 验收见 PR #461（run `45385947066`）。
+- [SPEC-0493](0493-f4b-tree-sitter-difftest-ci.md)：F4b 完整文件 Tree-sitter 差分路径触发轻量 CI 接入，验收见 PR #461（run `45385946851` / `45385947066`）。
+- [SPEC-0492](0492-f6-ordinary-groups-machine-proof.md)：F6 第二片 `OrdinaryGroups` 与 `confirmed_closer` 双轨机器证明（Lean 4 14 条定理 / 共 18 条 + Kani 4 个 harness / 共 10 个），验收见 PR #461（run `45385947068` / `45385947066`）。
+- [SPEC-0491](0491-tree-sitter-remaining-drift-closure.md)：收口 `editors/tree-sitter` 剩余已知文法漂移（TS-01 / TS-02 / TS-04；TS-05 同行无分隔符语句拒绝保留为显式开放项），验收见 PR #461（run `45385946851` / `45385947066`）。
 - [SPEC-0483](0483-f3d-reference-difftest.md)：F3d 与 SPEC-0479 独立参考解析差分，双宿主验收见 PR #455。
 - [SPEC-0466](0466-name-resolver-expression-domain.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
 - [SPEC-0467](0467-type-container-and-lambda-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
@@ -17,7 +21,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 444 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 450 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
