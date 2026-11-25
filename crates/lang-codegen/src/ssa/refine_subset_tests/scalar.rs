@@ -492,8 +492,7 @@ fn reassigned_nullable_map_loop_routes_without_construction_or_size() {
     // A Boolean loop avoids an integer arithmetic trigger. The outer null
     // proof is invalidated by assigning null; verify the post-loop comparison
     // rather than triggering refine through a new Map or its size.
-    assert_refines_map_route(
-        r#"fun f(own xs: MutableMap<String, Int>?, run: Boolean): Boolean {
+    let source = r#"fun f(own xs: MutableMap<String, Int>?, run: Boolean): Boolean {
             var cur: MutableMap<String, Int>? = xs
             var repeat = run
             if (cur != null) {
@@ -503,8 +502,40 @@ fn reassigned_nullable_map_loop_routes_without_construction_or_size() {
                 }
             }
             return cur == null
-        }"#,
+        }"#;
+    assert_refines_map_route(source);
+
+    // Keep construction in the entry, not in f, so it cannot mask a
+    // regression in the standalone routing assertion above.
+    let source = format!(
+        "{source}\n{}",
+        r#"fun main(): Unit {
+            if (f(mutableMapOf<String, Int>(), true)) { println("cleared") }
+            else { println("stale non-null state") }
+            if (!f(mutableMapOf<String, Int>(), false)) { println("preserved") }
+            else { println("unexpected null") }
+            if (f(null, true)) { println("absent") }
+            else { println("unexpected map") }
+        }"#
     );
+    let run = crate::native_tests::emit_link_and_run("nullable_map_loop.ko", &source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"cleared\npreserved\nabsent\n");
+}
+
+#[test]
+fn reassigned_nullable_map_loop_reads_size_after_fresh_null_check() {
+    let source = r#"fun f(own xs: MutableMap<String, Int>?): Int {
+            var cur: MutableMap<String, Int>? = xs
+            if (cur != null) {
+                var i = 0
+                while (i < 1) {
+                    cur = mutableMapOf<String, Int>()
+                    i = i + 1
+                }
+            }
+            return if (cur != null) cur.size else 0
+        }"#;
+    assert_refines_map_route(source);
 }
 
 fn assert_refines_map_route(source: &str) {

@@ -20,11 +20,19 @@ fn checked_runtime_callbacks_keep_their_source_and_operand_identity() {
     let plan = fixture.plan();
     assert_eq!(plan, fixture.reversed_plan());
     let lanes = ["helper", "entry"].map(|name| {
-        plan.iter()
-            .find(|instance| instance.key().target() == fixture.target(name))
+        let declaration = declaration(&fixture.names, name);
+        let target = UnitCallableTarget::Declaration(declaration);
+        let token = plan
+            .iter()
+            .find(|instance| instance.key().target() == target)
             .unwrap()
-            .source_token()
+            .source_token();
+        let source =
+            fixture.names.names().index().declarations()[declaration.index()].source_unit();
+        (source, token)
     });
+    assert_ne!(lanes[0].0, lanes[1].0);
+    assert_ne!(lanes[0].1, lanes[1].1);
     let typed = fixture.typed.types();
     let loans = fixture.owned.ownership().loans();
     let constructions = typed
@@ -47,22 +55,26 @@ fn checked_runtime_callbacks_keep_their_source_and_operand_identity() {
             loans.iter().any(|loan| loan.call() == call
                 && action.is_none_or(|argument| loan.argument() == argument))
         );
-        let [(_, token, source)] = lanes
-            .iter()
-            .filter_map(|&source| {
-                plan.callable_plan()
-                    .runtime_callback(source, call)
-                    .map(|token| (call, token, source))
-            })
-            .collect::<Vec<_>>()[..]
-        else {
-            panic!("each callback belongs to exactly one caller: {call:?}");
+        let [(unit_a, token_a), (unit_b, token_b)] = lanes;
+        let (owner, other) = match call.source_unit() {
+            unit if unit == unit_a => (token_a, token_b),
+            unit if unit == unit_b => (token_b, token_a),
+            unit => panic!("unexpected callback source {unit:?} for {call:?}"),
         };
+        let token = plan
+            .callable_plan()
+            .runtime_callback(owner, call)
+            .unwrap_or_else(|| panic!("declaring caller {owner:?} must own {call:?}"));
+        assert_eq!(
+            plan.callable_plan().runtime_callback(other, call),
+            None,
+            "the other caller must not own {call:?}"
+        );
         assert!(tokens.insert(token));
         assert!(matches!(
             plan.callable_plan().callable(token),
-            Some(CallableKey::Lambda { owner, expression })
-                if *owner == source && expression.source_unit() == call.source_unit()
+            Some(CallableKey::Lambda { owner: expected_owner, expression })
+                if *expected_owner == owner && expression.source_unit() == call.source_unit()
                     && action.is_none_or(|argument| *expression == argument)
         ));
     }
