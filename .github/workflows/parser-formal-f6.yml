@@ -8,12 +8,15 @@ on:
       - 'formal/parser/f6_angle_groups/**'
       - 'formal/parser/f6_ordinary_groups/**'
       - 'formal/parser/f6_group_owners/**'
+      - 'formal/parser/f6_adjacent_poison/**'
       - 'crates/lang-frontend/src/parser/engine/recovery.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/angle_groups.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/angle_group_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/ordinary_groups.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/ordinary_group_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/group_owner_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison_kani.rs'
       - '.github/workflows/parser-formal-f6.yml'
   push:
     branches:
@@ -22,12 +25,15 @@ on:
       - 'formal/parser/f6_angle_groups/**'
       - 'formal/parser/f6_ordinary_groups/**'
       - 'formal/parser/f6_group_owners/**'
+      - 'formal/parser/f6_adjacent_poison/**'
       - 'crates/lang-frontend/src/parser/engine/recovery.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/angle_groups.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/angle_group_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/ordinary_groups.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/ordinary_group_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/group_owner_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison_kani.rs'
       - '.github/workflows/parser-formal-f6.yml'
   workflow_dispatch:
 
@@ -40,7 +46,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proofs (unbounded P1-P4, O1-O5 & G1-G4)
+    name: F6 Lean 4 Model Proofs (unbounded P1-P4, O1-O5, G1-G4 & E1-E4)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -53,7 +59,8 @@ jobs:
             formal/parser/f6_angle_groups/.lake
             formal/parser/f6_ordinary_groups/.lake
             formal/parser/f6_group_owners/.lake
-          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain') }}
+            formal/parser/f6_adjacent_poison/.lake
+          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain') }}
       - name: Install elan if missing
         run: |
           if ! command -v elan >/dev/null 2>&1; then
@@ -244,9 +251,63 @@ jobs:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
           print("all 5 F6GroupOwners theorems depend only on allowed core Lean axioms")
           PY
+      - name: Build F6AdjacentPoison with warnings as errors
+        working-directory: formal/parser/f6_adjacent_poison
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6AdjacentPoison.lean
+      - name: Verify F6AdjacentPoison theorem axiom dependencies
+        working-directory: formal/parser/f6_adjacent_poison
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6AdjacentPoison
+          #print axioms F6AdjacentPoison.scanElse_bounds
+          #print axioms F6AdjacentPoison.elsePoisonCache_sound
+          #print axioms F6AdjacentPoison.scanElse_foundElse_is_else
+          #print axioms F6AdjacentPoison.scanAdjacentTail_never_same_line_brace
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6AdjacentPoison.scanElse_bounds",
+              "F6AdjacentPoison.elsePoisonCache_sound",
+              "F6AdjacentPoison.scanElse_foundElse_is_else",
+              "F6AdjacentPoison.scanAdjacentTail_never_same_line_brace",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 4 F6AdjacentPoison theorems depend only on allowed core Lean axioms")
+          PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proofs (angle_groups, ordinary_groups & group_owners)
+    name: F6 Kani Bounded Rust Proofs (angle_groups, ordinary_groups, group_owners & adjacent_poison)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -283,4 +344,5 @@ jobs:
             --harness verify_ordinary_groups_active_invariant_len_1 \
             --harness verify_ordinary_groups_active_invariant_len_2 \
             --harness verify_confirmed_closer_monotonicity_and_safety \
-            --harness verify_group_owners_depth_and_filtering_len_4
+            --harness verify_group_owners_depth_and_filtering_len_4 \
+            --harness verify_else_poison_cache_soundness_len_6

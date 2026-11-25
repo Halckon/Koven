@@ -1,0 +1,6 @@
+name = "f6_adjacent_poison"
+version = "0.1.0"
+defaultTargets = ["F6AdjacentPoison"]
+
+[[lean_lib]]
+name = "F6AdjacentPoison"

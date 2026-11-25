@@ -487,6 +487,7 @@ subgraph Gactive["现行 active"]
   S0490["S0490<br/>F6 首片 angle_group_closers 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI"]
   S0497["S0497<br/>收口 editors/tree-sitter 块与 Lambda 同行无分隔符语句漂移（TS-05 闭环）"]
   S0498["S0498<br/>F6 第三片 GroupOwners 词法深度与 terminal_owner_events 栈平衡双轨证明"]
+  S0499["S0499<br/>F6 第四片 ElsePoisonTail 缓存可靠与同行花括号保留双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -2048,6 +2049,7 @@ S0495 --> S0496
 | SPEC-0490 | active | [0490-f6-angle-group-machine-proof.md](../../specs/active/0490-f6-angle-group-machine-proof.md) |
 | SPEC-0497 | active | [0497-ts05-block-separator-closure.md](../../specs/active/0497-ts05-block-separator-closure.md) |
 | SPEC-0498 | active | [0498-f6-group-owners-machine-proof.md](../../specs/active/0498-f6-group-owners-machine-proof.md) |
+| SPEC-0499 | active | [0499-f6-adjacent-poison-machine-proof.md](../../specs/active/0499-f6-adjacent-poison-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

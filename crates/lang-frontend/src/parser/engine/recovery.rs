@@ -979,6 +979,10 @@ impl Parser<'_> {
 }
 
 #[cfg(kani)]
+mod adjacent_poison_kani;
+#[cfg(test)]
+mod adjacent_poison_tests;
+#[cfg(kani)]
 mod angle_group_kani;
 #[cfg(test)]
 mod angle_group_tests;
