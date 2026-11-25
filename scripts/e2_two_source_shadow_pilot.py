@@ -174,11 +174,11 @@ def write_json_atomic(path: Path, payload: Any) -> None:
 
 
 def is_safe_allowlisted_key(key: str) -> bool:
+    if key in EXACT_CARGO_PACKAGE_ENV_KEYS or key in EXACT_BUILD_AND_TOOLCHAIN_ENV_KEYS:
+        return True
     upper = key.upper()
     if any(marker in upper for marker in SECRET_KEY_SUBSTRINGS):
         return False
-    if key in EXACT_CARGO_PACKAGE_ENV_KEYS or key in EXACT_BUILD_AND_TOOLCHAIN_ENV_KEYS:
-        return True
     if key.startswith("CARGO_BIN_EXE_"):
         return True
     return False
@@ -1230,6 +1230,15 @@ def resolve_candidate_jobs_args(candidate_jobs: str) -> tuple[list[str], str]:
     raise ShadowPilotError("invalid_argument", f"unsupported candidate_jobs={candidate_jobs!r}")
 
 
+def purge_artifacts_dir(artifacts_dir: Path) -> Path:
+    resolved = artifacts_dir.resolve()
+    resolved.mkdir(parents=True, exist_ok=True)
+    (resolved / "ledger.json").unlink(missing_ok=True)
+    (resolved / "failure.json").unlink(missing_ok=True)
+    shutil.rmtree(resolved / "probes", ignore_errors=True)
+    return resolved
+
+
 def run_pilot(
     *,
     manifest: dict[str, Any],
@@ -1244,12 +1253,7 @@ def run_pilot(
     candidate_jobs: str = "manifest",
 ) -> dict[str, Any]:
     """Execute either 'baseline' (Cargo calls) or 'candidate' (builds + probes + direct calls)."""
-    artifacts_dir = artifacts_dir.resolve()
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    # Purge any stale ledger/failure/probes up front so a failed rerun can never leave an old pass ledger behind.
-    (artifacts_dir / "ledger.json").unlink(missing_ok=True)
-    (artifacts_dir / "failure.json").unlink(missing_ok=True)
-    shutil.rmtree(artifacts_dir / "probes", ignore_errors=True)
+    artifacts_dir = purge_artifacts_dir(artifacts_dir)
 
     effective_env = dict(os.environ if env is None else env)
     host_label = effective_env.get("RUNNER_OS") or platform.system()
@@ -1863,6 +1867,17 @@ def compare_ledgers(
             host=host,
         )
 
+    b_flags = baseline.get("build_flags") or {}
+    c_flags = candidate.get("build_flags") or {}
+    fixed_flag_keys = (set(b_flags) | set(c_flags)) - {"cargo_jobs"}
+    for flag_key in sorted(fixed_flag_keys):
+        if b_flags.get(flag_key) != c_flags.get(flag_key):
+            raise ShadowPilotError(
+                "ab_mismatch",
+                f"build_flags.{flag_key} differs: baseline={b_flags.get(flag_key)!r} vs candidate={c_flags.get(flag_key)!r}",
+                host=host,
+            )
+
     b_cfgs = baseline.get("configs", [])
     c_cfgs = candidate.get("configs", [])
     if len(b_cfgs) != len(c_cfgs) or [c["config_id"] for c in b_cfgs] != [c["config_id"] for c in c_cfgs]:
@@ -2158,8 +2173,8 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
     lines = [
         f"## SPEC-0495 E2 Shadow A/B Report (`{suite_label}`)",
         "",
-        "| Suite | Host (CPUs / RAM) | Jobs (A/B) | Cache Phase (A/B) | Hit (A/B) | Entries | Equiv | Baseline Wall (s) | Cand Build+Probe (s) | Cand List+Run (s) | Cand Wall (s) | Peak Child RSS MiB (A / B) | Max Target GiB (A / B) | OOM / Retries |",
-        "|---|---|---|---|---|---:|---|---:|---:|---:|---:|---|---|---|",
+        "| Suite | Scope | Host (CPUs / RAM) | Jobs (A/B) | Cache Phase (A/B) | Hit (A/B) | Listed / Exec | Verdict | Baseline Wall (s) | Cand Build+Probe (s) | Cand List+Run (s) | Cand Wall (s) | Peak Child RSS MiB (A / B) | Max Target GiB (A / B) | OOM / Retries |",
+        "|---|---|---|---|---|---|---:|---|---:|---:|---:|---:|---|---|---|",
     ]
     for comp in comparisons:
         bt = comp["telemetry_comparison"]["baseline"]
@@ -2176,11 +2191,15 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
         ram_gib = f"{hr['total_ram_bytes'] / (1024**3):.1f}G" if hr.get("total_ram_bytes") else "?G"
         jobs = comp.get("cargo_jobs") or {"baseline": "-j1", "candidate": "-j1"}
         s_id = comp.get("suite_id") or suite_label
+        scope = comp.get("execution_scope") or "execute"
+        listed_n = comp["compared_entries"]
+        exec_n = 0 if scope == "list-only" else listed_n
+        verdict = "`LIST-ONLY PASS`" if scope == "list-only" else "`PASS`"
         lines.append(
-            f"| `{s_id}` | `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
+            f"| `{s_id}` | `{scope}` | `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
             f"`{comp['cache_phase']['baseline']}` / `{comp['cache_phase']['candidate']}` | "
             f"`{comp['cache_hit']['baseline']}` / `{comp['cache_hit']['candidate']}` | "
-            f"{comp['compared_entries']} | `PASS` | "
+            f"{listed_n} / {exec_n} | {verdict} | "
             f"{bt['total_wall_seconds']:.2f} | {c_bp:.2f} | {c_lr:.2f} | {ct['total_wall_seconds']:.2f} | "
             f"{b_rss:.1f} / {c_rss:.1f} | {b_tgt:.2f} / {c_tgt:.2f} | `{oom_str}` |"
         )
@@ -2287,13 +2306,32 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.subcommand == "run":
-            manifest = load_manifest(args.manifest)
+            purged_dir = purge_artifacts_dir(args.artifacts)
+            try:
+                manifest = load_manifest(args.manifest)
+            except (OSError, json.JSONDecodeError, ShadowPilotError) as exc:
+                err = (
+                    exc
+                    if isinstance(exc, ShadowPilotError)
+                    else ShadowPilotError("manifest_invalid", f"failed to load manifest {args.manifest}: {exc}")
+                )
+                write_json_atomic(
+                    purged_dir / "failure.json",
+                    {
+                        "schema": LEDGER_SCHEMA,
+                        "status": "failed",
+                        "mode": args.mode,
+                        "execution_scope": "list-only" if args.list_only else "execute",
+                        "error": err.to_dict(),
+                    },
+                )
+                raise err from exc
             ledger = run_pilot(
                 manifest=manifest,
                 root=ROOT,
                 mode=args.mode,
                 list_only=args.list_only,
-                artifacts_dir=args.artifacts,
+                artifacts_dir=purged_dir,
                 candidate_jobs=args.candidate_jobs,
             )
             print(

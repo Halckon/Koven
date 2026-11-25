@@ -119,3 +119,8 @@
 4. **热跑缓存行为与容器路径实测记录**：
    - 首轮容器缓存因 YAML `${{ github.workspace }}`（宿主机 `/home/runner/work/...`）与容器内挂载点（`/__w/...`）不一致仅命中 `~/.cargo`（`2.18 MiB`）；在 `v2` 改用工作区相对路径 `target-e2-shadow-${{ matrix.arm }}` 后，Linux 与 macOS 均已完整保存隔离 target 缓存（分别为 `425 MiB` 与 `783 MiB`）。
    - 同时由首轮 macOS 热跑（精确恢复 `783.5 MiB` 缓存 / `4.19 GiB` target）已证实：因 `actions/checkout@v7` 刷新 `.rs` 源码 `mtime` 且 `CARGO_INCREMENTAL=0`，`target/` 缓存仅能跳过第三方依赖重编，自有巨型 crate 仍会重编；真正决定编译墙钟的杠杆是**放开多核构建**与后续**收敛异构 feature 重编次数 / 拆分巨型单体测试目标**。
+
+### 10.2 归档后审阅勘误（2026-11-25，保留原验收正文不改写）
+
+1. **Linux `-j1` 热跑范围勘误（对应 §5 第 4 条）**：`run 45392390454 attempt 2`（`-j1` 热跑）中 Linux 容器因 `v1` 宿主机/容器路径错位仅恢复了 `2.18 MiB` Cargo registry，并未恢复编译产物 `target/`；后续验证完整恢复 Linux `target/` 编译产物（`2.42 GiB` / `1.46 GiB`）的热跑实测均在 `default` 多核配置下完成（`45419926580 attempt 2`、`45517415215 attempt 2`、`45529296024 attempt 2`），未另行补跑 `-j1` 下的 Linux 完整 target 热跑。
+2. **Crate 规模与耗时归因措辞勘误（对应 §10.1 第 3 条）**：原文“单 `lib.rs` `27.5 万`行 / `52.8 万`行”实际统计对象为 `crates/lang-frontend` 与 `crates/lang-codegen` **整个 crate 目录的物理行数总计**（两份根文件 `lib.rs` 本身在审阅版本中分别为 `34` 行与 `946` 行）；且当前仅记录总墙钟与单子进程峰值 RSS，尚不足以单独定位造成 Linux/macOS 多核加速比差异的具体 `rustc` 编译阶段。

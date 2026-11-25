@@ -769,9 +769,9 @@ class ReplayManifestAndSeparateArtifactLockContracts(unittest.TestCase):
 
 
 class ShadowWorkflowStaticContracts(unittest.TestCase):
+    _shadow_workflow_override: Path | None = None
+
     def test_formal_ci_and_e2_script_are_unmodified_and_shadow_is_isolated(self):
-        self.assertTrue(SHADOW_WORKFLOW_PATH.is_file(), "missing ci-e2-shadow-pilot.yml")
-        shadow = SHADOW_WORKFLOW_PATH.read_text(encoding="utf-8")
         formal = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
         # Formal CI delegates E2 replay and two-source Unit steps to the verified candidate runner while keeping shadow workflow isolated
@@ -792,6 +792,12 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
         self.assertNotIn("bash scripts/check_e2_replay_ci.sh", formal)
         self.assertNotIn("bash scripts/check_e2_two_source_unit_ci.sh", formal)
         self.assertNotIn("ci-e2-shadow-pilot", formal)
+
+    def test_shadow_workflow_isolation_when_present(self):
+        shadow_path = self._shadow_workflow_override or SHADOW_WORKFLOW_PATH
+        if not shadow_path.is_file():
+            self.skipTest(f"{shadow_path.name} absent/rolled back; formal CI remains unblocked")
+        shadow = shadow_path.read_text(encoding="utf-8")
 
         # One-click kill switch present & cancelled shadow runs never produce false-red compare failures
         self.assertIn("KOVEN_E2_SHADOW_PILOT_DISABLED", shadow)
@@ -1316,6 +1322,158 @@ class Pr463ReviewP2RegressionContracts(unittest.TestCase):
                 self.pilot.verify_probe_equivalence(snap1, snap2, host="test", config_id="cfg-rpath")
             self.assertEqual(ctx.exception.kind, "environment_mismatch")
             self.assertIn("resolved_llvm_dylibs", ctx.exception.detail)
+
+
+class Pr463Review2P2RegressionContracts(unittest.TestCase):
+    """Regression contracts for all 6 code/workflow P2 findings from PR #463 review round 2."""
+
+    def setUp(self):
+        self.pilot = load_pilot_module()
+
+    def test_r2_p2_1_missing_shadow_workflow_does_not_fail_formal_ci_tests(self):
+        # Rolling back ci-e2-shadow-pilot.yml must NOT fail ShadowWorkflowStaticContracts
+        orig = SHADOW_WORKFLOW_PATH
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                missing_wf = Path(tmp) / "nonexistent-shadow.yml"
+                suite_test = ShadowWorkflowStaticContracts("test_shadow_workflow_isolation_when_present")
+                suite_test._shadow_workflow_override = missing_wf
+                with self.assertRaises(unittest.SkipTest):
+                    suite_test.test_shadow_workflow_isolation_when_present()
+        finally:
+            self.assertEqual(orig, SHADOW_WORKFLOW_PATH)
+
+    def test_r2_p2_2_invalid_manifest_purges_stale_ledger_before_exit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            reused = tmp_path / "reused-artifacts"
+            reused.mkdir()
+            bad_json = tmp_path / "corrupt.json"
+            bad_json.write_text("{not valid json", encoding="utf-8")
+            bad_schema = tmp_path / "bad_schema.json"
+            bad_schema.write_text(json.dumps({"schema": "wrong"}), encoding="utf-8")
+
+            for label, manifest_arg in [
+                ("missing_manifest", tmp_path / "does-not-exist.json"),
+                ("corrupt_json", bad_json),
+                ("invalid_schema", bad_schema),
+            ]:
+                with self.subTest(case=label):
+                    (reused / "ledger.json").write_text(json.dumps({"status": "pass"}), encoding="utf-8")
+                    (reused / "failure.json").unlink(missing_ok=True)
+                    rc = self.pilot.main(
+                        [
+                            "run",
+                            "--manifest",
+                            str(manifest_arg),
+                            "--mode",
+                            "candidate",
+                            "--list-only",
+                            "--artifacts",
+                            str(reused),
+                        ]
+                    )
+                    self.assertEqual(rc, 1)
+                    self.assertFalse((reused / "ledger.json").exists(), f"stale ledger survived {label}")
+                    self.assertTrue((reused / "failure.json").is_file(), f"missing failure.json for {label}")
+
+    def test_r2_p2_3_comparator_rejects_mismatched_fixed_build_flags_while_allowing_cargo_jobs(self):
+        helper = AntiSkipExpectedFailureAndComparisonContracts()
+        helper.setUp()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            manifest, base_env, target_a, target_b, _ = helper._make_synthetic_harness(tmp_path)
+            base_env["KOVEN_ALLOW_DEFAULT_JOBS"] = "1"
+            ledger_a = self.pilot.run_pilot(
+                manifest=manifest,
+                root=ROOT,
+                mode="baseline",
+                list_only=True,
+                artifacts_dir=tmp_path / "arm-a",
+                env={**base_env, "CARGO_TARGET_DIR": str(target_a), "CARGO_PROFILE_TEST_DEBUG": "1"},
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+            )
+            ledger_b = self.pilot.run_pilot(
+                manifest=manifest,
+                root=ROOT,
+                mode="candidate",
+                list_only=True,
+                artifacts_dir=tmp_path / "arm-b",
+                env={**base_env, "CARGO_TARGET_DIR": str(target_b), "CARGO_PROFILE_TEST_DEBUG": "2"},
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+                candidate_jobs="default",
+            )
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx:
+                self.pilot.compare_ledgers(ledger_a, ledger_b)
+            self.assertEqual(ctx.exception.kind, "ab_mismatch")
+            self.assertIn("build_flags", ctx.exception.detail)
+
+    def test_r2_p2_4_cargo_pkg_authors_is_captured_and_distinguishes_empty_from_missing(self):
+        self.assertTrue(self.pilot.is_safe_allowlisted_key("CARGO_PKG_AUTHORS"))
+        self.assertFalse(self.pilot.is_safe_allowlisted_key("GITHUB_AUTH_TOKEN"))
+        self.assertFalse(self.pilot.is_safe_allowlisted_key("CARGO_BIN_EXE_AUTH_SECRET"))
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            fake_bin = tmp_path / "fake-bin"
+            fake_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            fake_bin.chmod(0o755)
+            env_with_empty = {"PATH": os.environ.get("PATH", ""), "CARGO_PKG_AUTHORS": ""}
+            env_without = {"PATH": os.environ.get("PATH", "")}
+            snap1 = self.pilot.build_probe_snapshot(executable=fake_bin, cwd=tmp_path, env=env_with_empty, inspect_dylibs=False)
+            snap2 = self.pilot.build_probe_snapshot(executable=fake_bin, cwd=tmp_path, env=env_without, inspect_dylibs=False)
+            self.assertIn("CARGO_PKG_AUTHORS", snap1["allowlisted_env"])
+            self.assertEqual(snap1["allowlisted_env"]["CARGO_PKG_AUTHORS"], "")
+            self.assertNotIn("CARGO_PKG_AUTHORS", snap2["allowlisted_env"])
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx:
+                self.pilot.verify_probe_equivalence(snap1, snap2, host="Linux", config_id="cfg1")
+            self.assertEqual(ctx.exception.kind, "environment_mismatch")
+            self.assertIn("CARGO_PKG_AUTHORS", ctx.exception.detail)
+
+    def test_r2_p2_5_list_only_markdown_summary_distinguishes_listed_from_executed(self):
+        helper = AntiSkipExpectedFailureAndComparisonContracts()
+        helper.setUp()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            manifest, base_env, target_a, target_b, _ = helper._make_synthetic_harness(tmp_path)
+            ledger_a = self.pilot.run_pilot(
+                manifest=manifest,
+                root=ROOT,
+                mode="baseline",
+                list_only=True,
+                artifacts_dir=tmp_path / "arm-a",
+                env={**base_env, "CARGO_TARGET_DIR": str(target_a)},
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+            )
+            ledger_b = self.pilot.run_pilot(
+                manifest=manifest,
+                root=ROOT,
+                mode="candidate",
+                list_only=True,
+                artifacts_dir=tmp_path / "arm-b",
+                env={**base_env, "CARGO_TARGET_DIR": str(target_b)},
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+            )
+            comp = self.pilot.compare_ledgers(ledger_a, ledger_b)
+            md = self.pilot.render_markdown_summary([comp])
+            self.assertIn("`list-only`", md)
+            self.assertIn("3 / 0", md)
+            self.assertIn("`LIST-ONLY PASS`", md)
+
+    def test_r2_p2_6_shadow_pr_paths_only_trigger_on_replay_suite_files(self):
+        shadow = SHADOW_WORKFLOW_PATH.read_text(encoding="utf-8")
+        pr_section = shadow.split("  pull_request:\n", 1)[1].split("permissions:\n", 1)[0]
+        self.assertIn("scripts/e2_replay_manifest.json", pr_section)
+        self.assertIn("scripts/check_e2_replay_ci.sh", pr_section)
+        self.assertNotIn("scripts/e2_two_source_unit_manifest.json", pr_section)
+        self.assertNotIn("scripts/check_e2_two_source_unit_ci.sh", pr_section)
 
 
 if __name__ == "__main__":

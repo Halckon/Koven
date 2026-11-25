@@ -59,5 +59,5 @@
 
 | 验收项 / 命令 | 结果 | 备注 |
 |---|---|---|
-| `python3 -m unittest`（`ShadowWorkflowStaticContracts` + `test_ci_debug_profile` + `test_ubuntu26_ci` + `test_pr_ci_reuse` + `test_check_ci_results` + `test_llvm_install_bounds`） | 通过：95/95 全绿 | 先红后绿（TDD），确认既有 `ci.yml` 缓存与门禁合同零受影响 |
+| `python3 -m unittest`（`ShadowWorkflowStaticContracts` + `Pr463Review2P2RegressionContracts` + `test_ci_debug_profile` + `test_ubuntu26_ci` + `test_pr_ci_reuse` + `test_check_ci_results` + `test_llvm_install_bounds`） | 通过：102/102 全绿（含 PR #463 二轮审阅 6 项代码/工作流 P2 回归与 2 项 `SPEC-0495` 归档勘误） | 先红后绿（TDD），确认既有 `ci.yml` 缓存与门禁合同零受影响 |
 | `python3 scripts/check_docs.py`、`python3 scripts/check_syntax_gate.py --check-file docs/specs/active/0496-formal-e2-ci-gate-switch.md`、`git diff --check` | 全部通过：1057 份 Markdown 与 F5 语法增量门禁通过 | 无 Rust 源码改动 |
