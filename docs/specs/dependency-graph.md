@@ -35,6 +35,7 @@ subgraph Gactive["现行 active"]
   S0497["S0497<br/>收口 editors/tree-sitter 块与 Lambda 同行无分隔符语句漂移（TS-05 闭环）"]
   S0498["S0498<br/>F6 第三片 GroupOwners 词法深度与 terminal_owner_events 栈平衡双轨证明"]
   S0499["S0499<br/>F6 第四片 ElsePoisonTail 缓存可靠与同行花括号保留双轨证明"]
+  S0500["S0500<br/>F6 第五片 Pratt 运算符优先级、结合律与非结合链检出双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -89,6 +90,7 @@ ARCH --> S0341
 | SPEC-0497 | active | [0497-ts05-block-separator-closure.md](active/0497-ts05-block-separator-closure.md) |
 | SPEC-0498 | active | [0498-f6-group-owners-machine-proof.md](active/0498-f6-group-owners-machine-proof.md) |
 | SPEC-0499 | active | [0499-f6-adjacent-poison-machine-proof.md](active/0499-f6-adjacent-poison-machine-proof.md) |
+| SPEC-0500 | active | [0500-f6-pratt-precedence-machine-proof.md](active/0500-f6-pratt-precedence-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

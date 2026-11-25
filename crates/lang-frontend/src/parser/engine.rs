@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 mod block;
 mod borrow_result;
 mod boundary;
@@ -11,6 +13,10 @@ mod file;
 mod lambda;
 mod operator;
 mod postfix;
+#[cfg(kani)]
+mod pratt_kani;
+#[cfg(test)]
+mod pratt_tests;
 mod recovery;
 #[cfg(test)]
 mod separator_tests;
@@ -416,7 +422,7 @@ enum InfixKind {
     Assignment(AssignmentOperator),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NonAssociativeGroup {
     Range = 0,
     Membership = 1,
