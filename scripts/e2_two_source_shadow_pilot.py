@@ -2173,7 +2173,8 @@ def fetch_workflow_metrics(
                     [],
                 )
             has_completed_targeted = any(
-                str(j.get("name") or "").startswith("Targeted Tests (") and j.get("conclusion") == "success"
+                str(j.get("name") or "").startswith(("Targeted Tests (", "Targeted Tests E2 ("))
+                and j.get("conclusion") == "success"
                 for j in ci_jobs
             )
             if (
@@ -2215,7 +2216,7 @@ def fetch_workflow_metrics(
     if selected_ci_run_id is not None:
         for job in selected_ci_jobs:
             name = job.get("name", "")
-            if not name.startswith("Targeted Tests ("):
+            if not name.startswith(("Targeted Tests (", "Targeted Tests E2 (")):
                 continue
             e2_step_sec = None
             for step in job.get("steps") or []:
