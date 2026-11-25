@@ -1,10 +1,10 @@
 # SPEC-0495: E2 两源 Unit CI 门禁的可撤回影子试点与双宿主 A/B 对账
 
-> **性质**：CI 基础设施变更合同 · **状态**：in-progress · **读取时机**：实施、运行、核验或撤回 E2 两源 Unit 影子提速试点时 · **唯一真源**：本 Spec
+> **性质**：CI 基础设施变更合同 · **状态**：done · **读取时机**：按 SPEC ID 追溯 E2 影子提速试点与双宿主 A/B 验收证据时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-CI-0495` |
 | 所属 Phase | 工程与 CI 基础设施；不改变语言 Phase |
 | 语言规范 | 现行 [Guide v0.47](../../guide/README.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | 无 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 首批 `e2-two-source-unit` 与第二批 `e2-replay` 远端双宿主冷/热 A/B 实跑证据均已全绿闭环；待用户确认是否正式切换现网步骤或归档试点 |
+| 阻塞项 | 无 |
 | 影响范围 | `.github/workflows/ci-e2-shadow-pilot.yml`、`scripts/e2_two_source_unit_manifest.json`、`scripts/e2_replay_manifest.json`、`scripts/e2_two_source_shadow_pilot.py`、`scripts/tests/test_e2_two_source_shadow_pilot.py`、`docs/development/testing.md` |
 | 语言语义变更 | 否 |
 

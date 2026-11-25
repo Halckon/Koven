@@ -778,9 +778,10 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
         self.assertNotIn("e2_two_source_shadow_pilot", formal)
         self.assertNotIn("ci-e2-shadow-pilot", formal)
 
-        # One-click kill switch present
+        # One-click kill switch present & cancelled shadow runs never produce false-red compare failures
         self.assertIn("KOVEN_E2_SHADOW_PILOT_DISABLED", shadow)
         self.assertIn("workflow_dispatch:", shadow)
+        self.assertIn("needs.shadow-ab.result != 'cancelled'", shadow)
 
         # Dual-host parity + pinned container digest
         self.assertIn("os: [macos-15, ubuntu-26.04]", shadow)

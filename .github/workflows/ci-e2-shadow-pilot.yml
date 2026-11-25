@@ -244,7 +244,9 @@ jobs:
     name: Compare Dual-Host Shadow A/B
     needs: shadow-ab
     if: |
+      !cancelled() &&
       always() &&
+      needs.shadow-ab.result != 'cancelled' &&
       vars.KOVEN_E2_SHADOW_PILOT_DISABLED != 'true' &&
       (github.event_name != 'workflow_dispatch' || (inputs.enabled != false && inputs.enabled != 'false'))
     permissions:

@@ -310,7 +310,7 @@ SPEC-0331 的Resource provider另导出六份真实history的双入口12程序�
 
 ## E2 影子试点与双宿主 A/B 对账
 
-[SPEC-0495](../specs/active/0495-e2-two-source-ci-shadow-pilot.md) 在不改动正式 `.github/workflows/ci.yml`、
+[SPEC-0495](../archive/specs/0495-e2-two-source-ci-shadow-pilot.md) 在不改动正式 `.github/workflows/ci.yml`、
 `scripts/check_e2_two_source_unit_ci.sh` 与 `scripts/check_e2_replay_ci.sh` 现网执行路径的前提下，通过独立非门禁工作流
 `.github/workflows/ci-e2-shadow-pilot.yml` 与 `scripts/e2_two_source_shadow_pilot.py`
 分套件开展可撤回的双宿主 A/B 对照（首批 `e2-two-source-unit`：5 配置 / 179 条目 / 原 358 次 Cargo 调用；第二批 `e2-replay`：2 配置 / 14 条目 / 原 28 次 Cargo 调用）：
