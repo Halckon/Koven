@@ -215,6 +215,8 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
     seen_configs: set[str] = set()
     total = 0
     for cfg in configs:
+        if not isinstance(cfg, dict):
+            raise ShadowPilotError("manifest_invalid", f"config entry must be an object, got {type(cfg).__name__}")
         cid = cfg.get("config_id")
         if not isinstance(cid, str) or not cid or cid in seen_configs:
             raise ShadowPilotError("manifest_invalid", f"invalid or duplicate config_id: {cid!r}")
@@ -222,6 +224,10 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
         for req in ("package", "target_name", "target_kind", "cargo_target_args", "cargo_features_arg", "expected_features", "entries"):
             if req not in cfg:
                 raise ShadowPilotError("manifest_invalid", f"missing {req}", config_id=cid)
+        if not isinstance(cfg["cargo_features_arg"], str) or not isinstance(cfg["expected_features"], list) or any(
+            not isinstance(f, str) for f in cfg["expected_features"]
+        ):
+            raise ShadowPilotError("manifest_invalid", "invalid cargo_features_arg or expected_features", config_id=cid)
         if sorted(cfg["cargo_features_arg"].split()) != sorted(cfg["expected_features"]):
             raise ShadowPilotError("manifest_invalid", "expected_features disagrees with cargo_features_arg", config_id=cid)
         entries = cfg["entries"]
@@ -229,6 +235,8 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
             raise ShadowPilotError("manifest_invalid", "entries must be non-empty", config_id=cid)
         seen_tests: set[tuple[str, bool]] = set()
         for entry in entries:
+            if not isinstance(entry, dict):
+                raise ShadowPilotError("manifest_invalid", f"test entry must be an object, got {type(entry).__name__}", config_id=cid)
             tname = entry.get("test_name")
             if not isinstance(tname, str) or not tname:
                 raise ShadowPilotError("manifest_invalid", "empty test_name", config_id=cid)
@@ -1978,8 +1986,17 @@ def compare_ledgers(
             host=host,
         )
 
+    scope = baseline.get("execution_scope")
+    if scope not in ("execute", "list-only"):
+        raise ShadowPilotError(
+            "ab_mismatch",
+            f"unsupported execution_scope {scope!r}; expected 'execute' or 'list-only'",
+            host=host,
+        )
+
     classifications: dict[str, int] = {}
-    is_execute = baseline["execution_scope"] == "execute"
+    is_execute = scope == "execute"
+    executed_entries = 0
 
     for b_row, c_row in zip(b_entries, c_entries):
         cid = b_row["config_id"]
@@ -2023,6 +2040,7 @@ def compare_ledgers(
                     test_name=tname,
                     evidence={"baseline": b_row, "candidate": c_row},
                 )
+            executed_entries += 1
         cls = c_row["classification"]
         classifications[cls] = classifications.get(cls, 0) + 1
 
@@ -2057,6 +2075,7 @@ def compare_ledgers(
         },
         "compared_configs": len(b_cfgs),
         "compared_entries": len(b_entries),
+        "executed_entries": executed_entries,
         "classifications": classifications,
         "telemetry_comparison": {
             "baseline": b_tel,
@@ -2173,7 +2192,8 @@ def fetch_workflow_metrics(
                     [],
                 )
             has_completed_targeted = any(
-                str(j.get("name") or "").startswith("Targeted Tests (") and j.get("conclusion") == "success"
+                str(j.get("name") or "").startswith(("Targeted Tests (", "Targeted Tests E2 ("))
+                and j.get("conclusion") == "success"
                 for j in ci_jobs
             )
             if (
@@ -2212,16 +2232,35 @@ def fetch_workflow_metrics(
                 selected_ci_jobs = jobs
                 break
 
+    used_legacy_shared_job = False
     if selected_ci_run_id is not None:
+        dedicated_e2_hosts: set[str] = set()
         for job in selected_ci_jobs:
-            name = job.get("name", "")
-            if not name.startswith("Targeted Tests ("):
+            name = str(job.get("name") or "")
+            if name.startswith("Targeted Tests E2 (") and name.endswith(")"):
+                dedicated_e2_hosts.add(name[len("Targeted Tests E2 (") : -1])
+
+        for job in selected_ci_jobs:
+            name = str(job.get("name") or "")
+            is_dedicated = name.startswith("Targeted Tests E2 (") and name.endswith(")")
+            is_legacy = name.startswith("Targeted Tests (") and name.endswith(")")
+            if not is_dedicated and not is_legacy:
                 continue
+            if is_legacy:
+                host_label = name[len("Targeted Tests (") : -1]
+                if host_label in dedicated_e2_hosts:
+                    continue
             e2_step_sec = None
+            has_e2_step = False
             for step in job.get("steps") or []:
                 if step.get("name") == formal_step_name:
+                    has_e2_step = True
                     e2_step_sec = iso_duration_seconds(step.get("started_at"), step.get("completed_at"))
                     break
+            if is_legacy and not has_e2_step:
+                continue
+            if is_legacy:
+                used_legacy_shared_job = True
             ref_summary.append(
                 {
                     "ci_run_id": selected_ci_run_id,
@@ -2231,17 +2270,23 @@ def fetch_workflow_metrics(
                     "queue_seconds": iso_duration_seconds(job.get("created_at"), job.get("started_at")),
                     "job_wall_seconds": iso_duration_seconds(job.get("started_at"), job.get("completed_at")),
                     "e2_step_reference_seconds": e2_step_sec,
-                    "reference_only_prewarmed_shared_target": True,
+                    "dedicated_e2_job": is_dedicated,
+                    "reference_only_prewarmed_shared_target": is_legacy,
                 }
             )
 
+    warning_msg = (
+        "Formal Targeted Tests E2 step runs after earlier composition/D10/E2 steps in a shared target dir; treat as reference only and never subtract directly from isolated cold runs."
+        if used_legacy_shared_job
+        else "Formal E2 steps run in dedicated Targeted Tests E2 jobs (separate from composition and D10, with E2 replay and E2 two-source Unit sharing that job's Rust cache/target); treat as reference only and never subtract directly from isolated cold runs."
+    )
     return {
         "shadow_run_id": shadow_run_id,
         "head_sha": head_sha,
         "checked_out_sha": checked_out_sha,
         "shadow_jobs": shadow_summary,
         "formal_ci_reference": ref_summary,
-        "warning": "Formal Targeted Tests E2 step runs after earlier composition/D10/E2 steps in a shared target dir; treat as reference only and never subtract directly from isolated cold runs.",
+        "warning": warning_msg,
     }
 
 
@@ -2268,9 +2313,21 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
         ram_gib = f"{hr['total_ram_bytes'] / (1024**3):.1f}G" if hr.get("total_ram_bytes") else "?G"
         jobs = comp.get("cargo_jobs") or {"baseline": "-j1", "candidate": "-j1"}
         s_id = comp.get("suite_id") or suite_label
-        scope = comp.get("execution_scope") or "execute"
+        scope = comp.get("execution_scope")
+        if scope not in ("execute", "list-only"):
+            raise ShadowPilotError(
+                "ab_mismatch",
+                f"cannot render markdown summary for unsupported execution_scope {scope!r}",
+                host=comp.get("host"),
+            )
         listed_n = comp["compared_entries"]
-        exec_n = 0 if scope == "list-only" else listed_n
+        exec_n = int(comp["executed_entries"]) if "executed_entries" in comp else (0 if scope == "list-only" else listed_n)
+        if scope == "execute" and exec_n != listed_n:
+            raise ShadowPilotError(
+                "ab_mismatch",
+                f"execute comparison reports {exec_n} executed entries != {listed_n} listed entries",
+                host=comp.get("host"),
+            )
         verdict = "`LIST-ONLY PASS`" if scope == "list-only" else "`PASS`"
         lines.append(
             f"| `{s_id}` | `{scope}` | `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
@@ -2391,7 +2448,7 @@ def main(argv: list[str] | None = None) -> int:
             purged_dir = purge_artifacts_dir(args.artifacts)
             try:
                 manifest = load_manifest(args.manifest)
-            except (OSError, json.JSONDecodeError, ShadowPilotError) as exc:
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, ShadowPilotError) as exc:
                 err = (
                     exc
                     if isinstance(exc, ShadowPilotError)

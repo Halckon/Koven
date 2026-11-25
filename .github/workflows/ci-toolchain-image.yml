@@ -123,6 +123,8 @@ jobs:
           runs = get('/actions/workflows/ci.yml/runs?event=push&status=success&head_sha=' + sha)['workflow_runs']
           required = {'Workspace Check & Clippy (macos-15)', 'Workspace Check & Clippy (ubuntu-26.04)',
                       'Targeted Tests (macos-15)', 'Targeted Tests (ubuntu-26.04)',
+                      'Targeted Tests D10 & Receipts (macos-15)', 'Targeted Tests D10 & Receipts (ubuntu-26.04)',
+                      'Targeted Tests E2 (macos-15)', 'Targeted Tests E2 (ubuntu-26.04)',
                       'Preview Producer (macos-15)', 'Preview Independent Consumer (macos-15)',
                       'Preview Producer (ubuntu-24.04)', 'Preview Independent Consumer (ubuntu-24.04)',
                       'CI Passed'}
