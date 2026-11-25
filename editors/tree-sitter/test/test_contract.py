@@ -217,6 +217,26 @@ class EditorContractTests(unittest.TestCase):
         self.assertEqual(len(list(tree.iter("call_expression"))), 6)
         self.assertEqual(len(list(tree.iter("control_block"))), 1)
         self.assertEqual(len(list(tree.iter("lambda_expression"))), 1)
+        for valid in (
+            "fun f() { }\n",
+            "fun f() { ; }\n",
+            "fun f() { 1; 2 }\n",
+            "fun f() { 1\n2 }\n",
+            "val g = { -> }\n",
+            "val g = { x ->\n x(); x() }\n",
+        ):
+            with self.subTest(valid=valid):
+                self.parse(valid)
+        for invalid in (
+            "fun f() { 1 2 }\n",
+            "fun f() { a() b() }\n",
+            "fun f() { val x = 1 val y = 2 }\n",
+            "fun f(ok: Boolean) { if (ok) { a() b() } }\n",
+            "val g = { x() y() }\n",
+            "fun f() { run { a() b() } }\n",
+        ):
+            with self.subTest(invalid=invalid):
+                self.parse(invalid, valid=False)
 
     def test_crossline_move_lambda_and_function_type(self):
         tree = self.parse(
