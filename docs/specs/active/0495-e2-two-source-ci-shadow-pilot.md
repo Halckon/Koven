@@ -12,7 +12,7 @@
 | 前置 Spec | 无 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 首批 `e2-two-source-unit` 冷/热与默认多核证据已闭环；待第二批 `e2-replay` 远端双宿主冷/热 A/B 实跑补齐后决定是否归档或正式切换 |
+| 阻塞项 | 首批 `e2-two-source-unit` 与第二批 `e2-replay` 远端双宿主冷/热 A/B 实跑证据均已全绿闭环；待用户确认是否正式切换现网步骤或归档试点 |
 | 影响范围 | `.github/workflows/ci-e2-shadow-pilot.yml`、`scripts/e2_two_source_unit_manifest.json`、`scripts/e2_replay_manifest.json`、`scripts/e2_two_source_shadow_pilot.py`、`scripts/tests/test_e2_two_source_shadow_pilot.py`、`docs/development/testing.md` |
 | 语言语义变更 | 否 |
 
@@ -57,7 +57,7 @@
 - [x] 唯一产物锁定、跨配置异构 feature 二进制防混用锁、跨套件对账拒绝、真实 Cargo 启动环境探针、秘密过滤、防漏跑（0 命中 / 多命中 / 退出 0 但未执行）、预期失败分类与证据核验均具备红绿单测覆盖
 - [x] 本机真实工具链下完成两套套件的 `baseline` 与 `candidate` 双模式 `--list-only` 实跑及 `compare` 对账（未伪造 `CI`/`GITHUB_ACTIONS`）
 - [x] 首批 `e2-two-source-unit` 远端双宿主（`ubuntu-26.04` 容器与 `macos-15`）完成 `-j1` 与 `default` 多核两轮隔离冷跑（cache miss）与热跑（exact cache hit）A/B 实跑及遥测记录对账
-- [ ] 第二批 `e2-replay` 远端双宿主完成独立 target / 独立缓存键 / 独立产物锁的冷跑与热跑 A/B 实跑对账
+- [x] 第二批 `e2-replay` 远端双宿主完成独立 target / 独立缓存键 / 独立产物锁的冷跑与热跑 A/B 实跑对账
 - [x] Architecture 确认无需更新（不涉及编译器阶段或语言实现变化）；`docs/development/testing.md` 同步分套件影子试点边界说明
 - [x] 表面语法增量门禁：`N/A`（纯 CI 影子基础设施，无表面语法变更）
 
@@ -74,7 +74,7 @@
 3. [x] 实现 `scripts/e2_two_source_shadow_pilot.py` 与 `.github/workflows/ci-e2-shadow-pilot.yml` → 验证：单测与本地门禁全绿
 4. [x] 完成首批 `e2-two-source-unit` 远端双宿主 `-j1` 冷/热与 `default` 多核冷/热共 4 组 8 轮 A/B 实测闭环 → 验证：全部 `179/179 PASS`、`0` OOM
 5. [x] 生成第二批 `scripts/e2_replay_manifest.json`（2 配置 / 14 条目），补齐跨配置独立产物防混用锁单测（先红后绿）与本机真实工具链 `--list-only` 双臂 A/B 实跑 → 验证：12 组单测全绿、本机 `14/14 PASS`
-6. [ ] 推送触发远端双宿主第二批 `e2-replay` 隔离冷/热 A/B 实跑并记录账本 → 验证：远端双宿主 `14/14 PASS`
+6. [x] 推送触发远端双宿主第二批 `e2-replay` 隔离冷/热 A/B 实跑并记录账本 → 验证：远端双宿主冷/热均 `14/14 PASS`、`0` OOM
 
 ## 8. 提交计划
 
@@ -101,10 +101,14 @@
 | 远端双宿主候选臂默认多核（`--candidate-jobs default` vs 基线 `-j1`）隔离冷跑 A/B（head `ea7b39fd`，merge `cde72aa5`，[run 45414108436 attempt 1](https://github.com/Halckon/Koven/actions/runs/45414108436/attempts/1)） | **全部通过（双宿主各 5 配置 / 179 条目 `PASS`，`equivalent=true`）**：两臂均验证空 target（`0 B`）与 `cache_hit=false`（`cold`），且 `v2` 容器相对路径修复后双宿主均完整保存隔离 target 缓存（Linux `425 MiB`、macOS `783 MiB`）。**Linux（`4 vCPU / 15.6 GiB RAM`）**：A（`-j1`）总墙钟 `565.97s`（整 job `665s`、排队 `3s`）vs B（`default` 4 核）总墙钟 **`312.96s`**（`build 284.74s` + `probe 3.65s` + `list 2.34s` + `run 20.02s`，整 job `414s`、排队 `3s`，同轮缩短 `253.00s` / **`-44.7%`**），峰值子进程 RSS `4833.7 / 5597.1 MiB`，target `2.42 / 2.42 GiB`，OOM/重试 `0`。**macOS（`3 vCPU / 7.0 GiB RAM`）**：A（`-j1`）总墙钟 `1047.26s`（整 job `1129s`、排队 `3s`）vs B（`default` 3 核）总墙钟 **`870.27s`**（`build 816.55s` + `probe 11.20s` + `list 5.22s` + `run 35.66s`，整 job `951s`、排队 `640s`，同轮缩短 `176.99s` / **`-16.9%`**），峰值子进程 RSS `3416.4 / 3173.0 MiB`，target `4.19 / 4.19 GiB`，OOM/重试 `0` | 验证默认多核构建下无 OOM 且内存余量充裕 |
 | 远端双宿主候选臂默认多核（`--candidate-jobs default` vs 基线 `-j1`）第二轮热跑 A/B（head `8620573a`，merge `53075c34`，与 `ea7b39fd` 代码零差异，[run 45419926580 attempt 2](https://github.com/Halckon/Koven/actions/runs/45419926580/attempts/2)） | **全部通过（双宿主各 5 配置 / 179 条目 `PASS`，`equivalent=true`）**：四臂均精确命中 `v2` 本臂缓存键（`cache_hit=true`，`warm`），**启动时 `initial_disk.target_dir_bytes` 在 Linux 为 `2.42 GiB`、macOS 为 `4.19 GiB`（证实容器缓存修复生效）**。**Linux（`4 vCPU / 15.6 GiB RAM`）**：A（`-j1`）总墙钟 `419.58s`（整 job `476s`、排队 `3s`，因复用第三方依赖缓存较冷跑基线缩短 `146s`）vs B（`default` 4 核）总墙钟 **`331.55s`**（`build 301.28s` + `probe 3.95s` + `list 2.49s` + `run 21.61s`，整 job `387s`、排队 `3s`，同轮缩短 `88.04s` / **`-21.0%`**），峰值 RSS `4836.6 / 5603.2 MiB`，target `2.42 / 2.42 GiB`，OOM/重试 `0`。**macOS（`3 vCPU / 7.0 GiB RAM`）**：A（`-j1`）总墙钟 `1337.62s`（整 job `1452s`、排队 `4s`）vs B（`default` 3 核）总墙钟 **`1169.21s`**（`build 1110.71s` + `probe 10.28s` + `list 5.85s` + `run 40.22s`，整 job `1285s`、排队 `4s`，同轮缩短 `168.41s` / **`-12.6%`**），峰值 RSS `3440.7 / 3304.8 MiB`，target `4.19 / 4.19 GiB`，OOM/重试 `0` | 首批 `e2-two-source-unit` 全部 4 组双宿主冷/热证据闭环 |
 | 第二批 `python3 scripts/e2_two_source_shadow_pilot.py verify-manifest --manifest scripts/e2_replay_manifest.json` 及本机真实工具链隔离 `--list-only` A/B（macOS arm64 `10c / 32 GiB`） | **全部通过（2 配置 / 14 条目 `PASS`，`equivalent=true`）**：精确核验与 `scripts/check_e2_replay_ci.sh`（SHA256 `057d04466c39c3a3...`）逐项一致；基线 `-j1` `309.01s` vs 候选 `default` **`180.58s`**（`build+probe 180.01s`，14 次直调 `--list` 仅 **`0.18s`**，缩短 `-41.6%`），两套异构 feature 配置分别锁定互异 Mach-O 二进制并通过 Cargo 启动探针，峰值 RSS `4882.7 / 6425.1 MiB`，OOM/重试 `0` | 临时目录 `/tmp/koven-spec-0495-replay-ab` 验证后已清理，不入库 |
+| 第二批 `e2-replay` 远端双宿主隔离冷跑 A/B（head `594367bd`，merge `44d6debb`，[run 45517415215 attempt 1](https://github.com/Halckon/Koven/actions/runs/45517415215/attempts/1)） | **全部通过（双宿主各 2 配置 / 14 条目 `PASS`，`equivalent=true`）**：四臂均验证独立空 target（`0 B`）与 `cache_hit=false`（`cold`），独立锁定 `e2-two-source-test-support` 与 `+loan-observation-test-support` 两份互异可执行文件。**Linux（`4 vCPU / 15.6 GiB RAM`）**：A（`-j1`）总墙钟 `368.34s`（整 job `432s`、排队 `2s`）vs B（`default` 4 核）总墙钟 **`251.09s`**（`build 246.39s` + `probe 2.12s` + `list 0.21s` + `run 1.06s` = **纯 `list+run` 仅 `1.27s`**，整 job **`314s`**、排队 `3s`，同轮缩短 `117.25s` / **`-31.8%`**），峰值 RSS `4605.1 / 5404.8 MiB`，target `1.46 / 1.46 GiB`，OOM/重试 `0`。**macOS（`3 vCPU / 7.0 GiB RAM`）**：A（`-j1`）总墙钟 `820.35s`（整 job `914s`、排队 `4s`）vs B（`default` 3 核）总墙钟 **`626.70s`**（`build 617.60s` + `probe 6.67s` + `list 0.35s` + `run 1.46s` = **纯 `list+run` 仅 `1.81s`**，整 job **`735s`**、排队 `10s`，同轮缩短 `193.64s` / **`-23.6%`**），峰值 RSS `3235.8 / 3215.4 MiB`，target `2.75 / 2.75 GiB`，OOM/重试 `0` | 套件级 `CARGO_TARGET_DIR` 与缓存键与首批物理隔离 |
+| 第二批 `e2-replay` 远端双宿主同 SHA 热跑 A/B 及正式 `ci.yml` 参考耗时（同 head `594367bd` / merge `44d6debb`，[run 45517415215 attempt 2](https://github.com/Halckon/Koven/actions/runs/45517415215/attempts/2)，参考 [CI run 45517415414](https://github.com/Halckon/Koven/actions/runs/45517415414)） | **全部通过（双宿主各 2 配置 / 14 条目 `PASS`，`equivalent=true`）**：四臂精确命中 `e2-replay` 专属缓存键（`cache_hit=true`，`warm`，启动时恢复 Linux `1.46 GiB` / macOS `2.75 GiB` target）。**Linux（`4 vCPU / 15.3 GiB RAM`）**：A（`-j1`）总墙钟 `271.26s`（整 job `325s`、排队 `4s`）vs B（`default` 4 核）总墙钟 **`201.77s`**（`build 198.02s` + `probe 1.74s` + `list 0.14s` + `run 0.66s` = **纯 `list+run` 仅 `0.81s`**，整 job **`243s`**、排队 `2s`，同轮缩短 `69.49s` / **`-25.6%`**），峰值 RSS `4606.1 / 5329.4 MiB`，target `1.46 / 1.46 GiB`，OOM/重试 `0`。**macOS（`3 vCPU / 7.0 GiB RAM`）**：A（`-j1`）总墙钟 `775.61s`（整 job `865s`、排队 `3s`）vs B（`default` 3 核）总墙钟 **`649.28s`**（`build 641.62s` + `probe 5.17s` + `list 0.42s` + `run 1.45s` = **纯 `list+run` 仅 `1.88s`**，整 job **`729s`**、排队 `4s`，同轮缩短 `126.34s` / **`-16.3%`**），峰值 RSS `3190.8 / 3288.5 MiB`，target `2.75 / 2.75 GiB`，OOM/重试 `0`。同 SHA 正式 `ci.yml`（`CI Passed`）原 `Experimental E2 replay faults (CI only)` 步骤参考耗时：Linux `344.0s`（整 job `2385.0s`）、macOS `537.0s`（整 job `3995.0s`，共享预热 target 仅供参考） | 第二批 `e2-replay` 冷/热双宿主证据全部闭环 |
 
 ### 10.1 双宿主实测归因与边界记录
 
-1. **覆盖与语义等价成立**：首批 `e2-two-source-unit` 双宿主共 4 组 8 轮 A/B（`-j1` 冷跑、`-j1` 热跑、`default` 多核冷跑、`default` 多核热跑，合计 `8 × 2 × 179 = 2,864` 次条目验证）全部 `179/179 PASS`，零漏跑、零错产物、零环境探针失配、零额外 OOM 或磁盘超限（target 稳定在 Linux `2.42 GiB` / macOS `4.19 GiB`）。
+1. **覆盖与语义等价全部成立**：
+   - **首批 `e2-two-source-unit`**（5 配置 / 179 条目）：双宿主共 4 组 8 轮 A/B（`-j1` 冷/热、`default` 多核冷/热，合计 `8 × 2 × 179 = 2,864` 次条目验证）全部 `179/179 PASS`。
+   - **第二批 `e2-replay`**（2 配置 / 14 条目）：双宿主共 2 组 4 轮 A/B（`default` 多核冷/热，合计 `4 × 2 × 14 = 112` 次条目验证）全部 `14/14 PASS`，两套异构 feature 二进制独立锁定无混用，纯 14 条 `list + run` 直调总耗时仅 **Linux `0.81s～1.27s`、macOS `1.81s～1.88s`**。两批全量运行均零漏跑、零错产物、零环境探针失配、零额外 OOM 或磁盘超限。
 2. **进程派生开销 vs 单核重编主导占比**：
    - 去除 353 次冗余 Cargo 包装调用后，候选臂纯 `list + run` 179 条用例仅需 **Linux `18.7s～25.6s`、macOS `35.0s～42.5s`**（对比基线臂仅 `run` 阶段即需 Linux `27.9s～46.1s`、macOS `74.7s～94.9s`，外加 macOS 上百秒 `--list` Cargo 进程启动开销）。
    - 在 `-j1` 约束下，总耗时的 **93%～96%**（Linux `383s～520s`、macOS `886s～1160s`）花在单核编译 5 套异构 feature/target 配置；且云端 Runner 宿主机性能存在明显波动，证实单轮墙钟差不能脱离并发配置单独解读。
