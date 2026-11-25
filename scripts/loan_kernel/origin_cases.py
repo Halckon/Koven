@@ -429,6 +429,7 @@ fun <view T> genFlowReadReborrow(inout h: T, borrow s: Arr): borrow Int from h.o
   flowGeneric(w, s)
   return readGeneric(w)
 }
+suspend fun <view T> suspendGenFlow(inout h: T, borrow s: Arr): Unit flows s into h trusted
 """
 
 
@@ -579,8 +580,18 @@ def generic_view_holders():
         ["genFlow(h, s)  // ERR SIG"]))
     yield named("调用方实例化/不可携带来源类型/可逃逸泛型参数", function(
         "fun <T> f(inout h: T, borrow s: Arr): Unit {", [], ["genFlow(h, s)  // ERR SIG"]))
+    yield named("调用方实例化/不可携带来源类型/无捕获闭包", function(
+        "fun f(): Unit {", ["val h = closure()", "val s = Arr(1)"], ["genFlow(&mut h, &s)  // ERR SIG"]))
+    yield named("调用方实例化/不可携带来源类型/函数类型", function(
+        "fun f(own g: fn Body, borrow s: Arr): Unit {", [], ["genFlow(&mut g, s)  // ERR SIG"]))
+    yield named("调用方实例化/不可携带来源类型/start 局部 Arr", function(
+        "suspend fun f(): Unit {", ["val h = Arr(1)", "val s = Arr(2)",
+                                    "val t = start suspendGenFlow(&mut h, &s)  // ERR SIG"], ["await t"]))
+    yield named("调用方实例化/不可携带来源类型/start 无捕获闭包", function(
+        "suspend fun f(): Unit {", ["val h = closure()", "val s = Arr(2)",
+                                    "val t = start suspendGenFlow(&mut h, &s)  // ERR SIG"], ["await t"]))
 
-    # 5. 借用容器形参经泛型读取转发（borrow/inout Bag 与 Slot 均须保护已有来源）
+    # 5. 借用容器形参经泛型读取转发（borrow/inout Bag 与 Slot、嵌套容器重借读回与整值替换清旧来源）
     for label, cls, seed in (
         ("类型参数的持有者", "Bag", ["val h = Bag(0)", "put(&mut h, V(&o))"]),
         ("内部可变的槽", "Slot", ["val h = Slot(0)", "set(&h, V(&o))"]),
@@ -596,6 +607,19 @@ def generic_view_holders():
             "fun f(): Unit {", call_body, ["o.len = 9  // ERR K1", "use(e)"]))
         yield named(f"借用容器经泛型转发/{label}/调用方最后使用后写", wrap + function(
             "fun f(): Unit {", call_body, ["use(e)", "o.len = 9"]))
+    yield named("借用容器经泛型转发/嵌套容器重借读回/接受", function(
+        "fun f(inout h: BoxBag, borrow s: Arr): borrow Int from h.inner, s flows s into h.inner {",
+        ["val w = passGeneric(&mut h.inner)", "flowGeneric(w, s)"], ["return readGeneric(w)"]))
+    yield named("借用容器经泛型转发/嵌套容器重借读回/拒绝-漏掉新来源", function(
+        "fun f(inout h: BoxBag, borrow s: Arr): borrow Int from h.inner flows s into h.inner {",
+        ["val w = passGeneric(&mut h.inner)", "flowGeneric(w, s)"], ["return readGeneric(w)  // ERR K6"]))
+    yield named("借用容器经泛型转发/嵌套容器重借读回/局部写来源", function(
+        "fun f(): Unit {", ["val s = Arr(1)", "val h = BoxBag(Bag(0))", "val w = passGeneric(&mut h.inner)",
+                            "flowGeneric(w, &s)", "val e = readGeneric(w)"], ["s.len = 9  // ERR K1", "use(e)"]))
+    yield named("借用容器经泛型转发/整值替换清空旧来源/接受", function(
+        "fun f(inout h: Bag): borrow Int {", ["*h = Bag(0)"], ["return readGeneric(h)"]))
+    yield named("借用容器经泛型转发/整值替换清空旧来源/单臂仍保留旧来源", function(
+        "fun f(inout h: Bag): borrow Int {", ["if (*) {", "  *h = Bag(0)", "}"], ["return readGeneric(h)  // ERR K6"]))
 
 
 def branch_and_loop_flows():

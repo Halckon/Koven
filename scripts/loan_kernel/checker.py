@@ -1065,8 +1065,10 @@ class Checker:
                 owner, path = state.get(name), (tuple(fld.split(".")) if fld else ()) + path
             elif owner is not None and not (owner.ty.kind in ("view", "opaque") or self.carrier(owner.ty.name)):
                 owner = None
-            if owner is not None and not path and "*" in owner.loans:
-                found.update(owner.loans["*"])
+            if owner is not None:
+                key = ".".join(path) or "*"
+                if key in owner.loans:
+                    found.update(owner.loans[key])
         return found
 
     def walk(self, state, targets, held, class_name, through):
@@ -1871,6 +1873,13 @@ class Checker:
                 self.error("TYPE", line, f"{name}：二层借用 {mode} ({actual}) 不能充当 {mode} {wanted}")
             elif mode == "inout" and value.payload:
                 self.error("X2", line, f"{name}：载荷访问不能充当 {wanted} 的槽位")
+        for _, (target, _) in fun.flows:
+            wanted = next((ty for _, n, ty in fun.params if n == target), None)
+            if wanted in fun.tparams:
+                actual = bound.get(wanted)
+                if isinstance(actual, tuple) or (isinstance(actual, str) and self.escapable(actual)):
+                    shown = actual[1] if isinstance(actual, tuple) else actual
+                    self.error("SIG", line, f"{fun.name}：流向的目标 {target} 实例化为不能携带来源的类型 {shown}")
         for actual in bound.values():
             if isinstance(actual, tuple):
                 self.dispatches[self.fun.name, line] = ("open", actual[1])
@@ -1968,10 +1977,7 @@ class Checker:
                 raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是对变量或其字段的借用，或一个借用值")
             flowing = self.carried(values[param], modes[param], fld)
             actual = bound.get(wanted, wanted)
-            if wanted in fun.tparams and isinstance(actual, str) and (
-                    actual in ("Int", "Unit") or (actual in self.classes and not self.classes[actual].is_view)
-                    or (actual in self.fun.tparams and actual not in self.fun.views)):
-                self.error("SIG", expr.line, f"{fun.name}：流向的目标 {target} 实例化为不能携带来源的类型 {actual}")
+            if wanted in fun.tparams and (isinstance(actual, tuple) or (isinstance(actual, str) and self.escapable(actual))):
                 continue
             if isinstance(actual, str) and actual in self.classes and self.type_of(actual).kind == "view":
                 # 目标是视图：流入的来源可能落在 path 之下的任何一个借用字段上
@@ -2306,9 +2312,12 @@ class Checker:
                     self.record_flow(state, targets, copy_loans(value.loans), replace=False)
         else:
             incoming = {key: held for key, held in value.loans.items() if key}
-            if incoming:  # K20：新值携带的来源记到所指的存储上
+            targets = self.places(via)
+            carries = (self.carrier(wanted) or wanted in self.fun.views
+                       or (wanted in self.classes and self.type_of(wanted).kind == "view"))
+            if incoming or (carries and len(targets) == 1):  # K20：新值携带的来源记到所指的存储上；唯一槽位整体替换时清空旧来源
                 var.loans = {"": via}
-                self.record_flow(state, self.places(via), incoming, replace=len(self.places(via)) == 1)
+                self.record_flow(state, targets, incoming, replace=len(targets) == 1)
 
     def assign(self, stmt, state):
         value = self.value(stmt.expr, state)

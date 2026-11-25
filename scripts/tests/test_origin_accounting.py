@@ -369,6 +369,8 @@ fun f(inout seed: N, inout r: N): Unit {
             "多拥有者读回/经调用返回/写右来源",
             f"泛型持有者/独占参数/经同一重借读回/borrow 参数{CASES.HELD_BY_CALLER}/拒绝-未声明来源",
             f"泛型持有者/独占参数/经同一重借读回/inout 参数{CASES.HELD_BY_CALLER}/拒绝-未声明来源",
+            "泛型持有者/借用容器经泛型转发/嵌套容器重借读回/拒绝-漏掉新来源",
+            "泛型持有者/借用容器经泛型转发/嵌套容器重借读回/局部写来源",
         }
         self.assertLessEqual(extra, set(wrong))
         self.assertTrue(set(wrong) - extra)
@@ -403,7 +405,7 @@ fun f(inout seed: N, inout r: N): Unit {
         self.assertEqual([], CHECKER.check(CASES.GENERIC_PRELUDE), "泛型公共声明本身须被接受")
         programs = {name.removeprefix("泛型持有者/"): text
                     for name, text in CASES.cases() if name.startswith("泛型持有者/")}
-        self.assertEqual(95, len(programs))
+        self.assertEqual(104, len(programs))
         swap_branch = "if (*) {\n    *h = move v\n  }"
         for name, expected_none, expected_only_swap in (
             ("独占参数/分支替换/接受", set(), set()),
