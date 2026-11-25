@@ -1,19 +1,19 @@
 # SPEC-0496: 正式 CI 切换 E2 Replay 与 E2 两源 Unit 为唯一产物锁多核执行器
 
-> **性质**：CI 基础设施变更合同 · **状态**：in-progress · **读取时机**：切换、维护或回退正式 `ci.yml` 中 E2 两套门禁执行路径时 · **唯一真源**：本 Spec
+> **性质**：CI 基础设施变更合同 · **状态**：done（历史归档） · **读取时机**：回溯或回退正式 `ci.yml` 中 E2 两套门禁执行路径切换时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-CI-0496` |
 | 所属 Phase | 工程与 CI 基础设施；不改变语言 Phase |
 | 语言规范 | 现行 [Guide v0.47](../../guide/README.md) |
-| 批准依据 | 2026-11-25 用户在 [SPEC-0495](../../archive/specs/0495-e2-two-source-ci-shadow-pilot.md) 双宿主冷/热影子闭环与 PR #463 合并后明确授权推进第 2 步：正式切换 `ci.yml` 中 E2 门禁 |
-| 前置 Spec | [SPEC-0495](../../archive/specs/0495-e2-two-source-ci-shadow-pilot.md) |
+| 批准依据 | 2026-11-25 用户在 [SPEC-0495](./0495-e2-two-source-ci-shadow-pilot.md) 双宿主冷/热影子闭环与 PR #463 合并后明确授权推进第 2 步：正式切换 `ci.yml` 中 E2 门禁 |
+| 前置 Spec | [SPEC-0495](./0495-e2-two-source-ci-shadow-pilot.md) |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 待本 PR 双宿主正式 `ci.yml`（`Targeted Tests (ubuntu-26.04)` 与 `Targeted Tests (macos-15)`）实测全绿并记录耗时对照后归档合并 |
-| 影响范围 | `.github/workflows/ci.yml`、`scripts/tests/test_e2_two_source_shadow_pilot.py`、`docs/development/testing.md` |
+| 阻塞项 | 无（已完成双宿主正式 `ci.yml` 实测全绿并归档） |
+| 影响范围 | `.github/workflows/ci.yml`、`scripts/e2_two_source_shadow_pilot.py`、`scripts/tests/test_e2_two_source_shadow_pilot.py`、`docs/development/testing.md` |
 | 语言语义变更 | 否 |
 
 ## 1. Goal
@@ -45,7 +45,7 @@
 
 - [x] `SPEC-0496` 登记及索引/DAG 通过 `python3 scripts/check_docs.py` 与 `scripts/check_syntax_gate.py`
 - [x] `scripts/tests/test_e2_two_source_shadow_pilot.py` 新增正式 `ci.yml` 切换契约单测（先红后绿）且既有工作流策略单测全绿
-- [ ] PR 双宿主正式 `ci.yml`（`Targeted Tests (ubuntu-26.04)` 与 `Targeted Tests (macos-15)`）实跑全绿，记录两步新耗时与 `main` 基线对照
+- [x] PR 双宿主正式 `ci.yml`（`Targeted Tests (ubuntu-26.04)` 与 `Targeted Tests (macos-15)`）实跑全绿，记录两步新耗时与 `main` 基线对照
 - [x] Architecture 确认无需更新（纯 CI 执行器切换，无语言或编译器实现变化）
 - [x] 表面语法增量门禁：`N/A`（纯 CI 工作流切换，无表面语法变更）
 
@@ -54,11 +54,13 @@
 1. [x] 基于合入 PR #463 后的 `main`（`c299a360`）建立独立分支 `feature/spec-0496-formal-e2-gate-switch` 并登记 `SPEC-0496`
 2. [x] 更新 `scripts/tests/test_e2_two_source_shadow_pilot.py` 锁定正式 `ci.yml` E2 切换契约（TDD Red）
 3. [x] 切换 `.github/workflows/ci.yml` 两步 E2 命令并同步 `docs/development/testing.md`（TDD Green）
-4. [ ] 运行全套工作流与影子执行器本地单测及文档门禁，推送建 PR 触发双宿主正式 `ci.yml` 实测并记录实测耗时
+4. [x] 运行全套工作流与影子执行器本地单测及文档门禁，推送建 PR #465 完成 PR 审阅 4 项 P2 与 PR #463 二轮 8 项 P2 加固，触发双宿主正式 `ci.yml` 全绿实测并归档
 
 ## 7. 验证记录
 
 | 验收项 / 命令 | 结果 | 备注 |
 |---|---|---|
 | `python3 -m unittest`（`Pr465ReviewP2RegressionContracts` + `ShadowWorkflowStaticContracts` + `Pr463Review2P2RegressionContracts` + `test_ci_debug_profile` + `test_ubuntu26_ci` + `test_pr_ci_reuse` + `test_check_ci_results` + `test_llvm_install_bounds`） | 通过：105/105 全绿（含 PR #465 4 项 P2 与 PR #463 二轮审阅 6 项代码/工作流 P2 回归及 2 项 `SPEC-0495` 归档勘误） | 先红后绿（TDD），确认 `--formal-gate`、失败日志诊断输出、完整 argv 契约与既有 `ci.yml` 缓存/门禁合同全绿 |
-| `python3 scripts/check_docs.py`、`python3 scripts/check_syntax_gate.py --check-file docs/specs/active/0496-formal-e2-ci-gate-switch.md`、`git diff --check` | 全部通过：1057 份 Markdown 与 F5 语法增量门禁通过 | 无 Rust 源码改动 |
+| `python3 -m unittest scripts.tests.test_e2_two_source_shadow_pilot -v` | 通过：30/30 全绿 | 覆盖清单漂移、唯一产物锁、环境探针、冷热 A/B 比较与正式门禁全部回归契约 |
+| `python3 scripts/check_docs.py`、`python3 scripts/check_syntax_gate.py --check-file docs/archive/specs/0496-formal-e2-ci-gate-switch.md`、`git diff --check` | 全部通过：1057 份 Markdown 与 F5 语法增量门禁通过 | 无 Rust 源码改动 |
+| PR #465 双宿主正式 `ci.yml`（[run 45582820903](https://github.com/Halckon/Koven/actions/runs/45582820903)，head `b03ca8c5`）与影子 A/B（[run 45582820897](https://github.com/Halckon/Koven/actions/runs/45582820897)） | **全部通过（`CI Passed` = `success`）** | 对比同口径基线 [run 45529296052](https://github.com/Halckon/Koven/actions/runs/45529296052)：Linux `e2_replay` `378s → 207s`（`-45.2%`）、`e2_two_source_unit` `562s → 316s`（`-43.8%`）、两步合计 `940s → 523s`（`-44.4%`）、整 job `2,456s → 1,764s`（`-28.2%`）；macOS `e2_replay` `571s → 464s`（`-18.7%`）、`e2_two_source_unit` `968s → 619s`（`-36.1%`）、两步合计 `1,538s → 1,083s`（`-29.6%`）、整 job `4,122s → 3,729s`（`-9.5%`） |
