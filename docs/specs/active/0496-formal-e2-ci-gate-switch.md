@@ -23,13 +23,14 @@
 ## 2. 背景
 
 - [SPEC-0495](../../archive/specs/0495-e2-two-source-ci-shadow-pilot.md)（PR #463，已合入 `main` `c299a360`）已在 `ubuntu-26.04`（4c / 15.6 GiB）与 `macos-15`（3c / 7.0 GiB）上对 `e2-two-source-unit`（4 组 8 轮）与 `e2-replay`（4 组 8 轮）完成全量冷/热与默认多核 A/B 实证，全部 `100%` 等价通过、`0` OOM、`0` 重试，且完成 8 项 P2 审阅加固。
-- 在 PR #463 同 SHA 正式 `ci.yml`（`run 45529296052`）中，两步旧 `-j1` E2 步骤合计消耗：Linux 约 `866s`、macOS 约 `1,293s`（占整 job `Targeted Tests (macos-15)` `4,122s` 的约 31%）。
+- 在 PR #463 同 SHA 正式 `ci.yml`（[run 45529296052](https://github.com/Halckon/Koven/actions/runs/45529296052)）单次运行中，两步旧 `-j1` E2 步骤合计消耗：Linux `378s + 562s = 940s`（占整 job `2,456s` 的 `38.3%`）、macOS `571s + 968s = 1,538s`（占整 job `4,122s` 的 `37.3%`）。
 
 ## 3. 范围与需求
 
-1. **正式 `ci.yml` 精确切换两步 E2 门禁**：
-   - `Experimental E2 replay faults (CI only)` 改为调用 `python3 scripts/e2_two_source_shadow_pilot.py run --manifest scripts/e2_replay_manifest.json --mode candidate --candidate-jobs default --artifacts "$RUNNER_TEMP/koven-e2-replay"`。
-   - `Verify opt-in two-source Unit capability and atomicity` 改为调用 `python3 scripts/e2_two_source_shadow_pilot.py run --manifest scripts/e2_two_source_unit_manifest.json --mode candidate --candidate-jobs default --artifacts "$RUNNER_TEMP/koven-e2-two-source-unit"`。
+1. **正式 `ci.yml` 精确切换两步 E2 门禁（启用 `--formal-gate`）**：
+   - `Experimental E2 replay faults (CI only)` 改为调用 `python3 scripts/e2_two_source_shadow_pilot.py run --manifest scripts/e2_replay_manifest.json --mode candidate --candidate-jobs default --formal-gate --artifacts "$RUNNER_TEMP/koven-e2-replay"`。
+   - `Verify opt-in two-source Unit capability and atomicity` 改为调用 `python3 scripts/e2_two_source_shadow_pilot.py run --manifest scripts/e2_two_source_unit_manifest.json --mode candidate --candidate-jobs default --formal-gate --artifacts "$RUNNER_TEMP/koven-e2-two-source-unit"`。
+   - `--formal-gate` 强约束：禁止 `--list-only`、禁止清单包含任何 `expected_failure` 条目、强制完成真实动态执行分支对账；测试断言失败或编译失败时将 Rust panic / Cargo `compiler-message` 诊断片段直接输出到 Actions 日志。
 2. **保留原 shell 脚本真源与 fail-closed 对齐校验**：
    - `scripts/check_e2_replay_ci.sh` 与 `scripts/check_e2_two_source_unit_ci.sh` 保持原样不改；每次正式 CI 执行候选路径前自动执行静态与动态执行分支 1:1 校验，任何漂移立即失败。
 3. **保留既有 `ci.yml` 缓存与门禁合同**：
@@ -59,5 +60,5 @@
 
 | 验收项 / 命令 | 结果 | 备注 |
 |---|---|---|
-| `python3 -m unittest`（`ShadowWorkflowStaticContracts` + `Pr463Review2P2RegressionContracts` + `test_ci_debug_profile` + `test_ubuntu26_ci` + `test_pr_ci_reuse` + `test_check_ci_results` + `test_llvm_install_bounds`） | 通过：102/102 全绿（含 PR #463 二轮审阅 6 项代码/工作流 P2 回归与 2 项 `SPEC-0495` 归档勘误） | 先红后绿（TDD），确认既有 `ci.yml` 缓存与门禁合同零受影响 |
+| `python3 -m unittest`（`Pr465ReviewP2RegressionContracts` + `ShadowWorkflowStaticContracts` + `Pr463Review2P2RegressionContracts` + `test_ci_debug_profile` + `test_ubuntu26_ci` + `test_pr_ci_reuse` + `test_check_ci_results` + `test_llvm_install_bounds`） | 通过：105/105 全绿（含 PR #465 4 项 P2 与 PR #463 二轮审阅 6 项代码/工作流 P2 回归及 2 项 `SPEC-0495` 归档勘误） | 先红后绿（TDD），确认 `--formal-gate`、失败日志诊断输出、完整 argv 契约与既有 `ci.yml` 缓存/门禁合同全绿 |
 | `python3 scripts/check_docs.py`、`python3 scripts/check_syntax_gate.py --check-file docs/specs/active/0496-formal-e2-ci-gate-switch.md`、`git diff --check` | 全部通过：1057 份 Markdown 与 F5 语法增量门禁通过 | 无 Rust 源码改动 |

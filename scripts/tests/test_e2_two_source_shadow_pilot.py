@@ -771,27 +771,84 @@ class ReplayManifestAndSeparateArtifactLockContracts(unittest.TestCase):
 class ShadowWorkflowStaticContracts(unittest.TestCase):
     _shadow_workflow_override: Path | None = None
 
+    @staticmethod
+    def _extract_step_run_argv(workflow_text: str, step_name: str) -> list[str]:
+        import shlex
+
+        marker = f"      - name: {step_name}\n"
+        if marker not in workflow_text:
+            raise AssertionError(f"missing step {step_name!r} in ci.yml")
+        after = workflow_text.split(marker, 1)[1]
+        # Stop at the next step header at 6-space indent
+        step_body = after.split("\n      - ", 1)[0]
+        lines = step_body.splitlines()
+        run_lines: list[str] = []
+        in_block = False
+        for ln in lines:
+            if not in_block:
+                if ln.startswith("        run: |"):
+                    in_block = True
+                elif ln.startswith("        run: "):
+                    run_lines.append(ln.split("        run: ", 1)[1])
+                    break
+            else:
+                if ln.startswith("          "):
+                    run_lines.append(ln[10:])
+                elif ln.strip() == "":
+                    continue
+                else:
+                    break
+        if not run_lines:
+            raise AssertionError(f"missing run command for step {step_name!r}")
+        joined = "\n".join(run_lines).replace("\\\n", " ")
+        return shlex.split(joined)
+
+    @classmethod
+    def assert_formal_ci_e2_steps(cls, formal: str) -> None:
+        expected_steps = {
+            "Experimental E2 replay faults (CI only)": [
+                "python3",
+                "scripts/e2_two_source_shadow_pilot.py",
+                "run",
+                "--manifest",
+                "scripts/e2_replay_manifest.json",
+                "--mode",
+                "candidate",
+                "--candidate-jobs",
+                "default",
+                "--formal-gate",
+                "--artifacts",
+                "$RUNNER_TEMP/koven-e2-replay",
+            ],
+            "Verify opt-in two-source Unit capability and atomicity": [
+                "python3",
+                "scripts/e2_two_source_shadow_pilot.py",
+                "run",
+                "--manifest",
+                "scripts/e2_two_source_unit_manifest.json",
+                "--mode",
+                "candidate",
+                "--candidate-jobs",
+                "default",
+                "--formal-gate",
+                "--artifacts",
+                "$RUNNER_TEMP/koven-e2-two-source-unit",
+            ],
+        }
+        for step_name, expected_argv in expected_steps.items():
+            actual_argv = cls._extract_step_run_argv(formal, step_name)
+            if actual_argv != expected_argv:
+                raise AssertionError(
+                    f"formal CI step {step_name!r} argv mismatch: actual={actual_argv!r} vs expected={expected_argv!r}"
+                )
+        if "bash scripts/check_e2_replay_ci.sh" in formal or "bash scripts/check_e2_two_source_unit_ci.sh" in formal:
+            raise AssertionError("formal CI still invokes legacy shell E2 scripts")
+        if "ci-e2-shadow-pilot" in formal:
+            raise AssertionError("formal CI must not reference ci-e2-shadow-pilot")
+
     def test_formal_ci_and_e2_script_are_unmodified_and_shadow_is_isolated(self):
         formal = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-
-        # Formal CI delegates E2 replay and two-source Unit steps to the verified candidate runner while keeping shadow workflow isolated
-        self.assertIn(
-            "python3 scripts/e2_two_source_shadow_pilot.py run \\\n"
-            "            --manifest scripts/e2_replay_manifest.json \\\n"
-            "            --mode candidate \\\n"
-            "            --candidate-jobs default",
-            formal,
-        )
-        self.assertIn(
-            "python3 scripts/e2_two_source_shadow_pilot.py run \\\n"
-            "            --manifest scripts/e2_two_source_unit_manifest.json \\\n"
-            "            --mode candidate \\\n"
-            "            --candidate-jobs default",
-            formal,
-        )
-        self.assertNotIn("bash scripts/check_e2_replay_ci.sh", formal)
-        self.assertNotIn("bash scripts/check_e2_two_source_unit_ci.sh", formal)
-        self.assertNotIn("ci-e2-shadow-pilot", formal)
+        self.assert_formal_ci_e2_steps(formal)
 
     def test_shadow_workflow_isolation_when_present(self):
         shadow_path = self._shadow_workflow_override or SHADOW_WORKFLOW_PATH
@@ -1474,6 +1531,147 @@ class Pr463Review2P2RegressionContracts(unittest.TestCase):
         self.assertIn("scripts/check_e2_replay_ci.sh", pr_section)
         self.assertNotIn("scripts/e2_two_source_unit_manifest.json", pr_section)
         self.assertNotIn("scripts/check_e2_two_source_unit_ci.sh", pr_section)
+
+
+class Pr465ReviewP2RegressionContracts(unittest.TestCase):
+    """Regression contracts for all 4 P2 findings from PR #465 review."""
+
+    def setUp(self):
+        self.pilot = load_pilot_module()
+
+    def test_pr465_p2_1_formal_gate_rejects_expected_failure_list_only_and_unverified_exec(self):
+        helper = AntiSkipExpectedFailureAndComparisonContracts()
+        helper.setUp()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            manifest, base_env, _, target_b, _ = helper._make_synthetic_harness(tmp_path)
+            env_b = {**base_env, "CARGO_TARGET_DIR": str(target_b)}
+
+            # 1. --formal-gate refuses any expected_failure entry in the manifest
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx1:
+                self.pilot.run_pilot(
+                    manifest=manifest,
+                    root=ROOT,
+                    mode="candidate",
+                    list_only=False,
+                    formal_gate=True,
+                    artifacts_dir=tmp_path / "fg-expfail",
+                    env=env_b,
+                    verify_shell_parity=False,
+                    allow_script_test_binary=True,
+                    inspect_dylibs=False,
+                )
+            self.assertEqual(ctx1.exception.kind, "manifest_invalid")
+
+            # 2. --formal-gate refuses --list-only
+            pass_only_manifest = copy.deepcopy(manifest)
+            pass_only_manifest["configs"][0]["entries"] = [
+                e for e in pass_only_manifest["configs"][0]["entries"] if e["expected_outcome"] == "pass"
+            ]
+            pass_only_manifest["total_entries"] = len(pass_only_manifest["configs"][0]["entries"])
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx2:
+                self.pilot.run_pilot(
+                    manifest=pass_only_manifest,
+                    root=ROOT,
+                    mode="candidate",
+                    list_only=True,
+                    formal_gate=True,
+                    artifacts_dir=tmp_path / "fg-listonly",
+                    env=env_b,
+                    verify_shell_parity=False,
+                    allow_script_test_binary=True,
+                    inspect_dylibs=False,
+                )
+            self.assertEqual(ctx2.exception.kind, "invalid_argument")
+
+            # 3. --formal-gate refuses skipped dynamic execution-branch verification
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx3:
+                self.pilot.run_pilot(
+                    manifest=pass_only_manifest,
+                    root=ROOT,
+                    mode="candidate",
+                    list_only=False,
+                    formal_gate=True,
+                    artifacts_dir=tmp_path / "fg-nodyn",
+                    env=env_b,
+                    verify_shell_parity=False,
+                    allow_script_test_binary=True,
+                    inspect_dylibs=False,
+                )
+            self.assertEqual(ctx3.exception.kind, "manifest_drift")
+
+    def test_pr465_p2_2_failure_diagnostics_preserve_test_panic_and_cargo_compiler_messages(self):
+        # 1. Cargo JSON compiler-message on stdout must be extracted even when stderr is empty
+        json_stdout = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "reason": "compiler-message",
+                        "message": {
+                            "level": "error",
+                            "rendered": "error[E0308]: mismatched types\n  --> crates/lang-codegen/src/lib.rs:42:9\n",
+                        },
+                    }
+                ),
+                json.dumps({"reason": "build-finished", "success": False}),
+            ]
+        )
+        extracted = self.pilot.extract_cargo_compiler_diagnostics(json_stdout)
+        self.assertIn("error[E0308]: mismatched types", extracted)
+
+        # 2. Rust test assertion failure preserves stdout/stderr diagnostic excerpt in error evidence
+        entry = {
+            "test_name": "ssa::e2_replay_ci::e2_signature_and_source_roles_reject",
+            "expected_outcome": "pass",
+            "expected_failure_substrings": [],
+        }
+        failing_stdout = (
+            "running 1 test\n"
+            "test ssa::e2_replay_ci::e2_signature_and_source_roles_reject ... FAILED\n\n"
+            "failures:\n\n"
+            "---- ssa::e2_replay_ci::e2_signature_and_source_roles_reject stdout ----\n"
+            "thread 'ssa::e2_replay_ci::e2_signature_and_source_roles_reject' panicked at 'assertion `left == right` failed: left=1 right=2'\n\n"
+            "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 99 filtered out; finished in 0.01s\n"
+        )
+        with self.assertRaises(self.pilot.ShadowPilotError) as ctx:
+            self.pilot.parse_and_classify_execution(
+                failing_stdout,
+                "custom stderr backtrace line",
+                101,
+                entry,
+                host="Linux",
+                config_id="replay-cfg1",
+            )
+        self.assertEqual(ctx.exception.kind, "unexpected_failure")
+        self.assertIn("assertion `left == right` failed", ctx.exception.evidence.get("stdout_tail", ""))
+        self.assertIn("custom stderr backtrace line", ctx.exception.evidence.get("stderr_tail", ""))
+
+    def test_pr465_p2_3_formal_workflow_test_rejects_appended_list_only_or_missing_formal_gate(self):
+        formal = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        # Valid formal ci.yml must pass exact full-argv assertion
+        ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(formal)
+
+        # Appending --list-only to either step MUST fail the workflow contract test!
+        tampered_replay = formal.replace(
+            '--artifacts "$RUNNER_TEMP/koven-e2-replay"',
+            '--artifacts "$RUNNER_TEMP/koven-e2-replay" --list-only',
+        )
+        self.assertNotEqual(tampered_replay, formal)
+        with self.assertRaises(AssertionError):
+            ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(tampered_replay)
+
+        tampered_unit = formal.replace(
+            '--artifacts "$RUNNER_TEMP/koven-e2-two-source-unit"',
+            '--artifacts "$RUNNER_TEMP/koven-e2-two-source-unit" --list-only',
+        )
+        self.assertNotEqual(tampered_unit, formal)
+        with self.assertRaises(AssertionError):
+            ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(tampered_unit)
+
+        tampered_no_fg = formal.replace("--formal-gate ", "")
+        if tampered_no_fg != formal:
+            with self.assertRaises(AssertionError):
+                ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(tampered_no_fg)
 
 
 if __name__ == "__main__":

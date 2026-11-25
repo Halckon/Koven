@@ -476,6 +476,7 @@ jobs:
             --manifest scripts/e2_replay_manifest.json \
             --mode candidate \
             --candidate-jobs default \
+            --formal-gate \
             --artifacts "$RUNNER_TEMP/koven-e2-replay"
       - name: Verify opt-in two-source Unit capability and atomicity
         run: |
@@ -483,6 +484,7 @@ jobs:
             --manifest scripts/e2_two_source_unit_manifest.json \
             --mode candidate \
             --candidate-jobs default \
+            --formal-gate \
             --artifacts "$RUNNER_TEMP/koven-e2-two-source-unit"
       - name: List legacy scalar entry ordering target (execution owned by borrow gate)
         run: bash scripts/check_bridge_scalar_entry_ci.sh --list-only
