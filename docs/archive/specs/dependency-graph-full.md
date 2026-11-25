@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，452 份）"]
+subgraph Garchive["已完成（archive，453 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -461,6 +461,7 @@ subgraph Garchive["已完成（archive，452 份）"]
   S0494["S0494<br/>F5 表面语法增量门禁脚本化校验与单测"]
   S0495["S0495<br/>E2 两源 Unit CI 门禁的可撤回影子试点与双宿主 A/B 对账"]
   S0496["S0496<br/>正式 CI 切换 E2 Replay 与 E2 两源 Unit 为唯一产物锁多核执行器"]
+  S0497["S0497<br/>正式 CI Targeted Tests 按独立套件拆分为并行矩阵作业"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -485,7 +486,6 @@ subgraph Gactive["现行 active"]
   S0488["S0488<br/>收口 editors/tree-sitter 已知文法漂移（TS-03 / TS-05 / TS-07）"]
   S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
   S0490["S0490<br/>F6 首片 angle_group_closers 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI"]
-  S0497["S0497<br/>正式 CI Targeted Tests 按独立套件拆分为并行矩阵作业"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -2024,6 +2024,7 @@ S0496 --> S0497
 | SPEC-0494 | archive | [0494-f5-syntax-gate-script.md](0494-f5-syntax-gate-script.md) |
 | SPEC-0495 | archive | [0495-e2-two-source-ci-shadow-pilot.md](0495-e2-two-source-ci-shadow-pilot.md) |
 | SPEC-0496 | archive | [0496-formal-e2-ci-gate-switch.md](0496-formal-e2-ci-gate-switch.md) |
+| SPEC-0497 | archive | [0497-parallel-targeted-tests-ci.md](0497-parallel-targeted-tests-ci.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -2046,7 +2047,6 @@ S0496 --> S0497
 | SPEC-0488 | active | [0488-tree-sitter-drift-closure.md](../../specs/active/0488-tree-sitter-drift-closure.md) |
 | SPEC-0489 | active | [0489-f2a-paired-paren-recovery-prototype.md](../../specs/active/0489-f2a-paired-paren-recovery-prototype.md) |
 | SPEC-0490 | active | [0490-f6-angle-group-machine-proof.md](../../specs/active/0490-f6-angle-group-machine-proof.md) |
-| SPEC-0497 | active | [0497-parallel-targeted-tests-ci.md](../../specs/active/0497-parallel-targeted-tests-ci.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

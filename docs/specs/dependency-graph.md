@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 452 份"))
+ARCH(("已完成<br/>archive 453 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -32,7 +32,6 @@ subgraph Gactive["现行 active"]
   S0488["S0488<br/>收口 editors/tree-sitter 已知文法漂移（TS-03 / TS-05 / TS-07）"]
   S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
   S0490["S0490<br/>F6 首片 angle_group_closers 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI"]
-  S0497["S0497<br/>正式 CI Targeted Tests 按独立套件拆分为并行矩阵作业"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -56,7 +55,6 @@ ARCH --> S0338
 ARCH --> S0339
 ARCH --> S0340
 ARCH --> S0341
-ARCH --> S0497
 ```
 
 ## 节点链接
@@ -85,7 +83,6 @@ ARCH --> S0497
 | SPEC-0488 | active | [0488-tree-sitter-drift-closure.md](active/0488-tree-sitter-drift-closure.md) |
 | SPEC-0489 | active | [0489-f2a-paired-paren-recovery-prototype.md](active/0489-f2a-paired-paren-recovery-prototype.md) |
 | SPEC-0490 | active | [0490-f6-angle-group-machine-proof.md](active/0490-f6-angle-group-machine-proof.md) |
-| SPEC-0497 | active | [0497-parallel-targeted-tests-ci.md](active/0497-parallel-targeted-tests-ci.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -94,4 +91,4 @@ ARCH --> S0497
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（452 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（453 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

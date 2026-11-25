@@ -6,7 +6,7 @@
   </defs>
   <rect width="50256" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="42520" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="21300" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，452 份）</text>
+  <text x="21300" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，453 份）</text>
   <rect x="42624" y="30" width="5296" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="45272" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="47984" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1079,7 +1079,7 @@
   <path d="M 34500 138 C 34500 170, 3084 188, 3084 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3084 294 C 3084 326, 1764 344, 1764 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 42420 156 C 42420 188, 3348 188, 3348 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 3468 266 C 23188 266, 23188 422, 42908 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 3348 312 C 3348 344, 2028 344, 2028 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -3151,9 +3151,9 @@
   <text x="3348" y="261" text-anchor="middle" font-size="13">正式 CI 切换 E2 Re</text>
   <text x="3348" y="279" text-anchor="middle" font-size="13">play 与 E2 两源 U</text>
   <text x="3348" y="297" text-anchor="middle" font-size="13">nit 为唯一产物锁多核执…</text>
-  <rect x="42908" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="43028" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0497</text>
-  <text x="43028" y="417" text-anchor="middle" font-size="13">正式 CI Targeted</text>
-  <text x="43028" y="435" text-anchor="middle" font-size="13"> Tests 按独立套件拆分</text>
-  <text x="43028" y="453" text-anchor="middle" font-size="13">为并行矩阵作业</text>
+  <rect x="1908" y="376" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2028" y="399" text-anchor="middle" font-size="13">SPEC-0497</text>
+  <text x="2028" y="417" text-anchor="middle" font-size="13">正式 CI Targeted</text>
+  <text x="2028" y="435" text-anchor="middle" font-size="13"> Tests 按独立套件拆分</text>
+  <text x="2028" y="453" text-anchor="middle" font-size="13">为并行矩阵作业</text>
 </svg>
