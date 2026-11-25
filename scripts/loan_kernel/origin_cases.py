@@ -424,6 +424,11 @@ fun <view T> flowGeneric(inout h: T, borrow s: Arr): Unit flows s into h trusted
 fun <view T> keepGeneric(own x: T): T from x { return move x }
 fun <view T> dropGeneric(own x: T): Unit trusted
 fun <view T> genFlow(inout h: T, borrow s: Arr): Unit flows s into h { flowGeneric(h, s) }
+fun <view T> genFlowReadReborrow(inout h: T, borrow s: Arr): borrow Int from h.origins, s flows s into h {
+  val w = passGeneric(h)
+  flowGeneric(w, s)
+  return readGeneric(w)
+}
 """
 
 
@@ -491,6 +496,7 @@ def generic_view_holders():
     for kind, lines in (
         ("流向", ["flowGeneric(h, s)", "val e = readGeneric(h)"]),
         ("经借用值的流向", ["val w = passGeneric(h)", "flowGeneric(w, s)", "val e = readGeneric(h)"]),
+        ("经同一重借读回", ["val w = passGeneric(h)", "flowGeneric(w, s)", "val e = readGeneric(w)"]),
     ):
         for mode in ("borrow", "inout"):
             params = f"inout h: T, {mode} s: Arr, {mode} o: Arr"
@@ -545,7 +551,7 @@ def generic_view_holders():
         yield named(f"独占参数/循环流向/inout 参数{HELD_BY_CALLER}/{label}",
                     function(loop_head + sig, loop_body, tail))
 
-    # 4. 具体调用方实例化 view T 泛型流向函数（V、Bag、Slot）
+    # 4. 具体调用方实例化 view T 泛型流向函数（V、Bag、Slot，含经同一重借读回与不可携带来源类型 Arr 对照）
     for label, seed, reader in (
         ("局部视图", ["val h = V(&o)"], "readV(&h)"),
         ("类型参数的持有者", ["val h = Bag(0)", "put(&mut h, V(&o))"], "peekBag(&h)"),
@@ -553,13 +559,43 @@ def generic_view_holders():
     ):
         body = ["val o = Arr(1)", "val s = Arr(2)", "val x = Arr(3)"] + seed + [
             "genFlow(&mut h, &s)", f"val e = {reader}"]
-        for access, tail in (
-            ("写新来源", ["s.len = 9  // ERR K1", "use(e)"]),
-            ("写旧来源", ["o.len = 9  // ERR K1", "use(e)"]),
-            ("写无关来源", ["x.len = 9", "use(e)"]),
-            ("最后使用后写", ["use(e)", "o.len = 9", "s.len = 9"]),
-        ):
-            yield named(f"调用方实例化/{label}/{access}", function("fun f(): Unit {", body, tail))
+        reborrow_body = ["val o = Arr(1)", "val s = Arr(2)", "val x = Arr(3)"] + seed + [
+            "val e = genFlowReadReborrow(&mut h, &s)"]
+        for sub, cur_body in (("", body), ("经同一重借读回/", reborrow_body)):
+            for access, tail in (
+                ("写新来源", ["s.len = 9  // ERR K1", "use(e)"]),
+                ("写旧来源", ["o.len = 9  // ERR K1", "use(e)"]),
+                ("写无关来源", ["x.len = 9", "use(e)"]),
+                ("最后使用后写", ["use(e)", "o.len = 9", "s.len = 9"]),
+            ):
+                yield named(f"调用方实例化/{sub}{label}/{access}", function("fun f(): Unit {", cur_body, tail))
+
+    yield named("调用方实例化/不可携带来源类型/局部 Arr", function(
+        "fun f(): Unit {", ["val h = Arr(1)", "val s = Arr(2)"], ["genFlow(&mut h, &s)  // ERR SIG"]))
+    yield named("调用方实例化/不可携带来源类型/参数 Arr 未声明流向", function(
+        "fun f(inout h: Arr, borrow s: Arr): Unit {", [], ["genFlow(h, s)  // ERR SIG"]))
+    yield named("调用方实例化/不可携带来源类型/参数 Arr 声明流向", function(
+        "fun f(inout h: Arr, borrow s: Arr): Unit flows s into h {  // ERR SIG", [],
+        ["genFlow(h, s)  // ERR SIG"]))
+    yield named("调用方实例化/不可携带来源类型/可逃逸泛型参数", function(
+        "fun <T> f(inout h: T, borrow s: Arr): Unit {", [], ["genFlow(h, s)  // ERR SIG"]))
+
+    # 5. 借用容器形参经泛型读取转发（borrow/inout Bag 与 Slot 均须保护已有来源）
+    for label, cls, seed in (
+        ("类型参数的持有者", "Bag", ["val h = Bag(0)", "put(&mut h, V(&o))"]),
+        ("内部可变的槽", "Slot", ["val h = Slot(0)", "set(&h, V(&o))"]),
+    ):
+        for mode in ("borrow", "inout"):
+            yield named(f"借用容器经泛型转发/{label}/{mode}/接受", function(
+                f"fun wrap({mode} h: {cls}): borrow Int from h.origins {{", [], ["return readGeneric(h)"]))
+            yield named(f"借用容器经泛型转发/{label}/{mode}/拒绝-未声明来源", function(
+                f"fun wrap({mode} h: {cls}): borrow Int {{", [], ["return readGeneric(h)  // ERR K6"]))
+        wrap = function(f"fun wrap(borrow h: {cls}): borrow Int from h.origins {{", [], ["return readGeneric(h)"])
+        call_body = ["val o = Arr(1)"] + seed + ["val e = wrap(&h)"]
+        yield named(f"借用容器经泛型转发/{label}/调用方写来源", wrap + function(
+            "fun f(): Unit {", call_body, ["o.len = 9  // ERR K1", "use(e)"]))
+        yield named(f"借用容器经泛型转发/{label}/调用方最后使用后写", wrap + function(
+            "fun f(): Unit {", call_body, ["use(e)", "o.len = 9"]))
 
 
 def branch_and_loop_flows():

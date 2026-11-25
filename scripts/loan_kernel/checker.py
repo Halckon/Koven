@@ -850,8 +850,8 @@ class Checker:
             if ty.kind == "view":
                 for kind, fld in self.ref_paths(ty_name):
                     loans[fld] = {self.symbolic(name, fld, kind, fun.line)}
-            elif ty.kind == "opaque" and ty_name in fun.views or mode == "own" and self.carrier(ty_name):
-                loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}  # view T 与容器的值携带一组未知的来源
+            elif ty.kind == "opaque" and ty_name in fun.views or self.carrier(ty_name):
+                loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}  # view T 与容器（含借用形参）携带一组未知的来源
             # 按 inout / borrow 接收存在类型，得到的是载荷访问（之三 §2.4）
             if fun.deinit_of:
                 if not (ty_name in self.classes and self.classes[ty_name].deinit):
@@ -1055,6 +1055,20 @@ class Checker:
                     loans.setdefault(key[len(prefix):], set()).update(held)
         return loans
 
+    def star_origins(self, state, targets):
+        """K20 现查（容器与 view T）：从拥有被借存储的变量或参数上取出最新的 '*' 来源集合。"""
+        found = set()
+        for root, path in targets:
+            owner = state.get(root)
+            if owner is None and root.startswith("*"):
+                name, _, fld = root[1:].partition(".")
+                owner, path = state.get(name), (tuple(fld.split(".")) if fld else ()) + path
+            elif owner is not None and not (owner.ty.kind in ("view", "opaque") or self.carrier(owner.ty.name)):
+                owner = None
+            if owner is not None and not path and "*" in owner.loans:
+                found.update(owner.loans["*"])
+        return found
+
     def walk(self, state, targets, held, class_name, through):
         """沿字段路径走：按值字段留在同一处存储，借用字段换到它所指的存储。返回走到的存储与那里的账。"""
         at = set(targets)
@@ -1069,12 +1083,16 @@ class Checker:
         return at, held
 
     def current_fields(self, state, targets, carried, class_name):
-        """K20 现查：视图 class_name 位于 targets 时各借用字段当前持有的 loan。
+        """K20 现查：视图、容器或 view T 位于 targets 时当前持有的来源。
 
         借用字段之外的路径（它所指的另一个视图的字段）在这个视图名下只有建立时的副本，
-        账在所指视图的拥有者上，沿路径走过去取。
+        账在所指视图的拥有者上，沿路径走过去取；容器与 view T 的 '*' 来源同理现查拥有者。
         """
         fields = self.held_fields(state, targets, carried)
+        if self.carrier(class_name) or class_name in self.fun.views:
+            star = self.star_origins(state, targets)
+            if star:
+                fields.setdefault("*", set()).update(star)
         for _, path in self.ref_paths(class_name) if class_name in self.classes else ():
             *through, last = path.split(".")
             if self.crosses_borrow_field(class_name, through):
@@ -1950,6 +1968,11 @@ class Checker:
                 raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是对变量或其字段的借用，或一个借用值")
             flowing = self.carried(values[param], modes[param], fld)
             actual = bound.get(wanted, wanted)
+            if wanted in fun.tparams and isinstance(actual, str) and (
+                    actual in ("Int", "Unit") or (actual in self.classes and not self.classes[actual].is_view)
+                    or (actual in self.fun.tparams and actual not in self.fun.views)):
+                self.error("SIG", expr.line, f"{fun.name}：流向的目标 {target} 实例化为不能携带来源的类型 {actual}")
+                continue
             if isinstance(actual, str) and actual in self.classes and self.type_of(actual).kind == "view":
                 # 目标是视图：流入的来源可能落在 path 之下的任何一个借用字段上
                 fields = {key: held for key, held in given.loans.items() if key}

@@ -363,12 +363,18 @@ fun f(inout seed: N, inout r: N): Unit {
             wrong = mismatches()
         finally:
             CHECKER.Checker.current_fields = original
-        deep = {"三层借用字段/经调用返回/写新来源", "多拥有者读回/经调用返回/写左来源", "多拥有者读回/经调用返回/写右来源"}
-        self.assertLessEqual(deep, set(wrong))
-        self.assertTrue(set(wrong) - deep)
+        extra = {
+            "三层借用字段/经调用返回/写新来源",
+            "多拥有者读回/经调用返回/写左来源",
+            "多拥有者读回/经调用返回/写右来源",
+            f"泛型持有者/独占参数/经同一重借读回/borrow 参数{CASES.HELD_BY_CALLER}/拒绝-未声明来源",
+            f"泛型持有者/独占参数/经同一重借读回/inout 参数{CASES.HELD_BY_CALLER}/拒绝-未声明来源",
+        }
+        self.assertLessEqual(extra, set(wrong))
+        self.assertTrue(set(wrong) - extra)
         for name, (wanted, actual) in wrong.items():
             with self.subTest(case=name):
-                if name not in deep:
+                if name not in extra:
                     self.assertEqual(("独占字段所指的另一个视图", "经调用返回"), tuple(name.split("/")[::2][:2]))
                 self.assertEqual(set(), actual, "只应少报")
 
@@ -393,11 +399,11 @@ fun f(inout seed: N, inout r: N): Unit {
                 self.assertEqual(set(), wanted & actual, "标记处不再被拒绝")
 
     def test_generic_view_holders_cover_own_local_borrow_and_concrete_callers(self):
-        """泛型函数体内以 view T 为持有者：验证分支替换单路径对照与 K3 可观察寿命。"""
+        """泛型函数体内以 view T 为持有者：验证分支替换单路径对照、同一重借读回、容器转发与 Arr 拦截。"""
         self.assertEqual([], CHECKER.check(CASES.GENERIC_PRELUDE), "泛型公共声明本身须被接受")
         programs = {name.removeprefix("泛型持有者/"): text
                     for name, text in CASES.cases() if name.startswith("泛型持有者/")}
-        self.assertEqual(59, len(programs))
+        self.assertEqual(95, len(programs))
         swap_branch = "if (*) {\n    *h = move v\n  }"
         for name, expected_none, expected_only_swap in (
             ("独占参数/分支替换/接受", set(), set()),
@@ -415,10 +421,72 @@ fun f(inout seed: N, inout r: N): Unit {
                 self.assertEqual(expected_only_swap, actual)
 
     def test_branch_and_loop_flows_cover_backedge_and_caller_holders(self):
-        """循环二轮回边 flows 剪掉回边后恰好只漏报二轮来源；调用方双臂/循环去掉放入后诊断清零。"""
+        """断言六类控制流流向组合齐全，并对单臂、双臂、单步循环、二轮回边与调用方流向分别做变异检验。"""
         holders = ("局部视图", "类型参数的持有者", "内部可变的槽")
         all_cases = dict(CASES.cases())
+        expected_names = set()
         for holder in holders:
+            for access in ("写旧来源", "写新来源", "写无关来源", "最后使用后写"):
+                expected_names.add(f"分支流向/单臂/{holder}/{access}")
+                expected_names.add(f"循环流向/单步/{holder}/{access}")
+            for access in ("写旧来源", "写左臂来源", "写右臂来源", "写无关来源", "最后使用后写"):
+                expected_names.add(f"分支流向/双臂/{holder}/{access}")
+            for access in ("写零轮来源", "写一轮来源", "写二轮来源", "写无关来源", "最后使用后写"):
+                expected_names.add(f"循环流向/二轮回边/{holder}/{access}")
+            for label in ("写无关来源", "拒绝-漏掉右臂流向", "拒绝-合流后写左臂来源", "拒绝-合流后写右臂来源"):
+                expected_names.add(f"分支流向/调用方双臂/{holder}/{HELD_INOUT}/{label}")
+            for label in ("写无关来源", "拒绝-未声明流向", "拒绝-循环后写来源"):
+                expected_names.add(f"循环流向/调用方/{holder}/{HELD_INOUT}/{label}")
+        actual_cfg_names = {n for n in all_cases if n.startswith(("分支流向/", "循环流向/"))}
+        self.assertEqual(75, len(expected_names))
+        self.assertEqual(expected_names, actual_cfg_names)
+
+        for holder in holders:
+            for prefix, pat in (
+                (f"分支流向/单臂/{holder}/", r"if \(\*\) \{\n    [^\n]+\n  \}"),
+                (f"循环流向/单步/{holder}/", r"while \(\*\) \{\n    [^\n]+\n  \}"),
+            ):
+                for access in ("写旧来源", "写新来源", "写无关来源", "最后使用后写"):
+                    name = prefix + access
+                    text = all_cases[name]
+                    with self.subTest(case=name):
+                        cleared = re.sub(pat, "if (*) {\n  }", text)
+                        self.assertNotEqual(text, cleared)
+                        actual = {(r, n) for r, n, _ in CHECKER.check(cleared)}
+                        wanted = set() if access == "写新来源" else expected(cleared)
+                        self.assertEqual(wanted, actual)
+
+            dual_pat = re.compile(r"if \(\*\) \{\n    ([^\n]+)\n  \} else \{\n    ([^\n]+)\n  \}")
+            for access in ("写旧来源", "写左臂来源", "写右臂来源", "写无关来源", "最后使用后写"):
+                name = f"分支流向/双臂/{holder}/{access}"
+                text = all_cases[name]
+                m = dual_pat.search(text)
+                self.assertIsNotNone(m, name)
+                for dropped, repl, affected in (
+                    ("去左臂", f"if (*) {{\n  }} else {{\n    {m.group(2)}\n  }}", "写左臂来源"),
+                    ("去右臂", f"if (*) {{\n    {m.group(1)}\n  }} else {{\n  }}", "写右臂来源"),
+                ):
+                    with self.subTest(case=name, variant=dropped):
+                        mutated = dual_pat.sub(repl, text, count=1)
+                        actual = {(r, n) for r, n, _ in CHECKER.check(mutated)}
+                        wanted = set() if access == affected else expected(mutated)
+                        self.assertEqual(wanted, actual)
+
+            for label in ("写无关来源", "拒绝-漏掉右臂流向", "拒绝-合流后写左臂来源", "拒绝-合流后写右臂来源"):
+                name = f"分支流向/调用方双臂/{holder}/{HELD_INOUT}/{label}"
+                text = all_cases[name]
+                m = dual_pat.search(text)
+                self.assertIsNotNone(m, name)
+                for dropped, repl, cleared_labels in (
+                    ("去左臂", f"if (*) {{\n  }} else {{\n    {m.group(2)}\n  }}", {"拒绝-合流后写左臂来源"}),
+                    ("去右臂", f"if (*) {{\n    {m.group(1)}\n  }} else {{\n  }}", {"拒绝-漏掉右臂流向", "拒绝-合流后写右臂来源"}),
+                ):
+                    with self.subTest(case=name, variant=dropped):
+                        mutated = dual_pat.sub(repl, text, count=1)
+                        actual = {(r, n) for r, n, _ in CHECKER.check(mutated)}
+                        wanted = set() if label in cleared_labels else expected(mutated)
+                        self.assertEqual(wanted, actual)
+
             for access in ("写零轮来源", "写一轮来源", "写二轮来源", "写无关来源", "最后使用后写"):
                 name = f"循环流向/二轮回边/{holder}/{access}"
                 text = all_cases[name]
@@ -431,6 +499,7 @@ fun f(inout seed: N, inout r: N): Unit {
                         self.assertEqual(set(), actual)
                     else:
                         self.assertEqual(expected(text), actual)
+
             for label in ("写无关来源", "拒绝-未声明流向", "拒绝-循环后写来源"):
                 name = f"循环流向/调用方/{holder}/{HELD_INOUT}/{label}"
                 text = all_cases[name]
