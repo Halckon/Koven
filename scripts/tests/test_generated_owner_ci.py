@@ -47,8 +47,8 @@ class GeneratedOwnerCiTests(unittest.TestCase):
     def test_full_batch_is_unconditional_in_existing_two_host_job(self):
         self.assertIn("name: Targeted Tests (${{ matrix.os }})", self.job)
         self.assertIn("os: [macos-15, ubuntu-26.04]", self.job)
-        self.assertEqual(2, self.workflow.count("os: [macos-15, ubuntu-26.04]"))
-        self.assertEqual(2, self.workflow.count("fail-fast: false"))
+        self.assertEqual(4, self.workflow.count("os: [macos-15, ubuntu-26.04]"))
+        self.assertEqual(4, self.workflow.count("fail-fast: false"))
         self.assertNotIn("schedule:", section(self.workflow, "on", ""))
         self.assertNotIn("continue-on-error", self.job)
         run = step(self.job, RUN_STEP)
@@ -104,7 +104,7 @@ class GeneratedOwnerCiTests(unittest.TestCase):
         self.assertRegex(summary, r"(?m)^    needs: \[[^\n]*\btest\b[^\n]*\]$")
         self.assertIn("run: python3 scripts/check_ci_results.py", summary)
         jobs = {name: {"result": "success"} for name in
-                ("rust-size", "dependencies", "docs", "fmt", "clippy", "test")}
+                ("rust-size", "dependencies", "docs", "fmt", "clippy", "test", "test-d10", "test-e2")}
         jobs.update({name: {"result": "skipped"} for name in
                      ("editors", "preview-macos-produce", "preview-macos-consume",
                       "preview-linux-produce", "preview-linux-consume")})

@@ -23,7 +23,7 @@ def workflow_job_names(flags):
     workflow = (Path(__file__).resolve().parents[2] / CI.WORKFLOW).read_text()
     job_ids = []
     if flags['rust'] == 'true' or flags['preview'] == 'true':
-        job_ids += ['fmt', 'clippy', 'test']
+        job_ids += ['fmt', 'clippy', 'test', 'test-d10', 'test-e2']
     if flags['preview'] == 'true':
         job_ids += ['preview-macos-produce', 'preview-macos-consume',
                     'preview-linux-produce', 'preview-linux-consume']
@@ -162,7 +162,7 @@ class ReuseTests(unittest.TestCase):
     def test_required_jobs_follow_existing_path_flags(self):
         self.assertEqual(set(), CI.required_job_names(dict(rust='false', preview='false', editors='false')))
         self.assertEqual({'Editor lexical contracts'}, CI.required_job_names(dict(rust='false', preview='false', editors='true')))
-        self.assertEqual(9, len(CI.required_job_names(dict(rust='true', preview='true', editors='false'))))
+        self.assertEqual(13, len(CI.required_job_names(dict(rust='true', preview='true', editors='false'))))
 
     def test_required_jobs_match_workflow_names_and_matrix_for_every_flag_combination(self):
         for values in itertools.product(('false', 'true'), repeat=3):
@@ -180,11 +180,12 @@ class ReuseTests(unittest.TestCase):
     def test_macos_15_jobs_are_required_and_retired_14_evidence_is_rejected(self):
         expected = {f'{name} (macos-15)' for name in (
             'Workspace Check & Clippy', 'Targeted Tests',
+            'Targeted Tests D10 & Receipts', 'Targeted Tests E2',
             'Preview Producer', 'Preview Independent Consumer')}
         self.assertEqual(expected, {name for name in CI.required_job_names(self.flags)
                                     if '(macos-' in name})
         workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci.yml').read_text()
-        self.assertEqual(2, workflow.count('os: [macos-15, ubuntu-26.04]'))
+        self.assertEqual(4, workflow.count('os: [macos-15, ubuntu-26.04]'))
         self.assertEqual(2, workflow.count('runs-on: macos-15'))
         for name in ('Preview Producer', 'Preview Independent Consumer'):
             self.assertIn(f'name: {name} (macos-15)', workflow)

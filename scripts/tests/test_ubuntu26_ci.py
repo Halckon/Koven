@@ -11,7 +11,7 @@ SCRIPT = ROOT / 'scripts/install_ci_llvm_ubuntu26.sh'
 class Ubuntu26Ci(unittest.TestCase):
     def test_core_and_preview_have_separate_host_contracts(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        self.assertEqual(2, workflow.count('os: [macos-15, ubuntu-26.04]'))
+        self.assertEqual(4, workflow.count('os: [macos-15, ubuntu-26.04]'))
         self.assertEqual(2, workflow.count('runs-on: ubuntu-24.04'))
         self.assertEqual(8, workflow.count('runs-on: ubuntu-26.04'))
         self.assertNotIn('ubuntu-latest', workflow)
@@ -21,8 +21,9 @@ class Ubuntu26Ci(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         names = module.required_job_names(dict(rust='true', preview='true', editors='false'))
-        self.assertIn('Targeted Tests (ubuntu-26.04)', names)
-        self.assertNotIn('Targeted Tests (ubuntu-24.04)', names)
+        for prefix in ('Targeted Tests', 'Targeted Tests D10 & Receipts', 'Targeted Tests E2'):
+            self.assertIn(f'{prefix} (ubuntu-26.04)', names)
+            self.assertNotIn(f'{prefix} (ubuntu-24.04)', names)
         self.assertIn('Preview Producer (ubuntu-24.04)', names)
         self.assertNotIn('Preview Producer (ubuntu-26.04)', names)
 
@@ -86,7 +87,7 @@ dpkg() { [[ "$MODE" == downgrade ]]; }
         # The scripts wildcard covers the new installer even without an explicit entry.
         start = workflow.index('            rust:')
         self.assertIn("- 'scripts/**'", workflow[start:workflow.index('            preview:', start)])
-        self.assertEqual(2, workflow.count("'scripts/install_ci_llvm*.sh'"))
+        self.assertEqual(4, workflow.count("'scripts/install_ci_llvm*.sh'"))
 
     def test_failures_cannot_silently_continue(self):
         for mode in ('host', 'update', 'missing', 'hash', 'ambiguous', 'downgrade', 'install', 'identity'):

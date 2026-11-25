@@ -21,12 +21,13 @@ SPEC.loader.exec_module(CI)
 
 PREVIEW_JOBS = ('preview-macos-produce', 'preview-linux-produce',
                 'preview-macos-consume', 'preview-linux-consume')
+TEST_JOBS = ('test', 'test-d10', 'test-e2')
 
 
 def needs(docs_changed="false", rust_changed="false", editors_changed="false",
           preview_changed="false", **results):
     jobs = {name: {"result": results.get(name, "skipped")}
-            for name in ("docs", "editors", "fmt", "clippy", "test")}
+            for name in ("docs", "editors", "fmt", "clippy", *TEST_JOBS)}
     jobs["dependencies"] = {"result": results.get("dependencies", "success")}
     jobs["rust-size"] = {"result": results.get("rust-size", "success")}
     jobs.update({name: {"result": results.get(name, "skipped")} for name in PREVIEW_JOBS})
@@ -423,9 +424,10 @@ class CheckCiResultsTests(unittest.TestCase):
             needs("true", "false", docs="success"), "pull_request", "refs/pull/1/merge"))
 
     def test_rust_pr_requires_both_matrix_jobs(self):
-        jobs = needs("false", "true", docs="success", fmt="success", clippy="success", test="success")
+        jobs = needs("false", "true", docs="success", fmt="success", clippy="success",
+                     **dict.fromkeys(TEST_JOBS, "success"))
         self.assertEqual([], CI.check_results(jobs, "pull_request", "refs/pull/1/merge"))
-        for name in ("fmt", "clippy", "test"):
+        for name in ("fmt", "clippy", *TEST_JOBS):
             for result in ("skipped", "failure", "cancelled"):
                 with self.subTest(name=name, result=result):
                     altered = {**jobs, name: {"result": result}}
@@ -434,7 +436,7 @@ class CheckCiResultsTests(unittest.TestCase):
     def test_main_and_manual_dispatch_require_all_gates(self):
         for event, ref in (("push", "refs/heads/main"), ("workflow_dispatch", "refs/heads/fix/test")):
             jobs = needs("false", "false", **dict.fromkeys(
-                ("docs", "editors", "fmt", "clippy", "test", *PREVIEW_JOBS), "success"))
+                ("docs", "editors", "fmt", "clippy", *TEST_JOBS, *PREVIEW_JOBS), "success"))
             self.assertEqual([], CI.check_results(jobs, event, ref))
             self.assertTrue(CI.check_results(needs(), event, ref))
 
@@ -450,9 +452,9 @@ class CheckCiResultsTests(unittest.TestCase):
 
     def test_editor_and_rust_changes_require_both_independent_gates(self):
         jobs = needs(rust_changed="true", editors_changed="true", editors="success", docs="success",
-                     fmt="success", clippy="success", test="success")
+                     fmt="success", clippy="success", **dict.fromkeys(TEST_JOBS, "success"))
         self.assertEqual([], CI.check_results(jobs, "pull_request", "refs/pull/1/merge"))
-        for name in ("editors", "test"):
+        for name in ("editors", *TEST_JOBS):
             with self.subTest(name=name):
                 altered = {**jobs, name: {"result": "skipped"}}
                 self.assertTrue(CI.check_results(altered, "pull_request", "refs/pull/1/merge"))
@@ -498,9 +500,9 @@ class CheckCiResultsTests(unittest.TestCase):
     def test_workflow_preserves_both_matrices_and_required_summary(self):
         root = Path(__file__).resolve().parents[2]
         workflow = (root / ".github/workflows/ci.yml").read_text()
-        self.assertEqual(2, workflow.count("os: [macos-15, ubuntu-26.04]"))
-        self.assertEqual(2, workflow.count("fail-fast: false"))
-        for name in ("changes", "rust-size", "dependencies", "docs", "editors", "fmt", "clippy", "test", *PREVIEW_JOBS):
+        self.assertEqual(4, workflow.count("os: [macos-15, ubuntu-26.04]"))
+        self.assertEqual(4, workflow.count("fail-fast: false"))
+        for name in ("changes", "rust-size", "dependencies", "docs", "editors", "fmt", "clippy", *TEST_JOBS, *PREVIEW_JOBS):
             self.assertIn(name, workflow.split('  ci-passed:\n', 1)[1].split('    if:', 1)[0])
         self.assertIn("bash scripts/check_integration.sh", workflow)
         core = (root / "scripts/check_core.sh").read_text()
@@ -509,7 +511,7 @@ class CheckCiResultsTests(unittest.TestCase):
 
     def test_slow_checks_share_fast_prerequisites_and_preview_keeps_independent_consumer(self):
         workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/ci.yml").read_text()
-        for name in ("clippy", "test", "preview-macos-produce", "preview-linux-produce"):
+        for name in ("clippy", *TEST_JOBS, "preview-macos-produce", "preview-linux-produce"):
             header = workflow.split(f"\n  {name}:\n", 1)[1].split("    steps:", 1)[0]
             needs = re.search(r"(?m)^    needs: \[(.*)\]$", header)
             self.assertIsNotNone(needs)
@@ -624,7 +626,7 @@ class CheckCiResultsTests(unittest.TestCase):
                            ("workflow_dispatch", "refs/heads/fix/test")):
             for result in ("skipped", "failure", "cancelled", None):
                 jobs = needs("true", "true", docs="success", fmt="success",
-                             clippy="success", test="success", **{"rust-size": result})
+                             clippy="success", **dict.fromkeys(TEST_JOBS, "success"), **{"rust-size": result})
                 with self.subTest(event=event, ref=ref, result=result):
                     self.assertTrue(CI.check_results(jobs, event, ref))
 
@@ -645,7 +647,8 @@ class CheckCiResultsTests(unittest.TestCase):
             self.assertTrue(CI.check_results(needs(rust_changed=value), "pull_request", "refs/pull/1/merge"))
 
     def test_candidate_requires_each_host_producer_and_independent_consumer(self):
-        jobs = needs(preview_changed='true', docs='success', fmt='success', clippy='success', test='success',
+        jobs = needs(preview_changed='true', docs='success', fmt='success', clippy='success',
+                     **dict.fromkeys(TEST_JOBS, 'success'),
                      **dict.fromkeys(PREVIEW_JOBS, 'success'))
         self.assertEqual([], CI.check_results(jobs, 'pull_request', 'refs/pull/1/merge'))
         for name in PREVIEW_JOBS:
@@ -653,8 +656,10 @@ class CheckCiResultsTests(unittest.TestCase):
                 with self.subTest(name=name, result=result):
                     self.assertTrue(CI.check_results({**jobs, name: {'result': result}},
                                                      'pull_request', 'refs/pull/1/merge'))
-        self.assertTrue(CI.check_results({**jobs, 'test': {'result': 'skipped'}},
-                                         'pull_request', 'refs/pull/1/merge'))
+        for name in TEST_JOBS:
+            with self.subTest(test_job=name):
+                self.assertTrue(CI.check_results({**jobs, name: {'result': 'skipped'}},
+                                                 'pull_request', 'refs/pull/1/merge'))
 
     def test_candidate_skip_is_only_accepted_for_exempt_changes_or_feature_push(self):
         self.assertEqual([], CI.check_results(needs(docs='success'), 'pull_request', 'refs/pull/1/merge'))

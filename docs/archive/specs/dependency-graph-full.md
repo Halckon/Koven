@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，452 份）"]
+subgraph Garchive["已完成（archive，453 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -461,6 +461,7 @@ subgraph Garchive["已完成（archive，452 份）"]
   S0494["S0494<br/>F5 表面语法增量门禁脚本化校验与单测"]
   S0495["S0495<br/>E2 两源 Unit CI 门禁的可撤回影子试点与双宿主 A/B 对账"]
   S0496["S0496<br/>正式 CI 切换 E2 Replay 与 E2 两源 Unit 为唯一产物锁多核执行器"]
+  S0497["S0497<br/>正式 CI Targeted Tests 按独立套件拆分为并行矩阵作业"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1564,6 +1565,7 @@ S0366 --> S0367
 S0451 --> S0456
 S0456 --> S0457
 S0495 --> S0496
+S0496 --> S0497
 ```
 
 ## 节点链接
@@ -2022,6 +2024,7 @@ S0495 --> S0496
 | SPEC-0494 | archive | [0494-f5-syntax-gate-script.md](0494-f5-syntax-gate-script.md) |
 | SPEC-0495 | archive | [0495-e2-two-source-ci-shadow-pilot.md](0495-e2-two-source-ci-shadow-pilot.md) |
 | SPEC-0496 | archive | [0496-formal-e2-ci-gate-switch.md](0496-formal-e2-ci-gate-switch.md) |
+| SPEC-0497 | archive | [0497-parallel-targeted-tests-ci.md](0497-parallel-targeted-tests-ci.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
