@@ -308,12 +308,11 @@ SPEC-0331 的Resource provider另导出六份真实history的双入口12程序�
 执行前落完整输入SHA账本，失败仍保留身份。该动态接线不改变macOS partial合同。
 不得把关闭接线后普通崩溃当成检测成功。合同与未覆盖项见[0266](../archive/specs/0266-native-sanitizer-wiring.md)。
 
-## E2 影子试点与双宿主 A/B 对账
+## E2 影子试点与正式门禁切换
 
-[SPEC-0495](../archive/specs/0495-e2-two-source-ci-shadow-pilot.md) 在不改动正式 `.github/workflows/ci.yml`、
-`scripts/check_e2_two_source_unit_ci.sh` 与 `scripts/check_e2_replay_ci.sh` 现网执行路径的前提下，通过独立非门禁工作流
+[SPEC-0495](../archive/specs/0495-e2-two-source-ci-shadow-pilot.md) 通过独立非门禁工作流
 `.github/workflows/ci-e2-shadow-pilot.yml` 与 `scripts/e2_two_source_shadow_pilot.py`
-分套件开展可撤回的双宿主 A/B 对照（首批 `e2-two-source-unit`：5 配置 / 179 条目 / 原 358 次 Cargo 调用；第二批 `e2-replay`：2 配置 / 14 条目 / 原 28 次 Cargo 调用）：
+对 E2 两套 CI 套件（`e2-two-source-unit`：5 配置 / 179 条目；`e2-replay`：2 配置 / 14 条目）完成了双宿主冷/热与默认多核 A/B 实证；[SPEC-0496](../archive/specs/0496-formal-e2-ci-gate-switch.md) 在保留原 `scripts/check_e2_replay_ci.sh` 与 `scripts/check_e2_two_source_unit_ci.sh` 真源脚本不变的前提下，将 `.github/workflows/ci.yml` `Targeted Tests` 中对应两步切换为该已验证的 `candidate --candidate-jobs default --formal-gate` 执行器：
 
 - 每套套件由独立清单（`scripts/e2_two_source_unit_manifest.json`、`scripts/e2_replay_manifest.json`）同时驱动基线臂（`baseline`，固定 `-j1`）与候选臂（`candidate`，支持 `manifest` `-j1` 或 `default` 默认多核），启动前自动校验与对应原脚本的配置、顺序和过滤器完全等价；不同套件与不同配置各自独立锁定产物，严禁跨套件或跨异构 feature 混用二进制或对账账本。
 - 候选臂先用 Cargo JSON 唯一锁定匹配宿主三元组、`package_id`、`target`、`features` 与 `test`

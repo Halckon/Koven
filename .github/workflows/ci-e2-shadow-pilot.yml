@@ -52,10 +52,8 @@ on:
     paths:
       - '.github/workflows/ci-e2-shadow-pilot.yml'
       - 'scripts/e2_two_source_shadow_pilot.py'
-      - 'scripts/e2_two_source_unit_manifest.json'
       - 'scripts/e2_replay_manifest.json'
       - 'scripts/tests/test_e2_two_source_shadow_pilot.py'
-      - 'scripts/check_e2_two_source_unit_ci.sh'
       - 'scripts/check_e2_replay_ci.sh'
 
 permissions:

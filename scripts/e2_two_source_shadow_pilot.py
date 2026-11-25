@@ -174,11 +174,11 @@ def write_json_atomic(path: Path, payload: Any) -> None:
 
 
 def is_safe_allowlisted_key(key: str) -> bool:
+    if key in EXACT_CARGO_PACKAGE_ENV_KEYS or key in EXACT_BUILD_AND_TOOLCHAIN_ENV_KEYS:
+        return True
     upper = key.upper()
     if any(marker in upper for marker in SECRET_KEY_SUBSTRINGS):
         return False
-    if key in EXACT_CARGO_PACKAGE_ENV_KEYS or key in EXACT_BUILD_AND_TOOLCHAIN_ENV_KEYS:
-        return True
     if key.startswith("CARGO_BIN_EXE_"):
         return True
     return False
@@ -755,6 +755,36 @@ def verify_binary_matches_host_triple(
         )
 
 
+def extract_cargo_compiler_diagnostics(stdout: str, max_chars: int = 8000) -> str:
+    """Extract rendered rustc/Cargo compiler-message diagnostics from --message-format=json stdout."""
+    errors: list[str] = []
+    others: list[str] = []
+    for raw in stdout.splitlines():
+        stripped = raw.strip()
+        if not stripped or not stripped.startswith("{"):
+            continue
+        try:
+            rec = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("reason") != "compiler-message":
+            continue
+        msg = rec.get("message") or {}
+        rendered = msg.get("rendered")
+        if not isinstance(rendered, str) or not rendered.strip():
+            continue
+        level = msg.get("level")
+        if level in ("error", "failure-note", "ice"):
+            errors.append(rendered.rstrip())
+        else:
+            others.append(rendered.rstrip())
+    ordered = errors if errors else others
+    joined = "\n".join(ordered)
+    if len(joined) > max_chars:
+        return joined[-max_chars:]
+    return joined
+
+
 def select_unique_test_artifact(
     json_lines: list[str],
     expected: dict[str, Any],
@@ -949,6 +979,14 @@ def parse_and_classify_execution(
         stdout,
         re.MULTILINE,
     )
+    def _diag_evidence() -> dict[str, str]:
+        ev: dict[str, str] = {}
+        if stdout.strip():
+            ev["stdout_tail"] = stdout[-8000:]
+        if stderr.strip():
+            ev["stderr_tail"] = stderr[-4000:]
+        return ev
+
     if running != ["1"] or len(summaries) != 1:
         raise ShadowPilotError(
             "missed_execution",
@@ -956,6 +994,7 @@ def parse_and_classify_execution(
             host=host,
             config_id=config_id,
             test_name=tname,
+            evidence=_diag_evidence(),
         )
 
     verdict, passed_s, failed_s, ignored_s, measured_s, filtered_s = summaries[0]
@@ -973,6 +1012,7 @@ def parse_and_classify_execution(
             host=host,
             config_id=config_id,
             test_name=tname,
+            evidence=_diag_evidence(),
         )
 
     expected_line_status = "ok" if passed == 1 else "FAILED"
@@ -986,6 +1026,7 @@ def parse_and_classify_execution(
             host=host,
             config_id=config_id,
             test_name=tname,
+            evidence=_diag_evidence(),
         )
 
     expected_outcome = entry["expected_outcome"]
@@ -999,6 +1040,7 @@ def parse_and_classify_execution(
                 host=host,
                 config_id=config_id,
                 test_name=tname,
+                evidence=_diag_evidence(),
             )
         return {
             "executed_count": 1,
@@ -1019,6 +1061,7 @@ def parse_and_classify_execution(
             host=host,
             config_id=config_id,
             test_name=tname,
+            evidence=_diag_evidence(),
         )
     missing_witnesses = [
         sub for sub in entry["expected_failure_substrings"] if sub not in combined_output
@@ -1030,6 +1073,7 @@ def parse_and_classify_execution(
             host=host,
             config_id=config_id,
             test_name=tname,
+            evidence=_diag_evidence(),
         )
     return {
         "executed_count": 1,
@@ -1230,6 +1274,15 @@ def resolve_candidate_jobs_args(candidate_jobs: str) -> tuple[list[str], str]:
     raise ShadowPilotError("invalid_argument", f"unsupported candidate_jobs={candidate_jobs!r}")
 
 
+def purge_artifacts_dir(artifacts_dir: Path) -> Path:
+    resolved = artifacts_dir.resolve()
+    resolved.mkdir(parents=True, exist_ok=True)
+    (resolved / "ledger.json").unlink(missing_ok=True)
+    (resolved / "failure.json").unlink(missing_ok=True)
+    shutil.rmtree(resolved / "probes", ignore_errors=True)
+    return resolved
+
+
 def run_pilot(
     *,
     manifest: dict[str, Any],
@@ -1242,14 +1295,10 @@ def run_pilot(
     allow_script_test_binary: bool = False,
     inspect_dylibs: bool = True,
     candidate_jobs: str = "manifest",
+    formal_gate: bool = False,
 ) -> dict[str, Any]:
     """Execute either 'baseline' (Cargo calls) or 'candidate' (builds + probes + direct calls)."""
-    artifacts_dir = artifacts_dir.resolve()
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    # Purge any stale ledger/failure/probes up front so a failed rerun can never leave an old pass ledger behind.
-    (artifacts_dir / "ledger.json").unlink(missing_ok=True)
-    (artifacts_dir / "failure.json").unlink(missing_ok=True)
-    shutil.rmtree(artifacts_dir / "probes", ignore_errors=True)
+    artifacts_dir = purge_artifacts_dir(artifacts_dir)
 
     effective_env = dict(os.environ if env is None else env)
     host_label = effective_env.get("RUNNER_OS") or platform.system()
@@ -1264,6 +1313,13 @@ def run_pilot(
         if mode not in ("baseline", "candidate"):
             raise ShadowPilotError("invalid_argument", f"unsupported mode: {mode!r}", host=host_label)
 
+        if formal_gate and list_only:
+            raise ShadowPilotError(
+                "invalid_argument",
+                "--formal-gate cannot be combined with --list-only",
+                host=host_label,
+            )
+
         if not list_only:
             if effective_env.get("CI") != "true" or effective_env.get("GITHUB_ACTIONS") != "true":
                 raise ShadowPilotError(
@@ -1273,6 +1329,17 @@ def run_pilot(
                 )
 
         validate_manifest_structure(manifest)
+        if formal_gate:
+            for cfg in manifest["configs"]:
+                for entry in cfg["entries"]:
+                    if entry.get("expected_outcome") != "pass":
+                        raise ShadowPilotError(
+                            "manifest_invalid",
+                            f"--formal-gate requires every manifest entry to have expected_outcome='pass', got {entry.get('expected_outcome')!r}",
+                            host=host_label,
+                            config_id=cfg["config_id"],
+                            test_name=entry["test_name"],
+                        )
         manifest_canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
         manifest_sha256 = sha256_bytes(manifest_canonical)
         parity_report = (
@@ -1280,6 +1347,12 @@ def run_pilot(
             if verify_shell_parity
             else {"verified_configs": len(manifest["configs"]), "verified_entries": manifest["total_entries"]}
         )
+        if formal_gate and parity_report.get("dynamically_verified_exec_branch") is not True:
+            raise ShadowPilotError(
+                "manifest_drift",
+                "--formal-gate requires live dynamic execution-branch verification against the formal shell script",
+                host=host_label,
+            )
 
         target_dir = Path(effective_env.get("CARGO_TARGET_DIR") or (root / "target")).resolve()
         effective_env["CARGO_TARGET_DIR"] = str(target_dir)
@@ -1381,11 +1454,19 @@ def run_pilot(
                 cfg_peak_rss = max(cfg_peak_rss, build_proc["peak_rss_bytes"])
                 oom_events += int(build_proc["oom_suspected"])
                 if build_proc["timed_out"] or build_proc["exit_code"] != 0:
+                    compiler_diag = extract_cargo_compiler_diagnostics(build_proc["stdout"])
+                    build_ev: dict[str, str] = {}
+                    if compiler_diag:
+                        build_ev["compiler_diagnostics"] = compiler_diag
+                    if build_proc["stderr"].strip():
+                        build_ev["stderr_tail"] = build_proc["stderr"][-4000:]
+                    summary_tail = compiler_diag[-1200:] if compiler_diag else build_proc["stderr"][-1200:]
                     raise ShadowPilotError(
                         "artifact_lock_failed",
-                        f"candidate build failed (exit={build_proc['exit_code']}, timed_out={build_proc['timed_out']}): {build_proc['stderr'][-600:]}",
+                        f"candidate build failed (exit={build_proc['exit_code']}, timed_out={build_proc['timed_out']}): {summary_tail}",
                         host=host_label,
                         config_id=cid,
+                        evidence=build_ev,
                     )
 
                 locked_artifact = select_unique_test_artifact(
@@ -1863,6 +1944,17 @@ def compare_ledgers(
             host=host,
         )
 
+    b_flags = baseline.get("build_flags") or {}
+    c_flags = candidate.get("build_flags") or {}
+    fixed_flag_keys = (set(b_flags) | set(c_flags)) - {"cargo_jobs"}
+    for flag_key in sorted(fixed_flag_keys):
+        if b_flags.get(flag_key) != c_flags.get(flag_key):
+            raise ShadowPilotError(
+                "ab_mismatch",
+                f"build_flags.{flag_key} differs: baseline={b_flags.get(flag_key)!r} vs candidate={c_flags.get(flag_key)!r}",
+                host=host,
+            )
+
     b_cfgs = baseline.get("configs", [])
     c_cfgs = candidate.get("configs", [])
     if len(b_cfgs) != len(c_cfgs) or [c["config_id"] for c in b_cfgs] != [c["config_id"] for c in c_cfgs]:
@@ -2158,8 +2250,8 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
     lines = [
         f"## SPEC-0495 E2 Shadow A/B Report (`{suite_label}`)",
         "",
-        "| Suite | Host (CPUs / RAM) | Jobs (A/B) | Cache Phase (A/B) | Hit (A/B) | Entries | Equiv | Baseline Wall (s) | Cand Build+Probe (s) | Cand List+Run (s) | Cand Wall (s) | Peak Child RSS MiB (A / B) | Max Target GiB (A / B) | OOM / Retries |",
-        "|---|---|---|---|---|---:|---|---:|---:|---:|---:|---|---|---|",
+        "| Suite | Scope | Host (CPUs / RAM) | Jobs (A/B) | Cache Phase (A/B) | Hit (A/B) | Listed / Exec | Verdict | Baseline Wall (s) | Cand Build+Probe (s) | Cand List+Run (s) | Cand Wall (s) | Peak Child RSS MiB (A / B) | Max Target GiB (A / B) | OOM / Retries |",
+        "|---|---|---|---|---|---|---:|---|---:|---:|---:|---:|---|---|---|",
     ]
     for comp in comparisons:
         bt = comp["telemetry_comparison"]["baseline"]
@@ -2176,11 +2268,15 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
         ram_gib = f"{hr['total_ram_bytes'] / (1024**3):.1f}G" if hr.get("total_ram_bytes") else "?G"
         jobs = comp.get("cargo_jobs") or {"baseline": "-j1", "candidate": "-j1"}
         s_id = comp.get("suite_id") or suite_label
+        scope = comp.get("execution_scope") or "execute"
+        listed_n = comp["compared_entries"]
+        exec_n = 0 if scope == "list-only" else listed_n
+        verdict = "`LIST-ONLY PASS`" if scope == "list-only" else "`PASS`"
         lines.append(
-            f"| `{s_id}` | `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
+            f"| `{s_id}` | `{scope}` | `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
             f"`{comp['cache_phase']['baseline']}` / `{comp['cache_phase']['candidate']}` | "
             f"`{comp['cache_hit']['baseline']}` / `{comp['cache_hit']['candidate']}` | "
-            f"{comp['compared_entries']} | `PASS` | "
+            f"{listed_n} / {exec_n} | {verdict} | "
             f"{bt['total_wall_seconds']:.2f} | {c_bp:.2f} | {c_lr:.2f} | {ct['total_wall_seconds']:.2f} | "
             f"{b_rss:.1f} / {c_rss:.1f} | {b_tgt:.2f} / {c_tgt:.2f} | `{oom_str}` |"
         )
@@ -2252,6 +2348,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Cargo build jobs for candidate arm: 'manifest' (-j1), 'default' (all runner cores), or positive int",
     )
     p_run.add_argument("--list-only", action="store_true")
+    p_run.add_argument(
+        "--formal-gate",
+        action="store_true",
+        help="Strict formal CI gate mode: forbid --list-only, forbid expected_failure entries, and require dynamic shell execution-branch parity",
+    )
     p_run.add_argument("--artifacts", type=Path, required=True)
 
     p_cmp = sub.add_parser("compare", help="compare baseline and candidate ledgers")
@@ -2287,14 +2388,34 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.subcommand == "run":
-            manifest = load_manifest(args.manifest)
+            purged_dir = purge_artifacts_dir(args.artifacts)
+            try:
+                manifest = load_manifest(args.manifest)
+            except (OSError, json.JSONDecodeError, ShadowPilotError) as exc:
+                err = (
+                    exc
+                    if isinstance(exc, ShadowPilotError)
+                    else ShadowPilotError("manifest_invalid", f"failed to load manifest {args.manifest}: {exc}")
+                )
+                write_json_atomic(
+                    purged_dir / "failure.json",
+                    {
+                        "schema": LEDGER_SCHEMA,
+                        "status": "failed",
+                        "mode": args.mode,
+                        "execution_scope": "list-only" if args.list_only else "execute",
+                        "error": err.to_dict(),
+                    },
+                )
+                raise err from exc
             ledger = run_pilot(
                 manifest=manifest,
                 root=ROOT,
                 mode=args.mode,
                 list_only=args.list_only,
-                artifacts_dir=args.artifacts,
+                artifacts_dir=purged_dir,
                 candidate_jobs=args.candidate_jobs,
+                formal_gate=args.formal_gate,
             )
             print(
                 f"shadow-pilot {args.mode} ({ledger['execution_scope']}): "
@@ -2356,6 +2477,15 @@ def main(argv: list[str] | None = None) -> int:
             return 0
     except ShadowPilotError as err:
         print(f"e2-shadow-pilot error: {err}", file=sys.stderr)
+        ev = err.evidence or {}
+        for diag_key, label in (
+            ("compiler_diagnostics", "Cargo compiler diagnostics"),
+            ("stdout_tail", "test/process stdout"),
+            ("stderr_tail", "test/process stderr"),
+        ):
+            snippet = ev.get(diag_key)
+            if isinstance(snippet, str) and snippet.strip():
+                print(f"--- {label} ---\n{snippet}\n--- end {label} ---", file=sys.stderr)
         return 1
     return 0
 
