@@ -1640,31 +1640,136 @@ class LoanKernelCases(unittest.TestCase):
         self.assertFalse(any("flow_into_star_target_rejected" in m and "同名字段" in m for m in sig_errors))
 
     def test_real_ordinary_closure_l0137_escape_and_capture(self):
-        """§83：真实普通闭包与可变闭包的 L0137 逃逸禁止（含声明 from 仍报 L0137）及捕获权限对照。"""
+        """§83：真实普通闭包与可变闭包的 L0137 逃逸禁止（含声明 from、重赋值、合流与字段引用）及捕获权限对照。"""
         source = (ROOT / "cases/Z45.lk").read_text(encoding="utf-8")
         lowered = {}
         diags = CHECKER.check(source, lowered=lowered)
         actual = {(rule, line) for rule, line, _ in diags}
         self.assertEqual(expected(source), actual)
         for name in ("empty_closure_can_escape", "real_borrowed_closure_sync_and_shared_read_ok",
-                     "real_borrowed_closure_direct_sync_arg_ok", "real_mut_closure_sync_and_release_ok"):
+                     "real_borrowed_closure_direct_sync_arg_ok", "real_borrowed_closure_generic_copyable_ok",
+                     "real_borrowed_closure_from_moved_mut_ref_allows_shared_read",
+                     "real_borrowed_closure_from_mut_call_allows_shared_read",
+                     "real_mut_closure_local_sync_and_mixed_capture_ok",
+                     "real_mut_closure_on_inout_param_kernel_extension_ok",
+                     "user_classes_named_like_internal_closures_ok",
+                     "mut_closure_direct_shared_call_capture_ok"):
             self.assertTrue(lowered[name][2], name)
         for name in ("real_borrowed_closure_local_blocks_write",
                      "real_borrowed_closure_return_local_l0137",
                      "real_borrowed_closure_return_param_with_from_l0137",
                      "real_borrowed_closure_rebound_move_return_l0137",
+                     "real_borrowed_closure_reassign_escape_l0137",
+                     "real_borrowed_closure_branch_join_escape_l0137",
                      "real_borrowed_closure_store_in_class_field_l0137",
+                     "real_borrowed_closure_ref_into_owned_field_rejected",
                      "real_borrowed_closure_assign_field_l0137",
                      "real_borrowed_closure_store_in_view_field_l0137",
                      "real_borrowed_closure_deliver_own_l0137",
                      "real_borrowed_closure_yield_l0137",
+                     "real_mut_closure_mixed_capture_blocks_shared_write",
                      "real_mut_closure_blocks_read_and_write",
                      "real_mut_closure_not_copyable",
+                     "real_mut_closure_generic_copyable_rejected",
                      "real_mut_closure_return_with_from_l0137",
-                     "real_mut_closure_deliver_own_l0137"):
+                     "real_mut_closure_deliver_own_l0137",
+                     "generic_duplicate_closure_preserves_origin_k1",
+                     "generic_duplicate_closure_origins_preserves_origin_k1",
+                     "closure_move_r_with_active_exclusive_child_k4",
+                     "mut_closure_shared_ref_not_transferable_cap",
+                     "borrowed_closure_shared_ref_not_transferable_cap",
+                     "mut_closure_direct_shared_call_blocks_write_k1"):
             self.assertFalse(lowered[name][2], name)
         l0137 = [line for rule, line, _ in diags if rule == "L0137"]
-        self.assertEqual(10, len(l0137))
+        self.assertEqual(13, len(l0137))
+
+    def test_local_borrow_address_of_policy_contrast(self):
+        """§84：局部借用变量显式取址三策略对照（undecided / forbid / second_order）。"""
+        source = (ROOT / "cases/Z46.lk").read_text(encoding="utf-8")
+        lines = source.splitlines()
+
+        def find_line(fun_name, snippet):
+            in_fun = False
+            for idx, line in enumerate(lines, start=1):
+                if line.startswith(f"fun {fun_name}("):
+                    in_fun = True
+                elif in_fun and line.startswith("}"):
+                    break
+                elif in_fun and snippet in line:
+                    return idx
+            raise AssertionError(f"未找到 {fun_name} 中的 {snippet!r}")
+
+        # 1. 默认策略 undecided：与 Z46.lk 注释标记一致，且暴露扁平化类型漏报。
+        undecided_lowered = {}
+        undecided_diags = {(r, l) for r, l, _ in CHECKER.check(source, lowered=undecided_lowered)}
+        self.assertEqual(expected(source), undecided_diags)
+        self.assertTrue(undecided_lowered["local_borrow_write_via_mut_ref_hole"][2])
+        self.assertTrue(undecided_lowered["local_borrow_escapable_t_hole"][2])
+        self.assertTrue(undecided_lowered["local_borrow_store_concrete_into_borrow_slot"][2])
+
+        # 2. 候选策略 forbid（1A-ext）：禁止一切局部借用变量显式取址，同时保留重借、字段投影与显式 Slot。
+        forbid_lowered = {}
+        forbid_diags = {(r, l) for r, l, _ in CHECKER.check(source, lowered=forbid_lowered,
+                                                            local_borrow_ref_policy="forbid")}
+        expected_forbid = {
+            ("TYPE", find_line("local_borrow_write_via_mut_ref_hole", "write_item(&mut fa)")),
+            ("TYPE", find_line("local_borrow_escapable_t_hole", "take_escapable_mut(&mut fa)")),
+            ("TYPE", find_line("local_borrow_store_concrete_into_borrow_slot", "val rb = &mut fa")),
+            ("TYPE", find_line("local_borrow_scalar_write_via_mut_ref_hole", "write_int(&mut r)")),
+            ("TYPE", find_line("local_borrow_view_constructor_peel_hole", "val s = Slot(&mut fa)")),
+            ("TYPE", find_line("local_borrow_origins_preserves_inner_loan", "val g = copy_inner(&fa)")),
+            ("TYPE", find_line("local_borrow_origins_preserves_inner_loan", "read_item(g)")),
+            ("TYPE", find_line("local_inout_write_via_mut_ref", "write_item(&mut fm)")),
+            ("TYPE", find_line("local_borrow_read_via_ref", "read_item(&fa)")),
+            ("TYPE", find_line("local_borrow_view_t_contrast", "take_view_mut(&mut fa)")),
+            ("TYPE", find_line("local_borrow_rebind_via_second_order_store", "val rb = &mut fa")),
+            ("X1", find_line("local_borrow_rebind_via_second_order_store", "*rb = &b")),
+            ("K1", find_line("local_borrow_rebind_via_second_order_store", "write_item(&mut a)")),
+            ("TYPE", find_line("local_borrow_rebind_protects_new_source", "val rb = &mut fa")),
+            ("X1", find_line("local_borrow_rebind_protects_new_source", "*rb = &b")),
+            ("TYPE", find_line("local_borrow_ref_blocks_rebind", "val ra = &fa")),
+            ("TYPE", find_line("local_borrow_ref_keeps_source_alive", "val ra = &fa")),
+            ("TYPE", find_line("local_borrow_ref_cannot_return", "return &fa")),
+            ("K1", find_line("local_borrow_direct_write_still_k1", "write_item(fa)")),
+        }
+        self.assertEqual(expected_forbid, forbid_diags)
+        self.assertTrue(forbid_lowered["local_borrow_reborrow_and_field_proj_ok"][2])
+        self.assertFalse(forbid_lowered["local_borrow_write_via_mut_ref_hole"][2])
+        self.assertFalse(forbid_lowered["local_borrow_escapable_t_hole"][2])
+        self.assertFalse(forbid_lowered["local_borrow_scalar_write_via_mut_ref_hole"][2])
+        self.assertFalse(forbid_lowered["local_borrow_view_constructor_peel_hole"][2])
+
+        # 3. 候选策略 second_order：保留内层借用类型，堵住扁平化漏洞并支持 *rb = &b 重绑定且追踪新来源。
+        second_lowered = {}
+        second_diags = {(r, l) for r, l, _ in CHECKER.check(source, lowered=second_lowered,
+                                                            local_borrow_ref_policy="second_order")}
+        expected_second = {
+            ("TYPE", find_line("local_borrow_write_via_mut_ref_hole", "write_item(&mut fa)")),
+            ("K17", find_line("local_borrow_escapable_t_hole", "take_escapable_mut(&mut fa)")),
+            ("X1", find_line("local_borrow_store_concrete_into_borrow_slot", "*rb = Item(9)")),
+            ("TYPE", find_line("local_borrow_scalar_write_via_mut_ref_hole", "write_int(&mut r)")),
+            ("TYPE", find_line("local_borrow_view_constructor_peel_hole", "val s = Slot(&mut fa)")),
+            ("K1", find_line("local_borrow_origins_preserves_inner_loan", "write_item(&mut a)")),
+            ("TYPE", find_line("local_inout_write_via_mut_ref", "write_item(&mut fm)")),
+            ("TYPE", find_line("local_borrow_read_via_ref", "read_item(&fa)")),
+            ("K1", find_line("local_borrow_rebind_protects_new_source", "write_item(&mut b)")),
+            ("K1", find_line("local_borrow_ref_blocks_rebind", "fa = &b")),
+            ("K1", find_line("local_borrow_ref_keeps_source_alive", "write_item(&mut a)")),
+            ("TYPE", find_line("local_borrow_ref_cannot_return", "return &fa")),
+            ("K6", find_line("local_borrow_ref_cannot_return", "return &fa")),
+            ("K1", find_line("local_borrow_direct_write_still_k1", "write_item(fa)")),
+        }
+        self.assertEqual(expected_second, second_diags)
+        self.assertTrue(second_lowered["local_borrow_view_t_contrast"][2])
+        self.assertTrue(second_lowered["local_borrow_rebind_via_second_order_store"][2])
+        self.assertTrue(second_lowered["local_borrow_reborrow_and_field_proj_ok"][2])
+        self.assertFalse(second_lowered["local_borrow_write_via_mut_ref_hole"][2])
+        self.assertFalse(second_lowered["local_borrow_escapable_t_hole"][2])
+        self.assertFalse(second_lowered["local_borrow_store_concrete_into_borrow_slot"][2])
+        self.assertFalse(second_lowered["local_borrow_scalar_write_via_mut_ref_hole"][2])
+        self.assertFalse(second_lowered["local_borrow_view_constructor_peel_hole"][2])
+        self.assertFalse(second_lowered["local_borrow_origins_preserves_inner_loan"][2])
+        self.assertFalse(second_lowered["local_borrow_rebind_protects_new_source"][2])
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""
@@ -1881,6 +1986,118 @@ suspend fun start_partial_eval_cleanup(): Unit {
         temp_block = next(s for s in program if s.kind == "block")
         may_fail_call = next(s for s in temp_block.body if s.kind == "call")
         self.assertIn(("#tmp1", False), may_fail_call.cleanup)
+
+    def test_pr464_review3_regressions(self):
+        """PR #464 审阅 3 的 6 项 P2 回归：泛型转发闭包捕获来源、Closure 类型参数、二层存储更新 .origins、借用变量赋值层级、start 二层校验、二层借用 Transferable。"""
+        # 1. 默认策略 P2：泛型转发 borrow T from x 须保留闭包的捕获来源。
+        generic_forward_closure = """
+class Item(x: Int)
+view class Holder(borrow a: Item)
+fun <view T> ident(borrow x: T): borrow T from x {
+    return x
+}
+fun <view T> duplicate(borrow x: T): Holder from x.origins trusted
+fun write_item(inout x: Item): Unit trusted
+fun via_ident(): Unit {
+    val a = Item(1)
+    val f = closure(&a)
+    val g = duplicate(ident(&f))
+    write_item(&mut a)
+    use(g)
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(generic_forward_closure)]
+        self.assertEqual([("K1", 13)], errs)
+
+        # 2. 默认策略 P2：名为 Closure 的泛型类型参数不得被当成内建闭包类型（return / own 实参 / yield）。
+        tparam_named_closure = """
+class Item(x: Int)
+fun <Closure> id(own x: Closure): Closure {
+    return move x
+}
+suspend fun <Closure> gen(own x: Closure): Closure {
+    yield move x
+}
+fun call_tparam_closure(): Unit {
+    val a = id(Item(1))
+    use(a)
+}
+"""
+        self.assertEqual([], CHECKER.check(tparam_named_closure))
+
+        # 3. 候选 second_order P2：经二层引用 *rb = &b 重新赋值后，再经 rb 查询 .origins 须反映 b。
+        second_order_store_origins = """
+class Item(x: Int)
+view class Holder(borrow a: Item)
+fun <view T> copy_inner(borrow x: T): Holder from x.origins trusted
+fun write_item(inout x: Item): Unit trusted
+fun reassign_via_second_order(): Unit {
+    val a = Item(1)
+    val b = Item(2)
+    val fa = &a
+    val rb = &mut fa
+    *rb = &b
+    val g = copy_inner(rb)
+    write_item(&mut b)
+    use(g)
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(
+            second_order_store_origins, local_borrow_ref_policy="second_order")]
+        self.assertEqual([("K1", 13)], errs)
+
+        # 4. 候选 second_order P2：局部借用变量赋值须校验完整借用类型，禁止用 &mut r 覆盖 inout Item 槽位。
+        local_borrow_assign = """
+class Item(x: Int)
+fun write_item(inout x: Item): Unit trusted
+fun bypass_via_assign(): Unit {
+    val a = Item(1)
+    val b = Item(2)
+    val p = &mut a
+    val r = &b
+    p = &mut r
+    write_item(p)
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(
+            local_borrow_assign, local_borrow_ref_policy="second_order")]
+        self.assertEqual([("TYPE", 9)], errs)
+
+        # 5. 候选 second_order P2：start 任务创建须复用 bind_types() 的二层实参校验。
+        start_second_order = """
+class Item(x: Int)
+suspend fun write_item(inout x: Item): Unit {
+    suspend
+}
+suspend fun bypass_via_start(): Unit {
+    val a = Item(1)
+    val r = &a
+    val t = start write_item(&mut r)
+    await t
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(
+            start_second_order, local_borrow_ref_policy="second_order")]
+        self.assertEqual([("TYPE", 9)], errs)
+
+        # 6. 候选 second_order P2：查询二层借用的 Transferable 能力须递归构造内层借用类型，不得抛 Problem。
+        second_order_transferable = """
+cell class Cell(x: Int)
+fun <view T: Transferable> send(own x: T): Unit trusted
+fun check_second_order_caps(): Unit {
+    val n = 1
+    val r = &n
+    val rr = &r
+    send(rr)
+    val c = Cell(1)
+    val rc = &c
+    val rrc = &rc
+    send(rrc)
+}
+"""
+        errs = [(rule, line) for rule, line, _ in CHECKER.check(
+            second_order_transferable, local_borrow_ref_policy="second_order")]
+        self.assertEqual([("CAP", 12)], errs)
 
 
 if __name__ == "__main__":
