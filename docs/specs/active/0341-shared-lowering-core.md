@@ -22145,3 +22145,9 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - **有意改变**：按 [ADR-0034 §3 与方案 A](../../adr/accepted/0034-refine-closures-and-callable-views.md)，Borrow 函数参数通过不拥有的 callable view 传递，不把具体闭包加入被调函数的专门化键。相同递归 `relay` 源码不再重演 Single 的 owner-qualified 实例增长；1024 个互异借用闭包仍有各自的来源和操作数，但只调用一个 `helper<Int>` 实例。两者不是 Single 配额等价。
 - **保持不变**：1025 次使用同一个 callback 来源仍去重，只占一个实际 helper 键。前三条用例已在首轮 [#454 PR CI](https://github.com/Halckon/Koven/actions/runs/44965660554) 的 Linux 和 macOS 物理日志逐条确认，通过不代表标准上限的拒绝分支已验证。
 - **独立的标准上限验证**：Unit 的 `plan_unit_instances` 以 `MAX_UNIT_GENERIC_INSTANCES` 为上限，只对真实专门化键记账（类型实参、静态 self 或 owned callable 实参），普通根不记账。新增 `standard_budget_rejects_one_extra_specialized_key` 用相同的已验证源码分别选根，双布局对照 1024 个真实类型参数组合成功、加一后在原 helper span 报 `InstanceLimitExceeded` 且不改动类型表。只在真实 CI 执行；此记录不预填通过。旧压力断言保留，SPEC-0341 仍 in-progress。
+
+### 具名 Range 普通路径：自然耗尽和零轮
+
+- 本批仅覆盖在普通 Unit 中通过标准具名 Range 构造借用一个新建 List，循环自然耗尽后仍读取同一 Range，最后才移交 List 的有界形状。零轮走同一耗尽合同。未扩大 `break`、`continue`、`return` 的准入，也不改 Guide、Compatibility、SSA/LLVM 清理发射或 ABI。
+- 前端只在精确闭合的循环、普通只读观察及最后真实 Move 同时成立时缩短借用。普通 lowering 独立核对实际 provider 的 Fallthrough/Exhaustion、来源 loan、Range 的最后结束点和同一 List 的移交；缺记录、错来源或有竞争清理时不放行。
+- 基线 `df40921e` 的独立候选在 macOS arm64 通过 4 项定向：前端原凭据和负对照、SSA 验证及 LLVM、非零轮原生、零轮原生。每项覆盖 MemoryDocument / Rooted。原生确认原 List 活到实际消费者入口，最终只释放一次。Linux 和合成合并树的双平台 CI 尚待 PR 验证。
