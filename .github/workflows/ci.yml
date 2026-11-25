@@ -319,8 +319,8 @@ jobs:
       run:
         shell: bash
     env:
-      CARGO_PROFILE_DEV_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
-      CARGO_PROFILE_TEST_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
+      CARGO_PROFILE_DEV_DEBUG: '1'
+      CARGO_PROFILE_TEST_DEBUG: '1'
     steps:
       - name: Verify unprivileged container mounts
         if: runner.os == 'Linux'
@@ -351,7 +351,7 @@ jobs:
           toolchain: '1.96.0'
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: ${{ runner.os == 'Linux' && 'v1-test-debug1' || 'v0-rust' }}
+          prefix-key: v1-test-debug1
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Run bounded composition including tutorial
         run: bash scripts/check_integration.sh
@@ -463,8 +463,8 @@ jobs:
       run:
         shell: bash
     env:
-      CARGO_PROFILE_DEV_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
-      CARGO_PROFILE_TEST_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
+      CARGO_PROFILE_DEV_DEBUG: '1'
+      CARGO_PROFILE_TEST_DEBUG: '1'
     steps:
       - name: Verify unprivileged container mounts
         if: runner.os == 'Linux'
@@ -492,7 +492,7 @@ jobs:
           toolchain: '1.96.0'
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: ${{ runner.os == 'Linux' && 'v1-test-debug1' || 'v0-rust' }}
+          prefix-key: v1-test-debug1
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Experimental Unit root-set budget and rollback (CI only)
         run: bash scripts/check_unit_root_set_ci.sh
@@ -597,8 +597,8 @@ jobs:
       run:
         shell: bash
     env:
-      CARGO_PROFILE_DEV_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
-      CARGO_PROFILE_TEST_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
+      CARGO_PROFILE_DEV_DEBUG: '1'
+      CARGO_PROFILE_TEST_DEBUG: '1'
     steps:
       - name: Verify unprivileged container mounts
         if: runner.os == 'Linux'
@@ -626,7 +626,7 @@ jobs:
           toolchain: '1.96.0'
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: ${{ runner.os == 'Linux' && 'v1-test-debug1' || 'v0-rust' }}
+          prefix-key: v1-test-debug1
           shared-key: ${{ matrix.os }}-${{ runner.arch }}-rust-1.96.0-llvm-${{ steps.llvm.outputs.version || '21.1.8' }}-${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml') }}${{ matrix.container.image && format('-image-{0}-{1}', matrix.container.image, hashFiles('scripts/verify_ci_toolchain_image.sh')) || '' }}
       - name: Experimental E2 replay faults (CI only)
         run: |

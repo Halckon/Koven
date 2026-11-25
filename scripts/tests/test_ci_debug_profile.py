@@ -35,19 +35,20 @@ class CiDebugProfileTests(unittest.TestCase):
                 self.assertIn(expected_names[job_id], body)
                 self.assertNotIn('continue-on-error', body)
 
-    def test_profile_is_linux_only_and_scoped_to_tests(self):
+    def test_profile_is_dual_host_limited_debug_and_scoped_to_tests(self):
         for key in ('CARGO_PROFILE_DEV_DEBUG', 'CARGO_PROFILE_TEST_DEBUG'):
             self.assertEqual(self.workflow.count(key), 3)
             for job_id, body in self.test_jobs.items():
                 with self.subTest(key=key, job_id=job_id):
-                    self.assertIn(key + ": ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}", body)
+                    self.assertIn(key + ": '1'", body)
         self.assertNotIn('[profile.', (ROOT / 'Cargo.toml').read_text())
         self.assertNotIn('CARGO_INCREMENTAL:', self.workflow)
 
-    def test_cache_is_stable_separate_from_old_linux_artifacts(self):
+    def test_cache_is_stable_separate_from_old_debug2_artifacts(self):
         for job_id, body in self.test_jobs.items():
             with self.subTest(job_id=job_id):
-                self.assertIn("prefix-key: ${{ runner.os == 'Linux' && 'v1-test-debug1' || 'v0-rust' }}", body)
+                self.assertIn('prefix-key: v1-test-debug1\n', body)
+                self.assertNotIn('v0-rust', body)
                 self.assertNotIn('github.run_id', body)
                 self.assertNotIn('save-if:', body)
                 self.assertNotIn('restore-keys:', body)

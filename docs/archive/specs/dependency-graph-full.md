@@ -486,6 +486,7 @@ subgraph Gactive["现行 active"]
   S0488["S0488<br/>收口 editors/tree-sitter 已知文法漂移（TS-03 / TS-05 / TS-07）"]
   S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
   S0490["S0490<br/>F6 首片 angle_group_closers 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI"]
+  S0498["S0498<br/>双宿主 Targeted Tests 统一启用有限调试符号（debug=1）与独立缓存前缀"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1566,6 +1567,7 @@ S0451 --> S0456
 S0456 --> S0457
 S0495 --> S0496
 S0496 --> S0497
+S0497 --> S0498
 ```
 
 ## 节点链接
@@ -2047,6 +2049,7 @@ S0496 --> S0497
 | SPEC-0488 | active | [0488-tree-sitter-drift-closure.md](../../specs/active/0488-tree-sitter-drift-closure.md) |
 | SPEC-0489 | active | [0489-f2a-paired-paren-recovery-prototype.md](../../specs/active/0489-f2a-paired-paren-recovery-prototype.md) |
 | SPEC-0490 | active | [0490-f6-angle-group-machine-proof.md](../../specs/active/0490-f6-angle-group-machine-proof.md) |
+| SPEC-0498 | active | [0498-macos-limited-debug-ci.md](../../specs/active/0498-macos-limited-debug-ci.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
