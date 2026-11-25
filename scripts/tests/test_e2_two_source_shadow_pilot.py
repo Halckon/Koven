@@ -1899,6 +1899,104 @@ class Pr465MergedReviewP2RegressionContracts(unittest.TestCase):
         with self.assertRaises(AssertionError):
             ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(tampered_unit)
 
+    def test_pr466_p2_1_formal_ci_reference_prefers_dedicated_e2_job_and_omits_core_job(self):
+        head_sha = "d" * 40
+        step_name = "Experimental E2 replay faults (CI only)"
+
+        def make_api(ci_jobs):
+            responses = {
+                "actions/runs/500": {
+                    "id": 500,
+                    "event": "push",
+                    "head_sha": head_sha,
+                    "path": ".github/workflows/ci-e2-shadow-pilot.yml",
+                    "status": "completed",
+                    "conclusion": "success",
+                },
+                "actions/runs/500/jobs?per_page=100": {"jobs": []},
+                "actions/runs/600": {
+                    "id": 600,
+                    "event": "push",
+                    "head_sha": head_sha,
+                    "path": ".github/workflows/ci.yml",
+                    "status": "completed",
+                    "conclusion": "success",
+                },
+                "actions/runs/600/jobs?per_page=100": {"jobs": ci_jobs},
+                "actions/runs/600/artifacts?per_page=100": {"artifacts": []},
+            }
+
+            def api_get(path: str) -> dict:
+                if path not in responses:
+                    raise AssertionError(f"unexpected path: {path}")
+                return responses[path]
+
+            return api_get
+
+        # Split workflow: both Targeted Tests (<host>) (no E2 step) and Targeted Tests E2 (<host>) exist
+        split_jobs = [
+            {
+                "name": "Targeted Tests (ubuntu-26.04)",
+                "status": "completed",
+                "conclusion": "success",
+                "created_at": "2026-11-25T10:00:00Z",
+                "started_at": "2026-11-25T10:01:00Z",
+                "completed_at": "2026-11-25T10:16:00Z",
+                "steps": [{"name": "Run bounded composition including tutorial", "started_at": "2026-11-25T10:02:00Z", "completed_at": "2026-11-25T10:11:00Z"}],
+            },
+            {
+                "name": "Targeted Tests E2 (ubuntu-26.04)",
+                "status": "completed",
+                "conclusion": "success",
+                "created_at": "2026-11-25T10:00:00Z",
+                "started_at": "2026-11-25T10:01:00Z",
+                "completed_at": "2026-11-25T10:12:00Z",
+                "steps": [{"name": step_name, "started_at": "2026-11-25T10:02:00Z", "completed_at": "2026-11-25T10:05:30Z"}],
+            },
+        ]
+        res_split = self.pilot.fetch_workflow_metrics(
+            repo="Halckon/Koven",
+            shadow_run_id=500,
+            token="dummy",
+            head_sha=head_sha,
+            checked_out_sha=head_sha,
+            reference_ci_run_id=600,
+            formal_step_name=step_name,
+            api_get_fn=make_api(split_jobs),
+        )
+        self.assertEqual(len(res_split["formal_ci_reference"]), 1)
+        row = res_split["formal_ci_reference"][0]
+        self.assertEqual(row["job_name"], "Targeted Tests E2 (ubuntu-26.04)")
+        self.assertEqual(row["e2_step_reference_seconds"], 210.0)
+        self.assertNotIn("composition/D10", res_split["warning"])
+
+        # Legacy single-job workflow: Targeted Tests (<host>) contains the E2 step
+        legacy_jobs = [
+            {
+                "name": "Targeted Tests (ubuntu-26.04)",
+                "status": "completed",
+                "conclusion": "success",
+                "created_at": "2026-11-25T10:00:00Z",
+                "started_at": "2026-11-25T10:01:00Z",
+                "completed_at": "2026-11-25T10:30:00Z",
+                "steps": [{"name": step_name, "started_at": "2026-11-25T10:20:00Z", "completed_at": "2026-11-25T10:23:30Z"}],
+            }
+        ]
+        res_legacy = self.pilot.fetch_workflow_metrics(
+            repo="Halckon/Koven",
+            shadow_run_id=500,
+            token="dummy",
+            head_sha=head_sha,
+            checked_out_sha=head_sha,
+            reference_ci_run_id=600,
+            formal_step_name=step_name,
+            api_get_fn=make_api(legacy_jobs),
+        )
+        self.assertEqual(len(res_legacy["formal_ci_reference"]), 1)
+        self.assertEqual(res_legacy["formal_ci_reference"][0]["job_name"], "Targeted Tests (ubuntu-26.04)")
+        self.assertEqual(res_legacy["formal_ci_reference"][0]["e2_step_reference_seconds"], 210.0)
+        self.assertIn("composition/D10", res_legacy["warning"])
+
 
 if __name__ == "__main__":
     unittest.main()

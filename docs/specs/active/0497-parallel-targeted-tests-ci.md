@@ -51,8 +51,8 @@
 ## 5. 验收标准
 
 - [x] `SPEC-0497` 登记及索引/DAG 通过 `python3 scripts/check_docs.py` 与 `scripts/check_syntax_gate.py`
-- [x] 全套 `scripts/tests/test_*.py` 契约单测（含新增 `test-d10`/`test-e2` fail-closed 与矩阵守卫单测）先红后绿全通过
-- [ ] PR 双宿主正式 `ci.yml`（`test`、`test-d10`、`test-e2` 共 6 个矩阵作业及 `CI Passed`）实跑全绿，记录新旧墙钟对照
+- [ ] 全套 `scripts/tests/test_*.py` 契约单测（含新增 `test-d10`/`test-e2` fail-closed 与矩阵守卫单测，并在 Linux `Docs & Spec Structural Gate` 覆盖 `sha256sum` 校验）在最终 head 上全通过
+- [ ] PR 双宿主正式 `ci.yml`（`test`、`test-d10`、`test-e2` 共 6 个矩阵作业及 `CI Passed`）在最终 head 实跑全绿，记录新旧墙钟对照
 - [x] Architecture 确认无需更新（纯 CI 工作流拓扑拆分，无语言或编译器实现变化）
 - [x] 表面语法增量门禁：`N/A`（纯 CI 基础设施变更，无表面语法变更）
 
@@ -61,11 +61,12 @@
 1. [x] 基于合入 PR #465 后的 `main`（`7b817ce2`）建立独立分支 `feature/spec-0497-parallel-targeted-tests` 并登记 `SPEC-0497`
 2. [x] 更新 `scripts/tests/` 契约单测锁定三作业并行矩阵与 fail-closed 必需检查（TDD Red）
 3. [x] 拆分 `.github/workflows/ci.yml` 为 `test`、`test-d10`、`test-e2`，同步 `check_ci_results.py`、`pr_ci_reuse.py`、`ci-toolchain-image.yml` 与 `e2_two_source_shadow_pilot.py`（TDD Green）
-4. [ ] 运行全量 `scripts/tests` 单测与文档/语法门禁，推送建 PR 实测双宿主新墙钟耗时并归档
+4. [ ] 在最终 head 上完成本地定向单测、Linux 全量 `Docs & Spec Structural Gate` 与双宿主正式 `ci.yml` 实测并归档
 
 ## 7. 验证记录
 
 | 验收项 / 命令 | 结果 | 备注 |
 |---|---|---|
-| `python3 -m unittest`（`test_ci_debug_profile`、`test_ubuntu26_ci`、`test_generated_owner_ci`、`test_pr_ci_reuse`、`test_check_ci_results`、`test_word_frequency_contracts`、`test_check_native_sanitizers`、`test_check_borrow_faults`、`test_recovery_gates`、`test_llvm_install_bounds`、`ShadowWorkflowStaticContracts`、`Pr465ReviewP2RegressionContracts` 与 `test_ci_toolchain_image` 矩阵/发布契约） | 全绿（TDD 先红后绿） | `test_bad_rust_payload_cannot_be_extracted_or_executed` 依赖 Linux `sha256sum`，由 Linux `Docs & Spec Structural Gate` 实跑覆盖 |
+| 本地定向 `python3 -m unittest`（`test_ci_debug_profile`、`test_ubuntu26_ci`、`test_generated_owner_ci`、`test_pr_ci_reuse`、`test_check_ci_results`、`test_word_frequency_contracts`、`test_check_native_sanitizers`、`test_check_borrow_faults`、`test_recovery_gates`、`test_llvm_install_bounds`、`test_e2_two_source_shadow_pilot` 与 `test_ci_toolchain_image` 矩阵/发布契约） | 通过（TDD 先红后绿） | 定向验证；依赖 Linux `sha256sum` 的 `test_bad_rust_payload_cannot_be_extracted_or_executed` 及全量 `scripts/tests` 由 Linux `Docs & Spec Structural Gate` 覆盖 |
 | `python3 scripts/check_docs.py`、`python3 scripts/check_syntax_gate.py --check-file docs/specs/active/0497-parallel-targeted-tests-ci.md`、`git diff --check` | 全部通过 | 1058 份 Markdown 与 F5 语法增量门禁通过 |
+| PR #466 首轮双宿主正式 `ci.yml`（[run 45602893212](https://github.com/Halckon/Koven/actions/runs/45602893212)，head `3584c63f`） | 通过（`CI Passed` = `success`） | Linux 关键路径 `29m24s → 16m48s`（`-42.9%`），macOS 关键路径执行 `62m09s → 32m06s`（`-48.3%`），整轮墙钟 `77m14s → 40m45s`；最终 head 审阅修复后的完整 CI 待本轮验证 |

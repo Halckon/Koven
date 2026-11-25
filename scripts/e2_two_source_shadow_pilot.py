@@ -2232,16 +2232,35 @@ def fetch_workflow_metrics(
                 selected_ci_jobs = jobs
                 break
 
+    used_legacy_shared_job = False
     if selected_ci_run_id is not None:
+        dedicated_e2_hosts: set[str] = set()
         for job in selected_ci_jobs:
-            name = job.get("name", "")
-            if not name.startswith(("Targeted Tests (", "Targeted Tests E2 (")):
+            name = str(job.get("name") or "")
+            if name.startswith("Targeted Tests E2 (") and name.endswith(")"):
+                dedicated_e2_hosts.add(name[len("Targeted Tests E2 (") : -1])
+
+        for job in selected_ci_jobs:
+            name = str(job.get("name") or "")
+            is_dedicated = name.startswith("Targeted Tests E2 (") and name.endswith(")")
+            is_legacy = name.startswith("Targeted Tests (") and name.endswith(")")
+            if not is_dedicated and not is_legacy:
                 continue
+            if is_legacy:
+                host_label = name[len("Targeted Tests (") : -1]
+                if host_label in dedicated_e2_hosts:
+                    continue
             e2_step_sec = None
+            has_e2_step = False
             for step in job.get("steps") or []:
                 if step.get("name") == formal_step_name:
+                    has_e2_step = True
                     e2_step_sec = iso_duration_seconds(step.get("started_at"), step.get("completed_at"))
                     break
+            if is_legacy and not has_e2_step:
+                continue
+            if is_legacy:
+                used_legacy_shared_job = True
             ref_summary.append(
                 {
                     "ci_run_id": selected_ci_run_id,
@@ -2251,17 +2270,23 @@ def fetch_workflow_metrics(
                     "queue_seconds": iso_duration_seconds(job.get("created_at"), job.get("started_at")),
                     "job_wall_seconds": iso_duration_seconds(job.get("started_at"), job.get("completed_at")),
                     "e2_step_reference_seconds": e2_step_sec,
-                    "reference_only_prewarmed_shared_target": True,
+                    "dedicated_e2_job": is_dedicated,
+                    "reference_only_prewarmed_shared_target": is_legacy,
                 }
             )
 
+    warning_msg = (
+        "Formal Targeted Tests E2 step runs after earlier composition/D10/E2 steps in a shared target dir; treat as reference only and never subtract directly from isolated cold runs."
+        if used_legacy_shared_job
+        else "Formal E2 steps run in dedicated Targeted Tests E2 jobs (separate from composition and D10, with E2 replay and E2 two-source Unit sharing that job's Rust cache/target); treat as reference only and never subtract directly from isolated cold runs."
+    )
     return {
         "shadow_run_id": shadow_run_id,
         "head_sha": head_sha,
         "checked_out_sha": checked_out_sha,
         "shadow_jobs": shadow_summary,
         "formal_ci_reference": ref_summary,
-        "warning": "Formal Targeted Tests E2 step runs after earlier composition/D10/E2 steps in a shared target dir; treat as reference only and never subtract directly from isolated cold runs.",
+        "warning": warning_msg,
     }
 
 
