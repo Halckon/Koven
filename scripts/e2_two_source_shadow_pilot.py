@@ -31,6 +31,7 @@ import platform
 import re
 import shutil
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -260,11 +261,88 @@ def entry_filter_args(entry: dict[str, Any]) -> list[str]:
     return args
 
 
+def verify_shell_script_execution_branch_static(script_path: Path) -> int:
+    """Verify bash syntax and exact 1:1 structural parity between --list and execution branches without faking CI."""
+    if not script_path.is_file():
+        raise ShadowPilotError("manifest_drift", f"missing source script {script_path}")
+
+    syntax_proc = subprocess.run(
+        ["bash", "-n", str(script_path)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if syntax_proc.returncode != 0:
+        raise ShadowPilotError(
+            "manifest_drift",
+            f"shell syntax check failed on {script_path.name}: {syntax_proc.stderr.strip()}",
+        )
+
+    code_lines = [
+        ln.strip()
+        for ln in script_path.read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    list_re = re.compile(r"^listing=\$\((cargo test .+) --list\)$")
+    grep_re = re.compile(r'^\[\[ \$\(grep -Fxc .+ <<< "\$listing"\) == 1 \]\]$')
+
+    pairs = 0
+    idx = 0
+    while idx < len(code_lines):
+        m = list_re.match(code_lines[idx])
+        if m:
+            expected_exec_cmd = m.group(1)
+            if idx + 4 >= len(code_lines):
+                raise ShadowPilotError(
+                    "manifest_drift",
+                    f"{script_path.name}: truncated execution block after listing command {code_lines[idx]!r}",
+                )
+            grep_ln = code_lines[idx + 1]
+            if_ln = code_lines[idx + 2]
+            exec_ln = code_lines[idx + 3]
+            fi_ln = code_lines[idx + 4]
+            if (
+                not grep_re.match(grep_ln)
+                or if_ln != 'if [[ "$mode" != --list-only ]]; then'
+                or exec_ln != expected_exec_cmd
+                or fi_ln != "fi"
+            ):
+                raise ShadowPilotError(
+                    "manifest_drift",
+                    f"{script_path.name}: execution branch diverges from --list branch: "
+                    f"expected {expected_exec_cmd!r}, got block {[grep_ln, if_ln, exec_ln, fi_ln]!r}",
+                )
+            pairs += 1
+            idx += 5
+            continue
+        idx += 1
+
+    if pairs == 0:
+        raise ShadowPilotError("manifest_drift", f"{script_path.name}: found zero paired cargo test --list blocks")
+
+    total_cargo_tokens = len(re.findall(r"\bcargo\b", "\n".join(code_lines)))
+    if total_cargo_tokens != 2 * pairs:
+        raise ShadowPilotError(
+            "manifest_drift",
+            f"{script_path.name}: expected {2 * pairs} cargo invocations across {pairs} paired blocks, found {total_cargo_tokens}",
+        )
+
+    exec_if_count = sum(1 for ln in code_lines if ln == 'if [[ "$mode" != --list-only ]]; then')
+    if exec_if_count != 1 + pairs:
+        raise ShadowPilotError(
+            "manifest_drift",
+            f"{script_path.name}: expected 1 CI guard + {pairs} execution blocks ({1 + pairs} total), found {exec_if_count}",
+        )
+    return pairs
+
+
 def capture_shell_script_list_calls(
     script_path: Path,
     root: Path = ROOT,
     *,
     env: dict[str, str] | None = None,
+    list_only: bool = True,
 ) -> list[list[str]]:
     if not script_path.is_file():
         raise ShadowPilotError("manifest_drift", f"missing source script {script_path}")
@@ -281,25 +359,36 @@ def capture_shell_script_list_calls(
             'printf "\\n" >> "$KOVEN_STUB_LOG"\n'
             'prev=""\n'
             'target=""\n'
+            'is_list=0\n'
             'for arg in "$@"; do\n'
-            '  if [ "$arg" = "--" ]; then target="$prev"; break; fi\n'
+            '  if [ "$arg" = "--list" ]; then is_list=1; fi\n'
+            '  if [ "$arg" = "--" ] && [ -z "$target" ]; then target="$prev"; fi\n'
             '  prev="$arg"\n'
             "done\n"
-            'printf "%s: test\\n\\n1 test, 0 benchmarks\\n" "$target"\n',
+            'if [ "$is_list" = "1" ]; then\n'
+            '  printf "%s: test\\n\\n1 test, 0 benchmarks\\n" "$target"\n'
+            "else\n"
+            '  printf "running 1 test\\ntest %s ... ok\\n\\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\\n" "$target"\n'
+            "fi\n",
             encoding="utf-8",
         )
         cargo_stub.chmod(0o755)
 
-        clean_env = dict(os.environ if env is None else env)
-        clean_env.pop("CI", None)
-        clean_env.pop("GITHUB_ACTIONS", None)
-        clean_env["PATH"] = f"{tmp_path}{os.pathsep}{clean_env.get('PATH', '')}"
-        clean_env["KOVEN_STUB_LOG"] = str(log_file)
+        run_env = dict(os.environ if env is None else env)
+        if list_only:
+            run_env.pop("CI", None)
+            run_env.pop("GITHUB_ACTIONS", None)
+            cmd = ["bash", str(script_path), "--list-only"]
+        else:
+            # Never synthesize CI or GITHUB_ACTIONS; caller must already hold real CI env.
+            cmd = ["bash", str(script_path)]
+        run_env["PATH"] = f"{tmp_path}{os.pathsep}{run_env.get('PATH', '')}"
+        run_env["KOVEN_STUB_LOG"] = str(log_file)
 
         res = subprocess.run(
-            ["bash", str(script_path), "--list-only"],
+            cmd,
             cwd=root,
-            env=clean_env,
+            env=run_env,
             capture_output=True,
             text=True,
             timeout=30,
@@ -308,7 +397,7 @@ def capture_shell_script_list_calls(
         if res.returncode != 0:
             raise ShadowPilotError(
                 "manifest_drift",
-                f"{script_path.name} --list-only failed with exit {res.returncode}: {res.stderr.strip()}",
+                f"{script_path.name} ({'list-only' if list_only else 'execute-dry-run'}) failed with exit {res.returncode}: {res.stderr.strip()}",
             )
         observed_lines = log_file.read_text(encoding="utf-8").splitlines() if log_file.is_file() else []
     return [line.split("\t") for line in observed_lines if line]
@@ -321,16 +410,21 @@ def verify_manifest_against_shell_script(
     env: dict[str, str] | None = None,
     observed_calls: list[list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Verify 1:1 ordering, package, target, features, test FQN, and --exact/--ignored flags."""
+    """Verify 1:1 ordering, package, target, features, test FQN, and BOTH --list and execution branches."""
     validate_manifest_structure(manifest)
     script_rel = manifest["source_script"]
     script_path = root / script_rel
+    paired_blocks = verify_shell_script_execution_branch_static(script_path)
+
+    effective_env = dict(os.environ if env is None else env)
+    caller_supplied_calls = observed_calls is not None
     if observed_calls is None:
-        observed_calls = capture_shell_script_list_calls(script_path, root, env=env)
-    expected_flat: list[tuple[str, str, list[str]]] = []
+        observed_calls = capture_shell_script_list_calls(script_path, root, env=effective_env, list_only=True)
+
+    expected_flat: list[tuple[str, str, list[str], list[str]]] = []
     for cfg in manifest["configs"]:
         for entry in cfg["entries"]:
-            expected_argv = [
+            base_argv = [
                 "test",
                 "--locked",
                 "-j1",
@@ -342,9 +436,8 @@ def verify_manifest_against_shell_script(
                 entry["test_name"],
                 "--",
                 *entry_filter_args(entry),
-                "--list",
             ]
-            expected_flat.append((cfg["config_id"], entry["test_name"], expected_argv))
+            expected_flat.append((cfg["config_id"], entry["test_name"], [*base_argv, "--list"], base_argv))
 
     if len(observed_calls) != len(expected_flat):
         raise ShadowPilotError(
@@ -352,18 +445,48 @@ def verify_manifest_against_shell_script(
             f"entry count mismatch: shell script issued {len(observed_calls)} list calls, manifest has {len(expected_flat)}",
         )
 
-    for idx, (observed, (cid, tname, expected)) in enumerate(zip(observed_calls, expected_flat)):
-        if observed != expected:
+    for idx, (observed, (cid, tname, expected_list, _expected_run)) in enumerate(zip(observed_calls, expected_flat)):
+        if observed != expected_list:
             raise ShadowPilotError(
                 "manifest_drift",
-                f"call #{idx} mismatch: shell={observed!r} vs manifest={expected!r}",
+                f"call #{idx} mismatch: shell={observed!r} vs manifest={expected_list!r}",
                 config_id=cid,
                 test_name=tname,
             )
 
+    # In real GitHub Actions (without faking env vars), also dynamically dry-run the real execution branch
+    dynamically_verified_exec = False
+    if (
+        not caller_supplied_calls
+        and effective_env.get("CI") == "true"
+        and effective_env.get("GITHUB_ACTIONS") == "true"
+        and all(e["expected_outcome"] == "pass" for cfg in manifest["configs"] for e in cfg["entries"])
+    ):
+        exec_calls = capture_shell_script_list_calls(script_path, root, env=effective_env, list_only=False)
+        expected_interleaved: list[tuple[str, str, list[str]]] = []
+        for cid, tname, exp_list, exp_run in expected_flat:
+            expected_interleaved.append((cid, tname, exp_list))
+            expected_interleaved.append((cid, tname, exp_run))
+        if len(exec_calls) != len(expected_interleaved):
+            raise ShadowPilotError(
+                "manifest_drift",
+                f"execution-mode call count mismatch: shell issued {len(exec_calls)}, expected {len(expected_interleaved)}",
+            )
+        for idx, (obs, (cid, tname, exp)) in enumerate(zip(exec_calls, expected_interleaved)):
+            if obs != exp:
+                raise ShadowPilotError(
+                    "manifest_drift",
+                    f"execution-mode call #{idx} mismatch: shell={obs!r} vs manifest={exp!r}",
+                    config_id=cid,
+                    test_name=tname,
+                )
+        dynamically_verified_exec = True
+
     return {
         "verified_configs": len(manifest["configs"]),
         "verified_entries": len(expected_flat),
+        "verified_paired_exec_blocks": paired_blocks,
+        "dynamically_verified_exec_branch": dynamically_verified_exec,
         "source_script_sha256": sha256_file(script_path),
     }
 
@@ -412,15 +535,74 @@ def resolve_toolchain_commands(env: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def inspect_resolved_llvm_dylibs(executable: Path, env: dict[str, str]) -> list[str]:
-    """Inspect dynamic linker bindings for LLVM libraries under the exact launch env."""
+def inspect_resolved_llvm_dylibs(
+    executable: Path,
+    env: dict[str, str],
+    *,
+    cwd: Path | None = None,
+) -> list[str]:
+    """Inspect actual runtime dynamic linker bindings and file SHA256 for LLVM libraries."""
     if sys.platform == "darwin":
         tool = shutil.which("otool", path=env.get("PATH")) or "/usr/bin/otool"
-        cmd = [tool, "-L", str(executable)]
-    else:
-        tool = shutil.which("ldd", path=env.get("PATH")) or "/usr/bin/ldd"
-        cmd = [tool, str(executable)]
-    proc = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=15, check=False)
+        proc = subprocess.run([tool, "-L", str(executable)], env=env, capture_output=True, text=True, timeout=15, check=False)
+        if proc.returncode != 0:
+            raise ShadowPilotError(
+                "environment_mismatch",
+                f"otool -L failed ({proc.returncode}): {proc.stderr.strip()}",
+            )
+        declared_llvm = []
+        for raw_line in proc.stdout.splitlines()[1:]:
+            line = raw_line.strip()
+            if "LLVM" in line or "llvm" in line:
+                declared_llvm.append(line.split(" (", 1)[0].strip())
+
+        # Invoke executable in harmless 0-hit --list mode with DYLD_PRINT_LIBRARIES=1 to capture
+        # the exact library file path and Mach-O UUID actually loaded by macOS dyld at runtime.
+        dyld_env = dict(env)
+        dyld_env["DYLD_PRINT_LIBRARIES"] = "1"
+        dyld_proc = subprocess.run(
+            [str(executable), "--exact", "--list", "__koven_dyld_probe__"],
+            cwd=cwd or executable.parent,
+            env=dyld_env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if dyld_proc.returncode != 0:
+            raise ShadowPilotError(
+                "environment_mismatch",
+                f"macOS dyld runtime probe failed ({dyld_proc.returncode}): {dyld_proc.stderr[-400:].strip()}",
+            )
+
+        dyld_re = re.compile(r"^dyld\[\d+\]:\s+<([^>]+)>\s+(.+)$")
+        loaded_llvm: list[str] = []
+        for raw_err in dyld_proc.stderr.splitlines():
+            m = dyld_re.match(raw_err.strip())
+            if not m:
+                continue
+            uuid_str, loaded_raw = m.group(1), m.group(2).strip()
+            bname = Path(loaded_raw).name
+            if "LLVM" not in bname and "llvm" not in bname:
+                continue
+            if loaded_raw.startswith("/System/Library/") and not any(loaded_raw in d for d in declared_llvm):
+                continue
+            loaded_path = Path(loaded_raw)
+            if loaded_path.is_file():
+                real_p = loaded_path.resolve(strict=True)
+                loaded_llvm.append(f"{real_p} [uuid={uuid_str}, sha256={sha256_file(real_p)}]")
+            else:
+                loaded_llvm.append(f"{loaded_raw} [uuid={uuid_str}]")
+
+        if declared_llvm and not loaded_llvm:
+            raise ShadowPilotError(
+                "environment_mismatch",
+                f"Mach-O declares LLVM dylibs {declared_llvm!r} but dyld reported none loaded at runtime",
+            )
+        return sorted(set(loaded_llvm))
+
+    tool = shutil.which("ldd", path=env.get("PATH")) or "/usr/bin/ldd"
+    proc = subprocess.run([tool, str(executable)], env=env, capture_output=True, text=True, timeout=15, check=False)
     if proc.returncode != 0:
         raise ShadowPilotError(
             "environment_mismatch",
@@ -435,8 +617,13 @@ def inspect_resolved_llvm_dylibs(executable: Path, env: dict[str, str]) -> list[
                     "environment_mismatch",
                     f"unresolved LLVM dynamic library in {executable}: {line}",
                 )
-            # Strip hex load addresses like (0x00007f...) on Linux ldd output for deterministic comparison
             normalized = re.sub(r"\s+\(0x[0-9a-fA-F]+\)$", "", line)
+            if "=>" in normalized:
+                soname, rhs = [part.strip() for part in normalized.split("=>", 1)]
+                rhs_path = Path(rhs)
+                if rhs_path.is_file():
+                    real_p = rhs_path.resolve(strict=True)
+                    normalized = f"{soname} => {real_p} [sha256={sha256_file(real_p)}]"
             llvm_lines.append(normalized)
     return sorted(llvm_lines)
 
@@ -449,15 +636,16 @@ def build_probe_snapshot(
     inspect_dylibs: bool = True,
 ) -> dict[str, Any]:
     exe_resolved = executable.resolve(strict=True)
+    cwd_resolved = cwd.resolve(strict=True)
     return {
         "executable": str(exe_resolved),
         "executable_sha256": sha256_file(exe_resolved),
-        "cwd": str(cwd.resolve(strict=True)),
+        "cwd": str(cwd_resolved),
         "allowlisted_env": extract_allowlisted_env(env),
         "dylib_search_paths": {
             key: split_search_path(env.get(key)) for key in DYLIB_PATH_ENV_KEYS
         },
-        "resolved_llvm_dylibs": inspect_resolved_llvm_dylibs(exe_resolved, env) if inspect_dylibs else [],
+        "resolved_llvm_dylibs": inspect_resolved_llvm_dylibs(exe_resolved, env, cwd=cwd_resolved) if inspect_dylibs else [],
         "toolchain": resolve_toolchain_commands(env),
     }
 
@@ -511,23 +699,50 @@ def verify_binary_matches_host_triple(
     allow_script_test_binary: bool = False,
 ) -> None:
     with executable.open("rb") as handle:
-        header = handle.read(16)
+        header = handle.read(32)
     if allow_script_test_binary and header.startswith(b"#!"):
         return
     if "apple-darwin" in host_triple:
-        # Mach-O 64-bit little-endian magic (0xfeedfacf -> cf fa ed fe)
-        if not header.startswith(b"\xcf\xfa\xed\xfe"):
+        # Mach-O 64-bit header: magic (MH_MAGIC_64=0xfeedfacf), cputype, cpusubtype, filetype (MH_EXECUTE=2)
+        if len(header) < 32:
             raise ShadowPilotError(
                 "artifact_lock_failed",
-                f"executable {executable} is not a 64-bit Mach-O binary for {host_triple}",
+                f"executable {executable} is shorter than 32-byte Mach-O 64 header",
+                host=host,
+                config_id=config_id,
+            )
+        magic, cputype, _cpusubtype, filetype, *_ = struct.unpack("<IIIIIIII", header[:32])
+        expected_cpu = (
+            0x0100000C
+            if host_triple.startswith("aarch64-")
+            else (0x01000007 if host_triple.startswith("x86_64-") else None)
+        )
+        if expected_cpu is None or magic != 0xFEEDFACF or filetype != 2 or cputype != expected_cpu:
+            raise ShadowPilotError(
+                "artifact_lock_failed",
+                f"Mach-O header mismatch for {host_triple}: magic={hex(magic)}, cputype={hex(cputype)}, filetype={filetype}",
                 host=host,
                 config_id=config_id,
             )
     elif "linux" in host_triple:
-        if not header.startswith(b"\x7fELF"):
+        # ELF64 little-endian header: magic \x7fELF, EI_CLASS=2 (64-bit), EI_DATA=1 (LSB), e_type in {ET_EXEC=2, ET_DYN=3}, e_machine
+        if len(header) < 20 or header[:4] != b"\x7fELF" or header[4] != 2 or header[5] != 1:
             raise ShadowPilotError(
                 "artifact_lock_failed",
-                f"executable {executable} is not an ELF binary for {host_triple}",
+                f"executable {executable} is not a 64-bit little-endian ELF binary for {host_triple}",
+                host=host,
+                config_id=config_id,
+            )
+        e_type, e_machine = struct.unpack("<HH", header[16:20])
+        expected_machine = (
+            62
+            if host_triple.startswith("x86_64-")
+            else (183 if host_triple.startswith("aarch64-") else None)
+        )
+        if expected_machine is None or e_type not in (2, 3) or e_machine != expected_machine:
+            raise ShadowPilotError(
+                "artifact_lock_failed",
+                f"ELF header mismatch for {host_triple}: e_type={e_type}, e_machine={e_machine} (expected {expected_machine})",
                 host=host,
                 config_id=config_id,
             )
@@ -964,6 +1179,25 @@ def detect_git_sha(root: Path, env: dict[str, str]) -> str:
     return res.stdout.strip() if res.returncode == 0 else "unknown"
 
 
+def detect_git_tree(root: Path, env: dict[str, str]) -> str:
+    res = subprocess.run(
+        ["git", "rev-parse", "HEAD^{tree}"], cwd=root, env=env, capture_output=True, text=True, timeout=15, check=False
+    )
+    return res.stdout.strip() if res.returncode == 0 else "unknown"
+
+
+def has_compiled_target_artifacts(target_dir: Path) -> bool:
+    deps_dir = target_dir / "debug" / "deps"
+    if not deps_dir.is_dir():
+        return False
+    for child in deps_dir.iterdir():
+        if child.is_file() and (
+            child.suffix in (".rlib", ".rmeta", ".so", ".dylib") or os.access(child, os.X_OK)
+        ):
+            return True
+    return False
+
+
 def detect_host_resources() -> dict[str, int]:
     cpus = os.cpu_count() or 1
     ram_bytes = 0
@@ -1009,80 +1243,106 @@ def run_pilot(
     inspect_dylibs: bool = True,
     candidate_jobs: str = "manifest",
 ) -> dict[str, Any]:
-    """Execute either 'baseline' (358 Cargo calls) or 'candidate' (5 builds + probes + direct calls)."""
-    if mode not in ("baseline", "candidate"):
-        raise ShadowPilotError("invalid_argument", f"unsupported mode: {mode!r}")
+    """Execute either 'baseline' (Cargo calls) or 'candidate' (builds + probes + direct calls)."""
+    artifacts_dir = artifacts_dir.resolve()
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    # Purge any stale ledger/failure/probes up front so a failed rerun can never leave an old pass ledger behind.
+    (artifacts_dir / "ledger.json").unlink(missing_ok=True)
+    (artifacts_dir / "failure.json").unlink(missing_ok=True)
+    shutil.rmtree(artifacts_dir / "probes", ignore_errors=True)
 
     effective_env = dict(os.environ if env is None else env)
     host_label = effective_env.get("RUNNER_OS") or platform.system()
-
-    if not list_only:
-        if effective_env.get("CI") != "true" or effective_env.get("GITHUB_ACTIONS") != "true":
-            raise ShadowPilotError(
-                "ci_required",
-                "Two-source Unit fault execution requires real CI=true and GITHUB_ACTIONS=true; use --list-only locally",
-                host=host_label,
-            )
-
-    validate_manifest_structure(manifest)
-    parity_report = (
-        verify_manifest_against_shell_script(manifest, root, env=effective_env)
-        if verify_shell_parity
-        else {"verified_configs": len(manifest["configs"]), "verified_entries": manifest["total_entries"]}
-    )
-
-    artifacts_dir = artifacts_dir.resolve()
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    target_dir = Path(effective_env.get("CARGO_TARGET_DIR") or (root / "target")).resolve()
-    effective_env["CARGO_TARGET_DIR"] = str(target_dir)
-
-    host_triple, rustc_release, packages = query_rustc_and_metadata(root, effective_env, host_label)
-    git_sha = detect_git_sha(root, effective_env)
-    manifest_canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    manifest_sha256 = sha256_bytes(manifest_canonical)
-
-    raw_test_debug = effective_env.get("CARGO_PROFILE_TEST_DEBUG")
-    expected_debuginfo = int(raw_test_debug) if raw_test_debug in ("0", "1", "2") else None
-
-    if mode == "baseline":
-        cargo_jobs_args, cargo_jobs_label = ["-j1"], "-j1"
-    else:
-        cargo_jobs_args, cargo_jobs_label = resolve_candidate_jobs_args(candidate_jobs)
-
-    host_resources = detect_host_resources()
-
-    build_flags_snapshot = {
-        key: effective_env.get(key)
-        for key in (
-            "RUSTFLAGS",
-            "CARGO_ENCODED_RUSTFLAGS",
-            "CARGO_INCREMENTAL",
-            "CARGO_PROFILE_DEV_DEBUG",
-            "CARGO_PROFILE_TEST_DEBUG",
-            "LLVM_SYS_211_PREFIX",
-        )
-    }
-    build_flags_snapshot["cargo_jobs"] = cargo_jobs_label
-
-    initial_disk = disk_snapshot(root, target_dir)
-    min_free_bytes = initial_disk["fs_free_bytes"]
-    max_target_bytes = initial_disk["target_dir_bytes"]
-    peak_rss_overall = 0
-    oom_events = 0
-
-    total_build_seconds = 0.0
-    total_probe_seconds = 0.0
-    total_list_seconds = 0.0
-    total_run_seconds = 0.0
-    pilot_started = time.monotonic()
-
+    git_sha = "unknown"
+    git_tree = "unknown"
+    host_triple = "unknown"
+    manifest_sha256 = "unknown"
     config_records: list[dict[str, Any]] = []
     entry_records: list[dict[str, Any]] = []
-    locked_by_target: dict[tuple[str, str, tuple[str, ...]], list[dict[str, Any]]] = {}
-    suite_id = manifest.get("suite_id") or Path(manifest["source_script"]).stem
-    formal_ci_step_name = manifest.get("formal_ci_step_name")
 
     try:
+        if mode not in ("baseline", "candidate"):
+            raise ShadowPilotError("invalid_argument", f"unsupported mode: {mode!r}", host=host_label)
+
+        if not list_only:
+            if effective_env.get("CI") != "true" or effective_env.get("GITHUB_ACTIONS") != "true":
+                raise ShadowPilotError(
+                    "ci_required",
+                    "E2 fault execution requires real CI=true and GITHUB_ACTIONS=true; use --list-only locally",
+                    host=host_label,
+                )
+
+        validate_manifest_structure(manifest)
+        manifest_canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        manifest_sha256 = sha256_bytes(manifest_canonical)
+        parity_report = (
+            verify_manifest_against_shell_script(manifest, root, env=effective_env)
+            if verify_shell_parity
+            else {"verified_configs": len(manifest["configs"]), "verified_entries": manifest["total_entries"]}
+        )
+
+        target_dir = Path(effective_env.get("CARGO_TARGET_DIR") or (root / "target")).resolve()
+        effective_env["CARGO_TARGET_DIR"] = str(target_dir)
+
+        initial_disk = disk_snapshot(root, target_dir)
+        cache_phase = effective_env.get("KOVEN_SHADOW_CACHE_PHASE", "unspecified")
+        cache_hit = effective_env.get("KOVEN_SHADOW_CACHE_HIT", "unspecified")
+        if cache_phase == "cold":
+            if cache_hit == "true" or initial_disk["target_dir_bytes"] != 0:
+                raise ShadowPilotError(
+                    "cache_contract_violated",
+                    f"cold phase requires cache_hit!=true and empty CARGO_TARGET_DIR, got hit={cache_hit!r}, bytes={initial_disk['target_dir_bytes']}",
+                    host=host_label,
+                )
+        elif cache_phase == "warm" or cache_hit == "true":
+            if initial_disk["target_dir_bytes"] <= 0 or not has_compiled_target_artifacts(target_dir):
+                raise ShadowPilotError(
+                    "cache_contract_violated",
+                    f"warm / cache-hit run requires compiled artifacts in {target_dir / 'debug/deps'} (registry-only cache hit cannot be marked warm)",
+                    host=host_label,
+                )
+
+        host_triple, rustc_release, packages = query_rustc_and_metadata(root, effective_env, host_label)
+        git_sha = detect_git_sha(root, effective_env)
+        git_tree = detect_git_tree(root, effective_env)
+
+        raw_test_debug = effective_env.get("CARGO_PROFILE_TEST_DEBUG")
+        expected_debuginfo = int(raw_test_debug) if raw_test_debug in ("0", "1", "2") else None
+
+        if mode == "baseline":
+            cargo_jobs_args, cargo_jobs_label = ["-j1"], "-j1"
+        else:
+            cargo_jobs_args, cargo_jobs_label = resolve_candidate_jobs_args(candidate_jobs)
+
+        host_resources = detect_host_resources()
+
+        build_flags_snapshot = {
+            key: effective_env.get(key)
+            for key in (
+                "RUSTFLAGS",
+                "CARGO_ENCODED_RUSTFLAGS",
+                "CARGO_INCREMENTAL",
+                "CARGO_PROFILE_DEV_DEBUG",
+                "CARGO_PROFILE_TEST_DEBUG",
+                "LLVM_SYS_211_PREFIX",
+            )
+        }
+        build_flags_snapshot["cargo_jobs"] = cargo_jobs_label
+
+        min_free_bytes = initial_disk["fs_free_bytes"]
+        max_target_bytes = initial_disk["target_dir_bytes"]
+        peak_rss_overall = 0
+        oom_events = 0
+
+        total_build_seconds = 0.0
+        total_probe_seconds = 0.0
+        total_list_seconds = 0.0
+        total_run_seconds = 0.0
+        pilot_started = time.monotonic()
+
+        locked_by_target: dict[tuple[str, str, tuple[str, ...]], list[dict[str, Any]]] = {}
+        suite_id = manifest.get("suite_id") or Path(manifest["source_script"]).stem
+        formal_ci_step_name = manifest.get("formal_ci_step_name")
         for cfg in manifest["configs"]:
             cid = cfg["config_id"]
             pkg_name = cfg["package"]
@@ -1431,6 +1691,7 @@ def run_pilot(
             "mode": mode,
             "execution_scope": "list-only" if list_only else "execute",
             "git_sha": git_sha,
+            "git_tree": git_tree,
             "host": host_label,
             "host_triple": host_triple,
             "rustc_release": rustc_release,
@@ -1461,12 +1722,14 @@ def run_pilot(
         write_json_atomic(artifacts_dir / "ledger.json", ledger)
         return ledger
     except ShadowPilotError as err:
+        (artifacts_dir / "ledger.json").unlink(missing_ok=True)
         failure_payload = {
             "schema": LEDGER_SCHEMA,
             "status": "failed",
             "mode": mode,
             "execution_scope": "list-only" if list_only else "execute",
             "git_sha": git_sha,
+            "git_tree": git_tree,
             "host": host_label,
             "host_triple": host_triple,
             "manifest_sha256": manifest_sha256,
@@ -1476,6 +1739,63 @@ def run_pilot(
         }
         write_json_atomic(artifacts_dir / "failure.json", failure_payload)
         raise
+    except BaseException:
+        (artifacts_dir / "ledger.json").unlink(missing_ok=True)
+        raise
+
+
+def load_verified_ledger(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise ShadowPilotError("ab_mismatch", f"missing ledger file: {path}")
+    sibling_failure = path.parent / "failure.json"
+    if sibling_failure.exists():
+        raise ShadowPilotError(
+            "ab_mismatch",
+            f"refusing stale ledger {path} because failure.json exists in {path.parent}",
+        )
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def resolve_run_arm_ledgers(
+    download_dir: Path,
+    *,
+    run_id: int,
+    max_attempt: int,
+    hosts: tuple[str, ...] = ("macos-15", "ubuntu-26.04"),
+    arms: tuple[str, ...] = ("baseline", "candidate"),
+) -> dict[tuple[str, str], Path]:
+    """Select each (host_os, arm)'s latest attempt <= max_attempt; fail closed if missing or failed."""
+    if not download_dir.is_dir():
+        raise ShadowPilotError("ab_mismatch", f"missing artifact download directory: {download_dir}")
+    resolved: dict[tuple[str, str], Path] = {}
+    for host_os in hosts:
+        for arm in arms:
+            prefix = f"e2-shadow-arm-{host_os}-{arm}-{run_id}-"
+            candidates: list[tuple[int, Path]] = []
+            for entry in download_dir.iterdir():
+                if not entry.is_dir() or not entry.name.startswith(prefix):
+                    continue
+                suffix = entry.name[len(prefix) :]
+                if suffix.isdigit():
+                    attempt_num = int(suffix)
+                    if 1 <= attempt_num <= max_attempt:
+                        candidates.append((attempt_num, entry))
+            if not candidates:
+                raise ShadowPilotError(
+                    "ab_mismatch",
+                    f"no downloaded arm artifact for ({host_os}, {arm}) in run {run_id} (max_attempt={max_attempt})",
+                    host=host_os,
+                )
+            latest_attempt, latest_dir = max(candidates, key=lambda item: item[0])
+            ledger_file = latest_dir / "ledger.json"
+            if (latest_dir / "failure.json").exists() or not ledger_file.is_file():
+                raise ShadowPilotError(
+                    "ab_mismatch",
+                    f"latest attempt {latest_attempt} for ({host_os}, {arm}) failed or lacks ledger.json in {latest_dir}",
+                    host=host_os,
+                )
+            resolved[(host_os, arm)] = ledger_file
+    return resolved
 
 
 def compare_ledgers(
@@ -1495,6 +1815,7 @@ def compare_ledgers(
         "suite_id",
         "source_script",
         "git_sha",
+        "git_tree",
         "host",
         "host_triple",
         "rustc_release",
@@ -1507,6 +1828,33 @@ def compare_ledgers(
                 f"{identity_key} differs: baseline={baseline.get(identity_key)!r} vs candidate={candidate.get(identity_key)!r}",
                 host=host,
             )
+
+    if (
+        baseline.get("cache_phase") != candidate.get("cache_phase")
+        or baseline.get("cache_hit") != candidate.get("cache_hit")
+    ):
+        raise ShadowPilotError(
+            "ab_mismatch",
+            f"mixed cold/warm cache state across A/B arms invalidates comparison: "
+            f"baseline=(phase={baseline.get('cache_phase')!r}, hit={baseline.get('cache_hit')!r}) vs "
+            f"candidate=(phase={candidate.get('cache_phase')!r}, hit={candidate.get('cache_hit')!r})",
+            host=host,
+        )
+
+    b_init_bytes = ((baseline.get("telemetry") or {}).get("initial_disk") or {}).get("target_dir_bytes", 0)
+    c_init_bytes = ((candidate.get("telemetry") or {}).get("initial_disk") or {}).get("target_dir_bytes", 0)
+    if baseline.get("cache_phase") == "warm" and (b_init_bytes <= 0 or c_init_bytes <= 0):
+        raise ShadowPilotError(
+            "ab_mismatch",
+            f"warm comparison requires non-empty restored target dirs on both arms, got baseline={b_init_bytes}, candidate={c_init_bytes}",
+            host=host,
+        )
+    if baseline.get("cache_phase") == "cold" and (b_init_bytes != 0 or c_init_bytes != 0):
+        raise ShadowPilotError(
+            "ab_mismatch",
+            f"cold comparison requires empty initial target dirs on both arms, got baseline={b_init_bytes}, candidate={c_init_bytes}",
+            host=host,
+        )
 
     if baseline.get("target_dir") == candidate.get("target_dir"):
         raise ShadowPilotError(
@@ -1595,6 +1943,7 @@ def compare_ledgers(
         "source_script": baseline.get("source_script"),
         "formal_ci_step_name": baseline.get("formal_ci_step_name"),
         "git_sha": baseline["git_sha"],
+        "git_tree": baseline.get("git_tree"),
         "host": host,
         "host_triple": baseline["host_triple"],
         "execution_scope": baseline["execution_scope"],
@@ -1634,18 +1983,28 @@ def iso_duration_seconds(started: str | None, completed: str | None) -> float | 
     return round((t1 - t0).total_seconds(), 3)
 
 
+CI_EVIDENCE_MARKER_RE = re.compile(
+    r"^Code CI Evidence v1 PR([1-9][0-9]*) [0-9a-f]{40} [0-9a-f]{40} ([0-9a-f]{40}) [0-9a-f]{64}$"
+)
+CI_ARTIFACT_MERGE_SHA_RE = re.compile(
+    r"^(?:word-frequency|conformance|native-sanitizers|generated-owners)-(?:Linux|macOS)-([0-9a-f]{40})$"
+)
+
+
 def fetch_workflow_metrics(
     repo: str,
     shadow_run_id: int,
     token: str,
     *,
     head_sha: str,
+    checked_out_sha: str | None = None,
     reference_ci_run_id: int | None = None,
     formal_step_name: str = "Verify opt-in two-source Unit capability and atomicity",
+    api_get_fn: Any = None,
 ) -> dict[str, Any]:
-    """Fetch read-only GitHub Actions queue/wall-clock metrics for shadow run and reference ci.yml."""
+    """Fetch read-only GitHub Actions queue/wall-clock metrics for shadow run and validated reference ci.yml."""
 
-    def api_get(path: str) -> dict[str, Any]:
+    def default_api_get(path: str) -> dict[str, Any]:
         req = urllib.request.Request(
             f"https://api.github.com/repos/{repo}/{path.lstrip('/')}",
             headers={
@@ -1656,6 +2015,15 @@ def fetch_workflow_metrics(
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read().decode("utf-8"))
+
+    api_get = api_get_fn or default_api_get
+    shadow_run_meta = api_get(f"actions/runs/{shadow_run_id}")
+    shadow_event = shadow_run_meta.get("event")
+    shadow_pr_numbers = [
+        pr["number"]
+        for pr in (shadow_run_meta.get("pull_requests") or [])
+        if isinstance(pr, dict) and isinstance(pr.get("number"), int)
+    ]
 
     shadow_jobs = api_get(f"actions/runs/{shadow_run_id}/jobs?per_page=100").get("jobs", [])
     shadow_summary = []
@@ -1670,16 +2038,90 @@ def fetch_workflow_metrics(
             }
         )
 
-    ref_summary: list[dict[str, Any]] = []
-    target_ci_run_id = reference_ci_run_id
-    if target_ci_run_id is None and head_sha and head_sha != "unknown":
-        runs = api_get(f"actions/workflows/ci.yml/runs?head_sha={head_sha}&per_page=10").get("workflow_runs", [])
-        if runs:
-            target_ci_run_id = runs[0]["id"]
+    def validate_and_load_ci_run(
+        cand_id: int, cand_meta: dict[str, Any] | None = None
+    ) -> tuple[bool, str, list[dict[str, Any]]]:
+        meta = (
+            cand_meta
+            if (cand_meta is not None and "path" in cand_meta and "event" in cand_meta and "head_sha" in cand_meta)
+            else api_get(f"actions/runs/{cand_id}")
+        )
+        wf_path = str(meta.get("path") or "").split("@", 1)[0]
+        if wf_path != ".github/workflows/ci.yml":
+            return False, f"run {cand_id} belongs to workflow {wf_path!r}, expected '.github/workflows/ci.yml'", []
+        if meta.get("head_sha") != head_sha:
+            return False, f"run {cand_id} head_sha={meta.get('head_sha')!r} != expected {head_sha!r}", []
 
-    if target_ci_run_id is not None:
-        ci_jobs = api_get(f"actions/runs/{target_ci_run_id}/jobs?per_page=100").get("jobs", [])
-        for job in ci_jobs:
+        cand_event = meta.get("event")
+        if shadow_event == "pull_request":
+            if cand_event != "pull_request":
+                return False, f"run {cand_id} has event={cand_event!r}, expected 'pull_request' to match PR merge checkout", []
+            title = meta.get("display_title") or ""
+            if shadow_pr_numbers and title.startswith("CI pull_request PR ") and title != f"CI pull_request PR {shadow_pr_numbers[0]}":
+                return False, f"run {cand_id} belongs to {title!r}, expected PR {shadow_pr_numbers[0]}", []
+        elif shadow_event and cand_event == "pull_request":
+            return False, f"run {cand_id} is a pull_request merge run whereas shadow run event={shadow_event!r}", []
+
+        ci_jobs = api_get(f"actions/runs/{cand_id}/jobs?per_page=100").get("jobs", [])
+        if checked_out_sha and re.fullmatch(r"[0-9a-f]{40}", checked_out_sha):
+            witness_shas: set[str] = set()
+            for j in ci_jobs:
+                jm = CI_EVIDENCE_MARKER_RE.match(str(j.get("name") or ""))
+                if jm:
+                    witness_shas.add(jm.group(2))
+            artifacts = api_get(f"actions/runs/{cand_id}/artifacts?per_page=100").get("artifacts", [])
+            for art in artifacts:
+                am = CI_ARTIFACT_MERGE_SHA_RE.match(str(art.get("name") or ""))
+                if am:
+                    witness_shas.add(am.group(1))
+            if witness_shas and any(w != checked_out_sha for w in witness_shas):
+                return (
+                    False,
+                    f"run {cand_id} tested checkout SHA {sorted(witness_shas)!r} != shadow checked_out_sha {checked_out_sha!r}",
+                    [],
+                )
+            has_completed_targeted = any(
+                str(j.get("name") or "").startswith("Targeted Tests (") and j.get("conclusion") == "success"
+                for j in ci_jobs
+            )
+            if (
+                shadow_event == "pull_request"
+                and checked_out_sha != head_sha
+                and meta.get("status") == "completed"
+                and has_completed_targeted
+                and not witness_shas
+            ):
+                return (
+                    False,
+                    f"completed PR CI run {cand_id} has no checkout SHA witness confirming merge commit {checked_out_sha!r}",
+                    [],
+                )
+        return True, "ok", ci_jobs
+
+    ref_summary: list[dict[str, Any]] = []
+    selected_ci_run_id: int | None = None
+    selected_ci_jobs: list[dict[str, Any]] = []
+
+    if reference_ci_run_id is not None:
+        ok, reason, jobs = validate_and_load_ci_run(reference_ci_run_id, None)
+        if not ok:
+            raise ShadowPilotError("invalid_reference_run", reason)
+        selected_ci_run_id = reference_ci_run_id
+        selected_ci_jobs = jobs
+    elif head_sha and head_sha != "unknown":
+        runs = api_get(f"actions/workflows/ci.yml/runs?head_sha={head_sha}&per_page=20").get("workflow_runs", [])
+        for cand in runs:
+            cid = cand.get("id")
+            if not isinstance(cid, int):
+                continue
+            ok, _reason, jobs = validate_and_load_ci_run(cid, cand)
+            if ok:
+                selected_ci_run_id = cid
+                selected_ci_jobs = jobs
+                break
+
+    if selected_ci_run_id is not None:
+        for job in selected_ci_jobs:
             name = job.get("name", "")
             if not name.startswith("Targeted Tests ("):
                 continue
@@ -1690,7 +2132,7 @@ def fetch_workflow_metrics(
                     break
             ref_summary.append(
                 {
-                    "ci_run_id": target_ci_run_id,
+                    "ci_run_id": selected_ci_run_id,
                     "job_name": name,
                     "status": job.get("status"),
                     "conclusion": job.get("conclusion"),
@@ -1704,6 +2146,7 @@ def fetch_workflow_metrics(
     return {
         "shadow_run_id": shadow_run_id,
         "head_sha": head_sha,
+        "checked_out_sha": checked_out_sha,
         "shadow_jobs": shadow_summary,
         "formal_ci_reference": ref_summary,
         "warning": "Formal Targeted Tests E2 step runs after earlier composition/D10/E2 steps in a shared target dir; treat as reference only and never subtract directly from isolated cold runs.",
@@ -1817,6 +2260,15 @@ def main(argv: list[str] | None = None) -> int:
     p_cmp.add_argument("--output", type=Path, required=True)
     p_cmp.add_argument("--markdown", type=Path)
 
+    p_cmp_run = sub.add_parser(
+        "compare-run-downloads",
+        help="resolve latest per-arm attempt ledgers from downloaded run artifacts and compare",
+    )
+    p_cmp_run.add_argument("--download-dir", type=Path, required=True)
+    p_cmp_run.add_argument("--run-id", type=int, required=True)
+    p_cmp_run.add_argument("--max-attempt", type=int, required=True)
+    p_cmp_run.add_argument("--output-dir", type=Path, required=True)
+
     p_wf = sub.add_parser("collect-workflow-metrics", help="collect queue/job/step wall-clock via GitHub API")
     p_wf.add_argument("--repo", required=True)
     p_wf.add_argument("--shadow-run-id", type=int, required=True)
@@ -1852,8 +2304,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.subcommand == "compare":
-            b_ledger = json.loads(args.baseline.read_text(encoding="utf-8"))
-            c_ledger = json.loads(args.candidate.read_text(encoding="utf-8"))
+            b_ledger = load_verified_ledger(args.baseline)
+            c_ledger = load_verified_ledger(args.candidate)
             comp = compare_ledgers(b_ledger, c_ledger)
             write_json_atomic(args.output, comp)
             if args.markdown:
@@ -1865,6 +2317,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.subcommand == "compare-run-downloads":
+            resolved = resolve_run_arm_ledgers(
+                args.download_dir, run_id=args.run_id, max_attempt=args.max_attempt
+            )
+            args.output_dir.mkdir(parents=True, exist_ok=True)
+            for host_os in ("macos-15", "ubuntu-26.04"):
+                b_ledger = load_verified_ledger(resolved[(host_os, "baseline")])
+                c_ledger = load_verified_ledger(resolved[(host_os, "candidate")])
+                comp = compare_ledgers(b_ledger, c_ledger)
+                write_json_atomic(args.output_dir / f"comparison-{host_os}.json", comp)
+                (args.output_dir / f"comparison-{host_os}.md").write_text(
+                    render_markdown_summary([comp]), encoding="utf-8"
+                )
+            return 0
+
         if args.subcommand == "collect-workflow-metrics":
             token = os.environ.get("GH_TOKEN") or ""
             comps = [json.loads(p.read_text(encoding="utf-8")) for p in args.comparisons] if args.comparisons else []
@@ -1872,11 +2339,13 @@ def main(argv: list[str] | None = None) -> int:
                 (comps[0].get("formal_ci_step_name") if comps else None)
                 or "Verify opt-in two-source Unit capability and atomicity"
             )
+            checked_out_sha = comps[0].get("git_sha") if comps else None
             metrics = fetch_workflow_metrics(
                 args.repo,
                 args.shadow_run_id,
                 token,
                 head_sha=args.head_sha,
+                checked_out_sha=checked_out_sha,
                 reference_ci_run_id=args.reference_ci_run_id,
                 formal_step_name=step_name,
             )

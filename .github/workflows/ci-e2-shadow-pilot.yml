@@ -30,7 +30,7 @@ on:
         description: 'Isolated cache namespace epoch (bump for a guaranteed fresh cold/warm pair)'
         required: false
         type: string
-        default: v2
+        default: v3
       candidate_jobs:
         description: 'Candidate Cargo parallelism: default (all runner cores), manifest (-j1), 2, or 4'
         required: false
@@ -145,7 +145,7 @@ jobs:
         env:
           SUITE_ID: ${{ inputs.suite || 'e2-replay' }}
           CAND_JOBS: ${{ inputs.candidate_jobs || 'default' }}
-          CACHE_EPOCH: ${{ inputs.cache_epoch || format('pr-{0}-v2', github.event.pull_request.number || 'branch') }}
+          CACHE_EPOCH: ${{ inputs.cache_epoch || format('pr-{0}-v3', github.event.pull_request.number || 'branch') }}
           LLVM_VER: ${{ steps.llvm.outputs.version || '21.1.8' }}
           IMAGE_REF: ${{ matrix.container.image || 'host-macos' }}
           LOCK_HASH: ${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml', 'scripts/verify_ci_toolchain_image.sh') }}
@@ -177,6 +177,10 @@ jobs:
         run: |
           set -euo pipefail
           echo "KOVEN_SHADOW_CACHE_HIT=$CACHE_HIT" >> "$GITHUB_ENV"
+          has_target_deps=false
+          if [[ -d "$CARGO_TARGET_DIR/debug/deps" ]] && [[ -n "$(find "$CARGO_TARGET_DIR/debug/deps" -maxdepth 1 -type f \( -name '*.rlib' -o -name '*.rmeta' \) -print -quit)" ]]; then
+            has_target_deps=true
+          fi
           if [[ "$REQUESTED_PHASE" == "cold" ]]; then
             if [[ "$CACHE_HIT" == "true" ]]; then
               echo "cold phase requires cache miss, but exact key hit occurred; bump cache_epoch" >&2
@@ -188,13 +192,17 @@ jobs:
             fi
             echo "KOVEN_SHADOW_CACHE_PHASE=cold" >> "$GITHUB_ENV"
           elif [[ "$REQUESTED_PHASE" == "warm" ]]; then
-            if [[ "$CACHE_HIT" != "true" ]]; then
-              echo "warm phase requires exact cache key hit, got cache-hit=$CACHE_HIT" >&2
+            if [[ "$CACHE_HIT" != "true" || "$has_target_deps" != "true" ]]; then
+              echo "warm phase requires exact cache hit AND compiled artifacts in $CARGO_TARGET_DIR/debug/deps (hit=$CACHE_HIT, has_target_deps=$has_target_deps)" >&2
               exit 1
             fi
             echo "KOVEN_SHADOW_CACHE_PHASE=warm" >> "$GITHUB_ENV"
           else
             if [[ "$CACHE_HIT" == "true" ]]; then
+              if [[ "$has_target_deps" != "true" ]]; then
+                echo "exact cache hit restored Cargo registry without compiled target artifacts in $CARGO_TARGET_DIR/debug/deps; refusing partial/registry-only warm label" >&2
+                exit 1
+              fi
               echo "KOVEN_SHADOW_CACHE_PHASE=warm" >> "$GITHUB_ENV"
             else
               if [[ -e "$CARGO_TARGET_DIR" ]]; then
@@ -228,7 +236,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: e2-shadow-${{ matrix.os }}-${{ matrix.arm }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: e2-shadow-arm-${{ matrix.os }}-${{ matrix.arm }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/e2-shadow-${{ matrix.os }}-${{ matrix.arm }}
           if-no-files-found: error
 
@@ -260,7 +268,7 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          pattern: e2-shadow-*-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: e2-shadow-arm-*-${{ github.run_id }}-*
           path: ${{ runner.temp }}/e2-shadow-downloads
 
       - name: Verify dual-host A/B equivalence and collect workflow telemetry
@@ -272,15 +280,12 @@ jobs:
           out_dir="$RUNNER_TEMP/e2-shadow-comparison"
           mkdir -p "$out_dir"
           dl="$RUNNER_TEMP/e2-shadow-downloads"
-          suffix="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
-          for host_os in macos-15 ubuntu-26.04; do
-            python3 scripts/e2_two_source_shadow_pilot.py compare \
-              --baseline "$dl/e2-shadow-${host_os}-baseline-${suffix}/ledger.json" \
-              --candidate "$dl/e2-shadow-${host_os}-candidate-${suffix}/ledger.json" \
-              --output "$out_dir/comparison-${host_os}.json" \
-              --markdown "$out_dir/comparison-${host_os}.md"
-          done
+          python3 scripts/e2_two_source_shadow_pilot.py compare-run-downloads \
+            --download-dir "$dl" \
+            --run-id "$GITHUB_RUN_ID" \
+            --max-attempt "$GITHUB_RUN_ATTEMPT" \
+            --output-dir "$out_dir"
 
           ref_args=()
           if [[ -n "$REF_CI_RUN_ID" ]]; then

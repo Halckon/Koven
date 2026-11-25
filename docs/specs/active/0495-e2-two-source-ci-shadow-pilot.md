@@ -91,7 +91,7 @@
 | 验收项 / 命令（目标与过滤器） | 结果（实际测试数） | 未运行原因 / 复用证据 |
 |---|---|---|
 | `python3 scripts/e2_two_source_shadow_pilot.py verify-manifest` | 通过：精确校验 5 个配置、179 个有序条目与 `scripts/check_e2_two_source_unit_ci.sh`（SHA256 `a5e0c95e0e5e5173...`）逐项一致 | 无伪造 `CI` / `GITHUB_ACTIONS` |
-| `python3 -m unittest discover -s scripts/tests -p test_e2_two_source_shadow_pilot.py -v` | 通过：12 组测试全绿（含第二批 `e2_replay_manifest.json` 14 项脚本对齐、同 target 异构 feature 可执行文件复用拒绝、跨套件对账拒绝及按套件物理隔离缓存键契约） | 先红后绿（TDD） |
+| `python3 -m unittest discover -s scripts/tests -p test_e2_two_source_shadow_pilot.py -v` | 通过：20 组测试全绿（含第二批 `e2_replay_manifest.json` 14 项脚本对齐、异构 feature 可执行文件复用拒绝、跨套件对账拒绝，以及 PR #463 审阅 8 项 P2 回归契约：执行分支漂移拦截、比较作业跨 attempt 重试解析、仅恢复 registry 拒标 warm、冷热混合对账拒绝、参考 CI 运行工作流/事件/merge-SHA 核验、失败重跑旧账本清理、Mach-O/ELF CPU 架构与可执行类型强校验、macOS `dyld` 实际加载 `libLLVM` UUID+SHA256 探针） | 先红后绿（TDD） |
 | 本机真实工具链隔离 target `--list-only` A/B 实跑（macOS arm64，Rust 1.96.0，LLVM 21.1.8，`cfg2-codegen-test-two-source-unit` 7 项 + `cfg5-frontend-lib-e2-support` 3 项） | 通过：10 项 `compare` 等价 `PASS`；候选臂真实锁定 Mach-O 产物（`389f877562f1c5ee`、`5fc921c2b27db8c2`）并通过 Cargo 启动探针核验 `cwd`、`CARGO_*`、`DYLD_FALLBACK_LIBRARY_PATH` 与 `libLLVM.dylib 21.1.8`；10 次直调 `--list` 共 0.07s，峰值子进程 RSS 3433.3 / 3435.4 MiB，target 1.61 GiB，OOM/重试 0 | 临时目录 `/tmp/koven-spec-0495-local-ab` 验证后已清理，不入库 |
 | 现有工作流与门禁策略单测（`test_llvm_install_bounds`、`test_ubuntu26_ci`、`test_pr_ci_reuse`、`test_check_ci_results`、`test_ci_debug_profile`） | 通过：96 项通过，确认正式 `ci.yml` 合同零受影响 | `test_ci_toolchain_image` 中 7/8 通过，1 项因本机 macOS 缺 GNU `sha256sum` 失败（与本分支无关，Ubuntu runner 原生提供） |
 | `python3 scripts/check_docs.py`、`python3 scripts/check_rust_sizes.py --base main`、`git diff --check` | 全部通过：1052 份 Markdown 结构与库存一致，2712 个手写 Rust 文件无新增尺寸债 | 无 Rust 源码改动 |
