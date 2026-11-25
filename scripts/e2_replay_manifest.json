@@ -1,0 +1,172 @@
+{
+  "schema": "koven.e2-two-source-shadow-manifest.v1",
+  "suite_id": "e2-replay",
+  "source_script": "scripts/check_e2_replay_ci.sh",
+  "formal_ci_step_name": "Experimental E2 replay faults (CI only)",
+  "cargo_jobs": 1,
+  "total_configs": 2,
+  "total_entries": 14,
+  "configs": [
+    {
+      "config_id": "replay-cfg1-codegen-lib-e2-two-source",
+      "package": "lang-codegen",
+      "target_name": "lang_codegen",
+      "target_kind": [
+        "lib"
+      ],
+      "cargo_target_args": [
+        "--lib"
+      ],
+      "cargo_features_arg": "e2-two-source-test-support",
+      "expected_features": [
+        "e2-two-source-test-support"
+      ],
+      "entries": [
+        {
+          "global_index": 0,
+          "test_name": "ssa::e2_replay_ci::e2_signature_and_source_roles_reject",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 1,
+          "test_name": "ssa::e2_replay_ci::e2_checked_counter_edges_reject",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 2,
+          "test_name": "ssa::e2_replay_ci::e2_callee_identity_and_child_end_reject",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 3,
+          "test_name": "ssa::e2_entry_ci::entry_semantic_and_final_gate_failures_publish_nothing",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 4,
+          "test_name": "ssa::e2_entry_ci::checked_entry_failures_publish_nothing",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 5,
+          "test_name": "ssa::e2_entry_ci::joint_entry_mapping_and_partial_failures_publish_nothing",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 6,
+          "test_name": "ssa::e2_entry_ci::joint_object_commit_failure_cleans_temporary_and_retries",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "replay-cfg2-codegen-lib-e2-two-source-loan",
+      "package": "lang-codegen",
+      "target_name": "lang_codegen",
+      "target_kind": [
+        "lib"
+      ],
+      "cargo_target_args": [
+        "--lib"
+      ],
+      "cargo_features_arg": "e2-two-source-test-support loan-observation-test-support",
+      "expected_features": [
+        "e2-two-source-test-support",
+        "loan-observation-test-support"
+      ],
+      "entries": [
+        {
+          "global_index": 7,
+          "test_name": "ssa::e2_replay_ci::e2_signature_and_source_roles_reject",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 8,
+          "test_name": "ssa::e2_replay_ci::e2_checked_counter_edges_reject",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 9,
+          "test_name": "ssa::e2_replay_ci::e2_callee_identity_and_child_end_reject",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 10,
+          "test_name": "ssa::e2_entry_ci::entry_semantic_and_final_gate_failures_publish_nothing",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 11,
+          "test_name": "ssa::e2_entry_ci::checked_entry_failures_publish_nothing",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 12,
+          "test_name": "ssa::e2_entry_ci::joint_entry_mapping_and_partial_failures_publish_nothing",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 13,
+          "test_name": "ssa::e2_entry_ci::joint_object_commit_failure_cleans_temporary_and_retries",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    }
+  ]
+}

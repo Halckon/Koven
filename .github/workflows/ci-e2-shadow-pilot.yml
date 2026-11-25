@@ -1,0 +1,313 @@
+name: E2 Two-Source Shadow Pilot
+run-name: E2 shadow pilot ${{ inputs.suite || 'e2-replay' }} ${{ github.event_name }} ${{ inputs.cache_phase || 'auto' }} epoch=${{ inputs.cache_epoch || 'pr' }} ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      enabled:
+        description: 'Set false to test the manual kill switch'
+        required: false
+        type: boolean
+        default: true
+      suite:
+        description: 'Shadow pilot suite (each uses an isolated manifest, artifact lock, target dir, and cache key)'
+        required: false
+        type: choice
+        options:
+          - e2-replay
+          - e2-two-source-unit
+        default: e2-replay
+      cache_phase:
+        description: 'cold (require miss + empty target, then save), warm (require exact hit), or auto'
+        required: false
+        type: choice
+        options:
+          - cold
+          - warm
+          - auto
+        default: cold
+      cache_epoch:
+        description: 'Isolated cache namespace epoch (bump for a guaranteed fresh cold/warm pair)'
+        required: false
+        type: string
+        default: v3
+      candidate_jobs:
+        description: 'Candidate Cargo parallelism: default (all runner cores), manifest (-j1), 2, or 4'
+        required: false
+        type: choice
+        options:
+          - default
+          - manifest
+          - '2'
+          - '4'
+        default: default
+      reference_ci_run_id:
+        description: 'Optional ci.yml workflow run ID on the same SHA for reference step wall-clock'
+        required: false
+        type: string
+        default: ''
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ci-e2-shadow-pilot.yml'
+      - 'scripts/e2_two_source_shadow_pilot.py'
+      - 'scripts/e2_two_source_unit_manifest.json'
+      - 'scripts/e2_replay_manifest.json'
+      - 'scripts/tests/test_e2_two_source_shadow_pilot.py'
+      - 'scripts/check_e2_two_source_unit_ci.sh'
+      - 'scripts/check_e2_replay_ci.sh'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2-shadow-pilot-${{ github.ref }}-${{ inputs.suite || 'e2-replay' }}-${{ inputs.cache_phase || 'auto' }}-${{ inputs.cache_epoch || 'pr' }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  shadow-ab:
+    name: E2 Shadow (${{ matrix.os }}, ${{ matrix.arm }})
+    # One-click kill switch: set repository variable KOVEN_E2_SHADOW_PILOT_DISABLED=true in GitHub UI
+    if: |
+      vars.KOVEN_E2_SHADOW_PILOT_DISABLED != 'true' &&
+      (github.event_name != 'workflow_dispatch' || (inputs.enabled != false && inputs.enabled != 'false'))
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-26.04]
+        arm: [baseline, candidate]
+        include:
+          - os: ubuntu-26.04
+            container:
+              image: ghcr.io/halckon/koven-ci-toolchain@sha256:b5ce8a4479579ecc57194e385f13109a52022114f0e19cab93fc426bdbb9500e
+              options: --user 1001:1001
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || '' }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_PROFILE_DEV_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
+      CARGO_PROFILE_TEST_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}
+      KOVEN_SHADOW_CACHE_PHASE: ${{ inputs.cache_phase || 'auto' }}
+    steps:
+      - name: Verify unprivileged container mounts
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          [[ "$(id -u)" == 1001 ]]
+          for directory in "$HOME" "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            [[ -d "$directory" && -w "$directory" && -x "$directory" ]]
+          done
+          [[ -f "$GITHUB_ENV" && -w "$GITHUB_ENV" ]]
+          mkdir -p "$HOME/.cargo"
+          echo "CARGO_HOME=$HOME/.cargo" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify the pinned Linux toolchain offline
+        if: runner.os == 'Linux'
+        run: bash scripts/verify_ci_toolchain_image.sh
+
+      - name: Set up LLVM 21
+        if: runner.os == 'macOS'
+        id: llvm
+        uses: ./.github/actions/setup-llvm
+        timeout-minutes: 10
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: runner.os == 'macOS'
+        with:
+          toolchain: '1.96.0'
+
+      - name: Verify isolated target directory starts empty before cache restore
+        run: |
+          set -euo pipefail
+          target_path="$GITHUB_WORKSPACE/target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}"
+          echo "CARGO_TARGET_DIR=$target_path" >> "$GITHUB_ENV"
+          if [[ -e "$target_path" ]]; then
+            echo "unexpected pre-existing CARGO_TARGET_DIR before cache restore: $target_path" >&2
+            exit 1
+          fi
+
+      - name: Compute isolated exact A/B cache key
+        id: cache-key
+        env:
+          SUITE_ID: ${{ inputs.suite || 'e2-replay' }}
+          CAND_JOBS: ${{ inputs.candidate_jobs || 'default' }}
+          CACHE_EPOCH: ${{ inputs.cache_epoch || format('pr-{0}-v3', github.event.pull_request.number || 'branch') }}
+          LLVM_VER: ${{ steps.llvm.outputs.version || '21.1.8' }}
+          IMAGE_REF: ${{ matrix.container.image || 'host-macos' }}
+          LOCK_HASH: ${{ hashFiles('Cargo.lock', 'scripts/install_ci_llvm*.sh', '.github/actions/setup-llvm/action.yml', 'scripts/verify_ci_toolchain_image.sh') }}
+        run: |
+          set -euo pipefail
+          sanitized_image="${IMAGE_REF//[^A-Za-z0-9._-]/-}"
+          arm_jobs="j1"
+          if [[ "${{ matrix.arm }}" == "candidate" ]]; then
+            arm_jobs="$CAND_JOBS"
+          fi
+          key="e2-shadow-pilot-v2-suite-${SUITE_ID}-epoch-${CACHE_EPOCH}-arm-${{ matrix.arm }}-jobs-${arm_jobs}-os-${{ matrix.os }}-arch-${{ runner.arch }}-rust-1.96.0-llvm-${LLVM_VER}-img-${sanitized_image}-lock-${LOCK_HASH}"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+
+      - name: Restore isolated arm cache (exact key only, no prefix fallback)
+        id: shadow-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Enforce cold-miss or warm-hit contract
+        env:
+          CACHE_HIT: ${{ steps.shadow-cache.outputs.cache-hit || 'false' }}
+          REQUESTED_PHASE: ${{ inputs.cache_phase || 'auto' }}
+        run: |
+          set -euo pipefail
+          echo "KOVEN_SHADOW_CACHE_HIT=$CACHE_HIT" >> "$GITHUB_ENV"
+          has_target_deps=false
+          if [[ -d "$CARGO_TARGET_DIR/debug/deps" ]] && [[ -n "$(find "$CARGO_TARGET_DIR/debug/deps" -maxdepth 1 -type f \( -name '*.rlib' -o -name '*.rmeta' \) -print -quit)" ]]; then
+            has_target_deps=true
+          fi
+          if [[ "$REQUESTED_PHASE" == "cold" ]]; then
+            if [[ "$CACHE_HIT" == "true" ]]; then
+              echo "cold phase requires cache miss, but exact key hit occurred; bump cache_epoch" >&2
+              exit 1
+            fi
+            if [[ -e "$CARGO_TARGET_DIR" ]]; then
+              echo "cold phase requires nonexistent CARGO_TARGET_DIR before build: $CARGO_TARGET_DIR" >&2
+              exit 1
+            fi
+            echo "KOVEN_SHADOW_CACHE_PHASE=cold" >> "$GITHUB_ENV"
+          elif [[ "$REQUESTED_PHASE" == "warm" ]]; then
+            if [[ "$CACHE_HIT" != "true" || "$has_target_deps" != "true" ]]; then
+              echo "warm phase requires exact cache hit AND compiled artifacts in $CARGO_TARGET_DIR/debug/deps (hit=$CACHE_HIT, has_target_deps=$has_target_deps)" >&2
+              exit 1
+            fi
+            echo "KOVEN_SHADOW_CACHE_PHASE=warm" >> "$GITHUB_ENV"
+          else
+            if [[ "$CACHE_HIT" == "true" ]]; then
+              if [[ "$has_target_deps" != "true" ]]; then
+                echo "exact cache hit restored Cargo registry without compiled target artifacts in $CARGO_TARGET_DIR/debug/deps; refusing partial/registry-only warm label" >&2
+                exit 1
+              fi
+              echo "KOVEN_SHADOW_CACHE_PHASE=warm" >> "$GITHUB_ENV"
+            else
+              if [[ -e "$CARGO_TARGET_DIR" ]]; then
+                echo "cold auto-run requires nonexistent CARGO_TARGET_DIR after cache miss: $CARGO_TARGET_DIR" >&2
+                exit 1
+              fi
+              echo "KOVEN_SHADOW_CACHE_PHASE=cold" >> "$GITHUB_ENV"
+            fi
+          fi
+
+      - name: Run E2 shadow arm (${{ inputs.suite || 'e2-replay' }}, ${{ matrix.arm }})
+        run: |
+          python3 scripts/e2_two_source_shadow_pilot.py run \
+            --manifest "${{ (inputs.suite || 'e2-replay') == 'e2-two-source-unit' && 'scripts/e2_two_source_unit_manifest.json' || 'scripts/e2_replay_manifest.json' }}" \
+            --mode "${{ matrix.arm }}" \
+            --candidate-jobs "${{ inputs.candidate_jobs || 'default' }}" \
+            --artifacts "$RUNNER_TEMP/e2-shadow-${{ matrix.os }}-${{ matrix.arm }}"
+
+      - name: Save isolated arm cache after cold miss
+        if: steps.shadow-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}
+          key: ${{ steps.cache-key.outputs.key }}
+
+      - name: Upload shadow arm ledger and probe evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2-shadow-arm-${{ matrix.os }}-${{ matrix.arm }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/e2-shadow-${{ matrix.os }}-${{ matrix.arm }}
+          if-no-files-found: error
+
+  compare-shadow-ab:
+    name: Compare Dual-Host Shadow A/B
+    needs: shadow-ab
+    if: |
+      !cancelled() &&
+      always() &&
+      needs.shadow-ab.result != 'cancelled' &&
+      vars.KOVEN_E2_SHADOW_PILOT_DISABLED != 'true' &&
+      (github.event_name != 'workflow_dispatch' || (inputs.enabled != false && inputs.enabled != 'false'))
+    permissions:
+      contents: read
+      actions: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Require all four shadow matrix arms to succeed before A/B verdict
+        env:
+          SHADOW_RESULT: ${{ needs.shadow-ab.result }}
+        run: |
+          if [[ "$SHADOW_RESULT" != "success" ]]; then
+            echo "shadow-ab matrix finished with result=$SHADOW_RESULT; refusing partial A/B pass" >&2
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: e2-shadow-arm-*-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/e2-shadow-downloads
+
+      - name: Verify dual-host A/B equivalence and collect workflow telemetry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_CI_RUN_ID: ${{ inputs.reference_ci_run_id || '' }}
+        run: |
+          set -euo pipefail
+          out_dir="$RUNNER_TEMP/e2-shadow-comparison"
+          mkdir -p "$out_dir"
+          dl="$RUNNER_TEMP/e2-shadow-downloads"
+
+          python3 scripts/e2_two_source_shadow_pilot.py compare-run-downloads \
+            --download-dir "$dl" \
+            --run-id "$GITHUB_RUN_ID" \
+            --max-attempt "$GITHUB_RUN_ATTEMPT" \
+            --output-dir "$out_dir"
+
+          ref_args=()
+          if [[ -n "$REF_CI_RUN_ID" ]]; then
+            ref_args=(--reference-ci-run-id "$REF_CI_RUN_ID")
+          fi
+          python3 scripts/e2_two_source_shadow_pilot.py collect-workflow-metrics \
+            --repo "$GITHUB_REPOSITORY" \
+            --shadow-run-id "$GITHUB_RUN_ID" \
+            --head-sha "${{ github.event.pull_request.head.sha || github.sha }}" \
+            "${ref_args[@]}" \
+            --comparisons "$out_dir/comparison-ubuntu-26.04.json" "$out_dir/comparison-macos-15.json" \
+            --output "$out_dir/workflow-metrics.json" \
+            --markdown "$out_dir/summary.md"
+
+          cat "$out_dir/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dual-host A/B comparison report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2-shadow-ab-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/e2-shadow-comparison
+          if-no-files-found: warn
