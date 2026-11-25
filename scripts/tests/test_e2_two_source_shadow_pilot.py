@@ -774,8 +774,23 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
         shadow = SHADOW_WORKFLOW_PATH.read_text(encoding="utf-8")
         formal = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
-        # Formal CI does not reference shadow pilot
-        self.assertNotIn("e2_two_source_shadow_pilot", formal)
+        # Formal CI delegates E2 replay and two-source Unit steps to the verified candidate runner while keeping shadow workflow isolated
+        self.assertIn(
+            "python3 scripts/e2_two_source_shadow_pilot.py run \\\n"
+            "            --manifest scripts/e2_replay_manifest.json \\\n"
+            "            --mode candidate \\\n"
+            "            --candidate-jobs default",
+            formal,
+        )
+        self.assertIn(
+            "python3 scripts/e2_two_source_shadow_pilot.py run \\\n"
+            "            --manifest scripts/e2_two_source_unit_manifest.json \\\n"
+            "            --mode candidate \\\n"
+            "            --candidate-jobs default",
+            formal,
+        )
+        self.assertNotIn("bash scripts/check_e2_replay_ci.sh", formal)
+        self.assertNotIn("bash scripts/check_e2_two_source_unit_ci.sh", formal)
         self.assertNotIn("ci-e2-shadow-pilot", formal)
 
         # One-click kill switch present & cancelled shadow runs never produce false-red compare failures
