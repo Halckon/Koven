@@ -191,10 +191,10 @@ SPEC-0341 的有界路由现使单一显式 `own` 非 Resource 普通 class 参�
 仅一条 Shared receiver 调用的 caller 进入 refine。caller 非泛型，class/call instance 无类型实参。
 零实参允许 owned Int/Boolean/Unit；单实参仅限无名称、无模式标记、无括号的无后缀 Int 字面量，传给唯一的 own Int 参数，结果为 owned Int。
 接收者须为原始 Name 根与非 safe Member；typed descriptor、Owned binding、真实 CallReturn receiver end 及
-同根 Drop 均匹配，且整个函数仍通过原 signature/body/drop subset。
-迁移触发不读取 loan observation 或 protocol 2 Complete；caller/callee 各自选路，
-原样 Node/run 中 run 迁移而 touch 保持原路径。已有 refine producer 唯一生成
-RootPlace、BorrowBegin、DirectCall、BorrowEnd 与 NamedDrop；受限核验见[生产 receipt](receiver-production-receipts.md)。
-真实 frontend off 的路由与 lowering 等价性保留；不扩大 implicit this、temporary、projection、two-phase、borrow-result、控制流或 replacement。
-本地候选另准入同一 `own` 非 Resource class 参数的恰好两条零实参 Shared Int 调用，限同一直达方法、每次按原 token 结束、仅末次同根 Drop；不依赖可选观察，不产生 Protocol 2 receipt。
+同根 Drop 均匹配，且整个函数仍通过原 signature/body/drop subset。caller/callee 各自选路，不读取 loan observation 或 Protocol 2 Complete；真实 frontend off 等价性保留。
+原样 Node/run 只迁移 run；借用与释放仍由原 refine producer 生成，核验见[生产 receipt](receiver-production-receipts.md)。
+本地候选另准入同一 `own` 非 Resource class 参数的两到三条连续零实参 Shared Int 调用。
+可为不同直接方法，也可给同一个具名根加透明括号；仍以原始接收者表达式证明借用起点，
+逐调用结束原 token，仅末次释放同根。不依赖可选观察，不产生 Protocol 2 receipt。
+普通 Refine 的准入与 Shared receiver 构建共用按调用索引，构建只取一条事实供计划与起点使用。无此索引的 thunk 仍走原查询，不涉及 Compatibility。
 另有独立的借用转发路由：单一默认 Borrow、非 Resource 普通 class 参数，仅零实参 Shared 方法、owned Int 结果的单语句，直接传入 entry loan；caller 无本地借用起止或 Drop，无 Protocol 2 receipt。其余形态不因这些窄路由而迁移。

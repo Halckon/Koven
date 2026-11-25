@@ -57,6 +57,9 @@ outer借用结果继续绑定/返回、temporary来源、actual receiver/Inout�
 调用、跨线程、CFG/loop与含Nothing的outer调用前缀仍无本片延续证明。后序错误调用/return
 不能发布一个并不存在的outer正常Return终止。owned参数（含Int）、普通val、owned返回
 继续拒绝直接借用结果；显式borrow val的Copyable读取仍按已有独立规则处理。
+普通 Unit 的 `rangeView(id(xs), 0, 1)`（`id` 返回普通 Borrow）仍报 L0164：
+同步调用的借用见证只为 Owned-result callee 发布，不能替代 Carrier 接管来源贷款的证明。
+已验证的原语嵌套 `rangeView(rangeView(xs, ...), ...)` 仍可用，不代表 DirectRange 实验已启用。
 
 实现入口为两套`borrow_call_use.rs`、`borrow_result.rs`、pending-call/drop-planner接线及
 single`call_lifetimes.rs`/unit`borrow.rs`；普通多参数内部返回见[既有快照](multi-parameter-borrow-results.md)。

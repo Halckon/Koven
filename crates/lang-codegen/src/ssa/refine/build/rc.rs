@@ -71,18 +71,16 @@ pub(in crate::ssa::refine::build) mod receiver {
             };
             Ok(Some(match receiver.mode() {
                 ParameterMode::Borrow => {
-                    self.body.receiver_plans.enter(
-                        call,
-                        self.inputs.owned.receiver_fact(call),
-                        &self.bindings,
-                        span,
-                    )?;
-                    let begin_span = self
-                        .inputs
-                        .owned
-                        .receiver_fact(call)
-                        .map(|fact| fact.begin_span())
-                        .unwrap_or(span);
+                    // Match the authenticated route lookup, including its first-row rule.
+                    // Thunks without the shared index still need just one lookup.
+                    let fact = match self.inputs.single_receiver_facts {
+                        Some(index) => index.receiver(self.inputs.owned, call),
+                        None => self.inputs.owned.receiver_fact(call),
+                    };
+                    self.body
+                        .receiver_plans
+                        .enter(call, fact, &self.bindings, span)?;
+                    let begin_span = fact.map(|fact| fact.begin_span()).unwrap_or(span);
                     let loan = self.owner_loan(owner, LoanKind::Shared, begin_span)?;
                     let loan = self.shared_operand(loan, begin_span)?;
                     let mut loans = Vec::new();
@@ -245,19 +243,8 @@ impl Builder<'_, '_> {
             let Some((view, protecting, continued)) = self.lower_range_call(actual, span)? else {
                 return Ok(None);
             };
-            self.short_ranges.insert(id, (view, protecting, continued));
-            let place = self.value(ROp::RootPlace { owner: view }, EntityType::Place(ty), span)?;
-            let loan = self.value(
-                ROp::BorrowBegin {
-                    place,
-                    kind: LoanKind::Shared,
-                },
-                EntityType::Loan {
-                    kind: LoanKind::Shared,
-                    target: ty,
-                },
-                span,
-            )?;
+            let loan =
+                self.attach_short_range_metadata(id, (view, protecting, continued), ty, span)?;
             return Ok(Some(loan));
         }
         let symbol = self.named_container_symbol(source, span)?;

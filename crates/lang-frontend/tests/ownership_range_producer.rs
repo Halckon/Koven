@@ -53,6 +53,32 @@ fn checked(
 }
 
 #[test]
+fn carrier_source_does_not_inherit_ordinary_nested_borrow_call_authority() {
+    let prefix = "fun id(xs: List<Int>): borrow List<Int> from xs = xs\nfun observe(part: View<Int>): Unit {}\n";
+    let (sources, memory, rooted) = checked(&format!(
+        "{prefix}fun run(): Unit {{ val xs = listOf(1, 2); observe(rangeView(id(xs), 0, 1)) }}"
+    ));
+    for owned in [memory, rooted] {
+        let diagnostic = owned
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.code().to_string() == "L0164")
+            .expect("ordinary Borrow result cannot be forwarded into a Carrying result");
+        let origin = sources.slice(diagnostic.primary_span()).unwrap();
+        assert!(origin.contains("id(xs)"), "real rejected source: {origin}");
+        assert!(owned.borrow_results().call_uses().is_empty());
+        assert!(owned.clone().validate().is_err());
+    }
+    let (_, memory, rooted) = checked(&format!(
+        "{prefix}fun run(): Unit {{ val xs = listOf(1, 2); observe(rangeView(rangeView(xs, 0, 2), 0, 1)) }}"
+    ));
+    for owned in [memory, rooted] {
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        assert!(owned.validate().is_ok());
+    }
+}
+
+#[test]
 fn direct_generic_producer_continues_root_and_releases_before_owner_move() {
     for (element, value) in [("String", "\"kept\""), ("Item", "Item(7)")] {
         let (_, single, unit) = checked(&format!(

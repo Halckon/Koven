@@ -12,9 +12,9 @@ mod imported_receiver_route;
 mod map;
 pub(super) mod named_route;
 mod nullable_when;
+mod owned_receiver_sequence_route;
 mod range_borrow;
 mod scalar_text;
-mod two_owned_receiver_route;
 mod when_control;
 mod whole_nominal_exit;
 use control::LoopRoute;
@@ -248,7 +248,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
             || checker.migrated
             || checker.bounded_receiver_route()
             || checker.imported_receiver_route().is_some()
-            || checker.two_owned_receiver_route().is_some()
+            || checker.owned_receiver_sequence_route().is_some()
             || checker.bounded_named_call().is_some()
             || checker.bounded_temporary_call().is_some()
             || checker.linear_scalar_body());
