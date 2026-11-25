@@ -392,6 +392,53 @@ fun f(inout seed: N, inout r: N): Unit {
                 wanted, actual = wrong[name]
                 self.assertEqual(set(), wanted & actual, "标记处不再被拒绝")
 
+    def test_generic_view_holders_cover_own_local_borrow_and_concrete_callers(self):
+        """泛型函数体内以 view T 为持有者：验证分支替换单路径对照与 K3 可观察寿命。"""
+        self.assertEqual([], CHECKER.check(CASES.GENERIC_PRELUDE), "泛型公共声明本身须被接受")
+        programs = {name.removeprefix("泛型持有者/"): text
+                    for name, text in CASES.cases() if name.startswith("泛型持有者/")}
+        self.assertEqual(59, len(programs))
+        swap_branch = "if (*) {\n    *h = move v\n  }"
+        for name, expected_none, expected_only_swap in (
+            ("独占参数/分支替换/接受", set(), set()),
+            ("独占参数/分支替换/拒绝-漏掉新值来源", set(), {"K6"}),
+            ("独占参数/分支替换/拒绝-漏掉原有来源", {"K6"}, set()),
+            ("独占参数/分支替换/拒绝-未声明流向", set(), {"K6"}),
+        ):
+            text = programs[name]
+            self.assertEqual(1, text.count(swap_branch))
+            with self.subTest(case=name, path="不替换"):
+                actual = {r for r, _, _ in CHECKER.check(text.replace(swap_branch, ""))}
+                self.assertEqual(expected_none, actual)
+            with self.subTest(case=name, path="必然替换"):
+                actual = {r for r, _, _ in CHECKER.check(text.replace(swap_branch, "*h = move v"))}
+                self.assertEqual(expected_only_swap, actual)
+
+    def test_branch_and_loop_flows_cover_backedge_and_caller_holders(self):
+        """循环二轮回边 flows 剪掉回边后恰好只漏报二轮来源；调用方双臂/循环去掉放入后诊断清零。"""
+        holders = ("局部视图", "类型参数的持有者", "内部可变的槽")
+        all_cases = dict(CASES.cases())
+        for holder in holders:
+            for access in ("写零轮来源", "写一轮来源", "写二轮来源", "写无关来源", "最后使用后写"):
+                name = f"循环流向/二轮回边/{holder}/{access}"
+                text = all_cases[name]
+                with self.subTest(case=name):
+                    self.assertEqual(1, text.count("while (*)"))
+                    once = text.replace("while (*)", "if (*)")
+                    actual = {(rule, n) for rule, n, _ in CHECKER.check(once)}
+                    if access == "写二轮来源":
+                        self.assertEqual({"K1"}, {rule for rule, _ in expected(text)})
+                        self.assertEqual(set(), actual)
+                    else:
+                        self.assertEqual(expected(text), actual)
+            for label in ("写无关来源", "拒绝-未声明流向", "拒绝-循环后写来源"):
+                name = f"循环流向/调用方/{holder}/{HELD_INOUT}/{label}"
+                text = all_cases[name]
+                with self.subTest(case=name):
+                    empty_loop = re.sub(r"while \(\*\) \{\n    [^\n]+\n  \}", "while (*) {\n  }", text)
+                    self.assertNotEqual(text, empty_loop)
+                    self.assertEqual([], CHECKER.check(empty_loop))
+
 
 if __name__ == "__main__":
     unittest.main()
