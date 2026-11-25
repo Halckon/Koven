@@ -3158,7 +3158,7 @@
   <text x="2028" y="435" text-anchor="middle" font-size="13"> Tests 按独立套件拆分</text>
   <text x="2028" y="453" text-anchor="middle" font-size="13">为并行矩阵作业</text>
   <rect x="42644" y="532" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="42764" y="555" text-anchor="middle" font-size="13" font-weight="600">SPEC-0498</text>
+  <text x="42764" y="555" text-anchor="middle" font-size="13" font-weight="600">SPEC-0502</text>
   <text x="42764" y="573" text-anchor="middle" font-size="13">双宿主 Targeted T</text>
   <text x="42764" y="591" text-anchor="middle" font-size="13">ests 统一启用有限调试符</text>
   <text x="42764" y="609" text-anchor="middle" font-size="13">号（debug=1）与独立…</text>

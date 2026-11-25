@@ -154,7 +154,7 @@
   <text x="5540" y="123" text-anchor="middle" font-size="13">oup_closers 双轨</text>
   <text x="5540" y="141" text-anchor="middle" font-size="13">机器证明（Lean 4 +…</text>
   <rect x="932" y="220" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="1052" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0498</text>
+  <text x="1052" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0502</text>
   <text x="1052" y="261" text-anchor="middle" font-size="13">双宿主 Targeted T</text>
   <text x="1052" y="279" text-anchor="middle" font-size="13">ests 统一启用有限调试符</text>
   <text x="1052" y="297" text-anchor="middle" font-size="13">号（debug=1）与独立…</text>

@@ -1,11 +1,11 @@
-# SPEC-0498: 双宿主 `Targeted Tests` 统一启用有限调试符号（`debug=1`）与独立缓存前缀
+# SPEC-0502: 双宿主 `Targeted Tests` 统一启用有限调试符号（`debug=1`）与独立缓存前缀
 
 > **性质**：CI 基础设施变更合同 · **状态**：in-progress · **读取时机**：维护或回退正式 `ci.yml` 中 macOS / Linux `CARGO_PROFILE_*_DEBUG=1` 测试编译配置时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
 | 状态 | in-progress |
-| Goal ID | `KOV-CI-0498` |
+| Goal ID | `KOV-CI-0502` |
 | 所属 Phase | 工程与 CI 基础设施；不改变语言 Phase |
 | 语言规范 | 现行 [Guide v0.47](../../guide/README.md) |
 | 批准依据 | 2026-11-25 用户在 [SPEC-0497](../../archive/specs/0497-parallel-targeted-tests-ci.md)（PR #466）合入 `main` 后授权推进方案 B1：将 macOS 三路 `Targeted Tests*` 作业同步切至与 Linux 一致的 `debug=1` 有限调试符号配置 |
@@ -18,7 +18,7 @@
 
 ## 1. Goal
 
-将 `.github/workflows/ci.yml` 中 `test`、`test-d10`、`test-e2` 三个双宿主矩阵作业的 `CARGO_PROFILE_DEV_DEBUG` 与 `CARGO_PROFILE_TEST_DEBUG` 从“仅 `ubuntu-26.04` 为 `1`、`macos-15` 为 `2`”统一为双宿主均为 `'1'`（line-tables-only，保留完整行号与 panic 回溯），并将 `Swatinem/rust-cache@v2` 的 `prefix-key` 统一为 `v1-test-debug1` 以将 macOS 新的 `debug=1` 编译缓存与旧 `v0-rust`（`debug=2`）缓存隔离。
+将 `.github/workflows/ci.yml` 中 `test`、`test-d10`、`test-e2` 三个双宿主矩阵作业的 `CARGO_PROFILE_DEV_DEBUG` 与 `CARGO_PROFILE_TEST_DEBUG` 从“仅 `ubuntu-26.04` 为 `1`、`macos-15` 为 `2`”统一为双宿主均为 `'1'`（`limited`，保留完整行号与 panic 回溯），并将 `Swatinem/rust-cache@v2` 的 `prefix-key` 统一为 `v1-test-debug1` 以将 macOS 新的 `debug=1` 编译缓存与旧 `v0-rust`（`debug=2`）缓存隔离。
 
 ## 2. 背景
 
@@ -43,7 +43,7 @@
 
 ## 5. 验收标准
 
-- [x] `SPEC-0498` 登记及索引/DAG 通过 `python3 scripts/check_docs.py` 与 `scripts/check_syntax_gate.py`
+- [x] `SPEC-0502` 登记及索引/DAG 通过 `python3 scripts/check_docs.py` 与 `scripts/check_syntax_gate.py`
 - [ ] `scripts/tests/test_ci_debug_profile.py` 等工作流契约单测先红后绿全通过，且 Linux `Docs & Spec Structural Gate` 全量 `scripts/tests` 通过
 - [ ] PR 双宿主正式 `ci.yml`（`test`、`test-d10`、`test-e2` 共 6 组矩阵作业及 `CI Passed`）实跑全绿，记录 `macos-15` 编译与整 job 耗时变化
 - [x] Architecture 确认无需更新（纯 CI 编译调试级别配置调整，无语言或编译器实现变化）
@@ -51,7 +51,7 @@
 
 ## 6. 实施计划
 
-1. [x] 基于合入 PR #466 后的 `main`（`a6d2d51d`）建立独立分支 `feature/spec-0498-macos-limited-debug-ci` 并登记 `SPEC-0498`
+1. [x] 基于合入 PR #466 后的 `main`（`a6d2d51d`）建立独立分支并登记 `SPEC-0502`（顺延避开并行 PR #470 占用的 `0498..0501`）
 2. [x] 更新 `scripts/tests/test_ci_debug_profile.py` 锁定双宿主 `debug=1` 与 `v1-test-debug1` 缓存隔离（TDD Red）
 3. [x] 更新 `.github/workflows/ci.yml` 中 `test`、`test-d10`、`test-e2` 的 `CARGO_PROFILE_*_DEBUG` 与 `prefix-key`（TDD Green）
 4. [ ] 运行本地单测与文档/语法门禁，推送建 PR 触发双宿主正式 `ci.yml` 实测并记录耗时
@@ -61,4 +61,4 @@
 | 验收项 / 命令 | 结果 | 备注 |
 |---|---|---|
 | 本地定向 `python3 -m unittest`（`test_ci_debug_profile`、`test_ubuntu26_ci`、`test_generated_owner_ci`、`test_pr_ci_reuse`、`test_check_ci_results`、`ShadowWorkflowStaticContracts`） | 通过（TDD 先红后绿） | 全量 `scripts/tests` 由 Linux `Docs & Spec Structural Gate` 实跑覆盖 |
-| `python3 scripts/check_docs.py`、`python3 scripts/check_syntax_gate.py --check-file docs/specs/active/0498-macos-limited-debug-ci.md`、`git diff --check` | 全部通过 | 1059 份 Markdown 与 F5 语法增量门禁通过 |
+| `python3 scripts/check_docs.py`、`python3 scripts/check_syntax_gate.py --check-file docs/specs/active/0502-macos-limited-debug-ci.md`、`git diff --check` | 全部通过 | 1059 份 Markdown 与 F5 语法增量门禁通过 |
