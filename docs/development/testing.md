@@ -308,21 +308,19 @@ SPEC-0331 的Resource provider另导出六份真实history的双入口12程序�
 执行前落完整输入SHA账本，失败仍保留身份。该动态接线不改变macOS partial合同。
 不得把关闭接线后普通崩溃当成检测成功。合同与未覆盖项见[0266](../archive/specs/0266-native-sanitizer-wiring.md)。
 
-## E2 两源 Unit 影子试点与双宿主 A/B 对账
+## E2 影子试点与双宿主 A/B 对账
 
-[SPEC-0495](../specs/active/0495-e2-two-source-ci-shadow-pilot.md) 在不改动正式 `.github/workflows/ci.yml`
-与 `scripts/check_e2_two_source_unit_ci.sh` 现网执行路径的前提下，通过独立非门禁工作流
+[SPEC-0495](../specs/active/0495-e2-two-source-ci-shadow-pilot.md) 在不改动正式 `.github/workflows/ci.yml`、
+`scripts/check_e2_two_source_unit_ci.sh` 与 `scripts/check_e2_replay_ci.sh` 现网执行路径的前提下，通过独立非门禁工作流
 `.github/workflows/ci-e2-shadow-pilot.yml` 与 `scripts/e2_two_source_shadow_pilot.py`
-仅对 E2 两源 Unit 的 5 个构建配置、179 个执行条目（原 358 次 Cargo 调用）开展可撤回的双宿主 A/B 对照：
+分套件开展可撤回的双宿主 A/B 对照（首批 `e2-two-source-unit`：5 配置 / 179 条目 / 原 358 次 Cargo 调用；第二批 `e2-replay`：2 配置 / 14 条目 / 原 28 次 Cargo 调用）：
 
-- 基线臂（`baseline`）与候选臂（`candidate`）由同一份 `scripts/e2_two_source_unit_manifest.json`
-  驱动，启动前自动校验与 `scripts/check_e2_two_source_unit_ci.sh` 的配置、顺序和过滤器完全等价；
-  保留 `-j1`，不并行预热 5 套配置，不跨配置混用产物。
+- 每套套件由独立清单（`scripts/e2_two_source_unit_manifest.json`、`scripts/e2_replay_manifest.json`）同时驱动基线臂（`baseline`，固定 `-j1`）与候选臂（`candidate`，支持 `manifest` `-j1` 或 `default` 默认多核），启动前自动校验与对应原脚本的配置、顺序和过滤器完全等价；不同套件与不同配置各自独立锁定产物，严禁跨套件或跨异构 feature 混用二进制或对账账本。
 - 候选臂先用 Cargo JSON 唯一锁定匹配宿主三元组、`package_id`、`target`、`features` 与 `test`
-  profile 的测试可执行文件，再用真实 Cargo 启动探针（`target.<triple>.runner`）与直调启动探针核验
+  profile 的测试可执行文件（并强制校验同 target 不同 `features` 的可执行文件路径与摘要互异），再用真实 Cargo 启动探针（`target.<triple>.runner`）与直调启动探针核验
   工作目录、白名单 `CARGO_*`/工具链变量、动态库搜索路径与实际 `llvm-config`/`clang` 等价，不打印全量环境或秘密。
 - 每条用例硬校验 `--list` 恰好命中 1 条、运行阶段实际执行恰好 1 次，保留预期失败分类与失败证据子串对照；
   CI 专属故障仅在真实 GitHub Actions 运行，本地仅使用 `--list-only`，禁止伪造 `CI` 或 `GITHUB_ACTIONS`。
-- 双宿主（`ubuntu-26.04` 固定工具链容器与 `macos-15`）A/B 各用独立 `CARGO_TARGET_DIR` 与无前缀回退的精确缓存键，
+- 双宿主（`ubuntu-26.04` 固定工具链容器与 `macos-15`）按 `(suite, arm)` 各用独立 `CARGO_TARGET_DIR` 与无前缀回退的精确缓存键，
   不恢复现网 `test` job 缓存、不互相恢复；现网共享 target 的步骤耗时仅作参考，不能与隔离冷跑直接相减。
   仓库变量 `KOVEN_E2_SHADOW_PILOT_DISABLED=true` 可零提交一键停用试点。

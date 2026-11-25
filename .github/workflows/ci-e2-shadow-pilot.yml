@@ -1,5 +1,5 @@
 name: E2 Two-Source Shadow Pilot
-run-name: E2 shadow pilot ${{ github.event_name }} ${{ inputs.cache_phase || 'auto' }} epoch=${{ inputs.cache_epoch || 'pr' }} ${{ github.sha }}
+run-name: E2 shadow pilot ${{ inputs.suite || 'e2-replay' }} ${{ github.event_name }} ${{ inputs.cache_phase || 'auto' }} epoch=${{ inputs.cache_epoch || 'pr' }} ${{ github.sha }}
 
 on:
   workflow_dispatch:
@@ -9,6 +9,14 @@ on:
         required: false
         type: boolean
         default: true
+      suite:
+        description: 'Shadow pilot suite (each uses an isolated manifest, artifact lock, target dir, and cache key)'
+        required: false
+        type: choice
+        options:
+          - e2-replay
+          - e2-two-source-unit
+        default: e2-replay
       cache_phase:
         description: 'cold (require miss + empty target, then save), warm (require exact hit), or auto'
         required: false
@@ -45,14 +53,16 @@ on:
       - '.github/workflows/ci-e2-shadow-pilot.yml'
       - 'scripts/e2_two_source_shadow_pilot.py'
       - 'scripts/e2_two_source_unit_manifest.json'
+      - 'scripts/e2_replay_manifest.json'
       - 'scripts/tests/test_e2_two_source_shadow_pilot.py'
       - 'scripts/check_e2_two_source_unit_ci.sh'
+      - 'scripts/check_e2_replay_ci.sh'
 
 permissions:
   contents: read
 
 concurrency:
-  group: e2-shadow-pilot-${{ github.ref }}-${{ inputs.cache_phase || 'auto' }}-${{ inputs.cache_epoch || 'pr' }}
+  group: e2-shadow-pilot-${{ github.ref }}-${{ inputs.suite || 'e2-replay' }}-${{ inputs.cache_phase || 'auto' }}-${{ inputs.cache_epoch || 'pr' }}
   cancel-in-progress: false
 
 env:
@@ -86,7 +96,7 @@ jobs:
     env:
       CARGO_PROFILE_DEV_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
       CARGO_PROFILE_TEST_DEBUG: ${{ matrix.os == 'ubuntu-26.04' && '1' || '2' }}
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target-e2-shadow-${{ matrix.arm }}
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}
       KOVEN_SHADOW_CACHE_PHASE: ${{ inputs.cache_phase || 'auto' }}
     steps:
       - name: Verify unprivileged container mounts
@@ -123,7 +133,7 @@ jobs:
       - name: Verify isolated target directory starts empty before cache restore
         run: |
           set -euo pipefail
-          target_path="$GITHUB_WORKSPACE/target-e2-shadow-${{ matrix.arm }}"
+          target_path="$GITHUB_WORKSPACE/target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}"
           echo "CARGO_TARGET_DIR=$target_path" >> "$GITHUB_ENV"
           if [[ -e "$target_path" ]]; then
             echo "unexpected pre-existing CARGO_TARGET_DIR before cache restore: $target_path" >&2
@@ -133,6 +143,7 @@ jobs:
       - name: Compute isolated exact A/B cache key
         id: cache-key
         env:
+          SUITE_ID: ${{ inputs.suite || 'e2-replay' }}
           CAND_JOBS: ${{ inputs.candidate_jobs || 'default' }}
           CACHE_EPOCH: ${{ inputs.cache_epoch || format('pr-{0}-v2', github.event.pull_request.number || 'branch') }}
           LLVM_VER: ${{ steps.llvm.outputs.version || '21.1.8' }}
@@ -145,7 +156,7 @@ jobs:
           if [[ "${{ matrix.arm }}" == "candidate" ]]; then
             arm_jobs="$CAND_JOBS"
           fi
-          key="e2-shadow-pilot-v2-epoch-${CACHE_EPOCH}-arm-${{ matrix.arm }}-jobs-${arm_jobs}-os-${{ matrix.os }}-arch-${{ runner.arch }}-rust-1.96.0-llvm-${LLVM_VER}-img-${sanitized_image}-lock-${LOCK_HASH}"
+          key="e2-shadow-pilot-v2-suite-${SUITE_ID}-epoch-${CACHE_EPOCH}-arm-${{ matrix.arm }}-jobs-${arm_jobs}-os-${{ matrix.os }}-arch-${{ runner.arch }}-rust-1.96.0-llvm-${LLVM_VER}-img-${sanitized_image}-lock-${LOCK_HASH}"
           echo "key=$key" >> "$GITHUB_OUTPUT"
 
       - name: Restore isolated arm cache (exact key only, no prefix fallback)
@@ -156,7 +167,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            target-e2-shadow-${{ matrix.arm }}
+            target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Enforce cold-miss or warm-hit contract
@@ -194,9 +205,10 @@ jobs:
             fi
           fi
 
-      - name: Run E2 two-source Unit shadow arm (${{ matrix.arm }})
+      - name: Run E2 shadow arm (${{ inputs.suite || 'e2-replay' }}, ${{ matrix.arm }})
         run: |
           python3 scripts/e2_two_source_shadow_pilot.py run \
+            --manifest "${{ (inputs.suite || 'e2-replay') == 'e2-two-source-unit' && 'scripts/e2_two_source_unit_manifest.json' || 'scripts/e2_replay_manifest.json' }}" \
             --mode "${{ matrix.arm }}" \
             --candidate-jobs "${{ inputs.candidate_jobs || 'default' }}" \
             --artifacts "$RUNNER_TEMP/e2-shadow-${{ matrix.os }}-${{ matrix.arm }}"
@@ -209,7 +221,7 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            target-e2-shadow-${{ matrix.arm }}
+            target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Upload shadow arm ledger and probe evidence

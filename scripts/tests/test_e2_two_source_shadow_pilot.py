@@ -15,6 +15,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = ROOT / "scripts/e2_two_source_unit_manifest.json"
+REPLAY_MANIFEST_PATH = ROOT / "scripts/e2_replay_manifest.json"
 PILOT_PATH = ROOT / "scripts/e2_two_source_shadow_pilot.py"
 SHADOW_WORKFLOW_PATH = ROOT / ".github/workflows/ci-e2-shadow-pilot.yml"
 
@@ -335,13 +336,19 @@ class AntiSkipExpectedFailureAndComparisonContracts(unittest.TestCase):
             "    sys.exit(0)\n"
             # Drop -j1 assertion in stub when KOVEN_ALLOW_DEFAULT_JOBS=1 so we can test default 4-core candidate mode
             "assert argv[0] == 'test' and (os.environ.get('KOVEN_ALLOW_DEFAULT_JOBS') == '1' or '-j1' in argv), f'missing -j1 in {argv}'\n"
-            "feat = argv[argv.index('--features') + 1].split()\n"
+            "feat = sorted(argv[argv.index('--features') + 1].split())\n"
             "target_dir = os.environ['CARGO_TARGET_DIR']\n"
             "deps_dir = target_dir + '/debug/deps'\n"
             "os.makedirs(deps_dir, exist_ok=True)\n"
-            "exe = deps_dir + '/compiled_test_harness'\n"
-            f"if not os.path.exists(exe):\n"
-            f"    import shutil as _sh; _sh.copyfile({str(test_exe)!r}, exe); os.chmod(exe, 0o755)\n"
+            "import hashlib as _hl\n"
+            "feat_tag = 'shared' if os.environ.get('FAKE_COLLIDE_FEATURE_ARTIFACTS') == '1' else _hl.sha256((' '.join(feat)).encode()).hexdigest()[:12]\n"
+            "exe = f'{deps_dir}/compiled_test_harness-{feat_tag}'\n"
+            "if not os.path.exists(exe):\n"
+            f"    import shutil as _sh; _sh.copyfile({str(test_exe)!r}, exe)\n"
+            "    if feat_tag != 'shared':\n"
+            "        with open(exe, 'a', encoding='utf-8') as _ef:\n"
+            "            _ef.write(f'# features={feat_tag}\\n')\n"
+            "    os.chmod(exe, 0o755)\n"
             "if '--no-run' in argv and '--message-format=json' in argv:\n"
             "    rec = {\n"
             "        'reason': 'compiler-artifact',\n"
@@ -592,6 +599,166 @@ class AntiSkipExpectedFailureAndComparisonContracts(unittest.TestCase):
                         self.assertEqual(ctx.exception.test_name, expected_test)
 
 
+class ReplayManifestAndSeparateArtifactLockContracts(unittest.TestCase):
+    def setUp(self):
+        self.pilot = load_pilot_module()
+
+    def test_replay_manifest_has_exact_2_configs_and_14_entries_matching_shell_script(self):
+        self.assertTrue(REPLAY_MANIFEST_PATH.is_file(), "missing scripts/e2_replay_manifest.json")
+        manifest = self.pilot.load_manifest(REPLAY_MANIFEST_PATH)
+        self.assertEqual(manifest["suite_id"], "e2-replay")
+        self.assertEqual(manifest["source_script"], "scripts/check_e2_replay_ci.sh")
+        self.assertEqual(manifest["formal_ci_step_name"], "Experimental E2 replay faults (CI only)")
+        self.assertEqual(manifest["total_configs"], 2)
+        self.assertEqual(manifest["total_entries"], 14)
+        self.assertEqual([len(c["entries"]) for c in manifest["configs"]], [7, 7])
+        self.assertEqual(
+            [c["expected_features"] for c in manifest["configs"]],
+            [
+                ["e2-two-source-test-support"],
+                ["e2-two-source-test-support", "loan-observation-test-support"],
+            ],
+        )
+        self.assertTrue(all(e["exact"] and e["ignored"] for c in manifest["configs"] for e in c["entries"]))
+
+        env = dict(os.environ)
+        env.pop("CI", None)
+        env.pop("GITHUB_ACTIONS", None)
+        report = self.pilot.verify_manifest_against_shell_script(manifest, ROOT, env=env)
+        self.assertEqual(report["verified_configs"], 2)
+        self.assertEqual(report["verified_entries"], 14)
+
+    def test_separate_artifact_lock_rejects_reused_executable_across_distinct_feature_configs(self):
+        helper = AntiSkipExpectedFailureAndComparisonContracts()
+        helper.setUp()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            _, base_env, target_a, target_b, call_log = helper._make_synthetic_harness(tmp_path)
+            base_env["KOVEN_ALLOW_DEFAULT_JOBS"] = "1"
+
+            two_cfg_manifest = {
+                "schema": "koven.e2-two-source-shadow-manifest.v1",
+                "suite_id": "e2-replay",
+                "source_script": "scripts/check_e2_replay_ci.sh",
+                "formal_ci_step_name": "Experimental E2 replay faults (CI only)",
+                "cargo_jobs": 1,
+                "total_configs": 2,
+                "total_entries": 2,
+                "configs": [
+                    {
+                        "config_id": "replay-cfg1",
+                        "package": "lang-codegen",
+                        "target_name": "lang_codegen",
+                        "target_kind": ["lib"],
+                        "cargo_target_args": ["--lib"],
+                        "cargo_features_arg": "e2-two-source-test-support",
+                        "expected_features": ["e2-two-source-test-support"],
+                        "entries": [
+                            {
+                                "global_index": 0,
+                                "test_name": "ssa::e2_replay_ci::e2_signature_and_source_roles_reject",
+                                "exact": True,
+                                "ignored": True,
+                                "ci_only": True,
+                                "expected_outcome": "pass",
+                                "expected_failure_substrings": [],
+                            }
+                        ],
+                    },
+                    {
+                        "config_id": "replay-cfg2",
+                        "package": "lang-codegen",
+                        "target_name": "lang_codegen",
+                        "target_kind": ["lib"],
+                        "cargo_target_args": ["--lib"],
+                        "cargo_features_arg": "e2-two-source-test-support loan-observation-test-support",
+                        "expected_features": ["e2-two-source-test-support", "loan-observation-test-support"],
+                        "entries": [
+                            {
+                                "global_index": 1,
+                                "test_name": "ssa::e2_replay_ci::e2_signature_and_source_roles_reject",
+                                "exact": True,
+                                "ignored": True,
+                                "ci_only": True,
+                                "expected_outcome": "pass",
+                                "expected_failure_substrings": [],
+                            }
+                        ],
+                    },
+                ],
+            }
+
+            # 1. Colliding executable across different feature configs MUST fail closed
+            colliding_env = {
+                **base_env,
+                "CARGO_TARGET_DIR": str(target_b),
+                "PILOT_MODE_TAG": "candidate",
+                "FAKE_COLLIDE_FEATURE_ARTIFACTS": "1",
+            }
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx:
+                self.pilot.run_pilot(
+                    manifest=two_cfg_manifest,
+                    root=ROOT,
+                    mode="candidate",
+                    list_only=False,
+                    artifacts_dir=tmp_path / "artifacts-collide",
+                    env=colliding_env,
+                    verify_shell_parity=False,
+                    allow_script_test_binary=True,
+                    inspect_dylibs=False,
+                    candidate_jobs="default",
+                )
+            self.assertEqual(ctx.exception.kind, "artifact_lock_failed")
+            self.assertEqual(ctx.exception.config_id, "replay-cfg2")
+
+            # 2. Distinct feature-hashed executables pass and compare cleanly
+            env_a = {**base_env, "CARGO_TARGET_DIR": str(target_a), "PILOT_MODE_TAG": "baseline"}
+            ledger_a = self.pilot.run_pilot(
+                manifest=two_cfg_manifest,
+                root=ROOT,
+                mode="baseline",
+                list_only=False,
+                artifacts_dir=tmp_path / "artifacts-a",
+                env=env_a,
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+                candidate_jobs="default",
+            )
+            call_log.write_text("", encoding="utf-8")
+            env_b = {**base_env, "CARGO_TARGET_DIR": str(target_b) + "-clean", "PILOT_MODE_TAG": "candidate"}
+            ledger_b = self.pilot.run_pilot(
+                manifest=two_cfg_manifest,
+                root=ROOT,
+                mode="candidate",
+                list_only=False,
+                artifacts_dir=tmp_path / "artifacts-b",
+                env=env_b,
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+                candidate_jobs="default",
+            )
+            self.assertNotEqual(
+                ledger_b["configs"][0]["locked_artifact"]["executable"],
+                ledger_b["configs"][1]["locked_artifact"]["executable"],
+            )
+            self.assertNotEqual(
+                ledger_b["configs"][0]["locked_artifact"]["executable_sha256"],
+                ledger_b["configs"][1]["locked_artifact"]["executable_sha256"],
+            )
+            comp = self.pilot.compare_ledgers(ledger_a, ledger_b)
+            self.assertTrue(comp["equivalent"])
+            self.assertEqual(comp["suite_id"], "e2-replay")
+
+            # 3. Cross-suite ledger comparison must fail closed
+            wrong_suite = copy.deepcopy(ledger_b)
+            wrong_suite["suite_id"] = "e2-two-source-unit"
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx2:
+                self.pilot.compare_ledgers(ledger_a, wrong_suite)
+            self.assertEqual(ctx2.exception.kind, "ab_mismatch")
+
+
 class ShadowWorkflowStaticContracts(unittest.TestCase):
     def test_formal_ci_and_e2_script_are_unmodified_and_shadow_is_isolated(self):
         self.assertTrue(SHADOW_WORKFLOW_PATH.is_file(), "missing ci-e2-shadow-pilot.yml")
@@ -615,9 +782,12 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
         )
         self.assertIn("options: --user 1001:1001", shadow)
 
-        # Isolated CARGO_TARGET_DIR and exact-key-only cache (no restore-keys fallback, no v0-rust / v1-test-debug1)
+        # Isolated CARGO_TARGET_DIR and exact-key-only cache (isolated per suite + per arm, no restore-keys fallback, no v0-rust / v1-test-debug1)
         self.assertIn("CARGO_TARGET_DIR:", shadow)
-        self.assertIn("target-e2-shadow-${{ matrix.arm }}", shadow)
+        self.assertIn("target-e2-shadow-${{ inputs.suite || 'e2-replay' }}-${{ matrix.arm }}", shadow)
+        self.assertIn("e2-shadow-pilot-v2-suite-${SUITE_ID}-", shadow)
+        self.assertIn("scripts/e2_replay_manifest.json", shadow)
+        self.assertIn("scripts/e2_two_source_unit_manifest.json", shadow)
         self.assertNotIn("restore-keys:", shadow)
         self.assertNotIn("v0-rust", shadow)
         self.assertNotIn("v1-test-debug1", shadow)

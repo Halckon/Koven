@@ -1,6 +1,8 @@
 {
   "schema": "koven.e2-two-source-shadow-manifest.v1",
+  "suite_id": "e2-two-source-unit",
   "source_script": "scripts/check_e2_two_source_unit_ci.sh",
+  "formal_ci_step_name": "Verify opt-in two-source Unit capability and atomicity",
   "cargo_jobs": 1,
   "total_configs": 5,
   "total_entries": 179,

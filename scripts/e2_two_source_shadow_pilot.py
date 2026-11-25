@@ -1078,6 +1078,9 @@ def run_pilot(
 
     config_records: list[dict[str, Any]] = []
     entry_records: list[dict[str, Any]] = []
+    locked_by_target: dict[tuple[str, str, tuple[str, ...]], list[dict[str, Any]]] = {}
+    suite_id = manifest.get("suite_id") or Path(manifest["source_script"]).stem
+    formal_ci_step_name = manifest.get("formal_ci_step_name")
 
     try:
         for cfg in manifest["configs"]:
@@ -1140,6 +1143,26 @@ def run_pilot(
                         "target_dir": str(target_dir),
                     },
                     allow_script_test_binary=allow_script_test_binary,
+                )
+                target_bucket_key = (pkg_id, cfg["target_name"], tuple(cfg["target_kind"]))
+                for prev_lock in locked_by_target.get(target_bucket_key, []):
+                    if prev_lock["features"] != locked_artifact["features"] and (
+                        prev_lock["executable"] == locked_artifact["executable"]
+                        or prev_lock["executable_sha256"] == locked_artifact["executable_sha256"]
+                    ):
+                        raise ShadowPilotError(
+                            "artifact_lock_failed",
+                            f"distinct feature config {cid} reused executable or digest from {prev_lock['config_id']}: {locked_artifact['executable']}",
+                            host=host_label,
+                            config_id=cid,
+                        )
+                locked_by_target.setdefault(target_bucket_key, []).append(
+                    {
+                        "config_id": cid,
+                        "features": locked_artifact["features"],
+                        "executable": locked_artifact["executable"],
+                        "executable_sha256": locked_artifact["executable_sha256"],
+                    }
                 )
 
                 # 2. Real Cargo launch probe vs Direct launch probe
@@ -1402,6 +1425,9 @@ def run_pilot(
         ledger = {
             "schema": LEDGER_SCHEMA,
             "status": "pass",
+            "suite_id": suite_id,
+            "source_script": manifest["source_script"],
+            "formal_ci_step_name": formal_ci_step_name,
             "mode": mode,
             "execution_scope": "list-only" if list_only else "execute",
             "git_sha": git_sha,
@@ -1465,7 +1491,16 @@ def compare_ledgers(
     if baseline.get("mode") != "baseline" or candidate.get("mode") != "candidate":
         raise ShadowPilotError("ab_mismatch", "expected baseline vs candidate ledgers", host=host)
 
-    for identity_key in ("git_sha", "host", "host_triple", "rustc_release", "manifest_sha256", "execution_scope"):
+    for identity_key in (
+        "suite_id",
+        "source_script",
+        "git_sha",
+        "host",
+        "host_triple",
+        "rustc_release",
+        "manifest_sha256",
+        "execution_scope",
+    ):
         if baseline.get(identity_key) != candidate.get(identity_key):
             raise ShadowPilotError(
                 "ab_mismatch",
@@ -1556,6 +1591,9 @@ def compare_ledgers(
     return {
         "schema": COMPARISON_SCHEMA,
         "equivalent": True,
+        "suite_id": baseline.get("suite_id"),
+        "source_script": baseline.get("source_script"),
+        "formal_ci_step_name": baseline.get("formal_ci_step_name"),
         "git_sha": baseline["git_sha"],
         "host": host,
         "host_triple": baseline["host_triple"],
@@ -1603,6 +1641,7 @@ def fetch_workflow_metrics(
     *,
     head_sha: str,
     reference_ci_run_id: int | None = None,
+    formal_step_name: str = "Verify opt-in two-source Unit capability and atomicity",
 ) -> dict[str, Any]:
     """Fetch read-only GitHub Actions queue/wall-clock metrics for shadow run and reference ci.yml."""
 
@@ -1646,7 +1685,7 @@ def fetch_workflow_metrics(
                 continue
             e2_step_sec = None
             for step in job.get("steps") or []:
-                if step.get("name") == "Verify opt-in two-source Unit capability and atomicity":
+                if step.get("name") == formal_step_name:
                     e2_step_sec = iso_duration_seconds(step.get("started_at"), step.get("completed_at"))
                     break
             ref_summary.append(
@@ -1672,11 +1711,12 @@ def fetch_workflow_metrics(
 
 
 def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics: dict[str, Any] | None = None) -> str:
+    suite_label = (comparisons[0].get("suite_id") if comparisons else None) or "e2-two-source-unit"
     lines = [
-        "## SPEC-0495 E2 Two-Source Unit Shadow A/B Report",
+        f"## SPEC-0495 E2 Shadow A/B Report (`{suite_label}`)",
         "",
-        "| Host (CPUs / RAM) | Jobs (A/B) | Cache Phase (A/B) | Hit (A/B) | Entries | Equiv | Baseline Wall (s) | Cand Build+Probe (s) | Cand List+Run (s) | Cand Wall (s) | Peak Child RSS MiB (A / B) | Max Target GiB (A / B) | OOM / Retries |",
-        "|---|---|---|---|---:|---|---:|---:|---:|---:|---|---|---|",
+        "| Suite | Host (CPUs / RAM) | Jobs (A/B) | Cache Phase (A/B) | Hit (A/B) | Entries | Equiv | Baseline Wall (s) | Cand Build+Probe (s) | Cand List+Run (s) | Cand Wall (s) | Peak Child RSS MiB (A / B) | Max Target GiB (A / B) | OOM / Retries |",
+        "|---|---|---|---|---|---:|---|---:|---:|---:|---:|---|---|---|",
     ]
     for comp in comparisons:
         bt = comp["telemetry_comparison"]["baseline"]
@@ -1692,8 +1732,9 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
         cpus = hr.get("cpu_count", "?")
         ram_gib = f"{hr['total_ram_bytes'] / (1024**3):.1f}G" if hr.get("total_ram_bytes") else "?G"
         jobs = comp.get("cargo_jobs") or {"baseline": "-j1", "candidate": "-j1"}
+        s_id = comp.get("suite_id") or suite_label
         lines.append(
-            f"| `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
+            f"| `{s_id}` | `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
             f"`{comp['cache_phase']['baseline']}` / `{comp['cache_phase']['candidate']}` | "
             f"`{comp['cache_hit']['baseline']}` / `{comp['cache_hit']['candidate']}` | "
             f"{comp['compared_entries']} | `PASS` | "
@@ -1826,16 +1867,21 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.subcommand == "collect-workflow-metrics":
             token = os.environ.get("GH_TOKEN") or ""
+            comps = [json.loads(p.read_text(encoding="utf-8")) for p in args.comparisons] if args.comparisons else []
+            step_name = (
+                (comps[0].get("formal_ci_step_name") if comps else None)
+                or "Verify opt-in two-source Unit capability and atomicity"
+            )
             metrics = fetch_workflow_metrics(
                 args.repo,
                 args.shadow_run_id,
                 token,
                 head_sha=args.head_sha,
                 reference_ci_run_id=args.reference_ci_run_id,
+                formal_step_name=step_name,
             )
             write_json_atomic(args.output, metrics)
-            if args.markdown and args.comparisons:
-                comps = [json.loads(p.read_text(encoding="utf-8")) for p in args.comparisons]
+            if args.markdown and comps:
                 args.markdown.parent.mkdir(parents=True, exist_ok=True)
                 args.markdown.write_text(render_markdown_summary(comps, metrics), encoding="utf-8")
             return 0
