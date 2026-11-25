@@ -20,6 +20,10 @@ mod pratt_tests;
 mod recovery;
 #[cfg(test)]
 mod separator_tests;
+#[cfg(kani)]
+mod stops_kani;
+#[cfg(test)]
+mod stops_tests;
 #[cfg(test)]
 mod tests;
 mod type_ref;

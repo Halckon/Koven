@@ -1,4 +1,5 @@
 //! 源码身份、字节范围与展示位置的统一基础设施。
+#![allow(unexpected_cfgs)]
 
 use std::{
     error::Error,
@@ -68,6 +69,18 @@ impl Span {
     #[must_use]
     pub const fn is_empty(self) -> bool {
         self.start == self.end
+    }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_for_verification() -> Self {
+        Self {
+            source_id: SourceId {
+                map_id: 0,
+                index: 0,
+            },
+            start: 0,
+            end: 0,
+        }
     }
 }
 

@@ -1,0 +1,6 @@
+name = "f6_stops_lattice"
+version = "0.1.0"
+defaultTargets = ["F6StopsLattice"]
+
+[[lean_lib]]
+name = "F6StopsLattice"
