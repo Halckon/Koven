@@ -438,21 +438,7 @@ pub(super) fn analyze(
         ownership_primitives.extend(checker.ownership_primitives);
         field_replacements.extend(checker.field_replacements);
         borrow_return_origins.extend(checker.borrow_return_origins);
-        borrow_results
-            .range_returns
-            .extend(checker.borrow_results.range_returns);
-        borrow_results
-            .range_uses
-            .extend(checker.borrow_results.range_uses);
-        borrow_results
-            .call_uses
-            .extend(checker.borrow_results.call_uses);
-        borrow_results
-            .bindings
-            .extend(checker.borrow_results.bindings);
-        borrow_results
-            .forwarded
-            .extend(checker.borrow_results.forwarded);
+        borrow_results.append_checked_source(checker.borrow_results);
         borrow_results.ends.extend(drop_analysis.no_carry.ends);
         #[cfg(feature = "d10-catalog-experiment")]
         let loan_producers = checker.loan_producers.finish();

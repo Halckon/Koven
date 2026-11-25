@@ -4,6 +4,7 @@ use super::*;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::borrow_result::UnitBorrowResults;
 use crate::type_checking::UnitExpressionId;
+use std::collections::{HashMap, HashSet};
 
 pub(crate) mod sealed {
     pub trait Sealed {}
@@ -25,6 +26,12 @@ pub trait UnitPreflightFacts: sealed::Sealed {
         _binding: UnitSymbolId,
     ) -> Option<two_source_experiment::ExperimentalBinding<'_>> {
         None
+    }
+
+    /// Confirm the exact Range loop-body control against actual iteration,
+    /// last-use and owner-delivery records.
+    fn named_range_loop_reuse_controls(&self) -> HashMap<UnitSymbolId, UnitExpressionId> {
+        HashMap::new()
     }
 
     /// Original binding kind query; no fact reconstruction.
@@ -84,8 +91,29 @@ pub trait UnitPreflightFacts: sealed::Sealed {
     fn owns_no_carry_prefix_counter_break(&self, fact: &UnitLoopPrefixCounterBreakFact) -> bool;
 }
 
+// The ordinary provider seals its original receipts in one pass for an entire
+// preflight. A repeated row poisons the key even if both payloads are identical.
+fn insert_unique<K: Copy + std::hash::Hash + Eq, V>(
+    rows: &mut HashMap<K, Option<V>>,
+    key: K,
+    value: V,
+) {
+    match rows.entry(key) {
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(Some(value));
+        }
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            entry.insert(None);
+        }
+    }
+}
+
 impl sealed::Sealed for CompilationUnitOwnership {}
 impl UnitPreflightFacts for CompilationUnitOwnership {
+    fn named_range_loop_reuse_controls(&self) -> HashMap<UnitSymbolId, UnitExpressionId> {
+        CompilationUnitOwnership::named_range_loop_reuse_controls(self)
+    }
+
     fn binding_kind(&self, symbol: UnitSymbolId) -> Option<OwnershipBindingKind> {
         CompilationUnitOwnership::binding_kind(self, symbol)
     }
@@ -165,5 +193,129 @@ impl UnitPreflightFacts for CompilationUnitOwnership {
     }
     fn owns_no_carry_prefix_counter_break(&self, fact: &UnitLoopPrefixCounterBreakFact) -> bool {
         CompilationUnitOwnership::owns_no_carry_prefix_counter_break(self, fact)
+    }
+}
+
+impl CompilationUnitOwnership {
+    /// Passive validation for the bounded named-Range loop use.
+    pub(super) fn named_range_loop_reuse_controls(
+        &self,
+    ) -> HashMap<UnitSymbolId, UnitExpressionId> {
+        use UnitIterationCleanupAction as Action;
+        use UnitIterationExitKind as Exit;
+        let results = self.borrow_results();
+        if results.named_range_loop_reuses.is_empty()
+            || !self.diagnostics().is_empty()
+            || !self.deferred().is_empty()
+        {
+            return HashMap::new();
+        }
+        let mut witnesses = HashMap::new();
+        for row in &results.named_range_loop_reuses {
+            insert_unique(&mut witnesses, row.binding, row);
+        }
+        let mut ends = HashMap::new();
+        let mut bindings = HashMap::new();
+        let mut sources = HashSet::new();
+        for end in results.ends() {
+            if witnesses.contains_key(&end.binding()) {
+                insert_unique(&mut ends, end.binding(), end.point());
+            }
+        }
+        for binding in results.bindings() {
+            if witnesses.contains_key(&binding.binding()) {
+                insert_unique(&mut bindings, binding.binding(), binding);
+                if let Some(source) = binding.source_loan() {
+                    sources.insert((source.call(), source.argument()));
+                }
+            }
+        }
+        let roots: HashSet<_> = witnesses.values().flatten().map(|row| row.root).collect();
+        let mut plans = HashMap::new();
+        let mut loans = HashMap::new();
+        let mut moves = HashMap::new();
+        let mut drops = HashSet::new();
+        for plan in self.iterations() {
+            insert_unique(&mut plans, plan.descriptor().statement(), plan);
+        }
+        for loan in self.loans() {
+            let key = (loan.call(), loan.argument());
+            if sources.contains(&key) {
+                insert_unique(&mut loans, key, loan);
+            }
+        }
+        for delivery in self.value_deliveries() {
+            if delivery.kind() == UnitValueDeliveryKind::Move
+                && let Some(place) = delivery.place()
+                && roots.contains(&place.root())
+            {
+                insert_unique(&mut moves, place.root(), delivery);
+            }
+        }
+        for drop in self.drops() {
+            if let UnitDropTarget::Named(root) = drop.target()
+                && roots.contains(&root)
+            {
+                drops.insert(root);
+            }
+        }
+        witnesses.into_iter().filter_map(|(symbol, row)| {
+            let row = row?;
+            let UnitDropPoint::LoopExit(statement) = row.loop_exit else { return None; };
+            let UnitDropPoint::AfterStatement(end) = row.end else { return None; };
+            let source_unit = symbol.source_unit();
+            if statement.source_unit() != source_unit || end.source_unit() != source_unit
+                || row.root.source_unit() != source_unit
+                || [row.source, row.body_control, row.observer, row.consume, row.consumed_operand]
+                    .iter().any(|id| id.source_unit() != source_unit)
+                || row.body_control == row.source || row.observer == row.consume
+                || drops.contains(&row.root)
+                || ends.get(&symbol).copied().flatten() != Some(row.end)
+            { return None; }
+            let binding = (*bindings.get(&symbol)?)?;
+            let original = binding.source_loan()?;
+            let loan = (*loans.get(&(original.call(), original.argument()))?)?;
+            if binding.storage() != BorrowBindingStorage::NewRangeDescriptor
+                || !matches!(binding.origin(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == row.root)
+                || loan.target() != binding.origin() || loan.kind() != LoanKind::Shared
+            { return None; }
+            let plan = (*plans.get(&statement)?)?;
+            if plan.descriptor().source() != row.source
+                || plan.descriptor().provider() != crate::type_checking::IterationProvider::RangeView
+                || !matches!(plan.source(), Some(UnitLoanTarget::Place(place)) if place.is_root() && place.root() == symbol)
+            { return None; }
+            let [element] = plan.bindings() else { return None; };
+            if element.symbol() == symbol || element.symbol().source_unit() != source_unit
+                || element.kind() != OwnershipBindingKind::Shared
+            { return None; }
+            let mut fallthrough = false;
+            let mut exhaustion = false;
+            for exit in plan.exits() {
+                match exit.kind() {
+                    Exit::Fallthrough if !fallthrough => {
+                        if !matches!(exit.point(), UnitDropPoint::AfterStatement(body)
+                            if body.source_unit() == source_unit)
+                            || !matches!(exit.actions(),
+                                [Action::EndBinding { statement: owner, symbol: ended }, Action::EndElement(id)]
+                                    if *owner == statement && *id == statement && *ended == element.symbol())
+                        { return None; }
+                        fallthrough = true;
+                    }
+                    Exit::Exhaustion if !exhaustion && exit.point() == row.loop_exit => {
+                        if !matches!(exit.actions(), [Action::FinishProvider(provider), Action::EndSource(source)]
+                            if *provider == statement && *source == statement)
+                        { return None; }
+                        exhaustion = true;
+                    }
+                    _ => return None,
+                }
+            }
+            let moved = (*moves.get(&row.root)?)?;
+            (fallthrough && exhaustion
+                && moved.call() == row.consume
+                && moved.argument() == row.consumed_operand
+                && moved.place().is_some_and(|place| place.is_root()))
+            .then_some((symbol, row.body_control))
+        }).collect()
     }
 }

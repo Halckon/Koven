@@ -11,6 +11,7 @@ use super::{
 };
 
 mod expression_ast;
+mod named_range_loop;
 
 /// Collect declaration-owned permissions once; callers may project fields from any source.
 pub(super) fn collect_field_mutability(
@@ -394,19 +395,91 @@ impl Checker<'_> {
         prefix_len: usize,
         state: State,
     ) -> Result<Flows, OwnershipCheckingError> {
-        let inherited = state.borrow_bindings.keys().copied().collect();
-        let uses = crate::ownership_checking::borrow_last_use::StraightLineBorrowUses::build(
+        let inherited: std::collections::BTreeSet<_> =
+            state.borrow_bindings.keys().copied().collect();
+        let closed_for = inherited
+            .is_empty()
+            .then(|| self.closed_range_for_reuse(elements))
+            .flatten();
+        let uses = crate::ownership_checking::borrow_last_use::StraightLineBorrowUses::build_with_named_range_loop(
             self.parsed,
             elements,
             |id| self.place(id).map(|place| place.map(|p| p.root())),
+            closed_for.map(|(statement, source, observe, _, _, _, _, _)| (statement, source, observe)),
         )?;
+        let first_binding = self.borrow_results.bindings.len();
         let mut flows = Flows::next(state);
         for &element in &elements[..prefix_len] {
             let Some(next) = flows.next.take() else {
                 break;
             };
             let mut checked = self.check_statement(element, next)?;
-            self.end_last_borrow_uses(element, uses.as_ref(), &inherited, &mut checked);
+            // The typed candidate never manufactures a source receipt. Only a
+            // published new Range descriptor for this exact local root can shorten.
+            let proved = closed_for.is_none_or(|(_, _, observe, binding, root, _, _, _)| {
+                element == observe
+                    && self.borrow_results.bindings
+                        .get(first_binding..)
+                        .is_some_and(|local| {
+                            let mut matching = local.iter().filter(|fact| fact.binding() == binding);
+                            matching.next().is_some_and(|fact| {
+                                fact.storage() == crate::ownership_checking::BorrowBindingStorage::NewRangeDescriptor
+                                    && fact.source_loan().is_some()
+                                    && matches!(fact.origin(), crate::ownership_checking::UnitLoanTarget::Place(place)
+                                        if place.is_root() && place.root() == root)
+                            }) && matching.next().is_none()
+                        })
+            });
+            let proved = proved && closed_for.is_none_or(|(loop_statement, source, _, binding, root, _, _, _)| {
+                let loop_id = crate::type_checking::UnitStatementId::new(self.source_unit, loop_statement);
+                let Some(plan) = self.iterations.get(&loop_id) else { return false; };
+                let Some(state) = checked.next.as_ref() else { return false; };
+                plan.descriptor().source() == self.unit_expression(source)
+                    && matches!(plan.source(), Some(crate::ownership_checking::UnitLoanTarget::Place(place))
+                        if place.is_root() && place.root() == binding)
+                    && state.borrow_bindings.contains_key(&binding)
+                    && state.loans.iter().any(|loan|
+                        loan.owner == super::ActiveLoanOwner::BorrowBinding(binding)
+                            && matches!(&loan.target, super::ActiveLoanTarget::Place(place)
+                                if place.is_root() && place.root() == root))
+                    && !state.loans.iter().any(|loan| matches!(loan.owner,
+                        super::ActiveLoanOwner::IterationSource(id) | super::ActiveLoanOwner::IterationElement(id)
+                            if id == loop_id))
+            });
+            let first_end = self.borrow_results.ends.len();
+            self.end_last_borrow_uses(
+                element,
+                uses.as_ref().filter(|_| proved),
+                &inherited,
+                closed_for.map(|_| first_binding).unwrap_or_default(),
+                &mut checked,
+            );
+            if let Some((provider, source, observe, binding, root, body_control, consume, moved)) =
+                closed_for
+                && element == observe
+                && let [end] = &self.borrow_results.ends[first_end..]
+                && end.binding() == binding
+                && let Statement::Expression {
+                    expression: observer,
+                } = self.parsed.ast().statements().get(observe)?.payload()
+            {
+                let loop_exit = crate::ownership_checking::UnitDropPoint::LoopExit(
+                    crate::type_checking::UnitStatementId::new(self.source_unit, provider),
+                );
+                self.borrow_results.named_range_loop_reuses.push(
+                    crate::ownership_checking::borrow_result::NamedRangeLoopReuse {
+                        loop_exit,
+                        source: self.unit_expression(source),
+                        body_control: self.unit_expression(body_control),
+                        binding,
+                        root,
+                        observer: self.unit_expression(*observer),
+                        end: end.point(),
+                        consume: self.unit_expression(consume),
+                        consumed_operand: self.unit_expression(moved),
+                    },
+                );
+            }
             flows.merge(checked);
         }
         Ok(flows)

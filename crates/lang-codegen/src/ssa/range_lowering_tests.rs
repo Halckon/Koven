@@ -5,6 +5,7 @@ use lang_frontend::{
     name_resolution::SourceUnitInput, source::SourceMap, type_checking::standard_environments,
 };
 
+mod named_range_loop_reuse;
 mod temporary {
     //! Healthy trusted std take sources; allocator identities observe normal releases.
     use super::*;

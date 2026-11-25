@@ -247,6 +247,9 @@ impl Checker<'_> {
             >,
         >,
         inherited: &std::collections::BTreeSet<crate::name_resolution::UnitSymbolId>,
+        // Zero keeps the old general walk. An exact named Range candidate
+        // has no inherited binding and only its own in-scope rows.
+        first_binding: usize,
         flows: &mut Flows,
     ) {
         let Some(future) = uses.and_then(|uses| uses.after(statement)) else {
@@ -261,17 +264,14 @@ impl Checker<'_> {
             inherited,
             future,
             |symbol| {
-                self.borrow_results
-                    .bindings
+                self.borrow_results.bindings[first_binding..]
                     .iter()
                     .find(|fact| fact.binding == symbol)
                     .and_then(|fact| fact.parent)
             },
         );
         // Creation order is a topological order: every parent preceded its child.
-        let ended = self
-            .borrow_results
-            .bindings
+        let ended = self.borrow_results.bindings[first_binding..]
             .iter()
             .rev()
             .filter(|fact| dead.contains(&fact.binding))
