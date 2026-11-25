@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -772,15 +773,19 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
     _shadow_workflow_override: Path | None = None
 
     @staticmethod
-    def _extract_step_run_argv(workflow_text: str, step_name: str) -> list[str]:
-        import shlex
-
+    def _extract_step_body(workflow_text: str, step_name: str) -> str:
         marker = f"      - name: {step_name}\n"
         if marker not in workflow_text:
             raise AssertionError(f"missing step {step_name!r} in ci.yml")
         after = workflow_text.split(marker, 1)[1]
-        # Stop at the next step header at 6-space indent
-        step_body = after.split("\n      - ", 1)[0]
+        # Stop at the next step header (6 spaces) or next job header (2 spaces)
+        return re.split(r"\n(?:      - |  [a-zA-Z0-9_-]+:)", after, maxsplit=1)[0]
+
+    @classmethod
+    def _extract_step_run_argv(cls, workflow_text: str, step_name: str) -> list[str]:
+        import shlex
+
+        step_body = cls._extract_step_body(workflow_text, step_name)
         lines = step_body.splitlines()
         run_lines: list[str] = []
         in_block = False
@@ -805,44 +810,53 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
 
     @classmethod
     def assert_formal_ci_e2_steps(cls, formal: str) -> None:
-        expected_steps = {
-            "Experimental E2 replay faults (CI only)": [
-                "python3",
-                "scripts/e2_two_source_shadow_pilot.py",
-                "run",
-                "--manifest",
-                "scripts/e2_replay_manifest.json",
-                "--mode",
-                "candidate",
-                "--candidate-jobs",
-                "default",
-                "--formal-gate",
-                "--artifacts",
-                "$RUNNER_TEMP/koven-e2-replay",
-            ],
-            "Verify opt-in two-source Unit capability and atomicity": [
-                "python3",
-                "scripts/e2_two_source_shadow_pilot.py",
-                "run",
-                "--manifest",
-                "scripts/e2_two_source_unit_manifest.json",
-                "--mode",
-                "candidate",
-                "--candidate-jobs",
-                "default",
-                "--formal-gate",
-                "--artifacts",
-                "$RUNNER_TEMP/koven-e2-two-source-unit",
-            ],
+        allowed_steps = {
+            "Experimental E2 replay faults (CI only)": (
+                [
+                    "python3",
+                    "scripts/e2_two_source_shadow_pilot.py",
+                    "run",
+                    "--manifest",
+                    "scripts/e2_replay_manifest.json",
+                    "--mode",
+                    "candidate",
+                    "--candidate-jobs",
+                    "default",
+                    "--formal-gate",
+                    "--artifacts",
+                    "$RUNNER_TEMP/koven-e2-replay",
+                ],
+                ["bash", "scripts/check_e2_replay_ci.sh"],
+            ),
+            "Verify opt-in two-source Unit capability and atomicity": (
+                [
+                    "python3",
+                    "scripts/e2_two_source_shadow_pilot.py",
+                    "run",
+                    "--manifest",
+                    "scripts/e2_two_source_unit_manifest.json",
+                    "--mode",
+                    "candidate",
+                    "--candidate-jobs",
+                    "default",
+                    "--formal-gate",
+                    "--artifacts",
+                    "$RUNNER_TEMP/koven-e2-two-source-unit",
+                ],
+                ["bash", "scripts/check_e2_two_source_unit_ci.sh"],
+            ),
         }
-        for step_name, expected_argv in expected_steps.items():
+        for step_name, allowed_argvs in allowed_steps.items():
+            step_body = cls._extract_step_body(formal, step_name)
+            if re.search(r"(?m)^        continue-on-error:", step_body):
+                raise AssertionError(f"formal CI step {step_name!r} must not set continue-on-error")
+            if re.search(r"(?m)^        if:", step_body):
+                raise AssertionError(f"formal CI step {step_name!r} must not be conditionally skipped")
             actual_argv = cls._extract_step_run_argv(formal, step_name)
-            if actual_argv != expected_argv:
+            if actual_argv not in allowed_argvs:
                 raise AssertionError(
-                    f"formal CI step {step_name!r} argv mismatch: actual={actual_argv!r} vs expected={expected_argv!r}"
+                    f"formal CI step {step_name!r} argv mismatch: actual={actual_argv!r} not in {allowed_argvs!r}"
                 )
-        if "bash scripts/check_e2_replay_ci.sh" in formal or "bash scripts/check_e2_two_source_unit_ci.sh" in formal:
-            raise AssertionError("formal CI still invokes legacy shell E2 scripts")
         if "ci-e2-shadow-pilot" in formal:
             raise AssertionError("formal CI must not reference ci-e2-shadow-pilot")
 
@@ -953,9 +967,10 @@ class Pr463ReviewP2RegressionContracts(unittest.TestCase):
             self.assertEqual(ctx_u.exception.kind, "manifest_drift")
 
     def test_p2_2_compare_job_rerun_resolves_prior_attempt_arm_ledgers_and_rejects_failed_latest_attempt(self):
-        shadow = SHADOW_WORKFLOW_PATH.read_text(encoding="utf-8")
-        # Workflow download step must NOT hardcode -${{ github.run_attempt }} on arm download pattern
-        self.assertIn("pattern: e2-shadow-arm-*-${{ github.run_id }}-*", shadow)
+        if SHADOW_WORKFLOW_PATH.is_file():
+            shadow = SHADOW_WORKFLOW_PATH.read_text(encoding="utf-8")
+            # Workflow download step must NOT hardcode -${{ github.run_attempt }} on arm download pattern
+            self.assertIn("pattern: e2-shadow-arm-*-${{ github.run_id }}-*", shadow)
 
         with tempfile.TemporaryDirectory() as tmp:
             dl = Path(tmp)
@@ -980,8 +995,9 @@ class Pr463ReviewP2RegressionContracts(unittest.TestCase):
             self.assertEqual(ctx.exception.kind, "ab_mismatch")
 
     def test_p2_3_registry_only_cache_hit_with_empty_target_cannot_be_marked_warm(self):
-        shadow = SHADOW_WORKFLOW_PATH.read_text(encoding="utf-8")
-        self.assertIn("debug/deps", shadow)
+        if SHADOW_WORKFLOW_PATH.is_file():
+            shadow = SHADOW_WORKFLOW_PATH.read_text(encoding="utf-8")
+            self.assertIn("debug/deps", shadow)
 
         helper = AntiSkipExpectedFailureAndComparisonContracts()
         helper.setUp()
@@ -1525,6 +1541,8 @@ class Pr463Review2P2RegressionContracts(unittest.TestCase):
             self.assertIn("`LIST-ONLY PASS`", md)
 
     def test_r2_p2_6_shadow_pr_paths_only_trigger_on_replay_suite_files(self):
+        if not SHADOW_WORKFLOW_PATH.is_file():
+            self.skipTest(f"{SHADOW_WORKFLOW_PATH.name} absent/rolled back; formal CI remains unblocked")
         shadow = SHADOW_WORKFLOW_PATH.read_text(encoding="utf-8")
         pr_section = shadow.split("  pull_request:\n", 1)[1].split("permissions:\n", 1)[0]
         self.assertIn("scripts/e2_replay_manifest.json", pr_section)
@@ -1672,6 +1690,214 @@ class Pr465ReviewP2RegressionContracts(unittest.TestCase):
         if tampered_no_fg != formal:
             with self.assertRaises(AssertionError):
                 ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(tampered_no_fg)
+
+
+class Pr465MergedReviewP2RegressionContracts(unittest.TestCase):
+    """Regression contracts for all 5 P2 findings from merged PR #465 review."""
+
+    def setUp(self):
+        self.pilot = load_pilot_module()
+
+    def test_m_p2_1_deleting_shadow_workflow_keeps_entire_test_module_green(self):
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            missing_yaml = Path(tmp) / "ci-e2-shadow-pilot.yml"
+            with mock.patch.object(sys.modules[__name__], "SHADOW_WORKFLOW_PATH", missing_yaml):
+                suite = unittest.TestSuite(
+                    [
+                        ShadowWorkflowStaticContracts("test_shadow_workflow_isolation_when_present"),
+                        Pr463ReviewP2RegressionContracts(
+                            "test_p2_2_compare_job_rerun_resolves_prior_attempt_arm_ledgers_and_rejects_failed_latest_attempt"
+                        ),
+                        Pr463ReviewP2RegressionContracts(
+                            "test_p2_3_registry_only_cache_hit_with_empty_target_cannot_be_marked_warm"
+                        ),
+                        Pr463Review2P2RegressionContracts(
+                            "test_r2_p2_6_shadow_pr_paths_only_trigger_on_replay_suite_files"
+                        ),
+                    ]
+                )
+                result = unittest.TestResult()
+                suite.run(result)
+                self.assertEqual(result.errors, [], f"errors when shadow YAML missing: {result.errors}")
+                self.assertEqual(result.failures, [], f"failures when shadow YAML missing: {result.failures}")
+
+    def test_m_p2_2_formal_workflow_test_allows_documented_shell_rollback(self):
+        formal = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        replay_block = (
+            "      - name: Experimental E2 replay faults (CI only)\n"
+            "        run: |\n"
+            "          python3 scripts/e2_two_source_shadow_pilot.py run \\\n"
+            "            --manifest scripts/e2_replay_manifest.json \\\n"
+            "            --mode candidate \\\n"
+            "            --candidate-jobs default \\\n"
+            "            --formal-gate \\\n"
+            '            --artifacts "$RUNNER_TEMP/koven-e2-replay"\n'
+        )
+        self.assertIn(replay_block, formal)
+        rolled_back_replay = formal.replace(
+            replay_block,
+            "      - name: Experimental E2 replay faults (CI only)\n"
+            "        run: bash scripts/check_e2_replay_ci.sh\n",
+        )
+        ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(rolled_back_replay)
+
+        unit_block = (
+            "      - name: Verify opt-in two-source Unit capability and atomicity\n"
+            "        run: |\n"
+            "          python3 scripts/e2_two_source_shadow_pilot.py run \\\n"
+            "            --manifest scripts/e2_two_source_unit_manifest.json \\\n"
+            "            --mode candidate \\\n"
+            "            --candidate-jobs default \\\n"
+            "            --formal-gate \\\n"
+            '            --artifacts "$RUNNER_TEMP/koven-e2-two-source-unit"\n'
+        )
+        self.assertIn(unit_block, formal)
+        rolled_back_both = rolled_back_replay.replace(
+            unit_block,
+            "      - name: Verify opt-in two-source Unit capability and atomicity\n"
+            "        run: bash scripts/check_e2_two_source_unit_ci.sh\n",
+        )
+        ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(rolled_back_both)
+
+        # Rollback with --list-only MUST still be rejected!
+        bad_rollback = formal.replace(
+            replay_block,
+            "      - name: Experimental E2 replay faults (CI only)\n"
+            "        run: bash scripts/check_e2_replay_ci.sh --list-only\n",
+        )
+        with self.assertRaises(AssertionError):
+            ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(bad_rollback)
+
+    def test_m_p2_3_comparator_rejects_unknown_execution_scope_and_renderer_uses_verified_executed_count(self):
+        helper = AntiSkipExpectedFailureAndComparisonContracts()
+        helper.setUp()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            manifest, base_env, target_a, target_b, _ = helper._make_synthetic_harness(tmp_path)
+            ledger_a = self.pilot.run_pilot(
+                manifest=manifest,
+                root=ROOT,
+                mode="baseline",
+                list_only=True,
+                artifacts_dir=tmp_path / "arm-a",
+                env={**base_env, "CARGO_TARGET_DIR": str(target_a)},
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+            )
+            ledger_b = self.pilot.run_pilot(
+                manifest=manifest,
+                root=ROOT,
+                mode="candidate",
+                list_only=True,
+                artifacts_dir=tmp_path / "arm-b",
+                env={**base_env, "CARGO_TARGET_DIR": str(target_b)},
+                verify_shell_parity=False,
+                allow_script_test_binary=True,
+                inspect_dylibs=False,
+            )
+            # Tamper execution_scope to unknown value "list_only" (underscore instead of hyphen)
+            ledger_a["execution_scope"] = "list_only"
+            ledger_b["execution_scope"] = "list_only"
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx:
+                self.pilot.compare_ledgers(ledger_a, ledger_b)
+            self.assertEqual(ctx.exception.kind, "ab_mismatch")
+
+            # Also verify render_markdown_summary refuses unknown execution_scope rather than printing PASS
+            ledger_a["execution_scope"] = "list-only"
+            ledger_b["execution_scope"] = "list-only"
+            comp = self.pilot.compare_ledgers(ledger_a, ledger_b)
+            self.assertEqual(comp.get("executed_entries"), 0)
+            tampered_comp = {**comp, "execution_scope": "list_only"}
+            with self.assertRaises(self.pilot.ShadowPilotError) as ctx_md:
+                self.pilot.render_markdown_summary([tampered_comp])
+            self.assertEqual(ctx_md.exception.kind, "ab_mismatch")
+
+    def test_m_p2_4_corrupt_manifest_nested_types_and_invalid_utf8_write_failure_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            cases = [
+                (
+                    "null-config",
+                    json.dumps(
+                        {
+                            "schema": self.pilot.MANIFEST_SCHEMA,
+                            "cargo_jobs": 1,
+                            "configs": [None],
+                            "total_configs": 1,
+                            "total_entries": 1,
+                        }
+                    ).encode("utf-8"),
+                ),
+                (
+                    "null-entry",
+                    json.dumps(
+                        {
+                            "schema": self.pilot.MANIFEST_SCHEMA,
+                            "cargo_jobs": 1,
+                            "configs": [
+                                {
+                                    "config_id": "c1",
+                                    "package": "lang-codegen",
+                                    "target_name": "lang_codegen",
+                                    "target_kind": "lib",
+                                    "cargo_target_args": ["--lib"],
+                                    "cargo_features_arg": "",
+                                    "expected_features": [],
+                                    "entries": [None],
+                                }
+                            ],
+                            "total_configs": 1,
+                            "total_entries": 1,
+                        }
+                    ).encode("utf-8"),
+                ),
+                ("invalid-utf8", b"\xff\xfe\x00invalid-utf8"),
+            ]
+            for label, payload in cases:
+                with self.subTest(case=label):
+                    art = tmp_path / f"art-{label}"
+                    art.mkdir()
+                    (art / "ledger.json").write_text('{"status":"pass"}', encoding="utf-8")
+                    bad_manifest = tmp_path / f"manifest-{label}.json"
+                    bad_manifest.write_bytes(payload)
+                    rc = self.pilot.main(
+                        [
+                            "run",
+                            "--manifest",
+                            str(bad_manifest),
+                            "--mode",
+                            "candidate",
+                            "--list-only",
+                            "--artifacts",
+                            str(art),
+                        ]
+                    )
+                    self.assertNotEqual(rc, 0)
+                    self.assertFalse((art / "ledger.json").exists())
+                    self.assertTrue((art / "failure.json").is_file())
+                    failure = json.loads((art / "failure.json").read_text(encoding="utf-8"))
+                    self.assertEqual(failure["error"]["kind"], "manifest_invalid")
+
+    def test_m_p2_5_formal_workflow_test_rejects_continue_on_error_on_e2_steps(self):
+        formal = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        tampered_replay = formal.replace(
+            "      - name: Experimental E2 replay faults (CI only)\n",
+            "      - name: Experimental E2 replay faults (CI only)\n        continue-on-error: true\n",
+        )
+        self.assertNotEqual(tampered_replay, formal)
+        with self.assertRaises(AssertionError):
+            ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(tampered_replay)
+
+        tampered_unit = formal.replace(
+            "      - name: Verify opt-in two-source Unit capability and atomicity\n",
+            "      - name: Verify opt-in two-source Unit capability and atomicity\n        continue-on-error: true\n",
+        )
+        self.assertNotEqual(tampered_unit, formal)
+        with self.assertRaises(AssertionError):
+            ShadowWorkflowStaticContracts.assert_formal_ci_e2_steps(tampered_unit)
 
 
 if __name__ == "__main__":

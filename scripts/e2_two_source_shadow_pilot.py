@@ -215,6 +215,8 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
     seen_configs: set[str] = set()
     total = 0
     for cfg in configs:
+        if not isinstance(cfg, dict):
+            raise ShadowPilotError("manifest_invalid", f"config entry must be an object, got {type(cfg).__name__}")
         cid = cfg.get("config_id")
         if not isinstance(cid, str) or not cid or cid in seen_configs:
             raise ShadowPilotError("manifest_invalid", f"invalid or duplicate config_id: {cid!r}")
@@ -222,6 +224,10 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
         for req in ("package", "target_name", "target_kind", "cargo_target_args", "cargo_features_arg", "expected_features", "entries"):
             if req not in cfg:
                 raise ShadowPilotError("manifest_invalid", f"missing {req}", config_id=cid)
+        if not isinstance(cfg["cargo_features_arg"], str) or not isinstance(cfg["expected_features"], list) or any(
+            not isinstance(f, str) for f in cfg["expected_features"]
+        ):
+            raise ShadowPilotError("manifest_invalid", "invalid cargo_features_arg or expected_features", config_id=cid)
         if sorted(cfg["cargo_features_arg"].split()) != sorted(cfg["expected_features"]):
             raise ShadowPilotError("manifest_invalid", "expected_features disagrees with cargo_features_arg", config_id=cid)
         entries = cfg["entries"]
@@ -229,6 +235,8 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
             raise ShadowPilotError("manifest_invalid", "entries must be non-empty", config_id=cid)
         seen_tests: set[tuple[str, bool]] = set()
         for entry in entries:
+            if not isinstance(entry, dict):
+                raise ShadowPilotError("manifest_invalid", f"test entry must be an object, got {type(entry).__name__}", config_id=cid)
             tname = entry.get("test_name")
             if not isinstance(tname, str) or not tname:
                 raise ShadowPilotError("manifest_invalid", "empty test_name", config_id=cid)
@@ -1978,8 +1986,17 @@ def compare_ledgers(
             host=host,
         )
 
+    scope = baseline.get("execution_scope")
+    if scope not in ("execute", "list-only"):
+        raise ShadowPilotError(
+            "ab_mismatch",
+            f"unsupported execution_scope {scope!r}; expected 'execute' or 'list-only'",
+            host=host,
+        )
+
     classifications: dict[str, int] = {}
-    is_execute = baseline["execution_scope"] == "execute"
+    is_execute = scope == "execute"
+    executed_entries = 0
 
     for b_row, c_row in zip(b_entries, c_entries):
         cid = b_row["config_id"]
@@ -2023,6 +2040,7 @@ def compare_ledgers(
                     test_name=tname,
                     evidence={"baseline": b_row, "candidate": c_row},
                 )
+            executed_entries += 1
         cls = c_row["classification"]
         classifications[cls] = classifications.get(cls, 0) + 1
 
@@ -2057,6 +2075,7 @@ def compare_ledgers(
         },
         "compared_configs": len(b_cfgs),
         "compared_entries": len(b_entries),
+        "executed_entries": executed_entries,
         "classifications": classifications,
         "telemetry_comparison": {
             "baseline": b_tel,
@@ -2269,9 +2288,21 @@ def render_markdown_summary(comparisons: list[dict[str, Any]], workflow_metrics:
         ram_gib = f"{hr['total_ram_bytes'] / (1024**3):.1f}G" if hr.get("total_ram_bytes") else "?G"
         jobs = comp.get("cargo_jobs") or {"baseline": "-j1", "candidate": "-j1"}
         s_id = comp.get("suite_id") or suite_label
-        scope = comp.get("execution_scope") or "execute"
+        scope = comp.get("execution_scope")
+        if scope not in ("execute", "list-only"):
+            raise ShadowPilotError(
+                "ab_mismatch",
+                f"cannot render markdown summary for unsupported execution_scope {scope!r}",
+                host=comp.get("host"),
+            )
         listed_n = comp["compared_entries"]
-        exec_n = 0 if scope == "list-only" else listed_n
+        exec_n = int(comp["executed_entries"]) if "executed_entries" in comp else (0 if scope == "list-only" else listed_n)
+        if scope == "execute" and exec_n != listed_n:
+            raise ShadowPilotError(
+                "ab_mismatch",
+                f"execute comparison reports {exec_n} executed entries != {listed_n} listed entries",
+                host=comp.get("host"),
+            )
         verdict = "`LIST-ONLY PASS`" if scope == "list-only" else "`PASS`"
         lines.append(
             f"| `{s_id}` | `{scope}` | `{comp['host']}` (`{cpus}c / {ram_gib}`) | `{jobs['baseline']}` / `{jobs['candidate']}` | "
@@ -2392,7 +2423,7 @@ def main(argv: list[str] | None = None) -> int:
             purged_dir = purge_artifacts_dir(args.artifacts)
             try:
                 manifest = load_manifest(args.manifest)
-            except (OSError, json.JSONDecodeError, ShadowPilotError) as exc:
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, ShadowPilotError) as exc:
                 err = (
                     exc
                     if isinstance(exc, ShadowPilotError)
