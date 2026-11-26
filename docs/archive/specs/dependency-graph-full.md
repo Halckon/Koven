@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，461 份）"]
+subgraph Garchive["已完成（archive，462 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -349,6 +349,7 @@ subgraph Garchive["已完成（archive，461 份）"]
   S0365["S0365<br/>带捕获闭包返回的来源事实"]
   S0366["S0366<br/>文本与同步 IO 规范启用"]
   S0367["S0367<br/>String 创建入口的 Int 字节长度不变量"]
+  S0369["S0369<br/>CLI 最终调试产物与源码断点"]
   S0370["S0370<br/>lambda 体（thunk）与局部 callable 绑定迁入所有权细化层"]
   S0371["S0371<br/>整数内建、整数区间、String.clone() 与文本原语迁入所有权细化层"]
   S0372["S0372<br/>泛型 class 与泛型 Copyable enum class 迁入所有权细化层"]
@@ -478,7 +479,6 @@ subgraph Gactive["现行 active"]
   S0357["S0357<br/>String subject when 的 Unit 清理事实"]
   S0360["S0360<br/>String when 清理事实的 refinement 消费"]
   S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
-  S0369["S0369<br/>CLI 最终调试产物与源码断点"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
@@ -1927,6 +1927,7 @@ S0502 --> S0503
 | SPEC-0365 | archive | [0365-closure-return-facts.md](0365-closure-return-facts.md) |
 | SPEC-0366 | archive | [0366-text-io-guide.md](0366-text-io-guide.md) |
 | SPEC-0367 | archive | [0367-string-length-invariant.md](0367-string-length-invariant.md) |
+| SPEC-0369 | archive | [0369-final-debug-artifacts.md](0369-final-debug-artifacts.md) |
 | SPEC-0370 | archive | [0370-refine-lambda-bodies.md](0370-refine-lambda-bodies.md) |
 | SPEC-0371 | archive | [0371-refine-integer-range-text.md](0371-refine-integer-range-text.md) |
 | SPEC-0372 | archive | [0372-refine-generic-class-enum.md](0372-refine-generic-class-enum.md) |
@@ -2054,7 +2055,6 @@ S0502 --> S0503
 | SPEC-0357 | active | [0357-string-when-ownership-facts.md](../../specs/active/0357-string-when-ownership-facts.md) |
 | SPEC-0360 | active | [0360-string-when-refinement.md](../../specs/active/0360-string-when-refinement.md) |
 | SPEC-0368 | active | [0368-text-byte-foundation.md](../../specs/active/0368-text-byte-foundation.md) |
-| SPEC-0369 | active | [0369-final-debug-artifacts.md](../../specs/active/0369-final-debug-artifacts.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |

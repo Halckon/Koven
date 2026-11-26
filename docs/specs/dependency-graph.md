@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 461 份"))
+ARCH(("已完成<br/>archive 462 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -16,7 +16,6 @@ subgraph Gactive["现行 active"]
   S0357["S0357<br/>String subject when 的 Unit 清理事实"]
   S0360["S0360<br/>String when 清理事实的 refinement 消费"]
   S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
-  S0369["S0369<br/>CLI 最终调试产物与源码断点"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
@@ -71,7 +70,6 @@ ARCH --> S0341
 | SPEC-0357 | active | [0357-string-when-ownership-facts.md](active/0357-string-when-ownership-facts.md) |
 | SPEC-0360 | active | [0360-string-when-refinement.md](active/0360-string-when-refinement.md) |
 | SPEC-0368 | active | [0368-text-byte-foundation.md](active/0368-text-byte-foundation.md) |
-| SPEC-0369 | active | [0369-final-debug-artifacts.md](active/0369-final-debug-artifacts.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
@@ -99,4 +97,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（461 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（462 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
