@@ -492,6 +492,7 @@ subgraph Gactive["现行 active"]
   S0501["S0501<br/>收口 editors/tree-sitter 块与 Lambda 同行无分隔符语句漂移（TS-05 闭环）"]
   S0502["S0502<br/>F6 第六片 Stops / TypeStops / DeclarationStops 边界传播格与硬分隔符不屏蔽双轨证明"]
   S0503["S0503<br/>F6 第七片 LambdaHeaderIndex 单遍流式 DFA 等价性与线性步数双轨证明"]
+  S0504["S0504<br/>F5 表面语法增量门禁路径触发轻量 CI 接入"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -2059,6 +2060,7 @@ S0496 --> S0497
 | SPEC-0501 | active | [0501-ts05-block-separator-closure.md](../../specs/active/0501-ts05-block-separator-closure.md) |
 | SPEC-0502 | active | [0502-f6-stops-lattice-machine-proof.md](../../specs/active/0502-f6-stops-lattice-machine-proof.md) |
 | SPEC-0503 | active | [0503-f6-lambda-trial-machine-proof.md](../../specs/active/0503-f6-lambda-trial-machine-proof.md) |
+| SPEC-0504 | active | [0504-f5-syntax-gate-ci.md](../../specs/active/0504-f5-syntax-gate-ci.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
