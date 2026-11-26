@@ -147,6 +147,8 @@ fn verify_trial_path_ends_and_budget_len_8() {
             additional_depth,
         } => {
             assert!(has_success && is_suffix);
+            assert_eq!(closing_significant, closing);
+            assert_eq!(suffix_significant, end);
             assert!(opener < closing_significant);
             assert!(closing_significant < suffix_significant);
             assert_eq!(suffix_significant, closing_significant + 1);

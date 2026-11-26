@@ -50,20 +50,45 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          mapfile -t changed_docs < <(
-            git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" -- \
-              'docs/proposals/*.md' 'docs/proposals/**/*.md' 'docs/specs/active/*.md'
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import sys
+
+          base_sha = os.environ["BASE_SHA"]
+          head_sha = os.environ["HEAD_SHA"]
+          merge_base = subprocess.check_output(
+              ["git", "merge-base", base_sha, head_sha],
+              text=True,
+          ).strip()
+          diff_out = subprocess.check_output(
+              [
+                  "git",
+                  "diff",
+                  "-z",
+                  "--name-only",
+                  "--diff-filter=ACMR",
+                  merge_base,
+                  head_sha,
+                  "--",
+                  "docs/proposals/*.md",
+                  "docs/proposals/**/*.md",
+                  "docs/specs/active/*.md",
+              ]
           )
-          if [ "${#changed_docs[@]}" -eq 0 ]; then
-            echo "no changed proposal or active spec Markdown files to check"
-            exit 0
-          fi
-          args=()
-          for path in "${changed_docs[@]}"; do
-            if [ -f "$path" ]; then
-              args+=(--check-file "$path")
-            fi
-          done
-          if [ "${#args[@]}" -gt 0 ]; then
-            python3 scripts/check_syntax_gate.py "${args[@]}"
-          fi
+          changed_docs = [
+              os.fsdecode(raw) for raw in diff_out.split(b"\0") if raw
+          ]
+          if not changed_docs:
+              print("no changed proposal or active spec Markdown files to check")
+              sys.exit(0)
+          args = []
+          for path in changed_docs:
+              if os.path.isfile(path):
+                  args.extend(["--check-file", path])
+          if args:
+              subprocess.run(
+                  [sys.executable, "scripts/check_syntax_gate.py", *args],
+                  check=True,
+              )
+          PY

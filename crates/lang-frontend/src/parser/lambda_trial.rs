@@ -622,6 +622,8 @@ mod kani_proofs {
         let mut after_ident = false;
         let mut after_comma = false;
         let mut expected_arrow: Option<usize> = None;
+        let mut expected_param0: Option<usize> = None;
+        let mut expected_param1: Option<usize> = None;
         let mut expected_param_count = 0usize;
         let mut j = probe + 1;
         while j < N {
@@ -629,6 +631,11 @@ mod kani_proofs {
             if !matches!(kind, LexemeKind::Trivia(_)) {
                 match kind {
                     LexemeKind::Token(TokenKind::Identifier) if !after_ident => {
+                        if expected_param_count == 0 {
+                            expected_param0 = Some(j);
+                        } else if expected_param_count == 1 {
+                            expected_param1 = Some(j);
+                        }
                         expected_param_count += 1;
                         after_ident = true;
                         after_comma = false;
@@ -658,6 +665,13 @@ mod kani_proofs {
                 assert_eq!(*arrow_raw, exp_arrow);
                 assert!(*arrow_raw > probe && *arrow_raw < N);
                 assert_eq!(parameter_raw.len(), expected_param_count);
+                assert!(expected_param_count <= 2);
+                if let Some(p0) = expected_param0 {
+                    assert_eq!(parameter_raw[0], p0);
+                }
+                if let Some(p1) = expected_param1 {
+                    assert_eq!(parameter_raw[1], p1);
+                }
             }
             (Some(LambdaHeaderTrial::NoHeader), None) => {}
             _ => panic!("single-pass LambdaHeaderIndex diverged from independent spec"),

@@ -120,6 +120,7 @@ fn verify_type_stops_recovery_projections() {
         Symbol::Greater,
         Symbol::RightBracket,
         Symbol::Arrow,
+        Symbol::LeftBrace,
         Symbol::RightBrace,
     ] {
         let tok = Lexeme::synthetic_for_verification(LexemeKind::Token(TokenKind::Symbol(sym)));
