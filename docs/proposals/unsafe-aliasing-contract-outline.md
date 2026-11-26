@@ -1,9 +1,9 @@
 # unsafe 别名、失败安全与外部边界合同（路线 U 的 U0 + FF0 完整候选）
 
-> **性质**：非规范候选设计（完整草案） · **状态**：未启用（待评审定稿后迁入 Compiler Contracts） · **读取时机**：在起草或审查 `unsafe` / `RawPtr` / `extern "C"` 代码、核对参数模式到后端别名属性映射（之八 §3.2 / VE1），或评审 U0 / FF0 合同条款时 · **唯一真源**：本页维护 U0 完整合同条款（AL1–AL8、FS1–FS8、MM1–MM7、UB1–UB10、TR1–TR4、FFI1–FFI5 与检测矩阵）；U0 在路线中的位置见[演进总纲之四](evolution-04-route-capability-unsafe-suspend.md)，`unsafe` / `extern` / `RawPtr` 的表面草图见 [unsafe 与 FFI 边界](unsafe-and-ffi-boundary.md)，现行语义以 [Guide v0.47](../guide/README.md) 为准
+> **性质**：非规范候选设计（完整草案） · **状态**：未启用（待评审定稿后迁入 Compiler Contracts） · **读取时机**：在起草或审查 `unsafe` / `RawPtr` / `extern "C"` 代码、核对参数模式到后端别名属性映射（之八 §3.2 / VE1），或评审 U0 / FF0 合同条款时 · **唯一真源**：本页维护 U0 完整合同条款（AL1–AL8、FS1–FS8、MM1–MM7、UB1–UB11、TR1–TR4、FFI1–FFI5 与检测矩阵）；U0 在路线中的位置见[演进总纲之四](evolution-04-route-capability-unsafe-suspend.md)，`unsafe` / `extern` / `RawPtr` 的表面草图见 [unsafe 与 FFI 边界](unsafe-and-ffi-boundary.md)，现行语义以 [Guide v0.47](../guide/README.md) 为准
 
 本文不修改或启用任何 Guide 规则，不批准 Spec/ADR，不授权实现。现行 Koven 没有用户可写的 `unsafe`。
-2026-11-26 在原提纲（§4 失败安全、§5 内存模型）基础上补齐 §1 核心术语、§3 裸指针来历/内部可变例外/参数模式到后端属性映射、§6 UB1–UB10 最小违反示例、§7 受信任声明条款、§8 FF0 外部函数边界五条合同与反例，以及 §9 验证与检测矩阵。合同定稿后的归属是 Compiler Contracts，不是 Guide。
+2026-11-26 在原提纲（§4 失败安全、§5 内存模型）基础上补齐 §1 核心术语、§3 裸指针来历/内部可变例外/参数模式到后端属性映射、§6 UB1–UB11 最小违反示例、§7 受信任声明条款、§8 FF0 外部函数边界五条合同与反例，以及 §9 验证与检测矩阵。合同定稿后的归属是 Compiler Contracts，不是 Guide。
 
 ## 1. 合同回答什么与核心术语
 
@@ -40,7 +40,7 @@
 | §3 | 别名条款（AL1–AL8，含裸指针来历、`RawCell` 例外与后端属性映射） | 完整草案 |
 | §4 | 失败安全条款（FS1–FS8，对齐 J48 显式监督边界与评审 R3） | 完整草案 |
 | §5 | 内存模型（MM1–MM7） | 完整草案 |
-| §6 | 未定义行为清单（UB1–UB10 与最小违反示例） | 完整草案 |
+| §6 | 未定义行为清单（UB1–UB11 与最小违反示例） | 完整草案 |
 | §7 | 受信任的声明（TR1–TR4 与审查范围） | 完整草案 |
 | §8 | 外部函数边界（FF0：之七 J22 五条合同 FFI1–FFI5 与反例） | 完整草案 |
 | §9 | 验证与每条 UB / FFI 条款的检测矩阵 | 完整草案 |
@@ -49,31 +49,34 @@
 
 ### 3.1 五条基础别名条款（AL1–AL5）
 
-- **AL1（不与存活 loan 冲突）**：经裸指针读写某 place，不得与该 place 上存活的 loan 冲突（沿用 Guide 10 冲突矩阵：共享读兼容共享 loan，写操作与任何存活共享/独占 loan 冲突，除非落入 AL7 的 `RawCell` 内部可变例外）。
-- **AL2（不晚于 owner 析构或移动）**：裸指针的解引用读写不得晚于其所指存储的 owner 被析构、整体移动或堆分配被释放。经 `addressOf(place)` 取址时，[之四](evolution-04-route-capability-unsafe-suspend.md) U1 R1.2 在该 owner place 上建立 place 级析构屏障，将其析构点提升为至少词法作用域结束；跨作用域保存指针须由库另行保证 owner 存活（如堆分配或显式存活延长原语）。
+- **AL1（不与存活 loan 冲突）**：经裸指针读写某 place，必须受其派生来源的访问权限支持，且不得与**其他**重叠存活的 loan 冲突（沿用 Guide 10 冲突矩阵与借用派生树）：
+  - 经独占所有权或 `inout` 绑定（含其字段投影）派生的裸指针，继承该独占绑定的写权限，不与其所派生的祖先独占 loan 冲突（因此 `inout` 持有者在函数体内经自身字段派生 `RawPtr` 并写回——如 U1 的 `replace` / `swap`——合法），但仍不得与该 place 上**其他**存活的共享/独占 loan 或尚未结束的派生子 loan 冲突；
+  - 经共享借用（`Shared` loan）派生的裸指针只继承读权限；对其执行写操作构成 UB1，除非落入 AL7 的 `RawCell` 内部可变例外。
+- **AL2（不晚于 owner 析构或释放）**：裸指针的解引用读写不得晚于其所指存储的 owner 被析构、整体移动导致原存储失效，或堆分配被释放（UB2）。对仍存活的分配槽位，经 `ptr.read()` 移出值后槽位变为**未初始化**而非已释放：允许随后用 `ptr.write(new)` 重新初始化该槽位（支撑 U1 `replace` / `swap`），但重新初始化前将其作为有效值读取或析构构成 UB5。经 `addressOf(place)` 取址时，[之四](evolution-04-route-capability-unsafe-suspend.md) U1 R1.2 在该 owner place 上建立 place 级析构屏障，将其析构点提升为至少词法作用域结束；跨作用域保存指针须由库另行保证 owner 存活（如堆分配或显式存活延长原语）。
 - **AL3（交还值满足全部不变量）**：经 `unsafe` 块或受信任函数交还给安全代码的每个值，必须同时满足其类型的有效性不变量、安全不变量、能力判定前提与恰好一份析构义务。
 - **AL4（`from` / `flows` 来源覆盖）**：声明了 `from` 或 `flows` 的 `unsafe` / `trusted` 函数，其返回值或写入目标实际依赖的存储，必须完全被签名声明的来源 loan 覆盖（不得返回未声明来源或局部栈地址）。
 - **AL5（受信任能力声明全域成立）**：受信任的能力声明（如 `Shareable`、`Transferable`）必须在安全代码可能构造的所有调用序列与并发交错下成立。
 
 ### 3.2 裸指针来历与内部可变例外（AL6–AL7）
 
-- **AL6（裸指针来历规则）**：
+- **AL6（裸指针来历与配对释放规则）**：
   1. 经 `addressOf(place)` 得到的 `RawPtr<T>`，其来历仅覆盖该 `place` 所占的字节范围；经 `alloc(size, align)` 得到的指针，其来历仅覆盖该次分配的 `[base, base + size)` 字节范围。
   2. `ptr.offset(n)` 与 `ptr.cast<U>()` 继承原指针的来历，不得通过偏移从某变量或分配块越界访问相邻的另一个局部变量或另一块独立分配（即便运行时地址恰好相邻）。
   3. 指针与整数互转时，从整数恢复指针必须指向仍存活的既有分配块并恢复其有效来历；凭空拼凑整数地址解引用为 UB10（设备寄存器一类 MMIO 须走 MM6 易失读写原语，不走普通指针解引用）。
+  4. **配对释放**：`dealloc(ptr, size, align)` 的实参 `ptr` 必须与某次仍存活的 `alloc(size, align)` 返回的**起始基址指针**（相同分配块与相同 `(size, align)` 布局）严格配对；向 `dealloc` 传入分配内部偏移指针（即使满足对齐）、栈地址、已释放指针或布局不匹配的 `(size, align)` 构成 UB11。
 - **AL7（`RawCell<T>` 内部可变例外）**：
   1. `RawCell<T>`（KB6，[之四](evolution-04-route-capability-unsafe-suspend.md) C2）是“经共享借用（`Shared` loan）仍可取得指向内部的裸指针并写入”的**唯一**合法例外。对不含 `RawCell` 的类型，经共享借用取裸指针并写入构成 UB1。
   2. 落实之四 C2 R2.4 义务：无运行时借用检查的 `Cell<T>` 只能提供整值的 `get` / `set` / `replace`，**严禁经共享借用交出指向内部存储的安全 `borrow` / `inout` 引用**（否则另一共享借用的写入将直接令已交出引用悬垂或破坏别名假设，构成 UB1）。带运行时借用标志的单元（如 `RefCell`）交出的守卫须以运行时排他计数保证无重叠写。
 
 ### 3.3 参数模式到后端别名属性的映射（AL8，之八 §3.2 / VE1 前置）
 
-基于 AL1–AL7 与 §5 内存模型，编译器后端在满足本合同的前提下可为函数参数发射以下别名与捕获属性（之八 §3.2 与 VE1 的依据）：
+基于 AL1–AL7 与 §5 内存模型，编译器后端在满足本合同的前提下可为函数参数发射以下别名与捕获属性（之八 §3.2 与 VE1 的依据）。**关于 `nocapture` 的前置条件**：缺少 `from` / `flows` 只证明函数不返回或写入安全 loan，**不足以**单独证明地址未逃逸（AL6 允许 `unsafe` 代码把派生指针转为整数并返回或传给 FFI）。因此发射 `nocapture` 必须同时满足：（1）参数未出现在 `from` / `flows` 合同中，**且**（2）后端经独立捕获分析证实其地址未通过 `addressOf`、指针转整数或 FFI 逃逸（纯安全函数体自动满足；含 `unsafe` 或调用未证实 `nocapture` 的函数时不得仅凭无 `from` / `flows` 发射）：
 
 | 参数模式与类型条件 | 允许发射的后端属性（LLVM 语义） | 禁止条件与依据 |
 |---|---|---|
-| `borrow x: T`（`T` 递归不含 `RawCell`） | `readonly`、`nocapture`（无 `from`/`flows` 时）、`nonnull`、`align` | 只要 `T` 递归含 `RawCell`，**严禁**发射 `readonly`（AL7 / 之四 R2.3）；若 `x` 出现在 `from`/`flows` 合同中，**严禁**发射 `nocapture` |
-| `borrow x: T`（`T` 递归含 `RawCell`） | `nonnull`、`align`（无 `from`/`flows` 时可 `nocapture`） | 不得标 `readonly` 或 `noalias`（允许经其他共享借用并发/交替写入内部可变单元） |
-| `inout x: T`（任意类型） | `noalias`（对当前调用可见的非原子访问）、`nonnull`、`align`（无 `from`/`flows` 时可 `nocapture`） | 若 `x` 出现在 `from`/`flows` 合同中，**严禁**发射 `nocapture`；内部可变类型处于独占借用时仍无其他合法访问者，可保 `noalias` |
+| `borrow x: T`（`T` 递归不含 `RawCell`） | `readonly`、`nonnull`、`align`；满足上述捕获证明时可加 `nocapture` | 只要 `T` 递归含 `RawCell`，**严禁**发射 `readonly`（AL7 / 之四 R2.3）；若 `x` 出现在 `from`/`flows` 合同中或地址可能经 `addressOf`/转整数/FFI 逃逸，**严禁**发射 `nocapture` |
+| `borrow x: T`（`T` 递归含 `RawCell`） | `nonnull`、`align`；满足上述捕获证明时可加 `nocapture` | 不得标 `readonly` 或 `noalias`（允许经其他共享借用并发/交替写入内部可变单元）；捕获证明不成立时严禁 `nocapture` |
+| `inout x: T`（任意类型） | `noalias`（对当前调用可见的非原子访问）、`nonnull`、`align`；满足上述捕获证明时可加 `nocapture` | 若 `x` 出现在 `from`/`flows` 合同中或地址可能经 `addressOf`/转整数/FFI 逃逸，**严禁**发射 `nocapture`；内部可变类型处于独占借用时仍无其他合法访问者，可保 `noalias` |
 | `own x: T`（间接 owner 指针表示） | `noalias`（唯一所有权移交）、`nonnull`、`align` | 仅对唯一独占 owner 成立；`Rc<T>` 等共享句柄指针不得对底层共享载荷标 `noalias` |
 
 ## 4. 失败安全条款（FS1–FS8）
@@ -125,22 +128,23 @@
 - **MM6（易失访问）**：设备寄存器一类 MMIO 访问不属于普通内存模型，由单独的易失读写原语承担（[之十](evolution-10-coverage-gaps.md) §7.4），编译器不得省略、重排或合并它们。
 - **MM7（未初始化内存读取）**：读取任何未初始化字节（包括填充字节或已 `ptr.read()` 移出后的存储）一律为未定义行为（UB5）；不提供“读取未初始化内存得到任意固定位模式”的宽松语义，除非经专门的字节拷贝原语在未初始化缓冲区之间搬运且不作为强类型值读取。跨线程无锁内存回收（如 epoch / hazard pointer）属于共享库自身的安全合同，不作为内核内存模型的特殊规则。
 
-## 6. 未定义行为清单（UB1–UB10）
+## 6. 未定义行为清单（UB1–UB11）
 
 逐条编号；清单之外的行为都有定义。
 
 | 编号 | 未定义行为 | 所属条款 | 最小违反示例 |
 |---|---|---|---|
-| UB1 | 经裸指针的访问与存活 loan 冲突（含对非 `RawCell` 类型经共享借用写入，或 `Cell` 交出内部引用后再写入） | AL1、AL7 | 持有 `borrow val r = x` 时，经先前取得的 `RawPtr` 写入 `x`；或 `Cell.getRef(&c)` 交出引用后经另一共享借用 `c.set(newVal)` |
-| UB2 | 解引用指向已析构、已移出或已释放存储的指针 | AL2 | `dealloc(p)` 后再执行 `p.read()`；或把局部 `addressOf(x)` 存到外层并在离开作用域后解引用 |
+| UB1 | 经裸指针的访问违反派生权限或与其他重叠存活 loan 冲突（含对非 `RawCell` 类型经共享借用写入，或 `Cell` 交出内部引用后再写入） | AL1、AL7 | 持有 `borrow val r = x` 时，经先前取得的 `RawPtr` 写入 `x`；或 `Cell.getRef(&c)` 交出引用后经另一共享借用 `c.set(newVal)` |
+| UB2 | 解引用指向已析构或已释放存储的指针（含悬垂栈指针与释放后使用；存活分配上 `ptr.read()` 移出后的未初始化槽位允许 `ptr.write(new)`，但读取或析构归 UB5） | AL2 | `dealloc(p)` 后再执行 `p.read()`；或把局部 `addressOf(x)` 存到外层并在离开作用域后解引用 |
 | UB3 | 构造或读取不满足有效性不变量的值 | §1.1 | 经 `ptr.cast<Boolean>()` 写入字节值 `2` 后按 `Boolean` 读取；或对非空引用槽位写入零指针 |
-| UB4 | 同一份析构义务被履行两次 | AL3、FS3 | 用 `ptr.read()` 移出 `File` 后未用 `ptr.write()` 填回或跳过析构，导致离开作用域时原槽位与新绑定各运行一次 `File.deinit` |
-| UB5 | 读取未初始化的存储 | MM7 | `alloc` 刚分配的裸缓冲未写入即调用 `p.read()` 作为 `Int` 或 `String` 读取 |
+| UB4 | 同一份析构义务被履行两次 | AL3、FS3 | 对同一 `RawPtr<File>` 连续执行两次 `val f1 = p.read(); val f2 = p.read()`（中间未写入新值），把同一份 `File` 析构义务复制给两个存活 owner，离开作用域时各执行一次 `File.deinit` |
+| UB5 | 读取或析构未初始化的存储（含 `alloc` 刚分配或 `ptr.read()` 移出后尚未 `ptr.write` 的槽位） | AL2、MM7 | `alloc` 刚分配的裸缓冲未写入即调用 `p.read()` 作为 `Int` 或 `String` 读取；或对 `p.read()` 移出后未回填的槽位按已初始化值执行析构 |
 | UB6 | 数据竞争 | MM1、MM4 | 两个线程在无同步且无原子操作的情况下同时对同一 `RawPtr<Int>` 一读一写 |
 | UB7 | `from` / `flows` 声明与实际依赖不符 | AL4 | `trusted fun bad(borrow a: Arr, borrow b: Arr): borrow Int from a` 实际返回指向 `b` 的借用 |
 | UB8 | 受信任的能力声明不成立而被安全代码依赖 | AL5 | 为含非原子计数 `Rc<T>` 的包装类型手工声明受信任的 `Shareable` / `Transferable`，随后跨线程并发访问 |
 | UB9 | 违反外部函数边界的五条合同 | §8 FFI1–FFI5 | C 函数留存 Koven 借用实参指针并在返回后写入；或经 C 回调触发 abort 试图展开穿过 C 帧 |
 | UB10 | 访问超出分配/来历范围，或未满足类型对齐要求 | AL6 | 对长度为 `n` 的数组缓冲执行 `p.offset(n).read()`；或把未按 8 字节对齐的地址强制 `cast<Long>()` 后解引用 |
+| UB11 | 非法释放或布局不匹配释放 | AL6 | 对 `p = alloc(size, align)` 的内部指针 `p.offset(1)` 调用 `dealloc`；或对栈地址、已释放指针、不匹配 `(size, align)` 调用 `dealloc` |
 
 **关于“仅违反安全不变量但未违反有效性不变量”的定性**：
 不列为未定义行为的（有定义，尽管通常是程序错误）包括：内存泄漏、死锁、显式环绕算术溢出。对于失败路径上仅违反**安全不变量**（例如 `String` 内部字节暂非合法 UTF-8，但其长度/指针/容量本身均为有效初始化值），单就该状态本身**不构成 UB**（不会触发编译器据此做任意未定义优化）；但一旦后续安全代码或 `unsafe` 代码依赖该安全不变量并据此越界访问或重复析构，则在该访问点构成对应的 UB（UB4 / UB10）。
@@ -169,13 +173,13 @@
 
 ## 9. 验证与检测矩阵
 
-定稿标志（沿用之四）：路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提，且每条 UB / FFI 合同均有明确的检测手段或人工审查归属。
+定稿标志（严格对齐[之四](evolution-04-route-capability-unsafe-suspend.md) U0）：在 U0 定稿并启动 U1 之前，须同时满足：（1）路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提；（2）每条运行时可触发的 UB 规则（`UB1–UB6`、`UB9`、`UB10`、`UB11`）至少配备一个可执行的违反示例，且该示例能被对应的 sanitizer（ASan / UBSan / MSan / TSan）或参考解释器（W13）捕获；（3）纯编译期/类型合同条款（`UB7`、`UB8`）及下表标注的外部不可见边界归入试金石反例矩阵与 TR4 人工审查范围，不放宽运行时条款的 sanitizer 捕获门槛。
 
 | 条款 | 违反编号 | 自动化检测手段 | 未覆盖边界（人工审查） |
 |---|---|---|---|
-| 借用与来历 | UB1、UB2、UB10 | ASan（堆/栈越界与释放后使用）、参考解释器（[之十](evolution-10-coverage-gaps.md) W13）带借用栈/来历追踪（类似 Miri/Tree Borrows） | 原生发布构建中的静态优化假设违背 |
+| 借用、来历与配对释放 | UB1、UB2、UB10、UB11 | ASan（堆/栈越界、释放后使用、非法/重复释放与布局不匹配）、参考解释器（[之十](evolution-10-coverage-gaps.md) W13）带借用栈/来历与分配表追踪（类似 Miri/Tree Borrows） | 原生发布构建中的静态优化假设违背 |
 | 有效性、初始化与析构 | UB3、UB4、UB5 | UBSan、MSan / 参考解释器逐字节初始化位图与析构计数校验；FS8 在每个 FS1 操作处注入失败 | 外部 C 库内部构造的非法位模式 |
-| 并发内存模型 | UB6 | TSan（数据竞争检测）、模型检查（[失败与清理模型](failure-cleanup-model.md)） | 弱内存序（`Relaxed`/`Acquire`/`Release`）在特定硬件架构上的罕见重排 |
+| 并发内存模型 | UB6 | TSan（运行时数据竞争检测）；内存模型级并发模型检查（Loom / GenMC 风格，建模普通内存位置、原子操作与 happens-before）**待补**（注：[失败与清理模型](failure-cleanup-model.md)仅建模任务失败、析构与在途 IO，不表达数据竞争） | 弱内存序（`Relaxed`/`Acquire`/`Release`）在特定硬件架构上的罕见重排 |
 | 受信任合同与能力 | UB7、UB8 | 试金石程序 + 反例矩阵（之五）、参考检查器附加前提检验、TR4 全类型成员审查 | `trusted` 签名背后任意算法不变量 |
 | 外部函数边界 | UB9（FFI1–FFI5） | C 头文件签名比对（FF3 绑定生成器）、ASan + FFI 边界回调 abort 进程终止测试 | 第三方 C 库内部隐式留存指针 |
 
