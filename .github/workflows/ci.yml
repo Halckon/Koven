@@ -519,7 +519,13 @@ jobs:
       - name: Independent parent receipt CI-only fault contracts
         run: bash scripts/check_parent_receipt_ci.sh
       - name: Independent D10 catalog identity controls (CI only)
-        run: bash scripts/check_d10_catalog_identity_ci.sh
+        run: |
+          python3 scripts/e2_two_source_shadow_pilot.py run \
+            --manifest scripts/d10_catalog_identity_manifest.json \
+            --mode candidate \
+            --candidate-jobs default \
+            --formal-gate \
+            --artifacts "$RUNNER_TEMP/koven-d10-catalog-identity"
       - name: Experimental D10 catalog RootReplace emitter
         run: cargo test --locked -j1 -p lang-codegen --lib --features d10-catalog-experiment,loan-observation-test-support ssa::d10_catalog_emitter_tests::original_owned_catalog_emits_and_replays_actual_replace_and_cleanup -- --exact
       - name: Independent D10 public preparation and create-only objects
@@ -573,7 +579,13 @@ jobs:
       - name: Independent child cycle receipt faults (CI only)
         run: bash scripts/check_child_cycle_ci.sh
       - name: Verify scalar owner entry corruption fails independently
-        run: bash scripts/check_scalar_owner_entry_ci.sh
+        run: |
+          python3 scripts/e2_two_source_shadow_pilot.py run \
+            --manifest scripts/scalar_owner_entry_manifest.json \
+            --mode candidate \
+            --candidate-jobs default \
+            --formal-gate \
+            --artifacts "$RUNNER_TEMP/koven-scalar-owner-entry"
 
   test-e2:
     name: Targeted Tests E2 (${{ matrix.os }})

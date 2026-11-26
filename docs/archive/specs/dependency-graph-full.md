@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，454 份）"]
+subgraph Garchive["已完成（archive，455 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -463,6 +463,7 @@ subgraph Garchive["已完成（archive，454 份）"]
   S0496["S0496<br/>正式 CI 切换 E2 Replay 与 E2 两源 Unit 为唯一产物锁多核执行器"]
   S0497["S0497<br/>正式 CI Targeted Tests 按独立套件拆分为并行矩阵作业"]
   S0502["S0502<br/>双宿主 Targeted Tests 统一启用有限调试符号（debug=1）与独立缓存前缀"]
+  S0503["S0503<br/>正式 CI 切换 D10 目录身份与 Scalar Owner 门禁为唯一产物锁多核执行器"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -1571,7 +1572,9 @@ S0451 --> S0456
 S0456 --> S0457
 S0495 --> S0496
 S0496 --> S0497
+S0496 --> S0503
 S0497 --> S0502
+S0502 --> S0503
 ```
 
 ## 节点链接
@@ -2032,6 +2035,7 @@ S0497 --> S0502
 | SPEC-0496 | archive | [0496-formal-e2-ci-gate-switch.md](0496-formal-e2-ci-gate-switch.md) |
 | SPEC-0497 | archive | [0497-parallel-targeted-tests-ci.md](0497-parallel-targeted-tests-ci.md) |
 | SPEC-0502 | archive | [0502-macos-limited-debug-ci.md](0502-macos-limited-debug-ci.md) |
+| SPEC-0503 | archive | [0503-d10-and-scalar-multicore-ci-gate.md](0503-d10-and-scalar-multicore-ci-gate.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
