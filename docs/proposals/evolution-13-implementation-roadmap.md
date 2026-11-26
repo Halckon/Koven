@@ -212,7 +212,7 @@ v1 之后每个阶段各用一份路线图文件（2026-11-11 用户决定），
 按“不需要等任何东西”排序。第 1 项作用于 v1 条目的 Spec 起草，其余不触及 v1 的范围：
 
 1. 起草 §3 所列 v1 条目的 Spec 时，审阅[约束清单](v1-freeze-decisions.md)中的对应条款。清单是候选建议，逐项是否采纳在各自的 Spec 评审中决定；Z1 已于 2026-11-14 裁决为不改 Guide。
-2. 把 [U0 提纲](unsafe-aliasing-contract-outline.md)补成完整合同：失败安全条款与内存模型取向已有草案，其余各节待写。
+2. [U0 合同](unsafe-aliasing-contract-outline.md)已于 2026-11-26 补全为完整候选草案（含 AL1–AL8 别名/来历/后端属性映射、FS1–FS8 失败安全、MM1–MM7 内存模型、UB1–UB10 最小反例、TR1–TR4 审查范围、FF0 五条外部边界合同与检测矩阵），待评审定稿后迁入 Compiler Contracts。
 3. 为 L3 写试金石程序（分词器、借用迭代器、区域分配），只写源码不求可编译，评审“写出来是否像 Kotlin”。
 4. 路线 F 的前两步（返工归因与三项 Guide 冲突的裁决），它独立于其他一切；Spec 切分见 [Parser 评审](parser-grammar-verification-review.md) §8。
 5. IR0 的归因统计可以在细化层迁移期间顺带积累数据，规格与 ADR 等迁移完成后再写。架构研究后的验证与扩展顺序见[之九 §6.2](evolution-09-architecture.md#62-优先顺序与架构适应度)。
