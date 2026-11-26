@@ -45,6 +45,19 @@ fun for_source_iteration_ok(borrow xs: Vec): Unit {
         val elem = next_elem(&mut it)
         use(elem)
     }
+    val local_xs = Vec(3)
+    val lit = make_iter(&local_xs)
+    val le = next_elem(&mut lit)
+    use(le)
+    push_vec(&mut local_xs, 1)
+}
+
+fun for_source_iteration_protects_collection_k1(): Unit {
+    val local_xs = Vec(3)
+    val lit = make_iter(&local_xs)
+    val le = next_elem(&mut lit)
+    push_vec(&mut local_xs, 1) // ERR K1
+    use(le)
 }
 
 fun legal_place_replace_and_swap_ok(inout p: Pair, inout left: Item, inout right: Item): Unit {

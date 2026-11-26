@@ -1791,7 +1791,8 @@ class LoanKernelCases(unittest.TestCase):
                       "for_source_iteration_ok", "legal_place_replace_and_swap_ok"):
             self.assertTrue(lowered[ok_fn][2], ok_fn)
         for bad_fn in ("receiver_binding_slot_ref_rejected", "binding_slot_swap_and_rebind_rejected",
-                       "binding_slot_shared_receiver_write_rejected"):
+                       "binding_slot_shared_receiver_write_rejected",
+                       "for_source_iteration_protects_collection_k1"):
             self.assertFalse(lowered[bad_fn][2], bad_fn)
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):

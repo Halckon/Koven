@@ -410,15 +410,14 @@ def scope_b1_multitask_model(policy):
             elif c == "cleaning":
                 yield "子C:响应取消并完成清理", (par, ext_cancel, outcome, a, b, "done", reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
 
-        # 5. 作用域成功提交点（三子任务全部正常终止且无普通失败，与外部取消竞争提交全序）
-        if par == "join" and a == "done" and b == "done" and c == "done" and ok_val == "none":
+        # 5. 作用域成功提交点（先产出待提交成功值并登记清理义务，再与外部取消同轮竞争提交全序）
+        if par == "join" and a == "done" and b == "done" and c == "done" and ok_val == "none" and outcome is None:
+            yield "作用域:产出待提交成功值ok(携带资源)", (par, ext_cancel, outcome, a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, overwrote, dangling)
+        if par == "join" and ok_val == "held":
             if outcome is None:
-                yield "作用域:提交成功主结果ok(携带值)", (par, ext_cancel, "ok", a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, overwrote, dangling)
-            elif outcome == "cancelled":
-                if policy.overwrite_committed:
-                    yield "作用域:成功值误覆盖cancelled", (par, ext_cancel, "ok", a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, True, dangling)
-                else:
-                    yield "作用域:成功值不覆盖cancelled(待清理)", (par, ext_cancel, outcome, a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, overwrote, dangling)
+                yield "作用域:提交成功主结果ok", (par, ext_cancel, "ok", a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, overwrote, dangling)
+            elif outcome == "cancelled" and policy.overwrite_committed:
+                yield "作用域:待提交成功值误覆盖cancelled", (par, ext_cancel, "ok", a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, True, dangling)
 
         # 6. 清理未返回的带资源次错与被取消压过的成功值（恰好一次）
         if par == "join" and outcome is not None and policy.cleanup_secondary_mode != "leak":

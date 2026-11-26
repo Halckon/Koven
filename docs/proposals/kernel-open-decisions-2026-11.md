@@ -213,7 +213,7 @@ fun handleRequest(path: String) {
 
 ## 4. 原型验收落地记录（2026-11-26 已完成，不修改编译器或现行 Guide）
 
-三轮讨论收口要求的两组原型证据均已落地并通过双版本 Python 单元测试（共 138 条）：
+三轮讨论收口要求的两组原型证据均已落地并通过双版本 Python 单元测试（共 139 条）：
 
 1. **OD1 原型收口（`scripts/loan_kernel/`）**：
    - 已将 `checker.py` 默认 `local_borrow_ref_policy` 由 `"undecided"` 切换为 `"forbid"`（1A-ext），拒绝裸借用绑定槽的显式取址与隐式调整；同步更新 `Z44.lk`、`Z46.lk`（保留 `undecided` 6 处漏报与 `second_order` 显式对照）；

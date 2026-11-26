@@ -178,6 +178,38 @@ class ScopeB1MultitaskModel(unittest.TestCase):
 
         dfs(captured["initial"])
 
+    def test_cancel_winning_over_pending_ok_cannot_skip_cleanup(self):
+        """仲裁前待提交成功值已持有清理义务：同轮取消胜出后，必须先清理 ok_val 才能释放父帧。"""
+        policy = MODEL.SCOPE_B1_MULTITASK_POLICIES[
+            "B1安全策略：提交全序、外部取消当步提交、三子任务排空、次错恰好一次清理、安全返回"
+        ]
+        captured = {}
+        original_explore = MODEL.explore
+
+        def capture(initial, events, violations, final_notes):
+            captured["events"] = events
+            return original_explore(initial, events, violations, final_notes)
+
+        MODEL.explore = capture
+        try:
+            MODEL.scope_b1_multitask_model(policy)
+        finally:
+            MODEL.explore = original_explore
+
+        race_state = ("join", "none", None, "done", "done", "done", False, "none", "none", "held", "alive", False, False, False)
+        race_events = dict(captured["events"](race_state))
+        self.assertIn("外部取消观测(当步提交cancelled)", race_events)
+        self.assertIn("作用域:提交成功主结果ok", race_events)
+
+        after_cancel = race_events["外部取消观测(当步提交cancelled)"]
+        after_cancel_events = dict(captured["events"](after_cancel))
+        self.assertNotIn("父:三子任务排空后释放父帧借用", after_cancel_events)
+        self.assertIn("清理未返回的成功值ok资源", after_cancel_events)
+
+        after_cleanup = after_cancel_events["清理未返回的成功值ok资源"]
+        after_cleanup_events = dict(captured["events"](after_cleanup))
+        self.assertIn("父:三子任务排空后释放父帧借用", after_cleanup_events)
+
 
 class IoModel(unittest.TestCase):
     """失败政策：无终结证据时保留资源；保留不了时终止进程，且终止生效前不再释放。"""
