@@ -73,13 +73,18 @@ impl Span {
 
     #[cfg(any(test, kani))]
     pub(crate) const fn synthetic_for_verification() -> Self {
+        Self::synthetic_range_for_verification(0, 0)
+    }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_range_for_verification(start: usize, end: usize) -> Self {
         Self {
             source_id: SourceId {
                 map_id: 0,
                 index: 0,
             },
-            start: 0,
-            end: 0,
+            start,
+            end,
         }
     }
 }
