@@ -1,6 +1,6 @@
 // Z46（§84）：局部借用变量显式取址（val fa = &hb.a; &fa / &mut fa）三策略对照实验。
-// 本文件中的错误标记对应当前默认策略 local_borrow_ref_policy="undecided"；
-// 候选策略 "forbid"（1A-ext）与 "second_order"（保留内层借用类型的二层借用）的精确逐行差异在
+// 本文件中的错误标记对应 OD1 · A1 收口后的默认策略 local_borrow_ref_policy="forbid"（1A-ext）；
+// 旧扁平化基线 "undecided"（6 处漏报）与候选二层借用 "second_order" 的精确逐行差异在
 // scripts/tests/test_loan_kernel.py::test_local_borrow_address_of_policy_contrast 中对照断言。
 
 class Item(x: Int)
@@ -15,7 +15,7 @@ fun <T> take_escapable_mut(inout x: T): Unit trusted
 fun <view T> take_view_mut(inout x: T): Unit trusted
 fun <view T> copy_inner(borrow x: T): T from x.origins trusted
 
-// ---- 1. 当前默认（undecided）暴露的三处扁平化类型漏洞（forbid 与 second_order 均堵住）
+// ---- 1. 旧默认（undecided）暴露的六处扁平化类型漏洞（forbid 与 second_order 均堵住）
 
 // 漏洞 1：fa 是只读共享借用（borrow Item），但 undecided 将 &mut fa 扁平化为 inout Item 并放行写操作！
 // - undecided:    接受（漏报）
@@ -23,7 +23,7 @@ fun <view T> copy_inner(borrow x: T): T from x.origins trusted
 // - second_order: TYPE（二层借用 inout (borrow Item) 不能充当 inout Item）
 fun local_borrow_write_via_mut_ref_hole(borrow hb: Pair): Unit {
     val fa = &hb.a
-    write_item(&mut fa)
+    write_item(&mut fa) // ERR TYPE
     read_item(fa)
 }
 
@@ -33,7 +33,7 @@ fun local_borrow_write_via_mut_ref_hole(borrow hb: Pair): Unit {
 // - second_order: K17（borrow Item 可能携带来源，不能实例化可逃逸类型参数 T）
 fun local_borrow_escapable_t_hole(borrow hb: Pair): Unit {
     val fa = &hb.a
-    take_escapable_mut(&mut fa)
+    take_escapable_mut(&mut fa) // ERR TYPE
     read_item(fa)
 }
 
@@ -44,7 +44,7 @@ fun local_borrow_escapable_t_hole(borrow hb: Pair): Unit {
 fun local_borrow_store_concrete_into_borrow_slot(): Unit {
     val a = Item(1)
     val fa = &a
-    val rb = &mut fa
+    val rb = &mut fa   // ERR TYPE
     *rb = Item(9)
     read_item(fa)
 }
@@ -56,7 +56,7 @@ fun local_borrow_store_concrete_into_borrow_slot(): Unit {
 fun local_borrow_scalar_write_via_mut_ref_hole(): Unit {
     val n = 1
     val r = &n
-    write_int(&mut r)
+    write_int(&mut r)  // ERR TYPE
     use(r)
 }
 
@@ -67,20 +67,20 @@ fun local_borrow_scalar_write_via_mut_ref_hole(): Unit {
 fun local_borrow_view_constructor_peel_hole(): Unit {
     val a = Item(1)
     val fa = &a
-    val s = Slot(&mut fa)
+    val s = Slot(&mut fa) // ERR TYPE
     write_item(s.p)
 }
 
-// 二层借用 .origins 传递内层来源：val g = copy_inner(&fa)
+// 漏洞 6（二层借用 .origins 传递内层来源）：val g = copy_inner(&fa)
 // - undecided:    &fa 扁平化为 borrow Item 使 T = Item，g 变成拥有值，write_item(&mut a) 不报 K1，read_item(g) 报 TYPE
 // - forbid:       val g = copy_inner(&fa) 报 TYPE，随后 read_item(g) 报 TYPE
 // - second_order: T = borrow Item，g 为 borrow Item，write_item(&mut a) 报 K1，read_item(g) 合法
 fun local_borrow_origins_preserves_inner_loan(): Unit {
     val a = Item(1)
     val fa = &a
-    val g = copy_inner(&fa)
+    val g = copy_inner(&fa) // ERR TYPE
     write_item(&mut a)
-    read_item(g)      // ERR TYPE
+    read_item(g)            // ERR TYPE
 }
 
 // ---- 2. 局部借用变量取址的其余对照行为
@@ -91,7 +91,7 @@ fun local_borrow_origins_preserves_inner_loan(): Unit {
 // - second_order: TYPE（二层借用 inout (inout Item) 不能充当 inout Item）
 fun local_inout_write_via_mut_ref(inout hm: Pair): Unit {
     val fm = &mut hm.b
-    write_item(&mut fm)
+    write_item(&mut fm) // ERR TYPE
     write_item(fm)
 }
 
@@ -101,7 +101,7 @@ fun local_inout_write_via_mut_ref(inout hm: Pair): Unit {
 // - second_order: TYPE（二层借用 borrow (borrow Item) 不能充当 borrow Item）
 fun local_borrow_read_via_ref(borrow hb: Pair): Unit {
     val fa = &hb.a
-    read_item(&fa)
+    read_item(&fa)      // ERR TYPE
     read_item(fa)
 }
 
@@ -111,7 +111,7 @@ fun local_borrow_read_via_ref(borrow hb: Pair): Unit {
 // - second_order: 接受（T = borrow Item，满足 view T 但不满足可逃逸 T）
 fun local_borrow_view_t_contrast(borrow hb: Pair): Unit {
     val fa = &hb.a
-    take_view_mut(&mut fa)
+    take_view_mut(&mut fa) // ERR TYPE
     read_item(fa)
 }
 
@@ -123,8 +123,8 @@ fun local_borrow_rebind_via_second_order_store(): Unit {
     val a = Item(1)
     val b = Item(2)
     val fa = &a
-    val rb = &mut fa
-    *rb = &b          // ERR X1
+    val rb = &mut fa   // ERR TYPE
+    *rb = &b           // ERR X1
     write_item(&mut a) // ERR K1
     read_item(fa)
 }
@@ -137,8 +137,8 @@ fun local_borrow_rebind_protects_new_source(): Unit {
     val a = Item(1)
     val b = Item(2)
     val fa = &a
-    val rb = &mut fa
-    *rb = &b          // ERR X1
+    val rb = &mut fa   // ERR TYPE
+    *rb = &b           // ERR X1
     write_item(&mut b)
     read_item(fa)
 }
@@ -151,8 +151,8 @@ fun local_borrow_ref_blocks_rebind(): Unit {
     val a = Item(1)
     val b = Item(2)
     val fa = &a
-    val ra = &fa
-    fa = &b           // ERR K1
+    val ra = &fa       // ERR TYPE
+    fa = &b
     use(ra)
 }
 
@@ -163,8 +163,8 @@ fun local_borrow_ref_blocks_rebind(): Unit {
 fun local_borrow_ref_keeps_source_alive(): Unit {
     val a = Item(1)
     val fa = &a
-    val ra = &fa
-    write_item(&mut a) // ERR K1
+    val ra = &fa       // ERR TYPE
+    write_item(&mut a)
     use(ra)
 }
 
@@ -174,7 +174,7 @@ fun local_borrow_ref_keeps_source_alive(): Unit {
 // - second_order: TYPE + K6（类型不匹配且指向局部槽 fa）
 fun local_borrow_ref_cannot_return(borrow hb: Pair): borrow Item from hb {
     val fa = &hb.a
-    return &fa        // ERR K6
+    return &fa         // ERR TYPE
 }
 
 // ---- 3. 三种策略下行为完全一致的正反例
@@ -195,5 +195,5 @@ fun local_borrow_reborrow_and_field_proj_ok(borrow hb: Pair, inout hm: Pair): Un
 
 fun local_borrow_direct_write_still_k1(borrow hb: Pair): Unit {
     val fa = &hb.a
-    write_item(fa)    // ERR K1
+    write_item(fa)     // ERR K1
 }

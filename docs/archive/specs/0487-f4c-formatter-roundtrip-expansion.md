@@ -1,10 +1,10 @@
 # SPEC-0487：F4c Formatter 全 AST 往返差分扩展
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F4c 全 AST 格式化往返差分扩展时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F4c 全 AST 格式化往返差分扩展时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 测试；不改变语言行为 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@5ea16bb8` |
@@ -41,4 +41,6 @@ cargo test --locked -p lang-frontend --test formatting
 
 - [x] 全 AST 投影器、逐臂 `Span` containment 校验与全量 complete-file 语料/SPEC-0479 往返实现
 - [x] 独立故障负对照与本地门禁（fmt / clippy / test / check_docs / check_rust_sizes）验收
-- [ ] PR 双宿主 CI 验收与归档
+- [x] PR 双宿主 CI 验收与归档
+
+**归档记录。** 已随 PR #458（合并提交 `f50e90e2`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。

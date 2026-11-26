@@ -1,10 +1,10 @@
 # SPEC-0500：F6 第五片 Pratt 运算符优先级、结合律与非结合链检出双轨证明
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第五片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 第五片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 局部形式化验证（F6） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `feature/spec-0498-f6-group-owners-proof@ad878a0c` |
@@ -30,4 +30,6 @@
 
 - [x] `F6PrattPrecedence.lean` 零告警构建与 8 条定理核心公理白名单本机通过
 - [x] `verify_infix_rule_table_invariants` 与 `verify_pratt_precedence_and_non_assoc_3_ops` 本机 Kani 0.68.0 实跑通过，`pratt_tests` 与 `cargo clippy --all-targets` 通过
-- [ ] PR CI 中 `Parser Formal F6 (Lean 4 + Kani)` 实跑验收与归档
+- [x] PR CI 中 `Parser Formal F6 (Lean 4 + Kani)` 实跑验收与归档
+
+**远端 CI 验收证据。** 实现经 PR #470（`fad5fe41`）合入 `main`，并由 PR #477（`main@a899841c`，验证合并提交 `c5499d8d`）全量复验通过：[双宿主主 CI 证据](https://github.com/Halckon/Koven/actions/runs/45797758722/job/139848568750)、[F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151)（含 `F6PrattPrecedence` 全部 8 条定理，总计 10 片 64 条定理）与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)（含本片全部 2 条 harness，总计 24/24 条）。归档提交本身的门禁另验。

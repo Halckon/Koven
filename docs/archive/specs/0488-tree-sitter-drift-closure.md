@@ -1,10 +1,10 @@
 # SPEC-0488：收口 `editors/tree-sitter` 已知文法漂移（TS-03 / TS-05 / TS-07）
 
-> **性质**：编辑器文法对齐合同 · **状态**：in-progress · **读取时机**：收口 F4b 已登记的 Tree-sitter 文法漂移时 · **唯一真源**：本页验收账本
+> **性质**：编辑器文法对齐合同 · **状态**：done（历史归档） · **读取时机**：收口 F4b 已登记的 Tree-sitter 文法漂移时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 编辑器文法与差分测试；不改变生产 Parser 或语言规范 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@5ea16bb8` |
@@ -43,4 +43,6 @@ KOVEN_TREE_SITTER=/absolute/path/to/tree-sitter \
 
 - [x] `grammar.js`、`src/scanner.c` 与生成产物同步更新并通过语料（10/10）及契约测试（18/18）
 - [x] `parser_tree_sitter_diff`（默认 + 锁定 CLI `--ignored`）与 `tree_sitter_grammar` 实跑通过
-- [ ] PR 双宿主与 `editors` CI 验收与归档
+- [x] PR 双宿主与 `editors` CI 验收与归档
+
+**归档记录。** 已随 PR #458（合并提交 `f50e90e2`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。

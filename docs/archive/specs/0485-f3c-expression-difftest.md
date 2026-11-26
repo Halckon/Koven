@@ -1,10 +1,10 @@
 # SPEC-0485：F3c 18 级表达式运算符层级独立参考解析差分（F3c→F4a）
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F3c 18 级表达式运算符层级差分时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F3c 18 级表达式运算符层级差分时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 测试 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@d6976cf0` |
@@ -38,4 +38,6 @@ cargo test --locked -p lang-frontend --test parser_f3c_expression_diff
 
 - [x] F3c 18 级独立参考解析器、全树 `Span` 与操作符位置校验、正反例与相邻优先级/不结合穷举矩阵实现
 - [x] 本地门禁（fmt / clippy / test / check_docs / check_rust_sizes）实跑验收
-- [ ] PR CI 验收与归档
+- [x] PR CI 验收与归档
+
+**归档记录。** 已随 PR #456（`5ea16bb8`）与 PR #457（`f3b9cc5a`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。

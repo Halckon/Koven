@@ -1,10 +1,10 @@
 # SPEC-0480: 新表面语法增量门禁接入提案与 Spec 模板（F5）
 
-> **性质**：变更合同 · **状态**：in-progress · **读取时机**：评估新增或修改表面语法的提案与 Spec 门禁时 · **唯一真源**：本 Spec 的范围、边界与验收；语言语义仍归 Guide
+> **性质**：变更合同 · **状态**：done（历史归档） · **读取时机**：评估新增或修改表面语法的提案与 Spec 门禁时 · **唯一真源**：本 Spec 的范围、边界与验收；语言语义仍归 Guide
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P1-0480` |
 | 所属 Phase | Phase 1 |
 | 语言规范 | 现行 [Guide v0.47](../../guide/README.md) |
@@ -12,7 +12,7 @@
 | 前置 Spec | 无 |
 | 前置 ADR | 无 |
 | 关联 ADR | 无 |
-| 阻塞项 | 待发 PR 触发远端文档门禁 CI 后归档 |
+| 阻塞项 | 无（已验收归档） |
 | 影响范围 | `docs/proposals/README.md`、`docs/specs/TEMPLATE.md`、`docs/specs/inventory.md`、`docs/specs/README.md`、`docs/specs/active/README.md` |
 | 语言语义变更 | 否 |
 
@@ -34,3 +34,5 @@
 | Spec DAG 同步 | `python3 scripts/gen_spec_dag.py` | 退出 0 |
 | 文档结构门禁 | `python3 scripts/check_docs.py` | 退出 0 |
 | 空白与格式检查 | `git diff --check` | 退出 0 |
+
+**远端 CI 验收证据。** 模板、提案门禁与自动化校验链（承接 [SPEC-0494](0494-f5-syntax-gate-script.md) 与 [SPEC-0504](0504-f5-syntax-gate-ci.md)）已由 PR #477 的 [F5 作业](https://github.com/Halckon/Koven/actions/runs/45797758882/job/139832703686)（`--self-check-template`、9/9 脚本单测及 PR 文档扫描全绿）与 [双宿主主 CI 证据](https://github.com/Halckon/Koven/actions/runs/45797758722/job/139848568750) 验收通过并合入 `main@a899841c`。归档提交本身的门禁另验。

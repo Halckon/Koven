@@ -1,10 +1,10 @@
 # SPEC-0484：F3e 声明、类族与完整文件独立参考解析差分（F3e→F4a）
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F3e 文件头、声明与类族独立参考解析差分时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F3e 文件头、声明与类族独立参考解析差分时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 测试 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@d6976cf0` |
@@ -12,7 +12,7 @@
 
 本 Spec 承接 [Parser 分阶段形式化验证计划](../../proposals/parser-formal-verification-plan.md) 的 **F3e→F4a 扩展切片**与
 [F3e 声明与完整文件切片基线](../../proposals/parser-formal-verification/declaration-file-grammar-slice.md)。
-接续已归档的 [SPEC-0483](../../archive/specs/0483-f3d-reference-difftest.md)（`parse_block` / F3d），
+接续已归档的 [SPEC-0483](0483-f3d-reference-difftest.md)（`parse_block` / F3d），
 本片为 `parse_file` 与 `parse_declaration` 的 `D-FILE`、`D-VAL`、`D-FUN`、`D-CLASS`、`D-MEMBER` 建立独立参考解析器差分测试，
 不修改生产 Parser/Lexer 或 Guide，不新增 Cargo 依赖。双宿主 Targeted Tests 显式运行本 Spec 的 `parser_f3e_file_diff`。
 
@@ -40,4 +40,6 @@ cargo test --locked -p lang-frontend --test parser_f3e_file_diff
 
 - [x] F3e 文件与声明独立参考解析器、全树 `Span` 校验、26 项正反例与 64 组修饰符组合实现
 - [x] 本地门禁（fmt / clippy / test / check_docs / check_rust_sizes）实跑验收
-- [ ] PR CI 验收与归档
+- [x] PR CI 验收与归档
+
+**归档记录。** 已随 PR #456（`5ea16bb8`）与 PR #457（`f3b9cc5a`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。
