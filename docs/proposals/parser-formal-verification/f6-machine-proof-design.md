@@ -80,17 +80,17 @@
 
 ## 5. 实施收口账本（10 片全量归档）
 
-截至 `main@a899841c`（PR #477 [F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151) 与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)），全部 **10 个高价值纯解析内核切片（64 条 Lean 4 无界定理 + 24 条 Kani 直接 Rust harness）** 已完成实现、接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 并验收归档（证据层级保持 `proved (model, unbounded)` + `validated (bounded Rust)`，不升级为全输入生产 G4）：
+截至 `main@a899841c`（PR #477 [F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151) 与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)），全部 **10 个高价值纯解析内核切片（共 64 条 Lean 4 机器检查模型定理 + 24 条 Kani 直接 Rust harness）** 已完成实现、接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 并验收归档。其中 9 片共 56 条定理为 `proved (model, unbounded)`，Slice 6（`SPEC-0508` Stops 边界格）的 8 条定理为 `proved (model, complete finite lattice)`；Kani 轨道保持 `validated (bounded Rust)`，二者均不升级为全输入生产 G4：
 
-| 切片 | 归档 Spec | 证明对象 | Lean 4 定理数 | Kani Harness 数 |
+| 切片 | 归档 Spec | 证明对象 | Lean 4 定理数（证据等级） | Kani Harness 数 |
 |---|---|---|---|---|
-| Slice 1 | [SPEC-0490](../../archive/specs/0490-f6-angle-group-machine-proof.md) | `angle_group_closers` 8 状态反向 DP ↔ `OrdinaryGroups` | 4 | 6 |
-| Slice 2 | [SPEC-0492](../../archive/specs/0492-f6-ordinary-groups-machine-proof.md) | `OrdinaryGroups` 栈计数与 `confirmed_closer` 单调性 | 14 | 4 |
-| Slice 3 | [SPEC-0498](../../archive/specs/0498-f6-group-owners-machine-proof.md) | `GroupOwners` 词法深度与 `terminal_owner_events` 栈平衡 | 5 | 1 |
-| Slice 4 | [SPEC-0499](../../archive/specs/0499-f6-adjacent-poison-machine-proof.md) | `ElsePoisonTail` 缓存可靠与同行花括号保留 | 4 | 1 |
-| Slice 5 | [SPEC-0500](../../archive/specs/0500-f6-pratt-precedence-machine-proof.md) | Pratt 运算符优先级、结合律与非结合链检出 | 8 | 2 |
-| Slice 6 | [SPEC-0508](../../archive/specs/0508-f6-stops-lattice-machine-proof.md) | `Stops` / `TypeStops` / `DeclarationStops` 边界传播格 | 8 | 2 |
-| Slice 7 | [SPEC-0509](../../archive/specs/0509-f6-lambda-trial-machine-proof.md) | `LambdaHeaderIndex` 单遍流式 DFA 等价性与线性步数 | 5 | 2 |
-| Slice 8 | [SPEC-0505](../../archive/specs/0505-f6-lexeme-stream-machine-proof.md) | `validate_lexemes` 词法流连续划分与严格单调性 | 5 | 2 |
-| Slice 9 | [SPEC-0506](../../archive/specs/0506-f6-diagnostic-anchor-machine-proof.md) | `diagnostic_anchor_prefix` 前缀和单调与区间查询 | 5 | 2 |
-| Slice 10 | [SPEC-0507](../../archive/specs/0507-f6-strict-call-trial-machine-proof.md) | `StrictCallTrialIndex` 索引、反向 DP 与递归预算 | 6 | 2 |
+| Slice 1 | [SPEC-0490](../../archive/specs/0490-f6-angle-group-machine-proof.md) | `angle_group_closers` 8 状态反向 DP ↔ `OrdinaryGroups` | 4 (`unbounded`) | 6 |
+| Slice 2 | [SPEC-0492](../../archive/specs/0492-f6-ordinary-groups-machine-proof.md) | `OrdinaryGroups` 栈计数与 `confirmed_closer` 单调性 | 14 (`unbounded`) | 4 |
+| Slice 3 | [SPEC-0498](../../archive/specs/0498-f6-group-owners-machine-proof.md) | `GroupOwners` 词法深度与 `terminal_owner_events` 栈平衡 | 5 (`unbounded`) | 1 |
+| Slice 4 | [SPEC-0499](../../archive/specs/0499-f6-adjacent-poison-machine-proof.md) | `ElsePoisonTail` 缓存可靠与同行花括号保留 | 4 (`unbounded`) | 1 |
+| Slice 5 | [SPEC-0500](../../archive/specs/0500-f6-pratt-precedence-machine-proof.md) | Pratt 运算符优先级、结合律与非结合链检出 | 8 (`unbounded`) | 2 |
+| Slice 6 | [SPEC-0508](../../archive/specs/0508-f6-stops-lattice-machine-proof.md) | `Stops` / `TypeStops` / `DeclarationStops` 边界传播格 | 8 (`complete finite lattice`) | 2 |
+| Slice 7 | [SPEC-0509](../../archive/specs/0509-f6-lambda-trial-machine-proof.md) | `LambdaHeaderIndex` 单遍流式 DFA 等价性与线性步数 | 5 (`unbounded`) | 2 |
+| Slice 8 | [SPEC-0505](../../archive/specs/0505-f6-lexeme-stream-machine-proof.md) | `validate_lexemes` 词法流连续划分与严格单调性 | 5 (`unbounded`) | 2 |
+| Slice 9 | [SPEC-0506](../../archive/specs/0506-f6-diagnostic-anchor-machine-proof.md) | `diagnostic_anchor_prefix` 前缀和单调与区间查询 | 5 (`unbounded`) | 2 |
+| Slice 10 | [SPEC-0507](../../archive/specs/0507-f6-strict-call-trial-machine-proof.md) | `StrictCallTrialIndex` 索引、反向 DP 与递归预算 | 6 (`unbounded`) | 2 |

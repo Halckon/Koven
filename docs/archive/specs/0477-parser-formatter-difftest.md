@@ -46,8 +46,8 @@
 | CI 选择 | 现有 Parser 批次全量选择 `formatting` 一次，不新增 job | 策略红测 1 failed，接线后 `python3 -m unittest scripts.tests.test_check_ci_results` 45 passed；`bash -n scripts/check_stage_integration.sh` 通过 |
 | Parser 组合回归 | 从 `scripts/check_stage_integration.sh` 选出含 `--test formatting` 的唯一 Cargo 调用，原样本地执行 | macOS AArch64，27 个 integration targets、479 passed、0 failed/ignored/filtered；不是完整 stage 或双宿主 CI |
 | 本机门禁 | 定向 Clippy、fmt、docs、diff | 通过 |
-| 交付 | PR CI、归档 | 待执行；未运行完整 stage、Linux 或远端 CI |
+| 交付 | PR CI、归档 | 已随 PR #450（合并提交 `f9234c46`）合入 `main`；后续在 PR #477（验证合并提交 `c5499d8d`，合入 `main@a899841c`）的[双宿主主 CI Targeted Tests](https://github.com/Halckon/Koven/actions/runs/45797758722/job/139848568750) 中通过完整 Linux/macOS 回归（含 `formatting` 目标），并随本批次归档 |
 
 不把未纳入投影的语法计入覆盖，也不把本机定向结果替代 CI。
 
-**归档记录。** 已随 PR #450（合并提交 `f9234c46`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。
+**归档记录。** 已随 PR #450（合并提交 `f9234c46`）合入 `main`，并在 PR #477（验证合并提交 `c5499d8d`）的[双宿主主 CI Targeted Tests](https://github.com/Halckon/Koven/actions/runs/45797758722/job/139848568750) 通过完整双平台回归（覆盖 `formatting` 目标）；本批次按维护者确认收口归档至 `docs/archive/specs/`。

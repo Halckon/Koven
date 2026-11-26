@@ -55,4 +55,4 @@ macOS AArch64 / Python 3.15.2 / Rust 1.96.0：先省略 `NL` 投影，测试在 
 - [x] 完整首片语料与资源合同
 - [x] Linux 完整生产／参考差分、必需 CI 与归档
 
-**归档记录。** 已随 PR #450（合并提交 `f9234c46`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。
+**归档记录。** 上文「本地运行」保留 PR #450 合入前的本机实跑快照。本 Spec 已随 PR #450（合并提交 `f9234c46`）合入 `main`；后续在 PR #477（验证合并提交 `c5499d8d`，合入 `main@a899841c`）的[双宿主主 CI Targeted Tests](https://github.com/Halckon/Koven/actions/runs/45797758722/job/139848568750) 中通过 Linux/macOS 完整回归（包含离线 Lark wheel 语料与 `parser_offline_block_diff` 的 `ci_fault_` 故障负对照），满足第 3 项检查点并按维护者确认收口归档至 `docs/archive/specs/`。
