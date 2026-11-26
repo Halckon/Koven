@@ -6,6 +6,7 @@ use std::num::NonZeroUsize;
 
 mod adjacent_poison;
 mod angle_groups;
+mod diagnostic_anchor;
 mod ordinary_groups;
 
 use adjacent_poison::{AdjacentPoisonTail, ElsePoisonTail};
@@ -164,11 +165,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
             return Err(ParserInternalError::InvalidLexemeStream);
         }
 
-        let mut count = 0;
-        for mark in &mut diagnostic_anchor_prefix {
-            count += *mark;
-            *mark = count;
-        }
+        diagnostic_anchor::finalize_anchor_prefix(&mut diagnostic_anchor_prefix);
 
         string_exit_events.sort_unstable();
         invalid_string_escape_spans.sort_unstable();
@@ -374,13 +371,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
 
     /// Checks diagnostic anchors in an already consumed raw lexeme range.
     pub(super) fn has_diagnostic_anchor(&self, start: usize, end: usize) -> bool {
-        match (
-            self.diagnostic_anchor_prefix.get(start),
-            self.diagnostic_anchor_prefix.get(end),
-        ) {
-            (Some(before), Some(after)) => before < after,
-            _ => false,
-        }
+        diagnostic_anchor::prefix_has_anchor(&self.diagnostic_anchor_prefix, start, end)
     }
 
     pub(super) fn angle_group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {

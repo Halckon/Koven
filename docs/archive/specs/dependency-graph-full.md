@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，455 份）"]
+subgraph Garchive["已完成（archive，461 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -464,6 +464,12 @@ subgraph Garchive["已完成（archive，455 份）"]
   S0497["S0497<br/>正式 CI Targeted Tests 按独立套件拆分为并行矩阵作业"]
   S0502["S0502<br/>双宿主 Targeted Tests 统一启用有限调试符号（debug=1）与独立缓存前缀"]
   S0503["S0503<br/>正式 CI 切换 D10 目录身份与 Scalar Owner 门禁为唯一产物锁多核执行器"]
+  S0504["S0504<br/>F5 表面语法增量门禁路径触发轻量 CI 接入"]
+  S0505["S0505<br/>F6 第八片 validate_lexemes 词法流连续划分、严格单调与唯一 EOF 契约双轨证明"]
+  S0506["S0506<br/>F6 第九片 diagnostic_anchor_prefix 前缀和单调性与区间诊断锚点查询双轨证明"]
+  S0507["S0507<br/>F6 第十片 StrictCallTrialIndex 索引单调性、反向 DP 路径与递归预算双轨证明"]
+  S0508["S0508<br/>F6 第六片 Stops / TypeStops / DeclarationStops 边界传播格与硬分隔符不屏蔽双轨证明"]
+  S0509["S0509<br/>F6 第七片 LambdaHeaderIndex 单遍流式 DFA 等价性与线性步数双轨证明"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -2036,6 +2042,12 @@ S0502 --> S0503
 | SPEC-0497 | archive | [0497-parallel-targeted-tests-ci.md](0497-parallel-targeted-tests-ci.md) |
 | SPEC-0502 | archive | [0502-macos-limited-debug-ci.md](0502-macos-limited-debug-ci.md) |
 | SPEC-0503 | archive | [0503-d10-and-scalar-multicore-ci-gate.md](0503-d10-and-scalar-multicore-ci-gate.md) |
+| SPEC-0504 | archive | [0504-f5-syntax-gate-ci.md](0504-f5-syntax-gate-ci.md) |
+| SPEC-0505 | archive | [0505-f6-lexeme-stream-machine-proof.md](0505-f6-lexeme-stream-machine-proof.md) |
+| SPEC-0506 | archive | [0506-f6-diagnostic-anchor-machine-proof.md](0506-f6-diagnostic-anchor-machine-proof.md) |
+| SPEC-0507 | archive | [0507-f6-strict-call-trial-machine-proof.md](0507-f6-strict-call-trial-machine-proof.md) |
+| SPEC-0508 | archive | [0508-f6-stops-lattice-machine-proof.md](0508-f6-stops-lattice-machine-proof.md) |
+| SPEC-0509 | archive | [0509-f6-lambda-trial-machine-proof.md](0509-f6-lambda-trial-machine-proof.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
