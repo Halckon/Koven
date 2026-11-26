@@ -298,6 +298,208 @@ def scope_cancel_drain_extended_model(policy):
     return explore(initial, events, violations, final_notes)
 
 
+# ---- 模型 A3：3A 多任务与 OD2 · B1 完整验收（双向竞态、3 子任务、带资源次错恰好一次清理、父帧释放后安全返回）
+
+OVERWROTE_COMMITTED_OUTCOME = "后到事件覆盖了已提交的主结果"
+CANCEL_WAITED_FOR_DRAIN = "观察到外部取消且尚无主结果时未当步提交取消"
+DANGLING_RETURN = "胜出返回值携带指向已释放父帧的借用"
+RETURNED_CLEANED_VALUE = "胜出返回值在交付调用方前已被错误清理"
+
+B1_CANCEL_WON_OVER_ERR = "双向竞态：外部取消先提交，后到带资源普通失败未覆盖且恰好清理一次"
+B1_ERR_WON_OVER_CANCEL = "双向竞态：普通失败先提交，后到外部取消未覆盖且胜出主错在父帧释放后安全返回"
+B1_CANCEL_WON_OVER_OK = "双向竞态：外部取消先提交，末子任务完成后的未返回成功值恰好清理一次"
+B1_OK_WON_OVER_CANCEL = "双向竞态：作用域成功先提交，后到外部取消未覆盖且胜出成功值在父帧释放后安全返回"
+B1_MULTI_ERR_SECONDARY_CLEANED = "三子任务排空：主错保留，后到带资源次错恰好清理一次且三子任务全终止后释放父帧"
+B1_DEINIT_ABORTED = "三子任务排空：子任务deinit失败直接终止进程不被主结果覆盖"
+
+
+@dataclass(frozen=True)
+class ScopeB1MultitaskPolicy:
+    commit_cancel_immediately: bool  # 观察到外部取消且尚无主结果时是否当步提交 cancelled
+    overwrite_committed: bool  # 后到普通失败或取消是否误覆盖已提交的主结果
+    cleanup_secondary_mode: str  # once | leak | double（未返回的次错或成功值的资源清理方式）
+    winning_borrows_parent: bool  # 胜出返回值是否携带指向父帧的借用（释放父帧后悬垂）
+    release_before_third_done: bool  # 是否在子 C 仍存活时提前释放父帧借用
+    suppress_deinit_fail: bool  # 子 B deinit 失败是否被主结果吞掉而不终止进程
+
+
+def scope_b1_multitask_model(policy):
+    """状态：(父, 外部取消, 已提交主结果, 子A, 子B, 子C, B是否已重阻塞, 资源A, 资源B, 成功值, 进程, 延迟取消标记, 覆盖标记, 悬垂标记)。
+
+    覆盖 3A 欠项二全部四类验收：
+    1. 双向竞态（取消 vs 普通失败；取消 vs 作用域成功提交）；
+    2. 三个并发子任务（A、B、C）交错失败、阻塞、清理与重阻塞；
+    3. 带资源次错与未返回成功值的恰好一次清理；
+    4. 胜出主错/成功值在父帧借用释放后安全返回调用方。
+    """
+    initial = ("join", "none", None, "run", "blocked", "run", False, "none", "none", "none", "alive", False, False, False)
+
+    def alive_ab(a, b):
+        return a == "run" or b in ("blocked", "cleaning", "reblocked")
+
+    def alive_c(c):
+        return c in ("run", "blocked", "cleaning")
+
+    def any_alive(a, b, c):
+        return alive_ab(a, b) or alive_c(c)
+
+    def need_cancel(outcome, ext_cancel):
+        return ext_cancel == "observed" or outcome in ("err_A", "err_B", "cancelled")
+
+    def events(state):
+        par, ext_cancel, outcome, a, b, c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling = state
+        if proc != "alive" or par == "returned":
+            return
+
+        # 1. 外部取消观测（可在作用域任意活跃步到达，与普通失败或作用域成功同轮竞争提交全序）
+        if par == "join" and ext_cancel == "none":
+            if outcome is None:
+                if policy.commit_cancel_immediately:
+                    yield "外部取消观测(当步提交cancelled)", (par, "observed", "cancelled", a, b, c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+                else:
+                    yield "外部取消观测(延迟不提交)", (par, "observed", None, a, b, c, reblocked, res_a, res_b, ok_val, proc, True, overwrote, dangling)
+            elif policy.overwrite_committed:
+                yield "外部取消观测(误覆盖主结果)", (par, "observed", "cancelled", a, b, c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, True, dangling)
+            else:
+                yield "外部取消观测(不覆盖主结果)", (par, "observed", outcome, a, b, c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+
+        # 2. 子 A 推进：正常完成或产生带资源的普通失败 err_A
+        if par == "join" and a == "run":
+            yield "子A:正常完成", (par, ext_cancel, outcome, "done", b, c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+            if outcome is None:
+                yield "子A:提交首错err_A(携带资源)", (par, ext_cancel, "err_A", "failed_err_A", b, c, reblocked, "held", res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+            elif policy.overwrite_committed:
+                yield "子A:后到err_A误覆盖主结果", (par, ext_cancel, "err_A", "failed_err_A", b, c, reblocked, "held", res_b, ok_val, proc, delayed_cancel, True, dangling)
+            else:
+                yield "子A:后到err_A不覆盖主结果(待清理)", (par, ext_cancel, outcome, "failed_err_A", b, c, reblocked, "held", res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+
+        # 3. 子 B 推进：无取消时可正常完成；进入取消后经 cleaning / 有界 reblocked 排空，或产出次错 err_B / deinit 失败
+        if par == "join":
+            if b == "blocked":
+                if not need_cancel(outcome, ext_cancel):
+                    yield "子B:正常完成", (par, ext_cancel, outcome, a, "done", c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+                else:
+                    yield "取消唤醒子B(进入cleaning)", (par, ext_cancel, outcome, a, "cleaning", c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+            elif b == "cleaning":
+                if not reblocked:
+                    yield "子B:清理期重新阻塞", (par, ext_cancel, outcome, a, "reblocked", c, True, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+                yield "子B:响应取消并完成清理", (par, ext_cancel, outcome, a, "done", c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+                if outcome is None:
+                    yield "子B:提交普通失败err_B(携带资源)", (par, ext_cancel, "err_B", a, "failed_err_B", c, reblocked, res_a, "held", ok_val, proc, delayed_cancel, overwrote, dangling)
+                elif policy.overwrite_committed:
+                    yield "子B:后到err_B误覆盖主结果", (par, ext_cancel, "err_B", a, "failed_err_B", c, reblocked, res_a, "held", ok_val, proc, delayed_cancel, True, dangling)
+                else:
+                    yield "子B:后到err_B不覆盖主结果(待清理)", (par, ext_cancel, outcome, a, "failed_err_B", c, reblocked, res_a, "held", ok_val, proc, delayed_cancel, overwrote, dangling)
+                if policy.suppress_deinit_fail:
+                    yield "子B:deinit失败但被主结果覆盖", (par, ext_cancel, outcome, a, "deinit_failed", c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+                else:
+                    yield "子B:deinit失败终止进程", ("aborted", ext_cancel, outcome, a, "deinit_failed", c, reblocked, res_a, res_b, ok_val, "aborted", delayed_cancel, overwrote, dangling)
+            elif b == "reblocked":
+                yield "取消再次唤醒重阻塞的子B", (par, ext_cancel, outcome, a, "cleaning", c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+
+        # 4. 子 C 推进（第 3 个并发子任务）：可正常完成或进入可唤醒阻塞点再排空
+        if par == "join":
+            if c == "run":
+                yield "子C:正常完成", (par, ext_cancel, outcome, a, b, "done", reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+                yield "子C:进入阻塞", (par, ext_cancel, outcome, a, b, "blocked", reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+            elif c == "blocked":
+                if not need_cancel(outcome, ext_cancel):
+                    yield "子C:正常唤醒并完成", (par, ext_cancel, outcome, a, b, "done", reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+                else:
+                    yield "取消唤醒子C(进入cleaning)", (par, ext_cancel, outcome, a, b, "cleaning", reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+            elif c == "cleaning":
+                yield "子C:响应取消并完成清理", (par, ext_cancel, outcome, a, b, "done", reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+
+        # 5. 作用域成功提交点（三子任务全部正常终止且无普通失败，与外部取消竞争提交全序）
+        if par == "join" and a == "done" and b == "done" and c == "done" and ok_val == "none":
+            if outcome is None:
+                yield "作用域:提交成功主结果ok(携带值)", (par, ext_cancel, "ok", a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, overwrote, dangling)
+            elif outcome == "cancelled":
+                if policy.overwrite_committed:
+                    yield "作用域:成功值误覆盖cancelled", (par, ext_cancel, "ok", a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, True, dangling)
+                else:
+                    yield "作用域:成功值不覆盖cancelled(待清理)", (par, ext_cancel, outcome, a, b, c, reblocked, res_a, res_b, "held", proc, delayed_cancel, overwrote, dangling)
+
+        # 6. 清理未返回的带资源次错与被取消压过的成功值（恰好一次）
+        if par == "join" and outcome is not None and policy.cleanup_secondary_mode != "leak":
+            if res_a == "held" and outcome != "err_A":
+                yield "清理未返回的次错err_A资源", (par, ext_cancel, outcome, a, b, c, reblocked, "cleaned", res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+            elif res_a == "cleaned" and outcome != "err_A" and policy.cleanup_secondary_mode == "double":
+                yield "重复清理次错err_A资源", (par, ext_cancel, outcome, a, b, c, reblocked, "double_cleaned", res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+            if res_b == "held" and outcome != "err_B":
+                yield "清理未返回的次错err_B资源", (par, ext_cancel, outcome, a, b, c, reblocked, res_a, "cleaned", ok_val, proc, delayed_cancel, overwrote, dangling)
+            elif res_b == "cleaned" and outcome != "err_B" and policy.cleanup_secondary_mode == "double":
+                yield "重复清理次错err_B资源", (par, ext_cancel, outcome, a, b, c, reblocked, res_a, "double_cleaned", ok_val, proc, delayed_cancel, overwrote, dangling)
+            if ok_val == "held" and outcome != "ok":
+                yield "清理未返回的成功值ok资源", (par, ext_cancel, outcome, a, b, c, reblocked, res_a, res_b, "cleaned", proc, delayed_cancel, overwrote, dangling)
+            elif ok_val == "cleaned" and outcome != "ok" and policy.cleanup_secondary_mode == "double":
+                yield "重复清理成功值ok资源", (par, ext_cancel, outcome, a, b, c, reblocked, res_a, res_b, "double_cleaned", proc, delayed_cancel, overwrote, dangling)
+
+        # 7. 释放父帧借用（必须等待 A、B、C 全部实际终止且未返回值已清理）
+        unreturned_held = (
+            (res_a == "held" and outcome != "err_A")
+            or (res_b == "held" and outcome != "err_B")
+            or (ok_val == "held" and outcome != "ok")
+        )
+        can_release_children = (not any_alive(a, b, c)) or (policy.release_before_third_done and not alive_ab(a, b) and alive_c(c))
+        ready_cleanup = (not unreturned_held) or policy.cleanup_secondary_mode == "leak"
+        if par == "join" and outcome is not None and can_release_children and ready_cleanup:
+            yield "父:三子任务排空后释放父帧借用", ("freed", ext_cancel, outcome, a, b, c, reblocked, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling)
+
+        # 8. 父帧释放后，调用方接收并使用胜出返回值（验证不悬垂到已释放父帧）
+        if par == "freed":
+            n_res_a = "returned" if outcome == "err_A" and res_a == "held" else res_a
+            n_res_b = "returned" if outcome == "err_B" and res_b == "held" else res_b
+            n_ok = "returned" if outcome == "ok" and ok_val == "held" else ok_val
+            is_dangling = policy.winning_borrows_parent and outcome in ("err_A", "err_B", "ok")
+            yield "调用方:在父帧释放后安全接收胜出结果", ("returned", ext_cancel, outcome, a, b, c, reblocked, n_res_a, n_res_b, n_ok, proc, delayed_cancel, overwrote, is_dangling)
+
+    def violations(state):
+        par, _, outcome, a, b, c, _, res_a, res_b, ok_val, proc, delayed_cancel, overwrote, dangling = state
+        found = []
+        if par in ("freed", "returned") and any_alive(a, b, c) and proc == "alive":
+            found.append(UAF)
+        if b == "deinit_failed" and proc == "alive":
+            found.append(DEINIT_FAIL_SUPPRESSED)
+        if delayed_cancel:
+            found.append(CANCEL_WAITED_FOR_DRAIN)
+        if overwrote:
+            found.append(OVERWROTE_COMMITTED_OUTCOME)
+        if "double_cleaned" in (res_a, res_b, ok_val):
+            found.append(DOUBLE_CLEANUP)
+        if par == "returned" and "held" in (res_a, res_b, ok_val):
+            found.append(UNDISCHARGED)
+        if par == "returned" and (
+            (outcome == "err_A" and res_a != "returned")
+            or (outcome == "err_B" and res_b != "returned")
+            or (outcome == "ok" and ok_val != "returned")
+        ):
+            found.append(RETURNED_CLEANED_VALUE)
+        if dangling:
+            found.append(DANGLING_RETURN)
+        return found
+
+    def final_notes(state):
+        par, ext_cancel, outcome, a, b, c, _, res_a, res_b, ok_val, proc, _, _, _ = state
+        if proc == "aborted" and b == "deinit_failed":
+            return "notes", B1_DEINIT_ABORTED
+        if par == "returned" and proc == "alive" and not any_alive(a, b, c):
+            if outcome == "cancelled" and res_a == "cleaned":
+                return "notes", B1_CANCEL_WON_OVER_ERR
+            if outcome == "err_A" and res_a == "returned" and ext_cancel == "observed" and res_b == "none":
+                return "notes", B1_ERR_WON_OVER_CANCEL
+            if outcome == "cancelled" and ok_val == "cleaned":
+                return "notes", B1_CANCEL_WON_OVER_OK
+            if outcome == "ok" and ok_val == "returned" and ext_cancel == "observed":
+                return "notes", B1_OK_WON_OVER_CANCEL
+            if outcome == "err_A" and res_a == "returned" and res_b == "cleaned":
+                return "notes", B1_MULTI_ERR_SECONDARY_CLEANED
+            return "notes", ""
+        return "stuck", HANG
+
+    return explore(initial, events, violations, final_notes)
+
+
 # ---- 模型 B：在途 IO
 
 WRITE_AFTER_FREE = "外部仍可访问时缓冲区已释放"
@@ -700,6 +902,33 @@ SCOPE_CANCEL_DRAIN_EXTENDED_POLICIES = {
         multi_error_policy="aggregate", suppress_deinit_fail=False),
 }
 
+SCOPE_B1_MULTITASK_POLICIES = {
+    "外部取消延迟提交": ScopeB1MultitaskPolicy(
+        commit_cancel_immediately=False, overwrite_committed=False, cleanup_secondary_mode="once",
+        winning_borrows_parent=False, release_before_third_done=False, suppress_deinit_fail=False),
+    "后到事件覆盖已提交主结果": ScopeB1MultitaskPolicy(
+        commit_cancel_immediately=True, overwrite_committed=True, cleanup_secondary_mode="once",
+        winning_borrows_parent=False, release_before_third_done=False, suppress_deinit_fail=False),
+    "未返回次错或成功值泄漏资源": ScopeB1MultitaskPolicy(
+        commit_cancel_immediately=True, overwrite_committed=False, cleanup_secondary_mode="leak",
+        winning_borrows_parent=False, release_before_third_done=False, suppress_deinit_fail=False),
+    "未返回次错或成功值重复清理": ScopeB1MultitaskPolicy(
+        commit_cancel_immediately=True, overwrite_committed=False, cleanup_secondary_mode="double",
+        winning_borrows_parent=False, release_before_third_done=False, suppress_deinit_fail=False),
+    "胜出返回值携带父帧借用": ScopeB1MultitaskPolicy(
+        commit_cancel_immediately=True, overwrite_committed=False, cleanup_secondary_mode="once",
+        winning_borrows_parent=True, release_before_third_done=False, suppress_deinit_fail=False),
+    "第三子任务未终止提前释放父帧": ScopeB1MultitaskPolicy(
+        commit_cancel_immediately=True, overwrite_committed=False, cleanup_secondary_mode="once",
+        winning_borrows_parent=False, release_before_third_done=True, suppress_deinit_fail=False),
+    "吞掉子deinit失败": ScopeB1MultitaskPolicy(
+        commit_cancel_immediately=True, overwrite_committed=False, cleanup_secondary_mode="once",
+        winning_borrows_parent=False, release_before_third_done=False, suppress_deinit_fail=True),
+    "B1安全策略：提交全序、外部取消当步提交、三子任务排空、次错恰好一次清理、安全返回": ScopeB1MultitaskPolicy(
+        commit_cancel_immediately=True, overwrite_committed=False, cleanup_secondary_mode="once",
+        winning_borrows_parent=False, release_before_third_done=False, suppress_deinit_fail=False),
+}
+
 IO_POLICIES = {
     "取消即返回": IoPolicy("early", "partial", True),
     "随帧销毁": IoPolicy("wait", "destroy_all", True),
@@ -759,6 +988,8 @@ def main():
                                     SCOPE_CANCEL_DRAIN_POLICIES),
                                    ("模型 A2-ext：丢 Job 不取消、清理期重阻塞与多错仲裁", scope_cancel_drain_extended_model,
                                     SCOPE_CANCEL_DRAIN_EXTENDED_POLICIES),
+                                   ("模型 A3：3A 多任务与 OD2 B1 完整验收", scope_b1_multitask_model,
+                                    SCOPE_B1_MULTITASK_POLICIES),
                                    ("模型 B：在途 IO", io_model, IO_POLICIES),
                                    ("模型 C：多请求、证据丢失与代际", multi_io_model, MULTI_IO_POLICIES),
                                    ("模型 D：监督边界与多线程终止窗口", supervision_model, SUPERVISION_POLICIES),

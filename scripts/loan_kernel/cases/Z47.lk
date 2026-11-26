@@ -1,0 +1,77 @@
+// Z47（OD1 · A1 1A-ext 验收）：绑定槽拒绝 vs 合法接收者重借、新绑定换源、字段投影、for 来源与合法 place 的 replace/swap 正反例。
+
+class Item(x: Int) empty
+class Pair(a: Item, b: Item)
+class Vec(len: Int)
+view class Slot(inout p: Item)
+view class Iter(borrow src: Vec)
+
+fun read_item(borrow x: Item): Unit trusted
+fun write_item(inout x: Item): Unit trusted
+fun write_slot(inout s: Slot): Unit trusted
+fun peek_a(borrow p: Pair): borrow Item from p { return &p.a }
+fun size_vec(borrow this: Vec): Int trusted
+fun push_vec(inout this: Vec, own n: Int): Unit trusted
+fun make_iter(borrow xs: Vec): Iter from xs { return Iter(xs) }
+fun next_elem(inout it: Iter): borrow Int from it.src trusted
+fun swap_items(inout a: Item, inout b: Item): Unit trusted
+
+// ---- 1. 正例：接收者重借（含两阶段借用）、新绑定切换局部来源、投影、for 来源、合法 replace/swap 与 Slot 固定目标
+
+fun receiver_reborrow_and_two_phase_ok(borrow hb: Vec, inout hm: Vec): Unit {
+    val n1 = size_vec(hb)
+    val n2 = size_vec(hm)
+    push_vec(hm, size_vec(hm))
+    val local_mut = &mut hm.len
+    use(local_mut)
+    use(n1)
+    use(n2)
+}
+
+fun new_binding_switches_local_source_ok(borrow p1: Pair, borrow p2: Pair): Unit {
+    val first = peek_a(p1)
+    val second = peek_a(p2)
+    read_item(first)
+    read_item(second)
+    val f1 = &first.x
+    val f2 = &second.x
+    use(f1)
+    use(f2)
+}
+
+fun for_source_iteration_ok(borrow xs: Vec): Unit {
+    val it = make_iter(xs)
+    while (*) {
+        val elem = next_elem(&mut it)
+        use(elem)
+    }
+}
+
+fun legal_place_replace_and_swap_ok(inout p: Pair, inout left: Item, inout right: Item): Unit {
+    val taken = replace p.a
+    read_item(&taken)
+    swap_items(&mut p.a, &mut p.b)
+    swap_items(left, right)
+    val s = Slot(left)
+    write_slot(&mut s)
+}
+
+// ---- 2. 反例：对裸借用绑定槽（参数或局部）形成二层借用一律报 TYPE；共享绑定槽经重借写报 K1
+
+fun receiver_binding_slot_ref_rejected(inout hm: Vec): Unit {
+    push_vec(&mut hm, size_vec(hm)) // ERR TYPE
+    val mv = &mut hm.len
+    val r_slot = &mv                // ERR TYPE
+    use(r_slot)
+}
+
+fun binding_slot_swap_and_rebind_rejected(borrow hb: Pair, inout hm: Pair): Unit {
+    val fa = peek_a(hb)
+    val fb = &mut hm.b
+    swap_items(&mut fa, &mut fb) // ERR TYPE
+    swap_items(fa, fb)           // ERR K1
+}
+
+fun binding_slot_shared_receiver_write_rejected(borrow hb: Vec): Unit {
+    push_vec(hb, size_vec(hb)) // ERR K1
+}
