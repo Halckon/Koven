@@ -138,6 +138,8 @@
 
 ### 1.5 `Result` 的人机工程（J42）
 
+> 编号说明：本节 `E1`–`E5` 仅指 `Result` 人机工程步骤，跨页引用写作“之十一 E1–E5”，与 v1 代码生成收口批次 `E3`（见[之八](evolution-08-compiler-ir-escape-simd-selfhost.md) J28）区分。
+
 | 步 | 内容 | 归类 | 依赖 |
 |---|---|---|---|
 | E1 | `mapError`、`orElse` 等组合函数 | 库 | 无（Guide 09 已预告） |

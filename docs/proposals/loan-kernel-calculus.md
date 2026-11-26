@@ -1377,7 +1377,9 @@ fun probe(borrow h: A): Unit {
 | `return &fa`（签名声明 `from hb`） | `K6` | `TYPE` | `TYPE` + `K6` |
 | 实参重借、字段投影、显式 `Slot(fm)` 与 `write_item(fa)` | 接受 / `K1` | 接受 / `K1` | 接受 / `K1` |
 
-结论：当前 `undecided` 的扁平化实现在局部借用变量上存在多处可复现的类型/借用漏洞（共享借用经 `&mut fa` / `write_int(&mut r)` / `Slot(&mut fa)` 提权为可写、绕过 `<T>` 可逃逸上界、经 `*rb = Item(9)` 写入非借用值、以及 `from x.origins` 丢失内层来源）。后续裁决须在 **1A-ext（`forbid`，零新增类型语法，直接把 1A 扩展到所有局部借用变量）** 与 **显式二层借用（`second_order`，须引入一等 `borrow (borrow T)` / `inout (borrow T)` 类型、视图构造器/标量层级校验、`*rb = &b` 槽位来源更新及 `.origins` 内层来源保留）** 之间二选一，不可长期停留在扁平化状态。
+结论：当前 `undecided` 的扁平化实现在局部借用变量上存在 **6 处**可复现的类型/借用漏洞（共享借用经 `&mut fa` / `write_int(&mut r)` / `Slot(&mut fa)` 提权为可写、绕过 `<T>` 可逃逸上界、经 `*rb = Item(9)` 写入非借用值、以及 `from x.origins` 丢失内层来源）。
+
+**2026-11-26 三轮讨论纪要收口（详见[裁决纪要 §1](kernel-open-decisions-2026-11.md#1-od1--a11a-ext收口禁止对裸借用绑定槽形成二层借用)）**：四方确认采用 **A1（1A-ext / `forbid`）**——首版不对裸借用绑定槽形成二层借用，显式取址与落到该槽的隐式调整均拒绝；对所指对象的合法接收者重借、`borrow val`、投影、`for` 来源及合法 place 的 `replace`/`swap` 不受影响；新绑定可换局部来源、`Slot` 可写固定目标，均不能原地换绑调用方借用来源；`<view T>` 另案。待原型将默认策略切为 `forbid` 并补绑定槽拒绝与接收者重借正反例。
 
 ## 85. 来源记账生成器补齐：泛型 `view T` 持有者与分支/循环流向（2026-11-25 补充）
 
