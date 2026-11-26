@@ -8,20 +8,23 @@ use crate::{
     },
 };
 
+#[derive(Clone, Copy)]
+pub(super) struct NamedRangeLoopShape {
+    pub(super) provider: StatementId,
+    pub(super) source: ExpressionId,
+    pub(super) observe: StatementId,
+    pub(super) binding: crate::name_resolution::UnitSymbolId,
+    pub(super) root: crate::name_resolution::UnitSymbolId,
+    pub(super) body_control: ExpressionId,
+    pub(super) consume: ExpressionId,
+    pub(super) moved: ExpressionId,
+}
+
 impl Checker<'_> {
     pub(super) fn closed_range_for_reuse(
         &self,
         elements: &[StatementId],
-    ) -> Option<(
-        StatementId,
-        ExpressionId,
-        StatementId,
-        crate::name_resolution::UnitSymbolId,
-        crate::name_resolution::UnitSymbolId,
-        ExpressionId,
-        ExpressionId,
-        ExpressionId,
-    )> {
+    ) -> Option<NamedRangeLoopShape> {
         let [owner, binding, choice, observe, consume] = elements else {
             return None;
         };
@@ -162,16 +165,16 @@ impl Checker<'_> {
             return None;
         }
         let body_control = self.closed_range_for_body(*body, *item)?;
-        Some((
-            *choice,
-            *source,
-            *observe,
-            named,
+        Some(NamedRangeLoopShape {
+            provider: *choice,
+            source: *source,
+            observe: *observe,
+            binding: named,
             root,
             body_control,
             consume,
             moved,
-        ))
+        })
     }
 
     fn closed_range_for_body(

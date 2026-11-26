@@ -405,7 +405,7 @@ impl Checker<'_> {
             self.parsed,
             elements,
             |id| self.place(id).map(|place| place.map(|p| p.root())),
-            closed_for.map(|(statement, source, observe, _, _, _, _, _)| (statement, source, observe)),
+            closed_for.map(|shape| (shape.provider, shape.source, shape.observe)),
         )?;
         let first_binding = self.borrow_results.bindings.len();
         let mut flows = Flows::next(state);
@@ -416,7 +416,7 @@ impl Checker<'_> {
             let mut checked = self.check_statement(element, next)?;
             // The typed candidate never manufactures a source receipt. Only a
             // published new Range descriptor for this exact local root can shorten.
-            let proved = closed_for.is_none_or(|(_, _, observe, binding, root, _, _, _)| {
+            let proved = closed_for.is_none_or(|named_range_loop::NamedRangeLoopShape { observe, binding, root, .. }| {
                 element == observe
                     && self.borrow_results.bindings
                         .get(first_binding..)
@@ -430,8 +430,8 @@ impl Checker<'_> {
                             }) && matching.next().is_none()
                         })
             });
-            let proved = proved && closed_for.is_none_or(|(loop_statement, source, _, binding, root, _, _, _)| {
-                let loop_id = crate::type_checking::UnitStatementId::new(self.source_unit, loop_statement);
+            let proved = proved && closed_for.is_none_or(|named_range_loop::NamedRangeLoopShape { provider, source, binding, root, .. }| {
+                let loop_id = crate::type_checking::UnitStatementId::new(self.source_unit, provider);
                 let Some(plan) = self.iterations.get(&loop_id) else { return false; };
                 let Some(state) = checked.next.as_ref() else { return false; };
                 plan.descriptor().source() == self.unit_expression(source)
@@ -454,8 +454,16 @@ impl Checker<'_> {
                 closed_for.map(|_| first_binding).unwrap_or_default(),
                 &mut checked,
             );
-            if let Some((provider, source, observe, binding, root, body_control, consume, moved)) =
-                closed_for
+            if let Some(named_range_loop::NamedRangeLoopShape {
+                provider,
+                source,
+                observe,
+                binding,
+                root,
+                body_control,
+                consume,
+                moved,
+            }) = closed_for
                 && element == observe
                 && let [end] = &self.borrow_results.ends[first_end..]
                 && end.binding() == binding
