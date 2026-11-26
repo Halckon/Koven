@@ -135,10 +135,7 @@ fn convert_diagnostic<'uri>(
     ))
 }
 
-fn primary_span_snippet(
-    sources: &SourceMap,
-    span: lang_frontend::source::Span,
-) -> Option<&str> {
+fn primary_span_snippet(sources: &SourceMap, span: lang_frontend::source::Span) -> Option<&str> {
     let snippet = sources.slice(span).ok()?.trim();
     if snippet.is_empty() || snippet.len() > 60 || snippet.contains(['\n', '\r']) {
         return None;
@@ -297,13 +294,9 @@ mod tests {
         .expect("plain");
         assert_eq!(plain[0][0].message, "unresolved name");
 
-        let enriched = super::convert_unit_diagnostics_with_context(
-            &sources,
-            &[(src, uri)],
-            &[diag],
-            true,
-        )
-        .expect("enriched");
+        let enriched =
+            super::convert_unit_diagnostics_with_context(&sources, &[(src, uri)], &[diag], true)
+                .expect("enriched");
         assert_eq!(enriched[0][0].message, "unresolved name `scaledDistance`");
     }
 }

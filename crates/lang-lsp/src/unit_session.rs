@@ -30,9 +30,9 @@ use crate::{
 
 // The independent cfg(test) manual chain keeps its original direct producer imports.
 #[cfg(test)]
-use crate::diagnostic_adapter::convert_unit_diagnostics;
-#[cfg(test)]
 use crate::definition::UnitDefinitionIndex;
+#[cfg(test)]
+use crate::diagnostic_adapter::convert_unit_diagnostics;
 #[cfg(test)]
 use lang_frontend::{
     diagnostic::Diagnostic, name_resolution::ordered_unit_diagnostics,
@@ -203,11 +203,8 @@ impl UnitSession {
         overlays: BTreeMap<String, Overlay>,
     ) -> Result<UnitUpdate, UnitSessionError> {
         let snapshot = UnitSnapshot::analyze(&self.config, &overlays)?;
-        let publications = snapshot.publications_with_options(
-            &self.config,
-            &overlays,
-            self.enrich_diagnostics,
-        )?;
+        let publications =
+            snapshot.publications_with_options(&self.config, &overlays, self.enrich_diagnostics)?;
         Ok(UnitUpdate {
             overlays,
             snapshot,

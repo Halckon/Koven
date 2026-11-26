@@ -202,7 +202,9 @@ fn collect_ko_files(
     let mut entries = fs::read_dir(dir)
         .map_err(|e| WorkspaceManifestError(format!("failed to read dir {}: {e}", dir.display())))?
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| WorkspaceManifestError(format!("failed to list dir {}: {e}", dir.display())))?;
+        .map_err(|e| {
+            WorkspaceManifestError(format!("failed to list dir {}: {e}", dir.display()))
+        })?;
     entries.sort_by_key(|entry| entry.file_name());
 
     for entry in entries {
@@ -273,9 +275,9 @@ fn hex_val(b: u8) -> Option<u8> {
 }
 
 fn path_to_file_uri(path: &Path) -> Result<String, WorkspaceManifestError> {
-    let text = path.to_str().ok_or_else(|| {
-        WorkspaceManifestError(format!("non-UTF-8 path: {}", path.display()))
-    })?;
+    let text = path
+        .to_str()
+        .ok_or_else(|| WorkspaceManifestError(format!("non-UTF-8 path: {}", path.display())))?;
     let mut encoded = String::from("file://");
     for byte in text.as_bytes() {
         if byte.is_ascii_alphanumeric() || matches!(*byte, b'/' | b'-' | b'_' | b'.' | b'~') {
@@ -341,7 +343,9 @@ mod tests {
 
     #[test]
     fn decodes_percent_encoded_file_uri_with_spaces_and_unicode() {
-        let uri: Uri = "file:///tmp/demo%20%E9%A1%B9%E7%9B%AE".parse().expect("uri");
+        let uri: Uri = "file:///tmp/demo%20%E9%A1%B9%E7%9B%AE"
+            .parse()
+            .expect("uri");
         assert_eq!(
             file_uri_to_path(&uri),
             Some(PathBuf::from("/tmp/demo 项目"))

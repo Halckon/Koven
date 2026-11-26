@@ -228,12 +228,14 @@ fn handle_notification(
     options: ServerOptions,
 ) -> Result<(), NotificationError> {
     match state {
-        SessionState::SingleDocument(documents) => handle_single_document_notification_with_options(
-            connection,
-            notification,
-            documents,
-            options.diagnostic_context,
-        ),
+        SessionState::SingleDocument(documents) => {
+            handle_single_document_notification_with_options(
+                connection,
+                notification,
+                documents,
+                options.diagnostic_context,
+            )
+        }
         SessionState::Unit { session, fallback } => {
             if options.workspace_manifest
                 && let Some(uri) = notification_document_uri(&notification)
@@ -552,7 +554,9 @@ fn single_document_definition_locations(
                 .iter()
                 .find(|source| source.id() == target.source_unit)
                 .ok_or_else(|| {
-                    RequestError::Internal("definition target source is absent from unit".to_owned())
+                    RequestError::Internal(
+                        "definition target source is absent from unit".to_owned(),
+                    )
                 })?;
             if target_source.source_id() != source_id || target.span.source_id() != source_id {
                 return Err(RequestError::Internal(
