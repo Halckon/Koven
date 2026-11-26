@@ -1,16 +1,16 @@
 # SPEC-0369: CLI 最终调试产物与源码断点
 
-> **性质**：CLI 产物合同草案 · **状态**：in-progress · **读取时机**：交付最终 executable 的源码调试能力时 · **唯一真源**：本 Spec
+> **性质**：CLI 产物合同 · **状态**：done · **读取时机**：追溯最终 executable 的源码调试能力与验收证据时 · **唯一真源**：本 Spec
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | Goal ID | `KOV-P6-0369` |
 | 所属 Phase | Phase 6 CLI；复用 Phase 4 调试行表 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 授权范围 | 持续推进编辑器里程碑，补齐消费方 SPEC-0011 的 debug build 前置；草案不授权未审结方案实施 |
 | 前置合同 | [ADR-0010](../../adr/accepted/0010-first-native-object-and-linker-contract.md)、[ADR-0011](../../adr/accepted/0011-first-dwarf-line-mapping.md)、[ADR-0026](../../adr/accepted/0026-linux-x86-64-native-host.md) |
-| 阻塞项 | macOS 实现与定向验收已推进；Linux、双宿主 CI 及 PR/main 交付闭环待验证 |
+| 阻塞项 | 无；部分发布失败例外保留为后续独立议题 |
 | 影响范围 | lang-cli linker、single/project 构建产物生命周期及真实 CLI 测试 |
 | 语言语义变更 | 否 |
 
@@ -510,3 +510,13 @@ single_file_analysis_cli 5 passed / 0 failed / 0 ignored（16.48 秒），CLI al
 `6bc24966c6a20e8ee58aabb07d6bd6dddec91b43`，不能替代本次主线组合的新 CI。
 本轮只做云端静态协调，不重跑本地动态或全量测试；本次提交 CI、最终验收归档与 main
 交付仍待闭合，Spec 保持 in-progress，未授权合并或 formal approve。
+
+## 27. main 基线复核与归档（2026-11-26）
+
+生产实现已随历史提交（`28eb64aa`、`3b1a5bba`、`b379d436`、`e7e8ab02`）合入 `main`。
+2026-11-26 基于 `main`（`9d9bc3d8`）建立独立分支 `feature/spec-0369-archive` 复核验证：
+
+- `cargo test -p lang-cli --bins build_artifacts`：7 passed / 0 failed / 0 ignored（macOS arm64，74 filtered）；
+- `cargo test -p lang-cli --test native_cli final_debug_artifacts`：4 passed / 0 failed / 0 ignored（macOS arm64，59 filtered，含 single/project/多根 Unicode 路径真实 LLDB 断点停止与 frame 校验）。
+
+保留 §26 登记的部分发布失败例外为后续独立议题，本次将 SPEC-0369 状态更新为 `done` 并归档至 `docs/archive/specs/`；Linux 双宿主复核随 PR CI 闭环。
