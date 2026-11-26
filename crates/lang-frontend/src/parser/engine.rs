@@ -32,6 +32,8 @@ mod stops_tests;
 mod tests;
 mod type_ref;
 mod when_boundary;
+#[cfg(kani)]
+mod when_boundary_kani;
 
 use block::unsupported_block_element_kind;
 use boundary::*;

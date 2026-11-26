@@ -1,0 +1,6 @@
+name = "f6_when_boundary"
+version = "0.1.0"
+defaultTargets = ["F6WhenBoundary"]
+
+[[lean_lib]]
+name = "F6WhenBoundary"
