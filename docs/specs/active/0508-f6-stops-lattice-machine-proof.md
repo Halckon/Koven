@@ -1,4 +1,4 @@
-# SPEC-0502：F6 第六片 `Stops` / `TypeStops` / `DeclarationStops` 边界传播格与硬分隔符不屏蔽双轨证明
+# SPEC-0508：F6 第六片 `Stops` / `TypeStops` / `DeclarationStops` 边界传播格与硬分隔符不屏蔽双轨证明
 
 > **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第六片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
@@ -7,7 +7,7 @@
 | 状态 | in-progress |
 | 所属 Phase | Phase 1 局部形式化验证（F6） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
-| 基线 | `main@5680c63a` |
+| 基线 | `main@5680c63a`（同步 `main@c4f040ea` 重编号自原 0502） |
 | 分支 | `feature/spec-0502-f6-stops-lattice-proof` |
 
 本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0500](0500-f6-pratt-precedence-machine-proof.md)，

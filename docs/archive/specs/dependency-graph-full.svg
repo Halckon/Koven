@@ -6,7 +6,7 @@
   </defs>
   <rect width="52896" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="42520" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="21300" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，453 份）</text>
+  <text x="21300" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，455 份）</text>
   <rect x="42624" y="30" width="7936" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="46592" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="50624" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1080,6 +1080,9 @@
   <path d="M 3084 294 C 3084 326, 1764 344, 1764 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 42420 156 C 42420 188, 3348 188, 3348 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3348 312 C 3348 344, 2028 344, 2028 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 3348 312 C 3348 344, 708 656, 708 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2028 468 C 2028 500, 1236 500, 1236 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1236 624 C 1236 656, 708 656, 708 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -3176,33 +3179,43 @@
   <text x="48836" y="105" text-anchor="middle" font-size="13">收口 editors/tre</text>
   <text x="48836" y="123" text-anchor="middle" font-size="13">e-sitter 块与 La</text>
   <text x="48836" y="141" text-anchor="middle" font-size="13">mbda 同行无分隔符语句…</text>
-  <rect x="48980" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49100" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0502</text>
-  <text x="49100" y="105" text-anchor="middle" font-size="13">F6 第六片 Stops /</text>
-  <text x="49100" y="123" text-anchor="middle" font-size="13"> TypeStops / D</text>
-  <text x="49100" y="141" text-anchor="middle" font-size="13">eclarationSto…</text>
+  <rect x="1116" y="532" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1236" y="555" text-anchor="middle" font-size="13">SPEC-0502</text>
+  <text x="1236" y="573" text-anchor="middle" font-size="13">双宿主 Targeted T</text>
+  <text x="1236" y="591" text-anchor="middle" font-size="13">ests 统一启用有限调试符</text>
+  <text x="1236" y="609" text-anchor="middle" font-size="13">号（debug=1）与独立…</text>
+  <rect x="588" y="688" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="711" text-anchor="middle" font-size="13">SPEC-0503</text>
+  <text x="708" y="729" text-anchor="middle" font-size="13">正式 CI 切换 D10 目</text>
+  <text x="708" y="747" text-anchor="middle" font-size="13">录身份与 Scalar Ow</text>
+  <text x="708" y="765" text-anchor="middle" font-size="13">ner 门禁为唯一产物锁多…</text>
+  <rect x="48980" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49100" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0504</text>
+  <text x="49100" y="105" text-anchor="middle" font-size="13">F5 表面语法增量门禁路径触</text>
+  <text x="49100" y="123" text-anchor="middle" font-size="13">发轻量 CI 接入</text>
   <rect x="49244" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49364" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0503</text>
-  <text x="49364" y="105" text-anchor="middle" font-size="13">F6 第七片 LambdaH</text>
-  <text x="49364" y="123" text-anchor="middle" font-size="13">eaderIndex 单遍流</text>
-  <text x="49364" y="141" text-anchor="middle" font-size="13">式 DFA 等价性与线性步…</text>
-  <rect x="49508" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49628" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0504</text>
-  <text x="49628" y="105" text-anchor="middle" font-size="13">F5 表面语法增量门禁路径触</text>
-  <text x="49628" y="123" text-anchor="middle" font-size="13">发轻量 CI 接入</text>
+  <text x="49364" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0505</text>
+  <text x="49364" y="105" text-anchor="middle" font-size="13">F6 第八片 validat</text>
+  <text x="49364" y="123" text-anchor="middle" font-size="13">e_lexemes 词法流连</text>
+  <text x="49364" y="141" text-anchor="middle" font-size="13">续划分、严格单调与唯一 E…</text>
+  <rect x="49508" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49628" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0506</text>
+  <text x="49628" y="105" text-anchor="middle" font-size="13">F6 第九片 diagnos</text>
+  <text x="49628" y="123" text-anchor="middle" font-size="13">tic_anchor_pre</text>
+  <text x="49628" y="141" text-anchor="middle" font-size="13">fix 前缀和单调性与区间…</text>
   <rect x="49772" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49892" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0505</text>
-  <text x="49892" y="105" text-anchor="middle" font-size="13">F6 第八片 validat</text>
-  <text x="49892" y="123" text-anchor="middle" font-size="13">e_lexemes 词法流连</text>
-  <text x="49892" y="141" text-anchor="middle" font-size="13">续划分、严格单调与唯一 E…</text>
+  <text x="49892" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0507</text>
+  <text x="49892" y="105" text-anchor="middle" font-size="13">F6 第十片 StrictC</text>
+  <text x="49892" y="123" text-anchor="middle" font-size="13">allTrialIndex </text>
+  <text x="49892" y="141" text-anchor="middle" font-size="13">索引单调性、反向 DP 路…</text>
   <rect x="50036" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="50156" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0506</text>
-  <text x="50156" y="105" text-anchor="middle" font-size="13">F6 第九片 diagnos</text>
-  <text x="50156" y="123" text-anchor="middle" font-size="13">tic_anchor_pre</text>
-  <text x="50156" y="141" text-anchor="middle" font-size="13">fix 前缀和单调性与区间…</text>
+  <text x="50156" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0508</text>
+  <text x="50156" y="105" text-anchor="middle" font-size="13">F6 第六片 Stops /</text>
+  <text x="50156" y="123" text-anchor="middle" font-size="13"> TypeStops / D</text>
+  <text x="50156" y="141" text-anchor="middle" font-size="13">eclarationSto…</text>
   <rect x="50300" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="50420" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0507</text>
-  <text x="50420" y="105" text-anchor="middle" font-size="13">F6 第十片 StrictC</text>
-  <text x="50420" y="123" text-anchor="middle" font-size="13">allTrialIndex </text>
-  <text x="50420" y="141" text-anchor="middle" font-size="13">索引单调性、反向 DP 路…</text>
+  <text x="50420" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0509</text>
+  <text x="50420" y="105" text-anchor="middle" font-size="13">F6 第七片 LambdaH</text>
+  <text x="50420" y="123" text-anchor="middle" font-size="13">eaderIndex 单遍流</text>
+  <text x="50420" y="141" text-anchor="middle" font-size="13">式 DFA 等价性与线性步…</text>
 </svg>

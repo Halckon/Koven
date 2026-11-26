@@ -1,5 +1,7 @@
 # 完成 Specs
 
+- [SPEC-0503](0503-d10-and-scalar-multicore-ci-gate.md)：D10 目录身份和 Scalar Owner 正式门禁切换为多核执行器，两宿主实跑 17 条门禁，[PR #476 CI](https://github.com/Halckon/Koven/actions/runs/45754138857) 全绿。
+- [SPEC-0502](0502-macos-limited-debug-ci.md)：双宿主 `Targeted Tests*` 三路并行作业统一启用 `CARGO_PROFILE_*_DEBUG=1`（`limited`）与 `v1-test-debug1` 缓存隔离，双宿主实测验收见 PR #468（run `45628362539`：macOS 首次冷缓存 `Targeted Tests` `32m06s → 19m29s` / `-39.3%`）。
 - [SPEC-0497](0497-parallel-targeted-tests-ci.md)：正式 `ci.yml` `Targeted Tests` 拆分为 `test`、`test-d10`、`test-e2` 三路双宿主并行矩阵作业（零步骤删减，fail-closed 接入 `check_ci_results.py`、`pr_ci_reuse.py` 与镜像发布门禁），双宿主验收见 PR #466（runs `45602893212`、`45611921974`：Linux 关键路径 `16m04s`、macOS 关键路径执行 `28m21s`）。
 - [SPEC-0496](0496-formal-e2-ci-gate-switch.md)：正式 `ci.yml` 两步 E2 门禁切换为 `--mode candidate --candidate-jobs default --formal-gate`（含失败诊断输出与完整 argv 契约），双宿主正式 CI 验收见 PR #465（run `45582820903`：Linux E2 `-44.4%`、macOS E2 `-29.6%`）。
 - [SPEC-0495](0495-e2-two-source-ci-shadow-pilot.md)：E2 两源 Unit（5 配置 / 179 条目）与 E2 replay（2 配置 / 14 条目）可撤回双宿主冷/热影子试点与 8 项 P2 审阅修复，验收见 PR #463（runs `45392390454`、`45414108436`、`45419926580`、`45517415215`、`45529296024`、`45529296052`）。
@@ -24,7 +26,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 453 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 454 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，

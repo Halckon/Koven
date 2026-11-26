@@ -1,4 +1,4 @@
-# SPEC-0503：F6 第七片 `LambdaHeaderIndex` 单遍流式 DFA 等价性与线性步数双轨证明
+# SPEC-0509：F6 第七片 `LambdaHeaderIndex` 单遍流式 DFA 等价性与线性步数双轨证明
 
 > **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第七片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
@@ -7,10 +7,10 @@
 | 状态 | in-progress |
 | 所属 Phase | Phase 1 局部形式化验证（F6） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
-| 基线 | `feature/spec-0502-f6-stops-lattice-proof@e68e05b0` |
+| 基线 | `feature/spec-0502-f6-stops-lattice-proof@e68e05b0`（同步 `main@c4f040ea` 重编号自原 0503） |
 | 分支 | `feature/spec-0502-f6-stops-lattice-proof` |
 
-本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0502](0502-f6-stops-lattice-machine-proof.md)，
+本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0508](0508-f6-stops-lattice-machine-proof.md)，
 对 [lambda_trial.rs](../../../crates/lang-frontend/src/parser/lambda_trial.rs) 中的单遍无回溯 `LambdaHeaderIndex` DFA 交付 **Lean 4（无限长流等价性与线性步数定理）+ Kani（有界生产 Rust 符号检验）** 双轨证明，并接入 `.github/workflows/parser-formal-f6.yml`。
 不改变生产解析行为或公开 Rust API，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 

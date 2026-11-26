@@ -1,5 +1,5 @@
 /-
-  SPEC-0503 (F6 seventh slice): Machine-checked unbounded model proofs for
+  SPEC-0509 (F6 seventh slice): Machine-checked unbounded model proofs for
   `LambdaHeaderIndex` single-pass streaming DFA equivalence, bounds, and linear
   transition count (`crates/lang-frontend/src/parser/lambda_trial.rs`).
 

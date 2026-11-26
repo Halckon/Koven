@@ -1,4 +1,4 @@
-//! SPEC-0502 (F6 sixth slice, Kani track): Direct-Rust symbolic verification
+//! SPEC-0508 (F6 sixth slice, Kani track): Direct-Rust symbolic verification
 //! harnesses for `Stops`, `TypeStops`, and `DeclarationStops` boundary propagation
 //! and hard-delimiter non-shielding in `boundary.rs`.
 //!

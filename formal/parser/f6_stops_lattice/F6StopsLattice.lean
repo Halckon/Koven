@@ -1,5 +1,5 @@
 /-
-  SPEC-0502 (F6 sixth slice): Machine-checked algebraic proofs for the
+  SPEC-0508 (F6 sixth slice): Machine-checked algebraic proofs for the
   Expression / TypeRef / Declaration boundary propagation lattice
   (`Stops`, `TypeStops`, `DeclarationStops`) in
   `crates/lang-frontend/src/parser/engine/boundary.rs`.

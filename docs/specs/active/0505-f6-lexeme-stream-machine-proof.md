@@ -10,7 +10,7 @@
 | 基线 | `feature/spec-0502-f6-stops-lattice-proof@dd2a5deb` |
 | 分支 | `feature/spec-0502-f6-stops-lattice-proof` |
 
-本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md)（放电 §2.2 严格单调前提及四入口公共输入不变量）与 [SPEC-0503](0503-f6-lambda-trial-machine-proof.md)，
+本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md)（放电 §2.2 严格单调前提及四入口公共输入不变量）与 [SPEC-0509](0509-f6-lambda-trial-machine-proof.md)，
 对 [engine.rs](../../../crates/lang-frontend/src/parser/engine.rs) 中全部 4 个 Parser 入口共用的 `validate_lexemes` 词法流校验器交付 **Lean 4（无限长流划分与严格单调定理）+ Kani（有界生产 Rust 符号检验）** 双轨证明，并接入 `.github/workflows/parser-formal-f6.yml`。
 不改变生产解析行为或公开 Rust API，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 

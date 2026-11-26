@@ -6,7 +6,7 @@
   </defs>
   <rect width="10656" height="400" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，453 份）</text>
+  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，455 份）</text>
   <rect x="384" y="30" width="7936" height="298" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="4352" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="8384" y="186" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -172,36 +172,36 @@
   <text x="6596" y="105" text-anchor="middle" font-size="13">收口 editors/tre</text>
   <text x="6596" y="123" text-anchor="middle" font-size="13">e-sitter 块与 La</text>
   <text x="6596" y="141" text-anchor="middle" font-size="13">mbda 同行无分隔符语句…</text>
-  <rect x="6740" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="6860" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0502</text>
-  <text x="6860" y="105" text-anchor="middle" font-size="13">F6 第六片 Stops /</text>
-  <text x="6860" y="123" text-anchor="middle" font-size="13"> TypeStops / D</text>
-  <text x="6860" y="141" text-anchor="middle" font-size="13">eclarationSto…</text>
+  <rect x="6740" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="6860" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0504</text>
+  <text x="6860" y="105" text-anchor="middle" font-size="13">F5 表面语法增量门禁路径触</text>
+  <text x="6860" y="123" text-anchor="middle" font-size="13">发轻量 CI 接入</text>
   <rect x="7004" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7124" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0503</text>
-  <text x="7124" y="105" text-anchor="middle" font-size="13">F6 第七片 LambdaH</text>
-  <text x="7124" y="123" text-anchor="middle" font-size="13">eaderIndex 单遍流</text>
-  <text x="7124" y="141" text-anchor="middle" font-size="13">式 DFA 等价性与线性步…</text>
-  <rect x="7268" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7388" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0504</text>
-  <text x="7388" y="105" text-anchor="middle" font-size="13">F5 表面语法增量门禁路径触</text>
-  <text x="7388" y="123" text-anchor="middle" font-size="13">发轻量 CI 接入</text>
+  <text x="7124" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0505</text>
+  <text x="7124" y="105" text-anchor="middle" font-size="13">F6 第八片 validat</text>
+  <text x="7124" y="123" text-anchor="middle" font-size="13">e_lexemes 词法流连</text>
+  <text x="7124" y="141" text-anchor="middle" font-size="13">续划分、严格单调与唯一 E…</text>
+  <rect x="7268" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="7388" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0506</text>
+  <text x="7388" y="105" text-anchor="middle" font-size="13">F6 第九片 diagnos</text>
+  <text x="7388" y="123" text-anchor="middle" font-size="13">tic_anchor_pre</text>
+  <text x="7388" y="141" text-anchor="middle" font-size="13">fix 前缀和单调性与区间…</text>
   <rect x="7532" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7652" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0505</text>
-  <text x="7652" y="105" text-anchor="middle" font-size="13">F6 第八片 validat</text>
-  <text x="7652" y="123" text-anchor="middle" font-size="13">e_lexemes 词法流连</text>
-  <text x="7652" y="141" text-anchor="middle" font-size="13">续划分、严格单调与唯一 E…</text>
+  <text x="7652" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0507</text>
+  <text x="7652" y="105" text-anchor="middle" font-size="13">F6 第十片 StrictC</text>
+  <text x="7652" y="123" text-anchor="middle" font-size="13">allTrialIndex </text>
+  <text x="7652" y="141" text-anchor="middle" font-size="13">索引单调性、反向 DP 路…</text>
   <rect x="7796" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="7916" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0506</text>
-  <text x="7916" y="105" text-anchor="middle" font-size="13">F6 第九片 diagnos</text>
-  <text x="7916" y="123" text-anchor="middle" font-size="13">tic_anchor_pre</text>
-  <text x="7916" y="141" text-anchor="middle" font-size="13">fix 前缀和单调性与区间…</text>
+  <text x="7916" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0508</text>
+  <text x="7916" y="105" text-anchor="middle" font-size="13">F6 第六片 Stops /</text>
+  <text x="7916" y="123" text-anchor="middle" font-size="13"> TypeStops / D</text>
+  <text x="7916" y="141" text-anchor="middle" font-size="13">eclarationSto…</text>
   <rect x="8060" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="8180" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0507</text>
-  <text x="8180" y="105" text-anchor="middle" font-size="13">F6 第十片 StrictC</text>
-  <text x="8180" y="123" text-anchor="middle" font-size="13">allTrialIndex </text>
-  <text x="8180" y="141" text-anchor="middle" font-size="13">索引单调性、反向 DP 路…</text>
+  <text x="8180" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0509</text>
+  <text x="8180" y="105" text-anchor="middle" font-size="13">F6 第七片 LambdaH</text>
+  <text x="8180" y="123" text-anchor="middle" font-size="13">eaderIndex 单遍流</text>
+  <text x="8180" y="141" text-anchor="middle" font-size="13">式 DFA 等价性与线性步…</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
-  <text x="180" y="105" text-anchor="middle" font-size="13">archive，453 份</text>
+  <text x="180" y="105" text-anchor="middle" font-size="13">archive，455 份</text>
 </svg>
