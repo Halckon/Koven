@@ -10,7 +10,7 @@
 | 基线 | `feature/spec-0502-f6-stops-lattice-proof@7ff523d8` |
 | 分支 | `feature/spec-0502-f6-stops-lattice-proof` |
 
-本 Spec 承接 [SPEC-0480](../../specs/active/0480-surface-syntax-incremental-gate.md) 与 [SPEC-0494](../../archive/specs/0494-f5-syntax-gate-script.md)，
+本 Spec 承接 [SPEC-0480](0480-surface-syntax-incremental-gate.md) 与 [SPEC-0494](../../archive/specs/0494-f5-syntax-gate-script.md)，
 新增独立路径触发轻量 workflow [.github/workflows/parser-formal-f5.yml](../../../.github/workflows/parser-formal-f5.yml)，
 将 `scripts/check_syntax_gate.py --self-check-template`、`scripts/tests/test_check_syntax_gate.py` 单测与 PR 变更提案/Spec 增量门禁校验接入 GitHub Actions（先 advisory，对无关 PR 零开销）。
 不修改生产 Rust 代码、主 `ci.yml` 或语言规范。

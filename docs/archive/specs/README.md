@@ -8,6 +8,9 @@
 - [SPEC-504](0504-f5-syntax-gate-ci.md)：F5 表面语法门禁，按 PR #477 的 [F5 作业](https://github.com/Halckon/Koven/actions/runs/45797758882/job/139832703686)验收归档。
 - [SPEC-0503](0503-d10-and-scalar-multicore-ci-gate.md)：D10 目录身份和 Scalar Owner 正式门禁切换为多核执行器，两宿主实跑 17 条门禁，[PR #476 CI](https://github.com/Halckon/Koven/actions/runs/45754138857) 全绿。
 - [SPEC-0502](0502-macos-limited-debug-ci.md)：双宿主 `Targeted Tests*` 三路并行作业统一启用 `CARGO_PROFILE_*_DEBUG=1`（`limited`）与 `v1-test-debug1` 缓存隔离，双宿主实测验收见 PR #468（run `45628362539`：macOS 首次冷缓存 `Targeted Tests` `32m06s → 19m29s` / `-39.3%`）。
+- [SPEC-0500](0500-f6-pratt-precedence-machine-proof.md)：F6 第五片 Pratt 运算符优先级与非结合链检出，经 PR #470 合入并按 PR #477 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)全量复验归档。
+- [SPEC-0499](0499-f6-adjacent-poison-machine-proof.md)：F6 第四片 `ElsePoisonTail` 缓存可靠与同行花括号保留，经 PR #470 合入并按 PR #477 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)全量复验归档。
+- [SPEC-0498](0498-f6-group-owners-machine-proof.md)：F6 第三片 `GroupOwners` 词法深度与 `terminal_owner_events` 栈平衡，经 PR #470 合入并按 PR #477 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)全量复验归档。
 - [SPEC-0497](0497-parallel-targeted-tests-ci.md)：正式 `ci.yml` `Targeted Tests` 拆分为 `test`、`test-d10`、`test-e2` 三路双宿主并行矩阵作业（零步骤删减，fail-closed 接入 `check_ci_results.py`、`pr_ci_reuse.py` 与镜像发布门禁），双宿主验收见 PR #466（runs `45602893212`、`45611921974`：Linux 关键路径 `16m04s`、macOS 关键路径执行 `28m21s`）。
 - [SPEC-0496](0496-formal-e2-ci-gate-switch.md)：正式 `ci.yml` 两步 E2 门禁切换为 `--mode candidate --candidate-jobs default --formal-gate`（含失败诊断输出与完整 argv 契约），双宿主正式 CI 验收见 PR #465（run `45582820903`：Linux E2 `-44.4%`、macOS E2 `-29.6%`）。
 - [SPEC-0495](0495-e2-two-source-ci-shadow-pilot.md)：E2 两源 Unit（5 配置 / 179 条目）与 E2 replay（2 配置 / 14 条目）可撤回双宿主冷/热影子试点与 8 项 P2 审阅修复，验收见 PR #463（runs `45392390454`、`45414108436`、`45419926580`、`45517415215`、`45529296024`、`45529296052`）。
@@ -15,7 +18,9 @@
 - [SPEC-0493](0493-f4b-tree-sitter-difftest-ci.md)：F4b 完整文件 Tree-sitter 差分路径触发轻量 CI 接入，验收见 PR #461（run `45385946851` / `45385947066`）。
 - [SPEC-0492](0492-f6-ordinary-groups-machine-proof.md)：F6 第二片 `OrdinaryGroups` 与 `confirmed_closer` 双轨机器证明（Lean 4 14 条定理 / 共 18 条 + Kani 4 个 harness / 共 10 个），验收见 PR #461（run `45385947068` / `45385947066`）。
 - [SPEC-0491](0491-tree-sitter-remaining-drift-closure.md)：收口 `editors/tree-sitter` 剩余已知文法漂移（TS-01 / TS-02 / TS-04；TS-05 同行无分隔符语句拒绝保留为显式开放项），验收见 PR #461（run `45385946851` / `45385947066`）。
+- [SPEC-0490](0490-f6-angle-group-machine-proof.md)：F6 首片 `angle_group_closers` 双轨机器证明与轻量 CI，按 PR #477 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)全量复验归档。
 - [SPEC-0483](0483-f3d-reference-difftest.md)：F3d 与 SPEC-0479 独立参考解析差分，双宿主验收见 PR #455。
+- [SPEC-0480](0480-surface-syntax-incremental-gate.md)：F5 新表面语法增量门禁接入提案与 Spec 模板，按 PR #477 [F5 作业](https://github.com/Halckon/Koven/actions/runs/45797758882/job/139832703686)验收归档。
 - [SPEC-0466](0466-name-resolver-expression-domain.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
 - [SPEC-0467](0467-type-container-and-lambda-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
 - [SPEC-0468](0468-lexer-and-call-recovery-test-domains.md)：#439按精确代码CI43728630323与逐片证据有界验收归档；剩两例外后续治理，归档头CI/合并状态见PR。
@@ -32,7 +37,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 461 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 466 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
