@@ -42,10 +42,21 @@ impl From<PositionMappingError> for DiagnosticMappingError {
 }
 
 /// 按 primary source 分组转换 unit diagnostics；related label 使用自身 source URI。
+#[cfg(test)]
 pub(crate) fn convert_unit_diagnostics(
     sources: &SourceMap,
     uris: &[(SourceId, Uri)],
     diagnostics: &[Diagnostic],
+) -> Result<Vec<Vec<lsp_types::Diagnostic>>, DiagnosticMappingError> {
+    convert_unit_diagnostics_with_context(sources, uris, diagnostics, false)
+}
+
+/// 同 `convert_unit_diagnostics`，`enrich_context = true` 时在消息首行附加出错源码片段（显式 opt-in）。
+pub(crate) fn convert_unit_diagnostics_with_context(
+    sources: &SourceMap,
+    uris: &[(SourceId, Uri)],
+    diagnostics: &[Diagnostic],
+    enrich_context: bool,
 ) -> Result<Vec<Vec<lsp_types::Diagnostic>>, DiagnosticMappingError> {
     let mut grouped = vec![Vec::new(); uris.len()];
     for diagnostic in diagnostics {
@@ -54,11 +65,16 @@ pub(crate) fn convert_unit_diagnostics(
             .iter()
             .position(|(candidate, _)| *candidate == source)
             .ok_or(DiagnosticMappingError::UnknownSource(source))?;
-        let converted = convert_diagnostic(sources, diagnostic, |source| {
-            uris.iter()
-                .find(|(candidate, _)| *candidate == source)
-                .map(|(_, uri)| uri)
-        })?;
+        let converted = convert_diagnostic(
+            sources,
+            diagnostic,
+            |source| {
+                uris.iter()
+                    .find(|(candidate, _)| *candidate == source)
+                    .map(|(_, uri)| uri)
+            },
+            enrich_context,
+        )?;
         grouped[index].push(converted);
     }
     Ok(grouped)
@@ -68,11 +84,20 @@ fn convert_diagnostic<'uri>(
     sources: &SourceMap,
     diagnostic: &Diagnostic,
     uri_for_source: impl Fn(SourceId) -> Option<&'uri Uri>,
+    enrich_context: bool,
 ) -> Result<lsp_types::Diagnostic, DiagnosticMappingError> {
     let _primary_uri = uri_for_source(diagnostic.primary_span().source_id()).ok_or(
         DiagnosticMappingError::UnknownSource(diagnostic.primary_span().source_id()),
     )?;
     let mut message = diagnostic.message().to_owned();
+    if enrich_context
+        && let Some(snippet) = primary_span_snippet(sources, diagnostic.primary_span())
+        && !message.contains(snippet)
+    {
+        message.push_str(" `");
+        message.push_str(snippet);
+        message.push('`');
+    }
     let mut related = Vec::new();
     for detail in diagnostic.details() {
         match detail {
@@ -108,6 +133,17 @@ fn convert_diagnostic<'uri>(
         (!related.is_empty()).then_some(related),
         None,
     ))
+}
+
+fn primary_span_snippet(
+    sources: &SourceMap,
+    span: lang_frontend::source::Span,
+) -> Option<&str> {
+    let snippet = sources.slice(span).ok()?.trim();
+    if snippet.is_empty() || snippet.len() > 60 || snippet.contains(['\n', '\r']) {
+        return None;
+    }
+    Some(snippet)
 }
 
 #[cfg(test)]
@@ -230,5 +266,44 @@ mod tests {
             .expect("related information");
         assert_eq!(related[0].location.uri, provider_uri);
         assert_eq!(related[0].location.range.start, Position::new(0, 4));
+    }
+
+    #[test]
+    fn enrich_context_appends_primary_span_snippet_only_when_enabled() {
+        let mut sources = SourceMap::new();
+        let src = sources
+            .add_source("file:///demo.ko", "fun main() { scaledDistance() }")
+            .expect("source");
+        let start = "fun main() { ".len();
+        let end = start + "scaledDistance".len();
+        let primary = sources.span(src, start, end).expect("span");
+        let catalog = codes::catalog().expect("catalog");
+        let diag = Diagnostic::new(
+            &sources,
+            Severity::Error,
+            catalog.resolve("L0080").expect("code"),
+            "unresolved name",
+            primary,
+        )
+        .expect("diag");
+        let uri: Uri = "file:///demo.ko".parse().expect("uri");
+
+        let plain = super::convert_unit_diagnostics_with_context(
+            &sources,
+            &[(src, uri.clone())],
+            std::slice::from_ref(&diag),
+            false,
+        )
+        .expect("plain");
+        assert_eq!(plain[0][0].message, "unresolved name");
+
+        let enriched = super::convert_unit_diagnostics_with_context(
+            &sources,
+            &[(src, uri)],
+            &[diag],
+            true,
+        )
+        .expect("enriched");
+        assert_eq!(enriched[0][0].message, "unresolved name `scaledDistance`");
     }
 }

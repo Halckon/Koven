@@ -22,13 +22,15 @@ use lsp_types::{Location, Position, Uri};
 
 use crate::{
     definition::DefinitionIndexError,
-    diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics},
+    diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics_with_context},
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
     unit_analysis_snapshot::{UnitAnalysisSnapshot, UnitAnalysisSnapshotError},
 };
 
 // The independent cfg(test) manual chain keeps its original direct producer imports.
+#[cfg(test)]
+use crate::diagnostic_adapter::convert_unit_diagnostics;
 #[cfg(test)]
 use crate::definition::UnitDefinitionIndex;
 #[cfg(test)]
@@ -62,23 +64,46 @@ pub(crate) struct UnitSession {
     config: SourceSetConfig,
     overlays: BTreeMap<String, Overlay>,
     snapshot: UnitSnapshot,
+    enrich_diagnostics: bool,
 }
 
 impl UnitSession {
     /// 从已验证 base 构造首个 snapshot。
+    #[allow(dead_code)]
     pub(crate) fn new(config: SourceSetConfig) -> Result<Self, UnitSessionError> {
+        Self::new_with_options(config, false)
+    }
+
+    /// 从已验证 base 构造首个 snapshot，可选开启诊断源码片段上下文。
+    pub(crate) fn new_with_options(
+        config: SourceSetConfig,
+        enrich_diagnostics: bool,
+    ) -> Result<Self, UnitSessionError> {
         let overlays = BTreeMap::new();
         let snapshot = UnitSnapshot::analyze(&config, &overlays)?;
         Ok(Self {
             config,
             overlays,
             snapshot,
+            enrich_diagnostics,
         })
+    }
+
+    /// 判断 URI 是否属于当前 source-set base。
+    pub(crate) fn contains_uri(&self, uri: &Uri) -> bool {
+        self.config
+            .sources()
+            .iter()
+            .any(|source| source.uri().as_str() == uri.as_str())
     }
 
     /// 返回首个 base-only publication 集合。
     pub(crate) fn publications(&self) -> Result<Vec<UnitPublication>, UnitSessionError> {
-        self.snapshot.publications(&self.config, &self.overlays)
+        self.snapshot.publications_with_options(
+            &self.config,
+            &self.overlays,
+            self.enrich_diagnostics,
+        )
     }
 
     /// 为已知、尚未打开的 URI 准备 overlay open。
@@ -178,7 +203,11 @@ impl UnitSession {
         overlays: BTreeMap<String, Overlay>,
     ) -> Result<UnitUpdate, UnitSessionError> {
         let snapshot = UnitSnapshot::analyze(&self.config, &overlays)?;
-        let publications = snapshot.publications(&self.config, &overlays)?;
+        let publications = snapshot.publications_with_options(
+            &self.config,
+            &overlays,
+            self.enrich_diagnostics,
+        )?;
         Ok(UnitUpdate {
             overlays,
             snapshot,
@@ -271,10 +300,20 @@ impl UnitSnapshot {
         })
     }
 
+    #[cfg(test)]
     fn publications(
         &self,
         config: &SourceSetConfig,
         overlays: &BTreeMap<String, Overlay>,
+    ) -> Result<Vec<UnitPublication>, UnitSessionError> {
+        self.publications_with_options(config, overlays, false)
+    }
+
+    fn publications_with_options(
+        &self,
+        config: &SourceSetConfig,
+        overlays: &BTreeMap<String, Overlay>,
+        enrich_diagnostics: bool,
     ) -> Result<Vec<UnitPublication>, UnitSessionError> {
         let uris = self
             .source_ids
@@ -282,10 +321,11 @@ impl UnitSnapshot {
             .copied()
             .zip(config.sources().iter().map(|source| source.uri().clone()))
             .collect::<Vec<_>>();
-        let diagnostics = convert_unit_diagnostics(
+        let diagnostics = convert_unit_diagnostics_with_context(
             self.analysis.name_snapshot().sources(),
             &uris,
             self.analysis.diagnostics(),
+            enrich_diagnostics,
         )?;
         Ok(config
             .sources()
