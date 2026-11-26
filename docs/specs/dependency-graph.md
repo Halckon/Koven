@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 454 份"))
+ARCH(("已完成<br/>archive 455 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -36,7 +36,6 @@ subgraph Gactive["现行 active"]
   S0499["S0499<br/>F6 第四片 ElsePoisonTail 缓存可靠与同行花括号保留双轨证明"]
   S0500["S0500<br/>F6 第五片 Pratt 运算符优先级、结合律与非结合链检出双轨证明"]
   S0501["S0501<br/>收口 editors/tree-sitter 块与 Lambda 同行无分隔符语句漂移（TS-05 闭环）"]
-  S0503["S0503<br/>正式 CI 切换 D10 目录身份与 Scalar Owner 门禁为唯一产物锁多核执行器"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -60,7 +59,6 @@ ARCH --> S0338
 ARCH --> S0339
 ARCH --> S0340
 ARCH --> S0341
-ARCH --> S0503
 ```
 
 ## 节点链接
@@ -93,7 +91,6 @@ ARCH --> S0503
 | SPEC-0499 | active | [0499-f6-adjacent-poison-machine-proof.md](active/0499-f6-adjacent-poison-machine-proof.md) |
 | SPEC-0500 | active | [0500-f6-pratt-precedence-machine-proof.md](active/0500-f6-pratt-precedence-machine-proof.md) |
 | SPEC-0501 | active | [0501-ts05-block-separator-closure.md](active/0501-ts05-block-separator-closure.md) |
-| SPEC-0503 | active | [0503-d10-and-scalar-multicore-ci-gate.md](active/0503-d10-and-scalar-multicore-ci-gate.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -102,4 +99,4 @@ ARCH --> S0503
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（454 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（455 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
