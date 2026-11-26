@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Cache elan and Lean 4 toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.elan
@@ -387,7 +387,7 @@ jobs:
         with:
           toolchain: '1.96.0'
       - name: Cache Kani 0.68.0 installation
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.kani
