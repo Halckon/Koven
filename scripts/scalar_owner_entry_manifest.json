@@ -17,6 +17,7 @@
       "expected_features": [],
       "entries": [
         {
+          "global_index": 0,
           "test_name": "native_tests::boxed_enum_tests::unit_source::owner_multi_root_header_tests::counter_boundary::scalar_entry::ci_only_scalar_entry_rejects_actual_source_transport_and_escape",
           "exact": true,
           "ignored": true,
@@ -24,6 +25,7 @@
           "expected_failure_substrings": []
         },
         {
+          "global_index": 1,
           "test_name": "native_tests::boxed_enum_tests::unit_source::owner_multi_root_header_tests::counter_boundary::scalar_entry::ci_only_concat_scalar_entry_rejects_cleanup_and_diamond_corruption",
           "exact": true,
           "ignored": true,

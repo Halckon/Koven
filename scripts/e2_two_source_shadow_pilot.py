@@ -252,6 +252,14 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
         for entry in entries:
             if not isinstance(entry, dict):
                 raise ShadowPilotError("manifest_invalid", f"test entry must be an object, got {type(entry).__name__}", config_id=cid)
+            gidx = entry.get("global_index")
+            if isinstance(gidx, bool) or not isinstance(gidx, int) or gidx != total:
+                raise ShadowPilotError(
+                    "manifest_invalid",
+                    f"entry global_index must be {total}, got {gidx!r}",
+                    config_id=cid,
+                    test_name=entry.get("test_name") if isinstance(entry.get("test_name"), str) else None,
+                )
             tname = entry.get("test_name")
             if not isinstance(tname, str) or not tname:
                 raise ShadowPilotError("manifest_invalid", "empty test_name", config_id=cid)
