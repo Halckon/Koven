@@ -809,7 +809,7 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
         return shlex.split(joined)
 
     @classmethod
-    def assert_formal_ci_e2_steps(cls, formal: str) -> None:
+    def assert_formal_ci_e2_steps(cls, formal: str, step_names: tuple[str, ...] | None = None) -> None:
         allowed_steps = {
             "Experimental E2 replay faults (CI only)": (
                 [
@@ -880,7 +880,9 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
                 ["bash", "scripts/check_scalar_owner_entry_ci.sh"],
             ),
         }
-        for step_name, allowed_argvs in allowed_steps.items():
+        selected = allowed_steps.keys() if step_names is None else step_names
+        for step_name in selected:
+            allowed_argvs = allowed_steps[step_name]
             step_body = cls._extract_step_body(formal, step_name)
             if re.search(r"(?m)^        continue-on-error:", step_body):
                 raise AssertionError(f"formal CI step {step_name!r} must not set continue-on-error")
