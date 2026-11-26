@@ -60,8 +60,8 @@ class CiDebugProfileTests(unittest.TestCase):
                         'python3 scripts/check_native_sanitizers.py',
                         'python3 scripts/check_generated_owners.py'):
             self.assertIn(command, self.job)
-        self.assertIn('bash scripts/check_d10_catalog_identity_ci.sh', self.test_jobs['test-d10'])
-        self.assertIn('bash scripts/check_scalar_owner_entry_ci.sh', self.test_jobs['test-d10'])
+        self.assertIn('--manifest scripts/d10_catalog_identity_manifest.json', self.test_jobs['test-d10'])
+        self.assertIn('--manifest scripts/scalar_owner_entry_manifest.json', self.test_jobs['test-d10'])
         self.assertIn('--manifest scripts/e2_replay_manifest.json', self.test_jobs['test-e2'])
         self.assertIn('--manifest scripts/e2_two_source_unit_manifest.json', self.test_jobs['test-e2'])
         summary = self.workflow.split('\n  ci-passed:\n', 1)[1]

@@ -1080,7 +1080,9 @@
   <path d="M 3084 294 C 3084 326, 1764 344, 1764 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 42420 156 C 42420 188, 3348 188, 3348 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3348 312 C 3348 344, 2028 344, 2028 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 3468 266 C 23056 266, 23056 734, 42644 734" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 468 C 2028 500, 1236 500, 1236 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1356 578 C 22000 578, 22000 734, 42644 734" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -3182,4 +3184,9 @@
   <text x="1236" y="573" text-anchor="middle" font-size="13">双宿主 Targeted T</text>
   <text x="1236" y="591" text-anchor="middle" font-size="13">ests 统一启用有限调试符</text>
   <text x="1236" y="609" text-anchor="middle" font-size="13">号（debug=1）与独立…</text>
+  <rect x="42644" y="688" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="42764" y="711" text-anchor="middle" font-size="13" font-weight="600">SPEC-0503</text>
+  <text x="42764" y="729" text-anchor="middle" font-size="13">正式 CI 切换 D10 目</text>
+  <text x="42764" y="747" text-anchor="middle" font-size="13">录身份与 Scalar Ow</text>
+  <text x="42764" y="765" text-anchor="middle" font-size="13">ner 门禁为唯一产物锁多…</text>
 </svg>

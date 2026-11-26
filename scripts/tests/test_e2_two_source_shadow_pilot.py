@@ -845,6 +845,40 @@ class ShadowWorkflowStaticContracts(unittest.TestCase):
                 ],
                 ["bash", "scripts/check_e2_two_source_unit_ci.sh"],
             ),
+            "Independent D10 catalog identity controls (CI only)": (
+                [
+                    "python3",
+                    "scripts/e2_two_source_shadow_pilot.py",
+                    "run",
+                    "--manifest",
+                    "scripts/d10_catalog_identity_manifest.json",
+                    "--mode",
+                    "candidate",
+                    "--candidate-jobs",
+                    "default",
+                    "--formal-gate",
+                    "--artifacts",
+                    "$RUNNER_TEMP/koven-d10-catalog-identity",
+                ],
+                ["bash", "scripts/check_d10_catalog_identity_ci.sh"],
+            ),
+            "Verify scalar owner entry corruption fails independently": (
+                [
+                    "python3",
+                    "scripts/e2_two_source_shadow_pilot.py",
+                    "run",
+                    "--manifest",
+                    "scripts/scalar_owner_entry_manifest.json",
+                    "--mode",
+                    "candidate",
+                    "--candidate-jobs",
+                    "default",
+                    "--formal-gate",
+                    "--artifacts",
+                    "$RUNNER_TEMP/koven-scalar-owner-entry",
+                ],
+                ["bash", "scripts/check_scalar_owner_entry_ci.sh"],
+            ),
         }
         for step_name, allowed_argvs in allowed_steps.items():
             step_body = cls._extract_step_body(formal, step_name)
@@ -1996,6 +2030,31 @@ class Pr465MergedReviewP2RegressionContracts(unittest.TestCase):
         self.assertEqual(res_legacy["formal_ci_reference"][0]["job_name"], "Targeted Tests (ubuntu-26.04)")
         self.assertEqual(res_legacy["formal_ci_reference"][0]["e2_step_reference_seconds"], 210.0)
         self.assertIn("composition/D10", res_legacy["warning"])
+
+
+class D10AndScalarManifestParityContracts(unittest.TestCase):
+    """SPEC-0503 contracts: 1:1 parity for D10 catalog identity and scalar owner entry manifests."""
+
+    def setUp(self):
+        self.pilot = load_pilot_module()
+
+    def test_d10_catalog_identity_manifest_matches_real_shell_script_without_faking_ci(self):
+        manifest = self.pilot.load_manifest(ROOT / "scripts/d10_catalog_identity_manifest.json")
+        self.assertEqual(manifest["total_configs"], 9)
+        self.assertEqual(manifest["total_entries"], 15)
+        clean_env = {k: v for k, v in os.environ.items() if k not in ("CI", "GITHUB_ACTIONS")}
+        report = self.pilot.verify_manifest_against_shell_script(manifest, ROOT, env=clean_env)
+        self.assertEqual(report["verified_entries"], 15)
+        self.assertEqual(report["verified_configs"], 9)
+
+    def test_scalar_owner_entry_manifest_matches_real_shell_script_without_faking_ci(self):
+        manifest = self.pilot.load_manifest(ROOT / "scripts/scalar_owner_entry_manifest.json")
+        self.assertEqual(manifest["total_configs"], 1)
+        self.assertEqual(manifest["total_entries"], 2)
+        clean_env = {k: v for k, v in os.environ.items() if k not in ("CI", "GITHUB_ACTIONS")}
+        report = self.pilot.verify_manifest_against_shell_script(manifest, ROOT, env=clean_env)
+        self.assertEqual(report["verified_entries"], 2)
+        self.assertEqual(report["verified_configs"], 1)
 
 
 if __name__ == "__main__":

@@ -491,6 +491,7 @@ subgraph Gactive["现行 active"]
   S0499["S0499<br/>F6 第四片 ElsePoisonTail 缓存可靠与同行花括号保留双轨证明"]
   S0500["S0500<br/>F6 第五片 Pratt 运算符优先级、结合律与非结合链检出双轨证明"]
   S0501["S0501<br/>收口 editors/tree-sitter 块与 Lambda 同行无分隔符语句漂移（TS-05 闭环）"]
+  S0503["S0503<br/>正式 CI 切换 D10 目录身份与 Scalar Owner 门禁为唯一产物锁多核执行器"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1571,7 +1572,9 @@ S0451 --> S0456
 S0456 --> S0457
 S0495 --> S0496
 S0496 --> S0497
+S0496 --> S0503
 S0497 --> S0502
+S0502 --> S0503
 ```
 
 ## 节点链接
@@ -2058,6 +2061,7 @@ S0497 --> S0502
 | SPEC-0499 | active | [0499-f6-adjacent-poison-machine-proof.md](../../specs/active/0499-f6-adjacent-poison-machine-proof.md) |
 | SPEC-0500 | active | [0500-f6-pratt-precedence-machine-proof.md](../../specs/active/0500-f6-pratt-precedence-machine-proof.md) |
 | SPEC-0501 | active | [0501-ts05-block-separator-closure.md](../../specs/active/0501-ts05-block-separator-closure.md) |
+| SPEC-0503 | active | [0503-d10-and-scalar-multicore-ci-gate.md](../../specs/active/0503-d10-and-scalar-multicore-ci-gate.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
