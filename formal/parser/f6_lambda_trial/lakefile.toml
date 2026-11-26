@@ -1,0 +1,6 @@
+name = "f6_lambda_trial"
+version = "0.1.0"
+defaultTargets = ["F6LambdaTrial"]
+
+[[lean_lib]]
+name = "F6LambdaTrial"

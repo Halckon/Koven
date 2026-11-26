@@ -3,6 +3,7 @@
 //! 每个未决 DFA 遇到下一个非 trivia token 后都会前进、成功或永久失败；新的 `{`
 //! 会先使旧 DFA 失败，再成为唯一的新候选。因此一次正向遍历即可为全部 opener 建立结果，
 //! 不需要从任一 `{` 重新扫描后缀。
+#![allow(unexpected_cfgs)]
 
 use crate::lexer::{LexedFile, LexemeKind, Symbol, TokenKind};
 
@@ -88,32 +89,16 @@ impl LambdaHeaderIndex {
                 next_start = span.end();
             }
 
-            if !matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
-                if let Some(candidate) = active.as_mut() {
-                    #[cfg(test)]
-                    {
-                        dfa_inspections += 1;
-                    }
-                    match candidate.advance(raw, lexeme.kind()) {
-                        TrialProgress::Continue => {}
-                        TrialProgress::Failed => active = None,
-                        TrialProgress::Matched => {
-                            let candidate = active
-                                .take()
-                                .ok_or(ParserInternalError::InvalidLexemeStream)?;
-                            trials[candidate.opener_raw] = Some(LambdaHeaderTrial::Header {
-                                parameter_raw: candidate.parameters,
-                                arrow_raw: raw,
-                            });
-                        }
-                    }
-                }
-
-                if is_symbol(lexeme.kind(), Symbol::LeftBrace) && owners.syntax_tokens_enabled() {
-                    // NoHeader 是永久失败的默认值；只有完整命中箭头才会原子替换它。
-                    trials[raw] = Some(LambdaHeaderTrial::NoHeader);
-                    active = Some(ActiveTrial::new(raw));
-                }
+            let _inspected = step_lambda_trial(
+                &mut active,
+                &mut trials,
+                raw,
+                lexeme.kind(),
+                owners.syntax_tokens_enabled(),
+            );
+            #[cfg(test)]
+            if _inspected {
+                dfa_inspections += 1;
             }
 
             owners.update(lexeme.kind(), span.start())?;
@@ -152,6 +137,40 @@ impl LambdaHeaderIndex {
     const fn dfa_inspections(&self) -> usize {
         self.dfa_inspections
     }
+}
+
+fn step_lambda_trial(
+    active: &mut Option<ActiveTrial>,
+    trials: &mut [Option<LambdaHeaderTrial>],
+    raw: usize,
+    kind: LexemeKind,
+    syntax_enabled: bool,
+) -> bool {
+    if matches!(kind, LexemeKind::Trivia(_)) {
+        return false;
+    }
+    let mut inspected = false;
+    if let Some(candidate) = active.as_mut() {
+        inspected = true;
+        match candidate.advance(raw, kind) {
+            TrialProgress::Continue => {}
+            TrialProgress::Failed => *active = None,
+            TrialProgress::Matched => {
+                if let Some(candidate) = active.take() {
+                    trials[candidate.opener_raw] = Some(LambdaHeaderTrial::Header {
+                        parameter_raw: candidate.parameters,
+                        arrow_raw: raw,
+                    });
+                }
+            }
+        }
+    }
+    if is_symbol(kind, Symbol::LeftBrace) && syntax_enabled {
+        // NoHeader 是永久失败的默认值；只有完整命中箭头才会原子替换它。
+        trials[raw] = Some(LambdaHeaderTrial::NoHeader);
+        *active = Some(ActiveTrial::new(raw));
+    }
+    inspected
 }
 
 struct ActiveTrial {
@@ -461,5 +480,187 @@ mod tests {
         let index = LambdaHeaderIndex::new(&lexed, &events)
             .expect("nested terminal owners must close in verified order");
         assert_eq!(index.raw_inspections(), lexed.lexemes().len());
+    }
+
+    #[test]
+    fn single_pass_dfa_matches_independent_spec_exhaustively_up_to_len_5() {
+        use super::{ActiveTrial, step_lambda_trial};
+        use crate::lexer::TriviaKind;
+
+        const KINDS: [LexemeKind; 6] = [
+            LexemeKind::Trivia(TriviaKind::Whitespace),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)),
+            LexemeKind::Token(TokenKind::Identifier),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Plus)),
+        ];
+
+        fn spec_at(stream: &[LexemeKind], opener: usize) -> Option<LambdaHeaderTrial> {
+            if stream[opener] != LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) {
+                return None;
+            }
+            let mut params = Vec::new();
+            let mut after_ident = false;
+            let mut after_comma = false;
+            for (idx, &kind) in stream.iter().enumerate().skip(opener + 1) {
+                if matches!(kind, LexemeKind::Trivia(_)) {
+                    continue;
+                }
+                match kind {
+                    LexemeKind::Token(TokenKind::Identifier) if !after_ident => {
+                        params.push(idx);
+                        after_ident = true;
+                        after_comma = false;
+                    }
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)) if after_ident => {
+                        after_ident = false;
+                        after_comma = true;
+                    }
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) if !after_comma => {
+                        return Some(LambdaHeaderTrial::Header {
+                            parameter_raw: params,
+                            arrow_raw: idx,
+                        });
+                    }
+                    _ => return Some(LambdaHeaderTrial::NoHeader),
+                }
+            }
+            Some(LambdaHeaderTrial::NoHeader)
+        }
+
+        let mut stream = [KINDS[0]; 5];
+        for code in 0usize..6usize.pow(5) {
+            let mut n = code;
+            for slot in &mut stream {
+                *slot = KINDS[n % 6];
+                n /= 6;
+            }
+            let mut active: Option<ActiveTrial> = None;
+            let mut trials = vec![None; 5];
+            let mut steps = 0usize;
+            for (raw, &kind) in stream.iter().enumerate() {
+                if step_lambda_trial(&mut active, &mut trials, raw, kind, true) {
+                    steps += 1;
+                }
+            }
+            assert!(steps <= stream.len());
+            for (idx, actual) in trials.iter().enumerate() {
+                assert_eq!(*actual, spec_at(&stream, idx));
+            }
+        }
+    }
+}
+
+#[cfg(kani)]
+mod kani_proofs {
+    use super::{ActiveTrial, LambdaHeaderTrial, TrialProgress, TrialState, step_lambda_trial};
+    use crate::lexer::{LexemeKind, Symbol, TokenKind, TriviaKind};
+
+    fn symbolic_kind() -> LexemeKind {
+        let tag: u8 = kani::any();
+        kani::assume(tag < 6);
+        match tag {
+            0 => LexemeKind::Trivia(TriviaKind::Whitespace),
+            1 => LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)),
+            2 => LexemeKind::Token(TokenKind::Identifier),
+            3 => LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)),
+            4 => LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)),
+            _ => LexemeKind::Token(TokenKind::Symbol(Symbol::Plus)),
+        }
+    }
+
+    #[kani::proof]
+    fn verify_lambda_trial_left_brace_always_fails_active() {
+        let state_tag: u8 = kani::any();
+        kani::assume(state_tag < 3);
+        let state = match state_tag {
+            0 => TrialState::Start,
+            1 => TrialState::AfterIdentifier,
+            _ => TrialState::AfterComma,
+        };
+        let mut trial = ActiveTrial {
+            opener_raw: 0,
+            parameters: Vec::new(),
+            state,
+        };
+        assert!(matches!(
+            trial.advance(1, LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))),
+            TrialProgress::Failed
+        ));
+    }
+
+    #[kani::proof]
+    #[kani::unwind(7)]
+    fn verify_lambda_trial_single_pass_eq_spec_len_5() {
+        const N: usize = 5;
+        let mut stream = [LexemeKind::Eof; N];
+        let mut i = 0usize;
+        while i < N {
+            stream[i] = symbolic_kind();
+            i += 1;
+        }
+
+        let mut active: Option<ActiveTrial> = None;
+        let mut trials: [Option<LambdaHeaderTrial>; N] = [None, None, None, None, None];
+        let mut steps = 0usize;
+        let mut raw = 0usize;
+        while raw < N {
+            if step_lambda_trial(&mut active, &mut trials, raw, stream[raw], true) {
+                steps += 1;
+            }
+            raw += 1;
+        }
+        assert!(steps <= N);
+
+        let probe: usize = kani::any();
+        kani::assume(probe < N);
+        if stream[probe] != LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) {
+            assert!(trials[probe].is_none());
+            return;
+        }
+        let mut after_ident = false;
+        let mut after_comma = false;
+        let mut expected_arrow: Option<usize> = None;
+        let mut expected_param_count = 0usize;
+        let mut j = probe + 1;
+        while j < N {
+            let kind = stream[j];
+            if !matches!(kind, LexemeKind::Trivia(_)) {
+                match kind {
+                    LexemeKind::Token(TokenKind::Identifier) if !after_ident => {
+                        expected_param_count += 1;
+                        after_ident = true;
+                        after_comma = false;
+                    }
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Comma)) if after_ident => {
+                        after_ident = false;
+                        after_comma = true;
+                    }
+                    LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) if !after_comma => {
+                        expected_arrow = Some(j);
+                        break;
+                    }
+                    _ => break,
+                }
+            }
+            j += 1;
+        }
+
+        match (&trials[probe], expected_arrow) {
+            (
+                Some(LambdaHeaderTrial::Header {
+                    parameter_raw,
+                    arrow_raw,
+                }),
+                Some(exp_arrow),
+            ) => {
+                assert_eq!(*arrow_raw, exp_arrow);
+                assert!(*arrow_raw > probe && *arrow_raw < N);
+                assert_eq!(parameter_raw.len(), expected_param_count);
+            }
+            (Some(LambdaHeaderTrial::NoHeader), None) => {}
+            _ => panic!("single-pass LambdaHeaderIndex diverged from independent spec"),
+        }
     }
 }

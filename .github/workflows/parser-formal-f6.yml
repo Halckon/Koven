@@ -11,6 +11,8 @@ on:
       - 'formal/parser/f6_adjacent_poison/**'
       - 'formal/parser/f6_pratt_precedence/**'
       - 'formal/parser/f6_stops_lattice/**'
+      - 'formal/parser/f6_lambda_trial/**'
+      - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/engine.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
       - 'crates/lang-frontend/src/parser/engine/operator.rs'
@@ -35,6 +37,8 @@ on:
       - 'formal/parser/f6_adjacent_poison/**'
       - 'formal/parser/f6_pratt_precedence/**'
       - 'formal/parser/f6_stops_lattice/**'
+      - 'formal/parser/f6_lambda_trial/**'
+      - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/engine.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
       - 'crates/lang-frontend/src/parser/engine/operator.rs'
@@ -60,7 +64,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proofs (unbounded P1-P4, O1-O5, G1-G4, E1-E4, PR1-PR6 & S1-S8)
+    name: F6 Lean 4 Model Proofs (all 7 F6 slices, 48 theorems)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -76,7 +80,8 @@ jobs:
             formal/parser/f6_adjacent_poison/.lake
             formal/parser/f6_pratt_precedence/.lake
             formal/parser/f6_stops_lattice/.lake
-          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain') }}
+            formal/parser/f6_lambda_trial/.lake
+          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain') }}
       - name: Install elan if missing
         run: |
           if ! command -v elan >/dev/null 2>&1; then
@@ -445,9 +450,65 @@ jobs:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
           print("all 8 F6StopsLattice theorems depend only on allowed core Lean axioms")
           PY
+      - name: Build F6LambdaTrial with warnings as errors
+        working-directory: formal/parser/f6_lambda_trial
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6LambdaTrial.lean
+      - name: Verify F6LambdaTrial theorem axiom dependencies
+        working-directory: formal/parser/f6_lambda_trial
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6LambdaTrial
+          #print axioms F6LambdaTrial.advance_leftBrace_fails
+          #print axioms F6LambdaTrial.specFrom_step_non_trivia
+          #print axioms F6LambdaTrial.singlePass_sound_and_complete
+          #print axioms F6LambdaTrial.singlePass_header_bounds
+          #print axioms F6LambdaTrial.singlePass_steps_linear
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6LambdaTrial.advance_leftBrace_fails",
+              "F6LambdaTrial.specFrom_step_non_trivia",
+              "F6LambdaTrial.singlePass_sound_and_complete",
+              "F6LambdaTrial.singlePass_header_bounds",
+              "F6LambdaTrial.singlePass_steps_linear",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6LambdaTrial theorems depend only on allowed core Lean axioms")
+          PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proofs (all 6 F6 slices)
+    name: F6 Kani Bounded Rust Proofs (all 7 F6 slices, 18 harnesses)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -489,4 +550,6 @@ jobs:
             --harness verify_infix_rule_table_invariants \
             --harness verify_pratt_precedence_and_non_assoc_3_ops \
             --harness verify_stops_hard_delimiter_non_shielding \
-            --harness verify_type_stops_recovery_projections
+            --harness verify_type_stops_recovery_projections \
+            --harness verify_lambda_trial_left_brace_always_fails_active \
+            --harness verify_lambda_trial_single_pass_eq_spec_len_5
