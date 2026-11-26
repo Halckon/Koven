@@ -1,5 +1,6 @@
 # 完成 Specs
 
+- [SPEC-0369](0369-final-debug-artifacts.md)：CLI 最终调试产物与源码断点（macOS dSYM 与 Linux ELF 行表及双宿主 LLDB 断点），生产代码已合入 main，本机 macOS 实测通过并按部分发布例外保留归档；PR 双宿主 CI 待合并前核验。
 - [SPEC-509](0509-f6-lambda-trial-machine-proof.md)：LambdaHeaderIndex DFA，按 PR #477 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)验收归档。
 - [SPEC-508](0508-f6-stops-lattice-machine-proof.md)：Stops 边界传播格，按 PR #477 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)验收归档。
 - [SPEC-507](0507-f6-strict-call-trial-machine-proof.md)：严格调用试探，按 PR #477 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)验收归档。
@@ -48,7 +49,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 477 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 478 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
