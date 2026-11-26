@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 455 份"))
+ARCH(("已完成<br/>archive 461 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -36,12 +36,6 @@ subgraph Gactive["现行 active"]
   S0499["S0499<br/>F6 第四片 ElsePoisonTail 缓存可靠与同行花括号保留双轨证明"]
   S0500["S0500<br/>F6 第五片 Pratt 运算符优先级、结合律与非结合链检出双轨证明"]
   S0501["S0501<br/>收口 editors/tree-sitter 块与 Lambda 同行无分隔符语句漂移（TS-05 闭环）"]
-  S0504["S0504<br/>F5 表面语法增量门禁路径触发轻量 CI 接入"]
-  S0505["S0505<br/>F6 第八片 validate_lexemes 词法流连续划分、严格单调与唯一 EOF 契约双轨证明"]
-  S0506["S0506<br/>F6 第九片 diagnostic_anchor_prefix 前缀和单调性与区间诊断锚点查询双轨证明"]
-  S0507["S0507<br/>F6 第十片 StrictCallTrialIndex 索引单调性、反向 DP 路径与递归预算双轨证明"]
-  S0508["S0508<br/>F6 第六片 Stops / TypeStops / DeclarationStops 边界传播格与硬分隔符不屏蔽双轨证明"]
-  S0509["S0509<br/>F6 第七片 LambdaHeaderIndex 单遍流式 DFA 等价性与线性步数双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -97,12 +91,6 @@ ARCH --> S0341
 | SPEC-0499 | active | [0499-f6-adjacent-poison-machine-proof.md](active/0499-f6-adjacent-poison-machine-proof.md) |
 | SPEC-0500 | active | [0500-f6-pratt-precedence-machine-proof.md](active/0500-f6-pratt-precedence-machine-proof.md) |
 | SPEC-0501 | active | [0501-ts05-block-separator-closure.md](active/0501-ts05-block-separator-closure.md) |
-| SPEC-0504 | active | [0504-f5-syntax-gate-ci.md](active/0504-f5-syntax-gate-ci.md) |
-| SPEC-0505 | active | [0505-f6-lexeme-stream-machine-proof.md](active/0505-f6-lexeme-stream-machine-proof.md) |
-| SPEC-0506 | active | [0506-f6-diagnostic-anchor-machine-proof.md](active/0506-f6-diagnostic-anchor-machine-proof.md) |
-| SPEC-0507 | active | [0507-f6-strict-call-trial-machine-proof.md](active/0507-f6-strict-call-trial-machine-proof.md) |
-| SPEC-0508 | active | [0508-f6-stops-lattice-machine-proof.md](active/0508-f6-stops-lattice-machine-proof.md) |
-| SPEC-0509 | active | [0509-f6-lambda-trial-machine-proof.md](active/0509-f6-lambda-trial-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -111,4 +99,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（455 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（461 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
