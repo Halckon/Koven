@@ -62,8 +62,7 @@ Member本身的最终类型仍检查，动态receiver及实参不会因该恢复
 - 默认单文档：每个 URI 以原 SourceId 与 `MemoryDocument` 进入共同 Unit names/raw types/ownership，
   URI 只作展示，不充当 root/path；同轮完整诊断与导航交 `UnitAnalysisSnapshot`，无旧 checker fallback；
   raw 错误不伪造执行资格，健康输入仍保真实上游资格，宿主只用既有 builtin 环境；
-- `koven.sourceSet` version 1：初始化 payload 提供 immutable base sources，open/change 形成 overlay，
-  每次候选更新重建共同 compilation-unit snapshot，其名称前缀由 frontend `UnitNameSnapshot` 拥有。
+- `koven.sourceSet` version 1：初始化 payload 提供 immutable base sources，open/change 形成 overlay，每次候选更新重建共同 compilation-unit snapshot，其名称前缀由 frontend `UnitNameSnapshot` 拥有；另提供显式 opt-in `--workspace-manifest`（未提供 `koven.sourceSet` 时从 `workspaceFolders`/`rootUri` 加载 `project.toml`，source-roots 外单文件回退单文档分析）与 `--diagnostic-context`（在诊断首行附加出错短源码片段），无参数启动严格保持既有行为。
 
 source-set 模式不读取磁盘。`unit_session` 组合唯一名称 owner，后续阶段借其 sources/inputs 与
 validated_names；同次 standard_environments 的 type 半边留宿主。names recovery 保留有效导航，
