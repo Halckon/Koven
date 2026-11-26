@@ -168,3 +168,22 @@ fn rejects_unmatched_closers_wrong_opener_and_unconsumed_events() {
         Err(ParserInternalError::InvalidLexemeStream)
     );
 }
+
+#[test]
+fn large_plain_stream_retains_zero_capacity_without_strings_or_errors() {
+    let count = 100_000usize;
+    let mut lexemes = Vec::with_capacity(count + 1);
+    for i in 0..count {
+        lexemes.push(make_lexeme(
+            LexemeKind::Token(TokenKind::Identifier),
+            i,
+            i + 1,
+        ));
+    }
+    lexemes.push(make_lexeme(LexemeKind::Eof, count, count));
+
+    let verified = owner_events::verify_terminal_owner_events(&lexemes, &[], &[], false, count)
+        .expect("plain identifier stream succeeds");
+    assert!(verified.is_empty());
+    assert_eq!(verified.capacity(), 0);
+}

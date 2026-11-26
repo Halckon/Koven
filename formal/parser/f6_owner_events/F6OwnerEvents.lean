@@ -615,4 +615,83 @@ theorem verifyTerminalOwnerEvents_bounded (lexemes : List Lexeme)
     · simp only [hfull, Bool.false_eq_true, ↓reduceIte] at hok
       contradiction
 
+/-! ### O7: Exact per-event `(kind, opener)` LIFO stack-top identity match & mismatch rejection -/
+
+def toActiveOwner (ev : TerminalEvent) : ActiveOwner :=
+  { kind := ev.kind, opener := ev.opener }
+
+theorem drainDueEvents_exact_lifo_match (rem : List TerminalEvent) (startOffset : Nat) :
+    ∀ (owners owners' : List ActiveOwner) (nextT nextT' : Nat)
+      (verified verified' : List TerminalEvent),
+      drainDueEvents rem startOffset owners nextT verified = some (owners', nextT', verified') →
+      ∃ emitted : List TerminalEvent,
+        verified' = verified ++ emitted ∧
+        owners = emitted.map toActiveOwner ++ owners' := by
+  induction rem with
+  | nil =>
+    intro owners owners' nextT nextT' verified verified' h
+    simp only [drainDueEvents, Option.some.injEq, Prod.mk.injEq] at h
+    rcases h with ⟨rfl, rfl, rfl⟩
+    exact ⟨[], by simp, by simp⟩
+  | cons ev rest ih =>
+    intro owners owners' nextT nextT' verified verified' h
+    unfold drainDueEvents at h
+    by_cases hle : ev.offset ≤ startOffset
+    · simp only [hle, ↓reduceIte] at h
+      cases owners with
+      | nil => simp at h
+      | cons top tail =>
+        by_cases hmatch : (top.kind == ev.kind && top.opener == ev.opener) = true
+        · simp only [hmatch, ↓reduceIte] at h
+          have htop : top = toActiveOwner ev := by
+            rw [Bool.and_eq_true, beq_iff_eq, beq_iff_eq] at hmatch
+            cases top
+            simp only [toActiveOwner] at hmatch ⊢
+            rcases hmatch with ⟨hk, ho⟩
+            subst hk; subst ho; rfl
+          rcases ih tail owners' (nextT + 1) nextT' (verified ++ [ev]) verified' h with
+            ⟨emitted, hveq, hstack⟩
+          refine ⟨ev :: emitted, ?_, ?_⟩
+          · rw [hveq, List.append_assoc]; rfl
+          · rw [htop, hstack]; rfl
+        · simp only [hmatch, Bool.false_eq_true, ↓reduceIte] at h
+          contradiction
+    · simp only [hle, ↓reduceIte, Option.some.injEq, Prod.mk.injEq] at h
+      rcases h with ⟨rfl, rfl, rfl⟩
+      exact ⟨[], by simp, by simp⟩
+
+theorem drainEofOwners_exact_lifo_match (sourceLen : Nat) (owners : List ActiveOwner) :
+    ∀ (verified : List TerminalEvent),
+      ∃ emitted : List TerminalEvent,
+        drainEofOwners sourceLen owners verified = verified ++ emitted ∧
+        owners = emitted.map toActiveOwner := by
+  induction owners with
+  | nil =>
+    intro verified
+    exact ⟨[], by simp [drainEofOwners], by simp⟩
+  | cons top tail ih =>
+    intro verified
+    let ev : TerminalEvent := { offset := sourceLen, kind := top.kind, opener := top.opener }
+    rcases ih (verified ++ [ev]) with ⟨emitted, hveq, hstack⟩
+    refine ⟨ev :: emitted, ?_, ?_⟩
+    · simp only [drainEofOwners]
+      rw [hveq, List.append_assoc]
+      rfl
+    · simp only [List.map_cons, toActiveOwner, ev]
+      rw [← hstack]
+
+theorem drainDueEvents_rejects_mismatched_top (ev : TerminalEvent) (rest : List TerminalEvent)
+    (startOffset : Nat) (top : ActiveOwner) (tail : List ActiveOwner) (nextT : Nat)
+    (verified : List TerminalEvent)
+    (hle : ev.offset ≤ startOffset)
+    (hmismatch : top.kind ≠ ev.kind ∨ top.opener ≠ ev.opener) :
+    drainDueEvents (ev :: rest) startOffset (top :: tail) nextT verified = none := by
+  unfold drainDueEvents
+  simp only [hle, ↓reduceIte]
+  have hfalse : (top.kind == ev.kind && top.opener == ev.opener) = false := by
+    rcases hmismatch with hk | ho
+    · simp [beq_false_of_ne hk]
+    · simp [beq_false_of_ne ho]
+  simp [hfalse]
+
 end F6OwnerEvents

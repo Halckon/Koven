@@ -38,6 +38,8 @@ on:
       - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/owner_events.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/owner_events_kani.rs'
+      - 'crates/lang-frontend/src/lexer/mod.rs'
+      - 'crates/lang-frontend/src/source.rs'
       - '.github/workflows/parser-formal-f6.yml'
   push:
     branches:
@@ -76,6 +78,8 @@ on:
       - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/owner_events.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/owner_events_kani.rs'
+      - 'crates/lang-frontend/src/lexer/mod.rs'
+      - 'crates/lang-frontend/src/source.rs'
       - '.github/workflows/parser-formal-f6.yml'
   workflow_dispatch:
 
@@ -88,7 +92,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proofs (all 11 F6 slices, 72 theorems)
+    name: F6 Lean 4 Model Proofs (all 11 F6 slices, 75 theorems)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -723,6 +727,9 @@ jobs:
           #print axioms F6OwnerEvents.verifyStep_rejects_unclosed_eof_without_flag
           #print axioms F6OwnerEvents.verifyTerminalOwnerEvents_rejects_unconsumed
           #print axioms F6OwnerEvents.verifyTerminalOwnerEvents_bounded
+          #print axioms F6OwnerEvents.drainDueEvents_exact_lifo_match
+          #print axioms F6OwnerEvents.drainEofOwners_exact_lifo_match
+          #print axioms F6OwnerEvents.drainDueEvents_rejects_mismatched_top
           EOF
           )"
           printf '%s\n' "$axioms_out"
@@ -738,6 +745,9 @@ jobs:
               "F6OwnerEvents.verifyStep_rejects_unclosed_eof_without_flag",
               "F6OwnerEvents.verifyTerminalOwnerEvents_rejects_unconsumed",
               "F6OwnerEvents.verifyTerminalOwnerEvents_bounded",
+              "F6OwnerEvents.drainDueEvents_exact_lifo_match",
+              "F6OwnerEvents.drainEofOwners_exact_lifo_match",
+              "F6OwnerEvents.drainDueEvents_rejects_mismatched_top",
           }
           allowed = {"propext", "Quot.sound", "Classical.choice"}
           seen = set()
@@ -764,7 +774,7 @@ jobs:
           missing = expected - seen
           if missing:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
-          print("all 8 F6OwnerEvents theorems depend only on allowed core Lean axioms")
+          print("all 11 F6OwnerEvents theorems depend only on allowed core Lean axioms")
           PY
 
   kani-bounded-rust:
