@@ -1,10 +1,10 @@
 # SPEC-0490：F6 首片 `angle_group_closers` 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 首片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 首片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 局部形式化验证（F6） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main`（合入 PR #458 后） |
@@ -34,4 +34,6 @@
 - [x] `match_angle_group_delimiters` 抽离与长度 `0..=6` 穷举单测通过
 - [x] Lean 4 零 Mathlib 工程与 P1–P4 证明编写完成
 - [x] Kani `#[cfg(kani)]` 双 harness 与 `.github/workflows/parser-formal-f6.yml` 落地
-- [ ] PR CI 中 Lean 4 与 Kani 双轨实跑验收与归档
+- [x] PR CI 中 Lean 4 与 Kani 双轨实跑验收与归档
+
+**远端 CI 验收证据。** 实现已合入 `main`，并由 PR #477（`main@a899841c`，验证合并提交 `c5499d8d`）全量复验通过：[双宿主主 CI 证据](https://github.com/Halckon/Koven/actions/runs/45797758722/job/139848568750)、[F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151)（含 `F6AngleGroups` 全部 4 条定理，总计 10 片 64 条定理）与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)（含本片全部 6 条 harness，总计 24/24 条）。归档提交本身的门禁另验。

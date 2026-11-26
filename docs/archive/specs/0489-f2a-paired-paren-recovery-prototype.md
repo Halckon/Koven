@@ -1,10 +1,10 @@
 # SPEC-0489：F2a 窄普通括号恢复原型评估与停止/反例契约见证
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：评估 F2a 普通括号恢复原型是否进入生产重写或核对 F2 停止条件时 · **唯一真源**：本页评估账本与反例见证合同
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：评估 F2a 普通括号恢复原型是否进入生产重写或核对 F2 停止条件时 · **唯一真源**：本页评估账本与反例见证合同
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 恢复评估与测试 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@5ea16bb8` |
@@ -47,4 +47,6 @@ cargo test --locked -p lang-frontend --no-fail-fast \
 - [x] 调用边审计确认触发 F2a 停止条件（生产 Parser / `LexedFile` 零改动）
 - [x] 四类强制反例与多组退栈线性工作量/事件计数见证落地
 - [x] 本地门禁（fmt / clippy / test / check_docs / check_rust_sizes）实跑验收
-- [ ] PR CI 验收与归档
+- [x] PR CI 验收与归档
+
+**归档记录。** 已随 PR #458（合并提交 `f50e90e2`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。

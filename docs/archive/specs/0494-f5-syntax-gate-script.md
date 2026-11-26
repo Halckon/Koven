@@ -10,7 +10,7 @@
 | 基线 | `feature/spec-0493-f4b-difftest-ci@064f6092` |
 | 分支 | `feature/spec-0494-f5-syntax-gate-checker` |
 
-本 Spec 承接 [SPEC-0480](../../specs/active/0480-surface-syntax-incremental-gate.md) 与 [F5 门禁清单](../../proposals/parser-formal-verification/syntax-gate-checklist.md)，
+本 Spec 承接 [SPEC-0480](0480-surface-syntax-incremental-gate.md) 与 [F5 门禁清单](../../proposals/parser-formal-verification/syntax-gate-checklist.md)，
 将 F5 的 6 项必填字段与模板完整性要求脚本化为零外部依赖的 Python 校验工具 [scripts/check_syntax_gate.py](../../../scripts/check_syntax_gate.py) 与单元测试 [scripts/tests/test_check_syntax_gate.py](../../../scripts/tests/test_check_syntax_gate.py)（由既有 `docs` CI 的 `unittest discover -s scripts/tests` 自动执行）。
 不修改生产代码、Guide 或主 `ci.yml`。
 

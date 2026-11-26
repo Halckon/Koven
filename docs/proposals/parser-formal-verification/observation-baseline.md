@@ -1,6 +1,6 @@
 # F0b：Parser 结果分类与恢复验收基线
 
-> **性质**：非规范验证账本 · **状态**：设计与现有见证映射已记录，四入口统一观察适配器与 `parse_file` 缺口补齐由 [SPEC-0486](../../specs/active/0486-parser-observation-adapter.md) 承接 · **读取时机**：实现观察适配器、归因恢复差异或评估 F2a 前 · **唯一真源**：本页维护当前基点的入口见证、R1–R5 测试选择及覆盖缺口
+> **性质**：非规范验证账本 · **状态**：设计与现有见证映射已记录，四入口统一观察适配器与 `parse_file` 缺口补齐由 [SPEC-0486](../../archive/specs/0486-parser-observation-adapter.md) 承接 · **读取时机**：实现观察适配器、归因恢复差异或评估 F2a 前 · **唯一真源**：本页维护当前基点的入口见证、R1–R5 测试选择及覆盖缺口
 
 范围：Phase 1；`main@6cc03907a1bf37d3cdc9ce6e6ccba1a15326ed6b`、Guide v0.47。
 本轮未实现统一观察适配器，不新增公开结果或游标。结果和实体定义见[数据模型](data-model.md)
@@ -65,7 +65,7 @@
 | 能物理配对，但游标后有可能属于 caller 的文件起点／`else` | 不把整个物理组强行跳过；保留 `fun saved` 或相应 `else` 分支 |
 | 多组退栈到同一拒绝位置、长词法 poison | 访问次数测量不能只数 cursor 前进，须覆盖查询及事件处理；已有 `separator_tests` 作基线 |
 
-**F2a 评估已完成并正式暂缓（见 [SPEC-0489](../../specs/active/0489-f2a-paired-paren-recovery-prototype.md)）。**
+**F2a 评估已完成并正式暂缓（见 [SPEC-0489](../../archive/specs/0489-f2a-paired-paren-recovery-prototype.md)）。**
 对 `parse_group` 与 `GroupClosers` 的逐点调用边审计确认：即使对物理配对的普通括号，嵌套 `[ else next ]`、文件级声明与块语句分隔仍依赖动态 `outer_stops`，私有区间视图可缩减的调用方边界传递点为 0；因此保持生产 Parser 与 `LexedFile` 零改动，不启动 F2b–f 多家族迁移，并以 `separator_tests` 与 `parser_f2a_paired_paren_witnesses` 锁定上述全部四类反例与线性工作量/事件计数。
 
 ## 4. 本轮验证账本

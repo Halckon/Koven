@@ -1,10 +1,10 @@
 # SPEC-0477: Parser 与 Formatter 往返差分首片
 
-> **性质**：测试基础设施变更合同 · **状态**：in-progress · **读取时机**：实施首个完整文件的格式化往返对照时 · **唯一真源**：本 Spec 的首片范围与验收账本
+> **性质**：测试基础设施变更合同 · **状态**：done（历史归档） · **读取时机**：实施首个完整文件的格式化往返对照时 · **唯一真源**：本 Spec 的首片范围与验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 测试；不改变语言行为 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `6cc03907a1bf37d3cdc9ce6e6ccba1a15326ed6b` |
@@ -46,6 +46,8 @@
 | CI 选择 | 现有 Parser 批次全量选择 `formatting` 一次，不新增 job | 策略红测 1 failed，接线后 `python3 -m unittest scripts.tests.test_check_ci_results` 45 passed；`bash -n scripts/check_stage_integration.sh` 通过 |
 | Parser 组合回归 | 从 `scripts/check_stage_integration.sh` 选出含 `--test formatting` 的唯一 Cargo 调用，原样本地执行 | macOS AArch64，27 个 integration targets、479 passed、0 failed/ignored/filtered；不是完整 stage 或双宿主 CI |
 | 本机门禁 | 定向 Clippy、fmt、docs、diff | 通过 |
-| 交付 | PR CI、归档 | 待执行；未运行完整 stage、Linux 或远端 CI |
+| 交付 | PR CI、归档 | 已随 PR #450（合并提交 `f9234c46`）合入 `main`；后续在 PR #477（验证合并提交 `c5499d8d`，合入 `main@a899841c`）的[双宿主主 CI Targeted Tests](https://github.com/Halckon/Koven/actions/runs/45797758722/job/139848568750) 中通过完整 Linux/macOS 回归（含 `formatting` 目标），并随本批次归档 |
 
 不把未纳入投影的语法计入覆盖，也不把本机定向结果替代 CI。
+
+**归档记录。** 已随 PR #450（合并提交 `f9234c46`）合入 `main`，并在 PR #477（验证合并提交 `c5499d8d`）的[双宿主主 CI Targeted Tests](https://github.com/Halckon/Koven/actions/runs/45797758722/job/139848568750) 通过完整双平台回归（覆盖 `formatting` 目标）；本批次按维护者确认收口归档至 `docs/archive/specs/`。
