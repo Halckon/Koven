@@ -14,7 +14,11 @@ on:
       - 'formal/parser/f6_lambda_trial/**'
       - 'formal/parser/f6_lexeme_stream/**'
       - 'formal/parser/f6_diagnostic_anchor/**'
+      - 'formal/parser/f6_strict_call_trial/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
+      - 'crates/lang-frontend/src/parser/trial.rs'
+      - 'crates/lang-frontend/src/parser/trial/kernel.rs'
+      - 'crates/lang-frontend/src/parser/trial/kernel_kani.rs'
       - 'crates/lang-frontend/src/parser/engine.rs'
       - 'crates/lang-frontend/src/parser/engine/lexeme_stream_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
@@ -45,7 +49,11 @@ on:
       - 'formal/parser/f6_lambda_trial/**'
       - 'formal/parser/f6_lexeme_stream/**'
       - 'formal/parser/f6_diagnostic_anchor/**'
+      - 'formal/parser/f6_strict_call_trial/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
+      - 'crates/lang-frontend/src/parser/trial.rs'
+      - 'crates/lang-frontend/src/parser/trial/kernel.rs'
+      - 'crates/lang-frontend/src/parser/trial/kernel_kani.rs'
       - 'crates/lang-frontend/src/parser/engine.rs'
       - 'crates/lang-frontend/src/parser/engine/lexeme_stream_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
@@ -74,7 +82,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proofs (all 9 F6 slices, 58 theorems)
+    name: F6 Lean 4 Model Proofs (all 10 F6 slices, 64 theorems)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -93,7 +101,8 @@ jobs:
             formal/parser/f6_lambda_trial/.lake
             formal/parser/f6_lexeme_stream/.lake
             formal/parser/f6_diagnostic_anchor/.lake
-          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain') }}
+            formal/parser/f6_strict_call_trial/.lake
+          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain') }}
       - name: Install elan if missing
         run: |
           if ! command -v elan >/dev/null 2>&1; then
@@ -630,9 +639,67 @@ jobs:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
           print("all 5 F6DiagnosticAnchor theorems depend only on allowed core Lean axioms")
           PY
+      - name: Build F6StrictCallTrial with warnings as errors
+        working-directory: formal/parser/f6_strict_call_trial
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6StrictCallTrial.lean
+      - name: Verify F6StrictCallTrial theorem axiom dependencies
+        working-directory: formal/parser/f6_strict_call_trial
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6StrictCallTrial
+          #print axioms F6StrictCallTrial.rawToSig_non_trivia_always_some
+          #print axioms F6StrictCallTrial.rawToSig_monotone
+          #print axioms F6StrictCallTrial.sigToRaw_strict_mono
+          #print axioms F6StrictCallTrial.pathEndAt_strict_advance_bounds_and_maximal
+          #print axioms F6StrictCallTrial.classifyCallTrial_match_ordering
+          #print axioms F6StrictCallTrial.checkBudget_iff_and_antitone
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6StrictCallTrial.rawToSig_non_trivia_always_some",
+              "F6StrictCallTrial.rawToSig_monotone",
+              "F6StrictCallTrial.sigToRaw_strict_mono",
+              "F6StrictCallTrial.pathEndAt_strict_advance_bounds_and_maximal",
+              "F6StrictCallTrial.classifyCallTrial_match_ordering",
+              "F6StrictCallTrial.checkBudget_iff_and_antitone",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 6 F6StrictCallTrial theorems depend only on allowed core Lean axioms")
+          PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proofs (all 9 F6 slices, 22 harnesses)
+    name: F6 Kani Bounded Rust Proofs (all 10 F6 slices, 24 harnesses)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -680,4 +747,6 @@ jobs:
             --harness verify_validate_lexeme_stream_rejects_empty_and_missing_eof \
             --harness verify_validate_lexeme_stream_partition_len_4 \
             --harness verify_diagnostic_anchor_prefix_empty_and_oob \
-            --harness verify_diagnostic_anchor_prefix_exact_range_len_8
+            --harness verify_diagnostic_anchor_prefix_exact_range_len_8 \
+            --harness verify_raw_to_significant_exact_and_monotone_len_8 \
+            --harness verify_trial_path_ends_and_budget_len_8

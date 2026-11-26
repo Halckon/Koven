@@ -41,6 +41,7 @@ subgraph Gactive["现行 active"]
   S0504["S0504<br/>F5 表面语法增量门禁路径触发轻量 CI 接入"]
   S0505["S0505<br/>F6 第八片 validate_lexemes 词法流连续划分、严格单调与唯一 EOF 契约双轨证明"]
   S0506["S0506<br/>F6 第九片 diagnostic_anchor_prefix 前缀和单调性与区间诊断锚点查询双轨证明"]
+  S0507["S0507<br/>F6 第十片 StrictCallTrialIndex 索引单调性、反向 DP 路径与递归预算双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -101,6 +102,7 @@ ARCH --> S0341
 | SPEC-0504 | active | [0504-f5-syntax-gate-ci.md](active/0504-f5-syntax-gate-ci.md) |
 | SPEC-0505 | active | [0505-f6-lexeme-stream-machine-proof.md](active/0505-f6-lexeme-stream-machine-proof.md) |
 | SPEC-0506 | active | [0506-f6-diagnostic-anchor-machine-proof.md](active/0506-f6-diagnostic-anchor-machine-proof.md) |
+| SPEC-0507 | active | [0507-f6-strict-call-trial-machine-proof.md](active/0507-f6-strict-call-trial-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
