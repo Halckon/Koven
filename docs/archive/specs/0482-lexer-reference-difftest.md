@@ -1,10 +1,10 @@
 # SPEC-0482：独立参考词法机差分验证（F3b）
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F3b 独立词法差分时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F3b 独立词法差分时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 测试 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@8207b212` |
@@ -39,4 +39,6 @@ cargo test --locked -p lang-frontend --test lexer_reference_diff
 
 - [x] 独立参考词法状态机、故障负对照、F3b 字节级见证与 252 组组合差分实现
 - [x] 本地门禁（fmt / clippy / test / check_docs / check_rust_sizes）实跑验收
-- [ ] PR CI 验收与归档
+- [x] PR CI 验收与归档
+
+**归档记录。** 已随 PR #456（`5ea16bb8`）与 PR #457（`f3b9cc5a`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。

@@ -1,10 +1,10 @@
 # SPEC-0481：Tree-sitter 与 `parse_file` 完整文件差分首片（F4b）
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F4b Tree-sitter 完整文件差分时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F4b Tree-sitter 完整文件差分时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 测试 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@8207b212` |
@@ -47,4 +47,6 @@ KOVEN_TREE_SITTER=/absolute/path/to/tree-sitter \
 
 - [x] 完整文件投影合同、故障负对照与共同子集/SPEC-0479/漂移见证实现
 - [x] 本机 macOS AArch64 锁定版 Tree-sitter CLI 实跑全量差分通过
-- [ ] PR CI 验收与归档
+- [x] PR CI 验收与归档
+
+**归档记录。** 已随 PR #456（`5ea16bb8`）与 PR #457（`f3b9cc5a`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。

@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 466 份"))
+ARCH(("已完成<br/>archive 477 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -20,17 +20,6 @@ subgraph Gactive["现行 active"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
-  S0477["S0477<br/>Parser 与 Formatter 往返差分首片"]
-  S0478["S0478<br/>普通块表达式离线差分"]
-  S0481["S0481<br/>Tree-sitter 与 parse_file 完整文件差分首片（F4b）"]
-  S0482["S0482<br/>独立参考词法机差分验证（F3b）"]
-  S0484["S0484<br/>F3e 声明、类族与完整文件独立参考解析差分（F3e→F4a）"]
-  S0485["S0485<br/>F3c 18 级表达式运算符层级独立参考解析差分（F3c→F4a）"]
-  S0486["S0486<br/>四入口统一观察适配器与恢复/边界契约矩阵（F0b）"]
-  S0487["S0487<br/>F4c Formatter 全 AST 往返差分扩展"]
-  S0488["S0488<br/>收口 editors/tree-sitter 已知文法漂移（TS-03 / TS-05 / TS-07）"]
-  S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
-  S0501["S0501<br/>收口 editors/tree-sitter 块与 Lambda 同行无分隔符语句漂移（TS-05 闭环）"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -70,17 +59,6 @@ ARCH --> S0341
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
-| SPEC-0477 | active | [0477-parser-formatter-difftest.md](active/0477-parser-formatter-difftest.md) |
-| SPEC-0478 | active | [0478-independent-block-difftest.md](active/0478-independent-block-difftest.md) |
-| SPEC-0481 | active | [0481-tree-sitter-difftest.md](active/0481-tree-sitter-difftest.md) |
-| SPEC-0482 | active | [0482-lexer-reference-difftest.md](active/0482-lexer-reference-difftest.md) |
-| SPEC-0484 | active | [0484-f3e-file-difftest.md](active/0484-f3e-file-difftest.md) |
-| SPEC-0485 | active | [0485-f3c-expression-difftest.md](active/0485-f3c-expression-difftest.md) |
-| SPEC-0486 | active | [0486-parser-observation-adapter.md](active/0486-parser-observation-adapter.md) |
-| SPEC-0487 | active | [0487-f4c-formatter-roundtrip-expansion.md](active/0487-f4c-formatter-roundtrip-expansion.md) |
-| SPEC-0488 | active | [0488-tree-sitter-drift-closure.md](active/0488-tree-sitter-drift-closure.md) |
-| SPEC-0489 | active | [0489-f2a-paired-paren-recovery-prototype.md](active/0489-f2a-paired-paren-recovery-prototype.md) |
-| SPEC-0501 | active | [0501-ts05-block-separator-closure.md](active/0501-ts05-block-separator-closure.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -89,4 +67,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（466 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（477 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

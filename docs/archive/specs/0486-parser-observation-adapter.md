@@ -1,10 +1,10 @@
 # SPEC-0486：四入口统一观察适配器与恢复/边界契约矩阵（F0b）
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收四入口统一观察分类与恢复契约时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收四入口统一观察分类与恢复契约时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 测试 |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@d6976cf0` |
@@ -36,4 +36,6 @@ cargo test --locked -p lang-frontend --test parser_observation_adapter
 
 - [x] 四入口统一观察适配器、foreign-SourceMap / ResourceLimit 见证与 128 组 `parse_file` 对抗矩阵实现
 - [x] 本地门禁（fmt / clippy / test / check_docs / check_rust_sizes）实跑验收
-- [ ] PR CI 验收与归档
+- [x] PR CI 验收与归档
+
+**归档记录。** 已随 PR #456（`5ea16bb8`）与 PR #457（`f3b9cc5a`） 合入 `main` 并完成有界交付，本批次按维护者确认收口归档至 `docs/archive/specs/`。
