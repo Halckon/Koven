@@ -20,15 +20,32 @@ use lsp_types::{
 
 use crate::{
     analysis::{AnalysisError, analyze},
-    diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics},
+    diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics_with_context},
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
     unit_analysis_snapshot::UnitAnalysisSnapshot,
     unit_session::{UnitDefinitionQueryError, UnitPublication, UnitSession, UnitSessionError},
+    workspace_manifest,
 };
 
-/// 运行一个已建立 transport 的 Koven LSP 会话。
+/// `lang-lsp` 运行选项；默认全关闭以精确保留 ADR-0021 既有行为。
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ServerOptions {
+    pub(crate) workspace_manifest: bool,
+    pub(crate) diagnostic_context: bool,
+}
+
+/// 运行一个已建立 transport 的 Koven LSP 会话（默认选项）。
+#[allow(dead_code)]
 pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
+    run_with_options(connection, ServerOptions::default())
+}
+
+/// 以显式选项运行 Koven LSP 会话。
+pub(crate) fn run_with_options(
+    connection: Connection,
+    options: ServerOptions,
+) -> Result<(), ServerError> {
     let (initialize_id, initialize_params) = connection.initialize_start()?;
     let initialize_params: InitializeParams = match serde_json::from_value(initialize_params) {
         Ok(params) => params,
@@ -60,10 +77,32 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
             return Ok(());
         }
     };
+    let source_set = match source_set {
+        Some(config) => Some(config),
+        None if options.workspace_manifest => {
+            match workspace_manifest::discover_source_set(&initialize_params) {
+                Ok(discovered) => discovered,
+                Err(error) => {
+                    let _ = send_log(
+                        &connection,
+                        format!("workspace project.toml discovery skipped: {error}"),
+                    );
+                    None
+                }
+            }
+        }
+        None => None,
+    };
     let (mut state, initial_publications) = match source_set {
-        Some(config) => match UnitSession::new(config) {
+        Some(config) => match UnitSession::new_with_options(config, options.diagnostic_context) {
             Ok(session) => match session.publications() {
-                Ok(publications) => (SessionState::Unit(Box::new(session)), Some(publications)),
+                Ok(publications) => (
+                    SessionState::Unit {
+                        session: Box::new(session),
+                        fallback: BTreeMap::new(),
+                    },
+                    Some(publications),
+                ),
                 Err(error) => {
                     send_response(
                         &connection,
@@ -127,7 +166,9 @@ pub(crate) fn run(connection: Connection) -> Result<(), ServerError> {
                 )?;
             }
             Message::Notification(notification) => {
-                if let Err(error) = handle_notification(&connection, notification, &mut state) {
+                if let Err(error) =
+                    handle_notification(&connection, notification, &mut state, options)
+                {
                     send_log(&connection, error.to_string())?;
                 }
             }
@@ -163,7 +204,10 @@ struct OpenDocument {
 
 enum SessionState {
     SingleDocument(BTreeMap<String, OpenDocument>),
-    Unit(Box<UnitSession>),
+    Unit {
+        session: Box<UnitSession>,
+        fallback: BTreeMap<String, OpenDocument>,
+    },
 }
 
 impl OpenDocument {
@@ -181,19 +225,53 @@ fn handle_notification(
     connection: &Connection,
     notification: Notification,
     state: &mut SessionState,
+    options: ServerOptions,
 ) -> Result<(), NotificationError> {
     match state {
         SessionState::SingleDocument(documents) => {
-            handle_single_document_notification(connection, notification, documents)
+            handle_single_document_notification_with_options(
+                connection,
+                notification,
+                documents,
+                options.diagnostic_context,
+            )
         }
-        SessionState::Unit(session) => handle_unit_notification(connection, notification, session),
+        SessionState::Unit { session, fallback } => {
+            if options.workspace_manifest
+                && let Some(uri) = notification_document_uri(&notification)
+                && !session.contains_uri(&uri)
+            {
+                return handle_single_document_notification_with_options(
+                    connection,
+                    notification,
+                    fallback,
+                    options.diagnostic_context,
+                );
+            }
+            handle_unit_notification(connection, notification, session)
+        }
     }
 }
 
+fn notification_document_uri(notification: &Notification) -> Option<Uri> {
+    let uri_value = notification.params.get("textDocument")?.get("uri")?;
+    serde_json::from_value(uri_value.clone()).ok()
+}
+
+#[cfg(test)]
 fn handle_single_document_notification(
     connection: &Connection,
     notification: Notification,
     documents: &mut BTreeMap<String, OpenDocument>,
+) -> Result<(), NotificationError> {
+    handle_single_document_notification_with_options(connection, notification, documents, false)
+}
+
+fn handle_single_document_notification_with_options(
+    connection: &Connection,
+    notification: Notification,
+    documents: &mut BTreeMap<String, OpenDocument>,
+    enrich_diagnostics: bool,
 ) -> Result<(), NotificationError> {
     match notification.method.as_str() {
         DidOpenTextDocument::METHOD => {
@@ -204,7 +282,7 @@ fn handle_single_document_notification(
                 params.text_document.version,
                 &params.text_document.text,
             )?;
-            publish_document(connection, &uri, &document)?;
+            publish_document(connection, &uri, &document, enrich_diagnostics)?;
             documents.insert(uri.as_str().to_owned(), document);
         }
         DidChangeTextDocument::METHOD => {
@@ -223,7 +301,12 @@ fn handle_single_document_notification(
                 params.text_document.version,
                 &change.text,
             )?;
-            publish_document(connection, &params.text_document.uri, &document)?;
+            publish_document(
+                connection,
+                &params.text_document.uri,
+                &document,
+                enrich_diagnostics,
+            )?;
             documents.insert(params.text_document.uri.as_str().to_owned(), document);
         }
         DidCloseTextDocument::METHOD => {
@@ -294,11 +377,13 @@ fn publish_document(
     connection: &Connection,
     uri: &Uri,
     document: &OpenDocument,
+    enrich_diagnostics: bool,
 ) -> Result<(), NotificationError> {
-    let diagnostics = convert_unit_diagnostics(
+    let diagnostics = convert_unit_diagnostics_with_context(
         document.analysis.name_snapshot().sources(),
         &[(document.source_id, uri.clone())],
         document.analysis.diagnostics(),
+        enrich_diagnostics,
     )?
     .into_iter()
     .next()
@@ -332,7 +417,18 @@ fn formatting_response(
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
     // 工具链采用 frontend 固定样式，客户端 options 不创建另一套格式语义。
     match state {
-        SessionState::Unit(session) => session.formatting_edits(&params.text_document.uri),
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&params.text_document.uri) {
+                session.formatting_edits(&params.text_document.uri)
+            } else if let Some(document) = fallback.get(params.text_document.uri.as_str()) {
+                crate::formatting::edits(
+                    document.analysis.name_snapshot().sources(),
+                    document.source_id,
+                )
+            } else {
+                Ok(None)
+            }
+        }
         SessionState::SingleDocument(documents) => {
             let Some(document) = documents.get(params.text_document.uri.as_str()) else {
                 return Ok(None);
@@ -371,76 +467,44 @@ fn definition_response(
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
     let position = params.text_document_position_params;
     let locations = match state {
-        SessionState::Unit(session) => {
-            match session.definition_locations(&position.text_document.uri, position.position) {
-                Ok(locations) => locations,
-                Err(UnitDefinitionQueryError::Position(
-                    PositionMappingError::InsideSurrogatePair,
-                )) => {
-                    return Err(RequestError::InvalidParams(
-                        "definition position splits a UTF-16 surrogate pair".to_owned(),
-                    ));
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&position.text_document.uri) {
+                match session.definition_locations(&position.text_document.uri, position.position) {
+                    Ok(locations) => locations,
+                    Err(UnitDefinitionQueryError::Position(
+                        PositionMappingError::InsideSurrogatePair,
+                    )) => {
+                        return Err(RequestError::InvalidParams(
+                            "definition position splits a UTF-16 surrogate pair".to_owned(),
+                        ));
+                    }
+                    Err(error) => return Err(RequestError::Internal(error.to_string())),
                 }
-                Err(error) => return Err(RequestError::Internal(error.to_string())),
+            } else if let Some(document) = fallback.get(position.text_document.uri.as_str()) {
+                match single_document_definition_locations(
+                    document,
+                    &position.text_document.uri,
+                    position.position,
+                )? {
+                    Some(locations) => locations,
+                    None => return Ok(None),
+                }
+            } else {
+                return Ok(None);
             }
         }
         SessionState::SingleDocument(documents) => {
             let Some(document) = documents.get(position.text_document.uri.as_str()) else {
                 return Ok(None);
             };
-            let source_id = document.source_id;
-            let sources = document.analysis.name_snapshot().sources();
-            let units = document
-                .analysis
-                .name_snapshot()
-                .names()
-                .index()
-                .source_units();
-            let source_unit = units
-                .iter()
-                .find(|source| source.source_id() == source_id)
-                .ok_or_else(|| {
-                    RequestError::Internal("document source is absent from unit".to_owned())
-                })?
-                .id();
-            let offset = match byte_offset(sources, source_id, position.position) {
-                Ok(offset) => offset,
-                Err(PositionMappingError::InsideSurrogatePair) => {
-                    return Err(RequestError::InvalidParams(
-                        "definition position splits a UTF-16 surrogate pair".to_owned(),
-                    ));
-                }
-                Err(error) => return Err(RequestError::Internal(error.to_string())),
-            };
-            let Some(offset) = offset else {
-                return Ok(None);
-            };
-            document
-                .analysis
-                .definitions()
-                .targets_at(source_unit, offset)
-                .iter()
-                .map(|target| {
-                    let target_source = units
-                        .iter()
-                        .find(|source| source.id() == target.source_unit)
-                        .ok_or_else(|| {
-                            RequestError::Internal(
-                                "definition target source is absent from unit".to_owned(),
-                            )
-                        })?;
-                    if target_source.source_id() != source_id
-                        || target.span.source_id() != source_id
-                    {
-                        return Err(RequestError::Internal(
-                            "single document definition target source mismatch".to_owned(),
-                        ));
-                    }
-                    span_range(sources, target.span)
-                        .map(|range| Location::new(position.text_document.uri.clone(), range))
-                        .map_err(|error| RequestError::Internal(error.to_string()))
-                })
-                .collect::<Result<Vec<_>, _>>()?
+            match single_document_definition_locations(
+                document,
+                &position.text_document.uri,
+                position.position,
+            )? {
+                Some(locations) => locations,
+                None => return Ok(None),
+            }
         }
     };
     Ok(match locations.as_slice() {
@@ -448,6 +512,63 @@ fn definition_response(
         [location] => Some(GotoDefinitionResponse::Scalar(location.clone())),
         _ => Some(GotoDefinitionResponse::Array(locations)),
     })
+}
+
+fn single_document_definition_locations(
+    document: &OpenDocument,
+    uri: &Uri,
+    position: lsp_types::Position,
+) -> Result<Option<Vec<Location>>, RequestError> {
+    let source_id = document.source_id;
+    let sources = document.analysis.name_snapshot().sources();
+    let units = document
+        .analysis
+        .name_snapshot()
+        .names()
+        .index()
+        .source_units();
+    let source_unit = units
+        .iter()
+        .find(|source| source.source_id() == source_id)
+        .ok_or_else(|| RequestError::Internal("document source is absent from unit".to_owned()))?
+        .id();
+    let offset = match byte_offset(sources, source_id, position) {
+        Ok(offset) => offset,
+        Err(PositionMappingError::InsideSurrogatePair) => {
+            return Err(RequestError::InvalidParams(
+                "definition position splits a UTF-16 surrogate pair".to_owned(),
+            ));
+        }
+        Err(error) => return Err(RequestError::Internal(error.to_string())),
+    };
+    let Some(offset) = offset else {
+        return Ok(None);
+    };
+    let locations = document
+        .analysis
+        .definitions()
+        .targets_at(source_unit, offset)
+        .iter()
+        .map(|target| {
+            let target_source = units
+                .iter()
+                .find(|source| source.id() == target.source_unit)
+                .ok_or_else(|| {
+                    RequestError::Internal(
+                        "definition target source is absent from unit".to_owned(),
+                    )
+                })?;
+            if target_source.source_id() != source_id || target.span.source_id() != source_id {
+                return Err(RequestError::Internal(
+                    "single document definition target source mismatch".to_owned(),
+                ));
+            }
+            span_range(sources, target.span)
+                .map(|range| Location::new(uri.clone(), range))
+                .map_err(|error| RequestError::Internal(error.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(locations))
 }
 
 enum RequestError {
