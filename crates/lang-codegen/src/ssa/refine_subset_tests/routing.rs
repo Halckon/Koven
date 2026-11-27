@@ -163,6 +163,31 @@ fn nullable_float_equality_uses_both_routes_and_guards_payload_reads() {
 }
 
 #[test]
+fn compatibility_for_joins_plain_and_nullable_floats() {
+    for (ty, literal) in [("Float", "1.0f"), ("Double", "1.0")] {
+        let source = format!(
+            r#"fun f(flag: Boolean, plain: {ty}, wrapped: {ty}?): Unit {{
+    for (label in arrayOf("loop")) {{
+        val picked: {ty}? = if (flag) plain else wrapped
+        if (picked == plain) {{ println(label) }} else {{ println("null") }}
+    }}
+}}
+fun main(): Unit {{
+    f(true, {literal}, null)
+    f(false, {literal}, null)
+    f(false, {literal}, {literal})
+}}"#
+        );
+        let (program, refined) = route(&source);
+        assert!(!refined, "{ty} uses the production Compatibility route");
+        let program = program.expect("both continuing branches reach an inline nullable join");
+        crate::ssa::verify::verify_program(&program).expect("nullable float join SSA verifies");
+        let run = crate::native_tests::emit_link_and_run("nullable-float-join.ko", &source, "main");
+        crate::native_tests::boxed_enum_tests::assert_success(&run, b"loop\nnull\nloop\n");
+    }
+}
+
+#[test]
 fn null_only_assertion_aborts_without_creating_a_payload_proof_in_either_route() {
     for (body, refined) in [
         ("missing()!!", true),

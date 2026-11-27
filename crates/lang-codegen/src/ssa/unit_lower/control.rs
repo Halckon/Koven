@@ -447,7 +447,13 @@ impl UnitExpressionLowerer<'_> {
             } if *inner == payload
                 && matches!(
                     self.ssa_types.get(payload.index()),
-                    Some(SsaTypeKind::Boolean | SsaTypeKind::Char | SsaTypeKind::Integer { .. })
+                    Some(
+                        SsaTypeKind::Boolean
+                            | SsaTypeKind::Char
+                            | SsaTypeKind::Integer { .. }
+                            | SsaTypeKind::Float32
+                            | SsaTypeKind::Float64
+                    )
                 ) =>
             {
                 Some(storage)
