@@ -1,6 +1,8 @@
 #![allow(unexpected_cfgs)]
 
 mod block;
+#[cfg(kani)]
+mod block_kani;
 mod borrow_result;
 mod boundary;
 mod class;
