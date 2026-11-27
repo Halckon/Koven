@@ -9,9 +9,17 @@ use lang_frontend::{
         UnitSymbolId,
     },
     parser::{Expression, ParsedFile, SyntaxAst},
-    source::Span,
-    type_checking::{CompilationUnitTypes, UnitCallTarget},
+    source::{SourceMap, Span},
+    type_checking::{CompilationUnitTypes, UnitCallTarget, UnitCallableTarget},
 };
+
+use crate::rename::{RenameError, span_slice};
+
+/// 一次已校验共享重载与显式别名边界的重命名计划。
+pub(crate) struct RenamePlan {
+    pub(crate) target_keys: Vec<(SourceUnitId, usize, usize)>,
+    pub(crate) occurrences: Vec<UnitDefinitionTarget>,
+}
 
 /// compilation-unit reference facts 到跨 source definition target 的确定性索引。
 pub(crate) struct UnitDefinitionIndex {
@@ -80,11 +88,59 @@ impl UnitDefinitionIndex {
                 };
                 let expression = call.expression();
                 let source = parsed_for_source(parsed, names, expression.source_unit())?;
-                let Some(reference) = call_reference_span(source.ast(), expression.expression())?
-                else {
-                    continue;
-                };
-                replace_unit_targets(&mut entries, expression.source_unit(), reference, [target]);
+                if let Some(reference) = call_reference_span(source.ast(), expression.expression())?
+                {
+                    replace_unit_targets(
+                        &mut entries,
+                        expression.source_unit(),
+                        reference,
+                        [target],
+                    );
+                }
+                if let Some(callable) = callable_signature_for_target(typed, call.target())
+                    && let Ok(expr_node) = source.ast().expressions().get(expression.expression())
+                    && let Expression::Call { arguments, .. } = expr_node.payload()
+                {
+                    for arg in call.arguments() {
+                        if let Some(named) = arguments
+                            .get(arg.argument_index())
+                            .and_then(|item| item.named_prefix)
+                            && let Some(param_sym) = callable
+                                .parameters()
+                                .get(arg.parameter_index())
+                                .and_then(|param| param.symbol())
+                        {
+                            replace_unit_targets(
+                                &mut entries,
+                                expression.source_unit(),
+                                named.name_span,
+                                [unit_symbol_target(names, param_sym)?],
+                            );
+                        }
+                    }
+                }
+            }
+            for construction in typed.constructions() {
+                let expression = construction.expression();
+                let source = parsed_for_source(parsed, names, expression.source_unit())?;
+                if let Ok(expr_node) = source.ast().expressions().get(expression.expression())
+                    && let Expression::Call { arguments, .. } = expr_node.payload()
+                {
+                    for arg in construction.arguments() {
+                        if let Some(named) = arguments
+                            .get(arg.evaluation_index())
+                            .and_then(|item| item.named_prefix)
+                            && let Some(param_sym) = arg.parameter_symbol()
+                        {
+                            replace_unit_targets(
+                                &mut entries,
+                                expression.source_unit(),
+                                named.name_span,
+                                [unit_symbol_target(names, param_sym)?],
+                            );
+                        }
+                    }
+                }
             }
             for projection in typed.aggregate_projections() {
                 let expression = projection.expression();
@@ -136,6 +192,175 @@ impl UnitDefinitionIndex {
             })
             .min_by_key(|entry| entry.reference.len())
             .map_or(&[], |entry| entry.targets.as_slice())
+    }
+
+    pub(crate) fn entry_at(
+        &self,
+        source_unit: SourceUnitId,
+        offset: usize,
+    ) -> Option<(Span, &[UnitDefinitionTarget])> {
+        let strict = self
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry.source_unit == source_unit
+                    && entry.reference.start() <= offset
+                    && offset < entry.reference.end()
+                    && !entry.reference.is_empty()
+            })
+            .min_by_key(|entry| entry.reference.len());
+        let entry = strict.or_else(|| {
+            self.entries
+                .iter()
+                .filter(|entry| {
+                    entry.source_unit == source_unit
+                        && entry.reference.start() < offset
+                        && offset == entry.reference.end()
+                        && !entry.reference.is_empty()
+                })
+                .min_by_key(|entry| entry.reference.len())
+        })?;
+        Some((entry.reference, entry.targets.as_slice()))
+    }
+
+    pub(crate) fn references_at(
+        &self,
+        source_unit: SourceUnitId,
+        offset: usize,
+        include_declaration: bool,
+    ) -> Vec<UnitDefinitionTarget> {
+        let Some((_, targets)) = self.entry_at(source_unit, offset) else {
+            return Vec::new();
+        };
+        let target_keys: Vec<(SourceUnitId, usize, usize)> = targets
+            .iter()
+            .map(|t| (t.source_unit, t.span.start(), t.span.end()))
+            .collect();
+        let mut refs = Vec::new();
+        for entry in &self.entries {
+            let matches_target = entry.targets.iter().any(|t| {
+                let key = (t.source_unit, t.span.start(), t.span.end());
+                target_keys.contains(&key)
+            });
+            if !matches_target {
+                continue;
+            }
+            let entry_key = (
+                entry.source_unit,
+                entry.reference.start(),
+                entry.reference.end(),
+            );
+            if !include_declaration && target_keys.contains(&entry_key) {
+                continue;
+            }
+            refs.push(UnitDefinitionTarget {
+                source_unit: entry.source_unit,
+                span: entry.reference,
+            });
+        }
+        refs.sort_by_key(|item| (item.source_unit, item.span.start(), item.span.end()));
+        refs.dedup_by_key(|item| (item.source_unit, item.span.start(), item.span.end()));
+        refs
+    }
+
+    /// 计算安全的重命名计划：拒绝通过显式别名发起的重命名，拒绝破坏共享重载导入的局部重载重命名，
+    /// 并过滤掉拼写不同于原声明名的别名调用点。
+    pub(crate) fn plan_rename_at(
+        &self,
+        source_unit: SourceUnitId,
+        offset: usize,
+        sources: &SourceMap,
+    ) -> Result<Option<RenamePlan>, RenameError> {
+        let Some((cursor_span, targets)) = self.entry_at(source_unit, offset) else {
+            return Ok(None);
+        };
+        if targets.is_empty() {
+            return Ok(None);
+        }
+        if targets.len() > 1 {
+            return Err(RenameError::SharedOverloadReference);
+        }
+        let Some(cursor_text) = span_slice(sources, cursor_span) else {
+            return Ok(None);
+        };
+        if !targets
+            .iter()
+            .all(|t| span_slice(sources, t.span) == Some(cursor_text))
+        {
+            return Err(RenameError::AliasReference);
+        }
+
+        let target_keys: Vec<(SourceUnitId, usize, usize)> = targets
+            .iter()
+            .map(|t| (t.source_unit, t.span.start(), t.span.end()))
+            .collect();
+        let mut occurrences = Vec::new();
+        for entry in &self.entries {
+            let intersects = entry.targets.iter().any(|t| {
+                let key = (t.source_unit, t.span.start(), t.span.end());
+                target_keys.contains(&key)
+            });
+            if !intersects {
+                continue;
+            }
+            // If an entry references additional targets outside our rename set (e.g. `import lib.pick`
+            // importing multiple overloads while renaming only one overload), refuse to rewrite it.
+            let has_other_targets = entry.targets.iter().any(|t| {
+                let key = (t.source_unit, t.span.start(), t.span.end());
+                !target_keys.contains(&key)
+            });
+            if has_other_targets {
+                return Err(RenameError::SharedOverloadReference);
+            }
+            // Skip alias usages whose source spelling differs from the original declaration name.
+            if span_slice(sources, entry.reference) != Some(cursor_text) {
+                continue;
+            }
+            occurrences.push(UnitDefinitionTarget {
+                source_unit: entry.source_unit,
+                span: entry.reference,
+            });
+        }
+        occurrences.sort_by_key(|item| (item.source_unit, item.span.start(), item.span.end()));
+        occurrences.dedup_by_key(|item| (item.source_unit, item.span.start(), item.span.end()));
+        Ok(Some(RenamePlan {
+            target_keys,
+            occurrences,
+        }))
+    }
+}
+
+fn callable_signature_for_target(
+    typed: &CompilationUnitTypes,
+    target: UnitCallTarget,
+) -> Option<&lang_frontend::type_checking::UnitCallableSignature> {
+    match target {
+        UnitCallTarget::Declaration(decl_id) => typed
+            .signatures()
+            .declaration(decl_id)
+            .and_then(|decl| decl.callable()),
+        UnitCallTarget::Symbol(sym_id) => {
+            for decl in typed.signatures().declarations() {
+                if let Some(callable) = decl.callable()
+                    && callable.target() == UnitCallableTarget::Symbol(sym_id)
+                {
+                    return Some(callable);
+                }
+                if let Some(nominal) = decl.nominal() {
+                    for member in nominal
+                        .members()
+                        .iter()
+                        .chain(nominal.companion_members().iter())
+                    {
+                        if member.target() == UnitCallableTarget::Symbol(sym_id) {
+                            return Some(member);
+                        }
+                    }
+                }
+            }
+            None
+        }
+        UnitCallTarget::External(_) | UnitCallTarget::FunctionValue => None,
     }
 }
 

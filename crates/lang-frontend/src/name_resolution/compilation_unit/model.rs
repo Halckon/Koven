@@ -32,7 +32,9 @@ pub struct UnitSymbolId {
     symbol: SymbolId,
 }
 impl UnitSymbolId {
-    pub(crate) const fn new(source_unit: SourceUnitId, symbol: SymbolId) -> Self {
+    /// 构造带 source-unit 限定的 symbol identity。
+    #[must_use]
+    pub const fn new(source_unit: SourceUnitId, symbol: SymbolId) -> Self {
         Self {
             source_unit,
             symbol,
