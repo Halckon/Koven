@@ -1,5 +1,6 @@
 # 完成 Specs
 
+- [SPEC-0510](0510-f6-lexical-owner-events-machine-proof.md)：F6 第十一片词法 owner 栈与 `verified_events` 构造，按 PR #483 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45922470309) 验收归档。
 - [SPEC-0369](0369-final-debug-artifacts.md)：CLI 最终调试产物与源码断点（macOS dSYM 与 Linux ELF 行表及双宿主 LLDB 断点），生产代码已合入 main，本机 macOS 实测通过并按部分发布例外保留归档；PR 双宿主 CI 待合并前核验。
 - [SPEC-509](0509-f6-lambda-trial-machine-proof.md)：LambdaHeaderIndex DFA，按 PR #477 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)验收归档。
 - [SPEC-508](0508-f6-stops-lattice-machine-proof.md)：Stops 边界传播格，按 PR #477 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)验收归档。

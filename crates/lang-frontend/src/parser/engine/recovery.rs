@@ -8,6 +8,7 @@ mod adjacent_poison;
 mod angle_groups;
 mod diagnostic_anchor;
 mod ordinary_groups;
+mod owner_events;
 
 use adjacent_poison::{AdjacentPoisonTail, ElsePoisonTail};
 
@@ -178,81 +179,13 @@ impl<'source> LexicalRecoveryIndex<'source> {
                 .cmp(&right.offset)
                 .then_with(|| right.opener.cmp(&left.opener))
         });
-        let mut verified_events = Vec::with_capacity(terminal_owner_events.len());
-        let mut active_owners = Vec::new();
-        let mut next_terminal_event = 0usize;
-        for lexeme in lexed.lexemes() {
-            while terminal_owner_events
-                .get(next_terminal_event)
-                .is_some_and(|event| event.offset <= lexeme.span().start())
-            {
-                let event = terminal_owner_events[next_terminal_event];
-                if active_owners.last().copied() != Some((event.kind, event.opener)) {
-                    return Err(ParserInternalError::InvalidLexemeStream);
-                }
-                active_owners.pop();
-                verified_events.push(event);
-                next_terminal_event += 1;
-            }
-
-            if matches!(lexeme.kind(), LexemeKind::Eof) && !active_owners.is_empty() {
-                // 终止性 char/comment 根因会按 Lexer 的级联抑制规则取代外层 string / interpolation
-                // 诊断；此时没有显式 owner event，但剩余 owner 仍必须在同一 EOF 关闭。
-                if !terminal_error_at_eof {
-                    return Err(ParserInternalError::InvalidLexemeStream);
-                }
-                while let Some((kind, opener)) = active_owners.pop() {
-                    verified_events.push(TerminalOwnerEvent {
-                        offset: source.len(),
-                        kind,
-                        opener,
-                    });
-                }
-            }
-
-            match lexeme.kind() {
-                LexemeKind::Token(TokenKind::StringStart) => {
-                    active_owners.push((TerminalOwnerKind::String, lexeme.span().start()))
-                }
-                LexemeKind::Token(TokenKind::InterpolationStart) => {
-                    active_owners.push((TerminalOwnerKind::Interpolation, lexeme.span().start()))
-                }
-                LexemeKind::Token(TokenKind::StringEnd) => {
-                    if !matches!(active_owners.pop(), Some((TerminalOwnerKind::String, _))) {
-                        return Err(ParserInternalError::InvalidLexemeStream);
-                    }
-                }
-                LexemeKind::Token(TokenKind::InterpolationEnd) => {
-                    if !matches!(
-                        active_owners.pop(),
-                        Some((TerminalOwnerKind::Interpolation, _))
-                    ) {
-                        return Err(ParserInternalError::InvalidLexemeStream);
-                    }
-                }
-                LexemeKind::Invalid(_)
-                    if terminal_escape_spans
-                        .binary_search(&(lexeme.span().start(), lexeme.span().end()))
-                        .is_ok() =>
-                {
-                    let Some((TerminalOwnerKind::String, opener)) = active_owners.last().copied()
-                    else {
-                        return Err(ParserInternalError::InvalidLexemeStream);
-                    };
-                    let event = TerminalOwnerEvent {
-                        offset: lexeme.span().end(),
-                        kind: TerminalOwnerKind::String,
-                        opener,
-                    };
-                    active_owners.pop();
-                    verified_events.push(event);
-                }
-                _ => {}
-            }
-        }
-        if next_terminal_event != terminal_owner_events.len() {
-            return Err(ParserInternalError::InvalidLexemeStream);
-        }
+        let verified_events = owner_events::verify_terminal_owner_events(
+            lexed.lexemes(),
+            &terminal_owner_events,
+            &terminal_escape_spans,
+            terminal_error_at_eof,
+            source.len(),
+        )?;
         let mut active_strings: Vec<ActiveString> = Vec::new();
         let mut string_owner_ends = Vec::new();
         let mut lexical_poison_string_recoveries = Vec::new();
@@ -985,3 +918,7 @@ mod group_owner_tests;
 mod ordinary_group_kani;
 #[cfg(test)]
 mod ordinary_group_tests;
+#[cfg(kani)]
+mod owner_events_kani;
+#[cfg(test)]
+mod owner_events_tests;

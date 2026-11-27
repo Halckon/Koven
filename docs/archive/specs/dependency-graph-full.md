@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，478 份）"]
+subgraph Garchive["已完成（archive，479 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -487,6 +487,7 @@ subgraph Garchive["已完成（archive，478 份）"]
   S0507["S0507<br/>F6 第十片 StrictCallTrialIndex 索引单调性、反向 DP 路径与递归预算双轨证明"]
   S0508["S0508<br/>F6 第六片 Stops / TypeStops / DeclarationStops 边界传播格与硬分隔符不屏蔽双轨证明"]
   S0509["S0509<br/>F6 第七片 LambdaHeaderIndex 单遍流式 DFA 等价性与线性步数双轨证明"]
+  S0510["S0510<br/>F6 第十一片 LexicalRecoveryIndex 词法 owner 栈健全性与 verified_events 构造双轨证明"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -2067,6 +2068,7 @@ S0502 --> S0503
 | SPEC-0507 | archive | [0507-f6-strict-call-trial-machine-proof.md](0507-f6-strict-call-trial-machine-proof.md) |
 | SPEC-0508 | archive | [0508-f6-stops-lattice-machine-proof.md](0508-f6-stops-lattice-machine-proof.md) |
 | SPEC-0509 | archive | [0509-f6-lambda-trial-machine-proof.md](0509-f6-lambda-trial-machine-proof.md) |
+| SPEC-0510 | archive | [0510-f6-lexical-owner-events-machine-proof.md](0510-f6-lexical-owner-events-machine-proof.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
