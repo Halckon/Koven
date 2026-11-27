@@ -33,6 +33,7 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
   - [之十三：实施路线——从当前到 v1，从 v1 到之后](evolution-13-implementation-roadmap.md)
 - [v1 冻结前的兼容性约束（Z1–Z11）](v1-freeze-decisions.md)：可并入 v1 条目 Spec 的条款，已登记为路线图决策 D16
 - [unsafe 别名、失败安全与外部边界合同（U0 + FF0）](unsafe-aliasing-contract-outline.md)：完整候选合同（AL1–AL8、FS1–FS8、MM1–MM7、UB1–UB11、TR1–TR4、FFI1–FFI5 与检测矩阵）
+- [U0 迁入前硬门槛证据账本（AL1/AL2 与 UB1–UB11）](u0-ub-harness-evidence.md)：AL1/AL2 向路线 L 参考检查器的附加前提映射、预 U1 ASan/UBSan/TSan 代理反例实测记录与 UB1/UB5/W13 剩余阻塞清单
 - [L3 试金石程序与 Kotlin 风格人机工程评审](l3-litmus-programs.md)：分词器、借用迭代器、区域分配三组只写源码的 L3 试金石及库/应用双侧人机工程评审
 - [FD0：显式监督边界预留与“每连接一线程”服务器试金石](fd0-supervision-boundary-litmus.md)：J48 四项预留核对、每连接一线程监督回显服务器试金石与行为草案第 3–4 条收口建议
 - [编译单元依赖、接口产物与语言版本规则提案（之十一 J45–J47）](compilation-unit-dependency-rules.md)：J45 两层无环依赖、J46 接口产物导出合同、J47 按单元语言版本隔离及与 J37/标准库三分的衔接
