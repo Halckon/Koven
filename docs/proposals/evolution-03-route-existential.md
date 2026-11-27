@@ -203,7 +203,7 @@ owned existential 离开构造它的编译单元之后行为不确定。扩展�
 
 验收：
 
-- 试金石：插件注册表、表达式树求值器、事件总线（`List<Handler>`）；
+- 试金石：插件注册表、表达式树求值器、事件总线（`List<Handler>`）——X2 借用访问者、X3 事件总线与 E3 `Result<T, Error>` 候选源码及五类反例矩阵见[路线 X 存在类型试金石](existential-visitor-litmus.md)；
 - 原生验证：析构计数精确；sanitizer 无泄漏与重复释放；`class` 载荷的转换不发生分配；
 - 反例：隐式 `List<Circle>` → `List<Shape>`、无期望类型的公共 interface 推导、转换后使用原绑定。
 

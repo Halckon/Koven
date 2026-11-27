@@ -39,6 +39,8 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [数据结构与并发试金石程序集（之五 §5）](data-structure-concurrency-litmus.md)：百万节点链表析构（G3）、迭代式遍历（G4）、`MoveOnly` 堆排序（G5）、有界阻塞队列（C4）与 `AtomicLong` 并发计数（C2/C3/U1）五组候选试金石
 - [L4 独占视图试金石与反例矩阵（之二 L4）](l4-exclusive-view-litmus.md)：原地排序（`MutSlice.splitAt` + `swap`）、二维矩阵行视图、链表可写游标难点对照与六类 L4 必测反例矩阵
 - [IR0 所有权图规格前置草案与多阶段路线图脚本设计（之八 J27–J30）](ir0-ownership-graph-draft.md)：IR0 归因统计模板与降级门槛、所有权图最小语句集/place 文法/失败出口预留边、以及 `gen_roadmap.py` 多阶段扩展设计
+- [路线 S 挂起与生成器试金石（之七 S3/S4）](suspend-generator-litmus.md)：二叉树中序遍历生成器、单线程异步回显服务器与作用域取消（含在途 IO 交接）及五类反例矩阵
+- [路线 X 存在类型试金石与反例矩阵（之三 X2/X3）](existential-visitor-litmus.md)：借用 existential 零分配访问者、事件总线 `MutableList<EventHandler>`、`Result<T, Error>` 单 `?` 转换及五类反例矩阵
 - [借用内核演算（内核 MVP 第 1–3 步）](loan-kernel-calculus.md)：参考检查器原型的语法、规则、用例清单与原型得到的发现
 - [内核原型的覆盖与欠账](kernel-prototype-coverage.md)：各内核基底的原型覆盖状态，未覆盖项按“先做 / 记账后集中做”排期
 - [内核演进两项悬决策略的裁决纪要与 3A 取消接口对比（2026-11）](kernel-open-decisions-2026-11.md)：OD1（A1 / 1A-ext）与 OD2（B1 / 首个已提交的普通失败）三轮讨论收口、Guide 合法位置示例、3A 取消接口两方案调用例对比与待补多任务验收清单
