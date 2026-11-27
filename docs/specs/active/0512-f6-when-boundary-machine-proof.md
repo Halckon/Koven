@@ -30,7 +30,7 @@
      - `runEventsFrom_true_iff_arrow_balanced`（W7：任意长度事件流接受当且仅当存在前置可继续前缀到达 `needsOperand = false ∧ pendingElse = 0` 状态的 `.arrow` 事件；EOF 永不接受）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [when_boundary_kani.rs](../../../crates/lang-frontend/src/parser/engine/when_boundary_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：
-     - `verify_when_boundary_new_selector_and_control`：直接调用生产 `is_new_selector_after_line_break` 与 `SelectorScanState::step_non_operand_control`，符号覆盖全部 `WhenEntryBody`、13 类代表 `TokenKind`（含全部控制/新选择器记号与普通对照记号）、任意 `has_line_break`、任意 `needs_operand` 与任意 `pending_else: usize`。
+     - `verify_when_boundary_new_selector_and_control`：直接调用生产 `is_new_selector_after_line_break` 与 `SelectorScanState::step_non_operand_control`，通过 `any_token_kind()` 与编译期无通配符穷举见证 `assert_token_kind_exhaustive` 符号覆盖全部 `WhenEntryBody`、生产 `TokenKind` 的全部变体（含全部 36 个 `Keyword`、43 个 `Symbol`、11 个 `ReservedWord` 及字面量后缀）、任意 `has_line_break`、任意 `needs_operand` 与任意 `pending_else: usize`。
      - `verify_when_boundary_step_invariants`：直接调用生产 `SelectorScanState::step`，符号覆盖任意 `SelectorScanState`（含 `pending_else = 0` 下溢边界与 `usize::MAX` 上溢边界）与全部 10 种 `SelectorEvent`。
      - `verify_when_boundary_run_events_balance_len_6`：直接调用 `run_selector_events`（驱动生产 `SelectorScanState::step`），符号覆盖长度 `0..=6` 的任意 `SelectorEvent` 序列，逐拍核对 `pending_else + else_count == if_count` 与仅在平衡 `.arrow` 处接受。
 4. **路径触发轻量 CI 扩展**：
