@@ -108,7 +108,8 @@ fun handleConnection(
             error("simulated per-connection invariant failure")
         }
 
-        val writeResult = stream.writeLine(line)
+        // 写路径同样设置总截止超时，避免对端停止读取导致写阻塞而无法观察 shutdownFlag
+        val writeResult = stream.writeLineWithTimeout(line, 100)
         when (writeResult) {
             is Ok -> {
                 val lockResult = statsLock.withLock { inout stats ->
@@ -119,7 +120,7 @@ fun handleConnection(
                     is Err -> return // 对端曾在持锁时异常终止（LockError.Poisoned），本连接安全退出
                 }
             }
-            is Err -> return
+            is Err -> return // 含写超时、对端关闭或 IO 错误，直接结束本连接
         }
     }
 }
@@ -188,7 +189,7 @@ fun runEchoServer(
         })
     }
 
-    // 5. 优雅停机：所有空闲连接在读超时后观察到 shutdownFlag 并退出，joinAll() 有界完成
+    // 5. 优雅停机：读/写均带超时时，空闲或写阻塞连接在截止后观察到 shutdownFlag 或超时退出，joinAll() 等待回收
     val remaining = pool.joinAll()
     recordCompleted(remaining, statsLock)
 }
@@ -221,6 +222,7 @@ fun runEchoServer(
 
 ## 5. 仍待 FD1–FD3 阶段收口的遗留项
 
+- **有界停机的运行时验证**：本试金石为阻塞读与阻塞写均加上了截止超时（`readLineWithTimeout` / `writeLineWithTimeout`），但“对端停读/半开连接/高负载下 `joinAll()` 严格有界结束”仍须在 IO3/FD3 落地真实套接字超时、连接关闭或显式取消原语后经运行时测试验收，不能仅凭静态源码视为已证明。
 - **展开途中等待健康长期线程的唤醒机制**：若监督单元内持有另一个长期阻塞的子线程句柄，展开等待可能退化为挂起，须配合协作取消或 channel 关闭协议在 FD1/FD3 明确约束。
 - **在途 IO 终止窗口的后端与运行时证明**：[失败与清理模型](failure-cleanup-model.md)模型 D 已验证“隔离边界 + 全线程冻结终止窗口”可防止缓冲区提前复用，但具体冻结协议与零终结证据资源保留策略须在 IO4 / FD2 联合落地。
 - **任务子树作为监督边界时的 `Rc` 隔离前提**：沿用“监督边界只接受 `Transferable` 捕获”可阻止边界内外共享 `Rc`，但异步执行器调度器与任务树的集成证明留待阶段五 S4 复核。
