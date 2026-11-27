@@ -1,0 +1,14 @@
+interface Greeter {
+    fun label(): String
+}
+
+class BaseGreeter : Greeter {
+    override fun label(): String = "delegated"
+}
+
+class ProxyGreeter(val inner: BaseGreeter) : Greeter by inner
+
+fun main(): Unit {
+    val p = ProxyGreeter(BaseGreeter())
+    println(p.label())
+}

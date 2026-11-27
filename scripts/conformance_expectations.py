@@ -17,6 +17,7 @@ from conformance_catalogs import (
     GUIDE_SYNTAX_INDEX_DOMAINS,
     MAIN_ENTRY_RE,
     PACKAGE_DIRECTIVE_RE,
+    POST_BASELINE_PROBES,
     PROBE_BATCH_CATALOG,
     PROBE_GUIDE_CHAPTERS,
     PROGRAM_ALLOWED_MARKERS,
@@ -182,13 +183,15 @@ GUIDE_VERSION_BOUNDARY_CATALOG: dict[str, dict[str, Any]] = {
         ],
     },
     "v0.47": {
-        "summary": "Guide 13 文本字节基础、可信标准 String Borrow 扩展与 Result<String, String> 载荷 when 闭环 (SPEC-0368)",
+        "summary": "Guide 13 文本字节基础、可信标准 String Borrow 扩展、同步 IO 表面与 Result<String, String> 载荷 when 闭环 (SPEC-0368)",
         "probes": [
             "p16b_result_string",
             "p31_string_ops",
             "p46_string_field_class",
             "q10_var_reassign_string",
             "x02_string_nullable_return",
+            "z06_text_lines_split",
+            "z07_io_path_join",
         ],
     },
 }
@@ -670,7 +673,9 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
 
 
 def parse_tsv_matrix(
-    text: str, expected_names: set[str] | None = None
+    text: str,
+    expected_names: set[str] | None = None,
+    optional_names: set[str] | None = None,
 ) -> dict[str, tuple[str, str]]:
     """Parse a 3-column TSV matrix and reject duplicate, malformed, or missing probe rows."""
     rows: dict[str, tuple[str, str]] = {}
@@ -689,7 +694,8 @@ def parse_tsv_matrix(
 
     if expected_names is not None:
         missing = sorted(expected_names - set(rows.keys()))
-        extra = sorted(set(rows.keys()) - expected_names)
+        allowed = expected_names | (optional_names or set())
+        extra = sorted(set(rows.keys()) - allowed)
         if missing:
             raise ValueError(f"missing probe rows in matrix: {missing}")
         if extra:
@@ -713,11 +719,6 @@ def derive_static_expectations(
         name = path.stem
         # 命名违规与 baseline 缺项都要给出可读诊断，不能落到 baseline[name] 的 KeyError
         classify_probe_batch(name)
-        if name not in baseline:
-            raise ValueError(
-                f"probes.{name} is missing from baseline matrix {baseline_path.name}; "
-                f"add a baseline row for the probe or rename the source file"
-            )
         raw_bytes = path.read_bytes()
         if not raw_bytes or not raw_bytes.endswith(b"\n") or b"\r" in raw_bytes:
             raise ValueError(
@@ -726,6 +727,41 @@ def derive_static_expectations(
         src_text = raw_bytes.decode("utf-8")
         probe_src_metrics[name] = (len(src_text.splitlines()), len(raw_bytes))
         src_sha = sha256_bytes(raw_bytes)
+        if name in POST_BASELINE_PROBES:
+            if name in V046_PROBE_OVERRIDES:
+                pb_entry = dict(V046_PROBE_OVERRIDES[name])
+                pb_entry["guide_chapter"] = POST_BASELINE_PROBES[name]["guide_chapter"]
+                pb_entry["oracle_origin"] = "v046_spec_contract"
+                spec_refs = list(
+                    dict.fromkeys(re.findall(r"SPEC-[0-9]{4}", pb_entry.get("note", "")))
+                )
+                if spec_refs:
+                    pb_entry["spec_refs"] = spec_refs
+                if pb_entry.get("kind") == "known_unimplemented":
+                    pb_entry["roadmap_blockers"] = list(
+                        UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"])
+                    )
+                if name in SEMANTIC_ORACLE_DERIVATIONS:
+                    pb_entry["oracle_derivation"] = SEMANTIC_ORACLE_DERIVATIONS[name]
+            else:
+                pb_entry = dict(POST_BASELINE_PROBES[name])
+                pb_entry["oracle_origin"] = "post_baseline_audited"
+            pb_entry["source_sha256"] = src_sha
+            pb_entry["baseline_marker"] = "POST_BASELINE"
+            if (
+                pb_entry.get("kind") == "compile_fail"
+                and pb_entry.get("diagnostic") in DIAGNOSTIC_SYMBOL_CATALOG
+            ):
+                pb_entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[
+                    pb_entry["diagnostic"]
+                ]
+            probes_out[name] = pb_entry
+            continue
+        if name not in baseline:
+            raise ValueError(
+                f"probes.{name} is missing from baseline matrix {baseline_path.name}; "
+                f"add a baseline row for the probe or rename the source file"
+            )
         base_single, base_project = baseline[name]
         if base_single != base_project:
             raise ValueError(

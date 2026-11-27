@@ -185,9 +185,9 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | v1 必做 | 验收、发布与文档 | — | 6 | — | 源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前两模式一致均为 known_unimplemented（0 / 6 可运行）。另设第七个线程程序验收 T1，不计入 v1.0 硬门槛。 |
+| ☐ 未开始 | V1 | 十个 V1 验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈、文本日志汇总、泛型查询管道、共享 DAG 析构、受限并发管道）双宿主运行正确且 ASan/LSan 干净 | v1 必做 | 验收、发布与文档 | — | 6 | — | 源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前两模式一致均为 known_unimplemented（0 / 10 可运行），与 conformance/README.md 保持同一 V1 验收范围。 |
 | ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) | 以下 137/154 是 2026-10-27 历史基线；2026-11-07 本机 138/154 与宿主边界见 meta.metrics。V2 前六片已落地：conformance/expectations.json + conformance/ORACLE_AUDIT.md + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁，覆盖 Guide 01–13 全部 13 个规范章节归属映射（guide_chapter）、逐探针语义推导账本（oracle_derivation）、前端错误码目录（diagnostic.rs）交叉核验，以及全部 17 个 known_unimplemented probe 与 6 个验收程序的路线图阻塞项（roadmap_blockers: N01–N08, L1, L2, L7, S6, T1）实测双向对账校验（154 probe 能力通过 137/154，两模式差异 0，内部错误 0）。本轮后续待清零 16 个 known_unimplemented probe 并补齐每章正反例；此前 17 个仅为历史口径。 |
-| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | v1 必做 | 安全验证 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) | — |
+| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与十个 V1 验收程序 | v1 必做 | 安全验证 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) | — |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | v1 建议 | 安全验证 | — | 4 | [0269](../archive/specs/0269-generated-resource-programs.md) [native-safety-validation](../proposals/native-safety-validation.md) | — |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | v1 必做 | 验收、发布与文档 | — | — | — | README 与 tour 已于 10-15 按实测改写。 |
 | ◐ 部分 | V6 | v1.0 发行：双宿主安装包、使用材料与已知限制 | v1 必做 | 验收、发布与文档 | — | 6 | [0272](../archive/specs/0272-preview-candidate-package.md) [measurement-distribution](../proposals/measurement-distribution.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) | — |

@@ -6,6 +6,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from conformance_v047_probes import (
+    POST_BASELINE_GUIDE_CHAPTERS,
+    POST_BASELINE_ORACLE_DERIVATIONS,
+    POST_BASELINE_PROBES,
+    POST_BASELINE_ROADMAP_BLOCKERS,
+)
+
 
 SCHEMA_EXPECTATIONS = "koven.conformance-expectations.v1"
 SCHEMA_RESULTS = "koven.conformance-results.v1"
@@ -35,14 +42,21 @@ EXPECTED_MULTI_DIAGNOSTICS: dict[str, list[str]] = {
 
 # Canonical frontend diagnostic code symbols from crates/lang-frontend/src/diagnostic.rs::codes
 DIAGNOSTIC_SYMBOL_CATALOG: dict[str, str] = {
+    "L0008": "INVALID_NUMERIC_LITERAL",
+    "L0042": "UNSUPPORTED_DESTRUCTURING_FORM",
     "L0080": "UNRESOLVED_NAME",
     "L0084": "TYPE_MISMATCH",
     "L0085": "INVALID_OPERAND_TYPES",
     "L0089": "NO_COMMON_BRANCH_TYPE",
     "L0112": "WHEN_BRANCH_TYPE",
+    "L0117": "INVALID_BOX_ARGUMENT",
     "L0132": "PARTIAL_MOVE",
     "L0133": "MOVE_FROM_BORROWED_BINDING",
     "L0135": "LOAN_CONFLICT",
+    "L0138": "ILLEGAL_OWNED_CAPTURE",
+    "L0148": "UNRESOLVED_IMPORT_TARGET",
+    "L0150": "EXACT_IMPORT_BINDING_CONFLICT",
+    "L0161": "HASHABLE_TYPE_ARGUMENT_BOUND",
     "L0164": "UNSUPPORTED_BORROW_FLOW",
     "L0165": "FINAL_TYPE_ANALYSIS_INCOMPLETE",
     "L0167": "UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE",
@@ -66,6 +80,8 @@ VALID_UNIMPLEMENTED_MARKERS = frozenset(
         "FE:L0080",
         "FE:L0084",
         "FE:L0085",
+        "FE:L0148",
+        "FE:L0161",
         "FE:L0165",
     }
 )
@@ -74,6 +90,8 @@ UNIMPLEMENTED_MARKER_CATALOG: dict[str, tuple[str, str]] = {
     "FE:L0080": ("Phase 2 名称解析", "前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`）"),
     "FE:L0084": ("Phase 2 类型检查", "前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`）"),
     "FE:L0085": ("Phase 2 运算符类型", "前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`）"),
+    "FE:L0148": ("Phase 2 导入解析", "前端标准库包路径或导入目标尚未实现（`UNRESOLVED_IMPORT_TARGET`）"),
+    "FE:L0161": ("Phase 2 值语义约束", "前端自动推导 `Hashable` 等值语义协议约束尚未接入（`HASHABLE_TYPE_ARGUMENT_BOUND`）"),
     "FE:L0165": ("Phase 2 最终类型准入", "前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`）"),
     "BE:UnsupportedNode": ("Phase 4 SSA Lowering", "后端 SSA 构建阶段尚未支持的语法或语义节点"),
     "BE:UnsupportedSource": ("Phase 4 Native Object", "后端原生目标文件生成阶段尚未支持的调用来源"),
@@ -87,6 +105,7 @@ VALID_ORACLE_ORIGINS = frozenset(
         "v046_spec_contract",
         "baseline_diagnostic_audited",
         "baseline_unimplemented_audited",
+        "post_baseline_audited",
         "expected_txt_file",
     }
 )
@@ -97,6 +116,7 @@ ORACLE_ORIGIN_DESCRIPTIONS: dict[str, str] = {
     "v046_spec_contract": "Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`）",
     "baseline_diagnostic_audited": "前端负向诊断码契约确认（`error[Lxxxx]` + `diagnostic.rs::codes` 符号匹配）",
     "baseline_unimplemented_audited": "已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项）",
+    "post_baseline_audited": "后基线新增 Guide v0.46/v0.47 与 V2 负向探针（`z` 批次，不改写冻结 `baseline-aef3f4f8.tsv`）",
     "expected_txt_file": "V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验）",
 }
 
@@ -143,11 +163,12 @@ PROBE_BATCH_CATALOG: dict[str, str] = {
     "w": "Map/MutableMap：遍历顺序、覆盖与删除、遍历中的跳转与借用",
     "x": "nullable class、String nullable 返回与条件中的借用实参复测",
     "y": "`koven.algorithms` 的 `take` 与 N1a 范围借用",
+    "z": "Guide v0.46/v0.47 增量与 V2 负向覆盖补齐（后基线新增）",
     "e": "enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛）",
 }
 
 PROBE_NAME_CONVENTION_RE = re.compile(
-    r"^(?:(w)(1[2-9])|([epqrstuvwxy])([0-9]{2}[a-z]?)_([A-Za-z0-9_]+))$"
+    r"^(?:(w)(1[2-9])|([epqrstuvwxyz])([0-9]{2}[a-z]?)_([A-Za-z0-9_]+))$"
 )
 
 
@@ -291,6 +312,7 @@ PROBE_GUIDE_CHAPTERS: dict[str, str] = {
     "p27_thread": "13-program-runtime-standard-library.md",
     "p31_string_ops": "13-program-runtime-standard-library.md",
     "q04_rc_simple": "13-program-runtime-standard-library.md",
+    **POST_BASELINE_GUIDE_CHAPTERS,
 }
 
 PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
@@ -300,9 +322,13 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
     "raii_state_machine": "08-class-family-members.md",
     "varint_codec": "03-types-generics.md",
     "linked_stack": "10-ownership-borrowing-drop.md",
+    "text_log_summary": "13-program-runtime-standard-library.md",
+    "query_pipeline": "07-calls-lambdas-closures.md",
+    "dag_refcount": "10-ownership-borrowing-drop.md",
+    "worker_pipeline": "13-program-runtime-standard-library.md",
 }
 
-# Explicit mapping from all 17 known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
+# Explicit mapping from all known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
 UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "p02_interp": ["L1", "L2"],
     "p05_double": ["N05"],
@@ -321,16 +347,21 @@ UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "q08_enum_string_payload": ["N02", "L7"],
     "s02_pair_builtin": ["S6"],
     "s03_to_pair": ["S6"],
+    **POST_BASELINE_ROADMAP_BLOCKERS,
 }
 
-# Explicit mapping from all 6 V1 acceptance programs to blocking item IDs in docs/roadmap/v1.json.
+# Explicit mapping from all 10 V1 acceptance programs to blocking item IDs in docs/roadmap/v1.json.
 PROGRAM_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "config_parse": ["N02", "N08", "L1", "L2"],
-    "expr_eval": ["N02", "N05", "N07", "N08", "L7"],
-    "linked_stack": ["N01", "N03", "N07", "L7"],
-    "raii_state_machine": ["N01", "N02"],
-    "varint_codec": ["N01", "N08", "L3b"],
-    "word_count": ["N02", "N03"],
+    "expr_eval": ["N02", "N05", "N07", "N08", "L1", "L2", "L7"],
+    "linked_stack": ["N01", "N03", "N07", "L1", "L2", "L7"],
+    "raii_state_machine": ["N01", "N02", "L1", "L2"],
+    "varint_codec": ["N01", "N08", "L1", "L2", "L3b"],
+    "word_count": ["N02", "N03", "L1", "L2"],
+    "text_log_summary": ["L1", "L2", "L5", "L21", "N08"],
+    "query_pipeline": ["N04", "N05", "N06", "L1", "L2", "L3b", "L11", "S1"],
+    "dag_refcount": ["N02", "N07", "L1", "L2", "L7"],
+    "worker_pipeline": ["T1", "N04", "L1", "L2"],
 }
 
 # Strict per-program marker allowlist: a different marker means the failure stage moved
@@ -344,18 +375,27 @@ PROGRAM_ALLOWED_MARKERS: dict[str, list[str]] = {
     "raii_state_machine": ["BE:UnsupportedNode"],
     "varint_codec": ["BE:UnsupportedNode"],
     "word_count": ["FE:L0165"],
+    "text_log_summary": ["FE:L0148"],
+    "query_pipeline": ["FE:L0161"],
+    "dag_refcount": ["FE:L0165"],
+    "worker_pipeline": ["FE:L0080"],
 }
 
 PROGRAM_ORACLE_DERIVATIONS: dict[str, str] = {
     "config_parse": "parses key=value config lines via Result<Int, String> and ? propagation, printing host/port/retries/missing/bad-int outcomes",
-    "expr_eval": "evaluates recursive Box<Expr> AST with Char/Double/Result error propagation, printing formatted evaluation lines",
-    "linked_stack": "pushes and pops generic Node<T>? linked stack with ownership transfer, printing popped elements and remaining depth",
+    "expr_eval": "evaluates recursive Box<Expr> AST with Char/Result error propagation, printing formatted evaluation lines",
+    "linked_stack": "pushes and pops owned Node? linked stack with replace splicing and Box<Cons> snapshot, printing elements and depth",
     "raii_state_machine": "runs deterministic deinit state transitions across normal, early-return, and nested scopes, printing ordered lifecycle trace",
-    "varint_codec": "encodes and decodes ULong/UInt varints over MutableList<Byte> with bitwise shifts and Result checks, printing roundtrip values",
-    "word_count": "counts word frequencies in insertion order over MutableMap<String, Int> and prints 'word\tcount' lines",
+    "varint_codec": "encodes and decodes ZigZag/LEB128 varints over MutableList<UByte> with bitwise shifts and Result checks, printing roundtrip values",
+    "word_count": "counts word frequencies in insertion order over MutableMap<String, Int> and prints summary lines",
+    "text_log_summary": "parses UTF-8 log lines via koven.text lines/split/sliceBytes/parseLong/decodeUtf8 with const val, deinit guard on ? early return, and main(): Result",
+    "query_pipeline": "combines generic interface-bound sumScores, by delegation, value class Equatable/Hashable Map keys with named destructuring, mutating/move closures, ::fn ref, borrow return, Double, and toIntOrNull",
+    "dag_refcount": "exercises Rc<T> shared ownership DAG (.share/.value) and composite deinit drop ordering across Rc, Box<enum>, and MutableList",
+    "worker_pipeline": "runs restricted concurrency via thread(move { }), channel<String>() named destructuring, Sender.clone(), Transferable String ownership transfer, join(), and implicit scope join",
 }
 
 SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
+    **POST_BASELINE_ORACLE_DERIVATIONS,
     "e01_enum_when_bool_return": "isRed(Color.Red) matches branch Color.Red -> true; if-branch prints 'e1'",
     "e02_enum_when_stmt_println": "c = Color.Red matches statement when branch Color.Red -> println('e2')",
     "e03_enum_when_bool_val": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'",
@@ -814,6 +854,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "w08_map_string_values",
     ],
     "expr_eval": [
+        "p02_interp",
         "p05_double",
         "p06_char",
         "p09_enum_payload",
@@ -824,6 +865,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "s01_result_builtin",
     ],
     "linked_stack": [
+        "p02_interp",
         "p14_nullable",
         "p21_box_enum",
         "p25_linked_iter",
@@ -833,6 +875,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "v18_while_nullable_class",
     ],
     "raii_state_machine": [
+        "p02_interp",
         "p12_class_inout",
         "p32_deinit",
         "p40_nested_generic_class",
@@ -842,6 +885,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "q20_replace_field",
     ],
     "varint_codec": [
+        "p02_interp",
         "p03_long_uint",
         "p16_result_q",
         "p19_mutablelist",
@@ -851,6 +895,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "v12_convert_abort",
     ],
     "word_count": [
+        "p02_interp",
         "p15_elvis",
         "p19_mutablelist",
         "p31_string_ops",
@@ -858,6 +903,42 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "w01_map_for_sum",
         "w02_map_for_order",
         "w11_word_count",
+    ],
+    "text_log_summary": [
+        "p02_interp",
+        "p16_result_q",
+        "p32_deinit",
+        "q19_deep_return_cleanup",
+        "s01_result_builtin",
+        "z06_text_lines_split",
+        "z10_main_result_ok",
+    ],
+    "query_pipeline": [
+        "p02_interp",
+        "p05_double",
+        "p11_interface_bound",
+        "p18_move_closure",
+        "p26_borrow_return",
+        "p35_value_eq",
+        "p42_lambda_mutate",
+        "q03_fn_ref",
+        "z08_interface_delegation",
+        "z09_named_destructure",
+    ],
+    "dag_refcount": [
+        "p02_interp",
+        "p21_box_enum",
+        "p22_rc",
+        "p32_deinit",
+        "q04_rc_simple",
+        "q08_enum_string_payload",
+    ],
+    "worker_pipeline": [
+        "p02_interp",
+        "p18_move_closure",
+        "p27_thread",
+        "p31_string_ops",
+        "z09_named_destructure",
     ],
 }
 
@@ -869,6 +950,10 @@ PROGRAM_README_CATALOG: dict[str, tuple[str, str]] = {
     "raii_state_machine": ("RAII 状态机", "`deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移"),
     "varint_codec": ("二进制编解码", "ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错"),
     "linked_stack": ("链表/栈", "拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表"),
+    "text_log_summary": ("文本日志汇总", "`koven.text` 严格 UTF-8 与 `parseLong`、`const val`、`deinit` × `?` 早返回清理、`main(): Result`"),
+    "query_pipeline": ("泛型查询管道", "泛型 `interface` bound、`by` 接口委托、`value class` 自动哈希与按名解构、可变/`move` 闭包、`::f`、`borrow T from`、`Double`、`toIntOrNull`"),
+    "dag_refcount": ("共享 DAG 析构", "`Rc<T>` 共享所有权（`.share()`/`.value`）与 `Rc`/`Box<enum>`/`MutableList` 复合 `deinit` 析构"),
+    "worker_pipeline": ("受限并发管道", "`thread(move { })`、`channel<T>()` 按名解构、`Sender.clone()`、`Transferable` 转移、`join()` 与隐式 join"),
 }
 
 GUIDE_SYNTAX_INDEX_DOMAINS: dict[str, tuple[int, list[str], str]] = {

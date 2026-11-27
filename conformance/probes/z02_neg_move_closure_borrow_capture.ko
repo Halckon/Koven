@@ -1,0 +1,9 @@
+class Boxed(val n: Int)
+
+fun makeEscape(b: Boxed): move () -> Int = move { b.n }
+
+fun main(): Unit {
+    val x = Boxed(1)
+    val f = makeEscape(x)
+    println("bad")
+}

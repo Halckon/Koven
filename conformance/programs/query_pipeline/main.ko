@@ -1,0 +1,87 @@
+// 泛型查询与聚合管道：覆盖泛型函数与 interface bound、by 接口委托、value class 自动
+// Equatable/Hashable 作 Map 键与按名解构、非逃逸可变捕获闭包、move 闭包、函数引用 ::f、
+// borrow T from / borrow val、Double 聚合与 toIntOrNull 非 abort 转换。
+
+interface Scoreable {
+    fun score(): Double
+}
+
+class BaseItem(val title: String, val base: Double) : Scoreable {
+    override fun score(): Double = this.base
+}
+
+class WeightedItem(val inner: BaseItem, val bonus: Double) : Scoreable by inner {
+    fun boosted(): Double = this.score() + this.bonus
+}
+
+value class MetricKey(val region: String, val tier: Int)
+
+class Bucket<T>(val label: String, var values: MutableList<T>)
+
+fun bucketLabel(borrow b: Bucket<Int>): borrow String from b = b.label
+
+fun <T : Scoreable> totalScore(items: List<T>): Double {
+    var acc = 0.0
+    for (item in items) {
+        acc = acc + item.score()
+    }
+    return acc
+}
+
+fun forEachInt(items: MutableList<Int>, visit: (Int) -> Unit): Unit {
+    for (x in items) {
+        visit(x)
+    }
+}
+
+fun isHigh(x: Int): Boolean = x >= 20
+
+fun countBy(items: MutableList<Int>, pred: (Int) -> Boolean): Int {
+    var n = 0
+    for (x in items) {
+        if (pred(x)) { n = n + 1 }
+    }
+    return n
+}
+
+fun makeThreshold(own min: Int): (Int) -> Boolean = move { v -> v >= min }
+
+fun main(): Unit {
+    val weighted = listOf(
+        WeightedItem(BaseItem("alpha", 1.5), 0.5),
+        WeightedItem(BaseItem("beta", 2.5), 1.0)
+    )
+    println("delegated sum: ${totalScore(weighted)}")
+    println("boosted first: ${weighted[0].boosted()}")
+
+    val bucket = Bucket<Int>("latency", mutableListOf(5, 15, 25, 35))
+    borrow val tag = bucketLabel(bucket)
+    println("bucket: " + tag)
+
+    var aboveTen = 0
+    forEachInt(bucket.values) { v ->
+        if (v > 10) {
+            aboveTen = aboveTen + 1
+        } else {
+            aboveTen = aboveTen
+        }
+    }
+    println("mut-closure >10: ${aboveTen}")
+    println("fn-ref >=20: ${countBy(bucket.values, ::isHigh)}")
+
+    val ge25 = makeThreshold(25)
+    println("move-closure >=25: ${countBy(bucket.values, ge25)}")
+
+    var counters: MutableMap<MetricKey, Int> = mutableMapOf()
+    val k1 = MetricKey("us", 1)
+    val k2 = MetricKey("eu", 2)
+    counters[k1] = 3
+    counters[k2] = 7
+    val (tier, region) = MetricKey("us", 1)
+    val hit = counters[MetricKey(region.clone(), tier)] ?: 0
+    println("map key (${region}, t${tier}): ${hit}")
+
+    val okSmall = 42L.toIntOrNull()
+    val overflow = 5000000000L.toIntOrNull()
+    println("toIntOrNull: ${okSmall ?: -1}, ${overflow ?: -1}")
+}
